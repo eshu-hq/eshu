@@ -1,0 +1,958 @@
+[
+  {
+    "verdict": "confirmed",
+    "fingerprint": "api.http-server.no-readtimeout-body-phase-unbounded",
+    "title": "API http.Server omits ReadTimeout, leaving stalled request bodies without a read deadline",
+    "description": "newAPIServer (go/cmd/api/main.go:154-163) sets ReadHeaderTimeout=10s, WriteTimeout=6m (reset.DefaultRefinalizeDrainTimeout plus apiRecoveryResponseMargin), and IdleTimeout=120s, but leaves ReadTimeout at its zero value. In net/http the header deadline applies only around header parsing; for the body phase the conn sets the read deadline to wholeReqDeadline, which stays the zero time when ReadTimeout is 0 (stdlib server.go:1038-1041 and :1103 at go1.27.3). A client that sends headers with Content-Length and then pauses between body bytes pins its connection, its per-connection serve goroutine, and the bufio read buffers with no deadline until the client resumes or SIGTERM triggers the Shutdown drain (default 30s via ESHU_API_SHUTDOWN_TIMEOUT). IdleTimeout=120s does not rescue the body phase because it applies only between requests on a keep-alive connection. The sibling status plane (go/internal/runtime/http_server.go:64) shares the same header-only omission.",
+    "root_cause": "The http.Server literal in newAPIServer never assigns ReadTimeout, so the stdlib body-phase read deadline is the zero time and stalled body reads are unbounded.",
+    "intended_behavior": "With a finite ReadTimeout, the stdlib bounds the entire request read (headers plus body): a stalled body read fails with an i/o timeout once the deadline passes, releasing the connection and its serve goroutine promptly. ReadHeaderTimeout alone bounds only the header parse.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "go/cmd/api/main.go",
+        "line": 125,
+        "scope": "main",
+        "description": "srv := newAPIServer(addr, handler) builds the single API-plane server that ListenAndServe runs; the handler chain is assembled at main.go:92-100."
+      },
+      {
+        "kind": "propagation",
+        "file": "go/cmd/api/main.go",
+        "line": 154,
+        "scope": "newAPIServer",
+        "description": "The server literal sets ReadHeaderTimeout, WriteTimeout, and IdleTimeout but not ReadTimeout, so the conn-level body deadline stays zero."
+      },
+      {
+        "kind": "sink",
+        "file": "go/cmd/api/main.go",
+        "line": 163,
+        "scope": "newAPIServer",
+        "description": "The returned server is served by ListenAndServe; each stalled body read holds its conn and serve goroutine indefinitely under the zero whole-request deadline."
+      }
+    ],
+    "evidence": [
+      {
+        "file": "go/cmd/api/main.go",
+        "line": 154,
+        "description": "Server literal: ReadHeaderTimeout=10s, WriteTimeout=6m, IdleTimeout=120s; ReadTimeout absent (zero)."
+      },
+      {
+        "file": "go/cmd/api/main_test.go",
+        "line": 21,
+        "description": "TestAPIServerWriteTimeoutOutlivesRefinalizeDrain pins only the write bound; no test grades a body-phase ReadTimeout."
+      },
+      {
+        "file": "go/internal/runtime/http_server.go",
+        "line": 64,
+        "description": "Status-plane sibling sets ReadHeaderTimeout only, the same header-only posture."
+      }
+    ],
+    "conditions": [
+      {
+        "kind": "network_routing",
+        "description": "Any client able to reach the API listener; no credential is needed to occupy a connection mid-body."
+      },
+      {
+        "kind": "timing_dependency",
+        "description": "The stall is observable while the client pauses between body bytes; resuming or closing releases the goroutine."
+      }
+    ],
+    "execution": {
+      "attacker_perspective": "A plain TCP client speaking HTTP/1.1 to the API listener.",
+      "payloads": [
+        "POST /api/v1/... with Content-Length set, headers sent, then byte-by-byte body writes with 4s pauses between bytes.",
+        "Same sequence with the server configured with ReadTimeout=3s as the bounded control."
+      ],
+      "instructions": [
+        "Build a scratch Go program that constructs an http.Server with the exact timeout set from go/cmd/api/main.go:154-163 (ReadHeaderTimeout=10s, WriteTimeout=6m, IdleTimeout=120s, ReadTimeout unset) and a handler that reads the body.",
+        "Open 3 sockets, send headers, then pause 4s between body bytes; record per-request completion wall time.",
+        "Repeat with ReadTimeout=3s and compare."
+      ],
+      "observed_result": "With ReadTimeout=0 each handler completed only after the full pause (wall 4s/8s/12s, no deadline error). With ReadTimeout=3s every stalled body read was reaped at 3s with an i/o timeout, releasing conn and goroutine. go test ./cmd/api -count=1 exits 0 (artifact agents/verifier-readtimeout/artifacts/repro3.go)."
+    },
+    "remediation": {
+      "strategy": "Add a finite ReadTimeout to the API-plane server literal sized to the largest expected request body under the repo-scale performance contract, keeping the existing header/write/idle bounds.",
+      "code_changes": [
+        {
+          "file_name": "go/cmd/api/main.go",
+          "fixed_code": "srv := &http.Server{\n\tAddr:              addr,\n\tHandler:           handler,\n\tReadHeaderTimeout: 10 * time.Second,\n\tReadTimeout:       30 * time.Second,\n\tWriteTimeout:      reset.DefaultRefinalizeDrainTimeout + apiRecoveryResponseMargin,\n\tIdleTimeout:       120 * time.Second,\n}"
+        }
+      ]
+    },
+    "severity": {
+      "likelihood": {
+        "score": "low",
+        "reason": "Stalls are visible and self-releasing on resume; the process still serves between pauses, and the default deployment drain bounds total occupancy."
+      },
+      "impact": {
+        "score": "low",
+        "reason": "Per-stalled-connection goroutine and buffer retention only; no data corruption and no wrong results; released on resume or shutdown."
+      },
+      "overall_severity": "low"
+    },
+    "confidence": {
+      "score": "high",
+      "reason": "Both arms of the comparison were executed locally under the same harness at go1.27.3, and the stdlib deadline semantics were read from the pinned toolchain source."
+    }
+  },
+  {
+    "verdict": "confirmed",
+    "fingerprint": "cli-config.env.load-ignores-scanner-error",
+    "title": "CLI .env Load() ignores bufio.Scanner.Err(), silently truncating the parse on tokens over 64 KiB",
+    "description": "go/internal/cli/config/env.go:69-81 runs the line scan without checking scanner.Err(). A value token longer than the 64 KiB bufio default makes Scan() stop with bufio.ErrTooLong, yet Load() returns the partial map with a nil error. The sibling runtime parser (go/internal/runtime/api_key.go:155) checks scanner.Err() on the same format, so the two parsers of one file format diverge. Because SetValue rewrites the whole file from the truncated map, the keys after the over-long token are permanently lost on the next write.",
+    "root_cause": "Load() returns the partial map without consulting scanner.Err(), so bufio.ErrTooLong is indistinguishable from a clean end of file.",
+    "intended_behavior": "Load() reports the scan error like the sibling parser, so callers can distinguish a complete parse from a truncated one and avoid persisting a lossy rewrite.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "go/internal/cli/config/env.go",
+        "line": 69,
+        "scope": "Load",
+        "description": "Scans the operator .env file line by line with bufio.Scanner."
+      },
+      {
+        "kind": "sink",
+        "file": "go/internal/cli/config/env.go",
+        "line": 81,
+        "scope": "Load",
+        "description": "Returns the map built so far with a nil error even when Scan stopped early on ErrTooLong."
+      }
+    ],
+    "evidence": [
+      {
+        "file": "go/internal/cli/config/env.go",
+        "line": 69,
+        "description": "Scan loop; no scanner.Err() check before return."
+      },
+      {
+        "file": "go/internal/runtime/api_key.go",
+        "line": 155,
+        "description": "Sibling parser checks scanner.Err() on the same .env format, proving the intended contract."
+      }
+    ],
+    "conditions": [
+      {
+        "kind": "data_state",
+        "description": "An operator .env containing a single value token longer than 65535 bytes (for example a large inline certificate)."
+      }
+    ],
+    "execution": {
+      "attacker_perspective": "The CLI process reading its own .env file.",
+      "payloads": [
+        ".env with K1=1, LONG=<65537 chars>, AFTER=lost"
+      ],
+      "instructions": [
+        "Write a package test that seeds the three-key .env above, calls config.Load, and asserts the returned map and error.",
+        "Then call SetValue and re-read the file to show the persisted truncation."
+      ],
+      "observed_result": "Load() returns exactly {K1:1} with nil error; AFTER and LONG are absent. SetValue(NEW,1) rewrites the file to K1=1 and NEW=1 only, so AFTER is permanently lost. The raw scanner reports bufio.ErrTooLong. Existing package tests stay green (ok internal/cli/config, exit 0; artifact agents/verifier-clienv/artifacts/repro.go)."
+    },
+    "remediation": {
+      "strategy": "Check scanner.Err() after the loop and return it, matching the sibling parser in api_key.go.",
+      "code_changes": [
+        {
+          "file_name": "go/internal/cli/config/env.go",
+          "fixed_code": "\tfor scanner.Scan() {\n\t\t// ... existing line handling ...\n\t}\n\tif err := scanner.Err(); err != nil {\n\t\treturn nil, fmt.Errorf(\"read %s: %w\", path, err)\n\t}"
+        }
+      ]
+    },
+    "severity": {
+      "likelihood": {
+        "score": "low",
+        "reason": "Only tokens above 64 KiB trigger it; most .env files use shorter values, though inline certificates are plausible."
+      },
+      "impact": {
+        "score": "low",
+        "reason": "Silent loss of the trailing keys of one operator config file; recoverable by re-writing the file."
+      },
+      "overall_severity": "low"
+    },
+    "confidence": {
+      "score": "high",
+      "reason": "Reproduced independently with a package test under go1.27.3 and cross-checked against the sibling parser's error handling."
+    }
+  },
+  {
+    "verdict": "confirmed",
+    "fingerprint": "cli-config.env.unlocked-whole-file-rewrite",
+    "title": "CLI .env SetValue performs an unlocked non-atomic Load-then-WriteFile, losing keys under concurrent writers",
+    "description": "go/internal/cli/config/env.go:154 implements SetValue as a full-file rewrite from a freshly loaded map with no lock, no flock, and no rename-based atomic replace (the flock in api_key.go guards only that file's own state). Two SetValue calls that each Load before either WriteFile produce last-writer-wins: keys added by the first writer are absent from the second writer's snapshot and disappear from the final file. A truncated write is also possible mid-rewrite since os.WriteFile is not atomic.",
+    "root_cause": "SetValue reads and rewrites the whole file as two unguarded steps, so the pair is not atomic across concurrent writers.",
+    "intended_behavior": "Either the persisted .env equals the union of committed intents, or the read-modify-write is serialized (per-file lock) and crash-atomic (temp file plus rename), so no concurrent writer loses keys.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "go/internal/cli/config/env.go",
+        "line": 141,
+        "scope": "SetValue",
+        "description": "Loads the current map from disk."
+      },
+      {
+        "kind": "sink",
+        "file": "go/internal/cli/config/env.go",
+        "line": 154,
+        "scope": "SetValue",
+        "description": "os.WriteFile replaces the file from that snapshot with no lock and no rename swap."
+      }
+    ],
+    "evidence": [
+      {
+        "file": "go/internal/cli/config/env.go",
+        "line": 141,
+        "description": "Load snapshot taken immediately before the rewrite."
+      },
+      {
+        "file": "go/internal/cli/config/env.go",
+        "line": 154,
+        "description": "Bare os.WriteFile; no flock, no temp-and-rename."
+      }
+    ],
+    "conditions": [
+      {
+        "kind": "system_configuration",
+        "description": "Two CLI invocations writing the same profile .env overlap (for example scripted setup followed by a manual config set)."
+      }
+    ],
+    "execution": {
+      "attacker_perspective": "The CLI process itself; no remote principal involved.",
+      "payloads": [
+        "Two SetValue calls prepared from one shared pre-write Load snapshot: FIRST=k1 and SECOND=k2."
+      ],
+      "instructions": [
+        "In a scratch package test, Load twice before any write, SetValue(FIRST), SetValue(SECOND), then re-read the file.",
+        "Assert which keys survive."
+      ],
+      "observed_result": "The final file keeps SECOND and loses FIRST (last-writer-wins), independently reproduced; the 65537-byte truncation case from the sibling fingerprint reproduces in the same harness. Package suite stays green (go test ./internal/cli/config/ -count=1, exit 0; artifact agents/verifier-rewrite/artifacts/verify_repro_test.go)."
+    },
+    "remediation": {
+      "strategy": "Make the rewrite crash-atomic with a same-directory temp file plus os.Rename, which also gives readers a consistent old-or-new view; a per-file flock if a full read-modify-write serialization is wanted.",
+      "code_changes": [
+        {
+          "file_name": "go/internal/cli/config/env.go",
+          "fixed_code": "\ttmp := path + \".tmp\"\n\tif err := os.WriteFile(tmp, []byte(b.String()), 0o600); err != nil {\n\t\treturn err\n\t}\n\treturn os.Rename(tmp, path)"
+        }
+      ]
+    },
+    "severity": {
+      "likelihood": {
+        "score": "low",
+        "reason": "Requires two overlapping SetValue calls; typical CLI use is sequential."
+      },
+      "impact": {
+        "score": "low",
+        "reason": "Loss of one writer's keys in one operator config file; self-healing by re-setting values."
+      },
+      "overall_severity": "low"
+    },
+    "confidence": {
+      "score": "high",
+      "reason": "Deterministic two-snapshot sequence reproduced in a scratch test with a fixed expected file content."
+    }
+  },
+  {
+    "verdict": "confirmed",
+    "fingerprint": "codequery.bounded-readonly-cypher.first-limit-not-terminal",
+    "title": "boundedReadOnlyCypher accepts a non-terminal first LIMIT, so the documented 1000-row cap never reaches the driver",
+    "description": "explicitCypherLimit (go/internal/query/codequery/cypher.go:297) returns ok as soon as it sees a LIMIT token, without checking that it is the last one, and boundedReadOnlyCypher therefore appends no terminal cap when the first LIMIT sits inside a WITH clause. For 'MATCH (n) WITH n LIMIT 1 MATCH (m) RETURN m' the executed statement is byte-identical to the input and the final result set is uncapped (only the 4096-byte query cap and the 30s timeout bind it). The visualization twin boundedVisualizationCypher is correct: it uses terminalCypherLimit (cypher.go:241-244) and appends LIMIT 6 / LIMIT 1001 on the same shapes, pinned by TestHandleVisualizeQuery_InnerLimitGetsTerminalCap.",
+    "root_cause": "explicitCypherLimit returns at the first LIMIT token without a terminality check, so a mid-query LIMIT suppresses the terminal row cap.",
+    "intended_behavior": "The executed statement always carries a terminal row cap: a trailing LIMIT is kept, any non-terminal LIMIT leaves the appended cypherMaxResultRows cap in place.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "go/internal/query/codequery/cypher.go",
+        "line": 152,
+        "scope": "boundedReadOnlyCypher",
+        "description": "The single call site of explicitCypherLimit inside the read path for execute_cypher_query."
+      },
+      {
+        "kind": "sink",
+        "file": "go/internal/query/codequery/cypher.go",
+        "line": 297,
+        "scope": "explicitCypherLimit",
+        "description": "Returns ok on the first LIMIT token found; no check that it terminates the statement, so no cap is appended."
+      }
+    ],
+    "evidence": [
+      {
+        "file": "go/internal/query/codequery/cypher.go",
+        "line": 297,
+        "description": "First-LIMIT acceptance without terminality check."
+      },
+      {
+        "file": "go/internal/query/codequery/cypher.go",
+        "line": 241,
+        "description": "terminalCypherLimit, the correct twin used by the visualization path."
+      },
+      {
+        "file": "go/internal/query/codequery/cypher_test.go",
+        "line": 196,
+        "description": "TestHandleVisualizeQuery_InnerLimitGetsTerminalCap pins the twin but nothing pins the execute path."
+      }
+    ],
+    "conditions": [
+      {
+        "kind": "data_state",
+        "description": "A caller-supplied read-only Cypher statement whose first LIMIT appears in a WITH clause before the final RETURN."
+      }
+    ],
+    "execution": {
+      "attacker_perspective": "An authenticated API/MCP caller of execute_cypher_query.",
+      "payloads": [
+        "MATCH (n) WITH n LIMIT 1 MATCH (m) RETURN m",
+        "MATCH (a) WITH a LIMIT 1000 MATCH (b) RETURN a,b"
+      ],
+      "instructions": [
+        "Port explicitCypherLimit and boundedReadOnlyCypher verbatim into a scratch main.",
+        "Print the executed statement for both payloads and compare with the input.",
+        "Run the same shapes through boundedVisualizationCypher as the control."
+      ],
+      "observed_result": "Both non-terminal-LIMIT inputs reach the driver byte-identical with no appended LIMIT, while the visualization twin appends LIMIT 6 / LIMIT 1001 on the same shapes. go test ./internal/query/codequery/ ./internal/query/codemodel/ -count=1 exits 0 (artifact agents/hunter-query/artifacts/unit1-result.json)."
+    },
+    "remediation": {
+      "strategy": "Use the terminal-aware scan for the execute path too: replace the explicitCypherLimit call at cypher.go:152 with terminalCypherLimit so only a trailing LIMIT suppresses the appended cap.",
+      "code_changes": [
+        {
+          "file_name": "go/internal/query/codequery/cypher.go",
+          "fixed_code": "if _, ok := terminalCypherLimit(stmt); ok {\n\treturn stmt\n}"
+        }
+      ]
+    },
+    "severity": {
+      "likelihood": {
+        "score": "low",
+        "reason": "Only statements with an inner non-terminal LIMIT take the uncapped path; most authored queries end with a trailing LIMIT."
+      },
+      "impact": {
+        "score": "low",
+        "reason": "One query returns more rows than the documented 1000-row budget; bounded anyway by the 4096-byte query cap and the 30s driver timeout."
+      },
+      "overall_severity": "low"
+    },
+    "confidence": {
+      "score": "high",
+      "reason": "Verbatim local port reproduced both the uncapped inputs and the capped twin; package suites green."
+    }
+  },
+  {
+    "verdict": "confirmed",
+    "fingerprint": "eshu.query.auth.headerless-open-with-db-only-credentials",
+    "title": "Headerless API requests are served open when only the identity store is configured",
+    "description": "authEnforcementConfigured (go/cmd/api/auth_enforcement.go:42-48) treats the auth plane as configured only when apiKey, fileResolver, or oidcResolver is non-nil. The identity-store resolver, wired unconditionally at go/cmd/api/wiring.go:155 and first in the credential chain at :211, is not counted. Under identity-only wiring, a headerless request falls through the auth gate (go/internal/query/auth.go:187-190) without a ContextWithAuthContext, and RepositoryAccessFilterFromContext takes its !ok branch (go/internal/query/querycontract/repository_authz_context.go:26-27) yielding AllScopes:true, so data routes answer with unfiltered reads. The posture is pinned by TestAPIAuthBootstrapIdentityOnlyServesHeaderlessOpen and the auth_headerless_bypass tests.",
+    "root_cause": "The three-knob predicate that decides whether authentication is enforced omits the identity resolver, so an identity-only deployment behaves as an unauthenticated open plane for headerless requests.",
+    "intended_behavior": "Whenever any credential source can answer a request, the headerless fall-through should be closed: either a missing credential is rejected, or the identity resolver's presence flips the posture to enforced.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "go/internal/query/auth.go",
+        "line": 162,
+        "scope": "authMiddlewareWithRoutePolicy",
+        "description": "Single HTTP auth gate for the API plane."
+      },
+      {
+        "kind": "propagation",
+        "file": "go/cmd/api/auth_enforcement.go",
+        "line": 42,
+        "scope": "authEnforcementConfigured",
+        "description": "Counts only apiKey, fileResolver, oidcResolver; the identity resolver is invisible to the predicate."
+      },
+      {
+        "kind": "propagation",
+        "file": "go/internal/query/auth.go",
+        "line": 187,
+        "scope": "authMiddlewareWithRoutePolicy",
+        "description": "With enforcement not configured, a headerless request proceeds without an AuthContext."
+      },
+      {
+        "kind": "sink",
+        "file": "go/internal/query/querycontract/repository_authz_context.go",
+        "line": 26,
+        "scope": "RepositoryAccessFilterFromContext",
+        "description": "Missing AuthContext yields AllScopes:true, so repository reads are unfiltered."
+      }
+    ],
+    "evidence": [
+      {
+        "file": "go/cmd/api/auth_enforcement.go",
+        "line": 42,
+        "description": "Three-knob predicate definition."
+      },
+      {
+        "file": "go/cmd/api/wiring.go",
+        "line": 155,
+        "description": "Identity resolver wired unconditionally, ahead of the counted knobs."
+      },
+      {
+        "file": "go/cmd/api/auth_enforcement_wiring_test.go",
+        "line": 1,
+        "description": "TestAPIAuthBootstrapIdentityOnlyServesHeaderlessOpen pins headerless 200 under identity-only wiring."
+      }
+    ],
+    "conditions": [
+      {
+        "kind": "system_configuration",
+        "description": "Deployment configured with the identity-token store only (no API key file, no OIDC)."
+      },
+      {
+        "kind": "authentication_level",
+        "description": "Request carries no Authorization header."
+      }
+    ],
+    "execution": {
+      "attacker_perspective": "Any client on the API listener network.",
+      "payloads": [
+        "GET /api/v1/... with no Authorization header against an identity-only deployment",
+        "Same path with the seeded identity token (control: 200) and a wrong token (control: 401)"
+      ],
+      "instructions": [
+        "Run the pinned suites: go test ./cmd/api -run AuthEnforcement|Headerless and go test ./internal/query -run Headerless|EnforcementConstructor."
+      ],
+      "observed_result": "5 PASS in cmd/api incl. TestAPIAuthBootstrapIdentityOnlyServesHeaderlessOpen (seeded identity-token row: headerless 200, matching token 200, wrong token 401); 7 PASS in internal/query incl. TestAuthMiddlewareEnforcementConstructorOpenWhenNotEnforced; exit 0 (artifact agents/hunter-authn2/artifacts/cmdapi-headerless-open.txt)."
+    },
+    "remediation": {
+      "strategy": "Count the identity resolver in the enforcement predicate, but only when the identity store is non-empty so the demo-config test keeps its headerless-open behavior.",
+      "code_changes": [
+        {
+          "file_name": "go/cmd/api/auth_enforcement.go",
+          "fixed_code": "func authEnforcementConfigured(apiKey string, fileResolver, oidcResolver, identityResolver <resolver types>) bool {\n\treturn apiKey != \"\" || fileResolver != nil || oidcResolver != nil || identityStoreHasRows(identityResolver)\n}"
+        }
+      ]
+    },
+    "severity": {
+      "likelihood": {
+        "score": "medium",
+        "reason": "Identity-only wiring is a supported minimal configuration and the headerless path is exercised by the pinned tests themselves."
+      },
+      "impact": {
+        "score": "medium",
+        "reason": "Unfiltered reads on the data plane for headerless requests in that configuration; each credential-carrying request still gets its scoped filter."
+      },
+      "overall_severity": "medium"
+    },
+    "confidence": {
+      "score": "high",
+      "reason": "Both governing tests executed green on the reviewed tree and the predicate, fall-through, and !ok branch were read directly at the cited lines."
+    }
+  },
+  {
+    "verdict": "confirmed",
+    "fingerprint": "eshu.query.browser-session.context-switch-unbound-tenant",
+    "title": "Browser-session workspace switch rebinds by session hash without a subject or tenant membership predicate",
+    "description": "switchBrowserSessionWorkspaceQuery (go/internal/storage/postgres/browser_sessions_schema.go:369-410) keys only on session_hash and validates the target pair against the active non-tombstoned catalog, with revoked_at IS NULL, all_scopes=true, and both expiries checked. It carries no sess.tenant_id/workspace_id equality against the stored row and no subject_id_hash term, and the handler (go/internal/query/browser_session_handler.go:264-284) forwards the body pair verbatim. After the switch, the resolve projection re-anchors on the rewritten row (schema :220-249), so subsequent identity-bound reads use the rebound pair. The in-tree doc comment records the same residual (#6450 item 4 at go/internal/query/auth_browser_session_route_policy.go:297-304).",
+    "root_cause": "The UPDATE that swaps the active workspace binds solely on session_hash, so the tenant/workspace pair is not checked against the row's own membership.",
+    "intended_behavior": "A context switch should rebind only to a workspace the session's subject is a member of in the session's own tenant, making the post-switch anchor provably consistent with the pre-switch membership.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "go/internal/query/browser_session_handler.go",
+        "line": 264,
+        "scope": "handleSwitch",
+        "description": "Parses the body pair {tenant_id, workspace_id} and forwards it verbatim to the store."
+      },
+      {
+        "kind": "sink",
+        "file": "go/internal/storage/postgres/browser_sessions_schema.go",
+        "line": 369,
+        "scope": "switchBrowserSessionWorkspaceQuery",
+        "description": "Single UPDATE keyed on session_hash with catalog validation only; no subject/membership predicate."
+      }
+    ],
+    "evidence": [
+      {
+        "file": "go/internal/storage/postgres/browser_sessions_schema.go",
+        "line": 369,
+        "description": "Query text: keys on session_hash; ws.tenant_id and ws.workspace_id come from the request pair."
+      },
+      {
+        "file": "go/internal/storage/postgres/browser_sessions_test.go",
+        "line": 372,
+        "description": "TestBrowserSessionStoreSwitchesActiveWorkspaceByHash pins the single-UPDATE shape via a recording fake."
+      },
+      {
+        "file": "go/internal/query/auth_browser_session_route_policy.go",
+        "line": 297,
+        "description": "In-tree note records the unbound-pair residual (#6450 item 4)."
+      }
+    ],
+    "conditions": [
+      {
+        "kind": "authentication_level",
+        "description": "A valid browser session id plus its CSRF token (the pair a logged-in principal already holds)."
+      },
+      {
+        "kind": "data_state",
+        "description": "Target pair exists in the active non-tombstoned catalog."
+      }
+    ],
+    "execution": {
+      "attacker_perspective": "An authenticated browser-session principal against POST /api/v1 session routes.",
+      "payloads": [
+        "Body {tenant_id, workspace_id} pair differing from the row's stored anchor with the correct session hash and CSRF token."
+      ],
+      "instructions": [
+        "Run: go test ./internal/storage/postgres/ -run TestBrowserSessionStoreSwitchesActiveWorkspaceByHash -count=1."
+      ],
+      "observed_result": "PASS, exit 0 (ok github.com/eshu-hq/eshu/go/internal/storage/postgres, re-run 2026-11-05). The recording fake shows the single UPDATE binds only on session_hash with catalog membership checks; no term ties the pair to the row's stored tenant/workspace or subject_id_hash."
+    },
+    "remediation": {
+      "strategy": "Add the membership conjunction to the switch UPDATE's WHERE clause: keep the session's own tenant_id equal to the request tenant, and gate the target pair on the schema's grant tables (tenant_scope_grants keyed on tenant_id, workspace_id, scope_id, subject_class), extending the recording-fake test to pin the new terms.",
+      "code_changes": [
+        {
+          "file_name": "go/internal/storage/postgres/browser_sessions_schema.go",
+          "fixed_code": "WHERE sess.session_hash = $1\n  AND sess.revoked_at IS NULL\n  AND sess.tenant_id = $2\n  AND EXISTS (\n    SELECT 1 FROM tenant_scope_grants g\n    WHERE g.tenant_id = $2\n      AND g.workspace_id = $3\n      AND g.subject_class = sess.subject_class\n      AND g.tombstoned_at IS NULL\n  )"
+        }
+      ]
+    },
+    "severity": {
+      "likelihood": {
+        "score": "medium",
+        "reason": "Every context switch through this route takes the unbound path; the catalog check is the only gate."
+      },
+      "impact": {
+        "score": "medium",
+        "reason": "The active anchor for later identity-bound reads can diverge from the row's own membership; scope stays inside the catalog-validated pair set."
+      },
+      "overall_severity": "medium"
+    },
+    "confidence": {
+      "score": "high",
+      "reason": "The recording fake captures the exact statement text, and the handler, switch query, resolve re-anchor, and the in-tree residual note were read at the cited lines on the reviewed tree; the pinned test re-ran green at HEAD."
+    }
+  },
+  {
+    "verdict": "confirmed",
+    "fingerprint": "mcp-jsonrpc-body-no-maxbytesreader",
+    "title": "MCP JSON-RPC request bodies decode without a byte cap, unlike the sibling intake decoder",
+    "description": "The MCP request path decodes bodies with json.Decoder directly: handleHTTPMessage / handleMessage (go/internal/mcp/server.go:259-306) and the SSE-plane decode at go/internal/mcp/server_sse.go:240, both funnelling through querycontract.ReadJSON (go/internal/query/querycontract/http.go:105) with no http.MaxBytesReader. rg over go/internal/mcp shows zero MaxBytesReader hits. The sibling webhook intake decoder carries a 1 MiB cap with a 413 response, so the two JSON planes diverge. A 10 MiB body is retained in full; the 10 MiB retention is bounded only by that observed ceiling of the harness, since no cap exists in code.",
+    "root_cause": "The MCP decoders never wrap r.Body in http.MaxBytesReader, so the stdlib parser buffers the entire supplied body.",
+    "intended_behavior": "Both JSON planes decode under a declared bound and answer a clear 413-style error past it, matching the intake plane's contract.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "go/internal/mcp/server.go",
+        "line": 259,
+        "scope": "handleMessage",
+        "description": "JSON-RPC dispatch entry for POST /mcp/message."
+      },
+      {
+        "kind": "sink",
+        "file": "go/internal/query/querycontract/http.go",
+        "line": 105,
+        "scope": "ReadJSON",
+        "description": "Bare json.Decoder over r.Body with no MaxBytesReader wrapper."
+      }
+    ],
+    "evidence": [
+      {
+        "file": "go/internal/mcp/server.go",
+        "line": 155,
+        "description": "RunHTTP sets only header/write/idle timeouts; no body byte bound."
+      },
+      {
+        "file": "go/internal/mcp/server_sse.go",
+        "line": 240,
+        "description": "SSE-plane decode shares the uncapped helper."
+      },
+      {
+        "file": "go/internal/webhook/intake/api.go",
+        "line": 1,
+        "description": "Sibling intake decoder caps at 1 MiB with 413, the parity contract."
+      }
+    ],
+    "conditions": [
+      {
+        "kind": "authentication_level",
+        "description": "Reaching handleMessage requires the transport-auth or query gate already in front of it."
+      },
+      {
+        "kind": "data_state",
+        "description": "One JSON-RPC body larger than the sibling 1 MiB ceiling."
+      }
+    ],
+    "execution": {
+      "attacker_perspective": "An authenticated JSON-RPC caller on POST /mcp/message.",
+      "payloads": [
+        "10,485,760-byte JSON body (10 MiB) as a JSON-RPC message",
+        "Non-JSON body as the control"
+      ],
+      "instructions": [
+        "Run a scratch _test.go over ./internal/mcp with -overlay: decode the 10 MiB body through the production helper and through InProcessMessageHandler."
+      ],
+      "observed_result": "PASS 0.133s: ReadJSON retained the full 10,485,760-byte value (10x the sibling cap, ~40x the 256 KiB response budget); POST /mcp/message answered 200 {result:{}} on the 10 MiB body with no 413 branch; non-JSON body gave 400 -32700; zero MaxBytesReader hits under go/internal/mcp."
+    },
+    "remediation": {
+      "strategy": "Wrap r.Body in http.MaxBytesReader with the same 1 MiB ceiling the intake plane uses, at both MCP decode sites.",
+      "code_changes": [
+        {
+          "file_name": "go/internal/query/querycontract/http.go",
+          "fixed_code": "dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20))"
+        }
+      ]
+    },
+    "severity": {
+      "likelihood": {
+        "score": "low",
+        "reason": "Only authenticated callers on the MCP plane can push bodies; per-request retention is linear in body size."
+      },
+      "impact": {
+        "score": "low",
+        "reason": "Heap retention per in-flight request bounded by the supplied body; released after decode."
+      },
+      "overall_severity": "low"
+    },
+    "confidence": {
+      "score": "high",
+      "reason": "Executed scratch test through the production decoders plus an rg census of the package; both arms ran green."
+    }
+  },
+  {
+    "verdict": "confirmed",
+    "fingerprint": "reducer.bootstrap.graph-read-no-tx-timeout",
+    "title": "Reducer graph read facet Run applies no transaction timeout while every write facet does",
+    "description": "In go/cmd/reducer/neo4j_wiring.go the write facets pass the ESHU_CANONICAL_WRITE_TIMEOUT-derived bound - RunCypher at :56, RunCypherGroup at :102, QueryCypherExists at :168 via r.transactionConfigurers() - but the GraphQuery read facet Run (:181-211) calls session.Run(ctx, cypher, params) with no configurers, and transactionConfigurers returns nil for TxTimeout<=0 (:106-111). The pinned driver (v5.28.4) defaults its transaction timeout to math.MinInt meaning 'server default' and sends no tx_timeout BEGIN meta when no configurer is applied, so outside the repo only the server-side hint can bind the read. Meanwhile the heartbeat goroutine (go/internal/reducer/service_heartbeat.go:91-128) keeps renewing claim_until, so the expired-lease reclaim never fires and a wedged read pins its worker and pooled connection. The repo-dependency side lane (go/internal/reducer/repo_dependency_projection_runner.go:226) is the one read path with a client deadline; the main claim/execute/ack loop (go/internal/reducer/service.go:299-330) adds none.",
+    "root_cause": "Run omits the r.transactionConfigurers() spread that every sibling facet passes, leaving its transaction on the driver's unbounded default.",
+    "intended_behavior": "Every reducer graph round trip carries the same bounded transaction deadline as the write facets, or a parity test grades the read facet.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "go/cmd/reducer/run.go",
+        "line": 1,
+        "scope": "run",
+        "description": "Reducer bootstrap wires the session runner and the claim loop."
+      },
+      {
+        "kind": "propagation",
+        "file": "go/cmd/reducer/neo4j_wiring.go",
+        "line": 181,
+        "scope": "Run",
+        "description": "GraphQuery read facet calls session.Run without configurers."
+      },
+      {
+        "kind": "sink",
+        "file": "go/cmd/reducer/neo4j_wiring.go",
+        "line": 192,
+        "scope": "Run",
+        "description": "session.Run(ctx, cypher, params) executes with no tx_timeout meta while siblings at :56/:102/:168 carry the bound."
+      }
+    ],
+    "evidence": [
+      {
+        "file": "go/cmd/reducer/neo4j_wiring.go",
+        "line": 106,
+        "description": "transactionConfigurers returns nil when TxTimeout<=0, the state Run inherits."
+      },
+      {
+        "file": "go/cmd/reducer/neo4j_wiring_test.go",
+        "line": 1,
+        "description": "TestReducerNeo4jSessionRunnerTransactionConfigurersSetTimeout and the QueryCypherExists parity test pass without covering the Run facet."
+      },
+      {
+        "file": "go/internal/reducer/service_heartbeat.go",
+        "line": 91,
+        "description": "Heartbeat renews claim_until, so the expired-lease reclaim cannot free a wedged read."
+      }
+    ],
+    "conditions": [
+      {
+        "kind": "environmental_dependency",
+        "description": "A graph backend whose round trip stalls (slow query, paused server, network wedge)."
+      },
+      {
+        "kind": "system_configuration",
+        "description": "Standard reducer deployment; the side-lane deadline exists only on the repo-dependency projection path."
+      }
+    ],
+    "execution": {
+      "attacker_perspective": "The reducer process itself against its pinned graph backend.",
+      "payloads": [
+        "Scratch replication of transactionConfigurers for TxTimeout=0 and 4s"
+      ],
+      "instructions": [
+        "Run go test ./cmd/reducer -count=1.",
+        "Run a scratch main replicating neo4j_wiring.go:106-111 and assert nil vs one configurer."
+      ],
+      "observed_result": "Package suite ok 12.684s exit 0; scratch replication returned nil configurers for TxTimeout=0 and one configurer for 4s; the asymmetry between Run and its three siblings verified line by line (artifact agents/verifier-redread/artifacts/txconf_check.go)."
+    },
+    "remediation": {
+      "strategy": "Pass r.transactionConfigurers()... into the Run call so the read facet shares the same bound as the write facets.",
+      "code_changes": [
+        {
+          "file_name": "go/cmd/reducer/neo4j_wiring.go",
+          "fixed_code": "result, err := session.Run(ctx, cypher, params, r.transactionConfigurers()...)"
+        }
+      ]
+    },
+    "severity": {
+      "likelihood": {
+        "score": "medium",
+        "reason": "Any stalled round trip on the read facet leaves no client-side deadline; the heartbeat keeps the claim alive."
+      },
+      "impact": {
+        "score": "low",
+        "reason": "One worker plus one pooled connection pinned per stuck read; the server-side hint may still bound it; queue progress resumes once the read returns."
+      },
+      "overall_severity": "low"
+    },
+    "confidence": {
+      "score": "high",
+      "reason": "Facet-by-facet source comparison plus a scratch replication of the configurer derivation; driver default settled from the pinned module cache."
+    }
+  },
+  {
+    "verdict": "confirmed",
+    "fingerprint": "reducer.bootstrap.handler-timeout-not-enforced",
+    "title": "ESHU_REDUCER_HANDLER_TIMEOUT is loaded but never enforced on the handler execution path",
+    "description": "main.go loads and validates ESHU_REDUCER_HANDLER_TIMEOUT and ESHU_REDUCER_HANDLER_TIMEOUT_OVERRIDES (go/cmd/reducer/main.go:218-232, stored at :455-456) and logs that they are recorded but not enforced yet. The only resolver, HandlerTimeoutFor (go/internal/reducer/service_heartbeat.go:245), has zero non-test callers. executeHandler (:292-331) selects on handler completion or shutdownCtx.Done() only, with a non-blocking second check at :324-328, so a stuck handler pins its worker, its pooled connection, and its fenced conflict key until process shutdown; the heartbeat keeps claim_until fresh so the expired-lease reclaim cannot fire. The batch caller (go/internal/reducer/service_batch.go:489) adds no bound either.",
+    "root_cause": "The resolver exists but no execution path consumes it, so the operator-configured handler bound never reaches the select in executeHandler.",
+    "intended_behavior": "The configured timeout bounds each handler execution, releasing the worker, connection, and conflict key at the declared bound, or the startup log states the exact non-enforced semantics.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "go/cmd/reducer/main.go",
+        "line": 218,
+        "scope": "run",
+        "description": "Loads and validates the timeout env vars and logs them as not yet enforced."
+      },
+      {
+        "kind": "propagation",
+        "file": "go/internal/reducer/service_heartbeat.go",
+        "line": 245,
+        "scope": "HandlerTimeoutFor",
+        "description": "The only resolver of the stored bounds; callers are tests only."
+      },
+      {
+        "kind": "sink",
+        "file": "go/internal/reducer/service_heartbeat.go",
+        "line": 315,
+        "scope": "executeHandler",
+        "description": "Select with exactly two branches (done, shutdownCtx.Done()); no timeout case."
+      }
+    ],
+    "evidence": [
+      {
+        "file": "go/cmd/reducer/main.go",
+        "line": 228,
+        "description": "Startup WARN states the bounds are recorded but not enforced."
+      },
+      {
+        "file": "go/internal/reducer/service_handler_abandon_test.go",
+        "line": 541,
+        "description": "The only HandlerTimeoutFor callers; behavior otherwise ungraded."
+      },
+      {
+        "file": "go/cmd/reducer/README.md",
+        "line": 150,
+        "description": "Documented rows match the non-enforced posture."
+      }
+    ],
+    "conditions": [
+      {
+        "kind": "timing_dependency",
+        "description": "A handler that blocks longer than the operator's intended bound (wedged backend round trip, long scan)."
+      },
+      {
+        "kind": "system_configuration",
+        "description": "Deployment that sets ESHU_REDUCER_HANDLER_TIMEOUT or its overrides expecting enforcement."
+      }
+    ],
+    "execution": {
+      "attacker_perspective": "The operator observing queue progress with a stuck handler.",
+      "payloads": [
+        "ESHU_REDUCER_HANDLER_TIMEOUT=2s with a handler that blocks"
+      ],
+      "instructions": [
+        "Run go test ./internal/reducer -run 'TestServiceRun|TestHandlerTimeoutFor' -count=1 -v.",
+        "rg for non-test callers of HandlerTimeoutFor."
+      ],
+      "observed_result": "exit 0: TestServiceRunAbandonsStuckHandlerAtShutdown, TestServiceRunBatchAbandonsStuckHandlerAtShutdown, TestHandlerTimeoutForResolvesOverrideThenDefault all PASS; rg shows zero non-test callers; the executeHandler select carries no timeout branch."
+    },
+    "remediation": {
+      "strategy": "Apply the resolved bound inside executeHandler with a third select case on the timer, and abandon the item per the existing shutdown-abandon path on expiry.",
+      "code_changes": [
+        {
+          "file_name": "go/internal/reducer/service_heartbeat.go",
+          "fixed_code": "timeout := HandlerTimeoutFor(item.Domain)\nselect {\ncase <-done:\n\t...\ncase <-time.After(timeout):\n\t// abandon per the existing shutdown path\ncase <-shutdownCtx.Done():\n\t...}"
+        }
+      ]
+    },
+    "severity": {
+      "likelihood": {
+        "score": "high",
+        "reason": "Any stalled handler takes the unbounded path; the gap is structural, not input-dependent."
+      },
+      "impact": {
+        "score": "medium",
+        "reason": "Per stuck handler: one worker, one pooled connection, and one fenced conflict key pinned until shutdown; other domains keep progressing."
+      },
+      "overall_severity": "medium"
+    },
+    "confidence": {
+      "score": "high",
+      "reason": "Focused tests re-run green, caller census and select shape read directly at the cited lines; startup WARN and README corroborate."
+    }
+  },
+  {
+    "verdict": "confirmed",
+    "fingerprint": "reducer.queue.work-item-id-part-boundary-collapse",
+    "title": "reducerWorkItemID is not prefix-free, so distinct intents collapse onto one work_item_id",
+    "description": "reducerWorkItemID (go/internal/storage/postgres/reducer_queue_helpers.go:344-362) trims each part, rewrites ':' and '/' to '_', and joins only the non-empty parts with underscores, so adjacent fields lose their separator. Two collapse channels were reproduced: the hunter pair (domain 'aws_resource_materialization' with entity_key 'aws_resource_materialization_repo_a_b'-style suffixes) both print the identical id, and the slash/colon entity-key pair 'repo:y/src_main.go' vs 'repo:y/src:main.go' also collides; a tuple with an empty EntityKey collapses onto the 3-part layout (:354 drops empty parts). Because enqueue uses ON CONFLICT DO NOTHING on work_item_id, a collapsed second intent is silently skipped. TestReducerWorkItemIDSanitizesSpecialChars (reducer_queue_test.go:35) pins single-tuple sanitization only, so injectivity is ungraded. Real-world density stays low: the reducercontract domain enum is closed and entity keys are constructed as domain+':'+scope; a lost intent self-heals on the next generation/replay.",
+    "root_cause": "Joining sanitized parts with '_' without escaping produces a non-injective mapping from tuples to ids.",
+    "intended_behavior": "Distinct (scope_id, generation_id, domain, entity_key) tuples map to distinct work_item_ids so ON CONFLICT DO NOTHING skips only true repeats.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "go/internal/storage/postgres/reducer_queue.go",
+        "line": 1,
+        "scope": "enqueue",
+        "description": "Enqueue derives work_item_id via reducerWorkItemID before the ON CONFLICT DO NOTHING insert."
+      },
+      {
+        "kind": "sink",
+        "file": "go/internal/storage/postgres/reducer_queue_helpers.go",
+        "line": 344,
+        "scope": "reducerWorkItemID",
+        "description": "Trim, character rewrite, and join produce equal ids for distinct tuples at part boundaries."
+      }
+    ],
+    "evidence": [
+      {
+        "file": "go/internal/storage/postgres/reducer_queue_helpers.go",
+        "line": 354,
+        "description": "Empty parts dropped, collapsing the 4-part layout onto the 3-part one."
+      },
+      {
+        "file": "go/internal/storage/postgres/reducer_queue_test.go",
+        "line": 35,
+        "description": "Only single-tuple sanitization is pinned; no injectivity test exists."
+      }
+    ],
+    "conditions": [
+      {
+        "kind": "data_state",
+        "description": "Two intents whose sanitized parts align at a boundary (adjacent-field bleed or the '/'-vs-':' entity-key pair)."
+      }
+    ],
+    "execution": {
+      "attacker_perspective": "The ingester/reducer pipeline itself.",
+      "payloads": [
+        "Tuple pair with suffix-shifted domain/entity_key",
+        "Entity-key pair repo:y/src_main.go vs repo:y/src:main.go",
+        "Tuple with empty EntityKey"
+      ],
+      "instructions": [
+        "Scratch main calling the same sanitization/join and printing equality for the three cases.",
+        "Run go test ./internal/storage/postgres -run 'TestReducerQueue|TestClaimBatch|TestAckBatch' -count=1."
+      ],
+      "observed_result": "Both collapse channels reproduced verbatim: the hunter pair both print reducer_repo_a_b_g_aws_resource_materialization_aws_resource_materialization_repo_a_b (equal=true); the slash/colon pair collides; empty EntityKey collapses onto the 3-part layout. Suite ok 0.268s exit 0."
+    },
+    "remediation": {
+      "strategy": "Make the encoding prefix-free by joining with a separator that cannot appear in a part (parts already have ':' and '/' rewritten to '_'), for example fixed-width part lengths or a separator plus per-part length prefix; add an injectivity test over the three collapse pairs.",
+      "code_changes": [
+        {
+          "file_name": "go/internal/storage/postgres/reducer_queue_helpers.go",
+          "fixed_code": "parts := []string{scopeID, generationID, domain, entityKey}\nvar b strings.Builder\nfor _, p := range parts {\n\tfmt.Fprintf(&b, \"%d:%s_\", len(p), p)\n}\nreturn \"reducer_\" + b.String()"
+        }
+      ]
+    },
+    "severity": {
+      "likelihood": {
+        "score": "low",
+        "reason": "Closed domain enum and constructed entity keys keep boundary collisions rare in practice."
+      },
+      "impact": {
+        "score": "low",
+        "reason": "One silently skipped intent per collision, self-healing on the next generation/replay."
+      },
+      "overall_severity": "low"
+    },
+    "confidence": {
+      "score": "high",
+      "reason": "Both channels reproduced deterministically in a scratch program with printed id equality, on the reviewed tree."
+    }
+  },
+  {
+    "verdict": "confirmed",
+    "fingerprint": "runtime.admin.recovery-body-no-maxbytesreader",
+    "title": "Recovery admin handlers decode JSON bodies without a byte cap while the sibling admin handler caps at 64 KiB",
+    "description": "The three RecoveryHandler routes decode r.Body with json.NewDecoder directly (go/internal/runtime/recovery_handler.go:87, :146, :220) while the sibling legacy-workload-retirement handler caps at 64 KiB via http.MaxBytesReader (go/internal/runtime/legacy_workload_retirement_handler.go:71). The status listener binds ESHU_LISTEN_ADDR with default 0.0.0.0:8080 (go/internal/runtime/config.go:26), not loopback-only, and the plane sets ReadHeaderTimeout only (go/internal/runtime/http_server.go:64). With filter.Limit==0 selecting the no-SQL-LIMIT template (go/internal/storage/postgres/recovery.go:184-187), one request both inflates the heap through the uncapped decode and touches the whole queue table. The ingester binary is the sole WithRecoveryHandler caller (go/cmd/ingester/main.go:165). No element ceilings exist in the three filter Validate methods (go/internal/recovery/replay.go:93-101, :214-230, :307-312).",
+    "root_cause": "The recovery decoders never wrap r.Body in http.MaxBytesReader, unlike the sibling handler that defines the plane's own contract.",
+    "intended_behavior": "Every operator-plane JSON body decodes under a declared bound with a clear over-limit error, matching the 64 KiB sibling.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "go/cmd/ingester/main.go",
+        "line": 165,
+        "scope": "main",
+        "description": "Sole WithRecoveryHandler caller mounting the three admin routes on the status plane."
+      },
+      {
+        "kind": "sink",
+        "file": "go/internal/runtime/recovery_handler.go",
+        "line": 220,
+        "scope": "refinalize handler",
+        "description": "Bare json.NewDecoder(r.Body).Decode with no MaxBytesReader; :87 and :146 repeat the shape."
+      }
+    ],
+    "evidence": [
+      {
+        "file": "go/internal/runtime/recovery_handler.go",
+        "line": 87,
+        "description": "First bare decode."
+      },
+      {
+        "file": "go/internal/runtime/legacy_workload_retirement_handler.go",
+        "line": 71,
+        "description": "Sibling caps at 64<<10 and answers 400 past it - the parity contract."
+      },
+      {
+        "file": "go/internal/storage/postgres/recovery.go",
+        "line": 184,
+        "description": "Limit==0 selects the statement with no SQL LIMIT."
+      }
+    ],
+    "conditions": [
+      {
+        "kind": "network_routing",
+        "description": "Reachability of the status listener; default bind 0.0.0.0:8080."
+      },
+      {
+        "kind": "data_state",
+        "description": "A refinalize body of ~4.4 MB (300k scope ids) or a filter with Limit==0."
+      }
+    ],
+    "execution": {
+      "attacker_perspective": "Any client that can reach the status listener.",
+      "payloads": [
+        "4,388,905-byte refinalize body holding 300,000 scope ids",
+        "Same body through the 64 KiB-capped shape as the control"
+      ],
+      "instructions": [
+        "Run the scratch decodecap test over ./internal/runtime.",
+        "Run go test ./internal/runtime/ -count=1 -run Recovery|Refinalize|Replay."
+      ],
+      "observed_result": "Bare-decoder shape: status 200, decoded_ids=300000, heap delta 17,727,896 B. Capped shape: 400 request body too large, heap delta 261,680 B. Recovery/refinalize/replay suite PASS incl. TestNewStatusAdminServerWithoutRecoveryReturns404ForRecoveryRoutes; exit 0 (artifact agents/verifier-recovery/artifacts/decodecap_test.go)."
+    },
+    "remediation": {
+      "strategy": "Wrap each recovery decode in http.MaxBytesReader with the 64 KiB sibling bound, and give the three filter Validate methods element ceilings consistent with the response budget.",
+      "code_changes": [
+        {
+          "file_name": "go/internal/runtime/recovery_handler.go",
+          "fixed_code": "dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10))"
+        }
+      ]
+    },
+    "severity": {
+      "likelihood": {
+        "score": "low",
+        "reason": "Admin-plane routes only, reached by configured operators and the ingester itself."
+      },
+      "impact": {
+        "score": "low",
+        "reason": "Per-request heap inflation (~17.7 MB measured at 4.4 MB body) and one full-table scan; both release after the request."
+      },
+      "overall_severity": "low"
+    },
+    "confidence": {
+      "score": "high",
+      "reason": "Independent scratch harness reproduced both the uncapped and capped deltas; cited sites read directly; package suite green."
+    }
+  }
+]
