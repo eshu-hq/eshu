@@ -89,6 +89,17 @@
 // gates with neither a CI workflow nor a local-only rationale are unresolved
 // proof metadata, not covered replay scenarios.
 //
+// # Proof gates that are switched off
+//
+// A proof gate whose registry row is tier manual and non-blocking is off: an
+// owner order disabled its CI job. A surface whose scenario resolved but whose
+// proof gate is off gets StatusProofOff. It is unproven, so it is not counted as
+// satisfied; it is reported in the JSON report's proof_off_surfaces list and the
+// dashboard's "Proof off" section; and it does not fail the blocking gate. The
+// rule reads the registry row, not a list kept here. A non-blocking row on a
+// live tier, a blank or unknown proof_gate, and a row with no local command stay
+// invalid and fail the gate.
+//
 // # The language-parser scoreboard (C-11)
 //
 // BuildLanguageScoreboard produces a separate, visibility-only scoreboard

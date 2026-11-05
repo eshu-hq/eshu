@@ -160,7 +160,9 @@ The Neo4j cells stay on and blocking. The job names (`differential nornicdb vs
 neo4j`, `live-backend (nornicdb and neo4j)`) are unchanged so pinned check names
 do not move. Go unit tests of `go/internal/storage/nornicdb` and the
 `race-graph-writes.yml` run are not CI legs and stay on. The Ifá determinism
-gates run on NornicDB too; this change does not touch them.
+gates run on NornicDB too; this change does not touch them. Turning the replay
+tier off leaves 167 replay-coverage surfaces unproven (457/457 to 290/457); the
+coverage gate reports them as "Proof off" instead of failing.
 
 To re-enable everything, revert in this order and run each check after its step:
 
@@ -179,4 +181,8 @@ To re-enable everything, revert in this order and run each check after its step:
 4. Delete the `nornicdb-ci-off` registry row, its two steps in
    `verify-agent-hygiene.yml`, and `scripts/verify-nornicdb-ci-off.py` with its
    test. Do this last: until then the guard refuses any live NornicDB leg.
-5. Run the focused tests the disabling PR listed, then open a normal PR.
+5. Regenerate the replay-coverage dashboard
+   (`cd go && go test ./cmd/replay-coverage-gate/ -update-dashboard`). With the
+   `replay-tier` row blocking again, its 167 surfaces return from "Proof off" to
+   satisfied (457/457). While the row is off, they are reported as unproven.
+6. Run the focused tests the disabling PR listed, then open a normal PR.

@@ -26,6 +26,12 @@ const (
 	// StatusExempt means the surface is deliberately not required to have a
 	// scenario, with a recorded reason.
 	StatusExempt Status = "exempt"
+	// StatusProofOff means the surface has a manifest entry and its scenario
+	// artifact resolved, but the CI gate named as its proof is switched off
+	// (registry tier manual and non-blocking). The surface is unproven and is
+	// reported as such; it is neither satisfied nor a failing gap, because the
+	// gate was turned off deliberately and the registry row says so.
+	StatusProofOff Status = "proof_off"
 )
 
 // SurfaceCoverage is the reconciled coverage outcome for one supported surface.
@@ -166,7 +172,7 @@ func Findings(c Coverage, blocking bool) []goldengate.Finding {
 			Phase:    string(sc.Surface.Registry),
 			Check:    coverageDisplayKey(sc.Surface.Key, sc.ScenarioType),
 			OK:       ok,
-			Required: blocking && isBlockingScenarioType(sc.ScenarioType),
+			Required: blocking && isBlockingScenarioType(sc.ScenarioType) && sc.Status != StatusProofOff,
 			Detail:   fmt.Sprintf("%s: %s", sc.Status, sc.Detail),
 		})
 	}

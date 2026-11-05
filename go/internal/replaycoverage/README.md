@@ -144,6 +144,27 @@ the scoreboard is rendered into the JSON report and the C-7 dashboard's
 binds every committed exemption and exact parser fixture to real ledger
 languages.
 
+## Proof gates that are off
+
+A manifest row's `proof_gate` names the CI gate that runs its scenario. When
+that registry row is `tier: manual` and `blocking: false`, an owner order has
+switched the job off. `validateProofGate` classifies the row as **off** (not
+invalid), and `applyProofGateValidation` moves each covered surface that names
+it to `StatusProofOff`. Those surfaces:
+
+- are not satisfied: the dashboard percentage counts them as unproven;
+- are not gaps: the gate does not fail on them, because the registry row already
+  says the gate does not run;
+- are listed in the report's `proof_off_surfaces` and the dashboard's
+  "Proof off" section, grouped by gate, with the registry's reason.
+
+Everything else about a proof gate stays strict. A blank or unknown name, a
+non-blocking row on a live tier, and a row with no local command are still
+invalid and fail the gate. To bring the surfaces back, re-enable the gate (see
+`docs/internal/ci-workflow-inventory.md`, "Re-enabling NornicDB CI") or point the
+manifest rows at a gate that runs. The dashboard regenerates through
+`cd go && go test ./cmd/replay-coverage-gate/ -update-dashboard`.
+
 ## Advisory → blocking
 
 `Findings` renders the reconciliation as `goldengate.Finding`s. Local runs can

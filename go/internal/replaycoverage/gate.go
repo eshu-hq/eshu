@@ -147,6 +147,9 @@ func languageFixtureCoverageSurfaces(
 		if detail, invalid := proofGateDetails.byProofGate[scenario.ProofGate]; invalid {
 			cov.Surfaces[i].Status = StatusUnresolved
 			cov.Surfaces[i].Detail = detail
+		} else if detail, off := proofGateDetails.offByProofGate[scenario.ProofGate]; off && cov.Surfaces[i].Status == StatusCovered {
+			cov.Surfaces[i].Status = StatusProofOff
+			cov.Surfaces[i].Detail = detail
 		}
 	}
 	return cov.Surfaces
@@ -212,7 +215,8 @@ func surfaceCoverageKey(sc SurfaceCoverage) string {
 }
 
 func applyProofGateValidation(cov Coverage, details proofGateValidationDetails) Coverage {
-	if len(details.byProofGate) == 0 && len(details.byAuthzRef) == 0 {
+	if len(details.byProofGate) == 0 && len(details.byAuthzRef) == 0 &&
+		len(details.offByProofGate) == 0 && len(details.offByAuthzRef) == 0 {
 		return cov
 	}
 	usedAuthzRefs := map[string]struct{}{}
@@ -229,6 +233,19 @@ func applyProofGateValidation(cov Coverage, details proofGateValidationDetails) 
 		}
 		if detail, invalid := details.byProofGate[scenario.ProofGate]; invalid {
 			cov.Surfaces[i].Status = StatusUnresolved
+			cov.Surfaces[i].Detail = detail
+			continue
+		}
+		if cov.Surfaces[i].Status != StatusCovered {
+			continue
+		}
+		if detail, off := details.offByAuthzRef[scenario.Ref]; off && scenario.Scenario == ScenarioAuthzScopedRoute {
+			cov.Surfaces[i].Status = StatusProofOff
+			cov.Surfaces[i].Detail = detail
+			continue
+		}
+		if detail, off := details.offByProofGate[scenario.ProofGate]; off {
+			cov.Surfaces[i].Status = StatusProofOff
 			cov.Surfaces[i].Detail = detail
 		}
 	}
