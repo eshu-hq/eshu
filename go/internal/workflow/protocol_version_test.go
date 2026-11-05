@@ -32,13 +32,18 @@ var claimPlaneVersionedMethods = []string{
 	"EnqueueWorkItems",
 	"FailClaimRetryable",
 	"FailClaimTerminal",
+	"GetRunCompleteness",
+	"GetRunStatus",
 	"HeartbeatClaim",
 	"ListCollectorInstances",
+	"ListRuns",
 	"PinClaimForCommit",
+	"QueueDepthSnapshot",
 	"ReapExpiredClaims",
 	"ReconcileCollectorInstances",
 	"ReconcileWorkflowRuns",
 	"ReleaseClaim",
+	"ReportRunProgress",
 	"UpsertCompletenessStates",
 }
 
@@ -136,6 +141,29 @@ func newVersionRecordingPlane(t testing.TB) *versionRecordingPlane {
 	mux.HandleFunc("/workflow.v1/ReapExpiredClaims", record(func(writer http.ResponseWriter, _ *http.Request) {
 		write(writer, map[string]any{})
 	}))
+	mux.HandleFunc("/workflow.v1/GetRunStatus", record(func(writer http.ResponseWriter, _ *http.Request) {
+		write(writer, map[string]any{
+			"run": map[string]any{
+				"run_id": "run-1", "trigger_kind": "schedule",
+				"status":     "collection_active",
+				"created_at": now,
+				"updated_at": now,
+			},
+			"as_of": now,
+		})
+	}))
+	mux.HandleFunc("/workflow.v1/ListRuns", record(func(writer http.ResponseWriter, _ *http.Request) {
+		write(writer, map[string]any{"runs": []map[string]any{}, "as_of": now})
+	}))
+	mux.HandleFunc("/workflow.v1/GetRunCompleteness", record(func(writer http.ResponseWriter, _ *http.Request) {
+		write(writer, map[string]any{"run_id": "run-1", "as_of": now})
+	}))
+	mux.HandleFunc("/workflow.v1/QueueDepthSnapshot", record(func(writer http.ResponseWriter, _ *http.Request) {
+		write(writer, map[string]any{"global_pending": 0, "global_claimed": 0, "as_of": now})
+	}))
+	mux.HandleFunc("/workflow.v1/ReportRunProgress", record(func(writer http.ResponseWriter, _ *http.Request) {
+		write(writer, ok)
+	}))
 	p.handler = mux
 	return p
 }
@@ -191,6 +219,21 @@ func TestClaimPlaneClientPinsProtocolMajorOne(t *testing.T) {
 	}
 	if _, err := client.ReapExpiredClaims(ctx, now, 10, time.Minute); err != nil {
 		t.Fatalf("reap: %v", err)
+	}
+	if _, err := client.GetRunStatus(ctx, "run-1"); err != nil {
+		t.Fatalf("get run status: %v", err)
+	}
+	if _, err := client.ListRuns(ctx, "", 0, ""); err != nil {
+		t.Fatalf("list runs: %v", err)
+	}
+	if _, err := client.GetRunCompleteness(ctx, "run-1"); err != nil {
+		t.Fatalf("get run completeness: %v", err)
+	}
+	if _, err := client.QueueDepthSnapshot(ctx); err != nil {
+		t.Fatalf("queue depth snapshot: %v", err)
+	}
+	if err := client.ReportRunProgress(ctx, "run-1", now, []CollectorRunProgress{{}}); err != nil {
+		t.Fatalf("report run progress: %v", err)
 	}
 
 	// Pin the client surface: any exported method added to *ClaimPlaneClient

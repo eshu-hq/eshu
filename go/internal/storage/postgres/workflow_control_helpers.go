@@ -353,6 +353,9 @@ func validateClaimMutation(mutation workflow.ClaimMutation) error {
 	if _, err := validateClaimMutationTenantBoundary(mutation); err != nil {
 		return err
 	}
+	if err := workflow.ValidateClaimFailureOperation(mutation.FailureOperation); err != nil {
+		return err
+	}
 	return nil
 }
 

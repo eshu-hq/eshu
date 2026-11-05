@@ -63,6 +63,49 @@ None: this is a test-only package with deterministic fixtures. Scenario
 mismatches print both outcome records with the underlying error texts.
 Throughput numbers log per leg for the dark-deployment no-regression baseline.
 
+## Live re-bind record (2026-11-05, drive/8875-parity-rebind-c5)
+
+- Bound image: `ghcr.io/eshu-hq/eshu-workflow@sha256:e1b564afa5f72167e3911aea7c881973c74bab123183c03d9d6af5a2d80e47a4`
+  (tag `v0.1.1`), the exact digest the live dark deployment serves (read
+  back from the deployment spec the same day). Local leg ran that digest as a
+  container (`--platform linux/amd64`, `--reap-interval=1h`) against a
+  disposable Postgres; the in-tree leg ran on a second disposable Postgres.
+- Result: full `go test ./internal/workflow/parity/ -count=1` green on
+  four two-legged runs, no skips: twice at 10/10 on the pre-change tree
+  (8-scenario conformance slice, pin gap, pin-survives-reaper,
+  duplicate-admission gap, stale-writer fence, throughput), and twice at
+  11/11 on the final tree including the new read/report live compat
+  (`TestReadReportPlaneLiveCompat`, all five routes round-tripped;
+  6.872s wall at HEAD).
+- Residue: satellite tables 0/0/0/0/0 (claims/items/runs/progress/
+  completeness) after the run. The first run left one
+  `eshu_content_index_proof_*` disposable database behind despite its green
+  verdict (dropped by hand, no active backends at drop time); the repeat
+  run disposed every database, so the helper's cleanup is best-effort and
+  the repeat run is the standing check before any dark-leg residue claim.
+- NOT_CHECKED: the dark-deployment leg (synthetic writes to the shared
+  satellite database stay with the coordinator under the standing grant
+  preconditions). No shared-infra writes were made from this lane.
+- No-Regression Evidence: baseline full parity suite green twice at 10/10
+  pre-change (8.338s, 8.720s wall); after final tree green 11/11 twice
+  (8.356s, then 6.872s wall on the final tree) on the same legs. Backend: claim-plane image
+  sha256:e1b564afa5f72167e3911aea7c881973c74bab123183c03d9d6af5a2d80e47a4
+  (linux/amd64 emulated on arm64, `--reap-interval=1h`), Postgres 18.6 on
+  disposable servers, Go 1.26.6. Input shape: identical seeded fixtures
+  with deterministic run/item IDs and one fixed clock per scenario, plus
+  stub-server round trips for the client unit tests. Terminal counts:
+  satellite claims/items/runs/progress/completeness 0/0/0/0/0 and no
+  leftover disposable databases on the repeat run. Telemetry: suite verdict
+  lines only. Why safe: the five routes are new methods no existing caller
+  uses; the `mutate()` early-reject and the store validation fire only on
+  values outside `[a-z0-9_]{1,64}`, which the legitimate path never emits
+  (producers sanitize) — the full workflow, parity, and focused storage
+  suites stay green.
+- No-Observability-Change: no new spans, metrics, logs, or dashboards; a
+  rejected mutation returns before `post()`, so it emits no Observe event
+  (no request, no outcome), consistent with the exactly-one-outcome
+  contract.
+
 ## Known divergences
 
 - None on the claim path: an identical replay of an already-applied

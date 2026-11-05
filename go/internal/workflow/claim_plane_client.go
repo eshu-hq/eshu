@@ -28,10 +28,12 @@ import (
 //
 // Coverage: the claim path (ClaimNextEligible, Heartbeat, Complete,
 // Release, Fail x2, Pin), the read probe ListCollectorInstances, the
-// pacing consult CheckClaimPacing, and the six control routes
+// pacing consult CheckClaimPacing, the six control routes
 // (CreateRun, EnqueueWorkItems, ReconcileCollectorInstances,
 // UpsertCompletenessStates, ReconcileWorkflowRuns, ReapExpiredClaims in
-// claim_plane_control_client.go) travel over HTTP. Collectors construct it
+// claim_plane_control_client.go), and the five read/report routes
+// (GetRunStatus, ListRuns, GetRunCompleteness, QueueDepthSnapshot,
+// ReportRunProgress in claim_plane_read_client.go) travel over HTTP. Collectors construct it
 // through go/internal/collector/claim/store when
 // ESHU_WORKFLOW_CLAIM_PLANE_URL is set; the parity harness constructs it
 // directly.
@@ -346,12 +348,18 @@ func (c *ClaimPlaneClient) ClaimNextEligible(
 	}
 }
 
-// mutate posts one fenced mutation to its operation path.
+// mutate posts one fenced mutation to its operation path. A mutation whose
+// failure operation is not a bounded token is rejected before any request:
+// the hostile value must never reach the wire, either store, or a read
+// plane (see ValidateClaimFailureOperation).
 func (c *ClaimPlaneClient) mutate(
 	ctx context.Context,
 	operation, path string,
 	mutation ClaimMutation,
 ) error {
+	if err := validateMutationFailureOperation(mutation); err != nil {
+		return fmt.Errorf("claim-plane %s: %w", operation, err)
+	}
 	var ack struct {
 		OK bool `json:"ok"`
 	}
