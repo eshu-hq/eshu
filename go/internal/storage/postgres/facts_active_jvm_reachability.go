@@ -125,9 +125,9 @@ ORDER BY fact.observed_at ASC, fact.fact_id ASC
 LIMIT $5
 `
 
-// jvmReachabilityDeltaOverlayScopeParam binds the delta-active scope ids in
-// the derived base text ($1-$5 are the repositories, API packages, keyset
-// cursor, and page size).
+// jvmReachabilityDeltaOverlayScopeParam binds the candidate base generation
+// ids in the derived base text ($1-$5 are the repositories, API packages,
+// keyset cursor, and page size).
 const jvmReachabilityDeltaOverlayScopeParam = 6
 
 // jvmReachabilityDeltaOverlayTelemetry names where the JVM reachability read

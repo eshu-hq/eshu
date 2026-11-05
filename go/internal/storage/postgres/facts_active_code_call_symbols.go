@@ -146,9 +146,9 @@ const listAnchoredActiveCodeCallSymbolDefinitionFactsQuery = codeCallSymbolDefin
 	"  AND fact.scope_id = ANY($5::text[])\n" +
 	codeCallSymbolDefinitionFactsMatch
 
-// The delta-active scope ids bind at $5 of the derived unanchored base text
-// ($1-$4 are keys, cursor, page size) and at $6 of the anchored base text
-// ($5 is the producer scopes).
+// The candidate base generation ids bind at $5 of the derived unanchored
+// base text ($1-$4 are keys, cursor, page size) and at $6 of the anchored
+// base text ($5 is the producer scopes).
 const (
 	codeCallSymbolDeltaOverlayScopeParam         = 5
 	codeCallAnchoredSymbolDeltaOverlayScopeParam = 6
