@@ -23,6 +23,16 @@ TABLE = {
             "TestNVDWindowOwnershipAccumulatesAcrossWindowsLive",
             "TestNVDWindowRefusalAndSkipHoldCursorLive",
         ),
+        "go/internal/storage/postgres/osv_delta_changed_names_live_test.go": (
+            "TestListVulnerabilityChangedNamesLive",
+            "TestListVulnerabilityChangedNamesMalformedWithdrawnRidesLive",
+        ),
+        "go/internal/storage/postgres/osv_delta_replan_burst_live_test.go": (
+            "TestOSVDeltaReplanBurstDrainsWithoutLossLive",
+        ),
+        "go/internal/storage/postgres/osv_delta_replan_live_test.go": (
+            "TestOSVDeltaReplanFoldingDifferentialLive",
+        ),
         "go/internal/storage/postgres/owned_package_resolver_live_test.go": (
             "TestResolveOwnedPackageNamesDifferentialLive",
             "TestResolveOwnedPackageNamesMatchesTheFeedLive",

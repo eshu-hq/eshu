@@ -29,6 +29,9 @@ func (f *staleSkipFakeMetrics) RecordStaleActivationSkip(_ context.Context, obse
 	f.observations = append(f.observations, observation)
 }
 
+func (f *staleSkipFakeMetrics) RecordOSVDeltaReplan(_ context.Context, _ coordinator.OSVDeltaReplanMetricsObservation) {
+}
+
 func (f *staleSkipFakeMetrics) RecordRunReconciliation(_ context.Context, _ coordinator.RunReconciliationObservation) {
 }
 

@@ -200,13 +200,15 @@ import (
 // #9879 adds 277_vulnerability_target_refresh_progress.sql (DDL only: the
 // per-target refresh progress table the coordinator paces configured
 // targets from).
-const goldenBootstrapDefinitionsDigest = "526b72bda1aa78cb02b80d447b0fb7a3e5442ea612be964e980cd97c78d4ef63"
+// #9777 step 2 adds 278_owned_target_replan.sql (DDL only: the
+// change-driven replan queue and its commit watermark).
+const goldenBootstrapDefinitionsDigest = "ba003f13421eaefc4432867089115892bf6ad15c8db6992139192ff71eda70a9"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or
 // silently dropping files) fails loudly even in the unlikely case of a hash
 // collision.
-const goldenBootstrapDefinitionsCount = 303
+const goldenBootstrapDefinitionsCount = 304
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
 	defs := BootstrapDefinitions()

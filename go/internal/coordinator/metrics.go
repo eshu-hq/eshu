@@ -72,6 +72,11 @@ type Metrics interface {
 	// planning pass (#9776): its selection outcomes and the oldest planned slot
 	// age, so a missed window shows as a gauge and a counter, not a trace.
 	RecordOwnedTargetSlotSelection(context.Context, OwnedTargetSlotObservation)
+	// RecordOSVDeltaReplan records one change-driven re-query drain pass
+	// (#9777 step 2): the closed outcome counts plus the queue and
+	// watermark ages. It fires only when the instance opts into
+	// osv_delta_replan; the flag-off path never calls it.
+	RecordOSVDeltaReplan(context.Context, OSVDeltaReplanMetricsObservation)
 }
 
 // ReconcileObservation captures one reconcile-loop outcome.
@@ -144,6 +149,9 @@ type otelMetrics struct {
 	// ownedSlots serves the #9776 oldest-slot-age gauge and the slot selection
 	// outcome counter.
 	ownedSlots *ownedTargetSlotInstruments
+	// osvDeltaReplan serves the #9777 step-2 replan signals: the records
+	// counter and the watermark, poll, depth, and oldest-age gauges.
+	osvDeltaReplan *osvDeltaReplanInstruments
 
 	// workItemRetention holds the workflow_work_items retention instruments
 	// (#8829), registered in retention_metrics.go.
@@ -330,9 +338,15 @@ func NewMetrics(meter metric.Meter) (Metrics, error) {
 		return nil, err
 	}
 
+	osvDeltaReplan, err := newOSVDeltaReplanInstruments(meter)
+	if err != nil {
+		return nil, err
+	}
+
 	recorder := &otelMetrics{
 		ownedRotation:                 ownedRotation,
 		ownedSlots:                    ownedSlots,
+		osvDeltaReplan:                osvDeltaReplan,
 		reconcileTotal:                reconcileTotal,
 		reconcileDuration:             reconcileDuration,
 		reapTotal:                     reapInstruments.total,

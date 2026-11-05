@@ -349,6 +349,11 @@ tests:
     class: postgres_ci
     reason: "#9971 disposable PostgreSQL proof that the NVD rolling cursor advances only through the commit-transaction compare-and-advance: a missing row reads unset, a first advance stores, a stale candidate holds, and a newer candidate moves the cursor while the head stays the max"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/vulnerability/owned_target_replan_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#9777 step 2 disposable PostgreSQL proof that the owned-target replan queue admits each changed tuple once, refreshes only on a newer feed timestamp, marks covered rows enqueued exactly once under rival coordinators, and advances the commit watermark only in the drain-commit transaction by compare-and-set; isolated bootstrap schema"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/vulnerability/source_state_package_keys_live_test.go
     tag: ~
     class: postgres_ci

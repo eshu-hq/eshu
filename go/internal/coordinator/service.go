@@ -139,12 +139,28 @@ type Service struct {
 	// from (eshu-hq/eshu#9879). It is required only when a target sets
 	// refresh_interval; instances without the field never touch it.
 	TargetRefreshProgressStore TargetRefreshProgressStore
-	AWSScheduledPlanner        AWSScheduledPlanner
-	AWSFreshnessTriggers       AWSFreshnessTriggerStore
-	AWSFreshnessPlanner        AWSFreshnessPlanner
-	AWSFreshnessEvents         awsFreshnessEventCounter
-	GCPFreshnessTriggers       GCPFreshnessTriggerStore
-	GCPFreshnessEvents         gcpFreshnessEventCounter
+	// OSVDeltaChangedNameReader loads the delta feed's changed_name facts
+	// for the change-driven replan (eshu-hq/eshu#9777 step 2). It is
+	// required only when the instance opts into osv_delta_replan;
+	// instances without the flag never touch it.
+	OSVDeltaChangedNameReader OSVDeltaChangedNameReader
+	// OSVDeltaStoredNameReader loads the packages Eshu already stores per
+	// advisory id for the replan intersection. Like the changed-name
+	// reader, only flag-on instances touch it.
+	OSVDeltaStoredNameReader OSVDeltaStoredNameReader
+	// OSVDeltaOwnedNameResolver maps intersected names onto the owned
+	// inventory for the replan drain. Like the readers, only flag-on
+	// instances touch it.
+	OSVDeltaOwnedNameResolver OSVDeltaOwnedNameResolver
+	// OSVDeltaReplanStore persists the per-instance replan queue and its
+	// commit watermark. Like the readers, only flag-on instances touch it.
+	OSVDeltaReplanStore  OSVDeltaReplanStore
+	AWSScheduledPlanner  AWSScheduledPlanner
+	AWSFreshnessTriggers AWSFreshnessTriggerStore
+	AWSFreshnessPlanner  AWSFreshnessPlanner
+	AWSFreshnessEvents   awsFreshnessEventCounter
+	GCPFreshnessTriggers GCPFreshnessTriggerStore
+	GCPFreshnessEvents   gcpFreshnessEventCounter
 	// GCPFreshnessFanOut is optional. When set, it records the number of
 	// scopes one GCP freshness trigger fanned out to (#4338).
 	GCPFreshnessFanOut gcpFreshnessFanOutRecorder

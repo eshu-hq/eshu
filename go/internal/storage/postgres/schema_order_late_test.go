@@ -458,4 +458,7 @@ var orderedBootstrapDefinitionNamesLate = []string{
 	// Migration 277 (#9879) adds the per-target refresh progress table the
 	// coordinator paces configured targets from.
 	"vulnerability_target_refresh_progress",
+	// Migration 278 (#9777) adds the owned-target replan queue and its
+	// commit watermark the change-driven re-query drains from.
+	"owned_target_replan",
 }
