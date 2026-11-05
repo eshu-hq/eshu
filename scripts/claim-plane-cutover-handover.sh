@@ -7,7 +7,7 @@
 #
 #   1. freeze    scale the in-tree coordinator to 0 so ClaimNext stops
 #   2. drain     wait until no live unexpired claim or claimed item remains
-#   3. snapshot  write items.tsv + fences.tsv + sha256sums into a new dir
+#   3. snapshot  write items.tsv + fences.tsv + seed.tsv + sha256sums into a new dir
 #   4. seed      advance satellite allocator tokens to max(snapshot, live)
 #   5. verify    re-run the seed file (idempotent no-op) and require every
 #                snapshot item at or above its H with none missing
@@ -241,7 +241,7 @@ check_snapshot() { # dir
 		fail "snapshot hash mismatch: re-snapshot, never seed a edited snapshot"
 }
 
-# sat_session runs seed.sql against SATELLITE with DIR/items.tsv loaded as
+# sat_session runs seed.sql against SATELLITE with DIR/seed.tsv loaded as
 # handover_snapshot, in one session. The session wrapper is mechanical; all
 # seed logic lives in the committed seed.sql.
 sat_session() { # dir
