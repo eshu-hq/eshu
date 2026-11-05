@@ -170,8 +170,9 @@ var RetireTableDispositions = map[string]RetireTableEntry{
 	"cicd_run_watermarks":                                {Table: "cicd_run_watermarks", KeyColumns: []string{"scope_id", "repository"}, RemoveSteps: []string{}, Disposition: "kept", Reason: "keyed by CI scopes"},
 	// Peer tables the census join sees that merged without census entries;
 	// the live test fails until someone records them here.
-	"vulnerability_source_state_packages": {Table: "vulnerability_source_state_packages", KeyColumns: []string{"scope_id"}, RemoveSteps: []string{}, Disposition: "kept", Reason: "keyed by vulnerability-intelligence scopes, not repository scopes (migration 243, #9227)"},
-	"cicd_actions_deliveries":             {Table: "cicd_actions_deliveries", KeyColumns: []string{"repository", "repository_id"}, RemoveSteps: []string{}, Disposition: "kept", Reason: "keyed by CI scopes (migration 236, #9397)"},
+	"vulnerability_source_state_packages":   {Table: "vulnerability_source_state_packages", KeyColumns: []string{"scope_id"}, RemoveSteps: []string{}, Disposition: "kept", Reason: "keyed by vulnerability-intelligence scopes, not repository scopes (migration 243, #9227)"},
+	"vulnerability_target_refresh_progress": {Table: "vulnerability_target_refresh_progress", KeyColumns: []string{"scope_id"}, RemoveSteps: []string{}, Disposition: "kept", Reason: "keyed by configured vulnerability-intelligence targets, not repository scopes (migration 277, #9879); per-instance refresh-cadence plan times with no foreign key, bounded by configured targets, and a stale row only paces a target the coordinator still configures"},
+	"cicd_actions_deliveries":               {Table: "cicd_actions_deliveries", KeyColumns: []string{"repository", "repository_id"}, RemoveSteps: []string{}, Disposition: "kept", Reason: "keyed by CI scopes (migration 236, #9397)"},
 	// Scanner running-image intake (#9299, migrations 241-252). The
 	// source_scope_id values are producer workload scopes (Kubernetes
 	// namespaces, ECS tasks, Lambda functions), never repository scopes,

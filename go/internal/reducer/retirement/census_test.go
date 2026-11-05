@@ -8,6 +8,25 @@ import (
 	"testing"
 )
 
+// TestCensusClassifiesVulnerabilityTargetRefreshProgress pins the #9879
+// progress table's row: its scope ids are configured
+// vulnerability-intelligence targets, so repository retirement keeps it
+// like its vulnerability_source_states sibling.
+func TestCensusClassifiesVulnerabilityTargetRefreshProgress(t *testing.T) {
+	t.Parallel()
+
+	entry, ok := RetireTableDispositionFor("vulnerability_target_refresh_progress")
+	if !ok {
+		t.Fatal("vulnerability_target_refresh_progress has no census row; the live census fails on it")
+	}
+	if entry.Disposition != "kept" || len(entry.RemoveSteps) != 0 {
+		t.Fatalf("disposition = %q steps %v, want kept with no remove steps", entry.Disposition, entry.RemoveSteps)
+	}
+	if len(entry.KeyColumns) != 1 || entry.KeyColumns[0] != "scope_id" {
+		t.Fatalf("key columns = %v, want [scope_id]", entry.KeyColumns)
+	}
+}
+
 // TestRetireTableDispositionsAreWellFormed pins the census table's shape:
 // every row names its table, carries a valid disposition code with only
 // known purge steps, and cites its deleter or keep reason. The live test

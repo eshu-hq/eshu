@@ -327,7 +327,15 @@ func lockPurgeScopes(ctx context.Context, tx db.Transaction, repoID string) ([]s
 		}
 		scopeIDs = append(scopeIDs, scopeID)
 	}
-	return scopeIDs, false, rows.Err()
+	// The ordered NOWAIT lock streams the scopes it could lock first, so a
+	// held later scope reports 55P03 through iteration, not the query call.
+	if err := rows.Err(); err != nil {
+		if isLockTimeoutError(err) {
+			return nil, true, nil
+		}
+		return nil, false, fmt.Errorf("retirement purge lock scopes: %w", err)
+	}
+	return scopeIDs, false, nil
 }
 
 // generationBlock is one live status the terminal gate read back.

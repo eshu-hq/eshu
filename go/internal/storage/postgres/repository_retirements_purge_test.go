@@ -243,6 +243,39 @@ func TestPurgeRetiredScopeLockBusyRetries(t *testing.T) {
 	}
 }
 
+// TestPurgeRetiredScopeLockBusyFromRowIteration proves the same busy exit
+// when the NOWAIT failure surfaces through row iteration instead of the
+// query call: the ordered lock streams the unheld scopes first, so the
+// driver reports 55P03 from Rows.Err after yielding a row (#10054).
+func TestPurgeRetiredScopeLockBusyFromRowIteration(t *testing.T) {
+	t.Parallel()
+
+	lockErr := &pgconn.PgError{Code: "55P03", Message: "could not obtain lock"}
+	tx := &fakeTx{
+		queryResponses: []queueFakeRows{
+			{rows: [][]any{{"rr_purge05", "PARTITION:purge-busy-rows", "purge-busy-rows-main", "pending", "fenced"}}},
+			{rows: [][]any{{"git-scope:purge-busy-rows"}}, rowErr: lockErr},
+		},
+	}
+	database := &fakeTransactionalDB{tx: tx}
+	purger := NewRetirementPurger(database, database)
+
+	result, err := purger.PurgeRetired(context.Background(),
+		PurgeRequest{RepoIDs: []string{"PARTITION:purge-busy-rows"}})
+	if err != nil {
+		t.Fatalf("PurgeRetired: %v", err)
+	}
+	if len(result.Blocked) != 1 || result.Blocked[0].Reason != PurgeReasonScopeLockBusy {
+		t.Fatalf("blocked = %+v, want one scope_lock_busy exit", result.Blocked)
+	}
+	if len(tx.execs) != 0 {
+		t.Fatalf("execs = %d, want 0 (busy exits before any delete)", len(tx.execs))
+	}
+	if tx.committed {
+		t.Fatal("purge transaction committed = true, want rollback on scope_lock_busy")
+	}
+}
+
 // TestPurgeRetiredCompleteIsNoop proves crash-restart idempotency: a
 // tombstone that already reached complete reports completed without issuing
 // any delete, so a retry after a commit-crash cannot double-count the

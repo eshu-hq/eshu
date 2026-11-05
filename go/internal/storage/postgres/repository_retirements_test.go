@@ -229,9 +229,18 @@ func TestPreviewRetirementCounts(t *testing.T) {
 	for _, want := range []string{
 		"scope_generations", "fact_work_items", "content_files", "shared_projection_intents",
 		"shared_projection_unroutable_intents", "collector_generation_dead_letters",
+		"IN (SELECT scope_id FROM scope_set)",
 	} {
 		if !strings.Contains(lookup, want) {
 			t.Fatalf("preview missing %q:\n%s", want, lookup)
+		}
+	}
+	// ANY over a subquery compares each output row, so an array-valued
+	// scope_set row makes Postgres demand text = text[] (42883, #10054
+	// heavy proof). The set must stay one scope_id per row.
+	for _, banned := range []string{"array_agg", "ANY((SELECT ids FROM scope_set)"} {
+		if strings.Contains(lookup, banned) {
+			t.Fatalf("preview carries banned array-subquery shape %q:\n%s", banned, lookup)
 		}
 	}
 }

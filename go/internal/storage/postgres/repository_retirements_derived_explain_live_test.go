@@ -23,12 +23,13 @@ const retirementPlanBudgetMS = 500.0
 
 var executionTimePattern = regexp.MustCompile(`Execution Time: ([0-9.]+) ms`)
 
-// seedRetirementPlanCorpus writes 100,000 scopes on the real schema: repository
-// scopes, ref scopes, and derived scopes sharing one fairness key. The target
-// repository also holds 50 generations and 5,000 derived facts.
-func seedRetirementPlanCorpus(t *testing.T, ctx context.Context, database *sql.DB, target string) {
-	t.Helper()
-	for _, statement := range []string{
+// retirementPlanSeedStatements returns the plan corpus in order. Beyond the
+// 100,000 scopes, decoy generations and facts keep scope_generations and
+// fact_records representative: a table holding only the target's rows makes
+// a sequential scan the correct plan, which is not the shape this proof
+// measures (#10054 heavy run).
+func retirementPlanSeedStatements(target string) []string {
+	return []string{
 		`INSERT INTO ingestion_scopes (scope_id, scope_kind, source_system, source_key, collector_kind, partition_key,
 			observed_at, ingested_at, status, payload)
 		SELECT 'git-scope:repository:r_'||lpad(to_hex(i),8,'0'), 'repository', 'git', 'k'||i, 'git',
@@ -42,6 +43,14 @@ func seedRetirementPlanCorpus(t *testing.T, ctx context.Context, database *sql.D
 		SELECT 'go-reachability://repository:r_'||lpad(to_hex(i),8,'0'), 'scanner_worker', 'scanner_worker', 'd'||i,
 			'scanner_worker', 'scanner_worker:inst:go_reachability', NOW(), NOW(), 'active', '{}'::jsonb
 		FROM generate_series(1, 25000) AS i`,
+		// Decoy generations: one per repository and derived scope, so the
+		// precheck's generation join faces a production-shaped table.
+		`INSERT INTO scope_generations (generation_id, scope_id, trigger_kind, observed_at, ingested_at, status, payload)
+		SELECT 'plan-decoy-gen-r'||i, 'git-scope:repository:r_'||lpad(to_hex(i),8,'0'), 'snapshot', NOW(), NOW(), 'superseded', '{}'::jsonb
+		FROM generate_series(1, 50000) AS i`,
+		`INSERT INTO scope_generations (generation_id, scope_id, trigger_kind, observed_at, ingested_at, status, payload)
+		SELECT 'plan-decoy-gen-d'||i, 'go-reachability://repository:r_'||lpad(to_hex(i),8,'0'), 'snapshot', NOW(), NOW(), 'superseded', '{}'::jsonb
+		FROM generate_series(1, 25000) AS i`,
 		`INSERT INTO scope_generations (generation_id, scope_id, trigger_kind, observed_at, ingested_at, status, payload)
 		SELECT 'plan-gen-'||i, '` + goReachabilityScopePrefix + target + `', 'snapshot', NOW(), NOW(), 'superseded', '{}'::jsonb
 		FROM generate_series(1, 50) AS i`,
@@ -50,8 +59,21 @@ func seedRetirementPlanCorpus(t *testing.T, ctx context.Context, database *sql.D
 		SELECT 'plan-fact-'||i, '` + goReachabilityScopePrefix + target + `', 'plan-gen-'||(1 + i % 50),
 			'vulnerability.go_module_evidence', 'k'||i, 'scanner_worker', 'k'||i, NOW(), NOW(), '{}'::jsonb
 		FROM generate_series(1, 5000) AS i`,
-		`ANALYZE ingestion_scopes`, `ANALYZE scope_generations`, `ANALYZE fact_records`,
-	} {
+		// Decoy facts: 20 per other derived scope, so the target's 5,000 are
+		// about 1% of the table and the count's scope prefix is selective.
+		`INSERT INTO fact_records (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, source_system,
+			source_fact_key, observed_at, ingested_at, payload)
+		SELECT 'plan-decoy-fact-'||i||'-'||j, 'go-reachability://repository:r_'||lpad(to_hex(i),8,'0'), 'plan-decoy-gen-d'||i,
+			'vulnerability.go_module_evidence', 'd'||i||'-'||j, 'scanner_worker', 'd'||i||'-'||j, NOW(), NOW(), '{}'::jsonb
+		FROM generate_series(1, 25000) AS i CROSS JOIN generate_series(1, 20) AS j`,
+		`ANALYZE ingestion_scopes`, `VACUUM (ANALYZE) scope_generations`, `VACUUM (ANALYZE) fact_records`,
+	}
+}
+
+// seedRetirementPlanCorpus writes the plan corpus on the real schema.
+func seedRetirementPlanCorpus(t *testing.T, ctx context.Context, database *sql.DB, target string) {
+	t.Helper()
+	for _, statement := range retirementPlanSeedStatements(target) {
 		if _, err := database.ExecContext(ctx, statement); err != nil {
 			t.Fatalf("seed plan corpus: %v\n%s", err, statement)
 		}

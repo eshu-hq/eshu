@@ -463,3 +463,21 @@ func TestPurgeCountsDerivedScopesOnlyWhenPresent(t *testing.T) {
 		t.Fatalf("plain purge moved the derived counter: %v", totals)
 	}
 }
+
+// TestRetirementPlanSeedKeepsDecoyRows pins the plan corpus shape the heavy
+// run proved load-bearing: without generations and facts for other scopes,
+// scope_generations holds 50 rows and fact_records holds only the target's
+// 5,000, so a sequential scan is the planner's correct answer and the plan
+// proof fails on its own corpus instead of on a statement.
+func TestRetirementPlanSeedKeepsDecoyRows(t *testing.T) {
+	t.Parallel()
+
+	seed := strings.Join(retirementPlanSeedStatements("repository:r_00001000"), "\n")
+	for _, want := range []string{
+		"plan-decoy-gen-", "plan-decoy-fact-", "VACUUM (ANALYZE) fact_records",
+	} {
+		if !strings.Contains(seed, want) {
+			t.Fatalf("plan seed missing decoy marker %q", want)
+		}
+	}
+}

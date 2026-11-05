@@ -239,18 +239,21 @@ func stampRetirementReadmitted(ctx context.Context, database db.ExecQueryer, ret
 // scopeIDs only adds to that set (#10054). The three scope and derived counts
 // compare directly with the purge ledger.
 func (s RetirementStore) Preview(ctx context.Context, repoID string, scopeIDs []string) (RetirementPreview, error) {
+	// scope_set stays one row per scope: ANY over a subquery compares each
+	// output row, so an array_agg'd ids column would demand text = text[]
+	// (42883). Postgres materializes the multiply-referenced CTE once.
 	const preview = `WITH scope_set AS (
-			SELECT COALESCE(array_agg(s.scope_id), '{}'::text[]) AS ids FROM ingestion_scopes AS s
+			SELECT s.scope_id FROM ingestion_scopes AS s
 			WHERE ` + retirementScopesOfRepoSQL + ` OR s.scope_id = ANY($2)
 		)
 		SELECT
-		(SELECT count(*) FROM scope_generations WHERE scope_id = ANY((SELECT ids FROM scope_set))),
-		(SELECT count(*) FROM fact_work_items WHERE scope_id = ANY((SELECT ids FROM scope_set))),
+		(SELECT count(*) FROM scope_generations WHERE scope_id IN (SELECT scope_id FROM scope_set)),
+		(SELECT count(*) FROM fact_work_items WHERE scope_id IN (SELECT scope_id FROM scope_set)),
 		(SELECT count(*) FROM content_files WHERE repo_id = $1),
-		(SELECT count(*) FROM shared_projection_intents WHERE repository_id = $1 OR scope_id = ANY((SELECT ids FROM scope_set))),
-		(SELECT count(*) FROM shared_projection_unroutable_intents WHERE repository_id = $1 OR scope_id = ANY((SELECT ids FROM scope_set))),
-		(SELECT count(*) FROM collector_generation_dead_letters WHERE scope_id = ANY((SELECT ids FROM scope_set))),
-		(SELECT cardinality(ids) FROM scope_set),
+		(SELECT count(*) FROM shared_projection_intents WHERE repository_id = $1 OR scope_id IN (SELECT scope_id FROM scope_set)),
+		(SELECT count(*) FROM shared_projection_unroutable_intents WHERE repository_id = $1 OR scope_id IN (SELECT scope_id FROM scope_set)),
+		(SELECT count(*) FROM collector_generation_dead_letters WHERE scope_id IN (SELECT scope_id FROM scope_set)),
+		(SELECT count(*) FROM scope_set),
 		(SELECT count(*) FROM ingestion_scopes WHERE scope_id = '` + goReachabilityScopePrefix + `' || $1::text),
 		(SELECT count(*) FROM fact_records WHERE scope_id = '` + goReachabilityScopePrefix + `' || $1::text)`
 	if scopeIDs == nil {
