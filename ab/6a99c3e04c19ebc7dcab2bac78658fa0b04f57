@@ -1,0 +1,25 @@
+go/internal/reducer/code/call/file_scope_bench_test.go
+  s_7547c0f0af67d4::t_b8190bef4fef15 1-55
+go/internal/reducer/code/call/README.md
+  s_7547c0f0af67d4::t_759894b51ddec1 115-149
+go/internal/storage/postgres/reducer_queue_code_call_delta_scope_live_test.go
+  s_7547c0f0af67d4::t_4342a4d1dc35ee 7
+specs/live-tests.d/live-tests-readiness-part4.generated.yaml
+  s_7547c0f0af67d4::t_472a9947ee202f 100
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ab6a99c3e04c19ebc7dcab2bac78658fa0b04f57",
+  "prompts": {},
+  "sessions": {
+    "s_7547c0f0af67d4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7c8b2d5-3286-4c2a-be1f-589162535d83",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

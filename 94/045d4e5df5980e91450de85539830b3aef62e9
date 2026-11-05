@@ -1,0 +1,37 @@
+docs/public/observability/telemetry-coverage-reducer-core.md
+  s_7547c0f0af67d4::t_41526aba7ef375 198
+docs/public/reference/telemetry/shared-write-operations.md
+  s_7547c0f0af67d4::t_91d59a6c5ecea9 98-123
+go/internal/reducer/code/call/README.md
+  s_7547c0f0af67d4::t_f46e1ecae080c7 35,37,63-65,74-78,80-85
+go/internal/reducer/code/call/file_scope.go
+  s_7547c0f0af67d4::t_c926546bb6900b 48-50
+go/internal/reducer/code/call/materialization/README.md
+  s_7547c0f0af67d4::t_7b4b7bdb3835b2 143-147,160-163
+go/internal/reducer/code/call/materialization/handler_unusable_delta_scope_test.go
+  s_7547c0f0af67d4::t_2ab47a3a0f4b01 20-21,74-78,82-85,116-119,123,155-159,166-222
+go/internal/reducer/code/call/materialization/unusable_delta_scope.go
+  s_7547c0f0af67d4::t_a028d136eac3f9 15,46-54,60-61,78-86,138
+go/internal/storage/postgres/reducer_queue_code_call_delta_scope_live_test.go
+  s_7547c0f0af67d4::t_9a0cf1db1f5ce5 7,123-125
+go/internal/telemetry/instruments_code_call_delta_scope.go
+  s_7547c0f0af67d4::t_0807d3e53423ac 22-24
+specs/live-tests.d/live-tests-readiness-part4.generated.yaml
+  s_7547c0f0af67d4::t_ff455562ce652c 100
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "94045d4e5df5980e91450de85539830b3aef62e9",
+  "prompts": {},
+  "sessions": {
+    "s_7547c0f0af67d4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7c8b2d5-3286-4c2a-be1f-589162535d83",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
