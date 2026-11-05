@@ -36,6 +36,12 @@ are attached at logger creation.
 incremental-refresh skip tracking. Not a metric; used only for status-surface
 reporting.
 
+`Instruments.RecordGenerationOutcome` counts minted versus skipped refreshes on
+`eshu_dp_ingestion_generation_outcomes_total` (#10020). It folds `collector_kind`
+(`scope.AllCollectorKinds` or `other`), `outcome` (`minted`, `skipped`), and
+`reason` (`none` or the closed `RefreshSkipReasons` set) onto closed sets and
+never takes a scope id.
+
 ## Dependencies
 
 No internal Eshu package imports; external dependencies are OTEL and Prometheus.

@@ -13,6 +13,8 @@ import (
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
+
+	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
 // Refresh skip reasons label eshu_runtime_refresh_skipped_by_reason_total and
@@ -305,4 +307,80 @@ func registerSuccessorHeldStaleScopes(meter metric.Meter, inst *Instruments) err
 		return fmt.Errorf("register IngestionSuccessorHeldStaleScopes gauge: %w", err)
 	}
 	return nil
+}
+
+// Closed values for eshu_dp_ingestion_generation_outcomes_total (#10020).
+const (
+	// GenerationOutcomeMinted: the commit stored a new scope generation.
+	GenerationOutcomeMinted = "minted"
+	// GenerationOutcomeSkipped: the refresh stored nothing; the reason label
+	// is one of RefreshSkipReasons.
+	GenerationOutcomeSkipped = "skipped"
+	// GenerationReasonNone is the reason label of a minted generation, which
+	// has no skip reason.
+	GenerationReasonNone = "none"
+	// GenerationCollectorKindOther buckets a collector kind outside
+	// scope.AllCollectorKinds, including a blank one, so a malformed value
+	// cannot widen the label set.
+	GenerationCollectorKindOther = "other"
+)
+
+// generationCollectorKinds is the closed collector-kind label set, built once
+// so the per-commit recorder does not allocate.
+var generationCollectorKinds = func() map[string]struct{} {
+	kinds := scope.AllCollectorKinds()
+	set := make(map[string]struct{}, len(kinds))
+	for _, kind := range kinds {
+		set[string(kind)] = struct{}{}
+	}
+	return set
+}()
+
+// GenerationOutcomes returns the closed, ordered outcome set.
+func GenerationOutcomes() []string {
+	return []string{GenerationOutcomeMinted, GenerationOutcomeSkipped}
+}
+
+// registerIngestionGenerationOutcomes registers the #10020 counter that lets
+// an operator count minted versus skipped generations per collector kind. It
+// never carries a scope id: a collector such as OSV owns more than 1,600
+// scopes, and the per-scope source of truth is the "ingestion refresh skipped"
+// and "commit_transaction" logs.
+func registerIngestionGenerationOutcomes(meter metric.Meter, inst *Instruments) error {
+	var err error
+	if inst.IngestionGenerationOutcomes, err = meter.Int64Counter(
+		"eshu_dp_ingestion_generation_outcomes_total",
+		metric.WithDescription("Refresh outcomes at ingestion commit (#10020), by collector_kind, "+
+			"outcome (minted, skipped) and reason (none for minted; the closed refresh-skip reason set for skipped)"),
+	); err != nil {
+		return fmt.Errorf("register IngestionGenerationOutcomes counter: %w", err)
+	}
+	return nil
+}
+
+// RecordGenerationOutcome counts one refresh outcome. collectorKind, outcome,
+// and reason are folded onto closed sets: an unknown kind records as
+// GenerationCollectorKindOther, any outcome but minted records as skipped, an
+// unknown skip reason records as RefreshSkipReasonOther, and a minted outcome
+// always carries GenerationReasonNone. A nil receiver or an unregistered
+// counter records nothing.
+func (inst *Instruments) RecordGenerationOutcome(ctx context.Context, collectorKind, outcome, reason string) {
+	if inst == nil || inst.IngestionGenerationOutcomes == nil {
+		return
+	}
+	kind := GenerationCollectorKindOther
+	if _, known := generationCollectorKinds[collectorKind]; known {
+		kind = collectorKind
+	}
+	if outcome == GenerationOutcomeMinted {
+		reason = GenerationReasonNone
+	} else {
+		outcome = GenerationOutcomeSkipped
+		reason = refreshSkipReasons[refreshSkipReasonIndex(reason)]
+	}
+	inst.IngestionGenerationOutcomes.Add(context.WithoutCancel(ctx), 1, metric.WithAttributes(
+		attribute.String(MetricDimensionCollectorKind, kind),
+		attribute.String(MetricDimensionOutcome, outcome),
+		attribute.String(MetricDimensionReason, reason),
+	))
 }

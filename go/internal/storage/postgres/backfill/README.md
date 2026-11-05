@@ -57,7 +57,9 @@ reconciliation, plus the anchors scanner.
   the proofs drive
 - `DecideUnchangedGeneration`, `UnchangedGenerationCandidate`,
   `GenerationNeedsDuplicateCheck`, `RecordSkippedRefresh` — the duplicate
-  decision and its skip accounting
+  decision and its skip accounting (`RecordSkippedRefresh` also increments
+  `eshu_dp_ingestion_generation_outcomes_total{outcome="skipped"}` by
+  collector kind, #10020)
 - `RefuseDestructiveSuccessor` — the #7926 successor-emptiness backstop
   predicate: refuses an empty or sharply shrunken successor over a
   content-bearing prior unless the generation carries trusted deletion.

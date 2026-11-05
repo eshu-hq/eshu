@@ -1336,6 +1336,11 @@ type Instruments struct {
 	// decisions (#8750) by kind (full, delta), the closed
 	// SuccessorGuardRule* rule set, and outcome (stored, refused).
 	IngestionSuccessorGuardDecisions metric.Int64Counter
+	// IngestionGenerationOutcomes counts refresh outcomes at ingestion commit
+	// (#10020) by collector_kind, outcome (minted, skipped) and reason (none,
+	// or the closed RefreshSkipReasons set). Never carries a scope id.
+	// Registered in refresh.go.
+	IngestionGenerationOutcomes metric.Int64Counter
 	// IngestionSuccessorHeldStaleScopes reports, by collector_kind, the scopes
 	// whose consecutive commits the destructive-successor guard keeps
 	// refusing (#9694). SuccessorHolds is the process-local tracker that
@@ -6494,6 +6499,9 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 			"and outcome (stored, refused)"),
 	); err != nil {
 		return nil, fmt.Errorf("register IngestionSuccessorGuardDecisions counter: %w", err)
+	}
+	if err := registerIngestionGenerationOutcomes(meter, inst); err != nil {
+		return nil, err
 	}
 	if err := registerSuccessorHeldStaleScopes(meter, inst); err != nil {
 		return nil, err

@@ -89,6 +89,7 @@ not read the graph on the collection goroutine; `telemetry/snapshot` refreshes t
 | --- | --- |
 | `FactsEmitted` | `eshu_dp_facts_emitted_total` |
 | `FactsCommitted` | `eshu_dp_facts_committed_total` |
+| `IngestionGenerationOutcomes` | `eshu_dp_ingestion_generation_outcomes_total` |
 | `ProjectionsCompleted` | `eshu_dp_projections_completed_total` |
 | `ProjectorAckDeferrals` | `eshu_dp_projector_ack_deferrals_total` |
 | `ProjectorWriteMarkerDeferrals` | `eshu_dp_projector_write_marker_deferrals_total` |
