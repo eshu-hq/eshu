@@ -131,6 +131,34 @@ def partition_runs(runs: list[str], shard: str) -> list[str]:
     return selected
 
 
+def _planned_shard_runs(runs: list[str], shard: str) -> list[str]:
+    """Return a shard's planned runs, empty when the plan assigns it none."""
+    try:
+        return partition_runs(runs, shard)
+    except ValueError as error:
+        if "has no planned runs" in str(error):
+            return []
+        raise
+
+
+def _skipped_shards(plan: list[str], skipped: tuple[str, ...]) -> set[str]:
+    """Validate a deliberate shard skip and return it as a set.
+
+    A shard may be skipped only when the plan assigns it no runs. The caller
+    narrows the plan with ``expand --backend``; a skip can never drop planned
+    work, so it cannot hide a failing or missing run.
+    """
+    unknown = [shard for shard in skipped if shard not in SHARDS]
+    if unknown:
+        raise ValueError(f"invalid skipped shard: {unknown[0]!r}")
+    for shard in skipped:
+        if _planned_shard_runs(plan, shard):
+            raise ValueError(f"skipped shard {shard} still has planned runs")
+    if len(set(skipped)) == len(SHARDS):
+        raise ValueError("cannot skip every shard")
+    return set(skipped)
+
+
 def _read_plan(path: Path) -> list[str]:
     """Read a newline-delimited full plan without accepting blank rows."""
     lines = path.read_text(encoding="utf-8").splitlines()
@@ -233,13 +261,14 @@ def _report(head: str, shard: str, plan: Path, events_path: Path,
 
 
 def _validate_report(value: object, plan: list[str], head: str,
-                     seen_shards: set[str]) -> tuple[list[str], str]:
+                     seen_shards: set[str],
+                     skipped: frozenset[str] = frozenset()) -> tuple[list[str], str]:
     """Require one fresh matching report and return its assigned runs."""
     if not isinstance(value, dict) or set(value) != REPORT_KEYS:
         raise ValueError("report schema mismatch")
     shard = value["shard"]
-    if shard not in SHARDS or shard in seen_shards:
-        raise ValueError(f"invalid or duplicate shard: {shard!r}")
+    if shard not in SHARDS or shard in seen_shards or shard in skipped:
+        raise ValueError(f"invalid, duplicate, or skipped shard: {shard!r}")
     seen_shards.add(shard)
     expected = partition_runs(plan, shard)
     if (type(value["schema_version"]) is not int
@@ -267,13 +296,21 @@ def _validate_report(value: object, plan: list[str], head: str,
     return expected, shard
 
 
-def _verify(head: str, plan_path: Path, report_paths: list[Path]) -> bool:
-    """Require four valid reports whose exact union is the canonical plan."""
+def _verify(head: str, plan_path: Path, report_paths: list[Path],
+            skipped: tuple[str, ...] = ()) -> bool:
+    """Require one valid report per active shard whose union is the plan.
+
+    Every shard is active unless ``skipped`` names it, and a skipped shard
+    must have no planned runs (see ``_skipped_shards``).
+    """
     _validate_head(head)
     plan = _read_plan(plan_path)
-    if len(report_paths) != 4:
+    skip = frozenset(_skipped_shards(plan, skipped))
+    required = set(SHARDS) - skip
+    if len(report_paths) != len(required):
         paths = sorted(str(path) for path in report_paths)
-        raise ValueError(f"expected exactly four shard reports, got {len(report_paths)}: {paths}")
+        count = {1: "one", 2: "two", 3: "three", 4: "four"}[len(required)]
+        raise ValueError(f"expected exactly {count} shard reports, got {len(report_paths)}: {paths}")
     seen_shards: set[str] = set()
     assigned: list[str] = []
     errors: list[str] = []
@@ -281,17 +318,17 @@ def _verify(head: str, plan_path: Path, report_paths: list[Path]) -> bool:
         try:
             assigned.extend(_validate_report(
                 _parse_json(path.read_text(encoding="utf-8")), plan, head,
-                seen_shards)[0])
+                seen_shards, skip)[0])
         except (OSError, ValueError, TypeError) as error:
             errors.append(f"{path}: {error}")
-    if seen_shards != set(SHARDS):
-        errors.append(f"missing shards: {sorted(set(SHARDS) - seen_shards)}")
+    if seen_shards != required:
+        errors.append(f"missing shards: {sorted(required - seen_shards)}")
     if Counter(assigned) != Counter(plan):
         errors.append("shard union differs from canonical full plan")
     for error in errors:
         print(f"live backend aggregate: {error}", file=sys.stderr)
     print(f"live backend aggregate: {len(assigned)}/{len(plan)} planned runs, "
-          f"shards={len(seen_shards)}/4, ok={not errors}")
+          f"shards={len(seen_shards)}/{len(required)}, ok={not errors}")
     return not errors
 
 
@@ -315,7 +352,7 @@ def _candidate_order(path: Path) -> tuple[int, int, str]:
 
 
 def _select(head: str, plan_path: Path, report_paths: list[Path],
-            output_dir: Path) -> bool:
+            output_dir: Path, skipped: tuple[str, ...] = ()) -> bool:
     """Copy the newest valid report per shard for a rerun-proof aggregate.
 
     Every candidate still passes the same head and plan validation as
@@ -326,6 +363,8 @@ def _select(head: str, plan_path: Path, report_paths: list[Path],
     """
     _validate_head(head)
     plan = _read_plan(plan_path)
+    skip = frozenset(_skipped_shards(plan, skipped))
+    required = [shard for shard in SHARDS if shard not in skip]
     contenders: dict[str, list[tuple[tuple[int, int, str], Path]]] = {}
     attempted: set[str] = set()
     for path in report_paths:
@@ -333,16 +372,16 @@ def _select(head: str, plan_path: Path, report_paths: list[Path],
         try:
             value = _parse_json(path.read_text(encoding="utf-8"))
             claimed = value.get("shard") if isinstance(value, dict) else None
-            _, shard = _validate_report(value, plan, head, set())
+            _, shard = _validate_report(value, plan, head, set(), skip)
         except (OSError, ValueError, TypeError, AttributeError) as error:
             print(f"live backend select: rejected {path}: {error}", file=sys.stderr)
-            if isinstance(claimed, str) and claimed in SHARDS:
+            if isinstance(claimed, str) and claimed in required:
                 attempted.add(claimed)
             continue
         attempted.add(shard)
         contenders.setdefault(shard, []).append((_candidate_order(path), path))
     errors = []
-    if missing := sorted(set(SHARDS) - attempted):
+    if missing := sorted(set(required) - attempted):
         errors.append(f"missing shards: {missing}")
     errors.extend(f"no valid report for shard {shard}"
                   for shard in sorted(attempted - set(contenders)))
@@ -351,7 +390,7 @@ def _select(head: str, plan_path: Path, report_paths: list[Path],
     if errors:
         return False
     output_dir.mkdir(parents=True, exist_ok=True)
-    for shard in SHARDS:
+    for shard in required:
         _, winner = max(contenders[shard])
         target = output_dir / f"live-backend-{shard[0]}-result.json"
         try:
@@ -360,7 +399,7 @@ def _select(head: str, plan_path: Path, report_paths: list[Path],
             print(f"live backend select: {target}: {error}", file=sys.stderr)
             return False
         print(f"live backend select: {shard} <- {winner}")
-    print(f"live backend select: {len(SHARDS)}/4 shards selected, ok=True")
+    print(f"live backend select: {len(required)}/{len(SHARDS)} shards selected, ok=True")
     return True
 
 
@@ -402,10 +441,12 @@ def main() -> int:
     select.add_argument("--head", required=True)
     select.add_argument("--plan", required=True)
     select.add_argument("--output-dir", required=True)
+    select.add_argument("--skip-shard", action="append", default=[])
     select.add_argument("reports", nargs="*")
     verify = commands.add_parser("verify")
     verify.add_argument("--head", required=True)
     verify.add_argument("--plan", required=True)
+    verify.add_argument("--skip-shard", action="append", default=[])
     verify.add_argument("reports", nargs="*")
     args = parser.parse_args()
     try:
@@ -426,9 +467,11 @@ def main() -> int:
         if args.command == "select":
             return 0 if _select(args.head, Path(args.plan),
                                 [Path(path) for path in args.reports],
-                                Path(args.output_dir)) else 1
+                                Path(args.output_dir),
+                                tuple(args.skip_shard)) else 1
         return 0 if _verify(args.head, Path(args.plan),
-                            [Path(path) for path in args.reports]) else 1
+                            [Path(path) for path in args.reports],
+                            tuple(args.skip_shard)) else 1
     except (ValueError, OSError, TypeError, json.JSONDecodeError) as error:
         print(f"live backend shards: {error}", file=sys.stderr)
         return 1

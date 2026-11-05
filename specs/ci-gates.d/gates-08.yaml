@@ -5,7 +5,7 @@ gates:
     category: exactness
     layer: secondary
     purpose: "Runs the golden-corpus pipeline on NornicDB, the secondary backend, to watch for backend drift; Neo4j is the blocking golden gate."
-    tier: ci-heavy
+    tier: manual
     blocking: false
     triggers:
       - "scripts/lib/cgo-cflags.sh"
@@ -160,13 +160,11 @@ gates:
     ci:
       workflow: golden-corpus-gate.yml
       job: "corpus-gate"
-      check_names:
-        - "corpus-gate (nornicdb)"
     requirements:
       - go
       - docker
       - nornicdb
-    ci_only_reason: ""
+    ci_only_reason: "Disabled by owner order (2026-11-05): the NornicDB corpus-gate cell does not run in CI while Neo4j is the supported backend (#7331); the Neo4j cell is the blocking truth gate (golden-corpus-gate-neo4j). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
 
   - id: read-api-latency-gate
     name: Read API Latency Gate (Docker)
@@ -452,7 +450,7 @@ gates:
     name: Live Backend Tests on NornicDB and Neo4j (Docker)
     category: exactness
     layer: truth
-    purpose: "Runs the CI-class tests from the live-test ledger against NornicDB and Neo4j in Docker and fails on a wrong answer."
+    purpose: "Runs the CI-class tests from the live-test ledger against Neo4j in Docker and fails on a wrong answer. The NornicDB leg is off (2026-11-05)."
     tier: ci-heavy
     blocking: true
     triggers:
@@ -494,7 +492,7 @@ gates:
       - go
       - docker
       - nornicdb
-    ci_only_reason: ""
+    ci_only_reason: "The NornicDB leg (shard 1/4) is off by owner order (2026-11-05) while Neo4j is the supported backend (#7331); the Neo4j shards 2/4 to 4/4 still run and block. See docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
 
   # Owner row for the `static-mirror (ledger and runner probes)` job of
   # live-backend-tests.yml. Without a row a failing ledger or runner probe did

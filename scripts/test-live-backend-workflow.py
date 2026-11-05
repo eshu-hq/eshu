@@ -72,6 +72,14 @@ class FanInTest(unittest.TestCase):
         self.assertIn("    needs: [live-backend-shards]\n", aggregate)
         self.assertNotIn("queue-selection", aggregate)
 
+    def test_nornicdb_shard_is_off_and_the_aggregate_agrees(self) -> None:
+        """The matrix drops shard 1/4 and the aggregate skips exactly that shard."""
+        source = WORKFLOW.read_text()
+        self.assertRegex(source, r"(?m)^        shard: \[2, 3, 4\]$")
+        script = step_script("Verify complete live-backend coverage")
+        self.assertIn("expand --backend neo4j", script)
+        self.assertEqual(script.count("--skip-shard 1/4"), 2)
+
     def test_selected_and_idle_outcomes_fail_closed(self) -> None:
         """Execute the actual aggregate gate for every outcome combination."""
         script = step_script("Require every shard to succeed")
@@ -97,7 +105,9 @@ class FanInTest(unittest.TestCase):
             plan_path = root / "full.plan"
             plan_path.write_text(plan)
             helper = ROOT / "scripts/lib/live_backend_shards.py"
-            for shard in range(1, 5):
+            # Shard 1/4 is the NornicDB leg, off by owner order (2026-11-05):
+            # CI runs and uploads only shards 2/4 to 4/4.
+            for shard in range(2, 5):
                 selected = subprocess.check_output(["python3", str(helper), "plan", "--shard", f"{shard}/4"],
                                                    input=plan, text=True).splitlines()
                 events = root / f"{shard}.jsonl"
@@ -123,6 +133,17 @@ class FanInTest(unittest.TestCase):
                     report.write_text(json.dumps(bad))
                     self.assertNotEqual(invoke().returncode, 0)
             report.write_text(original)
+            self.assertEqual(invoke().returncode, 0)
+            # A stray report for the skipped NornicDB shard is a rejected
+            # candidate: it cannot stand in for an active shard, so removing
+            # shard 4/4 with the stray present still fails.
+            stray = root / "live-backend-reports/1/live-backend-result.json"
+            stray.parent.mkdir(parents=True)
+            stray.write_text(original.replace('"shard": "4/4"', '"shard": "1/4"'))
+            report.unlink()
+            self.assertNotEqual(invoke().returncode, 0)
+            report.write_text(original)
+            stray.unlink()
             self.assertEqual(invoke().returncode, 0)
 
 

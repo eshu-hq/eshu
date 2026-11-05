@@ -52,10 +52,9 @@ def verify_workflow_text(text: str, fragment: str | None = None) -> None:
         (6, "fail-fast: false"),
         (6, "matrix:"),
         (8, "include:"),
-        (10, "- graph_backend: nornicdb"),
-        (12, "compose_file: eshu-deploy/compose/docker-compose.yaml"),
-        (12, "graph_service: nornicdb"),
-        (12, "database: nornic"),
+        # The nornicdb cell is off by owner order (2026-11-05, #7331); it stays
+        # in the workflow only as a comment. Re-enabling restores it here and in
+        # the workflow (docs/internal/ci-workflow-inventory.md).
         (10, "- graph_backend: neo4j"),
         (12, "compose_file: eshu-deploy/compose/docker-compose.neo4j.yml"),
         (12, "graph_service: neo4j"),
@@ -78,7 +77,7 @@ def verify_workflow_text(text: str, fragment: str | None = None) -> None:
         text.count("\njobs:\n") != 1
         or text.count("  workflow_call:\n") != 1
         or text.count("  merge_group:\n") != 0
-        or job.count(nornic_matrix) != 1
+        or job.count(nornic_matrix) != 0
     ):
         raise ValueError("hosted Nornic conformance matrix or event changed")
     headers = [line for line in job.splitlines()

@@ -258,9 +258,11 @@ class ReplayTierEnrollmentTest(unittest.TestCase):
                 "uses: actions/checkout@v5", "run: true", 1),
             "Go setup replaced": workflow_source.replace(
                 "uses: actions/setup-go@v6", "run: true", 1),
-            "plan condition changed": workflow_source.replace(
-                "contains(fromJSON(inputs.plan_jobs || '[]'), 'replay-tier')",
-                "contains(fromJSON(inputs.plan_jobs || '[]'), 'other')", 1),
+            # The job is off by owner order (2026-11-05): the pinned `if` is
+            # false. Flipping it back on without the paired re-enable steps
+            # (registry row, inventory pin) is rejected like any other drift.
+            "job re-enabled outside the documented steps": workflow_source.replace(
+                "    if: ${{ false }}\n", "    if: ${{ true }}\n", 1),
             "direct PR trigger reintroduced": workflow_source.replace(
                 "\nconcurrency:\n",
                 "\n  pull_request:\n    branches: [ main ]\n\nconcurrency:\n", 1),

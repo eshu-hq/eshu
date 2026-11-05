@@ -31,6 +31,9 @@ INDEPENDENT_SUBJECTS = (
 )
 
 
+# The replay-tier job is disabled by owner order (2026-11-05, #7331): the pinned
+# workflow `if` is false and the gate row is manual and non-blocking. Re-enabling
+# restores the original lines (docs/internal/ci-workflow-inventory.md).
 # The reviewed workflow and gate use a literal YAML subset. Compare every active
 # control line, then validate the one variable paths/triggers sequence separately.
 WORKFLOW_CONTROL_LINES = """
@@ -58,7 +61,7 @@ env:
   CGO_CFLAGS: "-O2 -g -std=gnu17"
 jobs:
   replay-tier:
-    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'replay-tier') }}
+    if: ${{ false }}
     name: Offline replay tier vs real NornicDB
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -89,8 +92,8 @@ REGISTRY_GATE_CONTROL_LINES = """
     category: exactness
     layer: replay
     purpose: "Replays recorded ingest/projector cassettes offline and checks the results match the real NornicDB backend."
-    tier: ci-heavy
-    blocking: true
+    tier: manual
+    blocking: false
     triggers:
     local:
       command: "bash scripts/verify-replay-tier.sh"
@@ -101,7 +104,7 @@ REGISTRY_GATE_CONTROL_LINES = """
     requirements:
       - go
       - docker
-    ci_only_reason: ""
+    ci_only_reason: "Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
 """.strip("\n").splitlines()
 
 # A fixed reviewed selector keeps the live-tests.d/ branch open for every

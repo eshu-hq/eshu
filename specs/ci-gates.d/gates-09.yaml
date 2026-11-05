@@ -331,7 +331,7 @@ gates:
     name: Differential NornicDB vs Neo4j oracle (Docker)
     category: exactness
     layer: truth
-    purpose: "Runs the golden corpus on NornicDB and Neo4j with capture; failed runs, empty captures, missing coverage or unanchored id writers block, row diffs are advisory."
+    purpose: "Runs the golden corpus on Neo4j with capture; failed runs, empty captures, missing coverage or unanchored id writers block. NornicDB legs are off (2026-11-05)."
     tier: ci-heavy
     blocking: true
     triggers:
@@ -365,7 +365,7 @@ gates:
       - "specs/ci-images.v1.json"
       - "scripts/lib/ci_image_compose_signature.py"
     local:
-      command: "rm -rf /tmp/eshu-diff-corpus && ESHU_DIFFERENTIAL_CAPTURE=1 ESHU_DIFFERENTIAL_CAPTURE_DIR=/tmp/diff-capture/nornicdb ESHU_REPOS_DIR=/tmp/eshu-diff-corpus ESHU_GRAPH_BACKEND=nornicdb bash scripts/verify-golden-corpus-gate.sh && rm -rf /tmp/eshu-diff-corpus && ESHU_DIFFERENTIAL_CAPTURE=1 ESHU_DIFFERENTIAL_CAPTURE_DIR=/tmp/diff-capture/neo4j ESHU_REPOS_DIR=/tmp/eshu-diff-corpus ESHU_GRAPH_BACKEND=neo4j bash scripts/verify-golden-corpus-gate.sh && (cd go && go run ./cmd/golden-corpus-gate -phase=backend-diff -diff-left=/tmp/diff-capture/nornicdb -diff-right=/tmp/diff-capture/neo4j -diff-allowlist=../specs/backend-divergence-allowlist.v1.yaml && go run ./cmd/golden-corpus-gate -phase=statement-coverage -coverage-manifest=internal/queryplan/testdata/statement-builders.yaml -coverage-dirs=/tmp/diff-capture/neo4j && go run ./cmd/golden-corpus-gate -phase=writer-coverage -coverage-dirs=/tmp/diff-capture/nornicdb,/tmp/diff-capture/neo4j)"
+      command: "rm -rf /tmp/eshu-diff-corpus && ESHU_DIFFERENTIAL_CAPTURE=1 ESHU_DIFFERENTIAL_CAPTURE_DIR=/tmp/diff-capture/neo4j ESHU_REPOS_DIR=/tmp/eshu-diff-corpus ESHU_GRAPH_BACKEND=neo4j bash scripts/verify-golden-corpus-gate.sh && (cd go && go run ./cmd/golden-corpus-gate -phase=statement-coverage -coverage-manifest=internal/queryplan/testdata/statement-builders.yaml -coverage-dirs=/tmp/diff-capture/neo4j && go run ./cmd/golden-corpus-gate -phase=writer-coverage -coverage-dirs=/tmp/diff-capture/neo4j)"
       test_command: "bash scripts/test-verify-golden-corpus-gate.sh && (cd go && go test ./cmd/golden-corpus-gate -run 'TestBackendDiff|TestRunBackendDiff|TestStatementCoverage|TestRunStatementCoverage|TestWriterCoverage|TestAnchorCensus' -count=1 && go test ./internal/graph/anchor -count=1 && go test ./internal/backendconformance -run 'TestComputeStatementCoverage' -count=1 && go test ./internal/queryplan -run 'TestDiscoverStatementBuilders|TestValidateBuilderManifest|TestStatementBuildersManifestMatchesProduction' -count=1)"
     ci:
       workflow: golden-corpus-gate.yml
@@ -375,7 +375,7 @@ gates:
     requirements:
       - go
       - docker
-    ci_only_reason: "needs two live graph backends (NornicDB and Neo4j) side by side; the static mirror plus the gate's seeded RED/GREEN unit pair are the local proof"
+    ci_only_reason: "needs a live Neo4j graph backend; the NornicDB capture legs and backend-diff are off by owner order (2026-11-05, #7331), see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI). The static mirror plus the gate's seeded RED/GREEN unit pair are the local proof"
     # #6965 phase 5: the comparison step ("Compare backend recordings") is
     # advisory discovery -- continue-on-error, a warning annotation and step
     # summary, and the capture upload when it fails. This row stays blocking
