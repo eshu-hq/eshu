@@ -242,6 +242,7 @@ TABLE = {
             "TestTerraformDriftOverlayReadsLive",
             "TestTerraformDriftOverlayConfigRejectsStaleAnchor",
             "TestTerraformDriftOverlayConfigRejectsStaleFullAnchor",
+            "TestAWSRuntimeDriftEvidenceOverlaidAnchorSeesBaseConfigLive",
         ),
         "go/internal/storage/postgres/drifted_bucket_skip_live_test.go": (
             "TestDriftedPathologicalBucketSkippedLive",

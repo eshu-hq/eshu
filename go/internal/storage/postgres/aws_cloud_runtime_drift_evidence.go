@@ -18,6 +18,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/correlation/drift/cloudruntime"
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/tfstate"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -41,6 +42,11 @@ type PostgresAWSCloudRuntimeDriftEvidenceLoader struct {
 	// snapshot. Nil or unresolved ownership suppresses unmanaged findings for
 	// state-backed resources because absence of config is not proven.
 	ConfigResolver AWSCloudRuntimeDriftConfigResolver
+	// OverlaidConfig, when non-nil, loads the anchor's config through the
+	// delta overlay instead of the pinned generation read, so the config
+	// matches the overlaid anchor on delta-active scopes. A nil seam keeps
+	// the pinned read.
+	OverlaidConfig func(ctx context.Context, scopeID, generationID string) (tfstate.OverlaidConfig, error)
 	Tracer         trace.Tracer
 	Logger         *slog.Logger
 	// Instruments is passed into the Terraform config loader so reused
@@ -348,6 +354,21 @@ func (l PostgresAWSCloudRuntimeDriftEvidenceLoader) loadConfigRowsForAnchor(
 	ctx context.Context,
 	anchor tfstatebackend.CommitAnchor,
 ) (map[string]*cloudruntime.ResourceRow, error) {
+	if l.OverlaidConfig != nil {
+		overlaid, err := l.OverlaidConfig(ctx, anchor.ScopeID, anchor.CommitID)
+		if err != nil {
+			return nil, err
+		}
+		out := make(map[string]*cloudruntime.ResourceRow, len(overlaid.ConfigByAddress()))
+		for address, row := range overlaid.ConfigByAddress() {
+			out[address] = &cloudruntime.ResourceRow{
+				Address:      row.Address,
+				ResourceType: row.ResourceType,
+				ScopeID:      anchor.ScopeID,
+			}
+		}
+		return out, nil
+	}
 	loader := PostgresDriftEvidenceLoader{
 		DB:          l.DB,
 		Logger:      l.Logger,

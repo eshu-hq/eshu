@@ -481,3 +481,44 @@ VALUES ('fact-full2-main', 'repository:repo-drift', 'gen-full-2', 'file', 'file:
 		t.Logf("stale full anchor fails closed: %v", err)
 	}
 }
+
+// TestAWSRuntimeDriftEvidenceOverlaidAnchorSeesBaseConfigLive is the P1-1
+// regression: with the resolver anchored at the live (delta) generation,
+// the AWS runtime-drift config read must see the base definitions the
+// state addresses reference. The pinned generation read sees only the
+// delta's files (outputs.tf carries no resources), so both base
+// addresses would classify unmanaged. The overlaid seam must return
+// aws_instance.a and aws_instance.b.
+func TestAWSRuntimeDriftEvidenceOverlaidAnchorSeesBaseConfigLive(t *testing.T) {
+	f := openDriftOverlayLiveFixture(t)
+	ctx := f.ctx
+	seedDriftOverlayLiveFixture(t, ctx, f.database)
+
+	const configScope = "repository:repo-drift"
+	activateDriftOverlayGeneration(t, ctx, f.database, configScope, "gen-full", "gen-delta")
+
+	resolver := tfstatebackend.NewResolver(f.overlay)
+	bucket, key := "drift-bucket", "envs/prod.tfstate"
+	hash := terraformstate.ScopeLocatorHash(terraformstate.BackendS3, "s3://"+bucket+"/"+key)
+	anchor, err := resolver.ResolveConfigCommitForBackend(ctx, "s3", hash)
+	if err != nil {
+		t.Fatalf("ResolveConfigCommitForBackend() error = %v", err)
+	}
+	if anchor.CommitID != "gen-delta" {
+		t.Fatalf("anchor CommitID = %q, want live generation %q", anchor.CommitID, "gen-delta")
+	}
+	loader := PostgresAWSCloudRuntimeDriftEvidenceLoader{
+		DB:             f.counter,
+		ConfigResolver: resolver,
+		OverlaidConfig: f.overlay.LoadDriftConfig,
+	}
+	rows, err := loader.loadConfigRowsForAnchor(ctx, anchor)
+	if err != nil {
+		t.Fatalf("loadConfigRowsForAnchor() error = %v", err)
+	}
+	for _, address := range []string{"aws_instance.a", "aws_instance.b"} {
+		if rows[address] == nil {
+			t.Errorf("overlaid anchor config missing base address %q (got %d rows)", address, len(rows))
+		}
+	}
+}

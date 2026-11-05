@@ -131,22 +131,22 @@ func driftFactsCandidates(rows []driftOverlayRow) ([]terraformstate.DiscoveryCan
 	return candidates, nil
 }
 
-// checkDriftConfigAnchor fails closed when the requested anchor
+// checkDriftConfigAnchorOn fails closed when the requested anchor
 // generation is not the scope's current active generation. The check
 // binds the scope row in ingestion_scopes directly, on every branch:
 // the delta-targets lookup only returns is_delta scopes (a targets-only
 // guard never fires for a full-active scope) and the config rows can be
 // legitimately empty (a row loop over them is vacuous there). An unknown
-// scope has no anchor to validate, so it proceeds as before.
-func (o TerraformDriftOverlay) checkDriftConfigAnchor(
+// scope has no anchor to validate, so it proceeds as before. Callers run
+// it on the same snapshot as the legs it guards, so a racing activation
+// cannot slip between the check and the reads.
+func checkDriftConfigAnchorOn(
 	ctx context.Context,
+	database db.Queryer,
 	scopeID string,
 	generationID string,
 ) error {
-	if o.Store.database == nil {
-		return fmt.Errorf("fact store database is required")
-	}
-	rows, err := o.Store.database.QueryContext(ctx,
+	rows, err := database.QueryContext(ctx,
 		`SELECT scope.active_generation_id FROM ingestion_scopes AS scope WHERE scope.scope_id = $1`,
 		scopeID)
 	if err != nil {
@@ -154,10 +154,13 @@ func (o TerraformDriftOverlay) checkDriftConfigAnchor(
 	}
 	defer func() { _ = rows.Close() }()
 	if !rows.Next() {
-		return nil
+		return rows.Err()
 	}
 	var active sql.NullString
 	if err := rows.Scan(&active); err != nil {
+		return err
+	}
+	if err := rows.Err(); err != nil {
 		return err
 	}
 	if !active.Valid || active.String != generationID {
@@ -175,7 +178,9 @@ func (o TerraformDriftOverlay) checkDriftConfigAnchor(
 // It satisfies the OverlaidConfig seam. The requested generation must
 // match the scope's active generation; otherwise the anchor raced
 // activation and the read fails closed instead of joining config from
-// the wrong generation.
+// the wrong generation. Anchor, module, and config legs share one
+// read-only repeatable-read snapshot, so all three observe the same
+// generation.
 func (o TerraformDriftOverlay) LoadDriftConfig(
 	ctx context.Context,
 	scopeID string,
@@ -184,15 +189,33 @@ func (o TerraformDriftOverlay) LoadDriftConfig(
 	if o.Store == nil {
 		return tfstate.OverlaidConfig{}, fmt.Errorf("terraform drift overlay store is required")
 	}
-	if err := o.checkDriftConfigAnchor(ctx, scopeID, generationID); err != nil {
-		return tfstate.OverlaidConfig{}, err
-	}
-	sink := o.sink(terraformDriftReadConfig)
-	moduleRows, _, _, err := o.overlaidRows(ctx, sink, tfstate.ActiveModuleCallsForOverlayQuery, []any{scopeID}, scanDriftPayloadRow)
+	// Derive both base texts up front: each binds the same single scope
+	// arg plus the delta-active scopes at placeholder 2.
+	moduleBase, err := deriveDeltaOverlayBaseQuery(tfstate.ActiveModuleCallsForOverlayQuery, 2)
 	if err != nil {
 		return tfstate.OverlaidConfig{}, err
 	}
-	configRows, _, _, err := o.overlaidRows(ctx, sink, tfstate.ActiveConfigResourcesForOverlayQuery, []any{scopeID}, scanDriftPayloadRow)
+	configBase, err := deriveDeltaOverlayBaseQuery(tfstate.ActiveConfigResourcesForOverlayQuery, 2)
+	if err != nil {
+		return tfstate.OverlaidConfig{}, err
+	}
+	sink := o.sink(terraformDriftReadConfig)
+	// One snapshot for the anchor check and both legs: repeatable-read
+	// isolation pins all three to the same generation, so a racing
+	// activation fails the guard instead of splitting the read.
+	var moduleRows, configRows []driftOverlayRow
+	err = o.Store.withDeltaOverlaySnapshot(ctx, func(snapshot *deltaOverlaySnapshot) error {
+		if err := checkDriftConfigAnchorOn(ctx, snapshot.store.database, scopeID, generationID); err != nil {
+			return err
+		}
+		var queryErr error
+		moduleRows, _, _, queryErr = o.overlaidRowsOnSnapshot(ctx, snapshot, sink, tfstate.ActiveModuleCallsForOverlayQuery, moduleBase, []any{scopeID}, scanDriftPayloadRow)
+		if queryErr != nil {
+			return queryErr
+		}
+		configRows, _, _, queryErr = o.overlaidRowsOnSnapshot(ctx, snapshot, sink, tfstate.ActiveConfigResourcesForOverlayQuery, configBase, []any{scopeID}, scanDriftPayloadRow)
+		return queryErr
+	})
 	if err != nil {
 		return tfstate.OverlaidConfig{}, err
 	}

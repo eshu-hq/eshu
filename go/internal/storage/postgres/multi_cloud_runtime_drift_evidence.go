@@ -19,6 +19,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/correlation/drift/cloudruntime"
 	"github.com/eshu-hq/eshu/go/internal/correlation/drift/multicloud"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/tfstate"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -42,6 +43,10 @@ type PostgresMultiCloudRuntimeDriftEvidenceLoader struct {
 	// snapshot. Nil or unresolved ownership marks state-backed resources unknown
 	// because absence of config is not proven.
 	ConfigResolver AWSCloudRuntimeDriftConfigResolver
+	// OverlaidConfig, when non-nil, loads an anchor's config through the
+	// delta overlay instead of the pinned generation read. It flows into
+	// the shared AWS config-ownership path via struct conversion.
+	OverlaidConfig func(ctx context.Context, scopeID, generationID string) (tfstate.OverlaidConfig, error)
 	// Tracer, when set, wraps the load so an operator can see which sub-scan is
 	// slow without instrumenting each call site.
 	Tracer trace.Tracer

@@ -23,16 +23,18 @@ RED on active-only methods: base 1 canonical row, 2 config addresses, 0
 2, 2 false `removed_from_config` vs 0 in 8 statements.
 
 GREEN through the overlay, logged at HEAD (`TestTerraformDriftOverlayReadsLive`):
-base 9 statements (targets 3, other 6, no base/resolve/probe/inputs);
-delta and delete phases 18 statements (targets 3, base 3, resolve 2,
+base 8 statements (targets 2, other 6, no base/resolve/probe/inputs);
+delta and delete phases 17 statements (targets 2, base 3, resolve 2,
 probe 2, inputs 2, other 6) with 1 canonical row at the live
-generation and 0 `removed_from_config`; tombstone phase 20 statements
+generation and 0 `removed_from_config`; tombstone phase 19 statements
 (+1 prior walk, +1 legacy-modules prefix build): the really-removed
 addresses surface as 2 true `removed_from_config`, so only false
 positives are suppressed. `union_base_found` counts: config 3,
-canonical 3 (one per delta phase). The `other` family is 6, not 5: the
-anchor PK lookup (`checkDriftConfigAnchor`) accounts for the +1 over
-the pre-anchor tallies.
+canonical 3 (one per delta phase). The `other` family is 6: the anchor
+PK lookup accounts for the +1 over the pre-anchor tallies. Anchor,
+module, and config legs share one snapshot, so the targets lookup runs
+once per config read (targets 2 covers both legs) instead of once per
+leg.
 
 EXPLAIN (ANALYZE, BUFFERS) after, fixture scale: canonical-active
 Incremental Sort rows=0 hit=2 ~0.03ms; canonical-base rows=1 hit=9
@@ -41,8 +43,8 @@ Incremental Sort rows=0 hit=2 ~0.03ms; canonical-base rows=1 hit=9
 
 Why safe: the overlay adds statements only on delta-active scopes
 (transient, one delta per scope at a time); the no-delta steady state
-adds the target lookup on every leg plus the anchor PK lookup on the
-config leg (+1/+2 over the old read, both PK/bounded). The incorrect
+adds one shared targets lookup plus the anchor PK lookup on the
+config leg (+2 over the old read, both PK/bounded). The incorrect
 old read paid less because it read less. Reopen bounds: steady state
 above +2 statements on the config leg, a new derivation seq scan, or
 production overlay-latency signals.

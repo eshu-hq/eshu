@@ -136,6 +136,10 @@ func buildReducerDriftHandlers(
 		AWSCloudRuntimeDriftEvidenceLoader: postgres.PostgresAWSCloudRuntimeDriftEvidenceLoader{
 			DB:             database,
 			ConfigResolver: tfstatebackend.NewResolver(driftOverlay),
+			// The anchor resolves through the overlay, so its config must
+			// come from the overlay too — otherwise a delta-active scope's
+			// base definitions read as unmanaged (#10006 P1-1).
+			OverlaidConfig: driftOverlay.LoadDriftConfig,
 			Tracer:         tracer,
 			Logger:         logger,
 			Instruments:    instruments,

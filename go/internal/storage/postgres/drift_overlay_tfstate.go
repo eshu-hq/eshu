@@ -126,29 +126,49 @@ func (o TerraformDriftOverlay) overlaidRows(
 		return nil, nil, nil, err
 	}
 	err = o.Store.withDeltaOverlaySnapshot(ctx, func(snapshot *deltaOverlaySnapshot) error {
-		reader := snapshot.store
 		var queryErr error
-		active, queryErr = queryDriftOverlayRows(ctx, reader.database, activeQuery, activeArgs, scan)
-		if queryErr != nil {
-			return queryErr
-		}
-		targets, queryErr = snapshot.deltaTargets(ctx)
-		if queryErr != nil {
-			reader.recordDeltaOverlayFailure(ctx, sink)
-			return queryErr
-		}
-		var base []driftOverlayRow
-		if scopes := deltaOverlayBaseScopes(targets); len(scopes) > 0 {
-			baseArgs := append(append([]any{}, activeArgs...), scopes)
-			base, queryErr = queryDriftOverlayRows(ctx, reader.database, baseQuery, baseArgs, scan)
-			if queryErr != nil {
-				reader.recordDeltaOverlayFailure(ctx, sink)
-				return queryErr
-			}
-		}
-		merged, queryErr = mergeDriftOverlayRows(ctx, reader, sink, targets, active, base)
+		merged, active, targets, queryErr = o.overlaidRowsOnSnapshot(ctx, snapshot, sink, activeQuery, baseQuery, activeArgs, scan)
 		return queryErr
 	})
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	return merged, active, targets, nil
+}
+
+// overlaidRowsOnSnapshot runs one active/base leg pair on an already-open
+// snapshot. Callers that read several legs under one atomic view (anchor
+// plus module plus config) share the snapshot — and its cached targets
+// lookup — instead of opening a snapshot per leg.
+func (o TerraformDriftOverlay) overlaidRowsOnSnapshot(
+	ctx context.Context,
+	snapshot *deltaOverlaySnapshot,
+	sink deltaOverlayTelemetry,
+	activeQuery string,
+	baseQuery string,
+	activeArgs []any,
+	scan func(db.Rows) (driftOverlayRow, error),
+) (merged, active []driftOverlayRow, targets []deltaOverlayTarget, err error) {
+	reader := snapshot.store
+	active, err = queryDriftOverlayRows(ctx, reader.database, activeQuery, activeArgs, scan)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	targets, err = snapshot.deltaTargets(ctx)
+	if err != nil {
+		reader.recordDeltaOverlayFailure(ctx, sink)
+		return nil, nil, nil, err
+	}
+	var base []driftOverlayRow
+	if scopes := deltaOverlayBaseScopes(targets); len(scopes) > 0 {
+		baseArgs := append(append([]any{}, activeArgs...), scopes)
+		base, err = queryDriftOverlayRows(ctx, reader.database, baseQuery, baseArgs, scan)
+		if err != nil {
+			reader.recordDeltaOverlayFailure(ctx, sink)
+			return nil, nil, nil, err
+		}
+	}
+	merged, err = mergeDriftOverlayRows(ctx, reader, sink, targets, active, base)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -309,7 +329,7 @@ func matchDriftCanonicalRows(
 	// anchors at a live commit.
 	activeGen := make(map[string]string, len(targets))
 	for _, target := range targets {
-		activeGen[target.scopeID] = target.generationID
+		activeGen[strings.TrimSpace(target.scopeID)] = strings.TrimSpace(target.generationID)
 	}
 	ordered := append([]driftOverlayRow{}, rows...)
 	sort.SliceStable(ordered, func(i, j int) bool {
@@ -330,16 +350,24 @@ func matchDriftCanonicalRows(
 	groups := map[string]*canonicalGroup{}
 	var order []string
 	for _, row := range ordered {
-		key := row.repoID + "\x00" + row.scopeID
+		// Mirror the active-only reader's input hygiene
+		// (tfstate/backend_canonical.go): trim grouping IDs and skip
+		// blank keys so corrupt rows cannot form phantom groups.
+		repoID := strings.TrimSpace(row.repoID)
+		scopeID := strings.TrimSpace(row.scopeID)
+		if repoID == "" || scopeID == "" || strings.TrimSpace(row.generationID) == "" {
+			continue
+		}
+		key := repoID + "\x00" + scopeID
 		group, seen := groups[key]
 		if !seen {
-			commitID := row.generationID
-			if active, ok := activeGen[row.scopeID]; ok {
+			commitID := strings.TrimSpace(row.generationID)
+			if active, ok := activeGen[scopeID]; ok {
 				commitID = active
 			}
 			group = &canonicalGroup{
-				repoID:     row.repoID,
-				scopeID:    row.scopeID,
+				repoID:     repoID,
+				scopeID:    scopeID,
 				commitID:   commitID,
 				observedAt: row.observedAt.UTC(),
 			}

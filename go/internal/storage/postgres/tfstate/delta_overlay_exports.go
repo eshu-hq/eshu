@@ -136,6 +136,14 @@ type OverlaidConfig struct {
 	confidenceMap moduleResolutionConfidenceMap
 }
 
+// ConfigByAddress exposes the overlay-merged config rows by address for
+// consumers that join config without the tfstate loader's drift pipeline
+// (AWS/multicloud runtime drift). The map is the seam's own storage;
+// callers must not mutate it.
+func (c OverlaidConfig) ConfigByAddress() map[string]*tfconfigstate.ResourceRow {
+	return c.byAddress
+}
+
 // NewOverlaidConfig bundles overlay-merged config with its prefix maps.
 // Callers pass prefix values obtained opaquely from
 // ModulePrefixMapFromPayloads without naming their types.
