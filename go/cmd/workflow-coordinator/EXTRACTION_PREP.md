@@ -138,10 +138,12 @@ shared and **stays** in eshu main; it moves only if the queue package moves.
 
 ## 4. Fact kinds and versions
 
-**187 distinct fact Kinds**, exactly verified (`187 Kind:` lines and 187
-distinct in `go/internal/facts/fact_kind_registry.generated.go`; +2 since
-the lock: `aws_ssm_host_application` / `aws_ssm_host_platform` v1.0.0 from
-`#9558`, unrelated to this lane). The
+**188 distinct fact Kinds**, exactly verified (`188 {Kind:` lines and 188
+distinct in `go/internal/facts/fact_kind_registry.generated.go`; +1 since
+the `8ec6d11ddf` refresh: `vulnerability.changed_name` v1.0.0 from `#9777`
+(commit `5958727005`, 2026-11-04), unrelated to this lane — the earlier +2
+was `aws_ssm_host_application` / `aws_ssm_host_platform` v1.0.0 from
+`#9558`, likewise unrelated). The
 workflow leaf emits no facts: SDK relocation (`#6708`) is therefore NOT a
 prerequisite for this lane. Deployment-compat preparation may proceed
 independently per the `#8875` body. `go/go.mod`: `module
@@ -303,7 +305,8 @@ that repo's references too. Binary is dark-by-default and Postgres-only.
   HEAD; every behavior ported live in §§1–3 (stale-skip reconcile/report,
   `ReconcileStaleComponentActivations` with revalidate-before-drop,
   `stale_activation_skips_total` counter, reap-instrument split). Nothing
-  deleted-by-omission. Unchanged across the window: fact Kinds 187,
+  deleted-by-omission. Fact Kinds 187→188 across the window
+  (`vulnerability.changed_name` v1.0.0, `#9777`, unrelated to this lane);
   importer set identical (169). `go/internal/workflow/` grows 77→78
   entries (72→73 `.go`) for the new `protocol_version_test.go` in this
   refresh — the only delta, and it is the compat proof itself.
