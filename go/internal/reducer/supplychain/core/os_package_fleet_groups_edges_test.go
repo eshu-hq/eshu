@@ -399,3 +399,15 @@ func TestCoalesceNamesAnSBOMConflictOnlyWhenAnSBOMWasRead(t *testing.T) {
 		})
 	}
 }
+
+// TestCoalesceKeepsAgreedConfidenceWithoutSBOM pins that a no-SBOM merge of two
+// reasons that agree on confidence keeps that confidence instead of weakening it.
+func TestCoalesceKeepsAgreedConfidenceWithoutSBOM(t *testing.T) {
+	t.Parallel()
+	a := SupplyChainImpactFinding{CVEID: "CVE-2099-9945", PURL: "pkg:deb/debian/curl@1", Status: SupplyChainImpactPossiblyAffected, Confidence: "exact", MatchReason: "reason_a", SubjectDigest: "sha256:a"}
+	b := a
+	b.MatchReason = "reason_b"
+	if got := coalesceAndSortSupplyChainImpactFindings([]SupplyChainImpactFinding{a, b}); len(got) != 1 || got[0].Confidence != "exact" {
+		t.Fatalf("findings = %#v, want one that keeps the confidence both agree on", got)
+	}
+}
