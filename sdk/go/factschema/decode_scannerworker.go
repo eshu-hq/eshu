@@ -61,6 +61,8 @@ func EncodeScannerWorkerWarning(warning scannerworkerv1.Warning) (map[string]any
 	addOptionalString(payload, "distro", warning.Distro)
 	addOptionalString(payload, "distro_version", warning.DistroVersion)
 	addOptionalString(payload, "package_manager", warning.PackageManager)
+	addOptionalString(payload, "repository_id", warning.RepositoryID)
+	addOptionalString(payload, "relative_path", warning.RelativePath)
 	return payload, nil
 }
 

@@ -26,6 +26,30 @@ them; making them required would dead-letter every fallback warning as
 `input_invalid`. The remaining optional fields are environment attributes that
 may be unavailable for an unsupported target or a partially identified image.
 
+`Warning` also carries two optional scan-target fields, `repository_id` and
+`relative_path`, added for core eshu-hq/eshu#10043. They scope a failed or
+partial Go reachability analysis (`analyzer: go_reachability`) to a repository
+and to the go.mod file that failed. `relative_path` is the slash-separated path
+of the go.mod file relative to the repository root, byte-equal to the
+`relative_path` on that file's `vulnerability.go_module_evidence` rows. Blank or
+absent means the whole repository, and a warning with no `repository_id` joins
+nothing. The file path, not the module path, is the scope: a finding is keyed by
+the vulnerable dependency, while a scan is keyed by the go.mod file.
+
+A producer MUST put the failure class in `reason` and MUST leave
+`warning_class` as the constant `scanner_worker_warning`; a reader names the
+failure from `reason`. A producer MUST NOT write a `go_call_reachability` fact
+from the failed scan of a go.mod it warns about; a sibling go.mod's finished
+scan still writes its facts, even for the same dependency. A reader applies the rule on
+`Warning`'s type documentation: a reachable fact always wins, and any other
+fact or no fact beside a joined warning is missing evidence naming
+`govulncheck analysis failed: <reason> at <relative_path>`. A `module` or
+`unknown` level fact with no joined warning keeps its own state, `module_only`
+or `unknown`, with the reason text the reader already attaches to that level;
+this contract does not fix that text. The core reducer
+does not read this kind yet (eshu-hq/eshu#10043); until that lands a failed scan
+stays unknown.
+
 Regenerate schemas after changing a struct:
 
 ```bash
