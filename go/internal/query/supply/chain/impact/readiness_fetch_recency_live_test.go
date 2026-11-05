@@ -17,6 +17,7 @@ import (
 
 	sdkcollector "github.com/eshu-hq/eshu-sdk/collector"
 	vulnerabilityv1 "github.com/eshu-hq/eshu-sdk/factschema/vulnerability/v1"
+	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/collector/extensionhost"
 	hostvulnerability "github.com/eshu-hq/eshu/go/internal/collector/extensionhost/vulnerability"
 	"github.com/eshu-hq/eshu/go/internal/collector/vulnerabilityintelligence"
@@ -26,6 +27,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	storagepostgres "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	vulnerabilitystore "github.com/eshu-hq/eshu/go/internal/storage/postgres/vulnerability"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -215,11 +217,14 @@ func TestReadinessAdvisoryStaleWhenNeverRefetchedLive(t *testing.T) {
 }
 
 // recordExtractedClaim writes the source-state row the extension host writes
-// for an extracted-collector claim after its generation commit returned, with
-// the outcome the satellite's result produces: a complete result whose status
-// is Partial with a warning count for an unproven fetch (see
-// TestClaimOutcomeCarriesAPartialStatusOnACompleteResult and the satellite's
-// TestHandleReportsAnUnprovenFetchAsPartial).
+// for an extracted-collector claim whose generation the guard refused (#10067):
+// the commit returned nil but stored nothing, so the host records the refusal
+// instead of a commit. The row is partial and names the refusal, which keeps
+// the advisory family unfreshened while the guard holds the scope on its stale
+// generation. The status half still comes from the satellite's result: a
+// complete result whose status is Partial with a warning count for an unproven
+// fetch (see TestClaimOutcomeCarriesAPartialStatusOnACompleteResult and the
+// satellite's TestHandleReportsAnUnprovenFetchAsPartial).
 func (p *recencyProof) recordExtractedClaim(at time.Time, partial bool) {
 	p.t.Helper()
 	recorder, err := hostvulnerability.NewRecorder(hostvulnerability.Config{
@@ -240,8 +245,14 @@ func (p *recencyProof) recordExtractedClaim(at time.Time, partial bool) {
 	if partial {
 		outcome.WarningCount = 1
 	}
-	if err := recorder.RecordClaimCommitted(context.Background(), outcome); err != nil {
-		p.t.Fatalf("RecordClaimCommitted() error = %v", err)
+	// The guard refused the shrink above, so the host records the refusal with
+	// the guard's own class and rule, never a commit.
+	refusal := collector.CommitRefusal{
+		Reason: telemetry.RefreshSkipReasonDestructiveSuccessor,
+		Rule:   telemetry.SuccessorGuardRuleCollectorRatio,
+	}
+	if err := recorder.RecordClaimRefused(context.Background(), outcome, refusal); err != nil {
+		p.t.Fatalf("RecordClaimRefused() error = %v", err)
 	}
 }
 
@@ -268,13 +279,14 @@ func (p *recencyProof) refuseShrink(at time.Time) {
 }
 
 // TestReadinessKeepsAdvisorySourcesForARefusedShrinkFromTheExtractedCollectorLive
-// is the #9694 review G1 probe. The extracted collector's source state is
-// written by the host after the commit returns, and a guard refusal returns
-// success, so the state is recorded either way. The satellite reports the
-// unproven fetch as Partial, so the row is partial and readiness must keep
-// reporting advisory_sources for a scope the guard is holding on a stale
-// generation. The control shows what a clean status would do: the row reads
-// fresh and the freshener hides the held scope, which is why the status matters.
+// is the #9694 review G1 probe, repointed at the refused-commit row (#10067).
+// The extracted collector's source state is written by the host after the
+// commit returns, and a guard refusal returns success, so the host records the
+// refusal. The row is partial and readiness must keep reporting
+// advisory_sources for a scope the guard is holding on a stale generation. The
+// second row pins that the satellite's Partial status is not what holds the
+// row partial: a refused commit under a clean status stays partial too,
+// because nothing landed.
 func TestReadinessKeepsAdvisorySourcesForARefusedShrinkFromTheExtractedCollectorLive(t *testing.T) {
 	now := time.Now().UTC().Truncate(time.Second)
 	for _, tc := range []struct {
@@ -283,7 +295,7 @@ func TestReadinessKeepsAdvisorySourcesForARefusedShrinkFromTheExtractedCollector
 		wantMissing bool
 	}{
 		{"unproven fetch reported Partial", true, true},
-		{"control: the same refusal under a clean status", false, false},
+		{"refused commit under a clean status stays partial", false, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			p := openRecencyProof(t)
@@ -293,6 +305,11 @@ func TestReadinessKeepsAdvisorySourcesForARefusedShrinkFromTheExtractedCollector
 			envelope := p.readiness()
 			if got := ReadinessMissingContains(envelope.MissingEvidence, MissingEvidenceAdvisorySources); got != tc.wantMissing {
 				t.Fatalf("missing_evidence = %v, advisory_sources reported = %v, want %v", envelope.MissingEvidence, got, tc.wantMissing)
+			}
+			for _, family := range envelope.EvidenceSources {
+				if family.Family == EvidenceFamilyVulnerabilityAdvisory && family.Freshness == FreshnessLabelFresh {
+					t.Fatalf("advisory freshness = %q, want anything but fresh for a refused row", family.Freshness)
+				}
 			}
 		})
 	}
