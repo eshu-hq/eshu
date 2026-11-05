@@ -14,11 +14,13 @@
 --
 -- 0.02 puts the dead-row trigger at about 2.05M rows and 0.05 puts the insert
 -- trigger at about 4.9M on the row count read before any vacuum; a vacuum that
--- completes first moves both. Where both are exceeded when this lands, the
--- first vacuum starts within one autovacuum_naptime; after a completed vacuum
--- it does not. Later vacuums follow the rates then in force (the evidence note
--- has the arithmetic). That keeps dead rows near 2% of live as a table-wide
--- average; hot rows can carry more between vacuums (arithmetic, unmeasured).
+-- completes first moves both. Where either counter (n_dead_tup or
+-- n_ins_since_vacuum) is at or past its trigger when this lands, a vacuum starts
+-- within one autovacuum_naptime. A vacuum that completed earlier does not
+-- prevent that, because the counters climb again: read them before the roll.
+-- Later vacuums follow the rates then in force (the evidence note has the
+-- arithmetic). That keeps dead rows near 2% of live as a table-wide average;
+-- hot rows can carry more between vacuums (arithmetic, unmeasured).
 -- Evidence: docs/internal/evidence/9975-fact-records-autovacuum-reloptions.md.
 --
 -- Deliberately not set, because each is an unmeasured theory on a primary that
@@ -34,7 +36,8 @@
 -- one: after deadlock_timeout (1 s by default) PostgreSQL cancels that
 -- autovacuum ("canceling autovacuum task" in the server log), the ALTER
 -- proceeds, and the next worker restarts the table from block 0. Only an
--- anti-wraparound autovacuum, a manual VACUUM, or an ANALYZE makes the ALTER
+-- anti-wraparound autovacuum, a manual VACUUM, an ANALYZE, or any other session
+-- holding a conflicting lock (a concurrent index build is one) makes the ALTER
 -- wait, bounded by the runner's lock_timeout and retry budget. A replay leaves
 -- the options unchanged but cancels and restarts a vacuum that is still
 -- running, so do not re-issue this statement while the first vacuum runs.
