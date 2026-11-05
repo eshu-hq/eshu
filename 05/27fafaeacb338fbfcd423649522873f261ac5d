@@ -1,0 +1,60 @@
+go/internal/telemetry/instruments_code_call_delta_scope.go
+  s_7547c0f0af67d4::t_4bf764e8cde4ed 1-34
+go/internal/reducer/code/call/delta_scope.go
+  s_7547c0f0af67d4::t_78ac095b98353f 1-225
+go/internal/reducer/code/call/materialization/unusable_delta_scope.go
+  s_7547c0f0af67d4::t_0d95ffc9d9ae15 1-5,22-26
+  s_7547c0f0af67d4::t_8c0c3156d445bf 6-21,27-132
+go/internal/reducer/code/call/materialization/handler.go
+  s_7547c0f0af67d4::t_933635059e212e 123-129
+go/internal/storage/postgres/reducer_queue_code_call_delta_scope_live_test.go
+  s_7547c0f0af67d4::t_cc85662efd9b73 1-186
+go/internal/telemetry/instruments.go
+  s_7547c0f0af67d4::t_38c61e7016fb6a 2649-2653
+  s_7547c0f0af67d4::t_a3cc581581e08a 6509-6511
+go/internal/reducer/code/call/file_scope.go
+  s_7547c0f0af67d4::t_7bb27ae2b64ddb 101-102
+  s_7547c0f0af67d4::t_78d204a1132eea 43-44,46-56
+  s_7547c0f0af67d4::t_e28ceb28e3545e 72-73,79-83
+docs/public/reference/telemetry/shared-write-operations.md
+  s_7547c0f0af67d4::t_72774da02cf838 106-111
+  s_7547c0f0af67d4::t_6f68856ef35fe1 87-105,112
+go/internal/reducer/code/call/materialization/README.md
+  s_7547c0f0af67d4::t_eda569b54a280f 134-145,148-157
+go/internal/reducer/code/call/intents.go
+  s_7547c0f0af67d4::t_f1f655a4ec4520 144-149
+go/internal/reducer/code/call/README.md
+  s_7547c0f0af67d4::t_58a54ded7a3d23 61-78
+  s_7547c0f0af67d4::t_1106df71616461 20,35,37,45-46
+go/internal/reducer/code/call/unusable_delta_scope_test.go
+  s_7547c0f0af67d4::t_5a7cfc3f781103 1-121
+  s_7547c0f0af67d4::t_be89949b750c4a 122-213
+go/internal/reducer/code/call/materialization/handler_unusable_delta_scope_test.go
+  s_7547c0f0af67d4::t_ab8d1a25e1cf8b 1-236
+docs/public/observability/telemetry-coverage-reducer-core.md
+  s_7547c0f0af67d4::t_6064a4c04729ef 197-198
+go/internal/reducer/sqlrelationship/sql_relationship_aliases.go
+  s_7547c0f0af67d4::t_bb4e1dbce29b9f 226
+go/internal/reducer/sqlrelationship/sql_relationship_delta_scope.go
+  s_7547c0f0af67d4::t_2fceb7f8e05ae7 143,175-176
+scripts/lib/live_postgres_readiness_inventory_gen_internal_storage_postgres_part2.py
+  s_7547c0f0af67d4::t_ea98d5a8e448c9 249-251
+specs/live-tests.d/live-tests-readiness-part4.generated.yaml
+  s_7547c0f0af67d4::t_14d3102b983ce1 97-101
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0527fafaeacb338fbfcd423649522873f261ac5d",
+  "prompts": {},
+  "sessions": {
+    "s_7547c0f0af67d4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7c8b2d5-3286-4c2a-be1f-589162535d83",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
