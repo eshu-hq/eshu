@@ -139,6 +139,10 @@ TABLE = {
             "TestTerminalSiblingsFailedRunItemsStayFrozenLive",
             "TestTerminalSiblingsNoDuplicateUnderConcurrentLifecycleLive",
         ),
+        "go/internal/storage/postgres/run_watermark_guard_live_test.go": (
+            "TestCICDRunWatermarkGuardAcrossGenerationsLive",
+            "TestCICDRunWatermarkConcurrentGenerationsKeepTheNewestRunLive",
+        ),
         "go/internal/storage/postgres/satisfied_by_read_delta_live_test.go": (
             "TestListActiveCrossplaneXRDFactsDeltaActiveScopeLive",
             "TestCrossplaneSatisfiedByDeltaKeepsUnchangedEdgesLive",
