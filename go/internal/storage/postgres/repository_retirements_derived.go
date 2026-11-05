@@ -149,6 +149,9 @@ func (s IngestionStore) gateAndUpsertIngestionScope(
 		}
 		if outcome != "" {
 			s.recordDerivedCommitRefused(ctx, outcome)
+			if outcome == derivedCommitOutcomeRetired {
+				return scopeGateRefusedRetired, "", nil
+			}
 			return scopeGateRefusedRetiring, "", nil
 		}
 	}

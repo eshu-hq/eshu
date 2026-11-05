@@ -432,6 +432,12 @@ func TestDerivedCommitRefusalCountsAndNamesTheParent(t *testing.T) {
 		if !strings.Contains(logged.String(), `"repo_id":"`+derivedTestRepoID+`"`) {
 			t.Fatalf("refusal log does not name the parent repository:\n%s", logged.String())
 		}
+		if !strings.Contains(logged.String(), `"outcome":"repository_`+wantOutcome+`"`) {
+			t.Fatalf("refusal WARN outcome for %s = %s, want repository_%s:\n%s", state, logged.String(), wantOutcome, logged.String())
+		}
+		if !strings.Contains(logged.String(), `"msg":"repository ingest refused: `+wantOutcome+`"`) {
+			t.Fatalf("refusal WARN message for %s does not name %s:\n%s", state, wantOutcome, logged.String())
+		}
 	}
 }
 

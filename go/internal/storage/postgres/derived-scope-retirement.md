@@ -121,7 +121,8 @@ counts derived scopes a committed purge removed.
 `eshu_dp_repository_retirement_derived_commits_refused_total{outcome}` counts
 refused scans with the closed outcomes `retiring` and `retired`; a steady `retired`
 rate means claims outlived the retirement. The WARN `repository ingest refused:
-retiring` now names the parent in `repo_id` instead of the fairness key, the INFO
+retiring` / `repository ingest refused: retired` now names the parent in `repo_id`
+instead of the fairness key, with the `outcome` matching the counter, the INFO
 `repository retirement purged` gains `derived_scopes_deleted`, and the tombstone's
 `rows_deleted` ledger names the derived rows. Statement timing stays on
 `eshu_dp_postgres_query_duration_seconds` and its query spans. See
