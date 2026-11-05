@@ -10,4 +10,9 @@
 // id; the commit and clone URL live in the run's requested_scope_set, which the
 // extension host delivers on the claim. This package opens no connection and
 // reads no store: the root coordinator passes the page in and owns admission.
+//
+// StaleEvidence applies the commit-skew rule to the same page: which active
+// go-reachability generations measured a commit the repository left more than two
+// rotation periods ago. It decides only; the root applies the decision through the
+// store.
 package reachability

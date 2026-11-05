@@ -119,6 +119,21 @@ tests:
     class: postgres_ci
     reason: "#7472 disposable PostgreSQL 18 proof that retention keeps an uncovered superseded writer (reconcile-probe evidence) at any age while still pruning a covered writer, enrolled in the live-postgres-readiness runner; bridges the family ESHU_GENERATION_RETENTION_PROOF_DSN onto ESHU_POSTGRES_TEST_DSN as the hard-ceiling proof does. local run passed in 1.30s wall with the full 188-migration setup on postgres:18 on 2026-10-10"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/gomodules/fence_concurrency_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10055 real PostgreSQL concurrency proof of the commit-skew fence against the real projector Ack and the retirement fence's table lock: both completion orders end on the successor, the fence queues behind an Ack holding the scope row without deadlock, a sustained race with holders leaves one consistent outcome, and a lock timeout rolls the retraction back with its holders"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/gomodules/fence_holders_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10055 real PostgreSQL proof of the fence's holder reopen: exactly the scopes holding an active finding for the repository are reopened with the origin stamp in the fence transaction, and a failed or timed-out reopen rolls the retraction back, including behind the retirement fence's table lock"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/gomodules/fence_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10055 real PostgreSQL proof of the commit-skew fence: the amended rule on the real page read at one slot and at fleet scale, the retraction transition, the unusable-remote acceptance case, the dirty-log capture, and the open-target guard releasing a repository after a terminal failure"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/gomodules/store_live_test.go
     tag: ~
     class: postgres_ci

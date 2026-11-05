@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/repositoryidentity"
 )
@@ -173,7 +174,39 @@ type GoModuleRepository struct {
 	// HasGoEvidence reports that the repository's go-reachability scope still
 	// holds Go evidence. A non-canonical remote on such a repository should be
 	// impossible, so the planner counts it in its own skip reason as an alarm.
+	// The commit-skew fence still bounds that evidence (eshu-hq/eshu#10055).
 	HasGoEvidence bool
+	// EvidenceGenerationID is the go-reachability scope's active generation, read
+	// with the page. The commit-skew fence names it in its predicates, so a
+	// successor activated after this read makes the fence a no-op. Empty when the
+	// scope has no active generation.
+	EvidenceGenerationID string
+	// EvidenceCommitSHA is the commit that generation measured. Empty for a
+	// generation with no stamped commit, which the fence never retracts.
+	EvidenceCommitSHA string
+	// EvidenceLeftAt is when the repository left the evidence commit: the newest
+	// superseded_at among its own generations at EvidenceCommitSHA. It is read only
+	// when the repository's commit differs from the evidence commit. Zero with skew
+	// means no such generation survives, so retention pruned it, which proves the
+	// skew is older than the retention cutoff.
+	EvidenceLeftAt time.Time
+}
+
+// StaleEvidenceFence names one active go-reachability generation to retract: a
+// scope and the generation the planner read as active.
+type StaleEvidenceFence struct {
+	ScopeID      string
+	GenerationID string
+}
+
+// StaleEvidenceFenceResult is what one pass of the fence did. It stays valid
+// alongside an error, because each fence commits on its own.
+type StaleEvidenceFenceResult struct {
+	// Fenced counts generations actually retracted.
+	Fenced int
+	// HoldersReopened counts the holder scopes asked to re-derive, in the same
+	// transactions as those retractions.
+	HoldersReopened int
 }
 
 // GoModuleRepositoryFilter selects one rotation page of repository candidates.

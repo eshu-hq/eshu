@@ -5,6 +5,7 @@ package gomodules
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"strings"
@@ -43,6 +44,20 @@ const plannedRunQuery = `SELECT EXISTS (SELECT 1 FROM workflow_runs WHERE run_id
 // is the ingestion_scopes primary key, then a prefix of
 // fact_records_scope_generation_idx (scope_id, generation_id, fact_kind) that stops
 // at the first row, so warning-only generations cost no scan.
+//
+// The go-reachability scope's active generation comes back too, for the commit-skew
+// fence in the planner: its id and the commit it measured. The joins are one more
+// ingestion_scopes primary-key probe and one scope_generations primary-key probe per
+// candidate, and add no index.
+//
+// evidence_left_at is when the repository left the evidence commit: the newest
+// superseded_at among the repository scope's own generations at that commit. The CASE
+// guards the subquery so it runs only for a skewed row, never for the whole page, so
+// the common page with no skew pays nothing for it. It reads one range of
+// scope_generations_scope_idx (scope_id, status, ingested_at DESC), bounded by
+// retention, and filters on source_commit_sha from the heap. NULL with skew means
+// retention pruned that history. Any change here needs a fresh
+// EXPLAIN (ANALYZE, BUFFERS): docs/internal/evidence/10055-commit-skew-fence.md.
 const pageQuery = `
 WITH candidates AS (
     SELECT scope.scope_id,
@@ -76,11 +91,29 @@ SELECT candidate.repository_id,
              AND reach.active_generation_id IS NOT NULL
              AND fact.fact_kind IN ('vulnerability.go_module_evidence', 'vulnerability.go_call_reachability')
              AND fact.is_tombstone = FALSE
-       ) AS has_go_evidence
+       ) AS has_go_evidence,
+       COALESCE(reach_generation.generation_id, '') AS evidence_generation_id,
+       COALESCE(reach_generation.source_commit_sha, '') AS evidence_commit_sha,
+       CASE WHEN COALESCE(reach_generation.source_commit_sha, '') <> ''
+             AND COALESCE(generation.source_commit_sha, '') <> ''
+             AND reach_generation.source_commit_sha <> generation.source_commit_sha
+            THEN (
+                SELECT max(history.superseded_at)
+                FROM scope_generations AS history
+                WHERE history.scope_id = candidate.scope_id
+                  AND history.status = 'superseded'
+                  AND history.source_commit_sha = reach_generation.source_commit_sha
+            )
+       END AS evidence_left_at
 FROM candidates AS candidate
 JOIN scope_generations AS generation
   ON generation.generation_id = candidate.active_generation_id
  AND generation.status = 'active'
+LEFT JOIN ingestion_scopes AS reach_scope
+  ON reach_scope.scope_id = 'go-reachability://' || candidate.repository_id
+LEFT JOIN scope_generations AS reach_generation
+  ON reach_generation.generation_id = reach_scope.active_generation_id
+ AND reach_generation.status = 'active'
 WHERE candidate.candidate_rank / $2::bigint =
       $1::bigint % CEIL(candidate.total_candidates::numeric / $2::bigint)::bigint
 ORDER BY candidate.scope_id
@@ -88,7 +121,8 @@ ORDER BY candidate.scope_id
 
 // Store reads Go module repositories from the Eshu data plane.
 type Store struct {
-	database db.Queryer
+	database     db.Queryer
+	reopenHolder HolderReopener
 }
 
 // NewStore returns a Store over one queryer. Pass an instrumented queryer so the
@@ -130,14 +164,19 @@ func (s Store) ListGoModuleRepositories(
 	for rows.Next() {
 		var repository scannercomponent.GoModuleRepository
 		var hasGoModule, hasGoEvidence bool
+		var evidenceLeftAt sql.NullTime
 		if err := rows.Scan(
 			&repository.RepositoryID, &repository.RemoteURL, &repository.SourceCommitSHA,
 			&page.TotalCandidates, &hasGoModule, &hasGoEvidence,
+			&repository.EvidenceGenerationID, &repository.EvidenceCommitSHA, &evidenceLeftAt,
 		); err != nil {
 			return scannercomponent.GoModuleRepositoryPage{}, fmt.Errorf("read go module repositories: %w", err)
 		}
 		page.Candidates++
 		repository.HasGoEvidence = hasGoEvidence
+		if evidenceLeftAt.Valid {
+			repository.EvidenceLeftAt = evidenceLeftAt.Time
+		}
 		if hasGoModule || hasGoEvidence {
 			page.Repositories = append(page.Repositories, repository)
 		}

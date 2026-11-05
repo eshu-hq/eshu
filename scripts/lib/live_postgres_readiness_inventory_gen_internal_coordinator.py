@@ -11,6 +11,9 @@ TABLE = {
             "TestActivationDerivedScopesAdmissionLive",
             "TestActivationDerivedScopesConcurrentCoordinatorsLive",
         ),
+        "go/internal/coordinator/activation_go_modules_fence_live_test.go": (
+            "TestGoModulesFenceLockTimeoutLeavesNoRunAndRetriesLive",
+        ),
         "go/internal/coordinator/service_cicd_run_burst_live_test.go": (
             "TestCICDServiceClaimGroupBurstAndLateArrivalLive",
             "TestCICDServiceConcurrentCoordinatorsShareClaimGroupLive",

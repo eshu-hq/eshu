@@ -42,8 +42,12 @@ results, and none holds a repository id or URL:
 - One ERROR `workflow coordinator refused derived scopes for component activation`
   line for a mislabeled host. Egress denial uses the existing skip log and audit
   event.
-- The page read reports on
+- The page read and the fence report on
   `eshu_dp_postgres_query_duration_seconds{store="go_module_repositories"}`.
+- `eshu_dp_workflow_coordinator_activation_derived_scopes_fenced_total` with
+  `collector_kind`, `ecosystem`, and `reason="stale_evidence"`, for generations actually
+  retracted. The planned line adds `fenced_stale_evidence`, `fence_holders_reopened`,
+  `fence_candidates_skipped_no_commit`, and `fence_history_pruned`.
 
 ## Gotchas / invariants
 
@@ -68,6 +72,14 @@ results, and none holds a repository id or URL:
   identity normalization or the remote stamp changed. `ValidCloneURL` checks syntax
   only: a dead or revoked remote is planned and claimed, its claim fails, and the
   evidence of its last commit stays active until the fence in eshu-hq/eshu#10055.
+- `StaleEvidence` retracts Go evidence when the repository left the commit it measured more
+  than two rotation periods ago. One repository is visited once per `slot_count` x
+  `scan_interval`, so a bound in intervals would retract healthy repositories on a large
+  fleet. The age is measured from the repository's own history, so a quiet repository is
+  never retracted by age.
+- A retraction leaves stored findings alone. The store reopens each holder in the same
+  transaction, and each finding changes when that holder re-derives. See
+  `docs/public/reference/standalone-vulnerability-scanner-boundary.md`.
 
 ## Related docs
 
