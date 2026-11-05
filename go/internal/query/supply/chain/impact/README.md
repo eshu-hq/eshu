@@ -172,9 +172,12 @@ newest state wins, so a package with several release scopes (Alpine, #9993) is
 covered only when every release is fresh (#10015). A scope id's release only
 labels and groups rows, and a scope with no release shares one group, so other
 ecosystems keep one newest-wins scope. The instance's latest planner run supplies
-the expected releases: a planned release with no state reads pending, and once the
-plan names releases for a package and distro, a release it dropped and a legacy
-scope with no release stop counting. With no plan entry, every release row stands.
+the expected releases: a planned release with no state reads pending. The plan never
+removes a state row, because it is one limit-sized window of the installed fleet and
+what it leaves out says nothing about the fleet. One state-only rule removes a row:
+a scope id with no `release=` parameter at all stops counting for a package and
+distro once a real state row with a release exists for the same instance. A release
+that left the fleet keeps counting until its state is fresh (#10135).
 The distinct winners are aged by the read cutoff, and one aggregate
 `SourceState` row (`Derived`, `derived://<source>/<ecosystem>`) reports the
 worst state and the counts. A requested package with no matching scope makes

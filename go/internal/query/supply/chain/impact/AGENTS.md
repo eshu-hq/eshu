@@ -66,6 +66,15 @@ Read `doc.go` and `README.md` first.
   a bucket with no granted finding MUST NOT appear. The live parity proof
   (`grouped_inventory_postgres_live_test.go`) pins every bucket to the count
   route for filter=X.
+- Derived release coverage (`readinessDerivedReleaseMatchCTE`, #10015) MUST
+  decide from state rows. The latest planner run is one limit-sized window of
+  the installed fleet, so it MAY add a pending row for a release it names and
+  MUST NOT make any state row stop counting because it does not name it. The
+  one removal reads state alone: a scope id with no `release=` parameter at all
+  stops counting once a real state row with a release exists for the same
+  instance, package and distro. Key that on the scope id, never on an empty
+  release value. `TestSupplyChainImpactReadinessDerivedVerdictIgnoresPlanWindowLive`
+  and the rotation test pin it.
 - Files must stay under 500 lines. `readiness.go`
   (489), `findings.go` (458), and
   `readiness_postgres_query.go` (438) are the ones
