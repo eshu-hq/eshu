@@ -24,8 +24,11 @@ func crossplaneClaimFakeRow() []any {
 	}
 }
 
-// crossplaneRefusalTarget is the delta-target lookup row for repo-1.
-var crossplaneRefusalTarget = queueFakeRows{rows: [][]any{{"repository:repo-1", "generation-1", "c0", ""}}}
+// crossplaneRefusalTarget is the delta-target lookup row for repo-1: it has
+// a baseline but no base candidates, so the base lookup finds no full
+// generation at its commit. The fifth column is the candidate-base
+// generations JSON main's #9611 refactor added to the lookup.
+var crossplaneRefusalTarget = queueFakeRows{rows: [][]any{{"repository:repo-1", "generation-1", "c0", "", `[]`}}}
 
 // TestListActiveCrossplaneSatisfiedByFactsFailsOnAMissingBase pins #10005 F1
 // on a stub queryer. The intent scope is delta-active and the base lookup
@@ -86,9 +89,9 @@ func TestListActiveCrossplaneSatisfiedByFactsRetriesAFailedProbe(t *testing.T) {
 	t.Parallel()
 
 	db := &fakeExecQueryer{queryResponses: []queueFakeRows{
-		{rows: [][]any{crossplaneClaimFakeRow()}}, // claim active page
-		crossplaneRefusalTarget,                   // delta-target lookup
-		{},                                        // claim base page
+		{rows: [][]any{crossplaneClaimFakeRow()}},                                      // claim active page
+		{rows: [][]any{{"repository:repo-1", "generation-1", "c0", "", `["base-1"]`}}}, // delta-target lookup
+		{}, // claim base page
 		{rows: [][]any{{"repository:repo-1", "base-1", "superseded"}}}, // base lookup
 		{err: context.DeadlineExceeded},                                // retention probe
 	}}

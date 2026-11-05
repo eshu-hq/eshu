@@ -226,8 +226,8 @@ func (snapshot *deltaOverlaySnapshot) listCrossplaneXRDOverlay(ctx context.Conte
 		return nil, err
 	}
 	var base []facts.Envelope
-	if baseScopes := deltaOverlayBaseScopes(targets); len(baseScopes) > 0 {
-		base, err = reader.listCrossplaneFactPages(ctx, "list delta base crossplane xrd facts", baseQuery, nil, nil, baseScopes)
+	if baseGenerations, scan := deltaOverlayBaseGenerations(targets); scan {
+		base, err = reader.listCrossplaneFactPages(ctx, "list delta base crossplane xrd facts", baseQuery, nil, nil, baseGenerations)
 		if err != nil {
 			reader.recordDeltaOverlayFailure(ctx, sink)
 			return nil, err
@@ -269,8 +269,8 @@ func (snapshot *deltaOverlaySnapshot) listCrossplaneClaimOverlay(ctx context.Con
 		return target.scopeID != scopeID
 	})
 	var base []facts.Envelope
-	if baseScopes := deltaOverlayBaseScopes(targets); len(baseScopes) > 0 {
-		base, err = reader.listCrossplaneFactPages(ctx, "list delta base crossplane claim facts", baseQuery, execMode, scopeArgs, baseScopes)
+	if baseGenerations, scan := deltaOverlayBaseGenerations(targets); scan {
+		base, err = reader.listCrossplaneFactPages(ctx, "list delta base crossplane claim facts", baseQuery, execMode, scopeArgs, baseGenerations)
 		if err != nil {
 			reader.recordDeltaOverlayFailure(ctx, sink)
 			return nil, err
