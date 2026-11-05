@@ -37,6 +37,12 @@ package impact
 // stands and fails toward not covered. A release that left the fleet keeps
 // counting until its state is fresh again; that limit is tracked in #10135.
 //
+// A planned target's scope id is as wide as its batch (about 1.7 KB for 66
+// packages), so the plan side carries the target's ordinal and looks the id up
+// after the newest state per release is chosen. Carrying the id through the
+// planned-release and window sorts spilled to disk at the 5000-query ceiling
+// where the statement before this change did not.
+//
 // Bounds: the plan is capped by the derivation budget (5000 queries), and the
 // EXISTS gate skips it for requests with no OS package, the only ecosystem with
 // release scopes. MATERIALIZED on the requested names keeps the plan expansion
@@ -47,23 +53,22 @@ package impact
 // because deterministic collations agree on equality and byte comparison is far
 // cheaper than a locale's.
 const readinessDerivedReleaseMatchCTE = `derived_vulnerability_planned_release_targets AS MATERIALIZED (
-    SELECT run.collector_instance_id, element.target
+    SELECT run.collector_instance_id, element.ord, element.target
     FROM latest_vulnerability_planner_runs AS run
     CROSS JOIN LATERAL JSONB_ARRAY_ELEMENTS(
         CASE WHEN JSONB_TYPEOF(run.requested_scope_set->'targets') = 'array'
             THEN run.requested_scope_set->'targets' ELSE '[]'::jsonb END
-    ) AS element(target)
+    ) WITH ORDINALITY AS element(target, ord)
     WHERE EXISTS (SELECT 1 FROM derived_request_packages AS request WHERE request.ecosystem = 'os')
       AND element.target->>'source' = 'osv'
       AND element.target->>'scope_id' LIKE '%release=%'
 ),
 derived_vulnerability_planned_requested AS MATERIALIZED (
-    SELECT planned.collector_instance_id, request.ecosystem, request.package_id,
-        TRIM(planned.target->>'scope_id') AS scope_id,
+    SELECT planned.collector_instance_id, request.ecosystem, request.package_id, planned.ord,
         LOWER(TRIM(planned.target->>'ecosystem') COLLATE "C") COLLATE "default" AS distro,
         NULLIF(SPLIT_PART(SPLIT_PART(SPLIT_PART(REPLACE(planned.target->>'scope_id', '?', '&'), '&release=', 2), '&', 1), '#', 1), '') AS release
     FROM (
-        SELECT target.collector_instance_id, target.target,
+        SELECT target.collector_instance_id, target.ord, target.target,
             LOWER(TRIM(raw.package_name) COLLATE "C") COLLATE "default" AS package_name
         FROM derived_vulnerability_planned_release_targets AS target
         CROSS JOIN LATERAL (
@@ -81,7 +86,7 @@ derived_vulnerability_planned_releases AS (
     SELECT DISTINCT ON (planned.collector_instance_id COLLATE "C", planned.ecosystem COLLATE "C", planned.package_id COLLATE "C",
             planned.distro COLLATE "C", planned.release COLLATE "C")
         planned.collector_instance_id, planned.ecosystem, planned.package_id,
-        planned.distro, planned.release, planned.scope_id
+        planned.distro, planned.release, planned.ord
     FROM derived_vulnerability_planned_requested AS planned
     JOIN derived_vulnerability_source_config AS config
       ON config.collector_instance_id = planned.collector_instance_id
@@ -90,7 +95,11 @@ derived_vulnerability_planned_releases AS (
      AND config.derivation_ecosystem = planned.distro
     WHERE planned.release IS NOT NULL
     ORDER BY planned.collector_instance_id COLLATE "C", planned.ecosystem COLLATE "C", planned.package_id COLLATE "C",
-        planned.distro COLLATE "C", planned.release COLLATE "C", planned.scope_id COLLATE "C"
+        planned.distro COLLATE "C", planned.release COLLATE "C", planned.ord
+),
+derived_vulnerability_planned_scopes AS (
+    SELECT target.collector_instance_id, target.ord, TRIM(target.target->>'scope_id') AS scope_id
+    FROM derived_vulnerability_planned_release_targets AS target
 ),
 derived_vulnerability_source_hits AS (
     SELECT request.ecosystem, request.package_id, hit.*,
@@ -121,25 +130,25 @@ derived_vulnerability_source_hits AS (
      AND config.source = hit.source
      AND config.ecosystem = request.ecosystem
 ),
-derived_vulnerability_source_matched AS (
+derived_vulnerability_source_chosen AS (
     SELECT DISTINCT ON (ranked.collector_instance_id COLLATE "C", ranked.ecosystem COLLATE "C", ranked.package_id COLLATE "C",
             ranked.source COLLATE "C", CASE WHEN ranked.release IS NULL THEN NULL ELSE ranked.distro END COLLATE "C", ranked.release COLLATE "C")
         ranked.ecosystem, ranked.package_id, ranked.collector_instance_id, ranked.scope_id, ranked.source,
         ranked.updated_at, ranked.freshness_state, ranked.terminal_status, ranked.last_error_class,
         ranked.last_success_at, ranked.last_attempt_at, ranked.next_retry_at,
-        ranked.result_count, ranked.warning_count, ranked.distro, ranked.release
+        ranked.result_count, ranked.warning_count, ranked.distro, ranked.release, ranked.planned_ord
     FROM (
         SELECT candidate.*,
             (candidate.release IS NULL AND candidate.scope_id NOT LIKE '%release=%') AS legacy,
             BOOL_OR(NOT candidate.planned AND candidate.release IS NOT NULL) OVER (PARTITION BY candidate.collector_instance_id COLLATE "C",
                 candidate.ecosystem COLLATE "C", candidate.package_id COLLATE "C", candidate.distro COLLATE "C") AS distro_has_release_state
         FROM (
-            SELECT hit.*, FALSE AS planned FROM derived_vulnerability_source_hits AS hit
+            SELECT hit.*, FALSE AS planned, NULL::bigint AS planned_ord FROM derived_vulnerability_source_hits AS hit
             UNION ALL
-            SELECT planned.ecosystem, planned.package_id, planned.collector_instance_id, planned.scope_id,
+            SELECT planned.ecosystem, planned.package_id, planned.collector_instance_id, NULL::text,
                 'osv'::text, NULL::timestamptz, 'pending'::text, 'pending'::text, NULL::text,
                 NULL::timestamptz, NULL::timestamptz, NULL::timestamptz, 0, 0,
-                planned.distro, planned.release, TRUE
+                planned.distro, planned.release, TRUE, planned.ord
             FROM derived_vulnerability_planned_releases AS planned
         ) AS candidate
     ) AS ranked
@@ -147,5 +156,15 @@ derived_vulnerability_source_matched AS (
     ORDER BY ranked.collector_instance_id COLLATE "C", ranked.ecosystem COLLATE "C", ranked.package_id COLLATE "C",
         ranked.source COLLATE "C", CASE WHEN ranked.release IS NULL THEN NULL ELSE ranked.distro END COLLATE "C", ranked.release COLLATE "C",
         ranked.updated_at DESC NULLS LAST, ranked.scope_id
+),
+derived_vulnerability_source_matched AS (
+    SELECT matched.ecosystem, matched.package_id, matched.collector_instance_id,
+        COALESCE(matched.scope_id, scope.scope_id) AS scope_id, matched.source,
+        matched.updated_at, matched.freshness_state, matched.terminal_status, matched.last_error_class,
+        matched.last_success_at, matched.last_attempt_at, matched.next_retry_at,
+        matched.result_count, matched.warning_count, matched.distro, matched.release
+    FROM derived_vulnerability_source_chosen AS matched
+    LEFT JOIN derived_vulnerability_planned_scopes AS scope
+      ON scope.collector_instance_id = matched.collector_instance_id AND scope.ord = matched.planned_ord
 ),
 `
