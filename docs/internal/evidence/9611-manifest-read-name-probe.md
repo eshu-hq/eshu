@@ -78,7 +78,8 @@ and covered at 1x and 5x. Buffers are
 shared hit plus read from the last run. "Custom" binds literals, the plan the
 read runs under `QueryExecModeCacheDescribe`. "Generic" is `PREPARE` with
 `plan_cache_mode = force_generic_plan`. Row sets were compared by md5 of the
-positional row text in output order and matched in every shape, at every scale.
+positional row text in output order and matched in every shape measured, at
+every scale.
 
 Threshold, stated before the runs: for the 400-name npm read, page 1 and a
 cursor page, under the custom plan, the rewrite must use at most 50 % of main's
@@ -160,7 +161,7 @@ No plan reads `fact_records` with a sequential scan. The new plan for
 an index scan of the folded entity index with both columns in the Index Cond
 (400 index searches) and `NOT is_tombstone` as its only Filter.
 
-Planning time is about the same for both texts (16 to 48 ms under this load).
+Planning time is about the same for both texts (16 to 49 ms under this load).
 `QueryExecModeCacheDescribe` replans every page, so it counts once per page
 for both.
 
