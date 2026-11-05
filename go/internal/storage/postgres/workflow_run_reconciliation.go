@@ -41,18 +41,26 @@ WHERE status NOT IN ('complete', 'failed')
 ORDER BY updated_at ASC, run_id ASC
 `
 
+// listWorkflowCollectorProgressQuery reads every per-collector count that
+// ReconcileRunProgress validates against each other — including the #9257
+// factless-completed count (see run_reconciliation_factless.go) — in one
+// statement, so they all come from one READ COMMITTED snapshot. A separate
+// factless probe ran after this query and counted completions that landed
+// in between, breaking the factless <= completed invariant and failing the
+// whole reconcile tick whenever collectors finished work concurrently.
 const listWorkflowCollectorProgressQuery = `
 SELECT
-    collector_kind,
+    item.collector_kind,
     COUNT(*) AS total_work_items,
-    COUNT(*) FILTER (WHERE status = 'pending') AS pending_work_items,
-    COUNT(*) FILTER (WHERE status = 'claimed') AS claimed_work_items,
-    COUNT(*) FILTER (WHERE status = 'completed') AS completed_work_items,
-    COUNT(*) FILTER (WHERE status = 'failed_terminal') AS failed_terminal_work_items
-FROM workflow_work_items
-WHERE run_id = $1
-GROUP BY collector_kind
-ORDER BY collector_kind ASC
+    COUNT(*) FILTER (WHERE item.status = 'pending') AS pending_work_items,
+    COUNT(*) FILTER (WHERE item.status = 'claimed') AS claimed_work_items,
+    COUNT(*) FILTER (WHERE item.status = 'completed') AS completed_work_items,
+    COUNT(*) FILTER (WHERE item.status = 'failed_terminal') AS failed_terminal_work_items,
+    COUNT(*) FILTER (WHERE item.status = 'completed'` + factlessCompletedProbeSQL + `) AS factless_completed_items
+FROM workflow_work_items AS item
+WHERE item.run_id = $1
+GROUP BY item.collector_kind
+ORDER BY item.collector_kind ASC
 `
 
 const listWorkflowCollectorPhaseCountsQuery = `
@@ -207,14 +215,9 @@ func (s *WorkflowControlStore) reconcileWorkflowRunOnce(ctx context.Context, run
 	if err != nil {
 		return fmt.Errorf("reconcile workflow run %s: %w", run.RunID, err)
 	}
-	factlessCounts, err := s.listWorkflowCollectorFactlessCompletedCounts(ctx, queryTarget, run.RunID)
-	if err != nil {
-		return fmt.Errorf("reconcile workflow run %s: %w", run.RunID, err)
-	}
 	for i := range progress {
 		progress[i].PublishedPhaseCounts = phaseCounts[string(progress[i].CollectorKind)]
 		progress[i].TerminalDeadLetterCounts = deadLetterCounts[string(progress[i].CollectorKind)]
-		progress[i].FactlessCompletedItems = factlessCounts[string(progress[i].CollectorKind)]
 	}
 
 	nextRun, completeness, err := workflow.ReconcileRunProgress(workflow.RunProgressSnapshot{
@@ -246,7 +249,7 @@ func (s *WorkflowControlStore) reconcileWorkflowRunOnce(ctx context.Context, run
 	// deadlock/serialization conflict, and a retried attempt must not double
 	// count (or count at all, if it never committed) the terminal-dead-letter
 	// block signal.
-	s.recordTerminalDeadLetterBlocks(ctx, run.RunID, progress, completeness)
+	s.recordTerminalDeadLetterBlocks(ctx, nextRun, progress, completeness)
 	return nil
 }
 
@@ -256,12 +259,20 @@ func (s *WorkflowControlStore) reconcileWorkflowRunOnce(ctx context.Context, run
 // (bounded, never run_id/scope_id/generation_id, per telemetry cardinality
 // rules). A nil Instruments (the default) makes this a no-op so binaries
 // without a wired meter provider are unaffected.
+//
+// It emits only on the reconciliation that terminates the run, which is what
+// the counter documents. A dead-lettered run with pending or claimed items stays
+// open and is reconciled every tick (#10091); its blocked completeness rows are
+// the signal until then, and counting each tick would inflate the alert rate.
 func (s *WorkflowControlStore) recordTerminalDeadLetterBlocks(
 	ctx context.Context,
-	runID string,
+	run workflow.Run,
 	progress []workflow.CollectorRunProgress,
 	completeness []workflow.CompletenessState,
 ) {
+	if run.Status != workflow.RunStatusFailed {
+		return
+	}
 	deadLetterCountsByCollector := make(map[string]map[workflow.PhasePublicationKey]int, len(progress))
 	for _, collector := range progress {
 		deadLetterCountsByCollector[string(collector.CollectorKind)] = collector.TerminalDeadLetterCounts
@@ -290,7 +301,7 @@ func (s *WorkflowControlStore) recordTerminalDeadLetterBlocks(
 		}
 		slog.WarnContext(
 			ctx, "workflow run blocked by terminal reducer dead-letter",
-			slog.String("run_id", runID),
+			slog.String("run_id", run.RunID),
 			slog.String("collector_kind", string(state.CollectorKind)),
 			slog.String("keyspace", string(state.Keyspace)),
 			slog.String("phase", state.PhaseName),
@@ -349,6 +360,7 @@ func (s *WorkflowControlStore) listWorkflowCollectorProgress(ctx context.Context
 			&row.ClaimedWorkItems,
 			&row.CompletedWorkItems,
 			&row.FailedTerminalItems,
+			&row.FactlessCompletedItems,
 		); err != nil {
 			return nil, fmt.Errorf("list workflow collector progress: %w", err)
 		}

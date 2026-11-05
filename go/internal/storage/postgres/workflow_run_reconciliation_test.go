@@ -103,6 +103,7 @@ func TestWorkflowControlStoreReconcileWorkflowRunsUpdatesRunAndCompleteness(t *t
 					0,
 					1,
 					0,
+					0,
 				}},
 			},
 			{
@@ -146,8 +147,6 @@ func TestWorkflowControlStoreReconcileWorkflowRunsUpdatesRunAndCompleteness(t *t
 				},
 			},
 			// No terminal reducer dead-letters for this scope generation.
-			{rows: nil},
-			// No factless completed items: every completed item committed facts.
 			{rows: nil},
 		},
 	}
@@ -216,6 +215,7 @@ func TestWorkflowControlStoreReconcileWorkflowRunsCompletesAWSWithoutPhaseRows(t
 					0,
 					19,
 					0,
+					0,
 				}},
 			},
 			{
@@ -274,6 +274,7 @@ func TestWorkflowControlStoreReconcileWorkflowRunsUsesTransactionWhenAvailable(t
 					0,
 					1,
 					0,
+					0,
 				}},
 			},
 			{
@@ -317,8 +318,6 @@ func TestWorkflowControlStoreReconcileWorkflowRunsUsesTransactionWhenAvailable(t
 				},
 			},
 			// No terminal reducer dead-letters for this scope generation.
-			{rows: nil},
-			// No factless completed items: every completed item committed facts.
 			{rows: nil},
 		},
 	}
@@ -426,6 +425,7 @@ func workflowRunReconciliationTx() *fakeTx {
 					0,
 					1,
 					0,
+					0,
 				}},
 			},
 			{
@@ -469,8 +469,6 @@ func workflowRunReconciliationTx() *fakeTx {
 				},
 			},
 			// No terminal reducer dead-letters for this scope generation.
-			{rows: nil},
-			// No factless completed items: every completed item committed facts.
 			{rows: nil},
 		},
 	}
