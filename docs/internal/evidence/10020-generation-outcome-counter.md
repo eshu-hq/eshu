@@ -11,7 +11,10 @@ not change collector behavior, retention, the freshness hint, or the reader.
 Performance Evidence: the change adds one OTEL counter increment per commit
 outcome and no SQL, lock, transaction, or queue work. The increment runs after
 the ingestion transaction commits (mint) or after the skip decision is final
-(skip), so it is outside every lock and transaction window.
+(skip). One skip path is the exception: the snapshot-less re-projection of a
+superseded generation records its skip while its read-only scope-lock
+transaction is still open and rolls back on return. The add is in-memory and
+does no I/O, so the lock is held for no longer.
 
 - Baseline: no counter. The commit path issues several statements per
   generation (scope upsert, generation upsert, batched fact upserts, projector
