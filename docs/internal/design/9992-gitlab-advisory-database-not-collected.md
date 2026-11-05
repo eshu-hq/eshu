@@ -18,7 +18,7 @@ advisory content in Postgres and the source cache writes it to disk, so a
 live GLAD source would breach the terms on every sync. The exposure is
 latent: the `NewGitLabSourceSnapshotEnvelope` and `GitLabAdvisoryEnvelopes`
 constructors and a reducer `glad` source class exist, but no runtime provider
-in `vulnruntime/provider.go` calls them. The owner and legal ruling (recorded
+in `vulnruntime/provider.go` calls them. The owner ruling (recorded
 on #9992, 2026-11-05) is that Eshu does not collect GLAD.
 
 ## Options
@@ -45,7 +45,7 @@ changing the schema, or touching any other source.
 Good:
 
 1. No terms exposure from collection (#9992 tracks the remaining docs work).
-2. The guard fails closed on new bypass shapes, including reflection by string.
+2. The guard is a tripwire over seeded bypass shapes, including reflection by string; a rebuild under wholly new names would still pass (see the `TestNoCodeProducesGitLabAdvisoryFacts` header).
 
 Bad:
 
