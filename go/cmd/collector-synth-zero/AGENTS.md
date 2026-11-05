@@ -28,8 +28,9 @@ Read these before editing this package:
   then the live end-to-end. Mutate the unchanged path to prove sensitivity.
 - Manifest, runtime, trust, egress, and Deployment edits must keep every
   `TestWindow*` test green; they cross-check the files against each other.
-- Rebuilding the seed image re-pins the digest in `manifest.yaml` and
-  `deployment.yaml` in the same commit.
+- Rebuilding the seed image re-pins the digest in `manifest.yaml`,
+  `deployment.yaml`, and the `provenSeedImage` constant in
+  `window_pin_test.go` in the same commit.
 
 ## Failure modes
 

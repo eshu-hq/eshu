@@ -31,9 +31,10 @@
    digest as a job output. If the push step is denied, stop and re-escalate.
 3. Fill the emitted digest into `manifest.yaml` (artifacts) and
    `deployment.yaml` (image), re-run the pin suite
-   (`TestWindowSeedDigestAgreesAcrossVehicle` binds the two files to each
-   other), and commit the pin before any apply. Run 42049436432 did this
-   fill; the zeros placeholders below are its pre-pin history.
+   (`TestWindowSeedDigestAgreesAcrossVehicle` binds both files to the
+   dispatch-proven digest), and commit the pin before any apply.
+   Run 42049436432 did this fill; the zeros placeholders below are its
+   pre-pin history.
 
 ## Window assembly record (run 42049436432, 2026-11-05, SUCCESS)
 
