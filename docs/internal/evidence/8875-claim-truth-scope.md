@@ -79,7 +79,7 @@ refresh pass.
 
 ## Proof (this worktree, post-final-edit)
 
-- `go test ./internal/workflow/ -run 'TestClaimPath|TestCoordinatorFacts|TestTruthSurfaces' -count=1`: PASS (3/3).
+- `go test ./internal/workflow/ -run 'TestClaimPath|TestCoordinatorFacts|TestCoordinatorImports|TestTruthSurfaces' -count=1`: PASS (4/4).
 - Mutation RED check per guard above: each planted coupling FAILED its
   guard; probes removed afterwards (`git status` clean except the three
   lane files).
