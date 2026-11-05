@@ -160,3 +160,30 @@ func TestNarrowedDirectGroupReadsEveryRowTheRepresentativeJoins(t *testing.T) {
 		})
 	}
 }
+
+// TestNarrowedDirectGroupReadsABlankRowThatDoesNotSortFirst keeps condition c reading
+// every joined row, not only the first. The rows sort by their raw installed version,
+// so a row whose version is a single space sorts after one that starts with a control
+// character, and a check of the first row alone would miss the blank one (the review's
+// witness for mutant N8).
+func TestNarrowedDirectGroupReadsABlankRowThatDoesNotSortFirst(t *testing.T) {
+	t.Parallel()
+	blankOwn := supplychainmodel.AffectedPackage{
+		FactID: "a-own", Source: "ubuntu", AdvisoryID: "ADV-own",
+		PackageID: repJoinPackageID, PURL: repJoinPURL, Name: "curl",
+	}
+	other := supplychainmodel.AffectedPackage{
+		FactID: "b-nvd", Source: "nvd", Ecosystem: "os", AdvisoryID: "ADV-nvd",
+		PackageID: repJoinPackageID, Name: "curl",
+	}
+	rowA, rowB := ubuntuCurl("22.04", "\t1.0-3").envelope(), ubuntuCurl("22.04", " ").envelope()
+	rowA.FactID, rowB.FactID = "os-a", "os-b"
+	rowB.Payload["arch"] = "arm64"
+	index, _, err := buildSupplyChainImpactIndexWithQuarantine([]facts.Envelope{rowA, rowB})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, ok := withJoinableOSRepresentative([]supplychainmodel.AffectedPackage{blankOwn, other}, blankOwn, index); ok {
+		t.Fatal("narrowed a group whose joined rows include a row with a blank version")
+	}
+}
