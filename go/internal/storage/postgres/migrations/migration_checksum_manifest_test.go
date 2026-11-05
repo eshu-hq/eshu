@@ -340,6 +340,9 @@ var migrationShippedChecksums = map[string]string{
 	// #9879: per-target refresh progress the coordinator paces configured
 	// targets from (migration 277).
 	"277_vulnerability_target_refresh_progress.sql": "7467eba5e1078d4ff6aa938a67f0ba9277879e98935966beed7b5a54b809ccef",
+	// #9777 step 2: change-driven replan queue and commit watermark
+	// (migration 278).
+	"278_owned_target_replan.sql": "838e4b265eafa1f4799863f600d1cc726be5f57aed431b38b3dca300573a3af9",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition

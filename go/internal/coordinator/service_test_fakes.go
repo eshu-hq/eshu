@@ -192,6 +192,7 @@ type fakeMetrics struct {
 	ownedTargetRotationObserved   []OwnedTargetRotationObservation
 	ownedTargetSlotObserved       []OwnedTargetSlotObservation
 	epssDerivedObserved           []EPSSDerivedObservation
+	osvDeltaObserved              []OSVDeltaReplanMetricsObservation
 }
 
 func (f *fakeMetrics) RecordReconcile(_ context.Context, observation ReconcileObservation) {
@@ -236,4 +237,8 @@ func (f *fakeMetrics) RecordOwnedTargetRotation(_ context.Context, observation O
 
 func (f *fakeMetrics) RecordOwnedTargetSlotSelection(_ context.Context, observation OwnedTargetSlotObservation) {
 	f.ownedTargetSlotObserved = append(f.ownedTargetSlotObserved, observation)
+}
+
+func (f *fakeMetrics) RecordOSVDeltaReplan(_ context.Context, observation OSVDeltaReplanMetricsObservation) {
+	f.osvDeltaObserved = append(f.osvDeltaObserved, observation)
 }
