@@ -9,6 +9,18 @@ recent shipped work grouped by feature area.
 
 ## Unreleased
 
+### The CVE key probe is cut below the measured advisory-index walk
+
+- **The `vulnerability_cve_id` statement now binds at most 120 ids**
+  ([#9994](https://github.com/eshu-hq/eshu/issues/9994)). On the first five executions
+  per connection, the custom plan on QA chooses a walk of the whole advisory index at
+  172 to 199 ids as well as from 389. That walk ran past a 30 s limit on every list
+  timed, which was 600 ids and up. A longer list now runs as several statements in the
+  load's one snapshot and returns the same rows. The bound is measured against today's
+  statistics and is not a guarantee: a stored correlation further from zero can still
+  walk inside it. The reducer's pass log gains
+  `sub_signal_active_evidence_branch_<branch>_statements`.
+
 ### Scanner component pins now name the eshu-scanner-worker publish
 
 - **The three scanner admission pins and the publish anchor moved from the

@@ -363,6 +363,10 @@ operational lessons that future storage changes still need to respect.
   exactness tests see it. The frozen pre-#8880 statement is the differential
   oracle (`supply_chain_impact_evidence_live_test.go`); see
   `docs/internal/evidence/8880-supply-chain-impact-id-resolution.md`.
+  The planner ignores a partial index's statistics, so a `payload->>'key' = ANY`
+  probe is estimated at 1/200 per id, and the sum falls at 200 ids. A plan flip can
+  therefore sit below a length that plans well: the CVE probe walks at 172 to 199
+  ids and not at 240 (#9994). Plan every length a chunk can have.
 - Vulnerability-suppression deployment context is narrowing-only (#5466).
   `ListActiveSupplyChainImpactFacts` discovers suppressions through
   `cve_id`, `advisory_id`, `package_id`, `purl`, `repository_id`, or

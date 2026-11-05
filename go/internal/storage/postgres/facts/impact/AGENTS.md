@@ -27,6 +27,17 @@
   holding one `CREATE INDEX CONCURRENTLY`, generated from `NewIndexes`
   (`TestNewIndexStatementsMatchMigrations`), plus the checksum manifest,
   ordered-name list, and golden digest pins in the parent and `migrations/`.
+- Only a key probe with one bound list and no LIMIT may set `MaxListLength`: a
+  chunked statement is exact only where a row answers to one list entry
+  (`TestOnlyExactBranchesAreChunked`).
+- Every key probe on `IndexVulnerabilityCVEV2` uses `MaxCVEIDsPerStatement`, one
+  bound and one chunker whatever its kinds. It must stay below 172, the shortest
+  list QA measured walking the advisory index. Plan every length up to a new value
+  before raising it: 240 plans well and a 180-id tail does not. 172 comes from a
+  cost comparison that moves with stored statistics, so it is not a fixed limit
+  (`TestCVEProbeIsChunkedBelowThePlanFlip`,
+  `TestSupplyChainImpactCVEBoundStaysBelowTheWalkLive`,
+  `docs/internal/evidence/9994-cve-key-probe-chunking.md`).
 - Exactly one branch returns `vulnerability.suppression` and it is the only
   statement with a LIMIT (`TestExactlyOneBranchReturnsSuppressions`). Core
   evidence is never bounded.

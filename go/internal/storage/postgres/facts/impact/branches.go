@@ -49,6 +49,11 @@ type Branch struct {
 	// vulnerability.suppression rows, ordered by byte order and limited to
 	// the cap plus one.
 	ReturnsSuppressions bool
+	// MaxListLength, when positive, is how many values of the statement's one
+	// bound list a single execution carries. The loader issues as many
+	// statements as the list needs and unions the rows, which is exact because
+	// a row answers to one list entry.
+	MaxListLength int
 }
 
 // anchored renders one branch statement in three steps; the first two are
@@ -156,7 +161,9 @@ func ProtectedStaticBranches() []Branch {
 func probeBranches() []Branch {
 	vulnerability := []string{KindCVE, KindAffectedPackage, KindAffectedProduct, KindEPSSScore, KindKnownExploited}
 	return []Branch{
-		keyProbe("vulnerability_cve_id", IndexVulnerabilityCVEV2, "cve_id", CVEIDs, vulnerability...),
+		withMaxListLength(
+			keyProbe("vulnerability_cve_id", IndexVulnerabilityCVEV2, "cve_id", CVEIDs, vulnerability...),
+			MaxCVEIDsPerStatement),
 		keyProbe("vulnerability_advisory_id", IndexVulnerabilityAdvisoryV2, "advisory_id", AdvisoryIDs, vulnerability...),
 		keyProbe("affected_package_package_id", IndexAffectedPackagePackageID, "package_id", PackageIDs, KindAffectedPackage),
 		keyProbe("affected_package_purl", IndexAffectedPackagePURL, "purl", PURLs, KindAffectedPackage),
@@ -201,6 +208,11 @@ func probeBranches() []Branch {
 		// planned it in both plan_cache_mode values).
 		scopeProbe("file_scope", IndexJSTSReachabilityRepoFile, FileRepositoryScopeIDs, FileRepositoryGenerationIDs, []string{KindFile}, JSTSLanguagePredicate),
 	}
+}
+
+func withMaxListLength(branch Branch, length int) Branch {
+	branch.MaxListLength = length
+	return branch
 }
 
 func withEquivalentAnchors(branch Branch, anchors ...string) Branch {

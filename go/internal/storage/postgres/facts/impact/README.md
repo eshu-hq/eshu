@@ -25,7 +25,8 @@ This package generates the replacement from one table:
 2. Run every branch whose gating lists are non-empty. Each statement reads
    `fact_records` through its anchor only (a MATERIALIZED `candidate` CTE),
    applies the pre-#8880 active-generation join once per distinct pair (a
-   MATERIALIZED `active` CTE), and returns `(fact_id, fact_kind)`.
+   MATERIALIZED `active` CTE), and returns `(fact_id, fact_kind)`. A branch with
+   a `MaxListLength` runs once per chunk of its list.
 3. Dedupe the IDs, sort core and suppression IDs by byte order, keep the first
    `cap` suppressions and report truncation past it.
 4. Fetch payloads in 500-ID primary-key pages, then page the canonical
@@ -37,6 +38,12 @@ This package generates the replacement from one table:
 - Growth (vulnerability catalog, registry, SBOM, OCI, CI/CD, consumption,
   provider alerts): one key probe per contract-carried key. A key the
   contract never carries is a guard cell.
+  Every key probe on `cve_lookup_v2`, today `vulnerability_cve_id`, binds at most
+  `MaxCVEIDsPerStatement` (120) ids per statement (#9994). On QA a custom plan on
+  that key walks the whole advisory index at 172 to 199 ids and from 389, and a
+  list's last statement can be any length
+  up to the bound, so the bound sits below 172. See
+  `docs/internal/evidence/9994-cve-key-probe-chunking.md`.
 - Bounded (suppression, platform materialization, workload identity,
   service catalog): one statement per kind evaluates every applicable arm
   over a kind-partial anchor.

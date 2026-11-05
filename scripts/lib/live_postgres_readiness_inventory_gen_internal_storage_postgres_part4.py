@@ -168,6 +168,15 @@ TABLE = {
         "go/internal/storage/postgres/supply_chain_impact_authorized_loader_engaged_live_test.go": (
             "TestAuthorizedLoaderEngagedFoldPublishesFoldedEvidenceLive",
         ),
+        "go/internal/storage/postgres/supply_chain_impact_cve_chunks_live_test.go": (
+            "TestSupplyChainImpactCVEChunksMatchTheWholeStatementLive",
+            "TestSupplyChainImpactCVEChunkPlansStayOnAnchorLive",
+            "TestSupplyChainImpactCVEChunksShareOneCachedStatementLive",
+            "TestSupplyChainImpactCVEChunkCostLive",
+        ),
+        "go/internal/storage/postgres/supply_chain_impact_cve_chunks_walk_live_test.go": (
+            "TestSupplyChainImpactCVEBoundStaysBelowTheWalkLive",
+        ),
         "go/internal/storage/postgres/supply_chain_impact_disengaged_build_live_test.go": (
             "TestAuthorizedImpactLoaderDisengagedBuildsAdvisoryFindingLive",
         ),

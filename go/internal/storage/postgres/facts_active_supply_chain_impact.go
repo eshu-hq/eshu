@@ -165,14 +165,10 @@ func (s FactStore) resolveSupplyChainImpactFactIDs(
 		if !supplyChainImpactBranchRuns(branch, values) {
 			continue
 		}
-		started := time.Now()
-		rows, err := supplyChainImpactBranchRows(ctx, queryer, branch, values)
+		rows, err := supplyChainImpactBranchStatements(ctx, queryer, branch, values, stats)
 		if err != nil {
 			return supplyChainImpactResolvedIDs{}, err
 		}
-		stats.Branches = append(stats.Branches, supplychaincore.SupplyChainImpactActiveEvidenceBranchStat{
-			Branch: branch.Name, Rows: len(rows), Duration: time.Since(started),
-		})
 		if branch.Shape == factimpact.ShapeGuard {
 			stats.GuardRows += len(rows)
 			for _, row := range rows {
@@ -252,6 +248,45 @@ func supplyChainImpactBranchRuns(branch factimpact.Branch, values map[factimpact
 }
 
 type supplyChainImpactBranchRow struct{ id, kind string }
+
+// supplyChainImpactBranchStatements runs one branch and records one stat per
+// statement. A branch with a MaxListLength runs once per chunk of its bound list;
+// any other runs once.
+func supplyChainImpactBranchStatements(
+	ctx context.Context,
+	queryer db.Queryer,
+	branch factimpact.Branch,
+	values map[factimpact.Param]any,
+	stats *supplychaincore.SupplyChainImpactActiveEvidenceLoadStats,
+) ([]supplyChainImpactBranchRow, error) {
+	run := func(bound map[factimpact.Param]any) ([]supplyChainImpactBranchRow, error) {
+		started := time.Now()
+		rows, err := supplyChainImpactBranchRows(ctx, queryer, branch, bound)
+		if err != nil {
+			return nil, err
+		}
+		stats.Branches = append(stats.Branches, supplychaincore.SupplyChainImpactActiveEvidenceBranchStat{
+			Branch: branch.Name, Rows: len(rows), Duration: time.Since(started),
+		})
+		return rows, nil
+	}
+	if branch.MaxListLength <= 0 {
+		return run(values)
+	}
+	list, ok := values[branch.Params[0]].([]string)
+	if !ok {
+		return nil, fmt.Errorf("list active supply chain impact facts: branch %s binds non-list param %d", branch.Name, branch.Params[0])
+	}
+	var out []supplyChainImpactBranchRow
+	for chunk := range slices.Chunk(list, branch.MaxListLength) {
+		rows, err := run(map[factimpact.Param]any{branch.Params[0]: chunk})
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, rows...)
+	}
+	return out, nil
+}
 
 func supplyChainImpactBranchRows(
 	ctx context.Context,

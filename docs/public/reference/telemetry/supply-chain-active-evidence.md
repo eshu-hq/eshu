@@ -38,6 +38,7 @@ are not issued and record nothing.
 The reducer's `reducer execution succeeded` line for `supply_chain_impact`
 carries the same accounting summed over the pass:
 `sub_signal_active_evidence_branch_<branch>_rows`,
+`sub_signal_active_evidence_branch_<branch>_statements`,
 `sub_duration_active_evidence_branch_<branch>_seconds`, and the
 `active_evidence_loads`, `active_evidence_resolved_fact_ids`,
 `active_evidence_payload_pages`, `active_evidence_guard_rows`, and
@@ -45,6 +46,24 @@ carries the same accounting summed over the pass:
 `active_evidence_files_folded`, `active_evidence_payload_bytes_folded`, and
 `active_evidence_payload_bytes_retained` (#9781). Read them next to
 `sub_duration_load_active_evidence_seconds`.
+
+`vulnerability_cve_id` runs one statement per 120 ids (#9994), and the histogram and
+the sub-duration count each statement. A pass with 1,000 CVE ids reports 9 statements
+on that branch, so its summed seconds cover 9 executions. A slow statement on this
+branch that plans on `fact_records_vulnerability_active_advisory_lookup_v2_idx` is
+the walk this bound exists to avoid. Check in this order:
+
+1. Read `MaxCVEIDsPerStatement` in the source of the running version. Above 171 it can
+   walk at QA's statistics.
+2. If the bound is intact, the statistics may have moved. An `ANALYZE` can change the
+   correlation stored for the advisory index's expression, and a large enough value walks
+   inside the bound. Only its size counts, because the plan cost uses its square. Read it
+   with
+   `SELECT correlation FROM pg_stats WHERE tablename = 'fact_records_vulnerability_active_advisory_lookup_v2_idx' AND attname = 'expr'`.
+   QA measured -0.6.
+3. Run `EXPLAIN` on one chunk of the same length with `plan_cache_mode` set to
+   `force_custom_plan`, then see [#10050](https://github.com/eshu-hq/eshu/issues/10050)
+   for the fix to the estimate.
 
 ## Evidence headroom
 
