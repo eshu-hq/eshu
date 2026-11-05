@@ -3,7 +3,7 @@
 Refs `#8879`. Part of `#6707`.
 
 Status: **READINESS ONLY**. No live rehearsal, no deploy, no pin change,
-no removal. The live rollback rehearsal would re-sync ops-qa through ArgoCD
+no removal. The live rollback rehearsal would re-sync the QA environment through ArgoCD
 and stays an owner/coordinator act. This record maps the acceptance criteria,
 proves the rollback prerequisites read-only, and hands the first removal PR
 a ready checklist.
@@ -14,20 +14,20 @@ a ready checklist.
 | --- | --- | --- | --- |
 | 1 | Retained Git/parser boundary, intake-to-core contracts, durable-state ownership | PROVEN (prep) | `EXTRACTION_PREP.md` §2/§5/§6 via `#9351`/`#9360` |
 | 2 | Six-capability inventory, dormant hosted activation | PROVEN (prep) | `EXTRACTION_PREP.md` §4; dormancy re-census at `5766b3592d` on `#9382` |
-| 3 | Named owners, production target, config source | PARTIAL | Owner `@linuxdynasty` confirmed; ops-qa declared the production caller env (owner quote on `#9382`, 2026-11-02); public-contract/release/deployment owners and gate-1 satisfaction still open |
+| 3 | Named owners, production target, config source | PARTIAL | Owner `@linuxdynasty` confirmed; the QA environment declared as the production caller env (owner quote on `#9382`, 2026-11-02); public-contract/release/deployment owners and gate-1 satisfaction still open |
 | 4 | Census record | PROVEN (prep) | `EXTRACTION_PREP.md` via `#9351`/`#9360` |
 | 5 | Behavior/contract parity, representative + hostile | PARTIAL | Gate-2 sandbox 22/22 + corpus work on `#9382`/`#9728`/`#9729`; residuals open: `#10071` (proof-image re-pin + CI drift), `#10072` (amd64 digest null), `#10073` (WER/noisy-scan eval) |
 | 6 | Reducer/graph/API/MCP truth on extracted path | PARTIAL | QA deploy truth verified live on `#9382`; satellite extracted path does not exist yet (`#10074` open) |
 | 7 | Concurrency (retry, duplicates, ordering, cancellation, revoked authority, stale claims, partial failures) | OPEN | No bounded proof recorded for this lane |
 | 8 | Bounded resources + no regression with signals | PARTIAL | Sandbox peak RSS ~30.7 MB on `#9382`; caller-lane perf gate PASS at HEAD (`#10051`); deploy-time health/MCP/queue evidence on `#9382` |
 | 9 | Credentials, provenance, vuln response, version pairs | PARTIAL | Image cosign+provenance+SBOM verified (`#9382`); oldest/newest core/component pairs not recorded |
-| 10 | Independent build/release/deploy on public contracts | PARTIAL | In-tree image `b41a05ba` published and deployed to ops-qa (`#534`/`#535`); independent satellite build/release/deploy frozen until both gates record (`#9382` freeze) |
+| 10 | Independent build/release/deploy on public contracts | PARTIAL | In-tree image `b41a05ba` published and deployed to the QA environment (`#534`/`#535`); independent satellite build/release/deploy frozen until both gates record (`#9382` freeze) |
 | 11 | Rollback rehearsal | OPEN (ready, see §2-§3) | Disposition DEFERRED to first removal PR (`#9383`, arbiter 2026-10-28); prerequisites proven below, live rehearsal not executed |
 | 12 | Independent review, local proof, exact-head CI; removal after acceptance | OPEN | Caller/gate-2 PRs merged with verdicts; production acceptance not recorded; no removal PR opened |
 
 ## 2. Rollback dry-run (read-only, 2026-11-05)
 
-Target state: ops-qa running `b41a05ba`
+Target state: the QA environment running `b41a05ba`
 (`sha256:18b9de74e86d6e8faf63f19dbefa878077cd36854541b463fcda8399e0ff911f`,
 IaC `ab0438f`, `#534` + effective pin `#535`).
 
@@ -50,7 +50,7 @@ IaC `ab0438f`, `#534` + effective pin `#535`).
   (`ESHU_DOC_IMPORT_ENABLED`, `config.go:19`, disabled by default, exits
   quietly) and `go/cmd/collector-media-import`
   (`ESHU_MEDIA_IMPORT_ENABLED`, `config.go:20`, QA-tier-only). Neither is
-  enabled in ops-qa; a revert cannot silently enable or disable a caller.
+  enabled in the QA environment; a revert cannot silently enable or disable a caller.
 - `b41a05ba` is an ancestor of this worktree HEAD (`0650a6a4d2`), so the
   readiness statements above describe the deployed content plus later main.
 
@@ -62,7 +62,7 @@ rehearsal); native-amd64 determinism (`#10072` open).
 
 1. Open the rehearsal on `#8879` citing this record and the `#9383`
    disposition for this boundary.
-2. Revert the ops-qa file pin to the recorded prior digest (no schema
+2. Revert the QA-overlay file pin to the recorded prior digest (no schema
    change per §2), ArgoCD sync with prune, owner-triggered.
 3. Verify the `#9382` evidence shape: all image deployments on the revert
    digest, pods ready with 0 restarts, API healthz ok, MCP probe ok,
@@ -99,14 +99,14 @@ Raw observations for arbiter-eshu:
 - There is no satellite to cut over: `eshu-hq/eshu-ingester` stands at
   placeholder plus frozen lane work; the freeze (no satellite/deploy/
   stage/removal/IaC-pin until both gates record on `#9382`) holds.
-- The deployed production path is the in-tree image on ops-qa, the
+- The deployed production path is the in-tree image in the QA environment, the
   owner-declared production caller env. Cutover therefore means enabling
   the disabled-by-default caller path on QA-tier after the gates, not a
   satellite traffic switch.
 - Gate-1 satisfaction checklist (`#9382`, 2026-11-02) is the decision gate;
   gate-2 must be re-proven with the real engine under the caller profile
   incl. native amd64. Residuals `#10071`-`#10073` are the open proof items.
-- Question: does enabling the in-tree caller on ops-qa after gate-1+gate-2
+- Question: does enabling the in-tree caller in the QA environment after gate-1+gate-2
   record constitute the production cutover for criterion 10/12, with the
   satellite extraction following as a second cutover — or must the
   satellite exist before any enablement? Either answer keeps this lane
