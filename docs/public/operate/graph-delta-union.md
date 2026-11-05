@@ -174,10 +174,24 @@ now reads the scope's claims and every scope's XRDs on one read-only
 snapshot, each delta-active scope overlaid on its base through the same
 helper as the manifest read. Decisions count on
 `eshu_dp_crossplane_satisfied_by_read_delta_union_total` by `read` (`claim`
-or `xrd`) and `outcome`. A refused base keeps the delta-only rows and logs a
-WARN line starting "crossplane satisfied-by read". The scope's edges then
-stay short until its next full generation (the reconcile sweep, the growth
-valve, or the reindex watermark).
+or `xrd`) and `outcome`.
+
+Unlike the manifest read, these reads never fall back to the delta-only
+rows, because the handler would retract the edges those rows miss. When the
+claim leg's own scope, or any delta-active scope the XRD leg reached, has a
+missing or pruned base (`union_base_missing`) or a delta without a
+`delta_generation` fact (`union_scope_mismatch`), the read counts the
+decision and logs the WARN line starting "crossplane satisfied-by read".
+Then it fails the intent before the retract with the non-retryable
+`crossplane_satisfied_by_delta_base_refused` class. The intent dead-letters
+and the scope's edges stay as they were. They catch up at the refused
+scope's next full generation (the reconcile sweep, the growth valve, or the
+reindex watermark).
+
+A failed retention-probe statement is not a lost base, so the read fails
+with a retryable error and the intent retries; the decision still counts as
+`union_base_missing`. A legacy delta with no baseline (`union_no_baseline`)
+keeps its delta-only rows, as the projector loads it.
 
 ## Operator signals
 

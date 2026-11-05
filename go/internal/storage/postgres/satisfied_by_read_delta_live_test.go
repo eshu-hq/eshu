@@ -4,15 +4,14 @@
 package postgres
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #10003 and #10005 disposable PostgreSQL proof that the Crossplane SATISFIED_BY reads overlay a delta-active git scope on its #7797 base full generation: an XRD in an untouched file stays visible, the handler keeps the edge of an unchanged claim beside a changed, added, or deleted one, a delta touching only the XRD loses no edge, a replay and a full generation write the same edges, a missing base keeps the delta-only rows and is counted, and both XRD texts are served by the migration 280 partial index with no sequential scan; reads ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DSN with its disposable opt-in
+//eshu:readiness:reason #10003 and #10005 disposable PostgreSQL proof that the Crossplane SATISFIED_BY reads overlay a delta-active git scope on its #7797 base full generation: an XRD in an untouched file stays visible, the handler keeps the edge of an unchanged claim beside a changed, added, or deleted one, a delta touching only the XRD loses no edge, a replay and a full generation write the same edges, a missing base or a scope mismatch on either leg fails the intent before the retract with the non-retryable refusal, and both XRD texts are served by the migration 280 partial index with no sequential scan; reads ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DSN with its disposable opt-in
 //eshu:readiness:env ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DISPOSABLE ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DSN
 
 import (
 	"context"
-	"regexp"
+	"errors"
 	"slices"
 	"strconv"
-	"strings"
 	"testing"
 	"time"
 
@@ -85,17 +84,26 @@ func (s *crossplaneDeltaSpy) RetractCrossplaneSatisfiedByEdges(_ context.Context
 	return nil
 }
 
+// handleResult runs the production handler over the store for one intent
+// and returns what the recording writer saw and the handler's error.
+func (f *deltaManifestFixture) handleResult(scopeID, generationID string, attempt int) (*crossplaneDeltaSpy, error) {
+	f.t.Helper()
+	spy := &crossplaneDeltaSpy{}
+	handler := crossplane.CrossplaneSatisfiedByMaterializationHandler{FactLoader: f.store, EdgeWriter: spy}
+	_, err := handler.Handle(f.ctx, reducercontract.Intent{
+		IntentID: "intent-" + generationID, ScopeID: scopeID, GenerationID: generationID,
+		Domain: reducercontract.DomainCrossplaneSatisfiedByMaterialization, AttemptCount: attempt,
+	})
+	return spy, err
+}
+
 // handle runs the production handler over the store for one intent and
 // returns the sorted edges it wrote, failing unless it retracted exactly the
 // intent's scope once.
 func (f *deltaManifestFixture) handle(scopeID, generationID string, attempt int) []string {
 	f.t.Helper()
-	spy := &crossplaneDeltaSpy{}
-	handler := crossplane.CrossplaneSatisfiedByMaterializationHandler{FactLoader: f.store, EdgeWriter: spy}
-	if _, err := handler.Handle(f.ctx, reducercontract.Intent{
-		IntentID: "intent-" + generationID, ScopeID: scopeID, GenerationID: generationID,
-		Domain: reducercontract.DomainCrossplaneSatisfiedByMaterialization, AttemptCount: attempt,
-	}); err != nil {
+	spy, err := f.handleResult(scopeID, generationID, attempt)
+	if err != nil {
 		f.t.Fatalf("Handle(%s): %v", generationID, err)
 	}
 	if len(spy.retracts) != 1 || !slices.Equal(spy.retracts[0], []string{scopeID}) {
@@ -200,6 +208,29 @@ func assertCrossplaneEdges(t *testing.T, got []string, want ...string) {
 	slices.Sort(want)
 	if !slices.Equal(got, want) {
 		t.Fatalf("SATISFIED_BY edges = %v, want %v", got, want)
+	}
+}
+
+// assertCrossplaneRefused checks that a refused read failed the intent with
+// the non-retryable CrossplaneDeltaBaseRefusedError before the retract: the
+// writer saw no retract and no write, so the scope's edges are intact.
+func assertCrossplaneRefused(t *testing.T, spy *crossplaneDeltaSpy, err error, scopeID, generationID, read, outcome string) {
+	t.Helper()
+	var refused *CrossplaneDeltaBaseRefusedError
+	if !errors.As(err, &refused) {
+		t.Fatalf("Handle error = %v, want *CrossplaneDeltaBaseRefusedError", err)
+	}
+	if reducercontract.IsRetryable(err) {
+		t.Fatalf("IsRetryable(%v) = true, want false", err)
+	}
+	if refused.ScopeID != scopeID || refused.GenerationID != generationID || refused.Read != read || refused.Outcome != outcome {
+		t.Fatalf("refusal = %+v, want scope %s generation %s read %s outcome %s", refused, scopeID, generationID, read, outcome)
+	}
+	if refused.FailureClass() != CrossplaneDeltaBaseRefusedFailureClass {
+		t.Fatalf("FailureClass = %q, want %q", refused.FailureClass(), CrossplaneDeltaBaseRefusedFailureClass)
+	}
+	if len(spy.retracts) != 0 || len(spy.edges) != 0 {
+		t.Fatalf("retracts = %v, edges = %v; want none: the read must fail before the retract", spy.retracts, spy.edges)
 	}
 }
 
@@ -322,10 +353,13 @@ func TestCrossplaneSatisfiedByDeltaKeepsUnchangedEdgesLive(t *testing.T) {
 				t.Fatalf("claim leg made an overlay decision for a full-active scope: %v", got)
 			}
 		}},
-		{"missing base keeps the delta rows and is counted", func(t *testing.T, c crossplaneDeltaCase) {
-			// The delta's baseline commit c0 has no activated full
-			// generation: the read cannot overlay, keeps the delta's own
-			// rows, and says so.
+		// The refusal cases run last: a delta-active scope with a refused
+		// base fails every later read that reaches it.
+		{"claim leg: missing base fails before the retract", func(t *testing.T, c crossplaneDeltaCase) {
+			// #10005 F1: the delta's baseline commit c0 has no activated
+			// full generation. The delta-only rows would make the handler
+			// retract claim-1's edge, so the read fails first, counted and
+			// logged, with the non-retryable refusal.
 			app := c.scope("app")
 			seedCrossplaneFull(f, c.scope("platform"), c.xrd("platform-full-xrd"))
 			f.scope(app)
@@ -336,7 +370,8 @@ func TestCrossplaneSatisfiedByDeltaKeepsUnchangedEdgesLive(t *testing.T) {
 
 			before := f.crossplaneOutcomes()
 			warned := len(f.warnings("crossplane satisfied-by read delta base missing"))
-			assertCrossplaneEdges(t, f.handle(app, deltaID, 1), c.edge("claim-2"))
+			spy, err := f.handleResult(app, deltaID, 1)
+			assertCrossplaneRefused(t, spy, err, app, deltaID, "claim", "union_base_missing")
 			if got := outcomesSince(before, f.crossplaneOutcomes()); got["claim/union_base_missing"] != 1 {
 				t.Fatalf("claim leg outcomes = %v, want one union_base_missing", got)
 			}
@@ -344,68 +379,58 @@ func TestCrossplaneSatisfiedByDeltaKeepsUnchangedEdgesLive(t *testing.T) {
 				t.Fatalf("base-missing WARN lines added = %d, want at least 1:\n%s", got, f.logs.String())
 			}
 		}},
+		{"claim leg: scope mismatch fails before the retract", func(t *testing.T, c crossplaneDeltaCase) {
+			// The base resolves, but the delta carries no delta_generation
+			// repository fact, so the overlay cannot tell what it changed.
+			app := c.scope("app")
+			seedCrossplaneFull(f, c.scope("platform"), c.xrd("platform-full-xrd"))
+			seedCrossplaneFull(f, app, c.claim("full-claim-1", "claim-1"), c.claim("full-claim-2", "claim-2"))
+			deltaID := app + "-delta"
+			f.generation(app, deltaManifestGeneration{id: deltaID, isDelta: true, commit: "c1", baseline: "c0", unionBase: "c0"})
+			f.crossplaneEntity(app, deltaID, c.claim("delta-claim-2", "claim-2"))
+			f.activate(app, deltaID)
+
+			before := f.crossplaneOutcomes()
+			spy, err := f.handleResult(app, deltaID, 1)
+			assertCrossplaneRefused(t, spy, err, app, deltaID, "claim", "union_scope_mismatch")
+			if got := outcomesSince(before, f.crossplaneOutcomes()); got["claim/union_scope_mismatch"] != 1 {
+				t.Fatalf("claim leg outcomes = %v, want one union_scope_mismatch", got)
+			}
+		}},
+		{"xrd leg: a reached platform scope with a missing base fails the app's intent", func(t *testing.T, c crossplaneDeltaCase) {
+			// The platform's delta reaches the XRD leg through its own XRD
+			// row, but its base is missing, so the platform's base-only XRD
+			// is invisible. The full-active app's claim would lose its edge
+			// after the retract; the read fails first.
+			platform, app := c.scope("platform"), c.scope("app")
+			f.scope(platform)
+			f.generation(platform, deltaManifestGeneration{id: platform + "-full", commit: "c-other"})
+			f.crossplaneEntity(platform, platform+"-full", c.xrd("platform-full-xrd"))
+			f.activate(platform, platform+"-full")
+			other := crossplaneDeltaEntity{
+				group: "other.acme.internal", factID: c.prefix + "-platform-delta-xrd-2",
+				entityID: c.prefix + "-xrd-2", path: "deploy/xrd-2.yaml", xrd: true,
+			}
+			platformDelta := seedCrossplaneDelta(f, platform, []string{"deploy/xrd-2.yaml"}, nil, other)
+			seedCrossplaneFull(f, app, c.claim("full-claim-1", "claim-1"))
+
+			before := f.crossplaneOutcomes()
+			spy, err := f.handleResult(app, app+"-full", 1)
+			assertCrossplaneRefused(t, spy, err, platform, platformDelta, "xrd", "union_base_missing")
+			if got := outcomesSince(before, f.crossplaneOutcomes()); got["xrd/union_base_missing"] != 1 {
+				t.Fatalf("xrd leg outcomes = %v, want one union_base_missing", got)
+			}
+			// Restore a full generation so no later read reaches the
+			// refused platform scope.
+			f.generation(platform, deltaManifestGeneration{id: platform + "-full-2", commit: "c2"})
+			f.crossplaneEntity(platform, platform+"-full-2", c.xrd("platform-full-2-xrd"))
+			f.activate(platform, platform+"-full-2")
+		}},
 	}
 	for i, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			f.t = t
 			tc.body(t, crossplaneDeltaCase{prefix: "case" + strconv.Itoa(i)})
 		})
-	}
-}
-
-// TestCrossplaneXRDReadsUseThePartialIndexLive is the plan-shape guard for
-// migration 280 (#10005). On a bootstrapped database with many non-XRD
-// content entities, both the active XRD text and its derived delta-base text
-// must be served by fact_records_crossplane_xrd_entity_idx, with no
-// sequential scan of fact_records. A predicate drift between the reader and
-// the index, or a dropped index, falls back to the scope-generation scan with
-// a heap filter and fails here.
-func TestCrossplaneXRDReadsUseThePartialIndexLive(t *testing.T) {
-	f := openDeltaManifestFixtureWithin(t, 5*time.Minute)
-	c := crossplaneDeltaCase{prefix: "plan"}
-	for i := range 40 {
-		scopeID := "plan-scope-" + strconv.Itoa(i)
-		seedCrossplaneFull(f, scopeID, c.xrd("xrd-"+strconv.Itoa(i)))
-		f.exec("seed non-XRD entities "+scopeID, `
-INSERT INTO fact_records
-    (fact_id, scope_id, generation_id, fact_kind, stable_fact_key,
-     source_system, source_fact_key, observed_at, ingested_at, is_tombstone, payload)
-SELECT $1 || ':e' || d, $1, $1 || '-full', 'content_entity', $1 || ':e' || d,
-       'git', $1 || ':e' || d, clock_timestamp(), clock_timestamp(), FALSE,
-       jsonb_build_object('relative_path', 'src/f' || d || '.go', 'entity_type', 'Function', 'entity_id', $1 || ':e' || d)
-FROM generate_series(1, 500) AS d`, scopeID)
-		if i < 10 {
-			seedCrossplaneDelta(f, scopeID, []string{"src/f1.go"}, nil)
-		}
-	}
-	f.exec("analyze", "ANALYZE fact_records")
-	f.exec("analyze", "ANALYZE scope_generations")
-	f.exec("analyze", "ANALYZE ingestion_scopes")
-
-	base, err := deriveDeltaOverlayBaseQuery(listActiveCrossplaneXRDFactsQuery, crossplaneXRDDeltaOverlayScopeParam)
-	if err != nil {
-		t.Fatal(err)
-	}
-	deltaScopes := make([]string, 0, 10)
-	for i := range 10 {
-		deltaScopes = append(deltaScopes, "plan-scope-"+strconv.Itoa(i))
-	}
-	for name, run := range map[string]struct {
-		query string
-		args  []any
-	}{
-		"active": {listActiveCrossplaneXRDFactsQuery, []any{nil, "", listFactsByKindPageSize}},
-		"base":   {base, []any{nil, "", listFactsByKindPageSize, deltaScopes}},
-	} {
-		var plan string
-		if err := f.database.QueryRowContext(f.ctx, "EXPLAIN (FORMAT JSON) "+run.query, run.args...).Scan(&plan); err != nil {
-			t.Fatalf("%s: EXPLAIN: %v", name, err)
-		}
-		if !strings.Contains(plan, `"Index Name": "`+crossplaneXRDIndexName+`"`) {
-			t.Fatalf("%s XRD read does not use %s:\n%s", name, crossplaneXRDIndexName, plan)
-		}
-		if regexp.MustCompile(`"Node Type": "Seq Scan",[^}]*"Relation Name": "fact_records"`).MatchString(plan) {
-			t.Fatalf("%s XRD read sequentially scans fact_records:\n%s", name, plan)
-		}
 	}
 }

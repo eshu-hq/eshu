@@ -355,6 +355,8 @@ TABLE = {
         "go/internal/storage/postgres/satisfied_by_read_delta_live_test.go": (
             "TestListActiveCrossplaneXRDFactsDeltaActiveScopeLive",
             "TestCrossplaneSatisfiedByDeltaKeepsUnchangedEdgesLive",
+        ),
+        "go/internal/storage/postgres/satisfied_by_read_index_live_test.go": (
             "TestCrossplaneXRDReadsUseThePartialIndexLive",
         ),
         "go/internal/storage/postgres/security_alert_impact_producer_store_live_test.go": (

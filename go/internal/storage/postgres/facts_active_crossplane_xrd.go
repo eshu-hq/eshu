@@ -141,8 +141,11 @@ const crossplaneClaimQueryExecMode = pgx.QueryExecModeCacheDescribe
 // its #7797 base full generation (#10003): an XRD in a file the delta did not
 // touch stays visible, so a claim that resolves against it keeps its
 // SATISFIED_BY edge. Every statement runs on one read-only repeatable-read
-// snapshot; see overlayDeltaBase for the refused, legacy, and mismatched
-// bases, which keep the delta-only rows.
+// snapshot. A legacy delta with no baseline keeps its delta-only rows. A
+// reached scope whose base is missing or pruned, or whose delta carries no
+// delta_generation fact, fails the read with CrossplaneDeltaBaseRefusedError
+// (not retryable); a failed retention-probe statement fails it with a
+// retryable error instead (#10005).
 func (s FactStore) ListActiveCrossplaneXRDFacts(ctx context.Context) ([]facts.Envelope, error) {
 	if s.database == nil {
 		return nil, fmt.Errorf("fact store database is required")
@@ -169,6 +172,16 @@ func (s FactStore) ListActiveCrossplaneXRDFacts(ctx context.Context) ([]facts.En
 // changed one, and an XRD in an untouched file, stay visible, so the handler's
 // retract-by-scope and rewrite keeps their edges. With no delta-active scope
 // the call adds only the target lookup to the two active reads.
+//
+// The handler retracts every edge of the scope before it writes, so a
+// delta-only fallback would delete correct edges. The call therefore fails,
+// before the handler's retract, when the claim leg's own scope or any
+// delta-active scope the XRD leg reached resolves as union_base_missing or
+// union_scope_mismatch: CrossplaneDeltaBaseRefusedError, not retryable, with
+// CrossplaneDeltaBaseRefusedFailureClass. Each decision is counted and logged
+// first. A failed retention-probe statement returns a retryable error. A
+// legacy delta with no baseline (union_no_baseline) keeps its delta-only
+// rows, as the projector loads it.
 // Performance Evidence: docs/internal/evidence/10005-crossplane-delta-overlay.md.
 func (s FactStore) ListActiveCrossplaneSatisfiedByFacts(ctx context.Context, scopeID string) ([]facts.Envelope, error) {
 	if s.database == nil {
@@ -220,7 +233,14 @@ func (snapshot *deltaOverlaySnapshot) listCrossplaneXRDOverlay(ctx context.Conte
 			return nil, err
 		}
 	}
-	return reader.overlayDeltaBase(ctx, sink, targets, active, base)
+	loaded, refusals, err := reader.overlayDeltaBaseWithRefusals(ctx, sink, targets, active, base)
+	if err != nil {
+		return nil, err
+	}
+	if err := crossplaneDeltaOverlayRefusal(crossplaneSatisfiedByReadXRD, refusals); err != nil {
+		return nil, err
+	}
+	return loaded, nil
 }
 
 // listCrossplaneClaimOverlay reads scopeID's active Claim candidates plus,
@@ -256,7 +276,14 @@ func (snapshot *deltaOverlaySnapshot) listCrossplaneClaimOverlay(ctx context.Con
 			return nil, err
 		}
 	}
-	return reader.overlayDeltaBase(ctx, sink, targets, active, base)
+	loaded, refusals, err := reader.overlayDeltaBaseWithRefusals(ctx, sink, targets, active, base)
+	if err != nil {
+		return nil, err
+	}
+	if err := crossplaneDeltaOverlayRefusal(crossplaneSatisfiedByReadClaim, refusals); err != nil {
+		return nil, err
+	}
+	return loaded, nil
 }
 
 // listCrossplaneFactPages runs one Crossplane reader text through every

@@ -58,6 +58,8 @@ retract and write are unchanged.
   A loader without it keeps the generation-keyed path. A failed read fails
   the intent before any retract.
 - `go/internal/telemetry/instruments.go`: the new counter.
+- Review finding F1 (arbiter ruling, option A): the reads fail closed. See
+  "Refused bases fail the intent" below.
 
 The claim leg drops two kinds of row the old own-scope load returned:
 content entities other than K8sResource, which `ExtractCrossplaneSatisfiedByEdgeRows`
@@ -106,10 +108,63 @@ What the cases prove:
 | claim deleted (tombstone and deleted path) | the unchanged claim only |
 | delta touches only the XRD | both base claims, against the delta's XRD |
 | full generation | both claims; the claim leg makes no overlay decision |
-| base missing | the delta's claim only, counted `union_base_missing` with a WARN |
+| claim leg, base missing (F1) | none: the intent fails before the retract, counted `union_base_missing` with a WARN |
+| claim leg, scope mismatch (F1) | none: the intent fails before the retract, counted `union_scope_mismatch` |
+| XRD leg, a reached platform scope with a missing base (F1) | none: the full-active app's intent fails before the retract, counted `xrd/union_base_missing` |
 
-Every case asserts that the retract set is exactly `[intent scope]`, under a
-delta and under a full generation.
+Every succeeding case asserts that the retract set is exactly
+`[intent scope]`, under a delta and under a full generation. Every F1 case
+asserts zero retracts and zero writes.
+
+## Refused bases fail the intent (F1)
+
+Review finding F1: a refused base used to keep the delta-only rows, as the
+manifest read does. Here that is destructive, because the handler retracts
+the scope's edges before it writes, so the rows the delta lacks lose their
+edges. The arbiter ruled option A. When the claim leg's own scope or any
+delta-active scope the XRD leg reached resolves as `union_base_missing` or
+`union_scope_mismatch` (the two the projector refuses), the read fails.
+
+- The decision is counted and its WARN logged first, by the shared helper.
+  `overlayDeltaBaseWithRefusals` returns the refusals; `overlayDeltaBase`
+  wraps it, so the manifest read's rows and counters are unchanged.
+- The error is `CrossplaneDeltaBaseRefusedError`
+  (`delta_overlay_refusal.go`). It carries the scope, generation, leg,
+  outcome, and both commits, and its `Error()` omits the SHAs.
+  `Retryable()` is false and `FailureClass()` is
+  `crossplane_satisfied_by_delta_base_refused`. The reducer queue dead-letters
+  a non-retryable error at once with its self-classified class
+  (`reducer_queue_helpers.go`, `retryable` and `DeadLetterTriageMetadata`).
+  The handler needs no change: `loadEdgeFacts` fails before the retract.
+- A failed retention-probe statement is not a lost base. `resolveDeltaBases`
+  now records it on `deltaBaseResolution.probeErr`, as data only. The
+  Crossplane legs then return a retryable error with no class of its own,
+  which wraps the probe failure. The decision still counts as
+  `union_base_missing`.
+- `union_no_baseline` (a legacy delta, which the projector also loads
+  alone) keeps its delta-only rows; `union_base_unmatched` is unchanged.
+
+RED on the pre-F1 production files (the new error types present, the reads
+unchanged), then GREEN after:
+
+```text
+claim leg: missing base fails before the retract:  Handle error = <nil>, want *CrossplaneDeltaBaseRefusedError
+claim leg: scope mismatch fails before the retract: Handle error = <nil>, want *CrossplaneDeltaBaseRefusedError
+xrd leg: a reached platform scope with a missing base fails the app's intent: Handle error = <nil>, want *CrossplaneDeltaBaseRefusedError
+TestListActiveCrossplaneSatisfiedByFactsFailsOnAMissingBase: read error = list active crossplane xrd facts: unexpected query
+TestListActiveCrossplaneSatisfiedByFactsRetriesAFailedProbe: IsRetryable(...) = false
+red exit=1
+```
+
+GREEN: the same tests and the manifest reader's delta tests (live and
+hermetic) pass, `exit=0`. On the same stub, the manifest read still returns
+its delta-only row for a missing base
+(`TestListActiveCrossplaneSatisfiedByFactsFailsOnAMissingBase`).
+
+A delta-active scope that the XRD leg never reaches cannot be refused. That
+is a delta with no XRD rows whose base has no XRD rows left to read. The
+projector refuses to activate a delta whose base is missing, so such a
+scope can only be one whose base was fully pruned after activation.
 
 ## Concurrency, retry, and replay
 
@@ -269,6 +324,9 @@ fix changes no stored data.
 Observability Evidence:
 `eshu_dp_crossplane_satisfied_by_read_delta_union_total{read,outcome}` counts
 one decision per delta-active scope a leg reached. The live cases assert
-`claim/union_base_found`, `xrd/union_base_found`, and
-`claim/union_base_missing`, and the missing-base case asserts the WARN line.
+`claim/union_base_found`, `xrd/union_base_found`, `claim/union_base_missing`,
+`claim/union_scope_mismatch`, and `xrd/union_base_missing`, and the
+missing-base case asserts the WARN line. A refused read surfaces as the
+durable failure_class `crossplane_satisfied_by_delta_base_refused` on the
+dead-lettered work item.
 The existing completion log's `fact_count` now counts the overlaid rows.

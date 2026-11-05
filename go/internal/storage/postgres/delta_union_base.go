@@ -78,9 +78,14 @@ type deltaBaseRequest struct {
 
 // deltaBaseResolution is one request's outcome: the base generation id, or
 // the fail-closed refusal when the base is missing, pruned, or unconfirmed.
+// probeErr is set, beside refused, when the refusal came from a failed
+// retention-probe statement rather than a recorded prune or a missing base:
+// a reader that must not treat a transient fault like a lost base can retry
+// on it (#10005). The projector and the successor guard ignore it.
 type deltaBaseResolution struct {
-	baseID  string
-	refused *projector.DeltaBaseMissingError
+	baseID   string
+	refused  *projector.DeltaBaseMissingError
+	probeErr error
 }
 
 // resolveDeltaBaseAtCommit returns the newest projected full generation at
@@ -166,7 +171,10 @@ func (s FactStore) resolveDeltaBases(ctx context.Context, requests []deltaBaseRe
 				slog.String("generation_id", request.generationID),
 				slog.Any("probe_error", err))
 		}
-		resolved[request.scopeID] = deltaBaseResolution{refused: deltaBaseMissing(request.scopeID, request.generationID, request.commits)}
+		resolved[request.scopeID] = deltaBaseResolution{
+			refused:  deltaBaseMissing(request.scopeID, request.generationID, request.commits),
+			probeErr: err,
+		}
 	}
 	return resolved, nil
 }

@@ -92,7 +92,12 @@ also emits one structured "crossplane satisfied-by materialization
 completed" log per intent. The store records each delta-overlay decision of
 the read on `eshu_dp_crossplane_satisfied_by_read_delta_union_total` by
 `read` (`claim` or `xrd`) and `outcome`, with a WARN line starting
-"crossplane satisfied-by read" for a refused base or a mismatch. See
+"crossplane satisfied-by read" for a refused base or a mismatch. A refused
+base or a mismatch on either leg then fails the intent before the retract
+with the non-retryable failure class `crossplane_satisfied_by_delta_base_refused`
+(`postgres.CrossplaneDeltaBaseRefusedError`), so the intent dead-letters
+with the scope's edges intact. A failed retention-probe statement fails the
+read with a retryable error instead. See
 `docs/public/observability/telemetry-coverage.md`'s "Crossplane" rows.
 
 ## Gotchas / invariants
