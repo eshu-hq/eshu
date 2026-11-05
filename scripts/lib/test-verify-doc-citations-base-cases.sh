@@ -137,6 +137,8 @@ expect_added_debt_caught() {
         unset "$2"
         shift 2
       else
+        # "$1" is a NAME=value assignment string, which export accepts.
+        # shellcheck disable=SC2163
         export "$1"
         shift
       fi
