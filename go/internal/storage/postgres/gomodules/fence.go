@@ -35,8 +35,10 @@ import (
 //     activates the successor, and sets the pointer.
 //
 // The pointer change fires ingestion_scopes_winners_dirty_capture, which logs the
-// retracted generation for the keyed winners tick. That tick only re-picks among stored
-// findings, which is why the holders are reopened here.
+// retracted generation for the keyed winners tick, which re-picks among stored findings and
+// re-derives nothing. Each holder must re-derive its own copy, so holders are reopened here.
+// No pass reads Go evidence across scopes until eshu-hq/eshu#10095 lands, so today the reopen
+// changes no verdict. It is here so the verdict cannot go stale once that loader merges.
 const (
 	// fenceTimeoutsQuery bounds the waits, so a scope or work item held by another
 	// transaction cannot stall the reconcile loop, and a regressed holder read cannot

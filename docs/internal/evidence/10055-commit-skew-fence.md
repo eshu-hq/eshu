@@ -49,6 +49,14 @@ successor's work, so it shares no cycle with Ack, Fail, or the ingestion commit.
 retirement fence's `LOCK TABLE fact_work_items`, the fence waits at its reopen, times out, and
 rolls back; retirement never waits on it.
 
+**What the reopen does today.** A Go verdict reaches a finding only after #10095 and #10077 merge: `factimpact.Kinds`
+holds no Go kind, and `supplyChainImpactFactKinds` covers the intent's own generation only, so no pass reads Go evidence
+across scopes. The live chain test read `package_manifest` with the Go facts active. The reopen therefore changes no verdict
+today, and is required once #10095 lands, because only a holder's re-derive can drop its copy. Ruling Amendment 3 records this
+and moves the verdict assertions and the verdict form of the drop-the-reopen mutant to #10095. The reopen's witness here is the
+holder item's state and stamp: `TestGoFenceReopensAHolderAndItsReducerPassRunsLive` and
+`TestFenceReopensExactlyTheHoldersOfItsRepositoryLive`.
+
 **Retries.** A failed fence, including a failed reopen, rolls back whole and fails the pass with
 no run, so the next reconcile re-reads the page. A lock timeout costs one pass, not a rotation.
 
@@ -57,17 +65,27 @@ holds no other scope's locks.
 
 ## Performance
 
-Performance Evidence: the page query gains two left joins, each a primary-key probe per
-candidate, and a subquery guarded by a CASE so it runs once per skewed candidate only. It reads
-one range of `scope_generations_scope_idx`, bounded by retention. No index is added. The fence
-writes only on a true verdict, at most one page per pass.
+Performance Evidence: measured with `EXPLAIN (ANALYZE, BUFFERS)` on PostgreSQL 18 at `9a87da2429`, on
+the C2 probe data: 3,000 repository scopes, 100,000 other scopes, 1.84M facts, one 256-candidate page
+holding 61 repositories with evidence, 20 of them skewed, one with 50 superseded generations and the
+others 24. Both queries were derived from source. Compare inside this run only: the 68 ms and 97-98 ms
+in `10027-go-modules-derivation.md` are other runs on PostgreSQL 16.
 
-NOT_CHECKED: `EXPLAIN (ANALYZE, BUFFERS)` of the amended query, required before this lands, on
-the C2 probe data with one repository of 50 superseded generations and 20 skewed candidates on
-one page. The ruling's bars: subplan loops equal the skewed count, no sequential scan of
-`fact_records` or `scope_generations`, the zero-skew page near the 97-98 ms in
-`10027-go-modules-derivation.md`, and at most 5 ms per skewed candidate. Replace this paragraph
-with the measured figures.
+| Page query | Warm runs | Buffers |
+| --- | --- | --- |
+| Before this change | 47.7 ms, 47.8 ms | 9,980 |
+| After, no skewed candidates | 51.4 ms, 48.9 ms | 11,036 |
+| After, 20 skewed candidates | 55.6 ms, 50.5 ms, 50.8 ms | 11,135 |
+
+- The two joins add 1.1 to 3.7 ms and 1,056 buffers to a page.
+- The skew subquery ran 20 loops for 20 skewed candidates and did not execute on the no-skew page. It read
+  99 buffers in all. Against the slowest no-skew run, the slowest skewed run costs 0.33 ms per candidate,
+  under the ruling's 5 ms fallback bar. It plans on `scope_generations_scope_latest_lookup_idx`.
+- No sequential scan of `fact_records` or `scope_generations` appears in either output.
+- One page cold took 637.7 ms, with the database just restarted.
+- Fence statements on the same data: detach 0.129 ms, supersede 0.457 ms, holder read 3.787 ms for 30
+  holders among about 20,000 findings. That schema subset omits the dirty-capture trigger, so its write is
+  not in those figures.
 
 ## Signals
 

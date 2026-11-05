@@ -5,6 +5,7 @@ package postgres_test
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -28,7 +29,9 @@ const (
 )
 
 // seedGoFenceChain writes a Go advisory's holder scope and a go-reachability scope whose
-// active generation says the vulnerable surface is not called.
+// active generation says the vulnerable surface is not called. BuildSupplyChainImpactFindings
+// reads not_called from these facts when they are in hand, so this seed is the one
+// eshu-hq/eshu#10095's acceptance test reuses.
 func seedGoFenceChain(c *convergence) (holderItem, generationID string) {
 	c.t.Helper()
 	fanOutSeedScope(c.t, c.ctx, c.db, goFenceHolder, "g1")
@@ -70,35 +73,70 @@ func seedGoFenceChain(c *convergence) (holderItem, generationID string) {
 	return holderItem, generationID
 }
 
-// holderReachability reads the holder's active copy of the advisory's finding.
-func holderReachability(c *convergence) string {
+// activeCopies counts one scope's active copies of the advisory's finding.
+func activeCopies(c *convergence, scopeID string) int {
 	c.t.Helper()
-	var reachability string
+	var count int
 	if err := c.db.QueryRowContext(c.ctx, `
-SELECT COALESCE(f.payload->>'runtime_reachability', '')
+SELECT count(*)
 FROM fact_records f
 JOIN ingestion_scopes s ON s.scope_id = f.scope_id AND s.active_generation_id = f.generation_id
 WHERE f.fact_kind = $1 AND NOT f.is_tombstone AND f.scope_id = $2 AND f.payload->>'cve_id' = $3`,
-		facts.ReducerSupplyChainImpactFindingFactKind, goFenceHolder, goFenceAdvisory).Scan(&reachability); err != nil {
-		c.t.Fatalf("read the holder's finding: %v (handled %v)", err, c.handled)
+		facts.ReducerSupplyChainImpactFindingFactKind, scopeID, goFenceAdvisory).Scan(&count); err != nil {
+		c.t.Fatalf("count the findings of %s: %v", scopeID, err)
 	}
-	return reachability
+	return count
 }
 
-// TestGoFenceReopensAHolderSoItsFindingDropsNotCalledLive is the chain proof of ruling
-// Amendment 2, A2.6, with the real handler, writer, fan-out store, queue, and winners. A
-// holder's finding reads not_called. The fence reopens the holder in its own transaction,
-// with the origin stamp. One reducer pass reads no Go evidence and rewrites the copy, and
-// the API finding through the winners no longer reads not_called. Without the reopen the
-// holder's item stays succeeded and the verdict stays, with no bound.
-func TestGoFenceReopensAHolderSoItsFindingDropsNotCalledLive(t *testing.T) {
+// logAPIReachability records what the API reads through the winners. It is an observation
+// only: asserting it would break when eshu-hq/eshu#10095 lands.
+func logAPIReachability(c *convergence, when string) {
+	c.t.Helper()
+	if err := (postgres.SupplyChainImpactWinnersStore{DB: postgres.SQLDB{DB: c.db}}).RebuildAllWinners(c.ctx, time.Now().UTC()); err != nil {
+		c.t.Fatalf("rebuild winners: %v", err)
+	}
+	rows, err := query.NewPostgresSupplyChainImpactFindingStoreWithReadModel(c.db, true).ListSupplyChainImpactFindings(c.ctx,
+		query.SupplyChainImpactFindingFilter{CVEID: goFenceAdvisory, IncludeSuppressed: true, Limit: 10})
+	if err != nil {
+		c.t.Fatalf("list findings: %v", err)
+	}
+	reachability := make([]string, 0, len(rows))
+	for _, row := range rows {
+		reachability = append(reachability, row.RuntimeReachability)
+	}
+	c.t.Logf("API reachability %s: %q", when, reachability)
+}
+
+// TestGoFenceReopensAHolderAndItsReducerPassRunsLive is the chain proof of ruling Amendment
+// 3 over the real handler, writer, fan-out store, and queue. It asserts only what holds with
+// or without eshu-hq/eshu#10095: after the fence the go-reachability scope's copy is out of
+// the active set, a holder of the repository's findings is reopened in the fence's
+// transaction with the origin stamp, and one reducer pass runs for that holder. The seeded
+// Go-scope item stands in for the trigger of eshu-hq/eshu#10077.
+//
+// It asserts no verdict. The API's value is logged only.
+func TestGoFenceReopensAHolderAndItsReducerPassRunsLive(t *testing.T) {
 	c := newConvergence(t, false)
 	holderItem, generationID := seedGoFenceChain(c)
+	fanOutSeedItem(c.t, c.ctx, c.db, goFenceScope, "g1")
 	c.drain()
-
-	if got := holderReachability(c); got != string(supplychaincore.GoVulnReachabilityNotCalled) {
-		t.Fatalf("holder reachability before the fence = %q, want not_called: the seed does not reach the finding (handled %v)", got, c.handled)
+	passes := func() int {
+		count := 0
+		for _, handled := range c.handled {
+			if strings.HasPrefix(handled, goFenceHolder+"#") {
+				count++
+			}
+		}
+		return count
 	}
+	before := passes()
+	if before == 0 {
+		t.Fatalf("the holder never ran before the fence (handled %v)", c.handled)
+	}
+	if got := activeCopies(c, goFenceScope); got != 1 {
+		t.Fatalf("active Go scope copies before the fence = %d, want 1 (handled %v)", got, c.handled)
+	}
+	logAPIReachability(c, "before the fence")
 
 	store := gomodules.NewStore(postgres.SQLDB{DB: c.db}).WithHolderReopener(postgres.ReopenSupplyChainImpactHolderInTransaction)
 	fence := []scannercomponent.StaleEvidenceFence{{ScopeID: goFenceScope, GenerationID: generationID}}
@@ -106,12 +144,14 @@ func TestGoFenceReopensAHolderSoItsFindingDropsNotCalledLive(t *testing.T) {
 	if err != nil || result.Fenced != 1 || result.HoldersReopened != 1 {
 		t.Fatalf("fence result = %+v, err = %v, want 1 fenced and 1 holder", result, err)
 	}
+	if got := activeCopies(c, goFenceScope); got != 0 {
+		t.Fatalf("active Go scope copies after the fence = %d, want 0", got)
+	}
 
 	var status string
 	var origin json.RawMessage
-	if err := c.db.QueryRowContext(c.ctx,
-		`SELECT status, payload->'`+supplychaincore.PayloadKeyFanOutOrigin+`' FROM fact_work_items WHERE work_item_id = $1`,
-		holderItem).Scan(&status, &origin); err != nil {
+	readItem := `SELECT status, COALESCE(payload->'` + supplychaincore.PayloadKeyFanOutOrigin + `', 'null'::jsonb) FROM fact_work_items WHERE work_item_id = $1`
+	if err := c.db.QueryRowContext(c.ctx, readItem, holderItem).Scan(&status, &origin); err != nil {
 		t.Fatalf("read the holder item: %v", err)
 	}
 	var stamp map[string]string
@@ -123,45 +163,8 @@ func TestGoFenceReopensAHolderSoItsFindingDropsNotCalledLive(t *testing.T) {
 	}
 
 	c.drain()
-	got := holderReachability(c)
-	if got == string(supplychaincore.GoVulnReachabilityNotCalled) {
-		t.Fatalf("holder reachability after one reducer pass = %q, want the stale verdict gone (handled %v)", got, c.handled)
+	if after := passes(); after != before+1 {
+		t.Fatalf("holder passes = %d after the fence, want %d (handled %v)", after, before+1, c.handled)
 	}
-	t.Logf("holder reachability after the fence and one reducer pass: %q", got)
-
-	if err := (postgres.SupplyChainImpactWinnersStore{DB: postgres.SQLDB{DB: c.db}}).RebuildAllWinners(c.ctx, time.Now().UTC()); err != nil {
-		t.Fatalf("rebuild winners: %v", err)
-	}
-	rows, err := query.NewPostgresSupplyChainImpactFindingStoreWithReadModel(c.db, true).ListSupplyChainImpactFindings(c.ctx,
-		query.SupplyChainImpactFindingFilter{CVEID: goFenceAdvisory, IncludeSuppressed: true, Limit: 10})
-	if err != nil {
-		t.Fatalf("list findings: %v", err)
-	}
-	if len(rows) != 1 {
-		t.Fatalf("API findings = %d, want exactly one canonical finding", len(rows))
-	}
-	if rows[0].RuntimeReachability == string(supplychaincore.GoVulnReachabilityNotCalled) {
-		t.Fatalf("API finding reachability = %q, want the stale verdict gone", rows[0].RuntimeReachability)
-	}
-}
-
-// TestGoFenceWithoutAReopenLeavesTheVerdictStaleLive is the sensitivity witness for A2.4:
-// a retraction alone changes active facts and nothing re-derives. Keep it next to the
-// chain proof, so a reader sees what the reopen is for.
-func TestGoFenceWithoutAReopenLeavesTheVerdictStaleLive(t *testing.T) {
-	c := newConvergence(t, false)
-	_, generationID := seedGoFenceChain(c)
-	c.drain()
-	if _, err := c.db.ExecContext(c.ctx, `
-UPDATE ingestion_scopes SET active_generation_id = NULL WHERE scope_id = $1 AND active_generation_id = $2`, goFenceScope, generationID); err != nil {
-		t.Fatalf("detach: %v", err)
-	}
-	if _, err := c.db.ExecContext(c.ctx, `
-UPDATE scope_generations SET status = 'superseded', superseded_at = now() WHERE generation_id = $1`, generationID); err != nil {
-		t.Fatalf("supersede: %v", err)
-	}
-	c.drain()
-	if got := holderReachability(c); got != string(supplychaincore.GoVulnReachabilityNotCalled) {
-		t.Fatalf("holder reachability = %q, want it still not_called: this witness shows why the reopen exists", got)
-	}
+	logAPIReachability(c, "after the fence and the holder's pass")
 }

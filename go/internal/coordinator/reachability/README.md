@@ -77,8 +77,9 @@ results, and none holds a repository id or URL:
   `scan_interval`, so a bound in intervals would retract healthy repositories on a large
   fleet. The age is measured from the repository's own history, so a quiet repository is
   never retracted by age.
-- A retraction leaves stored findings alone. The store reopens each holder in the same
-  transaction, and each finding changes when that holder re-derives. See
+- A retraction changes which facts are active, not any finding. The store reopens each holder in
+  the same transaction, which changes no verdict until eshu-hq/eshu#10095 lets passes read Go
+  evidence across scopes. See
   `docs/public/reference/standalone-vulnerability-scanner-boundary.md`.
 
 ## Related docs
