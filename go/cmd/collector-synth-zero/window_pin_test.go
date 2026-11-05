@@ -234,13 +234,18 @@ func deploymentEnv(t *testing.T) map[string]string {
 	return env
 }
 
+// provenSeedImage is the dispatch-proven seed image: window assembly run
+// 42049436432 built, pushed, smoked, and attested exactly this digest (see
+// image-provenance.md). A seed rebuild re-pins this constant in the same
+// commit that re-pins manifest.yaml and deployment.yaml.
+const provenSeedImage = "ghcr.io/eshu-hq/eshu-synth-zero@sha256:145dbbf95cc5971c5a6607dccf455fc742fb11f37c21a339972ca2c5a17c8a93"
+
 // TestWindowSeedDigestAgreesAcrossVehicle proves the two vehicle pin spots
-// name the same digest-pinned seed image: the manifest artifacts entry (what
-// the registry installs and the window proves) and the Deployment container
-// image (what the worker pulls). A zeros placeholder, any other hex value,
-// or a divergent fill fails here. The value itself is proven by the
-// dispatch-run outputs and attestation subject-digest recorded in
-// image-provenance.md; this test binds the files to each other.
+// name the same dispatch-proven seed image: the manifest artifacts entry
+// (what the registry installs and the window proves) and the Deployment
+// container image (what the worker pulls). A zeros placeholder, any other
+// hex value (even consistently in both files), or a divergent fill fails
+// here.
 func TestWindowSeedDigestAgreesAcrossVehicle(t *testing.T) {
 	t.Parallel()
 
@@ -262,6 +267,12 @@ func TestWindowSeedDigestAgreesAcrossVehicle(t *testing.T) {
 	}
 	if manifestImage != deployImage {
 		t.Fatalf("manifest artifact image %q != deployment image %q", manifestImage, deployImage)
+	}
+	if manifestImage != provenSeedImage {
+		t.Fatalf("manifest artifact image %q != dispatch-proven seed image %q", manifestImage, provenSeedImage)
+	}
+	if deployImage != provenSeedImage {
+		t.Fatalf("deployment image %q != dispatch-proven seed image %q", deployImage, provenSeedImage)
 	}
 }
 

@@ -82,9 +82,9 @@ own; its per-claim unchanged status row is recorded by the host's
   manifest.
 - The seed image digest was pinned by window assembly run 42049436432.
   `TestWindowSeedDigestAgreesAcrossVehicle` proves the `manifest.yaml`
-  artifacts image equals the `deployment.yaml` container image; the digest
-  value itself is proven by the dispatch-run outputs and attestation
-  subject-digest recorded in `image-provenance.md`.
+  artifacts image and the `deployment.yaml` container image both equal that
+  dispatch-proven digest (run log and attestation subject-digest recorded in
+  `image-provenance.md`); a seed rebuild re-pins the test constant with them.
 - The disposable-venue end-to-end runs only with `ESHU_SYNTH_ZERO_LIVE=1`:
   `ESHU_SYNTH_ZERO_LIVE=1 go test -count=1 -timeout 12m
   ./cmd/collector-synth-zero/ -run TestWindowZeroFactEndToEnd`.
