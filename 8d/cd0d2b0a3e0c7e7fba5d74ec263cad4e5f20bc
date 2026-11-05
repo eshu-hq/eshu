@@ -1,0 +1,14 @@
+docs/internal/evidence/10109-manifest-refusal-read.md
+  h_78a442cba0b3e6 1-104
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8dcd0d2b0a3e0c7e7fba5d74ec263cad4e5f20bc",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
