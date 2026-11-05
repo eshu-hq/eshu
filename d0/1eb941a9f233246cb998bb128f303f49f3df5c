@@ -1,0 +1,52 @@
+docs/internal/evidence/10005-crossplane-delta-overlay.md
+  s_7547c0f0af67d4::t_d021dd58670527 162-228
+  s_7547c0f0af67d4::t_9c8c9cdb69249e 163-171,173-180,182-195,197-198,200-228
+go/internal/storage/postgres/migrations/279_fact_records_crossplane_xrd_entity_idx.sql
+  s_7547c0f0af67d4::t_f0802586e0019a 1-34
+  s_7547c0f0af67d4::t_87e22c36a62d2e 1-34
+go/internal/storage/postgres/migrations/README.md
+  s_7547c0f0af67d4::t_23ec233004eb46 411-433
+  s_7547c0f0af67d4::t_3ca3446a5a44a1 412,414-428,432-433
+go/internal/storage/postgres/migrations/embed_invariant_test.go
+  s_7547c0f0af67d4::t_ea31f0bac77089 203-207,213
+  s_7547c0f0af67d4::t_7ad3a4a8a5dfe3 204,213
+go/internal/storage/postgres/migrations/migration_checksum_manifest_test.go
+  s_7547c0f0af67d4::t_b2675fb7762b09 343-345
+  s_7547c0f0af67d4::t_9326b7a204513c 343
+go/internal/storage/postgres/satisfied_by_read_delta_live_test.go
+  s_7547c0f0af67d4::t_e404a4a04ca276 7,12,15,355-411
+  s_7547c0f0af67d4::t_49cd34d70ad869 12,15,355-356,358-411
+go/internal/storage/postgres/satisfied_by_read_index_test.go
+  s_7547c0f0af67d4::t_b8dcbb1c57ab65 1-68
+  s_7547c0f0af67d4::t_9b9c92ef7612d9 1-11,13-28,30-65,67-68
+go/internal/storage/postgres/schema_fact_records.go
+  s_7547c0f0af67d4::t_bfb8a48b33e139 6
+  s_7547c0f0af67d4::t_e4d6f3dde564f0 6
+go/internal/storage/postgres/schema_fact_records_crossplane.go
+  s_7547c0f0af67d4::t_19d095d3a1799f 1-24
+  s_7547c0f0af67d4::t_fc6b892b75693c 1-11,13-24
+go/internal/storage/postgres/schema_order_late_test.go
+  s_7547c0f0af67d4::t_f6ca921f873c50 461-463
+  s_7547c0f0af67d4::t_9dcb026bb013c5 462-463
+scripts/lib/live_postgres_readiness_inventory_gen_internal_storage_postgres_part2.py
+  s_7547c0f0af67d4::t_72d4341eadcc27 335
+  s_7547c0f0af67d4::t_0f437ef8ade5e2 335
+specs/live-tests.d/live-tests-readiness-part4.generated.yaml
+  s_7547c0f0af67d4::t_3a72a5a7629c6f 225
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d01eb941a9f233246cb998bb128f303f49f3df5c",
+  "prompts": {},
+  "sessions": {
+    "s_7547c0f0af67d4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7c8b2d5-3286-4c2a-be1f-589162535d83",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
