@@ -96,7 +96,7 @@ deployed acceptance is NOT_CHECKED.
 | Original published module | New module identity | Available first candidate | Other published candidate | Preferred candidate | Latest candidate pinned by merged core |
 | --- | --- | --- | --- | --- | --- |
 | `github.com/eshu-hq/eshu/sdk/go/collector@v0.2.0` | `github.com/eshu-hq/eshu-sdk/collector` | `collector/v0.1.0-rc.1` | `collector/v0.2.0-rc.1` | `collector/v0.1.0-rc.2` (published; proxy verified) | `collector/v0.2.0-rc.3` (published; proxy verified; adds `collector-sdk/v1alpha3` pagination; pinned by core #9385) |
-| `github.com/eshu-hq/eshu/sdk/go/factschema@v0.2.0` | `github.com/eshu-hq/eshu-sdk/factschema` | `factschema/v0.1.0-rc.1` | `factschema/v0.1.0-rc.2` | `factschema/v0.1.0-rc.2` (published; proxy verified) | `factschema/v0.1.0-rc.17` (published; proxy verified; adds `vulnerability.go_call_reachability` `scan_level`, `scan_mode`, `scanner_version`, `source_commit_sha`, and `trace_count` and `scanner_worker.warning` `repository_id` and `relative_path`; on top of rc.15's `vulnerability.source_snapshot` `license`, `attribution`, `cache_expires_at`, and `cache_mode`; on top of rc.14's `vulnerability.cve` `aliases`, `related`, and `upstream` identity edges and rc.13's `vulnerability.os_package` `source_package` and the `reducer_supply_chain_impact_finding` `os_package_match_derivation`, `installed_package_name`, and `source_package` evidence fields; pinned by core #9859 for rc.13, #9914 for rc.14, #9958 for rc.15, and #10043 for rc.17) |
+| `github.com/eshu-hq/eshu/sdk/go/factschema@v0.2.0` | `github.com/eshu-hq/eshu-sdk/factschema` | `factschema/v0.1.0-rc.1` | `factschema/v0.1.0-rc.2` | `factschema/v0.1.0-rc.2` (published; proxy verified) | `factschema/v0.1.0-rc.17` (published; proxy verified; adds `vulnerability.go_call_reachability` `scan_level`, `scan_mode`, `scanner_version`, `source_commit_sha`, and `trace_count` and `scanner_worker.warning` `repository_id` and `relative_path`; on top of rc.16's `ghsa` row in the shared source-terms golden fixture and rc.15's `vulnerability.source_snapshot` `license`, `attribution`, `cache_expires_at`, and `cache_mode`; on top of rc.14's `vulnerability.cve` `aliases`, `related`, and `upstream` identity edges and rc.13's `vulnerability.os_package` `source_package` and the `reducer_supply_chain_impact_finding` `os_package_match_derivation`, `installed_package_name`, and `source_package` evidence fields; pinned by core #9859 for rc.13, #9914 for rc.14, #9958 for rc.15, and #10043 for rc.17) |
 
 `factschema/v0.1.0-rc.6` is published at SDK merge commit
 `41b2906ec5cd3a2738f3dcdc3cf6033ba14b159c`. A fresh external
@@ -168,6 +168,14 @@ same commit; module zip checksum:
 paging golden with the NVD terms, so a consumer that replays it moves to rc.15
 together with the terms. It is pinned by core #9958. `license` is a disclosure
 and decides no access.
+
+`factschema/v0.1.0-rc.16` is published at SDK commit
+`95bae1a95dd5080cb90fc3a120d99c18af872607`. It changes one fixture-pack payload
+and no payload schema: the shared `source_terms_golden.json` gains a `ghsa` row
+(eshu-hq/eshu#9959). The pin to rc.17 carries that row in the module copy only.
+Core keeps its own `source_terms_golden.json` (four rows) and its source-terms
+table in step, so the `ghsa` row lands in both together with the GHSA admission
+change, not with this pin. No core code replays the module copy.
 
 `factschema/v0.1.0-rc.17` is published at SDK merge commit
 `0acd485aaa59ac1f7c1e9e63984191b0f2ba35da` through eshu-sdk PR #81. It adds the

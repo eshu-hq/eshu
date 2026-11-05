@@ -107,9 +107,8 @@ queue, lease, reducer, API, MCP, or workflow handles.
   (mismatch recorded, no behavior impact on this doc).
 - Claim-plane pin: `eshu-workflow v0.1.0` (`go/go.mod:161`); protocol
   major `1` only (pairs recorded below).
-- Supported oldest/newest pairs for this boundary (box-9 record,
-  re-verified 2026-11-04):
-  - SDK: `collector v0.2.0-rc.3` + `factschema v0.1.0-rc.15` (live pins
+- Supported oldest/newest pairs for this boundary (box-9 record):
+  - SDK: `collector v0.2.0-rc.3` + `factschema v0.1.0-rc.17` (live pins
     above). The supported-combination policy lives in
     `docs/public/extend/sdk-compatibility.md` (initial `v0.1.0` pair,
     `v0.2.0` pair, historical `collector v0.1.0-rc.3` +
