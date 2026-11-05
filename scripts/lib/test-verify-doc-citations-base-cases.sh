@@ -206,8 +206,11 @@ test_single_parent_head_on_a_pull_request_keeps_the_resolver_base() {
     "${root}" "${root}.out" GITHUB_EVENT_NAME=pull_request GITHUB_BASE_REF=main
 }
 
-# A two-parent HEAD whose first parent object is absent (the shape a shallow
-# checkout can leave) falls back instead of naming a base that is not there.
+# A two-parent HEAD whose parent objects are absent falls back instead of
+# naming a base that is not there. git rev-list refuses such a HEAD, which
+# the helper's own rev-list check catches before its cat-file check runs, so
+# this case pins that outcome, not the cat-file line (a mutant that deletes
+# the cat-file line survives, because that line is unreachable behind it).
 test_missing_first_parent_object_keeps_the_resolver_base() {
   local root="${tmp_root}/line-missing-parent" tree commit
   build_debt_repo "${root}"
