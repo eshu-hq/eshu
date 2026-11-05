@@ -255,6 +255,7 @@ func TestDigestlessFleetPURLWithoutDistroKeepsReasonWithoutSBOM(t *testing.T) {
 			t.Fatalf("EvidenceFactIDs = %v, want both rows", got.EvidenceFactIDs)
 		}
 	}
+	assertMergeRebuilt(t, got)
 }
 
 // TestDigestlessFleetTwoLookupKeysInOneGroupAreOrderIndependent puts one
@@ -294,10 +295,35 @@ func TestDigestlessFleetTwoLookupKeysInOneGroupAreOrderIndependent(t *testing.T)
 	}
 }
 
+// assertMergeRebuilt fails unless merged is what appendSupplyChainImpactFinding
+// would produce for it: the reachability, priority, and remediation that follow
+// a merge's reason and confidence must be derived from the merged finding, not
+// carried over from one input.
+func assertMergeRebuilt(t *testing.T, merged SupplyChainImpactFinding) {
+	t.Helper()
+	rebuilt := appendSupplyChainImpactFinding(nil, merged)
+	if len(rebuilt) != 1 {
+		t.Fatalf("rebuilding the merged finding returned %d findings, want 1", len(rebuilt))
+	}
+	got, err := json.Marshal(merged)
+	if err != nil {
+		t.Fatalf("marshal merged finding: %v", err)
+	}
+	want, err := json.Marshal(rebuilt[0])
+	if err != nil {
+		t.Fatalf("marshal rebuilt finding: %v", err)
+	}
+	if string(got) != string(want) {
+		t.Fatalf("merged finding was not rebuilt after the merge:\n got %s\nwant %s", got, want)
+	}
+}
+
 // TestCoalesceNamesAnSBOMConflictOnlyWhenAnSBOMWasRead pins both arms of the
 // merge on a writer identity shared by findings with different reasons. With an
-// SBOM component read for either finding, the disagreement is an SBOM version
-// conflict. With none, it is not, and the merge keeps the lesser reason.
+// SBOM component read for either finding, whichever sorts first, the
+// disagreement is an SBOM version conflict with image_sbom reachability. With
+// none, it is not: the merge keeps the lesser reason, settles differing
+// confidence on partial, and rebuilds the derived fields.
 func TestCoalesceNamesAnSBOMConflictOnlyWhenAnSBOMWasRead(t *testing.T) {
 	t.Parallel()
 	build := func(reason, reachability string, path ...string) SupplyChainImpactFinding {
@@ -310,6 +336,10 @@ func TestCoalesceNamesAnSBOMConflictOnlyWhenAnSBOMWasRead(t *testing.T) {
 			EvidencePath:  path, MissingEvidence: []string{"missing " + reason},
 		}
 	}
+	withConfidence := func(finding SupplyChainImpactFinding, confidence string) SupplyChainImpactFinding {
+		finding.Confidence = confidence
+		return finding
+	}
 	sbom := []string{chain.SBOMComponentFactKind}
 	cases := []struct {
 		name          string
@@ -317,8 +347,10 @@ func TestCoalesceNamesAnSBOMConflictOnlyWhenAnSBOMWasRead(t *testing.T) {
 		wantConflict  bool
 	}{
 		{"both read an SBOM", build("reason_b", "image_sbom", sbom...), build("reason_a", "image_sbom", sbom...), true},
-		{"one read an SBOM", build("reason_a", "image_sbom", sbom...), build("reason_b", "image_os_package"), true},
+		{"the lesser reason read an SBOM", build("reason_a", "image_sbom", sbom...), build("reason_b", "image_os_package"), true},
+		{"the lesser reason read no SBOM", build("reason_a", "image_os_package"), build("reason_b", "image_sbom", sbom...), true},
 		{"neither read an SBOM", build("reason_a", "image_os_package"), build("reason_b", "unknown"), false},
+		{"neither read an SBOM, confidence differs", withConfidence(build("reason_a", "image_os_package"), "strong"), build("reason_a", "image_os_package"), false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -336,12 +368,23 @@ func TestCoalesceNamesAnSBOMConflictOnlyWhenAnSBOMWasRead(t *testing.T) {
 				if has := slices.Contains(got.MissingEvidence, supplyChainMissingSBOMVersionConflict); has != tc.wantConflict {
 					t.Fatalf("MissingEvidence = %v, names a conflict = %t, want %t", got.MissingEvidence, has, tc.wantConflict)
 				}
+				if tc.wantConflict && got.RuntimeReachability != "image_sbom" {
+					t.Fatalf("RuntimeReachability = %q, want image_sbom on an SBOM conflict", got.RuntimeReachability)
+				}
 				if !tc.wantConflict && got.MatchReason != "reason_a" {
 					t.Fatalf("MatchReason = %q, want the lesser reason", got.MatchReason)
 				}
-				if !slices.Contains(got.MissingEvidence, "missing reason_a") || !slices.Contains(got.MissingEvidence, "missing reason_b") {
-					t.Fatalf("MissingEvidence = %v, want both inputs kept", got.MissingEvidence)
+				if got.Confidence != "partial" {
+					t.Fatalf("Confidence = %q, want partial for findings that disagree", got.Confidence)
 				}
+				for _, input := range []SupplyChainImpactFinding{tc.first, tc.second} {
+					for _, entry := range input.MissingEvidence {
+						if !slices.Contains(got.MissingEvidence, entry) {
+							t.Fatalf("MissingEvidence = %v, lost %q from an input", got.MissingEvidence, entry)
+						}
+					}
+				}
+				assertMergeRebuilt(t, got)
 				raw, err := json.Marshal(got)
 				if err != nil {
 					t.Fatalf("marshal finding: %v", err)

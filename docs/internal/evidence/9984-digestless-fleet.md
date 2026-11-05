@@ -4,12 +4,18 @@ Issue #9984, part of epic #9209. Installed OS rows with no sibling-analysis
 digest used to share one index, and the first matching row decided one finding
 for the group. This note records what moved, what did not, and what the change
 costs. The census, the benchmark runs, and the allocation counts below were
-re-run at `79f4745717` (the last commit that changes Go files; the commits after
-it change documentation only) against base `4a889112b1`, on macOS arm64 with
-`go1.26.10`. The host is shared and was busy: the one-minute load average read 34
-to 63 during the benchmark runs, which widens the timing bands (up to ±147%).
-Allocations and bytes do not move with load, so they carry the weight. The figures
-are not a CI baseline.
+re-run on the branch commit titled "test(supplychain): benchmark the SBOM base
+beside unattached digests", which holds the production code and the benchmarks
+measured here (later commits change test assertions and documentation only),
+against base `4a889112b1`, a merge commit on main. The runs were made before the
+branch was rebased. A review later confirmed that the rebased commit has the same
+`core` tree, and a rerun of the census and the allocation counts against main at
+`b1dc9788e1` reproduced every count here. The commit is named by its subject
+because a rebase changes its hash. The runs were on macOS arm64 with `go1.26.10`.
+The host is shared and was busy: the one-minute load average read 34 to 63 during
+the benchmark runs, which widens the timing bands (up to ±147%). Allocations and
+bytes do not move with load, so they carry the weight. The figures are not a CI
+baseline.
 
 ## What the change does
 
@@ -32,8 +38,7 @@ components, and it does not fit two digest-less lines whose purl names no distro
 qualifier, where no SBOM was read. The label now needs an SBOM component on one of
 the merged findings (`findingHasSBOMComponentPath`). Without one, the merge keeps
 the lesser reason, so arrival order cannot change it, and the union of both
-missing-evidence lists and rows. This was found by review at
-`716af633ac` and is pinned by `TestDigestlessFleetPURLWithoutDistroKeepsReasonWithoutSBOM`
+missing-evidence lists and rows. This was found in review and is pinned by `TestDigestlessFleetPURLWithoutDistroKeepsReasonWithoutSBOM`
 and `TestCoalesceNamesAnSBOMConflictOnlyWhenAnSBOMWasRead`. The smaller fix is in
 coalesce: putting the release line in the writer identity would change the
 identity, and so the finding ID, of every finding on the digest path (#9918).
@@ -54,7 +59,8 @@ cd <checkout>/go && CENSUS_OUT=<out>.json go test ./internal/reducer/supplychain
 python3 compare.py census-base.json census-head.json
 ```
 
-The base checkout is `4a889112b1` and the head checkout is `79f4745717`.
+The base checkout is `4a889112b1` and the head checkout is the commit named in
+the opening paragraph.
 
 | Class | Runs | Findings before | Findings after | Byte-identical runs | Fixtures flipping by order, before | After |
 |---|---|---|---|---|---|---|
@@ -104,7 +110,8 @@ the split was exercised. The split has not run in the QA environment.
 
 ## Cost
 
-Benchmark Evidence: measured at `79f4745717` against base `4a889112b1`, ten
+Benchmark Evidence: measured at the commit named in the opening paragraph against
+base `4a889112b1`, ten
 interleaved rounds per side with an alternating first mover, 300 iterations for the
 fleet benchmarks and 50 for the join benchmark, compared with `benchstat`. The
 one-minute load average read 34 to 51 during the run, so the timing bands run ±8 to
@@ -153,9 +160,9 @@ to the digit).
 | 1000 | 2 to 1001 | 5.61 ms ±42% to 67.4 ms ±23% (+1101%) | 2.78 MiB to 35.6 MiB (+1179%) | 13.5k to 338k (+2403%) |
 
 The cost is linear in unattached digests, about 34 KiB and 325 allocations for each
-added finding. Time per added finding reads 23 µs when the host is quiet (review
-measured +1054% at 1000 digests at load 26 to 31) and about 60 µs in this loaded run;
-the no-SBOM path in the table above costs about 70 µs for each image at 100 images.
+added finding. Time per added finding reads 28.6 µs at 1000 digests in a review run at
+load 18 to 20 (30.8 ms less 2.3 ms, over 999 added findings) and about 60 µs in the
+loaded run above; the no-SBOM path in the table above costs about 70 µs for each image at 100 images.
 Before this change the SBOM base produced one finding for all of these digests,
 because the first matching row decided for the group. That was the wrong answer for
 every digest but one. Each digest is one image with its own installed rows, so it
@@ -194,3 +201,9 @@ because a foreign-line host now has a finding of its own.
   conflict (`TestDigestlessFleetPURLWithoutDistroKeepsReasonWithoutSBOM`). Nothing
   requires the qualifier, and this note did not measure how often a producer leaves
   it out.
+- A merge that keeps the lesser reason also takes the priority and fix that
+  reason yields. In a probe with a debian-11 advisory (rerun at this head, both
+  row orders), a row on line 10 merged with
+  a row on `sid` scored 11 with no fix, where the `sid` row alone scored 16 with fix
+  `7.88.1-10+deb12u3`. Before this change the answer was 11 or 16 depending on row
+  order; now it is always the lesser reason's. The status does not change.
