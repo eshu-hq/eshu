@@ -1,7 +1,8 @@
 # Join-only barrier arrival: rate evidence and mutant kills (#10084)
 
 `collector.Service.Run` level-gates the `AfterEmptyBatchDrained` escape on the
-flag (`go/internal/collector/service.go:251`), so every idle poll drains while
+flag (the `AfterEmptyBatchDrained` read in `Service.Run`,
+`go/internal/collector/service.go`), so every idle poll drains while
 the flag is set. A shard with nothing to account for — never committed,
 committed then idle, or committed then refused — arrives join-only (`false`)
 at the deferred-maintenance barrier on every idle poll instead of falling
@@ -12,8 +13,10 @@ for the idle-path barrier transaction (`go/internal/storage/postgres/README.md`,
 Postgres 18.4 throwaway container, one seeded completed-epoch row, the exact
 four statements: 653 tx/s uncontested ceiling, p50 0.89 ms, p99 4.31 ms);
 after = this head runs the byte-identical transaction once per idle poll per
-shard (`go/internal/collector/service.go:251`,
-`go/internal/storage/postgres/deferred_maintenance_barrier.go:140-183`), i.e.
+shard (the `AfterEmptyBatchDrained` read in `Service.Run` and the
+`Begin`-to-`Commit` transaction in
+`RunDeferredRelationshipMaintenanceAfterShardDrain`,
+`go/internal/storage/postgres/deferred_maintenance_barrier.go`), i.e.
 N tx/s at the 1 s ingester poll — 30x–130x below the measured ceiling, about
 1.5% steady-state duty cycle at 10 shards. Backend/version, input shape,
 counts, and the reuse case are in F1 below.

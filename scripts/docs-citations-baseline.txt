@@ -263,7 +263,6 @@ LINE docs/public/reference/collector-performance-envelope.md go/internal/collect
 LINE docs/public/reference/collector-performance-envelope.md go/internal/collector/emit_bench_test.go:88
 LINE docs/public/reference/collector-performance-envelope.md go/internal/scope/scope.go:130
 LINE docs/public/reference/telemetry/index.md go/internal/telemetry/instruments.go:4745
-LINE go/cmd/ingester/README.md go/internal/collector/service.go:223
 LINE go/internal/collector/awscloud/AGENTS.md go/internal/collector/awscloud/internal/relguard/relguard.go:42
 LINE go/internal/collector/terraformstate/README.md go/internal/redact/redact.go:161
 LINE go/internal/correlation/drift/tfconfigstate/README.md go/internal/correlation/engine/engine.go:25
@@ -298,5 +297,4 @@ LINE go/internal/replay/faultreplay/doc.go go/internal/reducer/service.go:27
 LINE go/internal/secretcrypto/README.md go/internal/runtime/api_key.go:66
 LINE go/internal/secretcrypto/env.go go/internal/runtime/api_key.go:66
 LINE go/internal/storage/postgres/AGENTS.md go/internal/parser/hcl/terraform_resource_attributes.go:132
-LINE go/internal/storage/postgres/README.md go/internal/collector/service.go:234
 LINE go/internal/synth/gcp/README.md go/internal/replay/canonical.go:49

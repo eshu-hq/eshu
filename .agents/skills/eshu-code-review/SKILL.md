@@ -98,6 +98,9 @@ failing gate locally rather than re-running everything. After a rebase, a gate c
 red on the new base itself. Reproduce it on the bare base before you attribute
 it to the diff; the procedure is in
 [rebase-verify.md](../eshu-session-lifecycle/references/rebase-verify.md).
+The same rule holds without a rebase: a red gate on paths the diff never
+touches is reproduced on the bare base and recorded as an inherited-breakage
+disposition, never silently ignored.
 
 ## Rebase Waiver
 
