@@ -48,6 +48,7 @@ func buildCassetteService(
 	}
 	committer := postgres.NewIngestionStore(database)
 	committer.Logger = logger
+	committer.Instruments = instruments
 	return collector.Service{
 		Source:       src,
 		Committer:    committer,
@@ -76,6 +77,7 @@ func buildClaimedService(
 	}
 	committer := postgres.NewIngestionStore(database)
 	committer.Logger = logger
+	committer.Instruments = instruments
 	claimStore, err := store.New(context.Background(), store.Options{
 		Service:     "{{.RuntimeName}}",
 		Getenv:      getenv,

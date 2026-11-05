@@ -100,6 +100,12 @@ func TestGenerateClaimedCollectorEntrypoint(t *testing.T) {
 			t.Fatalf("generated service.go missing %q:\n%s", want, serviceFile)
 		}
 	}
+	// Both runtime paths hand the shared ingestion committer the process
+	// instruments, so the generation outcome counter (#10020) records for every
+	// generated collector. A path that drops the field records nothing.
+	if got, want := strings.Count(serviceFile, "committer.Instruments = instruments"), 2; got != want {
+		t.Fatalf("generated service.go sets committer.Instruments %d times, want %d (cassette and claimed paths):\n%s", got, want, serviceFile)
+	}
 }
 
 func TestGenerateRejectsIncompleteManifest(t *testing.T) {
