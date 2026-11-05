@@ -39,8 +39,9 @@ type CrossplaneDeltaBaseRefusedError struct {
 	Read string
 	// Outcome is union_base_missing or union_scope_mismatch.
 	Outcome string
-	// BaselineCommitSHA is the delta's #7319 fence commit. It travels in
-	// logs and failure details, never in the error string or a label.
+	// BaselineCommitSHA is the delta's #7319 fence commit. warnDeltaOverlay
+	// carries it in the refusal WARN log; it never enters the error string
+	// or a label, and no failure-details carrier reads it.
 	BaselineCommitSHA string
 	// UnionBaseCommitSHA is the commit the base was looked up at (#8780).
 	UnionBaseCommitSHA string

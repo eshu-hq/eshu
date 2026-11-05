@@ -48,16 +48,20 @@ FROM generate_series(1, 500) AS d`, scopeID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	deltaScopes := make([]string, 0, 10)
+	// The base statement binds candidate base generation ids
+	// (deltaOverlayBaseGenerations), not scope ids (#9611): each seeded
+	// delta overlays its scope's activated c0 full generation, so the
+	// EXPLAIN binds exactly the generation ids production binds.
+	baseGenerations := make([]string, 0, 10)
 	for i := range 10 {
-		deltaScopes = append(deltaScopes, "plan-scope-"+strconv.Itoa(i))
+		baseGenerations = append(baseGenerations, "plan-scope-"+strconv.Itoa(i)+"-full")
 	}
 	for name, run := range map[string]struct {
 		query string
 		args  []any
 	}{
 		"active": {listActiveCrossplaneXRDFactsQuery, []any{nil, "", listFactsByKindPageSize}},
-		"base":   {base, []any{nil, "", listFactsByKindPageSize, deltaScopes}},
+		"base":   {base, []any{nil, "", listFactsByKindPageSize, baseGenerations}},
 	} {
 		var plan string
 		if err := f.database.QueryRowContext(f.ctx, "EXPLAIN (FORMAT JSON) "+run.query, run.args...).Scan(&plan); err != nil {
