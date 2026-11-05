@@ -126,6 +126,10 @@ delta and under a full generation.
 
 ## Theory first: EXPLAIN shim
 
+Performance Evidence: the shim below (baseline: the pre-fix reads on the same
+corpus; after: the overlay reads, then migration 280), and the live
+regressions above for the row-level results.
+
 Decision rule, set before measuring: no Seq Scan on `fact_records`; base p50
 at most 1.5x its active p50, or else (active + base) at most 1.5x the all-full
 counterfactual with at most 25 ms added; no base statement when nothing is
@@ -243,6 +247,7 @@ fix changes no stored data.
 
 ## Observability Evidence
 
+Observability Evidence:
 `eshu_dp_crossplane_satisfied_by_read_delta_union_total{read,outcome}` counts
 one decision per delta-active scope a leg reached. The live cases assert
 `claim/union_base_found`, `xrd/union_base_found`, and
