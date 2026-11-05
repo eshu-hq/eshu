@@ -346,6 +346,10 @@ var migrationShippedChecksums = map[string]string{
 	// #9975: fact_records autovacuum scale factors (migration 279; 276 is the
 	// terraform-backends outer-leg index above).
 	"279_fact_records_autovacuum_reloptions.sql": "abb875116a3a0447e14a97a2a1e418acf26f940631204a72273011be6326036b",
+	// #10005: partial index serving the Crossplane SATISFIED_BY XRD read and
+	// its derived delta-base read (migration 280; 279 went to main's #9975
+	// autovacuum file on rebase, so this lane takes the next free slot).
+	"280_fact_records_crossplane_xrd_entity_idx.sql": "8d37a887df6a49dcabba4013617f49001c982414a497cac4a4b039fb130ea132",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition

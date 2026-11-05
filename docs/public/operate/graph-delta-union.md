@@ -163,6 +163,36 @@ repository id against the synthesized remote. Readers the fixture cannot
 express are listed under `unexpressed_readers`, each with its defect and the
 reason, and every run reports them.
 
+## Reducer Crossplane SATISFIED_BY reads (#10003, #10005)
+
+The Crossplane SATISFIED_BY materialization retracts every edge of its scope
+and then rewrites the edges it can resolve. It used to load the delta's own
+claims and every scope's active-generation XRDs, so a delta lost two kinds
+of edges: those of claims it did not touch, and those of claims whose XRD
+sits in a file it did not touch. `ListActiveCrossplaneSatisfiedByFacts`
+now reads the scope's claims and every scope's XRDs on one read-only
+snapshot, each delta-active scope overlaid on its base through the same
+helper as the manifest read. Decisions count on
+`eshu_dp_crossplane_satisfied_by_read_delta_union_total` by `read` (`claim`
+or `xrd`) and `outcome`.
+
+Unlike the manifest read, these reads never fall back to the delta-only
+rows, because the handler would retract the edges those rows miss. When the
+claim leg's own scope, or any delta-active scope the XRD leg reached, has a
+missing or pruned base (`union_base_missing`) or a delta without a
+`delta_generation` fact (`union_scope_mismatch`), the read counts the
+decision and logs the WARN line starting "crossplane satisfied-by read".
+Then it fails the intent before the retract with the non-retryable
+`crossplane_satisfied_by_delta_base_refused` class. The intent dead-letters
+and the scope's edges stay as they were. They catch up at the refused
+scope's next full generation (the reconcile sweep, the growth valve, or the
+reindex watermark).
+
+A failed retention-probe statement is not a lost base, so the read fails
+with a retryable error and the intent retries; the decision still counts as
+`union_base_missing`. A legacy delta with no baseline (`union_no_baseline`)
+keeps its delta-only rows, as the projector loads it.
+
 ## Operator signals
 
 - `eshu_dp_projector_delta_union_total` by closed `outcome`

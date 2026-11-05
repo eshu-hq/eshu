@@ -28,7 +28,9 @@ import (
 // Outcome label values a delta-overlay reader records, one per delta-active
 // scope the read reached (#9991, #10003). Only union_base_found adds base
 // rows; every other outcome returns that scope's delta rows only, the read's
-// behavior without the overlay.
+// behavior without the overlay. A reader whose consumer retracts before it
+// writes may instead fail the read on union_base_missing or
+// union_scope_mismatch, through overlayDeltaBaseWithRefusals (#10005).
 const (
 	// deltaOverlayBaseFound: the base resolved and contributed the matching
 	// rows the delta did not override, delete, or tombstone.
@@ -152,6 +154,21 @@ func (s FactStore) overlayDeltaBase(
 	targets []deltaOverlayTarget,
 	active, base []facts.Envelope,
 ) ([]facts.Envelope, error) {
+	loaded, _, err := s.overlayDeltaBaseWithRefusals(ctx, sink, targets, active, base)
+	return loaded, err
+}
+
+// overlayDeltaBaseWithRefusals is overlayDeltaBase that also returns, in
+// target order, every reached scope whose base the projector refuses too:
+// union_base_missing and union_scope_mismatch. Each refusal is counted and
+// logged before it is returned, exactly as overlayDeltaBase records it; the
+// caller decides whether the delta-only rows are usable.
+func (s FactStore) overlayDeltaBaseWithRefusals(
+	ctx context.Context,
+	sink deltaOverlayTelemetry,
+	targets []deltaOverlayTarget,
+	active, base []facts.Envelope,
+) ([]facts.Envelope, []deltaOverlayRefusal, error) {
 	reached := make(map[string]struct{})
 	for _, scopeID := range deltaOverlayScopeIDs(active, base) {
 		reached[scopeID] = struct{}{}
@@ -161,7 +178,7 @@ func (s FactStore) overlayDeltaBase(
 		return !ok
 	})
 	if len(targets) == 0 {
-		return active, nil
+		return active, nil, nil
 	}
 	tally := newDeltaOverlayTally(sink)
 	defer s.recordDeltaOverlaySpan(ctx, tally)
@@ -182,14 +199,16 @@ func (s FactStore) overlayDeltaBase(
 	resolved, err := s.resolveDeltaBases(ctx, requests)
 	if err != nil {
 		s.recordDeltaOverlay(ctx, tally, deltaOverlayResolveFailed)
-		return nil, err
+		return nil, nil, err
 	}
+	var refusals []deltaOverlayRefusal
 	var overlays []deltaOverlayCandidates
 	for _, target := range requested {
 		resolution := resolved[target.scopeID]
 		if resolution.refused != nil {
 			s.recordDeltaOverlay(ctx, tally, deltaOverlayBaseMissing)
 			s.warnDeltaOverlay(ctx, sink, target, "delta base missing: returning the delta's rows only")
+			refusals = append(refusals, deltaOverlayRefusal{target: target, outcome: deltaOverlayBaseMissing, probeErr: resolution.probeErr})
 			continue
 		}
 		candidates := slices.DeleteFunc(slices.Clone(baseByScope[target.scopeID]), func(env facts.Envelope) bool {
@@ -202,12 +221,12 @@ func (s FactStore) overlayDeltaBase(
 		overlays = append(overlays, deltaOverlayCandidates{target: target, baseID: resolution.baseID, candidates: candidates})
 	}
 	if len(overlays) == 0 {
-		return active, nil
+		return active, refusals, nil
 	}
 	inputs, err := s.readDeltaOverlayInputs(ctx, overlays)
 	if err != nil {
 		s.recordDeltaOverlay(ctx, tally, deltaOverlayResolveFailed)
-		return nil, err
+		return nil, nil, err
 	}
 	merged := slices.Clone(active)
 	seen := make(map[string]struct{}, len(active))
@@ -220,6 +239,7 @@ func (s FactStore) overlayDeltaBase(
 		if !scope.IsDelta {
 			s.recordDeltaOverlay(ctx, tally, deltaOverlayScopeMismatch)
 			s.warnDeltaOverlay(ctx, sink, overlay.target, "delta carries no delta_generation repository fact: returning the delta's rows only")
+			refusals = append(refusals, deltaOverlayRefusal{target: overlay.target, outcome: deltaOverlayScopeMismatch})
 			continue
 		}
 		for _, env := range facts.OverlayDeltaBase(overlay.candidates, delta, scope) {
@@ -240,7 +260,7 @@ func (s FactStore) overlayDeltaBase(
 		}
 		return strings.Compare(a.FactID, b.FactID)
 	})
-	return merged, nil
+	return merged, refusals, nil
 }
 
 // deltaOverlayBaseGenerations returns the sorted, distinct candidate base

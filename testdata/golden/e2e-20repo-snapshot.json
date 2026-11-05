@@ -2494,11 +2494,7 @@
           "from_label": "K8sResource",
           "from_name": "golden-delta-reader-queue",
           "to_label": "CrossplaneXRD",
-          "to_name": "xdeltaqueues.delta.acme.internal",
-          "expected_failure": {
-            "defect": "#10003",
-            "reason": "facts_active_crossplane_xrd.go reads XRD content entities of the active generation only, so with the claim in the delta the delta-active XRD read returns nothing and the scope's SATISFIED_BY edge is retracted"
-          }
+          "to_name": "xdeltaqueues.delta.acme.internal"
         },
         {
           "id": "dr-5",
@@ -2529,7 +2525,7 @@
         {
           "reader": "crossplane_claim_retract",
           "defect": "#10005",
-          "reason": "needs a delta that adds a claim beside an unchanged one; this fixture has one claim, which the delta re-emits"
+          "reason": "fixed by the #10005 change (ListActiveCrossplaneSatisfiedByFacts) and proven by its live Postgres regressions in satisfied_by_read_delta_live_test.go (a claim added, changed, or deleted beside an unchanged claim keeps the unchanged edge; a refused base fails before the retract); this fixture has one claim, which the delta re-emits, so only its XRD side is expressed, as dr-4"
         },
         {
           "reader": "terraform_config_loaders",

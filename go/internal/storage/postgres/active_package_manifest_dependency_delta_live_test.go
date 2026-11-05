@@ -60,9 +60,16 @@ type deltaManifestPin struct {
 
 func openDeltaManifestFixture(t *testing.T) *deltaManifestFixture {
 	t.Helper()
+	return openDeltaManifestFixtureWithin(t, 2*time.Minute)
+}
+
+// openDeltaManifestFixtureWithin opens the fixture with a context that ends
+// after timeout, for a test that runs many cases on one database.
+func openDeltaManifestFixtureWithin(t *testing.T, timeout time.Duration) *deltaManifestFixture {
+	t.Helper()
 	dsn := os.Getenv("ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DSN")
 	optIn := os.Getenv("ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DISPOSABLE")
-	ctx, database := postgresproof.OpenDisposableDatabase(t, dsn, optIn, 2*time.Minute)
+	ctx, database := postgresproof.OpenDisposableDatabase(t, dsn, optIn, timeout)
 	if err := ApplyBootstrap(ctx, SQLDB{DB: database}); err != nil {
 		t.Fatalf("ApplyBootstrap(): %v", err)
 	}

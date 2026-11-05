@@ -882,6 +882,16 @@ type Instruments struct {
 	// an operator see Claim->XRD edge throughput, and a generation that
 	// materialized zero edges, at 3 AM.
 	CrossplaneSatisfiedByEdges metric.Int64Counter
+	// CrossplaneSatisfiedByReadDeltaUnion counts the delta-base union
+	// decisions of the Crossplane SATISFIED_BY reads, one per delta-active
+	// scope a read reached (#10003, #10005). Labels: read (xrd or claim) and
+	// outcome (union_base_found, union_base_unmatched, union_base_missing,
+	// union_scope_mismatch, union_no_baseline, union_resolve_failed). Every
+	// outcome but union_base_found returns that scope's delta rows only, so
+	// the handler's retract-by-scope can drop the edges of unchanged claims
+	// or of XRDs in untouched files; union_resolve_failed counts once per
+	// read whose lookups failed.
+	CrossplaneSatisfiedByReadDeltaUnion metric.Int64Counter
 	// CrossplaneRedriveSweeps counts cross-scope SATISFIED_BY re-drive sweeps
 	// attempted (issue #5476) by outcome (no_active_xrd / already_in_progress /
 	// completed / reclaimed_mid_sweep / sweep_error). Low cardinality: no
@@ -4693,6 +4703,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register CrossplaneSatisfiedByEdges counter: %w", err)
+	}
+
+	inst.CrossplaneSatisfiedByReadDeltaUnion, err = meter.Int64Counter(
+		"eshu_dp_crossplane_satisfied_by_read_delta_union_total",
+		metric.WithDescription("Delta-base union decisions of Crossplane SATISFIED_BY reads, one per delta-active scope a read reached (union_resolve_failed: once per failed read), by read (xrd or claim) and outcome (#10003, #10005)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register CrossplaneSatisfiedByReadDeltaUnion counter: %w", err)
 	}
 
 	inst.CrossplaneRedriveSweeps, err = meter.Int64Counter(
