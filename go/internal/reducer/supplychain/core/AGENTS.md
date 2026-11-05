@@ -56,13 +56,13 @@ changing anything here.
   Adding a payload field to the digest exclusions in `contentDigestOf`, or a
   new field to the winners select that the digest leaves out, breaks it; the
   digest-coverage test and the postgres select guard fail on both.
-- Digest-less OS rows classify one (release line, installed version) group at a
-  time (#9984, `splitOSPackagesByReleaseLine`). A shard keeps only each lookup
-  key's least row by `compareOSPackageRows`, because this path has no SBOM
-  component and the classifier reads one row. A new reader of a shard's rows must
-  change that first. A digest group is different: two rows in one digest still
-  pick by arrival, the residual named in the closing comment on #9858 and
-  tracked in #10057. Coalesce stamps the SBOM version conflict label only when
+- Digest-less OS rows, and each digest's rows, classify one (release line,
+  installed version) group at a time (#9984, #10057,
+  `splitOSPackagesByReleaseLine`). A shard keeps only each lookup key's least row
+  by `compareOSPackageRows`, because this path has no SBOM component and the
+  classifier reads one row. A new reader of a shard's rows must change that
+  first. A digest attached to an SBOM subject is different: it reads every
+  matching version through `matchingOSPackageImpactPaths`. Coalesce stamps the SBOM version conflict label only when
   `findingHasSBOMComponentPath` holds for one of the merged findings; a merge
   of digest-less lines whose purl has no distro qualifier keeps the lesser reason.
 - `telemetry-coverage.md` rows that name files in this package must keep

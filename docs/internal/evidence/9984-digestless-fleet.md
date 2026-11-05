@@ -184,15 +184,14 @@ because a foreign-line host now has a finding of its own.
   still reads the first row of the fleet index, so a fact joined by rows on two
   lines can report a different label in another row order. The findings do not
   depend on it. Tracked in #10056.
-- One digest holding two versions of a package key still picks by row order, with
-  no change here. #9858's closing comment named this as a theory, and a source-key
-  join makes the shape ordinary. Debian's `bsdutils` (`1:2.38.1-5+deb12u3`) and
-  `libblkid1` (`2.38.1-5+deb12u3`) both come from source `util-linux`, so one source
-  key holds two versions that differ by an epoch (package pages for bookworm, as
-  read in review). A probe with synthetic versions in that shape gives
-  `affected_exact` in one row order and `possibly_affected` in the other. That both
-  packages sit in one scanned image is inferred, not observed. It applies to an
-  unattached digest on the SBOM base too. Tracked in #10057.
+- One digest holding two versions of a package key picked by row order on this
+  branch, with no change here. #9858's closing comment named this as a theory, and
+  a source-key join makes the shape ordinary. Debian's `bsdutils`
+  (`1:2.38.1-5+deb12u3`) and `libblkid1` (`2.38.1-5+deb12u3`) both come from source
+  `util-linux`, so one source key holds two versions that differ by an epoch
+  (package pages for bookworm, as read in review). That both packages sit in one
+  scanned image is inferred, not observed. #10057 fixes it; see
+  `10057-digest-versions.md`.
 - Rows whose purl names no distro qualifier share a writer identity across lines.
   Shards with one verdict merge their evidence into one finding that keeps the first
   line's fix; `TestDigestlessFleetPURLWithoutDistroCoalescesAcrossLines` pins this.
