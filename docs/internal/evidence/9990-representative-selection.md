@@ -14,7 +14,10 @@ blank ecosystem reads the version family from the group's OS purls, and a joined
 with no family to read stays visible. A later ruling (9914-r5, decision 3) classifies a
 reselected group from the facts that join, so a fact that cannot join offers no fix. A
 third (9990-orderdep, decision 3.5) does the same for a blank-ecosystem fact that joins
-the row directly, because the earlier fix had left that path reading the whole group.
+the row directly, because the earlier fix had left that path reading the whole group. A
+fourth (9990-f6) splits a blank group whose joined rows are mixed, by row: a row with an
+installed version is decided by the facts that join, and a row with no version keeps the
+whole-group read it has at the base.
 
 No-Regression Evidence: a parity differential on `BuildSupplyChainImpactFindings`
 against base `b16cb9689b`, with the branch's production files. The harness and the
@@ -58,8 +61,9 @@ consumption, SBOM, analysis), each in 2 fact orders, plus a language control. Th
   in the other fact order was classified from the facts that join. In those 286 shapes
   the base has no row in either order. The two orders differed in the evidence and
   advisory sources in all 286, the advisory id in 80, the fixed version in 4, and the
-  fix branches or remediation in 26. A further 376 shapes read the whole group in both orders and so
-  were wrong without being order-dependent. The narrowing of a directly joined blank
+  fix branches or remediation in 30 (26 of them with the same fixed version). A further
+  376 shapes read the whole group in both orders and so were wrong without being
+  order-dependent. The narrowing of a directly joined blank
   group closes both; the head now reads 7,860, the same shapes as the base, with
   `compare.py` printing 0 shapes order-dependent at the head and not at the base.
 - The 7,860 shapes that the base already has are #10034 item 1. A group whose facts
@@ -84,10 +88,11 @@ consumption, SBOM, analysis), each in 2 fact orders, plus a language control. Th
 - The authorized path shares the builder. This grid covers it only through its 42
   corpus calls, plus `TestAuthorizedScanRepresentativeJoinsTheInstalledRow` and
   `TestReselectedGroupIsDecidedByTheFactsThatJoin`.
-- An independent review's wider grids, 1,146,960 fleet calls and 8,400 authorized
-  calls, read changed 0 and lost 0. They are not committed here and ran before a
-  reselected group, and a directly joined blank group, stopped reading the facts that
-  cannot join.
+- An independent review's wider grids, with one installed row per host, read changed 0
+  and lost 0 at `599b7642a4`: fleet 1,146,960 calls (210,020 with a new row, 936,940
+  identical) and authorized 8,400 calls (2,280 with a new row, 6,120 identical). They
+  are not committed here, and the split of ruling 9990-f6 cannot fire on a host with one
+  row, so they were not rerun at this head.
 
 What the grid cannot see:
 
@@ -95,7 +100,8 @@ What the grid cannot see:
   `installed_version_missing` before it reads the ecosystem, so a blank representative
   that joins such a row already has a base row, and narrowing it would move that row.
   The narrowing leaves it alone, and `TestRowWithNoVersionKeepsTheWholeGroup` and
-  `TestNarrowedDirectGroupReadsEveryRowTheRepresentativeJoins` cover it.
+  `TestNarrowedDirectGroupReadsEveryRowTheRepresentativeJoins` cover it. A host fleet
+  with both kinds of row is the multi-row grid below, not this one.
 - Known-fixed. Every grid own-fact carries an affected list, which blocks the single-fix
   shortcut, and no shape has the host vendor's fix above the host, so the grid never
   produces `not_affected_known_fixed`.
@@ -105,6 +111,40 @@ What the grid cannot see:
   `TestBlankEcosystemReadsTheFamilyAndASpelledOneKeepsItsMatcher` pins that at the matcher.
 - The apk comparison. Alpine runs only with version `1.0-3`, so the grid reaches
   `installed_version_malformed` there and never the real apk matcher.
+
+Multi-row grid (ruling 9990-f6): the grid above gives every host one installed row, so it
+cannot see a group whose joined rows are mixed. A second harness, in
+[9990-parity](9990-parity/README.md), has 3 hosts x 13 row topologies (one to three rows,
+with and without an image digest, with and without an installed version) x 5 own-fact
+ecosystems x 2 fact shapes x 6 other facts x 3 anchors. That is 7,020 shapes and 42,120
+calls: each shape in both fact orders and both row orders, plus the own fact alone as a
+control. Run on private worktrees at the base `b16cb9689b`, the previous head
+`599b7642a4`, and this branch's code:
+
+| Versioned-row findings against the own-only control | Findings | Differ | False `not_affected_known_fixed` |
+| --- | --- | --- | --- |
+| Previous head (`599b7642a4`) | 2,112 | 280 | 64 |
+| This head, split by row | 2,152 | 0 | 0 |
+
+- Base rows moved: 0, in both builds. Against the base, this head leaves 12,692 calls
+  identical and adds a row on 15,388 (the previous head added 15,332; the 56 extra are
+  the row with no version, which the split now reads when it shares one index with the
+  versioned row).
+- Authorized path, 288 calls: base rows moved 0. The previous head and this head differ
+  only where one target holds both rows (16 corrected, 16 added); two targets are equal.
+- Shapes order-dependent by fact order or row order: 3,348 at the base, 3,708 at the
+  previous head and 3,700 here. 360 are order-dependent here and not at the base, and 8
+  are the reverse. The previous head has the same 360, so the split did not add them. All
+  360 are in topologies where several rows share one index shard (rows with no digest,
+  or two rows of one digest), and include spelled and anchored shapes the split cannot
+  reach. The ruling's reading is that the classifier reads one row per shard, so which
+  row it reads can depend on the order; this note did not isolate that cause. The
+  count stays above the base until the per-version digest split lands (#10143). This
+  does not change the committed grid's figure of "none added", which is about its own
+  49,480 shapes.
+- A row with no installed version keeps the base's whole-group read, with the other fact
+  in its evidence, in the order where the blank fact is the source-order representative
+  (`TestVersionlessRowKeepsTheBaseWholeGroupRead`).
 
 Fixed here: on an Ubuntu 22.04 host at `1.0-3`, take Ubuntu's own fact with a purl and
 `fixed_versions` of `1.0-5`, plus an OSV fact with no purl and `fixed_versions` of
@@ -125,8 +165,22 @@ finding built without the fact that cannot join
 (`TestFactThatCannotJoinChangesNothingOnADirectBlankRow`). A blank vendor fact whose fix
 is below the host reads `not_affected_known_fixed` in every order, not
 `os_release_unverified` in half of them (`TestKnownFixedVerdictDoesNotDependOnFactOrder`).
-Spelled ecosystems that join, a row with no version, a consumer, and a group whose facts
-all join keep their pick (`representative_direct_test.go`).
+Spelled ecosystems that join (`os` and `dpkg`), a row with no version, a consumer, and a
+group whose facts all join keep their pick (`representative_direct_test.go`).
+
+A third shape used to fail the same way across rows. Take the same two facts and two
+images, one at `1.0-3` and one with no installed version. The row with no version has a
+base row (`installed_version_missing`, decided before the ecosystem is read), so the
+narrowing leaves it alone. But that one row also turned the narrowing off for the
+versioned row, which has no base row, and the fact that cannot join decided it: in 3 of
+6 fact orders the host at `1.0-3` read `not_affected_known_fixed` against the vendor's fix
+of `1.0-5`. The authorized path got it right only because each target has its own index.
+A group whose joined rows are mixed now splits by row before anything else runs. The
+versioned row is decided by the facts that join, and the row with no version keeps the
+whole-group read it has at the base, with the other fact in its evidence
+(`TestVersionedRowBesideAVersionlessRowIsDecidedByTheFactsThatJoin`,
+`TestVersionedRowEqualsTheOwnOnlyControl`, `TestVersionlessRowKeepsTheBaseWholeGroupRead`).
+The split is by row, not per shard, because a digest shard can hold both kinds of row.
 
 Known class, #10034 item 5: a group that is not reselected still ranks its fix by the
 ecosystem spelling, not by the vendor of the joined row. Add a consuming repository to
@@ -144,10 +198,13 @@ fact's ecosystem, so a group whose facts disagree on the ecosystem can depend on
 order, as it does at the base. A trial fix here moved 4,950 existing rows, so it is
 #10034, which must land before any OS-vendor `affected_package` producer. A blank fact
 also reads the group's first OS purl. Reselection now removes a foreign purl from that
-read, but with a consumer anchor it stays: on the Ubuntu host, a blank fact with a
-`pkg:apk/alpine/curl` fact in the group reads `os_release_unverified` in one order and
-`installed_version_malformed` in the other. The family from the joined row, in #10034
-item 2, closes it. `os` reads the family the same way.
+read, but it stays with a consumer anchor, and with no anchor at all when every fact of
+the group joins. On the Ubuntu host, a blank fact with a `pkg:apk/alpine/curl` fact in
+the group reads `os_release_unverified` in one order and `installed_version_malformed`
+in the other. On a Debian host, a blank vendor fact beside a blank fact from `debian`
+that carries that purl reads `affected_exact` in one order and
+`installed_version_malformed` in the other, with no row at the base in either. The family
+from the joined row, in #10034 item 2, closes both. `os` reads the family the same way.
 From source, not live data: the only non-reducer writers of the fact kind are
 `collector/vulnerabilityintelligence/envelope.go` (OSV, which writes `os` for an OS
 package) and `gitlab_gemnasium_envelope.go` (GLAD, which writes the raw slug prefix of
@@ -164,13 +221,13 @@ the table below only once a quiet host has run it.
 
 | Benchmark | Base allocs | Head allocs | Delta |
 | --- | --- | --- | --- |
-| `OSAdvisoryJoin/10x` | 4,232 | 4,249 | +17 |
+| `OSAdvisoryJoin/10x` | 4,232 | 4,245 | +13 |
 | `OSAdvisoryJoin/miss-10x` | 2,245 | 2,267 | +22 |
-| `OSFleetDigestFanout/fleet-10x` | 69,496 | 69,492 | -4 |
-| `OSRepresentativeSelection/joined` | 214,681 | 219,180 | +4,499 |
+| `OSFleetDigestFanout/fleet-10x` | 69,496 | 69,511 | +15 |
+| `OSRepresentativeSelection/joined` | 214,681 | 219,179 | +4,498 |
 | `OSRepresentativeSelection/language` | 82,089 | 86,089 | +4,000 |
-| `OSRepresentativeSelection/no-joinable` | 69,590 | 79,590 | +10,000 |
-| `OSRepresentativeSelection/reselected` | 92,591 | 192,665 | +100,074 |
+| `OSRepresentativeSelection/no-joinable` | 69,590 | 79,592 | +10,002 |
+| `OSRepresentativeSelection/reselected` | 92,591 | 192,676 | +100,085 |
 
 - Against the previous head (`0aa2b5578a`), rebuilt the same way, no benchmark moves by
   more than 14 allocations (`OSRepresentativeSelection/joined` 219,174 to 219,180,
@@ -179,6 +236,18 @@ the table below only once a quiet host has run it.
   check and before any row is collected, and every benchmark fact carries a spelled
   ecosystem, so none of them reaches the new work. The new work runs only for a
   blank-ecosystem representative that joins, which no producer writes today.
+- Against the previous head (`599b7642a4`), medians of 3 runs, the committed benchmarks
+  move by at most 5 allocations (`joined` 219,179 to 219,179, `no-joinable` 79,592 to
+  79,592, `reselected` 192,675 to 192,676, `OSFleetDigestFanout/fleet-10x` 69,506 to
+  69,511), inside a run-to-run spread of up to 21. The row split costs a spelled
+  ecosystem two comparisons and one trim.
+- `BenchmarkSplitDirectBlankGroup`, 100 hosts that each carry a digest, previous head to
+  this head: `spelled-all-versioned` 31,068 to 31,063; `spelled-one-versionless` 38,093
+  to 38,094; `blank-all-versioned` 27,886 to 27,904 (+18); `blank-all-versionless`
+  30,142 to 30,169 (+27); `blank-one-versionless` 37,914 to 28,016. The blank cases
+  pay one more row walk, about 20 to 30 allocations a group; no producer writes them. A
+  blank group with mixed rows falls by about 9,900, because the versioned rows now
+  classify on one fact instead of two. Timing is not read.
 - `reselected` is new work, not a slowdown: at the base those groups yield nothing,
   and at head they cost what a joined group costs and yield the finding.
 - `no-joinable` is the largest cost on a group that still yields nothing: about 20

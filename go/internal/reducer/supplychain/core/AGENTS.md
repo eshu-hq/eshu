@@ -77,7 +77,12 @@ changing anything here.
   beside it that joins nothing. Widening it to a group with an SBOM path or a
   consumer, a spelled ecosystem that joins, a row with no installed version, or a
   group whose facts all join moves findings that exist today or ranks a pick that
-  #10034 item 1 owns. It returns a new slice of the joining facts and never edits its
+  #10034 item 1 owns. A blank group whose joined rows are mixed, with and without a
+  version, goes through `splitDirectBlankGroupByRowVersion` first (9990-f6): condition c
+  looks at one index, and a row with no version must not keep the whole-group read for
+  the versioned rows beside it, which have no base row. Split by row, never by shard: a
+  digest shard can hold both kinds. The versionless index has no outcome map, so a
+  group counts once. It returns a new slice of the joining facts and never edits its
   input: the index shares the group across installed rows and scan targets, and
   another target may join another fact. Add a new anchor source to
   `supplyChainImpactFindingHasOwnedAnchor` and to this gate together.
