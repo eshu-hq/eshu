@@ -1,0 +1,21 @@
+go/internal/reducer/crossplane/export_test.go
+  s_7547c0f0af67d4::t_131d3f6648ed5f 1-9
+go/internal/reducer/crossplane/satisfied_by_load_wiring_test.go
+  s_7547c0f0af67d4::t_bc0479635ee422 1-29
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "47e525ea7e55804a336f1e393f1719043742dd3f",
+  "prompts": {},
+  "sessions": {
+    "s_7547c0f0af67d4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7c8b2d5-3286-4c2a-be1f-589162535d83",
+        "model": "unknown"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
