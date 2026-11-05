@@ -104,6 +104,9 @@ jobs:
           SEED_REF: ${{ env.SEED_IMAGE }}@${{ steps.build.outputs.digest }}
         run: |
           set -euo pipefail
+          # Multi-arch push leaves nothing in the local store: pull the
+          # pushed digest first so inspect and run assert the pushed bytes.
+          docker pull "${SEED_REF}"
           user="$(docker image inspect --format '{{.Config.User}}' "${SEED_REF}")"
           test "${user}" = "10001:10001"
           cat > /tmp/seed-smoke-request.json <<'EOF'
