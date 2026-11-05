@@ -976,7 +976,10 @@ const (
 	// (scope_counts, active_work_summary, coordinator, and so on).
 	// It also labels the eshu_dp_package_manifest_dependency_read_* histograms
 	// with the query text a manifest dependency read ran: plain or
-	// maven_family (#9586).
+	// maven_family (#9586). It labels
+	// eshu_dp_crossplane_redrive_targets_enqueued_total and
+	// eshu_dp_crossplane_redrive_pages_processed_total with the redrive
+	// discovery leg: active or delta_base (#10094).
 	MetricDimensionRead = "read"
 
 	// MetricDimensionGauge labels the eshu_dp_gauge_snapshot_* metrics with the

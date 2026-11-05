@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/crossplane"
 )
 
@@ -185,5 +186,17 @@ func TestRunServiceAndJoinRedriveReturnsPromptlyOnNormalSignalShutdown(t *testin
 	case <-ctx.Done():
 	default:
 		t.Fatal("expected ctx to remain canceled after the normal signal-shutdown path")
+	}
+}
+
+// TestBuildCrossplaneRedriveSweeperWiresDeltaBaseLeg pins the #10094
+// wiring: both the live post-Ack hook and the catch-up loop share this
+// builder, so a nil DeltaBase here would leave every delta-active claim
+// scope whose claim lives only in its base generation undiscovered.
+func TestBuildCrossplaneRedriveSweeperWiresDeltaBaseLeg(t *testing.T) {
+	t.Parallel()
+	sweeper := buildCrossplaneRedriveSweeper(postgres.SQLDB{}, postgres.ReducerQueue{}, nil)
+	if _, ok := sweeper.DeltaBase.(*postgres.FactStore); !ok {
+		t.Fatalf("DeltaBase = %T, want *postgres.FactStore", sweeper.DeltaBase)
 	}
 }

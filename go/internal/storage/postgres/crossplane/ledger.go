@@ -14,7 +14,7 @@ import (
 
 // recordCrossplaneRedriveTargetQuery durably records that targetScopeID has
 // had a re-drive chance against the (xrd_group, xrd_claim_kind) identity, so
-// listCrossplaneRedriveTargetScopesQuery's NOT EXISTS fence skips it on every
+// ListCrossplaneRedriveTargetScopesQuery's NOT EXISTS fence skips it on every
 // later sweep for the SAME identity -- including a resync of the XRD
 // platform repo that changes nothing about the XRD's own (group, claim_kind).
 // See migration 076's doc comment on crossplane_satisfied_by_redrive_target_ledger

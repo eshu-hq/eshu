@@ -61,7 +61,10 @@ func (s CrossplaneSatisfiedByRedriveSweeper) SweepBatch(
 
 // runClaimedFanOut runs the fan-out for an ALREADY-claimed XRD generation
 // (via ClaimExact or ClaimBatch) and marks it complete, fenced by
-// fencingToken. Shared by Sweep (the live post-activation trigger) and
+// fencingToken. runLegs orders the discovery legs: the active leg for every
+// join key, one delta-active scope lookup, then the delta-base leg for
+// every key (#10094). A superseded XRD generation stops the legs early and
+// still completes the claim, as before. Shared by Sweep (the live post-activation trigger) and
 // SweepBatch (the catch-up recovery path) so both converge on identical
 // fencing and completion semantics.
 func (s CrossplaneSatisfiedByRedriveSweeper) runClaimedFanOut(
@@ -73,14 +76,8 @@ func (s CrossplaneSatisfiedByRedriveSweeper) runClaimedFanOut(
 ) (CrossplaneRedriveSweepResult, error) {
 	result := CrossplaneRedriveSweepResult{Attempted: true}
 	seenTargets := make(map[string]struct{})
-	for _, key := range keys {
-		superseded, sweepErr := s.sweepJoinKey(ctx, xrdScopeID, xrdGenerationID, key, seenTargets, &result)
-		if sweepErr != nil {
-			return result, sweepErr
-		}
-		if superseded {
-			break
-		}
+	if _, sweepErr := s.runLegs(ctx, xrdScopeID, xrdGenerationID, keys, seenTargets, &result); sweepErr != nil {
+		return result, sweepErr
 	}
 	result.TargetsEnqueued = len(seenTargets)
 
@@ -98,6 +95,6 @@ func (s CrossplaneSatisfiedByRedriveSweeper) runClaimedFanOut(
 		result.Outcome = crossplaneRedriveOutcomeReclaimedMidSweep
 	}
 	s.recordSweep(ctx, result.Outcome)
-	s.recordTargetsAndPages(ctx, result.TargetsEnqueued, result.PagesProcessed)
+	s.recordTargetsAndPages(ctx, result)
 	return result, nil
 }

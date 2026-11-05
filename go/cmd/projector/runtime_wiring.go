@@ -53,9 +53,12 @@ func buildCrossplaneRedriveSweeper(
 	instruments *telemetry.Instruments,
 ) crossplanestore.CrossplaneSatisfiedByRedriveSweeper {
 	return crossplanestore.CrossplaneSatisfiedByRedriveSweeper{
-		DB:          postgres.SQLQueryer(database),
-		State:       crossplanestore.NewCrossplaneRedriveStateStore(database),
-		Replayer:    reducerQueue,
+		DB:       postgres.SQLQueryer(database),
+		State:    crossplanestore.NewCrossplaneRedriveStateStore(database),
+		Replayer: reducerQueue,
+		// The delta-base leg (#10094): a claim living only in the base of a
+		// delta-active scope is invisible to the active leg.
+		DeltaBase:   postgres.NewFactStore(database),
 		Owner:       "projector",
 		Instruments: instruments,
 	}

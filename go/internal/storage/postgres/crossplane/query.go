@@ -18,20 +18,42 @@ const crossplaneRedriveDerivedGroupExpr = `(CASE
     ELSE ''
 END)`
 
-// listCrossplaneRedriveTargetScopesQuery discovers OTHER scopes' active
+// ListCrossplaneRedriveTargetScopesQuery discovers OTHER scopes' active
 // K8sResource Claim candidates matching one XRD's (group, claim_kind) join
 // key -- the cross-scope target-discovery query issue #5476 needs to close
-// the XRD-lag false-negative window. Mirrors
-// listActiveCrossplaneXRDFactsQuery's active-generation join shape (facts
-// whose generation is the scope's CURRENT active_generation_id).
+// the XRD-lag false-negative window. It is the sweep's active leg, and it is
+// exported because the parent postgres package derives the delta-base leg
+// (#10094) from this exact text with deriveDeltaOverlayBaseQuery, binding
+// the candidate base generation ids at
+// CrossplaneRedriveDeltaBaseGenerationParam. The
+// derivation swaps the active-scope fragment
+// (AND scope.active_generation_id = fact.generation_id) and the active
+// generation fragment (AND generation.status = 'active'), so both must stay
+// written exactly once, as they are here. Placeholders: $1 group, $2 claim
+// kind, $3 the XRD's own scope, $4 the keyset cursor, $5 the page size, the
+// order CrossplaneRedriveTargetPage.QueryArgs binds.
+//
+// Shape (#10094): the fact_records branch is a DISTINCT (scope_id,
+// generation_id) subquery aliased fact, so a scope's many matching claim
+// rows collapse to one row per generation before any join. The scope and
+// generation joins then run once per (scope, generation) pair instead of
+// once per claim row. The output tuple (scope_id,
+// scope.active_generation_id) is functionally dependent on scope_id
+// (ingestion_scopes.scope_id is the primary key), so DISTINCT ON
+// (fact.scope_id) ORDER BY fact.scope_id returns the same tuple per scope
+// as the per-claim shape. Both columns are NOT NULL, duplicates collapse
+// the same way, and keyset boundaries are identical.
 //
 // Fences, matching the design's three required fences:
 //
-//  1. Active-generation fence: fact.generation_id = scope.active_generation_id
-//     restricts every candidate to the target scope's CURRENT active
-//     generation (fact rows from a superseded generation are invisible).
+//  1. Active-generation fence: scope.active_generation_id =
+//     fact.generation_id restricts every candidate to the target scope's
+//     CURRENT active generation (fact rows from a superseded generation are
+//     invisible), and generation.status = 'active' requires that generation
+//     row to be active.
 //  2. Active-claim fence: same join -- a claim from a non-active generation
-//     is never a re-drive target.
+//     is never an active-leg target. The delta-base leg derived from this
+//     text reaches the base full generation of a delta-active scope instead.
 //  3. Already-satisfied-for-this-identity fence: the NOT EXISTS subquery
 //     skips a target scope already recorded in
 //     crossplane_satisfied_by_redrive_target_ledger for this EXACT (group,
@@ -56,31 +78,43 @@ END)`
 // per-generation and would not converge across an unbounded number of
 // distinct generations for one scope): callers page with
 // `after_scope_id=""` for the first page and the last row's scope_id
-// thereafter, using DISTINCT ON to collapse multiple matching content_entity
-// rows in one scope's generation into one target row.
-const listCrossplaneRedriveTargetScopesQuery = `
+// thereafter. The plan uses fact_records_active_k8s_claim_redrive_idx
+// (migration 076); TestCrossplaneRedriveTargetDiscoveryQueryPlanLive pins it.
+const ListCrossplaneRedriveTargetScopesQuery = `
 SELECT DISTINCT ON (fact.scope_id)
     fact.scope_id,
     scope.active_generation_id
-FROM fact_records AS fact
+FROM (
+    SELECT DISTINCT fact.scope_id, fact.generation_id
+    FROM fact_records AS fact
+    WHERE fact.fact_kind = 'content_entity'
+      AND fact.source_system = 'git'
+      AND fact.is_tombstone = FALSE
+      AND (fact.payload->>'entity_type' = 'K8sResource' OR fact.payload->>'entity_kind' = 'K8sResource')
+      AND ` + crossplaneRedriveDerivedGroupExpr + ` = $1
+      AND (fact.payload->'entity_metadata'->>'kind') = $2
+      AND fact.scope_id <> $3
+      AND fact.scope_id > $4
+) AS fact
 JOIN ingestion_scopes AS scope
   ON scope.scope_id = fact.scope_id
  AND scope.active_generation_id = fact.generation_id
-WHERE fact.fact_kind = 'content_entity'
-  AND fact.source_system = 'git'
-  AND fact.is_tombstone = FALSE
-  AND (fact.payload->>'entity_type' = 'K8sResource' OR fact.payload->>'entity_kind' = 'K8sResource')
-  AND ` + crossplaneRedriveDerivedGroupExpr + ` = $1
-  AND (fact.payload->'entity_metadata'->>'kind') = $2
-  AND fact.scope_id <> $3
-  AND fact.scope_id > $4
-  AND NOT EXISTS (
+JOIN scope_generations AS generation
+  ON generation.scope_id = fact.scope_id
+ AND generation.generation_id = fact.generation_id
+WHERE NOT EXISTS (
       SELECT 1
       FROM crossplane_satisfied_by_redrive_target_ledger AS ledger
       WHERE ledger.target_scope_id = fact.scope_id
         AND ledger.xrd_group = $1
         AND ledger.xrd_claim_kind = $2
   )
+  AND generation.status = 'active'
 ORDER BY fact.scope_id ASC
 LIMIT $5
 `
+
+// CrossplaneRedriveDeltaBaseGenerationParam is the placeholder the
+// delta-base leg binds its candidate base generation ids at: the first one
+// ListCrossplaneRedriveTargetScopesQuery leaves free.
+const CrossplaneRedriveDeltaBaseGenerationParam = 6

@@ -902,13 +902,14 @@ type Instruments struct {
 	CrossplaneRedriveSweeps metric.Int64Counter
 	// CrossplaneRedriveTargetsEnqueued counts distinct target Claim scopes the
 	// cross-scope re-drive sweep enqueued or reopened a SATISFIED_BY
-	// materialization intent for (issue #5476). No label: a single bounded
-	// throughput number per sweep.
+	// materialization intent for (issue #5476), by read: the discovery leg
+	// that found the target, active or delta_base (#10094). A target both
+	// legs reach counts once, for active. No scope or XRD label.
 	CrossplaneRedriveTargetsEnqueued metric.Int64Counter
 	// CrossplaneRedrivePagesProcessed counts keyset-paginated pages the
-	// cross-scope re-drive sweep's target-discovery query processed (issue
-	// #5476). Bounds visibility into fan-out size without per-scope
-	// cardinality.
+	// cross-scope re-drive sweep's target-discovery legs processed (issue
+	// #5476), by read: active or delta_base (#10094). Bounds visibility into
+	// fan-out size without per-scope cardinality.
 	CrossplaneRedrivePagesProcessed metric.Int64Counter
 	// SecurityGroupEndpointNodes counts canonical CidrBlock and PrefixList graph
 	// nodes committed by the security-group endpoint materialization reducer
@@ -4766,7 +4767,7 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 
 	inst.CrossplaneRedriveTargetsEnqueued, err = meter.Int64Counter(
 		"eshu_dp_crossplane_redrive_targets_enqueued_total",
-		metric.WithDescription("Total distinct target Claim scopes the cross-scope Crossplane re-drive sweep enqueued or reopened a SATISFIED_BY intent for"),
+		metric.WithDescription("Total distinct target Claim scopes the cross-scope Crossplane re-drive sweep enqueued or reopened a SATISFIED_BY intent for, by read (active or delta_base discovery leg, #10094)"),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register CrossplaneRedriveTargetsEnqueued counter: %w", err)
@@ -4774,7 +4775,7 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 
 	inst.CrossplaneRedrivePagesProcessed, err = meter.Int64Counter(
 		"eshu_dp_crossplane_redrive_pages_processed_total",
-		metric.WithDescription("Total keyset-paginated pages the cross-scope Crossplane re-drive sweep's target-discovery query processed"),
+		metric.WithDescription("Total keyset-paginated pages the cross-scope Crossplane re-drive sweep's target-discovery legs processed, by read (active or delta_base, #10094)"),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register CrossplaneRedrivePagesProcessed counter: %w", err)
