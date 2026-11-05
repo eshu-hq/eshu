@@ -356,6 +356,32 @@ reducer success log. No new instrument.
 Performance Evidence: holder-read and generation-read figures above (synthetic,
 PG 18.6, scratch database); predicate microbenchmark above.
 
+## In-flight union and marker exclusion (fix-forward)
+
+No-Regression Evidence: the marker's in-flight read is still one statement on
+the same scan as the shipped in-flight query; the marker exclusion is one
+residual predicate (`COALESCE(work.payload->>'trigger','') <>
+'manifest_dependency'`) evaluated on the claimed/running rows that scan
+already returns, a set bounded by the fleet's `supply_chain_impact` worker
+slots. Measured on the scratch database (PostgreSQL 18.6, 71 `fact_work_items`
+rows, no claimed/running rows): `EXPLAIN (ANALYZE, BUFFERS)` gives the same
+plan nodes and the same buffer count for both forms (execution 0.129 ms
+unfiltered, 0.058 ms marker-free; noise-level at this size, no new index, no
+new statement, no lock, lease, batch, or worker change). Terminal queue
+truth is the live regression: before the exclusion two concurrent markers
+requeued each other (8 passes over 4 rounds, queue not drained); after it
+the queue drains in one round, 2 passes, both markers stamped
+(`TestTwoConcurrentMarkersConvergeLive`). Conflict domain: the
+claimed/running `supply_chain_impact` rows of one marker pass; markers never
+reopen markers, so the reopen cost stays one hop and useful concurrency is
+unchanged.
+
+No-Observability-Change: the marker-free read adds no instrument, span, log
+field, status, or knob. It runs inside the same marker pass, counted by the
+existing `eshu_dp_supply_chain_impact_fanout_total{cause="manifest_dependency"}`
+outcomes and the Postgres query spans named under Telemetry above; a failed
+read is the existing retryable `read_error`/`read_timeout` outcome.
+
 ## Not checked
 
 - QA convergence delay before and after (acceptance items 1 and 7).
