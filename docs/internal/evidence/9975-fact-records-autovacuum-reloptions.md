@@ -6,7 +6,7 @@ spends its time on index entries that point at heap locations with no visible
 row. Dead row versions that vacuum has not yet removed are the leading
 explanation; the diagnosis left open whether those entries are dead versions,
 vacuumed-but-uncleaned line pointers, or something else. This note records why
-migration 278 sets two autovacuum storage parameters on `fact_records`, what it
+migration 279 sets two autovacuum storage parameters on `fact_records`, what it
 costs, how to read the result, and how to run the first vacuum safely.
 
 ## Classification
@@ -34,7 +34,7 @@ Source: the #9805 read-only diagnosis on the QA environment primary, taken on
 diagnosis and its raw files live with #9805, not in this repository. Nothing in
 the baseline tables was measured after this change; they are the baseline it is
 meant to move. The first vacuum section near the end records a vacuum that ran
-under the server defaults, before migration 278 had rolled.
+under the server defaults, before migration 279 had rolled.
 
 | Observation | Value |
 |---|---|
@@ -86,7 +86,7 @@ about 774k rows landed between 06:30Z and 06:35Z (diagnosis sections 12.7 and
 12.8); after it the counter ran at 55 to 70 per second. So with no migration and
 no one-off, a default-settings autovacuum started on its own when that counter
 crossed its default trigger. That first vacuum measures the theory with default
-settings, not migration 278, and a later roll's ALTER would cancel one still
+settings, not migration 279, and a later roll's ALTER would cancel one still
 running (see the rollout consequences below). Read `last_autovacuum`,
 `autovacuum_count`, and the roll-time lock check below before any roll.
 
@@ -107,14 +107,14 @@ Both were exceeded at the baseline read, but a first vacuum starts within one
 still exceed the new thresholds at apply time. On QA the default-settings
 vacuum ran from 09:00:52.7Z to 10:43:24.607Z on 2026-11-04. Its end reset the
 counters (`n_dead_tup` 13,333 and `n_ins_since_vacuum` 14), and they have
-climbed since. Either counter at or past its 278 trigger starts a vacuum within
+climbed since. Either counter at or past its 279 trigger starts a vacuum within
 a naptime of the roll, so whether a roll starts one depends on the counters at
 apply time: read them before the roll (see below). The vacuum also moved
 `pg_class` (read at 10:45Z: `reltuples` 96,428,608, `relpages` 21,350,368,
-`relallfrozen` 3,676,984), so 278's triggers on QA are no longer the ones in
+`relallfrozen` 3,676,984), so 279's triggers on QA are no longer the ones in
 the table above. Recomputed from that dated reading:
 
-| Trigger | Formula | Default scale (0.2) | Under 278 |
+| Trigger | Formula | Default scale (0.2) | Under 279 |
 |---|---|---|---|
 | Dead rows | 50 + scale x 96,428,608 | 19,285,772 | 1,928,622 (scale 0.02) |
 | Inserts | 1000 + scale x 96,428,608 x (1 - 3,676,984 / 21,350,368) | 15,965,313 | 3,992,078 (scale 0.05) |
@@ -130,7 +130,7 @@ insert trigger 55 to 56 hours (3,992,078 divided by 19.7 and by 20.2). The
 dead-row trigger is first. These rates differ from the baseline ones (14 to 21
 dead and 47 to 80 inserts per second), so read the hours as one hour's reading,
 not a steady cycle. On those rates a roll later than 10.8 hours
-after the end finds `n_dead_tup` past 278's trigger; the counters decide.
+after the end finds `n_dead_tup` past 279's trigger; the counters decide.
 
 "Dead rows near 2% of live" is the table-wide average, not what the probe
 pays. The probe reads hot rows, which carry 28 to 71 index entries per live
@@ -148,7 +148,7 @@ readback after the first vacuum reads the bottom of that sawtooth, so it does
 not show that the 60 s bar holds a day later (see the read before the roll
 below).
 
-PostgreSQL can skip index vacuuming at 278's trigger, which changes the cost
+PostgreSQL can skip index vacuuming at 279's trigger, which changes the cost
 per pass. The PostgreSQL 18 `VACUUM` page (`INDEX_CLEANUP`) says: "Normally,
 `VACUUM` will skip index vacuuming when there are very few dead tuples in the
 table." The default is `AUTO`. In the PostgreSQL 18 source (`lazy_vacuum`,
@@ -158,7 +158,7 @@ under 32 MiB. The log line then reads `index scans: 0` and `index scan bypassed:
 N pages from table (X% of total) have M dead item identifiers`, `n_dead_tup`
 resets, and the index entries stay until a later pass with an index scan. The
 independent review measured it on a scratch table (PostgreSQL 18.6, 100,000
-pages, 278's two settings): 8,732 dead rows on 1.75% of pages were bypassed,
+pages, 279's two settings): 8,732 dead rows on 1.75% of pages were bypassed,
 a second batch at the same density (3.49% of pages) got an index scan, and the
 same count at one per page (8.73%) got one at once.
 
@@ -235,7 +235,7 @@ Read the counters before the roll: counters read, then the roll, then watch.
 The owner's roll notice must carry that step; the runbook ("Before the roll")
 has the query and the polling window. The owed read of the next vacuum, the
 10-triple probe plus the keyed tick gauge (one read, not a soak), has to come
-before that vacuum starts. Either counter at or past its 278 trigger starts one
+before that vacuum starts. Either counter at or past its 279 trigger starts one
 within a naptime of apply (`n_dead_tup` 1,928,622 or `n_ins_since_vacuum`
 3,992,078 on the dated reading; compute live), so a 5% polling window cannot
 work then. Expect an index scan at or above 2% of live `relpages` times the dead
@@ -267,7 +267,7 @@ needed` or `index scan bypassed`:
 
 Local proof for the change itself (disposable PostgreSQL 18.6, migration run
 through the shipped runner): `pg_class.reloptions` for `fact_records` is empty
-before migration 278 and holds exactly the two parameters after; the relation
+before migration 279 and holds exactly the two parameters after; the relation
 file is unchanged (catalog-only, no rewrite); a restart skips it by ledger
 receipt and a ledger-less replay leaves the options identical. That is a
 behavior proof, not a vacuum-duration claim.
@@ -346,7 +346,7 @@ Consequences for rollout:
   routine-vacuuming page says "If a process attempts to acquire a lock that
   conflicts with the `SHARE UPDATE EXCLUSIVE` lock held by autovacuum, lock
   acquisition will interrupt the autovacuum."
-- Roll-time check. Before a roll whose image carries migration 278 or any other
+- Roll-time check. Before a roll whose image carries migration 279 or any other
   `CREATE INDEX CONCURRENTLY` on `fact_records` (274, the #9979 index build, and
   migration 276, the terraform-backends outer-leg partial index on the same
   table), read:
@@ -401,7 +401,7 @@ Consequences for rollout:
   where the progress view is hidden, but only as the hidden-holder test
   described here. Three gaps, each a reviewer measurement (PostgreSQL 18.6
   scratch tables, naptime 1 s):
-  - A roll carrying 274 (the #9979 index build) and 278 does not restart the
+  - A roll carrying 274 (the #9979 index build) and 279 does not restart the
     vacuum within a naptime. A session lock stood in for the build (not a real
     `CREATE INDEX CONCURRENTLY`): with the trigger exceeded, the server logged
     `skipping vacuum ... lock not available` each naptime and no worker ran
@@ -428,8 +428,8 @@ check.
 
 Source: diagnosis section 12 (12.1 to 12.11), read by the diagnosis lane on the
 QA primary; nothing was changed on QA. This vacuum ran under the server's
-default thresholds, before migration 278 had rolled. It prices one pass and
-tests the dead-tuple theory; it is not a measurement of migration 278.
+default thresholds, before migration 279 had rolled. It prices one pass and
+tests the dead-tuple theory; it is not a measurement of migration 279.
 
 | Field | Value | Source |
 |---|---|---|

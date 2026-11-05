@@ -12,7 +12,7 @@ tests:
   - file: go/internal/storage/postgres/fact_records_autovacuum_reloptions_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#9975 disposable PostgreSQL proof that migration 278 sets both fact_records autovacuum scale factors in pg_class.reloptions as a catalog-only change (same relation file, no rewrite), and that a ledger-less replay of the statement is a no-op"
+    reason: "#9975 disposable PostgreSQL proof that migration 279 sets both fact_records autovacuum scale factors in pg_class.reloptions as a catalog-only change (same relation file, no rewrite), and that a ledger-less replay of the statement is a no-op"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/gap_admitted_anchor_index_live_test.go
     tag: ~

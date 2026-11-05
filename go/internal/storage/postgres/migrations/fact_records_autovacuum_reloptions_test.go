@@ -12,7 +12,7 @@ import (
 
 const (
 	factRecordsAutovacuumName = "fact_records_autovacuum_reloptions"
-	factRecordsAutovacuumPath = "go/internal/storage/postgres/migrations/278_fact_records_autovacuum_reloptions.sql"
+	factRecordsAutovacuumPath = "go/internal/storage/postgres/migrations/279_fact_records_autovacuum_reloptions.sql"
 	// factRecordsAutovacuumStatement is the single statement #9975 ruled for
 	// this table: two storage parameters, no cost knobs, no toast.* values,
 	// no analyze knobs.
@@ -47,8 +47,8 @@ func TestFactRecordsAutovacuumReloptionsMigrationShape(t *testing.T) {
 	if def.Path != factRecordsAutovacuumPath {
 		t.Fatalf("migration path = %q, want %q", def.Path, factRecordsAutovacuumPath)
 	}
-	if got := path.Base(def.Path); !strings.HasPrefix(got, "278_") {
-		t.Fatalf("migration file %q must take sequence 278 (277 is the highest other migration and 276 is the terraform-backends outer-leg index)", got)
+	if got := path.Base(def.Path); !strings.HasPrefix(got, "279_") {
+		t.Fatalf("migration file %q must take sequence 279 (278 is held by another open lane, 277 is the highest on main, and 276 is the terraform-backends outer-leg index)", got)
 	}
 
 	code := strings.TrimSpace(sqlLineCommentPattern.ReplaceAllString(def.SQL, ""))

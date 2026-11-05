@@ -1,14 +1,14 @@
 # #9975: running the first vacuum on fact_records
 
 Operator checklist for the first (and later) vacuum of `fact_records` after
-migration 278. It is the companion to the evidence note
+migration 279. It is the companion to the evidence note
 [9975-fact-records-autovacuum-reloptions.md](9975-fact-records-autovacuum-reloptions.md),
 which holds the diagnosis, the trigger arithmetic ("Performance Evidence"), the
 lock rule ("Lock and rollout"), and what was not checked. "The main note" below
 means that file.
 
 A checklist for whoever owns the rollout. The first natural vacuum on QA since
-the diagnosis read (server defaults, before migration 278) has run once and is
+the diagnosis read (server defaults, before migration 279) has run once and is
 measured: 6,151.92 s (1 h 42 min 32 s) from 09:00:52.7Z to 10:43:24.607Z on
 2026-11-04, 48.2 GiB of WAL, no replica conflict, no `503`. That is n = 1, one
 pass at one moment. A later pass or another primary is not measured. The main
@@ -18,11 +18,11 @@ which lives with #9805, not in this repository.
 
 - Before the roll: counters first, then the roll, then watch. The owner's roll
   notice must carry this step, because by the one hour of post-vacuum rates
-  `n_dead_tup` is already past 278's trigger by the time a roll arrives (that
+  `n_dead_tup` is already past 279's trigger by the time a roll arrives (that
   rests on rates ending 11:44Z; no counter has been read on QA since, and this
   branch read nothing there). From `pg_stat_user_tables` for `fact_records`
   read `n_dead_tup`, `n_ins_since_vacuum`, `autovacuum_count` and
-  `last_autovacuum`, and compute 278's triggers live, since a later autoanalyze
+  `last_autovacuum`, and compute 279's triggers live, since a later autoanalyze
   moves them (reviewer-run on a scratch table only, not on QA):
 
   ```sql
@@ -129,10 +129,10 @@ which lives with #9805, not in this repository.
     public.fact_records (to prevent wraparound)`. While the setting is on, the
     table gets no ordinary autovacuum at all, so dead rows and the insert
     counter keep growing. It must be undone with `ALTER TABLE fact_records RESET
-    (autovacuum_enabled)` before the roll that carries 278, because 278's `SET`
+    (autovacuum_enabled)` before the roll that carries 279, because 279's `SET`
     names only the two scale factors and leaves `autovacuum_enabled = false` in
     place; skip the undo and autovacuum stays off on the table through the roll.
-    Reviewer-measured, same setup: the 278 `SET` of the two scale factors
+    Reviewer-measured, same setup: the 279 `SET` of the two scale factors
     succeeded and left `autovacuum_enabled=false` in `reloptions`, and no worker
     ran 4 s later. `RESET (autovacuum_enabled)` succeeded, a worker was back
     in about 1 s (naptime 1 s) with the scale factors kept. So the undo restarts
@@ -141,7 +141,7 @@ which lives with #9805, not in this repository.
     it is in place `pg_class.reloptions` carries `autovacuum_enabled=false`,
     which the migration ledger does not describe.
   - A RESET of the two scale factors also leaves `pg_class.reloptions`
-    different from the migration ledger, which will still show 278 applied and
+    different from the migration ledger, which will still show 279 applied and
     will not re-apply it. A forward migration is the way back into line.
   - Owner rights are enough for the `SET` and `RESET` above (reviewer-measured
     as a non-superuser table owner on a scratch table). QA's `fact_records` owner
@@ -151,7 +151,7 @@ which lives with #9805, not in this repository.
   pass can skip it: PostgreSQL bypasses index vacuuming when fewer than 2% of
   the table's pages hold a dead item identifier (main note, "PostgreSQL can skip
   index vacuuming"), and the log then reads `index scans: 0` and `index scan
-  bypassed`. At QA's first-vacuum density of 5.32 per page, 278's dead-row
+  bypassed`. At QA's first-vacuum density of 5.32 per page, 279's dead-row
   trigger is about 1.70% of pages, so a pass that starts at the trigger
   bypasses; one that starts above about 2.27M dead rows gets an index scan, and
   a roll made late enough probably finds the counter there (arithmetic, not
@@ -161,7 +161,7 @@ which lives with #9805, not in this repository.
   (52.1 dead rows and 19.7 inserts per second), and each ratio assumes those
   rates persist. At the default triggers (about 19.29M dead rows and 15.97M
   inserts after the first vacuum) the dead-row path is first, at about 103
-  hours between runs. With 278's triggers (1,928,622 dead rows, 3,992,078
+  hours between runs. With 279's triggers (1,928,622 dead rows, 3,992,078
   inserts, from the 10:45Z `pg_class` reading) it is first at about 10.3 hours,
   and the insert path would take 56. That is about ten times as many passes,
   because the dead path moves from 0.20 to 0.02 of the table, on a throttled

@@ -4,7 +4,7 @@
 package postgres
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #9975 disposable PostgreSQL proof that migration 278 sets both fact_records autovacuum scale factors in pg_class.reloptions as a catalog-only change (same relation file, no rewrite), and that a ledger-less replay of the statement is a no-op
+//eshu:readiness:reason #9975 disposable PostgreSQL proof that migration 279 sets both fact_records autovacuum scale factors in pg_class.reloptions as a catalog-only change (same relation file, no rewrite), and that a ledger-less replay of the statement is a no-op
 //eshu:readiness:env ESHU_TEST_FACT_RECORDS_AUTOVACUUM_POSTGRES_DISPOSABLE ESHU_TEST_FACT_RECORDS_AUTOVACUUM_POSTGRES_DSN
 
 import (
@@ -25,7 +25,7 @@ const (
 	factRecordsAutovacuumMigration  = "fact_records_autovacuum_reloptions"
 )
 
-// TestFactRecordsAutovacuumReloptionsMigrationLive proves migration 278 on a
+// TestFactRecordsAutovacuumReloptionsMigrationLive proves migration 279 on a
 // disposable PostgreSQL: every earlier migration leaves fact_records on the
 // server defaults, the migration sets exactly the two ruled storage
 // parameters without rewriting the relation, and replaying the statement
@@ -54,7 +54,7 @@ func TestFactRecordsAutovacuumReloptionsMigrationLive(t *testing.T) {
 
 	apply(definitions[:target])
 	if got := factRecordsReloptions(t, ctx, database); got != "" {
-		t.Fatalf("reloptions before migration 278 = %q, want none (server defaults)", got)
+		t.Fatalf("reloptions before migration 279 = %q, want none (server defaults)", got)
 	}
 	filenodeBefore := factRecordsFilenode(t, ctx, database)
 
@@ -76,7 +76,7 @@ func TestFactRecordsAutovacuumReloptionsMigrationLive(t *testing.T) {
 	// statement itself must be a no-op when it runs a second time.
 	if _, err := database.ExecContext(ctx,
 		`DELETE FROM eshu_schema_migrations WHERE path = $1`, definitions[target].Path); err != nil {
-		t.Fatalf("drop migration 278 receipt: %v", err)
+		t.Fatalf("drop migration 279 receipt: %v", err)
 	}
 	if err := ApplyBootstrap(ctx, exec); err != nil {
 		t.Fatalf("replay ApplyBootstrap without receipt: %v", err)
@@ -90,10 +90,10 @@ func TestFactRecordsAutovacuumReloptionsMigrationLive(t *testing.T) {
 	var receipts int
 	if err := database.QueryRowContext(ctx,
 		`SELECT count(*) FROM eshu_schema_migrations WHERE path = $1`, definitions[target].Path).Scan(&receipts); err != nil {
-		t.Fatalf("count migration 278 receipts: %v", err)
+		t.Fatalf("count migration 279 receipts: %v", err)
 	}
 	if receipts != 1 {
-		t.Fatalf("migration 278 receipts = %d, want exactly 1 after replay", receipts)
+		t.Fatalf("migration 279 receipts = %d, want exactly 1 after replay", receipts)
 	}
 }
 
