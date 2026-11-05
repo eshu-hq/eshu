@@ -31,14 +31,14 @@ def classify(base: Set[Result], head: Set[Result]) -> str:
     return "lost_a_row" if head_rows < base_rows else "row_changed"
 
 
-def order_dependent(rows: Dict[Key, Set[Result]]) -> int:
-    """Counts grid shapes whose two fact orders gave different findings."""
+def order_dependent(rows: Dict[Key, Set[Result]]) -> Set[str]:
+    """Returns the grid shapes whose two fact orders gave different findings."""
     shapes: Dict[str, Dict[str, list]] = collections.defaultdict(dict)
     for (kind, shape, _), results in rows.items():
         if kind == "grid":
             label, order = shape.rsplit("|order=", 1)
             shapes[label][order] = sorted(results)
-    return sum(1 for orders in shapes.values() if orders.get("0") != orders.get("1"))
+    return {label for label, orders in shapes.items() if orders.get("0") != orders.get("1")}
 
 
 def main(base_path: str, head_path: str) -> None:
@@ -56,7 +56,9 @@ def main(base_path: str, head_path: str) -> None:
     for (kind, outcome), count in sorted(counts.items()):
         print(f"{kind} {outcome} {count}")
     print(f"language calls changed {language_changed}")
-    print(f"order-dependent shapes: base {order_dependent(base)}, head {order_dependent(head)}")
+    base_dep, head_dep = order_dependent(base), order_dependent(head)
+    print(f"order-dependent shapes: base {len(base_dep)}, head {len(head_dep)}")
+    print(f"order-dependent at head and not at base: {len(head_dep - base_dep)}")
 
 
 if __name__ == "__main__":
