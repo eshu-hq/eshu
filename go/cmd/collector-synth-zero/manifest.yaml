@@ -1,0 +1,47 @@
+# Synthetic zero-fact emitter for the #8877 enabled window.
+#
+# Identity is pinned: the worker Deployment's ESHU_EXTENSIONHOST_CUTOVER_*
+# producer pin must equal metadata.id/metadata.version here, or worker
+# startup refuses (resolveCutoverPlan). The dedicated collector kind
+# synth_zero_fact is data only: it appears in no scope constant, no fleet
+# list, and no workflow reducer contract, so the fleet keeps its closed
+# enumeration and the kind requires zero reducer phases.
+#
+# The single emitted family is declared because the host builds the SDK
+# contract from the manifest and refuses a family-less manifest; the emitter
+# never emits it. It is namespaced (never core-owned), so no producer grant
+# can authorize or entangle it.
+apiVersion: eshu.dev/v1alpha1
+kind: ComponentPackage
+metadata:
+  id: dev.eshu.collector.synth-8877-cutover
+  name: Synthetic zero-fact emitter (8877 window)
+  publisher: eshu-hq
+  version: 0.1.0
+spec:
+  compatibleCore: ">=0.0.5 <0.2.0"
+  componentType: collector
+  collectorKinds:
+    - synth_zero_fact
+  runtime:
+    sdkProtocol: collector-sdk/v1alpha1
+    adapter: process
+  artifacts:
+    # SEED_IMAGE_DIGEST is pinned by the window assembly step that builds
+    # Dockerfile.seed FROM the pinned release worker image plus the emitter
+    # binary in this lane. The zeros placeholder keeps the shape valid until
+    # the real digest lands; the pin test enforces the sha256 pattern.
+    - platform: linux/amd64
+      image: ghcr.io/eshu-hq/eshu-synth-zero@sha256:0000000000000000000000000000000000000000000000000000000000000000
+  emittedFacts:
+    - kind: dev.eshu.synth_zero_fact.emission
+      schemaVersions:
+        - 1.0.0
+      sourceConfidence:
+        - reported
+  consumerContracts:
+    reducer:
+      phases:
+        - source_evidence_only:no_graph_truth
+  telemetry:
+    metricsPrefix: eshu_dp_synth_zero_

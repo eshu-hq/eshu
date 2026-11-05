@@ -1,0 +1,14 @@
+# Component activation runtime file for the synthetic zero-fact emitter.
+# Read by the worker's loadComponentRuntimeFile; the process adapter launches
+# exactly this command per claim. The command path must exist inside the seed
+# image (Dockerfile.seed installs it at /usr/local/bin).
+host: {}
+process:
+  command: /usr/local/bin/eshu-collector-synth-zero
+  args: []
+  env: []
+  dir: ""
+  stdout_limit_bytes: 4194304
+  stderr_limit_bytes: 65536
+oci: {}
+config: {}

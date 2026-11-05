@@ -2432,6 +2432,11 @@
     },
     {
       "category": "command",
+      "name": "collector-synth-zero",
+      "readiness": "implemented"
+    },
+    {
+      "category": "command",
       "name": "collector-vulnerability-intelligence",
       "readiness": "implemented"
     },

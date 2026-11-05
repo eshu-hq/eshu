@@ -1,0 +1,124 @@
+# Worker Deployment for the #8877 zero-fact window. AUTHORED ONLY: never
+# applied in this lane. The window ruling sequences apply + sync + verify.
+#
+# Shape mirrors the chart's deployment-component-extension-collector (command,
+# probes, ports, volumes, security posture) with window-scoped values:
+# one replica, the seed image digest, the claim-capable instance, the trust
+# allowlist, and the 4 cutover env vars. The producer pin must equal
+# manifest.yaml metadata.id/version (enforced by the pin test); the
+# claim-plane URL is the QA environment plane endpoint from the window record.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: eshu-collector-synth-zero
+  labels:
+    app.kubernetes.io/name: eshu
+    app.kubernetes.io/component: collector-synth-zero
+    eshu.io/window: "8877-zero-fact"
+spec:
+  replicas: 1
+  revisionHistoryLimit: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: collector-synth-zero
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: collector-synth-zero
+        eshu.io/window: "8877-zero-fact"
+    spec:
+      serviceAccountName: eshu-workload
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: collector-synth-zero
+          # SEED_IMAGE_DIGEST is pinned by the window assembly step (see
+          # Dockerfile.seed). The zeros placeholder keeps the shape explicit
+          # until the real digest lands; the pin test enforces the pattern.
+          image: "ghcr.io/eshu-hq/eshu-synth-zero@sha256:0000000000000000000000000000000000000000000000000000000000000000"
+          imagePullPolicy: IfNotPresent
+          command: ["/usr/local/bin/eshu-collector-component-extension"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+          env:
+            - name: ESHU_HOME
+              value: /tmp/.eshu
+            - name: HOME
+              value: /tmp
+            # Trust allowlist: the registry admits only this holder.
+            - name: ESHU_COMPONENT_HOME
+              value: /etc/eshu/components
+            - name: ESHU_COMPONENT_TRUST_MODE
+              value: allowlist
+            - name: ESHU_COMPONENT_ALLOW_IDS
+              value: dev.eshu.collector.synth-8877-cutover
+            - name: ESHU_COMPONENT_ALLOW_PUBLISHERS
+              value: eshu-hq
+            - name: ESHU_COMPONENT_COLLECTOR_INSTANCE_ID
+              value: synth-8877-cutover-instance-1
+            - name: ESHU_COMPONENT_COLLECTOR_OWNER_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: ESHU_COMPONENT_COLLECTOR_SCOPE_KIND
+              value: component
+            - name: ESHU_COMPONENT_COLLECTOR_POLL_INTERVAL
+              value: 60s
+            - name: ESHU_COMPONENT_COLLECTOR_CLAIM_LEASE_TTL
+              value: 60s
+            - name: ESHU_COMPONENT_COLLECTOR_HEARTBEAT_INTERVAL
+              value: 20s
+            # The 4 cutover env vars: holder pin must equal manifest.yaml
+            # metadata.id/version (pin test). Claim-plane URL is the QA
+            # environment plane endpoint from the window record.
+            - name: ESHU_EXTENSIONHOST_CUTOVER_ENABLED
+              value: "true"
+            - name: ESHU_WORKFLOW_CLAIM_PLANE_URL
+              value: WINDOW_CLAIM_PLANE_URL
+            - name: ESHU_EXTENSIONHOST_CUTOVER_PRODUCER_ID
+              value: dev.eshu.collector.synth-8877-cutover
+            - name: ESHU_EXTENSIONHOST_CUTOVER_PRODUCER_VERSION
+              value: 0.1.0
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: components
+              mountPath: /etc/eshu/components
+              readOnly: true
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: components
+          configMap:
+            name: eshu-synth-zero-components

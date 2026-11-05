@@ -1,0 +1,32 @@
+# Egress NetworkPolicy for the #8877 zero-fact window. AUTHORED ONLY.
+# Default-deny for the window pod; the only egress is the claim-plane host
+# (placeholder filled at apply time from the window record) plus cluster DNS.
+# The emitter itself makes no network calls; the worker needs the plane,
+# Postgres (content store DSN, in-cluster), and the OTLP/metrics endpoints
+# the chart already allows on the shared collector path.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: eshu-collector-synth-zero-egress
+  labels:
+    eshu.io/window: "8877-zero-fact"
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: collector-synth-zero
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+    - to:
+        - ipBlock:
+            cidr: WINDOW_CLAIM_PLANE_CIDR
+      ports:
+        - protocol: TCP
+          port: 443

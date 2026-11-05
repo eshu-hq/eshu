@@ -1,0 +1,20 @@
+# Seed image for the #8877 zero-fact window: the pinned release worker image
+# plus the synthetic emitter binary at the path runtime-config.yaml launches.
+#
+# Production assembly (window step, needs registry access + push rights):
+#   go build -trimpath -o eshu-collector-synth-zero ./cmd/collector-synth-zero
+#   docker buildx build --provenance=true --sbom=true \
+#     --build-arg BASE_IMAGE=ghcr.io/eshu-hq/eshu:<release-tag>@sha256:<release-digest> \
+#     -f go/cmd/collector-synth-zero/Dockerfile.seed -t <seed-ref> .
+#   docker push <seed-ref>
+# then pin the pushed digest into manifest.yaml (artifacts) and
+# deployment.yaml (image). Pushing never changes the digest, so a local
+# proof digest and the pushed digest of identical inputs are equal.
+ARG BASE_IMAGE=ghcr.io/eshu-hq/eshu:0650a6a4
+FROM ${BASE_IMAGE}
+# Explicit non-root execution (Trivy DS-0002): numeric uid 10001 matches the
+# release image's eshu user (repo Dockerfile) and needs no passwd entry, so
+# the local-proof alpine base builds and runs unchanged. --chmod keeps the
+# binary executable whatever umask built it.
+COPY --chmod=755 go/cmd/collector-synth-zero/eshu-collector-synth-zero /usr/local/bin/eshu-collector-synth-zero
+USER 10001:10001
