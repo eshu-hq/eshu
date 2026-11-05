@@ -285,7 +285,7 @@ def mutate_fragments_block(v1: str) -> str:
         raise fail("specs/live-tests.v1.yaml has no fragments block")
     kept = []
     for line in tail.splitlines(keepends=True):
-        if (re.fullmatch(r"  - live-tests\.d/live-tests-readiness(?:-part[0-9]+)?\.generated\.yaml\n", line)
+        if (re.fullmatch(r"  - live-tests\.d/live-tests-readiness(?:-part[0-9]+[a-z]?)?\.generated\.yaml\n", line)
                 or line.rstrip("\n") == f"  {GENEREF_COMMENT}"):
             continue
         if (re_fullmatch_ref(line) or line.strip() == ""

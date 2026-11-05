@@ -43,7 +43,7 @@ from live_postgres_readiness_gen_render import (  # noqa: E402
 )
 
 READINESS_FRAGMENT = re.compile(
-    r"live-tests-readiness(?:-part[0-9]+)?\.generated\.yaml\Z"
+    r"live-tests-readiness(?:-part[0-9]+[a-z]?)?\.generated\.yaml\Z"
 )
 
 
