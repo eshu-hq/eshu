@@ -1,4 +1,4 @@
-# Admit CVE List, GHSA, and EUVD, hold Exploit-DB for sign-off, and gate mirror mode behind a measurement (#9872)
+# Admit CVE List, GHSA, and EUVD, hold Exploit-DB for sign-off, and gate mirror mode behind a measurement (#9872) (EUVD 4.3 and Exploit-DB 4.4 are NOT PLANNED — see the banner above)
 
 **NOT PLANNED (owner decision 2026-11-05): ENISA EUVD / EU KEV is not
 collected (eshu-hq/eshu#9960 closed not planned; US NVD is the source of
@@ -199,8 +199,9 @@ Bad:
   #9881.)
 - Rate budgets for CVE List and EUVD are proposals with NOT_CHECKED upstream
   limits. (EUVD is NOT PLANNED — owner decision 2026-11-05, see #9960.)
-- Four contract changes touch `vulnerability.*` kinds in sequence (3.1, 4.0,
-  the SSVC field, `known_exploited.source`), so they serialize on the registry.
+- Three contract changes touch `vulnerability.*` kinds in sequence (3.1, 4.0,
+  the SSVC field), so they serialize on the registry. (The fourth,
+  `known_exploited.source` for the EUVD 4.3 route, is NOT PLANNED.)
 
 ## Implementation plan
 
@@ -214,7 +215,7 @@ land only in `eshu-collector-vulnerability-intelligence`.
 | 4.2 | GHSA database (token, reviewed and malware) | 3.1 and 4.0 |
 | 4.3 | ENISA EUVD, with `source` on `known_exploited`. NOT PLANNED — owner decision 2026-11-05, see #9960 | 3.1, 4.0, and the EUVD terms check |
 | 4.4 | Exploit-DB references (#9881). NOT PLANNED — owner decision 2026-11-05, see #9881 | Question 3 answered |
-| 4.5 | Priority tiers (#9882) | The 4.1 to 4.4 kinds exist |
+| 4.5 | Priority tiers (#9882) | The 4.0, 4.1, and 4.2 kinds exist (4.3/4.4 are NOT PLANNED) |
 | 5.1 | Shard-scoped generation measurement | 4.1, so it runs the real `cve_list` path |
 | 5.2 to 5.4 | Baseline, bulk OSV with license filter, catalog surfaces | 5.1 passes; 5.4 needs the owner's scope decision |
 
