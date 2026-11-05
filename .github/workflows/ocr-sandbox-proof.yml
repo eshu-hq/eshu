@@ -28,6 +28,8 @@ jobs:
     name: OCR sandbox proof (weekly)
     runs-on: ubuntu-24.04
     timeout-minutes: 60
+    env:
+      DOCKERHUB_LOGIN_ENABLED: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
@@ -42,6 +44,13 @@ jobs:
 
       - name: Pre-warm Go modules
         run: scripts/ci/go-mod-download-retry.sh
+
+      - name: Log in to Docker Hub
+        if: env.DOCKERHUB_LOGIN_ENABLED == 'true'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Run OCR sandbox proof
         run: bash scripts/prove-ocr-sandbox.sh --platform linux/amd64
