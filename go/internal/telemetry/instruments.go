@@ -4931,7 +4931,7 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	}
 	inst.SupplyChainImpactOSRepresentativeJoins, err = meter.Int64Counter(
 		"eshu_dp_supply_chain_impact_os_representative_joins_total",
-		metric.WithDescription("OS-shaped advisory package groups a supply-chain impact pass classified, once per index it evaluated, by source (debian, ubuntu, alpine, alma, rocky, other: the fact that named the group) and outcome: joined means the source-order representative joined an installed row, reselected means another fact of the group joined it because the source-order fact had no anchor, other_anchor means an SBOM path or consuming repository anchors the finding, no_joinable_representative means installed rows sit under the group's keys but no fact of the group can join them so no finding is emitted, no_installed_row means the package is on no scanned host in that index"),
+		metric.WithDescription("OS-shaped advisory package groups a supply-chain impact pass classified, once per index it evaluated, by source (debian, ubuntu, alpine, alma, rocky, other: the fact that named the group) and outcome: joined means the source-order representative joined an installed row, reselected means another fact of the group joined it because the source-order fact had no anchor, other_anchor means an SBOM path or consuming repository anchors the finding, no_joinable_representative means installed rows sit under the group's keys but no fact of the group can join them so no finding is emitted, no_installed_row means no installed row sits under the group's lookup keys in that index"),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register SupplyChainImpactOSRepresentativeJoins counter: %w", err)
