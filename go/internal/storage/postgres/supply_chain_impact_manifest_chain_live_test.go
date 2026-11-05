@@ -6,6 +6,7 @@ package postgres_test
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -14,6 +15,7 @@ import (
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 )
 
@@ -219,5 +221,123 @@ func TestManifestChainEndToEndRuntimeSkipLive(t *testing.T) {
 	}
 	if !holderClaimed {
 		t.Fatal("left-pad holder was never claimable: the removal in gen-n1 of a pin added in unstamped gen-n was not fanned out")
+	}
+}
+
+// TestManifestChainDepthCapBoundaryLive pins the cap (review B1): (W, current]
+// may hold ManifestTriggerChainDepthCap generations, the current one counted,
+// so cap-1 intermediates are diffed and one more degrades the pass.
+func TestManifestChainDepthCapBoundaryLive(t *testing.T) {
+	ctx, db := fanOutLiveDB(t)
+	capacity := supplychaincore.ManifestTriggerChainDepthCap
+	generations := []manifestLiveGeneration{
+		{id: "gen-w", status: "superseded", commit: "cw", activated: true, ingested: manifestLiveAt(0)},
+	}
+	for i := 1; i < capacity; i++ {
+		generations = append(generations, manifestLiveGeneration{
+			id: fmt.Sprintf("gen-%02d", i), status: "superseded", commit: fmt.Sprintf("c%02d", i),
+			activated: true, ingested: manifestLiveAt(i),
+		})
+	}
+	atCap := fmt.Sprintf("gen-%02d", capacity)
+	generations = append(generations, manifestLiveGeneration{
+		id: atCap, status: "active", commit: "ccap", activated: true, ingested: manifestLiveAt(capacity),
+	})
+	manifestLiveSeedGitScope(t, ctx, db, atCap, generations...)
+	manifestLiveSeedMarker(t, ctx, db, "gen-w", "succeeded", true)
+
+	store := fanOutLiveStore(db)
+	got, err := store.ReadManifestDependencyGeneration(ctx, manifestLiveGitScope, atCap)
+	if err != nil {
+		t.Fatalf("ReadManifestDependencyGeneration(at cap) error = %v", err)
+	}
+	if got.Degraded || len(got.Chain) != capacity-1 || got.Baseline.GenerationID != "gen-w" {
+		t.Fatalf("at cap: degraded %v, chain %d, baseline %q; want %d intermediates diffed from gen-w",
+			got.Degraded, len(got.Chain), got.Baseline.GenerationID, capacity-1)
+	}
+
+	// One generation more: (W, current] now holds cap+1 generations.
+	overCap := fmt.Sprintf("gen-%02d", capacity+1)
+	if _, err := db.ExecContext(ctx, `
+INSERT INTO scope_generations (generation_id, scope_id, trigger_kind, observed_at, ingested_at, status, activated_at, source_commit_sha, is_delta, payload)
+VALUES ($1, $2, 'synthetic', $3, $3, 'pending', $3, 'cover', false, '{}'::jsonb)`, overCap, manifestLiveGitScope, manifestLiveAt(capacity+1)); err != nil {
+		t.Fatalf("seed over-cap generation: %v", err)
+	}
+	if _, err := db.ExecContext(ctx, `UPDATE scope_generations SET status = 'superseded' WHERE generation_id = $1`, atCap); err != nil {
+		t.Fatalf("supersede at-cap generation: %v", err)
+	}
+	if _, err := db.ExecContext(ctx, `UPDATE scope_generations SET status = 'active' WHERE generation_id = $1`, overCap); err != nil {
+		t.Fatalf("activate over-cap generation: %v", err)
+	}
+	if _, err := db.ExecContext(ctx, `UPDATE ingestion_scopes SET active_generation_id = $2 WHERE scope_id = $1`, manifestLiveGitScope, overCap); err != nil {
+		t.Fatalf("point scope at over-cap generation: %v", err)
+	}
+	got, err = store.ReadManifestDependencyGeneration(ctx, manifestLiveGitScope, overCap)
+	if err != nil {
+		t.Fatalf("ReadManifestDependencyGeneration(over cap) error = %v", err)
+	}
+	if !got.Degraded || got.HasBaseline || len(got.Chain) != 0 {
+		t.Fatalf("over cap: degraded %v, has baseline %v, chain %d; want degraded with no views",
+			got.Degraded, got.HasBaseline, len(got.Chain))
+	}
+}
+
+// manifestCountingBeginner counts the dependency reads a pass makes, per
+// generation id, so a test can prove a shared base is read once.
+type manifestCountingBeginner struct {
+	inner postgres.SQLDB
+	reads map[string]int
+}
+
+type manifestCountingTx struct {
+	db.Transaction
+	reads map[string]int
+}
+
+func (b manifestCountingBeginner) Begin(ctx context.Context) (db.Transaction, error) {
+	tx, err := b.inner.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return manifestCountingTx{Transaction: tx, reads: b.reads}, nil
+}
+
+func (x manifestCountingTx) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
+	if strings.Contains(query, "(fact.payload->>'repo_id') = ANY") && len(args) > 1 {
+		x.reads[fmt.Sprint(args[1])]++
+	}
+	return x.Transaction.QueryContext(ctx, query, args...)
+}
+
+// TestManifestPassReadsASharedBaseOnceLive is review B2: in delta-after-full
+// the stamped baseline is also the current delta's base, and in
+// delta-after-delta two deltas share one base. Each base generation's
+// dependency rows are read once per pass.
+func TestManifestPassReadsASharedBaseOnceLive(t *testing.T) {
+	ctx, db := fanOutLiveDB(t)
+	manifestLiveSeedGitScope(t, ctx, db, "gen-d2",
+		manifestLiveGeneration{id: "gen-f", status: "superseded", commit: "c1", activated: true, ingested: manifestLiveAt(1)},
+		manifestLiveGeneration{id: "gen-d1", status: "superseded", commit: "c2", baseline: "c1", delta: true, activated: true, ingested: manifestLiveAt(2)},
+		manifestLiveGeneration{id: "gen-d2", status: "active", commit: "c3", baseline: "c1", delta: true, activated: true, ingested: manifestLiveAt(3)},
+	)
+	manifestLiveSeedFact(t, ctx, db, manifestLiveGitScope, "gen-f", manifestLiveRepository("repo-f", false))
+	manifestLiveSeedFact(t, ctx, db, manifestLiveGitScope, "gen-f", manifestLiveDependency("f-lodash", "package-lock.json", "lodash", "4.17.21"))
+	manifestLiveSeedFact(t, ctx, db, manifestLiveGitScope, "gen-d1", manifestLiveRepository("repo-d1", true, "README.md"))
+	manifestLiveSeedFact(t, ctx, db, manifestLiveGitScope, "gen-d2", manifestLiveRepository("repo-d2", true, "README.md"))
+	manifestLiveSeedMarker(t, ctx, db, "gen-d1", "succeeded", true)
+
+	reads := map[string]int{}
+	store := fanOutLiveStore(db)
+	store.Beginner = manifestCountingBeginner{inner: postgres.SQLDB{DB: db}, reads: reads}
+	got, err := store.ReadManifestDependencyGeneration(ctx, manifestLiveGitScope, "gen-d2")
+	if err != nil {
+		t.Fatalf("ReadManifestDependencyGeneration() error = %v", err)
+	}
+	if got.Baseline.GenerationID != "gen-d1" || len(got.Baseline.Base) == 0 || len(got.Current.Base) == 0 {
+		t.Fatalf("baseline %q base %d, current base %d; want both deltas overlaid on gen-f",
+			got.Baseline.GenerationID, len(got.Baseline.Base), len(got.Current.Base))
+	}
+	if reads["gen-f"] != 1 {
+		t.Fatalf("dependency reads = %v; want the shared base gen-f read once", reads)
 	}
 }

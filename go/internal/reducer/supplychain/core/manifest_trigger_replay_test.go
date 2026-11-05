@@ -224,3 +224,30 @@ func fanOutCauseCount(t *testing.T, reader *sdkmetric.ManualReader) map[string]i
 	}
 	return out
 }
+
+// TestManifestTriggerGenerationReadTimeoutIsCountedAsTimeout proves the
+// operator signal for a generation read that hit the holder-read statement
+// timeout (#9874 F9): the pass fails retryably and counts read_timeout, not
+// read_error, under cause=manifest_dependency.
+func TestManifestTriggerGenerationReadTimeoutIsCountedAsTimeout(t *testing.T) {
+	t.Parallel()
+
+	reader := sdkmetric.NewManualReader()
+	inst, err := telemetry.NewInstruments(sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader)).Meter("test"))
+	if err != nil {
+		t.Fatalf("NewInstruments() error = %v", err)
+	}
+	port := &stubManifestPort{
+		stubFanOut: &stubFanOut{candidates: standardCandidates()},
+		readErr:    fmt.Errorf("read manifest view: %w", ErrFanOutReadTimeout),
+	}
+	h, _ := manifestHandler(t, port, inst)
+	_, err = h.Handle(context.Background(), manifestIntent(1, nil))
+	var retryable interface{ Retryable() bool }
+	if !errors.As(err, &retryable) || !retryable.Retryable() {
+		t.Fatalf("Handle() error = %v, want retryable", err)
+	}
+	if got := fanOutCauseCount(t, reader)[fanOutCauseManifestDependency+"/"+fanOutOutcomeReadTimeout]; got != 1 {
+		t.Fatalf("manifest_dependency read_timeout count = %d, want 1", got)
+	}
+}

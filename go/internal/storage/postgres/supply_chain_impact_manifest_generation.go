@@ -119,7 +119,9 @@ LIMIT 1
 
 // manifestChainQuery lists the activated generations strictly between the
 // baseline ($3, or the scope's start when empty) and the intent, oldest first,
-// one past the depth cap ($4) so the caller can tell the cap was exceeded.
+// at most $4 rows. The caller passes the depth cap: (W, current] counts the
+// current generation, so a full page of cap intermediates means the chain is
+// over the cap.
 const manifestChainQuery = `
 SELECT chain.generation_id
 FROM scope_generations AS intent
@@ -146,7 +148,8 @@ LIMIT $4
 // stamped activated prior), and of every activated generation between them.
 // A delta view also carries its #7797 base rows, resolved by the same rules
 // the delta union uses; a missing, pruned, or legacy base is BaseMissing,
-// never guessed. A chain longer than ManifestTriggerChainDepthCap, or a
+// never guessed. A chain (W, current] longer than
+// ManifestTriggerChainDepthCap (the current generation counted), or a
 // baseline whose facts retention pruned, is Degraded; a pruned intermediate is
 // skipped and reported as ChainPruned.
 func (s SupplyChainImpactFanOutStore) ReadManifestDependencyGeneration(
@@ -175,7 +178,11 @@ func (s SupplyChainImpactFanOutStore) ReadManifestDependencyGeneration(
 	}
 	out.Activation = supplychaincore.ManifestGenerationActive
 	store := FactStore{database: tx}
-	if out.Current, err = readManifestView(ctx, tx, store, scopeID, generationID); err != nil {
+	// rows caches each generation's rows for the pass: a base full shared by
+	// several delta views, or a baseline that is also the current delta's
+	// base, is read once (review B2).
+	rows := manifestRowCache{}
+	if out.Current, err = readManifestView(ctx, tx, store, rows, scopeID, generationID); err != nil {
 		return out, err
 	}
 
@@ -184,11 +191,12 @@ func (s SupplyChainImpactFanOutStore) ReadManifestDependencyGeneration(
 		return out, err
 	}
 	chain, err := queryManifestGenerationIDs(ctx, tx, manifestChainQuery,
-		scopeID, generationID, baselineID, supplychaincore.ManifestTriggerChainDepthCap+1)
+		scopeID, generationID, baselineID, supplychaincore.ManifestTriggerChainDepthCap)
 	if err != nil {
 		return out, err
 	}
-	if len(chain) > supplychaincore.ManifestTriggerChainDepthCap {
+	// (W, current] is the intermediates plus the current generation.
+	if len(chain)+1 > supplychaincore.ManifestTriggerChainDepthCap {
 		out.Degraded = true
 		return out, nil
 	}
@@ -202,7 +210,7 @@ func (s SupplyChainImpactFanOutStore) ReadManifestDependencyGeneration(
 			return out, nil
 		}
 		out.HasBaseline = true
-		if out.Baseline, err = readManifestView(ctx, tx, store, scopeID, baselineID); err != nil {
+		if out.Baseline, err = readManifestView(ctx, tx, store, rows, scopeID, baselineID); err != nil {
 			return out, err
 		}
 	}
@@ -215,7 +223,7 @@ func (s SupplyChainImpactFanOutStore) ReadManifestDependencyGeneration(
 			out.ChainPruned = true
 			continue
 		}
-		view, err := readManifestView(ctx, tx, store, scopeID, id)
+		view, err := readManifestView(ctx, tx, store, rows, scopeID, id)
 		if err != nil {
 			return out, err
 		}
@@ -224,18 +232,36 @@ func (s SupplyChainImpactFanOutStore) ReadManifestDependencyGeneration(
 	return out, nil
 }
 
+// manifestRowCache holds each generation's rows for one marker pass, keyed by
+// generation id.
+type manifestRowCache map[string][]facts.Envelope
+
+// rowsFor returns the generation's rows, reading them on first use.
+func (c manifestRowCache) rowsFor(ctx context.Context, tx db.Queryer, scopeID, generationID string) ([]facts.Envelope, error) {
+	if rows, ok := c[generationID]; ok {
+		return rows, nil
+	}
+	rows, err := readManifestGenerationRows(ctx, tx, scopeID, generationID)
+	if err != nil {
+		return nil, err
+	}
+	c[generationID] = rows
+	return rows, nil
+}
+
 // readManifestView reads one generation's dependency view and, for a delta,
-// its base rows.
+// its base rows, both through the pass's row cache.
 func readManifestView(
 	ctx context.Context,
 	tx db.Queryer,
 	store FactStore,
+	cache manifestRowCache,
 	scopeID string,
 	generationID string,
 ) (supplychaincore.ManifestDependencyView, error) {
 	view := supplychaincore.ManifestDependencyView{GenerationID: generationID}
 	var err error
-	if view.Rows, err = readManifestGenerationRows(ctx, tx, scopeID, generationID); err != nil {
+	if view.Rows, err = cache.rowsFor(ctx, tx, scopeID, generationID); err != nil {
 		return view, err
 	}
 	if !facts.ParseDeltaScope(view.Rows).IsDelta {
@@ -250,7 +276,7 @@ func readManifestView(
 	case err != nil:
 		return view, classifyFanOutReadError(err)
 	}
-	view.Base, err = readManifestGenerationRows(ctx, tx, scopeID, baseID)
+	view.Base, err = cache.rowsFor(ctx, tx, scopeID, baseID)
 	return view, err
 }
 

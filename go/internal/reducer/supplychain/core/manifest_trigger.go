@@ -18,8 +18,8 @@ import (
 
 // The manifest-dependency trigger (#9874, arbiter ruling Option B). The
 // projector enqueues one supply_chain_impact intent per git scope generation
-// whose only trigger is a manifest or lockfile dependency row, and stamps the
-// payload with this constant marker. The handler branches on it before it
+// that holds none of the twelve trigger kinds, and stamps the payload with this
+// constant marker. The handler branches on it before it
 // loads any evidence: it writes no findings, issues no fencing token, and only
 // reopens the scopes that hold advisory evidence for the packages the
 // generation changed. Those reopened passes re-derive their findings from the
@@ -89,14 +89,17 @@ type ManifestDependencyGeneration struct {
 	// set.
 	Chain       []ManifestDependencyView
 	ChainPruned bool
-	// Degraded reports that the chain could not be diffed: it was longer than
-	// ManifestTriggerChainDepthCap, or the baseline's facts were pruned. Every
-	// current pin then counts as changed.
+	// Degraded reports that the chain could not be diffed: (W, current] held
+	// more than ManifestTriggerChainDepthCap generations, or the baseline's
+	// facts were pruned. Every current pin then counts as changed, and the
+	// reader returns no baseline or chain views.
 	Degraded bool
 }
 
-// ManifestTriggerChainDepthCap bounds how many activated generations a
-// marker pass diffs between its baseline and itself.
+// ManifestTriggerChainDepthCap bounds how many activated generations a marker
+// pass diffs over (W, current], the current generation included (ruling D3):
+// at most ManifestTriggerChainDepthCap-1 intermediates between the baseline
+// and the current generation. A longer chain degrades.
 const ManifestTriggerChainDepthCap = 32
 
 // PayloadKeyManifestTriggerCompleted is the work-item payload key a marker
@@ -163,7 +166,7 @@ func (h SupplyChainImpactHandler) runManifestTrigger(ctx context.Context, intent
 	if len(remaining) == 0 {
 		generation, err := reader.ReadManifestDependencyGeneration(ctx, intent.ScopeID, intent.GenerationID)
 		if err != nil {
-			h.countFanOut(ctx, fanOutCauseManifestDependency, fanOutOutcomeReadError, 1)
+			h.countFanOut(ctx, fanOutCauseManifestDependency, readFailureOutcome(err), 1)
 			return reducercontract.Result{}, fanOutError{fmt.Errorf("read manifest dependency generation: %w", err)}
 		}
 		switch generation.Activation {

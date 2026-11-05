@@ -270,3 +270,23 @@ func TestManifestChainZeroRowFullFansOutThePriorsPackages(t *testing.T) {
 		t.Fatalf("reopened = %v, want %v", port.reopened, want)
 	}
 }
+
+// TestManifestChainDegradedIgnoresBaselineAndChainViews kills mutation N7: a
+// degraded pass fans out the current pins only, even when the read also
+// carried baseline or chain views. left-pad appears only in those views, so a
+// pass that diffed them would reopen its holder.
+func TestManifestChainDegradedIgnoresBaselineAndChainViews(t *testing.T) {
+	t.Parallel()
+
+	port, _ := runChain(t, ManifestDependencyGeneration{
+		Activation:  ManifestGenerationActive,
+		Degraded:    true,
+		HasBaseline: true,
+		Baseline:    chainView("gen-w", depRow("w-left-pad", "package-lock.json", "left-pad", "1.3.0")),
+		Chain:       []ManifestDependencyView{chainView("gen-n", depRow("n-left-pad", "package-lock.json", "left-pad", "1.2.0"))},
+		Current:     chainView("gen-n1", depRow("c-lodash", "package-lock.json", "lodash", "4.17.21")),
+	})
+	if want := []string{"vuln-intel://osv/a", "vuln-intel://osv/b"}; !reflect.DeepEqual(port.reopened, want) {
+		t.Fatalf("reopened = %v, want %v (degraded fans out current pins only)", port.reopened, want)
+	}
+}
