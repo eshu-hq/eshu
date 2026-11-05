@@ -52,11 +52,20 @@ case "$1 ${2:-}" in
 	case "${path}" in
 	repos/*/commits/*/status*) serve status.json ;;
 	repos/*/commits/*/check-runs*)
-		if [[ -f "${FIXTURES}/check-runs.rc" ]]; then
-			echo "fake gh: simulated check-runs failure" >&2
-			exit "$(cat "${FIXTURES}/check-runs.rc")"
+		# filter=all (every attempt, #10148) is served from check-runs-all.json
+		# when a case provides one, otherwise from check-runs.json, so a case
+		# that seeds no extra attempt sees the same rows from both reads.
+		fixture=check-runs.json
+		rcfile=check-runs.rc
+		if [[ "${path}" == *filter=all* ]]; then
+			rcfile=check-runs-all.rc
+			[[ ! -f "${FIXTURES}/check-runs-all.json" ]] || fixture=check-runs-all.json
 		fi
-		if [[ -n "${jqf}" ]]; then serve check-runs.json | jq -c "${jqf}"; else serve check-runs.json; fi
+		if [[ -f "${FIXTURES}/${rcfile}" ]]; then
+			echo "fake gh: simulated check-runs failure" >&2
+			exit "$(cat "${FIXTURES}/${rcfile}")"
+		fi
+		if [[ -n "${jqf}" ]]; then serve "${fixture}" | jq -c "${jqf}"; else serve "${fixture}"; fi
 		;;
 	*)
 		echo "fake gh: unsupported api: $*" >&2

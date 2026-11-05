@@ -440,8 +440,8 @@ for now. A PR merges when both are green and no gate completed red without a
 disposition: [When a PR may merge](docs/internal/agent-git-hygiene.md#when-a-pr-may-merge).
 `scripts/dev/pre-enqueue-check.sh` checks this rule. It fails on a required
 check that is not green and on a completed red not named with
-`--dispositioned '<check>=<reason>'`. Do not bypass the script by hand and do
-not merge on a red arm.
+`--dispositioned '<check>=<reason>'`, on any attempt: a rerun that went green does
+not hide a red one. Do not bypass the script by hand and do not merge on a red arm.
 
 Docs, root agent files, and README changes need the docs build
 (`mkdocs build --strict --config-file docs/mkdocs.yml`) and `git diff --check`.

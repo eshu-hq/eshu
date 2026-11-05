@@ -18,7 +18,8 @@ Keep outward-facing comments and review requests within user authorization.
   snapshot can become stale while the PR is waiting.
 - `scripts/dev/pre-enqueue-check.sh` checks the merge rule. It fails on a
   ruleset-required check that is not green, and on a completed red check that
-  is not named with `--dispositioned '<check>=<reason>'`; a pending or absent
+  is not named with `--dispositioned '<check>=<reason>'`, on any attempt: a red
+  attempt that a green rerun replaced still fails. A pending or absent
   non-required check is only a note. Do not bypass the script by hand and do
   not merge on a red arm.
 - CI is done only after **two consecutive stable reads of the full check set**

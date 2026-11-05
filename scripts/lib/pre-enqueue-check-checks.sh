@@ -107,6 +107,12 @@ run_checks_arm() {
 			checks_bad+=("$(rows_entry fail "${failing_bad}" "${failing_sel} | select((.name | IN(\$d[])) | not)" --argjson d "${elig_json}")")
 		[[ "${unknown}" -eq 0 ]] || checks_bad+=("unclassified=${unknown}")
 	fi
+	# A rerun that went green hides the red attempt before it from the read
+	# above (#10148): read every attempt and keep the superseded completed reds.
+	superseded_json='[]'
+	if [[ "$(jq 'length' <<<"${checks_json}")" -gt 0 ]] && ! load_superseded_reds "${checks_json}"; then
+		checks_bad+=("${superseded_error}")
+	fi
 	local status_json ctx ctx_state superseded red_states="" s_ctx s_state
 	status_json="$("${GH}" api "repos/${repo}/commits/${want}/status?per_page=100" 2>/dev/null)"
 	# A commit status outside the manifest (another reporter) has no check-run
@@ -170,7 +176,17 @@ run_checks_arm() {
 			;;
 		esac
 	done
-	local i state rows red_state
+	# A superseded completed red is judged like a latest one: it fails unless
+	# --dispositioned names its check. The ruleset reads only the latest attempt,
+	# so a ruleset-required name can be dispositioned here too (#10148).
+	local sup_name sup_entry
+	while IFS= read -r sup_name; do
+		[[ -n "${sup_name}" ]] || continue
+		in_list "${sup_name}" ${disp_ctx[@]+"${disp_ctx[@]}"} && continue
+		sup_entry="$(superseded_entry "${sup_name}")"
+		checks_bad+=("superseded-red=$(jq --arg n "${sup_name}" '[.[] | select(.name == $n)] | length' <<<"${superseded_json}"): ${sup_name} ${sup_entry}; a rerun went green but this attempt completed red on the same head; pass --dispositioned ${sup_name}=<issue-or-reason> to accept")
+	done < <(jq -r '.[]' <<<"$(superseded_names_json)")
+	local i state rows red_state sup_rows latest_state
 	# excused: the dispositioned contexts that were completed red, in flag order.
 	local -a excused=()
 	for ((i = 0; i < ${#disp_ctx[@]}; i++)); do
@@ -187,8 +203,18 @@ run_checks_arm() {
 				state="unused: not red"
 			fi
 		fi
-		# A context dispositioned twice is excused (and named) once.
+		# A context dispositioned twice is excused (and named) once. Only a red
+		# in the latest attempt excuses UNSTABLE below, never a superseded one.
 		[[ "${state}" != applied:* ]] || in_list "${ctx}" ${excused[@]+"${excused[@]}"} || excused+=("${ctx}")
+		sup_rows="$(jq -r --arg c "${ctx}" '[.[] | select(.name == $c)] | length' <<<"${superseded_json}")"
+		if [[ "${sup_rows}" -gt 0 ]]; then
+			latest_state="${state}"
+			if [[ "${latest_state}" == applied:* ]]; then
+				state="${latest_state}; ${sup_rows} superseded red attempt(s)"
+			else
+				state="applied: ${sup_rows} superseded red attempt(s)"
+			fi
+		fi
 		note checks "dispositioned: ${ctx}=${disp_reason[i]} (${state})"
 	done
 	local mss group_label="" ruleset_list excused_list="" unstable_ok=0
