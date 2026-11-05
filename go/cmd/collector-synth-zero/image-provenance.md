@@ -19,14 +19,17 @@
   uid 10001 (`id` confirms `uid=10001 gid=10001`); got `unchanged` with the
   claim echoed and one complete status row, zero facts.
 
-## Window assembly (post-ruling step, NOT done in-lane)
+## Window assembly (dispatch `.github/workflows/seed-publish.yml`, NOT run in-lane)
 
-1. Resolve the release worker image digest from the live deployment values
-   (tag `0650a6a4`, digest prefix `2eca6e9f` per the #8877 Stage A record).
-2. `docker buildx build --provenance=true --sbom=true` with the default
-   `BASE_IMAGE` (no override) from this lane's `Dockerfile.seed`.
-3. Push with registry credentials; the push does not change the digest.
-4. Fill the pushed digest into `manifest.yaml` (artifacts) and
+1. Base is pinned in-tree: `Dockerfile.seed` `BASE_IMAGE` carries the full
+   live digest re-read at lane build time (tag `sha-7b3d6999…`, digest
+   `ae20f270…`; the Stage A tag `0650a6a4` / prefix `2eca6e9f` is superseded
+   by the re-baseline — never trust that string, re-read kubectl).
+2. Dispatch the workflow (workflow_dispatch only): it builds with
+   `--provenance=true --sbom=true`, pushes `ghcr.io/eshu-hq/eshu-synth-zero`,
+   runs the in-image smoke on the pushed digest as uid 10001, and emits the
+   digest as a job output. If the push step is denied, stop and re-escalate.
+3. Fill the emitted digest into `manifest.yaml` (artifacts) and
    `deployment.yaml` (image) in place of the zeros placeholders, re-run the
    pin suite, and commit the pin before any apply.
 

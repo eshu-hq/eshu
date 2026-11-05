@@ -10,7 +10,12 @@
 # then pin the pushed digest into manifest.yaml (artifacts) and
 # deployment.yaml (image). Pushing never changes the digest, so a local
 # proof digest and the pushed digest of identical inputs are equal.
-ARG BASE_IMAGE=ghcr.io/eshu-hq/eshu:0650a6a4
+# Pinned base (re-read live at lane build time, 2026-11-05, via
+# kubectl: every cx Deployment runs this image; the Stage A tag
+# 0650a6a4@2eca6e9f… is superseded by the re-baseline
+# sha-7b3d6999…@ae20f270…). Tag-only base is forbidden: the digest binds the
+# exact bytes the window proves.
+ARG BASE_IMAGE=ghcr.io/eshu-hq/eshu:sha-7b3d6999ee3060257aa1b579e110b2efcb399f42@sha256:ae20f27008b28a206893d08e5c2901f7fe23dfb8cab0d128bc91e0ad65541ff3
 FROM ${BASE_IMAGE}
 # Explicit non-root execution (Trivy DS-0002): numeric uid 10001 matches the
 # release image's eshu user (repo Dockerfile) and needs no passwd entry, so

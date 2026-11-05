@@ -121,3 +121,5 @@ non_gate_workflows:
     reason: "daily/manual PostgreSQL live proof enrollment; scheduled verification, not a PR or merge gate pending repeated cost evidence"
   - file: ci-census.yml
     reason: "daily CI cost census telemetry (#8617); reports run counts, cancelled share, and duration percentiles to a job summary, posts no merge-relevant status"
+  - file: seed-publish.yml
+    reason: "dispatch-only #8877 seed image publish (buildx provenance+SBOM, push, in-image smoke, digest output); never a PR or main-push acceptance gate"
