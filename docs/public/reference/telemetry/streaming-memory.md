@@ -19,7 +19,8 @@ between:
 ## Fact Commits
 
 `eshu_dp_facts_committed_total` counts facts persisted to Postgres, recorded
-after the commit returns without error (`go/internal/collector/service.go:438`).
+after the commit returns without error and was not refused (#10037)
+(`go/internal/collector/service.go:447`).
 
 Use it to answer:
 

@@ -40,8 +40,9 @@ type CommitRefusal struct {
 // on the commit context. The committer marks it through MarkCommitRefused or
 // MarkCommitUnchangedSkip, and the caller reads it after the commit returns
 // nil. It travels on the context so the Committer interfaces and their many
-// implementations stay unchanged. Service reads it only to skip dead-letter
-// replay completion; observers and the run outcome belong to ClaimedService.
+// implementations stay unchanged. On a refusal, Service skips dead-letter replay
+// completion, the committed-fact count, and its drain latches; observers and the
+// run outcome belong to ClaimedService.
 //
 // One box serves one commit on one goroutine, so it holds no lock: the commit
 // runs synchronously and the caller reads the box only after it returns. Its
@@ -77,6 +78,13 @@ func MarkCommitUnchangedSkip(ctx context.Context) {
 		box.kind = CommitDispositionUnchangedSkip
 		box.refusal = CommitRefusal{}
 	}
+}
+
+// commitRefused reports whether ctx carries a box marked refused. A commit with
+// no box reads as committed.
+func commitRefused(ctx context.Context) bool {
+	box, _ := ctx.Value(commitDispositionKey{}).(*CommitDisposition)
+	return box != nil && box.kind == CommitDispositionRefused
 }
 
 // Kind returns the recorded disposition. A nil box reads as committed.

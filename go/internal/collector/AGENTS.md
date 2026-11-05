@@ -183,7 +183,9 @@
   blocking every shard that had already arrived. The gate is
   never-having-committed (`everCommitted`), so the hook repeats while a shard has
   no work and stops permanently at its first commit. Do not "restore" edge
-  triggering; that reintroduces #5852.
+  triggering; that reintroduces #5852. A refused commit stored nothing, so it
+  sets neither `everCommitted` nor `committedSinceDrain` (#10068): latching it
+  would suppress this escape for a shard whose scopes keep being refused.
 - `AfterBatchDrained`'s `hasCommitted bool` argument — in the steady state
   this is `committedSinceDrain`, true only when a real commit happened since
   the last drain. `Service.Run` deliberately overrides that for exactly ONE

@@ -239,7 +239,10 @@ evidence (No-Regression and No-Observability-Change) for this section lives in
   completes the claim. A source with only the commit observer hears nothing, so
   its marker holds. A refusal also skips dead-letter replay completion, on the
   unclaimed `Service` too: a rolled-back generation replayed nothing, so its
-  dead letters stay open until a later commit lands. A hook error adds a
+  dead letters stay open until a later commit lands. On `Service`, a refusal also
+  adds nothing to `eshu_dp_facts_committed_total` and sets no drain latch, so it
+  opens no deferred-maintenance epoch and keeps the shard's empty-batch escape
+  live (#10068). A hook error adds a
   `claimed_generation_refusal_observer_failed` span event and counts on
   `eshu_dp_workflow_claim_commit_observer_failures_total`.
 - `ClaimRetryDelay` and `ClaimAttemptBudgetExhausted` — the retry delay and
