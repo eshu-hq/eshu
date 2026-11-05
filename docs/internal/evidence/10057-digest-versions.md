@@ -7,16 +7,20 @@ for a digest that also holds a version below the fix, and the other row order
 read `possibly_affected`. This note records what moved, what did not, and what
 the change costs. The change builds on #9984, whose census is the baseline.
 
-The base is `99206f6102` (the #9984 head, parent of this branch). The census,
-mutants and benchmarks below ran on the branch commit titled "test(supplychain):
-pin the per-version split for a digest on the SBOM base" and its parent
-"fix(supplychain): classify a digest once per installed version", which hold the
-production change (later commits touch tests and docs only). Commits are named by
-subject because a rebase changes the hash. The runs were on macOS arm64 with
-`go1.26.10`. The host is shared: the one-minute load average read 14 to 19 during
-the benchmark run reported below (it read 22 to 44 in an earlier run, which was
-discarded because it overlapped mutant runs). Allocations do not move with load
-and carry the weight. The figures are not a CI baseline.
+"The base" in the tables below is `99206f6102`, the #9984 head this branch was
+first stacked on. #9984 has since merged as the squash commit `622c948497`, and
+the branch is rebased onto it: the five original commits kept their patch ids, the
+production files this change touches are byte-identical on both, and the tests pass
+at the rebased tip. The census, mutants and the first benchmark run ran before the
+rebase, on the branch commit titled "test(supplychain): pin the per-version split
+for a digest on the SBOM base" and its parent "fix(supplychain): classify a digest
+once per installed version", which hold the production change (later commits touch
+tests and docs only). A later commit, "perf(supplychain): compute each finding's
+sort key once", moves the final sort's key out of the comparator; the census was
+rerun after it (see Cost). Commits are named by subject because a rebase changes
+the hash. The runs were on macOS arm64 with `go1.26.10`. The host is shared, so
+allocations carry the weight and the timings are not a CI baseline; each run below
+states the load it saw.
 
 ## What the change does
 
@@ -38,8 +42,7 @@ and flags a version conflict, and this change does not touch it.
 ## Reproduction
 
 One digest, `curl` at `1:1.0-3` and `1:1.0-4`, one scan scope. The base rows were
-observed on the base and on `99206f6102`, and are the same on main (arbiter probe,
-2026-11-04):
+observed on `99206f6102` and are the same on main (arbiter probe, 2026-11-04):
 
 | Advisory fact | Row order | Findings on the base | Findings after |
 |---|---|---|---|
@@ -166,20 +169,52 @@ killed; one survives and is equivalent.
 | D08 digest list unsorted | survived | equivalent: the final sort orders every finding by stable key, and two digests never share an identity, so digest order cannot reach the output |
 | D09 skip the split when a scope holds one digest | killed | all three new tests |
 
+## Expected change on rollout
+
+Finding-level counters and the per-pass fact counts rise once this ships, on the
+first pass that reruns for a scope and generation that holds a digest with several
+versions of a key. In the census the multi-version class goes from 51 to 219
+findings, and its status mix from 6 `affected_exact`, 29 `possibly_affected` and 16
+`not_affected_known_fixed` to 45, 105 and 69. Read that rise as the fix: the
+digests were already there, and their other versions had no finding. A reader at
+3 AM should not treat it as a regression in the counters, in `FactsWritten` for the
+pass, or in the finding count on the API. The size on a live fleet depends on how
+many digests hold several versions of one key, which this note did not measure.
+
 ## Limits
 
 - Consumers see more rows. A digest that holds `V` versions of a package key now
   persists up to `V` findings for the advisory where it persisted one, each with
   its own `observed_version` and verdict. The identity already carries
-  `observed_version`, so nothing collides. This note did not check every API and
-  MCP consumer for an assumption of one finding per (digest, package).
+  `observed_version` and `impact_status`, so nothing collides: the writer's stable
+  key and fact ID, and the read side's canonical key
+  (`query/supply/chain/impact`, `CanonicalFindingKeySQL`), carry them, and the
+  keyed winners probe takes whole `(package_id, repository_id, subject_digest)`
+  triples, so a hot triple only gets `V` times larger. A search of
+  `query/supply/chain/impact`, `mcp` and `storage/postgres` found no
+  GROUP BY or DISTINCT on `subject_digest` that assumes one finding per digest.
+  Not read line by line: the investigation packet, the `ask` catalog,
+  `answerquality`, and the advisory loader the vulnerability service uses.
 - Findings already stored for a digest that held several versions came from the
   single-row classification and may be wrong (a false `not_affected_known_fixed`,
-  or a missing version). This change does not retire them, and whether a reducer
-  rewrite supersedes them was not checked here. The QA environment's exposure was
-  not measured (no QA contact in this change).
+  or a missing version). This change does not retire them and adds no backfill or
+  replay trigger. The writer replaces findings per (scope, generation) in one
+  transaction (`writer_retract.go`): once a full pass reruns for that scope and
+  generation it upserts the new findings and retracts every stored row it did not
+  derive again, unless the pass carries partial evidence, which skips the
+  retraction. Until such a pass runs, the old rows stay. What re-queues the intents
+  after a reducer deploy was not checked, and nothing here says stored data is
+  corrected. The QA environment's exposure was not measured (no QA contact in
+  this change); the read-only count by source key that issue #10057 asks for is
+  still open.
 - Rows whose purl names no distro qualifier still share a writer identity across
   lines when the version and digest match; that is the #9984 limit, unchanged.
+- One digest that holds the same version on two release lines (for example a
+  debian-11 and a debian-12 row at `1:1.0-3`) yields one finding per line. That is
+  the #9984 rule applied to the digest, not a regression, but it means a digest is
+  no longer guaranteed one finding per version.
+- The per-target scan path reaches the same function and takes the same fix; it
+  has no separate test.
 - The release label on
   `eshu_dp_supply_chain_impact_os_advisory_release_selections_total` is #10056 and
   is not touched.

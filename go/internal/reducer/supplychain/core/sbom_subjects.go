@@ -116,16 +116,19 @@ func appendSupplyChainImpactManifestFindings(
 // rows independently (issue #9858). Without SBOM subjects the fleet-wide pass
 // kept the first matching installed row, so a fixed image's row silenced a
 // vulnerable image (and vice versa) by input order. Each digest classifies
-// over its own scoped index — the osByDigest scoping the SBOM path above —
+// over its own scoped index, the osByDigest scoping of the SBOM path above,
 // through the same manifest fanout, so per-repository composition is
-// unchanged: a scope holding a single digest classifies exactly as before.
+// unchanged.
+//
 // A digest classifies once per (release line, installed version) it holds
-// (#10057), since the first row used to decide the digest's one finding, and a
-// digest holding a version below the fix could read known fixed by row order.
-// Rows no sibling analysis resolves to a digest classify the same way (#9984),
-// since the first of them used to decide one finding for every host. With no matching row at all
-// the whole index classifies once. That covers every non-OS advisory and an OS
-// advisory that joins no installed row.
+// (#10057). The first row used to decide the digest's one finding, so a digest
+// holding a version below the fix could read known fixed by row order. A digest
+// that holds one version on one release line still yields one finding.
+//
+// Rows no sibling analysis resolves to a digest classify the same way (#9984):
+// the first of them used to decide one finding for every host. With no
+// matching row at all the whole index classifies once. That covers every
+// non-OS advisory and an OS advisory that joins no installed row.
 func appendSupplyChainImpactFleetOSFindings(
 	findings []SupplyChainImpactFinding,
 	cves supplyChainCVEGroup,
