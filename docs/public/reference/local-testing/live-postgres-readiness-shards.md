@@ -209,7 +209,8 @@ main plans 779 tests, 16 on default prices, and the fit case (608 s row
 budget, #9469) accepts 120 appended tests with no failing `k` in 0..120. At
 `9ffd76a581` the #9519 refit (p75 over nine main runs) planned 749 tests with
 10 defaults and accepted 42 appended tests (failing 43..51 and 61..69;
-passing 52..60 and 70).
+passing 52..60 and 70); at `622c948497` the #10108 refit (p75, runs
+41911058891-41952209683) plans 838 with 3 defaults, window k=0..120.
 
 Run this
 from the repository root to print the window for the checkout you are on. It
