@@ -14,8 +14,9 @@ import (
 
 // TestCrossplaneReaderTextsDeriveDeltaOverlayBase pins that both Crossplane
 // SATISFIED_BY reader texts derive their base-candidate text through the
-// #10003 overlay helper, each with one scope filter at its own placeholder,
-// and that the claim text stays anchored on the intent scope at $1.
+// #10003 overlay helper, each with one base-generation filter at its own
+// placeholder, and that the claim text stays anchored on the intent scope
+// at $1.
 func TestCrossplaneReaderTextsDeriveDeltaOverlayBase(t *testing.T) {
 	t.Parallel()
 
@@ -25,8 +26,8 @@ func TestCrossplaneReaderTextsDeriveDeltaOverlayBase(t *testing.T) {
 		param  int
 		want   string
 	}{
-		{"xrd", listActiveCrossplaneXRDFactsQuery, crossplaneXRDDeltaOverlayScopeParam, "AND fact.scope_id = ANY($4::text[])"},
-		{"claim", listActiveCrossplaneClaimCandidateFactsQuery, crossplaneClaimDeltaOverlayScopeParam, "AND fact.scope_id = ANY($5::text[])"},
+		{"xrd", listActiveCrossplaneXRDFactsQuery, crossplaneXRDDeltaOverlayScopeParam, "AND fact.generation_id = ANY($4::text[])"},
+		{"claim", listActiveCrossplaneClaimCandidateFactsQuery, crossplaneClaimDeltaOverlayScopeParam, "AND fact.generation_id = ANY($5::text[])"},
 	} {
 		derived, err := deriveDeltaOverlayBaseQuery(tc.active, tc.param)
 		if err != nil {
@@ -71,17 +72,17 @@ func TestListActiveCrossplaneSatisfiedByFactsStatements(t *testing.T) {
 		},
 		{
 			name:    "another scope is delta-active",
-			targets: [][]any{{"platform", "platform-delta", "c0", ""}},
+			targets: [][]any{{"platform", "platform-delta", "c0", "", `[]`}},
 			want:    []string{listActiveCrossplaneClaimCandidateFactsQuery, deltaOverlayTargetsQuery, listActiveCrossplaneXRDFactsQuery, xrdBase},
 		},
 		{
 			name:    "the intent scope is delta-active",
-			targets: [][]any{{"app", "app-delta", "c0", ""}},
+			targets: [][]any{{"app", "app-delta", "c0", "", `["base-1"]`}},
 			want:    []string{listActiveCrossplaneClaimCandidateFactsQuery, deltaOverlayTargetsQuery, claimBase, listActiveCrossplaneXRDFactsQuery, xrdBase},
 		},
 		{
 			name:    "a legacy delta has no baseline",
-			targets: [][]any{{"app", "app-delta", "", ""}},
+			targets: [][]any{{"app", "app-delta", "", "", `[]`}},
 			want:    []string{listActiveCrossplaneClaimCandidateFactsQuery, deltaOverlayTargetsQuery, listActiveCrossplaneXRDFactsQuery},
 		},
 	} {
@@ -113,7 +114,7 @@ func TestListActiveCrossplaneSatisfiedByFactsStatements(t *testing.T) {
 			// cached statements PostgreSQL switched the claim base text to a
 			// generic plan from its sixth execution, 275 ms against 16 ms on
 			// the shim's 50k-file scope. The XRD texts keep their generic
-			// plan, which stays on the migration 279 index.
+			// plan, which stays on the migration 280 index.
 			for i, call := range db.queries {
 				isClaim := call.query == listActiveCrossplaneClaimCandidateFactsQuery || call.query == claimBase
 				custom := call.hasExecMode && call.execMode == pgx.QueryExecModeCacheDescribe
@@ -122,8 +123,8 @@ func TestListActiveCrossplaneSatisfiedByFactsStatements(t *testing.T) {
 				}
 			}
 			if tc.name == "the intent scope is delta-active" {
-				if scopes, _ := db.queries[2].args[4].([]string); !slices.Equal(scopes, []string{"app"}) {
-					t.Fatalf("claim base scope ids = %v, want [app]", db.queries[2].args[4])
+				if generations, _ := db.queries[2].args[4].([]string); !slices.Equal(generations, []string{"base-1"}) {
+					t.Fatalf("claim base generation ids = %v, want [base-1]", db.queries[2].args[4])
 				}
 			}
 		})
