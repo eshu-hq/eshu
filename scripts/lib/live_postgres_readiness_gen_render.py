@@ -18,6 +18,7 @@ FRAGMENT_NAMES = (
     "live-tests-readiness-part3.generated.yaml",
     "live-tests-readiness-part4.generated.yaml",
     "live-tests-readiness-part5.generated.yaml",
+    "live-tests-readiness-part6.generated.yaml",
 )
 # Committed lexical cuts keep each file's destination stable as enrollment grows.
 # Rebalanced 2026-10-30 for #9322: enrollment reached 333 rows and the first
@@ -51,7 +52,17 @@ FRAGMENT_NAMES = (
 # part1, so no 3-cut placement fits). Four cuts rebalance to roughly equal
 # rows; the first fragment stays in the 95-98 band the oversized/stable seeds
 # pin, every fragment keeps seed headroom, all under the 499 budget.
+# Rebalanced 2026-11-05 for #10015: the three derived-release live proofs
+# raised the first fragment to 101 rows (507 lines) while the other three
+# sat at 98 rows each, so no cut move fits four fragments (capacity
+# 4x99=396 rows against 395 enrolled leaves zero headroom). A fourth cut
+# splits the over-budget first fragment at its midpoint enrolled path
+# (50/51 rows, 252/257 lines); five fragments pinned.
+# Union 2026-11-06 for the #10015 rebase onto #10199: keep the #10015 midpoint
+# cut and the four #10055 cuts (the three pre-#10199 cuts both lines replaced
+# stay moved); six fragments pinned.
 FRAGMENT_BOUNDARIES = (
+    "go/internal/query/security_alert_target_set_postgres_live_test.go",
     "go/internal/storage/postgres/activation/producer_obligation_contract_live_test.go",
     "go/internal/storage/postgres/content_writer_metadata_only_redarm_live_test.go",
     "go/internal/storage/postgres/ingestion_vulnerability_successor_live_test.go",
