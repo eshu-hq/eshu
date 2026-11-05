@@ -85,6 +85,25 @@ Throughput numbers log per leg for the dark-deployment no-regression baseline.
 - NOT_CHECKED: the dark-deployment leg (synthetic writes to the shared
   satellite database stay with the coordinator under the standing grant
   preconditions). No shared-infra writes were made from this lane.
+- No-Regression Evidence: baseline full parity suite green twice at 10/10
+  pre-change (8.338s, 8.720s wall); after final tree green 11/11 (8.356s
+  wall) on the same legs. Backend: claim-plane image
+  sha256:e1b564afa5f72167e3911aea7c881973c74bab123183c03d9d6af5a2d80e47a4
+  (linux/amd64 emulated on arm64, `--reap-interval=1h`), Postgres 18.6 on
+  disposable servers, Go 1.26.6. Input shape: identical seeded fixtures
+  with deterministic run/item IDs and one fixed clock per scenario, plus
+  stub-server round trips for the client unit tests. Terminal counts:
+  satellite claims/items/runs/progress/completeness 0/0/0/0/0 and no
+  leftover disposable databases on the repeat run. Telemetry: suite verdict
+  lines only. Why safe: the five routes are new methods no existing caller
+  uses; the `mutate()` early-reject and the store validation fire only on
+  values outside `[a-z0-9_]{1,64}`, which the legitimate path never emits
+  (producers sanitize) — the full workflow, parity, and focused storage
+  suites stay green.
+- No-Observability-Change: no new spans, metrics, logs, or dashboards; a
+  rejected mutation returns before `post()`, so it emits no Observe event
+  (no request, no outcome), consistent with the exactly-one-outcome
+  contract.
 
 ## Known divergences
 
