@@ -1,0 +1,23 @@
+docs/internal/evidence/10005-crossplane-delta-overlay.md
+  s_7547c0f0af67d4::t_bed314426c4e0c 233-253
+go/internal/storage/postgres/facts_active_crossplane_xrd.go
+  s_7547c0f0af67d4::t_e0e3b18830da56 12-13,125-134,206,217,237,239,253,263-264,269,277
+go/internal/storage/postgres/satisfied_by_read_test.go
+  s_7547c0f0af67d4::t_28f5b49cbbe7b2 11-12,112-123
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ffae31650bc9b529ce4f447b485776e37fae4258",
+  "prompts": {},
+  "sessions": {
+    "s_7547c0f0af67d4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7c8b2d5-3286-4c2a-be1f-589162535d83",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
