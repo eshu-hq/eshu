@@ -189,7 +189,14 @@ func (s Service) createWorkflowWork(
 			"reason", "insert_conflict_dropped_row",
 		)
 	}
-	return workAdmission{inserted: admission.InsertedWorkItems, advance: result}, nil
+	// The replan commit gates its mapped branch on the admission's
+	// authorization decision (eshu-hq/eshu#10083), so one grant flap between
+	// this read and the commit cannot admit-then-not-commit or vice versa.
+	authorizedReplanScopes := make(map[string]struct{})
+	for _, item := range replanItems(authorizedItems) {
+		authorizedReplanScopes[item.ScopeID] = struct{}{}
+	}
+	return workAdmission{inserted: admission.InsertedWorkItems, advance: result, authorizedReplanScopes: authorizedReplanScopes}, nil
 }
 
 // logScanIntervalOverrides records, once at startup before the first

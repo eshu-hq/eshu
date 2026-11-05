@@ -423,7 +423,9 @@ func TestCommitOSVDeltaReplanHoldsUnmappedNontrivialRows(t *testing.T) {
 		Watermark:     feed,
 		WatermarkSet:  true,
 	}
-	if err := service.commitOSVDeltaReplan(context.Background(), pass, workflow.Run{}, nil, observation, observedAt); err != nil {
+	// Nil items with a nil authorized set is the site-A shape: no _replan
+	// scope was authorized this pass, so only the trivial row drains.
+	if err := service.commitOSVDeltaReplan(context.Background(), pass, workflow.Run{}, nil, observation, observedAt, nil); err != nil {
 		t.Fatalf("commitOSVDeltaReplan() error = %v, want nil", err)
 	}
 	if _, ok := replanStore.rows[1]; !ok {
