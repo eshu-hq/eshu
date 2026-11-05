@@ -146,3 +146,32 @@ misses.
 **The bigger cost is elsewhere.** Inserting g6's 99,800 rows took 6.9 s on that cluster,
 because Upsert rewrites the full set per change. At 100,000 suppressions the diff is a small
 part of an operator write. The real suppression count is NOT_CHECKED.
+
+## Tests committed now
+
+`suppression_diff_test.go` and `suppression_walk_test.go` test the pure functions in
+`suppression_diff.go` and `suppression_walk.go`. Nothing in production calls them yet.
+
+| Function | Covers |
+|---|---|
+| `changedSuppressionCVEIDs` | Added, removed, edited, re-scoped, no CVE, blank, Unicode whitespace, lower case, dedupe, order |
+| `countSuppressionsWithoutCVEScope` | Limit 1's counter input |
+| `unionSuppressionFanOutCVEIDs` | Unchanged set stays empty, suppression-only, overlap |
+| `selectSuppressionDiffBaseline` | Plain chain, coalesced, late stale pass, never-activated, failed, no admission, first generation, ingest-order ties, activated_at and ingest order disagreeing |
+| `planSuppressionWalk`, `walkSuppressionDiff` | Net-zero plants against a brute-force oracle, the cap and its truncation count, the oldest-retained fallback, read errors, a 12-generation chain, candidates in any read order, a retained generation older than the baseline, and a suppression that names a CVE in one step and none in another |
+| `decideSuppressionDiff`, `failClosedError` | KEV, EPSS, advisory, no facts, first pass, superseded-but-activated, pending, never activated, duplicate, recovery, mixed kinds; the pending outcome returns the existing deferral |
+
+**Mutants.** Each was applied in a private detached worktree on the committed tests, which
+must fail on it and pass on the real code:
+
+| Mutant | Killed by |
+|---|---|
+| Chain sort removed from `planSuppressionWalk` | `TestPlanSuppressionWalkSteps`, candidates in any read order |
+| Range lower bound removed | `TestPlanSuppressionWalkSteps`, retained generation older than the baseline |
+| Scoped exclusion removed from `countDistinctSuppressionsWithoutCVEScope` | `TestWalkSuppressionDiffCountsAndErrors`, named-then-unnamed suppression |
+
+## Not checked
+
+The full drain's wall time with the real fan-out store (the holder read was timed alone);
+production `work_mem`, and a truly cold cache (the "cold" read was not OS-cold); real
+generation layout on the heap, which the fixture only approximates.

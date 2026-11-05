@@ -25,7 +25,7 @@ edge. Four rulings shape it:
 3. **The diff walks every adjacent activated pair** from the baseline to the current
    generation, up to a cap, so a change that cancels out in between still reopens
    its holders. See [The walk](#the-walk).
-4. **Inline is accepted and the timing is partial.** Three conditions gate the
+4. **Inline is accepted and the timing is partial.** Five conditions gate the
    wiring PR. See [Measurements](#measurements).
 
 ## Flow
@@ -81,12 +81,9 @@ its handler running. Its change belongs to no pass:
 | B runs late, after C activated | prior of B is now C, so diff(B, C) | lost |
 | C runs, then B | diff(C, B) and diff(B, C) | lost |
 
-Planted on the shim, with A holding CVE-A, B adding CVE-B and C adding CVE-C:
-
-| Baseline for C | Chosen | Fan-out set |
-|---|---|---|
-| `priorGenerationSupplyChainImpactSQL` | B | CVE-C |
-| Newest admitted older generation | A | CVE-B, CVE-C |
+Planted on the shim, with A holding CVE-A, B adding CVE-B and C adding CVE-C: the prior
+generation (`priorGenerationSupplyChainImpactSQL`, B) fans out CVE-C only. The newest
+admitted older generation (A) fans out CVE-B and CVE-C.
 
 **Rule (binding).** `supply_chain_impact_write_admission` gets a row from every pass
 that reaches the writer, including empty and partial ones, in the same transaction as
@@ -133,8 +130,8 @@ enqueues the intent before Ack and the claim query has no activation predicate
 
 | Layer | Where | Effect |
 |---|---|---|
-| Runtime guard | `Runtime.execute`, `internal/reducer/runtime.go:345-362` | Calls `GenerationCheck` before it looks up the handler; a stale generation returns superseded, an error returns before the handler |
-| Production check | `internal/storage/postgres/generation_freshness.go:194-220` | A pending generation, before first activation or newer than the active one, returns `GenerationNotYetActiveError` |
+| Runtime guard | `Runtime.execute` in `internal/reducer/runtime.go` | Calls `GenerationCheck` before it looks up the handler; a stale generation returns superseded, an error returns before the handler |
+| Production check | the generation check in `internal/storage/postgres/generation_freshness.go` | A pending generation, before first activation or newer than the active one, returns `GenerationNotYetActiveError` |
 | Queue | `reducercontract.GenerationActivationNotReadyFailureClass` | Retryable and non-counting: `attempt_count` freezes, no dead letter, until Ack |
 | Wiring | `cmd/reducer/main.go` sets `DefaultHandlers.GenerationCheck` | The service executor wraps that runtime, so every claimed intent passes the guard |
 
@@ -145,11 +142,9 @@ gap cannot let a pre-activation pass through. Holders read the same
 `active_generation_id` column the guard reads (`facts/impact/branches.go`), and Ack
 sets it with the generation status.
 
-**Proof status.** The existing real-queue proof is for `workload_materialization`
-(`reducer_queue_pre_activation_live_test.go`): handler calls 0 before Ack, the row
-retrying with a frozen `attempt_count`, then one run after Ack. For the
-`supply_chain_impact` domain this is NOT reproduced live. The guard code is the same
-function, but the domain-specific proof belongs to the wiring PR (see below).
+**Proof status.** The real-queue proof covers `workload_materialization`
+(`reducer_queue_pre_activation_live_test.go`). For `supply_chain_impact` it is NOT
+reproduced live; the guard is the same function, and the wiring PR owns the domain proof.
 
 **The writer's check.** The writer reads G's status and `activated_at` under the
 advisory lock anyway, so it must do something when G is not activated. It fails closed:
@@ -195,12 +190,8 @@ the 1,000-suppression chain) but has to sort every payload: 969 ms against 550 m
 pair, and 4,482 ms against 4,147 ms for eight. The pairs shape is the design; the rounds and loads are in
 [the measurements note](10019-suppression-fanout-measurements.md).
 
-| Pairs walked | 100,000 suppressions, p50 | 1,000 suppressions, p50 |
-|---:|---:|---:|
-| 1 | 550 ms | 3.3 ms |
-| 2 | 1,134 ms | 4.3 ms |
-| 4 | 2,044 ms | 8.0 ms |
-| 8 | 4,147 ms | 14.1 ms |
+At 100,000 suppressions one pair costs 550 ms, four cost 2,044 ms and eight cost 4,147 ms; at
+1,000 they cost 3.3, 8.0 and 14.1 ms (p50, full table in the note).
 
 Seven interleaved rounds, rotating first mover, at 1-minute load 39 to 59. No round was
 quiet, and a 35-minute watch for load1 under 12 (lowest reading 18.3) found none, so the
@@ -259,7 +250,7 @@ rule is load1 under 9 with a control canary, and the rounds ran at 10 to 59. Rec
 met on the least loaded round; no qualifying quiet-host proof yet.
 
 **The 10 s bound is not this path's.** `supplyChainImpactFanOutReadTimeout`
-(`supply_chain_impact_fanout.go:23-32`) is a `SET LOCAL` on the holder read, in the fan-out
+(in `supply_chain_impact_fanout.go`) is a `SET LOCAL` on the holder read, in the fan-out
 store's own transaction. It does not apply to the writer transaction, and no statement
 timeout covers the writer path today. This design does not lean on it.
 
@@ -273,7 +264,7 @@ timeout covers the writer path today. This design does not lean on it.
 2. **An explicit statement bound** on each diff statement inside the writer transaction,
    scoped (`SET LOCAL` in a savepoint or reset after) so it does not leak onto the row writes
    that follow. It fails as the existing retryable fan-out class and is proved by a
-   shortened-timeout test like the holder read's. `K` times the p95 per pair must sit under
+   shortened-timeout test like the holder read's. `K+1` times the p95 per pair must sit under
    half of it.
 3. **A plan-anchor test** on a seeded, analyzed fixture under both `plan_cache_mode`
    settings: an index access on `fact_records_scope_generation_idx` on both sides (an
@@ -288,13 +279,11 @@ timeout covers the writer path today. This design does not lean on it.
 
 ## Cost bound
 
-Holder reads are `ceil(changed ids / 200)`, and reopens are holders of those ids only.
-
-| Case | Ids | Holder reads |
-|---|---:|---:|
-| Usual Upsert, one suppression | 1 (2 on a re-scope or lower-case id) | 1 |
-| 1% of 100,000 changed | 1,028 | 6 |
-| Same fixture without the diff, or a first generation of 100,000 | 54,234 | 272, at 256 holders per claim |
+Holder reads are `ceil(changed ids / 200)`, and reopens are holders of those ids only. A
+usual Upsert of one suppression names 1 id (2 on a re-scope or lower-case id) and costs 1
+read. With 1% of 100,000 suppressions changed it names 1,028 ids and costs 6 reads. Without
+the diff, or on a first generation of 100,000, it names 54,234 ids and costs 272 reads at 256
+holders per claim.
 
 ## Concurrency
 
@@ -331,7 +320,7 @@ Moving the walk out would need a second lock step for a saving of a few seconds 
 |---|---|---|---|
 | First pass, G active | Not admitted | `ran` | Fan-out set includes the diff |
 | Crash before commit | Rolled back, not admitted | `ran` | Same rows, same baseline |
-| Crash after commit, before fan-out | Admitted, owed, no remaining | `ran` (Recovery) | Diff repeats; ids join `RecoveryCVEIDs` because finding rows cannot rebuild them |
+| Crash after commit, before fan-out | Admitted, owed, no remaining | `ran` (Recovery) | Diff repeats; ids join `RecoveryCVEIDs` because finding rows cannot rebuild them. Holds only if the item is reclaimed before a newer generation activates; otherwise see [#10060](#open-dependency-10060) |
 | Fan-out hit the holder cap | Admitted, `fanout_remaining` set | `skipped_duplicate` | Continuation drains; nothing recomputed |
 | Duplicate delivery after success | Admitted, no marker | `skipped_duplicate` | Reopens nobody |
 | Reopened later by another scope's fan-out | Admitted, stamped | `skipped_duplicate` | Stops at one hop |
@@ -361,36 +350,61 @@ test, and wiring must let the diff's ids through regardless of the stamp.
 |---|---|
 | Partial evidence pass | Diff runs anyway. It reads immutable facts and not the loaded evidence, so truncation does not touch it. Retract stays governed by `PartialEvidence` |
 | Readiness deferral | Returns before the writer, so no admission and the baseline holds |
-| Baseline row pruned | Fact rows cascade with the generation row, so the candidate list no longer holds it and the next older admitted one is chosen |
+| Baseline row pruned | Fact rows cascade with the generation row, so the candidate list no longer holds it and the next older admitted one is chosen. An over-limit generation drains one chunk per cycle since #7981, so a retained row can hold partial facts; the direction stays over-fan |
 | Baseline pruned mid-pass | Reads as no prior rows, so everything counts as added. Over-fans, never loses (checked on the shim) |
 | Tombstones | Filtered on both sides, so a tombstoned row reads as removed and names its old id; tombstoned on both sides gives no row (checked on the shim). The store has no delete path today |
-| Scope with 100,000 suppressions | See [Measurements](#measurements) for the per-pair time and the temp spill |
 | Diff read error or timeout | The whole walk fails with no partial set. Rollback, `RetryableFanOutError`, retried. A persistent one dead-letters loudly and does not fall back to fanning out nothing |
 | Item dead-lettered | The baseline does not move, so a replay covers the range |
-| Very large first set | Bounded by holder cap and continuation; the wall time of a full drain is NOT_CHECKED |
 
 ## Known limits
 
 1. **A scope with no `cve_id`.** A suppression scoped only by package, PURL, repository,
    or subject digest has no id to fan out by, and an advisory-only scope reaches its
    record on the operator pass per the #9914 note. Those wait for the holder's own pass.
-   `countSuppressionsWithoutCVEScope` feeds a counter so this is visible.
-2. **Net-zero inside the unwalked span.** The walk closes net-zero changes up to the
+   `countSuppressionsWithoutCVEScope` feeds the no-CVE counter in [Telemetry](#telemetry) so this is visible.
+2. **Changes that cancel out inside the unwalked span.** The walk closes them up to the
    cap. Past it, a change that cancels out inside the endpoint diff stays on the holders'
-   own cadence. `walk_truncated` makes the span visible.
+   own cadence. The residual is wider than net-zero: CVE-1 to CVE-2 to CVE-3 inside the
+   span has a real net change, yet the endpoint diff names CVE-1 and CVE-3 and drops
+   CVE-2. `walk_truncated` makes the span visible.
 3. **A generation with no suppression facts** names no trigger kind, so no intent runs.
    Harmless while Upsert is the only writer; a future delete path must enqueue.
 4. **Expiry** is evaluated at read time and mints no generation, so it never fans out.
+5. **A failed generation that was active first.** The rule excludes every failed
+   generation, as a decision and not because no reader saw it: `failProjectorWorkQuery`
+   (`projector_queue_sql.go`) fails an active generation and leaves `activated_at` set. A
+   change that cancels out through one stays on the holders' cadence, with no
+   `walk_truncated` signal. The window is the guard-to-writer gap, and nothing durable is
+   lost, because a failed generation is never a baseline.
 
 ## Open dependency: #10060
 
 #10060 reports that a fan-out continuation claimed after a newer generation activates is
-marked superseded and never runs. That breaks the baseline proof: a pass on B that hit the
-holder cap leaves its owed marker set, and if a newer operator generation C lands first, the
-holders past the first 256 are never reopened, while B's admission row still marks B as
-covered. One option, not decided: the baseline is the newest admitted generation whose owed
-marker is cleared. The wiring PR must settle it with #10060. Separately, #9740 needs a `*`
-sentinel when the walk reports `walk_truncated`.
+marked superseded and never runs. The loss is wider: it needs no 256-holder cap and covers
+any item that still owes its fan-out.
+
+**The shape.** A pass on C commits its admission row and owed marker in the writer
+transaction (`commitSupplyChainImpactRows`, `RecordFanOutOwed`). The fan-out then fails
+on a transient holder read or reopen (`fanOutHolders` returns `fanOutError`), or the worker
+dies. The item goes `retrying`, or stays claimed until its lease expires. If a newer
+generation D activates first, the claim sweep terminalizes the `retrying` row (its predicate
+in `reducer_generation_filter_sql.go` tests status, generation order and the readiness
+gate, never the owed marker), or the freshness guard (`generation_freshness.go`) acks the
+reclaimed item superseded. The handler does not run, so `Recovery` (`impact.go`) never fires.
+D's baseline is C, because C's admission row marks it covered, so C's change reaches no
+holder until each holder's own pass.
+
+The first draft scoped the loss to a continuation past the cap, and the crash row in the
+retry matrix read as safe. It holds only while no newer generation activates. A wiring
+change that clears only `fanout_remaining` keeps the hole. The issue's fifth criterion names
+the capped continuation, so it does not cover this shape: it needs the same test with the cap
+not reached, a transient fan-out failure, and a newer generation activating before the retry.
+
+**Open decision, not made here.** One option: the baseline is the newest admitted generation
+whose owed marker is cleared, which covers both shapes. Others: clear the admission row on
+supersede, or make the sweep and guard refuse an owed item. The wiring PR settles it with
+#10060 and extends criterion 5. Separately, #9740 needs a `*` sentinel when the walk
+reports `walk_truncated`.
 
 ## Telemetry
 
@@ -403,6 +417,8 @@ wired. No-Observability-Change: this commit adds no runtime path.
 | `eshu_dp_supply_chain_impact_suppression_diff_total` | Counter; `outcome` is a `suppressionDiffAction` or `read_error`, `baseline` is a `suppressionBaseline` kind or `none` | Did the diff run, and from what baseline |
 | `eshu_dp_supply_chain_impact_suppression_diff_duration_seconds` | Histogram | Is the walk getting slow |
 | `walk_truncated`, `statements` on the result, span and log line | Count of unwalked generations; statements run | Did a long chain exceed the cap, and how much is only endpoint-diffed |
+| `eshu_dp_supply_chain_impact_suppression_walk_truncated_total` | Counter, adds `walk_truncated` once per pass that is above zero; label `baseline` | Alertable truncation: how often the cap leaves a span endpoint-only |
+| `eshu_dp_supply_chain_impact_suppression_no_cve_scope_total` | Counter, adds the distinct no-CVE count per pass; no labels | How many changed suppressions the fan-out cannot reach (limit 1) |
 | Existing `eshu_dp_supply_chain_impact_fanout_total`, `cause=suppression` | Counter | Did holders actually reopen |
 | `supply_chain_impact.suppression_diff` span | `diff_rows`, `changed_cve_ids`, `no_cve_scope_rows`, baseline kind, duration | One pass end to end, under the pass's trace |
 | Sub-signals on the result | `suppression_diff_rows`, `_cve_ids`, `_no_cve_scope` | Queue-side view beside `fanout_*` |
@@ -419,18 +435,16 @@ Reading them:
   a wide fan-out.
 - `ran` with `changed_cve_ids=0` and `no_cve_scope_rows>0`: the operator used a scope the
   fan-out cannot reach. The answer is limit 1.
-- `ran` with ids and `fanout_total{cause=suppression}` flat: every holder was already
-  queued or there are no holders, which the existing outcome labels split.
+- `ran` with ids and `fanout_total{cause=suppression}` flat: every holder was already queued
+  or none exists; the existing outcome labels split these.
 
 ## Arbiter ruling (2026-11-04)
 
-| # | Question | Ruling | Where |
-|---|---|---|---|
-| 1 | Baseline | Admitted baseline, ordered by `(ingested_at, generation_id)`; `activated_at` is only the visibility predicate | [The baseline](#the-baseline) |
-| 2 | Activation | Not a race: the runtime guard defers a pending generation. No new issue and no wait. The writer fails closed with the existing error | [Activation](#activation) |
-| 3 | Net-zero | Walk adjacent activated pairs, capped, degrading loudly | [The walk](#the-walk) |
-| 4 | Criterion 1 | Wrong. It names the planted suppression's applied state | below |
-| 5 | Threshold | Inline accepted; timing partial; three wiring conditions | [Measurements](#measurements) |
+Rulings: (1) baseline by `(ingested_at, generation_id)`, `activated_at` only as the
+visibility predicate; (2) activation is not a race, so the writer fails closed with the
+existing error and adds no deferral; (3) walk adjacent activated pairs, capped, degrading
+loudly; (4) criterion 1 is wrong, below; (5) inline accepted, timing partial, five wiring
+conditions. Each is in its section above.
 
 **Criterion 1.** `active` means no suppression matched and the finding is visible
 (`evaluation.go`). The criterion should read: a fixture with an OS finding keyed by
@@ -440,21 +454,6 @@ operator pass and the holder fan-out, where it read `active` before the fan-out,
 first. Criteria 2 to 4 stand. The coordinator edits the issue, and its design sketch
 names the admitted baseline and the adjacent-pair walk in place of "the prior
 generation".
-
-## Tests committed now
-
-`suppression_diff_test.go` and `suppression_walk_test.go` hold the tests for the pure
-functions in `suppression_diff.go` and `suppression_walk.go`. Nothing in production calls
-them yet.
-
-| Function | Covers |
-|---|---|
-| `changedSuppressionCVEIDs` | Added, removed, edited, re-scoped, no CVE, blank, Unicode whitespace, lower case, dedupe, order |
-| `countSuppressionsWithoutCVEScope` | Limit 1's counter input |
-| `unionSuppressionFanOutCVEIDs` | Unchanged set stays empty, suppression-only, overlap |
-| `selectSuppressionDiffBaseline` | Plain chain, coalesced, late stale pass, never-activated, failed, no admission, first generation, ingest-order ties, activated_at and ingest order disagreeing |
-| `planSuppressionWalk`, `walkSuppressionDiff` | Net-zero plants against a brute-force oracle (add then remove, remove then re-add, CVE-1 to CVE-2 to CVE-1), the cap and its truncation count, the oldest-retained fallback, read errors, distinct no-CVE counts, a 12-generation chain |
-| `decideSuppressionDiff`, `failClosedError` | KEV, EPSS, advisory, no facts, first pass, superseded-but-activated, pending, never activated, duplicate, recovery, mixed kinds; the pending outcome returns the existing deferral |
 
 ## What waits for #9914
 
@@ -479,7 +478,9 @@ them yet.
     on C fans out B's and C's ids. RED against the prior-generation baseline.
   - **Net-zero, both directions, on the convergence harness.** A holder that ran during B
     reads the right state after the pass on C. RED against the endpoint diff.
-- The skewed `activated_at` selector test is committed. Inline wiring conditions: see [Measurements](#measurements).
+- The skewed `activated_at` selector test is committed; the committed tests are listed in
+  [the measurements note](10019-suppression-fanout-measurements.md#tests-committed-now).
+  Inline wiring conditions: see [Measurements](#measurements).
 - Telemetry registration, the coverage doc, `HOLDER_FANOUT.md`, the `ChangedCVEIDs` comment
   on `SupplyChainImpactWriteResult`, and the #9914 operator guidance.
 
@@ -494,6 +495,5 @@ Then rerun the focused tests, confirm via the merged `signalCVEIDs` that a `cve_
   `workload_materialization`.
 - Whether real activation order can ever disagree with ingest order, and whether retention
   can prune an activated generation that sits between an admitted baseline and the active one.
-- A full drain's wall time with the real fan-out store. The holder read was timed alone.
-- Production `work_mem`, and a truly cold cache: the "cold" read was not OS-cold.
-- Real generation layout on the heap, which the fixture only approximates.
+- Measurement caveats (drain wall time, `work_mem`, cold cache, heap layout): see
+  [the measurements note](10019-suppression-fanout-measurements.md#not-checked).
