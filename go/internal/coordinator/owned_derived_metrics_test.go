@@ -107,11 +107,11 @@ func TestServiceRecordsOwnedDerivedSelectionPerPass(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, time.November, 2, 15, 0, 0, 0, time.UTC)
-	const flagOff = `{"derive_from_owned_packages":{"enabled":true,"sources":["osv"],"ecosystems":["npm"]}}`
-	store := newSlotProgressStore(now, -1, flagOff)
+	const slotProgressOff = `{"derive_from_owned_packages":{"enabled":true,"sources":["osv"],"ecosystems":["npm"]}}`
+	store := newSlotProgressStore(now, -1, slotProgressOff)
 	reader := &fakeOwnedPackageTargetReader{targets: makeOwnedNPMTargets(3), window: workflow.OwnedPackageDependencyTargetWindow{TotalTargets: 3, SlotCount: 1, SlotSize: 3, RowsRead: 3}}
 	metrics := &fakeMetrics{}
-	service := slotProgressService(now, flagOff, store, reader, metrics, nil)
+	service := slotProgressService(now, slotProgressOff, store, reader, metrics, nil)
 	runOneReconcile(t, service)
 
 	if len(metrics.ownedDerivedObserved) != 1 {

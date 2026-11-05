@@ -50,6 +50,9 @@ func (f *staleSkipFakeMetrics) RecordScannerDerivedPage(_ context.Context, _ coo
 func (f *staleSkipFakeMetrics) RecordEPSSDerivedPage(_ context.Context, _ coordinator.EPSSDerivedObservation) {
 }
 
+func (f *staleSkipFakeMetrics) RecordOwnedDerivedPage(_ context.Context, _ coordinator.OwnedDerivedObservation) {
+}
+
 func (f *staleSkipFakeMetrics) RecordOwnedTargetRotation(_ context.Context, _ coordinator.OwnedTargetRotationObservation) {
 }
 
