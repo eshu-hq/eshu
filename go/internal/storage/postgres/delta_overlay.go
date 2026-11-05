@@ -6,6 +6,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"maps"
@@ -59,10 +60,13 @@ const (
 const deltaOverlayQueryExecMode = pgx.QueryExecModeCacheDescribe
 
 // deltaOverlayTarget is one scope whose active generation is a delta.
+// baseCandidates are its activated full generations at the union-base
+// commit, the generations the base pages may read (#9611).
 type deltaOverlayTarget struct {
-	scopeID      string
-	generationID string
-	commits      deltaUnionCommits
+	scopeID        string
+	generationID   string
+	commits        deltaUnionCommits
+	baseCandidates []string
 }
 
 // deltaOverlayCandidates is one resolved delta-active scope with base rows.
@@ -166,12 +170,14 @@ func (s FactStore) overlayDeltaBase(
 		baseByScope[env.ScopeID] = append(baseByScope[env.ScopeID], env)
 	}
 	var requests []deltaBaseRequest
+	var requested []deltaOverlayTarget
 	for _, target := range targets {
 		if target.commits.Baseline == "" {
 			s.recordDeltaOverlay(ctx, tally, deltaOverlayNoBaseline)
 			continue
 		}
-		requests = append(requests, deltaBaseRequest(target))
+		requests = append(requests, deltaBaseRequest{scopeID: target.scopeID, generationID: target.generationID, commits: target.commits})
+		requested = append(requested, target)
 	}
 	resolved, err := s.resolveDeltaBases(ctx, requests)
 	if err != nil {
@@ -179,8 +185,7 @@ func (s FactStore) overlayDeltaBase(
 		return nil, err
 	}
 	var overlays []deltaOverlayCandidates
-	for _, request := range requests {
-		target := deltaOverlayTarget(request)
+	for _, target := range requested {
 		resolution := resolved[target.scopeID]
 		if resolution.refused != nil {
 			s.recordDeltaOverlay(ctx, tally, deltaOverlayBaseMissing)
@@ -238,16 +243,22 @@ func (s FactStore) overlayDeltaBase(
 	return merged, nil
 }
 
-// deltaOverlayBaseScopes returns the scope ids of the targets a base scan can
-// overlay: those with a recorded baseline. A legacy delta has no base.
-func deltaOverlayBaseScopes(targets []deltaOverlayTarget) []string {
-	var scopeIDs []string
+// deltaOverlayBaseGenerations returns the sorted, distinct candidate base
+// generation ids the base pages bind, and whether a base scan runs: it runs
+// when any target has a recorded baseline (a legacy delta has no base), even
+// with no candidate, so the read's statements do not depend on candidates.
+func deltaOverlayBaseGenerations(targets []deltaOverlayTarget) ([]string, bool) {
+	ids := []string{}
+	scan := false
 	for _, target := range targets {
-		if target.commits.Baseline != "" {
-			scopeIDs = append(scopeIDs, target.scopeID)
+		if target.commits.Baseline == "" {
+			continue
 		}
+		scan = true
+		ids = append(ids, target.baseCandidates...)
 	}
-	return scopeIDs
+	slices.Sort(ids)
+	return slices.Compact(ids), scan
 }
 
 // deltaOverlayScopeIDs returns the sorted distinct scope ids of the rows.
@@ -272,9 +283,12 @@ func (s FactStore) readDeltaOverlayTargets(ctx context.Context) ([]deltaOverlayT
 	var targets []deltaOverlayTarget
 	for rows.Next() {
 		var target deltaOverlayTarget
-		var baseline, unionBase string
-		if err := rows.Scan(&target.scopeID, &target.generationID, &baseline, &unionBase); err != nil {
+		var baseline, unionBase, candidates string
+		if err := rows.Scan(&target.scopeID, &target.generationID, &baseline, &unionBase, &candidates); err != nil {
 			return nil, fmt.Errorf("read delta overlay targets: %w", err)
+		}
+		if err := json.Unmarshal([]byte(candidates), &target.baseCandidates); err != nil {
+			return nil, fmt.Errorf("read delta overlay targets: decode base candidates of %s: %w", target.scopeID, err)
 		}
 		target.commits = deltaUnionCommitsFor(baseline, unionBase)
 		targets = append(targets, target)

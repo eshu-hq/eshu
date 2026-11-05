@@ -84,7 +84,8 @@ func (s FactStore) recordManifestDependencyRead(ctx context.Context, query strin
 }
 
 // manifestDeltaOverlayScopeParam is the placeholder the manifest reader's
-// base-candidate pages bind the delta-active scope ids at: $1 to $5 are the
+// base-candidate pages bind the candidate base generation ids at (#9611;
+// deltaOverlayBaseGenerations): $1 to $5 are the
 // package managers, names, keyset cursor, and page size.
 const manifestDeltaOverlayScopeParam = 6
 

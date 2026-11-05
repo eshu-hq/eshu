@@ -72,8 +72,8 @@ func TestListActivePackageManifestDependencyFactsDeltaResolveFailureFails(t *tes
 		t.Fatalf("NewInstruments: %v", err)
 	}
 	db := &fakeExecQueryer{queryResponses: []queueFakeRows{
-		{rows: [][]any{manifestDependencyFakeRow(0)}},                    // active page
-		{rows: [][]any{{"repository:repo-1", "generation-1", "c0", ""}}}, // delta-target lookup
+		{rows: [][]any{manifestDependencyFakeRow(0)}},                                  // active page
+		{rows: [][]any{{"repository:repo-1", "generation-1", "c0", "", `["base-1"]`}}}, // delta-target lookup
 		{},                              // delta-base page
 		{err: context.DeadlineExceeded}, // base resolution
 	}}
@@ -130,7 +130,7 @@ func TestListActivePackageManifestDependencyFactsDeltaAuxReadsUseCustomPlans(t *
 	}
 	db := &fakeExecQueryer{queryResponses: []queueFakeRows{
 		{rows: [][]any{active}}, // active page
-		{rows: [][]any{{"repository:repo-1", "delta-1", "c0", ""}}}, // delta-target lookup
+		{rows: [][]any{{"repository:repo-1", "delta-1", "c0", "", `["base-1"]`}}}, // delta-target lookup
 		{rows: [][]any{base}}, // delta-base page
 		{rows: [][]any{{"repository:repo-1", "base-1", "active"}}}, // base lookup; active base, no prune probe
 		{rows: [][]any{repository}},                                // overlay inputs
@@ -150,8 +150,8 @@ func TestListActivePackageManifestDependencyFactsDeltaAuxReadsUseCustomPlans(t *
 	if db.queries[1].query != deltaOverlayTargetsQuery {
 		t.Fatalf("call 2 = %s, want the delta-target lookup", db.queries[1].query)
 	}
-	if got := db.queries[2].args; len(got) != 6 || !reflect.DeepEqual(got[5], []string{"repository:repo-1"}) {
-		t.Fatalf("delta-base page args = %#v, want $6 = the delta-active scope ids", got)
+	if got := db.queries[2].args; len(got) != 6 || !reflect.DeepEqual(got[5], []string{"base-1"}) {
+		t.Fatalf("delta-base page args = %#v, want $6 = the candidate base generation ids (#9611)", got)
 	}
 	if db.queries[4].query != deltaOverlayInputsQuery {
 		t.Fatalf("call 5 = %s, want the overlay inputs read", db.queries[4].query)
@@ -204,7 +204,7 @@ func TestListActivePackageManifestDependencyFactsNoDeltaSkipsBaseRead(t *testing
 func TestListActivePackageManifestDependencyFactsDeltaFailuresCountOncePerRead(t *testing.T) {
 	t.Parallel()
 
-	target := queueFakeRows{rows: [][]any{{"repository:repo-1", "generation-1", "c0", ""}}}
+	target := queueFakeRows{rows: [][]any{{"repository:repo-1", "generation-1", "c0", "", `["base-1"]`}}}
 	active := queueFakeRows{rows: [][]any{manifestDependencyFakeRow(0)}}
 	failed := queueFakeRows{err: context.DeadlineExceeded}
 	baseRow := manifestDependencyFakeRow(1)
@@ -284,7 +284,7 @@ func TestListActivePackageManifestDependencyFactsNoBaselineSkipsBaseRead(t *test
 	}
 	db := &fakeExecQueryer{queryResponses: []queueFakeRows{
 		{rows: [][]any{manifestDependencyFakeRow(0), manifestDependencyFakeRow(1)}}, // active page
-		{rows: [][]any{{"repository:repo-1", "generation-1", "", ""}}},              // delta-target lookup: no baseline
+		{rows: [][]any{{"repository:repo-1", "generation-1", "", "", `[]`}}},        // delta-target lookup: no baseline
 	}}
 	loaded, err := NewFactStore(db).WithInstruments(instruments).ListActivePackageManifestDependencyFacts(
 		context.Background(), []string{"npm"}, []string{"left-pad"},

@@ -97,8 +97,10 @@ func TestListActivePackageManifestDependencyFactsReachesSBTAndGradleRows(t *test
 		t.Fatalf("package_manager arg = %v, want %v", got, want)
 	}
 	for _, want := range []string{
-		"fact.payload->'entity_metadata'->>'package_manager' = ANY($1::text[])",
-		`(LOWER(TRIM(fact.payload->>'entity_name') COLLATE "C") COLLATE "default") = ANY($2::text[])`,
+		// Branch 1 probes each (manager, name) pair (#9611).
+		"FROM (SELECT DISTINCT manager FROM unnest($1::text[]) AS manager) AS requested_manager",
+		"fact.payload->'entity_metadata'->>'package_manager' = requested_manager.manager",
+		`(LOWER(TRIM(fact.payload->>'entity_name') COLLATE "C") COLLATE "default") = requested_name.name`,
 		"fact.payload->'entity_metadata'->>'package_manager' = 'sbt'",
 		"fact.payload->'entity_metadata'->>'sbt_binary_artifact' = ANY($2::text[])",
 		`(LOWER(TRIM(fact.payload->>'entity_name') COLLATE "C") COLLATE "default") <> ALL($2::text[])`,
