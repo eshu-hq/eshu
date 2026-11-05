@@ -1,0 +1,252 @@
+tests:
+  - file: go/internal/storage/postgres/config/artifacts/fence_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8155 (#7126 PR3b-2a) disposable PostgreSQL 18 proof of the start-up fence check CheckFence: the bootstrapped database has all five migration 186 triggers firing (Supported); DROP TRIGGER of each in turn names exactly that one absent and re-applying migration 186 restores it; DISABLE, ENABLE REPLICA give tgenabled D and R and count as missing while ENABLE ALWAYS and ENABLE count as present, for a content_files trigger and the constraint trigger; a same-named trigger on another table does not count; a database with no schema reports all five missing without a catalog error; enrolled in the live-postgres-readiness runner; 0.05-1.1 s per proof on a local PostgreSQL 18.6 on 2026-10-16; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/config/artifacts/fence_prune_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8155 ruling additions 3a and 3b: auto_explain records the DELETE fence statement's plan with a Sort on repo_id under the Insert and no reordering node between; arm 7 case 1c runs two real PruneSupersededGenerations passes on scope sets sharing six repositories in opposite order, 3 rounds, 0 deadlocks, each shared version row bumped twice; needs LOAD 'auto_explain' (superuser DSN); enrolled in the live-postgres-readiness runner; 0.8-2.5 s per proof on a local PostgreSQL 18.6 on 2026-10-16; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/config/artifacts/fence_prune_write_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8155 arm 7 cases 2 and 3: a content Write of a repository whose retention prune is open waits (disjoint keys on the version row's tuple lock, a shared doomed key on the prune's transaction) until the retention commit, then lands; no deadlock, version bumped twice, rows converge; enrolled in the live-postgres-readiness runner; about 1 s per proof on a local PostgreSQL 18.6 on 2026-10-16; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/config/artifacts/fence_rerun_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8155 review finding N1: migration 186 re-applied while a content writer sleeps mid-statement (the migrator replays a file whose receipt was lost), 10 rounds, 0 deadlocks, the writer's commit still bumps once and the pending table empties; deadlocked in round 0 on the commit that adds this file (DDL locked the pending table before content_files); enrolled in the live-postgres-readiness runner; about 3 s on a local PostgreSQL 18.6 on 2026-10-16; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/config/artifacts/fence_seed_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8155 migrations 186 and 187 on a database that already holds content: one version-0 row per repository with bumped_xid 0, a row a fenced write created between the two files kept, a re-apply changes nothing, and the first write bumps 0 to 1; the seed racing an open fenced write converges on one row (commit: version 1, rollback: version 0); enrolled in the live-postgres-readiness runner; about 1-2 s per proof on a local PostgreSQL 18.6 on 2026-10-16; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/config/artifacts/fence_seed_timing_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8155 seed timing proof: migrations 186 and 187 on a content_files fixture over 3,000 repositories with every index present, then exactly one version-0 row per repository; 30,000 rows by default (ESHU_CONFIG_ARTIFACT_SEED_TIMING_ROWS=1000000 for the ruling size: 186 0.0033 s, 187 0.1329 s, fixture load 74 s, load1 45 on 2026-10-16); enrolled in the live-postgres-readiness runner; SEED_TIMING wall is logged, never gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/config/artifacts/fence_trigger_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8155 (#7126 PR3b-1b) disposable PostgreSQL 18 proof of the migration 186 content_files version fence: INSERT, UPDATE, upsert, DELETE and TRUNCATE each bump a touched repository once per transaction and leave others alone; a rolled-back write leaves no version row; two concurrent first writes of an unseeded repository converge on one row at version 2 with no error (10 rounds); a transaction whose id a restored version row already holds still bumps once (the (bumped_xid, bumped_at) guard); the fence is the last statement-level AFTER trigger per event, after the migration 138 secret-lines triggers and, for DELETE, after the row-level RI triggers; enrolled in the live-postgres-readiness runner; 0.7-1.5 s per proof on a local PostgreSQL 18.6 on 2026-10-16; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/config/artifacts/schema_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7126 disposable PostgreSQL 18 proof of migration 170: row_digest equals a Go and a SQL recomputation over separators, multi-byte text, empty fields and a 20,000-character path; the digest key rejects a duplicate row; the wrapper is IMMUTABLE; autovacuum 0.02; exactly the four migration 186 fence triggers on content_files; the migration re-runs; enrolled in the live-postgres-readiness runner; nine proofs took 0.88-1.15s each and 9.1s for the package (disposable database plus full bootstrap per test) on a local PostgreSQL 18.6 on 2026-10-11; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/config/artifacts/skipped_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8155 disposable PostgreSQL 18 proof of the walker walk filter: only the repository over the failure limit for the current extractor version is reported skipped; under-limit, old-extractor-failure, and successful repositories are not; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/config/artifacts/walk_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7126 disposable PostgreSQL 18 proof of the config-artifact walker cursor claim: consecutive pages, wrap at a short page and at an exact page boundary, and disjoint pages for five concurrent claimers; enrolled in the live-postgres-readiness runner; nine proofs took 0.88-1.15s each and 9.1s for the package (disposable database plus full bootstrap per test) on a local PostgreSQL 18.6 on 2026-10-11; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/container_image_identity_epoch_barrier_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#6502 disposable PostgreSQL 18 proof that a projection reading the activation epoch ahead of activation defers and retries without dead-lettering, that the released generation proceeds and acks, that a superseded generation acks as superseded, and that every epoch miss wraps the not-active sentinel; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/container_image_identity_first_generation_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7916 disposable PostgreSQL 18 proof that a pending first generation without an active predecessor defers its reducer intent without counting an attempt, then replays after actual projector Ack creates the activation epoch; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/container_image_identity_first_generation_service_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7916 disposable PostgreSQL 18 proof that actual sequential and batch reducer Service.Run dispatches defer first-generation work while an unrelated ready scope progresses, then replay after projector Ack; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/content_file_upsert_guard_bench_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8915 disposable PostgreSQL 18 smoke proof that a findings-heavy content_files replay through the real ContentWriter writes under 64 KiB of WAL and that a batch whose rows all changed still writes row WAL, with an opt-in (ESHU_CONTENT_UPSERT_GUARD_BENCH=1) full-size measurement run that asserts nothing; enrolled in the live-postgres-readiness runner; bridges the family ESHU_GENERATION_RETENTION_PROOF_DSN onto ESHU_POSTGRES_TEST_DSN as the retention proofs do"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/content_file_upsert_guard_columns_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8915 disposable PostgreSQL 18 proof, per statement shape and per guarded column, that the content_files upsert guard fires exactly when a stored column differs (NULL-safe, content alone included) and skips when only indexed_at differs, plus the per-session WAL bound of an unchanged replay; enrolled in the live-postgres-readiness runner; bridges the family ESHU_GENERATION_RETENTION_PROOF_DSN onto ESHU_POSTGRES_TEST_DSN as the retention proofs do; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/content_file_upsert_guard_concurrency_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8915 disposable PostgreSQL 18 proof that four concurrent ContentWriter sessions over one batch under the content_files upsert guard hit no deadlock or error and leave consistent rows, and that a blocked upsert rechecks its guard against the committed row after the lock holder commits; enrolled in the live-postgres-readiness runner; bridges the family ESHU_GENERATION_RETENTION_PROOF_DSN onto ESHU_POSTGRES_TEST_DSN as the retention proofs do; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/content_file_upsert_guard_contract_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8915 disposable PostgreSQL 18 proof of two contracts of the content_files upsert guard: a duplicate (repo, path) inside one batch is rejected the way it always was (the guard must not turn it into a silent last-write-wins) while the same path under two repositories is accepted, and a statement whose rows are all skipped still fires the statement-level UPDATE triggers with an empty transition table while the shipped migration-138 and migration-186 UPDATE triggers are statement-level; enrolled in the live-postgres-readiness runner; bridges the family ESHU_GENERATION_RETENTION_PROOF_DSN onto ESHU_POSTGRES_TEST_DSN as the retention proofs do; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/content_file_upsert_guard_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8915 disposable PostgreSQL 18 proof that an unchanged content_files re-upsert (only indexed_at differs) leaves the row version, the secret-line side table, and the content-version fence untouched through both the batch and single-row writers, that each guarded column and a content-only change still update including NULL transitions, and that a changed file re-derives its secret lines; enrolled in the live-postgres-readiness runner; bridges the family ESHU_GENERATION_RETENTION_PROOF_DSN onto ESHU_POSTGRES_TEST_DSN as the retention proofs do; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/content_files_generation_tag_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7760 disposable PostgreSQL 18 proof of the content_files generation tag: ahead, dangling, null, and manifest-less tags read dirty on both the package and gomod reads, activated tags read clean, the writer stamps every row and stores NULL for a blank generation, and the migration-169 backfill attributes only clean scopes; enrolled in the live-postgres-readiness runner; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/content_files_language_covering_index_replay_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7728 disposable PostgreSQL 18 proof that the guarded language-index swap converges (fresh and upgrade) and that tracked plus untracked replays leave the index untouched, enrolled in the live-postgres-readiness runner; bridges the family ESHU_CONTENT_FILES_LANGUAGE_PROOF_DSN onto ESHU_POSTGRES_TEST_DSN. local run passed fresh+upgrade in 4.16s wall on postgres:18.6 on 2026-10-12"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/content_policy_findings_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8833 disposable PostgreSQL proof that a seeded .yarnrc.yml and terraform.tfvars, stored through the default registry's marker and skeleton policies and the production content writer, keep every raw hardcoded-secret finding at its original line with its raw kind in content_file_secret_lines (the side table investigate_hardcoded_secrets reads) under migration 235, and that no seeded credential reaches content, content_lower, or line_text; isolated bootstrapped schema per test"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/content_policy_raw_rows_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8833 disposable PostgreSQL proof that eshu_dp_content_policy_raw_rows (ContentPolicyRawRowsStore) counts the verbatim credential lines of .yarnrc.yml and tfvars rows written before the content-store binding, and reads zero after the next generation stores the same files through the default registry's marker and skeleton policies; isolated bootstrapped schema per test"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/content_store_metadata_only_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8950 single-row rollout proof: a lineage-only rewrite through the single-row ContentStore keeps indexed_at and stays HOT, with the guarded upsert as the fall-through; enrolled in the live-postgres-readiness runner; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/content_store_policy_upgrade_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8812 disposable PostgreSQL proof that a database already holding a verbatim content_files row, a content_file_references row, a content_file_secret_lines row, and a content_entities row with a non-empty source_cache holds an empty or marker-redacted body for that path after the next projected generation under a metadata or redact content-store policy, on both a full-snapshot and a delta generation, through the production projector runtime and content writer and migration 138 triggers; isolated bootstrapped database per test"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/content_writer_metadata_only_hot_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8950 disposable PostgreSQL 18 proof that an unchanged-content rewrite under a new generation through the real ContentWriter is a metadata-only HOT update: every row keeps its index entries and page, WAL stays near zero, and concurrent writers leave no torn rows; enrolled in the live-postgres-readiness runner; bridges the family ESHU_GENERATION_RETENTION_PROOF_DSN onto ESHU_POSTGRES_TEST_DSN as the retention proofs do; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/content_writer_metadata_only_redarm_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8950 RED-arm control for the two-statement writer: the same metadata-only batch with indexed_at added to the SET list must show zero HOT updates, proving the HOT result comes from leaving indexed_at alone; enrolled in the live-postgres-readiness runner; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/content_writer_upsert_outcome_bench_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8950 disposable PostgreSQL 18 measurement of the content_files upsert outcome pre-read against the batch upsert it precedes, on a findings-heavy batch and on 500 small rows, for a new-commit rewrite and an identical replay; opt-in (ESHU_CONTENT_UPSERT_OUTCOME_BENCH=1), otherwise a one-round smoke that asserts only that the pre-read classifies the replay; enrolled in the live-postgres-readiness runner; bridges the family ESHU_GENERATION_RETENTION_PROOF_DSN onto ESHU_POSTGRES_TEST_DSN as the retention proofs do; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/content_writer_upsert_outcome_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8950 disposable PostgreSQL 18 proof that the content_files upsert outcome classification agrees with the row versions the real guarded upsert writes (a skipped row keeps its xmin, every other class gets a new version), that the pre-read takes no lock and sees only committed state while a writer holds row locks and uncommitted edits, that observed and unobserved writers leave identical rows, and that concurrent observed writers hit no error and count every row once; enrolled in the live-postgres-readiness runner; bridges the family ESHU_GENERATION_RETENTION_PROOF_DSN onto ESHU_POSTGRES_TEST_DSN as the retention proofs do; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/content_writer_upsert_outcome_write_bench_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8950 disposable PostgreSQL 18 measurement of what the content_files upsert outcome pre-read adds to a whole ContentWriter.Write of 1, 5, 20 and 50 small files, with and without ten entities per file, as an observed writer against an unobserved one interleaved on one database; opt-in (ESHU_CONTENT_UPSERT_OUTCOME_BENCH=1), otherwise a one-round smoke; enrolled in the live-postgres-readiness runner; bridges the family ESHU_GENERATION_RETENTION_PROOF_DSN onto ESHU_POSTGRES_TEST_DSN as the retention proofs do; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/control_claim_stats_concurrency_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#9871 concurrency proof on real PostgreSQL: six claimers poll a cold workflow_work_items table while ANALYZE (SKIP_LOCKED) runs; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/control_claim_stats_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#9871 claim-plan proof on real PostgreSQL: the fair-claim candidate on a freshly bulk-loaded never-analyzed workflow_work_items table, then after ANALYZE; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/control_scanner_admission_atomicity_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#9299 disposable PostgreSQL proof that conflicting same-observation source bindings fail admission atomically with no partial plan"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/control_scanner_discovery_scale_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#9299 disposable PostgreSQL proof that re-measures the shipped derivation statements at QA-scale cardinality (300k observations, 40 scopes) with plan shapes and wall times logged at this head"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/control_scanner_targets_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#9299 disposable PostgreSQL proof for scanner target admission and completion, concurrent cross-instance admission, temp-shadow rejection, and the 241 public-schema guard refusal"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/control_scanner_targets_tenant_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#9299 disposable PostgreSQL proof for hosted tenant boundaries and grant-revocation target suppression"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/corpus_fence_observer_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8247 disposable PostgreSQL proof that the corpus-fence gauge statement counts exactly the fence holders and the active-generation retrying resolution-not-ready consumers with the oldest deferred age, and plans on the fact_work_items stage/domain/status index at 20k filler rows; isolated schema; 3.89s locally on PostgreSQL 16; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/credential_cleanup_entity_guard_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#9167 disposable PostgreSQL proof that the operator cleanup's entity census and purge statement key the entity guard on the entity's own indexed_at: a raw-cache entity under a rebuilt post-watermark file row is counted by census 3 and blanked by statement entities; isolated bootstrapped schema per test"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/credential_cleanup_purge_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8833 disposable PostgreSQL proof of the operator cleanup on docs/public/deployment/credential-file-cleanup.md, run from the page's SQL fences: the census counts every pre-watermark raw copy (files, entities, references, active search documents and fact payloads, orphans, a NULL-generation row), including a seeded legacy .npmrc row the purge predicate does not cover, statement L lists the repositories, one guarded pass zeroes the yarnrc_yml/tfvars exit columns while the .npmrc row survives so the exit is reached scoped with every remaining gauge row attributed to that metadata-policy path, a second pass touches nothing, post-watermark rows, superseded generations, and non-matching paths survive, and the production active-document read returns no seeded context text; isolated bootstrapped schema per test"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/credential_cleanup_purge_revision_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#9049 disposable PostgreSQL proof that the operator cleanup's statement A (run from docs/public/deployment/credential-file-cleanup.md) moves the semantic-search cache key: it bumps a ready scope's document projection revision together with the matching vector scope revisions exactly when it deletes documents, leaves the vector build fence alone, skips a building scope's revision while still deleting its documents, ignores scopes with no state rows, and a second pass touches zero rows so the repeat-until-zero loop still ends; isolated bootstrapped schema per test"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/credential_cleanup_race_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8833 disposable PostgreSQL concurrency proof that the operator cleanup's files, entities, and references statements (run from docs/public/deployment/credential-file-cleanup.md) interleaved with the production ContentWriter rewriting the same paths under a post-watermark generation never leave a post-watermark row blank: either the writer commits first and the guard skips the row, or the purge locks first and the writer's later upsert overwrites the blank; 40 randomized iterations, no deadlock; and that statements A and B interleaved with concurrent search-document upserts plus the activation flip across both lock orders never delete a post-watermark active document or fact, with the generation-guard-removal mutation deleting the rebuilt rows; isolated bootstrapped schema per test"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/dead_letter_recovery_lock_order_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8261 poison recovery (RecoverDeadLettersQuery) lock order over 400,000 analyzed background rows on an en_US.utf8 database: the held-middle-row race against the scoped and stage-only recovery replays completes for production-shaped work ids (codeowners_ownership against code_taint_evidence and code_value_flow_refresh, which en_US and C order differently), mixed-case and lower-case ids (main: 40P01 for the first two), 150 rounds of poison plus both replays over production-shaped ids with a 2 ms per-row trigger sleep and random start delays give 0 x 40P01 with every row re-driven once (main: 5 x 40P01), and the EvalPlanQual case drops a row claimed or whose recovery budget was spent before the lock step; isolated schemas; about 70-90 s locally; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/delta_union_base_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10003 disposable PostgreSQL parity proof that the batched #7797 base rule (one base lookup and one retention probe for every scope) resolves every base shape exactly as the pre-#10003 per-scope statements did: active, completed, intact and pruned superseded bases, missing, unactivated, delta and pending generations at the commit, same-commit precedence and tie-breaks, chained and legacy commits, and a retention probe outage; each test runs in an isolated disposable schema (unique name, DROP SCHEMA cleanup); enrolled in the live-postgres-readiness runner; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/delta_union_chain_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8780 disposable PostgreSQL proof that a cumulative delta over an active delta (diffed from the newest activated full, its fence commit the active delta's) projects over that full through the production projector service and activates, with no base-missing refusal and no reindex watermark; isolated bootstrapped schema per test; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/delta_union_chain_proof_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8780 disposable PostgreSQL proofs of cumulative chained deltas on the #8779 projector harness: the chained union equals a full built at the same head (content_files and the admin completeness check report complete), a burst delta diffed from a moved active is refused at preflight and the next cumulative re-diff activates, a delta fenced on an older full refuses, and a chained delta whose union base was drained fails closed with a reindex watermark; isolated bootstrapped schema per test; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/delta_union_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7797 disposable PostgreSQL proof of the delta-base union read: delta over base with tombstone and deleted-path removal, base-missing refusal, pruned-base refusal, and the independent ACTIVE snapshot; each test runs in an isolated disposable schema (unique name, DROP SCHEMA cleanup) in 0.05-0.08s locally (package 0.324s); enrolled in the live-postgres-readiness runner; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/delta_union_projection_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8779 disposable PostgreSQL proof that a git delta generation projects over its #7797 union base through the production projector service (ProjectorQueue claim, union FactStore load, runtime Project, content writer, reducer queue, Ack activation) without base facts tripping the fact boundary check or re-firing base-only reducer follow-ups under either generation; isolated bootstrapped schema per test; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/drifted_bucket_skip_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7228 overfull-band-bucket skip proof, enrolled in the live-postgres-readiness runner on ESHU_DRIFTED_BUCKET_SKIP_PROOF_DSN: a 307-member bucket nominates no pairs while the same repo's small-bucket pairs are unchanged, with skipped-bucket/max-bucket/pairs-considered stats. Local run passed in 1.3s on postgres:18 on 2026-10-08; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/ecs_binding_declaration_census_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#9661 disposable PostgreSQL proof that the workload-to-ECS-service binding declaration census reads active-generation Terraform and Terragrunt content entities with verbatim metadata, excludes tombstones and superseded generations and other entity types and facts, reports truncation instead of silently subsetting, and plans index-backed with no sequential scan on fact_records at 25k-row scale; isolated temp tables per test, rolled back"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/ecs_task_index_migration_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#9307 disposable PostgreSQL 18.6 fresh and populated ECS index proof: an observed active concurrent build admits a second fact writer, an ordinary build queues that writer to 55P03, and invalid-index restart recovery rebuilds 242/244"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/fact_key_foreign_key_drop_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7420 disposable PostgreSQL proof that the bootstrap leaves no foreign key referencing fact_records and that each key sidecar drop migration (188-190) waits beside a fact-then-key writer, fails fast with 55P03 beside a key-first holder, and takes no table lock on a re-run (the plain DROP CONSTRAINT deadlocked, seeded RED), enrolled in the live-postgres-readiness runner; bridges ESHU_GENERATION_RETENTION_PROOF_DSN. local run passed both tests in 1.82s of test time on PostgreSQL 18.6 on 2026-10-16"
+    runner: live-postgres-readiness
+# Generated by scripts/generate-live-postgres-readiness.py; do not hand-edit.
