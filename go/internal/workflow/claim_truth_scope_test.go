@@ -140,6 +140,11 @@ func TestCoordinatorFactsUsageIsIdentityOnly(t *testing.T) {
 		local := ""
 		for _, imp := range f.Imports {
 			if strings.Trim(imp.Path.Value, `"`) == "github.com/eshu-hq/eshu/go/internal/facts" {
+				if imp.Name != nil && imp.Name.Name == "." {
+					pos := fset.Position(imp.Pos())
+					violations = append(violations, rel+":"+pos.String()+" dot-imports facts (all selectors unqualified)")
+					continue
+				}
 				local = "facts"
 				if imp.Name != nil {
 					local = imp.Name.Name
@@ -186,7 +191,8 @@ func TestCoordinatorImportsNoFactPersistence(t *testing.T) {
 	fset := token.NewFileSet()
 	var violations []string
 	for _, rel := range truthScopeGoFiles(t, root, "go/internal/coordinator") {
-		f, err := parser.ParseFile(fset, filepath.Join(root, rel), nil, parser.ImportsOnly)
+		abs := filepath.Join(root, rel)
+		f, err := parser.ParseFile(fset, abs, nil, parser.ImportsOnly)
 		if err != nil {
 			t.Fatalf("parse %s: %v", rel, err)
 		}
@@ -197,6 +203,15 @@ func TestCoordinatorImportsNoFactPersistence(t *testing.T) {
 					violations = append(violations, rel+": imports "+path)
 				}
 			}
+		}
+		// No direct SQL writes either: a fact_records reference in
+		// coordinator source fails this test even with no new import.
+		src, err := os.ReadFile(abs)
+		if err != nil {
+			t.Fatalf("read %s: %v", rel, err)
+		}
+		if strings.Contains(string(src), "fact_records") {
+			violations = append(violations, rel+": references fact_records")
 		}
 	}
 	if len(violations) != 0 {
@@ -221,6 +236,19 @@ var truthScopeKnownReaders = map[string]string{
 	// Parses DesiredCollectorInstance JSON for metrics-source selection;
 	// config shape only, no workflow state read.
 	"go/cmd/api/metrics_source.go": "config-shape parse",
+}
+
+// truthScopePinnedReaderHits pins the workflow-state marker count inside
+// each allowlisted reader: a new coupling inside a known file grows the
+// count and fails the test. Refresh deliberately with the test when the
+// reader's legitimate references change.
+var truthScopePinnedReaderHits = map[string]int{
+	"go/internal/reducer/retirement/census.go":                                  6,
+	"go/internal/query/container_image_candidate_explanation.go":                1,
+	"go/internal/query/openapi/components_active_work_source.go":                1,
+	"go/internal/query/security_alert_collection_state_postgres.go":             5,
+	"go/internal/query/supply/chain/impact/readiness_postgres_query_targets.go": 1,
+	"go/cmd/api/metrics_source.go":                                              1,
 }
 
 // TestTruthSurfacesReadNoWorkflowState guards the consumer half of the
@@ -255,11 +283,27 @@ func TestTruthSurfacesReadNoWorkflowState(t *testing.T) {
 			if err != nil {
 				t.Fatalf("read %s: %v", rel, err)
 			}
+			hits := 0
+			var hitMarkers []string
 			for _, marker := range markers {
-				if strings.Contains(string(raw), marker) && truthScopeKnownReaders[rel] == "" {
-					violations = append(violations, rel+": new workflow-state reference ("+marker+")")
-					break
+				n := strings.Count(string(raw), marker)
+				if n > 0 {
+					hits += n
+					hitMarkers = append(hitMarkers, marker)
 				}
+			}
+			if hits == 0 {
+				continue
+			}
+			want, known := truthScopeKnownReaders[rel]
+			if !known || want == "" {
+				violations = append(violations, rel+": new workflow-state reference ("+strings.Join(hitMarkers, ", ")+")")
+				continue
+			}
+			// Allowlisted files are pinned by reference count: a new
+			// coupling inside a known reader grows the count and fails.
+			if pinned, ok := truthScopePinnedReaderHits[rel]; !ok || hits != pinned {
+				violations = append(violations, rel+": workflow-state reference count changed (have new total)")
 			}
 		}
 	}
