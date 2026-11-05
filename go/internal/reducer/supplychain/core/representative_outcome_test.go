@@ -386,3 +386,60 @@ func TestRecordBuildStatsWritesOSRepresentativeSignals(t *testing.T) {
 		t.Fatalf("points = %v, want %v", got, want)
 	}
 }
+
+// plainIDFact is a fact on the package id "curl". The id has no OS shape, so only
+// the fact's own ecosystem or purl can give the group one.
+func plainIDFact(factID, purl string) facts.Envelope {
+	payload := map[string]any{
+		"cve_id": vendorLineCVE, "advisory_id": "EXT-" + factID, "source": "nvd",
+		"package_id": "curl", "package_name": "curl", "fixed_versions": []any{"1.0-9"},
+	}
+	if purl != "" {
+		payload["purl"] = purl
+	}
+	return facts.Envelope{FactID: factID, FactKind: chain.VulnerabilityAffectedPackageFactKind, Payload: payload}
+}
+
+// TestOutcomeReadsEveryFactOfTheGroup pins that the outcome reads the group, not only
+// the fact that names it: the representative "a-named" has no OS shape and no row under
+// its keys, and "b-purl" gives the group both, so the group counts as rows no fact joins.
+func TestOutcomeReadsEveryFactOfTheGroup(t *testing.T) {
+	t.Parallel()
+	_, _, stats, err := buildSupplyChainImpactFindingsAndExclusions([]facts.Envelope{
+		vulnerabilityCVEFact("cve-9990", vendorLineCVE, 7.5),
+		plainIDFact("a-named", ""),
+		plainIDFact("b-purl", repJoinPURL),
+		ubuntuCurl("22.04", repJoinVersion).envelope(),
+	})
+	if err != nil {
+		t.Fatalf("build findings: %v", err)
+	}
+	want := map[osRepresentativeOutcomeKey]int{{"other", osRepresentativeNoJoinable}: 1}
+	if !maps.Equal(stats.osRepresentativeOutcomes, want) {
+		t.Fatalf("outcomes = %v, want %v", stats.osRepresentativeOutcomes, want)
+	}
+}
+
+// TestLoneOSVFactLabelsThePURLVendor pins the source label on the only OS shape a
+// producer writes today: an OSV fact spelled os counts under its purl's vendor, not
+// under other.
+func TestLoneOSVFactLabelsThePURLVendor(t *testing.T) {
+	t.Parallel()
+	osv := facts.Envelope{FactID: "affected-osv", FactKind: chain.VulnerabilityAffectedPackageFactKind, Payload: map[string]any{
+		"cve_id": vendorLineCVE, "advisory_id": "OSV-9990", "source": "osv", "ecosystem": "os",
+		"package_id": repJoinPackageID, "package_name": "curl", "purl": repJoinPURL,
+		"fixed_versions": []any{"1.0-5"},
+	}}
+	findings, _, stats, err := buildSupplyChainImpactFindingsAndExclusions([]facts.Envelope{
+		vulnerabilityCVEFact("cve-9990", vendorLineCVE, 7.5),
+		osv,
+		ubuntuCurl("22.04", repJoinVersion).envelope(),
+	})
+	if err != nil {
+		t.Fatalf("build findings: %v", err)
+	}
+	want := map[osRepresentativeOutcomeKey]int{{"ubuntu", osRepresentativeJoined}: 1}
+	if len(findings) != 1 || !maps.Equal(stats.osRepresentativeOutcomes, want) {
+		t.Fatalf("findings = %d, outcomes = %v, want 1 and %v", len(findings), stats.osRepresentativeOutcomes, want)
+	}
+}

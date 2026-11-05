@@ -126,6 +126,9 @@ func TestBlankEcosystemReadsTheFamilyAndASpelledOneKeepsItsMatcher(t *testing.T)
 	if got, want := decide("", repJoinPURL), decide("deb", repJoinPURL); !reflect.DeepEqual(got, want) {
 		t.Fatalf("blank with a deb purl = %+v, want what deb earns: %+v", got, want)
 	}
+	if got, want := decide(" \t", repJoinPURL), decide("deb", repJoinPURL); !reflect.DeepEqual(got, want) {
+		t.Fatalf("whitespace ecosystem with a deb purl = %+v, want what deb earns: %+v", got, want)
+	}
 	if got := decide("", "pkg:npm/example").Reason; got != supplyChainVersionReasonUnsupportedEcosystem {
 		t.Fatalf("blank with a language purl reason = %q, want %q", got, supplyChainVersionReasonUnsupportedEcosystem)
 	}
