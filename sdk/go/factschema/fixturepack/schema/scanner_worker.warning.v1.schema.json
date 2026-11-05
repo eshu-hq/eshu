@@ -57,6 +57,18 @@
     "reason": {
       "type": "string"
     },
+    "relative_path": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "repository_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
     "target_kind": {
       "type": "string"
     },

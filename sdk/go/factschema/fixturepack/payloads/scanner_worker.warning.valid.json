@@ -12,5 +12,7 @@
   "extraction_reason": "unsupported_image",
   "distro": "debian",
   "distro_version": "12",
-  "package_manager": "dpkg"
+  "package_manager": "dpkg",
+  "repository_id": "repository:r_0a1b2c3d",
+  "relative_path": "tools/go.mod"
 }

@@ -25,8 +25,7 @@ version — pinning this module pins the fixture pack too.
 - `vulnerability.go_call_reachability` gains five optional provenance fields,
   `scan_level`, `scan_mode`, `scanner_version`, `source_commit_sha`, and
   `trace_count` (eshu-hq/eshu#10026, part of eshu-hq/eshu#10002; additive
-  minor, no decode shim; prepared in eshu-sdk as `factschema/v0.1.0-rc.17`,
-  unpublished, so core's `go.mod` still pins rc.15 until that tag is released).
+  minor, no decode shim; published as eshu-sdk `factschema/v0.1.0-rc.17`).
   `scan_level` (`module`, `package`, or `symbol`) says how deep the scan went,
   so a reader can tell a `symbol` scan, the only kind that can show no call path
   exists, from a shallower one; `scan_mode` is `source` or `binary`. Both are
@@ -49,6 +48,37 @@ version — pinning this module pins the fixture pack too.
   also needs a `go_module_evidence` row and an `affected_package` row for the
   advisory and module; without either it emits no finding for that module. The
   fixture pack's valid payload carries the new fields.
+
+- `scanner_worker.warning` gains two optional fields, `repository_id` and
+  `relative_path` (eshu-hq/eshu#10043, part of eshu-hq/eshu#10002; additive
+  minor, no decode shim; published as eshu-sdk `factschema/v0.1.0-rc.17`). They scope a failed or partial Go
+  reachability scan (`analyzer: go_reachability`) to a repository and to the
+  go.mod file that failed. `relative_path` is the slash-separated go.mod file
+  path relative to the repository root, byte-equal to the `relative_path` on that
+  file's `go_module_evidence` rows; blank or absent means the whole repository,
+  and a warning with no `repository_id` joins nothing. The file path is the
+  scope, not a module path, because a finding is keyed by the vulnerable
+  dependency and a scan by its go.mod file. A producer MUST put the failure class
+  in `reason`, MUST leave `warning_class` as the constant
+  `scanner_worker_warning`, and MUST NOT write a `go_call_reachability` fact from
+  the failed scan of a go.mod it warns about; a sibling go.mod's finished scan
+  still writes its facts, even for the same dependency. The type documentation gives the reader
+  rule: a reachable fact wins; any other fact, or none, beside a joined warning is
+  missing evidence naming the `reason`; a `module` or `unknown` level fact with no
+  joined warning keeps its own state, `module_only` or `unknown`. The core reducer does not read this kind
+  yet (eshu-hq/eshu#10043); until that lands a failed scan stays unknown.
+  Neither field is required, a payload without them decodes with nil fields, and
+  a value of the wrong JSON type fails the decode as `input_invalid`. The
+  hand-written `EncodeScannerWorkerWarning` writes both keys when set, and a new
+  reflection test fails when any `Warning` field has no encoder line. The fixture
+  pack's valid payload sets every optional field so a conformance run validates
+  them; it is not the shape any one producer writes. The invalid payload is
+  unchanged.
+- The `go_call_reachability` failed-scan guidance no longer offers a
+  `reachability_level "unknown"` fact: a producer that warns for a go.mod writes
+  no fact from that go.mod's failed scan; a sibling go.mod's finished scan still
+  writes its facts, even for the same dependency. No schema property changes, so that schema's digest is
+  unchanged.
 
 - `vulnerability.source_snapshot` gains four optional fields, `license`,
   `attribution`, `cache_expires_at`, and `cache_mode` (eshu-hq/eshu#9958, Phase 4
