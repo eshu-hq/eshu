@@ -66,9 +66,12 @@ Blocking-shape spot checks, re-verified:
 - `go/internal/query/openapi/paths/cli/` still holds
   `capture compose render score validate` only (plus package docs);
   no packet-build endpoint, so `investigation export` stays stubbed.
-- Guard tests green on this base: `go test ./cmd/eshu/ -run
-  'TestExtractionInventory|TestNoMcpsetup|TestScanNonTestImports'`
-  (`ok`, exit 0). Inventory still covers every visible top-level
+- Guard tests green on this base, run where each guard lives:
+  `go test ./cmd/eshu/ -run 'TestExtractionInventory' -count=1`
+  (`ok`, exit 0) and `go test ./internal/cli/evidredact/ -run
+  'TestNoMcpsetup|TestScanNonTestImports' -count=1`
+  (`TestNoMcpsetupImport` PASS, `TestScanNonTestImportsReportsForbiddenOwner`
+  PASS, `ok`, exit 0). Inventory still covers every visible top-level
   command; `admin` still RETAIN; the S1 `evidredact->mcpsetup` edge
   still cut.
 
