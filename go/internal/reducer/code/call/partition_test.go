@@ -33,8 +33,8 @@ func TestBuildCodeCallRefreshIntentsUseVersionedDeltaPartitionKey(t *testing.T) 
 		},
 	}
 
-	first := BuildRefreshIntentsWithDeltaFileScopes(contextByRepoID, deltaFileScopesByRepoID, createdAt)
-	second := BuildRefreshIntentsWithDeltaFileScopes(contextByRepoID, deltaFileScopesByRepoID, createdAt)
+	first := BuildRefreshIntentsWithDeltaFileScopes(contextByRepoID, deltaFileScopesByRepoID, nil, createdAt)
+	second := BuildRefreshIntentsWithDeltaFileScopes(contextByRepoID, deltaFileScopesByRepoID, nil, createdAt)
 	if got, want := len(first), 1; got != want {
 		t.Fatalf("len(first) = %d, want %d", got, want)
 	}
@@ -68,7 +68,7 @@ func TestBuildCodeCallRefreshIntentsUseVersionedDeltaPartitionKey(t *testing.T) 
 		t.Fatalf("AcceptanceUnitID = %q, want %q", got, want)
 	}
 
-	wholeScope := BuildRefreshIntentsWithDeltaFileScopes(contextByRepoID, nil, createdAt)
+	wholeScope := BuildRefreshIntentsWithDeltaFileScopes(contextByRepoID, nil, nil, createdAt)
 	if got, want := wholeScope[0].PartitionKey, "code-calls:v1:whole:repo-a"; got != want {
 		t.Fatalf("whole-scope PartitionKey = %q, want %q", got, want)
 	}
@@ -86,7 +86,7 @@ func TestBuildCodeCallRefreshIntentsUseVersionedDeltaPartitionKey(t *testing.T) 
 			partitionPaths: []string{"src/b.go", "src/a.go"},
 		},
 	}
-	otherRootRows := BuildRefreshIntentsWithDeltaFileScopes(contextByRepoID, otherRoot, createdAt)
+	otherRootRows := BuildRefreshIntentsWithDeltaFileScopes(contextByRepoID, otherRoot, nil, createdAt)
 	if got, want := otherRootRows[0].PartitionKey, row.PartitionKey; got != want {
 		t.Fatalf("PartitionKey changed with absolute root: got %q, want %q", got, want)
 	}

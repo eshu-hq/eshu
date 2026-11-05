@@ -81,11 +81,41 @@ type legSwapQueryer struct {
 }
 
 func (q legSwapQueryer) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
+	return q.recordingCodeCallSymbolQueryer.QueryContext(ctx, swapManifestLessLeg(query, q.leg), args...)
+}
+
+// swapManifestLessLeg replaces the shipped manifest-less leg of a manifest
+// discovery query with the proof's leg. Other queries pass through.
+func swapManifestLessLeg(query, leg string) string {
 	switch query {
 	case producerstore.PackageManifestsQuery, producerstore.ComposerManifestsQuery, producerstore.GoModuleManifestsQuery:
-		query = strings.TrimSuffix(query, producerstore.ManifestLessLeg) + q.leg
+		return strings.TrimSuffix(query, producerstore.ManifestLessLeg) + leg
 	}
-	return q.recordingCodeCallSymbolQueryer.QueryContext(ctx, query, args...)
+	return query
+}
+
+// BeginReadOnlyRepeatableRead preserves the leg swap inside the delta
+// overlay's snapshot (#10003 row 1): the loader runs its legs on a snapshot
+// transaction begun through this interface, so without this override the
+// snapshot would silently run the shipped leg and both rules under proof
+// would read identical producer scopes. The recording transaction still
+// records every statement; the swap applies first.
+func (q legSwapQueryer) BeginReadOnlyRepeatableRead(ctx context.Context) (db.Transaction, error) {
+	tx, err := q.recordingCodeCallSymbolQueryer.BeginReadOnlyRepeatableRead(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &legSwapTransaction{Transaction: tx, leg: q.leg}, nil
+}
+
+// legSwapTransaction applies the leg swap to snapshot statements.
+type legSwapTransaction struct {
+	db.Transaction
+	leg string
+}
+
+func (t *legSwapTransaction) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
+	return t.Transaction.QueryContext(ctx, swapManifestLessLeg(query, t.leg), args...)
 }
 
 // TestReducerContentionGateManifestLessDirtyRuleReturnsTheSameDefinitions is

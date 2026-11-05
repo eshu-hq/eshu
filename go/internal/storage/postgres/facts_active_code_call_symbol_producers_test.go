@@ -85,6 +85,7 @@ func TestLoadActiveCodeCallSymbolDefinitionFactsAnchorsPackageKeysOnProducerScop
 			}},
 			// Anchored scan for the package key.
 			{rows: [][]any{codeCallSymbolFactRow("fact-logging", "scope-logging", observedAt)}},
+			{}, // delta-target lookup: no delta-active scope
 		},
 	}
 	goKey := "scip-java maven org.acme/lib org.acme/Client#request()."
@@ -97,8 +98,8 @@ func TestLoadActiveCodeCallSymbolDefinitionFactsAnchorsPackageKeysOnProducerScop
 	if err != nil {
 		t.Fatalf("LoadActiveCodeCallSymbolDefinitionFacts() error = %v, want nil", err)
 	}
-	if got, want := len(db.queries), 3; got != want {
-		t.Fatalf("queries = %d, want %d (unanchored, manifest, anchored)", got, want)
+	if got, want := len(db.queries), 4; got != want {
+		t.Fatalf("queries = %d, want %d (unanchored, manifest, anchored, targets)", got, want)
 	}
 
 	unanchored := db.queries[0]
@@ -143,6 +144,7 @@ func TestLoadActiveCodeCallSymbolDefinitionFactsKeepsDuplicateNameProducers(t *t
 				{"scope-mono", sql.NullString{String: `{"name":"@acme/widgets"}`, Valid: true}, "clean"},
 			}},
 			{},
+			{}, // delta-target lookup: no delta-active scope
 		},
 	}
 
@@ -153,8 +155,8 @@ func TestLoadActiveCodeCallSymbolDefinitionFactsKeepsDuplicateNameProducers(t *t
 	if err != nil {
 		t.Fatalf("LoadActiveCodeCallSymbolDefinitionFacts() error = %v, want nil", err)
 	}
-	if got, want := len(db.queries), 2; got != want {
-		t.Fatalf("queries = %d, want %d (manifest, anchored)", got, want)
+	if got, want := len(db.queries), 3; got != want {
+		t.Fatalf("queries = %d, want %d (manifest, anchored, targets)", got, want)
 	}
 	if got, want := db.queries[1].args[4], []string{"scope-a", "scope-b", "scope-mono"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("anchored producer scopes = %#v, want every scope publishing a requested name %#v", got, want)
@@ -175,6 +177,7 @@ func TestLoadActiveCodeCallSymbolDefinitionFactsSkipsUnusableManifests(t *testin
 				{"scope-nul", sql.NullString{String: `{"name":"@acme/logging","description":"a\u0000b"}`, Valid: true}, "clean"},
 			}},
 			{},
+			{}, // delta-target lookup: no delta-active scope
 		},
 	}
 
@@ -185,8 +188,8 @@ func TestLoadActiveCodeCallSymbolDefinitionFactsSkipsUnusableManifests(t *testin
 	if err != nil {
 		t.Fatalf("LoadActiveCodeCallSymbolDefinitionFacts() error = %v, want nil; bad manifests must be skipped", err)
 	}
-	if got, want := len(db.queries), 2; got != want {
-		t.Fatalf("queries = %d, want %d (manifest, anchored)", got, want)
+	if got, want := len(db.queries), 3; got != want {
+		t.Fatalf("queries = %d, want %d (manifest, anchored, targets)", got, want)
 	}
 	if got, want := db.queries[1].args[4], []string{"scope-nul"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("anchored producer scopes = %#v, want %#v", got, want)
@@ -199,6 +202,7 @@ func TestLoadActiveCodeCallSymbolDefinitionFactsIssuesNoScanWithoutProducer(t *t
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
 			{rows: [][]any{{"scope-other", sql.NullString{String: `{"name":"@acme/unrelated"}`, Valid: true}, "clean"}}},
+			{}, // delta-target lookup: no delta-active scope
 		},
 	}
 
@@ -217,8 +221,8 @@ func TestLoadActiveCodeCallSymbolDefinitionFactsIssuesNoScanWithoutProducer(t *t
 	if len(loaded) != 0 {
 		t.Fatalf("loaded len = %d, want 0", len(loaded))
 	}
-	if got, want := len(db.queries), 1; got != want {
-		t.Fatalf("queries = %d, want %d: a package key with no producer must not scan definitions", got, want)
+	if got, want := len(db.queries), 2; got != want {
+		t.Fatalf("queries = %d, want %d: a package key with no producer must not scan definitions (manifest read plus targets lookup)", got, want)
 	}
 	if !isManifestQuery(db.queries[0].query) {
 		t.Fatalf("only query must be the manifest read:\n%s", db.queries[0].query)
@@ -242,6 +246,7 @@ func TestLoadActiveCodeCallSymbolDefinitionFactsScansDirtyScopes(t *testing.T) {
 			}},
 			// Anchored scan over the dirty scope.
 			{rows: [][]any{codeCallSymbolFactRow("fact-dirty", "scope-dirty", observedAt)}},
+			{}, // delta-target lookup: no delta-active scope
 		},
 	}
 
@@ -252,8 +257,8 @@ func TestLoadActiveCodeCallSymbolDefinitionFactsScansDirtyScopes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadActiveCodeCallSymbolDefinitionFacts() error = %v, want nil", err)
 	}
-	if got, want := len(db.queries), 2; got != want {
-		t.Fatalf("queries = %d, want %d (manifest, anchored)", got, want)
+	if got, want := len(db.queries), 3; got != want {
+		t.Fatalf("queries = %d, want %d (manifest, anchored, targets)", got, want)
 	}
 	if got, want := db.queries[1].args[4], []string{"scope-dirty"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("anchored scan producer scopes ($5) = %#v, want %#v", got, want)
@@ -271,13 +276,13 @@ func TestLoadActiveCodeCallSymbolDefinitionFactsKeepsNonPackageKeysUnanchored(t 
 	javaKey := "scip-java maven org.acme/lib org.acme/Client#request()."
 	otherKey := "typescript:@acme/lib#run"
 	bareGoKey := "scip-go gomod github.com/acme/lib"
-	db := &fakeExecQueryer{queryResponses: []queueFakeRows{{}}}
+	db := &fakeExecQueryer{queryResponses: []queueFakeRows{{}, {}}}
 
 	if _, err := NewFactStore(db).LoadActiveCodeCallSymbolDefinitionFacts(context.Background(), []string{javaKey, otherKey, bareGoKey}); err != nil {
 		t.Fatalf("LoadActiveCodeCallSymbolDefinitionFacts() error = %v, want nil", err)
 	}
-	if got, want := len(db.queries), 1; got != want {
-		t.Fatalf("queries = %d, want %d (the corpus-wide scan only)", got, want)
+	if got, want := len(db.queries), 2; got != want {
+		t.Fatalf("queries = %d, want %d (the corpus-wide scan plus the delta-target lookup)", got, want)
 	}
 	query := db.queries[0].query
 	if isManifestQuery(query) || isAnchoredDefinitionQuery(query) {
@@ -305,6 +310,7 @@ func TestLoadActiveCodeCallSymbolDefinitionFactsPagesAnchoredScan(t *testing.T) 
 			{rows: [][]any{{"scope-logging", sql.NullString{String: `{"name":"@acme/logging"}`, Valid: true}, "clean"}}},
 			{rows: fullPage},
 			{rows: [][]any{codeCallSymbolFactRow("fact-last", "scope-logging", lastObservedAt.Add(time.Second))}},
+			{}, // delta-target lookup: no delta-active scope
 		},
 	}
 
@@ -318,8 +324,8 @@ func TestLoadActiveCodeCallSymbolDefinitionFactsPagesAnchoredScan(t *testing.T) 
 	if got, want := len(loaded), listFactsByKindPageSize+1; got != want {
 		t.Fatalf("loaded len = %d, want %d", got, want)
 	}
-	if got, want := len(db.queries), 3; got != want {
-		t.Fatalf("queries = %d, want %d (manifest, two anchored pages)", got, want)
+	if got, want := len(db.queries), 4; got != want {
+		t.Fatalf("queries = %d, want %d (manifest, two anchored pages, targets)", got, want)
 	}
 	first, second := db.queries[1], db.queries[2]
 	if first.args[1] != nil || first.args[2] != "" {
@@ -348,6 +354,7 @@ func TestLoadActiveCodeCallSymbolDefinitionFactsDeduplicatesAcrossScans(t *testi
 			{rows: [][]any{codeCallSymbolFactRow("fact-shared", "scope-logging", observedAt)}},
 			{rows: [][]any{{"scope-logging", sql.NullString{String: `{"name":"@acme/logging"}`, Valid: true}, "clean"}}},
 			{rows: [][]any{codeCallSymbolFactRow("fact-shared", "scope-logging", observedAt)}},
+			{}, // delta-target lookup: no delta-active scope
 		},
 	}
 
@@ -373,6 +380,7 @@ func TestLoadActiveCodeCallSymbolDefinitionFactsTrimsPackageKeyName(t *testing.T
 			// carries stray whitespace must still find its producer.
 			{rows: [][]any{{"scope-logging", sql.NullString{String: `{"name":"@acme/logging"}`, Valid: true}, "clean"}}},
 			{rows: [][]any{codeCallSymbolFactRow("fact-logging", "scope-logging", observedAt)}},
+			{}, // delta-target lookup: no delta-active scope
 		},
 	}
 
@@ -383,8 +391,8 @@ func TestLoadActiveCodeCallSymbolDefinitionFactsTrimsPackageKeyName(t *testing.T
 	if err != nil {
 		t.Fatalf("LoadActiveCodeCallSymbolDefinitionFacts() error = %v, want nil", err)
 	}
-	if got, want := len(db.queries), 2; got != want {
-		t.Fatalf("queries = %d, want %d (manifest, anchored): a padded package name must still resolve its producer", got, want)
+	if got, want := len(db.queries), 3; got != want {
+		t.Fatalf("queries = %d, want %d (manifest, anchored, targets): a padded package name must still resolve its producer", got, want)
 	}
 	if got, want := db.queries[1].args[4], []string{"scope-logging"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("anchored producer scopes = %#v, want %#v", got, want)

@@ -63,6 +63,7 @@ func TestListActiveJVMReachabilityFactsPassesAPIPackageBoundsAndKeepsMatchingEvi
 					[]byte(`{"repo_id":"repo://example/jvm","relative_path":"src/main/java/example/App.java","parsed_file_data":{"lang":"java","imports":[{"source":"org.apache.logging.log4j.Logger"}]}}`),
 				}},
 			},
+			{}, // delta-target lookup: no delta-active scope
 		},
 	}
 	store := NewFactStore(db)
@@ -80,8 +81,8 @@ func TestListActiveJVMReachabilityFactsPassesAPIPackageBoundsAndKeepsMatchingEvi
 	if got, want := loaded[0].FactID, "fact-jvm-match"; got != want {
 		t.Fatalf("loaded fact ID = %q, want %q", got, want)
 	}
-	if got, want := len(db.queries), 1; got != want {
-		t.Fatalf("query count = %d, want %d", got, want)
+	if got, want := len(db.queries), 2; got != want {
+		t.Fatalf("query count = %d, want %d (the active scan plus the delta-target lookup)", got, want)
 	}
 	repos, ok := db.queries[0].args[0].([]string)
 	if !ok {

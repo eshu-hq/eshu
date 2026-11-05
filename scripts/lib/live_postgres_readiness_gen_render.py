@@ -32,8 +32,12 @@ FRAGMENT_NAMES = (
 # Rebalanced 2026-11-05 for #9959: the readiness ghsa-target live proof raised
 # enrollment to 368 rows and the first fragment to 99, so the stable-shard seed
 # rendered 502 lines. The first cut moves to the 96th path again (95 rows).
+# Rebalanced 2026-11-05 for #10003 post-#10161: the row-1/row-2 delta proofs
+# raised the second fragment to 507 lines. The first cut moves three entries
+# later (492/492/482/477, stable-shard seed still passes); four fragments
+# pinned.
 FRAGMENT_BOUNDARIES = (
-    "go/internal/storage/postgres/activation/producer_obligation_contract_live_test.go",
+    "go/internal/storage/postgres/activation/recovery_live_test.go",
     "go/internal/storage/postgres/fact_key_foreign_key_reverse_live_test.go",
     "go/internal/storage/postgres/projector_queue_claim_marked_guard_epq_live_test.go",
 )

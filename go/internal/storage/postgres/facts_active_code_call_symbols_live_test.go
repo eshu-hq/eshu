@@ -91,7 +91,9 @@ INSERT INTO fact_records (
 
 // recordingCodeCallSymbolQueryer records each query the loader issues, with
 // its arguments, so a live proof can assert which statements ran against real
-// Postgres and which producer scopes the anchored scan was given.
+// Postgres and which producer scopes the anchored scan was given. The
+// read-only snapshot transaction is wrapped the same way, so statements
+// inside the loader's repeatable-read snapshot are recorded too.
 type recordingCodeCallSymbolQueryer struct {
 	SQLDB
 	queries []string
@@ -102,6 +104,25 @@ func (r *recordingCodeCallSymbolQueryer) QueryContext(ctx context.Context, query
 	r.queries = append(r.queries, query)
 	r.args = append(r.args, args)
 	return r.SQLDB.QueryContext(ctx, query, args...)
+}
+
+func (r *recordingCodeCallSymbolQueryer) BeginReadOnlyRepeatableRead(ctx context.Context) (db.Transaction, error) {
+	tx, err := r.SQLDB.BeginReadOnlyRepeatableRead(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &recordingCodeCallSymbolTransaction{Transaction: tx, recorder: r}, nil
+}
+
+type recordingCodeCallSymbolTransaction struct {
+	db.Transaction
+	recorder *recordingCodeCallSymbolQueryer
+}
+
+func (t *recordingCodeCallSymbolTransaction) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
+	t.recorder.queries = append(t.recorder.queries, query)
+	t.recorder.args = append(t.recorder.args, args)
+	return t.Transaction.QueryContext(ctx, query, args...)
 }
 
 // TestReducerContentionGateActiveCodeCallSymbolLoaderAnchorsPackageKeys proves
@@ -178,8 +199,9 @@ INSERT INTO scope_generations (
 	if got, want := queryer.queries, []string{
 		producerstore.PackageManifestsQuery,
 		listAnchoredActiveCodeCallSymbolDefinitionFactsQuery,
+		deltaOverlayTargetsQuery,
 	}; !reflect.DeepEqual(got, want) {
-		t.Fatalf("issued %d queries, want the manifest read then the anchored scan only", len(got))
+		t.Fatalf("issued %d queries, want the manifest read, the anchored scan, then the delta-target lookup", len(got))
 	}
 	wantScopes := []string{"scope:logging", "scope:shared-a", "scope:shared-b"}
 	if got := queryer.args[1][4]; !reflect.DeepEqual(got, wantScopes) {
@@ -214,8 +236,9 @@ func TestReducerContentionGateActiveCodeCallSymbolLoaderSkipsScanWithoutProducer
 	if got, want := queryer.queries, []string{
 		listActiveCodeCallSymbolDefinitionFactsQuery,
 		producerstore.PackageManifestsQuery,
+		deltaOverlayTargetsQuery,
 	}; !reflect.DeepEqual(got, want) {
-		t.Fatalf("issued %d queries, want the corpus-wide scan then the package manifest read only", len(got))
+		t.Fatalf("issued %d queries, want the corpus-wide scan, the package manifest read, then the delta-target lookup", len(got))
 	}
 }
 
@@ -268,8 +291,8 @@ func TestReducerContentionGateActiveCodeCallSymbolLoaderIgnoresVendoredManifests
 	if got, want := factIDs(loaded), []string{"fact-control-format", "fact-control-prefixed"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("loaded fact ids = %#v, want %#v (vendored copies must not load, lookalike controls must)", got, want)
 	}
-	if len(queryer.args) != 2 {
-		t.Fatalf("issued %d queries, want the manifest read then the anchored scan", len(queryer.args))
+	if len(queryer.args) != 3 {
+		t.Fatalf("issued %d queries, want the manifest read, the anchored scan, then the delta-target lookup", len(queryer.args))
 	}
 	if got, want := queryer.args[1][4], []string{"scope:control", "scope:control-prefixed"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("anchored scan producer scopes ($5) = %#v, want %#v", got, want)
@@ -292,8 +315,8 @@ func TestReducerContentionGateActiveCodeCallSymbolLoaderSkipsScanForVendoredOnly
 	if len(loaded) != 0 {
 		t.Fatalf("loaded fact ids = %#v, want none", factIDs(loaded))
 	}
-	if got, want := queryer.queries, []string{producerstore.PackageManifestsQuery}; !reflect.DeepEqual(got, want) {
-		t.Fatalf("issued %d queries, want the manifest read only", len(got))
+	if got, want := queryer.queries, []string{producerstore.PackageManifestsQuery, deltaOverlayTargetsQuery}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("issued %d queries, want the manifest read and the delta-target lookup only", len(got))
 	}
 }
 
@@ -320,6 +343,15 @@ func openActiveCodeCallSymbolContentSchema(t *testing.T) (context.Context, *sql.
 	// carries migration 149's projection_write_started_at.
 	if _, err := database.ExecContext(ctx, MigrationSQL("scope_generations_projection_write_started_at")); err != nil {
 		t.Fatalf("apply projection_write_started_at migration: %v", err)
+	}
+	// The row-1 reader routes through the delta overlay (#10003), whose
+	// targets lookup reads the delta baseline/union-base commits, so the
+	// schema carries migrations 148 and 210 for those columns.
+	if _, err := database.ExecContext(ctx, MigrationSQL("scope_generations_delta_baseline_commit_sha")); err != nil {
+		t.Fatalf("apply delta_baseline_commit_sha migration: %v", err)
+	}
+	if _, err := database.ExecContext(ctx, MigrationSQL("scope_generations_delta_union_base_commit_sha")); err != nil {
+		t.Fatalf("apply delta_union_base_commit_sha migration: %v", err)
 	}
 	return ctx, database
 }

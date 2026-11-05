@@ -27,6 +27,7 @@ func TestFactStoreLoadActiveCodeCallSymbolDefinitionFactsAnchorsComposerKeysOnCo
 				{"scope:noise", sql.NullString{String: `{"name": "acme/other"}`, Valid: true}, "clean"},
 			}},
 			{rows: [][]any{codeCallDefinitionScanRow("fact-php-anchored")}},
+			{}, // delta-target lookup: no delta-active scope
 		},
 	}
 	store := NewFactStore(db)
@@ -38,8 +39,8 @@ func TestFactStoreLoadActiveCodeCallSymbolDefinitionFactsAnchorsComposerKeysOnCo
 	if got, want := factIDs(loaded), []string{"fact-php-anchored"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("loaded fact ids = %#v, want %#v", got, want)
 	}
-	if got, want := len(db.queries), 2; got != want {
-		t.Fatalf("issued %d queries, want the composer.json manifest read then the anchored scan", got)
+	if got, want := len(db.queries), 3; got != want {
+		t.Fatalf("issued %d queries, want the composer.json manifest read, the anchored scan, then the delta-target lookup", got)
 	}
 	manifestQuery := db.queries[0].query
 	if !strings.Contains(manifestQuery, "relative_path = 'composer.json'") ||

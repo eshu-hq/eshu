@@ -42,6 +42,7 @@ func TestFactStoreLoadActiveCodeCallSymbolDefinitionFactsUsesActiveGenerations(t
 					[]byte(`{"repo_id":"repo-lib","relative_path":"client.go","parsed_file_data":{"functions":[{"uid":"uid:lib:request","scip_symbol":"scip-go gomod github.com/acme/lib Client#Request()."}]}}`),
 				}},
 			},
+			{}, // delta-target lookup: no delta-active scope
 		},
 	}
 	store := NewFactStore(db)
@@ -57,8 +58,8 @@ func TestFactStoreLoadActiveCodeCallSymbolDefinitionFactsUsesActiveGenerations(t
 	if got, want := loaded[0].FactKind, "file"; got != want {
 		t.Fatalf("FactKind = %q, want %q", got, want)
 	}
-	if got, want := len(db.queries), 1; got != want {
-		t.Fatalf("issued %d queries, want the one corpus-wide scan for a key no manifest anchors", got)
+	if got, want := len(db.queries), 2; got != want {
+		t.Fatalf("issued %d queries, want the corpus-wide scan plus the delta-target lookup", got)
 	}
 	if !reflect.DeepEqual(db.queries[0].args[0], symbolKeys) {
 		t.Fatalf("symbol arg = %#v, want %#v", db.queries[0].args[0], symbolKeys)
@@ -87,7 +88,7 @@ func TestFactStoreLoadActiveCodeCallSymbolDefinitionFactsGuardsNonArrayDefinitio
 	t.Parallel()
 
 	db := &fakeExecQueryer{
-		queryResponses: []queueFakeRows{{}},
+		queryResponses: []queueFakeRows{{}, {}},
 	}
 	store := NewFactStore(db)
 
@@ -98,8 +99,8 @@ func TestFactStoreLoadActiveCodeCallSymbolDefinitionFactsGuardsNonArrayDefinitio
 	if err != nil {
 		t.Fatalf("LoadActiveCodeCallSymbolDefinitionFacts() error = %v, want nil", err)
 	}
-	if got, want := len(db.queries), 1; got != want {
-		t.Fatalf("issued %d queries, want the one corpus-wide scan", got)
+	if got, want := len(db.queries), 2; got != want {
+		t.Fatalf("issued %d queries, want the corpus-wide scan plus the delta-target lookup", got)
 	}
 
 	query := db.queries[0].query
@@ -171,6 +172,7 @@ func TestFactStoreLoadActiveCodeCallSymbolDefinitionFactsAnchorsGoKeysOnModulePr
 				codeCallGoModManifestRow("scope:noise", "module github.com/acme/noise\n"),
 			}},
 			{rows: [][]any{codeCallDefinitionScanRow("fact-go-anchored")}},
+			{}, // delta-target lookup: no delta-active scope
 		},
 	}
 	store := NewFactStore(db)
@@ -182,8 +184,8 @@ func TestFactStoreLoadActiveCodeCallSymbolDefinitionFactsAnchorsGoKeysOnModulePr
 	if got, want := factIDs(loaded), []string{"fact-go-anchored"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("loaded fact ids = %#v, want %#v", got, want)
 	}
-	if got, want := len(db.queries), 2; got != want {
-		t.Fatalf("issued %d queries, want the go.mod manifest read then the anchored scan", got)
+	if got, want := len(db.queries), 3; got != want {
+		t.Fatalf("issued %d queries, want the go.mod manifest read, the anchored scan, then the delta-target lookup", got)
 	}
 	if got, want := db.queries[0].query, producerstore.GoModuleManifestsQuery; got != want {
 		t.Fatalf("first query is the manifest read:\n%s", got)
@@ -209,6 +211,7 @@ func TestFactStoreLoadActiveCodeCallSymbolDefinitionFactsDeduplicatesGoAnchoredA
 			// go.mod read, then the anchored scan for the Go key.
 			{rows: [][]any{codeCallGoModManifestRow("scope:producer", "module github.com/acme/lib\n\ngo 1.24\n")}},
 			{rows: [][]any{codeCallDefinitionScanRow("fact-shared")}},
+			{}, // delta-target lookup: no delta-active scope
 		},
 	}
 	store := NewFactStore(db)
@@ -220,8 +223,8 @@ func TestFactStoreLoadActiveCodeCallSymbolDefinitionFactsDeduplicatesGoAnchoredA
 	if got, want := factIDs(loaded), []string{"fact-shared"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("loaded fact ids = %#v, want %#v", got, want)
 	}
-	if got, want := len(db.queries), 3; got != want {
-		t.Fatalf("issued %d queries, want corpus scan, go.mod read, then anchored scan", got)
+	if got, want := len(db.queries), 4; got != want {
+		t.Fatalf("issued %d queries, want corpus scan, go.mod read, anchored scan, then the delta-target lookup", got)
 	}
 }
 
@@ -231,6 +234,7 @@ func TestFactStoreLoadActiveCodeCallSymbolDefinitionFactsIssuesNoScanForGoKeyWit
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
 			{rows: [][]any{codeCallGoModManifestRow("scope:noise", "module github.com/acme/noise\n")}},
+			{}, // delta-target lookup: no delta-active scope
 		},
 	}
 	store := NewFactStore(db)
@@ -244,8 +248,8 @@ func TestFactStoreLoadActiveCodeCallSymbolDefinitionFactsIssuesNoScanForGoKeyWit
 	if len(loaded) != 0 {
 		t.Fatalf("loaded fact ids = %#v, want none: no stored go.mod declares the standard library", factIDs(loaded))
 	}
-	if got, want := len(db.queries), 1; got != want {
-		t.Fatalf("issued %d queries, want only the go.mod manifest read and no definition scan", got)
+	if got, want := len(db.queries), 2; got != want {
+		t.Fatalf("issued %d queries, want only the go.mod manifest read, no definition scan, and the delta-target lookup", got)
 	}
 	if got, want := db.queries[0].query, producerstore.GoModuleManifestsQuery; got != want {
 		t.Fatalf("the one query is the go.mod manifest read:\n%s", got)
@@ -266,6 +270,7 @@ func TestLoadActiveCodeCallSymbolDefinitionFactsLogsLoadSummary(t *testing.T) {
 			{}, // corpus-wide scan for the other key
 			{rows: [][]any{codeCallGoModManifestRow("scope:producer", "module github.com/acme/lib\n")}},
 			{rows: [][]any{codeCallDefinitionScanRow("fact-go")}},
+			{}, // delta-target lookup: no delta-active scope
 		},
 	}
 	_, err := NewFactStore(db).LoadActiveCodeCallSymbolDefinitionFacts(context.Background(), []string{

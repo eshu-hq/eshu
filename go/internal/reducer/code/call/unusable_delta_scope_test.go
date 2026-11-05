@@ -120,7 +120,7 @@ func TestBuildRefreshIntentsKeepsWholeScopeForUnscopedFullGeneration(t *testing.
 			"repo_id": "repo-a",
 		},
 	}})
-	intents := BuildRefreshIntentsWithDeltaFileScopes(unusableDeltaScopeContexts(), scopes.ScopesByRepoID, createdAt)
+	intents := BuildRefreshIntentsWithDeltaFileScopes(unusableDeltaScopeContexts(), scopes.ScopesByRepoID, nil, createdAt)
 	if got, want := len(intents), 1; got != want {
 		t.Fatalf("len(intents) = %d, want %d", got, want)
 	}
