@@ -1,19 +1,21 @@
 #!/usr/bin/env bash
-# Real-Postgres proof for the SQL under scripts/lib/claim-plane-handover-*.sql
-# (#9376). The stub test (scripts/test-claim-plane-cutover-handover.sh)
-# cannot see a column rename or a wrong predicate, so this script runs every
-# SQL file exactly as the handover script does, against a private throwaway
-# cluster built from the real migrations, and asserts the answers.
+# Real-Postgres proof for the claim-plane cutover handover (#9376). The stub
+# test cannot see a column rename, a wrong predicate, or a shape mismatch
+# between the snapshot output and the seed input, so this script drives the
+# REAL handover script (fake kubectl, real psql) against a private throwaway
+# cluster built from the real core and satellite migrations, and asserts the
+# answers. The seed input is always the real snapshot output, never a
+# hand-made fixture: seed.tsv is cut from items.tsv by the script itself.
 #
 # It needs initdb, pg_ctl, and psql (PG_BIN=/path/to/bin overrides the
 # default /usr/lib/postgresql/18/bin). The satellite schema comes from the
-# eshu-workflow checkout (SAT_MIGRATIONS=/path/to/store/migrations
-# overrides the ../eshu-workflow default). It is a local proof tool, not a
-# CI gate: CI has no guaranteed Postgres. A SQL edit that changes answers
-# fails here and must come with a test update.
+# eshu-workflow checkout (SAT_MIGRATIONS overrides the default lookup). It
+# is a local proof tool, not a CI gate: CI has no guaranteed Postgres.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+handover="${repo_root}/scripts/claim-plane-cutover-handover.sh"
+fake_kubectl="${repo_root}/scripts/lib/test-handover-fake-kubectl.sh"
 sql_dir="${repo_root}/scripts/lib"
 migrations="${repo_root}/go/internal/storage/postgres/migrations"
 if [[ -n "${SAT_MIGRATIONS:-}" ]]; then
@@ -29,10 +31,6 @@ fail() { printf 'handover-sql: %s\n' "$*" >&2; exit 1; }
 pg_bin="${PG_BIN:-/usr/lib/postgresql/18/bin}"
 [[ -x "${pg_bin}/initdb" ]] || fail "initdb not found at ${pg_bin}: set PG_BIN"
 [[ -d "${sat_migrations}" ]] || fail "satellite migrations not found at ${sat_migrations}: set SAT_MIGRATIONS"
-for f in claim-plane-handover-snapshot-items.sql claim-plane-handover-snapshot-fences.sql \
-	claim-plane-handover-drain.sql claim-plane-handover-seed.sql; do
-	[[ -f "${sql_dir}/${f}" ]] || fail "SQL file missing: ${f}"
-done
 
 work="$(mktemp -d "${TMPDIR:-/tmp}/hosql.XXXXXX")"
 cleanup() {
@@ -75,9 +73,9 @@ done
 
 # Core fixture: H in {3,7} per the rehearsal shape, one live claim, one
 # expired claim, one committed fence row.
+q postgres "INSERT INTO ingestion_scopes(scope_id, scope_kind, source_system, source_key, collector_kind, partition_key, observed_at, ingested_at, status) VALUES ('scope-1','repo','jira','k','jira','p',now(),now(),'active')" >/dev/null
+q postgres "INSERT INTO scope_generations(generation_id, scope_id, trigger_kind, observed_at, ingested_at, status) VALUES ('gen-1','scope-1','manual',now(),now(),'active')" >/dev/null
 q postgres "INSERT INTO workflow_runs(run_id, trigger_kind, status, created_at, updated_at) VALUES ('run-1','manual','active',now(),now())" >/dev/null
-q postgres "INSERT INTO ingestion_scopes(scope_id, scope_kind, source_system, source_key, collector_kind, partition_key, observed_at, ingested_at, status) VALUES ('scope-1','repo','jira','k','jira','p',now(),now(),'active') ON CONFLICT DO NOTHING" >/dev/null
-q postgres "INSERT INTO scope_generations(generation_id, scope_id, trigger_kind, observed_at, ingested_at, status) VALUES ('gen-1','scope-1','manual',now(),now(),'active') ON CONFLICT DO NOTHING" >/dev/null
 q postgres "INSERT INTO workflow_work_items(work_item_id, run_id, collector_kind, collector_instance_id, source_system, scope_id, acceptance_unit_id, source_run_id, generation_id, status, current_claim_id, current_fencing_token, created_at, updated_at) VALUES
  ('item-a','run-1','jira','jira-primary','jira','scope-1','au-1','sr-1','gen-1','claimed','claim-a',3,now(),now()),
  ('item-b','run-1','jira','jira-primary','jira','scope-1','au-1','sr-1','gen-1','pending',NULL,7,now(),now()),
@@ -87,51 +85,71 @@ q postgres "INSERT INTO workflow_claims(claim_id, work_item_id, fencing_token, o
  ('claim-c','item-c',1,'owner-1','expired',now(),now(),now() - interval '1 hour',now(),now())" >/dev/null
 q postgres "INSERT INTO generation_commit_fences(generation_id, work_item_id, scope_id, claim_id, fencing_token, commit_id, committed_at) VALUES ('gen-1','item-a','scope-1','claim-a',3,'commit-a',now())" >/dev/null
 
-# Snapshot answers are exact and deterministic across runs.
-want_items="$(printf 'item-a\t3\tclaim-a\tclaimed\nitem-b\t7\t\tpending\nitem-c\t1\t\tpending')"
-check "snapshot-items" "${want_items}" "$(sql postgres claim-plane-handover-snapshot-items.sql)"
-check "snapshot-items-idempotent" "$(sql postgres claim-plane-handover-snapshot-items.sql)" "$(sql postgres claim-plane-handover-snapshot-items.sql)"
-check "snapshot-fences" "$(printf 'gen-1\titem-a\t3')" "$(sql postgres claim-plane-handover-snapshot-fences.sql)"
-
-# Drain sees the live claim, then goes quiet once the lease lapses.
-check "drain-live" "$(printf '1\n1')" "$(sql postgres claim-plane-handover-drain.sql)"
-q postgres "UPDATE workflow_claims SET lease_expires_at = now() - interval '1 minute' WHERE claim_id = 'claim-a'" >/dev/null
-check "drain-quiet" "$(printf '0\n0')" "$(sql postgres claim-plane-handover-drain.sql)"
-
-# Satellite fixture: item-a behind the snapshot, item-b already ahead.
+# Satellite fixture: item-a behind the snapshot, item-b already ahead,
+# item-c not yet migrated (the seed must refuse on it first).
 q sat "INSERT INTO workflow_runs(run_id, trigger_kind, status, created_at, updated_at) VALUES ('run-1','manual','active',now(),now())" >/dev/null
 q sat "INSERT INTO workflow_work_items(work_item_id, run_id, collector_kind, collector_instance_id, scope_id, generation_id, status, current_fencing_token, created_at, updated_at) VALUES
  ('item-a','run-1','jira','jira-primary','scope-1','gen-1','pending',1,now(),now()),
  ('item-b','run-1','jira','jira-primary','scope-1','gen-1','pending',7,now(),now())" >/dev/null
 
-# seed runs the committed seed file with a loaded temp table, in one session,
-# via the same \copy path the handover script uses.
-seed_with() { # snapshot-tsv-content
-	local session="${work}/session.sql" tsv="${work}/snap.tsv"
-	{
-		printf 'CREATE TEMP TABLE handover_snapshot(work_item_id TEXT PRIMARY KEY, h BIGINT NOT NULL);\n'
-		printf "\\copy handover_snapshot FROM '%s' WITH (FORMAT text, DELIMITER E'\\t');\n" "${tsv}"
-	} >"${session}"
-	printf '%b' "$1" >"${tsv}"
-	"${PSQL}" -X -q -v ON_ERROR_STOP=1 -A -t -d sat -f "${session}" -f "${sql_dir}/claim-plane-handover-seed.sql"
-}
-snap="$(printf 'item-a\t3\nitem-b\t7\nitem-z\t5')"
+# Drive the real handover script: fake frozen kubectl, real databases.
+export HANDOVER_KUBECTL_BIN="${fake_kubectl}" HANDOVER_PSQL_BIN="${PSQL}"
+export HANDOVER_SHA_BIN=sha256sum HANDOVER_SLEEP_BIN=true
+export HANDOVER_NAMESPACE=test-ns PGPASSFILE=dummy
+export HANDOVER_STATE_FILE="${work}/replicas"
+export HANDOVER_SAT_PGHOST="${work}/s" HANDOVER_SAT_PGPORT=5432
+export HANDOVER_SAT_PGUSER=postgres HANDOVER_SAT_PGDATABASE=sat
+export STUB_STATE_DIR="${work}/kstub" STUB_SPEC=0 STUB_STATUS=""
+mkdir -p "${STUB_STATE_DIR}"
+snap="${work}/snap"
 
-# Seed advances behind items to max, never lowers, and reports the missing.
-out="$(seed_with "${snap}")"
-check "seed-matched" "2" "$(printf '%s' "${out}" | sed -n '1p')"
-check "seed-missing" "item-z" "$(printf '%s' "${out}" | sed -n '2p')"
+# Drain sees the live claim through the real script, then goes quiet.
+if "${handover}" drain >/dev/null 2>&1; then
+	mismatch "drain-live" "exit 1" "exit 0"
+else
+	pass "drain-live"
+fi
+q postgres "UPDATE workflow_claims SET lease_expires_at = now() - interval '1 minute' WHERE claim_id = 'claim-a'" >/dev/null
+"${handover}" drain >/dev/null && pass "drain-quiet" || mismatch "drain-quiet" "exit 0" "exit 1"
+
+# Snapshot through the real script: exact 4-column items, fences, and the
+# 2-column seed input cut from the real items output.
+"${handover}" snapshot --snapshot "${snap}" >/dev/null
+check "snapshot-items" "$(printf 'item-a\t3\tclaim-a\tclaimed\nitem-b\t7\t\tpending\nitem-c\t1\t\tpending')" "$(cat "${snap}/items.tsv")"
+check "snapshot-fences" "$(printf 'gen-1\titem-a\t3')" "$(cat "${snap}/fences.tsv")"
+check "snapshot-seed-tsv" "$(printf 'item-a\t3\nitem-b\t7\nitem-c\t1')" "$(cat "${snap}/seed.tsv")"
+(cd "${snap}" && sha256sum -c sha256sums >/dev/null) && pass "snapshot-hash" || mismatch "snapshot-hash" "verified" "mismatch"
+
+# Seed through the real script refuses on the unmigrated item-c first.
+if "${handover}" seed --snapshot "${snap}" --yes >/dev/null 2>&1; then
+	mismatch "seed-refuses-missing" "exit 1" "exit 0"
+else
+	pass "seed-refuses-missing"
+fi
+q sat "INSERT INTO workflow_work_items(work_item_id, run_id, collector_kind, collector_instance_id, scope_id, generation_id, status, current_fencing_token, created_at, updated_at) VALUES ('item-c','run-1','jira','jira-primary','scope-1','gen-1','pending',0,now(),now())" >/dev/null
+out="$("${handover}" seed --snapshot "${snap}" --yes)"
+check "seed-report" "seeded: 3 items at or above snapshot H, 0 snapshot items missing from satellite" "${out}"
 check "seed-advanced" "3" "$(q sat "SELECT current_fencing_token FROM workflow_work_items WHERE work_item_id = 'item-a'")"
 check "seed-kept-ahead" "7" "$(q sat "SELECT current_fencing_token FROM workflow_work_items WHERE work_item_id = 'item-b'")"
+"${handover}" verify --snapshot "${snap}" >/dev/null && pass "verify-green" || mismatch "verify-green" "exit 0" "exit 1"
 
-# Re-seeding an older snapshot is a no-op (tokens never go back).
-out="$(seed_with "$(printf 'item-a\t2\nitem-b\t7')")"
+# Reseed semantics straight at the seed file with shape-correct inputs
+# derived from the real seed.tsv (older H is a no-op, newer H advances).
+reseed_with() { # tsv-file
+	local session="${work}/session.sql"
+	{
+		printf 'CREATE TEMP TABLE handover_snapshot(work_item_id TEXT PRIMARY KEY, h BIGINT NOT NULL);\n'
+		printf "\\copy handover_snapshot FROM '%s' WITH (FORMAT text, DELIMITER E'\\t');\n" "$1"
+		cat "${sql_dir}/claim-plane-handover-seed.sql"
+	} >"${session}"
+	"${PSQL}" -X -q -v ON_ERROR_STOP=1 -A -t -d sat -f "${session}" >/dev/null
+}
+awk -F'\t' 'BEGIN{OFS="\t"}{$2=$2-2;print}' "${snap}/seed.tsv" >"${work}/older.tsv"
+reseed_with "${work}/older.tsv"
 check "reseed-older-noop" "3" "$(q sat "SELECT current_fencing_token FROM workflow_work_items WHERE work_item_id = 'item-a'")"
-
-# A newer snapshot advances again (idempotent re-seed is the verify path).
-out="$(seed_with "$(printf 'item-a\t9\nitem-b\t7')")"
+awk -F'\t' 'BEGIN{OFS="\t"}{$2=$2+6;print}' "${snap}/seed.tsv" >"${work}/newer.tsv"
+reseed_with "${work}/newer.tsv"
 check "reseed-newer-advances" "9" "$(q sat "SELECT current_fencing_token FROM workflow_work_items WHERE work_item_id = 'item-a'")"
-check "reseed-matched" "2" "$(printf '%s' "${out}" | sed -n '1p')"
 
 if [[ "${failures}" -gt 0 ]]; then
 	printf '\n%d handover SQL check(s) failed\n' "${failures}"

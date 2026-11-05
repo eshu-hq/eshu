@@ -198,7 +198,11 @@ wait_drain() {
 	done
 }
 
-# cmd_snapshot writes DIR/items.tsv, DIR/fences.tsv, DIR/sha256sums.
+# cmd_snapshot writes DIR/items.tsv (4-column audit), DIR/fences.tsv,
+# DIR/seed.tsv (work_item_id + H only, the seed input), DIR/sha256sums.
+# seed.tsv is cut from items.tsv columns 1-2, the order
+# claim-plane-handover-snapshot-items.sql emits them in; the COPY into the
+# 2-column temp table only ever reads seed.tsv, never items.tsv.
 cmd_snapshot() {
 	need_bin "${PSQL}" psql HANDOVER_PSQL_BIN
 	need_bin "${SHA}" sha256sum HANDOVER_SHA_BIN
@@ -221,7 +225,8 @@ cmd_snapshot() {
 	LC_ALL=C psql_core "${sql_items}" >"${dir}/items.tsv"
 	LC_ALL=C psql_core "${sql_fences}" >"${dir}/fences.tsv"
 	[[ -s "${dir}/items.tsv" ]] || fail "empty items snapshot; refusing an empty handover"
-	(cd "${dir}" && "${SHA}" items.tsv fences.tsv >sha256sums)
+	LC_ALL=C cut -d "$(printf '\t')" -f1,2 "${dir}/items.tsv" >"${dir}/seed.tsv"
+	(cd "${dir}" && "${SHA}" items.tsv fences.tsv seed.tsv >sha256sums)
 	printf 'snapshot: %s (%s item rows, hash %s)\n' "${dir}" \
 		"$(wc -l <"${dir}/items.tsv" | tr -d ' ')" \
 		"$("${SHA}" "${dir}/items.tsv" | awk '{print $1}')"
@@ -230,8 +235,8 @@ cmd_snapshot() {
 # check_snapshot verifies DIR exists with matching hashes.
 check_snapshot() { # dir
 	local dir="$1"
-	[[ -f "${dir}/items.tsv" && -f "${dir}/fences.tsv" && -f "${dir}/sha256sums" ]] ||
-		fail "snapshot dir incomplete (want items.tsv, fences.tsv, sha256sums): ${dir}"
+	[[ -f "${dir}/items.tsv" && -f "${dir}/fences.tsv" && -f "${dir}/seed.tsv" && -f "${dir}/sha256sums" ]] ||
+		fail "snapshot dir incomplete (want items.tsv, fences.tsv, seed.tsv, sha256sums): ${dir}"
 	(cd "${dir}" && "${SHA}" -c sha256sums >/dev/null) ||
 		fail "snapshot hash mismatch: re-snapshot, never seed a edited snapshot"
 }
@@ -247,7 +252,7 @@ sat_session() { # dir
 	mk_tmp session
 	{
 		printf 'CREATE TEMP TABLE handover_snapshot(work_item_id TEXT PRIMARY KEY, h BIGINT NOT NULL);\n'
-		printf "\\copy handover_snapshot FROM '%s/items.tsv' WITH (FORMAT text, DELIMITER E'\\t');\n" "${dir}"
+		printf "\\copy handover_snapshot FROM '%s/seed.tsv' WITH (FORMAT text, DELIMITER E'\\t');\n" "${dir}"
 		cat "${sql_seed}"
 	} >"${session}"
 	psql_sat -A -t -f "${session}"
@@ -334,15 +339,14 @@ cmd_abort() {
 }
 
 cmd_plan() {
-	cat <<'PLAN'
-freeze:   HANDOVER_NAMESPACE=.. scripts/claim-plane-cutover-handover.sh freeze
-drain:    scripts/claim-plane-cutover-handover.sh drain            # exit 0 when empty
-snapshot: scripts/claim-plane-cutover-handover.sh snapshot --snapshot DIR
-seed:     scripts/claim-plane-cutover-handover.sh seed --snapshot DIR --yes
-verify:   scripts/claim-plane-cutover-handover.sh verify --snapshot DIR
-flip:     reviewed deploy only (authority switch on a verified snapshot)
-abort:    scripts/claim-plane-cutover-handover.sh abort --snapshot DIR
-PLAN
+	printf '%s\n' \
+		'freeze:   HANDOVER_NAMESPACE=.. claim-plane-cutover-handover.sh freeze' \
+		'drain:    claim-plane-cutover-handover.sh drain            # exit 0 when empty' \
+		'snapshot: claim-plane-cutover-handover.sh snapshot --snapshot DIR' \
+		'seed:     claim-plane-cutover-handover.sh seed --snapshot DIR --yes' \
+		'verify:   claim-plane-cutover-handover.sh verify --snapshot DIR' \
+		'flip:     reviewed deploy only (authority switch on a verified snapshot)' \
+		'abort:    claim-plane-cutover-handover.sh abort --snapshot DIR'
 }
 
 cmd_run() {
@@ -355,10 +359,17 @@ cmd_run() {
 		esac
 	done
 	[[ -n "${dir}" && "${yes}" == "1" ]] || fail "run needs --snapshot DIR --yes"
-	local freeze_out
+	local freeze_out state prior
+	state="${HANDOVER_STATE_FILE:-/tmp/handover-replicas}"
 	if ! freeze_out="$(cmd_freeze 2>&1)"; then
 		[[ "${freeze_out}" == *"already frozen (spec 0)"* ]] ||
 			{ printf '%s\n' "${freeze_out}" >&2; return 1; }
+		# Tolerating a foreign freeze is only safe when abort can still
+		# restore replicas: require the freeze record first, before any
+		# snapshot exists that abort would have to explain.
+		[[ -f "${state}" ]] || fail "tree already frozen with no freeze record at ${state}: restore replicas with kubectl scale first (abort cannot), or run the steps individually"
+		prior="$(cat "${state}")"
+		[[ "${prior}" =~ ^[1-9][0-9]*$ ]] || fail "bad freeze record at ${state}: ${prior}; restore replicas with kubectl scale first"
 	fi
 	wait_drain
 	cmd_snapshot --snapshot "${dir}"

@@ -27,64 +27,18 @@ check_contains() { # label needle haystack
 # world builds one isolated stub world per case and exports the env into
 # the CALLER (call it bare, then read WORLD_DIR): command substitution would
 # trap the exports in a subshell.
+# world builds one isolated stub world per case and exports the env into
+# the CALLER (call it bare, then read WORLD_DIR): command substitution would
+# trap the exports in a subshell. Fakes live in scripts/lib (the heredoc
+# budget gate forbids 512B+ heredoc bodies in new scripts); world only links
+# them onto PATH.
 world() {
 	WORLD_DIR="$(mktemp -d "${TMPDIR:-/tmp}/howorld.XXXXXX")"
 	local w="${WORLD_DIR}"
 	mkdir -p "${w}/bin" "${w}/state"
-	cat >"${w}/bin/kubectl" <<'EOF'
-#!/usr/bin/env bash
-# Flags precede the verb; scan argv for get/scale anywhere. A Deployment
-# at zero replicas has no .status.replicas field, so the frozen shape is
-# "0|" (empty status), exactly like the real jsonpath output.
-state_dir="${STUB_STATE_DIR:?}"
-if printf '%s\n' "$@" | grep -q '^get$'; then
-	if [[ -f "${state_dir}/spec" ]]; then
-		printf '%s|\n' "$(cat "${state_dir}/spec")"
-	else
-		printf '%s|%s\n' "${STUB_SPEC:-2}" "${STUB_STATUS-2}"
-	fi
-	exit 0
-fi
-for arg in "$@"; do
-	case "${arg}" in
-	--replicas=*) printf '%s' "${arg#--replicas=}" >"${state_dir}/spec" ;;
-	esac
-done
-printf '%s\n' "$*" >>"${STUB_SCALE_LOG:?}"
-EOF
-	cat >"${w}/bin/psql" <<'EOF'
-#!/usr/bin/env bash
-# Dispatch on the -f file: drain counts, snapshot rows, or sat session.
-file=""
-prev=""
-for arg in "$@"; do
-	[[ "${prev}" == "-f" ]] && file="${arg}"
-	prev="${arg}"
-done
-case "${file}" in
-*claim-plane-handover-drain.sql)
-	printf '%s\n%s\n' "${STUB_DRAIN_1:-0}" "${STUB_DRAIN_2:-0}" ;;
-*claim-plane-handover-snapshot-items.sql)
-	if [[ "${STUB_ITEMS_EMPTY:-0}" == "1" ]]; then printf ''
-	else printf 'item-a\t3\tclaim-a\tclaimed\nitem-b\t7\t\tpending\n'; fi ;;
-*claim-plane-handover-snapshot-fences.sql)
-	printf '%b' "${STUB_FENCES:-gen-1\titem-a\t3\n}" ;;
-*)
-	# Satellite session: must carry the snapshot temp table and the
-	# committed seed logic, never a hand-rolled UPDATE.
-	grep -q "CREATE TEMP TABLE handover_snapshot" "${file}" ||
-		{ echo "stub psql: session lacks handover_snapshot DDL" >&2; exit 1; }
-	grep -q "GREATEST(item.current_fencing_token, snap.h)" "${file}" ||
-		{ echo "stub psql: session lacks committed seed logic" >&2; exit 1; }
-	printf '%s\n' "${STUB_MATCHED:-2}"
-	printf '%b' "${STUB_MISSING:-}" ;;
-esac
-EOF
-	cat >"${w}/bin/sleep" <<'EOF'
-#!/usr/bin/env bash
-exit 0
-EOF
-	chmod +x "${w}/bin/"*
+	ln -s "${repo_root}/scripts/lib/test-handover-fake-kubectl.sh" "${w}/bin/kubectl"
+	ln -s "${repo_root}/scripts/lib/test-handover-fake-psql.sh" "${w}/bin/psql"
+	ln -s "${repo_root}/scripts/lib/test-handover-fake-sleep.sh" "${w}/bin/sleep"
 	export PATH="${w}/bin:${PATH}"
 	export HANDOVER_KUBECTL_BIN=kubectl HANDOVER_PSQL_BIN=psql
 	export HANDOVER_SHA_BIN=sha256sum HANDOVER_SLEEP_BIN=sleep
@@ -147,6 +101,7 @@ out="$(STUB_SPEC=0 STUB_STATUS="" "${script}" snapshot --snapshot "${snap}")"
 check_contains "snapshot-msg" "snapshot:" "${out}"
 check "snapshot-items" "item-a	3	claim-a	claimed" "$(sed -n '1p' "${snap}/items.tsv")"
 check "snapshot-fences" "gen-1	item-a	3" "$(sed -n '1p' "${snap}/fences.tsv")"
+check "snapshot-seed-tsv" "$(printf 'item-a\t3\nitem-b\t7')" "$(cat "${snap}/seed.tsv")"
 (cd "${snap}" && sha256sum -c sha256sums >/dev/null) && pass "snapshot-hash" || fail "snapshot-hash"
 out="$(STUB_SPEC=0 STUB_STATUS="" "${script}" snapshot --snapshot "${snap}" 2>&1 || true)"
 check_contains "snapshot-refuses-existing" "refusing to overwrite" "${out}"
@@ -223,8 +178,17 @@ check_contains "run-froze" --replicas=0 "$(cat "${w}/state/scale.log")"
 world; w="${WORLD_DIR}"
 snap="${w}/snap2"
 export HANDOVER_SAT_PGHOST=sat-host HANDOVER_SAT_PGUSER=sat-u HANDOVER_SAT_PGDATABASE=sat-db
+printf '2\n' >"${w}/state/replicas"
 out="$(STUB_SPEC=0 STUB_STATUS="" "${script}" run --snapshot "${snap}" --yes)"
-check_contains "run-tolerates-frozen" "verified: 2/2" "${out}"
+check_contains "run-tolerates-recorded-freeze" "verified: 2/2" "${out}"
+world; w="${WORLD_DIR}"
+snap="${w}/snap3"
+export HANDOVER_SAT_PGHOST=sat-host HANDOVER_SAT_PGUSER=sat-u HANDOVER_SAT_PGDATABASE=sat-db
+out="$(STUB_SPEC=0 STUB_STATUS="" "${script}" run --snapshot "${snap}" --yes 2>&1 || true)"
+check_contains "run-refuses-recordless-freeze" "no freeze record" "${out}"
+[[ ! -e "${snap}" ]] && pass "run-refuses-before-snapshot" || fail "run-refuses-before-snapshot"
+out="$("${script}" abort --snapshot "${snap}" 2>&1 || true)"
+check_contains "abort-refuses-recordless" "no freeze record" "${out}"
 out="$("${script}" run --snapshot "${snap}-x" 2>&1 || true)"
 check_contains "run-needs-yes" "--snapshot DIR --yes" "${out}"
 rm -rf "${w}"
