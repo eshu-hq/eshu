@@ -230,6 +230,27 @@ can be reverted alone.
 - **Write cost.** One predicate evaluation per inserted fact, and a B-tree
   insert only for an XRD content entity.
 
+## Custom plans for the claim texts
+
+A forced generic plan (`plan_cache_mode = force_generic_plan`, `PREPARE`)
+keeps both XRD texts on `fact_records_crossplane_xrd_entity_idx` (2.0 and
+1.4 ms). The claim base text, though, leaves
+`fact_records_active_k8s_claim_redrive_idx` for
+`fact_records_scope_generation_keyset_idx`, taking 243 ms against 16 ms
+custom on the 50,000-file scope. Under `plan_cache_mode = auto`, PostgreSQL
+picked that generic plan by the seventh execution (275 ms). The 200-file
+scope stayed custom. This is the #9586 trap on a named statement.
+
+The claim texts now run with `crossplaneClaimQueryExecMode`
+(`pgx.QueryExecModeCacheDescribe`), as the manifest reader and the overlay
+inputs read already do. Through pgx on one pooled connection, ten
+consecutive claim base reads of the 50,000-file scope (2,000 rows, 4 pages)
+took 991 to 1,430 ms each under the pool default after the first call, and
+105 to 124 ms each with the custom plan. A hermetic test pins the mode on
+the claim texts and only there (`TestListActiveCrossplaneSatisfiedByFactsStatements`):
+it failed before the change (`exit=1`) and passes after (`exit=0`). The XRD
+texts keep the pool default.
+
 ## Self-heal and already-wrong data
 
 A scope whose edges were deleted before this fix is repaired by its next full
@@ -240,8 +261,6 @@ fix changes no stored data.
 
 ## Not checked
 
-- pgx's cached-statement plans for the new texts. The shim used custom plans
-  with literal parameters; the readers run on the pool default.
 - Cold cache and production scale.
 - The golden delta-reader gate (#10022) was not run here.
 

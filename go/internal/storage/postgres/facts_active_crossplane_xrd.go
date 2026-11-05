@@ -9,6 +9,8 @@ import (
 	"slices"
 	"time"
 
+	"github.com/jackc/pgx/v5"
+
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 )
@@ -120,6 +122,16 @@ const (
 	crossplaneClaimDeltaOverlayScopeParam = 5
 )
 
+// crossplaneClaimQueryExecMode pins a custom plan on every page of the claim
+// texts (#10005), the #9586 mechanism (see manifestDependencyQueryExecMode).
+// Under the pool default each text is a named statement, and PostgreSQL
+// switched the claim base text to its generic plan from the sixth execution:
+// on the shim's 50,000-file scope it left fact_records_active_k8s_claim_redrive_idx
+// for fact_records_scope_generation_keyset_idx, 275 ms against 16 ms custom.
+// The cost is one replan per page. The XRD texts keep the pool default:
+// their generic plan stays on fact_records_crossplane_xrd_entity_idx.
+const crossplaneClaimQueryExecMode = pgx.QueryExecModeCacheDescribe
+
 // ListActiveCrossplaneXRDFacts loads active CrossplaneXRD content_entity
 // facts for the cross-scope Crossplane Claim -> XRD SATISFIED_BY correlation
 // (issue #5347). Mirrors ListActiveContainerImageIdentityFacts's
@@ -191,7 +203,7 @@ func (snapshot *deltaOverlaySnapshot) listCrossplaneXRDOverlay(ctx context.Conte
 	if err != nil {
 		return nil, err
 	}
-	active, err := reader.listCrossplaneFactPages(ctx, "list active crossplane xrd facts", listActiveCrossplaneXRDFactsQuery, nil)
+	active, err := reader.listCrossplaneFactPages(ctx, "list active crossplane xrd facts", listActiveCrossplaneXRDFactsQuery, nil, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -202,7 +214,7 @@ func (snapshot *deltaOverlaySnapshot) listCrossplaneXRDOverlay(ctx context.Conte
 	}
 	var base []facts.Envelope
 	if baseScopes := deltaOverlayBaseScopes(targets); len(baseScopes) > 0 {
-		base, err = reader.listCrossplaneFactPages(ctx, "list delta base crossplane xrd facts", baseQuery, nil, baseScopes)
+		base, err = reader.listCrossplaneFactPages(ctx, "list delta base crossplane xrd facts", baseQuery, nil, nil, baseScopes)
 		if err != nil {
 			reader.recordDeltaOverlayFailure(ctx, sink)
 			return nil, err
@@ -222,8 +234,9 @@ func (snapshot *deltaOverlaySnapshot) listCrossplaneClaimOverlay(ctx context.Con
 	if err != nil {
 		return nil, err
 	}
+	execMode := []any{crossplaneClaimQueryExecMode}
 	scopeArgs := []any{scopeID}
-	active, err := reader.listCrossplaneFactPages(ctx, "list active crossplane claim facts", listActiveCrossplaneClaimCandidateFactsQuery, scopeArgs)
+	active, err := reader.listCrossplaneFactPages(ctx, "list active crossplane claim facts", listActiveCrossplaneClaimCandidateFactsQuery, execMode, scopeArgs)
 	if err != nil {
 		return nil, err
 	}
@@ -237,7 +250,7 @@ func (snapshot *deltaOverlaySnapshot) listCrossplaneClaimOverlay(ctx context.Con
 	})
 	var base []facts.Envelope
 	if baseScopes := deltaOverlayBaseScopes(targets); len(baseScopes) > 0 {
-		base, err = reader.listCrossplaneFactPages(ctx, "list delta base crossplane claim facts", baseQuery, scopeArgs, baseScopes)
+		base, err = reader.listCrossplaneFactPages(ctx, "list delta base crossplane claim facts", baseQuery, execMode, scopeArgs, baseScopes)
 		if err != nil {
 			reader.recordDeltaOverlayFailure(ctx, sink)
 			return nil, err
@@ -247,12 +260,13 @@ func (snapshot *deltaOverlaySnapshot) listCrossplaneClaimOverlay(ctx context.Con
 }
 
 // listCrossplaneFactPages runs one Crossplane reader text through every
-// keyset page. lead binds before the cursor and page size; extra binds after
-// them, on every page.
+// keyset page. mode, when set, is the pgx exec mode argument; lead binds
+// before the cursor and page size; extra binds after them, on every page.
 func (s FactStore) listCrossplaneFactPages(
 	ctx context.Context,
 	label string,
 	query string,
+	mode []any,
 	lead []any,
 	extra ...any,
 ) ([]facts.Envelope, error) {
@@ -260,7 +274,7 @@ func (s FactStore) listCrossplaneFactPages(
 	var cursorObservedAt *time.Time
 	var cursorFactID string
 	for {
-		page, err := s.listCrossplaneFactsPage(ctx, label, query, lead, cursorObservedAt, cursorFactID, extra)
+		page, err := s.listCrossplaneFactsPage(ctx, label, query, slices.Concat(mode, lead), cursorObservedAt, cursorFactID, extra)
 		if err != nil {
 			return nil, err
 		}

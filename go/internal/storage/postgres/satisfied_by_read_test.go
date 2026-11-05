@@ -8,6 +8,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/jackc/pgx/v5"
 )
 
 // TestCrossplaneReaderTextsDeriveDeltaOverlayBase pins that both Crossplane
@@ -106,6 +108,18 @@ func TestListActiveCrossplaneSatisfiedByFactsStatements(t *testing.T) {
 			}
 			if db.beginReadOnlyRepeatableReadCalls != 1 {
 				t.Fatalf("BEGIN = %d, want one snapshot for both legs", db.beginReadOnlyRepeatableReadCalls)
+			}
+			// The claim texts run custom plans (#10005): under the pool's
+			// cached statements PostgreSQL switched the claim base text to a
+			// generic plan from its sixth execution, 275 ms against 16 ms on
+			// the shim's 50k-file scope. The XRD texts keep their generic
+			// plan, which stays on the migration 279 index.
+			for i, call := range db.queries {
+				isClaim := call.query == listActiveCrossplaneClaimCandidateFactsQuery || call.query == claimBase
+				custom := call.hasExecMode && call.execMode == pgx.QueryExecModeCacheDescribe
+				if isClaim != custom {
+					t.Fatalf("statement %d exec mode = %v (set %v); want QueryExecModeCacheDescribe on the claim texts only", i+1, call.execMode, call.hasExecMode)
+				}
 			}
 			if tc.name == "the intent scope is delta-active" {
 				if scopes, _ := db.queries[2].args[4].([]string); !slices.Equal(scopes, []string{"app"}) {
