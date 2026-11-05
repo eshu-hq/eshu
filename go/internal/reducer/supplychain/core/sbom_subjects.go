@@ -267,20 +267,11 @@ func coalesceAndSortSupplyChainImpactFindings(findings []SupplyChainImpactFindin
 	if len(findings) < 2 {
 		return findings
 	}
-	sort.Slice(findings, func(i, j int) bool {
-		left, right := supplyChainImpactStableKey(findings[i]), supplyChainImpactStableKey(findings[j])
-		if left != right {
-			return left < right
-		}
-		if findings[i].MatchReason != findings[j].MatchReason {
-			return findings[i].MatchReason < findings[j].MatchReason
-		}
-		return findings[i].ImageRef < findings[j].ImageRef
-	})
+	keys := sortSupplyChainImpactFindings(findings, true)
 	out := findings[:0]
 	var groupKey string
-	for _, finding := range findings {
-		key := supplyChainImpactStableKey(finding)
+	for i, finding := range findings {
+		key := keys[i]
 		if len(out) == 0 || key != groupKey {
 			out = append(out, finding)
 			groupKey = key
@@ -312,10 +303,53 @@ func coalesceAndSortSupplyChainImpactFindings(findings []SupplyChainImpactFindin
 			*previous = appendSupplyChainImpactFinding(nil, *previous)[0]
 		}
 	}
-	sort.Slice(out, func(i, j int) bool {
-		return supplyChainImpactStableKey(out[i]) < supplyChainImpactStableKey(out[j])
-	})
+	sortSupplyChainImpactFindings(out, false)
 	return out
+}
+
+// keyedSupplyChainImpactFindings sorts findings by a stable key computed once
+// per finding. The key is a JSON marshal of the logical identity, so computing
+// it inside a comparator cost two marshals per comparison and grew with
+// n log n; a digest holding several versions multiplies n (#10057).
+type keyedSupplyChainImpactFindings struct {
+	findings []SupplyChainImpactFinding
+	keys     []string
+	tieBreak bool
+}
+
+func (k keyedSupplyChainImpactFindings) Len() int { return len(k.findings) }
+
+func (k keyedSupplyChainImpactFindings) Swap(i, j int) {
+	k.findings[i], k.findings[j] = k.findings[j], k.findings[i]
+	k.keys[i], k.keys[j] = k.keys[j], k.keys[i]
+}
+
+func (k keyedSupplyChainImpactFindings) Less(i, j int) bool {
+	if k.keys[i] != k.keys[j] {
+		return k.keys[i] < k.keys[j]
+	}
+	if !k.tieBreak {
+		return false
+	}
+	if k.findings[i].MatchReason != k.findings[j].MatchReason {
+		return k.findings[i].MatchReason < k.findings[j].MatchReason
+	}
+	return k.findings[i].ImageRef < k.findings[j].ImageRef
+}
+
+// sortSupplyChainImpactFindings orders findings by stable key, then, when
+// tieBreak is set, by match reason and image ref. It marshals each key once and
+// swaps keys with their findings, so the order is identical to comparing
+// supplyChainImpactStableKey directly, ties included: sort.Sort and sort.Slice
+// run the same pdqsort over the same sequence of comparisons. It returns the
+// keys in sorted order, aligned index for index with findings.
+func sortSupplyChainImpactFindings(findings []SupplyChainImpactFinding, tieBreak bool) []string {
+	keys := make([]string, len(findings))
+	for i := range findings {
+		keys[i] = supplyChainImpactStableKey(findings[i])
+	}
+	sort.Sort(keyedSupplyChainImpactFindings{findings: findings, keys: keys, tieBreak: tieBreak})
+	return keys
 }
 
 // findingHasSBOMComponentPath reports whether classification read an SBOM
