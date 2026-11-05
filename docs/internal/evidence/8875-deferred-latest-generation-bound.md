@@ -27,8 +27,11 @@ Why safe: the bound reuses the scope parameter the final join already
 requires (`latest.scope_id = fact.scope_id` with fact bound to the same
 scope), so latest rows for any other scope can never join; the rest of
 the statement is byte-identical. Exactness is gated by the committed
-lockstep test pinning the bound plus the row-equivalence differential,
-both green DSN-backed.
+lockstep test pinning the bound plus the row-equivalence differential.
+Provenance: the lockstep tests are hermetic string guards (strings/testing
+only, no DSN, never skip); the row-equivalence differential was proven by a
+throwaway fixture A/B against disposable Postgres during development, not by
+a committed DSN-backed gate.
 
 No-Regression Evidence: the committed lockstep tests
 (TestDeferredScopedQueryBoundsLatestLookupToPartition and
