@@ -9,6 +9,7 @@ package gomodules
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
@@ -440,5 +441,188 @@ func TestTerminalFailureReleasesTheNextPlanLive(t *testing.T) {
 	}
 	if _, released := admit("go-modules-scheduled-20261105T140000Z", now.Add(2*time.Hour)); released != 1 {
 		t.Fatalf("admission after the terminal failure inserted %d, want 1: planning stopped", released)
+	}
+}
+
+// seedInterplayRepository seeds a repository the retirement scope predicate
+// matches: the git scope carries the repository id as its partition key, the
+// way production git scopes do, and the derived scope by its id prefix. Skew
+// at the evidence commit is leftAgo old, so the fence fires on the first page
+// read at a one-slot fleet.
+func seedInterplayRepository(t *testing.T, database *sql.DB, ordinal int, leftAgo time.Duration) (repoID, gitScopeID, derivedScopeID, generationID string) {
+	t.Helper()
+	repoID = seedRepository(t, database, ordinal, "go.mod")
+	gitScopeID = "git-repository-scope:" + repoID
+	if _, err := database.ExecContext(t.Context(),
+		`UPDATE ingestion_scopes SET partition_key = $1 WHERE scope_id = $2`, repoID, gitScopeID); err != nil {
+		t.Fatalf("name the repository partition: %v", err)
+	}
+	derivedScopeID, generationID = seedStampedEvidence(t, database, repoID, fenceLiveEvidenceCommit,
+		3*fenceLiveInterval, "vulnerability.go_module_evidence", "vulnerability.go_call_reachability")
+	seedRepositoryLeft(t, database, repoID, fenceLiveEvidenceCommit, leftAgo)
+	return repoID, gitScopeID, derivedScopeID, generationID
+}
+
+// readRetirementLedger reads a tombstone's state and deleted-row ledger.
+func readRetirementLedger(t *testing.T, database *sql.DB, retirementID string) (string, map[string]int64) {
+	t.Helper()
+	var state, raw string
+	if err := database.QueryRowContext(t.Context(), `SELECT state, rows_deleted::text
+		FROM repository_retirements WHERE retirement_id = $1`, retirementID).Scan(&state, &raw); err != nil {
+		t.Fatalf("read tombstone %s: %v", retirementID, err)
+	}
+	ledger := map[string]int64{}
+	if err := json.Unmarshal([]byte(raw), &ledger); err != nil {
+		t.Fatalf("decode ledger %s: %v", raw, err)
+	}
+	return state, ledger
+}
+
+// retireInterplayRepository runs the operator sequence InsertPending,
+// FenceRepository, PurgeRetired for one repository: the same order the
+// postgres-package derived-scope test runs, spelled from this leaf package,
+// which cannot reuse its unexported helpers across the package boundary.
+func retireInterplayRepository(t *testing.T, database *sql.DB, repoID, gitScopeID, retirementID string) (string, map[string]int64) {
+	t.Helper()
+	ctx := t.Context()
+	handle := postgres.SQLDB{DB: database}
+	if _, err := postgres.NewRetirementStore(handle).InsertPending(ctx, postgres.RetirementRequest{
+		RetirementID: retirementID, RepoID: repoID, ScopeID: gitScopeID,
+		ReasonCode: postgres.RetirementReasonOperatorRetired, ActorClass: "operator",
+		IdempotencyKeyHash: "key-" + retirementID,
+	}); err != nil {
+		t.Fatalf("InsertPending %s: %v", retirementID, err)
+	}
+	if _, err := postgres.NewRetirementFencer(handle, handle).FenceRepository(ctx, postgres.FenceRequest{
+		Retirements:        []postgres.FenceRetirement{{RetirementID: retirementID, RepoID: repoID, ScopeID: gitScopeID}},
+		ReasonCode:         postgres.RetirementReasonOperatorRetired,
+		ActorClass:         "operator",
+		IdempotencyKeyHash: "key-" + retirementID,
+	}); err != nil {
+		t.Fatalf("FenceRepository %s: %v", retirementID, err)
+	}
+	purged, err := postgres.NewRetirementPurger(handle, handle).PurgeRetired(ctx, postgres.PurgeRequest{RepoIDs: []string{repoID}})
+	if err != nil {
+		t.Fatalf("PurgeRetired %s: %v", retirementID, err)
+	}
+	if len(purged.Completed) != 1 || len(purged.Blocked) != 0 {
+		t.Fatalf("purge %s = %+v, want one completion and no block", retirementID, purged)
+	}
+	return readRetirementLedger(t, database, retirementID)
+}
+
+// TestFencePurgeInterplayLedgerLive is the ruling 7.2 and Amendment 1 A1.3
+// fence↔purge interplay proof at the ledger-count level: fence then purge,
+// and purge then fence, both leave the tombstone ledger counts equal to the
+// purged rows. This pins existing behavior: the fence only updates rows, so a
+// preview taken after it still counts what the purge removes, and a fence
+// that names purged generations matches zero rows and reports none fenced.
+// Lock-level coverage lives in
+// TestFenceYieldsToTheRetirementFenceTableLockLive.
+func TestFencePurgeInterplayLedgerLive(t *testing.T) {
+	database := openStoreProof(t)
+	handle := postgres.SQLDB{DB: database}
+
+	assertLedgerMatchesPreview := func(retirementID string, preview postgres.RetirementPreview, ledger map[string]int64) {
+		t.Helper()
+		if ledger["ingestion_scopes"] != preview.Scopes ||
+			ledger["derived_ingestion_scopes"] != preview.DerivedScopes ||
+			ledger["derived_fact_records"] != preview.DerivedFacts {
+			t.Fatalf("tombstone %s ledger %v does not match preview %+v", retirementID, ledger, preview)
+		}
+	}
+	assertResidueGone := func(scopeIDs ...string) {
+		t.Helper()
+		for _, scopeID := range scopeIDs {
+			var scopes, generations, factRows int
+			if err := database.QueryRowContext(t.Context(), `SELECT
+				(SELECT count(*) FROM ingestion_scopes WHERE scope_id = $1),
+				(SELECT count(*) FROM scope_generations WHERE scope_id = $1),
+				(SELECT count(*) FROM fact_records WHERE scope_id = $1)`, scopeID).Scan(&scopes, &generations, &factRows); err != nil {
+				t.Fatalf("read residue %s: %v", scopeID, err)
+			}
+			if scopes+generations+factRows != 0 {
+				t.Fatalf("residue at %s = %d scopes, %d generations, %d facts, want none", scopeID, scopes, generations, factRows)
+			}
+		}
+	}
+	fencesFor := func(scopeID string) []scannercomponent.StaleEvidenceFence {
+		t.Helper()
+		page, _ := readGoPage(t, database)
+		decision := reachability.StaleEvidence(page.Repositories, time.Now().UTC(), fenceLiveInterval, page.SlotCount)
+		var fences []scannercomponent.StaleEvidenceFence
+		for _, fence := range decision.Fences {
+			if fence.ScopeID == scopeID {
+				fences = append(fences, fence)
+			}
+		}
+		return fences
+	}
+
+	// Fence then purge: the fence retracts the evidence, and the purge that
+	// follows still counts exactly the rows it removes.
+	repoA, gitA, scopeA, generationA := seedInterplayRepository(t, database, 11, 3*fenceLiveInterval)
+	fencesA := fencesFor(scopeA)
+	if len(fencesA) != 1 {
+		t.Fatalf("fences for %s = %+v, want exactly the one skew verdict", scopeA, fencesA)
+	}
+	observedA := time.Now().UTC().Truncate(time.Microsecond)
+	resultA, err := fenceStore(database).FenceStaleGoEvidence(t.Context(), fencesA, observedA)
+	if err != nil || resultA.Fenced != 1 {
+		t.Fatalf("fence result = %+v, err = %v, want 1 fenced", resultA, err)
+	}
+	if got := countActiveEvidence(t, database, scopeA); got != 0 {
+		t.Fatalf("active evidence after the fence = %d, want 0", got)
+	}
+	if state := readScopeState(t, database, scopeA, generationA); state.pointer.Valid || state.status != "superseded" {
+		t.Fatalf("fenced scope state = %+v, want a NULL pointer and superseded", state)
+	}
+	previewA, err := postgres.NewRetirementStore(handle).Preview(t.Context(), repoA, []string{gitA})
+	if err != nil {
+		t.Fatalf("preview %s: %v", repoA, err)
+	}
+	if previewA.Scopes != 2 || previewA.Generations != 3 || previewA.DerivedScopes != 1 || previewA.DerivedFacts != 2 {
+		t.Fatalf("preview = %+v, want 2 scopes, 3 generations, 1 derived scope, 2 derived facts", previewA)
+	}
+	stateA, ledgerA := retireInterplayRepository(t, database, repoA, gitA, "rr_fence_purge_a")
+	if stateA != postgres.RetirementStateComplete {
+		t.Fatalf("tombstone state = %q, want complete", stateA)
+	}
+	assertLedgerMatchesPreview("rr_fence_purge_a", previewA, ledgerA)
+	assertResidueGone(gitA, scopeA)
+
+	// Purge then fence: the purge counts what it removes, and the fence that
+	// follows names generations that no longer exist, so it affects zero rows
+	// and leaves the ledger alone.
+	repoB, gitB, scopeB, _ := seedInterplayRepository(t, database, 12, 3*fenceLiveInterval)
+	fencesB := fencesFor(scopeB)
+	if len(fencesB) != 1 {
+		t.Fatalf("fences for %s = %+v, want exactly the one skew verdict", scopeB, fencesB)
+	}
+	previewB, err := postgres.NewRetirementStore(handle).Preview(t.Context(), repoB, []string{gitB})
+	if err != nil {
+		t.Fatalf("preview %s: %v", repoB, err)
+	}
+	if previewB.Scopes != 2 || previewB.DerivedScopes != 1 || previewB.DerivedFacts != 2 {
+		t.Fatalf("preview = %+v, want 2 scopes, 1 derived scope, 2 derived facts", previewB)
+	}
+	stateB, ledgerB := retireInterplayRepository(t, database, repoB, gitB, "rr_fence_purge_b")
+	if stateB != postgres.RetirementStateComplete {
+		t.Fatalf("tombstone state = %q, want complete", stateB)
+	}
+	assertLedgerMatchesPreview("rr_fence_purge_b", previewB, ledgerB)
+	assertResidueGone(gitB, scopeB)
+	resultB, err := fenceStore(database).FenceStaleGoEvidence(t.Context(), fencesB, time.Now().UTC())
+	if err != nil || resultB.Fenced != 0 {
+		t.Fatalf("fence after purge = %+v, err = %v, want 0 fenced", resultB, err)
+	}
+	stateAgain, ledgerAgain := readRetirementLedger(t, database, "rr_fence_purge_b")
+	if stateAgain != stateB || len(ledgerAgain) != len(ledgerB) {
+		t.Fatalf("purge ledger moved under the later fence: %v then %v", ledgerB, ledgerAgain)
+	}
+	for key, want := range ledgerB {
+		if ledgerAgain[key] != want {
+			t.Fatalf("purge ledger moved under the later fence: %v then %v", ledgerB, ledgerAgain)
+		}
 	}
 }

@@ -3,7 +3,7 @@
 Go evidence is keyed by the commit it measured, not by the remote's health. The coordinator
 retracts a go-reachability generation when the repository left that commit more than two
 rotation periods ago and no successor landed, and reopens the scopes holding findings for
-that repository in the same transaction. The binding ruling and its Amendments 1 and 2 are
+that repository in the same transaction. The binding ruling and its Amendments 1, 2, and 3 are
 recorded on issue #10055.
 
 ## What changed at runtime
@@ -98,9 +98,9 @@ buffers). The in-page skew subquery runs 20 loops for the 20 skewed candidates o
 `scope_generations_scope_idx` (88 buffers, ~0.014 ms per candidate, far under the
 ruling's 5 ms fallback bar). The full page runs 0.84 ms with 421 buffers. No sequential
 scan of `fact_records` or `scope_generations` appears in any output. Probe SQL and
-output: `/home/ubuntu/.cache/out-10055/probe-fence-seed.sql`,
-`/home/ubuntu/.cache/out-10055/probe-fence-explain.sql`,
-`/home/ubuntu/.cache/out-10055/probe-fence-explain.out`.
+output: `10055-probe-fence-seed.sql`,
+`10055-probe-fence-explain.sql`,
+`10055-probe-fence-explain.txt` (same directory as this note).
 
 ## Signals
 
