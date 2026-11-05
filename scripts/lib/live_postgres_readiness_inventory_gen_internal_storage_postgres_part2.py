@@ -25,7 +25,7 @@ TABLE = {
         ),
         "go/internal/storage/postgres/osv_delta_changed_names_live_test.go": (
             "TestListVulnerabilityChangedNamesLive",
-            "TestListVulnerabilityChangedNamesMalformedWithdrawnFailsLive",
+            "TestListVulnerabilityChangedNamesMalformedWithdrawnRidesLive",
         ),
         "go/internal/storage/postgres/osv_delta_replan_burst_live_test.go": (
             "TestOSVDeltaReplanBurstDrainsWithoutLossLive",

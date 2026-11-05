@@ -287,7 +287,7 @@ tests:
   - file: go/internal/storage/postgres/osv_delta_changed_names_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#9777 step 2 disposable PostgreSQL proof that the changed_name fact read returns the delta feed's rows from active generations only, with the raw feed spelling and a strictly parsed withdrawn flag; isolated bootstrap schema"
+    reason: "#9777 step 2 disposable PostgreSQL proof that the changed_name fact read returns the delta feed's rows from active generations only, with the raw feed spelling and the verbatim withdrawn spelling (the intersection strict-parses it); isolated bootstrap schema"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/osv_delta_replan_burst_live_test.go
     tag: ~

@@ -10,6 +10,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -49,7 +50,7 @@ func replanChangedRecord(advisory, ecosystem, name string, withdrawn bool, feed 
 		AdvisoryID:    advisory,
 		Ecosystem:     ecosystem,
 		PackageName:   name,
-		Withdrawn:     withdrawn,
+		Withdrawn:     strconv.FormatBool(withdrawn),
 		FeedTimestamp: feed.UTC().Format(time.RFC3339),
 	}
 }
@@ -97,7 +98,7 @@ func drainReplanPass(
 	replan vulnerabilitystore.OwnedTargetReplanStore,
 	instance string,
 	stored map[string][]vulnerability.OSVDeltaStoredPackage,
-) vulnerability.OSVDeltaDrainPlan {
+) (vulnerability.OSVDeltaDrainPlan, []string) {
 	t.Helper()
 	pending, err := replan.ReadPendingReplan(ctx, instance)
 	if err != nil {
@@ -107,7 +108,7 @@ func drainReplanPass(
 	for _, row := range pending {
 		pendingRecords = append(pendingRecords, vulnerability.OSVDeltaChangedRecord{
 			AdvisoryID: row.AdvisoryID, Ecosystem: row.Ecosystem, PackageName: row.PackageName,
-			Withdrawn: row.Withdrawn, FeedTimestamp: row.FeedTimestamp.UTC().Format(time.RFC3339), RowID: row.ID,
+			Withdrawn: strconv.FormatBool(row.Withdrawn), FeedTimestamp: row.FeedTimestamp.UTC().Format(time.RFC3339), RowID: row.ID,
 		})
 	}
 	drainIntersection := vulnerability.IntersectOSVDeltaChangedNames(pendingRecords, stored)
@@ -115,7 +116,11 @@ func drainReplanPass(
 	if err != nil {
 		t.Fatalf("resolve: %v", err)
 	}
-	return drainAndCommit(ctx, t, database, replan, instance, drainIntersection, resolved)
+	resolvedKeys := make([]string, 0, len(resolved.Targets))
+	for _, target := range resolved.Targets {
+		resolvedKeys = append(resolvedKeys, target.Lookup.Ecosystem+"\x00"+target.Lookup.Name+"\x00"+target.Version)
+	}
+	return drainAndCommit(ctx, t, database, replan, instance, drainIntersection, resolved), resolvedKeys
 }
 
 func toResolverLookups(lookups []vulnerability.OSVDeltaLookup) []OwnedPackageNameLookup {
@@ -177,6 +182,38 @@ func drainAndCommit(
 		}
 	}
 	plan := vulnerability.PlanOSVDeltaReplanDrain(candidates, trivial, nil)
+	// No partial commit: every non-trivial covered row's every candidate
+	// query minted a scope this pass (trivial rows need none). A covered
+	// row with an unminted version would abandon that version with no
+	// retry once the commit marks the row enqueued.
+	trivialSet := make(map[int64]struct{}, len(trivial))
+	for _, row := range trivial {
+		trivialSet[row.RowID] = struct{}{}
+	}
+	minted := make(map[string]struct{})
+	for _, target := range plan.Targets {
+		for _, query := range target.Queries {
+			minted[query.Ecosystem+"\x00"+query.PackageName+"\x00"+query.Version] = struct{}{}
+		}
+	}
+	coveredSet := make(map[int64]struct{}, len(plan.CoveredRowIDs))
+	for _, id := range plan.CoveredRowIDs {
+		coveredSet[id] = struct{}{}
+	}
+	for _, candidate := range candidates {
+		key := candidate.Ecosystem + "\x00" + candidate.PackageName + "\x00" + candidate.Version
+		for _, id := range candidate.RowIDs {
+			if _, ok := coveredSet[id]; !ok {
+				continue
+			}
+			if _, ok := trivialSet[id]; ok {
+				continue
+			}
+			if _, ok := minted[key]; !ok {
+				t.Fatalf("covered row %d query %q minted no scope: partial drain abandons versions", id, key)
+			}
+		}
+	}
 	if len(plan.CoveredRowIDs) > 0 && plan.WatermarkSet {
 		tx, err := database.BeginTx(ctx, nil)
 		if err != nil {
@@ -256,17 +293,21 @@ func TestOSVDeltaReplanFoldingDifferentialLive(t *testing.T) {
 		t.Fatalf("admitted = %d, want %d (nothing dropped)", admitted, len(changed))
 	}
 
-	// Drain to quiescence, one slot per pass. The watermark never passes an
-	// unqueued record in the operational sense the queue's CAS enforces:
-	// it advances only inside the transaction that marks the covered rows
-	// enqueued, monotonically, and to a covered timestamp (the marked ==
-	// covered assertion in drainAndCommit pins the atomicity per pass).
-	// Overflow rows keep the queue — and later passes — waiting; they are
-	// never skipped, because consumption is table-driven and the watermark
-	// never filters it. A numeric feed-timestamp prefix would contradict
-	// the one-slot bound under interleaved slots, so the proof asserts
-	// monotonicity plus quiescence instead of a prefix.
+	// Drain to quiescence, one winning slot anchoring each pass, with
+	// covered rows completing across their other slots as completion
+	// scopes. The watermark never passes an unqueued record in the
+	// operational sense the queue's CAS enforces: it advances only inside
+	// the transaction that marks the covered rows enqueued, monotonically,
+	// and to a covered timestamp (the marked == covered assertion in
+	// drainAndCommit pins the atomicity per pass, and its full-coverage
+	// assertion pins that no committed row abandons a version). Overflow
+	// rows keep the queue — and later passes — waiting; they are never
+	// skipped, because consumption is table-driven and the watermark never
+	// filters it. A numeric feed-timestamp prefix would contradict
+	// interleaved completion slots, so the proof asserts monotonicity plus
+	// quiescence instead of a prefix.
 	drainedQueries := make(map[string]uint32)
+	resolvedQueries := make(map[string]struct{})
 	var passes int
 	var prevWatermark time.Time
 	for {
@@ -280,9 +321,15 @@ func TestOSVDeltaReplanFoldingDifferentialLive(t *testing.T) {
 		if passes >= 12 {
 			t.Fatalf("queue did not drain in 12 passes (%d rows left)", len(pending))
 		}
-		plan := drainReplanPass(ctx, t, database, store, replan, instance, stored)
-		if plan.SlotsPlanned > 1 {
-			t.Fatalf("pass drained %d slots, want at most 1", plan.SlotsPlanned)
+		plan, passResolved := drainReplanPass(ctx, t, database, store, replan, instance, stored)
+		for _, key := range passResolved {
+			resolvedQueries[key] = struct{}{}
+		}
+		// A draining pass mints at least its winning slot; covered rows
+		// complete across their other slots as completion scopes, so a
+		// pass may plan more than one slot and still commit whole rows.
+		if len(plan.CoveredRowIDs) > 0 && plan.SlotsPlanned < 1 {
+			t.Fatalf("pass covered %d rows but planned %d slots", len(plan.CoveredRowIDs), plan.SlotsPlanned)
 		}
 		for _, target := range plan.Targets {
 			for _, query := range target.Queries {
@@ -319,6 +366,14 @@ func TestOSVDeltaReplanFoldingDifferentialLive(t *testing.T) {
 	}
 	if !set || !committed.Equal(feed) {
 		t.Fatalf("final watermark = (%v, %v), want the drained feed time", committed, set)
+	}
+	// No abandonment: every resolved query drained under exactly one slot
+	// across the passes. A committed row whose version never minted a
+	// scope would leave its resolved query out of the drained set.
+	for key := range resolvedQueries {
+		if _, ok := drainedQueries[key]; !ok {
+			t.Fatalf("resolved query %q never drained: a version was abandoned", key)
+		}
 	}
 
 	// Rewind: re-presenting the whole batch admits nothing and loses

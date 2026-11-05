@@ -6,6 +6,7 @@ package coordinator
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -17,12 +18,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry/contract"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
-
-// osvDeltaWatermarkStaleReason is the warning reason the coordinator logs
-// when a replan watermark's last successful poll is older than the
-// provisional stale bound. It matches the wording the freshness signals use,
-// so one alert query covers both.
-const osvDeltaWatermarkStaleReason = "osv_delta_watermark_stale"
 
 // OSVDeltaChangedNameReader loads the delta feed's changed_name facts for
 // one replan pass. The production implementation is FactStore.
@@ -68,6 +63,15 @@ type osvDeltaPass struct {
 	admitted    int
 	duplicates  int
 	parseFailed int
+	// rejected holds the queued rows the drain intersection dropped. They
+	// stay pending in the store, so the report counts them in the depth
+	// and alarms on them instead of stranding them invisibly.
+	rejected []vulnerability.OSVDeltaRejectedRecord
+	// freshParseFailed counts the fresh facts the intersection dropped
+	// (malformed withdrawn spelling, unknown ecosystem, blank field, bad
+	// timestamp). They never entered the queue, so the report logs them
+	// per pass instead of aging them.
+	freshParseFailed int
 }
 
 // osvDeltaReplanEnabled reports whether one instance runs the change-driven
@@ -129,10 +133,11 @@ func (s Service) prepareOSVDeltaReplan(
 	pendingRecords := make([]vulnerability.OSVDeltaChangedRecord, 0, len(pending))
 	for _, row := range pending {
 		pendingRecords = append(pendingRecords, vulnerability.OSVDeltaChangedRecord{
-			AdvisoryID:    row.AdvisoryID,
-			Ecosystem:     row.Ecosystem,
-			PackageName:   row.PackageName,
-			Withdrawn:     row.Withdrawn,
+			AdvisoryID:  row.AdvisoryID,
+			Ecosystem:   row.Ecosystem,
+			PackageName: row.PackageName,
+			// Queued rows carry a stored bool, always a valid spelling.
+			Withdrawn:     strconv.FormatBool(row.Withdrawn),
 			FeedTimestamp: row.FeedTimestamp.UTC().Format(time.RFC3339),
 			RowID:         row.RowID,
 		})
@@ -176,10 +181,11 @@ func (s Service) prepareOSVDeltaReplan(
 		pendingRecords = pendingRecords[:0]
 		for _, row := range pending {
 			pendingRecords = append(pendingRecords, vulnerability.OSVDeltaChangedRecord{
-				AdvisoryID:    row.AdvisoryID,
-				Ecosystem:     row.Ecosystem,
-				PackageName:   row.PackageName,
-				Withdrawn:     row.Withdrawn,
+				AdvisoryID:  row.AdvisoryID,
+				Ecosystem:   row.Ecosystem,
+				PackageName: row.PackageName,
+				// Queued rows carry a stored bool, always a valid spelling.
+				Withdrawn:     strconv.FormatBool(row.Withdrawn),
 				FeedTimestamp: row.FeedTimestamp.UTC().Format(time.RFC3339),
 				RowID:         row.RowID,
 			})
@@ -209,7 +215,15 @@ func (s Service) prepareOSVDeltaReplan(
 		pending:     drainIntersection.Changes,
 		admitted:    admitted,
 		duplicates:  duplicates,
-		parseFailed: changedIntersection.ParseFailed,
+		parseFailed: changedIntersection.ParseFailed + drainIntersection.ParseFailed,
+	}
+	pass.freshParseFailed = changedIntersection.ParseFailed
+	// Fresh rejects never sat in the queue (row zero); only queued drain
+	// rejects strand depth, so only those feed the stewardship path.
+	for _, rejected := range drainIntersection.Rejected {
+		if rejected.RowID != 0 {
+			pass.rejected = append(pass.rejected, rejected)
+		}
 	}
 	pass.request = &vulnerability.OSVDeltaDrainRequest{
 		Candidates: osvDeltaDrainCandidates(drainIntersection.Changes, resolved),
@@ -290,9 +304,10 @@ func osvDeltaTrivialRows(
 // commitOSVDeltaReplan runs the post-admission half: commit exactly the
 // drained rows whose scopes survived authorization, advance the watermark
 // over them, record the successful poll, and report the pass. Rows whose
-// scopes the tenant boundary denied stay pending for the next pass. A row
-// riding a scope the plan already held commits unconditionally: that scope
-// is queued by construction.
+// scopes the tenant boundary denied stay pending for the next pass. A
+// drained row with no minted scope commits only when the planner marked it
+// trivial (no owned target, nothing to authorize); any other unscoped row
+// stays pending instead of retiring on an unchecked held scope.
 func (s Service) commitOSVDeltaReplan(
 	ctx context.Context,
 	pass *osvDeltaPass,
@@ -321,6 +336,10 @@ func (s Service) commitOSVDeltaReplan(
 	for _, change := range pass.pending {
 		pendingByID[change.RowID] = change
 	}
+	trivial := make(map[int64]struct{}, len(observation.TrivialRowIDs))
+	for _, id := range observation.TrivialRowIDs {
+		trivial[id] = struct{}{}
+	}
 	var survivorIDs []int64
 	survivorTS := time.Time{}
 	for _, id := range observation.CoveredRowIDs {
@@ -339,9 +358,12 @@ func (s Service) commitOSVDeltaReplan(
 			if !authorized {
 				continue
 			}
+		} else if _, ok := trivial[id]; !ok {
+			// No minted scope and not trivial: the row's work was never
+			// queued this pass, so it stays pending instead of retiring
+			// on an unchecked held scope.
+			continue
 		}
-		// Unmapped rows are trivial or ride a scope the plan already held:
-		// queued by construction, so they commit unconditionally.
 		survivorIDs = append(survivorIDs, id)
 		if survivorTS.IsZero() || change.FeedTimestamp.After(survivorTS) {
 			survivorTS = change.FeedTimestamp
@@ -368,86 +390,4 @@ func replanItems(items []workflow.WorkItem) []workflow.WorkItem {
 		}
 	}
 	return out
-}
-
-// reportOSVDeltaReplan records the pass on the replan signals and warns
-// when the commit watermark's last successful poll is stale. Quiet passes
-// stay silent in the logs; the gauges carry them.
-func (s Service) reportOSVDeltaReplan(
-	ctx context.Context,
-	pass *osvDeltaPass,
-	observation vulnerability.OSVDeltaReplanObservation,
-	survivorIDs []int64,
-	observedAt time.Time,
-) {
-	watermark, err := pass.store.ReadCommitWatermark(ctx, pass.instanceID)
-	if err != nil {
-		if s.Logger != nil {
-			s.Logger.Warn(
-				"workflow coordinator owned target replan watermark unreadable",
-				"collector_instance_id", pass.instanceID,
-			)
-		}
-		return
-	}
-	depth := len(pass.pending) - len(survivorIDs)
-	oldest := time.Time{}
-	for _, change := range pass.pending {
-		skip := false
-		for _, id := range survivorIDs {
-			if id == change.RowID {
-				skip = true
-				break
-			}
-		}
-		if skip {
-			continue
-		}
-		if oldest.IsZero() || change.FeedTimestamp.Before(oldest) {
-			oldest = change.FeedTimestamp
-		}
-	}
-	now := observedAt.UTC()
-	record := OSVDeltaReplanMetricsObservation{
-		CollectorInstanceID: pass.instanceID,
-		Admitted:            pass.admitted,
-		Duplicates:          pass.duplicates,
-		ParseFailed:         pass.parseFailed,
-		Drained:             len(survivorIDs),
-		Overflow:            depth,
-		PendingDepth:        depth,
-	}
-	if !oldest.IsZero() {
-		record.OldestPendingAge, record.OldestPendingKnown = now.Sub(oldest), true
-	}
-	if watermark.CommittedSet {
-		record.WatermarkAge, record.WatermarkKnown = now.Sub(watermark.Committed.UTC()), true
-	}
-	if watermark.LastPollSet {
-		record.PollAge, record.PollKnown = now.Sub(watermark.LastPoll.UTC()), true
-	}
-	if s.Metrics != nil {
-		s.Metrics.RecordOSVDeltaReplan(ctx, record)
-	}
-	if s.Logger == nil {
-		return
-	}
-	if len(survivorIDs) > 0 {
-		s.Logger.Info(
-			"workflow coordinator committed owned target replan drain",
-			"collector_instance_id", pass.instanceID,
-			"drained_rows", len(survivorIDs),
-			"overflow_rows", depth,
-			"scopes_minted", observation.ScopesMinted,
-			"watermark_set", observation.WatermarkSet,
-		)
-	}
-	if vulnerability.OSVDeltaWatermarkStale(watermark.LastPoll, watermark.LastPollSet, now) {
-		s.Logger.Warn(
-			"workflow coordinator owned target replan watermark is stale",
-			"collector_instance_id", pass.instanceID,
-			"reason", osvDeltaWatermarkStaleReason,
-			"last_poll_age_seconds", record.PollAge.Seconds(),
-		)
-	}
 }

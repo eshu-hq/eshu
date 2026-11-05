@@ -4,7 +4,7 @@
 package postgres
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #9777 step 2 disposable PostgreSQL proof that the changed_name fact read returns the delta feed's rows from active generations only, with the raw feed spelling and a strictly parsed withdrawn flag; isolated bootstrap schema
+//eshu:readiness:reason #9777 step 2 disposable PostgreSQL proof that the changed_name fact read returns the delta feed's rows from active generations only, with the raw feed spelling and the verbatim withdrawn spelling (the intersection strict-parses it); isolated bootstrap schema
 //eshu:readiness:env ESHU_POSTGRES_DSN
 
 import (
@@ -125,7 +125,7 @@ func TestListVulnerabilityChangedNamesLive(t *testing.T) {
 		t.Fatalf("ListVulnerabilityChangedNames() error = %v", err)
 	}
 	got := make([]string, 0, len(changed))
-	withdrawnByAdvisory := map[string]bool{}
+	withdrawnByAdvisory := map[string]string{}
 	for _, row := range changed {
 		got = append(got, row.AdvisoryID+"|"+row.Ecosystem+"|"+row.PackageName+"|"+row.FeedTimestamp)
 		withdrawnByAdvisory[row.AdvisoryID] = row.Withdrawn
@@ -140,18 +140,20 @@ func TestListVulnerabilityChangedNamesLive(t *testing.T) {
 	if !slices.Equal(got, want) {
 		t.Fatalf("changed = %v, want %v", got, want)
 	}
-	if !withdrawnByAdvisory["ADV-W"] {
+	if withdrawnByAdvisory["ADV-W"] != "true" {
 		t.Fatal("ADV-W reads withdrawn=false, want true (retraction must survive the read)")
 	}
-	if withdrawnByAdvisory["ADV-X"] || withdrawnByAdvisory["ADV-N"] {
+	if withdrawnByAdvisory["ADV-X"] != "false" || withdrawnByAdvisory["ADV-N"] != "false" {
 		t.Fatalf("non-withdrawn advisories read withdrawn: %v", withdrawnByAdvisory)
 	}
 }
 
-// TestListVulnerabilityChangedNamesMalformedWithdrawnFailsLive pins
-// fail-closed parsing: a withdrawn spelling outside the contract's
-// 'true'/'false' fails the read instead of silently flipping a retraction.
-func TestListVulnerabilityChangedNamesMalformedWithdrawnFailsLive(t *testing.T) {
+// TestListVulnerabilityChangedNamesMalformedWithdrawnRidesLive pins the
+// error-scope contract (#10092 P2): a withdrawn spelling outside the
+// contract's 'true'/'false' rides along verbatim instead of failing the
+// whole shared read. The coordinator intersection counts it parse_failed;
+// one bad fact never aborts the tick for every other instance.
+func TestListVulnerabilityChangedNamesMalformedWithdrawnRidesLive(t *testing.T) {
 	db, ctx := openIsolatedLiveDB(t, "changed_names_bad_9777", "set ESHU_POSTGRES_DSN to run the #9777 changed_name read proof")
 	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
@@ -160,9 +162,21 @@ func TestListVulnerabilityChangedNamesMalformedWithdrawnFailsLive(t *testing.T) 
 	}
 	seedChangedRows(t, ctx, db,
 		changedRow{"scope-delta-a", "gen-delta-a2", "f-bad-1", "ADV-B", "npm", "bad-name", `"yes"`, "2026-11-01T12:00:00Z", false},
+		changedRow{"scope-delta-a", "gen-delta-a2", "f-ok-1", "ADV-K", "npm", "kept-name", `"false"`, "2026-11-01T12:00:00Z", false},
 	)
 	store := NewFactStore(SQLDB{DB: db})
-	if _, err := store.ListVulnerabilityChangedNames(ctx); err == nil {
-		t.Fatal("ListVulnerabilityChangedNames() succeeded on a malformed withdrawn spelling, want fail-closed")
+	changed, err := store.ListVulnerabilityChangedNames(ctx)
+	if err != nil {
+		t.Fatalf("ListVulnerabilityChangedNames() error = %v, want nil (malformed withdrawn must not fail the read)", err)
+	}
+	byAdvisory := map[string]string{}
+	for _, row := range changed {
+		byAdvisory[row.AdvisoryID] = row.Withdrawn
+	}
+	if byAdvisory["ADV-B"] != "yes" {
+		t.Fatalf("malformed withdrawn = %q, want the raw spelling", byAdvisory["ADV-B"])
+	}
+	if byAdvisory["ADV-K"] != "false" {
+		t.Fatalf("valid row withdrawn = %q, want false (the bad row must not poison its neighbors)", byAdvisory["ADV-K"])
 	}
 }

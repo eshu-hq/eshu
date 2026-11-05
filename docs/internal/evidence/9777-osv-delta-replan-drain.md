@@ -52,13 +52,23 @@ as a numeric feed-timestamp prefix:
 The commit covers only drained rows with a scope that survived tenant-grant
 authorization. Duplicate-dropped scopes (already open under the same
 deterministic id) still count as queued. Denied scopes leave their rows
-pending for the next pass. Rows riding a scope the plan already held, and
-trivial rows with no owned targets, commit unconditionally.
+pending for the next pass. A covered row with no minted scope commits only
+when the plan marked it trivial (nothing owned, nothing to authorize); any
+other unscoped row stays pending instead of retiring on an unchecked held
+scope. Trivial rows with no owned targets commit unconditionally.
 
 ## Provisional bounds (re-set from measured hit rate before enablement)
 
-- One slot per pass (`OSVDeltaReplanSlotsPerPass`), most-queries slot wins,
-  ties break to the lowest slot. Overflow waits in the queue.
+- One winning slot anchors each pass (`OSVDeltaReplanSlotsPerPass`),
+  most-queries slot wins, ties break to the lowest slot. Covered rows
+  complete across their other slots as completion scopes, so a pass commits
+  whole rows only: holding a multi-slot row for a later pass would deadlock
+  (one pass never covers two slots at once) and committing it after one
+  slot would abandon its other-slot versions with no retry. Overflow waits
+  in the queue. Measured on the folding seed (5 of 8 rows multi-slot):
+  quiescence with monotonic watermark and every resolved query drained;
+  on the 7352-row burst: 8 passes, at most 3 slots in one pass, 11 scopes
+  minted.
 - Stale alarm on last-successful-poll age, 2 h (`OSVDeltaReplanStaleAfter`)
   on the assumed 15-minute poll (`OSVDeltaReplanPollInterval`). Feed gaps of
   hours to weeks are normal per ecosystem, so feed age never alarms. A
@@ -91,14 +101,20 @@ keep their current behavior byte-identical; the rotation slot-scope minter
 change is a pure namespace parameter (same `_slot` ids, proven by the
 unchanged `TestDeriveVulnerabilityTargets*` suite). Baseline: the pre-change
 `go test ./internal/coordinator/... ./internal/workflow/...` green on the
-same scratch PG 18.6 backend; after: same suites green plus the new
+same scratch PG 18 backend; after: same suites green plus the new
 flag-on/flag-off tests. The new-path cost is measured, not inferred:
-7,352-tuple burst intersects in 31 ms and admits in 72 ms in one statement;
-per-pass resolve stays at or under the 112 ms theory bound (290 ms total
+7,352-tuple burst intersects in 22 ms and admits in 61 ms in one statement;
+per-pass resolve stays at or under the 112 ms theory bound (289 ms total
 over 8 passes); terminal state zero pending with the watermark on the
-newest drained feed time. The commit is a single UPDATE plus one CAS
-upsert on the open transaction — no second transaction, no worker or
-batch reduction.
+newest drained feed time, every resolved query drained under exactly one
+slot. Completion scopes stay economical: at most 3 slots in one pass, 11
+scopes minted for the whole burst. The commit is a single UPDATE plus one
+CAS upsert on the open transaction — no second transaction, no worker or
+batch reduction; the zero-mark guard issues one statement fewer on a lost
+race (early return before the advance). Contention behavior is proven, not
+argued: `TestOwnedTargetReplanConcurrentAdmitSerializesLive` and
+`TestOwnedTargetReplanOverlappingCommitSerializesLive` green on scratch
+PG 18 with the guard in place.
 
 Observability Evidence: the pass records the five step-6 signals
 (`eshu_dp_osv_delta_records_total` with the closed outcome set,
@@ -108,5 +124,12 @@ Observability Evidence: the pass records the five step-6 signals
 `eshu_dp_owned_target_replan_oldest_age_seconds`, all per
 `collector_instance_id`) proven by
 `TestNewMetricsPublishesOSVDeltaReplanSignals` against a real meter, plus
-the INFO commit line and the WARN `osv_delta_watermark_stale` line. Quiet
-passes stay silent in the logs; the gauges carry them.
+the INFO commit line and three WARN lines: `osv_delta_watermark_stale`
+(last poll older than 2 h), `osv_delta_rejected_rows_stale`
+(drain-rejected queued rows older than 2 h, with depth and oldest age
+carrying them in the gauges), and `osv_delta_malformed_changed_facts`
+(malformed fresh facts, counted in `parse_failed`). Drain rejects and
+malformed facts are all counted, never silent. Flag-off plans emit no
+replan span attributes at all (proven by
+`TestPlanSpanOmitsReplanAttributesWhenFlagOff` against the production
+planner's span); flag-on emission is byte-identical to before.

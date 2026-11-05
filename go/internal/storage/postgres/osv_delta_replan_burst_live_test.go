@@ -9,6 +9,7 @@ package postgres
 
 import (
 	"fmt"
+	"strconv"
 	"testing"
 	"time"
 
@@ -80,6 +81,7 @@ func TestOSVDeltaReplanBurstDrainsWithoutLossLive(t *testing.T) {
 	var passes int
 	var resolveElapsed time.Duration
 	var prevWatermark time.Time
+	var maxSlots, totalScopes int
 	for {
 		pending, err := replan.ReadPendingReplan(ctx, instance)
 		if err != nil {
@@ -95,7 +97,7 @@ func TestOSVDeltaReplanBurstDrainsWithoutLossLive(t *testing.T) {
 		for _, row := range pending {
 			pendingRecords = append(pendingRecords, vulnerability.OSVDeltaChangedRecord{
 				AdvisoryID: row.AdvisoryID, Ecosystem: row.Ecosystem, PackageName: row.PackageName,
-				Withdrawn: row.Withdrawn, FeedTimestamp: row.FeedTimestamp.UTC().Format(time.RFC3339), RowID: row.ID,
+				Withdrawn: strconv.FormatBool(row.Withdrawn), FeedTimestamp: row.FeedTimestamp.UTC().Format(time.RFC3339), RowID: row.ID,
 			})
 		}
 		drainIntersection := vulnerability.IntersectOSVDeltaChangedNames(pendingRecords, nil)
@@ -106,9 +108,16 @@ func TestOSVDeltaReplanBurstDrainsWithoutLossLive(t *testing.T) {
 			t.Fatalf("pass %d resolve: %v", passes, err)
 		}
 		plan := drainAndCommit(ctx, t, database, replan, instance, drainIntersection, resolved)
-		if plan.SlotsPlanned > 1 {
-			t.Fatalf("pass %d drained %d slots, want at most 1", passes, plan.SlotsPlanned)
+		// A draining pass mints at least its winning slot; covered rows
+		// complete across their other slots as completion scopes, so a
+		// pass may plan more than one slot and still commit whole rows.
+		if len(plan.CoveredRowIDs) > 0 && plan.SlotsPlanned < 1 {
+			t.Fatalf("pass %d covered %d rows but planned %d slots", passes, len(plan.CoveredRowIDs), plan.SlotsPlanned)
 		}
+		if plan.SlotsPlanned > maxSlots {
+			maxSlots = plan.SlotsPlanned
+		}
+		totalScopes += plan.ScopesMinted
 		committed, set, _, _, err := replan.ReadCommitWatermark(ctx, instance)
 		if err != nil {
 			t.Fatalf("read watermark: %v", err)
@@ -130,6 +139,6 @@ func TestOSVDeltaReplanBurstDrainsWithoutLossLive(t *testing.T) {
 	if !set || !committed.Equal(wantMax) {
 		t.Fatalf("final watermark = (%v, %v), want the newest drained feed time %v", committed, set, wantMax)
 	}
-	t.Logf("replan burst: %d tuples intersected in %v, admitted in %v, drained in %d passes with %v total resolve time",
-		burst, intersectElapsed, admitElapsed, passes, resolveElapsed)
+	t.Logf("replan burst: %d tuples intersected in %v, admitted in %v, drained in %d passes with %v total resolve time, %d max slots in one pass, %d scopes minted",
+		burst, intersectElapsed, admitElapsed, passes, resolveElapsed, maxSlots, totalScopes)
 }

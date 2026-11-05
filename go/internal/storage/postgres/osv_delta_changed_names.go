@@ -26,19 +26,18 @@ import (
 // selects the raw feed spelling verbatim — case, separators, and the Maven
 // group and Swift namespace all stay as the satellite wrote them — because
 // any fold here would bake a miss into the intersection instead of leaving
-// the mismatch visible there. The withdrawn flag arrives as text and is cast
-// strictly: 'true' and 'false' are the only spellings the emitter writes, so
-// anything else fails the read loudly instead of silently flipping a
-// retraction.
+// the mismatch visible there. The withdrawn flag arrives as text and rides
+// along verbatim: the coordinator intersection parses 'true' and 'false'
+// strictly and counts any other spelling parse_failed, so one malformed
+// fact is loud in the pass metrics without failing the whole shared read
+// and aborting every other instance's tick (#10092 P2). A missing key
+// defaults to 'false', the emitter's non-retraction spelling.
 const changedNamesQuery = `
 SELECT DISTINCT
     BTRIM(COALESCE(fact.payload->>'advisory_id', '')) AS advisory_id,
     BTRIM(COALESCE(fact.payload->>'ecosystem', '')) AS ecosystem,
     BTRIM(COALESCE(fact.payload->>'package_name', '')) AS package_name,
-    CASE BTRIM(COALESCE(fact.payload->>'withdrawn', 'false'))
-        WHEN 'true' THEN TRUE
-        WHEN 'false' THEN FALSE
-    END AS withdrawn,
+    BTRIM(COALESCE(fact.payload->>'withdrawn', 'false')) AS withdrawn,
     BTRIM(COALESCE(fact.payload->>'feed_timestamp', '')) AS feed_timestamp
 FROM fact_records AS fact
 JOIN ingestion_scopes AS scope
@@ -56,12 +55,15 @@ WHERE fact.fact_kind = 'vulnerability.changed_name'
 // spelling of all five fields, exactly as the satellite emitted them. The
 // coordinator intersection folds and validates these; this read never does.
 // All values are trimmed; a row with a blank advisory, ecosystem, package,
-// or feed timestamp is skipped, never returned as a lookup.
+// or feed timestamp is skipped, never returned as a lookup. Withdrawn is
+// the verbatim spelling ('true', 'false', or whatever a malformed fact
+// carried): the intersection strict-parses it, so this read never flips a
+// retraction and never fails on one.
 type VulnerabilityChangedName struct {
 	AdvisoryID    string
 	Ecosystem     string
 	PackageName   string
-	Withdrawn     bool
+	Withdrawn     string
 	FeedTimestamp string
 }
 
@@ -93,8 +95,7 @@ func (s *FactStore) ListVulnerabilityChangedNames(
 
 	var changed []VulnerabilityChangedName
 	for rows.Next() {
-		var advisoryID, ecosystem, packageName, feedTimestamp string
-		var withdrawn bool
+		var advisoryID, ecosystem, packageName, withdrawn, feedTimestamp string
 		if err := rows.Scan(&advisoryID, &ecosystem, &packageName, &withdrawn, &feedTimestamp); err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "changed names read failed")
