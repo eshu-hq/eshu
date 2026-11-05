@@ -1,0 +1,22 @@
+docs/internal/evidence/9611-manifest-read-base-generations.md
+  s_7547c0f0af67d4::t_2360fefb8ad96d 1-165
+  s_7547c0f0af67d4::t_716897a85e33af 166-242
+docs/internal/evidence/9611-manifest-read-name-probe.md
+  s_7547c0f0af67d4::t_e67832ccffd958 187-189
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a1ef65a8d87eb13ae90c67eb72a2d5b78bcdf7bf",
+  "prompts": {},
+  "sessions": {
+    "s_7547c0f0af67d4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7c8b2d5-3286-4c2a-be1f-589162535d83",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
