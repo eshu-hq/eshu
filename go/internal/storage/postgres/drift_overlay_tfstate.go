@@ -107,9 +107,9 @@ func overlayEnvelope(row driftOverlayRow) facts.Envelope {
 // when a baseline-carrying scope exists (the skip-scan: no base scan,
 // no resolve, no inputs read otherwise), and merge through the shared
 // overlayDeltaBase. Active args are the active text's bind parameters;
-// the base text binds the same args plus the delta-active scope ids
-// appended at len(activeArgs)+1, which every overlay text documents as
-// its scope placeholder.
+// the derived base text binds the same args plus the candidate base
+// generation ids (deltaOverlayBaseGenerations) appended at
+// len(activeArgs)+1.
 func (o TerraformDriftOverlay) overlaidRows(
 	ctx context.Context,
 	sink deltaOverlayTelemetry,
@@ -160,8 +160,8 @@ func (o TerraformDriftOverlay) overlaidRowsOnSnapshot(
 		return nil, nil, nil, err
 	}
 	var base []driftOverlayRow
-	if scopes := deltaOverlayBaseScopes(targets); len(scopes) > 0 {
-		baseArgs := append(append([]any{}, activeArgs...), scopes)
+	if baseGenerations, runBase := deltaOverlayBaseGenerations(targets); runBase {
+		baseArgs := append(append([]any{}, activeArgs...), baseGenerations)
 		base, err = queryDriftOverlayRows(ctx, reader.database, baseQuery, baseArgs, scan)
 		if err != nil {
 			reader.recordDeltaOverlayFailure(ctx, sink)
