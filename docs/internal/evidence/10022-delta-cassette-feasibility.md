@@ -183,6 +183,36 @@ PASS: B-7 golden corpus gate green (elapsed 452s, budget ceiling 1800s)
 exit=0
 ```
 
+## Differential follow-up (CI run 41953841855)
+
+The first CI run with the delta leg failed the blocking statement-coverage
+step of the differential job. The backend comparison is advisory
+(`continue-on-error`, #6965) and did not fail the job.
+
+- **Blocking failure, fixed.** `readShellCommandKeys` issued its
+  delta-scoped read (`MATCH (target:ShellCommand {path: file_path})`) for the
+  first time. The git collector emits the shell-exec follow-up on every
+  delta, and the corpus holds no ShellCommand, so the read is empty on every
+  backend. The manifest already exempted the whole-repository variant for
+  that reason. It now exempts the delta variant too, pinned by
+  `TestStatementCoverageShellExecDeltaKeysExempt`. Against the run's Neo4j
+  captures, `-phase=statement-coverage` exits 1 with the old manifest and 0
+  with the new one.
+- **Advisory path noise, fixed.** 310 divergences reproduced. About 300 were
+  file, directory, and repository reads whose rows held each run's random
+  clone path. The CI job pins `ESHU_REPOS_DIR` for exactly this reason; the
+  leg cloned under the `mktemp` work dir. It now clones into
+  `${ESHU_REPOS_DIR}-delta-reader`. Two harness runs with different work dirs
+  recorded the same `local_path`.
+- **Advisory, genuine, tracked as #10110.** The final CALLS count is 52 on
+  NornicDB and 53 on Neo4j in both pairings. The delta entity retract
+  deletes the moved caller's stale Function node on NornicDB and nothing on
+  Neo4j. Once paths pair across runs, further delta-repository statements
+  will also show as advisory divergences until #10110 is understood.
+- **Advisory, not from this leg.** The orders-api blast-radius reads and a
+  `Workload ... generation_id IS NULL` read also reproduced. They reproduce
+  the same way in run 41953235321, which ran without the leg.
+
 ## No-Observability-Change:
 
 No runtime metric, span, or log key changed. The gate reports each assertion

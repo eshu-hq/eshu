@@ -796,6 +796,9 @@ read_exemptions:
   - callsite: internal/storage/cypher/edge/writer/shell_exec.go:(*EdgeWriter).readShellCommandKeys
     anchor: "MATCH (target:ShellCommand {repo_id: repo_id}) WHERE target.evidence_source = $evidence_source"
     reason: zero ShellCommand creates in B-7 captures; the node-prop predicate matches nothing
+  - callsite: internal/storage/cypher/edge/writer/shell_exec.go:(*EdgeWriter).readShellCommandKeys
+    anchor: "MATCH (target:ShellCommand {path: file_path}) WHERE target.evidence_source = $evidence_source"
+    reason: the delta-scoped variant, executed only by the #10022 delta-reader leg (the corpus's sole git delta; the git collector emits the shell-exec follow-up on every delta); zero ShellCommand creates in B-7 captures, so the file-path predicate matches nothing
   - callsite: internal/query/impact/deployment/flux_bindings.go:FetchFluxDeploymentSourceTargetBindings
     anchor: "MATCH (repo:Repository {id: source_id})-[sourceRel:HAS_DEPLOYMENT_EVIDENCE]->(artifact:EvidenceArtifact)"
     reason: zero FLUX_GIT_REPOSITORY_SOURCE artifact writes in B-7 captures
