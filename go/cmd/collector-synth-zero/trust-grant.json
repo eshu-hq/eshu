@@ -1,0 +1,9 @@
+{
+  "producer_id": "dev.eshu.collector.synth-8877-cutover",
+  "version": "0.1.0",
+  "kind": "dev.eshu.synth_zero_fact.emission",
+  "schema_versions": ["1.0.0"],
+  "scope": "synth_zero_fact",
+  "expires_at": "2026-11-12T00:00:00Z",
+  "revoked": false
+}

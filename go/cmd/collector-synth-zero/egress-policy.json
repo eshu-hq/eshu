@@ -1,0 +1,11 @@
+{
+  "mode": "restricted",
+  "extensions": [
+    {
+      "component_id": "dev.eshu.collector.synth-8877-cutover",
+      "instance_id": "synth-8877-cutover-instance-1",
+      "collector_kind": "synth_zero_fact",
+      "decision": "allow"
+    }
+  ]
+}
