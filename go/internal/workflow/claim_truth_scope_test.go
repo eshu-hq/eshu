@@ -168,6 +168,42 @@ func TestCoordinatorFactsUsageIsIdentityOnly(t *testing.T) {
 	}
 }
 
+// TestCoordinatorImportsNoFactPersistence guards the coordinator half of
+// the no-emission verdict: go/internal/coordinator production code must
+// not import fact-definition or fact-persistence packages (factschema,
+// storage/postgres/facts). The facts package itself is governed by
+// TestCoordinatorFactsUsageIsIdentityOnly; this test closes the sibling
+// coupling classes a future change could otherwise add silently.
+func TestCoordinatorImportsNoFactPersistence(t *testing.T) {
+	t.Parallel()
+
+	root := truthScopeRepoRoot(t)
+	denySubstrings := []string{
+		"factschema",
+		"storage/postgres/facts",
+	}
+
+	fset := token.NewFileSet()
+	var violations []string
+	for _, rel := range truthScopeGoFiles(t, root, "go/internal/coordinator") {
+		f, err := parser.ParseFile(fset, filepath.Join(root, rel), nil, parser.ImportsOnly)
+		if err != nil {
+			t.Fatalf("parse %s: %v", rel, err)
+		}
+		for _, imp := range f.Imports {
+			path := strings.Trim(imp.Path.Value, `"`)
+			for _, deny := range denySubstrings {
+				if strings.Contains(path, deny) {
+					violations = append(violations, rel+": imports "+path)
+				}
+			}
+		}
+	}
+	if len(violations) != 0 {
+		t.Errorf("coordinator gained fact-persistence coupling:\n%s", strings.Join(violations, "\n"))
+	}
+}
+
 // truthScopeKnownReaders enumerates the non-test files outside the moving
 // tree that may reference workflow state, with the reason each is
 // transport (read-only reporting or config shape) rather than truth
@@ -204,6 +240,7 @@ func TestTruthSurfacesReadNoWorkflowState(t *testing.T) {
 	}
 	markers := []string{
 		"go/internal/workflow\"",
+		"go/internal/workflow/",
 		"workflow_runs",
 		"workflow_work_items",
 		"workflow_claims",

@@ -51,12 +51,16 @@ same properties with `go/parser` at test time).
 
 Committed proof: `go/internal/workflow/claim_truth_scope_test.go` —
 `TestClaimPathEmitsNoFacts`, `TestCoordinatorFactsUsageIsIdentityOnly`,
+`TestCoordinatorImportsNoFactPersistence`,
 `TestTruthSurfacesReadNoWorkflowState` (six-file known-reader allowlist,
 one per item above). Each test was mutation-proven: a planted facts
-import, a planted `facts.Envelope` construction, and a planted
+import, a planted `facts.Envelope` construction, a planted
+fact-persistence import in the coordinator, and a planted
 `workflow_runs` reference each fail exactly their guard, then were
-removed. Any future change introducing such a coupling fails closed and
-must update the test and this note together.
+removed. Any future change outside the documented reader set that
+introduces such a coupling fails closed and must update the test and
+this note together (couplings added inside an allowlisted file are
+reviewed, not auto-failed).
 
 ## C4 census refresh: 187 → 188 fact Kinds
 
@@ -69,7 +73,7 @@ emitter or consumer yet. Unrelated to the workflow lane.
 in this lane. Importer census NOT refreshed here (owned by the census
 lane): re-measured at this HEAD with the census method
 (`git grep -l -F 'eshu/go/internal/workflow"' -- 'go/**/*.go' ':!*_test.go'`;
-169 at `8ec6d11ddf`, 199 at this HEAD, +30 from merged lanes since
+169 at `8ec6d11ddf`, 202 at this HEAD, +33 from merged lanes since
 2026-10-30) — `EXTRACTION_PREP.md` §5 still records 169 and needs its own
 refresh pass.
 

@@ -305,11 +305,16 @@ that repo's references too. Binary is dark-by-default and Postgres-only.
   HEAD; every behavior ported live in §§1–3 (stale-skip reconcile/report,
   `ReconcileStaleComponentActivations` with revalidate-before-drop,
   `stale_activation_skips_total` counter, reap-instrument split). Nothing
-  deleted-by-omission. Fact Kinds 187→188 across the window
-  (`vulnerability.changed_name` v1.0.0, `#9777`, unrelated to this lane);
-  importer set identical (169). `go/internal/workflow/` grows 77→78
-  entries (72→73 `.go`) for the new `protocol_version_test.go` in this
-  refresh — the only delta, and it is the compat proof itself.
+  deleted-by-omission. Importer set identical (169).
+  `go/internal/workflow/` grows 77→78 entries (72→73 `.go`) for the new
+  `protocol_version_test.go` in this refresh — the only delta, and it is
+  the compat proof itself.
+
+- 2026-11-05 kinds-only addendum (this lane; no code, no removal):
+  Fact Kinds 187→188 (`vulnerability.changed_name` v1.0.0, `#9777`,
+  unrelated to this lane); §§4/11 kind counts refreshed to 188. Importer
+  census explicitly out of scope here (owned by the census lane): §5 still
+  records the 169-file Oct-30 set.
 - Peer-claim check 2026-10-30: all 27 `#8875` comments are owner-posted lane
   updates (no peer claim); open `#9676` (`drive/9634-thread-followup`, same
   `#9634` thread) touches `component_activation_config.go` + `metrics.go`
