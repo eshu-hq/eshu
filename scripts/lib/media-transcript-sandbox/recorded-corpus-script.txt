@@ -1,0 +1,37 @@
+# Recorded-speech corpus script (#10073, BLOCKER: mic/human session)
+#
+# Read each line below aloud as one utterance, pausing between lines.
+# Target 5-15 s per utterance at a natural pace; lines marked (long) take
+# two breaths. Record each line twice: once in a quiet room, once with the
+# same room tone for the operator to mix at ~10 dB SNR at fixture build
+# time (deterministic sox/ffmpeg mix, fixed noise seed — see
+# scripts/eval-media-wer.sh).
+#
+# Session needs: 2-3 speakers, one quiet room, consent on file per speaker,
+# 16 kHz (or higher) mono WAV, one file per utterance per condition:
+#   <nn>-<speaker>-quiet.wav + <nn>-<speaker>-quiet.txt (this line)
+#   <nn>-<speaker>-noisy.wav + <nn>-<speaker>-noisy.txt (same line)
+# Mount the directory at ESHU_WHISPERCPP_RECORDED_DIR when running
+# scripts/eval-media-wer.sh. The eval pairs each .wav with its sibling
+# .txt and labels filenames containing "noisy" as noisy-10db-recorded.
+#
+# PII-canary discipline: these lines contain NO secrets, passwords, API
+# keys, PINs, or names. Canary sentences stay synthetic espeak fixtures
+# (the speech*.wav set) and are scored separately. Never read a real
+# credential into this corpus.
+#
+# 1. Please restart the checkout worker before noon.
+# 2. Rotate the staging keys every week.
+# 3. Ask the platform team for access to the shared vault.
+# 4. The build takes about twenty minutes on a clean runner. (long)
+# 5. Roll back the deploy if error rates stay high.
+# 6. File a ticket with the failing step and the log line.
+# 7. The cache lives in the shared bucket and expires each quarter.
+# 8. Review the owner list before the Friday freeze. (long)
+# 9. Drain the queue, then shut down the runner gracefully.
+# 10. Pin the base image digest before merging the release.
+# 11. The staging cluster lives in the east region this month.
+# 12. Keep two replicas warm through the holiday weekend. (long)
+# 13. Archive last month's invoices with the finance export.
+# 14. Page the on-call engineer if latency doubles twice.
+# 15. Confirm the backup finished before deleting the snapshot.
