@@ -324,8 +324,10 @@ func (c UnchangedGenerationCandidate) Matches(generation scope.ScopeGeneration) 
 		strings.TrimSpace(generation.SourceCommitSHA) == c.SourceCommit
 }
 
-// RecordSkippedRefresh counts one skip by its closed reason and emits the
-// operator log line and a span event on the caller's span.
+// RecordSkippedRefresh counts one skip by its closed reason, counts it on
+// eshu_dp_ingestion_generation_outcomes_total (#10020, by collector kind, never
+// by scope), and emits the operator log line and a span event on the caller's
+// span.
 func (s Store) RecordSkippedRefresh(
 	ctx context.Context,
 	scopeValue scope.IngestionScope,
@@ -334,6 +336,8 @@ func (s Store) RecordSkippedRefresh(
 	reason string,
 ) {
 	telemetry.RecordSkippedRefresh(reason)
+	s.Instruments.RecordGenerationOutcome(ctx, string(scopeValue.CollectorKind),
+		telemetry.GenerationOutcomeSkipped, reason)
 	trace.SpanFromContext(ctx).AddEvent("ingestion.refresh_skipped", trace.WithAttributes(
 		attribute.String(telemetry.LogKeyRefreshSkipReason, reason),
 		attribute.String(telemetry.LogKeyScopeID, scopeValue.ScopeID),

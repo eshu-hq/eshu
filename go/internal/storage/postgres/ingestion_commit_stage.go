@@ -8,6 +8,9 @@ import (
 	"log/slog"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -50,4 +53,30 @@ func (s IngestionStore) now() time.Time {
 	}
 
 	return time.Now().UTC()
+}
+
+// recordMintedGeneration records the durable commit of a new scope generation
+// (#10020): the commit_transaction stage log with the outcome fields, a span
+// event on the caller's span, and one increment of
+// eshu_dp_ingestion_generation_outcomes_total. The skip side lives in
+// backfill.Store.RecordSkippedRefresh, so an operator reads minted versus
+// skipped per collector kind from one counter. The counter carries no scope
+// id; the stage log and span event name the scope.
+func (s IngestionStore) recordMintedGeneration(
+	ctx context.Context,
+	scopeValue scope.IngestionScope,
+	generation scope.ScopeGeneration,
+	commitStart time.Time,
+) {
+	s.logCommitStage(ctx, scopeValue, generation, "commit_transaction", commitStart,
+		slog.String(telemetry.LogKeyCollectorKind, string(scopeValue.CollectorKind)),
+		slog.String("refresh_outcome", telemetry.GenerationOutcomeMinted),
+	)
+	trace.SpanFromContext(ctx).AddEvent("ingestion.generation_minted", trace.WithAttributes(
+		attribute.String(telemetry.LogKeyScopeID, scopeValue.ScopeID),
+		attribute.String(telemetry.LogKeyCollectorKind, string(scopeValue.CollectorKind)),
+		attribute.String(telemetry.LogKeyGenerationID, generation.GenerationID),
+	))
+	s.Instruments.RecordGenerationOutcome(ctx, string(scopeValue.CollectorKind),
+		telemetry.GenerationOutcomeMinted, telemetry.GenerationReasonNone)
 }
