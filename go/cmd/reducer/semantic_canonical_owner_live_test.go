@@ -121,14 +121,22 @@ func (e semanticOwnerSchemaExecutor) ExecuteCypher(ctx context.Context, stmt esh
 // delta that moves the function and over a full regeneration that re-keys it.
 //
 // Gate: ESHU_CYPHER_BOLT_DSN pointing at a disposable Neo4j (auth disabled)
-// and ESHU_CYPHER_BOLT_DATABASE=neo4j, the #7095 live-test gate.
+// and ESHU_CYPHER_BOLT_DATABASE=neo4j, the #7095 live-test gate. The
+// live-backend CI runner instead exports ESHU_NEO4J_URI /
+// ESHU_NEO4J_DATABASE, so fall back to that pair; the resolved database
+// must still be neo4j, keeping the proof Neo4j-only on every backend leg.
 func TestLiveNeo4jSemanticWriterKeepsCanonicalFunctionOwnership(t *testing.T) {
-	if strings.TrimSpace(os.Getenv("ESHU_CYPHER_BOLT_DATABASE")) != "neo4j" {
-		t.Skip("ESHU_CYPHER_BOLT_DATABASE=neo4j required; this proof is Neo4j-only")
-	}
 	dsn := strings.TrimSpace(os.Getenv("ESHU_CYPHER_BOLT_DSN"))
+	database := strings.TrimSpace(os.Getenv("ESHU_CYPHER_BOLT_DATABASE"))
 	if dsn == "" {
-		t.Skip("ESHU_CYPHER_BOLT_DSN not set")
+		dsn = strings.TrimSpace(os.Getenv("ESHU_NEO4J_URI"))
+		database = strings.TrimSpace(os.Getenv("ESHU_NEO4J_DATABASE"))
+	}
+	if database != "neo4j" {
+		t.Skip("neo4j database required; this proof is Neo4j-only")
+	}
+	if dsn == "" {
+		t.Skip("ESHU_CYPHER_BOLT_DSN / ESHU_NEO4J_URI not set")
 	}
 	ctx := context.Background()
 	driver, err := neo4jdriver.NewDriverWithContext(dsn, neo4jdriver.NoAuth())

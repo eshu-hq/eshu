@@ -191,6 +191,11 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/cmd/reducer/semantic_canonical_owner_live_test.go
+    tag: ~
+    class: ci
+    reason: "deterministic seeded #10110 canonical-ownership regression (delta move + full-regeneration re-key through the production canonical and Neo4j-wired semantic writers, unique repo prefix, cleanup on pass and fail); Neo4j-only, so the test self-skips unless the resolved database is neo4j; local run on neo4j:2026-community took 0.93s; runs on Neo4j in the live-backend CI job"
+    backends: neo4j
   - file: go/cmd/reducer/workload_dependency_lookup_nornicdb_live_test.go
     tag: ~
     class: scheduled
