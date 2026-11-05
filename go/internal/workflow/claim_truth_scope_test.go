@@ -238,23 +238,38 @@ var truthScopeKnownReaders = map[string]string{
 	"go/cmd/api/metrics_source.go": "config-shape parse",
 }
 
-// truthScopePinnedReaderHits pins the workflow-state marker count inside
-// each allowlisted reader: a new coupling inside a known file grows the
-// count and fails the test. Refresh deliberately with the test when the
-// reader's legitimate references change.
-var truthScopePinnedReaderHits = map[string]int{
-	"go/internal/reducer/retirement/census.go":                                  6,
-	"go/internal/query/container_image_candidate_explanation.go":                1,
-	"go/internal/query/openapi/components_active_work_source.go":                1,
-	"go/internal/query/security_alert_collection_state_postgres.go":             5,
-	"go/internal/query/supply/chain/impact/readiness_postgres_query_targets.go": 1,
-	"go/cmd/api/metrics_source.go":                                              1,
+// truthScopePinnedReaderHits pins the per-marker workflow-state reference
+// counts inside each allowlisted reader: a new coupling inside a known file
+// changes a marker count and fails the test, including a substitution that
+// keeps the file total unchanged. Markers absent from a file pin to zero.
+// Refresh deliberately with the test when the reader's legitimate
+// references change.
+var truthScopePinnedReaderHits = map[string]map[string]int{
+	"go/internal/reducer/retirement/census.go": {
+		"workflow_runs": 2, "workflow_work_items": 4,
+	},
+	"go/internal/query/container_image_candidate_explanation.go": {
+		"workflow_work_items": 1,
+	},
+	"go/internal/query/openapi/components_active_work_source.go": {
+		"workflow_work_items": 1,
+	},
+	"go/internal/query/security_alert_collection_state_postgres.go": {
+		"workflow_work_items": 5,
+	},
+	"go/internal/query/supply/chain/impact/readiness_postgres_query_targets.go": {
+		"workflow_runs": 1,
+	},
+	"go/cmd/api/metrics_source.go": {
+		"go/internal/workflow\"": 1,
+	},
 }
 
 // TestTruthSurfacesReadNoWorkflowState guards the consumer half of the
 // verdict: no reducer projection, graph builder, MCP tool, query handler,
 // or API command reads workflow claim state except the known read-only
-// readers above. A new reference fails this test.
+// readers above. A new reference fails this test, as does a substitution
+// that keeps the file total.
 func TestTruthSurfacesReadNoWorkflowState(t *testing.T) {
 	t.Parallel()
 
@@ -283,10 +298,12 @@ func TestTruthSurfacesReadNoWorkflowState(t *testing.T) {
 			if err != nil {
 				t.Fatalf("read %s: %v", rel, err)
 			}
+			counts := make(map[string]int, len(markers))
 			hits := 0
 			var hitMarkers []string
 			for _, marker := range markers {
 				n := strings.Count(string(raw), marker)
+				counts[marker] = n
 				if n > 0 {
 					hits += n
 					hitMarkers = append(hitMarkers, marker)
@@ -300,10 +317,19 @@ func TestTruthSurfacesReadNoWorkflowState(t *testing.T) {
 				violations = append(violations, rel+": new workflow-state reference ("+strings.Join(hitMarkers, ", ")+")")
 				continue
 			}
-			// Allowlisted files are pinned by reference count: a new
-			// coupling inside a known reader grows the count and fails.
-			if pinned, ok := truthScopePinnedReaderHits[rel]; !ok || hits != pinned {
+			// Allowlisted files are pinned by per-marker reference counts:
+			// a new coupling inside a known reader changes a marker count
+			// and fails, including a substitution that keeps the file total.
+			pinned, ok := truthScopePinnedReaderHits[rel]
+			if !ok {
 				violations = append(violations, rel+": workflow-state reference count changed (have new total)")
+				continue
+			}
+			for _, marker := range markers {
+				if counts[marker] != pinned[marker] {
+					violations = append(violations, rel+": workflow-state marker count changed for "+marker)
+					break
+				}
 			}
 		}
 	}

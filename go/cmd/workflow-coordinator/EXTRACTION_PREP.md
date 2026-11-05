@@ -162,7 +162,8 @@ github.com/eshu-hq/eshu/go`, `go 1.26.10`.
   `go/internal/collector`, 17 `go/internal/storage`, 2 `go/internal/workflow`
   self (parity harness), 1 `go/cmd/workflow-coordinator`, 1
   `go/cmd/scanner-worker`, 1 `go/cmd/api`, 29 collector cmds (exact-match
-  `git grep` census at `8ec6d11ddf`; the importer *set* is identical at
+  `git grep` census at `8ec6d11ddf` (Oct-30 set; see the kinds-only
+  addendum below for the current pointer); the importer *set* is identical at
   `6ca3ad9294`, so the +3 vs the earlier 166 figure is method — recounting
   the old commit with this method also yields 169 — not drift). Removing
   `go/internal/workflow` must repoint every one of these; the count is the

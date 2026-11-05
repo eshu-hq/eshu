@@ -53,15 +53,15 @@ Committed proof: `go/internal/workflow/claim_truth_scope_test.go` —
 `TestClaimPathEmitsNoFacts`, `TestCoordinatorFactsUsageIsIdentityOnly`,
 `TestCoordinatorImportsNoFactPersistence`,
 `TestTruthSurfacesReadNoWorkflowState` (six-file known-reader allowlist
-with per-file marker counts pinned, one per item above). Each test was
+with per-marker reference counts pinned, one per item above). Each test was
 mutation-proven: a planted facts import, a planted `facts.Envelope`
 construction, a planted fact-persistence import in the coordinator, a
-planted dot-import of facts, a planted `fact_records` literal, and a
-planted `workflow_runs` reference inside an allowlisted file each fail
+planted dot-import of facts, a planted `fact_records` literal, a
+planted `workflow_runs` reference inside an allowlisted file, and a
+planted same-total marker swap inside an allowlisted file each fail
 exactly their guard, then were removed. Any future change outside the documented reader set that
 introduces such a coupling fails closed and must update the test and
-this note together (couplings added inside an allowlisted file are
-reviewed, not auto-failed).
+this note together.
 
 ## C4 census refresh: 187 → 188 fact Kinds
 
