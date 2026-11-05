@@ -36,9 +36,11 @@ Neo4j now runs `NewSemanticEntityWriterWithCanonicalNodeRowsLegacyOrder`:
 Anchors and cardinality: upsert anchor is the `<label>_uid_unique`
 constraint seek on `uid` (batch in: wiring batch size, 100 in the
 measurement; out: at most one node per row). Clears anchor on the
-`repo_id` / `path` label indexes (for Function: `function_repo_id`,
-`function_path`). Largest fan-out is the clear's per-label repo (or
-touched-file) population.
+`repo_id` / `path` label indexes where they exist (Function:
+`function_repo_id`, `function_path`; Protocol carries both indexes too);
+the other 7 cleared labels ride the same label-scan class the existing
+broad retract already pays, bounded per label population. Largest fan-out
+is the clear's per-label repo (or touched-file) population.
 
 ## No-Regression Evidence:
 
