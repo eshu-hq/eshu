@@ -82,3 +82,31 @@ mark + watermark advance into the `WorkflowControlStore` admission
 transaction (today a separate drain-commit transaction after admission);
 bound or page the changed-name read as feed history grows; revisit the
 most-queries slot choice against the measured hit rate.
+
+No-Regression Evidence: the drain is flag-gated — with `osv_delta_replan`
+off (the default) the tick returns before any replan reader or store touch
+(proven by `TestServiceOSVDeltaReplanFlagOffTouchesNoReplanStore` with
+call-failing fakes), so the rotation, NVD, refresh, and admission paths
+keep their current behavior byte-identical; the rotation slot-scope minter
+change is a pure namespace parameter (same `_slot` ids, proven by the
+unchanged `TestDeriveVulnerabilityTargets*` suite). Baseline: the pre-change
+`go test ./internal/coordinator/... ./internal/workflow/...` green on the
+same scratch PG 18.6 backend; after: same suites green plus the new
+flag-on/flag-off tests. The new-path cost is measured, not inferred:
+7,352-tuple burst intersects in 31 ms and admits in 72 ms in one statement;
+per-pass resolve stays at or under the 112 ms theory bound (290 ms total
+over 8 passes); terminal state zero pending with the watermark on the
+newest drained feed time. The commit is a single UPDATE plus one CAS
+upsert on the open transaction — no second transaction, no worker or
+batch reduction.
+
+Observability Evidence: the pass records the five step-6 signals
+(`eshu_dp_osv_delta_records_total` with the closed outcome set,
+`eshu_dp_osv_delta_watermark_age_seconds`,
+`eshu_dp_osv_delta_poll_age_seconds`,
+`eshu_dp_owned_target_replan_depth`,
+`eshu_dp_owned_target_replan_oldest_age_seconds`, all per
+`collector_instance_id`) proven by
+`TestNewMetricsPublishesOSVDeltaReplanSignals` against a real meter, plus
+the INFO commit line and the WARN `osv_delta_watermark_stale` line. Quiet
+passes stay silent in the logs; the gauges carry them.
