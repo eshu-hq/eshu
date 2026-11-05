@@ -255,8 +255,8 @@ func osVendorFactLineStatus(pkg supplychainmodel.AffectedPackage, host string) o
 //     fix at or below the host never reads not_affected_known_fixed.
 //
 // The verdict for an installed row depends only on the fact and that row,
-// never on the fact's position among its siblings. Which row a digest-less
-// fleet group evaluates is decided upstream by row order (#9984).
+// never on the fact's position among its siblings. Digest-less fleet rows reach
+// it one (release line, installed version) group at a time (#9984).
 func selectOSVendorFactLine(pkg supplychainmodel.AffectedPackage, host string) supplychainmodel.AffectedPackage {
 	switch osVendorFactLineStatus(pkg, host) {
 	case osVendorLineMatched:

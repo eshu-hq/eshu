@@ -5,9 +5,11 @@ package core
 
 import (
 	"encoding/json"
+	"slices"
 	"sort"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
 )
@@ -67,12 +69,14 @@ func appendSupplyChainImpactPackageFindings(
 		findings = appendSupplyChainImpactFinding(findings, classifySupplyChainImpactPackage(cves, pkgs, scoped))
 	}
 	// Keep independently owned manifest and scan evidence visible. A scanner
-	// digest without a matching SBOM is still a valid OS-package path.
+	// digest without a matching SBOM is still a valid OS-package path, and these
+	// rows split the way the no-SBOM fleet does, so a row here cannot decide the
+	// finding for another image or release line by arriving first (#9984).
 	base := index
 	base.components = nil
 	base.osPackages = baseOS
 	if len(consumptionRepositoriesForPackage(pkg.PackageID, base.consumption)) > 0 || hasMatchingOSPackage(pkg, base) {
-		findings = appendSupplyChainImpactManifestFindings(findings, cves, pkgs, base)
+		findings = appendSupplyChainImpactFleetOSFindings(findings, cves, pkgs, base)
 	}
 	return findings
 }
@@ -115,9 +119,11 @@ func appendSupplyChainImpactManifestFindings(
 // over its own scoped index — the osByDigest scoping the SBOM path above —
 // through the same manifest fanout, so per-repository composition is
 // unchanged: a scope holding a single digest classifies exactly as before.
-// Rows no sibling analysis resolves to a digest stay in the base index, which
-// keeps their pre-fix composition (full consumption over the digest-less
-// rows) so no matching row is dropped.
+// Rows no sibling analysis resolves to a digest classify once per (release
+// line, installed version) through the same fanout (#9984), since the first of
+// them used to decide one finding for every host. With no matching row at all
+// the whole index classifies once. That covers every non-OS advisory and an OS
+// advisory that joins no installed row.
 func appendSupplyChainImpactFleetOSFindings(
 	findings []SupplyChainImpactFinding,
 	cves supplyChainCVEGroup,
@@ -126,7 +132,7 @@ func appendSupplyChainImpactFleetOSFindings(
 ) []SupplyChainImpactFinding {
 	pkg := representativeAffectedPackage(pkgs)
 	osByDigest, baseOS := groupOSPackagesByDigest(pkg, index)
-	if len(osByDigest) == 0 {
+	if len(osByDigest) == 0 && len(baseOS) == 0 {
 		return appendSupplyChainImpactManifestFindings(findings, cves, pkgs, index)
 	}
 	digests := make([]string, 0, len(osByDigest))
@@ -139,10 +145,10 @@ func appendSupplyChainImpactFleetOSFindings(
 		scoped.osPackages = osByDigest[digest]
 		findings = appendSupplyChainImpactManifestFindings(findings, cves, pkgs, scoped)
 	}
-	base := index
-	base.osPackages = baseOS
-	if hasMatchingOSPackage(pkg, base) {
-		findings = appendSupplyChainImpactManifestFindings(findings, cves, pkgs, base)
+	for _, shard := range splitOSPackagesByReleaseLine(baseOS) {
+		scoped := index
+		scoped.osPackages = shard
+		findings = appendSupplyChainImpactManifestFindings(findings, cves, pkgs, scoped)
 	}
 	return findings
 }
@@ -150,7 +156,7 @@ func appendSupplyChainImpactFleetOSFindings(
 // groupOSPackagesByDigest partitions the advisory's matching installed rows
 // by the image digest their sibling scanner analysis resolves, mirroring the
 // osByDigest partition in appendSupplyChainImpactPackageFindings. Rows with
-// no digest-bearing sibling stay in base for the manifest classification.
+// no digest-bearing sibling stay in base for splitOSPackagesByReleaseLine.
 func groupOSPackagesByDigest(
 	pkg supplychainmodel.AffectedPackage,
 	index supplyChainImpactIndex,
@@ -274,10 +280,22 @@ func coalesceAndSortSupplyChainImpactFindings(findings []SupplyChainImpactFindin
 		}
 		previous := &out[len(out)-1]
 		conflict := previous.MatchReason != finding.MatchReason || previous.Confidence != finding.Confidence
+		// Two findings share a writer identity without sharing an SBOM when the
+		// identity cannot tell digest-less release lines apart (a purl with no
+		// distro qualifier, #9984). Their disagreement is not a conflict between
+		// SBOM components, so it must not wear that label.
+		fromSBOM := findingHasSBOMComponentPath(*previous) || findingHasSBOMComponentPath(finding)
 		previous.EvidenceFactIDs = payloadcore.UniqueSortedStrings(append(previous.EvidenceFactIDs, finding.EvidenceFactIDs...))
 		previous.EvidencePath = payloadcore.UniqueSortedStrings(append(previous.EvidencePath, finding.EvidencePath...))
 		previous.MissingEvidence = payloadcore.UniqueSortedStrings(append(previous.MissingEvidence, finding.MissingEvidence...))
-		if conflict {
+		if conflict && !fromSBOM {
+			// The sort keeps the lesser reason in previous, so the reason does not
+			// depend on arrival order. Differing confidence settles on the weaker.
+			if previous.Confidence != finding.Confidence {
+				previous.Confidence = "partial"
+			}
+			*previous = appendSupplyChainImpactFinding(nil, *previous)[0]
+		} else if conflict {
 			previous.Status = SupplyChainImpactPossiblyAffected
 			previous.Confidence = "partial"
 			previous.MatchReason = supplyChainVersionReasonSBOMVersionConflict
@@ -290,6 +308,13 @@ func coalesceAndSortSupplyChainImpactFindings(findings []SupplyChainImpactFindin
 		return supplyChainImpactStableKey(out[i]) < supplyChainImpactStableKey(out[j])
 	})
 	return out
+}
+
+// findingHasSBOMComponentPath reports whether classification read an SBOM
+// component for the finding, which is the only evidence the SBOM-conflict label
+// speaks about.
+func findingHasSBOMComponentPath(finding SupplyChainImpactFinding) bool {
+	return slices.Contains(finding.EvidencePath, chain.SBOMComponentFactKind)
 }
 
 func supplyChainImpactStableKey(finding SupplyChainImpactFinding) string {
