@@ -160,7 +160,8 @@ this note. Run them read-only before and after the first full pass:
   `eshu_dp_supply_chain_impact_winners_dirty_log_depth`.
 - Suppressions: the count scoped to a `DEBIAN-CVE-`, `UBUNTU-CVE-`, `ALPINE-CVE-`,
   `DSA-`, `DLA-`, `USN-`, `ALSA-` or `RLSA-` id, which stop matching and need
-  re-scoping. For an immediate effect re-scope by `advisory_id` (the finding's
+  re-scoping. Two hosts can show different ids, so a fleet-wide suppression needs
+  `cve_id` or one per record. For an immediate effect re-scope by `advisory_id` (the finding's
   deciding record id), alone or together with `cve_id=CVE-X`. A `cve_id`-only
   re-scope lands on each holding scope's next run. Verify with the finding's
   `suppression_state` on the read API after the holder's next pass; this change adds
@@ -173,7 +174,7 @@ bundle names; a large increase means a join defect.
 
 ## Performance
 
-Performance Evidence: the pass adds one prefix comparison per
+Performance Evidence: the pass adds up to 14 `hasFoldPrefix` calls per
 `vulnerability.cve` record and no allocation for a record that is not an OS
 vendor record and carries no `upstream` list. Only records that name a CVE do
 work: one copy of the record and of its package facts per CVE key, plus one
@@ -389,8 +390,8 @@ Limits, measured or not:
   (the digest in `live-postgres-readiness.yml`) at stock settings (`random_page_cost` 4)
   and on a private PostgreSQL 18.6. The fixture holds 8,503 EPSS and KEV rows plus 40,000
   inline padding rows (14,299 heap pages). Without the padding (4,299 pages) both tests
-  fail: the custom plan at page cost 4 leaves the anchor from 113 ids on the private
-  server and from 117 on the CI image, reading through
+  fail: the custom plan at page cost 4 leaves the anchor from about 113 to 117 ids, varying
+  with the `ANALYZE` sample, reading through
   `fact_records_scope_generation_idx`. The planner ignores statistics from the partial
   `cve_lookup_v2` index, so ids are priced at the default whatever their values; the key
   probe wins only when the signal rows are a small share of the heap, and the padding

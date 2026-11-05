@@ -263,7 +263,8 @@ FROM generate_series(1, $2::integer) AS n`, kind, rowsPerKind, repoScopes, keys)
 // signal rows, 4,299 heap pages before padding): the custom plan walks the two
 // kinds at total cost 6,126 and the key probe wins from 20,000 padding rows
 // (9,299 pages, cost 10,565); 40,000 rows (14,299 pages, cost 13,243, estimated
-// at about 6,000 signal rows) leave 2x headroom on the flip. Call after
+// at about 6,000 signal rows) leave 2x headroom on that flip; at the bound of 120 the
+// flip on that image is between 0 and 2,500 padding rows. Call after
 // seedSupplyChainImpactGrowthBulk.
 func seedSupplyChainImpactPlanPadding(t *testing.T, ctx context.Context, database *sql.DB, rows int) {
 	t.Helper()
