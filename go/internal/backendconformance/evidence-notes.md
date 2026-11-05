@@ -6,7 +6,7 @@
 `:Module` write. Each backend runs the statements its reducer really sends:
 the case builder drives the production `SemanticEntityWriter` through a
 recording executor. `WriteCorpusFor(backend)` picks the writer the reducer
-wires. For Neo4j that is `NewSemanticEntityWriter` (MATCH-first). For NornicDB
+wires. For Neo4j that is `NewSemanticEntityWriterWithCanonicalNodeRowsLegacyOrder` (MATCH-first for semantic-owned labels, MATCH-by-uid enrichment for canonical-owned labels). For NornicDB
 it is `NewSemanticEntityWriterWithCanonicalNodeRows(...).WithLabelScopedRetract()`,
 which rewrites Module MERGE-first through
 `semanticEntityMergeFirstRowsUpsertCypher`.

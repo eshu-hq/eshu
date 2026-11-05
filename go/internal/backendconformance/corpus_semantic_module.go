@@ -18,7 +18,7 @@ import (
 // to :Module on each backend (#6965 Phase 4, root cause owned by #6968).
 //
 // The two backends receive different Cypher for the same write. The reducer
-// wires a MATCH-first writer for Neo4j (entity.NewSemanticEntityWriter)
+// wires a MATCH-first writer for Neo4j (entity.NewSemanticEntityWriterWithCanonicalNodeRowsLegacyOrder)
 // and a MERGE-first writer for NornicDB
 // (NewSemanticEntityWriterWithCanonicalNodeRows + WithLabelScopedRetract,
 // go/cmd/reducer/neo4j_wiring.go). Module is not canonical-node-owned, so on
