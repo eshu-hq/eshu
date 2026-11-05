@@ -106,6 +106,49 @@ func TestClaimPlaneClientObserveReportsOutcomePerProtocolResult(t *testing.T) {
 			},
 			wantOp: "ListCollectorInstances", wantOut: ClaimPlaneOutcomeDecodeError,
 		},
+		{
+			name: "create run ok", status: http.StatusOK, body: `{"run_id":"run-1"}`,
+			call:   func(c *ClaimPlaneClient) error { return c.CreateRun(context.Background(), Run{RunID: "run-1"}) },
+			wantOp: "CreateRun", wantOut: ClaimPlaneOutcomeOK,
+		},
+		{
+			name: "enqueue work items ok", status: http.StatusOK, body: `{"accepted":1,"inserted_work_items":1}`,
+			call: func(c *ClaimPlaneClient) error {
+				return c.EnqueueWorkItems(context.Background(), []WorkItem{{WorkItemID: "item-1"}})
+			},
+			wantOp: "EnqueueWorkItems", wantOut: ClaimPlaneOutcomeOK,
+		},
+		{
+			name: "reconcile instances ok", status: http.StatusOK, body: `{"ok":true}`,
+			call: func(c *ClaimPlaneClient) error {
+				return c.ReconcileCollectorInstances(context.Background(), time.Now(), nil)
+			},
+			wantOp: "ReconcileCollectorInstances", wantOut: ClaimPlaneOutcomeOK,
+		},
+		{
+			name: "upsert completeness version mismatch is invalid", status: http.StatusBadRequest,
+			body: `{"code":"version_mismatch","message":"want 1"}`,
+			call: func(c *ClaimPlaneClient) error {
+				return c.UpsertCompletenessStates(context.Background(), []CompletenessState{{RunID: "run-1"}})
+			},
+			wantOp: "UpsertCompletenessStates", wantOut: ClaimPlaneOutcomeInvalid,
+		},
+		{
+			name: "reconcile runs ok", status: http.StatusOK, body: `{"transitioned":0}`,
+			call: func(c *ClaimPlaneClient) error {
+				_, err := c.ReconcileWorkflowRuns(context.Background(), time.Now())
+				return err
+			},
+			wantOp: "ReconcileWorkflowRuns", wantOut: ClaimPlaneOutcomeOK,
+		},
+		{
+			name: "reap expired claims ok", status: http.StatusOK, body: `{"claims":[]}`,
+			call: func(c *ClaimPlaneClient) error {
+				_, err := c.ReapExpiredClaims(context.Background(), time.Now(), 10, time.Minute)
+				return err
+			},
+			wantOp: "ReapExpiredClaims", wantOut: ClaimPlaneOutcomeOK,
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
