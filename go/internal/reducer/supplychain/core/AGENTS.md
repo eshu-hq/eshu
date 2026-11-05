@@ -70,6 +70,12 @@ changing anything here.
   pointing at real files with a net-zero row count; the dirgate row for
   `internal/reducer` ratchets DOWN on family moves and never absorbs new
   files to hold this package's count.
+- `withJoinableOSRepresentative` (#9990) runs only for a group with no anchor,
+  the group that yields no finding without it. Widening it to a group with an
+  SBOM path, a consumer, or a joined row moves findings that exist today. It marks
+  a copy: the index shares the group across installed rows and scan targets, and
+  another target may join another fact. Add a new anchor source to
+  `supplyChainImpactFindingHasOwnedAnchor` and to this gate together.
 - `recordEvidenceHeadroom` feeds the #9778 headroom gauges through
   `Instruments.SupplyChainImpactHeadroom` after an admitted write only. Keep it
   after the write and on `truncation.causes()`, the same set that decides
