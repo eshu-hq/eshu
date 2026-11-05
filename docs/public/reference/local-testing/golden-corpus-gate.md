@@ -1,5 +1,14 @@
 # Golden Corpus Gate (B-7)
 
+!!! note "NornicDB legs are off in CI"
+    By owner order (2026-11-05) the NornicDB corpus cell and the NornicDB
+    differential captures do not run in CI while Neo4j is the supported backend
+    (#7331). The Neo4j gate (`corpus-gate (neo4j)`) and the Neo4j-only
+    differential (statement and writer coverage) still run and block. Run the
+    NornicDB gate by hand with `bash scripts/verify-golden-corpus-gate.sh`. To
+    turn the legs back on, see "Re-enabling NornicDB CI" in
+    `docs/internal/ci-workflow-inventory.md`.
+
 The golden end-to-end corpus gate is the headline guard against "Eshu stops
 working end to end." One command runs the full pipeline — `sync → discover →
 parse → collect → reduce → query` — over a fixed repo corpus with every
@@ -470,8 +479,8 @@ storage, the pipeline command binaries, the cassettes, or the snapshot). Its
 `corpus-gate` job is a matrix with one cell per graph backend:
 `corpus-gate (neo4j)` is blocking (`golden-corpus-gate-neo4j` in
 `specs/ci-gates.v1.yaml`), because Neo4j is the supported backend.
-`corpus-gate (nornicdb)` is watch-only (`golden-corpus-gate`: `blocking: false`,
-layer `secondary`): a red NornicDB cell is a backend-drift signal to triage, and
+`corpus-gate (nornicdb)` was watch-only (`golden-corpus-gate`: `blocking: false`,
+layer `secondary`) and is now off in CI (2026-11-05, manual tier): a red NornicDB cell was a backend-drift signal to triage, and
 `required-gates-complete` does not wait for it. The `differential nornicdb vs
 neo4j` join also consumes NornicDB captures and stays blocking. The four
 producer jobs run in parallel on separate hosted runners with fail-fast disabled;
