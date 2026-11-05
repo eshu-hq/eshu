@@ -298,7 +298,11 @@ func openBootstrapCanonicalWriter(
 		return nil, nil, nil, err
 	}
 	writer = writer.WithTracer(tracer).WithTerraformStateOwnershipResolver(
-		bootstrapTerraformStateOwnershipResolver{resolver: tfstatebackend.NewResolver(postgres.PostgresTerraformBackendQuery{DB: database, Instruments: instruments})},
+		// driftOverlay routes the backend-anchor read through the shared
+		// delta-overlay helper (#10006).
+		bootstrapTerraformStateOwnershipResolver{resolver: tfstatebackend.NewResolver(postgres.TerraformDriftOverlay{
+			Store: postgres.NewFactStore(database).WithInstruments(instruments),
+		})},
 	).WithTerraformStateConfigMatchResolver(
 		bootstrapTerraformStateConfigMatchResolver{driver: driver, databaseName: cfg.DatabaseName},
 	).WithKustomizeOverlayResolver(

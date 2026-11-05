@@ -85,6 +85,15 @@ type PostgresDriftEvidenceLoader struct {
 	// nil routes recording through a no-op recorder so tests and early
 	// bootstrap paths (no telemetry wired) remain operable.
 	Instruments *telemetry.Instruments
+	// OverlaidConfig, when non-nil, replaces the active-only current-config
+	// load (module-prefix map plus config rows) with a delta-aware one
+	// (issue #10006): the parent postgres package routes both through the
+	// shared delta-overlay helper and merges base-full rows back in, so a
+	// delta-active scope keeps its base config and prefixes. Production
+	// wiring injects the overlay; nil keeps today's single-generation
+	// behavior for fakes and untouched paths. The state, prior-state, and
+	// prior-config steps below always run unchanged.
+	OverlaidConfig func(ctx context.Context, scopeID, generationID string) (OverlaidConfig, error)
 }
 
 // LoadDriftEvidence implements tfconfigstate.DriftEvidenceLoader. The method
@@ -128,14 +137,29 @@ func (l PostgresDriftEvidenceLoader) LoadDriftEvidence(
 	}
 
 	recorder := l.UnresolvedRecorder()
-	prefixMap, confidenceMap, err := l.BuildModulePrefixMap(ctx, configScopeID, configGenerationID, recorder)
-	if err != nil {
-		return nil, err
-	}
+	var (
+		prefixMap       modulePrefixMap
+		configByAddress map[string]*tfconfigstate.ResourceRow
+	)
+	if l.OverlaidConfig != nil {
+		overlaid, err := l.OverlaidConfig(ctx, configScopeID, configGenerationID)
+		if err != nil {
+			return nil, err
+		}
+		configByAddress = overlaid.byAddress
+		prefixMap = overlaid.prefixMap
+	} else {
+		var err error
+		var confidenceMap moduleResolutionConfidenceMap
+		prefixMap, confidenceMap, err = l.BuildModulePrefixMap(ctx, configScopeID, configGenerationID, recorder)
+		if err != nil {
+			return nil, err
+		}
 
-	configByAddress, err := l.LoadConfigByAddress(ctx, configScopeID, configGenerationID, prefixMap, confidenceMap)
-	if err != nil {
-		return nil, err
+		configByAddress, err = l.LoadConfigByAddress(ctx, configScopeID, configGenerationID, prefixMap, confidenceMap)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	currentSnapshot, ok, err := l.loadActiveStateSnapshot(ctx, stateScopeID)

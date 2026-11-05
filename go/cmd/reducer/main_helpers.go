@@ -258,11 +258,13 @@ func incidentRepositoryCorrelationWiring(database db.ExecQueryer, instruments *t
 	incident.BackendRepositoryResolver,
 	incident.IncidentRepositoryCorrelationWriter,
 ) {
+	// driftOverlay routes the backend-anchor read through the shared
+	// delta-overlay helper (#10006) so a delta-active scope still
+	// resolves its owner.
+	driftOverlay := postgres.TerraformDriftOverlay{Store: postgres.NewFactStore(database).WithInstruments(instruments)}
 	loader := incidentstore.PostgresAppliedPagerDutyServiceRoutingLoader{DB: database}
 	resolver := incidentstore.BackendRepositoryResolverAdapter{
-		Resolver: tfstatebackend.NewResolver(
-			postgres.PostgresTerraformBackendQuery{DB: database, Instruments: instruments},
-		),
+		Resolver: tfstatebackend.NewResolver(driftOverlay),
 	}
 	writer := incident.PostgresIncidentRepositoryCorrelationWriter{DB: database}
 	return loader, resolver, writer

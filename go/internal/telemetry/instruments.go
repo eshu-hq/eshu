@@ -1108,6 +1108,15 @@ type Instruments struct {
 	// union_base_found returns that scope's delta rows only;
 	// union_resolve_failed counts once per read whose lookups failed.
 	PackageManifestDependencyReadDeltaUnion metric.Int64Counter
+	// TerraformDriftReadDeltaUnion counts the delta-base union decisions
+	// of the Terraform drift overlay readers (canonical backend rows,
+	// backend facts, config resources; issue #10006), one per
+	// delta-active scope a read reached. Labels: read and outcome (the
+	// same union_* set as the manifest reader). Every outcome but
+	// union_base_found returns that scope's delta rows only;
+	// union_resolve_failed counts once per read whose lookups failed and
+	// fails the read.
+	TerraformDriftReadDeltaUnion metric.Int64Counter
 	// SupplyChainImpactActiveEvidenceBranchRows counts rows each
 	// active-evidence statement returned (#8880). Label: branch.
 	SupplyChainImpactActiveEvidenceBranchRows metric.Int64Counter
@@ -6402,6 +6411,9 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, err
 	}
 	if err := registerPackageManifestDependencyReadInstruments(meter, inst); err != nil {
+		return nil, err
+	}
+	if err := registerTerraformDriftReadInstruments(meter, inst); err != nil {
 		return nil, err
 	}
 	if err := registerInfraSearchKeyInstruments(meter, inst); err != nil {

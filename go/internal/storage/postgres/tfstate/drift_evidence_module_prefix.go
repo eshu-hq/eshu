@@ -260,20 +260,46 @@ func (l PostgresDriftEvidenceLoader) BuildModulePrefixMap(
 		if err != nil {
 			return nil, nil, err
 		}
-		for _, entry := range decoded {
-			name := strings.TrimSpace(CoerceJSONString(entry["name"]))
-			if name == "" {
-				continue
-			}
-			entries = append(entries, moduleCallEntry{
-				name:   name,
-				source: CoerceJSONString(entry["source"]),
-				path:   strings.TrimSpace(CoerceJSONString(entry["path"])),
-			})
-		}
+		entries = append(entries, moduleCallEntriesFromDecoded(decoded)...)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, nil, fmt.Errorf("iterate config terraform_modules: %w", err)
+	}
+	return buildModulePrefixMapFromEntries(ctx, entries, recorder)
+}
+
+// moduleCallEntriesFromDecoded projects decoded terraform_modules payload
+// entries into moduleCallEntry values, skipping entries without a name.
+// Shared by BuildModulePrefixMap (row scan) and
+// ModulePrefixMapFromPayloads (overlay-merged payloads, #10006) so both
+// paths filter identically.
+func moduleCallEntriesFromDecoded(decoded []map[string]any) []moduleCallEntry {
+	var entries []moduleCallEntry
+	for _, entry := range decoded {
+		name := strings.TrimSpace(CoerceJSONString(entry["name"]))
+		if name == "" {
+			continue
+		}
+		entries = append(entries, moduleCallEntry{
+			name:   name,
+			source: CoerceJSONString(entry["source"]),
+			path:   strings.TrimSpace(CoerceJSONString(entry["path"])),
+		})
+	}
+	return entries
+}
+
+// buildModulePrefixMapFromEntries runs the two-pass prefix build over
+// already-decoded entries. Extracted from BuildModulePrefixMap so the
+// delta-overlay path (#10006), which merges module payloads before
+// decoding, shares the identical build.
+func buildModulePrefixMapFromEntries(
+	ctx context.Context,
+	entries []moduleCallEntry,
+	recorder unresolvedRecorder,
+) (modulePrefixMap, moduleResolutionConfidenceMap, error) {
+	if recorder == nil {
+		recorder = nopUnresolvedRecorder{}
 	}
 	confidence := moduleResolutionConfidenceMap{}
 	if len(entries) == 0 {

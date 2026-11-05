@@ -239,7 +239,12 @@ func run(parent context.Context) error {
 		Store:  store,
 		TerraformStatePlanner: tfstate.WorkPlanner{
 			GitReadiness: postgres.TerraformStateGitReadinessChecker{DB: postgres.SQLQueryer{DB: db}},
-			BackendFacts: postgres.TerraformStateBackendFactReader{DB: postgres.SQLQueryer{DB: db}, Instruments: instruments},
+			// driftOverlay routes the backend-facts discovery leg through
+			// the shared delta-overlay helper (#10006); the terragrunt,
+			// local-candidate, and filtered legs run unchanged inside.
+			BackendFacts: postgres.TerraformDriftOverlay{
+				Store: postgres.NewFactStore(postgres.SQLDB{DB: db}).WithInstruments(instruments).WithLogger(logger),
+			},
 		},
 		OCIRegistryPlanner:                ociregistry.WorkPlanner{},
 		PackageRegistryPlanner:            packages.WorkPlanner{},

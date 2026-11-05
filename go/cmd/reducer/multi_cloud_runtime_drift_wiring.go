@@ -70,9 +70,11 @@ func multiCloudRuntimeDriftWiring(
 ) (multicloudruntimedrift.MultiCloudRuntimeDriftEvidenceLoader, multicloudruntimedrift.MultiCloudRuntimeDriftFindingWriter, *slog.Logger) {
 	loader := postgres.PostgresMultiCloudRuntimeDriftEvidenceLoader{
 		DB: database,
-		ConfigResolver: tfstatebackend.NewResolver(
-			postgres.PostgresTerraformBackendQuery{DB: database, Instruments: instruments},
-		),
+		// driftOverlay routes the backend-anchor read through the shared
+		// delta-overlay helper (#10006).
+		ConfigResolver: tfstatebackend.NewResolver(postgres.TerraformDriftOverlay{
+			Store: postgres.NewFactStore(database).WithInstruments(instruments).WithLogger(logger),
+		}),
 		Tracer:      tracer,
 		Logger:      logger,
 		Instruments: instruments,
