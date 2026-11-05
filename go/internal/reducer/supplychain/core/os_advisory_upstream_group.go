@@ -212,9 +212,17 @@ func groupOSAdvisoriesByUpstream(index *supplyChainImpactIndex) {
 // in the group, so AdvisorySources still shows its status. The input slice is
 // never modified: the index shares it across installed rows. A group with no
 // retracted observation returns without allocating.
+//
+// A fact that cannot anchor a finding on this index must not change the finding
+// the index would produce without it (arbiter ruling 9914-r5). So when only the
+// retracted facts have an anchor (onlyRetractedRecordsAnchor), they stay and the
+// live ones are the ones left out: the finding reads as it would if the live
+// record listed no package, with the retraction shown. The live record's cve
+// observation stays in the group, in AdvisorySources and as a source of severity.
 func liveAdvisoryPackages(
 	cves supplyChainCVEGroup,
 	pkgs []supplychainmodel.AffectedPackage,
+	index supplyChainImpactIndex,
 ) (supplyChainCVEGroup, []supplychainmodel.AffectedPackage) {
 	if !slices.ContainsFunc(cves.observations, impactCVERetracted) {
 		return cves, pkgs
@@ -229,9 +237,11 @@ func liveAdvisoryPackages(
 	}
 	live := make([]supplychainmodel.AffectedPackage, 0, len(pkgs))
 	var retired []string
+	var retractedPkgs []supplychainmodel.AffectedPackage
 	for _, pkg := range pkgs {
 		if retracted[pkg.AdvisoryID] {
 			retired = append(retired, pkg.FactID)
+			retractedPkgs = append(retractedPkgs, pkg)
 			continue
 		}
 		live = append(live, pkg)
@@ -239,8 +249,38 @@ func liveAdvisoryPackages(
 	if len(live) == 0 || len(retired) == 0 {
 		return cves, pkgs
 	}
+	if onlyRetractedRecordsAnchor(live, retractedPkgs, index) {
+		return cves, retractedPkgs
+	}
 	cves.retiredAffectedFactIDs = retired
 	return cves, live
+}
+
+// onlyRetractedRecordsAnchor reports whether a retracted fact can anchor a finding
+// on this index and no live fact can. An anchor is a joined installed row, an SBOM
+// path or, for a live fact, a consuming repository: the only things that give a
+// finding an owner. It holds only for an OS-class group, whose kept finding
+// recordsListingThePackage judges, so the retraction shows.
+func onlyRetractedRecordsAnchor(
+	live []supplychainmodel.AffectedPackage,
+	retracted []supplychainmodel.AffectedPackage,
+	index supplyChainImpactIndex,
+) bool {
+	if !osPackageClassEcosystem(representativeAffectedPackage(retracted).Ecosystem) {
+		return false
+	}
+	hasSBOMPath := func(pkg supplychainmodel.AffectedPackage) bool {
+		return len(supplyChainSBOMPaths(pkg, index)) > 0
+	}
+	if !slices.ContainsFunc(retracted, func(pkg supplychainmodel.AffectedPackage) bool {
+		return hasMatchingOSPackage(pkg, index) || hasSBOMPath(pkg)
+	}) {
+		return false
+	}
+	return !slices.ContainsFunc(live, func(pkg supplychainmodel.AffectedPackage) bool {
+		return hasMatchingOSPackage(pkg, index) || hasSBOMPath(pkg) ||
+			len(consumptionRepositoriesForPackage(pkg.PackageID, index.consumption)) > 0
+	})
 }
 
 // impactCVERetracted reports whether one cve observation retracted its advisory.

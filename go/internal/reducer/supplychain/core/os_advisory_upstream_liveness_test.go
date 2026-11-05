@@ -4,6 +4,7 @@
 package core
 
 import (
+	"reflect"
 	"slices"
 	"testing"
 
@@ -123,12 +124,20 @@ func TestLiveAdvisoryPackages(t *testing.T) {
 	t.Parallel()
 
 	const withdrawn = "2026-01-02T00:00:00Z"
+	anchored, quarantined, err := buildSupplyChainImpactIndexWithQuarantine([]facts.Envelope{
+		ubuntuCurl("22.04", unjoinableVersion).envelope(),
+		unjoinableRetractedPackage("os"), unjoinableLivePackage("nvd", "os", ""),
+	})
+	if err != nil || len(quarantined) != 0 {
+		t.Fatalf("build index: err=%v quarantined=%v", err, quarantined)
+	}
 	pkgA := supplychainmodel.AffectedPackage{FactID: "pa", AdvisoryID: "A"}
 	pkgB := supplychainmodel.AffectedPackage{FactID: "pb", AdvisoryID: "B"}
 	tests := []struct {
 		name        string
 		cves        []supplychainmodel.ImpactCVE
 		pkgs        []supplychainmodel.AffectedPackage
+		index       supplyChainImpactIndex
 		wantPkgs    []string
 		wantRetired []string
 	}{
@@ -171,6 +180,13 @@ func TestLiveAdvisoryPackages(t *testing.T) {
 			wantPkgs: []string{"pa", "pb"},
 		},
 		{
+			name:     "only the retracted record has an anchor on the index, so its fact stays",
+			cves:     []supplychainmodel.ImpactCVE{{AdvisoryID: unjoinableAdvisory, WithdrawnAt: withdrawn}, {AdvisoryID: "EXT-1"}},
+			pkgs:     anchored.affectedPackages[unjoinableCVE],
+			index:    anchored,
+			wantPkgs: []string{"affected-own"},
+		},
+		{
 			name:     "no retraction at all returns the input",
 			cves:     []supplychainmodel.ImpactCVE{{AdvisoryID: "A"}, {AdvisoryID: "B"}},
 			pkgs:     []supplychainmodel.AffectedPackage{pkgA, pkgB},
@@ -182,7 +198,7 @@ func TestLiveAdvisoryPackages(t *testing.T) {
 			t.Parallel()
 
 			input := slices.Clone(tc.pkgs)
-			group, got := liveAdvisoryPackages(supplyChainCVEGroup{observations: tc.cves}, input)
+			group, got := liveAdvisoryPackages(supplyChainCVEGroup{observations: tc.cves}, input, tc.index)
 			if ids := packageFactIDs(got); !slices.Equal(ids, tc.wantPkgs) {
 				t.Errorf("packages = %v, want %v", ids, tc.wantPkgs)
 			}
@@ -202,7 +218,124 @@ func TestLiveAdvisoryPackages(t *testing.T) {
 func TestLiveAdvisoryPackagesDoesNotAllocateWithoutARetraction(t *testing.T) {
 	group := supplyChainCVEGroup{observations: []supplychainmodel.ImpactCVE{{AdvisoryID: "A"}, {AdvisoryID: "B"}}}
 	pkgs := []supplychainmodel.AffectedPackage{{FactID: "pa", AdvisoryID: "A"}, {FactID: "pb", AdvisoryID: "B"}}
-	if allocs := testing.AllocsPerRun(100, func() { liveAdvisoryPackages(group, pkgs) }); allocs != 0 {
+	if allocs := testing.AllocsPerRun(100, func() { liveAdvisoryPackages(group, pkgs, supplyChainImpactIndex{}) }); allocs != 0 {
 		t.Errorf("allocs = %v, want 0", allocs)
+	}
+}
+
+const (
+	unjoinableCVE       = "CVE-2023-9990"
+	unjoinablePackageID = "pkg:deb/ubuntu/curl"
+	unjoinablePURL      = "pkg:deb/ubuntu/curl?arch=amd64&distro=ubuntu-22.04"
+	unjoinableVersion   = "1.0-3"
+	unjoinableAdvisory  = "USN-9990-1"
+)
+
+// unjoinableRetractedCVE is the Ubuntu record's cve fact, retracted by a withdrawn
+// timestamp or by a Rejected status.
+func unjoinableRetractedCVE(how string) facts.Envelope {
+	if how == "withdrawn" {
+		return vulnerabilityCVEFactWithdrawn("cve-own", unjoinableCVE, "ubuntu", unjoinableAdvisory, 7.5, "HIGH",
+			"2026-10-01T00:00:00Z", "2026-11-01T00:00:00Z")
+	}
+	cve := vulnerabilityCVEFactWithProvenance("cve-own", unjoinableCVE, "ubuntu", unjoinableAdvisory, 7.5, "", "HIGH", "2026-10-01T00:00:00Z")
+	cve.Payload["status"] = "Rejected"
+	return cve
+}
+
+// unjoinableRetractedPackage is the Ubuntu record's package fact: it lists the
+// host's version and carries the purl that joins the host's row.
+func unjoinableRetractedPackage(ecosystem string) facts.Envelope {
+	return facts.Envelope{FactID: "affected-own", FactKind: chain.VulnerabilityAffectedPackageFactKind, Payload: map[string]any{
+		"cve_id": unjoinableCVE, "advisory_id": unjoinableAdvisory, "source": "ubuntu", "ecosystem": ecosystem,
+		"package_id": unjoinablePackageID, "package_name": "curl", "purl": unjoinablePURL, "affected_versions": []any{unjoinableVersion},
+	}}
+}
+
+// unjoinableLiveCVE is the other source's live cve fact.
+func unjoinableLiveCVE(source string) facts.Envelope {
+	return vulnerabilityCVEFactWithProvenance("cve-other", unjoinableCVE, source, "EXT-1", 7.5, "", "HIGH", "2026-10-01T00:00:00Z")
+}
+
+// unjoinableLivePackage is the other source's live package fact for the same package
+// id. With no purl it cannot join the Ubuntu host's row.
+func unjoinableLivePackage(source, ecosystem, purl string) facts.Envelope {
+	payload := map[string]any{
+		"cve_id": unjoinableCVE, "advisory_id": "EXT-1", "source": source, "ecosystem": ecosystem,
+		"package_id": unjoinablePackageID, "package_name": "curl", "fixed_versions": []any{"1.0-2"},
+	}
+	if purl != "" {
+		payload["purl"] = purl
+	}
+	return facts.Envelope{FactID: "affected-other", FactKind: chain.VulnerabilityAffectedPackageFactKind, Payload: payload}
+}
+
+// everyOrder returns every permutation of envelopes.
+func everyOrder(envelopes []facts.Envelope) [][]facts.Envelope {
+	if len(envelopes) < 2 {
+		return [][]facts.Envelope{slices.Clone(envelopes)}
+	}
+	var out [][]facts.Envelope
+	for at := range envelopes {
+		rest := slices.Delete(slices.Clone(envelopes), at, at+1)
+		for _, tail := range everyOrder(rest) {
+			out = append(out, append([]facts.Envelope{envelopes[at]}, tail...))
+		}
+	}
+	return out
+}
+
+// assertRetractedRecordFinding requires the one finding the retracted record yields
+// alone, named by it and showing its retraction, deep-equal to the control built
+// without the live record's package fact.
+func assertRetractedRecordFinding(t *testing.T, findings, control []SupplyChainImpactFinding) {
+	t.Helper()
+	if len(control) != 1 {
+		t.Fatalf("control findings = %d, want 1: %#v", len(control), control)
+	}
+	if len(findings) != 1 {
+		t.Fatalf("findings = %d, want 1: a fact that cannot anchor a finding must not remove it", len(findings))
+	}
+	got := findings[0]
+	if got.AdvisoryID != unjoinableAdvisory {
+		t.Errorf("AdvisoryID = %q, want the retracted record", got.AdvisoryID)
+	}
+	if got.AdvisoryRetraction == nil || len(got.AdvisoryRetraction.Sources) != 1 || got.AdvisoryRetraction.Sources[0].AdvisoryID != unjoinableAdvisory {
+		t.Errorf("AdvisoryRetraction = %#v, want it to name only the retracted record", got.AdvisoryRetraction)
+	}
+	if !reflect.DeepEqual(got, control[0]) {
+		t.Errorf("finding differs from the control without the live package fact:\n got %#v\nwant %#v", got, control[0])
+	}
+}
+
+// TestUnjoinableLiveRecordDoesNotChangeARetractedFinding pins arbiter ruling 9914-r5:
+// a fact that cannot anchor a finding on an index must not change the finding that
+// index would produce without it. The withdrawn or rejected Ubuntu record is the only
+// one joining the host. A live record from another source lists the same package id
+// and has no anchor, so the finding stays the retracted record's, with the retraction
+// shown, exactly as if the live record listed no package.
+//
+// Observed before the fix: 0 findings on every row, where the control reads 1.
+func TestUnjoinableLiveRecordDoesNotChangeARetractedFinding(t *testing.T) {
+	t.Parallel()
+
+	for _, how := range []string{"withdrawn", "rejected"} {
+		for _, ecosystem := range []string{"os", "ubuntu", "deb"} {
+			for _, source := range []string{"nvd", "debian", "osv"} {
+				t.Run(how+"/"+ecosystem+"/"+source, func(t *testing.T) {
+					t.Parallel()
+
+					host := ubuntuCurl("22.04", unjoinableVersion).envelope()
+					base := []facts.Envelope{unjoinableRetractedCVE(how), unjoinableLiveCVE(source), unjoinableRetractedPackage(ecosystem), host}
+					control := BuildSupplyChainImpactFindings(slices.Clone(base))
+					for _, order := range everyOrder(append(base, unjoinableLivePackage(source, ecosystem, ""))) {
+						assertRetractedRecordFinding(t, BuildSupplyChainImpactFindings(order), control)
+						if t.Failed() {
+							return
+						}
+					}
+				})
+			}
+		}
 	}
 }

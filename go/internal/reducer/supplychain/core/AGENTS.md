@@ -120,6 +120,9 @@ changing anything here.
 - An OS-class finding judges retraction over the records listing its package
   (`recordsListingThePackage`). Do not widen that to language ecosystems here: the
   base behaviour there is not this rule's defect, and changing it needs its own proof.
+- A fact that cannot anchor a finding on an index must not change the finding that
+  index would produce without it (`onlyRetractedRecordsAnchor`, ruling 9914-r5). Pass
+  `liveAdvisoryPackages` the index that classifies the group, or the two paths disagree.
 - A consumer that reads affected packages reads them from the index, after
   `liveAdvisoryPackages`, as the primary path and the derived conflict gate do. A
   second typed decode sees the producer's `cve_id` and misses every grouped

@@ -483,6 +483,12 @@ Readings of the second ruling, for a reviewer to check:
 - A known asymmetry: a withdrawn GHSA beside a live NVD cve observation on a language
   package still reads no retraction (`TestLanguageRetractionKeepsTheGroupRule`). That is
   the base's rule, and #9914 does not change it.
+- A fact that cannot anchor a finding on an index must not change the finding that index
+  would produce without it (ruling 9914-r5). When every live fact for a package has no
+  installed row, SBOM path or consuming repository and a retracted fact has an anchor, the
+  finding is the retracted record's with `AdvisoryRetraction` set. No producer writes this
+  today. Limits, in #10034: OS spellings outside the class set (`dpkg`) get neither this
+  rule nor N1 and N2, and a group whose facts join rows of different vendors.
 - An SBOM and scanned row that disagree on the version leave the installed version
   unknown, so no record holds it (`TestConflictingInstalledVersionsDoNotPickAHolder`).
 - The per-target indexes of the authorized derived pass apply the grouping but

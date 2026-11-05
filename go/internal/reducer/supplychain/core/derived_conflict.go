@@ -64,7 +64,7 @@ func markAuthorizedFixedVersionConflicts(
 				samePackage = append(samePackage, pkg)
 			}
 		}
-		_, live := liveAdvisoryPackages(groups[finding.CVEID], samePackage)
+		_, live := liveAdvisoryPackages(groups[finding.CVEID], samePackage, index)
 		var related []supplychainmodel.AffectedPackage
 		for _, pkg := range live {
 			if sameAuthorizedAdvisoryPackage(pkg, pkg, *finding) {
