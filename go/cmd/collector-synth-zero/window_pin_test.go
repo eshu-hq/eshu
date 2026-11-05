@@ -183,9 +183,10 @@ func TestWindowGrantReadbackSettlesSynthKind(t *testing.T) {
 	}
 }
 
-// deploymentEnv parses the authored Deployment's first container env into a
-// name/value map.
-func deploymentEnv(t *testing.T) map[string]string {
+// deploymentContainer parses the authored Deployment's single container,
+// returning its image and env. Both pin spots are read from the files so a
+// divergent or placeholder digest fails here, not at sync.
+func deploymentContainer(t *testing.T) (string, map[string]string) {
 	t.Helper()
 
 	raw, err := os.ReadFile("deployment.yaml")
@@ -221,7 +222,58 @@ func deploymentEnv(t *testing.T) map[string]string {
 	for _, entry := range container.Env {
 		env[entry.Name] = entry.Value
 	}
+	return container.Image, env
+}
+
+// deploymentEnv parses the authored Deployment's first container env into a
+// name/value map.
+func deploymentEnv(t *testing.T) map[string]string {
+	t.Helper()
+
+	_, env := deploymentContainer(t)
 	return env
+}
+
+// provenSeedImage is the dispatch-proven seed image: window assembly run
+// 42049436432 built, pushed, smoked, and attested exactly this digest (see
+// image-provenance.md). A seed rebuild re-pins this constant in the same
+// commit that re-pins manifest.yaml and deployment.yaml.
+const provenSeedImage = "ghcr.io/eshu-hq/eshu-synth-zero@sha256:145dbbf95cc5971c5a6607dccf455fc742fb11f37c21a339972ca2c5a17c8a93"
+
+// TestWindowSeedDigestAgreesAcrossVehicle proves the two vehicle pin spots
+// name the same dispatch-proven seed image: the manifest artifacts entry
+// (what the registry installs and the window proves) and the Deployment
+// container image (what the worker pulls). A zeros placeholder, any other
+// hex value (even consistently in both files), or a divergent fill fails
+// here.
+func TestWindowSeedDigestAgreesAcrossVehicle(t *testing.T) {
+	t.Parallel()
+
+	home := seedRegistry(t)
+	manifest, err := component.NewRegistry(home).LoadInstalledManifest(synthComponentID, synthVersion)
+	if err != nil {
+		t.Fatalf("LoadInstalledManifest() error = %v, want nil", err)
+	}
+	if len(manifest.Spec.Artifacts) != 1 {
+		t.Fatalf("artifacts = %d, want exactly 1 pinned seed image", len(manifest.Spec.Artifacts))
+	}
+	manifestImage := manifest.Spec.Artifacts[0].Image
+	if strings.Contains(manifestImage, "0000000000000000") {
+		t.Fatalf("manifest artifact image %q is still the zeros placeholder", manifestImage)
+	}
+	deployImage, _ := deploymentContainer(t)
+	if strings.Contains(deployImage, "0000000000000000") {
+		t.Fatalf("deployment image %q is still the zeros placeholder", deployImage)
+	}
+	if manifestImage != deployImage {
+		t.Fatalf("manifest artifact image %q != deployment image %q", manifestImage, deployImage)
+	}
+	if manifestImage != provenSeedImage {
+		t.Fatalf("manifest artifact image %q != dispatch-proven seed image %q", manifestImage, provenSeedImage)
+	}
+	if deployImage != provenSeedImage {
+		t.Fatalf("deployment image %q != dispatch-proven seed image %q", deployImage, provenSeedImage)
+	}
 }
 
 // TestWindowDeploymentCarriesCutoverPin proves the authored worker Deployment

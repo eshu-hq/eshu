@@ -38,10 +38,10 @@ spec:
           type: RuntimeDefault
       containers:
         - name: collector-synth-zero
-          # SEED_IMAGE_DIGEST is pinned by the window assembly step (see
-          # Dockerfile.seed). The zeros placeholder keeps the shape explicit
-          # until the real digest lands; the pin test enforces the pattern.
-          image: "ghcr.io/eshu-hq/eshu-synth-zero@sha256:0000000000000000000000000000000000000000000000000000000000000000"
+          # SEED_IMAGE_DIGEST was pinned by window assembly run 42049436432
+          # (see Dockerfile.seed). TestWindowSeedDigestAgreesAcrossVehicle
+          # binds this image to the manifest artifacts image.
+          image: "ghcr.io/eshu-hq/eshu-synth-zero@sha256:145dbbf95cc5971c5a6607dccf455fc742fb11f37c21a339972ca2c5a17c8a93"
           imagePullPolicy: IfNotPresent
           command: ["/usr/local/bin/eshu-collector-component-extension"]
           securityContext:

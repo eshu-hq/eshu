@@ -30,9 +30,23 @@
    runs the in-image smoke on the pushed digest as uid 10001, and emits the
    digest as a job output. If the push step is denied, stop and re-escalate.
 3. Fill the emitted digest into `manifest.yaml` (artifacts) and
-   `deployment.yaml` (image) in place of the zeros placeholders, re-run the
-   pin suite, and commit the pin before any apply.
+   `deployment.yaml` (image), re-run the pin suite
+   (`TestWindowSeedDigestAgreesAcrossVehicle` binds both files to the
+   dispatch-proven digest), and commit the pin before any apply.
+   Run 42049436432 did this fill; the zeros placeholders below are its
+   pre-pin history.
 
-The zeros placeholders keep the shape valid until then; `TestWindow*`
-enforces the digest pattern so the fill-in is mechanical. The local image
+## Window assembly record (run 42049436432, 2026-11-05, SUCCESS)
+
+- Pushed: `ghcr.io/eshu-hq/eshu-synth-zero@sha256:145dbbf95cc5971c5a6607dccf455fc742fb11f37c21a339972ca2c5a17c8a93`
+  (tag `seed-969bc20940406612ebfe15f730d3c332e350fd58`, linux/amd64+arm64).
+- Base resolved in-tree: `ghcr.io/eshu-hq/eshu:sha-7b3d6999ee3060257aa1b579e110b2efcb399f42@sha256:ae20f27008b28a206893d08e5c2901f7fe23dfb8cab0d128bc91e0ad65541ff3`
+  — the live fleet digest, no new live drift.
+- In-image smoke on the pushed digest as uid 10001: `unchanged`, one
+  complete status row, zero facts (`"facts": []` on the wire).
+- Attestation: subject-digest equals the pushed digest (run log).
+
+The zeros placeholders kept the shape valid until the run 42049436432
+fill above; `TestWindowSeedDigestAgreesAcrossVehicle` binds the two pinned
+files to each other so a divergent fill fails. The local image
 was removed after the smoke (`docker rmi`); the digest above is the record.
