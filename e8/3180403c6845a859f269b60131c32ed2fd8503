@@ -1,0 +1,18 @@
+go/cmd/reducer/semantic_canonical_owner_live_test.go
+  h_78a442cba0b3e6 124-127,130-137,139
+go/internal/queryplan/testdata/statement-builders.yaml
+  h_78a442cba0b3e6 587-593,617-632,653
+specs/live-tests.d/live-tests-01.yaml
+  h_78a442cba0b3e6 194-198
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e83180403c6845a859f269b60131c32ed2fd8503",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
