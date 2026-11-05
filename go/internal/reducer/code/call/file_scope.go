@@ -30,7 +30,9 @@ type FileScopeBuildResult struct {
 	// ScopesByRepoID maps repository ID to the DeltaFileScope that bounds the
 	// files it should be projected against, merging delta-generation scopes
 	// with full-refresh scopes (delta wins on conflict). A repository absent
-	// from this map has no file scope and must be treated as whole-repository.
+	// from this map has no file scope and must be treated as whole-repository,
+	// unless it is listed in UnusableDeltaScopes, which must fail closed
+	// (#10023) and never receive a whole-repository refresh.
 	ScopesByRepoID map[string]DeltaFileScope
 	// FullRefreshScopedRepos counts repositories that built a full-refresh
 	// file scope (no delta scope, but a set of file facts bounded enough to
@@ -40,8 +42,15 @@ type FileScopeBuildResult struct {
 	// fact whose full-refresh scope could not be built safely (missing or mixed
 	// repo path, an unnormalizable relative path, no file facts, or more files
 	// than AcceptanceScanLimit), so they fall back to an unscoped refresh. A
-	// delta-generation repository whose delta scope is unusable is not counted.
+	// delta-generation repository whose delta scope is unusable is not counted
+	// here; it is listed in UnusableDeltaScopes instead.
 	FullRefreshFallbackRepos int
+	// UnusableDeltaScopes maps each delta-generation repository whose changed
+	// paths could not be qualified into a file scope to the bounded reason.
+	// Such a repository is absent from ScopesByRepoID, and it must never get a
+	// whole-repository refresh: its generation carries the changed files'
+	// facts only (#10023).
+	UnusableDeltaScopes map[string]DeltaScopeUnusableReason
 }
 
 type codeCallFullRefreshFileScopeState struct {
@@ -57,13 +66,17 @@ type codeCallFullRefreshFileScopeState struct {
 // out of ScopesByRepoID, meaning its projection is not file-scoped; see
 // FullRefreshFallbackRepos for which of those it counts.
 func BuildFileScopesByRepoID(envelopes []facts.Envelope) FileScopeBuildResult {
-	deltaScopesByRepoID := buildCodeCallDeltaFileScopesByRepoID(envelopes)
+	deltaScopes := collectCodeCallDeltaScopes(envelopes)
+	deltaScopesByRepoID := deltaScopes.scopesByRepoID
 	fullScopesByRepoID, fallbackRepos := buildCodeCallFullRefreshFileScopesByRepoID(
 		envelopes,
 		deltaScopesByRepoID,
 	)
 	if len(deltaScopesByRepoID) == 0 && len(fullScopesByRepoID) == 0 {
-		return FileScopeBuildResult{FullRefreshFallbackRepos: fallbackRepos}
+		return FileScopeBuildResult{
+			FullRefreshFallbackRepos: fallbackRepos,
+			UnusableDeltaScopes:      deltaScopes.unusableByRepoID,
+		}
 	}
 
 	scopesByRepoID := make(map[string]DeltaFileScope, len(deltaScopesByRepoID)+len(fullScopesByRepoID))
@@ -81,6 +94,7 @@ func BuildFileScopesByRepoID(envelopes []facts.Envelope) FileScopeBuildResult {
 		ScopesByRepoID:           scopesByRepoID,
 		FullRefreshScopedRepos:   len(fullScopesByRepoID),
 		FullRefreshFallbackRepos: fallbackRepos,
+		UnusableDeltaScopes:      deltaScopes.unusableByRepoID,
 	}
 }
 

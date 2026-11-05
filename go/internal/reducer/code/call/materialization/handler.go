@@ -120,6 +120,13 @@ func (h Handler) Handle(
 		}, nil
 	}
 
+	// Build the file scopes before the symbol load so a delta repository with
+	// an unusable scope fails closed before any expensive work or write (#10023).
+	fileScopeResult := codecall.BuildFileScopesByRepoID(envelopes)
+	if err := failClosedOnUnusableDeltaScopes(ctx, h.Instruments, intent, contextByRepoID, fileScopeResult); err != nil {
+		return reducercontract.Result{}, err
+	}
+
 	symbolLoadStart := time.Now()
 	symbolKeys := shared.ReferencedSymbolKeys(envelopes)
 	symbolDefinitionEnvelopes, err := loadActiveCodeCallSymbolDefinitionFacts(ctx, h.FactLoader, symbolKeys)
@@ -151,7 +158,6 @@ func (h Handler) Handle(
 	}
 
 	intentBuildStart := time.Now()
-	fileScopeResult := codecall.BuildFileScopesByRepoID(envelopes)
 	fileScopesByRepoID := fileScopeResult.ScopesByRepoID
 	intentRows := codecall.BuildRefreshIntentsWithDeltaFileScopes(contextByRepoID, fileScopesByRepoID, createdAt)
 	intentRows = append(

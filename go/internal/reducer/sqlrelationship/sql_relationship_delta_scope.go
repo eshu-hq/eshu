@@ -140,7 +140,7 @@ func sqlRelationshipEnvelopeKey(envelope facts.Envelope) string {
 // Contract System v1 Wave 4f S2, issue #4754) rather than raw
 // semanticPayloadString/semanticPayloadStringSlice lookups. The cheap
 // delta_generation gate check runs on the raw payload before decode (matching
-// code/call/intents.go's buildCodeCallDeltaFileScopesByRepoID
+// code/call/delta_scope.go's collectCodeCallDeltaScopes
 // precedent) so a non-delta repository fact never pays the decode cost. A
 // delta-generation repository fact whose payload is missing a required
 // identity field is skipped, matching this function's pre-existing "skip and
@@ -172,8 +172,8 @@ func BuildDeltaScope(envelopes []facts.Envelope) DeltaScope {
 		// "path" is read raw off the top-level envelope first, then falls
 		// back to the typed LocalPath — preserving the exact
 		// pre-Contract-System precedence documented in
-		// code/call/intents.go's
-		// buildCodeCallDeltaFileScopesByRepoID: "path" is NOT a typed
+		// code/call/delta_scope.go's
+		// collectCodeCallDeltaScopes: "path" is NOT a typed
 		// codegraphv1.Repository field (gitcontent.RepositoryFactEnvelope never writes
 		// it to the payload in production), so it is read raw here only to
 		// preserve behavior for callers/fixtures that carry the checkout

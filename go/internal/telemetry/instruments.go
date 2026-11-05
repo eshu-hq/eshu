@@ -2657,6 +2657,11 @@ type Instruments struct {
 	SharedEdgeWriteGroupStatementCount metric.Int64Histogram
 	CodeCallEdgeBatches                metric.Int64Counter
 	CodeCallEdgeDuration               metric.Float64Histogram
+	// CodeCallDeltaScopeUnusable counts delta-generation repositories whose
+	// code-call file scope could not be built (#10023), labeled by the closed
+	// reason set in registerCodeCallDeltaScopeUnusable. Registered by that
+	// function.
+	CodeCallDeltaScopeUnusable metric.Int64Counter
 
 	// ProducerManifestTagOutcomes counts code-call producer manifest rows by
 	// generation-tag outcome (#7760), labeled by a closed kind
@@ -6513,6 +6518,9 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, err
 	}
 	if err := registerProjectorDeltaUnion(meter, inst); err != nil {
+		return nil, err
+	}
+	if err := registerCodeCallDeltaScopeUnusable(meter, inst); err != nil {
 		return nil, err
 	}
 	if err := registerConfigArtifactCandidates(meter, inst); err != nil {

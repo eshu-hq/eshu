@@ -17,7 +17,7 @@ into graph edges.
 
 ## Files
 
-10 non-test files. The entity-index substrate and generic candidate-name/path
+11 non-test files. The entity-index substrate and generic candidate-name/path
 helpers live in `code/call/shared`; each parser language's resolver lives in
 its own leaf under `code/call` (`golang`, `java`, `jvm`, `kotlin`, `groovy`,
 `javascript`, `typescript`, `python`, `dart`, `elixir`, `haskell`, `perl`,
@@ -32,8 +32,9 @@ its own leaf under `code/call` (`golang`, `java`, `jvm`, `kotlin`, `groovy`,
 | `relationship.go` | Relationship-type classification, row dedup keys |
 | `instantiates.go` | `INSTANTIATES` edge emission |
 | `intents.go` | `BuildSharedIntentRows`, `BuildRefreshIntentsWithDeltaFileScopes`, partition keys, `RepoRefreshEvidenceSource` |
+| `delta_scope.go` | Delta-generation file scopes, the unusable-scope reasons, and the closed `DeltaScopeUnusableReason` set (#10023) |
 | `delta_partitions.go` | File-scoped delta partition derivation |
-| `file_scope.go` | `BuildFileScopesByRepoID`, `AcceptanceScanLimit` |
+| `file_scope.go` | `BuildFileScopesByRepoID` (`FileScopeBuildResult`: scopes, full-refresh counts, `UnusableDeltaScopes`), `AcceptanceScanLimit` |
 | `doc.go` | Package contract |
 
 ## Seams the reducer root uses
@@ -41,7 +42,8 @@ its own leaf under `code/call` (`golang`, `java`, `jvm`, `kotlin`, `groovy`,
 - Extraction: `ExtractAllRelationshipRowsWithIndex`,
   `shared.ReferencedSymbolKeys` (via the `compat_projection.go` stanza).
 - Intents: `BuildSharedIntentRows`, `BuildRefreshIntentsWithDeltaFileScopes`,
-  `BuildFileScopesByRepoID`, `FileScopeBuildResult`, `DeltaFileScope`.
+  `BuildFileScopesByRepoID`, `FileScopeBuildResult`, `DeltaFileScope`,
+  `DeltaScopeUnusableReason`.
 - Entity resolution for the symbol-runtime families:
   `shared.EntityIndex`, `shared.BuildEntityIndex`,
   `shared.ResolveContainingEntityID`, `shared.EndpointEntityType`,
@@ -55,6 +57,32 @@ its own leaf under `code/call` (`golang`, `java`, `jvm`, `kotlin`, `groovy`,
   `RefreshPartitionKeyForDelta`, `WholeScopePartitionKey`,
   `RepoRefreshEvidenceSource`. `python.ExtractMetaclassRows` has no caller
   outside the code/call family; it was already exported before the move.
+
+## Delta repositories with an unusable scope (#10023)
+
+A repository whose repository fact carries `delta_generation` is on a delta
+generation whether or not its scope is usable. A delta repository whose
+changed paths cannot be qualified (no local path, an unnormalizable path,
+or no changed path at all) is listed in `UnusableDeltaScopes` with a bounded
+`DeltaScopeUnusableReason` and is absent from `ScopesByRepoID`. Before #10023
+it was silently dropped, so `BuildRefreshIntentsWithDeltaFileScopes` gave it
+the whole-repository refresh, whose retract rewrites the repository from the
+delta's rows only. That builder still treats an unscoped repository as
+whole-scope, so a caller MUST check `UnusableDeltaScopes` first:
+`materialization.Handler` fails the work item closed there.
+
+Reachability: production does not reach this path yet. The git collector
+emits no `code_call_materialization` marker on a delta generation until #10049
+lands, so the fence is a guard placed ahead of that change and its counter
+stays at zero until then.
+
+Self-heal: the graph keeps its existing CALLS edges, and the delta's call
+changes appear at the repository's next full generation. With reconciliation
+on, the sweep forces one once the scope has gone
+`ESHU_REPO_RECONCILE_INTERVAL_HOURS` (default 24) without a full observation.
+With `ESHU_REPO_RECONCILE_INTERVAL_HOURS=0` there is no sweep, and the changes
+wait for a reindex request or another full generation. No repair job exists,
+because nothing was retracted. The code-call reducer owns this path.
 
 ## Dependency rule
 
@@ -92,3 +120,38 @@ graph is identical before and after.
 
 No-Observability-Change: this batch adds, removes, and renames no operator
 signal; `verify-telemetry-coverage.sh` passes unchanged.
+
+No-Regression Evidence (#10023): the delta scope collector now also keeps
+the delta repository set and the unusable-scope reasons, and
+`materialization.Handler` builds the file scopes once, earlier (before the
+symbol load) instead of inside the intent build. No query, queue, lease,
+graph write, or concurrency path changes: the new check is one map lookup
+per unusable delta repository, and a fenced work item writes nothing.
+
+- Baseline: `origin/main` at `b16cb9689b`; after: this branch. Command, run
+  in each tree with the same benchmark file:
+  `go test ./internal/reducer/code/call/ -run '^$' -bench
+  BenchmarkBuildFileScopesByRepoID -benchmem -count=6 -cpu 1`.
+- Input shape: one delta repository with 2,000 changed paths plus one
+  full-generation repository with 5,000 file facts (2 scopes built).
+- Result: median 10,456,558 ns/op before and 10,613,462 ns/op after
+  (+1.5%, inside run-to-run spread; the two six-run ranges overlap, 8.5 to
+  11.5 ms and 8.1 to 13.5 ms). Allocations 14,138 to 14,140 allocs/op and
+  1,877,555 to 1,877,811 B/op, which are deterministic.
+- Backend/version: go1.26.10 linux/amd64, Intel i7-8700K, a shared host
+  (hence the spread); in-memory test backend, no end-to-end reducer run.
+- Terminal counts: the fenced handler writes 0 shared intents
+  (`TestCodeCallMaterializationHandlerFailsClosedOnUnusableDeltaScope`), and
+  the live queue proof
+  (`TestCodeCallDeltaScopeUnusableDeadLettersOnFirstAttemptLive`) ends with
+  the work item at `dead_letter`, attempt 1, no re-claim.
+- Why safe: the usable-delta and full-generation paths build the same
+  scopes as before (`TestCodeCallMaterializationHandlerAlignsDeltaEdgePartitions`,
+  `TestBuildRefreshIntentsKeepsWholeScopeForUnscopedFullGeneration`, and the
+  existing file-scope tests pass unchanged).
+
+Observability Evidence (#10023): a new counter,
+`eshu_dp_code_call_delta_scope_unusable_total{reason}`, one ERROR log,
+`code call delta scope unusable, failing closed`, and the dead-letter
+`failure_class=code_call_delta_scope_unusable`. Operator guide:
+[Shared-Write Operations](../../../../../docs/public/reference/telemetry/shared-write-operations.md#code-call-unusable-delta-scopes).

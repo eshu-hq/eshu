@@ -131,8 +131,36 @@ import-binding branch, so they emitted no row. A drop in
 change adds no metric instrument, metric label, span, route, runtime knob,
 queue table, or graph backend branch.
 
+Unusable delta scopes (#10023): when a delta-generation repository that has a
+projection context has no usable file scope (`codecall.FileScopeBuildResult`
+`UnusableDeltaScopes`), `Handle` returns a non-retryable error with failure
+class `DeltaScopeUnusableFailureClass` (`code_call_delta_scope_unusable`)
+before the symbol load and before any intent is written. It records
+`eshu_dp_code_call_delta_scope_unusable_total{reason}` once per such
+repository and logs one ERROR line, `code call delta scope unusable, failing
+closed`, with `unusable_delta_scopes` (`repo=reason`, at most 16 named) and
+`unusable_delta_scope_repo_count`. The reducer queue dead-letters the work item
+on its first attempt; the dead-letter details carry `triage=input_invalid`
+because the error wraps a `projector/failure` `InputValidationError`. The
+counter stays at zero until #10049: the git collector emits no
+`code_call_materialization` marker on a delta generation yet, so the fence is
+a guard placed ahead of that change. The operator guide is
+[Shared-Write Operations](../../../../../../docs/public/reference/telemetry/shared-write-operations.md#code-call-unusable-delta-scopes).
+
 ## Gotchas / invariants
 
+- **A delta repository with an unusable scope fails the work item closed; it
+  never falls back to the whole-repository refresh.** A delta generation
+  carries the changed files' facts only, so a whole-repository CALLS retract
+  deletes every unchanged file's edge and the delta's rows restore only the
+  changed files'. The failure is raised here, at the work-item layer, because
+  the code-call projection lane has no terminal state for a poisoned shared
+  intent: it retries the row every cycle and a stuck whole-scope refresh
+  blocks its partition. Existing edges stay until the repository's next full
+  generation (the reconciliation sweep, default 24 hours, unless
+  `ESHU_REPO_RECONCILE_INTERVAL_HOURS=0` turns it off); no repair job is
+  needed. The fence runs before the cross-repository symbol load, so a fenced
+  work item costs no symbol query.
 - **The three symbol→runtime domains are repo-wide-retract domains with
   per-edge partition keys.** Every call to `BuildIntentRows` MUST pair each
   domain's per-edge rows with its repo-wide refresh row in the SAME pass —
