@@ -38,7 +38,9 @@ const workflowGuardedRunCreateMaxAttempts = 3
 // the open-target guard, and the rows the database actually accepted. Those
 // differ when a unique index drops a row the guard admitted, and the difference
 // is lost work rather than a skipped duplicate, so callers must not collapse the
-// two (see workflow.RunAdmission). It is safe to run more than one coordinator
+// two (see workflow.RunAdmission). The accepted rows are also named per item in
+// InsertedScopeIDs, so a commit join can hold the dropped scopes pending
+// (eshu-hq/eshu#10149). It is safe to run more than one coordinator
 // against this method: see the read-then-write race described at the advisory
 // lock below.
 func (s *WorkflowControlStore) CreateRunWithWorkItemsIfNoOpenTargets(
@@ -186,18 +188,22 @@ func (s *WorkflowControlStore) createRunWithWorkItemsIfNoOpenTargetsOnce(
 	// time. Reporting len(eligible) as the enqueued count told the coordinator
 	// every target landed, which left an operator reading an enqueued count for
 	// work that does not exist; reporting only the insert count would instead
-	// blame the open-target guard for a row the database refused (#4586).
+	// blame the open-target guard for a row the database refused (#4586). The
+	// RETURNING scope list names the accepted rows per item, so a commit join
+	// can hold the dropped scopes pending instead of retiring them as drained
+	// (eshu-hq/eshu#10149).
 	admission := workflow.RunAdmission{EligibleTargets: len(eligible)}
 	for i := 0; i < len(eligible); i += workflowEnqueueBatchSize {
 		end := i + workflowEnqueueBatchSize
 		if end > len(eligible) {
 			end = len(eligible)
 		}
-		batchInserted, err := s.enqueueWorkItemBatchWithExecutor(ctx, tx, eligible[i:end])
+		batchScopes, err := s.enqueueWorkItemBatchScopesWithExecutor(ctx, tx, eligible[i:end])
 		if err != nil {
 			return workflow.RunAdmission{}, workflow.SlotAdvanceResult{}, err
 		}
-		admission.InsertedWorkItems += batchInserted
+		admission.InsertedWorkItems += len(batchScopes)
+		admission.InsertedScopeIDs = append(admission.InsertedScopeIDs, batchScopes...)
 	}
 	result, err := advanceOwnedTargetSlots(ctx, tx, advance)
 	if err != nil {

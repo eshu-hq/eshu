@@ -50,11 +50,16 @@ type workAdmission struct {
 	noWork   bool
 	// authorizedReplanScopes holds the authorized _replan scope ids of one
 	// admission pass (eshu-hq/eshu#10083): the post-authorization, pre-guard
-	// set the replan commit gates its mapped branch on. The name claims
-	// only that: guard-dropped and insert-dropped scopes are not observable
-	// from the admission return, so they stay deferred under
-	// TODO(eshu-hq/eshu#10149). Nil on the no-work path.
+	// set the replan commit gates its mapped branch on. Nil on the no-work
+	// path.
 	authorizedReplanScopes map[string]struct{}
+	// insertedReplanScopes holds the inserted _replan scope ids of one
+	// admission pass (eshu-hq/eshu#10149): the post-guard, post-insert set
+	// the replan commit joins its survivors to. A scope the open-target
+	// guard or the insert dropped is absent here while still present in
+	// authorizedReplanScopes above. Nil when nothing was inserted,
+	// including the no-work path.
+	insertedReplanScopes map[string]struct{}
 }
 
 // ownedSlotSelector returns the selector that turns on progress-ordered slot

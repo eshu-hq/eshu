@@ -122,7 +122,11 @@ func (l *fakeLeg) AdmitGuarded(_ context.Context, _ workflow.Run, items []workfl
 		l.items[it.WorkItemID] = &fakeItem{item: it}
 		l.order = append(l.order, it.WorkItemID)
 	}
-	return workflow.RunAdmission{EligibleTargets: len(items), InsertedWorkItems: len(items)}, nil
+	scopes := make([]string, 0, len(items))
+	for _, it := range items {
+		scopes = append(scopes, it.ScopeID)
+	}
+	return workflow.RunAdmission{EligibleTargets: len(items), InsertedWorkItems: len(items), InsertedScopeIDs: scopes}, nil
 }
 
 func (l *fakeLeg) ReconcileCollectorInstances(context.Context, time.Time, []workflow.DesiredCollectorInstance) error {

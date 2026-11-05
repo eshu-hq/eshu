@@ -43,7 +43,12 @@ func TestWorkflowControlStoreSlotProgressAdvancesOnEveryCommitPath(t *testing.T)
 	}{
 		{name: "terminal-run skip", rows: []queueFakeRows{{rows: [][]any{{true}}}}},
 		{name: "zero-eligible skip", rows: []queueFakeRows{{rows: [][]any{{false}}}, {rows: nil}}},
-		{name: "insert path", rows: []queueFakeRows{{rows: [][]any{{false}}}, {rows: [][]any{{0}, {1}}}}},
+		{name: "insert path", rows: []queueFakeRows{
+			{rows: [][]any{{false}}},
+			{rows: [][]any{{0}, {1}}},
+			// The batch insert returns both accepted scopes.
+			{rows: [][]any{{"aws:123456789012:us-east-1:lambda"}, {"aws:123456789012:us-east-1:s3"}}},
+		}},
 		{name: "advance-only path for an empty pick", advance: true},
 	}
 	for _, tc := range cases {

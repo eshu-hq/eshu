@@ -67,6 +67,16 @@ const enqueueWorkflowWorkItemsSuffix = `
 ON CONFLICT DO NOTHING
 `
 
+// enqueueWorkflowWorkItemsScopesSuffix is the guarded-admission variant of
+// the work-item insert: ON CONFLICT DO NOTHING plus RETURNING scope_id, so
+// only rows the table actually accepted come back. A planned target a
+// partial unique index dropped never appears in the result
+// (eshu-hq/eshu#10149).
+const enqueueWorkflowWorkItemsScopesSuffix = `
+ON CONFLICT DO NOTHING
+RETURNING scope_id
+`
+
 // The fair-claim statement (priority-then-rotation candidate plus the
 // shared claim/complete lifecycle) lives in workflow_control_fair_claim_sql.go
 // beside its mechanism proof. The lifecycle CTEs below serve the heartbeat,

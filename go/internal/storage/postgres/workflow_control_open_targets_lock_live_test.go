@@ -376,6 +376,11 @@ func TestWorkflowGuardedRunCreateReportsRowsActuallyInsertedLive(t *testing.T) {
 	if admission.InsertedWorkItems != rows {
 		t.Fatalf("InsertedWorkItems = %d, actual rows = %d: the guard reported work an operator cannot find in the queue (#4586)", admission.InsertedWorkItems, rows)
 	}
+	// The per-item half (#10149): exactly the accepted row's scope comes
+	// back, so a commit join can tell which scope landed.
+	if len(admission.InsertedScopeIDs) != rows || (rows == 1 && admission.InsertedScopeIDs[0] != scopeID) {
+		t.Fatalf("InsertedScopeIDs = %v, want [%q]: the per-item list must name the accepted scope (#10149)", admission.InsertedScopeIDs, scopeID)
+	}
 	// The index dropped the row, not the open-target guard. Both acceptance
 	// units have to show as admitted, or the coordinator reports lost work under
 	// "target_already_planned" -- a duplicate skip that never happened.

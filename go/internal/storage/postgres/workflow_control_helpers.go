@@ -23,24 +23,10 @@ func (s *WorkflowControlStore) enqueueWorkItemBatch(ctx context.Context, items [
 	return s.enqueueWorkItemBatchWithExecutor(ctx, s.database, items)
 }
 
-// enqueueWorkItemBatchWithExecutor inserts one batch and reports how many rows
-// the database actually accepted. The INSERT ends in ON CONFLICT DO NOTHING and
-// workflow_work_items carries partial unique indexes (the terraform_state
-// candidate index, for one), so the accepted count can be lower than len(items).
-// Callers that report an enqueued count to an operator MUST use this number
-// rather than len(items): a dropped row that still counts as enqueued shows up
-// as work an operator can see in the logs but not in the queue (#4586).
-//
-// One INSERT ... ON CONFLICT DO NOTHING can never write more rows than it was
-// given, so the accepted count is checked against len(items) before it is
-// narrowed to int. That keeps the return within a range int always holds, and a
-// driver reporting anything outside it is a broken count rather than a number to
-// pass on to an operator.
-func (s *WorkflowControlStore) enqueueWorkItemBatchWithExecutor(
-	ctx context.Context,
-	executor db.Executor,
-	items []workflow.WorkItem,
-) (int, error) {
+// enqueueWorkflowWorkItemsQuery renders one work-item batch INSERT with the
+// caller's conflict suffix. Both batch helpers share it so the column list
+// cannot drift between the count path and the per-item path.
+func enqueueWorkflowWorkItemsQuery(items []workflow.WorkItem, suffix string) (string, []any) {
 	args := make([]any, 0, len(items)*workflowColumnsPerWorkItem)
 	var values strings.Builder
 
@@ -91,7 +77,28 @@ func (s *WorkflowControlStore) enqueueWorkItemBatchWithExecutor(
 		)
 	}
 
-	query := enqueueWorkflowWorkItemsPrefix + values.String() + enqueueWorkflowWorkItemsSuffix
+	return enqueueWorkflowWorkItemsPrefix + values.String() + suffix, args
+}
+
+// enqueueWorkItemBatchWithExecutor inserts one batch and reports how many rows
+// the database actually accepted. The INSERT ends in ON CONFLICT DO NOTHING and
+// workflow_work_items carries partial unique indexes (the terraform_state
+// candidate index, for one), so the accepted count can be lower than len(items).
+// Callers that report an enqueued count to an operator MUST use this number
+// rather than len(items): a dropped row that still counts as enqueued shows up
+// as work an operator can see in the logs but not in the queue (#4586).
+//
+// One INSERT ... ON CONFLICT DO NOTHING can never write more rows than it was
+// given, so the accepted count is checked against len(items) before it is
+// narrowed to int. That keeps the return within a range int always holds, and a
+// driver reporting anything outside it is a broken count rather than a number to
+// pass on to an operator.
+func (s *WorkflowControlStore) enqueueWorkItemBatchWithExecutor(
+	ctx context.Context,
+	executor db.Executor,
+	items []workflow.WorkItem,
+) (int, error) {
+	query, args := enqueueWorkflowWorkItemsQuery(items, enqueueWorkflowWorkItemsSuffix)
 	result, err := executor.ExecContext(ctx, query, args...)
 	if err != nil {
 		return 0, fmt.Errorf("enqueue workflow work item batch (%d items): %w", len(items), err)

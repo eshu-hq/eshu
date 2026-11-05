@@ -4,7 +4,10 @@
 package coordinator
 
 import (
+	"bytes"
 	"context"
+	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
@@ -135,7 +138,7 @@ func TestCommitOSVDeltaReplanSingleAuthorizationDecisionPoint(t *testing.T) {
 		Watermark:        feed,
 		WatermarkSet:     true,
 	}
-	if err := service.commitOSVDeltaReplan(context.Background(), pass, run, items, observation, observedAt, admitted.authorizedReplanScopes); err != nil {
+	if err := service.commitOSVDeltaReplan(context.Background(), pass, run, items, observation, observedAt, admitted.authorizedReplanScopes, admitted.insertedReplanScopes); err != nil {
 		t.Fatalf("commitOSVDeltaReplan() error = %v, want nil", err)
 	}
 	if _, ok := replanStore.rows[1]; ok {
@@ -198,7 +201,7 @@ func TestCommitOSVDeltaReplanHoldsDeniedReplanScopes(t *testing.T) {
 		Watermark:        feed,
 		WatermarkSet:     true,
 	}
-	if err := service.commitOSVDeltaReplan(context.Background(), pass, run, items, observation, observedAt, admitted.authorizedReplanScopes); err != nil {
+	if err := service.commitOSVDeltaReplan(context.Background(), pass, run, items, observation, observedAt, admitted.authorizedReplanScopes, admitted.insertedReplanScopes); err != nil {
 		t.Fatalf("commitOSVDeltaReplan() error = %v, want nil", err)
 	}
 	if _, ok := replanStore.rows[1]; !ok {
@@ -209,14 +212,13 @@ func TestCommitOSVDeltaReplanHoldsDeniedReplanScopes(t *testing.T) {
 	}
 }
 
-// TestCommitOSVDeltaReplanDuplicateDroppedScopeStillCommits pins the deferred
-// half of #10083, NOT a fix for it. TODO(eshu-hq/eshu#10149): the threaded
-// set is the authorized set, which the open-target guard cannot shrink, so a
-// row whose _replan scope the guard dropped as a duplicate still commits.
-// The second admission under the same run id models the repeat tick: the
-// guard drops the item (inserted 0) while the authorized set still holds its
-// scope. Change this test only when #10149 lands per-item admission outcomes.
-func TestCommitOSVDeltaReplanDuplicateDroppedScopeStillCommits(t *testing.T) {
+// TestCommitOSVDeltaReplanHoldsGuardDroppedReplanScopes pins the #10149
+// join: a mapped row whose _replan scope the open-target guard dropped as a
+// duplicate stays pending for the next pass instead of committing as
+// drained. The second admission under the same run id models the repeat
+// tick: the guard drops the item (inserted 0) while the authorized set still
+// holds its scope; the commit joins survivors to the inserted set.
+func TestCommitOSVDeltaReplanHoldsGuardDroppedReplanScopes(t *testing.T) {
 	t.Parallel()
 
 	feed := time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
@@ -225,9 +227,11 @@ func TestCommitOSVDeltaReplanDuplicateDroppedScopeStillCommits(t *testing.T) {
 	replanScope := "vuln-intel://osv/npm/_replan/7/dup789"
 
 	store := &fakeStore{}
+	logs := &bytes.Buffer{}
 	service := Service{
 		Store:   store,
 		Metrics: &fakeMetrics{},
+		Logger:  slog.New(slog.NewJSONHandler(logs, nil)),
 	}
 	run := replanJoinRun(now)
 	items := []workflow.WorkItem{replanJoinWorkItem(now, replanScope)}
@@ -238,9 +242,6 @@ func TestCommitOSVDeltaReplanDuplicateDroppedScopeStillCommits(t *testing.T) {
 	if first.inserted != 1 {
 		t.Fatalf("first admitted.inserted = %d, want 1", first.inserted)
 	}
-	// TODO(eshu-hq/eshu#10149): the repeat tick's guard drop is invisible
-	// to the commit, so the row below still drains. Per-item admission
-	// outcomes would hold it pending instead.
 	repeat, err := service.createWorkflowWork(context.Background(), replanJoinInstance(), run, items, nil)
 	if err != nil {
 		t.Fatalf("repeat createWorkflowWork() error = %v, want nil", err)
@@ -269,10 +270,88 @@ func TestCommitOSVDeltaReplanDuplicateDroppedScopeStillCommits(t *testing.T) {
 		Watermark:        feed,
 		WatermarkSet:     true,
 	}
-	if err := service.commitOSVDeltaReplan(context.Background(), pass, run, items, observation, observedAt, repeat.authorizedReplanScopes); err != nil {
+	if err := service.commitOSVDeltaReplan(context.Background(), pass, run, items, observation, observedAt, repeat.authorizedReplanScopes, repeat.insertedReplanScopes); err != nil {
 		t.Fatalf("commitOSVDeltaReplan() error = %v, want nil", err)
 	}
-	if _, ok := replanStore.rows[1]; ok {
-		t.Fatal("row 1 still pending: the deferred duplicate-dropped half still commits today (TODO eshu-hq/eshu#10149)")
+	if _, ok := replanStore.rows[1]; !ok {
+		t.Fatal("row 1 committed on a guard-dropped scope: a duplicate-dropped mapped row must stay pending")
+	}
+	if replanStore.polls != 1 {
+		t.Fatalf("poll records = %d, want 1 (a held pass still records its poll)", replanStore.polls)
+	}
+	if got := logs.String(); !strings.Contains(got, "held owned target replan rows past the drain") ||
+		!strings.Contains(got, `"held_duplicate_or_refused_rows":1`) {
+		t.Fatalf("logs = %s, want the held-drain line naming one duplicate-or-refused row (#10149)", got)
+	}
+}
+
+// insertConflictReplanStore models the database refusing a row the guard
+// admitted: a partial unique index covers a narrower tuple than the guard
+// compares, so the eligible target never reaches the queue (#4586).
+type insertConflictReplanStore struct {
+	fakeStore
+}
+
+func (s *insertConflictReplanStore) CreateRunWithWorkItemsIfNoOpenTargets(
+	_ context.Context,
+	_ workflow.Run,
+	items []workflow.WorkItem,
+) (workflow.RunAdmission, error) {
+	return workflow.RunAdmission{EligibleTargets: len(items)}, nil
+}
+
+// TestCommitOSVDeltaReplanHoldsInsertDroppedReplanScopes pins the second half
+// of the #10149 join: a mapped row whose _replan scope cleared the guard but
+// the insert refused stays pending instead of committing as drained.
+func TestCommitOSVDeltaReplanHoldsInsertDroppedReplanScopes(t *testing.T) {
+	t.Parallel()
+
+	feed := time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
+	observedAt := feed.Add(time.Hour)
+	now := feed.Add(30 * time.Minute)
+	replanScope := "vuln-intel://osv/npm/_replan/7/ins456"
+
+	service := Service{
+		Store:   &insertConflictReplanStore{},
+		Metrics: &fakeMetrics{},
+	}
+	run := replanJoinRun(now)
+	items := []workflow.WorkItem{replanJoinWorkItem(now, replanScope)}
+	admitted, err := service.createWorkflowWork(context.Background(), replanJoinInstance(), run, items, nil)
+	if err != nil {
+		t.Fatalf("createWorkflowWork() error = %v, want nil", err)
+	}
+	if admitted.inserted != 0 {
+		t.Fatalf("admitted.inserted = %d, want 0 (the insert refused the guarded row)", admitted.inserted)
+	}
+	if _, ok := admitted.authorizedReplanScopes[replanScope]; !ok {
+		t.Fatalf("authorized set = %v, want it to still hold %q (authorized, not inserted)", admitted.authorizedReplanScopes, replanScope)
+	}
+
+	replanStore := &memoryOSVDeltaReplanStore{rows: map[int64]vulnerability.OSVDeltaQueuedRow{
+		1: {RowID: 1, AdvisoryID: "GHSA-i", Ecosystem: "npm", PackageName: "ins-pkg", FeedTimestamp: feed},
+	}}
+	pass := &osvDeltaPass{
+		store:      replanStore,
+		instanceID: "vuln-intel-replan",
+		pending: []vulnerability.OSVDeltaValidatedChange{
+			{RowID: 1, AdvisoryID: "GHSA-i", Ecosystem: "npm", PackageName: "ins-pkg", FeedTimestamp: feed},
+		},
+	}
+	observation := vulnerability.OSVDeltaReplanObservation{
+		Enabled:          true,
+		CoveredRowIDs:    []int64{1},
+		CoveredRowScopes: map[int64][]string{1: {replanScope}},
+		Watermark:        feed,
+		WatermarkSet:     true,
+	}
+	if err := service.commitOSVDeltaReplan(context.Background(), pass, run, items, observation, observedAt, admitted.authorizedReplanScopes, admitted.insertedReplanScopes); err != nil {
+		t.Fatalf("commitOSVDeltaReplan() error = %v, want nil", err)
+	}
+	if _, ok := replanStore.rows[1]; !ok {
+		t.Fatal("row 1 committed on an insert-dropped scope: a refused mapped row must stay pending")
+	}
+	if replanStore.polls != 1 {
+		t.Fatalf("poll records = %d, want 1 (a held pass still records its poll)", replanStore.polls)
 	}
 }
