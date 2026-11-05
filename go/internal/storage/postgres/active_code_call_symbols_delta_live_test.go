@@ -256,8 +256,8 @@ func TestLoadActiveCodeCallSymbolDefinitionFactsNoDeltaStatementsLive(t *testing
 
 // TestDeriveDeltaOverlayBaseQueryForCodeCallReaders is the hermetic shape
 // proof for both definition scans: the unanchored corpus-wide text binds the
-// delta scopes at $5 and the anchored producer text at $6, and a text that
-// already binds the placeholder fails closed.
+// candidate base generation ids at $5 and the anchored producer text at $6,
+// and a text that already binds the placeholder fails closed.
 func TestDeriveDeltaOverlayBaseQueryForCodeCallReaders(t *testing.T) {
 	unanchored, err := deriveDeltaOverlayBaseQuery(listActiveCodeCallSymbolDefinitionFactsQuery, 5)
 	if err != nil {
