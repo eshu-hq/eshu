@@ -336,6 +336,21 @@ func TestSpelledEcosystemThatJoinsKeepsTheWholeGroup(t *testing.T) {
 	assertRepDirectKeepsOtherFact(t, sc.fleet(t, true), true, "", "")
 }
 
+// TestSpelledDpkgThatJoinsKeepsTheWholeGroup is the review's F7 test. dpkg is a spelled
+// ecosystem with a row on the base, though it normalizes to no ecosystem name. A
+// condition b that reads the normalized name instead of the trimmed spelling narrows it
+// and moves that row, so this fails under that change.
+func TestSpelledDpkgThatJoinsKeepsTheWholeGroup(t *testing.T) {
+	t.Parallel()
+	sc := repDirectScenario{
+		own:         repJoinOwnFact("dpkg"),
+		other:       repJoinOtherFact(repDirectOtherID, "nvd", "os"),
+		otherSource: "nvd",
+		host:        ubuntuCurl("22.04", repJoinVersion),
+	}
+	assertRepDirectKeepsOtherFact(t, sc.fleet(t, true), true, "", "")
+}
+
 // TestBlankGroupWithAConsumerKeepsTheWholeGroup is guard 4.5c. A consuming
 // repository anchors the group, so the finding is unchanged from the base and a
 // blank-ecosystem group with a consumer stays #10034 item 5.

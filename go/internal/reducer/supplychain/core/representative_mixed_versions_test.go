@@ -1,0 +1,313 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package core
+
+import (
+	"fmt"
+	"maps"
+	"reflect"
+	"slices"
+	"strings"
+	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/facts"
+)
+
+// mixedTopology is a set of installed rows for the ruling 9990-f6 tests: one or more
+// rows with an installed version and one or more without, placed in scopes with or
+// without an image digest.
+type mixedTopology struct {
+	name string
+	rows []mixedRow
+}
+
+// mixedRow is one installed row: its fact id, installed version, scope and image digest.
+type mixedRow struct{ id, ver, scope, digest string }
+
+// mixedHexDigest returns a 64-character image digest made of one repeated byte.
+func mixedHexDigest(c byte) string {
+	b := make([]byte, 64)
+	for i := range b {
+		b[i] = c
+	}
+	return "sha256:" + string(b)
+}
+
+// mixedEnvs returns the installed-row facts of rows and one scanner analysis per
+// digest-bearing scope.
+func mixedEnvs(rows []mixedRow) (out []facts.Envelope, analyses []facts.Envelope) {
+	seen := map[string]bool{}
+	for _, r := range rows {
+		e := ubuntuCurl("22.04", r.ver).envelope()
+		e.FactID, e.ScopeID, e.GenerationID = r.id, "image://"+r.scope, "g-"+r.scope
+		out = append(out, e)
+		if r.digest != "" && !seen[r.scope] {
+			seen[r.scope] = true
+			analyses = append(analyses, scannerWorkerAnalysisFact("image://"+r.scope, "g-"+r.scope, r.digest, "registry.example/"+r.scope+"@"+r.digest))
+		}
+	}
+	return out, analyses
+}
+
+var (
+	mixedDigestA, mixedDigestB, mixedDigestC = mixedHexDigest('a'), mixedHexDigest('b'), mixedHexDigest('c')
+	mixedTopologies                          = []mixedTopology{
+		{"two digests", []mixedRow{{"row-v", repJoinVersion, "a", mixedDigestA}, {"row-n", "", "b", mixedDigestB}}},
+		{"digest and digest-less", []mixedRow{{"row-v", repJoinVersion, "a", mixedDigestA}, {"row-n", "", "b", ""}}},
+		{"digest-less and digest", []mixedRow{{"row-v", repJoinVersion, "a", ""}, {"row-n", "", "b", mixedDigestB}}},
+		{"two digest-less", []mixedRow{{"row-v", repJoinVersion, "a", ""}, {"row-n", "", "b", ""}}},
+		{"one digest holds both", []mixedRow{{"row-v", repJoinVersion, "a", mixedDigestA}, {"row-n", "", "a", mixedDigestA}}},
+		{"whitespace version", []mixedRow{{"row-v", repJoinVersion, "a", mixedDigestA}, {"row-n", "  ", "b", mixedDigestB}}},
+		{"three digests", []mixedRow{{"row-v", repJoinVersion, "a", mixedDigestA}, {"row-w", repJoinVersion, "b", mixedDigestB}, {"row-n", "", "c", mixedDigestC}}},
+	}
+)
+
+// mixedFindingForRow returns the finding whose evidence names the installed row.
+func mixedFindingForRow(fs []SupplyChainImpactFinding, row string) (SupplyChainImpactFinding, bool) {
+	for _, f := range fs {
+		if slices.Contains(f.EvidenceFactIDs, row) {
+			return f, true
+		}
+	}
+	return SupplyChainImpactFinding{}, false
+}
+
+// TestVersionedRowEqualsTheOwnOnlyControl is test 4.2 of ruling 9990-f6: a row with an
+// installed version has no base row, so the blank vendor fact alone decides it, in every
+// order of facts and rows, whatever the other rows of the host look like.
+func TestVersionedRowEqualsTheOwnOnlyControl(t *testing.T) {
+	t.Parallel()
+	for _, topo := range mixedTopologies {
+		t.Run(topo.name, func(t *testing.T) {
+			rows, analyses := mixedEnvs(topo.rows)
+			cve := vulnerabilityCVEFact("cve-9990", vendorLineCVE, 7.5)
+			own, other := repJoinVendorFixFact(""), repJoinOtherFact(repDirectOtherID, "osv", "ubuntu")
+			var versionedRows []facts.Envelope
+			for _, e := range rows {
+				if strings.TrimSpace(fmt.Sprint(e.Payload["installed_version"])) != "" && e.FactID != "row-n" {
+					versionedRows = append(versionedRows, e)
+				}
+			}
+			// The control holds only the versioned rows: on a shard that holds both, the
+			// classifier reads one row, so the own fact alone can read the other row.
+			control := BuildSupplyChainImpactFindings(append(append([]facts.Envelope{cve, own}, versionedRows...), analyses...))
+			for _, rowOrder := range repJoinPermutations(rows) {
+				for _, order := range repJoinPermutations([]facts.Envelope{cve, own, other}) {
+					got := BuildSupplyChainImpactFindings(append(append(slices.Clone(order), rowOrder...), analyses...))
+					for _, r := range topo.rows {
+						if r.ver != repJoinVersion {
+							continue
+						}
+						want, ok := mixedFindingForRow(control, r.id)
+						if !ok {
+							t.Fatalf("control has no finding on %s", r.id)
+						}
+						f, ok := mixedFindingForRow(got, r.id)
+						if !ok {
+							// One index shard holds both rows here and reads one of them in the
+							// reselected order: #9984 splits digest-less rows, #10143 one digest.
+							if topo.name == "two digest-less" || topo.name == "one digest holds both" {
+								continue
+							}
+							t.Fatalf("order %s: no finding on %s: %s", repDirectOrderLabel(order), r.id, repDirectSummary(got))
+						}
+						if !reflect.DeepEqual(f, want) {
+							t.Fatalf("order %s rows %s: %s\nwant %s", repDirectOrderLabel(order), repDirectOrderLabel(rowOrder), repDirectSummary([]SupplyChainImpactFinding{f}), repDirectSummary([]SupplyChainImpactFinding{want}))
+						}
+					}
+				}
+			}
+		})
+	}
+}
+
+// TestVersionlessRowKeepsTheBaseWholeGroupRead pins the row that exists at the base: a
+// row with no installed version stays installed_version_missing with the other fact in
+// its evidence in the order where the blank fact is the source-order representative.
+func TestVersionlessRowKeepsTheBaseWholeGroupRead(t *testing.T) {
+	t.Parallel()
+	rows, analyses := mixedEnvs(mixedTopologies[0].rows)
+	cve := vulnerabilityCVEFact("cve-9990", vendorLineCVE, 7.5)
+	own, other := repJoinVendorFixFact(""), repJoinOtherFact(repDirectOtherID, "osv", "ubuntu")
+	seen := 0
+	for _, order := range repJoinPermutations([]facts.Envelope{cve, own, other}) {
+		_, _, stats, err := buildSupplyChainImpactFindingsAndExclusions(append(append(slices.Clone(order), rows...), analyses...))
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := BuildSupplyChainImpactFindings(append(append(slices.Clone(order), rows...), analyses...))
+		f, ok := mixedFindingForRow(got, "row-n")
+		if !ok {
+			t.Fatalf("no finding on row-n: %s", repDirectSummary(got))
+		}
+		if f.Status != SupplyChainImpactPossiblyAffected || f.MatchReason != supplyChainVersionReasonMissingInstalled {
+			t.Fatalf("row-n verdict %s/%s", f.Status, f.MatchReason)
+		}
+		if stats.osRepresentativeOutcomes[osRepresentativeOutcomeKey{vendor: "ubuntu", outcome: osRepresentativeJoined}] != 1 {
+			continue
+		}
+		seen++
+		if !slices.Contains(f.EvidenceFactIDs, repDirectOtherID) {
+			t.Fatalf("order %s: row-n lost the other fact: %v", repDirectOrderLabel(order), f.EvidenceFactIDs)
+		}
+	}
+	if seen == 0 {
+		t.Fatal("no order joined directly")
+	}
+}
+
+// TestMixedVersionGroupCountsOnce wants one outcome count per group, however its rows split.
+func TestMixedVersionGroupCountsOnce(t *testing.T) {
+	t.Parallel()
+	rows, analyses := mixedEnvs(mixedTopologies[0].rows)
+	cve := vulnerabilityCVEFact("cve-9990", vendorLineCVE, 7.5)
+	own, other := repJoinVendorFixFact(""), repJoinOtherFact(repDirectOtherID, "osv", "ubuntu")
+	for _, order := range repJoinPermutations([]facts.Envelope{cve, own, other}) {
+		_, _, stats, err := buildSupplyChainImpactFindingsAndExclusions(append(append(slices.Clone(order), rows...), analyses...))
+		if err != nil {
+			t.Fatal(err)
+		}
+		total := 0
+		for v := range maps.Values(stats.osRepresentativeOutcomes) {
+			total += v
+		}
+		if total != 1 {
+			t.Fatalf("order %s: outcomes %v, want one count", repDirectOrderLabel(order), stats.osRepresentativeOutcomes)
+		}
+	}
+}
+
+// assertMixedVersionedKeepsOther wants the other fact in the evidence of the versioned
+// row, in every order where the group reached a direct finding.
+func assertMixedVersionedKeepsOther(t *testing.T, own, other facts.Envelope, extra []facts.Envelope, rows []mixedRow) {
+	t.Helper()
+	envs, analyses := mixedEnvs(rows)
+	cve := vulnerabilityCVEFact("cve-9990", vendorLineCVE, 7.5)
+	checked := 0
+	for _, order := range repJoinPermutations([]facts.Envelope{cve, own, other}) {
+		input := append(append(append(slices.Clone(order), envs...), analyses...), extra...)
+		_, _, stats, err := buildSupplyChainImpactFindingsAndExclusions(slices.Clone(input))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if stats.osRepresentativeOutcomes[osRepresentativeOutcomeKey{vendor: "ubuntu", outcome: osRepresentativeJoined}] == 0 &&
+			stats.osRepresentativeOutcomes[osRepresentativeOutcomeKey{vendor: "ubuntu", outcome: osRepresentativeOtherAnchor}] == 0 {
+			continue
+		}
+		got := BuildSupplyChainImpactFindings(slices.Clone(input))
+		if f, ok := mixedFindingForRow(got, "row-v"); ok {
+			checked++
+			if !slices.Contains(f.EvidenceFactIDs, repDirectOtherID) {
+				t.Fatalf("order %s: row-v evidence %v lost the other fact", repDirectOrderLabel(order), f.EvidenceFactIDs)
+			}
+		}
+	}
+	if checked == 0 {
+		t.Fatal("no order reached a direct finding on row-v")
+	}
+}
+
+// The four guards below keep the group whole where a row exists at the base or an anchor
+// owns the finding.
+func TestMixedRowsSpelledOSKeepsTheWholeGroup(t *testing.T) {
+	t.Parallel()
+	assertMixedVersionedKeepsOther(t, repJoinOwnFact("os"), repJoinOtherFact(repDirectOtherID, "nvd", ""), nil, mixedTopologies[0].rows)
+}
+
+func TestMixedRowsSpelledDpkgKeepsTheWholeGroup(t *testing.T) {
+	t.Parallel()
+	assertMixedVersionedKeepsOther(t, repJoinOwnFact("dpkg"), repJoinOtherFact(repDirectOtherID, "nvd", "os"), nil, mixedTopologies[0].rows)
+}
+
+func TestMixedRowsConsumerKeepsTheWholeGroup(t *testing.T) {
+	t.Parallel()
+	consume := []facts.Envelope{packageConsumptionFactWithRange("consume-9990", repJoinPackageID, "repository:r_9990", repJoinVersion)}
+	assertMixedVersionedKeepsOther(t, repJoinOwnFact(""), repJoinOtherFact(repDirectOtherID, "nvd", "os"), consume, mixedTopologies[0].rows)
+}
+
+func TestMixedRowsSBOMPathKeepsTheWholeGroup(t *testing.T) {
+	t.Parallel()
+	sbom := []facts.Envelope{
+		sbomComponentImpactFactWithPackageIDVersion("component", "doc", repJoinPackageID+"@"+repJoinVersion, repJoinPackageID, repJoinVersion),
+		sbomAttachmentImpactFact("attachment", "doc", mixedDigestA),
+		containerImageIdentityImpactFact("image", mixedDigestA, "repository:r_1"),
+	}
+	assertMixedVersionedKeepsOther(t, repJoinOwnFact(""), repJoinOtherFact(repDirectOtherID, "nvd", "os"), sbom, mixedTopologies[0].rows)
+}
+
+// TestMixedVersionRowsAuthorizedAgreesWithFleet wants the authorized path to read the
+// versioned row as the fleet path does, with the rows in two targets and in one.
+func TestMixedVersionRowsAuthorizedAgreesWithFleet(t *testing.T) {
+	t.Parallel()
+	cve := vulnerabilityCVEFact("cve-9990", vendorLineCVE, 7.5)
+	cve.Payload["source"], cve.Payload["advisory_id"] = "ubuntu", "USN-9990-1"
+	own, other := repJoinVendorFixFact(""), repJoinOtherFact(repDirectOtherID, "osv", "ubuntu")
+	authority := []AdvisoryAuthorityDependency{repJoinAuthority("ubuntu"), repJoinAuthority("osv")}
+	scoped := []facts.Envelope{repJoinAdvisory(cve, "ubuntu"), repJoinAdvisory(own, "ubuntu"), repJoinAdvisory(other, "osv")}
+	for _, order := range repJoinPermutations(scoped) {
+		targets := []AuthorizedScanImpactEvidence{
+			authorizedOSVTarget(0, order, authority, ubuntuCurl("22.04", repJoinVersion)),
+			authorizedOSVTarget(1, order, authority, ubuntuCurl("22.04", "")),
+		}
+		got, err := BuildAuthorizedScanImpactFindings(nil, targets)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, f := range got {
+			if f.ObservedVersion == repJoinVersion && (f.FixedVersion != "1.0-5" || f.Status == SupplyChainImpactNotAffectedKnownFixed) {
+				t.Fatalf("order %s: %s", repDirectOrderLabel(order), repDirectSummary([]SupplyChainImpactFinding{f}))
+			}
+		}
+		// One target that holds both rows: its index is not split by target.
+		one := authorizedOSVTarget(0, order, authority, ubuntuCurl("22.04", repJoinVersion))
+		rowN := ubuntuCurl("22.04", "").envelope()
+		rowN.FactID, rowN.ScopeID, rowN.GenerationID = "row-n", one.OSPackages[0].ScopeID, one.OSPackages[0].GenerationID
+		one.OSPackages = append(one.OSPackages, rowN)
+		got, err = BuildAuthorizedScanImpactFindings(nil, []AuthorizedScanImpactEvidence{one})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, f := range got {
+			if f.ObservedVersion == repJoinVersion && (f.FixedVersion != "1.0-5" || f.Status == SupplyChainImpactNotAffectedKnownFixed) {
+				t.Fatalf("one target, order %s: %s", repDirectOrderLabel(order), repDirectSummary([]SupplyChainImpactFinding{f}))
+			}
+		}
+	}
+}
+
+// TestVersionedRowBesideAVersionlessRowIsDecidedByTheFactsThatJoin is the review's F6
+// test. Two images, one row has no version. The versioned row has no base row, so it is a
+// row this change creates, and a fact that cannot join must not decide it.
+func TestVersionedRowBesideAVersionlessRowIsDecidedByTheFactsThatJoin(t *testing.T) {
+	t.Parallel()
+	const digestV, digestN = "sha256:" + "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "sha256:" + "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+	rowV := ubuntuCurl("22.04", repJoinVersion).envelope()
+	rowV.FactID, rowV.ScopeID, rowV.GenerationID = "row-v", "image://v", "g-v"
+	rowN := ubuntuCurl("22.04", "").envelope()
+	rowN.FactID, rowN.ScopeID, rowN.GenerationID = "row-n", "image://n", "g-n"
+	rest := []facts.Envelope{
+		rowV, rowN,
+		scannerWorkerAnalysisFact("image://v", "g-v", digestV, "registry.example/v@"+digestV),
+		scannerWorkerAnalysisFact("image://n", "g-n", digestN, "registry.example/n@"+digestN),
+	}
+	cve := vulnerabilityCVEFact("cve-9990", vendorLineCVE, 7.5)
+	wrong, orders := 0, 0
+	for _, order := range repJoinPermutations([]facts.Envelope{cve, repJoinVendorFixFact(""), repJoinOtherFact(repDirectOtherID, "osv", "ubuntu")}) {
+		for _, finding := range BuildSupplyChainImpactFindings(append(slices.Clone(order), rest...)) {
+			if !slices.Contains(finding.EvidenceFactIDs, "row-v") {
+				continue
+			}
+			orders++
+			if finding.Status == SupplyChainImpactNotAffectedKnownFixed || finding.FixedVersion != "1.0-5" {
+				wrong++
+			}
+		}
+	}
+	if orders == 0 {
+		t.Fatalf("no finding on the versioned row")
+	}
+	if wrong > 0 {
+		t.Fatalf("%d of %d orders read the fix of a fact that cannot join on the versioned row", wrong, orders)
+	}
+}
