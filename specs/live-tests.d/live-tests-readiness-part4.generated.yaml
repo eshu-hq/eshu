@@ -1,9 +1,4 @@
 tests:
-  - file: go/internal/storage/postgres/projector_queue_claim_marked_guard_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#7469 admission-guard functional proof (invisible and visible marked retries win, unmarked stale generations still supersede, terminal marked generations never hold, Ack keeps marked obsolete generations), untagged and gated by the ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN env Skip; Postgres only; about 11s locally; enrolled in the live-postgres-readiness runner"
-    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/projector_queue_claim_marked_guard_plan_live_test.go
     tag: ~
     class: postgres_ci

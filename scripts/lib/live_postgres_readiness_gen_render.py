@@ -39,10 +39,15 @@ FRAGMENT_NAMES = (
 # Rebalanced 2026-11-05 for #9994: the two CVE-chunk live proofs raised the
 # fourth fragment to 100 rows (502 lines). The third cut moves two entries
 # later (492/492/492/492); four fragments pinned.
+# Rebalanced 2026-11-05 for #10063: the run watermark guard live proofs added
+# two rows to the fourth fragment (497 lines), so the stale-red seed rendered
+# 502 over the 499 budget. The third cut moves one entry later
+# (492/492/497/492, stable and stale-red seeds still pass); four fragments
+# pinned.
 FRAGMENT_BOUNDARIES = (
     "go/internal/storage/postgres/activation/recovery_live_test.go",
     "go/internal/storage/postgres/fact_key_foreign_key_reverse_live_test.go",
-    "go/internal/storage/postgres/projector_queue_claim_marked_guard_live_test.go",
+    "go/internal/storage/postgres/projector_queue_claim_marked_guard_plan_live_test.go",
 )
 FRAGMENT_DIR = "specs/live-tests.d/"
 MAX_FRAGMENT_LINES = 499
