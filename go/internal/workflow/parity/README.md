@@ -88,7 +88,7 @@ Throughput numbers log per leg for the dark-deployment no-regression baseline.
   preconditions). No shared-infra writes were made from this lane.
 - No-Regression Evidence: baseline full parity suite green twice at 10/10
   pre-change (8.338s, 8.720s wall); after final tree green 11/11 twice
-  (8.356s, then 6.872s wall at HEAD `d8af2d27`) on the same legs. Backend: claim-plane image
+  (8.356s, then 6.872s wall on the final tree) on the same legs. Backend: claim-plane image
   sha256:e1b564afa5f72167e3911aea7c881973c74bab123183c03d9d6af5a2d80e47a4
   (linux/amd64 emulated on arm64, `--reap-interval=1h`), Postgres 18.6 on
   disposable servers, Go 1.26.6. Input shape: identical seeded fixtures
