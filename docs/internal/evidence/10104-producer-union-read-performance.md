@@ -40,18 +40,20 @@ per load as `package_union_scope_count` / `go_union_scope_count`), so the
 1.5x bar re-proves per corpus shape and is not claimed beyond the measured
 fixture.
 
-Why safe: the union leg runs only when `runBase` holds and discovery is
-empty — the shape that returns nothing today, so every added row is a row
-the read previously dropped. Rows still match on each definition's own
-package id, and a key resolving to definitions in several scopes stays
-unresolved downstream (degraded resolution, not corrupt truth). Residual: a
-base definition carrying the package id in a scope whose non-excluded
-manifests never published it (reachable only through force-committed
-vendored or duplicated manifests; tracked collectors skip gitignored vendor
-trees) would surface — tracked in #10204. The base text is derived from the
-active text by `deriveDeltaOverlayBaseQuery`, keeping its filters, keyset
-cursor, and ordering, and the overlay merge still drops refused or unmatched
-bases.
+Why safe (bounded): the union leg runs only when `runBase` holds and
+discovery is empty — the shape that returns nothing today. Rows still match
+on each definition's own package id, and a key resolving to definitions in
+several scopes stays unresolved downstream (degraded resolution, not corrupt
+truth). Known gap: on definition-content collision across scopes, a base row
+from a scope whose manifests never published the package can surface — the
+read does not filter union scopes per group, so "every added row is a
+previously lost row" is not claimed. Suspected reachable only through
+force-committed vendored or duplicated manifests (tracked collectors skip
+gitignored vendor trees), but that bound is unproven — tracked in #10204,
+which owns the per-group narrowing or the negative live test. The base text
+is derived from the active text by `deriveDeltaOverlayBaseQuery`, keeping
+its filters, keyset cursor, and ordering, and the overlay merge still drops
+refused or unmatched bases.
 
 ## Observability Evidence:
 
