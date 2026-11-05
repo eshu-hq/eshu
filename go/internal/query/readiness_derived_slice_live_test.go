@@ -270,3 +270,53 @@ func TestSupplyChainImpactReadinessDerivedUnqualifiedScopesShareOneGroupLive(t *
 		t.Fatalf("derived aggregate = %+v, want only the newer unqualified scope", state)
 	}
 }
+
+// TestSupplyChainImpactReadinessDerivedLegacyRuleStaysWithItsInstanceLive pins
+// that a real release state retires a legacy scope only inside its own instance:
+// another instance's release state for the same package and distro says nothing
+// about this instance's legacy scope, which still fails the package.
+func TestSupplyChainImpactReadinessDerivedLegacyRuleStaysWithItsInstanceLive(t *testing.T) {
+	ctx, db, now := readinessScopeLiveDatabase(t)
+	seedDerivedInstance(t, ctx, db, now, "derived-alpine", "alpine")
+	seedDerivedInstance(t, ctx, db, now, "derived-other", "alpine")
+	seedCurlState(t, ctx, db, now, curlV318Scope, "fresh")
+	seedDerivedScope(t, ctx, db, now, "derived-other", curlLegacy, "alpine", "failed", "failed_retryable", curlKeys)
+
+	got := map[string]derivedStateView{}
+	for _, state := range readDerivedReadiness(t, db, curlPackageID).SourceStates {
+		if state.Derived {
+			got[state.CollectorInstanceID] = state
+		}
+	}
+	if got["derived-alpine"].FreshnessState != "fresh" || got["derived-alpine"].ScopeCount != 1 {
+		t.Fatalf("instance with the release state = %+v, want fresh with one scope", got["derived-alpine"])
+	}
+	if got["derived-other"].FreshnessState != "failed" || !slices.Equal(got["derived-other"].ScopeIDs, []string{curlLegacy}) {
+		t.Fatalf("instance with only the legacy scope = %+v, want failed on that scope", got["derived-other"])
+	}
+}
+
+// TestSupplyChainImpactReadinessDerivedPendingScopeIDsStayWithTheirInstanceLive
+// pins that a pending row takes its scope id from its own instance's plan. Two
+// instances plan different releases of one package with no state yet; each must
+// report exactly its own planned scope, not the other's.
+func TestSupplyChainImpactReadinessDerivedPendingScopeIDsStayWithTheirInstanceLive(t *testing.T) {
+	ctx, db, now := readinessScopeLiveDatabase(t)
+	seedDerivedInstance(t, ctx, db, now, "derived-alpine", "alpine")
+	seedDerivedInstance(t, ctx, db, now, "derived-other", "alpine")
+	seedPlannerRun(t, ctx, db, now, "derived-alpine", []map[string]any{plannedAlpineTarget(curlV317Scope, "curl")}, nil)
+	seedPlannerRun(t, ctx, db, now, "derived-other", []map[string]any{plannedAlpineTarget(curlV318Scope, "curl")}, nil)
+
+	got := map[string]derivedStateView{}
+	for _, state := range readDerivedReadiness(t, db, curlPackageID).SourceStates {
+		if state.Derived {
+			got[state.CollectorInstanceID] = state
+		}
+	}
+	for instance, want := range map[string]string{"derived-alpine": curlV317Scope, "derived-other": curlV318Scope} {
+		state := got[instance]
+		if state.FreshnessState != "pending" || state.ScopeCount != 1 || !slices.Equal(state.ScopeIDs, []string{want}) {
+			t.Fatalf("instance %s = %+v, want pending on only %s", instance, state, want)
+		}
+	}
+}
