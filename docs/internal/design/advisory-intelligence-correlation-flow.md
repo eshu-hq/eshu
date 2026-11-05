@@ -97,7 +97,7 @@ sequenceDiagram
   participant You as API / MCP / console
   Src->>Col: advisory records (on the scan schedule)
   Col->>PG: commit one generation of facts for one scope
-  PG->>Prj: generation holds a trigger fact (advisory, KEV, EPSS, suppression, alert, package registry, SBOM, OCI) or only a git dependency row (marker intent, #9874)
+  PG->>Prj: generation holds a trigger fact (advisory, KEV, EPSS, suppression, alert, package registry, SBOM, OCI) or is any other git generation (one marker intent per git generation, #9874)
   Prj->>Red: enqueue one impact intent for that scope
   Red->>PG: load the scope's facts
   Red->>PG: pull matching evidence from other scopes (up to 8 rounds)

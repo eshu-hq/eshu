@@ -29,9 +29,9 @@ var candidateFactKinds = []string{
 // BuildSupplyChainImpactReducerIntent enqueues one supply_chain_impact
 // reducer intent per scope generation that observed vulnerability
 // intelligence, a provider security alert, package-registry identity, an
-// SBOM component, or OCI manifest/index/tag/referrer evidence. A git
-// generation whose only trigger is a manifest or lockfile dependency row gets
-// one marker intent instead (#9874, see manifest_trigger.go). The reducer
+// SBOM component, or OCI manifest/index/tag/referrer evidence. Any other git
+// generation gets one manifest marker intent instead (#9874, see
+// manifest_trigger.go). The reducer
 // owns the cross-source vulnerability-to-package-to-deployment join; this
 // package only selects the trigger fact, a short human-readable reason, and
 // the source-system label.

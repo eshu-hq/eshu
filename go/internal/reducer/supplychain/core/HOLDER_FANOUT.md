@@ -126,7 +126,8 @@ it to `handleManifestTrigger` before the fencing token and the evidence load
    superseded is diffed through, not trusted. A package key is changed when its
    dependency-signature set is not identical in every generation of
    [W .. current]; every view is base-overlaid, current included. With no
-   stamped W, every pin of the chain counts; over the 32-generation cap or with
+   stamped W, every pin of the chain counts; when (W, current], the current
+   generation counted, holds more than 32 generations, or with
    a pruned W, every current pin counts (`manifest_trigger_baseline_degraded`);
    a pruned intermediate is skipped (`manifest_trigger_chain_pruned`).
    Tombstoned rows always count.

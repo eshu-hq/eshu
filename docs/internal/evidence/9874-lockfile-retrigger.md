@@ -33,7 +33,8 @@ marker item carries the completion stamp `manifest_trigger_completed`
 dependency signatures is not identical in every generation of [W .. current].
 Every view is base-overlaid (`facts.OverlayDeltaBase`), current included, so a
 delta that reverts a path to base content is caught. The chain is capped at 32
-generations; over the cap or with a pruned W every current pin counts
+generations over (W, current], the current one counted, so at most 31
+intermediates (`TestManifestChainDepthCapBoundaryLive` pins both sides); over the cap or with a pruned W every current pin counts
 (`manifest_trigger_baseline_degraded`), and a pruned intermediate is skipped
 (`manifest_trigger_chain_pruned`). With no stamped W, every pin in any view of
 the chain counts. A dependency's signature is every field it carries except
@@ -115,8 +116,10 @@ seeks `fact_records_content_entity_dependency_variable_repo_idx` (migration
 holding 428 dependency rows, with 1.5M content entities in the table. The
 repository fact and repo id reads use the `(scope_id, generation_id,
 fact_kind)` index; tombstones use `fact_records_changed_since_tombstone_keys_idx`.
-A marker pass runs these reads for its own generation and its prior, plus the
-prior's base when the prior is a delta.
+A marker pass runs these reads for the current generation, the stamped
+baseline W, and every activated generation between them, plus the base full
+generation of each delta among them. A base shared by several views is read
+once per pass.
 
 ## Projector predicate cost
 
@@ -153,16 +156,57 @@ fan-out bound is per generation, not per pin: a 500-pin push is one intent
 (`TestBuildProjectionQueuesOneSupplyChainImpactForGitManifestChange`) and one
 holder read.
 
-Most markers change nothing. A no-change marker pass, measured on the probe
-database (a 3,000-entity git generation with 428 dependency rows whose stamped
-baseline is identical, 1.7M fact rows in the table, host load 7 to 13, 15
-runs): 15 statements in the read transaction (BEGIN, read-only and timeout
-settings, the freshness check, four current-view reads, the watermark, the
-chain, a retention probe, four baseline-view reads) plus the one stamp UPDATE;
-19.0 to 75.7 ms, median 26.0 ms, including payload decode and the diff in Go.
+Most markers change nothing. No-change marker passes, measured on the probe
+database (PG 18.6, synthetic, 1.7M+ fact rows, host load 3 to 9, 15 runs each,
+including payload decode and the diff in Go; statements exclude the one stamp
+UPDATE). A base full shared by several views is read once per pass (review
+B2, `TestManifestPassReadsASharedBaseOnceLive`); before that cache the two
+delta shapes read it twice:
+
+| Shape (3,000-entity full, 428 dependency rows) | Read statements before / after the cache | Median, after (min-max) |
+| --- | --- | --- |
+| full after a stamped full | 15 / 15 | 23.6 ms (19.4-116.0) |
+| delta after its stamped base full | 22 / 18 | 17.3 ms (13.6-47.6) |
+| delta after a stamped delta, both on one base full | 29 / 25 | 19.4 ms (13.8-57.9) |
+
 No holder read runs when nothing changed. Daily no-change cost is therefore
-about G x 26 ms of reducer time and 16 statements, where G is git generations
-per day.
+about G x 20-25 ms of reducer time and 16 to 26 statements, where G is git
+generations per day.
+
+**First marker per scope (review F9).** No stamp exists before deploy, so each
+scope's first marker has no baseline: it reads every activated generation, up
+to the cap, and every pin it sees counts as changed. Measured on synthetic
+repositories of 32 full generations each (31 intermediates plus the current
+one, the most the cap diffs; no stamps; dependency names drawn from the 20,000
+synthetic advisory package names so they match holders):
+
+| Repository | Statements | Changed packages | Holders reopened | Median (min-max) |
+| --- | --- | --- | --- | --- |
+| 3,000 entities per generation (428 dependency rows) | 169 | 428 | 150 | 338 ms (328-382), 7 runs |
+| 30,000 entities per generation (4,285 dependency rows) | 169 | 4,285 | 150 | 2.50 s (2.43-2.64), 5 runs |
+
+- Reopens are bounded by the distinct advisory scopes that hold a matched
+  package, not by the package count: ten times the packages reopened the same
+  150 scopes (`matchPackageHolders` dedupes by scope), and one claim reopens at
+  most 256 before the continuation list carries the rest.
+- The 10 s holder-read timeout is a per-statement `statement_timeout`, not a
+  bound on the pass. The largest single statement here, one generation's
+  4,285-row dependency read, took 3.5 to 6.9 ms; the 2.5 s is decode and diff
+  in Go across 169 statements. A statement would need roughly a thousand times
+  that row count to reach 10 s, so the timeout is not reachable at these sizes.
+  The pass as a whole runs under the reducer lease (one minute, renewed by the
+  heartbeat every 30 s).
+- If a statement did time out, the pass fails retryably under
+  `supply_chain_impact_fanout_failed` and counts
+  `eshu_dp_supply_chain_impact_fanout_total{cause="manifest_dependency",outcome="read_timeout"}`
+  (the generation read now classifies timeouts like the holder read,
+  `TestManifestTriggerGenerationReadTimeoutIsCountedAsTimeout`); after the
+  attempt budget the marker dead-letters, which leaves the pre-#9874 behavior
+  for that generation.
+- Decision: no change to the no-baseline walk. The proposed shortcut (no
+  stamped baseline: fan out current pins without reading the chain) is not
+  needed for cost, and it is not equivalent: walking also fans out pins that
+  intermediates added and the current generation removed.
 
 A marker pass that changes packages adds the holder read and the reopens,
 measured on the synthetic data above (holder read: first-probe medians at 1x

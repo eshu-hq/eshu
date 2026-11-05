@@ -82,10 +82,12 @@ func TestBuildProjectionQueuesOneSupplyChainImpactForGitManifestChange(t *testin
 	}
 }
 
-// TestBuildProjectionSkipsSupplyChainImpactForGitGenerationWithoutDependency
-// proves a git generation that changed only code (no dependency row) still
-// enqueues no impact intent.
-func TestBuildProjectionSkipsSupplyChainImpactForGitGenerationWithoutDependency(t *testing.T) {
+// TestBuildProjectionSkipsSupplyChainImpactWithoutAGitRepositoryFact proves
+// the marker keys on the git generation itself: facts with neither a git
+// repository fact nor a dependency row enqueue no impact intent. A real git
+// generation always carries its repository fact and so raises one marker
+// (TestBuildProjectionQueuesOneMarkerForDeltaThatTouchedNoManifest).
+func TestBuildProjectionSkipsSupplyChainImpactWithoutAGitRepositoryFact(t *testing.T) {
 	t.Parallel()
 
 	scopeValue := scope.IngestionScope{ScopeID: "git-repo-checkout", SourceSystem: "git"}

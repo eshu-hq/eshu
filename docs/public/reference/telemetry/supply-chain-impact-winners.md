@@ -99,7 +99,7 @@ log fields on the reducer success line rather than metrics:
 `sub_signal_manifest_trigger_prior_base_missing=1` means a delta in the diffed
 chain had an unreadable base, so a removal its base alone held was not fanned
 out, and `sub_signal_manifest_trigger_baseline_degraded=1` means the chain was
-over its 32-generation cap or its baseline was pruned, so every current pin fanned
+over its 32-generation cap (the current generation counted) or its baseline was pruned, so every current pin fanned
 out and removals in that window were missed. Both wait for the package's
 advisory scope to rerun; the fix is tracked in #10059.
 
