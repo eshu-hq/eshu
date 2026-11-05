@@ -168,6 +168,40 @@ counted as `canceled` (and a passed run deadline as `timeout`) instead of
 cancellation. `TestRunClassifiesStartErrorFromEndedCallerContextAsCanceled`
 and its two siblings assert the outcome labels.
 
+## Accuracy eval
+
+`scripts/eval-ocr-wer.sh` (#10073) scores word-level WER
+(`WER = (S + D + I) / N`, case/punctuation/whitespace folded; CER as the
+secondary metric) of the real binary over a deterministic degradation
+ladder baked into `scripts/ocr-sandbox/Dockerfile`: the clean control plus
+light (JPEG q60 + 1-degree skew), medium (+ seeded Gaussian noise +
+downscale/upscale round-trip), and heavy (+ blur + contrast reduction) for
+the basic, form-stacked, and key-body layouts, with sibling `.txt` ground
+truths. `TestSandboxWEREval` emits `OCR_WER_EVIDENCE` JSON lines. The prose-layout
+clean controls must score WER 0 (the key-body base64 ladder is report-only:
+measured clean WER 0.47 on arm64, base64 glyphs misread at this size) and
+every level must withhold the canary (a misread canary is still redacted,
+or the whole image is withheld, or the run fails); degraded-level WER is
+report-only until the band is ratified from 3 enforcement-host runs.
+Measured rows land in `testdata/accuracy/ocr-media-wer-baseline.json` via
+`scripts/refresh-ocr-media-wer-baseline.sh`, which updates measured fields
+only — thresholds are separate reviewed edits.
+
+Performance Evidence (#10073): the scorer (`wer.go`) is a pure function
+over at most 47 reference words (worst case key-body: about 0.7 ms per
+call, dominated by the character-level table, measured on a 48-word pair);
+it runs only in unit tests and the sandbox-eval test, never
+on any ingester or collector runtime path. After: eval rows in the baseline
+carry `wall_seconds` per fixture (about 0.19–0.23 s for prose layouts,
+0.43–0.85 s for key-body, dominated by the tesseract subprocess exec).
+There is no worker, queue, lease, graph write, or storage work. It is safe
+because no serving path calls it — the only callers are the
+sandbox-gated eval tests.
+
+No-Observability-Change (#10073): production telemetry is untouched.
+`OCR_WER_EVIDENCE` lines are test-binary stdout consumed by the eval
+scripts, not operator signals.
+
 ## Gotchas / invariants
 
 - A start failure is classified like a running one: a caller context that

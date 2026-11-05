@@ -81,6 +81,56 @@ RUN cd /fixtures \
         -annotate +20+480 "Ask the platform team for access" \
         -strip key-body.png
 
+# Ground-truth transcripts for the WER eval (#10073). The eval test
+# (wer_eval_test.go) reads <base>.txt as the reference for
+# <base>[-light|-medium|-heavy].png. Keep every line in sync with the
+# -annotate strings above; the eval script diffs them against this recipe.
+RUN cd /fixtures \
+    && printf '%s\n' \
+        "Deploy the Checkout Service to staging" \
+        "password: Hunter2CanaryValue" \
+        "Contact alice.canary@example.com today" \
+        > fixture.txt \
+    && printf '%s\n' \
+        "Deploy the Checkout Service to staging" \
+        "Password:" \
+        "Hunter2CanaryValue" \
+        "Rotate the staging keys every week" \
+        "Ask the platform team for access" \
+        > form-stacked.txt \
+    && printf '%s\n' \
+        "Deploy the Checkout Service to staging" \
+        "-----BEGIN PRIVATE KEY-----" \
+        "zwZWdfRLgxL+Z1bvxbT7WrKL8ozFiA2auK7Z7GtQbU4WWEOCV81K2LSnAwqRzZHb" \
+        "4gzQt8HQT0PMPSlWW0Sao/dgPuXJkBGrbwzrzx1vLXEvz4dncnNobfxl4K41gIlp" \
+        "9Qg3l0Ukw4YwrZsAtlYVh1d0szAOZAnV4ah17kZCNnJEH1mvlYMyzWh6qQQ5x1Wu" \
+        "gaj7wX98VJe6BOq/JqAjBo0hVRGyEGrdlU4H1dYO+VijuJZWtKOQRTLEwVtdUrGr" \
+        "3YnWOS/BdwMe4KUV4vgoFyCmUQBkllP/2JFtUoqpEwidTCkz1dW0GbehUM3ADZQX" \
+        "mHgX3TAEy5JVdr3Q9LvUd+aM3ZWR8fWgVJeed1yJegpq/YMDE3HoYGlXigBlZuOU" \
+        "sxSnhZ5HDtdSKwCtowfTJCDWbcrgJA3O3Kv/2whpsOifIEcipNinfb44ChJxPCk/" \
+        "42peNkyaIj6+rKCGKQ0Y2CCPpbaNB3kXRkW1NnX1xMJimgUjPEIg8yQl9bn5ggX6" \
+        "kTYqQdtJd3SArzKB2L26NKA=" \
+        "-----END PRIVATE KEY-----" \
+        "Review the owner list" \
+        "Rotate the staging keys every week" \
+        "Ask the platform team for access" \
+        > key-body.txt
+
+# Deterministic degradation ladder (#10073) over the basic, form-stacked,
+# and key-body layouts. form-columns is a layout probe, not accuracy
+# material, so it has no ladder. light = JPEG q60 recompress + 1-degree
+# skew; medium = + seeded Gaussian noise + downscale/upscale round-trip;
+# heavy = + blur + contrast reduction. -seed 42 pins the noise sampler: two
+# builds emit byte-identical ladders (rerun hash check during review).
+RUN cd /fixtures \
+    && for base in fixture form-stacked key-body; do \
+        magick "${base}.png" -quality 60 "/tmp/${base}-q60.jpg" && \
+        magick "/tmp/${base}-q60.jpg" -background white -rotate 1 +repage -strip "${base}-light.png" && \
+        magick "${base}-light.png" -seed 42 -attenuate 0.2 +noise Gaussian -resize 50% -resize 200% -strip "${base}-medium.png" && \
+        magick "${base}-medium.png" -blur 0x1.5 -brightness-contrast 0x-20 -strip "${base}-heavy.png" && \
+        rm -f "/tmp/${base}-q60.jpg"; \
+    done
+
 FROM ${ESHU_ALPINE_IMAGE} AS proof
 # Every package that owns an object ldd lists for /usr/bin/tesseract (15
 # objects, 15 packages, from `apk info -W`), plus the model package, at its

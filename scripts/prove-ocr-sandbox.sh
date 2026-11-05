@@ -152,3 +152,37 @@ if [[ ${status} -ne 0 ]]; then
 	exit 1
 fi
 printf 'PASS - OCR sandbox proof on %s\n' "${platform}"
+
+# WER eval (#10073). scripts/eval-ocr-wer.sh sets ESHU_WER_EVAL=1: rerun the
+# already-built image under the same sandbox profile with only the eval test
+# selected. The eval test reads the Dockerfile-baked ladder and ground
+# truth, prints OCR_WER_EVIDENCE lines, and fails on a clean-level WER above
+# zero or a canary leak at any level. Degraded-level WER is report-only.
+if [[ "${ESHU_WER_EVAL:-0}" == "1" ]]; then
+	printf '== run WER eval under the sandbox profile\n'
+	set +e
+	docker run --rm --platform "${platform}" \
+		--network none --read-only --cap-drop ALL --security-opt no-new-privileges \
+		--user 65532:65532 --memory 512m --memory-swap 512m --pids-limit 64 --cpus 1 \
+		--tmpfs /tmp:rw,noexec,nosuid,nodev,size=16m \
+		-e ESHU_OCR_SANDBOX_PROOF=1 \
+		-e ESHU_WER_EVAL=1 \
+		-e ESHU_OCR_SANDBOX_EMULATED="${emulated}" \
+		-e ESHU_OCR_TESSERACT_BIN=/usr/bin/tesseract \
+		-e ESHU_OCR_TESSERACT_SHA256="${binary_sha}" \
+		-e ESHU_OCR_TESSDATA_DIR=/usr/share/tessdata \
+		-e ESHU_OCR_MODEL_SHA256="${model_sha}" \
+		-e ESHU_OCR_LIBRARIES="${library_pins}" \
+		-e ESHU_OCR_LIBS_SHA256="${libs_sha}" \
+		-e ESHU_OCR_ENGINE_VERSION="${ENGINE_VERSION}" \
+		-e ESHU_OCR_SCRATCH_DIR=/tmp \
+		-e ESHU_OCR_FIXTURE_DIR=/ocr/fixtures \
+		"${image}" -test.run '^TestSandboxWEREval$' -test.v -test.count=1
+	eval_status=$?
+	set -e
+	if [[ ${eval_status} -ne 0 ]]; then
+		printf 'FAIL - OCR WER eval exited %d\n' "${eval_status}" >&2
+		exit 1
+	fi
+	printf 'PASS - OCR WER eval on %s\n' "${platform}"
+fi

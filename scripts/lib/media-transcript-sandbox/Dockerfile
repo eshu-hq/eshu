@@ -51,7 +51,7 @@ ADD --checksum=sha256:a03779c86df3323075f5e796cb2ce5029f00ec8869eee3fdfb897afe36
 	/out/ggml-base.en.bin
 
 FROM ${ESHU_ALPINE_IMAGE} AS fixture
-RUN apk add --no-cache espeak-ng=1.51.1-r1
+RUN apk add --no-cache espeak-ng=1.51.1-r1 ffmpeg=6.1.2-r1
 RUN mkdir -p /out && espeak-ng -v en-us -s 140 -w /out/speech.wav \
 	"Please restart the payments worker before noon. The password is swordfish."
 RUN espeak-ng -v en-us -s 140 -m -w /out/speech-split.wav \
@@ -66,6 +66,26 @@ RUN espeak-ng -v en-us -s 140 -m -w /out/speech-before.wav \
 	'Swordfish. <break time="3s"/> The password is.'
 RUN espeak-ng -v en-us -s 140 -m -w /out/speech-before-split.wav \
 	'Swordfish. <break time="2s"/> Write it down. <break time="2s"/> That is the password.'
+# Noisy condition (#10073): deterministic white-noise mix of speech.wav at
+# ~10 dB SNR (noise gain 0.316 ~= -10 dB). anoisesrc seed=42 pins the noise
+# sample, so every build mixes the identical bytes. Report-only until the
+# recorded-speech corpus lands; the ground truth is speech.txt.
+RUN ffmpeg -hide_banner -loglevel error \
+	-i /out/speech.wav -f lavfi -i "anoisesrc=color=white:seed=42:duration=7:sample_rate=22050" \
+	-filter_complex "[1:a]aformat=sample_rates=22050:channel_layouts=mono,volume=0.316[noise];[0:a][noise]amix=inputs=2:duration=first:normalize=0" \
+	-ar 22050 -ac 1 -y /out/speech-noisy10db.wav
+# Ground-truth transcripts for the WER eval (#10073): the spoken words
+# without SSML breaks. The eval test reads <name>.txt as the reference for
+# <name>.wav. Keep in sync with the espeak-ng lines above.
+RUN cd /out \
+	&& printf '%s\n' "Please restart the payments worker before noon. The password is swordfish." > speech.txt \
+	&& printf '%s\n' "The password is as follows. Swordfish." > speech-split.txt \
+	&& printf '%s\n' "The API key is swordfish." > speech-apikey.txt \
+	&& printf '%s\n' "The API key is. Swordfish." > speech-apikey-split.txt \
+	&& printf '%s\n' "The PIN is swordfish." > speech-pin.txt \
+	&& printf '%s\n' "Swordfish. The password is." > speech-before.txt \
+	&& printf '%s\n' "Swordfish. Write it down. That is the password." > speech-before-split.txt \
+	&& cp speech.txt speech-noisy10db.txt
 
 FROM ${ESHU_ALPINE_IMAGE} AS proof
 RUN apk add --no-cache libstdc++=14.2.0-r4 libgcc=14.2.0-r4 \
@@ -79,6 +99,9 @@ COPY --from=fixture --chmod=0444 /out/speech-apikey-split.wav /opt/whisper/fixtu
 COPY --from=fixture --chmod=0444 /out/speech-pin.wav /opt/whisper/fixtures/speech-pin.wav
 COPY --from=fixture --chmod=0444 /out/speech-before.wav /opt/whisper/fixtures/speech-before.wav
 COPY --from=fixture --chmod=0444 /out/speech-before-split.wav /opt/whisper/fixtures/speech-before-split.wav
+COPY --from=fixture --chmod=0444 /out/speech-noisy10db.wav /opt/whisper/fixtures/speech-noisy10db.wav
+COPY --from=fixture --chmod=0444 /out/speech.txt /opt/whisper/fixtures/speech.txt
+COPY --from=fixture --chmod=0444 /out/speech-noisy10db.txt /opt/whisper/fixtures/speech-noisy10db.txt
 COPY --chmod=0555 whispercpp.test /opt/whisper/proof/whispercpp.test
 USER 65532:65532
 ENTRYPOINT ["/opt/whisper/proof/whispercpp.test"]

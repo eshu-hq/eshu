@@ -349,6 +349,40 @@ modes, with the script's own model-digest gate, per-test PASS
 assertions, and canary scan replicated (run log kept out of tree; rerun
 `scripts/verify-media-transcript-sandbox.sh` under BuildKit to corroborate).
 
+## Accuracy eval
+
+`scripts/eval-media-wer.sh` (#10073) scores word-level WER
+(`WER = (S + D + I) / N`, case/punctuation/whitespace folded) over the
+synthetic quiet fixture plus a deterministic ~10 dB white-noise mix baked
+into `scripts/lib/media-transcript-sandbox/Dockerfile` (`anoisesrc`
+seed=42, sibling `.txt` ground truths). `TestSandboxWEREval` (tag
+`whispercpp_sandbox`) emits `MEDIA_WER_EVIDENCE` JSON lines. All WER rows
+are report-only: base.en already mishears synthetic speech, so the
+synthetic rows prove the harness, not the model. The recorded-speech
+corpus — 10-20 short utterances, quiet + 10 dB, read from
+`scripts/lib/media-transcript-sandbox/recorded-corpus-script.txt` — is
+picked up automatically from `ESHU_WHISPERCPP_RECORDED_DIR` when the
+mic/human session lands (BLOCKER on #10073; never substitute espeak output
+and call it recorded speech). The canary safety invariant is
+gate-blocking at every level: a canary-bearing transcript that reaches the
+facts fails the run. Measured rows land in
+`testdata/accuracy/ocr-media-wer-baseline.json` via
+`scripts/refresh-ocr-media-wer-baseline.sh`, which updates measured fields
+only — thresholds are separate reviewed edits.
+
+Performance Evidence (#10073): the scorer (`wer.go`) is a pure function
+over at most 11 reference words (worst case speech fixtures: a 12×~15 int
+table, microseconds); it runs only in unit tests and the sandbox-eval
+test, never on any ingester or collector runtime path. After: eval rows in
+the baseline carry `wall_seconds` per fixture (about 1.8 s, dominated by
+the whisper-cli subprocess). There is no worker, queue, lease, graph
+write, or storage work. It is safe because no serving path calls it — the
+only callers are the sandbox-gated eval tests.
+
+No-Observability-Change (#10073): production telemetry is untouched.
+`MEDIA_WER_EVIDENCE` lines are test-binary stdout consumed by the eval
+scripts, not operator signals.
+
 ## Packaging
 
 The pinned binary and model are not in any runtime image yet. The proof

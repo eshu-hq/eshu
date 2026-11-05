@@ -87,10 +87,24 @@ for fixture in speech.wav speech-split.wav speech-apikey.wav speech-apikey-split
 done
 
 log="${work}/proof.log"
+# Recorded-speech corpus (#10073): when the operator sets
+# ESHU_WHISPERCPP_RECORDED_DIR (scripts/eval-media-wer.sh), mount it
+# read-only so TestSandboxWEREval can score real utterances. Unset by
+# default, so the proof profile is unchanged.
+recorded_mount=()
+recorded_env=()
+if [[ -n "${ESHU_WHISPERCPP_RECORDED_DIR:-}" ]]; then
+	[[ -d "${ESHU_WHISPERCPP_RECORDED_DIR}" ]] || die "recorded dir not found: ${ESHU_WHISPERCPP_RECORDED_DIR}"
+	recorded_mount=(-v "${ESHU_WHISPERCPP_RECORDED_DIR}:/opt/whisper/recorded:ro")
+	recorded_env=(-e ESHU_WHISPERCPP_RECORDED_DIR=/opt/whisper/recorded)
+fi
 set +e
 "${runtime}" run --rm --network none --read-only --cap-drop ALL \
 	--security-opt no-new-privileges:true --user 65532:65532 \
 	--memory 2g --memory-swap 2g --pids-limit 64 --cpus 4 \
+	${recorded_mount[@]+"${recorded_mount[@]}"} \
+	${recorded_env[@]+"${recorded_env[@]}"} \
+	-e ESHU_WER_EVAL="${ESHU_WER_EVAL:-0}" \
 	-e ESHU_WHISPERCPP_BINARY=/opt/whisper/bin/whisper-cli \
 	-e ESHU_WHISPERCPP_BINARY_SHA256="${binary_sha256}" \
 	-e ESHU_WHISPERCPP_MODEL=/opt/whisper/models/ggml-base.en.bin \
