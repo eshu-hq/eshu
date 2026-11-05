@@ -39,8 +39,9 @@ This package generates the replacement from one table:
   provider alerts): one key probe per contract-carried key. A key the
   contract never carries is a guard cell.
   Every key probe on `cve_lookup_v2`, today `vulnerability_cve_id`, binds at most
-  `MaxCVEIDsPerStatement` (120) ids per statement (#9994). On QA a custom plan on that key walks the whole advisory index
-  at 172 to 199 ids and from 389, and a list's last statement can be any length
+  `MaxCVEIDsPerStatement` (120) ids per statement (#9994). On QA a custom plan on
+  that key walks the whole advisory index at 172 to 199 ids and from 389, and a
+  list's last statement can be any length
   up to the bound, so the bound sits below 172. See
   `docs/internal/evidence/9994-cve-key-probe-chunking.md`.
 - Bounded (suppression, platform materialization, workload identity,

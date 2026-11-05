@@ -48,7 +48,7 @@ func cveChunkOrderings(ids []string) map[string][]string {
 // TestCVEListIsChunkedOnTheKeyProbe is the #9994 plan guard on the loader. The
 // statement at 380 or more ids must become several statements, each at or below the
 // bound, that between them bind every id once. The bound itself stays out of the
-// walk the planner picks at 172 to 199 ids and past 380.
+// walk the planner picks at 172 to 199 ids and from 389.
 func TestCVEListIsChunkedOnTheKeyProbe(t *testing.T) {
 	t.Parallel()
 
@@ -94,6 +94,35 @@ func TestCVEListIsChunkedOnTheKeyProbe(t *testing.T) {
 // TestCVEChunksKeepOneSnapshotAndDedupe: the chunks run inside the one read-only
 // repeatable-read snapshot of the load, and a row more than one statement returns
 // still reaches the caller once.
+// TestCVEChunksUnionEveryStatement answers each bound id with its own row, so a
+// loader that kept only some statements' rows returns too few.
+func TestCVEChunksUnionEveryStatement(t *testing.T) {
+	t.Parallel()
+
+	ids := cveChunkIDs(1000)
+	facts := map[string]string{}
+	for _, id := range ids {
+		facts[id] = "vulnerability.cve"
+	}
+	routed := &supplyChainImpactRoutingDB{
+		branchRowsPerEntry: map[string]string{cveChunkBranch: "vulnerability.cve"},
+		facts:              facts,
+	}
+	loaded, _, err := NewFactStore(routed).ListActiveSupplyChainImpactFacts(context.Background(),
+		supplychaincore.SupplyChainImpactFactFilter{CVEIDs: ids})
+	if err != nil {
+		t.Fatalf("ListActiveSupplyChainImpactFacts: %v", err)
+	}
+	got := make([]string, 0, len(loaded))
+	for _, envelope := range loaded {
+		got = append(got, envelope.FactID)
+	}
+	slices.Sort(got)
+	if !slices.Equal(got, ids) {
+		t.Errorf("loaded %d facts, want each of the %d ids once", len(got), len(ids))
+	}
+}
+
 func TestCVEChunksKeepOneSnapshotAndDedupe(t *testing.T) {
 	t.Parallel()
 

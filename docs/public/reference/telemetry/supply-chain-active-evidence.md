@@ -51,7 +51,19 @@ carries the same accounting summed over the pass:
 the sub-duration count each statement. A pass with 1,000 CVE ids reports 9 statements
 on that branch, so its summed seconds cover 9 executions. A slow statement on this
 branch that plans on `fact_records_vulnerability_active_advisory_lookup_v2_idx` is
-the walk this bound exists to avoid: check the bound first.
+the walk this bound exists to avoid. Check in this order:
+
+1. Read `MaxCVEIDsPerStatement` in the source of the running version. Above 171 it can
+   walk at QA's statistics.
+2. If the bound is intact, the statistics may have moved. An `ANALYZE` can change the
+   correlation stored for the advisory index's expression, and a large enough value walks
+   inside the bound. Only its size counts, because the plan cost uses its square. Read it
+   with
+   `SELECT correlation FROM pg_stats WHERE tablename = 'fact_records_vulnerability_active_advisory_lookup_v2_idx' AND attname = 'expr'`.
+   QA measured -0.6.
+3. Run `EXPLAIN` on one chunk of the same length with `plan_cache_mode` set to
+   `force_custom_plan`, then see [#10050](https://github.com/eshu-hq/eshu/issues/10050)
+   for the fix to the estimate.
 
 ## Evidence headroom
 

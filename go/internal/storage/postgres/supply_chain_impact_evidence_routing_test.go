@@ -32,6 +32,9 @@ type supplyChainImpactRoutedCall struct {
 // bound. It is the hermetic stand-in for the live differential.
 type supplyChainImpactRoutingDB struct {
 	branchRows map[string][][2]string
+	// branchRowsPerEntry maps a branch name to a fact kind: the branch then returns
+	// one row per entry of its bound list, with the entry as the fact ID.
+	branchRowsPerEntry map[string]string
 	// scopes maps a repository list value to its (scope_id, generation_id).
 	scopes map[string][2]string
 	// facts maps a fact ID to its kind for payload pages; missing drops IDs.
@@ -131,6 +134,11 @@ func (tx *supplyChainImpactRoutingTx) QueryContext(_ context.Context, query stri
 		}
 		r.calls = append(r.calls, supplyChainImpactRoutedCall{Label: branch.Name, Args: args})
 		var rows [][]any
+		if kind, ok := r.branchRowsPerEntry[branch.Name]; ok {
+			for _, entry := range args[0].([]string) {
+				rows = append(rows, []any{entry, kind})
+			}
+		}
 		for _, row := range r.branchRows[branch.Name] {
 			rows = append(rows, []any{row[0], row[1]})
 		}

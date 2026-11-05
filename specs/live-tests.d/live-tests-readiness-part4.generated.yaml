@@ -349,6 +349,11 @@ tests:
     class: postgres_ci
     reason: "#9994 disposable PostgreSQL 18 proof that the chunked vulnerability_cve_id key probe returns the same rows as the whole statement at every size across chunk boundaries, in every id order, and stays on its anchor index under force_custom_plan and force_generic_plan at every chunk length, at stock random_page_cost and at 1.1; dropping the anchor is the RED control; wall time is logged, not gated"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/supply_chain_impact_cve_chunks_walk_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#9994 disposable PostgreSQL 18 proof that every key probe on the CVE index stays on its anchor up to the statement bound on a fixture that reproduces the advisory-index walk above it."
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/supply_chain_impact_disengaged_build_live_test.go
     tag: ~
     class: postgres_ci
