@@ -16,8 +16,9 @@ import (
 // unsupported-matcher exemption (#9990): the fact joins an installed row and no purl
 // names a version family, so the version cannot be compared. The row is an owned
 // anchor and the advisory names the package, so the finding stays, marked unverified.
-// The join meets on the row's own package id, so an os:// id joins an os:// row; the
-// next test holds the same id against a purl-keyed row.
+// The join meets on the row's own package id, so an os:// id joins an os:// row. That
+// is a synthetic row, because no collector writes an os:// purl; the next test holds the
+// same id against a purl-keyed row.
 func TestJoinedRowWithNoDerivableFamilyStaysVisible(t *testing.T) {
 	t.Parallel()
 	osRow := ubuntuCurl("22.04", repJoinVersion).envelope()
