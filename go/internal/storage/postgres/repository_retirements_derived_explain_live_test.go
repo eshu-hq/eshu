@@ -3,6 +3,10 @@
 
 package postgres
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #10054 before and after EXPLAIN of the retirement statements at 100,000 scopes on the real schema; a measurement that also needs ESHU_RETIREMENT_EXPLAIN=1, so it skips in the ordinary lane
+//eshu:readiness:env ESHU_POSTGRES_DSN
+
 import (
 	"context"
 	"database/sql"

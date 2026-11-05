@@ -3,6 +3,10 @@
 
 package postgres
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #10054 disposable PostgreSQL 18 proof that an operator retirement removes the derived Go reachability scope: purge, preview equals ledger, neighbor and longer-id scopes untouched, winners capture, budget attribution, graph-key capture
+//eshu:readiness:env ESHU_POSTGRES_DSN
+
 import (
 	"context"
 	"database/sql"

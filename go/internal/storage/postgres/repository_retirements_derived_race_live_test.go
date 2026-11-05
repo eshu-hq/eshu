@@ -3,6 +3,10 @@
 
 package postgres
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #10054 disposable PostgreSQL 18 concurrency proof of derived-scope retirement: late commit refused, in-flight first scan, Ack lock contention, projector lease drain, stale Ack, idempotent fence and purge, barrier lock order
+//eshu:readiness:env ESHU_POSTGRES_DSN
+
 import (
 	"context"
 	"database/sql"
@@ -400,8 +404,8 @@ func TestRetirementDerivedScopeFenceAndPurgeAreIdempotentLive(t *testing.T) {
 		}
 		completions += len(results[i].Completed)
 	}
-	if completions == 0 {
-		t.Fatalf("racing purges = %+v, want at least one completion", results)
+	if completions != 2 {
+		t.Fatalf("racing purges = %+v, want both to report completion: the loser reads the complete tombstone", results)
 	}
 	if _, ledger := derivedLiveLedger(t, ctx, database, "rr_derived_idem"); ledger["derived_ingestion_scopes"] != 1 {
 		t.Fatalf("ledger = %v, want the derived scope counted once", ledger)
