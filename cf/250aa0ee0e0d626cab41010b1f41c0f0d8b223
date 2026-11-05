@@ -1,0 +1,18 @@
+go/internal/storage/postgres/delta_overlay_refusal.go
+  h_78a442cba0b3e6 42-44
+go/internal/storage/postgres/satisfied_by_read_index_live_test.go
+  h_78a442cba0b3e6 51-55,57,64
+go/internal/telemetry/instruments.go
+  h_78a442cba0b3e6 889-895
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "cf250aa0ee0e0d626cab41010b1f41c0f0d8b223",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
