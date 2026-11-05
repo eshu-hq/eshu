@@ -246,7 +246,7 @@ func (s *WorkflowControlStore) reconcileWorkflowRunOnce(ctx context.Context, run
 	// deadlock/serialization conflict, and a retried attempt must not double
 	// count (or count at all, if it never committed) the terminal-dead-letter
 	// block signal.
-	s.recordTerminalDeadLetterBlocks(ctx, run.RunID, progress, completeness)
+	s.recordTerminalDeadLetterBlocks(ctx, nextRun, progress, completeness)
 	return nil
 }
 
@@ -256,12 +256,20 @@ func (s *WorkflowControlStore) reconcileWorkflowRunOnce(ctx context.Context, run
 // (bounded, never run_id/scope_id/generation_id, per telemetry cardinality
 // rules). A nil Instruments (the default) makes this a no-op so binaries
 // without a wired meter provider are unaffected.
+//
+// It emits only on the reconciliation that terminates the run, which is what
+// the counter documents. A dead-lettered run with pending or claimed items stays
+// open and is reconciled every tick (#10091); its blocked completeness rows are
+// the signal until then, and counting each tick would inflate the alert rate.
 func (s *WorkflowControlStore) recordTerminalDeadLetterBlocks(
 	ctx context.Context,
-	runID string,
+	run workflow.Run,
 	progress []workflow.CollectorRunProgress,
 	completeness []workflow.CompletenessState,
 ) {
+	if run.Status != workflow.RunStatusFailed {
+		return
+	}
 	deadLetterCountsByCollector := make(map[string]map[workflow.PhasePublicationKey]int, len(progress))
 	for _, collector := range progress {
 		deadLetterCountsByCollector[string(collector.CollectorKind)] = collector.TerminalDeadLetterCounts
@@ -290,7 +298,7 @@ func (s *WorkflowControlStore) recordTerminalDeadLetterBlocks(
 		}
 		slog.WarnContext(
 			ctx, "workflow run blocked by terminal reducer dead-letter",
-			slog.String("run_id", runID),
+			slog.String("run_id", run.RunID),
 			slog.String("collector_kind", string(state.CollectorKind)),
 			slog.String("keyspace", string(state.Keyspace)),
 			slog.String("phase", state.PhaseName),

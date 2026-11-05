@@ -329,6 +329,12 @@ TABLE = {
             "TestWorkflowControlStoreIntegrationReconcileConvergesFactlessClaim",
             "TestWorkflowControlStoreIntegrationReconcileHoldsFactCommittedClaim",
         ),
+        "go/internal/storage/postgres/run_reconciliation_terminal_siblings_live_test.go": (
+            "TestTerminalSiblingsStayOpenThroughReconcileGuardAndClaimLive",
+            "TestTerminalSiblingsEveryPathBackToPendingKeepsRunOpenLive",
+            "TestTerminalSiblingsFailedRunItemsStayFrozenLive",
+            "TestTerminalSiblingsNoDuplicateUnderConcurrentLifecycleLive",
+        ),
         "go/internal/storage/postgres/security_alert_impact_producer_store_live_test.go": (
             "TestReducerContentionGateSecurityAlertImpactProducerStateScopesToTheGeneration",
             "TestReducerContentionGateSecurityAlertImpactProducerStatePlanUsesScopeGenerationIndex",

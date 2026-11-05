@@ -24,6 +24,13 @@
   behavior that silently ignores invalid rows.
 - **ReconcileRunProgress is pure** — it takes a snapshot and returns new
   values without side effects. Do not add Store calls or mutations inside it.
+- **A run fails only after collection ends** — a terminal item or terminal
+  reducer dead-letter blocks completeness at once, but `ReconcileRunProgress`
+  returns `failed` only when no item is `pending` or `claimed`. Do not fail the
+  run earlier: `failed` takes it out of the open-target guard and out of
+  reconciliation while its siblings stay claimable, so the next planner pass
+  admits duplicates (#10091). The interleaving argument is in
+  `docs/internal/evidence/10091-terminal-item-run-status.md`.
 - **FamilyFairnessScheduler is not safe for concurrent use** — `Next` mutates
   `currentWeight` on each call. External locking is required if multiple
   goroutines share one instance.

@@ -156,6 +156,11 @@ type RunProgressSnapshot struct {
 
 // ReconcileRunProgress derives workflow run status and completeness rows from
 // bounded collector progress and reducer-owned phase publications.
+//
+// A terminal collector failure or terminal reducer dead-letter blocks the
+// affected completeness rows at once, but the run becomes failed only when none
+// of its items is pending or claimed. Until then it reads collection_active, so
+// its open items keep counting as open for planners.
 func ReconcileRunProgress(snapshot RunProgressSnapshot, observedAt time.Time) (Run, []CompletenessState, error) {
 	if err := snapshot.Run.Validate(); err != nil {
 		return Run{}, nil, err
@@ -287,9 +292,16 @@ func ReconcileRunProgress(snapshot RunProgressSnapshot, observedAt time.Time) (R
 	}
 
 	switch {
-	case anyFailedTerminal:
+	case anyFailedTerminal && !anyPending && !anyClaimed:
 		run.Status = RunStatusFailed
 		run.FinishedAt = run.UpdatedAt
+	case anyFailedTerminal:
+		// Failed is terminal: the reconciler stops following the run and the
+		// open-target guard stops counting its items. Pending siblings stay
+		// claimable either way, so failing the run now would let the next
+		// planner pass admit a duplicate for each of them (#10091). The blocked
+		// completeness rows above report the failure at once.
+		run.Status = RunStatusCollectionActive
 	case allCollectionComplete && allRequiredPhasesReady:
 		run.Status = RunStatusComplete
 		run.FinishedAt = run.UpdatedAt

@@ -84,7 +84,7 @@ Types in this package flow through four phases of the workflow control plane:
 
    | Condition | `RunStatus` |
    |---|---|
-   | any `failed_terminal` work items, or a required phase's owning reducer domain has a terminal dead-letter | `failed` |
+   | any `failed_terminal` work item or terminal reducer dead-letter on a required phase, and no item `pending` or `claimed` (with one still open: `collection_active`, #10091) | `failed` |
    | all collection complete + all required phases ready | `complete` |
    | all collection complete, some phases pending | `reducer_converging` |
    | any claimed or mix of pending/completed | `collection_active` |

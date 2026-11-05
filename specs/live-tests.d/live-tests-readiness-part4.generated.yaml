@@ -219,6 +219,11 @@ tests:
     class: postgres_ci
     reason: "#9257 disposable PostgreSQL proof that reconcile converges a run whose completed claim committed no facts and holds a run whose committed facts are not yet published; the companion hermetic shape test pins the index prefixes; enrolled in the live-postgres-readiness runner; sub-second local proof on a throwaway database"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/run_reconciliation_terminal_siblings_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10091 disposable PostgreSQL proof through the real reconcile, open-target guard and claim path that a terminal work item keeps its pending siblings open, that the run fails only once they drain, that every path back to pending keeps the run open, that a failed run's items stay frozen, and that concurrent workers, reconcilers and a planner never hold two open items for one target; each proof creates its own isolated bootstrapped schema; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/search/index/retention/drain_live_test.go
     tag: ~
     class: postgres_ci
