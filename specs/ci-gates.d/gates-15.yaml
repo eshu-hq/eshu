@@ -53,6 +53,7 @@ gates:
       - "scripts/verify-apk-floors.sh"
       - "scripts/test-verify-apk-floors.sh"
       - "scripts/fixtures/apk-floors/**"
+      - "specs/doc-import-pins/**"
     local:
       command: "bash scripts/verify-apk-floors.sh"
       test_command: "bash scripts/test-verify-apk-floors.sh"
