@@ -52,7 +52,8 @@ results, and none holds a repository id or URL:
   run is not yet `complete` or `failed`. This is not handled: one terminal item sets
   the whole run `failed` while its siblings stay claimable, and the guard stops counting
   them as open, so a later plan can add a second item for such a scope
-  (eshu-hq/eshu#10091).
+  (eshu-hq/eshu#10091). The activation stays at replicas 0 until the commit-skew fence
+  (eshu-hq/eshu#10055), eshu-hq/eshu#10054, eshu-hq/eshu#10077 and #10091 merge.
 - The repository id and scope id are the only repository values in any identity.
   The clone URL lives only in `requested_scope_set`.
 - One unplannable repository skips with a reason. It never fails the page, or one

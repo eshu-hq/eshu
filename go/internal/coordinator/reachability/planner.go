@@ -163,7 +163,7 @@ func targetFor(
 // back only while the earlier item's run is not yet complete or failed. One terminal
 // item sets its whole run failed while siblings stay claimable, and the guard stops
 // counting them as open, so a second item for such a scope is possible
-// (eshu-hq/eshu#10091).
+// (eshu-hq/eshu#10091). The activation stays at replicas 0 until that merges.
 func workItem(
 	instance workflow.CollectorInstance,
 	target scannercomponent.GoReachabilityTarget,
