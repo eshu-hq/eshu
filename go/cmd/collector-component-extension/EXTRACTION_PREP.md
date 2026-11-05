@@ -142,6 +142,9 @@ queue, lease, reducer, API, MCP, or workflow handles.
     - Expiry triggers (verbatim): box 9 reopens on second host release
       tag, workflow.v2 or payload major 2, host go.mod dependency or
       claim-flow flag, or eshu go.mod pin bump without table update.
+      Byte-compared 2026-11-05 against host `drive/8877-leaf-6-matrix`
+      `caa68ee6` (`PROVENANCE.md` § Degenerate compatibility matrix,
+      host PR #4); re-compare on any edit to either copy.
 
 ## 6. Artifacts
 
@@ -203,14 +206,14 @@ and voids if `#9381` wiring adds any satellite store):
 | --- | --- |
 | Inventory manifest/trust/install/execution, result limits, policy, protocols | **Met in PREP** by §§1–6 above |
 | Revoked/expired/sandbox/cancellation/malformed/redaction/grant-before-admission | **Met in-tree side** by §7 proof sites (all in the focused suite below) |
-| Named owners, production target, configuration source | **Partial** — release/deployment owner confirmed on the issue; destination stub and config source recorded in §6 with the SHA discrepancy flagged |
+| Named owners, production target, configuration source | **Partial** — release/deployment owner confirmed on the issue; destination scaffold state (scaffolded, `v0.1.0` released, dark live) and config source recorded in §6 with the SHA discrepancy flagged |
 | Packages, kinds, consumers, state, protocols, artifacts, stage, prerequisites | **Met in PREP** by §§1–6, 8–9 |
 | Behavior and public-contract parity, representative + hostile | **Open** — in-tree proof sites recorded; extracted-path parity needs the cutover harness |
 | Extracted-path reducer/graph/API/MCP truth | **Open** (`NOT_CHECKED`) |
 | Concurrent retry/duplicates/ordering/cancellation/revocation/staleness/partial failures | **Open** — single-claim proofs exist; contention/ordering/duplication on the extracted path need live proof |
 | Bounded resources, no regression, health/readiness/telemetry | **Open** on the extracted path; in-tree suite green (see evidence) |
 | Credentials, provenance, vuln response, oldest/newest pairs | **Partial** — pairs part now covered (degenerate 1×1 per §5, no matrix run pending); provenance attested on host `v0.1.0` (SLSA+SBOM, Trivy gate in release notes); in-tree credential handling recorded in §7 (extracted path carries none by construction). Stays Partial because the extracted-path credential flow and the vuln-response re-publish loop are unproven until claim-flow wiring (`#9381`) cuts a second release — itself a box-9 expiry trigger |
-| Independent build/release/deploy on public contracts | **Open** — destination is a stub; no Deployment/Service in `iac-eks-eshu` for this host (verified: zero matches for `extension-host` under `argocd/eshu` and `chart/`) |
+| Independent build/release/deploy on public contracts | **Open** — destination scaffolded (`origin/main 7ff7fd9`, `v0.1.0` released, dark live per §6); no cutover has occurred, so extracted-path parity, credential flow, and the re-publish loop stay Open; no cutover Deployment/Service in `iac-eks-eshu` for this host (verified: zero matches for `extension-host` under `argocd/eshu` and `chart/`; the §6 dark Deployment is the pre-cutover dark surface, not the cutover path) |
 | Rollback rehearsal | **Open** — draft checklist recorded in §8 (not executed; rehearsal stays post-authority per the `#9383` disposition) |
 | Review, local proof, stable CI, removal after acceptance | **Open** — local proof in this lane's commit; removal explicitly **not** in PREP |
 
