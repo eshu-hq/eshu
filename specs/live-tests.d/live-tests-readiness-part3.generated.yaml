@@ -284,6 +284,21 @@ tests:
     class: postgres_ci
     reason: "#9971 disposable PostgreSQL proof of per-window ownership on the real commit path: window 2 commits under its own scope without superseding window 1 (both CVEs stay visible through the shipped active_facts fence), a refused retry and a duplicate skip leave the cursor exactly where the store left it and never run the writer, and the cursor only advances through the commit-transaction compare-and-advance; wall time is logged, not gated"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/osv_delta_changed_names_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#9777 step 2 disposable PostgreSQL proof that the changed_name fact read returns the delta feed's rows from active generations only, with the raw feed spelling and a strictly parsed withdrawn flag; isolated bootstrap schema"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/osv_delta_replan_burst_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#9777 step 2 disposable PostgreSQL proof that a 7,352-id change burst admits without loss, drains one slot per pass to quiescence with the watermark over the drained timestamps, and costs one whole-hit-list resolve per pass; isolated bootstrap schema"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/osv_delta_replan_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#9777 step 2 disposable PostgreSQL proof that the change-driven replan folds end to end: changed records union the stored names, resolve to the same owned targets the production reader and planner derive (npm scopes, Maven group:artifact via package_id, PyPI normalization, Go case, swift path), withdrawn records retract through the same path, and the drain commits exactly the covered rows with the watermark over them; isolated bootstrap schema"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/owned_package_resolver_live_test.go
     tag: ~
     class: postgres_ci
