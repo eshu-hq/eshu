@@ -50,8 +50,8 @@ consumption, SBOM, analysis), each in 2 fact orders, plus a language control. Th
 
 Known limit: `representativeAffectedPackage` still ranks a group under its first
 fact's ecosystem, so a group whose facts disagree on the ecosystem can depend on fact
-order, as it does at the base. A trial fix here moved 4,950 existing rows, so it is a
-separate issue that must land before any OS-vendor `affected_package` producer.
+order, as it does at the base. A trial fix here moved 4,950 existing rows, so it is
+#10034, which must land before any OS-vendor `affected_package` producer.
 From source, not live data: the only non-reducer writers of the fact kind are
 `collector/vulnerabilityintelligence/envelope.go` (OSV, which writes `os` for an OS
 package) and `gitlab_gemnasium_envelope.go` (GLAD, which writes the raw slug prefix of
