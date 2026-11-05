@@ -1,0 +1,134 @@
+go/internal/storage/postgres/facts_active_crossplane_xrd.go
+  s_7547c0f0af67d4::t_28a60dd9d18fd8 9,69-124,139-145,150-194,196-205,207-216,218-236,238,240-252,254-262,265-268,270-272,293,295-297,300,307-308,310,318,323,328-350
+  s_7547c0f0af67d4::t_0ae9a80c6f5925 351
+  s_7547c0f0af67d4::t_e5bd62749c51af 12-13,125-134,206,217,237,239,253,263-264,269,277
+docs/internal/evidence/10005-crossplane-delta-overlay.md
+  s_7547c0f0af67d4::t_3ae8c89321a479 1-128,133-165,254-263,264-268,270-271
+  s_7547c0f0af67d4::t_def93c426cea5e 272-274
+  s_7547c0f0af67d4::t_d021dd58670527 166-232
+  s_7547c0f0af67d4::t_9c8c9cdb69249e 167-175,177-184,186-199,201-202,204-232
+  s_7547c0f0af67d4::t_0639e96876649a 129-132,203,269
+  s_7547c0f0af67d4::t_c55a212bdb8b06 129,131-132,269
+  s_7547c0f0af67d4::t_092f13a3b20424 233-253
+go/internal/reducer/crossplane/satisfied_by_load.go
+  s_7547c0f0af67d4::t_1d6b5b8f5c357e 1-89
+go/internal/reducer/crossplane/satisfied_by_materialization.go
+  s_7547c0f0af67d4::t_07f593dd72e4ff 85-88
+  s_7547c0f0af67d4::t_a5824a2aa76cee 118-120
+go/internal/reducer/crossplane/satisfied_by_load_test.go
+  s_7547c0f0af67d4::t_9c62b0a5aaf38d 1-151
+docs/public/observability/telemetry-coverage-reducer-domains.md
+  s_7547c0f0af67d4::t_eb9c5b81bbbe79 36
+  s_7547c0f0af67d4::t_a4fd2de8cbe21e 41-42,44
+docs/public/operate/graph-delta-union.md
+  s_7547c0f0af67d4::t_8de65cc729eced 166-181
+  s_7547c0f0af67d4::t_da3fc90ecd2c6e 182-202
+go/internal/reducer/crossplane/AGENTS.md
+  s_7547c0f0af67d4::t_5a5bc7301132de 41-46,48
+go/internal/reducer/crossplane/README.md
+  s_7547c0f0af67d4::t_a50b8b7e1ead89 22-33,92-95,115-118
+go/internal/storage/postgres/active_package_manifest_dependency_delta_live_test.go
+  s_7547c0f0af67d4::t_1d5da21cf76474 62-68,72
+go/internal/storage/postgres/satisfied_by_read_delta_live_test.go
+  s_7547c0f0af67d4::t_f07afc63a60d64 1-6,8-11,13-14,16-354
+  s_7547c0f0af67d4::t_e404a4a04ca276 7,12,15,355-411
+  s_7547c0f0af67d4::t_49cd34d70ad869 12,15,355-356,358-411
+go/internal/storage/postgres/satisfied_by_read_test.go
+  s_7547c0f0af67d4::t_4011b91ce33e70 1-10,13-111,124-131
+  s_7547c0f0af67d4::t_28f5b49cbbe7b2 116
+  s_7547c0f0af67d4::t_d5ea33aefa9b38 11-12,112-115,117-123
+go/internal/telemetry/instruments.go
+  s_7547c0f0af67d4::t_10f25a429e5a9c 885-894,4687-4694
+  s_7547c0f0af67d4::t_6aae1230df6df9 903-905,908-910,4705,4713
+scripts/lib/live_postgres_readiness_inventory_gen_internal_storage_postgres_part2.py
+  s_7547c0f0af67d4::t_537695fc52b56b 332-334,339
+  s_7547c0f0af67d4::t_72d4341eadcc27 335
+  s_7547c0f0af67d4::t_0f437ef8ade5e2 335
+  s_7547c0f0af67d4::t_d7956f76dc011d 337-339
+specs/live-tests.d/live-tests-readiness-part4.generated.yaml
+  s_7547c0f0af67d4::t_7f7301a8665978 222-224,231
+  s_7547c0f0af67d4::t_3a72a5a7629c6f 225
+  s_7547c0f0af67d4::t_91c7f524e097da 227-231
+go/internal/storage/postgres/migrations/279_fact_records_crossplane_xrd_entity_idx.sql
+  s_7547c0f0af67d4::t_f0802586e0019a 1-34
+  s_7547c0f0af67d4::t_87e22c36a62d2e 1-34
+go/internal/storage/postgres/migrations/README.md
+  s_7547c0f0af67d4::t_23ec233004eb46 411-433
+  s_7547c0f0af67d4::t_3ca3446a5a44a1 412,414-428,432-433
+go/internal/storage/postgres/migrations/embed_invariant_test.go
+  s_7547c0f0af67d4::t_ea31f0bac77089 203-207,213
+  s_7547c0f0af67d4::t_7ad3a4a8a5dfe3 204,213
+go/internal/storage/postgres/migrations/migration_checksum_manifest_test.go
+  s_7547c0f0af67d4::t_b2675fb7762b09 343-345
+  s_7547c0f0af67d4::t_9326b7a204513c 343
+go/internal/storage/postgres/satisfied_by_read_index_test.go
+  s_7547c0f0af67d4::t_b8dcbb1c57ab65 1-68
+  s_7547c0f0af67d4::t_9b9c92ef7612d9 1-11,13-28,30-65,67-68
+go/internal/storage/postgres/schema_fact_records.go
+  s_7547c0f0af67d4::t_bfb8a48b33e139 6
+  s_7547c0f0af67d4::t_e4d6f3dde564f0 6
+go/internal/storage/postgres/schema_fact_records_crossplane.go
+  s_7547c0f0af67d4::t_19d095d3a1799f 1-24
+  s_7547c0f0af67d4::t_fc6b892b75693c 1-11,13-24
+go/internal/storage/postgres/schema_order_late_test.go
+  s_7547c0f0af67d4::t_f6ca921f873c50 461-463
+  s_7547c0f0af67d4::t_9dcb026bb013c5 462-463
+go/internal/storage/postgres/crossplane/ledger.go
+  s_7547c0f0af67d4::t_0f6b5cab55453b 17
+go/cmd/projector/runtime_wiring.go
+  s_7547c0f0af67d4::t_8a8da8eb97a297 56-61
+go/internal/storage/postgres/crossplane/query_plan_live_test.go
+  s_7547c0f0af67d4::t_b6f41f4b75d4c6 159,206-208,300
+go/internal/storage/postgres/crossplane/README.md
+  s_7547c0f0af67d4::t_e66bcd54d16092 36-41,53-55,70-71,82-83,144-182,218-228,256-262,281-288
+go/internal/storage/postgres/crossplane/query_plan_delta_base_helpers_test.go
+  s_7547c0f0af67d4::t_4aee96ea0b8f3e 1-223
+go/internal/storage/postgres/crossplane/doc.go
+  s_7547c0f0af67d4::t_de9968162ed03d 17-22
+docs/internal/evidence/10094-crossplane-redrive-delta-base.md
+  s_7547c0f0af67d4::t_a9bda21f97be94 242-246
+  s_7547c0f0af67d4::t_1c4b0b7f32d0e0 1-241
+go/internal/storage/postgres/crossplane/sweep_batch.go
+  s_7547c0f0af67d4::t_c861a1272a88aa 64-67,79-80,98
+go/internal/storage/postgres/satisfied_by_redrive_base_leg.go
+  s_7547c0f0af67d4::t_f3f5a29d70175d 1-62
+go/internal/storage/postgres/crossplane/query.go
+  s_7547c0f0af67d4::t_2f963874a092df 21,24-44,48-52,54-55,80-82,86-97,101-104,111,115-119
+go/internal/storage/postgres/satisfied_by_redrive_base_leg_live_test.go
+  s_7547c0f0af67d4::t_cce20304c0fd28 1-158
+go/internal/storage/postgres/crossplane/sweep_delta_base.go
+  s_7547c0f0af67d4::t_58fbc526d0d9e9 1-205
+go/internal/storage/postgres/crossplane/sweep_delta_base_test.go
+  s_7547c0f0af67d4::t_6b8be96173f09a 1-194
+  s_7547c0f0af67d4::t_dd3b5bdf540bfc 195-196
+go/internal/storage/postgres/crossplane/AGENTS.md
+  s_7547c0f0af67d4::t_1d43d0ce15d78c 21-23,25-39,109,135-139
+go/cmd/projector/crossplane_redrive_catchup_test.go
+  s_7547c0f0af67d4::t_d8cfdb321e0c99 14,191-202
+go/internal/storage/postgres/satisfied_by_redrive_base_leg_test.go
+  s_7547c0f0af67d4::t_7a0cc7a576fa76 1-101
+go/internal/storage/postgres/crossplane/sweep.go
+  s_7547c0f0af67d4::t_dd98a941387468 67-69,72-76,125-128,244-249,271,275-277,299,304-307,310,312,315-319,323-324,327-328,330
+go/internal/telemetry/contract.go
+  s_7547c0f0af67d4::t_c09d1de28f431b 979-982
+go/internal/storage/postgres/crossplane/satisfied_by_redrive_behavior_live_test.go
+  s_7547c0f0af67d4::t_e75fb09c026602 97
+go/internal/storage/postgres/crossplane/satisfied_by_redrive_delta_base_test.go
+  s_7547c0f0af67d4::t_03a0e7c09f7bbf 1-371
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e83a54381f1c8623e66842e0f27dd8c505435d66",
+  "prompts": {},
+  "sessions": {
+    "s_7547c0f0af67d4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7c8b2d5-3286-4c2a-be1f-589162535d83",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
