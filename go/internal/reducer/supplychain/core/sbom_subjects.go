@@ -32,6 +32,12 @@ func appendSupplyChainImpactPackageFindings(
 	paths := supplyChainSBOMPaths(pkg, index)
 	reselected := false
 	if len(paths) == 0 {
+		// Mixed rows under a blank ecosystem: classify the versioned rows, which have
+		// no base row, apart from the rows with no version, which do (ruling 9990-f6).
+		if versioned, versionless, split := splitDirectBlankGroupByRowVersion(pkgs, pkg, index); split {
+			findings = appendSupplyChainImpactPackageFindings(findings, cves, pkgs, versioned)
+			return appendSupplyChainImpactPackageFindings(findings, cves, pkgs, versionless)
+		}
 		// No SBOM path: let the facts that join the installed row decide the
 		// finding when source order picked one with no anchor at all, or a blank
 		// ecosystem that joins beside a fact that cannot (#9990).

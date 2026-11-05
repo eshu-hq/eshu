@@ -125,6 +125,82 @@ func withJoinableOSRepresentative(
 	return joining, !direct, true
 }
 
+// splitDirectBlankGroupByRowVersion splits a group by the version of the installed rows
+// its representative joins, when the rows are mixed, so the rule for a row that exists
+// at the base and the rule for a row this change creates each read only their own rows
+// (ruling 9990-f6).
+//
+// Condition c of withJoinableOSRepresentative keeps the whole-group read when any row the
+// representative joins has no installed version, because that row has a base row
+// (installed_version_missing is decided before the ecosystem is read). Looked at over the
+// whole index, one such row also kept the whole group for every versioned row of the same
+// package, and a versioned row has no base row: the base drops a blank ecosystem with an
+// observed version. A fact that cannot join then decided it, and a vendor fix above the
+// host could read as already fixed. The row, not the shard or the index, is the unit
+// that separates the two, because a digest shard can hold both kinds of row.
+//
+// A group splits when all of these hold: it has two or more facts and the index has OS
+// rows; the representative's trimmed ecosystem is blank; no repository consumes its
+// package; its joined rows include one with and one without an installed version; and at
+// least one fact joins no row with a version. versioned holds the rows with a trimmed
+// installed version and versionless holds the rest, each only under the group's lookup
+// keys. versionless has no outcome map, so a group is counted once, by the versioned
+// part. The caller runs the same group over each part, and each part is uniform, so
+// neither splits again.
+//
+// The input index and its maps are not modified. The cheap tests run first, so a spelled
+// ecosystem, which no producer leaves blank, costs one string trim.
+func splitDirectBlankGroupByRowVersion(
+	pkgs []supplychainmodel.AffectedPackage,
+	representative supplychainmodel.AffectedPackage,
+	index supplyChainImpactIndex,
+) (versioned, versionless supplyChainImpactIndex, split bool) {
+	if len(pkgs) < 2 || len(index.osPackages) == 0 || strings.TrimSpace(representative.Ecosystem) != "" {
+		return index, index, false
+	}
+	if len(consumptionRepositoriesForPackage(representative.PackageID, index.consumption)) > 0 {
+		return index, index, false
+	}
+	anyVersioned, anyVersionless := false, false
+	for _, row := range matchingOSPackageImpactPaths(representative, index) {
+		if strings.TrimSpace(row.InstalledVersion) == "" {
+			anyVersionless = true
+		} else {
+			anyVersioned = true
+		}
+	}
+	if !anyVersioned || !anyVersionless {
+		return index, index, false
+	}
+	withVersion := map[string][]supplychainmodel.OSPackage{}
+	withoutVersion := map[string][]supplychainmodel.OSPackage{}
+	seen := map[string]bool{}
+	for _, pkg := range pkgs {
+		for _, key := range affectedOSPackageLookupKeys(pkg) {
+			if seen[key] {
+				continue
+			}
+			seen[key] = true
+			for _, row := range index.osPackages[key] {
+				if strings.TrimSpace(row.InstalledVersion) == "" {
+					withoutVersion[key] = append(withoutVersion[key], row)
+				} else {
+					withVersion[key] = append(withVersion[key], row)
+				}
+			}
+		}
+	}
+	versioned, versionless = index, index
+	versioned.osPackages, versionless.osPackages = withVersion, withoutVersion
+	versionless.osRepresentativeOutcomes = nil
+	if !slices.ContainsFunc(pkgs, func(pkg supplychainmodel.AffectedPackage) bool {
+		return !hasMatchingOSPackage(pkg, versioned)
+	}) {
+		return index, index, false
+	}
+	return versioned, versionless, true
+}
+
 // blankEcosystemJoinsOnlyVersionedRows reports whether a representative that joins an
 // installed row is of the kind the narrowed direct group covers: its trimmed
 // ecosystem is blank and every row it joins carries an installed version. The cheap
