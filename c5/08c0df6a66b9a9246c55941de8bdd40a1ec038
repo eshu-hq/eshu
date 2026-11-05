@@ -1,0 +1,14 @@
+docs/internal/evidence/10110-neo4j-semantic-owner.md
+  h_78a442cba0b3e6 39-43
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c508c0df6a66b9a9246c55941de8bdd40a1ec038",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
