@@ -80,9 +80,11 @@ own; its per-claim unchanged status row is recorded by the host's
 - The declared emission family is never emitted. It exists only because the
   host builds the SDK contract from the manifest and refuses a family-less
   manifest.
-- The seed image digest is pinned by the window assembly step. The zeros
-  placeholder in `manifest.yaml` and `deployment.yaml` keeps the shape
-  valid; the pin test enforces the digest pattern, not the value.
+- The seed image digest was pinned by window assembly run 42049436432.
+  `TestWindowSeedDigestAgreesAcrossVehicle` proves the `manifest.yaml`
+  artifacts image equals the `deployment.yaml` container image; the digest
+  value itself is proven by the dispatch-run outputs and attestation
+  subject-digest recorded in `image-provenance.md`.
 - The disposable-venue end-to-end runs only with `ESHU_SYNTH_ZERO_LIVE=1`:
   `ESHU_SYNTH_ZERO_LIVE=1 go test -count=1 -timeout 12m
   ./cmd/collector-synth-zero/ -run TestWindowZeroFactEndToEnd`.

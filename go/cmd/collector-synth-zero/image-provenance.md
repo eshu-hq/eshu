@@ -30,8 +30,10 @@
    runs the in-image smoke on the pushed digest as uid 10001, and emits the
    digest as a job output. If the push step is denied, stop and re-escalate.
 3. Fill the emitted digest into `manifest.yaml` (artifacts) and
-   `deployment.yaml` (image) in place of the zeros placeholders, re-run the
-   pin suite, and commit the pin before any apply.
+   `deployment.yaml` (image), re-run the pin suite
+   (`TestWindowSeedDigestAgreesAcrossVehicle` binds the two files to each
+   other), and commit the pin before any apply. Run 42049436432 did this
+   fill; the zeros placeholders below are its pre-pin history.
 
 ## Window assembly record (run 42049436432, 2026-11-05, SUCCESS)
 
@@ -43,6 +45,7 @@
   complete status row, zero facts (`"facts": []` on the wire).
 - Attestation: subject-digest equals the pushed digest (run log).
 
-The zeros placeholders keep the shape valid until then; `TestWindow*`
-enforces the digest pattern so the fill-in is mechanical. The local image
+The zeros placeholders kept the shape valid until the run 42049436432
+fill above; `TestWindowSeedDigestAgreesAcrossVehicle` binds the two pinned
+files to each other so a divergent fill fails. The local image
 was removed after the smoke (`docker rmi`); the digest above is the record.

@@ -27,10 +27,10 @@ spec:
     sdkProtocol: collector-sdk/v1alpha1
     adapter: process
   artifacts:
-    # SEED_IMAGE_DIGEST is pinned by the window assembly step that builds
-    # Dockerfile.seed FROM the pinned release worker image plus the emitter
-    # binary in this lane. The zeros placeholder keeps the shape valid until
-    # the real digest lands; the pin test enforces the sha256 pattern.
+    # SEED_IMAGE_DIGEST was pinned by window assembly run 42049436432,
+    # which built Dockerfile.seed FROM the pinned release worker image plus
+    # the emitter binary. TestWindowSeedDigestAgreesAcrossVehicle binds this
+    # image to the Deployment container image.
     - platform: linux/amd64
       image: ghcr.io/eshu-hq/eshu-synth-zero@sha256:145dbbf95cc5971c5a6607dccf455fc742fb11f37c21a339972ca2c5a17c8a93
   emittedFacts:
