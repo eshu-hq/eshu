@@ -323,6 +323,8 @@ func testSupplyChainImpactReadinessDerivedPendingScopeIDsStayWithTheirInstanceLi
 
 // TestSupplyChainImpactReadinessDerivedStateOnlyRulesLive runs the state-only coverage cases of #10015 as subtests, each on its own isolated schema, so the readiness shard plan counts one test for the family.
 func TestSupplyChainImpactReadinessDerivedStateOnlyRulesLive(t *testing.T) {
+	t.Run("RotationKeepsVerdictsLive", testSupplyChainImpactReadinessDerivedRotationKeepsVerdictsLive)
+	t.Run("RotationSkipTracksPlanner", testSupplyChainImpactReadinessDerivedRotationSkipTracksPlanner)
 	t.Run("PlanSliceCannotHideReleaseLive", testSupplyChainImpactReadinessDerivedPlanSliceCannotHideReleaseLive)
 	t.Run("VerdictIgnoresPlanWindowLive", testSupplyChainImpactReadinessDerivedVerdictIgnoresPlanWindowLive)
 	t.Run("LegacyScopeStopsCountingOnStateLive", testSupplyChainImpactReadinessDerivedLegacyScopeStopsCountingOnStateLive)

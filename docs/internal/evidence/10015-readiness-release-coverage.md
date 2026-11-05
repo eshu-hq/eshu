@@ -52,7 +52,7 @@ Alpine OS package rows (150 packages on two releases):
 | `pkg-120`: v3.18 fresh, v3.17 never written | pending when the plan names v3.17, else fresh | 0 of 18 |
 
 The new statement reads all four correctly in all 18 window reads
-(`TestSupplyChainImpactReadinessDerivedRotationKeepsVerdictsLive`). Four of nine
+(`StateOnlyRulesLive/RotationKeepsVerdictsLive`). Four of nine
 windows name exactly one release of `pkg-104` in each fixture order. The arbiter
 measured the number of two-release packages with exactly one release named per
 window at 47 to 58 of 150 in the hash order and 0 to 100 of 150 when fact ids group

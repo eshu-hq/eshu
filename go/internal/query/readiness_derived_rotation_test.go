@@ -3,9 +3,10 @@
 
 package query
 
-//eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #10015 disposable PostgreSQL API proof, with the real installed-evidence reader and the real planner over a full rotation, that derived release coverage reads the same in every window the coordinator stores
-//eshu:readiness:env ESHU_POSTGRES_DSN
+// This file holds the rotation helpers for #10015. Its cases run as
+// subtests of TestSupplyChainImpactReadinessDerivedStateOnlyRulesLive in
+// readiness_derived_slice_live_test.go, so the readiness shard plan counts
+// one test for the family.
 
 import (
 	"context"
@@ -114,7 +115,7 @@ func plannedRotationReleases(t *testing.T, raw string) map[string]map[string]boo
 	return out
 }
 
-// TestSupplyChainImpactReadinessDerivedRotationKeepsVerdictsLive is #10015 RED
+// testSupplyChainImpactReadinessDerivedRotationKeepsVerdictsLive is #10015 RED
 // for the rotating plan, against the plan the coordinator really writes. A fleet
 // of 450 Alpine OS package rows (150 packages on two releases) is larger than one
 // target window, so the real reader and the real planner store a different slice
@@ -131,10 +132,10 @@ func plannedRotationReleases(t *testing.T, raw string) map[string]map[string]boo
 // The planner only mints release scope ids once #9993 lands. Until then there is
 // nothing for readiness to read from the plan, so the test skips with that reason.
 // It skips only when none of the nine plans names a release, and
-// TestSupplyChainImpactReadinessDerivedRotationSkipTracksPlanner fails if that
+// testSupplyChainImpactReadinessDerivedRotationSkipTracksPlanner fails if that
 // check ever stops following the planner, so the skip cannot hide the proof once
 // the planner does mint release scopes.
-func TestSupplyChainImpactReadinessDerivedRotationKeepsVerdictsLive(t *testing.T) {
+func testSupplyChainImpactReadinessDerivedRotationKeepsVerdictsLive(t *testing.T) {
 	for _, layout := range []string{"hash", "image-grouped"} {
 		t.Run(layout, func(t *testing.T) {
 			ctx, db, now := readinessScopeLiveDatabase(t)
@@ -250,12 +251,12 @@ func rotationPlansNameReleases(runs []workflow.Run) bool {
 	return false
 }
 
-// TestSupplyChainImpactReadinessDerivedRotationSkipTracksPlanner is the guard
+// testSupplyChainImpactReadinessDerivedRotationSkipTracksPlanner is the guard
 // for the rotation test's skip: it plans a small fleet with the real planner and
 // fails when the plan names a release but the precondition says the rotation
 // test may skip, so the skip cannot outlive #9993 (PR #10047). It needs no
-// database.
-func TestSupplyChainImpactReadinessDerivedRotationSkipTracksPlanner(t *testing.T) {
+// database itself; it runs as a subtest of the state-only family.
+func testSupplyChainImpactReadinessDerivedRotationSkipTracksPlanner(t *testing.T) {
 	now := time.Date(2026, 11, 5, 12, 0, 0, 0, time.UTC)
 	interval := schedule.DefaultReconcileInterval
 	rows := []workflow.OSPackageAdvisoryTarget{

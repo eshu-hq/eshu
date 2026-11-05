@@ -82,10 +82,6 @@ TABLE = {
         "go/internal/query/readiness_derived_release_scope_live_test.go": (
             "TestSupplyChainImpactReadinessDerivedReleaseCoverageLive",
         ),
-        "go/internal/query/readiness_derived_rotation_live_test.go": (
-            "TestSupplyChainImpactReadinessDerivedRotationKeepsVerdictsLive",
-            "TestSupplyChainImpactReadinessDerivedRotationSkipTracksPlanner",
-        ),
         "go/internal/query/readiness_derived_skip_live_test.go": (
             "TestSupplyChainImpactReadinessPlannerSkippedPackageReportsSkipLive",
         ),
