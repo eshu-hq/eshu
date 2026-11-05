@@ -5,8 +5,8 @@
 -- committed fence maxima. Run against the CORE database after ClaimNext is
 -- frozen. Deterministic LC_ALL=C order: the committed fencing token per
 -- (generation, work item). Stored as fences.tsv beside items.tsv and hashed
--- with it; the fence rows prove no commit anchored a token the snapshot
--- missed. Read-only.
+-- with it as an audit trail (committed tokens never exceed the allocator H
+-- in items.tsv, which is what the seed consumes). Read-only.
 SELECT f.generation_id,
        f.work_item_id,
        f.fencing_token

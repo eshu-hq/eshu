@@ -44,8 +44,11 @@
 # must be set for seed/verify/run. No secret is ever passed on a command
 # line or printed. Hung calls are bounded: PGCONNECT_TIMEOUT (default 10s)
 # for each database connection, HANDOVER_KUBECTL_TIMEOUT (default 30s) for
-# each kubectl request, HANDOVER_DRAIN_SECONDS (default 600) for the drain
-# wait in run mode.
+# each kubectl request, HANDOVER_FREEZE_SECONDS (default 300) for the
+# scale-down wait, HANDOVER_DRAIN_SECONDS (default 600) for the drain
+# wait in run mode. The freeze record defaults to /tmp/handover-replicas:
+# set HANDOVER_STATE_FILE to keep it beside the snapshot dir instead, since
+# abort trusts whatever well-formed record it finds there.
 #
 # A snapshot dir and its sidecars hold stable work-item IDs, so every file
 # this script writes stays private to the operator.
@@ -66,6 +69,7 @@ SHA="${HANDOVER_SHA_BIN:-sha256sum}"
 SLEEP_BIN="${HANDOVER_SLEEP_BIN:-sleep}"
 KUBECTL_TIMEOUT="${HANDOVER_KUBECTL_TIMEOUT:-30s}"
 DRAIN_SECONDS="${HANDOVER_DRAIN_SECONDS:-600}"
+FREEZE_SECONDS="${HANDOVER_FREEZE_SECONDS:-300}"
 NAMESPACE="${HANDOVER_NAMESPACE:-}"
 DEPLOY="${HANDOVER_COORDINATOR_DEPLOY:-workflow-coordinator}"
 SAT_HOST="${HANDOVER_SAT_PGHOST:-}"
@@ -110,28 +114,53 @@ require_namespace() {
 	[[ -n "${NAMESPACE}" ]] || fail "HANDOVER_NAMESPACE is required for deployment steps"
 }
 
-# kubectl_get_replicas prints the coordinator deployment's replica count.
-kubectl_get_replicas() {
+# kubectl_get_counts prints "spec status" replica counts. A Deployment at
+# zero replicas has no .status.replicas field, so status may be empty: callers
+# must treat empty status as 0, never as an error.
+kubectl_get_counts() {
 	require_namespace
 	"${KUBECTL}" --request-timeout="${KUBECTL_TIMEOUT}" -n "${NAMESPACE}" \
-		get deployment "${DEPLOY}" -o 'jsonpath={.status.replicas}'
+		get deployment "${DEPLOY}" -o 'jsonpath={.spec.replicas}{"|"}{.status.replicas}'
 }
 
-# cmd_freeze stops ClaimNext by scaling the coordinator to zero and records
-# the prior replica count for abort.
+# frozen_gate succeeds only when no coordinator pod can still ClaimNext.
+# It returns 1 (never exits) so wait loops can poll through it.
+frozen_gate() {
+	local counts spec status
+	counts="$(kubectl_get_counts)" || return 1
+	spec="${counts%%|*}"
+	status="${counts#*|}"
+	[[ "${spec}" =~ ^[0-9]+$ ]] || return 1
+	[[ "${spec}" == "0" && ( -z "${status}" || "${status}" == "0" ) ]]
+}
+
+# wait_frozen polls until the scale-down completes.
+wait_frozen() {
+	local deadline=$((SECONDS + FREEZE_SECONDS))
+	while ! frozen_gate; do
+		[[ "${SECONDS}" -ge "${deadline}" ]] &&
+			fail "freeze deadline (${FREEZE_SECONDS}s) with coordinator pods still present"
+		"${SLEEP_BIN}" 5
+	done
+}
+
+# cmd_freeze stops ClaimNext by scaling the coordinator to zero, waits for
+# the pods to terminate, and records the prior spec count for abort.
 cmd_freeze() {
 	need_bin "${KUBECTL}" kubectl HANDOVER_KUBECTL_BIN
 	require_namespace
 	[[ $# -eq 0 ]] || fail "freeze takes no arguments"
-	local prior
-	prior="$(kubectl_get_replicas)"
-	[[ "${prior}" =~ ^[0-9]+$ ]] || fail "unreadable replica count: ${prior}"
-	[[ "${prior}" -gt 0 ]] || fail "already frozen (0 replicas); snapshot or abort"
+	local counts prior
+	counts="$(kubectl_get_counts)"
+	prior="${counts%%|*}"
+	[[ "${prior}" =~ ^[0-9]+$ ]] || fail "unreadable spec replicas: ${counts}"
+	[[ "${prior}" -gt 0 ]] || fail "already frozen (spec 0); snapshot or abort"
 	"${KUBECTL}" --request-timeout="${KUBECTL_TIMEOUT}" -n "${NAMESPACE}" \
 		scale deployment "${DEPLOY}" --replicas=0 >/dev/null ||
 		fail "scale to 0 failed"
+	wait_frozen
 	printf '%s\n' "${prior}" >"${HANDOVER_STATE_FILE:-/tmp/handover-replicas}"
-	printf 'frozen: %s/%s scaled %s -> 0 (prior in %s)\n' \
+	printf 'frozen: %s/%s scaled %s -> 0, pods terminated (prior in %s)\n' \
 		"${NAMESPACE}" "${DEPLOY}" "${prior}" "${HANDOVER_STATE_FILE:-/tmp/handover-replicas}"
 }
 
@@ -182,10 +211,8 @@ cmd_snapshot() {
 	done
 	[[ -n "${dir}" ]] || fail "snapshot needs --snapshot DIR"
 	[[ -e "${dir}" ]] && fail "snapshot dir exists (refusing to overwrite): ${dir}"
-	local replicas
-	replicas="$(kubectl_get_replicas)"
-	[[ "${replicas}" == "0" ]] ||
-		fail "not frozen (${replicas} replicas); freeze first so no ClaimNext lands mid-snapshot"
+	frozen_gate ||
+		fail "not frozen ($(kubectl_get_counts)); freeze first so no ClaimNext lands mid-snapshot"
 	cmd_drain >/dev/null ||
 		fail "not drained; wait for leases to expire, then snapshot"
 	[[ "${dir}" != *$'\n'* && "${dir}" != *"'"* ]] ||
@@ -330,7 +357,7 @@ cmd_run() {
 	[[ -n "${dir}" && "${yes}" == "1" ]] || fail "run needs --snapshot DIR --yes"
 	local freeze_out
 	if ! freeze_out="$(cmd_freeze 2>&1)"; then
-		[[ "${freeze_out}" == *"already frozen"* ]] ||
+		[[ "${freeze_out}" == *"already frozen (spec 0)"* ]] ||
 			{ printf '%s\n' "${freeze_out}" >&2; return 1; }
 	fi
 	wait_drain

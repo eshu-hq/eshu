@@ -33,9 +33,22 @@ world() {
 	mkdir -p "${w}/bin" "${w}/state"
 	cat >"${w}/bin/kubectl" <<'EOF'
 #!/usr/bin/env bash
-# Flags precede the verb; scan argv for get/scale anywhere.
+# Flags precede the verb; scan argv for get/scale anywhere. A Deployment
+# at zero replicas has no .status.replicas field, so the frozen shape is
+# "0|" (empty status), exactly like the real jsonpath output.
+state_dir="${STUB_STATE_DIR:?}"
+if printf '%s\n' "$@" | grep -q '^get$'; then
+	if [[ -f "${state_dir}/spec" ]]; then
+		printf '%s|\n' "$(cat "${state_dir}/spec")"
+	else
+		printf '%s|%s\n' "${STUB_SPEC:-2}" "${STUB_STATUS-2}"
+	fi
+	exit 0
+fi
 for arg in "$@"; do
-	[[ "${arg}" == "get" ]] && { printf '%s\n' "${STUB_REPLICAS:-2}"; exit 0; }
+	case "${arg}" in
+	--replicas=*) printf '%s' "${arg#--replicas=}" >"${state_dir}/spec" ;;
+	esac
 done
 printf '%s\n' "$*" >>"${STUB_SCALE_LOG:?}"
 EOF
@@ -76,8 +89,9 @@ EOF
 	export HANDOVER_KUBECTL_BIN=kubectl HANDOVER_PSQL_BIN=psql
 	export HANDOVER_SHA_BIN=sha256sum HANDOVER_SLEEP_BIN=sleep
 	export HANDOVER_NAMESPACE=test-ns STUB_SCALE_LOG="${w}/state/scale.log"
+	export STUB_STATE_DIR="${w}/state"
 	export HANDOVER_STATE_FILE="${w}/state/replicas" PGPASSFILE=dummy
-	export STUB_REPLICAS=2 STUB_DRAIN_1=0 STUB_DRAIN_2=0
+	export STUB_SPEC=2 STUB_STATUS=2 STUB_DRAIN_1=0 STUB_DRAIN_2=0
 	export STUB_MATCHED=2 STUB_MISSING="" STUB_ITEMS_EMPTY=0
 	export HANDOVER_SAT_PGHOST=sat-host HANDOVER_SAT_PGUSER=sat-u
 	export HANDOVER_SAT_PGDATABASE=sat-db
@@ -109,7 +123,7 @@ rm -rf "${w}"
 
 # freeze refuses when already frozen and without a namespace.
 world; w="${WORLD_DIR}"
-out="$(STUB_REPLICAS=0 "${script}" freeze 2>&1 || true)"
+out="$(STUB_SPEC=0 STUB_STATUS="" "${script}" freeze 2>&1 || true)"
 check_contains "freeze-refuses-frozen" "already frozen" "${out}"
 out="$(HANDOVER_NAMESPACE="" "${script}" freeze 2>&1 || true)"
 check_contains "freeze-needs-namespace" "HANDOVER_NAMESPACE" "${out}"
@@ -129,18 +143,22 @@ rm -rf "${w}"
 # an unfrozen tree, an undrained tree, and an empty handover.
 world; w="${WORLD_DIR}"
 snap="${w}/snap"
-out="$(STUB_REPLICAS=0 "${script}" snapshot --snapshot "${snap}")"
+out="$(STUB_SPEC=0 STUB_STATUS="" "${script}" snapshot --snapshot "${snap}")"
 check_contains "snapshot-msg" "snapshot:" "${out}"
 check "snapshot-items" "item-a	3	claim-a	claimed" "$(sed -n '1p' "${snap}/items.tsv")"
 check "snapshot-fences" "gen-1	item-a	3" "$(sed -n '1p' "${snap}/fences.tsv")"
 (cd "${snap}" && sha256sum -c sha256sums >/dev/null) && pass "snapshot-hash" || fail "snapshot-hash"
-out="$(STUB_REPLICAS=0 "${script}" snapshot --snapshot "${snap}" 2>&1 || true)"
+out="$(STUB_SPEC=0 STUB_STATUS="" "${script}" snapshot --snapshot "${snap}" 2>&1 || true)"
 check_contains "snapshot-refuses-existing" "refusing to overwrite" "${out}"
 out="$("${script}" snapshot --snapshot "${snap}-x" 2>&1 || true)"
 check_contains "snapshot-needs-freeze" "not frozen" "${out}"
-out="$(STUB_REPLICAS=0 STUB_DRAIN_1=1 "${script}" snapshot --snapshot "${snap}-y" 2>&1 || true)"
+out="$(STUB_SPEC=0 STUB_STATUS=0 "${script}" snapshot --snapshot "${snap}-z0" 2>&1 || true)"
+check_contains "snapshot-frozen-zero-status" "snapshot:" "${out}"
+out="$(STUB_SPEC=0 STUB_STATUS=1 "${script}" snapshot --snapshot "${snap}-t" 2>&1 || true)"
+check_contains "snapshot-refuses-terminating" "not frozen" "${out}"
+out="$(STUB_SPEC=0 STUB_STATUS="" STUB_DRAIN_1=1 "${script}" snapshot --snapshot "${snap}-y" 2>&1 || true)"
 check_contains "snapshot-needs-drain" "not drained" "${out}"
-out="$(STUB_REPLICAS=0 STUB_ITEMS_EMPTY=1 "${script}" snapshot --snapshot "${snap}-z" 2>&1 || true)"
+out="$(STUB_SPEC=0 STUB_STATUS="" STUB_ITEMS_EMPTY=1 "${script}" snapshot --snapshot "${snap}-z" 2>&1 || true)"
 check_contains "snapshot-refuses-empty" "empty items snapshot" "${out}"
 rm -rf "${w}"
 
@@ -148,7 +166,7 @@ rm -rf "${w}"
 # matched/missing and refuses unmigrated items.
 world; w="${WORLD_DIR}"
 snap="${w}/snap"
-STUB_REPLICAS=0 "${script}" snapshot --snapshot "${snap}" >/dev/null
+STUB_SPEC=0 STUB_STATUS="" "${script}" snapshot --snapshot "${snap}" >/dev/null
 out="$("${script}" seed --snapshot "${snap}" 2>&1 || true)"
 check_contains "seed-needs-yes" "pass --yes" "${out}"
 printf 'tampered\n' >>"${snap}/items.tsv"
@@ -158,7 +176,7 @@ rm -rf "${w}"
 
 world; w="${WORLD_DIR}"
 snap="${w}/snap"
-STUB_REPLICAS=0 "${script}" snapshot --snapshot "${snap}" >/dev/null
+STUB_SPEC=0 STUB_STATUS="" "${script}" snapshot --snapshot "${snap}" >/dev/null
 out="$("${script}" seed --snapshot "${snap}" --yes)"
 check_contains "seed-report" "2 items at or above" "${out}"
 out="$(STUB_MISSING='item-z\n' "${script}" seed --snapshot "${snap}" --yes 2>&1 || true)"
@@ -173,7 +191,7 @@ rm -rf "${w}"
 # verify is green on a full match and red otherwise.
 world; w="${WORLD_DIR}"
 snap="${w}/snap"
-STUB_REPLICAS=0 "${script}" snapshot --snapshot "${snap}" >/dev/null
+STUB_SPEC=0 STUB_STATUS="" "${script}" snapshot --snapshot "${snap}" >/dev/null
 export HANDOVER_SAT_PGHOST=sat-host HANDOVER_SAT_PGUSER=sat-u HANDOVER_SAT_PGDATABASE=sat-db
 out="$("${script}" verify --snapshot "${snap}")"
 check_contains "verify-green" "verified: 2/2" "${out}"
@@ -199,8 +217,14 @@ rm -rf "${w}"
 world; w="${WORLD_DIR}"
 snap="${w}/snap"
 export HANDOVER_SAT_PGHOST=sat-host HANDOVER_SAT_PGUSER=sat-u HANDOVER_SAT_PGDATABASE=sat-db
-out="$(STUB_REPLICAS=0 "${script}" run --snapshot "${snap}" --yes)"
+out="$("${script}" run --snapshot "${snap}" --yes)"
 check_contains "run-verify" "verified: 2/2" "${out}"
+check_contains "run-froze" --replicas=0 "$(cat "${w}/state/scale.log")"
+world; w="${WORLD_DIR}"
+snap="${w}/snap2"
+export HANDOVER_SAT_PGHOST=sat-host HANDOVER_SAT_PGUSER=sat-u HANDOVER_SAT_PGDATABASE=sat-db
+out="$(STUB_SPEC=0 STUB_STATUS="" "${script}" run --snapshot "${snap}" --yes)"
+check_contains "run-tolerates-frozen" "verified: 2/2" "${out}"
 out="$("${script}" run --snapshot "${snap}-x" 2>&1 || true)"
 check_contains "run-needs-yes" "--snapshot DIR --yes" "${out}"
 rm -rf "${w}"
