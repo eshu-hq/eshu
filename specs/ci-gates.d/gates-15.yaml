@@ -112,6 +112,7 @@ gates:
       - ".github/workflows/ocr-sandbox-proof.yml"
       - "scripts/ocr-sandbox/Dockerfile"
       - "scripts/prove-ocr-sandbox.sh"
+      - "go/internal/collector/document/ocr/tesseract/**"
     ci:
       workflow: ocr-sandbox-proof.yml
       job: "OCR sandbox proof"

@@ -6,9 +6,12 @@ name: OCR Sandbox Proof
 # proven at upgrade time instead of rotting silently until a manual proof
 # run. Exact `=` pins are invisible to the apk-floors drift detector (it
 # audits `>=` floors), and base-preinstalled packages resolve stale instead
-# of failing closed, so only a real build proves this image. The paths
-# filter means it never holds an unrelated change; upstream-side rot with
-# no repo activity is discovered at the next base bump, when the fix is the
+# of failing closed, so only a real build proves this image. The proof
+# compiles the ocr/tesseract test binary into the image, so that package
+# is trigger surface too: its sandbox tests Skip without the proof env,
+# and a test-only desync would otherwise ship green. The paths filter
+# means it never holds an unrelated change; upstream-side rot with no
+# repo activity is discovered at the next base bump, when the fix is the
 # same pin edit anyway.
 on:
   push:
@@ -16,6 +19,7 @@ on:
       - ".github/workflows/ocr-sandbox-proof.yml"
       - "scripts/ocr-sandbox/Dockerfile"
       - "scripts/prove-ocr-sandbox.sh"
+      - "go/internal/collector/document/ocr/tesseract/**"
   workflow_dispatch:
 
 permissions:

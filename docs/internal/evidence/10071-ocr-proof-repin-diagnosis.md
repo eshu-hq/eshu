@@ -71,7 +71,8 @@ way.
 - **Event-driven proof run (chosen; supersedes the weekly schedule).**
   `ocr-sandbox-proof.yml` runs `prove-ocr-sandbox.sh
   --platform linux/amd64` on `ubuntu-24.04` on push to the proof
-  surface (the workflow, the Dockerfile, the proof script) plus
+  surface (the workflow, the Dockerfile, the proof script, and the
+  `ocr/tesseract` test package the proof compiles in) plus
   `workflow_dispatch`. Standalone workflow (not a
   `static-contract-gates.yml` matrix entry) per the bespoke-trigger
   exception, following the `apk-floors-drift.yml` /
