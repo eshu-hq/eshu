@@ -1,0 +1,16 @@
+go/internal/backendconformance/corpus_semantic_module.go
+  h_78a442cba0b3e6 21
+go/internal/backendconformance/evidence-notes.md
+  h_78a442cba0b3e6 9
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ce1cffece3ef111daaf8a3ab6d960de55be6438b",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
