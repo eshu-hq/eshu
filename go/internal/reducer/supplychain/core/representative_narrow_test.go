@@ -117,3 +117,46 @@ func TestWithJoinableOSRepresentativeNarrowsOnlyTheRuledGroups(t *testing.T) {
 		})
 	}
 }
+
+// TestNarrowedDirectGroupReadsEveryRowTheRepresentativeJoins pins condition c of the
+// ruling on a host that holds two rows for the package: one row with no installed
+// version keeps the whole group, whichever row sorts first, and a version of only
+// white space counts as none.
+func TestNarrowedDirectGroupReadsEveryRowTheRepresentativeJoins(t *testing.T) {
+	t.Parallel()
+	blankOwn := supplychainmodel.AffectedPackage{
+		FactID: "a-own", Source: "ubuntu", AdvisoryID: "ADV-own", PackageID: repJoinPackageID, PURL: repJoinPURL, Name: "curl",
+	}
+	other := supplychainmodel.AffectedPackage{
+		FactID: "b-nvd", Source: "nvd", Ecosystem: "os", AdvisoryID: "ADV-nvd", PackageID: repJoinPackageID, Name: "curl",
+	}
+	for _, tc := range []struct {
+		name         string
+		versionA     string
+		versionB     string
+		wantNarrowed bool
+	}{
+		{"both rows versioned", repJoinVersion, "1.0-4", true},
+		{"the first row has no version", "", repJoinVersion, false},
+		{"the last row has no version", repJoinVersion, "", false},
+		{"white space is no version", repJoinVersion, " \t", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			rowA, rowB := ubuntuCurl("22.04", tc.versionA).envelope(), ubuntuCurl("22.04", tc.versionB).envelope()
+			rowA.FactID, rowB.FactID = "os-a", "os-b"
+			rowB.Payload["arch"] = "arm64"
+			index, _, err := buildSupplyChainImpactIndexWithQuarantine([]facts.Envelope{rowA, rowB})
+			if err != nil {
+				t.Fatalf("build index: %v", err)
+			}
+			if rows := matchingOSPackageImpactPaths(blankOwn, index); len(rows) != 2 {
+				t.Fatalf("the representative joins %d rows, want 2", len(rows))
+			}
+			_, _, ok := withJoinableOSRepresentative([]supplychainmodel.AffectedPackage{blankOwn, other}, blankOwn, index)
+			if ok != tc.wantNarrowed {
+				t.Fatalf("narrowed = %v, want %v", ok, tc.wantNarrowed)
+			}
+		})
+	}
+}
