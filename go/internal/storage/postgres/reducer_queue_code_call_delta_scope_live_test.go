@@ -4,7 +4,7 @@
 package postgres
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #10023 code_call_materialization fails closed on an unusable delta file scope through the real ReducerQueue claim/Fail SQL: the handler's non-retryable self-classified error dead-letters the work item on attempt 1 with failure_class code_call_delta_scope_unusable and a triage disposition that agrees with the retry authority, and the dead-lettered row is never re-claimed; isolated schema with the full production bootstrap, 9 to 42 s across three local runs (the bootstrap dominates); enrolled in the live-postgres-readiness runner
+//eshu:readiness:reason #10023 code_call_materialization fails closed on an unusable delta file scope through the real ReducerQueue claim/Fail SQL: the handler's non-retryable self-classified error dead-letters the work item on attempt 1 with failure_class code_call_delta_scope_unusable and triage input_invalid with a non_retryable disposition that agrees with the retry authority, and the dead-lettered row is never re-claimed; isolated schema with the full production bootstrap, 9 to 42 s across three local runs (the bootstrap dominates); enrolled in the live-postgres-readiness runner
 //eshu:readiness:env ESHU_GENERATION_RETENTION_PROOF_DISPOSABLE ESHU_GENERATION_RETENTION_PROOF_DSN
 
 import (
@@ -119,6 +119,9 @@ FROM fact_work_items WHERE work_item_id = 'code-call-1'`).Scan(&status, &class, 
 	match := codeCallDeltaScopeDispositionPattern.FindStringSubmatch(details)
 	if match == nil {
 		t.Fatalf("failure_details = %q, want a triage disposition", details)
+	}
+	if !strings.Contains(details, "triage=input_invalid") || match[1] != string(projectorfailure.RetryDispositionNonRetryable) {
+		t.Fatalf("failure_details = %q, want triage=input_invalid with disposition=non_retryable", details)
 	}
 	if projectorfailure.TriageDispositionConflicts(reducercontract.IsRetryable(handleErr), projectorfailure.RetryDisposition(match[1])) {
 		t.Fatalf("triage disposition %q conflicts with retryable=%v", match[1], reducercontract.IsRetryable(handleErr))

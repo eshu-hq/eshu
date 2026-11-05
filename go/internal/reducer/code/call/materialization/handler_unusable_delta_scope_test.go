@@ -17,6 +17,8 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	projfailure "github.com/eshu-hq/eshu/go/internal/projector/failure"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/shared"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -69,13 +71,18 @@ func unusableDeltaScopeEnvelopes(repository map[string]any) []facts.Envelope {
 }
 
 // TestCodeCallMaterializationHandlerFailsClosedOnUnusableDeltaScope is the
-// #10023 gap 1 regression. On main the handler succeeds and writes an
-// unscoped whole-repository refresh plus the delta's rows, so the projection
-// runner deletes every unchanged file's CALLS edge and restores only the
-// delta's. The fix returns a self-classifying, non-retryable error before any
+// #10023 gap 1 regression. Before the fix, a handler fed a delta generation
+// with an unusable scope succeeded and wrote an unscoped whole-repository
+// refresh plus the delta's rows, so the projection runner would delete every
+// unchanged file's CALLS edge and restore only the delta's. The fix returns a
+// self-classifying, non-retryable error before the symbol load and before any
 // intent is written, so the reducer queue dead-letters the work item on its
 // first attempt and the graph keeps its existing edges until the next full
 // generation.
+//
+// Production does not reach this path yet: the git collector emits no
+// code_call_materialization marker on a delta generation until #10049 lands,
+// so the fence is a guard placed ahead of that change.
 func TestCodeCallMaterializationHandlerFailsClosedOnUnusableDeltaScope(t *testing.T) {
 	cases := map[string]struct {
 		repository map[string]any
@@ -106,10 +113,14 @@ func TestCodeCallMaterializationHandlerFailsClosedOnUnusableDeltaScope(t *testin
 			if err != nil {
 				t.Fatalf("NewInstruments() error = %v", err)
 			}
+			envelopes := unusableDeltaScopeEnvelopes(tc.repository)
+			if len(shared.ReferencedSymbolKeys(envelopes)) == 0 {
+				t.Fatal("fixture references no symbol keys, so the symbol-load ordering check would be vacuous")
+			}
 			now := time.Date(2026, time.November, 4, 12, 0, 0, 0, time.UTC)
 			writer := &recordingCodeCallIntentWriter{}
 			handler := Handler{
-				FactLoader:   &stubFactLoader{envelopes: unusableDeltaScopeEnvelopes(tc.repository)},
+				FactLoader:   &fenceOrderFactLoader{t: t, envelopes: envelopes},
 				IntentWriter: writer,
 				Instruments:  inst,
 			}
@@ -141,9 +152,71 @@ func TestCodeCallMaterializationHandlerFailsClosedOnUnusableDeltaScope(t *testin
 				t.Fatalf("FailureClass() = %q, want %q", got, want)
 			}
 
+			var inputInvalid *projfailure.InputValidationError
+			if !errors.As(err, &inputInvalid) {
+				t.Fatalf("error %T does not wrap an InputValidationError, so dead-letter triage falls back to projection_bug", err)
+			}
+
 			assertDeltaScopeUnusableCounter(t, reader, tc.reason)
 			assertDeltaScopeUnusableLog(t, logs.Bytes(), tc.reason)
 		})
+	}
+}
+
+// fenceOrderFactLoader serves the fixture and fails the test if the handler
+// reaches the cross-repository symbol load: the fence must run before that
+// load, so a fenced work item costs no symbol query.
+type fenceOrderFactLoader struct {
+	t         *testing.T
+	envelopes []facts.Envelope
+}
+
+func (l *fenceOrderFactLoader) ListFacts(context.Context, string, string) ([]facts.Envelope, error) {
+	return l.envelopes, nil
+}
+
+func (l *fenceOrderFactLoader) LoadActiveCodeCallSymbolDefinitionFacts(context.Context, []string) ([]facts.Envelope, error) {
+	l.t.Error("LoadActiveCodeCallSymbolDefinitionFacts ran: the unusable delta scope fence must run before the symbol load")
+	return nil, nil
+}
+
+// TestCodeCallMaterializationHandlerFencesOnlyProjectedRepositories pins
+// the projection-context filter: an unusable delta repository with no
+// projection context gets no intents anyway, so it must not fail the work
+// item for a sibling repository whose delta scope is usable.
+func TestCodeCallMaterializationHandlerFencesOnlyProjectedRepositories(t *testing.T) {
+	t.Parallel()
+
+	envelopes := unusableDeltaScopeEnvelopes(map[string]any{"path": "/repo", "delta_relative_paths": []string{"caller.py"}})
+	envelopes = append(envelopes, facts.Envelope{FactKind: "repository", Payload: map[string]any{
+		// No source_run_id, so no projection context is built for repo-b.
+		"repo_id": "repo-b", "graph_id": "repo-b", "graph_kind": "repository", "name": "repo-b",
+		"delta_generation": true, "delta_relative_paths": []string{"main.go"},
+	}})
+	now := time.Date(2026, time.November, 4, 12, 0, 0, 0, time.UTC)
+	writer := &recordingCodeCallIntentWriter{}
+	handler := Handler{FactLoader: &stubFactLoader{envelopes: envelopes}, IntentWriter: writer}
+
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
+		IntentID:     "intent-code-call-sibling-unusable",
+		ScopeID:      "scope-1",
+		GenerationID: "gen-delta",
+		SourceSystem: "git",
+		Domain:       reducercontract.DomainCodeCallMaterialization,
+		EnqueuedAt:   now,
+		AvailableAt:  now,
+		Status:       reducercontract.IntentStatusPending,
+	})
+	if err != nil {
+		t.Fatalf("Handle() error = %v, want success: repo-b has no projection context", err)
+	}
+	if len(writer.rows) == 0 {
+		t.Fatal("IntentWriter received no rows for repo-a's usable delta scope")
+	}
+	for _, row := range writer.rows {
+		if row.RepositoryID == "repo-b" {
+			t.Fatalf("repo-b (no projection context) got an intent: %#v", row)
+		}
 	}
 }
 

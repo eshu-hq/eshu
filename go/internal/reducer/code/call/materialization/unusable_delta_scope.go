@@ -12,6 +12,7 @@ import (
 
 	"go.opentelemetry.io/otel/metric"
 
+	projfailure "github.com/eshu-hq/eshu/go/internal/projector/failure"
 	codecall "github.com/eshu-hq/eshu/go/internal/reducer/code/call"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
@@ -42,11 +43,22 @@ const maxDeltaScopeUnusableNamedRepos = 16
 // raised here, before any intent is written, where the reducer queue owns a
 // real dead letter. It is not retryable: a retry rebuilds the same scope from
 // the same facts.
+//
+// Production does not reach this yet: the git collector emits no
+// code_call_materialization marker on a delta generation until #10049, so the
+// fence is a guard placed ahead of that change.
+//
+// It wraps a projector/failure InputValidationError so the dead-letter triage
+// details say triage=input_invalid (a collector repository fact the reducer
+// cannot scope) instead of the projection_bug fallback. The durable
+// failure_class column still carries [DeltaScopeUnusableFailureClass].
 type deltaScopeUnusableError struct {
 	scopeID      string
 	generationID string
 	// entries are "repo=reason" pairs, sorted by repository.
 	entries []string
+	// cause classifies the failure as invalid input for dead-letter triage.
+	cause *projfailure.InputValidationError
 }
 
 func (e deltaScopeUnusableError) Error() string {
@@ -61,6 +73,15 @@ func (e deltaScopeUnusableError) Error() string {
 			"refusing a whole-repository CALLS retract with delta-only rows, edges wait for the next full generation",
 		e.scopeID, e.generationID, strings.Join(named, ", "), suffix,
 	)
+}
+
+// Unwrap returns the input-validation cause so errors.As finds it during
+// dead-letter triage.
+func (e deltaScopeUnusableError) Unwrap() error {
+	if e.cause == nil {
+		return nil
+	}
+	return e.cause
 }
 
 // Retryable reports false: the unusable scope is a property of the
@@ -114,6 +135,7 @@ func failClosedOnUnusableDeltaScopes(
 		generationID: intent.GenerationID,
 		entries:      entries,
 	}
+	err.cause = projfailure.NewInputValidationError(err.Error())
 	named := entries
 	if len(named) > maxDeltaScopeUnusableNamedRepos {
 		named = named[:maxDeltaScopeUnusableNamedRepos]

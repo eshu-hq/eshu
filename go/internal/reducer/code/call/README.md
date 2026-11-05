@@ -32,9 +32,9 @@ its own leaf under `code/call` (`golang`, `java`, `jvm`, `kotlin`, `groovy`,
 | `relationship.go` | Relationship-type classification, row dedup keys |
 | `instantiates.go` | `INSTANTIATES` edge emission |
 | `intents.go` | `BuildSharedIntentRows`, `BuildRefreshIntentsWithDeltaFileScopes`, partition keys, `RepoRefreshEvidenceSource` |
-| `delta_scope.go` | Delta-generation file scopes, the delta repository set, and the closed `DeltaScopeUnusableReason` set (#10023) |
+| `delta_scope.go` | Delta-generation file scopes, the unusable-scope reasons, and the closed `DeltaScopeUnusableReason` set (#10023) |
 | `delta_partitions.go` | File-scoped delta partition derivation |
-| `file_scope.go` | `BuildFileScopesByRepoID` (`FileScopeBuildResult`: scopes, full-refresh counts, `DeltaRepositoryIDs`, `UnusableDeltaScopes`), `AcceptanceScanLimit` |
+| `file_scope.go` | `BuildFileScopesByRepoID` (`FileScopeBuildResult`: scopes, full-refresh counts, `UnusableDeltaScopes`), `AcceptanceScanLimit` |
 | `doc.go` | Package contract |
 
 ## Seams the reducer root uses
@@ -60,9 +60,9 @@ its own leaf under `code/call` (`golang`, `java`, `jvm`, `kotlin`, `groovy`,
 
 ## Delta repositories with an unusable scope (#10023)
 
-Membership in `FileScopeBuildResult.DeltaRepositoryIDs`, not the presence of a
-scope, marks a repository as being on a delta generation. A delta repository
-whose changed paths cannot be qualified (no local path, an unnormalizable path,
+A repository whose repository fact carries `delta_generation` is on a delta
+generation whether or not its scope is usable. A delta repository whose
+changed paths cannot be qualified (no local path, an unnormalizable path,
 or no changed path at all) is listed in `UnusableDeltaScopes` with a bounded
 `DeltaScopeUnusableReason` and is absent from `ScopesByRepoID`. Before #10023
 it was silently dropped, so `BuildRefreshIntentsWithDeltaFileScopes` gave it
@@ -71,10 +71,18 @@ delta's rows only. That builder still treats an unscoped repository as
 whole-scope, so a caller MUST check `UnusableDeltaScopes` first:
 `materialization.Handler` fails the work item closed there.
 
+Reachability: production does not reach this path yet. The git collector
+emits no `code_call_materialization` marker on a delta generation until #10049
+lands, so the fence is a guard placed ahead of that change and its counter
+stays at zero until then.
+
 Self-heal: the graph keeps its existing CALLS edges, and the delta's call
-changes appear by the repository's next full generation (the reconciliation
-sweep, `ESHU_REPO_RECONCILE_INTERVAL_HOURS`, default 24 hours). No repair job
-exists, because nothing was retracted. The code-call reducer owns this path.
+changes appear at the repository's next full generation. With reconciliation
+on, the sweep forces one once the scope has gone
+`ESHU_REPO_RECONCILE_INTERVAL_HOURS` (default 24) without a full observation.
+With `ESHU_REPO_RECONCILE_INTERVAL_HOURS=0` there is no sweep, and the changes
+wait for a reindex request or another full generation. No repair job exists,
+because nothing was retracted. The code-call reducer owns this path.
 
 ## Dependency rule
 

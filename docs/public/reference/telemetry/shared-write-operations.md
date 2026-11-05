@@ -95,20 +95,32 @@ one bounded label, `reason`:
   repository root, or is not in canonical form.
 - `no_changed_paths`: the delta generation carries no changed or deleted path.
 
-A delta generation carries only the changed files' facts, so a
-whole-repository CALLS retract would delete every unchanged file's edge while
-the delta restores only the changed files' edges. Instead, the
-`code_call_materialization` work item fails closed before it writes any shared
-intent. It dead-letters on its first attempt with
-`failure_class=code_call_delta_scope_unusable`. The ERROR log
-`code call delta scope unusable, failing closed` names each repository and its
-reason. The graph keeps its existing CALLS edges, and the delta's call changes
-appear at the next full generation of that repository, at the latest the
-[reconciliation sweep](../reconciliation-sweep.md)
-(`ESHU_REPO_RECONCILE_INTERVAL_HOURS`, default 24 hours). No repair job exists
-or is needed: nothing was retracted, so there are no lost edges to restore. A
-repeat of the same reason on every delta of one repository points at the
-collector's repository fact, usually a missing `local_path`.
+This counter stays at zero today. The git collector does not yet emit the
+`code_call_materialization` marker on a delta generation, so no delta reaches
+this handler. The fence is a guard placed ahead of #10049, which turns that
+marker on.
+
+Once deltas reach the handler, here is what the fence prevents. A delta
+generation carries only the changed files' facts, so a whole-repository CALLS
+retract would delete every unchanged file's edge while the delta restores only
+the changed files' edges. Instead, the `code_call_materialization` work item
+fails closed before it writes any shared intent. It dead-letters on its first
+attempt with `failure_class=code_call_delta_scope_unusable`. The dead-letter
+details carry `triage=input_invalid` and `disposition=non_retryable`. The
+ERROR log `code call delta scope unusable, failing closed` names each
+repository and its reason.
+
+The graph keeps its existing CALLS edges. The delta's call changes appear at
+the repository's next full generation. With reconciliation on, the
+[reconciliation sweep](../reconciliation-sweep.md) forces one on the first
+sync after the scope has gone `ESHU_REPO_RECONCILE_INTERVAL_HOURS` (default
+24) without a full observation. `ESHU_REPO_RECONCILE_MAX_PER_CYCLE` can push
+an overdue scope to a later cycle. With `ESHU_REPO_RECONCILE_INTERVAL_HOURS=0`
+reconciliation is off, and the changes wait for a
+[reindex request](../reconciliation-sweep.md#reindex-requests) or another full
+generation. No repair job exists or is needed, because nothing was retracted.
+After #10049, a repeat of the same reason on every delta of one repository
+points at the collector's repository fact, usually a missing `local_path`.
 
 ## Rollout Validation
 

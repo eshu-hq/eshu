@@ -74,9 +74,6 @@ func TestBuildFileScopesDoesNotReportFullGenerationFallbacks(t *testing.T) {
 	if len(result.UnusableDeltaScopes) != 0 {
 		t.Fatalf("full-generation fallbacks reported as unusable delta scopes: %#v", result.UnusableDeltaScopes)
 	}
-	if len(result.DeltaRepositoryIDs) != 0 {
-		t.Fatalf("full-generation repositories reported as delta: %#v", result.DeltaRepositoryIDs)
-	}
 	if got, want := result.FullRefreshFallbackRepos, 2; got != want {
 		t.Fatalf("FullRefreshFallbackRepos = %d, want %d", got, want)
 	}
@@ -175,11 +172,6 @@ func TestBuildFileScopesReportsUnusableDeltaScopes(t *testing.T) {
 			}
 			if _, ok := result.ScopesByRepoID["repo-b"]; !ok {
 				t.Fatalf("usable delta repository lost its scope: %#v", result.ScopesByRepoID)
-			}
-			for _, repositoryID := range []string{"repo-a", "repo-b"} {
-				if _, ok := result.DeltaRepositoryIDs[repositoryID]; !ok {
-					t.Fatalf("DeltaRepositoryIDs missing %q: %#v", repositoryID, result.DeltaRepositoryIDs)
-				}
 			}
 			if got, want := result.FullRefreshFallbackRepos, 0; got != want {
 				t.Fatalf("FullRefreshFallbackRepos = %d, want %d (delta repositories are not counted)", got, want)

@@ -43,16 +43,11 @@ type FileScopeBuildResult struct {
 	// delta-generation repository whose delta scope is unusable is not counted
 	// here; it is listed in UnusableDeltaScopes instead.
 	FullRefreshFallbackRepos int
-	// DeltaRepositoryIDs holds every repository whose repository fact carried
-	// delta_generation this batch, including those whose delta scope is
-	// unusable. Membership, not the presence of a scope, is what marks a
-	// repository as being on a delta generation: its generation carries the
-	// changed files' facts only, so it must never get a whole-repository
-	// retract (#10023).
-	DeltaRepositoryIDs map[string]struct{}
 	// UnusableDeltaScopes maps each delta-generation repository whose changed
 	// paths could not be qualified into a file scope to the bounded reason.
-	// Such a repository is absent from ScopesByRepoID.
+	// Such a repository is absent from ScopesByRepoID, and it must never get a
+	// whole-repository refresh: its generation carries the changed files'
+	// facts only (#10023).
 	UnusableDeltaScopes map[string]DeltaScopeUnusableReason
 }
 
@@ -78,7 +73,6 @@ func BuildFileScopesByRepoID(envelopes []facts.Envelope) FileScopeBuildResult {
 	if len(deltaScopesByRepoID) == 0 && len(fullScopesByRepoID) == 0 {
 		return FileScopeBuildResult{
 			FullRefreshFallbackRepos: fallbackRepos,
-			DeltaRepositoryIDs:       deltaScopes.repositoryIDs,
 			UnusableDeltaScopes:      deltaScopes.unusableByRepoID,
 		}
 	}
@@ -98,7 +92,6 @@ func BuildFileScopesByRepoID(envelopes []facts.Envelope) FileScopeBuildResult {
 		ScopesByRepoID:           scopesByRepoID,
 		FullRefreshScopedRepos:   len(fullScopesByRepoID),
 		FullRefreshFallbackRepos: fallbackRepos,
-		DeltaRepositoryIDs:       deltaScopes.repositoryIDs,
 		UnusableDeltaScopes:      deltaScopes.unusableByRepoID,
 	}
 }
