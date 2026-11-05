@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/coordinator/vulnerability"
+	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
 func (s Service) recordReconcile(ctx context.Context, observation ReconcileObservation) {
@@ -66,6 +67,31 @@ func (s Service) recordEPSSDerived(ctx context.Context, observation vulnerabilit
 	s.Metrics.RecordEPSSDerivedPage(ctx, EPSSDerivedObservation{
 		PlannedTargets: observation.Targets,
 		Skipped:        observation.Skipped,
+	})
+}
+
+// recordOwnedDerivedPage records the owned-package derivation of one plan
+// (eshu-hq/eshu#9287 criterion 4): the read's selected targets per ecosystem
+// plus the owned-package skip evidence of the same plan. Counts only, never
+// package names.
+func (s Service) recordOwnedDerivedPage(
+	ctx context.Context,
+	instance workflow.CollectorInstance,
+	page workflow.OwnedPackageDependencyTargetPage,
+	observation vulnerability.IntelligenceDerivationObservation,
+) {
+	if s.Metrics == nil {
+		return
+	}
+	ecosystems, selected := page.SelectedByEcosystem()
+	counts := make(map[string]int, len(ecosystems))
+	for i, ecosystem := range ecosystems {
+		counts[ecosystem] = selected[i]
+	}
+	s.Metrics.RecordOwnedDerivedPage(ctx, OwnedDerivedObservation{
+		CollectorInstanceID: instance.InstanceID,
+		Selected:            counts,
+		Skipped:             observation.Skipped,
 	})
 }
 

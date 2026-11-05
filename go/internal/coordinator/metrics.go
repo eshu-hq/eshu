@@ -64,6 +64,10 @@ type Metrics interface {
 	// (#9876): planned first_epss targets and per-reason skip evidence.
 	// Counts only, never CVE ids.
 	RecordEPSSDerivedPage(context.Context, EPSSDerivedObservation)
+	// RecordOwnedDerivedPage records one in-tree owned-package planning pass
+	// (#9287): selected targets per ecosystem and per-reason skip evidence.
+	// Counts only, never package names.
+	RecordOwnedDerivedPage(context.Context, OwnedDerivedObservation)
 	// RecordOwnedTargetRotation records the owned-package rotation period one
 	// derivation read reported against its freshness bound (#9775), so an
 	// operator reads a lagging rotation from a gauge instead of a trace.
@@ -143,6 +147,9 @@ type otelMetrics struct {
 
 	epssDerivedAdmittedTotal metric.Int64Counter
 	epssDerivedSkippedTotal  metric.Int64Counter
+
+	ownedDerivedSelectedTotal metric.Int64Counter
+	ownedDerivedSkippedTotal  metric.Int64Counter
 
 	// ownedRotation serves the #9775 owned-target rotation freshness gauges.
 	ownedRotation *ownedTargetRotationGauges
@@ -234,36 +241,6 @@ func newFreshnessReapInstruments(meter metric.Meter) (freshnessReapMetricInstrum
 	}, nil
 }
 
-// reapMetricInstruments holds the expired-claim reap counter and histogram
-// registered by newReapInstruments. Splitting this pair out of NewMetrics
-// keeps that function under the repo's funlen limit, mirroring
-// newFreshnessReapInstruments.
-type reapMetricInstruments struct {
-	total    metric.Int64Counter
-	duration metric.Float64Histogram
-}
-
-// newReapInstruments registers the expired-claim reap counter and histogram.
-func newReapInstruments(meter metric.Meter) (reapMetricInstruments, error) {
-	reapTotal, err := meter.Int64Counter(
-		MetricPrefix+"reap_total",
-		metric.WithDescription("Total workflow coordinator expired-claim reap passes"),
-	)
-	if err != nil {
-		return reapMetricInstruments{}, fmt.Errorf("register reap total counter: %w", err)
-	}
-	reapDuration, err := meter.Float64Histogram(
-		MetricPrefix+"reap_duration_seconds",
-		metric.WithDescription("Workflow coordinator expired-claim reap duration"),
-		metric.WithUnit("s"),
-		metric.WithExplicitBucketBoundaries(0.001, 0.01, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30),
-	)
-	if err != nil {
-		return reapMetricInstruments{}, fmt.Errorf("register reap duration histogram: %w", err)
-	}
-	return reapMetricInstruments{total: reapTotal, duration: reapDuration}, nil
-}
-
 // NewMetrics registers coordinator-specific OTEL instruments.
 func NewMetrics(meter metric.Meter) (Metrics, error) {
 	if meter == nil {
@@ -328,6 +305,11 @@ func NewMetrics(meter metric.Meter) (Metrics, error) {
 		return nil, err
 	}
 
+	ownedDerived, err := newOwnedDerivedInstruments(meter)
+	if err != nil {
+		return nil, err
+	}
+
 	ownedRotation, err := newOwnedTargetRotationGauges(meter)
 	if err != nil {
 		return nil, err
@@ -367,6 +349,9 @@ func NewMetrics(meter metric.Meter) (Metrics, error) {
 
 		epssDerivedAdmittedTotal: epssDerived.admittedTotal,
 		epssDerivedSkippedTotal:  epssDerived.skippedTotal,
+
+		ownedDerivedSelectedTotal: ownedDerived.selectedTotal,
+		ownedDerivedSkippedTotal:  ownedDerived.skippedTotal,
 	}
 
 	if err := registerCoordinatorGauges(meter, recorder); err != nil {
