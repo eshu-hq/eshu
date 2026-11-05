@@ -93,27 +93,58 @@ out="$(STUB_DRAIN_1=x "${script}" drain 2>&1 || true)"
 check_contains "drain-refuses-garbage" "unreadable drain counts" "${out}"
 rm -rf "${w}"
 
-# snapshot writes items, fences, and hashes; refuses existing dir,
-# an unfrozen tree, an undrained tree, and an empty handover.
+# snapshot writes items, fences, seed input, and hashes after a freeze;
+# it refuses an existing dir, an unfrozen or undrained tree, an empty
+# handover, and a second snapshot on one freeze (record already bound).
 world; w="${WORLD_DIR}"
 snap="${w}/snap"
-out="$(STUB_SPEC=0 STUB_STATUS="" "${script}" snapshot --snapshot "${snap}")"
+"${script}" freeze >/dev/null
+out="$("${script}" snapshot --snapshot "${snap}")"
 check_contains "snapshot-msg" "snapshot:" "${out}"
 check "snapshot-items" "item-a	3	claim-a	claimed" "$(sed -n '1p' "${snap}/items.tsv")"
 check "snapshot-fences" "gen-1	item-a	3" "$(sed -n '1p' "${snap}/fences.tsv")"
 check "snapshot-seed-tsv" "$(printf 'item-a\t3\nitem-b\t7')" "$(cat "${snap}/seed.tsv")"
 (cd "${snap}" && sha256sum -c sha256sums >/dev/null) && pass "snapshot-hash" || fail "snapshot-hash"
-out="$(STUB_SPEC=0 STUB_STATUS="" "${script}" snapshot --snapshot "${snap}" 2>&1 || true)"
+check "snapshot-binds-record" "$(printf '2\n%s' "${snap}")" "$(cat "${w}/state/replicas")"
+out="$("${script}" snapshot --snapshot "${snap}" 2>&1 || true)"
 check_contains "snapshot-refuses-existing" "refusing to overwrite" "${out}"
-out="$("${script}" snapshot --snapshot "${snap}-x" 2>&1 || true)"
+out="$("${script}" snapshot --snapshot "${snap}-again" 2>&1 || true)"
+check_contains "snapshot-refuses-rebind" "already bound" "${out}"
+rm -rf "${w}"
+
+world; w="${WORLD_DIR}"
+out="$("${script}" snapshot --snapshot "${w}/snap" 2>&1 || true)"
 check_contains "snapshot-needs-freeze" "not frozen" "${out}"
-out="$(STUB_SPEC=0 STUB_STATUS=0 "${script}" snapshot --snapshot "${snap}-z0" 2>&1 || true)"
+rm -rf "${w}"
+
+# Frozen shapes without a kubectl round-trip: a prior freeze record plus
+# the frozen jsonpath shape (empty or zero status) snapshots fine, while a
+# terminating shape (pods still present) refuses.
+world; w="${WORLD_DIR}"
+snap="${w}/snap"
+printf '2\n' >"${w}/state/replicas"
+out="$(STUB_SPEC=0 STUB_STATUS=0 "${script}" snapshot --snapshot "${snap}")"
 check_contains "snapshot-frozen-zero-status" "snapshot:" "${out}"
+rm -rf "${w}"
+
+world; w="${WORLD_DIR}"
+snap="${w}/snap"
+printf '2\n' >"${w}/state/replicas"
 out="$(STUB_SPEC=0 STUB_STATUS=1 "${script}" snapshot --snapshot "${snap}-t" 2>&1 || true)"
 check_contains "snapshot-refuses-terminating" "not frozen" "${out}"
-out="$(STUB_SPEC=0 STUB_STATUS="" STUB_DRAIN_1=1 "${script}" snapshot --snapshot "${snap}-y" 2>&1 || true)"
+rm -rf "${w}"
+
+world; w="${WORLD_DIR}"
+snap="${w}/snap"
+"${script}" freeze >/dev/null
+out="$(STUB_DRAIN_1=1 "${script}" snapshot --snapshot "${snap}" 2>&1 || true)"
 check_contains "snapshot-needs-drain" "not drained" "${out}"
-out="$(STUB_SPEC=0 STUB_STATUS="" STUB_ITEMS_EMPTY=1 "${script}" snapshot --snapshot "${snap}-z" 2>&1 || true)"
+rm -rf "${w}"
+
+world; w="${WORLD_DIR}"
+snap="${w}/snap"
+"${script}" freeze >/dev/null
+out="$(STUB_ITEMS_EMPTY=1 "${script}" snapshot --snapshot "${snap}" 2>&1 || true)"
 check_contains "snapshot-refuses-empty" "empty items snapshot" "${out}"
 rm -rf "${w}"
 
@@ -121,6 +152,7 @@ rm -rf "${w}"
 # matched/missing and refuses unmigrated items.
 world; w="${WORLD_DIR}"
 snap="${w}/snap"
+printf '0\n' >"${w}/state/replicas"
 STUB_SPEC=0 STUB_STATUS="" "${script}" snapshot --snapshot "${snap}" >/dev/null
 out="$("${script}" seed --snapshot "${snap}" 2>&1 || true)"
 check_contains "seed-needs-yes" "pass --yes" "${out}"
@@ -131,6 +163,7 @@ rm -rf "${w}"
 
 world; w="${WORLD_DIR}"
 snap="${w}/snap"
+printf '0\n' >"${w}/state/replicas"
 STUB_SPEC=0 STUB_STATUS="" "${script}" snapshot --snapshot "${snap}" >/dev/null
 out="$("${script}" seed --snapshot "${snap}" --yes)"
 check_contains "seed-report" "2 items at or above" "${out}"
@@ -146,6 +179,7 @@ rm -rf "${w}"
 # verify is green on a full match and red otherwise.
 world; w="${WORLD_DIR}"
 snap="${w}/snap"
+printf '0\n' >"${w}/state/replicas"
 STUB_SPEC=0 STUB_STATUS="" "${script}" snapshot --snapshot "${snap}" >/dev/null
 export HANDOVER_SAT_PGHOST=sat-host HANDOVER_SAT_PGUSER=sat-u HANDOVER_SAT_PGDATABASE=sat-db
 out="$("${script}" verify --snapshot "${snap}")"
@@ -154,18 +188,22 @@ out="$(STUB_MATCHED=1 "${script}" verify --snapshot "${snap}" 2>&1 || true)"
 check_contains "verify-red-count" "verify FAILED" "${out}"
 rm -rf "${w}"
 
-# abort restores replicas from the freeze record and refuses a blind scale-up.
+# abort restores replicas from the freeze record bound to the snapshot dir,
+# clears the record, and refuses blind or foreign scale-ups.
 world; w="${WORLD_DIR}"
 snap="${w}/snap"
 mkdir -p "${snap}"
-printf '2\n' >"${w}/state/replicas"
+printf '2\n%s\n' "${snap}" >"${w}/state/replicas"
 out="$("${script}" abort --snapshot "${snap}")"
 check_contains "abort-msg" "restored to 2 replicas" "${out}"
 check_contains "abort-scale-call" --replicas=2 "$(cat "${w}/state/scale.log")"
 [[ -f "${snap}/abort.log" ]] && pass "abort-recorded" || fail "abort-recorded"
-rm -rf "${w}/state/replicas"
+[[ ! -e "${w}/state/replicas" ]] && pass "abort-clears-record" || fail "abort-clears-record"
 out="$("${script}" abort --snapshot "${snap}" 2>&1 || true)"
 check_contains "abort-refuses-blind" "no freeze record" "${out}"
+printf '2\n%s\n' "${snap}-other" >"${w}/state/replicas"
+out="$("${script}" abort --snapshot "${snap}" 2>&1 || true)"
+check_contains "abort-refuses-foreign" "belongs to another snapshot" "${out}"
 rm -rf "${w}"
 
 # run composes freeze, drain, snapshot, seed, verify and needs --yes.

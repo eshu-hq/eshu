@@ -164,6 +164,17 @@ cmd_freeze() {
 		"${NAMESPACE}" "${DEPLOY}" "${prior}" "${HANDOVER_STATE_FILE:-/tmp/handover-replicas}"
 }
 
+# bind_record appends the snapshot dir to the freeze record so abort can
+# refuse a record that belongs to another handover (see #10173).
+bind_record() { # dir
+	local state record_n
+	state="${HANDOVER_STATE_FILE:-/tmp/handover-replicas}"
+	[[ -f "${state}" ]] || fail "no freeze record at ${state}; freeze first"
+	record_n="$(wc -l <"${state}" | tr -d ' ')"
+	[[ "${record_n}" == "1" ]] || fail "freeze record already bound; refusing a second snapshot on one freeze"
+	printf '%s\n' "$1" >>"${state}"
+}
+
 # drain_counts prints "claims items" from drain.sql (two result sets).
 drain_counts() {
 	psql_core "${sql_drain}" | tr '\n' ' '
@@ -226,6 +237,7 @@ cmd_snapshot() {
 	LC_ALL=C psql_core "${sql_fences}" >"${dir}/fences.tsv"
 	[[ -s "${dir}/items.tsv" ]] || fail "empty items snapshot; refusing an empty handover"
 	LC_ALL=C cut -d "$(printf '\t')" -f1,2 "${dir}/items.tsv" >"${dir}/seed.tsv"
+	bind_record "${dir}"
 	(cd "${dir}" && "${SHA}" items.tsv fences.tsv seed.tsv >sha256sums)
 	printf 'snapshot: %s (%s item rows, hash %s)\n' "${dir}" \
 		"$(wc -l <"${dir}/items.tsv" | tr -d ' ')" \
@@ -328,12 +340,16 @@ cmd_abort() {
 	[[ -n "${dir}" ]] || fail "abort needs --snapshot DIR for the record"
 	local state="${HANDOVER_STATE_FILE:-/tmp/handover-replicas}"
 	[[ -f "${state}" ]] || fail "no freeze record at ${state}; refusing blind scale-up"
-	local prior
-	prior="$(cat "${state}")"
+	local prior bound
+	prior="$(sed -n '1p' "${state}")"
+	bound="$(sed -n '2p' "${state}")"
 	[[ "${prior}" =~ ^[1-9][0-9]*$ ]] || fail "bad freeze record: ${prior}"
+	[[ "${bound}" == "${dir}" ]] ||
+		fail "freeze record belongs to another snapshot (want ${dir}); restore replicas with kubectl scale first"
 	"${KUBECTL}" --request-timeout="${KUBECTL_TIMEOUT}" -n "${NAMESPACE}" \
 		scale deployment "${DEPLOY}" --replicas="${prior}" >/dev/null ||
 		fail "scale back to ${prior} failed"
+	rm -f "${state}"
 	printf 'aborted at %s (pre-flip; satellite seeds inert): %s/%s restored to %s replicas\n' \
 		"$(date -u +%FT%TZ)" "${NAMESPACE}" "${DEPLOY}" "${prior}" | tee -a "${dir}/abort.log"
 }

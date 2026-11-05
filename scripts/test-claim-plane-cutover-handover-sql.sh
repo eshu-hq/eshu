@@ -113,7 +113,9 @@ q postgres "UPDATE workflow_claims SET lease_expires_at = now() - interval '1 mi
 "${handover}" drain >/dev/null && pass "drain-quiet" || mismatch "drain-quiet" "exit 0" "exit 1"
 
 # Snapshot through the real script: exact 4-column items, fences, and the
-# 2-column seed input cut from the real items output.
+# 2-column seed input cut from the real items output. The fake kubectl
+# reports frozen without a freeze command, so plant the matching record.
+printf '0\n' >"${work}/replicas"
 "${handover}" snapshot --snapshot "${snap}" >/dev/null
 check "snapshot-items" "$(printf 'item-a\t3\tclaim-a\tclaimed\nitem-b\t7\t\tpending\nitem-c\t1\t\tpending')" "$(cat "${snap}/items.tsv")"
 check "snapshot-fences" "$(printf 'gen-1\titem-a\t3')" "$(cat "${snap}/fences.tsv")"
