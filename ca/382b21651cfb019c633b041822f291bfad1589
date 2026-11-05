@@ -1,0 +1,41 @@
+.github/workflows/reducer-contention-gate.yml
+  s_7547c0f0af67d4::t_8fc4a69d43ca30 406-407,410
+docs/internal/evidence/9874-lockfile-retrigger.md
+  s_7547c0f0af67d4::t_89e56f32a3b176 293-314
+go/internal/reducer/supply_chain_impact_manifest_runtime_test.go
+  s_7547c0f0af67d4::t_0f23692f5966ca 22-25
+go/internal/reducer/supplychain/core/HOLDER_FANOUT.md
+  s_7547c0f0af67d4::t_8a414bc7c4a92d 156-173
+go/internal/reducer/supplychain/core/README.md
+  s_7547c0f0af67d4::t_9feca6623f9927 377
+go/internal/reducer/supplychain/core/manifest_inflight_test.go
+  s_7547c0f0af67d4::t_5f54f226b6ef67 91-93,133-160
+go/internal/reducer/supplychain/core/manifest_trigger.go
+  s_7547c0f0af67d4::t_e93a9429a4c8c8 121-127,213-215
+go/internal/reducer/supplychain/core/manifest_trigger_test.go
+  s_7547c0f0af67d4::t_ad58e7319826ad 10,30-48
+go/internal/storage/postgres/supply_chain_impact_manifest_chain_live_test.go
+  s_7547c0f0af67d4::t_dc6d543eec0061 452-538
+go/internal/storage/postgres/supply_chain_impact_manifest_stamp.go
+  s_7547c0f0af67d4::t_61ca6c836ea921 10,63-82
+go/internal/storage/postgres/supply_chain_impact_manifest_stamp_test.go
+  s_7547c0f0af67d4::t_829bf96040a790 1-33
+scripts/lib/reducer_contention_inventory.json
+  s_7547c0f0af67d4::t_2d06135ca407e1 228
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ca382b21651cfb019c633b041822f291bfad1589",
+  "prompts": {},
+  "sessions": {
+    "s_7547c0f0af67d4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7c8b2d5-3286-4c2a-be1f-589162535d83",
+        "model": "unknown"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
