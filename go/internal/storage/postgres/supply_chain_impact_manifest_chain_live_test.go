@@ -397,3 +397,142 @@ func TestManifestChainPrunedGenerationsLive(t *testing.T) {
 			got.Degraded, got.HasBaseline, len(got.Chain))
 	}
 }
+
+// TestManifestMarkerFlagsAnInFlightScopeWithNoRowsLive is the #10105 review P2
+// regression on a real queue: an advisory scope whose pass is running and has
+// committed no affected_package rows yet is invisible to the package-keyed
+// holder read, so the marker pass must find it through the in-flight read and
+// set its replay flag.
+func TestManifestMarkerFlagsAnInFlightScopeWithNoRowsLive(t *testing.T) {
+	ctx, db := fanOutLiveDB(t)
+	manifestLiveSeedGitScope(t, ctx, db, "gen-2",
+		manifestLiveGeneration{id: "gen-1", status: "superseded", commit: "c1", activated: true, ingested: manifestLiveAt(1)},
+		manifestLiveGeneration{id: "gen-2", status: "active", commit: "c2", activated: true, ingested: manifestLiveAt(2)},
+	)
+	manifestLiveSeedFact(t, ctx, db, manifestLiveGitScope, "gen-1", manifestLiveRepository("repo-1", false))
+	manifestLiveSeedFact(t, ctx, db, manifestLiveGitScope, "gen-2", manifestLiveRepository("repo-2", false))
+	manifestLiveSeedFact(t, ctx, db, manifestLiveGitScope, "gen-2", manifestLiveDependency("g2-lodash", "package-lock.json", "lodash", "4.17.21"))
+	manifestLiveSeedMarker(t, ctx, db, "gen-1", "succeeded", true)
+	markerID := manifestLiveSeedMarker(t, ctx, db, "gen-2", "pending", false)
+
+	// The advisory scope's first pass is running and has written nothing.
+	loading := "vuln-intel://osv/loading"
+	fanOutSeedScope(t, ctx, db, loading, "g1")
+	loadingID := fanOutSeedItem(t, ctx, db, loading, "g1")
+	if _, err := db.ExecContext(ctx, `UPDATE fact_work_items SET status = 'running', lease_owner = 'other-worker',
+  claim_until = now() + interval '5 minutes' WHERE work_item_id = $1`, loadingID); err != nil {
+		t.Fatalf("mark advisory pass running: %v", err)
+	}
+
+	intent, ok, err := fanOutLiveQueue(db).Claim(ctx)
+	if err != nil || !ok || intent.IntentID != markerID {
+		t.Fatalf("Claim() = %q, %v, %v; want the marker item %q", intent.IntentID, ok, err, markerID)
+	}
+	handler := supplychaincore.SupplyChainImpactHandler{
+		FencingTokenIssuer: manifestLiveNoToken{t: t},
+		FactLoader:         manifestLiveNoLoad{t: t},
+		Writer:             manifestLiveNoWrite{t: t},
+		FanOut:             fanOutLiveStore(db),
+	}
+	if _, err := handler.Handle(ctx, intent); err != nil {
+		t.Fatalf("Handle() error = %v", err)
+	}
+	var flagged bool
+	if err := db.QueryRowContext(ctx, `SELECT cross_scope_replay_required FROM fact_work_items WHERE work_item_id = $1`,
+		loadingID).Scan(&flagged); err != nil {
+		t.Fatalf("read replay flag: %v", err)
+	}
+	if !flagged {
+		t.Fatal("the in-flight advisory pass with no committed rows was not flagged for a rerun")
+	}
+	if !manifestLivePayloadHasStamp(t, ctx, db, markerID) {
+		t.Fatal("the marker pass did not stamp after its last chunk")
+	}
+}
+
+// manifestLiveSeedOtherGitScope seeds a second git scope with one active
+// generation holding a dependency row and a pending marker item, and returns
+// the marker's work item id.
+func manifestLiveSeedOtherGitScope(t *testing.T, ctx context.Context, db *sql.DB, scope string) string {
+	t.Helper()
+	fanOutSeedScope(t, ctx, db, scope, "g1")
+	generation := fanOutGen(scope, "g1")
+	manifestLiveSeedFact(t, ctx, db, scope, generation, manifestLiveRepository(scope+"-repo", false))
+	manifestLiveSeedFact(t, ctx, db, scope, generation, manifestLiveDependency(scope+"-lodash", "package-lock.json", "lodash", "4.17.21"))
+	id := fanOutSeedItemAt(t, ctx, db, scope, generation)
+	if _, err := db.ExecContext(ctx, `UPDATE fact_work_items
+SET payload = payload || jsonb_build_object('`+supplychaincore.PayloadKeyTrigger+`', '`+supplychaincore.TriggerManifestDependency+`')
+WHERE work_item_id = $1`, id); err != nil {
+		t.Fatalf("mark %s as a manifest marker: %v", id, err)
+	}
+	return id
+}
+
+// TestTwoConcurrentMarkersConvergeLive is the security review's livelock
+// regression on a real queue: two git scopes each have a marker claimed at
+// the same time. Each pass runs while the other is still in flight. If a
+// marker flagged in-flight markers, every round would flag the other and both
+// would return to pending forever. Markers are not holders, so the queue
+// drains in one round of two passes; the test allows four rounds and fails
+// past them.
+func TestTwoConcurrentMarkersConvergeLive(t *testing.T) {
+	ctx, db := fanOutLiveDB(t)
+	markers := map[string]string{}
+	for _, scope := range []string{"git-repo-a", "git-repo-b"} {
+		markers[manifestLiveSeedOtherGitScope(t, ctx, db, scope)] = scope
+	}
+	handler := supplychaincore.SupplyChainImpactHandler{
+		FencingTokenIssuer: manifestLiveNoToken{t: t},
+		FactLoader:         manifestLiveNoLoad{t: t},
+		Writer:             manifestLiveNoWrite{t: t},
+		FanOut:             fanOutLiveStore(db),
+	}
+	queue := fanOutLiveQueue(db)
+	passes := 0
+	for round := 1; ; round++ {
+		if round > 4 {
+			t.Fatalf("markers still requeued after %d rounds (%d passes): marker-to-marker replay does not converge", round-1, passes)
+		}
+		var claimed []reducercontract.Intent
+		for range 2 {
+			intent, ok, err := queue.Claim(ctx)
+			if err != nil {
+				t.Fatalf("Claim() error = %v", err)
+			}
+			if !ok {
+				break
+			}
+			if _, isMarker := markers[intent.IntentID]; !isMarker {
+				t.Fatalf("claimed %s, which is not a marker", intent.IntentID)
+			}
+			claimed = append(claimed, intent)
+		}
+		if len(claimed) == 0 {
+			break
+		}
+		// Every claimed marker runs before any acknowledges, so each sees the
+		// others in flight.
+		results := make([]reducercontract.Result, len(claimed))
+		for i, intent := range claimed {
+			result, err := handler.Handle(ctx, intent)
+			if err != nil {
+				t.Fatalf("Handle(%s) error = %v", intent.IntentID, err)
+			}
+			results[i] = result
+			passes++
+		}
+		for i, intent := range claimed {
+			if err := queue.Ack(ctx, intent, results[i]); err != nil {
+				t.Fatalf("Ack(%s) error = %v", intent.IntentID, err)
+			}
+		}
+	}
+	if passes != 2 {
+		t.Fatalf("passes = %d, want 2: one per marker, no replay between markers", passes)
+	}
+	for id := range markers {
+		if !manifestLivePayloadHasStamp(t, ctx, db, id) {
+			t.Fatalf("marker %s finished without its completion stamp", id)
+		}
+	}
+}

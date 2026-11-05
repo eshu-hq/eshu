@@ -131,10 +131,16 @@ it to `handleManifestTrigger` before the fencing token and the evidence load
    a pruned W, every current pin counts (`manifest_trigger_baseline_degraded`);
    a pruned intermediate is skipped (`manifest_trigger_chain_pruned`).
    Tombstoned rows always count.
-3. Reads the active `vulnerability.affected_package` identities in those
-   ecosystems (`FindPackageHolderCandidates`) and keeps the scopes whose
-   identity shares a consumption key with a changed dependency, the findings
-   pass's own join.
+3. When a package changed, reads the in-flight `supply_chain_impact` scopes
+   FIRST (`FindInFlightNonMarkerScopes`), then the active `vulnerability.affected_package`
+   identities in those ecosystems (`FindPackageHolderCandidates`), and keeps
+   the in-flight scopes plus the scopes whose identity shares a consumption key
+   with a changed dependency, the findings pass's own join. The order is the
+   CVE fan-out's: a pass still claimed or running at the first read is flagged
+   for one rerun (it may have loaded evidence before this generation's manifest
+   rows were visible, and with no committed affected_package rows yet the
+   holder read cannot see it); one that acknowledged earlier committed its rows
+   first, so the holder read sees it (#10105 review P2).
 4. Reopens them through `ReopenHolder` with the same cap and continuation list
    as the CVE fan-out, under `cause="manifest_dependency"`. A reopened holder
    re-derives its findings from the current manifest rows, which adds,
@@ -147,8 +153,24 @@ it to `handleManifestTrigger` before the fencing token and the evidence load
 
 A marker item reopened by another pass's fan-out is not a one-hop no-op: its
 re-derivation is the holder fan-out, so it re-reads the generation and reopens
-the holders again. That terminates, because a holder pass that changes nothing
-fans out nothing.
+the holders again.
+
+Termination. The marker's in-flight read leaves markers out
+(`FindInFlightNonMarkerScopes`: a claimed or running item whose payload carries
+`trigger: manifest_dependency`), and its holder read returns only scopes with
+affected-package rows, which a git scope never holds. So a marker never reopens
+or flags another marker. Without that exclusion two markers in flight at once
+flagged each other on every round, forever
+(`TestTwoConcurrentMarkersConvergeLive` failed with 8 passes over 4 rounds and
+never drained). What a marker does reopen is advisory or other non-marker
+scopes, stamped with its origin: a reopened succeeded item and a flagged
+running item both rerun once as a one-hop pass, which re-derives its findings
+and fans out nothing. A marker can be flagged by a CVE fan-out (that path's
+in-flight read is unchanged and still includes markers), but the marker's
+rerun only reopens non-markers one hop, so the chain is CVE pass, marker
+rerun, one-hop holder reruns, and it stops. An in-flight non-marker holder
+pass still gets exactly what the CVE path gives it: one replay of its pass
+after it acknowledges.
 
 Not reopened: security alert scopes. They build findings from manifest
 consumptions too (`appendSecurityAlertImpactFindings`), but the holder read

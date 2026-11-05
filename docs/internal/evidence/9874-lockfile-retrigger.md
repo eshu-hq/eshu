@@ -39,7 +39,11 @@ intermediates (`TestManifestChainDepthCapBoundaryLive` pins both sides); over th
 (`manifest_trigger_chain_pruned`). With no stamped W, every pin in any view of
 the chain counts. A dependency's signature is every field it carries except
 `FactID` and `ObservedAt`, so a scope or direct/transitive flip at the same
-version counts; tombstoned rows always count; (3) reads the active `vulnerability.affected_package` identities whose
+version counts; tombstoned rows always count; (3) when a package changed, reads the in-flight `supply_chain_impact`
+scopes first (`FindInFlightNonMarkerScopes`: the CVE fan-out's order, minus
+marker scopes; added by the #10105 review fix) and unions them into the
+holders, then reads the active
+`vulnerability.affected_package` identities whose
 stored ecosystem spelling is any alias of those ecosystems
 (`packageidentity.EcosystemAliases`; GitLab Gemnasium stores raw slugs such as
 `go` and `gem`) and keeps the scopes that share a consumption key with a
@@ -270,6 +274,53 @@ window is likewise missed (`sub_signal_manifest_trigger_baseline_degraded=1`).
 The repository-keyed reopen that closes both is tracked in the follow-up issue
 #10059.
 
+## In-flight holders (#10105 review P2)
+
+The first merge read holders only from committed active-generation
+affected-package rows, so an advisory scope whose first evidence-bearing pass
+loaded before the manifest commit, and had committed no rows yet, was never
+reopened and stayed stale until its next generation. The marker pass now reads
+`FindInFlightNonMarkerScopes` before `FindPackageHolderCandidates` and unions the
+in-flight scopes (own scope excluded) into the holders, so such a pass is
+flagged for one rerun through `ReopenHolder`. An in-flight read failure fails
+the pass retryably and counts `read_timeout` or `read_error` under
+`cause="manifest_dependency"`. Proof:
+`TestManifestTriggerReopensAnInFlightHolderWithNoCommittedRows` (failed first:
+nothing reopened; read order pinned), the union and failure tests in
+`manifest_inflight_test.go`, and `TestManifestMarkerFlagsAnInFlightScopeWithNoRowsLive`
+on a real queue. Dropping the union fails the unit and live tests; swapping the
+read order fails the order assertion.
+
+Markers are left out of that in-flight set (security review of the fix): the
+marker reads `FindInFlightNonMarkerScopes`, the CVE path's in-flight query
+derived from the shipped constant plus `COALESCE(payload->>'trigger','') <>
+'manifest_dependency'`. A marker loads no evidence and writes no findings, so it
+is never a holder, and with the unfiltered read two markers in flight at once
+flagged each other on every round: `TestTwoConcurrentMarkersConvergeLive` (two
+markers claimed together, each handled before either acknowledges) failed with
+8 passes over 4 rounds without draining, and passes now in one round of 2
+passes, both stamped. `TestManifestTriggerNeverFlagsAnotherInFlightMarker` pins
+the same at unit level and
+`TestFindInFlightNonMarkerScopesQueryDerivesFromTheInFlightQuery` guards the
+derivation. Mutations: the marker using the unfiltered read, or the store
+query losing the exclusion, fail those tests. What bounds the reopens now: a
+marker reopens only non-marker scopes, each as a one-hop rerun that fans out
+nothing, so one marker pass costs at most its holders plus the non-marker
+passes in flight, once each. The CVE path is unchanged and still flags
+in-flight markers; a flagged marker reruns once and again reopens only
+non-markers one hop, so that chain ends too.
+
+Cost: the marker-free in-flight read still returns every in-flight non-marker
+`supply_chain_impact` scope, not only holders, so a marker pass with changed
+keys also flags passes that hold none of its packages. The set is bounded by the passes in flight at once, that
+is the fleet's `supply_chain_impact` worker slots (`ESHU_REDUCER_WORKERS` per
+reducer, 4 by default), and each flagged pass reruns once. The CVE fan-out
+accepts the same trade. Its measurements apply unchanged because the query is
+the same: 0.089 ms over 36,001 work items with 24 claimed, and a burst of N
+changed passes costing about 2N passes (`9695b-holder-fanout.md`, "In-flight
+read" and "Fleet cost of the in-flight read"). Not re-measured for the marker;
+a no-change marker pass skips both reads.
+
 ## Holders this change does not reopen (F7)
 
 The holder read looks only at `vulnerability.affected_package` facts. Security
@@ -305,6 +356,32 @@ reducer success log. No new instrument.
 
 Performance Evidence: holder-read and generation-read figures above (synthetic,
 PG 18.6, scratch database); predicate microbenchmark above.
+
+## In-flight union and marker exclusion (fix-forward)
+
+No-Regression Evidence: the marker's in-flight read is still one statement on
+the same scan as the shipped in-flight query; the marker exclusion is one
+residual predicate (`COALESCE(work.payload->>'trigger','') <>
+'manifest_dependency'`) evaluated on the claimed/running rows that scan
+already returns, a set bounded by the fleet's `supply_chain_impact` worker
+slots. Measured on the scratch database (PostgreSQL 18.6, 71 `fact_work_items`
+rows, no claimed/running rows): `EXPLAIN (ANALYZE, BUFFERS)` gives the same
+plan nodes and the same buffer count for both forms (execution 0.129 ms
+unfiltered, 0.058 ms marker-free; noise-level at this size, no new index, no
+new statement, no lock, lease, batch, or worker change). Terminal queue
+truth is the live regression: before the exclusion two concurrent markers
+requeued each other (8 passes over 4 rounds, queue not drained); after it
+the queue drains in one round, 2 passes, both markers stamped
+(`TestTwoConcurrentMarkersConvergeLive`). Conflict domain: the
+claimed/running `supply_chain_impact` rows of one marker pass; markers never
+reopen markers, so the reopen cost stays one hop and useful concurrency is
+unchanged.
+
+No-Observability-Change: the marker-free read adds no instrument, span, log
+field, status, or knob. It runs inside the same marker pass, counted by the
+existing `eshu_dp_supply_chain_impact_fanout_total{cause="manifest_dependency"}`
+outcomes and the Postgres query spans named under Telemetry above; a failed
+read is the existing retryable `read_error`/`read_timeout` outcome.
 
 ## Not checked
 
