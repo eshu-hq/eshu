@@ -2352,6 +2352,9 @@ type Instruments struct {
 	// registerVulnerabilitySourceStateInstruments.
 	VulnerabilitySourceStateStaleWritesSkipped metric.Int64Counter
 	VulnerabilitySourceStateWriteFailures      metric.Int64Counter
+	// VulnerabilitySourceStateRefusedCommits counts claims whose generation the
+	// committer refused, labelled by source only (#10037).
+	VulnerabilitySourceStateRefusedCommits metric.Int64Counter
 
 	// VulnerabilitySourceStateLastSuccessClamped counts success rows whose
 	// extension-reported observed time was in the future and was recorded as
@@ -2949,7 +2952,7 @@ type Instruments struct {
 	// collector_kind, source_system, and outcome. It is the per-collector
 	// long-pole signal: sum by (collector_kind) of run duration / count gives
 	// mean run time per family. Outcome values are the bounded
-	// CollectorRunOutcome* constants (success, unchanged, released,
+	// CollectorRunOutcome* constants (success, refused, unchanged, released,
 	// fail_retryable, fail_terminal) so claim-state tables do not need to be
 	// joined to attribute cost. Duration is recorded on every return path
 	// (including failures) via defer so no cycle is silently dropped.
@@ -9160,13 +9163,15 @@ func RegisterFilesByLanguageObservableGauge(inst *Instruments, meter metric.Mete
 }
 
 // registerVulnerabilitySourceStateInstruments registers the #9420
-// host-owned vulnerability source-state counters on inst. The first two are
-// labelled by status (freshness_state) and result (terminal_status) only; the
-// #10008 clamp counter is labelled by source only. The names are literals so
+// host-owned vulnerability source-state counters on inst. The stale-write and
+// write-failure counters are labelled by status (freshness_state) and result
+// (terminal_status) only; the #10008 clamp counter and the #10037 refused-commit
+// counter are labelled by source only. The names are literals so
 // scripts/verify-telemetry-coverage.sh can find them; they equal
 // contract.MetricVulnerabilitySourceStateStaleWritesSkipped,
-// contract.MetricVulnerabilitySourceStateWriteFailures and
-// contract.MetricVulnerabilitySourceStateLastSuccessClamped.
+// contract.MetricVulnerabilitySourceStateWriteFailures,
+// contract.MetricVulnerabilitySourceStateLastSuccessClamped, and
+// contract.MetricVulnerabilitySourceStateRefusedCommits.
 func registerVulnerabilitySourceStateInstruments(meter metric.Meter, inst *Instruments) error {
 	var err error
 	if inst.VulnerabilitySourceStateStaleWritesSkipped, err = meter.Int64Counter(
@@ -9186,6 +9191,12 @@ func registerVulnerabilitySourceStateInstruments(meter metric.Meter, inst *Instr
 		metric.WithDescription("Vulnerability source-state success rows whose extension-reported observed time was later than the host's processing time and was recorded as the processing time, by source (#10008)"),
 	); err != nil {
 		return fmt.Errorf("register VulnerabilitySourceStateLastSuccessClamped counter: %w", err)
+	}
+	if inst.VulnerabilitySourceStateRefusedCommits, err = meter.Int64Counter(
+		"eshu_dp_vulnerability_source_state_refused_commits_total",
+		metric.WithDescription("Claims whose generation the committer refused, so the source keeps its last success, by source (#10037)"),
+	); err != nil {
+		return fmt.Errorf("register VulnerabilitySourceStateRefusedCommits counter: %w", err)
 	}
 	return nil
 }

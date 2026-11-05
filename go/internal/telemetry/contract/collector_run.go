@@ -19,8 +19,8 @@ package contract
 //
 //   - eshu_dp_workflow_claim_run_duration_seconds (collector_kind, source_system,
 //     outcome) — per-collector wall time from claim heartbeat to complete/fail.
-//     Labeled by outcome (success, unchanged, fail_retryable, fail_terminal,
-//     released) so an operator can separate fast-released no-ops from long
+//     Labeled by outcome (success, refused, unchanged, fail_retryable,
+//     fail_terminal, released) so an operator can separate fast-released no-ops from long
 //     successful runs without joining to claim state tables.
 //
 //   - eshu_dp_workflow_claim_facts_emitted_total (collector_kind, source_system)
@@ -42,6 +42,9 @@ const (
 	// CollectorRunOutcomeSuccess is the outcome when a claimed work item was
 	// collected, committed, and its claim completed normally.
 	CollectorRunOutcomeSuccess = "success"
+	// CollectorRunOutcomeRefused is the outcome when the claim completed but
+	// the committer refused its generation, so no facts landed (#10037).
+	CollectorRunOutcomeRefused = "refused"
 	// CollectorRunOutcomeUnchanged is the outcome when a claimed source
 	// reported no new facts (Unchanged == true) and the claim was completed
 	// without a commit.

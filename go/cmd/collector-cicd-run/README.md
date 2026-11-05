@@ -76,6 +76,14 @@ Host-file failures use `auth_denied`; static-token provider failures retain
   `-mode=cassette` credential-free replay path does not use
   `ghactionsruntime.ClaimedSource` at all (see `internal/replay/cassette`),
   so it carries no watermark and needs none.
+- Only the read side of that wiring runs today. `providerRoutedSource` implements
+  only `NextClaimed`, and `ClaimedService` finds its observer hooks by type
+  assertion on its `Source`. So since #5778 this binary has never written
+  `cicd_run_watermarks`, `runs_backfill_gap` never fires, and each claim that
+  fetched a run leaves one staged entry for the life of the process. The
+  refused-commit handling of #10037 therefore does not reach this binary: a
+  refused commit here reports `outcome=refused`, but no observer hears it. #10063
+  tracks forwarding the hooks.
 
 ## Related docs
 

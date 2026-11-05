@@ -66,6 +66,7 @@ const (
 // Claimed-service run outcome and span (from contract/collector_run.go).
 const (
 	CollectorRunOutcomeSuccess       = contract.CollectorRunOutcomeSuccess
+	CollectorRunOutcomeRefused       = contract.CollectorRunOutcomeRefused
 	CollectorRunOutcomeUnchanged     = contract.CollectorRunOutcomeUnchanged
 	CollectorRunOutcomeReleased      = contract.CollectorRunOutcomeReleased
 	CollectorRunOutcomeFailRetryable = contract.CollectorRunOutcomeFailRetryable

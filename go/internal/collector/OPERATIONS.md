@@ -422,9 +422,12 @@ recorded there:
 **`eshu_dp_workflow_claim_run_duration_seconds`** (Float64Histogram)
 - Labels: `collector_kind` (bounded `scope.CollectorKind` constant, e.g. `git`,
   `terraform_state`, `discovery`), `source_system` (e.g. `git`), `outcome`
-  (bounded: `success`, `unchanged`, `released`, `fail_retryable`, `fail_terminal`).
+  (bounded: `success`, `refused`, `unchanged`, `released`, `fail_retryable`,
+  `fail_terminal`). `refused` means the claim completed but the committer stored
+  nothing (#10037).
 - Recorded via `defer` at the top of `processClaimed` so every return path
-  (success, unchanged, released, retryable fail, terminal fail) emits a data point.
+  (success, refused, unchanged, released, retryable fail, terminal fail) emits a
+  data point.
 - **To find the per-collector long pole:** `topk(5, sum by (collector_kind) of
   rate(eshu_dp_workflow_claim_run_duration_seconds_sum[5m]) / sum by
   (collector_kind) of

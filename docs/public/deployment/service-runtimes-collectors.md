@@ -141,6 +141,9 @@ on replay. Larger legacy or unrelated files age by file modification time
 without being decoded. These process-local limits do not
 provide fleet-wide NVD rate pacing.
 
+Known limitation: with `derive_nvd_rolling_windows.enabled`, a record
+rejected after an earlier window carried it stays live until #10042 lands.
+
 When `prometheusMimirCollector.enabled=true`, Helm also passes that collector
 instance JSON, selected instance ID, and referenced secret envs into the API
 Deployment. The API uses the same target to back

@@ -282,17 +282,17 @@ stop deferred maintenance from running while any shard might still be
 mid-ingest, and a timeout or quorum bypass would run maintenance against a
 fleet that has not actually reached a quiescent point — trading correctness
 for liveness. That unbounded wait covers more than a genuinely crashed or
-disconnected shard: a shard that HAS committed at least once and then goes
-idle (its repository partition simply stopped changing) also never arrives
-again, because `everCommitted` latches permanently on that first commit and
-neither `committedSinceDrain` nor the once-per-process startup escape ever
-re-fires for it afterward. That shard is fully healthy, live, and connected
-to Postgres, yet it strands the barrier with no deadline all the same — this
-mechanism cannot distinguish it from a shard that actually crashed; both
-simply never arrive. That ambiguity is observable via the stall-watchdog log
-described below, not eliminated. Changing shard count while an epoch is open
-fails closed; operators should let the current epoch complete before scaling
-charted ingester replicas.
+disconnected shard: a shard that HAS committed at least once and then goes idle
+(its repository partition simply stopped changing), or whose later generations
+are all refused (#10037, #10084), also never arrives again, because
+`everCommitted` latches permanently on that first commit and neither
+`committedSinceDrain` nor the once-per-process startup escape ever re-fires for
+it afterward. That shard is fully healthy, live, and connected to Postgres, yet
+it strands the barrier with no deadline all the same — this mechanism cannot
+distinguish it from a shard that actually crashed; both simply never arrive.
+That ambiguity is observable via the stall-watchdog log described below, not
+eliminated. Changing shard count while an epoch is open fails closed; operators
+should let the current epoch complete before scaling charted ingester replicas.
 
 A shard genuinely stuck in `waitDeferredMaintenanceBarrierCompletion` — dead,
 partitioned, or otherwise never arriving — logs a WARN

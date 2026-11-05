@@ -335,7 +335,8 @@ func (s ClaimedService) processClaimed(ctx context.Context, item workflow.WorkIt
 	}
 	commitMutation := mutation
 	commitMutation.ObservedAt = s.now()
-	if err := s.commitCollected(ctx, commitMutation, collected); err != nil {
+	commitCtx, disposition := WithCommitDisposition(ctx)
+	if err := s.commitCollected(commitCtx, commitMutation, collected); err != nil {
 		err = s.recordGenerationDeadLetter(ctx, collected, "commit_failure", err)
 		// Mirror the NextClaimed path: a commit-side terminal classification
 		// (for example awsruntime stale-fence on CommitAWSScan) must route to
@@ -354,11 +355,9 @@ func (s ClaimedService) processClaimed(ctx context.Context, item workflow.WorkIt
 	}
 	// #5429: give any source-owned post-commit progress marker (for example
 	// ghactionsruntime's cross-cycle run watermark) a chance to advance now
-	// that the commit is durable -- never before, and never on a failed
-	// commit above. See ClaimedGenerationCommitObserver's doc comment.
-	s.observeClaimedGenerationCommitted(ctx, item)
-	// Successful commit: record per-collector fact volume before completing.
-	s.recordClaimFactsEmitted(ctx, item, collected)
+	// that the commit is durable -- never before, never on a failed commit
+	// above, and never on a refused one (#10037).
+	settledOutcome := s.settleClaimedCommit(ctx, item, collected, disposition)
 	completeMutation, err := s.resolvedCompletionMutation(mutation, collected)
 	if err != nil {
 		runOutcome = telemetry.CollectorRunOutcomeFailTerminal
@@ -374,7 +373,10 @@ func (s ClaimedService) processClaimed(ctx context.Context, item workflow.WorkIt
 	if err := s.ControlStore.CompleteClaim(ctx, completeMutation); err != nil {
 		return fmt.Errorf("complete claimed %s work item: %w", s.claimedKindLabel(), err)
 	}
-	runOutcome = telemetry.CollectorRunOutcomeSuccess
+	runOutcome = settledOutcome
+	if _, refused := disposition.Refusal(); refused {
+		return nil
+	}
 	return s.completeGenerationDeadLetterReplay(ctx, collected)
 }
 

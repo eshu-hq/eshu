@@ -91,7 +91,7 @@ and configured deadline; query text and raw driver errors are excluded.
 `WorkflowClaimRunDuration` records the wall time of one claimed-service
 processing cycle (`ClaimedService.processClaimed`) for every collector family,
 recorded via `defer` on every return path. `outcome` is a bounded enum
-(`success`, `unchanged`, `released`, `fail_retryable`, `fail_terminal`). It is
+(`success`, `refused`, `unchanged`, `released`, `fail_retryable`, `fail_terminal`). It is
 the per-collector long-pole signal: `sum by (collector_kind)` of `_sum` over
 `_count` gives mean run duration per family. It shares the `collector_kind`
 label with the #3678 per-stage `eshu_dp_bootstrap_pipeline_phase_seconds` so the

@@ -23,7 +23,7 @@ const FailureClassSourceStateRecord = "source_state_record"
 
 // maxPendingClaimOutcomes bounds how many completed outcomes may wait for
 // their commit hook. An entry is consumed by ObserveClaimedGenerationCommitted
-// and cleared on every NextClaimed exit for its work item, so it only stays
+// or ObserveClaimedGenerationRefused and cleared on every NextClaimed exit for its work item, so it only stays
 // when a commit never succeeds (a terminal commit failure, a lost process). A
 // worker holds one claim at a time, so the cap is far above the steady state;
 // on overflow the entry with the oldest attempt time is evicted, which leaves
@@ -48,6 +48,12 @@ type ClaimOutcomeRecorder interface {
 	// commits the generation (or resolves an unchanged one). An error is
 	// non-fatal: the facts are durable and the row stays pending.
 	RecordClaimCommitted(context.Context, ClaimOutcome) error
+	// RecordClaimRefused is called instead of RecordClaimCommitted, at most
+	// once for a completed outcome, when the committer refused the generation
+	// (#10037): the commit returned nil and the claim completes, but no facts
+	// landed. An error is non-fatal: the row stays pending, which is true, and
+	// the next tick recollects.
+	RecordClaimRefused(context.Context, ClaimOutcome, collector.CommitRefusal) error
 }
 
 // ClaimOutcome is the decided outcome of one claim. Unlike ResultRecord it
@@ -181,6 +187,26 @@ func (s *Source) ObserveClaimedGenerationCommitted(ctx context.Context, item wor
 		return nil
 	}
 	return s.outcomeRecorder.RecordClaimCommitted(ctx, outcome)
+}
+
+// ObserveClaimedGenerationRefused implements
+// collector.ClaimedGenerationRefusalObserver. It consumes the stashed outcome
+// the way ObserveClaimedGenerationCommitted does and hands it to the recorder
+// as a refusal, so a refused generation never reads as a committed one
+// (#10037). Absent a stashed outcome it does nothing.
+func (s *Source) ObserveClaimedGenerationRefused(
+	ctx context.Context,
+	item workflow.WorkItem,
+	refusal collector.CommitRefusal,
+) error {
+	if s.outcomeRecorder == nil {
+		return nil
+	}
+	outcome, ok := s.pendingOutcomes.take(item)
+	if !ok {
+		return nil
+	}
+	return s.outcomeRecorder.RecordClaimRefused(ctx, outcome, refusal)
 }
 
 // pendingClaimOutcomes stashes completed outcomes between NextClaimed and the

@@ -14,6 +14,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 
+	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/projector"
 	"github.com/eshu-hq/eshu/go/internal/scope"
@@ -441,6 +442,10 @@ func (s IngestionStore) refuseDestructiveSuccessor(
 	}
 	s.backfillStore().RecordSkippedRefresh(ctx, scopeValue, generation, prior.candidate.GenerationID,
 		telemetry.RefreshSkipReasonDestructiveSuccessor)
+	collector.MarkCommitRefused(ctx, collector.CommitRefusal{
+		Reason: telemetry.RefreshSkipReasonDestructiveSuccessor,
+		Rule:   decision.Rule,
+	})
 	consecutive := s.recordSuccessorRefusal(ctx, scopeValue, generation)
 	s.logCommitStage(ctx, scopeValue, generation, "refuse_destructive_successor", guardStart,
 		slog.Int("consecutive_refusals", consecutive),

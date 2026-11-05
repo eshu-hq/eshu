@@ -42,10 +42,11 @@ extensions. Follow the root `AGENTS.md`, `docs/internal/agent-guide.md`, and
 - `Config.ClaimOutcomeRecorder` (#9420) gets exactly one `RecordClaimOutcome`
   per `NextClaimed` exit, called before `recordResult` so the `ResultRecord`
   reflects a `source_state_record` failure. Only completed outcomes are
-  stashed, only `ObserveClaimedGenerationCommitted` consumes the stash, and
-  every exit clears the item's entry first. Never write success state before
-  the commit hook, and never let a failure-row write error change a claim's
-  class or terminality.
+  stashed, only `ObserveClaimedGenerationCommitted` and
+  `ObserveClaimedGenerationRefused` consume the stash, and every exit clears the
+  item's entry first. Never write success state before the commit hook, never
+  write it on a refusal (#10037), and never let a failure-row write error change
+  a claim's class or terminality.
 - The stderr relay (#9823) is an allowlist of three integer keys
   (`inflated_bytes`, `budget_bytes`, `compressed_bytes`) parsed in
   `satellite_stderr.go`; the full contract and evidence are in

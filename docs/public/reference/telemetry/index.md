@@ -738,7 +738,7 @@ without touching individual collector packages:
 
 - `eshu_dp_workflow_claim_run_duration_seconds` — histogram of one claim's
   wall time from heartbeat to complete/fail. Labels: `collector_kind`,
-  `source_system`, and `outcome` (a bounded enum: `success`, `unchanged`,
+  `source_system`, and `outcome` (a bounded enum: `success`, `refused` (the claim completed, but the committer refused its generation), `unchanged`,
   `released`, `fail_retryable`, `fail_terminal`). Recorded on every return path,
   so failed and released claims are timed too. To find the per-collector long
   pole: `sum by (collector_kind)` of the `_sum` series over the `_count` series

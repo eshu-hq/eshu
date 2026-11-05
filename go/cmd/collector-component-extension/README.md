@@ -68,17 +68,20 @@ For the `vulnerability_intelligence` kind only, the worker also sets a
 `extensionhost/vulnerability.Recorder` as the host's `ClaimOutcomeRecorder` (#9420),
 built on `vulnerabilitystore.NewVulnerabilitySourceStateStore(database)` like the
 retired in-tree command. It writes `vulnerability_source_states` under this
-worker's instance id: the attempt or failure row from each claim outcome and
-the success row after the durable commit, at most two single-row statements per
-claim. `next_retry_at` and terminality come from `collector.ClaimRetryDelay` and
+worker's instance id: the attempt or failure row from each claim outcome, then
+the success row after the durable commit or a `partial` row when the commit was
+refused (#10037), at most two single-row statements per claim. `next_retry_at`
+and terminality come from `collector.ClaimRetryDelay` and
 `collector.ClaimAttemptBudgetExhausted` with this worker's poll interval and the
 default attempt budget, the same helpers `ClaimedService` applies to the claim. Writes record the
 `vulnerability_intelligence.source_state_checkpoint` span event; skipped stale
 writes and store failures count on
 `eshu_dp_vulnerability_source_state_stale_writes_skipped_total` and
 `eshu_dp_vulnerability_source_state_write_failures_total` (labels `status`,
-`result`). A success row never records a last-success time later than the host's
-processing time: a future extension-reported `ObservedAt` is clamped and counted on
+`result`), and refused commits on
+`eshu_dp_vulnerability_source_state_refused_commits_total` (label `source`). A
+success row never records a last-success time later than the host's processing
+time: a future extension-reported `ObservedAt` is clamped and counted on
 `eshu_dp_vulnerability_source_state_last_success_clamped_total` (label `source`)
 (#10008). Every other kind gets no recorder.
 

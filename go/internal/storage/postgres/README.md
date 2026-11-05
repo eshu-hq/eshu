@@ -1092,7 +1092,7 @@ Evidence: `docs/internal/evidence/7420-drop-key-sidecar-fks.md`.
 
 Detailed query, queue, fact-readback, runtime, and fencing invariants live in
 [`gotchas-and-invariants.md`](gotchas-and-invariants.md). Keep that companion
-note current when changing storage behavior that touches those contracts. The ingestion commit's #7926 destructive-successor guard sizes like for like (#8750): collector rows only, and a git delta by its file union against the anchor the projector also overlays on; see the guard bullet there.
+note current when changing storage behavior that touches those contracts. A commit that refuses or skips a generation still returns nil and says so on the caller's `collector.CommitDisposition` box (#10037): the destructive-successor guard and the retirement gate mark it refused, and the duplicate check and a finalized replay mark it `unchanged_skip`. The ingestion commit's #7926 destructive-successor guard sizes like for like (#8750): collector rows only, and a git delta by its file union against the anchor the projector also overlays on; see the guard bullet there.
 
 Additional historical no-regression notes for incident freshness, incident
 routing, workflow terminal failure, readiness gating, owned dependency targets,
@@ -2343,22 +2343,22 @@ correctness risk this barrier exists to prevent. #5852 fixed one specific
 trigger for an indefinite wait: a never-committed shard that used to arrive
 once at startup and then never again. A materially different case remains
 unfixed, here and on origin/main alike: a shard that HAS committed at least
-once and then goes idle — its repository partition simply stopped changing —
-also never arrives again, because `everCommitted` latches permanently on
-that first commit and neither `committedSinceDrain` nor the
-once-per-process startup escape ever re-fires for it afterward. That shard is
-fully healthy, live, and connected to Postgres, yet it stalls the fleet
-indefinitely all the same — this function cannot distinguish that case from a
-shard that has genuinely crashed or lost connectivity; both simply never
-arrive. That ambiguity now surfaces as a WARN log (`deferred maintenance
-barrier still waiting for completion`, at least every 30s) carrying the
-epoch, shard identity, elapsed wait, the current arrival count, the sorted
-`arrived_shard_indexes`, and the sorted `missing_shard_indexes` (or an
-`arrived_shards_error` field if that lookup itself fails) — the
-operator-facing diagnostic for exactly this ambiguity: it names which shards
-have not arrived so an operator can go check, from outside this process,
-whether each one is dead or merely quiet, without correlating silence across
-every shard's own logs.
+once and then goes idle — its repository partition simply stopped changing, or
+its later generations are all refused (#10037, #10084) — also never arrives
+again, because `everCommitted` latches permanently on that first commit and
+neither `committedSinceDrain` nor the once-per-process startup escape ever
+re-fires for it afterward. That shard is fully healthy, live, and connected to
+Postgres, yet it stalls the fleet indefinitely all the same — this function
+cannot distinguish that case from a shard that has genuinely crashed or lost
+connectivity; both simply never arrive. That ambiguity now surfaces as a WARN
+log (`deferred maintenance barrier still waiting for completion`, at least
+every 30s) carrying the epoch, shard identity, elapsed wait, the current
+arrival count, the sorted `arrived_shard_indexes`, and the sorted
+`missing_shard_indexes` (or an `arrived_shards_error` field if that lookup
+itself fails) — the operator-facing diagnostic for exactly this ambiguity: it
+names which shards have not arrived so an operator can go check, from outside
+this process, whether each one is dead or merely quiet, without correlating
+silence across every shard's own logs.
 `TestIngestionStoreWaitDeferredMaintenanceBarrierCompletionStallLogNamesMissingShards`
 proves the missing set is named directly, not just a count.
 

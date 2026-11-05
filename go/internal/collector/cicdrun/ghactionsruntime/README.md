@@ -60,6 +60,13 @@ See `doc.go` for the godoc contract. Callers use:
   watermark that cycle's `NextClaimed` staged. Callers should not invoke it
   directly outside tests -- it exists for `collector.ClaimedService`'s
   post-commit hook, not as a general-purpose API.
+- `ClaimedSource.ObserveClaimedGenerationRefused` implements
+  `collector.ClaimedGenerationRefusalObserver` (#10037): a refused commit stored
+  none of the cycle's runs, so the watermark holds and the staged entry is
+  dropped. The next cycle still detects the gap those runs left.
+  `collector-cicd-run` does not reach this hook or the commit hook yet:
+  `providerRoutedSource` forwards neither, so that binary never writes the
+  watermark and keeps its staged entries (#10063).
 - `Client`, `GitHubClient`, `RunSnapshot`, and `RunPage` to fetch or provide a
   bounded window of GitHub Actions runtime data (`Client.FetchRuns` returns one
   `RunPage`, which carries one `RunSnapshot` per fetched run plus a `Truncated`

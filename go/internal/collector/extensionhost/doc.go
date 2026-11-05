@@ -53,7 +53,8 @@
 // When Config.ClaimOutcomeRecorder is set, the Source reports one
 // ClaimOutcome per claim on every exit path and, for a completed claim, the
 // same outcome again from ObserveClaimedGenerationCommitted once
-// ClaimedService has durably committed or resolved the generation (#9420).
+// ClaimedService has durably committed or resolved the generation (#9420), or
+// from ObserveClaimedGenerationRefused when the committer refused it (#10037).
 // The vulnerability-intelligence host uses it to write
 // vulnerability_source_states; an attempt-row write error fails the claim
 // retryable with FailureClassSourceStateRecord.

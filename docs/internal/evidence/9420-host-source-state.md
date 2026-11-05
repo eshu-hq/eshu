@@ -96,6 +96,9 @@ Observability Evidence:
 - `eshu_dp_vulnerability_source_state_write_failures_total{status,result}`
   counts Postgres failures. The ERROR log line is
   `vulnerability source state write failed`.
+- `eshu_dp_vulnerability_source_state_refused_commits_total{source}` counts
+  claims whose generation the committer refused (#10037). The WARN log line is
+  `vulnerability source commit refused, keeping the last success`.
 - Span event `vulnerability_intelligence.source_state_checkpoint` on the claim
   span, with source, ecosystem, status, result, failure_class, and `applied`.
 - A failed attempt-row write fails the claim retryable with

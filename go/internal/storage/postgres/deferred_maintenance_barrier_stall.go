@@ -99,7 +99,8 @@ ORDER BY shard_index
 //
 // A different case remains unfixed here, unchanged from origin/main: a shard
 // that HAS committed at least once and then goes idle — its repository
-// partition simply stopped changing — also never arrives again.
+// partition simply stopped changing, or its later generations are all refused
+// (#10037, tracked in #10084) — also never arrives again.
 // everCommitted latches true permanently on that shard's first commit, so its
 // own empty-batch escape never re-fires; with no further commits,
 // committedSinceDrain never goes true again either (see shouldDrain in

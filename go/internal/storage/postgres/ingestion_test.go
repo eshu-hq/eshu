@@ -406,6 +406,7 @@ type fakeTx struct {
 	rolledBack     bool
 	rollbackHook   func()
 	recheckRows    map[string]queueFakeRows // see fakeTx.recheckRead
+	zeroRowExec    string                   // this exact statement reports zero rows affected
 }
 
 func (f *fakeTx) ExecContext(_ context.Context, query string, args ...any) (sql.Result, error) {
@@ -413,6 +414,9 @@ func (f *fakeTx) ExecContext(_ context.Context, query string, args ...any) (sql.
 	f.execs = append(f.execs, fakeExecCall{query: query, args: args})
 	if err := f.execErrors[callIndex]; err != nil {
 		return nil, err
+	}
+	if f.zeroRowExec != "" && query == f.zeroRowExec {
+		return fakeResultWithRowsAffected{}, nil
 	}
 	return fakeResult{}, nil
 }

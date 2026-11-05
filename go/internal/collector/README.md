@@ -225,6 +225,28 @@ evidence (No-Regression and No-Observability-Change) for this section lives in
   unchanged result like a committed one. A hook error never fails the claim; it
   adds a `claimed_generation_commit_observer_failed` span event and counts on
   `eshu_dp_workflow_claim_commit_observer_failures_total`.
+- `WithCommitDisposition`, `CommitDisposition`, and `CommitRefusal` — the
+  per-commit result box (#10037). A commit that returned nil may have stored the
+  generation (`committed`), rolled it back on purpose (`refused`, with a closed
+  reason and rule), or found nothing new to store (`unchanged_skip`). A committer
+  marks the box through `MarkCommitRefused` or `MarkCommitUnchangedSkip`; one that
+  marks nothing reads as committed. The return stays nil, so no collector starts
+  failing claims over a refusal.
+- `ClaimedGenerationRefusalObserver` — optional hook that replaces the commit
+  observer on a refused commit (#10037). `ClaimedService` calls one or the other,
+  never both, skips the fact-volume counter on a refusal, reports
+  `outcome=refused` on `eshu_dp_workflow_claim_run_duration_seconds`, and still
+  completes the claim. A source with only the commit observer hears nothing, so
+  its marker holds. A refusal also skips dead-letter replay completion, on the
+  unclaimed `Service` too: a rolled-back generation replayed nothing, so its
+  dead letters stay open until a later commit lands. On `Service`, a refusal also
+  adds nothing to `eshu_dp_facts_committed_total` and sets no drain latch, so it
+  opens no deferred-maintenance epoch and keeps a never-committed shard's
+  empty-batch escape live (#10068). A shard that has committed in this process
+  and is then only refused arrives at the barrier no more than an idle shard
+  does (#10084). A hook error adds a
+  `claimed_generation_refusal_observer_failed` span event and counts on
+  `eshu_dp_workflow_claim_commit_observer_failures_total`.
 - `ClaimRetryDelay` and `ClaimAttemptBudgetExhausted` — the retry delay and
   attempt-budget rules `ClaimedService` applies, exported so a component that
   reports retry state (the extension host's vulnerability source-state recorder,

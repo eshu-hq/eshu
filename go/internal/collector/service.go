@@ -278,7 +278,8 @@ func (s Service) Run(ctx context.Context) error {
 			observation = s.startCollectorObserve(ctx)
 		}
 		s.annotateCollectorObserve(observation, collected)
-		if commitErr := s.commitWithTelemetry(observation.Context, collected, observation.StartedAt); commitErr != nil {
+		commitCtx, disposition := WithCommitDisposition(observation.Context)
+		if commitErr := s.commitWithTelemetry(commitCtx, collected, observation.StartedAt); commitErr != nil {
 			retryable := IsRetryable(commitErr)
 			storeErr := s.recordGenerationDeadLetterOnly(observation.Context, collected, "commit_failure", commitErr)
 			terminal := errors.Join(commitErr, storeErr)
@@ -302,13 +303,17 @@ func (s Service) Run(ctx context.Context) error {
 			}
 			return terminal
 		}
-		if err := s.completeGenerationDeadLetterReplay(observation.Context, collected); err != nil {
-			s.endCollectorObserve(observation, err)
-			return err
+		// A refused generation was rolled back: it replays nothing, counts no
+		// committed facts, and is not a commit for the drain latches (#10037, #10068).
+		if _, refused := disposition.Refusal(); !refused {
+			if err := s.completeGenerationDeadLetterReplay(observation.Context, collected); err != nil {
+				s.endCollectorObserve(observation, err)
+				return err
+			}
+			committedSinceDrain = true
+			everCommitted = true
 		}
 		s.endCollectorObserve(observation, nil)
-		committedSinceDrain = true
-		everCommitted = true
 	}
 }
 
@@ -439,7 +444,7 @@ func (s Service) commitWithTelemetry(ctx context.Context, collected CollectedGen
 		s.Instruments.CollectorObserveDuration.Record(ctx, duration, attrs)
 		s.Instruments.FactsEmitted.Add(ctx, factCount, attrs)
 		s.Instruments.GenerationFactCount.Record(ctx, float64(factCount), attrs)
-		if err == nil {
+		if err == nil && !commitRefused(ctx) {
 			s.Instruments.FactsCommitted.Add(ctx, factCount, attrs)
 		}
 	}
