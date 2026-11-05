@@ -236,6 +236,26 @@ func TestMixedRowsSBOMPathKeepsTheWholeGroup(t *testing.T) {
 	assertMixedVersionedKeepsOther(t, repJoinOwnFact(""), repJoinOtherFact(repDirectOtherID, "nvd", "os"), sbom, mixedTopologies[0].rows)
 }
 
+// TestMixedRowsSBOMPathDoesNotSplit keeps the split inside the no-SBOM-path branch (ruling
+// 9990-f6, 2.3). A split above that check changes the answer for an SBOM-anchored group: a
+// blank fact whose group has an SBOM path would gain a third finding in some orders, one
+// more than the two the rows of the host earn. The finding of an anchored group exists at
+// the base, so a slip here would add to a group the rule leaves alone (review 5, F9).
+func TestMixedRowsSBOMPathDoesNotSplit(t *testing.T) {
+	t.Parallel()
+	envs, analyses := mixedEnvs(mixedTopologies[0].rows)
+	rest := append(append(envs, analyses...),
+		sbomComponentImpactFactWithPackageIDVersion("component", "doc", repJoinPackageID+"@"+repJoinVersion, repJoinPackageID, repJoinVersion),
+		sbomAttachmentImpactFact("attachment", "doc", mixedDigestA),
+		containerImageIdentityImpactFact("image", mixedDigestA, "repository:r_1"))
+	cve := vulnerabilityCVEFact("cve-9990", vendorLineCVE, 7.5)
+	for _, order := range repJoinPermutations([]facts.Envelope{cve, repJoinVendorFixFact(""), repJoinOtherFact(repDirectOtherID, "osv", "ubuntu")}) {
+		if got := BuildSupplyChainImpactFindings(append(slices.Clone(order), rest...)); len(got) > 2 {
+			t.Fatalf("order %s: %d findings, want at most 2: %s", repDirectOrderLabel(order), len(got), repDirectSummary(got))
+		}
+	}
+}
+
 // TestMixedVersionRowsAuthorizedAgreesWithFleet wants the authorized path to read the
 // versioned row as the fleet path does, with the rows in two targets and in one.
 func TestMixedVersionRowsAuthorizedAgreesWithFleet(t *testing.T) {
