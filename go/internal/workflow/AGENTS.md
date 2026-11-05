@@ -54,6 +54,54 @@
   `unsupported ecosystem "x"` prefix and appends `(supported: ...)`. A name
   belongs in a set only when the reader, derivation, and `vulnruntime`
   provider can act on it; `vulnruntime` pins the provider side (#9221).
+- **ghsa admits reviewed and malware only** — the `ghsa` target case in
+  `vulnerability_intelligence_ghsa_config.go` requires `advisory_type` of
+  exactly `reviewed` or `malware` and a `scope_id` of exactly
+  `vuln-intel://ghsa/<advisory_type>` (no trimming, no case folding), an
+  RFC3339 `modified_start`/`modified_end` window of at most 168h with the end
+  strictly after the start, `results_per_page` 1..100, and `max_requests`
+  1..100 (keeps one claim at or under 2% of GitHub's 5,000 requests per hour).
+  `unreviewed` is refused as out of scope (design 9872, owner question 1).
+  `feed_url` and `fallback_urls` are refused because a second origin would
+  receive the bearer token; `base_url` is blank, `https://api.github.com`, or
+  that origin with one trailing slash (exact match, no other host, port, path,
+  userinfo, query, fragment, case, or padding). The struct carries no
+  credential field: the collector reads the GitHub token from its environment
+  (#9959). Core admits a ghsa target for configuration parity only, so the core
+  and collector pair can be tested. It is off by default and not activatable for
+  production truth until eshu-hq/eshu#10037 lands: do not add a `ghsa` target to a
+  production coordinator configuration. Readiness reads accept a `ghsa` target
+  as well-formed, but the in-tree collector (`vulnruntime`) still refuses a
+  `ghsa` source when its service builds the claimed source, so an instance
+  that carries a `ghsa` target does not start.
+  `reconcile_public_advisories_v1` refuses
+  a `ghsa` target, so passing this validator never produces a registration. Do
+  not add a `ghsa` arm to that function (`vulnsource/README.md` has the hold).
+  `encoding/json` folds key case and keeps the last spelling, while the collector
+  reads exact keys, so `validateVulnerabilityGHSAKeySpelling` reads the raw
+  document first. On a target where any spelling of `source` says `ghsa`, it
+  refuses a key that differs from a `ghsaTargetKeys` entry only by folding, and
+  two keys that fold equal, exact repeats included. It holds the top-level
+  `targets` key to the same rules in a document with a ghsa target. It compares
+  with the decoder's fold (`ghsaFoldKey`), not `ToLower`, and does not look inside
+  a target's values such as `queries`. Other sources keep the decoder's folding.
+  Both validators check the same target fields, and for those fields core is the
+  stricter on every `ghsaParityRows` row: it refuses padding, whitespace, and
+  non-integer forms, and it reads `refresh_interval`, which the collector ignores.
+  Passing core does not guarantee the collector accepts the config. Core accepts
+  and the collector refuses: `api_key_env`, `source_uri`, and flat `queries`
+  entries; a non-string `cursor_path` (the collector's shared target parser
+  refuses it on every source, core never decodes it, and GHSA does not use the
+  value, so the collector fails closed); a duplicate `scope_id` (core accepts two
+  `vuln-intel://ghsa/reviewed` targets, but the readiness malformed check groups
+  by `scope_id`, so a duplicate makes every readiness read return
+  `readiness_unavailable`, as it does for every source), `derived_targets`, and
+  `collector_instance_id`. The collector column is
+  checked at `3f28ef090c`
+  (`eshu-hq/eshu-collector-vulnerability-intelligence#56`).
+  `TestVulnerabilityIntelligenceGHSAParityRows` pins each of these. The table is
+  a hand-copied snapshot of checked inputs, not proof for every input; re-copy it
+  when the collector's rules change.
 - **OSV directory names are a closed list** — `OSVDirectoryEcosystem`
   (`osv_directory_ecosystems.go`) maps the 11 OSV change-feed bucket
   directories (`npm`, `PyPI`, `Go`, `Maven`, `NuGet`, `Packagist`, `RubyGems`,

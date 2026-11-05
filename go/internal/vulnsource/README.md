@@ -23,7 +23,9 @@ core-owned: the workflow coordinator mints `vuln-intel://osv/<ecosystem>/...`,
 `vuln-intel://nvd/_window/<start>-<end>`, and
 `vuln-intel://first_epss/_findings/<chunk>`, and configured targets use
 `vuln-intel://nvd/...`, `vuln-intel://cisa/kev`, `vuln-intel://first/epss`,
-and `vuln-intel://glad/<ecosystem>`. It returns `ok=false` for anything else,
+`vuln-intel://glad/<ecosystem>`, and `vuln-intel://ghsa/<reviewed|malware>`
+(GHSA admits reviewed and malware advisories only; `unreviewed` and any
+trailing path return `ok=false`). It returns `ok=false` for anything else,
 so a writer never invents a token. Tests in `coordinator/vulnerability` and
 `query/supply/chain/impact` pin it against the coordinator's format strings
 and the readiness reader's scope table. The coordinator test lists one row per
@@ -58,3 +60,81 @@ two together.
 
 These functions do no I/O and hold no state, so they add no telemetry of their
 own.
+
+## GHSA is held
+
+Core admits a `ghsa` target for configuration parity only, so the core and
+collector pair can be tested. It is off by default: nothing plans a `ghsa` claim
+unless an operator configures a `ghsa` target. It is not activatable for
+production truth until
+[eshu-hq/eshu#10037](https://github.com/eshu-hq/eshu/issues/10037) lands. Do not
+add a `ghsa` target to a production coordinator configuration.
+
+- The direct GHSA source is excluded from the protected scanner read:
+  `reconcile_public_advisories_v1` refuses a `ghsa` target with
+  `public advisory target source unsupported`, and
+  `authorizedImpactExpectedKinds` has no `ghsa` entry. GHSA ids that OSV carries
+  keep flowing through registered OSV scopes.
+- Core has no `ghsa` source-terms row yet. It follows the factschema pin: the row
+  lands after core moves to factschema rc.17, and takes its license and attribution
+  from that release's `source_terms_golden.json`.
+- Readiness accepts a `ghsa` target as well-formed: `SourceForScopeID` maps
+  `vuln-intel://ghsa/reviewed` and `vuln-intel://ghsa/malware` to `ghsa`, and the
+  readiness query's source list names it, so a configured target does not make
+  readiness reads return `readiness_unavailable`.
+- The in-tree collector (`collector/vulnerabilityintelligence/vulnruntime`) still
+  refuses a `ghsa` source. `validateTarget` rejects it when the service builds
+  its claimed source, so an instance that carries a `ghsa` target does
+  not start; one already running keeps going until its next restart.
+
+## GHSA and OSV copies of one advisory
+
+The reducer does not deduplicate a direct GHSA fact and an OSV copy of the same
+advisory. This matters only once GHSA is activated; a proof test in
+`reducer/supplychain/core` is required first.
+
+- `classifyAdvisorySource` maps `osv` with a `GHSA-` id to `ghsa`, so both copies
+  are logical source `ghsa` with equal rank.
+- The collector's stable fact keys differ by source, so Postgres holds two
+  `vulnerability.cve` facts. They load into one group keyed by `cve_id`, or by
+  `advisory_id` when the record has no CVE.
+- `selectAdvisoryProvenance` sorts by rank, Source, AdvisoryID, WithdrawnAt, then
+  Status, stably. Two `ghsa` copies tie on all of these unless withdrawn or status
+  differ, so severity, fixed version, and range come from whichever copy arrives
+  first in load order. `representative` breaks the same tie by lexical FactID.
+- `AdvisorySources` collapses on `Source|AdvisoryID`, so the output lists one
+  `ghsa` row. `EvidenceFactIDs` keeps both fact ids.
+- GHSA malware ids should not collide: from reading upstream data (not a
+  measurement), OSV carries those as `MAL-` ids, classified `osv-malicious`.
+
+The proof test takes one `osv` and one `ghsa` observation of the same GHSA id and
+CVE, and asserts one `AdvisorySources` row, both evidence fact ids, and a
+deterministic selection. A second case covers an OSV record whose `cve_id` differs
+from the GHSA record's, which forms two groups.
+
+## Evidence (#9959 ghsa key spelling)
+
+No-Regression Evidence: `validateVulnerabilityGHSAKeySpelling` in `workflow` reads the raw
+document on every `ValidateVulnerabilityIntelligenceCollectorConfiguration` call,
+for every source, because a target's source can only be read from its raw keys.
+Baseline: the same branch on main `0cb384ca89` with that one call removed. Input:
+one document of 64 targets. Run: `go test -bench -benchmem -benchtime=2s -count=3`,
+Go 1.26.6, no backend, host load average about 46, so treat times as rough.
+
+| Document | Before ns/op | After ns/op | Before allocs | After allocs |
+| --- | --- | --- | --- | --- |
+| 64 `ghsa` targets | 184,208 to 197,250 | 1,046,722 to 1,350,277 | 414 | 8,578 |
+| 64 `nvd` targets | 100,145 to 106,847 | 496,963 to 549,517 | 414 | 3,843 |
+
+The added cost is under 1.2 ms per validation of that document. It is safe because
+it is config validation, not a per-fact path: the coordinator's default reconcile
+interval is 30s, and the number of calls per tick was not measured. Key walking is
+linear in document size. No Cypher, SQL, queue, lease, claim, batching, or
+concurrency code changed, and the check is a pure function of the input string, so
+there are no terminal queue or row counts. No migration is added:
+`TestPublicAdvisoryReconcileFunctionDoesNotAdmitGHSA` pins that migration 254's
+reconcile function still refuses `ghsa`.
+
+No-Observability-Change: core adds no metric, span, or log. A refused `ghsa` target
+surfaces through the existing configuration validation error at coordinator and
+collector-instance load, which names the key and quotes no value.

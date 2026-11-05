@@ -8,7 +8,9 @@
 // SourceForScopeID derives the stored source token from a vulnerability scope
 // id; it is the one parser shared by the extension host's source-state
 // recorder and pinned against the coordinator's and the readiness reader's
-// scope grammar (#9420). DefaultFreshnessWindow is the shared freshness window.
+// scope grammar (#9420); of the ghsa scopes it accepts
+// vuln-intel://ghsa/reviewed and vuln-intel://ghsa/malware, with the same
+// optional '?' suffix as the other sources. DefaultFreshnessWindow is the shared freshness window.
 //
 // The package also owns the coordinator-minted scope shapes a core binary must
 // read without a collector. ParseDerivedOSVSlotScope, DerivedScopePackageKeys,

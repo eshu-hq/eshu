@@ -180,8 +180,8 @@ route, MCP tool, or runtime configuration knob.
 
 Eshu collects advisory source truth from OSV, FIRST EPSS, CISA KEV, and NVD CVE
 API 2.0. The GitLab Advisory Database is not collected: its normalizer is
-fixture-only, gated off pending an owner and legal record (#9992). Each source
-is normalized into the shared `vulnerability.*` fact contract with
+fixture-only, gated off pending an owner and legal record (#9992). GitHub Advisory Database (`ghsa`) targets admit reviewed and malware advisories only, and are off by default. They are not activatable for production truth until [#10037](https://github.com/eshu-hq/eshu/issues/10037) lands: core admits the target only so the collector pair can be tested, so do not add a `ghsa` target to a production coordinator configuration. Readiness reads accept a `ghsa` target, but the in-tree collector refuses it when its service starts, so an instance that carries a `ghsa` target does not start. Each source is
+normalized into the shared `vulnerability.*` fact contract with
 `source_confidence=reported` and a source-namespaced stable fact key, so a
 GLAD fixture observation of `CVE-2026-0001` coexists with OSV, GHSA, or NVD
 observations of the same CVE rather than overwriting them. Reducers join
