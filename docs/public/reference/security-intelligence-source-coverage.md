@@ -178,11 +178,12 @@ route, MCP tool, or runtime configuration knob.
 
 ## Advisory Source Coverage
 
-Eshu collects advisory source truth from OSV, FIRST EPSS, CISA KEV, NVD CVE
-API 2.0, and the GitLab Advisory Database (Gemnasium). Each source is
-normalized into the shared `vulnerability.*` fact contract with
+Eshu collects advisory source truth from OSV, FIRST EPSS, CISA KEV, and NVD CVE
+API 2.0. The GitLab Advisory Database is not collected: its normalizer is
+fixture-only, gated off pending an owner and legal record (#9992). Each source
+is normalized into the shared `vulnerability.*` fact contract with
 `source_confidence=reported` and a source-namespaced stable fact key, so a
-GLAD observation of `CVE-2026-0001` coexists with OSV, GHSA, or NVD
+GLAD fixture observation of `CVE-2026-0001` coexists with OSV, GHSA, or NVD
 observations of the same CVE rather than overwriting them. Reducers join
 across sources at admission time and may detect cross-source disagreement on
 range, severity, or fixed version.
@@ -194,11 +195,10 @@ and `not_impacted` text, multiple `fixed_versions` (including prerelease and
 `+build` branches), CVSS v2/v3/v4 vectors, CWE IDs, URLs, and the source
 advisory UUID. Range evaluation belongs to reducers.
 
-The GLAD adapter is parser-only. Cache and freshness lifecycle for advisory
-snapshots is owned by the shared source interface in
-[#603](https://github.com/eshu-hq/eshu/issues/603); the GLAD parser is pure
-so the cache/freshness owner can wire it later without changing the fact
-payload.
+The GLAD adapter is parser-only with no runtime caller, and the workflow
+configuration rejects a `glad` target (#9992). Cache and freshness lifecycle
+for advisory snapshots is owned by the shared source interface in
+[#603](https://github.com/eshu-hq/eshu/issues/603).
 
 No-Regression Evidence: `go test ./internal/collector/vulnerabilityintelligence -run 'TestGitLab|TestParseGitLab|TestNewGitLab' -count=1`
 covers GLAD CVE/affected_package/reference envelope construction, GMS
@@ -258,7 +258,7 @@ source rejected or withdrew the CVE. Raw advisory bodies are not returned. The O
 Source-only advisory evidence is exposed separately through
 `GET /api/v0/supply-chain/advisories/evidence` and the MCP
 `list_advisory_evidence` tool. That route groups active GHSA, CVE/NVD, OSV,
-GitLab Advisory Database, FIRST EPSS, CISA KEV, CWE, affected-package,
+FIRST EPSS, CISA KEV, CWE, affected-package,
 affected-product/CPE, range, fixed-version, withdrawn, reference, and
 source-disagreement evidence under one canonical advisory identity without
 publishing a supply-chain impact finding or implying repository, image,

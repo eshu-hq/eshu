@@ -1,7 +1,14 @@
 # GitLab Gemnasium (GLAD) Integration
 
-Eshu ingests records from the GitLab Advisory Database (GLAD), the open
-advisory dataset produced by GitLab's Gemnasium dependency-scanning project.
+Eshu has a fixture-only normalizer for records from the GitLab Advisory
+Database (GLAD), the advisory dataset produced by GitLab's Gemnasium
+dependency-scanning project. No runtime provider collects GLAD. It is not
+collected and is gated off pending an owner and legal record
+([#9992](https://github.com/eshu-hq/eshu/issues/9992)).
+The workflow configuration rejects a `glad` collector target, and the
+normalizer has no caller outside its unit tests. The scope-id grammar and the
+reducer's source class still accept the string `glad` as data, so facts a
+fixture produces would be read; nothing writes them at runtime.
 GLAD records are package-scoped: each record describes exactly one package and
 the version range it considers affected. Eshu converts each record into
 reported-confidence vulnerability facts and feeds them into the same
@@ -114,10 +121,10 @@ a reducer can join the records back together at admission time.
 
 ## Reducer path it joins
 
-GLAD facts flow into the same supply-chain vulnerability ingestion and impact
-reducer as OSV, GHSA, NVD, and KEV. The collector emits source facts at
-reported confidence; it does not publish user-facing impact truth. The reducer
-owns admission and conflict resolution across the advisory sources, and the
+GLAD facts, where a fixture produces them, use the same fact kinds the
+supply-chain impact reducer reads for OSV, GHSA, NVD, and KEV. The normalizer
+emits source facts at reported confidence; it does not publish user-facing
+impact truth. The reducer owns admission and conflict resolution across the advisory sources, and the
 `glad` source is recognized in the reducer's impact provenance selection
 alongside `osv`, `ghsa`, and `nvd`.
 
@@ -130,9 +137,10 @@ coverage and readiness.
 
 ## MCP tools that expose the findings
 
-GLAD-derived advisory evidence and any impact findings the reducer admits from
-it are read through the supply-chain MCP tools. Each accepts a `glad` advisory
-identifier where an advisory id is allowed. See the
+Advisory evidence and impact findings read through these tools carry a `glad`
+source only if `glad` facts exist in the store. No runtime provider writes them
+today, so expect none. Each tool accepts a `glad` advisory identifier where an
+advisory id is allowed. See the
 [MCP Reference](mcp-reference.md) for full schemas.
 
 | Tool | Purpose |

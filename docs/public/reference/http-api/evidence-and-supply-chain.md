@@ -672,7 +672,7 @@ least one bounded anchor:
 - `workload_id`
 
 The optional `source` filter narrows an already anchored request. Rows group
-GHSA, CVE/NVD, OSV, GitLab Advisory Database, FIRST EPSS, CISA KEV, CWE,
+GHSA, CVE/NVD, OSV, FIRST EPSS, CISA KEV, CWE,
 reference, affected-package, affected-product/CPE, withdrawn, affected-range,
 and fixed-version evidence under one canonical advisory identity. They also
 surface `source_disagreements[]` for severity, withdrawn status, affected
