@@ -1,0 +1,60 @@
+go/internal/reducer/admission_decision_mapping_test.go
+  h_78a442cba0b3e6 288-297
+go/internal/reducer/packages/correlation/README.md
+  h_78a442cba0b3e6 59-61
+go/internal/reducer/packages/correlation/source_handler.go
+  h_78a442cba0b3e6 28-31,48-63,300-306,311-315,323-327
+go/internal/reducer/packages/correlation/source_refusal_test.go
+  h_78a442cba0b3e6 1-114
+go/internal/reducer/packages/correlation/source_test.go
+  h_78a442cba0b3e6 25-34,221-222
+go/internal/reducer/supplychain/core/cross_scope_readiness_counting_test.go
+  h_78a442cba0b3e6 224-234
+go/internal/reducer/supplychain/core/cross_scope_readiness_test.go
+  h_78a442cba0b3e6 54-64
+go/internal/reducer/supplychain/core/evidence_load.go
+  h_78a442cba0b3e6 87-105,167,169,271-274
+go/internal/reducer/supplychain/core/evidence_truncation.go
+  h_78a442cba0b3e6 25-31,51-56,62,79-81
+go/internal/reducer/supplychain/core/impact.go
+  h_78a442cba0b3e6 291
+go/internal/reducer/supplychain/core/impact_test.go
+  h_78a442cba0b3e6 54-64
+go/internal/reducer/supplychain/core/manifest_dependency.go
+  h_78a442cba0b3e6 8,21-29,33,36,38-42,47-49,51,53
+go/internal/reducer/supplychain/core/manifest_dependency_test.go
+  h_78a442cba0b3e6 20-33,128-129,241-242
+go/internal/reducer/supplychain/core/manifest_refusal_test.go
+  h_78a442cba0b3e6 1-117
+go/internal/reducer/supplychain/core/maven_osv_identity_red_test.go
+  h_78a442cba0b3e6 55-68,77
+go/internal/reducer/supplychain/core/python_reachability_test.go
+  h_78a442cba0b3e6 428-436
+go/internal/reducer/supplychain/core/repository.go
+  h_78a442cba0b3e6 24
+go/internal/reducer/supplychain/core/repository_anchor_test.go
+  h_78a442cba0b3e6 96-106
+go/internal/reducer/supplychain/core/repository_catalog_projection_test.go
+  h_78a442cba0b3e6 125-128
+go/internal/reducer/supplychain/core/scanner_analysis_scope_load_test.go
+  h_78a442cba0b3e6 114-124
+go/internal/storage/postgres/delta_overlay_refusal.go
+  h_78a442cba0b3e6 88-183
+go/internal/storage/postgres/facts_active_package_manifest_dependency.go
+  h_78a442cba0b3e6 8,81-114,128-129,136,139,142,149,172-176,180,183-200
+go/internal/storage/postgres/manifest_dependency_read_parity_live_test.go
+  h_78a442cba0b3e6 249,253
+go/internal/storage/postgres/manifest_dependency_refusal_test.go
+  h_78a442cba0b3e6 1-198
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ce7645f9c61bbbac488609258060dfa5efdfbe14",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
