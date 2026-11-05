@@ -1,8 +1,11 @@
 # Generation Outcome Telemetry
 
-A collector poll ends in one of two ways at the ingestion commit: the store
-**mints** a new scope generation, or it **skips** the refresh because nothing
-stored needs to change. A collector that mints on every poll without upstream
+A collector poll that reaches the ingestion commit ends in one of two counted
+outcomes: the store **mints** a new scope generation, or it **skips** the
+refresh because nothing stored needs to change. Two other endings count
+neither: a commit that fails (the generation rolls back and the error
+surfaces), and a refresh the store refuses because the scope is retiring
+(rolled back, logged as a warning, no outcome recorded). A collector that mints on every poll without upstream
 change keeps one full snapshot per poll until retention removes it (#10020: the
 KEV catalog minted 614 generations for 8 distinct catalog versions). These
 signals let an operator count mints against skips per collector kind without
@@ -24,7 +27,17 @@ scopes, so a scope label would explode the series count. The per-scope source of
 truth is the logs below.
 
 The counter is per process. With several collector replicas, sum across
-replicas, and expect a restart to reset a series.
+replicas, and expect a restart to reset a series. A new series also starts at
+its first event: Prometheus `increase()` has no earlier sample to subtract from,
+so the first mint after a restart is not counted by the queries below. For a
+rare event such as a KEV mint, read the raw series or the
+`ingestion.generation_minted` span event when a count of one matters.
+
+The reconcile re-projection path knows only the scope id, not its collector
+kind, so its skips land in `collector_kind="other"` even when the scope belongs
+to `git`. While a reconcile sweep runs, the `git` skipped count is a lower bound
+and the mint-to-skip ratio for `git` reads high; the `other` series carries the
+rest.
 
 ## Operator queries
 

@@ -29,9 +29,12 @@
 
 ## Invariants this package enforces
 
-- **Leaf contract** — no `go/internal/*` imports are permitted here. This
-  package is a sink, not a hub. If you need to import any ESHU-internal package,
-  the dependency belongs in the caller, not here.
+- **Leaf contract** — no `go/internal/*` imports are permitted here, with one
+  narrow exception: a dependency-free vocabulary package (today `internal/scope`
+  for collector kinds, `internal/facts`, and `internal/sourcetool`) that imports
+  no storage, reducer, projector, query, or telemetry package. This package is a
+  sink, not a hub. If you need any other ESHU-internal package, the dependency
+  belongs in the caller, not here.
 - **`eshu_dp_` prefix** — every metric name registered in `instruments.go` must
   start with `eshu_dp_`. Names without this prefix will conflict with the Python
   `eshu_` namespace.
@@ -172,8 +175,9 @@ duplicate-instrument error from the OTEL SDK.
 ## Anti-patterns specific to this package
 
 - **Adding internal Eshu imports** — this package must stay a leaf. Any
-  dependency on `internal/facts`, `internal/reducer`, `internal/storage`, etc.
-  creates a circular import that blocks compilation.
+  dependency on `internal/reducer`, `internal/storage`, `internal/query`, etc.
+  creates a circular import that blocks compilation. Only the dependency-free
+  vocabulary packages named in the leaf contract are allowed.
 
 - **Inlining metric name strings in callers** — always reference the
   `Instruments` field and the `Attr*` helpers. Never write
