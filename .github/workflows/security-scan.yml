@@ -176,6 +176,13 @@ jobs:
         with:
           sarif_file: trivy-fs.sarif
           category: trivy-fs
+  # #10074 scope decision: this job scans only the root image this repo
+  # publishes (ghcr.io/eshu-hq/eshu). The OCR/transcription satellite
+  # proof images are never published, so there is no registry ref to
+  # scan; their pins are verified by the proof scripts at build time,
+  # and the trivy-fs job above already scans the repo tree (including
+  # those Dockerfiles) at the filesystem/misconfig level. Images
+  # published from sibling repos are outside this job's scope.
   trivy-image:
     if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'trivy-image')) && (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && (github.event.workflow_run.event == 'push' || github.event.workflow_run.event == 'workflow_dispatch')) }}
     name: Trivy image scan (ghcr.io/eshu-hq/eshu)

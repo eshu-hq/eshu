@@ -193,6 +193,17 @@ jobs:
           printf '%s\n' '${{ steps.meta.outputs.labels }}' > /tmp/labels.txt
           sed -i "s|org\.opencontainers\.image\.created=.*|org.opencontainers.image.created=${CREATED}|" /tmp/labels.txt
           { echo 'labels<<EOF'; cat /tmp/labels.txt; echo 'EOF'; } >> "${GITHUB_OUTPUT}"
+      # #10074 scope decision: this job builds only the root runtime
+      # Dockerfile. The two satellite proof Dockerfiles
+      # (scripts/ocr-sandbox/Dockerfile,
+      # scripts/lib/media-transcript-sandbox/Dockerfile) are proof-only
+      # images: never published, built and run by
+      # scripts/prove-ocr-sandbox.sh and
+      # scripts/verify-media-transcript-sandbox.sh as manual gates with
+      # evidence under docs/internal/evidence. A build-only rehearsal here
+      # would prove little (their exact `=` apk pins already fail the
+      # build when superseded) while adding external-network builds to
+      # every PR, so they stay out of the publish lanes by decision.
       - name: Build and push Docker image
         if: ${{ env.LANE_APPLIES == 'true' }}
         id: build

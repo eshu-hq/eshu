@@ -6,6 +6,13 @@ name: Apk Floors Drift
 # The blocking per-PR check lives in docker-publish.yml (verify-apk-floors).
 # This workflow has no pull_request trigger, so it never holds
 # an unrelated change.
+#
+# #10074 scope decision: the root Dockerfile only. The satellite proof
+# Dockerfiles (scripts/ocr-sandbox/Dockerfile,
+# scripts/lib/media-transcript-sandbox/Dockerfile) pin every apk package
+# with exact `=` versions, not `>=` floors, so the floor check does not
+# apply: a superseded version fails their build by design, which is
+# stricter than a drift report. Excluded by decision, not by omission.
 on:
   schedule:
     # Daily 05:30 UTC, ahead of the Monday 06:00 security-scan.yml run.
