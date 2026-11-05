@@ -49,7 +49,7 @@ producer's `cve_id` and the stored facts do not change.
 - **Retraction.** A retracted record does not decide a group that has a live
   record for the same package: its fact ids stay in `evidence_fact_ids` and its
   status in `advisory_sources`. A record is retracted when every cve observation
-  of its `AdvisoryID` is. A wholly retracted group keeps its verdict and its
+  of its `AdvisoryID` and source class is. A wholly retracted group keeps its verdict and its
   `AdvisoryRetraction` (#9695). An OS-class finding judges this over the records
   that list its package: a live record for another package, or a cve-only NVD or
   GHSA record, supplies severity and sources but never said this package is
@@ -446,7 +446,7 @@ them, and nothing was reverted.
   on `ImpactCVE`, because `representative()` ranks the distro copy over NVD and the
   product branch must judge native observations only.
 - **Decision 5, liveness.** A record is retracted when every cve observation of its
-  `AdvisoryID` is retracted, and a package whose record has no loaded cve observation
+  `AdvisoryID` and source class is retracted, and a package whose record has no loaded cve observation
   is live. The filter is not limited to OS ecosystems, so a two-record language
   group with one retracted record can change verdict. No test moved. The golden
   corpus and cassette run says whether any fixture row moved; cite it in the PR body.
@@ -483,7 +483,8 @@ Readings of the second ruling, for a reviewer to check:
 - A fact that cannot anchor a finding on an index must not change the finding that index would produce
   without it (ruling 9914-r5). When every live fact for a package has no installed row, SBOM path or consuming
   repository and a retracted fact has an anchor, the finding is the retracted record's with
-  `AdvisoryRetraction` set. No producer writes this today. Limits, in #10034: OS spellings outside the class
+  `AdvisoryRetraction` set (a quarantined sibling cve fact is the exception: the record reads live and no
+  retraction shows). No producer writes this today. Limits, in #10034: OS spellings outside the class
   set (`dpkg`) get neither this rule nor N1 and N2, a group whose facts join rows of different vendors, and a
   live record with a consumer takes the group, so the host row reads no finding.
 - A record is retracted as a whole (ruling 9914-retract). An `affected_package` fact with no cve fact of its

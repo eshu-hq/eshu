@@ -334,10 +334,9 @@ decides per finding.
 - **Rule.** A finding retracts only when EVERY source that contributes evidence
   for it retracted. The sources are the observations the severity selection
   reads: one per `vulnerability.cve` fact, plus one per `affected_package` fact
-  that no CVE fact matched, which reads as its record when that whole record retracted. A source whose CVE fact is missing, or was
+  that no CVE fact matched, which reads as its record when that whole record retracted. A source whose CVE fact is missing from the loaded set, or was
   quarantined by a failed decode (`unreadableCVEs`, keyed by
-  `supplyChainCVEGroupKey`), counts as live, so a decode failure or a partial
-  load never hides a vulnerability that source still asserts. A rejected CVE
+  `supplyChainCVEGroupKey`), counts as live, so a decode failure never hides a vulnerability that source still asserts. A partial load can: a package fact whose own cve fact was cut reads as its record when a loaded cve fact of that record retracted. A rejected CVE
   with a live GHSA alias, or a withdrawn GHSA whose CVE has a live NVD record,
   keeps the finding active. The retracting source still shows under
   `provenance.advisory_sources[]` with its `status` and `replaced_by`.

@@ -143,8 +143,8 @@ func representativeAffectedPackage(packages []supplychainmodel.AffectedPackage) 
 // matching counterpart are still preserved so callers see the full source
 // list. An affected_package with no cve observation of its own takes its
 // record's lifecycle when that whole record retracted (retractedRecordOf). It
-// keeps zero severity and an empty CVEFactID, so identity and severity
-// selection do not move.
+// keeps zero severity and an empty CVEFactID, so severity selection does
+// not move. Identity can: the finding takes the advisory id of the record that decides.
 func buildAdvisoryProvenanceObservations(
 	cves []supplychainmodel.ImpactCVE,
 	packages []supplychainmodel.AffectedPackage,

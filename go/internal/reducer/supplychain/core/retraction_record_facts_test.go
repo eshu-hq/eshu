@@ -168,9 +168,9 @@ func TestRetractedRecordWithSeveralFactsReadsAsItsOneFactControl(t *testing.T) {
 						if class.name == "osv" && cveFacts == 2 {
 							// One package fact leaves the second cve fact unpaired, and only a
 							// paired cve fact takes the vendor label from its package's purl, so
-							// this control lists ubuntu and osv for one record. The row pairs both
-							// and lists ubuntu once. That labeling is not this rule's: no unpaired
-							// package fact is involved, so this cell compares with the one-cve control.
+							// this control lists ubuntu and osv for one record. Every row with two
+							// or more facts pairs both cve facts and lists ubuntu once, so these cells
+							// compare with the one-cve control. That labeling is not this rule's.
 							wantSources = oneRecordFinding(t, BuildSupplyChainImpactFindings(
 								slices.Concat(cves[:1], []facts.Envelope{class.anchor(), class.one()}),
 							)).AdvisorySources
