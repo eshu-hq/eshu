@@ -121,7 +121,7 @@ SHARD_HEADROOM_LINES = 20
 # module. A shard that would pass the budget fails closed naming the
 # boundary to add here.
 SHARD_BOUNDARIES: dict[str, list[str]] = {
-    "./internal/storage/postgres": ["m"],
+    "./internal/storage/postgres": ["drifted", "m", "recovery_replay"],
 }
 WORKFLOW_BEGIN = ("# BEGIN GENERATED READINESS ENV "
                   "(scripts/generate-live-postgres-readiness.py; "
