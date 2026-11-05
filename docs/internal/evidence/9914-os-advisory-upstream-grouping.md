@@ -340,10 +340,10 @@ Limits, measured or not:
   | 400 | whole-index walk, cost 1,120,897 | key probe, cost 66,088 |
   | 1,000 | whole-index walk, cost 1,120,898 | key probe, cost 66,088 |
 
-  That table shows one flip between 380 and 400 ids, and it missed another. A plan-only
-  QA sweep of the 5-kind statement at `random_page_cost` 1.1 (#9994's evidence note)
-  probes at 1 to 171 ids, walks `advisory_lookup_v2` at 172 to 199, probes at 200 to 380
-  and walks from 400. At page cost 4 it probes at 180 and walks at 199. The planner
+  That table shows one flip, and it missed another. A plan-only QA sweep of the 5-kind
+  statement at `random_page_cost` 1.1 (#9994's evidence note) probes at 1 to 171 ids, walks
+  `advisory_lookup_v2` at 172 to 199, probes at 200 to 388 and walks from 389. At page cost
+  4 it probes at 1 to 181 and walks at 182 to 199. The planner
   prices each id at the default 0.005 and sums them below 200 ids, then uses the
   independent formula, so the estimate peaks just under 200. These samples at 240, 400
   and 1,000 never landed in that window.
@@ -371,11 +371,16 @@ Limits, measured or not:
   from the production loader and fails at a bound of 172 or more (seeded at 172 and 240;
   green at 171 and 120).
 
-  For this 2-kind statement the QA evidence is indirect. Its costs at 240, 400 and 1,000
-  ids are the 5-kind costs scaled by 0.98, and the ruling's monotonicity argument covers
-  1 to 139 ids. NOT_CHECKED, both required before the goal closes and neither blocking this
-  bound: a direct QA plan check of the 2-kind statement at 171, 172, 185, 199 and 200 ids,
-  and a warm timing of the 1,922-id list at 120-id chunks.
+  For this 2-kind statement the QA plans are direct. The plan-only QA sweep (#9994's,
+  2026-11-04, PostgreSQL 18.3) planned the two kinds at every length from 1 to 400 under
+  custom plans and 1 to 260 under generic plans. At page cost 1.1 the custom plan probes at
+  1 to 171 and 200 to 388 and walks at 172 to 199 and 389 to 400; at page cost 4 it probes at
+  1 to 186 and 200 to 400 and walks at 187 to 199. The generic plan probes at every length
+  planned. This branch generates that statement's text: the 5-kind statement with the other
+  three kinds removed. NOT_CHECKED, neither blocking this bound: a plan on QA of the
+  statement as this branch builds it, which #9994 still owes and which is blocked on an SSO
+  login; and, required before the goal closes, a warm timing of the 1,922-id list at 120-id
+  chunks.
 
   On the local fixture, `TestSupplyChainImpactBranchPlansStayOnAnchorsLive` proves the same
   anchor at 120 ids under both plan modes, and
