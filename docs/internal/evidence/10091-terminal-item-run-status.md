@@ -7,7 +7,14 @@ planner pass could admit a second item for the same target. The run now becomes
 `failed` only when none of its items is `pending` or `claimed`.
 
 The rule comes from the arbiter ruling on #10091. Neither the claim SQL nor the
-guard predicate changes, and there is no new lock or query.
+guard predicate changes, and there is no new lock. One reconciler read does
+change: the concurrent-lifecycle proof below exposed that the #9257
+factless-completed count came from a separate statement after the progress
+counts, so under Read Committed a completion landing between the two
+statements made factless exceed completed and failed the whole reconcile tick.
+The probe now runs inside the progress statement, so every count the rule
+validates against another count comes from one snapshot. No predicate changes;
+one statement fewer per run per tick.
 
 ## Behavior
 
@@ -69,15 +76,19 @@ run already behaves that way.
 
 ## Evidence
 
-No-Regression Evidence: no SQL text, predicate, index, lock, lease or claim path
-changes. Conflict domain: one run's `workflow_work_items` rows; worker and lease
-settings are unchanged. A reconcile tick still costs the same statements per run:
-four reads, one status update and one upsert per required phase. A run with a
+No-Regression Evidence: no predicate, index, lock, lease or claim path changes.
+The only SQL text change folds the factless probe's two `NOT EXISTS` subqueries
+into the progress statement's completed `FILTER`; they hit the same
+`(scope_id, generation_id)` index prefixes for the same completed rows, and a
+reconcile tick now costs three reads per run instead of four, plus one status
+update and one upsert per required phase. Conflict domain: one run's
+`workflow_work_items` rows; worker and lease settings are unchanged. A run with a
 terminal item and pending siblings now stays in the reconciliation list until
 collection ends, at the same per-tick cost as any active run. Row counts before and
 after are the table above: the 61-item run moves from `failed` with 60 items still
 claimable to `collection_active`, with those items still counted as open by the
-guard. No throughput or latency was measured, because no statement changed.
+guard. No throughput or latency was measured: the folded probe replaces an
+identical per-completed-item probe, so the per-tick statement cost does not grow.
 
 Observability Evidence: no new instrument. While the run is open, the signal is
 `collection_active` run status plus the `blocked` rows in
@@ -97,6 +108,10 @@ Hermetic, RED before the fix and GREEN after:
   companions in `go/internal/workflow/progress_terminal_siblings_test.go`.
 - `TestReconcileCountsDeadLetterBlockOnlyWhenTheRunTerminates` in
   `go/internal/storage/postgres/run_reconciliation_terminal_blocks_test.go`.
+- `TestReconcileFactlessCountSharesProgressSnapshot` in
+  `go/internal/storage/postgres/run_reconciliation_factless_test.go` (regression for
+  the cross-statement snapshot skew; RED with the production error text before the
+  probe was folded into the progress statement).
 
 Live proofs on a disposable Postgres, in
 `go/internal/storage/postgres/run_reconciliation_terminal_siblings_live_test.go`:

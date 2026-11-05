@@ -41,18 +41,26 @@ WHERE status NOT IN ('complete', 'failed')
 ORDER BY updated_at ASC, run_id ASC
 `
 
+// listWorkflowCollectorProgressQuery reads every per-collector count that
+// ReconcileRunProgress validates against each other — including the #9257
+// factless-completed count (see run_reconciliation_factless.go) — in one
+// statement, so they all come from one READ COMMITTED snapshot. A separate
+// factless probe ran after this query and counted completions that landed
+// in between, breaking the factless <= completed invariant and failing the
+// whole reconcile tick whenever collectors finished work concurrently.
 const listWorkflowCollectorProgressQuery = `
 SELECT
-    collector_kind,
+    item.collector_kind,
     COUNT(*) AS total_work_items,
-    COUNT(*) FILTER (WHERE status = 'pending') AS pending_work_items,
-    COUNT(*) FILTER (WHERE status = 'claimed') AS claimed_work_items,
-    COUNT(*) FILTER (WHERE status = 'completed') AS completed_work_items,
-    COUNT(*) FILTER (WHERE status = 'failed_terminal') AS failed_terminal_work_items
-FROM workflow_work_items
-WHERE run_id = $1
-GROUP BY collector_kind
-ORDER BY collector_kind ASC
+    COUNT(*) FILTER (WHERE item.status = 'pending') AS pending_work_items,
+    COUNT(*) FILTER (WHERE item.status = 'claimed') AS claimed_work_items,
+    COUNT(*) FILTER (WHERE item.status = 'completed') AS completed_work_items,
+    COUNT(*) FILTER (WHERE item.status = 'failed_terminal') AS failed_terminal_work_items,
+    COUNT(*) FILTER (WHERE item.status = 'completed'` + factlessCompletedProbeSQL + `) AS factless_completed_items
+FROM workflow_work_items AS item
+WHERE item.run_id = $1
+GROUP BY item.collector_kind
+ORDER BY item.collector_kind ASC
 `
 
 const listWorkflowCollectorPhaseCountsQuery = `
@@ -207,14 +215,9 @@ func (s *WorkflowControlStore) reconcileWorkflowRunOnce(ctx context.Context, run
 	if err != nil {
 		return fmt.Errorf("reconcile workflow run %s: %w", run.RunID, err)
 	}
-	factlessCounts, err := s.listWorkflowCollectorFactlessCompletedCounts(ctx, queryTarget, run.RunID)
-	if err != nil {
-		return fmt.Errorf("reconcile workflow run %s: %w", run.RunID, err)
-	}
 	for i := range progress {
 		progress[i].PublishedPhaseCounts = phaseCounts[string(progress[i].CollectorKind)]
 		progress[i].TerminalDeadLetterCounts = deadLetterCounts[string(progress[i].CollectorKind)]
-		progress[i].FactlessCompletedItems = factlessCounts[string(progress[i].CollectorKind)]
 	}
 
 	nextRun, completeness, err := workflow.ReconcileRunProgress(workflow.RunProgressSnapshot{
@@ -357,6 +360,7 @@ func (s *WorkflowControlStore) listWorkflowCollectorProgress(ctx context.Context
 			&row.ClaimedWorkItems,
 			&row.CompletedWorkItems,
 			&row.FailedTerminalItems,
+			&row.FactlessCompletedItems,
 		); err != nil {
 			return nil, fmt.Errorf("list workflow collector progress: %w", err)
 		}

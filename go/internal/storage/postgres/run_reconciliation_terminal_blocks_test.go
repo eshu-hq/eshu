@@ -67,7 +67,7 @@ func TestReconcileCountsDeadLetterBlockOnlyWhenTheRunTerminates(t *testing.T) {
 					now.Add(-time.Hour),
 					sql.NullTime{},
 				}}},
-				{rows: [][]any{{string(scope.CollectorGit), 2, tt.pending, 0, tt.completed, 0}}},
+				{rows: [][]any{{string(scope.CollectorGit), 2, tt.pending, 0, tt.completed, 0, 0}}},
 				{rows: nil},
 				{rows: [][]any{{
 					string(scope.CollectorGit),
@@ -75,7 +75,6 @@ func TestReconcileCountsDeadLetterBlockOnlyWhenTheRunTerminates(t *testing.T) {
 					string(gpphase.PhaseDeploymentMapping),
 					1,
 				}}},
-				{rows: nil},
 			}}
 
 			reader := sdkmetric.NewManualReader()
