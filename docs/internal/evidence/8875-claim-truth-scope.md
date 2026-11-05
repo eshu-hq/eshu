@@ -66,15 +66,19 @@ The drift is commit `5958727005` (2026-11-04, `#9777`):
 (ecosystem, package name) pair from the OSV `modified_id.csv` feed, no
 emitter or consumer yet. Unrelated to the workflow lane.
 `go/cmd/workflow-coordinator/EXTRACTION_PREP.md` §§4/11 refreshed to 188
-in this lane; importer census re-verified identical (169 non-test files
-import the `go/internal/workflow` root package).
+in this lane. Importer census NOT refreshed here (owned by the census
+lane): re-measured at this HEAD with the census method
+(`git grep -l -F 'eshu/go/internal/workflow"' -- 'go/**/*.go' ':!*_test.go'`;
+169 at `8ec6d11ddf`, 199 at this HEAD, +30 from merged lanes since
+2026-10-30) — `EXTRACTION_PREP.md` §5 still records 169 and needs its own
+refresh pass.
 
 ## Proof (this worktree, post-final-edit)
 
 - `go test ./internal/workflow/ -run 'TestClaimPath|TestCoordinatorFacts|TestTruthSurfaces' -count=1`: PASS (3/3).
 - Mutation RED check per guard above: each planted coupling FAILED its
-  guard; probes removed afterwards (`git status` clean except the two
-  intended files).
+  guard; probes removed afterwards (`git status` clean except the three
+  lane files).
 - `go vet ./internal/workflow/`: clean. `gofmt` applied to the new test.
 - Full package suite + selected static gates run before handoff; see the
   lane report.
