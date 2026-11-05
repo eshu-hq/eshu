@@ -180,4 +180,19 @@ git -C "${repo}" commit -qm builder-again
 run_selection pull_request "$(git -C "${repo}" rev-parse HEAD)" "${builder_base}"
 rg -q '^image=true$' "${scratch}/output"
 rg -q '^scannerpins=false$' "${scratch}/output"
+# #10164: the document-import pin files feed the job-document-import target
+# build (image lane) and the --stage apk audit (apkfloors lane). Any other
+# lane combination leaves a registry-selected gate with every publish job
+# skipped and the aggregator fails closed.
+for docimport_path in specs/doc-import-pins/tesseract-5.5.0.amd64.sha256 specs/doc-import-pins/README.md; do
+  docimport_base="$(git -C "${repo}" rev-parse HEAD)"
+  mkdir -p "${repo}/$(dirname "${docimport_path}")"
+  printf '# doc-import pins\n' > "${repo}/${docimport_path}"
+  git -C "${repo}" add "${docimport_path}"
+  git -C "${repo}" commit -qm "${docimport_path##*/}"
+  run_selection pull_request "$(git -C "${repo}" rev-parse HEAD)" "${docimport_base}"
+  rg -q '^image=true$' "${scratch}/output"
+  rg -q '^apkfloors=true$' "${scratch}/output"
+  rg -q '^scannerpins=false$' "${scratch}/output"
+done
 printf 'PASS: production workflow selector steps execute with expected event behavior\n'

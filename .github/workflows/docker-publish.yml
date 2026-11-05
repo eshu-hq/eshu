@@ -20,6 +20,7 @@ on:
       'Dockerfile', '.dockerignore', 'go/**',
       '.github/workflows/docker-publish.yml', 'scripts/ci/select-docker-publish-lanes.sh', 'scripts/verify-apk-floors.sh',
       'scripts/test-verify-apk-floors.sh', 'scripts/fixtures/apk-floors/**',
+      'specs/doc-import-pins/**',
       'scripts/verify-runtime-image-tools.sh', 'scripts/test-verify-runtime-image-tools.sh',
       'scripts/lib/rootfs-resolve.sh',
       'scripts/verify-scanner-digest-pins.sh', 'scripts/test-verify-scanner-digest-pins.sh',
@@ -100,6 +101,12 @@ jobs:
       - name: Verify apk floors against the Alpine repository
         if: ${{ env.LANE_APPLIES == 'true' }}
         run: bash scripts/verify-apk-floors.sh
+      # #10164: audit the document-import Job stage too — its exact tesseract
+      # pins plus libssl3/libcrypto3 floors live in the job-document-import
+      # stage, not the final stage, so the default audit never sees them.
+      - name: Audit document-import stage floors and pins
+        if: ${{ env.LANE_APPLIES == 'true' }}
+        run: bash scripts/verify-apk-floors.sh --stage job-document-import
   # Scanner digest pins (#9491): the drift gate for the artifactDigests pins
   # in go/internal/collector/scannercomponent/manifest.go. Lives
   # beside verify-apk-floors (own scannerpins lane, no dependency on the
@@ -230,6 +237,38 @@ jobs:
           cache-from: type=registry,ref=ghcr.io/eshu-hq/eshu-buildcache:runtime
           cache-to: ${{ github.event_name == 'push' && 'type=registry,ref=ghcr.io/eshu-hq/eshu-buildcache:runtime,mode=max' || '' }}
           no-cache-filters: runtime
+          platforms: ${{ env.IMAGE_PLATFORMS }}
+      # #10164: build-only proof of the Event-A one-shot document-import Job
+      # image. This target is never published from this workflow — the step
+      # proves `--target job-document-import` resolves and its in-build
+      # `sha256sum -c` pin gate passes (a drifted pin fails the RUN, which
+      # fails the build). no-cache-filters keeps the gate running on every
+      # lane run instead of cache-masked; the RUN output in the job log is
+      # the observed-green evidence. PRs build linux/amd64 only, main and
+      # tags build both arches, via IMAGE_PLATFORMS like the runtime build.
+      - name: Build document-import job image
+        if: ${{ env.LANE_APPLIES == 'true' }}
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          target: job-document-import
+          push: false
+          build-args: |
+            ESHU_XX_IMAGE=${{ env.ESHU_XX_IMAGE }}
+            ESHU_GO_IMAGE=${{ env.ESHU_GO_IMAGE }}
+            ESHU_ALPINE_IMAGE=${{ env.ESHU_ALPINE_IMAGE }}
+            ESHU_VERSION=${{ github.ref_type == 'tag' && github.ref_name || github.sha }}
+            SOURCE_DATE_EPOCH=${{ steps.epoch.outputs.epoch }}
+          provenance: false
+          # #9632: one fixed tag per target — this target reads its own tag
+          # plus :runtime for the shared builder stage, and writes its own
+          # tag on push only, exactly like the runtime step above.
+          cache-from: |
+            type=registry,ref=ghcr.io/eshu-hq/eshu-buildcache:job-document-import
+            type=registry,ref=ghcr.io/eshu-hq/eshu-buildcache:runtime
+          cache-to: ${{ github.event_name == 'push' && 'type=registry,ref=ghcr.io/eshu-hq/eshu-buildcache:job-document-import,mode=max' || '' }}
+          no-cache-filters: job-document-import
           platforms: ${{ env.IMAGE_PLATFORMS }}
       - name: Generate artifact attestation
         if: ${{ github.event_name != 'pull_request' }}
