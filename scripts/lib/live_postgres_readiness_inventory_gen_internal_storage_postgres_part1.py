@@ -16,17 +16,6 @@ TABLE = {
             "TestReducerContentionGateActiveCodeCallSymbolLoaderSupersedeThenDeltaHole",
             "TestReducerContentionGateActiveCodeCallSymbolLoaderDirtyNonProducerStaysGated",
         ),
-        "go/internal/storage/postgres/active_code_call_symbols_delta_live_test.go": (
-            "TestLoadActiveCodeCallSymbolDefinitionFactsDeltaActiveScopeLive",
-            "TestLoadActiveCodeCallSymbolDefinitionFactsDeltaStatementsLive",
-            "TestLoadActiveCodeCallSymbolDefinitionFactsNoDeltaStatementsLive",
-            "TestDeriveDeltaOverlayBaseQueryForCodeCallReaders",
-        ),
-        "go/internal/storage/postgres/active_jvm_reachability_delta_live_test.go": (
-            "TestListActiveJVMReachabilityFactsDeltaActiveScopeLive",
-            "TestListActiveJVMReachabilityFactsDeltaStatementsLive",
-            "TestListActiveJVMReachabilityFactsNoDeltaStatementsLive",
-        ),
         "go/internal/storage/postgres/active_package_manifest_dependency_case_live_test.go": (
             "TestListActivePackageManifestDependencyFactsLoadsMixedCaseNamesLive",
             "TestListActivePackageManifestDependencyFactsLoadsMixedCaseNamesThroughSBTQueryLive",
