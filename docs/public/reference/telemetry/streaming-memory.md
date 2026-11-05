@@ -18,9 +18,11 @@ between:
 
 ## Fact Commits
 
-`eshu_dp_facts_committed_total` counts facts persisted to Postgres, recorded
-after the commit returns without error and was not refused (#10037)
-(`go/internal/collector/service.go:447`).
+`eshu_dp_facts_committed_total` counts facts persisted to Postgres.
+`collector.Service` records it in `commitWithTelemetry`
+(`go/internal/collector/service.go`) after a commit that returned nil and was
+not refused (#10037); `bootstrap-index` records it after any nil commit,
+including a refused one (#10085).
 
 Use it to answer:
 

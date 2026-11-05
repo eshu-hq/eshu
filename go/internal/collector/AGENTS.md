@@ -185,7 +185,11 @@
   no work and stops permanently at its first commit. Do not "restore" edge
   triggering; that reintroduces #5852. A refused commit stored nothing, so it
   sets neither `everCommitted` nor `committedSinceDrain` (#10068): latching it
-  would suppress this escape for a shard whose scopes keep being refused.
+  would suppress this escape for a never-committed shard whose scopes keep being
+  refused. A shard that has committed and is then only refused joins the
+  documented idle-shard class: it stops arriving at the barrier (#10084), and a
+  refusal must never report `hasCommitted=true`.
+  `TestServiceMixedLandedAndRefusedDrainCalls` pins both.
 - `AfterBatchDrained`'s `hasCommitted bool` argument — in the steady state
   this is `committedSinceDrain`, true only when a real commit happened since
   the last drain. `Service.Run` deliberately overrides that for exactly ONE
