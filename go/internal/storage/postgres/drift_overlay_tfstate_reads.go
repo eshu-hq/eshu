@@ -5,6 +5,7 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"sort"
 	"strings"
@@ -130,13 +131,51 @@ func driftFactsCandidates(rows []driftOverlayRow) ([]terraformstate.DiscoveryCan
 	return candidates, nil
 }
 
+// checkDriftConfigAnchor fails closed when the requested anchor
+// generation is not the scope's current active generation. The check
+// binds the scope row in ingestion_scopes directly, on every branch:
+// the delta-targets lookup only returns is_delta scopes (a targets-only
+// guard never fires for a full-active scope) and the config rows can be
+// legitimately empty (a row loop over them is vacuous there). An unknown
+// scope has no anchor to validate, so it proceeds as before.
+func (o TerraformDriftOverlay) checkDriftConfigAnchor(
+	ctx context.Context,
+	scopeID string,
+	generationID string,
+) error {
+	if o.Store.database == nil {
+		return fmt.Errorf("fact store database is required")
+	}
+	rows, err := o.Store.database.QueryContext(ctx,
+		`SELECT scope.active_generation_id FROM ingestion_scopes AS scope WHERE scope.scope_id = $1`,
+		scopeID)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = rows.Close() }()
+	if !rows.Next() {
+		return nil
+	}
+	var active sql.NullString
+	if err := rows.Scan(&active); err != nil {
+		return err
+	}
+	if !active.Valid || active.String != generationID {
+		return fmt.Errorf(
+			"terraform drift overlay config generation mismatch: anchor %q is not the scope's active generation %q",
+			generationID, active.String,
+		)
+	}
+	return nil
+}
+
 // LoadDriftConfig loads one scope's current config over the delta
 // overlay: module calls merge first (the prefix maps must see the same
 // live tree the resources do), then resources decode against those maps.
 // It satisfies the OverlaidConfig seam. The requested generation must
-// match the rows the active generation actually carries; otherwise the
-// anchor raced activation and the read fails closed instead of joining
-// config from the wrong generation.
+// match the scope's active generation; otherwise the anchor raced
+// activation and the read fails closed instead of joining config from
+// the wrong generation.
 func (o TerraformDriftOverlay) LoadDriftConfig(
 	ctx context.Context,
 	scopeID string,
@@ -145,31 +184,17 @@ func (o TerraformDriftOverlay) LoadDriftConfig(
 	if o.Store == nil {
 		return tfstate.OverlaidConfig{}, fmt.Errorf("terraform drift overlay store is required")
 	}
+	if err := o.checkDriftConfigAnchor(ctx, scopeID, generationID); err != nil {
+		return tfstate.OverlaidConfig{}, err
+	}
 	sink := o.sink(terraformDriftReadConfig)
 	moduleRows, _, _, err := o.overlaidRows(ctx, sink, tfstate.ActiveModuleCallsForOverlayQuery, []any{scopeID}, scanDriftPayloadRow)
 	if err != nil {
 		return tfstate.OverlaidConfig{}, err
 	}
-	configRows, _, targets, err := o.overlaidRows(ctx, sink, tfstate.ActiveConfigResourcesForOverlayQuery, []any{scopeID}, scanDriftPayloadRow)
+	configRows, _, _, err := o.overlaidRows(ctx, sink, tfstate.ActiveConfigResourcesForOverlayQuery, []any{scopeID}, scanDriftPayloadRow)
 	if err != nil {
 		return tfstate.OverlaidConfig{}, err
-	}
-	// Bind the check to the delta targets the snapshot actually
-	// reached, not to the config rows: a delta that touches no
-	// resources leaves activeRows empty, which made the old loop
-	// vacuous and let a superseded anchor read the new
-	// generation's config. The reach-the-target check below fails
-	// closed even when the anchor generation carries zero rows.
-	for _, tgt := range targets {
-		if tgt.scopeID != scopeID {
-			continue
-		}
-		if tgt.generationID != generationID {
-			return tfstate.OverlaidConfig{}, fmt.Errorf(
-				"terraform drift overlay config generation mismatch: anchor %q is not the scope's active generation %q",
-				generationID, tgt.generationID,
-			)
-		}
 	}
 	recorder := tfstate.PostgresDriftEvidenceLoader{
 		Instruments: o.Store.Instruments(),

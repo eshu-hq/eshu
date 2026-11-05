@@ -240,6 +240,8 @@ TABLE = {
         ),
         "go/internal/storage/postgres/drift_overlay_tfstate_live_test.go": (
             "TestTerraformDriftOverlayReadsLive",
+            "TestTerraformDriftOverlayConfigRejectsStaleAnchor",
+            "TestTerraformDriftOverlayConfigRejectsStaleFullAnchor",
         ),
         "go/internal/storage/postgres/drifted_bucket_skip_live_test.go": (
             "TestDriftedPathologicalBucketSkippedLive",

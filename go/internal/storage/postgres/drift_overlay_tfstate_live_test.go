@@ -441,3 +441,43 @@ func TestTerraformDriftOverlayConfigRejectsStaleAnchor(t *testing.T) {
 		t.Logf("stale anchor fails closed: %v", err)
 	}
 }
+
+// TestTerraformDriftOverlayConfigRejectsStaleFullAnchor is the F1
+// full-active leg: after a second FULL generation activates, reading
+// config pinned to the superseded full anchor must fail closed. The
+// delta-targets lookup only returns is_delta scopes, so a targets-only
+// guard never fires here; the check must bind the scope's actual active
+// generation on every branch.
+func TestTerraformDriftOverlayConfigRejectsStaleFullAnchor(t *testing.T) {
+	f := openDriftOverlayLiveFixture(t)
+	ctx := f.ctx
+	seedDriftOverlayLiveFixture(t, ctx, f.database)
+
+	const configScope = "repository:repo-drift"
+	exec := func(what, statement string, args ...any) {
+		t.Helper()
+		if _, err := f.database.ExecContext(ctx, statement, args...); err != nil {
+			t.Fatalf("%s: %v", what, err)
+		}
+	}
+	exec("seed gen-full-2", `
+INSERT INTO scope_generations
+    (generation_id, scope_id, trigger_kind, source_commit_sha, observed_at, ingested_at, status, payload)
+VALUES ('gen-full-2', 'repository:repo-drift', 'sync', 'commit-full-2', now(), now(), 'superseded', '{}'::jsonb)`)
+	exec("seed gen-full-2 main", `
+INSERT INTO fact_records
+    (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, source_system, source_fact_key, observed_at, ingested_at, is_tombstone, payload)
+VALUES ('fact-full2-main', 'repository:repo-drift', 'gen-full-2', 'file', 'file:repo-drift:main.tf',
+        'git', 'file:repo-drift:main.tf', now(), now(), false,
+        '{"repo_id":"repo-drift","relative_path":"main.tf","parsed_file_data":{"terraform_resources":[{"resource_type":"aws_instance","resource_name":"c","path":"main.tf"}]}}'::jsonb)`)
+	activateDriftOverlayGeneration(t, ctx, f.database, configScope, "gen-full", "gen-full-2")
+
+	if _, err := f.overlay.LoadDriftConfig(ctx, configScope, "gen-full-2"); err != nil {
+		t.Fatalf("full LoadDriftConfig(gen-full-2) error = %v", err)
+	}
+	if _, err := f.overlay.LoadDriftConfig(ctx, configScope, "gen-full"); err == nil {
+		t.Fatalf("stale full LoadDriftConfig(gen-full) after gen-full-2 activated: want generation-mismatch error, got nil")
+	} else {
+		t.Logf("stale full anchor fails closed: %v", err)
+	}
+}
