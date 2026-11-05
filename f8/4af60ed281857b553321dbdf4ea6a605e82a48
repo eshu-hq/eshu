@@ -1,0 +1,43 @@
+go/internal/storage/postgres/delta_overlay_refusal.go
+  s_7547c0f0af67d4::t_926b84a3427cbb 1-113
+go/internal/storage/postgres/satisfied_by_read_refusal_test.go
+  s_7547c0f0af67d4::t_d3be6053b5bb99 1-113
+docs/internal/evidence/10005-crossplane-delta-overlay.md
+  s_7547c0f0af67d4::t_1215eb1ffa096e 61-62,111-148,150-167,327-331
+docs/public/observability/telemetry-coverage-reducer-domains.md
+  s_7547c0f0af67d4::t_9d9cbb2b4e46bc 36
+docs/public/operate/graph-delta-union.md
+  s_7547c0f0af67d4::t_ad21812a1ace75 177-194
+go/internal/reducer/crossplane/README.md
+  s_7547c0f0af67d4::t_4c330974058aee 95-100
+go/internal/storage/postgres/delta_overlay.go
+  s_7547c0f0af67d4::t_cd81ad69709cbc 30-32,153-167,177,196,198,206,219,224,237,258
+go/internal/storage/postgres/delta_union_base.go
+  s_7547c0f0af67d4::t_406dcde86c0c84 81-84,86-88,174-177
+go/internal/storage/postgres/facts_active_crossplane_xrd.go
+  s_7547c0f0af67d4::t_574a9f475688ad 144-148,175-184,236-243,279-286
+go/internal/storage/postgres/satisfied_by_read_delta_live_test.go
+  s_7547c0f0af67d4::t_550cc5a79e799e 7,12,87-89,93,96-106,214-236,356-362,373-374,382-428
+go/internal/storage/postgres/satisfied_by_read_index_live_test.go
+  s_7547c0f0af67d4::t_c14e9906aa35ea 1-73
+scripts/lib/live_postgres_readiness_inventory_gen_internal_storage_postgres_part2.py
+  s_7547c0f0af67d4::t_a9d66257ba2522 354-355
+specs/live-tests.d/live-tests-readiness-part4.generated.yaml
+  s_7547c0f0af67d4::t_92d6ab1e1dce1d 235-240
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f84af60ed281857b553321dbdf4ea6a605e82a48",
+  "prompts": {},
+  "sessions": {
+    "s_7547c0f0af67d4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7c8b2d5-3286-4c2a-be1f-589162535d83",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
