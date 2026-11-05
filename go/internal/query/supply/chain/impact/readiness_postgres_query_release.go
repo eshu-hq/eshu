@@ -17,15 +17,25 @@ package impact
 // scope id, and only label and group rows: the package-key join stays the only
 // way a state reaches a package.
 //
-// The latest planner run supplies what the state tables cannot. A state row and
-// its key rows are written together, so a scope the collector has not reached
-// leaves no row at all, and only the plan shows it is expected. Each planned
-// release of a requested package becomes a pending row, which any real state
-// for that release outranks (NULLS LAST). The plan also retires state: once it
-// names releases for a package and distro, a release it dropped and a legacy
-// scope with no release stop counting, or they would read stale forever. When
-// the plan names no release for that package and distro, every release row
-// stands, so a missing or older plan fails toward not covered.
+// The latest planner run supplies one thing the state tables cannot. A state row
+// and its key rows are written together, so a scope the collector has not
+// reached leaves no row at all, and only the plan shows it is expected. Each
+// planned release of a requested package becomes a pending row, which any real
+// state for that release outranks (NULLS LAST). The plan never removes a state
+// row. The coordinator plans one limit-sized window of the installed fleet per
+// tick, so a plan that does not name a release says nothing about whether the
+// release is still installed, and a rule that read absence as departure made the
+// same state rows read fresh in one window and failed in the next.
+//
+// One rule reads state only. A scope with no release parameter at all is a legacy
+// scope: the planner never mints one for an OS package once releases are read, and
+// OSV answers a bare Alpine query with no advisories, so it never covered a
+// release. It stops counting for a package and distro once a real state row with
+// a release exists for the same instance, package and distro, or it would read
+// stale for good. A pending row does not trigger it, and neither does a scope
+// whose first release value is empty: that row has a release parameter, so it
+// stands and fails toward not covered. A release that left the fleet keeps
+// counting until its state is fresh again; that limit is tracked in #10135.
 //
 // Bounds: the plan is capped by the derivation budget (5000 queries), and the
 // EXISTS gate skips it for requests with no OS package, the only ecosystem with
@@ -120,10 +130,9 @@ derived_vulnerability_source_matched AS (
         ranked.result_count, ranked.warning_count, ranked.distro, ranked.release
     FROM (
         SELECT candidate.*,
-            BOOL_OR(candidate.planned) OVER (PARTITION BY candidate.collector_instance_id COLLATE "C", candidate.ecosystem COLLATE "C",
-                candidate.package_id COLLATE "C", candidate.distro COLLATE "C") AS distro_planned,
-            BOOL_OR(candidate.planned) OVER (PARTITION BY candidate.collector_instance_id COLLATE "C", candidate.ecosystem COLLATE "C",
-                candidate.package_id COLLATE "C", candidate.distro COLLATE "C", candidate.release COLLATE "C") AS release_planned
+            (candidate.release IS NULL AND candidate.scope_id NOT LIKE '%release=%') AS legacy,
+            BOOL_OR(NOT candidate.planned AND candidate.release IS NOT NULL) OVER (PARTITION BY candidate.collector_instance_id COLLATE "C",
+                candidate.ecosystem COLLATE "C", candidate.package_id COLLATE "C", candidate.distro COLLATE "C") AS distro_has_release_state
         FROM (
             SELECT hit.*, FALSE AS planned FROM derived_vulnerability_source_hits AS hit
             UNION ALL
@@ -134,7 +143,7 @@ derived_vulnerability_source_matched AS (
             FROM derived_vulnerability_planned_releases AS planned
         ) AS candidate
     ) AS ranked
-    WHERE NOT ranked.distro_planned OR ranked.release_planned
+    WHERE NOT ranked.legacy OR NOT ranked.distro_has_release_state
     ORDER BY ranked.collector_instance_id COLLATE "C", ranked.ecosystem COLLATE "C", ranked.package_id COLLATE "C",
         ranked.source COLLATE "C", CASE WHEN ranked.release IS NULL THEN NULL ELSE ranked.distro END COLLATE "C", ranked.release COLLATE "C",
         ranked.updated_at DESC NULLS LAST, ranked.scope_id
