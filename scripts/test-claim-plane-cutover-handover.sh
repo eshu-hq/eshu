@@ -26,9 +26,6 @@ check_contains() { # label needle haystack
 
 # world builds one isolated stub world per case and exports the env into
 # the CALLER (call it bare, then read WORLD_DIR): command substitution would
-# trap the exports in a subshell.
-# world builds one isolated stub world per case and exports the env into
-# the CALLER (call it bare, then read WORLD_DIR): command substitution would
 # trap the exports in a subshell. Fakes live in scripts/lib (the heredoc
 # budget gate forbids 512B+ heredoc bodies in new scripts); world only links
 # them onto PATH.
