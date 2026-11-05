@@ -334,7 +334,7 @@ decides per finding.
 - **Rule.** A finding retracts only when EVERY source that contributes evidence
   for it retracted. The sources are the observations the severity selection
   reads: one per `vulnerability.cve` fact, plus one per `affected_package` fact
-  that no CVE fact matched. A source whose CVE fact is missing, or was
+  that no CVE fact matched, which reads as its record when that whole record retracted. A source whose CVE fact is missing, or was
   quarantined by a failed decode (`unreadableCVEs`, keyed by
   `supplyChainCVEGroupKey`), counts as live, so a decode failure or a partial
   load never hides a vulnerability that source still asserts. A rejected CVE

@@ -270,20 +270,21 @@ as many statements; that split was not timed.
 
 ## Observability
 
-`eshu_dp_supply_chain_impact_active_evidence_branch_seconds` and
-`..._branch_rows_total` carry `branch="vulnerability_upstream_cve_id"`, one sample
-per statement.
+`eshu_dp_supply_chain_impact_active_evidence_branch_seconds` and `..._branch_rows_total` carry
+`branch="vulnerability_upstream_cve_id"`, one sample per statement.
 
 Observability Evidence: `eshu_dp_supply_chain_impact_os_advisory_upstream_groups_total{source,result}`
-counts the examined `vulnerability.cve` records by the closed source set
-(debian, ubuntu, alpine, alma, rocky, other) and result (grouped, ungrouped), 12
-series at most, and the reducer success log carries `os_advisories_grouped` and
-`os_advisories_ungrouped`. A source that reads only `ungrouped` means the
-producer's `upstream` lists do not reach the reducer; that is also the state of
-any fleet whose stored records predate the field. The planted RED is
-`TestOSAdvisoryUpstreamGroupCounterPlantedRed`. The OS join counter still counts
-each loaded advisory fact once however many CVEs it was filed under
+counts the examined `vulnerability.cve` records by the closed source set (debian, ubuntu, alpine, alma,
+rocky, other) and result (grouped, ungrouped), 12 series at most, and the reducer success log carries
+`os_advisories_grouped` and `os_advisories_ungrouped`. A source that reads only `ungrouped` means the
+producer's `upstream` lists do not reach the reducer; that is also the state of any fleet whose stored
+records predate the field. The planted RED is `TestOSAdvisoryUpstreamGroupCounterPlantedRed`. The OS join
+counter still counts each loaded advisory fact once however many CVEs it was filed under
 (`TestOSAdvisoryJoinCensusCountsEachFactOnce`).
+
+No-Observability-Change: the R5 branch and the record rule (rulings 9914-r5, 9914-retract) add no signal.
+The kept finding's `advisory_retracted` state and `advisory_retraction` block on the read API are the
+signal, and no in-tree producer reaches either shape today, so a counter would read zero.
 
 ## What the load asks for
 
@@ -472,28 +473,26 @@ Readings of the second ruling, for a reviewer to check:
 
 ## Scope and limits
 
-- Alma and Rocky are in scope. The rule keys on `upstream`, not on the id prefix,
-  and their errata carry it, so one bulletin reads one finding per upstream CVE.
-  That is a net row increase on those hosts (1 to 3 on the Alma fixture, 1 to 4
-  on the Rocky fixture), and it is the correct count: no per-CVE record exists
-  for them to merge with.
-- A language group with two or more records carrying package facts follows the
-  same retraction rule, because the liveness filter is not limited to OS
-  ecosystems. No existing test moved, and this was not measured against a fleet.
-- A known asymmetry: a withdrawn GHSA beside a live NVD cve observation on a language
-  package still reads no retraction (`TestLanguageRetractionKeepsTheGroupRule`). That is
-  the base's rule, and #9914 does not change it.
-- A fact that cannot anchor a finding on an index must not change the finding that index
-  would produce without it (ruling 9914-r5). When every live fact for a package has no
-  installed row, SBOM path or consuming repository and a retracted fact has an anchor, the
-  finding is the retracted record's with `AdvisoryRetraction` set. No producer writes this
-  today. Limits, in #10034: OS spellings outside the class set (`dpkg`) get neither this
-  rule nor N1 and N2, and a group whose facts join rows of different vendors.
+- Alma and Rocky are in scope. The rule keys on `upstream`, not on the id prefix, and their errata carry it,
+  so one bulletin reads one finding per upstream CVE. That is a net row increase on those hosts (1 to 3 on
+  the Alma fixture, 1 to 4 on Rocky), and it is the correct count: no per-CVE record exists to merge with.
+- A language group with two or more records carrying package facts follows the same retraction rule, because
+  the liveness filter is not limited to OS ecosystems. No existing test moved; not measured against a fleet.
+- A known asymmetry: a withdrawn GHSA beside a live NVD cve observation on a language package still reads no
+  retraction (`TestLanguageRetractionKeepsTheGroupRule`). That is the base's rule; #9914 does not change it.
+- A fact that cannot anchor a finding on an index must not change the finding that index would produce
+  without it (ruling 9914-r5). When every live fact for a package has no installed row, SBOM path or consuming
+  repository and a retracted fact has an anchor, the finding is the retracted record's with
+  `AdvisoryRetraction` set. No producer writes this today. Limits, in #10034: OS spellings outside the class
+  set (`dpkg`) get neither this rule nor N1 and N2, a group whose facts join rows of different vendors, and a
+  live record with a consumer takes the group, so the host row reads no finding.
+- A record is retracted as a whole (ruling 9914-retract). An `affected_package` fact with no cve fact of its
+  own takes its record's lifecycle when every cve fact of that source and advisory id retracted, so a second
+  fact no longer keeps a withdrawn record live or offers its withdrawn fix. That reverses the #9695 pin on
+  this one shape. A source with no cve fact still counts as live. No in-tree producer writes the shape: OSV
+  merges entries per package and GLAD has no retraction status.
 - An SBOM and scanned row that disagree on the version leave the installed version
   unknown, so no record holds it (`TestConflictingInstalledVersionsDoNotPickAHolder`).
-- The per-target indexes of the authorized derived pass apply the grouping but
-  are not counted in the grouping counter.
-- A quarantined (unreadable) `vulnerability.cve` record cannot be grouped, since
-  its `upstream` is unreadable; it stays under its own key.
-- Records stored before the producer wrote `upstream` read as `ungrouped` until
-  they are collected again.
+- The per-target indexes of the authorized derived pass apply the grouping but are not counted in the counter.
+- A quarantined `vulnerability.cve` record cannot be grouped, its `upstream` being unreadable; it keeps its key.
+- Records stored before the producer wrote `upstream` read as `ungrouped` until they are collected again.

@@ -123,6 +123,10 @@ changing anything here.
 - A fact that cannot anchor a finding on an index must not change the finding that
   index would produce without it (`onlyRetractedRecordsAnchor`, ruling 9914-r5). Pass
   `liveAdvisoryPackages` the index that classifies the group, or the two paths disagree.
+- A record is retracted as a whole (`retractedRecordOf`, ruling 9914-retract): a fact that
+  pairing left without a cve observation takes its record's lifecycle only when every cve
+  fact of that source and advisory id retracted. A source with no cve fact stays live, and
+  a retracted finding offers no fix, so the authorized pass selects no branch for one.
 - A consumer that reads affected packages reads them from the index, after
   `liveAdvisoryPackages`, as the primary path and the derived conflict gate do. A
   second typed decode sees the producer's `cve_id` and misses every grouped
