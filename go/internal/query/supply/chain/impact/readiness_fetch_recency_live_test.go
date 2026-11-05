@@ -18,8 +18,8 @@ import (
 	sdkcollector "github.com/eshu-hq/eshu-sdk/collector"
 	vulnerabilityv1 "github.com/eshu-hq/eshu-sdk/factschema/vulnerability/v1"
 	"github.com/eshu-hq/eshu/go/internal/collector/extensionhost"
+	hostvulnerability "github.com/eshu-hq/eshu/go/internal/collector/extensionhost/vulnerability"
 	"github.com/eshu-hq/eshu/go/internal/collector/vulnerabilityintelligence"
-	"github.com/eshu-hq/eshu/go/internal/collector/vulnerabilityintelligence/checkpoint"
 	"github.com/eshu-hq/eshu/go/internal/collector/vulnerabilityintelligence/vulnruntime"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	projectorruntime "github.com/eshu-hq/eshu/go/internal/projector/runtime"
@@ -222,13 +222,13 @@ func TestReadinessAdvisoryStaleWhenNeverRefetchedLive(t *testing.T) {
 // TestHandleReportsAnUnprovenFetchAsPartial).
 func (p *recencyProof) recordExtractedClaim(at time.Time, partial bool) {
 	p.t.Helper()
-	recorder, err := checkpoint.NewRecorder(checkpoint.Config{
+	recorder, err := hostvulnerability.NewRecorder(hostvulnerability.Config{
 		Store:               vulnerabilitystore.NewVulnerabilitySourceStateStore(storagepostgres.SQLDB{DB: p.db}),
 		CollectorInstanceID: recencyInstance,
 		Clock:               func() time.Time { return at },
 	})
 	if err != nil {
-		p.t.Fatalf("checkpoint.NewRecorder() error = %v", err)
+		p.t.Fatalf("hostvulnerability.NewRecorder() error = %v", err)
 	}
 	outcome := extensionhost.ClaimOutcome{
 		Item: workflow.WorkItem{
