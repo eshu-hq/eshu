@@ -1,0 +1,18 @@
+docs/internal/evidence/9874-lockfile-retrigger.md
+  h_78a442cba0b3e6 43-45,283
+go/internal/reducer/supplychain/core/AGENTS.md
+  h_78a442cba0b3e6 39-40
+go/internal/reducer/supplychain/core/HOLDER_FANOUT.md
+  h_78a442cba0b3e6 135
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8702497ad7f015a242a1c515d543d3715ef1b3ba",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
