@@ -1,0 +1,16 @@
+go/cmd/api/READ_TRANSPORT_CENSUS.md
+  h_78a442cba0b3e6 1-202
+go/cmd/api/read_transport_census_test.go
+  h_78a442cba0b3e6 1-108
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "04c8a454e1fcebc7ffa21fae9644a2a759838b6e",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
