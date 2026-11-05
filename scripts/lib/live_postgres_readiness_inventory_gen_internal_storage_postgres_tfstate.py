@@ -13,5 +13,8 @@ TABLE = {
             "TestTF8875CanonicalBackendsIndexExists",
             "TestTF8875CanonicalRowDifferentialLive",
         ),
+        "go/internal/storage/postgres/tfstate/drift_delta_overlay_live_test.go": (
+            "TestDriftReadsLiveBaselineSingleGeneration",
+        ),
     },
 }

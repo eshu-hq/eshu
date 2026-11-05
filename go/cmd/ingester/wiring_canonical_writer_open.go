@@ -217,7 +217,11 @@ func decorateIngesterCanonicalWriter(
 	instruments *telemetry.Instruments,
 ) *sourcecypher.CanonicalNodeWriter {
 	return writer.WithTracer(tracer).WithTerraformStateOwnershipResolver(
-		ingesterTerraformStateOwnershipResolver{resolver: tfstatebackend.NewResolver(postgres.PostgresTerraformBackendQuery{DB: database, Instruments: instruments})},
+		// driftOverlay routes the backend-anchor read through the shared
+		// delta-overlay helper (#10006).
+		ingesterTerraformStateOwnershipResolver{resolver: tfstatebackend.NewResolver(postgres.TerraformDriftOverlay{
+			Store: postgres.NewFactStore(database).WithInstruments(instruments),
+		})},
 	).WithTerraformStateConfigMatchResolver(
 		ingesterTerraformStateConfigMatchResolver{driver: driver, databaseName: databaseName},
 	).WithKustomizeOverlayResolver(

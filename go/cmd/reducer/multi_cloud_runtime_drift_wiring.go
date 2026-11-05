@@ -68,14 +68,21 @@ func multiCloudRuntimeDriftWiring(
 	instruments *telemetry.Instruments,
 	logger *slog.Logger,
 ) (multicloudruntimedrift.MultiCloudRuntimeDriftEvidenceLoader, multicloudruntimedrift.MultiCloudRuntimeDriftFindingWriter, *slog.Logger) {
+	// The anchor resolves through the overlay, so its config must come
+	// from the overlay too — otherwise a delta-active scope's base
+	// definitions read as unmanaged (#10006 P1-1).
+	driftOverlay := postgres.TerraformDriftOverlay{
+		Store: postgres.NewFactStore(database).WithInstruments(instruments).WithLogger(logger),
+	}
 	loader := postgres.PostgresMultiCloudRuntimeDriftEvidenceLoader{
 		DB: database,
-		ConfigResolver: tfstatebackend.NewResolver(
-			postgres.PostgresTerraformBackendQuery{DB: database, Instruments: instruments},
-		),
-		Tracer:      tracer,
-		Logger:      logger,
-		Instruments: instruments,
+		// driftOverlay routes the backend-anchor read through the shared
+		// delta-overlay helper (#10006).
+		ConfigResolver: tfstatebackend.NewResolver(driftOverlay),
+		OverlaidConfig: driftOverlay.LoadDriftConfig,
+		Tracer:         tracer,
+		Logger:         logger,
+		Instruments:    instruments,
 	}
 	writer := multicloudruntimedrift.PostgresMultiCloudRuntimeDriftWriter{DB: database}
 	return loader, writer, logger

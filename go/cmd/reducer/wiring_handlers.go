@@ -95,10 +95,14 @@ func buildReducerDriftHandlers(
 	// Multi-cloud runtime drift wiring (issues #1997, #1998); see
 	// multiCloudRuntimeDriftWiring for the uid-keyed join contract.
 	multiCloudRuntimeDriftEvidenceLoader, multiCloudRuntimeDriftWriter, multiCloudRuntimeDriftLogger := multiCloudRuntimeDriftWiring(database, tracer, instruments, logger)
+	// driftOverlay routes the backend-anchor and config reads through the
+	// shared delta-overlay helper (#10006): a delta-active scope's base
+	// rows merge back in, so drift matches a full generation. The
+	// evidence loader keeps its orchestration and takes only the
+	// overlaid config leg through the seam.
+	driftOverlay := postgres.TerraformDriftOverlay{Store: postgres.NewFactStore(database).WithInstruments(instruments).WithLogger(logger)}
 	return reducer.DriftHandlers{
-		TerraformBackendResolver: tfstatebackend.NewResolver(
-			postgres.PostgresTerraformBackendQuery{DB: database, Instruments: instruments},
-		),
+		TerraformBackendResolver: tfstatebackend.NewResolver(driftOverlay),
 		DriftEvidenceLoader: postgres.PostgresDriftEvidenceLoader{
 			DB:               database,
 			Tracer:           tracer,
@@ -109,6 +113,8 @@ func buildReducerDriftHandlers(
 			// loader itself; passing it here keeps the counter wired in
 			// production runs.
 			Instruments: instruments,
+			// OverlaidConfig feeds the delta-aware current-config leg.
+			OverlaidConfig: driftOverlay.LoadDriftConfig,
 		},
 		// DriftWriter makes Terraform config-vs-state drift durable and
 		// queryable (issue #5442): every admitted per-address finding and
@@ -128,13 +134,15 @@ func buildReducerDriftHandlers(
 		// Terraform-state resources by ARN, then resolves the state backend to
 		// the owning config snapshot before classifying unmanaged resources.
 		AWSCloudRuntimeDriftEvidenceLoader: postgres.PostgresAWSCloudRuntimeDriftEvidenceLoader{
-			DB: database,
-			ConfigResolver: tfstatebackend.NewResolver(
-				postgres.PostgresTerraformBackendQuery{DB: database, Instruments: instruments},
-			),
-			Tracer:      tracer,
-			Logger:      logger,
-			Instruments: instruments,
+			DB:             database,
+			ConfigResolver: tfstatebackend.NewResolver(driftOverlay),
+			// The anchor resolves through the overlay, so its config must
+			// come from the overlay too — otherwise a delta-active scope's
+			// base definitions read as unmanaged (#10006 P1-1).
+			OverlaidConfig: driftOverlay.LoadDriftConfig,
+			Tracer:         tracer,
+			Logger:         logger,
+			Instruments:    instruments,
 		},
 		AWSCloudRuntimeDriftWriter:           awsCloudRuntimeDriftWriterFor(database),
 		AWSCloudRuntimeDriftReadinessChecker: postgres.PostgresAWSCloudRuntimeDriftReadinessChecker{DB: database},

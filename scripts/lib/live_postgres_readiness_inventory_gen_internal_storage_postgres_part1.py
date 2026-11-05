@@ -238,6 +238,12 @@ TABLE = {
         "go/internal/storage/postgres/delta_union_projection_live_test.go": (
             "TestDeltaGenerationProjectsOverUnionBaseLive",
         ),
+        "go/internal/storage/postgres/drift_overlay_tfstate_live_test.go": (
+            "TestTerraformDriftOverlayReadsLive",
+            "TestTerraformDriftOverlayConfigRejectsStaleAnchor",
+            "TestTerraformDriftOverlayConfigRejectsStaleFullAnchor",
+            "TestAWSRuntimeDriftEvidenceOverlaidAnchorSeesBaseConfigLive",
+        ),
         "go/internal/storage/postgres/drifted_bucket_skip_live_test.go": (
             "TestDriftedPathologicalBucketSkippedLive",
         ),
