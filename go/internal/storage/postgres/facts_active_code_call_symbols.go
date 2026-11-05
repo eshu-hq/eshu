@@ -141,7 +141,11 @@ const listActiveCodeCallSymbolDefinitionFactsQuery = codeCallSymbolDefinitionFac
 
 // listAnchoredActiveCodeCallSymbolDefinitionFactsQuery is the same scan
 // restricted to the producer scopes in $5, so its cost follows the producer
-// file facts instead of the whole corpus (#7601).
+// file facts instead of the whole corpus (#7601). That cost promise holds
+// for anchored legs, whose $5 is the producer set; base-only union legs
+// (#10104) bind the baselined delta-active targets instead, so their width
+// scales with the delta-active scope count (read it off the union scope
+// counters on the load log line).
 const listAnchoredActiveCodeCallSymbolDefinitionFactsQuery = codeCallSymbolDefinitionFactsSelect +
 	"  AND fact.scope_id = ANY($5::text[])\n" +
 	codeCallSymbolDefinitionFactsMatch

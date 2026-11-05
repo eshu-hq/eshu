@@ -12,8 +12,9 @@ definition's own package id gates the wider base scopes.
 
 ## Performance Evidence:
 
-Source: branch `drive/10104-producer-union` (commits `f27549ae7e`
-regression + forward-port). Disposable PostgreSQL 18.6
+Source: branch `drive/10104-producer-union` (commits `c576accce4`
+regression + `be63034f7b` forward-port, rebased onto `60f2fe256d44`
+with byte-identical code). Disposable PostgreSQL 18.6
 (`postgres:18-alpine` container, default settings) on a shared developer
 host, schema from `ApplyBootstrap`, ANALYZEd, best of 5 runs per statement,
 literal parameters, page 500. Fixture: two scopes (one package-anchored,
@@ -33,13 +34,24 @@ EXPLAIN (ANALYZE, BUFFERS) on the derived anchored base text with the
 production bindings: union base pages 14.65 ms (package) and 14.72 ms (Go)
 vs the all-full anchored read at 27.60 ms with the base generation active,
 counterfactual `(pkg+go)/full` 1.06x under the #10003 1.5x bar. Neither
-union plan seq-scans `fact_records`.
+union plan seq-scans `fact_records`. Measured on a 2-scope lane fixture:
+union width scales with the number of baselined delta-active scopes (logged
+per load as `package_union_scope_count` / `go_union_scope_count`), so the
+1.5x bar re-proves per corpus shape and is not claimed beyond the measured
+fixture.
 
 Why safe: the union leg runs only when `runBase` holds and discovery is
-empty — the shape that returns nothing today, so every added row is a
-previously lost row. The base text is derived from the active text by
-`deriveDeltaOverlayBaseQuery`, keeping its filters, keyset cursor, and
-ordering, and the overlay merge still drops refused or unmatched bases.
+empty — the shape that returns nothing today, so every added row is a row
+the read previously dropped. Rows still match on each definition's own
+package id, and a key resolving to definitions in several scopes stays
+unresolved downstream (degraded resolution, not corrupt truth). Residual: a
+base definition carrying the package id in a scope whose non-excluded
+manifests never published it (reachable only through force-committed
+vendored or duplicated manifests; tracked collectors skip gitignored vendor
+trees) would surface — tracked in #10204. The base text is derived from the
+active text by `deriveDeltaOverlayBaseQuery`, keeping its filters, keyset
+cursor, and ordering, and the overlay merge still drops refused or unmatched
+bases.
 
 ## Observability Evidence:
 
