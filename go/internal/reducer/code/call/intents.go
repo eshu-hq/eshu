@@ -137,19 +137,25 @@ func BuildSharedIntentRows(
 // BuildRefreshIntentsWithDeltaFileScopes builds one repo-wide refresh intent
 // per repository in contextByRepoID, using a file-scoped partition key when
 // deltaScopesByRepoID has a usable scope for that repository and falling back
-// to the whole-scope partition key (RefreshPartitionKey) otherwise. It returns
-// nil when contextByRepoID is empty. Each repository's refresh intent owns the
+// to the whole-scope partition key (RefreshPartitionKey) otherwise, except
+// for a repository on a delta generation (a member of
+// deltaGenerationRepoIDs) whose scope is unusable: that refresh dead-letters
+// instead of retracting the whole repository with delta-only rows (#10023
+// gap 1, the fenced-domain pattern), because a whole-scope retract with a
+// delta's rows deletes every unchanged file's CALLS edge. It returns nil
+// when contextByRepoID is empty. Each repository's refresh intent owns the
 // repo-wide CALLS retract that the corresponding per-edge intents from
 // BuildSharedIntentRows are fenced behind.
 //
 // The whole-scope fallback is correct only for a full-generation repository.
-// A delta-generation repository with no usable scope must never reach this
-// builder: callers check [FileScopeBuildResult].UnusableDeltaScopes first and
-// fail closed (#10023), because a whole-scope retract with a delta's rows
-// deletes every unchanged file's CALLS edge.
+// The materialization handler additionally fails closed on
+// [FileScopeBuildResult].UnusableDeltaScopes before any expensive work or
+// write (#10023), so the dead-letter leg above is defense in depth for other
+// builder callers rather than the handler path.
 func BuildRefreshIntentsWithDeltaFileScopes(
 	contextByRepoID map[string]sharedintent.ProjectionContext,
 	deltaScopesByRepoID map[string]DeltaFileScope,
+	deltaGenerationRepoIDs map[string]struct{},
 	createdAt time.Time,
 ) []sharedintent.Row {
 	if len(contextByRepoID) == 0 {
@@ -171,17 +177,25 @@ func BuildRefreshIntentsWithDeltaFileScopes(
 			deltaScope.partitionPaths,
 		)
 		var deltaFilePaths []string
+		scoped := false
 		if fileScoped {
-			partitions, ok := buildCodeCallDeltaFilePartitions(repositoryID, deltaScope)
-			if !ok {
-				partitionKey = RefreshPartitionKey(repositoryID)
-			} else {
+			if partitions, ok := buildCodeCallDeltaFilePartitions(repositoryID, deltaScope); ok {
+				scoped = true
 				deltaFilePaths = make([]string, 0, len(partitions))
 				for _, partition := range partitions {
 					deltaFilePaths = append(deltaFilePaths, partition.filePath)
 				}
 			}
-		} else {
+		}
+		if !scoped {
+			if _, onDelta := deltaGenerationRepoIDs[repositoryID]; onDelta {
+				intents = append(intents, buildCodeCallDeltaDeadLetterRefreshIntent(
+					repositoryID,
+					context,
+					createdAt,
+				))
+				continue
+			}
 			partitionKey = RefreshPartitionKey(repositoryID)
 		}
 		intents = append(intents, buildCodeCallRefreshIntent(

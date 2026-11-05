@@ -120,7 +120,7 @@ func TestReducerContentionGateActiveCodeCallSymbolGoAnchorEqualsCorpusScan(t *te
 	}
 
 	store := NewFactStore(SQLDB{DB: database})
-	corpus, err := store.loadActiveCodeCallSymbolDefinitionFacts(ctx, listActiveCodeCallSymbolDefinitionFactsQuery, keys, nil)
+	corpus, err := store.loadActiveCodeCallSymbolDefinitionFacts(ctx, listActiveCodeCallSymbolDefinitionFactsQuery, keys, nil, nil)
 	if err != nil {
 		t.Fatalf("corpus-wide scan error = %v, want nil", err)
 	}
@@ -140,8 +140,8 @@ func TestReducerContentionGateActiveCodeCallSymbolGoAnchorEqualsCorpusScan(t *te
 	if got := sortedFactIDs(anchored); !reflect.DeepEqual(got, want) {
 		t.Fatalf("anchored load = %v, want exactly the corpus-wide result %v", got, want)
 	}
-	if got, want := queryer.queries, []string{producerstore.GoModuleManifestsQuery, listAnchoredActiveCodeCallSymbolDefinitionFactsQuery}; !reflect.DeepEqual(got, want) {
-		t.Fatalf("issued %d statements, want the go.mod read then one anchored scan (no corpus-wide scan)", len(got))
+	if got, want := queryer.queries, []string{producerstore.GoModuleManifestsQuery, listAnchoredActiveCodeCallSymbolDefinitionFactsQuery, deltaOverlayTargetsQuery}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("issued %d statements, want the go.mod read, one anchored scan (no corpus-wide scan), then the delta-target lookup", len(got))
 	}
 	wantScopes := []string{"scope:fork-a", "scope:fork-b", "scope:lib", "scope:lib-v2", "scope:mono", "scope:third"}
 	if scopes, _ := queryer.args[1][4].([]string); !reflect.DeepEqual(scopes, wantScopes) {
@@ -174,10 +174,10 @@ func TestReducerContentionGateActiveCodeCallSymbolGoAnchorStdlibKeysIssueNoDefin
 	if len(loaded) != 0 {
 		t.Fatalf("loaded = %v, want none", sortedFactIDs(loaded))
 	}
-	if got, want := queryer.queries, []string{producerstore.GoModuleManifestsQuery}; !reflect.DeepEqual(got, want) {
-		t.Fatalf("issued %d statements, want only the go.mod read", len(got))
+	if got, want := queryer.queries, []string{producerstore.GoModuleManifestsQuery, deltaOverlayTargetsQuery}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("issued %d statements, want only the go.mod read and the delta-target lookup", len(got))
 	}
-	corpus, err := NewFactStore(SQLDB{DB: database}).loadActiveCodeCallSymbolDefinitionFacts(ctx, listActiveCodeCallSymbolDefinitionFactsQuery, keys, nil)
+	corpus, err := NewFactStore(SQLDB{DB: database}).loadActiveCodeCallSymbolDefinitionFacts(ctx, listActiveCodeCallSymbolDefinitionFactsQuery, keys, nil, nil)
 	if err != nil {
 		t.Fatalf("corpus-wide scan error = %v, want nil", err)
 	}
@@ -231,9 +231,10 @@ FROM generate_series(1, 1200) AS g`, now, "scip-go gomod github.com/acme/pages/p
 		listAnchoredActiveCodeCallSymbolDefinitionFactsQuery,
 		listAnchoredActiveCodeCallSymbolDefinitionFactsQuery,
 		listAnchoredActiveCodeCallSymbolDefinitionFactsQuery,
+		deltaOverlayTargetsQuery,
 	}
 	if !reflect.DeepEqual(queryer.queries, want) {
-		t.Fatalf("issued %d statements, want the go.mod read plus one anchored scan per 500-row page", len(queryer.queries))
+		t.Fatalf("issued %d statements, want the go.mod read plus one anchored scan per 500-row page, then the delta-target lookup", len(queryer.queries))
 	}
 }
 
@@ -291,7 +292,8 @@ WHERE fact_id = 'fact-lib'`, javaKey); err != nil {
 		listAnchoredActiveCodeCallSymbolDefinitionFactsQuery,
 		producerstore.GoModuleManifestsQuery,
 		listAnchoredActiveCodeCallSymbolDefinitionFactsQuery,
+		deltaOverlayTargetsQuery,
 	}; !reflect.DeepEqual(got, want) {
-		t.Fatalf("issued %d statements, want corpus scan, package manifest read and anchored scan, go.mod read and anchored scan", len(got))
+		t.Fatalf("issued %d statements, want corpus scan, package manifest read and anchored scan, go.mod read and anchored scan, then the delta-target lookup", len(got))
 	}
 }

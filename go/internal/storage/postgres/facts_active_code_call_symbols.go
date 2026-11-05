@@ -146,6 +146,25 @@ const listAnchoredActiveCodeCallSymbolDefinitionFactsQuery = codeCallSymbolDefin
 	"  AND fact.scope_id = ANY($5::text[])\n" +
 	codeCallSymbolDefinitionFactsMatch
 
+// The delta-active scope ids bind at $5 of the derived unanchored base text
+// ($1-$4 are keys, cursor, page size) and at $6 of the anchored base text
+// ($5 is the producer scopes).
+const (
+	codeCallSymbolDeltaOverlayScopeParam         = 5
+	codeCallAnchoredSymbolDeltaOverlayScopeParam = 6
+)
+
+// codeCallSymbolDeltaOverlayTelemetry names where the load records its
+// delta-overlay decisions (#10003 row 1): the per-read span event and WARN
+// lines, with no outcome counter. The load summary log covers the read.
+func (s FactStore) codeCallSymbolDeltaOverlayTelemetry() deltaOverlayTelemetry {
+	return deltaOverlayTelemetry{
+		read:      "code_call_symbol_definitions",
+		subject:   "code call symbol definition load",
+		spanEvent: "code_call_symbol_definition_read.delta_union",
+	}
+}
+
 // LoadActiveCodeCallSymbolDefinitionFacts loads active file facts whose parsed
 // definitions carry one of the requested stable symbol keys.
 //
@@ -163,6 +182,11 @@ const listAnchoredActiveCodeCallSymbolDefinitionFactsQuery = codeCallSymbolDefin
 // A key with no producer issues no definition scan and stays unresolved. Every
 // other key keeps the corpus-wide scan. The three groups run as separate scans,
 // so a manifest that matches one group never widens another.
+//
+// A scope whose active generation is a git delta reads its delta overlaid on
+// its #7797 base full generation (#10003 row 1); see overlayDeltaBase for
+// the win and refusal rules. Every statement runs on one read-only
+// repeatable-read snapshot.
 func (s FactStore) LoadActiveCodeCallSymbolDefinitionFacts(
 	ctx context.Context,
 	symbolKeys []string,
@@ -180,32 +204,100 @@ func (s FactStore) LoadActiveCodeCallSymbolDefinitionFacts(
 	load := codeCallSymbolLoadStats{
 		otherKeys: len(otherKeys), packageKeys: len(packageKeys), goKeys: len(goKeys),
 	}
-	loaded, err := s.loadCodeCallSymbolDefinitionLegs(ctx, packageKeys, goKeys, otherKeys, &load)
+	if len(packageKeys) == 0 && len(goKeys) == 0 && len(otherKeys) == 0 {
+		return nil, nil
+	}
+	unanchoredBase, err := deriveDeltaOverlayBaseQuery(
+		listActiveCodeCallSymbolDefinitionFactsQuery, codeCallSymbolDeltaOverlayScopeParam,
+	)
+	if err != nil {
+		load.log(ctx, err)
+		return nil, err
+	}
+	anchoredBase, err := deriveDeltaOverlayBaseQuery(
+		listAnchoredActiveCodeCallSymbolDefinitionFactsQuery, codeCallAnchoredSymbolDeltaOverlayScopeParam,
+	)
+	if err != nil {
+		load.log(ctx, err)
+		return nil, err
+	}
+	sink := s.codeCallSymbolDeltaOverlayTelemetry()
+	var loaded []facts.Envelope
+	err = s.withDeltaOverlaySnapshot(ctx, func(snapshot *deltaOverlaySnapshot) error {
+		reader := snapshot.store
+		active, base, legsErr := reader.loadCodeCallSymbolDefinitionLegRows(
+			ctx, snapshot, packageKeys, goKeys, otherKeys, unanchoredBase, anchoredBase, sink, &load,
+		)
+		if legsErr != nil {
+			return legsErr
+		}
+		// deltaTargets is cached on the snapshot: the leg pass already read
+		// it for the base pages, so this re-read issues no statement.
+		targets, targetsErr := snapshot.deltaTargets(ctx)
+		if targetsErr != nil {
+			reader.recordDeltaOverlayFailure(ctx, sink)
+			return targetsErr
+		}
+		overlaid, overlayErr := reader.overlayDeltaBase(ctx, sink, targets, active, base)
+		if overlayErr != nil {
+			return overlayErr
+		}
+		loaded = overlaid
+		return nil
+	})
 	load.log(ctx, err)
 	return loaded, err
 }
 
-// loadCodeCallSymbolDefinitionLegs runs the three scans (keys no manifest
-// anchors, package keys, Go keys) and merges their facts, recording each leg's
-// producer scope count and duration in load.
-func (s FactStore) loadCodeCallSymbolDefinitionLegs(
+// codeCallSymbolDefinitionLeg binds one key group's active and base query
+// texts with the producer scopes its anchored scan is bound to (nil for the
+// unanchored corpus-wide scan) and the load stat its duration accrues to.
+type codeCallSymbolDefinitionLeg struct {
+	keys             []string
+	activeQuery      string
+	baseQuery        string
+	producerScopeIDs []string
+	seconds          *float64
+}
+
+// loadCodeCallSymbolDefinitionLegRows runs the three scans and returns the
+// active rows and the base candidates separately for the overlay, recording
+// producer scope counts and leg durations in load. Active pages, the
+// delta-target lookup, then base pages run in that order on the one
+// snapshot; any failure aborts the read. The base pages run only when a
+// delta-active scope with a recorded baseline exists.
+func (s FactStore) loadCodeCallSymbolDefinitionLegRows(
 	ctx context.Context,
+	snapshot *deltaOverlaySnapshot,
 	packageKeys, goKeys, otherKeys []string,
+	unanchoredBase, anchoredBase string,
+	sink deltaOverlayTelemetry,
 	load *codeCallSymbolLoadStats,
-) ([]facts.Envelope, error) {
+) (active, base []facts.Envelope, err error) {
 	producers := producerstore.New(s.database).WithInstruments(s.instruments)
 
-	var loaded []facts.Envelope
+	// The statement order matches the pre-overlay read exactly (unanchored
+	// scan, then per anchored leg its producer discovery and scan), so the
+	// only new statements are the overlay's own: the delta-target lookup
+	// after the active pages and the base pages after that.
+	var legs []codeCallSymbolDefinitionLeg
+	var activeRows []facts.Envelope
 	if len(otherKeys) > 0 {
 		started := time.Now()
 		page, err := s.loadActiveCodeCallSymbolDefinitionFacts(
-			ctx, listActiveCodeCallSymbolDefinitionFactsQuery, otherKeys, nil,
+			ctx, listActiveCodeCallSymbolDefinitionFactsQuery, otherKeys, nil, nil,
 		)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
+		activeRows = append(activeRows, page...)
 		load.otherScanSeconds = time.Since(started).Seconds()
-		loaded = append(loaded, page...)
+		legs = append(legs, codeCallSymbolDefinitionLeg{
+			keys:        otherKeys,
+			activeQuery: listActiveCodeCallSymbolDefinitionFactsQuery,
+			baseQuery:   unanchoredBase,
+			seconds:     &load.otherScanSeconds,
+		})
 	}
 	for _, leg := range []struct {
 		keys       []string
@@ -222,21 +314,48 @@ func (s FactStore) loadCodeCallSymbolDefinitionLegs(
 		started := time.Now()
 		producerScopeIDs, err := leg.producers(ctx, leg.keys)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		*leg.scopeCount = len(producerScopeIDs)
 		if len(producerScopeIDs) > 0 {
 			anchored, err := s.loadActiveCodeCallSymbolDefinitionFacts(
-				ctx, listAnchoredActiveCodeCallSymbolDefinitionFactsQuery, leg.keys, producerScopeIDs,
+				ctx, listAnchoredActiveCodeCallSymbolDefinitionFactsQuery, leg.keys, producerScopeIDs, nil,
 			)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
-			loaded = appendUniqueFactEnvelopes(loaded, anchored)
+			activeRows = appendUniqueFactEnvelopes(activeRows, anchored)
+			legs = append(legs, codeCallSymbolDefinitionLeg{
+				keys:             leg.keys,
+				activeQuery:      listAnchoredActiveCodeCallSymbolDefinitionFactsQuery,
+				baseQuery:        anchoredBase,
+				producerScopeIDs: producerScopeIDs,
+				seconds:          leg.seconds,
+			})
 		}
 		*leg.seconds = time.Since(started).Seconds()
 	}
-	return loaded, nil
+	targets, err := snapshot.deltaTargets(ctx)
+	if err != nil {
+		s.recordDeltaOverlayFailure(ctx, sink)
+		return nil, nil, err
+	}
+	var baseRows []facts.Envelope
+	if baseScopes := deltaOverlayBaseScopes(targets); len(baseScopes) > 0 {
+		for i := range legs {
+			started := time.Now()
+			page, err := s.loadActiveCodeCallSymbolDefinitionFacts(
+				ctx, legs[i].baseQuery, legs[i].keys, legs[i].producerScopeIDs, baseScopes,
+			)
+			if err != nil {
+				s.recordDeltaOverlayFailure(ctx, sink)
+				return nil, nil, err
+			}
+			baseRows = appendUniqueFactEnvelopes(baseRows, page)
+			*legs[i].seconds += time.Since(started).Seconds()
+		}
+	}
+	return activeRows, baseRows, nil
 }
 
 // codeCallSymbolLoadStats records how one definition load split its keys and
@@ -274,12 +393,15 @@ func (l codeCallSymbolLoadStats) log(ctx context.Context, err error) {
 }
 
 // loadActiveCodeCallSymbolDefinitionFacts pages one definition scan to the
-// end. A non-nil producerScopeIDs is bound as $5 of the anchored statement.
+// end. A non-nil producerScopeIDs is bound as $5 of the anchored statement;
+// a non-nil baseScopeIDs is bound as $5 of the unanchored base text or $6 of
+// the anchored base text.
 func (s FactStore) loadActiveCodeCallSymbolDefinitionFacts(
 	ctx context.Context,
 	query string,
 	symbolKeys []string,
 	producerScopeIDs []string,
+	baseScopeIDs []string,
 ) ([]facts.Envelope, error) {
 	var loaded []facts.Envelope
 	var cursorObservedAt *time.Time
@@ -290,6 +412,7 @@ func (s FactStore) loadActiveCodeCallSymbolDefinitionFacts(
 			query,
 			symbolKeys,
 			producerScopeIDs,
+			baseScopeIDs,
 			cursorObservedAt,
 			cursorFactID,
 		)
@@ -313,6 +436,7 @@ func (s FactStore) listActiveCodeCallSymbolDefinitionFactsPage(
 	query string,
 	symbolKeys []string,
 	producerScopeIDs []string,
+	baseScopeIDs []string,
 	cursorObservedAt *time.Time,
 	cursorFactID string,
 ) ([]facts.Envelope, error) {
@@ -324,6 +448,9 @@ func (s FactStore) listActiveCodeCallSymbolDefinitionFactsPage(
 	args := []any{symbolKeys, cursor, cursorFactID, listFactsByKindPageSize}
 	if producerScopeIDs != nil {
 		args = append(args, producerScopeIDs)
+	}
+	if baseScopeIDs != nil {
+		args = append(args, baseScopeIDs)
 	}
 	rows, err := s.database.QueryContext(ctx, query, args...)
 	if err != nil {

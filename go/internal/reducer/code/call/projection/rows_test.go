@@ -292,3 +292,39 @@ func TestBuildCodeCallRetractRowsKeepsMalformedDeltaScoped(t *testing.T) {
 		t.Fatalf("delta_file_paths = %#v, want empty malformed delta scope", gotPaths)
 	}
 }
+
+// TestBuildCodeCallRetractRowsKeepsDeadLetterDeltaScoped pins the emission
+// half of #10023 gap 1: the dead-letter refresh intent (delta_projection
+// with empty paths, as buildCodeCallDeltaDeadLetterRefreshIntent emits for a
+// delta-generation repository whose file scope is unusable) synthesizes a
+// delta retract row that keeps the flag with empty paths. That row is what
+// collectDeltaFilePaths rejects before any statement runs
+// (TestEdgeWriterRetractEdgesSiblingEmptyDeltaFilePathsFailsThePartition), so
+// the partition fails and the intent dead-letters instead of retracting the
+// whole repository with delta-only rows.
+func TestBuildCodeCallRetractRowsKeepsDeadLetterDeltaScoped(t *testing.T) {
+	t.Parallel()
+
+	rows := buildCodeCallRetractRows([]sharedintent.Row{
+		{
+			RepositoryID: "repo-a",
+			Payload: map[string]any{
+				"repo_id":          "repo-a",
+				"action":           "refresh",
+				"intent_type":      "repo_refresh",
+				"delta_projection": true,
+				"delta_file_paths": []string{},
+			},
+		},
+	})
+	if len(rows) != 1 {
+		t.Fatalf("retract rows len = %d, want 1", len(rows))
+	}
+	payload := rows[0].Payload
+	if got, ok := payload["delta_projection"].(bool); !ok || !got {
+		t.Fatalf("delta_projection = %#v, want true (must stay delta-scoped, never widen to repo-wide)", payload["delta_projection"])
+	}
+	if gotPaths := payloadcore.SemanticPayloadStringSlice(payload, "delta_file_paths"); len(gotPaths) != 0 {
+		t.Fatalf("delta_file_paths = %#v, want empty (the writer rejects it)", gotPaths)
+	}
+}

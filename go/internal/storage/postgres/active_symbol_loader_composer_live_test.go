@@ -66,8 +66,9 @@ INSERT INTO scope_generations (
 	if got, want := queryer.queries, []string{
 		producerstore.ComposerManifestsQuery,
 		listAnchoredActiveCodeCallSymbolDefinitionFactsQuery,
+		deltaOverlayTargetsQuery,
 	}; !reflect.DeepEqual(got, want) {
-		t.Fatalf("issued %d queries, want the composer.json read then the anchored scan only", len(got))
+		t.Fatalf("issued %d queries, want the composer.json read, the anchored scan, then the delta-target lookup", len(got))
 	}
 	if got, want := queryer.args[1][4], []string{"scope:php-dirty", "scope:php-logging"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("anchored scan producer scopes ($5) = %#v, want %#v", got, want)
@@ -108,8 +109,9 @@ func TestReducerContentionGateActiveCodeCallSymbolLoaderKeepsNpmAndComposerNames
 		producerstore.PackageManifestsQuery,
 		producerstore.ComposerManifestsQuery,
 		listAnchoredActiveCodeCallSymbolDefinitionFactsQuery,
+		deltaOverlayTargetsQuery,
 	}; !reflect.DeepEqual(got, want) {
-		t.Fatalf("issued %d queries, want the package.json read, the composer.json read, then one anchored scan", len(got))
+		t.Fatalf("issued %d queries, want the package.json read, the composer.json read, one anchored scan, then the delta-target lookup", len(got))
 	}
 	if got, want := queryer.args[2][4], []string{"scope:npm", "scope:php"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("anchored scan producer scopes ($5) = %#v, want %#v", got, want)
@@ -133,7 +135,7 @@ func TestReducerContentionGateActiveCodeCallSymbolLoaderSkipsScanForUnpublishedC
 	if len(loaded) != 0 {
 		t.Fatalf("loaded fact ids = %#v, want none", factIDs(loaded))
 	}
-	if got, want := queryer.queries, []string{producerstore.ComposerManifestsQuery}; !reflect.DeepEqual(got, want) {
-		t.Fatalf("issued %d queries, want the composer.json read only", len(got))
+	if got, want := queryer.queries, []string{producerstore.ComposerManifestsQuery, deltaOverlayTargetsQuery}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("issued %d queries, want the composer.json read and the delta-target lookup only", len(got))
 	}
 }

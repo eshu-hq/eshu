@@ -159,7 +159,7 @@ func (h Handler) Handle(
 
 	intentBuildStart := time.Now()
 	fileScopesByRepoID := fileScopeResult.ScopesByRepoID
-	intentRows := codecall.BuildRefreshIntentsWithDeltaFileScopes(contextByRepoID, fileScopesByRepoID, createdAt)
+	intentRows := codecall.BuildRefreshIntentsWithDeltaFileScopes(contextByRepoID, fileScopesByRepoID, codecall.DeltaGenerationRepoIDs(envelopes), createdAt)
 	intentRows = append(
 		intentRows,
 		codecall.BuildSharedIntentRows(

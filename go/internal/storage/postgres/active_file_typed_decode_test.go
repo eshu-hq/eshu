@@ -256,6 +256,7 @@ func TestListActiveJVMReachabilityFactsTypedDecodeMatchesMap(t *testing.T) {
 					raw,
 				}},
 			},
+			{}, // delta-target lookup: no delta-active scope
 		},
 	}
 	store := NewFactStore(db)
