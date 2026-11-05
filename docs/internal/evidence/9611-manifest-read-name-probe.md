@@ -184,7 +184,9 @@ Result against the threshold: **not met in two cells.**
   delta-active scopes. The probe cannot use the `$6` restriction, so it reads
   the names' rows fleet-wide. At 1x and 5x main's custom plan for the same page
   read the manager prefix instead, and the probe was 0.20 and 0.19 of its
-  buffers.
+  buffers. The follow-up binds candidate base generations instead (0.88x
+  main's buffers on this 10x page); see
+  [9611-manifest-read-base-generations.md](9611-manifest-read-base-generations.md).
 - The generic plan met its bar on `npm400` (at most 1.1x main). On the base
   pages at 1x, main's generic plan drove from the scopes and read less (see
   Known limits). The read runs custom plans.
