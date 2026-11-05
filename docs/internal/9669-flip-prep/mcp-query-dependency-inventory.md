@@ -11,19 +11,24 @@ so the severance step has an exact cut list.
 ## Method (run in the worktree root)
 
 ```bash
-rg -ln 'go/internal/query"' go/internal/mcp --glob '*.go' | sort
-rg -ln 'go/internal/query"' go/internal/mcp --glob '*.go' | rg -v '_test\.go' | sort
+rg -ln 'eshu-hq/eshu/go/internal/query"' go/internal/mcp --glob '*.go' | sort
+rg -ln 'eshu-hq/eshu/go/internal/query"' go/internal/mcp --glob '*.go' | rg -v '_test\.go' | sort
 ```
+
+The module-prefixed pattern counts only real Go imports. The bare
+`go/internal/query"` pattern over-counts by 2: it also matches the
+`"go/internal/query"` string literal in `kind_real_consumer.go` (Group E
+below, not an import) and one test file's string literal.
 
 ## Census result
 
-108 files import `go/internal/query` at HEAD `60f2fe256d`:
+107 files import `go/internal/query` at HEAD `60f2fe256d`
+(re-measured by the coordinator with the method above):
 
-- 9 non-test files (the runtime severance surface).
-- 99 `*_test.go` files (the test severance surface).
+- 8 non-test files (the runtime severance surface, Groups A–D).
+- 99 `*_test.go` files (the test severance surface, Group F).
 
-The lane brief said 107; the worktree holds 108. The delta is documented,
-not resolved — recount with the method above before cutover. The MCP tool
+The lane brief said 107 — confirmed. The MCP tool
 census at this HEAD is `censusToolCount = 171`
 (`go/internal/mcp/tool_registry_census_test.go:36`) plus the 2 router tools
 (`find_tool`, `call_tool`), giving a 173-tool served surface.
@@ -127,7 +132,7 @@ in-tree import they were meant to sever.
 
 ## Open questions
 
-1. Confirm the 107-vs-108 recount at flip time with the method above.
+1. Resolved: the count is 107 exact-package importers (8 non-test + 99 test). The bare-pattern 109 counts two string literals (`kind_real_consumer.go:51`, `tools_runtime_test.go:129`). Re-run the module-prefixed method at flip time.
 2. Owner confirms the auth-predicate contract (Group C) carries fail-closed
    semantics verbatim.
 3. Decide whether Group F parity tests are replaced by the Leaf B cross-repo
