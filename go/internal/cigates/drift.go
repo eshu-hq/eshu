@@ -164,7 +164,7 @@ var matrixVariableRE = regexp.MustCompile(`\$\{\{\s*matrix\.([A-Za-z0-9_]+)\s*\}
 //     service.go for each manifest collector) must be selected by a trigger of
 //     collector-entrypoints-generated. The output set is derived from the
 //     manifest and the generator, so adding a collector fails here until a
-//     trigger covers it. See checkGeneratorOutputCoverage (generatoroutputs.go).
+//     trigger covers it. See checkGeneratorOutputCoverage (generatorinputs.go).
 func DriftCheck(repoRoot string, reg *Registry) []error {
 	var errs []error
 
