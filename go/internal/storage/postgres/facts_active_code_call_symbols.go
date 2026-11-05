@@ -155,14 +155,19 @@ const (
 )
 
 // codeCallSymbolDeltaOverlayTelemetry names where the load records its
-// delta-overlay decisions (#10003 row 1): the per-read span event and WARN
-// lines, with no outcome counter. The load summary log covers the read.
+// delta-overlay decisions (#10003 row 1):
+// eshu_dp_code_call_symbol_definition_read_delta_union_total by read and
+// outcome, the per-read span event, and WARN lines.
 func (s FactStore) codeCallSymbolDeltaOverlayTelemetry() deltaOverlayTelemetry {
-	return deltaOverlayTelemetry{
+	sink := deltaOverlayTelemetry{
 		read:      "code_call_symbol_definitions",
 		subject:   "code call symbol definition load",
 		spanEvent: "code_call_symbol_definition_read.delta_union",
 	}
+	if s.instruments != nil {
+		sink.counter = s.instruments.CodeCallSymbolDefinitionReadDeltaUnion
+	}
+	return sink
 }
 
 // LoadActiveCodeCallSymbolDefinitionFacts loads active file facts whose parsed

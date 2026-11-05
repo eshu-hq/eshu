@@ -131,14 +131,19 @@ LIMIT $5
 const jvmReachabilityDeltaOverlayScopeParam = 6
 
 // jvmReachabilityDeltaOverlayTelemetry names where the JVM reachability read
-// records its delta-overlay decisions (#10003 row 2). It carries no outcome
-// counter: the per-read span event and WARN lines carry the decisions.
+// records its delta-overlay decisions (#10003 row 2):
+// eshu_dp_jvm_reachability_read_delta_union_total by read and outcome, the
+// per-read span event, and WARN lines.
 func (s FactStore) jvmReachabilityDeltaOverlayTelemetry() deltaOverlayTelemetry {
-	return deltaOverlayTelemetry{
+	sink := deltaOverlayTelemetry{
 		read:      "jvm_reachability",
 		subject:   "JVM reachability read",
 		spanEvent: "jvm_reachability_read.delta_union",
 	}
+	if s.instruments != nil {
+		sink.counter = s.instruments.JVMReachabilityReadDeltaUnion
+	}
+	return sink
 }
 
 // ListActiveJVMReachabilityFacts loads active Java/Kotlin/Scala parser and

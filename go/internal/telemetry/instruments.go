@@ -1127,6 +1127,16 @@ type Instruments struct {
 	// union_resolve_failed counts once per read whose lookups failed and
 	// fails the read.
 	TerraformDriftReadDeltaUnion metric.Int64Counter
+	// CodeCallSymbolDefinitionReadDeltaUnion counts the delta-base union
+	// decisions of code-call symbol definition reads, one per delta-active
+	// scope a read reached (#10003 row 1). Same labels and outcome set as
+	// PackageManifestDependencyReadDeltaUnion.
+	CodeCallSymbolDefinitionReadDeltaUnion metric.Int64Counter
+	// JVMReachabilityReadDeltaUnion counts the delta-base union decisions
+	// of JVM reachability reads, one per delta-active scope a read reached
+	// (#10003 row 2). Same labels and outcome set as
+	// PackageManifestDependencyReadDeltaUnion.
+	JVMReachabilityReadDeltaUnion metric.Int64Counter
 	// SupplyChainImpactActiveEvidenceBranchRows counts rows each
 	// active-evidence statement returned (#8880). Label: branch.
 	SupplyChainImpactActiveEvidenceBranchRows metric.Int64Counter
@@ -6435,6 +6445,9 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, err
 	}
 	if err := registerTerraformDriftReadInstruments(meter, inst); err != nil {
+		return nil, err
+	}
+	if err := registerDeltaUnionCodeCallJVMInstruments(meter, inst); err != nil {
 		return nil, err
 	}
 	if err := registerInfraSearchKeyInstruments(meter, inst); err != nil {

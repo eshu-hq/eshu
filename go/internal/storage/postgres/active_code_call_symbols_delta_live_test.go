@@ -15,6 +15,8 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 )
 
 // seedCallSymbolFile seeds one file fact carrying a single scip_symbol
@@ -163,6 +165,37 @@ func TestLoadActiveCodeCallSymbolDefinitionFactsDeltaActiveScopeLive(t *testing.
 	if !slices.Equal(got, want) {
 		t.Fatalf("loaded call symbol facts = %v, want %v", got, want)
 	}
+	assertDeltaManifestOutcomes(t,
+		f.deltaUnionOutcomesForMetric(t, "eshu_dp_code_call_symbol_definition_read_delta_union_total"),
+		map[string]int64{"union_base_found": 1})
+}
+
+// deltaUnionOutcomesForMetric returns one delta-union decision counter by
+// outcome for the named metric (#10003 rows 1-2 arbiter ruling (b)): the
+// overlay path must move a real counter, not only span events and logs.
+func (f *deltaManifestFixture) deltaUnionOutcomesForMetric(t *testing.T, metricName string) map[string]int64 {
+	t.Helper()
+	var rm metricdata.ResourceMetrics
+	if err := f.reader.Collect(context.Background(), &rm); err != nil {
+		t.Fatalf("collect: %v", err)
+	}
+	outcomes := map[string]int64{}
+	for _, sm := range rm.ScopeMetrics {
+		for _, m := range sm.Metrics {
+			if m.Name != metricName {
+				continue
+			}
+			sum, ok := m.Data.(metricdata.Sum[int64])
+			if !ok {
+				t.Fatalf("%s is %T, want an int64 sum", m.Name, m.Data)
+			}
+			for _, dp := range sum.DataPoints {
+				outcome, _ := dp.Attributes.Value(telemetry.MetricDimensionOutcome)
+				outcomes[outcome.AsString()] += dp.Value
+			}
+		}
+	}
+	return outcomes
 }
 
 // TestLoadActiveCodeCallSymbolDefinitionFactsDeltaStatementsLive proves the

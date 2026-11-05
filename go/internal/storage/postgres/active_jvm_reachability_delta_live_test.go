@@ -94,6 +94,9 @@ func TestListActiveJVMReachabilityFactsDeltaActiveScopeLive(t *testing.T) {
 	if !slices.Equal(got, want) {
 		t.Fatalf("loaded JVM reachability facts = %v, want %v", got, want)
 	}
+	assertDeltaManifestOutcomes(t,
+		f.deltaUnionOutcomesForMetric(t, "eshu_dp_jvm_reachability_read_delta_union_total"),
+		map[string]int64{"union_base_found": 1})
 }
 
 // TestListActiveJVMReachabilityFactsDeltaStatementsLive proves the fixed read
