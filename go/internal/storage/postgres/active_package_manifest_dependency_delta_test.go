@@ -32,15 +32,15 @@ func TestDeltaBasePackageManifestDependencyQueryDerivesEveryBranch(t *testing.T)
 		listActivePackageManifestDependencyFactsWithSBTQuery,
 	} {
 		branches := strings.Count(active, "FROM fact_records AS fact")
-		derived, err := deltaBasePackageManifestDependencyQuery(active)
+		derived, err := deriveDeltaOverlayBaseQuery(active, manifestDeltaOverlayScopeParam)
 		if err != nil {
 			t.Fatalf("derive: %v", err)
 		}
 		for fragment, want := range map[string]int{
-			manifestActiveScopeJoin:                                          0,
-			manifestActiveGeneration:                                         0,
-			manifestDeltaBaseJoin:                                            branches,
-			manifestDeltaBaseFull:                                            branches,
+			deltaOverlayActiveScopeJoin:                                      0,
+			deltaOverlayActiveGeneration:                                     0,
+			deltaOverlayBaseJoin:                                             branches,
+			deltaOverlayBaseFull(manifestDeltaOverlayScopeParam):             branches,
 			"ORDER BY fact.observed_at ASC, fact.fact_id ASC":                branches,
 			"(fact.observed_at, fact.fact_id) > ($3::timestamptz, $4::text)": branches,
 			"AND fact.is_tombstone = FALSE":                                  branches,
@@ -54,7 +54,7 @@ func TestDeltaBasePackageManifestDependencyQueryDerivesEveryBranch(t *testing.T)
 			t.Fatalf("impact snapshot rewrite refused the derived query: %v", err)
 		}
 	}
-	if _, err := deltaBasePackageManifestDependencyQuery("SELECT 1"); err == nil {
+	if _, err := deriveDeltaOverlayBaseQuery("SELECT 1", manifestDeltaOverlayScopeParam); err == nil {
 		t.Fatal("derive(SELECT 1) error = nil, want the unsupported-shape error")
 	}
 }
@@ -98,7 +98,7 @@ func TestListActivePackageManifestDependencyFactsDeltaResolveFailureFails(t *tes
 			}
 			for _, dp := range m.Data.(metricdata.Sum[int64]).DataPoints {
 				outcome, _ := dp.Attributes.Value(telemetry.MetricDimensionOutcome)
-				if outcome.AsString() == manifestDeltaUnionResolveFailed {
+				if outcome.AsString() == deltaOverlayResolveFailed {
 					failed += dp.Value
 				}
 			}
@@ -131,9 +131,9 @@ func TestListActivePackageManifestDependencyFactsDeltaAuxReadsUseCustomPlans(t *
 	db := &fakeExecQueryer{queryResponses: []queueFakeRows{
 		{rows: [][]any{active}}, // active page
 		{rows: [][]any{{"repository:repo-1", "delta-1", "c0", ""}}}, // delta-target lookup
-		{rows: [][]any{base}},                 // delta-base page
-		{rows: [][]any{{"base-1", "active"}}}, // base lookup; active base, no prune probe
-		{rows: [][]any{repository}},           // overlay inputs
+		{rows: [][]any{base}}, // delta-base page
+		{rows: [][]any{{"repository:repo-1", "base-1", "active"}}}, // base lookup; active base, no prune probe
+		{rows: [][]any{repository}},                                // overlay inputs
 	}}
 	loaded, err := NewFactStore(db).ListActivePackageManifestDependencyFacts(
 		context.Background(), []string{"npm"}, []string{"left-pad"},
@@ -147,13 +147,13 @@ func TestListActivePackageManifestDependencyFactsDeltaAuxReadsUseCustomPlans(t *
 	if len(db.queries) != 5 {
 		t.Fatalf("query calls = %d, want 5", len(db.queries))
 	}
-	if db.queries[1].query != manifestDeltaTargetsQuery {
+	if db.queries[1].query != deltaOverlayTargetsQuery {
 		t.Fatalf("call 2 = %s, want the delta-target lookup", db.queries[1].query)
 	}
 	if got := db.queries[2].args; len(got) != 6 || !reflect.DeepEqual(got[5], []string{"repository:repo-1"}) {
 		t.Fatalf("delta-base page args = %#v, want $6 = the delta-active scope ids", got)
 	}
-	if db.queries[4].query != manifestDeltaOverlayInputsQuery {
+	if db.queries[4].query != deltaOverlayInputsQuery {
 		t.Fatalf("call 5 = %s, want the overlay inputs read", db.queries[4].query)
 	}
 	for _, i := range []int{2, 4} {
@@ -187,7 +187,7 @@ func TestListActivePackageManifestDependencyFactsNoDeltaSkipsBaseRead(t *testing
 	if got, want := len(db.queries), 2; got != want {
 		t.Fatalf("statements = %d, want %d (active page, delta-target lookup)", got, want)
 	}
-	if db.queries[1].query != manifestDeltaTargetsQuery {
+	if db.queries[1].query != deltaOverlayTargetsQuery {
 		t.Fatalf("statement 2 = %s, want the delta-target lookup", db.queries[1].query)
 	}
 	for i, call := range db.queries {
@@ -210,7 +210,7 @@ func TestListActivePackageManifestDependencyFactsDeltaFailuresCountOncePerRead(t
 	baseRow := manifestDependencyFakeRow(1)
 	baseRow[0], baseRow[2] = "base-dep", "base-1"
 	basePage := queueFakeRows{rows: [][]any{baseRow}}
-	activeBase := queueFakeRows{rows: [][]any{{"base-1", "active"}}} // active base: no prune probe
+	activeBase := queueFakeRows{rows: [][]any{{"repository:repo-1", "base-1", "active"}}} // active base: no prune probe
 	for name, responses := range map[string][]queueFakeRows{
 		"target lookup":   {active, failed},
 		"base page":       {active, target, failed},
@@ -228,14 +228,14 @@ func TestListActivePackageManifestDependencyFactsDeltaFailuresCountOncePerRead(t
 		); !errors.Is(err, context.DeadlineExceeded) {
 			t.Fatalf("%s: read error = %v, want the deadline error", name, err)
 		}
-		if got := manifestDeltaUnionCount(t, reader, manifestDeltaUnionResolveFailed); got != 1 {
+		if got := manifestDeltaUnionCount(t, reader, deltaOverlayResolveFailed); got != 1 {
 			t.Fatalf("%s: union_resolve_failed = %d, want 1", name, got)
 		}
 		last := db.queries[len(db.queries)-1].query
 		if want := map[string]string{
-			"target lookup":   manifestDeltaTargetsQuery,
+			"target lookup":   deltaOverlayTargetsQuery,
 			"base resolution": deltaUnionBaseQuery,
-			"overlay inputs":  manifestDeltaOverlayInputsQuery,
+			"overlay inputs":  deltaOverlayInputsQuery,
 		}[name]; want != "" && last != want {
 			t.Fatalf("%s: failing statement = %s, want %s", name, last, want)
 		}
@@ -303,7 +303,7 @@ func TestListActivePackageManifestDependencyFactsNoBaselineSkipsBaseRead(t *test
 			t.Fatalf("statement %d is the delta-base scan; want none for a delta with no baseline", i+1)
 		}
 	}
-	if got := manifestDeltaUnionCount(t, reader, manifestDeltaUnionNoBaseline); got != 1 {
+	if got := manifestDeltaUnionCount(t, reader, deltaOverlayNoBaseline); got != 1 {
 		t.Fatalf("union_no_baseline = %d, want 1", got)
 	}
 }

@@ -121,7 +121,7 @@ func (g *guardRoutingDB) QueryContext(_ context.Context, query string, args ...a
 	case deltaUnionTargetQuery:
 		return g.rowsFor(withUnionBaseColumn(g.targets), args[1], false), nil
 	case deltaUnionBaseQuery:
-		return g.rowsFor(g.bases, args[1], true), nil
+		return g.baseRowsFor(g.bases, args), nil
 	case successorGuardActiveGenerationQuery:
 		if g.activeErr != nil {
 			return nil, g.activeErr
@@ -154,6 +154,23 @@ func (g *guardRoutingDB) rowsFor(table map[string][]any, key any, emptyWhenMissi
 		return &queueFakeRows{}
 	}
 	return &queueFakeRows{rows: [][]any{row}}
+}
+
+// baseRowsFor answers the batched deltaUnionBaseQuery for the guard's one
+// (scope, union-base commit) pair: the staged {generation_id, status} row
+// keyed by the commit, led by the pair's scope id, or no row when none is
+// staged.
+func (g *guardRoutingDB) baseRowsFor(table map[string][]any, args []any) db.Rows {
+	scopeIDs, _ := args[0].([]string)
+	commits, _ := args[1].([]string)
+	if len(scopeIDs) != 1 || len(commits) != 1 {
+		g.t.Fatalf("delta union base lookup args = %#v, want one (scope, commit) pair", args)
+	}
+	row, ok := table[commits[0]]
+	if !ok {
+		return &queueFakeRows{}
+	}
+	return &queueFakeRows{rows: [][]any{append([]any{scopeIDs[0]}, row...)}}
 }
 
 func (g *guardRoutingDB) countQueries(query string) int {

@@ -103,7 +103,7 @@ func TestFactStoreListFactsDeltaOverlaysBase(t *testing.T) {
 		queryResponses: []queueFakeRows{
 			{rows: deltaUnionDeltaRows()},
 			{rows: [][]any{{true, "commit-base", ""}}},
-			{rows: [][]any{{"gen-base-1", "active"}}},
+			{rows: [][]any{{"scope-1", "gen-base-1", "active"}}},
 			{rows: deltaUnionBaseRows()},
 		},
 	}
@@ -199,7 +199,7 @@ func TestFactStoreCountFactsDeltaReturnsUnionBound(t *testing.T) {
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
 			{rows: [][]any{{true, "commit-base", ""}}},
-			{rows: [][]any{{"gen-base-1", "active"}}},
+			{rows: [][]any{{"scope-1", "gen-base-1", "active"}}},
 			{rows: [][]any{{90}}},
 			{rows: [][]any{{5}}},
 		},
@@ -264,11 +264,11 @@ func TestDeltaUnionBaseQueryKeepsPartialIndexPredicates(t *testing.T) {
 	t.Parallel()
 
 	for _, fragment := range []string{
-		"scope_id = $1",
+		"scope_id = target.scope_id",
 		"is_delta = false",
 		"activated_at IS NOT NULL",
 		"status IN ('active', 'completed', 'superseded')",
-		"source_commit_sha = $2",
+		"source_commit_sha = target.union_base_commit_sha",
 		"ORDER BY (status IN ('active', 'completed')) DESC, ingested_at DESC, generation_id DESC",
 	} {
 		if !strings.Contains(deltaUnionBaseQuery, fragment) {
@@ -286,7 +286,7 @@ func TestFactStoreListFactsActiveBaseSkipsPruneProbe(t *testing.T) {
 		queryResponses: []queueFakeRows{
 			{rows: deltaUnionDeltaRows()},
 			{rows: [][]any{{true, "commit-base", ""}}},
-			{rows: [][]any{{"gen-base-1", "active"}}},
+			{rows: [][]any{{"scope-1", "gen-base-1", "active"}}},
 			{rows: deltaUnionBaseRows()},
 		},
 	}
@@ -309,7 +309,7 @@ func TestFactStoreListFactsSupersededBaseWithoutPruneEventOverlays(t *testing.T)
 		queryResponses: []queueFakeRows{
 			{rows: deltaUnionDeltaRows()},
 			{rows: [][]any{{true, "commit-base", ""}}},
-			{rows: [][]any{{"gen-base-1", "superseded"}}},
+			{rows: [][]any{{"scope-1", "gen-base-1", "superseded"}}},
 			{rows: nil},
 			{rows: deltaUnionBaseRows()},
 		},
@@ -341,8 +341,8 @@ func TestFactStoreListFactsPrunedSupersededBaseRefuses(t *testing.T) {
 		queryResponses: []queueFakeRows{
 			{rows: deltaUnionDeltaRows()},
 			{rows: [][]any{{true, "commit-base", ""}}},
-			{rows: [][]any{{"gen-base-1", "superseded"}}},
-			{rows: [][]any{{1}}},
+			{rows: [][]any{{"scope-1", "gen-base-1", "superseded"}}},
+			{rows: [][]any{{retentionHashID("scope", "scope-1")}}},
 		},
 	}
 	store := NewFactStore(db)
@@ -373,7 +373,7 @@ func TestFactStoreListFactsProbeErrorOnSupersededBaseRefuses(t *testing.T) {
 		queryResponses: []queueFakeRows{
 			{rows: deltaUnionDeltaRows()},
 			{rows: [][]any{{true, "commit-base", ""}}},
-			{rows: [][]any{{"gen-base-1", "superseded"}}},
+			{rows: [][]any{{"scope-1", "gen-base-1", "superseded"}}},
 			{rows: nil, err: errors.New("retention probe outage")},
 			{rows: deltaUnionBaseRows()},
 		},
@@ -542,7 +542,7 @@ func TestFactStoreListFactsNonDeltaScopeWarnsAndCountsMismatch(t *testing.T) {
 		queryResponses: []queueFakeRows{
 			{rows: deltaUnionNonDeltaScopeRows()},
 			{rows: [][]any{{true, "commit-base", ""}}},
-			{rows: [][]any{{"gen-base-1", "active"}}},
+			{rows: [][]any{{"scope-1", "gen-base-1", "active"}}},
 			{rows: deltaUnionBaseRows()},
 		},
 	}
@@ -577,7 +577,7 @@ func TestFactStoreListFactsEmptyBaseRefuses(t *testing.T) {
 		queryResponses: []queueFakeRows{
 			{rows: deltaUnionDeltaRows()},
 			{rows: [][]any{{true, "commit-base", ""}}},
-			{rows: [][]any{{"gen-base-1", "active"}}},
+			{rows: [][]any{{"scope-1", "gen-base-1", "active"}}},
 			{rows: nil},
 		},
 	}

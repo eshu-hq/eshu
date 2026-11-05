@@ -141,11 +141,12 @@ operational lessons that future storage changes still need to respect.
   rows. Both branches over-select; `packageidentity.ManifestConsumptionKeys` is
   the accuracy gate.
   A delta-active scope reads its delta overlaid on the #7797 base (#9991,
-  `active_package_manifest_dependency_delta.go`): a global delta-target lookup
-  runs first, and only when some scope is delta-active does a second paged
-  query derived from the active text (`deltaBasePackageManifestDependencyQuery`,
-  limited to those scopes) return the activated fulls at the union-base commit, `resolveDeltaBaseAtCommit` picks
-  the base, and `facts.OverlayDeltaBase` applies the delta's keys, tombstones,
+  through the shared `delta_overlay.go` helper, #10003): a global delta-target
+  lookup runs first, and only when some scope is delta-active does a second
+  paged query derived from the active text (`deriveDeltaOverlayBaseQuery` at
+  `$6`, limited to those scopes) return the activated fulls at the union-base
+  commit, `resolveDeltaBases` picks every reached scope's base in one base
+  lookup and at most one retention probe, and `facts.OverlayDeltaBase` applies the delta's keys, tombstones,
   and touched paths. Never copy the base rule or overlay into SQL. A refused,
   legacy, or mismatched base keeps the delta-only rows and counts
   `eshu_dp_package_manifest_dependency_read_delta_union_total`. All
@@ -155,6 +156,19 @@ operational lessons that future storage changes still need to respect.
   repair adds them (#8961). It writes the sidecar outside the dirty fence on
   purpose: it only inserts, under the scope row lock, so readiness never flips.
   A rolling deploy can drop keys it added; see `consumption/README.md`.
+- One reader-side delta overlay (#9991, #10003). A reader that joins
+  `scope.active_generation_id = fact.generation_id` over git facts loses a
+  delta-active scope's unchanged base rows. Fix it through `delta_overlay.go`:
+  `withDeltaOverlaySnapshot` (one read-only repeatable-read snapshot, with the
+  delta-target lookup read once and shared by every leg), base pages from
+  `deriveDeltaOverlayBaseQuery` (the reader names its scope-array placeholder;
+  the derivation fails closed on a shape it cannot swap), and
+  `overlayDeltaBase` (`resolveDeltaBases`, then `facts.OverlayDeltaBase`). The
+  base rule lives only in `delta_union_base.go` (`deltaUnionBaseQuery` and
+  `deltaUnionBasePrunedQuery`, batched; the projector and the successor guard
+  bind one pair). Never copy the rule, the overlay, or the target lookup into
+  a reader, and keep a probe failure a refusal (#8181); see
+  `docs/internal/evidence/10003-delta-overlay-helper.md`.
 - `ListActiveJVMReachabilityFacts` serves JVM vulnerability reachability
   enrichment after Maven or Gradle dependency evidence has already proven a
   canonical repository and resolver-backed API package prefix. The query is
@@ -399,7 +413,8 @@ operational lessons that future storage changes still need to respect.
   the commit closed. Reads that run on the transaction share one connection,
   so each must close its cursor before the next statement (pgx refuses with
   "conn busy"); the delta-union resolver reads target and base through
-  `readDeltaUnionTarget` and `readDeltaUnionBase` for that reason. Do not move
+  `readDeltaUnionTarget` and `readDeltaUnionBases` for that reason (the
+  batched base read drains and closes its cursor before the retention probe). Do not move
   the recheck, do not compare a subset of the tuple, and do not widen it to
   un-hinted generations here (that is a separate issue).
   See `docs/internal/evidence/8750-successor-guard-sizing.md`.

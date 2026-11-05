@@ -114,10 +114,33 @@ WHERE scope_id = 'big' OR scope_id LIKE 's-%';
 ANALYZE scope_generations; ANALYZE ingestion_scopes;
 `
 
-// manifestDeltaPerfCounts tallies statements by kind.
+// manifestDeltaPerfCounts tallies statements by kind, and the delta-active
+// scopes the batched base lookup bound (the scopes the read reached).
 type manifestDeltaPerfCounts struct {
-	mu    sync.Mutex
-	kinds map[string]int
+	mu      sync.Mutex
+	kinds   map[string]int
+	reached int
+}
+
+// addReached records the scopes one batched base lookup bound as $1.
+func (c *manifestDeltaPerfCounts) addReached(query string, args []any) {
+	if query != deltaUnionBaseQuery || len(args) == 0 {
+		return
+	}
+	scopes, _ := args[0].([]string)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.reached += len(scopes)
+}
+
+// takeReached returns the reached scopes counted since the last call and
+// clears them.
+func (c *manifestDeltaPerfCounts) takeReached() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	reached := c.reached
+	c.reached = 0
+	return reached
 }
 
 func (c *manifestDeltaPerfCounts) add(kind string) {
@@ -136,13 +159,13 @@ func (c *manifestDeltaPerfCounts) reset() map[string]int {
 
 func manifestDeltaPerfKind(query string) string {
 	switch {
-	case query == manifestDeltaTargetsQuery:
+	case query == deltaOverlayTargetsQuery:
 		return "target lookup"
 	case query == deltaUnionBaseQuery:
-		return "base lookup (per scope)"
+		return "base lookup (batched, #10003)"
 	case query == deltaUnionBasePrunedQuery:
-		return "prune probe (per scope)"
-	case query == manifestDeltaOverlayInputsQuery:
+		return "prune probe (batched, #10003)"
+	case query == deltaOverlayInputsQuery:
 		return "overlay inputs"
 	case strings.Contains(query, "JOIN scope_generations AS active_delta"):
 		return "base page"
@@ -161,6 +184,7 @@ type manifestDeltaPerfDB struct {
 
 func (d manifestDeltaPerfDB) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
 	d.counts.add(manifestDeltaPerfKind(query))
+	d.counts.addReached(query, args)
 	return d.SQLDB.QueryContext(ctx, query, args...)
 }
 
@@ -180,6 +204,7 @@ type manifestDeltaPerfTx struct {
 
 func (t manifestDeltaPerfTx) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
 	t.counts.add(manifestDeltaPerfKind(query))
+	t.counts.addReached(query, args)
 	return t.Transaction.QueryContext(ctx, query, args...)
 }
 
@@ -231,6 +256,7 @@ func TestManifestDeltaReadStatementCountsLive(t *testing.T) {
 			var oldDur, newDur []time.Duration
 			var oldRows, newRows int
 			var oldKinds, newKinds map[string]int
+			var newReached int
 			for range 5 {
 				counts.reset()
 				started := time.Now()
@@ -244,13 +270,13 @@ func TestManifestDeltaReadStatementCountsLive(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				newDur, newRows, newKinds = append(newDur, time.Since(started)), len(loaded), counts.reset()
+				newDur, newRows, newKinds, newReached = append(newDur, time.Since(started)), len(loaded), counts.reset(), counts.takeReached()
 			}
 			sort.Slice(oldDur, func(i, j int) bool { return oldDur[i] < oldDur[j] })
 			sort.Slice(newDur, func(i, j int) bool { return newDur[i] < newDur[j] })
 			t.Logf("%s %s old: rows=%d median=%s %s", state, ecosystem, oldRows, oldDur[2], manifestDeltaPerfFormat(oldKinds))
 			t.Logf("%s %s new: rows=%d median=%s reached_delta_scopes=%d %s", state, ecosystem, newRows, newDur[2],
-				newKinds["base lookup (per scope)"], manifestDeltaPerfFormat(newKinds))
+				newReached, manifestDeltaPerfFormat(newKinds))
 		}
 	}
 	measure("delta-active")

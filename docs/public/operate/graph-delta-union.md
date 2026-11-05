@@ -108,7 +108,8 @@ sync recollects. The sizing evidence is in
 package-source correlation, security-alert reconciliation, and supply-chain
 impact, used to join only the active generation, so a delta-active
 repository showed only its changed pins. It now overlays the delta on the
-same base the projector uses: `resolveDeltaBaseAtCommit` picks the base and
+same base the projector uses: `resolveDeltaBases` picks the base (the same
+batched base lookup and retention probe the projector runs for one scope) and
 `facts.OverlayDeltaBase` applies the delta's stable keys, tombstones, and
 touched paths. A refused base, a legacy delta with no baseline, or a delta
 with no `delta_generation` fact keeps the delta-only rows. The read counts

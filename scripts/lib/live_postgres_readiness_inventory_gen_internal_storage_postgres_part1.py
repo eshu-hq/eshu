@@ -217,6 +217,9 @@ TABLE = {
             "TestPoisonRecoveryDropsRowChangedBeforeItsLockLive",
             "TestPoisonRecoveryConcurrentWithReplaysNeverDeadlockLive",
         ),
+        "go/internal/storage/postgres/delta_union_base_live_test.go": (
+            "TestResolveDeltaBasesMatchesPerScopeRuleLive",
+        ),
         "go/internal/storage/postgres/delta_union_chain_live_test.go": (
             "TestChainedDeltaProjectsOverNewestFullLive",
         ),

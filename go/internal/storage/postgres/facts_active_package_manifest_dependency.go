@@ -12,7 +12,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/packageidentity"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 const listActivePackageManifestDependencyFactsQuery = `
@@ -64,7 +63,7 @@ LIMIT $5
 // its #7797 base full generation (#9991): base rows keep their own generation
 // id, and the delta wins per stable key, by tombstone, and by touched path.
 // A refused, legacy, or mismatched base keeps the delta-only rows; see
-// overlayDeltaManifestBase. Every statement runs on one read-only
+// overlayDeltaBase. Every statement runs on one read-only
 // repeatable-read snapshot.
 // Performance Evidence: docs/internal/evidence/9991-manifest-read-delta-union.md.
 //
@@ -123,7 +122,7 @@ func (s FactStore) ListActivePackageManifestDependencyFacts(
 	// text, because on a snapshot clone the static rewrite below changes
 	// the text and no rewritten text is in the label table.
 	rawQuery := query
-	baseQuery, err := deltaBasePackageManifestDependencyQuery(query)
+	baseQuery, err := deriveDeltaOverlayBaseQuery(query, manifestDeltaOverlayScopeParam)
 	if err != nil {
 		return nil, err
 	}
@@ -134,33 +133,33 @@ func (s FactStore) ListActivePackageManifestDependencyFacts(
 		return nil, err
 	}
 	// One read-only repeatable-read snapshot keeps the active pages, the
-	// delta-base pages, and the base resolution on the same active
-	// generations (#9991). Inside the impact snapshot this nests as a no-op.
+	// delta-target lookup, the delta-base pages, the base resolution, and the
+	// overlay inputs on the same active generations (#9991). Inside the
+	// impact snapshot this nests as a no-op.
 	var loaded []facts.Envelope
 	activeRows := 0
-	err = withReadOnlyRepeatableRead(ctx, s.database, func(queryer db.Queryer) error {
-		reader := s
-		reader.database = snapshotReadQueryer{Queryer: queryer}
+	sink := s.manifestDeltaOverlayTelemetry(manifestDependencyReadLabel(rawQuery))
+	err = s.withDeltaOverlaySnapshot(ctx, func(snapshot *deltaOverlaySnapshot) error {
+		reader := snapshot.store
 		active, err := reader.listPackageManifestDependencyFactPages(ctx, query, packageManagers, packageNames)
 		if err != nil {
 			return err
 		}
 		activeRows = len(active)
-		read := manifestDependencyReadLabel(rawQuery)
-		targets, err := reader.readManifestDeltaTargets(ctx)
+		targets, err := snapshot.deltaTargets(ctx)
 		if err != nil {
-			reader.recordManifestDeltaUnionFailure(ctx, read)
+			reader.recordDeltaOverlayFailure(ctx, sink)
 			return err
 		}
 		var base []facts.Envelope
-		if baseScopes := manifestDeltaBaseScopes(targets); len(baseScopes) > 0 {
+		if baseScopes := deltaOverlayBaseScopes(targets); len(baseScopes) > 0 {
 			base, err = reader.listPackageManifestDependencyFactPages(ctx, baseQuery, packageManagers, packageNames, baseScopes)
 			if err != nil {
-				reader.recordManifestDeltaUnionFailure(ctx, read)
+				reader.recordDeltaOverlayFailure(ctx, sink)
 				return err
 			}
 		}
-		loaded, err = reader.overlayDeltaManifestBase(ctx, read, targets, active, base)
+		loaded, err = reader.overlayDeltaBase(ctx, sink, targets, active, base)
 		return err
 	})
 	if err != nil {

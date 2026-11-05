@@ -10,25 +10,27 @@ loaded `[delta-alpha]`.
 
 ## Change
 
-`go/internal/storage/postgres/active_package_manifest_dependency_delta.go`:
+The overlay file written for #9991 (since #10003 the reader-agnostic `delta_overlay.go`, `delta_overlay_query.go`,
+and `delta_union_base.go`; see
+[10003-delta-overlay-helper.md](10003-delta-overlay-helper.md)):
 
 1. The active query pages unchanged.
-2. One global lookup (`manifestDeltaTargetsQuery`) names every delta-active
+2. One global lookup (`manifestDeltaTargetsQuery`, now `deltaOverlayTargetsQuery`) names every delta-active
    scope. It must be global: a delta that touched no manifest leaves its
    scope with base pins and no active row. With no delta-active scope that
    has a baseline, the read stops here: active pages plus this one statement.
 3. Otherwise a base-candidate query, derived from the active text by
-   `deltaBasePackageManifestDependencyQuery` (two fragment swaps, fail-closed
+   `deltaBasePackageManifestDependencyQuery` (now `deriveDeltaOverlayBaseQuery` at `$6`; two fragment swaps, fail-closed
    shape check), pages through the same partial indexes, keyset cursor, and
    limit, restricted to those scopes (`fact.scope_id = ANY($6)`). It selects
    activated full generations at the delta's union-base commit,
    `COALESCE(delta_union_base_commit_sha, delta_baseline_commit_sha)`, a
    strict superset of `deltaUnionBaseQuery`. #9611 rewrites the active text,
    and the base text follows because it is derived.
-4. For each delta-active scope the rows reached, `resolveDeltaBaseAtCommit`
+4. For each delta-active scope the rows reached, `resolveDeltaBaseAtCommit` (now one batched `resolveDeltaBases` over all reached scopes, #10003)
    picks the base the projector overlays, including the retention prune
    probe and the refusal.
-5. One batched read (`manifestDeltaOverlayInputsQuery`) loads each delta's
+5. One batched read (`manifestDeltaOverlayInputsQuery`, now `deltaOverlayInputsQuery`) loads each delta's
    repository fact and its stable-key collisions, tombstones included. Then
    `facts.OverlayDeltaBase` keeps the base rows the delta did not override,
    tombstone, or touch.
@@ -173,9 +175,21 @@ statement counts with noisier times: npm delta-active 2.428 s old against
 
 ## Known limits
 
-- Base resolution sends one base lookup per reached delta-active scope, plus
-  a prune probe for a superseded base. Round trips grow linearly with the
-  reached scopes; batching both statements is a later optimization.
+- Base resolution sent one base lookup per reached delta-active scope, plus
+  a prune probe for a superseded base, so round trips grew linearly with the
+  reached scopes. #10003 batched both statements: base resolution is now at
+  most two statements for all reached scopes (see
+  [10003-delta-overlay-helper.md](10003-delta-overlay-helper.md)).
+- The delta-target lookup is unbounded: it returns every delta-active git
+  scope in the deployment on every read, whatever the read's names. It
+  touches no fact rows (1.89 ms, 93 buffers at 201 delta-active scopes), and
+  only the scopes the read's rows reach are resolved, but its result grows
+  with the delta-active share of the fleet. The lane 1 QA readback of that
+  share sizes it.
+- The reducer now logs the existing projector `projector delta union fact
+  load` INFO line when its `ListFacts` loads a delta generation, because the
+  reducer FactStore carries the process logger (review P3 G2). That is one
+  INFO line per delta load, the same line the projector already logs.
 - Two activated fulls at one union-base commit both pass the base-candidate
   prefilter, so the base pages scan twice that scope's rows before Go keeps
   the resolved base's rows.
