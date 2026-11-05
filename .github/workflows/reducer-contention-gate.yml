@@ -60,10 +60,11 @@ jobs:
     # then 25/30 min for the #7009 writer steps) had zero headroom and
     # cancelled 8 of 47 main pushes in ~30 h with every test step green.
     # Each step keeps its own -timeout; this is job headroom only.
-    # 45 minutes sits ~15 min above the worst observed total (30m20s) and
-    # above the worst-case sum (12 min build + 25 min step cap + 6 min tail
-    # + 1 min setup = 44 min). Revisit (split the main-step filter) if the
-    # main step's test phase twice exceeds 20 min.
+    # 45 minutes sits ~15 min above the worst observed total (30m20s) but
+    # below the worst-case sum (12 min build + 27.5 min step cap + 6 min tail
+    # + 1 min setup = 46.5 min). Revisit (split the main-step filter) if the
+    # main step's test phase twice exceeds 20 min — it now has, twice on main
+    # (1489s, 1263s), so the split is a tracked follow-up, not this lane.
     timeout-minutes: 45
 
     services:
@@ -346,8 +347,9 @@ jobs:
         # 25 s of margin -- with another ~10.5 min of cold-cache -race build
         # ahead of it inside the same step. Raising the step timeout to 1500 s
         # keeps ~70% margin above the measured test phase and still fits the
-        # 45-minute job (12 min build + 25 min step cap + 6 min tail + 1 min
-        # setup). A step timeout reports failure (`panic: test timed out`),
+        # 45-minute job (12 min build + 27.5 min step cap + 6 min tail + 1 min
+        # setup = 46.5 min worst case, above the cap; observed totals stay
+        # inside). A step timeout reports failure (`panic: test timed out`),
         # distinct from the job-level cancelled the job cap reports, without
         # touching the enrolled test list, the -run filter's prefix-matched families
         # (TestReducerContentionGate*, TestSharedProjectionAcceptance*Live,
