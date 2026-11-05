@@ -36,6 +36,7 @@ env:
   CGO_CFLAGS: "-O2 -g -std=gnu17"
   REGISTRY: ghcr.io
   SEED_IMAGE: ghcr.io/eshu-hq/eshu-synth-zero
+  CI_BUILDKIT_IMAGE: ghcr.io/eshu-hq/ci-mirror-buildkit@sha256:cec9f139f45e93c5c69c60f8b07cfad9f43f4ef6b6a6cd917527fea5ff2e3dea
 
 jobs:
   build-push-smoke:
@@ -72,6 +73,8 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: image=${{ env.CI_BUILDKIT_IMAGE }}
 
       - name: Log in to Container Registry
         uses: docker/login-action@v3
