@@ -1,0 +1,19 @@
+docs/internal/evidence/10005-crossplane-delta-overlay.md
+  s_7547c0f0af67d4::t_0639e96876649a 129-132,203,250
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "eaba5fd3434747ce196ee40a59061214cd48b652",
+  "prompts": {},
+  "sessions": {
+    "s_7547c0f0af67d4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7c8b2d5-3286-4c2a-be1f-589162535d83",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
