@@ -262,6 +262,9 @@ TABLE = {
         "go/internal/storage/postgres/fact_key_orphan_census_live_test.go": (
             "TestFactKeyOrphanCensusCountsPlantedOrphansLive",
         ),
+        "go/internal/storage/postgres/fact_records_autovacuum_reloptions_live_test.go": (
+            "TestFactRecordsAutovacuumReloptionsMigrationLive",
+        ),
         "go/internal/storage/postgres/gap_admitted_anchor_index_live_test.go": (
             "TestDeployableUnitGapAdmittedAnchorIndexLifecycleAndSeekLive",
         ),

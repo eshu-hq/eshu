@@ -461,4 +461,7 @@ var orderedBootstrapDefinitionNamesLate = []string{
 	// Migration 278 (#9777) adds the owned-target replan queue and its
 	// commit watermark the change-driven re-query drains from.
 	"owned_target_replan",
+	// Migration 279 (#9975) sets the fact_records autovacuum scale factors
+	// (catalog-only ALTER).
+	"fact_records_autovacuum_reloptions",
 }

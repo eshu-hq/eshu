@@ -343,6 +343,9 @@ var migrationShippedChecksums = map[string]string{
 	// #9777 step 2: change-driven replan queue and commit watermark
 	// (migration 278).
 	"278_owned_target_replan.sql": "838e4b265eafa1f4799863f600d1cc726be5f57aed431b38b3dca300573a3af9",
+	// #9975: fact_records autovacuum scale factors (migration 279; 276 is the
+	// terraform-backends outer-leg index above).
+	"279_fact_records_autovacuum_reloptions.sql": "abb875116a3a0447e14a97a2a1e418acf26f940631204a72273011be6326036b",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition

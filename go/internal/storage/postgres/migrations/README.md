@@ -88,6 +88,22 @@ these a single statement; see
 `docs/internal/evidence/8950-writer-prototype.md`. Migration 245 (#9320) adds
 the nullable `shared_projection_intents.reopened_at` column the same way: no
 default, backfill, CHECK, or index, one statement.
+Migration 279 (#9975) sets `fact_records` `autovacuum_vacuum_scale_factor = 0.02`
+and `autovacuum_vacuum_insert_scale_factor = 0.05` in one catalog-only ALTER
+(SHARE UPDATE EXCLUSIVE, no rewrite), so autovacuum fires on this table's churn
+rather than on 20% of 102M rows. It carries no cost, toast, or analyze
+parameters. The ALTER cancels a running ordinary autovacuum of `fact_records`
+after `deadlock_timeout` instead of waiting for it (an anti-wraparound vacuum,
+a manual VACUUM or ANALYZE, or a session holding a conflicting lock makes it
+wait), so a replay or any other DDL on that table restarts a
+vacuum that is still running. Before a roll, check `pg_locks` for a granted
+`ShareUpdateExclusiveLock` on `fact_records` held by another pid: without
+`pg_read_all_stats` that row shows a NULL `backend_type`, and
+`pg_stat_progress_vacuum` filtered by the table returns nothing, so treat the
+NULL-typed row as a running vacuum.
+See `docs/internal/evidence/9975-fact-records-autovacuum-reloptions.md` for
+the measured first-vacuum cost, the read-replica `503` risk, and the stop
+procedure.
 
 ## Keep table-locking DDL and bulk DML in separate files (#7961)
 
