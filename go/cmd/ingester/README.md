@@ -177,7 +177,8 @@ cost, and what that measurement does not cover.
 Those drains are paced by ingestion, not by a timer. `collector.Service` runs
 `AfterBatchDrained` when the source batch exhausts after at least one
 committed generation, and on every idle poll via the `AfterEmptyBatchDrained`
-escape described below (`go/internal/collector/service.go:251`).
+escape described below (the `AfterEmptyBatchDrained` read in `Service.Run`,
+`go/internal/collector/service.go`).
 `committedSinceDrain` is cleared on every drain (`:262`) and set again on
 every commit (`:306`), so a shard that keeps committing drains once per
 commit-to-idle cycle whether or not the escape is enabled.
