@@ -1,0 +1,19 @@
+docs/internal/evidence/9611-manifest-read-base-generations.md
+  s_7547c0f0af67d4::t_0b433bc8078f84 142-143,228-250
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "eddc02dbe652bf0dad45427572acd35dc375c767",
+  "prompts": {},
+  "sessions": {
+    "s_7547c0f0af67d4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7c8b2d5-3286-4c2a-be1f-589162535d83",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
