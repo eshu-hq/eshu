@@ -233,6 +233,7 @@ workflows:
   - scripts/verify-ifa-dead-letter-matrix.sh
   - scripts/test-verify-ifa-dead-letter-matrix.sh
   - scripts/lib/ifa_determinism_common.sh
+  - scripts/lib/ifa_graph_backend.sh
   - go/internal/storage/cypher/fault/executor/*.go
   - go/internal/replay/faultreplay/**
   - go/cmd/reducer/ifa_lease_expiry*.go
@@ -243,6 +244,7 @@ workflows:
   - scripts/ci/install-apt-packages.sh
   - scripts/ci/go-mod-download-retry.sh
   - scripts/test-verify-ifa-fault-injection.sh
+  - scripts/test-ifa-graph-backend-neo4j.sh
   - go/internal/storage/cypher/edge/writer/sql.go
   - specs/ifa-materialized-edge-coverage.v1.yaml
   - specs/ifa-materialized-edge-coverage-direct.v1.yaml

@@ -5,7 +5,7 @@
 # (testdata/cassettes/gcpcloud/supply-chain-demo.json) PLUS a generated
 # multi-scope synthetic GCP cassette (go/internal/synth/gcp.GenerateMultiScope
 # via `ifa synth-cassette`, slice 6b) through `eshu-ifa drive -workers N` for N
-# in {1, 2, 4}, each against an INDEPENDENT, FRESH Postgres + NornicDB Compose
+# in {1, 2, 4}, each against an INDEPENDENT, FRESH Postgres + graph-backend Compose
 # stack (`docker compose down -v` between every cell — no state, no volume, no
 # container survives from one N to the next), drains the projector/reducer to the
 # exact B-12 residual bound scripts/verify-ifa-replay-drive.sh already proves via
@@ -71,7 +71,7 @@
 #
 # Usage:
 #   scripts/verify-ifa-determinism.sh [--no-compose] [--keep] [--teeth]
-#     --no-compose  assume Postgres + NornicDB are already running on the
+#     --no-compose  assume Postgres + the graph backend are already running on the
 #                   configured ports; skip compose up/down here. Because
 #                   each cell still needs a FRESH database, --no-compose
 #                   pairs only with a caller that resets both backends
@@ -147,7 +147,7 @@ export NEO4J_HTTP_PORT="${NEO4J_HTTP_PORT:-7680}"
 : "${ESHU_NEO4J_PASSWORD:=change-me}"
 : "${GATE_DRAIN_TIMEOUT:=3m}"
 
-compose_file="${ESHU_DEPLOY_CHECKOUT:?set ESHU_DEPLOY_CHECKOUT to an eshu-deploy checkout (#8871 extraction pin in the gate workflow)}/compose/docker-compose.yaml"
+compose_file="$(ifa_graph_compose_file "${ESHU_DEPLOY_CHECKOUT:?set ESHU_DEPLOY_CHECKOUT to an eshu-deploy checkout (#8871 extraction pin in the gate workflow)}")"
 cassette="${repo_root}/testdata/cassettes/gcpcloud/supply-chain-demo.json"
 worker_counts=(1 2 4)
 
@@ -229,7 +229,7 @@ trap ifa_det_cleanup EXIT
 # at localhost on this script's own ports — never the in-Compose-network
 # hostnames docker-compose.yaml's own db-migrate service uses.
 # ----------------------------------------------------------------------------
-ifa_det_configure_runtime; source "${repo_root}/scripts/lib/ci-image-compose.sh"; if [[ "${use_compose}" -eq 1 ]]; then eshu_ci_compose_prepare "${repo_root}" -p "${DETERMINISM_COMPOSE_PROJECT}" -f "${compose_file}" || die "CI image overlay preflight failed"; fi
+ifa_det_configure_runtime || die "unsupported ESHU_GRAPH_BACKEND"; source "${repo_root}/scripts/lib/ci-image-compose.sh"; if [[ "${use_compose}" -eq 1 ]]; then eshu_ci_compose_prepare "${repo_root}" -p "${DETERMINISM_COMPOSE_PROJECT}" -f "${compose_file}" || die "CI image overlay preflight failed"; fi
 
 if [[ "${teeth}" -eq 1 ]]; then
 	log "build host binaries (--teeth: -tags ${build_tags})"
@@ -287,10 +287,10 @@ for n in "${worker_counts[@]}"; do
 	cell_start=$(date +%s)
 
 	if [[ "${use_compose}" -eq 1 ]]; then
-		bash scripts/ci/compose.sh -p "${DETERMINISM_COMPOSE_PROJECT}" -f "${compose_file}" -- up -d nornicdb postgres
+		bash scripts/ci/compose.sh -p "${DETERMINISM_COMPOSE_PROJECT}" -f "${compose_file}" -- up -d "${IFA_GRAPH_SERVICE}" postgres
 		log "N=${n}: wait for backends"
 		ifa_det_wait_for_backends "${DETERMINISM_COMPOSE_PROJECT}" "${compose_file}" \
-			|| die "N=${n}: Postgres + NornicDB did not become ready within budget"
+			|| die "N=${n}: Postgres + ${IFA_GRAPH_LABEL} did not become ready within budget"
 	fi
 
 	log "N=${n}: apply Postgres + graph schema (eshu-bootstrap-data-plane)"

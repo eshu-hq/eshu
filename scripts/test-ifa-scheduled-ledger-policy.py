@@ -45,7 +45,7 @@ class IfaLedgerPolicyTest(unittest.TestCase):
             self.assertEqual(clean.returncode, 0, clean.stderr)
             for mutated in (
                 row.replace("runner: ifa-scheduled", "runner: wrong-runner"),
-                row.replace("backends: nornicdb", "backends: neo4j"),
+                row.replace("backends: neo4j", "backends: nornicdb"),
                 row.replace("tag: ifarepodependencyproof", "tag: wrong-tag"),
             ):
                 ledger.write_text(text[:start] + mutated + text[end:])
@@ -153,7 +153,7 @@ class IfaLedgerPolicyTest(unittest.TestCase):
             "extra": source[:foreign_start] + foreign_row.replace(
                 "    class: scheduled\n", "    class: verified_scheduled\n"
             ).replace(
-                "    backends: neo4j\n", "    runner: ifa-scheduled\n    backends: nornicdb\n"
+                "    backends: neo4j\n", "    runner: ifa-scheduled\n    backends: neo4j\n"
             ) + source[foreign_end:],
         }
         with tempfile.TemporaryDirectory() as directory:

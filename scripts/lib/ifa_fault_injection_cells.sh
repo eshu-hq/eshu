@@ -190,7 +190,7 @@ cell_failgraphwrite() {
 
 # cell_restartbackend (cell 5): the same tagged reducer with a fault script
 # that pauses after the first completed graph-write group; this gate
-# restarts the nornicdb Compose service while the reducer is blocked on that
+# restarts the graph-backend Compose service while the reducer is blocked on that
 # pause, then releases it. SKIPPED under --no-compose, which cannot restart
 # a backend this script does not own.
 cell_restartbackend() {
@@ -222,7 +222,7 @@ cell_restartbackend() {
 	restart_fired="$(cat "${restart_result}" 2>/dev/null || echo missing)"
 	[[ "${restart_fired}" == "fired" ]] \
 		|| die "restart-backend-between-phase-groups: the scripted fault never fired (sentinel ${restart_sentinel} never appeared) -- inert script, not a pass. Root-cause the ifafaultinjection decorator's ExecuteGroup/ExecutePhaseGroup wiring before treating this gate as usable."
-	printf 'restart-backend-between-phase-groups: non-vacuous: sentinel fired, nornicdb restarted mid-drain\n'
+	printf 'restart-backend-between-phase-groups: non-vacuous: sentinel fired, %s restarted mid-drain\n' "${IFA_GRAPH_SERVICE}"
 	assert_no_dead_letters restartbackend
 	assert_gcp_project_edge_scopes restartbackend
 	capture_digest restartbackend

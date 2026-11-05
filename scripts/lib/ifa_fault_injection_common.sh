@@ -382,7 +382,7 @@ ifa_fault_assert_once_fault_marker() {
 # ifa_fault_watch_restart_sentinel polls for sentinel_path's appearance (the
 # file go/internal/storage/cypher/fault/executor.FaultingExecutor.maybeRestartAfterGroup
 # writes and then blocks on, waiting for its removal), and once seen:
-# restarts the compose project's nornicdb service (a plain `restart`, not
+# restarts the compose project's graph-backend service (a plain `restart`, not
 # `down -v` -- this is a backend outage, not a fresh database, mirroring the
 # proven T3 recovery mechanism), waits for both backends to report ready
 # again, then removes the sentinel to release the blocked reducer call.
@@ -404,8 +404,8 @@ ifa_fault_watch_restart_sentinel() {
 	for i in $(seq 1 "${ticks}"); do
 		if [[ -f "${sentinel_path}" ]]; then
 			printf 'fired\n' >"${result_file}"
-			printf 'ifa_fault_watch_restart_sentinel: sentinel seen (%s); restarting nornicdb\n' "${sentinel_path}" >&2
-			bash scripts/ci/compose.sh -p "${compose_project}" -f "${compose_file}" -- restart nornicdb >/dev/null 2>&1
+			printf 'ifa_fault_watch_restart_sentinel: sentinel seen (%s); restarting %s\n' "${sentinel_path}" "${IFA_GRAPH_SERVICE}" >&2
+			bash scripts/ci/compose.sh -p "${compose_project}" -f "${compose_file}" -- restart "${IFA_GRAPH_SERVICE}" >/dev/null 2>&1
 			ifa_det_wait_for_backends "${compose_project}" "${compose_file}" >/dev/null 2>&1 \
 				|| echo "ifa_fault_watch_restart_sentinel: backends did not report ready after restart" >&2
 			rm -f "${sentinel_path}"

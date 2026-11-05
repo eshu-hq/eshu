@@ -395,10 +395,10 @@ ifa_deployable_unit_live_run_standalone_cell() {
 	cell_start=$(date +%s)
 
 	if [[ "${use_compose}" -eq 1 ]]; then
-		bash scripts/ci/compose.sh -p "${compose_project}" -f "${compose_file}" -- up -d nornicdb postgres
+		bash scripts/ci/compose.sh -p "${compose_project}" -f "${compose_file}" -- up -d "${IFA_GRAPH_SERVICE}" postgres
 		log "deployable_unit_edges: wait for backends"
 		ifa_det_wait_for_backends "${compose_project}" "${compose_file}" || {
-			echo "deployable_unit_edges: Postgres + NornicDB did not become ready within budget" >&2
+			echo "deployable_unit_edges: Postgres + ${IFA_GRAPH_LABEL} did not become ready within budget" >&2
 			return 1
 		}
 	fi

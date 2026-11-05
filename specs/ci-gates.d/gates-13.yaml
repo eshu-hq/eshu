@@ -1,10 +1,10 @@
 version: v1
 gates:
   - id: ifa-static-mirror
-    name: Ifa static mirrors (determinism, dead-letter, fault-injection)
+    name: Ifa static mirrors (determinism, dead-letter, fault-injection, Neo4j wiring)
     category: exactness
     layer: replay
-    purpose: "Runs the three Ifa static mirror scripts in one CI job so a stale hand-kept copy of a production value shows red on the PR. Advisory: never holds a merge."
+    purpose: "Runs the three Ifa static mirrors and the Neo4j wiring guard so a stale hand-kept copy or a NornicDB rewire shows red. Advisory: never holds a merge."
     tier: pre-pr
     blocking: false
     triggers:
@@ -420,6 +420,7 @@ gates:
       - "scripts/verify-ifa-dead-letter-matrix.sh"
       - "scripts/test-verify-ifa-dead-letter-matrix.sh"
       - "scripts/lib/ifa_determinism_common*.sh"
+      - "scripts/lib/ifa_graph_backend.sh"
       - "scripts/lib/test-ifa-fault-injection-cell-pins-cases.sh"
       - "go/internal/storage/cypher/canonical/node/metadata.go"
       - "go/internal/projector/runtime/scope_generation_intents.go"
@@ -452,6 +453,7 @@ gates:
       - "scripts/verify-ifa-fault-injection.sh"
       - "scripts/ci/install-apt-packages.sh"
       - "scripts/test-verify-ifa-fault-injection.sh"
+      - "scripts/test-ifa-graph-backend-neo4j.sh"
       - "scripts/lib/test-ifa-fault-injection-deployable-unit-lock-cases.sh"
       - "scripts/lib/test-ifa-fault-injection-deployable-unit-kill-isolation-cases.sh"
       - "scripts/lib/ifa_determinism_common.sh"
@@ -467,7 +469,7 @@ gates:
       job: "static mirror"
     requirements:
       - go
-    ci_only_reason: "local equivalents are the local.command of ifa-determinism, ifa-dead-letter-matrix and ifa-fault-injection, which run the same three scripts; this row only owns the CI job that runs them together"
+    ci_only_reason: "local equivalents are the local.command of ifa-determinism, ifa-dead-letter-matrix and ifa-fault-injection, which run the same three scripts; the Neo4j wiring guard (scripts/test-ifa-graph-backend-neo4j.sh) is a seconds-long static check with no local gate of its own; this row only owns the CI job that runs them together"
 
   - id: ifa-load-saturation
     name: Ifa P5 load/saturation Odù (corpus amplifier + throughput + #3560 saturation regression)

@@ -24,6 +24,12 @@ permissions:
 env:
   CGO_CFLAGS: "-O2 -g -std=gnu17"
   ESHU_CI_IMAGES: "1"
+  # Owner order 2026-11-05: the Ifá gates run on Neo4j, the supported graph backend
+  # (docs/internal/design/7331-neo4j-primary-graph-backend-decision.md); the NornicDB
+  # variant is no longer wired here. To restore it for a run, set this to nornicdb;
+  # scripts/lib/ifa_graph_backend.sh then selects docker-compose.yaml and the nornic
+  # database. scripts/test-ifa-graph-backend-neo4j.sh fails if this is not neo4j.
+  ESHU_GRAPH_BACKEND: neo4j
   POSTGRES_IMAGE: ghcr.io/eshu-hq/ci-postgres-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873
   NEO4J_IMAGE: ghcr.io/eshu-hq/ci-neo4j-community@sha256:eabfbb042bdaca2fd5e1950db1329b22c794eee80f0eacc4e7a729d44b2e863f
   ESHU_XX_IMAGE: ghcr.io/eshu-hq/ci-mirror-xx@sha256:0c6a569797744e45955f39d4f7538ac344bfb7ebf0a54006a0a4297b153ccf0f
@@ -70,6 +76,8 @@ jobs:
         run: bash scripts/test-verify-ifa-fault-injection.sh
         env:
           ESHU_DEPLOY_CHECKOUT: ${{ github.workspace }}/eshu-deploy
+      - name: Validate the Ifá gates stay wired to Neo4j
+        run: bash scripts/test-ifa-graph-backend-neo4j.sh
   determinism-matrix:
     if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'determinism-matrix') }}
     name: determinism-matrix
@@ -245,7 +253,7 @@ jobs:
             /tmp/ifa-fault-injection.*/backend-container.json
             /tmp/ifa-fault-injection.*/backend-runtime-image.json
             /tmp/ifa-fault-injection.*/backend-provenance.json
-            /tmp/ifa-fault-injection.*/nornicdb-environment.txt
+            /tmp/ifa-fault-injection.*/backend-environment.txt
             /tmp/ifa-fault-injection.*/diagnostics-manifest.tsv
             /tmp/ifa-fault-injection.*/diagnostics-complete
             /tmp/ifa-fault-injection.*/current-cell

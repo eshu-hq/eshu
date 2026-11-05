@@ -28,9 +28,9 @@ import (
 
 const ifaGroupRetryLiveEnv = "ESHU_REPO_DEPENDENCY_CONCURRENCY_PROVE_LIVE"
 
-func TestReducerGroupedRetrySeamLiveNornicDB(t *testing.T) {
+func TestReducerGroupedRetrySeamLive(t *testing.T) {
 	if strings.TrimSpace(os.Getenv(ifaGroupRetryLiveEnv)) != "1" {
-		t.Skipf("set %s=1 and real NornicDB connection variables", ifaGroupRetryLiveEnv)
+		t.Skipf("set %s=1 and real Neo4j connection variables", ifaGroupRetryLiveEnv)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)

@@ -158,9 +158,9 @@ tests:
   - file: go/cmd/reducer/ifa_group_retry_live_test.go
     tag: ifafaultinjection
     class: verified_scheduled
-    reason: linuxdynasty owns this exact tagged daily Ifá live proof on NornicDB and PostgreSQL; eight named tests passed locally with race detection
+    reason: linuxdynasty owns this exact tagged daily Ifá live proof on Neo4j and PostgreSQL; eight named tests passed locally with race detection
     runner: ifa-scheduled
-    backends: nornicdb
+    backends: neo4j
   - file: go/cmd/reducer/neo4j_write_timeout_live_test.go
     tag: ~
     class: scheduled

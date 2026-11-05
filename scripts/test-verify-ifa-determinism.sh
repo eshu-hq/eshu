@@ -291,7 +291,7 @@ require_code "isolated compose project default" 'DETERMINISM_COMPOSE_PROJECT:=es
 # Bind the BRING-UP line, not the bare -p flag: the teardown two hundred lines
 # below carries the same flag, so the old needle stayed satisfied with the whole
 # `up -d` deleted and the gate never starting its stack at all (#6161).
-require_code "compose -p flag on up" 'bash scripts/ci/compose.sh -p "${DETERMINISM_COMPOSE_PROJECT}" -f "${compose_file}" -- up -d nornicdb postgres'
+require_code "compose -p flag on up" 'bash scripts/ci/compose.sh -p "${DETERMINISM_COMPOSE_PROJECT}" -f "${compose_file}" -- up -d "${IFA_GRAPH_SERVICE}" postgres'
 for reserved in \
 	'ESHU_POSTGRES_PORT:=15432' 'NEO4J_BOLT_PORT:=7687' 'NEO4J_HTTP_PORT:=7474' \
 	'ESHU_POSTGRES_PORT:=15532' 'NEO4J_BOLT_PORT:=7788' 'NEO4J_HTTP_PORT:=7575' \

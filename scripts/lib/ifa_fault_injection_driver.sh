@@ -27,7 +27,7 @@
 # SAME shell process, never a subshell.
 
 # fresh_stack tears down any prior cell's stack and brings up a genuinely
-# fresh Postgres + NornicDB pair, then applies schema.
+# fresh Postgres + graph-backend pair, then applies schema.
 fresh_stack() {
 	local cell="$1"
 	if [[ "${use_compose}" -eq 1 ]]; then
@@ -48,10 +48,10 @@ fresh_stack() {
 			tail -20 "${log_dir}/compose-down-${cell}.log" >&2 || true
 			die "${cell}: docker compose down -v failed -- the stack is NOT fresh, and a stale stack makes this cell pass while proving nothing (see ${log_dir}/compose-down-${cell}.log)"
 		fi
-		bash scripts/ci/compose.sh -p "${FAULT_COMPOSE_PROJECT}" -f "${compose_file}" -- up -d nornicdb postgres
+		bash scripts/ci/compose.sh -p "${FAULT_COMPOSE_PROJECT}" -f "${compose_file}" -- up -d "${IFA_GRAPH_SERVICE}" postgres
 		log "${cell}: wait for backends"
 		ifa_det_wait_for_backends "${FAULT_COMPOSE_PROJECT}" "${compose_file}" \
-			|| die "${cell}: Postgres + NornicDB did not become ready within budget"
+			|| die "${cell}: Postgres + ${IFA_GRAPH_LABEL} did not become ready within budget"
 	fi
 	log "${cell}: apply Postgres + graph schema (eshu-bootstrap-data-plane)"
 	"${bin_dir}/eshu-bootstrap-data-plane" >"${log_dir}/bootstrap-data-plane-${cell}.log" 2>&1 \
@@ -291,7 +291,7 @@ assert_matches_baseline() {
 
 # teardown_cell reaps every backgrounded process this cell started and, when
 # this script owns the Compose lifecycle, tears the stack down so the next
-# cell starts from a genuinely fresh Postgres + NornicDB pair.
+# cell starts from a genuinely fresh Postgres + graph-backend pair.
 teardown_cell() {
 	local cell="$1"
 	local barrier_cleanup_rc=0

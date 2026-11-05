@@ -24,7 +24,7 @@ func repoDependencyConcurrencyProofEnabled(t *testing.T) bool {
 		return false
 	}
 	if !liveTierEnabled() {
-		t.Skipf("set %s=1 and real NornicDB connection variables", liveTierEnv)
+		t.Skipf("set %s=1 and real Neo4j connection variables", liveTierEnv)
 		return false
 	}
 	return true

@@ -134,7 +134,7 @@ gates:
     name: Ifá scheduled proof enrollment (#7533)
     category: exactness
     layer: contract
-    purpose: "Runs nine exact tagged Ifá tests against fresh NornicDB and PostgreSQL, then validates their Go events and backend identities."
+    purpose: "Runs nine exact tagged Ifá tests against fresh Neo4j and PostgreSQL, then validates their Go events and backend identities."
     tier: ci-heavy
     blocking: false
     triggers:
@@ -178,12 +178,12 @@ gates:
       - "go/internal/replay/offlinetier/repo_dependency_proof_trigram_sharing_live_test.go"
     ci:
       workflow: ifa-scheduled-proofs.yml
-      job: "Ifá scheduled proof vs NornicDB and PostgreSQL"
+      job: "Ifá scheduled proof vs Neo4j and PostgreSQL"
     requirements:
       - go
       - docker
       - postgres
-    ci_only_reason: "needs fresh hosted NornicDB and PostgreSQL services; the blocking live-backend static mirror runs its source, route, event, and ledger guards locally"
+    ci_only_reason: "needs fresh hosted Neo4j and PostgreSQL services; the blocking live-backend static mirror runs its source, route, event, and ledger guards locally"
   # ─── REPO-WIDE SWEEP TESTS (#7111 F5) ──────────────────────────────────────
   # Each of these Go tests reads source far outside its own package, so the
   # floor's changed-package `go test` never runs it when only an input changes.

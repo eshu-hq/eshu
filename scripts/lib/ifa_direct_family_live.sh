@@ -478,13 +478,13 @@ ifa_semantic_entity_containment_drive() {
 }
 
 # ifa_semantic_entity_containment_assert pins the four-edge exact set, repo-
-# scoped (#8359 verdict (a)), twice per cell. Backend-explicit (#8359
-# ruling): EXPECTED_VAR names the all-semantic base file (Neo4j truth); on
-# NornicDB use the checked-in .nornicdb.json sibling, whose canonical-owned
-# pairs carry the canonical stamp (scope reader follows the loaded file).
+# scoped (#8359 verdict (a)), twice per cell. Both backends keep canonical
+# ownership of canonical-entity CONTAINS edges (Neo4j since #10138), so every
+# backend asserts the .nornicdb.json sibling (named for the backend that first
+# needed it) when present; the all-semantic base file is the fallback.
 ifa_semantic_entity_containment_assert() {
 	local label="$1" bin_dir="$2" expected_edges="$3"
-	if [[ "${ESHU_GRAPH_BACKEND:-}" == "nornicdb" && -f "${expected_edges%.json}.nornicdb.json" ]]; then
+	if [[ -f "${expected_edges%.json}.nornicdb.json" ]]; then
 		expected_edges="${expected_edges%.json}.nornicdb.json"
 	fi
 	printf '\n=== %s: assert semantic_entity_containment materialized edges (four-edge exact set, fixture-repo scoped) ===\n' "${label}"

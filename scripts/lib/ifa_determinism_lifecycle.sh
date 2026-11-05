@@ -34,13 +34,13 @@ ifa_det_cleanup() {
 # ifa_det_configure_runtime exports the isolated local endpoints shared by
 # every host binary in one matrix run.
 ifa_det_configure_runtime() {
-	export ESHU_GRAPH_BACKEND=nornicdb
+	ifa_graph_backend_init || return 1
 	export NEO4J_URI="bolt://localhost:${NEO4J_BOLT_PORT}"
 	export NEO4J_USERNAME=neo4j
 	export NEO4J_PASSWORD="${ESHU_NEO4J_PASSWORD}"
-	export NEO4J_DATABASE=nornic
-	export ESHU_NEO4J_DATABASE=nornic
-	export DEFAULT_DATABASE=nornic
+	export NEO4J_DATABASE="${IFA_GRAPH_DATABASE}"
+	export ESHU_NEO4J_DATABASE="${IFA_GRAPH_DATABASE}"
+	export DEFAULT_DATABASE="${IFA_GRAPH_DATABASE}"
 	export ESHU_POSTGRES_DSN="postgresql://eshu:${ESHU_POSTGRES_PASSWORD}@localhost:${ESHU_POSTGRES_PORT}/eshu"
 	export ESHU_CONTENT_STORE_DSN="${ESHU_POSTGRES_DSN}"
 	# Concurrent lifecycle binaries must not contend for fixed status/metrics

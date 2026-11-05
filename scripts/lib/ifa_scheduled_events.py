@@ -9,15 +9,15 @@ import re
 import sys
 
 from reducer_contention_events import verify_events, without_cgo_env
-from ifa_scheduled_manifest import NORNIC_DIGEST, POSTGRES_DIGEST
+from ifa_scheduled_manifest import NEO4J_DIGEST, POSTGRES_DIGEST
 
 
 INVENTORY = Path(__file__).with_name("ifa_scheduled_inventory.json")
 RUNNER = Path("scripts/run-ifa-scheduled-proofs.sh")
 WORKFLOW = Path(".github/workflows/ifa-scheduled-proofs.yml")
 FRAGMENT = Path("specs/ci-pr-workflows.d/ifa-scheduled-proofs.yml")
-WORKFLOW_SHA256 = "9f8227dae6ad3b0b6f408a1d8c9ee1fc526280a5532b2f4d4718157f396b6896"
-RUNNER_SHA256 = "a872c95921e011a6ce28ed98e057798314ffff02627be5f13868a3e103e7a207"
+WORKFLOW_SHA256 = "7674dc373d88537397a077482cb7baa04805d5b79c05114ab3b189994ac08666"
+RUNNER_SHA256 = "07a68badbb0778dee131118644749d6f271253946a2954adb7e94eda48df86cc"
 TEST_PATTERN = re.compile(r"^func (Test\w+)\(", re.MULTILINE)
 SOURCE_PATHS = frozenset((
     "go/cmd/reducer/ifa_group_retry_live_test.go",
@@ -178,7 +178,7 @@ def verify_workflow_route(workflow: str, fragment: str | None = None) -> None:
               "- file: ifa-scheduled-proofs.yml", '  name: "If\\xE1 Scheduled Live Proofs"',
               "  synchronize: true", "  branches:", "  - main", "  paths:"]
     suffix = ["  jobs:", "  - ifa-scheduled", "  job_names:",
-              '    ifa-scheduled: "If\\xE1 scheduled proof vs NornicDB and PostgreSQL"']
+              '    ifa-scheduled: "If\\xE1 scheduled proof vs Neo4j and PostgreSQL"']
     if (active[:start + 1] != prefix or active[end:] != suffix
             or end <= start or len(paths) != end - start - 1
             or len(paths) != len(set(paths)) or set(paths) != SOURCE_PATHS | PR_EXTRA_PATHS):
@@ -257,7 +257,7 @@ def verify_inventory(
     """Require exact tagged source, selectors, endpoints, and CI enrollment."""
     if set(inventory) != SOURCE_PATHS:
         raise ValueError("Ifá inventory path set drifted")
-    if (NORNIC_DIGEST != "sha256:74a8ed7b36f37bdd1a7e32d8bc6aa3fa88908b7207bfa6568567ab94e4a4b3b1" or
+    if (NEO4J_DIGEST != "sha256:eabfbb042bdaca2fd5e1950db1329b22c794eee80f0eacc4e7a729d44b2e863f" or
             POSTGRES_DIGEST != "sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873"):
         raise ValueError("Ifá manifest backend pins drifted")
     runner = runner_text if runner_text is not None else (root / RUNNER).read_text(encoding="utf-8")
@@ -269,10 +269,10 @@ def verify_inventory(
                     if line.strip() and not line.lstrip().startswith("#")]
     for token in (
         "set -euo pipefail",
-        "sha256:74a8ed7b36f37bdd1a7e32d8bc6aa3fa88908b7207bfa6568567ab94e4a4b3b1",
+        "sha256:eabfbb042bdaca2fd5e1950db1329b22c794eee80f0eacc4e7a729d44b2e863f",
         "${primary}:17474:17687",
         "${secondary}:18474:18687",
-        "ESHU_GRAPH_BACKEND=nornicdb",
+        "ESHU_GRAPH_BACKEND=neo4j",
         "ESHU_REPLAY_TIER_LIVE=1",
         "ESHU_REPO_DEPENDENCY_CONCURRENCY_PROVE_LIVE=1",
         "ESHU_REPO_DEPENDENCY_PROOF_HTTP_URL=http://127.0.0.1:17474",
@@ -280,7 +280,7 @@ def verify_inventory(
         "ESHU_REPO_DEPENDENCY_QUARANTINE_PROOF_DSN=",
         "ESHU_NEO4J_URI=bolt://127.0.0.1:17687",
         "NEO4J_URI=\"${ESHU_NEO4J_URI}\"",
-        "ESHU_NEO4J_DATABASE=nornic",
+        "ESHU_NEO4J_DATABASE=neo4j",
         "NEO4J_DATABASE=\"${ESHU_NEO4J_DATABASE}\"",
         "ESHU_NEO4J_USERNAME=neo4j",
         "NEO4J_USERNAME=\"${ESHU_NEO4J_USERNAME}\"",
@@ -294,13 +294,13 @@ def verify_inventory(
         raise ValueError("Ifá runner executable bytes differ from reviewed contract")
     for line in (
         "set -euo pipefail",
-        "export ESHU_GRAPH_BACKEND=nornicdb",
+        "export ESHU_GRAPH_BACKEND=neo4j",
         "export ESHU_REPLAY_TIER_LIVE=1",
         "export ESHU_REPO_DEPENDENCY_CONCURRENCY_PROVE_LIVE=1",
         "export ESHU_REPO_DEPENDENCY_PROOF_HTTP_URL=http://127.0.0.1:17474",
         "export ESHU_REPO_DEPENDENCY_PROOF_MISMATCH_HTTP_URL=http://127.0.0.1:18474",
         "export ESHU_NEO4J_URI=bolt://127.0.0.1:17687",
-        "export ESHU_NEO4J_DATABASE=nornic",
+        "export ESHU_NEO4J_DATABASE=neo4j",
     ):
         if active_lines.count(line) != 1:
             raise ValueError(f"missing or duplicate active runner line: {line}")
@@ -316,7 +316,7 @@ def verify_inventory(
         raise ValueError("missing final manifest and event bundle verification")
     backend_loop = 'for entry in "${primary}:17474:17687" "${secondary}:18474:18687"; do'
     if active_lines.count(backend_loop) != 1:
-        raise ValueError("runner must start two distinct pinned NornicDB instances")
+        raise ValueError("runner must start two distinct pinned Neo4j instances")
     for token in (
         "50 4 * * *",
         "workflow_dispatch:",

@@ -445,7 +445,7 @@ NEO4J_URI="$NORNICDB_BOLT_DSN" \
 NEO4J_USERNAME="$NORNICDB_USERNAME" \
 NEO4J_PASSWORD="$NORNICDB_PASSWORD" \
 go test -tags ifafaultinjection ./cmd/reducer \
-  -run '^TestReducerGroupedRetrySeamLiveNornicDB$' -count=10 -v
+  -run '^TestReducerGroupedRetrySeamLive$' -count=10 -v
 
 # Real-Postgres partition-count and distinct-process owner fence.
 ESHU_SHARED_PROJECTION_RESCALE_PROOF_DSN="$POSTGRES_DSN" \

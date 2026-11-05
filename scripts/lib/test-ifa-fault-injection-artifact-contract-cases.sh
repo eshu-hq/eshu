@@ -71,7 +71,7 @@ test_ifa_fault_failure_artifact_contract() {
 		'/tmp/ifa-fault-injection.*/backend-container.json' \
 		'/tmp/ifa-fault-injection.*/backend-runtime-image.json' \
 		'/tmp/ifa-fault-injection.*/backend-provenance.json' \
-		'/tmp/ifa-fault-injection.*/nornicdb-environment.txt' \
+		'/tmp/ifa-fault-injection.*/backend-environment.txt' \
 		'/tmp/ifa-fault-injection.*/diagnostics-manifest.tsv' \
 		'/tmp/ifa-fault-injection.*/diagnostics-complete' \
 		'/tmp/ifa-fault-injection.*/current-cell' \

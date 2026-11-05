@@ -20,7 +20,7 @@ PACKAGES = (
     ("github.com/eshu-hq/eshu/go/cmd/reducer", "reducer.jsonl"),
 )
 ROOT = Path(__file__).resolve().parents[2]
-NORNIC_DIGEST = "sha256:74a8ed7b36f37bdd1a7e32d8bc6aa3fa88908b7207bfa6568567ab94e4a4b3b1"
+NEO4J_DIGEST = "sha256:eabfbb042bdaca2fd5e1950db1329b22c794eee80f0eacc4e7a729d44b2e863f"
 POSTGRES_DIGEST = "sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873"
 SHA_PATTERN = re.compile(r"[0-9a-f]{40}")
 

@@ -483,7 +483,7 @@ run_ifa_fault_injection_generic_modules
 # shellcheck source=scripts/lib/test-ifa-fault-injection-diagnostics-cases.sh
 source "${diagnostics_cases_lib}"; run_ifa_fault_injection_diagnostics_cases
 # shellcheck source=scripts/lib/test-ifa-fault-injection-diagnostics-hardening-cases.sh
-source "${diagnostics_hardening_cases_lib}"; run_ifa_fault_injection_diagnostics_hardening_cases
+source "${diagnostics_hardening_cases_lib}"; run_ifa_fault_injection_diagnostics_hardening_cases; source "${repo_root}/scripts/lib/test-ifa-fault-injection-diagnostics-neo4j-cases.sh"; run_ifa_fault_injection_diagnostics_neo4j_cases
 
 # Shard selector: exact cover and CI wiring (module sourced above), then weights, balance and budget.
 # shellcheck source=scripts/lib/test-ifa-fault-injection-shard-balance-cases.sh

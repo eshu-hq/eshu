@@ -91,7 +91,7 @@ that workflow. Automation workflows are explicitly outside the gate registry.
 | `factschema-diff.yml` | Blocking fact schema compatibility | Distinct compatibility boundary; retain. |
 | `frontend.yml` | Seven blocking frontend gates, advisory SSO/Prettier | Preserve product tests; narrow independent scopes before consolidation. |
 | `golden-corpus-gate.yml` | Blocking mirror/Neo4j/differential; advisory NornicDB corpus | Preserve semantic proof; parallel captures and selected queue payload in this change. |
-| `ifa-determinism-gate.yml` | Blocking determinism/dead-letter/fault matrices; advisory mirror | Distinct recovery invariants; retain selected proof. |
+| `ifa-determinism-gate.yml` | Blocking determinism/dead-letter/fault matrices on Neo4j (owner order 2026-11-05; NornicDB variant removed); advisory mirror and Neo4j-wiring guard | Distinct recovery invariants; retain selected proof. |
 | `live-backend-tests.yml` | Blocking live backends and mirrors | Preserve live integration contracts. |
 | `live-postgres-readiness.yml` | Advisory readiness diagnostics | Useful, but long; evaluate #7913 independently. |
 | `macos.yml` | Nightly/manual macOS advisory | Platform signal already outside PR; retain. |

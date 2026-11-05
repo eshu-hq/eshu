@@ -79,7 +79,7 @@ to this change rather than relying on PR/commit prose.
   failed above the retry seam, then passed with exactly one real session write
   after the induced first attempt was absorbed below the seam.
 - **Pinned live-backend non-vacuity:**
-  `TestReducerGroupedRetrySeamLiveNornicDB` runs the production composition on
+  `TestReducerGroupedRetrySeamLive` runs the production composition on
   NornicDB commit `1492458852588c884c32f70d27ea2ee07086769c`. In 10/10 runs it
   asserts the group fault fired, the retry counter equals one, and both MERGE
   statements persisted exactly once.
