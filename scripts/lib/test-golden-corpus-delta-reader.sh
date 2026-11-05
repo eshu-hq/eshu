@@ -91,3 +91,16 @@ for delta_reader_const in 'DeltaReaderStageFull DeltaReaderStage = "full"' 'Delt
 	rg --quiet --fixed-strings -- "${delta_reader_const}" "${repo_root}/go/internal/goldengate/delta_readers.go" \
 		|| fail "go/internal/goldengate/delta_readers.go must declare ${delta_reader_const}"
 done
+
+# The collector's clone dir lands in every captured graph-write param and
+# read row that names a file path, and the differential job compares two
+# backend runs by those fingerprints and digests. It must derive from
+# ESHU_REPOS_DIR, which the differential job pins to one runner.temp path,
+# never from the mktemp work dir, or the two legs never pair.
+rg --quiet --fixed-strings -- 'golden_delta_reader_repos_dir() { printf '"'"'%s-delta-reader\n'"'"' "${ESHU_REPOS_DIR:?ESHU_REPOS_DIR is required}"; }' "${delta_reader_lib}" \
+	|| fail "the delta-reader clone dir must derive from ESHU_REPOS_DIR (golden_delta_reader_repos_dir)"
+rg --quiet --fixed-strings -- 'ESHU_REPOS_DIR="$(golden_delta_reader_repos_dir)"' "${delta_reader_lib}" \
+	|| fail "the delta-reader collector must clone into golden_delta_reader_repos_dir"
+if rg --quiet --fixed-strings -- 'ESHU_REPOS_DIR="${dir}' "${delta_reader_lib}"; then
+	fail "the delta-reader collector must not clone under the mktemp work dir"
+fi

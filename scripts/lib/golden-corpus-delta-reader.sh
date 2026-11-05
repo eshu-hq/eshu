@@ -57,6 +57,13 @@ golden_delta_reader_scope_id="git-repository-scope:repository:r_0c077ab3"
 
 golden_delta_reader_dir() { printf '%s/delta-reader\n' "${work_dir}"; }
 
+# golden_delta_reader_repos_dir is the collector's clone dir. It derives from
+# ESHU_REPOS_DIR, never from the mktemp work dir: the clone path lands in every
+# captured graph-write param and read row that names a file, and the
+# differential job pins ESHU_REPOS_DIR to one runner.temp path so its two
+# backend runs fingerprint and digest the same statements (#10022 follow-up).
+golden_delta_reader_repos_dir() { printf '%s-delta-reader\n' "${ESHU_REPOS_DIR:?ESHU_REPOS_DIR is required}"; }
+
 # golden_delta_reader_commit <checkout> <message> <date> commits every staged
 # change with a fixed identity and date, so the two commits are reproducible.
 golden_delta_reader_commit() {
@@ -83,8 +90,8 @@ golden_delta_reader_stage_origin() {
 	dir="$(golden_delta_reader_dir)"
 	[[ -d "${golden_delta_reader_fixture}/base" && -d "${golden_delta_reader_fixture}/delta" ]] \
 		|| die "delta-reader: fixture base/ and delta/ are missing under ${golden_delta_reader_fixture}"
-	rm -rf "${dir}"
-	mkdir -p "${dir}/origins/acme" "${dir}/repos" "${dir}/home" || die "delta-reader: mkdir failed"
+	rm -rf "${dir}" "$(golden_delta_reader_repos_dir)"
+	mkdir -p "${dir}/origins/acme" "$(golden_delta_reader_repos_dir)" "${dir}/home" || die "delta-reader: mkdir failed"
 	cp -R "${golden_delta_reader_fixture}/base" "${dir}/checkout" || die "delta-reader: copy base failed"
 	golden_corpus_git -C "${dir}/checkout" init -q -b main || die "delta-reader: git init failed"
 	golden_delta_reader_commit "${dir}/checkout" "base" "2026-11-01T00:00:00Z"
@@ -123,7 +130,7 @@ golden_delta_reader_sync() {
 		GIT_CONFIG_GLOBAL="${dir}/gitconfig" GIT_CONFIG_SYSTEM=/dev/null GIT_ATTR_NOSYSTEM=1 \
 		ESHU_REPO_SOURCE_MODE=explicit \
 		ESHU_REPOSITORY_RULES_JSON="[{\"exact\":\"${golden_delta_reader_slug}\"}]" \
-		ESHU_REPOS_DIR="${dir}/repos" ESHU_HOME="${dir}/home" \
+		ESHU_REPOS_DIR="$(golden_delta_reader_repos_dir)" ESHU_HOME="${dir}/home" \
 		ESHU_GIT_AUTH_METHOD=none ESHU_GITHUB_ORG=acme \
 		"${bin_dir}/eshu-collector-git"
 	deadline=$(( $(date +%s) + GATE_DELTA_READER_SETTLE_SECONDS ))
