@@ -88,7 +88,11 @@ Host-file failures use `auth_denied`; static-token provider failures retain
   `claimed_generation_commit_observer_failed` span event carries the error); and
   `eshu_dp_ci_cd_run_partial_generations_total{reason="runs_backfill_gap"}` can
   start for the first time on repositories busier than `max_runs` per cycle, which
-  is the signal working, not a regression. To roll back to an image before #10063,
+  is the signal working, not a regression. While pre-#10063 pods are still
+  draining during the rollout they load new-pod rows but never advance them, so
+  they can emit transient `runs_backfill_gap` for windows the new pods actually
+  collected; trust that signal only after the rollout completes. To roll back to
+  an image before #10063,
   also run `DELETE FROM cicd_run_watermarks`, and run it only after the last pod
   on the new image has exited: a draining new pod can still save a row, and that
   row would then stay frozen. The old image reads the rows but never advances
