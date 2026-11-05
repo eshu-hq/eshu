@@ -71,10 +71,9 @@ delta's rows only. That builder still treats an unscoped repository as
 whole-scope, so a caller MUST check `UnusableDeltaScopes` first:
 `materialization.Handler` fails the work item closed there.
 
-Reachability: production does not reach this path yet. The git collector
-emits no `code_call_materialization` marker on a delta generation until #10049
-lands, so the fence is a guard placed ahead of that change and its counter
-stays at zero until then.
+Reachability: the git collector emits the `code_call_materialization`
+marker on delta generations (#10049), so every delta work item passes this
+fence; its counter counts only the delta repositories the fence turns away.
 
 Self-heal: the graph keeps its existing CALLS edges, and the delta's call
 changes appear at the repository's next full generation. With reconciliation

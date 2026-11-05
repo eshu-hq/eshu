@@ -103,8 +103,9 @@ func buildStreamingGenerationWithContext(
 	if snapshot.Delta {
 		// EstimatedFactCount is a conservative metadata-only floor. Preserve
 		// its existing delta baseline and account for the newly unconditional
-		// rationale marker; the drained atomic remains the exact emitted count.
-		followupFactCount = 2
+		// rationale and code-call markers; the drained atomic remains the
+		// exact emitted count.
+		followupFactCount = 3
 	}
 	dataflowScannedFactCount := 0
 	if snapshot.DataflowScanned && !snapshot.Delta {
@@ -440,10 +441,20 @@ func streamFacts(
 	// re-projects (and sweeps stale edges). The data facts they consume are emitted
 	// above (emitSubmoduleFactsForCandidates/emitCodeownersFactsForCandidates, which
 	// re-read current disk state on both delta and full generations).
+	// code_call_materialization fires on delta too (#10049): content-entity ids
+	// hash the line number, so a delta that moves a function gives it a new
+	// node whose CALLS edges nothing rewrote until the next full generation.
+	// The marker is safe on delta now that the handler's symbol-definition
+	// read overlays the delta on the active generation (#10003 row 1, so
+	// callees in unchanged files still resolve) and an unusable delta file
+	// scope fails the work item closed instead of retracting repo-wide
+	// (#10023). The handler gates its repo-wide-retract runtime domains
+	// (handles_route, runs_in, invokes_cloud_action) off delta input.
 	w.Send(rationaleMaterializationFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt))
 	w.Send(codeownersOwnershipFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt))
 	w.Send(submodulePinFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt))
 	w.Send(runtimeDeclarationProjectionFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt))
+	w.Send(codeCallMaterializationFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt))
 	if snapshot.Delta {
 		w.Send(shellExecMaterializationFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt))
 		return
@@ -464,7 +475,6 @@ func streamFacts(
 	w.Send(workloadIdentityFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt))
 	w.Send(deployableUnitCorrelationFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt))
 	w.Send(workloadMaterializationFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt))
-	w.Send(codeCallMaterializationFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt))
 	w.Send(platformInfraMaterializationFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt))
 	w.Send(deploymentMappingFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt))
 	w.Send(sqlRelationshipMaterializationFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt))

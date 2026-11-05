@@ -202,7 +202,12 @@ func TestBuildStreamingGenerationDeltaChangedFileFactsMatchFullSnapshot(t *testi
 // carry dedicated delta-scope retract logic that is dead unless their marker
 // fires on delta, same as shell_exec_materialization already did). Without
 // this, a delta that removes CODEOWNERS/.gitmodules never re-projects and
-// leaves stale edges in the graph.
+// leaves stale edges in the graph. code_call_materialization joined the set
+// with #10049: a delta that moves a function must schedule the code-call
+// reducer so the moved caller keeps its CALLS edges, which is safe now that
+// the symbol-definition read overlays the delta on the active generation
+// (#10003 row 1) and an unusable delta scope fails the work item closed
+// (#10023).
 func TestBuildStreamingGenerationDeltaEmitsWholeRepoResolveFollowups(t *testing.T) {
 	t.Parallel()
 
@@ -228,6 +233,7 @@ func TestBuildStreamingGenerationDeltaEmitsWholeRepoResolveFollowups(t *testing.
 		"submodule_pin":                  1,
 		"runtime_declaration_projection": 1,
 		"rationale_materialization":      1,
+		"code_call_materialization":      1,
 	}
 	if !reflect.DeepEqual(domainCounts, want) {
 		t.Fatalf("delta generation shared_followup reducer_domain counts = %#v, want %#v", domainCounts, want)

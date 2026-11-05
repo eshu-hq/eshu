@@ -80,9 +80,9 @@ func unusableDeltaScopeEnvelopes(repository map[string]any) []facts.Envelope {
 // first attempt and the graph keeps its existing edges until the next full
 // generation.
 //
-// Production does not reach this path yet: the git collector emits no
-// code_call_materialization marker on a delta generation until #10049 lands,
-// so the fence is a guard placed ahead of that change.
+// The git collector emits the code_call_materialization marker on delta
+// generations (#10049), so this fence is on the production path of every
+// delta work item.
 func TestCodeCallMaterializationHandlerFailsClosedOnUnusableDeltaScope(t *testing.T) {
 	cases := map[string]struct {
 		repository map[string]any

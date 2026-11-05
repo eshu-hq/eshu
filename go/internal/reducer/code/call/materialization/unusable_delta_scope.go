@@ -44,9 +44,9 @@ const maxDeltaScopeUnusableNamedRepos = 16
 // real dead letter. It is not retryable: a retry rebuilds the same scope from
 // the same facts.
 //
-// Production does not reach this yet: the git collector emits no
-// code_call_materialization marker on a delta generation until #10049, so the
-// fence is a guard placed ahead of that change.
+// The git collector emits the code_call_materialization marker on delta
+// generations (#10049), so this fence is on the production path of every
+// delta work item.
 //
 // It wraps a projector/failure InputValidationError so the dead-letter triage
 // details say triage=input_invalid (a collector repository fact the reducer

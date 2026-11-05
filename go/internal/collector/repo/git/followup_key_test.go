@@ -41,6 +41,7 @@ var deltaFollowupDomains = []string{
 	"codeowners_ownership",
 	"submodule_pin",
 	"runtime_declaration_projection",
+	"code_call_materialization",
 	"shell_exec_materialization",
 }
 
