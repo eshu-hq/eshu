@@ -5,6 +5,7 @@ package core
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -144,5 +145,47 @@ func TestDigestScannedTwiceAtOneVersionKeepsOneFinding(t *testing.T) {
 	}
 	if findings[0].SubjectDigest != digest || findings[0].Status != SupplyChainImpactAffectedExact {
 		t.Fatalf("finding = %s/%s, want %s/affected_exact", findings[0].SubjectDigest, findings[0].Status, digest)
+	}
+}
+
+// TestSBOMBaseDigestHoldingTwoVersionsYieldsOneFindingPerVersion pins the same
+// per-version split for a digest no attached SBOM names: the SBOM branch hands
+// those digests to the fleet pass (#9984), so a digest holding curl at two
+// versions beside an attached subject still gets one finding per version.
+func TestSBOMBaseDigestHoldingTwoVersionsYieldsOneFindingPerVersion(t *testing.T) {
+	t.Parallel()
+	subject := "sha256:" + strings.Repeat("c", 64)
+	digest, scope, generation, analysis := digestVersionsFixture(0x59)
+	attached := debianCurl("12", "1:1.0-3").envelope()
+	attached.FactID, attached.ScopeID, attached.GenerationID = "os-attached", "image://digest-versions/attached", "gen-attached"
+	advisory := []facts.Envelope{
+		vulnerabilityCVEFact("cve-9945", vendorLineCVE, 7.5),
+		debianCurlFixedAt1_0_4(),
+		analysis,
+		scannerWorkerAnalysisFact(attached.ScopeID, attached.GenerationID, subject, "registry.example/app@"+subject),
+		sbomComponentImpactFactWithPackageIDVersion("component-curl", "doc-curl", "pkg:deb/debian/curl@1:1.0-3", "pkg:deb/debian/curl", "1:1.0-3"),
+		sbomAttachmentImpactFact("attachment-curl", "doc-curl", subject),
+		containerImageIdentityImpactFact("image-curl", subject, testImpactRepositoryID),
+	}
+	rows := []facts.Envelope{
+		attached,
+		digestVersionRow("1:1.0-3", "os-v3", scope, generation),
+		digestVersionRow("1:1.0-4", "os-v4", scope, generation),
+	}
+	findings := assertFleetOrderIndependent(t, advisory, rows)
+	var onDigest []SupplyChainImpactFinding
+	for _, finding := range findings {
+		if finding.SubjectDigest == digest {
+			onDigest = append(onDigest, finding)
+		}
+	}
+	if len(onDigest) != 2 {
+		t.Fatalf("findings on the unattached digest = %d, want 2 (one per version): %#v", len(onDigest), findings)
+	}
+	if got := findingAtVersion(t, onDigest, "1:1.0-3"); got.Status == SupplyChainImpactNotAffectedKnownFixed {
+		t.Fatalf("version 1:1.0-3 reads %q", got.Status)
+	}
+	if got := findingAtVersion(t, onDigest, "1:1.0-4"); got.Status != SupplyChainImpactNotAffectedKnownFixed {
+		t.Fatalf("version 1:1.0-4 reads %q, want not_affected_known_fixed", got.Status)
 	}
 }
