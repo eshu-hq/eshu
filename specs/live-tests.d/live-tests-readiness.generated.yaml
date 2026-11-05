@@ -19,6 +19,11 @@ tests:
     class: postgres_ci
     reason: "#9311 real coordinator Service and PostgreSQL admission proof that a vulnerability activation's derived OSV scopes ride a second run beside the open host scope, re-plan idempotently, and admit once under two concurrent coordinators"
     runner: live-postgres-readiness
+  - file: go/internal/coordinator/activation_go_modules_fence_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10055 real coordinator Service and PostgreSQL proof that a fence lock timeout leaves no run row, so the next reconcile re-reads the page and retries instead of waiting a rotation"
+    runner: live-postgres-readiness
   - file: go/internal/coordinator/service_cicd_run_burst_live_test.go
     tag: ~
     class: postgres_ci

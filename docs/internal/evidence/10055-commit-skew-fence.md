@@ -87,6 +87,21 @@ in `10027-go-modules-derivation.md` are other runs on PostgreSQL 16.
   holders among about 20,000 findings. That schema subset omits the dirty-capture trigger, so its write is
   not in those figures.
 
+Post-rebase plan-shape confirmation (non-comparable totals, plan shape only): after the
+rebase onto post-purge `origin/main`, the exact shipped statements were re-probed with
+`EXPLAIN (ANALYZE, BUFFERS)` on PostgreSQL 18.6 against a scratch database holding all
+318 current migrations and a smaller seed (61 scopes, 1,061 generations, 15,200 facts;
+20 of 20 page candidates skewed, 50 superseded generations at the evidence commit,
+1,000 holder findings among 10,000 noise findings). The holder probe runs one Bitmap
+Index Scan on `fact_records_supply_chain_impact_repository_lookup_idx` (0.52 ms, 52
+buffers). The in-page skew subquery runs 20 loops for the 20 skewed candidates on
+`scope_generations_scope_idx` (88 buffers, ~0.014 ms per candidate, far under the
+ruling's 5 ms fallback bar). The full page runs 0.84 ms with 421 buffers. No sequential
+scan of `fact_records` or `scope_generations` appears in any output. Probe SQL and
+output: `/home/ubuntu/.cache/out-10055/probe-fence-seed.sql`,
+`/home/ubuntu/.cache/out-10055/probe-fence-explain.sql`,
+`/home/ubuntu/.cache/out-10055/probe-fence-explain.out`.
+
 ## Signals
 
 Observability Evidence: the fence reports on these signals.
