@@ -302,12 +302,17 @@ func osvDeltaTrivialRows(
 }
 
 // commitOSVDeltaReplan runs the post-admission half: commit exactly the
-// drained rows whose scopes survived authorization, advance the watermark
-// over them, record the successful poll, and report the pass. Rows whose
-// scopes the tenant boundary denied stay pending for the next pass. A
-// drained row with no minted scope commits only when the planner marked it
-// trivial (no owned target, nothing to authorize); any other unscoped row
-// stays pending instead of retiring on an unchecked held scope.
+// drained rows whose scopes the admission authorized, advance the watermark
+// over them, record the successful poll, and report the pass. The mapped
+// branch gates on the admission's authorized _replan scope set
+// (eshu-hq/eshu#10083): the single authorization decision point, so a grant
+// flap between admission and commit cannot admit-then-not-commit or vice
+// versa. Rows whose scopes the tenant boundary denied stay pending for the
+// next pass; the grant-skip log in createWorkflowWork and the survivor list
+// in reportOSVDeltaReplan keep the exclusion operator-visible. A drained row
+// with no minted scope commits only when the planner marked it trivial (no
+// owned target, nothing to authorize); any other unscoped row stays pending
+// instead of retiring on an unchecked held scope.
 func (s Service) commitOSVDeltaReplan(
 	ctx context.Context,
 	pass *osvDeltaPass,
@@ -315,23 +320,8 @@ func (s Service) commitOSVDeltaReplan(
 	items []workflow.WorkItem,
 	observation vulnerability.OSVDeltaReplanObservation,
 	observedAt time.Time,
+	authorizedReplanScopes map[string]struct{},
 ) error {
-	allowed := make(map[string]struct{})
-	for _, item := range items {
-		if strings.Contains(item.ScopeID, "/_replan/") {
-			allowed[item.ScopeID] = struct{}{}
-		}
-	}
-	if len(allowed) > 0 {
-		authorized, _, err := s.authorizeWorkflowWorkItems(ctx, run, replanItems(items))
-		if err != nil {
-			return fmt.Errorf("authorize owned target replan items: %w", err)
-		}
-		allowed = make(map[string]struct{}, len(authorized))
-		for _, item := range authorized {
-			allowed[item.ScopeID] = struct{}{}
-		}
-	}
 	pendingByID := make(map[int64]vulnerability.OSVDeltaValidatedChange, len(pass.pending))
 	for _, change := range pass.pending {
 		pendingByID[change.RowID] = change
@@ -350,7 +340,7 @@ func (s Service) commitOSVDeltaReplan(
 		if scopes, mapped := observation.CoveredRowScopes[id]; mapped {
 			authorized := false
 			for _, scopeID := range scopes {
-				if _, ok := allowed[scopeID]; ok {
+				if _, ok := authorizedReplanScopes[scopeID]; ok {
 					authorized = true
 					break
 				}

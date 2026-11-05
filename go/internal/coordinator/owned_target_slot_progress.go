@@ -48,6 +48,13 @@ type workAdmission struct {
 	inserted int
 	advance  workflow.SlotAdvanceResult
 	noWork   bool
+	// authorizedReplanScopes holds the authorized _replan scope ids of one
+	// admission pass (eshu-hq/eshu#10083): the post-authorization, pre-guard
+	// set the replan commit gates its mapped branch on. The name claims
+	// only that: guard-dropped and insert-dropped scopes are not observable
+	// from the admission return, so they stay deferred under
+	// TODO(eshu-hq/eshu#10149). Nil on the no-work path.
+	authorizedReplanScopes map[string]struct{}
 }
 
 // ownedSlotSelector returns the selector that turns on progress-ordered slot
