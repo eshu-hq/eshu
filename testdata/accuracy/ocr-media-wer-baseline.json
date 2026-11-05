@@ -8,7 +8,7 @@
       "model": "eng.traineddata",
       "model_sha256": "daa0c97d651c19fba3b25e81317cd697e9908c8208090c94c3905381c23fc047",
       "binary_sha256": {
-        "arm64": "62a760cd1c23d89d52d1e7ac42dddc1c2c9cb9488621be9cd6b9748e9c77",
+        "arm64": "62a760cd1c23d95211e7c42dddc761c2c9cb9488628941e9be6cd9b6748e9c77",
         "amd64": "38b441bd41257037a03d6a15d9f849d8bd83da4c24dab1df428a7a4ad265332f"
       }
     },
@@ -49,7 +49,7 @@
       "extract_status": "completed",
       "redacted": 2,
       "canary_leak": false,
-      "wall_seconds": 0.204733992,
+      "wall_seconds": 0.198184216,
       "engine": "ocr"
     },
     {
@@ -65,7 +65,7 @@
       "extract_status": "completed",
       "redacted": 2,
       "canary_leak": false,
-      "wall_seconds": 0.196312018,
+      "wall_seconds": 0.185908844,
       "engine": "ocr"
     },
     {
@@ -81,7 +81,7 @@
       "extract_status": "completed",
       "redacted": 2,
       "canary_leak": false,
-      "wall_seconds": 0.196776515,
+      "wall_seconds": 0.19039487,
       "engine": "ocr"
     },
     {
@@ -97,7 +97,7 @@
       "extract_status": "completed",
       "redacted": 3,
       "canary_leak": false,
-      "wall_seconds": 0.234280151,
+      "wall_seconds": 0.223334132,
       "engine": "ocr"
     },
     {
@@ -113,7 +113,7 @@
       "extract_status": "completed",
       "redacted": 3,
       "canary_leak": false,
-      "wall_seconds": 0.220497653,
+      "wall_seconds": 0.214722498,
       "engine": "ocr"
     },
     {
@@ -129,7 +129,7 @@
       "extract_status": "completed",
       "redacted": 3,
       "canary_leak": false,
-      "wall_seconds": 0.223029933,
+      "wall_seconds": 0.213896881,
       "engine": "ocr"
     },
     {
@@ -145,7 +145,7 @@
       "extract_status": "completed",
       "redacted": 3,
       "canary_leak": false,
-      "wall_seconds": 0.224996825,
+      "wall_seconds": 0.215890355,
       "engine": "ocr"
     },
     {
@@ -161,7 +161,7 @@
       "extract_status": "skipped",
       "redacted": 0,
       "canary_leak": false,
-      "wall_seconds": 0.20724566,
+      "wall_seconds": 0.18904978,
       "engine": "ocr"
     },
     {
@@ -177,7 +177,7 @@
       "extract_status": "completed",
       "redacted": 12,
       "canary_leak": false,
-      "wall_seconds": 0.843876532,
+      "wall_seconds": 0.830695377,
       "engine": "ocr"
     },
     {
@@ -193,7 +193,7 @@
       "extract_status": "completed",
       "redacted": 6,
       "canary_leak": false,
-      "wall_seconds": 0.736280359,
+      "wall_seconds": 0.726045788,
       "engine": "ocr"
     },
     {
@@ -209,7 +209,7 @@
       "extract_status": "completed",
       "redacted": 3,
       "canary_leak": false,
-      "wall_seconds": 0.755230634,
+      "wall_seconds": 0.74673967,
       "engine": "ocr"
     },
     {
@@ -225,7 +225,7 @@
       "extract_status": "completed",
       "redacted": 0,
       "canary_leak": false,
-      "wall_seconds": 0.433342155,
+      "wall_seconds": 0.42151761,
       "engine": "ocr"
     },
     {
@@ -239,7 +239,7 @@
       "wer_raw": 1.0909090909090908,
       "redacted": 2,
       "canary_leak": false,
-      "wall_seconds": 1.8239648609999999,
+      "wall_seconds": 1.8058335140000001,
       "engine": "media"
     },
     {
@@ -253,16 +253,16 @@
       "wer_raw": 0.2727272727272727,
       "redacted": 2,
       "canary_leak": false,
-      "wall_seconds": 1.8179776859999999,
+      "wall_seconds": 1.8065179580000001,
       "engine": "media"
     }
   ],
   "capture": {
-    "host_class": "Linux 6.x aarch64 dev laptop (not the enforcement host \u2014 re-run refresh there before banding gates)",
+    "host_class": "Linux 7.0.0-1014-aws aarch64",
     "arch": "aarch64",
-    "commit": "0650a6a4d278b6621aac73441645fc3746142f19",
+    "commit": "f321d477960ee16fae80fe1f6561f19afb81f0ac",
     "run_kind": "baseline",
-    "note": "Recaptured by scripts/refresh-ocr-media-wer-baseline.sh. Thresholds preserved."
+    "note": "Recaptured by scripts/refresh-ocr-media-wer-baseline.sh at f321d47796 to correct the arm64 binary_sha256 transcription error (pre-run arm64 was 62a760cd1c23d89d52d1e7ac42dddc1c2c9cb9488621be9cd6b9748e9c77, pre-run capture.commit was 0650a6a4d278b6621aac73441645fc3746142f19). Measured WER rows re-observed identical (only wall_seconds moved). Thresholds preserved. Re-run on the enforcement host before banding gates."
   },
   "corpus_digest": "ce496666b2cc58cc9a057e5e0c19fd919dfb3af48129333acf1d80ae64490241"
 }
