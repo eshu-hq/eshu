@@ -1,9 +1,12 @@
 # Egress NetworkPolicy for the #8877 zero-fact window. AUTHORED ONLY.
-# Default-deny for the window pod; the only egress is the claim-plane host
-# (placeholder filled at apply time from the window record) plus cluster DNS.
-# The emitter itself makes no network calls; the worker needs the plane,
-# Postgres (content store DSN, in-cluster), and the OTLP/metrics endpoints
-# the chart already allows on the shared collector path.
+# Default-deny for the window pod; egress is exactly DNS, the claim-plane
+# host (placeholder filled at apply time from the window record), Postgres,
+# and OTLP. The emitter itself makes no network calls; the worker needs the
+# plane, Postgres (content store DSN, in-cluster eshu-postgresql:5432), and
+# the OTLP endpoint the live cx workers use
+# (monitoring-opentelemetry-collector.monitoring.svc:4317/gRPC, read live
+# from OTEL_EXPORTER_OTLP_ENDPOINT). Metrics scraping is inbound (9464) and
+# needs no egress rule.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -30,3 +33,17 @@ spec:
       ports:
         - protocol: TCP
           port: 443
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: postgresql
+      ports:
+        - protocol: TCP
+          port: 5432
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: monitoring
+      ports:
+        - protocol: TCP
+          port: 4317
