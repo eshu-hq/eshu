@@ -6,6 +6,7 @@ package coordinator
 import (
 	"context"
 	"fmt"
+	"sort"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
@@ -156,6 +157,111 @@ func (m *otelMetrics) RecordEPSSDerivedPage(ctx context.Context, observation EPS
 		}
 		m.epssDerivedSkippedTotal.Add(ctx, int64(evidence.SkippedCount),
 			metric.WithAttributes(attribute.String(telemetry.MetricDimensionReason, evidence.Reason)))
+	}
+}
+
+// OwnedDerivedObservation captures one in-tree owned-package planning pass
+// (eshu-hq/eshu#9287 criterion 4): the read's selected targets per ecosystem
+// plus the planner skip evidence for the same pass. Counts only, never
+// package names, which must not reach metric labels.
+type OwnedDerivedObservation struct {
+	// CollectorInstanceID is the planning instance, matching the owned-slot
+	// counter's partition.
+	CollectorInstanceID string
+	// Selected counts the read's selected targets per ecosystem, as reported
+	// by OwnedPackageDependencyTargetPage.SelectedByEcosystem.
+	Selected map[string]int
+	// Skipped carries the planner skip evidence for the whole plan (owned,
+	// installed, and EPSS rows); only owned-package rows belong to these
+	// counters.
+	Skipped []schedule.DerivedTargetSkipEvidence
+}
+
+// ownedDerivedInstruments holds the owned-package derivation counters
+// registered by newOwnedDerivedInstruments (#9287), mirroring the
+// scanner-derived and EPSS instrument registration pattern used for the rest
+// of this package's coordinator metrics.
+type ownedDerivedInstruments struct {
+	selectedTotal metric.Int64Counter
+	skippedTotal  metric.Int64Counter
+}
+
+// newOwnedDerivedInstruments registers the owned-package derivation counters
+// (#9287): selected targets per ecosystem, and candidates skipped without
+// planning per ecosystem and reason. Ecosystems are the closed derive-contract
+// set; reasons are the closed DerivedTargetSkipReason* set. Counts only,
+// never package names.
+// Full literal names: verify-telemetry-coverage.sh only recognizes a metric
+// when the constructor's first argument is a string literal, so these two
+// do not use the MetricPrefix concatenation the rest of this file uses.
+func newOwnedDerivedInstruments(meter metric.Meter) (ownedDerivedInstruments, error) {
+	selectedTotal, err := meter.Int64Counter(
+		"eshu_dp_workflow_coordinator_owned_derived_selected_total",
+		metric.WithDescription("Total owned-package derived targets selected per planning pass, by collector instance and ecosystem (#9287)"),
+	)
+	if err != nil {
+		return ownedDerivedInstruments{}, fmt.Errorf("register owned derived selected total counter: %w", err)
+	}
+	skippedTotal, err := meter.Int64Counter(
+		"eshu_dp_workflow_coordinator_owned_derived_skipped_total",
+		metric.WithDescription("Total owned-package derived candidates skipped without planning, by collector instance, ecosystem, and reason (#9287)"),
+	)
+	if err != nil {
+		return ownedDerivedInstruments{}, fmt.Errorf("register owned derived skipped total counter: %w", err)
+	}
+	return ownedDerivedInstruments{
+		selectedTotal: selectedTotal,
+		skippedTotal:  skippedTotal,
+	}, nil
+}
+
+// RecordOwnedDerivedPage records one in-tree owned-package planning pass
+// (#9287): selected targets per ecosystem and per-reason skip evidence.
+// Only owned-package skip rows reach the skipped counter; blank ecosystems,
+// blank reasons, and non-positive counts never reach either counter. A
+// multi-ecosystem row attributes its full count to each listed ecosystem,
+// so per-ecosystem skipped series are involvement upper bounds; single-
+// ecosystem rows (the per-package skip reasons) are exact.
+func (m *otelMetrics) RecordOwnedDerivedPage(ctx context.Context, observation OwnedDerivedObservation) {
+	if m == nil {
+		return
+	}
+	ecosystems := make([]string, 0, len(observation.Selected))
+	for ecosystem := range observation.Selected {
+		ecosystems = append(ecosystems, ecosystem)
+	}
+	sort.Strings(ecosystems)
+	for _, ecosystem := range ecosystems {
+		count := observation.Selected[ecosystem]
+		if ecosystem == "" || count <= 0 {
+			continue
+		}
+		m.ownedDerivedSelectedTotal.Add(ctx, int64(count), metric.WithAttributes(
+			attribute.String(telemetry.MetricDimensionCollectorInstanceID, observation.CollectorInstanceID),
+			attribute.String(telemetry.MetricDimensionEcosystem, ecosystem),
+		))
+	}
+	for _, evidence := range observation.Skipped {
+		// The combined plan carries installed-evidence and EPSS rows too;
+		// only owned-package rows belong to this counter. Package names
+		// never reach a label.
+		if evidence.TargetClass != schedule.TargetClassOwnedPackage {
+			continue
+		}
+		if evidence.Reason == "" || evidence.SkippedCount <= 0 || len(evidence.Ecosystems) == 0 {
+			continue
+		}
+		for _, ecosystem := range evidence.Ecosystems {
+			if ecosystem == "" {
+				continue
+			}
+			m.ownedDerivedSkippedTotal.Add(ctx, int64(evidence.SkippedCount),
+				metric.WithAttributes(
+					attribute.String(telemetry.MetricDimensionCollectorInstanceID, observation.CollectorInstanceID),
+					attribute.String(telemetry.MetricDimensionEcosystem, ecosystem),
+					attribute.String(telemetry.MetricDimensionReason, evidence.Reason),
+				))
+		}
 	}
 }
 

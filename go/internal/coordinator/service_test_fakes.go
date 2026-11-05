@@ -196,6 +196,7 @@ type fakeMetrics struct {
 	ownedTargetRotationObserved   []OwnedTargetRotationObservation
 	ownedTargetSlotObserved       []OwnedTargetSlotObservation
 	epssDerivedObserved           []EPSSDerivedObservation
+	ownedDerivedObserved          []OwnedDerivedObservation
 	osvDeltaObserved              []OSVDeltaReplanMetricsObservation
 }
 
@@ -233,6 +234,10 @@ func (f *fakeMetrics) RecordScannerDerivedPage(_ context.Context, observation Sc
 
 func (f *fakeMetrics) RecordEPSSDerivedPage(_ context.Context, observation EPSSDerivedObservation) {
 	f.epssDerivedObserved = append(f.epssDerivedObserved, observation)
+}
+
+func (f *fakeMetrics) RecordOwnedDerivedPage(_ context.Context, observation OwnedDerivedObservation) {
+	f.ownedDerivedObserved = append(f.ownedDerivedObserved, observation)
 }
 
 func (f *fakeMetrics) RecordOwnedTargetRotation(_ context.Context, observation OwnedTargetRotationObservation) {
