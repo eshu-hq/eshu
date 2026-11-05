@@ -177,6 +177,7 @@ set +f
 pin_re='^([A-Za-z0-9][A-Za-z0-9._+-]*)=([0-9][A-Za-z0-9._-]*)$'
 tab="$(printf '\t')"
 : >"${work}/pins.txt"
+: >"${work}/unmatched.txt"
 while IFS= read -r run_line; do
 	rest="${run_line#*apk add}"
 	rest="${rest#*apk${tab}add}"
@@ -186,12 +187,17 @@ while IFS= read -r run_line; do
 		token="${token//\'/}"
 		if [[ "${token}" =~ ${pin_re} ]]; then
 			printf '%s %s\n' "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" >>"${work}/pins.txt"
+		elif [[ "${token}" == *"="* && ! "${token}" =~ ${floor_re} ]]; then
+			printf '%s\n' "${token}" >>"${work}/unmatched.txt"
 		fi
 	done
 	set +f
 done < <(awk '/^RUN / && /apk[ \t]+add/' "${work}/final-stage.txt")
 [[ -s "${work}/floors.txt" || -s "${work}/pins.txt" ]] ||
 	die "no 'name>=version' floors or 'name=version' pins found on an apk add line of the audited stage; the guard would be vacuous"
+if [[ -s "${work}/unmatched.txt" ]]; then
+	die "audit hole: apk tokens the floor and pin scans both skipped: $(tr '\n' ' ' <"${work}/unmatched.txt")"
+fi
 
 # version_parts VERSION -> "<dotted> <rev>"; empty when the shape is not
 # N(.N)*[-rN]. A missing revision counts as r0.

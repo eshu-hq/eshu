@@ -261,6 +261,16 @@ printf 'FROM alpine:3.21\nRUN apk add --no-cache git curl\n' >"${tmp_root}/noflo
 run_verifier "${tmp_root}/nofloors.Dockerfile" "${tmp_root}/green"
 expect_rc 2 "a final stage with no floors exits non-zero instead of passing vacuously"
 
+# A version-shaped hole: a name=token whose version does not start with a
+# digit matches neither the floor nor the pin expression. It must fail
+# closed instead of floating unaudited past a passing guard (#10166 P2).
+printf 'FROM alpine:3.21\nRUN apk add --no-cache "foo>=1.0-r0" "bar=latest"\n' >"${tmp_root}/unparsed.Dockerfile"
+mirror="${tmp_root}/unparsed"
+make_mirror "${mirror}" v3.21 "foo=1.0-r0" "bar=1.0-r0"
+run_verifier "${tmp_root}/unparsed.Dockerfile" "${mirror}"
+expect_rc 2 "a token matching neither pins nor floors fails closed"
+expect_output "bar=latest" "the skipped token is named"
+
 # Only the FINAL stage counts: an earlier stage's floors are ignored.
 printf 'FROM alpine:3.21 AS early\nRUN apk add --no-cache "zzz>=1.0-r0"\nFROM alpine:3.21\nRUN apk add --no-cache "foo>=1.0-r0"\n' >"${tmp_root}/stages.Dockerfile"
 mirror="${tmp_root}/stages"
