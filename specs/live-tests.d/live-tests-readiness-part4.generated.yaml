@@ -204,6 +204,21 @@ tests:
     class: postgres_ci
     reason: "#8082 disposable PostgreSQL 18 differential proof that the repository-catalog loader's SQL key projection returns the same entries and observed_at freshness keys as the pre-#8082 whole-payload statement and Go decode over a numeric repo_id, an absent name, a JSON-null slug, a whitespace-only remote_url, two generations and a same-timestamp tie of one repository, and array, string and null payloads, and that the loader ships no row over 4 KiB although two 1 MiB payloads are seeded; reuses the ESHU_TARGETED_MAINTENANCE_PROOF_DSN disposable server; enrolled in the live-postgres-readiness runner; wall time is logged, not gated"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/repository_retirements_derived_explain_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10054 before and after EXPLAIN of the retirement statements at 100,000 scopes on the real schema; a measurement that also needs ESHU_RETIREMENT_EXPLAIN=1, so it skips in the ordinary lane"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/repository_retirements_derived_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10054 disposable PostgreSQL 18 proof that an operator retirement removes the derived Go reachability scope: purge, preview equals ledger, neighbor and longer-id scopes untouched, winners capture, budget attribution, graph-key capture"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/repository_retirements_derived_race_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10054 disposable PostgreSQL 18 concurrency proof of derived-scope retirement: late commit refused, in-flight first scan, Ack lock contention, projector lease drain, stale Ack, idempotent fence and purge, barrier lock order"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/retention/work/items/cancel_live_test.go
     tag: ~
     class: postgres_ci

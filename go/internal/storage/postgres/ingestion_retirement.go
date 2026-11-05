@@ -38,10 +38,15 @@ func (s IngestionStore) applyScopeGateOutcome(
 	transactionClosed *bool,
 ) (bool, error) {
 	switch gateOutcome {
-	case scopeGateRefusedRetiring:
-		// An open non-complete tombstone covers the repository. Roll back
-		// before draining the stream, so no fact, generation, or
+	case scopeGateRefusedRetiring, scopeGateRefusedRetired:
+		// An open tombstone covers the repository: non-complete for a
+		// retiring scope, complete for a retired derived parent. Roll
+		// back before draining the stream, so no fact, generation, or
 		// projector work from the refused commit can land.
+		outcome := derivedCommitOutcomeRetiring
+		if gateOutcome == scopeGateRefusedRetired {
+			outcome = derivedCommitOutcomeRetired
+		}
 		if rollbackErr := tx.Rollback(); rollbackErr != nil {
 			return false, fmt.Errorf("rollback retiring scope commit: %w", rollbackErr)
 		}
@@ -50,7 +55,7 @@ func (s IngestionStore) applyScopeGateOutcome(
 			return false, fmt.Errorf("read refused retiring scope stream: %w", streamErr)
 		}
 		collector.MarkCommitRefused(ctx, collector.CommitRefusal{Reason: commitRefusalRepositoryRetiring})
-		s.logRetirementRefusal(ctx, scopeValue, generation)
+		s.logRetirementRefusal(ctx, scopeValue, generation, outcome)
 		return false, nil
 	case scopeGateReadmitted:
 		// The open tombstone is complete: this commit re-admits the
@@ -72,24 +77,28 @@ func (s IngestionStore) applyScopeGateOutcome(
 }
 
 // logRetirementRefusal emits the operator WARN for a commit the folded
-// retirement marker gate refused (#7766). The refusal returns nil on the
-// finalized-skip path, so this log is the signal a retiring repository
-// stopped ingesting. Writer attribution (collector, webhook, backfill,
-// recover, reindex) lands with the ingest-refusals counter wiring; the
-// commit boundary does not know its writer.
+// retirement marker gate refused (#7766, #10054). The refusal returns nil on
+// the finalized-skip path, so this log is the signal a retiring or retired
+// repository stopped ingesting. The outcome matches the refused-commit
+// counter: retiring for an open non-complete tombstone, retired for a
+// complete tombstone over a derived scope's parent. Writer attribution
+// (collector, webhook, backfill, recover, reindex) lands with the
+// ingest-refusals counter wiring; the commit boundary does not know its
+// writer.
 func (s IngestionStore) logRetirementRefusal(
 	ctx context.Context,
 	scopeValue scope.IngestionScope,
 	generation scope.ScopeGeneration,
+	outcome string,
 ) {
 	if s.Logger == nil {
 		return
 	}
-	s.Logger.WarnContext(ctx, "repository ingest refused: retiring",
+	s.Logger.WarnContext(ctx, "repository ingest refused: "+outcome,
 		slog.String("scope_id", scopeValue.ScopeID),
-		slog.String("repo_id", scopeValue.PartitionKey),
+		slog.String("repo_id", retirementRepoKey(scopeValue)),
 		slog.String("generation_id", generation.GenerationID),
-		slog.String("outcome", "repository_retiring"),
+		slog.String("outcome", "repository_"+outcome),
 		telemetry.PhaseAttr(telemetry.PhaseEmission),
 	)
 }

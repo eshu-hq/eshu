@@ -60,6 +60,12 @@ const (
 	// non-complete tombstone row exists. The caller rolls back, drains
 	// the stream, and returns nil on the finalized-skip path.
 	scopeGateRefusedRetiring
+	// scopeGateRefusedRetired fences the commit out: an open complete
+	// tombstone row exists over a derived scope's parent. Only the
+	// repository's own commit may readmit it. The caller rolls back,
+	// drains the stream, and returns nil on the finalized-skip path,
+	// and the WARN names the retired outcome.
+	scopeGateRefusedRetired
 	// scopeGateReadmitted commits the scope as a fresh first generation:
 	// the open tombstone row is complete. The caller stamps
 	// readmitted_at on the returned retirement id.

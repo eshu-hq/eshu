@@ -409,6 +409,11 @@ jobs:
           ESHU_TFSTATE_DRIFT_OVERLAY_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
           ESHU_WEBHOOK_CLAIM_LEASE_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
           # END GENERATED READINESS ENV
+          # Behavior-gated excuse (#10054): the derived-scope plan proof only
+          # runs with ESHU_RETIREMENT_EXPLAIN=1, so it skips in the ordinary
+          # lane. Excused here following the calibration
+          # LIVE_READINESS_EXTRA_SKIP precedent; remove when the gate opens.
+          LIVE_READINESS_EXTRA_SKIP: 'TestRetirementDerivedStatementPlansLive'
         run: bash scripts/run-live-postgres-readiness-tests.sh --shard "${{ matrix.shard }}/${{ matrix.total }}" --report readiness-shard-report.json
 
       - name: Upload shard coverage report

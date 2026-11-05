@@ -19,9 +19,9 @@ import (
 // writes them to the tombstone once (migration 208) and every resume
 // reads the tombstone copy, never the live rows.
 type GraphRetractKeys struct {
-	// ScopeIDs are the repository's scope ids (default-branch scope plus
-	// @ref scopes), ordered, captured with the same predicate the purge
-	// locks (partition_key = repo id).
+	// ScopeIDs are the repository's scope ids (default-branch scope, @ref
+	// scopes, and any derived scope), ordered, captured with the same
+	// predicate the purge locks (retirementScopesOfRepoSQL).
 	ScopeIDs []string
 	// Root is the repository root with the precedence BuildMaterialization
 	// uses: the repository fact's path in the scope's active generation,
@@ -32,8 +32,8 @@ type GraphRetractKeys struct {
 
 // retirementCaptureScopesSQL derives the repository's scope ids with the
 // same predicate the purge locks.
-const retirementCaptureScopesSQL = `SELECT scope_id FROM ingestion_scopes
-	WHERE partition_key = $1 ORDER BY scope_id`
+const retirementCaptureScopesSQL = `SELECT s.scope_id FROM ingestion_scopes AS s
+	WHERE ` + retirementScopesOfRepoSQL + ` ORDER BY s.scope_id`
 
 // retirementCaptureRootSQL derives the repository root: the newest
 // repository fact's path (else local_path) in each scope's active
@@ -87,7 +87,7 @@ func CaptureGraphRetractKeys(ctx context.Context, database db.ExecQueryer, repoI
 	}
 	_ = scopeRows.Close()
 	if len(keys.ScopeIDs) == 0 {
-		return keys, fmt.Errorf("retirement capture graph keys %s: no scopes carry its partition key", repoID)
+		return keys, fmt.Errorf("retirement capture graph keys %s: no scopes belong to it", repoID)
 	}
 	rootRows, err := database.QueryContext(ctx, retirementCaptureRootSQL, keys.ScopeIDs)
 	if err != nil {

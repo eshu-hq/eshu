@@ -8,30 +8,32 @@ package postgres
 // scope_id ANY (not per-generation pairs) and the step-6 recheck binds
 // scope_id ANY over both stages. 7c binds the step-4 non-superseded pairs,
 // skipping projector rows of generations the #7130 claim branch already
-// superseded.
+// superseded. Every statement resolving repositories to scopes uses
+// retirementScopesOfReposSQL (#10054), so a repository's derived scope is fenced
+// with it, and every per-repository count groups by retirementScopeRepoIDSQL.
 const (
-	fenceResolveScopesQuery = `SELECT scope_id, partition_key FROM ingestion_scopes
-		WHERE partition_key = ANY($1) ORDER BY scope_id`
-	fencePrecheckGenerationsQuery = `SELECT s.partition_key, count(g.generation_id)
+	fenceResolveScopesQuery = `SELECT s.scope_id, s.partition_key FROM ingestion_scopes AS s
+		WHERE ` + retirementScopesOfReposSQL + ` ORDER BY s.scope_id`
+	fencePrecheckGenerationsQuery = `SELECT ` + retirementScopeRepoIDSQL + `, count(g.generation_id)
 		FROM ingestion_scopes AS s
 		LEFT JOIN scope_generations AS g ON g.scope_id = s.scope_id
 			AND g.status IN ('pending', 'active', 'failed')
-		WHERE s.partition_key = ANY($1) GROUP BY s.partition_key`
-	fencePrecheckReducerRowsQuery = `SELECT s.partition_key, count(w.work_item_id)
+		WHERE ` + retirementScopesOfReposSQL + ` GROUP BY 1`
+	fencePrecheckReducerRowsQuery = `SELECT ` + retirementScopeRepoIDSQL + `, count(w.work_item_id)
 		FROM ingestion_scopes AS s
 		LEFT JOIN fact_work_items AS w ON w.scope_id = s.scope_id
 			AND w.stage = 'reducer'
 			AND (w.status IN ('pending', 'retrying', 'failed', 'dead_letter')
 				OR (w.status IN ('claimed', 'running') AND w.claim_until <= clock_timestamp()))
-		WHERE s.partition_key = ANY($1) GROUP BY s.partition_key`
+		WHERE ` + retirementScopesOfReposSQL + ` GROUP BY 1`
 	fenceLiveProjectorLeasesQuery = `SELECT work_item_id FROM fact_work_items
 		WHERE scope_id = ANY($1) AND stage = 'projector'
 			AND status IN ('claimed', 'running') AND claim_until > clock_timestamp() LIMIT 1`
 	fenceLiveReducerLeasesQuery = `SELECT work_item_id FROM fact_work_items
 		WHERE scope_id = ANY($1) AND stage = 'reducer'
 			AND status IN ('claimed', 'running') AND claim_until > clock_timestamp() LIMIT 1`
-	fenceLockScopesQuery = `SELECT scope_id FROM ingestion_scopes
-		WHERE partition_key = ANY($1) ORDER BY scope_id FOR NO KEY UPDATE`
+	fenceLockScopesQuery = `SELECT s.scope_id FROM ingestion_scopes AS s
+		WHERE ` + retirementScopesOfReposSQL + ` ORDER BY s.scope_id FOR NO KEY UPDATE`
 	fenceGenerationPairsQuery = `SELECT scope_id, generation_id FROM scope_generations
 		WHERE scope_id = ANY($1) AND status IN ('pending', 'active', 'failed')`
 	fenceReducerRowCountQuery = `SELECT count(*) FROM fact_work_items
@@ -43,29 +45,29 @@ const (
 	// request_too_large refusal carries the same PerRepo breakdown the
 	// precheck refusal promises. Same predicate as the pairs query, plus
 	// the scope-to-repository join.
-	fenceUnderLockGenerationsQuery = `SELECT s.partition_key, count(g.generation_id)
+	fenceUnderLockGenerationsQuery = `SELECT ` + retirementScopeRepoIDSQL + `, count(g.generation_id)
 		FROM ingestion_scopes AS s
 		LEFT JOIN scope_generations AS g ON g.scope_id = s.scope_id
 			AND g.status IN ('pending', 'active', 'failed')
-		WHERE s.scope_id = ANY($1) GROUP BY s.partition_key`
+		WHERE s.scope_id = ANY($1) GROUP BY 1`
 	// fenceUnderLockReducerRowsQuery recounts the 7d-predicate reducer
 	// rows per repository over the locked scopes. Same predicate as the
 	// single-count recheck, grouped.
-	fenceUnderLockReducerRowsQuery = `SELECT s.partition_key, count(w.work_item_id)
+	fenceUnderLockReducerRowsQuery = `SELECT ` + retirementScopeRepoIDSQL + `, count(w.work_item_id)
 		FROM ingestion_scopes AS s
 		LEFT JOIN fact_work_items AS w ON w.scope_id = s.scope_id
 			AND w.stage = 'reducer'
 			AND (w.status IN ('pending', 'retrying', 'failed', 'dead_letter')
 				OR (w.status IN ('claimed', 'running') AND w.claim_until <= clock_timestamp()))
-		WHERE s.scope_id = ANY($1) GROUP BY s.partition_key`
+		WHERE s.scope_id = ANY($1) GROUP BY 1`
 	fenceLockTableQuery         = `LOCK TABLE fact_work_items IN EXCLUSIVE MODE`
 	fenceRecheckLiveLeasesQuery = `SELECT work_item_id FROM fact_work_items
 		WHERE scope_id = ANY($1) AND stage IN ('projector', 'reducer')
 			AND status IN ('claimed', 'running') AND claim_until > clock_timestamp() LIMIT 1`
 	fenceSupersedeGenerationsQuery = `UPDATE scope_generations SET status = 'superseded', superseded_at = clock_timestamp()
 		WHERE scope_id = ANY($1) AND status IN ('pending', 'active', 'failed')`
-	fenceNullActivePointerQuery = `UPDATE ingestion_scopes SET active_generation_id = NULL
-		WHERE partition_key = ANY($1)`
+	fenceNullActivePointerQuery = `UPDATE ingestion_scopes AS s SET active_generation_id = NULL
+		WHERE ` + retirementScopesOfReposSQL
 	// Both marks fold the row's prior failure into failure_details through
 	// priorFailureWorkSQL (#7320): the 7d predicate supersedes failed and
 	// dead_letter rows, and their evidence must survive under prior_failure

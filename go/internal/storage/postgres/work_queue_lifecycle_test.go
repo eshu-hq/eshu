@@ -364,9 +364,10 @@ func isTerraformStateAdminQuery(query string) bool {
 }
 
 type queueFakeRows struct {
-	rows  [][]any
-	err   error
-	index int
+	rows   [][]any
+	err    error
+	rowErr error
+	index  int
 }
 
 func (r *queueFakeRows) Next() bool {
@@ -471,7 +472,10 @@ func (r *queueFakeRows) Scan(dest ...any) error {
 	return nil
 }
 
-func (r *queueFakeRows) Err() error { return nil }
+// Err returns the staged iteration error, mirroring a driver error that
+// surfaces only after some rows streamed (err, by contrast, fails the
+// QueryContext call itself in the fake queryers).
+func (r *queueFakeRows) Err() error { return r.rowErr }
 
 func (r *queueFakeRows) Close() error { return nil }
 

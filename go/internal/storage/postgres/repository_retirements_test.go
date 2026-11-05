@@ -211,7 +211,7 @@ func TestPreviewRetirementCounts(t *testing.T) {
 	t.Parallel()
 
 	fake := &retirementFakeDB{
-		queryRows: [][]any{{int64(3), int64(41), int64(17), int64(9), int64(2), int64(4)}},
+		queryRows: [][]any{{int64(3), int64(41), int64(17), int64(9), int64(2), int64(4), int64(5), int64(1), int64(8)}},
 	}
 	preview, err := NewRetirementStore(fake).Preview(
 		context.Background(), "git-repo-scope:test", []string{"git-repo-scope:test@main"},
@@ -221,16 +221,26 @@ func TestPreviewRetirementCounts(t *testing.T) {
 	}
 	if preview.Generations != 3 || preview.FactWorkItems != 41 ||
 		preview.ContentFiles != 17 || preview.SharedIntents != 9 ||
-		preview.UnroutableIntents != 2 || preview.DeadLetters != 4 {
-		t.Fatalf("preview = %+v, want 3/41/17/9/2/4", preview)
+		preview.UnroutableIntents != 2 || preview.DeadLetters != 4 ||
+		preview.Scopes != 5 || preview.DerivedScopes != 1 || preview.DerivedFacts != 8 {
+		t.Fatalf("preview = %+v, want 3/41/17/9/2/4/5/1/8", preview)
 	}
 	lookup := fake.queryQueries[0]
 	for _, want := range []string{
 		"scope_generations", "fact_work_items", "content_files", "shared_projection_intents",
 		"shared_projection_unroutable_intents", "collector_generation_dead_letters",
+		"IN (SELECT scope_id FROM scope_set)",
 	} {
 		if !strings.Contains(lookup, want) {
 			t.Fatalf("preview missing %q:\n%s", want, lookup)
+		}
+	}
+	// ANY over a subquery compares each output row, so an array-valued
+	// scope_set row makes Postgres demand text = text[] (42883, #10054
+	// heavy proof). The set must stay one scope_id per row.
+	for _, banned := range []string{"array_agg", "ANY((SELECT ids FROM scope_set)"} {
+		if strings.Contains(lookup, banned) {
+			t.Fatalf("preview carries banned array-subquery shape %q:\n%s", banned, lookup)
 		}
 	}
 }

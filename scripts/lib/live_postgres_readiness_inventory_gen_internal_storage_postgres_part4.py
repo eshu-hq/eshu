@@ -111,6 +111,24 @@ TABLE = {
         "go/internal/storage/postgres/repository_catalog_projection_live_test.go": (
             "TestLoadRepositoryCatalogProjectionMatchesWholePayloadDecode",
         ),
+        "go/internal/storage/postgres/repository_retirements_derived_explain_live_test.go": (
+            "TestRetirementDerivedStatementPlansLive",
+        ),
+        "go/internal/storage/postgres/repository_retirements_derived_live_test.go": (
+            "TestRetirementRetiresDerivedScopeLive",
+            "TestRetirementDerivedScopeCapturesWinnersDirtyLive",
+            "TestRetirementFenceBudgetAttributesDerivedScopeLive",
+            "TestRetirementCaptureIncludesDerivedScopeLive",
+        ),
+        "go/internal/storage/postgres/repository_retirements_derived_race_live_test.go": (
+            "TestRetirementRefusesLateDerivedCommitLive",
+            "TestRetirementWaitsForInFlightFirstDerivedCommitLive",
+            "TestRetirementPurgeBusyWhileAckHoldsDerivedScopeLive",
+            "TestRetirementFenceWaitsForLiveDerivedProjectorLeaseLive",
+            "TestRetirementRefusesStaleDerivedAckAfterFenceLive",
+            "TestRetirementDerivedScopeFenceAndPurgeAreIdempotentLive",
+            "TestDerivedCommitAndMaintenanceLeaderDoNotDeadlockLive",
+        ),
         "go/internal/storage/postgres/run_reconciliation_factless_live_test.go": (
             "TestWorkflowControlStoreIntegrationReconcileConvergesFactlessClaim",
             "TestWorkflowControlStoreIntegrationReconcileHoldsFactCommittedClaim",
