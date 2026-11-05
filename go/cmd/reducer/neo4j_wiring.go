@@ -343,7 +343,14 @@ func semanticEntityWriterForGraphBackend(
 	getenv func(string) string,
 	check reducer.GenerationFreshnessCheck,
 ) (*entity.SemanticEntityWriter, error) {
-	writer := entity.NewSemanticEntityWriter(executor, batchSize).WithGenerationCheck(check)
+	// Neo4j runs canonical-node ownership with legacy template order
+	// (#10110): the legacy writer MERGEd canonical-owned Function nodes and
+	// re-stamped them parser/semantic-entities, so the canonical retract
+	// (evidence_source = 'projector/canonical') skipped the stale node after
+	// a re-key and the phantom survived with its CALLS edge. Enrichment by
+	// uid keeps the canonical stamp; Variable/Module stay semantic-owned on
+	// the MATCH-File-first templates.
+	writer := entity.NewSemanticEntityWriterWithCanonicalNodeRowsLegacyOrder(executor, batchSize).WithGenerationCheck(check)
 	if graphBackend == runtimecfg.GraphBackendNornicDB {
 		// NornicDB's batch executor is template-sensitive: putting MATCH before
 		// MERGE is indexed but misses the generalized UNWIND/MERGE hot path.

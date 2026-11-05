@@ -52,6 +52,7 @@ const (
 	semanticEntityWriteModeBatchedProperties
 	semanticEntityWriteModeMergeFirstRows
 	semanticEntityWriteModeCanonicalNodeRows
+	semanticEntityWriteModeCanonicalNodeRowsLegacyOrder
 )
 
 // semanticEntityRetractMode names how stale semantic nodes are removed before
@@ -111,6 +112,32 @@ func NewSemanticEntityWriterWithCanonicalNodeRows(executor sourcecypher.Executor
 		BatchSize: batchSize,
 		writeMode: semanticEntityWriteModeCanonicalNodeRows,
 	}
+}
+
+// NewSemanticEntityWriterWithCanonicalNodeRowsLegacyOrder returns a
+// semantic-entity writer with the canonical-node ownership split of
+// NewSemanticEntityWriterWithCanonicalNodeRows — canonical-owned labels are
+// enriched by uid with MATCH, without re-stamping evidence_source or
+// re-MERGEing the canonical File CONTAINS edge — while semantic-owned labels
+// (Variable, Module) keep the legacy MATCH-File-first templates and the
+// retract stays the broad pipe-label shape. Neo4j runs this mode (#10110):
+// the merge-first rewrite would create fileless semantic-owned nodes when
+// the File is absent, and the broad retract is live-proven there, while
+// NornicDB needs merge-first rows and label-scoped retracts for its batch
+// hot path.
+func NewSemanticEntityWriterWithCanonicalNodeRowsLegacyOrder(executor sourcecypher.Executor, batchSize int) *SemanticEntityWriter {
+	return &SemanticEntityWriter{
+		executor:  executor,
+		BatchSize: batchSize,
+		writeMode: semanticEntityWriteModeCanonicalNodeRowsLegacyOrder,
+	}
+}
+
+// enrichesCanonicalNodes reports whether the writer enriches canonical-owned
+// nodes by uid instead of MERGEing them, in either canonical-node mode.
+func (w *SemanticEntityWriter) enrichesCanonicalNodes() bool {
+	return w.writeMode == semanticEntityWriteModeCanonicalNodeRows ||
+		w.writeMode == semanticEntityWriteModeCanonicalNodeRowsLegacyOrder
 }
 
 func (w *SemanticEntityWriter) batchSize() int {
@@ -361,7 +388,7 @@ func (w *SemanticEntityWriter) WriteSemanticEntities(
 			}
 			writes += len(rows)
 		}
-	case semanticEntityWriteModeLegacyRows:
+	case semanticEntityWriteModeLegacyRows, semanticEntityWriteModeCanonicalNodeRowsLegacyOrder:
 		rowsByLabel := newSemanticRowsByLabel()
 		for _, row := range write.Rows {
 			rowMap, ok := buildSemanticEntityRowMap(row)
@@ -380,9 +407,14 @@ func (w *SemanticEntityWriter) WriteSemanticEntities(
 					end = len(rows)
 				}
 				batchRows := rows[start:end]
+				cypher := plan.cypher
+				if w.writeMode == semanticEntityWriteModeCanonicalNodeRowsLegacyOrder &&
+					semanticEntityCanonicalNodeOwnedLabel(plan.label) {
+					cypher = semanticEntityCanonicalNodeRowsUpsertCypher(plan.label, plan.cypher)
+				}
 				stmts = append(stmts, sourcecypher.Statement{
 					Operation: sourcecypher.OperationCanonicalUpsert,
-					Cypher:    plan.cypher,
+					Cypher:    cypher,
 					Parameters: map[string]any{
 						"rows": batchRows,
 						sourcecypher.StatementMetadataEntityLabelKey: plan.label,
@@ -401,7 +433,7 @@ func (w *SemanticEntityWriter) WriteSemanticEntities(
 	// statement, and changes no MATCH/MERGE shape.
 	attemptedByLabel, matchedByLabel, unmatchedUIDs := verifySemanticEntityMatchIdentities(
 		write.Rows,
-		w.writeMode == semanticEntityWriteModeCanonicalNodeRows,
+		w.enrichesCanonicalNodes(),
 	)
 
 	batchSize := w.batchSize()
@@ -445,53 +477,4 @@ func (w *SemanticEntityWriter) WriteSemanticEntities(
 	}, nil
 }
 
-func (w *SemanticEntityWriter) semanticRetractStatements(repoIDs []string) []sourcecypher.Statement {
-	if w.writeMode == semanticEntityWriteModeCanonicalNodeRows {
-		return w.semanticCanonicalNodeRetractStatements(repoIDs)
-	}
-	// Dedicated edge retract first, edgeless-node reap second (#8359): the
-	// reap can only delete a node once the edge retract (and every other
-	// writer's own retract) has taken its edges, so no foreign edge dies
-	// with a shared node.
-	if w.retractMode != semanticEntityRetractModeLabelScoped {
-		return []sourcecypher.Statement{
-			semanticEdgeRetractStatement(RetractSemanticEntityContainmentEdgesCypher, "all", repoIDs),
-			semanticEdgeRetractStatement(RetractSemanticEntityContainmentNodeScopedEdgesCypher, "all", repoIDs),
-			semanticEdgeRetractStatement(semanticEntityReapCypher, "all", repoIDs),
-		}
-	}
-
-	stmts := semanticLabelEdgeRetractStatements(repoIDs)
-	for _, plan := range semanticEntityPlans() {
-		stmts = append(stmts, semanticEdgeRetractStatement(semanticEntityLabelReapCypher(plan.label), plan.label, repoIDs))
-	}
-	return stmts
-}
-
-func (w *SemanticEntityWriter) semanticCanonicalNodeRetractStatements(repoIDs []string) []sourcecypher.Statement {
-	// The dedicated edge retract leads even in canonical-node mode: this
-	// writer still owns Module/Variable containment and Rust ImplBlock
-	// ownership edges there, and the evidence_source fence keeps it off
-	// the canonical writer's CONTAINS edges (#8359 single-writer fence).
-	stmts := semanticLabelEdgeRetractStatements(repoIDs)
-	for _, plan := range semanticEntityPlans() {
-		if semanticEntityCanonicalNodeOwnedLabel(plan.label) {
-			props := semanticEntityClearPropertiesForLabel(plan.label)
-			if len(props) == 0 {
-				continue
-			}
-			stmts = append(stmts, sourcecypher.Statement{
-				Operation: sourcecypher.OperationCanonicalRetract,
-				Cypher:    semanticEntityCanonicalNodeClearCypher(plan.label, props),
-				Parameters: map[string]any{
-					"repo_ids": repoIDs,
-					sourcecypher.StatementMetadataEntityLabelKey: plan.label,
-					sourcecypher.StatementMetadataSummaryKey:     semanticEntityRetractStatementSummary(plan.label, repoIDs),
-				},
-			})
-			continue
-		}
-		stmts = append(stmts, semanticEdgeRetractStatement(semanticEntityLabelReapCypher(plan.label), plan.label, repoIDs))
-	}
-	return stmts
-}
+// Full-repository retract dispatch lives in retract_dispatch.go.

@@ -203,20 +203,29 @@ func TestSemanticEntityWriterForGraphBackendKeepsBroadRetractForNeo4j(t *testing
 
 	// The Neo4j factory keeps the broad (non-label-scoped) dedicated
 	// CONTAINS edge retract (#8359): a stamped edge retract, a node-scoped
-	// edge retract for pre-stamp edges, and the edgeless-node reap. Nodes
+	// edge retract for pre-stamp edges, and the edgeless-node reap. Since
+	// #10110 it also clears stale semantic properties from canonical-owned
+	// nodes (one REMOVE per owned label) instead of deleting them. Nodes
 	// are never DETACH DELETEd: they are shared with the canonical writer.
-	var retracts int
+	var broad, clears int
 	var sawStampedEdgeRetract, sawNodeScopedEdgeRetract, sawReap bool
 	for _, call := range executor.calls {
 		if call.Operation != sourcecypher.OperationCanonicalRetract {
 			continue
 		}
-		retracts++
-		if !strings.Contains(call.Cypher, ":Annotation|Typedef|TypeAlias") {
-			t.Fatalf("Neo4j retract cypher = %q, want broad pipe-label retract", call.Cypher)
-		}
 		if strings.Contains(call.Cypher, "DETACH DELETE") {
 			t.Fatalf("Neo4j retract cypher = %q, want no DETACH DELETE on shared nodes", call.Cypher)
+		}
+		if strings.Contains(call.Cypher, "REMOVE n.") {
+			clears++
+			if !strings.Contains(call.Cypher, "WHERE n.repo_id IN $repo_ids") || strings.Contains(call.Cypher, "DELETE") {
+				t.Fatalf("Neo4j clear cypher = %q, want repo-scoped REMOVE with no DELETE", call.Cypher)
+			}
+			continue
+		}
+		broad++
+		if !strings.Contains(call.Cypher, ":Annotation|Typedef|TypeAlias") {
+			t.Fatalf("Neo4j retract cypher = %q, want broad pipe-label retract", call.Cypher)
 		}
 		switch {
 		case strings.Contains(call.Cypher, "[rel:CONTAINS]") && strings.Contains(call.Cypher, "rel.evidence_source"):
@@ -229,8 +238,8 @@ func TestSemanticEntityWriterForGraphBackendKeepsBroadRetractForNeo4j(t *testing
 			t.Fatalf("Neo4j retract cypher = %q, want stamped edge retract, node-scoped edge retract, or edgeless reap", call.Cypher)
 		}
 	}
-	if got, want := retracts, 3; got != want {
-		t.Fatalf("retract statement count = %d, want %d", got, want)
+	if broad != 3 || clears != 9 {
+		t.Fatalf("Neo4j retracts: broad=%d clears=%d, want broad=3 clears=9", broad, clears)
 	}
 	if !sawStampedEdgeRetract {
 		t.Fatal("missing broad stamped CONTAINS edge retract")

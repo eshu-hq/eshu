@@ -107,7 +107,7 @@ func SemanticEntityWriterFor(backend BackendID) (SemanticEntityWriterFactory, er
 		}, nil
 	case BackendNeo4j:
 		return func(executor sourcecypher.Executor) *entity.SemanticEntityWriter {
-			return entity.NewSemanticEntityWriter(executor, 0)
+			return entity.NewSemanticEntityWriterWithCanonicalNodeRowsLegacyOrder(executor, 0)
 		}, nil
 	default:
 		return nil, fmt.Errorf("no semantic entity writer wiring for backend %q", backend)

@@ -19,9 +19,10 @@ backend-conformance corpus) reach the writer through this import path.
 
 ## Exported surface
 
-- `SemanticEntityWriter`, `NewSemanticEntityWriter` and the four row-shape
+- `SemanticEntityWriter`, `NewSemanticEntityWriter` and the five row-shape
   constructors (`WithParameterizedRows`, `WithBatchedProperties`,
-  `WithMergeFirstRows`, `WithCanonicalNodeRows`), `WithLabelScopedRetract`,
+  `WithMergeFirstRows`, `WithCanonicalNodeRows`,
+  `WithCanonicalNodeRowsLegacyOrder`), `WithLabelScopedRetract`,
   `WithMaxGroupRows`, `WithEntityLabelBatchSize`, `WithGenerationCheck`
   (per-group generation fence, `writer_fence.go`)
 - `DefaultMaxGroupRows` — UNWIND row cap per grouped transaction
