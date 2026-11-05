@@ -261,12 +261,52 @@ printf 'FROM alpine:3.21\nRUN apk add --no-cache git curl\n' >"${tmp_root}/noflo
 run_verifier "${tmp_root}/nofloors.Dockerfile" "${tmp_root}/green"
 expect_rc 2 "a final stage with no floors exits non-zero instead of passing vacuously"
 
+# A version-shaped hole: a name=token whose version does not start with a
+# digit matches neither the floor nor the pin expression. It must fail
+# closed instead of floating unaudited past a passing guard (#10166 P2).
+printf 'FROM alpine:3.21\nRUN apk add --no-cache "foo>=1.0-r0" "bar=latest"\n' >"${tmp_root}/unparsed.Dockerfile"
+mirror="${tmp_root}/unparsed"
+make_mirror "${mirror}" v3.21 "foo=1.0-r0" "bar=1.0-r0"
+run_verifier "${tmp_root}/unparsed.Dockerfile" "${mirror}"
+expect_rc 2 "a token matching neither pins nor floors fails closed"
+expect_output "bar=latest" "the skipped token is named"
+
 # Only the FINAL stage counts: an earlier stage's floors are ignored.
 printf 'FROM alpine:3.21 AS early\nRUN apk add --no-cache "zzz>=1.0-r0"\nFROM alpine:3.21\nRUN apk add --no-cache "foo>=1.0-r0"\n' >"${tmp_root}/stages.Dockerfile"
 mirror="${tmp_root}/stages"
 make_mirror "${mirror}" v3.21 "foo=1.0-r0"
 run_verifier "${tmp_root}/stages.Dockerfile" "${mirror}"
 expect_rc 0 "floors on earlier stages are ignored (zzz is absent and not checked)"
+
+# --- --stage: audit a named stage (the document-import Job image, #9382). ---
+printf 'FROM alpine:3.21 AS early\nRUN apk add --no-cache "zzz>=9.9-r9"\nFROM alpine:3.21 AS job-document-import\nRUN apk add --no-cache "foo=1.0-r0" "bar>=2.0-r0"\nFROM alpine:3.21\nRUN apk add --no-cache "baz>=1.0-r0"\n' >"${tmp_root}/named-stages.Dockerfile"
+run_verifier_stage() {
+	out_file="${tmp_root}/out.txt"
+	set +e
+	APK_FLOORS_MIRROR="file://$2" bash "${verifier}" --dockerfile "$1" --stage "$3" >"${out_file}" 2>&1
+	rc=$?
+	set -e
+}
+mirror="${tmp_root}/named-green"
+make_mirror "${mirror}" v3.21 "foo=1.0-r0" "bar=2.0-r0" "baz=1.0-r0"
+run_verifier_stage "${tmp_root}/named-stages.Dockerfile" "${mirror}" job-document-import
+expect_rc 0 "--stage audits the named stage: exact pin served and floor current"
+mirror="${tmp_root}/named-default"
+make_mirror "${mirror}" v3.21 "baz=1.0-r0"
+run_verifier "${tmp_root}/named-stages.Dockerfile" "${mirror}"
+expect_rc 0 "default run ignores earlier stages (zzz/foo/bar absent from the index, baz floor current)"
+mirror="${tmp_root}/named-pin-left"
+make_mirror "${mirror}" v3.21 "foo=1.0-r1" "bar=2.0-r0" "baz=1.0-r0"
+run_verifier_stage "${tmp_root}/named-stages.Dockerfile" "${mirror}" job-document-import
+expect_rc 1 "an exact pin that left the repository fails"
+expect_output "FAIL x86_64 foo: pinned 1.0-r0 left the" "the departed pin names the package and pinned version"
+mirror="${tmp_root}/named-floor-stale"
+make_mirror "${mirror}" v3.21 "foo=1.0-r0" "bar=2.1-r0" "baz=1.0-r0"
+run_verifier_stage "${tmp_root}/named-stages.Dockerfile" "${mirror}" job-document-import
+expect_rc 1 "floors are still enforced inside the selected stage"
+run_verifier_stage "${tmp_root}/named-stages.Dockerfile" "${mirror}" no-such-stage
+expect_rc 2 "an unknown stage name fails closed"
+expect_output "no stage named 'no-such-stage'" "the unknown stage is named"
 
 # Global defaults select the audited base; stage-local ARGs cannot change it.
 printf 'ARG BASE=alpine:3.21\nFROM ${BASE} AS early\nARG BASE=debian:12\nFROM ${BASE}\nRUN apk add --no-cache "foo>=1.0-r0"\n' >"${tmp_root}/global-arg.Dockerfile"

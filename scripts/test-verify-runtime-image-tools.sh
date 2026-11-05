@@ -201,6 +201,20 @@ ln -s ssh-b "${loop}/usr/bin/ssh"
 ln -s ssh "${loop}/usr/bin/ssh-b"
 expect "symlink loop fails" 1 "ssh" -- "${loop}"
 
+# Scoped list (document-import Job image, #9382): tesseract plus the caller
+# binary, resolved under the same search dirs; the runtime default is
+# untouched when the override is unset.
+jobfull="$(make_rootfs jobfull tesseract)"
+mkdir -p "${jobfull}/usr/local/bin"
+printf '#!/bin/sh\n' >"${jobfull}/usr/local/bin/eshu-collector-document-import"
+chmod 0755 "${jobfull}/usr/local/bin/eshu-collector-document-import"
+export ESHU_REQUIRED_TOOLS="tesseract eshu-collector-document-import"
+expect "GREEN job image rootfs with tesseract and caller passes" 0 -- "${jobfull}"
+jobnocaller="$(make_rootfs jobnocaller tesseract)"
+expect "job image rootfs without caller fails" 1 "eshu-collector-document-import" -- "${jobnocaller}"
+unset ESHU_REQUIRED_TOOLS
+expect "runtime default still enforced after the override is unset" 1 "ssh" -- "${jobfull}"
+
 # Unusable input fails closed with exit 2.
 expect "no argument exits 2" 2 --
 expect "nonexistent path exits 2" 2 -- "${tmp_root}/does-not-exist"
