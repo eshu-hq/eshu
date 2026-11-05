@@ -132,16 +132,30 @@ control. Run on private worktrees at the base `b16cb9689b`, the previous head
   versioned row).
 - Authorized path, 288 calls: base rows moved 0. The previous head and this head differ
   only where one target holds both rows (16 corrected, 16 added); two targets are equal.
-- Shapes order-dependent by fact order or row order: 3,348 at the base, 3,708 at the
-  previous head and 3,700 here. 360 are order-dependent here and not at the base, and 8
-  are the reverse. The previous head has the same 360, so the split did not add them. All
-  360 are in topologies where several rows share one index shard (rows with no digest,
-  or two rows of one digest), and include spelled and anchored shapes the split cannot
-  reach. The ruling's reading is that the classifier reads one row per shard, so which
-  row it reads can depend on the order; this note did not isolate that cause. The
-  count stays above the base until the per-version digest split lands (#10143). This
-  does not change the committed grid's figure of "none added", which is about its own
-  49,480 shapes.
+- Shapes order-dependent by fact order or row order, against this branch's base: 3,348 at
+  the base, 3,708 at the previous head and 3,700 here. 360 are order-dependent here and
+  not at the base, and 8 are the reverse. The previous head has the same 360, so the
+  split did not add them. Main has since changed how digest-less rows (#10111) and
+  per-digest rows (#10143) are classified, so this figure overstates what a merge leaves.
+- The same grid against main, my own runs, tip merged into each main (the prose
+  conflicts resolved by keeping this branch; no Go file conflicts):
+
+  | Main | Order-dependent on main | Order-dependent with this branch | Added | Removed | Base rows moved | Versioned rows vs control (findings, differ, false known-fixed) |
+  | --- | --- | --- | --- | --- | --- | --- |
+  | `eaa15d68d8`, the parent of #10143 | 2,926 | 2,992 | 70 | 4 | 0 | 2,420, 0, 0 |
+  | `35023cc39d`, current, holds #10143 | 2,852 | 2,852 | 0 | 0 | 0 | 2,496, 0, 0 |
+
+  Against `eaa15d68d8` the 70 shapes added are all topology `T3-same-digest-v-n` (two
+  rows of one digest, one versioned and one not); no digest-less shape is above main
+  there. On rows sharing one digest the order-dependent count is above main until #10143
+  lands. It has landed: with #10143 on main the added and removed sets are empty
+  (arbiter ruling 9990-f6, 2.8). Identical calls against main: 12,628 at `eaa15d68d8` and
+  12,564 at `35023cc39d`; the rest only add a row. The authorized path, 288 calls, moves
+  no row against either main (144 identical and 144 only-added at `35023cc39d`; 152 and
+  136 at `eaa15d68d8`). This does not change the committed grid's figure of "none
+  added", which is about its own 49,480 shapes.
+- This note did not isolate why a shared shard reads in an order-dependent way. The
+  ruling's reading is that the classifier reads one row per shard.
 - A row with no installed version keeps the base's whole-group read, with the other fact
   in its evidence, in the order where the blank fact is the source-order representative
   (`TestVersionlessRowKeepsTheBaseWholeGroupRead`).

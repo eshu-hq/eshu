@@ -48,3 +48,6 @@ joined rows are mixed (one with an installed version, one without). These files 
   `python3 multirow_truth.py <head>` for versioned rows against the own-only control, and
   `python3 multirow_orderdep.py <base> <head>` for shapes order-dependent at the head and
   not at the base.
+- Run the same steps with a main commit as the first file and this branch merged into that
+  main as the second to read the figure a merge leaves; a Go-file conflict would need
+  resolving, and prose conflicts do not matter to the grid.
