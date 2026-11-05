@@ -107,9 +107,9 @@ sees no committed admission at or after X, so its baseline is older than X and i
 range includes X. The active generation's item always runs or dead-letters loudly,
 so P exists. Concurrent passes on B and C hold different advisory keys and can both
 choose A, which only widens the set. A late pass on a superseded generation must
-still diff and not skip, or its admission would move the baseline past a change
-nobody fanned out. With the runtime guard, that pass is reachable only when the
-supersession lands between the guard and the writer's read; the row and its test stay.
+still diff and not skip, or its admission would move the baseline past an unfanned
+change; the guard leaves it reachable only before the writer's read. This shows the
+range names the change, not that fan-out arrives: [#10060](#open-dependency-10060).
 
 **Fallbacks.** With no admitted generation retained, use the oldest retained
 activated one: nothing retained was processed, so that span covers all that can
@@ -195,9 +195,9 @@ At 100,000 suppressions one pair costs 550 ms, four cost 2,044 ms and eight cost
 
 Seven interleaved rounds, rotating first mover, at 1-minute load 39 to 59. No round was
 quiet, and a 35-minute watch for load1 under 12 (lowest reading 18.3) found none, so the
-cap `K` is NOT chosen by the data. The rule was the largest pair count whose
-median stays under 500 ms at load1 below 12. On the earlier quiet-ish round (load 10) one pair
-cost 321 ms, which would pick `K=1`; at load 39 and up it cost 550 ms and nothing qualifies.
+cap `K` is NOT chosen by the data. The rule was the largest pair count whose median stays
+under 500 ms at load1 below 12. On the earlier quiet-ish round (load 10) one pair cost
+321 ms, which would pick `K=1`; at load 39 and up it cost 550 ms and nothing qualifies.
 `suppressionWalkMaxPairs` is provisional at 4. The cost scales with suppression rows and not
 with the pair count alone, so the options for wiring are a fixed `K` (4 pairs is about 2 s
 at load 45 on 100,000 rows and under 10 ms on 1,000), a row budget that shrinks `K` on a
@@ -321,7 +321,7 @@ Moving the walk out would need a second lock step for a saving of a few seconds 
 | First pass, G active | Not admitted | `ran` | Fan-out set includes the diff |
 | Crash before commit | Rolled back, not admitted | `ran` | Same rows, same baseline |
 | Crash after commit, before fan-out | Admitted, owed, no remaining | `ran` (Recovery) | Diff repeats; ids join `RecoveryCVEIDs` because finding rows cannot rebuild them. Holds only if the item is reclaimed before a newer generation activates; otherwise see [#10060](#open-dependency-10060) |
-| Fan-out hit the holder cap | Admitted, `fanout_remaining` set | `skipped_duplicate` | Continuation drains; nothing recomputed |
+| Fan-out hit the holder cap | Admitted, `fanout_remaining` set | `skipped_duplicate` | Continuation drains while no newer generation activates; see [#10060](#open-dependency-10060) |
 | Duplicate delivery after success | Admitted, no marker | `skipped_duplicate` | Reopens nobody |
 | Reopened later by another scope's fan-out | Admitted, stamped | `skipped_duplicate` | Stops at one hop |
 | Pass claims before activation | `pending`, not activated | Runtime guard defers before the handler | Handler not called, no admission, `generation_activation_not_ready` |
@@ -354,7 +354,7 @@ test, and wiring must let the diff's ids through regardless of the stamp.
 | Baseline pruned mid-pass | Reads as no prior rows, so everything counts as added. Over-fans, never loses (checked on the shim) |
 | Tombstones | Filtered on both sides, so a tombstoned row reads as removed and names its old id; tombstoned on both sides gives no row (checked on the shim). The store has no delete path today |
 | Diff read error or timeout | The whole walk fails with no partial set. Rollback, `RetryableFanOutError`, retried. A persistent one dead-letters loudly and does not fall back to fanning out nothing |
-| Item dead-lettered | The baseline does not move, so a replay covers the range |
+| Item dead-lettered | Before commit: the baseline holds and a replay covers the range. After commit: the baseline moved, see [#10060](#open-dependency-10060) |
 
 ## Known limits
 
@@ -371,11 +371,11 @@ test, and wiring must let the diff's ids through regardless of the stamp.
    Harmless while Upsert is the only writer; a future delete path must enqueue.
 4. **Expiry** is evaluated at read time and mints no generation, so it never fans out.
 5. **A failed generation that was active first.** The rule excludes every failed
-   generation, as a decision and not because no reader saw it: `failProjectorWorkQuery`
-   (`projector_queue_sql.go`) fails an active generation and leaves `activated_at` set. A
-   change that cancels out through one stays on the holders' cadence, with no
-   `walk_truncated` signal. The window is the guard-to-writer gap, and nothing durable is
-   lost, because a failed generation is never a baseline.
+   generation by decision: `failProjectorWorkQuery` (`projector_queue_sql.go`) fails an
+   active generation and leaves `activated_at` set. A change that cancels out through one
+   stays on the holders' cadence with no `walk_truncated` signal, wherever it sits in the
+   range, even mid-chain. If the current generation is the failed one (the guard-to-writer
+   gap), the plan stops before it with no signal; a failed generation is never a baseline.
 
 ## Open dependency: #10060
 
