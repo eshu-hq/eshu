@@ -33,12 +33,14 @@ func osPackageFleetLine(row supplychainmodel.OSPackage) string {
 	return "unread:" + row.Distro + ":" + strings.TrimSpace(row.DistroVersion)
 }
 
-// splitOSPackagesByReleaseLine partitions the digest-less base into one index
-// shard per (release line, installed version), so each host line gets its own
-// finding and its own verdict (#9984). A shard keeps only the least row of each
-// lookup key: this path has no SBOM component, so the classifier reads one row
-// per shard through firstOSPackageImpactPath, and keeping the least makes that
-// row, and the finding, independent of arrival order. The shards come back
+// splitOSPackagesByReleaseLine partitions rows into one index shard per
+// (release line, installed version), so each host line gets its own finding and
+// its own verdict (#9984). The digest-less base uses it, and so does each
+// digest's rows, since one digest can hold several versions (#10057). A shard
+// keeps only the least row of each lookup key: these paths have no SBOM
+// component, so the classifier reads one row per shard through
+// firstOSPackageImpactPath, and keeping the least makes that row, and the
+// finding, independent of arrival order. The shards come back
 // ordered by key, because coalesce keeps the first of two findings that share a
 // writer identity. The input is left as it was.
 func splitOSPackagesByReleaseLine(

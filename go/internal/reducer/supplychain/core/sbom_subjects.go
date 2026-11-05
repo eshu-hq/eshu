@@ -119,9 +119,11 @@ func appendSupplyChainImpactManifestFindings(
 // over its own scoped index — the osByDigest scoping the SBOM path above —
 // through the same manifest fanout, so per-repository composition is
 // unchanged: a scope holding a single digest classifies exactly as before.
-// Rows no sibling analysis resolves to a digest classify once per (release
-// line, installed version) through the same fanout (#9984), since the first of
-// them used to decide one finding for every host. With no matching row at all
+// A digest classifies once per (release line, installed version) it holds
+// (#10057), since the first row used to decide the digest's one finding, and a
+// digest holding a version below the fix could read known fixed by row order.
+// Rows no sibling analysis resolves to a digest classify the same way (#9984),
+// since the first of them used to decide one finding for every host. With no matching row at all
 // the whole index classifies once. That covers every non-OS advisory and an OS
 // advisory that joins no installed row.
 func appendSupplyChainImpactFleetOSFindings(
@@ -141,9 +143,15 @@ func appendSupplyChainImpactFleetOSFindings(
 	}
 	sort.Strings(digests)
 	for _, digest := range digests {
-		scoped := index
-		scoped.osPackages = osByDigest[digest]
-		findings = appendSupplyChainImpactManifestFindings(findings, cves, pkgs, scoped)
+		// One digest can hold more than one installed version under a package
+		// key, and the classifier reads one row per index, so the first row
+		// would decide the digest's only finding (#10057). Each (release line,
+		// version) shard classifies on its own, as the digest-less rows do.
+		for _, shard := range splitOSPackagesByReleaseLine(osByDigest[digest]) {
+			scoped := index
+			scoped.osPackages = shard
+			findings = appendSupplyChainImpactManifestFindings(findings, cves, pkgs, scoped)
+		}
 	}
 	for _, shard := range splitOSPackagesByReleaseLine(baseOS) {
 		scoped := index
