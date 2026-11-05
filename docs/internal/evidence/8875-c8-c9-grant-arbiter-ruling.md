@@ -100,7 +100,9 @@ queries; no cluster object created or changed). Epoch 2026-11-05 UTC.
   `eshu_dp_workflow_claim_plane_request_duration_seconds`: UNAVAILABLE —
   absent cluster-wide (Prometheus series count 0) and in all 21 pods' logs.
   Expected pre-flip (no collector talks to the plane yet); the verdict uses
-  server-side `commit_p99` only, which is conservative for margin sizing.
+  server-side `commit_p99` only. That omission is covered by headroom (PASS
+  holds for any `commit_p99 <= ~2.41s`), and post-flip client-side latency is
+  watched via `eshu_dp_ingestion_commit_pin_slack_seconds`.
 - Verdict: `2 * (0.0869 + 0.1682) = 0.51s <= 5s`. **PASS** with ~4.49s of
   margin. Holds for any `skew_bound <= ~2.33s`.
 
