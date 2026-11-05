@@ -74,7 +74,10 @@ signal. An earlier run at this size was stopped and discarded when load reached 
 and the unchanged npm statement went from 31 ms to 141 ms.
 
 Delta against the base statement, in ms, as minimum and median. The shipped row is
-byte-identical to the statement the shipped constant renders.
+byte-identical to the statement the shipped constant rendered when measured. #10070
+later added `'ghsa'` to the source list of the malformed-target check. A diff against
+the measured statement shows that as the only change, and these figures were not
+re-measured after it.
 
 | Request | Base min / med | Shipped: two rows, tuned | One row per package | First candidate: two rows |
 |---|---|---|---|---|
@@ -170,3 +173,7 @@ still covers a failed read.
 - Debian and Ubuntu scopes of one `os` package share one newest-wins group, the
   same defect across distros. They carry no release qualifier, so this PR leaves
   them unchanged.
+- The release parse reads the first `release` value, so `?release=&release=v3.18`
+  has no release, where the regular expression it replaced read v3.18. The
+  coordinator writes one value per scope, so this takes a hand-written row.
+  `TestSupplyChainImpactReadinessDerivedEmptyReleaseValueHasNoReleaseLive` pins it.
