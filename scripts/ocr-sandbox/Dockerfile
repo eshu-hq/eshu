@@ -86,7 +86,10 @@ FROM ${ESHU_ALPINE_IMAGE} AS proof
 # objects, 15 packages, from `apk info -W`), plus the model package, at its
 # exact Alpine-signed version. The same versions install on arm64 and amd64.
 # A version that leaves the Alpine 3.21 index fails the build instead of
-# floating. Keep these in step with the digests in scripts/prove-ocr-sandbox.sh.
+# floating — except packages the base image preinstalls (e.g. musl, zlib),
+# where apk treats the exact pin as a no-op (see diagnosis record).
+# scripts/prove-ocr-sandbox.sh per-arch digests are the fail-closed layer
+# for those. Keep these in step with the digests in scripts/prove-ocr-sandbox.sh.
 RUN apk add --no-cache \
         "tesseract-ocr=5.5.0-r0" "tesseract-ocr-data-eng=5.5.0-r0" \
         "leptonica=1.84.1-r0" "libwebp=1.4.0-r0" "libwebpmux=1.4.0-r0" \
