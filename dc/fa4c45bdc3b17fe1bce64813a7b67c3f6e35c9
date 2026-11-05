@@ -1,0 +1,30 @@
+go/internal/storage/postgres/delta_overlay_refusal.go
+  h_78a442cba0b3e6 42-44
+go/internal/storage/postgres/facts_active_crossplane_xrd.go
+  h_78a442cba0b3e6 117-119
+go/internal/storage/postgres/satisfied_by_read_index_live_test.go
+  h_78a442cba0b3e6 51-55,57,64
+go/internal/telemetry/instruments.go
+  h_78a442cba0b3e6 889-895
+scripts/lib/live_postgres_readiness_gen_render.py
+  h_78a442cba0b3e6 124
+scripts/lib/live_postgres_readiness_inventory_gen_internal_storage_postgres_part2.py
+  h_78a442cba0b3e6 10-35,37-235
+scripts/lib/live_postgres_readiness_inventory_gen_internal_storage_postgres_part3.py
+  h_78a442cba0b3e6 1-254
+scripts/lib/live_postgres_readiness_inventory_gen_internal_storage_postgres_part4.py
+  h_78a442cba0b3e6 1-235
+scripts/lib/live_postgres_readiness_inventory_generated.py
+  h_78a442cba0b3e6 23-40,76-77
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "dcfa4c45bdc3b17fe1bce64813a7b67c3f6e35c9",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
