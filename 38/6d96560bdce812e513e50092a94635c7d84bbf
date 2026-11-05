@@ -1,0 +1,16 @@
+go/internal/storage/postgres/facts_active_crossplane_xrd.go
+  h_78a442cba0b3e6 229-230,272-273
+go/internal/storage/postgres/satisfied_by_read_refusal_test.go
+  h_78a442cba0b3e6 27-31,92-94
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "386d96560bdce812e513e50092a94635c7d84bbf",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
