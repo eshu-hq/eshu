@@ -1,0 +1,23 @@
+go/cmd/reducer/semantic_canonical_owner_live_test.go
+  s_7547c0f0af67d4::t_fb547a1a81ba15 170-172
+  s_7547c0f0af67d4::t_9798db76775a3a 1-169,173-239,241,245,247
+  s_7547c0f0af67d4::t_e23a2b252de02d 240,242-244,246,248-260
+go/cmd/reducer/neo4j_wiring_semantic_owner_test.go
+  s_7547c0f0af67d4::t_81b6c6a8dbf2c7 1-130
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "19769853fb09573167295417aeded7e89078e1fe",
+  "prompts": {},
+  "sessions": {
+    "s_7547c0f0af67d4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7c8b2d5-3286-4c2a-be1f-589162535d83",
+        "model": "unknown"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
