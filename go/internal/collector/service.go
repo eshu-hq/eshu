@@ -11,7 +11,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -157,21 +156,21 @@ type Service struct {
 	PollInterval time.Duration
 	// AfterBatchDrained runs once after the current source batch is exhausted,
 	// via a real commit or the AfterEmptyBatchDrained escape (see shouldDrain
-	// in Run). Its bool arg, hasCommitted, is true for a real commit and for
-	// the escape's first-ever call in this process's lifetime (the
-	// startupMaintenanceEscapeUsed once-latch in Run); every later escape
-	// call reports false. A fleet-barrier caller must forward this value so
-	// an empty shard opens a new barrier epoch at most once per process and
-	// otherwise only joins one already open.
+	// in Run). Its bool arg, hasCommitted, is true when a real commit landed
+	// since the last drain, and for the escape's first-ever call in this
+	// process's lifetime (the startupMaintenanceEscapeUsed once-latch in
+	// Run); every later escape call reports false. A fleet-barrier caller
+	// must forward this value so an empty shard opens a new barrier epoch at
+	// most once per process and otherwise only joins one already open.
 	AfterBatchDrained func(context.Context, bool) error
 	// AfterEmptyBatchDrained also runs AfterBatchDrained when the current
 	// source batch is exhausted without commits. The escape is LEVEL-gated on
-	// everCommitted, not edge-gated on the last drain: it fires on EVERY idle
-	// poll for as long as this process has never committed, and the first
-	// commit suppresses it permanently. A shard that owns no repositories
-	// therefore keeps arriving for the lifetime of the process, which is the
-	// #5852 fix -- the earlier edge-gated form arrived once at startup and
-	// then never again, stalling every other shard on the barrier.
+	// this flag, not edge-gated on the last drain: it fires on EVERY idle
+	// poll, so a shard that owns no repositories — or whose later generations
+	// are all refused (#10084) — keeps arriving join-only for the lifetime of
+	// the process, which is the #5852 fix carried forward: the earlier
+	// edge-gated form arrived once at startup and then never again, stalling
+	// every other shard on the barrier.
 	//
 	// Recurring arrivals are safe because only the first one may OPEN a
 	// barrier epoch (see AfterBatchDrained's hasCommitted arg and the
@@ -205,28 +204,19 @@ func (s Service) Run(ctx context.Context) error {
 	}
 
 	committedSinceDrain := false
-	// everCommitted latches true on the first commit and never clears again,
-	// unlike committedSinceDrain (which resets on every drain). #5852: gating
-	// the AfterEmptyBatchDrained escape on a drain-cleared flag meant a shard
-	// that never commits (owns no repositories) escaped once at startup and
-	// then never again, starving every later barrier epoch of its arrival.
-	// Gating on !everCommitted instead re-fires the escape on every idle poll
-	// until this shard's first commit, if any — recurring for the process
-	// lifetime when there is none, and yielding to committedSinceDrain as
-	// soon as one lands.
-	everCommitted := false
-	// startupMaintenanceEscapeUsed latches true the first time the
-	// never-committed empty-batch escape (emptyBatchEscape below) calls
-	// AfterBatchDrained in this process's lifetime. That one call reports
-	// hasCommitted=true so a shard that owns no repositories can still open
-	// the fleet barrier's first epoch and get the one-time startup
+	// startupMaintenanceEscapeUsed latches true on the first AfterBatchDrained
+	// call in this process's lifetime, whatever leg drove it. That one call
+	// reports hasCommitted=true so a shard that owns no repositories can still
+	// open the fleet barrier's first epoch and get the one-time startup
 	// maintenance pass every shard triggered on origin/main via its
-	// emptyDrainObserved latch (#5852 P1 follow-up). Every later
-	// emptyBatchEscape call after that reports the shard's real (still
-	// false) commit status and stays join-only (see
+	// emptyDrainObserved latch (#5852 P1 follow-up). Every later call reports
+	// the shard's real commit status and stays join-only (see
 	// DeferredMaintenanceBarrierConfig.HasCommitted), so a quiet fleet does
 	// not reopen and rerun the corpus-wide maintenance pass on every idle
-	// poll — the storm the everCommitted latch alone would otherwise cause.
+	// poll. A shard that committed and then goes idle or is only refused
+	// (#10084) keeps arriving with false on every drain, which also closes
+	// the documented idle-shard stall: an idle shard joins an epoch a peer
+	// opened instead of stranding it.
 	startupMaintenanceEscapeUsed := false
 	for {
 		if ctx.Err() != nil {
@@ -255,11 +245,14 @@ func (s Service) Run(ctx context.Context) error {
 		}
 		if !ok {
 			s.endCollectorObserve(observation, nil)
-			emptyBatchEscape := s.AfterEmptyBatchDrained && !everCommitted
+			// The escape is level-gated on the flag: every idle poll drains
+			// while AfterEmptyBatchDrained is set, so a shard with nothing to
+			// account for keeps arriving join-only (#10084).
+			emptyBatchEscape := s.AfterEmptyBatchDrained
 			shouldDrain := committedSinceDrain || emptyBatchEscape
 			if shouldDrain && s.AfterBatchDrained != nil {
 				hasCommitted := committedSinceDrain
-				if emptyBatchEscape && !startupMaintenanceEscapeUsed {
+				if !startupMaintenanceEscapeUsed {
 					hasCommitted = true
 					startupMaintenanceEscapeUsed = true
 				}
@@ -311,7 +304,6 @@ func (s Service) Run(ctx context.Context) error {
 				return err
 			}
 			committedSinceDrain = true
-			everCommitted = true
 		}
 		s.endCollectorObserve(observation, nil)
 	}
@@ -393,97 +385,6 @@ func (s Service) completeGenerationDeadLetterReplay(ctx context.Context, collect
 		return fmt.Errorf("complete generation replay: %w", err)
 	}
 	return nil
-}
-
-func (s Service) commitWithTelemetry(ctx context.Context, collected CollectedGeneration, startedAt time.Time) error {
-	var err error
-	if collected.StateWriter != nil {
-		// Only ClaimedService runs the writer in the commit transaction.
-		err = errors.New("collector service cannot persist generation state; run the source under ClaimedService")
-		if streamErr := cleanupCollectedFactStream(collected); streamErr != nil {
-			err = errors.Join(err, streamErr)
-		}
-	} else if collected.FactStreamErr != nil {
-		streamCommitter, ok := s.Committer.(StreamErrorCommitter)
-		if !ok {
-			err = errors.New("collector committer must support fact stream errors")
-			if streamErr := cleanupCollectedFactStream(collected); streamErr != nil {
-				err = errors.Join(err, streamErr)
-			}
-		} else {
-			err = streamCommitter.CommitScopeGenerationWithStreamError(
-				ctx,
-				collected.Scope,
-				collected.Generation,
-				collected.Facts,
-				collected.FactStreamErr,
-			)
-		}
-	} else {
-		err = s.Committer.CommitScopeGeneration(
-			ctx,
-			collected.Scope,
-			collected.Generation,
-			collected.Facts,
-		)
-	}
-
-	// After the commit drain, FactCount() returns the exact streamed count
-	// (via the atomic populated by the streaming goroutine) or the
-	// pre-computed estimate for non-streaming collectors.
-	factCount := int64(collected.FactCount())
-
-	duration := time.Since(startedAt).Seconds()
-
-	if s.Instruments != nil {
-		attrs := metric.WithAttributes(
-			telemetry.AttrScopeKind(string(collected.Scope.ScopeKind)),
-			telemetry.AttrSourceSystem(collected.Scope.SourceSystem),
-			telemetry.AttrCollectorKind(string(collected.Scope.CollectorKind)),
-		)
-		s.Instruments.CollectorObserveDuration.Record(ctx, duration, attrs)
-		s.Instruments.FactsEmitted.Add(ctx, factCount, attrs)
-		s.Instruments.GenerationFactCount.Record(ctx, float64(factCount), attrs)
-		if err == nil && !commitRefused(ctx) {
-			s.Instruments.FactsCommitted.Add(ctx, factCount, attrs)
-		}
-	}
-
-	if s.Logger != nil {
-		scopeAttrs := telemetry.ScopeAttrs(
-			collected.Scope.ScopeID,
-			collected.Generation.GenerationID,
-			collected.Scope.SourceSystem,
-		)
-		logAttrs := make([]any, 0, len(scopeAttrs)+2)
-		for _, a := range scopeAttrs {
-			logAttrs = append(logAttrs, a)
-		}
-		logAttrs = append(logAttrs, slog.Int("fact_count", collected.FactCount()))
-		logAttrs = append(logAttrs, slog.Float64("duration_seconds", duration))
-
-		logAttrs = append(logAttrs, telemetry.PhaseAttr(telemetry.PhaseEmission))
-		if err != nil {
-			logAttrs = append(logAttrs, log.Err(err))
-			logAttrs = append(logAttrs, telemetry.FailureClassAttr("commit_failure"))
-			s.Logger.ErrorContext(ctx, "collector commit failed", logAttrs...)
-		} else {
-			s.Logger.InfoContext(ctx, "collector commit succeeded", logAttrs...)
-		}
-	}
-
-	if err != nil {
-		return fmt.Errorf("commit scope generation: %w", err)
-	}
-	return nil
-}
-
-func drainFactStream(factStream <-chan facts.Envelope) {
-	if factStream == nil {
-		return
-	}
-	for range factStream {
-	}
 }
 
 func waitForNextPoll(ctx context.Context, pollInterval time.Duration) error {

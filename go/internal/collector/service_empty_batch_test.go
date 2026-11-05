@@ -98,42 +98,42 @@ func (s *scriptedPollSource) Next(context.Context) (CollectedGeneration, bool, e
 	return CollectedGeneration{Facts: stream}, true, nil
 }
 
-// TestServiceRunEmptyBatchEscapeAddsExactlyOneDrainPerProcess pins the escape's
+// TestServiceRunEmptyBatchEscapeAddsJoinOnlyDrainsPerIdlePoll pins the escape's
 // blast radius, for a shard that DOES eventually commit, by measuring the
-// observable — the drain count — rather than reasoning about the latch
-// flags, which is easy to get wrong from the source.
+// observable — the drain count and values — rather than reasoning about the
+// latch flags, which is easy to get wrong from the source.
 //
-// The escape leg fires while `everCommitted` is false (service.go:223) and
-// `everCommitted` latches true permanently on this shard's first commit
-// (service.go:276) — it is never cleared again for the rest of the process.
-// So for a script that commits at least once, the escape leg can matter only
-// during the idle polls before that first commit; every commit-to-idle cycle
-// after it is driven by `committedSinceDrain` alone, on or off. (A shard that
-// never commits at all is a different case — see
-// TestServiceRunCallsEmptyBatchDrainHookOnEveryIdlePollForANeverCommittingShard,
-// which pins the opposite behavior: the escape recurs on every idle poll for
-// as long as `everCommitted` stays false.)
+// The escape leg fires on EVERY idle poll while AfterEmptyBatchDrained is set
+// (#10084): a shard that committed and then goes idle keeps arriving join-only
+// (false) instead of falling silent, so a peer in an open epoch is never
+// stranded. Only the process-first drain call may report true via the
+// startupMaintenanceEscapeUsed once-latch; every later escape-driven call
+// reports the real, still-false commit status. A shard that never commits at
+// all is the same recurrence from the first poll — see
+// TestServiceRunCallsEmptyBatchDrainHookOnEveryIdlePollForANeverCommittingShard.
 //
 // Running the same script with the escape on and off isolates the escape's own
-// contribution: the delta must be exactly one drain for the whole process, no
-// matter how many commit-to-idle cycles the script contains, because this
-// script's leading idle poll is the only one that happens before any commit.
-func TestServiceRunEmptyBatchEscapeAddsExactlyOneDrainPerProcess(t *testing.T) {
+// contribution: the delta equals the number of idle polls with nothing pending
+// (the leading poll plus one trailing idle poll per cycle), and exactly the
+// leading call plus one per commit-to-idle cycle report true.
+func TestServiceRunEmptyBatchEscapeAddsJoinOnlyDrainsPerIdlePoll(t *testing.T) {
 	t.Parallel()
 
 	const cycles = 10
-	// One idle poll before any commit (the only state the escape leg decides),
-	// then repeated commit-to-idle cycles that the committedSinceDrain leg drives.
+	// One idle poll before any commit, then repeated commit-to-idle cycles of
+	// one commit poll and two idle polls: the first idle poll of each cycle
+	// follows a commit (committedSinceDrain drives it), the second is a true
+	// idle poll (only the escape drives it).
 	script := []bool{false}
 	for range cycles {
 		script = append(script, true, false, false)
 	}
 
-	drainsWithEscape := func(escape bool) int {
+	drainsWithEscape := func(escape bool) []bool {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		hookCalls := 0
+		var values []bool
 		service := Service{
 			Source: &scriptedPollSource{
 				script: append([]bool(nil), script...),
@@ -142,15 +142,15 @@ func TestServiceRunEmptyBatchEscapeAddsExactlyOneDrainPerProcess(t *testing.T) {
 			Committer:              &stubCommitter{},
 			PollInterval:           time.Microsecond,
 			AfterEmptyBatchDrained: escape,
-			AfterBatchDrained: func(context.Context, bool) error {
-				hookCalls++
+			AfterBatchDrained: func(_ context.Context, hasCommitted bool) error {
+				values = append(values, hasCommitted)
 				return nil
 			},
 		}
 		if err := service.Run(ctx); err != nil {
 			t.Fatalf("Run(escape=%t) error = %v, want nil", escape, err)
 		}
-		return hookCalls
+		return values
 	}
 
 	withEscape := drainsWithEscape(true)
@@ -158,13 +158,37 @@ func TestServiceRunEmptyBatchEscapeAddsExactlyOneDrainPerProcess(t *testing.T) {
 
 	// The escape-off arm proves the recurrence is committedSinceDrain's: one
 	// drain per commit-to-idle cycle, with none for the leading idle poll.
-	if withoutEscape != cycles {
+	if len(withoutEscape) != cycles {
 		t.Fatalf("drains without escape = %d, want %d (one per commit-to-idle cycle)",
-			withoutEscape, cycles)
+			len(withoutEscape), cycles)
 	}
-	if got := withEscape - withoutEscape; got != 1 {
-		t.Fatalf("drains added by AfterEmptyBatchDrained = %d (%d with, %d without), want exactly 1 per process",
-			got, withEscape, withoutEscape)
+	for i, v := range withoutEscape {
+		if !v {
+			t.Fatalf("drains without escape[%d] = false, want all true (every drain follows a commit)", i)
+		}
+	}
+	// One leading idle drain plus two drains per cycle (commit drain, then one
+	// join-only idle drain), plus the terminal post-cancel idle poll, which
+	// also arrives join-only.
+	if want := 2 + 2*cycles; len(withEscape) != want {
+		t.Fatalf("drains with escape = %d, want %d (one per idle poll plus one per commit drain, plus terminal)",
+			len(withEscape), want)
+	}
+	trues := 0
+	for i, v := range withEscape {
+		if v {
+			trues++
+			continue
+		}
+		if i == 0 {
+			t.Fatal("drains with escape[0] = false, want true (the process-first drain opens the startup epoch)")
+		}
+	}
+	// The leading escape drain plus one commit drain per cycle report true;
+	// every trailing idle drain stays join-only.
+	if want := 1 + cycles; trues != want {
+		t.Fatalf("true drains with escape = %d, want %d (leading drain plus one per commit)",
+			trues, want)
 	}
 }
 

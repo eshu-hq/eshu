@@ -75,13 +75,13 @@ type DeferredMaintenanceBarrierConfig struct {
 	// later escape call on the same shard reports the real, still-false
 	// status. HasCommitted gates a join-only invariant: a shard that reports
 	// false may still join an epoch that is already open (that is what
-	// unblocks a fleet where one shard owns no repositories — #5852), but it
-	// may open a new epoch only when HasCommitted is true. Without the
-	// once-per-process escape override, a quiet fleet where nothing ever
-	// commits would never run its one startup maintenance pass at all;
-	// without the join-only bound, it would instead reopen and rerun the
-	// corpus-wide maintenance pass against an unchanged corpus on every idle
-	// poll.
+	// unblocks a fleet where one shard owns no repositories — #5852 — or is
+	// only refused, #10084), but it may open a new epoch only when
+	// HasCommitted is true. Without the once-per-process escape override, a
+	// quiet fleet where nothing ever commits would never run its one startup
+	// maintenance pass at all; without the join-only bound, it would instead
+	// reopen and rerun the corpus-wide maintenance pass against an unchanged
+	// corpus on every idle poll.
 	HasCommitted bool
 }
 
