@@ -35,6 +35,14 @@ env:
   ESHU_ALPINE_IMAGE: ghcr.io/eshu-hq/ci-mirror-alpine@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d
 
 jobs:
+  # #10074 deferral: no enabled drain in this workflow references the
+  # document/media engine satellites (OCR tesseract, whisper.cpp
+  # transcript). They are proof-gated, not Compose services: their gate
+  # is scripts/prove-ocr-sandbox.sh and
+  # scripts/verify-media-transcript-sandbox.sh (manual, evidence under
+  # docs/internal/evidence). If they ever become enabled Compose services
+  # with reducer drain, add their drain assertions here; until then this
+  # gap stays explicitly deferred, not overlooked.
   test:
     if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'test') }}
     name: test (${{ matrix.graph_backend }})
