@@ -7,6 +7,10 @@ Do not edit by hand; regenerate with
 
 TABLE = {
     "./internal/storage/postgres": {
+        "go/internal/storage/postgres/manifest_dependency_read_parity_live_test.go": (
+            "TestManifestDependencyProbeTextsMatchFlatTextsLive",
+            "TestManifestDependencyProbePlanUsesTheFoldedIndexLive",
+        ),
         "go/internal/storage/postgres/manifest_less_dirty_rule_answer_live_test.go": (
             "TestReducerContentionGateManifestLessDirtyRuleReturnsTheSameDefinitions",
             "TestReducerContentionGateManifestLessDirtyRuleNaiveRuleLosesTheHole",

@@ -34,14 +34,14 @@ import (
 // handlers do not filter IsTombstone themselves. This matches every sibling
 // active source-local reader.
 //
-// No-Regression Evidence: predicate-only narrowing of an existing WHERE clause
-// on the active-generation read. The partial
-// fact_records_active_package_dependency_entity_idx index does not cover
-// is_tombstone, so the planner applies the new predicate as a residual filter
-// on rows the index scan already visits; the index choice, the
-// active-generation join, the keyset pagination cursor, ordering, and the scan
-// shape are unchanged.
-// go test ./internal/storage/postgres ./internal/reducer -count=1.
+// The dependency indexes do not cover is_tombstone, so the predicate is a
+// residual filter on the rows each index probe already visits (#1927).
+//
+// Each requested (package manager, folded name) pair is its own probe of the
+// folded entity index (#9611); see listActivePackageManifestDependencyFactsQuery.
+// The keyset cursor, ordering, page size, and statements per read are
+// unchanged. Performance Evidence:
+// docs/internal/evidence/9611-manifest-read-name-probe.md.
 //
 // Case-Fold Evidence (#9568): the entity_name prefilter folds the stored name
 // with LOWER(TRIM(entity_name) COLLATE "C"). The LOWER under COLLATE "C" is
@@ -77,6 +77,21 @@ func (s FactStore) ListActivePackageManifestDependencyFacts(
 	}
 
 	packageManagers, query := activePackageManifestDependencyQuery(ecosystems)
+	return s.listManifestDependencyFactsWithQuery(ctx, started, packageManagers, query, packageNames)
+}
+
+// listManifestDependencyFactsWithQuery runs one manifest dependency read for
+// the active query text query: its active pages, the delta-target lookup, the
+// base pages of the text derived from query, and the delta overlay, all on one
+// snapshot. ListActivePackageManifestDependencyFacts picks query; the #9611
+// parity proof passes the pre-#9611 texts through the same path.
+func (s FactStore) listManifestDependencyFactsWithQuery(
+	ctx context.Context,
+	started time.Time,
+	packageManagers []string,
+	query string,
+	packageNames []string,
+) ([]facts.Envelope, error) {
 	// The read label names the query text that ran: keep the pre-transform
 	// text, because on a snapshot clone the static rewrite below changes
 	// the text and no rewritten text is in the label table.

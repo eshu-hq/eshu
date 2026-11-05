@@ -30,10 +30,10 @@ func TestOwnedResolverPartsAreSlicesOfProduction(t *testing.T) {
 			t.Errorf("%s = %q is empty or not a slice of the owned-package reader statement", name, piece)
 		}
 	}
-	if !strings.Contains(listActivePackageManifestDependencyFactsQuery, parts.foldedName+" = ANY($2::text[])") {
+	if !strings.Contains(listActivePackageManifestDependencyFactsQuery, parts.foldedName+" = requested_name.name") {
 		t.Errorf("foldedName = %q is not the manifest reader's folded predicate", parts.foldedName)
 	}
-	if !strings.Contains(listActivePackageManifestDependencyFactsWithSBTQuery, parts.foldedName+" = ANY($2::text[])") {
+	if !strings.Contains(listActivePackageManifestDependencyFactsWithSBTQuery, parts.foldedName+" = requested_name.name") {
 		t.Errorf("foldedName = %q is not the Maven-family reader's folded predicate", parts.foldedName)
 	}
 	// The reader hashes the raw stored name; a lower-cased or folded key would

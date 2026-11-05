@@ -75,7 +75,9 @@ func buildOwnedResolverParts() (ownedResolverParts, error) {
 		return ownedResolverParts{}, err
 	}
 	parts.low24 = "get_byte(key_hash, 0)" + low24Body
-	foldLine, err := between(listActivePackageManifestDependencyFactsQuery, "  AND (LOWER(TRIM(", ") = ANY($2::text[])")
+	// The manifest reader compares the folded name with each requested name
+	// of its per-name probe (#9611).
+	foldLine, err := between(listActivePackageManifestDependencyFactsQuery, "  AND (LOWER(TRIM(", ") = requested_name.name")
 	if err != nil {
 		return ownedResolverParts{}, err
 	}

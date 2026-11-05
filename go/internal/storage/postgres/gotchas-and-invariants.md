@@ -131,7 +131,12 @@ operational lessons that future storage changes still need to respect.
   dependency entities by `(package_manager, entity_name)`, plus the
   case-folded variant `fact_records_active_package_dependency_folded_entity_idx`
   that serves the `LOWER(TRIM(entity_name) COLLATE "C")` prefilter for
-  registry-cased manifest rows (#9568), so vulnerability
+  registry-cased manifest rows (#9568). Each requested (manager, name) pair is
+  its own LATERAL probe of that index with an inner `LIMIT $5` (#9611): the
+  planner ignores expression statistics of partial indexes, so a flat
+  `= ANY($1)`/`= ANY($2)` read scanned the whole manager prefix per page. Keep
+  the probe, the inner limit, and both `DISTINCT` inputs
+  (`TestManifestDependencyQueriesProbeEachRequestedName`), so vulnerability
   impact can load repository lockfile evidence for one advisory package without
   waiting for package-registry enrichment to finish. A Maven ecosystem filter
   expands to `gradle`, `maven`, and `sbt` rows and adds a second branch for sbt

@@ -62,9 +62,13 @@ func TestFactStoreListActivePackageManifestDependencyFactsUsesActiveGenerations(
 		"generation.status = 'active'",
 		"fact.fact_kind = 'content_entity'",
 		"fact.source_system = 'git'",
-		"fact.payload->'entity_metadata'->>'package_manager' = ANY($1::text[])",
-		`(LOWER(TRIM(fact.payload->>'entity_name') COLLATE "C") COLLATE "default") = ANY($2::text[])`,
+		// The requested pairs drive a per-name probe (#9611).
+		"FROM (SELECT DISTINCT manager FROM unnest($1::text[]) AS manager) AS requested_manager",
+		"CROSS JOIN (SELECT DISTINCT name FROM unnest($2::text[]) AS name) AS requested_name",
+		"fact.payload->'entity_metadata'->>'package_manager' = requested_manager.manager",
+		`(LOWER(TRIM(fact.payload->>'entity_name') COLLATE "C") COLLATE "default") = requested_name.name`,
 		"ORDER BY fact.observed_at ASC, fact.fact_id ASC",
+		"ORDER BY page.observed_at ASC, page.fact_id ASC",
 		"LIMIT $5",
 	} {
 		if !strings.Contains(query, want) {
@@ -115,9 +119,10 @@ const manifestDependencyEntityNameFold = `(LOWER(TRIM(fact.payload->>'entity_nam
 var manifestDependencyLocaleFoldPattern = regexp.MustCompile(`LOWER\(TRIM\(fact\.payload->>'entity_name'\)\)`)
 
 // TestManifestDependencyQueryFoldsEntityNameASCIIOnly pins the #9568 SQL
-// contract on both shipped queries: the entity_name prefilter and the sbt
-// exclusion fold the stored name with LOWER under COLLATE "C", never a locale
-// LOWER that maps U+0130 to i and U+212A to k.
+// contract on both shipped queries: the entity_name probe (#9611 compares it
+// with each requested name) and the sbt exclusion fold the stored name with
+// LOWER under COLLATE "C", never a locale LOWER that maps U+0130 to i and
+// U+212A to k.
 func TestManifestDependencyQueryFoldsEntityNameASCIIOnly(t *testing.T) {
 	t.Parallel()
 
@@ -125,7 +130,7 @@ func TestManifestDependencyQueryFoldsEntityNameASCIIOnly(t *testing.T) {
 		"direct": listActivePackageManifestDependencyFactsQuery,
 		"sbt":    listActivePackageManifestDependencyFactsWithSBTQuery,
 	} {
-		if !strings.Contains(query, manifestDependencyEntityNameFold+" = ANY($2::text[])") {
+		if !strings.Contains(query, manifestDependencyEntityNameFold+" = requested_name.name") {
 			t.Fatalf("%s query does not fold entity_name with %s", name, manifestDependencyEntityNameFold)
 		}
 		if manifestDependencyLocaleFoldPattern.MatchString(query) {

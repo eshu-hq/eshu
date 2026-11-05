@@ -234,6 +234,11 @@ tests:
     class: postgres_ci
     reason: "#7620 disposable PostgreSQL 18 proof that the reindex watermark upsert returns a monotonic database-clock stamp: sequential requests never go backward, sixteen concurrent requests store the largest returned value, and a future-seeded value is not moved backward (a mutant without GREATEST fails this proof). Enrolled in the live-postgres-readiness runner; 1.23s of test time, 3s wall with a warm build cache, on postgres:18.6-alpine on tmpfs on 2026-10-06; wall time is logged, not gated"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/manifest_dependency_read_parity_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#9611 disposable PostgreSQL proof that the per-(package manager, name) probe texts of ListActivePackageManifestDependencyFacts return the same ordered rows as the pre-#9611 flat texts through the same paging and delta overlay path, on a delta-active and a no-delta corpus, for the plain and Maven-family reads; reads ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DSN with its disposable opt-in"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/manifest_less_dirty_rule_answer_live_test.go
     tag: ~
     class: postgres_ci

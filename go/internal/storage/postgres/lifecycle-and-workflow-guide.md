@@ -74,8 +74,8 @@ only active, non-tombstoned Git manifest dependency entities for the
 ecosystem/name set in the current package-registry reducer intent. It filters `is_tombstone = FALSE`
 as a residual predicate on the rows the index scan already visits, so a manifest
 dependency fact tombstoned within a still-active generation is never returned as
-live; the index choice, keyset pagination, and scan shape are unchanged, and the
-guard matches every sibling active source-local reader.
+live. Each requested (package manager, folded name) pair probes the folded index
+on its own (#9611); the guard matches every sibling active source-local reader.
 `ListOwnedPackageDependencyTargets` uses the
 same active-generation dependency predicate with a small ecosystem allowlist
 and hard result cap so the workflow coordinator can derive package-registry and
