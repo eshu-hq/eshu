@@ -1,0 +1,28 @@
+docs/internal/design/advisory-intelligence-correlation-flow.md
+  h_78a442cba0b3e6 100
+docs/internal/design/advisory-intelligence-engineering-flow.md
+  h_78a442cba0b3e6 101
+docs/internal/evidence/9874-lockfile-retrigger.md
+  h_78a442cba0b3e6 36-37,119-122,159-171,173-209
+docs/public/observability/telemetry-coverage-reducer-domains.md
+  h_78a442cba0b3e6 94
+docs/public/reference/telemetry/supply-chain-impact-winners.md
+  h_78a442cba0b3e6 102
+go/internal/projector/runtime/supply_chain_impact_manifest_projection_test.go
+  h_78a442cba0b3e6 85-90
+go/internal/projector/supply/chain/impact/intents.go
+  h_78a442cba0b3e6 32-34
+go/internal/reducer/supplychain/core/HOLDER_FANOUT.md
+  h_78a442cba0b3e6 129-130
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "95f400cbb134a6f8a93d2390663aa948f5400740",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
