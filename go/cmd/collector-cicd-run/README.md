@@ -82,14 +82,17 @@ Host-file failures use `auth_denied`; static-token provider failures retain
   binary never wrote `cicd_run_watermarks`, gap detection never fired, and each
   claim leaked one staged entry. The first deployment with #10063 starts those
   writes. To watch that rollout: `cicd_run_watermarks` should gain a row per GitHub
-  target; `eshu_dp_workflow_claim_commit_observer_failures_total{collector_kind="ci_cd_run"}`
+  target that has at least one run (an empty window saves nothing, so a target
+  with no runs gets no row); `eshu_dp_workflow_claim_commit_observer_failures_total{collector_kind="ci_cd_run"}`
   should stay flat (a rise means the save failed or lost the guard, and the
   `claimed_generation_commit_observer_failed` span event carries the error); and
   `eshu_dp_ci_cd_run_partial_generations_total{reason="runs_backfill_gap"}` can
   start for the first time on repositories busier than `max_runs` per cycle, which
   is the signal working, not a regression. To roll back to an image before #10063,
-  also run `DELETE FROM cicd_run_watermarks`: that image reads the rows but never
-  advances them, so a frozen row would report a false gap on every truncated window.
+  also run `DELETE FROM cicd_run_watermarks`, and run it only after the last pod
+  on the new image has exited: a draining new pod can still save a row, and that
+  row would then stay frozen. The old image reads the rows but never advances
+  them, so a frozen row would report a false gap on every truncated window.
 
 ## Related docs
 
