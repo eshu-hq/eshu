@@ -1,17 +1,25 @@
 name: OCR Sandbox Proof
 
-# Weekly, non-blocking (#10071). Rebuilds the proof image from
-# scripts/ocr-sandbox/Dockerfile and runs scripts/prove-ocr-sandbox.sh, so a
-# pin that has drifted off the Alpine 3.21 index pages CI within a week
-# instead of rotting silently until the next manual proof run. Exact `=`
-# pins are invisible to the apk-floors drift detector (it audits `>=`
-# floors), and base-preinstalled packages resolve stale instead of failing
-# closed, so only a real build proves this image. This workflow has no
-# pull_request trigger, so it never holds an unrelated change.
+# Event-driven, non-blocking (#10071). Rebuilds the proof image from
+# scripts/ocr-sandbox/Dockerfile and runs scripts/prove-ocr-sandbox.sh
+# whenever the proof surface changes, so a pin edit or base-image bump is
+# proven at upgrade time instead of rotting silently until a manual proof
+# run. Exact `=` pins are invisible to the apk-floors drift detector (it
+# audits `>=` floors), and base-preinstalled packages resolve stale instead
+# of failing closed, so only a real build proves this image. The proof
+# compiles the ocr/tesseract test binary into the image, so that package
+# is trigger surface too: its sandbox tests Skip without the proof env,
+# and a test-only desync would otherwise ship green. The paths filter
+# means it never holds an unrelated change; upstream-side rot with no
+# repo activity is discovered at the next base bump, when the fix is the
+# same pin edit anyway.
 on:
-  schedule:
-    # Wednesdays 06:30 UTC, clear of the Monday security/satellite pileup.
-    - cron: "30 6 * * 3"
+  push:
+    paths:
+      - ".github/workflows/ocr-sandbox-proof.yml"
+      - "scripts/ocr-sandbox/Dockerfile"
+      - "scripts/prove-ocr-sandbox.sh"
+      - "go/internal/collector/document/ocr/tesseract/**"
   workflow_dispatch:
 
 permissions:
@@ -25,7 +33,7 @@ env:
 
 jobs:
   prove-ocr-sandbox:
-    name: OCR sandbox proof (weekly)
+    name: OCR sandbox proof
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     env:
