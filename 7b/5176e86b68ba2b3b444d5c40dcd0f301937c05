@@ -1,0 +1,27 @@
+go/internal/backendconformance/statement_coverage_shell_exec_delta_test.go
+  s_7547c0f0af67d4::t_be19060aa2310a 1-60
+go/internal/queryplan/testdata/statement-builders.yaml
+  s_7547c0f0af67d4::t_4d503a15b5d66f 799-801
+docs/internal/evidence/10022-delta-cassette-feasibility.md
+  s_7547c0f0af67d4::t_f24f38bdf1c8f7 186-215
+scripts/lib/golden-corpus-delta-reader.sh
+  s_7547c0f0af67d4::t_ecb615f32a1f12 60-66,93-94,133
+scripts/lib/test-golden-corpus-delta-reader.sh
+  s_7547c0f0af67d4::t_7d07d073141819 94-106
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7b5176e86b68ba2b3b444d5c40dcd0f301937c05",
+  "prompts": {},
+  "sessions": {
+    "s_7547c0f0af67d4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7c8b2d5-3286-4c2a-be1f-589162535d83",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
