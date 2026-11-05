@@ -423,6 +423,69 @@ func TestBuildRemoteCutoverObservesEmissionDenyAfterRevoke(t *testing.T) {
 	}
 }
 
+// TestBuildRemoteCutoverObservesEmissionDenyAfterExpiry is the
+// expired-artifact proof for the enabled path: a grant past its ExpiresAt
+// fails the next emission closed with the expired reason AND the denial is
+// observed at the emission stage, so an expired producer cannot emit
+// silently on the extracted path (eshu-hq/eshu#8877, Leaf-3 hostile parity:
+// the seam replay table pins expiry at the raw client, this pins it through
+// the worker-built cutover with the observer bound). It fails while the
+// enabled path authorizes expired grants or leaves the denial unobserved.
+func TestBuildRemoteCutoverObservesEmissionDenyAfterExpiry(t *testing.T) {
+	t.Parallel()
+
+	home := t.TempDir()
+	registry := component.NewRegistry(home)
+	expired := component.ProducerGrant{
+		ProducerID:     cutoverObserverComponentID,
+		Version:        cutoverObserverVersion,
+		Kind:           cutoverObserverCoreKind,
+		SchemaVersions: []string{cutoverObserverSchema},
+		Scope:          cutoverObserverScope,
+		ExpiresAt:      time.Now().Add(-time.Hour).UTC(),
+	}
+	if err := registry.RecordGrant(expired); err != nil {
+		t.Fatalf("RecordGrant(expired) error = %v, want nil", err)
+	}
+	plan := cutoverPlan{
+		enabled:         true,
+		remoteURL:       "http://eshu-workflow-claim-plane:8080",
+		producerID:      cutoverObserverComponentID,
+		producerVersion: cutoverObserverVersion,
+		scopes:          []string{cutoverObserverScope},
+	}
+	observer := &recordingGrantObserver{}
+	cutover, err := buildRemoteCutover(plan, home, observer)
+	if err != nil {
+		t.Fatalf("buildRemoteCutover(enabled) error = %v, want nil", err)
+	}
+	err = cutover.AuthorizeEmission(context.Background(), cutoverObserverCoreKind, cutoverObserverSchema)
+	deny, ok := err.(*remoteclaim.DenyError)
+	if !ok {
+		t.Fatalf("AuthorizeEmission() error = %v (%T), want *DenyError after expiry", err, err)
+	}
+	if deny.Reason != component.GrantReasonExpired {
+		t.Fatalf("DenyError.Reason = %q, want %q", deny.Reason, component.GrantReasonExpired)
+	}
+	got := observer.snapshot()
+	if len(got) != 1 {
+		t.Fatalf("observed decisions = %d, want exactly 1 emission deny", len(got))
+	}
+	decision := got[0]
+	if decision.Allowed {
+		t.Errorf("decision.Allowed = true, want false after expiry")
+	}
+	if decision.Reason != component.GrantReasonExpired {
+		t.Errorf("decision.Reason = %q, want %q", decision.Reason, component.GrantReasonExpired)
+	}
+	if decision.Stage != component.GrantStageEmission {
+		t.Errorf("decision.Stage = %q, want %q", decision.Stage, component.GrantStageEmission)
+	}
+	if decision.ProducerID != cutoverObserverComponentID || decision.Version != cutoverObserverVersion {
+		t.Errorf("decision holder = %q %q, want the pinned holder, never a wire value", decision.ProducerID, decision.Version)
+	}
+}
+
 // TestBuildRemoteCutoverNilObserverKeepsOutcome proves observation never
 // changes the allow/deny outcome: with a nil observer the enabled cutover
 // still authorizes the live grant. The nil path stays the disabled-observation
