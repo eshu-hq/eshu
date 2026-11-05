@@ -256,6 +256,9 @@ TABLE = {
             "TestReducerQueueAckBatchFencesSupersededClaimLive",
             "TestReducerQueueExpiryInterleaveLive",
         ),
+        "go/internal/storage/postgres/reducer_queue_code_call_delta_scope_live_test.go": (
+            "TestCodeCallDeltaScopeUnusableDeadLettersOnFirstAttemptLive",
+        ),
         "go/internal/storage/postgres/reducer_queue_producer_refinalize_live_test.go": (
             "TestOwnGateWaitsThroughRefinalizeReResolutionLive",
         ),

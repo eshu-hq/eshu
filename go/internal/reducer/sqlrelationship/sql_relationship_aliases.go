@@ -223,7 +223,7 @@ var (
 
 // codeCallDeltaRelativePathsFromRepository returns the deduplicated union of a
 // decoded codegraphv1.Repository's DeltaRelativePaths and
-// DeltaDeletedRelativePaths. Duplicated from code/call/intents.go rather than
+// DeltaDeletedRelativePaths. Duplicated from code/call/delta_scope.go rather than
 // imported, so this edge family takes no dependency on the code-call packages
 // (issue #6061). It operates only on the SDK-owned
 // codegraphv1.Repository type, so a local copy carries no drift risk worth a

@@ -12,13 +12,8 @@ import (
 	"time"
 
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
-	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
-
-	codegraphv1 "github.com/eshu-hq/eshu-sdk/factschema/codegraph/v1"
-	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
 )
 
 // PartitionKeyVersion prefixes the code-call refresh partition keys
@@ -146,6 +141,12 @@ func BuildSharedIntentRows(
 // nil when contextByRepoID is empty. Each repository's refresh intent owns the
 // repo-wide CALLS retract that the corresponding per-edge intents from
 // BuildSharedIntentRows are fenced behind.
+//
+// The whole-scope fallback is correct only for a full-generation repository.
+// A delta-generation repository with no usable scope must never reach this
+// builder: callers check [FileScopeBuildResult].UnusableDeltaScopes first and
+// fail closed (#10023), because a whole-scope retract with a delta's rows
+// deletes every unchanged file's CALLS edge.
 func BuildRefreshIntentsWithDeltaFileScopes(
 	contextByRepoID map[string]sharedintent.ProjectionContext,
 	deltaScopesByRepoID map[string]DeltaFileScope,
@@ -229,137 +230,6 @@ func buildCodeCallRefreshIntent(
 		Payload:          payload,
 		CreatedAt:        createdAt,
 	})
-}
-
-func buildCodeCallDeltaFilePathsByRepoID(envelopes []facts.Envelope) map[string][]string {
-	scopesByRepoID := buildCodeCallDeltaFileScopesByRepoID(envelopes)
-	if len(scopesByRepoID) == 0 {
-		return nil
-	}
-
-	pathsByRepoID := make(map[string][]string, len(scopesByRepoID))
-	for repositoryID, scope := range scopesByRepoID {
-		pathsByRepoID[repositoryID] = append([]string(nil), scope.filePaths...)
-	}
-	return pathsByRepoID
-}
-
-// buildCodeCallDeltaFileScopesByRepoID decodes each delta-generation
-// "repository" fact's outer envelope through the codegraph contracts seam
-// (decodeCodegraphRepository) to recover its join identity (RepoID) and the
-// delta path slices before collecting the delta file scope. The cheap
-// delta_generation gate check runs on the raw payload before decode so a
-// non-delta repository fact (the overwhelming majority) never pays the
-// decode cost. A delta-generation repository fact whose payload is missing a
-// required identity field is skipped, matching this function's pre-existing
-// "skip and continue" shape for an absent identity.
-//
-// The repository checkout path is resolved from the raw "path" key first, then
-// the typed LocalPath — preserving the exact pre-Contract-System precedence.
-// "path" is NOT a typed Repository field: gitcontent.RepositoryFactEnvelope never writes
-// it to the payload (it routes the checkout path to SourceRef.SourceURI), so in
-// production this raw read is always absent and LocalPath is used. It is read
-// raw here only to preserve behavior for callers (and tests) that carry the
-// checkout path under "path".
-func buildCodeCallDeltaFileScopesByRepoID(envelopes []facts.Envelope) map[string]DeltaFileScope {
-	seenByRepoID := make(map[string]map[string]struct{})
-	repoPathByRepoID := make(map[string]string)
-	unsafeByRepoID := make(map[string]struct{})
-	for _, env := range envelopes {
-		if env.FactKind != factload.FactKindRepository || !PayloadBool(env.Payload, "delta_generation") {
-			continue
-		}
-		repository, err := schemadecode.DecodeCodegraphRepository(env)
-		if err != nil {
-			continue
-		}
-		// TrimSpace + skip-empty preserves the pre-Contract-System
-		// semanticPayloadString behavior: a whitespace-only repo_id must not
-		// create an unsafeByRepoID/seenByRepoID entry under a non-canonical key.
-		repositoryID := strings.TrimSpace(repository.RepoID)
-		if repositoryID == "" {
-			continue
-		}
-
-		repoPath := payloadcore.SemanticPayloadString(env.Payload, "path")
-		if repoPath == "" && repository.LocalPath != nil {
-			repoPath = *repository.LocalPath
-		}
-		if strings.TrimSpace(repoPath) == "" {
-			unsafeByRepoID[repositoryID] = struct{}{}
-			continue
-		}
-		for _, relativePath := range codeCallDeltaRelativePathsFromRepository(repository) {
-			cleanedRelativePath, ok := normalizeCodeCallDeltaRelativePath(relativePath)
-			if !ok {
-				unsafeByRepoID[repositoryID] = struct{}{}
-				continue
-			}
-			seen := seenByRepoID[repositoryID]
-			if seen == nil {
-				seen = make(map[string]struct{})
-				seenByRepoID[repositoryID] = seen
-			}
-			seen[cleanedRelativePath] = struct{}{}
-			repoPathByRepoID[repositoryID] = repoPath
-		}
-	}
-	if len(seenByRepoID) == 0 {
-		return nil
-	}
-
-	scopesByRepoID := make(map[string]DeltaFileScope, len(seenByRepoID))
-	for repositoryID, seen := range seenByRepoID {
-		if _, unsafe := unsafeByRepoID[repositoryID]; unsafe {
-			continue
-		}
-		repoPath := repoPathByRepoID[repositoryID]
-		if strings.TrimSpace(repoPath) == "" {
-			continue
-		}
-
-		partitionPaths := make([]string, 0, len(seen))
-		for relativePath := range seen {
-			partitionPaths = append(partitionPaths, relativePath)
-		}
-		sort.Strings(partitionPaths)
-
-		filePaths := make([]string, 0, len(partitionPaths))
-		for _, relativePath := range partitionPaths {
-			filePaths = append(filePaths, path.Join(repoPath, relativePath))
-		}
-		scopesByRepoID[repositoryID] = DeltaFileScope{
-			filePaths:      filePaths,
-			partitionPaths: partitionPaths,
-		}
-	}
-	return scopesByRepoID
-}
-
-// codeCallDeltaRelativePathsFromRepository returns the deduplicated union of
-// a decoded codegraphv1.Repository's DeltaRelativePaths and
-// DeltaDeletedRelativePaths — the changed and deleted file paths a delta
-// generation carries. It is the typed-decode replacement for the pre-Contract-
-// System raw payload["delta_relative_paths"]/["delta_deleted_relative_paths"]
-// reads.
-func codeCallDeltaRelativePathsFromRepository(repository codegraphv1.Repository) []string {
-	seen := make(map[string]struct{})
-	var paths []string
-	for _, relativePath := range repository.DeltaRelativePaths {
-		if _, ok := seen[relativePath]; ok {
-			continue
-		}
-		seen[relativePath] = struct{}{}
-		paths = append(paths, relativePath)
-	}
-	for _, relativePath := range repository.DeltaDeletedRelativePaths {
-		if _, ok := seen[relativePath]; ok {
-			continue
-		}
-		seen[relativePath] = struct{}{}
-		paths = append(paths, relativePath)
-	}
-	return paths
 }
 
 func normalizeCodeCallDeltaRelativePath(relativePath string) (string, bool) {

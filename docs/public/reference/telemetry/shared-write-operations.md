@@ -84,6 +84,32 @@ being lost with both endpoints present: investigate it, do not retry it away.
 Use traces and logs for repository, generation, source run, and lease-owner
 detail. The shared-write metrics intentionally stay domain-scoped.
 
+## Code-Call Unusable Delta Scopes
+
+`eshu_dp_code_call_delta_scope_unusable_total` counts delta-generation
+repositories whose code-call file scope could not be built (#10023). It has
+one bounded label, `reason`:
+
+- `missing_local_path`: the repository fact has no local checkout path.
+- `unnormalizable_path`: a changed or deleted path is absolute, escapes the
+  repository root, or is not in canonical form.
+- `no_changed_paths`: the delta generation carries no changed or deleted path.
+
+A delta generation carries only the changed files' facts, so a
+whole-repository CALLS retract would delete every unchanged file's edge while
+the delta restores only the changed files' edges. Instead, the
+`code_call_materialization` work item fails closed before it writes any shared
+intent. It dead-letters on its first attempt with
+`failure_class=code_call_delta_scope_unusable`. The ERROR log
+`code call delta scope unusable, failing closed` names each repository and its
+reason. The graph keeps its existing CALLS edges, and the delta's call changes
+appear at the next full generation of that repository, at the latest the
+[reconciliation sweep](../reconciliation-sweep.md)
+(`ESHU_REPO_RECONCILE_INTERVAL_HOURS`, default 24 hours). No repair job exists
+or is needed: nothing was retracted, so there are no lost edges to restore. A
+repeat of the same reason on every delta of one repository points at the
+collector's repository fact, usually a missing `local_path`.
+
 ## Rollout Validation
 
 When validating shared-write changes:
