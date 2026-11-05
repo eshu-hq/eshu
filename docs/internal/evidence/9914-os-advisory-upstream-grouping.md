@@ -351,9 +351,23 @@ Limits, measured or not:
   The chunker emits those sizes: a list of 172 to 199 ids runs whole, and a longer one
   leaves a remainder of any length. So the bound is 120 (`MaxCVEIDsPerStatement`,
   arbiter ruling arb-wave1-3). Every length from 1 to 120 of the 5-kind statement probes
-  at both page costs, and at 120 the walk costs 1.41 and 1.55 times the probe. Balancing
-  chunks under 240 does not help, because a list of 172 to 199 ids is one chunk under any
-  bound of 199 or more. `TestUpstreamChunksStayBelowTheLowestMeasuredWalk` reads the sizes
+  at both page costs, and at 120 the walk costs 1.41 and 1.55 times the probe.
+
+  That margin is for QA's statistics of 2026-11-04 and is not a guarantee. The planner
+  discounts the walk by the stored correlation of the `advisory_lookup_v2` expression. QA's
+  is -0.6, read from a thin sample (`null_frac` 0.985, `n_distinct` 10), and an `ANALYZE`
+  can move it. On a private fixture, changing only that value, 0 never walks, 0.6 walks
+  from 169 and 1.0 walks from 104. Fitted to QA's two walk costs, a calculation and not a
+  plan, 120 starts to walk at a size of about 0.95. To re-check: read `correlation` from
+  `pg_stats` where `tablename = 'fact_records_vulnerability_active_advisory_lookup_v2_idx'`
+  and `attname = 'expr'`, and if its size passes about 0.9, or
+  `eshu_dp_supply_chain_impact_active_evidence_branch_seconds{branch="vulnerability_upstream_cve_id"}`
+  nears the 30 s limit, plan the statement at every length from 1 to the bound under custom
+  plans at the configured page cost. #10050 owns the planner's missing statistics. The size
+  guard below catches a raised bound, not a plan that moves on QA.
+
+  Balancing chunks under 240 does not help, because a list of 172 to 199 ids is one chunk
+  under any bound of 199 or more. `TestUpstreamChunksStayBelowTheLowestMeasuredWalk` reads the sizes
   from the production loader and fails at a bound of 172 or more (seeded at 172 and 240;
   green at 171 and 120).
 

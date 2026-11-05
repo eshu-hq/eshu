@@ -69,10 +69,11 @@ func TestUpstreamListIsChunkedOnTheKeyProbe(t *testing.T) {
 
 // upstreamLowestMeasuredWalk is the smallest id count at which a QA plan-only
 // custom-plan sweep walked advisory_lookup_v2 instead of probing cve_lookup_v2. It
-// probes again from 200 to about 380, but that window moves with random_page_cost, so
-// no size at or above this one is allowed. The planner prices each id at the default
-// 0.005 and sums them up to 200 ids (scalararraysel), so the estimate climbs toward
-// the whole kind just under 200.
+// probes again from 200 to 388, but that window moves with random_page_cost, and 172
+// itself moves with the stored correlation of advisory_lookup_v2, so no size at or
+// above this one is allowed. The planner prices each id at the default 0.005 and sums
+// them up to 200 ids (scalararraysel), so the estimate climbs toward the whole kind
+// just under 200. This guards the bound; it does not read the planner.
 const upstreamLowestMeasuredWalk = 172
 
 // upstreamChunkSizes returns each distinct statement size the production loader

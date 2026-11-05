@@ -44,7 +44,9 @@ This package generates the replacement from one table:
   the cve key for the CVEs distro records name, limited to KEV and EPSS. On
   QA a custom plan on that key walks the whole advisory index at 172 to 199
   ids and from 389, and a list's last statement can be any length up to the
-  bound, so the bound sits below 172. See
+  bound, so the bound sits below 172. Every length to 120 was measured on
+  the key probe with QA's statistics of 2026-11-04; the evidence notes say
+  what moves that and how to re-check. See
   `docs/internal/evidence/9994-cve-key-probe-chunking.md` and
   `docs/internal/evidence/9914-os-advisory-upstream-grouping.md`.
 - Bounded (suppression, platform materialization, workload identity,
