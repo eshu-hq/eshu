@@ -1,0 +1,34 @@
+docs/internal/evidence/10110-neo4j-semantic-owner.md
+  h_78a442cba0b3e6 1-89
+go/cmd/reducer/neo4j_wiring.go
+  h_78a442cba0b3e6 346-353
+go/cmd/reducer/neo4j_wiring_semantic_writer_test.go
+  h_78a442cba0b3e6 206-208,210,219-229,241-242
+go/internal/backendconformance/corpus_semantic_module.go
+  h_78a442cba0b3e6 110
+go/internal/storage/cypher/semantic/entity/README.md
+  h_78a442cba0b3e6 22,24-25
+go/internal/storage/cypher/semantic/entity/canonical_ownership_test.go
+  h_78a442cba0b3e6 1-135
+go/internal/storage/cypher/semantic/entity/delta_retract.go
+  h_78a442cba0b3e6 31-33,79-109
+go/internal/storage/cypher/semantic/entity/instrumented_index_key_test.go
+  h_78a442cba0b3e6 128-133
+go/internal/storage/cypher/semantic/entity/retract_dispatch.go
+  h_78a442cba0b3e6 1-96
+go/internal/storage/cypher/semantic/entity/write_modes_test.go
+  h_78a442cba0b3e6 43-47
+go/internal/storage/cypher/semantic/entity/writer.go
+  h_78a442cba0b3e6 55,117-142,391,410-414,417,436,480
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a411c574c6a73e4e66b850ba36766f4d4bcfcf36",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
