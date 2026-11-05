@@ -1,0 +1,18 @@
+go/cmd/api/wiring_router.go
+  h_78a442cba0b3e6 354-356
+go/internal/query/admin/recovery_admission.go
+  h_78a442cba0b3e6 1-28
+go/internal/query/admin/recovery_admission_contract_test.go
+  h_78a442cba0b3e6 1-60
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a8dc596488665c58b28f87e95000cc7ca322610c",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
