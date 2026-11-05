@@ -295,3 +295,79 @@ new candidate aggregation (4.0 ms old shape against 30.3 ms new shape at
 now pays. The absolute-bound verdict at the rebased head is therefore OPEN:
 it needs a quiet-host re-measurement or an arbiter decision on the bound.
 NOT_CHECKED on a quiet host.
+
+## Quiet-window rebase and worse-of-two re-measurement (2026-11-05)
+
+Rebased `773963fe4d` (code `c75c70ccc4`) onto `origin/main` `3224fd7a79`
+(merge-base `23b21edf7f`, 43 commits behind, 2 ahead) as code `aa68081140`
+plus evidence `82c2c43308`; `git rebase origin/main` exited 0 with no
+conflict stops, and a prior read-only `git merge-tree --write-tree
+--name-only HEAD origin/main` also exited 0. The live overlap was exactly
+three files. The telemetry doc combined disjoint hunks automatically: the
+branch rows (the (#5476, #10094) sweep row with `read`: active, delta_base,
+and the (#10094) delta-base collaborator row with `read=delta_base`) and
+main's supply-chain enumeration "its three reads (in-flight scopes read,
+package-keyed holder read, and generation read)" are both present verbatim
+after the rebase; "its two reads" is absent, so no hand resolution was
+needed and the merged sentence is main's own accurate text. For the
+generated inventory, re-running `scripts/generate-live-postgres-readiness.py`
+on the merged tree exited 0 ("regenerated 42 surfaces"), `--check` exited 0,
+and the bytes are identical to the merged result:
+`specs/live-tests.d/live-tests-readiness-part4.generated.yaml` is 62855
+bytes, SHA-256 `8dafcbe6c66521cb3f007a3db9fcc33d6a7f6836b8f29a7a72ddab69de7ad8ba`
+before and after regeneration (the merged `part4.py` is likewise
+unchanged, `4d0b96d46350ea1e790d550fa12f6349eaa7fb0ba46e33a16eb8381307b8a2e4`).
+The generator, as source of truth, therefore changes nothing.
+
+Quiet window: no other heavy work ran. `/proc/loadavg` stayed under 1.0
+(1-minute) at every reading, well under the abort threshold of 6: guard
+run 1 start 0.30/0.30/0.61, end 0.71/0.41/0.63; run 2 start 0.65/0.40/0.63,
+end 0.95/0.50/0.66; A/B start 0.33/0.40/0.61, end 0.72/0.48/0.63 (the
+maximum 1-minute reading seen was 0.95, at run 2 end). Same procedure and
+seed as the `c75c70ccc4` runs: disposable PostgreSQL 18.6, the committed
+guard `TestCrossplaneRedriveTargetDiscoveryQueryPlanLive/target_discovery_plan`
+(non-race, `-count=1 -v`), 4000 claim scopes x 50 claims, 2000
+delta-active, p50 of 15 warm `EXPLAIN (ANALYZE, BUFFERS)` runs. Both runs
+exited 0 (the guard asserts the index and ANY shape and logs the p50s; the
+ruling's budgets are applied here). Run 1 (21:47:00Z): active
+ledger:10094-quiet-guard-run1-active-p50, base
+ledger:10094-quiet-guard-run1-base-p50, lookup
+ledger:10094-quiet-guard-run1-lookup-p50, counterfactual
+ledger:10094-quiet-guard-run1-counterfactual-p50, added
+ledger:10094-quiet-guard-run1-added-ms (guard line: base/active 4.50x,
+(active+base)/counterfactual 4.67x). Run 2 (21:47:47Z): active
+ledger:10094-quiet-guard-run2-active-p50, base
+ledger:10094-quiet-guard-run2-base-p50, lookup
+ledger:10094-quiet-guard-run2-lookup-p50, counterfactual
+ledger:10094-quiet-guard-run2-counterfactual-p50, added
+ledger:10094-quiet-guard-run2-added-ms (guard line: base/active 4.53x,
+(active+base)/counterfactual 4.51x). Run 2 is the worse of the two on
+added cost (26.854 ms against run 1's 26.650 ms) and governs. Both legs
+stay on `fact_records_active_k8s_claim_redrive_idx` in custom and generic
+plans (the guard asserts this), the base plan's `Index Cond` carries
+`generation_id = ANY`, and there is no Seq Scan on `fact_records`.
+
+A/B control at the same head (throwaway shim test, never checked in, on
+the guard corpus; the prior minimal corpus is not defined in this ledger,
+so its absolute figures are not directly comparable, but the query texts
+and the 2000-delta-scope scale are the same): the old four-column lookup
+(git blob `289a359549`, before the candidate aggregation) returned the
+same 2000 rows at ledger:10094-quiet-ab-lookup-old-p50, against the
+shipped five-column text captured from the real collaborator at
+ledger:10094-quiet-ab-lookup-new-p50. The candidate aggregation therefore
+adds 12.633 ms (2.38x) of the lookup's roughly 21 ms at 2000 delta scopes
+on a quiet host, which confirms the attribution above: most of the added
+cost is the shared lookup every delta-overlay reader pays, not the base
+leg this change adds (base p50 stays near 5.8 ms in both quiet runs,
+against 6.175 ms loaded).
+
+Verdict under the amended rule of follow-up (b), worse-of-two as
+measured: base/active 4.53x misses the 1.5x first rule; the
+counterfactual (1.577 ms) is under 10 ms, so the absolute bound governs
+alone; added (lookup + base) 26.854 ms exceeds 25 ms. The verdict stays
+OPEN on a quiet host: the bound is exceeded by 1.854 ms, and the excess
+sits in the shared candidate-aggregation lookup, so closing it needs an
+arbiter decision on the bound (or on charging a shared lookup every
+reader pays to this leg) rather than another re-measurement. NOT_CHECKED
+beyond 2000 delta-active scopes, on a cold cache, or at production scale,
+as before.
