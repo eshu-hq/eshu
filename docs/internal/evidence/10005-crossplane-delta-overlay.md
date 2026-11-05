@@ -159,6 +159,73 @@ section, and it lands in its own commit.
 Plans: `EXPLAIN (ANALYZE, BUFFERS)` text for every row is in the shim's
 `plans10005/` directory (scratch, not committed).
 
+## Migration 280: the XRD partial index
+
+Coordinator ruling: add the index in this change, in its own commit, so it
+can be reverted alone.
+
+- **Precedent.** Migrations 273 and 276 are partial indexes on
+  `fact_records`. Each is one `CREATE INDEX CONCURRENTLY IF NOT EXISTS` per
+  file, with a Go DDL constant joined into `factRecordSchemaSQL`, a name in
+  `orderedBootstrapDefinitionNamesLate`, a row in
+  `migrationShippedChecksums`, and a re-pinned `goldenBootstrapDefinitionsDigest`
+  and count. Migration 280 follows that shape. The Go DDL lives in the new
+  `schema_fact_records_crossplane.go`, because `schema_fact_records.go` is at
+  491 lines.
+- **Predicate.** `fact_kind = 'content_entity' AND source_system = 'git'
+  AND is_tombstone = FALSE AND (payload->>'entity_type' = 'CrossplaneXRD' OR
+  payload->>'entity_kind' = 'CrossplaneXRD')`. That is the XRD reader's
+  filter, modulo the alias. The derived base text keeps it unchanged, so the
+  planner proves the implication for both.
+  `TestCrossplaneXRDIndexPredicateMatchesTheReader` checks each term against
+  both texts, and checks migration 280 against the Go DDL.
+- **Plans, before and after** (shim above, the same texts):
+
+  | Text | Before | After |
+  | --- | --- | --- |
+  | XRD active, delta state | 70.9 to 190.6 ms, `fact_records_scope_generation_idx` plus heap filter | 1.2 to 2.5 ms, 910 buffers, `fact_records_crossplane_xrd_entity_idx` |
+  | XRD derived base, 40 delta scopes | 167.7 to 312.7 ms, 156,108 buffers | 0.8 to 3.3 ms, 280 buffers, the same index |
+  | XRD active, all-full | 242.0 to 248.9 ms | 2.2 to 2.5 ms |
+
+  With the index, base/active is 1.3x, which passes the decision rule
+  directly. No plan has a Seq Scan on `fact_records`. The two before/after
+  runs differ only by host noise.
+- **Plan guard.** `TestCrossplaneXRDReadsUseThePartialIndexLive` builds
+  40 scopes with 500 non-XRD entities each, 10 of them delta-active. It
+  requires the index in both plans and no Seq Scan on `fact_records`. A
+  seeded violation (migration 280 narrowed to `entity_type` only, so its
+  predicate no longer implies the reader's) fails both guards: the live one
+  with `active XRD read does not use fact_records_crossplane_xrd_entity_idx`,
+  the hermetic one with `migration 278 and the Go DDL differ` (the run predates the renumbers from 278 to 279 and then 280, which open PRs took); `exit=1`. The
+  real file passes both; `exit=0`.
+- **Lock behavior.** `CREATE INDEX CONCURRENTLY` takes SHARE UPDATE
+  EXCLUSIVE on `fact_records`, which does not conflict with INSERT, UPDATE,
+  or DELETE. On the shim (297 MB heap, 478 MB total) the build took 1.0 s.
+  Three inserts committed during it (47 to 239 ms on the loaded host), and
+  `pg_locks` showed the build's lock granted beside them. VACUUM, ANALYZE,
+  and other DDL on `fact_records` wait for the build. The build also waits
+  for every transaction older than its snapshot, which includes in-flight
+  repeatable-read reader calls.
+- **Extrapolation, not a measurement.** The QA storage audit
+  (`7932-storage-audit.md`, 2026-10-16) reports a `fact_records` heap of
+  342 GiB plus 138 GiB of TOAST, about 245 million rows. Scaling the shim's
+  1.0 s per 297 MB of heap linearly gives about 20 minutes of heap scan. The
+  predicate reads `payload`, so a TOASTed payload is detoasted, which could
+  add up to about 8 minutes. The total depends on storage throughput and
+  concurrent load. 273 and 276 read `payload` the same way and shipped
+  under the same procedure.
+- **Size.** One entry per git XRD content entity across retained
+  generations. On the shim, 189 entries fill 32 kB. An entry is about 200
+  bytes (two ids, a timestamp, a fact id), so 100,000 retained XRD entities
+  would be about 20 MB. The QA XRD count was not measured.
+- **Rollback.** `DROP INDEX CONCURRENTLY IF EXISTS
+  fact_records_crossplane_xrd_entity_idx` is safe. The index carries no
+  constraint, so the readers return the same rows, at the pre-index cost.
+  Per the migrations README, an operator drop also needs the recorded
+  migration removed before the tracked migrator rebuilds it.
+- **Write cost.** One predicate evaluation per inserted fact, and a B-tree
+  insert only for an XRD content entity.
+
 ## Self-heal and already-wrong data
 
 A scope whose edges were deleted before this fix is repaired by its next full

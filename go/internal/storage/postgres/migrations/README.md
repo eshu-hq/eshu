@@ -424,6 +424,30 @@ and the manifest row in `embed_invariant_test.go` and
 No-Observability-Change: the table is read and written only by the slot-progress
 path, which reports `eshu_dp_owned_target_slot_selection_total`.
 
+## Migration 280: Crossplane XRD entity index (#10005)
+
+`280_fact_records_crossplane_xrd_entity_idx.sql` adds
+`fact_records_crossplane_xrd_entity_idx` on `(scope_id, generation_id,
+observed_at, fact_id)` over git XRD content entities. It is the only
+statement, built `CONCURRENTLY` like 273 and 276. The Crossplane XRD read and
+its derived delta-base read join on the key prefix and page in its order. The
+predicate is their filter modulo the alias, and
+`TestCrossplaneXRDIndexPredicateMatchesTheReader` pins it to the reader and
+to the Go DDL (`schema_fact_records_crossplane.go`).
+`TestCrossplaneXRDReadsUseThePartialIndexLive` pins the plan of both texts.
+
+The build holds SHARE UPDATE EXCLUSIVE on `fact_records`. Writers continue,
+and VACUUM, ANALYZE, and other DDL on the table wait for the build. It also
+waits for every transaction older than its snapshot. On the 297 MB-heap shim
+it took 1.0 s while three inserts committed. Dropping the index (`DROP INDEX
+CONCURRENTLY`) is safe: it is not a constraint, so the reads return the same
+rows, only slower. Its recorded migration must then be removed before the
+tracked migrator rebuilds it. Numbered 280: 279 went to main's #9975
+autovacuum file on rebase, so this lane takes the next free slot;
+re-derive the digest, the count, and the manifest row if
+the number moves again. Evidence:
+`docs/internal/evidence/10005-crossplane-delta-overlay.md`.
+
 ## Verification
 
 ```bash

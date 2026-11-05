@@ -464,4 +464,7 @@ var orderedBootstrapDefinitionNamesLate = []string{
 	// Migration 279 (#9975) sets the fact_records autovacuum scale factors
 	// (catalog-only ALTER).
 	"fact_records_autovacuum_reloptions",
+	// Migration 280 (#10005) adds the partial index serving the Crossplane
+	// SATISFIED_BY XRD read and its derived delta-base read.
+	"fact_records_crossplane_xrd_entity_idx",
 }

@@ -232,7 +232,7 @@ tests:
   - file: go/internal/storage/postgres/satisfied_by_read_delta_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#10003 and #10005 disposable PostgreSQL proof that the Crossplane SATISFIED_BY reads overlay a delta-active git scope on its #7797 base full generation: an XRD in an untouched file stays visible, the handler keeps the edge of an unchanged claim beside a changed, added, or deleted one, a delta touching only the XRD loses no edge, a replay and a full generation write the same edges, and a missing base keeps the delta-only rows and is counted; reads ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DSN with its disposable opt-in"
+    reason: "#10003 and #10005 disposable PostgreSQL proof that the Crossplane SATISFIED_BY reads overlay a delta-active git scope on its #7797 base full generation: an XRD in an untouched file stays visible, the handler keeps the edge of an unchanged claim beside a changed, added, or deleted one, a delta touching only the XRD loses no edge, a replay and a full generation write the same edges, a missing base keeps the delta-only rows and is counted, and both XRD texts are served by the migration 280 partial index with no sequential scan; reads ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DSN with its disposable opt-in"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/search/index/retention/drain_live_test.go
     tag: ~

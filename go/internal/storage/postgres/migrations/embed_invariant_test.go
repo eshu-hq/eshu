@@ -207,13 +207,18 @@ import (
 // statement). 276 is #8875's terraform-backends outer-leg index, which landed
 // on main first, and 278 is #9777 step 2's owned-target replan queue, so this
 // lane took 279. Gaps are tolerated.
-const goldenBootstrapDefinitionsDigest = "f2b0b8dc7f3a231f92fca08c91e7d9df1ecdd65e2f5c8ff638ef094fdf94fd0c"
+// #10005 adds 280_fact_records_crossplane_xrd_entity_idx.sql (the partial
+// index serving the Crossplane SATISFIED_BY XRD read and its derived
+// delta-base read; one CREATE INDEX CONCURRENTLY). Main's #9975 took 279 on
+// rebase, so this lane takes 280, the next free slot; the autovacuum file
+// still applies first.
+const goldenBootstrapDefinitionsDigest = "20887c289fd5ab0ea334273b1c8a704636e11dc89a26b9029fb9b07fa66f4045"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or
 // silently dropping files) fails loudly even in the unlikely case of a hash
 // collision.
-const goldenBootstrapDefinitionsCount = 305
+const goldenBootstrapDefinitionsCount = 306
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
 	defs := BootstrapDefinitions()
