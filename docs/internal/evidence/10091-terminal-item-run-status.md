@@ -110,8 +110,13 @@ Hermetic, RED before the fix and GREEN after:
   `go/internal/storage/postgres/run_reconciliation_terminal_blocks_test.go`.
 - `TestReconcileFactlessCountSharesProgressSnapshot` in
   `go/internal/storage/postgres/run_reconciliation_factless_test.go` (regression for
-  the cross-statement snapshot skew; RED with the production error text before the
-  probe was folded into the progress statement).
+  the cross-statement snapshot skew; RED before the probe was folded into the
+  progress statement — on old code the 7-column fixture row fails the 6-destination
+  progress scan (`scan destination count = 6, want 7`), and the 4-query-count
+  assertion structurally forbids a separate factless statement. The production
+  invariant text (`factless completed items must not exceed completed work items`,
+  `go/internal/workflow/progress.go:137`) was observed in the live
+  concurrent-lifecycle proof below that exposed the skew).
 
 Live proofs on a disposable Postgres, in
 `go/internal/storage/postgres/run_reconciliation_terminal_siblings_live_test.go`:
