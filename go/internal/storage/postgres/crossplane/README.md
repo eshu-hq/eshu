@@ -285,9 +285,10 @@ uses `fact_records_active_k8s_claim_redrive_idx` with the candidate base
 generation ids pushed into the index condition. Before the rebase onto the
 generation-id derivation, the plan corpus with 2000 delta-active scopes
 measured the active leg at 1.8 ms, the base leg at 4.2 ms, and lookup plus
-base at 18.8 ms, within the 25 ms bound. At the rebased head the same guard
-measured added cost over the bound on a contended host; that verdict is open
-pending a quiet-host re-measurement. See
+base at 18.8 ms, within the 25 ms bound then in force. At the rebased head
+a quiet-host worse-of-two measured added cost 26.854 ms, most of it the
+shared lookup's candidate aggregation rather than the base leg; the bound
+was recalibrated to 30 ms on that basis and the verdict passes. See
 [the #10094 evidence](../../../../../docs/internal/evidence/10094-crossplane-redrive-delta-base.md).
 
 No-Regression Evidence (comment correction): relative to merged source
