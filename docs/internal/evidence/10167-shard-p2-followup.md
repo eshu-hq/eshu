@@ -1,14 +1,14 @@
 # 10167 shard-p2 followup: no-regression evidence
 
 Rebase followup for `lane3/10167-shard-p2-followup` onto
-`origin/main` (`32384138ac`). The rebased commit keeps the four P2 Go
+`origin/main` (`5037807422`). The rebased commit keeps the four P2 Go
 files byte-identical to the pre-rebase commit and drops the six
 generated readiness files: re-deriving them on the merged tree with the
 merged `SHARD_BOUNDARIES` reproduces `origin/main` byte-for-byte, so
 the branch's shard-split halves were already landed there by
 `#10160`/`#10161` and only the P2 fixes remain.
 
-Scope of the rebased diff (`041f0e35b6`, new-base `32384138ac`):
+Scope of the rebased diff (`f10dd309bc`, new-base `5037807422`):
 
 - `go/internal/storage/postgres/delta_overlay_refusal.go`: rewords the
   `BaselineCommitSHA` field doc comment (states `warnDeltaOverlay`
