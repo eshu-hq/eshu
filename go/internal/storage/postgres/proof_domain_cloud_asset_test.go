@@ -171,6 +171,7 @@ func TestProofDomainCloudAssetResolutionFlowsCollectorToReducerIntent(t *testing
 	}); err != nil {
 		t.Fatalf("Register() error = %v, want nil", err)
 	}
+	registerManifestMarkerStandIn(t, &reducerRegistry, now)
 	reducerRuntime, err := reducer.NewRuntime(reducerRegistry)
 	if err != nil {
 		t.Fatalf("NewRuntime() error = %v, want nil", err)
@@ -187,10 +188,10 @@ func TestProofDomainCloudAssetResolutionFlowsCollectorToReducerIntent(t *testing
 		t.Fatalf("reducer service Run() error = %v, want nil", err)
 	}
 
-	if got, want := db.reducerClaims, 1; got != want {
-		t.Fatalf("reducer claims = %d, want %d", got, want)
+	if got, want := db.reducerClaims, 2; got != want {
+		t.Fatalf("reducer claims = %d, want %d (cloud asset and the #9874 manifest marker)", got, want)
 	}
-	if got, want := db.reducerAcked, 1; got != want {
+	if got, want := db.reducerAcked, 2; got != want {
 		t.Fatalf("reducer acknowledgements = %d, want %d", got, want)
 	}
 }

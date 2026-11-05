@@ -51,6 +51,10 @@ func TestRepoDependencyCassetteProductionAdmission(t *testing.T) {
 		if err != nil {
 			t.Fatalf("buildProjection(%s): %v", collected.Scope.ScopeID, err)
 		}
+		// #9874 F2: every git generation also raises exactly one
+		// supply_chain_impact manifest marker; the admission contract below is
+		// about the remaining intents.
+		projection.reducerIntents = withoutManifestMarker(t, collected.Scope.ScopeID, projection.reducerIntents)
 		if projection.canonical.Repository != nil {
 			gotRepoIDs = append(gotRepoIDs, projection.canonical.Repository.RepoID)
 		}

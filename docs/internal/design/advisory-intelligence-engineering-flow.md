@@ -98,7 +98,7 @@ flowchart TB
 | 3. Fetch | `HTTPProvider` | The client never auto-paginates NVD. Paging belongs in the provider loop, which reads one page today and pages fully after item 1.3. |
 | 4. Normalize | `newOSVCVEEnvelope` and siblings | Report only what the source says (`source_confidence=reported`). Never infer impact. URLs pass `sanitizeURL`. |
 | 5. Commit | `skipUnchangedGeneration`, `DecideSuccessor` | One generation per scope. Absent records retract. The guard is idle without a `FreshnessHint`. |
-| 6. Trigger | `candidateFactKinds` | One `supply_chain_impact` intent per scope generation that holds a trigger kind. Git file facts are not triggers. |
+| 6. Trigger | `candidateFactKinds`, `manifest_trigger.go` | One `supply_chain_impact` intent per scope generation that holds a trigger kind. Every other git generation gets one marker intent (`trigger: manifest_dependency`, #9874). The marker pass diffs the dependency views of the activated chain since the newest generation whose marker completed, reopens the holders of the changed packages, and writes no findings. |
 | 7. Load | `SupplyChainImpactHandler.Handle` | At most 8 expansion rounds and 100,000 envelopes. Hitting a cap marks the evidence partial: upsert only, no retraction. |
 | 8. Decide | `buildSupplyChainImpactFindingsWithQuarantine` | Group by CVE, then package. The product path runs only when no package rows exist. An owned anchor is required. |
 | 9. Write | `writer.go` | Replace-set per (scope, generation) under an advisory lock plus a fencing check. |

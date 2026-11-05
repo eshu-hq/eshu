@@ -37,9 +37,15 @@
   claim the two tiers are pinned unless a test sets them to DIFFERENT
   values; a test that sets both tiers to the same value passes even when the
   tiers are swapped and proves only that a label was produced.
-- Do not decode a payload or check a schema version here. This builder reads
-  only `FactKind`, `FactID`, `SourceRef`, and `CollectorKind`; the reducer
-  handler owns typed decode where one exists and the cross-source join.
+- Do not decode a payload or check a schema version here. The twelve-kind
+  trigger reads only `FactKind`, `FactID`, `SourceRef`, and `CollectorKind`;
+  the #9874 manifest marker predicate reads a few keys from the
+  already-decoded payload map, most selective first. The reducer handler owns
+  typed decode where one exists and the cross-source join.
+- The manifest marker (`payload trigger=manifest_dependency`) is exclusive:
+  it is set only when no twelve-kind trigger fact exists. Its spelling must
+  equal `core.PayloadKeyTrigger` / `core.TriggerManifestDependency`;
+  `manifest_trigger_test.go` asserts the projector payload against them.
 - Do not move lookup construction, assembly, queue writes, retries, graph
   writes, or telemetry into this package.
 
@@ -74,7 +80,8 @@
   pre-extraction behavior here.
 - Do not import the root `projector` package.
 - Do not widen the export surface past
-  `BuildSupplyChainImpactReducerIntent`. Every sibling family in this series
+  `BuildSupplyChainImpactReducerIntent` (the marker constants stay
+  unexported here; the reducer core exports the canonical spelling). Every sibling family in this series
   exports exactly one builder and no types.
 
 ## Changes needing ADR review

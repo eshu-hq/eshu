@@ -163,6 +163,9 @@ func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent reducercont
 	if h.FencingTokenIssuer == nil {
 		return reducercontract.Result{}, fmt.Errorf("supply chain impact fencing token issuer is required")
 	}
+	if result, handled, err := h.handleManifestTrigger(ctx, intent); handled {
+		return result, err // #9874: a git manifest marker reopens holders, no findings.
+	}
 
 	// Issued BEFORE the evidence load, never at write-commit time: the token
 	// orders passes by when they began reading evidence, so a pass that read its

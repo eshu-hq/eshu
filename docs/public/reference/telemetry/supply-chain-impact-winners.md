@@ -87,6 +87,22 @@ unchanged KEV or EPSS collection creates no generation at all (the
 collector content-digest skip), so a flat `cause="epss"`/`"kev"` rate means
 no enrichment changed, not that re-triggers stopped.
 
+A manifest or lockfile change converges the same way (#9874): the git
+generation's marker pass reopens every scope holding advisory evidence for a
+changed package, counted under `cause="manifest_dependency"`. A marker item
+whose generation has not activated yet is deferred by the reducer runtime
+before the handler runs, under the shared non-counting failure class
+`generation_activation_not_ready` (see
+`eshu_dp_reducer_retry_surge_total{failure_class}`); it retries until the
+generation activates or is superseded. Two marker results matter at 3 AM, both
+log fields on the reducer success line rather than metrics:
+`sub_signal_manifest_trigger_prior_base_missing=1` means a delta in the diffed
+chain had an unreadable base, so a removal its base alone held was not fanned
+out, and `sub_signal_manifest_trigger_baseline_degraded=1` means the chain was
+over its 32-generation cap (the current generation counted) or its baseline was pruned, so every current pin fanned
+out and removals in that window were missed. Both wait for the package's
+advisory scope to rerun; the fix is tracked in #10059.
+
 ## Signals
 
 | Signal | Type | Labels | What it tells you |

@@ -355,6 +355,16 @@ tests:
     class: dedicated_ci
     reason: "linuxdynasty: reducer-contention verified 6/6 named Go test passes with -json -race (summed test elapsed 18.66s); docs/internal/evidence/7533-contention-live-proof.md"
     runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_manifest_chain_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#9874 ruling D1-D3: reducer-contention verified locally 7/7 named Go test passes (disposable PostgreSQL 18.6); docs/internal/evidence/9874-lockfile-retrigger.md"
+    runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_manifest_trigger_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#9874: reducer-contention verified locally 3/3 named Go test passes (disposable PostgreSQL 18.6); docs/internal/evidence/9874-lockfile-retrigger.md"
+    runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_replace_set_concurrency_live_test.go
     tag: ~
     class: dedicated_ci

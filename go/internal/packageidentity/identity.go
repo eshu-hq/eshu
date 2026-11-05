@@ -130,42 +130,6 @@ func Normalize(raw RawIdentity) (Identity, error) {
 	}, nil
 }
 
-// NormalizeEcosystem converts package-manager aliases into Eshu's canonical
-// ecosystem names.
-func NormalizeEcosystem(value Ecosystem) Ecosystem {
-	switch LowerASCII(strings.TrimSpace(string(value))) {
-	case "npm", "node", "nodejs", "javascript", "typescript":
-		return EcosystemNPM
-	case "pypi", "pip", "python":
-		return EcosystemPyPI
-	case "go", "golang", "gomod", "go-module", "go_module":
-		return EcosystemGoModule
-	case "maven", "gradle", "java":
-		return EcosystemMaven
-	case "nuget", "dotnet", ".net":
-		return EcosystemNuGet
-	case "composer", "packagist", "php":
-		return EcosystemComposer
-	case "rubygems", "gem", "ruby":
-		return EcosystemRubyGems
-	case "cargo", "crate", "crates", "crates.io", "rust":
-		return EcosystemCargo
-	case "swift", "swifturl", "swiftpm", "spm", "swift-package-manager":
-		return EcosystemSwift
-	case "hex", "hexpm", "hex.pm":
-		return EcosystemHex
-	case "pub", "pub.dev", "dart", "dart-pub":
-		return EcosystemPub
-	case "os", "apk", "alpine", "deb", "debian", "rpm", "rhel", "ubuntu",
-		"alma", "almalinux", "rocky", "rockylinux", "rocky-linux", "rocky linux":
-		return EcosystemOS
-	case "generic":
-		return EcosystemGeneric
-	default:
-		return ""
-	}
-}
-
 // NormalizeRegistry normalizes a source registry host/path while preserving
 // source-specific path casing.
 func NormalizeRegistry(raw string) string {

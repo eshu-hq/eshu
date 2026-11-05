@@ -55,7 +55,11 @@
 // only the keys the writer, activation and scanner captures logged, plus a
 // full-recompute audit that queues any key the capture missed, #9805), and the
 // Go reachability classifier
-// (ClassifyGoVulnerabilityReachability). Test seams for the reducer root's
+// (ClassifyGoVulnerabilityReachability). A git manifest marker intent
+// (payload PayloadKeyTrigger=TriggerManifestDependency, #9874) writes no
+// findings: the handler gates it on generation activation, derives the
+// changed packages from the generation's own dependency rows, and reopens the
+// scopes holding advisory evidence for them (manifest_trigger.go). Test seams for the reducer root's
 // own wiring test live in the parent's compat stanza, following the
 // containerimage precedent; family-local test doubles live in
 // cross_scope_test_doubles_test.go.
