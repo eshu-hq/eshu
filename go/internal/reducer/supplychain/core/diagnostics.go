@@ -26,6 +26,7 @@ type supplyChainImpactTiming struct {
 	loadResolvedDigestEvidenceDuration time.Duration
 	loadPythonReachabilityDuration     time.Duration
 	loadJVMReachabilityDuration        time.Duration
+	loadGoReachabilityDuration         time.Duration
 	loadAuthorizedTargetsDuration      time.Duration
 	securityAlertScopingDuration       time.Duration
 	buildFindingsDuration              time.Duration
@@ -174,6 +175,7 @@ func supplyChainImpactSubDurations(t supplyChainImpactTiming) map[string]float64
 		"load_resolved_digest_evidence": t.loadResolvedDigestEvidenceDuration.Seconds(),
 		"load_python_reachability":      t.loadPythonReachabilityDuration.Seconds(),
 		"load_jvm_reachability":         t.loadJVMReachabilityDuration.Seconds(),
+		"load_go_reachability":          t.loadGoReachabilityDuration.Seconds(),
 		"load_authorized_targets":       t.loadAuthorizedTargetsDuration.Seconds(),
 		"security_alert_scoping":        t.securityAlertScopingDuration.Seconds(),
 		"build_findings":                t.buildFindingsDuration.Seconds(),
@@ -195,6 +197,7 @@ func supplyChainImpactDiagnosticSignals(
 	resolvedDigestEvidenceFacts int,
 	pythonReachabilityFacts int,
 	jvmReachabilityFacts int,
+	goReachabilityFacts int,
 	postScopeFacts int,
 	securityAlertScopingApplied bool,
 	securityAlertScopedOutFacts int,
@@ -210,7 +213,8 @@ func supplyChainImpactDiagnosticSignals(
 		scannerAnalysisScopeFacts+
 		resolvedDigestEvidenceFacts+
 		pythonReachabilityFacts+
-		jvmReachabilityFacts > 0
+		jvmReachabilityFacts+
+		goReachabilityFacts > 0
 	signals := reducercontract.MaterializationDiagnosticSignals(inputReady, writtenRows)
 	signals["scope_facts"] = float64(scopeFacts)
 	signals["repository_facts"] = float64(repositoryFacts)
@@ -222,6 +226,7 @@ func supplyChainImpactDiagnosticSignals(
 	signals["resolved_digest_evidence_facts"] = float64(resolvedDigestEvidenceFacts)
 	signals["python_reachability_facts"] = float64(pythonReachabilityFacts)
 	signals["jvm_reachability_facts"] = float64(jvmReachabilityFacts)
+	signals["go_reachability_facts"] = float64(goReachabilityFacts)
 	signals["post_scope_facts"] = float64(postScopeFacts)
 	signals["security_alert_scoping_applied"] = boolSignal(securityAlertScopingApplied)
 	signals["security_alert_scoped_out_facts"] = float64(securityAlertScopedOutFacts)

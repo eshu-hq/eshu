@@ -279,6 +279,7 @@ func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent reducercont
 		loaded.resolvedDigestEvidenceFacts,
 		loaded.pythonReachabilityFacts,
 		loaded.jvmReachabilityFactCount,
+		loaded.goReachabilityFacts,
 		loaded.postSecurityAlertScopeFacts,
 		loaded.securityAlertScopingApplied,
 		loaded.securityAlertScopedOutFacts,
