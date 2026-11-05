@@ -96,7 +96,7 @@ deployed acceptance is NOT_CHECKED.
 | Original published module | New module identity | Available first candidate | Other published candidate | Preferred candidate | Latest candidate pinned by merged core |
 | --- | --- | --- | --- | --- | --- |
 | `github.com/eshu-hq/eshu/sdk/go/collector@v0.2.0` | `github.com/eshu-hq/eshu-sdk/collector` | `collector/v0.1.0-rc.1` | `collector/v0.2.0-rc.1` | `collector/v0.1.0-rc.2` (published; proxy verified) | `collector/v0.2.0-rc.3` (published; proxy verified; adds `collector-sdk/v1alpha3` pagination; pinned by core #9385) |
-| `github.com/eshu-hq/eshu/sdk/go/factschema@v0.2.0` | `github.com/eshu-hq/eshu-sdk/factschema` | `factschema/v0.1.0-rc.1` | `factschema/v0.1.0-rc.2` | `factschema/v0.1.0-rc.2` (published; proxy verified) | `factschema/v0.1.0-rc.15` (published; proxy verified; adds `vulnerability.source_snapshot` `license`, `attribution`, `cache_expires_at`, and `cache_mode`; on top of rc.14's `vulnerability.cve` `aliases`, `related`, and `upstream` identity edges and rc.13's `vulnerability.os_package` `source_package` and the `reducer_supply_chain_impact_finding` `os_package_match_derivation`, `installed_package_name`, and `source_package` evidence fields; pinned by core #9859 for rc.13, #9914 for rc.14, and #9958 for rc.15) |
+| `github.com/eshu-hq/eshu/sdk/go/factschema@v0.2.0` | `github.com/eshu-hq/eshu-sdk/factschema` | `factschema/v0.1.0-rc.1` | `factschema/v0.1.0-rc.2` | `factschema/v0.1.0-rc.2` (published; proxy verified) | `factschema/v0.1.0-rc.17` (published; proxy verified; adds `vulnerability.go_call_reachability` `scan_level`, `scan_mode`, `scanner_version`, `source_commit_sha`, and `trace_count` and `scanner_worker.warning` `repository_id` and `relative_path`; on top of rc.15's `vulnerability.source_snapshot` `license`, `attribution`, `cache_expires_at`, and `cache_mode`; on top of rc.14's `vulnerability.cve` `aliases`, `related`, and `upstream` identity edges and rc.13's `vulnerability.os_package` `source_package` and the `reducer_supply_chain_impact_finding` `os_package_match_derivation`, `installed_package_name`, and `source_package` evidence fields; pinned by core #9859 for rc.13, #9914 for rc.14, #9958 for rc.15, and #10043 for rc.17) |
 
 `factschema/v0.1.0-rc.6` is published at SDK merge commit
 `41b2906ec5cd3a2738f3dcdc3cf6033ba14b159c`. A fresh external
@@ -168,6 +168,24 @@ same commit; module zip checksum:
 paging golden with the NVD terms, so a consumer that replays it moves to rc.15
 together with the terms. It is pinned by core #9958. `license` is a disclosure
 and decides no access.
+
+`factschema/v0.1.0-rc.17` is published at SDK merge commit
+`0acd485aaa59ac1f7c1e9e63984191b0f2ba35da` through eshu-sdk PR #81. It adds the
+additive optional `scan_level`, `scan_mode`, `scanner_version`,
+`source_commit_sha`, and `trace_count` fields on
+`vulnerability.go_call_reachability` (eshu-hq/eshu#10026), the additive optional
+`repository_id` and `relative_path` fields on `scanner_worker.warning`
+(eshu-hq/eshu#10043), and the producer and reader documentation for both. The
+release workflow (run 41923803122) verified the commit, created the tag, and its
+proxy proof passed. The exact version resolved through the public Go proxy, and
+the proxy origin names the same commit; module zip checksum:
+`h1:RNref+hwc4BGyj/pk9mKcyecH3f6Xrv7/+JrEIXzsq4=`; `go.mod` checksum:
+`h1:GysO1GSvcUYSSl7ydDx34MYRSw4yI2DgADT0twajVXY=`. The schema digests are
+`scanner_worker.warning.v1` `d1ded1c9cfe3703b6a72d6d53706116a23a436042e74d1acfbf35bc3bcff12a6`
+and `vulnerability.go_call_reachability.v1`
+`9470f63b617a4650dcfe9dd73f65bf8cc794d204fd62e52c3b736397e55fba7d`. It is pinned
+by core #10043 (W2). No core reducer, query, or collector reads the new fields at
+the pin bump; the reducer join is a separate step.
 
 The new module version histories are independent of the original paths'
 `v0.2.0` lines. The migration starts on the initial `v0.1.0` prerelease line,

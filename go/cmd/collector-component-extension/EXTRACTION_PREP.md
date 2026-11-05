@@ -102,8 +102,8 @@ queue, lease, reducer, API, MCP, or workflow handles.
 - Claim/lease/heartbeat/commit through `collector.ClaimedService`; the
   extension never touches claim mutation.
 - Public target contract pins: `eshu-sdk/collector v0.2.0-rc.3`,
-  `eshu-sdk/factschema v0.1.0-rc.15` (`go/go.mod:159-160`, moved to rc.15
-  by #9958 on 2026-11-04); toolchain directive `go 1.26.10`, installed `go1.26.6`
+  `eshu-sdk/factschema v0.1.0-rc.17` (`go/go.mod:159-160`, moved to rc.17
+  by #10043 on 2026-11-05); toolchain directive `go 1.26.10`, installed `go1.26.6`
   (mismatch recorded, no behavior impact on this doc).
 - Claim-plane pin: `eshu-workflow v0.1.0` (`go/go.mod:161`); protocol
   major `1` only (pairs recorded below).
