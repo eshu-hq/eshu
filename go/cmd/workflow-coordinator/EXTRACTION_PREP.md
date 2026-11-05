@@ -138,10 +138,12 @@ shared and **stays** in eshu main; it moves only if the queue package moves.
 
 ## 4. Fact kinds and versions
 
-**187 distinct fact Kinds**, exactly verified (`187 Kind:` lines and 187
-distinct in `go/internal/facts/fact_kind_registry.generated.go`; +2 since
-the lock: `aws_ssm_host_application` / `aws_ssm_host_platform` v1.0.0 from
-`#9558`, unrelated to this lane). The
+**188 distinct fact Kinds**, exactly verified (`188 {Kind:` lines and 188
+distinct in `go/internal/facts/fact_kind_registry.generated.go`; +1 since
+the `8ec6d11ddf` refresh: `vulnerability.changed_name` v1.0.0 from `#9777`
+(commit `5958727005`, 2026-11-04), unrelated to this lane — the earlier +2
+was `aws_ssm_host_application` / `aws_ssm_host_platform` v1.0.0 from
+`#9558`, likewise unrelated). The
 workflow leaf emits no facts: SDK relocation (`#6708`) is therefore NOT a
 prerequisite for this lane. Deployment-compat preparation may proceed
 independently per the `#8875` body. `go/go.mod`: `module
@@ -160,7 +162,8 @@ github.com/eshu-hq/eshu/go`, `go 1.26.10`.
   `go/internal/collector`, 17 `go/internal/storage`, 2 `go/internal/workflow`
   self (parity harness), 1 `go/cmd/workflow-coordinator`, 1
   `go/cmd/scanner-worker`, 1 `go/cmd/api`, 29 collector cmds (exact-match
-  `git grep` census at `8ec6d11ddf`; the importer *set* is identical at
+  `git grep` census at `8ec6d11ddf` (Oct-30 set; see the kinds-only
+  addendum below for the current pointer); the importer *set* is identical at
   `6ca3ad9294`, so the +3 vs the earlier 166 figure is method — recounting
   the old commit with this method also yields 169 — not drift). Removing
   `go/internal/workflow` must repoint every one of these; the count is the
@@ -303,10 +306,16 @@ that repo's references too. Binary is dark-by-default and Postgres-only.
   HEAD; every behavior ported live in §§1–3 (stale-skip reconcile/report,
   `ReconcileStaleComponentActivations` with revalidate-before-drop,
   `stale_activation_skips_total` counter, reap-instrument split). Nothing
-  deleted-by-omission. Unchanged across the window: fact Kinds 187,
-  importer set identical (169). `go/internal/workflow/` grows 77→78
-  entries (72→73 `.go`) for the new `protocol_version_test.go` in this
-  refresh — the only delta, and it is the compat proof itself.
+  deleted-by-omission. Importer set identical (169).
+  `go/internal/workflow/` grows 77→78 entries (72→73 `.go`) for the new
+  `protocol_version_test.go` in this refresh — the only delta, and it is
+  the compat proof itself.
+
+- 2026-11-05 kinds-only addendum (this lane; no code, no removal):
+  Fact Kinds 187→188 (`vulnerability.changed_name` v1.0.0, `#9777`,
+  unrelated to this lane); §§4/11 kind counts refreshed to 188. Importer
+  census explicitly out of scope here (owned by the census lane): §5 still
+  records the 169-file Oct-30 set.
 - Peer-claim check 2026-10-30: all 27 `#8875` comments are owner-posted lane
   updates (no peer claim); open `#9676` (`drive/9634-thread-followup`, same
   `#9634` thread) touches `component_activation_config.go` + `metrics.go`
