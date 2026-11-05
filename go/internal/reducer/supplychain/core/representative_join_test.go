@@ -83,7 +83,7 @@ func repJoinPermutations(envelopes []facts.Envelope) [][]facts.Envelope {
 // assertRepJoinFinding holds every issue shape to one verdict: a verified line and
 // a list that names the host are exact, and a blank ecosystem reads the version
 // family from the purl, as the os ecosystem does.
-func assertRepJoinFinding(t *testing.T, findings []SupplyChainImpactFinding, other string) {
+func assertRepJoinFinding(t *testing.T, findings []SupplyChainImpactFinding) {
 	t.Helper()
 	if len(findings) != 1 {
 		t.Fatalf("findings = %d, want 1: %#v", len(findings), findings)
@@ -98,15 +98,10 @@ func assertRepJoinFinding(t *testing.T, findings []SupplyChainImpactFinding, oth
 	if !slices.Contains(got.EvidencePath, chain.VulnerabilityOSPackageFactKind) {
 		t.Fatalf("evidence path %v, want the installed row on it", got.EvidencePath)
 	}
-	// A non-OSV fact from another source offers no fix on the OS path (#9945). An
-	// untagged OSV fact keeps the untagged union rules, as it does on the shape
-	// that survives today (ecosystem os, other source osv).
-	wantFixed := ""
-	if other == "osv" {
-		wantFixed = "1.0-2"
-	}
-	if got.FixedVersion != wantFixed {
-		t.Fatalf("fixed version = %q, want %q", got.FixedVersion, wantFixed)
+	// The joining fact lists the host and offers no fix, and a fact that cannot join
+	// offers none on a reselected finding, so the other fact's 1.0-2 must not show.
+	if got.FixedVersion != "" {
+		t.Fatalf("fixed version = %q, want none", got.FixedVersion)
 	}
 }
 
@@ -155,7 +150,7 @@ func TestRepresentativeJoinsTheInstalledRowForEveryIssueShape(t *testing.T) {
 			var first []SupplyChainImpactFinding
 			for _, order := range repJoinPermutations([]facts.Envelope{cve, own, other, host}) {
 				got := BuildSupplyChainImpactFindings(order)
-				assertRepJoinFinding(t, got, tc.other)
+				assertRepJoinFinding(t, got)
 				if first == nil {
 					first = got
 				} else if !reflect.DeepEqual(got, first) {
@@ -288,7 +283,7 @@ func TestAuthorizedScanRepresentativeJoinsTheInstalledRow(t *testing.T) {
 				if err != nil {
 					t.Fatalf("BuildAuthorizedScanImpactFindings: %v", err)
 				}
-				assertRepJoinFinding(t, got, tc.other)
+				assertRepJoinFinding(t, got)
 				if first == nil {
 					first = got
 				} else if !reflect.DeepEqual(got, first) {

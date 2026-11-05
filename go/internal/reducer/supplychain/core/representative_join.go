@@ -58,9 +58,11 @@ type osRepresentativeOutcomeKey struct {
 	outcome string
 }
 
-// withJoinableOSRepresentative returns a copy of pkgs with the fact that should
-// name the finding marked, when the source-order representative has no anchor of
-// its own and another fact of the group joins an installed row (#9990).
+// withJoinableOSRepresentative returns only the facts of pkgs that join an installed
+// row, with the fact that should name the finding marked, when the source-order
+// representative has no anchor of its own and another fact of the group joins (#9990).
+// A fact that cannot join says nothing about this host, so on a reselected finding it
+// offers no fix and decides no verdict.
 //
 // It runs only for a group that produces no finding without it: the caller has
 // already found no SBOM path, this checks no consuming repository and no OS join,
@@ -71,8 +73,8 @@ type osRepresentativeOutcomeKey struct {
 //
 // The input slice is never modified: the index shares it across installed rows
 // and across scan targets, and a different target may join a different fact. The
-// mark rides on the copy, so a later representativeAffectedPackage call on the
-// slice, or on selectOSAdvisoryRelease's narrowed copy of it, agrees.
+// mark rides on the returned slice, so a later representativeAffectedPackage call on
+// it, or on selectOSAdvisoryRelease's narrowed copy of it, agrees.
 func withJoinableOSRepresentative(
 	pkgs []supplychainmodel.AffectedPackage,
 	representative supplychainmodel.AffectedPackage,
@@ -85,23 +87,24 @@ func withJoinableOSRepresentative(
 		hasMatchingOSPackage(representative, index) {
 		return pkgs, false
 	}
+	var joining []supplychainmodel.AffectedPackage
 	best, bestRank := -1, 0
-	for i, pkg := range pkgs {
+	for _, pkg := range pkgs {
 		installed, joins := firstOSPackageImpactPath(pkg, index)
 		if !joins {
 			continue
 		}
 		rank := vendorClassPriorityRank(installed.VendorAdvisorySource, classifyAdvisorySource(pkg.Source, pkg.AdvisoryID))
-		if best < 0 || joinableRepresentativeBefore(rank, pkg, bestRank, pkgs[best]) {
-			best, bestRank = i, rank
+		if best < 0 || joinableRepresentativeBefore(rank, pkg, bestRank, joining[best]) {
+			best, bestRank = len(joining), rank
 		}
+		joining = append(joining, pkg)
 	}
 	if best < 0 {
 		return pkgs, false
 	}
-	marked := slices.Clone(pkgs)
-	marked[best].JoinRepresentative = true
-	return marked, true
+	joining[best].JoinRepresentative = true
+	return joining, true
 }
 
 // joinableRepresentativeBefore orders two facts that each join an installed row:

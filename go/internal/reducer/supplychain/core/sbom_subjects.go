@@ -34,8 +34,8 @@ func appendSupplyChainImpactPackageFindings(
 	if len(paths) == 0 {
 		// No SBOM path: let a fact that joins the installed row name the finding
 		// when source order picked one with no anchor at all (#9990).
-		if marked, ok := withJoinableOSRepresentative(pkgs, pkg, index); ok {
-			pkgs, reselected = marked, true
+		if joining, ok := withJoinableOSRepresentative(pkgs, pkg, index); ok {
+			pkgs, reselected = joining, true
 			pkg = representativeAffectedPackage(pkgs)
 			paths = supplyChainSBOMPaths(pkg, index)
 		}
