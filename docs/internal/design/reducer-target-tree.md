@@ -416,6 +416,9 @@ A rebase has nothing to re-derive, and nothing edits the baselines after landing
   never waived. `b` is the count at the base, `B0` the baseline row, `W` the
   waivers in all history reachable from the base. The base is the first parent of
   the merge ref in CI, and `origin/main` merged with `HEAD` for a local pre-push.
+  On a `pull_request` run, `abs_needed` counts only for the directories the PR
+  touched (file set differs, or a valid trailer names them); push, schedule and
+  pre-push check every directory.
 - Moving files out of a directory, swapping files, or renaming inside it needs no
   action. A move that grows the destination past `max(40, base count)` needs a
   `Dirgate-Growth:` trailer in the commit message that adds the files. The
@@ -423,7 +426,8 @@ A rebase has nothing to re-derive, and nothing edits the baselines after landing
 - Two PRs that each add one file to the same directory each carry their own
   `+1` trailer. Each is judged against the base it merges onto, so neither
   rewrites a shared row. If both land without trailers, the second push run goes
-  RED and a one-commit repair PR carries the missing trailer.
+  RED and a one-commit repair PR carries the missing trailer. PRs that do not
+  touch that directory stay GREEN meanwhile.
 
 ## Prior art disposition
 

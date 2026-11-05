@@ -25,6 +25,13 @@
 // fail. delta_needed guards each merge. abs_needed catches growth that landed
 // concurrently and was never waived: two PRs each add one file to a 39-file
 // directory, both pass their own run, both land, and the second push run is RED.
+// On a pull_request run, abs_needed counts only for the directories the change
+// touched (their set of non-test .go files differs between base and head, or a
+// valid trailer names them); delta_needed and the trailer check still cover every
+// directory. A PR that does not touch an overshoot directory is therefore not
+// failed for debt another merge left on the base. push, schedule,
+// workflow_dispatch, an empty or unknown event name, and pre-push keep the full
+// sweep, so the debt still fails where it was made.
 // Shrinking, swapping files at the same count, and renaming inside a directory
 // are GREEN with no action. A move that creates a new directory over 40 files
 // needs a trailer. A waiver is a trailer in a commit message:

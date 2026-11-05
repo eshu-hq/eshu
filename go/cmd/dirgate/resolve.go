@@ -17,6 +17,12 @@ const (
 	modePreCommit = "pre-commit"
 )
 
+// eventPullRequest is the one CI event whose absolute check is scoped to the
+// directories the change touched. A pull request that does not touch a directory
+// cannot have caused its debt, and failing it blocks unrelated work until someone
+// repairs the base. The debt still fails push, schedule and pre-push runs.
+const eventPullRequest = "pull_request"
+
 // defaultBaseRef is the local comparison branch.
 const defaultBaseRef = "origin/main"
 
@@ -30,6 +36,9 @@ type resolution struct {
 	pending    bool   // the commit message does not exist yet (pre-commit)
 	notes      []string
 	only       map[string]bool // go/-relative directories to judge; nil = all
+	// absScoped narrows the absolute term to the directories the change touched.
+	// Only a pull_request run sets it; every other event sweeps every directory.
+	absScoped bool
 }
 
 // resolveCI compares headRef (the merge ref in CI) with its first parent. A merge-base would
@@ -45,7 +54,7 @@ func resolveCI(g gitRepo, event, headRef string) (resolution, error) {
 	if len(fields) < 2 {
 		return resolution{}, fmt.Errorf("%s has no parent, so there is no base to compare with", headRef)
 	}
-	if event == "pull_request" && len(fields) < 3 {
+	if event == eventPullRequest && len(fields) < 3 {
 		return resolution{}, fmt.Errorf("%s is not a merge commit; a pull_request run must check out the merge ref (parent 1 is the base, parent 2 the PR head)", headRef)
 	}
 	headTree, err := g.line("rev-parse", fields[0]+"^{tree}")
@@ -62,6 +71,8 @@ func resolveCI(g gitRepo, event, headRef string) (resolution, error) {
 		baseCommit: fields[1],
 		headTree:   headTree,
 		revRange:   fields[1] + ".." + fields[0],
+		// Exact match: a missing or unknown event name keeps the full sweep.
+		absScoped: event == eventPullRequest,
 	}, nil
 }
 

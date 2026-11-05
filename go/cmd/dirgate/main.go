@@ -122,7 +122,7 @@ func check(g gitRepo, res resolution, nPaths int, baselineDir string, stdout, st
 	}
 	findings, checked := evaluate(evalInput{
 		base: base, head: head, trailers: trailers, history: history,
-		baseline: headBaseline, markers: markers, only: res.only,
+		baseline: headBaseline, markers: markers, only: res.only, absScoped: res.absScoped,
 	})
 	if baselineDir == "" {
 		baseBaseline, err := loadBaselines(g, res.baseCommit, "")

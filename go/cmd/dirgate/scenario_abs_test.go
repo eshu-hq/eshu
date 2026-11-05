@@ -47,16 +47,134 @@ func TestAbsR1ConcurrentGrowthIsRedOnThePushRunOfTheSecondMerge(t *testing.T) {
 	r.runEnv(pushEvent, "ci").mustExit(t, 1, "RED", "internal/foo", "40 -> 41", "needs +1")
 }
 
-func TestAbsR2ALaterUnrelatedPRIsRedWithTheOvershoot(t *testing.T) {
-	r := raceRepo(t)
-	mergeBranch(r, "b")
+// unrelatedMerge lands a PR that adds one file to a different directory and
+// leaves main checked out on its merge commit, which is the merge ref a
+// pull_request run for that PR sees.
+func unrelatedMerge(r *scratchRepo) {
 	r.git("checkout", "-q", "-b", "unrelated", "main")
 	r.write("go/internal/elsewhere/x.go", "package elsewhere\n")
 	r.commit("touch another directory")
 	r.git("checkout", "-q", "main")
 	r.git("merge", "-q", "--no-ff", "-m", "Merge unrelated", "unrelated")
-	r.runEnv(map[string]string{"GITHUB_EVENT_NAME": "pull_request"}, "ci").
-		mustExit(t, 1, "RED", "internal/foo", "41 -> 41", "never waived")
+}
+
+// TestAbsR2PullRequestIsScopedToTheDirectoriesItChanged pins the PR-side scope of
+// the absolute term: an overshoot that already sits on the base (internal/foo at
+// 41, W=0) fails a pull_request that changes internal/foo, and does not fail a
+// pull_request that changes only another directory. Main-side debt is still
+// caught where it was made (R2b, R2c).
+func TestAbsR2PullRequestIsScopedToTheDirectoriesItChanged(t *testing.T) {
+	r := raceRepo(t)
+	mergeBranch(r, "b")
+	unrelatedMerge(r)
+	pr := map[string]string{"GITHUB_EVENT_NAME": "pull_request"}
+	r.runEnv(pr, "ci").mustExit(t, 0, "0 RED")
+}
+
+func TestAbsR2bTheSameOvershootStaysRedOnEveryNonPullRequestEvent(t *testing.T) {
+	r := raceRepo(t)
+	mergeBranch(r, "b")
+	unrelatedMerge(r)
+	// The full sweep: push and schedule on main, a manual dispatch, a merge
+	// group, a missing event name, and an unknown one all keep the absolute term
+	// on every directory. Only the exact name pull_request narrows it.
+	for _, event := range []string{"push", "schedule", "workflow_dispatch", "merge_group", "", "pull_request_target", "unknown"} {
+		r.runEnv(map[string]string{"GITHUB_EVENT_NAME": event}, "ci").
+			mustExit(t, 1, "RED", "internal/foo", "41 -> 41", "never waived")
+	}
+	// -event beats the environment, so a flag spelled pull_request narrows and a
+	// flag spelled push does not, whatever GITHUB_EVENT_NAME says.
+	r.runEnv(map[string]string{"GITHUB_EVENT_NAME": "push"}, "-event", "pull_request", "ci").mustExit(t, 0)
+	r.runEnv(map[string]string{"GITHUB_EVENT_NAME": "pull_request"}, "-event", "push", "ci").
+		mustExit(t, 1, "RED", "41 -> 41", "never waived")
+}
+
+func TestAbsR2cPrePushKeepsTheFullSweep(t *testing.T) {
+	r := raceRepo(t)
+	mergeBranch(r, "b")
+	r.git("checkout", "-q", "-b", "later", "main")
+	r.write("go/internal/elsewhere/x.go", "package elsewhere\n")
+	r.commit("a following unrelated change")
+	r.run("-base-ref", "main", "pre-push").mustExit(t, 1, "RED", "internal/foo", "41 -> 41", "never waived")
+}
+
+// TestAbsR2dAPullRequestThatChangesTheOvershootDirectoryOwesIt: a PR that adds
+// one file to internal/foo (41 -> 42) owes the overshoot plus its own growth, so
+// +1 is RED and +2 is GREEN. A PR that only removes a file from it is still in
+// scope, and stays RED while the directory is over its allowance.
+func TestAbsR2dAPullRequestThatChangesTheOvershootDirectoryOwesIt(t *testing.T) {
+	pr := map[string]string{"GITHUB_EVENT_NAME": "pull_request"}
+	for _, tc := range []struct {
+		name    string
+		n       int
+		wantRed bool
+	}{{"plus one", 1, true}, {"plus two", 2, false}} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := raceRepo(t)
+			mergeBranch(r, "b")
+			r.git("checkout", "-q", "-b", "more", "main")
+			r.addGoFiles(dirFoo, "m", 0, 1)
+			r.commit(growthTrailer(tc.n))
+			r.git("checkout", "-q", "main")
+			r.git("merge", "-q", "--no-ff", "-m", "Merge more", "more")
+			if tc.wantRed {
+				r.runEnv(pr, "ci").mustExit(t, 1, "RED", "needs +2")
+				return
+			}
+			r.runEnv(pr, "ci").mustExit(t, 0, "0 RED")
+		})
+	}
+	t.Run("shrink that leaves it over", func(t *testing.T) {
+		r := raceRepo(t)
+		mergeBranch(r, "b")
+		r.addGoFiles(dirFoo, "n", 0, 1) // 42 on main, with the 41st unwaived
+		r.commit("main grows again, unwaived")
+		r.git("checkout", "-q", "-b", "shrink", "main")
+		r.rm("go/internal/foo/n000.go")
+		r.commit("remove one file")
+		r.git("checkout", "-q", "main")
+		r.git("merge", "-q", "--no-ff", "-m", "Merge shrink", "shrink")
+		r.runEnv(pr, "ci").mustExit(t, 1, "RED", "internal/foo")
+	})
+}
+
+// TestAbsR2eATrailerNamesItsDirectoryIntoScope: a PR that adds no file to
+// internal/foo but carries a trailer for it (the repair PR) is judged on that
+// directory. Right size is GREEN; a trailer on a directory that needs nothing is
+// still an unused trailer, so scoping cannot hide a stray waiver.
+func TestAbsR2eATrailerNamesItsDirectoryIntoScope(t *testing.T) {
+	pr := map[string]string{"GITHUB_EVENT_NAME": "pull_request"}
+	for _, tc := range []struct {
+		name    string
+		seed    func() *scratchRepo
+		n       int
+		wantRed string
+	}{
+		{"repair with the right size", func() *scratchRepo {
+			r := raceRepo(t)
+			mergeBranch(r, "b")
+			return r
+		}, 1, ""},
+		{"repair that over-waives", func() *scratchRepo {
+			r := raceRepo(t)
+			mergeBranch(r, "b")
+			return r
+		}, 2, "over-waived"},
+		{"stray trailer on a settled directory", func() *scratchRepo { return seedBase(t, 30) }, 1, "unused trailer"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := tc.seed()
+			r.git("checkout", "-q", "-b", "repair", "main")
+			r.commit(growthTrailer(tc.n))
+			r.git("checkout", "-q", "main")
+			r.git("merge", "-q", "--no-ff", "-m", "Merge repair", "repair")
+			if tc.wantRed == "" {
+				r.runEnv(pr, "ci").mustExit(t, 0, "0 RED")
+				return
+			}
+			r.runEnv(pr, "ci").mustExit(t, 1, "RED", tc.wantRed)
+		})
+	}
 }
 
 func TestAbsR3ARepairWithPlusTwoIsOverWaived(t *testing.T) {

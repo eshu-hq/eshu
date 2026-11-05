@@ -58,6 +58,13 @@ type evalInput struct {
 	markers  map[string]marker
 	// only restricts evaluation to these go/-relative directories; nil means all.
 	only map[string]bool
+	// absScoped limits the absolute term to the directories this change touched:
+	// those whose set of non-test .go files differs between base and head, plus
+	// every directory a valid trailer names. It is set for a pull_request run
+	// only. Growth that landed unwaived is caught where it was made (push,
+	// schedule, pre-push); a pull request that does not touch the directory is
+	// not made to repair it.
+	absScoped bool
 }
 
 // evaluate applies the absolute-invariant ratchet and returns findings plus
@@ -73,9 +80,15 @@ type evalInput struct {
 //
 // D is RED when w != needed: too little, too much, and an unused trailer all
 // fail. delta_needed guards each merge; abs_needed catches growth that landed
-// concurrently and was never waived.
+// concurrently and was never waived. When in.absScoped is set (pull_request),
+// abs_needed counts only for the directories the change touched; delta_needed
+// and the trailer check always apply to every directory.
 func evaluate(in evalInput) ([]finding, int) {
 	valid, out := validateTrailers(in)
+	var touched map[string]bool
+	if in.absScoped {
+		touched = touchedDirectories(in, valid)
+	}
 	dirs := map[string]struct{}{}
 	for d := range in.head.qualifying {
 		dirs[d] = struct{}{}
@@ -94,7 +107,7 @@ func evaluate(in evalInput) ([]finding, int) {
 		if in.head.count(d) > 0 || in.base.count(d) > 0 {
 			checked++
 		}
-		out = append(out, capFindings(d, in, valid[d])...)
+		out = append(out, capFindings(d, in, valid[d], touched == nil || touched[d])...)
 	}
 	violators, naming := namingFindings(in)
 	out = append(out, naming...)
@@ -124,12 +137,49 @@ func validateTrailers(in evalInput) (map[string][]trailer, []finding) {
 	return valid, out
 }
 
-// capFindings applies the cap and waiver arithmetic to one directory.
-func capFindings(dir string, in evalInput, waivers []trailer) []finding {
+// touchedDirectories returns the go/-relative directories a change touched: the
+// ones whose set of non-test .go files differs between base and head (added,
+// removed, or renamed files), and the ones a valid trailer names. A trailer
+// names its directory into scope so a repair PR is judged on the directory it
+// repairs, and a stray trailer on a settled directory is still an unused trailer.
+func touchedDirectories(in evalInput, valid map[string][]trailer) map[string]bool {
+	touched := map[string]bool{}
+	for _, side := range []map[string]map[string]struct{}{in.base.qualifying, in.head.qualifying} {
+		for d := range side {
+			if !sameFileSet(in.base.qualifying[d], in.head.qualifying[d]) {
+				touched[d] = true
+			}
+		}
+	}
+	for d := range valid {
+		touched[d] = true
+	}
+	return touched
+}
+
+// sameFileSet reports whether two basename sets hold the same names.
+func sameFileSet(a, b map[string]struct{}) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for name := range a {
+		if _, ok := b[name]; !ok {
+			return false
+		}
+	}
+	return true
+}
+
+// capFindings applies the cap and waiver arithmetic to one directory. absInScope
+// says whether the absolute term applies to it.
+func capFindings(dir string, in evalInput, waivers []trailer, absInScope bool) []finding {
 	b, h := in.base.count(dir), in.head.count(dir)
 	b0 := in.baseline.cap[dir]
 	deltaNeeded := max(0, h-max(maxDirFiles, b))
-	absNeeded := max(0, h-max(maxDirFiles, b0)-in.history[dir])
+	absNeeded := 0
+	if absInScope {
+		absNeeded = max(0, h-max(maxDirFiles, b0)-in.history[dir])
+	}
 	needed := max(deltaNeeded, absNeeded)
 	w := 0
 	var commits []string
@@ -151,7 +201,7 @@ func capFindings(dir string, in evalInput, waivers []trailer) []finding {
 	case w == 0:
 		msg = fmt.Sprintf("%s, needs +%d%s.\n"+
 			"  Move files out, or add this line to the message of the commit that adds them\n"+
-			"  (growth already on the base: put it in a one-commit repair PR):\n"+
+			"  (growth already on the base: check main first, a repair PR may already be in flight; otherwise put it in a one-commit repair PR):\n"+
 			"    Dirgate-Growth: %s +%d #<issue> <reason>", head, needed, split, dir, needed)
 	case w < needed:
 		msg = fmt.Sprintf("%s, needs +%d%s, but the trailers in commit(s) %s waive only +%d; set the trailer to +%d.",

@@ -9,7 +9,11 @@
   with `dirgate baseline` at landing or after a rebase.
 - The absolute term (`abs_needed`) is what stops two concurrent PRs from
   overshooting the cap unwaived. Do not drop it, and do not make push, schedule or
-  workflow_dispatch report-only again.
+  workflow_dispatch report-only again. On a `pull_request` run only, it is scoped
+  to the directories the change touched (file set differs, or a valid trailer
+  names them) so an unwaived overshoot on the base does not fail unrelated PRs.
+  Every other event name, a missing one, and pre-push keep the full sweep. Do not
+  widen the scoped set with a list of directories: it is derived from the diff.
 - Keep exactly one implementation of the rule. `scripts/verify-dirgate.sh` and
   `scripts/dev/precommit-go.sh` only dispatch here.
 - Never use `git merge-base` for the CI base. The CI base is `HEAD^1`: a PR that
