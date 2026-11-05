@@ -4,6 +4,7 @@
 package core
 
 import (
+	"reflect"
 	"slices"
 	"testing"
 
@@ -143,8 +144,15 @@ func TestRetractedFindingStaysOnlyWithoutALiveAnchor(t *testing.T) {
 }
 
 // TestAuthorizedScanKeepsARetractedFindingBesideAnUnjoinableLiveRecord runs the rule on
-// the authorized path: the Ubuntu target reads the retracted finding, the derived
-// conflict pass leaves it alone, and a Debian target reads nothing.
+// the authorized path: the Ubuntu target reads the finding it reads with no live
+// package fact at all, and a Debian target reads nothing.
+//
+// A retracted record with two facts offering different fixes is the row that holds the
+// derived conflict gate to the index the primary path classified with. Without that
+// index the gate reads only the live fact, which is another advisory's, and the
+// conflict the control shows disappears. That row asserts equality with its control
+// and not the retraction: base shows none on a record with a second fact, which is a
+// separate defect and is not this rule's to decide.
 func TestAuthorizedScanKeepsARetractedFindingBesideAnUnjoinableLiveRecord(t *testing.T) {
 	t.Parallel()
 
@@ -157,12 +165,9 @@ func TestAuthorizedScanKeepsARetractedFindingBesideAnUnjoinableLiveRecord(t *tes
 		envelope.SourceRef.SourceRecordID = envelope.FactID
 		return envelope
 	}
-	advisories := []facts.Envelope{
-		place(unjoinableRetractedCVE("withdrawn"), ownScope, ownGeneration),
-		place(unjoinableRetractedPackage("os"), ownScope, ownGeneration),
-		place(unjoinableLiveCVE("nvd"), otherScope, otherGeneration),
-		place(unjoinableLivePackage("nvd", "os", ""), otherScope, otherGeneration),
-	}
+	secondFix := unjoinableRetractedPackage("os")
+	secondFix.FactID = "affected-own-second"
+	secondFix.Payload["fixed_versions"] = []any{"1.0-5"}
 	authority := []AdvisoryAuthorityDependency{
 		{
 			Kind: "public_registration", ID: "registration-ubuntu", RevisionID: "revision-ubuntu",
@@ -175,36 +180,63 @@ func TestAuthorizedScanKeepsARetractedFindingBesideAnUnjoinableLiveRecord(t *tes
 			ProviderID: "nvd", TrustedSourceClass: "nvd", ContentProfile: "supply_chain_impact_v1",
 		},
 	}
-	for _, reverse := range []bool{false, true} {
-		ordered := slices.Clone(advisories)
-		if reverse {
-			slices.Reverse(ordered)
-		}
+	build := func(t *testing.T, advisories []facts.Envelope, target int, row installedOSRow) []SupplyChainImpactFinding {
+		t.Helper()
 		findings, err := BuildAuthorizedScanImpactFindings(nil, []AuthorizedScanImpactEvidence{
-			authorizedOSVTarget(0, ordered, authority, ubuntuCurl("22.04", unjoinableVersion)),
+			authorizedOSVTarget(target, advisories, authority, row),
 		})
 		if err != nil {
-			t.Fatalf("ubuntu target: %v", err)
+			t.Fatalf("build findings: %v", err)
 		}
-		if len(findings) != 1 {
-			t.Fatalf("ubuntu target findings = %d, want 1: %#v", len(findings), findings)
-		}
-		got := findings[0]
-		if got.AdvisoryID != unjoinableAdvisory || got.AdvisoryRetraction == nil {
-			t.Errorf("ubuntu target advisory/retraction = %q/%#v, want the retracted record with its retraction", got.AdvisoryID, got.AdvisoryRetraction)
-		}
-		assertSupplyChainImpactStatus(t, got, SupplyChainImpactAffectedExact)
-		if got.MatchReason == supplyChainVersionReasonAdvisoryFixedConflict {
-			t.Errorf("the derived conflict pass changed the finding: %#v", got)
-		}
-		findings, err = BuildAuthorizedScanImpactFindings(nil, []AuthorizedScanImpactEvidence{
-			authorizedOSVTarget(1, ordered, authority, debianCurl("12", unjoinableVersion)),
+		return findings
+	}
+
+	for _, tc := range []struct {
+		name         string
+		retracted    []facts.Envelope
+		wantConflict bool
+	}{
+		{name: "one retracted fact", retracted: []facts.Envelope{unjoinableRetractedPackage("os")}},
+		{
+			name:         "a retracted record with two facts offering different fixes",
+			retracted:    []facts.Envelope{unjoinableRetractedPackage("os"), secondFix},
+			wantConflict: true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			withoutLivePackage := []facts.Envelope{
+				place(unjoinableRetractedCVE("withdrawn"), ownScope, ownGeneration),
+				place(unjoinableLiveCVE("nvd"), otherScope, otherGeneration),
+			}
+			for _, fact := range tc.retracted {
+				withoutLivePackage = append(withoutLivePackage, place(fact, ownScope, ownGeneration))
+			}
+			control := build(t, withoutLivePackage, 0, ubuntuCurl("22.04", unjoinableVersion))
+			if len(control) != 1 {
+				t.Fatalf("control findings = %d, want 1: %#v", len(control), control)
+			}
+			if got := control[0].MatchReason == supplyChainVersionReasonAdvisoryFixedConflict; got != tc.wantConflict {
+				t.Fatalf("control conflict = %v (reason %q), want %v", got, control[0].MatchReason, tc.wantConflict)
+			}
+			advisories := append(slices.Clone(withoutLivePackage), place(unjoinableLivePackage("nvd", "os", ""), otherScope, otherGeneration))
+			for _, reverse := range []bool{false, true} {
+				ordered := slices.Clone(advisories)
+				if reverse {
+					slices.Reverse(ordered)
+				}
+				findings := build(t, ordered, 0, ubuntuCurl("22.04", unjoinableVersion))
+				if tc.wantConflict {
+					if !reflect.DeepEqual(findings, control) {
+						t.Errorf("findings differ from the control without the live package fact:\n got %#v\nwant %#v", findings, control)
+					}
+				} else {
+					assertRetractedRecordFinding(t, findings, control)
+				}
+				if findings := build(t, ordered, 1, debianCurl("12", unjoinableVersion)); len(findings) != 0 {
+					t.Errorf("debian target findings = %d, want none: %#v", len(findings), findings)
+				}
+			}
 		})
-		if err != nil {
-			t.Fatalf("debian target: %v", err)
-		}
-		if len(findings) != 0 {
-			t.Errorf("debian target findings = %d, want none: %#v", len(findings), findings)
-		}
 	}
 }
