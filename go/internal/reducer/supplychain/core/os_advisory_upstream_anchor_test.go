@@ -150,9 +150,9 @@ func TestRetractedFindingStaysOnlyWithoutALiveAnchor(t *testing.T) {
 // A retracted record with two facts offering different fixes is the row that holds the
 // derived conflict gate to the index the primary path classified with. Without that
 // index the gate reads only the live fact, which is another advisory's, and the
-// conflict the control shows disappears. That row asserts equality with its control
-// and not the retraction: base shows none on a record with a second fact, which is a
-// separate defect and is not this rule's to decide.
+// conflict the control shows disappears. The retraction shows on the control and on
+// the findings of both rows, because the record is retracted as a whole (ruling
+// 9914-retract).
 func TestAuthorizedScanKeepsARetractedFindingBesideAnUnjoinableLiveRecord(t *testing.T) {
 	t.Parallel()
 
@@ -219,6 +219,9 @@ func TestAuthorizedScanKeepsARetractedFindingBesideAnUnjoinableLiveRecord(t *tes
 			if got := control[0].MatchReason == supplyChainVersionReasonAdvisoryFixedConflict; got != tc.wantConflict {
 				t.Fatalf("control conflict = %v (reason %q), want %v", got, control[0].MatchReason, tc.wantConflict)
 			}
+			if control[0].AdvisoryRetraction == nil {
+				t.Fatalf("control shows no retraction: %#v", control[0])
+			}
 			advisories := append(slices.Clone(withoutLivePackage), place(unjoinableLivePackage("nvd", "os", ""), otherScope, otherGeneration))
 			for _, reverse := range []bool{false, true} {
 				ordered := slices.Clone(advisories)
@@ -226,12 +229,8 @@ func TestAuthorizedScanKeepsARetractedFindingBesideAnUnjoinableLiveRecord(t *tes
 					slices.Reverse(ordered)
 				}
 				findings := build(t, ordered, 0, ubuntuCurl("22.04", unjoinableVersion))
-				if tc.wantConflict {
-					if !reflect.DeepEqual(findings, control) {
-						t.Errorf("findings differ from the control without the live package fact:\n got %#v\nwant %#v", findings, control)
-					}
-				} else {
-					assertRetractedRecordFinding(t, findings, control)
+				assertRetractedRecordFinding(t, findings, control)
+				if !tc.wantConflict {
 					assertSupplyChainImpactStatus(t, findings[0], SupplyChainImpactAffectedExact)
 				}
 				if findings := build(t, ordered, 1, debianCurl("12", unjoinableVersion)); len(findings) != 0 {

@@ -141,7 +141,10 @@ func representativeAffectedPackage(packages []supplychainmodel.AffectedPackage) 
 // matching affected_package observation contributes the source's
 // fixed-version branches and vulnerable-range text. Observations without a
 // matching counterpart are still preserved so callers see the full source
-// list.
+// list. An affected_package with no cve observation of its own takes its
+// record's lifecycle when that whole record retracted (retractedRecordOf). It
+// keeps zero severity and an empty CVEFactID, so identity and severity
+// selection do not move.
 func buildAdvisoryProvenanceObservations(
 	cves []supplychainmodel.ImpactCVE,
 	packages []supplychainmodel.AffectedPackage,
@@ -177,16 +180,56 @@ func buildAdvisoryProvenanceObservations(
 		if matchedAffected[pkg.FactID] {
 			continue
 		}
-		observations = append(observations, AdvisoryProvenanceObservation{
+		observation := AdvisoryProvenanceObservation{
 			Source:         classifyAffectedPackageAdvisorySource(pkg),
 			AdvisoryID:     payloadcore.FirstNonBlank(pkg.AdvisoryID, pkg.CVEID),
 			FixedVersions:  append([]string(nil), pkg.FixedVersions...),
 			AffectedRange:  supplyChainAffectedRangeSummary(pkg),
 			AffectedFactID: pkg.FactID,
 			releaseTier:    osReleaseTier(pkg),
-		})
+		}
+		if record, ok := retractedRecordOf(pkg, cves); ok {
+			observation.SourceUpdatedAt = strings.TrimSpace(record.SourceUpdatedAt)
+			observation.WithdrawnAt = strings.TrimSpace(record.WithdrawnAt)
+			observation.Status = strings.TrimSpace(record.Status)
+			observation.ReplacedBy = cleanReplacementIDs(record.ReplacedBy)
+		}
+		observations = append(observations, observation)
 	}
 	return observations
+}
+
+// retractedRecordOf returns the cve fact whose lifecycle an affected_package fact
+// takes when pairing left that fact without a cve observation: a record is
+// retracted as a whole (arbiter ruling 9914-retract). The record is every cve fact
+// with the package fact's advisory id and advisory source class. It holds only when
+// the fact names an advisory, the record has a cve fact and all of them retracted,
+// so one live cve fact keeps the record live and a source with no cve fact stays
+// live, as retractionFromObservations requires. Among the record's facts the
+// smallest FactID decides, which keeps the result independent of fact order.
+func retractedRecordOf(
+	pkg supplychainmodel.AffectedPackage,
+	cves []supplychainmodel.ImpactCVE,
+) (supplychainmodel.ImpactCVE, bool) {
+	var record supplychainmodel.ImpactCVE
+	if strings.TrimSpace(pkg.AdvisoryID) == "" {
+		return record, false
+	}
+	found := false
+	for _, cve := range cves {
+		// classifyAdvisorySource can allocate, so the id comparison goes first.
+		if cve.AdvisoryID != pkg.AdvisoryID ||
+			classifyAdvisorySource(cve.Source, cve.AdvisoryID) != classifyAdvisorySource(pkg.Source, pkg.AdvisoryID) {
+			continue
+		}
+		if !impactCVERetracted(cve) {
+			return supplychainmodel.ImpactCVE{}, false
+		}
+		if !found || cve.FactID < record.FactID {
+			record, found = cve, true
+		}
+	}
+	return record, found
 }
 
 func matchAffectedForCVE(

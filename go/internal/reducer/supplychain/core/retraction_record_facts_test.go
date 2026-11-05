@@ -164,6 +164,17 @@ func TestRetractedRecordWithSeveralFactsReadsAsItsOneFactControl(t *testing.T) {
 						if control.AdvisoryRetraction == nil {
 							t.Fatalf("control shows no retraction: %#v", control)
 						}
+						wantSources := control.AdvisorySources
+						if class.name == "osv" && cveFacts == 2 {
+							// One package fact leaves the second cve fact unpaired, and only a
+							// paired cve fact takes the vendor label from its package's purl, so
+							// this control lists ubuntu and osv for one record. The row pairs both
+							// and lists ubuntu once. That labeling is not this rule's: no unpaired
+							// package fact is involved, so this cell compares with the one-cve control.
+							wantSources = oneRecordFinding(t, BuildSupplyChainImpactFindings(
+								slices.Concat(cves[:1], []facts.Envelope{class.anchor(), class.one()}),
+							)).AdvisorySources
+						}
 						var first []SupplyChainImpactFinding
 						for _, order := range everyOrder(slices.Concat(cves, []facts.Envelope{class.anchor()}, listed)) {
 							findings := BuildSupplyChainImpactFindings(order)
@@ -180,8 +191,8 @@ func TestRetractedRecordWithSeveralFactsReadsAsItsOneFactControl(t *testing.T) {
 							if got.Status != control.Status || got.MatchReason != control.MatchReason || got.AdvisoryID != control.AdvisoryID {
 								t.Errorf("status/reason/advisory = %s/%s/%s, control %s/%s/%s", got.Status, got.MatchReason, got.AdvisoryID, control.Status, control.MatchReason, control.AdvisoryID)
 							}
-							if !reflect.DeepEqual(got.AdvisorySources, control.AdvisorySources) {
-								t.Errorf("advisory sources:\n got %#v\nwant %#v", got.AdvisorySources, control.AdvisorySources)
+							if !reflect.DeepEqual(got.AdvisorySources, wantSources) {
+								t.Errorf("advisory sources:\n got %#v\nwant %#v", got.AdvisorySources, wantSources)
 							}
 							for _, id := range ids {
 								if !slices.Contains(got.EvidenceFactIDs, id) {

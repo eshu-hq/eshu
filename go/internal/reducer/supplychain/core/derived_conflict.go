@@ -95,7 +95,11 @@ func markAuthorizedFixedVersionConflicts(
 			}
 		}
 		if !conflict {
-			selectApplicableAuthorizedBranch(finding, candidates, hostLine)
+			// A retracted finding offers no fix, so no branch is selected for it. The
+			// conflict below still applies: it withholds a fix (ruling 9914-retract).
+			if finding.AdvisoryRetraction == nil {
+				selectApplicableAuthorizedBranch(finding, candidates, hostLine)
+			}
 			continue
 		}
 		finding.Status = SupplyChainImpactPossiblyAffected

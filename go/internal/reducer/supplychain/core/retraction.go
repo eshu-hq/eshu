@@ -157,7 +157,9 @@ func recordsListingThePackage(observations []AdvisoryProvenanceObservation) []Ad
 // quarantined by a failed decode) is an observation with no status and counts
 // as live: a rejection or withdrawal by one source must not hide a
 // vulnerability another source still asserts, whatever the state of that
-// source's CVE fact. The all-retracted check runs first and allocates nothing,
+// source's CVE fact. A second affected_package of a source whose record retracted
+// as a whole carries that lifecycle (retractedRecordOf), so it does not count as a
+// live source here. The all-retracted check runs first and allocates nothing,
 // because almost every finding is live and this runs once per finding.
 func retractionFromObservations(observations []AdvisoryProvenanceObservation) *AdvisoryRetraction {
 	if len(observations) == 0 {
