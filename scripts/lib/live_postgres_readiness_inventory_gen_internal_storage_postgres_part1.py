@@ -362,6 +362,9 @@ TABLE = {
         "go/internal/storage/postgres/identity_epoch_empty_set_live_test.go": (
             "TestProbeIdentityEpochEmptySetLive",
         ),
+        "go/internal/storage/postgres/identity_epoch_probe_reformulation_live_test.go": (
+            "TestIdentityEpochProbeReformulationMatchesOracleLive",
+        ),
         "go/internal/storage/postgres/identity_page_plan_live_test.go": (
             "TestIdentityPageQueryPlanRidesOrderedIndexLive",
         ),

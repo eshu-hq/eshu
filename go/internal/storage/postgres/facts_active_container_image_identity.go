@@ -72,9 +72,8 @@ const identityFactFilterSQL = `(
 // rides on the ordered scan of fact_records_identity_epoch_idx_v2 and the
 // LIMIT stops that scan after about one page of rows. PostgreSQL folds the
 // constant away during planning, so it costs nothing at run time.
-// TestIdentityPageQueryPlanRidesOrderedIndexLive pins the plan, first page and
-// mid-load page, on a real server in the postgres_ci lane (verified on
-// PostgreSQL 18); the text-shape asserts in
+// TestIdentityPageQueryPlanRidesOrderedIndexLive pins the plan on a real server
+// in the postgres_ci lane; the text-shape asserts in
 // TestFactStoreListActiveContainerImageIdentityFactsUsesActiveIdentityGenerations
 // only keep the "OR FALSE" from being deleted.
 //
@@ -123,54 +122,55 @@ LIMIT $3
 
 // probeIdentityEpochQuery returns (count, max(observed_at), active_fingerprint).
 // The max is NULL on an empty set and scans to the zero time, so the empty-set
-// epoch stays stable and cacheable (#8607). The count and max are taken over
-// identity facts of each
-// scope's ACTIVE generation only, the same set the page query serves, so
-// retention and supersession deletes of old-generation rows do not move the
-// epoch (#7805: the former all-generations count moved every few minutes, which
-// discarded nearly every load). An insert or delete on an active generation
-// still moves it. The active restriction is the same hashed SubPlan filter the
-// page query uses, "OR FALSE" included, for the same planner reason (see
-// listActiveContainerImageIdentityFactsQuery). It reads the heap for scope and
-// generation, so it costs about twice the former index-only probe (about
-// 120 ms versus 60 ms on a 1.0M-identity-fact shim, docs/internal/evidence/
-// 7805-identity-epoch-flight.md) and needs no new index.
+// epoch stays stable and cacheable (#8607). The count and max cover identity
+// facts of each scope's ACTIVE generation only — the same set the page query
+// serves — so retention and supersession deletes of old-generation rows do not
+// move the epoch (#7805); an insert or delete on an active generation still
+// moves it. The active restriction is the same hashed SubPlan filter the page
+// query uses, "OR FALSE" included (see listActiveContainerImageIdentityFactsQuery).
 //
 // The fingerprint is a collision-resistant SHA-256 digest of the DISTINCT
-// active (scope_id, generation_id) pairs present in that same filtered identity
-// set, ordered and joined with '|'. It detects supersession
-// (active_generation_id flip) so the cache misses when a new generation becomes
-// active even when the active count and max observed_at are unchanged. Unlike a
-// summed hash, the ordered digest has no collision mode where two different
-// active mappings (a 32-bit hashtext collision, or offsetting deltas that
-// cancel in a sum) produce the same fingerprint.
+// active (scope_id, generation_id) pairs in that filtered set, ordered and
+// joined with '|' (#5438 P1-B; narrowed to identity-bearing scopes by #7825,
+// so an identity-empty activation leaves the pair set unchanged and moves
+// nothing). Unlike a summed hash it has no silent-collision mode. An empty
+// identity set digests the empty string, so the print is always 64 hex chars.
 //
-// The fingerprint deliberately covers only scopes whose active generation holds
-// at least one identity fact (#7825): a generation activation in a scope with
-// no identity facts leaves the distinct pair set unchanged, so it no longer
-// moves the epoch or tears an in-flight load. The torn test in
-// identity_epoch_cache.go compares whole epochs, so narrowing the fingerprint
-// narrows the torn test with no second change. An empty identity set digests
-// the empty string, so the fingerprint is always 64 hex characters.
+// The aggregate is a two-level reformulation of that same pair set (#8875):
+// the inner query scans the filtered facts once, grouped by (scope_id,
+// generation_id) with per-group count and max observed_at; the outer query
+// rolls those up with SUM, MAX, and the same ordered string_agg(DISTINCT ...).
+// The triple is byte-identical to the former single-level aggregate for every
+// database state (empty set: SUM falls back to 0, max stays NULL, digest covers
+// the empty string), so rollout alone moves no epoch. The derived-table alias
+// reuses `fact` deliberately to keep the `fact.scope_id` / `fact.generation_id`
+// text the filter-drift and fingerprint-shape locks assert on.
 const probeIdentityEpochQuery = `
 SELECT
-    count(*) AS cnt,
-    max(fact.observed_at),
+    COALESCE(SUM(fact.cnt), 0)::bigint AS cnt, MAX(fact.max_observed),
     encode(sha256(convert_to(COALESCE(string_agg(DISTINCT fact.scope_id::text || ':' || fact.generation_id::text, '|' ORDER BY fact.scope_id::text || ':' || fact.generation_id::text), ''), 'UTF8')), 'hex') AS fingerprint
-FROM fact_records AS fact
-WHERE ` + identityFactFilterSQL + `
-  AND fact.is_tombstone = FALSE
-  AND (
-    (fact.scope_id, fact.generation_id) IN (
-      SELECT scope.scope_id, scope.active_generation_id
-      FROM ingestion_scopes AS scope
-      JOIN scope_generations AS generation
-        ON generation.scope_id = scope.scope_id
-       AND generation.generation_id = scope.active_generation_id
-      WHERE generation.status = 'active'
-    )
-    OR FALSE
-  )
+FROM (
+    SELECT
+        fact.scope_id,
+        fact.generation_id,
+        COUNT(*) AS cnt,
+        MAX(fact.observed_at) AS max_observed
+    FROM fact_records AS fact
+    WHERE ` + identityFactFilterSQL + `
+      AND fact.is_tombstone = FALSE
+      AND (
+        (fact.scope_id, fact.generation_id) IN (
+          SELECT scope.scope_id, scope.active_generation_id
+          FROM ingestion_scopes AS scope
+          JOIN scope_generations AS generation
+            ON generation.scope_id = scope.scope_id
+           AND generation.generation_id = scope.active_generation_id
+          WHERE generation.status = 'active'
+        )
+        OR FALSE
+      )
+    GROUP BY fact.scope_id, fact.generation_id
+) AS fact
 `
 
 // ListActiveContainerImageIdentityFacts loads active OCI registry facts and
