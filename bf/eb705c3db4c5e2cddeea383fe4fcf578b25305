@@ -1,0 +1,37 @@
+docs/internal/evidence/10022-delta-cassette-feasibility.md
+  s_7547c0f0af67d4::t_55584a8826a7ee 63-64,70-77,102
+docs/public/operate/graph-delta-union.md
+  s_7547c0f0af67d4::t_c21e605713e488 145-148
+scripts/lib/golden-corpus-delta-reader.sh
+  s_7547c0f0af67d4::t_ea272bae3b7b7f 21-22
+scripts/lib/test-golden-corpus-delta-reader.sh
+  s_7547c0f0af67d4::t_152e2d7601c4f5 57
+testdata/golden/e2e-20repo-snapshot.json
+  s_7547c0f0af67d4::t_3d7ff562eeaf92 2455,2461,2465,2471,2475,2485,2489,2494,2499,2508,2521
+tests/fixtures/golden_delta_union/base/app/ledger.go
+  s_7547c0f0af67d4::t_b6b1e8d9c978fa 4
+tests/fixtures/golden_delta_union/base/app/main.go
+  s_7547c0f0af67d4::t_c776026e546faf 4-7,9
+tests/fixtures/golden_delta_union/base/app/report.go
+  s_7547c0f0af67d4::t_7e1ee5e1d8fe1c 4
+tests/fixtures/golden_delta_union/delta/app/main.go
+  s_7547c0f0af67d4::t_15b0e4bec122fb 4-7,9,16-18
+tests/fixtures/golden_delta_union/delta/deploy/claim.yaml
+  s_7547c0f0af67d4::t_d86a6efcaabe29 1-7
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "bfeb705c3db4c5e2cddeea383fe4fcf578b25305",
+  "prompts": {},
+  "sessions": {
+    "s_7547c0f0af67d4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7c8b2d5-3286-4c2a-be1f-589162535d83",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

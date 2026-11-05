@@ -1,0 +1,27 @@
+docs/internal/evidence/10022-delta-cassette-feasibility.md
+  s_7547c0f0af67d4::t_ea6548367eaf09 74-82
+docs/public/operate/graph-delta-union.md
+  s_7547c0f0af67d4::t_15a06d57008c01 136-140
+scripts/lib/golden-corpus-delta-reader.sh
+  s_7547c0f0af67d4::t_1a2742cb6b62f9 24-35,141-142
+scripts/lib/test-golden-corpus-delta-reader.sh
+  s_7547c0f0af67d4::t_056bf6f53ac7da 21-31
+scripts/verify-golden-corpus-gate.sh
+  s_7547c0f0af67d4::t_0057c66a013ecc 292,348
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7a98d181f4d5ccb692bae8f3e6b181bebbc39976",
+  "prompts": {},
+  "sessions": {
+    "s_7547c0f0af67d4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7c8b2d5-3286-4c2a-be1f-589162535d83",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

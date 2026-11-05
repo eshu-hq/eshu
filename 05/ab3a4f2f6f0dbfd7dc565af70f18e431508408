@@ -1,0 +1,25 @@
+go/internal/goldengate/delta_readers_test.go
+  s_7547c0f0af67d4::t_20c5ba33f54b03 230-241
+scripts/lib/golden-corpus-delta-reader.sh
+  s_7547c0f0af67d4::t_55cbddac9f9408 114-116,119-123,216
+scripts/lib/test-golden-corpus-delta-reader.sh
+  s_7547c0f0af67d4::t_11d228016d7f49 64-91
+scripts/verify-golden-corpus-gate.sh
+  s_7547c0f0af67d4::t_c8777819d42a42 476
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "05ab3a4f2f6f0dbfd7dc565af70f18e431508408",
+  "prompts": {},
+  "sessions": {
+    "s_7547c0f0af67d4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7c8b2d5-3286-4c2a-be1f-589162535d83",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

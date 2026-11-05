@@ -1,0 +1,31 @@
+scripts/lib/test-golden-corpus-delta-reader.sh
+  s_7547c0f0af67d4::t_26fa376b91a9a4 1-46
+  s_7547c0f0af67d4::t_78e4083c029315 47-52
+scripts/lib/golden-corpus-delta-reader.sh
+  s_7547c0f0af67d4::t_2377243c1cc247 1-188,194
+  s_7547c0f0af67d4::t_09bd231e4c580c 189-193,195-197
+go/cmd/golden-corpus-gate/delta_readers_test.go
+  s_7547c0f0af67d4::t_2c77f72e208461 123-153
+scripts/test-verify-golden-corpus-gate.sh
+  s_7547c0f0af67d4::t_6960a5123152cb 488-489,491
+scripts/verify-golden-corpus-gate.sh
+  s_7547c0f0af67d4::t_0a82cbb0d8e6d9 62-63,267,292,369,476
+testdata/golden/e2e-20repo-snapshot.json
+  s_7547c0f0af67d4::t_56617727aeba76 25-26,2453-2539
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9bb0c015a782c49bc907584bf46526651a7bb750",
+  "prompts": {},
+  "sessions": {
+    "s_7547c0f0af67d4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7c8b2d5-3286-4c2a-be1f-589162535d83",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

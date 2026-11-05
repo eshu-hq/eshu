@@ -1,0 +1,21 @@
+docs/internal/evidence/10022-delta-cassette-feasibility.md
+  s_7547c0f0af67d4::t_9e58cb3cfe713b 139-142,144-148,157-185
+scripts/lib/test-golden-corpus-delta-reader.sh
+  s_7547c0f0af67d4::t_c42423c8d11f62 70-71,73
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4a8079ca538c8d39b8e51f1e9354caae7f9d22ea",
+  "prompts": {},
+  "sessions": {
+    "s_7547c0f0af67d4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7c8b2d5-3286-4c2a-be1f-589162535d83",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
