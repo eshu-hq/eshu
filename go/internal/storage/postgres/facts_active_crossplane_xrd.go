@@ -114,9 +114,9 @@ ORDER BY fact.observed_at ASC, fact.fact_id ASC
 LIMIT $4
 `
 
-// Placeholders the derived base-candidate texts bind the delta-active scope
-// ids at: the XRD read uses $1 to $3 for its keyset cursor and page size, the
-// claim read $1 to $4 for its scope, cursor, and page size.
+// Placeholders the derived base-candidate texts bind the candidate base
+// generation ids at: the XRD read uses $1 to $3 for its keyset cursor and
+// page size, the claim read $1 to $4 for its scope, cursor, and page size.
 const (
 	crossplaneXRDDeltaOverlayScopeParam   = 4
 	crossplaneClaimDeltaOverlayScopeParam = 5

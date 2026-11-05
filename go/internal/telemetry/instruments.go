@@ -886,11 +886,13 @@ type Instruments struct {
 	// decisions of the Crossplane SATISFIED_BY reads, one per delta-active
 	// scope a read reached (#10003, #10005). Labels: read (xrd or claim) and
 	// outcome (union_base_found, union_base_unmatched, union_base_missing,
-	// union_scope_mismatch, union_no_baseline, union_resolve_failed). Every
-	// outcome but union_base_found returns that scope's delta rows only, so
-	// the handler's retract-by-scope can drop the edges of unchanged claims
-	// or of XRDs in untouched files; union_resolve_failed counts once per
-	// read whose lookups failed.
+	// union_scope_mismatch, union_no_baseline, union_resolve_failed).
+	// union_base_unmatched and union_no_baseline return that scope's delta
+	// rows only, so the handler's retract-by-scope can drop the edges of
+	// unchanged claims or of XRDs in untouched files; union_base_missing
+	// and union_scope_mismatch fail the read with
+	// CrossplaneDeltaBaseRefusedError before the retract, and
+	// union_resolve_failed fails it with the resolution error.
 	CrossplaneSatisfiedByReadDeltaUnion metric.Int64Counter
 	// CrossplaneRedriveSweeps counts cross-scope SATISFIED_BY re-drive sweeps
 	// attempted (issue #5476) by outcome (no_active_xrd / already_in_progress /
