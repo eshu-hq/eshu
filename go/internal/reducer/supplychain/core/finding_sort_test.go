@@ -8,7 +8,10 @@ import (
 	"fmt"
 	"math/rand"
 	"sort"
+	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
 
 // referenceFindingSort is the pre-#10057 ordering, kept as the oracle: it
@@ -184,4 +187,32 @@ func TestFindingSortFixtureDetectsAWrongKey(t *testing.T) {
 			t.Fatal("key-only sort matched the tie-broken reference, so the fixture cannot see a dropped tie-break")
 		}
 	})
+}
+
+// TestCoalesceResortsAfterAMergeChangesAFindingKey pins the sort that follows
+// the merge loop. Two findings share an identity and disagree on reason with an
+// SBOM component read, so the merge turns affected_exact into
+// possibly_affected, and the status is part of the sort key. The merged finding
+// must therefore move behind its not_affected_known_fixed neighbor.
+func TestCoalesceResortsAfterAMergeChangesAFindingKey(t *testing.T) {
+	t.Parallel()
+	build := func(version string, status SupplyChainImpactStatus, reason string) SupplyChainImpactFinding {
+		return SupplyChainImpactFinding{
+			CVEID: "CVE-2099-9946", PackageID: "pkg:deb/debian/curl", ObservedVersion: version,
+			PURL: "pkg:deb/debian/curl@" + version, Status: status, Confidence: "exact", MatchReason: reason,
+			SubjectDigest: "sha256:" + strings.Repeat("b", 64), EvidencePath: []string{chain.SBOMComponentFactKind},
+		}
+	}
+	got := coalesceAndSortSupplyChainImpactFindings([]SupplyChainImpactFinding{
+		build("1:1.0-3", SupplyChainImpactAffectedExact, "reason_a"),
+		build("1:1.0-3", SupplyChainImpactAffectedExact, "reason_b"),
+		build("1:1.0-4", SupplyChainImpactNotAffectedKnownFixed, "reason_a"),
+	})
+	var statuses []SupplyChainImpactStatus
+	for _, finding := range got {
+		statuses = append(statuses, finding.Status)
+	}
+	if len(got) != 2 || got[0].Status != SupplyChainImpactNotAffectedKnownFixed || got[1].Status != SupplyChainImpactPossiblyAffected {
+		t.Fatalf("statuses = %v, want [not_affected_known_fixed possibly_affected]", statuses)
+	}
 }
