@@ -22,14 +22,16 @@ import (
 )
 
 type stubPackageSourceFactLoader struct {
-	scopeFacts           []facts.Envelope
-	repositoryFacts      []facts.Envelope
-	manifestDependencies []facts.Envelope
-	kindCalls            [][]string
-	repositoryCalls      int
-	manifestCalls        int
-	manifestEcosystems   []string
-	manifestPackageNames []string
+	scopeFacts            []facts.Envelope
+	repositoryFacts       []facts.Envelope
+	manifestDependencies  []facts.Envelope
+	manifestRefusalErr    error
+	kindCalls             [][]string
+	repositoryCalls       int
+	manifestCalls         int
+	manifestRefusingCalls int
+	manifestEcosystems    []string
+	manifestPackageNames  []string
 }
 
 func (s *stubPackageSourceFactLoader) ListFacts(
@@ -216,8 +218,8 @@ func TestPackageSourceHandlerLoadsActiveRepositoriesAndEmitsCounters(t *testing.
 	if loader.repositoryCalls != 1 {
 		t.Fatalf("ListActiveRepositoryFacts() calls = %d, want 1", loader.repositoryCalls)
 	}
-	if loader.manifestCalls != 1 {
-		t.Fatalf("ListActivePackageManifestDependencyFacts() calls = %d, want 1", loader.manifestCalls)
+	if loader.manifestRefusingCalls != 1 {
+		t.Fatalf("ListActivePackageManifestDependencyFactsWithRefusals() calls = %d, want 1", loader.manifestRefusingCalls)
 	}
 	if got, want := loader.manifestPackageNames, []string{"team-api"}; !sameStrings(got, want) {
 		t.Fatalf("PackageNames = %#v, want %#v", got, want)

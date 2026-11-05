@@ -285,6 +285,16 @@ func (s *stubPackageSourceFactLoader) ListActivePackageManifestDependencyFacts(
 	return append([]facts.Envelope(nil), s.manifestDependencies...), nil
 }
 
+// ListActivePackageManifestDependencyFactsWithRefusals keeps the staying-root
+// fake on the refusing seam (#10109): no refusal, same rows.
+func (s *stubPackageSourceFactLoader) ListActivePackageManifestDependencyFactsWithRefusals(
+	_ context.Context,
+	_ []string,
+	_ []string,
+) ([]facts.Envelope, bool, error) {
+	return append([]facts.Envelope(nil), s.manifestDependencies...), false, nil
+}
+
 // recordingPackageWriter is a minimal staying-root fake
 // satisfying correlation.PackageWriter. Same history as
 // stubPackageSourceFactLoader above: the family's own fake moved with it,

@@ -246,11 +246,11 @@ func assertManifestProbeParity(t *testing.T, f *deltaManifestFixture, state stri
 		if query == listActivePackageManifestDependencyFactsWithSBTQuery {
 			oracle = manifestFlatMavenOracle
 		}
-		got, err := f.store.listManifestDependencyFactsWithQuery(f.ctx, time.Now(), managers, query, read.names)
+		got, _, err := f.store.listManifestDependencyFactsWithQuery(f.ctx, time.Now(), managers, query, read.names, false)
 		if err != nil {
 			t.Fatalf("%s %s: shipped read: %v", state, read.name, err)
 		}
-		want, err := f.store.listManifestDependencyFactsWithQuery(f.ctx, time.Now(), managers, oracle, read.names)
+		want, _, err := f.store.listManifestDependencyFactsWithQuery(f.ctx, time.Now(), managers, oracle, read.names, false)
 		if err != nil {
 			t.Fatalf("%s %s: oracle read: %v", state, read.name, err)
 		}

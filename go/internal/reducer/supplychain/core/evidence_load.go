@@ -85,6 +85,25 @@ type supplyChainImpactLoadedEvidence struct {
 	crossScopeProducerDelta int
 }
 
+// loadManifestDependencyEvidence runs the manifest-dependency load stage:
+// the manifest rows one pass matches against, whether the read refused a
+// reached delta-active scope's base, and the stage duration on timing. A
+// refusal is incomplete evidence, not a failed load — refused reports true
+// with no rows and no error, and the caller marks the pass partial (#10109).
+func (h SupplyChainImpactHandler) loadManifestDependencyEvidence(
+	ctx context.Context,
+	envelopes []facts.Envelope,
+	timing *supplyChainImpactTiming,
+) ([]facts.Envelope, bool, error) {
+	started := time.Now()
+	dependencies, refused, err := h.loadActivePackageManifestDependencyFacts(ctx, envelopes)
+	timing.loadManifestDependenciesDuration = time.Since(started)
+	if err != nil {
+		return nil, false, fmt.Errorf("load active package manifest dependency facts: %w", err)
+	}
+	return dependencies, refused, nil
+}
+
 // loadSupplyChainImpactEvidence runs the scope-fact, repository, manifest-
 // dependency, active-evidence, os-package-advisory, scanner-analysis-scope,
 // resolved-digest-evidence, Python/JVM reachability, and security-alert
@@ -146,11 +165,9 @@ func (h SupplyChainImpactHandler) loadSupplyChainImpactEvidence(
 	repositoryFacts := len(repositories)
 	envelopes = append(envelopes, repositories...)
 
-	phaseStarted = time.Now()
-	manifestDependencies, err := h.loadActivePackageManifestDependencyFacts(ctx, envelopes)
-	timing.loadManifestDependenciesDuration = time.Since(phaseStarted)
+	manifestDependencies, manifestRefused, err := h.loadManifestDependencyEvidence(ctx, envelopes, &timing)
 	if err != nil {
-		return supplyChainImpactLoadedEvidence{}, timing, fmt.Errorf("load active package manifest dependency facts: %w", err)
+		return supplyChainImpactLoadedEvidence{}, timing, err
 	}
 	manifestDependencyFacts := len(manifestDependencies)
 	envelopes = append(envelopes, manifestDependencies...)
@@ -245,6 +262,10 @@ func (h SupplyChainImpactHandler) loadSupplyChainImpactEvidence(
 			return supplyChainImpactLoadedEvidence{}, timing, fmt.Errorf("derived fact %q requires protected impact evidence loader", envelope.FactID)
 		}
 	}
+
+	// A refused manifest base is incomplete evidence: the pass upserts but
+	// retracts nothing (#10109).
+	truncation.manifestRefused = manifestRefused
 
 	return supplyChainImpactLoadedEvidence{
 		envelopes:                       envelopes,

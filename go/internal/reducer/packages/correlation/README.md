@@ -56,7 +56,9 @@ read the durable facts; they never import this package.
   `PackageConsumptionFactKind`,
   `PackagePublicationFactKind`.
 - Narrow loaders: `ActiveRepositoryFactLoader`,
-  `ActivePackageManifestDependencyFactLoader`,
+  `ActivePackageManifestDependencyFactLoader` (delta-only; never retract on
+  it), `ManifestDependencyRefusingLoader` (refusal-aware; the retracting
+  package-source and supply-chain impact paths, #10109),
   `HasPackageSourceRepositoryFact`.
 
 ## Dependency rule

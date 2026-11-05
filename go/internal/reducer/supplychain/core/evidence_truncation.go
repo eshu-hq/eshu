@@ -22,6 +22,13 @@ const (
 	// (maxSupplyChainImpactEvidenceEnvelopesPerIntent) was spent, so later
 	// expansion stages were skipped or stopped early.
 	supplyChainImpactTruncationBudget = telemetry.SupplyChainImpactPartialCauseBudget
+	// supplyChainImpactTruncationManifestRefused means the manifest
+	// dependency read refused a reached delta-active scope's base (#10109),
+	// so manifest-backed consumption evidence is missing and the finding
+	// set is incomplete. It folds into
+	// telemetry.SupplyChainImpactPartialCauseOther on the headroom gauge;
+	// the evidence_truncated counter and WARN line carry this exact cause.
+	supplyChainImpactTruncationManifestRefused = "manifest_refused"
 )
 
 // supplyChainImpactTruncation records why one pass's bounded evidence load
@@ -41,12 +48,18 @@ type supplyChainImpactTruncation struct {
 	rounds          bool
 	budget          bool
 	suppressionTail bool
+	// manifestRefused marks a pass whose manifest dependency read refused
+	// a reached delta-active scope's base (#10109). Like rounds and budget
+	// it makes the finding set incomplete; unlike them it is not a bounded
+	// load stopping short, so any() — which drives suppression-candidate
+	// discard — stays false for it.
+	manifestRefused bool
 }
 
 // partial reports whether the finding set may be incomplete, which is the
 // writer's PartialEvidence contract: upsert only, retract nothing.
 func (t supplyChainImpactTruncation) partial() bool {
-	return t.rounds || t.budget
+	return t.rounds || t.budget || t.manifestRefused
 }
 
 // any reports whether any bounded load stopped short for any cause.
@@ -62,6 +75,9 @@ func (t supplyChainImpactTruncation) causes() []string {
 	}
 	if t.budget {
 		causes = append(causes, supplyChainImpactTruncationBudget)
+	}
+	if t.manifestRefused {
+		causes = append(causes, supplyChainImpactTruncationManifestRefused)
 	}
 	return causes
 }
