@@ -115,10 +115,11 @@ When the gate or the floor script fails after a repository move:
 4. Rebuild with the new args: the gate must print `GATE PASS`.
 5. Re-run both `verify-apk-floors.sh --dockerfile` invocations above.
 
-Transcription amd64 has no recorded binary reference (the digest is
-toolchain-dependent): build the `whisper` stage for that arch first, hash
-`/out/whisper-cli`, store it in `transcription.amd64.json`, then run the
-full build. Until then the gate fails closed for that arch by design.
+Transcription amd64 now records its binary reference in
+`transcription.amd64.json` (#10072): the `whisper` stage was built for that
+arch, `/out/whisper-cli` hashed, and the full build gated PASS. A future
+re-pin repeats the ritual above; until the new digests land, the gate fails
+closed for that arch by design.
 
 ## Running
 
