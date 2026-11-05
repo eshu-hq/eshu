@@ -150,7 +150,8 @@ the active-only read for the delta-active npm shape was 2.66x and 2.14x on
 main and 2.25x and 2.29x on the branch. For the no-delta npm shape it was
 1.00x and 0.98x on main and 0.97x and 1.00x on the branch. The saving is the
 six statements above, a few milliseconds of the multi-second read. The base
-pages still dominate the read (#9611 owns that rewrite).
+pages still dominated the read; #9611 rewrote them
+([9611-manifest-read-name-probe.md](9611-manifest-read-name-probe.md)).
 
 ## Behavior notes
 

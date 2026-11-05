@@ -167,7 +167,8 @@ buffers, 265.6 ms against 278.0 ms unrestricted), because
 `fact.scope_id = ANY($6)` is a residual filter. The restriction shrinks only
 the join work, 10,066 rows into the joins instead of 31,205. So while any
 scope is delta-active, each base page costs about one active page. The #9611
-per-name rewrite of the shared template is what shrinks both.
+per-name rewrite of the shared template shrinks both; see
+[9611-manifest-read-name-probe.md](9611-manifest-read-name-probe.md).
 
 An earlier count on a loaded host (load average 12 to 20) gave the same
 statement counts with noisier times: npm delta-active 2.428 s old against
@@ -193,8 +194,9 @@ statement counts with noisier times: npm delta-active 2.428 s old against
 - Two activated fulls at one union-base commit both pass the base-candidate
   prefilter, so the base pages scan twice that scope's rows before Go keeps
   the resolved base's rows.
-- The base pages scan the package-manager index prefix whenever any scope is
-  delta-active (#9611 owns the rewrite).
+- Before #9611 the base pages scanned the package-manager index prefix
+  whenever any scope was delta-active. They now probe each requested name
+  ([9611-manifest-read-name-probe.md](9611-manifest-read-name-probe.md)).
 
 ## Observability Evidence:
 
