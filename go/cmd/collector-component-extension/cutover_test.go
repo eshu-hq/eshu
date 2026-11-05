@@ -4,13 +4,17 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"go.opentelemetry.io/otel/trace/noop"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/claim/store"
+	remoteclaim "github.com/eshu-hq/eshu/go/internal/collector/extensionhost/remote/claim"
 	"github.com/eshu-hq/eshu/go/internal/component"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -273,5 +277,185 @@ func TestBuildClaimedServiceRoutesEnabledFlow(t *testing.T) {
 	}
 	if !fenced.ClaimPlaneFenced() {
 		t.Fatal("Committer.ClaimPlaneFenced() = false, want the plane commit fence on the enabled path")
+	}
+}
+
+// recordingGrantObserver captures producer-grant decisions for the
+// cutover-observer proof. It implements component.GrantObserver and is safe
+// for concurrent use.
+type recordingGrantObserver struct {
+	mu        sync.Mutex
+	decisions []component.GrantDecision
+}
+
+func (r *recordingGrantObserver) ObserveGrantDecision(_ context.Context, d component.GrantDecision) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.decisions = append(r.decisions, d)
+}
+
+func (r *recordingGrantObserver) snapshot() []component.GrantDecision {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]component.GrantDecision(nil), r.decisions...)
+}
+
+const (
+	cutoverObserverComponentID = "dev.eshu.examples.granted"
+	cutoverObserverVersion     = "0.1.0"
+	cutoverObserverCoreKind    = "aws_resource"
+	cutoverObserverScope       = "scorecard"
+	cutoverObserverSchema      = "1.0.0"
+)
+
+// cutoverObserverHome records one live grant for a core-owned kind and
+// returns the registry home plus the enabled plan pinned to that holder. The
+// plan URL is a dummy: wiring and emission decisions read grants locally and
+// make no network calls.
+func cutoverObserverHome(t *testing.T) (string, cutoverPlan) {
+	t.Helper()
+
+	home := t.TempDir()
+	registry := component.NewRegistry(home)
+	grant := component.ProducerGrant{
+		ProducerID:     cutoverObserverComponentID,
+		Version:        cutoverObserverVersion,
+		Kind:           cutoverObserverCoreKind,
+		SchemaVersions: []string{cutoverObserverSchema},
+		Scope:          cutoverObserverScope,
+		ExpiresAt:      time.Now().Add(time.Hour).UTC(),
+	}
+	if err := registry.RecordGrant(grant); err != nil {
+		t.Fatalf("RecordGrant() error = %v, want nil", err)
+	}
+	plan := cutoverPlan{
+		enabled:         true,
+		remoteURL:       "http://eshu-workflow-claim-plane:8080",
+		producerID:      cutoverObserverComponentID,
+		producerVersion: cutoverObserverVersion,
+		scopes:          []string{cutoverObserverScope},
+	}
+	return home, plan
+}
+
+// TestBuildRemoteCutoverObservesWiringAllow proves the enabled cutover hands
+// seam wiring decisions to the worker observer: a live grant authorizes the
+// declared core-owned kind and the observer records exactly one activation
+// allow naming the pinned holder. It fails while buildRemoteCutover leaves
+// the seam Observer nil.
+func TestBuildRemoteCutoverObservesWiringAllow(t *testing.T) {
+	t.Parallel()
+
+	home, plan := cutoverObserverHome(t)
+	observer := &recordingGrantObserver{}
+	cutover, err := buildRemoteCutover(plan, home, observer)
+	if err != nil {
+		t.Fatalf("buildRemoteCutover(enabled) error = %v, want nil", err)
+	}
+	emissions := []remoteclaim.DeclaredEmission{{Kind: cutoverObserverCoreKind, SchemaVersion: cutoverObserverSchema}}
+	if err := cutover.VerifyWiring(context.Background(), emissions); err != nil {
+		t.Fatalf("VerifyWiring() error = %v, want nil for the live grant", err)
+	}
+	got := observer.snapshot()
+	if len(got) != 1 {
+		t.Fatalf("observed decisions = %d, want exactly 1 wiring allow", len(got))
+	}
+	decision := got[0]
+	if !decision.Allowed {
+		t.Errorf("decision.Allowed = false, want true for the live grant")
+	}
+	if decision.Reason != component.GrantReasonGranted {
+		t.Errorf("decision.Reason = %q, want %q", decision.Reason, component.GrantReasonGranted)
+	}
+	if decision.Stage != component.GrantStageActivation {
+		t.Errorf("decision.Stage = %q, want the activation-stage counterpart of seam wiring", decision.Stage)
+	}
+	if decision.ProducerID != cutoverObserverComponentID || decision.Version != cutoverObserverVersion {
+		t.Errorf("decision holder = %q %q, want the pinned holder", decision.ProducerID, decision.Version)
+	}
+	if decision.Kind != cutoverObserverCoreKind {
+		t.Errorf("decision.Kind = %q, want %q", decision.Kind, cutoverObserverCoreKind)
+	}
+}
+
+// TestBuildRemoteCutoverObservesEmissionDenyAfterRevoke is the trust-boundary
+// proof for the enabled path: after the grant is revoked, the next emission
+// fails closed AND the denial is observed with the revoked reason, so a
+// revoked producer cannot emit silently on the extracted path. It fails while
+// the seam Observer stays nil.
+func TestBuildRemoteCutoverObservesEmissionDenyAfterRevoke(t *testing.T) {
+	t.Parallel()
+
+	home, plan := cutoverObserverHome(t)
+	registry := component.NewRegistry(home)
+	if err := registry.RevokeGrant(cutoverObserverComponentID, cutoverObserverVersion, cutoverObserverCoreKind, cutoverObserverScope); err != nil {
+		t.Fatalf("RevokeGrant() error = %v, want nil", err)
+	}
+	observer := &recordingGrantObserver{}
+	cutover, err := buildRemoteCutover(plan, home, observer)
+	if err != nil {
+		t.Fatalf("buildRemoteCutover(enabled) error = %v, want nil", err)
+	}
+	err = cutover.AuthorizeEmission(context.Background(), cutoverObserverCoreKind, cutoverObserverSchema)
+	deny, ok := err.(*remoteclaim.DenyError)
+	if !ok {
+		t.Fatalf("AuthorizeEmission() error = %v (%T), want *DenyError after revoke", err, err)
+	}
+	if deny.Reason != component.GrantReasonRevoked {
+		t.Fatalf("DenyError.Reason = %q, want %q", deny.Reason, component.GrantReasonRevoked)
+	}
+	got := observer.snapshot()
+	if len(got) != 1 {
+		t.Fatalf("observed decisions = %d, want exactly 1 emission deny", len(got))
+	}
+	decision := got[0]
+	if decision.Allowed {
+		t.Errorf("decision.Allowed = true, want false after revoke")
+	}
+	if decision.Reason != component.GrantReasonRevoked {
+		t.Errorf("decision.Reason = %q, want %q", decision.Reason, component.GrantReasonRevoked)
+	}
+	if decision.Stage != component.GrantStageEmission {
+		t.Errorf("decision.Stage = %q, want %q", decision.Stage, component.GrantStageEmission)
+	}
+	if decision.ProducerID != cutoverObserverComponentID || decision.Version != cutoverObserverVersion {
+		t.Errorf("decision holder = %q %q, want the pinned holder, never a wire value", decision.ProducerID, decision.Version)
+	}
+}
+
+// TestBuildRemoteCutoverNilObserverKeepsOutcome proves observation never
+// changes the allow/deny outcome: with a nil observer the enabled cutover
+// still authorizes the live grant. The nil path stays the disabled-observation
+// default, never a silent behavior change.
+func TestBuildRemoteCutoverNilObserverKeepsOutcome(t *testing.T) {
+	t.Parallel()
+
+	home, plan := cutoverObserverHome(t)
+	cutover, err := buildRemoteCutover(plan, home, nil)
+	if err != nil {
+		t.Fatalf("buildRemoteCutover(enabled, nil observer) error = %v, want nil", err)
+	}
+	emissions := []remoteclaim.DeclaredEmission{{Kind: cutoverObserverCoreKind, SchemaVersion: cutoverObserverSchema}}
+	if err := cutover.VerifyWiring(context.Background(), emissions); err != nil {
+		t.Fatalf("VerifyWiring(nil observer) error = %v, want nil for the live grant", err)
+	}
+}
+
+// TestBuildRemoteCutoverDisabledBuildsNothingWithObserver proves the
+// default-off gate ignores the observer: a disabled plan builds no cutover,
+// so no observation is possible and the in-tree path stays byte-identical.
+func TestBuildRemoteCutoverDisabledBuildsNothingWithObserver(t *testing.T) {
+	t.Parallel()
+
+	observer := &recordingGrantObserver{}
+	cutover, err := buildRemoteCutover(cutoverPlan{}, t.TempDir(), observer)
+	if err != nil {
+		t.Fatalf("buildRemoteCutover(disabled) error = %v, want nil", err)
+	}
+	if cutover != nil {
+		t.Fatal("buildRemoteCutover(disabled) = non-nil, want nil so the in-tree path stays exact")
+	}
+	if got := observer.snapshot(); len(got) != 0 {
+		t.Fatalf("observed decisions = %d, want 0 on the disabled path", len(got))
 	}
 }

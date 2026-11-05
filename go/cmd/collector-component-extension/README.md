@@ -200,8 +200,12 @@ bound:
 
 Any other URL-set state keeps the refusal, and any unrecognized flag
 spelling fails startup. The grant-observer backing that makes seam grant
-decisions visible to operators lands with the telemetry leaf; until then
-the seam observes nothing new. Claim/commit lifecycle operations through
+decisions visible to operators lands with the telemetry leaf (leaf 5):
+the enabled client reports wiring (as activation) and emission decisions
+to the worker's grant telemetry recorder, reusing
+`eshu_dp_component_producer_grant_decisions_total` with no new metric or
+label value, and a nil observer disables observation without changing any
+outcome. Claim/commit lifecycle operations through
 the cutover gate are exercised by the parity and concurrency leaves.
 
 No-Regression Evidence (leaf 1): the wiring resolves once at startup
@@ -219,3 +223,23 @@ log line, or status field. Selection stays on the store-selection counter
 and log, grant and claim outcomes stay on the existing grant and run
 signals, and the stage is named in the telemetry-coverage row with the
 same marker.
+
+No-Regression Evidence (leaf 5): the adapter is built once at cutover
+construction (one observer wrap; no per-claim allocation beyond the
+in-tree decision record) and adds one closure indirection on the enabled
+path only; the disabled path builds nothing. Baseline
+`origin/main@0650a6a4d2` and after both run `go test -count=1
+./cmd/collector-component-extension` and `go test -race -count=1` on the
+touched packages green. Input shape is the fixture registry with recorded
+grants plus a dummy claim-plane URL; construction and the four new tests
+make no network calls and touch no live backend. No queue, lease,
+batching, Cypher, graph-write, or reducer surface is touched, so claim
+throughput and terminal counts are unaffected; the nil-observer test
+asserts identical allow/deny outcomes with and without observation.
+
+No-Observability-Change (leaf 5): no new metric, span, log line, or
+status field. Seam wiring decisions report as activation and emission
+decisions as emission on the existing
+`eshu_dp_component_producer_grant_decisions_total` counter (closed label
+sets unchanged), the existing `component.producer_grant.decision` span
+event, and the existing producer-grant log line.
