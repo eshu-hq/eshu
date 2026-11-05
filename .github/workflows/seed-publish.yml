@@ -1,0 +1,148 @@
+# Seed publish for the #8877 zero-fact window (Refs eshu-hq/eshu#8877).
+#
+# Dispatch-only: builds the seed image FROM the in-tree pinned release worker
+# digest (go/cmd/collector-synth-zero/Dockerfile.seed BASE_IMAGE), pushes
+# ghcr.io/eshu-hq/eshu-synth-zero, runs the in-image smoke on the pushed
+# digest as uid 10001, and emits the digest as a job output. No push, pull
+# request, or workflow_call triggers: PRs never publish, and the emitted
+# digest unblocks the pin grant-half after merge + dispatch.
+#
+# Permissions mirror the host release.yml push job (packages:write,
+# id-token:write, attestations:write) and nothing broader. The build runs
+# buildx with provenance + SBOM; the smoke asserts the window contract
+# (unchanged, one complete status row, zero facts) through the real pushed
+# bytes, not the local build.
+#
+# If dispatch fails at the push step (for example a denied token scope),
+# this workflow stops there by design: a failed push is the re-escalation
+# trigger, and no digest is emitted.
+
+name: Seed Publish (8877 zero-fact)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: seed-publish-${{ github.ref }}
+  cancel-in-progress: false
+
+# #9066: -std=gnu17 keeps go-sitter-forest/perl compiling on GCC 15 + glibc 2.43 (C23
+# bsearch macro) when the Go build cache is cold. "-O2 -g" is Go's own default, kept
+# because setting CGO_CFLAGS replaces it. Remove with scripts/lib/cgo-cflags.sh.
+env:
+  CGO_CFLAGS: "-O2 -g -std=gnu17"
+  REGISTRY: ghcr.io
+  SEED_IMAGE: ghcr.io/eshu-hq/eshu-synth-zero
+
+jobs:
+  build-push-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+          # cache: false: setup-go would store the build cache a second time
+          # in the 10 GB store (#9462, #9648). Pre-warm below downloads the modules.
+          cache: false
+
+      - name: Pre-warm Go modules
+        run: scripts/ci/go-mod-download-retry.sh go
+
+      - name: Build synth-zero emitter
+        working-directory: go
+        env:
+          CGO_ENABLED: "0"
+        run: go build -trimpath -o cmd/collector-synth-zero/eshu-collector-synth-zero ./cmd/collector-synth-zero
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push seed image
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./go/cmd/collector-synth-zero/Dockerfile.seed
+          push: true
+          provenance: true
+          sbom: true
+          tags: ${{ env.SEED_IMAGE }}:seed-${{ github.sha }}
+          platforms: linux/amd64,linux/arm64
+
+      - name: Generate artifact attestation
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-name: ${{ env.SEED_IMAGE }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+
+      - name: Smoke the pushed digest as uid 10001
+        env:
+          SEED_REF: ${{ env.SEED_IMAGE }}@${{ steps.build.outputs.digest }}
+        run: |
+          set -euo pipefail
+          # Multi-arch push leaves nothing in the local store: pull the
+          # pushed digest first so inspect and run assert the pushed bytes.
+          docker pull "${SEED_REF}"
+          user="$(docker image inspect --format '{{.Config.User}}' "${SEED_REF}")"
+          test "${user}" = "10001:10001"
+          cat > /tmp/seed-smoke-request.json <<'EOF'
+          {
+            "protocol_version": "collector-sdk/v1alpha1",
+            "claim": {
+              "component_id": "dev.eshu.collector.synth-8877-cutover",
+              "instance_id": "synth-8877-cutover-instance-1",
+              "collector_kind": "synth_zero_fact",
+              "source_system": "dev.eshu.synth-8877-cutover",
+              "scope": {"id": "synth/scope/1", "kind": "component"},
+              "source_run_id": "run-seed-smoke",
+              "generation_id": "gen-seed-smoke",
+              "work_item_id": "work-seed-smoke",
+              "fencing_token": "1",
+              "attempt": 1,
+              "deadline": "2026-11-05T04:00:00Z",
+              "config_handle": "synth-handle"
+            },
+            "contract": {"protocol_version": "collector-sdk/v1alpha1", "facts": []}
+          }
+          EOF
+          docker run --user 10001 --rm -i "${SEED_REF}" \
+            /usr/local/bin/eshu-collector-synth-zero \
+            < /tmp/seed-smoke-request.json > /tmp/seed-smoke-result.json
+          jq -e '.state == "unchanged"' /tmp/seed-smoke-result.json
+          jq -e '(.statuses | length == 1) and .statuses[0].class == "complete"' /tmp/seed-smoke-result.json
+          jq -e '((.facts // []) | length == 0)' /tmp/seed-smoke-result.json
+          jq -e '.generation.id == "gen-seed-smoke" and .page == null' /tmp/seed-smoke-result.json
+
+      - name: Record digest
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          {
+            echo "## Seed publish"
+            echo ""
+            echo "Pushed \`${{ env.SEED_IMAGE }}@${DIGEST}\`; smoke passed as uid 10001 (unchanged, one complete status row, zero facts)."
+          } >> "$GITHUB_STEP_SUMMARY"
