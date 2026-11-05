@@ -1,0 +1,23 @@
+go/internal/storage/postgres/proof_domain_cloud_asset_test.go
+  s_7547c0f0af67d4::t_96312c804dffd2 174,191-192,194
+go/internal/storage/postgres/proof_domain_harness_test.go
+  s_7547c0f0af67d4::t_72e6b47effe7a0 140-164
+go/internal/storage/postgres/proof_domain_test.go
+  s_7547c0f0af67d4::t_b805384e97c1df 191,214-215,217,230,247-265
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2de112c8f8767436ccf4a1a706e0c9df0aa9eb1c",
+  "prompts": {},
+  "sessions": {
+    "s_7547c0f0af67d4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7c8b2d5-3286-4c2a-be1f-589162535d83",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

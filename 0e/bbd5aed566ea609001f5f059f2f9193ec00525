@@ -1,0 +1,25 @@
+docs/internal/design/advisory-intelligence-correlation-flow.md
+  s_7547c0f0af67d4::t_201b9f109e0e81 291
+docs/internal/evidence/9874-lockfile-retrigger.md
+  s_7547c0f0af67d4::t_8b43069117e828 23-29,32-38,61-62,68-98,144-146,152,171-175,190-199,206-208
+go/internal/reducer/supplychain/core/HOLDER_FANOUT.md
+  s_7547c0f0af67d4::t_d4b0d5550e2ecd 109-119,140-144
+go/internal/storage/postgres/supply_chain_impact_package_holders.go
+  s_7547c0f0af67d4::t_e3d89d0f526386 20-29,32-34
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0ebbd5aed566ea609001f5f059f2f9193ec00525",
+  "prompts": {},
+  "sessions": {
+    "s_7547c0f0af67d4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7c8b2d5-3286-4c2a-be1f-589162535d83",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

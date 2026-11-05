@@ -1,0 +1,27 @@
+.github/workflows/reducer-contention-gate.yml
+  s_7547c0f0af67d4::t_68cc3eec3728cf 406,409
+go/internal/storage/postgres/supply_chain_impact_manifest_chain_live_test.go
+  s_7547c0f0af67d4::t_97ff91410a77d8 8,10,346-399
+go/internal/storage/postgres/supply_chain_impact_manifest_generation.go
+  s_7547c0f0af67d4::t_8fa05fa5e8f64e 204,218,350-370
+scripts/lib/reducer_contention_inventory.json
+  s_7547c0f0af67d4::t_196b1393c92aff 228
+specs/live-tests.d/live-tests-07.yaml
+  s_7547c0f0af67d4::t_37c85a5f4434d6 361
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9b70951e45eca382c6ec563b3d11923843174e12",
+  "prompts": {},
+  "sessions": {
+    "s_7547c0f0af67d4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7c8b2d5-3286-4c2a-be1f-589162535d83",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
