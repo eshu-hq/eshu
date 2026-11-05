@@ -79,6 +79,31 @@ The seeds also run in the case pool
 first-failure rules with stub seeds at width 1 and width 4. The step prints
 each seed's seconds and writes them to the job summary.
 
+## The weights drift step
+
+`Check shard planner fail-closed behavior` fails a change that adds more than
+40 planned tests, or more than 2 planned packages, with no entry in the active
+weights file. It counts what the change adds: entries unweighted at its head
+and not unweighted at its base commit, so a weight the change removes counts
+and a pool that main already carries does not (#10171). Before that, one
+whole-plan count was enforced on each PR's merge result. Feature PRs may not
+edit the weights, so every merged PR only grew the count, and once main
+crossed the limit every later PR failed whatever it added.
+
+The base is the first parent of the pull-request merge ref, which does not
+move when main does, so the checkout uses `fetch-depth: 2` to keep it. On a
+push to `main` it is the previous commit. Locally it is the merge base with
+`origin/main`. A base override variable, named in the failure message, takes
+any commit instead. A checkout with no parent to measure against fails the
+step. It never falls back to the whole-plan count or to `HEAD~1`. The base
+drift comes from the base commit's own `list-packages` output and weights
+files.
+
+The whole-plan count is a staleness signal. When it passes 40, the step prints
+a `readiness weights are stale` warning and still passes. The budget, spread,
+and row-clock cases in the same step are the checks that a shard fits its cap.
+A standalone refit clears the warning.
+
 ## Job summary
 
 The hermetic job and each shard leg end with

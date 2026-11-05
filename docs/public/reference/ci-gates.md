@@ -152,7 +152,7 @@ results are derived from the inputs rather than written by hand. See
 - `maturity-drift-guard` (blocking): Blocks drift between the support-maturity doc's language columns and the actual golden-corpus fixture/snapshot data.
 - `mcp-client-auth-doc` (advisory): Checks the MCP client-auth doc stays word-for-word in step with the mcpsetup Go source; advisory, not yet wired into CI.
 - `live-backend-static-mirror` (blocking): Validates the live-test ledger against every live test under go/ and probes the live-backend runner script without Docker.
-- `live-postgres-readiness-shard-mirror` (blocking): Runs the shard contract without Docker: the weighted cut, the 80% budget and drift gates, the exact-union accounting, and the weights refresher.
+- `live-postgres-readiness-shard-mirror` (blocking): Runs the shard contract without Docker: the weighted cut, the 80% budget gate, the per-change unweighted-test gate, union accounting, and the weights refresher.
 - `golden-corpus-filter-exhaustive` (blocking): Checks that the golden-corpus-gate CI path filter lists every Go package the gate actually compiles.
 - `replay-coverage-gate` (blocking): Checks that every surface Eshu claims to support has a recorded, non-stale replay scenario in the coverage manifest.
 - `replay-coverage-static-mirror` (blocking): Checks the replay coverage verifier, workflow and registry rows still agree on the gate contract, without a Go build.

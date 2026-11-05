@@ -243,7 +243,7 @@ gates:
     name: Live PostgreSQL readiness shard contract (time-weighted cut)
     category: exactness
     layer: contract
-    purpose: "Runs the shard contract without Docker: the weighted cut, the 80% budget and drift gates, the exact-union accounting, and the weights refresher."
+    purpose: "Runs the shard contract without Docker: the weighted cut, the 80% budget gate, the per-change unweighted-test gate, union accounting, and the weights refresher."
     tier: pre-pr
     blocking: true
     triggers:
