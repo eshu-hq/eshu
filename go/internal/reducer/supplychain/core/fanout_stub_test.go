@@ -49,6 +49,11 @@ type stubFanOut struct {
 	candidateErr        error
 	candidateEcosystems [][]string
 	candidateQueries    []PackageHolderQuery
+	// repositoryHolders, repositoryErr, and repositoryReads serve and record
+	// the #10059 repository-keyed holder read.
+	repositoryHolders []string
+	repositoryErr     error
+	repositoryReads   [][]string
 }
 
 func (s *stubFanOut) FindPackageHolderCandidates(_ context.Context, _ string, query PackageHolderQuery) ([]PackageHolderCandidate, error) {
@@ -59,6 +64,15 @@ func (s *stubFanOut) FindPackageHolderCandidates(_ context.Context, _ string, qu
 		return nil, s.candidateErr
 	}
 	return append([]PackageHolderCandidate(nil), s.candidates...), nil
+}
+
+func (s *stubFanOut) FindRepositoryFindingHolders(_ context.Context, _ string, repositoryIDs []string) ([]string, error) {
+	s.reads = append(s.reads, "repository")
+	s.repositoryReads = append(s.repositoryReads, append([]string(nil), repositoryIDs...))
+	if s.repositoryErr != nil {
+		return nil, s.repositoryErr
+	}
+	return append([]string(nil), s.repositoryHolders...), nil
 }
 
 // stubOwed is the recorder the fake writer runs the way the real writer does:

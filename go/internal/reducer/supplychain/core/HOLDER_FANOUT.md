@@ -187,12 +187,18 @@ closed (`dismissed`, `auto_dismissed`, `fixed` — the set
 `securityAlertCanSeedImpact` refuses to seed from) do not reopen their
 scope. Evidence: `docs/internal/evidence/10061-alert-scope-reopen.md`.
 
-Known limit: when a delta in the diffed chain has a base that cannot be read
+Gap passes: when a delta in the diffed chain has a base that cannot be read
 (missing, pruned, or a legacy delta), its view is the delta's own rows, so a
-pin that only the base held looks never-present and its removal is not fanned
-out. Its finding stays until that package's advisory scope reruns. The pass
-logs `sub_signal_manifest_trigger_prior_base_missing=1` on the reducer success
-line, and `TestManifestTriggerKnownLimitPriorDeltaWithMissingBase` pins the
-behavior. A degraded pass misses removals the same way. The repository-keyed
-reopen that closes both is tracked in #10059.
-Evidence: `docs/internal/evidence/9874-lockfile-retrigger.md`.
+pin that only the base held looks never-present and its removal is invisible
+to the package-keyed diff. A degraded pass (chain over the cap, or a pruned
+baseline) and a pass that skipped a pruned intermediate miss removals the same
+way. Any of the three makes the pass reopen every scope holding an active
+finding for the generation's repository (`FindRepositoryFindingHolders`,
+#10059), so the stale finding is re-derived without waiting for the package's
+advisory scope to rerun. The pass logs `sub_signal_manifest_trigger_prior_base_missing=1`
+(or `baseline_degraded`, or `chain_pruned`) on the reducer success line, with
+the reopened count on `sub_signal_manifest_trigger_repository_holders`.
+`TestManifestTriggerPriorBaseMissingReopensRepositoryHolders` pins the
+behavior. A clean pass never touches the repository-keyed read.
+Evidence: `docs/internal/evidence/9874-lockfile-retrigger.md`,
+`docs/internal/evidence/10059-repository-reopen.md`.

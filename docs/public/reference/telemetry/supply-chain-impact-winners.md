@@ -97,11 +97,15 @@ before the handler runs, under the shared non-counting failure class
 generation activates or is superseded. Two marker results matter at 3 AM, both
 log fields on the reducer success line rather than metrics:
 `sub_signal_manifest_trigger_prior_base_missing=1` means a delta in the diffed
-chain had an unreadable base, so a removal its base alone held was not fanned
-out, and `sub_signal_manifest_trigger_baseline_degraded=1` means the chain was
+chain had an unreadable base, so a removal its base alone held was invisible
+to the package-keyed diff, and `sub_signal_manifest_trigger_baseline_degraded=1` means the chain was
 over its 32-generation cap (the current generation counted) or its baseline was pruned, so every current pin fanned
-out and removals in that window were missed. Both wait for the package's
-advisory scope to rerun; the fix is tracked in #10059.
+out and removals in that window were missed by the diff. Either case, or a
+skipped pruned intermediate (`sub_signal_manifest_trigger_chain_pruned=1`),
+makes the pass reopen every scope holding an active finding for the
+generation's repository (#10059), counted on
+`sub_signal_manifest_trigger_repository_holders`, so the stale finding is
+re-derived without waiting for the package's advisory scope to rerun.
 
 ## Signals
 

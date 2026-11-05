@@ -375,6 +375,138 @@ func TestManifestTriggerReopensAdvisoryHolderLive(t *testing.T) {
 	}
 }
 
+// manifestLiveFinding seeds one finding row in the scope's generation. The
+// #10059 reopen reads only the fact kind, the tombstone flag, the active
+// generation, and payload repository_id.
+func manifestLiveFinding(factID, repositoryID string, tombstone bool) facts.Envelope {
+	return facts.Envelope{
+		FactID: factID, FactKind: facts.ReducerSupplyChainImpactFindingFactKind, StableFactKey: factID,
+		SourceRef:   facts.Ref{SourceSystem: "reducer"},
+		IsTombstone: tombstone,
+		Payload:     map[string]any{"repository_id": repositoryID, "cve_id": "CVE-2026-0001"},
+	}
+}
+
+// TestFindRepositoryFindingHoldersLive proves the #10059 repository-keyed
+// holder read returns only live finding rows of the scope's active generation
+// for the asked repositories, outside the asking scope.
+func TestFindRepositoryFindingHoldersLive(t *testing.T) {
+	ctx, db := fanOutLiveDB(t)
+	const repo = "repository:r_checkout"
+	fanOutSeedScope(t, ctx, db, "vuln-intel://osv/a", "g2", "g1")
+	fanOutSeedScope(t, ctx, db, "vuln-intel://osv/b", "g1")
+	fanOutSeedScope(t, ctx, db, manifestLiveGitScope, "g1")
+	manifestLiveSeedFact(t, ctx, db, "vuln-intel://osv/a", fanOutGen("vuln-intel://osv/a", "g2"), manifestLiveFinding("f-a", repo, false))
+	// Only the superseded generation of a names the repository.
+	manifestLiveSeedFact(t, ctx, db, "vuln-intel://osv/a", fanOutGen("vuln-intel://osv/a", "g1"), manifestLiveFinding("f-a-old", repo, false))
+	tomb := manifestLiveFinding("f-a-tomb", repo, true)
+	manifestLiveSeedFact(t, ctx, db, "vuln-intel://osv/a", fanOutGen("vuln-intel://osv/a", "g2"), tomb)
+	manifestLiveSeedFact(t, ctx, db, "vuln-intel://osv/a", fanOutGen("vuln-intel://osv/a", "g2"), manifestLiveFinding("f-a-other", "repository:other", false))
+	manifestLiveSeedFact(t, ctx, db, "vuln-intel://osv/b", fanOutGen("vuln-intel://osv/b", "g1"), manifestLiveFinding("f-b", repo, false))
+	manifestLiveSeedFact(t, ctx, db, manifestLiveGitScope, fanOutGen(manifestLiveGitScope, "g1"), manifestLiveFinding("f-own", repo, false))
+
+	got, err := fanOutLiveStore(db).FindRepositoryFindingHolders(ctx, manifestLiveGitScope, []string{repo})
+	if err != nil {
+		t.Fatalf("FindRepositoryFindingHolders() error = %v", err)
+	}
+	if want := []string{"vuln-intel://osv/a", "vuln-intel://osv/b"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("holders = %v, want %v (live row only, own scope excluded)", got, want)
+	}
+	other, err := fanOutLiveStore(db).FindRepositoryFindingHolders(ctx, manifestLiveGitScope, []string{"repository:other"})
+	if err != nil {
+		t.Fatalf("FindRepositoryFindingHolders(other) error = %v", err)
+	}
+	if want := []string{"vuln-intel://osv/a"}; !reflect.DeepEqual(other, want) {
+		t.Fatalf("holders for the other repository = %v, want %v", other, want)
+	}
+	if none, err := fanOutLiveStore(db).FindRepositoryFindingHolders(ctx, manifestLiveGitScope, nil); err != nil || len(none) != 0 {
+		t.Fatalf("empty repositories = %v, %v; want no rows and no error", none, err)
+	}
+}
+
+// TestManifestTriggerReopensRepositoryHolderOnMissingBaseLive is the #10059
+// acceptance proof on a real queue: left-pad is removed by a delta whose base
+// full generation retention pruned, so the package-keyed diff cannot see the
+// removal (no affected-package rows are seeded at all). The marker still
+// reopens the succeeded supply_chain_impact item of the advisory scope
+// holding the left-pad finding for this repository, and leaves the holder of
+// another repository's finding alone.
+func TestManifestTriggerReopensRepositoryHolderOnMissingBaseLive(t *testing.T) {
+	ctx, db := fanOutLiveDB(t)
+	const repo = "repository:r_checkout"
+	at := func(minute int) time.Time { return time.Date(2026, 11, 5, 0, minute, 0, 0, time.UTC) }
+	manifestLiveSeedGitScope(t, ctx, db, "gen-3",
+		manifestLiveGeneration{id: "gen-1", status: "superseded", commit: "c1", activated: true, ingested: at(1)},
+		manifestLiveGeneration{id: "gen-2", status: "superseded", commit: "c2", baseline: "c1", delta: true, activated: true, ingested: at(2)},
+		manifestLiveGeneration{id: "gen-3", status: "active", commit: "c3", activated: true, ingested: at(3)},
+	)
+	seed := func(generation string, envelope facts.Envelope) {
+		manifestLiveSeedFact(t, ctx, db, manifestLiveGitScope, generation, envelope)
+	}
+	// The stamped baseline is the gen-2 delta; gen-1 is its base.
+	manifestLiveSeedMarker(t, ctx, db, "gen-2", "succeeded", true)
+	seed("gen-1", manifestLiveRepository("repo-1", false))
+	seed("gen-1", manifestLiveDependency("g1-lodash", "package-lock.json", "lodash", "4.17.20"))
+	seed("gen-1", manifestLiveDependency("g1-left-pad", "package-lock.json", "left-pad", "1.3.0"))
+	seed("gen-2", manifestLiveRepository("repo-2", true, "README.md"))
+	seed("gen-2", manifestLiveDependency("g2-lodash", "package-lock.json", "lodash", "4.17.21"))
+	// gen-3 drops left-pad with no tombstone row: a plain removal.
+	seed("gen-3", manifestLiveRepository("repo-3", false))
+	seed("gen-3", manifestLiveDependency("g3-lodash", "package-lock.json", "lodash", "4.17.21"))
+	// Prune the base: the gen-2 delta now reads as base-missing.
+	if _, err := db.ExecContext(ctx, `DELETE FROM fact_records WHERE generation_id = 'gen-1'`); err != nil {
+		t.Fatalf("delete base facts: %v", err)
+	}
+	if _, err := db.ExecContext(ctx, `DELETE FROM scope_generations WHERE generation_id = 'gen-1'`); err != nil {
+		t.Fatalf("delete base generation: %v", err)
+	}
+	for _, scope := range []string{"vuln-intel://osv/leftpad", "vuln-intel://osv/other"} {
+		fanOutSeedScope(t, ctx, db, scope, "g1")
+		id := fanOutSeedItem(t, ctx, db, scope, "g1")
+		if _, err := db.ExecContext(ctx, `UPDATE fact_work_items SET status = 'succeeded' WHERE work_item_id = $1`, id); err != nil {
+			t.Fatalf("mark succeeded: %v", err)
+		}
+	}
+	manifestLiveSeedFact(t, ctx, db, "vuln-intel://osv/leftpad", fanOutGen("vuln-intel://osv/leftpad", "g1"), manifestLiveFinding("f-leftpad", repo, false))
+	manifestLiveSeedFact(t, ctx, db, "vuln-intel://osv/other", fanOutGen("vuln-intel://osv/other", "g1"), manifestLiveFinding("f-other", "repository:other", false))
+
+	handler := supplychaincore.SupplyChainImpactHandler{
+		FencingTokenIssuer: manifestLiveNoToken{t: t},
+		FactLoader:         manifestLiveNoLoad{t: t},
+		Writer:             manifestLiveNoWrite{t: t},
+		FanOut:             fanOutLiveStore(db),
+	}
+	markerID := manifestLiveSeedMarker(t, ctx, db, "gen-3", "pending", false)
+	intent, ok, err := fanOutLiveQueue(db).Claim(ctx)
+	if err != nil || !ok || intent.IntentID != markerID {
+		t.Fatalf("Claim() = %q, %v, %v; want the marker item %q", intent.IntentID, ok, err, markerID)
+	}
+	result, err := handler.Handle(ctx, intent)
+	if err != nil {
+		t.Fatalf("Handle() error = %v", err)
+	}
+	if got := result.SubSignals["manifest_trigger_prior_base_missing"]; got != 1 {
+		t.Fatalf("manifest_trigger_prior_base_missing = %v, want 1 (the pruned base)", got)
+	}
+	if got := result.SubSignals["manifest_trigger_repository_holders"]; got != 1 {
+		t.Fatalf("manifest_trigger_repository_holders = %v, want 1", got)
+	}
+	status := func(scope string) string {
+		var s string
+		if err := db.QueryRowContext(ctx, `SELECT status FROM fact_work_items WHERE work_item_id = $1`,
+			fanOutItemID(scope, fanOutGen(scope, "g1"))).Scan(&s); err != nil {
+			t.Fatalf("read status %s: %v", scope, err)
+		}
+		return s
+	}
+	if got := status("vuln-intel://osv/leftpad"); got != "pending" {
+		t.Fatalf("left-pad holder status = %q, want pending (reopened)", got)
+	}
+	if got := status("vuln-intel://osv/other"); got != "succeeded" {
+		t.Fatalf("other-repository holder status = %q, want succeeded (untouched)", got)
+	}
+}
+
 type manifestLiveNoToken struct{ t *testing.T }
 
 func (n manifestLiveNoToken) NextSupplyChainImpactFencingToken(context.Context) (int64, error) {

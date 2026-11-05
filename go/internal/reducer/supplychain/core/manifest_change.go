@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/packages/correlation"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
 // manifestChange is the set of dependency keys a marker generation changed,
@@ -19,10 +20,10 @@ type manifestChange struct {
 	keys map[string]struct{}
 	// packages counts the distinct (package manager, name) pairs changed.
 	packages int
-	// priorBaseMissing reports the known gap: a delta in the diffed chain had
-	// a base that could not be read, so removals of pins only that base held
-	// are not seen (TestManifestTriggerKnownLimitPriorDeltaWithMissingBase,
-	// tracked in #10059).
+	// priorBaseMissing reports that a delta in the diffed chain had a base
+	// that could not be read, so removals of pins only that base held are not
+	// seen by the package-keyed diff; the pass reopens the repository's
+	// finding holders instead (#10059).
 	priorBaseMissing bool
 	// degraded and chainPruned mirror the generation read: the diff fell back
 	// to every current pin, or skipped a pruned intermediate.
@@ -213,6 +214,34 @@ func (c manifestChange) repositoryIDs() []string {
 	out := make([]string, 0, len(c.repos))
 	for repo := range c.repos {
 		out = append(out, repo)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// needsRepositoryReopen reports whether the diff may have missed a removal,
+// so the pass must reopen every scope holding an active finding for the
+// repository (#10059): a delta in the chain had an unreadable base (its
+// base-only pins look never-present), the walk ran over the depth cap, or a
+// pruned intermediate was skipped.
+func (c manifestChange) needsRepositoryReopen() bool {
+	return c.priorBaseMissing || c.degraded || c.chainPruned
+}
+
+// manifestRepositoryIDs returns the sorted distinct repo ids the rows name:
+// the repository anchors the #10059 reopen, the same repo_id the dependency
+// read anchors on and the finding's repository_id carries. Tombstoned rows
+// count: a removal by tombstone still names its repository.
+func manifestRepositoryIDs(rows []facts.Envelope) []string {
+	seen := map[string]struct{}{}
+	for _, row := range rows {
+		if id := payloadcore.PayloadStr(row.Payload, "repo_id"); id != "" {
+			seen[id] = struct{}{}
+		}
+	}
+	out := make([]string, 0, len(seen))
+	for id := range seen {
+		out = append(out, id)
 	}
 	sort.Strings(out)
 	return out

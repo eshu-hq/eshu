@@ -267,12 +267,14 @@ until that package's advisory scope reruns** (today's pre-#9874 behavior for
 that one case). The pass logs it as the result sub-signal
 `sub_signal_manifest_trigger_prior_base_missing=1` on the reducer's success
 log line (a log field, not a metric).
-`TestManifestTriggerKnownLimitPriorDeltaWithMissingBase` pins the behavior and
-fails if the gap closes. A degraded pass (chain over the cap, or a baseline
-whose facts retention pruned) fans out every current pin, so a removal in that
-window is likewise missed (`sub_signal_manifest_trigger_baseline_degraded=1`).
-The repository-keyed reopen that closes both is tracked in the follow-up issue
-#10059.
+`TestManifestTriggerKnownLimitPriorDeltaWithMissingBase` pinned the behavior
+until #10059 closed it: a gap pass (unreadable prior base, chain over the cap
+or pruned baseline, or skipped pruned intermediate) now reopens every scope
+holding an active finding for the generation's repository
+(`TestManifestTriggerPriorBaseMissingReopensRepositoryHolders`,
+`sub_signal_manifest_trigger_repository_holders`). A degraded pass still fans
+out every current pin; the repository-keyed reopen covers the removals the
+diff misses. Detail: `10059-repository-reopen.md`.
 
 ## In-flight holders (#10105 review P2)
 
