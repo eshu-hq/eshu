@@ -32,7 +32,7 @@ spec:
     # binary in this lane. The zeros placeholder keeps the shape valid until
     # the real digest lands; the pin test enforces the sha256 pattern.
     - platform: linux/amd64
-      image: ghcr.io/eshu-hq/eshu-synth-zero@sha256:0000000000000000000000000000000000000000000000000000000000000000
+      image: ghcr.io/eshu-hq/eshu-synth-zero@sha256:145dbbf95cc5971c5a6607dccf455fc742fb11f37c21a339972ca2c5a17c8a93
   emittedFacts:
     - kind: dev.eshu.synth_zero_fact.emission
       schemaVersions:
