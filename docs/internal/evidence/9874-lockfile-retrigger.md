@@ -40,8 +40,9 @@ intermediates (`TestManifestChainDepthCapBoundaryLive` pins both sides); over th
 the chain counts. A dependency's signature is every field it carries except
 `FactID` and `ObservedAt`, so a scope or direct/transitive flip at the same
 version counts; tombstoned rows always count; (3) when a package changed, reads the in-flight `supply_chain_impact`
-scopes first (`FindInFlightScopes`, the CVE fan-out's order and query; added by
-the #10105 review fix) and unions them into the holders, then reads the active
+scopes first (`FindInFlightNonMarkerScopes`: the CVE fan-out's order, minus
+marker scopes; added by the #10105 review fix) and unions them into the
+holders, then reads the active
 `vulnerability.affected_package` identities whose
 stored ecosystem spelling is any alias of those ecosystems
 (`packageidentity.EcosystemAliases`; GitLab Gemnasium stores raw slugs such as
@@ -279,7 +280,7 @@ The first merge read holders only from committed active-generation
 affected-package rows, so an advisory scope whose first evidence-bearing pass
 loaded before the manifest commit, and had committed no rows yet, was never
 reopened and stayed stale until its next generation. The marker pass now reads
-`FindInFlightScopes` before `FindPackageHolderCandidates` and unions the
+`FindInFlightNonMarkerScopes` before `FindPackageHolderCandidates` and unions the
 in-flight scopes (own scope excluded) into the holders, so such a pass is
 flagged for one rerun through `ReopenHolder`. An in-flight read failure fails
 the pass retryably and counts `read_timeout` or `read_error` under

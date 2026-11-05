@@ -132,7 +132,7 @@ it to `handleManifestTrigger` before the fencing token and the evidence load
    a pruned intermediate is skipped (`manifest_trigger_chain_pruned`).
    Tombstoned rows always count.
 3. When a package changed, reads the in-flight `supply_chain_impact` scopes
-   FIRST (`FindInFlightScopes`), then the active `vulnerability.affected_package`
+   FIRST (`FindInFlightNonMarkerScopes`), then the active `vulnerability.affected_package`
    identities in those ecosystems (`FindPackageHolderCandidates`), and keeps
    the in-flight scopes plus the scopes whose identity shares a consumption key
    with a changed dependency, the findings pass's own join. The order is the

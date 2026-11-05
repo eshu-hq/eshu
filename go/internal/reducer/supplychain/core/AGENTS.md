@@ -36,7 +36,8 @@ changing anything here.
   `TriggerManifestDependency`; any implementer of `SupplyChainImpactFanOut`
   must also implement `FindPackageHolderCandidates`, and the production port
   must implement `ManifestDependencyGenerationReader` (generation read plus the
-  lease-fenced `RecordManifestTriggerCompleted` stamp). Stamp only when no
+  lease-fenced `RecordManifestTriggerCompleted` stamp, plus the marker-free
+  `FindInFlightNonMarkerScopes` in-flight read). Stamp only when no
   holder is left on the continuation list or nothing changed; the next marker
   pass of the scope diffs from the newest stamped generation.
 - New exports are join contracts other families program against. Name them
