@@ -7,29 +7,71 @@ which holds the diagnosis, the trigger arithmetic ("Performance Evidence"), the
 lock rule ("Lock and rollout"), and what was not checked. "The main note" below
 means that file.
 
-A checklist for whoever owns the rollout. The first natural vacuum on QA since the
-diagnosis read (server defaults, before migration 278) has run once and is measured: 6,151.92 s
-(1 h 42 min 32 s) from 09:00:52.7Z to 10:43:24.607Z on 2026-11-04, 48.2 GiB of
-WAL, no replica conflict, no `503`. That is n = 1, one pass at one moment. A
-later pass or another primary is not measured. The main note's "First vacuum on
-QA" section holds the readings and their limits.
+A checklist for whoever owns the rollout. The first natural vacuum on QA since
+the diagnosis read (server defaults, before migration 278) has run once and is
+measured: 6,151.92 s (1 h 42 min 32 s) from 09:00:52.7Z to 10:43:24.607Z on
+2026-11-04, 48.2 GiB of WAL, no replica conflict, no `503`. That is n = 1, one
+pass at one moment. A later pass or another primary is not measured. The main
+note's "First vacuum on QA" section holds the readings and their limits.
+"Diagnosis section" numbers here and in the main note mean the #9805 diagnosis,
+which lives with #9805, not in this repository.
+
+- Before the roll: counters first, then the roll, then watch. The owner's roll
+  notice must carry this step, because by the one hour of post-vacuum rates
+  `n_dead_tup` is already past 278's trigger by the time a roll arrives (that
+  rests on rates ending 11:44Z; no counter has been read on QA since, and this
+  branch read nothing there). From `pg_stat_user_tables` for `fact_records`
+  read `n_dead_tup`, `n_ins_since_vacuum`, `autovacuum_count` and
+  `last_autovacuum`, and compute 278's triggers live, since a later autoanalyze
+  moves them (reviewer-run on a scratch table only, not on QA):
+
+  ```sql
+  SELECT 1000 + 0.05 * reltuples * (1 - relallfrozen::float8 / NULLIF(relpages, 0))
+           AS insert_trigger,
+         50 + 0.02 * reltuples AS dead_trigger, relpages
+  FROM pg_class WHERE oid = 'fact_records'::regclass;
+  ```
+
+  - Either counter at or past its trigger: either one starts a vacuum within a
+    naptime (60 s) of apply. Take the 10-triple probe and the keyed tick read
+    now, before the roll, and record the counters. A 5% polling window cannot
+    work here, since the counter is already past it.
+  - Neither past: poll every 5 minutes and take the read when the nearer
+    counter is within 5% of its trigger (on the dated reading, dead rows above
+    1.83M or inserts above 3.79M; about 31 minutes ahead at 52.1 dead rows per
+    second). Waiting for the trigger itself misses it, since the worker starts
+    within a naptime of the crossing. At the baseline 14 dead rows and 80
+    inserts per second the insert trigger comes first, so key on the nearer.
+  - `autovacuum_count` above 40 (its value after the first vacuum) or a
+    `last_autovacuum` after that vacuum's end: another vacuum has run or is
+    running. Run the roll-time check in the main note; the owed read is of that
+    vacuum, and a worker row means the roll cancels it.
+  - Expect the kind of pass: an index scan when `n_dead_tup` is at or above 2% of
+    `relpages` times the dead items per page (QA: about 2.27M at 5.32 per page,
+    from the first vacuum's log line), a bypass below it. On the one hour's
+    rates the table passes 2.27M 12.1 to 12.7 hours after the first vacuum's
+    end, so a roll later than that most likely gets an index scan.
+  - After the roll read the pass's log line when it exists; the main note lists
+    the three cases, including a moved `autovacuum_count` with no log line
+    (QA logs only passes over 10 minutes).
 
 - API and MCP reads can return `503` while the first vacuum runs, and more
   mildly during later ones. QA runs `hot_standby_feedback` off. Vacuum cleanup
   records replayed on a replica conflict with standby queries whose snapshots
   can still see the removed rows; replay waits up to
-  `max_standby_streaming_delay`, then cancels those queries. The read-routing
-  page describes the failure: a burst of `503` `backend_unavailable` points at
-  replica recovery conflicts (see `docs/public/deployment/postgres-read-routing.md`).
-  Watch `eshu_dp_postgres_reader_stage_duration_seconds{role="reader",stage="reader_replay",outcome="deadline"}`
+  `max_standby_streaming_delay` (30000 ms on QA, diagnosis section 12.1), then
+  cancels those queries. The read-routing page describes the failure: a burst of
+  `503` `backend_unavailable` points at replica recovery conflicts (see
+  `docs/public/deployment/postgres-read-routing.md`). Watch
+  `eshu_dp_postgres_reader_stage_duration_seconds{role="reader",stage="reader_replay",outcome="deadline"}`
   and `pg_stat_database_conflicts` on the replica. During QA's first vacuum the
   conflict peak delta was 0, no `deadline` outcome appeared, and every API
   response was 200 (n = 1).
 - Live signal. As a superuser or a role with `pg_read_all_stats`,
   `pg_stat_progress_vacuum` for `fact_records` is the only view of a running
-  pass. Diagnosis section 12 (9.1 earlier) found the progress columns NULL for `eshu`, and
-  `delay_time` and the other columns need `pg_read_all_stats`, which QA does not
-  grant that role. A grant is a change nobody has authorized here. To tell
+  pass. Diagnosis section 12 (9.1 earlier) found the progress columns NULL for
+  `eshu`, and `delay_time` and the other columns need `pg_read_all_stats`, which
+  QA does not grant that role. A grant is a change nobody has authorized here. To tell
   whether a hidden vacuum is still running, read, every 10 minutes:
   - The `pg_locks` row keeps the same pid. A new pid or no row means the pass
     ended or restarted; check `last_autovacuum` and `autovacuum_count`. A steady
@@ -56,9 +98,8 @@ QA" section holds the readings and their limits.
     `reltuples` moves them, so compute them live as the main note's Performance
     Evidence section shows), `ALTER TABLE fact_records RESET
     (autovacuum_vacuum_scale_factor, autovacuum_vacuum_insert_scale_factor)`
-    stops it. The ALTER cancels the running vacuum by the lock rule in the main note's "Lock and rollout"
-    section and
-    the restored 20% triggers are not met. Reviewer-measured on PostgreSQL 18.6
+    stops it. The ALTER cancels the running vacuum by the lock rule in the main
+    note's "Lock and rollout" section and the restored 20% triggers are not met. Reviewer-measured on PostgreSQL 18.6
     (scratch table, 100k dead rows, 150k inserts, naptime 1 s): the vacuum was
     cancelled and no new one started over 8 s. Not run by the author, and not
     on `fact_records`.
@@ -111,9 +152,11 @@ QA" section holds the readings and their limits.
   the table's pages hold a dead item identifier (main note, "PostgreSQL can skip
   index vacuuming"), and the log then reads `index scans: 0` and `index scan
   bypassed`. At QA's first-vacuum density of 5.32 per page, 278's dead-row
-  trigger is about 1.70% of pages, so the second pass probably bypasses
-  (arithmetic, not observed). The first pass (1 index scan, 1 h 42 min,
-  48.2 GiB of WAL) is the only price measured.
+  trigger is about 1.70% of pages, so a pass that starts at the trigger
+  bypasses; one that starts above about 2.27M dead rows gets an index scan, and
+  a roll made late enough probably finds the counter there (arithmetic, not
+  observed; see "Before the roll" above). The first pass (1 index scan, 1 h
+  42 min, 48.2 GiB of WAL) is the only price measured.
   The cycle times below are arithmetic from one hour of post-vacuum rates on QA
   (52.1 dead rows and 19.7 inserts per second), and each ratio assumes those
   rates persist. At the default triggers (about 19.29M dead rows and 15.97M
@@ -123,10 +166,12 @@ QA" section holds the readings and their limits.
   and the insert path would take 56. That is about ten times as many passes,
   because the dead path moves from 0.20 to 0.02 of the table, on a throttled
   primary, indefinitely; if alternate passes bypass, nearer five times as many
-  index scans (arithmetic on that assumption). Read the second run's log line
+  index scans (arithmetic on that assumption). Read the pass's log line
   (`index scans:`, then `index scan needed` or `bypassed`) to price the steady
-  state. If it reads `index scans: 0`, the probe says nothing yet; the note's
-  decision bullet applies.
+  state. If it reads `index scans: 0`, the probe says nothing yet; if
+  `autovacuum_count` moved and there is no log line (QA logs only passes over 10
+  minutes), the pass was shorter and the counters cannot say which kind it was.
+  The note's decision bullets apply.
 - WAL retention. The replica's physical replication slot retains WAL while the
   replica lags, and this change sets no threshold. Before the first vacuum,
   read the slot's `wal_status` and retained WAL (`pg_wal_lsn_diff` between the

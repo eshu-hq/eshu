@@ -372,19 +372,17 @@ the setting, and `pg_stat_user_tables` (`n_dead_tup`, `last_autovacuum`) to see
 vacuum keeping up.
 
 Plan for the first vacuum after the setting lands. It scans the pages that hold
-dead rows and every index, so its length scales with table and index size and
-can be hours on a large table on a busy or CPU-throttled primary. It also
-competes for I/O and the autovacuum cost limit, which is shared among running
-workers. As a superuser or a role with `pg_read_all_stats`, read
-`pg_stat_progress_vacuum` for the live state; for any other role the columns
-from `relid` on are NULL (see the roll-time check below). The log line and
-`last_autovacuum` appear only at the end.
+dead rows and every index, so it can take hours on a large table on a busy or
+CPU-throttled primary, and it competes for I/O and the autovacuum cost limit,
+which running workers share. A superuser or a role with `pg_read_all_stats`
+reads `pg_stat_progress_vacuum` for the live state; for any other role the
+columns from `relid` on are NULL (see the roll-time check below). The log line
+and `last_autovacuum` appear only at the end.
 
 - Applying the same `ALTER TABLE` again, or any other DDL that takes
     `SHARE UPDATE EXCLUSIVE` on `fact_records`, does not wait for a running
     ordinary autovacuum. After `deadlock_timeout` PostgreSQL cancels it, and a new
-    worker restarts from block 0. Run the lock check below before a roll that
-    carries `fact_records` DDL. An anti-wraparound vacuum, a manual
+    worker restarts from block 0. An anti-wraparound vacuum, a manual
     `VACUUM` or `ANALYZE`, or any session holding a conflicting lock (a
     concurrent index build is one) makes the statement wait instead. Both
     `ALTER TABLE ... SET (autovacuum_*)` and `CREATE INDEX CONCURRENTLY` take
@@ -415,11 +413,11 @@ from `relid` on are NULL (see the roll-time check below). The log line and
       vacuum; one in `pg_stat_progress_analyze` is an ANALYZE (`last_autoanalyze`).
     - Confirm with `last_autovacuum` and `autovacuum_count` before and after. A
       completed vacuum moves both; a cancelled one moves neither.
-    - The row keeping the same pid shows the worker is running, not that the
-      vacuum is advancing: a reviewer saw the same pid hold the row after
-      `autovacuum_count` moved, during the worker's ANALYZE. Without
-      `pg_read_all_stats`, a pass's own progress is not readable; its end shows in
-      `last_autovacuum`, `autovacuum_count` and, past 10 minutes, the log line.
+    - The same pid holding the row shows the worker is running, not that the
+      vacuum is advancing: a reviewer saw it hold the row through the ANALYZE
+      after `autovacuum_count` moved. Without `pg_read_all_stats` a pass's end
+      shows only in `last_autovacuum`, `autovacuum_count` and, past 10 minutes,
+      the log line.
 
     A worker means the roll cancels that vacuum and it restarts from block 0.
     PostgreSQL's maintenance documentation: "If a process
@@ -451,8 +449,7 @@ from `relid` on are NULL (see the roll-time check below). The log line and
       server's default triggers (20% of the table for dead rows, and the default
       insert trigger). Past either default trigger the RESET cancels the worker
       and a new one starts within a naptime, because the restored defaults are
-      already exceeded. A RESET also leaves `pg_class.reloptions` different from
-      the migration ledger until a forward migration lands.
+      already exceeded. The ledger no longer matches `reloptions` after a RESET.
     - Past the default triggers, stop it with `ALTER TABLE fact_records SET
       (autovacuum_enabled = false)`, which works in both cases. Undo it with
       `RESET (autovacuum_enabled)` before the roll that carries migration 278:
@@ -462,18 +459,21 @@ from `relid` on are NULL (see the roll-time check below). The log line and
       dead rows keep growing, and the undo starts a vacuum within a naptime if a
       trigger is still exceeded, so schedule it. The setting does not disable
       anti-wraparound vacuums: PostgreSQL's documentation says the table "will
-      not be autovacuumed, except to prevent transaction ID wraparound". Record
-      the change, since `reloptions` carries it while it is in place.
-    - These behaviors were measured on PostgreSQL 18.6 scratch tables by a
-      reviewer, as a non-superuser table owner, not on `fact_records`: the
-      `SET (autovacuum_enabled = false)` succeeded and no worker ran 4 s later;
-      migration 278's `SET` left that setting in `reloptions`; `RESET
-      (autovacuum_enabled)` brought a worker back in about 1 s at a 1 s naptime;
-      and an anti-wraparound worker still ran with the setting false.
+      not be autovacuumed, except to prevent transaction ID wraparound". Record the
+      change: `reloptions` carries it while it is in place.
+    - A reviewer measured these on PostgreSQL 18.6 scratch tables as a
+      non-superuser owner, not on `fact_records`: `SET (autovacuum_enabled =
+      false)` succeeded and no worker ran 4 s later; migration 278's `SET` left
+      that setting in `reloptions`; `RESET (autovacuum_enabled)` brought a worker
+      back in about 1 s at a 1 s naptime; an anti-wraparound worker still ran
+      with the setting false.
 
-- About ten times as many passes on the dead-row path (0.20 to 0.02 of the table;
-  10.3 hours between runs against about 103, one hour of rates). A pass can skip
-  index cleanup (`index scans: 0`): read the second vacuum's log line first.
+- About ten times as many passes on the dead-row path (0.20 to 0.02 of the
+  table; 10.3 hours between runs against about 103, one hour of rates). A pass
+  can skip index vacuuming (`index scans: 0`), and one under QA's 10-minute
+  `log_autovacuum_min_duration` writes no log line, so read `autovacuum_count`
+  too. Read `n_dead_tup` and `n_ins_since_vacuum` before the roll: once either
+  is past its trigger, a vacuum starts within a naptime of the roll.
 - A physical replication slot retains WAL while its replica lags. Watch the
   slot's `wal_status` and retained WAL during the first vacuum and agree a stop
   value before it starts.

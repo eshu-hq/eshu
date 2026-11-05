@@ -30,10 +30,11 @@ each is an unmeasured theory on a primary that is already CPU-throttled.
 ## Performance Evidence:
 
 Source: the #9805 read-only diagnosis on the QA environment primary, taken on
-2026-11-04. Nothing in the baseline tables below was measured after this
-change; they are the baseline the change is meant to move. The first vacuum
-section near the end records a vacuum that ran under the server defaults,
-before migration 278 had rolled.
+2026-11-04. Its section numbers (7, 9.1, 12.1 and so on) are cited below; the
+diagnosis and its raw files live with #9805, not in this repository. Nothing in
+the baseline tables was measured after this change; they are the baseline it is
+meant to move. The first vacuum section near the end records a vacuum that ran
+under the server defaults, before migration 278 had rolled.
 
 | Observation | Value |
 |---|---|
@@ -74,22 +75,20 @@ dead rows per second, 47 to 80 inserts per second) the table would take 3.3 to
 4.8 more days to reach the dead-row trigger. Meanwhile the hot triples show
 28 to 71 index entries per live row, so most heap visits find no visible row.
 
-The insert trigger was much closer, and it mattered for rollout. Arithmetic
-made before the run: diagnosis section 11.2 read `n_ins_since_vacuum` at
-17,632,252 at 04:21:55Z on 2026-11-04, 1,959,313 short of the default insert
-trigger (19,591,565). At 80 and at 47 inserts per second that is 6.8 to 11.6
-hours, about 11:00Z to 16:00Z. The vacuum started earlier, at 09:00:52.7Z (see
-the first vacuum section): reaching the trigger in 4 h 39 min took at least 117
-inserts per second on average, above the 80.6 maximum the window used
-(arithmetic). A bulk insert of about 774k rows landed between 06:30Z and 06:35Z
-(diagnosis sections 12.7 and 12.8); after it the counter ran at 55 to 70 per
-second. The consequence held: with no migration and no one-off, a
-default-settings autovacuum of `fact_records` started on its own when that
-counter crossed its default trigger. That first vacuum measures the theory with
-default settings, not migration 278, and a later roll's ALTER would cancel one
-that is still running (the rollout-order consequence below applies equally).
-Read `last_autovacuum`, `autovacuum_count`, and the roll-time lock check below
-before any roll.
+The insert trigger was much closer, and it mattered for rollout. Diagnosis
+section 11.2 read `n_ins_since_vacuum` at 17,632,252 at 04:21:55Z on 2026-11-04,
+1,959,313 short of the default insert trigger (19,591,565): 6.8 to 11.6 hours at
+80 to 47 inserts per second, about 11:00Z to 16:00Z (arithmetic made before the
+run). The vacuum started earlier, at 09:00:52.7Z (see the first vacuum section):
+reaching the trigger in 4 h 39 min took at least 117 inserts per second on
+average, above the 80.6 maximum the window used (arithmetic). A bulk insert of
+about 774k rows landed between 06:30Z and 06:35Z (diagnosis sections 12.7 and
+12.8); after it the counter ran at 55 to 70 per second. So with no migration and
+no one-off, a default-settings autovacuum started on its own when that counter
+crossed its default trigger. That first vacuum measures the theory with default
+settings, not migration 278, and a later roll's ALTER would cancel one still
+running (see the rollout consequences below). Read `last_autovacuum`,
+`autovacuum_count`, and the roll-time lock check below before any roll.
 
 Computed triggers after this change (arithmetic from the pre-vacuum `reltuples`;
 the first vacuum moved it, see the recomputed triggers below):
@@ -106,9 +105,11 @@ PostgreSQL 18 behavior. On PostgreSQL 13 to 17 the same arithmetic gives
 Both were exceeded at the baseline read, but a first vacuum starts within one
 `autovacuum_naptime` (60 s) of the migration landing only where the counters
 still exceed the new thresholds at apply time. On QA the default-settings
-vacuum has now run, from 09:00:52.7Z to 10:43:24.607Z on 2026-11-04. Its end
-reset the counters (`n_dead_tup` 13,333 and `n_ins_since_vacuum` 14), so a roll
-that applies 278 afterwards starts no immediate vacuum. It also moved
+vacuum ran from 09:00:52.7Z to 10:43:24.607Z on 2026-11-04. Its end reset the
+counters (`n_dead_tup` 13,333 and `n_ins_since_vacuum` 14), and they have
+climbed since. Either counter at or past its 278 trigger starts a vacuum within
+a naptime of the roll, so whether a roll starts one depends on the counters at
+apply time: read them before the roll (see below). The vacuum also moved
 `pg_class` (read at 10:45Z: `reltuples` 96,428,608, `relpages` 21,350,368,
 `relallfrozen` 3,676,984), so 278's triggers on QA are no longer the ones in
 the table above. Recomputed from that dated reading:
@@ -128,22 +129,24 @@ that span. On those rates (arithmetic from one hour) the dead-row trigger is
 insert trigger 55 to 56 hours (3,992,078 divided by 19.7 and by 20.2). The
 dead-row trigger is first. These rates differ from the baseline ones (14 to 21
 dead and 47 to 80 inserts per second), so read the hours as one hour's reading,
-not a steady cycle.
+not a steady cycle. On those rates a roll later than 10.8 hours
+after the end finds `n_dead_tup` past 278's trigger; the counters decide.
 
 "Dead rows near 2% of live" is the table-wide average, not what the probe
 pays. The probe reads hot rows, which carry 28 to 71 index entries per live
 row against a table-wide dead share of about 14%. Those entries built up over
 about 94 hours, one version per 1.3 to 3.3 hours; the live-row xmin ages in
-diagnosis section 9.2 say 0.4 to 1.9 hours. A 10.3 to 10.8 hour
-cycle therefore rebuilds about 3 to 8 dead entries per live row on a hot row
-before the next vacuum (10.3 / 3.3 to 10.8 / 1.3), or about 5 to 27 using the
-xmin ages (10.3 / 1.9 to 10.8 / 0.4). This is arithmetic from the one-hour rate, and kill
-hints should lower it by an amount nobody has measured. It means a sawtooth:
-near 1 to 2 buffers per row just after a vacuum that ran an index scan
-(measured: 1.4 right after the first vacuum and 1.3 an hour later), climbing back toward a share of today's
-figure before the next one. The hour readback after the first vacuum reads the
-bottom of that sawtooth, so it does not show that the 60 s bar holds a day
-later (see the extra read below).
+diagnosis section 9.2 say 0.4 to 1.9 hours. A 10.3 to 10.8 hour cycle
+therefore rebuilds about 3 to 8 dead entries per live row on a hot row before
+the next vacuum (10.3 / 3.3 to 10.8 / 1.3), or about 5 to 27 using the xmin
+ages (10.3 / 1.9 to 10.8 / 0.4). This is arithmetic from the one-hour rate, and
+kill hints should lower it by an amount nobody has measured. It means a
+sawtooth: near 1 to 2 buffers per row just after a vacuum that ran an index
+scan (measured: 1.4 right after the first vacuum and 1.3 an hour later),
+climbing back toward a share of today's figure before the next one. The hour
+readback after the first vacuum reads the bottom of that sawtooth, so it does
+not show that the 60 s bar holds a day later (see the read before the roll
+below).
 
 PostgreSQL can skip index vacuuming at 278's trigger, which changes the cost
 per pass. The PostgreSQL 18 `VACUUM` page (`INDEX_CLEANUP`) says: "Normally,
@@ -162,52 +165,54 @@ same count at one per page (8.73%) got one at once.
 On QA, 2% of 21,350,368 pages is 427,007 pages. The first vacuum's log line
 gives 15,858,845 dead item identifiers on 2,982,877 pages, 5.32 per page. At
 that density 1,928,622 dead rows touch about 362,753 pages, 1.70% of the table,
-under the line (break-even 4.52 per page). So the second vacuum probably
-bypasses. That is arithmetic from one vacuum's density, not observed, and the
-density at a smaller count may differ. The 32 MiB condition looks clear (a
-scratch reading scales to about 13 MB; coarse, not at scale). A bypassed pass
-skips the walk of all 144 indexes and costs less. "About ten times as many
+under the line (break-even 4.52 per page). The line is at about 2.27M dead rows
+(427,007 x 5.32): a pass that starts below it bypasses, one above it gets an
+index scan. On the one hour's rates 2.27M is reached 12.1 to 12.7 hours
+after the first vacuum's end, so a roll after that most likely gets an index
+scan, and the bypass case belongs to the passes after it, which start near zero
+and cross the trigger first. That is arithmetic from one vacuum's density, not
+observed; density at other counts may differ and `n_dead_tup` is an estimate.
+The 32 MiB condition looks clear (a scratch reading scales to about 13 MB;
+coarse, not at scale). A bypassed pass skips index vacuuming and costs less,
+though a btree whose last cleanup left over 5% of pages deleted can still get a
+cleanup-only scan (source reading, not measured). "About ten times as many
 passes" counts triggered runs, not index scans, and index entries pile up
 across bypassed passes until one crosses 2%.
 
 First-vacuum duration: measured at 6,151.92 s (1 h 42 min 32 s). The arithmetic
-made before the run was a range, never a prediction; it is kept short to show
-how far it was off:
+made before the run was a range, never a prediction:
 
-- Credit-bound floor. The full cost limit to one worker is 100,000 credits per
-  second (miss 2, hit 1, dirty 20). Reading the heap plus 84 GB of indexes
-  (about 10.25M pages) as all misses gives 10.3 minutes, or 5.3 minutes when the
-  72.0% all-visible heap pages are skipped. Dirtied pages add 20 credits each
-  (about 3.3 minutes per million). Sharing the limit among two or three workers
-  (diagnosis section 9.1 saw two other vacuums running) gives 10.7 to 31 minutes.
-- Read-latency bound. 0.571 ms per cold read over 16.0M to 31.0M reads is 2.5 to
-  4.9 hours, an upper bound from a random-read figure; sequential reads should be
-  faster.
+- Credit-bound floor: the full cost limit to one worker is 100,000 credits per
+  second (miss 2, hit 1, dirty 20). The heap plus 84 GB of indexes (about 10.25M
+  pages) as all misses is 10.3 minutes, or 5.3 minutes with the 72.0%
+  all-visible heap pages skipped; dirtied pages add about 3.3 minutes per
+  million; two or three workers sharing the limit (diagnosis section 9.1 saw two
+  other vacuums running) give 10.7 to 31 minutes.
+- Read-latency bound: 0.571 ms per cold read over 16.0M to 31.0M reads is 2.5 to
+  4.9 hours, an upper bound from a random-read figure.
 
-Result against that arithmetic. The run (1.71 hours) sits between the two: far
-above the credit-bound floors (5.3 to 31 minutes) and under the read-latency
-range (2.5 to 4.9 hours). The pass read 23,174,029 buffers (I/O read time
-719.4 s) and dirtied 11,770,455 pages. At 20 credits each the dirtied pages come
-to about 235 million credits, or 2,354 s at the full unshared limit (38% of the
-run); the reads add 463 s at 2 credits each, 46% together (arithmetic from the
-credit model, all reads counted as misses). I/O read, I/O write (60.6 s) and CPU
-(505.8 s user, 156.3 s system) add to 1,442 s of the 6,152 s. The rest is not
-accounted for by these figures; waiting on the shared cost limit is the likely
-cause (inference, not measured).
+Result: the run (1.71 hours) sits between the two, far above the credit-bound
+floors and under the read-latency range. The pass read 23,174,029 buffers (I/O
+read time 719.4 s) and dirtied 11,770,455 pages: about 235 million credits at 20
+each, or 2,354 s at the full unshared limit (38% of the run), and 46% with the
+reads at 2 credits each (arithmetic from the credit model, all reads counted as
+misses). I/O read, I/O write (60.6 s) and CPU (505.8 s user, 156.3 s system) add
+to 1,442 s of the 6,152 s. The rest is not accounted for; waiting on the shared
+cost limit is the likely cause (inference, not measured).
 
-The run exceeded the 10-minute `log_autovacuum_min_duration` and was logged
-(the 5.3-minute credit floor would not have been). The keyed ticks did not slow:
-p95 was 0.945 s over 203 ticks during the run (the audit path is a separate
-series, p95 about 228 s). Exclude the whole run of any vacuum from the #9805
-closing bar, from the first granted `ShareUpdateExclusiveLock` row on
-`fact_records` held by a backend that is not your own session (the roll-time
-check below) until `last_autovacuum` updates, whatever its length.
+The run exceeded the 10-minute `log_autovacuum_min_duration` and was logged (the
+5.3-minute credit floor would not have been). The keyed ticks did not slow: p95
+was 0.945 s over 203 ticks during the run (the audit path is a separate series,
+p95 about 228 s). Exclude the whole run of any vacuum from the #9805 closing
+bar, from the first granted `ShareUpdateExclusiveLock` row on `fact_records`
+held by a backend that is not your own session (the roll-time check below) until
+`last_autovacuum` updates, whatever its length.
 
 Proof taken after the first vacuum, on the same primary and the same 10
-triples (diagnosis section 12; the readings are in the first vacuum section).
-It is read against the after-cancel baseline (35.8 cold, 12.2 repeat), not
-against 46.0, and against a control taken before the vacuum (7.7 repeat, 13.1
-cold at 05:54Z). The decision rule was:
+triples (diagnosis section 12; readings in the first vacuum section), read
+against the after-cancel baseline (35.8 cold, 12.2 repeat), not 46.0, and a
+control taken before the vacuum (7.7 repeat, 13.1 cold at 05:54Z). The decision
+rule was:
 
 - Buffers per row near 1 to 2 on the repeat pass, and the hour inside the bar:
   the vacuum moved it past what the cancel and hints did, and the mechanism is
@@ -226,28 +231,20 @@ was inside the bar. The tick bar cannot tell the vacuum from the earlier
 holder cancel, because keyed p95 was already under 15 s before it; the probe
 is what separates them. The per-phase histogram was not read.
 
-One more read, shortly before the second vacuum starts: the same 10-triple
-probe plus the keyed tick gauge. It is a single read, not a soak, and it is the
-point on the sawtooth that matters. Once migration 278 has rolled, the second
-vacuum starts at whichever trigger is reached first. On the post-vacuum reading
-above those are `n_dead_tup` 1,928,622 and `n_ins_since_vacuum` 3,992,078. Poll
-both every 5 minutes and take the read when either is within 5% of its trigger
-(dead rows above 1.83M, inserts above 3.79M); at 52.1 dead rows per second that
-is about 31 minutes ahead. Waiting for the trigger itself misses it, since the
-worker starts within a naptime of the crossing. Compute both triggers live
-from `pg_class`, because a later autoanalyze moves them: `SELECT 1000 + 0.05 *
-reltuples * (1 - relallfrozen::float8 / NULLIF(relpages, 0)), 50 + 0.02 *
-reltuples FROM pg_class WHERE oid = 'fact_records'::regclass` (reviewer-run on a
-scratch table only, not on QA). On the one hour's rates the dead-row trigger is
-first, 10.3 to 10.8 hours after the 10:43Z end (roughly 21:00Z to 21:30Z on
-2026-11-04, if 278 has rolled by then and the rates held), and the insert
-trigger at 55 to 56 hours. The order depends on the rates: at the baseline 14
-dead rows and 80 inserts per second the insert trigger would come first. So key on whichever counter is nearer its trigger; do not assume
-the order. Before 278 has rolled, the triggers are the server defaults and none
-of these figures apply.
+Read the counters before the roll: counters read, then the roll, then watch.
+The owner's roll notice must carry that step; the runbook ("Before the roll")
+has the query and the polling window. The owed read of the next vacuum, the
+10-triple probe plus the keyed tick gauge (one read, not a soak), has to come
+before that vacuum starts. Either counter at or past its 278 trigger starts one
+within a naptime of apply (`n_dead_tup` 1,928,622 or `n_ins_since_vacuum`
+3,992,078 on the dated reading; compute live), so a 5% polling window cannot
+work then. Expect an index scan at or above 2% of live `relpages` times the dead
+items per page in hand (QA about 2.27M at 5.32), a bypass below. The arithmetic
+rests on one hour of rates ending 11:44Z; no counter has been read since, and
+this branch read nothing on QA.
 
-Read the second vacuum's log line before the probe: `index scans:` and then
-`index scan needed` or `index scan bypassed`.
+Read the pass's log line before the probe, `index scans:` then `index scan
+needed` or `index scan bypassed`:
 
 - `index scans: 1`: read the probe against the first vacuum's 1.4 buffers per row.
 - `index scans: 0` with `index scan bypassed`: PostgreSQL skipped index
@@ -257,6 +254,16 @@ Read the second vacuum's log line before the probe: `index scans:` and then
   dead-item pages pass 2% of the table. If passes keep bypassing and the probe
   stays high, take the log lines to the arbiter; forcing `vacuum_index_cleanup`
   on is a separate, unmeasured change.
+- `autovacuum_count` moved and no log line: QA logs only autovacuums over 10
+  minutes (`log_autovacuum_min_duration` 600000 ms, diagnosis section 12.1), and
+  a bypassed pass likely runs a few minutes (362,753 dirtied pages at 20 credits
+  is 73 s at the full limit; arithmetic, not measured). The counters show a pass
+  finished and `n_dead_tup` fell (it reads near zero until the next ANALYZE
+  counts the leftover dead item pointers); they cannot say whether it scanned the
+  indexes. Do not judge the mechanism from the probe: a low one fits an index
+  scan but kill hints lowered it before any vacuum (7.7 against 12.2), a high
+  one fits a bypass or a failed setting. Wait for a pass that logs. A table-level
+  `log_autovacuum_min_duration` is not part of this change.
 
 Local proof for the change itself (disposable PostgreSQL 18.6, migration run
 through the shipped runner): `pg_class.reloptions` for `fact_records` is empty
@@ -281,8 +288,9 @@ signals that already exist:
   stats, duration, buffer and WAL usage) appears for any run over 10 minutes.
   Read the second vacuum's line too; it prices the steady state.
 - `pg_stat_user_tables` for `fact_records`: `n_dead_tup`, `n_ins_since_vacuum`,
-  `last_autovacuum`, `autovacuum_count`. A healthy table now shows
-  `n_dead_tup` resetting near 2% of live rows instead of climbing past 14M.
+  `last_autovacuum`, `autovacuum_count`. A table keeping up shows `n_dead_tup`
+  resetting after each pass instead of climbing past 14M. A bypassed pass resets
+  it too, so it does not show that index entries were cleared.
 - `pg_class.reloptions` for `fact_records` confirms the migration applied.
 - The keyed tick durations and watermark gauge show whether the ticks move.
   The per-phase tick histogram that would split them was merged in #9981 and
@@ -319,8 +327,9 @@ default, and its `deadlock_timeout` is 1000 ms, below the runner's 5 s
 Consequences for rollout:
 
 - Applying the migration where no vacuum of `fact_records` is running is the
-  clean case. A vacuum starts a naptime later only if the counters already
-  exceed the new thresholds at apply time; after a completed vacuum they do not.
+  clean case. A vacuum starts a naptime later if either counter is already at
+  or past its new threshold at apply time, and a completed vacuum does not
+  prevent that: the counters climb again. Read them before the roll.
 - An ALTER applied while a vacuum is running cancels it and restarts it from
   the beginning, with no warning in the schema Job log (only the Postgres server
   log says so). Reloptions stay unchanged, so a replay is harmless to the
@@ -387,7 +396,7 @@ Consequences for rollout:
 
   A worker means the roll cancels that vacuum and it restarts from block 0.
   Either wait for `last_autovacuum` to update, or roll and record the restart.
-  After a completed vacuum the roll is clean. The query is the arbiter's
+  With no vacuum running the roll cancels nothing. The query is the arbiter's
   recipe; the reviewer ran it as above. It reads the lock table, so it works
   where the progress view is hidden, but only as the hidden-holder test
   described here. Three gaps, each a reviewer measurement (PostgreSQL 18.6
@@ -453,17 +462,13 @@ Proof limits:
 - The start time comes from the log's elapsed figure and a 5-minute poll. The
   cold-pass values and per-phase tick time were not attributed (the #9981
   histogram was not read).
-- The post-vacuum rates (52.1 dead rows and 19.7 inserts per second) are one
-  hour, and the dead-row rate is above the baseline range; whether it persists
-  is unmeasured.
 
 ## NOT_CHECKED
 
-- A second vacuum's duration, WAL volume, API `503` rate, and the hot-row
-  sawtooth size at its start. The first vacuum's are measured above (n = 1);
-  later ones are not.
-- For the first vacuum: hidden-backend xmins and the per-phase tick histogram
-  (#9981) were not read.
+- A later vacuum's duration, WAL volume, API `503` rate and hot-row sawtooth
+  size; the first vacuum's are measured above (n = 1).
+- For the first vacuum: hidden-backend xmins and the #9981 per-phase tick
+  histogram were not read.
 - Whether any other session holds an older snapshot; the first logged vacuum's
   removable cutoff is the test. `idle_in_transaction_session_timeout` and
   `transaction_timeout` were 0 on the QA primary, so a new holder can recur.
@@ -472,24 +477,24 @@ Proof limits:
   the diagnosis session used (diagnosis section 12.1). That the Job runs as
   `eshu` is read from migration 273, which builds an index on the table through
   it, not from QA.
-- The deployed PostgreSQL major version. The diagnosis read 18.3; the lock text
-  is from the PostgreSQL 18 docs and the lock behavior was measured on 18.6.
+- The deployed PostgreSQL major version: the diagnosis read 18.3, the lock text
+  is from the 18 docs, and the lock behavior was measured on 18.6.
 - The stop procedure: RESET below and past the default triggers,
   `autovacuum_enabled = false`, its undo, and its behavior against an
   anti-wraparound run were measured only by the independent review on scratch
-  tables (PostgreSQL 18.6, naptime 1 s; the owner role varied by run), not by the author
-  and not on `fact_records`.
+  tables (PostgreSQL 18.6, naptime 1 s; the owner role varied by run), not by
+  the author and not on `fact_records`.
 - The roll-time check on QA: QA's own worker showed the NULL-typed row at T0
   (diagnosis section 12.8: pid, NULL `backend_type`, NULL `state`, query
   `<insufficient privilege>`), so the reading for a role without
   `pg_read_all_stats` is observed there. Which role runs a given roll check was
   not checked, and QA's grants were not read.
-- QA's counters after the 11:44Z hour readback, and whether the 52.1 dead rows
-  per second rate persists. The 10.3 to 10.8 hour and 55 to 56 hour figures rest on one hour.
-- Whether QA's second vacuum bypasses index vacuuming: 427,007 pages and 4.52
-  per page are arithmetic from the first vacuum's density, and the 32 MiB
-  condition was not measured at scale.
-- The second vacuum measurement is still owed. The note describes what to read
-  shortly before the second vacuum starts (`n_ins_since_vacuum` near 3.99M or
-  `n_dead_tup` near 1.93M, with the 10-triple probe and the keyed tick gauge),
-  but no figure from that read exists yet and none is claimed here.
+- QA's counters after the 11:44Z hour readback (this branch read nothing on
+  QA), and whether the post-vacuum rates (52.1 dead rows and 19.7 inserts per
+  second, above the baseline dead-row range) persist. The hours to each trigger
+  and the 12.1 to 12.7 hour break-even rest on that one hour.
+- Whether QA's next vacuum bypasses index vacuuming: the 2.27M dead-row line is
+  arithmetic from the first vacuum's density, the 32 MiB condition was not
+  measured at scale, and a bypassed pass's duration is arithmetic.
+- The next vacuum's measurement is still owed. Read the counters before the
+  roll (above); no figure from that read exists yet and none is claimed here.
