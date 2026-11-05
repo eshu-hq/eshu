@@ -87,9 +87,10 @@ func cveChunkPlanWalks(t *testing.T, plan string) bool {
 	return false
 }
 
-// seedCVEChunkWalkFixture builds the shape that walks: a shuffled heap, wide pages,
-// no index on fact_records but the two in question and the primary key, and the
-// given correlation stored for the advisory index's expression. Autovacuum is off
+// seedCVEChunkWalkFixture builds the shape that walks: wide pages, no index on
+// fact_records but the two in question and the primary key, and the given
+// correlation stored for the advisory index's expression. Heap order does not decide
+// the walk; the seed only happens to shuffle. Autovacuum is off
 // because an automatic ANALYZE would overwrite that stored value during the test.
 // pg_restore_attribute_stats needs PostgreSQL 18.
 func seedCVEChunkWalkFixture(t *testing.T, ctx context.Context, database *sql.DB, correlation string) {
@@ -132,8 +133,8 @@ SELECT pg_restore_attribute_stats('schemaname', current_schema()::text, 'relname
 }
 
 // dropCVEChunkCompetingIndexes keeps the CVE and advisory indexes and whatever backs
-// a constraint. With the full set a shuffled heap leaves the anchor through
-// fact_records_scope_generation_idx, which hides the walk this fixture plants.
+// a constraint. With the full set the plan leaves the anchor through another index
+// instead, which hides the walk this fixture plants.
 func dropCVEChunkCompetingIndexes(t *testing.T, ctx context.Context, database *sql.DB) {
 	t.Helper()
 	cve := factimpact.IndexVulnerabilityCVEV2

@@ -91,9 +91,6 @@ func TestCVEListIsChunkedOnTheKeyProbe(t *testing.T) {
 	}
 }
 
-// TestCVEChunksKeepOneSnapshotAndDedupe: the chunks run inside the one read-only
-// repeatable-read snapshot of the load, and a row more than one statement returns
-// still reaches the caller once.
 // TestCVEChunksUnionEveryStatement answers each bound id with its own row, so a
 // loader that kept only some statements' rows returns too few.
 func TestCVEChunksUnionEveryStatement(t *testing.T) {
@@ -123,6 +120,9 @@ func TestCVEChunksUnionEveryStatement(t *testing.T) {
 	}
 }
 
+// TestCVEChunksKeepOneSnapshotAndDedupe: the chunks run inside the one read-only
+// repeatable-read snapshot of the load, and a row more than one statement returns
+// still reaches the caller once.
 func TestCVEChunksKeepOneSnapshotAndDedupe(t *testing.T) {
 	t.Parallel()
 
