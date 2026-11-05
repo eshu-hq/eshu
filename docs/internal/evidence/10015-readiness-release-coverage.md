@@ -80,7 +80,7 @@ a ceiling, not a size anyone has reported.
 QA figures, from the QA census of 2026-11-04 and the deployed configuration read
 the same day: 56 `vulnerability.os_package` facts, all `pkg:apk/alpine` on Alpine
 3.21, and 7 Alpine OSV scopes. The deployed configuration sets no `target_limit`,
-so `derive_from_installed_evidence` plans at most the code default of 100 targets
+so `derive_from_installed_evidence` plans at most the code default of 100 queries
 (`defaultDerivedVulnerabilityTargets` in `intelligence_derivation.go`; the ceiling
 is 5000). Release scopes do not exist on QA until #9993 ships.
 
@@ -91,62 +91,82 @@ two releases once #9993 runs. The fixture is synthetic.
 ## Measurement
 
 Thresholds, stated before the measurement (arbiter ruling arb-wave1-3, decision
-A2). With the plan at 100 targets: at most +10 ms median at `os` × 100, at most
-+35 ms at `os` × 1000, `npm` unchanged within noise, shared buffers within +200
-blocks, and no sequential scan on either state table. The ruling excludes a
+A2). With the plan at the QA size of 100 queries: at most +10 ms median at `os` × 100,
+at most +35 ms at `os` × 1000, `npm` unchanged within noise, shared buffers within
++200 blocks, and no sequential scan on either state table. The ruling excludes a
 package cap, a cache, and dropped rows as mitigation. The statement changed after
 the ruling's measurement, so byte identity with the measured statement (A3a) no
 longer holds, and this section replaces the earlier figures.
 
-No-Regression Evidence: the full `ListReadinessQuery` from the base commit
-(`c44574eba8`, origin/main before this PR) against the previous head statement
-(`31b7355e52`, with the plan-driven retirement) and the shipped statement
-(`f83074e0b5`), on a private PostgreSQL 18.6 cluster (`fsync=off`,
-`shared_buffers=512MB`) with the real bootstrap schema, through
+**Plan shape.** The planner does not write one target per package. The installed
+evidence path chunks queries into batch targets
+(`vulnerabilityDerivedQueryChunks`), so a plan of 100 queries is 2 targets whose scope
+ids run to about 1.2 KB, and a plan of 5000 queries is 76 targets with ids up to
+1.8 KB. The limit counts queries, not targets. An earlier version of this note
+measured single-package targets, a shape the planner does not write: it understated
+the ceiling cost and missed a spill described below (review finding F2). Those
+figures are replaced.
+
+No-Regression Evidence: the full `ListReadinessQuery` from origin/main
+(`788cd37784`) against the previous head statement (`4ded3e5669`) and the shipped
+statement (this PR's head), on a private PostgreSQL 18.6 cluster (`fsync=off`,
+`shared_buffers=512MB`, `work_mem=4MB`) with the real bootstrap schema, through
 `EXPLAIN (ANALYZE, BUFFERS, TIMING OFF, FORMAT JSON)` with production arguments.
-The fixture has 200,000 states: 140,000 npm scopes and 20,000 Alpine packages with
-three scopes each (two current releases and one superseded version), 200
-historical planner runs, and a latest plan trimmed to 100 or 5,000 targets. Every
-requested Alpine package among the first 50 (or 2,500) has two planned releases,
-the worst case. Each cell is the minimum and median of 25 interleaved rounds with a
-rotating first mover, after one warm run per statement.
+The fixture has 200,000 states (140,000 npm scopes, 20,000 Alpine packages with three
+scopes each) and 200 historical planner runs. The latest plan names the first 50 (at
+100 queries) or 2,500 (at 5000 queries) Alpine packages on two releases, chunked 66
+packages per target. Each cell is the minimum and median of 25 interleaved rounds
+with a rotating first mover, after one warm run per statement. "Five distros" lists
+five OS distros in the instance configuration, as QA does; the base statement fans
+each hit out once per configured distro, which is why its buffers grow.
 
-**Host load was 24 to 46 during the 100-target run and about 33 during the
-5000-target run, on a shared machine. Timings are noisy (the base `os` × 1000 median
-swings between 59 and 86 ms across runs), so shared buffers, which do not depend on
-load, are the primary signal.** Buffers for the shipped statement equal the previous
-statement in every cell.
+**Host load was 49 at the start of this run and 28 at the end, on a shared machine.
+Timings are noisy, so shared buffers and temp blocks, which do not depend on load,
+are the primary signal.**
 
-Plan at 100 targets, the installed-evidence default. Delta against the base
-statement, in ms, minimum / median:
+Plan of 100 queries (2 batch targets), the installed-evidence default. Delta against
+origin/main, in ms, minimum / median for the shipped statement:
 
-| Request | Base min / med | Previous head | Shipped | Ruling bound (median) | Buffers base to shipped |
+| Distros | Request | Base min / med | Shipped | Ruling bound (median) | Buffers base to shipped |
 |---|---|---|---|---|---|
-| `os` × 1 | 0.98 / 1.03 | +0.22 / +0.21 | +0.22 / +0.21 | none | 24 to 24 |
-| `os` × 100 | 6.08 / 7.51 | +3.01 / +2.44 | +2.63 / +1.99 | +10 | 1608 to 1608 |
-| `os` × 1000 | 60.19 / 84.72 | +11.23 / +37.16 | +16.00 / +26.20 | +35 | 15009 to 15009 |
-| `npm` × 1000 | 24.55 / 36.74 | +1.14 / -0.44 | -0.27 / -1.46 | within noise | 7009 to 7009 |
+| 1 | `os` × 100 | 4.52 / 5.90 | +1.80 / +1.92 | +10 | 1608 to 1608 |
+| 1 | `os` × 1000 | 38.30 / 44.47 | +14.80 / +13.09 | +35 | 16045 to 16045 |
+| 1 | `npm` × 1000 | 21.93 / 27.44 | +1.45 / +2.61 | within noise | 8008 to 8008 |
+| 5 | `os` × 100 | 15.28 / 18.06 | -4.31 / -6.13 | +10 | 4808 to 1608 |
+| 5 | `os` × 1000 | 148.41 / 196.37 | -51.83 / -69.80 | +35 | 48119 to 16045 |
+| 5 | `npm` × 1000 | 29.34 / 34.25 | +1.74 / +10.43 | within noise | 8008 to 8008 |
 
-Every cell meets its bound, and neither state table gets a sequential scan
-(`TestSupplyChainImpactReadinessReleaseScopeQueryPlanLive`). The `os` × 1000 median
-for the previous head (+37.16) is above its bound only because that run's base
-median sat at a loaded 84.72 ms; the minimums are +11.23 and +16.00.
+Every `os` cell meets its bound. The five-distro `npm` median (+10.43) is a load
+artifact: the minimum is +1.74, and the previous statement read +4.13 in the same
+run. Neither state table gets a sequential scan
+(`TestSupplyChainImpactReadinessReleaseScopeQueryPlanLive`).
 
-Plan at the 5000-target ceiling, outside the ruling's QA size, same harness:
+Plan of 5000 queries (76 batch targets), the ceiling, outside the ruling's QA size.
+The previous head statement spilled to disk here and origin/main does not:
 
-| Request | Base min / med | Previous head | Shipped | Buffers base to shipped |
-|---|---|---|---|---|
-| `os` × 1 | 1.52 / 1.88 | +4.61 / +5.46 | +4.38 / +5.71 | 52 to 66 |
-| `os` × 100 | 7.53 / 8.21 | +7.11 / +9.73 | +6.08 / +7.78 | 1636 to 1650 |
-| `os` × 1000 | 42.02 / 86.02 | +23.58 / +60.06 | +22.25 / +16.27 | 16073 to 16087 |
-| `npm` × 1000 | 27.59 / 29.34 | +0.03 / +1.87 | +0.94 / +1.36 | 7037 to 7037 |
+| Distros | Request | Base min / med | Previous head | Shipped | Temp blocks, base / previous / shipped |
+|---|---|---|---|---|---|
+| 1 | `os` × 100 | 6.61 / 6.96 | +4.64 / +4.86 | +4.15 / +4.49 | 0 / 0 / 0 |
+| 1 | `os` × 1000 | 54.45 / 60.77 | +58.72 / +121.90 | +25.11 / +56.10 | 0 / 1378 / 0 |
+| 1 | `npm` × 1000 | 26.57 / 32.67 | +0.78 / +2.14 | +1.61 / +1.35 | 0 / 0 / 0 |
+| 5 | `os` × 100 | 12.69 / 14.46 | +5.30 / +5.62 | +4.50 / +5.18 | 0 / 0 / 0 |
+| 5 | `os` × 1000 | 109.66 / 145.07 | +48.80 / +57.16 | +37.81 / +35.18 | 0 / 1537 / 0 |
+| 5 | `npm` × 1000 | 26.13 / 29.31 | +1.47 / +2.01 | +1.51 / +2.36 | 0 / 0 / 0 |
 
-At the ceiling, `os` × 1 pays a fixed cost of about +5 ms for reading the plan, and
-`os` × 100 sits above this note's own 5 ms limit (+6.08 minimum). `os` × 1000 costs
-+22.25 ms at the minimum, down from +30.95 ms on the statement the earlier note
-measured, and under the first coordinator limit of about 25 ms. The statement now
-has one window aggregate where it had two. The two runs differ in host load, so the
-size of any saving from that is not established.
+**The spill.** Carrying the batch scope id (about 1.7 KB) through the planned-release
+`DISTINCT ON` and the window sort exceeded `work_mem` in both (`Sort Method: external
+merge`, 852 and 1378 temp blocks written). The shipped statement carries the target's
+ordinal instead and joins the scope id back after the newest state per release is
+chosen. It writes no temp blocks in any cell, buffers equal the previous statement, and
+the full derived readiness live tests, the query-plan test and the mutants below pass
+on it. The previous statement's shape was proved first as a scratch variant under the
+same harness before it replaced the real one. Production `work_mem` is NOT_CHECKED: the
+cluster here uses PostgreSQL's 4 MB default.
+
+At the ceiling `os` × 1000 costs +25.11 ms at the minimum (one distro) and +37.81 ms
+(five distros), against the QA-size bound of +35 ms. The ruling does not bind the
+ceiling, and the minimum is the load-robust figure. A 5000-query plan means a fleet of
+thousands of distinct packages, which QA does not have (56 Alpine facts).
 
 `TestSupplyChainImpactReadinessPackageAnchorLive`, the package-anchor leg, runs the
 shipped statement on a different fixture. Its statement figure, interleaved three
@@ -179,8 +199,9 @@ A hash join on the plan in place of the window aggregate was rejected on the
 earlier statement. It removes a sort, but the planner chose a far worse join: +123
 ms at `os` × 1000.
 
-Shape changes the shim justified. These pairs are adjacent shim runs on the
-extracted CTE at host load 20 to 55, so they show direction and rough size only:
+Shape changes the shim justified, measured on single-package targets before the
+batch shape was known. These pairs are adjacent shim runs on the extracted CTE at
+host load 20 to 55, so they show direction and rough size only:
 
 | Change | Measured effect |
 |---|---|
@@ -201,9 +222,19 @@ changed: readiness is a read path, and the existing WARN `readiness_snapshot` li
 still covers a failed read.
 
 Performance Evidence: the shipped statement adds no read, index, table or lock
-beyond the earlier plan expansion. Buffers are equal to the previous statement in
-every measured cell (table above), the 100-target ruling bounds hold, and the
-5000-target cost at `os` × 1000 fell from +30.95 ms to +22.25 ms (minimum).
+beyond the plan expansion. Buffers are equal to the previous statement in every
+measured cell (tables above), the ruling bounds hold at the 100-query plan for one
+and five distros, and the shipped statement writes no temp blocks at the 5000-query
+plan where the previous one wrote 1378 and 1537.
+
+Mutants: 19 single-edit mutants of the shipped statement (dropping each rule, binding,
+tie-break and reason filter) ran against the derived readiness live tests and the
+query-plan test in a private tree. 18 turn a test red. One survives, `NULLS LAST` in
+the scope-id dedupe of `kept`: it differs only when a scope has a real state but no key
+row for a package the plan names in the same scope, and `upsertVulnerabilitySourceStateQuery`
+writes state and keys in one statement, so no writer produces that data. The first run
+left four survivors (a pending row retiring a legacy scope, the legacy rule and the
+scope-id lookup crossing instances, and `NULLS LAST`); the first three now have pins.
 
 ## Known limits
 
@@ -224,6 +255,19 @@ every measured cell (table above), the 100-target ruling bounds hold, and the
   never written) reading `pending` in 2 of 9 windows and `fresh` in the other 7.
   The base never detects it. The acceptance criterion on the issue is re-scoped to
   match.
+- **Two versions of one package on one release share one newest-wins group.** When
+  they land in different batches that are both planned, an older failed version
+  (older chunk failed, newer fresh: reads `fresh`) or an unwritten one (one planned
+  chunk unwritten, the other fresh: reads `fresh`) is hidden. The base reads both
+  the same, so this is not a regression. The rule stays because superseded versions
+  stay in the state table for good, and demanding every version fresh would read
+  stale forever. The gap is the cost of that rule; #10135 does not close it.
+- **A skipped package beside a stale matched one changes verdict.** Base read a
+  package matched stale plus a package with skip evidence as `skipped` with
+  `target_incomplete` false. The shipped statement reads `stale` with
+  `target_incomplete` true, because the stale scope is real work the skip evidence
+  does not cover. Clients that treated the base answer as settled see an incomplete
+  verdict now. The public readiness page and the package README state it.
 - Skip evidence names no release. A package matched on v3.18 and skipped on v3.17
   reads covered, under the existing "a match wins over a skip" rule.
   `planner_skipped_packages` also reads only the latest plan, so the `skipped`
@@ -232,7 +276,7 @@ every measured cell (table above), the 100-target ruling bounds hold, and the
   same defect across distros. They carry no release qualifier, so this PR leaves
   them unchanged.
 - The release parse reads the first `release` value, so `?release=&release=v3.18`
-  has no release, where the regular expression it replaced read v3.18. The
+  has no release, where a regular expression would read v3.18. The
   coordinator writes one value per scope, so this takes a hand-written row.
   `TestSupplyChainImpactReadinessDerivedEmptyReleaseValueHasNoReleaseLive` pins it,
   and the legacy rule keys on the absence of the `release=` parameter, never on an

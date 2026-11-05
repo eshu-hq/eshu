@@ -192,7 +192,10 @@ one row per scope. The 200-row bound
 counts configured scopes plus aggregate rows. Known limitations: skip evidence names no release,
 so a package matched on one release reads covered even when the planner skipped
 it on another; Debian and Ubuntu scopes of one `os` package share one newest-wins
-group; a state written
+group, and so do two versions of one package on one release that landed in different
+batches, so an older failed or unwritten one is hidden; a matched stale scope beside
+a skipped package reads stale with `target_incomplete` true, where it read `skipped`
+before #10015; a state written
 before the key table existed matches nothing until its scope is collected
 again, with no backfill, and a run written before per-package skip names
 existed joins nothing, so those skipped packages keep reading `pending`. Swift derived keys join the key table like every
