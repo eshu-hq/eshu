@@ -126,20 +126,54 @@ cost more because they produce three times the findings, and the base's single
 finding for them was the wrong answer.
 
 The three-version rows grow faster than the finding count (6.08x at 3x findings
-and 100 digests). A CPU profile of `versions-3/digests-100` on the branch puts 42%
+and 100 digests). A CPU profile of `versions-3/digests-100` on that commit put 42%
 of the time in `coalesceAndSortSupplyChainImpactFindings` and 41% in
 `supplyChainImpactStableKey`, which marshals the logical identity to JSON inside
-the sort comparator, so the marshals grow as n log n in the findings. That is the
-existing final sort, shared by every fan-out in the package; this change only
-feeds it more findings. Computing each finding's key once before the sort would
-remove most of it; that is a separate, measured change and is not part of this
-one.
+the sort comparator, so the marshals grew as n log n in the findings. A review of
+the same profile reproduced the attribution (35.7% and 33.8%).
+
+### Sort key computed once
+
+The commit "perf(supplychain): compute each finding's sort key once" marshals each
+key once, sorts the findings and their keys together, and reuses the keys in the
+coalesce loop. `sort.Sort` and `sort.Slice` run the same pdqsort over the same
+sequence of comparisons, so the order is unchanged, ties included.
+`TestFindingSortMatchesMarshalInComparatorOrder` sorts 40 shuffles of a 217-finding
+fixture with the old marshal-in-comparator sort as the oracle and compares the full
+JSON, for the tie-broken first pass and the key-only second pass.
+`TestFindingSortFixtureDetectsAWrongKey` shows the fixture can fail: keys that
+ignore the observed version, the subject digest, the status or trimming, and a
+dropped tie-break, each diverge from the oracle. Three mutants of the production
+sort (key ignores the observed version, swap that leaves keys behind, tie-break
+dropped) each fail the equivalence test. The census was rerun on the new commit and
+all 204 runs are byte-identical to the run before it, in every class.
+
+Benchmark Evidence: test binaries for `2d9a188c11` (before) and `2c0d6cd247`
+(after), eight rounds with an alternating first mover, 60 iterations each, medians.
+The one-minute load average read 34 to 40 for the whole run and never dropped
+under the 12 the project asks for before timing, so read the wall times as a band
+and the allocations as the claim. Allocations and bytes do not move with load.
+
+| Benchmark | Findings | Before | After | Ratio | ns/finding (before to after) | Allocations (before to after) | B/op (before to after) |
+|---|---|---|---|---|---|---|---|
+| `DigestVersions` versions-1, 50 digests | 50 | 1.960 ms | 1.391 ms | 0.71 | 39199 to 27829 | 14919 to 7930 | 1.65 MB to 1.17 MB |
+| `DigestVersions` versions-1, 100 digests | 100 | 4.835 ms | 3.909 ms | 0.81 | 48353 to 39090 | 28084 to 15693 | 3.19 MB to 2.34 MB |
+| `DigestVersions` versions-3, 50 digests | 150 | 17.876 ms | 5.757 ms | 0.32 | 119172 to 38381 | 104948 to 22199 | 9.36 MB to 3.67 MB |
+| `DigestVersions` versions-3, 100 digests | 300 | 29.308 ms | 12.108 ms | 0.41 | 97694 to 40362 | 231160 to 44213 | 20.1 MB to 7.30 MB |
+
+Before, ns/finding at three versions was 3.0 times the one-version figure at 50
+digests and 2.0 times at 100; after, it is 1.4 times at 50 and 1.03 times at 100.
+The allocations are the firmer read: at three versions and 100 digests they fall
+5.2x, and per finding they are 157 at one version and 147 at three. The common case
+(one version per digest) also gets cheaper than before this commit, in allocations
+(-44% at 100 digests) and in time.
 
 Performance Evidence: no-regression read for the common case above
 (`DigestFanout` and `DigestVersions` versions-1: time within 0 to 5%, allocations
 +0.9% to +2.3%). The added cost for a digest that holds several versions follows
 the findings it now produces and is bounded by the installed versions the digest
-holds, not by the host count.
+holds, not by the host count. After the sort-key commit the per-finding cost
+stays close to flat as versions per digest grow (table above).
 
 No-Regression Evidence: every census class except `digest-multi-version` is
 byte-identical in the table above, including all 21 runs of `digest-resolved` and
