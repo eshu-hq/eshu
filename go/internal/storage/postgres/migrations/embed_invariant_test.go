@@ -202,13 +202,18 @@ import (
 // targets from).
 // #9777 step 2 adds 278_owned_target_replan.sql (DDL only: the
 // change-driven replan queue and its commit watermark).
-const goldenBootstrapDefinitionsDigest = "ba003f13421eaefc4432867089115892bf6ad15c8db6992139192ff71eda70a9"
+// #9975 adds 279_fact_records_autovacuum_reloptions.sql (catalog-only ALTER
+// that sets the fact_records autovacuum and insert scale factors; one
+// statement). 276 is #8875's terraform-backends outer-leg index, which landed
+// on main first, and 278 is #9777 step 2's owned-target replan queue, so this
+// lane took 279. Gaps are tolerated.
+const goldenBootstrapDefinitionsDigest = "f2b0b8dc7f3a231f92fca08c91e7d9df1ecdd65e2f5c8ff638ef094fdf94fd0c"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or
 // silently dropping files) fails loudly even in the unlikely case of a hash
 // collision.
-const goldenBootstrapDefinitionsCount = 304
+const goldenBootstrapDefinitionsCount = 305
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
 	defs := BootstrapDefinitions()

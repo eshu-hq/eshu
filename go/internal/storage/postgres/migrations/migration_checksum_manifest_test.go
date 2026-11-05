@@ -324,10 +324,8 @@ var migrationShippedChecksums = map[string]string{
 	"272_supply_chain_impact_winners_dirty_log.sql":                          "08869acd33a715f8d6c33dad16c2b1a18a7cbe1b9ac6532e85ff64b4e581617a",
 	// #8875 lane 1: partial index serving the canonical terraform-backends
 	// reader's backend_generations CTE (migration 273).
-	"273_fact_records_terraform_backends_active_idx.sql":     "8ed310977b91f07644fbb3da43ecc268c902a6915a5314220ce034e284469442",
-	"274_fact_records_os_package_source_purl_prefix_idx.sql": "df4f6ee65c9d9b511cf787ef6ce181b33641ea8535de5651375a82303cd4b779",
-	// #9975: fact_records autovacuum scale factors (migration 276).
-	"276_fact_records_autovacuum_reloptions.sql":                   "895ae4c4f7246276a871510a9cf02fc211543f8018100b5f398356098cc7a515",
+	"273_fact_records_terraform_backends_active_idx.sql":           "8ed310977b91f07644fbb3da43ecc268c902a6915a5314220ce034e284469442",
+	"274_fact_records_os_package_source_purl_prefix_idx.sql":       "df4f6ee65c9d9b511cf787ef6ce181b33641ea8535de5651375a82303cd4b779",
 	"243_vulnerability_source_state_packages.sql":                  "548ad5e4d9442064ba81026b49b7443590ae8244282aa138190d9c7182417438",
 	"244_ecs_runtime_task_scope_index.sql":                         "04879797b6faf565ad46a774716ee9000c79358d082df1aa05b6ee8a760dace3",
 	"245_shared_projection_intent_reopened_at.sql":                 "c00bc4a7c9953d3b84dbd03f241ec2c5adc1f9f5e97860cdf52586aa7d62e1da",
@@ -345,6 +343,9 @@ var migrationShippedChecksums = map[string]string{
 	// #9777 step 2: change-driven replan queue and commit watermark
 	// (migration 278).
 	"278_owned_target_replan.sql": "838e4b265eafa1f4799863f600d1cc726be5f57aed431b38b3dca300573a3af9",
+	// #9975: fact_records autovacuum scale factors (migration 279; 276 is the
+	// terraform-backends outer-leg index above).
+	"279_fact_records_autovacuum_reloptions.sql": "abb875116a3a0447e14a97a2a1e418acf26f940631204a72273011be6326036b",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition
