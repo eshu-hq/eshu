@@ -133,8 +133,11 @@ func buildClaimedService(
 		return collector.ClaimedService{}, err
 	}
 	// The cutover gate is nil unless the enabled plan resolved: the
-	// in-tree grant closure below stays exactly as it is when off.
-	cutover, err := buildRemoteCutover(config.Cutover, grantHome)
+	// in-tree grant closure below stays exactly as it is when off. The
+	// enabled client reports seam wiring and emission decisions to the same
+	// grant observer as the in-tree source, so revocations stay visible on
+	// the extracted path with no new metric.
+	cutover, err := buildRemoteCutover(config.Cutover, grantHome, grantObserver)
 	if err != nil {
 		return collector.ClaimedService{}, err
 	}

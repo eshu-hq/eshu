@@ -200,8 +200,12 @@ bound:
 
 Any other URL-set state keeps the refusal, and any unrecognized flag
 spelling fails startup. The grant-observer backing that makes seam grant
-decisions visible to operators lands with the telemetry leaf; until then
-the seam observes nothing new. Claim/commit lifecycle operations through
+decisions visible to operators lands with the telemetry leaf (leaf 5):
+the enabled client reports wiring (as activation) and emission decisions
+to the worker's grant telemetry recorder, reusing
+`eshu_dp_component_producer_grant_decisions_total` with no new metric or
+label value, and a nil observer disables observation without changing any
+outcome. Claim/commit lifecycle operations through
 the cutover gate are exercised by the parity and concurrency leaves.
 
 No-Regression Evidence (leaf 1): the wiring resolves once at startup

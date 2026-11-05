@@ -4,6 +4,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"strings"
@@ -94,16 +95,61 @@ func resolveCutoverPlan(getenv func(string) string, manifest component.Manifest)
 	}, nil
 }
 
+// cutoverGrantObserver adapts a component.GrantObserver to the seam
+// remoteclaim.Observer so enabled-path wiring and emission decisions reach
+// the worker's grant telemetry recorder. It carries identifiers only, never
+// payloads or credentials, and it never changes an allow/deny outcome: the
+// seam observes after deciding, and a nil observer disables observation.
+type cutoverGrantObserver struct {
+	inner component.GrantObserver
+}
+
+// ObserveDecision implements remoteclaim.Observer.
+func (a cutoverGrantObserver) ObserveDecision(ctx context.Context, decision remoteclaim.Decision) {
+	if a.inner == nil {
+		return
+	}
+	a.inner.ObserveGrantDecision(ctx, component.GrantDecision{
+		Stage:      cutoverStageToGrantStage(decision.Stage),
+		Allowed:    decision.Allowed,
+		Reason:     decision.Reason,
+		ProducerID: decision.ProducerID,
+		Version:    decision.Version,
+		Kind:       decision.Kind,
+	})
+}
+
+// cutoverStageToGrantStage maps the seam decision stage onto the closed
+// component stage set the grant counter labels. Wiring is the seam-side
+// counterpart of the in-tree activation gate; emission maps to itself. Any
+// future seam stage defaults to activation, never to a new label value.
+func cutoverStageToGrantStage(stage remoteclaim.DecisionStage) component.GrantStage {
+	if stage == remoteclaim.StageEmission {
+		return component.GrantStageEmission
+	}
+	return component.GrantStageActivation
+}
+
+// adaptCutoverObserver binds the worker observer to the seam, or disables
+// seam observation when the worker runs without one. A nil observer never
+// changes an allow/deny outcome.
+func adaptCutoverObserver(observer component.GrantObserver) remoteclaim.Observer {
+	if observer == nil {
+		return nil
+	}
+	return cutoverGrantObserver{inner: observer}
+}
+
 // buildRemoteCutover binds one remote client behind the resolved plan. A
 // disabled plan builds nothing and returns a nil gate: the caller's
 // in-tree closures stay exactly as they are. An enabled plan fails closed
 // without a client configuration the constructor accepts. Grant re-reads
 // go through the component registry on disk, mirroring the in-tree
-// LiveGrants closure authority; the grant observer backing that makes
-// seam decisions visible to operators lands with the telemetry leaf
-// (leaf 5), so Observer stays nil here by explicit deferral, not by
-// omission.
-func buildRemoteCutover(plan cutoverPlan, registryHome string) (*remoteclaim.Cutover, error) {
+// LiveGrants closure authority; seam wiring and emission decisions report
+// to the worker observer through the adapter above, so the enabled path
+// stays visible on the same grant counter, span event, and log line as the
+// in-tree path, with no new metric or label value.
+func buildRemoteCutover(plan cutoverPlan, registryHome string, observer component.GrantObserver) (*remoteclaim.Cutover, error) {
 	if !plan.enabled {
 		return nil, nil
 	}
@@ -113,6 +159,7 @@ func buildRemoteCutover(plan cutoverPlan, registryHome string) (*remoteclaim.Cut
 		ProducerVersion: plan.producerVersion,
 		Scopes:          plan.scopes,
 		ReadGrants:      remoteclaim.RegistryGrantReader(registryHome),
+		Observer:        adaptCutoverObserver(observer),
 	})
 	if err != nil {
 		return nil, err
