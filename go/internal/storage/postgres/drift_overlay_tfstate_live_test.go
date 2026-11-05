@@ -415,3 +415,29 @@ func logDriftOverlayAfterPlans(t *testing.T, ctx context.Context, database *sql.
 	}
 	plan("config-base", configBase, configScope, scopes)
 }
+
+// TestTerraformDriftOverlayConfigRejectsStaleAnchor is the F1 regression:
+// after the delta activates, reading config pinned to the superseded full
+// generation must fail closed instead of joining the new generation's
+// config under the old anchor. The delta touching only outputs.tf leaves
+// no resource rows on the active generation, so the old activeRows loop
+// is vacuous here and only the reached-generation targets bind the check.
+func TestTerraformDriftOverlayConfigRejectsStaleAnchor(t *testing.T) {
+	f := openDriftOverlayLiveFixture(t)
+	ctx := f.ctx
+	seedDriftOverlayLiveFixture(t, ctx, f.database)
+
+	const configScope = "repository:repo-drift"
+	if _, err := f.overlay.LoadDriftConfig(ctx, configScope, "gen-full"); err != nil {
+		t.Fatalf("base LoadDriftConfig(gen-full) error = %v", err)
+	}
+	activateDriftOverlayGeneration(t, ctx, f.database, configScope, "gen-full", "gen-delta")
+	if _, err := f.overlay.LoadDriftConfig(ctx, configScope, "gen-delta"); err != nil {
+		t.Fatalf("delta LoadDriftConfig(gen-delta) error = %v", err)
+	}
+	if _, err := f.overlay.LoadDriftConfig(ctx, configScope, "gen-full"); err == nil {
+		t.Fatalf("stale LoadDriftConfig(gen-full) after gen-delta activated: want generation-mismatch error, got nil")
+	} else {
+		t.Logf("stale anchor fails closed: %v", err)
+	}
+}

@@ -150,15 +150,24 @@ func (o TerraformDriftOverlay) LoadDriftConfig(
 	if err != nil {
 		return tfstate.OverlaidConfig{}, err
 	}
-	configRows, activeRows, _, err := o.overlaidRows(ctx, sink, tfstate.ActiveConfigResourcesForOverlayQuery, []any{scopeID}, scanDriftPayloadRow)
+	configRows, _, targets, err := o.overlaidRows(ctx, sink, tfstate.ActiveConfigResourcesForOverlayQuery, []any{scopeID}, scanDriftPayloadRow)
 	if err != nil {
 		return tfstate.OverlaidConfig{}, err
 	}
-	for _, row := range activeRows {
-		if row.generationID != generationID {
+	// Bind the check to the delta targets the snapshot actually
+	// reached, not to the config rows: a delta that touches no
+	// resources leaves activeRows empty, which made the old loop
+	// vacuous and let a superseded anchor read the new
+	// generation's config. The reach-the-target check below fails
+	// closed even when the anchor generation carries zero rows.
+	for _, tgt := range targets {
+		if tgt.scopeID != scopeID {
+			continue
+		}
+		if tgt.generationID != generationID {
 			return tfstate.OverlaidConfig{}, fmt.Errorf(
 				"terraform drift overlay config generation mismatch: anchor %q is not the scope's active generation %q",
-				generationID, row.generationID,
+				generationID, tgt.generationID,
 			)
 		}
 	}
