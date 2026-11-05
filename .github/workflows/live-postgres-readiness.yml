@@ -147,7 +147,7 @@ jobs:
       - name: Record hermetic runner CPU
         run: lscpu | head -20 || true; nproc
       # fetch-depth 2 keeps the merge ref's first parent, the base the shard
-      # planner's per-change weights gate measures against (#10148).
+      # planner's per-change weights gate measures against (#10171).
       - name: Check out code
         uses: actions/checkout@v5
         with:
