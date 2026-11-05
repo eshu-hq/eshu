@@ -44,13 +44,10 @@ never takes a scope id.
 
 ## Dependencies
 
-No internal Eshu package imports beyond dependency-free vocabulary packages
-(`internal/scope` for collector kinds, `internal/facts`, `internal/sourcetool`);
-external dependencies are OTEL and Prometheus.
+No internal Eshu package imports; external dependencies are OTEL and Prometheus.
 
-This is a leaf package. Introducing an import of a package that can reach back
-into telemetry (storage, reducer, projector, query) creates a circular
-dependency and must not happen.
+This is a leaf package. Introducing any `go/internal/*` import here creates a
+circular dependency and must not happen.
 
 ## Telemetry
 

@@ -12,10 +12,12 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
-// TestPagerDutyCommittersCarryInstruments proves both PagerDuty runtime paths
-// hand the shared ingestion committer the process instruments, so the
+// TestPagerDutyCommittersCarryInstruments proves the claimed PagerDuty runtime
+// path hands the shared ingestion committer the process instruments, so the
 // generation outcome counter (#10020) records minted and skipped generations
-// for the pagerduty collector kind instead of silently recording nothing.
+// for the pagerduty collector kind instead of silently recording nothing. The
+// cassette path sets the same field in buildCassetteService but is not
+// asserted here, because building it needs a cassette file.
 func TestPagerDutyCommittersCarryInstruments(t *testing.T) {
 	t.Parallel()
 	reader := sdkmetric.NewManualReader()
