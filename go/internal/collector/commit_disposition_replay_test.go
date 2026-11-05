@@ -42,7 +42,7 @@ var replayDispositions = []struct {
 		mark:                       func(context.Context) {},
 		wantCompletions:            1,
 		wantCommittedFacts:         true,
-		wantDrainCalls:             []bool{true},
+		wantDrainCalls:             []bool{true, false},
 		wantDrainCallsAfterStartup: []bool{true, true},
 	},
 	{
@@ -50,7 +50,7 @@ var replayDispositions = []struct {
 		mark:                       MarkCommitUnchangedSkip,
 		wantCompletions:            1,
 		wantCommittedFacts:         true,
-		wantDrainCalls:             []bool{true},
+		wantDrainCalls:             []bool{true, false},
 		wantDrainCallsAfterStartup: []bool{true, true},
 	},
 	{
@@ -308,10 +308,10 @@ func TestServiceRefusedCommitOpensNoEpochAfterStartup(t *testing.T) {
 // through one Service run, the normal shape of an ingester batch. A refusal must
 // neither erase a landed commit's pending drain nor undo the commit's latch.
 //
-// The "landed, drain, refused" row pins the accepted behavior at this head: the
-// shard joins the documented idle class, so the refusal produces no arrival.
-// Reporting true there would open an epoch for a generation that stored nothing.
-// #10084 flips this row to []bool{true, false} when it adds join-only arrival.
+// Every drained shard arrives join-only (false) per drain and per idle poll
+// (#10084): after the batch drain commits report true once, each trailing
+// idle poll arrives with false. Reporting true on a refused-only drain would
+// open an epoch for a generation that stored nothing.
 func TestServiceMixedLandedAndRefusedDrainCalls(t *testing.T) {
 	t.Parallel()
 
@@ -327,17 +327,17 @@ func TestServiceMixedLandedAndRefusedDrainCalls(t *testing.T) {
 		{
 			name:           "landed + refused",
 			batches:        [][]func(context.Context){{landed, refused}},
-			wantDrainCalls: []bool{true},
+			wantDrainCalls: []bool{true, false},
 		},
 		{
 			name:           "refused + landed",
 			batches:        [][]func(context.Context){{refused, landed}},
-			wantDrainCalls: []bool{true},
+			wantDrainCalls: []bool{true, false},
 		},
 		{
 			name:           "landed, drain, refused",
 			batches:        [][]func(context.Context){{landed}, {refused}},
-			wantDrainCalls: []bool{true},
+			wantDrainCalls: []bool{true, false, false},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

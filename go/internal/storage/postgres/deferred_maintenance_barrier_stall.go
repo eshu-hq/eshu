@@ -91,30 +91,26 @@ ORDER BY shard_index
 // trading a correctness guarantee (the repo's accuracy-first priority) for
 // liveness. #5852 fixed one specific cause of an indefinite wait here — a
 // shard that owns no repositories and never commits used to arrive at the
-// barrier once, at startup, and then never again (see
-// collector.Service.Run's everCommitted latch). The once-latch startup pass
-// plus the join-only rule (see DeferredMaintenanceBarrierConfig.HasCommitted)
-// now let that shard keep arriving at every later epoch it can join, without
-// ever opening one itself.
+// barrier once, at startup, and then never again (see the level-gated
+// AfterEmptyBatchDrained escape in collector.Service.Run). The once-latch
+// startup pass plus the join-only rule (see
+// DeferredMaintenanceBarrierConfig.HasCommitted) now let that shard keep
+// arriving at every later epoch it can join, without ever opening one itself.
 //
-// A different case remains unfixed here, unchanged from origin/main: a shard
-// that HAS committed at least once and then goes idle — its repository
+// The idle-shard limitation is closed by the join-only arrival (#10084): a
+// shard that HAS committed at least once and then goes idle — its repository
 // partition simply stopped changing, or its later generations are all refused
-// (#10037, tracked in #10084) — also never arrives again.
-// everCommitted latches true permanently on that shard's first commit, so its
-// own empty-batch escape never re-fires; with no further commits,
-// committedSinceDrain never goes true again either (see shouldDrain in
-// collector.Service.Run). That shard is fully healthy, live, and connected to
-// Postgres, yet it stalls the fleet indefinitely all the same — this function
-// cannot tell that case apart from a shard that has actually crashed, hung,
-// or lost connectivity; both simply never arrive. Waiting shards observe
-// either as a stall with no deadline, by design, rather than risk running
-// maintenance early against live data from a shard that turns out not to be
-// dead. The stall warning's missing_shard_indexes field (see
+// (#10037) — keeps arriving with HasCommitted=false on every drain and idle
+// poll (see shouldDrain in collector.Service.Run), so it joins an epoch a
+// peer opened instead of stranding it. A shard that never arrives at all is
+// therefore not merely quiet: it has actually crashed, hung, or lost
+// connectivity. Waiting shards observe that as a stall with no deadline, by
+// design, rather than risk running maintenance early against live data from
+// a shard that turns out not to be dead. The stall warning's
+// missing_shard_indexes field (see
 // deferredMaintenanceBarrierArrivedShardIndexes) is the operator-facing
-// diagnostic for exactly this ambiguity: it names which shards have not
-// arrived so an operator can go check, from outside this process, whether
-// each one is dead or merely quiet.
+// diagnostic: it names which shards have not arrived so an operator can go
+// check, from outside this process, whether each one is dead or cut off.
 func (s IngestionStore) waitDeferredMaintenanceBarrierCompletion(
 	ctx context.Context,
 	epoch int64,

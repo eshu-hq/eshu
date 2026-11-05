@@ -180,23 +180,28 @@
   Empty-batch drain hooks must remain opt-in. They are NOT edge-triggered per
   drain window: before #5852 they were, and a shard owning no repositories
   drained once at startup and then starved every later fleet-barrier epoch,
-  blocking every shard that had already arrived. The gate is
-  never-having-committed (`everCommitted`), so the hook repeats while a shard has
-  no work and stops permanently at its first commit. Do not "restore" edge
-  triggering; that reintroduces #5852. A refused commit stored nothing, so it
-  sets neither `everCommitted` nor `committedSinceDrain` (#10068): latching it
-  would suppress this escape for a never-committed shard whose scopes keep being
-  refused. A shard that has committed and is then only refused joins the
-  documented idle-shard class: it stops arriving at the barrier (#10084), and a
-  refusal must never report `hasCommitted=true`.
-  `TestServiceMixedLandedAndRefusedDrainCalls` pins both.
+  blocking every shard that had already arrived. The gate is level-gated on
+  the `AfterEmptyBatchDrained` flag, so the hook repeats on every idle poll
+  for the lifetime of the process and never stops at the first commit. Do not
+  "restore" edge triggering or commit-gating; the former reintroduces #5852
+  and the latter reintroduces the #10084 stall. A refused commit stored
+  nothing, so it sets no `committedSinceDrain` (#10068): latching it would
+  open a barrier epoch for a generation that stored nothing. A shard that has
+  committed and is then only refused
+  keeps arriving join-only (`false`) on every drain and idle poll (#10084),
+  which also closes the documented idle-shard stall: an idle shard joins an
+  epoch a peer opened instead of stranding it. A refusal must never report
+  `hasCommitted=true`.
+  `TestServiceMixedLandedAndRefusedDrainCalls` and
+  `TestServiceCommittedThenRefusedKeepsArrivingJoinOnly` pin this.
 - `AfterBatchDrained`'s `hasCommitted bool` argument — in the steady state
   this is `committedSinceDrain`, true only when a real commit happened since
   the last drain. `Service.Run` deliberately overrides that for exactly ONE
-  call per process: `startupMaintenanceEscapeUsed` latches true the first
-  time the never-committed empty-batch escape fires, and that one call
-  reports `hasCommitted = true` regardless of `committedSinceDrain`; every
-  later escape call on the same shard reports the real, still-false status.
+  call per process: `startupMaintenanceEscapeUsed` latches true on the first
+  `AfterBatchDrained` call of any kind, and that one call reports
+  `hasCommitted = true` regardless of `committedSinceDrain`; every later call
+  on the same shard reports the real status, staying join-only when nothing
+  committed.
   Do NOT "simplify" this back to always forwarding `committedSinceDrain` — that
   was tried (the #5852 P1 follow-up) and it silently dropped the one startup
   maintenance pass origin/main always runs (there gated on

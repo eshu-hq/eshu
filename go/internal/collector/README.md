@@ -241,10 +241,9 @@ evidence (No-Regression and No-Observability-Change) for this section lives in
   unclaimed `Service` too: a rolled-back generation replayed nothing, so its
   dead letters stay open until a later commit lands. On `Service`, a refusal also
   adds nothing to `eshu_dp_facts_committed_total` and sets no drain latch, so it
-  opens no deferred-maintenance epoch and keeps a never-committed shard's
-  empty-batch escape live (#10068). A shard that has committed in this process
-  and is then only refused arrives at the barrier no more than an idle shard
-  does (#10084). A hook error adds a
+  opens no deferred-maintenance epoch (#10068). Every drained shard arrives
+  join-only (`false`) per drain and per idle poll, including a shard that
+  committed and is then only refused (#10084). A hook error adds a
   `claimed_generation_refusal_observer_failed` span event and counts on
   `eshu_dp_workflow_claim_commit_observer_failures_total`.
 - `ClaimRetryDelay` and `ClaimAttemptBudgetExhausted` — the retry delay and

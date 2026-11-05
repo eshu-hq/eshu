@@ -109,13 +109,15 @@ and query stages own correlation, drift, and truth decisions.
   graph write, span, metric name, runtime knob, or status field.
 - No-Regression Evidence: `AfterEmptyBatchDrained` behavior is covered by
   `go test ./internal/collector -run
-  'TestServiceRun(CallsAfterBatchDrainedOnceAfterCommittedBatch|SkipsAfterBatchDrainedOnEmptyBatchByDefault|CallsAfterBatchDrainedForConfiguredEmptyBatch|CallsEmptyBatchDrainHookOnEveryIdlePollForANeverCommittingShard|EmptyBatchEscapeAddsExactlyOneDrainPerProcess)'
-  -count=1`, which proves the default hook remains commit-gated, that a shard
-  which never commits keeps arriving at the barrier, and that a shard which does
-  commit gains exactly one extra drain per process. The fourth name was
-  `CallsEmptyBatchDrainHookOnceWhileIdle` before #5852 renamed it; `go test -run`
-  silently matches nothing for a stale name and still exits 0, so this command
-  passed while never running the regression it cites.
+  'TestServiceRun(CallsAfterBatchDrainedOnceAfterCommittedBatch|SkipsAfterBatchDrainedOnEmptyBatchByDefault|CallsAfterBatchDrainedForConfiguredEmptyBatch|CallsEmptyBatchDrainHookOnEveryIdlePollForANeverCommittingShard|EmptyBatchEscapeAddsJoinOnlyDrainsPerIdlePoll)|TestServiceCommittedThenRefusedKeepsArrivingJoinOnly'
+  -count=1`, which proves the default hook remains commit-gated, and that a shard
+  with nothing to account for — never committed, committed then idle, or
+  committed then refused (#10084) — keeps arriving join-only at the barrier on
+  every idle poll, with only the process-first call reporting `true` without a
+  real commit behind it. `go test -run` silently matches nothing for a stale
+  name and still exits 0, so a renamed test must be updated here — the
+  `EmptyBatchEscapeAddsExactlyOneDrainPerProcess` name from before #10084 is
+  gone.
 - No-Observability-Change: `AfterEmptyBatchDrained` only changes whether the
   caller-supplied drain hook runs once for an exhausted empty batch. It adds no
   metric, span, status field, worker, queue, graph write, or runtime label.
@@ -135,9 +137,9 @@ and query stages own correlation, drift, and truth decisions.
   `go test ./internal/collector -run
   'TestServiceRun(CallsAfterBatchDrainedOnceAfterCommittedBatch|CallsAfterBatchDrainedForConfiguredEmptyBatch|CallsEmptyBatchDrainHookOnEveryIdlePollForANeverCommittingShard)'
   -count=1` proves the hook reports `hasCommitted=true` for a real commit AND
-  for the empty-batch escape's own first-ever call in this process's
-  lifetime (the `startupMaintenanceEscapeUsed` once-latch — see below), and
-  `false` for every later empty-batch-escape call. `go test
+  for the process-first call whatever leg drove it (the
+  `startupMaintenanceEscapeUsed` once-latch — see below), and `false` for
+  every later arrival with nothing to report. `go test
   ./internal/storage/postgres -run
   'TestIngestionStoreShardDrainBarrier(QuietRestartOpensExactlyOneEpochAcrossManyIdlePolls|SingleShardNeverCommittedSkipsMaintenance|SingleShardHasCommittedRunsMaintenance|NeverCommittedShardJoinsAlreadyOpenEpochAndBecomesLeader)|TestEnsureDeferredMaintenanceBarrierEpochNeverCommittedShard(DoesNotOpenNewEpoch|JoinsAlreadyOpenEpoch)'
   -count=1` proves a fleet where nothing has committed opens exactly one
