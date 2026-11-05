@@ -1,0 +1,14 @@
+docs/internal/evidence/10167-shard-p2-followup.md
+  h_78a442cba0b3e6 4,11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9ea443d5abde595d6c7e97f8d1ad3b9d14899fc5",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
