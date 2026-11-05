@@ -76,10 +76,10 @@ flowchart LR
 - **Today.** OSV, KEV, EPSS, and NVD clients exist. In the shared QA
   environment only OSV (npm only) and KEV are configured. Dependabot alerts
   arrive through the security-alert collector.
-- **Planned (Phase 4).** The CVE List, the GHSA database, ENISA EUVD, and
-  Exploit-DB join the advisory sources. (ENISA EUVD and Exploit-DB are
-  NOT PLANNED — owner decision 2026-11-05, see #9960 and #9881; US NVD is
-  the source of record.)
+- **Planned (Phase 4).** The CVE List and the GHSA database join the
+  advisory sources. (ENISA EUVD and Exploit-DB are NOT PLANNED — owner
+  decision 2026-11-05, see #9960 and #9881; US NVD is the source of
+  record.)
 
 Findings live in Postgres, not the graph. The graph is read only at query time:
 a finding's image digest is followed to the Kubernetes workloads that run it,
