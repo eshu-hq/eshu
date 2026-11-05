@@ -1074,7 +1074,7 @@ type Instruments struct {
 	// fact that named the group) and outcome (joined, reselected, other_anchor,
 	// no_joinable_representative, no_installed_row) (#9990).
 	// no_joinable_representative is a group with installed rows under its keys
-	// and no fact from those rows' vendor: no finding, by this count only.
+	// and no fact of the group that can join them: no finding, by this count only.
 	SupplyChainImpactOSRepresentativeJoins metric.Int64Counter
 	// SupplyChainImpactFindingsRetracted counts prior supply-chain impact
 	// finding rows a reducer pass tombstoned because its complete finding set
