@@ -27,8 +27,8 @@ producer's `cve_id` and the stored facts do not change.
   alias can give unrelated records one `cve_id`. A record with no advisory id
   fails closed as `ungrouped`.
 - **Selection order.** Among observations of one source, a record whose fact
-  lists the host's release line outranks an untagged one (a vendor-sourced fact,
-  in any verification state), which outranks one that lists other lines only; the
+  lists the host's release line (a vendor fact once #9945 verified its line) outranks
+  an untagged or unverified one, which outranks one that lists other lines only; the
   `AdvisoryID` order breaks ties inside a tier.
 - **Deciding record.** An OS-class finding built from an installed row is named by
   the live record whose fact holds the installed version: a fact with release
