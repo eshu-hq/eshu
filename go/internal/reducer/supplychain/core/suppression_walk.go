@@ -56,7 +56,9 @@ type suppressionWalkResult struct {
 // during B read X as suppressed. The set is therefore the union of the diff of
 // every adjacent pair of activated generations from the baseline to the current
 // one, in lifecycle order (ingested_at, generation_id). A never-activated or
-// failed generation is not in the chain, since no reader saw it.
+// failed generation is not in the chain: the first was seen by no reader, and the
+// second is excluded by rule even if it was once active (see the design's Known
+// limits for the change that cancels out through it).
 //
 // At most maxPairs pairs are walked one by one, newest first. Past that, one
 // endpoint step spans the older remainder, so a pass issues at most maxPairs+1

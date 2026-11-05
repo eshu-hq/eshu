@@ -136,9 +136,12 @@ func unionSuppressionFanOutCVEIDs(changed []string, rows []suppressionDiffRow) [
 // and then superseded before its reducer item ran never fans out, so its change
 // would fall between two diffs. The newest older generation some pass admitted
 // marks what has been covered, so the diff spans every generation since. Failed
-// and never-activated generations never count, since no reader saw them. With no
-// admitted generation retained, the oldest retained one covers all that can
-// still be compared.
+// and never-activated generations never count: a never-activated one was seen by
+// no reader, and a failed one is excluded by rule, not because no reader saw it.
+// The projector's failure path fails an active generation too and leaves its
+// activated_at set, so a reader may have seen it (see the design's Known limits).
+// With no admitted generation retained, the oldest retained one covers all that
+// can still be compared.
 //
 // "Older" and "newest" use the lifecycle order (ingested_at, generation_id), the
 // order the supersede sweep, the freshness guard and the projector use. A zero
@@ -178,7 +181,10 @@ func selectSuppressionDiffBaseline(currentID string, candidates []suppressionGen
 
 // suppressionGenerationReadable reports whether a reader could have seen the
 // generation as the scope's active one: it was activated and ended active or
-// superseded. Failed and never-activated generations changed nothing.
+// superseded. A never-activated generation changed nothing a reader saw. A
+// failed generation is excluded by rule, even when it was active before it
+// failed (failProjectorWorkQuery leaves activated_at set); a change that cancels
+// out through it stays on the holders' own cadence, with no walk_truncated signal.
 func suppressionGenerationReadable(g suppressionGeneration) bool {
 	return !g.ActivatedAt.IsZero() && (g.Status == "active" || g.Status == "superseded")
 }

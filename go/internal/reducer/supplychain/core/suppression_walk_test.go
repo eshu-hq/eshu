@@ -223,6 +223,45 @@ func TestPlanSuppressionWalkSteps(t *testing.T) {
 		}
 	})
 
+	// The candidate read's order is unspecified, so the plan must sort the chain
+	// itself or it pairs generations that are not neighbours.
+	t.Run("candidates in any read order plan the same adjacent pairs", func(t *testing.T) {
+		t.Parallel()
+		candidates, _ := walkChain(4)
+		shuffled := []suppressionGeneration{candidates[3], candidates[1], candidates[0], candidates[2]}
+		plan := planSuppressionWalk("d", selectSuppressionDiffBaseline("d", shuffled), shuffled, 8)
+		want := []suppressionWalkStep{step("a", "b"), step("b", "c"), step("c", "d")}
+		if !reflect.DeepEqual(plan.Steps, want) || plan.WalkTruncated != 0 {
+			t.Fatalf("plan = %+v, want steps %+v and no truncation", plan, want)
+		}
+	})
+
+	// A retained generation older than the admitted baseline is the normal
+	// production shape. A walk that reaches past the baseline over-fans: it
+	// reopens holders of CVEs that an earlier pass already covered.
+	t.Run("a retained generation older than the baseline is not walked", func(t *testing.T) {
+		t.Parallel()
+		candidates := []suppressionGeneration{
+			{GenerationID: "old", Status: "superseded", IngestedAt: at(1), ActivatedAt: at(1)},
+			{GenerationID: "a", Status: "superseded", IngestedAt: at(2), ActivatedAt: at(2), Admitted: true},
+			{GenerationID: "b", Status: "superseded", IngestedAt: at(3), ActivatedAt: at(3)},
+			{GenerationID: "c", Status: "active", IngestedAt: at(4), ActivatedAt: at(4)},
+		}
+		baseline := selectSuppressionDiffBaseline("c", candidates)
+		if baseline.GenerationID != "a" || baseline.Kind != suppressionBaselineAdmitted {
+			t.Fatalf("baseline = %+v, want the admitted generation a", baseline)
+		}
+		plan := planSuppressionWalk("c", baseline, candidates, 8)
+		if want := []suppressionWalkStep{step("a", "b"), step("b", "c")}; !reflect.DeepEqual(plan.Steps, want) {
+			t.Fatalf("steps = %+v, want %+v with nothing before the baseline", plan.Steps, want)
+		}
+		history := walkHistory{"old": {"z": "CVE-2026-9"}, "a": {}, "b": {}, "c": {}}
+		result, err := walkSuppressionDiff(plan, history.diff)
+		if err != nil || len(result.CVEIDs) != 0 {
+			t.Fatalf("walk = %+v, err = %v: a change before the baseline must not fan out", result, err)
+		}
+	})
+
 	t.Run("no baseline plans no step", func(t *testing.T) {
 		t.Parallel()
 		candidates, _ := walkChain(1)
@@ -306,6 +345,29 @@ func TestWalkSuppressionDiffCountsAndErrors(t *testing.T) {
 		}
 		if result.DiffRows != 4 {
 			t.Fatalf("DiffRows = %d, want 4 rows read across both pairs", result.DiffRows)
+		}
+	})
+
+	// walkHistory cannot hold a suppression that differs without its CVE changing,
+	// so this one feeds the rows directly: x names a CVE in the first pair and
+	// differs with no CVE on either side in the second (a non-CVE edit after a
+	// re-scope away from it). x reached its holders through the id, so only the
+	// package-scoped suppression y counts.
+	t.Run("a suppression that named a CVE in one step is not counted without one in another", func(t *testing.T) {
+		t.Parallel()
+		candidates, _ := walkChain(3)
+		plan := planSuppressionWalk("c", selectSuppressionDiffBaseline("c", candidates), candidates, 8)
+		result, err := walkSuppressionDiff(plan, func(priorID, _ string) ([]suppressionDiffRow, error) {
+			if priorID == "a" {
+				return []suppressionDiffRow{{SuppressionID: "x", CurrentCVEID: "CVE-2026-1"}}, nil
+			}
+			return []suppressionDiffRow{{SuppressionID: "x"}, {SuppressionID: "y"}}, nil
+		})
+		if err != nil {
+			t.Fatalf("walkSuppressionDiff() error = %v", err)
+		}
+		if result.NoCVEScopeRows != 1 {
+			t.Fatalf("NoCVEScopeRows = %d, want 1: only y never named a CVE", result.NoCVEScopeRows)
 		}
 	})
 

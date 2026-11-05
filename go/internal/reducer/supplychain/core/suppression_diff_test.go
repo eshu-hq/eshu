@@ -49,7 +49,7 @@ func TestChangedSuppressionCVEIDs(t *testing.T) {
 			name: "blank and whitespace ids drop, decode trims the same way",
 			rows: []suppressionDiffRow{
 				{SuppressionID: "s1", CurrentCVEID: "   ", PriorCVEID: "\t"},
-				{SuppressionID: "s2", CurrentCVEID: " CVE-2026-3 "},
+				{SuppressionID: "s2", CurrentCVEID: "\u00a0CVE-2026-3\u2003"},
 			},
 			want: []string{"CVE-2026-3"},
 		},
@@ -316,7 +316,7 @@ func TestDecideSuppressionDiff(t *testing.T) {
 			want: suppressionDiffSkipNeverActivated,
 		},
 		{
-			name: "a failed generation was never readable",
+			name: "a failed generation that never activated is skipped",
 			pass: suppressionDiffPass{ScopeFactKinds: suppression, GenerationStatus: "failed"},
 			want: suppressionDiffSkipNeverActivated,
 		},
