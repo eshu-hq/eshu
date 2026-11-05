@@ -1,0 +1,43 @@
+go/internal/storage/postgres/manifest_dependency_read_shape_test.go
+  s_7547c0f0af67d4::t_da046b37744601 1-111
+  s_7547c0f0af67d4::t_3b8a1a77e13957 112-122
+go/internal/storage/postgres/facts_active_package_manifest_dependency.go
+  s_7547c0f0af67d4::t_66faae96e526fa 37-44
+  s_7547c0f0af67d4::t_6bdf3c2aef6d9d 80-94
+go/internal/storage/postgres/facts_active_package_manifest_dependency_test.go
+  s_7547c0f0af67d4::t_17e88924eb51b6 65-69,71,122-125,133
+go/internal/storage/postgres/gotchas-and-invariants.md
+  s_7547c0f0af67d4::t_3666e6dc4311d9 134-139
+go/internal/storage/postgres/lifecycle-and-workflow-guide.md
+  s_7547c0f0af67d4::t_e9d19da1d828b2 77-78
+go/internal/storage/postgres/manifest_dependency_read_parity_live_test.go
+  s_7547c0f0af67d4::t_e74be8ee05d6cc 1-398
+go/internal/storage/postgres/manifest_dependency_read_sql.go
+  s_7547c0f0af67d4::t_999edc40192c1c 8-28,31-89,94-96,126-128,140-198
+go/internal/storage/postgres/owned_package_resolver_sql.go
+  s_7547c0f0af67d4::t_302b52c14fa02f 78-80
+go/internal/storage/postgres/owned_package_resolver_sql_test.go
+  s_7547c0f0af67d4::t_d9ba9bdfbbd0c9 33,36
+go/internal/storage/postgres/package_manifest_consumption_keys_sbt_test.go
+  s_7547c0f0af67d4::t_57c33b61dfa70f 100-103
+scripts/lib/live_postgres_readiness_inventory_gen_internal_storage_postgres_part2.py
+  s_7547c0f0af67d4::t_b346b494af6997 10-13
+specs/live-tests.d/live-tests-readiness-part3.generated.yaml
+  s_7547c0f0af67d4::t_14cbb849e25c3d 237-241
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2086c792b1790db99aa1d968eba4c3e5065b6b4c",
+  "prompts": {},
+  "sessions": {
+    "s_7547c0f0af67d4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7c8b2d5-3286-4c2a-be1f-589162535d83",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
