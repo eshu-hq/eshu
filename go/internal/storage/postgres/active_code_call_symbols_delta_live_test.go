@@ -9,6 +9,7 @@ package postgres
 
 import (
 	"context"
+	"reflect"
 	"slices"
 	"strings"
 	"sync"
@@ -251,6 +252,86 @@ func TestLoadActiveCodeCallSymbolDefinitionFactsNoDeltaStatementsLive(t *testing
 		tally.active, tally.targets, tally.base, tally.resolve, tally.inputs, tally.other)
 	if tally.active != 1 || tally.targets != 1 || tally.base != 0 || tally.resolve != 0 || tally.inputs != 0 || tally.other != 0 {
 		t.Fatalf("statement tally = %+v, want active=1 targets=1 base=0 resolve=0 inputs=0 other=0", tally)
+	}
+}
+
+// seedCallSymbolGoMod seeds a go.mod manifest for a delta-fixture scope so
+// the Go producer read anchors keys on that scope. The tag generation must
+// already carry activated_at, so call it after activating the full
+// generation: the manifest read resolves content only for an activated tag.
+func seedCallSymbolGoMod(f *deltaManifestFixture, scopeID, module, generationID string) {
+	f.t.Helper()
+	f.exec("seed go.mod "+scopeID, `
+INSERT INTO content_files
+    (repo_id, relative_path, content, content_hash, line_count, language, indexed_at, generation_id)
+VALUES ($1, 'go.mod', $2, md5($2), 3, 'gomod', clock_timestamp(), $3)`,
+		scopeID, "module "+module+"\n\ngo 1.24\n", generationID)
+}
+
+// TestLoadActiveCodeCallSymbolDefinitionFactsDeltaAnchoredBaseBindingLive is
+// the #10140 anchored-leg proof for the row-1 delta overlay. A delta-active
+// scope whose only anchored keys are scip-go gomod keys keeps its unchanged
+// base definition visible through the anchored base scan, with the producer
+// scopes bound at $5 and the candidate base generations at $6. The active
+// legs return only the delta row, so a dropped or swapped base-leg binding
+// loses the base definition and this test fails.
+func TestLoadActiveCodeCallSymbolDefinitionFactsDeltaAnchoredBaseBindingLive(t *testing.T) {
+	const (
+		scopeID  = "call-anchor-scope"
+		fullID   = "call-anchor-full"
+		deltaID  = "call-anchor-delta"
+		module   = "github.com/acme/anchored"
+		deltaKey = "scip-go gomod github.com/acme/anchored Client#Delta()."
+		baseKey  = "scip-go gomod github.com/acme/anchored Server#Serve()."
+	)
+	f := openDeltaManifestFixture(t)
+	f.scope(scopeID)
+	f.generation(scopeID, deltaManifestGeneration{id: fullID, commit: "c0"})
+	f.activate(scopeID, fullID)
+	seedCallSymbolGoMod(f, scopeID, module, fullID)
+	seedCallSymbolFile(f.t, f, scopeID, fullID, "anchor-full-delta", "file:"+scopeID+":src/delta.go", "src/delta.go", deltaKey)
+	seedCallSymbolFile(f.t, f, scopeID, fullID, "anchor-full-base", "file:"+scopeID+":src/base.go", "src/base.go", baseKey)
+	f.generation(scopeID, deltaManifestGeneration{
+		id: deltaID, isDelta: true, commit: "c1", baseline: "c0", unionBase: "c0",
+	})
+	f.deltaRepository(scopeID, deltaID, []string{"src/delta.go"}, nil)
+	seedCallSymbolFile(f.t, f, scopeID, deltaID, "anchor-delta",
+		"file:"+scopeID+":src/delta.go", "src/delta.go", deltaKey)
+	f.activate(scopeID, deltaID)
+
+	queryer := &recordingCodeCallSymbolQueryer{SQLDB: SQLDB{DB: f.database}}
+	loaded, err := NewFactStore(queryer).LoadActiveCodeCallSymbolDefinitionFacts(f.ctx, []string{deltaKey, baseKey})
+	if err != nil {
+		t.Fatalf("LoadActiveCodeCallSymbolDefinitionFacts(): %v", err)
+	}
+	got := factIDs(loaded)
+	slices.Sort(got)
+	if want := []string{"anchor-delta", "anchor-full-base"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("loaded fact ids = %#v, want %#v (base definition lost without the anchored base scan)", got, want)
+	}
+
+	// The anchored base text is derived from the shipped constant, never
+	// hand-copied, so the statement match cannot drift false-green.
+	anchoredBase, err := deriveDeltaOverlayBaseQuery(
+		listAnchoredActiveCodeCallSymbolDefinitionFactsQuery, codeCallAnchoredSymbolDeltaOverlayScopeParam)
+	if err != nil {
+		t.Fatalf("derive anchored base query: %v", err)
+	}
+	var baseArgs []any
+	for i, query := range queryer.queries {
+		if query == anchoredBase {
+			baseArgs = queryer.args[i]
+		}
+	}
+	if baseArgs == nil {
+		t.Fatalf("anchored base scan did not run: %d statements, none matches the derived anchored base text", len(queryer.queries))
+	}
+	if got, want := baseArgs[4], []string{scopeID}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("anchored base producer scopes ($5) = %#v, want %#v", got, want)
+	}
+	baseGens, ok := baseArgs[5].([]string)
+	if !ok || !slices.Contains(baseGens, fullID) {
+		t.Fatalf("anchored base candidate generations ($6) = %#v, want it to contain %q", baseArgs[5], fullID)
 	}
 }
 
