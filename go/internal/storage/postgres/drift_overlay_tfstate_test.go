@@ -20,10 +20,10 @@ import (
 // TestTFStateOverlayTextsDerive is the hermetic shape guard for the
 // #10006 overlay texts: every active text the Terraform drift overlay
 // runs must derive a base text through the shared helper, binding the
-// delta-active scope ids at a placeholder the active text leaves unused.
-// A future edit that breaks the shape (renamed alias, dropped active
-// predicate, reused placeholder) fails here instead of failing closed
-// at runtime.
+// candidate base generation ids at a placeholder the active text leaves
+// unused. A future edit that breaks the shape (renamed alias, dropped
+// active predicate, reused placeholder) fails here instead of failing
+// closed at runtime.
 func TestTFStateOverlayTextsDerive(t *testing.T) {
 	t.Parallel()
 
@@ -47,7 +47,7 @@ func TestTFStateOverlayTextsDerive(t *testing.T) {
 			for _, fragment := range []string{
 				"active_delta",
 				"delta_union_base_commit_sha",
-				"fact.scope_id = ANY($",
+				fmt.Sprintf("fact.generation_id = ANY($%d::text[])", tc.scopeParam),
 			} {
 				if !strings.Contains(base, fragment) {
 					t.Errorf("derived %s base query missing %q", tc.name, fragment)
