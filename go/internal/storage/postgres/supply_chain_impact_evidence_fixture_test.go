@@ -247,11 +247,11 @@ FROM generate_series(1, $2::integer) AS n`, kind, rowsPerKind, repoScopes, keys)
 // seedSupplyChainImpactPlanPadding adds rows of an unscanned kind whose
 // payload is wide enough to stay inline (under the 2 kB TOAST threshold), so
 // fact_records holds roughly four rows per heap page. The upstream branch
-// probes two small signal kinds on payload->>'cve_id' = ANY(240 ids). The
+// probes two small signal kinds on payload->>'cve_id' = ANY(a chunk of ids). The
 // planner cannot see how selective that is: it ignores statistics from the
 // partial cve_lookup_v2 index (PostgreSQL selfuncs.c examine_variable skips
 // partial indexes), so every id costs the default equality selectivity of
-// 0.005 and 240 ids are estimated to match about 70% of the two kinds, whatever
+// 0.005 and a full chunk is estimated to match most of the two kinds, whatever
 // the cve_id values are. At stock random_page_cost 4 that prices the key probe
 // about the same as walking the two kinds through
 // fact_records_scope_generation_idx, and the walk wins on a table small enough
@@ -259,7 +259,7 @@ FROM generate_series(1, $2::integer) AS n`, kind, rowsPerKind, repoScopes, keys)
 // wins only when the signal rows are a small share of the heap, which is the
 // corpus shape it is built for. The padding makes the heap large enough to
 // reproduce that share; n_distinct cannot, so seeding distinct ids does not
-// help. Measured on the CI Postgres image at stock settings (this fixture, 8,503
+// help. Measured at 240 ids on the CI Postgres image at stock settings (this fixture, 8,503
 // signal rows, 4,299 heap pages before padding): the custom plan walks the two
 // kinds at total cost 6,126 and the key probe wins from 20,000 padding rows
 // (9,299 pages, cost 10,565); 40,000 rows (14,299 pages, cost 13,243, estimated

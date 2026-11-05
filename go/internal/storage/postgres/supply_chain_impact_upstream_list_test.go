@@ -22,9 +22,9 @@ func upstreamCVEIDs(n int) []string {
 }
 
 // TestUpstreamListIsChunkedOnTheKeyProbe is the #9914 plan guard. The cve key probe
-// flips to a walk of the whole advisory index on a custom plan between 360 and 400
-// ids (shim, section 4), so no statement may carry more than the shared bound. The
-// union of the chunks is the whole list, each id once, and the row sets merge.
+// walks the whole advisory index on a custom plan at 172 to 199 ids and from about
+// 400, so no statement may carry more than the bound. The union of the chunks is the
+// whole list, each id once, and the row sets merge.
 func TestUpstreamListIsChunkedOnTheKeyProbe(t *testing.T) {
 	t.Parallel()
 
@@ -67,6 +67,14 @@ func TestUpstreamListIsChunkedOnTheKeyProbe(t *testing.T) {
 	}
 }
 
+// upstreamLowestMeasuredWalk is the smallest id count at which a QA plan-only
+// custom-plan sweep walked advisory_lookup_v2 instead of probing cve_lookup_v2. It
+// probes again from 200 to about 380, but that window moves with random_page_cost, so
+// no size at or above this one is allowed. The planner prices each id at the default
+// 0.005 and sums them up to 200 ids (scalararraysel), so the estimate climbs toward
+// the whole kind just under 200.
+const upstreamLowestMeasuredWalk = 172
+
 // upstreamChunkSizes returns each distinct statement size the production loader
 // emits across upstream lists of 1 to longestList ids, mapped to the shortest list
 // that emits it.
@@ -87,6 +95,21 @@ func upstreamChunkSizes(t *testing.T, longestList int) map[int]int {
 		}
 	}
 	return sizes
+}
+
+// TestUpstreamChunksStayBelowTheLowestMeasuredWalk: no upstream list may emit a
+// statement that large. A list shorter than the bound runs whole and a longer one
+// leaves a remainder, so the sizes come from the production chunker, over lists long
+// enough to emit every size it can.
+func TestUpstreamChunksStayBelowTheLowestMeasuredWalk(t *testing.T) {
+	t.Parallel()
+
+	for size, length := range upstreamChunkSizes(t, 2*factimpact.MaxCVEIDsPerStatement+1) {
+		if size >= upstreamLowestMeasuredWalk {
+			t.Errorf("a list of %d ids emits a statement of %d ids, at or above the lowest measured walk %d (bound %d)",
+				length, size, upstreamLowestMeasuredWalk, factimpact.MaxCVEIDsPerStatement)
+		}
+	}
 }
 
 // TestUpstreamListAloneRunsSignalStatementsOnly: a follow-up round whose only new

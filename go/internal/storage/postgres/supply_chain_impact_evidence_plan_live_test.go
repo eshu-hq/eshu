@@ -204,16 +204,17 @@ func supplyChainImpactAnchorProblem(t *testing.T, plan string, anchors ...string
 }
 
 // TestSupplyChainImpactUpstreamPlanHoldsAtEveryChunkSizeLive plans the upstream
-// statement at every size the production chunker can emit, under both plan modes.
-// The full-chunk proof above covers one size, and the estimate is not monotonic in
-// the id count: the planner sums the per-id default below 200 ids and uses the
-// independent formula above it, so the sizes under 200 are priced higher than the
-// full chunk. The sizes follow MaxCVEIDsPerStatement. EXPLAIN without
-// ANALYZE, because the plan choice is the claim and this runs once per size.
+// statement at every size the production chunker can emit, under both plan modes and
+// at the page costs QA and a stock server run. The full-chunk proof above covers one
+// size, and the estimate is not monotonic in the id count: the planner sums the
+// per-id default below 200 ids and uses the independent formula above it. The sizes
+// follow MaxCVEIDsPerStatement. EXPLAIN without ANALYZE, because the plan
+// choice is the claim and this runs once per size. Each setting prepares its own
+// statement: a generic plan survives SET random_page_cost, so one PREPARE across the
+// settings would read the first setting's plan.
 //
-// Measured on PostgreSQL 18 at stock settings: with the padding every size stays on
-// the anchor under both modes; without it the custom plan leaves the anchor from 114
-// ids through 240, so this catches a walk.
+// This fixture does not reproduce the QA walk of advisory_lookup_v2 at 172 to 199
+// ids, which TestUpstreamChunksStayBelowTheLowestMeasuredWalk guards by size.
 func TestSupplyChainImpactUpstreamPlanHoldsAtEveryChunkSizeLive(t *testing.T) {
 	ctx, database := openSupplyChainImpactEvidenceProofDB(t)
 	seedSupplyChainImpactScaledCorpus(t, ctx, database, 150, 40, 500)
@@ -243,33 +244,42 @@ func TestSupplyChainImpactUpstreamPlanHoldsAtEveryChunkSizeLive(t *testing.T) {
 	if err != nil {
 		t.Fatalf("dedicated sweep session: %v", err)
 	}
-	defer func() { _ = conn.Close() }()
-	if _, err := conn.ExecContext(ctx, "PREPARE upstream_sweep AS "+branch.SQL); err != nil {
-		t.Fatalf("prepare: %v", err)
-	}
-	for _, mode := range supplyChainImpactPlanModes {
-		if _, err := conn.ExecContext(ctx, "SET plan_cache_mode = "+mode); err != nil {
-			t.Fatalf("set plan_cache_mode: %v", err)
+	defer func() {
+		_, _ = conn.ExecContext(ctx, "RESET ALL")
+		_ = conn.Close()
+	}()
+	exec := func(statement string) {
+		t.Helper()
+		if _, err := conn.ExecContext(ctx, statement); err != nil {
+			t.Fatalf("%s: %v", statement, err)
 		}
-		var off []int
-		firstProblem := ""
-		for _, size := range sizes {
-			var plan []byte
-			execute := "EXPLAIN (FORMAT JSON) EXECUTE upstream_sweep(" + supplyChainImpactSQLLiteral(t, ids[:size]) + ")"
-			if err := conn.QueryRowContext(ctx, execute).Scan(&plan); err != nil {
-				t.Fatalf("%s explain at %d ids: %v", mode, size, err)
-			}
-			anchors := append([]string{branch.Anchor}, branch.EquivalentAnchors...)
-			if problem := supplyChainImpactAnchorProblem(t, string(plan), anchors...); problem != "" {
-				off = append(off, size)
-				if firstProblem == "" {
-					firstProblem = problem + "\n" + supplyChainImpactPlanSummary(t, string(plan))
+	}
+	for _, pageCost := range []string{"1.1", "4"} {
+		for _, mode := range supplyChainImpactPlanModes {
+			exec("SET random_page_cost = " + pageCost)
+			exec("SET plan_cache_mode = " + mode)
+			exec("PREPARE upstream_sweep AS " + branch.SQL)
+			var off []int
+			firstProblem := ""
+			for _, size := range sizes {
+				var plan []byte
+				execute := "EXPLAIN (FORMAT JSON) EXECUTE upstream_sweep(" + supplyChainImpactSQLLiteral(t, ids[:size]) + ")"
+				if err := conn.QueryRowContext(ctx, execute).Scan(&plan); err != nil {
+					t.Fatalf("page cost %s %s, explain at %d ids: %v", pageCost, mode, size, err)
+				}
+				anchors := append([]string{branch.Anchor}, branch.EquivalentAnchors...)
+				if problem := supplyChainImpactAnchorProblem(t, string(plan), anchors...); problem != "" {
+					off = append(off, size)
+					if firstProblem == "" {
+						firstProblem = problem + "\n" + supplyChainImpactPlanSummary(t, string(plan))
+					}
 				}
 			}
-		}
-		t.Logf("%s: planned %d sizes up to %d, off the anchor at %v", mode, len(sizes), sizes[len(sizes)-1], off)
-		if len(off) > 0 {
-			t.Errorf("%s: off the anchor at %d of %d sizes: %v\nfirst: %s", mode, len(off), len(sizes), off, firstProblem)
+			exec("DEALLOCATE upstream_sweep")
+			t.Logf("page cost %s %s: planned %d sizes up to %d, off the anchor at %v", pageCost, mode, len(sizes), sizes[len(sizes)-1], off)
+			if len(off) > 0 {
+				t.Errorf("page cost %s %s: off the anchor at %d of %d sizes: %v\nfirst: %s", pageCost, mode, len(off), len(sizes), off, firstProblem)
+			}
 		}
 	}
 }

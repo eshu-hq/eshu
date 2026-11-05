@@ -347,6 +347,16 @@ Limits, measured or not:
   planner ignores statistics from the partial `cve_lookup_v2` index, so ids are priced at the default whatever their values; the key probe wins only
   when the signal rows are a small share of the heap, and the padding supplies that
   share. The fixture cannot reproduce the 380 to 400 id flip itself.
+
+  OPEN, and it blocks this bound: a QA plan-only custom-plan sweep reports a walk of
+  `advisory_lookup_v2` at 172 to 199 ids, with a key probe at 1 to 171 and at 200 to
+  250. The earlier samples (150, 200, 250 and up) missed it. The chunker emits those
+  sizes: a whole list of 172 to 199 ids, or the remainder of a longer one.
+  `TestUpstreamChunksStayOutOfTheWalkZone` fails at the bound of 240 until the bound
+  or chunk shape is decided, and the re-sweep behind that decision is still running.
+  `TestSupplyChainImpactUpstreamPlanHoldsAtEveryChunkSizeLive` plans all 240 sizes on
+  the padded fixture and stays on the anchor, so it does not reproduce the QA walk.
+  Without the padding the custom plan leaves the anchor from 114 ids through 240.
 - The arm a CVE takes depends on the loaded set, not on the order facts arrive or
   which fact triggered the pass: a CVE with any loaded CVE-keyed fact takes the full
   arm, and a CVE named only by an upstream list takes the signal arm

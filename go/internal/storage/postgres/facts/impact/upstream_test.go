@@ -38,7 +38,7 @@ func TestUpstreamBranchReadsOnlySignalKinds(t *testing.T) {
 		t.Errorf("anchor/key = %s/%s, want the cve key probe", branch.Anchor, branch.ProbeKey)
 	}
 	if branch.MaxListLength != MaxCVEIDsPerStatement || MaxCVEIDsPerStatement != 120 {
-		t.Errorf("MaxListLength = %d, const %d, want 120: the shared bound every CVE key probe uses",
+		t.Errorf("MaxListLength = %d, const %d, want 120: every length up to it was measured on the key probe",
 			branch.MaxListLength, MaxCVEIDsPerStatement)
 	}
 	for _, kind := range []string{KindCVE, KindAffectedPackage, KindAffectedProduct} {
