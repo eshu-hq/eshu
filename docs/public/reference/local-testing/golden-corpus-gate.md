@@ -42,6 +42,9 @@ before collection if the retirement path stops biting.
   Postgres + the graph backend, runs `bootstrap-index` and the bounded demotion
   lifecycle proof, replays the cassettes, drains the projector and reducer,
   starts `eshu-api`, and invokes the gate.
+- **Delta-reader leg** (#10022) collects one fixture repository from a git
+  origin, then as a real delta, and asserts reducer outputs at both stages. See
+  [Golden-corpus delta readers](../../operate/graph-delta-union.md#golden-corpus-delta-readers-10022).
 
 ## Minimal-then-grow
 

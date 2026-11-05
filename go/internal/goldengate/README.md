@@ -35,6 +35,8 @@ tests are unchanged.
 | `row_tokens.go` | `GraphElementProperties` and `EvaluateUnresolvedRowTokens`, the always-required check that no node or edge property holds an unresolved `row.<key>` token (#6782). |
 | `row_keys.go` | `writePathRowKeys`, the plain (non-snake_case) `row.<key>` reads in the Go write path. `row_keys_test.go` derives it from source and fails on drift. |
 | `query_shape_paths.go` | Bounded deep JSON path/value assertions for query shapes, including array traversal with `[]`. |
+| `delta_union.go` | The delta-union file-set assembly and comparison (#7797). |
+| `delta_readers.go` | `DeltaReaderAssertions` (the snapshot's `graph.delta_reader_assertions`) and `EvaluateDeltaReaderAssertions` (#10022): reducer-output edges of one delta-active repository, asserted at a full and a delta stage. |
 
 ## Assertion semantics worth knowing
 
@@ -107,6 +109,12 @@ tests are unchanged.
   CLI argv and truth class. `EvaluateQuerySurfaceParity` checks every
   `parity_with` peer exists and carries the same truth class, so API/MCP/CLI
   shared query surfaces cannot drift silently in the committed snapshot.
+- **A delta-reader expected failure must stay a failure.** At stage `delta`, an
+  edge marked `expected_failure` passes only while it is absent; a surviving
+  edge is a required failure that names the defect and tells the fixing PR to
+  remove the marker. Stage `full` requires every edge, markers included, so a
+  marker can never pass an edge no generation produced. A scope whose active
+  generation does not match the stage fails, so neither stage passes vacuously.
 - **An empty `Report` is a failure.** A gate that asserted nothing has not proven
   anything.
 

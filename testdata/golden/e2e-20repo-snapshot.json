@@ -22,8 +22,8 @@
     "node_counts": {
       "Repository": {
         "min": 15,
-        "max": 35,
-        "note": "35 corpus repos (#5954 staged cloudformation_comprehensive, previously an orphaned fixture used only by parser unit tests; #7601 staged the format-kit producer and storefront-web consumer for the cross-repository JS call proof, and the ledger-kit producer and invoice-portal consumer for the PHP one). The ceiling is exact and deliberate, not a placeholder: if a mirror stub is ever discovered, it MUST fail this ceiling and get reviewed under this file's own update-under-review policy, not be silently absorbed by a padded range."
+        "max": 36,
+        "note": "35 corpus repos plus the #10022 delta-reader fixture repository (acme/golden-delta-reader, collected from a git origin by eshu-collector-git, not staged in the filesystem corpus), so the ceiling is 36 (#5954 staged cloudformation_comprehensive, previously an orphaned fixture used only by parser unit tests; #7601 staged the format-kit producer and storefront-web consumer for the cross-repository JS call proof, and the ledger-kit producer and invoice-portal consumer for the PHP one). The ceiling is exact and deliberate, not a placeholder: if a mirror stub is ever discovered, it MUST fail this ceiling and get reviewed under this file's own update-under-review policy, not be silently absorbed by a padded range."
       },
       "DockerfileInstall": {
         "min": 3,
@@ -102,8 +102,8 @@
       },
       "Workload": {
         "min": 1,
-        "max": 10,
-        "note": "logical workload groups from code-to-workload binding (RUNS_IN target)"
+        "max": 11,
+        "note": "logical workload groups from code-to-workload binding (RUNS_IN target); 11 since the #10022 delta-reader fixture repository defines workload:repository:r_0c077ab3:golden-delta-reader (observed live)"
       },
       "CloudResource": {
         "min": 118,
@@ -2450,7 +2450,104 @@
         "minimum_count": 1,
         "maximum_count": 1
       }
-    ]
+    ],
+    "delta_reader_assertions": {
+      "description": "#10022 delta-reader contract. tests/fixtures/golden_delta_union/base is staged as the bare git origin acme/golden-delta-reader and collected by eshu-collector-git in explicit mode (scripts/lib/golden-corpus-delta-reader.sh) after the first drain; the maintenance passes publish its backward evidence and activate the full generation. delta/ is then committed on top and a second sync produces a real git delta generation touching app/main.go (a trailing comment, so no function moves), app/moved.go (lines inserted above its function, so it moves), and deploy/claim.yaml (one spec value). Every edge below is a reducer output a full generation of either commit produces. The delta-readers phase asserts all of them at stage full, then at stage delta asserts the plain ones survive and the expected_failure ones stay lost until their defect is fixed (an unexpected pass is a required failure that tells the fixing PR to remove the marker).",
+      "repository_id": "repository:r_0c077ab3",
+      "scope_id": "git-repository-scope:repository:r_0c077ab3",
+      "edges": [
+        {
+          "id": "dr-1",
+          "description": "Control: deltaReaderRun calls a helper in the same file; the delta appends to that file without moving either function.",
+          "reader": "code_call_symbols",
+          "relationship": "CALLS",
+          "from_label": "Function",
+          "from_name": "deltaReaderRun",
+          "to_label": "Function",
+          "to_name": "deltaReaderSameFileHelper"
+        },
+        {
+          "id": "dr-2",
+          "description": "deltaReaderRun calls deltaReaderLedgerTotal, defined in app/ledger.go, which the delta never touches. Live runs showed the delta schedules no code-call work, so this guards that an unmoved caller keeps its edges.",
+          "reader": "code_call_symbols",
+          "relationship": "CALLS",
+          "from_label": "Function",
+          "from_name": "deltaReaderRun",
+          "to_label": "Function",
+          "to_name": "deltaReaderLedgerTotal"
+        },
+        {
+          "id": "dr-3",
+          "description": "deltaReaderRun calls deltaReaderReportLine, defined in app/report.go, which the delta never touches.",
+          "reader": "code_call_symbols",
+          "relationship": "CALLS",
+          "from_label": "Function",
+          "from_name": "deltaReaderRun",
+          "to_label": "Function",
+          "to_name": "deltaReaderReportLine"
+        },
+        {
+          "id": "dr-4",
+          "description": "The DeltaQueue claim in deploy/claim.yaml (re-emitted by the delta) resolves against the XRD in deploy/xrd.yaml, which the delta never touches.",
+          "reader": "crossplane_xrd",
+          "relationship": "SATISFIED_BY",
+          "from_label": "K8sResource",
+          "from_name": "golden-delta-reader-queue",
+          "to_label": "CrossplaneXRD",
+          "to_name": "xdeltaqueues.delta.acme.internal",
+          "expected_failure": {
+            "defect": "#10003",
+            "reason": "facts_active_crossplane_xrd.go reads XRD content entities of the active generation only, so with the claim in the delta the delta-active XRD read returns nothing and the scope's SATISFIED_BY edge is retracted"
+          }
+        },
+        {
+          "id": "dr-5",
+          "description": "deltaReaderMovedCaller in app/moved.go calls deltaReaderLedgerTotal; the delta inserts lines above the caller, so it moves.",
+          "reader": "code_call_materialization",
+          "relationship": "CALLS",
+          "from_label": "Function",
+          "from_name": "deltaReaderMovedCaller",
+          "to_label": "Function",
+          "to_name": "deltaReaderLedgerTotal",
+          "expected_failure": {
+            "defect": "#10049",
+            "reason": "content-entity ids hash the line number, so the moved caller gets a new Function node, and the git fact builder emits no code_call_materialization follow-up for a delta, so nothing rewrites its CALLS edges until the next full generation"
+          }
+        }
+      ],
+      "unexpressed_readers": [
+        {
+          "reader": "code_call_symbols",
+          "defect": "#10003",
+          "reason": "not reachable through a git delta: the git fact builder returns before it emits the code_call_materialization follow-up for a delta generation, so the code-call reducer and its active-generation symbol read never run while the scope is delta-active (live run 3: the delta generation had no code_call_materialization work item or code_calls intent)"
+        },
+        {
+          "reader": "package_manifest_dependency",
+          "defect": "#9991",
+          "reason": "fixed by #10018 and proven by its live Postgres regressions; its graph observables (package-consumption DEPENDS_ON to lib-common, CVE-2026-00000 supply-chain findings) are pinned by existing shapes such as get_code_relationship_story (max 1) and find_blast_radius (max 10), so a second consumer would move unrelated assertions"
+        },
+        {
+          "reader": "crossplane_claim_retract",
+          "defect": "#10005",
+          "reason": "needs a delta that adds a claim beside an unchanged one; this fixture has one claim, which the delta re-emits"
+        },
+        {
+          "reader": "terraform_config_loaders",
+          "defect": "#10006",
+          "reason": "the observable is config-state drift, which needs a terraform_state cassette scope anchored to this repository's backend"
+        },
+        {
+          "reader": "jvm_reachability",
+          "defect": "#10003",
+          "reason": "the fixture carries no JVM package"
+        },
+        {
+          "reader": "owned_package_targets",
+          "defect": "#10007",
+          "reason": "a collector target-planning coverage gap, not graph truth; owned by lane 2"
+        }
+      ]
+    }
   },
   "drain_assertions": {
     "description": "B-7(a) drain checks; these validate queue state, not graph truth. Both queues must drain before B-7(b) graph assertions run.",

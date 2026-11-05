@@ -112,6 +112,11 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdout,
 			return fmt.Errorf("delta-union phase: %w", err)
 		}
 	}
+	if phases["delta-readers"] {
+		if err := runDeltaReaders(ctx, o, getenv, snap, &r); err != nil {
+			return fmt.Errorf("delta-readers phase: %w", err)
+		}
+	}
 	if phases["timing"] {
 		if o.budgetSeconds > 0 {
 			EvaluateTiming(
@@ -335,7 +340,8 @@ func runDemoAnswers(ctx context.Context, o options, getenv func(string) string, 
 // phaseSet expands the comma-separated phase flag, treating "all" as every phase.
 // backend-diff, statement-coverage, and writer-coverage are opt-in and
 // excluded from "all": they need capture directories, which a normal
-// single-backend B-7 run never has.
+// single-backend B-7 run never has. delta-readers is opt-in too: it needs the
+// delta fixture repository the orchestrator stages (#10022).
 func phaseSet(raw string) map[string]bool {
 	all := map[string]bool{"drains": true, "graph": true, "query": true, "timing": true, "demo-answers": true, "delta-union": true}
 	out := map[string]bool{}
@@ -349,7 +355,7 @@ func phaseSet(raw string) map[string]bool {
 			}
 			continue
 		}
-		if all[p] || p == "backend-diff" || p == "statement-coverage" || p == "writer-coverage" {
+		if all[p] || p == "backend-diff" || p == "statement-coverage" || p == "writer-coverage" || p == "delta-readers" {
 			out[p] = true
 		}
 	}

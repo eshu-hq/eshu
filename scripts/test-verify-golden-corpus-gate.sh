@@ -485,9 +485,10 @@ require "populated-then-drained guard" 'require-populated-domains="repo_dependen
 
 # shellcheck source=scripts/lib/test-golden-corpus-private-data.sh
 . "${repo_root}/scripts/lib/test-golden-corpus-private-data.sh"
+# shellcheck source=scripts/lib/test-golden-corpus-delta-reader.sh
+. "${repo_root}/scripts/lib/test-golden-corpus-delta-reader.sh"
 
-# Plus golden-corpus-lock-cases.sh's own invariant-routed assertion (require
-# "live gate mutex"): 81 enforced = 76 here + 4 satellite-cases + 1 there.
+# Plus lock-cases.sh's "live gate mutex": 81 enforced = 76 here + 4 satellite-cases + 1 there.
 . "${repo_root}/scripts/lib/golden-corpus-lock-cases.sh"
 [[ "${lock_cases_completed:-0}" -eq 1 ]] ||
 	fail "golden-corpus-lock-cases.sh did not run to completion (gutted, or returned early)"
