@@ -1,14 +1,4 @@
 tests:
-  - file: go/internal/storage/postgres/projector_queue_claim_marked_guard_epq_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#7469 EvalPlanQual recheck proof (lock-skipped sweep generation, dropped holder claimed after the snapshot, guard/fence agreement across clocks, marker-vs-sweep race), untagged and gated by the ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN env Skip; Postgres only; about 15s locally; enrolled in the live-postgres-readiness runner"
-    runner: live-postgres-readiness
-  - file: go/internal/storage/postgres/projector_queue_claim_marked_guard_interleave_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#7469 claim interleave proof (the marked retry always wins its race against the newer generation whether the rival snapshot predates or follows the commit), untagged and gated by the ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN env Skip; Postgres only; about 6s locally; enrolled in the live-postgres-readiness runner"
-    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/projector_queue_claim_marked_guard_live_test.go
     tag: ~
     class: postgres_ci

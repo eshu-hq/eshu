@@ -354,7 +354,8 @@ Observability Evidence: each statement records
 `payload_page`, and `identity`. Guard rows count on
 `eshu_dp_supply_chain_impact_active_evidence_foreign_key_guard_rows_total`,
 and a WARN line names the kinds. The reducer's `reducer execution
-succeeded` line adds `sub_signal_active_evidence_branch_<name>_rows` and
+succeeded` line adds `sub_signal_active_evidence_branch_<name>_rows`,
+`sub_signal_active_evidence_branch_<name>_statements`, and
 `sub_duration_active_evidence_branch_<name>_seconds` per statement, plus the
 `active_evidence_loads`, `active_evidence_resolved_fact_ids`,
 `active_evidence_payload_pages`, `active_evidence_guard_rows`, and

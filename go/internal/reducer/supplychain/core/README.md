@@ -461,9 +461,9 @@ then suppression IDs by byte order, keeps the first 2,000 suppressions (more
 sets the suppression-tail bool), and fetches payloads in 500-ID primary-key
 pages in one snapshot (#8880). The handler prefers the loader's
 `ListActiveSupplyChainImpactFactsWithStats` surface and sums its per-statement
-rows and seconds into the pass's success-line sub-signals
-(`active_evidence_branch_<name>_rows`, `active_evidence_resolved_fact_ids`,
-`active_evidence_payload_pages`, `active_evidence_guard_rows`). Evidence:
+rows, seconds, and statement counts into the pass's success-line sub-signals
+(`active_evidence_branch_<name>_rows`, `active_evidence_branch_<name>_statements`,
+`active_evidence_resolved_fact_ids`, `active_evidence_payload_pages`, `active_evidence_guard_rows`). Evidence:
 `docs/internal/evidence/8880-supply-chain-impact-id-resolution.md`.
 
 Each pass is also fenced (#7142). `Handle` issues a database-issued token from a
