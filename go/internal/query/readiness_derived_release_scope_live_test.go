@@ -170,15 +170,6 @@ func TestSupplyChainImpactReadinessDerivedPlannedReleasesCoverLive(t *testing.T)
 			wantScopes: []string{curlV317Scope, curlV318Scope},
 		},
 		{
-			name: "release the fleet left is ignored",
-			seed: func(t *testing.T, ctx context.Context, db *sql.DB, now time.Time) {
-				seedCurlState(t, ctx, db, now.Add(-time.Hour), curlV317Scope, "failed")
-				seedCurlState(t, ctx, db, now, curlV318Scope, "fresh")
-			},
-			targets:    []map[string]any{plannedAlpineTarget(curlV318Scope, "curl")},
-			wantScopes: []string{curlV318Scope},
-		},
-		{
 			name: "legacy scope with no release is ignored once the plan names releases",
 			seed: func(t *testing.T, ctx context.Context, db *sql.DB, now time.Time) {
 				seedCurlState(t, ctx, db, now.Add(-time.Hour), curlLegacy, "failed")

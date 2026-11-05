@@ -179,10 +179,20 @@ tests:
     class: postgres_ci
     reason: "#10015 disposable PostgreSQL API proof that a package with several derived release scopes is covered only when every expected release is fresh, that a planned release with no state row reads pending, and that the reason names the uncovered release"
     runner: live-postgres-readiness
+  - file: go/internal/query/readiness_derived_rotation_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10015 disposable PostgreSQL API proof, with the real installed-evidence reader and the real planner over a full rotation, that derived release coverage reads the same in every window the coordinator stores"
+    runner: live-postgres-readiness
   - file: go/internal/query/readiness_derived_skip_live_test.go
     tag: ~
     class: postgres_ci
     reason: "#9612 disposable PostgreSQL proof that a planner-skipped derived package reports a skip state with the recorded reason instead of pending"
+    runner: live-postgres-readiness
+  - file: go/internal/query/readiness_derived_slice_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10015 disposable PostgreSQL API proof that a derived package's release coverage is decided by the state rows alone, so the slice of releases a rotating planner run names cannot change a verdict, and that a legacy scope with no release stops counting only once a real release state exists"
     runner: live-postgres-readiness
   - file: go/internal/query/readiness_derived_source_keys_live_test.go
     tag: ~

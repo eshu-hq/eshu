@@ -88,8 +88,17 @@ TABLE = {
             "TestSupplyChainImpactReadinessDerivedEmptyReleaseValueHasNoReleaseLive",
             "TestSupplyChainImpactReadinessDerivedSkipDoesNotHideUncoveredReleaseLive",
         ),
+        "go/internal/query/readiness_derived_rotation_live_test.go": (
+            "TestSupplyChainImpactReadinessDerivedRotationKeepsVerdictsLive",
+        ),
         "go/internal/query/readiness_derived_skip_live_test.go": (
             "TestSupplyChainImpactReadinessPlannerSkippedPackageReportsSkipLive",
+        ),
+        "go/internal/query/readiness_derived_slice_live_test.go": (
+            "TestSupplyChainImpactReadinessDerivedPlanSliceCannotHideReleaseLive",
+            "TestSupplyChainImpactReadinessDerivedVerdictIgnoresPlanWindowLive",
+            "TestSupplyChainImpactReadinessDerivedLegacyScopeStopsCountingOnStateLive",
+            "TestSupplyChainImpactReadinessDerivedLegacyScopeNeverMasksReleaseLive",
         ),
         "go/internal/query/readiness_derived_source_keys_live_test.go": (
             "TestSupplyChainImpactReadinessDerivedRepositoryAcrossBatchScopesLive",
