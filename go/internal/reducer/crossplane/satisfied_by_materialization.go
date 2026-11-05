@@ -13,7 +13,6 @@ import (
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
@@ -68,15 +67,6 @@ type CrossplaneSatisfiedByEdgeWriter interface {
 	RetractCrossplaneSatisfiedByEdges(ctx context.Context, scopeIDs []string, generationID string, evidenceSource string) error
 }
 
-// crossplaneXRDFactLoader loads the cross-scope active CrossplaneXRD
-// content-entity facts a Claim candidate resolves against. XRDs commonly live
-// in a platform repo separate from the Claims that reference them, so they
-// are loaded across scopes exactly like kubernetesCorrelationSourceFactLoader
-// loads cross-scope OCI source evidence.
-type crossplaneXRDFactLoader interface {
-	ListActiveCrossplaneXRDFacts(ctx context.Context) ([]facts.Envelope, error)
-}
-
 // CrossplaneRedriveTargetLedgerWriter records a target Claim scope as
 // confirmed satisfied for one XRD (group, claim_kind) identity (issue
 // #5476). crossplanestore.CrossplaneRedriveTargetLedgerStore.RecordRedriven
@@ -92,9 +82,10 @@ type CrossplaneRedriveTargetLedgerWriter interface {
 
 // CrossplaneSatisfiedByMaterializationHandler reduces one Crossplane
 // classification materialization intent into canonical SATISFIED_BY edge
-// writes. It loads the intent's own scope generation's content_entity facts
-// (Claim candidates: K8sResource rows) plus the cross-scope active
-// CrossplaneXRD facts, resolves each candidate's (group, kind) against
+// writes. It loads the intent scope's Claim candidates (K8sResource rows)
+// plus the cross-scope active CrossplaneXRD facts (see loadEdgeFacts; a
+// delta-active scope reads overlaid on its base full generation, #10005),
+// resolves each candidate's (group, kind) against
 // exactly one XRD's (spec.group, spec.claimNames.kind), and hands the
 // resulting batch to the edge writer. A zero-match candidate is an ordinary
 // Kubernetes object and an ambiguous (2+ match) candidate stays
@@ -124,7 +115,9 @@ type CrossplaneRedriveTargetLedgerWriter interface {
 //     loads cross-scope already has its node committed in the graph; a
 //     cross-scope MATCH-miss from an uncommitted XRD node is near-impossible
 //     by this activation ordering alone, not merely tolerated as a residual
-//     risk.
+//     risk. A delta-active scope's XRDs also come from its base full
+//     generation (#10003): a full generation that activated, so its own
+//     canonical write had committed by the same ordering.
 //
 // The GraphProjectionKeyspaceCodeEntitiesUID phase that a literal port of the
 // locked design's dual-keyspace gate would need is therefore both unnecessary
@@ -274,45 +267,6 @@ func (h CrossplaneSatisfiedByMaterializationHandler) Handle(
 		),
 		CanonicalWrites: len(rows),
 	}, nil
-}
-
-// loadEdgeFacts loads the intent's own scope generation's content_entity
-// facts (Claim candidates) and appends the cross-scope active CrossplaneXRD
-// facts, mirroring KubernetesCorrelationMaterializationHandler.loadEdgeFacts.
-func (h CrossplaneSatisfiedByMaterializationHandler) loadEdgeFacts(
-	ctx context.Context,
-	intent reducercontract.Intent,
-) ([]facts.Envelope, error) {
-	envelopes, err := factload.LoadFactsForKinds(
-		ctx,
-		h.FactLoader,
-		intent.ScopeID,
-		intent.GenerationID,
-		[]string{factload.FactKindContentEntity},
-	)
-	if err != nil {
-		return nil, fmt.Errorf("load facts for crossplane satisfied-by materialization: %w", err)
-	}
-	xrdFacts, err := h.loadActiveXRDFacts(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("load active crossplane xrd facts: %w", err)
-	}
-	return append(envelopes, xrdFacts...), nil
-}
-
-// loadActiveXRDFacts loads the cross-scope active CrossplaneXRD facts through
-// the optional crossplaneXRDFactLoader interface. A loader that does not
-// implement it yields no XRD facts (and therefore no edges), never an error.
-func (h CrossplaneSatisfiedByMaterializationHandler) loadActiveXRDFacts(ctx context.Context) ([]facts.Envelope, error) {
-	loader, ok := h.FactLoader.(crossplaneXRDFactLoader)
-	if !ok {
-		return nil, nil
-	}
-	envelopes, err := loader.ListActiveCrossplaneXRDFacts(ctx)
-	if err != nil {
-		return nil, factload.ClassifyFactLoadError(err)
-	}
-	return envelopes, nil
 }
 
 // shouldSkipRetract mirrors KubernetesCorrelationMaterializationHandler:

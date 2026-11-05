@@ -19,6 +19,18 @@ Claim projects before its XRD repo, the handler resolves zero edges on that
 pass, and a later redrive sweep (`internal/storage/postgres`) re-enqueues the
 same intent once the XRD activates.
 
+The handler reads through `ListActiveCrossplaneSatisfiedByFacts` when the
+loader offers it (`postgres.FactStore` does): the intent scope's active
+claims and every scope's active XRDs on one read-only snapshot, each
+delta-active scope overlaid on its #7797 base full generation (#10003,
+#10005). The handler retracts every edge of the scope before it writes, so a
+delta-only load deleted the edge of an unchanged claim beside a changed one,
+and of a claim whose XRD sits in a file the delta never touched. A loader
+without that read keeps the generation-keyed path (the intent generation's
+own content_entity rows plus `ListActiveCrossplaneXRDFacts`). The
+active-generation read is the intent's own because `Runtime.execute` runs
+the handler only while the intent's generation is active.
+
 ## Ownership boundary
 
 **Owns:** `CrossplaneSatisfiedByMaterializationHandler` (the reducer intent
@@ -77,8 +89,10 @@ with no logic duplicated.
 `eshu_dp_reducer_run_duration_seconds` for handler execution and
 `eshu_dp_canonical_write_duration_seconds` for the graph write. The handler
 also emits one structured "crossplane satisfied-by materialization
-completed" log per intent. Unchanged by this move: same metric names, same
-emission sites, only the package that owns the code moved. See
+completed" log per intent. The store records each delta-overlay decision of
+the read on `eshu_dp_crossplane_satisfied_by_read_delta_union_total` by
+`read` (`claim` or `xrd`) and `outcome`, with a WARN line starting
+"crossplane satisfied-by read" for a refused base or a mismatch. See
 `docs/public/observability/telemetry-coverage.md`'s "Crossplane" rows.
 
 ## Gotchas / invariants
@@ -98,9 +112,10 @@ emission sites, only the package that owns the code moved. See
   edge.** They are counted in the tally's `ambiguousSkipped` and produce no
   row. Do not "resolve" an ambiguity by picking the first match.
 - **`ExtractCrossplaneSatisfiedByEdgeRows` dedupes XRD candidates by uid per
-  join key** because the handler's `loadEdgeFacts` appends the cross-scope
-  `ListActiveCrossplaneXRDFacts` load unconditionally to the own-scope
-  content_entity facts, so a same-repo XRD can appear twice in `envelopes`.
+  join key** because the fallback `loadEdgeFacts` path appends the
+  cross-scope `ListActiveCrossplaneXRDFacts` load unconditionally to the
+  own-scope content_entity facts, so a same-repo XRD can appear twice in
+  `envelopes`.
   Do not remove the uid-dedup or a same-repo Claim/XRD pair will read as a
   false ambiguity (this exact regression is the B-7 golden-corpus rc-151
   assertion `satisfied_by_edge_rows_test.go` guards).

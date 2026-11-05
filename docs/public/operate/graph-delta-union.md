@@ -163,6 +163,22 @@ repository id against the synthesized remote. Readers the fixture cannot
 express are listed under `unexpressed_readers`, each with its defect and the
 reason, and every run reports them.
 
+## Reducer Crossplane SATISFIED_BY reads (#10003, #10005)
+
+The Crossplane SATISFIED_BY materialization retracts every edge of its scope
+and then rewrites the edges it can resolve. It used to load the delta's own
+claims and every scope's active-generation XRDs, so a delta lost two kinds
+of edges: those of claims it did not touch, and those of claims whose XRD
+sits in a file it did not touch. `ListActiveCrossplaneSatisfiedByFacts`
+now reads the scope's claims and every scope's XRDs on one read-only
+snapshot, each delta-active scope overlaid on its base through the same
+helper as the manifest read. Decisions count on
+`eshu_dp_crossplane_satisfied_by_read_delta_union_total` by `read` (`claim`
+or `xrd`) and `outcome`. A refused base keeps the delta-only rows and logs a
+WARN line starting "crossplane satisfied-by read". The scope's edges then
+stay short until its next full generation (the reconcile sweep, the growth
+valve, or the reindex watermark).
+
 ## Operator signals
 
 - `eshu_dp_projector_delta_union_total` by closed `outcome`

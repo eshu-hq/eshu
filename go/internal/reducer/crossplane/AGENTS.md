@@ -38,8 +38,14 @@ decisions into canonical `SATISFIED_BY` graph edges.
 - **An ambiguous candidate (2+ matching XRDs) never fabricates a
   representative edge.** It is counted in `ambiguousSkipped` and produces no
   row. Do not "resolve" ambiguity by picking the first or nearest match.
+- **A delta-active scope must load overlaid on its base** (#10005). The
+  handler retracts every edge of the intent scope before it writes, so its
+  load must return every claim and XRD of the scope's active state, not only
+  the delta's own rows. Keep `loadEdgeFacts` preferring
+  `crossplaneSatisfiedByFactLoader`. Narrowing the retract instead would
+  need a file-scoped SATISFIED_BY retract, which does not exist.
 - **XRD candidates are deduped by uid per `(group, claim_kind)` join key**
-  because the handler's `loadEdgeFacts` appends the cross-scope
+  because the fallback `loadEdgeFacts` path appends the cross-scope
   `ListActiveCrossplaneXRDFacts` load unconditionally to the own-scope
   content_entity facts, so a same-repo XRD can appear twice in the same
   `envelopes` slice. Do not remove the uid-dedup in
