@@ -1,0 +1,14 @@
+docs/internal/evidence/10059-repository-reopen.md
+  h_78a442cba0b3e6 68
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "448671f2a1e55c867f62ccea5eca6426ee74211c",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
