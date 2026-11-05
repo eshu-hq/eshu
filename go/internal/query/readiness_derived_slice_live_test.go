@@ -190,6 +190,17 @@ func TestSupplyChainImpactReadinessDerivedLegacyScopeNeverMasksReleaseLive(t *te
 			t.Fatalf("incomplete reasons = %v, want osv:pending:alpine:v3.18", readiness.IncompleteReasons)
 		}
 	})
+	t.Run("a planned release with no state does not retire a failed legacy scope", func(t *testing.T) {
+		ctx, db, now := readinessScopeLiveDatabase(t)
+		seedDerivedInstance(t, ctx, db, now, "derived-alpine", "alpine")
+		seedCurlState(t, ctx, db, now, curlLegacy, "failed")
+		seedPlannerRun(t, ctx, db, now, "derived-alpine", []map[string]any{plannedAlpineTarget(curlV318Scope, "curl")}, nil)
+
+		state := onlyDerivedState(t, readDerivedReadiness(t, db, curlPackageID))
+		if state.FreshnessState != "failed" || state.ScopeCount != 2 || !slices.Contains(state.ScopeIDs, curlLegacy) {
+			t.Fatalf("derived aggregate = %+v, want failed across the legacy scope and the pending release", state)
+		}
+	})
 }
 
 // TestSupplyChainImpactReadinessDerivedAgedOutReleaseIsNamedStaleLive pins the
