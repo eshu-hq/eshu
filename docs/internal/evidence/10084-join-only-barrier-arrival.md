@@ -38,12 +38,13 @@ worker, queue, runtime knob, or status field.
   two-shard live run carry their own bound in the promotion plan.
 
 **Rate (derived from code, this head):** each idle poll takes exactly one
-barrier transaction — `Begin` (`deferred_maintenance_barrier.go:140`),
-`acquireDeferredMaintenanceStateBarrier` (`:151`), the epoch
+barrier transaction — `Begin`, `acquireDeferredMaintenanceStateBarrier`
+(both in `RunDeferredRelationshipMaintenanceAfterShardDrain`), the epoch
 `SELECT ... FOR UPDATE` inside `ensureDeferredMaintenanceBarrierEpoch`
 (`:155`), `Commit` on the no-epoch branch (`:165`) — because the lock is
 acquired before the no-epoch early return. At `ingesterCollectorPollInterval`
-= 1s (`go/cmd/ingester/wiring.go:39`, wired at `:274`), an N-shard fleet
+= 1s (the `ingesterCollectorPollInterval` definition in
+`go/cmd/ingester/wiring.go`, wired as `PollInterval`), an N-shard fleet
 adds exactly N barrier transactions per second of new load.
 
 **Per-transaction cost (measured, reused):** the Cost Evidence section in
