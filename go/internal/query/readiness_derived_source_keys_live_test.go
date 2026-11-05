@@ -15,8 +15,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/vulnerabilityintelligence/vulnruntime"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
+	"github.com/eshu-hq/eshu/go/internal/vulnsource"
 )
 
 // seedDerivedFacts activates one fact scope and writes one fact per payload.
@@ -50,15 +50,14 @@ func seedDerivedFacts(t *testing.T, ctx context.Context, db *sql.DB, now time.Ti
 	}
 }
 
-// collectorPackageKeys derives a scope's keys with the collector's own
-// parser and normalizer, so these cases exercise the real write contract.
-func collectorPackageKeys(t *testing.T, scopeID string, ecosystems ...string) [][2]string {
+// collectorPackageKeys derives a scope's keys with the core-owned derived-scope
+// parser (vulnsource), the same keys the extension host's recorder writes, so
+// these cases exercise the real write contract.
+func collectorPackageKeys(t *testing.T, scopeID string) [][2]string {
 	t.Helper()
-	keys, ok := vulnruntime.DerivedTargetPackageKeys(scopeID, vulnruntime.DerivedTargetConfig{
-		Enabled: true, Sources: []vulnruntime.Source{vulnruntime.SourceOSV}, Ecosystems: ecosystems,
-	})
+	keys, ok := vulnsource.DerivedScopePackageKeys(scopeID)
 	if !ok {
-		t.Fatalf("collector rejected scope id %q", scopeID)
+		t.Fatalf("derived scope parser rejected scope id %q", scopeID)
 	}
 	out := make([][2]string, 0, len(keys))
 	for _, key := range keys {
@@ -109,7 +108,7 @@ func TestSupplyChainImpactReadinessDerivedKeyNormalizationLive(t *testing.T) {
 	}
 	for _, entry := range scopes {
 		seedDerivedScope(t, ctx, db, now, "derived-mixed", entry.scope, entry.ecosystem, "fresh", "succeeded",
-			collectorPackageKeys(t, entry.scope, entry.ecosystem))
+			collectorPackageKeys(t, entry.scope))
 	}
 	// OSV-style affected packages: ecosystem plus the request-side spelling,
 	// no package id, so readiness derives keys from the default registry;
