@@ -167,7 +167,7 @@ func (s IngestionStore) RunDeferredRelationshipMaintenanceAfterShardDrain(
 		}
 		committed = true
 		// Rate-limited: AfterEmptyBatchDrained re-checks this on every idle
-		// poll for as long as this shard never commits (see
+		// poll for as long as this shard has nothing to account for (see
 		// startupMaintenanceEscapeUsed in collector.Service.Run), and the
 		// ingester's poll interval is 1s — unthrottled this is one identical
 		// INFO line per second forever. idleMaintenanceLogGate caps it at one

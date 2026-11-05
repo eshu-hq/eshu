@@ -205,13 +205,14 @@ func TestServiceRunEmptyBatchEscapeAddsJoinOnlyDrainsPerIdlePoll(t *testing.T) {
 //
 // Before the first fix, this test failed: emptyDrainObserved latched true
 // after the first drain and nothing but a commit ever cleared it, so
-// hookCalls stayed at 1 no matter how many idle polls followed. The
-// `everCommitted` fix re-arms the escape on "has this shard ever committed,"
-// not on "did the last drain happen" — a shard that has never committed keeps
-// re-firing on every idle poll, one arrival attempt per barrier cycle, for as
-// long as it stays empty. A shard that does commit is unaffected:
-// `committedSinceDrain` takes over as soon as its first commit lands, exactly
-// as before.
+// hookCalls stayed at 1 no matter how many idle polls followed. The fix
+// level-gates the escape on AfterEmptyBatchDrained instead of edge-gating it
+// on the last drain — a shard with nothing to account for keeps re-firing on
+// every idle poll, one arrival attempt per barrier cycle, for as long as it
+// stays empty. A shard that commits and then goes idle keeps the same
+// recurrence: every post-commit idle poll drains join-only (false), so a
+// committed-then-refused shard still arrives instead of falling silent
+// (#10084).
 //
 // The P1 follow-up adds startupMaintenanceEscapeUsed: only the FIRST of these
 // recurring escape calls reports hasCommitted=true (letting this shard open
