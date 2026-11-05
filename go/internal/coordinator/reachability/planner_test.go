@@ -174,11 +174,11 @@ func TestPlanSkipsUnplannableRepositoriesWithAReason(t *testing.T) {
 	}
 }
 
-// TestPlanNamesAnUnusableRemoteThatStrandsEvidence covers eshu-hq/eshu#10055: a
-// repository with Go evidence and a remote the component cannot fetch can never
-// land a retracting generation, so its evidence stays active. It gets its own skip
-// reason, separate from an ordinary unusable remote, so an operator can see it.
-func TestPlanNamesAnUnusableRemoteThatStrandsEvidence(t *testing.T) {
+// TestPlanCountsANonCanonicalRemoteWithEvidenceSeparately pins the invariant alarm:
+// a stored remote keeps one form for a scope's life, so a non-canonical remote on a
+// repository with Go evidence means identity or the remote stamp changed. It gets its
+// own skip reason, separate from an ordinary non-canonical remote.
+func TestPlanCountsANonCanonicalRemoteWithEvidenceSeparately(t *testing.T) {
 	t.Parallel()
 
 	_, items, skipped, err := Plan(testRequest(

@@ -250,7 +250,8 @@ because schedulers stop at the first error. One predicate enforces it:
   has no top-level field, so that is the 30s reconcile tick. Its page is fixed for
   its plan bucket: once the run exists the reader reports it and the pass stops,
   so `requested_scope_set` is never rewritten under an open claim. Do not re-read
-  the page inside a bucket. Its host scope gets no work item, since it names no
+  the page once the run exists. A page that planned no run is re-read each tick on
+  purpose, which admits a target as soon as it closes. Its host scope gets no work item, since it names no
   repository. Two coordinators racing inside one bucket can still upsert a
   different page if a repository joins or leaves within those milliseconds; the
   affected claim fails terminal and its repository returns on the next visit.

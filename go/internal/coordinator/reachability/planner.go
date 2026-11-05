@@ -26,13 +26,14 @@ const (
 	SkipInvalidRepositoryID = "invalid_repository_id"
 	// SkipDuplicateRepository counts a repository already on the page.
 	SkipDuplicateRepository = "duplicate_repository"
-	// SkipUnsupportedRemote counts a repository with no remote, or one the
-	// component cannot fetch: a local path, a file URL, or any non-canonical
-	// form.
+	// SkipUnsupportedRemote counts a repository with no remote or a non-canonical
+	// one, such as a local path or file URL. It checks syntax only: a dead or
+	// revoked remote passes, is claimed, and fails at fetch.
 	SkipUnsupportedRemote = "unsupported_remote"
 	// SkipUnsupportedRemoteWithEvidence counts the same defect on a repository
-	// whose go-reachability scope still holds Go evidence. No claim can land a
-	// retracting generation, so that evidence stays active (eshu-hq/eshu#10055).
+	// whose go-reachability scope still holds Go evidence. It is an invariant
+	// alarm: a stored remote keeps one form for a scope's life, so a non-zero count
+	// means identity normalization or the remote stamp changed, a bug to root-cause.
 	SkipUnsupportedRemoteWithEvidence = "unsupported_remote_with_evidence"
 	// SkipMissingCommit counts a generation with no full observed commit.
 	SkipMissingCommit = "missing_commit"
@@ -158,8 +159,9 @@ func targetFor(
 }
 
 // workItem mints one claimable item. The commit is part of the identity, so a
-// new commit is a new generation of the same scope; the open-target guard still
-// holds it back while the earlier generation is open.
+// new commit is a new generation of the same scope. The open-target guard holds it
+// back only while the earlier item's run is not yet complete or failed, so a pending
+// item in a run that already failed does not block it.
 func workItem(
 	instance workflow.CollectorInstance,
 	target scannercomponent.GoReachabilityTarget,

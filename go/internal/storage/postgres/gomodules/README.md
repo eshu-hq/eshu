@@ -33,15 +33,20 @@ None of its own. The coordinator wraps the queryer so the read reports on
   written by the git collector's `buildScope` in normalized form. The repository id
   is `ingestion_scopes.source_key`, and the commit is
   `scope_generations.source_commit_sha`.
-- A repeat pass in a bucket is one primary-key probe on `workflow_runs`.
+- A repeat pass in a bucket is one primary-key probe on `workflow_runs` once the
+  bucket's run exists. A page that plans no run creates none, because it has no
+  plannable repository or every target is still open, so the full page query repeats
+  on every reconcile tick for that bucket: about 98 ms warm in the measurement below.
+  That is deliberate: it admits a target as soon as it closes.
 - A repository is planned on `has_go_module OR has_go_evidence`. Without the second
   branch, a repository that lost its `go.mod` is never claimed, so its Go evidence
   never retracts. `has_go_evidence` is true while the repository's
   `go-reachability://` scope has an active generation holding a non-tombstoned
   `vulnerability.go_module_evidence` or `vulnerability.go_call_reachability` fact. The
   component scans once more and lands a trusted `no_go_modules` generation holding
-  only a warning, so the repository drops out on its next visit. The cost is one
-  extra shallow clone per lost `go.mod`.
+  only a warning, so the repository drops out on its next visit. That retracts facts,
+  not stored findings, which keep their verdict until a reducer pass re-derives them
+  (eshu-hq/eshu#10077). The cost is one extra shallow clone per lost `go.mod`.
 - The evidence probe is the `ingestion_scopes` primary key plus a prefix of
   `fact_records_scope_generation_idx (scope_id, generation_id, fact_kind)`, and it
   adds about 2 ms to a page. Same run, warm, one 256-candidate page: 95.4 and 96.2 ms
@@ -54,12 +59,12 @@ None of its own. The coordinator wraps the queryer so the read reports on
   by mutations of `has_go_evidence`: each branch of the `OR`, each evidence kind,
   warnings counted as evidence, any-generation reads, and tombstones. Evidence:
   `docs/internal/evidence/10027-go-modules-derivation.md`.
-- A repository with Go evidence and an unusable remote is returned with
-  `HasGoEvidence` set, and the planner skips it, so that evidence stays active. See
-  eshu-hq/eshu#10055.
+- `HasGoEvidence` is set on every returned row with evidence, so the planner can raise
+  its invariant alarm for a non-canonical remote that holds evidence. A dead remote is
+  not this case: it is planned, and its claim fails (eshu-hq/eshu#10055).
 - A repository scope that retires leaves its go-reachability scope active, because
   candidates are active repository scopes only. Core lifecycle owns that, not this
-  query.
+  query (eshu-hq/eshu#10054).
 - Detection reads `content_files`, not the `module_declaration` fact. For one
   256-candidate page over 1.84M facts, the fact probe took 1,511 ms and read 197k
   buffers; this probe took 68 ms and read 7.5k. Do not swap in the fact probe

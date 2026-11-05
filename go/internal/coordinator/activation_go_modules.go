@@ -86,8 +86,10 @@ func activationPlansOnlyDerivedScopes(kind scope.CollectorKind, config activatio
 // scheduleGoModuleDerivedScopes plans one rotation page of Go repositories for a
 // Go reachability activation. The page is fixed for its plan bucket: once the
 // bucket's run exists the reader reports it and a repeat pass stops, so the run's
-// requested_scope_set is never rewritten under an open claim. A commit that
-// lands mid-bucket is planned on that repository's next rotation visit.
+// requested_scope_set is never rewritten under an open claim. A commit that lands
+// mid-bucket is planned on that repository's next rotation visit. A page that plans
+// no run creates none, so it is re-read every tick for its bucket; that bounded cost
+// is deliberate, because it admits a target as soon as it closes.
 func (s Service) scheduleGoModuleDerivedScopes(
 	ctx context.Context,
 	observedAt time.Time,

@@ -36,7 +36,7 @@ results, and none holds a repository id or URL:
 - `eshu_dp_workflow_coordinator_activation_derived_scopes_planned_total` with
   `collector_kind="scanner_worker"` and `ecosystem="go"`.
 - One INFO `workflow coordinator planned derived scopes for component activation`
-  line per planned page: `candidates`, `total_candidates`, `slot`, `slot_count`,
+  line per page read, which repeats each tick while a page has no run: `candidates`, `total_candidates`, `slot`, `slot_count`,
   `evidence_only_repositories` (planned only to retract Go evidence after losing a
   `go.mod`), and one `skipped_<reason>` count per reason.
 - One ERROR `workflow coordinator refused derived scopes for component activation`
@@ -48,7 +48,10 @@ results, and none holds a repository id or URL:
 ## Gotchas / invariants
 
 - The commit is part of work-item identity, so a new commit is a new generation of
-  the same scope. The open-target guard still holds it back while one is open.
+  the same scope. The open-target guard holds it back only while the earlier item's
+  run is not yet `complete` or `failed`. One terminal item fails its whole run, even
+  with siblings still pending, so a pending item in a failed run no longer blocks a
+  new item for its scope.
 - The repository id and scope id are the only repository values in any identity.
   The clone URL lives only in `requested_scope_set`.
 - One unplannable repository skips with a reason. It never fails the page, or one
@@ -58,10 +61,11 @@ results, and none holds a repository id or URL:
   `scan_interval`, so the instance's interval is the reconcile tick, and bucketing
   on it would rescan repositories almost continuously.
 
-- Known limitation (eshu-hq/eshu#10055): a repository with Go evidence and a remote
-  the component cannot fetch is never claimed, so its evidence stays active. It is
-  counted separately on `skipped_unsupported_remote_with_evidence`. The planner names
-  the case and does not resolve it.
+- `skipped_unsupported_remote_with_evidence` is an invariant alarm, not a lifecycle
+  state. A stored remote keeps one form for a scope's life, so a non-zero value means
+  identity normalization or the remote stamp changed. `ValidCloneURL` checks syntax
+  only: a dead or revoked remote is planned and claimed, its claim fails, and the
+  evidence of its last commit stays active until the fence in eshu-hq/eshu#10055.
 
 ## Related docs
 

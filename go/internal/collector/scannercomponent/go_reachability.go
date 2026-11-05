@@ -171,16 +171,17 @@ type GoModuleRepository struct {
 	RemoteURL       string
 	SourceCommitSHA string
 	// HasGoEvidence reports that the repository's go-reachability scope still
-	// holds Go evidence. A repository that also cannot be scanned keeps that
-	// evidence active, so the planner names the case in its own skip reason.
+	// holds Go evidence. A non-canonical remote on such a repository should be
+	// impossible, so the planner counts it in its own skip reason as an alarm.
 	HasGoEvidence bool
 }
 
 // GoModuleRepositoryFilter selects one rotation page of repository candidates.
 type GoModuleRepositoryFilter struct {
 	// RunID is the run this bucket's page plans under. A reader returns
-	// AlreadyPlanned without reading candidates when the run exists, so a page
-	// stays fixed for its bucket and repeat passes cost one primary-key probe.
+	// AlreadyPlanned without reading candidates when the run exists, so a planned
+	// page stays fixed for its bucket and a repeat pass costs one primary-key probe.
+	// A page that planned no run has no such row and is read again.
 	RunID string
 	// RotationBucket picks the page: bucket mod the slot count.
 	RotationBucket int64

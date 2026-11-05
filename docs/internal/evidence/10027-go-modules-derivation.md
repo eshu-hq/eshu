@@ -15,6 +15,13 @@ Each reconcile pass does one of two things:
 2. **It does not:** read one page of at most 256 candidates, plan, and admit through
    the existing guarded path.
 
+A page that plans no run never creates one, so the second case repeats every tick for
+that bucket. That happens when the page has no plannable repository, or every target
+is still open. At the 30 s default tick that is up to 2,880 reads a day per activation,
+each about 98 ms and 129,543 buffers in the measurement below, plus one INFO line. An
+all-open page also adds to the counter each tick. This cost is deliberate and bounded:
+it admits a target as soon as it closes.
+
 The extension host adds two primary-key reads of `workflow_runs` to a Go
 reachability claim: one to deliver the target, and one to select the installation
 when a provider is set and no exact scope matches. Both are small beside a claim
@@ -102,8 +109,8 @@ This run made 603,551, which likely accounts for most of the difference, probabl
 because the visibility map was not yet set after seeding. That cause is inferred, not
 tested. Compare before and after within this run only.
 
-Proof at `f1012402d8` (orchestrator-run, disposable Postgres 16): the live suite exits
-0 with 6 live tests and 1 unit test passing. Four mutations of `has_go_evidence` were
+Proof (orchestrator-run, disposable Postgres 16 and again on Postgres 18): the live
+suite exits 0 with 6 live tests and 1 unit test passing. Four mutations of `has_go_evidence` were
 caught: warnings counted as evidence, either evidence kind dropped, and the
 evidence-only count including live repositories. Before the final rebases, with the
 database up, these were also caught: either branch of the `OR` removed, evidence read
@@ -152,9 +159,12 @@ Observability Evidence: the read and its planning report on these signals.
 
 At 3 AM: a flat counter with `candidates` above zero and `go_module_repositories` at
 zero means this page holds no Go repository, and a later slot may. A non-zero
-`skipped_unsupported_remote` means repositories whose remotes the component cannot
-fetch. A non-zero `skipped_unsupported_remote_with_evidence` means one of those also
-holds Go evidence that cannot retract (#10055). `slot_count` times `scan_interval` is the rotation period.
+`skipped_unsupported_remote` means repositories with no remote, or a remote that is
+not in canonical form. A non-zero `skipped_unsupported_remote_with_evidence` is an
+invariant alarm: a stored remote keeps one form for a scope's life, so identity
+normalization or the remote stamp changed, and that is a bug to root-cause. A dead or
+revoked remote does not show here: it is claimed, its claim fails, and readiness shows
+`collector_generation_dead_lettered` and `dead_lettered_work` (#10055). `slot_count` times `scan_interval` is the rotation period.
 
 ## NOT_CHECKED
 
