@@ -5,11 +5,13 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -122,4 +124,35 @@ func TestCommitRefusedSuccessorCountsSkippedNotMinted(t *testing.T) {
 	requireGenerationOutcomes(t, generationOutcomes(t, reader), map[generationOutcomeKey]int64{
 		{"git", telemetry.GenerationOutcomeSkipped, telemetry.RefreshSkipReasonDestructiveSuccessor}: 1,
 	})
+}
+
+// failCommitTx wraps a transaction so Commit fails, as a lost connection or a
+// deferred constraint would.
+type failCommitTx struct{ db.Transaction }
+
+func (failCommitTx) Commit() error { return errors.New("commit failed") }
+
+// failCommitDB hands out failCommitTx transactions.
+type failCommitDB struct{ *guardRoutingDB }
+
+func (f failCommitDB) Begin(ctx context.Context) (db.Transaction, error) {
+	tx, err := f.guardRoutingDB.Begin(ctx)
+	return failCommitTx{tx}, err
+}
+
+// TestCommitFailedTransactionCountsNoOutcome proves a generation whose commit
+// fails is counted as neither minted nor skipped, so the minted series never
+// includes a rolled-back generation.
+func TestCommitFailedTransactionCountsNoOutcome(t *testing.T) {
+	database := newGuardRoutingDB(t, 10, 10, 10)
+	scopeValue, generation := guardDeltaFixture(false)
+	instruments, reader := newDeltaUnionTestInstruments(t)
+	store := NewIngestionStore(failCommitDB{database})
+	store.Instruments = instruments
+
+	stream := guardStream(generation, false, nil, nil, nil, nil, 10)
+	if err := store.CommitScopeGeneration(context.Background(), scopeValue, generation, stream); err == nil {
+		t.Fatal("CommitScopeGeneration() error = nil, want the commit failure")
+	}
+	requireGenerationOutcomes(t, generationOutcomes(t, reader), map[generationOutcomeKey]int64{})
 }
