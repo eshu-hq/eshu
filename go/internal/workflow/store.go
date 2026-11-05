@@ -100,6 +100,14 @@ type RunAdmission struct {
 	// InsertedWorkItems counts the rows the work-item table actually accepted.
 	// This is the work an operator can find in the queue.
 	InsertedWorkItems int
+	// InsertedScopeIDs lists the scope ids of the planned work items the
+	// work-item table actually accepted, in planned order. It is the
+	// per-item half of InsertedWorkItems: the counts tell an operator how
+	// many rows landed, this tells a caller which scopes did, so a commit
+	// join can hold guard-dropped and insert-dropped scopes pending instead
+	// of retiring them as drained (eshu-hq/eshu#10149). Nil when nothing
+	// was inserted or when the backend reports counts only.
+	InsertedScopeIDs []string
 	// AdmissionSkipped counts planned bindings the admission transaction
 	// refused to prove, by skip reason and authorization domain. A skipped
 	// binding earns no target row, attempt, or work item; the discovery

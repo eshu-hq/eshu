@@ -241,7 +241,9 @@ func TestWorkflowControlStoreGuardedRunLocksTheKeyDerivedFromCollectorInstance(t
 //
 // Both halves are asserted: the admitted count still has to say two, or the
 // coordinator blames the open-target guard for a row the database refused and
-// logs lost work as a harmless duplicate skip.
+// logs lost work as a harmless duplicate skip. The per-item half (#10149) is
+// asserted too: exactly the accepted target's scope id comes back, so a
+// commit join can tell which scope landed.
 func TestWorkflowControlStoreGuardedRunReportsRowsActuallyInserted(t *testing.T) {
 	t.Parallel()
 
@@ -249,10 +251,12 @@ func TestWorkflowControlStoreGuardedRunReportsRowsActuallyInserted(t *testing.T)
 		rows: []queueFakeRows{
 			{rows: [][]any{{false}}},  // terminal-run check
 			{rows: [][]any{{0}, {1}}}, // both targets eligible
+			// The batch insert returns the accepted scope only.
+			{rows: [][]any{{"aws:123456789012:us-east-1:lambda"}}},
 		},
-		// Exec order: planning lock, run insert, work-item batch insert. The
-		// batch reports one accepted row for two planned targets.
-		execRows: []int64{1, 1, 1},
+		// Exec order: planning lock, run insert. The work-item batch insert
+		// is a query (INSERT ... RETURNING scope_id), served above.
+		execRows: []int64{1, 1},
 	}
 	store := NewWorkflowControlStore(recorder)
 	run, items := workflowPlanningLockFixture(t)
@@ -269,6 +273,10 @@ func TestWorkflowControlStoreGuardedRunReportsRowsActuallyInserted(t *testing.T)
 		t.Fatalf("EligibleTargets = %d, want %d: the open-target guard admitted both targets, and reporting fewer blames it for a row the database dropped (#4586)",
 			admission.EligibleTargets, len(items))
 	}
+	if len(admission.InsertedScopeIDs) != 1 || admission.InsertedScopeIDs[0] != items[0].ScopeID {
+		t.Fatalf("InsertedScopeIDs = %v, want [%q]: the per-item list must name the accepted scope, not the dropped one (#10149)",
+			admission.InsertedScopeIDs, items[0].ScopeID)
+	}
 }
 
 // TestWorkflowControlStoreGuardedRunRejectsImpossibleRowsAffected pins the
@@ -276,6 +284,8 @@ func TestWorkflowControlStoreGuardedRunReportsRowsActuallyInserted(t *testing.T)
 // NOTHING cannot write more rows than it was handed, so a larger count is a
 // broken number rather than one to hand to an operator -- and keeping it inside
 // 0..len(batch) is what makes the int64-to-int narrowing safe on any platform.
+// The per-item RETURNING path (#10149) carries the same bound: more returned
+// scopes than supplied items is the same broken number.
 func TestWorkflowControlStoreGuardedRunRejectsImpossibleRowsAffected(t *testing.T) {
 	t.Parallel()
 
@@ -283,10 +293,12 @@ func TestWorkflowControlStoreGuardedRunRejectsImpossibleRowsAffected(t *testing.
 		rows: []queueFakeRows{
 			{rows: [][]any{{false}}},
 			{rows: [][]any{{0}, {1}}},
+			// The batch insert returns three scopes for two supplied items.
+			{rows: [][]any{{"a"}, {"b"}, {"c"}}},
 		},
-		// Planning lock, run insert, then a work-item batch claiming it wrote
-		// three rows for two supplied items.
-		execRows: []int64{1, 1, 3},
+		// Planning lock, run insert. The work-item batch insert is a query
+		// (INSERT ... RETURNING scope_id), served above.
+		execRows: []int64{1, 1},
 	}
 	store := NewWorkflowControlStore(recorder)
 	run, items := workflowPlanningLockFixture(t)
@@ -295,8 +307,8 @@ func TestWorkflowControlStoreGuardedRunRejectsImpossibleRowsAffected(t *testing.
 	if err == nil {
 		t.Fatalf("CreateRunWithWorkItemsIfNoOpenTargets() error = nil (admission = %+v), want a rejected rows-affected count", admission)
 	}
-	if !strings.Contains(err.Error(), "rows affected 3 is outside 0..2") {
-		t.Fatalf("error = %v, want the out-of-range rows-affected count named", err)
+	if !strings.Contains(err.Error(), "returned scopes 3 is outside 0..2") {
+		t.Fatalf("error = %v, want the out-of-range returned-scopes count named", err)
 	}
 	if admission.InsertedWorkItems != 0 || admission.EligibleTargets != 0 {
 		t.Fatalf("admission = %+v, want a zero admission alongside the error", admission)

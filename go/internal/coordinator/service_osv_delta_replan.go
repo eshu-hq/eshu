@@ -302,17 +302,22 @@ func osvDeltaTrivialRows(
 }
 
 // commitOSVDeltaReplan runs the post-admission half: commit exactly the
-// drained rows whose scopes the admission authorized, advance the watermark
-// over them, record the successful poll, and report the pass. The mapped
-// branch gates on the admission's authorized _replan scope set
+// drained rows whose scopes the admission authorized and inserted, advance
+// the watermark over them, record the successful poll, and report the pass.
+// The mapped branch gates on the admission's authorized _replan scope set
 // (eshu-hq/eshu#10083): the single authorization decision point, so a grant
 // flap between admission and commit cannot admit-then-not-commit or vice
-// versa. Rows whose scopes the tenant boundary denied stay pending for the
-// next pass; the grant-skip log in createWorkflowWork and the survivor list
-// in reportOSVDeltaReplan keep the exclusion operator-visible. A drained row
-// with no minted scope commits only when the planner marked it trivial (no
-// owned target, nothing to authorize); any other unscoped row stays pending
-// instead of retiring on an unchecked held scope.
+// versa. It also gates on the admission's inserted _replan scope set
+// (eshu-hq/eshu#10149): a scope the open-target guard dropped as a duplicate
+// or the insert refused never queued its work, so its row stays pending for
+// the next pass instead of committing as drained. Rows whose scopes the
+// tenant boundary denied stay pending for the next pass; the grant-skip log
+// in createWorkflowWork and the survivor list in reportOSVDeltaReplan keep
+// the exclusion operator-visible, and rows held for a missing insertion are
+// logged below. A drained row with no minted scope commits only when the
+// planner marked it trivial (no owned target, nothing to authorize); any
+// other unscoped row stays pending instead of retiring on an unchecked held
+// scope.
 func (s Service) commitOSVDeltaReplan(
 	ctx context.Context,
 	pass *osvDeltaPass,
@@ -321,6 +326,7 @@ func (s Service) commitOSVDeltaReplan(
 	observation vulnerability.OSVDeltaReplanObservation,
 	observedAt time.Time,
 	authorizedReplanScopes map[string]struct{},
+	insertedReplanScopes map[string]struct{},
 ) error {
 	pendingByID := make(map[int64]vulnerability.OSVDeltaValidatedChange, len(pass.pending))
 	for _, change := range pass.pending {
@@ -331,6 +337,8 @@ func (s Service) commitOSVDeltaReplan(
 		trivial[id] = struct{}{}
 	}
 	var survivorIDs []int64
+	heldDenied := 0
+	heldDropped := 0
 	survivorTS := time.Time{}
 	for _, id := range observation.CoveredRowIDs {
 		change, ok := pendingByID[id]
@@ -339,13 +347,24 @@ func (s Service) commitOSVDeltaReplan(
 		}
 		if scopes, mapped := observation.CoveredRowScopes[id]; mapped {
 			authorized := false
+			inserted := false
 			for _, scopeID := range scopes {
 				if _, ok := authorizedReplanScopes[scopeID]; ok {
 					authorized = true
+				}
+				if _, ok := insertedReplanScopes[scopeID]; ok {
+					inserted = true
+				}
+				if authorized && inserted {
 					break
 				}
 			}
 			if !authorized {
+				heldDenied++
+				continue
+			}
+			if !inserted {
+				heldDropped++
 				continue
 			}
 		} else if _, ok := trivial[id]; !ok {
@@ -358,6 +377,20 @@ func (s Service) commitOSVDeltaReplan(
 		if survivorTS.IsZero() || change.FeedTimestamp.After(survivorTS) {
 			survivorTS = change.FeedTimestamp
 		}
+	}
+	// Rows held for a missing insertion are work nobody will collect this
+	// pass: the guard saw a duplicate an open run covers, or the insert
+	// refused the row. They stay pending with the denied rows, and this line
+	// keeps the drop operator-visible beside the survivor list the report
+	// carries (eshu-hq/eshu#10149).
+	if s.Logger != nil && (heldDenied > 0 || heldDropped > 0) {
+		s.Logger.Info(
+			"workflow coordinator held owned target replan rows past the drain",
+			"collector_instance_id", pass.instanceID,
+			"held_denied_rows", heldDenied,
+			"held_duplicate_or_refused_rows", heldDropped,
+			"drained_rows", len(survivorIDs),
+		)
 	}
 	if len(survivorIDs) > 0 && !survivorTS.IsZero() {
 		if _, err := pass.store.CommitReplanDrain(ctx, pass.instanceID, survivorIDs, survivorTS, observedAt.UTC()); err != nil {

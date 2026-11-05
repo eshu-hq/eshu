@@ -123,7 +123,11 @@ func (f *fakeStore) CreateRunWithWorkItemsIfNoOpenTargets(
 	}
 	f.plannedItems = append(f.plannedItems, eligible...)
 	// This fake has no unique index, so every admitted target lands.
-	return workflow.RunAdmission{EligibleTargets: len(eligible), InsertedWorkItems: len(eligible)}, nil
+	scopes := make([]string, 0, len(eligible))
+	for _, item := range eligible {
+		scopes = append(scopes, item.ScopeID)
+	}
+	return workflow.RunAdmission{EligibleTargets: len(eligible), InsertedWorkItems: len(eligible), InsertedScopeIDs: scopes}, nil
 }
 
 func fakeStoreHasPlannedWorkItemForRun(planned []workflow.WorkItem, runID string, candidate workflow.WorkItem) bool {

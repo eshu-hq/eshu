@@ -162,6 +162,8 @@ func TestWorkflowControlStoreGuardedRunCreatesEligibleScheduledTarget(t *testing
 			queryResponses: []queueFakeRows{
 				{rows: [][]any{{false}}},
 				{rows: [][]any{{0}}},
+				// The batch insert returns the accepted scope.
+				{rows: [][]any{{"aws:123456789012:us-east-1:lambda"}}},
 			},
 		},
 	}
@@ -198,11 +200,18 @@ func TestWorkflowControlStoreGuardedRunCreatesEligibleScheduledTarget(t *testing
 	if got, want := admission.InsertedWorkItems, 1; got != want {
 		t.Fatalf("inserted = %d, want %d", got, want)
 	}
+	if len(admission.InsertedScopeIDs) != 1 || admission.InsertedScopeIDs[0] != item.ScopeID {
+		t.Fatalf("InsertedScopeIDs = %v, want [%q] (#10149)", admission.InsertedScopeIDs, item.ScopeID)
+	}
 	var insertedRun bool
 	var insertedItem bool
 	for _, exec := range db.execs {
 		insertedRun = insertedRun || strings.Contains(exec.query, "INSERT INTO workflow_runs")
-		insertedItem = insertedItem || strings.Contains(exec.query, "INSERT INTO workflow_work_items")
+	}
+	// The work-item batch insert is a query (INSERT ... RETURNING
+	// scope_id), not an exec (#10149).
+	for _, query := range db.queries {
+		insertedItem = insertedItem || strings.Contains(query.query, "INSERT INTO workflow_work_items")
 	}
 	if !insertedRun {
 		t.Fatal("guarded schedule did not insert workflow run")
@@ -242,6 +251,8 @@ func TestWorkflowControlStoreGuardedRunRetriesDeadlockTransaction(t *testing.T) 
 		queryResponses: []queueFakeRows{
 			{rows: [][]any{{false}}},
 			{rows: [][]any{{0}}},
+			// The retried batch insert returns the accepted scope.
+			{rows: [][]any{{"aws:123456789012:us-east-1:lambda"}}},
 		},
 	}
 	db := &fakeTransactionalDB{txs: []*fakeTx{firstTx, secondTx}}
@@ -314,17 +325,20 @@ func TestWorkflowControlStoreGuardedRunComputesEligibleTargetsInOneQuery(t *test
 			queryResponses: []queueFakeRows{
 				{rows: [][]any{{false}}},
 				{rows: [][]any{{0}, {1}}},
+				// The batch insert returns both accepted scopes (#10149).
+				{rows: [][]any{{"aws:123456789012:us-east-1:lambda"}, {"aws:123456789012:us-east-1:s3"}}},
 				// The post-commit statistics gate (#9871) reads pg_stat; the
 				// table already carries statistics here, so no ANALYZE runs.
 				{rows: [][]any{{true, false}}},
 			},
-			// Exec order: planning lock, run insert, work-item batch insert.
-			// The batch accepts both rows, so the guard reports 2 (#4586: the
-			// count is rows the database accepted, not targets planned).
+			// Exec order: planning lock, run insert. The work-item batch
+			// insert is a query (INSERT ... RETURNING scope_id) served
+			// above; it accepts both rows, so the guard reports 2 (#4586:
+			// the count is rows the database accepted, not targets
+			// planned).
 			execResults: []sql.Result{
 				fakeResult{},
 				fakeResult{},
-				fakeResultWithRowsAffected{rowsAffected: 2},
 			},
 		},
 	}
@@ -351,6 +365,9 @@ func TestWorkflowControlStoreGuardedRunComputesEligibleTargetsInOneQuery(t *test
 	if got, want := admission.InsertedWorkItems, 2; got != want {
 		t.Fatalf("inserted = %d, want %d", got, want)
 	}
+	if len(admission.InsertedScopeIDs) != 2 || admission.InsertedScopeIDs[0] != items[0].ScopeID || admission.InsertedScopeIDs[1] != items[1].ScopeID {
+		t.Fatalf("InsertedScopeIDs = %v, want the two accepted scopes in order (#10149)", admission.InsertedScopeIDs)
+	}
 
 	var eligibilityQueries int
 	for _, query := range db.queries {
@@ -367,15 +384,15 @@ func TestWorkflowControlStoreGuardedRunComputesEligibleTargetsInOneQuery(t *test
 	if got, want := eligibilityQueries, 1; got != want {
 		t.Fatalf("eligibility query count = %d, want %d; queries = %#v", got, want, db.queries)
 	}
-	if got, want := len(db.queries), 3; got != want {
-		t.Fatalf("query count = %d, want terminal-run + set eligibility + post-commit statistics gate", got)
+	if got, want := len(db.queries), 4; got != want {
+		t.Fatalf("query count = %d, want terminal-run + set eligibility + batch insert RETURNING + post-commit statistics gate", got)
 	}
 	// The statistics gate (#9871) runs after the commit, never inside the
 	// advisory-locked transaction: it is a catalog read, not a third
 	// eligibility read, and an ANALYZE failure there must not abort the
 	// admission.
-	if gate := db.queries[2].query; !strings.Contains(gate, "pg_stat_all_tables") {
-		t.Fatalf("third query = %q, want the post-commit statistics gate on pg_stat_all_tables", gate)
+	if gate := db.queries[3].query; !strings.Contains(gate, "pg_stat_all_tables") {
+		t.Fatalf("fourth query = %q, want the post-commit statistics gate on pg_stat_all_tables", gate)
 	}
 }
 
@@ -387,6 +404,8 @@ func TestWorkflowControlStoreGuardedRunLocksCollectorInstanceOnceForTargetBatch(
 			queryResponses: []queueFakeRows{
 				{rows: [][]any{{false}}},
 				{rows: [][]any{{0}, {1}}},
+				// The batch insert returns both accepted scopes (#10149).
+				{rows: [][]any{{"aws:123456789012:us-east-1:lambda"}, {"aws:123456789012:us-east-1:s3"}}},
 				// The post-commit statistics gate (#9871) sees a warm table
 				// and stays silent, so the lock count below is unaffected.
 				{rows: [][]any{{true, false}}},

@@ -196,7 +196,22 @@ func (s Service) createWorkflowWork(
 	for _, item := range replanItems(authorizedItems) {
 		authorizedReplanScopes[item.ScopeID] = struct{}{}
 	}
-	return workAdmission{inserted: admission.InsertedWorkItems, advance: result, authorizedReplanScopes: authorizedReplanScopes}, nil
+	// The replan commit joins its survivors to the inserted set alongside
+	// the authorized set (eshu-hq/eshu#10149): a scope the open-target
+	// guard or the insert dropped stays pending instead of committing as
+	// drained. The (int, error) wrapper below keeps returning
+	// admitted.inserted, so the satellite callers are untouched.
+	var insertedReplanScopes map[string]struct{}
+	for _, scopeID := range admission.InsertedScopeIDs {
+		if !strings.Contains(scopeID, "/_replan/") {
+			continue
+		}
+		if insertedReplanScopes == nil {
+			insertedReplanScopes = make(map[string]struct{})
+		}
+		insertedReplanScopes[scopeID] = struct{}{}
+	}
+	return workAdmission{inserted: admission.InsertedWorkItems, advance: result, authorizedReplanScopes: authorizedReplanScopes, insertedReplanScopes: insertedReplanScopes}, nil
 }
 
 // logScanIntervalOverrides records, once at startup before the first
