@@ -516,9 +516,10 @@ gates:
       # #10139: the generated OUTPUT directories. The generator writes
       # config.go, main.go, and service.go into each manifest command_dir, so a
       # hand edit to only one of them must select this gate. One entry per
-      # manifest collector; TestCollectorEntrypointsGate_SelectedByEveryGeneratedFile
-      # derives the output set from the manifest and fails when an entry is
-      # missing. Not a go/cmd/collector-* glob: the other collector-* command
+      # manifest collector. `ci-gates validate` derives the output set from the
+      # manifest and the generator and fails when an entry is missing, and the
+      # manifest is a trigger of ci-gate-registry, so adding a collector fails
+      # locally. Not a go/cmd/collector-* glob: the other collector-* command
       # directories are hand-written and not generator outputs.
       - "go/cmd/collector-pagerduty/**"
     # #9621: the machine-readable file classes whose changes can alter the

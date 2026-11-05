@@ -88,8 +88,10 @@ func TestCheckGeneratorOutputCoverage_SecondCollectorWithoutTriggerFails(t *test
 	}
 	for _, err := range errs {
 		msg := err.Error()
-		if !strings.Contains(msg, "go/cmd/collector-zzprobe/") || strings.Contains(msg, "collector-pagerduty") {
-			t.Errorf("error %q must name only the uncovered collector-zzprobe output", msg)
+		// The trigger list in the message legitimately names pagerduty's
+		// directory, so assert on the reported output path, not the whole text.
+		if !strings.Contains(msg, `output "go/cmd/collector-zzprobe/`) || strings.Contains(msg, `output "go/cmd/collector-pagerduty/`) {
+			t.Errorf("error %q must report only an uncovered collector-zzprobe output", msg)
 		}
 		if !strings.Contains(msg, "collector-entrypoints-generated") {
 			t.Errorf("error %q must name the gate", msg)

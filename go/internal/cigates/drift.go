@@ -158,6 +158,13 @@ var matrixVariableRE = regexp.MustCompile(`\$\{\{\s*matrix\.([A-Za-z0-9_]+)\s*\}
 //     fails in CI — the #9588 shape. See checkGeneratorInputCoverage
 //     (generatorinputs.go) for the covered gates and the recorded
 //     not-yet-covered ones with their reasons.
+//
+//  15. Generator output -> own trigger coverage (#10139): every file the
+//     collector entrypoints generator writes (command_dir/config.go, main.go,
+//     service.go for each manifest collector) must be selected by a trigger of
+//     collector-entrypoints-generated. The output set is derived from the
+//     manifest and the generator, so adding a collector fails here until a
+//     trigger covers it. See checkGeneratorOutputCoverage (generatoroutputs.go).
 func DriftCheck(repoRoot string, reg *Registry) []error {
 	var errs []error
 
@@ -183,6 +190,7 @@ func DriftCheck(repoRoot string, reg *Registry) []error {
 	errs = append(errs, checkJobOwnership(repoRoot, reg)...)
 	errs = append(errs, checkOwnerRowTriggers(repoRoot, reg)...)
 	errs = append(errs, checkGeneratorInputCoverageForDrift(repoRoot, reg)...)
+	errs = append(errs, checkGeneratorOutputCoverage(repoRoot, reg)...)
 
 	return errs
 }
