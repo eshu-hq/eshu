@@ -1,0 +1,45 @@
+docs/internal/evidence/9991-manifest-read-delta-union.md
+  s_7547c0f0af67d4::t_7662d550a43fc6 25-26
+go/internal/storage/postgres/delta_overlay_query.go
+  s_7547c0f0af67d4::t_63fb6b9de7467f 18-24,33,39,45-46,120-125,130-138
+go/internal/storage/postgres/delta_overlay_query_test.go
+  s_7547c0f0af67d4::t_5274cecf04782b 32-35,48,52-53,70-73,81,136-137,181-218
+go/internal/storage/postgres/facts_active_package_manifest_dependency.go
+  s_7547c0f0af67d4::t_6ee9882778a23c 129-130
+go/internal/storage/postgres/gotchas-and-invariants.md
+  s_7547c0f0af67d4::t_31bf0bfeace6f7 152-153,169-171
+go/internal/storage/postgres/manifest_dependency_read_plan.go
+  s_7547c0f0af67d4::t_e6ed9db586c139 87-88
+go/internal/storage/postgres/manifest_dependency_read_shape_test.go
+  s_7547c0f0af67d4::t_341d57190e817f 88
+go/internal/storage/postgres/active_package_manifest_dependency_delta_test.go
+  s_d587d5847f5b26::t_aab70bcbaa6a10 75-76,133,153-154,207,287
+go/internal/storage/postgres/delta_overlay.go
+  s_d587d5847f5b26::t_fb0d2bda3d4c94 9,63-64,66-69,173,179-180,188,246-252,254-255,257-258,260-261,286-287,290-292
+go/internal/storage/postgres/delta_overlay_test.go
+  s_d587d5847f5b26::t_87ab2bbda6e086 9,27,54,60-62,107-110,158-183
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5c9cac78008c3410ac1d72efc0956b10cf38f152",
+  "prompts": {},
+  "sessions": {
+    "s_7547c0f0af67d4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7c8b2d5-3286-4c2a-be1f-589162535d83",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_d587d5847f5b26": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-adfa6233c04752f07",
+        "model": "unknown"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
