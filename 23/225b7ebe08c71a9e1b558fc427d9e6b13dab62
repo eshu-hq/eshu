@@ -1,0 +1,18 @@
+scripts/lib/live_postgres_readiness_gen_render.py
+  h_78a442cba0b3e6 124
+scripts/lib/live_postgres_readiness_inventory_gen_internal_storage_postgres_part3.py
+  h_78a442cba0b3e6 1-235
+scripts/lib/live_postgres_readiness_inventory_generated.py
+  h_78a442cba0b3e6 23-27,74
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "23225b7ebe08c71a9e1b558fc427d9e6b13dab62",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
