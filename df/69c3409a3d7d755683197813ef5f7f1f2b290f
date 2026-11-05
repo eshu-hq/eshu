@@ -1,0 +1,14 @@
+go/internal/storage/postgres/facts_active_crossplane_xrd.go
+  h_78a442cba0b3e6 117-119
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "df69c3409a3d7d755683197813ef5f7f1f2b290f",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
