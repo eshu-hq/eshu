@@ -30,7 +30,9 @@ type FileScopeBuildResult struct {
 	// ScopesByRepoID maps repository ID to the DeltaFileScope that bounds the
 	// files it should be projected against, merging delta-generation scopes
 	// with full-refresh scopes (delta wins on conflict). A repository absent
-	// from this map has no file scope and must be treated as whole-repository.
+	// from this map has no file scope and must be treated as whole-repository,
+	// unless it is listed in UnusableDeltaScopes, which must fail closed
+	// (#10023) and never receive a whole-repository refresh.
 	ScopesByRepoID map[string]DeltaFileScope
 	// FullRefreshScopedRepos counts repositories that built a full-refresh
 	// file scope (no delta scope, but a set of file facts bounded enough to
