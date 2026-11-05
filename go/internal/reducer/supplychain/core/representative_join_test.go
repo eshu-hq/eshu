@@ -185,6 +185,74 @@ func repJoinAuthority(source string) AdvisoryAuthorityDependency {
 	}
 }
 
+// repJoinVendorFixFact is the host vendor's fact with a fix above the installed
+// version, spelled with the given ecosystem.
+func repJoinVendorFixFact(ecosystem string) facts.Envelope {
+	payload := map[string]any{
+		"cve_id": vendorLineCVE, "advisory_id": "USN-9990-1", "source": "ubuntu",
+		"package_id": repJoinPackageID, "package_name": "curl", "purl": repJoinPURL,
+		"fixed_versions": []any{"1.0-5"},
+	}
+	if ecosystem != "" {
+		payload["ecosystem"] = ecosystem
+	}
+	return facts.Envelope{FactID: "affected-own", FactKind: chain.VulnerabilityAffectedPackageFactKind, Payload: payload}
+}
+
+// assertRepJoinVendorVerdict wants the verdict the host vendor's fact earns: its fix
+// is above the host, so the host is not known-fixed.
+func assertRepJoinVendorVerdict(t *testing.T, findings []SupplyChainImpactFinding) {
+	t.Helper()
+	if len(findings) != 1 {
+		t.Fatalf("findings = %d, want 1: %#v", len(findings), findings)
+	}
+	got := findings[0]
+	if got.Status != SupplyChainImpactPossiblyAffected || got.MatchReason != supplyChainVersionReasonNoAffectedMatch {
+		t.Fatalf("verdict = %s/%s, want the vendor's %s/%s", got.Status, got.MatchReason, SupplyChainImpactPossiblyAffected, supplyChainVersionReasonNoAffectedMatch)
+	}
+	if got.FixedVersion != "1.0-5" {
+		t.Fatalf("fixed version = %q, want the vendor's 1.0-5", got.FixedVersion)
+	}
+}
+
+// TestReselectedGroupIsDecidedByTheFactsThatJoin pins that a fact that cannot join
+// the installed row decides nothing on a reselected finding (#9990). The vendor's fix
+// is above the host and another source's is below it, and that other source must not
+// make the host read known-fixed, on either path and in any fact order.
+func TestReselectedGroupIsDecidedByTheFactsThatJoin(t *testing.T) {
+	t.Parallel()
+	for _, ecosystem := range []string{"", "deb", "dpkg", "ubuntu", "os"} {
+		for _, source := range []string{"nvd", "debian", "osv"} {
+			t.Run(fmt.Sprintf("ecosystem=%q/other=%q", ecosystem, source), func(t *testing.T) {
+				t.Parallel()
+				cve := vulnerabilityCVEFact("cve-9990", vendorLineCVE, 7.5)
+				own := repJoinVendorFixFact(ecosystem)
+				other := repJoinOtherFact("affected-other", source, ecosystem)
+				host := ubuntuCurl("22.04", repJoinVersion).envelope()
+				t.Run("fleet", func(t *testing.T) {
+					for _, order := range repJoinPermutations([]facts.Envelope{cve, own, other, host}) {
+						assertRepJoinVendorVerdict(t, BuildSupplyChainImpactFindings(order))
+					}
+				})
+				t.Run("authorized", func(t *testing.T) {
+					scopedCVE := vulnerabilityCVEFact("cve-9990", vendorLineCVE, 7.5)
+					scopedCVE.Payload["source"], scopedCVE.Payload["advisory_id"] = "ubuntu", "USN-9990-1"
+					authority := []AdvisoryAuthorityDependency{repJoinAuthority("ubuntu"), repJoinAuthority(source)}
+					scoped := []facts.Envelope{repJoinAdvisory(scopedCVE, "ubuntu"), repJoinAdvisory(own, "ubuntu"), repJoinAdvisory(other, source)}
+					for _, order := range repJoinPermutations(scoped) {
+						target := authorizedOSVTarget(0, order, authority, ubuntuCurl("22.04", repJoinVersion))
+						got, err := BuildAuthorizedScanImpactFindings(nil, []AuthorizedScanImpactEvidence{target})
+						if err != nil {
+							t.Fatalf("BuildAuthorizedScanImpactFindings: %v", err)
+						}
+						assertRepJoinVendorVerdict(t, got)
+					}
+				})
+			})
+		}
+	}
+}
+
 // TestAuthorizedScanRepresentativeJoinsTheInstalledRow is the same case on the
 // authorized per-target path. A blank source has no trusted class, so the
 // boundary refuses it with an error before any selection: it is not silent.
