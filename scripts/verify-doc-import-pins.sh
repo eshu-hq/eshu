@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 # verify-doc-import-pins.sh - fail when a document-import tesseract pin file
 # is malformed (#10205 P2: PR builds prove only the amd64 digest, so a static
-# guard must fail fast on a corrupted arm64 pin file).
+# guard must fail fast on a malformed arm64 pin file). Scope is structure
+# only: digest correctness is proven by the main/tag dual-arch image build,
+# which checksums both files; this guard proves both files are well-formed
+# portable records before that build runs.
 #
 # What it checks, for tesseract-5.5.0.<arch>.sha256 in the pin directory:
 #   1. Both arch files (amd64, arm64) exist and are readable.
@@ -49,7 +52,7 @@ while (($# > 0)); do
   esac
 done
 
-[[ -d "${pins_dir}" ]] || die "pin directory '${pins_dir}' is not readable" 2
+[[ -d "${pins_dir}" ]] || die "pin directory '${pins_dir}' is not a directory" 2
 
 for arch in amd64 arm64; do
   pin="${pins_dir}/tesseract-5.5.0.${arch}.sha256"

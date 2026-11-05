@@ -132,6 +132,9 @@ done
 # #9491: the scanner digest pin verifier, its suite, and the relocated pin
 # leaf (#8878) select the scannerpins lane, while unrelated paths leave it
 # off.
+# #10205 P2 follow-up: the doc-import pin guard (well-formedness verifier
+# plus self-test) selects the apkfloors lane, like the apk-floors scripts
+# above; the scanner-pins block below covers a different verifier.
 for pins_path in scripts/verify-doc-import-pins.sh scripts/test-verify-doc-import-pins.sh; do
   guard_base="$(git -C "${repo}" rev-parse HEAD)"
   mkdir -p "${repo}/scripts"

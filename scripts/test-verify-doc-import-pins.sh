@@ -2,15 +2,16 @@
 # test-verify-doc-import-pins.sh - hermetic tests for
 # scripts/verify-doc-import-pins.sh (#10205 P2: the arm64 pin file gets no
 # build proof on PRs, so a static well-formedness guard must fail fast on a
-# corrupted pin file). No network, no Docker: fixtures are tmp copies of the
-# real pin files with planted corruption.
+# malformed pin file). Scope is structure only; digest correctness is proven
+# by the main/tag dual-arch image build. No network, no Docker: fixtures are
+# tmp copies of the real pin files with planted malformations.
 #
 # Seeded RED/GREEN pair:
 #   GREEN the real specs/doc-import-pins/ directory: exit 0.
 #   RED   a one-character hex typo, a dropped line, or a garbage line in
 #         either arch file: exit 1 naming the file.
-# Fail-closed: a missing arch file, an empty pin directory, or an unreadable
-# file exits 2, never 0.
+# Fail-closed: a missing arch file or an empty pin directory exits 2,
+# never 0.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
