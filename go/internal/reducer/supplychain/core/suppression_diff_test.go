@@ -212,7 +212,7 @@ func TestSelectSuppressionDiffBaseline(t *testing.T) {
 			want:       suppressionDiffBaseline{Kind: suppressionBaselineNone},
 		},
 		{
-			name:    "activation tie falls to ingested time, then generation id",
+			name:    "ingest tie falls to generation id",
 			current: "c",
 			candidates: []suppressionGeneration{
 				{GenerationID: "x", Status: "superseded", ActivatedAt: at(2), IngestedAt: at(1), Admitted: true},
@@ -221,6 +221,39 @@ func TestSelectSuppressionDiffBaseline(t *testing.T) {
 				gen("c", 3, false),
 			},
 			want: suppressionDiffBaseline{GenerationID: "z", Kind: suppressionBaselineAdmitted},
+		},
+		{
+			// The sweep, the guard and the projector order generations by
+			// (ingested_at, generation_id). b was ingested before c but its Ack
+			// landed after c's, so activated_at order puts it on the wrong side.
+			name:    "older means ingest order, not activation order",
+			current: "c",
+			candidates: []suppressionGeneration{
+				gen("a", 1, true),
+				{GenerationID: "b", Status: "superseded", IngestedAt: at(2), ActivatedAt: at(5), Admitted: true},
+				{GenerationID: "c", Status: "active", IngestedAt: at(3), ActivatedAt: at(4)},
+			},
+			want: suppressionDiffBaseline{GenerationID: "b", Kind: suppressionBaselineAdmitted},
+		},
+		{
+			name:    "a generation ingested after the current one is never its baseline, whatever its activation time",
+			current: "c",
+			candidates: []suppressionGeneration{
+				gen("a", 1, true),
+				{GenerationID: "c", Status: "superseded", IngestedAt: at(3), ActivatedAt: at(6)},
+				{GenerationID: "d", Status: "active", IngestedAt: at(4), ActivatedAt: at(5), Admitted: true},
+			},
+			want: suppressionDiffBaseline{GenerationID: "a", Kind: suppressionBaselineAdmitted},
+		},
+		{
+			name:    "oldest retained follows ingest order too",
+			current: "c",
+			candidates: []suppressionGeneration{
+				{GenerationID: "a", Status: "superseded", IngestedAt: at(1), ActivatedAt: at(9)},
+				{GenerationID: "b", Status: "superseded", IngestedAt: at(2), ActivatedAt: at(3)},
+				{GenerationID: "c", Status: "active", IngestedAt: at(4), ActivatedAt: at(5)},
+			},
+			want: suppressionDiffBaseline{GenerationID: "a", Kind: suppressionBaselineOldestRetained},
 		},
 	}
 	for _, tc := range tests {

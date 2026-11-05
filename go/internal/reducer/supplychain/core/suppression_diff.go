@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // This file holds the pure decisions of the suppression fan-out designed in
@@ -69,8 +70,11 @@ const (
 	// suppressionDiffSkipNeverActivated is a generation that failed or was
 	// superseded while pending. No reader ever saw it, so it changed nothing.
 	suppressionDiffSkipNeverActivated suppressionDiffAction = "skipped_never_activated"
-	// suppressionDiffDeferUnactivated is a pass that won the claim before its
-	// generation activated. Fanning out now would have holders read the old set.
+	// suppressionDiffDeferUnactivated is the writer's fail-closed answer when it
+	// reads its generation as pending: fanning out now would have holders read the
+	// old set. It is an invariant check. The reducer runtime defers a pending
+	// generation before any handler runs, so reaching it means that guard was
+	// bypassed or is not wired. See failClosedError.
 	suppressionDiffDeferUnactivated suppressionDiffAction = "deferred_unactivated"
 	// suppressionDiffRun runs the diff.
 	suppressionDiffRun suppressionDiffAction = "ran"
@@ -135,6 +139,11 @@ func unionSuppressionFanOutCVEIDs(changed []string, rows []suppressionDiffRow) [
 // and never-activated generations never count, since no reader saw them. With no
 // admitted generation retained, the oldest retained one covers all that can
 // still be compared.
+//
+// "Older" and "newest" use the lifecycle order (ingested_at, generation_id), the
+// order the supersede sweep, the freshness guard and the projector use. A zero
+// ActivatedAt is only the predicate "a reader could have seen this generation":
+// activated_at is the Ack's clock and does not order generations.
 func selectSuppressionDiffBaseline(currentID string, candidates []suppressionGeneration) suppressionDiffBaseline {
 	current := slices.IndexFunc(candidates, func(g suppressionGeneration) bool {
 		return g.GenerationID == currentID
@@ -142,15 +151,12 @@ func selectSuppressionDiffBaseline(currentID string, candidates []suppressionGen
 	if current < 0 || candidates[current].ActivatedAt.IsZero() {
 		return suppressionDiffBaseline{Kind: suppressionBaselineNone}
 	}
-	currentActivatedAt := candidates[current].ActivatedAt
+	currentGeneration := candidates[current]
 
 	var admitted, oldest *suppressionGeneration
 	for i := range candidates {
 		candidate := &candidates[i]
-		if candidate.ActivatedAt.IsZero() || !candidate.ActivatedAt.Before(currentActivatedAt) {
-			continue
-		}
-		if candidate.Status != "active" && candidate.Status != "superseded" {
+		if !suppressionGenerationReadable(*candidate) || !suppressionGenerationNewer(currentGeneration, *candidate) {
 			continue
 		}
 		if oldest == nil || suppressionGenerationNewer(*oldest, *candidate) {
@@ -170,16 +176,36 @@ func selectSuppressionDiffBaseline(currentID string, candidates []suppressionGen
 	}
 }
 
-// suppressionGenerationNewer orders generations by activation, then ingestion,
-// then id, so the choice is deterministic across retries.
+// suppressionGenerationReadable reports whether a reader could have seen the
+// generation as the scope's active one: it was activated and ended active or
+// superseded. Failed and never-activated generations changed nothing.
+func suppressionGenerationReadable(g suppressionGeneration) bool {
+	return !g.ActivatedAt.IsZero() && (g.Status == "active" || g.Status == "superseded")
+}
+
+// suppressionGenerationNewer reports whether a sorts after b in the lifecycle
+// order (ingested_at, generation_id). The order is total, so every choice is
+// deterministic across retries.
 func suppressionGenerationNewer(a, b suppressionGeneration) bool {
-	if !a.ActivatedAt.Equal(b.ActivatedAt) {
-		return a.ActivatedAt.After(b.ActivatedAt)
-	}
 	if !a.IngestedAt.Equal(b.IngestedAt) {
 		return a.IngestedAt.After(b.IngestedAt)
 	}
 	return a.GenerationID > b.GenerationID
+}
+
+// failClosedError is the error the writer returns, after rolling back and before
+// it writes an admission row, when the pass must not proceed. Only
+// suppressionDiffDeferUnactivated fails closed. It returns the existing
+// reducercontract.GenerationNotYetActiveError: the durable queue retries it in
+// the non-counting class generation_activation_not_ready, with a frozen
+// attempt_count, until the projector's Ack activates the generation. No new
+// deferral class exists, and the #5709 producer-not-ready class is a different
+// wait (a consumer waiting on a producer scope) and is not reused.
+func (a suppressionDiffAction) failClosedError(scopeID, generationID string) error {
+	if a != suppressionDiffDeferUnactivated {
+		return nil
+	}
+	return reducercontract.GenerationNotYetActiveError{ScopeID: scopeID, GenerationID: generationID}
 }
 
 // decideSuppressionDiff decides whether a pass runs the suppression diff. A first
