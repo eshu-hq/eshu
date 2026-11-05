@@ -24,7 +24,14 @@
 # the index relies on HTTPS to the mirror; the .SIGN signature is not checked.
 #
 # Usage:
-#   scripts/verify-apk-floors.sh [--dockerfile PATH]
+#   scripts/verify-apk-floors.sh [--dockerfile PATH] [--stage NAME]
+#
+# --stage audits a named build stage (its base image and its apk tokens)
+# instead of the final stage. The document-import Job image
+# (Dockerfile target job-document-import, #9382) pins exact versions
+# (name=version, not name>=version): each pin must still be served by the
+# index, so a pin that left the repository fails instead of floating.
+# Without --stage the final stage is audited exactly as before.
 #
 # Environment:
 #   APK_FLOORS_MIRROR  Alpine mirror root (default https://dl-cdn.alpinelinux.org/alpine).
@@ -43,6 +50,7 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 dockerfile="${repo_root}/Dockerfile"
+stage=""
 mirror="${APK_FLOORS_MIRROR:-https://dl-cdn.alpinelinux.org/alpine}"
 arches="${APK_FLOORS_ARCHES:-x86_64 aarch64}"
 repos="${APK_FLOORS_REPOS:-main community}"
@@ -57,6 +65,11 @@ while (($# > 0)); do
 		--dockerfile)
 			(($# >= 2)) || die "--dockerfile needs a path"
 			dockerfile="$2"
+			shift 2
+			;;
+		--stage)
+			(($# >= 2)) || die "--stage needs a name"
+			stage="$2"
 			shift 2
 			;;
 		*)
@@ -74,11 +87,13 @@ done
 work="$(mktemp -d)"
 trap 'rm -rf "${work}"' EXIT
 
-# Final stage: the last FROM line and the logical lines (continuations joined)
-# after it. Prints "IMAGE <ref>" then one "RUN <text>" per RUN line.
-awk '
+# Audited stage: with --stage NAME that named stage, otherwise the last FROM
+# line (the final stage). Prints "IMAGE <ref>" then one "RUN <text>" per RUN
+# line of the selected stage. Exit 3 when no FROM line exists, exit 4 when
+# the named stage does not exist.
+awk -v want="${stage}" '
 	function flush() { if (line != "") { emit(line); line = "" } }
-	function emit(l,   u, n, f, i, img) {
+	function emit(l,   u, n, f, i, img, name) {
 		u = l; sub(/^[ \t]+/, "", u)
 		# Only global ARG defaults can select a FROM image. Stage-local ARGs
 		# must not change the default base used for the package-floor audit.
@@ -87,15 +102,25 @@ awk '
 			if (pos > 1) defaults[substr(arg, 1, pos - 1)] = substr(arg, pos + 1)
 		} else if (toupper(substr(u, 1, 5)) == "FROM " || toupper(substr(u, 1, 5)) == "FROM\t") {
 			seen_from = 1
-			n = split(u, f, /[ \t]+/); img = ""
-			for (i = 2; i <= n; i++) { if (f[i] !~ /^--/) { img = f[i]; break } }
+			n = split(u, f, /[ \t]+/); img = ""; name = ""
+			for (i = 2; i <= n; i++) {
+				if (f[i] ~ /^--/) continue
+				if (img == "") { img = f[i]; continue }
+				if (toupper(f[i]) == "AS" && i + 1 <= n) { name = f[i+1]; break }
+			}
 			if (img ~ /^\$\{[A-Za-z_][A-Za-z0-9_]*\}$/) {
 				key = substr(img, 3, length(img) - 3)
 				if (key in defaults) img = defaults[key]
 			}
-			image = img; nruns = 0
+			nstages++
+			stage_image[nstages] = img
+			stage_name[nstages] = name
+			cur = nstages
 		} else if (toupper(substr(u, 1, 4)) == "RUN " || toupper(substr(u, 1, 4)) == "RUN\t") {
-			runs[++nruns] = u
+			if (cur >= 1) {
+				nruns[cur]++
+				runs[cur, nruns[cur]] = u
+			}
 		}
 	}
 	/^[ \t]*#/ { next }
@@ -106,11 +131,24 @@ awk '
 	}
 	END {
 		flush()
-		if (image == "") exit 3
-		print "IMAGE " image
-		for (i = 1; i <= nruns; i++) print "RUN " runs[i]
+		if (cur < 1) exit 3
+		sel = cur
+		if (want != "") {
+			sel = 0
+			for (i = 1; i <= cur; i++) if (stage_name[i] == want) sel = i
+			if (sel == 0) exit 4
+		}
+		print "IMAGE " stage_image[sel]
+		for (i = 1; i <= nruns[sel]; i++) print "RUN " runs[sel, i]
 	}
-' "${dockerfile}" >"${work}/final-stage.txt" || die "no FROM line found in ${dockerfile}"
+' "${dockerfile}" >"${work}/final-stage.txt" || {
+	rc=$?
+	case "${rc}" in
+		3) die "no FROM line found in ${dockerfile}" ;;
+		4) die "no stage named '${stage}' in ${dockerfile}" ;;
+		*) die "cannot parse ${dockerfile}" ;;
+	esac
+}
 
 image="$(awk '$1 == "IMAGE" { print $2; exit }' "${work}/final-stage.txt")"
 if [[ ! "${image}" =~ ^alpine:([0-9]+\.[0-9]+)([@:].*)?$ ]]; then
@@ -118,7 +156,7 @@ if [[ ! "${image}" =~ ^alpine:([0-9]+\.[0-9]+)([@:].*)?$ ]]; then
 fi
 branch="v${BASH_REMATCH[1]}"
 
-# Floors: name>=version tokens on the final stage's `apk add` RUN lines.
+# Floors: name>=version tokens on the audited stage's `apk add` RUN lines.
 floor_re='^([A-Za-z0-9][A-Za-z0-9._+-]*)>=([0-9][A-Za-z0-9._-]*)$'
 : >"${work}/floors.txt"
 set -f
@@ -132,8 +170,28 @@ while IFS= read -r run_line; do
 	done
 done < <(awk '/^RUN / && /apk[ \t]+add/' "${work}/final-stage.txt")
 set +f
-[[ -s "${work}/floors.txt" ]] ||
-	die "no 'name>=version' floors found on an apk add line of the final stage; the guard would be vacuous"
+# Exact pins: name=version tokens (without >=) on the audited stage's
+# `apk add` RUN lines. Only the substring after `apk add` is scanned, so a
+# leading VAR=value environment assignment on the RUN line cannot
+# false-positive as a pin.
+pin_re='^([A-Za-z0-9][A-Za-z0-9._+-]*)=([0-9][A-Za-z0-9._-]*)$'
+tab="$(printf '\t')"
+: >"${work}/pins.txt"
+while IFS= read -r run_line; do
+	rest="${run_line#*apk add}"
+	rest="${rest#*apk${tab}add}"
+	set -f
+	for token in ${rest}; do
+		token="${token//\"/}"
+		token="${token//\'/}"
+		if [[ "${token}" =~ ${pin_re} ]]; then
+			printf '%s %s\n' "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" >>"${work}/pins.txt"
+		fi
+	done
+	set +f
+done < <(awk '/^RUN / && /apk[ \t]+add/' "${work}/final-stage.txt")
+[[ -s "${work}/floors.txt" || -s "${work}/pins.txt" ]] ||
+	die "no 'name>=version' floors or 'name=version' pins found on an apk add line of the audited stage; the guard would be vacuous"
 
 # version_parts VERSION -> "<dotted> <rev>"; empty when the shape is not
 # N(.N)*[-rN]. A missing revision counts as r0.
@@ -260,10 +318,33 @@ while read -r pkg floor; do
 	esac
 done <"${work}/floors.txt"
 
-((checked > 0)) || die "no floor was compared; refusing to pass"
+# An exact pin is served only when the index lists that precise version on
+# every built arch. A pin the repository no longer serves breaks the image
+# build, so it fails here with the same weight as a stale floor. A served
+# newer version beside the pin is intentional (digest stability) and is not
+# a failure.
+while read -r pkg pin; do
+	[[ -n "$(version_parts "${pin}")" ]] ||
+		die "pin '${pkg}=${pin}' is not of the form N(.N)*[-rN]"
+	for arch in ${arches}; do
+		versions="$(served_versions "${work}/served.${arch}" "${pkg}")"
+		[[ -n "${versions}" ]] ||
+			die "package '${pkg}' is not listed in ${branch} (${repos}) for ${arch}"
+		if grep -qFx "${pin}" <<<"${versions}"; then
+			printf 'ok   %s %s: pinned %s is served\n' "${arch}" "${pkg}" "${pin}"
+		else
+			stale=$((stale + 1))
+			printf 'FAIL %s %s: pinned %s left the %s repository (serves: %s)\n' \
+				"${arch}" "${pkg}" "${pin}" "${branch}" "$(tr '\n' ' ' <<<"${versions}")" >&2
+		fi
+		checked=$((checked + 1))
+	done
+done <"${work}/pins.txt"
+
+((checked > 0)) || die "no floor or pin was compared; refusing to pass"
 
 if ((stale > 0)); then
-	printf 'verify-apk-floors: %d floor(s) in %s are stale for %s; raise them to the served version\n' \
+	printf 'verify-apk-floors: %d floor(s)/pin(s) in %s are stale for %s; raise them to the served version\n' \
 		"${stale}" "${dockerfile}" "${branch}" >&2
 	exit 1
 fi

@@ -36,7 +36,18 @@
 # shellcheck disable=SC2034
 set -euo pipefail
 
-REQUIRED_TOOLS=(git ssh curl)
+# REQUIRED_TOOLS defaults to the runtime image's exec surface. ESHU_REQUIRED_TOOLS
+# overrides the list for another image rootfs (the document-import Job image,
+# #9382, ships tesseract and its caller binary instead of the shell tools):
+# space-separated, resolved under the same search dirs.
+if [[ -n "${ESHU_REQUIRED_TOOLS:-}" ]]; then
+	read -r -a REQUIRED_TOOLS <<<"${ESHU_REQUIRED_TOOLS}"
+	((${#REQUIRED_TOOLS[@]} > 0)) || usage_error "ESHU_REQUIRED_TOOLS names no tool"
+	image_label="image"
+else
+	REQUIRED_TOOLS=(git ssh curl)
+	image_label="runtime image"
+fi
 SEARCH_DIRS=(usr/bin bin usr/local/bin)
 MAX_LINK_HOPS=16
 
@@ -78,7 +89,7 @@ for tool in "${REQUIRED_TOOLS[@]}"; do
 done
 
 if ((${#missing[@]} > 0)); then
-	printf 'verify-runtime-image-tools: runtime image is missing: %s\n' "${missing[*]}" >&2
+	printf 'verify-runtime-image-tools: %s is missing: %s\n' "${image_label}" "${missing[*]}" >&2
 	exit 1
 fi
 printf 'verify-runtime-image-tools: all %d required tools present\n' "${#REQUIRED_TOOLS[@]}"

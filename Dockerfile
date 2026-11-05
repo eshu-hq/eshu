@@ -151,6 +151,83 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 
 CMD ["eshu-mock-github"]
 
+# doc-import-builder: builds the one-shot document-import caller
+# (go/cmd/collector-document-import; Event-A drain-once contract: list an
+# artifact directory, extract each file through document/ocr, commit each
+# generation, exit). Built in its own stage off `builder`, so /go-bin/ — and
+# therefore the production stage's `COPY --from=builder /go-bin/` below —
+# never contains it. Same "own stage off builder, own image, must stay
+# before Production stage" rules as mock-oidc-idp above.
+FROM builder AS doc-import-builder
+# Redeclare so a provided epoch reaches this stage's RUN too — ARGs do not
+# cross stage boundaries (see mock-oidc-builder above). ESHU_VERSION is
+# redeclared as well: it is scoped to the builder stage, and without this
+# the binary's --version stamp would be empty.
+ARG SOURCE_DATE_EPOCH
+ARG ESHU_VERSION=dev
+RUN cd go \
+    && export CGO_ENABLED=1 \
+    && export GOFLAGS="-buildvcs=false" \
+    && LDFLAGS="-s -w -buildid= -extldflags '-static' -X github.com/eshu-hq/eshu/go/internal/buildinfo.Version=${ESHU_VERSION}" \
+    && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /doc-import-bin/eshu-collector-document-import ./cmd/collector-document-import
+
+# job-document-import: Event-A one-shot document-import Job image (#9382,
+# drive #8879). Ships ONLY eshu-collector-document-import plus the pinned
+# tesseract 5.5.0 engine: the 15 shared objects ldd lists for the binary
+# and eng.traineddata. The product `runtime` image below never contains any
+# of them. This stage MUST stay before "Production stage" (same rule as the
+# mocks above): plain `docker build .` resolves to the last stage in this
+# file, which stays `runtime`. Reached only via an explicit
+# `--target job-document-import`.
+FROM ${ESHU_ALPINE_IMAGE} AS job-document-import
+ARG TARGETARCH
+# Exact apk pins (fail-closed: a version that leaves the Alpine 3.21 index
+# fails the build instead of floating). Same 16 packages as the OCR sandbox
+# proof (scripts/ocr-sandbox/Dockerfile): tesseract 5.5.0, the packages
+# owning its 15 runtime objects, and the eng model.
+# scripts/verify-apk-floors.sh --stage job-document-import audits these pins
+# against the served Alpine index.
+# libssl3/libcrypto3 are base-image preinstalls (apk-tools, ssl_client), not
+# tesseract link dependencies, so they float outside the exact pins below.
+# The floors upgrade them past CVE-2026-45447 (PKCS7_verify use-after-free)
+# and CVE-2026-75804/CVE-2026-84782 — the same floors the production stage
+# carries. Neither library is in tesseract's ldd set, so this upgrade never
+# disturbs the pin files.
+RUN apk add --no-cache \
+        "tesseract-ocr=5.5.0-r0" "tesseract-ocr-data-eng=5.5.0-r0" \
+        "leptonica=1.84.1-r0" "libwebp=1.4.0-r0" "libwebpmux=1.4.0-r0" \
+        "libsharpyuv=1.4.0-r0" "musl=1.2.5-r12" "libgcc=14.2.0-r4" \
+        "libgomp=14.2.0-r4" "libstdc++=14.2.0-r4" "giflib=5.2.2-r2" \
+        "libjpeg-turbo=3.0.4-r0" "libpng=1.6.59-r0" "tiff=4.7.2-r0" \
+        "zlib=1.3.2-r1" "zstd-libs=1.5.6-r2" \
+        "libssl3>=3.3.7-r2" "libcrypto3>=3.3.7-r2"
+COPY --from=doc-import-builder /doc-import-bin/ /usr/local/bin/
+# Build-time pin enforcement (the 9728-ocr-engine-backend.md §6 "Pins in the
+# product image" residual): the per-arch checksums are the single source for
+# the ESHU_DOC_IMPORT_TESSERACT_* values (specs/doc-import-pins/README.md).
+# Verified here, then removed: the shipped image carries the pinned files,
+# not the checksum list. BusyBox sha256sum -c takes only portable
+# digest-double-space-path lines, which is all the pin files contain.
+COPY specs/doc-import-pins/ /doc-import-pins/
+RUN sha256sum -c "/doc-import-pins/tesseract-5.5.0.${TARGETARCH}.sha256" \
+    && rm -rf /doc-import-pins
+
+# Create the runtime user and a writable home. Mirrors the production stage
+# below; the engine runs scratch work under HOME at operator direction.
+RUN adduser -D -u 10001 doc-import \
+    && mkdir -p /data \
+    && chown -R doc-import:doc-import /data
+
+ENV HOME=/data
+
+WORKDIR /data
+USER doc-import
+
+# One-shot: drain the artifact directory, then exit. With no enable flag the
+# binary exits 0 with zero commits. No listener, no EXPOSE, no HEALTHCHECK:
+# there is no steady-state port to probe on a run-to-completion Job.
+CMD ["eshu-collector-document-import"]
+
 
 # Production stage. MUST remain the last stage in this file — see the
 # mock-oidc-idp comment above. It is named `runtime` because

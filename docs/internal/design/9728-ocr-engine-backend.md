@@ -244,7 +244,9 @@ QA-tier caller is still the open residual.
   the 15 libraries, and the model), so "pinned in the image" is enforced by
   the build and not only by the proof script. The engine's `Config` pins
   must come from a checked-in per-architecture pin file, not free-form
-  environment.
+  environment. Resolved for OCR by the `job-document-import` Dockerfile
+  target (#9382): per-arch checksums in `specs/doc-import-pins/`, verified
+  at build time and removed before ship.
 - Mixed architectures: binary and library digests differ per architecture,
   so `ocr_engine_version` differs between an arm64 and an amd64 worker for
   the same release. A caller running mixed nodes sees version churn in
