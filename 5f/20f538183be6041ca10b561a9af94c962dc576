@@ -1,0 +1,74 @@
+docs/internal/evidence/10094-crossplane-redrive-delta-base.md
+  s_7547c0f0af67d4::t_1c4b0b7f32d0e0 1-235
+  s_7547c0f0af67d4::t_a9bda21f97be94 236-240
+go/internal/storage/postgres/crossplane/sweep_delta_base_test.go
+  s_7547c0f0af67d4::t_6b8be96173f09a 1-194
+  s_7547c0f0af67d4::t_dd3b5bdf540bfc 195-196
+go/internal/storage/postgres/crossplane/satisfied_by_redrive_delta_base_live_test.go
+  s_7547c0f0af67d4::t_63badb3617d011 1-368
+  s_7547c0f0af67d4::t_668ffa317b6306 369
+go/internal/storage/postgres/crossplane/sweep_delta_base.go
+  s_7547c0f0af67d4::t_58fbc526d0d9e9 1-205
+docs/public/observability/telemetry-coverage-reducer-domains.md
+  s_7547c0f0af67d4::t_a4fd2de8cbe21e 41-42,44
+docs/public/operate/graph-delta-union.md
+  s_7547c0f0af67d4::t_da3fc90ecd2c6e 138-158
+go/cmd/projector/crossplane_redrive_catchup_test.go
+  s_7547c0f0af67d4::t_d8cfdb321e0c99 14,191-202
+go/cmd/projector/runtime_wiring.go
+  s_7547c0f0af67d4::t_8a8da8eb97a297 56-61
+go/internal/storage/postgres/crossplane/AGENTS.md
+  s_7547c0f0af67d4::t_1d43d0ce15d78c 21-23,25-39,109,135-139
+go/internal/storage/postgres/crossplane/README.md
+  s_7547c0f0af67d4::t_e66bcd54d16092 36-41,53-55,70-71,82-83,144-182,218-228,256-262,281-288
+go/internal/storage/postgres/crossplane/doc.go
+  s_7547c0f0af67d4::t_de9968162ed03d 17-22
+go/internal/storage/postgres/crossplane/ledger.go
+  s_7547c0f0af67d4::t_0f6b5cab55453b 17
+go/internal/storage/postgres/crossplane/query.go
+  s_7547c0f0af67d4::t_2f963874a092df 21,24-44,48-52,54-55,80-82,86-97,101-104,111,115-119
+go/internal/storage/postgres/crossplane/query_plan_delta_base_helpers_test.go
+  s_7547c0f0af67d4::t_4aee96ea0b8f3e 1-223
+go/internal/storage/postgres/crossplane/query_plan_live_test.go
+  s_7547c0f0af67d4::t_b6f41f4b75d4c6 159,206-208,300
+go/internal/storage/postgres/crossplane/sweep.go
+  s_7547c0f0af67d4::t_dd98a941387468 67-69,72-76,125-128,244-249,271,275-277,299,304-307,310,312,315-319,323-324,327-328,330
+go/internal/storage/postgres/crossplane/sweep_batch.go
+  s_7547c0f0af67d4::t_c861a1272a88aa 64-67,79-80,98
+go/internal/storage/postgres/satisfied_by_redrive_base_leg.go
+  s_7547c0f0af67d4::t_f3f5a29d70175d 1-62
+go/internal/storage/postgres/satisfied_by_redrive_base_leg_live_test.go
+  s_7547c0f0af67d4::t_cce20304c0fd28 1-158
+go/internal/storage/postgres/satisfied_by_redrive_base_leg_test.go
+  s_7547c0f0af67d4::t_7a0cc7a576fa76 1-101
+go/internal/telemetry/contract.go
+  s_7547c0f0af67d4::t_c09d1de28f431b 979-982
+go/internal/telemetry/instruments.go
+  s_7547c0f0af67d4::t_6aae1230df6df9 903-905,908-910,4699,4707
+scripts/lib/live_postgres_readiness_inventory_gen_internal_storage_postgres_part2.py
+  s_7547c0f0af67d4::t_d7956f76dc011d 337-339
+scripts/lib/postgres_scheduled_inventory.d/crossplane.json
+  s_7547c0f0af67d4::t_fc874c1cd0d8e6 33-39
+specs/ci-pr-workflows.d/postgres-scheduled-live.yml
+  s_7547c0f0af67d4::t_92e2d6207bb31b 73
+specs/live-tests.d/live-tests-05.yaml
+  s_7547c0f0af67d4::t_dac9d44b9dd646 95-99
+specs/live-tests.d/live-tests-readiness-part4.generated.yaml
+  s_7547c0f0af67d4::t_91c7f524e097da 227-231
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5f20f538183be6041ca10b561a9af94c962dc576",
+  "prompts": {},
+  "sessions": {
+    "s_7547c0f0af67d4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7c8b2d5-3286-4c2a-be1f-589162535d83",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
