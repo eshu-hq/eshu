@@ -1,9 +1,8 @@
 # Cutover acceptance case — eshu#8877 (DRAFT, Leaf 8)
 
-Status: DRAFT. Verdict belongs to the gate owner. Two boxes are
-placeholders pending Leaf 6 (oldest/newest record) and Leaf 7
-(rollback rehearsal). Do not cite this file as acceptance until
-those land and the draft flag is removed.
+Status: assembled for the gate owner's verdict. Leaf 6 (pairs record)
+and Leaf 7 (rollback rehearsal) evidence below; the verdict still
+belongs to the gate owner.
 
 Scope proven so far: zero-fact synthetic vehicle on the designated QA cluster only.
 Every live claim below is bounded by the window grant that expired
@@ -19,12 +18,12 @@ explicitly NOT PROVEN and need a future window.
 | 3 | Named implementation, public-contract, release, deployment owners; actual production target/config source | Met | #8877 owner confirmation; the extension-host repository; the designated QA cluster + deployment overlays |
 | 4 | Current packages, fact kinds, consumers, durable-state ownership, protocols, exact artifacts, migration stage, prerequisites | Met | PREP §§1–6, 8–10 |
 | 5 | Behavior + public-contract parity, representative + hostile, source identity/truth/redaction preserved | Met test-only | #10187 (9/9 emission + 9/9 source parity); #10152 |
-| 6 | Extracted deployed path preserves reducer/graph/API/MCP truth; unaffected surfaces identified | Partial (zero-fact scope) | Window flip: 9×60s idle claim cycles, zero facts/errors; freeze-1 18:25:54Z + freeze-2 18:26:33Z; census clean. Positive-fact truth NOT PROVEN — future window. |
-| 7 | Concurrent retry, duplicate delivery, ordering, cancellation, revoked authority, stale claims, partial/ambiguous failures, no lost facts | Partial | #10196 test-only mix (8 workers × 60, race clean). Live digest-bound proof PENDING — fresh window grant needed. |
-| 8 | Bounded resource use, no regression, health/readiness/freshness/metrics/traces/logs/status | Partial | #10090 observer backing; dark /healthz mode=dark v0.1.0 live; S1 at freeze base. Live bounds numbers PENDING — future window. |
-| 9 | Credential handling, artifact provenance, vuln response, oldest/newest core↔component pairs | PLACEHOLDER — Leaf 6 | Leaf 6 lane (doc-only degenerate 1×1 matrix per arbiter verdict) in flight; vuln side: per-arch Trivy scan in host release pipeline (Leaf 2 proof). |
+| 6 | Extracted deployed path preserves reducer/graph/API/MCP truth; unaffected surfaces identified | Partial (zero-fact scope) | Fresh window: 9 consecutive 60s idle claim cycles 23:31:42–23:39:42Z on the pinned vehicle digest, zero facts/errors, coordinator planned the vehicle instance; freezes 23:33:40Z + 23:33:55Z, 40/40 deployments ready, Synced/Healthy. Positive-fact truth NOT PROVEN — future window. |
+| 7 | Concurrent retry, duplicate delivery, ordering, cancellation, revoked authority, stale claims, partial/ambiguous failures, no lost facts | Partial | #10196 test-only mix (8 workers × 60, race clean). Live: 9 idle claim cycles with duplicate-plan skip (target_already_planned) and zero loss; revocation/staleness live halves need a positive-fact window. |
+| 8 | Bounded resource use, no regression, health/readiness/freshness/metrics/traces/logs/status | Partial | #10090 observer backing; dark /healthz mode=dark v0.1.0 live. Fresh window: worker 1/1 within the vehicle resource envelope, fleet steady, no restarts. Live bounds numbers beyond the zero-fact envelope PENDING — future window. |
+| 9 | Credential handling, artifact provenance, vuln response, oldest/newest core↔component pairs | Met for the single-major epoch | Leaf 6: degenerate 1×1 matrix (host v0.1.0 × core-major 1, both directions same cell) with re-derivation commands + verbatim expiry triggers, byte-compared across both repos (eshu #10202 + host #4, both merged); vuln side: per-arch Trivy scan in host release pipeline (Leaf 2 proof). Matrix auto-expires on second host tag, next major, host dependency, or pin bump. |
 | 10 | Independent build/release/deploy on public contracts, no core handles/shared-table shortcuts | Met | Host v0.1.0 released (SLSA+SBOM) + dark live on the designated QA cluster at the pinned digest (Leaf 2). |
-| 11 | Rollback rehearsal on exact deployed digest (PREP §8 verbatim, measured RTO); fence/revoke/replay, no dual authority, no lost facts | PLACEHOLDER — Leaf 7 | Nearest executed neighbor: return-to-dark #550 (merged bf92b10 + synced, window objects absent, fleet steady) — a return, not the §8 rehearsal. |
+| 11 | Rollback rehearsal on exact deployed digest (PREP §8 verbatim, measured RTO); fence/revoke/replay, no dual authority, no lost facts | Met (zero-fact scope) | Fresh window: pre-state recorded (fleet digest, sync revision, 40/40 ready); fence via revert merge, revoke via grant expiry, path deleted to first claim, restore = dark main; measured RTO 2m19s (revert-merge to verified dark 23:42:19Z, all window objects absent, Synced/Healthy, fleet steady, zero post-return vehicle lines). No dual authority (single enable at a time); no lost facts (zero-fact scope, census clean). |
 | 12 | Independent review, required local proof, stable exact-head CI; in-tree removal only after production acceptance | Process held per leaf; removal NOT STARTED | Per-leaf reviews + attest receipts on #8877; Leaf 9 terminal behind this verdict. |
 
 ## Explicitly not claimed
