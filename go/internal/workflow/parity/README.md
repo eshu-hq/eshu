@@ -71,11 +71,12 @@ Throughput numbers log per leg for the dark-deployment no-regression baseline.
   container (`--platform linux/amd64`, `--reap-interval=1h`) against a
   disposable Postgres; the in-tree leg ran on a second disposable Postgres.
 - Result: full `go test ./internal/workflow/parity/ -count=1` green on
-  three two-legged runs, no skips: twice at 10/10 on the pre-change tree
+  four two-legged runs, no skips: twice at 10/10 on the pre-change tree
   (8-scenario conformance slice, pin gap, pin-survives-reaper,
-  duplicate-admission gap, stale-writer fence, throughput), and once at
+  duplicate-admission gap, stale-writer fence, throughput), and twice at
   11/11 on the final tree including the new read/report live compat
-  (`TestReadReportPlaneLiveCompat`, all five routes round-tripped).
+  (`TestReadReportPlaneLiveCompat`, all five routes round-tripped;
+  6.872s wall at HEAD).
 - Residue: satellite tables 0/0/0/0/0 (claims/items/runs/progress/
   completeness) after the run. The first run left one
   `eshu_content_index_proof_*` disposable database behind despite its green
@@ -86,8 +87,8 @@ Throughput numbers log per leg for the dark-deployment no-regression baseline.
   satellite database stay with the coordinator under the standing grant
   preconditions). No shared-infra writes were made from this lane.
 - No-Regression Evidence: baseline full parity suite green twice at 10/10
-  pre-change (8.338s, 8.720s wall); after final tree green 11/11 (8.356s
-  wall) on the same legs. Backend: claim-plane image
+  pre-change (8.338s, 8.720s wall); after final tree green 11/11 twice
+  (8.356s, then 6.872s wall at HEAD `d8af2d27`) on the same legs. Backend: claim-plane image
   sha256:e1b564afa5f72167e3911aea7c881973c74bab123183c03d9d6af5a2d80e47a4
   (linux/amd64 emulated on arm64, `--reap-interval=1h`), Postgres 18.6 on
   disposable servers, Go 1.26.6. Input shape: identical seeded fixtures
