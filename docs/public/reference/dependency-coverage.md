@@ -432,7 +432,7 @@ failed govulncheck run emits no reachability fact, so its findings read
 standard library (module `stdlib`) produce no finding, because Eshu has no
 module evidence row for the toolchain. Regression tests:
 `go/internal/reducer/supplychain/core/go_reachability_real_shapes_test.go`,
-fed by recorded output in `testdata/govulncheck`.
+fed by recorded output in `go/internal/reducer/supplychain/core/testdata/govulncheck/xtext_v0_3_5_symbol_source.jsonl` (with the package, module, stdlib, and failed-run streams beside it).
 
 Performance Evidence: the Go parity path is reducer-local over the same fact
 envelope already loaded for supply-chain impact. It adds one per-envelope Go
