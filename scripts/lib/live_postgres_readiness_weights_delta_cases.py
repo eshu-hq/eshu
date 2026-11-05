@@ -11,6 +11,7 @@ throwaway git repositories, so they never depend on the live plan's size.
 
 from __future__ import annotations
 
+import io
 import json
 from pathlib import Path
 import re
@@ -98,6 +99,31 @@ class DeltaGateTest(unittest.TestCase):
         assert signal is not None
         self.assertIn("52 planned tests have no weight", signal)
         self.assertIn("not a merge gate", signal)
+
+
+class PoolSignalAnnotationTest(unittest.TestCase):
+    """The stale-pool warning must reach the Actions runner as a command."""
+
+    def emitted(self, environ: dict[str, str]) -> str:
+        """Return what a unittest run writes: progress dots, then the signal."""
+        stream = io.StringIO()
+        stream.write("..........")  # unittest prints dots with no newline
+        wt.emit_pool_signal("52 planned tests have no weight", environ, stream)
+        return stream.getvalue()
+
+    def test_the_annotation_starts_its_own_line_after_the_progress_dots(self) -> None:
+        # The runner reads a workflow command only at the start of a line, so a
+        # warning glued to the dots stays plain text in a green step.
+        lines = self.emitted({"GITHUB_ACTIONS": "true"}).splitlines()
+        commands = [line for line in lines if line.startswith("::warning title=")]
+        self.assertEqual(len(commands), 1, lines)
+        self.assertIn("readiness weights are stale", commands[0])
+
+    def test_outside_actions_the_signal_is_a_plain_note_on_its_own_line(self) -> None:
+        lines = self.emitted({}).splitlines()
+        self.assertEqual([line for line in lines if line.startswith("note: ")],
+                         ["note: 52 planned tests have no weight"], lines)
+        self.assertFalse(any("::warning" in line for line in lines), lines)
 
 
 def git(repo: Path, *args: str, env: dict[str, str] | None = None) -> str:

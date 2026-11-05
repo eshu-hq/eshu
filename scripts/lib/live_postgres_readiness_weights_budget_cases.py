@@ -194,9 +194,7 @@ class ActiveBudgetContractTest(unittest.TestCase):
         self.assertEqual(errors, [], f"measured against {base.how} {base.commit}")
         signal = wt.pool_signal(drift)
         if signal:
-            marker = "::warning title=readiness weights are stale::" if os.environ.get(
-                "GITHUB_ACTIONS") == "true" else "note: "
-            print(marker + signal, file=sys.stderr)
+            wt.emit_pool_signal(signal, os.environ, sys.stderr)
 
     def tail(self, prefix: str) -> list[str]:
         """Plant ``TAIL_COUNT`` runs in the last package, which v2 keeps contiguous."""

@@ -33,7 +33,7 @@ import json
 import math
 from pathlib import Path
 import re
-from typing import Mapping, TYPE_CHECKING
+from typing import Mapping, TextIO, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from live_postgres_readiness_v2 import WeightsV2
@@ -420,3 +420,16 @@ def pool_signal(drift: Drift) -> str | None:
     return (f"{count} planned tests have no weight (limit {MAX_DEFAULTED_TESTS}; staleness "
             f"signal, not a merge gate): schedule a standalone refit "
             f"(docs/public/reference/local-testing/live-postgres-readiness-shards.md)")
+
+
+def emit_pool_signal(signal: str, environ: Mapping[str, str], stream: TextIO) -> None:
+    """Write a stale-pool ``signal`` as a workflow annotation or a plain note.
+
+    unittest prints its progress dots to the same stream with no trailing
+    newline, and the Actions runner reads a workflow command only at the start
+    of a line. The leading newline keeps the annotation from being swallowed
+    by those dots and shown as plain text in a green step.
+    """
+    marker = ("::warning title=readiness weights are stale::"
+              if environ.get("GITHUB_ACTIONS") == "true" else "note: ")
+    print("\n" + marker + signal, file=stream)
