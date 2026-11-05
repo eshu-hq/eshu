@@ -160,8 +160,10 @@ func targetFor(
 
 // workItem mints one claimable item. The commit is part of the identity, so a
 // new commit is a new generation of the same scope. The open-target guard holds it
-// back only while the earlier item's run is not yet complete or failed, so a pending
-// item in a run that already failed does not block it.
+// back only while the earlier item's run is not yet complete or failed. One terminal
+// item sets its whole run failed while siblings stay claimable, and the guard stops
+// counting them as open, so a second item for such a scope is possible
+// (eshu-hq/eshu#10091).
 func workItem(
 	instance workflow.CollectorInstance,
 	target scannercomponent.GoReachabilityTarget,

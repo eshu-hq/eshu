@@ -49,9 +49,10 @@ results, and none holds a repository id or URL:
 
 - The commit is part of work-item identity, so a new commit is a new generation of
   the same scope. The open-target guard holds it back only while the earlier item's
-  run is not yet `complete` or `failed`. One terminal item fails its whole run, even
-  with siblings still pending, so a pending item in a failed run no longer blocks a
-  new item for its scope.
+  run is not yet `complete` or `failed`. This is not handled: one terminal item sets
+  the whole run `failed` while its siblings stay claimable, and the guard stops counting
+  them as open, so a later plan can add a second item for such a scope
+  (eshu-hq/eshu#10091).
 - The repository id and scope id are the only repository values in any identity.
   The clone URL lives only in `requested_scope_set`.
 - One unplannable repository skips with a reason. It never fails the page, or one
