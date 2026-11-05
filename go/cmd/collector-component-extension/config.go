@@ -381,13 +381,17 @@ func desiredInstance(candidate activationCandidate) workflow.DesiredCollectorIns
 // token provider from operator-supplied App credentials. All three variables
 // must be non-empty: the App ID, the App PEM private key (single-line
 // secret-environment bodies are re-wrapped at mint time by the provider), and
-// a JSON object mapping claimed scope IDs to the installation that serves
-// them. When any variable is empty the host keeps the static config path and
+// a JSON object mapping claimed scope IDs, or "github-owner:<host>/<owner>" keys
+// for derived scopes, to the installation that serves them. installationKey
+// resolves a derived claim to its owner key. When any variable is empty the host keeps the static config path and
 // returns a nil provider with no error. Malformed installations JSON, an empty
 // installation map, or blank scope/installation entries fail closed with a startup
 // error that names only the variable, never its value. PEM validity itself is proven
 // at mint time: an unusable key fails per claim as terminal auth_denied.
-func tokenProviderFromEnv(getenv func(string) string) (extensionhost.TokenProvider, error) {
+func tokenProviderFromEnv(
+	getenv func(string) string,
+	installationKey extensionhost.InstallationKeyResolver,
+) (extensionhost.TokenProvider, error) {
 	appID := strings.TrimSpace(getenv(envGitHubAppID))
 	privateKey := strings.TrimSpace(getenv(envGitHubAppPrivateKey))
 	rawInstallations := strings.TrimSpace(getenv(envGitHubAppInstallations))
@@ -399,9 +403,10 @@ func tokenProviderFromEnv(getenv func(string) string) (extensionhost.TokenProvid
 		return nil, fmt.Errorf("invalid %s: %w", envGitHubAppInstallations, err)
 	}
 	provider, err := extensionhost.NewAppTokenProvider(extensionhost.AppTokenProviderConfig{
-		AppID:         appID,
-		PrivateKey:    privateKey,
-		Installations: installations,
+		AppID:           appID,
+		PrivateKey:      privateKey,
+		Installations:   installations,
+		InstallationKey: installationKey,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("build github app token provider from %s: %w", envGitHubAppInstallations, err)

@@ -29,6 +29,7 @@ func TestVocabularyStringsArePinnedVerbatim(t *testing.T) {
 		AnalyzerVulnerabilityMatching: "vulnerability_matching",
 		AnalyzerCoverageReadiness:     "coverage_readiness",
 		AnalyzerSecurityPriority:      "security_priority",
+		AnalyzerGoReachability:        "go_reachability",
 	} {
 		if string(kind) != want {
 			t.Errorf("AnalyzerKind = %q, want pinned %q", string(kind), want)
@@ -85,6 +86,9 @@ func TestVocabularyStringsArePinnedVerbatim(t *testing.T) {
 	if IDOSRuntime != "eshu.scanner.osruntime" {
 		t.Errorf("IDOSRuntime = %q, want pinned %q", IDOSRuntime, "eshu.scanner.osruntime")
 	}
+	if IDGoReachability != "eshu.scanner.go-reachability" {
+		t.Errorf("IDGoReachability = %q, want pinned %q", IDGoReachability, "eshu.scanner.go-reachability")
+	}
 	if Version != "0.1.0" {
 		t.Errorf("Version = %q, want pinned %q", Version, "0.1.0")
 	}
@@ -108,6 +112,7 @@ func TestVocabularyLaneRoutingIsPinned(t *testing.T) {
 		AnalyzerSecretScan,
 		AnalyzerLicenseScan,
 		AnalyzerMisconfigurationScan,
+		AnalyzerGoReachability,
 	} {
 		lane, ok := AnalyzerLane(kind)
 		if !ok {

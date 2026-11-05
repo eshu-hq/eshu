@@ -119,6 +119,11 @@ tests:
     class: postgres_ci
     reason: "#7472 disposable PostgreSQL 18 proof that retention keeps an uncovered superseded writer (reconcile-probe evidence) at any age while still pruning a covered writer, enrolled in the live-postgres-readiness runner; bridges the family ESHU_GENERATION_RETENTION_PROOF_DSN onto ESHU_POSTGRES_TEST_DSN as the hard-ceiling proof does. local run passed in 1.30s wall with the full 188-migration setup on postgres:18 on 2026-10-10"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/gomodules/store_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10027 real PostgreSQL proof of the go.mod rotation page read: every repository visited once per rotation, Go repositories only, active-generation commit, no read after the bucket's run exists, and the real admission path keeping a repeat pass idempotent"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/hardcoded_finding_parity_live_test.go
     tag: ~
     class: postgres_ci

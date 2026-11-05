@@ -47,6 +47,24 @@ A mint denial fails the claim terminal with class `auth_denied` before the
 satellite launches; a transient mint fault stays retryable. With no provider
 the config passes through byte-identically (the `token_env` escape hatch).
 
+Derived targets (#10027): `Config.DerivedTargetResolver`, when set, adds a
+derived scope's target to the per-claim config under `host_derived_target`. A Go
+reachability scope id holds only the repository id, so this object carries what
+to fetch: `scope_id`, `repository_id`, `source_commit_sha`, and `clone_url`, from
+the run's `requested_scope_set`. A missing run or an unusable entry fails the
+claim terminal before launch; a store fault stays retryable. Other scopes read
+nothing and stay byte-identical. Static config defining the key fails `NewSource`,
+so config cannot forge a commit or a remote.
+
+Installation selection for derived scopes (#10027): an exact scope match in
+`AppTokenProviderConfig.Installations` wins and reads nothing. Otherwise
+`InstallationKey` resolves the claim to `github-owner:<host>/<owner>` from the same
+validated entry. Only Go reachability scopes resolve a key, so an owner key cannot
+serve another claim. The host is part of the key because the token goes to the
+remote the owner came from: an owner-only key would mint a mapped owner's token
+for a look-alike remote on another host. Owner keys match case-insensitively. A
+store fault while reading the key is retryable with its text dropped.
+
 Claim scope query transport (#9432): `Config.ScopeQueryResolver`, when set,
 delivers the run's `requested_scope_set` entry for the claimed scope onto the
 satellite claim as `Claim.ScopeQueries` (at most `MaxScopeQueries` entries).

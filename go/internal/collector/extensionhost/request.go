@@ -18,7 +18,9 @@ import (
 // run's requested_scope_set entry on the claim (eshu-hq/eshu#9432); a
 // resolver error fails the claim before the satellite launches. Without a
 // resolver the claim carries no scope queries, byte-identical to the legacy
-// shape old satellites read.
+// shape old satellites read. A configured derived target resolver adds the
+// claim's target to its own config clone under HostDerivedTargetKey; its errors
+// classify the same way.
 func (s *Source) requestForWorkItem(ctx context.Context, item workflow.WorkItem) (Request, error) {
 	var queries []sdkcollector.ScopeQuery
 	if s.scopeQueryResolver != nil {
@@ -27,6 +29,19 @@ func (s *Source) requestForWorkItem(ctx context.Context, item workflow.WorkItem)
 			return Request{}, fmt.Errorf("resolve scope queries for claim: %w", err)
 		}
 		queries = resolved
+	}
+	config := cloneConfig(s.config)
+	if s.derivedTargetResolver != nil {
+		target, err := s.derivedTargetResolver(ctx, item)
+		if err != nil {
+			return Request{}, fmt.Errorf("resolve derived target for claim: %w", err)
+		}
+		if target != nil {
+			if config == nil {
+				config = make(map[string]any, 1)
+			}
+			config[HostDerivedTargetKey] = target
+		}
 	}
 	return Request{
 		ProtocolVersion: s.contract.ProtocolVersion,
@@ -52,7 +67,7 @@ func (s *Source) requestForWorkItem(ctx context.Context, item workflow.WorkItem)
 			ScopeQueries: queries,
 		},
 		Contract: s.contract,
-		Config:   cloneConfig(s.config),
+		Config:   config,
 	}, nil
 }
 

@@ -160,6 +160,9 @@ type Config struct {
 	// any other resolver error (a store-transport fault) fails it retryable
 	// with FailureClassLaunchFailure (eshu-hq/eshu#9730).
 	ScopeQueryResolver collector.ScopeQueryResolver
+	// DerivedTargetResolver, when set, delivers a derived scope's target on
+	// the claim's config under HostDerivedTargetKey. Nil adds nothing.
+	DerivedTargetResolver DerivedTargetResolver
 	// ClaimOutcomeRecorder, when set, receives every claim outcome and, for
 	// completed claims, the post-commit confirmation (#9420). The host sets
 	// it only for collector kinds with host-owned source state; nil costs one
@@ -196,7 +199,8 @@ type Source struct {
 	// maxPages bounds paged reassembly; zero means DefaultMaxResultPages.
 	maxPages int
 	// scopeQueryResolver delivers claim transport; nil disables it.
-	scopeQueryResolver collector.ScopeQueryResolver
+	scopeQueryResolver    collector.ScopeQueryResolver
+	derivedTargetResolver DerivedTargetResolver
 	// outcomeRecorder receives claim outcomes; nil disables the seam.
 	outcomeRecorder ClaimOutcomeRecorder
 	// pendingOutcomes holds completed outcomes until the commit hook fires.

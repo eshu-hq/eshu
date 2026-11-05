@@ -332,6 +332,9 @@ func (c Config) Validate() error {
 		if err := checkActivationDocumentDerivation(instance.CollectorKind, instance.Configuration); err != nil {
 			return fmt.Errorf("collector instance %q: %w", instance.InstanceID, err)
 		}
+		if err := validateActivationDerivationSchedule(instance.CollectorKind, instance.Configuration, c.ReconcileInterval); err != nil {
+			return fmt.Errorf("collector instance %q: %w", instance.InstanceID, err)
+		}
 		if instance.Enabled && instance.ClaimsEnabled && !c.ClaimsEnabled {
 			return fmt.Errorf("collector instance %q enables claims while coordinator claims are disabled", instance.InstanceID)
 		}

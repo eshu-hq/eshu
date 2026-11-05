@@ -43,6 +43,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/aws"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/gcp"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/incident"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/gomodules"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/governance/audit"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/retention/work/items"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/security/alerts/retirement"
@@ -217,6 +218,12 @@ func run(parent context.Context) error {
 		StoreName:   "installed_advisory_targets",
 	}
 	factStore := postgres.NewFactStore(installedAdvisoryTargetsDB)
+	goModuleRepositoriesDB := &postgres.InstrumentedDB{
+		Inner:       postgres.SQLDB{DB: db},
+		Tracer:      providers.TracerProvider.Tracer(telemetry.DefaultSignalName),
+		Instruments: instruments,
+		StoreName:   "go_module_repositories",
+	}
 	// The retention sweeper is always wired: retention is on by default in
 	// active mode, and Service.Run fails when it is on without a store
 	// (#8829). ESHU_WORKFLOW_COORDINATOR_WORK_ITEM_RETENTION_AGE=0 turns it off.
@@ -262,6 +269,7 @@ func run(parent context.Context) error {
 		LokiPlanner:                       loki.WorkPlanner{},
 		ComponentExtensionPlanner:         extension.WorkPlanner{},
 		OwnedPackageTargetReader:          postgres.NewFactStore(ownedPackageTargetsDB),
+		GoModuleRepositoryReader:          gomodules.NewStore(goModuleRepositoriesDB),
 		TenantGrantReader:                 tenantGrantReader{store: tenantGrantStore},
 		OSPackageAdvisoryTargetReader:     factStore,
 		SBOMComponentAdvisoryTargetReader: factStore,

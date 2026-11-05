@@ -45,9 +45,10 @@ through `ParseConfig`. None of these consumers owns the shared contract.
   consumer gets one back from `ParseConfig`.
 - `Config.ComponentConfig` is the activation's config block as one opaque
   JSON object (`component_config`). Root's readback fills it only for a
-  collector kind whose coordinator plans host-derived scopes, today
-  `vulnerability_intelligence` (#9311). The coordinator's kind-scoped hook
-  decodes it; every other consumer ignores it.
+  component whose coordinator plans host-derived scopes: every
+  `vulnerability_intelligence` activation (#9311) and the Go reachability scanner
+  (#10027). The coordinator's kind-scoped hook decodes it; every other consumer
+  ignores it.
 - `RuntimeConfig` is the collector-SDK runtime binding (`sdk_protocol`,
   `adapter`) nested under `Config.Runtime`.
 - `ParseConfig` parses and validates raw configuration, reporting whether it

@@ -20,6 +20,11 @@ const (
 	IDSBOM = "eshu.scanner.sbom"
 	// IDOSRuntime identifies the OS-package-extraction stdio component.
 	IDOSRuntime = "eshu.scanner.osruntime"
+	// IDGoReachability identifies the Go reachability stdio component. It has
+	// no entry in artifactDigests until eshu-scanner-worker publishes its
+	// image, so ManifestFor and VerifySeededArtifact refuse it until the
+	// reviewed re-pin lands.
+	IDGoReachability = "eshu.scanner.go-reachability"
 	// Version is the first per-analyzer component manifest version.
 	Version = "0.1.0"
 	// CollectorSDKProtocolV1Alpha3 is the paged collector wire contract
@@ -73,6 +78,8 @@ func AnalyzerFor(id string) (AnalyzerKind, error) {
 		return AnalyzerSBOMGeneration, nil
 	case IDOSRuntime:
 		return AnalyzerOSPackageExtraction, nil
+	case IDGoReachability:
+		return AnalyzerGoReachability, nil
 	default:
 		return "", fmt.Errorf("unknown scanner component %q", id)
 	}
@@ -109,6 +116,13 @@ func emittedKinds(kind AnalyzerKind) ([]family, error) {
 			{kind: chain.VulnerabilityOSPackageFactKind, version: chain.VulnerabilityIntelligenceSchemaVersionV1},
 			{kind: chain.VulnerabilityWarningFactKind, version: chain.VulnerabilityIntelligenceSchemaVersionV1},
 		}, nil
+	case AnalyzerGoReachability:
+		return []family{
+			{kind: chain.VulnerabilityGoModuleEvidenceFactKind, version: chain.VulnerabilityIntelligenceSchemaVersionV1},
+			{kind: chain.VulnerabilityGoCallReachabilityFactKind, version: chain.VulnerabilityIntelligenceSchemaVersionV1},
+			{kind: chain.VulnerabilityWarningFactKind, version: chain.VulnerabilityIntelligenceSchemaVersionV1},
+			{kind: facts.ScannerWorkerWarningFactKind, version: facts.ScannerWorkerSchemaVersionV1},
+		}, nil
 	default:
 		return nil, fmt.Errorf("no component manifest for analyzer %q", kind)
 	}
@@ -123,6 +137,8 @@ func componentID(kind AnalyzerKind) (string, error) {
 		return IDSBOM, nil
 	case AnalyzerOSPackageExtraction:
 		return IDOSRuntime, nil
+	case AnalyzerGoReachability:
+		return IDGoReachability, nil
 	default:
 		return "", fmt.Errorf("no component identity for analyzer %q", kind)
 	}
@@ -130,8 +146,31 @@ func componentID(kind AnalyzerKind) (string, error) {
 
 // ManifestFor returns the v1alpha3 process-adapter manifest for one scanner
 // analyzer. Reducer-lane analyzers are rejected: the binaries only execute
-// the scanner lane.
+// the scanner lane. An analyzer whose image has no published digest pin fails
+// closed, so an unpinned artifact is never minted.
 func ManifestFor(kind AnalyzerKind) (component.Manifest, error) {
+	manifest, err := unpinnedManifest(kind)
+	if err != nil {
+		return component.Manifest{}, err
+	}
+	id := manifest.Metadata.ID
+	digest, ok := artifactDigests[id]
+	if !ok {
+		return component.Manifest{}, fmt.Errorf("no published image digest pinned for scanner component %q", id)
+	}
+	manifest.Spec.Artifacts = []component.Artifact{{
+		Platform: "linux/arm64",
+		// Pinned to the published image digest from artifactDigests; unknown
+		// ids fail closed above.
+		Image: "ghcr.io/eshu-hq/scanner-" + strings.TrimPrefix(id, "eshu.scanner.") + "@sha256:" + digest,
+	}}
+	return manifest, nil
+}
+
+// unpinnedManifest builds everything in a scanner manifest except its pinned
+// artifact. Only ManifestFor and RequiredGrantsFor may use it: the grant set
+// does not depend on the image, but an admitted manifest always does.
+func unpinnedManifest(kind AnalyzerKind) (component.Manifest, error) {
 	lane, ok := AnalyzerLane(kind)
 	if !ok {
 		return component.Manifest{}, fmt.Errorf("unknown analyzer %q", kind)
@@ -142,10 +181,6 @@ func ManifestFor(kind AnalyzerKind) (component.Manifest, error) {
 	id, err := componentID(kind)
 	if err != nil {
 		return component.Manifest{}, err
-	}
-	digest, ok := artifactDigests[id]
-	if !ok {
-		return component.Manifest{}, fmt.Errorf("no published image digest pinned for scanner component %q", id)
 	}
 	kinds, err := emittedKinds(kind)
 	if err != nil {
@@ -176,19 +211,26 @@ func ManifestFor(kind AnalyzerKind) (component.Manifest, error) {
 				SDKProtocol: CollectorSDKProtocolV1Alpha3,
 				Adapter:     component.RuntimeAdapterProcess,
 			},
-			Artifacts: []component.Artifact{{
-				Platform: "linux/arm64",
-				// Pinned to the published image digest from
-				// artifactDigests; unknown ids fail closed above.
-				Image: "ghcr.io/eshu-hq/scanner-" + strings.TrimPrefix(id, "eshu.scanner.") + "@sha256:" + digest,
-			}},
 			EmittedFacts: families,
 			ConsumerContracts: component.ConsumerContracts{
 				Reducer: component.ReducerContract{Phases: []string{"source_evidence_only:no_graph_truth"}},
 			},
-			Telemetry: component.Telemetry{MetricsPrefix: "eshu_component_scanner_" + strings.TrimPrefix(id, "eshu.scanner.")},
+			Telemetry: component.Telemetry{MetricsPrefix: "eshu_component_scanner_" +
+				strings.ReplaceAll(strings.TrimPrefix(id, "eshu.scanner."), "-", "_")},
 		},
 	}, nil
+}
+
+// RequiredGrantsFor returns the producer grants one scanner analyzer needs,
+// from its declared fact families alone. It works before the analyzer's image
+// is published, so `eshu component grant` and fixtures can name the set; the
+// component stays unadmitted until ManifestFor has a pin for it.
+func RequiredGrantsFor(kind AnalyzerKind) ([]component.ProducerGrant, error) {
+	manifest, err := unpinnedManifest(kind)
+	if err != nil {
+		return nil, err
+	}
+	return RequiredGrants(manifest), nil
 }
 
 // RequiredGrants returns the live producer grants one manifest needs: one

@@ -32,6 +32,15 @@ activation flow defines lifetimes).
 - `IDImage`, `IDSBOM`, `IDOSRuntime`, `Version`,
   `CollectorSDKProtocolV1Alpha3`, `ManifestFor`, `AnalyzerFor`,
   `RequiredGrants` — per-analyzer manifests, grants, and ID resolution.
+- `AnalyzerGoReachability`, `IDGoReachability`, `RequiredGrantsFor` — the Go
+  reachability analyzer and its grant set, which works before its image is
+  published. `ManifestFor` and `VerifySeededArtifact` refuse this component until
+  the reviewed re-pin adds its digest and the digest-pins gate's component list.
+- `GoReachabilityScopeID`, `ParseGoReachabilityScopeID`, `GoReachabilityTarget`,
+  `RequestedScopeSet`, `ResolveGoReachabilityTarget`, `ValidCloneURL`,
+  `GoModuleRepository`, `GoModuleRepositoryFilter`, `GoModuleRepositoryPage`,
+  `GoModulePageWindow` — the value contract shared by the coordinator planner, the
+  Postgres reader, and the extension host. Plain values only, no store handles.
 - `VerifySeededArtifact` — admission check that a seeded manifest artifact
   equals the platform pin.
 
