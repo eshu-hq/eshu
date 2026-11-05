@@ -1,0 +1,29 @@
+docs/internal/evidence/10022-delta-cassette-feasibility.md
+  s_7547c0f0af67d4::t_c7af74f5b26530 73-76,98-118,123
+docs/public/operate/graph-delta-union.md
+  s_7547c0f0af67d4::t_b8be8886e48188 146-147
+scripts/lib/golden-corpus-delta-reader.sh
+  s_7547c0f0af67d4::t_8f51a83e2229f7 22-23
+testdata/golden/e2e-20repo-snapshot.json
+  s_7547c0f0af67d4::t_74693961eaf791 105-106,2455,2461,2471,2477,2487,2502-2515,2519-2523
+tests/fixtures/golden_delta_union/base/app/moved.go
+  s_7547c0f0af67d4::t_71312307e3e48a 1-10
+tests/fixtures/golden_delta_union/delta/app/moved.go
+  s_7547c0f0af67d4::t_f9abfa8ab3a55a 1-13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "95c73e635deb4cb68f04a9edcae20de304d28279",
+  "prompts": {},
+  "sessions": {
+    "s_7547c0f0af67d4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7c8b2d5-3286-4c2a-be1f-589162535d83",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
