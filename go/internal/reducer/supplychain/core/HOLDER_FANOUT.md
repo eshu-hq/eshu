@@ -153,8 +153,24 @@ it to `handleManifestTrigger` before the fencing token and the evidence load
 
 A marker item reopened by another pass's fan-out is not a one-hop no-op: its
 re-derivation is the holder fan-out, so it re-reads the generation and reopens
-the holders again. That terminates, because a holder pass that changes nothing
-fans out nothing.
+the holders again.
+
+Termination. The marker's in-flight read leaves markers out
+(`FindInFlightNonMarkerScopes`: a claimed or running item whose payload carries
+`trigger: manifest_dependency`), and its holder read returns only scopes with
+affected-package rows, which a git scope never holds. So a marker never reopens
+or flags another marker. Without that exclusion two markers in flight at once
+flagged each other on every round, forever
+(`TestTwoConcurrentMarkersConvergeLive` failed with 8 passes over 4 rounds and
+never drained). What a marker does reopen is advisory or other non-marker
+scopes, stamped with its origin: a reopened succeeded item and a flagged
+running item both rerun once as a one-hop pass, which re-derives its findings
+and fans out nothing. A marker can be flagged by a CVE fan-out (that path's
+in-flight read is unchanged and still includes markers), but the marker's
+rerun only reopens non-markers one hop, so the chain is CVE pass, marker
+rerun, one-hop holder reruns, and it stops. An in-flight non-marker holder
+pass still gets exactly what the CVE path gives it: one replay of its pass
+after it acknowledges.
 
 Not reopened: security alert scopes. They build findings from manifest
 consumptions too (`appendSecurityAlertImpactFindings`), but the holder read

@@ -449,3 +449,90 @@ func TestManifestMarkerFlagsAnInFlightScopeWithNoRowsLive(t *testing.T) {
 		t.Fatal("the marker pass did not stamp after its last chunk")
 	}
 }
+
+// manifestLiveSeedOtherGitScope seeds a second git scope with one active
+// generation holding a dependency row and a pending marker item, and returns
+// the marker's work item id.
+func manifestLiveSeedOtherGitScope(t *testing.T, ctx context.Context, db *sql.DB, scope string) string {
+	t.Helper()
+	fanOutSeedScope(t, ctx, db, scope, "g1")
+	generation := fanOutGen(scope, "g1")
+	manifestLiveSeedFact(t, ctx, db, scope, generation, manifestLiveRepository(scope+"-repo", false))
+	manifestLiveSeedFact(t, ctx, db, scope, generation, manifestLiveDependency(scope+"-lodash", "package-lock.json", "lodash", "4.17.21"))
+	id := fanOutSeedItemAt(t, ctx, db, scope, generation)
+	if _, err := db.ExecContext(ctx, `UPDATE fact_work_items
+SET payload = payload || jsonb_build_object('`+supplychaincore.PayloadKeyTrigger+`', '`+supplychaincore.TriggerManifestDependency+`')
+WHERE work_item_id = $1`, id); err != nil {
+		t.Fatalf("mark %s as a manifest marker: %v", id, err)
+	}
+	return id
+}
+
+// TestTwoConcurrentMarkersConvergeLive is the security review's livelock
+// regression on a real queue: two git scopes each have a marker claimed at
+// the same time. Each pass runs while the other is still in flight. If a
+// marker flagged in-flight markers, every round would flag the other and both
+// would return to pending forever. Markers are not holders, so the queue
+// drains in one round of two passes; the test allows four rounds and fails
+// past them.
+func TestTwoConcurrentMarkersConvergeLive(t *testing.T) {
+	ctx, db := fanOutLiveDB(t)
+	markers := map[string]string{}
+	for _, scope := range []string{"git-repo-a", "git-repo-b"} {
+		markers[manifestLiveSeedOtherGitScope(t, ctx, db, scope)] = scope
+	}
+	handler := supplychaincore.SupplyChainImpactHandler{
+		FencingTokenIssuer: manifestLiveNoToken{t: t},
+		FactLoader:         manifestLiveNoLoad{t: t},
+		Writer:             manifestLiveNoWrite{t: t},
+		FanOut:             fanOutLiveStore(db),
+	}
+	queue := fanOutLiveQueue(db)
+	passes := 0
+	for round := 1; ; round++ {
+		if round > 4 {
+			t.Fatalf("markers still requeued after %d rounds (%d passes): marker-to-marker replay does not converge", round-1, passes)
+		}
+		var claimed []reducercontract.Intent
+		for range 2 {
+			intent, ok, err := queue.Claim(ctx)
+			if err != nil {
+				t.Fatalf("Claim() error = %v", err)
+			}
+			if !ok {
+				break
+			}
+			if _, isMarker := markers[intent.IntentID]; !isMarker {
+				t.Fatalf("claimed %s, which is not a marker", intent.IntentID)
+			}
+			claimed = append(claimed, intent)
+		}
+		if len(claimed) == 0 {
+			break
+		}
+		// Every claimed marker runs before any acknowledges, so each sees the
+		// others in flight.
+		results := make([]reducercontract.Result, len(claimed))
+		for i, intent := range claimed {
+			result, err := handler.Handle(ctx, intent)
+			if err != nil {
+				t.Fatalf("Handle(%s) error = %v", intent.IntentID, err)
+			}
+			results[i] = result
+			passes++
+		}
+		for i, intent := range claimed {
+			if err := queue.Ack(ctx, intent, results[i]); err != nil {
+				t.Fatalf("Ack(%s) error = %v", intent.IntentID, err)
+			}
+		}
+	}
+	if passes != 2 {
+		t.Fatalf("passes = %d, want 2: one per marker, no replay between markers", passes)
+	}
+	for id := range markers {
+		if !manifestLivePayloadHasStamp(t, ctx, db, id) {
+			t.Fatalf("marker %s finished without its completion stamp", id)
+		}
+	}
+}

@@ -19,6 +19,10 @@ type manifestRuntimePort struct {
 	reads int
 }
 
+func (p *manifestRuntimePort) FindInFlightNonMarkerScopes(context.Context, string) ([]string, error) {
+	return nil, nil
+}
+
 func (p *manifestRuntimePort) RecordManifestTriggerCompleted(context.Context, reducercontract.Intent, string) error {
 	return nil
 }

@@ -374,7 +374,7 @@ decides per finding.
   in `storage/postgres/supply_chain_impact_fanout.go`). The reopened pass
   re-derives its copy, so a retraction, or its reversal, reaches each copy once
   that holder's next pass runs. The same edge carries KEV/EPSS refresh (#9878: a changed enrichment generation flips its scope's digests and re-triggers holders; an unchanged one dies at the collector digest hint; the stale window is queue latency plus one holder pass plus one resweep tick). The winners query has no precedence rule. The
-  rules (changed rows, holders, one hop, the owed marker, failures), the #9874 git manifest marker branch (`manifest_trigger.go`, `manifest_change.go`: reopens the in-flight impact scopes and the scopes holding affected-package evidence for the changed packages, in-flight read first, writes no findings, `cause="manifest_dependency"`), and the known limits are in `HOLDER_FANOUT.md`.
+  rules (changed rows, holders, one hop, the owed marker, failures), the #9874 git manifest marker branch (`manifest_trigger.go`, `manifest_change.go`: reopens the in-flight non-marker impact scopes and the scopes holding affected-package evidence for the changed packages, in-flight read first, writes no findings, `cause="manifest_dependency"`), and the known limits are in `HOLDER_FANOUT.md`.
 - **In-flight cost.** During a burst of N changed passes about every pass in flight
   at each commit is flagged, so the burst costs about 2N passes and drains in
   about twice the time; continuous changed arrivals above roughly a third of

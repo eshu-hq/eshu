@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"slices"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -26,6 +27,25 @@ type stubManifestPort struct {
 	reads       int
 	// stamps records each completion stamp's baseline generation id.
 	stamps []string
+	// markerInFlight names in-flight scopes whose claimed item is itself a
+	// manifest marker; FindInFlightNonMarkerScopes leaves them out.
+	markerInFlight []string
+	nonMarkerReads int
+}
+
+func (p *stubManifestPort) FindInFlightNonMarkerScopes(ctx context.Context, ownScopeID string) ([]string, error) {
+	p.nonMarkerReads++
+	p.stubFanOut.reads = append(p.stubFanOut.reads, "in-flight")
+	if p.inFlightErr != nil {
+		return nil, p.inFlightErr
+	}
+	var out []string
+	for _, scope := range p.inFlight {
+		if !slices.Contains(p.markerInFlight, scope) {
+			out = append(out, scope)
+		}
+	}
+	return out, nil
 }
 
 func (p *stubManifestPort) RecordManifestTriggerCompleted(_ context.Context, _ reducercontract.Intent, baselineGenerationID string) error {

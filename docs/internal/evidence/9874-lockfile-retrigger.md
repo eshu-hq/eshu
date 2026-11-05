@@ -290,9 +290,28 @@ nothing reopened; read order pinned), the union and failure tests in
 on a real queue. Dropping the union fails the unit and live tests; swapping the
 read order fails the order assertion.
 
-Cost: `FindInFlightScopes` returns every in-flight `supply_chain_impact` scope,
-not only holders, so a marker pass with changed keys also flags passes that hold
-none of its packages. The set is bounded by the passes in flight at once, that
+Markers are left out of that in-flight set (security review of the fix): the
+marker reads `FindInFlightNonMarkerScopes`, the CVE path's in-flight query
+derived from the shipped constant plus `COALESCE(payload->>'trigger','') <>
+'manifest_dependency'`. A marker loads no evidence and writes no findings, so it
+is never a holder, and with the unfiltered read two markers in flight at once
+flagged each other on every round: `TestTwoConcurrentMarkersConvergeLive` (two
+markers claimed together, each handled before either acknowledges) failed with
+8 passes over 4 rounds without draining, and passes now in one round of 2
+passes, both stamped. `TestManifestTriggerNeverFlagsAnotherInFlightMarker` pins
+the same at unit level and
+`TestFindInFlightNonMarkerScopesQueryDerivesFromTheInFlightQuery` guards the
+derivation. Mutations: the marker using the unfiltered read, or the store
+query losing the exclusion, fail those tests. What bounds the reopens now: a
+marker reopens only non-marker scopes, each as a one-hop rerun that fans out
+nothing, so one marker pass costs at most its holders plus the non-marker
+passes in flight, once each. The CVE path is unchanged and still flags
+in-flight markers; a flagged marker reruns once and again reopens only
+non-markers one hop, so that chain ends too.
+
+Cost: the marker-free in-flight read still returns every in-flight non-marker
+`supply_chain_impact` scope, not only holders, so a marker pass with changed
+keys also flags passes that hold none of its packages. The set is bounded by the passes in flight at once, that
 is the fleet's `supply_chain_impact` worker slots (`ESHU_REDUCER_WORKERS` per
 reducer, 4 by default), and each flagged pass reruns once. The CVE fan-out
 accepts the same trade. Its measurements apply unchanged because the query is

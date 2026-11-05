@@ -88,9 +88,9 @@ func TestManifestTriggerSkipsTheInFlightReadWhenNothingChanged(t *testing.T) {
 	if _, err := h.Handle(context.Background(), manifestIntent(1, nil)); err != nil {
 		t.Fatalf("Handle() error = %v", err)
 	}
-	if port.inFlightCalls != 0 || len(port.reopened) != 0 {
-		t.Fatalf("in-flight reads = %d, reopened = %v; want neither for an unchanged generation",
-			port.inFlightCalls, port.reopened)
+	if port.inFlightCalls != 0 || port.nonMarkerReads != 0 || len(port.reopened) != 0 {
+		t.Fatalf("in-flight reads = %d/%d, reopened = %v; want none for an unchanged generation",
+			port.inFlightCalls, port.nonMarkerReads, port.reopened)
 	}
 }
 
@@ -128,5 +128,33 @@ func TestManifestTriggerInFlightReadFailureIsRetryable(t *testing.T) {
 		if len(port.reopened) != 0 || len(port.stamps) != 0 {
 			t.Fatalf("failed pass reopened %v and stamped %v; want neither", port.reopened, port.stamps)
 		}
+	}
+}
+
+// TestManifestTriggerNeverFlagsAnotherInFlightMarker is the security review's
+// livelock regression: an in-flight scope whose claimed item is itself a
+// manifest marker is not a holder (a marker loads no evidence and writes no
+// findings), and flagging it would rerun a marker that flags this one back.
+// The marker pass reads the in-flight set without markers and never uses the
+// CVE path's unfiltered read.
+func TestManifestTriggerNeverFlagsAnotherInFlightMarker(t *testing.T) {
+	t.Parallel()
+
+	port := &stubManifestPort{
+		stubFanOut: &stubFanOut{
+			inFlight: []string{"git-repo-other", "vuln-intel://osv/loading"},
+		},
+		markerInFlight: []string{"git-repo-other"},
+		generations:    []ManifestDependencyGeneration{activeFullChange()},
+	}
+	h, _ := manifestHandler(t, port, nil)
+	if _, err := h.Handle(context.Background(), manifestIntent(1, nil)); err != nil {
+		t.Fatalf("Handle() error = %v", err)
+	}
+	if want := []string{"vuln-intel://osv/loading"}; !reflect.DeepEqual(port.reopened, want) {
+		t.Fatalf("reopened = %v, want %v: another scope's in-flight marker must not be flagged", port.reopened, want)
+	}
+	if port.inFlightCalls != 0 || port.nonMarkerReads != 1 {
+		t.Fatalf("unfiltered in-flight reads = %d, marker-free reads = %d; want 0 and 1", port.inFlightCalls, port.nonMarkerReads)
 	}
 }
