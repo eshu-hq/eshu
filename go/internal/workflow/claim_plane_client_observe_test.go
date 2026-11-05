@@ -149,6 +149,31 @@ func TestClaimPlaneClientObserveReportsOutcomePerProtocolResult(t *testing.T) {
 			},
 			wantOp: "ReapExpiredClaims", wantOut: ClaimPlaneOutcomeOK,
 		},
+		{
+			name: "check pacing ok", status: http.StatusOK, body: `{"paced":false}`,
+			call: func(c *ClaimPlaneClient) error {
+				_, err := c.CheckClaimPacing(context.Background(), ClaimSelector{}, ClaimPacingConfig{}, time.Now())
+				return err
+			},
+			wantOp: "CheckClaimPacing", wantOut: ClaimPlaneOutcomeOK,
+		},
+		{
+			name: "pin claim ok", status: http.StatusOK, body: `{"pinned":true,"commit_id":"commit-1"}`,
+			call: func(c *ClaimPlaneClient) error {
+				_, err := c.PinClaimForCommit(context.Background(), "claim-1", 1, "scope-1", "run-1", "gen-1", time.Now().Add(time.Minute))
+				return err
+			},
+			wantOp: "ValidateAndPinClaimForCommit", wantOut: ClaimPlaneOutcomeOK,
+		},
+		{
+			name: "pin stale fence is rejected", status: http.StatusConflict,
+			body: `{"code":"stale_fence","message":"epoch superseded"}`,
+			call: func(c *ClaimPlaneClient) error {
+				_, err := c.PinClaimForCommit(context.Background(), "claim-1", 1, "scope-1", "run-1", "gen-1", time.Now().Add(time.Minute))
+				return err
+			},
+			wantOp: "ValidateAndPinClaimForCommit", wantOut: ClaimPlaneOutcomeRejected,
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
