@@ -420,10 +420,13 @@ window applies to the wire protocol: the host dual-accepts protocol N and
 N-1 for at least two minor core releases after a protocol bump, and
 extensions pin exactly one protocol version at a time.
 
-Today there is only one payload major (`1`) and one wire protocol
-(`collector-sdk/v1alpha1`), so the N-1 window is not yet exercised. This
-section states the policy now so the first breaking bump has a table row to
-extend rather than a policy to invent.
+Today there is one payload major (`1`) and one wire-protocol major line:
+`collector-sdk/v1alpha1` is the default and `v1alpha2`/`v1alpha3` are
+opt-in (`sdk/go/collector/types.go:10`); the single MAJOR is the
+invariant, so the N-1 window is not yet exercised. This section states the
+policy now so the first breaking bump has a table row to extend rather
+than a policy to invent. This sentence claims no new supported
+combination.
 
 ## Choosing a pin
 

@@ -118,24 +118,54 @@ queue, lease, reducer, API, MCP, or workflow handles.
     `TestClaimPlaneClient*` 8/8 PASS
     (`go/cmd/workflow-coordinator/PLANE_DECLARATION_9376.md` §3,
     accepted as contract 2026-11-02).
-  - Host × core matrix: newest-host × oldest-core and reverse, run in
-    `eshu-hq/eshu-extension-host` once scaffolded (prereq §10.3). The
-    destination is still a stub, so the matrix run is pending — box 9
-    stays Partial until it lands.
+  - Host × core matrix (degenerate 1×1, Leaf 6 verdict 2026-11-05):
+    only one host release exists (`v0.1.0`), so newest-host and
+    oldest-host are the same cell; only one claim-plane major (`1`)
+    exists, so oldest-core-major and newest-core-major are the same
+    cell. Both verdict pairs resolve to that single cell:
+
+    | Host | Core major | Standing |
+    | --- | --- | --- |
+    | newest-host `v0.1.0` | oldest-core-major `1` | covered (cell below) |
+    | oldest-host `v0.1.0` | newest-core-major `1` | covered (same cell) |
+
+    Each value re-derives via its command (re-run to falsify; any drift
+    reopens box 9):
+    - host releases: `git -C <eshu-extension-host> tag -l` → `v0.1.0`
+      only (release published 2026-11-04, image digest
+      `sha256:c1ad19bc3a27964d35e55f421aed91fea292697f2e9d375976b3406bb92d1041`).
+    - eshu pins: `grep -n 'eshu-sdk\|eshu-workflow' go/go.mod` →
+      `collector v0.2.0-rc.3`, `factschema v0.1.0-rc.17`,
+      `workflow v0.1.0` (go/go.mod:159-161).
+    - protocols: `sdk/go/collector/types.go:10` → `v1alpha1` default,
+      opt-in `v1alpha2`/`v1alpha3`; the single MAJOR is the invariant.
+    - Expiry triggers (verbatim): box 9 reopens on second host release
+      tag, workflow.v2 or payload major 2, host go.mod dependency or
+      claim-flow flag, or eshu go.mod pin bump without table update.
+      Byte-compared 2026-11-05 against host `drive/8877-leaf-6-matrix`
+      `caa68ee6` (`PROVENANCE.md` § Degenerate compatibility matrix,
+      host PR #4); re-compare on any edit to either copy.
 
 ## 6. Artifacts
 
 - Today: single in-tree binary `collector-component-extension`
   (`main.go:24` version flag). No published artifact. No cutover has
   occurred.
-- Destination `eshu-hq/eshu-extension-host` is a pre-release stub
-  (root `{README.md, Makefile, CONTRIBUTING.md, .github/}` only, HEAD
-  `6a5d1848`, observed 2026-11-04 via API; holds no cutover authority).
+- Destination `eshu-hq/eshu-extension-host` is scaffolded (Leaf 2,
+  `origin/main 7ff7fd9`): dark health-only binary, digest-pinned
+  Dockerfile, tag-gated publish pipeline with SLSA provenance; holds no
+  cutover authority (claim flow stays staged behind `#9376` → `#9381`).
+  Release `v0.1.0` is cut (tag verified via `git tag -l`, release
+  published 2026-11-04, image
+  `sha256:c1ad19bc3a27964d35e55f421aed91fea292697f2e9d375976b3406bb92d1041`
+  with SLSA+SBOM attestations, Trivy HIGH/CRITICAL gate passed). Dark is
+  live: Deployment `eshu/eshu-extension-host` 1/1 ready on that digest
+  (verified read-only 2026-11-05; no mutations made for this record).
   The `#8877` body cites `50e55647…`, which is eshu-main merge commit
   `50e556470f` (the inventory commit at issue-writing time, per the
   2026-10-28 issue comment) — never a destination SHA, so no destination
-  reconcile is owed for it. Scaffolding the host implementation is cutover
-  work staged behind `#9376` → `#9381`.
+  reconcile is owed for it. Claim-path wiring is cutover work staged
+  behind `#9376` → `#9381`.
 - No artifact is built or published by this PREP.
 
 ## 7. Hostile-input proof sites (in-tree side, all passing at HEAD)
@@ -176,14 +206,14 @@ and voids if `#9381` wiring adds any satellite store):
 | --- | --- |
 | Inventory manifest/trust/install/execution, result limits, policy, protocols | **Met in PREP** by §§1–6 above |
 | Revoked/expired/sandbox/cancellation/malformed/redaction/grant-before-admission | **Met in-tree side** by §7 proof sites (all in the focused suite below) |
-| Named owners, production target, configuration source | **Partial** — release/deployment owner confirmed on the issue; destination stub and config source recorded in §6 with the SHA discrepancy flagged |
+| Named owners, production target, configuration source | **Partial** — release/deployment owner confirmed on the issue; destination scaffold state (scaffolded, `v0.1.0` released, dark live) and config source recorded in §6 with the SHA discrepancy flagged |
 | Packages, kinds, consumers, state, protocols, artifacts, stage, prerequisites | **Met in PREP** by §§1–6, 8–9 |
 | Behavior and public-contract parity, representative + hostile | **Open** — in-tree proof sites recorded; extracted-path parity needs the cutover harness |
 | Extracted-path reducer/graph/API/MCP truth | **Open** (`NOT_CHECKED`) |
 | Concurrent retry/duplicates/ordering/cancellation/revocation/staleness/partial failures | **Open** — single-claim proofs exist; contention/ordering/duplication on the extracted path need live proof |
 | Bounded resources, no regression, health/readiness/telemetry | **Open** on the extracted path; in-tree suite green (see evidence) |
-| Credentials, provenance, vuln response, oldest/newest pairs | **Partial** — handling recorded here; pairs recorded in §5 (SDK pins + plane v1/v1 + matrix policy, re-verified 2026-11-04); host-core matrix run pending in the extension-host repo |
-| Independent build/release/deploy on public contracts | **Open** — destination is a stub; no Deployment/Service in `iac-eks-eshu` for this host (verified: zero matches for `extension-host` under `argocd/eshu` and `chart/`) |
+| Credentials, provenance, vuln response, oldest/newest pairs | **Partial** — pairs part now covered (degenerate 1×1 per §5, no matrix run pending); provenance attested on host `v0.1.0` (SLSA+SBOM, Trivy gate in release notes); in-tree credential handling recorded in §7 (extracted path carries none by construction). Stays Partial because the extracted-path credential flow and the vuln-response re-publish loop are unproven until claim-flow wiring (`#9381`) cuts a second release — itself a box-9 expiry trigger |
+| Independent build/release/deploy on public contracts | **Open** — destination scaffolded (`origin/main 7ff7fd9`, `v0.1.0` released, dark live per §6); no cutover has occurred, so extracted-path parity, credential flow, and the re-publish loop stay Open; no cutover Deployment/Service in `iac-eks-eshu` for this host (verified: zero matches for `extension-host` under `argocd/eshu` and `chart/`; the §6 dark Deployment is the pre-cutover dark surface, not the cutover path) |
 | Rollback rehearsal | **Open** — draft checklist recorded in §8 (not executed; rehearsal stays post-authority per the `#9383` disposition) |
 | Review, local proof, stable CI, removal after acceptance | **Open** — local proof in this lane's commit; removal explicitly **not** in PREP |
 
@@ -192,8 +222,11 @@ and voids if `#9381` wiring adds any satellite store):
 1. Published SDK + fact-schema modules (`#6708`, `#8851`) at the §5 pins.
 2. First-party producer delegation live (`#6709`); destination SHA
    reconciled (§6).
-3. Host repository from the `#6710` template with the compatibility
-   harness matrix (newest host × oldest core and reverse).
+3. Host repository (`eshu-hq/eshu-extension-host`, scaffolded at
+   `origin/main 7ff7fd9`, release `v0.1.0` cut, dark live) with the
+   compatibility matrix recorded as the degenerate 1×1 in §5
+   (newest-host = oldest-host = `v0.1.0`, single claim-plane major
+   `1`); the matrix reopens only per the §5 expiry triggers.
 4. Parity proof on representative + hostile inputs against this PREP's §7
    sites, run on the extracted path.
 5. Producer-authority single-holder enforcement and a rehearsed rollback
