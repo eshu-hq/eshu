@@ -16,10 +16,14 @@ import (
 )
 
 // readReportStub serves the five read/report-plane routes with
-// satellite-shaped bodies so the compat tests prove the client decodes the
-// live wire shapes. It is distinct from versionRecordingPlane: that pin
-// proves every route carries major "1"; this stub proves the five uncalled
-// routes decode into the in-tree types.
+// satellite-shaped bodies so the compat tests prove the client decodes
+// those bodies into the in-tree types. The bodies are hand-written, so they
+// do not prove the live wire shapes: that proof lives only in
+// TestReadReportPlaneLiveCompat, which runs against the bound satellite
+// build when the satellite leg is configured and skips otherwise.
+// It is distinct from versionRecordingPlane: that pin proves every route
+// carries major "1"; this stub proves the five uncalled routes decode into
+// the in-tree types.
 type readReportStub struct {
 	t      testing.TB
 	seen   []string

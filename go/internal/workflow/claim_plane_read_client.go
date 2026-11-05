@@ -20,7 +20,9 @@ import (
 // QueueDepthSnapshot and the report plane ReportRunProgress. The satellite
 // has served them since eshu-workflow#17; no in-tree caller uses them yet,
 // so they travel the shared post path (and its major-1 pin) with compat
-// tests proving the wire shapes against the live digest. The wire shapes
+// tests proving the stub bodies decode into the in-tree types. Only
+// TestReadReportPlaneLiveCompat proves the live wire shapes, against the
+// bound satellite build when the satellite leg is configured. The wire shapes
 // below mirror the protocol table field-for-field but are declared locally,
 // like the claim and control paths: this package takes no dependency on the
 // satellite module.
