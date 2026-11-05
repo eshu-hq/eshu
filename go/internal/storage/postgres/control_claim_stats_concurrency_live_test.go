@@ -92,11 +92,39 @@ func TestWorkflowStatsAnalyzeDuringClaims(t *testing.T) {
 	// several claims are in flight when the ANALYZE starts. That is the
 	// overlap under proof: claims holding row locks while the statistics
 	// refresh runs, and the refresh must neither block them nor fail.
+	//
+	// One ANALYZE samples a single lock instant: with SKIP_LOCKED it
+	// legitimately reports skipped when every claimer holds the needed
+	// locks at that instant, and the stats gate reports skipped when a
+	// concurrent autovacuum already warmed the table. Neither means the
+	// helper is broken, so repeat until the helper reports analyzed or
+	// the retry budget ends. Claimers run throughout; ANALYZE is
+	// idempotent, and a helper error still fails fast.
 	time.Sleep(2 * time.Second)
-	analyzeStart := time.Now()
-	outcome := store.analyzeWorkflowWorkItemsOnce(ctx, telemetry.WorkflowStatsAnalyzeSiteEnqueue, keys*perKey)
-	analyzeEnd := time.Now()
-	analyzeWall := analyzeEnd.Sub(analyzeStart)
+	var outcome string
+	var analyzeWall time.Duration
+	var analyzeStart, analyzeEnd time.Time
+	skipped := 0
+	retryDeadline := time.Now().Add(3 * time.Minute)
+	for attempt := 1; ; attempt++ {
+		analyzeStart = time.Now()
+		outcome = store.analyzeWorkflowWorkItemsOnce(ctx, telemetry.WorkflowStatsAnalyzeSiteEnqueue, keys*perKey)
+		analyzeEnd = time.Now()
+		analyzeWall = analyzeEnd.Sub(analyzeStart)
+		t.Logf("ANALYZE attempt %d: outcome=%q wall=%s", attempt, outcome, analyzeWall.Round(time.Millisecond))
+		if outcome == telemetry.WorkflowStatsAnalyzeOutcomeAnalyzed {
+			break
+		}
+		if outcome == telemetry.WorkflowStatsAnalyzeOutcomeFailed {
+			t.Fatalf("ANALYZE attempt %d failed, want analyzed (or a transient skip): a helper error is not contention", attempt)
+		}
+		skipped++
+		if time.Now().After(retryDeadline) {
+			analyzed, auto := workflowWorkItemsAnalyzeState(t, database, ctx)
+			t.Fatalf("ANALYZE skipped %d attempts without analyzing (last=%q); table analyzed=%v auto=%v: the helper never refreshed the table under contention", skipped, outcome, analyzed, auto)
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
 	close(stop)
 	wg.Wait()
 	close(errs)
@@ -116,11 +144,8 @@ func TestWorkflowStatsAnalyzeDuringClaims(t *testing.T) {
 			break
 		}
 	}
-	t.Logf("ANALYZE (SKIP_LOCKED) during %d claimers: outcome=%q wall=%s grants=%d attempts=%d overlapped=%v",
-		claimers, outcome, analyzeWall.Round(time.Millisecond), total, len(spans), overlapped)
-	if outcome != telemetry.WorkflowStatsAnalyzeOutcomeAnalyzed {
-		t.Fatalf("helper outcome = %q, want %q: the cold table must analyze while claims run", outcome, telemetry.WorkflowStatsAnalyzeOutcomeAnalyzed)
-	}
+	t.Logf("ANALYZE (SKIP_LOCKED) during %d claimers: outcome=%q wall=%s grants=%d attempts=%d overlapped=%v skips=%d",
+		claimers, outcome, analyzeWall.Round(time.Millisecond), total, len(spans), overlapped, skipped)
 	if total == 0 {
 		t.Fatal("no concurrent claim granted during ANALYZE; claimers stalled on the statistics gate")
 	}
