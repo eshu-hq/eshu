@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"os"
 	"testing"
 	"time"
 
@@ -17,6 +18,33 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
+// parityNamespacedNonCoreKind is the dotted non-core kind for the
+// Source-level differential: manifest validation requires a
+// collision-resistant prefix, while the grant predicates treat it exactly
+// like the bare non-core kind (unguarded, ungoverned, unobserved).
+const parityNamespacedNonCoreKind = "dev.eshu.examples.parityfact"
+
+// parityFixtureNow is the fixed clock the Source-level differential runs
+// under. Grant expiry anchors to this fixture time, never to the wall
+// clock, so the live states stay live on any machine at any date.
+func parityFixtureNow() time.Time {
+	return time.Date(2026, 11, 5, 12, 0, 0, 0, time.UTC)
+}
+
+// parityFixtureGrant is the live grant variant for the Source-level
+// differential, expiring relative to the fixture clock.
+func parityFixtureGrant() component.ProducerGrant {
+	grant := parityLiveGrant()
+	grant.ExpiresAt = parityFixtureNow().Add(2 * time.Hour).UTC()
+	return grant
+}
+
+// writeHostileFile plants a regular file where the registry expects a
+// directory, so the grant-set load fails for the unreadable-set state.
+func writeHostileFile(path string) error {
+	return os.WriteFile(path, []byte("hostile"), 0o600)
+}
+
 // parityStubRunner is the minimal exported-interface Runner for the
 // Source-level differential: it replays one scripted SDK result per call.
 type parityStubRunner struct {
@@ -27,15 +55,15 @@ func (r *parityStubRunner) RunCollector(context.Context, extensionhost.Request) 
 	return r.result, nil
 }
 
-// parityEmissionFact builds one core-kind SDK fact with stable identity for
-// the Source-level differential.
-func parityEmissionFact() sdkcollector.Fact {
+// parityEmissionFact builds one SDK fact of the given kind with stable
+// identity for the Source-level differential.
+func parityEmissionFact(kind string) sdkcollector.Fact {
 	return sdkcollector.Fact{
-		Kind:             parityCoreKind,
+		Kind:             kind,
 		SchemaVersion:    parityCoreSchema,
 		StableKey:        "parity-fact-1",
 		SourceConfidence: sdkcollector.SourceConfidenceReported,
-		ObservedAt:       time.Date(2026, 11, 5, 12, 0, 0, 0, time.UTC),
+		ObservedAt:       parityFixtureNow(),
 		SourceRef: sdkcollector.SourceRef{
 			SourceSystem: "scorecard",
 			ScopeID:      "parity-scope",
@@ -48,9 +76,10 @@ func parityEmissionFact() sdkcollector.Fact {
 	}
 }
 
-// parityEmissionItem builds the work item the scripted result answers.
+// parityEmissionItem builds the work item the scripted result answers,
+// with all times relative to the fixture clock.
 func parityEmissionItem() workflow.WorkItem {
-	now := time.Date(2026, 11, 5, 12, 0, 0, 0, time.UTC)
+	now := parityFixtureNow()
 	return workflow.WorkItem{
 		WorkItemID:          "parity:emission:work-1",
 		RunID:               "parity:emission-run-1",
@@ -74,8 +103,8 @@ func parityEmissionItem() workflow.WorkItem {
 	}
 }
 
-// parityEmissionResult answers the item with one core-kind fact.
-func parityEmissionResult(item workflow.WorkItem) sdkcollector.Result {
+// parityEmissionResult answers the item with one fact of the given kind.
+func parityEmissionResult(item workflow.WorkItem, kind string) sdkcollector.Result {
 	return sdkcollector.Result{
 		ProtocolVersion: sdkcollector.ProtocolVersionV1Alpha1,
 		State:           sdkcollector.ResultComplete,
@@ -98,7 +127,7 @@ func parityEmissionResult(item workflow.WorkItem) sdkcollector.Result {
 			ObservedAt:    item.LastClaimedAt,
 			FreshnessHint: "snapshot",
 		},
-		Facts: []sdkcollector.Fact{parityEmissionFact()},
+		Facts: []sdkcollector.Fact{parityEmissionFact(kind)},
 		Statuses: []sdkcollector.Status{{
 			Class:     sdkcollector.StatusComplete,
 			FactCount: 1,
@@ -110,10 +139,10 @@ func parityEmissionResult(item workflow.WorkItem) sdkcollector.Result {
 // LiveGrants backing swapped, exactly as buildClaimedService wires it:
 // the cutover re-read under the pinned holder versus the direct registry
 // read. All other inputs are identical.
-func parityEmissionSource(t *testing.T, home string, cutover *remoteclaim.Cutover, observer *recordingGrantObserver, useCutover bool) *extensionhost.Source {
+func parityEmissionSource(t *testing.T, home string, kind string, cutover *remoteclaim.Cutover, observer *recordingGrantObserver, useCutover bool) *extensionhost.Source {
 	t.Helper()
 
-	manifest := grantedComponentManifest(parityHolderID, parityHolderVersion, parityCoreKind)
+	manifest := grantedComponentManifest(parityHolderID, parityHolderVersion, kind)
 	registry := component.NewRegistry(home)
 	liveGrants := func() ([]component.ProducerGrant, error) { return registry.ProducerGrants() }
 	if useCutover {
@@ -127,11 +156,15 @@ func parityEmissionSource(t *testing.T, home string, cutover *remoteclaim.Cutove
 		CollectorInstanceID: item.CollectorInstanceID,
 		ScopeKind:           scope.KindRepository,
 		ConfigHandle:        "cfg-parity-emission",
-		Runner:              &parityStubRunner{result: parityEmissionResult(item)},
-		Clock:               func() time.Time { return item.LastClaimedAt },
-		Grants:              []component.ProducerGrant{parityLiveGrant()},
-		LiveGrants:          liveGrants,
-		GrantObserver:       observer,
+		Runner:              &parityStubRunner{result: parityEmissionResult(item, kind)},
+		Clock:               parityFixtureNow,
+		// Construction-time manifest validation runs on the wall clock,
+		// so the static construction grants stay wall-live; every
+		// per-emission decision under test reads the fixture-anchored
+		// registry instead.
+		Grants:        []component.ProducerGrant{parityLiveGrant()},
+		LiveGrants:    liveGrants,
+		GrantObserver: observer,
 	})
 	if err != nil {
 		t.Fatalf("NewSource() error = %v, want nil", err)
@@ -165,21 +198,93 @@ func parityAdmitted(t *testing.T, collected collector.CollectedGeneration) []str
 	return admitted
 }
 
+// parityEmissionState is one hostile registry state replayed through the
+// real Source emission loop on both LiveGrants backings. Each state owns a
+// fresh registry home, so states run isolated and parallel-safe.
+type parityEmissionState struct {
+	name string
+	// setup arranges the state's registry content; nil leaves it empty.
+	setup     func(t *testing.T, registry component.Registry)
+	factKind  string
+	wantAdmit bool
+	// wantReason is the expected last emission decision reason.
+	wantReason  component.GrantReason
+	wantAllowed bool
+	// wantEmissionObs is the expected emission-stage observation count
+	// (zero for ungoverned non-core kinds, which observe nothing).
+	wantEmissionObs int
+}
+
+func parityEmissionStates() []parityEmissionState {
+	live := parityFixtureGrant()
+	revoked := parityFixtureGrant()
+	revoked.Revoked = true
+	expired := parityFixtureGrant()
+	expired.ExpiresAt = parityFixtureNow().Add(-time.Hour).UTC()
+	wrongScope := parityFixtureGrant()
+	wrongScope.Scope = "somewhere-else"
+	wrongSchema := parityFixtureGrant()
+	wrongSchema.SchemaVersions = []string{"9.9.9"}
+	impostor := parityFixtureGrant()
+	impostor.ProducerID = "dev.eshu.examples.impostor"
+	record := func(g component.ProducerGrant) func(*testing.T, component.Registry) {
+		return func(t *testing.T, registry component.Registry) {
+			t.Helper()
+			if err := registry.RecordGrant(g); err != nil {
+				t.Fatalf("RecordGrant() error = %v, want nil", err)
+			}
+		}
+	}
+	return []parityEmissionState{
+		{
+			name: "live", setup: record(live), factKind: parityCoreKind,
+			wantAdmit: true, wantReason: component.GrantReasonGranted, wantAllowed: true, wantEmissionObs: 1,
+		},
+		{
+			name: "revoked", setup: record(revoked), factKind: parityCoreKind,
+			wantAdmit: false, wantReason: component.GrantReasonRevoked, wantAllowed: false, wantEmissionObs: 1,
+		},
+		{
+			name: "expired", setup: record(expired), factKind: parityCoreKind,
+			wantAdmit: false, wantReason: component.GrantReasonExpired, wantAllowed: false, wantEmissionObs: 1,
+		},
+		{
+			name: "wrong scope", setup: record(wrongScope), factKind: parityCoreKind,
+			wantAdmit: false, wantReason: component.GrantReasonScopeMismatch, wantAllowed: false, wantEmissionObs: 1,
+		},
+		{
+			name: "uncovered schema", setup: record(wrongSchema), factKind: parityCoreKind,
+			wantAdmit: false, wantReason: component.GrantReasonSchemaNotCovered, wantAllowed: false, wantEmissionObs: 1,
+		},
+		{
+			name: "absent grant", setup: nil, factKind: parityCoreKind,
+			wantAdmit: false, wantReason: component.GrantReasonNoMatchingGrant, wantAllowed: false, wantEmissionObs: 1,
+		},
+		{
+			name: "impostor grant", setup: record(impostor), factKind: parityCoreKind,
+			wantAdmit: false, wantReason: component.GrantReasonNoMatchingGrant, wantAllowed: false, wantEmissionObs: 1,
+		},
+		{
+			name: "unreadable set", setup: nil, factKind: parityCoreKind,
+			wantAdmit: false, wantReason: component.GrantReasonGrantsUnreadable, wantAllowed: false, wantEmissionObs: 1,
+		},
+		{
+			name: "non-core kind", setup: nil, factKind: parityNamespacedNonCoreKind,
+			wantAdmit: true, wantReason: component.GrantReasonGranted, wantAllowed: true, wantEmissionObs: 0,
+		},
+	}
+}
+
 // TestCutoverSourceEmissionParityWithInTree proves the full Source emission
 // agrees row for row when only the LiveGrants backing swaps between the
-// cutover re-read and the direct registry read: the same scripted core-kind
-// fact is admitted with identical identity under a live grant and denied at
-// the same emission after revoke, with identical observed decisions
-// (eshu-hq/eshu#8877 leaf 3; expiry through the built cutover is pinned by
-// TestBuildRemoteCutoverObservesEmissionDenyAfterExpiry).
+// cutover re-read and the direct registry read: the same scripted fact is
+// admitted with identical identity under a live grant (and for the
+// ungoverned non-core kind) and denied at the same emission for every
+// hostile registry state, with identical observed decisions
+// (eshu-hq/eshu#8877 leaf 3).
 func TestCutoverSourceEmissionParityWithInTree(t *testing.T) {
 	t.Parallel()
 
-	home := t.TempDir()
-	registry := component.NewRegistry(home)
-	if err := registry.RecordGrant(parityLiveGrant()); err != nil {
-		t.Fatalf("RecordGrant() error = %v, want nil", err)
-	}
 	plan := cutoverPlan{
 		enabled:         true,
 		remoteURL:       "http://eshu-workflow-claim-plane:8080",
@@ -187,30 +292,20 @@ func TestCutoverSourceEmissionParityWithInTree(t *testing.T) {
 		producerVersion: parityHolderVersion,
 		scopes:          []string{parityScope},
 	}
-	states := []struct {
-		name        string
-		transition  func(*testing.T)
-		wantAdmit   bool
-		wantReason  component.GrantReason
-		wantAllowed bool
-	}{
-		{
-			name: "live", transition: nil, wantAdmit: true,
-			wantReason: component.GrantReasonGranted, wantAllowed: true,
-		},
-		{name: "revoked", transition: func(t *testing.T) {
-			t.Helper()
-			if err := registry.RevokeGrant(parityHolderID, parityHolderVersion, parityCoreKind, parityScope); err != nil {
-				t.Fatalf("RevokeGrant() error = %v, want nil", err)
-			}
-		}, wantAdmit: false, wantReason: component.GrantReasonRevoked, wantAllowed: false},
-	}
-	for _, state := range states {
-		// NOTE: no t.Parallel here: transitions mutate the shared registry
-		// and states must run in order (live, revoked).
+	for _, state := range parityEmissionStates() {
 		t.Run(state.name, func(t *testing.T) {
-			if state.transition != nil {
-				state.transition(t)
+			t.Parallel()
+
+			home := t.TempDir()
+			if state.name == "unreadable set" {
+				// A regular file where the registry expects a directory
+				// fails the grant-set load.
+				home = home + "/not-a-registry-home"
+				if err := writeHostileFile(home); err != nil {
+					t.Fatalf("write hostile home: %v", err)
+				}
+			} else if state.setup != nil {
+				state.setup(t, component.NewRegistry(home))
 			}
 			item := parityEmissionItem()
 			var outcomes []parityEmissionOutcome
@@ -220,7 +315,7 @@ func TestCutoverSourceEmissionParityWithInTree(t *testing.T) {
 				if err != nil {
 					t.Fatalf("buildRemoteCutover() error = %v, want nil", err)
 				}
-				source := parityEmissionSource(t, home, cutover, observer, useCutover)
+				source := parityEmissionSource(t, home, state.factKind, cutover, observer, useCutover)
 				collected, ok, err := source.NextClaimed(context.Background(), item)
 				slot := parityEmissionOutcome{ok: ok, erred: err != nil, observed: observer.snapshot()}
 				if err != nil {
@@ -255,16 +350,19 @@ func TestCutoverSourceEmissionParityWithInTree(t *testing.T) {
 						emission = append(emission, decision)
 					}
 				}
-				if len(emission) == 0 {
-					t.Fatalf("path %d: zero emission decisions (all=%+v) on %q, want the emission decision",
-						i, outcome.observed, state.name)
+				if len(emission) != state.wantEmissionObs {
+					t.Fatalf("path %d: emission decisions=%d (all=%+v) want %d on %q",
+						i, len(emission), outcome.observed, state.wantEmissionObs, state.name)
+				}
+				if state.wantEmissionObs == 0 {
+					continue
 				}
 				last := emission[len(emission)-1]
 				if last.Allowed != state.wantAllowed || last.Reason != state.wantReason {
 					t.Fatalf("path %d: emission observed=(%t,%q) want=(%t,%q) on %q",
 						i, last.Allowed, last.Reason, state.wantAllowed, state.wantReason, state.name)
 				}
-				if last.ProducerID != parityHolderID || last.Version != parityHolderVersion || last.Kind != parityCoreKind {
+				if last.ProducerID != parityHolderID || last.Version != parityHolderVersion || last.Kind != state.factKind {
 					t.Fatalf("path %d: emission observed holder/kind=%q %q %q on %q",
 						i, last.ProducerID, last.Version, last.Kind, state.name)
 				}
