@@ -304,6 +304,103 @@ func TestServiceRefusedCommitOpensNoEpochAfterStartup(t *testing.T) {
 	}
 }
 
+// TestServiceMixedLandedAndRefusedDrainCalls runs landed and refused generations
+// through one Service run, the normal shape of an ingester batch. A refusal must
+// neither erase a landed commit's pending drain nor undo the commit's latch.
+//
+// The "landed, drain, refused" row pins the accepted behavior at this head: the
+// shard joins the documented idle class, so the refusal produces no arrival.
+// Reporting true there would open an epoch for a generation that stored nothing.
+// #10084 flips this row to []bool{true, false} when it adds join-only arrival.
+func TestServiceMixedLandedAndRefusedDrainCalls(t *testing.T) {
+	t.Parallel()
+
+	landed := func(context.Context) {}
+	refused := func(ctx context.Context) { MarkCommitRefused(ctx, testCommitRefusal) }
+
+	// batches are the generations each poll cycle offers; a drain separates them.
+	for _, tc := range []struct {
+		name           string
+		batches        [][]func(context.Context)
+		wantDrainCalls []bool
+	}{
+		{
+			name:           "landed + refused",
+			batches:        [][]func(context.Context){{landed, refused}},
+			wantDrainCalls: []bool{true},
+		},
+		{
+			name:           "refused + landed",
+			batches:        [][]func(context.Context){{refused, landed}},
+			wantDrainCalls: []bool{true},
+		},
+		{
+			name:           "landed, drain, refused",
+			batches:        [][]func(context.Context){{landed}, {refused}},
+			wantDrainCalls: []bool{true},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			scopeValue, generationValue, envelopes := testCollectedGeneration()
+			offer := func(marks []func(context.Context)) []CollectedGeneration {
+				generations := make([]CollectedGeneration, 0, len(marks))
+				for range marks {
+					generations = append(generations, FactsFromSlice(scopeValue, generationValue, envelopes))
+				}
+				return generations
+			}
+
+			source := &stubSource{collected: offer(tc.batches[0])}
+			nextBatch := 1
+			idlePolls := 0
+			source.empty = func() {
+				if nextBatch < len(tc.batches) {
+					source.collected = append(source.collected, offer(tc.batches[nextBatch])...)
+					nextBatch++
+					return
+				}
+				// Two idle polls after the last batch, so an arrival that a
+				// later poll would make still shows up in drainCalls.
+				idlePolls++
+				if idlePolls == 2 {
+					cancel()
+				}
+			}
+
+			marks := slices.Concat(tc.batches...)
+			commits := 0
+			var drainCalls []bool
+			service := Service{
+				Source: source,
+				Committer: markingServiceCommitter(func(commitCtx context.Context) {
+					marks[commits](commitCtx)
+					commits++
+				}, func() {}),
+				PollInterval:           time.Millisecond,
+				AfterEmptyBatchDrained: true,
+				AfterBatchDrained: func(_ context.Context, hasCommitted bool) error {
+					drainCalls = append(drainCalls, hasCommitted)
+					return nil
+				},
+			}
+
+			if err := service.Run(ctx); err != nil {
+				t.Fatalf("Run() error = %v, want nil", err)
+			}
+			if commits != len(marks) {
+				t.Fatalf("commits = %d, want %d", commits, len(marks))
+			}
+			if !slices.Equal(drainCalls, tc.wantDrainCalls) {
+				t.Fatalf("AfterBatchDrained hasCommitted calls = %v, want %v", drainCalls, tc.wantDrainCalls)
+			}
+		})
+	}
+}
+
 // markingServiceCommitter drains the stream, marks the commit's box, runs after,
 // and returns nil, as a committer does when it rolls a generation back on purpose.
 func markingServiceCommitter(mark func(context.Context), after func()) *stubCommitter {
