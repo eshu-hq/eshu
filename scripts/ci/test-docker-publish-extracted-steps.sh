@@ -132,6 +132,15 @@ done
 # #9491: the scanner digest pin verifier, its suite, and the relocated pin
 # leaf (#8878) select the scannerpins lane, while unrelated paths leave it
 # off.
+for pins_path in scripts/verify-doc-import-pins.sh scripts/test-verify-doc-import-pins.sh; do
+  guard_base="$(git -C "${repo}" rev-parse HEAD)"
+  mkdir -p "${repo}/scripts"
+  printf '# guard\n' > "${repo}/${pins_path}"
+  git -C "${repo}" add "${pins_path}"
+  git -C "${repo}" commit -qm "${pins_path##*/}"
+  run_selection pull_request "$(git -C "${repo}" rev-parse HEAD)" "${guard_base}"
+  rg -q '^apkfloors=true$' "${scratch}/output"
+done
 for pins_path in scripts/verify-scanner-digest-pins.sh scripts/test-verify-scanner-digest-pins.sh scripts/check-scanner-freshness.sh scripts/test-check-scanner-freshness.sh go/internal/collector/scannercomponent/manifest.go; do
   pins_base="$(git -C "${repo}" rev-parse HEAD)"
   mkdir -p "${repo}/$(dirname "${pins_path}")"

@@ -78,6 +78,9 @@ awk 'NR > 1 && $2 != "/usr/share/tessdata/eng.traineddata" \
   `sha256sum -c` on the arch-matching file; any drift fails the build.
 - Index drift: `scripts/verify-apk-floors.sh --stage job-document-import`
   audits the exact pins against the served Alpine index.
+- Well-formedness: `scripts/verify-doc-import-pins.sh` asserts both arch
+  files hold exactly 17 portable `sha256sum -c` records, so a corrupted
+  pin file fails fast on the PR without a build.
 - Tools: `scripts/verify-runtime-image-tools.sh` with
   `ESHU_REQUIRED_TOOLS="tesseract eshu-collector-document-import"` asserts
   the exported rootfs ships both.
