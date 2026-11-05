@@ -107,8 +107,8 @@ func TestReconcileRunProgressTerminalItemWaitsForCollectionToEnd(t *testing.T) {
 		},
 		{
 			// The one uncounted row stands for an expired item: the progress
-			// query counts it only in the total, and expired is an ended state
-			// (the schema trigger sets finished_at on it).
+			// query buckets only pending, claimed, completed and
+			// failed_terminal, so any other status is an uncounted ended row.
 			name: "an expired sibling counts as ended",
 			collectors: []CollectorRunProgress{{
 				CollectorKind:       scope.CollectorGit,
