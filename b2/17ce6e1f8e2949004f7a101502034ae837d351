@@ -1,0 +1,41 @@
+docs/internal/evidence/10005-crossplane-delta-overlay.md
+  s_7547c0f0af67d4::t_d021dd58670527 162-228
+go/internal/storage/postgres/migrations/279_fact_records_crossplane_xrd_entity_idx.sql
+  s_7547c0f0af67d4::t_f0802586e0019a 1-34
+go/internal/storage/postgres/migrations/README.md
+  s_7547c0f0af67d4::t_23ec233004eb46 411-433
+go/internal/storage/postgres/migrations/embed_invariant_test.go
+  s_7547c0f0af67d4::t_ea31f0bac77089 203-207,213
+go/internal/storage/postgres/migrations/migration_checksum_manifest_test.go
+  s_7547c0f0af67d4::t_b2675fb7762b09 343-345
+go/internal/storage/postgres/satisfied_by_read_delta_live_test.go
+  s_7547c0f0af67d4::t_e404a4a04ca276 7,12,15,355-411
+go/internal/storage/postgres/satisfied_by_read_index_test.go
+  s_7547c0f0af67d4::t_b8dcbb1c57ab65 1-68
+go/internal/storage/postgres/schema_fact_records.go
+  s_7547c0f0af67d4::t_bfb8a48b33e139 6
+go/internal/storage/postgres/schema_fact_records_crossplane.go
+  s_7547c0f0af67d4::t_19d095d3a1799f 1-24
+go/internal/storage/postgres/schema_order_late_test.go
+  s_7547c0f0af67d4::t_f6ca921f873c50 461-463
+scripts/lib/live_postgres_readiness_inventory_gen_internal_storage_postgres_part2.py
+  s_7547c0f0af67d4::t_72d4341eadcc27 335
+specs/live-tests.d/live-tests-readiness-part4.generated.yaml
+  s_7547c0f0af67d4::t_3a72a5a7629c6f 225
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b217ce6e1f8e2949004f7a101502034ae837d351",
+  "prompts": {},
+  "sessions": {
+    "s_7547c0f0af67d4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7c8b2d5-3286-4c2a-be1f-589162535d83",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
