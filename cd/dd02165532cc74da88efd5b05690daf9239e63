@@ -1,0 +1,33 @@
+.github/workflows/reducer-contention-gate.yml
+  s_7547c0f0af67d4::t_48bdb119898f41 405-406,409
+go/internal/reducer/supplychain/core/manifest_chain_test.go
+  s_7547c0f0af67d4::t_8884b7b642d221 273-292
+go/internal/reducer/supplychain/core/manifest_trigger.go
+  s_7547c0f0af67d4::t_27c6524d4c81f9 21-22,92-95,99-102,169
+go/internal/reducer/supplychain/core/manifest_trigger_replay_test.go
+  s_7547c0f0af67d4::t_22b0aa944dbe6a 227-253
+go/internal/storage/postgres/supply_chain_impact_manifest_chain_live_test.go
+  s_7547c0f0af67d4::t_b8ea90b486c1dc 9,18,226-343
+go/internal/storage/postgres/supply_chain_impact_manifest_generation.go
+  s_7547c0f0af67d4::t_47dce9073117cc 122-124,151-152,181-185,194,198-199,213,226,235-251,253,258,264,279
+scripts/lib/reducer_contention_inventory.json
+  s_7547c0f0af67d4::t_e140a85d22ba51 228
+specs/live-tests.d/live-tests-07.yaml
+  s_7547c0f0af67d4::t_0f65212242f6d8 361
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "cddd02165532cc74da88efd5b05690daf9239e63",
+  "prompts": {},
+  "sessions": {
+    "s_7547c0f0af67d4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7c8b2d5-3286-4c2a-be1f-589162535d83",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

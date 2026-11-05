@@ -1,0 +1,68 @@
+go/internal/storage/postgres/supply_chain_impact_manifest_trigger_live_test.go
+  s_7547c0f0af67d4::t_a2da4b8ce61713 1-306
+  s_7547c0f0af67d4::t_d9412d47871823 307-333
+go/internal/storage/postgres/supply_chain_impact_manifest_generation.go
+  s_7547c0f0af67d4::t_50d6619296bbce 1-226
+  s_7547c0f0af67d4::t_1ed18de7c6924a 227-257
+go/internal/storage/postgres/supply_chain_impact_package_holders.go
+  s_7547c0f0af67d4::t_5e8c2cb02db704 1-123
+go/internal/reducer/defaults_cross_scope_readiness_wiring_test.go
+  s_7547c0f0af67d4::t_b8feebbda8b11b 235-238
+go/internal/reducer/supplychain/core/manifest_change.go
+  s_7547c0f0af67d4::t_be28c2848de4d2 1-169
+docs/internal/evidence/9874-lockfile-retrigger.md
+  s_7547c0f0af67d4::t_320f914e19039d 1-176
+go/internal/reducer/supplychain/core/manifest_trigger.go
+  s_7547c0f0af67d4::t_215f46683026f8 6-19,24-27,36-319
+go/internal/reducer/supplychain/core/manifest_trigger_test.go
+  s_7547c0f0af67d4::t_aa995e9b32864b 1-380,383-384,390,408,418
+  s_7547c0f0af67d4::t_946661f3dd54ac 381-382,385-389,391-407,409-417,419-426
+.github/workflows/reducer-contention-gate.yml
+  s_7547c0f0af67d4::t_6363ebc2354b6d 402-404,407
+docs/internal/design/advisory-intelligence-correlation-flow.md
+  s_7547c0f0af67d4::t_0956b53387cd84 100,291
+docs/internal/design/advisory-intelligence-engineering-flow.md
+  s_7547c0f0af67d4::t_f955a24fc45ca3 101
+docs/public/observability/telemetry-coverage-reducer-core.md
+  s_7547c0f0af67d4::t_e0a2be51ae8594 53
+docs/public/observability/telemetry-coverage-reducer-domains.md
+  s_7547c0f0af67d4::t_00d69c6f3f9cc6 94
+docs/public/reference/telemetry/supply-chain-impact-winners.md
+  s_7547c0f0af67d4::t_9aba1f5fec2d58 90-96
+go/internal/reducer/supplychain/core/AGENTS.md
+  s_7547c0f0af67d4::t_566cc107384704 31-38
+go/internal/reducer/supplychain/core/HOLDER_FANOUT.md
+  s_7547c0f0af67d4::t_669b14700c18ad 98-141
+go/internal/reducer/supplychain/core/README.md
+  s_7547c0f0af67d4::t_60621f68c7c28e 377,407
+go/internal/reducer/supplychain/core/doc.go
+  s_7547c0f0af67d4::t_4d9cd7eabea0f9 58-62
+go/internal/reducer/supplychain/core/fanout.go
+  s_7547c0f0af67d4::t_56c07a134bc470 96-98,218-220
+go/internal/reducer/supplychain/core/fanout_stub_test.go
+  s_7547c0f0af67d4::t_7908cdb1414cdc 46-58
+go/internal/reducer/supplychain/core/impact.go
+  s_7547c0f0af67d4::t_ae888421714671 166-168
+go/internal/reducer/supplychain/core/manifest_trigger_replay_test.go
+  s_7547c0f0af67d4::t_fc4857de397354 1-226
+scripts/lib/reducer_contention_inventory.json
+  s_7547c0f0af67d4::t_5b79b5ccaa7d83 226-229
+specs/live-tests.d/live-tests-07.yaml
+  s_7547c0f0af67d4::t_7ff188ea879bb0 358-362
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6b604a5575225babc84dd52d2cbcb4545ba1a6c2",
+  "prompts": {},
+  "sessions": {
+    "s_7547c0f0af67d4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7c8b2d5-3286-4c2a-be1f-589162535d83",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

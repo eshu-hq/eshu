@@ -1,0 +1,43 @@
+go/internal/projector/supply/chain/impact/manifest_trigger_test.go
+  s_7547c0f0af67d4::t_f0e2af8f3f341d 1-135
+  s_7547c0f0af67d4::t_e2b50ec843c41e 136-138
+go/internal/projector/runtime/supply_chain_impact_manifest_projection_test.go
+  s_7547c0f0af67d4::t_16668636692362 1-101
+go/internal/projector/supply/chain/impact/intents.go
+  s_7547c0f0af67d4::t_fa241c0db13f1e 32-34
+  s_7547c0f0af67d4::t_7a9da6149fc45c 45
+go/internal/reducer/supplychain/core/manifest_trigger.go
+  s_7547c0f0af67d4::t_dea961645e804e 1-19
+go/internal/projector/supply/chain/impact/manifest_trigger_bench_test.go
+  s_7547c0f0af67d4::t_dc96a282a81f73 1-19,21-30
+  s_7547c0f0af67d4::t_1c939ec8719674 20
+  s_7547c0f0af67d4::t_5dfc35b322abe8 31-65
+go/internal/projector/supply/chain/impact/manifest_trigger.go
+  s_7547c0f0af67d4::t_1a19db3731e5d9 62-67,69,75
+  s_7547c0f0af67d4::t_6070dcb8049106 86-98
+  s_7547c0f0af67d4::t_dae6f38fed6976 31-55
+  s_7547c0f0af67d4::t_710bf32ca6f862 10-11
+  s_7547c0f0af67d4::t_a9025d68023175 1-9,12-30,56-61,68,70-74,76-85,99-129
+go/internal/projector/supply/chain/impact/AGENTS.md
+  s_7547c0f0af67d4::t_2875ddd09d1e97 40-48,83-84
+go/internal/projector/supply/chain/impact/README.md
+  s_7547c0f0af67d4::t_679463e7cf2338 16-26,56-61,71-73
+go/internal/projector/supply/chain/impact/doc.go
+  s_7547c0f0af67d4::t_4146d2d989996f 10-17
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b3ed9966ba27fc5af5257b9b4e7df70fb191b7ce",
+  "prompts": {},
+  "sessions": {
+    "s_7547c0f0af67d4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7c8b2d5-3286-4c2a-be1f-589162535d83",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

@@ -1,0 +1,23 @@
+docs/internal/evidence/9874-lockfile-retrigger.md
+  s_7547c0f0af67d4::t_6e41aba2efd9f8 48-52,108-113
+go/internal/projector/runtime/supply_chain_impact_manifest_projection_test.go
+  s_7547c0f0af67d4::t_5c031db9a21dda 102-147
+go/internal/storage/postgres/supply_chain_impact_manifest_generation.go
+  s_7547c0f0af67d4::t_f4ba94cd77e811 19-23
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f19fae13112153e0478ef16814114acdbe6d9611",
+  "prompts": {},
+  "sessions": {
+    "s_7547c0f0af67d4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7c8b2d5-3286-4c2a-be1f-589162535d83",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
