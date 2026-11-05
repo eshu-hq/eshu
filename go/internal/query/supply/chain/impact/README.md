@@ -131,11 +131,11 @@ fallback), or a custom provider that neither attests nor warns; the held-stale
 gauge covers those cases, not readiness. Malformed CVE elements, duplicate
 scope IDs, and window fields the collector's config parse refuses fail the
 readiness lookup closed as `source_targets_malformed`, and the findings and
-explain handlers log the fail-closed cause. A configured `ghsa` target (#9959) is a well-formed source, so it does not
-trip that check. It is never a readiness candidate: it has no CVE selector or
-ecosystem and its records carry no CVE key, so it leaves every CVE read
-unchanged. A present `modified_start` or
-`modified_end` must be strict RFC 3339 with a `Z` or `+-hh:mm` zone (no hour
+explain handlers log the fail-closed cause. A configured `ghsa` target
+(#9959) is a well-formed source, so it does not trip that check. It is never a
+readiness candidate: it has no CVE selector or ecosystem and its records carry
+no CVE key, so it leaves every CVE read unchanged. A present `modified_start`
+or `modified_end` must be strict RFC 3339 with a `Z` or `+-hh:mm` zone (no hour
 24 or second 60) that `pg_input_is_valid` accepts, and a present
 `results_per_page` must be a JSON integer of magnitude at most 999,999,999,
 which keeps the int4 cast in range. The descriptor casts
