@@ -40,11 +40,13 @@ import (
 // Every result is a log line starting with PROBE10148 and then key=value
 // pairs; kind=verdict carries the decision rule from the arbiter ruling
 // (r <= 0.35 on both flavours: GO_FULL; r <= 0.60: CLONE_CAP_RELIEF_ONLY;
-// above that or unequal catalogs: STOP). ESHU_PROBE_10148_SAMPLES overrides
+// above that or unequal catalogs: STOP; any failed sample: INVALID_SAMPLES,
+// with the isolated input the worse of the ruled and shared-schema tiers).
+// ESHU_PROBE_10148_SAMPLES overrides
 // the sample count for local runs only; the env and verdict lines print n.
 const (
-	probeSampleDefault  = 15
-	probeFsyncSamples   = 9
+	probeSampleDefault  = 20
+	probeFsyncSamples   = 20
 	probeConcurrentSize = 4
 	probeConcurrentRuns = 3
 	probeSchema         = "probe10148_iso"
@@ -264,26 +266,41 @@ func probeStats(values []float64) (lo, p25, med, p75, hi float64) {
 
 // probeSampleRuns runs every arm n times in subtests, rotating which arm goes
 // first on each pass so no arm always pays the cold-cache or host-noise cost.
-func probeSampleRuns(t *testing.T, phase string, arms []probeArm, n int, results map[string][]probeSample) {
+// A failed subtest contributes no sample: it is counted in failed instead, so
+// a failed clone arm can never read as a 0 ms median.
+func probeSampleRuns(t *testing.T, phase string, arms []probeArm, n int, results map[string][]probeSample, failed map[string]int) {
 	t.Helper()
 	for i := 0; i < n; i++ {
 		for j := range arms {
 			arm := arms[(i+j)%len(arms)]
+			key := phase + "/" + arm.name
 			var s probeSample
 			start := time.Now()
-			t.Run(fmt.Sprintf("%s_%s_%02d", phase, arm.name, i), func(t *testing.T) { s = arm.run(t) })
+			ok := t.Run(fmt.Sprintf("%s_%s_%02d", phase, arm.name, i), func(t *testing.T) { s = arm.run(t) })
 			s.total = time.Since(start)
-			results[phase+"/"+arm.name] = append(results[phase+"/"+arm.name], s)
-			probeLine(t, "kind=sample phase=%s arm=%s i=%d work_ms=%s apply_ms=%s total_ms=%s", phase, arm.name, i, probeMS(s.work), probeMS(s.apply), probeMS(s.total))
+			if ok {
+				results[key] = append(results[key], s)
+			} else {
+				failed[key]++
+			}
+			probeLine(t, "kind=sample phase=%s arm=%s i=%d ok=%t failed=%d work_ms=%s apply_ms=%s total_ms=%s", phase, arm.name, i, ok, failed[key], probeMS(s.work), probeMS(s.apply), probeMS(s.total))
 		}
 	}
 }
 
-// probeReport prints per-arm medians and the clone ratio for each flavour of
-// phase, and returns the work-time ratios keyed by flavour.
-func probeReport(t *testing.T, phase string, results map[string][]probeSample) map[string]float64 {
+// probeReport prints each arm's median once and the clone ratio for each
+// flavour of phase. It returns the work-time ratios keyed by flavour with
+// whether every arm gave n good samples and every ratio resolved; a false
+// valid tiers INVALID_SAMPLES downstream, never GO.
+func probeReport(t *testing.T, phase string, arms []probeArm, n int, results map[string][]probeSample, failed map[string]int) (map[string]float64, bool) {
 	t.Helper()
-	med := func(arm string, total bool) float64 {
+	valid := true
+	for _, a := range arms {
+		if failed[phase+"/"+a.name] > 0 || len(results[phase+"/"+a.name]) < n {
+			valid = false
+		}
+	}
+	median := func(arm string, total bool) float64 {
 		var v []float64
 		for _, s := range results[phase+"/"+arm] {
 			d := s.work
@@ -301,26 +318,34 @@ func probeReport(t *testing.T, phase string, results map[string][]probeSample) m
 		}
 		return m
 	}
+	work, total := map[string]float64{}, map[string]float64{}
+	for _, a := range arms {
+		work[a.name], total[a.name] = median(a.name, false), median(a.name, true)
+	}
 	ratios := map[string]float64{}
 	for _, f := range []struct{ flavour, boot, clone string }{
 		{"public", "boot_public", "clone_public"},
 		{"isolated", "boot_isolated", "clone_isolated"},
 		{"isolated_vs_shared_schema", "boot_isolated_shared_schema", "clone_isolated"},
 	} {
-		b, c := med(f.boot, false), med(f.clone, false)
-		bt, ct := med(f.boot, true), med(f.clone, true)
+		b, c := work[f.boot], work[f.clone]
+		bt, ct := total[f.boot], total[f.clone]
 		if b == 0 || c == 0 {
+			valid = false
 			continue
 		}
 		ratios[f.flavour] = c / b
 		probeLine(t, "kind=ratio phase=%s flavour=%s r=%.3f r_with_teardown=%.3f boot_ms=%.1f clone_ms=%.1f", phase, f.flavour, c/b, ct/bt, b, c)
 	}
-	return ratios
+	return ratios, valid
 }
 
-// probeTier applies the arbiter's per-flavour thresholds.
-func probeTier(r float64, equal bool) string {
+// probeTier applies the arbiter's per-flavour thresholds. Failed samples
+// (valid=false) tier INVALID_SAMPLES, never GO.
+func probeTier(r float64, equal, valid bool) string {
 	switch {
+	case !valid:
+		return "INVALID_SAMPLES"
 	case !equal || r > 0.60:
 		return "STOP"
 	case r <= 0.35:
@@ -330,8 +355,22 @@ func probeTier(r float64, equal bool) string {
 	}
 }
 
+// probeWorse returns the worse of two tiers: the 70 real tests pay the cheaper
+// shared-schema bootstrap, so the isolated decision input is the worse of the
+// ruled-denominator tier and the shared-schema tier. INVALID_SAMPLES outranks
+// every tier, never GO.
+func probeWorse(a, b string) string {
+	rank := map[string]int{"GO": 0, "RELIEF": 1, "STOP": 2, "INVALID_SAMPLES": 3}
+	if rank[b] > rank[a] {
+		return b
+	}
+	return a
+}
+
 func probeDecide(public, isolated string, concurrentOK bool) string {
 	switch {
+	case public == "INVALID_SAMPLES" || isolated == "INVALID_SAMPLES":
+		return "INVALID_SAMPLES"
 	case public == "STOP":
 		return "STOP"
 	case isolated == "STOP":
@@ -405,19 +444,27 @@ func TestReducerContentionGateProbe10148CloneRatio(t *testing.T) {
 		}},
 	}
 	results := map[string][]probeSample{}
-	probeSampleRuns(t, "main", arms, samples, results)
-	ratios := probeReport(t, "main", results)
-	pubTier, isoTier := probeTier(ratios["public"], pubEqual), probeTier(ratios["isolated"], isoEqual)
-	sharedTier := probeTier(ratios["isolated_vs_shared_schema"], isoEqual)
+	failed := map[string]int{}
+	probeSampleRuns(t, "main", arms, samples, results, failed)
+	ratios, mainValid := probeReport(t, "main", arms, samples, results, failed)
+	pubTier, isoTier := probeTier(ratios["public"], pubEqual, mainValid), probeTier(ratios["isolated"], isoEqual, mainValid)
+	sharedTier := probeTier(ratios["isolated_vs_shared_schema"], isoEqual, mainValid)
+	isoDecision := probeWorse(isoTier, sharedTier)
 
 	concurrentOK := probeConcurrent(t, e, "public", pubTpl, "public")
 	concurrentOK = probeConcurrent(t, e, "isolated", isoTpl, probeSchema+",public") && concurrentOK
-	probeLine(t, "kind=verdict n=%d public_r=%.3f public_equal=%t public_tier=%s isolated_r=%.3f isolated_equal=%t isolated_tier=%s isolated_vs_shared_schema_tier=%s concurrent_ok=%t decision=%s",
-		samples, ratios["public"], pubEqual, pubTier, ratios["isolated"], isoEqual, isoTier, sharedTier, concurrentOK, probeDecide(pubTier, isoTier, concurrentOK))
+	probeLine(t, "kind=verdict n=%d public_r=%.3f public_equal=%t public_tier=%s isolated_r=%.3f isolated_equal=%t isolated_tier=%s isolated_vs_shared_schema_tier=%s isolated_decision=%s concurrent_ok=%t decision=%s",
+		samples, ratios["public"], pubEqual, pubTier, ratios["isolated"], isoEqual, isoTier, sharedTier, isoDecision, concurrentOK, probeDecide(pubTier, isoDecision, concurrentOK))
+
+	probeFileCopy(t, e, "public", pubTpl, "public")
+	probeFileCopy(t, e, "isolated", isoTpl, probeSchema+",public")
 
 	// Arm B, last: the same arms with crash durability off. The reset is
 	// registered first so it runs on every exit; it is shown, not assumed.
 	t.Run("durability_off", func(t *testing.T) {
+		if !probeDurabilityArmed(t, before) {
+			return
+		}
 		reset := func() {
 			rctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 			defer cancel()
@@ -436,8 +483,9 @@ func TestReducerContentionGateProbe10148CloneRatio(t *testing.T) {
 		during, _ := e.durability(ctx)
 		probeLine(t, "kind=settings stage=during settings=%q", during)
 		fsyncResults := map[string][]probeSample{}
-		probeSampleRuns(t, "fsync_off", arms[:4], probeFsyncSamples, fsyncResults)
-		probeReport(t, "fsync_off", fsyncResults)
+		fsyncFailed := map[string]int{}
+		probeSampleRuns(t, "fsync_off", arms[:4], probeFsyncSamples, fsyncResults, fsyncFailed)
+		probeReport(t, "fsync_off", arms[:4], probeFsyncSamples, fsyncResults, fsyncFailed)
 		reset()
 		after, _ := e.durability(ctx)
 		probeLine(t, "kind=settings stage=after settings=%q restored=%t", after, after == before)

@@ -14,8 +14,8 @@ import (
 	"github.com/jackc/pgx/v5/stdlib"
 )
 
-// Concurrent-clone and durability-off arms of the #10148 clone-ratio probe; see
-// a_clone_ratio_probe_test.go for the whole probe.
+// Concurrent-clone, FILE_COPY reference, and durability-off arms of the #10148
+// clone-ratio probe; see a_clone_ratio_probe_test.go for the whole probe.
 
 // probeConcurrent clones one template several times at once, as the gate's
 // parallel tests would, and checks each clone against the template catalog.
@@ -77,6 +77,58 @@ func probeConcurrent(t *testing.T, e probeEnv, flavour string, template *probeBu
 		e.dropDatabase(name)
 	}
 	return allOK
+}
+
+// probeFileCopy clones template once with STRATEGY FILE_COPY, the ruling's
+// reference figure, and prints its cost. It is not a decision input.
+func probeFileCopy(t *testing.T, e probeEnv, flavour string, template *probeBuilt, searchPath string) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Minute)
+	defer cancel()
+	e.quiesce(ctx, t, template.name)
+	name := probeDatabaseName(t)
+	db := e.connect(name, searchPath)
+	t.Cleanup(func() {
+		_ = db.Close()
+		e.dropDatabase(name)
+	})
+	admin := stdlib.OpenDB(*e.cfg.Copy())
+	defer func() { _ = admin.Close() }()
+	start := time.Now()
+	_, err := admin.ExecContext(ctx, "CREATE DATABASE "+probeQuote(name)+" TEMPLATE "+probeQuote(template.name)+" STRATEGY FILE_COPY")
+	work := time.Since(start)
+	if err != nil {
+		probeLine(t, "kind=filecopy flavour=%s ok=false err=%q", flavour, err)
+		t.Errorf("filecopy clone of %s: %v", template.name, err)
+		return
+	}
+	var n int
+	if err := db.QueryRowContext(ctx, `SELECT count(*) FROM eshu_schema_migrations`).Scan(&n); err != nil {
+		probeLine(t, "kind=filecopy flavour=%s work_ms=%s ok=false err=%q", flavour, probeMS(work), err)
+		t.Errorf("first query on filecopy clone: %v", err)
+		return
+	}
+	if n != template.applied {
+		t.Errorf("filecopy clone ledger rows = %d, template = %d", n, template.applied)
+	}
+	probeLine(t, "kind=filecopy flavour=%s work_ms=%s ok=%t", flavour, probeMS(work), n == template.applied)
+}
+
+// probeDurabilityArmed reports whether arm B may run. A test deadline under 15
+// minutes away would kill the process mid-arm and leak the ALTER SYSTEM
+// settings, so the arm is skipped; settings pinned by a configuration file are
+// refused too, since ALTER SYSTEM RESET would delete a pre-existing override.
+func probeDurabilityArmed(t *testing.T, before string) bool {
+	t.Helper()
+	if deadline, ok := t.Deadline(); ok && time.Until(deadline) < 15*time.Minute {
+		probeLine(t, "kind=settings stage=skipped_deadline remaining_s=%.0f", time.Until(deadline).Seconds())
+		return false
+	}
+	if strings.Contains(before, "(configuration file)") {
+		probeLine(t, "kind=settings stage=skipped_config_file settings=%q", before)
+		return false
+	}
+	return true
 }
 
 // durability reads fsync, synchronous_commit and full_page_writes on a fresh
