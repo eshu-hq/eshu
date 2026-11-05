@@ -232,6 +232,7 @@ func TestAuthorizedScanKeepsARetractedFindingBesideAnUnjoinableLiveRecord(t *tes
 					}
 				} else {
 					assertRetractedRecordFinding(t, findings, control)
+					assertSupplyChainImpactStatus(t, findings[0], SupplyChainImpactAffectedExact)
 				}
 				if findings := build(t, ordered, 1, debianCurl("12", unjoinableVersion)); len(findings) != 0 {
 					t.Errorf("debian target findings = %d, want none: %#v", len(findings), findings)
@@ -239,4 +240,67 @@ func TestAuthorizedScanKeepsARetractedFindingBesideAnUnjoinableLiveRecord(t *tes
 			}
 		})
 	}
+}
+
+// TestAnchorRuleReadsEveryFactOfTheGroup holds the rule to the whole group: one live
+// fact with an anchor keeps the group live wherever it sorts, one retracted fact with
+// an anchor is enough for the others to stay, and the OS-class check reads the
+// retracted facts, not the live record's spelling.
+func TestAnchorRuleReadsEveryFactOfTheGroup(t *testing.T) {
+	t.Parallel()
+
+	host := ubuntuCurl("22.04", unjoinableVersion).envelope()
+	withdrawn := unjoinableRetractedCVE("withdrawn")
+
+	t.Run("a second live record that joins decides", func(t *testing.T) {
+		t.Parallel()
+		second := unjoinableLivePackage("osv", "os", unjoinablePURL)
+		second.FactID = "affected-second"
+		second.Payload["advisory_id"] = "OSV-1"
+		envelopes := []facts.Envelope{
+			withdrawn, unjoinableLiveCVE("nvd"), unjoinableRetractedPackage("os"),
+			vulnerabilityCVEFactWithProvenance("cve-second", unjoinableCVE, "osv", "OSV-1", 7.5, "", "HIGH", "2026-10-01T00:00:00Z"),
+			unjoinableLivePackage("nvd", "os", ""), second, host,
+		}
+		for order, shuffled := range orderings(envelopes) {
+			findings := BuildSupplyChainImpactFindings(shuffled)
+			if len(findings) != 1 {
+				t.Fatalf("%s: findings = %d, want 1", order, len(findings))
+			}
+			if got := findings[0]; got.AdvisoryID != "OSV-1" || got.AdvisoryRetraction != nil {
+				t.Errorf("%s: advisory/retraction = %q/%#v, want the joining live record's, with no retraction", order, got.AdvisoryID, got.AdvisoryRetraction)
+			}
+		}
+	})
+
+	t.Run("one retracted fact with an anchor keeps a retracted fact without one", func(t *testing.T) {
+		t.Parallel()
+		// The sibling record is withdrawn too and has no purl. Its fact id sorts
+		// first, so a check that reads only the first retracted fact sees no anchor.
+		sibling := unjoinableLivePackage("nvd", "os", "")
+		sibling.FactID = "affected-a-sibling"
+		sibling.Payload["advisory_id"] = "W2-1"
+		base := []facts.Envelope{
+			withdrawn, unjoinableLiveCVE("debian"), unjoinableRetractedPackage("os"), sibling, host,
+			vulnerabilityCVEFactWithdrawn("cve-sibling", unjoinableCVE, "nvd", "W2-1", 7.5, "HIGH", "2026-10-01T00:00:00Z", "2026-11-01T00:00:00Z"),
+		}
+		control := BuildSupplyChainImpactFindings(slices.Clone(base))
+		if len(control) != 1 || control[0].AdvisoryRetraction == nil {
+			t.Fatalf("control = %#v, want one retracted finding", control)
+		}
+		for order, shuffled := range orderings(append(slices.Clone(base), unjoinableLivePackage("debian", "os", ""))) {
+			if got := BuildSupplyChainImpactFindings(shuffled); !reflect.DeepEqual(got, control) {
+				t.Errorf("%s: findings differ from the control without the live package fact:\n got %#v\nwant %#v", order, got, control)
+			}
+		}
+	})
+
+	t.Run("the class check reads the retracted facts, not the live spelling", func(t *testing.T) {
+		t.Parallel()
+		base := []facts.Envelope{withdrawn, unjoinableLiveCVE("nvd"), unjoinableRetractedPackage("os"), host}
+		control := BuildSupplyChainImpactFindings(slices.Clone(base))
+		for _, shuffled := range orderings(append(slices.Clone(base), unjoinableLivePackage("nvd", "dpkg", ""))) {
+			assertRetractedRecordFinding(t, BuildSupplyChainImpactFindings(shuffled), control)
+		}
+	})
 }
