@@ -131,10 +131,16 @@ it to `handleManifestTrigger` before the fencing token and the evidence load
    a pruned W, every current pin counts (`manifest_trigger_baseline_degraded`);
    a pruned intermediate is skipped (`manifest_trigger_chain_pruned`).
    Tombstoned rows always count.
-3. Reads the active `vulnerability.affected_package` identities in those
-   ecosystems (`FindPackageHolderCandidates`) and keeps the scopes whose
-   identity shares a consumption key with a changed dependency, the findings
-   pass's own join.
+3. When a package changed, reads the in-flight `supply_chain_impact` scopes
+   FIRST (`FindInFlightScopes`), then the active `vulnerability.affected_package`
+   identities in those ecosystems (`FindPackageHolderCandidates`), and keeps
+   the in-flight scopes plus the scopes whose identity shares a consumption key
+   with a changed dependency, the findings pass's own join. The order is the
+   CVE fan-out's: a pass still claimed or running at the first read is flagged
+   for one rerun (it may have loaded evidence before this generation's manifest
+   rows were visible, and with no committed affected_package rows yet the
+   holder read cannot see it); one that acknowledged earlier committed its rows
+   first, so the holder read sees it (#10105 review P2).
 4. Reopens them through `ReopenHolder` with the same cap and continuation list
    as the CVE fan-out, under `cause="manifest_dependency"`. A reopened holder
    re-derives its findings from the current manifest rows, which adds,

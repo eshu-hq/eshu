@@ -397,3 +397,55 @@ func TestManifestChainPrunedGenerationsLive(t *testing.T) {
 			got.Degraded, got.HasBaseline, len(got.Chain))
 	}
 }
+
+// TestManifestMarkerFlagsAnInFlightScopeWithNoRowsLive is the #10105 review P2
+// regression on a real queue: an advisory scope whose pass is running and has
+// committed no affected_package rows yet is invisible to the package-keyed
+// holder read, so the marker pass must find it through the in-flight read and
+// set its replay flag.
+func TestManifestMarkerFlagsAnInFlightScopeWithNoRowsLive(t *testing.T) {
+	ctx, db := fanOutLiveDB(t)
+	manifestLiveSeedGitScope(t, ctx, db, "gen-2",
+		manifestLiveGeneration{id: "gen-1", status: "superseded", commit: "c1", activated: true, ingested: manifestLiveAt(1)},
+		manifestLiveGeneration{id: "gen-2", status: "active", commit: "c2", activated: true, ingested: manifestLiveAt(2)},
+	)
+	manifestLiveSeedFact(t, ctx, db, manifestLiveGitScope, "gen-1", manifestLiveRepository("repo-1", false))
+	manifestLiveSeedFact(t, ctx, db, manifestLiveGitScope, "gen-2", manifestLiveRepository("repo-2", false))
+	manifestLiveSeedFact(t, ctx, db, manifestLiveGitScope, "gen-2", manifestLiveDependency("g2-lodash", "package-lock.json", "lodash", "4.17.21"))
+	manifestLiveSeedMarker(t, ctx, db, "gen-1", "succeeded", true)
+	markerID := manifestLiveSeedMarker(t, ctx, db, "gen-2", "pending", false)
+
+	// The advisory scope's first pass is running and has written nothing.
+	loading := "vuln-intel://osv/loading"
+	fanOutSeedScope(t, ctx, db, loading, "g1")
+	loadingID := fanOutSeedItem(t, ctx, db, loading, "g1")
+	if _, err := db.ExecContext(ctx, `UPDATE fact_work_items SET status = 'running', lease_owner = 'other-worker',
+  claim_until = now() + interval '5 minutes' WHERE work_item_id = $1`, loadingID); err != nil {
+		t.Fatalf("mark advisory pass running: %v", err)
+	}
+
+	intent, ok, err := fanOutLiveQueue(db).Claim(ctx)
+	if err != nil || !ok || intent.IntentID != markerID {
+		t.Fatalf("Claim() = %q, %v, %v; want the marker item %q", intent.IntentID, ok, err, markerID)
+	}
+	handler := supplychaincore.SupplyChainImpactHandler{
+		FencingTokenIssuer: manifestLiveNoToken{t: t},
+		FactLoader:         manifestLiveNoLoad{t: t},
+		Writer:             manifestLiveNoWrite{t: t},
+		FanOut:             fanOutLiveStore(db),
+	}
+	if _, err := handler.Handle(ctx, intent); err != nil {
+		t.Fatalf("Handle() error = %v", err)
+	}
+	var flagged bool
+	if err := db.QueryRowContext(ctx, `SELECT cross_scope_replay_required FROM fact_work_items WHERE work_item_id = $1`,
+		loadingID).Scan(&flagged); err != nil {
+		t.Fatalf("read replay flag: %v", err)
+	}
+	if !flagged {
+		t.Fatal("the in-flight advisory pass with no committed rows was not flagged for a rerun")
+	}
+	if !manifestLivePayloadHasStamp(t, ctx, db, markerID) {
+		t.Fatal("the marker pass did not stamp after its last chunk")
+	}
+}

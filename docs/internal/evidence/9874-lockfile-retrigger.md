@@ -39,7 +39,10 @@ intermediates (`TestManifestChainDepthCapBoundaryLive` pins both sides); over th
 (`manifest_trigger_chain_pruned`). With no stamped W, every pin in any view of
 the chain counts. A dependency's signature is every field it carries except
 `FactID` and `ObservedAt`, so a scope or direct/transitive flip at the same
-version counts; tombstoned rows always count; (3) reads the active `vulnerability.affected_package` identities whose
+version counts; tombstoned rows always count; (3) when a package changed, reads the in-flight `supply_chain_impact`
+scopes first (`FindInFlightScopes`, the CVE fan-out's order and query; added by
+the #10105 review fix) and unions them into the holders, then reads the active
+`vulnerability.affected_package` identities whose
 stored ecosystem spelling is any alias of those ecosystems
 (`packageidentity.EcosystemAliases`; GitLab Gemnasium stores raw slugs such as
 `go` and `gem`) and keeps the scopes that share a consumption key with a
@@ -269,6 +272,34 @@ whose facts retention pruned) fans out every current pin, so a removal in that
 window is likewise missed (`sub_signal_manifest_trigger_baseline_degraded=1`).
 The repository-keyed reopen that closes both is tracked in the follow-up issue
 #10059.
+
+## In-flight holders (#10105 review P2)
+
+The first merge read holders only from committed active-generation
+affected-package rows, so an advisory scope whose first evidence-bearing pass
+loaded before the manifest commit, and had committed no rows yet, was never
+reopened and stayed stale until its next generation. The marker pass now reads
+`FindInFlightScopes` before `FindPackageHolderCandidates` and unions the
+in-flight scopes (own scope excluded) into the holders, so such a pass is
+flagged for one rerun through `ReopenHolder`. An in-flight read failure fails
+the pass retryably and counts `read_timeout` or `read_error` under
+`cause="manifest_dependency"`. Proof:
+`TestManifestTriggerReopensAnInFlightHolderWithNoCommittedRows` (failed first:
+nothing reopened; read order pinned), the union and failure tests in
+`manifest_inflight_test.go`, and `TestManifestMarkerFlagsAnInFlightScopeWithNoRowsLive`
+on a real queue. Dropping the union fails the unit and live tests; swapping the
+read order fails the order assertion.
+
+Cost: `FindInFlightScopes` returns every in-flight `supply_chain_impact` scope,
+not only holders, so a marker pass with changed keys also flags passes that hold
+none of its packages. The set is bounded by the passes in flight at once, that
+is the fleet's `supply_chain_impact` worker slots (`ESHU_REDUCER_WORKERS` per
+reducer, 4 by default), and each flagged pass reruns once. The CVE fan-out
+accepts the same trade. Its measurements apply unchanged because the query is
+the same: 0.089 ms over 36,001 work items with 24 claimed, and a burst of N
+changed passes costing about 2N passes (`9695b-holder-fanout.md`, "In-flight
+read" and "Fleet cost of the in-flight read"). Not re-measured for the marker;
+a no-change marker pass skips both reads.
 
 ## Holders this change does not reopen (F7)
 

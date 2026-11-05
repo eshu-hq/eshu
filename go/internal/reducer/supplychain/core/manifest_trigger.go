@@ -194,12 +194,26 @@ func (h SupplyChainImpactHandler) runManifestTrigger(ctx context.Context, intent
 		if len(change.keys) == 0 {
 			return h.finishManifestTrigger(ctx, intent, reader, state, &baseline, "manifest_dependency trigger: no changed package", signals)
 		}
+		// The in-flight read comes FIRST, then the holder read, the order
+		// fanOutHolders uses (#10105 review P2). A scope whose pass is claimed
+		// or running may have loaded its evidence before this generation's
+		// manifest rows were visible, and if that pass has committed no
+		// affected_package rows yet the holder read cannot see it. Read
+		// in-flight first: a scope still in flight then is flagged for one
+		// rerun; one that acknowledged before has committed its rows (a pass
+		// commits before it acknowledges), so the holder read that follows
+		// sees them. The other order leaves a gap between the two reads.
+		inFlight, err := h.FanOut.FindInFlightScopes(ctx, intent.ScopeID)
+		if err != nil {
+			h.countFanOut(ctx, fanOutCauseManifestDependency, readFailureOutcome(err), 1)
+			return reducercontract.Result{}, fanOutError{fmt.Errorf("find in-flight supply chain impact scopes: %w", err)}
+		}
 		candidates, err := h.FanOut.FindPackageHolderCandidates(ctx, intent.ScopeID, change.ecosystems())
 		if err != nil {
 			h.countFanOut(ctx, fanOutCauseManifestDependency, readFailureOutcome(err), 1)
 			return reducercontract.Result{}, fanOutError{fmt.Errorf("find supply chain impact package holders: %w", err)}
 		}
-		holders = matchPackageHolders(intent.ScopeID, candidates, change.keys)
+		holders = unionSortedStrings(matchPackageHolders(intent.ScopeID, candidates, change.keys), withoutScope(inFlight, intent.ScopeID))
 	}
 	return h.reopenManifestHolders(ctx, intent, reader, state, holders, len(remaining) > 0, baseline, signals)
 }
@@ -353,6 +367,17 @@ func matchPackageHolders(ownScopeID string, candidates []PackageHolderCandidate,
 	}
 	sort.Strings(ordered)
 	return ordered
+}
+
+// withoutScope returns scopes with ownScopeID removed.
+func withoutScope(scopes []string, ownScopeID string) []string {
+	out := make([]string, 0, len(scopes))
+	for _, scope := range scopes {
+		if scope != ownScopeID {
+			out = append(out, scope)
+		}
+	}
+	return out
 }
 
 // keyEcosystem returns the ecosystem half of an "ecosystem\x00name" key.

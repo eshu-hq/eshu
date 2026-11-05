@@ -51,6 +51,7 @@ type stubFanOut struct {
 }
 
 func (s *stubFanOut) FindPackageHolderCandidates(_ context.Context, _ string, ecosystems []string) ([]PackageHolderCandidate, error) {
+	s.reads = append(s.reads, "candidates")
 	s.candidateEcosystems = append(s.candidateEcosystems, append([]string(nil), ecosystems...))
 	if s.candidateErr != nil {
 		return nil, s.candidateErr
