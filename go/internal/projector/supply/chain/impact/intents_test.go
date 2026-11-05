@@ -134,6 +134,85 @@ func TestBuildSupplyChainImpactReducerIntentSourceSystemFallsBackToCollectorKind
 	}
 }
 
+// TestBuildSupplyChainImpactReducerIntentGoSuccessorPass proves a
+// go-reachability:// generation holding govulncheck evidence raises a
+// supply_chain_impact pass (#10077): without it a successor generation
+// never re-derives the findings that carry its verdict.
+func TestBuildSupplyChainImpactReducerIntentGoSuccessorPass(t *testing.T) {
+	t.Parallel()
+
+	scopeID := "go-reachability://repository:r_1a2b3c4d"
+	lookup := projectorintent.NewFactLookup([]facts.Envelope{
+		{FactKind: chain.VulnerabilityGoModuleEvidenceFactKind, FactID: "go-module-fact-1"},
+		{FactKind: chain.VulnerabilityGoCallReachabilityFactKind, FactID: "go-call-fact-1"},
+	})
+	intent, ok := BuildSupplyChainImpactReducerIntent(scopeID, "gen-2", lookup)
+	if !ok {
+		t.Fatal("no intent queued for a go-reachability generation with Go evidence")
+	}
+	if intent.Domain != reducer.DomainSupplyChainImpact {
+		t.Fatalf("intent.Domain = %q, want supply_chain_impact", intent.Domain)
+	}
+	if intent.EntityKey != "supply_chain_impact:"+scopeID {
+		t.Fatalf("intent.EntityKey = %q", intent.EntityKey)
+	}
+	if intent.Reason != "go reachability evidence observed" {
+		t.Fatalf("intent.Reason = %q", intent.Reason)
+	}
+	if intent.FactID != "go-module-fact-1" {
+		t.Fatalf("intent.FactID = %q, want the earliest Go evidence fact", intent.FactID)
+	}
+}
+
+// TestBuildSupplyChainImpactReducerIntentGoNoModulesPass proves a trusted
+// no_go_modules generation (warning only, no Go facts) also raises a pass
+// (#10077): that pass derives zero findings, so the writer retracts the
+// previous generation's copies and the fan-out reopens the holders.
+func TestBuildSupplyChainImpactReducerIntentGoNoModulesPass(t *testing.T) {
+	t.Parallel()
+
+	scopeID := "go-reachability://repository:r_1a2b3c4d"
+	lookup := projectorintent.NewFactLookup([]facts.Envelope{
+		{FactKind: facts.ScannerWorkerWarningFactKind, FactID: "go-warning-1"},
+	})
+	intent, ok := BuildSupplyChainImpactReducerIntent(scopeID, "gen-3", lookup)
+	if !ok {
+		t.Fatal("no intent queued for a go-reachability warning-only generation")
+	}
+	if intent.Reason != "go reachability evidence observed" {
+		t.Fatalf("intent.Reason = %q", intent.Reason)
+	}
+	if intent.FactID != "go-warning-1" {
+		t.Fatalf("intent.FactID = %q, want the warning anchor", intent.FactID)
+	}
+}
+
+// TestBuildSupplyChainImpactReducerIntentGoEmptyGenerationNoIntent pins the
+// scope-form trigger is not a blank pass: a go-reachability generation with
+// no facts at all still raises nothing.
+func TestBuildSupplyChainImpactReducerIntentGoEmptyGenerationNoIntent(t *testing.T) {
+	t.Parallel()
+
+	lookup := projectorintent.NewFactLookup(nil)
+	if _, ok := BuildSupplyChainImpactReducerIntent("go-reachability://repository:r_1a2b3c4d", "gen-1", lookup); ok {
+		t.Fatal("queued a supply_chain_impact intent for a go-reachability generation with no facts")
+	}
+}
+
+// TestBuildSupplyChainImpactReducerIntentWarningAloneNoIntent pins the
+// warning anchor is scoped to go-reachability generations: a warning on any
+// other scope must not raise a pass.
+func TestBuildSupplyChainImpactReducerIntentWarningAloneNoIntent(t *testing.T) {
+	t.Parallel()
+
+	lookup := projectorintent.NewFactLookup([]facts.Envelope{
+		{FactKind: facts.ScannerWorkerWarningFactKind, FactID: "warning-elsewhere"},
+	})
+	if _, ok := BuildSupplyChainImpactReducerIntent("scope-9", "gen-1", lookup); ok {
+		t.Fatal("queued a supply_chain_impact intent for a warning outside a go-reachability scope")
+	}
+}
+
 // TestBuildSupplyChainImpactReducerIntentSourceSystemPrefersSourceRef pins
 // the tier ORDER, which the fallback test above cannot: it sets
 // SourceRef.SourceSystem and CollectorKind to DIFFERENT values, so a

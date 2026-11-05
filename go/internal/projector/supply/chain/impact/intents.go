@@ -4,6 +4,7 @@
 package impact
 
 import (
+	"github.com/eshu-hq/eshu/go/internal/collector/scannercomponent"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
@@ -40,6 +41,16 @@ func BuildSupplyChainImpactReducerIntent(
 	generationID string,
 	lookup projectorintent.FactLookup,
 ) (projectorintent.ReducerIntent, bool) {
+	// #10077: a go-reachability:// generation raises its own pass so a
+	// successor (or a trusted no_go_modules retraction) re-derives the
+	// findings through ChangedCVEIDs fan-out. The trigger is the scope id
+	// form, not the fact kinds alone, so a warning-only generation also
+	// raises a pass. Anything unanchored falls through to the shared path.
+	if _, ok := scannercomponent.ParseGoReachabilityScopeID(scopeID); ok {
+		if intent, ok := buildGoReachabilityIntent(scopeID, generationID, lookup); ok {
+			return intent, true
+		}
+	}
 	envelope, ok := lookup.FirstAcrossKinds(triggerFact, candidateFactKinds...)
 	if !ok {
 		return buildManifestDependencyIntent(scopeID, generationID, lookup)
@@ -69,6 +80,62 @@ func triggerFact(envelope facts.Envelope) bool {
 		chain.OCIImageIndexFactKind,
 		chain.OCIImageTagObservationFactKind,
 		chain.OCIImageReferrerFactKind:
+		return true
+	default:
+		return false
+	}
+}
+
+// goReachabilityFactKinds are the fact kinds a go-reachability://
+// generation anchors its supply_chain_impact pass on: the two govulncheck
+// evidence kinds for a successor, and the scanner-worker warning kind so a
+// trusted no_go_modules generation (warning only, no Go facts) raises the
+// pass that retracts the previous generation's copies (#10077).
+var goReachabilityFactKinds = []string{
+	chain.VulnerabilityGoModuleEvidenceFactKind,
+	chain.VulnerabilityGoCallReachabilityFactKind,
+	facts.ScannerWorkerWarningFactKind,
+}
+
+// goReachabilityReason is the human-readable reason of every
+// go-reachability:// pass.
+const goReachabilityReason = "go reachability evidence observed"
+
+// buildGoReachabilityIntent returns the supply_chain_impact intent for a
+// go-reachability:// generation anchored on its earliest Go evidence or
+// warning fact, or false when the generation holds neither. The entity key
+// matches the shared supply_chain_impact:<scope> form so the pass writes
+// its copies under the Go generation and the writer reports their CVE ids
+// for holder fan-out.
+func buildGoReachabilityIntent(
+	scopeID string,
+	generationID string,
+	lookup projectorintent.FactLookup,
+) (projectorintent.ReducerIntent, bool) {
+	envelope, ok := lookup.FirstAcrossKinds(goReachabilityTriggerFact, goReachabilityFactKinds...)
+	if !ok {
+		return projectorintent.ReducerIntent{}, false
+	}
+	return projectorintent.ReducerIntent{
+		ScopeID:      scopeID,
+		GenerationID: generationID,
+		Domain:       reducer.DomainSupplyChainImpact,
+		EntityKey:    "supply_chain_impact:" + scopeID,
+		Reason:       goReachabilityReason,
+		FactID:       envelope.FactID,
+		SourceSystem: projectorintent.SourceSystem(envelope),
+	}, true
+}
+
+// goReachabilityTriggerFact reports whether envelope anchors a
+// go-reachability:// pass. The kind list already restricts the lookup to
+// the three anchor kinds; the predicate keeps the FirstAcrossKinds shape
+// the other triggers use.
+func goReachabilityTriggerFact(envelope facts.Envelope) bool {
+	switch envelope.FactKind {
+	case chain.VulnerabilityGoModuleEvidenceFactKind,
+		chain.VulnerabilityGoCallReachabilityFactKind,
+		facts.ScannerWorkerWarningFactKind:
 		return true
 	default:
 		return false
