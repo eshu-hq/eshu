@@ -14,6 +14,10 @@ source fact construction into the generator without a reviewed design.
 Common changes:
 
 - Add a collector entry to `collector_entrypoints.yaml`.
+  Also add a `<command_dir>/**` trigger to the
+  `collector-entrypoints-generated` gate in `specs/ci-gates.d/gates-04.yaml`:
+  `ci-gates validate` derives the generated output files from this manifest and
+  fails until a trigger selects each one (#10139).
 - Update templates when shared hosted collector startup behavior changes.
 - Regenerate with `scripts/generate-collector-entrypoints.sh`.
 - Verify with `scripts/verify-collector-entrypoints-generated.sh`.

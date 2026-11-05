@@ -438,6 +438,10 @@ gates:
       - "specs/ci-gates.d/**"
       - "go/internal/cigates/**"
       - "go/cmd/ci-gates/**"
+      # #10139: `ci-gates validate` derives the generated collector output set
+      # from this manifest and generator and checks that collector-entrypoints-
+      # generated covers it, so a PR changing either must run the check locally.
+      - "go/internal/collector/entrypoints/**"
       - ".pre-commit-config.yaml"
       - "scripts/dev/pre-pr.sh"
       - "scripts/dev/pre-push.sh"

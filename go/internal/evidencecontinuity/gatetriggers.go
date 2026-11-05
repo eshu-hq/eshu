@@ -140,6 +140,9 @@ const validatorPackageDir = "go/internal/evidencecontinuity"
 var validatorCodeDeps = []string{
 	validatorPackageDir,
 	"go/internal/cigates",
+	// cigates derives the generated collector output set (#10139) from the
+	// entrypoints manifest and generator.
+	"go/internal/collector/entrypoints",
 }
 
 // validateGateTriggerCoverage asserts that the evidence-continuity gate can
