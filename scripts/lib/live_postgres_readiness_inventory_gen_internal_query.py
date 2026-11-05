@@ -80,13 +80,7 @@ TABLE = {
             "TestSupplyChainImpactReadinessRolledBackGenerationCannotCertifyZeroLive",
         ),
         "go/internal/query/readiness_derived_release_scope_live_test.go": (
-            "TestSupplyChainImpactReadinessDerivedEveryReleaseMustBeFreshLive",
-            "TestSupplyChainImpactReadinessDerivedPlannedReleaseWithoutStateReadsPendingLive",
-            "TestSupplyChainImpactReadinessDerivedPlannedReleasesCoverLive",
-            "TestSupplyChainImpactReadinessDerivedUnqualifiedDistroKeepsNewestWinsLive",
-            "TestSupplyChainImpactReadinessDerivedPlanStaysWithItsInstanceLive",
-            "TestSupplyChainImpactReadinessDerivedEmptyReleaseValueHasNoReleaseLive",
-            "TestSupplyChainImpactReadinessDerivedSkipDoesNotHideUncoveredReleaseLive",
+            "TestSupplyChainImpactReadinessDerivedReleaseCoverageLive",
         ),
         "go/internal/query/readiness_derived_rotation_live_test.go": (
             "TestSupplyChainImpactReadinessDerivedRotationKeepsVerdictsLive",
@@ -96,15 +90,7 @@ TABLE = {
             "TestSupplyChainImpactReadinessPlannerSkippedPackageReportsSkipLive",
         ),
         "go/internal/query/readiness_derived_slice_live_test.go": (
-            "TestSupplyChainImpactReadinessDerivedPlanSliceCannotHideReleaseLive",
-            "TestSupplyChainImpactReadinessDerivedVerdictIgnoresPlanWindowLive",
-            "TestSupplyChainImpactReadinessDerivedLegacyScopeStopsCountingOnStateLive",
-            "TestSupplyChainImpactReadinessDerivedLegacyScopeNeverMasksReleaseLive",
-            "TestSupplyChainImpactReadinessDerivedAgedOutReleaseIsNamedStaleLive",
-            "TestSupplyChainImpactReadinessDerivedPlanForAnotherDistroExpectsNothingLive",
-            "TestSupplyChainImpactReadinessDerivedUnqualifiedScopesShareOneGroupLive",
-            "TestSupplyChainImpactReadinessDerivedLegacyRuleStaysWithItsInstanceLive",
-            "TestSupplyChainImpactReadinessDerivedPendingScopeIDsStayWithTheirInstanceLive",
+            "TestSupplyChainImpactReadinessDerivedStateOnlyRulesLive",
         ),
         "go/internal/query/readiness_derived_source_keys_live_test.go": (
             "TestSupplyChainImpactReadinessDerivedRepositoryAcrossBatchScopesLive",

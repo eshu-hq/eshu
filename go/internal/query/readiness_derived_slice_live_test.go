@@ -57,13 +57,13 @@ func readCurlVerdict(t *testing.T, db *sql.DB) (curlVerdict, derivedStateView) {
 	}, state
 }
 
-// TestSupplyChainImpactReadinessDerivedPlanSliceCannotHideReleaseLive is #10015
+// testSupplyChainImpactReadinessDerivedPlanSliceCannotHideReleaseLive is #10015
 // RED for the rotating plan. The coordinator reads a limit-sized window of the
 // installed fleet each tick and plans only the releases inside it, so a plan can
 // name one release of a package that is installed on two. Whichever release the
 // plan leaves out still has a state row, and that row must still count: a plan
 // that does not name a release says nothing about whether it left the fleet.
-func TestSupplyChainImpactReadinessDerivedPlanSliceCannotHideReleaseLive(t *testing.T) {
+func testSupplyChainImpactReadinessDerivedPlanSliceCannotHideReleaseLive(t *testing.T) {
 	for _, tc := range []struct {
 		name       string
 		older      string
@@ -99,11 +99,11 @@ func TestSupplyChainImpactReadinessDerivedPlanSliceCannotHideReleaseLive(t *test
 	}
 }
 
-// TestSupplyChainImpactReadinessDerivedVerdictIgnoresPlanWindowLive is #10015
+// testSupplyChainImpactReadinessDerivedVerdictIgnoresPlanWindowLive is #10015
 // RED: the same state rows must read the same under every plan the rotation can
 // store, including no plan at all. Only a release with no state may follow the
 // plan, and none is planned here.
-func TestSupplyChainImpactReadinessDerivedVerdictIgnoresPlanWindowLive(t *testing.T) {
+func testSupplyChainImpactReadinessDerivedVerdictIgnoresPlanWindowLive(t *testing.T) {
 	ctx, db, now := readinessScopeLiveDatabase(t)
 	seedDerivedInstance(t, ctx, db, now, "derived-alpine", "alpine")
 	seedCurlState(t, ctx, db, now.Add(-time.Hour), curlV317Scope, "fresh")
@@ -134,12 +134,12 @@ func TestSupplyChainImpactReadinessDerivedVerdictIgnoresPlanWindowLive(t *testin
 	}
 }
 
-// TestSupplyChainImpactReadinessDerivedLegacyScopeStopsCountingOnStateLive is
+// testSupplyChainImpactReadinessDerivedLegacyScopeStopsCountingOnStateLive is
 // #10015 RED for the legacy half. A scope with no release parameter never covered
 // a release, because OSV answers a bare Alpine query with no advisories. Once a
 // real release state exists for the same instance, package and distro, the legacy
 // row is dead weight that would read stale for good, whether or not any plan runs.
-func TestSupplyChainImpactReadinessDerivedLegacyScopeStopsCountingOnStateLive(t *testing.T) {
+func testSupplyChainImpactReadinessDerivedLegacyScopeStopsCountingOnStateLive(t *testing.T) {
 	for _, legacy := range []string{"stale", "failed"} {
 		t.Run("legacy "+legacy+" with a fresh release and no plan", func(t *testing.T) {
 			ctx, db, now := readinessScopeLiveDatabase(t)
@@ -155,11 +155,11 @@ func TestSupplyChainImpactReadinessDerivedLegacyScopeStopsCountingOnStateLive(t 
 	}
 }
 
-// TestSupplyChainImpactReadinessDerivedLegacyScopeNeverMasksReleaseLive guards the
+// testSupplyChainImpactReadinessDerivedLegacyScopeNeverMasksReleaseLive guards the
 // direction of that rule: a legacy row that is fresh and newest must not hide a
 // failed release state, and a legacy row alone, with only a planned release that
 // has no state yet, still reads pending.
-func TestSupplyChainImpactReadinessDerivedLegacyScopeNeverMasksReleaseLive(t *testing.T) {
+func testSupplyChainImpactReadinessDerivedLegacyScopeNeverMasksReleaseLive(t *testing.T) {
 	t.Run("fresh newest legacy does not hide a failed release", func(t *testing.T) {
 		ctx, db, now := readinessScopeLiveDatabase(t)
 		seedDerivedInstance(t, ctx, db, now, "derived-alpine", "alpine")
@@ -203,12 +203,12 @@ func TestSupplyChainImpactReadinessDerivedLegacyScopeNeverMasksReleaseLive(t *te
 	})
 }
 
-// TestSupplyChainImpactReadinessDerivedAgedOutReleaseIsNamedStaleLive pins the
+// testSupplyChainImpactReadinessDerivedAgedOutReleaseIsNamedStaleLive pins the
 // reason for a state that is stored fresh but older than the freshness window:
 // the aggregate reads stale, so the reason must name the aged verdict
 // (osv:stale:alpine:v3.17) and not the stored one, or an operator is told a
 // release is fresh while the package reads not covered.
-func TestSupplyChainImpactReadinessDerivedAgedOutReleaseIsNamedStaleLive(t *testing.T) {
+func testSupplyChainImpactReadinessDerivedAgedOutReleaseIsNamedStaleLive(t *testing.T) {
 	ctx, db, now := readinessScopeLiveDatabase(t)
 	seedDerivedInstance(t, ctx, db, now, "derived-alpine", "alpine")
 	seedCurlState(t, ctx, db, now.Add(-15*24*time.Hour), curlV317Scope, "fresh")
@@ -229,11 +229,11 @@ func TestSupplyChainImpactReadinessDerivedAgedOutReleaseIsNamedStaleLive(t *test
 	}
 }
 
-// TestSupplyChainImpactReadinessDerivedPlanForAnotherDistroExpectsNothingLive
+// testSupplyChainImpactReadinessDerivedPlanForAnotherDistroExpectsNothingLive
 // pins that a plan target counts only for a distro the instance derives from:
 // this instance derives alpine, so a debian release in the plan is not a scope
 // it will ever write and must not read pending.
-func TestSupplyChainImpactReadinessDerivedPlanForAnotherDistroExpectsNothingLive(t *testing.T) {
+func testSupplyChainImpactReadinessDerivedPlanForAnotherDistroExpectsNothingLive(t *testing.T) {
 	ctx, db, now := readinessScopeLiveDatabase(t)
 	seedDerivedInstance(t, ctx, db, now, "derived-alpine", "alpine")
 	seedCurlState(t, ctx, db, now, curlV318Scope, "fresh")
@@ -251,11 +251,11 @@ func TestSupplyChainImpactReadinessDerivedPlanForAnotherDistroExpectsNothingLive
 	}
 }
 
-// TestSupplyChainImpactReadinessDerivedUnqualifiedScopesShareOneGroupLive pins
+// testSupplyChainImpactReadinessDerivedUnqualifiedScopesShareOneGroupLive pins
 // the documented limit that scopes with no release qualifier share one newest-wins
 // group per package whatever their distro: a newer fresh Alpine scope hides an
 // older failed Debian one. Only a release qualifier opens a group of its own.
-func TestSupplyChainImpactReadinessDerivedUnqualifiedScopesShareOneGroupLive(t *testing.T) {
+func testSupplyChainImpactReadinessDerivedUnqualifiedScopesShareOneGroupLive(t *testing.T) {
 	const (
 		debianOlder = "vuln-intel://osv/debian/curl?version=7.88.1-10"
 		alpineNewer = "vuln-intel://osv/alpine/curl?version=7.87.0-r0"
@@ -271,11 +271,11 @@ func TestSupplyChainImpactReadinessDerivedUnqualifiedScopesShareOneGroupLive(t *
 	}
 }
 
-// TestSupplyChainImpactReadinessDerivedLegacyRuleStaysWithItsInstanceLive pins
+// testSupplyChainImpactReadinessDerivedLegacyRuleStaysWithItsInstanceLive pins
 // that a real release state retires a legacy scope only inside its own instance:
 // another instance's release state for the same package and distro says nothing
 // about this instance's legacy scope, which still fails the package.
-func TestSupplyChainImpactReadinessDerivedLegacyRuleStaysWithItsInstanceLive(t *testing.T) {
+func testSupplyChainImpactReadinessDerivedLegacyRuleStaysWithItsInstanceLive(t *testing.T) {
 	ctx, db, now := readinessScopeLiveDatabase(t)
 	seedDerivedInstance(t, ctx, db, now, "derived-alpine", "alpine")
 	seedDerivedInstance(t, ctx, db, now, "derived-other", "alpine")
@@ -296,11 +296,11 @@ func TestSupplyChainImpactReadinessDerivedLegacyRuleStaysWithItsInstanceLive(t *
 	}
 }
 
-// TestSupplyChainImpactReadinessDerivedPendingScopeIDsStayWithTheirInstanceLive
+// testSupplyChainImpactReadinessDerivedPendingScopeIDsStayWithTheirInstanceLive
 // pins that a pending row takes its scope id from its own instance's plan. Two
 // instances plan different releases of one package with no state yet; each must
 // report exactly its own planned scope, not the other's.
-func TestSupplyChainImpactReadinessDerivedPendingScopeIDsStayWithTheirInstanceLive(t *testing.T) {
+func testSupplyChainImpactReadinessDerivedPendingScopeIDsStayWithTheirInstanceLive(t *testing.T) {
 	ctx, db, now := readinessScopeLiveDatabase(t)
 	seedDerivedInstance(t, ctx, db, now, "derived-alpine", "alpine")
 	seedDerivedInstance(t, ctx, db, now, "derived-other", "alpine")
@@ -319,4 +319,17 @@ func TestSupplyChainImpactReadinessDerivedPendingScopeIDsStayWithTheirInstanceLi
 			t.Fatalf("instance %s = %+v, want pending on only %s", instance, state, want)
 		}
 	}
+}
+
+// TestSupplyChainImpactReadinessDerivedStateOnlyRulesLive runs the state-only coverage cases of #10015 as subtests, each on its own isolated schema, so the readiness shard plan counts one test for the family.
+func TestSupplyChainImpactReadinessDerivedStateOnlyRulesLive(t *testing.T) {
+	t.Run("PlanSliceCannotHideReleaseLive", testSupplyChainImpactReadinessDerivedPlanSliceCannotHideReleaseLive)
+	t.Run("VerdictIgnoresPlanWindowLive", testSupplyChainImpactReadinessDerivedVerdictIgnoresPlanWindowLive)
+	t.Run("LegacyScopeStopsCountingOnStateLive", testSupplyChainImpactReadinessDerivedLegacyScopeStopsCountingOnStateLive)
+	t.Run("LegacyScopeNeverMasksReleaseLive", testSupplyChainImpactReadinessDerivedLegacyScopeNeverMasksReleaseLive)
+	t.Run("AgedOutReleaseIsNamedStaleLive", testSupplyChainImpactReadinessDerivedAgedOutReleaseIsNamedStaleLive)
+	t.Run("PlanForAnotherDistroExpectsNothingLive", testSupplyChainImpactReadinessDerivedPlanForAnotherDistroExpectsNothingLive)
+	t.Run("UnqualifiedScopesShareOneGroupLive", testSupplyChainImpactReadinessDerivedUnqualifiedScopesShareOneGroupLive)
+	t.Run("LegacyRuleStaysWithItsInstanceLive", testSupplyChainImpactReadinessDerivedLegacyRuleStaysWithItsInstanceLive)
+	t.Run("PendingScopeIDsStayWithTheirInstanceLive", testSupplyChainImpactReadinessDerivedPendingScopeIDsStayWithTheirInstanceLive)
 }

@@ -73,7 +73,7 @@ Read `doc.go` and `README.md` first.
   one removal reads state alone: a scope id with no `release=` parameter at all
   stops counting once a real state row with a release exists for the same
   instance, package and distro. Key that on the scope id, never on an empty
-  release value. `TestSupplyChainImpactReadinessDerivedVerdictIgnoresPlanWindowLive`
+  release value. `TestSupplyChainImpactReadinessDerivedStateOnlyRulesLive/VerdictIgnoresPlanWindowLive`
   and the rotation test pin it.
 - Files must stay under 500 lines. `readiness.go`
   (489), `findings.go` (458), and

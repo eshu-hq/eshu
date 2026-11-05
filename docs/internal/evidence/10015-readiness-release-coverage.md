@@ -278,7 +278,7 @@ scope-id lookup crossing instances, and `NULLS LAST`); the first three now have 
 - The release parse reads the first `release` value, so `?release=&release=v3.18`
   has no release, where a regular expression would read v3.18. The
   coordinator writes one value per scope, so this takes a hand-written row.
-  `TestSupplyChainImpactReadinessDerivedEmptyReleaseValueHasNoReleaseLive` pins it,
+  `TestSupplyChainImpactReadinessDerivedReleaseCoverageLive/EmptyReleaseValueHasNoReleaseLive` pins it,
   and the legacy rule keys on the absence of the `release=` parameter, never on an
   empty value.
 - The rotation test skips until #9993 lands, because the planner mints no release

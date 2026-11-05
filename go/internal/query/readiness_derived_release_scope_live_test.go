@@ -71,11 +71,11 @@ func seedCurlState(t *testing.T, ctx context.Context, db *sql.DB, at time.Time, 
 	seedDerivedScope(t, ctx, db, at, "derived-alpine", scope, "alpine", freshness, terminal, curlKeys)
 }
 
-// TestSupplyChainImpactReadinessDerivedEveryReleaseMustBeFreshLive is #10015
+// testSupplyChainImpactReadinessDerivedEveryReleaseMustBeFreshLive is #10015
 // RED: one fresh release must not hide another release's stale or failed scope
 // of the same package, whether or not a planner run names the releases, and
 // the reason must name the release that is not covered.
-func TestSupplyChainImpactReadinessDerivedEveryReleaseMustBeFreshLive(t *testing.T) {
+func testSupplyChainImpactReadinessDerivedEveryReleaseMustBeFreshLive(t *testing.T) {
 	for _, tc := range []struct {
 		name      string
 		worse     string
@@ -112,11 +112,11 @@ func TestSupplyChainImpactReadinessDerivedEveryReleaseMustBeFreshLive(t *testing
 	}
 }
 
-// TestSupplyChainImpactReadinessDerivedPlannedReleaseWithoutStateReadsPendingLive
+// testSupplyChainImpactReadinessDerivedPlannedReleaseWithoutStateReadsPendingLive
 // is #10015 RED: a scope the latest plan expects but the collector has not
 // written counts against coverage, for single and batch targets. The source
 // state and key rows are written together, so the plan is the only evidence.
-func TestSupplyChainImpactReadinessDerivedPlannedReleaseWithoutStateReadsPendingLive(t *testing.T) {
+func testSupplyChainImpactReadinessDerivedPlannedReleaseWithoutStateReadsPendingLive(t *testing.T) {
 	const batchV317 = "vuln-intel://osv/alpine/_batch?query=curl%407.87.0-r0&query=zlib%401.2.13-r1&release=v3.17"
 	for _, tc := range []struct {
 		name    string
@@ -148,11 +148,11 @@ func TestSupplyChainImpactReadinessDerivedPlannedReleaseWithoutStateReadsPending
 	}
 }
 
-// TestSupplyChainImpactReadinessDerivedPlannedReleasesCoverLive holds the
+// testSupplyChainImpactReadinessDerivedPlannedReleasesCoverLive holds the
 // negative side of #10015: these shapes must stay covered, or a fix that only
 // demands "every row fresh" would read stale forever, because superseded and
 // retired scopes are never deleted from the state table.
-func TestSupplyChainImpactReadinessDerivedPlannedReleasesCoverLive(t *testing.T) {
+func testSupplyChainImpactReadinessDerivedPlannedReleasesCoverLive(t *testing.T) {
 	const curlV318Older = "vuln-intel://osv/alpine/curl?release=v3.18&version=7.86.0-r0"
 	for _, tc := range []struct {
 		name       string
@@ -223,10 +223,10 @@ func TestSupplyChainImpactReadinessDerivedPlannedReleasesCoverLive(t *testing.T)
 	}
 }
 
-// TestSupplyChainImpactReadinessDerivedUnqualifiedDistroKeepsNewestWinsLive
+// testSupplyChainImpactReadinessDerivedUnqualifiedDistroKeepsNewestWinsLive
 // pins the old single-scope behavior for a distro with no release qualifier:
 // a planner run must not change it.
-func TestSupplyChainImpactReadinessDerivedUnqualifiedDistroKeepsNewestWinsLive(t *testing.T) {
+func testSupplyChainImpactReadinessDerivedUnqualifiedDistroKeepsNewestWinsLive(t *testing.T) {
 	const (
 		older = "vuln-intel://osv/debian/zlib1g?version=1.0.0"
 		newer = "vuln-intel://osv/debian/zlib1g?version=1.1.0"
@@ -246,10 +246,10 @@ func TestSupplyChainImpactReadinessDerivedUnqualifiedDistroKeepsNewestWinsLive(t
 	}
 }
 
-// TestSupplyChainImpactReadinessDerivedPlanStaysWithItsInstanceLive proves one
+// testSupplyChainImpactReadinessDerivedPlanStaysWithItsInstanceLive proves one
 // instance's plan creates no expectation for another instance: only the
 // instance that planned the release reads pending.
-func TestSupplyChainImpactReadinessDerivedPlanStaysWithItsInstanceLive(t *testing.T) {
+func testSupplyChainImpactReadinessDerivedPlanStaysWithItsInstanceLive(t *testing.T) {
 	ctx, db, now := readinessScopeLiveDatabase(t)
 	seedDerivedInstance(t, ctx, db, now, "derived-alpine", "alpine")
 	seedDerivedInstance(t, ctx, db, now, "derived-other", "alpine")
@@ -273,14 +273,14 @@ func TestSupplyChainImpactReadinessDerivedPlanStaysWithItsInstanceLive(t *testin
 	}
 }
 
-// TestSupplyChainImpactReadinessDerivedEmptyReleaseValueHasNoReleaseLive pins how
+// testSupplyChainImpactReadinessDerivedEmptyReleaseValueHasNoReleaseLive pins how
 // the SPLIT_PART parse reads a scope whose first release value is empty: the
 // first value decides, so ?release=&release=v3.18 has no release, where a regular
 // expression would have skipped to v3.18. The coordinator writes one release
 // value per scope, so this shape needs a hand-written row. A state row like this
 // stands on its own and fails toward not covered. A plan target like this expects
 // no release, so it creates no pending row and retires nothing.
-func TestSupplyChainImpactReadinessDerivedEmptyReleaseValueHasNoReleaseLive(t *testing.T) {
+func testSupplyChainImpactReadinessDerivedEmptyReleaseValueHasNoReleaseLive(t *testing.T) {
 	const emptyFirst = "vuln-intel://osv/alpine/curl?release=&release=v3.18&version=7.86.0-r0"
 	t.Run("state row stays out of the release it names second", func(t *testing.T) {
 		ctx, db, now := readinessScopeLiveDatabase(t)
@@ -310,11 +310,11 @@ func TestSupplyChainImpactReadinessDerivedEmptyReleaseValueHasNoReleaseLive(t *t
 	})
 }
 
-// TestSupplyChainImpactReadinessDerivedSkipDoesNotHideUncoveredReleaseLive
+// testSupplyChainImpactReadinessDerivedSkipDoesNotHideUncoveredReleaseLive
 // proves a skipped package cannot turn a request with an uncovered release
 // into the terminal skipped verdict: the failed and pending scopes keep the
 // aggregate incomplete and named.
-func TestSupplyChainImpactReadinessDerivedSkipDoesNotHideUncoveredReleaseLive(t *testing.T) {
+func testSupplyChainImpactReadinessDerivedSkipDoesNotHideUncoveredReleaseLive(t *testing.T) {
 	for _, tc := range []struct {
 		name      string
 		seed      func(t *testing.T, ctx context.Context, db *sql.DB, now time.Time)
@@ -367,4 +367,15 @@ func TestSupplyChainImpactReadinessDerivedSkipDoesNotHideUncoveredReleaseLive(t 
 			}
 		})
 	}
+}
+
+// TestSupplyChainImpactReadinessDerivedReleaseCoverageLive runs the release-coverage cases of #10015 as subtests, each on its own isolated schema, so the readiness shard plan counts one test for the family.
+func TestSupplyChainImpactReadinessDerivedReleaseCoverageLive(t *testing.T) {
+	t.Run("EveryReleaseMustBeFreshLive", testSupplyChainImpactReadinessDerivedEveryReleaseMustBeFreshLive)
+	t.Run("PlannedReleaseWithoutStateReadsPendingLive", testSupplyChainImpactReadinessDerivedPlannedReleaseWithoutStateReadsPendingLive)
+	t.Run("PlannedReleasesCoverLive", testSupplyChainImpactReadinessDerivedPlannedReleasesCoverLive)
+	t.Run("UnqualifiedDistroKeepsNewestWinsLive", testSupplyChainImpactReadinessDerivedUnqualifiedDistroKeepsNewestWinsLive)
+	t.Run("PlanStaysWithItsInstanceLive", testSupplyChainImpactReadinessDerivedPlanStaysWithItsInstanceLive)
+	t.Run("EmptyReleaseValueHasNoReleaseLive", testSupplyChainImpactReadinessDerivedEmptyReleaseValueHasNoReleaseLive)
+	t.Run("SkipDoesNotHideUncoveredReleaseLive", testSupplyChainImpactReadinessDerivedSkipDoesNotHideUncoveredReleaseLive)
 }
