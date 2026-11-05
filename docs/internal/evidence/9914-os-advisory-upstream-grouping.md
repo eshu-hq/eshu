@@ -256,14 +256,16 @@ against about 2.1 s (5-kind); cold-first 19.7 s on a fresh list, and one cold-fi
 hit the probe session's 30 s statement cap and printed no plan. The 5-kind statement
 reads the same 146,930 rows (cold-first 11.3 to 13.2 s on different ids, so not a
 like-for-like pair). The plan is the cve_lookup_v2 key probe in every run that printed
-one; the cost is candidate-row fan-out, not the plan, and the 240-id chunk does not bound
+one; the cost is candidate-row fan-out, not the plan, and the chunk size does not bound
 it because the fan-out is per id. This cost shape is pre-existing on the cve_lookup_v2
 probe and is newly reachable from an OS pass only because the base OS pass never read KEV
 rows for its CVEs. Accepted for this change (#9994). Root cause tracked in #10020: the
 retained generations of the KEV scope. NOT_CHECKED: the production loader's statement
 timeout and what a cold chunk above it does to the pass (expected: the pass fails before
 acknowledgement and the queue retries it warm); a true cold-first pair on the same ids;
-EPSS rows, which were not present for these ids.
+EPSS rows, which were not present for these ids. These figures are for one statement of
+240 ids. The statement now binds at most 120, so a list reads the same rows over twice
+as many statements; that split was not timed.
 
 ## Observability
 
@@ -304,6 +306,9 @@ failed it:
 | 1,922 ids, 9 custom statements of at most 240 ids | 421 ms median, every statement on `cve_lookup_v2` (27 of 27) |
 | 961 real CVE ids, added rows | 4,543 envelopes (9.1% of 50,000), 10.33 MiB (8.1% of 128 MiB) |
 
+The 9-statement row was measured at the earlier bound of 240. At 120 the same list
+takes 17 statements, which are not timed on QA yet.
+
 QA holds no `affected_product`, EPSS or suppression rows, so those terms were not
 measured, and `affected_product` is the one that could spend the budget. So:
 
@@ -335,28 +340,43 @@ Limits, measured or not:
   | 400 | whole-index walk, cost 1,120,897 | key probe, cost 66,088 |
   | 1,000 | whole-index walk, cost 1,120,898 | key probe, cost 66,088 |
 
-  The flip sits between 380 and 400 ids. At 240 the custom plan has about 17%
-  headroom on cost against the walk, so the 240 sample leaves room for about 140 more ids, not
-  a doubling, and fresh statistics could move the flip down.
-  `TestSupplyChainImpactBranchPlansStayOnAnchorsLive` proves the same anchor at 120
-  ids under both plan modes on the CI Postgres image (the digest in
-  `live-postgres-readiness.yml`) at stock settings (`random_page_cost` 4), and on a
-  private PostgreSQL 18.6. The fixture holds 8,503 EPSS and KEV rows plus 40,000
-  inline padding rows (14,299 heap pages). Without the padding (4,299 pages) the
-  custom plan walks the two kinds through `fact_records_scope_generation_idx`. The
-  planner ignores statistics from the partial `cve_lookup_v2` index, so ids are priced at the default whatever their values; the key probe wins only
-  when the signal rows are a small share of the heap, and the padding supplies that
-  share. The fixture cannot reproduce the 380 to 400 id flip itself.
+  That table shows one flip between 380 and 400 ids, and it missed another. A plan-only
+  QA sweep of the 5-kind statement at `random_page_cost` 1.1 (#9994's evidence note)
+  probes at 1 to 171 ids, walks `advisory_lookup_v2` at 172 to 199, probes at 200 to 380
+  and walks from 400. At page cost 4 it probes at 180 and walks at 199. The planner
+  prices each id at the default 0.005 and sums them below 200 ids, then uses the
+  independent formula, so the estimate peaks just under 200. These samples at 240, 400
+  and 1,000 never landed in that window.
 
-  OPEN, and it blocks this bound: a QA plan-only custom-plan sweep reports a walk of
-  `advisory_lookup_v2` at 172 to 199 ids, with a key probe at 1 to 171 and at 200 to
-  250. The earlier samples (150, 200, 250 and up) missed it. The chunker emits those
-  sizes: a whole list of 172 to 199 ids, or the remainder of a longer one.
-  `TestUpstreamChunksStayOutOfTheWalkZone` fails at the bound of 240 until the bound
-  or chunk shape is decided, and the re-sweep behind that decision is still running.
-  `TestSupplyChainImpactUpstreamPlanHoldsAtEveryChunkSizeLive` plans all 240 sizes on
-  the padded fixture and stays on the anchor, so it does not reproduce the QA walk.
-  Without the padding the custom plan leaves the anchor from 114 ids through 240.
+  The chunker emits those sizes: a list of 172 to 199 ids runs whole, and a longer one
+  leaves a remainder of any length. So the bound is 120 (`MaxCVEIDsPerStatement`,
+  arbiter ruling arb-wave1-3). Every length from 1 to 120 of the 5-kind statement probes
+  at both page costs, and at 120 the walk costs 1.41 and 1.55 times the probe. Balancing
+  chunks under 240 does not help, because a list of 172 to 199 ids is one chunk under any
+  bound of 199 or more. `TestUpstreamChunksStayBelowTheLowestMeasuredWalk` reads the sizes
+  from the production loader and fails at a bound of 172 or more (seeded at 172 and 240;
+  green at 171 and 120).
+
+  For this 2-kind statement the QA evidence is indirect. Its costs at 240, 400 and 1,000
+  ids are the 5-kind costs scaled by 0.98, and the ruling's monotonicity argument covers
+  1 to 139 ids. NOT_CHECKED, both required before the goal closes and neither blocking this
+  bound: a direct QA plan check of the 2-kind statement at 171, 172, 185, 199 and 200 ids,
+  and a warm timing of the 1,922-id list at 120-id chunks.
+
+  On the local fixture, `TestSupplyChainImpactBranchPlansStayOnAnchorsLive` proves the same
+  anchor at 120 ids under both plan modes, and
+  `TestSupplyChainImpactUpstreamPlanHoldsAtEveryChunkSizeLive` plans every size from 1 to
+  120 under both plan modes at page costs 1.1 and 4. Both pass on the CI Postgres image
+  (the digest in `live-postgres-readiness.yml`) at stock settings (`random_page_cost` 4)
+  and on a private PostgreSQL 18.6. The fixture holds 8,503 EPSS and KEV rows plus 40,000
+  inline padding rows (14,299 heap pages). Without the padding (4,299 pages) both tests
+  fail: the custom plan at page cost 4 leaves the anchor from 113 ids on the private
+  server and from 117 on the CI image, reading through
+  `fact_records_scope_generation_idx`. The planner ignores statistics from the partial
+  `cve_lookup_v2` index, so ids are priced at the default whatever their values; the key
+  probe wins only when the signal rows are a small share of the heap, and the padding
+  supplies that share. This fixture does not reproduce the QA walk of `advisory_lookup_v2`
+  at 172 to 199 ids or the flip from about 400, so those rest on the QA plans above.
 - The arm a CVE takes depends on the loaded set, not on the order facts arrive or
   which fact triggered the pass: a CVE with any loaded CVE-keyed fact takes the full
   arm, and a CVE named only by an upstream list takes the signal arm
