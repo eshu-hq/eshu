@@ -4,9 +4,8 @@ This catalog covers metrics emitted before reducer-owned materialization:
 source collection, discovery pruning, fact emission, registry/cloud collectors, Confluence, workflow coordination, and webhook intake.
 
 Most instruments are registered in `go/internal/telemetry/instruments.go`.
-Terraform-state discovery registers `eshu_dp_tfstate_discovery_candidates_total`
-in `go/internal/collector/terraformstate/metrics.go`, and workflow-coordinator
-loop metrics live in `go/internal/coordinator/metrics.go`.
+Terraform-state discovery registers `eshu_dp_tfstate_discovery_candidates_total` in
+`go/internal/collector/terraformstate/metrics.go`; workflow-coordinator loop metrics live in `go/internal/coordinator/metrics.go`.
 
 ## Git, Discovery, And Fact Streaming
 
@@ -204,6 +203,7 @@ artifact paths, and credentials stay out of labels.
 | `eshu_dp_vulnerability_intelligence_release_tags_unparseable_total` | `source`, `ecosystem` (the target's canonical Eshu ecosystem, or `other`) | Usable OSV OS entries kept without a release tag because their release line did not parse (#9806). The entries are kept untagged, never dropped; the count rides the same span event and DEBUG line as `unparseable_release_tags`. |
 | `eshu_dp_vulnerability_source_state_stale_writes_skipped_total` | `status`, `result` | Source-state writes the extension host skipped because a newer attempt already owns the row (#9420). Expected under replica overlap; not an error. |
 | `eshu_dp_vulnerability_source_state_write_failures_total` | `status`, `result` | Source-state writes from the extension host that failed in Postgres (#9420). A failed attempt row also fails the claim retryable with `source_state_record`. |
+| `eshu_dp_vulnerability_source_state_last_success_clamped_total` | `source` | Success rows whose extension-reported observed time was later than the host's processing time, so the host recorded its own time instead (#10008). Any nonzero value means a collector reported a future time; find it with the WARN log `vulnerability source state last success clamped` (fields `source`, `reported_observed_at`, `recorded_last_success_at`, `ahead_seconds`). |
 
 Source URLs, CVE IDs, package names, versions, API keys, and cache paths stay out of metric labels. Durable checkpoint and retry details are exposed through
 status/API fields rather than high-cardinality metrics. Successful checkpoint

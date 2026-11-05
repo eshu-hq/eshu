@@ -2348,6 +2348,12 @@ type Instruments struct {
 	VulnerabilitySourceStateStaleWritesSkipped metric.Int64Counter
 	VulnerabilitySourceStateWriteFailures      metric.Int64Counter
 
+	// VulnerabilitySourceStateLastSuccessClamped counts success rows whose
+	// extension-reported observed time was in the future and was recorded as
+	// the host's processing time (#10008). Its only label is source, a closed
+	// vulnsource set. Registered by registerVulnerabilitySourceStateInstruments.
+	VulnerabilitySourceStateLastSuccessClamped metric.Int64Counter
+
 	// RuntimeDeclarationQueryDuration measures the graph reads behind the
 	// runtime declaration read surface (#8817) by closed operation (list,
 	// excluded_count, repository_names, context_section) and closed outcome
@@ -9138,11 +9144,13 @@ func RegisterFilesByLanguageObservableGauge(inst *Instruments, meter metric.Mete
 }
 
 // registerVulnerabilitySourceStateInstruments registers the #9420
-// host-owned vulnerability source-state counters on inst. Both are labelled
-// by status (freshness_state) and result (terminal_status) only. The names
-// are literals so scripts/verify-telemetry-coverage.sh can find them; they
-// equal contract.MetricVulnerabilitySourceStateStaleWritesSkipped and
-// contract.MetricVulnerabilitySourceStateWriteFailures.
+// host-owned vulnerability source-state counters on inst. The first two are
+// labelled by status (freshness_state) and result (terminal_status) only; the
+// #10008 clamp counter is labelled by source only. The names are literals so
+// scripts/verify-telemetry-coverage.sh can find them; they equal
+// contract.MetricVulnerabilitySourceStateStaleWritesSkipped,
+// contract.MetricVulnerabilitySourceStateWriteFailures and
+// contract.MetricVulnerabilitySourceStateLastSuccessClamped.
 func registerVulnerabilitySourceStateInstruments(meter metric.Meter, inst *Instruments) error {
 	var err error
 	if inst.VulnerabilitySourceStateStaleWritesSkipped, err = meter.Int64Counter(
@@ -9156,6 +9164,12 @@ func registerVulnerabilitySourceStateInstruments(meter metric.Meter, inst *Instr
 		metric.WithDescription("Vulnerability source-state writes that failed in the store, by status (freshness_state) and result (terminal_status) (#9420)"),
 	); err != nil {
 		return fmt.Errorf("register VulnerabilitySourceStateWriteFailures counter: %w", err)
+	}
+	if inst.VulnerabilitySourceStateLastSuccessClamped, err = meter.Int64Counter(
+		"eshu_dp_vulnerability_source_state_last_success_clamped_total",
+		metric.WithDescription("Vulnerability source-state success rows whose extension-reported observed time was later than the host's processing time and was recorded as the processing time, by source (#10008)"),
+	); err != nil {
+		return fmt.Errorf("register VulnerabilitySourceStateLastSuccessClamped counter: %w", err)
 	}
 	return nil
 }
