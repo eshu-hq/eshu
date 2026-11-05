@@ -349,6 +349,11 @@ tests:
     class: postgres_ci
     reason: "#8875 row-differential proof for the canonical terraform-backends reader on disposable PostgreSQL: the derived COUNT probe built from the shipped constant stays exact across the MATERIALIZED repo_local_paths change and the predicate-matched partial index, the adapter returns both owners of a shared locator hash, and the plan seeks the new index"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/tfstate/drift_delta_overlay_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10006 live PostgreSQL proof that the active-only Terraform drift readers return the base generation rows for a single-generation scope: the backend anchor resolves and no removed_from_config candidate appears without a delta; builds its own live schema on ESHU_POSTGRES_DSN"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/trigger_bootstrap_parity_live_test.go
     tag: ~
     class: postgres_ci

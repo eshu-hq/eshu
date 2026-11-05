@@ -3,6 +3,10 @@
 
 package tfstate
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #10006 live PostgreSQL proof that the active-only Terraform drift readers return the base generation rows for a single-generation scope: the backend anchor resolves and no removed_from_config candidate appears without a delta; builds its own live schema on ESHU_POSTGRES_DSN
+//eshu:readiness:env ESHU_POSTGRES_DSN
+
 import (
 	"context"
 	"database/sql"

@@ -469,6 +469,11 @@ tests:
     class: postgres_ci
     reason: "#8779 disposable PostgreSQL proof that a git delta generation projects over its #7797 union base through the production projector service (ProjectorQueue claim, union FactStore load, runtime Project, content writer, reducer queue, Ack activation) without base facts tripping the fact boundary check or re-firing base-only reducer follow-ups under either generation; isolated bootstrapped schema per test; wall time is logged, not gated"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/drift_overlay_tfstate_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10006 disposable PostgreSQL proof that the Terraform drift overlay readers merge a delta-active git scope's base full generation: the backend anchor resolves at the live generation and no false removed_from_config candidate appears; reads ESHU_TFSTATE_DRIFT_OVERLAY_PROOF_DSN with its disposable opt-in"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/drifted_bucket_skip_live_test.go
     tag: ~
     class: postgres_ci
