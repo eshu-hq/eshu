@@ -29,7 +29,9 @@ Related:
 The goal is to turn advisories from the CVE List, GHSA, OSV, NVD, ENISA EUVD,
 CISA KEV, FIRST EPSS, and Exploit-DB into findings on the packages, images,
 workloads, and deployments Eshu already knows about. Each finding should carry
-correct severity, exploit signals, and provenance.
+correct severity, exploit signals, and provenance. ENISA EUVD and Exploit-DB
+are NOT PLANNED — owner decision 2026-11-05 (see #9960 and #9881); US NVD is
+the source of record.
 
 Most of the pipeline exists. Measurements in the shared QA environment show
 where it falls short:
@@ -106,8 +108,8 @@ record may do to a finding.
 | Class | Sources | May create a finding | Ceiling |
 | --- | --- | --- | --- |
 | A. Package-range advisory | OSV, GHSA reviewed, GLAD, distro trackers, CNA blocks with `packageURL` or `collectionURL` | Yes | `affected_exact` with an exact installed version and an ecosystem comparator. Otherwise `possibly_affected`. |
-| B. Product or CPE advisory | NVD configurations, CNA vendor+product blocks, EUVD products, KEV vendor/project | Only when joined to owned SBOM-to-image evidence, or promoted by a curated CPE-to-package map | `affected_derived` on an SBOM-to-image path. Otherwise `possibly_affected`. |
-| C. CVE-keyed enrichment | CVSS, EPSS, KEV, SSVC, EUVD exploited flag, Exploit-DB references | Never | Changes priority only |
+| B. Product or CPE advisory | NVD configurations, CNA vendor+product blocks, EUVD products (NOT PLANNED — see #9960), KEV vendor/project | Only when joined to owned SBOM-to-image evidence, or promoted by a curated CPE-to-package map | `affected_derived` on an SBOM-to-image path. Otherwise `possibly_affected`. |
+| C. CVE-keyed enrichment | CVSS, EPSS, KEV, SSVC, EUVD exploited flag (NOT PLANNED — see #9960), Exploit-DB references (NOT PLANNED — see #9881) | Never | Changes priority only |
 | D. Suppression and retraction | VEX, CNA `unaffected`, distro not-affected, withdrawn, REJECTED with `replacedBy`, reachability | Never. It can lower or retract. | n/a |
 
 This matches the current reducer: `classifySupplyChainImpactProduct` returns
@@ -115,7 +117,8 @@ This matches the current reducer: `classifySupplyChainImpactProduct` returns
 finding from a product-only CPE alone". Each new source lands in one class.
 EUVD and the CVE List add little to class A. Their value is in classes C and
 D: severity for CVEs that NVD defers, SSVC, the EU KEV list, and REJECTED
-state.
+state. (EUVD and the EU KEV list are NOT PLANNED — owner decision 2026-11-05,
+see #9960.)
 
 ### 4.2 Advisory identity
 
@@ -249,10 +252,10 @@ guidance. Proposed cadences:
 | GHSA | 15-30 min | REST or GraphQL `updated` cursor, with a token. |
 | OSV | 15 min for a mirror; derived rotation for matching | `modified_id.csv` cursor |
 | NVD | 2 h | Rolling `lastModStartDate`, every page, API key, 6 s between requests (NIST guidance) |
-| EUVD | 1-2 h | `/api/search` by `fromUpdatedDate`, overlapping one day |
+| EUVD (NOT PLANNED — see #9960) | 1-2 h | `/api/search` by `fromUpdatedDate`, overlapping one day |
 | KEV | 1 h | Conditional GET; diff whole records |
 | EPSS | daily, after publication | Published about 13:30Z; poll at 13:45Z for margin. Store `model_version`. |
-| Exploit-DB | daily | GitLab repository CSV, never the website |
+| Exploit-DB (NOT PLANNED — see #9881) | daily | GitLab repository CSV, never the website |
 
 Cadence is set per instance today. Item 2.4 adds a per-target interval or one
 instance per cadence class.
@@ -266,8 +269,9 @@ Every source snapshot records its license and its attribution requirement:
 - **GHSA.** CC-BY 4.0 attribution.
 - **OSV.** Chainguard and Wolfi records are CC-BY-NC-ND. They are 62% of OSV
   records and are excluded from any mirror unless an operator opts in.
-- **Exploit-DB.** Facts carry metadata only (EDB id, CVE codes, verified flag)
-  from the GPL v2 repository, pending owner and legal sign-off.
+- **Exploit-DB.** NOT PLANNED — owner decision 2026-11-05, see #9881. (The
+  metadata-only proposal — EDB id, CVE codes, verified flag from the GPL v2
+  repository — is superseded.)
 - **EPSS.** The attribution text is not confirmed. Ask FIRST before shipping.
 
 ### 4.7 Where collector changes land
