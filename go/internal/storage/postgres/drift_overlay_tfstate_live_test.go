@@ -231,6 +231,25 @@ func TestTerraformDriftOverlayReadsLive(t *testing.T) {
 		if got := countRemovedFromConfigCandidates(tfconfigstate.BuildCandidates(addressed, anchor, stateScope)); got != wantRemoved {
 			t.Errorf("%s: removed_from_config candidates = %d, want %d", phase, got, wantRemoved)
 		}
+		if phase == "delta" {
+			candidates, err := f.overlay.TerraformStateCandidates(ctx, terraformstate.DiscoveryQuery{RepoIDs: []string{repoID}})
+			if err != nil {
+				t.Fatalf("%s: TerraformStateCandidates() error = %v", phase, err)
+			}
+			if got := len(candidates); got != 1 {
+				t.Fatalf("%s: backend-facts candidates = %d, want 1", phase, got)
+			}
+			candidate := candidates[0]
+			if candidate.RepoID != repoID {
+				t.Errorf("%s: candidate RepoID = %q, want %q", phase, candidate.RepoID, repoID)
+			}
+			if candidate.State.BackendKind != terraformstate.BackendS3 {
+				t.Errorf("%s: candidate backend kind = %q, want %q", phase, candidate.State.BackendKind, terraformstate.BackendS3)
+			}
+			if want := "s3://" + bucket + "/" + key; candidate.State.Locator != want {
+				t.Errorf("%s: candidate locator = %q, want %q", phase, candidate.State.Locator, want)
+			}
+		}
 		f.requireStatementMix(phase, anchorGen != "gen-full")
 	}
 
@@ -267,6 +286,7 @@ func TestTerraformDriftOverlayReadsLive(t *testing.T) {
 
 	f.requireDriftUnionCount("config", "union_base_found", 1)
 	f.requireDriftUnionCount("canonical", "union_base_found", 1)
+	f.requireDriftUnionCount("backend_facts", "union_base_found", 1)
 	logDriftOverlayAfterPlans(t, ctx, f.database, configScope)
 }
 
