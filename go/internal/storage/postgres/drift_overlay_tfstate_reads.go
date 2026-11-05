@@ -190,7 +190,7 @@ func (o TerraformDriftOverlay) LoadDriftConfig(
 		return tfstate.OverlaidConfig{}, fmt.Errorf("terraform drift overlay store is required")
 	}
 	// Derive both base texts up front: each binds the same single scope
-	// arg plus the delta-active scopes at placeholder 2.
+	// arg plus the candidate base generation ids at placeholder 2.
 	moduleBase, err := deriveDeltaOverlayBaseQuery(tfstate.ActiveModuleCallsForOverlayQuery, 2)
 	if err != nil {
 		return tfstate.OverlaidConfig{}, err
