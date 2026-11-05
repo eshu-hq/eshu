@@ -30,6 +30,7 @@ HELPER_ENROLL = "//eshu:readiness-helper "
 HELPER_REASON = "//eshu:readiness-helper:reason "
 VAR_PATTERN = re.compile(r"ESHU_[A-Z0-9_]+\Z")
 TEST_DECLARATION = re.compile(r"^func (Test\w+)\(", flags=re.MULTILINE)
+MARKER_LINE = re.compile(r"^//eshu:readiness", flags=re.MULTILINE)
 BUILD_TAG = re.compile(r"^//go:build\s+(.+)$", flags=re.MULTILINE)
 ENV_LITERAL = re.compile(
     r'"(ESHU_[A-Z0-9_]*(?:_DSN|_DISPOSABLE)|ESHU_IAC_INVENTORY_LIVE)"')
@@ -116,6 +117,32 @@ def live_files(root: pathlib.Path) -> list[pathlib.Path]:
     return sorted(set(found))
 
 
+def reject_unscanned_markers(root: pathlib.Path,
+                             scanned: list[pathlib.Path]) -> None:
+    """Fail when a readiness marker sits in a Go file live_files skips.
+
+    The scheduler only sees files that live_files returns, so a marker in a
+    plain *_test.go (no live_ build tag) enrolls nothing and the proof is
+    never scheduled (#10010). Name every such file instead of ignoring it.
+    """
+    known = set(scanned)
+    stray = []
+    for path in sorted(root.joinpath("go").rglob("*.go")):
+        if path in known:
+            continue
+        try:
+            source = path.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        if MARKER_LINE.search(source):
+            stray.append(path.relative_to(root).as_posix())
+    if stray:
+        raise fail(
+            "readiness marker in a file the generator will not scan "
+            "(rename it to *_live_test.go, or give it a live_ build tag "
+            "and a Test func): " + ", ".join(stray))
+
+
 def parse_marker(rel: str, source: str) -> dict | None:
     """Parse one file's enrollment marker; None when not enrolled."""
     lines = [line for line in source.splitlines()
@@ -190,7 +217,9 @@ def collect(root: pathlib.Path) -> tuple[dict, dict]:
     """Scan live files and bind the closed helper-consumer source edges."""
     enrolled: dict[str, dict] = {}
     helpers: dict[str, str] = {}
-    for path in live_files(root):
+    scanned = live_files(root)
+    reject_unscanned_markers(root, scanned)
+    for path in scanned:
         rel = path.relative_to(root).as_posix()
         try:
             source = path.read_text(encoding="utf-8")
