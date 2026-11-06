@@ -52,8 +52,8 @@ func repoManifestGrants() []component.ProducerGrant {
 
 // TestRepoManifestSeedContract proves the checked-in manifest carries the
 // arbiter-ruled seed contract: pinned identity, the SDK process runtime,
-// one digest-pinned artifact, and exactly the two documentation families
-// the caller drains.
+// one digest-pinned artifact per platform, and exactly the two documentation
+// families the caller drains.
 func TestRepoManifestSeedContract(t *testing.T) {
 	t.Parallel()
 

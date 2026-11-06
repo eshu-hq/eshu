@@ -33,10 +33,11 @@
   one host claim per process and exits, with no polling, no service, and no
   direct store write. If `collector.Service` semantics become necessary,
   prove it from `go/internal/collector/service.go` first.
-- Seed digest discipline: `manifest.yaml` artifacts[0].image stays pinned to
-  the locally built seed image digest, and `provenSeedImage` in
-  `manifest_test.go` names the same digest. A seed rebuild re-pins both in
-  the same commit; promotion re-pins both to the pushed digest.
+- Seed digest discipline: each `manifest.yaml` artifacts entry stays pinned to
+  the locally built seed image digest for its platform, and
+  `provenSeedImageAmd64`/`provenSeedImageArm64` in `manifest_test.go` name
+  the same digests. A seed rebuild re-pins all of them in the same commit;
+  promotion re-pins them to the pushed digests.
 - Satellite failures stay silent on stdout: the ack is written only on
   success, so a failed claim leaves no partial result for the host to
   misread. Refusals name the cause on stderr and exit nonzero.
