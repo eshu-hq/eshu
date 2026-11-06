@@ -27,7 +27,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	storagepostgres "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	vulnerabilitystore "github.com/eshu-hq/eshu/go/internal/storage/postgres/vulnerability"
-	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -219,13 +218,14 @@ func TestReadinessAdvisoryStaleWhenNeverRefetchedLive(t *testing.T) {
 // recordExtractedClaim writes the source-state row the extension host writes
 // for an extracted-collector claim whose generation the guard refused (#10067):
 // the commit returned nil but stored nothing, so the host records the refusal
-// instead of a commit. The row is partial and names the refusal, which keeps
-// the advisory family unfreshened while the guard holds the scope on its stale
-// generation. The status half still comes from the satellite's result: a
-// complete result whose status is Partial with a warning count for an unproven
-// fetch (see TestClaimOutcomeCarriesAPartialStatusOnACompleteResult and the
-// satellite's TestHandleReportsAnUnprovenFetchAsPartial).
-func (p *recencyProof) recordExtractedClaim(at time.Time, partial bool) {
+// the guard reported on the commit's disposition box instead of a commit. The
+// row is partial and names the refusal, which keeps the advisory family
+// unfreshened while the guard holds the scope on its stale generation. The
+// status half still comes from the satellite's result: a complete result whose
+// status is Partial with a warning count for an unproven fetch (see
+// TestClaimOutcomeCarriesAPartialStatusOnACompleteResult and the satellite's
+// TestHandleReportsAnUnprovenFetchAsPartial).
+func (p *recencyProof) recordExtractedClaim(at time.Time, partial bool, refusal collector.CommitRefusal) {
 	p.t.Helper()
 	recorder, err := hostvulnerability.NewRecorder(hostvulnerability.Config{
 		Store:               vulnerabilitystore.NewVulnerabilitySourceStateStore(storagepostgres.SQLDB{DB: p.db}),
@@ -245,12 +245,8 @@ func (p *recencyProof) recordExtractedClaim(at time.Time, partial bool) {
 	if partial {
 		outcome.WarningCount = 1
 	}
-	// The guard refused the shrink above, so the host records the refusal with
-	// the guard's own class and rule, never a commit.
-	refusal := collector.CommitRefusal{
-		Reason: telemetry.RefreshSkipReasonDestructiveSuccessor,
-		Rule:   telemetry.SuccessorGuardRuleCollectorRatio,
-	}
+	// The guard refused the shrink above, so the host records the refusal the
+	// guard reported on the commit's disposition box, never a commit.
 	if err := recorder.RecordClaimRefused(context.Background(), outcome, refusal); err != nil {
 		p.t.Fatalf("RecordClaimRefused() error = %v", err)
 	}
@@ -258,7 +254,9 @@ func (p *recencyProof) recordExtractedClaim(at time.Time, partial bool) {
 
 // refuseShrink commits an empty, unattested successor over the scope's active
 // generation, which the destructive-successor guard refuses and rolls back.
-func (p *recencyProof) refuseShrink(at time.Time) {
+// It returns the refusal the guard reported on the commit's disposition box,
+// so the caller records this commit's disposition instead of a hardcoded one.
+func (p *recencyProof) refuseShrink(at time.Time) collector.CommitRefusal {
 	p.t.Helper()
 	stream := make(chan facts.Envelope)
 	close(stream)
@@ -270,12 +268,18 @@ func (p *recencyProof) refuseShrink(at time.Time) {
 		ScopeID: recencyScopeID, SourceSystem: string(scope.CollectorVulnerabilityIntelligence),
 		ScopeKind: scope.KindVulnerabilityIntelligence, CollectorKind: scope.CollectorVulnerabilityIntelligence, PartitionKey: "nvd",
 	}
-	if err := p.store.CommitScopeGeneration(context.Background(), ingestion, generation, stream); err != nil {
+	commitCtx, box := collector.WithCommitDisposition(context.Background())
+	if err := p.store.CommitScopeGeneration(commitCtx, ingestion, generation, stream); err != nil {
 		p.t.Fatalf("CommitScopeGeneration() error = %v, want the refusal to return success", err)
 	}
 	if got := p.count(`SELECT count(*) FROM scope_generations WHERE scope_id = '` + recencyScopeID + `' AND generation_id = 'vulnerability_intelligence:refused'`); got != 0 {
 		p.t.Fatal("the destructive successor was stored, want it refused")
 	}
+	refusal, refused := box.Refusal()
+	if !refused {
+		p.t.Fatalf("disposition = %q, want the guard to refuse the empty successor", box.Kind())
+	}
+	return refusal
 }
 
 // TestReadinessKeepsAdvisorySourcesForARefusedShrinkFromTheExtractedCollectorLive
@@ -300,8 +304,8 @@ func TestReadinessKeepsAdvisorySourcesForARefusedShrinkFromTheExtractedCollector
 		t.Run(tc.name, func(t *testing.T) {
 			p := openRecencyProof(t)
 			p.claim(now.Add(-30 * 24 * time.Hour)) // the facts the guard will keep
-			p.refuseShrink(now)
-			p.recordExtractedClaim(now, tc.partial)
+			refusal := p.refuseShrink(now)
+			p.recordExtractedClaim(now, tc.partial, refusal)
 			envelope := p.readiness()
 			if got := ReadinessMissingContains(envelope.MissingEvidence, MissingEvidenceAdvisorySources); got != tc.wantMissing {
 				t.Fatalf("missing_evidence = %v, advisory_sources reported = %v, want %v", envelope.MissingEvidence, got, tc.wantMissing)
