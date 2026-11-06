@@ -47,6 +47,12 @@ type SAMLAuthnRequestBuilder interface {
 // CrewjamSAMLVerifier validates POSTed SAML responses with crewjam/saml.
 type CrewjamSAMLVerifier struct {
 	Now func() time.Time
+
+	// parseResponse replaces the crewjam ParseResponse call. It is nil in
+	// production, where the verifier calls (*saml.ServiceProvider).ParseResponse
+	// directly; tests set it to drive the panic-recovery path in
+	// VerifySAMLResponse (see saml_verifier_recover.go).
+	parseResponse func(*saml.ServiceProvider, *http.Request, []string) (*saml.Assertion, error)
 }
 
 // CrewjamSAMLRequestBuilder builds AuthnRequest redirects with crewjam/saml.
@@ -86,9 +92,10 @@ func (b CrewjamSAMLRequestBuilder) now() time.Time {
 	return time.Now().UTC()
 }
 
-// VerifySAMLResponse validates a base64 POST binding response and returns the
+// verifySAMLResponse validates a base64 POST binding response and returns the
 // assertion material Eshu needs for replay, claim mapping, and session creation.
-func (v CrewjamSAMLVerifier) VerifySAMLResponse(
+// VerifySAMLResponse wraps it so a panic inside crewjam fails the login closed.
+func (v CrewjamSAMLVerifier) verifySAMLResponse(
 	ctx context.Context,
 	provider SAMLProviderConfig,
 	samlResponse string,
@@ -118,7 +125,11 @@ func (v CrewjamSAMLVerifier) VerifySAMLResponse(
 	if err := req.ParseForm(); err != nil {
 		return SAMLAssertion{}, fmt.Errorf("parse saml response form: %w", err)
 	}
-	assertion, err := sp.ParseResponse(req, []string{requestID})
+	parse := v.parseResponse
+	if parse == nil {
+		parse = (*saml.ServiceProvider).ParseResponse
+	}
+	assertion, err := parse(&sp, req, []string{requestID})
 	if err != nil {
 		return SAMLAssertion{}, err
 	}
