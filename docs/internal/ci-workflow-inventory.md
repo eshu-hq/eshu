@@ -234,7 +234,8 @@ The Neo4j cells stay on and blocking. The job names (`differential nornicdb vs
 neo4j`, `live-backend (nornicdb and neo4j)`) are unchanged so pinned check names
 do not move. Go unit tests of `go/internal/storage/nornicdb` and the
 `race-graph-writes.yml` run are not CI legs and stay on. The Ifá determinism
-gates run on NornicDB too; this change does not touch them. Turning the replay
+gates and scheduled proofs already run on Neo4j per #10236 (on main), so there
+was nothing to switch off here. Turning the replay
 tier off leaves 167 replay-coverage surfaces unproven (457/457 to 290/457); the
 coverage gate reports them as "Proof off" instead of failing. A proof gate counts
 as off only when its registry row carries the `disabled:` marker (a `reason` and
@@ -243,7 +244,7 @@ is `if: ${{ false }}`; `ci-gates` drift check 16 and the coverage gate both chec
 the pair. Flipping a gate to manual and non-blocking without the marker still
 fails the coverage gate. Six `class: ci`, `backends: nornicdb` live tests (for
 example `go/internal/query/nornicdb_answer_truth_live_test.go`) and the replay
-tier's and Ifá's `dedicated_ci` NornicDB entries no longer run in any job.
+tier's `dedicated_ci` NornicDB entries no longer run in any job.
 
 To re-enable everything, revert in this order and run each check after its step:
 
