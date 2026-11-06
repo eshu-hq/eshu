@@ -1,0 +1,16 @@
+docs/internal/evidence/10061-alert-scope-reopen.md
+  h_78a442cba0b3e6 13-22
+specs/live-tests.d/live-tests-07.yaml
+  h_78a442cba0b3e6 368-372
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "81c52d5114a0be48a1f637e889ff05e31a590d7f",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
