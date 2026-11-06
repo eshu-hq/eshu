@@ -37,9 +37,10 @@ fails its promotion proof with the blocker
 must pass `BoundedFailureClassForInstance` (a local per-kind allowlist in
 `terminal_failure_classes.go`, deliberately not an import of any collector
 runtime package) and the operation must pass `BoundedFailureOperation`;
-anything else reads as `unknown`. Every kind reports the nine common classes
+anything else reads as `unknown`. Every kind reports the ten common classes
 (the five provider classes plus `attempt_budget_exhausted`, `identity_mismatch`,
-`collect_failure`, and `commit_failure`) and the four extension host classes
+`collect_failure`, `commit_failure`, and the expired-lease reaper's
+`expired_lease_budget_exhausted`) and the four extension host classes
 (`extensionHostFailureClasses`), because the component-extension runtime takes
 its kind from the manifest and a component-configured instance can carry a
 first-party kind such as `jira`. A first-party kind adds its own classes from
@@ -68,8 +69,9 @@ OpenAPI `last_failure_class` enums
 (`TestOpenAPITerminalFailureFieldsMatchStatusContract` in `query`), the class
 table in `docs/public/reference/http-api/collector-terminal-failure.md`
 (`TestTerminalFailureDocTableMatchesTheCode`), and the cardinality pin
-(`failureClassCardinality`), and stay aligned with the security-alert read's
-class set, which pins the nine common classes for that one kind.
+(`failureClassCardinality`). The security-alert read's class set pins the nine
+claim-runner classes for that one kind; the tenth common class here is the
+reaper class, which that surface reports as unclassified.
 `TestBoundedFailureClassesMatchTheCollectorWriters` reads each writer's class
 constants from its source with `go/parser` and compares them with the kind's set
 in both directions, so an added, removed, or renamed class constant in a tied
