@@ -1,0 +1,20 @@
+docs/public/operate/graph-delta-union.md
+  h_78a442cba0b3e6 122-219
+docs/public/reference/telemetry/package-manifest-dependency-read.md
+  h_78a442cba0b3e6 43-57
+go/internal/reducer/security_alert_reconciliation_refused_base_test.go
+  h_78a442cba0b3e6 1-221
+go/internal/reducer/securityalert/README.md
+  h_78a442cba0b3e6 182-216
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7bb07760b78e6663a4c95d8b20bf03902f7e3bf7",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
