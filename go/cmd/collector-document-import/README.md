@@ -134,6 +134,29 @@ No-Observability-Change: existing `eshu_dp_ocr_extractions_total`,
 `SpanOCRExtract`, and commit-level spans only; no new metric, label, or span.
 Row recorded in `docs/public/observability/telemetry-coverage-collectors.md`.
 
+### Seed and stdio paths (Event-B, this PR)
+
+No-Regression Evidence: the `seed` and `--sdk-stdio` entry points are new
+dispatch branches; the drain loop, backend calls, queue/lease handling, and
+batching are untouched. Baseline is the pre-change focused suite
+(`go test ./cmd/collector-document-import/ -count=1`: green, 56 pass lines,
+~0.01 s); after measurement at this HEAD the same suite stays green with
+unchanged timings,
+plus the new seed/stdio suites (per-arch stamp, sibling-untouched,
+wrong-repo and missing-platform refusals, claim ack and grant-denied ack)
+and the four gated seed-image builds (22-library set, GATE PASS per arch).
+Backend: pinned tesseract 5.5.0 via the apk floors; linux/arm64 + amd64
+builds. Input shape: seed payload is the caller binary plus manifest under
+fixed names into the operator `--dest` dir (0750); stdio serves exactly one
+host claim over the inherited pipe. Terminal counts are the drain's own
+generation/envelope totals. Gate impact is nil by construction: both paths
+run only under their explicit subcommands.
+
+No-Observability-Change: no new metric, label, span, or log key on either
+path; `seed` writes files only, `--sdk-stdio` acks over stdout, and the
+drain's existing extraction/commit signals are unchanged. Seed files are
+covered by the `telemetry-coverage-collectors.md` drain row.
+
 Follow-up (digest-pin normalization, #10039 review thread).
 No-Regression Evidence: `loadHexDigest` now returns the normalized lowercase
 digest instead of the raw `sha256:`-prefixed/uppercase input, and library

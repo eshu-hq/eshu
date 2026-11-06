@@ -157,6 +157,29 @@ operator-supplied 64-hex-character pin strings; terminal counts unchanged.
 No-Observability-Change: no new metric, label, span, or log line; the
 extraction and commit instruments above are untouched.
 
+### Seed and stdio paths (Event-B, this PR)
+
+No-Regression Evidence: the `seed` and `--sdk-stdio` entry points are new
+dispatch branches; the drain loop, whisper backend calls, queue/lease
+handling, and batching are untouched. Baseline is the pre-change focused
+suite (`go test ./cmd/collector-media-import/ -count=1`: green, 42 pass
+lines, ~0.01 s); after measurement at this HEAD the same suite stays green
+with unchanged timings, plus the new seed/stdio suites (per-arch stamp,
+sibling-untouched,
+wrong-repo and missing-platform refusals, claim ack and grant-denied ack)
+and the four gated seed-image builds (11-library set, GATE PASS per arch).
+Backend: pinned whisper.cpp v1.9.5 via the apk floors; linux/arm64 + amd64
+builds. Input shape: seed payload is the caller binary plus manifest under
+fixed names into the operator `--dest` dir (0750); stdio serves exactly one
+host claim over the inherited pipe. Terminal counts are the drain's own
+generation/envelope totals. Gate impact is nil by construction: both paths
+run only under their explicit subcommands.
+
+No-Observability-Change: no new metric, label, span, or log key on either
+path; `seed` writes files only, `--sdk-stdio` acks over stdout, and the
+drain's existing extraction/commit signals are unchanged. Seed files are
+covered by the `telemetry-coverage-collectors.md` drain row.
+
 ## Gotchas / invariants
 
 - Disabled means exit 0 with zero commits: the binary is built but never

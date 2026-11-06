@@ -69,6 +69,7 @@ func parseSeedArgs(args []string) (dest string, imageRef string, err error) {
 // source document's comments by rewriting only the image scalar; sibling
 // platform slots are left byte-identical.
 func seedComponent(dest, imageRef, collectorSrc, manifestSrc, platform string) error {
+	// #nosec G304 -- manifestSrc is the installed /manifest.yaml or a test fixture path, never operator free-form input.
 	raw, err := os.ReadFile(manifestSrc)
 	if err != nil {
 		return fmt.Errorf("read seed manifest %q: %w", manifestSrc, err)
@@ -102,7 +103,7 @@ func seedComponent(dest, imageRef, collectorSrc, manifestSrc, platform string) e
 	image.Value = imageRef
 	image.Tag = "!!str"
 
-	if err := os.MkdirAll(dest, 0o755); err != nil {
+	if err := os.MkdirAll(dest, 0o750); err != nil {
 		return fmt.Errorf("create seed destination %q: %w", dest, err)
 	}
 	if err := copySeedFile(collectorSrc, filepath.Join(dest, "collector"), 0o755); err != nil {
@@ -119,9 +120,11 @@ func seedComponent(dest, imageRef, collectorSrc, manifestSrc, platform string) e
 		return fmt.Errorf("encode stamped manifest: %w", err)
 	}
 	manifestDest := filepath.Join(dest, "manifest.yaml")
+	// #nosec G306 -- the seed manifest carries no secrets (image digests, fact kinds, schema versions only); the chart host loader reads it as the component user.
 	if err := os.WriteFile(manifestDest, rewritten.Bytes(), 0o644); err != nil {
 		return fmt.Errorf("write seed manifest %q: %w", manifestDest, err)
 	}
+	// #nosec G304 -- manifestDest joins the operator --dest dir with the fixed manifest.yaml name, verified by re-read immediately below.
 	stamped, err := os.ReadFile(manifestDest)
 	if err != nil {
 		return fmt.Errorf("re-read seed manifest %q: %w", manifestDest, err)
@@ -250,10 +253,12 @@ func runSeedCommand(args []string) error {
 // copySeedFile copies one file with the given mode, failing closed when the
 // source cannot be read in full.
 func copySeedFile(src, dest string, mode os.FileMode) error {
+	// #nosec G304 -- src is the caller binary (os.Executable) or a test fixture; dest joins the operator --dest dir with fixed collector/manifest.yaml names.
 	body, err := os.ReadFile(src)
 	if err != nil {
 		return fmt.Errorf("read seed source %q: %w", src, err)
 	}
+	// #nosec G304,G703 -- dest joins the operator --dest dir (0750) with the fixed collector/manifest.yaml names; no traversal beyond the designated seed dir, and the stamp is verified by re-read.
 	if err := os.WriteFile(dest, body, mode); err != nil {
 		return fmt.Errorf("write seed destination %q: %w", dest, err)
 	}

@@ -259,6 +259,7 @@ func decodeSDKStdioRequest(stdin io.Reader) (extensionhost.Request, error) {
 // context: grant admission runs separately so a denial acks terminal
 // instead of failing the process.
 func loadSDKStdioManifest(path string) (component.Manifest, error) {
+	// #nosec G304 -- path is the installed /manifest.yaml constant, never operator free-form input.
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		return component.Manifest{}, fmt.Errorf("sdk-stdio reads the installed manifest %q: %w", path, err)

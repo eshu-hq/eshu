@@ -110,7 +110,7 @@ func runSeed(dest, imageRef, selfPath, platform string) error {
 	image.Value = imageRef
 	image.Tag = "!!str"
 
-	if err := os.MkdirAll(dest, 0o755); err != nil {
+	if err := os.MkdirAll(dest, 0o750); err != nil {
 		return fmt.Errorf("create seed destination: %w", err)
 	}
 	if err := copySeedFile(selfPath, filepath.Join(dest, "collector"), 0o555); err != nil {
@@ -127,9 +127,11 @@ func runSeed(dest, imageRef, selfPath, platform string) error {
 		return fmt.Errorf("encode stamped manifest: %w", err)
 	}
 	manifestPath := filepath.Join(dest, "manifest.yaml")
+	// #nosec G306 -- the seed manifest carries no secrets (image digests, fact kinds, schema versions only); read-only mode protects the stamped payload in the shared seed dir.
 	if err := os.WriteFile(manifestPath, rewritten.Bytes(), 0o444); err != nil {
 		return fmt.Errorf("write seed manifest: %w", err)
 	}
+	// #nosec G304 -- manifestPath joins the operator --dest dir with the fixed manifest.yaml name, verified by re-read immediately below.
 	stamped, err := os.ReadFile(manifestPath)
 	if err != nil {
 		return fmt.Errorf("re-read seed manifest: %w", err)
@@ -235,10 +237,12 @@ func mediaSeedScalar(node *yaml.Node, key string) string {
 // copySeedFile copies one regular file to a destination path with the given
 // permission bits.
 func copySeedFile(src, dst string, perm os.FileMode) error {
+	// #nosec G304 -- src is the caller binary (os.Executable) or a test fixture; dst joins the operator --dest dir with fixed collector/manifest.yaml names.
 	body, err := os.ReadFile(src)
 	if err != nil {
 		return fmt.Errorf("read seed source: %w", err)
 	}
+	// #nosec G304,G703 -- dst joins the operator --dest dir (0750) with the fixed collector/manifest.yaml names; no traversal beyond the designated seed dir, and the stamp is verified by re-read.
 	if err := os.WriteFile(dst, body, perm); err != nil {
 		return fmt.Errorf("write seed payload: %w", err)
 	}
