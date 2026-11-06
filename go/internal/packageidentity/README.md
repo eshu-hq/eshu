@@ -99,14 +99,25 @@ truth; reducers admit user-facing truth.
   not valid in a URL ([nuspec reference](https://learn.microsoft.com/en-us/nuget/reference/nuspec)).
   A non-ASCII name therefore keeps its non-ASCII letters in its keys and joins
   only an identically spelled advisory or registry record.
-- NuGet residual: the nuget.org gallery validates new package IDs with the
-  ASCII-only pattern `^[A-Za-z0-9_]+([.-][A-Za-z0-9_]+)*$`
-  (`NuGet/NuGetGallery`, `src/NuGetGallery.Core/Packaging/PackageIdValidator.cs`)
-  and keeps `\w` only for reading legacy IDs, so only legacy IDs can hold
-  non-ASCII letters. nuget.org compares those with .NET `ToLowerInvariant`,
-  so two legacy IDs that differ only in non-ASCII case are one package there
-  and two keys here (a false negative). Confirming nuget.org's behavior is
-  tracked in #9594.
+- NuGet decision (#9594, confirmed 2026-11-06): keep ASCII-only, no
+  per-ecosystem Unicode fold. NuGet.Client compares package IDs with
+  `StringComparer.OrdinalIgnoreCase`
+  (`NuGet/NuGet.Client`,
+  `src/NuGet.Core/NuGet.Packaging/Core/comparers/PackageIdentityComparer.cs`:
+  `Equals`, `GetHashCode`, `Compare`), and nuget.org stores and serves
+  packages under `id.ToLowerInvariant()`
+  (`NuGet/NuGetGallery`, `src/Catalog/FlatContainerPackagePathProvider.cs`)
+  while taking new IDs ASCII-only (`PackageIdValidator.cs`:
+  `^[A-Za-z0-9_]+([.-][A-Za-z0-9_]+)*$`, `\w` only for reading legacy IDs).
+  Under that fold U+0130 stays apart from "i" (it lowercases to "i" plus
+  U+0307; [UnicodeData](https://www.unicode.org/Public/UNIDATA/UnicodeData.txt):
+  `0130` maps up to `0049 0307`, `212A` maps down to `006B`), so Eshu and the
+  registry agree on dotted-I pairs and there is no false negative. U+212A
+  folds to "k", so the registry equates a Kelvin-spelled legacy ID with its
+  ASCII twin while Eshu keeps them apart: an accepted, legacy-only false
+  negative. Widening Eshu's fold to match would join lookalikes the ASCII
+  rule keeps apart. Pinned by
+  `TestNuGetUnicodeFoldContractKeepsAsciiOnly`.
 - Registry hosts fold ASCII letters only, the same as names. ASCII and
   punycode hosts are unchanged. A host written in Unicode keeps its
   non-ASCII letters, so two Unicode spellings of one internationalized host
@@ -115,7 +126,7 @@ truth; reducers admit user-facing truth.
 
 ## Evidence
 
-No-Regression Evidence: `go test ./internal/packageidentity ./internal/collector/registry/package ./internal/collector/vulnerabilityintelligence ./internal/reducer ./internal/projector ./internal/storage/cypher ./internal/query -count=1`
+No-Regression Evidence: `go test ./internal/packageidentity ./internal/collector/registry/package ./internal/reducer ./internal/projector ./internal/storage/cypher ./internal/query -count=1`
 proves the shared identity contract normalizes npm, PyPI, Go, Maven, Composer,
 RubyGems, Cargo, Pub, Swift, Hex, NuGet, OS, and generic package coordinates, carries
 PURL/BOMRef/manager/source fields through package-registry facts, keeps OSV
