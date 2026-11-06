@@ -63,12 +63,49 @@ commit-before-return shape are unchanged, so re-running the throwaway probe
 would re-measure the same text. Re-running needs a disposable Postgres, which
 is orchestrator-owned heavy proof, not executor-lane work.
 
-**Remainder (orchestrator-owned, NOT checked here):** disposable-Postgres-18
-re-measurement of the barrier-lock transaction at the final rebased head,
-plus the live two-shard run showing a committing peer's epoch completing
-while the other shard is refused-only (acceptance-criterion live proof), plus
-observing the F5 shutdown path (terminal post-cancel idle poll draining with
-a cancelled context) there.
+**Remainder (done on this branch, see below):** the live two-shard run showing
+a committing peer's epoch completing while the other shard is refused-only
+(acceptance-criterion live proof), plus observing the F5 shutdown path
+(terminal post-cancel idle poll draining with a cancelled context) there. No
+disposable-Postgres re-measurement of the barrier-lock transaction: this
+branch touches no Go code, so the F1 reuse case (byte-identical transaction)
+still stands.
+
+## Live two-shard completion + deadlock verdict + F5 (this branch)
+
+**Bounded experiment:** decision — product deadlock vs harness artifact;
+threshold — reproduce both arrival orders with barrier/arrival row state plus
+`pg_locks` evidence during the stuck window, and a correctly ordered run that
+completes epoch 1 with 2 arrivals; wall-clock deadline — 40 minutes from
+container start for the whole live item (local `postgres:18` container, full
+`ApplyBootstrap` schema); a failed attempt would not restart the clock.
+Result: completed inside the bound, no restart needed.
+
+**Verdict: harness artifact, not a product deadlock.** Phase 1 pins the
+mechanism: a join-only arrival before any open epoch takes the designed
+no-epoch early return — nil error, zero barrier rows, zero arrival rows — so
+an opener that starts after it waits for a peer that already came and went.
+That is exactly the first throwaway's 5-minute timeout (concurrent version:
+shard 1 won the start race). While the opener is parked, `pg_locks` reports
+zero advisory locks — the arrival transaction committed before the poll loop,
+so no lock cycle is possible — and the opener is still blocked after a bounded
+2 s check: the unbounded wait working as designed (no deadline by design; the
+stall WARN fires at the 30 s cadence).
+
+**Completion proof:** `TestDeferredMaintenanceBarrierTwoShardCompletionLive`
+(`go/internal/storage/postgres/deferred_maintenance_barrier_two_shard_live_test.go`,
+enrolled in the live-postgres-readiness runner with generated registration
+current): the opener parks, the refused-only shard joins epoch 1, leads the
+maintenance pass, and marks completion; the opener observes it. Epoch 1 ends
+with 2 arrivals and `completed_at` set. Green in 3.77 s wall (5.8 s under
+`-race`) on local Postgres 18.
+
+**F5 shutdown observation (live):** a second opener parks on epoch 2;
+cancelling its context returns `context.Canceled` within the 15 s budget
+(prompt; the poll interval is 250 ms) with epoch 2 left open and exactly 1
+arrival — the terminal shutdown path exits the unbounded wait without
+recording completion. The collector-level terminal post-cancel idle drain
+stays unit-pinned by `TestServiceRunEmptyBatchEscapeAddsJoinOnlyDrainsPerIdlePoll`.
 
 ## F4 — mutant kills (unit-level overlays, all reverted)
 

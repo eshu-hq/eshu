@@ -79,6 +79,11 @@ tests:
     class: postgres_ci
     reason: "#8261 poison recovery (RecoverDeadLettersQuery) lock order over 400,000 analyzed background rows on an en_US.utf8 database: the held-middle-row race against the scoped and stage-only recovery replays completes for production-shaped work ids (codeowners_ownership against code_taint_evidence and code_value_flow_refresh, which en_US and C order differently), mixed-case and lower-case ids (main: 40P01 for the first two), 150 rounds of poison plus both replays over production-shaped ids with a 2 ms per-row trigger sleep and random start delays give 0 x 40P01 with every row re-driven once (main: 5 x 40P01), and the EvalPlanQual case drops a row claimed or whose recovery budget was spent before the lock step; isolated schemas; about 70-90 s locally; enrolled in the live-postgres-readiness runner"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/deferred_maintenance_barrier_two_shard_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10084 two-shard completion: a committed shard opens epoch 1 and waits holding no advisory lock while a join-only refused-only shard joins, leads the maintenance pass, and marks completion; a join-only arrival before any open epoch records nothing; a waiter cancelled mid-wait returns promptly; disposable database from ESHU_POSTGRES_DSN; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/delta_union_base_live_test.go
     tag: ~
     class: postgres_ci
