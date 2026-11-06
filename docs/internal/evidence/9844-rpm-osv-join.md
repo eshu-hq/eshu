@@ -35,8 +35,8 @@ ranges) keeps the existing rpm matcher, including `affected_exact` on a list
 match. No release tag is added to any range (#9927 stays dormant).
 
 Failing-first proof runs the live records through the real converter in both
-entry orders, joined to scanner-shaped rpm rows (`testdata/osv/alsa-2021-4511.json`
-fixes curl at `7.61.1-22.el8`, `testdata/osv/rlsa-2021-1610.json` fixes curl
+entry orders, joined to scanner-shaped rpm rows (frozen `file-alsa-2021-4511`
+fixes curl at `7.61.1-22.el8`, frozen `file-rlsa-2021-1610` fixes curl
 at `0:7.61.1-18.el8`): `TestOSVOSAdvisoryJoinsAlmaRockyRows` (below/at/above
 the fix), `TestOSVOSAdvisoryJoinAlmaRockyNegatives` (Alma advisory against a
 Rocky row, a redhat row, and a dpkg row, plus the Rocky/Alma mirror), the
