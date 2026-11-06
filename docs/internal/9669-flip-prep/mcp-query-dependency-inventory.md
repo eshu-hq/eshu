@@ -33,7 +33,7 @@ the identical 107-file set):
 The lane brief said 107 — confirmed, unchanged after the rebase
 (8 non-test + 99 test, same split). The MCP tool
 census at this HEAD is `censusToolCount = 171`
-(`go/internal/mcp/tool_registry_census_test.go:36`, re-verified at
+(`go/internal/mcp/tool_registry_census_test.go` symbol `censusToolCount`, re-verified at
 `e30c99c1cf`) plus the 2 router tools
 (`find_tool`, `call_tool`), giving a 173-tool served surface.
 

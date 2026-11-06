@@ -81,7 +81,7 @@ MCP half (MCP edge):
 Agreement bar: reducer, canonical-graph, HTTP-API, and MCP truth agree per
 capability, plus the explicit unaffected-surfaces list (per the #8873
 acceptance item 6). A 30 s dispatch-timeout probe (`defaultToolDispatchTimeout`,
-`go/internal/mcp/dispatch_timeout.go:17`) is NOT_CHECKED until a query runs
+`go/internal/mcp/dispatch_timeout.go` symbol `defaultToolDispatchTimeout`) is NOT_CHECKED until a query runs
 long enough to fire it live — record that instead of manufacturing load on
 shared QA.
 
