@@ -1,0 +1,14 @@
+go/internal/query/governance_audit_admission.go
+  h_78a442cba0b3e6 31-34,46-48
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a5e71ea7e2a4b708e560a54480e0bdbfaa34b642",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
