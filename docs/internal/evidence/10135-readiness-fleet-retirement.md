@@ -49,7 +49,7 @@ the planner itself reads.
 
 Measured before any code on a disposable local Postgres 18.6 with 181,601
 fact rows, the hot package present in 3,000 images
-(`/Users/allen/.codex/run-state/10135-shim1-handoff-20261105.md`):
+(shim handoff 10135-shim1, 2026-11-05):
 
 | Probe | Median | Buffers | Plan |
 |---|---|---|---|
@@ -58,8 +58,12 @@ fact rows, the hot package present in 3,000 images
 | (b) last-seen table hit | 0.035 ms | 4 shared hit | PK seek |
 
 Candidate (a) shipped in batched form per the handoff recommendation: one
-statement over the whole non-fresh triple set, so worst-case cost is one round
-of index seeks regardless of the non-fresh count. Candidate (b) stays rejected:
+statement over the whole non-fresh triple set, so cost scales linearly at
+~0.045 ms per non-fresh triple (ceiling table below). The realistic handful
+of non-fresh triples stays sub-millisecond; the 1000-triple all-non-fresh
+ceiling is +44 ms same-machine scratch, single-run — nominally over the
+arb-wave1-3 A2 bound (+35 ms @ os×1000) the shim measured against.
+Candidate (b) stays rejected:
 it needs a coordinator write path, a rotation-aging rule the reader cannot
 feed, and an unproven two-coordinator concurrency proof.
 
