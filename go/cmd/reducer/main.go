@@ -327,6 +327,7 @@ func buildReducerService(
 		WorkloadDependencyEdgeWriter:          edgeWriterForHandlers,
 		SubmodulePinEdgeWriter:                edgeWriterForHandlers,
 		GenerationCheck:                       postgres.NewGenerationFreshnessCheck(database),
+		ActiveGeneration:                      postgres.NewActiveGenerationID(database),
 		PriorGenerationCheck:                  postgres.NewPriorGenerationCheck(database),
 		PriorGeneration:                       postgres.NewPriorGenerationID(database),
 		Tracer:                                tracer,

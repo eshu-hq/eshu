@@ -27,9 +27,8 @@ before touching any file in this directory.
   domain declares either durable canonical writes or bounded counter emission.
 - **Intent lifecycle is fixed: pending → claimed → running → succeeded/failed** —
   `intent.go:65–74`; do not invent additional states.
-- **Generation supersession short-circuits execution** — `runtime.go:336`
-  checks `GenerationCheck` before dispatching to `Handler.Handle`; return
-  `ResultStatusSuperseded` rather than projecting stale truth.
+- **Generation supersession short-circuits execution** — `runtime.go` checks `GenerationCheck` before dispatching to `Handler.Handle`; return `ResultStatusSuperseded` rather than projecting stale truth.
+- **One rebind exception (#10106)** — the scope-keyed Crossplane SATISFIED_BY domain rebinds to the active generation in `generationCurrent` when `ActiveGeneration` is wired; never widen it to a domain whose intent or handler reads generation-scoped facts.
 - **Heartbeat stops before Ack** — `service.go:337` calls `stopHeartbeat()`
   before `WorkSink.Ack`; do not reorder this or you risk lease extension
   after the transaction has committed.

@@ -209,10 +209,13 @@ writer. Watch `eshu_dp_crossplane_redrive_targets_enqueued_total` and
 `eshu_dp_crossplane_redrive_pages_processed_total` by `read` (`active` or
 `delta_base`). A failed lookup or base page fails the sweep, counts
 `sweep_error` on `eshu_dp_crossplane_redrive_sweeps_total`, and leaves the
-claim for the catch-up loop. A scope scheduled while full-active can still
-lose its intent if a delta that touches no K8s file activates before the
-reducer runs it, because the reducer drops a superseded generation's intent.
-That window predates this leg and is tracked in #10106.
+claim for the catch-up loop. A scope scheduled while full-active keeps its
+intent when a delta that touches no K8s file activates before the reducer
+runs it (#10106): the claim-time supersede sweep exempts this scope-keyed
+domain, and the reducer rebinds the claimed intent to the delta's active
+generation before dispatch, so the materialization reads the delta's
+overlaid snapshot. The completion record's evidence summary names the
+rebind (`rebound from superseded generation ...`).
 
 ## Operator signals
 

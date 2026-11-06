@@ -349,7 +349,11 @@ values each counter carries.
   `ScopeWorkloadProjectionInputLoader` skips the retract and warns.
 - **Generation supersession** — `Runtime.execute` calls `GenerationCheck`
   before dispatching to `Handler.Handle`; a superseded intent returns without
-  projecting stale truth.
+  projecting stale truth. One exception (#10106): a Crossplane SATISFIED_BY
+  intent is keyed per scope and its handler materializes the scope's active
+  snapshot, so when `ActiveGeneration` is wired the runtime rebinds it to
+  the active generation and re-checks instead of dropping it; churn past
+  the rebind budget returns the retryable `GenerationRebindExhaustedError`.
 - **CI/CD generation, git-workflow-evidence and `deployment_mapping`
   invariants live in
   [`gotchas-cicd-and-deployment.md`](gotchas-cicd-and-deployment.md)** — split

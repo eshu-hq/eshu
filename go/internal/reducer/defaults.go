@@ -186,6 +186,9 @@ type DefaultHandlers struct {
 	// GenerationCheck reports whether an intent's generation is still current.
 	// Nil disables the guard and lets all intents execute unconditionally.
 	GenerationCheck GenerationFreshnessCheck
+	// ActiveGeneration resolves a scope's active generation id for the
+	// runtime's superseded-intent rebind (#10106). Nil disables the rebind.
+	ActiveGeneration ActiveGenerationID
 	// PriorGenerationCheck reports whether a scope has a generation strictly older than the given generation.
 	// Nil keeps retract behavior conservative for handlers that need cleanup.
 	PriorGenerationCheck PriorGenerationCheck

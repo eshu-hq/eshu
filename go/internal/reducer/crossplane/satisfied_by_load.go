@@ -39,9 +39,11 @@ type crossplaneXRDFactLoader interface {
 // implements crossplaneSatisfiedByFactLoader returns the scope's active Claim
 // candidates and every active XRD, each delta overlaid on its base. The
 // runtime's generation freshness guard runs the handler only while the
-// intent's generation is the scope's active one (Runtime.execute defers a
-// pending generation and skips a superseded one), so the scope's active
-// generation is the intent's. Any other loader keeps the generation-keyed
+// intent's generation is the scope's active one: Runtime.execute defers a
+// pending generation and, for this scope-keyed domain, rebinds a superseded
+// intent onto the active generation (#10106), so the scope's active
+// generation is the intent's by the time this load runs. Any other loader
+// keeps the generation-keyed
 // path: the intent generation's own content_entity facts plus the
 // cross-scope active XRDs, mirroring
 // KubernetesCorrelationMaterializationHandler.loadEdgeFacts.

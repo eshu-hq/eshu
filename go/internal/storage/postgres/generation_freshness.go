@@ -222,6 +222,43 @@ func NewGenerationFreshnessCheck(database db.ExecQueryer) reducer.GenerationFres
 	}
 }
 
+// activeGenerationIDSQL reads the scope's active generation from the
+// ingestion_scopes denormalized column: one primary-key probe on scope_id.
+const activeGenerationIDSQL = `
+SELECT scope.active_generation_id
+FROM ingestion_scopes AS scope
+WHERE scope.scope_id = $1
+`
+
+// NewActiveGenerationID returns an ActiveGenerationID backed by
+// ingestion_scopes.active_generation_id (#10106). An unknown scope, or a
+// scope with no active generation, reports found=false.
+func NewActiveGenerationID(database db.ExecQueryer) reducer.ActiveGenerationID {
+	return func(ctx context.Context, scopeID string) (string, bool, error) {
+		rows, err := database.QueryContext(ctx, activeGenerationIDSQL, scopeID)
+		if err != nil {
+			return "", false, fmt.Errorf("query active generation id for scope %s: %w", scopeID, err)
+		}
+		defer func() { _ = rows.Close() }()
+
+		if !rows.Next() {
+			if err := rows.Err(); err != nil {
+				return "", false, fmt.Errorf("query active generation id for scope %s: %w", scopeID, err)
+			}
+			return "", false, nil
+		}
+		var activeGenID sql.NullString
+		if err := rows.Scan(&activeGenID); err != nil {
+			return "", false, fmt.Errorf("scan active generation id for scope %s: %w", scopeID, err)
+		}
+		if err := rows.Err(); err != nil {
+			return "", false, fmt.Errorf("iterate active generation id for scope %s: %w", scopeID, err)
+		}
+		active := strings.TrimSpace(activeGenID.String)
+		return active, activeGenID.Valid && active != "", nil
+	}
+}
+
 // NewPriorGenerationID returns the predecessor-generation lookup backed by
 // scope_generations. The ordering is observation time with the generation id
 // as the deterministic tie-break, so concurrent same-timestamp generations

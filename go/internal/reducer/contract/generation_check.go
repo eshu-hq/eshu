@@ -18,6 +18,14 @@ import (
 // %w) rather than treat false as supersession (#6686).
 type GenerationFreshnessCheck func(ctx context.Context, scopeID, generationID string) (bool, error)
 
+// ActiveGenerationID returns the scope's currently active generation id.
+// It reports found=false when the scope is unknown or has no active
+// generation. The runtime uses it to rebind a scope-keyed intent whose
+// scheduling generation was superseded before execution onto the active
+// snapshot (#10106); only domains whose handler is a pure function of the
+// scope's active snapshot may be rebound (see Runtime.execute).
+type ActiveGenerationID func(ctx context.Context, scopeID string) (generationID string, found bool, err error)
+
 // PriorGenerationCheck reports whether the scope has a generation strictly
 // older than the given generation in activation order (ingested_at, then
 // generation id). A generation committed after the given one never counts, so
@@ -109,5 +117,45 @@ func (GenerationNotYetActiveError) Retryable() bool { return true }
 
 // FailureClass returns GenerationActivationNotReadyFailureClass.
 func (GenerationNotYetActiveError) FailureClass() string {
+	return GenerationActivationNotReadyFailureClass
+}
+
+// GenerationRebindExhaustedError reports that a scope-keyed intent's scope
+// activated a newer generation on every rebind attempt within one Execute
+// (#10106): activation churn outran the bounded rebind budget, so no
+// generation stayed active long enough to confirm. Dropping the intent as
+// superseded would silently lose work a later, settled generation still
+// owes, so the runtime returns this retryable error instead and the durable
+// queue re-runs the intent once activations settle. It self-classifies as
+// GenerationActivationNotReadyFailureClass, the enrolled non-counting
+// class: waiting for a settled active generation is not a failure on the
+// intent's own merits, so it must never erode the retry budget.
+type GenerationRebindExhaustedError struct {
+	// ScopeID is the intent's ingestion scope.
+	ScopeID string
+	// GenerationID is the last generation the intent rebound to, itself
+	// superseded before it could be confirmed active.
+	GenerationID string
+	// ActiveGenerationID is the scope's active generation at exhaustion,
+	// when a final lookup could still read one.
+	ActiveGenerationID string
+	// Rebounds is how many rebinds were attempted before giving up.
+	Rebounds int
+}
+
+// Error describes the scope and the generations the rebind chased.
+func (e GenerationRebindExhaustedError) Error() string {
+	return fmt.Sprintf(
+		"generation rebind exhausted: scope %s generation %s superseded after %d rebound(s), active generation %s",
+		e.ScopeID, e.GenerationID, e.Rebounds, e.ActiveGenerationID,
+	)
+}
+
+// Retryable reports true: the durable queue re-runs the intent after its
+// retry delay, by which time one generation is settled active.
+func (GenerationRebindExhaustedError) Retryable() bool { return true }
+
+// FailureClass returns GenerationActivationNotReadyFailureClass.
+func (GenerationRebindExhaustedError) FailureClass() string {
 	return GenerationActivationNotReadyFailureClass
 }
