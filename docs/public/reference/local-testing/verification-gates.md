@@ -312,6 +312,16 @@ built, and removed a citation the PR still carried, read as debt the PR added
 (#10131). The CI checkout keeps `HEAD^1` with `fetch-depth: 2`; a checkout
 without it falls back to the later steps in that order.
 
+The same rule covers the other diff-scoped gates. On a `pull_request` run
+`verify-moved-file-refs.sh`, `verify-parser-relationship-kit.sh`,
+`verify-route-coverage.sh`, `verify-telemetry-coverage.sh`,
+`verify-root-cause-evidence.sh`, and the Markdown and tooling line-cap ledger
+checks all follow the merge ref's first parent. Local runs keep their existing
+base, and an explicit base override or variable still wins. The docker-publish
+lane selector diffs the PR head against its branch point (the merge base with
+the event's base commit) so a PR that branched before later `main` commits does
+not select lanes for those commits.
+
 ## Moved-File Reference Guard
 
 Any `go/**` change selects `scripts/verify-moved-file-refs.sh`. It fails a
