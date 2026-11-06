@@ -440,6 +440,8 @@ gates:
       - "go/cmd/reducer/ifa_fault_wiring_off.go"
       - "go/cmd/ifa/assert_edges.go"
       - "scripts/lib/ifa_fault_*.sh"
+      - "scripts/lib/ifa_fault_weights.py"
+      - "scripts/lib/ifa_fault_neo4j_walls.tsv"
       - "scripts/lib/test-ifa-fault-injection-*.sh"
       - "scripts/lib/test-ifa-fault-injection-kubernetes-namespace-environment-cases.sh"
       - "scripts/lib/test-ifa-fault-injection-iam-instance-profile-role-cases.sh"

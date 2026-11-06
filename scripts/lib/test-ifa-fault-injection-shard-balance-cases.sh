@@ -94,6 +94,53 @@ run_ifa_fault_injection_shard_balance_cases() {
 	(IFA_FAULT_CELL_WEIGHT_SECONDS['cell_killworker']=$((IFA_FAULT_SHARD_BUDGET_SECONDS + 1)); ifa_fault_shard_check_budget "${n}") >/dev/null 2>&1 \
 		&& test_ifa_fault_shard_balance_fail "seeded over-budget cell (cell_killworker at budget+1s) passed the budget check"
 
+	# JOB CAP. The budget is derived from the job cap, less the required headroom,
+	# the per-shard setup and the repeated baseline, so the plan is only as honest
+	# as the cap it assumes. Four seeded plans, each of which must go red:
+	#   a. a workflow whose fault-injection timeout differs from the cap;
+	#   b. a workflow with no fault-injection timeout at all;
+	#   c. a plan whose busiest shard sits above the budget but still under the cap
+	#      (no headroom): a pass here would mean the 20% headroom is not enforced;
+	#   d. a plan whose busiest shard, with the setup and baseline every shard
+	#      pays, exceeds the cap itself: the job would be cancelled at the timeout.
+	# The real workflow and the real plan must stay green.
+	local workflow="${repo_root}/.github/workflows/ifa-determinism-gate.yml" scratch_wf
+	declare -F ifa_fault_shard_check_job_cap >/dev/null \
+		|| test_ifa_fault_shard_balance_fail "ifa_fault_shard_check_job_cap is not defined -- the plan is not tied to the job timeout"
+	ifa_fault_shard_check_job_cap "${workflow}" \
+		|| test_ifa_fault_shard_balance_fail "the fault-injection job timeout does not match IFA_FAULT_JOB_CAP_SECONDS on the real tree"
+	scratch_wf="$(mktemp -t ifa-fault-cap-workflow.XXXXXX)"
+	awk '/^  fault-injection:/ { in_job = 1 } in_job && /^    timeout-minutes:/ { print "    timeout-minutes: 45"; in_job = 0; next } { print }' "${workflow}" >"${scratch_wf}"
+	cmp -s "${workflow}" "${scratch_wf}" && test_ifa_fault_shard_balance_fail "seeded timeout mutation changed nothing (stale mirror)"
+	ifa_fault_shard_check_job_cap "${scratch_wf}" >/dev/null 2>&1 \
+		&& test_ifa_fault_shard_balance_fail "seeded 45-minute fault-injection timeout was accepted against the ${IFA_FAULT_JOB_CAP_SECONDS}s cap"
+	awk '/^  fault-injection:/ { in_job = 1 } in_job && /^    timeout-minutes:/ { in_job = 0; next } { print }' "${workflow}" >"${scratch_wf}"
+	ifa_fault_shard_check_job_cap "${scratch_wf}" >/dev/null 2>&1 \
+		&& test_ifa_fault_shard_balance_fail "a fault-injection job with no timeout-minutes was accepted"
+	rm -f "${scratch_wf}"
+	local no_headroom_gap=$(( (IFA_FAULT_JOB_CAP_SECONDS - IFA_FAULT_JOB_SETUP_SECONDS - IFA_FAULT_SHARD_BASELINE_WEIGHT_SECONDS) - IFA_FAULT_SHARD_BUDGET_SECONDS ))
+	((no_headroom_gap > 1)) \
+		|| test_ifa_fault_shard_balance_fail "the budget leaves no headroom under the cap (cap - setup - baseline = budget + ${no_headroom_gap}s)"
+	(IFA_FAULT_CELL_WEIGHT_SECONDS['cell_killworker']=$((IFA_FAULT_SHARD_BUDGET_SECONDS + no_headroom_gap / 2)); ifa_fault_shard_check_budget "${n}") >/dev/null 2>&1 \
+		&& test_ifa_fault_shard_balance_fail "seeded busiest shard between the budget and the cap (no 20% headroom) passed"
+	(IFA_FAULT_CELL_WEIGHT_SECONDS['cell_killworker']=$((IFA_FAULT_JOB_CAP_SECONDS - IFA_FAULT_JOB_SETUP_SECONDS - IFA_FAULT_SHARD_BASELINE_WEIGHT_SECONDS + 1)); ifa_fault_shard_check_budget "${n}") >/dev/null 2>&1 \
+		&& test_ifa_fault_shard_balance_fail "seeded busiest shard over the job cap (cap - setup - baseline + 1s) passed"
+
+	# GENERATED WEIGHTS. The table is derived from recorded wall times by
+	# scripts/lib/ifa_fault_weights.py; a hand edit of the block (or a TSV edit
+	# without rerunning the generator) must go red, and the generator must stay
+	# green on the real tree.
+	command -v python3 >/dev/null 2>&1 || test_ifa_fault_shard_balance_fail "python3 is required for the weights generator check"
+	python3 "${repo_root}/scripts/lib/ifa_fault_weights.py" check \
+		|| test_ifa_fault_shard_balance_fail "the generated weight block is stale against scripts/lib/ifa_fault_neo4j_walls.tsv"
+	local scratch_cells
+	scratch_cells="$(mktemp -t ifa-fault-weights-cells.XXXXXX)"
+	sed 's/^\t\[cell_baseline_built_from\]=[0-9]*$/\t[cell_baseline_built_from]=1/' "${repo_root}/scripts/lib/ifa_fault_shard_cells.sh" >"${scratch_cells}"
+	cmp -s "${repo_root}/scripts/lib/ifa_fault_shard_cells.sh" "${scratch_cells}" && test_ifa_fault_shard_balance_fail "seeded hand edit of a generated weight changed nothing (stale mirror)"
+	python3 "${repo_root}/scripts/lib/ifa_fault_weights.py" check --cells-file "${scratch_cells}" >/dev/null 2>&1 \
+		&& test_ifa_fault_shard_balance_fail "seeded hand edit of a generated weight was accepted"
+	rm -f "${scratch_cells}"
+
 	# BALANCE. Greedy least-loaded assignment guarantees that the busiest and
 	# the idlest shard differ by at most the heaviest single group: when the
 	# busiest shard took its last group it was the idlest one. Positional

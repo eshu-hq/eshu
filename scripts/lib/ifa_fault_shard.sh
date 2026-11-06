@@ -95,20 +95,27 @@
 IFA_FAULT_SHARD_BASELINE_CELL="cell_baseline"
 readonly IFA_FAULT_SHARD_BASELINE_CELL
 
-# Default shard count for `--shard k/8`. A single named constant so changing
-# the default is a one-line edit.
-readonly IFA_FAULT_SHARD_DEFAULT_N=8
+# Default shard count for `--shard k/N`. A single named constant so changing
+# the default is a one-line edit; the workflow matrix, its job name, the
+# registry check names and the docs move with it (the exact-cover and
+# workflow-matrix mirrors fail when they disagree).
+readonly IFA_FAULT_SHARD_DEFAULT_N=15
 
-# Most estimated cell seconds any one shard may carry. The fault-injection job
-# times out at 35 minutes (2100s). Before the first cell, each shard spends
-# ~210s on setup, the tagged unit tests, and host builds, then ~13s on its own
-# cell_baseline (main run 39942214133). Real runs exceed the median-based
-# estimate by up to 325s per shard (five main runs, 2026-10-23), because any
-# cell can take an extra one-minute wait. 2100 - 225 - 375 = 1500 keeps that
-# allowance. When the shard-balance mirror reports the busiest shard over
-# this, raise IFA_FAULT_SHARD_DEFAULT_N and the workflow matrix with it,
-# rather than the job timeout.
-readonly IFA_FAULT_SHARD_BUDGET_SECONDS=1500
+# The fault-injection job's wall-clock cap, in seconds. It MUST equal the
+# workflow job's timeout-minutes (35 minutes today); ifa_fault_shard_check_job_cap
+# compares the two, so raising the timeout without this line, or the reverse,
+# goes red instead of silently widening the budget.
+readonly IFA_FAULT_JOB_CAP_SECONDS=2100
+
+# Seconds a shard job spends before its first measured cell: checkout, Go
+# setup, module download, the tagged unit tests and the host binary builds
+# (~210s, main run 39942214133).
+readonly IFA_FAULT_JOB_SETUP_SECONDS=210
+
+# Share of the job cap a shard must leave unused. Cells are noisy (any cell can
+# take one more one-minute wait, and a Neo4j cell can swing by ~90s), so a plan
+# that only just fits the cap is a plan that gets cancelled.
+readonly IFA_FAULT_JOB_HEADROOM_PERCENT=20
 
 # The ordered cell list and co-location constraints live in
 # scripts/lib/ifa_fault_shard_cells.sh (split out at the 500-line cap) and
@@ -125,6 +132,16 @@ rg --quiet --fixed-strings --line-regexp -- 'source "${ifa_fault_shard_cells_lib
 	}
 # shellcheck source=scripts/lib/ifa_fault_shard_cells.sh
 source "${ifa_fault_shard_cells_lib}"
+
+# Most estimated cell seconds any one shard may carry: the job cap, less the
+# required headroom, the setup every shard pays, and the cell_baseline every
+# shard repeats (IFA_FAULT_SHARD_BASELINE_WEIGHT_SECONDS, generated from the
+# measured wall times). With a 2100s cap, 20% headroom, 210s setup and a 95s
+# baseline the budget is 1375s. When the shard-balance mirror reports the
+# busiest shard over this, raise IFA_FAULT_SHARD_DEFAULT_N and the workflow
+# matrix with it, rather than the job timeout.
+IFA_FAULT_SHARD_BUDGET_SECONDS=$((IFA_FAULT_JOB_CAP_SECONDS * (100 - IFA_FAULT_JOB_HEADROOM_PERCENT) / 100 - IFA_FAULT_JOB_SETUP_SECONDS - IFA_FAULT_SHARD_BASELINE_WEIGHT_SECONDS))
+readonly IFA_FAULT_SHARD_BUDGET_SECONDS
 
 
 # ifa_fault_shard_build_groups walks IFA_FAULT_ALL_CELLS in order and merges
@@ -282,6 +299,26 @@ ifa_fault_shard_check_weights() {
 		fi
 	done
 	return "${rc}"
+}
+
+# ifa_fault_shard_check_job_cap returns non-zero when the fault-injection job in
+# the given workflow file has a timeout-minutes other than
+# IFA_FAULT_JOB_CAP_SECONDS / 60, or none. The budget is derived from the cap, so
+# this is the link that keeps the plan honest about the timeout CI enforces.
+#
+# Args: workflow_file
+ifa_fault_shard_check_job_cap() {
+	local workflow="${1:?ifa_fault_shard_check_job_cap: workflow file required}" minutes
+	minutes="$(awk '/^  fault-injection:/ { in_job = 1; next } in_job && /^  [a-z]/ { exit } in_job && /^    timeout-minutes:/ { print $2; exit }' "${workflow}")"
+	if [[ ! "${minutes}" =~ ^[1-9][0-9]*$ ]]; then
+		printf 'ifa_fault_shard: no timeout-minutes found for the fault-injection job in %s\n' "${workflow}" >&2
+		return 1
+	fi
+	if ((minutes * 60 != IFA_FAULT_JOB_CAP_SECONDS)); then
+		printf 'ifa_fault_shard: %s sets the fault-injection job to %s minutes but IFA_FAULT_JOB_CAP_SECONDS is %ss; change both together and re-derive the shard count\n' \
+			"${workflow}" "${minutes}" "${IFA_FAULT_JOB_CAP_SECONDS}" >&2
+		return 1
+	fi
 }
 
 # ifa_fault_shard_check_budget returns non-zero when any shard of n carries

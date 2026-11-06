@@ -25,6 +25,8 @@ workflows:
   - scripts/lib/ifa_family_*.sh
   - scripts/lib/ifa_*_live*.sh
   - scripts/lib/ifa_fault_*.sh
+  - scripts/lib/ifa_fault_weights.py
+  - scripts/lib/ifa_fault_neo4j_walls.tsv
   - scripts/lib/test-ifa-determinism-*.sh
   - scripts/lib/test-ifa-family-registry-*.sh
   - scripts/lib/test-ifa-fault-injection-*.sh
@@ -495,5 +497,5 @@ workflows:
   job_names:
     dead-letter-matrix: dead-letter-matrix
     determinism-matrix: determinism-matrix
-    fault-injection: fault-injection (shard ${{ matrix.shard }}/8)
+    fault-injection: fault-injection (shard ${{ matrix.shard }}/15)
     static-mirror: static mirror

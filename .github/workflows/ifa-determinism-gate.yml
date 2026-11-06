@@ -187,7 +187,7 @@ jobs:
         run: bash scripts/ci/compose.sh -p "${DEADLETTER_MATRIX_COMPOSE_PROJECT}" -f eshu-deploy/compose/docker-compose.neo4j.yml -- down -v || true
   fault-injection:
     if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'fault-injection') }}
-    name: fault-injection (shard ${{ matrix.shard }}/8)
+    name: fault-injection (shard ${{ matrix.shard }}/15)
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     env:
@@ -195,7 +195,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4, 5, 6, 7, 8]
+        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
     steps:
       - name: Check out code
         uses: actions/checkout@v5
@@ -231,7 +231,7 @@ jobs:
           ESHU_NEO4J_PASSWORD: change-me
           ESHU_POSTGRES_PASSWORD: change-me
           IFA_FAULT_SHARD: ${{ matrix.shard }}
-        run: bash scripts/verify-ifa-fault-injection.sh --keep --shard "${IFA_FAULT_SHARD}/8"
+        run: bash scripts/verify-ifa-fault-injection.sh --keep --shard "${IFA_FAULT_SHARD}/15"
       - name: Verify fault-injection diagnostic completeness
         if: failure() && steps.fault_matrix.outcome == 'failure'
         run: bash scripts/ci/verify-ifa-fault-diagnostics-complete.sh
