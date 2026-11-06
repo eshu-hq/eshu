@@ -66,7 +66,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 		return err
 	}
 
-	proofGateErrs := replaycoverage.ValidateRequiredProofGates(inputs.Manifest, inputs.AuthzProofs, inputs.ProofGates)
+	proofGateErrs := replaycoverage.ValidateRequiredProofGates(inputs.Manifest, inputs.AuthzProofs, inputs.ProofGates, inputs.JobDisabled)
 	cov, report, gate := replaycoverage.RunGate(inputs)
 	gate.Write(stdout)
 	writeCoverageSummary(stdout, report)
@@ -154,6 +154,9 @@ func loadInputs(o options) (replaycoverage.Inputs, error) {
 		Manifest:           manifest,
 		DepthRequirements:  depthReqs,
 		ProofGates:         proofGates,
+		JobDisabled: func(gate cigates.Gate) (bool, error) {
+			return cigates.WorkflowJobDisabled(o.repoRoot, gate)
+		},
 		Resolver: replaycoverage.ArtifactResolver{
 			RepoRoot:      o.repoRoot,
 			Snapshot:      snapshot,

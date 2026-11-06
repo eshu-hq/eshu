@@ -65,12 +65,12 @@ class NornicConformanceTest(unittest.TestCase):
                 ("        run: ./scripts/verify_backend_conformance_live.sh", "        if: ${{ false }}\n        run: ./scripts/verify_backend_conformance_live.sh"),
                 ("    steps:", "    continue-on-error : true\n    steps:"),
                 ("    steps:", "    'continue-on-error': true\n    steps:"),
-                ("          - graph_backend: nornicdb", "          - graph_backend: neo4j"),
-                ("            database: nornic", "            database: neo4j"),
+                # NornicDB cell off by owner order (2026-11-05): restoring it must fail.
+                ("          - graph_backend: neo4j\n",
+                 "          - graph_backend: nornicdb\n            compose_file: eshu-deploy/compose/docker-compose.yaml\n            graph_service: nornicdb\n            database: nornic\n          - graph_backend: neo4j\n"),
+                ("            database: neo4j", "            database: nornic"),
                 ("          ESHU_GRAPH_BACKEND: ${{ matrix.graph_backend }}", "          ESHU_GRAPH_BACKEND: neo4j"),
                 ("          DEFAULT_DATABASE: ${{ matrix.database }}", "          DEFAULT_DATABASE: neo4j"),
-                ("          - graph_backend: nornicdb\n            compose_file: eshu-deploy/compose/docker-compose.yaml\n            graph_service: nornicdb\n            database: nornic\n",
-                 "        exclude:\n          - graph_backend: nornicdb\n            compose_file: eshu-deploy/compose/docker-compose.yaml\n            graph_service: nornicdb\n            database: nornic\n"),
                 ("jobs:\n", '"jobs": {}\njobs:\n'),
             ):
                 with self.subTest(old=old):

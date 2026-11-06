@@ -391,8 +391,8 @@ gates:
     category: exactness
     layer: replay
     purpose: "Replays recorded ingest/projector cassettes offline and checks the results match the real NornicDB backend."
-    tier: ci-heavy
-    blocking: true
+    tier: manual
+    blocking: false
     triggers:
       - "scripts/lib/ci-gates-resolved-fixtures.sh"
       - "go/cmd/ingester/**"
@@ -433,7 +433,10 @@ gates:
     requirements:
       - go
       - docker
-    ci_only_reason: ""
+    ci_only_reason: "Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+    disabled:
+      reason: "Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      issue: "#10223"
   - id: go-test-race
     name: Go tests with race detector
     category: race

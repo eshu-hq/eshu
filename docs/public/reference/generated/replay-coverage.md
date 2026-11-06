@@ -4,35 +4,35 @@
 
 Every non-exempt required surface maps to a committed scenario and the named proof gate that must pass. Exempt rows carry the audited reason that a proof class does not apply. The inventory check itself is credential-free and Docker-free; backend-required scenarios run in their named proof gates. This dashboard is generated from the C-1 coverage manifest and the source-of-truth registries (epic [#4172](https://github.com/eshu-hq/eshu/issues/4172)); it is refreshed by the replay-coverage gate so the gap is reviewable in a PR diff.
 
-**Overall: 457/457 surfaces satisfied (100.00%)** — mode: blocking.
+**Overall: 290/457 surfaces satisfied (63.46%)** — mode: blocking.
 
 ## Coverage by axis
 
-| Axis | Satisfied | Total | % | Uncovered | Exempt |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| authorization_catalog | 24 | 24 | 100.00% | 0 | 0 |
-| Capability claims | 160 | 160 | 100.00% | 0 | 0 |
-| Read surfaces (CLI) | 7 | 7 | 100.00% | 0 | 0 |
-| Read surfaces (API/MCP) | 28 | 28 | 100.00% | 0 | 1 |
-| Parsers | 4 | 4 | 100.00% | 0 | 0 |
-| Product claims | 11 | 11 | 100.00% | 0 | 0 |
-| Projections (cost/ordering) | 32 | 32 | 100.00% | 0 | 1 |
-| Reducer drain (crash) | 1 | 1 | 100.00% | 0 | 0 |
-| Retractable edge types (delta) | 65 | 65 | 100.00% | 0 | 0 |
-| Retractable node types (delta) | 103 | 103 | 100.00% | 0 | 1 |
-| Collectors | 22 | 22 | 100.00% | 0 | 6 |
-| **Total** | **457** | **457** | **100.00%** | **0** | **9** |
+| Axis | Satisfied | Total | % | Uncovered | Proof off | Exempt |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| authorization_catalog | 24 | 24 | 100.00% | 0 | 0 | 0 |
+| Capability claims | 159 | 160 | 99.38% | 0 | 1 | 0 |
+| Read surfaces (CLI) | 7 | 7 | 100.00% | 0 | 0 | 0 |
+| Read surfaces (API/MCP) | 28 | 28 | 100.00% | 0 | 0 | 1 |
+| Parsers | 4 | 4 | 100.00% | 0 | 0 | 0 |
+| Product claims | 11 | 11 | 100.00% | 0 | 0 | 0 |
+| Projections (cost/ordering) | 32 | 32 | 100.00% | 0 | 0 | 1 |
+| Reducer drain (crash) | 1 | 1 | 100.00% | 0 | 0 | 0 |
+| Retractable edge types (delta) | 1 | 65 | 1.54% | 0 | 64 | 0 |
+| Retractable node types (delta) | 1 | 103 | 0.97% | 0 | 102 | 1 |
+| Collectors | 22 | 22 | 100.00% | 0 | 0 | 6 |
+| **Total** | **290** | **457** | **63.46%** | **0** | **167** | **9** |
 
 ## Coverage by scenario type
 
-| Scenario type | Satisfied | Total | % | Uncovered | Exempt |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| baseline | 241 | 241 | 100.00% | 0 | 3 |
-| cost | 31 | 31 | 100.00% | 0 | 1 |
-| crash | 2 | 2 | 100.00% | 0 | 0 |
-| delta_tombstone | 169 | 169 | 100.00% | 0 | 1 |
-| fault | 11 | 11 | 100.00% | 0 | 4 |
-| ordering | 3 | 3 | 100.00% | 0 | 0 |
+| Scenario type | Satisfied | Total | % | Uncovered | Proof off | Exempt |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| baseline | 241 | 241 | 100.00% | 0 | 0 | 3 |
+| cost | 31 | 31 | 100.00% | 0 | 0 | 1 |
+| crash | 2 | 2 | 100.00% | 0 | 0 | 0 |
+| delta_tombstone | 2 | 169 | 1.18% | 0 | 167 | 1 |
+| fault | 11 | 11 | 100.00% | 0 | 0 | 4 |
+| ordering | 3 | 3 | 100.00% | 0 | 0 | 0 |
 
 ## Language parser coverage
 
@@ -46,7 +46,183 @@ Every ledger language is satisfied by corpus or parser fixture coverage.
 
 None. Every non-exempt required surface has a replay scenario; exemptions carry audited reasons.
 
-## Covered surfaces (457)
+## Proof off — surfaces whose proof gate is disabled
+
+167 surface(s) are unproven because their proof gate is off. Each has a committed scenario, but the CI gate that proves it is tier `manual` and non-blocking in the CI-gate registry, so nothing runs it. They are not counted as satisfied. Restore the gate, or move the proof to a gate that runs, to bring them back.
+
+### `replay-tier` (167)
+
+proof gate "replay-tier" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #10223)
+
+- `capability:freshness.changed_since` (delta_tombstone)
+- `retractable_edge:ALIASES` (delta_tombstone)
+- `retractable_edge:ALLOWS_EGRESS` (delta_tombstone)
+- `retractable_edge:ALLOWS_INGRESS` (delta_tombstone)
+- `retractable_edge:ATLANTIS_DEPENDS_ON` (delta_tombstone)
+- `retractable_edge:AWS_lambda_function_uses_image` (delta_tombstone)
+- `retractable_edge:BUILT_FROM` (delta_tombstone)
+- `retractable_edge:CALLS` (delta_tombstone)
+- `retractable_edge:CAN_ASSUME` (delta_tombstone)
+- `retractable_edge:CAN_ESCALATE_TO` (delta_tombstone)
+- `retractable_edge:CAN_PERFORM` (delta_tombstone)
+- `retractable_edge:CONTAINS` (delta_tombstone)
+- `retractable_edge:CORRELATES_DEPLOYABLE_UNIT` (delta_tombstone)
+- `retractable_edge:DEFINES_JOB` (delta_tombstone)
+- `retractable_edge:DEPENDS_ON` (delta_tombstone)
+- `retractable_edge:DEPLOYS_FROM` (delta_tombstone)
+- `retractable_edge:DERIVED_FROM` (delta_tombstone)
+- `retractable_edge:DISCOVERS_CONFIG_IN` (delta_tombstone)
+- `retractable_edge:DOCUMENTS` (delta_tombstone)
+- `retractable_edge:EVIDENCES_REPOSITORY_RELATIONSHIP` (delta_tombstone)
+- `retractable_edge:EXECUTES` (delta_tombstone)
+- `retractable_edge:EXECUTES_SHELL` (delta_tombstone)
+- `retractable_edge:EXPLAINS` (delta_tombstone)
+- `retractable_edge:EXTENDS_BASE` (delta_tombstone)
+- `retractable_edge:GRANTS_ACCESS_TO` (delta_tombstone)
+- `retractable_edge:HANDLES_ROUTE` (delta_tombstone)
+- `retractable_edge:HAS_COLUMN` (delta_tombstone)
+- `retractable_edge:HAS_DEPLOYMENT_EVIDENCE` (delta_tombstone)
+- `retractable_edge:HAS_ROLE` (delta_tombstone)
+- `retractable_edge:HELM_VALUE_REFERENCE` (delta_tombstone)
+- `retractable_edge:IMPLEMENTS` (delta_tombstone)
+- `retractable_edge:IMPORTS` (delta_tombstone)
+- `retractable_edge:INDEXES` (delta_tombstone)
+- `retractable_edge:INHERITS` (delta_tombstone)
+- `retractable_edge:INSTANTIATES` (delta_tombstone)
+- `retractable_edge:INVOKES_CLOUD_ACTION` (delta_tombstone)
+- `retractable_edge:LOGS_TO` (delta_tombstone)
+- `retractable_edge:MANAGES` (delta_tombstone)
+- `retractable_edge:MIGRATES` (delta_tombstone)
+- `retractable_edge:NEEDS` (delta_tombstone)
+- `retractable_edge:OVERRIDES` (delta_tombstone)
+- `retractable_edge:PROVISIONS_DEPENDENCY_FOR` (delta_tombstone)
+- `retractable_edge:PUBLISHES` (delta_tombstone)
+- `retractable_edge:QUERIES_TABLE` (delta_tombstone)
+- `retractable_edge:READS_CONFIG_FROM` (delta_tombstone)
+- `retractable_edge:READS_FROM` (delta_tombstone)
+- `retractable_edge:RECONCILES_FROM` (delta_tombstone)
+- `retractable_edge:REFERENCES` (delta_tombstone)
+- `retractable_edge:REFERENCES_TABLE` (delta_tombstone)
+- `retractable_edge:REPORTED_WITH` (delta_tombstone)
+- `retractable_edge:RUNS_IMAGE` (delta_tombstone)
+- `retractable_edge:RUNS_IN` (delta_tombstone)
+- `retractable_edge:RUNS_ON` (delta_tombstone)
+- `retractable_edge:SATISFIED_BY` (delta_tombstone)
+- `retractable_edge:SECRETS_IAM_USES_SERVICE_ACCOUNT` (delta_tombstone)
+- `retractable_edge:TAINT_FLOWS_TO` (delta_tombstone)
+- `retractable_edge:TARGETS_ENVIRONMENT` (delta_tombstone)
+- `retractable_edge:TO` (delta_tombstone)
+- `retractable_edge:TRIGGERS` (delta_tombstone)
+- `retractable_edge:USES` (delta_tombstone)
+- `retractable_edge:USES_METACLASS` (delta_tombstone)
+- `retractable_edge:USES_MODULE` (delta_tombstone)
+- `retractable_edge:USES_PROFILE` (delta_tombstone)
+- `retractable_edge:USES_WORKFLOW` (delta_tombstone)
+- `retractable_edge:WRITES_TO` (delta_tombstone)
+- `retractable_node:AnalyticsModel` (delta_tombstone)
+- `retractable_node:Annotation` (delta_tombstone)
+- `retractable_node:ArgoCDApplication` (delta_tombstone)
+- `retractable_node:ArgoCDApplicationSet` (delta_tombstone)
+- `retractable_node:AtlantisProject` (delta_tombstone)
+- `retractable_node:AtlantisWorkflow` (delta_tombstone)
+- `retractable_node:Class` (delta_tombstone)
+- `retractable_node:CloudFormationCondition` (delta_tombstone)
+- `retractable_node:CloudFormationExport` (delta_tombstone)
+- `retractable_node:CloudFormationImport` (delta_tombstone)
+- `retractable_node:CloudFormationOutput` (delta_tombstone)
+- `retractable_node:CloudFormationParameter` (delta_tombstone)
+- `retractable_node:CloudFormationResource` (delta_tombstone)
+- `retractable_node:Component` (delta_tombstone)
+- `retractable_node:ContainerImage` (delta_tombstone)
+- `retractable_node:ContainerImageDescriptor` (delta_tombstone)
+- `retractable_node:ContainerImageIndex` (delta_tombstone)
+- `retractable_node:ContainerImageTagObservation` (delta_tombstone)
+- `retractable_node:CrossplaneClaim` (delta_tombstone)
+- `retractable_node:CrossplaneComposition` (delta_tombstone)
+- `retractable_node:CrossplaneXRD` (delta_tombstone)
+- `retractable_node:DashboardAsset` (delta_tombstone)
+- `retractable_node:DataAsset` (delta_tombstone)
+- `retractable_node:DataColumn` (delta_tombstone)
+- `retractable_node:DataContract` (delta_tombstone)
+- `retractable_node:DataOwner` (delta_tombstone)
+- `retractable_node:DataQualityCheck` (delta_tombstone)
+- `retractable_node:Directory` (delta_tombstone)
+- `retractable_node:DockerfileInstall` (delta_tombstone)
+- `retractable_node:Enum` (delta_tombstone)
+- `retractable_node:File` (delta_tombstone)
+- `retractable_node:FluxBucket` (delta_tombstone)
+- `retractable_node:FluxGitRepository` (delta_tombstone)
+- `retractable_node:FluxHelmRelease` (delta_tombstone)
+- `retractable_node:FluxHelmRepository` (delta_tombstone)
+- `retractable_node:FluxKustomization` (delta_tombstone)
+- `retractable_node:FluxOCIRepository` (delta_tombstone)
+- `retractable_node:Function` (delta_tombstone)
+- `retractable_node:GitlabJob` (delta_tombstone)
+- `retractable_node:GitlabPipeline` (delta_tombstone)
+- `retractable_node:HelmChart` (delta_tombstone)
+- `retractable_node:HelmTemplateValueUsage` (delta_tombstone)
+- `retractable_node:HelmValueDefinition` (delta_tombstone)
+- `retractable_node:HelmValues` (delta_tombstone)
+- `retractable_node:ImplBlock` (delta_tombstone)
+- `retractable_node:Interface` (delta_tombstone)
+- `retractable_node:K8sResource` (delta_tombstone)
+- `retractable_node:KustomizeOverlay` (delta_tombstone)
+- `retractable_node:Macro` (delta_tombstone)
+- `retractable_node:OciImageDescriptor` (delta_tombstone)
+- `retractable_node:OciImageIndex` (delta_tombstone)
+- `retractable_node:OciImageManifest` (delta_tombstone)
+- `retractable_node:OciImageReferrer` (delta_tombstone)
+- `retractable_node:OciImageTagObservation` (delta_tombstone)
+- `retractable_node:OciRegistryRepository` (delta_tombstone)
+- `retractable_node:Package` (delta_tombstone)
+- `retractable_node:PackageDependency` (delta_tombstone)
+- `retractable_node:PackageRegistryPackage` (delta_tombstone)
+- `retractable_node:PackageRegistryPackageDependency` (delta_tombstone)
+- `retractable_node:PackageRegistryPackageVersion` (delta_tombstone)
+- `retractable_node:PackageVersion` (delta_tombstone)
+- `retractable_node:PagerDutyDeclaration` (delta_tombstone)
+- `retractable_node:Property` (delta_tombstone)
+- `retractable_node:Protocol` (delta_tombstone)
+- `retractable_node:ProtocolImplementation` (delta_tombstone)
+- `retractable_node:QueryExecution` (delta_tombstone)
+- `retractable_node:Record` (delta_tombstone)
+- `retractable_node:SSMHostApplication` (delta_tombstone)
+- `retractable_node:SSMHostPlatform` (delta_tombstone)
+- `retractable_node:ShellCommand` (delta_tombstone)
+- `retractable_node:SqlColumn` (delta_tombstone)
+- `retractable_node:SqlFunction` (delta_tombstone)
+- `retractable_node:SqlIndex` (delta_tombstone)
+- `retractable_node:SqlMigration` (delta_tombstone)
+- `retractable_node:SqlTable` (delta_tombstone)
+- `retractable_node:SqlTrigger` (delta_tombstone)
+- `retractable_node:SqlView` (delta_tombstone)
+- `retractable_node:Struct` (delta_tombstone)
+- `retractable_node:TerraformBackend` (delta_tombstone)
+- `retractable_node:TerraformBlock` (delta_tombstone)
+- `retractable_node:TerraformCheck` (delta_tombstone)
+- `retractable_node:TerraformDataSource` (delta_tombstone)
+- `retractable_node:TerraformImport` (delta_tombstone)
+- `retractable_node:TerraformLocal` (delta_tombstone)
+- `retractable_node:TerraformLockProvider` (delta_tombstone)
+- `retractable_node:TerraformModule` (delta_tombstone)
+- `retractable_node:TerraformMovedBlock` (delta_tombstone)
+- `retractable_node:TerraformOutput` (delta_tombstone)
+- `retractable_node:TerraformProvider` (delta_tombstone)
+- `retractable_node:TerraformRemovedBlock` (delta_tombstone)
+- `retractable_node:TerraformResource` (delta_tombstone)
+- `retractable_node:TerraformVariable` (delta_tombstone)
+- `retractable_node:TerragruntConfig` (delta_tombstone)
+- `retractable_node:TerragruntDependency` (delta_tombstone)
+- `retractable_node:TerragruntInput` (delta_tombstone)
+- `retractable_node:TerragruntLocal` (delta_tombstone)
+- `retractable_node:Trait` (delta_tombstone)
+- `retractable_node:TypeAlias` (delta_tombstone)
+- `retractable_node:TypeAnnotation` (delta_tombstone)
+- `retractable_node:Typedef` (delta_tombstone)
+- `retractable_node:Union` (delta_tombstone)
+- `retractable_node:Variable` (delta_tombstone)
+
+## Covered surfaces (290)
 
 | Surface | Scenario type | Scenario | Proof gate | Artifact / exemption reason |
 | --- | --- | --- | --- | --- |
@@ -126,7 +302,6 @@ None. Every non-exempt required surface has a replay scenario; exemptions carry 
 | `capability:fact_schema_version.detail` | baseline | capability_claim | capability-inventory | `fact_schema_version.detail` |
 | `capability:fact_schema_version.list` | baseline | capability_claim | capability-inventory | `fact_schema_version.list` |
 | `capability:freshness.changed_since` | baseline | capability_claim | capability-inventory | `freshness.changed_since` |
-| `capability:freshness.changed_since` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
 | `capability:freshness.generation_lifecycle` | baseline | capability_claim | capability-inventory | `freshness.generation_lifecycle` |
 | `capability:freshness.service_changed_since` | baseline | capability_claim | capability-inventory | `freshness.service_changed_since` |
 | `capability:graph_query.read_only_cypher` | baseline | capability_claim | capability-inventory | `graph_query.read_only_cypher` |
@@ -183,8 +358,8 @@ None. Every non-exempt required surface has a replay scenario; exemptions carry 
 | `capability:platform_impact.infra_resource_aggregate` | baseline | capability_claim | capability-inventory | `platform_impact.infra_resource_aggregate` |
 | `capability:platform_impact.pre_change` | baseline | capability_claim | capability-inventory | `platform_impact.pre_change` |
 | `capability:platform_impact.relationships_catalog` | baseline | correlation | golden-corpus-gate-neo4j | `rc-11` |
-| `capability:platform_impact.relationships_catalog` | ordering | go_test | go-test-race | `go/internal/replay/schedulereplay/scenario_test.go` |
 | `capability:platform_impact.relationships_catalog` | crash | go_test | go-test-race | `go/internal/replay/crashreplay/scenario_test.go` |
+| `capability:platform_impact.relationships_catalog` | ordering | go_test | go-test-race | `go/internal/replay/schedulereplay/scenario_test.go` |
 | `capability:platform_impact.resource_investigation` | baseline | capability_claim | capability-inventory | `platform_impact.resource_investigation` |
 | `capability:platform_impact.resource_to_code` | baseline | capability_claim | capability-inventory | `platform_impact.resource_to_code` |
 | `capability:platform_metrics.timeseries` | baseline | capability_claim | capability-inventory | `platform_metrics.timeseries` |
@@ -295,8 +470,8 @@ None. Every non-exempt required surface has a replay scenario; exemptions carry 
 | `projection:documentation_materialization` | cost | go_test | go-test-race | `go/internal/replay/costcounting/documentation_edges_cost_test.go` |
 | `projection:ec2_instance_node_materialization` | cost | go_test | go-test-race | `go/internal/replay/costcounting/ec2_instance_node_cost_test.go` |
 | `projection:gcp_resource_materialization` | cost | go_test | go-test-race | `go/internal/replay/costcounting/gcp_resource_materialization_cost_test.go` |
-| `projection:incident_repository_correlation` | ordering | go_test | go-test-race | `go/internal/replay/schedulereplay/projection_ordering_scenario_test.go` |
 | `projection:incident_repository_correlation` | cost | go_test | go-test-race | `go/internal/replay/costcounting/incident_repository_correlation_cost_test.go` |
+| `projection:incident_repository_correlation` | ordering | go_test | go-test-race | `go/internal/replay/schedulereplay/projection_ordering_scenario_test.go` |
 | `projection:incident_routing_materialization` | cost | go_test | go-test-race | `go/internal/replay/costcounting/incident_routing_evidence_cost_test.go` |
 | `projection:kubernetes_correlation` | cost | go_test | go-test-race | `go/internal/replay/costcounting/kubernetes_workload_node_cost_test.go` |
 | `projection:observability_coverage_correlation` | cost | go_test | go-test-race | `go/internal/replay/costcounting/observability_coverage_edge_cost_test.go` |
@@ -314,177 +489,11 @@ None. Every non-exempt required surface has a replay scenario; exemptions carry 
 | `projection:service_catalog_correlation` | cost | go_test | go-test-race | `go/internal/replay/costcounting/service_catalog_correlation_cost_test.go` |
 | `projection:ssm_host_inventory_materialization` | cost | go_test | go-test-race | `go/internal/replay/costcounting/ssm_host_inventory_cost_test.go` |
 | `projection:submodule_pin` | cost | go_test | go-test-race | `go/internal/replay/costcounting/submodule_pin_cost_test.go` |
-| `projection:supply_chain_impact` | ordering | go_test | go-test-race | `go/internal/replay/schedulereplay/projection_ordering_scenario_test.go` |
 | `projection:supply_chain_impact` | cost | go_test | go-test-race | `go/internal/replay/costcounting/supply_chain_impact_cost_test.go` |
+| `projection:supply_chain_impact` | ordering | go_test | go-test-race | `go/internal/replay/schedulereplay/projection_ordering_scenario_test.go` |
 | `reducer_drain:reducer-projection-drain` | crash | go_test | go-test-race | `go/internal/replay/crashreplay/scenario_test.go` |
-| `retractable_edge:ALIASES` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_inheritance_edge_retract_live_test.go` |
-| `retractable_edge:ALLOWS_EGRESS` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_security_group_reachability_retract_live_test.go` |
-| `retractable_edge:ALLOWS_INGRESS` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_security_group_reachability_retract_live_test.go` |
-| `retractable_edge:ATLANTIS_DEPENDS_ON` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_canonical_governance_edge_retract_live_test.go` |
-| `retractable_edge:AWS_lambda_function_uses_image` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_cloud_image_edge_retract_live_test.go` |
-| `retractable_edge:BUILT_FROM` | delta_tombstone | go_test | replay-tier | `go/internal/reducer/provenance_replay_tombstone_live_test.go` |
-| `retractable_edge:CALLS` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_edge_retract_live_test.go` |
-| `retractable_edge:CAN_ASSUME` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_iam_edge_retract_live_test.go` |
-| `retractable_edge:CAN_ESCALATE_TO` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_iam_edge_retract_live_test.go` |
-| `retractable_edge:CAN_PERFORM` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_iam_edge_retract_live_test.go` |
-| `retractable_edge:CONTAINS` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_edge:CORRELATES_DEPLOYABLE_UNIT` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_content_edge_retract_live_test.go` |
-| `retractable_edge:DEFINES_JOB` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_edge:DEPENDS_ON` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_repo_dependency_retract_live_test.go` |
-| `retractable_edge:DEPLOYS_FROM` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_repo_dependency_retract_live_test.go` |
-| `retractable_edge:DERIVED_FROM` | delta_tombstone | go_test | replay-tier | `go/internal/reducer/provenance_replay_tombstone_live_test.go` |
-| `retractable_edge:DISCOVERS_CONFIG_IN` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_repo_dependency_retract_live_test.go` |
-| `retractable_edge:DOCUMENTS` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_content_edge_retract_live_test.go` |
-| `retractable_edge:EVIDENCES_REPOSITORY_RELATIONSHIP` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_repo_dependency_retract_live_test.go` |
-| `retractable_edge:EXECUTES` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go` |
-| `retractable_edge:EXECUTES_SHELL` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_content_edge_retract_live_test.go` |
-| `retractable_edge:EXPLAINS` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_rationale_edge_retract_live_test.go` |
-| `retractable_edge:EXTENDS_BASE` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_canonical_kustomize_extends_base_edge_retract_live_test.go` |
-| `retractable_edge:GRANTS_ACCESS_TO` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_cloud_edge_retract_live_test.go` |
-| `retractable_edge:HANDLES_ROUTE` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_runtime_edge_retract_live_test.go` |
-| `retractable_edge:HAS_COLUMN` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go` |
-| `retractable_edge:HAS_DEPLOYMENT_EVIDENCE` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_repo_dependency_retract_live_test.go` |
-| `retractable_edge:HAS_ROLE` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_cloud_edge_retract_live_test.go` |
-| `retractable_edge:HELM_VALUE_REFERENCE` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_canonical_governance_edge_retract_live_test.go` |
-| `retractable_edge:IMPLEMENTS` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_inheritance_edge_retract_live_test.go` |
-| `retractable_edge:IMPORTS` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_canonical_governance_edge_retract_live_test.go` |
-| `retractable_edge:INDEXES` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go` |
-| `retractable_edge:INHERITS` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_inheritance_edge_retract_live_test.go` |
-| `retractable_edge:INSTANTIATES` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_edge_retract_live_test.go` |
-| `retractable_edge:INVOKES_CLOUD_ACTION` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_runtime_edge_retract_live_test.go` |
-| `retractable_edge:LOGS_TO` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_cloud_edge_retract_live_test.go` |
-| `retractable_edge:MANAGES` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_canonical_governance_edge_retract_live_test.go` |
 | `retractable_edge:MATCHES_STATE` | delta_tombstone | go_test | live-backend-tests | `go/internal/storage/cypher/tfstate_state_match_edge_retract_delta_live_test.go` |
-| `retractable_edge:MIGRATES` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go` |
-| `retractable_edge:NEEDS` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_edge:OVERRIDES` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_inheritance_edge_retract_live_test.go` |
-| `retractable_edge:PROVISIONS_DEPENDENCY_FOR` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_repo_dependency_retract_live_test.go` |
-| `retractable_edge:PUBLISHES` | delta_tombstone | go_test | replay-tier | `go/internal/reducer/provenance_replay_tombstone_live_test.go` |
-| `retractable_edge:QUERIES_TABLE` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go` |
-| `retractable_edge:READS_CONFIG_FROM` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_repo_dependency_retract_live_test.go` |
-| `retractable_edge:READS_FROM` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go` |
-| `retractable_edge:RECONCILES_FROM` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_canonical_flux_edge_retract_live_test.go` |
-| `retractable_edge:REFERENCES` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_edge_retract_live_test.go` |
-| `retractable_edge:REFERENCES_TABLE` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go` |
-| `retractable_edge:REPORTED_WITH` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_ssm_host_retract_live_test.go` |
-| `retractable_edge:RUNS_IMAGE` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_cloud_edge_retract_live_test.go` |
-| `retractable_edge:RUNS_IN` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_runtime_edge_retract_live_test.go` |
-| `retractable_edge:RUNS_ON` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_repo_dependency_retract_live_test.go` |
-| `retractable_edge:SATISFIED_BY` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_crossplane_edge_retract_live_test.go` |
-| `retractable_edge:SECRETS_IAM_USES_SERVICE_ACCOUNT` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_secrets_iam_edge_retract_live_test.go` |
-| `retractable_edge:TAINT_FLOWS_TO` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_content_edge_retract_live_test.go` |
-| `retractable_edge:TARGETS_ENVIRONMENT` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_repo_dependency_retract_live_test.go` |
-| `retractable_edge:TO` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_security_group_reachability_retract_live_test.go` |
-| `retractable_edge:TRIGGERS` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go` |
-| `retractable_edge:USES` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_workload_uses_edge_retract_live_test.go` |
-| `retractable_edge:USES_METACLASS` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_metaclass_edge_retract_live_test.go` |
-| `retractable_edge:USES_MODULE` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_repo_dependency_retract_live_test.go` |
-| `retractable_edge:USES_PROFILE` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_workload_uses_edge_retract_live_test.go` |
-| `retractable_edge:USES_WORKFLOW` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_canonical_governance_edge_retract_live_test.go` |
-| `retractable_edge:WRITES_TO` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go` |
-| `retractable_node:AnalyticsModel` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:Annotation` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:ArgoCDApplication` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:ArgoCDApplicationSet` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:AtlantisProject` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:AtlantisWorkflow` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:Class` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:CloudFormationCondition` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:CloudFormationExport` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:CloudFormationImport` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:CloudFormationOutput` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:CloudFormationParameter` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:CloudFormationResource` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:Component` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:ContainerImage` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:ContainerImageDescriptor` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:ContainerImageIndex` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:ContainerImageTagObservation` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:CrossplaneClaim` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:CrossplaneComposition` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:CrossplaneXRD` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:DashboardAsset` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:DataAsset` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:DataColumn` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:DataContract` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:DataOwner` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:DataQualityCheck` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:Directory` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:DockerfileInstall` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:Enum` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:File` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:FluxBucket` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:FluxGitRepository` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:FluxHelmRelease` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:FluxHelmRepository` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:FluxKustomization` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:FluxOCIRepository` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:Function` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:GitlabJob` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:GitlabPipeline` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:HelmChart` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:HelmTemplateValueUsage` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:HelmValueDefinition` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:HelmValues` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:ImplBlock` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:Interface` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:K8sResource` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:KustomizeOverlay` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:Macro` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:OciImageDescriptor` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:OciImageIndex` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:OciImageManifest` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:OciImageReferrer` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:OciImageTagObservation` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:OciRegistryRepository` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:Package` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:PackageDependency` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:PackageRegistryPackage` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:PackageRegistryPackageDependency` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:PackageRegistryPackageVersion` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:PackageVersion` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:PagerDutyDeclaration` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:Property` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:Protocol` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:ProtocolImplementation` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:QueryExecution` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:Record` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:SSMHostApplication` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_ssm_host_retract_live_test.go` |
-| `retractable_node:SSMHostPlatform` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_ssm_host_retract_live_test.go` |
-| `retractable_node:ShellCommand` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:SqlColumn` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:SqlFunction` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:SqlIndex` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:SqlMigration` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:SqlTable` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:SqlTrigger` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:SqlView` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:Struct` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:TerraformBackend` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:TerraformBlock` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:TerraformCheck` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:TerraformDataSource` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:TerraformImport` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:TerraformLocal` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:TerraformLockProvider` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:TerraformModule` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:TerraformMovedBlock` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:TerraformOutput` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:TerraformProvider` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:TerraformRemovedBlock` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:TerraformResource` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
 | `retractable_node:TerraformStateResource` | delta_tombstone | exempt | — | TerraformStateResource retraction is unconditionally skipped on a delta cycle: terraformStateResourceRetractStatements (go/internal/storage/cypher/canonical/terraform/retract.go) returns nil whenever mat.DeltaProjection is true, before building any retract statement. A tfstate resource has no file-path scope this writer can use to build a delta-scoped retract the way file- and entity-scoped retraction do, and a delta materialization carries no positive list of untouched backends to safely exclude from a scoped delete -- so a delta_tombstone scenario for this node type is not an authored-scenario gap (C-14) but a structural impossibility: no input can ever reach the retract statement on a delta cycle for this label. Genuine deletions are still caught by the periodic full reconciliation generation (mat.ReconciliationProjection forces DeltaProjection=false; see internal/projector/canonical/builder.go), the same mechanism buildRepositoryCleanupStatements already relies on for repository-node cleanup, within the reconcile interval. A prior manifest row (specs/replay-coverage-manifest.v1.yaml) claimed cassette coverage of this exact surface/scenario_type via testdata/cassettes/replaydelta/multi-generation-tombstone.json; that cassette contains zero TerraformStateResource references, so the row was removed as a false coverage claim rather than an accurate one. Remove this exemption only if a future change adds a delta-scoped retract path for TerraformStateResource (e.g. by threading a backend-scoped exclusion list through the delta materialization). |
-| `retractable_node:TerraformVariable` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:TerragruntConfig` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:TerragruntDependency` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:TerragruntInput` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:TerragruntLocal` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:Trait` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:TypeAlias` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:TypeAnnotation` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:Typedef` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:Union` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:Variable` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_semantic_variable_retract_live_test.go` |
 | `collector:git` | baseline | exempt | — | Filesystem-native collector, not a credentialed upstream API. Git is already exercised end-to-end by the golden-corpus gate's 20-repo bootstrap-index corpus (sync -> discover -> parse -> emit), so a supply-chain-demo cassette would re-record a path the gate already replays from real fixtures. The fixture corpus is its replay scenario. |
 | `collector:git` | fault | exempt | — | Filesystem-native collector, not a credentialed upstream API. Git is already exercised end-to-end by the golden-corpus gate's 20-repo bootstrap-index corpus (sync -> discover -> parse -> emit), so a supply-chain-demo cassette would re-record a path the gate already replays from real fixtures. The fixture corpus is its replay scenario. |
 | `collector:grafana` | baseline | cassette | golden-corpus-gate-neo4j | `testdata/cassettes/grafana/supply-chain-demo.json` |

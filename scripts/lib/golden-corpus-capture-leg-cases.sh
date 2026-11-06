@@ -29,7 +29,7 @@ capture_check_run="$(extract_capture_run 'Require non-empty capture before uploa
 require_in 'differential legs use one canonical absolute repos path' "${workflow}" \
   'ESHU_REPOS_DIR: ${{ runner.temp }}/eshu-diff-corpus'
 
-capture_stage_run="$(extract_capture_run 'Require and stage all four recordings')"
+capture_stage_run="$(extract_capture_run 'Require and stage the Neo4j recordings')"
 [[ "${capture_stage_run}" == *'bash scripts/lib/stage-differential-capture.sh stage '* ]] ||
   fail 'differential join must run the staging helper'
 [[ "${capture_stage_run}" == *'"${{ runner.temp }}/diff-artifacts" '* ]] ||

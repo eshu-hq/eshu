@@ -60,11 +60,15 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - graph_backend: nornicdb
-            compose_file: eshu-deploy/compose/docker-compose.yaml
+          # Disabled by owner order (2026-11-05): the NornicDB cell is off while
+          # Neo4j is the supported backend (#7331). To re-enable, restore it and
+          # the `corpus-gate (nornicdb)` check_name on the golden-corpus-gate
+          # registry row; see docs/internal/ci-workflow-inventory.md ("Re-enabling NornicDB CI").
+          #   - graph_backend: nornicdb
+          #     compose_file: eshu-deploy/compose/docker-compose.yaml
           # #6782: the Neo4j backend runs the same corpus. Its registry row
           # (golden-corpus-gate-neo4j) is the blocking truth gate (#7362).
-          # The NornicDB cell above is watch-only: its row (golden-corpus-gate)
+          # The NornicDB cell above was watch-only: its row (golden-corpus-gate)
           # is blocking: false, layer secondary.
           - graph_backend: neo4j
             compose_file: eshu-deploy/compose/docker-compose.neo4j.yml
@@ -135,7 +139,11 @@ jobs:
       fail-fast: false
       matrix:
         pair: [1, 2]
-        graph_backend: [nornicdb, neo4j]
+        # NornicDB legs disabled by owner order (2026-11-05); Neo4j is the
+        # supported backend (#7331). To re-enable, restore `nornicdb` here, pass
+        # `nornicdb neo4j` to the staging step, restore the backend-diff step and
+        # the nornicdb coverage dirs; see docs/internal/ci-workflow-inventory.md ("Re-enabling NornicDB CI").
+        graph_backend: [neo4j]
     env:
       GATE_COMPOSE_PROJECT: eshu-differential-pair${{ matrix.pair }}-${{ matrix.graph_backend }}
       COMPOSE_FILE: ${{ matrix.graph_backend == 'neo4j' && 'eshu-deploy/compose/docker-compose.neo4j.yml' || 'eshu-deploy/compose/docker-compose.yaml' }}
@@ -238,21 +246,26 @@ jobs:
 
       # Reconstruct the original pair/backend layout and reject missing or
       # empty artifacts. A matrix failure remains blocking even if it uploaded.
-      - name: Require and stage all four recordings
+      - name: Require and stage the Neo4j recordings
         run: >
           bash scripts/lib/stage-differential-capture.sh stage
           "${{ runner.temp }}/diff-artifacts"
           "${{ runner.temp }}/diff-capture"
           "${{ github.run_id }}"
           "${{ needs.differential-capture.result }}"
+          neo4j
 
       - name: Build golden-corpus-gate
         run: go -C go build -o "${{ runner.temp }}/golden-corpus-gate" ./cmd/golden-corpus-gate
 
       # Comparison remains advisory discovery (#6965). Capture completion and
       # the two coverage checks below remain blocking.
+      # Disabled by owner order (2026-11-05): no NornicDB recording exists to
+      # compare against. Re-enable with the NornicDB capture legs; original
+      # condition: none (the step ran unconditionally).
       - name: Compare backend recordings
         id: compare
+        if: ${{ false }}
         continue-on-error: true
         run: >
           "${{ runner.temp }}/golden-corpus-gate" -phase=backend-diff
@@ -270,11 +283,12 @@ jobs:
           -coverage-manifest=go/internal/queryplan/testdata/statement-builders.yaml
           "-coverage-dirs=${{ runner.temp }}/diff-capture/pair1/neo4j,${{ runner.temp }}/diff-capture/pair2/neo4j"
 
-      # Writer coverage includes all four backend/pairing recordings (#7212).
+      # Writer coverage covered all four backend/pairing recordings (#7212); the
+      # NornicDB pair is off by owner order (2026-11-05), so it reads Neo4j only.
       - name: Check id writer coverage on capture recordings
         run: >
           "${{ runner.temp }}/golden-corpus-gate" -phase=writer-coverage
-          "-coverage-dirs=${{ runner.temp }}/diff-capture/pair1/neo4j,${{ runner.temp }}/diff-capture/pair2/neo4j,${{ runner.temp }}/diff-capture/pair1/nornicdb,${{ runner.temp }}/diff-capture/pair2/nornicdb"
+          "-coverage-dirs=${{ runner.temp }}/diff-capture/pair1/neo4j,${{ runner.temp }}/diff-capture/pair2/neo4j"
 
       - name: Report an advisory backend divergence
         if: ${{ steps.compare.outcome == 'failure' }}

@@ -65,6 +65,7 @@ func RenderDashboard(rep CoverageReport) []byte {
 	writeScenarioTypeTable(&b, rep)
 	writeLanguageScoreboard(&b, rep)
 	writeGaps(&b, rep)
+	writeProofOff(&b, rep)
 	writeCovered(&b, rep)
 	if len(rep.Stale) > 0 {
 		writeStale(&b, rep)
@@ -125,11 +126,11 @@ func writeLanguageScoreboard(b *strings.Builder, rep CoverageReport) {
 
 func writeScenarioTypeTable(b *strings.Builder, rep CoverageReport) {
 	b.WriteString("## Coverage by scenario type\n\n")
-	b.WriteString("| Scenario type | Satisfied | Total | % | Uncovered | Exempt |\n")
-	b.WriteString("| --- | ---: | ---: | ---: | ---: | ---: |\n")
+	b.WriteString("| Scenario type | Satisfied | Total | % | Uncovered | Proof off | Exempt |\n")
+	b.WriteString("| --- | ---: | ---: | ---: | ---: | ---: | ---: |\n")
 	for _, s := range rep.ScenarioTypeSummaries {
-		fmt.Fprintf(b, "| %s | %d | %d | %.2f%% | %d | %d |\n",
-			s.ScenarioType, s.Covered+s.Exempt, s.Total, s.PercentSatisfied, s.Uncovered+s.Unresolved, s.Exempt)
+		fmt.Fprintf(b, "| %s | %d | %d | %.2f%% | %d | %d | %d |\n",
+			s.ScenarioType, s.Covered+s.Exempt, s.Total, s.PercentSatisfied, s.Uncovered+s.Unresolved, s.ProofOff, s.Exempt)
 	}
 	b.WriteString("\n")
 }
@@ -144,15 +145,15 @@ func modeLabel(blocking bool) string {
 
 func writeAxisTable(b *strings.Builder, rep CoverageReport) {
 	b.WriteString("## Coverage by axis\n\n")
-	b.WriteString("| Axis | Satisfied | Total | % | Uncovered | Exempt |\n")
-	b.WriteString("| --- | ---: | ---: | ---: | ---: | ---: |\n")
+	b.WriteString("| Axis | Satisfied | Total | % | Uncovered | Proof off | Exempt |\n")
+	b.WriteString("| --- | ---: | ---: | ---: | ---: | ---: | ---: |\n")
 	for _, s := range rep.Summaries {
-		fmt.Fprintf(b, "| %s | %d | %d | %.2f%% | %d | %d |\n",
-			axisLabel(s.Registry), s.Covered+s.Exempt, s.Total, s.PercentSatisfied, s.Uncovered+s.Unresolved, s.Exempt)
+		fmt.Fprintf(b, "| %s | %d | %d | %.2f%% | %d | %d | %d |\n",
+			axisLabel(s.Registry), s.Covered+s.Exempt, s.Total, s.PercentSatisfied, s.Uncovered+s.Unresolved, s.ProofOff, s.Exempt)
 	}
-	fmt.Fprintf(b, "| **Total** | **%d** | **%d** | **%.2f%%** | **%d** | **%d** |\n\n",
+	fmt.Fprintf(b, "| **Total** | **%d** | **%d** | **%.2f%%** | **%d** | **%d** | **%d** |\n\n",
 		rep.Totals.Covered+rep.Totals.Exempt, rep.Totals.Total, rep.Totals.PercentSatisfied,
-		rep.Totals.Uncovered+rep.Totals.Unresolved, rep.Totals.Exempt)
+		rep.Totals.Uncovered+rep.Totals.Unresolved, rep.Totals.ProofOff, rep.Totals.Exempt)
 }
 
 // writeGaps lists the uncovered/unresolved surfaces grouped by axis, in the same
@@ -188,6 +189,48 @@ func writeGaps(b *strings.Builder, rep CoverageReport) {
 				suffix = " — _unresolved: manifest entry present but artifact missing_"
 			}
 			fmt.Fprintf(b, "- `%s` (%s)%s\n", s.Key, s.ScenarioType, suffix)
+		}
+		b.WriteString("\n")
+	}
+}
+
+// writeProofOff lists the surfaces whose scenario resolved but whose named proof
+// gate is switched off, grouped by gate. They are unproven, so they are not in the
+// satisfied count, and they are not gaps, because the gate was turned off on
+// purpose and its registry row says so. The section is omitted when none exist.
+func writeProofOff(b *strings.Builder, rep CoverageReport) {
+	if len(rep.ProofOff) == 0 {
+		return
+	}
+	byGate := map[string][]SurfaceReport{}
+	for _, s := range rep.Surfaces {
+		if s.Status == StatusProofOff {
+			byGate[s.ProofGate] = append(byGate[s.ProofGate], s)
+		}
+	}
+	gates := make([]string, 0, len(byGate))
+	for gate := range byGate {
+		gates = append(gates, gate)
+	}
+	sort.Strings(gates)
+
+	b.WriteString("## Proof off — surfaces whose proof gate is disabled\n\n")
+	fmt.Fprintf(b, "%d surface(s) are unproven because their proof gate is off. Each has a committed scenario, ", len(rep.ProofOff))
+	b.WriteString("but the CI gate that proves it is tier `manual` and non-blocking in the CI-gate registry, ")
+	b.WriteString("so nothing runs it. They are not counted as satisfied. Restore the gate, or move the proof ")
+	b.WriteString("to a gate that runs, to bring them back.\n\n")
+	for _, gate := range gates {
+		rows := byGate[gate]
+		sort.Slice(rows, func(i, j int) bool {
+			if rows[i].Key != rows[j].Key {
+				return rows[i].Key < rows[j].Key
+			}
+			return rows[i].ScenarioType < rows[j].ScenarioType
+		})
+		fmt.Fprintf(b, "### `%s` (%d)\n\n", gate, len(rows))
+		fmt.Fprintf(b, "%s\n\n", markdownTableText(rows[0].Detail))
+		for _, s := range rows {
+			fmt.Fprintf(b, "- `%s` (%s)\n", s.Key, s.ScenarioType)
 		}
 		b.WriteString("\n")
 	}

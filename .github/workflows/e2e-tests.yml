@@ -52,10 +52,14 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - graph_backend: nornicdb
-            compose_file: eshu-deploy/compose/docker-compose.yaml
-            graph_service: nornicdb
-            database: nornic
+          # Disabled by owner order (2026-11-05): the NornicDB cell is off while
+          # Neo4j is the supported backend (#7331). To re-enable, restore this
+          # entry and the `test (nornicdb)` check_name on the e2e-tests registry
+          # row; see docs/internal/ci-workflow-inventory.md ("Re-enabling NornicDB CI").
+          #   - graph_backend: nornicdb
+          #     compose_file: eshu-deploy/compose/docker-compose.yaml
+          #     graph_service: nornicdb
+          #     database: nornic
           - graph_backend: neo4j
             compose_file: eshu-deploy/compose/docker-compose.neo4j.yml
             graph_service: neo4j

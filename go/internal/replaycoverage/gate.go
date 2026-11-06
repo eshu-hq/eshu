@@ -48,6 +48,10 @@ type Inputs struct {
 	DepthRequirements DepthRequirements
 	// ProofGates is the CI-gate registry used to validate proof_gate names.
 	ProofGates *cigates.Registry
+	// JobDisabled confirms that the workflow job a disabled-marked proof gate
+	// names is really off. Nil means no marker can be confirmed, so every
+	// disabled-marked gate fails the blocking gate.
+	JobDisabled JobDisabledFunc
 	// Resolver verifies a manifest entry's scenario artifact exists.
 	Resolver Resolver
 	// Blocking flips every coverage finding from advisory to required. Local
@@ -78,7 +82,7 @@ func RunGate(in Inputs) (Coverage, CoverageReport, *goldengate.Report) {
 	cov := Reconcile(supported, surfaceManifest, in.Resolver)
 	var proofGateDetails proofGateValidationDetails
 	if in.ProofGates != nil {
-		proofGateDetails = proofGateValidationDetailsByScenario(manifest, in.AuthzProofs, in.ProofGates)
+		proofGateDetails = proofGateValidationDetailsByScenario(manifest, in.AuthzProofs, in.ProofGates, in.JobDisabled)
 		cov = applyProofGateValidation(cov, proofGateDetails)
 	}
 	cov = applyDepthExemptions(cov, depthExempt)
@@ -147,6 +151,9 @@ func languageFixtureCoverageSurfaces(
 		if detail, invalid := proofGateDetails.byProofGate[scenario.ProofGate]; invalid {
 			cov.Surfaces[i].Status = StatusUnresolved
 			cov.Surfaces[i].Detail = detail
+		} else if detail, off := proofGateDetails.offByProofGate[scenario.ProofGate]; off && cov.Surfaces[i].Status == StatusCovered {
+			cov.Surfaces[i].Status = StatusProofOff
+			cov.Surfaces[i].Detail = detail
 		}
 	}
 	return cov.Surfaces
@@ -212,7 +219,8 @@ func surfaceCoverageKey(sc SurfaceCoverage) string {
 }
 
 func applyProofGateValidation(cov Coverage, details proofGateValidationDetails) Coverage {
-	if len(details.byProofGate) == 0 && len(details.byAuthzRef) == 0 {
+	if len(details.byProofGate) == 0 && len(details.byAuthzRef) == 0 &&
+		len(details.offByProofGate) == 0 && len(details.offByAuthzRef) == 0 {
 		return cov
 	}
 	usedAuthzRefs := map[string]struct{}{}
@@ -229,6 +237,19 @@ func applyProofGateValidation(cov Coverage, details proofGateValidationDetails) 
 		}
 		if detail, invalid := details.byProofGate[scenario.ProofGate]; invalid {
 			cov.Surfaces[i].Status = StatusUnresolved
+			cov.Surfaces[i].Detail = detail
+			continue
+		}
+		if cov.Surfaces[i].Status != StatusCovered {
+			continue
+		}
+		if detail, off := details.offByAuthzRef[scenario.Ref]; off && scenario.Scenario == ScenarioAuthzScopedRoute {
+			cov.Surfaces[i].Status = StatusProofOff
+			cov.Surfaces[i].Detail = detail
+			continue
+		}
+		if detail, off := details.offByProofGate[scenario.ProofGate]; off {
+			cov.Surfaces[i].Status = StatusProofOff
 			cov.Surfaces[i].Detail = detail
 		}
 	}

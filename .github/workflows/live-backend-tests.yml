@@ -106,7 +106,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        # Shard 1/4 is the whole NornicDB leg (see partition_runs in
+        # scripts/lib/live_backend_shards.py). It is off by owner order
+        # (2026-11-05) while Neo4j is the supported backend (#7331), so only the
+        # three Neo4j shards run. To re-enable, restore [1, 2, 3, 4], drop the
+        # `--backend neo4j` and `--skip-shard 1/4` arguments in the aggregate
+        # below, and restore the `check_names` entry on the live-backend-tests
+        # registry row; see docs/internal/ci-workflow-inventory.md
+        # ("Re-enabling NornicDB CI").
+        shard: [2, 3, 4]
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     env:
@@ -189,9 +197,9 @@ jobs:
       - name: Verify complete live-backend coverage
         run: |
           python3 scripts/lib/live_backend_test_targets.py specs/live-tests.v1.yaml . |
-            python3 scripts/lib/live_backend_shards.py expand > live-backend-full.plan
+            python3 scripts/lib/live_backend_shards.py expand --backend neo4j > live-backend-full.plan
           python3 scripts/lib/live_backend_shards.py select --head "$(git rev-parse HEAD)" \
-            --plan live-backend-full.plan --output-dir live-backend-selected \
+            --plan live-backend-full.plan --skip-shard 1/4 --output-dir live-backend-selected \
             live-backend-reports/*/live-backend-result.json
           python3 scripts/lib/live_backend_shards.py verify --head "$(git rev-parse HEAD)" \
-            --plan live-backend-full.plan live-backend-selected/*.json
+            --plan live-backend-full.plan --skip-shard 1/4 live-backend-selected/*.json

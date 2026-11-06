@@ -378,7 +378,7 @@ func RunMaterializedEdgeCoverage(in MaterializedEdgeCoverageInputs) (replaycover
 	cov := replaycoverage.Reconcile(supported, manifest, resolver)
 
 	if in.ProofGates != nil {
-		for _, err := range replaycoverage.ValidateRequiredProofGates(manifest, replaycoverage.AuthzProofLedger{}, in.ProofGates) {
+		for _, err := range replaycoverage.ValidateRequiredProofGates(manifest, replaycoverage.AuthzProofLedger{}, in.ProofGates, nil) {
 			gr.Add(goldengate.Finding{Phase: "proof_gates", Check: "proof_gate_validation", OK: false, Required: true, Detail: err.Error()})
 		}
 	}
