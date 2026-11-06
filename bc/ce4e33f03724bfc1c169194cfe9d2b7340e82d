@@ -1,0 +1,18 @@
+docs/internal/evidence/saml-go-2026-6909-boundary-mitigation.md
+  h_78a442cba0b3e6 1-41
+go/internal/query/saml_verifier.go
+  h_78a442cba0b3e6 7,11,13,26-28,127,131-137,143-293,300,302
+go/internal/query/saml_verifier_test.go
+  h_78a442cba0b3e6 10,20,23,159-492
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "bcce4e33f03724bfc1c169194cfe9d2b7340e82d",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
