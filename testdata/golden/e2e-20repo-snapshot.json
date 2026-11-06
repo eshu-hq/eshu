@@ -2468,7 +2468,7 @@
         },
         {
           "id": "dr-2",
-          "description": "deltaReaderRun calls deltaReaderLedgerTotal, defined in app/ledger.go, which the delta never touches. Live runs showed the delta schedules no code-call work, so this guards that an unmoved caller keeps its edges.",
+          "description": "deltaReaderRun calls deltaReaderLedgerTotal, defined in app/ledger.go, which the delta never touches. Since #10049 the delta schedules code-call work, so this guards that the file-scoped delta refresh leaves an unmoved caller's cross-file edges intact.",
           "reader": "code_call_symbols",
           "relationship": "CALLS",
           "from_label": "Function",
@@ -2498,25 +2498,16 @@
         },
         {
           "id": "dr-5",
-          "description": "deltaReaderMovedCaller in app/moved.go calls deltaReaderLedgerTotal; the delta inserts lines above the caller, so it moves.",
+          "description": "deltaReaderMovedCaller in app/moved.go calls deltaReaderLedgerTotal; the delta inserts lines above the caller, so it moves and gets a new Function node (content-entity ids hash the line number). The #10049 regression: the git fact builder emits the code_call_materialization follow-up on delta generations and the symbol-definition read overlays the delta on the active generation, so the moved caller keeps its CALLS edge to the callee in unchanged app/ledger.go without waiting for the next full generation.",
           "reader": "code_call_materialization",
           "relationship": "CALLS",
           "from_label": "Function",
           "from_name": "deltaReaderMovedCaller",
           "to_label": "Function",
-          "to_name": "deltaReaderLedgerTotal",
-          "expected_failure": {
-            "defect": "#10049",
-            "reason": "content-entity ids hash the line number, so the moved caller gets a new Function node, and the git fact builder emits no code_call_materialization follow-up for a delta, so nothing rewrites its CALLS edges until the next full generation"
-          }
+          "to_name": "deltaReaderLedgerTotal"
         }
       ],
       "unexpressed_readers": [
-        {
-          "reader": "code_call_symbols",
-          "defect": "#10003",
-          "reason": "not reachable through a git delta: the git fact builder returns before it emits the code_call_materialization follow-up for a delta generation, so the code-call reducer and its active-generation symbol read never run while the scope is delta-active (live run 3: the delta generation had no code_call_materialization work item or code_calls intent)"
-        },
         {
           "reader": "package_manifest_dependency",
           "defect": "#9991",

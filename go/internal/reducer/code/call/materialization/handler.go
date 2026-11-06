@@ -129,6 +129,16 @@ func (h Handler) Handle(
 
 	symbolLoadStart := time.Now()
 	symbolKeys := shared.ReferencedSymbolKeys(envelopes)
+	// A delta generation carries its changed files' facts only, and
+	// same-package Go calls are keyless name-only edges, so the scan above
+	// yields nothing for them and the overlay would never run: their
+	// cross-file callees stay unresolvable while the file-scoped refresh
+	// below still retracts the old edges (#10049 delta-reader Reds). Derive
+	// the definitions' own stable keys for the delta repositories' provably
+	// same-package calls so the overlay fetches the unchanged files'
+	// definitions. Full generations keep the keyless path untouched.
+	deltaGenerationRepoIDs := codecall.DeltaGenerationRepoIDs(envelopes)
+	symbolKeys = append(symbolKeys, shared.SamePackageGoCalleeKeysForDeltaRepos(envelopes, deltaGenerationRepoIDs)...)
 	symbolDefinitionEnvelopes, err := loadActiveCodeCallSymbolDefinitionFacts(ctx, h.FactLoader, symbolKeys)
 	if err != nil {
 		return reducercontract.Result{}, fmt.Errorf("load active code call symbol definition facts: %w", err)
@@ -159,7 +169,7 @@ func (h Handler) Handle(
 
 	intentBuildStart := time.Now()
 	fileScopesByRepoID := fileScopeResult.ScopesByRepoID
-	intentRows := codecall.BuildRefreshIntentsWithDeltaFileScopes(contextByRepoID, fileScopesByRepoID, codecall.DeltaGenerationRepoIDs(envelopes), createdAt)
+	intentRows := codecall.BuildRefreshIntentsWithDeltaFileScopes(contextByRepoID, fileScopesByRepoID, deltaGenerationRepoIDs, createdAt)
 	intentRows = append(
 		intentRows,
 		codecall.BuildSharedIntentRows(
@@ -185,8 +195,17 @@ func (h Handler) Handle(
 	// paired in the same pass with a whole-scope refresh intent that owns the
 	// single repo-wide retract, so the worker can fence per-edge writes behind it
 	// and stop partitions wiping each other's edges (#2898/#2910).
+	//
+	// A delta generation carries changed files only, and these three domains
+	// have no file-scoped retract: pairing a repo-wide refresh with the
+	// changed files' edge rows would delete every unchanged file's runtime
+	// edges (#10049 addendum). So delta-generation repositories are excluded
+	// from this pass entirely — no per-edge rows, no refresh — and their
+	// runtime edges refresh at the next full generation, exactly as they did
+	// before the code-call marker fired on deltas. The CALLS rows above are
+	// unaffected: the code_calls domain owns a file-scoped retract.
 	runtimeIntentRows, unresolvedCloudActionCallers := buildIntentRowsCounted(
-		envelopes, entityIndex, contextByRepoID, createdAt,
+		runtimeDomainEnvelopes(envelopes, deltaGenerationRepoIDs), entityIndex, contextByRepoID, createdAt,
 	)
 	intentRows = append(intentRows, runtimeIntentRows...)
 	intentBuildDuration := time.Since(intentBuildStart)

@@ -11,6 +11,7 @@ import (
 	codecall "github.com/eshu-hq/eshu/go/internal/reducer/code/call"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/shared"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
@@ -50,6 +51,41 @@ func ExtractIntentRows(
 	_, _, _, _, entityIndex, _ := codecall.ExtractAllRelationshipRowsWithIndex(envelopes)
 	contextByRepoID := schemadecode.BuildProjectionContexts(envelopes, generationID)
 	return BuildIntentRows(envelopes, entityIndex, contextByRepoID, createdAt)
+}
+
+// runtimeDomainEnvelopes returns the envelopes the symbol→runtime pass may
+// build rows from: every envelope whose repository is NOT on a delta
+// generation. The three runtime domains retract repo-wide and have no
+// file-scoped retract, while a delta generation carries changed-file facts
+// only, so building their rows from delta input would pair a repo-wide
+// retract with changed-file writes and delete every unchanged file's
+// runtime edges (#10049). Excluding the delta repositories' repository and
+// file facts keeps every builder, the unresolved-caller count, and the
+// refresh pairing consistent: a repository with no envelopes here emits no
+// per-edge rows, so buildRepoWideRetractRefreshIntents emits no refresh for
+// it either. Repository identity resolves the same way the file-scope
+// collectors resolve it: repo_id, falling back to graph_id. An envelope
+// with no repository identity is kept; the builders already skip rows they
+// cannot attribute to a projection context.
+func runtimeDomainEnvelopes(
+	envelopes []facts.Envelope,
+	deltaGenerationRepoIDs map[string]struct{},
+) []facts.Envelope {
+	if len(deltaGenerationRepoIDs) == 0 {
+		return envelopes
+	}
+	filtered := make([]facts.Envelope, 0, len(envelopes))
+	for _, envelope := range envelopes {
+		repositoryID := payloadcore.SemanticPayloadString(envelope.Payload, "repo_id")
+		if repositoryID == "" {
+			repositoryID = payloadcore.SemanticPayloadString(envelope.Payload, "graph_id")
+		}
+		if _, onDelta := deltaGenerationRepoIDs[repositoryID]; onDelta {
+			continue
+		}
+		filtered = append(filtered, envelope)
+	}
+	return filtered
 }
 
 // BuildIntentRows builds every symbol→runtime shared-projection intent

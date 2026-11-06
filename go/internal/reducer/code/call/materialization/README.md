@@ -142,9 +142,9 @@ closed`, with `unusable_delta_scopes` (`repo=reason`, at most 16 named) and
 `unusable_delta_scope_repo_count`. The reducer queue dead-letters the work item
 on its first attempt; the dead-letter details carry `triage=input_invalid`
 because the error wraps a `projector/failure` `InputValidationError`. The
-counter stays at zero until #10049: the git collector emits no
-`code_call_materialization` marker on a delta generation yet, so the fence is
-a guard placed ahead of that change. The operator guide is
+counter counts the delta repositories the fence turns away; since #10049 the
+git collector emits the `code_call_materialization` marker on delta
+generations, so every delta work item passes the fence. The operator guide is
 [Shared-Write Operations](../../../../../../docs/public/reference/telemetry/shared-write-operations.md#code-call-unusable-delta-scopes).
 
 ## Gotchas / invariants
@@ -166,6 +166,14 @@ a guard placed ahead of that change. The operator guide is
   domain's per-edge rows with its repo-wide refresh row in the SAME pass —
   see `buildRepoWideRetractRefreshIntents`'s doc comment for why splitting
   them across passes silently loses edges (#2898/#2910).
+- **The runtime pass never sees delta-generation repositories (#10049).**
+  The handler feeds `buildIntentRowsCounted` through
+  `runtimeDomainEnvelopes`, which drops every delta repository's facts: the
+  three domains have no file-scoped retract, so a repo-wide refresh paired
+  with changed-file rows would delete every unchanged file's runtime edges.
+  A delta repository's runtime edges refresh at its next full generation,
+  as they did before the marker fired on deltas. The CALLS side of the same
+  pass is file-scoped and does run on delta input.
 - **The cloud action lives under payload key `"cloud_action"`, never
   `"action"`.** `sharedintent`'s upsert filter reads `payload["action"]` as
   the upsert/refresh/delete discriminator; storing the resolved AWS action

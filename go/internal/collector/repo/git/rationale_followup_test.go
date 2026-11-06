@@ -80,11 +80,11 @@ func TestBuildStreamingGenerationDeltaEstimateAccountsForRationaleMarker(t *test
 	repoPath := t.TempDir()
 	repo := testCollectorRepositoryMetadata(repoPath)
 	collected := buildStreamingGeneration(repoPath, repo, "run-minimal-delta", time.Now().UTC(), RepositorySnapshot{Delta: true}, false, "")
-	if got, want := collected.EstimatedFactCount, 3; got != want {
-		t.Fatalf("minimal delta EstimatedFactCount = %d, want conservative floor %d (repository + shell baseline + rationale)", got, want)
+	if got, want := collected.EstimatedFactCount, 4; got != want {
+		t.Fatalf("minimal delta EstimatedFactCount = %d, want conservative floor %d (repository + shell baseline + rationale + code-call)", got, want)
 	}
 	envelopes := drainFactChannel(collected.Facts)
-	if got, want := len(envelopes), 6; got != want {
+	if got, want := len(envelopes), 7; got != want {
 		t.Fatalf("minimal delta emitted facts = %d, want exact %d", got, want)
 	}
 	if got, want := collected.FactCount(), len(envelopes); got != want {

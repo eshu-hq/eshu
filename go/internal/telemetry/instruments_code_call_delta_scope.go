@@ -20,8 +20,9 @@ import (
 // no_changed_paths). Repository, scope, and generation ids never become
 // labels; they travel on the ERROR log and the dead-letter row.
 //
-// It stays at zero until #10049: the git collector emits no
-// code_call_materialization marker on a delta generation yet.
+// The git collector emits the code_call_materialization marker on delta
+// generations (#10049), so the counter counts the delta repositories the
+// fence turns away.
 func registerCodeCallDeltaScopeUnusable(meter metric.Meter, inst *Instruments) error {
 	var err error
 	if inst.CodeCallDeltaScopeUnusable, err = meter.Int64Counter(
