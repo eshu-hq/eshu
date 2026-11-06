@@ -184,7 +184,9 @@ jobs:
     if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'verify-satellite-gates')) && ((github.event_name != 'workflow_dispatch' || inputs.mode == 'release') && needs.changes.outputs.satellites == 'true') }}
     env:
       LANE_APPLIES: ${{ needs.changes.outputs.satellites }}
-    timeout-minutes: 60
+    # Cold builds (see NOTE below): the emulated whisper compile is the long
+    # pole. Fail-closed on timeout rather than silently skipping a combo.
+    timeout-minutes: 90
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -221,23 +223,26 @@ jobs:
           print('model=' + p['model']['sha256'])
           print('engine_version=' + p['engine'].get('version', ''))
           EOF
+      # NOTE: plain `docker build`, not build-push-action, deliberately. The
+      # #9632 guard requires every build-push-action step to read and write a
+      # per-target GHCR cache tag, and its owner model (target-less implies
+      # the shared :runtime tag) has no room for a second target-less build:
+      # sharing :runtime would overwrite the main image's cache on push. This
+      # proof writes no cache at all, so there is nothing to share, evict, or
+      # leak — cold builds are the accepted cost (see timeout below).
       - name: Build satellite gate image
         if: ${{ env.LANE_APPLIES == 'true' }}
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: docker/satellites/${{ matrix.sat }}/Dockerfile
-          push: false
-          build-args: |
-            ESHU_ALPINE_IMAGE=${{ env.ESHU_ALPINE_IMAGE }}
-            ESHU_GO_IMAGE=${{ env.ESHU_GO_IMAGE }}
-            ESHU_VERSION=${{ github.ref_type == 'tag' && github.ref_name || github.sha }}
-            EXPECT_BINARY_SHA256=${{ steps.pins.outputs.binary }}
-            EXPECT_LIBS_SHA256=${{ steps.pins.outputs.libs }}
-            EXPECT_MODEL_SHA256=${{ steps.pins.outputs.model }}
-            EXPECT_ENGINE_VERSION=${{ steps.pins.outputs.engine_version }}
-          provenance: false
-          platforms: linux/${{ matrix.arch }}
+        run: |
+          docker build --platform "linux/${{ matrix.arch }}" \
+            -f "docker/satellites/${{ matrix.sat }}/Dockerfile" \
+            --build-arg "ESHU_ALPINE_IMAGE=${{ env.ESHU_ALPINE_IMAGE }}" \
+            --build-arg "ESHU_GO_IMAGE=${{ env.ESHU_GO_IMAGE }}" \
+            --build-arg "ESHU_VERSION=${{ github.ref_type == 'tag' && github.ref_name || github.sha }}" \
+            --build-arg "EXPECT_BINARY_SHA256=${{ steps.pins.outputs.binary }}" \
+            --build-arg "EXPECT_LIBS_SHA256=${{ steps.pins.outputs.libs }}" \
+            --build-arg "EXPECT_MODEL_SHA256=${{ steps.pins.outputs.model }}" \
+            --build-arg "EXPECT_ENGINE_VERSION=${{ steps.pins.outputs.engine_version }}" \
+            .
   build-and-push-image:
     needs: [changes]
     if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'build-and-push-image')) && ((github.event_name != 'workflow_dispatch' || inputs.mode == 'release') && needs.changes.outputs.image == 'true') }}
