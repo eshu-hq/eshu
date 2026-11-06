@@ -28,8 +28,10 @@ const GovernanceAuditAdmissionContractVersion = "v0"
 
 // GovernanceAuditDropObserver observes one swallowed audit-append failure:
 // an Append that returned err after the caller already decided the primary
-// operation survives it (every call site best-efforts with `_ =`, per
-// go/cmd/api/seed_initial_admin_audit.go). err is the sink error, unchanged;
+// operation survives it (the query request-path and bootstrap-seed call
+// sites best-effort with `_ =`, per go/cmd/api/seed_initial_admin_audit.go
+// and go/internal/query/auth_audit.go; coordinator egress paths propagate
+// the error instead). err is the sink error, unchanged;
 // eventCount is the number of events that did not persist. The observer must
 // be cheap and non-blocking: it runs on the request path that just failed to
 // persist audit data. A satellite-native runtime wires its dropped-audit
@@ -41,8 +43,9 @@ type GovernanceAuditDropObserver func(ctx context.Context, err error, eventCount
 // frozen single-method set), so wrapping a sink never leaves the versioned
 // contract. On success it forwards the events untouched and stays silent; on
 // failure it reports the drop through OnDrop and returns the sink error
-// unchanged, preserving the failure semantics every call site relies on: an
-// audit-append error never fails the primary operation. A nil OnDrop is a
+// unchanged, preserving each caller's own policy: request-path and seed
+// call sites best-effort past the error while coordinator egress paths
+// propagate it. A nil OnDrop is a
 // safe no-op, and the zero value (nil Inner, e.g. audit store unavailable)
 // is a silent skip returning nil, matching the existing nil-appender
 // convention at every call site.
