@@ -42,6 +42,9 @@ results, and none holds a repository id or URL:
 - One ERROR `workflow coordinator refused derived scopes for component activation`
   line for a mislabeled host. Egress denial uses the existing skip log and audit
   event.
+- One WARN per plan bucket when the rotation period is longer than half the generation
+  retention soft cutoff, `reason=go_rotation_exceeds_half_retention_cutoff`. The root emits
+  it because the store and the cutoff live there.
 - The page read and the fence report on
   `eshu_dp_postgres_query_duration_seconds{store="go_module_repositories"}`.
 - `eshu_dp_workflow_coordinator_activation_derived_scopes_fenced_total` with

@@ -259,7 +259,9 @@ because schedulers stop at the first error. One predicate enforces it:
   fails the pass with no run: a run would stop the bucket at the planned probe and
   delay the retry by a rotation. Keep it before `Plan`, and keep planning a fenced
   repository, because only a claim can land its successor. Its bound comes from the page's
-  slot count and the section's `scan_interval`.
+  slot count and the section's `scan_interval`. `warnGoRotationOutgrowsRetention` compares
+  the same period with half the retention soft cutoff (#10089). It is advisory: a zero
+  `GenerationRetentionSoftCutoff` warns nothing and must not fail the pass.
 - A kind that needs host-derived scopes for its activations gets them from a
   kind-scoped hook, not from a selector: `scheduleActivationDerivedScopes`
   (`component_extension_service.go`) runs inside `scheduleComponentExtensionWork`,

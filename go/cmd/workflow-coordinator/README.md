@@ -73,7 +73,9 @@ flowchart TB
    and handed to
    `NewHostedWithStatusServer`, which mounts the admin surface.
    The Go reachability reader and evidence fencer (`gomodules.Store`) report under
-   the store label `go_module_repositories`.
+   the store label `go_module_repositories`. `generationRetentionSoftCutoff` reads
+   `ESHU_GENERATION_RETENTION_MAX_SUPERSEDED_AGE`, the value the reducer prunes by, only
+   to warn when a Go reachability rotation outgrows it (#10089).
 7. `NotifyContext` installs SIGINT/SIGTERM shutdown; `Service.Run` blocks
    until the context is cancelled.
 
