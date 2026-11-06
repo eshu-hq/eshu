@@ -239,6 +239,93 @@ func TestCloneDropVerificationStaysSilentOnCleanDrop(t *testing.T) {
 	}
 }
 
+// scriptedCloneTB records t.Cleanup registrations and loud reports without
+// running a test, so the LIFO wiring proof can assert registration order and
+// replay it. It embeds testing.TB and overrides only Helper, Cleanup,
+// Errorf, and Fatalf; the rest of the interface is never called.
+type scriptedCloneTB struct {
+	testing.TB
+	cleanups []func()
+	errors   []string
+	fatals   []string
+}
+
+func (f *scriptedCloneTB) Helper() {}
+
+func (f *scriptedCloneTB) Cleanup(fn func()) {
+	f.cleanups = append(f.cleanups, fn)
+}
+
+func (f *scriptedCloneTB) Errorf(format string, args ...any) {
+	f.errors = append(f.errors, fmt.Sprintf(format, args...))
+}
+
+func (f *scriptedCloneTB) Fatalf(format string, args ...any) {
+	f.fatals = append(f.fatals, fmt.Sprintf(format, args...))
+}
+
+// TestCloneTeardownVerifiesAfterDrop pins the LIFO wiring (#10264 P2): the
+// drop verification must be registered before the clone cleanup so LIFO runs
+// it after the drop. Replaying the recorded cleanups in LIFO order must run
+// the drop first and the verification second; swapping the two registrations
+// fails this test.
+func TestCloneTeardownVerifiesAfterDrop(t *testing.T) {
+	t.Parallel()
+	tb := &scriptedCloneTB{}
+	var order []string
+	registerCloneTeardown(tb,
+		func() { order = append(order, "verify") },
+		func() { order = append(order, "drop") })
+	if len(tb.cleanups) != 2 {
+		t.Fatalf("registered cleanups = %d, want 2 (verify plus drop)", len(tb.cleanups))
+	}
+	for i := len(tb.cleanups) - 1; i >= 0; i-- {
+		tb.cleanups[i]()
+	}
+	if len(order) != 2 || order[0] != "drop" || order[1] != "verify" {
+		t.Fatalf("LIFO teardown order = %v, want [drop verify]", order)
+	}
+}
+
+// TestVerifyCloneDroppedReportsLeakedClone is the loud half of the
+// verifyCloneDropped contract: when the scripted probe still sees the clone
+// after the cleanup ran, the verification reports loudly instead of leaking
+// the clone on the shared proof server silently. The probe constructor is
+// stubbed, and sql.Open dials nothing, so no server is touched.
+func TestVerifyCloneDroppedReportsLeakedClone(t *testing.T) {
+	old := newCloneExistenceProber
+	newCloneExistenceProber = func(*sql.DB) cloneExistenceProber {
+		return stubExistenceProber{exists: true}
+	}
+	defer func() { newCloneExistenceProber = old }()
+	tb := &scriptedCloneTB{}
+	verifyCloneDropped(tb, "postgres://eshu:change-me@127.0.0.1:1/postgres?sslmode=disable", "1", "eshu_content_index_proof_leaked")
+	if len(tb.errors) == 0 {
+		t.Fatal("leaked clone reported no error, want a loud drop-failure report")
+	}
+	for _, msg := range tb.errors {
+		if !strings.Contains(msg, "eshu_content_index_proof_leaked") {
+			t.Fatalf("drop-failure report = %q, want it to name the leaked clone", msg)
+		}
+	}
+}
+
+// TestVerifyCloneDroppedStaysSilentOnCleanDrop is the quiet half: when the
+// scripted probe no longer sees the clone, the verification reports nothing,
+// so it never fails a healthy teardown.
+func TestVerifyCloneDroppedStaysSilentOnCleanDrop(t *testing.T) {
+	old := newCloneExistenceProber
+	newCloneExistenceProber = func(*sql.DB) cloneExistenceProber {
+		return stubExistenceProber{exists: false}
+	}
+	defer func() { newCloneExistenceProber = old }()
+	tb := &scriptedCloneTB{}
+	verifyCloneDropped(tb, "postgres://eshu:change-me@127.0.0.1:1/postgres?sslmode=disable", "1", "eshu_content_index_proof_gone")
+	if len(tb.errors) != 0 {
+		t.Fatalf("clean drop reported %v, want silence", tb.errors)
+	}
+}
+
 // TestCloneGivesUpAfterBoundedAttempts pins the F2 retry bound: a template
 // that never goes idle fails loudly instead of stalling the test, so a
 // genuinely parked session still observes 55006 after the bound.

@@ -315,6 +315,13 @@ type sqlCloneExistenceProber struct {
 	db *sql.DB
 }
 
+// newCloneExistenceProber builds the live pg_database prober for a fresh
+// administrative handle. It is a variable so hermetic tests can script the
+// probe without a server; production always uses the live probe.
+var newCloneExistenceProber = func(adminDB *sql.DB) cloneExistenceProber {
+	return sqlCloneExistenceProber{db: adminDB}
+}
+
 func (p sqlCloneExistenceProber) CloneExists(ctx context.Context, clone string) (bool, error) {
 	var exists bool
 	if err := p.db.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM pg_database WHERE datname = $1)`, clone).Scan(&exists); err != nil {
@@ -358,7 +365,16 @@ func verifyCloneDropped(t testing.TB, adminDSN, optIn, clone string) {
 	defer func() { _ = adminDB.Close() }()
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	assertCloneDropped(t, ctx, sqlCloneExistenceProber{db: adminDB}, clone)
+	assertCloneDropped(t, ctx, newCloneExistenceProber(adminDB), clone)
+}
+
+// registerCloneTeardown registers the clone drop verification before the
+// clone cleanup so t.Cleanup LIFO runs the verification after the drop,
+// reporting a leaked clone loudly like DiscardBootstrapTemplates does.
+func registerCloneTeardown(t testing.TB, verify, cleanup func()) {
+	t.Helper()
+	t.Cleanup(verify)
+	t.Cleanup(cleanup)
 }
 
 // cloneBootstrapTemplateDatabase issues one CREATE DATABASE ... TEMPLATE,
@@ -413,11 +429,10 @@ func OpenBootstrapTemplateClone(
 	if err != nil {
 		t.Fatalf("clone bootstrap template database: %v", err)
 	}
-	// t.Cleanup runs LIFO: register the drop verification first so it runs
-	// after the clone cleanup and reports a leaked clone loudly, matching
-	// the DiscardBootstrapTemplates contract.
-	t.Cleanup(func() { verifyCloneDropped(t, adminDSN, optIn, clone) })
-	t.Cleanup(cleanup)
+	// t.Cleanup runs LIFO: registerCloneTeardown registers the drop
+	// verification first so it runs after the clone cleanup and reports a
+	// leaked clone loudly, matching the DiscardBootstrapTemplates contract.
+	registerCloneTeardown(t, func() { verifyCloneDropped(t, adminDSN, optIn, clone) }, cleanup)
 	return ctx, db
 }
 
