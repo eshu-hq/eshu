@@ -79,8 +79,14 @@ TABLE = {
             "TestSupplyChainImpactReadinessCommittedCoverageSurvivesSkippedFetchLive",
             "TestSupplyChainImpactReadinessRolledBackGenerationCannotCertifyZeroLive",
         ),
+        "go/internal/query/readiness_derived_release_scope_live_test.go": (
+            "TestSupplyChainImpactReadinessDerivedReleaseCoverageLive",
+        ),
         "go/internal/query/readiness_derived_skip_live_test.go": (
             "TestSupplyChainImpactReadinessPlannerSkippedPackageReportsSkipLive",
+        ),
+        "go/internal/query/readiness_derived_slice_live_test.go": (
+            "TestSupplyChainImpactReadinessDerivedStateOnlyRulesLive",
         ),
         "go/internal/query/readiness_derived_source_keys_live_test.go": (
             "TestSupplyChainImpactReadinessDerivedRepositoryAcrossBatchScopesLive",

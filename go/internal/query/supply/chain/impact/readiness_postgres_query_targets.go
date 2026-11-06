@@ -218,9 +218,10 @@ target_vulnerability_source_overflow AS (
 
 // readinessDerivedSourceStateCTE builds one aggregate source-state row per
 // (collector instance, source, ecosystem) for derived owned-package OSV
-// scopes (#9227 F7). It never parses scope ids: a request's package keys join
+// scopes (#9227 F7). A request's package keys join
 // vulnerability_source_state_packages by equality on the canonical ecosystem
-// and package name. $21 carries the request package id aligned with the
+// and package name; a scope id is parsed only to label and group a release,
+// never to match a package. $21 carries the request package id aligned with the
 // $17/$18 keys; a repository-only read takes its keys from the active
 // consumption facts instead. $22 is the freshness cutoff, so the counts are
 // aged here; $23..$25 map ecosystem spellings to canonical names, with $25
@@ -234,10 +235,13 @@ target_vulnerability_source_overflow AS (
 // the state-key index: a "C"-collated probe turns the index seek into a
 // sequential scan.
 //
-// Per requested package the newest matching state wins (updated_at, then
-// scope_id); the kept scopes are the distinct winners. Each lateral carries
-// OFFSET 0 so the planner keeps one index-only key seek and one primary-key
-// state probe per package instead of flattening into a states scan.
+// Per requested package and release the newest matching state wins (updated_at,
+// then scope_id), and a planned release with no state reads pending; see
+// readinessDerivedReleaseMatchCTE. The kept scopes are the distinct winners. A
+// scope that a pending row and a real state both name keeps the real state.
+// Each lateral carries OFFSET 0 so the planner keeps one index-only key seek
+// and one primary-key state probe per package instead of flattening into a
+// states scan.
 const readinessDerivedSourceStateCTE = `readiness_ecosystem_aliases AS (
     SELECT alias.spelling, alias.canonical, alias.derivation::boolean AS derivation
     FROM UNNEST($23::text[], $24::text[], $25::text[]) AS alias(spelling, canonical, derivation)
@@ -318,46 +322,16 @@ planner_skipped_packages AS (
       AND NULLIF(TRIM(skip.package->>'package_name'), '') IS NOT NULL
       AND NULLIF(TRIM(skipped.target->>'reason'), '') IS NOT NULL
 ),
-derived_vulnerability_source_matched AS (
-    SELECT DISTINCT ON (hit.collector_instance_id, hit.source, request.ecosystem, request.package_id)
-        request.ecosystem, request.package_id, hit.*
-    FROM derived_request_packages AS request
-    CROSS JOIN LATERAL (
-        SELECT state.collector_instance_id, state.scope_id, state.source, state.updated_at,
-            state.freshness_state, state.terminal_status, state.last_error_class, state.last_success_at,
-            state.last_attempt_at, state.next_retry_at, state.result_count, state.warning_count
-        FROM (
-            SELECT package.collector_instance_id, package.scope_id
-            FROM vulnerability_source_state_packages AS package
-            WHERE package.ecosystem = request.ecosystem
-              AND package.package_name = ANY(request.package_names)
-            OFFSET 0
-        ) AS package
-        CROSS JOIN LATERAL (
-            SELECT state.* FROM vulnerability_source_states AS state
-            WHERE state.collector_instance_id = package.collector_instance_id
-              AND state.scope_id = package.scope_id
-            OFFSET 0
-        ) AS state
-        OFFSET 0
-    ) AS hit
-    JOIN derived_vulnerability_source_config AS config
-      ON config.collector_instance_id = hit.collector_instance_id
-     AND config.source = hit.source
-     AND config.ecosystem = request.ecosystem
-    ORDER BY hit.collector_instance_id, hit.source, request.ecosystem, request.package_id,
-        hit.updated_at DESC, hit.scope_id
-),
-derived_vulnerability_source_kept AS (
+` + readinessDerivedReleaseMatchCTE + `derived_vulnerability_source_kept AS (
     SELECT kept.*, CASE kept.aged_freshness WHEN 'rate_limited' THEN 0 WHEN 'failed' THEN 1
         WHEN 'partial' THEN 2 WHEN 'pending' THEN 3 WHEN 'stale' THEN 4 WHEN 'fresh' THEN 5 ELSE 3 END AS severity
     FROM (
-        SELECT DISTINCT ON (collector_instance_id, source, ecosystem, scope_id) *,
+        SELECT DISTINCT ON (collector_instance_id COLLATE "C", source COLLATE "C", ecosystem COLLATE "C", scope_id COLLATE "C") *,
             CASE WHEN freshness_state = 'fresh'
                 AND (last_success_at IS NULL OR last_success_at <= $22::timestamptz)
                 THEN 'stale' ELSE freshness_state END AS aged_freshness
         FROM derived_vulnerability_source_matched
-        ORDER BY collector_instance_id, source, ecosystem, scope_id
+        ORDER BY collector_instance_id COLLATE "C", source COLLATE "C", ecosystem COLLATE "C", scope_id COLLATE "C", updated_at DESC NULLS LAST
     ) AS kept
 ),
 derived_vulnerability_source_totals AS (
@@ -376,7 +350,7 @@ derived_vulnerability_source_totals AS (
         ), '[]'::jsonb) AS skip_reasons
     FROM derived_vulnerability_source_config AS config
     JOIN derived_request_packages AS request ON request.ecosystem = config.ecosystem
-    LEFT JOIN derived_vulnerability_source_matched AS matched
+    LEFT JOIN (SELECT DISTINCT collector_instance_id, source, ecosystem, package_id FROM derived_vulnerability_source_matched) AS matched
       ON matched.collector_instance_id = config.collector_instance_id
      AND matched.source = config.source
      AND matched.ecosystem = config.ecosystem
@@ -393,9 +367,9 @@ derived_vulnerability_source_aggregates AS (
         totals.skipped_packages,
         totals.matched_packages,
         COUNT(kept.scope_id) AS scope_count,
-        (ARRAY_AGG(kept.aged_freshness ORDER BY kept.severity, kept.last_success_at NULLS FIRST, kept.scope_id))[1] AS worst_freshness,
-        (ARRAY_AGG(kept.terminal_status ORDER BY kept.severity, kept.last_success_at NULLS FIRST, kept.scope_id))[1] AS worst_terminal,
-        (ARRAY_AGG(kept.last_error_class ORDER BY kept.severity, kept.last_success_at NULLS FIRST, kept.scope_id))[1] AS worst_error,
+        (ARRAY_AGG(kept.aged_freshness ORDER BY kept.severity, kept.last_success_at NULLS FIRST, kept.scope_id COLLATE "C"))[1] AS worst_freshness,
+        (ARRAY_AGG(kept.terminal_status ORDER BY kept.severity, kept.last_success_at NULLS FIRST, kept.scope_id COLLATE "C"))[1] AS worst_terminal,
+        (ARRAY_AGG(kept.last_error_class ORDER BY kept.severity, kept.last_success_at NULLS FIRST, kept.scope_id COLLATE "C"))[1] AS worst_error,
         MIN(kept.severity) AS worst_severity,
         MIN(kept.last_success_at) AS last_success_at,
         MAX(kept.last_attempt_at) AS last_attempt_at,
@@ -416,7 +390,7 @@ derived_vulnerability_source_aggregates AS (
             'skipped_package_count', totals.skipped_packages,
             'skip_reasons', COALESCE(totals.skip_reasons, '[]'::jsonb),
             'scope_ids', COALESCE(TO_JSONB((ARRAY_AGG(kept.scope_id ORDER BY kept.severity,
-                kept.last_success_at NULLS FIRST, kept.scope_id) FILTER (WHERE kept.scope_id IS NOT NULL))[1:10]),
+                kept.last_success_at NULLS FIRST, kept.scope_id COLLATE "C") FILTER (WHERE kept.scope_id IS NOT NULL))[1:10]),
                 '[]'::jsonb)) AS derived_detail
     FROM derived_vulnerability_source_totals AS totals
     LEFT JOIN derived_vulnerability_source_kept AS kept
@@ -430,9 +404,12 @@ derived_vulnerability_source_aggregates AS (
 -- pending: the aggregate is never healthier than its least-covered package.
 -- When every unmatched package carries planner skip evidence, the aggregate
 -- reads as skipped instead: the system already knows it will never plan
--- those packages, so pending would promise collection that never comes. A
--- partially skipped aggregate stays pending while collection is still in
--- flight for the rest, with the skipped subset recorded in derived_detail.
+-- those packages, so pending would promise collection that never comes. That
+-- holds only while every matched scope is fresh: skip evidence for one package
+-- must not hide another package's failed, stale, or pending release, so the
+-- worst matched state then stands. A partially skipped aggregate stays pending
+-- while collection is still in flight for the rest, with the skipped subset
+-- recorded in derived_detail.
 derived_vulnerability_source_state_candidates AS (
     SELECT collector_instance_id,
         'derived://' || source || '/' || derivation_ecosystem AS scope_id,
@@ -440,11 +417,11 @@ derived_vulnerability_source_state_candidates AS (
         NULL::timestamptz AS window_start, NULL::timestamptz AS window_end,
         last_attempt_at, last_success_at, next_retry_at,
         CASE WHEN unmatched_packages > 0 AND COALESCE(worst_severity, 3) >= 3 THEN NULL ELSE worst_error END AS last_error_class,
-        CASE WHEN unmatched_packages > 0 AND skipped_packages = unmatched_packages THEN 'skipped'
-            WHEN unmatched_packages > 0 AND COALESCE(worst_severity, 3) >= 3 THEN 'pending'
+        CASE WHEN unmatched_packages > 0 AND skipped_packages = unmatched_packages AND COALESCE(worst_severity, 5) = 5 THEN 'skipped'
+            WHEN unmatched_packages > skipped_packages AND COALESCE(worst_severity, 3) >= 3 THEN 'pending'
             ELSE worst_freshness END AS freshness_state,
-        CASE WHEN unmatched_packages > 0 AND skipped_packages = unmatched_packages THEN 'skipped'
-            WHEN unmatched_packages > 0 AND COALESCE(worst_severity, 3) >= 3 THEN 'pending'
+        CASE WHEN unmatched_packages > 0 AND skipped_packages = unmatched_packages AND COALESCE(worst_severity, 5) = 5 THEN 'skipped'
+            WHEN unmatched_packages > skipped_packages AND COALESCE(worst_severity, 3) >= 3 THEN 'pending'
             ELSE worst_terminal END AS terminal_status,
         result_count, warning_count, updated_at,
         FALSE AS coverage_eligible, FALSE AS coverage_zero, FALSE AS coverage_missing,

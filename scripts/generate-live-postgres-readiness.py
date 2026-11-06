@@ -9,7 +9,7 @@ fails on any difference. See live_postgres_readiness_gen_scan.py for the
 marker contract.
 
 Generated outputs (LC_ALL=C byte order, idempotent):
-    specs/live-tests.d/live-tests-readiness*.generated.yaml (five fixed shards)
+    specs/live-tests.d/live-tests-readiness*.generated.yaml (six fixed shards)
     specs/live-tests.v1.yaml (fragment entries only; prose stays hand-owned)
     scripts/lib/live_postgres_readiness_inventory_gen_<slug>.py (per package)
     scripts/lib/live_postgres_readiness_inventory_generated.py (PACKAGES)
