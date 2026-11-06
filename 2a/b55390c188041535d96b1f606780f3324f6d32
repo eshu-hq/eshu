@@ -1,0 +1,40 @@
+CHANGELOG.md
+  h_78a442cba0b3e6 12-25
+docs/internal/evidence/10060-stranded-continuation.md
+  h_78a442cba0b3e6 1-123
+go/internal/reducer/README.md
+  h_78a442cba0b3e6 352-356
+go/internal/reducer/generation_check_fanout_debt_test.go
+  h_78a442cba0b3e6 1-160
+go/internal/reducer/runtime.go
+  h_78a442cba0b3e6 14,347-352,358
+go/internal/reducer/supplychain/core/HOLDER_FANOUT.md
+  h_78a442cba0b3e6 53-61
+go/internal/reducer/supplychain/core/README.md
+  h_78a442cba0b3e6 376
+go/internal/reducer/supplychain/core/manifest_trigger.go
+  h_78a442cba0b3e6 36-54
+go/internal/storage/postgres/README.md
+  h_78a442cba0b3e6 178-183
+go/internal/storage/postgres/reducer_generation_filter_sql.go
+  h_78a442cba0b3e6 6-10,132-136,157-168,194-213
+go/internal/storage/postgres/reducer_queue_supersede_fanout_debt_test.go
+  h_78a442cba0b3e6 1-119
+go/internal/storage/postgres/supply_chain_impact_fanout_stranded_continuation_live_test.go
+  h_78a442cba0b3e6 1-444
+scripts/lib/reducer_contention_inventory.json
+  h_78a442cba0b3e6 218-221
+specs/live-tests.d/live-tests-07.yaml
+  h_78a442cba0b3e6 348-352
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2ab55390c188041535d96b1f606780f3324f6d32",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
