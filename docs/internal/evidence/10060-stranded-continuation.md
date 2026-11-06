@@ -2,7 +2,7 @@
 
 ## Diagnosis (established before any behavior change)
 
-Root-Cause Evidence: on the clean base (`152a014e26`), the live regression over
+Root-Cause Evidence: the recorded live regression (`TestFanOutRaceStrandedContinuationDrainsAfterNewerGenerationActivatesLive`, exit 1 pre-fix) over
 the real queue committed a source retraction, recorded the capped
 continuation through the production `UpdateFanOutState` seam, activated a
 newer source generation, and drained through the production
