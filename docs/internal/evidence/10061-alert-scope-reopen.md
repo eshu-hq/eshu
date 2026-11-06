@@ -10,6 +10,16 @@ evidence.**
 Design: issue #10061 (part of #9209, follow-up to #9874). All volumes below
 are synthetic; no QA data was read.
 
+Performance Evidence: the new alert-arm statement, measured below on
+PostgreSQL 18.6 against synthetic 1x/5x/10x alert volumes (5,000 / 25,000 /
+50,000 active rows, each with a superseded copy), runs at a median 0.54 /
+2.35 / 5.47 ms against the 50 ms bound stated before the probe, with the
+`fact_records` side on `fact_records_security_alert_repository_lookup_idx`
+at every scale. The baseline is the pre-change marker pass, which ran only
+the affected-package arm of the same read; the alert arm adds one statement
+of the same join shape inside the same bounded transaction, so the marker
+pass's cost class is unchanged.
+
 ## What changed
 
 | Layer | Change |
