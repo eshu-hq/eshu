@@ -102,6 +102,7 @@ LABEL eshu.satellite="transcription" eshu.satellite.engine="whisper.cpp" eshu.sa
 # index served r12, which the digest gate caught). Every ldd-resolved
 # package must be a named floor.
 RUN apk add --no-cache "libstdc++>=14.2.0-r4" "libgcc>=14.2.0-r4" "musl>=1.2.5-r12" \
+        "libssl3>=3.3.7-r2" "libcrypto3>=3.3.7-r2" "zlib>=1.3.2-r1" \
     && mkdir -p /opt/whisper/bin /opt/whisper/models /data
 COPY --from=whisper /out/whisper-cli /opt/whisper/bin/whisper-cli
 COPY --from=model /out/ggml-base.en.bin /opt/whisper/models/ggml-base.en.bin
