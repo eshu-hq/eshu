@@ -3,10 +3,14 @@
 
 Each case builds a small fixture repository, so the gate is proven against
 planted violations and a clean tree, then once against the committed tree.
+The shapes the round-3 review planted (continuation lines, inline env,
+composite actions, exported env, deep chains, variable service names) are in
+test-verify-nornicdb-ci-off-shapes.py, which this file loads.
 """
 
 from __future__ import annotations
 
+import importlib.util
 import os
 import shutil
 import subprocess
@@ -342,6 +346,21 @@ class RealTreeMutantTest(unittest.TestCase):
         root = self.mutant("verify-replay-tier.yml", "name: Replay Tier (offline NornicDB)",
                            "name: Replay Tier (offline NornicDB)")
         self.assertEqual(self.run_gate(root).returncode, 0, self.run_gate(root).stderr)
+
+
+def load_tests(loader: unittest.TestLoader, tests: unittest.TestSuite,
+               pattern: str | None) -> unittest.TestSuite:
+    """Also run the shape cases in test-verify-nornicdb-ci-off-shapes.py.
+
+    The registry row and the workflow step name one test command; this hook keeps
+    both running the shape cases without a second command.
+    """
+    path = ROOT / "scripts/test-verify-nornicdb-ci-off-shapes.py"
+    spec = importlib.util.spec_from_file_location("nornicdb_ci_off_shapes", path)
+    module = importlib.util.module_from_spec(spec)  # type: ignore[arg-type]
+    spec.loader.exec_module(module)  # type: ignore[union-attr]
+    tests.addTests(loader.loadTestsFromModule(module))
+    return tests
 
 
 if __name__ == "__main__":

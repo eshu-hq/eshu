@@ -147,16 +147,32 @@ its original condition kept in a comment. The read-API latency cell was turned
 off the same way on 2026-11-03. A guard keeps the legs off:
 `scripts/verify-nornicdb-ci-off.py` (registry gate `nornicdb-ci-off`). It fails
 when a job that can run (its `if` is not `${{ false }}`) starts NornicDB, found
-four ways: a workflow line that selects `nornicdb` (a matrix value under any key,
-`ESHU_GRAPH_BACKEND`, `--backend nornicdb`), brings up the `nornicdb` compose
-service, or `docker run`s a NornicDB image; the same starts in a `scripts/*.sh`
-or `*.py` file the job runs, or in a script that file runs one level deeper (a
-shell statement counts only when it is the command, and a Python file is parsed
-for spawn calls, so a fixture or regex that quotes a command is skipped); or a
-`--shard "${{ matrix.X }}/N"` run whose matrix value
-`live_backend_shards.partition_runs` gives NornicDB runs. A variable image name
-or a script reached by a variable path is not resolved.
-It also fails a disabled job whose registry row is still blocking. Restoring the
+four ways, each read from the committed files with no list of exceptions:
+
+1. A workflow line selects `nornicdb` (a matrix value under any key,
+   `ESHU_GRAPH_BACKEND`, `--backend nornicdb`), assigns
+   `ESHU_GRAPH_BACKEND=nornicdb` inside a command, brings up the `nornicdb`
+   compose service, or `docker run`s a NornicDB image. Lines are read after `\`
+   continuations are joined, and a shell variable set to a literal earlier in the
+   same step is substituted (`svc=nornicdb` then `up -d "$svc"`).
+2. A `scripts/*.sh` or `*.py` file the job runs, or any script that file runs in
+   turn, does the same, or exports `ESHU_GRAPH_BACKEND=nornicdb`. The walk has no
+   depth cap and a script cycle ends it. A shell statement counts only when it is
+   the command, and a Python file is parsed for spawn calls, so a fixture or
+   regex that quotes a command is skipped.
+3. A local composite action the job calls (`uses: ./.github/actions/<name>`),
+   or an action that one calls, does either of the above in its `action.yml` or in
+   a script it runs.
+4. A `--shard "${{ matrix.X }}/N"` run whose matrix value
+   `live_backend_shards.partition_runs` gives NornicDB runs.
+
+Each message names the workflow, the job, and the file and line. Not resolved: a
+backend or service name computed at run time (`$(...)`, a function argument, a
+`${X:-nornicdb}` default), an environment assignment inside a Python script, a
+reusable workflow's jobs as part of its caller (the callee file is scanned on its
+own), and remote actions or images.
+
+The guard also fails a disabled job whose registry row is still blocking. Restoring the
 replay tier's `if`, or putting shard 1 back in the live-backend matrix, fails it
 whatever the exact-text pins around those lines say.
 
