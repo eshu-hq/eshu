@@ -174,6 +174,11 @@ tests:
     class: postgres_ci
     reason: "#9227 disposable PostgreSQL API proof that only a committed, current, complete NVD snapshot certifies zero findings"
     runner: live-postgres-readiness
+  - file: go/internal/query/readiness_derived_release_fleet_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10135 disposable PostgreSQL API proof that a release absent from the installed fleet stops counting with its name in retired_releases, while a release present in the fleet but outside the plan window still counts in every window"
+    runner: live-postgres-readiness
   - file: go/internal/query/readiness_derived_release_scope_live_test.go
     tag: ~
     class: postgres_ci

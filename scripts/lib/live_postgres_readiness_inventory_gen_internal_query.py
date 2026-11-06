@@ -79,6 +79,9 @@ TABLE = {
             "TestSupplyChainImpactReadinessCommittedCoverageSurvivesSkippedFetchLive",
             "TestSupplyChainImpactReadinessRolledBackGenerationCannotCertifyZeroLive",
         ),
+        "go/internal/query/readiness_derived_release_fleet_live_test.go": (
+            "TestSupplyChainImpactReadinessDerivedReleaseFleetLive",
+        ),
         "go/internal/query/readiness_derived_release_scope_live_test.go": (
             "TestSupplyChainImpactReadinessDerivedReleaseCoverageLive",
         ),

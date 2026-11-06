@@ -212,13 +212,17 @@ import (
 // delta-base read; one CREATE INDEX CONCURRENTLY). Main's #9975 took 279 on
 // rebase, so this lane takes 280, the next free slot; the autovacuum file
 // still applies first.
-const goldenBootstrapDefinitionsDigest = "20887c289fd5ab0ea334273b1c8a704636e11dc89a26b9029fb9b07fa66f4045"
+// #10135 adds 281_fact_records_os_package_fleet_release_idx.sql and
+// 282_fact_records_os_package_fleet_release_source_idx.sql (the two partial
+// expression indexes serving the readiness fleet probe's binary-name and
+// source_package arms; one CREATE INDEX CONCURRENTLY each).
+const goldenBootstrapDefinitionsDigest = "faedac99797d2d6994d5c59368e552c04b0d9343e219aa95dce1d67eb4af3b66"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or
 // silently dropping files) fails loudly even in the unlikely case of a hash
 // collision.
-const goldenBootstrapDefinitionsCount = 306
+const goldenBootstrapDefinitionsCount = 308
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
 	defs := BootstrapDefinitions()

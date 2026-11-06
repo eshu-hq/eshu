@@ -64,7 +64,14 @@ type SourceState struct {
 	// SkipReasons lists the distinct planner skip reasons behind the skipped
 	// packages, such as derived_target_non_exact_version. It carries reasons
 	// only, never package names.
-	SkipReasons      []string `json:"skip_reasons,omitempty"`
+	SkipReasons []string `json:"skip_reasons,omitempty"`
+	// RetiredReleases names the derived releases the fleet probe retired for
+	// this aggregate, as source:distro:release (osv:alpine:v3.17): a release
+	// no active installed package still carries stops counting even when its
+	// last state is not fresh. A retired release never appears in
+	// incomplete_reasons; this field is the operator-visible record that it
+	// stopped counting (#10135).
+	RetiredReleases  []string `json:"retired_releases,omitempty"`
 	coverageEligible bool
 	coverageZero     bool
 }

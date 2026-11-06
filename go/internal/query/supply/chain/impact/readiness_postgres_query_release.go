@@ -3,6 +3,30 @@
 
 package impact
 
+// osPackageFleetReleaseLineExpression is the SQL mirror of the coordinator's
+// Alpine release rule (installedAlpineOSVRelease, eshu-hq/eshu#9993): it reads
+// OSV's Alpine release line ("v3.18") from an installed row's distro_version
+// ("3.18.4") by dropping the patch level, and reports NULL for a version with
+// fewer than two numeric dot fields or a non-numeric major or minor. A NULL
+// line never equals a release, so an unreadable row neither proves nor blocks
+// fleet presence for one. Payload names the jsonb payload column, with or
+// without a table alias. TRIM strips spaces only where Go's TrimSpace strips
+// every unicode space; a distro_version with exotic padding around a readable
+// major.minor is the one shape the mirror misreads, and /etc/os-release never
+// writes it. Migrations 281 and 282 build expression indexes on exactly this
+// text (TestReadinessFleetReleaseLineExpressionMatchesMigration pins the
+// three together): an index on any other spelling would not serve the probe.
+func osPackageFleetReleaseLineExpression(payloadColumn string) string {
+	version := "SPLIT_PART(TRIM(" + payloadColumn + "->>'distro_version'), ' ', 1)"
+	major := "SPLIT_PART(" + version + ", '.', 1)"
+	minor := "SPLIT_PART(" + version + ", '.', 2)"
+	return "(CASE WHEN " + version + " LIKE '%.%'" +
+		" AND " + major + " ~ '^[0-9]+$'" +
+		" AND " + minor + " ~ '^[0-9]+$'" +
+		" THEN 'v' || " + major + " || '.' || " + minor +
+		" ELSE NULL END)"
+}
+
 // readinessDerivedReleaseMatchCTE selects the derived source states that decide
 // coverage for each requested package. One package can have several derived
 // scopes that are all current: an Alpine package gets one scope per release
@@ -34,8 +58,15 @@ package impact
 // a release exists for the same instance, package and distro, or it would read
 // stale for good. A pending row does not trigger it, and neither does a scope
 // whose first release value is empty: that row has a release parameter, so it
-// stands and fails toward not covered. A release that left the fleet keeps
-// counting until its state is fresh again; that limit is tracked in #10135.
+// stands and fails toward not covered.
+//
+// A non-fresh release that left the fleet retires the same way, decided from
+// the fleet and never from the plan (#10135): the batched EXISTS probe in
+// readinessDerivedReleaseFleetProbeCTE checks each resolved Alpine (package,
+// release) triple against the active os_package facts, and a triple neither
+// name arm carries reads fresh. The retired release is named in the
+// aggregate's retired_releases detail but never in incomplete_reasons, so it
+// stops holding the package not covered without looking covered.
 //
 // A planned target's scope id is as wide as its batch (about 1.7 KB for 66
 // packages), so the plan side carries the target's ordinal and looks the id up
@@ -170,3 +201,55 @@ derived_vulnerability_source_matched AS (
       ON scope.collector_instance_id = matched.collector_instance_id AND scope.ord = matched.planned_ord
 ),
 `
+
+// readinessDerivedReleaseFleetProbeCTE batches the fleet check candidate (a)
+// proved in #10135: one EXISTS per distinct release triple a request resolved,
+// over the active os_package facts both the planner and the probe read. The
+// probe input is the smallest set whose answer can change a verdict: real
+// (not planned-only) Alpine release states that are not fresh, or fresh but
+// already past the freshness cutoff so the verdict would age them. Fresh rows
+// inside the cutoff never consult the fleet, and neither do pending rows, so
+// a release the fleet still carries keeps counting in every plan window.
+//
+// The predicate inverts the coordinator's release minting exactly: the reader
+// ecosystem the planner filters on, the installed name or source name it
+// reads, and the Alpine major.minor line it derives from distro_version. Both
+// name arms must miss for absence to hold: a row built from another package's
+// source still means the release is installed. Migrations 281 and 282 serve
+// the two arms; the probe binds no new placeholder.
+func readinessDerivedReleaseFleetProbeCTE() string {
+	return `derived_vulnerability_release_fleet_probe AS MATERIALIZED (
+    SELECT DISTINCT need.package_id, need.distro, need.release, request.package_names
+    FROM (
+        SELECT DISTINCT chosen.package_id, chosen.distro, chosen.release
+        FROM derived_vulnerability_source_chosen AS chosen
+        WHERE chosen.release IS NOT NULL
+          AND chosen.distro = 'alpine'
+          AND chosen.planned_ord IS NULL
+          AND (chosen.freshness_state <> 'fresh'
+              OR (chosen.last_success_at IS NULL OR chosen.last_success_at <= $22::timestamptz))
+    ) AS need
+    JOIN derived_request_packages AS request ON request.package_id = need.package_id
+),
+derived_vulnerability_release_fleet_presence AS MATERIALIZED (
+    SELECT probe.package_id, probe.distro, probe.release,
+        EXISTS (
+            SELECT 1 FROM fact_records AS fact
+            JOIN ingestion_scopes AS scope
+              ON scope.scope_id = fact.scope_id
+             AND scope.active_generation_id = fact.generation_id
+            JOIN scope_generations AS generation
+              ON generation.scope_id = fact.scope_id
+             AND generation.generation_id = fact.generation_id
+            WHERE fact.fact_kind = 'vulnerability.os_package'
+              AND fact.is_tombstone = FALSE
+              AND generation.status = 'active'
+              AND LOWER((COALESCE(NULLIF(fact.payload->>'vendor_advisory_source', ''), fact.payload->>'distro')) COLLATE "C") COLLATE "default" = probe.distro
+              AND ` + osPackageFleetReleaseLineExpression("fact.payload") + ` = probe.release
+              AND (fact.payload->>'name' = ANY(probe.package_names)
+               OR fact.payload->>'source_package' = ANY(probe.package_names))
+        ) AS fleet_present
+    FROM derived_vulnerability_release_fleet_probe AS probe
+),
+`
+}

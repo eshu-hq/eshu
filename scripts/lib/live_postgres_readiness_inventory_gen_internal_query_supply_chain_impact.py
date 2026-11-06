@@ -44,6 +44,7 @@ TABLE = {
         ),
         "go/internal/query/supply/chain/impact/readiness_release_scope_explain_live_test.go": (
             "TestSupplyChainImpactReadinessReleaseScopeQueryPlanLive",
+            "TestSupplyChainImpactReadinessFleetProbePlanLive",
         ),
         "go/internal/query/supply/chain/impact/readiness_scan_tier_explain_live_test.go": (
             "TestSupplyChainImpactReadinessScanTierQueryPlanLive",

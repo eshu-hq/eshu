@@ -93,6 +93,11 @@ func testSupplyChainImpactReadinessDerivedEveryReleaseMustBeFreshLive(t *testing
 			seedDerivedInstance(t, ctx, db, now, "derived-alpine", "alpine")
 			seedCurlState(t, ctx, db, now.Add(-time.Hour), curlV317Scope, tc.worse)
 			seedCurlState(t, ctx, db, now, curlV318Scope, "fresh")
+			// Both releases stay installed: the fleet probe retires a
+			// non-fresh release with no active facts, so the failed and
+			// stale shapes need their facts to keep counting (#10135).
+			seedFleetImage(t, ctx, db, now, "img-317", "3.17.3", "curl")
+			seedFleetImage(t, ctx, db, now, "img-318", "3.18.4", "curl")
 			if tc.planned {
 				seedPlannerRun(t, ctx, db, now, "derived-alpine", []map[string]any{
 					plannedAlpineTarget(curlV317Scope, "curl"), plannedAlpineTarget(curlV318Scope, "curl"),
@@ -349,6 +354,9 @@ func testSupplyChainImpactReadinessDerivedSkipDoesNotHideUncoveredReleaseLive(t 
 			ctx, db, now := readinessScopeLiveDatabase(t)
 			seedDerivedInstance(t, ctx, db, now, "derived-alpine", "alpine")
 			tc.seed(t, ctx, db, now)
+			// The non-fresh release under test stays installed (#10135).
+			seedFleetImage(t, ctx, db, now, "img-317", "3.17.3", "curl")
+			seedFleetImage(t, ctx, db, now, "img-318", "3.18.4", "curl")
 			seedPlannerRun(t, ctx, db, now, "derived-alpine",
 				[]map[string]any{plannedAlpineTarget(curlV317Scope, "curl"), plannedAlpineTarget(curlV318Scope, "curl")},
 				[]map[string]any{plannerSkippedTarget("derived_target_missing_release", "os", "zlib")})

@@ -333,6 +333,7 @@ const impactFindings = `
                               "warning_count": {"type": "integer"},
                               "skipped_package_count": {"type": "integer", "description": "Requested packages no derived scope covered that carry planner skip evidence; set only on derived aggregate rows."},
                               "skip_reasons": {"type": "array", "items": {"type": "string"}, "description": "Distinct planner skip reasons behind the skipped packages, such as derived_target_non_exact_version. Reasons only, never package names."},
+                              "retired_releases": {"type": "array", "items": {"type": "string"}, "description": "Derived releases the fleet probe retired for this aggregate, as source:distro:release (for example osv:alpine:v3.17): a release no active installed package still carries stops counting even when its last state is not fresh. A retired release never appears in incomplete_reasons."},
                               "multi_cve_target": {"type": "boolean"},
                               "updated_at": {"type": "string"}
                             },

@@ -114,12 +114,14 @@ func releaseScopeRequest(t *testing.T, ecosystem, packageIDPrefix, namePrefix st
 
 // explainPlanNode is the part of an EXPLAIN (FORMAT JSON) node the proof reads.
 type explainPlanNode struct {
-	NodeType     string            `json:"Node Type"`
-	RelationName string            `json:"Relation Name"`
-	SubplanName  string            `json:"Subplan Name"`
-	ActualLoops  float64           `json:"Actual Loops"`
-	ActualRows   float64           `json:"Actual Rows"`
-	Plans        []explainPlanNode `json:"Plans"`
+	NodeType        string            `json:"Node Type"`
+	RelationName    string            `json:"Relation Name"`
+	IndexName       string            `json:"Index Name"`
+	SubplanName     string            `json:"Subplan Name"`
+	ActualLoops     float64           `json:"Actual Loops"`
+	ActualRows      float64           `json:"Actual Rows"`
+	SharedHitBlocks float64           `json:"Shared Hit Blocks"`
+	Plans           []explainPlanNode `json:"Plans"`
 }
 
 // walk visits the node and every node below it.
@@ -200,6 +202,122 @@ func TestSupplyChainImpactReadinessReleaseScopeQueryPlanLive(t *testing.T) {
 				if node.ActualRows != wantRows {
 					t.Fatalf("%s produced %v rows, want %v", name, node.ActualRows, wantRows)
 				}
+			}
+			if execution > 500 {
+				t.Fatalf("execution time = %.3fms, want <=500ms (local-performance-envelope budget)", execution)
+			}
+		})
+	}
+}
+
+// seedFleetProbeFacts writes one active scope generation per image holding the
+// named packages at distroVersion: the installed rows the fleet probe reads.
+// The probe joins the same active-generation shape the planner's reader uses,
+// so the helper activates what it writes.
+func seedFleetProbeFacts(t *testing.T, ctx context.Context, db *sql.DB, now time.Time, image, distroVersion string, count int) {
+	t.Helper()
+	scopeID, generationID := "scan-target:fleet:"+image, "generation:fleet:"+image
+	if _, err := db.ExecContext(ctx, `INSERT INTO ingestion_scopes (scope_id, scope_kind, source_system, source_key, collector_kind,
+  partition_key, observed_at, ingested_at, status, payload) VALUES ($1, 'container_image', 'synthetic', $1, 'synthetic', $1, $2, $2, 'active', '{}'::jsonb)`, scopeID, now); err != nil {
+		t.Fatalf("seed fleet scope %s: %v", image, err)
+	}
+	if _, err := db.ExecContext(ctx, `INSERT INTO scope_generations (generation_id, scope_id, trigger_kind, observed_at, ingested_at, status, activated_at, payload)
+VALUES ($1, $2, 'synthetic', $3, $3, 'active', $3, '{}'::jsonb)`, generationID, scopeID, now); err != nil {
+		t.Fatalf("seed fleet generation %s: %v", image, err)
+	}
+	if _, err := db.ExecContext(ctx, `UPDATE ingestion_scopes SET active_generation_id = $1 WHERE scope_id = $2`, generationID, scopeID); err != nil {
+		t.Fatalf("activate fleet %s: %v", image, err)
+	}
+	if _, err := db.ExecContext(ctx, `
+INSERT INTO fact_records (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, source_system, source_fact_key,
+  observed_at, ingested_at, is_tombstone, payload, fencing_token)
+SELECT 'os-package:fleet:' || $1 || ':' || i, $1, $2, 'vulnerability.os_package', $1 || ':' || i, 'synthetic', $1 || ':' || i,
+  $3::timestamptz, $3::timestamptz, FALSE,
+  jsonb_build_object('distro','alpine','distro_version',$4::text,'package_manager','apk','name','alp-' || i,
+    'arch','x86_64','repository_class','vendor','vendor_advisory_source','alpine','installed_version_raw','1.0.0-r0',
+    'purl','pkg:apk/alpine/alp-' || i || '@1.0.0-r0'), 0
+FROM GENERATE_SERIES(0, $5 - 1) AS i`, scopeID, generationID, now, distroVersion, count); err != nil {
+		t.Fatalf("seed fleet packages %s: %v", image, err)
+	}
+}
+
+// TestSupplyChainImpactReadinessFleetProbePlanLive proves the #10135 probe
+// fires through the fleet indexes on an OS request: every resolved non-fresh
+// release triple seeks the binary-name or source arm instead of scanning the
+// installed packages, whether the release is still installed or left the
+// fleet, inside the same local-performance envelope as the release plan proof.
+func TestSupplyChainImpactReadinessFleetProbePlanLive(t *testing.T) {
+	dsn := strings.TrimSpace(os.Getenv("ESHU_POSTGRES_DSN"))
+	if dsn == "" {
+		t.Skip("set ESHU_POSTGRES_DSN to run the #10135 fleet probe plan proof")
+	}
+	for _, tc := range []struct {
+		name         string
+		olderInFleet bool
+	}{
+		{"both releases installed", true},
+		{"older release left the fleet", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			database := postgresproof.OpenIsolatedSchema(t, dsn, "impact_fleet_probe", func(ctx context.Context, db *sql.DB) error {
+				return storagepostgres.ApplyBootstrap(ctx, storagepostgres.SQLDB{DB: db})
+			})
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+			defer cancel()
+			const packages = 100
+			seedReleaseScopeExplainCorpus(t, ctx, database, time.Now().UTC().Truncate(time.Second), releaseScopeCorpus{
+				alpinePackages: packages, npmPackages: 0, historicalRuns: 0,
+			})
+			if _, err := database.ExecContext(ctx, `UPDATE vulnerability_source_states SET freshness_state = 'failed',
+        terminal_status = 'failed_retryable' WHERE scope_id LIKE '%release=v3.17%'`); err != nil {
+				t.Fatalf("fail the older release states: %v", err)
+			}
+			if tc.olderInFleet {
+				seedFleetProbeFacts(t, ctx, database, time.Now().UTC().Truncate(time.Second), "img-317", "3.17.3", packages)
+			}
+			seedFleetProbeFacts(t, ctx, database, time.Now().UTC().Truncate(time.Second), "img-318", "3.18.4", packages)
+			if _, err := database.ExecContext(ctx, `ANALYZE`); err != nil {
+				t.Fatalf("analyze fleet probe corpus: %v", err)
+			}
+
+			plan, execution := explainReleaseScopeStatement(t, ctx, database, ListReadinessQuery,
+				releaseScopeRequest(t, "os", "os://os/", "alp", packages))
+			t.Logf("fleet probe readiness plan: execution_ms=%.3f shared_hit_blocks=%.0f", execution, plan.SharedHitBlocks)
+			// The probe's own CTE subplans must seek the fleet indexes and
+			// never scan: other legs may probe tiny fact slices with a
+			// sequential scan the same way the statement before this change
+			// did, so the ban stays scoped to the probe.
+			probeScans := map[string]int{}
+			var walkProbe func(node explainPlanNode, probe *int)
+			walkProbe = func(node explainPlanNode, probe *int) {
+				if probe != nil {
+					if node.NodeType == "Seq Scan" && node.RelationName == "fact_records" {
+						t.Errorf("sequential scan on fact_records inside the fleet probe")
+					}
+					if strings.Contains(node.IndexName, "fleet_release") {
+						*probe++
+					}
+				}
+				for _, child := range node.Plans {
+					next := probe
+					if child.SubplanName == "CTE derived_vulnerability_release_fleet_probe" ||
+						child.SubplanName == "CTE derived_vulnerability_release_fleet_presence" {
+						count := 0
+						next = &count
+						defer func() { probeScans[child.SubplanName] = count }()
+					}
+					walkProbe(child, next)
+				}
+			}
+			walkProbe(plan, nil)
+			// The presence leg holds the fact seeks; the probe-keys leg only
+			// resolves triples from the state side, so it needs no index.
+			// Both legs must stay scan-free on fact_records.
+			if _, ok := probeScans["CTE derived_vulnerability_release_fleet_probe"]; !ok {
+				t.Fatalf("fleet probe keys ran no evaluated subplan: the probe shape changed")
+			}
+			if probeScans["CTE derived_vulnerability_release_fleet_presence"] == 0 {
+				t.Fatalf("fleet presence used no fleet_release index: the probe falls back to a scan")
 			}
 			if execution > 500 {
 				t.Fatalf("execution time = %.3fms, want <=500ms (local-performance-envelope budget)", execution)
