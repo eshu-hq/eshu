@@ -217,6 +217,31 @@ check "wiring: permissions are actions-read, contents-read, issues-write, pull-r
 check "wiring: registry triggers cover the fake helper" "$(rg -q 'scripts/gh-fake-dirgate-alarm.sh' "${repo_root}/specs/ci-gates.d/gates-02.yaml" && echo 0 || echo 1)"
 check "wiring: one non-cancelling concurrency group" "$([ "$(yq -r '.jobs.alarm.concurrency.group' "${wf}")" = "dirgate-main-alarm" ] && [ "$(yq -r '.jobs.alarm.concurrency."cancel-in-progress"' "${wf}")" = "false" ] && echo 0 || echo 1)"
 check "wiring: the job runs the alarm script" "$(rg -q 'run: scripts/ci/dirgate-main-alarm.sh' "${wf}" && echo 0 || echo 1)"
+check "wiring: ripgrep is provisioned before the alarm runs" "$(rg -q 'install-apt-packages.sh ripgrep' "${wf}" && echo 0 || echo 1)"
+
+# 9. Missing ripgrep: the alarm must fail loudly instead of degrading a real
+#    RED to silent unknown (an absent `rg` makes `rg ... || true` match
+#    nothing, so reds stays empty and the run reports unknown/none).
+new_case rg-missing-fails-closed
+rg_dir="$(dirname "$(command -v rg)")"
+clean_path=""
+while IFS= read -r d; do
+	[ "${d}" = "${rg_dir}" ] || clean_path="${clean_path:+${clean_path}:}${d}"
+done < <(printf '%s' "${PATH}" | tr ':' '\n')
+push_event "failure"
+dirgate_jobs "failure"
+printf '%s\n' "${RED_LOG}" >"${case_dir}/job.log"
+printf '[{"number":10240,"merged_at":"2026-11-06T09:00:00Z"}]' >"${case_dir}/prs.json"
+old_path="${PATH}"
+PATH="${fakebin}:${clean_path}"
+set +e
+run_alarm
+set -e
+PATH="${old_path}"
+check "rg-missing: exits non-zero" "$([ "${last_rc}" -ne 0 ] && echo 0 || echo 1)"
+check "rg-missing: names ripgrep" "$(out_has 'ripgrep' && echo 0 || echo 1)"
+check "rg-missing: makes no write call" "$(not_called 'POST ' && echo 0 || echo 1)"
+check "rg-missing: no silent unknown decision" "$(out_has 'state=unknown' && echo 1 || echo 0)"
 
 printf 'test-dirgate-main-alarm: %d passed, %d failed\n' "${pass}" "${fail}"
 [ "${fail}" -eq 0 ]

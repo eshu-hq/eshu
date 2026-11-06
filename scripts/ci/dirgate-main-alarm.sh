@@ -28,6 +28,15 @@
 #   DIRGATE_ALARM_RUN_URL   target_url override for hermetic tests (default "")
 set -euo pipefail
 
+# Fail closed when ripgrep is absent: the RED/trailers extraction below uses
+# `rg ... || true`, so a missing rg would match nothing and degrade a real
+# RED to a silent unknown/none. The workflow provisions ripgrep before this
+# script runs; this guard keeps any other caller from false-greening.
+command -v rg >/dev/null || {
+	echo "dirgate-main-alarm: rg (ripgrep) is required but not on PATH; install it (scripts/ci/install-apt-packages.sh ripgrep)" >&2
+	exit 2
+}
+
 label="dirgate-main-alarm"
 repo="${GITHUB_REPOSITORY:?GITHUB_REPOSITORY is required}"
 dry_run="${DIRGATE_ALARM_DRY_RUN:-false}"
