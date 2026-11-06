@@ -204,7 +204,7 @@ func TestActivationDerivedScopesInstalledEvidence(t *testing.T) {
 		`{"derive_from_installed_evidence":{"enabled":true,"sources":["osv"],"ecosystems":["alpine"],"target_limit":10}}`)
 	store := &fakeStore{instances: []workflow.CollectorInstance{instance}}
 	osReader := &fakeOSPackageAdvisoryTargetReader{targets: []workflow.OSPackageAdvisoryTarget{{
-		Ecosystem: "alpine", PackageName: "openssl", InstalledVersion: "3.1.4-r5", PackageManager: "apk",
+		Ecosystem: "alpine", DistroVersion: "3.18.4", PackageName: "openssl", InstalledVersion: "3.1.4-r5", PackageManager: "apk",
 		VendorAdvisorySource: "alpine", RepositoryClass: "vendor", FactID: "os-package-openssl", ScopeID: "image://sha256:4444",
 	}}}
 	ownedReader := ownedViteReader()
@@ -222,7 +222,7 @@ func TestActivationDerivedScopesInstalledEvidence(t *testing.T) {
 	if got, want := len(osReader.requests), 1; got != want {
 		t.Fatalf("OS package reads = %d, want %d", got, want)
 	}
-	if !hasEnqueuedScope(store, "vuln-intel://osv/alpine/openssl?version=3.1.4-r5") {
+	if !hasEnqueuedScope(store, "vuln-intel://osv/alpine/openssl?release=v3.18&version=3.1.4-r5") {
 		t.Fatalf("enqueued items = %+v, want installed-evidence OSV scope", store.enqueuedItems)
 	}
 	if got, want := len(counter.adds), 1; got != want {

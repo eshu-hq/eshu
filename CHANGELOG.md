@@ -9,6 +9,19 @@ recent shipped work grouped by feature area.
 
 ## Unreleased
 
+### SAML sign-in no longer panics or misreads NameID on incomplete assertions
+
+- **`crewjam/saml` is replaced by the `eshu-hq/saml` fork**
+  ([#10212](https://github.com/eshu-hq/eshu/issues/10212), GO-2026-6909). Upstream v0.5.1
+  has no fix. A signed assertion that omitted `Subject`, `SubjectConfirmationData`, or
+  `Conditions` made the library panic, and a `NameID` element from a foreign XML namespace
+  could set the principal. The fork rejects the first and binds `NameID` to the SAML
+  namespace. The verifier also recovers any remaining panic, answers `401`, audits
+  `assertion_invalid`, and counts it in `eshu_dp_query_saml_verifier_panics_total`. The
+  govulncheck job re-checks every replaced module, because the stock scan cannot see
+  through a `replace`. Both defects need an assertion the identity provider signed.
+  See [SAML library advisory](docs/public/operate/saml-library-advisory.md).
+
 ### The CVE key probe is cut below the measured advisory-index walk
 
 - **The `vulnerability_cve_id` statement now binds at most 120 ids**

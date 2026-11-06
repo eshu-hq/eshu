@@ -61,18 +61,21 @@ func BuildAuthorizedScanImpactFindings(
 	legacyFindings []SupplyChainImpactFinding,
 	targets []AuthorizedScanImpactEvidence,
 ) ([]SupplyChainImpactFinding, error) {
-	findings, _, err := buildAuthorizedScanImpactFindingsWithQuarantine(legacyFindings, targets, nil)
+	findings, _, err := buildAuthorizedScanImpactFindingsWithQuarantine(legacyFindings, targets, nil, nil)
 	return findings, err
 }
 
 // buildAuthorizedScanImpactFindingsWithQuarantine is the per-target pass. When
 // joins is non-nil it adds each target index's OS advisory join counts to it
 // (#9848): the scanner worker's derived os_package rows exist only here, so
-// the pass signal would read "loaded, none joined" without them.
+// the pass signal would read "loaded, none joined" without them. When
+// representatives is non-nil it receives each target index's representative
+// outcomes the same way (#9990).
 func buildAuthorizedScanImpactFindingsWithQuarantine(
 	legacyFindings []SupplyChainImpactFinding,
 	targets []AuthorizedScanImpactEvidence,
 	joins map[osAdvisoryJoinKey]int,
+	representatives map[osRepresentativeOutcomeKey]int,
 ) ([]SupplyChainImpactFinding, []factdecode.QuarantinedFact, error) {
 	for _, finding := range legacyFindings {
 		if finding.ScanTargetID != "" || finding.ScanGenerationID != "" || len(finding.AuthorityDependencies) != 0 {
@@ -163,6 +166,7 @@ func buildAuthorizedScanImpactFindingsWithQuarantine(
 		if joins != nil {
 			addOSAdvisoryJoins(joins, countOSAdvisoryJoins(index))
 		}
+		index.osRepresentativeOutcomes = representatives
 		targetFindings := coalesceAndSortSupplyChainImpactFindings(appendSupplyChainImpactIndexFindings(nil, index))
 		var targetOSRows []supplychainmodel.OSPackage
 		for _, rows := range index.osPackages {

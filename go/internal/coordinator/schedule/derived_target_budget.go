@@ -27,6 +27,12 @@ const (
 	DerivedTargetSkipReasonMissingVersion        = "derived_target_missing_version"
 	DerivedTargetSkipReasonNonExactVersion       = "derived_target_non_exact_version"
 	DerivedTargetSkipReasonConflictingVersion    = "derived_target_conflicting_version"
+	// DerivedTargetSkipReasonMissingRelease marks an installed OS package row
+	// whose release line cannot be read from its distro_version (empty,
+	// "edge", or a non-numeric string), so a release-qualified OSV query
+	// cannot be named. OSV answers a bare Alpine ecosystem with no advisories
+	// (eshu-hq/eshu#9993), so the row is counted here and never sent bare.
+	DerivedTargetSkipReasonMissingRelease = "derived_target_missing_release"
 	// DerivedTargetSkipReasonNonCVEIdentifier marks a finding identifier that
 	// is not a CVE id (a GHSA-only winner, a blank-normalized id, or another
 	// scheme) dropped by the findings-derived EPSS derivation, which only

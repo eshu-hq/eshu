@@ -70,6 +70,22 @@ changing anything here.
   pointing at real files with a net-zero row count; the dirgate row for
   `internal/reducer` ratchets DOWN on family moves and never absorbs new
   files to hold this package's count.
+- `withJoinableOSRepresentative` (#9990) narrows a group to the facts that join
+  in two cases, both rows this change creates: a representative that joins no
+  installed row (the group yields no finding without it), and a representative with
+  a blank ecosystem that joins, with a version on every row it joins and a fact
+  beside it that joins nothing. Widening it to a group with an SBOM path or a
+  consumer, a spelled ecosystem that joins, a row with no installed version, or a
+  group whose facts all join moves findings that exist today or ranks a pick that
+  #10034 item 1 owns. A blank group whose joined rows are mixed, with and without a
+  version, goes through `splitDirectBlankGroupByRowVersion` first (9990-f6): condition c
+  looks at one index, and a row with no version must not keep the whole-group read for
+  the versioned rows beside it, which have no base row. Split by row, never by shard: a
+  digest shard can hold both kinds. The versionless index has no outcome map, so a
+  group counts once. It returns a new slice of the joining facts and never edits its
+  input: the index shares the group across installed rows and scan targets, and
+  another target may join another fact. Add a new anchor source to
+  `supplyChainImpactFindingHasOwnedAnchor` and to this gate together.
 - `recordEvidenceHeadroom` feeds the #9778 headroom gauges through
   `Instruments.SupplyChainImpactHeadroom` after an admitted write only. Keep it
   after the write and on `truncation.causes()`, the same set that decides

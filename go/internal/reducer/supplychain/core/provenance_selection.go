@@ -70,6 +70,10 @@ func advisorySourcePriority(ecosystem string, source string) int {
 // languageClassPriorityRank returns the rank for one advisory source under
 // the language ecosystem priority table (npm, pypi, maven, ...). Inlined as a
 // switch so sort comparators do not allocate a fresh map per comparison.
+// The CVE List v5 (cve_list, eshu-hq/eshu#9880) sits below the curated
+// advisory sources and above NVD: CNA-published severity is primary-source
+// truth for the CVE, so it wins a scored tie with NVD and supplies severity
+// NVD has deferred, while curated fix and range evidence keeps precedence.
 func languageClassPriorityRank(source string) int {
 	switch source {
 	case "ghsa":
@@ -80,8 +84,10 @@ func languageClassPriorityRank(source string) int {
 		return 3
 	case "osv-malicious":
 		return 4
-	case "nvd":
+	case "cve_list":
 		return 5
+	case "nvd":
+		return 6
 	default:
 		// Unknown source: rank after every known source but before missing
 		// observations so the selector still produces a deterministic answer.
@@ -104,8 +110,10 @@ func vendorClassPriorityRank(vendor string, source string) int {
 		return 3
 	case "osv", "pysec", "osv-go", "rustsec":
 		return 4
-	case "nvd":
+	case "cve_list":
 		return 5
+	case "nvd":
+		return 6
 	default:
 		return 999
 	}

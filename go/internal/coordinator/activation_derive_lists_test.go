@@ -105,7 +105,7 @@ func TestActivationDerivedScopesPlanWithExplicitListsOnBothSections(t *testing.T
 			`"derive_from_installed_evidence":{"enabled":true,"sources":["osv"],"ecosystems":["alpine"]}}`)
 	store := &fakeStore{instances: []workflow.CollectorInstance{instance}}
 	osReader := &fakeOSPackageAdvisoryTargetReader{targets: []workflow.OSPackageAdvisoryTarget{{
-		Ecosystem: "alpine", PackageName: "openssl", InstalledVersion: "3.1.4-r5", PackageManager: "apk",
+		Ecosystem: "alpine", DistroVersion: "3.18.4", PackageName: "openssl", InstalledVersion: "3.1.4-r5", PackageManager: "apk",
 		VendorAdvisorySource: "alpine", RepositoryClass: "vendor", FactID: "os-package-openssl", ScopeID: "image://sha256:4444",
 	}}}
 	service := testVulnerabilityActivationService(t, now, instance, store, ownedViteReader(), `{"mode":"broad"}`)
@@ -116,7 +116,7 @@ func TestActivationDerivedScopesPlanWithExplicitListsOnBothSections(t *testing.T
 	}
 	for _, scopeID := range []string{
 		"vuln-intel://osv/npm/vite?version=5.4.21",
-		"vuln-intel://osv/alpine/openssl?version=3.1.4-r5",
+		"vuln-intel://osv/alpine/openssl?release=v3.18&version=3.1.4-r5",
 	} {
 		if !hasEnqueuedScope(store, scopeID) {
 			t.Fatalf("enqueued items = %+v, want %s", store.enqueuedItems, scopeID)

@@ -402,6 +402,15 @@ the derived-target skip evidence. Package-registry derivation expands aliases
 but never selects sbt rows: it leaves the reader's sbt flag off, so its
 selection is the alias expansion with no sbt rows.
 
+An Alpine row in the installed-evidence list is queried by release (eshu-hq/eshu#9993): OSV matches Alpine
+records per release (`Alpine:v3.18`) and returns nothing for the bare `Alpine` name. The coordinator reads
+`major.minor` from the row's `distro_version` (`3.18.4` becomes `v3.18`) and puts it on the derived scope id
+as `release=v3.18`, so one package in two releases is two scopes. Only the vulnerability-intelligence satellite
+reads that parameter and queries `Alpine:v3.18`; the in-tree collector ignores it and still queries bare `Alpine`.
+A row with no readable release (blank, `edge`, a bare major) is not queried and is counted as
+`derived_target_missing_release` skip evidence, reported like any other planner skip reason. Debian, Ubuntu,
+Rocky, and Alma keep their bare names and scope ids.
+
 `derive_from_findings` with `sources: ["first_epss"]` derives FIRST EPSS targets from the CVE ids
 on active findings (phase 2 item 2.1, eshu-hq/eshu#9876): the coordinator case-normalizes, dedupes,
 and sorts the finding ids, keeps CVE-shaped ids, and packs at most 100 ids and 2000 joined characters
