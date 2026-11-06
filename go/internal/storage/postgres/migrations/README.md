@@ -448,6 +448,37 @@ re-derive the digest, the count, and the manifest row if
 the number moves again. Evidence:
 `docs/internal/evidence/10005-crossplane-delta-overlay.md`.
 
+## Migration 283: vulnerability CVE key expression statistics (#10050)
+
+`283_fact_records_vulnerability_cve_id_stats.sql` adds the
+`fact_records_vulnerability_cve_id_stats` extended-statistics object on
+`((payload->>'cve_id'))` from `fact_records`, then `ANALYZE fact_records`,
+following migration 119's pattern. PostgreSQL ignores a partial index's
+expression statistics for selectivity, so the CVE key probes
+(`vulnerability_cve_id`, `vulnerability_upstream_cve_id`, and the sibling
+`security_alert_cve_id`) priced every id at the default 1/200 and the
+custom plan walked the whole advisory index at 172 to 199 ids and from
+389 (#9994 chunked one statement at 120 ids around this). With the object
+the estimate is monotonic (no fall at 200 ids) and both CVE-index probes
+hold their anchor at every length 1..400 plus 1000/2000, custom and
+generic, at page costs 1.1 and 4.
+
+Deliberately single-expression: a multivariate object on `(fact_kind,
+cve_id)` bought nothing locally (the combos are too rare in an ANALYZE
+sample to populate the MCV list). The estimate stays ~10x under actual
+from the kind x expression product, so the claim is plan stability only
+and `MaxCVEIDsPerStatement` (120) stays until QA-scale plans re-derive
+it. `TestCVEIDExpressionStatisticsMigrationExists` pins the file's shape;
+`TestSupplyChainImpactCVEStatsHoldProbePastTheWalkLive` pins the plans
+with a DROP-object control, and
+`TestSupplyChainImpactSecurityAlertCVEProbeBeforeAfterStatsLive` pins the
+sibling probe. Evidence:
+`docs/internal/evidence/10050-cve-key-probe-statistics.md`.
+
+No-Observability-Change: no new metric, span, log key, route, worker,
+lease, or runtime knob; the probe statements are unchanged and stay under
+the existing Postgres query spans.
+
 ## Verification
 
 ```bash

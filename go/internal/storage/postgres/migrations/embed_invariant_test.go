@@ -216,13 +216,17 @@ import (
 // 282_fact_records_os_package_fleet_release_source_idx.sql (the two partial
 // expression indexes serving the readiness fleet probe's binary-name and
 // source_package arms; one CREATE INDEX CONCURRENTLY each).
-const goldenBootstrapDefinitionsDigest = "faedac99797d2d6994d5c59368e552c04b0d9343e219aa95dce1d67eb4af3b66"
+// #10050 adds 283_fact_records_vulnerability_cve_id_stats.sql (the
+// single-expression extended-statistics object on (payload->>'cve_id')
+// holding the CVE key probes on their partial index; CREATE STATISTICS plus
+// ANALYZE, no index).
+const goldenBootstrapDefinitionsDigest = "fc1417a3d5bfaa8d6acec45f2670ffd831efe4f6529fa4a01d449e326bf7b011"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or
 // silently dropping files) fails loudly even in the unlikely case of a hash
 // collision.
-const goldenBootstrapDefinitionsCount = 308
+const goldenBootstrapDefinitionsCount = 309
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
 	defs := BootstrapDefinitions()

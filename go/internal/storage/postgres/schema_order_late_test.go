@@ -471,4 +471,8 @@ var orderedBootstrapDefinitionNamesLate = []string{
 	// partial expression indexes serving the readiness fleet probe.
 	"fact_records_os_package_fleet_release_idx",
 	"fact_records_os_package_fleet_release_source_idx",
+	// Migration 283 (#10050) adds the single-expression extended
+	// statistics object on (payload->>'cve_id') holding the CVE key
+	// probes on their partial index (CREATE STATISTICS plus ANALYZE).
+	"fact_records_vulnerability_cve_id_stats",
 }
