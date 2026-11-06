@@ -42,9 +42,9 @@ const (
 // listing is next; anything else is none. The ssvcExploitation argument
 // carries the SSVC exploitation state ("active", or empty when unknown); it is
 // empty for every production finding until 4.1 feeds it. An EPSS value counts
-// as a signal only when it parses as a finite number, so malformed values
-// never promote a finding. The tier never changes impact_status or
-// missing-evidence truth.
+// as a signal only when it parses as a number inside the documented 0-1 EPSS
+// range, so malformed, negative, and out-of-range values never promote a
+// finding. The tier never changes impact_status or missing-evidence truth.
 func supplyChainExploitedTier(knownExploited bool, ssvcExploitation, epssProbability, epssPercentile string) string {
 	if knownExploited {
 		return SupplyChainExploitedTierKEV
@@ -52,7 +52,7 @@ func supplyChainExploitedTier(knownExploited bool, ssvcExploitation, epssProbabi
 	if strings.EqualFold(strings.TrimSpace(ssvcExploitation), "active") {
 		return SupplyChainExploitedTierSSVCActive
 	}
-	if isFinitePriorityFloat(epssProbability) || isFinitePriorityFloat(epssPercentile) {
+	if isExploitedTierEPSSSignal(epssProbability) || isExploitedTierEPSSSignal(epssPercentile) {
 		return SupplyChainExploitedTierEPSS
 	}
 	return SupplyChainExploitedTierNone
@@ -75,11 +75,14 @@ func supplyChainExploitedTierRank(tier string) int {
 	}
 }
 
-// isFinitePriorityFloat reports whether raw is a parseable finite number.
-// NaN and infinities parse successfully with strconv but are malformed EPSS.
-func isFinitePriorityFloat(raw string) bool {
+// isExploitedTierEPSSSignal reports whether raw is an EPSS observation inside
+// the documented 0-1 range. It gates only the exploited tier: the
+// priority_score derivation keeps its own thresholds in
+// epssPriorityContributions and is untouched. NaN fails both comparisons, so
+// no explicit NaN check is needed; infinities fall outside the range.
+func isExploitedTierEPSSSignal(raw string) bool {
 	value, ok := parsePriorityFloat(raw)
-	return ok && !math.IsNaN(value) && !math.IsInf(value, 0)
+	return ok && value >= 0 && value <= 1
 }
 
 func withSupplyChainImpactPriority(finding SupplyChainImpactFinding) SupplyChainImpactFinding {
