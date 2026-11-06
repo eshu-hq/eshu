@@ -1,0 +1,44 @@
+docs/internal/evidence/10049-delta-code-call-marker.md
+  h_78a442cba0b3e6 1-76
+docs/public/reference/telemetry/shared-write-operations.md
+  h_78a442cba0b3e6 98-100,102,121
+go/internal/collector/repo/git/fact_builder.go
+  h_78a442cba0b3e6 106-108,444-452,457
+go/internal/collector/repo/git/fact_builder_delta_test.go
+  h_78a442cba0b3e6 205-210,236
+go/internal/collector/repo/git/followup_key_test.go
+  h_78a442cba0b3e6 44
+go/internal/collector/repo/git/rationale_followup_test.go
+  h_78a442cba0b3e6 83-84,87
+go/internal/reducer/code/call/README.md
+  h_78a442cba0b3e6 74-76
+go/internal/reducer/code/call/materialization/README.md
+  h_78a442cba0b3e6 145-147,169-176
+go/internal/reducer/code/call/materialization/handler.go
+  h_78a442cba0b3e6 162-163,189-197,199
+go/internal/reducer/code/call/materialization/handler_delta_moved_caller_test.go
+  h_78a442cba0b3e6 1-277
+go/internal/reducer/code/call/materialization/handler_unusable_delta_scope_test.go
+  h_78a442cba0b3e6 83-85
+go/internal/reducer/code/call/materialization/refresh.go
+  h_78a442cba0b3e6 14,56-90
+go/internal/reducer/code/call/materialization/unusable_delta_scope.go
+  h_78a442cba0b3e6 47-49
+go/internal/reducer/code/call/projection/interleave_test.go
+  h_78a442cba0b3e6 1-141
+go/internal/telemetry/instruments_code_call_delta_scope.go
+  h_78a442cba0b3e6 23-25
+testdata/golden/e2e-20repo-snapshot.json
+  h_78a442cba0b3e6 2471,2501,2507
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3b1ef043ba2d3c4db8ee62e3143fa3108a191112",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
