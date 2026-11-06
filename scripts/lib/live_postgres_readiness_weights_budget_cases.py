@@ -31,6 +31,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -44,6 +45,7 @@ import live_postgres_readiness_reports as reports  # noqa: E402
 import live_postgres_readiness_shards as shards  # noqa: E402
 import live_postgres_readiness_v2 as v2  # noqa: E402
 import live_postgres_readiness_weights as wt  # noqa: E402
+import live_postgres_readiness_weights_delta as delta  # noqa: E402
 
 REPO = LIB.parents[1]
 Model = wt.Weights | v2.WeightsV2
@@ -182,10 +184,17 @@ class ActiveBudgetContractTest(unittest.TestCase):
             assigned.extend(selected)
         self.assertEqual(assigned, self.plan)
 
-    def test_active_weights_have_no_drift_on_the_live_plan(self) -> None:
+    def test_this_change_leaves_few_tests_without_a_weight(self) -> None:
+        # Gate the change's own delta against its base commit (#10171). The
+        # whole-plan count is a pool every merged PR draws down and only a
+        # refit refills, so it is a non-blocking signal here, not a gate.
         drift = wt.drift_report(self.plan, self.weights)
-        self.assertEqual(wt.drift_errors(drift), [])
-        self.assertLessEqual(len(drift.defaulted_tests), wt.MAX_DEFAULTED_TESTS)
+        base = delta.resolve_base(REPO, os.environ)
+        errors = wt.delta_errors(drift, delta.load_base_drift(REPO, base.commit))
+        self.assertEqual(errors, [], f"measured against {base.how} {base.commit}")
+        signal = wt.pool_signal(drift)
+        if signal:
+            wt.emit_pool_signal(signal, os.environ, sys.stderr)
 
     def tail(self, prefix: str) -> list[str]:
         """Plant ``TAIL_COUNT`` runs in the last package, which v2 keeps contiguous."""
@@ -215,6 +224,21 @@ class ActiveBudgetContractTest(unittest.TestCase):
         package_drift = wt.drift_report([*self.plan, *newpkgs], self.weights)
         self.assertRegex(" ".join(wt.drift_errors(package_drift)),
                          rf"planned packages have no cost \(limit {wt.MAX_DEFAULTED_PACKAGES}\)")
+
+    def test_delta_gate_bites_on_the_live_plan_only_for_what_the_change_adds(self) -> None:
+        # Seeded RED/GREEN on the live plan (#10171): the same live pool passes
+        # as the base of an unchanged plan and as the base of a plan that adds
+        # a few tests, and fails only when the change itself adds too many.
+        package = self.plan[-1].split("|")[0]
+        base = wt.drift_report(self.plan, self.weights)
+        self.assertEqual(wt.delta_errors(base, base), [])
+        few = slow_runs(3, prefix="TestFewNoWeight", package=package)
+        self.assertEqual(wt.delta_errors(
+            wt.drift_report([*self.plan, *few], self.weights), base), [])
+        many = slow_runs(wt.MAX_DEFAULTED_TESTS + 1, prefix="TestManyNoWeight", package=package)
+        errors = wt.delta_errors(wt.drift_report([*self.plan, *many], self.weights), base)
+        self.assertRegex(" ".join(errors), rf"{len(many)} tests this change adds have no weight "
+                                           rf"\(limit {wt.MAX_DEFAULTED_TESTS}\)")
 
     def test_drift_report_survives_a_plan_the_budget_rejects(self) -> None:
         # A PR that adds too many unpriced tests and also breaks the budget

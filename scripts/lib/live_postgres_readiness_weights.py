@@ -19,8 +19,11 @@ A present v2 file switches to a separate row-aware six-shard model; the
 v1 path and its four-shard behavior remain unchanged when v2 is absent.
 All arithmetic uses integer tenths of a second. Two gates keep the file
 honest: ``budget_errors`` fails when a shard's predicted job seconds pass
-80% of the job cap, and ``drift_errors``
-fails when too many plan entries have no measured weight.
+80% of the job cap, and ``delta_errors`` fails when one change leaves too
+many plan entries without a measured weight. The count of unweighted entries
+in the whole plan is a pool every merged PR draws down and only a refit
+refills, so it is reported by ``pool_signal`` and never gates a PR (#10171);
+``drift_errors`` keeps the whole-plan check for refit tooling.
 """
 
 from __future__ import annotations
@@ -30,7 +33,7 @@ import json
 import math
 from pathlib import Path
 import re
-from typing import Mapping, TYPE_CHECKING
+from typing import Mapping, TextIO, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from live_postgres_readiness_v2 import WeightsV2
@@ -370,3 +373,63 @@ def drift_errors(drift: Drift) -> list[str]:
         errors.append(f"{len(drift.defaulted_packages)} planned packages have no cost "
                       f"(limit {MAX_DEFAULTED_PACKAGES}): {list(drift.defaulted_packages)}")
     return errors
+
+
+def _added(head: tuple[str, ...], base: tuple[str, ...]) -> list[str]:
+    """Return the entries of ``head`` that ``base`` did not already default."""
+    known = set(base)
+    return [entry for entry in head if entry not in known]
+
+
+def delta_errors(head: Drift, base: Drift) -> list[str]:
+    """Fail when one change leaves too many plan entries without a weight.
+
+    ``head`` is the drift of the plan under test and ``base`` the drift of its
+    base commit. Only entries that are unweighted at head and were not at base
+    count, which includes a weight the change removed. The pool already at
+    base is another change's debt and never fails this one.
+    """
+    errors = []
+    version = "v2" if head.schema_version == 2 else "v1"
+    tests = _added(head.defaulted_tests, base.defaulted_tests)
+    if len(tests) > MAX_DEFAULTED_TESTS:
+        errors.append(f"{len(tests)} tests this change adds have no weight "
+                      f"(limit {MAX_DEFAULTED_TESTS}), first {tests[:5]}: new tests run on "
+                      f"default_test_seconds, so feature PRs must not edit "
+                      f"specs/live-postgres-readiness-weights.{version}.json; a standalone "
+                      f"refit PR refreshes it "
+                      f"(docs/public/reference/local-testing/"
+                      f"live-postgres-readiness-shards.md)")
+    packages = _added(head.defaulted_packages, base.defaulted_packages)
+    if len(packages) > MAX_DEFAULTED_PACKAGES:
+        errors.append(f"{len(packages)} packages this change adds have no cost "
+                      f"(limit {MAX_DEFAULTED_PACKAGES}): {packages}")
+    return errors
+
+
+def pool_signal(drift: Drift) -> str | None:
+    """Describe a stale weights pool for operators, or None while it is small.
+
+    The whole-plan count measures how long ago the weights were refit, not
+    whether a shard fits its budget: the budget, spread, and row-clock cases
+    gate that. It is a signal for a standalone refit, never a merge gate.
+    """
+    count = len(drift.defaulted_tests)
+    if count <= MAX_DEFAULTED_TESTS:
+        return None
+    return (f"{count} planned tests have no weight (limit {MAX_DEFAULTED_TESTS}; staleness "
+            f"signal, not a merge gate): schedule a standalone refit "
+            f"(docs/public/reference/local-testing/live-postgres-readiness-shards.md)")
+
+
+def emit_pool_signal(signal: str, environ: Mapping[str, str], stream: TextIO) -> None:
+    """Write a stale-pool ``signal`` as a workflow annotation or a plain note.
+
+    unittest prints its progress dots to the same stream with no trailing
+    newline, and the Actions runner reads a workflow command only at the start
+    of a line. The leading newline keeps the annotation from being swallowed
+    by those dots and shown as plain text in a green step.
+    """
+    marker = ("::warning title=readiness weights are stale::"
+              if environ.get("GITHUB_ACTIONS") == "true" else "note: ")
+    print("\n" + marker + signal, file=stream)

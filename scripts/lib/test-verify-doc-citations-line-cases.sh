@@ -388,6 +388,7 @@ line_trigger_contract_holds() {
     'scripts/lib/test-verify-doc-citations-review-cases.sh' \
     'scripts/lib/test-verify-doc-citations-binary-cases.sh' \
     'scripts/lib/test-verify-doc-citations-preparation-cases.sh' \
+    'scripts/lib/test-verify-doc-citations-base-cases.sh' \
     'scripts/lib/gate-diff-base.sh'; do
     if ! rg -q -x --fixed-strings "${required}" "${registry_triggers}" ||
       ! rg -q -x --fixed-strings "${required}" "${workflow_triggers}"; then

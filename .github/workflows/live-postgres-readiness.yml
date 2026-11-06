@@ -146,10 +146,13 @@ jobs:
       # Output only, no gate: the hardware a slow run drew (#9582).
       - name: Record hermetic runner CPU
         run: lscpu | head -20 || true; nproc
+      # fetch-depth 2 keeps the merge ref's first parent, the base the shard
+      # planner's per-change weights gate measures against (#10171).
       - name: Check out code
         uses: actions/checkout@v5
         with:
           persist-credentials: false
+          fetch-depth: 2
 
       - name: Install ripgrep for readiness self-test checks
         run: scripts/ci/install-apt-packages.sh ripgrep

@@ -127,11 +127,11 @@ while the live plan itself still fit. Each case now asserts what it is named for
   six-way count split to 2030 s, past the 1800 s cap, and the weighted cut holds
   every job at or under 1440 s. The live count split and the live fit are
   still asserted, unseeded, on the live plan.
-- The drift case adds 41 unpriced tail tests and requires the
-  "planned tests have no weight (limit 40)" error. `drift_report` no longer
-  raises when the budget rejects the cut: it prices repeat rows on the whole
-  plan, which covers every cut's needs. A PR that both adds too many
-  unpriced tests and breaks the budget now sees both errors.
+- The drift cases (#10171) measure what a change adds, not the pool: 41 added
+  unpriced tests fail with "41 tests this change adds have no weight (limit
+  40)", and 3 pass whatever the pool holds. `drift_report` no longer raises
+  when the budget rejects the cut: it prices repeat rows on the whole plan.
+  A PR that breaks both the drift limit and the budget sees both errors.
 
 The live plan can still fail the 15% spread at some sizes. The live-plan fit
 case reports it. When the live plan is inside the window, both the live-fit
@@ -173,14 +173,15 @@ The suite fails when:
   #8930), or the cut on a fixed synthetic plan passes 1%. The fixed plan guards
   the cut itself and does not change when tests are enrolled, so an unrelated
   enrollment cannot trip it. If the live-plan bound trips, open a refit;
-- more than 40 planned tests, or more than 2 planned packages, have no measured
-  weight in the active model, which is
+- the change adds more than 40 planned tests, or more than 2 planned packages,
+  with no measured weight in the active model, which is
   `specs/live-postgres-readiness-weights.v2.json` while that file is present
-  (the drift error names the file). New tests run on the model's default
-  prices, so a feature PR must not edit either weights file: the gate stays
-  green while the defaulted count is at or under the cap, and review — not the
-  gate — flags a weights edit inside a feature PR. Only a standalone refit PR
-  (see below) touches the weights files;
+  (the drift error names the file). "Adds" means unweighted at the change's
+  head and not at its base, so a pool main already carries never fails a PR
+  (#10171; [base and signal](live-postgres-readiness-hermetic.md#the-weights-drift-step)).
+  New tests run on the model's default prices, so a feature PR must not edit
+  either weights file: review — not the gate — flags a weights edit inside a
+  feature PR. Only a standalone refit PR (see below) touches the weights files;
 - a v2 runner row's clock-timed price (tests plus the package repeat price)
   passes 608 s, the 900 s `go test -timeout` over the measured 1.48 tail. A
   splittable row is cut at its weight midpoint until it fits, so only a single
@@ -264,10 +265,9 @@ lands, a spread raise at the edge of a window is not proof that no cut exists.
 
 1. Keep the PR's appended tail under the headroom above, and batch the
    enrollment across PRs when it is larger. Run the snippet on your branch to
-   see where you stand. The drift gate also caps the defaulted tests at 40, so
-   the usable headroom is the lower of the fit window and 40 minus the tests
-   the plan already prices at defaults: 24 at `29ca2e70d5` (16 of 40
-   defaulted; 30 at `9ffd76a581`). Print the count with:
+   see where you stand. The drift gate also caps the tests your change leaves
+   unweighted at 40, so the usable headroom is the lower of the fit window and
+   40. Print the whole-plan pool, which the gate no longer caps, with:
 
    ```bash
    python3 -I -B -c 'import sys; sys.path.insert(0, "scripts/lib")
@@ -350,10 +350,10 @@ feature branch, and never bundled with a feature change — so it cannot
 conflict with feature work, because no feature PR touches the files. Sorted
 entries keep the diff a local hunk instead of a whole-file rewrite.
 
-Trigger a refit when the drift count passes 20 defaulted tests (half the
-40-test gate cap), when the gate fails, when a shard job runs near its cap, or
-on a regular schedule. Either trigger shape is acceptable; the choice is the
-reviewer's call on the refit PR.
+Trigger a refit when the stale-weights warning appears (the pool passes 40
+defaulted tests; it never fails a case), when the budget or spread cases fail,
+when a shard job runs near its cap, or on a regular schedule. Either trigger
+shape is acceptable; the choice is the reviewer's call on the refit PR.
 
 ### Pooled refit (four or more runs)
 
@@ -463,12 +463,12 @@ and the refresher fails closed.
 
 ### A feature PR that trips the drift gate
 
-The hermetic job fails the drift check, and the shard jobs do not wait on the
-hermetic job: they run with `fail-fast: false`, so they still finish on the PR
-head with default prices for the new tests. Do not commit a regenerated
-weights file to the feature PR — review flags that edit, and the gate cannot
-tell who made it. Instead, land the tests first in batches that keep the total
-defaulted count at or under 40, then open the standalone refit above from
+The hermetic job fails the drift check when the PR itself adds more than 40
+unweighted tests. The shard jobs do not wait on it: they run with
+`fail-fast: false`, so they still finish on the PR head with default prices for
+the new tests. Do not commit a regenerated weights file to the feature PR —
+review flags that edit, and the gate cannot tell who made it. Instead, land the
+tests first in batches of at most 40, then open the standalone refit above from
 green `main` logs. The feature run's shard logs still prove the new tests
 pass; they just cannot feed the refit, because the refit reads only green
 `main` runs.

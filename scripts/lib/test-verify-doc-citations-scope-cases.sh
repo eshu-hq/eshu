@@ -275,6 +275,7 @@ copy_doc_citation_mode_helpers() {
     "${source_dir}/test-verify-doc-citations-review-cases.sh" \
     "${source_dir}/test-verify-doc-citations-binary-cases.sh" \
     "${source_dir}/test-verify-doc-citations-preparation-cases.sh" \
+    "${source_dir}/test-verify-doc-citations-base-cases.sh" \
     "${source_dir}/test-verify-doc-citations-scope-cases.sh" \
     "${source_dir}/test-verify-doc-citations-artifact-cases.sh" \
     "${destination}/"
@@ -417,6 +418,7 @@ run_line_fixture_cases() {
   run_line_citation_review_cases
   run_line_citation_binary_cases
   run_line_citation_preparation_cases
+  run_line_citation_base_cases
 }
 
 run_doc_citation_test_mode() {

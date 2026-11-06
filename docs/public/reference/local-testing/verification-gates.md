@@ -298,6 +298,20 @@ Expected observability: `webhook_refresh_triggers.status`, existing webhook
 decision/store metrics, bounded listener request logs, and ingester Git sync
 lifecycle logs.
 
+## Doc-Citation Debt Base
+
+`verify-doc-citations.sh` refuses raw `file.go:NNN` citations a branch adds
+("LINE debt may only decrease"). It compares the tree under test with a base
+commit, chosen in this order: the gate's base override variable (listed in
+`scripts/lib/doc-citation-lines.sh`); on a `pull_request` event, the first parent of the merge ref (`HEAD^1`), which is the base branch as
+GitHub combined it with the PR and does not move afterwards; then the shared
+`gate-diff-base.sh` order (`origin/$GITHUB_BASE_REF`, the merge base with
+`origin/main`, `HEAD~1`). Before this the CI run used the base branch tip
+fetched at job time. A commit that landed on `main` after the merge ref was
+built, and removed a citation the PR still carried, read as debt the PR added
+(#10131). The CI checkout keeps `HEAD^1` with `fetch-depth: 2`; a checkout
+without it falls back to the later steps in that order.
+
 ## Moved-File Reference Guard
 
 Any `go/**` change selects `scripts/verify-moved-file-refs.sh`. It fails a

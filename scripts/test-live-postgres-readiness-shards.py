@@ -38,6 +38,9 @@ from live_postgres_readiness_weights_budget_cases import (  # noqa: E402,F401
     ActiveBudgetContractTest)
 from live_postgres_readiness_row_clock_cases import (  # noqa: E402,F401
     RowClockAdmissionTest)
+from live_postgres_readiness_weights_delta_cases import (  # noqa: E402,F401
+    BaseResolutionTest, DeltaGateTest, LoadBaseDriftTest, PoolSignalAnnotationTest,
+    WorkflowWiringTest)
 import live_postgres_readiness_row_split as row_split  # noqa: E402
 import live_postgres_readiness_weights as wt  # noqa: E402
 
