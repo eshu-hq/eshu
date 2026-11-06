@@ -291,6 +291,7 @@ func run(parent context.Context) error {
 		GCPFreshnessFanOut:                instruments.GCPFreshnessFanOut,
 		ActivationDerivedScopes:           instruments.ActivationDerivedScopesPlanned,
 		ActivationDerivedScopesFenced:     instruments.ActivationDerivedScopesFenced,
+		GenerationRetentionSoftCutoff:     generationRetentionSoftCutoff(os.Getenv),
 		IncidentFreshnessTriggers:         incidentFreshnessStore,
 		GovernanceAudit:                   governanceAuditStore,
 		Metrics:                           coordinatorMetrics,

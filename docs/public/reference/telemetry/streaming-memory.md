@@ -21,8 +21,30 @@ between:
 `eshu_dp_facts_committed_total` counts facts persisted to Postgres.
 `collector.Service` records it in `commitWithTelemetry`
 (`go/internal/collector/service.go`) after a commit that returned nil and was
-not refused (#10037); `bootstrap-index` records it after any nil commit,
-including a refused one (#10085).
+not refused (#10037); `bootstrap-index` records it in
+`commitCollectedGeneration`
+(`go/cmd/bootstrap-index/bootstrap_collector_commit.go`) after a nil commit
+that was not refused (#10085).
+
+No-Regression Evidence (#10085): baseline is `commitCollectedGeneration`
+before the disposition box; after is this tree.
+`BenchmarkCommitCollectedGenerationStored` (`-benchmem -count=5`,
+linux/arm64, go1.26.6, fake in-memory committer, 3 facts per generation)
+measured 1394-1745 ns/op, 1344 B/op, 10 allocs/op before and 1392-1647 ns/op,
+1440 B/op, 12 allocs/op after: no time change, +96 B and 2 allocs per
+generation for the disposition box and the refusal read.
+
+For scale, a production commit does Postgres I/O in milliseconds, and a
+refused generation now skips the counter add, the three atomic adds, and the
+progress log, so it does strictly less work than before. Stored-generation
+row counts are unchanged: the control test still records 3 facts and totals
+of 1 scope, 3 facts.
+
+Observability Evidence: a refused generation still emits
+`ContentEntityEmitted`, the discovery advisory report, the per-repo
+"bootstrap scope collected" log, and `CollectorObserveDuration`. Only
+`eshu_dp_facts_committed_total`, the run totals, and the progress summary
+skip it, matching the collector Service behavior from #10130.
 
 Use it to answer:
 

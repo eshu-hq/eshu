@@ -18,6 +18,9 @@ type Param int
 // scope IDs the scope resolution statement returns for RepositoryIDs and
 // FileRepositoryIDs, with their active generation IDs in the matching
 // *GenerationIDs lists; SuppressionLimit is the suppression cap plus one.
+// UpstreamCVEIDs is the CVE ids distro records name in their upstream lists,
+// canonical and upper-cased: only the signal kinds and the suppression scope read
+// it (#9914).
 const (
 	PackageIDs Param = iota + 1
 	PURLs
@@ -40,6 +43,7 @@ const (
 	FileRepositoryScopeIDs
 	FileRepositoryGenerationIDs
 	SuppressionLimit
+	UpstreamCVEIDs
 	// paramEnd ends the block so TestEveryParamIsClassified reaches every
 	// list added above it; TestEveryParamConstantIsBelowSentinel fails if any
 	// Param reaches it.
@@ -53,7 +57,7 @@ const (
 func (p Param) IsBase() bool {
 	switch p {
 	case PackageIDs, PURLs, CVEIDs, AdvisoryIDs, SubjectDigests, ProductCriteria,
-		DocumentIDs, RepositoryIDs, ImageRefs, FileRepositoryIDs:
+		DocumentIDs, RepositoryIDs, ImageRefs, FileRepositoryIDs, UpstreamCVEIDs:
 		return true
 	default:
 		return false

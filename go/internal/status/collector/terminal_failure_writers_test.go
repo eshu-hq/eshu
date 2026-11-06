@@ -21,6 +21,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/terraformstate"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/vulnsource"
+	"github.com/eshu-hq/eshu/go/internal/workflow"
 
 	statuscollector "github.com/eshu-hq/eshu/go/internal/status/collector"
 )
@@ -184,7 +185,10 @@ func methodCount(t *testing.T, relDir string, name string) int {
 // collect_failure and commit_failure, which are string literals passed to
 // failTerminal in collector/claimed_service.go, and terraform_state's class,
 // which comes from one method (checked for a second implementer rather than
-// enumerated).
+// enumerated). The workflow package's FailureClass constants are tied the
+// other way: every one of them must already be a common class, so a new
+// workflow writer class (like the expired-lease reaper's) fails here until
+// the status leaf registers it.
 func TestBoundedFailureClassesMatchTheCollectorWriters(t *testing.T) {
 	t.Parallel()
 	providerFive := []string{
@@ -195,7 +199,16 @@ func TestBoundedFailureClassesMatchTheCollectorWriters(t *testing.T) {
 	host := minusClasses(hostWriter, []string{extensionhost.FailureClassIdentityMismatch})
 	common := sortedUnique(append(slices.Clone(providerFive),
 		collector.FailureClassAttemptBudgetExhausted, extensionhost.FailureClassIdentityMismatch,
-		"collect_failure", "commit_failure"))
+		"collect_failure", "commit_failure", workflow.FailureClassExpiredLeaseBudgetExhausted))
+	// The expired-lease reaper (storage/postgres ReapExpiredClaims) persists
+	// workflow.FailureClassExpiredLeaseBudgetExhausted, not a collector class,
+	// so no per-kind check covers it: every workflow FailureClass constant
+	// must already be a common class, or the next unregistered workflow writer
+	// reads unknown instead of failing here.
+	workflowWriter := declared(t, "workflow", namePrefix("FailureClass"), nil)
+	if missing := minusClasses(workflowWriter, common); len(missing) > 0 {
+		t.Errorf("workflow writer declares %v outside the common classes %v; register it", missing, common)
+	}
 	hostedVendor := statuscollector.FailureClassesForKind("hosted_vendor")
 	wantHosted := sortedUnique(append(append(slices.Clone(common), host...), statuscollector.ExtensionDefinedFailureToken))
 	if !slices.Equal(hostedVendor, wantHosted) {

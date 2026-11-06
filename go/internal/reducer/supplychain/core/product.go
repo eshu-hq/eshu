@@ -73,10 +73,12 @@ func baseSupplyChainImpactProductFinding(
 func baseSupplyChainImpactFinding(
 	cves supplyChainCVEGroup,
 	pkgs []supplychainmodel.AffectedPackage,
+	holders []osHoldingFact,
 	index supplyChainImpactIndex,
 ) SupplyChainImpactFinding {
 	pkg := representativeAffectedPackage(pkgs)
 	observations := buildAdvisoryProvenanceObservations(cves.observations, pkgs)
+	markOSHoldingObservations(observations, holders)
 	provenance := selectAdvisoryProvenance(pkg.Ecosystem, observations)
 	advisoryID := provenanceAdvisoryID(provenance, cves)
 
@@ -102,9 +104,13 @@ func baseSupplyChainImpactFinding(
 		VulnerableRange:      provenance.VulnerableRange,
 		AdvisorySources:      provenance.AdvisorySources,
 		EvidencePath:         []string{chain.VulnerabilityCVEFactKind, chain.VulnerabilityAffectedPackageFactKind},
-		EvidenceFactIDs:      provenance.EvidenceFactIDs,
+		EvidenceFactIDs:      append(provenance.EvidenceFactIDs, cves.retiredAffectedFactIDs...),
 	}
-	finding.AdvisoryRetraction = index.retractionFor(cves.cveID, observations)
+	retractionSources := observations
+	if osPackageClassEcosystem(pkg.Ecosystem) {
+		retractionSources = recordsListingThePackage(observations)
+	}
+	finding.AdvisoryRetraction = index.retractionFor(cves.cveID, retractionSources)
 	applyRiskSignals(&finding, index.riskSignals[cves.cveID])
 	return finding
 }
@@ -116,8 +122,14 @@ func baseSupplyChainImpactFinding(
 // reported a CVSS score. Only a source-reported score (IdentitySource) picks
 // the identity: a score derived from a vector or a label selects the severity
 // source but must not move advisory_id, which feeds finding_id and
-// advisory-scoped suppression matching (#9693).
+// advisory-scoped suppression matching (#9693). An OS-class finding is named by
+// its deciding record instead and never consults IdentitySource (#9914): its
+// severity may come from an NVD or GHSA record in the group, but the name must not
+// depend on whether this pass loaded one.
 func provenanceAdvisoryID(provenance advisoryProvenanceSelection, cves supplyChainCVEGroup) string {
+	if provenance.DecidingAdvisoryID != "" {
+		return provenance.DecidingAdvisoryID
+	}
 	if provenance.IdentitySource != "" {
 		for _, advisory := range provenance.AdvisorySources {
 			if advisory.Source == provenance.IdentitySource {

@@ -23,7 +23,7 @@ const terminalFailureDocPath = "../../../../docs/public/reference/http-api/colle
 // failure_class label of eshu_runtime_coordinator_collector_terminal_failure_instances
 // can take (the label adds unknown on top). Raising it is a deliberate
 // decision: update the docs and the metric description with it.
-const failureClassCardinality = 41
+const failureClassCardinality = 42
 
 // TestBoundedFailureClassesStayBounded pins the label cardinality and the
 // shape of every class: the set stays a small closed list of lowercase

@@ -132,7 +132,12 @@ type Service struct {
 	// GoEvidenceFencer retracts Go evidence the commit-skew rule names. It is
 	// required with GoModuleRepositoryReader: without it, evidence of an old
 	// commit could stay active with no bound.
-	GoEvidenceFencer                  GoEvidenceFencer
+	GoEvidenceFencer GoEvidenceFencer
+	// GenerationRetentionSoftCutoff is the generation retention soft cutoff the
+	// reducer prunes by, set from the same environment variable (#10089). The
+	// commit-skew fence reads repository history back to it, so a rotation past
+	// half of it logs a warning. Zero means unknown, and nothing warns.
+	GenerationRetentionSoftCutoff     time.Duration
 	TenantGrantReader                 TenantGrantReader
 	OSPackageAdvisoryTargetReader     OSPackageAdvisoryTargetReader
 	SBOMComponentAdvisoryTargetReader SBOMComponentAdvisoryTargetReader

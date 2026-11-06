@@ -4,6 +4,7 @@
 package core
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -57,6 +58,7 @@ func supplyChainImpactFollowUpFilter(
 		PackageIDs:        missingStringValues(current.PackageIDs, requested.PackageIDs),
 		PURLs:             missingStringValues(current.PURLs, requested.PURLs),
 		CVEIDs:            missingStringValues(current.CVEIDs, requested.CVEIDs),
+		UpstreamCVEIDs:    missingStringValues(current.UpstreamCVEIDs, requested.UpstreamCVEIDs),
 		AdvisoryIDs:       missingStringValues(current.AdvisoryIDs, requested.AdvisoryIDs),
 		SubjectDigests:    missingStringValues(current.SubjectDigests, requested.SubjectDigests),
 		DocumentIDs:       missingStringValues(current.DocumentIDs, requested.DocumentIDs),
@@ -73,6 +75,7 @@ func mergeSupplyChainImpactFactFilters(filters ...SupplyChainImpactFactFilter) S
 		merged.PackageIDs = append(merged.PackageIDs, filter.PackageIDs...)
 		merged.PURLs = append(merged.PURLs, filter.PURLs...)
 		merged.CVEIDs = append(merged.CVEIDs, filter.CVEIDs...)
+		merged.UpstreamCVEIDs = append(merged.UpstreamCVEIDs, filter.UpstreamCVEIDs...)
 		merged.AdvisoryIDs = append(merged.AdvisoryIDs, filter.AdvisoryIDs...)
 		merged.SubjectDigests = append(merged.SubjectDigests, filter.SubjectDigests...)
 		merged.DocumentIDs = append(merged.DocumentIDs, filter.DocumentIDs...)
@@ -85,6 +88,7 @@ func mergeSupplyChainImpactFactFilters(filters ...SupplyChainImpactFactFilter) S
 		PackageIDs:        payloadcore.UniqueSortedStrings(merged.PackageIDs),
 		PURLs:             payloadcore.UniqueSortedStrings(merged.PURLs),
 		CVEIDs:            payloadcore.UniqueSortedStrings(merged.CVEIDs),
+		UpstreamCVEIDs:    payloadcore.UniqueSortedStrings(merged.UpstreamCVEIDs),
 		AdvisoryIDs:       payloadcore.UniqueSortedStrings(merged.AdvisoryIDs),
 		SubjectDigests:    payloadcore.UniqueSortedStrings(merged.SubjectDigests),
 		DocumentIDs:       payloadcore.UniqueSortedStrings(merged.DocumentIDs),
@@ -107,11 +111,15 @@ func supplyChainImpactFilter(envelopes []facts.Envelope) SupplyChainImpactFactFi
 	// present. The storage reader uses this independent list for both
 	// top-level exact matching and normalized suppression-scope matching.
 	var advisoryIDs []string
+	// signalCVEIDs is the CVE ids of facts that only describe a CVE. They reach
+	// cveIDs after the loop, unless a record's upstream list is why they are here.
+	var upstreamKeys, signalCVEIDs []string
 	for _, envelope := range envelopes {
 		switch envelope.FactKind {
 		case chain.VulnerabilityCVEFactKind:
 			cveIDs = append(cveIDs, supplyChainCVEID(envelope.Payload))
 			advisoryIDs = append(advisoryIDs, payloadcore.PayloadStr(envelope.Payload, "advisory_id"))
+			upstreamKeys = appendUpstreamCVEKeys(upstreamKeys, envelope.Payload)
 		case chain.VulnerabilityAffectedPackageFactKind:
 			purl := payloadcore.PayloadStr(envelope.Payload, "purl")
 			packageIDs = append(packageIDs, canonicalSupplyChainAffectedPackageID(payloadcore.PayloadStr(envelope.Payload, "package_id"), purl))
@@ -125,10 +133,10 @@ func supplyChainImpactFilter(envelopes []facts.Envelope) SupplyChainImpactFactFi
 				productCriteria = append(productCriteria, payloadcore.PayloadStr(envelope.Payload, "criteria"))
 			}
 		case chain.VulnerabilityEPSSScoreFactKind, chain.VulnerabilityKnownExploitedFactKind:
-			cveIDs = append(cveIDs, supplyChainCVEID(envelope.Payload))
+			signalCVEIDs = append(signalCVEIDs, supplyChainCVEID(envelope.Payload))
 		case chain.VulnerabilitySuppressionFactKind:
 			if scope := payloadcore.PayloadMap(envelope.Payload, "scope"); scope != nil {
-				cveIDs = append(cveIDs, payloadcore.PayloadStr(scope, "cve_id"))
+				signalCVEIDs = append(signalCVEIDs, payloadcore.PayloadStr(scope, "cve_id"))
 				advisoryIDs = append(advisoryIDs, payloadcore.PayloadStr(scope, "advisory_id"))
 				packageIDs = append(packageIDs, payloadcore.PayloadStr(scope, "package_id"))
 				purls = append(purls, payloadcore.PayloadStr(scope, "purl"))
@@ -212,10 +220,14 @@ func supplyChainImpactFilter(envelopes []facts.Envelope) SupplyChainImpactFactFi
 			repositoryIDs = append(repositoryIDs, supplyChainServiceRepositoryID(envelope))
 		}
 	}
+	upstreamKeys = payloadcore.UniqueSortedStrings(upstreamKeys)
+	cveIDs = appendSignalCVEIDs(cveIDs, signalCVEIDs, upstreamKeys)
+	sortedCVEIDs := payloadcore.UniqueSortedStrings(cveIDs)
 	return SupplyChainImpactFactFilter{
 		PackageIDs:        payloadcore.UniqueSortedStrings(packageIDs),
 		PURLs:             payloadcore.UniqueSortedStrings(purls),
-		CVEIDs:            payloadcore.UniqueSortedStrings(cveIDs),
+		CVEIDs:            sortedCVEIDs,
+		UpstreamCVEIDs:    missingStringValues(upstreamKeys, sortedCVEIDs),
 		AdvisoryIDs:       payloadcore.UniqueSortedStrings(advisoryIDs),
 		SubjectDigests:    payloadcore.UniqueSortedStrings(digests),
 		DocumentIDs:       payloadcore.UniqueSortedStrings(documentIDs),
@@ -224,6 +236,42 @@ func supplyChainImpactFilter(envelopes []facts.Envelope) SupplyChainImpactFactFi
 		FileRepositoryIDs: supplyChainImpactParserFileRepositoryIDs(envelopes),
 		ImageRefs:         payloadcore.UniqueSortedStrings(imageRefs),
 	}
+}
+
+// appendUpstreamCVEKeys adds the group keys a record's upstream list forms, under
+// the same rule the grouping pass reads them. The filter reads the raw payload
+// because it runs before the typed decode.
+func appendUpstreamCVEKeys(keys []string, payload map[string]any) []string {
+	if _, ok := payload["upstream"]; !ok {
+		return keys
+	}
+	for _, entry := range payloadcore.PayloadStrings(payload, "", "upstream") {
+		if key, ok := upstreamCVEKey(entry); ok {
+			keys = append(keys, key)
+		}
+	}
+	return keys
+}
+
+// appendSignalCVEIDs adds the CVE ids of KEV, EPSS and suppression facts to the
+// full CVE arm, except those a loaded record's upstream list names. Those facts
+// reached the pass through the upstream arm, and promoting their CVE here would
+// load its NVD record and product rows on the next round, the widening the #9914
+// shim failed. A signal for any other CVE keeps the full arm, because an EPSS or
+// KEV intent re-reads the findings for its CVE through it. upstreamKeys is sorted.
+func appendSignalCVEIDs(cveIDs, signalCVEIDs, upstreamKeys []string) []string {
+	if len(upstreamKeys) == 0 {
+		return append(cveIDs, signalCVEIDs...)
+	}
+	for _, id := range signalCVEIDs {
+		if key, ok := upstreamCVEKey(id); ok {
+			if _, named := slices.BinarySearch(upstreamKeys, key); named {
+				continue
+			}
+		}
+		cveIDs = append(cveIDs, id)
+	}
+	return cveIDs
 }
 
 func supplyChainImpactRepositoryFilterIDs(repositoryIDs []string) []string {
@@ -239,7 +287,7 @@ func supplyChainImpactRepositoryFilterIDs(repositoryIDs []string) []string {
 }
 
 func (f SupplyChainImpactFactFilter) empty() bool {
-	return len(f.PackageIDs) == 0 && len(f.PURLs) == 0 && len(f.CVEIDs) == 0 && len(f.AdvisoryIDs) == 0 &&
+	return len(f.PackageIDs) == 0 && len(f.PURLs) == 0 && len(f.CVEIDs) == 0 && len(f.UpstreamCVEIDs) == 0 && len(f.AdvisoryIDs) == 0 &&
 		len(f.SubjectDigests) == 0 && len(f.DocumentIDs) == 0 && len(f.ProductCriteria) == 0 &&
 		len(f.RepositoryIDs) == 0 && len(f.FileRepositoryIDs) == 0 && len(f.ImageRefs) == 0
 }

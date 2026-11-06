@@ -7,8 +7,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
 )
@@ -25,6 +23,12 @@ const (
 // disagree. Fact order, payload source labels, and disclosure class
 // never choose a winner.
 //
+// index is the target's advisory index, so the gate reads exactly the groups the
+// primary path classified: a fact filed under a CVE by the upstream grouping pass
+// (#9914) is a candidate for the finding that carries that CVE, and a retracted
+// record's facts leave a group that has a live record, as they do in the primary
+// path.
+//
 // osPackages carries the scan target's installed rows so each finding can be
 // matched to its host release line (the same row the primary path narrows
 // release-tagged facts against). Findings with no matching row keep the
@@ -32,29 +36,13 @@ const (
 // foreign.
 func markAuthorizedFixedVersionConflicts(
 	findings []SupplyChainImpactFinding,
-	advisories []facts.Envelope,
+	index supplyChainImpactIndex,
 	osPackages []supplychainmodel.OSPackage,
 ) {
-	affectedCount := 0
-	for _, envelope := range advisories {
-		if envelope.FactKind == chain.VulnerabilityAffectedPackageFactKind {
-			affectedCount++
-		}
-	}
-	if affectedCount < 2 {
+	if len(findings) == 0 {
 		return
 	}
-	packages := make([]supplychainmodel.AffectedPackage, 0, affectedCount)
-	for _, envelope := range advisories {
-		if envelope.FactKind != chain.VulnerabilityAffectedPackageFactKind {
-			continue
-		}
-		pkg, err := supplyChainAffectedPackageFromEnvelope(envelope)
-		if err != nil || pkg.PackageID == "" {
-			continue // The classifier already quarantines malformed advisory facts.
-		}
-		packages = append(packages, pkg)
-	}
+	groups := groupSupplyChainCVEsByID(index.cves)
 	hostLineByRow := make(map[string]string, len(osPackages))
 	for _, row := range osPackages {
 		if row.FactID == "" {
@@ -66,9 +54,19 @@ func markAuthorizedFixedVersionConflicts(
 	}
 	for i := range findings {
 		finding := &findings[i]
+		if finding.PackageID == "" {
+			continue // A product finding has no package facts to compare.
+		}
 		hostLine := authorizedFindingHostLine(*finding, hostLineByRow)
+		var samePackage []supplychainmodel.AffectedPackage
+		for _, pkg := range index.affectedPackages[finding.CVEID] {
+			if pkg.PackageID == finding.PackageID {
+				samePackage = append(samePackage, pkg)
+			}
+		}
+		_, live := liveAdvisoryPackages(groups[finding.CVEID], samePackage, index)
 		var related []supplychainmodel.AffectedPackage
-		for _, pkg := range packages {
+		for _, pkg := range live {
 			if sameAuthorizedAdvisoryPackage(pkg, pkg, *finding) {
 				related = append(related, pkg)
 			}
@@ -97,7 +95,11 @@ func markAuthorizedFixedVersionConflicts(
 			}
 		}
 		if !conflict {
-			selectApplicableAuthorizedBranch(finding, candidates, hostLine)
+			// A retracted finding offers no fix, so no branch is selected for it. The
+			// conflict below still applies: it withholds a fix (ruling 9914-retract).
+			if finding.AdvisoryRetraction == nil {
+				selectApplicableAuthorizedBranch(finding, candidates, hostLine)
+			}
 			continue
 		}
 		finding.Status = SupplyChainImpactPossiblyAffected

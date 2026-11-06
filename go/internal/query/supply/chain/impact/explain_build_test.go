@@ -244,6 +244,7 @@ func TestBuildSupplyChainDependencyChain(t *testing.T) {
 	chain := buildSupplyChainDependencyChain(row.Finding, row.EvidenceFacts)
 	if chain == nil {
 		t.Fatal("finding-anchored chain must not be nil")
+		return
 	}
 	if len(chain.Path) != 2 || chain.Depth != 2 || chain.DirectDependency == nil || !*chain.DirectDependency {
 		t.Errorf("chain mismatch: %+v", chain)
@@ -395,6 +396,7 @@ func TestBuildSupplyChainRemediationExplanation(t *testing.T) {
 	)
 	if remediation == nil {
 		t.Fatal("remediation must not be nil when the finding carries a block")
+		return
 	}
 	if remediation.VulnerableRange != ">= 1.0.0" || remediation.FirstPatchedVersion != "1.3.1" {
 		t.Errorf("remediation fill-in missed: %+v", remediation)

@@ -168,6 +168,8 @@ func authorizedImpactExpectedKinds(sourceClass string) []string {
 		return []string{"vulnerability.known_exploited"}
 	case "first_epss":
 		return []string{"vulnerability.epss_score"}
+	case "cve_list":
+		return []string{"vulnerability.cve"}
 	default:
 		return nil
 	}

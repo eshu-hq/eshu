@@ -27,6 +27,12 @@ The package depends on `github.com/crewjam/saml` and `github.com/crewjam/saml/sa
 for SAML metadata and service-provider XML handling. It does not import Eshu
 storage, query, telemetry, or runtime packages.
 
+`go/go.mod` replaces `github.com/crewjam/saml` with the `github.com/eshu-hq/saml`
+fork (GO-2026-6909, no upstream fix). This package only parses metadata, so it
+does not call the affected functions; the response verifier in
+`go/internal/query` does. See
+[SAML library advisory](../../../docs/public/operate/saml-library-advisory.md).
+
 ## Telemetry
 
 This package emits no metrics, spans, or logs. Callers should record bounded
