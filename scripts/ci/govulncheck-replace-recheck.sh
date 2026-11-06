@@ -21,6 +21,9 @@
 #        - Run them again with a temporary modfile that drops the replace
 #          (the upstream module): they must FAIL with a test failure. That
 #          differential is the proof that the replacement carries the fix.
+#      The advisory list is only trusted once the query output is recognized
+#      (see check_query_envelope): empty, non-JSON or reshaped output is a
+#      FAIL, never "no advisory".
 #   3. FAIL on a replace with no replacement version (a local path): nothing
 #      reviewable pins it.
 # Nothing here is a hand-kept list: the modules come from `go list -m -json
@@ -64,6 +67,47 @@ done
 if [ "${failures}" -gt 0 ]; then
 	exit 1
 fi
+
+# check_query_envelope proves a `govulncheck -mode query -format json` result
+# is output this script understands before an empty advisory list may read as
+# "no advisory". The workflow installs govulncheck@latest, so the schema can
+# change under the script; without this check a changed shape would yield an
+# empty list and a false green. The envelope is what a real run prints
+# (scanner v1.6.0, protocol v1.0.0): a stream of top-level JSON objects, each
+# keyed config, progress or osv, with exactly the config message naming the
+# scanner, the query mode and a v1 protocol. Anything else is a failure.
+# Returns 0 when recognized; otherwise prints the reason on stdout and returns 1.
+check_query_envelope() {
+	local file="$1" markers unknown
+	if [ ! -s "${file}" ]; then
+		echo "govulncheck produced no output"
+		return 1
+	fi
+	if ! jq -e . "${file}" >/dev/null 2>"${tmp_root}/envelope.err"; then
+		echo "govulncheck output is not valid JSON: $(head -c 200 "${tmp_root}/envelope.err")"
+		return 1
+	fi
+	if ! markers="$(jq -n '[inputs | select(type == "object" and .config != null
+		and .config.scanner_name == "govulncheck"
+		and .config.scan_mode == "query"
+		and ((.config.protocol_version // "") | startswith("v1.")))] | length' "${file}")"; then
+		echo "jq failed while checking the govulncheck output envelope"
+		return 1
+	fi
+	if [ "${markers}" != "1" ]; then
+		echo "unrecognized govulncheck query output: want exactly one config message with scanner_name govulncheck, scan_mode query and protocol_version v1.x, found ${markers}; the output schema may have changed"
+		return 1
+	fi
+	if ! unknown="$(jq -n -r '[inputs | if type == "object" then keys[] else "<non-object>" end
+		| select(. != "config" and . != "progress" and . != "osv")] | unique | join(",")' "${file}")"; then
+		echo "jq failed while checking the govulncheck message types"
+		return 1
+	fi
+	if [ -n "${unknown}" ]; then
+		echo "unknown message type in govulncheck query output (${unknown}); the output schema may have changed"
+		return 1
+	fi
+}
 
 # recheck_advisory proves one advisory against one replaced module.
 recheck_advisory() {
@@ -163,6 +207,10 @@ while IFS=$'\t' read -r path version repl_path repl_version; do
 	if ! govulncheck -mode query -format json "${path}@${version}" >"${query_out}" 2>"${tmp_root}/query.err"; then
 		cat "${tmp_root}/query.err" >&2
 		fail "govulncheck query failed for ${path}@${version}"
+		continue
+	fi
+	if ! envelope_err="$(check_query_envelope "${query_out}")"; then
+		fail "${path}@${version}: ${envelope_err}"
 		continue
 	fi
 	if ! ids="$(jq -r 'select(.osv != null) | .osv.id' "${query_out}" | sort -u)"; then

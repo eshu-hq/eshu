@@ -266,6 +266,9 @@ jobs:
       # go.mod replace turns the scan above green whether or not the fork fixes
       # anything. This step re-checks every replaced module against the
       # upstream module and version go.mod requires (#10212, GO-2026-6909).
+      # govulncheck is installed at @latest above, so the script fails closed
+      # when the query output lacks the expected config envelope instead of
+      # reading a changed schema as "no advisory".
       - name: Re-check replaced modules against upstream advisories
         run: scripts/ci/govulncheck-replace-recheck.sh go
       - name: Upload govulncheck output as workflow artifact

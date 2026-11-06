@@ -48,7 +48,10 @@ signs. No unsigned request reaches these paths.
   version, then runs the regression tests named for each advisory twice: they
   must pass with the fork and fail on upstream. It fails when an advisory has no
   tests, when a fixed version appears upstream, or when the tests also pass on
-  upstream.
+  upstream. It also fails when the database query output is empty, is not
+  JSON, or does not carry the expected `govulncheck` query envelope (a `config`
+  message from protocol `v1.x`). The CI job installs `govulncheck@latest`, so a
+  changed output format turns the step red instead of reading as "no advisory".
 
 ## What operators should do
 

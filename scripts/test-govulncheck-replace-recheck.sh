@@ -17,6 +17,9 @@
 #   red:   an advisory ID that is not GO-YYYY-NNNN              -> exit 1
 #   red:   jq is on PATH but fails (exit 127)                    -> exit 1
 #   red:   jq is missing from PATH                               -> exit 1
+#   red:   query output with no recognized envelope (schema drift,
+#          empty, or not JSON) must never read as "no advisory"  -> exit 1
+#   green: the real no-advisory shape (config + progress, no osv) -> exit 0
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -79,7 +82,11 @@ osv_open='{"osv":{"id":"GO-2026-6909","affected":[{"package":{"name":"example.co
 osv_fixed='{"osv":{"id":"GO-2026-6909","affected":[{"package":{"name":"example.com/up"},"ranges":[{"type":"SEMVER","events":[{"introduced":"0"},{"fixed":"1.1.0"}]}]}]}}'
 osv_badid='{"osv":{"id":"GO-2026-6909.*","affected":[{"package":{"name":"example.com/up"},"ranges":[{"type":"SEMVER","events":[{"introduced":"0"}]}]}]}}'
 osv_unknown='{"osv":{"id":"GO-2026-7777","affected":[{"package":{"name":"example.com/up"},"ranges":[{"type":"SEMVER","events":[{"introduced":"0"}]}]}]}}'
-config='{"config":{"scan_mode":"query"}}'
+# Envelope copied from a real `govulncheck -mode query -format json` run
+# (scanner v1.6.0, protocol v1.0.0): a config message, a progress message, and
+# one osv message per advisory. A query with no advisory is the first two only.
+config='{"config":{"protocol_version":"v1.0.0","scanner_name":"govulncheck","scanner_version":"v1.6.0","db":"https://vuln.go.dev","db_last_modified":"2026-11-05T23:49:57Z","scan_level":"symbol","scan_mode":"query"}}
+{"progress":{"message":"Looking up vulnerabilities in example.com/up at v1.0.0..."}}'
 
 # jq that is found on PATH but fails, as a broken install or a half-restored
 # runner image would. The script must go red, not report "0 replaced modules".
@@ -103,7 +110,14 @@ ln -s "${bin}/govulncheck" "${nojq_bin}/govulncheck"
 run_case() {
 	local name="$1" want="$2" modules="$3" osv="$4" replaced="$5" upstream="$6" msg="$7" got out
 	printf '%s\n' "${modules}" >"${tmp_root}/modules.json"
-	printf '%s\n%s\n' "${config}" "${osv}" >"${tmp_root}/query.json"
+	if [ -n "${RAW_QUERY+x}" ]; then
+		# RAW_QUERY replaces the whole govulncheck output, even when empty.
+		printf '%s' "${RAW_QUERY}" >"${tmp_root}/query.json"
+	elif [ -n "${osv}" ]; then
+		printf '%s\n%s\n' "${config}" "${osv}" >"${tmp_root}/query.json"
+	else
+		printf '%s\n' "${config}" >"${tmp_root}/query.json"
+	fi
 	out="${tmp_root}/out.txt"
 	set +e
 	PATH="${CASE_PATH:-${bin}:${PATH}}" STUB_MODULES="${tmp_root}/modules.json" STUB_QUERY="${tmp_root}/query.json" \
@@ -135,6 +149,24 @@ run_case "local-path replace is red" 1 "${local_module}" "" pass pass "replaced 
 run_case "malformed advisory ID is red" 1 "${replaced_module}" "${osv_badid}" pass fail "is not of the form GO-YYYY-NNNN"
 CASE_PATH="${badjq_bin}:${bin}:${PATH}" run_case "jq that fails is red, not zero modules" 1 "${replaced_module}" "${osv_open}" pass fail "jq failed while listing replaced modules"
 CASE_PATH="${nojq_bin}" run_case "missing jq is red" 1 "${replaced_module}" "${osv_open}" pass fail "required tool not found on PATH: jq"
+
+# Schema-drift guard: the advisory list is read from top-level osv messages. If
+# govulncheck changes its output so none is found, that must go red instead of
+# reading as "no advisory". Each payload below carries an advisory the script
+# would otherwise miss, or nothing at all.
+drift_json='{"config":{"protocol_version":"v2.0.0","scanner_name":"govulncheck","scan_mode":"query"}}
+{"vulnerability":{"id":"GO-2026-6909"}}'
+nomarker_json='{"progress":{"message":"Looking up vulnerabilities in example.com/up at v1.0.0..."}}
+{"advisory":{"id":"GO-2026-6909"}}'
+unknown_key_json="${config}
+${osv_open}
+{\"sbom\":{\"id\":\"x\"}}"
+RAW_QUERY="${drift_json}" run_case "changed protocol version is red, not no advisory" 1 "${replaced_module}" "" pass pass "unrecognized govulncheck query output"
+RAW_QUERY="${nomarker_json}" run_case "valid JSON without the config marker is red" 1 "${replaced_module}" "" pass pass "unrecognized govulncheck query output"
+RAW_QUERY="${unknown_key_json}" run_case "an unknown message type is red" 1 "${replaced_module}" "" pass pass "unknown message type"
+RAW_QUERY="" run_case "empty query output is red" 1 "${replaced_module}" "" pass pass "produced no output"
+RAW_QUERY="govulncheck: something went wrong" run_case "non-JSON query output is red" 1 "${replaced_module}" "" pass pass "is not valid JSON"
+RAW_QUERY='[1,2]' run_case "a non-object JSON value is red" 1 "${replaced_module}" "" pass pass "unrecognized govulncheck query output"
 
 if [ "${failures}" -gt 0 ]; then
 	printf 'test-govulncheck-replace-recheck: %d failure(s)\n' "${failures}" >&2
