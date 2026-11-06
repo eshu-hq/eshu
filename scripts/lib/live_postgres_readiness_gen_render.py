@@ -17,6 +17,7 @@ FRAGMENT_NAMES = (
     "live-tests-readiness-part2.generated.yaml",
     "live-tests-readiness-part3.generated.yaml",
     "live-tests-readiness-part4.generated.yaml",
+    "live-tests-readiness-part5.generated.yaml",
 )
 # Committed lexical cuts keep each file's destination stable as enrollment grows.
 # Rebalanced 2026-10-30 for #9322: enrollment reached 333 rows and the first
@@ -44,10 +45,17 @@ FRAGMENT_NAMES = (
 # 502 over the 499 budget. The third cut moves one entry later
 # (492/492/497/492, stable and stale-red seeds still pass); four fragments
 # pinned.
+# Rebalanced 2026-11-06 for #10055 (5th fragment, rebased onto post-#10189
+# main): enrollment passed the 4x99 absolute capacity the seeded mirror probes
+# need (the stale seed adds one row to part4 and the stable seed one row to
+# part1, so no 3-cut placement fits). Four cuts rebalance to roughly equal
+# rows; the first fragment stays in the 95-98 band the oversized/stable seeds
+# pin, every fragment keeps seed headroom, all under the 499 budget.
 FRAGMENT_BOUNDARIES = (
-    "go/internal/storage/postgres/activation/recovery_live_test.go",
-    "go/internal/storage/postgres/fact_key_foreign_key_reverse_live_test.go",
-    "go/internal/storage/postgres/projector_queue_claim_marked_guard_plan_live_test.go",
+    "go/internal/storage/postgres/activation/producer_obligation_contract_live_test.go",
+    "go/internal/storage/postgres/content_writer_metadata_only_redarm_live_test.go",
+    "go/internal/storage/postgres/ingestion_vulnerability_successor_live_test.go",
+    "go/internal/storage/postgres/reducer_queue_security_alert_settled_skip_live_test.go",
 )
 FRAGMENT_DIR = "specs/live-tests.d/"
 MAX_FRAGMENT_LINES = 499
