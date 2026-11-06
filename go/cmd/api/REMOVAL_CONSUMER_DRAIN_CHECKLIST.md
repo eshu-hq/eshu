@@ -12,8 +12,23 @@ Source of truth for served routes stays
 [READ_TRANSPORT_CENSUS.md](../../../../eshu-9669-census/go/cmd/api/READ_TRANSPORT_CENSUS.md)
 (read-only reference in the sibling `eshu-9669-census` worktree) and
 [CUTOVER_OWNERSHIP.md](CUTOVER_OWNERSHIP.md). Counts below were measured
-in this worktree on `drive/9669-removal-tail`; re-run the listed command
-before the removal PR — counts drift as sibling lanes land.
+in this worktree on `drive/9669-removal-tail` and re-verified after
+rebasing onto `origin/main` `e30c99c1cf` (lane base was `60f2fe256d`):
+the re-prove command returns the identical 88-file set outside
+`go/cmd/api` and `go/internal/query`, and the exact-package MCP census
+is still 107 (8 non-test + 99 test, `git grep` corroboration identical).
+Re-run the listed command before the removal PR — counts drift as
+sibling lanes land.
+
+Landings since the lane base (dest-side and seam progress; every row
+below stays TODO — no drain is claimed): satellite `eshu-api`
+`origin/main` at `f62086c51d59aa68b3fee2dd299e85cdf7119cfc` with native
+dispatch merged for AdminIdentityMutations (#42), AdminReads fragment
+(#43), Setup carve-out (#45), AdminProviderConfigMutations (#46), and
+the AdminRecoveryMutations subset (#47; satellite #44 open follow-up);
+eshu admission seams merged but unwired — GovernanceAuditAdmission
+(#10233) and RecoveryAdmission v0 (#10245); Leaf B read-transport spec
+plus red-first conformance skeleton merged (#10250).
 
 Re-prove command (whole checklist, non-test Go files importing
 `go/internal/query` outside the API tree itself):

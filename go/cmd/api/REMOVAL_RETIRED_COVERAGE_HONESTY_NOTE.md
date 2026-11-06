@@ -28,9 +28,18 @@ explicit gap admission:
 
 ## 2. OpenAPI fragment ownership — TBD (Leaf B proof pending)
 
-- 156 fragment files under `go/internal/query/openapi/paths/` (measured
-  in this worktree), assembled into the served spec and drift-gated by
+- 137 `.go` files under `go/internal/query/openapi/paths/` (18 of them
+  package `doc.go` files; 36 adjacent md files not counted — measured
+  in this worktree; file set identical at the lane base `60f2fe256d`
+  and at `e30c99c1cf` — no drift since the base), assembled into the
+  served spec and drift-gated by
   `apicontract_drift_test` plus the operation-id convention test.
+- Landed since the base (dest-side progress, ownership decision still
+  TBD): the satellite now carries ported fragments for admin-identity
+  mutations (#42) and reads (#43, relay + union), the
+  AdminProviderConfigMutations subset (#46), the AdminRecoveryMutations
+  subset (#47), and the Setup carve-out routes (#45, fragment posture
+  still open under satellite #44).
 - TBD: which repo owns spec assembly post-cutover, where the drift gate
   runs, and what happens to the in-tree fragment tree (moved verbatim,
   vendored, or deleted with the satellite as sole owner).
@@ -41,6 +50,9 @@ explicit gap admission:
   store — Status (18 routes) and SupplyChain (19 routes, 18 reads sharing
   the suppression handler) — which dispatch/proxy to core until the read
   side separates from the writer handle.
+- Landed since the base: the Leaf B read-transport spec plus red-first
+  conformance skeleton merged in-tree (#10250); the cross-repo harness
+  itself has not run, so no parity evidence exists yet.
 - TBD: per-route native vs dispatch disposition at removal time, and for
   each relay-only route the parity evidence (envelope negotiation,
   pagination, capability/profile gating, authz parity) the Leaf B
@@ -50,11 +62,16 @@ explicit gap admission:
 
 - `CoreReadContractsVersion = "v0"`
   (`go/internal/query/querycontract/api_boundary.go:16`, pinned by
-  `api_boundary_test.go`); the Postgres `ReadStore` half pinned by
+  `api_boundary_test.go` — re-verified still `v0` at `e30c99c1cf`); the Postgres `ReadStore` half pinned by
   `TestReadStoreContractIsVersioned`.
 - `SuppressionAdmission` at `SuppressionAdmissionContractVersion`, bound
   by `newSupplyChainHandler` to the core-owned Postgres store — the single
   bounded mutation survivor.
+- Landed since the base (new versioned seams, still unwired):
+  `RecoveryAdmission` at `RecoveryAdmissionContractVersion = "v0"`
+  (#10245, `go/internal/query/admin/recovery_admission.go`) and the
+  `GovernanceAuditAdmission` append seam (#10233,
+  `go/internal/query/governance_audit_admission.go`).
 - TBD: Leaf B confirmation that no port change forced a version bump
   before removal, and the satellite-pinned version pair recorded in the
   removal PR.

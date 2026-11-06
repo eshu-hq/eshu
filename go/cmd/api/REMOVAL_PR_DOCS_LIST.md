@@ -18,6 +18,7 @@ the line or section that must change.
 | 6 | `go/cmd/api/README.md` | Lifecycle, env vars, and operational notes for the in-tree binary: retire or redirect to the eshu-api repo |
 | 7 | `go/cmd/README.md` | Binary table row (line 20: `` `eshu-api` \| `api/` \| Long-running HTTP API ``) and the `api --> postgres` / `api --> graph` edges (lines 65–66): mark the satellite boundary |
 | 8 | Epic #6707 row | Removal PR body opens with `Refs #9669, part of #6707` (repo PR-text rule: body opens with the `Refs` line and a bold lead) and carries the "At a glance" table plus the retired-coverage honesty note from the sibling skeleton |
+| 9 | `go/cmd/api/READ_TRANSPORT_SPEC.md` (+ `read_transport_conformance.go`, `read_transport_conformance_test.go`) — landed after this lane's base via #10250 | Disposition the spec and its conformance skeleton in the removal PR: archive with the retired in-tree surface or retain as the conformance record the satellite stays pinned to (owner decides; prep makes no claim) |
 
 Out of scope for this lane: the edits themselves. This list only names
 them so the removal PR (post Leaves A–G plus fresh arbiter review) makes
