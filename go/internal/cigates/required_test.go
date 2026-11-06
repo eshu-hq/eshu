@@ -83,7 +83,7 @@ func TestRequiredGates_SelectsPRAttributionGateForAnyChangedPath(t *testing.T) {
 // must not select it as a required gate (the aggregate would wait on a job that
 // never runs). Its frozen PR inventory still watches the reducer paths, so
 // re-enabling the row restores selection without another edit.
-func TestRequiredGates_ReplayTierIsOffButStillWatchesReducerReplayProof(t *testing.T) {
+func TestRequiredGates_ReplayTierIsBlockingAndWatchesReducerReplayProof(t *testing.T) {
 	t.Parallel()
 
 	registryPath := filepath.Join("..", "..", "..", "specs", "ci-gates.v1.yaml")
@@ -97,10 +97,14 @@ func TestRequiredGates_ReplayTierIsOffButStillWatchesReducerReplayProof(t *testi
 	if err != nil {
 		t.Fatalf("RequiredGates returned error: %v", err)
 	}
+	found := false
 	for _, gate := range required {
 		if slices.Contains(gate.GateIDs, "replay-tier") {
-			t.Fatal("replay-tier is off by owner order but a reducer replay proof still selects it")
+			found = true
 		}
+	}
+	if !found {
+		t.Fatal("replay-tier is the blocking Neo4j proof gate but no reducer replay proof selects it")
 	}
 	workflowPath := filepath.Join("..", "..", "..", "specs", "ci-pr-workflows.d", "verify-replay-tier.yml")
 	workflow, readErr := os.ReadFile(workflowPath)

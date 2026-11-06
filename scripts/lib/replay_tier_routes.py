@@ -31,13 +31,13 @@ INDEPENDENT_SUBJECTS = (
 )
 
 
-# The replay-tier job is disabled by owner order (2026-11-05, #7331): the pinned
-# workflow `if` is false and the gate row is manual and non-blocking. Re-enabling
-# restores the original lines (docs/internal/ci-workflow-inventory.md).
+# The replay-tier job runs the plan-selected `if` and the gate row is ci-heavy
+# and blocking on Neo4j (#10223). The owner order (2026-11-05, #7331) that
+# switched the NornicDB legs off no longer covers this job.
 # The reviewed workflow and gate use a literal YAML subset. Compare every active
 # control line, then validate the one variable paths/triggers sequence separately.
 WORKFLOW_CONTROL_LINES = """
-name: Replay Tier (offline NornicDB)
+name: Replay Tier (offline Neo4j)
 on:
   workflow_call:
     inputs:
@@ -61,8 +61,8 @@ env:
   CGO_CFLAGS: "-O2 -g -std=gnu17"
 jobs:
   replay-tier:
-    if: ${{ false }}
-    name: Offline replay tier vs real NornicDB
+    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'replay-tier') }}
+    name: Offline replay tier vs real Neo4j
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -82,7 +82,7 @@ jobs:
         run: scripts/ci/go-mod-download-retry.sh
       - name: Verify replay tier contract
         run: bash scripts/test-verify-replay-tier.sh
-      - name: Run offline replay tier against real NornicDB
+      - name: Run offline replay tier against real Neo4j
         run: bash scripts/verify-replay-tier.sh
 """.strip("\n").splitlines()
 
@@ -91,23 +91,20 @@ REGISTRY_GATE_CONTROL_LINES = """
     name: Replay tier (offline cassette replay)
     category: exactness
     layer: replay
-    purpose: "Replays recorded ingest/projector cassettes offline and checks the results match the real NornicDB backend."
-    tier: manual
-    blocking: false
+    purpose: "Replays recorded ingest/projector cassettes offline and checks the results match the real Neo4j backend."
+    tier: ci-heavy
+    blocking: true
     triggers:
     local:
       command: "bash scripts/verify-replay-tier.sh"
       test_command: "bash scripts/test-verify-replay-tier.sh"
     ci:
       workflow: verify-replay-tier.yml
-      job: "Offline replay tier vs real NornicDB"
+      job: "Offline replay tier vs real Neo4j"
     requirements:
       - go
       - docker
-    ci_only_reason: "Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
-    disabled:
-      reason: "Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
-      issue: "#10223"
+    ci_only_reason: ""
 """.strip("\n").splitlines()
 
 # A fixed reviewed selector keeps the live-tests.d/ branch open for every
@@ -248,7 +245,7 @@ def workflow_paths(fragment: str, filename: str) -> set[str]:
         raise ValueError("workflow fragment needs one paths sequence before jobs")
     controls = [" " * depth + content for index, (depth, content) in enumerate(lines)
                 if not starts[0] < index < ends[0]]
-    name = ("Replay Tier (offline NornicDB)" if filename == "verify-replay-tier.yml"
+    name = ("Replay Tier (offline Neo4j)" if filename == "verify-replay-tier.yml"
             else "Live Backend Tests")
     jobs = (["replay-tier"] if filename == "verify-replay-tier.yml"
             else ["live-backend", "live-backend-shards", "static-mirror"])
@@ -257,7 +254,7 @@ def workflow_paths(fragment: str, filename: str) -> set[str]:
                 "  - main", "  paths:", "  jobs:",
                 *(f"  - {job}" for job in jobs), "  job_names:"]
     if filename == "verify-replay-tier.yml":
-        expected.append("    replay-tier: Offline replay tier vs real NornicDB")
+        expected.append("    replay-tier: Offline replay tier vs real Neo4j")
     else:
         expected.extend(("    live-backend: live-backend (nornicdb and neo4j)",
                          "    live-backend-shards: live-backend shard (${{ matrix.shard }}/4)",

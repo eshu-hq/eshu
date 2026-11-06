@@ -227,7 +227,7 @@ class ReplayTierEnrollmentTest(unittest.TestCase):
             self.assertEqual(count, 1, name)
             return changed
 
-        backend = "Run offline replay tier against real NornicDB"
+        backend = "Run offline replay tier against real Neo4j"
         contract = "Verify replay tier contract"
         cases = {
             "job disabled": workflow_source.replace(
@@ -258,11 +258,13 @@ class ReplayTierEnrollmentTest(unittest.TestCase):
                 "uses: actions/checkout@v5", "run: true", 1),
             "Go setup replaced": workflow_source.replace(
                 "uses: actions/setup-go@v6", "run: true", 1),
-            # The job is off by owner order (2026-11-05): the pinned `if` is
-            # false. Flipping it back on without the paired re-enable steps
-            # (registry row, inventory pin) is rejected like any other drift.
-            "job re-enabled outside the documented steps": workflow_source.replace(
-                "    if: ${{ false }}\n", "    if: ${{ true }}\n", 1),
+            # The pinned `if` is the plan-selected condition. Widening it to
+            # a hardcoded true — or narrowing it to the old literal false —
+            # without the paired registry and pin updates is rejected like
+            # any other drift.
+            "job condition widened outside the reviewed controls": workflow_source.replace(
+                "    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'replay-tier') }}\n",
+                "    if: ${{ true }}\n", 1),
             "direct PR trigger reintroduced": workflow_source.replace(
                 "\nconcurrency:\n",
                 "\n  pull_request:\n    branches: [ main ]\n\nconcurrency:\n", 1),
@@ -289,7 +291,7 @@ class ReplayTierEnrollmentTest(unittest.TestCase):
         names = (".github/workflows/verify-replay-tier.yml",
                  "specs/ci-gates.d/gates-15.yaml", "scripts/dev/pre-pr.sh")
         original = [(ROOT / name).read_text() for name in names]
-        gate_step = "      - name: Run offline replay tier against real NornicDB\n"
+        gate_step = "      - name: Run offline replay tier against real Neo4j\n"
         workflow_cases = (
             original[0].replace("  replay-tier:\n",
                                 "  replay-tier:\n    if : false\n", 1),

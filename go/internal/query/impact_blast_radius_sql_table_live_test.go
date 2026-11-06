@@ -185,6 +185,30 @@ func sqlBlastRadiusBackend() (uri, database string) {
 	return uri, database
 }
 
+// sqlBlastRadiusAuth resolves the live graph credentials the same way, so the
+// branch proof authenticates against a real Neo4j the way the replay tier
+// does. NornicDB runs with authentication off and accepted the previous
+// NoAuth driver; Neo4j fails it closed (scheme 'none').
+func sqlBlastRadiusAuth() (username, password string) {
+	firstNonEmpty := func(names ...string) string {
+		for _, name := range names {
+			if value := strings.TrimSpace(os.Getenv(name)); value != "" {
+				return value
+			}
+		}
+		return ""
+	}
+	username = firstNonEmpty("ESHU_NEO4J_USERNAME", "NEO4J_USERNAME")
+	if username == "" {
+		username = "neo4j"
+	}
+	password = firstNonEmpty("ESHU_NEO4J_PASSWORD", "NEO4J_PASSWORD")
+	if password == "" {
+		password = "change-me"
+	}
+	return username, password
+}
+
 // sqlBlastRadiusLiveReader opens the gate's graph endpoint and returns a reader
 // bound to it, closing the driver through t.Cleanup rather than defer.
 //
@@ -194,10 +218,44 @@ func sqlBlastRadiusBackend() (uri, database string) {
 // create session on closed driver" and left probe nodes behind in the graph
 // this gate shares with the replay tier (#6182). Registering the close FIRST
 // puts it LAST in LIFO order, after whatever cleanup the caller registers next.
-func sqlBlastRadiusLiveReader(ctx context.Context, t *testing.T) *Neo4jReader {
+// sqlBlastRadiusLive pairs the production read-only reader that runs the
+// branch-proof query with a write-mode runner for seeding and cleanup. Neo4j
+// enforces the reader's read access mode while NornicDB did not, so the
+// fixture writes can no longer flow through Run.
+type sqlBlastRadiusLive struct {
+	reader *Neo4jReader
+	driver neo4jdriver.DriverWithContext
+}
+
+// Run runs the production read path.
+func (l *sqlBlastRadiusLive) Run(ctx context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+	return l.reader.Run(ctx, cypher, params)
+}
+
+// RunWrite runs one fixture write in a write-mode session.
+func (l *sqlBlastRadiusLive) RunWrite(ctx context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+	session := l.driver.NewSession(ctx, neo4jdriver.SessionConfig{AccessMode: neo4jdriver.AccessModeWrite})
+	defer func() { _ = session.Close(ctx) }()
+	result, err := session.Run(ctx, cypher, params)
+	if err != nil {
+		return nil, err
+	}
+	records, err := result.Collect(ctx)
+	if err != nil {
+		return nil, err
+	}
+	rows := make([]map[string]any, 0, len(records))
+	for _, record := range records {
+		rows = append(rows, record.AsMap())
+	}
+	return rows, nil
+}
+
+func sqlBlastRadiusLiveReader(ctx context.Context, t *testing.T) *sqlBlastRadiusLive {
 	t.Helper()
 	uri, database := sqlBlastRadiusBackend()
-	driver, err := neo4jdriver.NewDriverWithContext(uri, neo4jdriver.NoAuth())
+	username, password := sqlBlastRadiusAuth()
+	driver, err := neo4jdriver.NewDriverWithContext(uri, neo4jdriver.BasicAuth(username, password, ""))
 	if err != nil {
 		t.Fatalf("open graph driver: %v", err)
 	}
@@ -205,7 +263,7 @@ func sqlBlastRadiusLiveReader(ctx context.Context, t *testing.T) *Neo4jReader {
 	if err := driver.VerifyConnectivity(ctx); err != nil {
 		t.Fatalf("verify graph connectivity: %v", err)
 	}
-	return NewNeo4jReader(driver, database)
+	return &sqlBlastRadiusLive{reader: NewNeo4jReader(driver, database), driver: driver}
 }
 
 // sqlBlastRadiusCleanup deletes every node a prefix's fixtures created plus the
@@ -223,11 +281,11 @@ func sqlBlastRadiusLiveReader(ctx context.Context, t *testing.T) *Neo4jReader {
 // same way while this helper only logged. "graph left clean" was a row a human
 // checked by hand in docs/internal/evidence/6204-blast-radius-bite-test.md; the
 // verify half of each probe makes it an assertion the run enforces itself.
-func sqlBlastRadiusCleanup(t *testing.T, reader *Neo4jReader, prefix string) {
+func sqlBlastRadiusCleanup(t *testing.T, live *sqlBlastRadiusLive, prefix string) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
-	graph.SqlBlastRadiusCleanupWith(ctx, t, reader.Run, prefix)
+	graph.SqlBlastRadiusCleanupWith(ctx, t, live.RunWrite, prefix)
 }
 
 // sqlBlastRadiusMissingBranches reduces the rows blastRadiusSqlTableQuery
@@ -292,7 +350,7 @@ func TestSQLTableBlastRadiusEveryBranchContributesLive(t *testing.T) {
 
 	// The CONTAINS branch seeds the shared table, so it must run first.
 	for _, branch := range branches {
-		if _, err := reader.Run(ctx, branch.Seed, nil); err != nil {
+		if _, err := reader.RunWrite(ctx, branch.Seed, nil); err != nil {
 			t.Fatalf("seed branch %q: %v", branch.Name, err)
 		}
 	}

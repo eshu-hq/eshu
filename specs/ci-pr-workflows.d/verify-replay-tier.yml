@@ -2,7 +2,7 @@
 schema_version: 1
 workflows:
 - file: verify-replay-tier.yml
-  name: Replay Tier (offline NornicDB)
+  name: Replay Tier (offline Neo4j)
   synchronize: true
   branches:
   - main
@@ -38,4 +38,4 @@ workflows:
   jobs:
   - replay-tier
   job_names:
-    replay-tier: Offline replay tier vs real NornicDB
+    replay-tier: Offline replay tier vs real Neo4j

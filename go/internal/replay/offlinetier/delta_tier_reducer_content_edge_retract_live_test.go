@@ -281,7 +281,7 @@ func seedContentEdgeNodes(ctx context.Context, t *testing.T, exec liveExecutor) 
 			"fnDoc": ctFnDoc, "fnDocOut": ctFnDocOut,
 			"taintSrc": ctFnTaintSrc, "taintDst": ctFnTaintDst,
 			"taintOutS": ctFnTaintOutS, "taintOutD": ctFnTaintOutD,
-			"in": ctInRepo, "depTarget": ctDepTarget,
+			"in": ctInRepo, "out": ctOutRepo, "depTarget": ctDepTarget,
 			"depOutSrc": ctDepOutSrc, "depOutTgt": ctDepOutTgt, "marker": ctMarker,
 		},
 	}

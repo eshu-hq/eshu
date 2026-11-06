@@ -232,7 +232,7 @@ def verify_runner(runner: str, selector: str) -> None:
         raise ValueError("runner reviewed-source checks are missing or bypassed")
     positions = [match.start() for match in re.finditer(re.escape("\n" + guard + "\n"), runner)]
     anchors = (
-        'log "starting lean NornicDB container',
+        'log "starting lean Neo4j container',
         'log "running focused offline replay tier tests',
         'python3 scripts/lib/replay_tier_enrollment.py --root "${repo_root}" --events "${TIER_JSON}"',
         'log "running sql_table blast-radius branch proof',
@@ -257,7 +257,7 @@ def verify_ledger(rows: list[tuple[str, str, str, str, str, str]],
         raise ValueError("replay-tier ledger rows differ from source inventory")
     for path in files:
         row = by_path[path]
-        if row[1].strip() != "~" or row[2] != "dedicated_ci" or row[5] != "nornicdb":
+        if row[1].strip() != "~" or row[2] != "dedicated_ci" or row[5] != "neo4j":
             raise ValueError(f"replay-tier ledger policy mismatch: {path}")
 
 

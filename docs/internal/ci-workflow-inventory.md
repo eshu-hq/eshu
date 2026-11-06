@@ -112,7 +112,7 @@ that workflow. Automation workflows are explicitly outside the gate registry.
 | `test.yml` | Blocking Go core/race/docs; separate lint plugin module | Primary Go authority; plugin module is distinct, not redundant. |
 | `verify-agent-hygiene.yml` | Five blocking agent/process contracts | Retain current enforcement; evaluate maintenance against concrete failure history. |
 | `verify-ci-gate-registry.yml` | Blocking ownership/ruleset consistency and self-tests | Necessary while registry is authoritative; retain. |
-| `verify-replay-tier.yml` | Offline real NornicDB replay (disabled 2026-11-05) | Distinct backend replay proof; retain the job, re-enable with the NornicDB legs. |
+| `verify-replay-tier.yml` | Offline real Neo4j replay (blocking; retargeted 2026-11-06, #10223) | Distinct backend replay proof; retain the job. No longer part of the NornicDB legs. |
 
 The `queue-selection.yml` helper was removed in #9367 (it made 36 workflow
 files while it lived; 38 remain). It had no independent
@@ -254,20 +254,19 @@ To re-enable everything, revert in this order and run each check after its step:
    registry doc generator and the registry validator
    (`scripts/generate-ci-gates-doc.sh`, `scripts/verify-ci-gates-registry.sh`).
 3. Restore the pinned shapes the guards compare against:
-   `scripts/lib/replay_tier_routes.py` (workflow and registry control lines),
-   `scripts/lib/nornic_conformance_runner.py` (e2e matrix), the
-   `replay_tier_routes.py` digest in `scripts/lib/replay_tier_inventory.json`
-   and `scripts/lib/verify-live-tests-ledger.py`, and the stage-step name in
-   `scripts/lib/golden-corpus-capture-leg-cases.sh`. Pass `nornicdb neo4j` to
-   `stage-differential-capture.sh`.
+   `scripts/lib/nornic_conformance_runner.py` (e2e matrix) and the stage-step
+   name in `scripts/lib/golden-corpus-capture-leg-cases.sh`. Pass `nornicdb
+   neo4j` to `stage-differential-capture.sh`. (The replay-tier pins —
+   `scripts/lib/replay_tier_routes.py` and its digests — stay on the Neo4j
+   shape from #10223; re-enabling NornicDB does not move the replay tier.)
 4. Delete the `nornicdb-ci-off` registry row, its two steps in
    `verify-agent-hygiene.yml`, `scripts/verify-nornicdb-ci-off.py`, its two
    scanner modules (`scripts/lib/nornicdb_ci_off_scan.py` and
    `scripts/lib/nornicdb_ci_off_shell.py`), and its four test files
    (`scripts/test-verify-nornicdb-ci-off*.py`). Do this last: until then the guard refuses any live NornicDB leg.
-5. Regenerate the replay-coverage dashboard
-   (`cd go && go test ./cmd/replay-coverage-gate/ -update-dashboard`). With the
-   `replay-tier` row blocking again (delete its `disabled:` marker), its 167
-   surfaces return from "Proof off" to satisfied (457/457). While the row is off,
-   they are reported as unproven and #10223 tracks restoring their proof.
+5. The replay-coverage dashboard needs no replay-tier step: #10223 restored the
+   tier on Neo4j and the dashboard is 457/457. (If a future owner order switches
+   a proof gate off again, regenerate the dashboard with
+   `cd go && go test ./cmd/replay-coverage-gate/ -update-dashboard`; while a
+   proof-gate row is off, its surfaces report as unproven "Proof off".)
 6. Run the focused tests the disabling PR listed, then open a normal PR.

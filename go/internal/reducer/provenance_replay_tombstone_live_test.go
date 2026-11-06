@@ -123,10 +123,10 @@ func TestProvenanceReplayTombstoneCassetteDecisions(t *testing.T) {
 
 // TestReducerProvenanceReplayTombstoneGraphTruth proves the full cassette ->
 // decision builders -> package-private retract-first projectors -> real writer
-// -> NornicDB path. Ordinary go test skips without ESHU_REPLAY_TIER_LIVE.
+// -> real-backend path. Ordinary go test skips without ESHU_REPLAY_TIER_LIVE.
 func TestReducerProvenanceReplayTombstoneGraphTruth(t *testing.T) {
 	if !provenanceReplayLiveEnabled() {
-		t.Skip("set ESHU_REPLAY_TIER_LIVE=1 and configure the replay-tier NornicDB backend")
+		t.Skip("set ESHU_REPLAY_TIER_LIVE=1 and configure the replay-tier backend (ESHU_GRAPH_BACKEND/NEO4J_URI/ESHU_NEO4J_DATABASE)")
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
@@ -141,8 +141,16 @@ func TestReducerProvenanceReplayTombstoneGraphTruth(t *testing.T) {
 		_ = driver.Close(closeCtx)
 	})
 	executor := newProvenanceReplayExecutor(driver, cfg.DatabaseName)
-	if err := graph.EnsureSchemaWithBackendStrict(ctx, executor, nil, graph.SchemaBackendNornicDB); err != nil {
-		t.Fatalf("ensure replay-tier NornicDB schema: %v", err)
+	backend, err := runtimecfg.LoadGraphBackend(os.Getenv)
+	if err != nil {
+		t.Fatalf("load graph backend: %v", err)
+	}
+	schemaBackend := graph.SchemaBackendNornicDB
+	if backend == runtimecfg.GraphBackendNeo4j {
+		schemaBackend = graph.SchemaBackendNeo4j
+	}
+	if err := graph.EnsureSchemaWithBackendStrict(ctx, executor, nil, schemaBackend); err != nil {
+		t.Fatalf("ensure replay-tier %s schema: %v", backend, err)
 	}
 	cleanupProvenanceReplayGraph(ctx, t, executor)
 	t.Cleanup(func() {
