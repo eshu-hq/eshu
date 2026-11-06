@@ -109,6 +109,28 @@ golden_delta_reader_generation_count() {
 WHERE scope_id = '${golden_delta_reader_scope_id}' AND is_delta = $1;"
 }
 
+# golden_delta_reader_drop_dead_shallow_lock <collector_pid> removes the
+# fixture clone's .git/shallow.lock when the leg's own collector is proven
+# dead (#10270). A depth fetch takes shallow.lock before reading the pack,
+# and the harness kill after the generation commits lands mid-fetch, so the
+# lock outlives its holder; the next leg's collector then fails every fetch
+# until the collector-side 5-minute stale age elapses -- past the 90s settle
+# deadline. kill+wait on our own child is stronger proof of owner death than
+# lock mtime, so even a fresh lock is removed. While the pid is still alive
+# the lock may belong to a live fetch and is left alone: a young lock can
+# belong to a live fetch, and deleting it risks shallow-state corruption.
+golden_delta_reader_drop_dead_shallow_lock() {
+	local collector_pid="$1" lock
+	lock="$(golden_delta_reader_repos_dir)/${golden_delta_reader_slug}/.git/shallow.lock"
+	[[ -e "${lock}" ]] || return 0
+	if kill -0 "${collector_pid}" 2>/dev/null; then
+		log "delta-reader: leaving ${lock}: collector ${collector_pid} is still alive"
+		return 0
+	fi
+	rm -f "${lock}" || die "delta-reader: removing stale ${lock} failed"
+	log "delta-reader: removed ${lock} left by the stopped collector"
+}
+
 # golden_delta_reader_sync <want_is_delta> <label> runs one collector-git
 # explicit-mode sync and waits until a new generation of the wanted kind has
 # committed, then stops the collector. A deadline, not a sleep. The pid
@@ -150,6 +172,7 @@ golden_delta_reader_sync() {
 	done
 	kill "${collector_pid}" >/dev/null 2>&1 || true
 	wait "${collector_pid}" 2>/dev/null || true
+	golden_delta_reader_drop_dead_shallow_lock "${collector_pid}"
 	printf 'delta-reader: %s generation committed for %s\n' "${label}" "${golden_delta_reader_scope_id}"
 }
 
