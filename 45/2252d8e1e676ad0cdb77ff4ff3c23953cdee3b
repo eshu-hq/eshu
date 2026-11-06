@@ -1,0 +1,112 @@
+go/internal/storage/postgres/shared_intents.go
+  h_78a442cba0b3e6 4,32-36,44-55,63-67,70,73,84,95,123-124,136-137,141,146-149,154,160-161,168,176-177,185,193-194,319-321,488,501-504,516-518
+go/internal/storage/postgres/shared_intents_history.go
+  h_78a442cba0b3e6 117,129,162,174
+go/internal/storage/cypher/edge/writer/retract_scope.go
+  h_78a442cba0b3e6 258-262
+docs/public/reference/telemetry/index.md
+  h_78a442cba0b3e6 844-846
+go/internal/storage/postgres/schema_index_replay_test.go
+  h_78a442cba0b3e6 113-146
+go/internal/storage/postgres/migrations/migration_checksum_manifest_test.go
+  h_78a442cba0b3e6 358-360
+go/internal/storage/postgres/readiness/producer/store.go
+  h_78a442cba0b3e6 96
+go/internal/storage/postgres/shared_intents_partition_candidates_test.go
+  h_78a442cba0b3e6 258-261,273-274
+go/internal/storage/postgres/repository_freshness_sql.go
+  h_78a442cba0b3e6 129
+go/internal/reducer/intents/shared/worker/fence.go
+  h_78a442cba0b3e6 42-58,80-85,160,164-167,228,233-238,244,247,258,260-275,277
+  h_78a442cba0b3e6 259
+go/internal/storage/postgres/shared_intents_failure_live_test.go
+  h_78a442cba0b3e6 1-5,10-284
+  h_78a442cba0b3e6 6-9
+go/internal/reducer/intents/shared/worker/writes.go
+  h_78a442cba0b3e6 44,52,73-76,133
+go/internal/storage/postgres/shared_intents_test.go
+  h_78a442cba0b3e6 708-711,749-752,799-802,904-909
+go/internal/reducer/intents/shared/worker/runner_backoff_test.go
+  h_78a442cba0b3e6 197-204,206-207
+go/internal/reducer/intents/shared/worker/process.go
+  h_78a442cba0b3e6 38-41,110-120,257,261-263,271-272,300
+go/internal/storage/postgres/migrations/embed_invariant_test.go
+  h_78a442cba0b3e6 223-228,234
+go/internal/storage/postgres/migrations/285_shared_projection_intent_pending_indexes.sql
+  h_78a442cba0b3e6 1-38
+go/internal/storage/postgres/migrations/284_shared_projection_intent_failure_state.sql
+  h_78a442cba0b3e6 1-96
+go/internal/reducer/intents/shared/worker/dead_letter_10069_test.go
+  h_78a442cba0b3e6 1-623
+go/internal/storage/postgres/value_flow_refresh_ack.go
+  h_78a442cba0b3e6 324
+go/internal/reducer/intents/shared/worker/telemetry_test.go
+  h_78a442cba0b3e6 15,223-281
+go/internal/cli/localsupervisor/content_search_indexes.go
+  h_78a442cba0b3e6 137
+go/internal/storage/postgres/shared_intents_upsert.go
+  h_78a442cba0b3e6 70-74
+docs/internal/evidence/10069-shared-intent-dead-letter-implementation.md
+  h_78a442cba0b3e6 1-189
+go/internal/reducer/sharedintent/failure.go
+  h_78a442cba0b3e6 1-56
+docs/public/observability/telemetry-coverage-reducer-core.md
+  h_78a442cba0b3e6 163,168-169,175
+go/internal/reducer/sharedintent/doc.go
+  h_78a442cba0b3e6 17-24
+go/internal/reducer/sharedintent/intent.go
+  h_78a442cba0b3e6 17-23,36-39
+go/internal/storage/postgres/shared_intents_failure.go
+  h_78a442cba0b3e6 1-259
+go/internal/query/content_reader_dead_code_candidates.go
+  h_78a442cba0b3e6 334
+go/internal/reducer/sharedintent/refresh.go
+  h_78a442cba0b3e6 85-93
+go/internal/storage/postgres/schema_order_late_test.go
+  h_78a442cba0b3e6 478-483
+go/internal/reducer/intents/shared/worker/runner.go
+  h_78a442cba0b3e6 280-281,396-399,414-420,423-428,435-436
+go/internal/storage/postgres/shared_intents_partition_candidates.go
+  h_78a442cba0b3e6 27-28,49-50,56,70-71,76
+go/internal/reducer/intents/shared/worker/runner_test.go
+  h_78a442cba0b3e6 44,64,72-160
+go/internal/reducer/intents/shared/worker/telemetry.go
+  h_78a442cba0b3e6 138-175
+go/internal/reducer/code/call/refresh_dead_letter.go
+  h_78a442cba0b3e6 53-61
+go/internal/storage/postgres/shared_intents_failure_test.go
+  h_78a442cba0b3e6 1-191
+go/internal/telemetry/instruments.go
+  h_78a442cba0b3e6 319-327,3562-3569
+go/internal/reducer/intents/shared/worker/README.md
+  h_78a442cba0b3e6 28-30
+go/internal/reducer/intents/shared/worker/dead_letter.go
+  h_78a442cba0b3e6 1-262
+go/internal/storage/postgres/value_flow_program_loader.go
+  h_78a442cba0b3e6 49
+go/cmd/golden-corpus-gate/drains.go
+  h_78a442cba0b3e6 28-33
+go/internal/storage/postgres/shared_intents_partition_test.go
+  h_78a442cba0b3e6 161-164
+go/internal/storage/postgres/shared_intents_continuation.go
+  h_78a442cba0b3e6 16-17,21
+go/internal/storage/postgres/code/reachability/loader_candidates_sql.go
+  h_78a442cba0b3e6 50
+go/internal/storage/postgres/generation_liveness_sql.go
+  h_78a442cba0b3e6 85,181,399-400
+scripts/lib/live_postgres_readiness_inventory_gen_internal_storage_postgres_part4.py
+  h_78a442cba0b3e6 168-171
+specs/live-tests.d/live-tests-readiness-part6.generated.yaml
+  h_78a442cba0b3e6 192-196
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "452252d8e1e676ad0cdb77ff4ff3c23953cdee3b",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
