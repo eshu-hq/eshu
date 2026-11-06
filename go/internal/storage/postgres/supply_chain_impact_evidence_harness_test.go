@@ -382,17 +382,20 @@ func sortedSupplyChainImpactFactIDs(result supplyChainImpactOracleResult) []stri
 // supplyChainImpactPlanNode is the subset of an EXPLAIN JSON node the plan
 // assertions and failure summaries read.
 type supplyChainImpactPlanNode struct {
-	NodeType    string                      `json:"Node Type"`
-	IndexName   string                      `json:"Index Name"`
-	Relation    string                      `json:"Relation Name"`
-	IndexCond   string                      `json:"Index Cond"`
-	Filter      string                      `json:"Filter"`
-	ActualRows  float64                     `json:"Actual Rows"`
-	ActualLoops float64                     `json:"Actual Loops"`
-	Rechecked   float64                     `json:"Rows Removed by Index Recheck"`
-	SharedHit   int64                       `json:"Shared Hit Blocks"`
-	SharedRead  int64                       `json:"Shared Read Blocks"`
-	Plans       []supplyChainImpactPlanNode `json:"Plans"`
+	NodeType      string                      `json:"Node Type"`
+	IndexName     string                      `json:"Index Name"`
+	Relation      string                      `json:"Relation Name"`
+	IndexCond     string                      `json:"Index Cond"`
+	Filter        string                      `json:"Filter"`
+	ActualRows    float64                     `json:"Actual Rows"`
+	ActualLoops   float64                     `json:"Actual Loops"`
+	PlanRows      float64                     `json:"Plan Rows"`
+	Rechecked     float64                     `json:"Rows Removed by Index Recheck"`
+	SharedHit     int64                       `json:"Shared Hit Blocks"`
+	SharedRead    int64                       `json:"Shared Read Blocks"`
+	SharedDirtied int64                       `json:"Shared Dirtied Blocks"`
+	SharedWritten int64                       `json:"Shared Written Blocks"`
+	Plans         []supplyChainImpactPlanNode `json:"Plans"`
 }
 
 // supplyChainImpactPlanNodes flattens one EXPLAIN (FORMAT JSON) document.

@@ -7,7 +7,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/packageidentity"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core/cvss"
 	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
@@ -112,6 +111,17 @@ func sortedPackageKeys(groups map[string][]supplychainmodel.AffectedPackage) []s
 // list so callers do not lose vendor or upstream rows. A fact marked
 // JoinRepresentative wins before source order: it is the best-ranked fact that
 // joins the installed row once the group is narrowed to the facts that join (#9990).
+//
+// The ranking table is order-independent (#10034 item 1, ruling 9990-orderdep
+// 1.3). It used to be the first fact's ecosystem, so a group whose facts
+// disagreed on the ecosystem named a different fact per fact order. A group
+// that agrees on the ecosystem keeps its table exactly, so its finding is
+// byte-identical. A group that disagrees ranks under the vendor class its
+// package identity names, so the matching vendor fact outranks GLAD, GHSA,
+// OSV, and NVD however the facts arrive; with no vendor named it ranks under
+// "os" when every fact has OS shape and under the language table otherwise.
+// Every key the comparator reads comes from one fact alone, so the comparison
+// is a total order and fact order cannot change the pick.
 func representativeAffectedPackage(packages []supplychainmodel.AffectedPackage) supplychainmodel.AffectedPackage {
 	if len(packages) == 0 {
 		return supplychainmodel.AffectedPackage{}
@@ -124,13 +134,13 @@ func representativeAffectedPackage(packages []supplychainmodel.AffectedPackage) 
 			return pkg
 		}
 	}
-	ecosystem := packageidentity.LowerASCII(strings.TrimSpace(packages[0].Ecosystem))
+	ranking := representativeRankingForGroup(packages)
 	sorted := append([]supplychainmodel.AffectedPackage(nil), packages...)
 	sort.SliceStable(sorted, func(i, j int) bool {
 		si := classifyAdvisorySource(sorted[i].Source, sorted[i].AdvisoryID)
 		sj := classifyAdvisorySource(sorted[j].Source, sorted[j].AdvisoryID)
-		ri := advisorySourcePriority(ecosystem, si)
-		rj := advisorySourcePriority(ecosystem, sj)
+		ri := representativeSourceRank(ranking, si)
+		rj := representativeSourceRank(ranking, sj)
 		if ri != rj {
 			return ri < rj
 		}

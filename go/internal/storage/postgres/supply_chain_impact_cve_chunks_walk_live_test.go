@@ -34,6 +34,17 @@ const cveChunkWalkFallsAt = 200
 func TestSupplyChainImpactCVEBoundStaysBelowTheWalkLive(t *testing.T) {
 	ctx, database := openSupplyChainImpactEvidenceProofDB(t)
 	seedCVEChunkWalkFixture(t, ctx, database, cveChunkWalkCorrelation)
+	// Migration 283's extended-statistics object on payload->>'cve_id' ships
+	// in the bootstrap above and its ANALYZE populates it, so the planner
+	// prices the probe monotonically and never walks at 121-199 ids. Drop
+	// it here to restore the no-statistics planner the 120 bound was
+	// derived against; the object is outside this test's contract (the
+	// stats test proves the with-object plans) and autovacuum stays off, so
+	// nothing repopulates it mid-test. The DROP touches only the extended
+	// object, not the planted advisory correlation the walk needs.
+	if _, err := database.ExecContext(ctx, "DROP STATISTICS IF EXISTS fact_records_vulnerability_cve_id_stats"); err != nil {
+		t.Fatalf("drop cve_id statistics object: %v", err)
+	}
 	conn, err := database.Conn(ctx)
 	if err != nil {
 		t.Fatalf("pin a connection: %v", err)

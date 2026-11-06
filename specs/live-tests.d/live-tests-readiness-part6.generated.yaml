@@ -239,6 +239,11 @@ tests:
     class: postgres_ci
     reason: "#9994 disposable PostgreSQL 18 proof that every key probe on the CVE index stays on its anchor up to the statement bound on a fixture that reproduces the advisory-index walk above it."
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/supply_chain_impact_cve_stats_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10050 disposable PostgreSQL 18 proof that migration 283's extended-statistics object on payload->>'cve_id' holds every key probe on the CVE index on its anchor past the advisory-index walk the fixture reproduces without it; dropping the object is the RED control"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/supply_chain_impact_disengaged_build_live_test.go
     tag: ~
     class: postgres_ci

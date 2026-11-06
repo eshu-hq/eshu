@@ -300,3 +300,61 @@ func TestIdentityHelpersKeepLookalikesApart(t *testing.T) {
 		t.Fatalf("isSBTPackageManager must fold ASCII case only: SBT=%t, long-s sbt=%t", isSBTPackageManager(" SBT "), isSBTPackageManager("\u017Fbt"))
 	}
 }
+
+// TestNuGetUnicodeFoldContractKeepsAsciiOnly pins the #9594 decision: Eshu
+// keeps ASCII-only folding for NuGet even though the registry folds wider.
+//
+// Confirmed against the authoritative sources (recorded in the package
+// README): NuGet.Client compares package IDs with
+// StringComparer.OrdinalIgnoreCase (PackageIdentityComparer: Equals,
+// GetHashCode, Compare), and nuget.org stores and serves packages under
+// id.ToLowerInvariant() (FlatContainerPackagePathProvider) while taking new
+// IDs ASCII-only (PackageIdValidator). Under that fold U+0130 stays apart
+// from "i" (it lowercases to "i" plus U+0307), so Eshu and the registry
+// agree and there is no false negative. U+212A folds to "k", so the
+// registry equates a Kelvin-spelled legacy ID with its ASCII twin while
+// Eshu keeps them apart: an accepted, legacy-only false negative (new IDs
+// cannot hold non-ASCII letters). Widening the fold to match would join
+// lookalikes the ASCII rule keeps apart, so the rule stays.
+func TestNuGetUnicodeFoldContractKeepsAsciiOnly(t *testing.T) {
+	t.Parallel()
+
+	pairs := []struct {
+		name          string
+		lookalike     string
+		asciiTwin     string
+		registryFolds bool
+	}{
+		{
+			name:          "dotted capital I stays apart on both sides",
+			lookalike:     "Ser\u0130log",
+			asciiTwin:     "Serilog",
+			registryFolds: false,
+		},
+		{
+			name:          "Kelvin folds on the registry, stays apart here",
+			lookalike:     "\u212Aelvin",
+			asciiTwin:     "kelvin",
+			registryFolds: true,
+		},
+	}
+	for _, pair := range pairs {
+		lookalike, err := Normalize(RawIdentity{Ecosystem: EcosystemNuGet, Registry: DefaultRegistry(EcosystemNuGet), RawName: pair.lookalike})
+		if err != nil {
+			t.Fatalf("%s: Normalize(%q) error = %v", pair.name, pair.lookalike, err)
+		}
+		ascii, err := Normalize(RawIdentity{Ecosystem: EcosystemNuGet, Registry: DefaultRegistry(EcosystemNuGet), RawName: pair.asciiTwin})
+		if err != nil {
+			t.Fatalf("%s: Normalize(%q) error = %v", pair.name, pair.asciiTwin, err)
+		}
+		if lookalike.PackageID == ascii.PackageID {
+			t.Fatalf("%s: lookalike %q shares package ID %q with %q", pair.name, pair.lookalike, lookalike.PackageID, pair.asciiTwin)
+		}
+		if key, ok := sharedKey(ConsumptionKeys("nuget", pair.asciiTwin), ConsumptionKeys("nuget", pair.lookalike)); ok {
+			t.Fatalf("%s: lookalike %q joins %q via key %+v", pair.name, pair.lookalike, pair.asciiTwin, key)
+		}
+		if pair.registryFolds {
+			t.Logf("%s: accepted residual, see package README", pair.name)
+		}
+	}
+}

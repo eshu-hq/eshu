@@ -30,7 +30,11 @@ func NormalizePyPIName(name string) string {
 // "Ser\u0130log" the key of the real "Serilog" package (#9584). No registry Eshu
 // reads defines a Unicode case fold for package names: PyPI, Go module paths,
 // and crates.io accept only ASCII names, npm requires URL-safe names, and
-// NuGet IDs may not hold characters that are not valid in a URL. ASCII-only
+// NuGet IDs may not hold characters that are not valid in a URL. NuGet folds
+// wider than this (OrdinalIgnoreCase client-side, invariant-lowercased paths
+// server-side: Kelvin-sign K meets k, dotted-I U+0130 stays apart from i);
+// the package README records that decision and its legacy-only residual
+// (#9594). ASCII-only
 // folding is byte-identical to strings.ToLower for every ASCII input.
 func LowerASCII(value string) string {
 	first := -1
