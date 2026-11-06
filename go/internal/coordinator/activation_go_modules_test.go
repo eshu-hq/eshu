@@ -120,6 +120,7 @@ func goModulesService(t *testing.T, now *time.Time, store *fakeStore, reader GoM
 		Store:                     store,
 		ComponentExtensionPlanner: extension.WorkPlanner{},
 		GoModuleRepositoryReader:  reader,
+		GoEvidenceFencer:          &fakeGoEvidenceFencer{},
 		GovernanceAudit:           &fakeGovernanceAuditAppender{},
 		Clock:                     func() time.Time { return *now },
 	}

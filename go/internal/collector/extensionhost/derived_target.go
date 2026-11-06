@@ -23,6 +23,10 @@ import (
 // per-claim config is how the component learns what to fetch.
 const HostDerivedTargetKey = "host_derived_target"
 
+// derivedTargetCommitKey names the commit inside a derived target. The component
+// fetches it, and the host stamps it on the generation the claim commits.
+const derivedTargetCommitKey = "source_commit_sha"
+
 // DerivedTargetResolver returns the derived target for one claimed work item, or
 // nil for a scope that has none. An error wrapping
 // collector.ErrSlotScopeTransport fails the claim terminal before the component
@@ -49,12 +53,27 @@ func GoReachabilityTargetResolver(store RunScopeSetReader) DerivedTargetResolver
 			return nil, err
 		}
 		return map[string]any{
-			"scope_id":          target.ScopeID,
-			"repository_id":     target.RepositoryID,
-			"source_commit_sha": target.SourceCommitSHA,
-			"clone_url":         target.CloneURL,
+			"scope_id":             target.ScopeID,
+			"repository_id":        target.RepositoryID,
+			derivedTargetCommitKey: target.SourceCommitSHA,
+			"clone_url":            target.CloneURL,
 		}, nil
 	}
+}
+
+// derivedCommitSHA returns the commit the host delivered on this claim, or "" when
+// it delivered none. Without a resolver the key can only be static config, which
+// must not name a commit, so that case reads nothing.
+func (s *Source) derivedCommitSHA(request Request) string {
+	if s.derivedTargetResolver == nil {
+		return ""
+	}
+	target, ok := request.Config[HostDerivedTargetKey].(map[string]any)
+	if !ok {
+		return ""
+	}
+	commit, _ := target[derivedTargetCommitKey].(string)
+	return commit
 }
 
 // GoReachabilityInstallationKey selects a Go reachability claim's installation

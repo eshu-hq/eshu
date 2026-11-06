@@ -56,18 +56,23 @@ same way `AWSPaginationCheckpointStore` does.
   dimension: a GitHub Actions target has exactly one runs listing to track,
   so `Scope` and `Key` are not split into separate types the way the AWS
   pagination checkpoint contract splits them.
-- `Save` rejects a fencing token strictly older than the stored row
-  (`ErrStaleFence`). A fencing token EQUAL to the stored row's succeeds --
-  this is the idempotent-redelivery case (a retried claim that already
-  wrote this exact watermark).
+- Inside one generation, `Save` rejects a fencing token strictly older than
+  the stored row (`ErrStaleFence`). A fencing token EQUAL to the stored row's
+  succeeds -- this is the idempotent-redelivery case (a retried claim that
+  already wrote this exact watermark).
+- Across generations, `Save` compares run IDs, not fencing tokens, and rejects
+  an older run with `ErrStaleFence`. A token counts claims of one work item and
+  each generation is its own work item, so tokens restart at 1. Comparing them
+  would let one retried claim refuse every later first attempt (#10063).
 - `InMemoryStore` has no durability across process restarts or visibility
   across collector replicas. It narrows, but does not close, the gap the
   Postgres-backed store closes; see `CICDRunWatermarkStore` in
   `go/internal/storage/postgres/cicd`.
 - `LastRunID` is a decimal string (GitHub Actions run IDs), not a numeric
   type, to avoid a redundant parse/format round trip at the storage
-  boundary; comparison as an integer happens in `ghactionsruntime`, which is
-  the only caller that needs ordering semantics.
+  boundary. `Validate` requires it to parse as an integer, because gap
+  detection in `ghactionsruntime` and the `Save` guard both order it
+  numerically.
 
 ## Related docs
 

@@ -27,8 +27,27 @@ func appendSupplyChainImpactPackageFindings(
 	pkgs []supplychainmodel.AffectedPackage,
 	index supplyChainImpactIndex,
 ) []SupplyChainImpactFinding {
+	cves, pkgs = liveAdvisoryPackages(cves, pkgs, index)
 	pkg := representativeAffectedPackage(pkgs)
 	paths := supplyChainSBOMPaths(pkg, index)
+	reselected := false
+	if len(paths) == 0 {
+		// Mixed rows under a blank ecosystem: classify the versioned rows, which have
+		// no base row, apart from the rows with no version, which do (ruling 9990-f6).
+		if versioned, versionless, split := splitDirectBlankGroupByRowVersion(pkgs, pkg, index); split {
+			findings = appendSupplyChainImpactPackageFindings(findings, cves, pkgs, versioned)
+			return appendSupplyChainImpactPackageFindings(findings, cves, pkgs, versionless)
+		}
+		// No SBOM path: let the facts that join the installed row decide the
+		// finding when source order picked one with no anchor at all, or a blank
+		// ecosystem that joins beside a fact that cannot (#9990).
+		if joining, wasReselected, ok := withJoinableOSRepresentative(pkgs, pkg, index); ok {
+			pkgs, reselected = joining, wasReselected
+			pkg = representativeAffectedPackage(pkgs)
+			paths = supplyChainSBOMPaths(pkg, index)
+		}
+	}
+	index.recordOSRepresentativeOutcome(pkgs, pkg, reselected, len(paths) > 0)
 	if len(paths) == 0 {
 		return appendSupplyChainImpactFleetOSFindings(findings, cves, pkgs, index)
 	}

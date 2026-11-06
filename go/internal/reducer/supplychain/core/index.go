@@ -74,6 +74,14 @@ type supplyChainImpactIndex struct {
 	// negatedProductsExcluded counts vulnerable CPE matches left out of
 	// affectedProducts because their NVD configuration or node is negated.
 	negatedProductsExcluded int
+
+	// osUpstream holds what the OS advisory grouping pass counted and did
+	// (#9914); see groupOSAdvisoriesByUpstream.
+	osUpstream osUpstreamGrouping
+	// osRepresentativeOutcomes receives one count per OS-shaped package group
+	// this index classifies (#9990). Nil records nothing. It has one owner
+	// goroutine, the pass that builds the findings.
+	osRepresentativeOutcomes map[osRepresentativeOutcomeKey]int
 }
 
 // buildSupplyChainImpactIndex and buildSupplyChainImpactIndexWithQuarantine
@@ -111,7 +119,14 @@ func classifySupplyChainImpactPackage(
 		pkgs = selectOSAdvisoryRelease(pkgs, supplychainmodel.OSPackage{})
 		pkg = representativeAffectedPackage(pkgs)
 	}
-	finding := baseSupplyChainImpactFinding(cves, pkgs, index)
+	osVersionConflict := hasComponentPath && conflictingOSPackageVersions(pkg.Ecosystem, component.Version, subjectOSRows)
+	var holders []osHoldingFact
+	if hasOSPackage && !osVersionConflict {
+		// Two live records can disagree about this row: the one whose range holds
+		// its version names the finding and supplies the fix (#9914).
+		holders = osHoldingFacts(osPackage.InstalledVersion, pkg.Ecosystem, pkgs)
+	}
+	finding := baseSupplyChainImpactFinding(cves, pkgs, holders, index)
 	// repoFromConsumption is the single provenance signal both image-evidence
 	// branches below gate on: the SBOM branch must not overwrite a
 	// consumption-derived anchor with the image's OCI registry path (#5780),
@@ -144,7 +159,6 @@ func classifySupplyChainImpactPackage(
 			finding.RepositoryID = image.repositoryID
 		}
 	}
-	osVersionConflict := hasComponentPath && conflictingOSPackageVersions(finding.Ecosystem, component.Version, subjectOSRows)
 	if hasOSPackage {
 		if !osVersionConflict {
 			finding.PURL = payloadcore.FirstNonBlank(osPackage.PURL, finding.PURL)

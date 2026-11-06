@@ -20,6 +20,10 @@ import (
 type supplyChainCVEGroup struct {
 	cveID        string
 	observations []supplychainmodel.ImpactCVE
+	// retiredAffectedFactIDs are the affected_package facts of retracted records
+	// that liveAdvisoryPackages dropped from the classification of one package
+	// (#9914). They decide nothing but stay on the finding as evidence.
+	retiredAffectedFactIDs []string
 }
 
 // representative returns the highest-priority non-withdrawn observation for
@@ -105,13 +109,20 @@ func sortedPackageKeys(groups map[string][]supplychainmodel.AffectedPackage) []s
 // representativeAffectedPackage picks the highest-priority source's affected
 // package as the row used for shape fields (ecosystem, package name, purl).
 // Per-source provenance still flows through the AdvisoryProvenanceObservation
-// list so callers do not lose vendor or upstream rows.
+// list so callers do not lose vendor or upstream rows. A fact marked
+// JoinRepresentative wins before source order: it is the best-ranked fact that
+// joins the installed row once the group is narrowed to the facts that join (#9990).
 func representativeAffectedPackage(packages []supplychainmodel.AffectedPackage) supplychainmodel.AffectedPackage {
 	if len(packages) == 0 {
 		return supplychainmodel.AffectedPackage{}
 	}
 	if len(packages) == 1 {
 		return packages[0]
+	}
+	for _, pkg := range packages {
+		if pkg.JoinRepresentative {
+			return pkg
+		}
 	}
 	ecosystem := packageidentity.LowerASCII(strings.TrimSpace(packages[0].Ecosystem))
 	sorted := append([]supplychainmodel.AffectedPackage(nil), packages...)
@@ -137,7 +148,10 @@ func representativeAffectedPackage(packages []supplychainmodel.AffectedPackage) 
 // matching affected_package observation contributes the source's
 // fixed-version branches and vulnerable-range text. Observations without a
 // matching counterpart are still preserved so callers see the full source
-// list.
+// list. An affected_package with no cve observation of its own takes its
+// record's lifecycle when that whole record retracted (retractedRecordOf). It
+// keeps zero severity and an empty CVEFactID, so severity selection does
+// not move. Identity can: the finding takes the advisory id of the record that decides.
 func buildAdvisoryProvenanceObservations(
 	cves []supplychainmodel.ImpactCVE,
 	packages []supplychainmodel.AffectedPackage,
@@ -166,21 +180,63 @@ func buildAdvisoryProvenanceObservations(
 			ReplacedBy:          cleanReplacementIDs(cve.ReplacedBy),
 			CVEFactID:           cve.FactID,
 			AffectedFactID:      matched.FactID,
+			releaseTier:         osReleaseTier(matched),
 		})
 	}
 	for _, pkg := range packages {
 		if matchedAffected[pkg.FactID] {
 			continue
 		}
-		observations = append(observations, AdvisoryProvenanceObservation{
+		observation := AdvisoryProvenanceObservation{
 			Source:         classifyAffectedPackageAdvisorySource(pkg),
 			AdvisoryID:     payloadcore.FirstNonBlank(pkg.AdvisoryID, pkg.CVEID),
 			FixedVersions:  append([]string(nil), pkg.FixedVersions...),
 			AffectedRange:  supplyChainAffectedRangeSummary(pkg),
 			AffectedFactID: pkg.FactID,
-		})
+			releaseTier:    osReleaseTier(pkg),
+		}
+		if record, ok := retractedRecordOf(pkg, cves); ok {
+			observation.SourceUpdatedAt = strings.TrimSpace(record.SourceUpdatedAt)
+			observation.WithdrawnAt = strings.TrimSpace(record.WithdrawnAt)
+			observation.Status = strings.TrimSpace(record.Status)
+			observation.ReplacedBy = cleanReplacementIDs(record.ReplacedBy)
+		}
+		observations = append(observations, observation)
 	}
 	return observations
+}
+
+// retractedRecordOf returns the cve fact whose lifecycle an affected_package fact
+// takes when pairing left that fact without a cve observation: a record is
+// retracted as a whole (arbiter ruling 9914-retract). The record is every cve fact
+// with the package fact's advisory id and advisory source class. It holds only when
+// the fact names an advisory, the record has a cve fact and all of them retracted,
+// so one live cve fact keeps the record live and a source with no cve fact stays
+// live, as retractionFromObservations requires. Among the record's facts the
+// smallest FactID decides, which keeps the result independent of fact order.
+func retractedRecordOf(
+	pkg supplychainmodel.AffectedPackage,
+	cves []supplychainmodel.ImpactCVE,
+) (supplychainmodel.ImpactCVE, bool) {
+	var record supplychainmodel.ImpactCVE
+	if strings.TrimSpace(pkg.AdvisoryID) == "" {
+		return record, false
+	}
+	found := false
+	for _, cve := range cves {
+		// classifyAdvisorySource can allocate, so the id comparison goes first.
+		if cve.AdvisoryID != pkg.AdvisoryID ||
+			classifyAdvisorySource(cve.Source, cve.AdvisoryID) != classifyAdvisorySource(pkg.Source, pkg.AdvisoryID) {
+			continue
+		}
+		if !impactCVERetracted(cve) {
+			return supplychainmodel.ImpactCVE{}, false
+		}
+		if !found || cve.FactID < record.FactID {
+			record, found = cve, true
+		}
+	}
+	return record, found
 }
 
 func matchAffectedForCVE(
@@ -248,6 +304,42 @@ type AdvisoryProvenanceObservation struct {
 	// AffectedFactID is the source-fact id of the affected_package envelope
 	// that contributed this observation, when present.
 	AffectedFactID string
+	// releaseTier ranks observations of one source by what their affected
+	// fact says about the installed row's release line: osReleaseTierListed
+	// (the fact names the host's line), osReleaseTierUntagged (it names no
+	// line, or is not release-aware at all), osReleaseTierUnlisted (it names
+	// other lines only). It orders same-source observations once an OS
+	// advisory group holds several records for one CVE (#9914) and is zero
+	// weight for every group that is not an OS release group.
+	releaseTier int8
+	// holdsInstalled marks an observation whose affected fact holds the
+	// installed version, and holdingFixRank orders holders by the fix that fact
+	// names for the host (osHoldingFacts). Both stay zero outside an OS-class
+	// finding built from an installed row (#9914).
+	holdsInstalled bool
+	holdingFixRank int
+}
+
+// Release tiers, in selection order: lower wins within one source.
+const (
+	osReleaseTierListed   int8 = -1
+	osReleaseTierUntagged int8 = 0
+	osReleaseTierUnlisted int8 = 1
+)
+
+// osReleaseTier maps an affected fact that selectOSAdvisoryRelease already
+// narrowed to its tier. The zero value is the untagged tier, so a fact that
+// was never narrowed (a vendor-sourced fact, a language-ecosystem fact, an
+// observation with no affected fact) ranks exactly as before.
+func osReleaseTier(pkg supplychainmodel.AffectedPackage) int8 {
+	switch {
+	case pkg.ReleaseLine != "":
+		return osReleaseTierListed
+	case pkg.ReleaseUnlisted:
+		return osReleaseTierUnlisted
+	default:
+		return osReleaseTierUntagged
+	}
 }
 
 // AlternateSeverity is one source-attributed severity that was not selected
@@ -295,7 +387,12 @@ type advisoryProvenanceSelection struct {
 	// the advisory identity. A derived score or a label sets SeveritySource but
 	// never IdentitySource, so deriving severity cannot move advisory_id,
 	// finding_id, or advisory-scoped suppression matching (#9693).
-	IdentitySource       string
+	IdentitySource string
+	// DecidingAdvisoryID names an OS-class finding: the live record whose range
+	// holds the installed version, or with none the record that supplied the fact
+	// the version decision read first (#9914). It is empty for every ecosystem
+	// that is not an OS package class, where IdentitySource stands.
+	DecidingAdvisoryID   string
 	SeverityScore        float64
 	SeverityScoreSource  string
 	SeverityVector       string

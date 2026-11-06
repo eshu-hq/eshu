@@ -53,16 +53,21 @@ type FindingResult struct {
 	PriorityBucket        string                 `json:"priority_bucket,omitempty"`
 	PriorityReasonCodes   []string               `json:"priority_reason_codes,omitempty"`
 	PriorityContributions []PriorityContribution `json:"priority_contributions,omitempty"`
-	RuntimeReachability   string                 `json:"runtime_reachability,omitempty"`
-	Reachability          *ReachabilityResult    `json:"reachability,omitempty"`
-	RepositoryID          string                 `json:"repository_id,omitempty"`
-	SubjectDigest         string                 `json:"subject_digest,omitempty"`
-	ImageRef              string                 `json:"image_ref,omitempty"`
-	DependencyScope       string                 `json:"dependency_scope,omitempty"`
-	WorkloadIDs           []string               `json:"workload_ids,omitempty"`
-	DeploymentIDs         []string               `json:"deployment_ids,omitempty"`
-	ServiceIDs            []string               `json:"service_ids,omitempty"`
-	Environments          []string               `json:"environments,omitempty"`
+	// ExploitedTier is the additive #9882 item-4.5 exploited rank (kev,
+	// ssvc_active, epss, none). Omitted for rows written before the tier
+	// existed. Like the score and bucket, it is triage metadata and never
+	// changes impact_status, missing_evidence, or readiness truth.
+	ExploitedTier       string              `json:"exploited_tier,omitempty"`
+	RuntimeReachability string              `json:"runtime_reachability,omitempty"`
+	Reachability        *ReachabilityResult `json:"reachability,omitempty"`
+	RepositoryID        string              `json:"repository_id,omitempty"`
+	SubjectDigest       string              `json:"subject_digest,omitempty"`
+	ImageRef            string              `json:"image_ref,omitempty"`
+	DependencyScope     string              `json:"dependency_scope,omitempty"`
+	WorkloadIDs         []string            `json:"workload_ids,omitempty"`
+	DeploymentIDs       []string            `json:"deployment_ids,omitempty"`
+	ServiceIDs          []string            `json:"service_ids,omitempty"`
+	Environments        []string            `json:"environments,omitempty"`
 	// EnvironmentEvidence records, per environment name in Environments,
 	// whether the strongest deployment evidence for that environment was
 	// "deploy_event" or "declared" (issue #5426). Omitted when empty.

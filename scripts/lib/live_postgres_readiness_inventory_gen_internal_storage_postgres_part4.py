@@ -139,6 +139,10 @@ TABLE = {
             "TestTerminalSiblingsFailedRunItemsStayFrozenLive",
             "TestTerminalSiblingsNoDuplicateUnderConcurrentLifecycleLive",
         ),
+        "go/internal/storage/postgres/run_watermark_guard_live_test.go": (
+            "TestCICDRunWatermarkGuardAcrossGenerationsLive",
+            "TestCICDRunWatermarkConcurrentGenerationsKeepTheNewestRunLive",
+        ),
         "go/internal/storage/postgres/satisfied_by_read_delta_live_test.go": (
             "TestListActiveCrossplaneXRDFactsDeltaActiveScopeLive",
             "TestCrossplaneSatisfiedByDeltaKeepsUnchangedEdgesLive",
@@ -187,6 +191,8 @@ TABLE = {
         "go/internal/storage/postgres/supply_chain_impact_evidence_plan_live_test.go": (
             "TestSupplyChainImpactBranchPlansStayOnAnchorsLive",
             "TestSupplyChainImpactNewIndexInsertCostLive",
+            "TestSupplyChainImpactUpstreamPlanHoldsAtEveryChunkSizeLive",
+            "TestSupplyChainImpactUpstreamListReadsOnlySignalsLive",
         ),
         "go/internal/storage/postgres/supply_chain_impact_fleet_gate_9875_live_test.go": (
             "TestFleetAcceptanceGateKEVReachesServiceRollup9875Live",

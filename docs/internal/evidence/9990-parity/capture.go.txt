@@ -1,0 +1,42 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package core
+
+import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"os"
+	"sync"
+)
+
+var (
+	parityMu  sync.Mutex
+	parityOut *os.File
+)
+
+// ParityShape is set by the grid test to label captured rows.
+func parityCapture(kind, shape string, input any, findings []SupplyChainImpactFinding, err error) {
+	path := os.Getenv("PARITY_OUT")
+	if path == "" {
+		return
+	}
+	in, mErr := json.Marshal(input)
+	if mErr != nil {
+		return
+	}
+	out, _ := json.Marshal(findings)
+	sum := sha256.Sum256(in)
+	line, _ := json.Marshal(map[string]any{"kind": kind, "shape": shape, "in": hex.EncodeToString(sum[:]), "n": len(findings), "err": err != nil, "out": string(out)})
+	parityMu.Lock()
+	defer parityMu.Unlock()
+	if parityOut == nil {
+		f, oErr := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
+		if oErr != nil {
+			return
+		}
+		parityOut = f
+	}
+	_, _ = parityOut.Write(append(line, '\n'))
+}

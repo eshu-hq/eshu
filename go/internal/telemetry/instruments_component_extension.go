@@ -76,5 +76,17 @@ func registerActivationDerivedScopeInstruments(meter metric.Meter, inst *Instrum
 	); err != nil {
 		return fmt.Errorf("register ActivationDerivedScopesPlanned counter: %w", err)
 	}
+	// ActivationDerivedScopesFenced is the #10055 commit-skew fence: go-reachability
+	// generations retracted because the repository left the commit they measured
+	// more than two rotation periods ago and no successor landed. It counts
+	// retractions, not candidates, so a fence that lost the race to a successor adds
+	// nothing. Labels are collector_kind, ecosystem, and reason (closed set:
+	// stale_evidence). Never a repository id or URL.
+	if inst.ActivationDerivedScopesFenced, err = meter.Int64Counter(
+		"eshu_dp_workflow_coordinator_activation_derived_scopes_fenced_total",
+		metric.WithDescription("Go reachability generations the workflow coordinator retracted because the repository left the commit they measured more than two rotation periods ago and no successor landed, by collector kind, ecosystem, and reason (#10055)"),
+	); err != nil {
+		return fmt.Errorf("register ActivationDerivedScopesFenced counter: %w", err)
+	}
 	return nil
 }

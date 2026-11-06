@@ -54,7 +54,9 @@ to fetch: `scope_id`, `repository_id`, `source_commit_sha`, and `clone_url`, fro
 the run's `requested_scope_set`. A missing run or an unusable entry fails the
 claim terminal before launch; a store fault stays retryable. Other scopes read
 nothing and stay byte-identical. Static config defining the key fails `NewSource`,
-so config cannot forge a commit or a remote.
+so config cannot forge a commit or a remote. The generation the claim commits carries
+the target's commit in `SourceCommitSHA` (#10055), so the coordinator's commit-skew
+fence can compare it without reading fact payloads. Other scopes stay unstamped.
 
 Installation selection for derived scopes (#10027): an exact scope match in
 `AppTokenProviderConfig.Installations` wins and reads nothing. Otherwise

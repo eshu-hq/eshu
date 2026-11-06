@@ -30,6 +30,10 @@ const (
 	// (vuln-intel://ghsa/reviewed and vuln-intel://ghsa/malware). Unreviewed
 	// GitHub advisories are out of scope and have no scope id.
 	SourceGHSA = "ghsa"
+	// SourceCVEList names CVE List v5 targets (vuln-intel://cve_list/cve with
+	// explicit owned CVE ids). Whole-corpus mirroring is out of scope
+	// (eshu-hq/eshu#9880).
+	SourceCVEList = "cve_list"
 )
 
 // DefaultFreshnessWindow is how long a successful source observation stays
@@ -46,7 +50,8 @@ const scopeIDPrefix = "vuln-intel://"
 // vuln-intel://cisa/kev, vuln-intel://first/epss, and
 // vuln-intel://glad/<ecosystem>, plus vuln-intel://ghsa/<reviewed|malware>
 // where the advisory type must be exactly one of those two segments with
-// nothing after it (a '?' suffix is allowed, as for the other sources).
+// nothing after it (a '?' suffix is allowed, as for the other sources),
+// and vuln-intel://cve_list/cve for explicit owned CVE ids.
 // Matching is exact and case-sensitive, the
 // same way readiness compares scope ids. ok is false for any scope id outside
 // that grammar, so a caller never invents a source token.
@@ -57,7 +62,7 @@ func SourceForScopeID(scopeID string) (string, bool) {
 	}
 	authority, path := splitScopeSegment(rest)
 	switch authority {
-	case SourceOSV, SourceNVD, SourceGLAD:
+	case SourceOSV, SourceNVD, SourceGLAD, SourceCVEList:
 		return authority, true
 	case SourceGHSA:
 		if segment, tail := splitScopeSegment(path); (segment == "reviewed" || segment == "malware") && tail == "" && !strings.Contains(path, "/") {

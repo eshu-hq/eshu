@@ -110,6 +110,17 @@ func crossReleaseUbuntuEnvelopes() []facts.Envelope {
 	}
 }
 
+// crossReleaseUbuntuIndex builds the advisory index the authorized pass hands the
+// gate for the cross-release pair.
+func crossReleaseUbuntuIndex(t *testing.T) supplyChainImpactIndex {
+	t.Helper()
+	index, quarantined, err := buildSupplyChainImpactIndexWithQuarantine(crossReleaseUbuntuEnvelopes())
+	if err != nil || len(quarantined) != 0 {
+		t.Fatalf("build index: err=%v quarantined=%v", err, quarantined)
+	}
+	return index
+}
+
 // TestCrossReleaseBranchLeavesUnmatchedHostUntouched pins the #9806 P1: the
 // conflict path re-decodes raw affected packages and picks a branch by
 // observed-version containment with no release-tag check, so a primary-path
@@ -141,7 +152,7 @@ func TestCrossReleaseBranchLeavesUnmatchedHostUntouched(t *testing.T) {
 		},
 	}
 	got := []SupplyChainImpactFinding{finding}
-	markAuthorizedFixedVersionConflicts(got, crossReleaseUbuntuEnvelopes(), rows)
+	markAuthorizedFixedVersionConflicts(got, crossReleaseUbuntuIndex(t), rows)
 	if got[0].Status != SupplyChainImpactPossiblyAffected ||
 		got[0].MatchReason != supplyChainVersionReasonOSReleaseNotInAdvisory {
 		t.Fatalf("finding = %s/%s, want %s/%s: the unmatched host keeps its primary verdict",
@@ -184,7 +195,7 @@ func TestCrossReleaseBranchKeepsHostLineSelection(t *testing.T) {
 	}
 
 	got := []SupplyChainImpactFinding{finding}
-	markAuthorizedFixedVersionConflicts(got, crossReleaseUbuntuEnvelopes(), rows)
+	markAuthorizedFixedVersionConflicts(got, crossReleaseUbuntuIndex(t), rows)
 	if got[0].FixedVersion == "7.81.0-1ubuntu1.15" {
 		t.Fatalf("FixedVersion = %q, want never noble's fix on a jammy host", got[0].FixedVersion)
 	}

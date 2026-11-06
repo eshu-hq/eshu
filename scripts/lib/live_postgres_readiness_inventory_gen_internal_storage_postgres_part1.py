@@ -26,6 +26,9 @@ TABLE = {
             "TestLoadActiveCodeCallSymbolDefinitionFactsManifestStableAnchoredLive",
             "TestLoadActiveCodeCallSymbolDefinitionFactsAnchoredNoDeltaStatementsLive",
         ),
+        "go/internal/storage/postgres/active_code_call_symbols_variant_b_live_test.go": (
+            "TestLoadActiveCodeCallSymbolDefinitionFactsDroppedPublisherVariantBLive",
+        ),
         "go/internal/storage/postgres/active_jvm_reachability_delta_live_test.go": (
             "TestListActiveJVMReachabilityFactsDeltaActiveScopeLive",
             "TestListActiveJVMReachabilityFactsDeltaStatementsLive",
@@ -231,6 +234,9 @@ TABLE = {
             "TestPoisonRecoveryHeldRowRaceLive",
             "TestPoisonRecoveryDropsRowChangedBeforeItsLockLive",
             "TestPoisonRecoveryConcurrentWithReplaysNeverDeadlockLive",
+        ),
+        "go/internal/storage/postgres/deferred_maintenance_barrier_two_shard_live_test.go": (
+            "TestDeferredMaintenanceBarrierTwoShardCompletionLive",
         ),
         "go/internal/storage/postgres/delta_union_base_live_test.go": (
             "TestResolveDeltaBasesMatchesPerScopeRuleLive",

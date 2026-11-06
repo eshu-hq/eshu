@@ -35,6 +35,7 @@ func TestReadinessSourceTokensAgreeWithSharedSourceParser(t *testing.T) {
 		"osv":        "vuln-intel://osv/npm",
 		"glad":       "vuln-intel://glad/npm",
 		"ghsa":       "vuln-intel://ghsa/reviewed",
+		"cve_list":   "vuln-intel://cve_list/cve",
 	}
 	for _, token := range tokens {
 		scopeID, known := scopeFor[token[1]]

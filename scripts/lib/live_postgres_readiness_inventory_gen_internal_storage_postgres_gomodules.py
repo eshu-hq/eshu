@@ -7,6 +7,29 @@ Do not edit by hand; regenerate with
 
 TABLE = {
     "./internal/storage/postgres/gomodules": {
+        "go/internal/storage/postgres/gomodules/fence_concurrency_live_test.go": (
+            "TestSuccessorAckBeforeTheFenceMakesItANoOpLive",
+            "TestFenceBeforeTheSuccessorAckEndsOnItLive",
+            "TestFenceQueuesBehindAnAckHoldingTheScopeRowLive",
+            "TestAckQueuesBehindAFenceHoldingAHolderLive",
+            "TestFenceAndAckRaceEndOnTheSuccessorLive",
+        ),
+        "go/internal/storage/postgres/gomodules/fence_holders_live_test.go": (
+            "TestFenceReopensExactlyTheHoldersOfItsRepositoryLive",
+            "TestFenceRollsBackWhenAHolderReopenFailsLive",
+            "TestFenceTimesOutBehindAHeldHolderAndRetriesLive",
+            "TestFenceYieldsToTheRetirementFenceTableLockLive",
+            "TestFiftySupersededGenerationsReadOnlyTheEvidenceCommitLive",
+        ),
+        "go/internal/storage/postgres/gomodules/fence_live_test.go": (
+            "TestCommitSkewRuleOnThePageReadLive",
+            "TestSkewInsideTwoRotationsIsNotFencedOnALargeFleetLive",
+            "TestFencedRepositoryWithNoGoModDropsOutLive",
+            "TestUnusableRemoteEvidenceRetractsAtTheBoundLive",
+            "TestFenceLogsTheGenerationAndALaterTickConsumesItLive",
+            "TestTerminalFailureReleasesTheNextPlanLive",
+            "TestFencePurgeInterplayLedgerLive",
+        ),
         "go/internal/storage/postgres/gomodules/store_live_test.go": (
             "TestListGoModuleRepositoriesRotatesEveryRepositoryLive",
             "TestListGoModuleRepositoriesSkipsInactiveScopesLive",

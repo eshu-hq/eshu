@@ -34,6 +34,7 @@ const (
 	// whose go-reachability scope still holds Go evidence. It is an invariant
 	// alarm: a stored remote keeps one form for a scope's life, so a non-zero count
 	// means identity normalization or the remote stamp changed, a bug to root-cause.
+	// The commit-skew fence still bounds that evidence (eshu-hq/eshu#10055).
 	SkipUnsupportedRemoteWithEvidence = "unsupported_remote_with_evidence"
 	// SkipMissingCommit counts a generation with no full observed commit.
 	SkipMissingCommit = "missing_commit"

@@ -38,6 +38,9 @@
   (`TestCVEProbeIsChunkedBelowThePlanFlip`,
   `TestSupplyChainImpactCVEBoundStaysBelowTheWalkLive`,
   `docs/internal/evidence/9994-cve-key-probe-chunking.md`).
+- `vulnerability_upstream_cve_id` reads KEV and EPSS only. Adding the cve,
+  affected_package or affected_product kind is the #9914 widening, which needs its
+  own budget measurement.
 - Exactly one branch returns `vulnerability.suppression` and it is the only
   statement with a LIMIT (`TestExactlyOneBranchReturnsSuppressions`). Core
   evidence is never bounded.

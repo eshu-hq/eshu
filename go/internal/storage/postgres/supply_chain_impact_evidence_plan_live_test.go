@@ -10,11 +10,14 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"testing"
 	"time"
 
+	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 	factimpact "github.com/eshu-hq/eshu/go/internal/storage/postgres/facts/impact"
 )
 
@@ -22,9 +25,12 @@ var supplyChainImpactPlanModes = []string{"force_generic_plan", "force_custom_pl
 
 // TestSupplyChainImpactBranchPlansStayOnAnchorsLive is ruling 4.1c/4.1d on
 // the scaled fixture: 150 repository scopes of TOASTed files, the arm matrix,
-// and 4,000 non-matching rows of every other kind spread over those scopes'
-// active and superseded generations. The production loader runs one call with every input
-// set, so every catalog branch issues its real statement with real binds.
+// 4,000 non-matching rows of every other kind spread over those scopes'
+// active and superseded generations, and 40,000 wide padding rows that give the
+// heap the size at which the upstream key probe beats the kind walk on the CI
+// image at stock settings (see seedSupplyChainImpactPlanPadding). The
+// production loader runs one call with every input set, so every catalog
+// branch issues its real statement with real binds.
 // Each must plan its fact_records read on its anchor and on nothing else,
 // under both plan_cache_mode values. Then each #8880 index is dropped (RED:
 // the branches that anchor on it plan elsewhere) and rebuilt from its
@@ -34,10 +40,15 @@ func TestSupplyChainImpactBranchPlansStayOnAnchorsLive(t *testing.T) {
 	seedSupplyChainImpactScaledCorpus(t, ctx, database, 150, 40, 500)
 	seedSupplyChainImpactMatrix(t, ctx, database)
 	seedSupplyChainImpactGrowthBulk(t, ctx, database, 4000, 150)
+	seedSupplyChainImpactPlanPadding(t, ctx, database, 40000)
 	recorder := &supplyChainImpactRecordingDB{SQLDB: SQLDB{DB: database}}
 	filter := supplyChainImpactMatrixAllFilter()
 	for n := 1; n <= 8; n++ {
 		filter.FileRepositoryIDs = append(filter.FileRepositoryIDs, supplyChainImpactScaledRepositoryID(n*7))
+	}
+	// A full chunk, so the upstream branch's plan is proven at the size it runs at.
+	for n := 1; len(filter.UpstreamCVEIDs) < factimpact.MaxCVEIDsPerStatement; n++ {
+		filter.UpstreamCVEIDs = append(filter.UpstreamCVEIDs, fmt.Sprintf("CVE-1999-%05d", n))
 	}
 	_, statements := supplyChainImpactProductionRows(t, ctx, recorder, filter)
 
@@ -192,6 +203,87 @@ func supplyChainImpactAnchorProblem(t *testing.T, plan string, anchors ...string
 	return ""
 }
 
+// TestSupplyChainImpactUpstreamPlanHoldsAtEveryChunkSizeLive plans the upstream
+// statement at every size the production chunker can emit, under both plan modes and
+// at the page costs QA and a stock server run. The full-chunk proof above covers one
+// size, and the estimate is not monotonic in the id count: the planner sums the
+// per-id default below 200 ids and uses the independent formula above it. The sizes
+// follow MaxCVEIDsPerStatement. EXPLAIN without ANALYZE, because the plan
+// choice is the claim and this runs once per size. Each setting prepares its own
+// statement: a generic plan survives SET random_page_cost, so one PREPARE across the
+// settings would read the first setting's plan.
+//
+// This fixture does not reproduce the QA walk of advisory_lookup_v2 at 172 to 199
+// ids, which TestUpstreamChunksStayBelowTheLowestMeasuredWalk guards by size.
+func TestSupplyChainImpactUpstreamPlanHoldsAtEveryChunkSizeLive(t *testing.T) {
+	ctx, database := openSupplyChainImpactEvidenceProofDB(t)
+	seedSupplyChainImpactScaledCorpus(t, ctx, database, 150, 40, 500)
+	seedSupplyChainImpactMatrix(t, ctx, database)
+	seedSupplyChainImpactGrowthBulk(t, ctx, database, 4000, 150)
+	seedSupplyChainImpactPlanPadding(t, ctx, database, 40000)
+	if _, err := database.ExecContext(ctx, "ANALYZE fact_records"); err != nil {
+		t.Fatalf("analyze fact_records: %v", err)
+	}
+
+	var branch factimpact.Branch
+	for _, candidate := range factimpact.Branches() {
+		if candidate.Name == factimpact.BranchVulnerabilityUpstreamCVEID {
+			branch = candidate
+		}
+	}
+	sizes := slices.Sorted(maps.Keys(upstreamChunkSizes(t, max(260, 2*factimpact.MaxCVEIDsPerStatement+1))))
+	if len(sizes) == 0 || sizes[len(sizes)-1] != factimpact.MaxCVEIDsPerStatement {
+		t.Fatalf("chunk sizes = %v, want them to reach the bound %d", sizes, factimpact.MaxCVEIDsPerStatement)
+	}
+	ids := make([]string, 0, sizes[len(sizes)-1])
+	for n := 1; len(ids) < cap(ids); n++ {
+		ids = append(ids, fmt.Sprintf("CVE-1999-%05d", n))
+	}
+
+	conn, err := database.Conn(ctx)
+	if err != nil {
+		t.Fatalf("dedicated sweep session: %v", err)
+	}
+	defer func() {
+		_, _ = conn.ExecContext(ctx, "RESET ALL")
+		_ = conn.Close()
+	}()
+	exec := func(statement string) {
+		t.Helper()
+		if _, err := conn.ExecContext(ctx, statement); err != nil {
+			t.Fatalf("%s: %v", statement, err)
+		}
+	}
+	for _, pageCost := range []string{"1.1", "4"} {
+		for _, mode := range supplyChainImpactPlanModes {
+			exec("SET random_page_cost = " + pageCost)
+			exec("SET plan_cache_mode = " + mode)
+			exec("PREPARE upstream_sweep AS " + branch.SQL)
+			var off []int
+			firstProblem := ""
+			for _, size := range sizes {
+				var plan []byte
+				execute := "EXPLAIN (FORMAT JSON) EXECUTE upstream_sweep(" + supplyChainImpactSQLLiteral(t, ids[:size]) + ")"
+				if err := conn.QueryRowContext(ctx, execute).Scan(&plan); err != nil {
+					t.Fatalf("page cost %s %s, explain at %d ids: %v", pageCost, mode, size, err)
+				}
+				anchors := append([]string{branch.Anchor}, branch.EquivalentAnchors...)
+				if problem := supplyChainImpactAnchorProblem(t, string(plan), anchors...); problem != "" {
+					off = append(off, size)
+					if firstProblem == "" {
+						firstProblem = problem + "\n" + supplyChainImpactPlanSummary(t, string(plan))
+					}
+				}
+			}
+			exec("DEALLOCATE upstream_sweep")
+			t.Logf("page cost %s %s: planned %d sizes up to %d, off the anchor at %v", pageCost, mode, len(sizes), sizes[len(sizes)-1], off)
+			if len(off) > 0 {
+				t.Errorf("page cost %s %s: off the anchor at %d of %d sizes: %v\nfirst: %s", pageCost, mode, len(off), len(sizes), off, firstProblem)
+			}
+		}
+	}
+}
+
 // supplyChainImpactExecAnalyze runs one DDL statement and refreshes planner
 // statistics, which a dropped expression index takes with it.
 func supplyChainImpactExecAnalyze(t *testing.T, ctx context.Context, database *sql.DB, statement string) {
@@ -201,5 +293,64 @@ func supplyChainImpactExecAnalyze(t *testing.T, ctx context.Context, database *s
 	}
 	if _, err := database.ExecContext(ctx, "ANALYZE fact_records"); err != nil {
 		t.Fatalf("analyze fact_records: %v", err)
+	}
+}
+
+// TestSupplyChainImpactUpstreamListReadsOnlySignalsLive is the #9914 fallback on
+// real rows. An upstream id loads the CVE's KEV and EPSS facts and every suppression
+// scoped to it however the scope spells the id, never its cve, affected_package or
+// affected_product facts, and a list that spans chunks loses nothing.
+func TestSupplyChainImpactUpstreamListReadsOnlySignalsLive(t *testing.T) {
+	ctx, database := openSupplyChainImpactEvidenceProofDB(t)
+	seedSupplyChainImpactMatrix(t, ctx, database)
+
+	ids := []string{scimCVE}
+	for n := 1; len(ids) <= 2*factimpact.MaxCVEIDsPerStatement+1; n++ {
+		ids = append(ids, fmt.Sprintf("CVE-1999-%05d", n))
+	}
+	slices.Sort(ids)
+	store := NewFactStore(SQLDB{DB: database})
+	load := func(list []string) (map[string]int, []string) {
+		loaded, _, err := store.ListActiveSupplyChainImpactFacts(ctx, supplychaincore.SupplyChainImpactFactFilter{UpstreamCVEIDs: list})
+		if err != nil {
+			t.Fatalf("ListActiveSupplyChainImpactFacts(): %v", err)
+		}
+		kinds := map[string]int{}
+		var factIDs []string
+		for _, envelope := range loaded {
+			kinds[envelope.FactKind]++
+			factIDs = append(factIDs, envelope.FactID)
+		}
+		slices.Sort(factIDs)
+		return kinds, factIDs
+	}
+	kinds, one := load([]string{scimCVE})
+	for kind, count := range kinds {
+		switch kind {
+		case factimpact.KindEPSSScore, factimpact.KindKnownExploited:
+			if count != 1 {
+				t.Errorf("%s rows = %d, want the CVE's one row", kind, count)
+			}
+		case factimpact.KindSuppression:
+		case "reducer_container_image_identity":
+			// The fixture's identity stream stub ignores its inputs. Production's is
+			// keyed on digests and repositories, and this list reaches neither.
+		default:
+			t.Errorf("loaded %d %s rows: an upstream id must not load this kind", count, kind)
+		}
+	}
+	if kinds[factimpact.KindEPSSScore] != 1 || kinds[factimpact.KindKnownExploited] != 1 {
+		t.Errorf("kinds = %v, want the EPSS and KEV rows", kinds)
+	}
+	// The 80 bulk rows plus the lower-cased scope. The arm reads the scope, and a
+	// top-level cve_id on a suppression is not a scope.
+	if got, want := kinds[factimpact.KindSuppression], 80+1; got != want {
+		t.Errorf("suppressions = %d, want %d", got, want)
+	}
+	if !slices.Contains(one, "m:supp:cve-lower") || slices.Contains(one, "m:supp:top-cve") {
+		t.Errorf("suppression rows: want m:supp:cve-lower in and m:supp:top-cve out, got %d rows", len(one))
+	}
+	if _, spanning := load(ids); !slices.Equal(spanning, one) {
+		t.Errorf("a list spanning chunks loaded %d rows, want the same %d", len(spanning), len(one))
 	}
 }

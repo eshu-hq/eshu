@@ -6,10 +6,12 @@
 // (go/internal/collector/cicdrun/runwatermark) across process restarts and
 // collector replicas.
 //
-// CICDRunWatermarkStore mirrors AWSPaginationCheckpointStore's fencing
-// pattern in the postgres root: a Save carrying a fencing token older than
-// the stored row is rejected with runwatermark.ErrStaleFence, and a fencing
-// token equal to the stored row's succeeds (idempotent redelivery). Load
+// Inside one generation, CICDRunWatermarkStore mirrors
+// AWSPaginationCheckpointStore's fencing pattern in the postgres root: a Save
+// carrying a fencing token older than the stored row is rejected with
+// runwatermark.ErrStaleFence, and a fencing token equal to the stored row's
+// succeeds (idempotent redelivery). Across generations, whose tokens each
+// restart at 1, a Save carrying an older run ID is rejected the same way. Load
 // deliberately has no generation/fencing predicate: unlike an AWS pagination
 // checkpoint, whose resume state is scoped to one generation's scan, a run
 // watermark must be readable by a LATER generation to detect a gap against

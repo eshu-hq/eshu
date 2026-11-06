@@ -458,7 +458,7 @@ reducer-fact counts so the answer never invents findings:
   additively when findings exist, or as the dominant signal alongside
   `readiness_state=unsupported` when no finding could be admitted.
 - `incomplete_reasons[]` carries collector-emitted reasons explaining in-flight
-  collection; only populated for `target_incomplete`, plus `osv:skipped:<reason>` for `target_skipped`.
+  collection; only populated for `target_incomplete` (a derived release not covered reads `osv:<state>:<distro>:<release>`), plus `osv:skipped:<reason>` for `target_skipped`.
 - `freshness` summarizes the worst per-family freshness as one label.
 - `counts` reports page-local finding counts and total source-evidence facts.
 

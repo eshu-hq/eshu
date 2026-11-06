@@ -37,7 +37,15 @@ WHERE scope_id = $1
 // cloud/aws/pagination_checkpoint.go's Load): a watermark must be readable ACROSS
 // generations, because gap detection compares this cycle's window against a
 // PRIOR cycle's (necessarily different generation_id) watermark. Only Save
-// is fenced.
+// is guarded.
+//
+// The fence is compared only inside one generation. A fencing token counts
+// claims of one work item, and the planner mints one work item per generation,
+// so each generation restarts at 1: comparing fences across generations would
+// let one retried claim refuse every first-attempt claim after it (#10063).
+// Across generations the guard orders by run ID, the same numeric order gap
+// detection reads, so an older generation finishing late cannot regress the row.
+// Watermark.Validate keeps both casts safe.
 const saveCICDRunWatermarkQuery = `
 INSERT INTO cicd_run_watermarks (
     scope_id,
@@ -54,15 +62,19 @@ ON CONFLICT (scope_id, repository) DO UPDATE SET
     fencing_token = EXCLUDED.fencing_token,
     last_run_id = EXCLUDED.last_run_id,
     updated_at = EXCLUDED.updated_at
-WHERE cicd_run_watermarks.fencing_token <= EXCLUDED.fencing_token
+WHERE (cicd_run_watermarks.generation_id = EXCLUDED.generation_id
+       AND cicd_run_watermarks.fencing_token <= EXCLUDED.fencing_token)
+   OR (cicd_run_watermarks.generation_id <> EXCLUDED.generation_id
+       AND cicd_run_watermarks.last_run_id::bigint <= EXCLUDED.last_run_id::bigint)
 `
 
 // CICDRunWatermarkStore persists claim-fenced CI/CD run watermarks in
 // Postgres, closing the #5429 cross-cycle gap-detection watermark
 // (go/internal/collector/cicdrun/runwatermark) across process restarts and
-// collector replicas. It mirrors AWSPaginationCheckpointStore's fencing
-// pattern (a Save carrying a fencing token older than the stored row is
-// rejected) but Load has no generation/fencing predicate: unlike an AWS
+// collector replicas. Inside one generation it mirrors
+// AWSPaginationCheckpointStore's fencing pattern (a Save carrying a fencing
+// token older than the stored row is rejected); across generations it orders by
+// run ID. Load has no generation/fencing predicate: unlike an AWS
 // pagination checkpoint (resume state scoped to ONE generation's scan), a
 // run watermark must be readable by a LATER generation to detect a gap
 // against an EARLIER generation's progress.
@@ -134,9 +146,10 @@ func (s CICDRunWatermarkStore) Load(
 	}, true, nil
 }
 
-// Save upserts a watermark. A fencing token strictly older than the stored
-// row's is rejected with runwatermark.ErrStaleFence; a fencing token equal
-// to the stored row's succeeds (idempotent redelivery).
+// Save upserts a watermark. Inside one generation, a fencing token strictly
+// older than the stored row's is rejected with runwatermark.ErrStaleFence and an
+// equal one succeeds (idempotent redelivery). Across generations, a run ID
+// older than the stored row's is rejected the same way.
 func (s CICDRunWatermarkStore) Save(ctx context.Context, value runwatermark.Watermark) error {
 	if s.database == nil {
 		return fmt.Errorf("ci/cd run watermark database is required")

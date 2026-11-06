@@ -41,15 +41,20 @@ type SupplyChainImpactFinding struct {
 	PriorityBucket        string           `json:"priority_bucket"`
 	PriorityReasonCodes   []string         `json:"priority_reason_codes"`
 	PriorityContributions []map[string]any `json:"priority_contributions"`
-	RuntimeReachability   string           `json:"runtime_reachability"`
-	RepositoryID          string           `json:"repository_id"`
-	SubjectDigest         string           `json:"subject_digest"`
-	ImageRef              string           `json:"image_ref"`
-	DependencyScope       string           `json:"dependency_scope"`
-	WorkloadIDs           []string         `json:"workload_ids"`
-	DeploymentIDs         []string         `json:"deployment_ids"`
-	ServiceIDs            []string         `json:"service_ids"`
-	Environments          []string         `json:"environments"`
+	// ExploitedTier is the #9882 item-4.5 additive exploited rank (kev,
+	// ssvc_active, epss, none). Pointer with omitempty, additive-optional
+	// like OSPackageMatchDerivation: a payload written before the tier
+	// existed carries no key and decodes with a nil field.
+	ExploitedTier       *string  `json:"exploited_tier,omitempty"`
+	RuntimeReachability string   `json:"runtime_reachability"`
+	RepositoryID        string   `json:"repository_id"`
+	SubjectDigest       string   `json:"subject_digest"`
+	ImageRef            string   `json:"image_ref"`
+	DependencyScope     string   `json:"dependency_scope"`
+	WorkloadIDs         []string `json:"workload_ids"`
+	DeploymentIDs       []string `json:"deployment_ids"`
+	ServiceIDs          []string `json:"service_ids"`
+	Environments        []string `json:"environments"`
 	// EnvironmentEvidence records, per environment name in Environments,
 	// whether the strongest deployment evidence observed for that
 	// environment was "deploy_event" or "declared" (issue #5426).
