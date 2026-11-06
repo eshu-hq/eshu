@@ -479,9 +479,8 @@ func supplyChainImpactFindingHasOwnedAnchor(finding SupplyChainImpactFinding) bo
 }
 
 // supplyChainImpactFindingHasUnsupportedMatcher reports a finding with no version
-// matcher for its ecosystem and nothing else to stand on. A joined installed row
-// is evidence about that package and release, so a finding that has one stays
-// visible as possibly_affected with the matcher reported missing (#9990).
+// matcher and nothing else to stand on (#9990): a joined installed row keeps it
+// visible as possibly_affected with the matcher reported missing.
 func supplyChainImpactFindingHasUnsupportedMatcher(finding SupplyChainImpactFinding) bool {
 	if strings.TrimSpace(finding.MatchReason) != supplyChainVersionReasonUnsupportedEcosystem {
 		return false
