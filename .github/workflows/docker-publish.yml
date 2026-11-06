@@ -19,7 +19,8 @@ on:
     paths: [
       'Dockerfile', '.dockerignore', 'go/**',
       '.github/workflows/docker-publish.yml', 'scripts/ci/select-docker-publish-lanes.sh', 'scripts/verify-apk-floors.sh',
-      'scripts/test-verify-apk-floors.sh', 'scripts/fixtures/apk-floors/**',
+      'scripts/test-verify-apk-floors.sh', 'scripts/verify-doc-import-pins.sh', 'scripts/test-verify-doc-import-pins.sh',
+      'scripts/fixtures/apk-floors/**',
       'specs/doc-import-pins/**',
       'scripts/verify-runtime-image-tools.sh', 'scripts/test-verify-runtime-image-tools.sh',
       'scripts/lib/rootfs-resolve.sh',
@@ -107,6 +108,15 @@ jobs:
       - name: Audit document-import stage floors and pins
         if: ${{ env.LANE_APPLIES == 'true' }}
         run: bash scripts/verify-apk-floors.sh --stage job-document-import
+      # #10205 P2: PR builds prove only the amd64 digest, so a static
+      # well-formedness guard runs on both pin files here, in the lane that
+      # pin changes already select.
+      - name: Self-test the doc-import pin guard
+        if: ${{ env.LANE_APPLIES == 'true' }}
+        run: bash scripts/test-verify-doc-import-pins.sh
+      - name: Verify doc-import pin files are well-formed
+        if: ${{ env.LANE_APPLIES == 'true' }}
+        run: bash scripts/verify-doc-import-pins.sh
   # Scanner digest pins (#9491): the drift gate for the artifactDigests pins
   # in go/internal/collector/scannercomponent/manifest.go. Lives
   # beside verify-apk-floors (own scannerpins lane, no dependency on the

@@ -49,7 +49,7 @@ while IFS= read -r path; do
     .dockerignore)
       image=true
       ;;
-    scripts/verify-apk-floors.sh|scripts/test-verify-apk-floors.sh|scripts/fixtures/apk-floors/*)
+    scripts/verify-apk-floors.sh|scripts/test-verify-apk-floors.sh|scripts/fixtures/apk-floors/*|scripts/verify-doc-import-pins.sh|scripts/test-verify-doc-import-pins.sh)
       apkfloors=true
       ;;
     # Scanner digest pins (#9491): the drift-gate verifier with its
