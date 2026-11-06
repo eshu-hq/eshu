@@ -72,10 +72,6 @@ type pendingWatermarkEntry struct {
 // side. This is an accepted, documented tradeoff: terminal failures are the
 // rare, MaxAttempts-guarded exception path, not the steady state, and each
 // leaked entry costs two small strings plus a TargetConfig value.
-//
-// That tradeoff does not describe collector-cicd-run today: its
-// providerRoutedSource forwards neither observer, so every stashed entry stays
-// for the life of the process (since #5778, tracked by #10063).
 type pendingWatermarks struct {
 	mu   sync.Mutex
 	rows map[pendingWatermarkKey]pendingWatermarkEntry

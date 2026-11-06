@@ -1,9 +1,4 @@
 tests:
-  - file: go/internal/storage/postgres/projector_queue_claim_marked_guard_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#7469 admission-guard functional proof (invisible and visible marked retries win, unmarked stale generations still supersede, terminal marked generations never hold, Ack keeps marked obsolete generations), untagged and gated by the ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN env Skip; Postgres only; about 11s locally; enrolled in the live-postgres-readiness runner"
-    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/projector_queue_claim_marked_guard_plan_live_test.go
     tag: ~
     class: postgres_ci
@@ -238,6 +233,11 @@ tests:
     tag: ~
     class: postgres_ci
     reason: "#10091 disposable PostgreSQL proof through the real reconcile, open-target guard and claim path that a terminal work item keeps its pending siblings open, that the run fails only once they drain, that every path back to pending keeps the run open, that a failed run's items stay frozen, and that concurrent workers, reconcilers and a planner never hold two open items for one target; each proof creates its own isolated bootstrapped schema; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/run_watermark_guard_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10063 disposable PostgreSQL proof of the CI/CD run watermark save guard on its real conflict filter: the fence decides inside one generation, the numeric run ID decides across generations, so a retried claim cannot wedge later first-attempt claims and an older generation cannot regress the row, also under concurrent saves on one key; reuses the #7978 bootstrapped proof schema; wall time is logged, not gated"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/satisfied_by_read_delta_live_test.go
     tag: ~

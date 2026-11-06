@@ -76,14 +76,27 @@ Host-file failures use `auth_denied`; static-token provider failures retain
   `-mode=cassette` credential-free replay path does not use
   `ghactionsruntime.ClaimedSource` at all (see `internal/replay/cassette`),
   so it carries no watermark and needs none.
-- Only the read side of that wiring runs today. `providerRoutedSource` implements
-  only `NextClaimed`, and `ClaimedService` finds its observer hooks by type
-  assertion on its `Source`. So since #5778 this binary has never written
-  `cicd_run_watermarks`, `runs_backfill_gap` never fires, and each claim that
-  fetched a run leaves one staged entry for the life of the process. The
-  refused-commit handling of #10037 therefore does not reach this binary: a
-  refused commit here reports `outcome=refused`, but no observer hears it. #10063
-  tracks forwarding the hooks.
+- `providerRoutedSource` must forward `ObserveClaimedGenerationCommitted` and
+  `ObserveClaimedGenerationRefused` by `scope_id`, because `ClaimedService` finds
+  them by type assertion on its `Source`. From #5778 to #10063 it did not, so this
+  binary never wrote `cicd_run_watermarks`, gap detection never fired, and each
+  claim leaked one staged entry. The first deployment with #10063 starts those
+  writes. To watch that rollout: `cicd_run_watermarks` should gain a row per GitHub
+  target that has at least one run (an empty window saves nothing, so a target
+  with no runs gets no row); `eshu_dp_workflow_claim_commit_observer_failures_total{collector_kind="ci_cd_run"}`
+  should stay flat (a rise means the save failed or lost the guard, and the
+  `claimed_generation_commit_observer_failed` span event carries the error); and
+  `eshu_dp_ci_cd_run_partial_generations_total{reason="runs_backfill_gap"}` can
+  start for the first time on repositories busier than `max_runs` per cycle, which
+  is the signal working, not a regression. While pre-#10063 pods are still
+  draining during the rollout they load new-pod rows but never advance them, so
+  they can emit transient `runs_backfill_gap` for windows the new pods actually
+  collected; trust that signal only after the rollout completes. To roll back to
+  an image before #10063,
+  also run `DELETE FROM cicd_run_watermarks`, and run it only after the last pod
+  on the new image has exited: a draining new pod can still save a row, and that
+  row would then stay frozen. The old image reads the rows but never advances
+  them, so a frozen row would report a false gap on every truncated window.
 
 ## Related docs
 

@@ -52,6 +52,7 @@ func TestWatermarkValidateRejectsIncompleteValues(t *testing.T) {
 	}{
 		{"complete", func(w Watermark) Watermark { return w }, false},
 		{"missing last_run_id", func(w Watermark) Watermark { w.LastRunID = ""; return w }, true},
+		{"non-decimal last_run_id", func(w Watermark) Watermark { w.LastRunID = "run-42"; return w }, true},
 		{"missing generation_id", func(w Watermark) Watermark { w.GenerationID = ""; return w }, true},
 		{"non-positive fencing_token", func(w Watermark) Watermark { w.FencingToken = 0; return w }, true},
 		{"negative fencing_token", func(w Watermark) Watermark { w.FencingToken = -1; return w }, true},

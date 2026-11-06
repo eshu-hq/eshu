@@ -14,9 +14,16 @@
 
 ## Invariants
 
-- `Save` must keep the `fencing_token <= EXCLUDED.fencing_token` conflict
-  guard, the same pattern `AWSPaginationCheckpointStore` in the postgres root
-  uses. A stale worker must not overwrite a newer claim's watermark.
+- Inside one generation, `Save` must keep the
+  `fencing_token <= EXCLUDED.fencing_token` conflict guard, the same pattern
+  `AWSPaginationCheckpointStore` in the postgres root uses. A stale worker must
+  not overwrite a newer claim's watermark.
+- Across generations, `Save` must order by numeric `last_run_id` and must not
+  compare fencing tokens. Each generation is its own work item, so tokens
+  restart at 1: comparing them lets one retried claim wedge the watermark, and
+  every later truncated window then reports a false gap (#10063).
+  `TestCICDRunWatermarkGuardAcrossGenerationsLive` in the postgres root proves
+  the filter.
 - `Load` must NEVER gain a `generation_id`/`fencing_token` predicate:
   `ghactionsruntime` reads a PRIOR generation's watermark from a LATER
   generation's claim to detect a cross-cycle gap, so scoping `Load` to one

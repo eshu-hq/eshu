@@ -232,3 +232,56 @@ No-Observability-Change: no new metric was added. A commit-observer failure
 is recorded as a span event (`claimed_generation_commit_observer_failed`) on
 the existing `collector.claimed_run` span rather than a new instrument,
 since it is a secondary, self-healing signal, not a claim-outcome change.
+
+## Follow-up: first production writes and the generation guard (#10063)
+
+### What this binary did before
+
+Since #5778, merged the day after #5765 landed this store, `collector-cicd-run` has
+set `Source: providerRoutedSource`. That router implemented only `NextClaimed`, and
+`ClaimedService` finds the observer hooks by type assertion on its `Source`. So in
+this binary:
+
+- `cicd_run_watermarks` was never written, so `detectRunBackfillGap` always saw no
+  prior watermark and the gap signal never fired.
+- `pendingWatermarks` kept one entry per claim that fetched a run.
+
+### The second defect, exposed by forwarding the hooks
+
+The `Save` guard compared `fencing_token` across generations, but the token counts
+claims of one work item. `workflow_work_items.current_fencing_token` increments per
+row, and `cicdRunWorkItem` mints one row per plan key, so each generation restarts
+at 1. One retried claim stores token 2, and every later first attempt is then
+refused with `ErrStaleFence`. The watermark wedges, and every later truncated window
+reports a `runs_backfill_gap` that never happened.
+
+`TestWatermarkAdvancesPastARetriedGeneration` failed on this before the fix:
+
+```text
+Observe(first attempt) error = save ci/cd run watermark: ci/cd run watermark stale fence, want nil
+```
+
+### The fix
+
+The router forwards both hooks by `scope_id`. The guard compares the fence only
+inside one generation, and across generations orders by numeric run ID, the order
+gap detection already reads. An older generation finishing late still cannot
+regress the row.
+
+Conflict domain: one `(scope_id, repository)` row. `ON CONFLICT DO UPDATE` locks the
+conflicting row and evaluates its `WHERE` on the latest row version, so concurrent
+generations cannot lose the newest run;
+`TestCICDRunWatermarkConcurrentGenerationsKeepTheNewestRunLive` proves that on real
+Postgres. No worker, lease, or batching setting changed, and the claim path is
+untouched.
+
+No-Regression Evidence: each committed GitHub Actions claim now pays one single-row
+upsert it did not pay before, on the primary key this note's EXPLAIN section
+measured, in its own statement after the commit transaction and before claim
+completion. The conflict filter adds two text comparisons and two casts on one row.
+No plan was re-measured for the new filter.
+
+Observability Evidence: no new metric or span. A failed or refused save counts on
+`eshu_dp_workflow_claim_commit_observer_failures_total{collector_kind="ci_cd_run"}`
+with the `claimed_generation_commit_observer_failed` span event, and progress shows
+as `cicd_run_watermarks.updated_at` moving per target.
