@@ -190,7 +190,11 @@ func TestClaimPlaneClientPinsProtocolMajorOne(t *testing.T) {
 		{"heartbeat", func() error { return client.HeartbeatClaim(ctx, testMutation()) }},
 		{"complete", func() error { return client.CompleteClaim(ctx, testMutation()) }},
 		{"commit facts", func() error {
-			return client.CommitClaimFacts(ctx, testMutation(), "commit-1", json.RawMessage(`{"state":"complete"}`))
+			mutation := testMutation()
+			mutation.ScopeID = "scope-commit-lane"
+			mutation.SourceRunID = "source-run-commit-lane"
+			mutation.GenerationID = "gen-commit-lane"
+			return client.CommitClaimFacts(ctx, mutation, "commit-1", json.RawMessage(`{"state":"complete"}`))
 		}},
 		{"release", func() error { return client.ReleaseClaim(ctx, testMutation()) }},
 		{"fail retryable", func() error { return client.FailClaimRetryable(ctx, testMutation()) }},

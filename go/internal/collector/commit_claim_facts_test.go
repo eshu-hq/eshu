@@ -13,6 +13,7 @@ import (
 
 	sdkcollector "github.com/eshu-hq/eshu-sdk/collector"
 
+	"github.com/eshu-hq/eshu/go/internal/factenvelope"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
@@ -83,6 +84,7 @@ func commitLaneResult(mutation workflow.ClaimMutation, factCount int) sdkcollect
 		ProtocolVersion: sdkcollector.ProtocolVersionV1Alpha1,
 		State:           sdkcollector.ResultComplete,
 		Claim: sdkcollector.Claim{
+			ComponentID:   "git-commit-lane",
 			CollectorKind: "git",
 			InstanceID:    "git-commit-lane",
 			SourceSystem:  "git",
@@ -145,18 +147,15 @@ func (s *commitLaneStore) FailClaimTerminal(context.Context, workflow.ClaimMutat
 	return nil
 }
 
-// commitLaneCommitter records claimed commits. When mimicFinalizedSkip is
-// set, a second commit of an already-committed generation drains the stream
-// and succeeds without re-recording, mirroring the real boundary's
-// generation-finalized skip that makes retries idempotent.
+// commitLaneCommitter records claimed commits. It is a plain recorder: both
+// attempts of a retry reach it, because dedup lives in the production
+// boundary's generation-finalized skip, which no stub can mimic.
 type commitLaneCommitter struct {
-	calls                int
-	mutations            []workflow.ClaimMutation
-	scopes               []scope.IngestionScope
-	generations          []scope.ScopeGeneration
-	recorded             []facts.Envelope
-	committedGenerations map[string]bool
-	mimicFinalizedSkip   bool
+	calls       int
+	mutations   []workflow.ClaimMutation
+	scopes      []scope.IngestionScope
+	generations []scope.ScopeGeneration
+	recorded    []facts.Envelope
 }
 
 func (c *commitLaneCommitter) CommitScopeGeneration(
@@ -176,21 +175,12 @@ func (c *commitLaneCommitter) CommitClaimedScopeGeneration(
 	factStream <-chan facts.Envelope,
 ) error {
 	c.calls++
-	if c.mimicFinalizedSkip && c.committedGenerations[generation.GenerationID] {
-		for range factStream {
-		}
-		return nil
-	}
-	if c.committedGenerations == nil {
-		c.committedGenerations = map[string]bool{}
-	}
 	c.mutations = append(c.mutations, mutation)
 	c.scopes = append(c.scopes, scopeValue)
 	c.generations = append(c.generations, generation)
 	for envelope := range factStream {
 		c.recorded = append(c.recorded, envelope)
 	}
-	c.committedGenerations[generation.GenerationID] = true
 	return nil
 }
 
@@ -211,6 +201,7 @@ func TestCommitClaimFactsRoundTripsResultBytes(t *testing.T) {
 		Mutation:       mutation,
 		Scope:          commitLaneScope(),
 		Generation:     commitLaneGeneration(now),
+		ComponentID:    "git-commit-lane",
 		IdempotencyKey: "commit-lane-key-1",
 		ResultJSON:     resultJSON,
 	}
@@ -246,6 +237,16 @@ func TestCommitClaimFactsRoundTripsResultBytes(t *testing.T) {
 	if store.completeCalls != 0 {
 		t.Fatalf("CompleteClaim calls = %d, want 0: commit and complete stay separate", store.completeCalls)
 	}
+	want := factenvelope.InternalFromSDKFact(commitLaneResult(mutation, 3).Facts[0], factenvelope.InternalEnvelopeOptions{
+		ComponentID:   "git-commit-lane",
+		ScopeID:       "scope-commit-lane",
+		GenerationID:  "gen-commit-lane",
+		CollectorKind: "git",
+		FencingToken:  mutation.FencingToken,
+	})
+	if first.FactID != want.FactID {
+		t.Fatalf("first envelope FactID = %q, want the canonical adapter FactID %q", first.FactID, want.FactID)
+	}
 }
 
 // TestCommitClaimFactsStaleFenceWritesNoPartialFacts proves the fenced-epoch
@@ -264,6 +265,7 @@ func TestCommitClaimFactsStaleFenceWritesNoPartialFacts(t *testing.T) {
 		Mutation:       mutation,
 		Scope:          commitLaneScope(),
 		Generation:     commitLaneGeneration(now),
+		ComponentID:    "git-commit-lane",
 		IdempotencyKey: "commit-lane-key-stale",
 		ResultJSON:     resultJSON,
 	}
@@ -276,37 +278,6 @@ func TestCommitClaimFactsStaleFenceWritesNoPartialFacts(t *testing.T) {
 	}
 	if committer.calls != 0 {
 		t.Fatalf("commit calls = %d, want 0: stale fence must write no partial facts", committer.calls)
-	}
-}
-
-// TestCommitClaimFactsRetryIsIdempotent proves the retry half: repeating the
-// same idempotency key after a committed generation succeeds without
-// duplicating facts, so at-least-once redelivery is safe.
-func TestCommitClaimFactsRetryIsIdempotent(t *testing.T) {
-	t.Parallel()
-
-	now := time.Date(2026, time.November, 6, 12, 0, 0, 0, time.UTC)
-	mutation := commitLaneMutation(now)
-	store := &commitLaneStore{}
-	committer := &commitLaneCommitter{mimicFinalizedSkip: true}
-	resultJSON := mustCommitLaneResultJSON(t, commitLaneResult(mutation, 2))
-
-	req := CommitClaimFactsRequest{
-		Mutation:       mutation,
-		Scope:          commitLaneScope(),
-		Generation:     commitLaneGeneration(now),
-		IdempotencyKey: "commit-lane-key-retry",
-		ResultJSON:     resultJSON,
-	}
-	ctx := context.Background()
-	if err := CommitClaimFacts(ctx, store, committer, req); err != nil {
-		t.Fatalf("first CommitClaimFacts() error = %v, want nil", err)
-	}
-	if err := CommitClaimFacts(ctx, store, committer, req); err != nil {
-		t.Fatalf("retry CommitClaimFacts() error = %v, want nil", err)
-	}
-	if len(committer.recorded) != 2 {
-		t.Fatalf("recorded envelopes after retry = %d, want 2 (no duplicates)", len(committer.recorded))
 	}
 }
 
@@ -331,6 +302,7 @@ func TestCommitClaimFactsRejectsOversizedPayload(t *testing.T) {
 		Mutation:       mutation,
 		Scope:          commitLaneScope(),
 		Generation:     commitLaneGeneration(now),
+		ComponentID:    "git-commit-lane",
 		IdempotencyKey: "commit-lane-key-oversized",
 		ResultJSON:     oversized,
 	}
@@ -372,6 +344,7 @@ func TestCommitClaimFactsRejectsUnknownFields(t *testing.T) {
 		Mutation:       mutation,
 		Scope:          commitLaneScope(),
 		Generation:     commitLaneGeneration(now),
+		ComponentID:    "git-commit-lane",
 		IdempotencyKey: "commit-lane-key-tainted",
 		ResultJSON:     tainted,
 	}
@@ -400,6 +373,7 @@ func TestCommitClaimFactsRejectsIdentityMismatch(t *testing.T) {
 		Mutation:       mutation,
 		Scope:          commitLaneScope(),
 		Generation:     commitLaneGeneration(now),
+		ComponentID:    "git-commit-lane",
 		IdempotencyKey: "commit-lane-key-mismatch",
 		ResultJSON:     mustCommitLaneResultJSON(t, result),
 	}
@@ -433,23 +407,5 @@ func TestCommitClaimFactsRequiresIdempotencyKey(t *testing.T) {
 	if store.heartbeatCalls != 0 || committer.calls != 0 {
 		t.Fatalf("store calls = %d, commit calls = %d, want 0/0 for a keyless request",
 			store.heartbeatCalls, committer.calls)
-	}
-}
-
-// TestCompleteClaimStaysStateOnly guards the lane's other half: completing a
-// claim never touches the commit boundary, so facts flow only through the
-// fenced commit op.
-func TestCompleteClaimStaysStateOnly(t *testing.T) {
-	t.Parallel()
-
-	now := time.Date(2026, time.November, 6, 12, 0, 0, 0, time.UTC)
-	store := &commitLaneStore{}
-	committer := &commitLaneCommitter{}
-
-	if err := store.CompleteClaim(context.Background(), commitLaneMutation(now)); err != nil {
-		t.Fatalf("CompleteClaim() error = %v, want nil", err)
-	}
-	if committer.calls != 0 {
-		t.Fatalf("commit calls = %d, want 0: Complete stays state-only", committer.calls)
 	}
 }

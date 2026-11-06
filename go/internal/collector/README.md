@@ -262,11 +262,11 @@ evidence (No-Regression and No-Observability-Change) for this section lives in
   bounded-retry guard versus other terminal-classified causes.
 - `FactsFromSlice` — test helper: builds a `CollectedGeneration` from a
   pre-built `[]facts.Envelope` slice
-- `CommitClaimFacts` and `ErrCommitClaimFactsTooLarge` — remote fact-commit
-  entry point for the claim-plane commit lane (#8877): fence probe, bounded
-  strict SDK-result decode, epoch-identity checks, then one write through the
-  existing `ClaimedCommitter` boundary. The caller completes the claim with
-  `CompleteClaim`, which stays state-only. See below.
+- `CommitClaimFacts` and `ErrCommitClaimFactsTooLarge` — internal-only
+  fact-commit entry for the claim-plane commit lane (#8877): bounded strict
+  SDK-result decode into canonical envelopes, framing and epoch-identity
+  checks, then the fence probe immediately before one `ClaimedCommitter`
+  write. The caller completes the claim with `CompleteClaim`. See below.
 - `terraformstate` subpackage — exact Terraform-state source readers and
   streaming parser primitives that emit redacted Terraform-state facts
 - `tfstateruntime` subpackage — claim-aware Terraform-state runtime adapter that
@@ -322,27 +322,27 @@ evidence (No-Regression and No-Observability-Change) for this section lives in
 
 A remote satellite holds its claim on the claim plane but collects facts out
 of process, so the plane `Complete` ack cannot carry them (#8877).
-`CommitClaimFacts` is the commit half of commit-then-complete in one fenced
-epoch: fence probe, bounded strict decode, identity checks, one committer
-write; then `CompleteClaim` closes the epoch unchanged. The wire mirror is
-`workflow.ClaimPlaneClient.CommitClaimFacts`
-(`POST /workflow.v1/CommitClaimFacts`), the cross-repo contract the
-satellite adopts for the server half.
+`CommitClaimFacts` is the internal-only commit half of commit-then-complete:
+strict decode, framing and identity checks, one committer write with the
+fence probe immediately before it; then `CompleteClaim` closes the epoch
+unchanged. The wire mirror is `workflow.ClaimPlaneClient.CommitClaimFacts` (`POST /workflow.v1/CommitClaimFacts`); the server half runs admission first.
 
 - No-Regression Evidence: new-path-only change; no existing function was
   modified (only the protocol-version pin test gained the new method entry).
   Baseline: the contract test failed pre-lane with commit calls = 0 (ack,
-  zero facts, the proven production drop). After: 8 collector + 4 workflow
-  tests pass with -race on the stub harness (no database backend); inputs
-  are a 3-fact SDK result, a cap+1 oversized carrier, and an unknown-field
-  document. Reject paths record 0 envelopes and make 0 store calls; stale
-  fence maps to ErrClaimRejected; retries stay nil with no duplicate facts.
-  Memory is bounded by the 4 MiB carrier cap. Safe because fence validation
-  reuses the existing guarded-update family and fact writes go only through
-  the existing ClaimedCommitter boundary — no new INSERTs, no new queries.
-- No-Observability-Change: the lane adds no metrics, spans, or log lines
-  (bounds forbid new signals); the fence probe and committer write travel
-  the already-instrumented claim and commit paths.
+  zero facts, the proven production drop). After: the lane tests pass with
+  -race on the stub harness (no database backend): a 3-fact SDK result plus
+  version/page/status/identity/unknown-field rejections, a cap+1 oversized
+  carrier, and an undecodable carrier that never probes. Reject paths record
+  0 envelopes with 0 store or committer calls; stale fence maps to
+  ErrClaimRejected; retries return nil twice with identical deterministic
+  FactIDs (dedup stays the boundary's finalized-skip). Memory is bounded by
+  the result cap plus the 64 KiB envelope allowance (4,259,840 B body cap);
+  fact writes go only through the existing ClaimedCommitter boundary — no
+  new INSERTs, no new queries.
+- No-Observability-Change: the lane adds no metrics, spans, or log lines;
+  the probe and wire call read on the claim-plane client metrics, while the
+  committer write bypasses commitWithTelemetry so fact counters stay silent.
 
 ## Dependencies
 

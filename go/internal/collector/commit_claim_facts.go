@@ -15,6 +15,7 @@ import (
 
 	sdkcollector "github.com/eshu-hq/eshu-sdk/collector"
 
+	"github.com/eshu-hq/eshu/go/internal/factenvelope"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
@@ -25,13 +26,32 @@ import (
 // to a terminal outcome, never a retryable one.
 var ErrCommitClaimFactsTooLarge = errors.New("commit claim facts result exceeds the byte cap")
 
+// commitClaimSingleCallVersions allowlists the SDK protocol versions the
+// single-call lane commits. v1alpha3 always carries a page envelope and this
+// lane cannot fetch further pages, so it is rejected even without one: a
+// paged stream must go through the paged collection path, never here.
+var commitClaimSingleCallVersions = map[string]struct{}{
+	sdkcollector.ProtocolVersionV1Alpha1: {},
+	sdkcollector.ProtocolVersionV1Alpha2: {},
+}
+
 // CommitClaimFactsRequest carries one bounded remote fact commit: the fenced
-// epoch the claim plane holds, the planned commit target, an opaque retry
-// key scoped to that epoch, and the verbatim bounded collector result.
+// epoch the claim plane holds, the planned commit target, the caller's own
+// component identity (never the echo: it seeds envelope FactIDs and rejects
+// a cross-component carrier), an opaque retry key, and the verbatim bounded
+// collector result.
+//
+// IdempotencyKey scopes retries to the epoch for wire symmetry with the
+// claim-plane protocol; it binds no commit identity by itself. The generation
+// is the only retry key: the same generation replays to a deterministic
+// upsert on identity-derived FactIDs, and the boundary's
+// generation-finalized skip (errGenerationAlreadyFinalized in storage) turns
+// a replayed commit into a nil no-op.
 type CommitClaimFactsRequest struct {
 	Mutation       workflow.ClaimMutation
 	Scope          scope.IngestionScope
 	Generation     scope.ScopeGeneration
+	ComponentID    string
 	IdempotencyKey string
 	ResultJSON     []byte
 }
@@ -42,19 +62,32 @@ type CommitClaimFactsRequest struct {
 // this first, then CompleteClaim (state-only, unchanged) under the same
 // fencing token.
 //
-// The order is fixed: shape and size checks first (no plane contact for a
-// carrier that can never commit), then the fence probe, then strict decode
-// and identity checks, then the single committer write. The fence probe is
-// a HeartbeatClaim, which runs the same fenced-update guard family as the
-// Complete path (fencing token, owner, and live lease must match or the
-// epoch is rejected): a stale fence fails before any byte is decoded, so
-// no partial facts can land. The committer re-validates the fence inside
-// its own transaction, so a lease lost between probe and commit still fails
-// closed. Retries carry the same idempotency key; the boundary's
-// generation-finalized skip makes a replayed commit a nil no-op.
+// Internal-only entry point: the sole caller is the core claim-plane commit
+// handler (eshu-hq/eshu#8877), which MUST run the admission stack before
+// invoking it — validator.ValidateResult against the claim contract, bounded
+// statuses, the full returned-claim match, payload-schema validation, and
+// producer-grant coverage. This function enforces only the lane-local checks
+// below (bounds, strict decode, single-call framing, epoch identity) and the
+// committer's own in-transaction fence. It is not a remote handler and must
+// never be exposed as one; the wire contract names the admission
+// precondition where the server half lands.
 //
-// No new metrics: the existing commit and claim paths already instrument
-// the boundary this writes through.
+// The order is fixed: shape and size checks, strict decode, version, page,
+// status, and identity checks, envelope mapping, then the fence probe
+// immediately before the single committer write. The probe is a HeartbeatClaim,
+// which runs the same fenced-update guard family as the Complete path
+// (fencing token, owner, and live lease must match or the epoch is rejected):
+// a stale fence fails before any byte is committed, so no partial facts can
+// land. The committer re-validates the fence inside its own transaction, so
+// a lease lost between probe and commit still fails closed.
+//
+// No new metrics: the fence probe travels the instrumented claim-plane client
+// path (eshu_dp_workflow_claim_plane_requests_total with
+// operation="HeartbeatClaim"). The committer write bypasses
+// Service.commitWithTelemetry, so ehsu_dp_facts_emitted_total and
+// eshu_dp_facts_committed_total do NOT fire on this path; the wire call
+// itself reads on the same two client metrics with
+// operation="CommitClaimFacts".
 func CommitClaimFacts(
 	ctx context.Context,
 	store ClaimControlStore,
@@ -70,6 +103,9 @@ func CommitClaimFacts(
 	if err := validateClaimPlaneFence(store, committer); err != nil {
 		return err
 	}
+	if strings.TrimSpace(req.ComponentID) == "" {
+		return errors.New("commit claim facts: component id is required")
+	}
 	if strings.TrimSpace(req.IdempotencyKey) == "" {
 		return errors.New("commit claim facts: idempotency key is required")
 	}
@@ -80,11 +116,6 @@ func CommitClaimFacts(
 			len(req.ResultJSON),
 			workflow.MaxCommitClaimFactsBytes,
 		)
-	}
-	// Fence and lease probe before decode: a dead epoch rejects here, and
-	// the heartbeat extends the lease to cover the commit that follows.
-	if err := store.HeartbeatClaim(ctx, req.Mutation); err != nil {
-		return fmt.Errorf("commit claim facts fence probe: %w", err)
 	}
 	result, err := decodeCommitClaimResult(req.ResultJSON)
 	if err != nil {
@@ -97,16 +128,25 @@ func CommitClaimFacts(
 	if err != nil {
 		return err
 	}
+	// Fence and lease probe immediately before the commit: everything above
+	// is pure bytes, so an undecodable or mismatched carrier never extends
+	// a dead epoch and starves reclaim. The heartbeat extends the lease to
+	// cover the commit that follows.
+	if err := store.HeartbeatClaim(ctx, req.Mutation); err != nil {
+		return fmt.Errorf("commit claim facts fence probe: %w", err)
+	}
 	claimed, ok := committer.(ClaimedCommitter)
 	if !ok {
 		return errors.New("claim-aware collector committer must implement ClaimedCommitter")
 	}
+	generation := req.Generation
+	generation.TrustedDeletion = result.Generation.TrustedDeletion
 	if err := claimed.CommitClaimedScopeGeneration(
 		ctx,
 		req.Mutation,
 		req.Scope,
-		req.Generation,
-		FactsFromSlice(req.Scope, req.Generation, envelopes).Facts,
+		generation,
+		FactsFromSlice(req.Scope, generation, envelopes).Facts,
 	); err != nil {
 		return fmt.Errorf("commit claim facts commit: %w", err)
 	}
@@ -115,11 +155,14 @@ func CommitClaimFacts(
 
 // decodeCommitClaimResult strict-decodes one collector result: unknown
 // fields and trailing data fail closed, so a carrier the producer changed
-// under us never commits partially-understood bytes.
+// under us never commits partially-understood bytes. Numbers stay exact
+// through UseNumber, the canonical decode discipline, so large payload
+// integers never lose precision through float64.
 func decodeCommitClaimResult(raw []byte) (sdkcollector.Result, error) {
 	var result sdkcollector.Result
 	decoder := json.NewDecoder(bytes.NewReader(raw))
 	decoder.DisallowUnknownFields()
+	decoder.UseNumber()
 	if err := decoder.Decode(&result); err != nil {
 		return sdkcollector.Result{}, fmt.Errorf("commit claim facts decode result: %w", err)
 	}
@@ -130,12 +173,27 @@ func decodeCommitClaimResult(raw []byte) (sdkcollector.Result, error) {
 	return result, nil
 }
 
-// checkCommitClaimIdentity proves the result belongs to the fenced epoch:
-// only complete results commit, and the echoed work item, generation, and
-// fencing token must match the mutation and target exactly.
+// checkCommitClaimIdentity proves the result belongs to the fenced epoch and
+// fits the single-call lane: an allowlisted non-paged protocol version, no
+// page envelope, a complete state with no statuses (the lane records none,
+// so a signaling result must take the full claim path), and the echoed work
+// item, generation, fencing token, and component identity matching the
+// planned target exactly — never scraped from the echo.
 func checkCommitClaimIdentity(req CommitClaimFactsRequest, result sdkcollector.Result) error {
+	if _, ok := commitClaimSingleCallVersions[strings.TrimSpace(result.ProtocolVersion)]; !ok {
+		return fmt.Errorf(
+			"commit claim facts: protocol_version %q is not a single-call version",
+			result.ProtocolVersion,
+		)
+	}
+	if result.Page != nil {
+		return errors.New("commit claim facts: result carries a page envelope but the lane does not page")
+	}
 	if result.State != sdkcollector.ResultComplete {
 		return fmt.Errorf("commit claim facts: result state %q is not complete", result.State)
+	}
+	if len(result.Statuses) > 0 {
+		return fmt.Errorf("commit claim facts: result carries %d statuses the lane cannot record", len(result.Statuses))
 	}
 	if strings.TrimSpace(result.Claim.WorkItemID) != strings.TrimSpace(req.Mutation.WorkItemID) {
 		return errors.New("commit claim facts: result work item does not match the fenced epoch")
@@ -150,17 +208,24 @@ func checkCommitClaimIdentity(req CommitClaimFactsRequest, result sdkcollector.R
 	if echoed != req.Mutation.FencingToken {
 		return errors.New("commit claim facts: result fencing token does not match the fenced epoch")
 	}
+	if strings.TrimSpace(result.Claim.ComponentID) != strings.TrimSpace(req.ComponentID) {
+		return errors.New("commit claim facts: result component does not match the caller")
+	}
 	return nil
 }
 
-// mapCommitClaimEnvelopes converts SDK facts to commit envelopes. Scope and
-// generation come from the fenced target, never the source echo, and every
-// fact's echoed refs must name that same target: facts for another scope or
-// generation fail closed before the stream opens. FactID derives
-// deterministically from the committed content so a replayed commit upserts
-// the same rows instead of duplicating them.
+// mapCommitClaimEnvelopes converts SDK facts to commit envelopes through the
+// canonical adapter: FactIDs seed from the caller-owned component identity,
+// CollectorKind comes from the planned target (never the echo), ObservedAt is
+// UTC-normalized, and (kind, stableKey) duplicates collapse exactly like the
+// in-tree path. Scope and generation come from the fenced target, never the
+// source echo, and every fact's echoed refs must name that same target: facts
+// for another scope or generation fail closed before the stream opens.
+// FactID derives deterministically from the fact identity so a replayed
+// commit upserts the same rows instead of duplicating them.
 func mapCommitClaimEnvelopes(req CommitClaimFactsRequest, result sdkcollector.Result) ([]facts.Envelope, error) {
 	envelopes := make([]facts.Envelope, 0, len(result.Facts))
+	seen := make(map[string]struct{}, len(result.Facts))
 	for i := range result.Facts {
 		fact := result.Facts[i]
 		if strings.TrimSpace(fact.Kind) == "" {
@@ -175,33 +240,18 @@ func mapCommitClaimEnvelopes(req CommitClaimFactsRequest, result sdkcollector.Re
 		if strings.TrimSpace(fact.SourceRef.GenerationID) != strings.TrimSpace(req.Generation.GenerationID) {
 			return nil, fmt.Errorf("commit claim facts: fact %d generation does not match the fenced target", i)
 		}
-		envelopes = append(envelopes, facts.Envelope{
-			FactID: facts.StableID("CommitClaimFact", map[string]any{
-				"fact_kind":       fact.Kind,
-				"generation_id":   req.Generation.GenerationID,
-				"scope_id":        req.Scope.ScopeID,
-				"stable_fact_key": fact.StableKey,
-			}),
-			ScopeID:          req.Scope.ScopeID,
-			GenerationID:     req.Generation.GenerationID,
-			FactKind:         fact.Kind,
-			StableFactKey:    fact.StableKey,
-			SchemaVersion:    fact.SchemaVersion,
-			CollectorKind:    strings.TrimSpace(result.Claim.CollectorKind),
-			FencingToken:     req.Mutation.FencingToken,
-			SourceConfidence: string(fact.SourceConfidence),
-			ObservedAt:       fact.ObservedAt,
-			Payload:          fact.Payload,
-			IsTombstone:      fact.Tombstone,
-			SourceRef: facts.Ref{
-				SourceSystem:   fact.SourceRef.SourceSystem,
-				ScopeID:        fact.SourceRef.ScopeID,
-				GenerationID:   fact.SourceRef.GenerationID,
-				FactKey:        fact.SourceRef.FactKey,
-				SourceURI:      fact.SourceRef.URI,
-				SourceRecordID: fact.SourceRef.RecordID,
-			},
-		})
+		key := fact.Kind + "\x00" + fact.StableKey
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		envelopes = append(envelopes, factenvelope.InternalFromSDKFact(fact, factenvelope.InternalEnvelopeOptions{
+			ComponentID:   strings.TrimSpace(req.ComponentID),
+			ScopeID:       req.Scope.ScopeID,
+			GenerationID:  req.Generation.GenerationID,
+			CollectorKind: string(req.Scope.CollectorKind),
+			FencingToken:  req.Mutation.FencingToken,
+		}))
 	}
 	return envelopes, nil
 }
