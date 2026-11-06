@@ -441,7 +441,16 @@ test_gate_sources_are_under_the_cap() {
 		|| record_fail "gate sources are within their own cap" "over:${bad}"
 }
 
+# shellcheck source=lib/test-verify-tooling-line-cap-merge-ref-cases.sh
+source "${script_root}/lib/test-verify-tooling-line-cap-merge-ref-cases.sh"
+
 main() {
+	if [[ "${1:-}" == "--merge-ref-only" ]]; then
+		run_tooling_merge_ref_cases
+		printf '\n%d passed, %d failed\n' "${pass_count}" "${fail_count}"
+		[[ "${fail_count}" -eq 0 ]]
+		return $?
+	fi
 	test_planted_501_line_file_is_red
 	test_500_line_file_is_green
 	test_unterminated_last_line_is_counted
@@ -464,6 +473,7 @@ main() {
 	test_pin_mode
 	test_hook_env_git_dir_does_not_blind_the_gate
 	test_workflow_job_is_wired
+	run_tooling_merge_ref_cases
 	test_clean_real_tree_is_green
 	test_gate_sources_are_under_the_cap
 	printf '\n%d passed, %d failed\n' "${pass_count}" "${fail_count}"
