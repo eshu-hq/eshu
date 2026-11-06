@@ -328,7 +328,8 @@ WITH candidate AS (
         claim.claimed_at,
         claim.heartbeat_at,
         claim.lease_expires_at,
-        claim.created_at
+        claim.created_at,
+        item.attempt_count AS work_attempt_count
     FROM workflow_claims AS claim
     JOIN workflow_work_items AS item
       ON item.work_item_id = claim.work_item_id
@@ -342,27 +343,61 @@ WITH candidate AS (
     LIMIT $2
     FOR UPDATE OF claim, item SKIP LOCKED
 ),
-updated_claim AS (
+requeue_candidate AS (
+    SELECT * FROM candidate WHERE work_attempt_count < $4
+),
+deadletter_candidate AS (
+    SELECT * FROM candidate WHERE work_attempt_count >= $4
+),
+updated_claim_requeue AS (
     UPDATE workflow_claims AS claim
     SET status = 'expired',
         finished_at = $1,
         updated_at = $1
-    FROM candidate
-    WHERE claim.claim_id = candidate.claim_id
+    FROM requeue_candidate
+    WHERE claim.claim_id = requeue_candidate.claim_id
     RETURNING
-        candidate.claim_id,
-        candidate.work_item_id,
-        candidate.fencing_token,
-        candidate.owner_id,
+        requeue_candidate.claim_id,
+        requeue_candidate.work_item_id,
+        requeue_candidate.fencing_token,
+        requeue_candidate.owner_id,
         'expired' AS status,
-        candidate.claimed_at,
-        candidate.heartbeat_at,
-        candidate.lease_expires_at,
-        candidate.created_at,
+        requeue_candidate.claimed_at,
+        requeue_candidate.heartbeat_at,
+        requeue_candidate.lease_expires_at,
+        requeue_candidate.created_at,
         $1 AS updated_at
+),
+updated_claim_deadletter AS (
+    UPDATE workflow_claims AS claim
+    SET status = 'failed_terminal',
+        finished_at = $1,
+        failure_class = $5,
+        failure_message = 'expired lease requeues exhausted budget ' || $4::text || ': attempt ' || deadletter_candidate.work_attempt_count::text || ' without a returned failure',
+        failure_operation = 'lease_expired',
+        failure_terminal = TRUE,
+        updated_at = $1
+    FROM deadletter_candidate
+    WHERE claim.claim_id = deadletter_candidate.claim_id
+    RETURNING
+        deadletter_candidate.claim_id,
+        deadletter_candidate.work_item_id,
+        deadletter_candidate.fencing_token,
+        deadletter_candidate.owner_id,
+        'failed_terminal' AS status,
+        deadletter_candidate.claimed_at,
+        deadletter_candidate.heartbeat_at,
+        deadletter_candidate.lease_expires_at,
+        deadletter_candidate.created_at,
+        $1 AS updated_at
+),
+updated_claim AS (
+    SELECT * FROM updated_claim_requeue
+    UNION ALL
+    SELECT * FROM updated_claim_deadletter
 )
 ,
-updated_item AS (
+updated_item_requeue AS (
 UPDATE workflow_work_items AS item
 SET status = 'pending',
     current_claim_id = NULL,
@@ -370,13 +405,37 @@ SET status = 'pending',
     lease_expires_at = NULL,
     visible_at = $3,
     updated_at = $1
-FROM candidate
-WHERE item.work_item_id = candidate.work_item_id
-  AND item.current_claim_id = candidate.claim_id
-  AND item.current_fencing_token = candidate.fencing_token
-  AND item.current_owner_id = candidate.owner_id
+FROM requeue_candidate
+WHERE item.work_item_id = requeue_candidate.work_item_id
+  AND item.current_claim_id = requeue_candidate.claim_id
+  AND item.current_fencing_token = requeue_candidate.fencing_token
+  AND item.current_owner_id = requeue_candidate.owner_id
   AND item.status = 'claimed'
 RETURNING item.work_item_id
+),
+updated_item_deadletter AS (
+UPDATE workflow_work_items AS item
+SET status = 'failed_terminal',
+    current_claim_id = NULL,
+    current_owner_id = NULL,
+    lease_expires_at = NULL,
+    updated_at = $1,
+    last_failure_class = $5,
+    last_failure_message = 'expired lease requeues exhausted budget ' || $4::text || ': attempt ' || deadletter_candidate.work_attempt_count::text || ' without a returned failure',
+    last_failure_operation = 'lease_expired',
+    last_failure_terminal = TRUE
+FROM deadletter_candidate
+WHERE item.work_item_id = deadletter_candidate.work_item_id
+  AND item.current_claim_id = deadletter_candidate.claim_id
+  AND item.current_fencing_token = deadletter_candidate.fencing_token
+  AND item.current_owner_id = deadletter_candidate.owner_id
+  AND item.status = 'claimed'
+RETURNING item.work_item_id
+),
+updated_item AS (
+    SELECT * FROM updated_item_requeue
+    UNION ALL
+    SELECT * FROM updated_item_deadletter
 )
 SELECT
     updated_claim.claim_id,

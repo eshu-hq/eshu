@@ -312,6 +312,16 @@ func (s *WorkflowControlStore) FailClaimTerminal(ctx context.Context, mutation w
 }
 
 // ReapExpiredClaims expires stale active claims atomically and requeues their work.
+//
+// An expired lease requeues the work item while its AttemptCount is below
+// workflow.DefaultExpiredLeaseMaxRequeues (eshu-hq/eshu#10113). The next
+// ClaimNextEligible increments AttemptCount, so every expiry consumes the
+// same budget a returned retryable failure consumes; the reap itself adds no
+// second increment so one expiry costs exactly one attempt. At or past the
+// cap the reaper dead-letters instead: the claim and the work item both go
+// failed_terminal with workflow.FailureClassExpiredLeaseBudgetExhausted,
+// so a run that never returns cannot loop forever. Normal churn of one or
+// two expiries requeues to pending exactly as before.
 func (s *WorkflowControlStore) ReapExpiredClaims(
 	ctx context.Context,
 	asOf time.Time,
@@ -325,7 +335,15 @@ func (s *WorkflowControlStore) ReapExpiredClaims(
 		return nil, fmt.Errorf("expired claim limit must be positive")
 	}
 	effectiveRequeueDelay := s.effectiveExpiredRequeueDelay(requeueDelay)
-	rows, err := s.database.QueryContext(ctx, reapExpiredWorkflowClaimsQuery, asOf.UTC(), limit, asOf.UTC().Add(effectiveRequeueDelay))
+	rows, err := s.database.QueryContext(
+		ctx,
+		reapExpiredWorkflowClaimsQuery,
+		asOf.UTC(),
+		limit,
+		asOf.UTC().Add(effectiveRequeueDelay),
+		workflow.DefaultExpiredLeaseMaxRequeues(),
+		workflow.FailureClassExpiredLeaseBudgetExhausted,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("reap expired workflow claims: %w", err)
 	}
