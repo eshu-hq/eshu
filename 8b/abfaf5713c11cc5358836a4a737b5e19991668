@@ -1,0 +1,14 @@
+docs/internal/9669-flip-prep/mcp-query-dependency-inventory.md
+  h_78a442cba0b3e6 14-15,18-22,25-26,28-29,31,135
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8babfaf5713c11cc5358836a4a737b5e19991668",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
