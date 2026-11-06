@@ -1,0 +1,40 @@
+docs/internal/evidence/10061-alert-scope-reopen.md
+  h_78a442cba0b3e6 1-100
+docs/internal/evidence/9874-lockfile-retrigger.md
+  h_78a442cba0b3e6 333-334
+go/internal/reducer/defaults_cross_scope_readiness_wiring_test.go
+  h_78a442cba0b3e6 235
+go/internal/reducer/supplychain/core/HOLDER_FANOUT.md
+  h_78a442cba0b3e6 135-139,178-188
+go/internal/reducer/supplychain/core/README.md
+  h_78a442cba0b3e6 376
+go/internal/reducer/supplychain/core/fanout.go
+  h_78a442cba0b3e6 218-220
+go/internal/reducer/supplychain/core/fanout_stub_test.go
+  h_78a442cba0b3e6 46-47,51,54,56-57
+go/internal/reducer/supplychain/core/manifest_change.go
+  h_78a442cba0b3e6 36-39,68,71,75-77,84-86,210-220
+go/internal/reducer/supplychain/core/manifest_trigger.go
+  h_78a442cba0b3e6 130-146,233
+go/internal/reducer/supplychain/core/manifest_trigger_alert_test.go
+  h_78a442cba0b3e6 1-39
+go/internal/storage/postgres/supply_chain_impact_manifest_alert_live_test.go
+  h_78a442cba0b3e6 1-99
+go/internal/storage/postgres/supply_chain_impact_manifest_trigger_live_test.go
+  h_78a442cba0b3e6 158,169,202
+go/internal/storage/postgres/supply_chain_impact_package_holders.go
+  h_78a442cba0b3e6 51-91,95,97-99,109-112,114-128,130,132-140
+scripts/lib/reducer_contention_inventory.json
+  h_78a442cba0b3e6 234-237
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4c83594b0db5503ab840d9b0024bb48d709a95df",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
