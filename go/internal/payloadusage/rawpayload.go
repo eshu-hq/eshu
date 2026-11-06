@@ -491,5 +491,10 @@ func defaultRawPayloadExemptions() []RawPayloadExemption {
 		{Path: "go/internal/storage/postgres/shared_intents_history.go", Accessor: "sharedIntentPayloadString", Key: "intent_type"},
 		{Path: "go/internal/storage/postgres/shared_intents_history.go", Accessor: "sharedIntentPayloadString", Key: "repo_id"},
 		{Path: "go/internal/storage/postgres/shared_intents_history.go", Accessor: "sharedIntentPayloadStringSlice", Key: "delta_file_paths"},
+		// #10204: union-leg narrowing reads file relative_path +
+		// parsed_file_data definitions; no SDK seam covers definition
+		// package_id. Filter-only reads; unparseable payloads keep rows.
+		{Path: "go/internal/storage/postgres/active_code_call_symbol_legs.go", Accessor: rawPayloadIndexAccessor, Key: "relative_path"},
+		{Path: "go/internal/storage/postgres/active_code_call_symbol_legs.go", Accessor: rawPayloadIndexAccessor, Key: "parsed_file_data"},
 	}
 }

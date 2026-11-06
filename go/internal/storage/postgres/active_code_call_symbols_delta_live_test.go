@@ -544,3 +544,77 @@ func TestLoadActiveCodeCallSymbolDefinitionFactsAnchoredNoDeltaStatementsLive(t 
 		t.Fatalf("statement tally = %+v, want active=2 targets=1 base=0 resolve=0 inputs=0 other=0+2 discovery", tally)
 	}
 }
+
+// TestLoadActiveCodeCallSymbolDefinitionFactsUnionExcludesVendoredNonProducerLive
+// is the #10204 regression. Three delta-active baselined scopes read two
+// package keys with empty active discovery: a legitimate renamed npm
+// publisher whose base still holds the definition at a publishable path, a
+// never-producer scope whose base holds a colliding definition under a
+// node_modules/ path (a force-committed vendored copy: indexed by the
+// collector, excluded by the producer anchor), and a renamed composer
+// publisher whose base definition sits under node_modules/ (composer has no
+// node_modules exclusion, so that row is legitimate). Pre-narrowing the
+// union leg binds every baselined delta-active scope, so the vendored copy
+// surfaces; post-narrowing the legitimate npm and composer bases load while
+// the scan still covers all three scopes (the union scope count stays 3:
+// the narrowing drops rows, not scopes).
+func TestLoadActiveCodeCallSymbolDefinitionFactsUnionExcludesVendoredNonProducerLive(t *testing.T) {
+	f := openDeltaManifestFixture(t)
+	now := time.Now().UTC()
+	keys := []string{"package:alpha-pkg#Widget", "package:acme/widget#Widget"}
+
+	legitScope, legitFull, legitDelta := "call-narrow-legit", "call-narrow-legit-full", "call-narrow-legit-delta"
+	f.scope(legitScope)
+	f.generation(legitScope, deltaManifestGeneration{id: legitFull, commit: "c0"})
+	seedActiveCodeCallSymbolManifest(t, f.ctx, f.database, legitScope, "package.json", `{"name":"alpha-pkg"}`, legitFull, now)
+	seedActiveCodeCallSymbolPackageFact(t, f.ctx, f.database, "narrow-legit-base", legitScope, legitFull, "src/widget.js", "alpha-pkg", "Widget", now)
+	f.activate(legitScope, legitFull)
+	f.generation(legitScope, deltaManifestGeneration{id: legitDelta, isDelta: true, commit: "c1", baseline: "c0", unionBase: "c0"})
+	rewriteContentManifest(f, legitScope, legitDelta, "package.json", `{"name":"renamed-pkg"}`)
+	f.deltaRepository(legitScope, legitDelta, []string{"package.json"}, nil)
+	f.activate(legitScope, legitDelta)
+
+	vendoredScope, vendoredFull, vendoredDelta := "call-narrow-vendored", "call-narrow-vendored-full", "call-narrow-vendored-delta"
+	f.scope(vendoredScope)
+	f.generation(vendoredScope, deltaManifestGeneration{id: vendoredFull, commit: "c0"})
+	seedActiveCodeCallSymbolManifest(t, f.ctx, f.database, vendoredScope, "package.json", `{"name":"other-pkg"}`, vendoredFull, now)
+	seedActiveCodeCallSymbolPackageFact(t, f.ctx, f.database, "narrow-vendored-base", vendoredScope, vendoredFull, "node_modules/alpha-pkg/src/widget.js", "alpha-pkg", "Widget", now)
+	f.activate(vendoredScope, vendoredFull)
+	f.generation(vendoredScope, deltaManifestGeneration{id: vendoredDelta, isDelta: true, commit: "c1", baseline: "c0", unionBase: "c0"})
+	f.deltaRepository(vendoredScope, vendoredDelta, []string{"src/other.js"}, nil)
+	f.activate(vendoredScope, vendoredDelta)
+
+	composerScope, composerFull, composerDelta := "call-narrow-composer", "call-narrow-composer-full", "call-narrow-composer-delta"
+	f.scope(composerScope)
+	f.generation(composerScope, deltaManifestGeneration{id: composerFull, commit: "c0"})
+	seedActiveCodeCallSymbolManifest(t, f.ctx, f.database, composerScope, "composer.json", `{"name":"acme/widget"}`, composerFull, now)
+	seedActiveCodeCallSymbolPackageFact(t, f.ctx, f.database, "narrow-composer-base", composerScope, composerFull, "node_modules/acme-widget/src/Widget.php", "acme/widget", "Widget", now)
+	f.activate(composerScope, composerFull)
+	f.generation(composerScope, deltaManifestGeneration{id: composerDelta, isDelta: true, commit: "c1", baseline: "c0", unionBase: "c0"})
+	rewriteContentManifest(f, composerScope, composerDelta, "composer.json", `{"name":"acme/renamed"}`)
+	f.deltaRepository(composerScope, composerDelta, []string{"composer.json"}, nil)
+	f.activate(composerScope, composerDelta)
+
+	var logged bytes.Buffer
+	previous := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&logged, nil)))
+	t.Cleanup(func() { slog.SetDefault(previous) })
+
+	got := loadCallSymbolIDs(t, f, keys)
+	t.Logf("loaded call symbol facts with vendored non-producer present = %v", got)
+	want := []string{"narrow-composer-base", "narrow-legit-base"}
+	if !slices.Equal(got, want) {
+		t.Fatalf("loaded call symbol facts = %v, want %v (vendored non-producer base must stay excluded, composer base kept)", got, want)
+	}
+	assertDeltaManifestOutcomes(t,
+		f.deltaUnionOutcomesForMetric(t, "eshu_dp_code_call_symbol_definition_read_delta_union_total"),
+		map[string]int64{"union_base_found": 2})
+	for _, want := range []string{
+		"package_producer_scope_count=0",
+		"package_union_scope_count=3",
+	} {
+		if !strings.Contains(logged.String(), want) {
+			t.Fatalf("load log is missing %q:\n%s", want, logged.String())
+		}
+	}
+}

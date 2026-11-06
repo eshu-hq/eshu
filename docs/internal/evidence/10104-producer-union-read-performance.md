@@ -40,18 +40,41 @@ per load as `package_union_scope_count` / `go_union_scope_count`), so the
 1.5x bar re-proves per corpus shape and is not claimed beyond the measured
 fixture.
 
-Why safe: the union leg runs only when `runBase` holds and discovery is
-empty — the shape that returns nothing today, so every added row is a row
-the read previously dropped. Rows still match on each definition's own
-package id, and a key resolving to definitions in several scopes stays
-unresolved downstream (degraded resolution, not corrupt truth). Residual: a
-base definition carrying the package id in a scope whose non-excluded
-manifests never published it (reachable only through force-committed
-vendored or duplicated manifests; tracked collectors skip gitignored vendor
-trees) would surface — tracked in #10204. The base text is derived from the
-active text by `deriveDeltaOverlayBaseQuery`, keeping its filters, keyset
-cursor, and ordering, and the overlay merge still drops refused or unmatched
-bases.
+Why safe (bounded): the union leg runs only when `runBase` holds and
+discovery is empty — the shape that returns nothing today. Rows still match
+on each definition's own package id, and a key resolving to definitions in
+several scopes stays unresolved downstream (degraded resolution, not corrupt
+truth). Narrowing (#10204): on definition-content collision across scopes,
+the package-group union page drops rows no producer anchor could have
+published before the overlay — files under a `node_modules` segment (the
+manifest read excludes them, the stamp keeps the nearest name), unless the
+row carries a queried composer package id (composer has no `node_modules`
+exclusion, so those rows are legitimate). A scope-side lookup is
+unindexable: `content_files` is last-writer-wins on `(repo_id,
+relative_path)`, so the delta's manifest rewrite already discarded the base
+content, and facts carry no manifest bodies — the narrowing therefore drops
+rows per group instead of scopes. Go union legs narrow nothing (a nested
+`go.mod` would make the scope a producer; without one the outer module
+stamps an unmatchable path). The base text is derived from the active text
+by `deriveDeltaOverlayBaseQuery`, keeping its filters, keyset cursor, and
+ordering, and the overlay merge still drops refused or unmatched bases.
+
+No-Regression Evidence (#10204): zero query-constant changes, so the
+#10104 EXPLAIN plans still describe the statements byte for byte; the
+pinned tallies re-prove the statement shape live
+(`ManifestChangingDeltaLive` still `active=0 targets=1 base=2 resolve=2
+inputs=1 other=2`, `ManifestStableAnchoredLive` still `2/1/2/2/1/2`,
+`AnchoredNoDeltaStatementsLive` still `2/1/0/0/0/2` plus discovery).
+`TestLoadActiveCodeCallSymbolDefinitionFactsUnionExcludesVendoredNonProducerLive`
+is the failing-first repro on disposable PostgreSQL 18.6: pre-narrowing
+the 3-scope firing load returns all three bases, post-narrowing only the
+legitimate npm and composer bases, with `package_union_scope_count=3`
+proving the scan still covers every scope and `union_base_found: 2`
+proving the vendored scope contributes nothing.
+
+No-Observability-Change: no new instrument; the firing load still moves
+the existing delta-union counter and logs the same union scope counts on
+the existing load line.
 
 ## Observability Evidence:
 
