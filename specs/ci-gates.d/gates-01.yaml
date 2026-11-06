@@ -40,10 +40,19 @@ gates:
       - "scripts/lib/precommit-go-filecap.sh"
       - "scripts/lib/cgo-cflags.sh"
       - "scripts/lib/precommit-go-gosec.sh"
+      - "scripts/test-precommit-go-cgo-cflags.sh"
+    self_test_triggers:
+      - "scripts/dev/precommit-go.sh"
+      - "scripts/lib/cgo-cflags.sh"
+      - "scripts/lib/go-toolchain.sh"
+      - "scripts/test-precommit-go-cgo-cflags.sh"
     local:
       command: "bash scripts/dev/precommit-go.sh lint-all"
       pre_push: floor
-      test_command: ""
+      # Regression guard for #10282: the hook's scanner arms ran without the
+      # #9066 CGO_CFLAGS export, so a cold build cache failed lint with cgo
+      # typecheck errors while go test stayed green on a warm cache.
+      test_command: "bash scripts/test-precommit-go-cgo-cflags.sh"
     ci:
       workflow: test.yml
       job: "go-core"

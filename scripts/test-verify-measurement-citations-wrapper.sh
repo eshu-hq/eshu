@@ -25,7 +25,7 @@ printf '%s\n' '{"id":"9999-common","value":0,"trials":10}' \
   >"${fixture}/feature/docs/internal/measurements.jsonl"
 cp "${wrapper_source}" "${fixture}/feature/scripts/dev/precommit-go.sh"
 cp "${repo_root}/scripts/lib/precommit-go-filecap.sh" "${repo_root}/scripts/lib/go-toolchain.sh" \
-  "${fixture}/feature/scripts/lib/"
+  "${repo_root}/scripts/lib/cgo-cflags.sh" "${fixture}/feature/scripts/lib/"
 cp "${verifier_source}" \
   "${fixture}/feature/scripts/verify-measurement-citations.sh"
 chmod +x "${fixture}/feature/scripts/verify-measurement-citations.sh"

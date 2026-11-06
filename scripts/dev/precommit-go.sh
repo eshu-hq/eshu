@@ -29,6 +29,13 @@ go_dir="${repo_root}/go"
 # shellcheck source=../lib/go-toolchain.sh
 source "${script_root}/scripts/lib/go-toolchain.sh"
 eshu_export_go_toolchain "${repo_root}"
+# #9066: cgo needs -std=gnu17 on GCC 15 + glibc 2.43; see scripts/lib/cgo-cflags.sh.
+# Exported once here so every arm (lint, lint-all, fmt, gosec, surface) hands
+# the same dialect to the C compiler; CI sets the identical value globally in
+# test.yml. Kept next to the toolchain pin, which the flag derivation follows.
+# shellcheck source=../lib/cgo-cflags.sh
+source "${script_root}/scripts/lib/cgo-cflags.sh"
+eshu_export_cgo_cflags
 # Share immutable tool binaries through the git common dir, but keep mutable
 # config and analyzer results under the current worktree's git dir. Sharing the
 # latter lets one worktree reuse findings or overwrite config for another.
@@ -246,7 +253,7 @@ case "${cmd}" in
 		gosec_arm_changed
 		;;
 	surface)
-		( source "${script_root}/scripts/lib/cgo-cflags.sh" && eshu_export_cgo_cflags && cd "${go_dir}" && go run ./cmd/capability-inventory -mode verify >/dev/null ) \
+		( cd "${go_dir}" && go run ./cmd/capability-inventory -mode verify >/dev/null ) \
 			|| die "capability surface inventory is stale — run: cd go && go run ./cmd/capability-inventory -mode generate"
 		;;
 	perf-evidence)
