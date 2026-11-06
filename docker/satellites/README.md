@@ -96,8 +96,9 @@ against a force-pushed tag). Any mismatch fails the build with the re-pin
 pointer. The gate
 also prints the resolved per-file library list, which is the operator's
 source for `ESHU_DOC_IMPORT_TESSERACT_LIBRARIES`. The
-`org.opencontainers.image.version` label derives from the engine version
-arg the gate just verified, never a hand value.
+`eshu.satellite.engine-version` label derives from the engine version arg
+the gate just verified (`WHISPER_CPP_TAG`, kept consistent with the gated
+`EXPECT_ENGINE_VERSION`), never a hand value.
 
 ## Apk floors
 

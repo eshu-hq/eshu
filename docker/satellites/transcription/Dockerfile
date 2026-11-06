@@ -102,8 +102,9 @@ LABEL eshu.satellite="transcription" eshu.satellite.engine="whisper.cpp" eshu.sa
 # musl is named explicitly, not left transitive: the base layer ships its
 # own musl and apk keeps it unless asked, so an unnamed musl floats with
 # the base image instead of the floor set (r11 stayed installed while the
-# index served r12, which the digest gate caught). Every ldd-resolved
-# package must be a named floor.
+# index served r12, which the digest gate caught). Every runtime-stage
+# package must be a named floor, linked or not: an unnamed unlinked
+# package would install unhashed and defeat the digest gate.
 RUN apk add --no-cache "libstdc++>=14.2.0-r4" "libgcc>=14.2.0-r4" "musl>=1.2.5-r12" \
         "libssl3>=3.3.7-r2" "libcrypto3>=3.3.7-r2" "zlib>=1.3.2-r1" \
     && mkdir -p /opt/whisper/bin /opt/whisper/models /data

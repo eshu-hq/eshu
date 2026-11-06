@@ -243,17 +243,23 @@ jobs:
           else:
               print('extra_args=')
           EOF
-      # NOTE: plain `docker build`, not build-push-action, deliberately. The
+      # NOTE: `docker buildx build`, not build-push-action, deliberately. The
       # #9632 guard requires every build-push-action step to read and write a
       # per-target GHCR cache tag, and its owner model (target-less implies
       # the shared :runtime tag) has no room for a second target-less build:
       # sharing :runtime would overwrite the main image's cache on push. This
       # proof writes no cache at all, so there is nothing to share, evict, or
       # leak — cold builds are the accepted cost (75-minute job timeout).
+      # buildx (not plain `docker build`) because the gate matrix covers
+      # linux/arm64 and the amd64 runners cannot run an arm64 image build
+      # without the buildx builder: plain `docker build --platform` fails
+      # with `exec format error` (main run 42243732374). This reuses the
+      # same setup-buildx builder as the image lane, which already proves
+      # multi-arch through it (the published image ships amd64+arm64).
       - name: Build satellite gate image
         if: ${{ env.LANE_APPLIES == 'true' }}
         run: |
-          docker build --platform "linux/${{ matrix.arch }}" \
+          docker buildx build --platform "linux/${{ matrix.arch }}" \
             -f "docker/satellites/${{ matrix.sat }}/Dockerfile" \
             --build-arg "ESHU_ALPINE_IMAGE=${{ env.ESHU_ALPINE_IMAGE }}" \
             --build-arg "ESHU_GO_IMAGE=${{ env.ESHU_GO_IMAGE }}" \

@@ -56,7 +56,9 @@
     "libpng": "1.6.59-r0",
     "tiff": "4.7.2-r0",
     "zlib": "1.3.2-r1",
-    "zstd-libs": "1.5.6-r2"
+    "zstd-libs": "1.5.6-r2",
+    "libssl3": "3.3.7-r2",
+    "libcrypto3": "3.3.7-r2"
   },
   "measured": "2026-11-04, native arm64 reference run against the pinned base plus the exact apk versions above; binary and model match scripts/prove-ocr-sandbox.sh EXPECTED_* for arm64",
   "notes": "musl and zlib are one revision past the proof Dockerfile (r12/r1 vs r11/r0): the Alpine 3.21 index moved, so the set hash differs from the proof-era 5556b1aa. The per-file list is the operator's ESHU_DOC_IMPORT_TESSERACT_LIBRARIES source; the set hash is the Dockerfile gate input."
