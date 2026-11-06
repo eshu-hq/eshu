@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -170,6 +171,71 @@ func TestCloneAbortsOnNonObjectInUse(t *testing.T) {
 	}
 	if admin.createCalls != 1 {
 		t.Fatalf("CREATE calls = %d, want 1 (no retry on non-55006)", admin.createCalls)
+	}
+}
+
+// recordingDropTB scripts the minimal testing surface the clone-drop
+// verification needs, capturing loud reports without failing the test.
+type recordingDropTB struct {
+	errors []string
+}
+
+func (f *recordingDropTB) Helper() {}
+
+func (f *recordingDropTB) Errorf(format string, args ...any) {
+	f.errors = append(f.errors, fmt.Sprintf(format, args...))
+}
+
+// stubExistenceProber scripts the pg_database probe: it reports the clone
+// as present, absent, or unprobable without touching a server.
+type stubExistenceProber struct {
+	exists bool
+	err    error
+}
+
+func (s stubExistenceProber) CloneExists(context.Context, string) (bool, error) {
+	return s.exists, s.err
+}
+
+// TestCloneDropVerificationReportsLeakedClone is the RED half of the P2
+// silent-cleanup remedy (#10148 review): a clone that survives its cleanup
+// must fail the test loudly like DiscardBootstrapTemplates does, instead of
+// leaking on the shared proof server silently.
+func TestCloneDropVerificationReportsLeakedClone(t *testing.T) {
+	t.Parallel()
+	tb := &recordingDropTB{}
+	assertCloneDropped(tb, context.Background(), stubExistenceProber{exists: true}, "eshu_content_index_proof_leaked")
+	if len(tb.errors) == 0 {
+		t.Fatal("leaked clone reported no error, want a loud drop-failure report")
+	}
+	for _, msg := range tb.errors {
+		if !strings.Contains(msg, "eshu_content_index_proof_leaked") {
+			t.Fatalf("drop-failure report = %q, want it to name the leaked clone", msg)
+		}
+	}
+}
+
+// TestCloneDropVerificationReportsProbeFailure pins that an unverified drop
+// is not a verified one: when the pg_database probe itself fails, the
+// verification reports loudly instead of assuming the drop worked.
+func TestCloneDropVerificationReportsProbeFailure(t *testing.T) {
+	t.Parallel()
+	tb := &recordingDropTB{}
+	assertCloneDropped(tb, context.Background(), stubExistenceProber{err: errors.New("boom")}, "eshu_content_index_proof_unprobed")
+	if len(tb.errors) == 0 {
+		t.Fatal("failing drop probe reported no error, want a loud report")
+	}
+}
+
+// TestCloneDropVerificationStaysSilentOnCleanDrop pins the quiet half: a
+// clone that dropped cleanly reports nothing, so the verification never
+// fails a healthy teardown.
+func TestCloneDropVerificationStaysSilentOnCleanDrop(t *testing.T) {
+	t.Parallel()
+	tb := &recordingDropTB{}
+	assertCloneDropped(tb, context.Background(), stubExistenceProber{exists: false}, "eshu_content_index_proof_gone")
+	if len(tb.errors) != 0 {
+		t.Fatalf("clean drop reported %v, want silence", tb.errors)
 	}
 }
 

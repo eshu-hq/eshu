@@ -231,37 +231,50 @@ func waitForTemplateIdle(ctx context.Context, adminDB *sql.DB, template string) 
 // administrative-DSN, and template-namespace checks match the TB wrapper:
 // destructive DDL never runs on an unvalidated target. The returned cleanup
 // has no error channel, so a failing clone drop is silent there by
-// construction; the DiscardBootstrapTemplates path is the one that reports
-// drop failures, and callers that need a loud clone teardown should drop
-// through it.
+// construction; OpenBootstrapTemplateClone wraps this helper with a
+// pg_database probe that reports a leaked clone loudly, and callers that
+// need a loud clone teardown otherwise should drop through
+// DiscardBootstrapTemplates.
 func CloneBootstrapTemplate(
 	ctx context.Context,
 	adminDSN, optIn, template string,
 ) (*sql.DB, func(), error) {
+	db, _, cleanup, err := cloneBootstrapTemplate(ctx, adminDSN, optIn, template)
+	return db, cleanup, err
+}
+
+// cloneBootstrapTemplate is CloneBootstrapTemplate plus the generated clone
+// name, so the TB wrapper can probe pg_database for the clone after the
+// cleanup ran. The exported signature stays error-returning for goroutine
+// use; only the TB path verifies the drop.
+func cloneBootstrapTemplate(
+	ctx context.Context,
+	adminDSN, optIn, template string,
+) (*sql.DB, string, func(), error) {
 	config, err := validateAdminDSN(adminDSN, optIn)
 	if err != nil {
-		return nil, nil, fmt.Errorf("refuse destructive PostgreSQL proof target: %w", err)
+		return nil, "", nil, fmt.Errorf("refuse destructive PostgreSQL proof target: %w", err)
 	}
 	if err := validateBootstrapTemplateName(template); err != nil {
-		return nil, nil, err
+		return nil, "", nil, err
 	}
 	adminDB, err := sql.Open("pgx", config.ConnString())
 	if err != nil {
-		return nil, nil, fmt.Errorf("open PostgreSQL administrative database: %w", err)
+		return nil, "", nil, fmt.Errorf("open PostgreSQL administrative database: %w", err)
 	}
 	if err := adminDB.PingContext(ctx); err != nil {
 		_ = adminDB.Close()
-		return nil, nil, fmt.Errorf("ping PostgreSQL administrative database: %w", err)
+		return nil, "", nil, fmt.Errorf("ping PostgreSQL administrative database: %w", err)
 	}
 	random := make([]byte, 8)
 	if _, err := rand.Read(random); err != nil {
 		_ = adminDB.Close()
-		return nil, nil, fmt.Errorf("generate disposable PostgreSQL database name: %w", err)
+		return nil, "", nil, fmt.Errorf("generate disposable PostgreSQL database name: %w", err)
 	}
 	clone := "eshu_content_index_proof_" + hex.EncodeToString(random)
 	if err := cloneBootstrapTemplateDatabase(ctx, adminDB, clone, template); err != nil {
 		_ = adminDB.Close()
-		return nil, nil, fmt.Errorf("clone bootstrap template database: %w", err)
+		return nil, "", nil, fmt.Errorf("clone bootstrap template database: %w", err)
 	}
 	targetConfig := config.Copy()
 	targetConfig.Database = clone
@@ -272,14 +285,80 @@ func CloneBootstrapTemplate(
 		_ = targetDB.Close()
 		_ = dropDisposableDatabaseName(ctx, adminDB, clone)
 		_ = adminDB.Close()
-		return nil, nil, fmt.Errorf("ping cloned PostgreSQL database: %w", err)
+		return nil, "", nil, fmt.Errorf("ping cloned PostgreSQL database: %w", err)
 	}
 	cleanup := func() {
 		_ = targetDB.Close()
 		_ = dropDisposableDatabaseName(context.Background(), adminDB, clone)
 		_ = adminDB.Close()
 	}
-	return targetDB, cleanup, nil
+	return targetDB, clone, cleanup, nil
+}
+
+// cloneDropTB is the minimal testing surface the clone-drop verification
+// needs: Errorf reports a leaked clone without stopping teardown. Every
+// testing.TB satisfies it; unit tests script it.
+type cloneDropTB interface {
+	Helper()
+	Errorf(format string, args ...any)
+}
+
+// cloneExistenceProber answers whether a database still exists on the proof
+// server. Tests script it; the live path probes pg_database.
+type cloneExistenceProber interface {
+	CloneExists(ctx context.Context, clone string) (bool, error)
+}
+
+// sqlCloneExistenceProber answers CloneExists from pg_database on a live
+// administrative handle.
+type sqlCloneExistenceProber struct {
+	db *sql.DB
+}
+
+func (p sqlCloneExistenceProber) CloneExists(ctx context.Context, clone string) (bool, error) {
+	var exists bool
+	if err := p.db.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM pg_database WHERE datname = $1)`, clone).Scan(&exists); err != nil {
+		return false, fmt.Errorf("probe pg_database for clone %q: %w", clone, err)
+	}
+	return exists, nil
+}
+
+// assertCloneDropped probes for the clone after the clone cleanup ran and
+// reports loudly when the clone remains: a failing clone drop must fail the
+// test like DiscardBootstrapTemplates does instead of leaking the clone on
+// the shared proof server silently. A probe failure reports too: an
+// unverified drop is not a verified one.
+func assertCloneDropped(t cloneDropTB, ctx context.Context, prober cloneExistenceProber, clone string) {
+	t.Helper()
+	exists, err := prober.CloneExists(ctx, clone)
+	if err != nil {
+		t.Errorf("probe pg_database for dropped clone %q: %v", clone, err)
+		return
+	}
+	if exists {
+		t.Errorf("clone database %q still exists after cleanup: the clone drop failed", clone)
+	}
+}
+
+// verifyCloneDropped opens a fresh administrative handle and fails the test
+// when the clone cleanup left the database behind. The handle is fresh
+// because the cleanup already closed its own.
+func verifyCloneDropped(t testing.TB, adminDSN, optIn, clone string) {
+	t.Helper()
+	config, err := validateAdminDSN(adminDSN, optIn)
+	if err != nil {
+		t.Errorf("reopen PostgreSQL administrative database to verify clone drop: %v", err)
+		return
+	}
+	adminDB, err := sql.Open("pgx", config.ConnString())
+	if err != nil {
+		t.Errorf("open PostgreSQL administrative database to verify clone drop: %v", err)
+		return
+	}
+	defer func() { _ = adminDB.Close() }()
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	assertCloneDropped(t, ctx, sqlCloneExistenceProber{db: adminDB}, clone)
 }
 
 // cloneBootstrapTemplateDatabase issues one CREATE DATABASE ... TEMPLATE,
@@ -330,10 +409,14 @@ func OpenBootstrapTemplateClone(
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	t.Cleanup(cancel)
-	db, cleanup, err := CloneBootstrapTemplate(ctx, adminDSN, optIn, template)
+	db, clone, cleanup, err := cloneBootstrapTemplate(ctx, adminDSN, optIn, template)
 	if err != nil {
 		t.Fatalf("clone bootstrap template database: %v", err)
 	}
+	// t.Cleanup runs LIFO: register the drop verification first so it runs
+	// after the clone cleanup and reports a leaked clone loudly, matching
+	// the DiscardBootstrapTemplates contract.
+	t.Cleanup(func() { verifyCloneDropped(t, adminDSN, optIn, clone) })
 	t.Cleanup(cleanup)
 	return ctx, db
 }
