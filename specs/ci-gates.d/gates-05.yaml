@@ -18,6 +18,8 @@ gates:
       - "scripts/lib/telemetry-coverage-required-names.sh"
       - "scripts/lib/telemetry-coverage-doc-files.sh"
       - "scripts/lib/test-verify-telemetry-coverage-*"
+      - "scripts/lib/test-merge-ref-fixture.sh"
+      - "scripts/lib/gate-diff-base.sh"
       - ".github/workflows/static-contract-gates.yml"
       - "specs/ci-gates.v1.yaml"
       - "specs/ci-gates.d/**"
@@ -29,6 +31,8 @@ gates:
       - "scripts/lib/telemetry-coverage-required-names.sh"
       - "scripts/lib/telemetry-coverage-doc-files.sh"
       - "scripts/lib/test-verify-telemetry-coverage-*"
+      - "scripts/lib/test-merge-ref-fixture.sh"
+      - "scripts/lib/gate-diff-base.sh"
     local:
       command: "bash scripts/verify-telemetry-coverage.sh"
       pre_push: floor

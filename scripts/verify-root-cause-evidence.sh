@@ -40,7 +40,10 @@ fi
 # only updates FETCH_HEAD, so under a shallow CI checkout origin/<base> never
 # resolves and the base silently degrades to HEAD~1 -- the last commit only,
 # which under-covers every multi-commit branch (eshu-hq/eshu#5542).
-base="${ESHU_ROOT_CAUSE_EVIDENCE_BASE:-}"
+# A pull_request run diffs the merge ref's first parent, not the moved base tip:
+# a line main rewrote after the ref was built is not this PR's change (#10248).
+# An explicit ESHU_ROOT_CAUSE_EVIDENCE_BASE still wins.
+base="${ESHU_ROOT_CAUSE_EVIDENCE_BASE:-$(eshu_gate_merge_ref_parent "$repo_root")}"
 if [ -z "$base" ] && [ -n "${GITHUB_BASE_REF:-}" ]; then
   # When the ref already resolves locally there is nothing to fetch at all,
   # and on a complete checkout the fetch is never depth-limited: every

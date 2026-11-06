@@ -147,7 +147,16 @@ source "${script_root}/lib/test-verify-markdown-line-cap-scope-cases.sh"
 # shellcheck source=lib/test-verify-markdown-line-cap-workflow-cases.sh
 source "${script_root}/lib/test-verify-markdown-line-cap-workflow-cases.sh"
 
+# shellcheck source=lib/test-verify-markdown-line-cap-merge-ref-cases.sh
+source "${script_root}/lib/test-verify-markdown-line-cap-merge-ref-cases.sh"
+
 main() {
+	if [[ "${1:-}" == "--merge-ref-only" ]]; then
+		run_markdown_merge_ref_cases
+		printf 'merge-ref tests: %d passed, %d failed\n' "${pass_count}" "${fail_count}"
+		[[ "${fail_count}" -eq 0 ]]
+		return $?
+	fi
 	if [[ "${1:-}" != "--scope-only" ]]; then
 		run_markdown_workflow_cases
 	fi
@@ -196,6 +205,7 @@ main() {
 	test_absent_baseline_ref_is_fetched
 	test_unresolvable_baseline_is_red_under_require_base
 	test_leading_zero_ledger_pin_is_rejected
+	run_markdown_merge_ref_cases
 
 	printf '\ntests passed: %d/%d\n' "${pass_count}" "$((pass_count + fail_count))"
 	[[ "${fail_count}" -eq 0 ]]

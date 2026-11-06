@@ -303,7 +303,14 @@ mdcap_resolve_base_sha() {
 # test_unresolvable_baseline_is_red_under_require_base.
 mdcap_verify_ledger_growth() {
 	local repo_root="$1"
-	local base_ref="${MARKDOWN_LINE_CAP_BASE_REF:-origin/${GITHUB_BASE_REF:-main}}"
+	# On a pull_request run read the baseline ledger at the merge ref's first
+	# parent: it is the base branch as it was combined with the PR and does not
+	# move, where origin/<base> fetched now also holds ledger edits that landed
+	# after the ref was built and reads them as this PR raising a pin (#10248).
+	# An explicit MARKDOWN_LINE_CAP_BASE_REF still wins.
+	local base_ref="${MARKDOWN_LINE_CAP_BASE_REF:-}"
+	[[ -n "${base_ref}" ]] || base_ref="$(eshu_gate_merge_ref_parent "${repo_root}")"
+	[[ -n "${base_ref}" ]] || base_ref="origin/${GITHUB_BASE_REF:-main}"
 	local tsv_rel="${MARKDOWN_LINE_CAP_TSV_REL:-scripts/lib/markdown-line-cap-grandfather.tsv}"
 
 	[[ -f "${MARKDOWN_LINE_CAP_TSV}" ]] || return 0

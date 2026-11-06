@@ -221,11 +221,13 @@ gates:
       # out of their own gate's trigger list twice (#6054 review finding); a
       # glob cannot drift as files are added.
       - "scripts/lib/*markdown-line-cap*"
+      - "scripts/lib/test-merge-ref-fixture.sh"
     self_test_triggers:
       - ".github/workflows/test.yml"
       - "scripts/verify-markdown-line-cap.sh"
       - "scripts/test-verify-markdown-line-cap.sh"
       - "scripts/lib/*markdown-line-cap*"
+      - "scripts/lib/test-merge-ref-fixture.sh"
     local:
       command: "bash scripts/verify-markdown-line-cap.sh --all"
       pre_push: floor
@@ -260,12 +262,14 @@ gates:
       - "scripts/test-verify-tooling-line-cap.sh"
       - "scripts/lib/tooling-line-cap-*"
       - "scripts/lib/test-verify-tooling-line-cap-*"
+      - "scripts/lib/test-merge-ref-fixture.sh"
     self_test_triggers:
       - ".github/workflows/test.yml"
       - "scripts/verify-tooling-line-cap.sh"
       - "scripts/test-verify-tooling-line-cap.sh"
       - "scripts/lib/tooling-line-cap-*"
       - "scripts/lib/test-verify-tooling-line-cap-*"
+      - "scripts/lib/test-merge-ref-fixture.sh"
     local:
       command: "bash scripts/verify-tooling-line-cap.sh --all"
       pre_push: floor

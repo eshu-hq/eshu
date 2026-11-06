@@ -147,5 +147,70 @@ out="$(multi_commit_case)"
 expect_contains 'sees a claim from an earlier commit on a multi-commit branch' \
   "$out" 'causal claim without recorded evidence'
 
+# Moved-base cases (#10248). On a pull_request run the job checks out GitHub's
+# merge ref at fetch-depth 2. The gate diffed origin/$GITHUB_BASE_REF fetched at
+# job time, so a claim line that main rewrote after the ref was built read as
+# an added line of this PR and was reported against a doc the PR never touched.
+# It now diffs the merge ref's first parent unless the base override is set.
+# shellcheck source=scripts/lib/test-merge-ref-fixture.sh
+. "$script_dir/lib/test-merge-ref-fixture.sh"
+MREF_TMP="$(mktemp -d "${TMPDIR:-/tmp}/eshu-rce-mref.XXXXXX")"
+trap 'rm -rf "$MREF_TMP"' EXIT
+
+rce_mref_source() {
+  local src="$MREF_TMP/src-$1"
+  mkdir -p "$src/docs/internal/evidence"
+  mref_git -C "$src" init -q
+  printf 'The root cause is a stale index.\n' >"$src/docs/internal/evidence/case.md"
+  mref_commit "$src" baseline
+  printf '%s\n' "$src"
+}
+# Main rewrites the claim line after the merge ref was built.
+rce_mref_main_rewrites_claim() {
+  printf 'The root cause is a stale cache.\n' >"$1/docs/internal/evidence/case.md"
+}
+rce_mref_pr_touches_a_doc() { mkdir -p "$1/docs" && printf '# note\n' >"$1/docs/pr-note.md"; }
+rce_mref_pr_adds_claim() {
+  printf 'The root cause is a stale index.\nThe root cause is a missing lease.\n' \
+    >"$1/docs/internal/evidence/case.md"
+}
+
+# rce_mref_run CLONE [NAME=value ...] runs the gate over the clone with ambient
+# base and event variables cleared and prints its output.
+rce_mref_run() {
+  local clone="$1"
+  shift
+  env -u ESHU_ROOT_CAUSE_EVIDENCE_BASE -u GITHUB_EVENT_NAME -u GITHUB_BASE_REF \
+    ESHU_ROOT_CAUSE_EVIDENCE_REPO_ROOT="$clone" "$@" bash "$gate" 2>&1 || true
+}
+
+rce_flag='causal claim without recorded evidence'
+rce_pr=(GITHUB_EVENT_NAME=pull_request GITHUB_BASE_REF=main)
+
+rce_moved="$(mref_build_clone rce-moved "$(rce_mref_source moved)" rce_mref_pr_touches_a_doc rce_mref_main_rewrites_claim)"
+out="$(rce_mref_run "$rce_moved" "${rce_pr[@]}")"
+expect_not_contains 'merge ref: a claim main rewrote after the ref was built is not part of the PR change' "$out" "$rce_flag"
+expect_contains 'merge ref: the moved run reports the clean verdict' "$out" 'carry observed evidence'
+
+git -C "$rce_moved" fetch -q --depth=1 origin main:refs/remotes/origin/main
+out="$(rce_mref_run "$rce_moved" "${rce_pr[@]}" ESHU_ROOT_CAUSE_EVIDENCE_BASE=origin/main)"
+expect_contains 'merge ref: an explicit base override still wins and restores the moved-tip read' "$out" "$rce_flag"
+
+out="$(rce_mref_run "$rce_moved" GITHUB_EVENT_NAME=push GITHUB_BASE_REF=main)"
+expect_contains 'merge ref: a push event keeps the origin tip base' "$out" "$rce_flag"
+
+rce_ctrl="$(mref_build_clone rce-ctrl "$(rce_mref_source ctrl)" rce_mref_pr_touches_a_doc "")"
+out="$(rce_mref_run "$rce_ctrl" "${rce_pr[@]}")"
+expect_not_contains 'merge ref: control with main unmoved reports no claim' "$out" "$rce_flag"
+
+rce_viol="$(mref_build_clone rce-viol "$(rce_mref_source viol)" rce_mref_pr_adds_claim rce_mref_main_rewrites_claim)"
+out="$(rce_mref_run "$rce_viol" "${rce_pr[@]}")"
+expect_contains 'merge ref: a claim the PR adds is still reported while main moved' "$out" "$rce_flag"
+expect_contains 'merge ref: the PR-added claim is the one named' "$out" 'docs/internal/evidence/case.md'
+
+rce_single="$(mref_build_linear_clone rce-single "$(rce_mref_source single)" rce_mref_pr_adds_claim rce_mref_pr_touches_a_doc)"
+out="$(rce_mref_run "$rce_single" "${rce_pr[@]}")"
+expect_contains 'merge ref: a single-parent HEAD does not trust its parent as the base' "$out" "$rce_flag"
+
 printf '\ntest-verify-root-cause-evidence: %d case(s), %d failure(s)\n' "$cases_run" "$failures"
 [ "$failures" -eq 0 ] || exit 1

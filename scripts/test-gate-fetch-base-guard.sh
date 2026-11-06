@@ -100,5 +100,8 @@ else
   ok "unfetchable ref fails"
 fi
 
+# shellcheck source=scripts/lib/test-gate-fetch-base-guard-route-cases.sh
+. "${repo_root}/scripts/lib/test-gate-fetch-base-guard-route-cases.sh"
+
 printf '%d passed, %d failed\n' "${PASS}" "${FAIL}"
 [[ "${FAIL}" -eq 0 ]]

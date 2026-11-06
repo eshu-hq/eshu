@@ -24,8 +24,15 @@ fi
 merge_group_lane=false
 case "${GITHUB_EVENT_NAME}" in
   pull_request)
-    base_sha="${PR_BASE_SHA}"
     head_sha="${PR_HEAD_SHA}"
+    # Diff the PR head against its branch point, not the payload base.sha: that
+    # is the base branch tip when the event fired, so a PR branched before later
+    # main commits picks up the reverse of those commits and selects lanes it
+    # never touched (#10248). The merge ref's first parent has the same flaw
+    # here (it is a main tip too); only the merge base is the PR's own range.
+    # Fall back to the payload value when no merge base resolves.
+    base_sha="$(git merge-base "${PR_BASE_SHA}" "${head_sha}" 2>/dev/null || true)"
+    base_sha="${base_sha:-${PR_BASE_SHA}}"
     ;;
   merge_group)
     merge_group_lane=true

@@ -36,7 +36,10 @@ for required_dir in "$query_dir" "$api_dir"; do
   fi
 done
 
-base="${ESHU_ROUTE_COVERAGE_BASE:-}"
+# On a pull_request run diff against the merge ref's first parent, not the moved
+# base tip: a file main touched after the ref was built is not this PR's change
+# (#10248). An explicit ESHU_ROUTE_COVERAGE_BASE still wins.
+base="${ESHU_ROUTE_COVERAGE_BASE:-$(eshu_gate_merge_ref_parent "$repo_root")}"
 if [ -z "$base" ] && [ -n "${GITHUB_BASE_REF:-}" ]; then
   eshu_gate_fetch_base "$repo_root" \
     "$GITHUB_BASE_REF:refs/remotes/origin/$GITHUB_BASE_REF" || true
