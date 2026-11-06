@@ -40,6 +40,21 @@ until the forced full re-parse that the projector's own
 `refused_base_missing` arms. Wall time that rises with
 `union_base_found` is the cost of reading the base pins.
 
+Joining a refusal to security-alert reconciliation (#10193): that consumer
+stays on the delta-only fallback (upsert-only writer, no retract), so a
+`union_base_missing` or `union_scope_mismatch` decision can make it commit
+`provider_only` for an alert whose pin exists only in the refused base.
+Find the refusal on this counter and its WARN line (`scope_id`,
+`generation_id`, `delta_baseline_commit_sha`,
+`delta_union_base_commit_sha`), then join to
+`reducer_security_alert_reconciliation` facts with
+`reconciliation_status = provider_only` for the same repository committed
+after the refusal; the handler success line's `provider_only=<n>` evidence
+summary is the second key. The reconciliation emits no `manifest_refused`
+signal of its own — that absence beside a post-refusal `provider_only` is
+the signature. The alert expression and the re-drive steps are in
+[Security-alert reconciliation on a refused base](../../operate/graph-delta-union.md#security-alert-reconciliation-on-a-refused-base-10193).
+
 Read them together. Wall time that grows with pages is the expected cost of a
 large name set. Wall time that climbs while pages hold means each page got
 slower. That is the shape #9586 fixed: once PostgreSQL switched a cached

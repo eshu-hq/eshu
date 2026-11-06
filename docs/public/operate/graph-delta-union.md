@@ -119,6 +119,104 @@ line for a refused base or a mismatch. Other `facts_active_*` readers that
 join only the active generation still see delta-only rows (#10003; listed in
 `docs/internal/evidence/9991-manifest-read-delta-union.md`).
 
+## Security-alert reconciliation on a refused base (#10193)
+
+Security-alert reconciliation is the one manifest-read consumer that stays
+on the default delta-only fallback by design. Its writer is upsert-only
+(`BatchInsertFacts`, `CanonicalWrites=0`, no DELETE, no graph edge), so a
+partial view cannot retract anything. The residual is accuracy, not
+retraction: when a delta-active repository's base is refused
+(`union_base_missing` or `union_scope_mismatch`) and an alert's package pin
+exists only in that base, the reconciliation commits `provider_only`
+("provider alert has no matching owned dependency evidence") for that one
+alert. `provider_only` never waits on impact evidence, so it commits on the
+first attempt. The blast radius is that single alert's status value.
+
+Nothing re-runs the reconciliation when the base heals. The only facts that
+create `security_alert_reconciliation` intents are provider-alert
+observations (`security_alert.repository_alert`) and package-identity
+observations (`package_registry.package`); a git full generation creates
+neither. The wrong `provider_only` therefore stands until the next
+provider-alert collection or package-identity observation for that
+repository re-derives it, or an operator re-drives it with the steps below.
+This leave-as-is choice holds only while refused bases stay rare; if the
+alert below fires repeatedly, reopen #10193 and take the expected-wait
+option instead.
+
+### Alert
+
+Alert on the refusal counter the read already emits. Any sustained nonzero
+rate means delta-active repositories are losing their unchanged pins, and
+security-alert reconciliations in that window may have committed the wrong
+`provider_only`:
+
+```promql
+sum by (outcome) (
+  rate(eshu_dp_package_manifest_dependency_read_delta_union_total{
+    outcome=~"union_base_missing|union_scope_mismatch"}[15m])
+) > 0
+```
+
+Severity: warning. Name: `EshuManifestDependencyReadDeltaBaseRefused`.
+The deploy alert pack carries the rule files in the eshu-deploy checkout
+([Hosted Ops Alert Pack](hosted-ops-alert-pack.md)); its `runbook`
+annotation points at this section. The metric names no scope (scope and
+generation ids never become labels), so the alert says a refusal happened,
+not where. The WARN line below says where.
+
+### Find the affected alerts
+
+1. Find the refusal. Search the reducer logs for the WARN line starting
+   `manifest dependency read delta base missing` (or `... delta carries no
+   delta_generation repository fact`). It carries `scope_id`,
+   `generation_id`, `delta_baseline_commit_sha`, and
+   `delta_union_base_commit_sha`. Note the scope and the timestamp.
+2. Join to the committed facts. The affected rows are
+   `reducer_security_alert_reconciliation` facts with
+   `reconciliation_status = provider_only` for the same repository,
+   committed after the refusal timestamp. The handler's success line is the
+   second join key: its evidence summary carries `provider_only=1` with the
+   intent's scope and generation.
+3. Consumer (b) never takes a refusing read, so it emits no
+   `manifest_refused` truncation signal of its own. A post-refusal
+   `provider_only` for the refused scope with no refusal signal from the
+   reconciliation itself is the signature.
+
+### Re-drive after heal
+
+1. Confirm the base healed: the refused scope's next full generation
+   landed (reconcile sweep, growth valve, or the reindex watermark the
+   projector's own refusal arms; `POST /api/v0/admin/reindex` with
+   `scope: repository` forces one). The refusal counter for that scope's
+   reads stops rising and the manifest read returns `union_base_found`.
+2. Re-drive the affected alerts. The reconciliation intent succeeded, so
+   admin replay (which requeues failed work) and admin reopen (which does
+   not cover this domain) do not apply. Re-derive through a real trigger
+   instead: run or wait for the next security-alert collection generation
+   for the repository, or the next package-registry observation of the
+   alert's package. Either enqueues a fresh reconciliation that reads the
+   healed base pin and upserts the corrected status.
+3. Verify. The alert's newest reconciliation row no longer reads
+   `provider_only` with the no-matching-owned-dependency-evidence reason;
+   with impact evidence present it reads `matched` and carries a
+   `dependency_evidence_id`. If it still reads `provider_only`, the base
+   pin genuinely does not exist and the original value was correct.
+
+Proof: `TestSecurityAlertReconciliationHandlerRefusedBaseCommitsProviderOnly`
+commits exactly one upserted `provider_only` row (`CanonicalWrites=0`, no
+DELETE) through the real handler and writer on a refused base, and
+`TestSecurityAlertReconciliationHandlerHealedBaseRederivesMatched` proves
+the same alert re-derives to `matched` once the base pin is visible again.
+
+No-Observability-Change: #10193 adds no metric, label, span, or log key.
+The alert and the join use signals that already exist:
+`eshu_dp_package_manifest_dependency_read_delta_union_total` by `read` and
+`outcome`, the manifest-dependency-read refusal WARN (`scope_id`,
+`generation_id`, both commit SHAs), the reconciliation success line's
+`provider_only=<n>` evidence summary, and the committed
+`reducer_security_alert_reconciliation` fact payload
+(`reconciliation_status`, `reason`, `dependency_evidence_id`).
+
 ## Golden-corpus delta readers (#10022)
 
 The golden `delta-union` phase compares file sets only, so it cannot catch a
