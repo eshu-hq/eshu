@@ -366,27 +366,20 @@ func TestBlankGroupWithAConsumerKeepsTheWholeGroup(t *testing.T) {
 	assertRepDirectKeepsOtherFact(t, sc.fleet(t, true), false, "", "")
 }
 
-// TestDirectlyJoinedBlankGroupCountsAsJoined is the outcome row of test 4.6. The
-// source-order representative either joined the row or did not, and the count says
-// which, even when the direct group is narrowed to the facts that join. Each order
-// counts one group, and both labels occur across the orders of one mixed group.
+// TestDirectlyJoinedBlankGroupCountsAsJoined is the outcome row of test 4.6.
+// The representative either joined the row or did not, and the count says
+// which, even when the direct group is narrowed to the facts that join. Each
+// order counts one group. Before #10034 item 1 the source-order representative
+// differed per order, so one order counted joined and the other reselected;
+// now the vendor fact names the group in every order, the narrow-direct group
+// counts joined everywhere, and the reselected label for this shape is gone.
 func TestDirectlyJoinedBlankGroupCountsAsJoined(t *testing.T) {
 	t.Parallel()
 	sc := repDirectVendorScenario("nvd", "os")
 	joined := map[osRepresentativeOutcomeKey]int{{vendor: "ubuntu", outcome: osRepresentativeJoined}: 1}
-	reselected := map[osRepresentativeOutcomeKey]int{{vendor: "ubuntu", outcome: osRepresentativeReselected}: 1}
-	var sawJoined, sawReselected bool
 	for _, run := range sc.fleet(t, true) {
-		switch {
-		case maps.Equal(run.outcomes, joined):
-			sawJoined = true
-		case maps.Equal(run.outcomes, reselected):
-			sawReselected = true
-		default:
-			t.Fatalf("order %s: outcomes = %v, want %v or %v", run.order, run.outcomes, joined, reselected)
+		if !maps.Equal(run.outcomes, joined) {
+			t.Fatalf("order %s: outcomes = %v, want %v", run.order, run.outcomes, joined)
 		}
-	}
-	if !sawJoined || !sawReselected {
-		t.Fatalf("joined seen %v, reselected seen %v, want both across the orders", sawJoined, sawReselected)
 	}
 }
