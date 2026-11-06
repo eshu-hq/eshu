@@ -1,9 +1,6 @@
 # Give GHSA one write-once scope per cursor window and let the newest copy of an advisory win (#10037)
 
-Status: Proposed. It needs the arbiter's answers under
-[Decisions for the arbiter](#decisions-for-the-arbiter). This record approves no
-code, schema change, migration, or deployment. GHSA stays off by default and not
-activatable until [Activation criteria](#activation-criteria) all hold.
+Status: Accepted (arbiter Q3, 2026-11-06; see [Resolution](#resolution-arbiter-q3-2026-11-06)). This record approves no code, schema change, migration, or deployment. GHSA stays off by default and not activatable until [Activation criteria](#activation-criteria) all hold.
 
 **Decision. Each GHSA advisory type gets a coordinator-planned cursor. Each claim
 writes one `vuln-intel://ghsa/<type>/_window/<start>-<end>` scope that is
@@ -204,6 +201,8 @@ scope pin moves to the anchor rule above, and `SourceForScopeID` widens per
 [Fix list](#fix-list). Arbiter question 2 covers the case where the pair merged
 first.
 
+**Merged state, recorded 2026-11-06.** The #9959 pair merged as #10115 (`923a508659`, on `origin/main`) with no migration files and no `ghsa` expected-kinds arm. Green on `origin/main` at `442970def2`: `TestPublicAdvisoryReconcileFunctionDoesNotAdmitGHSA`, `TestAuthorizedImpactHasNoGHSAAuthority`, and `TestAuthorizedImpactKeepsOSVCarriedGHSAIDs`. Question 2's corrective path is unneeded.
+
 ### 6. Source state and readiness
 
 - The recorder keys GHSA rows by **stream**, the anchor scope, not by window, and
@@ -310,7 +309,7 @@ thresholds; (2) stream-keyed source state for NVD, once status crowding is measu
 | S3c | Core, this lane | Host seam: `ClaimCommitPolicy` returning `StateWriter` and `WriteOnce`, wired in `cmd/collector-component-extension`; stream keys in the recorder; telemetry | S2, S3b |
 | S4 | Satellite | Pin factschema, resolve the window scope, `covered_through` with the `Date` clamp, prefix cut, malformed `Link`, release | S3a; merges after S3c is on `main` |
 | S5 | Core, lane 3 | Readiness rolling leg, F1, `fetchConfirmedSources`, read-model newest copy | S1, S3b |
-| S6 | Deploy and QA | Real tokened run in the QA environment | S1 to S5 |
+| S6 | Deploy and QA | Real tokened run in the QA environment. **QA-window state, recorded 2026-11-06:** unscheduled — no owner, no schedule, and no token exists (`rg` for `tokened run\|QA environment` and a `ghsa` token/schedule/owner across `docs/`, `go/`, `specs/`, `.agents/` finds only this plan row; #10037 carries no scheduling comment). S3a stays design-prep until S6 is scheduled and the factschema release (rc.18) is pinned | S1 to S5 |
 | S7 | Both | Drop the "not activatable" note from the satellite README and core docs together | Activation criteria |
 
 **Must land together or in this order:** S3a before S4, since the satellite pins the
@@ -394,6 +393,12 @@ Maps to the #10037 criteria:
    `derive_nvd_rolling_windows` on. Options: (a) file it for lane 1 now under #10037
    as S1, the default here; (b) also warn operators against enabling the flag until
    S1 lands. No deployment was checked for the flag.
+
+### Resolution (arbiter Q3, 2026-11-06, per the lane-4 drive claim on #10037)
+
+1. **Cadence: accepted** — 2h recommended, 1h floor (section 8); the 9872 GHSA row carries the `Amended by #10037` note.
+2. **Migration 278: no corrective path** — merged #10115 carries no migration and no `ghsa` arm (see section 5).
+3. **NVD priority: S1 under #10037** — newest-copy ships on its own priority; no deployment checked for the flag, so the operator caution stands unverified.
 
 ## What stays unproven
 
