@@ -100,7 +100,8 @@ func (s *SharedIntentStore) ScopeHasPriorGeneration(
 //     embed supersedeInactiveReducerGenerationsCTE and exclude the rows it
 //     supersedes from the candidate set in the same statement, so an unleased
 //     (pending/retrying) reducer row of an older generation is superseded
-//     instead of claimed. Only claimed/running rows survive that sweep, and the
+//     instead of claimed, except a supply_chain_impact row spared for fan-out
+//     debt (#10060). Only claimed/running rows survive that sweep, and the
 //     candidate set re-claims them when their lease expires, so claimed/running
 //     counts as in flight whatever claim_until says.
 //
