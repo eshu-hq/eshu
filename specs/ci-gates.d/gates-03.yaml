@@ -87,11 +87,15 @@ gates:
       - "scripts/test-verify-route-coverage.sh"
       - "scripts/verify-route-coverage.sh"
       - "scripts/test-gate-fetch-base-guard.sh"
+      - "scripts/lib/test-gate-fetch-base-guard-route-cases.sh"
+      - "scripts/lib/test-merge-ref-fixture.sh"
       - "scripts/lib/gate-diff-base.sh"
     self_test_triggers:
       - "scripts/test-verify-route-coverage.sh"
       - "scripts/verify-route-coverage.sh"
       - "scripts/test-gate-fetch-base-guard.sh"
+      - "scripts/lib/test-gate-fetch-base-guard-route-cases.sh"
+      - "scripts/lib/test-merge-ref-fixture.sh"
       - "scripts/lib/gate-diff-base.sh"
     local:
       command: "bash scripts/verify-route-coverage.sh"

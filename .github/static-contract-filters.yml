@@ -13,6 +13,8 @@ route:
   - 'go/cmd/api/**'
   - 'scripts/*verify-route-coverage*.sh'
   - 'scripts/test-gate-fetch-base-guard.sh'
+  - 'scripts/lib/test-gate-fetch-base-guard-route-cases.sh'
+  - 'scripts/lib/test-merge-ref-fixture.sh'
   - 'scripts/lib/gate-diff-base.sh'
 edge:
   - '.github/workflows/static-contract-gates.yml'
