@@ -207,4 +207,74 @@ for docimport_path in specs/doc-import-pins/tesseract-5.5.0.amd64.sha256 specs/d
   rg -q '^apkfloors=true$' "${scratch}/output"
   rg -q '^scannerpins=false$' "${scratch}/output"
 done
+# #10248: a pull_request run diffs the PR head against the branch point, not
+# against the payload base.sha. base.sha is the base branch tip when the event
+# fired, so a PR branched before later main commits diffed against it picked up
+# the reverse of those main commits and selected lanes (a 45-minute image
+# build) the PR never touched. Every case below runs the production selector in
+# a fresh repo: main moves from the branch point B0 to T by editing Go, and the
+# PR branch stays at B0 with a docs-only change, or a Go change for the control.
+lanes="${scratch}/lanes"
+mkdir -p "${lanes}/scripts/ci" "${lanes}/docs" "${lanes}/go"
+ln -s "${root}/scripts/ci/select-docker-publish-lanes.sh" "${lanes}/scripts/ci/select-docker-publish-lanes.sh"
+git -C "${lanes}" init -q -b main
+git -C "${lanes}" config user.name CI
+git -C "${lanes}" config user.email ci@example.invalid
+printf 'FROM scratch\n' > "${lanes}/Dockerfile"
+printf '# docs\n' > "${lanes}/docs/a.md"
+printf 'package sample\n' > "${lanes}/go/sample.go"
+git -C "${lanes}" add Dockerfile docs go
+git -C "${lanes}" commit -qm branch-point
+lanes_b0="$(git -C "${lanes}" rev-parse HEAD)"
+git -C "${lanes}" checkout -q -b pr-docs
+printf '# note\n' >> "${lanes}/docs/a.md"
+git -C "${lanes}" commit -qam pr-docs-change
+lanes_docs_head="$(git -C "${lanes}" rev-parse HEAD)"
+git -C "${lanes}" checkout -q -b pr-go "${lanes_b0}"
+printf '// pr\n' >> "${lanes}/go/sample.go"
+git -C "${lanes}" commit -qam pr-go-change
+lanes_go_head="$(git -C "${lanes}" rev-parse HEAD)"
+git -C "${lanes}" checkout -q main
+printf '// main\n' >> "${lanes}/go/sample.go"
+git -C "${lanes}" commit -qam main-moves
+lanes_tip="$(git -C "${lanes}" rev-parse HEAD)"
+
+run_lanes() {
+  local head="$1" pr_base="$2"
+  : > "${scratch}/output"
+  (cd "${lanes}" && GITHUB_OUTPUT="${scratch}/output" GITHUB_EVENT_NAME=pull_request \
+    GITHUB_REF_TYPE=branch GITHUB_SHA="${head}" PR_BASE_SHA="${pr_base}" \
+    PR_HEAD_SHA="${head}" BEFORE_SHA="${lanes_b0}" bash scripts/ci/select-docker-publish-lanes.sh)
+}
+# Payload base.sha is main's tip T, ahead of the PR's branch point.
+run_lanes "${lanes_docs_head}" "${lanes_tip}"
+rg -q '^image=false$' "${scratch}/output" || {
+  echo 'FAIL: a docs-only PR behind main selected the image lane from the moved base' >&2
+  exit 1
+}
+rg -q '^apkfloors=false$' "${scratch}/output"
+rg -q '^scannerpins=false$' "${scratch}/output"
+# Control: the payload base is the branch point itself (a rebased PR).
+run_lanes "${lanes_docs_head}" "${lanes_b0}"
+rg -q '^image=false$' "${scratch}/output"
+# No merge base (a payload base with unrelated history): keep the payload value
+# rather than fail the lane selection.
+git -C "${lanes}" checkout -q --orphan unrelated
+git -C "${lanes}" rm -rfq --cached . >/dev/null
+printf 'x\n' > "${lanes}/unrelated.txt"
+git -C "${lanes}" add unrelated.txt
+git -C "${lanes}" commit -qm unrelated-root
+lanes_unrelated="$(git -C "${lanes}" rev-parse HEAD)"
+git -C "${lanes}" checkout -q -f main
+run_lanes "${lanes_docs_head}" "${lanes_unrelated}"
+rg -q '^image=true$' "${scratch}/output" || {
+  echo 'FAIL: a payload base with no merge base did not fall back to the payload diff' >&2
+  exit 1
+}
+# A PR that does change Go still selects the image lane while main has moved.
+run_lanes "${lanes_go_head}" "${lanes_tip}"
+rg -q '^image=true$' "${scratch}/output" || {
+  echo 'FAIL: a Go-changing PR behind main did not select the image lane' >&2
+  exit 1
+}
 printf 'PASS: production workflow selector steps execute with expected event behavior\n'
