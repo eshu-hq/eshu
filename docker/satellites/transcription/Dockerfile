@@ -95,7 +95,10 @@ FROM ${ESHU_ALPINE_IMAGE} AS runtime
 ARG EXPECT_BINARY_SHA256
 ARG EXPECT_LIBS_SHA256
 ARG EXPECT_MODEL_SHA256
-LABEL eshu.satellite="transcription" eshu.satellite.engine="whisper.cpp" eshu.satellite.engine-version="v1.9.5"
+# The engine-version label derives from the same tag the whisper stage
+# clones, so a tag bump cannot silently mislabel the image.
+ARG WHISPER_CPP_TAG
+LABEL eshu.satellite="transcription" eshu.satellite.engine="whisper.cpp" eshu.satellite.engine-version="${WHISPER_CPP_TAG}"
 # musl is named explicitly, not left transitive: the base layer ships its
 # own musl and apk keeps it unless asked, so an unnamed musl floats with
 # the base image instead of the floor set (r11 stayed installed while the
@@ -110,10 +113,14 @@ COPY --from=model /out/ggml-base.en.bin /opt/whisper/models/ggml-base.en.bin
 COPY --from=go-caller /go-bin/eshu-collector-media-import /usr/local/bin/eshu-collector-media-import
 RUN chmod 0555 /opt/whisper/bin/whisper-cli /usr/local/bin/eshu-collector-media-import \
     && chmod 0444 /opt/whisper/models/ggml-base.en.bin
-# Build-time digest gate over the engine binary, the ldd-resolved libraries
-# as a set (same "<path> <hex>" sorted-lines formula the OCR engine
-# records; kept here so the two satellite gates stay comparable), and the
-# model. The whispercpp engine re-verifies the binary and model digests at
+# Build-time digest gate over the engine binary, the runtime shared-object
+# set, and the model. The set covers the ldd closure PLUS the .so files of
+# floored-but-unlinked packages (libssl3, libcrypto3, zlib): a same-version
+# byte reissue of an unlinked library installs silently unless its bytes are
+# in the set (the libtiff precedent was linked; this closes the same hole
+# for the rest). Same "<path> <hex>" sorted-lines formula the OCR gate
+# uses; kept here so the two satellite gates stay comparable. The
+# whispercpp engine re-verifies the binary and model digests at
 # construction; this gate fails the image build before that.
 RUN set -eu; \
     [ -n "${EXPECT_BINARY_SHA256:-}" ] || { echo "GATE FAIL: EXPECT_BINARY_SHA256 build arg is required (see specs/satellite-pins/transcription.<arch>.json)" >&2; exit 1; }; \
@@ -122,13 +129,16 @@ RUN set -eu; \
     [ -n "${EXPECT_ENGINE_VERSION:-}" ] || { echo "GATE FAIL: EXPECT_ENGINE_VERSION build arg is required (see specs/satellite-pins/transcription.<arch>.json)" >&2; exit 1; }; \
     reported="$(/opt/whisper/bin/whisper-cli --version 2>/dev/null | head -n 1)"; \
     want="whisper.cpp version: ${EXPECT_ENGINE_VERSION#v}"; \
-    [ "${reported#"$want"}" != "${reported}" ] || { echo "GATE FAIL: binary reports '${reported}', want prefix '${want}'" >&2; exit 1; }; \
+    [ "${reported#"$want"}" != "${reported}" ] || { echo "GATE FAIL: binary reports '${reported}', want prefix '${want}' (format is upstream's: examples/cli/cli.cpp:155 at the pinned commit prints \"whisper.cpp version: %s\")" >&2; exit 1; }; \
     got="$(sha256sum /opt/whisper/bin/whisper-cli | awk '{print $1}')"; \
     [ "${got}" = "${EXPECT_BINARY_SHA256}" ] || { echo "GATE FAIL: whisper-cli sha256:${got} != pinned ${EXPECT_BINARY_SHA256}; the binary is toolchain-dependent, re-record the reference (see docker/satellites/README.md)" >&2; exit 1; }; \
     got="$(sha256sum /opt/whisper/models/ggml-base.en.bin | awk '{print $1}')"; \
     [ "${got}" = "${EXPECT_MODEL_SHA256}" ] || { echo "GATE FAIL: ggml-base.en.bin sha256:${got} != pinned ${EXPECT_MODEL_SHA256}; re-record specs/satellite-pins (see docker/satellites/README.md)" >&2; exit 1; }; \
-    libs="$(ldd /opt/whisper/bin/whisper-cli | awk '{ if ($2 == "=>") print $3; else print $1 }' | xargs -n1 readlink -f | LC_ALL=C sort -u | xargs sha256sum | awk '{print $2" "$1}' | LC_ALL=C sort)"; \
-    [ -n "${libs}" ] || { echo "GATE FAIL: ldd resolved no libraries for /opt/whisper/bin/whisper-cli" >&2; exit 1; }; \
+    linked="$(ldd /opt/whisper/bin/whisper-cli | awk '{ if ($2 == "=>") print $3; else print $1 }' | xargs -n1 readlink -f | LC_ALL=C sort -u)"; \
+    [ -n "${linked}" ] || { echo "GATE FAIL: ldd resolved no libraries for /opt/whisper/bin/whisper-cli" >&2; exit 1; }; \
+    extra="$(apk info -L libssl3 libcrypto3 zlib 2>/dev/null | grep -E '\.so(\.[0-9]+)*$' | xargs -n1 readlink -f | LC_ALL=C sort -u)"; \
+    [ -n "${extra}" ] || { echo "GATE FAIL: apk listed no shared objects for the floored-but-unlinked packages (libssl3 libcrypto3 zlib)" >&2; exit 1; }; \
+    libs="$(printf '%s\n%s\n' "${linked}" "${extra}" | LC_ALL=C sort -u | xargs sha256sum | awk '{print $2" "$1}' | LC_ALL=C sort)"; \
     printf 'pinned runtime libraries:\n%s\n' "${libs}"; \
     got="$(printf '%s\n' "${libs}" | sha256sum | awk '{print $1}')"; \
     [ "${got}" = "${EXPECT_LIBS_SHA256}" ] || { echo "GATE FAIL: library set sha256:${got} != pinned ${EXPECT_LIBS_SHA256}; re-record specs/satellite-pins (see docker/satellites/README.md)" >&2; exit 1; }; \
