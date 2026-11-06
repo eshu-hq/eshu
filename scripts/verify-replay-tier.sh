@@ -3,15 +3,18 @@
 # Copyright (c) 2025-2026 eshu-hq
 #
 # verify-replay-tier.sh runs the R-5 offline replay gate tier (epic #4102,
-# issue #4107) against a REAL single-container NornicDB started with plain
+# issue #4107) against a REAL single-container Neo4j started with plain
 # `docker run` — NOT Docker Compose. It replays the committed cassette through
 # the production canonical projection writer into the live graph and asserts
 # node/edge truth over Bolt.
 #
-# This is deliberately lean: one NornicDB container, no Postgres, no full
-# pipeline. It is the fast credential-free backend gate that catches
-# backend-specific projection bugs (#4019 nested-directory drop, commit-time
-# MERGE races, NornicDB MATCH quirks) that a fake graph cannot reproduce.
+# This is deliberately lean: one Neo4j container, no Postgres, no full
+# pipeline. It is the fast backend gate that catches backend-specific
+# projection bugs (#4019 nested-directory drop, commit-time MERGE races,
+# backend MATCH quirks) that a fake graph cannot reproduce.
+#
+# The tier ran against NornicDB until #10223: Neo4j is the supported backend,
+# so the container, credentials, and health check below target Neo4j.
 #
 # The full Compose B-7 golden-corpus gate (scripts/verify-golden-corpus-gate.sh)
 # is unchanged and remains the belt-and-suspenders full-corpus check.
@@ -20,9 +23,11 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${repo_root}"
 
-# Pinned NornicDB image (digest-locked for reproducibility).
-NORNICDB_IMAGE="ghcr.io/eshu-hq/nornicdb-amd64-cpu:fix-500-e022384c@sha256:74a8ed7b36f37bdd1a7e32d8bc6aa3fa88908b7207bfa6568567ab94e4a4b3b1"
-CONTAINER_NAME="eshu-replay-tier-nornicdb-$$"
+# Pinned Neo4j image (digest-locked for reproducibility): the same CI mirror
+# the golden-corpus-gate-neo4j leg proves on, so the tier shares one declared
+# engine profile with the blocking truth gate.
+NEO4J_IMAGE="ghcr.io/eshu-hq/ci-neo4j-community@sha256:eabfbb042bdaca2fd5e1950db1329b22c794eee80f0eacc4e7a729d44b2e863f"
+CONTAINER_NAME="eshu-replay-tier-neo4j-$$"
 HTTP_PORT="${ESHU_REPLAY_TIER_HTTP_PORT:-7474}"
 BOLT_PORT="${ESHU_REPLAY_TIER_BOLT_PORT:-7687}"
 
@@ -51,66 +56,62 @@ command -v docker >/dev/null 2>&1 || die "docker is required"
 command -v rg >/dev/null 2>&1 || die "rg is required for the blast-radius non-vacuity check"
 
 python3 scripts/lib/replay_tier_enrollment.py --root "${repo_root}" --reviewed-source
-log "starting lean NornicDB container ${CONTAINER_NAME} (plain docker run, no compose)"
+graph_password="${NEO4J_PASSWORD:-change-me}"
+export ESHU_NEO4J_USERNAME="neo4j"
+export NEO4J_USERNAME="neo4j"
+export ESHU_NEO4J_PASSWORD="${graph_password}"
+export NEO4J_PASSWORD="${graph_password}"
+log "starting lean Neo4j container ${CONTAINER_NAME} (plain docker run, no compose)"
 docker run -d --name "${CONTAINER_NAME}" \
 	-p "${HTTP_PORT}:7474" \
 	-p "${BOLT_PORT}:7687" \
-	-e NORNICDB_NO_AUTH=true \
-	-e NORNICDB_DATA_DIR=/data \
-	-e NORNICDB_HTTP_PORT=7474 \
-	-e NORNICDB_BOLT_PORT=7687 \
-	-e NORNICDB_ASYNC_WRITES_ENABLED=false \
-	-e NORNICDB_HEIMDALL_ENABLED=false \
-	-e NORNICDB_EMBEDDING_ENABLED=false \
-	-e NORNICDB_SEARCH_BM25_ENABLED=false \
-	-e NORNICDB_SEARCH_VECTOR_ENABLED=false \
-	"${NORNICDB_IMAGE}" >/dev/null \
+	-e "NEO4J_AUTH=neo4j/${graph_password}" \
+	"${NEO4J_IMAGE}" >/dev/null \
 	|| die "docker run failed"
 
-log "waiting for NornicDB health on http://localhost:${HTTP_PORT}/health"
+log "waiting for Neo4j health on http://localhost:${HTTP_PORT}/"
 ready=false
 for _ in $(seq 1 60); do
-	if curl -fsS "http://localhost:${HTTP_PORT}/health" >/dev/null 2>&1; then
+	if curl -fsS "http://localhost:${HTTP_PORT}/" >/dev/null 2>&1; then
 		ready=true
 		break
 	fi
 	# Fall back to wget if curl is unavailable.
-	if command -v wget >/dev/null 2>&1 && wget --spider -q "http://localhost:${HTTP_PORT}/health" >/dev/null 2>&1; then
+	if command -v wget >/dev/null 2>&1 && wget --spider -q "http://localhost:${HTTP_PORT}/" >/dev/null 2>&1; then
 		ready=true
 		break
 	fi
 	sleep 2
 done
-[[ "${ready}" == "true" ]] || { docker logs "${CONTAINER_NAME}" 2>&1 | tail -40; die "NornicDB did not become healthy"; }
-log "NornicDB healthy"
+[[ "${ready}" == "true" ]] || { docker logs "${CONTAINER_NAME}" 2>&1 | tail -40; die "Neo4j did not become healthy"; }
+log "Neo4j healthy"
 
 # Real-backend environment for the gated go test.
-export ESHU_GRAPH_BACKEND="nornicdb"
-# Both names of both variables are pinned, deliberately. The graph endpoint has
-# a canonical ESHU_-prefixed name and a bare alias
+export ESHU_GRAPH_BACKEND="neo4j"
+# Every name of every endpoint and credential variable is pinned, deliberately.
+# The graph endpoint has a canonical ESHU_-prefixed name and a bare alias
 # (go/internal/envregistry/entries.go), consumers disagree about which they
 # read, and this container is the only endpoint any of them may reach. Pinning
 # one name and leaving the other free lets an ambient value from a developer
-# shell win: the test then runs against a stale endpoint or a database the tier
-# never asserted against, inside this same gate run. CI never sees it because a
-# clean runner leaves both unset, so it fails only on the machine of whoever
-# has the variable set. Both holes were found on #6201 review, one round apart —
-# the database first, then this mirror of it on the URI.
-export ESHU_NEO4J_DATABASE="nornic"
-export NEO4J_DATABASE="nornic"
+# shell win: the test then runs against a stale endpoint, a database the tier
+# never asserted against, or credentials the container does not know, inside
+# this same gate run. CI never sees it because a clean runner leaves every
+# name unset, so it fails only on the machine of whoever has the variable set.
+# The endpoint holes were found on #6201 review, one round apart — the database
+# first, then this mirror of it on the URI — and the credential pair rides the
+# same pin for the same reason now that the backend enforces auth. The
+# container auth derives from the pinned password above, so the gate never
+# splits the password the server requires from the one the driver sends.
+export ESHU_NEO4J_DATABASE="neo4j"
+export NEO4J_DATABASE="neo4j"
 export ESHU_NEO4J_URI="bolt://localhost:${BOLT_PORT}"
 export NEO4J_URI="bolt://localhost:${BOLT_PORT}"
-# NornicDB runs with NORNICDB_NO_AUTH=true, but the shared Bolt driver config
-# requires non-empty username/password, so supply placeholders the backend
-# ignores.
-export NEO4J_USERNAME="${NEO4J_USERNAME:-neo4j}"
-export NEO4J_PASSWORD="${NEO4J_PASSWORD:-change-me}"
 export ESHU_REPLAY_TIER_LIVE=1
 # Per-worktree build cache isolation (house rule).
 export GOCACHE="${repo_root}/.gocache"
 
 python3 scripts/lib/replay_tier_enrollment.py --root "${repo_root}" --reviewed-source
-log "running focused offline replay tier tests (R-5 graph truth + R-17 delta/tombstone) against real NornicDB"
+log "running focused offline replay tier tests (R-5 graph truth + R-17 delta/tombstone) against real Neo4j"
 tier_start="$(date +%s)"
 # set -e is on, and a failing ( ... ) exits the shell at once -- so without this
 # guard `tier_status=$?` below was unreachable and the die message under it had
@@ -145,7 +146,7 @@ for projection_test in \
 done
 rg --quiet "^--- PASS: TestReducerProvenanceReplayTombstoneGraphTruth " "${TIER_LOG}" \
 	|| die "TestReducerProvenanceReplayTombstoneGraphTruth did not run: no exact PASS line, so the #6258 selector matched nothing or the test skipped. A skip is not a pass."
-log "offline replay tier PASSED against real NornicDB"
+log "offline replay tier PASSED against real Neo4j"
 
 # The sql_table blast-radius branch proof (#5409) lives in internal/query and
 # skips unless ESHU_REPLAY_TIER_LIVE=1. This script is the only thing in the
@@ -165,7 +166,7 @@ log "offline replay tier PASSED against real NornicDB"
 # accumulated the missing list from the fixture table instead of the returned
 # rows would have kept both other tests green and gutted the detection -- which
 # is what the test #6201 renamed actually did.
-log "running sql_table blast-radius branch proof (#5409) and bite proof (#6204) against the same NornicDB"
+log "running sql_table blast-radius branch proof (#5409) and bite proof (#6204) against the same Neo4j"
 python3 scripts/lib/replay_tier_enrollment.py --root "${repo_root}" --reviewed-source
 blast_start="$(date +%s)"
 set +e

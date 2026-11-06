@@ -47,7 +47,7 @@
       ]
     },
     "go/internal/replay/offlinetier/delta_tier_reducer_content_edge_retract_live_test.go": {
-      "sha256": "ce2816b3b79ed0975064c4a2fd33b3441453efea986cecfa527dda34d3bbc9c6",
+      "sha256": "d306c65426fb12a085aeb86d37e064081080244ba7b9d338c4e5148686916325",
       "tests": [
         "TestReducerContentEdgeRetractGraphTruth",
         "TestCodeInterprocTaintEdgeRetractGraphTruth"
@@ -152,9 +152,9 @@
   },
   "head": "e0e7f03f9763b25e7f5b1163e2bdafb4f5100f24",
   "proof_source_sha256": {
-    "scripts/verify-replay-tier.sh": "41fddbd06d6a86fe2e55ad114c0d6121b2d423b39f57eb8a195110c65c5ad6a4",
-    "scripts/lib/replay_tier_enrollment.py": "b25533f68f7de8e92524c27456a54bf21af958db5ab162cb61596d1940805faa",
-    "scripts/lib/replay_tier_routes.py": "3e39ddf41c6c54c5a104254d890f56a8bd4792e3e48a1186a2852fba335f7918"
+    "scripts/lib/replay_tier_enrollment.py": "bec151259b28b2540b3ed0fc2c0d742391ca7ac0dc5b2f9c1386559cbddb4c99",
+    "scripts/lib/replay_tier_routes.py": "b4b15420413e25c83915dfe6a5edf591c311d6c754dc198053edd0ec061a87cc",
+    "scripts/verify-replay-tier.sh": "e034fd6c2500dd01781310218e0d49de54dd1b2053c90186686c4a86d5c89f40"
   },
   "selector": "TestOfflineReplayTierGraphTruth|TestDeltaTombstone|TestDeltaEntityRetractGraphTruth|TestEntityRetractManifestBinding|TestDeltaSurvivorScopedRetractGraphTruth|TestDeltaEdgeRetractGraphTruth|TestDeltaFileRetractGraphTruth|TestReducerCodeCallEdgeRetractGraphTruth|TestReducerInheritanceEdgeRetractGraphTruth|TestReducerSQLRelationshipRetractGraphTruth|TestReducerRationaleEdgeRetractGraphTruth|TestReducerMetaclassEdgeRetractGraphTruth|TestReducerRepoDependencyEdgeRetractGraphTruth|TestReducerRuntimeEdgeRetractGraphTruth|TestReducerContentEdgeRetractGraphTruth|TestCodeInterprocTaintEdgeRetractGraphTruth|TestReducerCloudEdgeRetractGraphTruth|TestReducerSecurityGroupReachabilityEdgeRetractGraphTruth|TestReducerCanonicalGovernanceEdgeRetractGraphTruth|TestReducerWorkloadUsesEdgeRetractGraphTruth|TestReducerIAMEdgeRetractGraphTruth|TestReducerAWSCloudImageEdgeRetractGraphTruth|TestReducerSecretsIAMEdgeRetractGraphTruth|TestReducerSemanticVariableRetractGraphTruth|TestReducerSSMHostRetractGraphTruth|TestReducerKubernetesNamespaceEnvironmentRetractGraphTruth|TestReducerKubernetesNamespaceAbsentNodeRetractGraphTruth|TestReducerProvenanceReplayTombstoneGraphTruth|TestNornicDBFunctionProjectionEvaluatesAfterOptionalMatch|TestNornicDBChainedOptionalMatchEvaluatesSecondHop|TestGovScopeMaterializationEntitySourcesHaveFiles",
   "test_count": 28

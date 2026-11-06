@@ -34,8 +34,8 @@ purpose: >
   disposable PostgreSQL and Neo4j daily and on scoped PRs. The ifa-scheduled job
   checks nine exact tagged tests daily and
   on scoped PRs on disposable Neo4j and PostgreSQL, with a second Neo4j
-  identity endpoint. The replay-tier gate checks 27 exact tests from 23 files;
-  25 require NornicDB. The NornicDB backend conformance job accounts for all nine
+  identity endpoint. The replay-tier gate checks 28 exact tests from 24 files,
+  all on Neo4j (#10223). The NornicDB backend conformance job accounts for all nine
   tests in seven exact Cypher files; Neo4j keeps the core conformance path. The
   ledger validator (scripts/verify-live-tests-ledger.sh) fails on any live test
   file this ledger does not name, so a new unclassified live test can never

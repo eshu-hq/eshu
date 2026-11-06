@@ -95,13 +95,13 @@ ledger_path, repo_root = sys.argv[1], sys.argv[2]
 # exit in that module must not bypass the ledger's independent source read.
 REPLAY_PROOF_SOURCE_SHA256 = {
     "scripts/verify-replay-tier.sh": (
-        "41fddbd06d6a86fe2e55ad114c0d6121b2d423b39f57eb8a195110c65c5ad6a4"
+        "e034fd6c2500dd01781310218e0d49de54dd1b2053c90186686c4a86d5c89f40"
     ),
     "scripts/lib/replay_tier_enrollment.py": (
-        "b25533f68f7de8e92524c27456a54bf21af958db5ab162cb61596d1940805faa"
+        "bec151259b28b2540b3ed0fc2c0d742391ca7ac0dc5b2f9c1386559cbddb4c99"
     ),
     "scripts/lib/replay_tier_routes.py": (
-        "3e39ddf41c6c54c5a104254d890f56a8bd4792e3e48a1186a2852fba335f7918"
+        "b4b15420413e25c83915dfe6a5edf591c311d6c754dc198053edd0ec061a87cc"
     ),
 }
 replay_sources: dict[str, str] = {}
@@ -308,8 +308,8 @@ for path, tag, cls, reason, runner, backends in rows:
             if path not in IDENTITY_PROOFS or tag.strip() != "~" or backends:
                 sys.exit(f"B-7 identity row needs an enrolled untagged PostgreSQL-only file: {path}")
         elif runner == "replay-tier":
-            if path not in replay_inventory["files"] or tag.strip() != "~" or backends != "nornicdb":
-                sys.exit(f"replay-tier row needs an enrolled untagged NornicDB file: {path}")
+            if path not in replay_inventory["files"] or tag.strip() != "~" or backends != "neo4j":
+                sys.exit(f"replay-tier row needs an enrolled untagged Neo4j file: {path}")
         elif runner != "query-methodology":
             sys.exit(f"dedicated CI row needs its verified runner: {path}")
         elif path.endswith("methodology_postgres_live_test.go"):

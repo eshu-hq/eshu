@@ -49,9 +49,9 @@ class ReplayTierLedgerPolicyTest(unittest.TestCase):
         text = fragment.read_text()
         text = text.replace(
             "    class: dedicated_ci\n"
-            "    reason: exact Go JSON pass in blocking replay-tier NornicDB gate\n"
+            "    reason: exact Go JSON pass in blocking replay-tier Neo4j gate\n"
             "    runner: replay-tier\n"
-            "    backends: nornicdb\n",
+            "    backends: neo4j\n",
             "    class: scheduled\n"
             "    reason: intentionally demoted fixture\n", 1,
         )
@@ -66,9 +66,9 @@ class ReplayTierLedgerPolicyTest(unittest.TestCase):
         text = fragment.read_text()
         text = text.replace(
             "    class: dedicated_ci\n"
-            "    reason: exact Go JSON pass in blocking replay-tier NornicDB gate\n"
+            "    reason: exact Go JSON pass in blocking replay-tier Neo4j gate\n"
             "    runner: replay-tier\n"
-            "    backends: nornicdb\n",
+            "    backends: neo4j\n",
             "    class: scheduled\n"
             "    reason: intentionally demoted fixture\n",
         )

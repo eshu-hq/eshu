@@ -85,7 +85,7 @@ func TestSQLTableBlastRadiusReportsUnseededBranchMissingLive(t *testing.T) {
 			// would come back missing, and the test would fail for a fixture
 			// reason rather than prove anything about CONTAINS.
 			if branches[omitted].Name == "CONTAINS" {
-				if _, err := reader.Run(ctx, `MERGE (t:SqlTable {name: '`+table+`'})`, nil); err != nil {
+				if _, err := reader.RunWrite(ctx, `MERGE (t:SqlTable {name: '`+table+`'})`, nil); err != nil {
 					t.Fatalf("seed anchor table for the CONTAINS omission: %v", err)
 				}
 			}
@@ -93,7 +93,7 @@ func TestSQLTableBlastRadiusReportsUnseededBranchMissingLive(t *testing.T) {
 				if i == omitted {
 					continue
 				}
-				if _, err := reader.Run(ctx, branch.Seed, nil); err != nil {
+				if _, err := reader.RunWrite(ctx, branch.Seed, nil); err != nil {
 					t.Fatalf("seed branch %q: %v", branch.Name, err)
 				}
 			}

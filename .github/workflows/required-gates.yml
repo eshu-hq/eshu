@@ -26,7 +26,7 @@ on:
       - Read API Latency Gate
       - Reducer Contention Gate
       - Replay Coverage Gate
-      - Replay Tier (offline NornicDB)
+      - Replay Tier (offline Neo4j)
       - Scorecard Example Conformance
       - SDK Go Modules
       - Security Scan

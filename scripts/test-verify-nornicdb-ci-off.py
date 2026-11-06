@@ -301,19 +301,41 @@ class RealTreeMutantTest(unittest.TestCase):
         return subprocess.run([sys.executable, str(GATE), "--root", str(root)],
                               text=True, capture_output=True, check=False)
 
-    def test_restored_replay_tier_if_fails(self) -> None:
-        """RED (review F1 mutant A): the replay job is live again and docker-runs NornicDB."""
-        root = self.mutant("verify-replay-tier.yml", "    if: ${{ false }}\n",
-                           "    if: ${{ github.event_name != 'pull_request' }}\n")
+    def test_tier_script_docker_running_nornicdb_fails(self) -> None:
+        """RED (review F1 mutant A, #10223 shape): the live tier job's script
+        docker-runs a NornicDB image again. The scanner follows the job's
+        `run:` line into scripts/verify-replay-tier.sh, so the script path is
+        named in the failure."""
+        root = self.mutant("verify-replay-tier.yml", "name: Replay Tier (offline Neo4j)",
+                           "name: Replay Tier (offline Neo4j)")
+        scripts = root / "scripts"
+        scripts.unlink()
+        shutil.copytree(ROOT / "scripts", scripts)
+        tier = scripts / "verify-replay-tier.sh"
+        text = tier.read_text(encoding="utf-8")
+        old = ('NEO4J_IMAGE="ghcr.io/eshu-hq/ci-neo4j-community@sha256:'
+               'eabfbb042bdaca2fd5e1950db1329b22c794eee80f0eacc4e7a729d44b2e863f"')
+        self.assertEqual(text.count(old), 1, "tier script must pin the Neo4j image once")
+        tier.write_text(text.replace(
+            old,
+            'NEO4J_IMAGE="ghcr.io/eshu-hq/nornicdb-amd64-cpu:fix-500-e022384c@sha256:'
+            '74a8ed7b36f37bdd1a7e32d8bc6aa3fa88908b7207bfa6568567ab94e4a4b3b1"'),
+            encoding="utf-8")
         result = self.run_gate(root)
         self.assertEqual(result.returncode, 1, result.stderr)
         self.assertIn("verify-replay-tier.yml/replay-tier", result.stderr)
         self.assertIn("scripts/verify-replay-tier.sh", result.stderr)
 
-    def test_replay_tier_with_the_if_removed_fails(self) -> None:
-        """RED: deleting the `if` leaves an unconditional job, which can run."""
-        root = self.mutant("verify-replay-tier.yml", "    if: ${{ false }}\n", "")
-        self.assertEqual(self.run_gate(root).returncode, 1)
+    def test_tier_job_without_plan_if_still_passes(self) -> None:
+        """GREEN: deleting the plan `if` leaves an unconditional job that still
+        runs Neo4j. The off guard stays scoped to NornicDB markers and does not
+        flag the live Neo4j tier for a selection-shape change; the routes guard
+        owns that rejection."""
+        root = self.mutant(
+            "verify-replay-tier.yml",
+            "    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'replay-tier') }}\n",
+            "")
+        self.assertEqual(self.run_gate(root).returncode, 0, self.run_gate(root).stderr)
 
     def test_shards_restored_to_include_nornicdb_fail(self) -> None:
         """RED (review F1 mutant B): matrix shard 1/4 is the whole NornicDB leg."""
@@ -343,8 +365,8 @@ class RealTreeMutantTest(unittest.TestCase):
 
     def test_committed_tree_copy_is_clean(self) -> None:
         """GREEN: an unmutated copy of the committed workflows passes."""
-        root = self.mutant("verify-replay-tier.yml", "name: Replay Tier (offline NornicDB)",
-                           "name: Replay Tier (offline NornicDB)")
+        root = self.mutant("verify-replay-tier.yml", "name: Replay Tier (offline Neo4j)",
+                           "name: Replay Tier (offline Neo4j)")
         self.assertEqual(self.run_gate(root).returncode, 0, self.run_gate(root).stderr)
 
 

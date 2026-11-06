@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Static contract test for verify-replay-tier.sh. The live verifier owns one
-# shared NornicDB, so separate package test binaries must not mutate it in
+# shared Neo4j, so separate package test binaries must not mutate it in
 # parallel.
 set -euo pipefail
 
@@ -91,6 +91,8 @@ has_provenance_tombstone_nonvacuity_guard() {
 # the other left free for an ambient value from a developer shell to win, which
 # CI never sees because a clean runner leaves both unset. Nothing in this mirror
 # guarded the pins, so a third round could have deleted one and stayed green.
+# Neo4j enforces auth, so the credential pair rides the same pin for the same
+# reason, and the container auth must derive from the pinned password.
 #
 # The value is asserted, not just the assignment. `export ESHU_NEO4J_URI="$OTHER"`
 # would satisfy an existence check while reopening the exact hole, and a guard
@@ -101,16 +103,24 @@ has_graph_endpoint_pins() {
 		rg --quiet "^export ${var}=\"bolt://localhost:\\\$\\{BOLT_PORT\\}\"$" "$1" || return 1
 	done
 	for var in ESHU_NEO4J_DATABASE NEO4J_DATABASE; do
-		rg --quiet "^export ${var}=\"nornic\"$" "$1" || return 1
+		rg --quiet "^export ${var}=\"neo4j\"$" "$1" || return 1
 	done
+	for var in ESHU_NEO4J_USERNAME NEO4J_USERNAME; do
+		rg --quiet "^export ${var}=\"neo4j\"$" "$1" || return 1
+	done
+	for var in ESHU_NEO4J_PASSWORD NEO4J_PASSWORD; do
+		rg --quiet "^export ${var}=\"\\\$\\{graph_password\\}\"$" "$1" || return 1
+	done
+	rg --quiet '^graph_password="\$\{NEO4J_PASSWORD:-change-me\}"$' "$1" || return 1
+	rg --quiet '^[[:space:]]*-e "NEO4J_AUTH=neo4j/\$\{graph_password\}" \\$' "$1" || return 1
 }
 
-# has_nornicdb_image_pin binds the live gate to the released multi-arch
-# artifact proven by the restart fault cell. A tag-only check
+# has_neo4j_image_pin binds the live gate to the released CI mirror the
+# golden-corpus-gate-neo4j leg proves on. A tag-only check
 # would let Docker Hub retarget the proof without a repository change.
-has_nornicdb_image_pin() {
+has_neo4j_image_pin() {
 	rg --quiet \
-		'^NORNICDB_IMAGE="ghcr.io/eshu-hq/nornicdb-amd64-cpu:fix-500-e022384c@sha256:74a8ed7b36f37bdd1a7e32d8bc6aa3fa88908b7207bfa6568567ab94e4a4b3b1"$' \
+		'^NEO4J_IMAGE="ghcr.io/eshu-hq/ci-neo4j-community@sha256:eabfbb042bdaca2fd5e1950db1329b22c794eee80f0eacc4e7a729d44b2e863f"$' \
 		"$1"
 }
 
@@ -171,12 +181,13 @@ workflow_gate_job_block() {
 gate_job_is_active() {
 	local job if_lines
 	job="$(workflow_gate_job_block "$1")"
-	rg --quiet '^    name: Offline replay tier vs real NornicDB$' <<<"${job}" || return 1
+	rg --quiet '^    name: Offline replay tier vs real Neo4j$' <<<"${job}" || return 1
 	if_lines="$(rg '^    if:' <<<"${job}")" || return 1
-	# The job is off by owner order (2026-11-05, #7331): the one reviewed `if` is
-	# the literal false. Re-enabling restores the plan-selected condition kept in
-	# the workflow comment (docs/internal/ci-workflow-inventory.md).
-	[[ "${if_lines}" == "    if: \${{ false }}" ]] || return 1
+	# The job runs on the plan-selected condition only (#10223): any other
+	# condition — the literal false that switched the NornicDB legs off, a
+	# hardcoded true, or a selection scope — skips the proof or runs it
+	# unselected while every `run:` line stays present.
+	[[ "${if_lines}" == "    if: \${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'replay-tier') }}" ]] || return 1
 	! rg --quiet '^    continue-on-error:' <<<"${job}"
 }
 
@@ -187,7 +198,7 @@ has_workflow_wiring() {
 	test_line="$(rg --line-number --no-heading \
 		'^[[:space:]]*run: bash scripts/test-verify-replay-tier\.sh$' "$1" | cut -d: -f1)"
 	gate_step_is_active "$1" 'Verify replay tier contract' 'bash scripts/test-verify-replay-tier.sh' || return 1
-	gate_step_is_active "$1" 'Run offline replay tier against real NornicDB' 'bash scripts/verify-replay-tier.sh' || return 1
+	gate_step_is_active "$1" 'Run offline replay tier against real Neo4j' 'bash scripts/verify-replay-tier.sh' || return 1
 	gate_job_is_active "$1" || return 1
 	# The removed queue selector must stay out: no needs edge, no selector
 	# job, no selection gate step.
@@ -272,8 +283,8 @@ has_provenance_tombstone_nonvacuity_guard "${script}" \
 	|| fail "gate must assert the #6258 DERIVED_FROM tombstone proof RAN; go test -run exits 0 on a regex matching nothing"
 has_graph_endpoint_pins "${script}" \
 	|| fail "gate must pin every graph-endpoint name to its own container; an unpinned name lets an ambient developer value win (#6201)"
-has_nornicdb_image_pin "${script}" \
-	|| fail "gate must pin the exact validated NornicDB fix-500-e022384c digest"
+has_neo4j_image_pin "${script}" \
+	|| fail "gate must pin the exact validated Neo4j CI mirror digest"
 
 [[ -f "${workflow}" ]] || fail "missing ${workflow}"
 has_workflow_wiring "${workflow}" \
@@ -352,7 +363,8 @@ if has_provenance_tombstone_nonvacuity_guard "${tmp}/script-vacuous-provenance-t
 fi
 # One negation per pinned name: deleting any single export must fail, which is
 # the drift that produced both #6201 findings.
-for pinned_var in ESHU_NEO4J_URI NEO4J_URI ESHU_NEO4J_DATABASE NEO4J_DATABASE; do
+for pinned_var in ESHU_NEO4J_URI NEO4J_URI ESHU_NEO4J_DATABASE NEO4J_DATABASE \
+	ESHU_NEO4J_USERNAME NEO4J_USERNAME ESHU_NEO4J_PASSWORD NEO4J_PASSWORD; do
 	sed "/^export ${pinned_var}=/d" "${script}" >"${tmp}/script-no-${pinned_var}"
 	if has_graph_endpoint_pins "${tmp}/script-no-${pinned_var}"; then
 		fail "a dropped ${pinned_var} pin must not satisfy the guard"
@@ -360,14 +372,14 @@ for pinned_var in ESHU_NEO4J_URI NEO4J_URI ESHU_NEO4J_DATABASE NEO4J_DATABASE; d
 done
 # A commented pin or a tag with no digest must fail. These mutations keep the
 # image name visible, which defeats a whole-file substring check.
-sed '/^NORNICDB_IMAGE=/s/^/# /' "${script}" >"${tmp}/script-no-image-pin"
-if has_nornicdb_image_pin "${tmp}/script-no-image-pin"; then
-	fail "a commented NornicDB image pin must not satisfy the guard"
+sed '/^NEO4J_IMAGE=/s/^/# /' "${script}" >"${tmp}/script-no-image-pin"
+if has_neo4j_image_pin "${tmp}/script-no-image-pin"; then
+	fail "a commented Neo4j image pin must not satisfy the guard"
 fi
-sed 's/@sha256:74a8ed7b36f37bdd1a7e32d8bc6aa3fa88908b7207bfa6568567ab94e4a4b3b1//' \
+sed 's/@sha256:eabfbb042bdaca2fd5e1950db1329b22c794eee80f0eacc4e7a729d44b2e863f//' \
 	"${script}" >"${tmp}/script-tag-only-image"
-if has_nornicdb_image_pin "${tmp}/script-tag-only-image"; then
-	fail "a tag-only NornicDB image must not satisfy the immutable digest guard"
+if has_neo4j_image_pin "${tmp}/script-tag-only-image"; then
+	fail "a tag-only Neo4j image must not satisfy the immutable digest guard"
 fi
 # Repointing a pin away from this gate's own container must fail too, for EVERY
 # name. Deletion cases alone cannot catch the guard regressing from asserting
@@ -376,10 +388,13 @@ fi
 repoint_pin() {
 	case "$1" in
 	*_URI) printf 'bolt://elsewhere:7687\n' ;;
-	*) printf 'not-nornic\n' ;;
+	*_DATABASE) printf 'not-neo4j\n' ;;
+	*_USERNAME) printf 'not-neo4j\n' ;;
+	*) printf 'not-the-gate-password\n' ;;
 	esac
 }
-for pinned_var in ESHU_NEO4J_URI NEO4J_URI ESHU_NEO4J_DATABASE NEO4J_DATABASE; do
+for pinned_var in ESHU_NEO4J_URI NEO4J_URI ESHU_NEO4J_DATABASE NEO4J_DATABASE \
+	ESHU_NEO4J_USERNAME NEO4J_USERNAME ESHU_NEO4J_PASSWORD NEO4J_PASSWORD; do
 	sed "s|^export ${pinned_var}=.*|export ${pinned_var}=\"$(repoint_pin "${pinned_var}")\"|" \
 		"${script}" >"${tmp}/script-repointed-${pinned_var}"
 	if has_graph_endpoint_pins "${tmp}/script-repointed-${pinned_var}"; then
@@ -401,13 +416,13 @@ if has_workflow_wiring "${tmp}/workflow-no-gate-step"; then
 fi
 # Present but skipped is the harder case: proof steps run unconditionally, so
 # disabling one means adding a guard while keeping its run command intact.
-sed '/^      - name: Run offline replay tier against real NornicDB$/a\
+sed '/^      - name: Run offline replay tier against real Neo4j$/a\
         if: ${{ false }}' \
 	"${workflow}" >"${tmp}/workflow-disabled-gate-step"
 if has_workflow_wiring "${tmp}/workflow-disabled-gate-step"; then
 	fail "a disabled (if:-gated) live gate step must not satisfy the guard"
 fi
-sed '/^      - name: Run offline replay tier against real NornicDB$/a\
+sed '/^      - name: Run offline replay tier against real Neo4j$/a\
         if: ${{ contains(fromJSON(inputs.plan_jobs || '"'"'[]'"'"'), '"'"'other'"'"') }}' "${workflow}" \
 	>"${tmp}/workflow-unselected-gate-step"
 if has_workflow_wiring "${tmp}/workflow-unselected-gate-step"; then

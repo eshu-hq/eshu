@@ -8,8 +8,9 @@ stabilization is implemented in Compose, Helm, runtime contract tests, and
 operator docs. The curated search projection remains design- and
 benchmark-gated before any public API, MCP, schema, or graph-write change.
 
-Phase-1 stabilization status: Compose, Helm, and the R-5 replay gate pin the same
-eshu-hq self-built NornicDB image by digest, and both runtime paths set
+Phase-1 stabilization status: Compose and Helm pin the same
+eshu-hq self-built NornicDB image by digest; the R-5 replay gate runs Neo4j
+since #10223, and both runtime paths set
 the canonical graph lane to graph-only startup controls. Runtime contract
 tests enforce the graph-only NornicDB controls in Compose, Helm, and the public
 environment reference.
