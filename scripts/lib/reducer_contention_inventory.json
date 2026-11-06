@@ -229,7 +229,7 @@
   },
   "go/internal/storage/postgres/supply_chain_impact_go_fence_chain_live_test.go": {
     "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
-    "tests": ["TestGoFenceReopensAHolderAndItsReducerPassRunsLive"]
+    "tests": ["TestGoFenceAliasCopyReadsNotCalledLive", "TestGoFenceReaderLoadsActiveGoEvidenceLive", "TestGoFenceReopensAHolderAndItsReducerPassRunsLive"]
   },
   "go/internal/storage/postgres/supply_chain_impact_manifest_trigger_live_test.go": {
     "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
