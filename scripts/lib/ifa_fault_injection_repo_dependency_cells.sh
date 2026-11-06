@@ -4,29 +4,58 @@
 # after the first drain has stopped its reducer, so neither recovery cell can
 # accidentally pass by consuming a pre-existing RUNS_ON edge.
 
+# Regex (POSIX ERE, usable in bash [[ =~ ]] and Postgres ~) for the lease owner
+# one reducer process holds on the repo_dependency lane. The product emits two
+# shapes (go/internal/reducer/repo_dependency_projection_concurrency_proof.go):
+# the serial owner of a one-worker run (Neo4j's default; partition 0 of 1) and a
+# sharded owner with a /worker-N-of-M suffix (NornicDB's default of four).
+ifa_repo_dependency_fault_owner_re() {
+	printf '^repo-dependency-projection-runner:[A-Za-z0-9._-]+:%s:[0-9a-f]{32}(/worker-([0-9]+)-of-([1-9][0-9]*))?$' "$1"
+}
+
+# Accepts a snapshot of repo_dependency lease rows (domain|id|count|owner) held by
+# one reducer PID. Every row must be the same shape: a serial row (no suffix)
+# is partition 0 of 1; a sharded row carries partition_id=N and
+# partition_count=M equal to its /worker-N-of-M suffix, and all sharded rows
+# share one M. Duplicates, other PIDs, other domains and an empty snapshot are
+# refused.
 ifa_repo_dependency_fault_validate_partition_leases() {
-	local reducer_pid="$1" snapshot="$2" row partition_id partition_count worker_id worker_count seen=$'\n'
-	local row_re
+	local reducer_pid="$1" snapshot="$2" row partition_id partition_count worker_id worker_count
+	local seen=$'\n' shape="" row_shape sharded_count="" row_re owner_re
 	[[ "${reducer_pid}" =~ ^[1-9][0-9]*$ && -n "${snapshot}" ]] || return 1
-	row_re="^repo_dependency\\|([0-9]+)\\|([1-9][0-9]*)\\|repo-dependency-projection-runner:[A-Za-z0-9._-]+:${reducer_pid}:[0-9a-f]{32}/worker-([0-9]+)-of-([1-9][0-9]*)$"
+	owner_re="$(ifa_repo_dependency_fault_owner_re "${reducer_pid}")"
+	owner_re="${owner_re#^}"
+	owner_re="${owner_re%\$}"
+	row_re="^repo_dependency\\|([0-9]+)\\|([1-9][0-9]*)\\|${owner_re}$"
 	while IFS= read -r row; do
 		[[ "${row}" =~ ${row_re} ]] || return 1
 		partition_id="${BASH_REMATCH[1]}"
 		partition_count="${BASH_REMATCH[2]}"
-		worker_id="${BASH_REMATCH[3]}"
-		worker_count="${BASH_REMATCH[4]}"
-		(( 10#${partition_id} < 10#${partition_count} )) || return 1
-		(( 10#${worker_id} < 10#${worker_count} )) || return 1
+		worker_id="${BASH_REMATCH[4]-}"
+		worker_count="${BASH_REMATCH[5]-}"
+		if [[ -z "${BASH_REMATCH[3]-}" ]]; then
+			row_shape="serial"
+			[[ "${partition_id}" == "0" && "${partition_count}" == "1" ]] || return 1
+		else
+			row_shape="sharded"
+			[[ "${partition_id}" == "${worker_id}" && "${partition_count}" == "${worker_count}" ]] || return 1
+			(( 10#${partition_id} < 10#${partition_count} )) || return 1
+			[[ -z "${sharded_count}" || "${sharded_count}" == "${partition_count}" ]] || return 1
+			sharded_count="${partition_count}"
+		fi
+		[[ -z "${shape}" || "${shape}" == "${row_shape}" ]] || return 1
+		shape="${row_shape}"
 		[[ "${seen}" != *$'\n'"${row}"$'\n'* ]] || return 1
 		seen+="${row}"$'\n'
 	done <<<"${snapshot}"
 }
 
 ifa_repo_dependency_fault_capture_partition_leases() {
-	local cell="$1" reducer_pid="$2" output_var="$3" snapshot query_rc
+	local cell="$1" reducer_pid="$2" output_var="$3" snapshot query_rc owner_re
 	[[ "${cell}" =~ ^[a-z0-9_]+$ && "${reducer_pid}" =~ ^[1-9][0-9]*$ && "${output_var}" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]] || return 2
+	owner_re="$(ifa_repo_dependency_fault_owner_re "${reducer_pid}")"
 	if snapshot="$(ifa_det_pg "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" \
-		"SELECT COALESCE(string_agg(projection_domain || '|' || partition_id::text || '|' || partition_count::text || '|' || lease_owner, E'\\n' ORDER BY partition_id, partition_count, lease_owner), '') FROM shared_projection_partition_leases WHERE projection_domain = 'repo_dependency' AND lease_expires_at > CURRENT_TIMESTAMP AND lease_owner ~ '^repo-dependency-projection-runner:[A-Za-z0-9._-]+:${reducer_pid}:[0-9a-f]{32}/worker-[0-9]+-of-[1-9][0-9]*$';" \
+		"SELECT COALESCE(string_agg(projection_domain || '|' || partition_id::text || '|' || partition_count::text || '|' || lease_owner, E'\\n' ORDER BY partition_id, partition_count, lease_owner), '') FROM shared_projection_partition_leases WHERE projection_domain = 'repo_dependency' AND lease_expires_at > CURRENT_TIMESTAMP AND lease_owner ~ '${owner_re}';" \
 		"${compose_file}")"; then
 		:
 	else
@@ -55,14 +84,15 @@ ifa_repo_dependency_fault_require_partition_lease_subset() {
 }
 
 ifa_repo_dependency_fault_assert_no_active_partition_leases() {
-	local cell="$1" reducer_pid="$2" remaining query_rc
+	local cell="$1" reducer_pid="$2" remaining query_rc owner_re
 	[[ "${cell}" =~ ^[a-z0-9_]+$ && "${reducer_pid}" =~ ^[1-9][0-9]*$ ]] || return 2
 	if kill -0 "${reducer_pid}" >/dev/null 2>&1; then
 		printf '%s: refusing dead-owner lease verification while reducer PID %s is live\n' "${cell}" "${reducer_pid}" >&2
 		return 1
 	fi
+	owner_re="$(ifa_repo_dependency_fault_owner_re "${reducer_pid}")"
 	if remaining="$(ifa_det_pg "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" \
-		"SELECT count(*) FROM shared_projection_partition_leases WHERE projection_domain = 'repo_dependency' AND lease_expires_at > CURRENT_TIMESTAMP AND lease_owner ~ '^repo-dependency-projection-runner:[A-Za-z0-9._-]+:${reducer_pid}:[0-9a-f]{32}/worker-[0-9]+-of-[1-9][0-9]*$';" \
+		"SELECT count(*) FROM shared_projection_partition_leases WHERE projection_domain = 'repo_dependency' AND lease_expires_at > CURRENT_TIMESTAMP AND lease_owner ~ '${owner_re}';" \
 		"${compose_file}")"; then
 		:
 	else
@@ -230,6 +260,7 @@ cell_baseline_repo_dependency() {
 	capture_digest "${cell}"
 	teardown_cell "${cell}"
 	wall_times[${cell}]=$(( $(date +%s) - cell_start ))
+	printf '%s: cell wall time: %ss\n' "${cell}" "${wall_times[${cell}]}"
 }
 
 cell_killworker_repo_dependency() {
@@ -262,6 +293,7 @@ cell_killworker_repo_dependency() {
 	assert_matches_baseline "${cell}" baseline_repo_dependency
 	teardown_cell "${cell}"
 	wall_times[${cell}]=$(( $(date +%s) - cell_start ))
+	printf '%s: cell wall time: %ss\n' "${cell}" "${wall_times[${cell}]}"
 }
 
 cell_failgraphwrite_repo_dependency() {
@@ -301,4 +333,5 @@ cell_failgraphwrite_repo_dependency() {
 	assert_matches_baseline "${cell}" baseline_repo_dependency
 	teardown_cell "${cell}"
 	wall_times[${cell}]=$(( $(date +%s) - cell_start ))
+	printf '%s: cell wall time: %ss\n' "${cell}" "${wall_times[${cell}]}"
 }

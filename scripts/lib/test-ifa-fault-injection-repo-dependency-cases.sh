@@ -365,6 +365,7 @@ run_ifa_fault_injection_repo_dependency_cases() {
 	release_line="$(rg -n --fixed-strings -- 'ifa_fault_release_shared_intent_lock' "${cells}" | cut -d: -f1)"
 	[[ "${lock_line}" -lt "${claim_line}" && "${claim_line}" -lt "${release_line}" ]] || return 1
 	run_ifa_repo_dependency_partition_lease_controls || return 1
+	run_ifa_repo_dependency_lease_owner_shapes || return 1
 	run_ifa_repo_dependency_fault_marker_wait_controls || return 1
 	run_ifa_repo_dependency_fault_script_json_controls || return 1
 	run_ifa_repo_dependency_graph_terminal_owner_controls || return 1
