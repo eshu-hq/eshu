@@ -95,6 +95,7 @@ func TestCrossplaneSatisfiedByRedriveClosesXRDLagWindowLive(t *testing.T) {
 	t.Run("terminal_target_claimed", testCrossplaneRedriveTerminalTargetStaysClaimedForCatchUpLive)
 	t.Run("stale_sweep_single_scheduling", testCrossplaneRedriveStaleSweepReplayKeepsSingleSchedulingLive)
 	t.Run("delta_base_leg", testCrossplaneRedriveDeltaBaseClaimDiscoveredLive)
+	t.Run("quiet_delta_replay", testCrossplaneQuietDeltaReplaySurvivesSupersessionLive)
 }
 
 func testCrossplaneSatisfiedByRedriveClosesXRDLagWindowLive(t *testing.T) {

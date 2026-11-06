@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -17,6 +18,11 @@ import (
 // the active generation for the scope. Returns (true, nil) if current,
 // (false, nil) if superseded, or (false, err) on lookup failure.
 type GenerationFreshnessCheck = reducercontract.GenerationFreshnessCheck
+
+// ActiveGenerationID returns the scope's currently active generation id,
+// reporting found=false when the scope is unknown or has no active
+// generation. It backs the superseded-intent rebind in execute (#10106).
+type ActiveGenerationID = reducercontract.ActiveGenerationID
 
 // PriorGenerationCheck reports whether the scope has a generation strictly
 // older than the given generation in activation order, so the answer does not
@@ -68,6 +74,10 @@ type Runtime struct {
 	registry        Registry
 	intents         []reducercontract.Intent
 	GenerationCheck GenerationFreshnessCheck // nil disables the guard
+	// ActiveGeneration resolves a scope's active generation for the
+	// superseded-intent rebind in execute (#10106). Nil disables the
+	// rebind: superseded intents keep the terminal superseded result.
+	ActiveGeneration ActiveGenerationID
 }
 
 // NewRuntime constructs a reducer runtime over the supplied registry.
@@ -344,11 +354,13 @@ func (r *Runtime) markFailed(position int, completedAt time.Time, failureClass, 
 
 func (r *Runtime) execute(ctx context.Context, intent reducercontract.Intent) (reducercontract.Result, error) {
 	// Generation guard: skip stale intents before touching Neo4j.
+	reboundFrom := ""
 	if r.GenerationCheck != nil {
-		current, err := r.GenerationCheck(ctx, intent.ScopeID, intent.GenerationID)
+		current, from, err := r.generationCurrent(ctx, &intent)
 		if err != nil {
-			return reducercontract.Result{}, fmt.Errorf("generation freshness check: %w", err)
+			return reducercontract.Result{}, err
 		}
+		reboundFrom = from
 		if !current {
 			return reducercontract.Result{
 				IntentID:        intent.IntentID,
@@ -369,5 +381,81 @@ func (r *Runtime) execute(ctx context.Context, intent reducercontract.Intent) (r
 		return reducercontract.Result{}, fmt.Errorf("domain %q has no handler", intent.Domain)
 	}
 
-	return def.Handler.Handle(ctx, intent)
+	result, err := def.Handler.Handle(ctx, intent)
+	if err == nil && reboundFrom != "" {
+		note := fmt.Sprintf(
+			"rebound from superseded generation %s to active generation %s (#10106)",
+			reboundFrom, intent.GenerationID,
+		)
+		if result.EvidenceSummary != "" {
+			result.EvidenceSummary += "; " + note
+		} else {
+			result.EvidenceSummary = note
+		}
+	}
+	return result, err
+}
+
+// maxGenerationRebounds bounds how many times one execute rebinds a
+// scope-keyed intent onto its scope's newly active generation (#10106).
+// Each rebound consumes a real activation that committed inside the window
+// between two primary-key reads, so exhausting the budget means sustained
+// activation churn, never a hot loop.
+const maxGenerationRebounds = 3
+
+// generationCurrent reports whether intent may run against its (possibly
+// rebound) generation. A superseded Crossplane SATISFIED_BY intent rebinds
+// to the scope's active generation instead of dropping (#10106): that
+// domain's intent is keyed per scope (its EntityKey names only the scope)
+// and its handler materializes the scope's active snapshot — claims from
+// the active generation overlaid on its delta base, resolved against every
+// active XRD — so running it under the successor generation computes
+// exactly what the successor's own intent would. A quiet delta derives no
+// such intent of its own (the projector builds intents only from a
+// generation's own facts), so without the rebind a replay scheduled
+// against the predecessor is lost until an unrelated future generation.
+// Every other domain's intent carries generation-scoped facts and keeps
+// the terminal superseded result. reboundFrom names the generation the
+// intent was scheduled against when a rebind happened, "" otherwise.
+func (r *Runtime) generationCurrent(
+	ctx context.Context,
+	intent *reducercontract.Intent,
+) (current bool, reboundFrom string, err error) {
+	for rebounds := 0; ; rebounds++ {
+		current, err := r.GenerationCheck(ctx, intent.ScopeID, intent.GenerationID)
+		if err != nil {
+			return false, reboundFrom, fmt.Errorf("generation freshness check: %w", err)
+		}
+		if current {
+			return true, reboundFrom, nil
+		}
+		if r.ActiveGeneration == nil || intent.Domain != reducercontract.DomainCrossplaneSatisfiedByMaterialization {
+			return false, reboundFrom, nil
+		}
+		if rebounds >= maxGenerationRebounds {
+			active, _, _ := r.ActiveGeneration(ctx, intent.ScopeID)
+			return false, reboundFrom, reducercontract.GenerationRebindExhaustedError{
+				ScopeID:            intent.ScopeID,
+				GenerationID:       intent.GenerationID,
+				ActiveGenerationID: strings.TrimSpace(active),
+				Rebounds:           rebounds,
+			}
+		}
+		active, found, err := r.ActiveGeneration(ctx, intent.ScopeID)
+		if err != nil {
+			return false, reboundFrom, fmt.Errorf("active generation lookup: %w", err)
+		}
+		active = strings.TrimSpace(active)
+		if !found || active == "" || active == intent.GenerationID {
+			// No successor to carry the work to: the scope has no active
+			// generation, or the lookup and the freshness check raced one
+			// activation apart and already agree. The superseded result
+			// stands, exactly as before the rebind existed.
+			return false, reboundFrom, nil
+		}
+		if reboundFrom == "" {
+			reboundFrom = intent.GenerationID
+		}
+		intent.GenerationID = active
+	}
 }

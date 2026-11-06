@@ -80,7 +80,9 @@ See `doc.go` for the godoc contract.
 
 All three fences are required by the design and enforced in
 `ListCrossplaneRedriveTargetScopesQuery` / `sweepJoinKey`. The delta-base
-leg (fence 4) reaches the claims the active-generation fence hides:
+leg (fence 4) reaches the claims the active-generation fence hides, and
+the execution fence (fence 5) keeps a scheduled replay alive across a
+same-scope activation that lands before the reducer runs it:
 
 1. **Active-generation fence**: the target-discovery join requires
    `scope.active_generation_id = fact.generation_id`, and `sweepJoinKey`
@@ -165,11 +167,10 @@ leg (fence 4) reaches the claims the active-generation fence hides:
    - A scope that turns delta-active after its active page ran was
      full-active at that moment, so the active leg scheduled it against
      that generation. If the delta activates before the reducer runs the
-     intent, the reducer's generation check drops the intent as superseded,
-     and a delta that touches no K8s file derives none of its own. That
-     scheduling-to-execution window predates #10094 (the active-only sweep
-     had it too); the leg order neither opens nor closes it. Tracked in
-     #10106; see the evidence note.
+     intent, fence 5 below re-runs the intent against the delta's active
+     snapshot even though a delta that touches no K8s file derives none of
+     its own (#10106, closing the scheduling-to-execution window the
+     first version of this list recorded).
    - A scope that turns full-active after the lookup is dropped at
      execution by the base text's `is_delta` and `status = 'active'`
      predicates. Its new full generation's own claims derive its own intent.
@@ -180,6 +181,29 @@ leg (fence 4) reaches the claims the active-generation fence hides:
    (`generationOwnedFacts` in `internal/projector/runtime/projection.go`).
    This amends the arbiter's first race wording; see the evidence note.
    `TestRunLegsReadsDeltaGenerationsOnceAfterEveryActivePage` pins the order.
+
+5. **Execution rebind (#10106)**: a SATISFIED_BY intent is keyed per scope,
+   not per generation — its `EntityKey` names only the scope, and the
+   handler materializes the scope's active snapshot. Two mechanisms keep
+   such an intent runnable when its scheduling generation is superseded
+   before execution. The claim-time inactive-generation sweep exempts the
+   domain (`supersedeInactiveReducerGenerationsPredicate`), so a
+   still-pending replay stays claimable instead of being terminalized.
+   `Runtime.execute` then rebinds the claimed intent to the scope's active
+   generation (`ActiveGeneration`, `postgres.NewActiveGenerationID`) and
+   re-checks freshness before dispatch; the handler writes under the
+   successor generation and the result's evidence summary records the
+   rebind. The rebind is this domain only: every other domain's intent
+   carries generation-scoped facts and keeps the terminal superseded
+   result. Activation churn that outruns the bounded rebind budget
+   returns the retryable, non-counting `GenerationRebindExhaustedError`
+   instead of dropping the intent. The same-scope conflict key still
+   fences two generations' items from executing concurrently, and a
+   successor that derived its own intent converges idempotently (retract,
+   then the same MERGE rows). Pinned by the `quiet_delta_replay` subtest
+   of `TestCrossplaneSatisfiedByRedriveClosesXRDLagWindowLive` (pending
+   and claimed interleavings plus concurrent claimers over the real
+   queue) and the `TestRuntimeExecuteRebind*` unit tests.
 
 Trigger: `ProjectorQueue.Ack` calls `runCrossplaneRedriveHook` AFTER its own
 transaction commits (never inside it), which calls `Sweep`. The hook is a

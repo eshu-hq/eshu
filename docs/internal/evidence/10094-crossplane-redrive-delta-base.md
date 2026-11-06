@@ -91,7 +91,14 @@ leg.
   scheduling-to-execution window is not introduced by #10094: the active-only
   sweep had it for the same interleaving, and no leg order can close it,
   because it opens after discovery. It is tracked in #10106 and not fixed
-  here.
+  here. **Closed later by #10106**: the claim-time supersede sweep now
+  exempts this scope-keyed domain and `Runtime.execute` rebinds the
+  intent to the scope's active generation, so the scheduled replay runs
+  against the delta's overlaid snapshot; see
+  `docs/internal/evidence/10106-quiet-delta-replay-rebind.md`. What
+  remains open after #10106 is only the same drop for other,
+  generation-scoped domains (correct for them today) and the
+  candidate-aggregation lookup cost tracked in #10200.
 - A scope that turns full-active after the lookup is dropped at execution by
   the base text's `is_delta` and `status = 'active'` predicates. Its new full
   generation's own claims derive its own intent.

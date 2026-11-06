@@ -34,5 +34,6 @@ func NewDefaultRuntime(handlers DefaultHandlers) (*Runtime, error) {
 		return nil, err
 	}
 	rt.GenerationCheck = handlers.GenerationCheck
+	rt.ActiveGeneration = handlers.ActiveGeneration
 	return rt, nil
 }

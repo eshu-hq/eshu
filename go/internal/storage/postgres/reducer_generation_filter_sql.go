@@ -130,6 +130,13 @@ const supersedeInactiveReducerGenerationsJoin = `ingestion_scopes AS scope,
 var supersedeInactiveReducerGenerationsPredicate = `stale.stage = 'reducer'
       AND stale.status IN ('pending', 'retrying', 'failed', 'dead_letter')
       AND ($2::text[] IS NULL OR stale.domain = ANY($2::text[]))
+      -- #10106: Crossplane SATISFIED_BY intents are keyed per scope, not
+      -- per generation: the handler materializes the scope's active
+      -- snapshot, and Runtime.execute rebinds a superseded intent onto
+      -- the active generation. Terminalizing the row here would drop a
+      -- replay a quiet delta superseded before execution, and the delta
+      -- derives no replacement intent of its own.
+      AND stale.domain <> 'crossplane_satisfied_by_materialization'
       AND scope.scope_id = stale.scope_id
       AND stale_generation.scope_id = stale.scope_id
       AND stale_generation.generation_id = stale.generation_id

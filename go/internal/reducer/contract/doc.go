@@ -30,6 +30,12 @@
 // intent until its generation activates instead of acking it as superseded
 // (issue #6686).
 //
+// [ActiveGenerationID] resolves a scope's active generation for the one
+// scope-keyed domain whose superseded intent the runtime rebinds onto the
+// successor generation instead of dropping (issue #10106); activation
+// churn past the rebind budget returns [GenerationRebindExhaustedError],
+// retryable under the same non-counting failure class.
+//
 // [DecideFirstGenerationRetract] (issue #8167) is the one predicate the
 // first-generation retract skip shares: only a first attempt whose
 // [PriorGenerationCheck] finds no strictly older generation skips, and the
