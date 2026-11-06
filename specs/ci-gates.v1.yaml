@@ -107,6 +107,8 @@ non_gate_workflows:
     reason: "manual six-shard calibration for #9100; evidence only, never a PR or main-push acceptance gate"
   - file: main-health.yml
     reason: "post-merge watcher on main (workflow_run + 6h schedule) that files the main-is-red issue and status; its script is gated by main-health-watcher, the workflow itself is not a PR gate"
+  - file: dirgate-main-alarm.yml
+    reason: "post-merge dirgate alarm on main (workflow_run of Build Test + manual dispatch) that comments the merged PR with the directory and missing trailer; never a PR gate"
   - file: bench.yml
     reason: "advisory perf benchmark + regression (BENCH_REGRESSION_ENFORCE=false); not a credential-free local-parity gate"
   - file: bench-baseline-refresh.yml

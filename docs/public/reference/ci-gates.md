@@ -39,7 +39,7 @@ An **Odù** is one of its scenarios: a set of recorded facts whose expected
 results are derived from the inputs rather than written by hand. See
 [the Ifá conformance platform](../concepts/ifa-conformance-platform.md).
 
-### Hygiene: Is the change well-formed? (60 gates)
+### Hygiene: Is the change well-formed? (61 gates)
 
 - `go-fmt` (blocking): Checks Go source is formatted with gofumpt so diffs stay consistent.
 - `go-lint` (blocking): Runs golangci-lint across the Go module to catch style and correctness issues.
@@ -69,6 +69,7 @@ results are derived from the inputs rather than written by hand. See
 - `ci-go-mod-download-retry` (blocking): Self-tests the go-mod-download retry wrapper: it must retry failed downloads and record each attempt.
 - `ci-go-install-retry` (blocking): Self-tests the go-install retry wrapper and fails if any workflow or local composite action runs a bare go install instead of it.
 - `main-health-watcher` (blocking): Self-tests the post-merge main-health watcher's logic for opening and closing its tracking issue.
+- `dirgate-main-alarm` (blocking): Self-tests the post-merge dirgate alarm's logic for commenting the merged PR with the directory and missing trailer.
 - `pre-enqueue-check` (blocking): Self-tests the pre-merge check, which confirms the reviewed head, merge cleanliness, checks and review threads before a merge.
 - `heredoc-budget` (blocking): Blocks new bash heredocs beyond a fixed budget to prevent a known bash 5.1+ pipe-buffer deadlock.
 - `claude-rules-scope` (blocking): Lints .claude/rules files for correct path-scoping so agent rules apply only where intended.
@@ -260,6 +261,7 @@ results are derived from the inputs rather than written by hand. See
 | `ci-go-mod-download-retry` | CI Go module pre-warm retry-script test mirror | hygiene | pre-pr | true | `bash scripts/test-ci-go-mod-download-retry.sh` | test.yml / go-core | 5 path(s): scripts/ci/go-mod-download-retry.sh, scripts/test-ci-go-mod-download-retry.sh, .github/workflows/test.yml, … |
 | `ci-go-install-retry` | CI Go tool install retry-script test mirror | hygiene | pre-pr | true | `bash scripts/test-ci-go-install-retry.sh` | test.yml / go-core | 7 path(s): scripts/ci/go-install-retry.sh, scripts/test-ci-go-install-retry.sh, scripts/lib/test-ci-go-install-retry-fake-go.sh, … |
 | `main-health-watcher` | Post-merge main-health watcher test mirror | hygiene | pre-pr | true | `bash scripts/test-main-health.sh` | verify-ci-gate-registry.yml / Verify ci-gate registry test mirror | 10 path(s): scripts/ci/main-health.sh, scripts/lib/main-health-policy.sh, scripts/test-main-health.sh, … |
+| `dirgate-main-alarm` | Post-merge dirgate full-sweep alarm test mirror | hygiene | pre-pr | true | `bash scripts/test-dirgate-main-alarm.sh` | verify-ci-gate-registry.yml / Verify ci-gate registry test mirror | 7 path(s): scripts/ci/dirgate-main-alarm.sh, scripts/test-dirgate-main-alarm.sh, scripts/gh-fake-dirgate-alarm.sh, … |
 | `pre-enqueue-check` | Pre-merge check test mirror | hygiene | pre-pr | true | `bash scripts/dev/test-pre-enqueue-check.sh` | verify-ci-gate-registry.yml / Verify ci-gate registry test mirror | 6 path(s): scripts/dev/pre-enqueue-check.sh, scripts/dev/test-pre-enqueue-check.sh, scripts/lib/test-pre-enqueue-check-*, … |
 | `openapi-surface` | Verify OpenAPI Surface | exactness | pre-pr | true | `bash scripts/verify-openapi.sh`<br>then self-test: `bash scripts/test-verify-openapi.sh && bash scripts/test-verify-openapi-subpackage.sh` | static-contract-gates.yml / Verify OpenAPI gate | 12 path(s): .github/static-contract-filters.yml, go/internal/query/**, go/internal/mcp/**, … |
 | `route-coverage` | Verify Route Coverage | exactness | pre-pr | true | `bash scripts/verify-route-coverage.sh`<br>then self-test: `bash scripts/test-verify-route-coverage.sh && bash scripts/test-gate-fetch-base-guard.sh` | static-contract-gates.yml / Verify route coverage gate | 9 path(s): .github/static-contract-filters.yml, go/internal/query/**, go/cmd/api/**, … |

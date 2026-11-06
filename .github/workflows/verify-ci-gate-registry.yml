@@ -71,6 +71,7 @@ jobs:
           scripts/test-verify-live-required-status-checks.sh
           scripts/test-resolve-required-gates-pr.sh
           scripts/test-main-health.sh
+          scripts/test-dirgate-main-alarm.sh
           scripts/dev/test-pre-enqueue-check.sh
           (cd go && go test ./internal/cigates -count=1)
           python3 scripts/ci/test_pr_scheduling.py

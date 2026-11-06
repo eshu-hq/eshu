@@ -577,3 +577,40 @@ gates:
       job: "Verify ci-gate registry test mirror"
     requirements: []
     ci_only_reason: ""
+
+  - id: dirgate-main-alarm
+    name: Post-merge dirgate full-sweep alarm test mirror
+    category: hygiene
+    layer: hygiene
+    purpose: "Self-tests the post-merge dirgate alarm's logic for commenting the merged PR with the directory and missing trailer."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "scripts/ci/dirgate-main-alarm.sh"
+      - "scripts/test-dirgate-main-alarm.sh"
+      # The mirror executes the fake helper; a fake-only change must select it.
+      - "scripts/gh-fake-dirgate-alarm.sh"
+      # The mirror asserts the alarm workflow's trigger, permissions and
+      # concurrency group, so an edit to the workflow must select it.
+      - ".github/workflows/dirgate-main-alarm.yml"
+      # The mirror's wiring assertion reads verify-ci-gate-registry.yml.
+      - ".github/workflows/verify-ci-gate-registry.yml"
+      # A registry edit can change gate selection.
+      - "specs/ci-gates.v1.yaml"
+      - "specs/ci-gates.d/**"
+    local:
+      # dirgate-main-alarm.sh has no non-mutating "real" mode against GitHub
+      # that a local run could use (it reads runs, jobs, logs and comments),
+      # so the hermetic mirror IS the verification: a fake `gh` on PATH serves
+      # recorded payloads for push-red, push-green, other-job-red, schedule,
+      # idempotent, no-PR fallback and broken-log shapes; the cases assert the
+      # comment/skip decisions, zero writes on every silent path, and the
+      # workflow's trigger, permissions and concurrency group. The live check
+      # is the workflow's dry-run dispatch.
+      command: "bash scripts/test-dirgate-main-alarm.sh"
+      test_command: ""
+    ci:
+      workflow: verify-ci-gate-registry.yml
+      job: "Verify ci-gate registry test mirror"
+    requirements: []
+    ci_only_reason: ""

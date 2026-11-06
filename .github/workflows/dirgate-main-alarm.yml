@@ -1,0 +1,75 @@
+name: Dirgate Main Alarm
+
+# Post-merge dirgate alarm (#10215). After #10214 scoped the dirgate absolute
+# check on pull_request and pre-push to the directories the change touched, the
+# full sweep that still runs on push to main is the only alarm for a lost
+# Dirgate-Growth trailer -- but a red main push notifies no one. This workflow
+# judges every completed push run of Build Test on main, and when its dirgate
+# job went RED it comments the merged PR with the directory and the missing
+# trailer (or opens one labeled fallback issue for a direct push). A clean
+# push produces nothing, and an unrelated red job or a broken non-RED dirgate
+# run stays silent.
+#
+# Like main-health.yml this is a trusted publisher: workflow_run always runs
+# the default-branch version, it checks out only the default branch, and it
+# never executes pull-request code. The decision logic lives in
+# scripts/ci/dirgate-main-alarm.sh, exercised hermetically by
+# scripts/test-dirgate-main-alarm.sh.
+#
+# Reading the result: this job exits 0 whenever the evaluation completed, red
+# or not, so the watcher never adds a red row of its own to main.
+# Dry run: Actions -> Dirgate Main Alarm -> Run workflow (dry_run defaults to
+# true) prints the decision and the writes it would make, and makes none.
+on:
+  workflow_run:
+    workflows:
+      - Build Test
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Print the decision and the writes it would make; write nothing.
+        type: boolean
+        default: true
+
+permissions:
+  actions: read
+  contents: read
+  issues: write
+  # The merged-PR lookup calls GET repos/{repo}/commits/{sha}/pulls, which
+  # requires the pull-requests scope; without it the notify path 403s.
+  pull-requests: read
+
+jobs:
+  alarm:
+    # Allow-list, not deny-list: only a completed push run of Build Test on
+    # main in this repository wakes the alarm, or a manual dispatch. A run of
+    # a fork branch named `main`, and any pull_request run, never matches.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_run' &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.event == 'push')
+    concurrency:
+      group: dirgate-main-alarm
+      cancel-in-progress: false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out trusted default-branch policy
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+
+      - name: Install ripgrep
+        run: scripts/ci/install-apt-packages.sh ripgrep
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Judge the push run's dirgate job
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DIRGATE_ALARM_DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && 'true' || 'false' }}
+        run: scripts/ci/dirgate-main-alarm.sh
