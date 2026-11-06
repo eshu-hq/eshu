@@ -1,9 +1,11 @@
 # SAML verifier panic recovery (#10212)
 
-`CrewjamSAMLVerifier.VerifySAMLResponse` now wraps the crewjam call in a
-deferred `recover()` and `go.mod` replaces `github.com/crewjam/saml` with the
-`eshu-hq/saml` fork (GO-2026-6909). The ACS handler's control flow is unchanged:
-any verifier error already takes the `assertion_invalid` audit path and a `401`.
+`CrewjamSAMLVerifier.VerifySAMLResponse` now runs the whole verify path
+(response decoding, metadata parsing, the crewjam call, and claim extraction)
+under a deferred `recover()`, and `go.mod` replaces `github.com/crewjam/saml`
+with the `eshu-hq/saml` fork (GO-2026-6909). The ACS handler's control flow is
+unchanged: any verifier error already takes the `assertion_invalid` audit path
+and a `401`.
 
 No-Regression Evidence: the change adds one deferred closure per SAML login
 response and no query, lock, queue, or graph write. SAML sign-in is opt-in

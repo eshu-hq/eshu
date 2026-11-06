@@ -14,6 +14,9 @@
 #   red:   dropping the replace breaks the build, not the tests  -> exit 1
 #   red:   tests that fail even with the replacement             -> exit 1
 #   red:   a local-path replace                                  -> exit 1
+#   red:   an advisory ID that is not GO-YYYY-NNNN              -> exit 1
+#   red:   jq is on PATH but fails (exit 127)                    -> exit 1
+#   red:   jq is missing from PATH                               -> exit 1
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -74,8 +77,25 @@ replaced_module='{"Path":"example.com/up","Version":"v1.0.0","Replace":{"Path":"
 local_module='{"Path":"example.com/up","Version":"v1.0.0","Replace":{"Path":"../fork"}}'
 osv_open='{"osv":{"id":"GO-2026-6909","affected":[{"package":{"name":"example.com/up"},"ranges":[{"type":"SEMVER","events":[{"introduced":"0"}]}]}]}}'
 osv_fixed='{"osv":{"id":"GO-2026-6909","affected":[{"package":{"name":"example.com/up"},"ranges":[{"type":"SEMVER","events":[{"introduced":"0"},{"fixed":"1.1.0"}]}]}]}}'
+osv_badid='{"osv":{"id":"GO-2026-6909.*","affected":[{"package":{"name":"example.com/up"},"ranges":[{"type":"SEMVER","events":[{"introduced":"0"}]}]}]}}'
 osv_unknown='{"osv":{"id":"GO-2026-7777","affected":[{"package":{"name":"example.com/up"},"ranges":[{"type":"SEMVER","events":[{"introduced":"0"}]}]}]}}'
 config='{"config":{"scan_mode":"query"}}'
+
+# jq that is found on PATH but fails, as a broken install or a half-restored
+# runner image would. The script must go red, not report "0 replaced modules".
+badjq_bin="${tmp_root}/badjq-bin"
+mkdir -p "${badjq_bin}"
+printf '#!/usr/bin/env bash\necho "jq: command not found" >&2\nexit 127\n' >"${badjq_bin}/jq"
+chmod +x "${badjq_bin}/jq"
+
+# PATH with every tool the script needs except jq, to prove the up-front check.
+nojq_bin="${tmp_root}/nojq-bin"
+mkdir -p "${nojq_bin}"
+for tool in bash env git mktemp rm sort paste dirname cat mkdir cp grep; do
+	ln -s "$(command -v "${tool}")" "${nojq_bin}/${tool}"
+done
+ln -s "${bin}/go" "${nojq_bin}/go"
+ln -s "${bin}/govulncheck" "${nojq_bin}/govulncheck"
 
 # run_case <name> <want-exit> <modules-json> <query-json-or-empty> <replaced-test> <upstream-test> <want-message>
 # want-message must appear in the output, so a red case cannot pass for the
@@ -86,7 +106,7 @@ run_case() {
 	printf '%s\n%s\n' "${config}" "${osv}" >"${tmp_root}/query.json"
 	out="${tmp_root}/out.txt"
 	set +e
-	PATH="${bin}:${PATH}" STUB_MODULES="${tmp_root}/modules.json" STUB_QUERY="${tmp_root}/query.json" \
+	PATH="${CASE_PATH:-${bin}:${PATH}}" STUB_MODULES="${tmp_root}/modules.json" STUB_QUERY="${tmp_root}/query.json" \
 		STUB_REPLACED_TEST="${replaced}" STUB_UPSTREAM_TEST="${upstream}" \
 		bash "${script}" "${module}" >"${out}" 2>&1
 	got=$?
@@ -112,6 +132,9 @@ run_case "tests that pass on upstream are red" 1 "${replaced_module}" "${osv_ope
 run_case "build break instead of test failure is red" 1 "${replaced_module}" "${osv_open}" pass build "broke the build instead of failing the tests"
 run_case "tests that fail with the replacement are red" 1 "${replaced_module}" "${osv_open}" fail fail "regression tests fail with the replacement in place"
 run_case "local-path replace is red" 1 "${local_module}" "" pass pass "replaced by a local path"
+run_case "malformed advisory ID is red" 1 "${replaced_module}" "${osv_badid}" pass fail "is not of the form GO-YYYY-NNNN"
+CASE_PATH="${badjq_bin}:${bin}:${PATH}" run_case "jq that fails is red, not zero modules" 1 "${replaced_module}" "${osv_open}" pass fail "jq failed while listing replaced modules"
+CASE_PATH="${nojq_bin}" run_case "missing jq is red" 1 "${replaced_module}" "${osv_open}" pass fail "required tool not found on PATH: jq"
 
 if [ "${failures}" -gt 0 ]; then
 	printf 'test-govulncheck-replace-recheck: %d failure(s)\n' "${failures}" >&2

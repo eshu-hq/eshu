@@ -28,7 +28,9 @@
 # advisory passes with no tests required.
 #
 # Usage: govulncheck-replace-recheck.sh [module-dir]   (default: .)
-# Needs: go, govulncheck, jq, git on PATH; network for the database.
+# Needs: go, govulncheck, jq, git on PATH; network for the database. A missing
+# tool, or a jq that fails, is a failure: this step exists to fail closed, so it
+# never reports "0 replaced modules" because it could not read the list.
 # Exit status: 0 when every replaced module is covered, 1 otherwise, 64 on
 # bad usage.
 set -euo pipefail
@@ -52,14 +54,35 @@ note() {
 	printf 'govulncheck-replace-recheck: %s\n' "$*"
 }
 
+# Fail closed up front when a required tool is absent. A jq that is present but
+# broken is caught where jq runs, below.
+for tool in go govulncheck jq git; do
+	if ! command -v "${tool}" >/dev/null 2>&1; then
+		fail "required tool not found on PATH: ${tool}"
+	fi
+done
+if [ "${failures}" -gt 0 ]; then
+	exit 1
+fi
+
 # recheck_advisory proves one advisory against one replaced module.
 recheck_advisory() {
 	local path="$1" version="$2" id="$3" query_out="$4"
 	local fixed pattern files pkgs dir
 
-	fixed="$(jq -r --arg id "${id}" --arg path "${path}" \
+	# The ID becomes part of a regex and a go test -run pattern: accept only the
+	# Go vulnerability database shape.
+	if ! [[ "${id}" =~ ^GO-[0-9]{4}-[0-9]+$ ]]; then
+		fail "advisory ID '${id}' for ${path}@${version} is not of the form GO-YYYY-NNNN"
+		return
+	fi
+
+	if ! fixed="$(jq -r --arg id "${id}" --arg path "${path}" \
 		'select(.osv != null and .osv.id == $id) | .osv.affected[]? | select(.package.name == $path) | .ranges[]? | .events[]? | .fixed // empty' \
-		"${query_out}" | sort -u | paste -sd, -)"
+		"${query_out}" | sort -u | paste -sd, -)"; then
+		fail "jq failed while reading the fixed versions of ${id} for ${path}@${version}"
+		return
+	fi
 	if [ -n "${fixed}" ]; then
 		fail "${id} affects ${path}@${version} and has a fixed version (${fixed}); upgrade and drop the replace instead of keeping a fork"
 		return
@@ -111,6 +134,16 @@ recheck_advisory() {
 modules_json="${tmp_root}/modules.json"
 go list -m -json all >"${modules_json}"
 
+# Write the replaced-module list to a file instead of feeding the loop through a
+# process substitution: set -e cannot see a failed `< <(jq ...)`, which would
+# read as zero replaced modules and pass.
+replaced_tsv="${tmp_root}/replaced.tsv"
+if ! jq -r 'select(.Replace != null) | [.Path, (.Version // "-"), .Replace.Path, (.Replace.Version // "-")] | @tsv' \
+	"${modules_json}" >"${replaced_tsv}"; then
+	fail "jq failed while listing replaced modules from go list -m -json all"
+	exit 1
+fi
+
 replaced_count=0
 while IFS=$'\t' read -r path version repl_path repl_version; do
 	[ -n "${path}" ] || continue
@@ -132,7 +165,10 @@ while IFS=$'\t' read -r path version repl_path repl_version; do
 		fail "govulncheck query failed for ${path}@${version}"
 		continue
 	fi
-	ids="$(jq -r 'select(.osv != null) | .osv.id' "${query_out}" | sort -u)"
+	if ! ids="$(jq -r 'select(.osv != null) | .osv.id' "${query_out}" | sort -u)"; then
+		fail "jq failed while reading the advisories for ${path}@${version}"
+		continue
+	fi
 	if [ -z "${ids}" ]; then
 		note "OK ${path}@${version} (replaced by ${repl_path}@${repl_version}): no advisory against the original module"
 		continue
@@ -140,7 +176,7 @@ while IFS=$'\t' read -r path version repl_path repl_version; do
 	while IFS= read -r id; do
 		recheck_advisory "${path}" "${version}" "${id}" "${query_out}"
 	done <<<"${ids}"
-done < <(jq -r 'select(.Replace != null) | [.Path, (.Version // "-"), .Replace.Path, (.Replace.Version // "-")] | @tsv' "${modules_json}")
+done <"${replaced_tsv}"
 
 if [ "${failures}" -gt 0 ]; then
 	printf 'govulncheck-replace-recheck: %d failure(s) across %d replaced module(s)\n' "${failures}" "${replaced_count}" >&2

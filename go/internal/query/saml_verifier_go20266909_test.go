@@ -91,6 +91,7 @@ func go20266909KeyAndCert(t *testing.T, cn string, now time.Time) (*rsa.PrivateK
 
 type go20266909Case struct {
 	name        string
+	omitIssuer  bool
 	omitSubject bool
 	omitSCData  bool
 	omitCond    bool
@@ -118,6 +119,10 @@ func go20266909Cases() []go20266909Case {
 		{name: "saml_nameid_then_foreign_nameid", nameIDs: go20266909GoodNameID + go20266909EvilNameID, wantNameID: "alice"},
 		{name: "foreign_nameid_then_saml_nameid", nameIDs: go20266909EvilNameID + go20266909GoodNameID, wantNameID: "alice"},
 		{name: "no_nameid", nameIDs: "", wantNameID: ""},
+		// An assertion with no Issuer must be rejected as an ordinary error. It
+		// passes on upstream and on the fork alike, like control_valid, and pins
+		// the advisory's Issuer row so a future crewjam bump cannot regress it.
+		{name: "no_issuer", omitIssuer: true, nameIDs: go20266909GoodNameID, wantRejected: true},
 	}
 }
 
@@ -127,7 +132,9 @@ func (c go20266909Case) assertionXML(now time.Time) string {
 	later := now.Add(5 * time.Minute).UTC().Format(time.RFC3339)
 	var b strings.Builder
 	b.WriteString(`<saml:Assertion ` + ns + ` ID="assertion-1" IssueInstant="` + ts + `" Version="2.0">`)
-	b.WriteString(`<saml:Issuer>` + samlFixtureIDP + `</saml:Issuer>`)
+	if !c.omitIssuer {
+		b.WriteString(`<saml:Issuer>` + samlFixtureIDP + `</saml:Issuer>`)
+	}
 	if !c.omitSubject {
 		b.WriteString(`<saml:Subject>` + c.nameIDs)
 		b.WriteString(`<saml:SubjectConfirmation Method="urn:oasis:names:tc:SAML:2.0:cm:bearer">`)

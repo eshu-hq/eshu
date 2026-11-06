@@ -285,10 +285,10 @@ const samlVerifierMeterName = "eshu/go/internal/query"
 const samlVerifierPanicsMetric = "eshu_dp_query_saml_verifier_panics_total"
 
 // ErrSAMLVerifierPanic is returned by CrewjamSAMLVerifier.VerifySAMLResponse
-// when the crewjam/saml library panicked while validating a response. The ACS
+// when anything on the verify path panicked, normally inside crewjam/saml. The ACS
 // handler treats it like any other verifier error: a 401 and an
 // assertion_invalid governance-audit event.
-var ErrSAMLVerifierPanic = errors.New("saml verifier: recovered panic in crewjam/saml")
+var ErrSAMLVerifierPanic = errors.New("saml verifier: recovered panic while verifying a SAML response")
 
 var (
 	samlVerifierInstrumentsOnce sync.Once
@@ -306,7 +306,7 @@ func initSAMLVerifierInstruments() {
 		var err error
 		samlVerifierPanics, err = meter.Int64Counter(
 			"eshu_dp_query_saml_verifier_panics_total",
-			metric.WithDescription("Panics recovered inside the crewjam/saml library while verifying a SAML response"),
+			metric.WithDescription("Panics recovered while verifying a SAML response, normally inside the crewjam/saml library"),
 		)
 		if err != nil {
 			samlVerifierPanics = nil
@@ -345,7 +345,7 @@ func recordSAMLVerifierPanic(ctx context.Context, providerConfigID string, recov
 	if samlVerifierPanics != nil {
 		samlVerifierPanics.Add(ctx, 1)
 	}
-	slog.ErrorContext(ctx, "saml verifier: recovered panic in crewjam/saml; login denied",
+	slog.ErrorContext(ctx, "saml verifier: recovered panic while verifying a SAML response; login denied",
 		slog.String("provider_config_id", providerConfigID),
 		slog.Any("panic", recovered),
 		slog.String("stack", string(stack)),

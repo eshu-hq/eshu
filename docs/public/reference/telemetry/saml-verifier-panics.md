@@ -11,16 +11,17 @@ that gets through, so a login fails closed instead of dropping the connection.
 
 | Metric | Type | Labels | Reading it |
 | --- | --- | --- | --- |
-| `eshu_dp_query_saml_verifier_panics_total` | counter | none | Panics recovered inside `crewjam/saml` while verifying a SAML response. The expected value is 0. Any increase means the identity provider sent an assertion that the fork still dereferences badly: a library defect to report, not an attack signature on its own. |
+| `eshu_dp_query_saml_verifier_panics_total` | counter | none | Panics recovered while verifying a SAML response. The recover covers the whole verify path (response decoding, metadata parsing, `crewjam/saml`, and Eshu's claim extraction), so the metric does not say which part failed; the logged `stack` does. The expected value is 0. A panic inside `crewjam/saml` usually means the identity provider sent an assertion the fork still dereferences badly: a defect to report, not an attack signature on its own. |
 
 ## What an operator sees when it fires
 
 - The browser gets the same `401` every other failed SAML login gets.
 - The governance audit records an `identity_authentication` event with reason
   code `assertion_invalid`.
-- The API log carries an error line, `saml verifier: recovered panic in
-  crewjam/saml; login denied`, with `provider_config_id`, `panic`, and `stack`
-  attributes. The stack names the library line that panicked.
+- The API log carries an error line, `saml verifier: recovered panic while
+  verifying a SAML response; login denied`, with `provider_config_id`,
+  `panic`, and `stack` attributes. The stack names the line that panicked, in
+  the library or in Eshu.
 - The AuthnRequest is spent, because the ACS handler consumes it before it
   verifies the response. The user starts the login again.
 

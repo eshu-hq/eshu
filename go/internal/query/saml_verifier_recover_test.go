@@ -78,7 +78,7 @@ func TestVerifySAMLResponseRecoversCrewjamPanic(t *testing.T) {
 		t.Fatalf("assertion = %#v, want zero value after a panic", got)
 	}
 	logged := logs.String()
-	for _, want := range []string{"recovered panic in crewjam/saml", "provider_config_id=provider_a", "nil pointer dereference", "saml_verifier_recover_test.go"} {
+	for _, want := range []string{"recovered panic while verifying a SAML response", "provider_config_id=provider_a", "nil pointer dereference", "saml_verifier_recover_test.go"} {
 		if !strings.Contains(logged, want) {
 			t.Fatalf("log missing %q:\n%s", want, logged)
 		}
