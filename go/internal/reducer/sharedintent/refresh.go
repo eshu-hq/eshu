@@ -81,12 +81,16 @@ func DeltaScopeRepositorySet(repositoryIDs []string) map[string]struct{} {
 //     the whole repository deletes every UNCHANGED file's edge with nothing left
 //     to restore it: silent wrong graph, no error, no dead letter. An empty list
 //     instead reaches collectDeltaFilePaths
-//     (storage/cypher/edge/writer/retract_scope.go), which rejects it before any
-//     statement runs, so the partition fails and the intent dead-letters. That
-//     is the intended outcome -- a dead letter an operator can see beats a graph
-//     that quietly lost edges. A repository reaches this state when its changed
-//     paths cannot be qualified: no local_path on the repository fact, or a
-//     symlinked repos root whose targets normalizeSnapshotRelativePaths drops.
+//     (storage/cypher/edge/writer/retract_scope.go), which rejects it with a
+//     typed UnusableDeltaScopeError before any statement runs; the
+//     shared-projection worker then quarantines that refresh intent into
+//     shared_projection_unroutable_intents and completes it (#10069). That
+//     durable row is the intended outcome -- a dead letter an operator can see
+//     beats a graph that quietly lost edges -- and completing the refresh opens
+//     the fence for the repo's per-edge rows on the next cycle. A repository
+//     reaches this state when its changed paths cannot be qualified: no
+//     local_path on the repository fact, or a symlinked repos root whose
+//     targets normalizeSnapshotRelativePaths drops.
 //
 //   - On a FULL generation, never delta-scoped, even when a delta-generation
 //     repository shares the scope. hasDelta is scope-wide, so gating on it would

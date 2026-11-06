@@ -273,6 +273,13 @@ func TestUnusableDeltaRefreshFailsClosedInsteadOfRetractingRepoWide(t *testing.T
 			if !strings.Contains(err.Error(), "delta retract requires delta_file_paths") {
 				t.Fatalf("RetractEdges() error = %v, want it to name the empty delta_file_paths rejection", err)
 			}
+			// The worker quarantines on the error's TYPE, not its text, so a
+			// transient backend fault can never be terminalized by mentioning
+			// delta paths (#10069). The rejection must stay typed through the
+			// dispatch chain.
+			if !sharedintent.IsUnusableDeltaScopeError(err) {
+				t.Fatalf("RetractEdges() error = %v (%T), want the typed unusable-delta rejection the shared worker quarantines on", err, err)
+			}
 			// The dead letter is the whole point of failing closed, so it has
 			// to say which repository an operator should look at.
 			if !strings.Contains(err.Error(), unusableDeltaRepoID) {

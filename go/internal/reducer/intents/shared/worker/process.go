@@ -103,6 +103,14 @@ type PartitionProcessResult struct {
 	// for a repo means its refresh intent is not completing — a stall signal,
 	// distinct from readiness-blocked and terminal-no-endpoint.
 	RefreshFenceDeferred int
+	// UnusableDeltaDeadLettered counts refresh intents completed this cycle
+	// without retracting because their delta file scope was unusable (#10069).
+	// Each one has a durable row in shared_projection_unroutable_intents under
+	// the unusable_delta_scope reason, so a non-zero value is expected
+	// briefly when a delta generation's changed paths cannot be qualified,
+	// not a stall: unlike RefreshFenceDeferred, these rows are complete and
+	// never re-selected.
+	UnusableDeltaDeadLettered int
 	// SelectionRounds counts the widen passes SelectPartitionBatch ran
 	// for this visit, including the final one (#7724 telemetry:
 	// per-visit widen rounds).
@@ -243,7 +251,7 @@ func ProcessPartitionOnce(
 	completedLatestRows, deferred := rwPlan.completedLatestRows, rwPlan.deferred
 
 	processingStart := time.Now()
-	writeResult, err := writeEdgesAndUnroutable(ctx, cfg, edgeWriter, unroutableWriter, retractRows, writeRows, evidenceSource)
+	writeResult, err := writeEdgesAndUnroutable(ctx, cfg, edgeWriter, unroutableWriter, retractRows, writeRows, evidenceSource, now)
 	if err != nil {
 		return PartitionProcessResult{
 			LeaseAcquired:             true,
@@ -255,6 +263,7 @@ func ProcessPartitionOnce(
 	}
 	retractDuration, writeDuration, upsertRows := writeResult.retractDuration, writeResult.writeDuration, writeResult.upsertRows
 
+	completedLatestRows = joinDeadLetteredForCompletion(completedLatestRows, writeResult.deadLettered)
 	processedIDs, markCompletedDuration, err := markSelectedBatchCompleted(ctx, cfg, reader, now, batch, completedLatestRows)
 	if err != nil {
 		return PartitionProcessResult{
@@ -278,6 +287,7 @@ func ProcessPartitionOnce(
 		AbsentAcceptanceTornWrites:   len(batch.AbsentKeptRows),
 		BlockedReadiness:             batch.BlockedCount + deferred,
 		RefreshFenceDeferred:         deferred,
+		UnusableDeltaDeadLettered:    len(writeResult.deadLettered),
 		MaxIntentWaitSeconds:         MaxIntentWaitSeconds(now, batch.LatestRows),
 		MaxBlockedIntentWaitSeconds:  MaxIntentWaitSeconds(now, batch.BlockedRows),
 		LeaseClaimDurationSeconds:    leaseDuration,
@@ -316,6 +326,33 @@ func idlePartitionProcessResult(
 		PrefetchStats:               batch.PrefetchStats,
 		AbsentAcceptanceTornWrites:  len(batch.AbsentKeptRows),
 	}
+}
+
+// joinDeadLetteredForCompletion appends dead-lettered rows to the completed
+// set for the same mark statement. Their unroutable record is already
+// durable, so completing them here is the terminal state, and the fence opens
+// for their repos' per-edge rows on the next cycle. Refresh rows are already
+// in the completed set, so only genuinely new ids join: a duplicate would
+// inflate ProcessedIntents and trip the marked-fewer-than-requested WARN
+// against the real store.
+func joinDeadLetteredForCompletion(
+	completedLatestRows, deadLettered []sharedintent.Row,
+) []sharedintent.Row {
+	if len(deadLettered) == 0 {
+		return completedLatestRows
+	}
+	completedSet := make(map[string]struct{}, len(completedLatestRows)+len(deadLettered))
+	for _, row := range completedLatestRows {
+		completedSet[row.IntentID] = struct{}{}
+	}
+	for _, row := range deadLettered {
+		if _, dup := completedSet[row.IntentID]; dup {
+			continue
+		}
+		completedSet[row.IntentID] = struct{}{}
+		completedLatestRows = append(completedLatestRows, row)
+	}
+	return completedLatestRows
 }
 
 // markSelectedBatchCompleted assembles the completed intent ids — stale,

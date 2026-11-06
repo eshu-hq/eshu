@@ -255,11 +255,17 @@ func retractRowRepositoryID(row sharedintent.Row) string {
 // only, so the generation's writes re-create only those files' edges. There is
 // no correct retract to run for it here: the file-scoped one has nothing to
 // bind, and the repo-wide one would delete every UNCHANGED file's edge with
-// nothing left to restore it. Failing the partition dead-letters the intent,
-// which an operator can see; the alternative loses graph edges silently. The
-// error names the repository so the dead letter is actionable -- the usual cause
-// is a repository fact with no local_path, or a symlinked repos root whose
-// changed paths normalizeSnapshotRelativePaths drops.
+// nothing left to restore it. The rejection is a typed
+// sharedintent.UnusableDeltaScopeError, and the shared-projection worker
+// quarantines the poisoned rows into shared_projection_unroutable_intents and
+// completes them (#10069) -- that durable row is the dead letter an operator
+// can see, and completing the refresh opens the fence for the repo's per-edge
+// rows on the next cycle. The alternative -- failing the partition and
+// retrying the same row every poll -- fences every repository behind the
+// poisoned row forever. The error names the repository so the dead letter is
+// actionable -- the usual cause is a repository fact with no local_path, or a
+// symlinked repos root whose changed paths normalizeSnapshotRelativePaths
+// drops.
 func collectDeltaFilePaths(rows []sharedintent.Row) ([]string, bool, error) {
 	seen := make(map[string]struct{})
 	hasDeltaScope := false
@@ -273,10 +279,7 @@ func collectDeltaFilePaths(rows []sharedintent.Row) ([]string, bool, error) {
 		deltaRowCount++
 		rowFilePaths := sourcecypher.PayloadStringSlice(row.Payload, "delta_file_paths")
 		if len(rowFilePaths) == 0 {
-			return nil, true, fmt.Errorf(
-				"delta retract requires delta_file_paths: repository %q carries none",
-				retractRowRepositoryID(row),
-			)
+			return nil, true, sharedintent.NewUnusableDeltaScopeRowError(retractRowRepositoryID(row))
 		}
 		for _, filePath := range rowFilePaths {
 			filePath = strings.TrimSpace(filePath)
@@ -291,10 +294,7 @@ func collectDeltaFilePaths(rows []sharedintent.Row) ([]string, bool, error) {
 		}
 	}
 	if hasDeltaScope && len(filePaths) == 0 {
-		return nil, true, fmt.Errorf(
-			"delta retract requires delta_file_paths: no path survived across %d delta-flagged row(s)",
-			deltaRowCount,
-		)
+		return nil, true, sharedintent.NewUnusableDeltaScopeBatchError(deltaRowCount)
 	}
 	sort.Strings(filePaths)
 	return filePaths, hasDeltaScope, nil
