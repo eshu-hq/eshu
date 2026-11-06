@@ -11,7 +11,7 @@
   },
   "binary": {
     "path": "/opt/whisper/bin/whisper-cli",
-    "sha256": "dac1dc5c95b1ca44ca30472a820ddb6b11a4345e5d39521e0658bc2c812ade3d"
+    "sha256": "85e9b7b0771b3c402d89d2969d6f39ccfee463cd22eff3fb4ab919249cd0a099"
   },
   "libraries": [
     {"path": "/lib/ld-musl-aarch64.so.1", "sha256": "a965363d0cb99ab9b28f4c51ee6bb64162b4e204f0d20efda72541a2e4147a5e"},
@@ -35,6 +35,6 @@
     "cmake": "3.31.1-r0",
     "git": "2.47.3-r0"
   },
-  "measured": "2026-11-04, native arm64 reference build of the whisper stage; the binary digest reproduces the proof's recorded arm64 build (dac1dc5c) byte for byte, and the library digests match the ocr.arm64.json entries for the same packages",
+  "measured": "2026-11-06, re-recorded: native arm64 rebuild under today's toolchain produces 85e9b7b0 deterministically (Dockerfile whisper stage plus an independent manual clone/cmake/build agree byte-for-byte, same source commit d1be6fde). Root cause: floating transitive toolchain under build-base=0.5-r3 (today: gcc/g++ 14.2.0-r4, binutils 2.43.1-r3, musl-dev 1.2.5-r12, cmake 3.31.1-r0); top-level pins and source commit unchanged since the 2026-11-04 dac1dc5c record. Runtime library digests still match the ocr.arm64.json entries for the same packages (verified by the rebuilt gate).",
   "notes": "The binary digest is toolchain-dependent, not a universal pin: a rebuild with a different toolchain fails the Dockerfile gate until the reference is re-recorded. The whispercpp engine takes no per-file library pins (binary plus model only); the library list and set hash exist for the image gate."
 }
