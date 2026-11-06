@@ -5,6 +5,7 @@ package postgres
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
@@ -101,6 +102,19 @@ func templateCloneProofDSN(t *testing.T) (adminDSN, optIn string) {
 		t.Skip("set ESHU_POSTGRES_DISPOSABLE=1 to run the template-clone differential proof (absent opt-in skips, never fails)")
 	}
 	return disposableAdminDSN(t, dsn), optIn
+}
+
+// busyProofSuffix generates the random suffix for the 55006 busy-proof
+// database name, mirroring disposableDatabaseName: every other database this
+// proof creates uses a crypto-random suffix so reruns and shared proof
+// servers cannot collide.
+func busyProofSuffix(t *testing.T) string {
+	t.Helper()
+	random := make([]byte, 8)
+	if _, err := rand.Read(random); err != nil {
+		t.Fatalf("generate busy-proof database name: %v", err)
+	}
+	return hex.EncodeToString(random)
 }
 
 // bootstrapTemplateCatalogSQL lists one text line per catalog fact, tagged by
@@ -342,8 +356,16 @@ func TestReducerContentionGateBootstrapTemplateCloneConcurrent(t *testing.T) {
 		t.Fatalf("open admin session: %v", err)
 	}
 	defer func() { _ = admin.Close() }()
-	_, err = admin.ExecContext(ctx, "CREATE DATABASE "+pgx.Identifier{"eshu_clone_busy_proof"}.Sanitize()+" TEMPLATE "+pgx.Identifier{template}.Sanitize())
+	// The busy-proof name carries a random suffix like disposableDatabaseName:
+	// on the unexpected-success path the database is created, and a fixed
+	// name would leak it and fail a rerun with 42P04 instead of the asserted
+	// 55006, misdiagnosing the failure.
+	busyProof := "eshu_clone_busy_proof_" + busyProofSuffix(t)
+	_, err = admin.ExecContext(ctx, "CREATE DATABASE "+pgx.Identifier{busyProof}.Sanitize()+" TEMPLATE "+pgx.Identifier{template}.Sanitize())
 	if err == nil {
+		if _, dropErr := admin.ExecContext(ctx, "DROP DATABASE "+pgx.Identifier{busyProof}.Sanitize()); dropErr != nil {
+			t.Fatalf("clone with a session on the template unexpectedly succeeded, and dropping %q failed: %v", busyProof, dropErr)
+		}
 		t.Fatal("clone with a session on the template succeeded, want SQLSTATE 55006")
 	}
 	var pgErr *pgconn.PgError

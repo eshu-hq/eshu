@@ -132,3 +132,21 @@ go test ./internal/testutil/postgresproof -count=1
   callers that do not opt in.
 - No-Observability-Change: test-only helper, no metric, span, log key, or
   status surface touched; see Telemetry above.
+
+## Performance Evidence (#10148 PR-A follow-up)
+
+- Performance Evidence: fix2 refactors `CloneBootstrapTemplate` to expose
+  the generated clone name and verifies the drop with one extra
+  `SELECT EXISTS` probe against `pg_database` plus one fresh administrative
+  handle per clone, after assertions inside test cleanup. No hot-path
+  change: clone creation DDL is untouched. Fix2 proof: `postgresproof`
+  package green (2.327 s, 3.378 s); `storage/postgres` suite green
+  (27.414 s, 93.710 s) per `/tmp/eshu-10148-s3fix2-prepush.log`.
+- No-Regression Evidence: fix2 leaves the clone DDL path untouched, so
+  the PR-A `bootstrap_vs_clone=true` differential it ran against still
+  applies; the fix2 proof ran both changed packages green with and without
+  race. Three scripted unit tests pin the new contract: leaked clone
+  reports loudly, probe failure reports loudly, clean drop stays silent.
+- No-Observability-Change: test-only helper, no metric, span, log key, or
+  status surface touched; the verification reports via `t.Errorf` test
+  output only. See Telemetry above.
