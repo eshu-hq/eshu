@@ -299,6 +299,41 @@ class StatedLimitTest(ShapeTest):
         """LIMIT: a ``$(..)`` inside a double-quoted string is part of that string."""
         self.assert_green(self.build(*script_job('echo "$(docker run -d nornicdb)"')))
 
+    def test_limit_yaml_anchor_alias_is_not_resolved(self) -> None:
+        """LIMIT: a value reached through a YAML alias is not followed to its anchor."""
+        text = ("name: F\non:\n  push:\nx-backend: &b nornicdb\njobs:\n  live:\n"
+                "    env:\n      ESHU_GRAPH_BACKEND: *b\n    steps:\n      - run: echo hi\n")
+        self.assert_green(self.build(text))
+
+    def test_limit_script_without_an_extension_is_not_followed(self) -> None:
+        """LIMIT: only ``*.sh`` and ``*.py`` files a job runs are opened."""
+        root = self.build(workflow(run_step("bash scripts/run-live")),
+                          {"scripts/run-live": "docker run -d nornicdb\n"})
+        self.assert_green(root)
+
+    def test_limit_makefile_target_is_not_opened(self) -> None:
+        """LIMIT: ``make <target>`` does not open the Makefile."""
+        root = self.build(workflow(run_step("make live")),
+                          {"Makefile": "live:\n\tdocker run -d nornicdb\n"})
+        self.assert_green(root)
+
+    def test_limit_quoting_nested_past_two_levels_is_not_parsed(self) -> None:
+        """LIMIT: a ``bash -c`` string inside two other quoted strings is not read."""
+        inner = f"{COMPOSE_UP} nornicdb"
+        nested = f"bash -c 'bash -c \"bash -c \\\"{inner}\\\"\"'"
+        self.assert_green(self.build(*script_job(nested)))
+
+    def test_limit_go_helper_that_execs_docker_is_not_read(self) -> None:
+        """LIMIT: Go source is not scanned; only scripts and workflow text are."""
+        root = self.build(workflow(run_step("go test ./...")), {
+            "go/x/x_test.go": 'package x\nfunc f() { exec.Command("docker", "run", "-d", "nornicdb") }\n'})
+        self.assert_green(root)
+
+    def test_limit_xargs_argument_is_not_resolved(self) -> None:
+        """LIMIT: a name piped to ``xargs docker run`` is not joined to the command."""
+        self.assert_green(self.build(workflow(run_step("echo nornicdb | xargs docker run -d"))))
+        self.assert_green(self.build(*script_job("echo nornicdb | xargs docker run -d")))
+
     def test_dead_step_in_a_live_job_is_still_flagged(self) -> None:
         """Only a job-level ``if: false`` switches a job off; a dead step errs safe."""
         step = "      - if: false\n        run: docker run -d nornicdb\n"

@@ -154,8 +154,15 @@ four ways, each read from the committed files with no list of exceptions:
    for the key `backend`, `graph_backend`, `graph_service` or
    `ESHU_GRAPH_BACKEND`), assigns `ESHU_GRAPH_BACKEND=nornicdb` or
    `COMPOSE_PROFILES=nornicdb` inside a command, brings up the `nornicdb`
-   compose service or profile, or `docker run`s a NornicDB image. A job
-   `services:` or `container:` image that names NornicDB counts too. Names are
+   compose service or profile (also through a `-f` file whose name carries
+   `nornicdb`), or `docker run`s (`docker container run`, `podman run`) a
+   NornicDB image or runs one with `uses: docker://...`. A step `name:` is a
+   label, not a command, so "Clean up nornicdb volumes" is not a bring-up. A job
+   `services:` or `container:` image that names NornicDB counts too. The same
+   markers are read over the workflow-level lines outside `jobs:` (a top-level
+   `env:`) whenever the workflow has a live job, and a workflow input that
+   defaults to `nornicdb` counts when a live job reads `inputs.<name>`. A
+   workflow whose jobs are all off is not read that way. Names are
    matched ignoring case. Lines are read after `\` continuations are joined,
    and a shell variable set to a literal earlier in the same step is
    substituted (`svc=nornicdb` then `up -d "$svc"`). Workflows are `*.yml` and
@@ -176,7 +183,9 @@ four ways, each read from the committed files with no list of exceptions:
 
 Each message names the workflow, the job, and the file and line. A workflow
 with no block-style `jobs:` mapping, or a job written inline without `uses:`,
-fails too, because the guard cannot read it (the `call-*` jobs in `test.yml` are
+fails too, because the guard cannot read it. So does a workflow, script, action,
+or registry file that cannot be decoded as UTF-8: the message says "cannot
+read" and names the file (the `call-*` jobs in `test.yml` are
 inline reusable-workflow calls and are read as text).
 
 Stated limits, each pinned by a test in
@@ -196,6 +205,15 @@ test and this list together:
 - An environment assignment inside a Python script, a reusable workflow's jobs
   as part of its caller (the callee file is scanned on its own), and remote
   actions or images.
+- A YAML anchor and alias (`x: &b nornicdb`, then `ESHU_GRAPH_BACKEND: *b`) is
+  not resolved.
+- A script with no `.sh` or `.py` extension, a Makefile target (`make live`), and
+  a Go test helper that execs docker are not opened.
+- Quoting nested more than two levels deep (a `bash -c` string inside two other
+  quoted strings, with escaped quotes) is not parsed. The `_MAX_NESTING` cap of
+  4 is never reached because the quote matcher stops first.
+- A name piped to a command (`echo nornicdb | xargs docker run`) is not joined
+  to that command.
 - A dead step (`if: false`) inside a live job is flagged, because only a
   job-level `if` switches a job off. That errs on the safe side.
 
@@ -244,7 +262,7 @@ To re-enable everything, revert in this order and run each check after its step:
 4. Delete the `nornicdb-ci-off` registry row, its two steps in
    `verify-agent-hygiene.yml`, `scripts/verify-nornicdb-ci-off.py`, its two
    scanner modules (`scripts/lib/nornicdb_ci_off_scan.py` and
-   `scripts/lib/nornicdb_ci_off_shell.py`), and its three test files
+   `scripts/lib/nornicdb_ci_off_shell.py`), and its four test files
    (`scripts/test-verify-nornicdb-ci-off*.py`). Do this last: until then the guard refuses any live NornicDB leg.
 5. Regenerate the replay-coverage dashboard
    (`cd go && go test ./cmd/replay-coverage-gate/ -update-dashboard`). With the

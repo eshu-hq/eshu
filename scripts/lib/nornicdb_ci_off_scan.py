@@ -43,6 +43,9 @@ BACKEND_ENV = "ESHU_GRAPH_BACKEND"
 MATRIX_VALUE = "lists nornicdb as a matrix value"
 _EXPRESSION_BACKEND = (r"\b(?:ESHU_GRAPH_BACKEND|graph_backend|graph_service|backend):\s*"
                        r"\$\{\{[^\n]*\bnornicdb\b")
+_DOCKER_RUN = r"(?:docker(?:\s+container)?|podman)\s+run"
+_COMPOSE_FILE_UP = (r"\b(?:docker|podman)[ -]compose\b[^\n]*(?:-f|--file)[ =][\"']?\S*nornicdb"
+                    r"\S*[^\n]*\bup\b")
 _PROFILES_BODY = r"COMPOSE_PROFILES(?:=|:\s*)[\"']?[^\"'\n]*\bnornicdb\b"
 _PROFILES_ENV = r"\b" + _PROFILES_BODY
 _PROFILE_UP = r"^(?=.*\b(?:up|run)\b).*--profile[ =][\"']?nornicdb\b"
@@ -54,12 +57,21 @@ START_MARKERS = tuple((re.compile(pattern, re.IGNORECASE), reason) for pattern, 
     (rf"\b{BACKEND_ENV}=[\"']?nornicdb\b", f"assigns {BACKEND_ENV}=nornicdb in a run command"),
     (r"--backend[ =][\"']?nornicdb\b", "runs a runner with --backend nornicdb"),
     (r"\bup\b[^\n]*\bnornicdb\b", "brings up the nornicdb compose service"),
+    (_COMPOSE_FILE_UP, "brings up the nornicdb compose service"),
     (_PROFILE_UP, "brings up the nornicdb compose profile"),
     (_PROFILES_ENV, "enables the nornicdb compose profile"),
-    (r"\bdocker run\b[^\n]*nornicdb", "docker-runs a NornicDB image"),
+    (rf"\b{_DOCKER_RUN}\b[^\n]*nornicdb", "docker-runs a NornicDB image"),
+    (r"^\s*(?:-\s+)?uses:\s*[\"']?docker://\S*nornicdb", "runs a NornicDB image as a step"),
     (r"^\s*(?:-\s*)?\w+:\s*\[[^\]]*\bnornicdb\b", MATRIX_VALUE),
     (r"^\s*-\s*\w+:\s*[\"']?nornicdb[\"']?\s*$", MATRIX_VALUE),
 ))
+# A step ``name:`` is a label. The reasons below read a command, so a name such
+# as "Clean up nornicdb volumes" must not trip them; the config-style reasons
+# (a backend key, a matrix value) still apply to a name line.
+NAME_LINE = re.compile(r"^\s*(?:-\s+)?name:\s")
+RUN_ONLY_REASONS = frozenset((
+    "brings up the nornicdb compose service", "brings up the nornicdb compose profile",
+    "docker-runs a NornicDB image"))
 # A job ``services:`` or ``container:`` names the image GitHub starts for the job.
 JOB_CONTAINER = re.compile(r"^(\s*)(?:services|container):\s*(.*)$")
 JOB_IMAGE = re.compile(r"^\s*(?:-\s+)?image:\s*[\"']?([^\s\"']+)")
@@ -71,7 +83,7 @@ RUNS_SCRIPT = re.compile(
     r"^(?:-\s+)?(?:run:\s*)?(?:\w+=[^\s\"'$()]+\s+)*"
     r"(?:(?:bash|sh|source|exec|python3?|\.)\s+)?(?:-[\w-]+\s+)*[\"']?"
     r"((?:(?:\$\{?\w+\}?|\$\{\{[^}]*\}\})/)?[A-Za-z0-9_./-]+\.(?:sh|py))[\"']?(?:\s|$)")
-SCRIPT_DOCKER_RUN = re.compile(r"^docker run\b.*nornicdb", re.IGNORECASE)
+SCRIPT_DOCKER_RUN = re.compile(rf"^{_DOCKER_RUN}\b.*nornicdb", re.IGNORECASE)
 # A shell statement starts a backend only when the statement itself is the
 # command. A line that merely quotes the command (an assertion in a self-test,
 # a regex, a usage string) starts with something else and does not match.
@@ -81,6 +93,8 @@ SCRIPT_START_MARKERS = tuple((re.compile(pattern, re.IGNORECASE), reason) for pa
      "brings up the nornicdb compose service"),
     (_LEAD + r"(?:\S*compose\.sh|docker[ -]compose)\b(?=.*\b(?:up|run)\b).*"
      r"--profile[ =][\"']?nornicdb\b", "brings up the nornicdb compose profile"),
+    (_LEAD + r"(?:\S*compose\.sh|(?:docker|podman)[ -]compose)\b.*(?:-f|--file)[ =][\"']?"
+     r"\S*nornicdb\S*.*\bup\b", "brings up the nornicdb compose service"),
     (_LEAD + r"\S*scripts/\S+\s.*--backend[ =][\"']?nornicdb\b",
      "runs a runner with --backend nornicdb"),
     (rf"^(?:export\s+|declare\s+-x\s+)?(?:\w+=[^\s\"'$()]+\s+)*"
@@ -90,7 +104,7 @@ SCRIPT_START_MARKERS = tuple((re.compile(pattern, re.IGNORECASE), reason) for pa
 ))
 PY_SPAWNERS = {"run", "Popen", "call", "check_call", "check_output", "system", "popen"}
 PY_COMMAND_START = re.compile(
-    r"\bdocker run\b.*nornicdb|\bdocker[ -]compose\b.*\bup\b.*\bnornicdb\b", re.IGNORECASE)
+    rf"\b{_DOCKER_RUN}\b.*nornicdb|\bdocker[ -]compose\b.*\bup\b.*\bnornicdb\b", re.IGNORECASE)
 LOCAL_ACTION = re.compile(
     r"^\s*(?:-\s+)?uses:\s*[\"']?\./\.github/actions/([A-Za-z0-9_./-]+?)/?[\"']?\s*$")
 # A new workflow step is a new shell, so literals do not carry across it.
@@ -100,6 +114,22 @@ ASSIGNMENT = re.compile(
 VARIABLE = re.compile(r"\$\{(\w+)\}|\$(\w+)")
 
 Numbered = list[tuple[int, str]]
+
+
+class ReadError(Exception):
+    """A file the guard must read could not be opened or decoded as UTF-8."""
+
+
+def read_text(path: Path) -> str:
+    """Return a file's text, or raise ``ReadError`` naming the file.
+
+    A file the guard cannot read must fail the gate with a clear message, not
+    end it in a traceback and not be skipped.
+    """
+    try:
+        return path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as err:
+        raise ReadError(f"cannot read {path}: {type(err).__name__}") from err
 
 
 @dataclass(frozen=True)
@@ -219,6 +249,8 @@ def unit_marker_hits(unit: Unit) -> list[str]:
     hits = job_image_hits(unit)
     for number, statement in shell_statements(unit.lines, split_steps=True):
         for pattern, reason in START_MARKERS:
+            if reason in RUN_ONLY_REASONS and NAME_LINE.match(statement):
+                continue
             if pattern.search(statement):
                 hits.append(f"{unit.subject} {reason} ({unit.label}:{number}: {statement.strip()})")
                 break
@@ -353,7 +385,7 @@ def script_violations(root: Path, unit: Unit) -> list[str]:
         if ref in seen:
             continue
         seen.add(ref)
-        body = (root / ref).read_text(encoding="utf-8")
+        body = read_text(root / ref)
         via = f" (run by {parent})" if parent else ""
         for start in script_starts(body, python=ref.endswith(".py")):
             errors.append(f"{unit.subject} runs {ref}{via}, which {start}")
@@ -380,7 +412,7 @@ def job_units(root: Path, label: str, job_lines: Numbered) -> list[Unit]:
         for name in ("action.yml", "action.yaml"):
             path = action_dir / name
             if path.is_file() and action_dir.is_relative_to(root):
-                lines = numbered_active(path.read_text(encoding="utf-8"))
+                lines = numbered_active(read_text(path))
                 rel = path.relative_to(root).as_posix()
                 units.append(Unit(rel, lines, action_dir,
                                   f"a live job (through composite action {rel})"))

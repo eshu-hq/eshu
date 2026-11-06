@@ -9,7 +9,10 @@ workflows and the gate registry. Neither one keeps a list of exceptions.
    NornicDB backend. A start is found four ways, all read from the committed
    files; the scanners live in ``scripts/lib/nornicdb_ci_off_scan.py`` and
    ``scripts/lib/nornicdb_ci_off_shell.py``:
-   (a) a workflow line that selects ``nornicdb`` (a matrix value under any
+   (a) the workflow-level lines outside ``jobs:`` (a top-level ``env:``) are
+   read with the same markers whenever the workflow has a live job, and a
+   workflow input that defaults to ``nornicdb`` counts when a live job reads
+   ``inputs.<name>``. A workflow line that selects ``nornicdb`` (a matrix value under any
    key, an environment value, ``--backend nornicdb``, an expression that picks
    it for a backend key), assigns ``ESHU_GRAPH_BACKEND=nornicdb`` inside a
    command, brings up the ``nornicdb`` compose service or profile, or
@@ -34,6 +37,11 @@ workflows and the gate registry. Neither one keeps a list of exceptions.
    file and line. A workflow with no block-style ``jobs:`` mapping, or a job
    written inline without ``uses:``, fails too: the guard cannot read it.
 
+   A step ``name:`` is a label: the bring-up and ``docker run`` markers skip it.
+   ``docker container run``, ``podman run``, ``uses: docker://...nornicdb...``
+   and ``compose -f <file named nornicdb> up`` count. A file that cannot be
+   decoded fails with ``cannot read <path>``.
+
    Stated limits (the guard does not claim these; test-verify-nornicdb-ci-off-
    forms.py pins them): a service name or backend computed at run time
    (``$(...)``, a function argument, a ``${X:-nornicdb}`` default assigned to a
@@ -45,7 +53,10 @@ workflows and the gate registry. Neither one keeps a list of exceptions.
    scripts are read only for process-spawning calls, not for environment
    assignments; a reusable workflow (``uses: ./.github/workflows/x.yml``) is
    read as its own file, not as part of the caller; and a remote action or
-   image is not opened. A dead step (``if: false``) inside a live job is still
+   image is not opened; a YAML alias is not resolved; a script with no ``.sh`` or
+   ``.py`` extension, a Makefile target, and a Go helper are not opened; quoting
+   nested past two levels is not parsed; ``echo nornicdb | xargs docker run`` is
+   not joined. A dead step (``if: false``) inside a live job is still
    flagged: only a job-level ``if`` switches a job off.
 2. A registry row whose CI job is permanently disabled is not blocking and is
    not in a blocking tier. Otherwise the aggregate would wait on a check that
@@ -121,6 +132,72 @@ def indent_of(line: str) -> int:
     return len(line) - len(line.lstrip(" "))
 
 
+def jobs_span(numbered: scan.Numbered) -> tuple[int, int, int] | None:
+    """Return the top indent, and the first and end index of the lines under ``jobs:``.
+
+    ``None`` means the file has no block-style ``jobs:`` mapping at its top level.
+    """
+    top = min((indent_of(line) for _, line in numbered), default=0)
+    start = next((i + 1 for i, (_, line) in enumerate(numbered)
+                  if line.strip() == "jobs:" and indent_of(line) == top), None)
+    if start is None:
+        return None
+    end = next((i for i in range(start, len(numbered)) if indent_of(numbered[i][1]) <= top),
+               len(numbered))
+    return top, start, end
+
+
+def workflow_level_lines(text: str) -> scan.Numbered:
+    """Return the lines of a workflow outside its ``jobs:`` block.
+
+    Top-level ``env:``, ``defaults:`` and ``on:`` apply to every job, so a
+    backend set there is a start for each live job, whichever side of
+    ``jobs:`` it is written on.
+    """
+    numbered = scan.numbered_active(text)
+    span = jobs_span(numbered)
+    if span is None:
+        return []
+    return numbered[:span[1] - 1] + numbered[span[2]:]
+
+
+def input_default_hits(workflow: str, region: scan.Numbered,
+                       live_lines: list[str]) -> list[str]:
+    """Return ``default: nornicdb`` inputs that a live job reads.
+
+    The input name is the nearest key above the ``default:`` line at a lower
+    indent. A live job reads it as ``inputs.<name>`` (which also covers
+    ``github.event.inputs.<name>``) or ``inputs['<name>']``.
+    """
+    hits = []
+    text = "\n".join(live_lines)
+    for index, (number, line) in enumerate(region):
+        if not re.fullmatch(r"\s*default:\s*[\"']?nornicdb[\"']?", line, re.IGNORECASE):
+            continue
+        owner = next((m.group(1) for _, above in reversed(region[:index])
+                      if indent_of(above) < indent_of(line)
+                      and (m := re.fullmatch(r"\s*([\w-]+):\s*", above))), None)
+        if owner and re.search(rf"\binputs(?:\.{re.escape(owner)}\b|\[[\"']{re.escape(owner)}[\"']\])",
+                               text):
+            hits.append(f"{workflow}: the workflow input {owner} defaults to nornicdb "
+                        f"(.github/workflows/{workflow}:{number}: {line.strip()}) and a live "
+                        f"job reads it; {scan.OFF_NOTE}")
+    return hits
+
+
+def workflow_level_violations(workflow: str, text: str,
+                              live: list[dict[str, object]]) -> list[str]:
+    """Return starts made above or below ``jobs:`` when at least one job is live."""
+    if not live:
+        return []
+    region = workflow_level_lines(text)
+    unit = scan.Unit(f".github/workflows/{workflow}", region, None, "the workflow level")
+    errors = [f"{workflow}: {hit}, which applies to every live job; {scan.OFF_NOTE}"
+              for hit in scan.unit_marker_hits(unit)]
+    live_lines = [line for job in live for line in job["lines"]]  # type: ignore[union-attr]
+    return errors + input_default_hits(workflow, region, live_lines)
+
+
 def workflow_jobs(text: str) -> dict[str, dict[str, object]]:
     """Split a workflow into jobs keyed by job id.
 
@@ -134,11 +211,10 @@ def workflow_jobs(text: str) -> dict[str, dict[str, object]]:
     guard reports it.
     """
     numbered = scan.numbered_active(text)
-    top = min((indent_of(line) for _, line in numbered), default=0)
-    start = next((i + 1 for i, (_, line) in enumerate(numbered)
-                  if line.strip() == "jobs:" and indent_of(line) == top), None)
-    if start is None:
+    span = jobs_span(numbered)
+    if span is None:
         return {}
+    top, start, _ = span
     jobs: dict[str, dict[str, object]] = {}
     current: dict[str, object] | None = None
     job_indent: int | None = None
@@ -189,7 +265,7 @@ def registry_rows(root: Path) -> list[dict[str, object]]:
     for path in sorted((root / "specs/ci-gates.d").glob("gates-*.yaml")):
         row: dict[str, object] | None = None
         in_ci = False
-        for _, line in scan.numbered_active(path.read_text(encoding="utf-8")):
+        for _, line in scan.numbered_active(scan.read_text(path)):
             match = re.fullmatch(r"  - id: (\S+)", line)
             if match:
                 row = {"id": match.group(1), "tier": "", "blocking": False,
@@ -234,7 +310,13 @@ def check(root: Path) -> list[str]:
     workflows: dict[str, dict[str, dict[str, object]]] = {}
     for path in sorted(p for p in (root / ".github/workflows").glob("*.y*ml")
                        if p.suffix in (".yml", ".yaml")):
-        jobs = workflow_jobs(path.read_text(encoding="utf-8"))
+        try:
+            text = scan.read_text(path)
+        except scan.ReadError as err:
+            errors.append(f"{path.name}: {err}, so the guard cannot tell whether it starts "
+                          f"NornicDB; {scan.OFF_NOTE}")
+            continue
+        jobs = workflow_jobs(text)
         workflows[path.name] = jobs
         if not jobs:
             errors.append(f"{path.name}: no block-style `jobs:` mapping was found, so the "
@@ -247,8 +329,19 @@ def check(root: Path) -> list[str]:
                 continue
             if job["off"]:
                 continue
-            errors.extend(job_violations(root, path.name, job_id, job["numbered"]))  # type: ignore[arg-type]
-    for row in registry_rows(root):
+            try:
+                errors.extend(job_violations(root, path.name, job_id, job["numbered"]))  # type: ignore[arg-type]
+            except scan.ReadError as err:
+                errors.append(f"{path.name}/{job_id}: {err}, so the guard cannot tell whether "
+                              f"the job starts NornicDB; {scan.OFF_NOTE}")
+        errors.extend(workflow_level_violations(
+            path.name, text, [j for j in jobs.values() if not j["off"] and not j["unreadable"]]))
+    try:
+        rows = registry_rows(root)
+    except scan.ReadError as err:
+        errors.append(f"{err}, so the guard cannot check the registry rows of disabled jobs")
+        rows = []
+    for row in rows:
         jobs = workflows.get(str(row["workflow"]), {})
         for job_id, job in jobs.items():
             if not job["off"] or not job_matches(job_id, job, str(row["job"])):

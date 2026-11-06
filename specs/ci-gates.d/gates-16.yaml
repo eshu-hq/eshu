@@ -150,6 +150,7 @@ gates:
       - "scripts/test-verify-nornicdb-ci-off.py"
       - "scripts/test-verify-nornicdb-ci-off-shapes.py"
       - "scripts/test-verify-nornicdb-ci-off-forms.py"
+      - "scripts/test-verify-nornicdb-ci-off-reads.py"
     self_test_triggers:
       - "scripts/verify-nornicdb-ci-off.py"
       - "scripts/lib/nornicdb_ci_off_scan.py"
@@ -157,6 +158,7 @@ gates:
       - "scripts/test-verify-nornicdb-ci-off.py"
       - "scripts/test-verify-nornicdb-ci-off-shapes.py"
       - "scripts/test-verify-nornicdb-ci-off-forms.py"
+      - "scripts/test-verify-nornicdb-ci-off-reads.py"
     local:
       command: "python3 scripts/verify-nornicdb-ci-off.py"
       pre_push: floor
