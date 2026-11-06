@@ -1,0 +1,18 @@
+go/cmd/api/REMOVAL_PR_DOCS_LIST.md
+  h_78a442cba0b3e6 21
+go/cmd/api/REMOVAL_RETIRED_COVERAGE_HONESTY_NOTE.md
+  h_78a442cba0b3e6 31-35,37-42,53-55,65,70-74
+go/cmd/api/REMOVAL_CONSUMER_DRAIN_CHECKLIST.md
+  h_78a442cba0b3e6 15-31
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "80ad052080d05c192554cb50fc7895363e606455",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
