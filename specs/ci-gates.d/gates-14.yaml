@@ -165,12 +165,10 @@ gates:
       workflow: e2e-tests.yml
       job: "test"
       check_names:
-        - "test (nornicdb)"
         - "test (neo4j)"
     requirements:
       - go
       - docker
-      - nornicdb
       - postgres
     ci_only_reason: "requires Docker Compose service stack"
 

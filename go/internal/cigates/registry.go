@@ -202,6 +202,9 @@ type Gate struct {
 	// the raw fragment text, so an escape would read differently there than
 	// the decoded value here. Empty when the gate owns no generated file.
 	Regenerate map[string]string
+	// Disabled is non-nil when an owner order switched this gate off. See the
+	// Disabled type; nil for every ordinary row.
+	Disabled *Disabled
 }
 
 // HygieneHook declares a .pre-commit-config.yaml local hook id that is
@@ -395,6 +398,11 @@ func Load(path string) (*Registry, error) {
 			return nil, err
 		}
 
+		disabled, err := parseDisabled(path, id, gf.Disabled, tier, gf.Blocking)
+		if err != nil {
+			return nil, err
+		}
+
 		reg.Gates = append(reg.Gates, Gate{
 			ID:               id,
 			Name:             strings.TrimSpace(gf.Name),
@@ -417,31 +425,12 @@ func Load(path string) (*Registry, error) {
 			LocalOnlyReason: localOnlyReason,
 			HookID:          strings.TrimSpace(gf.HookID),
 			Regenerate:      trimRegenerateMap(gf.Regenerate),
+			Disabled:        disabled,
 		})
 	}
 
-	// Parse hygiene_hooks (back-compatible: absent list is valid).
-	for i, hf := range parsed.HygieneHooks {
-		id := strings.TrimSpace(hf.ID)
-		if id == "" {
-			return nil, fmt.Errorf("ci-gates registry %s: hygiene_hooks[%d] has blank id", path, i)
-		}
-		reg.HygieneHooks = append(reg.HygieneHooks, HygieneHook{
-			ID:     id,
-			Reason: strings.TrimSpace(hf.Reason),
-		})
-	}
-
-	// Parse non_gate_workflows (back-compatible: absent list is valid).
-	for i, nf := range parsed.NonGateWorkflows {
-		file := strings.TrimSpace(nf.File)
-		if file == "" {
-			return nil, fmt.Errorf("ci-gates registry %s: non_gate_workflows[%d] has blank file", path, i)
-		}
-		reg.NonGateWorkflows = append(reg.NonGateWorkflows, NonGateWorkflow{
-			File:   file,
-			Reason: strings.TrimSpace(nf.Reason),
-		})
+	if err := loadSideLists(path, parsed, reg); err != nil {
+		return nil, err
 	}
 
 	if err := parseMergeGroupSlim(path, parsed.MergeGroupSlimGates, seenIDs, reg); err != nil {

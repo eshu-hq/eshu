@@ -96,7 +96,7 @@ ESHU_GRAPH_BACKEND=neo4j NEO4J_PASSWORD=change-me ./scripts/verify_backend_confo
 ```
 
 In CI the same script is the "Run live backend conformance" step of
-`e2e-tests.yml` (`test (nornicdb)` / `test (neo4j)`, registry row `e2e-tests`).
+`e2e-tests.yml` (`test (neo4j)`, registry row `e2e-tests`; the `test (nornicdb)` cell is off by owner order, 2026-11-05).
 A case that passes on a pin logs `pinned divergence #6968`.
 
 ### #8168 update: canonical-import pin removed (2026-10-18)

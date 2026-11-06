@@ -2,7 +2,7 @@
 set -euo pipefail
 
 usage() {
-  echo 'usage: stage-differential-capture.sh check-leg DIR | stage DOWNLOAD_ROOT OUTPUT_ROOT RUN_ID CAPTURE_RESULT' >&2
+  echo 'usage: stage-differential-capture.sh check-leg DIR | stage DOWNLOAD_ROOT OUTPUT_ROOT RUN_ID CAPTURE_RESULT BACKEND...' >&2
   exit 2
 }
 
@@ -32,11 +32,24 @@ case "${1:-}" in
     require_recordings "$2"
     ;;
   stage)
-    [[ "$#" -eq 5 ]] || usage
+    [[ "$#" -ge 6 ]] || usage
     download_root="$2"
     output_root="$3"
     run_id="$4"
     capture_result="$5"
+    # The caller names the backends whose captures this run produced, so the
+    # join requires exactly those legs. Disabling a backend in the workflow
+    # matrix is then a workflow edit, not a change to this helper.
+    shift 5
+    backends=("$@")
+    legs=()
+    for backend in "${backends[@]}"; do
+      case "${backend}" in
+        nornicdb|neo4j) ;;
+        *) echo "::error title=Unknown backend::${backend} is not nornicdb or neo4j" >&2; exit 2 ;;
+      esac
+      legs+=("pair1-${backend}" "pair2-${backend}")
+    done
     if [[ "${capture_result}" != success ]]; then
       echo "::error title=Differential capture failed::matrix result is ${capture_result}" >&2
       exit 1
@@ -45,12 +58,12 @@ case "${1:-}" in
       echo "::error title=Stale differential capture::output path already exists: ${output_root}" >&2
       exit 1
     fi
-    for leg in pair1-nornicdb pair1-neo4j pair2-nornicdb pair2-neo4j; do
+    for leg in "${legs[@]}"; do
       source_dir="${download_root}/differential-capture-${run_id}-${leg}"
       require_recordings "${source_dir}"
     done
     trap 'rm -rf "${output_root}"' ERR
-    for leg in pair1-nornicdb pair1-neo4j pair2-nornicdb pair2-neo4j; do
+    for leg in "${legs[@]}"; do
       source_dir="${download_root}/differential-capture-${run_id}-${leg}"
       pair="${leg%-*}"
       backend="${leg#*-}"

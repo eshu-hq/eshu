@@ -96,8 +96,9 @@ The B-7 golden corpus gate (`scripts/verify-golden-corpus-gate.sh`) runs the
 real pipeline end to end and diffs the graph and every HTTP/MCP query shape
 against one snapshot, `testdata/golden/e2e-20repo-snapshot.json`. It runs once
 per backend: `corpus-gate (nornicdb)` and `corpus-gate (neo4j)` in
-`golden-corpus-gate.yml`. `corpus-gate (neo4j)` blocks a merge; `corpus-gate
-(nornicdb)` is watch-only, matching Neo4j as the supported backend. Locally,
+`golden-corpus-gate.yml`. `corpus-gate (neo4j)` blocks a merge. `corpus-gate
+(nornicdb)` is off in CI by owner order (2026-11-05), matching Neo4j as the
+supported backend. Locally,
 `ESHU_GRAPH_BACKEND=neo4j` selects Neo4j; see
 [Golden Corpus Gate](local-testing/golden-corpus-gate.md#running-it-on-neo4j).
 
@@ -139,8 +140,8 @@ drops out of the quorum.
 
 The comparison is discovery, not a merge gate (#6965). Per-backend truth is
 asserted by blocking gates: B-7 on Neo4j (`corpus-gate (neo4j)`) and the
-`WantRows` above, which the blocking `test (nornicdb)` and `test (neo4j)` live
-lanes in `e2e-tests.yml` run on each backend. A comparison failure turns into
+`WantRows` above, which the blocking `test (neo4j)` live lane in `e2e-tests.yml`
+runs (its `test (nornicdb)` cell is off in CI by owner order, 2026-11-05). A comparison failure turns into
 a warning annotation and step summary on the job, and the `differential-capture`
 artifact carries the recordings. File an issue for the owning package, as
 #6968 was, instead of blocking an unrelated PR. The rest of the job still

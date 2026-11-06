@@ -41,7 +41,7 @@ func TestValidateRequiredProofGatesRejectsUnknownManifestGate(t *testing.T) {
 	}}}
 	registry := replayProofRegistry(replayProofGate("golden-corpus-gate", "bash scripts/verify-golden-corpus-gate.sh", "golden-corpus-gate.yml"))
 
-	errs := ValidateRequiredProofGates(manifest, AuthzProofLedger{}, registry)
+	errs := ValidateRequiredProofGates(manifest, AuthzProofLedger{}, registry, nil)
 	if len(errs) != 1 {
 		t.Fatalf("ValidateRequiredProofGates errors=%d, want 1: %v", len(errs), errs)
 	}
@@ -60,7 +60,7 @@ func TestValidateRequiredProofGatesRejectsGateWithoutRunnableLocalCommand(t *tes
 	}}}
 	registry := replayProofRegistry(replayProofGate("golden-corpus-gate", "", "golden-corpus-gate.yml"))
 
-	errs := ValidateRequiredProofGates(manifest, AuthzProofLedger{}, registry)
+	errs := ValidateRequiredProofGates(manifest, AuthzProofLedger{}, registry, nil)
 	if len(errs) != 1 {
 		t.Fatalf("ValidateRequiredProofGates errors=%d, want 1: %v", len(errs), errs)
 	}
@@ -80,7 +80,7 @@ func TestValidateRequiredProofGatesRejectsAdvisoryGate(t *testing.T) {
 	gate := replayProofGate("advisory-coverage-report", "bash scripts/verify-code-coverage-report.sh", "code-coverage-report.yml")
 	gate.Blocking = false
 
-	errs := ValidateRequiredProofGates(manifest, AuthzProofLedger{}, replayProofRegistry(gate))
+	errs := ValidateRequiredProofGates(manifest, AuthzProofLedger{}, replayProofRegistry(gate), nil)
 	if len(errs) != 1 {
 		t.Fatalf("ValidateRequiredProofGates errors=%d, want 1: %v", len(errs), errs)
 	}
@@ -100,7 +100,7 @@ func TestValidateRequiredProofGatesAllowsDocumentedLocalOnlyGate(t *testing.T) {
 	gate := replayProofGate("local-fixture-proof", "cd go && go test ./internal/replay/localfixture -count=1", "")
 	gate.LocalOnlyReason = "local fixture runner has no CI service equivalent"
 
-	if errs := ValidateRequiredProofGates(manifest, AuthzProofLedger{}, replayProofRegistry(gate)); len(errs) != 0 {
+	if errs := ValidateRequiredProofGates(manifest, AuthzProofLedger{}, replayProofRegistry(gate), nil); len(errs) != 0 {
 		t.Fatalf("ValidateRequiredProofGates returned errors: %v", errs)
 	}
 }
@@ -122,7 +122,7 @@ func TestValidateRequiredProofGatesChecksAuthzProofLedger(t *testing.T) {
 	}}}
 	registry := replayProofRegistry(replayProofGate("authz-scoped-route-tests", "cd go && go test ./internal/query -run TestAuthorizationReplayCoverageContract -count=1", "replay-coverage-gate.yml"))
 
-	errs := ValidateRequiredProofGates(manifest, ledger, registry)
+	errs := ValidateRequiredProofGates(manifest, ledger, registry, nil)
 	if len(errs) != 1 {
 		t.Fatalf("ValidateRequiredProofGates errors=%d, want 1: %v", len(errs), errs)
 	}

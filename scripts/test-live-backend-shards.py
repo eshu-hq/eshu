@@ -309,6 +309,70 @@ class ShardContractTest(unittest.TestCase):
         self.assertIn("missing shards: ['4/4']", result.stderr)
         self.assertNotEqual(self.verify(present).returncode, 0)
 
+    def test_skipped_shard_needs_an_empty_plan_slice(self) -> None:
+        """A skipped shard is accepted only when the plan assigns it no runs.
+
+        The NornicDB CI leg is shard 1/4 and is off by owner order
+        (2026-11-05). The workflow narrows the plan to neo4j and skips 1/4;
+        a plan that still holds nornicdb runs must refuse the skip.
+        """
+        neo4j_plan = [line for line in self.plan if line.startswith("neo4j|")]
+        full_plan_path = self.write_plan()
+        reports = [self.write_report(shard, [event(line) for line in
+                   shards.partition_runs(self.plan, shard)])
+                   for shard in ("2/4", "3/4", "4/4")]
+        # RED: the full plan still assigns shard 1/4 nornicdb runs.
+        refused = self.invoke("verify", "--head", HEAD, "--plan", str(full_plan_path),
+                              "--skip-shard", "1/4", *[str(report) for report in reports])
+        self.assertNotEqual(refused.returncode, 0)
+        self.assertIn("skipped shard 1/4 still has planned runs", refused.stderr)
+        # GREEN: the neo4j-only plan assigns 1/4 nothing, so three reports suffice.
+        plan_path = self.directory / "neo4j-plan.txt"
+        plan_path.write_text("\n".join(neo4j_plan) + "\n", encoding="utf-8")
+        accepted = self.invoke("verify", "--head", HEAD, "--plan", str(plan_path),
+                               "--skip-shard", "1/4", *[str(report) for report in reports])
+        self.assertEqual(accepted.returncode, 0, accepted.stderr)
+        self.assertIn("shards=3/3", accepted.stdout)
+        # Without the skip the same three reports are a count failure.
+        self.assertNotEqual(self.invoke("verify", "--head", HEAD, "--plan", str(plan_path),
+                                        *[str(report) for report in reports]).returncode, 0)
+        # A missing active shard still fails closed.
+        missing = self.invoke("verify", "--head", HEAD, "--plan", str(plan_path),
+                              "--skip-shard", "1/4", *[str(report) for report in reports[:2]])
+        self.assertNotEqual(missing.returncode, 0)
+        # A report for the skipped shard is rejected, not silently ignored.
+        stray = self.write_report("1/4", [])
+        extra = self.invoke("verify", "--head", HEAD, "--plan", str(plan_path),
+                            "--skip-shard", "1/4", str(stray), *[str(r) for r in reports[:2]])
+        self.assertNotEqual(extra.returncode, 0)
+        # Skipping every shard, or an unknown shard, is refused.
+        for bad in ("5/4", "all"):
+            result = self.invoke("verify", "--head", HEAD, "--plan", str(plan_path),
+                                 "--skip-shard", bad, *[str(report) for report in reports])
+            self.assertNotEqual(result.returncode, 0, bad)
+
+    def test_select_skips_the_disabled_shard_with_a_narrowed_plan(self) -> None:
+        """Newest-valid selection copies only the active shards (2026-11-05)."""
+        neo4j_plan = [line for line in self.plan if line.startswith("neo4j|")]
+        plan_path = self.directory / "neo4j-plan.txt"
+        plan_path.write_text("\n".join(neo4j_plan) + "\n", encoding="utf-8")
+        reports = [self.layout_report(shard, [event(line) for line in
+                   shards.partition_runs(self.plan, shard)], 1)
+                   for shard in ("2/4", "3/4", "4/4")]
+        out = self.directory / "selected-skip"
+        result = self.invoke("select", "--head", HEAD, "--plan", str(plan_path),
+                             "--skip-shard", "1/4", "--output-dir", str(out),
+                             *[str(report) for report in reports])
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(sorted(path.name for path in out.glob("*.json")),
+                         ["live-backend-2-result.json", "live-backend-3-result.json",
+                          "live-backend-4-result.json"])
+        # The full plan still assigns 1/4 nornicdb runs, so the skip is refused.
+        refused = self.invoke("select", "--head", HEAD, "--plan", str(self.write_plan()),
+                              "--skip-shard", "1/4", "--output-dir", str(self.directory / "refused"),
+                              *[str(report) for report in reports])
+        self.assertNotEqual(refused.returncode, 0)
+
 
 if __name__ == "__main__":
     unittest.main()

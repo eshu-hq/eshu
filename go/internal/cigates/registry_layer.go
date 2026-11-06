@@ -5,6 +5,7 @@ package cigates
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 	"unicode/utf8"
 )
@@ -116,4 +117,45 @@ func DescriptionCheck(reg *Registry) []error {
 		}
 	}
 	return errs
+}
+
+// Disabled records that an owner order switched a gate off. It is the only way a
+// registry row can tell consumers "this proof is off on purpose": replay
+// coverage reports the gate's surfaces as unproven instead of failing, and only
+// when this marker is present and the workflow job the row names really is
+// disabled. A bare manual, non-blocking row is not enough.
+type Disabled struct {
+	// Reason says why the gate is off and what would turn it back on.
+	Reason string
+	// Issue is the tracking issue, written "#N" or "owner/repo#N".
+	Issue string
+}
+
+// disabledFile is the YAML shape of a gate row's disabled: block.
+type disabledFile struct {
+	Reason string `yaml:"reason"`
+	Issue  string `yaml:"issue"`
+}
+
+var disabledIssuePattern = regexp.MustCompile(`^([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)?#[0-9]+$`)
+
+// parseDisabled validates a row's disabled: block. A row without the block
+// returns nil. The marker is only valid on a manual, non-blocking row, because
+// that is the only state in which a switched-off job may sit in the registry.
+func parseDisabled(path, id string, file *disabledFile, tier Tier, blocking bool) (*Disabled, error) {
+	if file == nil {
+		return nil, nil
+	}
+	reason := strings.TrimSpace(file.Reason)
+	if reason == "" {
+		return nil, fmt.Errorf("ci-gates registry %s: gate %q has a disabled block with a blank disabled.reason", path, id)
+	}
+	issue := strings.TrimSpace(file.Issue)
+	if !disabledIssuePattern.MatchString(issue) {
+		return nil, fmt.Errorf("ci-gates registry %s: gate %q disabled.issue %q must be #N or owner/repo#N", path, id, file.Issue)
+	}
+	if blocking || tier != TierManual {
+		return nil, fmt.Errorf("ci-gates registry %s: gate %q carries a disabled block but is tier %q, blocking=%t; a disabled gate must be manual and non-blocking", path, id, tier, blocking)
+	}
+	return &Disabled{Reason: reason, Issue: issue}, nil
 }

@@ -32,11 +32,11 @@ done
 
 # The join cannot silently accept a missing download or an empty capture.
 rm -rf "$(artifact_dir pair2-neo4j)"
-expect_failure missing_leg bash "${helper}" stage "${downloads}" "${output}" "${run_id}" success
+expect_failure missing_leg bash "${helper}" stage "${downloads}" "${output}" "${run_id}" success nornicdb neo4j
 rg -q 'does not exist' "${fixture}/missing_leg.log"
 test ! -d "${output}/pair2/neo4j"
 mkdir -p "$(artifact_dir pair2-neo4j)"
-expect_failure empty_leg bash "${helper}" stage "${downloads}" "${output}" "${run_id}" success
+expect_failure empty_leg bash "${helper}" stage "${downloads}" "${output}" "${run_id}" success nornicdb neo4j
 rg -q 'no non-empty' "${fixture}/empty_leg.log"
 expect_failure empty_capture bash "${helper}" check-leg "$(artifact_dir pair2-neo4j)"
 rg -q 'no non-empty' "${fixture}/empty_capture.log"
@@ -47,23 +47,23 @@ rmdir "$(artifact_dir pair2-neo4j)/fake.jsonl"
 printf '{"leg":"pair2-neo4j"}\n' >"$(artifact_dir pair2-neo4j)/recording.jsonl"
 
 # A failed matrix capture remains blocking even if four uploads exist.
-expect_failure failed_leg bash "${helper}" stage "${downloads}" "${output}" "${run_id}" failure
+expect_failure failed_leg bash "${helper}" stage "${downloads}" "${output}" "${run_id}" failure nornicdb neo4j
 rg -q 'matrix result is failure' "${fixture}/failed_leg.log"
-expect_failure cancelled_leg bash "${helper}" stage "${downloads}" "${output}" "${run_id}" cancelled
+expect_failure cancelled_leg bash "${helper}" stage "${downloads}" "${output}" "${run_id}" cancelled nornicdb neo4j
 rg -q 'matrix result is cancelled' "${fixture}/cancelled_leg.log"
-expect_failure stale_run bash "${helper}" stage "${downloads}" "${output}" 8 success
+expect_failure stale_run bash "${helper}" stage "${downloads}" "${output}" 8 success nornicdb neo4j
 rg -q 'does not exist' "${fixture}/stale_run.log"
 
 # A clean join reconstructs the four paths consumed by both coverage gates.
 printf 'keep\n' >"${fixture}/unrelated"
-bash "${helper}" stage "${downloads}" "${output}" "${run_id}" success
+bash "${helper}" stage "${downloads}" "${output}" "${run_id}" success nornicdb neo4j
 for leg in pair1-nornicdb pair1-neo4j pair2-nornicdb pair2-neo4j; do
   pair="${leg%-*}"
   backend="${leg#*-}"
   cmp -s "$(artifact_dir "${leg}")/recording.jsonl" "${output}/${pair}/${backend}/recording.jsonl"
 done
 test "$(cat "${fixture}/unrelated")" = keep
-expect_failure stale_output bash "${helper}" stage "${downloads}" "${output}" "${run_id}" success
+expect_failure stale_output bash "${helper}" stage "${downloads}" "${output}" "${run_id}" success nornicdb neo4j
 rg -q 'already exists' "${fixture}/stale_output.log"
 
 # A copy failure occurs after staging creates the destination. The ERR trap
@@ -74,12 +74,35 @@ printf '#!/usr/bin/env bash\necho "seeded copy failure" >&2\nexit 23\n' >"${fake
 chmod +x "${fake_bin}/cp"
 partial_output="${fixture}/partial staging with spaces"
 expect_failure copy_failure env PATH="${fake_bin}:${PATH}" \
-  bash "${helper}" stage "${downloads}" "${partial_output}" "${run_id}" success
+  bash "${helper}" stage "${downloads}" "${partial_output}" "${run_id}" success nornicdb neo4j
 rg -q 'seeded copy failure' "${fixture}/copy_failure.log"
 if [[ -e "${partial_output}" ]]; then
   echo 'FAIL: copy failure retained a partial staging directory' >&2
   exit 1
 fi
 test "$(cat "${fixture}/unrelated")" = keep
+
+# With the NornicDB legs disabled (2026-11-05) the join names only neo4j: it
+# stages and requires the two neo4j legs, never the nornicdb ones, and a
+# missing neo4j leg still fails closed. Naming no backend is a usage error.
+neo4j_downloads="${fixture}/neo4j-downloads"
+neo4j_output="${fixture}/neo4j-staged"
+mkdir -p "${neo4j_downloads}"
+for leg in pair1-neo4j pair2-neo4j; do
+  mkdir -p "${neo4j_downloads}/differential-capture-${run_id}-${leg}"
+  printf '{"leg":"%s"}\n' "${leg}" >"${neo4j_downloads}/differential-capture-${run_id}-${leg}/recording.jsonl"
+done
+expect_failure no_backend bash "${helper}" stage "${neo4j_downloads}" "${neo4j_output}" "${run_id}" success
+expect_failure unknown_backend bash "${helper}" stage "${neo4j_downloads}" "${neo4j_output}" "${run_id}" success postgres
+rg -q 'not nornicdb or neo4j' "${fixture}/unknown_backend.log"
+expect_failure nornicdb_leg_not_disabled bash "${helper}" stage "${neo4j_downloads}" "${neo4j_output}" "${run_id}" success nornicdb neo4j
+rg -q 'does not exist' "${fixture}/nornicdb_leg_not_disabled.log"
+bash "${helper}" stage "${neo4j_downloads}" "${neo4j_output}" "${run_id}" success neo4j
+test -s "${neo4j_output}/pair1/neo4j/recording.jsonl"
+test -s "${neo4j_output}/pair2/neo4j/recording.jsonl"
+test ! -e "${neo4j_output}/pair1/nornicdb"
+rm -rf "${neo4j_output}" "${neo4j_downloads}/differential-capture-${run_id}-pair2-neo4j"
+expect_failure neo4j_leg_missing bash "${helper}" stage "${neo4j_downloads}" "${neo4j_output}" "${run_id}" success neo4j
+rg -q 'does not exist' "${fixture}/neo4j_leg_missing.log"
 
 echo 'PASS: differential capture staging is complete, isolated, and fail-closed'

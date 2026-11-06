@@ -87,12 +87,12 @@ that workflow. Automation workflows are explicitly outside the gate registry.
 | `code-coverage-report.yml` | Advisory full coverage on PR, mirror on main/manual | Path-select package coverage; retain main coverage trend. |
 | `deploy-root-docs.yml` | Main/manual docs publishing | Publishing is useful; verify whether duplicate docs build is needed when deploy is enabled. |
 | `docker-publish.yml` | Blocking reproducibility, Helm and APK proof; advisory publish/SBOM | Preserve artifact correctness; separate advisory publication cost from PR proof. |
-| `e2e-tests.yml` | Blocking Docker end-to-end smoke | Distinct runtime integration proof; retain. |
+| `e2e-tests.yml` | Blocking Docker end-to-end smoke (Neo4j only; NornicDB cell disabled 2026-11-05) | Distinct runtime integration proof; retain. |
 | `factschema-diff.yml` | Blocking fact schema compatibility | Distinct compatibility boundary; retain. |
 | `frontend.yml` | Seven blocking frontend gates, advisory SSO/Prettier | Preserve product tests; narrow independent scopes before consolidation. |
-| `golden-corpus-gate.yml` | Blocking mirror/Neo4j/differential; advisory NornicDB corpus | Preserve semantic proof; parallel captures and selected queue payload in this change. |
+| `golden-corpus-gate.yml` | Blocking mirror/Neo4j/Neo4j-only differential (NornicDB corpus cell and capture legs disabled 2026-11-05) | Preserve semantic proof; parallel captures and selected queue payload in this change. |
 | `ifa-determinism-gate.yml` | Blocking determinism/dead-letter/fault matrices on Neo4j (owner order 2026-11-05; NornicDB variant removed); advisory mirror and Neo4j-wiring guard | Distinct recovery invariants; retain selected proof. |
-| `live-backend-tests.yml` | Blocking live backends and mirrors | Preserve live integration contracts. |
+| `live-backend-tests.yml` | Blocking live Neo4j shards 2/4 to 4/4 and mirrors (NornicDB shard 1/4 disabled 2026-11-05) | Preserve live integration contracts. |
 | `live-postgres-readiness.yml` | Advisory readiness diagnostics | Useful, but long; evaluate #7913 independently. |
 | `macos.yml` | Nightly/manual macOS advisory | Platform signal already outside PR; retain. |
 | `main-health.yml` | Post-merge and six-hour health watcher | Useful operator signal, not duplicate merge proof. |
@@ -112,7 +112,7 @@ that workflow. Automation workflows are explicitly outside the gate registry.
 | `test.yml` | Blocking Go core/race/docs; separate lint plugin module | Primary Go authority; plugin module is distinct, not redundant. |
 | `verify-agent-hygiene.yml` | Five blocking agent/process contracts | Retain current enforcement; evaluate maintenance against concrete failure history. |
 | `verify-ci-gate-registry.yml` | Blocking ownership/ruleset consistency and self-tests | Necessary while registry is authoritative; retain. |
-| `verify-replay-tier.yml` | Blocking offline real NornicDB replay | Distinct backend replay proof; retain. |
+| `verify-replay-tier.yml` | Offline real NornicDB replay (disabled 2026-11-05) | Distinct backend replay proof; retain the job, re-enable with the NornicDB legs. |
 
 The `queue-selection.yml` helper was removed in #9367 (it made 36 workflow
 files while it lived; 38 remain). It had no independent
@@ -138,3 +138,136 @@ Mergify only after measuring post-rollout queue throughput, selected critical
 paths, rebuilds, runner wait, and CI minutes. It cannot shorten a slow test body;
 operating two independent merge owners would also require a clear ownership
 boundary and matching required-check policy.
+
+## Re-enabling NornicDB CI
+
+By owner order (2026-11-05, #7331) no NornicDB leg runs in CI while Neo4j is the
+supported backend. Nothing was deleted: each leg is switched off in place, with
+its original condition kept in a comment. The read-API latency cell was turned
+off the same way on 2026-11-03. A guard keeps the legs off:
+`scripts/verify-nornicdb-ci-off.py` (registry gate `nornicdb-ci-off`). It fails
+when a job that can run (its `if` is not `${{ false }}`) starts NornicDB, found
+four ways, each read from the committed files with no list of exceptions:
+
+1. A workflow line selects `nornicdb` (a matrix value under any key,
+   `ESHU_GRAPH_BACKEND`, `--backend nornicdb`, or an expression that picks it
+   for the key `backend`, `graph_backend`, `graph_service` or
+   `ESHU_GRAPH_BACKEND`), assigns `ESHU_GRAPH_BACKEND=nornicdb` or
+   `COMPOSE_PROFILES=nornicdb` inside a command, brings up the `nornicdb`
+   compose service or profile (also through a `-f` file whose name carries
+   `nornicdb`), or `docker run`s (`docker container run`, `podman run`) a
+   NornicDB image or runs one with `uses: docker://...`. A step `name:` is a
+   label, not a command, so "Clean up nornicdb volumes" is not a bring-up. A job
+   `services:` or `container:` image that names NornicDB counts too. The same
+   markers are read over the workflow-level lines outside `jobs:` (a top-level
+   `env:`) whenever the workflow has a live job, and a workflow input that
+   defaults to `nornicdb` counts when a live job reads `inputs.<name>`. A
+   workflow whose jobs are all off is not read that way. Names are
+   matched ignoring case. Lines are read after `\` continuations are joined,
+   and a shell variable set to a literal earlier in the same step is
+   substituted (`svc=nornicdb` then `up -d "$svc"`). Workflows are `*.yml` and
+   `*.yaml`, and the indentation is read from the file, not assumed.
+2. A `*.sh` or `*.py` file the job runs, or any script that file runs in turn,
+   does the same, or exports `ESHU_GRAPH_BACKEND=nornicdb`. The walk has no
+   depth cap and a script cycle ends it. A shell line is split at `&&`, `;`,
+   `|` and `then` outside quotes, `sudo`, `timeout N`, `env` and the like are
+   dropped, and a `bash -c '...'` body is read, so `cd x && docker ...` and
+   `sudo docker run ...` count. A statement counts only when it is the command,
+   and a Python file is parsed for spawn calls, so a fixture or regex that
+   quotes a command is skipped.
+3. A local composite action the job calls (`uses: ./.github/actions/<name>`),
+   or an action that one calls, does either of the above in its `action.yml` or in
+   a script it runs.
+4. A `--shard "${{ matrix.X }}/N"` run whose matrix value
+   `live_backend_shards.partition_runs` gives NornicDB runs.
+
+Each message names the workflow, the job, and the file and line. A workflow
+with no block-style `jobs:` mapping, or a job written inline without `uses:`,
+fails too, because the guard cannot read it. So does a workflow, script, action,
+or registry file that cannot be decoded as UTF-8: the message says "cannot
+read" and names the file (the `call-*` jobs in `test.yml` are
+inline reusable-workflow calls and are read as text).
+
+Stated limits, each pinned by a test in
+`scripts/test-verify-nornicdb-ci-off-forms.py` so that closing one changes the
+test and this list together:
+
+- A backend or service name computed at run time is not resolved: `$(...)`, a
+  function argument, or a `${X:-nornicdb}` default assigned to a variable first.
+- A compose file's own default service (`docker compose -f <file> up` with no
+  service named) is not opened. The disabled e2e cell (commented out in
+  `e2e-tests.yml`) paired the deploy repo's `docker-compose.yaml` with
+  `graph_service: nornicdb`, so a job that ran that file bare could start
+  NornicDB; the guard reads the matrix value, not the file.
+- An expression that picks the backend is read only on the four keys above; a
+  `${{ ... 'nornicdb' ... }}` under another matrix key is not.
+- A command substitution inside a double-quoted string is part of that string.
+- An environment assignment inside a Python script, a reusable workflow's jobs
+  as part of its caller (the callee file is scanned on its own), and remote
+  actions or images.
+- A YAML anchor and alias (`x: &b nornicdb`, then `ESHU_GRAPH_BACKEND: *b`) is
+  not resolved.
+- A script with no `.sh` or `.py` extension, a Makefile target (`make live`), and
+  a Go test helper that execs docker are not opened.
+- Quoting nested more than two levels deep (a `bash -c` string inside two other
+  quoted strings, with escaped quotes) is not parsed. The `_MAX_NESTING` cap of
+  4 is never reached because the quote matcher stops first.
+- A name piped to a command (`echo nornicdb | xargs docker run`) is not joined
+  to that command.
+- A dead step (`if: false`) inside a live job is flagged, because only a
+  job-level `if` switches a job off. That errs on the safe side.
+
+The guard also fails a disabled job whose registry row is still blocking. Restoring the
+replay tier's `if`, or putting shard 1 back in the live-backend matrix, fails it
+whatever the exact-text pins around those lines say.
+
+| Leg | Workflow and job | How it is off | Registry row |
+| --- | --- | --- | --- |
+| Offline replay tier | `verify-replay-tier.yml` / `replay-tier` | `if: ${{ false }}` | `replay-tier`: manual, non-blocking, `disabled:` marker (#10223) |
+| E2E NornicDB cell | `e2e-tests.yml` / `test` | matrix cell commented out | `e2e-tests`: `test (nornicdb)` removed from `check_names` |
+| Golden corpus NornicDB cell | `golden-corpus-gate.yml` / `corpus-gate` | matrix cell commented out | `golden-corpus-gate`: manual, non-blocking, no `check_names` |
+| Differential NornicDB captures | `golden-corpus-gate.yml` / `differential-capture`, `differential` | matrix is `[neo4j]`; staging names `neo4j`; backend-diff step is `if: ${{ false }}`; writer coverage reads Neo4j only | `golden-corpus-differential`: stays blocking (Neo4j only) |
+| Live-backend NornicDB leg | `live-backend-tests.yml` / `live-backend-shards`, `live-backend` | shard matrix is `[2, 3, 4]`; aggregate runs `expand --backend neo4j` and `--skip-shard 1/4` | `live-backend-tests`: stays blocking (Neo4j shards) |
+| Read-API latency cell | `read-api-latency-gate.yml` / `latency-gate` | `if: ${{ false }}` (2026-11-03) | `read-api-latency-gate`: manual, non-blocking |
+
+The Neo4j cells stay on and blocking. The job names (`differential nornicdb vs
+neo4j`, `live-backend (nornicdb and neo4j)`) are unchanged so pinned check names
+do not move. Go unit tests of `go/internal/storage/nornicdb` and the
+`race-graph-writes.yml` run are not CI legs and stay on. The Ifá determinism
+gates and scheduled proofs already run on Neo4j per #10236 (on main), so there
+was nothing to switch off here. Turning the replay
+tier off leaves 167 replay-coverage surfaces unproven (457/457 to 290/457); the
+coverage gate reports them as "Proof off" instead of failing. A proof gate counts
+as off only when its registry row carries the `disabled:` marker (a `reason` and
+a tracking `issue`, on a manual, non-blocking row) and the workflow job it names
+is `if: ${{ false }}`; `ci-gates` drift check 16 and the coverage gate both check
+the pair. Flipping a gate to manual and non-blocking without the marker still
+fails the coverage gate. Six `class: ci`, `backends: nornicdb` live tests (for
+example `go/internal/query/nornicdb_answer_truth_live_test.go`) and the replay
+tier's `dedicated_ci` NornicDB entries no longer run in any job.
+
+To re-enable everything, revert in this order and run each check after its step:
+
+1. Restore each workflow edit from the table. Put back the commented matrix cell
+   or the original `if` kept in the comment next to it.
+2. Restore the registry rows (tier, `blocking`, `check_names`), then run the
+   registry doc generator and the registry validator
+   (`scripts/generate-ci-gates-doc.sh`, `scripts/verify-ci-gates-registry.sh`).
+3. Restore the pinned shapes the guards compare against:
+   `scripts/lib/replay_tier_routes.py` (workflow and registry control lines),
+   `scripts/lib/nornic_conformance_runner.py` (e2e matrix), the
+   `replay_tier_routes.py` digest in `scripts/lib/replay_tier_inventory.json`
+   and `scripts/lib/verify-live-tests-ledger.py`, and the stage-step name in
+   `scripts/lib/golden-corpus-capture-leg-cases.sh`. Pass `nornicdb neo4j` to
+   `stage-differential-capture.sh`.
+4. Delete the `nornicdb-ci-off` registry row, its two steps in
+   `verify-agent-hygiene.yml`, `scripts/verify-nornicdb-ci-off.py`, its two
+   scanner modules (`scripts/lib/nornicdb_ci_off_scan.py` and
+   `scripts/lib/nornicdb_ci_off_shell.py`), and its four test files
+   (`scripts/test-verify-nornicdb-ci-off*.py`). Do this last: until then the guard refuses any live NornicDB leg.
+5. Regenerate the replay-coverage dashboard
+   (`cd go && go test ./cmd/replay-coverage-gate/ -update-dashboard`). With the
+   `replay-tier` row blocking again (delete its `disabled:` marker), its 167
+   surfaces return from "Proof off" to satisfied (457/457). While the row is off,
+   they are reported as unproven and #10223 tracks restoring their proof.
+6. Run the focused tests the disabling PR listed, then open a normal PR.

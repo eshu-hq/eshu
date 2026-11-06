@@ -43,7 +43,12 @@ env:
 
 jobs:
   replay-tier:
-    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'replay-tier') }}
+    # Disabled by owner order (2026-11-05): the NornicDB CI legs are off while
+    # Neo4j is the supported backend (#7331). Re-enable them together; the steps
+    # are in docs/internal/ci-workflow-inventory.md ("Re-enabling NornicDB CI").
+    # Original condition:
+    #   github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'replay-tier')
+    if: ${{ false }}
     name: Offline replay tier vs real NornicDB
     runs-on: ubuntu-24.04
     timeout-minutes: 15

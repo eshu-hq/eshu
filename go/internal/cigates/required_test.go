@@ -77,7 +77,13 @@ func TestRequiredGates_SelectsPRAttributionGateForAnyChangedPath(t *testing.T) {
 	t.Fatal("PR-wide no-ai-attribution gate was not selected for an unrelated changed path")
 }
 
-func TestRequiredGates_SelectsReplayTierForReducerReplayProof(t *testing.T) {
+// TestRequiredGates_ReplayTierIsOffButStillWatchesReducerReplayProof pins two
+// facts about the offline NornicDB replay tier. By owner order (2026-11-05,
+// #7331) its registry row is manual and non-blocking, so a reducer replay proof
+// must not select it as a required gate (the aggregate would wait on a job that
+// never runs). Its frozen PR inventory still watches the reducer paths, so
+// re-enabling the row restores selection without another edit.
+func TestRequiredGates_ReplayTierIsOffButStillWatchesReducerReplayProof(t *testing.T) {
 	t.Parallel()
 
 	registryPath := filepath.Join("..", "..", "..", "specs", "ci-gates.v1.yaml")
@@ -92,25 +98,22 @@ func TestRequiredGates_SelectsReplayTierForReducerReplayProof(t *testing.T) {
 		t.Fatalf("RequiredGates returned error: %v", err)
 	}
 	for _, gate := range required {
-		for _, id := range gate.GateIDs {
-			if id == "replay-tier" {
-				workflowPath := filepath.Join("..", "..", "..", "specs", "ci-pr-workflows.d", "verify-replay-tier.yml")
-				workflow, readErr := os.ReadFile(workflowPath)
-				if readErr != nil {
-					t.Fatalf("ReadFile(%q): %v", workflowPath, readErr)
-				}
-				definitions, parseErr := cigates.ParsePRPlanFragment(workflow)
-				if parseErr != nil || len(definitions) != 1 || definitions[0].File != "verify-replay-tier.yml" {
-					t.Fatalf("invalid replay-tier PR inventory: %v", parseErr)
-				}
-				if !slices.Contains(definitions[0].Paths, "go/internal/reducer/**") {
-					t.Fatal("verify-replay-tier PR inventory does not watch go/internal/reducer/**")
-				}
-				return
-			}
+		if slices.Contains(gate.GateIDs, "replay-tier") {
+			t.Fatal("replay-tier is off by owner order but a reducer replay proof still selects it")
 		}
 	}
-	t.Fatal("reducer replay proof did not select replay-tier")
+	workflowPath := filepath.Join("..", "..", "..", "specs", "ci-pr-workflows.d", "verify-replay-tier.yml")
+	workflow, readErr := os.ReadFile(workflowPath)
+	if readErr != nil {
+		t.Fatalf("ReadFile(%q): %v", workflowPath, readErr)
+	}
+	definitions, parseErr := cigates.ParsePRPlanFragment(workflow)
+	if parseErr != nil || len(definitions) != 1 || definitions[0].File != "verify-replay-tier.yml" {
+		t.Fatalf("invalid replay-tier PR inventory: %v", parseErr)
+	}
+	if !slices.Contains(definitions[0].Paths, "go/internal/reducer/**") {
+		t.Fatal("verify-replay-tier PR inventory does not watch go/internal/reducer/**")
+	}
 }
 
 func TestRequiredGates_SelectsEveryMatchingBlockingCIGate(t *testing.T) {
