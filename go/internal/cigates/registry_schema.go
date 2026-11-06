@@ -33,6 +33,7 @@ type gateFile struct {
 	LocalOnlyReason  string            `yaml:"local_only_reason"`
 	HookID           string            `yaml:"hook_id"`
 	Regenerate       map[string]string `yaml:"regenerate"`
+	Disabled         *disabledFile     `yaml:"disabled"`
 }
 
 type localFile struct {

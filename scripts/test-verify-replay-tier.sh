@@ -173,7 +173,10 @@ gate_job_is_active() {
 	job="$(workflow_gate_job_block "$1")"
 	rg --quiet '^    name: Offline replay tier vs real NornicDB$' <<<"${job}" || return 1
 	if_lines="$(rg '^    if:' <<<"${job}")" || return 1
-	[[ "${if_lines}" == "    if: \${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'replay-tier') }}" ]] || return 1
+	# The job is off by owner order (2026-11-05, #7331): the one reviewed `if` is
+	# the literal false. Re-enabling restores the plan-selected condition kept in
+	# the workflow comment (docs/internal/ci-workflow-inventory.md).
+	[[ "${if_lines}" == "    if: \${{ false }}" ]] || return 1
 	! rg --quiet '^    continue-on-error:' <<<"${job}"
 }
 

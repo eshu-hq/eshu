@@ -34,6 +34,15 @@ those skills own.
   Keep severity keyed on `Blocking` × scenario_type — do not add per-finding
   `Required` overrides. Flip a depth class to blocking only when its backlog has
   burned down (a deliberate follow-up, not an inline edit).
+- **A disabled proof gate leaves its surfaces unproven, not failed.** The rule
+  is the registry row's `disabled:` marker (reason and tracking issue, on a
+  manual, non-blocking row) plus `Inputs.JobDisabled` confirming the workflow job
+  is `if: ${{ false }}`, read by `validateProofGate`. Do not add a gate-name
+  list here, and do not trust a manual, non-blocking row alone: without the
+  marker it is an advisory gate and fails. `StatusProofOff` is the one status
+  `Findings` never marks required; it still counts as not satisfied and appears
+  in `proof_off_surfaces`. A caller that cannot supply `JobDisabled` (the Ifá
+  packages pass nil) fails any marked gate rather than trusting it.
 - **Depth requirements are derived and lockstep, not hand-listed.**
   `DeriveRequirements` derives the depth class per applicable surface — fault per
   collector, cost per projection, ordering per shared-conflict-key projection

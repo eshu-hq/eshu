@@ -184,7 +184,9 @@ func RunCoverage(in CoverageInputs) (replaycoverage.Coverage, replaycoverage.Cov
 	cov := replaycoverage.Reconcile(supported, in.Manifest, resolver)
 
 	if in.ProofGates != nil {
-		for _, err := range replaycoverage.ValidateRequiredProofGates(in.Manifest, replaycoverage.AuthzProofLedger{}, in.ProofGates) {
+		// nil JobDisabled: Ifá proof gates are blocking, so none carries a disabled
+		// marker; a marked one would fail here as unverifiable, never read as off.
+		for _, err := range replaycoverage.ValidateRequiredProofGates(in.Manifest, replaycoverage.AuthzProofLedger{}, in.ProofGates, nil) {
 			gr.Add(goldengate.Finding{Phase: "proof_gates", Check: "proof_gate_validation", OK: false, Required: true, Detail: err.Error()})
 		}
 	}

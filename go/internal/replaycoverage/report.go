@@ -12,8 +12,9 @@ import (
 // ReportSchemaVersion is the coverage-report artifact schema version. C-7
 // (coverage dashboard) consumes this artifact, so the version is bumped when the
 // report shape changes. v4 adds the fixture count to the C-11/C-12
-// language-parser scoreboard.
-const ReportSchemaVersion = "replay-coverage-report.v4"
+// language-parser scoreboard. v5 adds the proof_off tally and list for surfaces
+// whose named proof gate is switched off.
+const ReportSchemaVersion = "replay-coverage-report.v5"
 
 // RegistrySummary is the per-registry (or grand-total) coverage tally. The grand
 // total uses an empty Registry.
@@ -24,6 +25,7 @@ type RegistrySummary struct {
 	Uncovered        int      `json:"uncovered"`
 	Unresolved       int      `json:"unresolved"`
 	Exempt           int      `json:"exempt"`
+	ProofOff         int      `json:"proof_off"`
 	PercentSatisfied float64  `json:"percent_satisfied"`
 }
 
@@ -36,6 +38,7 @@ type ScenarioTypeSummary struct {
 	Uncovered        int     `json:"uncovered"`
 	Unresolved       int     `json:"unresolved"`
 	Exempt           int     `json:"exempt"`
+	ProofOff         int     `json:"proof_off"`
 	PercentSatisfied float64 `json:"percent_satisfied"`
 }
 
@@ -65,6 +68,9 @@ type CoverageReport struct {
 	// Gaps are the uncovered and unresolved surface keys (the actionable
 	// worklist), sorted.
 	Gaps []string `json:"gaps"`
+	// ProofOff are the surfaces whose scenario resolved but whose named proof
+	// gate is switched off, sorted. They are unproven, reported, and not failing.
+	ProofOff []string `json:"proof_off_surfaces"`
 	// Stale are manifest surfaces matching no supported surface, sorted.
 	Stale []string `json:"stale_manifest_surfaces"`
 	// LanguageScoreboard is the C-11 (#4364) language-parser coverage scoreboard:
@@ -123,6 +129,9 @@ func BuildReport(c Coverage, blocking bool) CoverageReport {
 		if sc.Status == StatusUncovered || sc.Status == StatusUnresolved {
 			rep.Gaps = append(rep.Gaps, coverageDisplayKey(sc.Surface.Key, depthType))
 		}
+		if sc.Status == StatusProofOff {
+			rep.ProofOff = append(rep.ProofOff, coverageDisplayKey(sc.Surface.Key, depthType))
+		}
 	}
 
 	for _, reg := range reportRegistryOrder(perRegistry) {
@@ -139,6 +148,7 @@ func BuildReport(c Coverage, blocking bool) CoverageReport {
 	})
 	finalizePercent(&rep.Totals)
 	sort.Strings(rep.Gaps)
+	sort.Strings(rep.ProofOff)
 	return rep
 }
 
@@ -178,6 +188,8 @@ func tallyScenarioType(sum *ScenarioTypeSummary, status Status) {
 		sum.Unresolved++
 	case StatusExempt:
 		sum.Exempt++
+	case StatusProofOff:
+		sum.ProofOff++
 	}
 }
 
@@ -192,6 +204,8 @@ func tally(sum *RegistrySummary, status Status) {
 		sum.Unresolved++
 	case StatusExempt:
 		sum.Exempt++
+	case StatusProofOff:
+		sum.ProofOff++
 	}
 }
 

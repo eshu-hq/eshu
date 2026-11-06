@@ -70,12 +70,15 @@ RUN apk add --no-cache \
         "zlib>=1.3.2-r1" "zstd-libs>=1.5.6-r2" \
         "libssl3>=3.3.7-r2" "libcrypto3>=3.3.7-r2"
 COPY --from=go-caller /go-bin/eshu-collector-document-import /usr/local/bin/eshu-collector-document-import
-# Build-time digest gate over the binary, the ldd-resolved libraries as a
-# set, and the model. The set hash uses the same formula the engine records
-# as libs=sha256:... (SHA-256 over sorted "<path> <hex>\n" lines), so a
-# swapped library fails the build even though only one hash is compared.
-# The per-file list is printed for the operator's
-# ESHU_DOC_IMPORT_TESSERACT_LIBRARIES pin.
+# Build-time digest gate over the binary, the runtime shared-object set,
+# and the model. The set covers the ldd closure PLUS the .so files of
+# floored-but-unlinked packages (libssl3, libcrypto3; zlib is already
+# linked): a same-version byte reissue of an unlinked library installs
+# silently unless its bytes are in the set. The set hash uses the same
+# formula the engine records as libs=sha256:... (SHA-256 over sorted
+# "<path> <hex>\n" lines), so a swapped library fails the build even though
+# only one hash is compared. The per-file list is printed for the
+# operator's ESHU_DOC_IMPORT_TESSERACT_LIBRARIES pin.
 RUN set -eu; \
     [ -n "${EXPECT_BINARY_SHA256:-}" ] || { echo "GATE FAIL: EXPECT_BINARY_SHA256 build arg is required (see specs/satellite-pins/ocr.<arch>.json)" >&2; exit 1; }; \
     [ -n "${EXPECT_LIBS_SHA256:-}" ] || { echo "GATE FAIL: EXPECT_LIBS_SHA256 build arg is required (see specs/satellite-pins/ocr.<arch>.json)" >&2; exit 1; }; \
@@ -87,8 +90,11 @@ RUN set -eu; \
     [ "${got}" = "${EXPECT_MODEL_SHA256}" ] || { echo "GATE FAIL: eng.traineddata sha256:${got} != pinned ${EXPECT_MODEL_SHA256}; re-record specs/satellite-pins (see docker/satellites/README.md)" >&2; exit 1; }; \
     reported="$(tesseract --version 2>/dev/null | head -n 1)"; \
     [ "${reported}" = "tesseract ${EXPECT_ENGINE_VERSION}" ] || { echo "GATE FAIL: binary reports '${reported}', configured '${EXPECT_ENGINE_VERSION}'" >&2; exit 1; }; \
-    libs="$(ldd /usr/bin/tesseract | awk '{ if ($2 == "=>") print $3; else print $1 }' | xargs -n1 readlink -f | LC_ALL=C sort -u | xargs sha256sum | awk '{print $2" "$1}' | LC_ALL=C sort)"; \
-    [ -n "${libs}" ] || { echo "GATE FAIL: ldd resolved no libraries for /usr/bin/tesseract" >&2; exit 1; }; \
+    linked="$(ldd /usr/bin/tesseract | awk '{ if ($2 == "=>") print $3; else print $1 }' | xargs -n1 readlink -f | LC_ALL=C sort -u)"; \
+    [ -n "${linked}" ] || { echo "GATE FAIL: ldd resolved no libraries for /usr/bin/tesseract" >&2; exit 1; }; \
+    extra="$(apk info -L libssl3 libcrypto3 2>/dev/null | grep -E '\.so(\.[0-9]+)*$' | xargs -n1 readlink -f | LC_ALL=C sort -u)"; \
+    [ -n "${extra}" ] || { echo "GATE FAIL: apk listed no shared objects for the floored-but-unlinked packages (libssl3 libcrypto3)" >&2; exit 1; }; \
+    libs="$(printf '%s\n%s\n' "${linked}" "${extra}" | LC_ALL=C sort -u | xargs sha256sum | awk '{print $2" "$1}' | LC_ALL=C sort)"; \
     printf 'pinned runtime libraries:\n%s\n' "${libs}"; \
     got="$(printf '%s\n' "${libs}" | sha256sum | awk '{print $1}')"; \
     [ "${got}" = "${EXPECT_LIBS_SHA256}" ] || { echo "GATE FAIL: library set sha256:${got} != pinned ${EXPECT_LIBS_SHA256}; re-record specs/satellite-pins (see docker/satellites/README.md)" >&2; exit 1; }; \

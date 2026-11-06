@@ -15,8 +15,9 @@ Deployment target: the owner-designated QA EKS environment.
 
 ## What moves (source: the ownership map)
 
-`go/cmd/api/CUTOVER_OWNERSHIP.md` is the machine-checked census: 270
-rows, 220 reads, 50 mutations, 63 handler families plus the mux level.
+`go/cmd/api/CUTOVER_OWNERSHIP.md` is the machine-checked census: 278
+rows, 228 reads, 50 mutations, 66 handler families (re-measured D0,
+Refs eshu-hq/eshu#9669; was 270/220/50/63 at the seed pin).
 
 - Read families (all `channel=read` rows): move to `eshu-api` as consumers
   of versioned core read contracts. No durable writes travel with them.
@@ -29,9 +30,11 @@ rows, 220 reads, 50 mutations, 63 handler families plus the mux level.
   admission contract (recovery, retirement, terminal-failure ack, identity,
   provider-config, sign-in-policy, session, bootstrap, login-state, and the
   single vulnerability-suppression mutation store).
-- `wireAPI`-mounted families (26 rows: setup, OIDC/SAML/GitHub login,
-  providers, provider configs, sign-in policy, ask, service intelligence
-  report) move with their keyring/resolver composition documented as
+- `wireAPI`-mounted families (31 rows, re-measured D0: setup,
+  OIDC/SAML/GitHub login, providers, provider configs, sign-in policy,
+  ask, service intelligence report, plus the CLISupport pure-function
+  POSTs)
+  move with their keyring/resolver composition documented as
   required construction inputs, not hidden globals.
 
 ## What stays in the core

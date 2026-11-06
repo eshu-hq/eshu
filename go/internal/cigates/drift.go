@@ -165,6 +165,11 @@ var matrixVariableRE = regexp.MustCompile(`\$\{\{\s*matrix\.([A-Za-z0-9_]+)\s*\}
 //     collector-entrypoints-generated. The output set is derived from the
 //     manifest and the generator, so adding a collector fails here until a
 //     trigger covers it. See checkGeneratorOutputCoverage (generatorinputs.go).
+//
+//  16. Disabled marker -> disabled job: a gate row that carries a disabled
+//     marker must name a workflow job whose `if` is permanently false, so the
+//     row and the job cannot disagree. See checkDisabledMarkers
+//     (jobownership_names.go).
 func DriftCheck(repoRoot string, reg *Registry) []error {
 	var errs []error
 
@@ -191,6 +196,7 @@ func DriftCheck(repoRoot string, reg *Registry) []error {
 	errs = append(errs, checkOwnerRowTriggers(repoRoot, reg)...)
 	errs = append(errs, checkGeneratorInputCoverageForDrift(repoRoot, reg)...)
 	errs = append(errs, checkGeneratorOutputCoverage(repoRoot, reg)...)
+	errs = append(errs, checkDisabledMarkers(repoRoot, reg)...)
 
 	return errs
 }

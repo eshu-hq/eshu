@@ -92,7 +92,7 @@ func TestCoverageLockstepAgainstRealSpecs(t *testing.T) {
 	// code could not make while the gate was deliberately advisory, and it fails
 	// on a typo'd gate id, a lost local command, or a regression that flips
 	// ifa-contract-layer back to advisory.
-	if errs := replaycoverage.ValidateRequiredProofGates(ifaManifest, replaycoverage.AuthzProofLedger{}, proofGates); len(errs) != 0 {
+	if errs := replaycoverage.ValidateRequiredProofGates(ifaManifest, replaycoverage.AuthzProofLedger{}, proofGates, nil); len(errs) != 0 {
 		t.Errorf("ValidateRequiredProofGates = %v, want no errors now that ifa-contract-layer is blocking (#4397)", errs)
 	}
 
