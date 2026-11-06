@@ -114,12 +114,16 @@ const LocalIdentityAdmissionContractVersion = "v0"
 // the local bootstrap/login/invitation/password/MFA/break-glass/API-token/
 // TOTP routes and GET /api/v0/auth/profile.
 //
-// Inbound verification params carry raw caller-supplied proofs (Password,
-// CurrentPassword, MFATOTPCode, SecretPlaintext, Confirm Code,
-// MFACredentialHandle) for verification; only stored rows and outbound
-// results are hash/metadata-only. Login client secrets and SAML keys
-// are NOT in this contract: they stay on the D9 login-family pins,
-// per the NEVER list in the arbiter D-wave ruling on #9669.
+// Inbound params are mixed: raw caller-supplied proofs for verification
+// (Password, CurrentPassword, MFATOTPCode, SecretPlaintext, Code)
+// alongside values the handlers pre-hash before the store
+// (SubjectIDHash, PasswordHash, InviteCodeHash, MFARecoveryCodeHash,
+// BreakGlassCodeHash, RecoveryCodeHashes). MFACredentialHandle is a
+// stored enrollment attribute persisted to secret_credential_handle,
+// not a verification proof; outbound results stay hash/metadata-only
+// and never include credential handles. Login client secrets and SAML
+// keys are NOT in this contract: they stay on the D9 login-family
+// pins, per the NEVER list in the arbiter D-wave ruling on #9669.
 //
 // D-wave consumer: D8 (session resolver + session/token lifecycle, per the
 // arbiter D-wave ruling on #9669). The satellite records this pin in a
