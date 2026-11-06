@@ -50,7 +50,11 @@ cover every directory. A branch that does not touch an overshoot directory is no
 failed for it, so one lost trailer no longer blocks unrelated PRs, or their
 authors' pre-push floor, until a repair merges. The debt still fails `push`,
 `schedule`, `workflow_dispatch`, `merge_group`, and a missing or unknown event
-name: the full sweep on `push` to main is what catches it where it is made. A
+name: the full sweep on `push` to main is what catches it where it is made. When
+a `push` run goes RED, the dirgate-main-alarm workflow
+(`scripts/ci/dirgate-main-alarm.sh`) comments the merged PR with the failing
+directories and the exact trailer lines, or opens one labeled fallback issue
+when no merged PR exists, so the red reaches a person within minutes. A
 branch that does touch the directory owes the overshoot plus its own growth (`+2`
 for one new file on a directory 1 over).
 
