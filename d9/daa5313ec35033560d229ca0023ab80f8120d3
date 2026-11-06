@@ -1,0 +1,14 @@
+docs/internal/evidence/10106-quiet-delta-replay-rebind.md
+  h_78a442cba0b3e6 71-73
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d9daa5313ec35033560d229ca0023ab80f8120d3",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
