@@ -99,6 +99,12 @@ cd "${repo_root}"
 
 # shellcheck source=scripts/lib/gate-diff-base.sh
 . "${script_dir}/lib/gate-diff-base.sh"
+# On a pull_request run the checkout is GitHub's merge ref. Its first parent is
+# the base branch as it was combined with the PR and does not move, while
+# origin/$GITHUB_BASE_REF fetched now also holds commits that landed after the
+# ref was built, which read as this branch's own deletions (#10222). An explicit
+# override (--base or ESHU_MOVED_FILE_REFS_BASE) still wins.
+base_override="${base_override:-$(eshu_gate_merge_ref_parent "${repo_root}")}"
 eshu_gate_resolve_diff_base "verify-moved-file-refs" "${repo_root}" "${base_override}"
 base="${eshu_gate_diff_base}"
 if [ -z "${base}" ]; then

@@ -302,6 +302,152 @@ check "an unresolvable base exits 2, not 0" 2 "$rc"
 check_output "says the scan did not run" "the scan did not run" "$out"
 rm -rf "$repo"
 
+# 10. PULL REQUEST MERGE REF (#10222). On a pull_request run the job checks out
+#     GitHub's merge ref, whose first parent is the base branch as it stood
+#     when the ref was built. Diffing against origin/$GITHUB_BASE_REF fetched at
+#     job time also contains commits that landed on the base afterwards, and
+#     reads each one as this branch's own change. The gate must diff against
+#     the first parent, and only for a pull_request event on a two-parent HEAD.
+
+run_gate_env() {
+  # $1 = repo; the rest are NAME=value assignments for the gate's environment.
+  # The ambient CI variables are cleared so no case inherits them.
+  local dir="$1"
+  shift
+  (cd "$dir" && env -u ESHU_MOVED_FILE_REFS_BASE -u GITHUB_EVENT_NAME \
+    -u GITHUB_BASE_REF "$@" ./scripts/verify-moved-file-refs.sh 2>&1)
+}
+
+# new_merge_ref_repo builds a repo whose HEAD is a pull-request merge commit.
+# Parent 1 is main as it stood when the ref was built; it already cites
+# go/internal/reducer/future.go, a path that does not exist yet (the planned
+# reference the header calls inherited debt). Parent 2 is the PR head: a move of
+# widget.go when $1 is "move", an unrelated doc otherwise. Main then moves on
+# and ADDS future.go, so origin/main holds a Go file the merge ref lacks, which
+# a tip-versus-HEAD diff reads as a deletion of a referenced file.
+new_merge_ref_repo() {
+  local kind="$1" dir base
+  dir="$(new_repo)"
+  git -C "$dir" branch -M main
+  printf 'Planned: go/internal/reducer/future.go lands later.\n' >>"$dir/docs/design.md"
+  git -C "$dir" commit -qam "main when the merge ref was built"
+  base="$(git -C "$dir" rev-parse HEAD)"
+  git -C "$dir" checkout -q -b pr
+  if [ "$kind" = "move" ]; then
+    mkdir -p "$dir/go/internal/reducer/widgetfam"
+    git -C "$dir" mv go/internal/reducer/widget.go go/internal/reducer/widgetfam/widget.go
+  else
+    printf 'unrelated\n' >"$dir/docs/notes.md"
+  fi
+  git -C "$dir" add -A
+  git -C "$dir" commit -qm "pr head"
+  git -C "$dir" checkout -q main
+  printf 'package reducer\n' >"$dir/go/internal/reducer/future.go"
+  git -C "$dir" add -A
+  git -C "$dir" commit -qm "main moves and adds future.go"
+  git -C "$dir" update-ref refs/remotes/origin/main HEAD
+  git -C "$dir" checkout -q -b mergeref "$base"
+  git -C "$dir" merge -q --no-ff -m "merge ref" pr
+  printf '%s\n' "$dir"
+}
+
+repo="$(new_merge_ref_repo other)"
+set +e
+out="$(run_gate_env "$repo" GITHUB_EVENT_NAME=pull_request GITHUB_BASE_REF=main)"
+rc=$?
+set -e
+check "merge ref: a base that moved after the ref was built adds no change" 0 "$rc"
+check_output "merge ref: the moved base tip is not read as the PR's deletion" "vacates no go" "$out"
+
+# 10b. CONTROL. An explicit override still wins over the merge ref parent, and
+#      pointing it at the moved tip brings the false failure back. Without this,
+#      10 passing could mean the fixture never exercised the moved base.
+set +e
+out="$(run_gate_env "$repo" GITHUB_EVENT_NAME=pull_request GITHUB_BASE_REF=main \
+  ESHU_MOVED_FILE_REFS_BASE=origin/main)"
+rc=$?
+set -e
+check "merge ref: an explicit base override still wins" 1 "$rc"
+check_output "merge ref: the control reads the later main commit as a deletion" \
+  "go/internal/reducer/future.go" "$out"
+rm -rf "$repo"
+
+# 10c. The PR's own move is still caught on the merge ref, and only the PR's
+#      own move: the later main commit must not be counted with it.
+repo="$(new_merge_ref_repo move)"
+set +e
+out="$(run_gate_env "$repo" GITHUB_EVENT_NAME=pull_request GITHUB_BASE_REF=main)"
+rc=$?
+set -e
+check "merge ref: a PR that moves a file and leaves a reference still fails" 1 "$rc"
+check_output "merge ref: names the moved path" "go/internal/reducer/widget.go" "$out"
+case "$out" in
+  *future.go*)
+    printf 'FAIL merge ref: the later main commit was counted with the PR: %s\n' "$out" >&2
+    failures=$((failures + 1))
+    ;;
+  *) printf 'ok   merge ref: the later main commit is not counted with the PR\n' ;;
+esac
+rm -rf "$repo"
+
+# 10d. GUARDS. Parent 1 is the base only for a pull_request event on a
+#      two-parent HEAD. A developer who merged main into a feature branch has a
+#      two-parent HEAD whose first parent is their own tip, already carrying the
+#      move; trusting it would hide the move. Each case below must still fail.
+new_local_merge_repo() {
+  local dir
+  dir="$(new_repo)"
+  git -C "$dir" branch -M main
+  git -C "$dir" update-ref refs/remotes/origin/main HEAD
+  git -C "$dir" checkout -q -b feature
+  mkdir -p "$dir/go/internal/reducer/widgetfam"
+  git -C "$dir" mv go/internal/reducer/widget.go go/internal/reducer/widgetfam/widget.go
+  git -C "$dir" commit -qm "feature moves widget"
+  git -C "$dir" checkout -q main
+  printf 'unrelated\n' >"$dir/docs/notes.md"
+  git -C "$dir" add -A
+  git -C "$dir" commit -qm "main moves"
+  git -C "$dir" update-ref refs/remotes/origin/main HEAD
+  git -C "$dir" checkout -q feature
+  git -C "$dir" merge -q --no-ff -m "merge main into feature" main
+  printf '%s\n' "$dir"
+}
+
+repo="$(new_local_merge_repo)"
+set +e
+out="$(run_gate_env "$repo")"
+rc=$?
+set -e
+check "guard: a local merge with no event still sees the move" 1 "$rc"
+check_output "guard: no event names the moved path" "go/internal/reducer/widget.go" "$out"
+set +e
+out="$(run_gate_env "$repo" GITHUB_EVENT_NAME=push)"
+rc=$?
+set -e
+check "guard: a push event on a merge commit still sees the move" 1 "$rc"
+check_output "guard: push event names the moved path" "go/internal/reducer/widget.go" "$out"
+rm -rf "$repo"
+
+# A pull_request run whose HEAD has one parent is not the merge ref. Its first
+# parent is the branch's own previous commit, which already carries the move.
+repo="$(new_repo)"
+git -C "$repo" branch -M main
+git -C "$repo" update-ref refs/remotes/origin/main HEAD
+git -C "$repo" checkout -q -b feature
+mkdir -p "$repo/go/internal/reducer/widgetfam"
+git -C "$repo" mv go/internal/reducer/widget.go go/internal/reducer/widgetfam/widget.go
+git -C "$repo" commit -qm "feature moves widget"
+printf 'unrelated\n' >"$repo/docs/notes.md"
+git -C "$repo" add -A
+git -C "$repo" commit -qm "feature follow-up"
+set +e
+out="$(run_gate_env "$repo" GITHUB_EVENT_NAME=pull_request GITHUB_BASE_REF=main)"
+rc=$?
+set -e
+check "guard: a single-parent HEAD on a pull request still sees the move" 1 "$rc"
+check_output "guard: single-parent HEAD names the moved path" "go/internal/reducer/widget.go" "$out"
+rm -rf "$repo"
+
 if [ "$failures" -gt 0 ]; then
   printf '\ntest-verify-moved-file-refs: %s failure(s)\n' "$failures" >&2
   exit 1
