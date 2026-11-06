@@ -20,8 +20,8 @@
 //   - --sdk-stdio serves one host claim from stdin and writes one SDK
 //     result to stdout: the claim's generation drains through the
 //     existing directory source and drain unchanged, the drained
-//     envelopes project onto the SDK wire shape for the host's
-//     grant-checked commit, and the ack echoes the claim verbatim. The
-//     satellite opens no database and performs no grant evaluation; any
-//     failure exits nonzero with no ack on stdout.
+//     envelopes project onto the SDK wire shape when the activation's live
+//     producer grants authorize every emitted kind, and the ack echoes the
+//     claim verbatim. A grant denial acks terminal with grant_denied; any
+//     other failure exits nonzero with no ack on stdout.
 package main

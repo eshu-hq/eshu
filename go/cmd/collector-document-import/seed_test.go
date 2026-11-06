@@ -16,8 +16,11 @@ import (
 
 // seedTestManifest writes a minimal document-import ComponentPackage with a
 // placeholder seed image and returns its path. Tests stamp it through the
-// seed path instead of touching the repository manifest.
-func seedTestManifest(t *testing.T, dir string) string {
+// seed path instead of touching the repository manifest. Callers build the
+// destination path inline from their own t.TempDir()-derived directory and
+// pass the joined path here, so the path root stays visible at the call
+// site.
+func seedTestManifest(t *testing.T, path string) string {
 	t.Helper()
 	raw := `apiVersion: eshu.dev/v1alpha1
 kind: ComponentPackage
@@ -59,16 +62,14 @@ spec:
   telemetry:
     metricsPrefix: eshu_dp_collector_document_import_
 `
-	path := filepath.Join(dir, "manifest.yaml")
 	if err := os.WriteFile(path, []byte(raw), 0o600); err != nil {
 		t.Fatalf("write test manifest: %v", err)
 	}
 	return path
 }
 
-func seedTestBinary(t *testing.T, dir string, body []byte) string {
+func seedTestBinary(t *testing.T, path string, body []byte) string {
 	t.Helper()
-	path := filepath.Join(dir, "collector")
 	if err := os.WriteFile(path, body, 0o755); err != nil {
 		t.Fatalf("write test binary: %v", err)
 	}
@@ -83,8 +84,8 @@ func TestSeedWritesCollectorAndManifest(t *testing.T) {
 	t.Parallel()
 
 	work := t.TempDir()
-	binary := seedTestBinary(t, work, []byte("fake-collector-bytes"))
-	manifest := seedTestManifest(t, work)
+	binary := seedTestBinary(t, filepath.Join(work, "collector"), []byte("fake-collector-bytes"))
+	manifest := seedTestManifest(t, filepath.Join(work, "manifest.yaml"))
 	dest := filepath.Join(work, "dest")
 
 	if err := seedComponent(dest, seedTestRef, binary, manifest, "linux/amd64"); err != nil {
@@ -155,8 +156,8 @@ func TestSeedRefusesNonDigestRef(t *testing.T) {
 			t.Parallel()
 
 			work := t.TempDir()
-			binary := seedTestBinary(t, work, []byte("fake-collector-bytes"))
-			manifest := seedTestManifest(t, work)
+			binary := seedTestBinary(t, filepath.Join(work, "collector"), []byte("fake-collector-bytes"))
+			manifest := seedTestManifest(t, filepath.Join(work, "manifest.yaml"))
 			dest := filepath.Join(work, "dest")
 
 			err := seedComponent(dest, ref, binary, manifest, "linux/amd64")
@@ -177,7 +178,7 @@ func TestSeedRefusesMissingPlatform(t *testing.T) {
 	t.Parallel()
 
 	work := t.TempDir()
-	binary := seedTestBinary(t, work, []byte("fake-collector-bytes"))
+	binary := seedTestBinary(t, filepath.Join(work, "collector"), []byte("fake-collector-bytes"))
 	raw := `apiVersion: eshu.dev/v1alpha1
 kind: ComponentPackage
 metadata:
@@ -216,8 +217,8 @@ func TestSeedRefusesMissingInputs(t *testing.T) {
 	t.Parallel()
 
 	work := t.TempDir()
-	binary := seedTestBinary(t, work, []byte("fake-collector-bytes"))
-	manifest := seedTestManifest(t, work)
+	binary := seedTestBinary(t, filepath.Join(work, "collector"), []byte("fake-collector-bytes"))
+	manifest := seedTestManifest(t, filepath.Join(work, "manifest.yaml"))
 
 	if err := seedComponent(filepath.Join(work, "d1"), seedTestRef, filepath.Join(work, "missing"), manifest, "linux/amd64"); err == nil {
 		t.Fatal("seedComponent with a missing binary: got nil error, want a failure")

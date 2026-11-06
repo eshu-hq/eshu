@@ -38,9 +38,11 @@
   `provenSeedImageAmd64`/`provenSeedImageArm64` in `manifest_test.go` name
   the same digests. A seed rebuild re-pins all of them in the same commit;
   promotion re-pins them to the pushed digests.
-- Satellite failures stay silent on stdout: the ack is written only on
-  success, so a failed claim leaves no partial result for the host to
-  misread. Refusals name the cause on stderr and exit nonzero.
+- Satellite failures stay silent on stdout except for a terminal grant
+  denial: success acks complete/unchanged and a revoked grant acks terminal
+  with `grant_denied`, so a failed claim otherwise leaves no partial result
+  for the host to misread. Other refusals name the cause on stderr and exit
+  nonzero.
 - Keep the artifact cap positive and residency to one file: `io.LimitReader`
   at `maxBytes+1`, `Lstat` before open, `os.SameFile` after open, no bodies
   retained between scan and drain, no symlink following.

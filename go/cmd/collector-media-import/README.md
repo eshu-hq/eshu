@@ -36,9 +36,10 @@ Package `main`; nothing is imported by other packages.
 - `buildDrain`, `buildEngine` — pinned backend verification and drain wiring.
 - `runSeed`, `runSeedCommand` — `collector seed` dispatch: digest-ref
   validation plus the caller binary and embedded `manifest.yaml` copy.
-- `serveStdioClaim`, `captureCommitter`, `ackResult` — `--sdk-stdio` thin
-  claim adapter: one host claim in, one SDK result out, existing drain
-  unchanged in between.
+- `serveStdioClaim`, `runSDKStdioCommand`, `captureCommitter`, `ackResult` —
+  `--sdk-stdio` grant-checked claim adapter: one host claim in, one SDK
+  result out, existing drain unchanged in between, terminal `grant_denied`
+  ack on revoked grants.
 
 ## Satellite seed (Event-B)
 
@@ -62,11 +63,11 @@ slots are left byte-identical.
 
 `--sdk-stdio` serves one host claim: the claim's generation drains through
 the existing source and drain into an in-memory capture, the envelopes
-project onto the SDK wire shape (self-checked against the host contract the
-claim carries), and the ack echoes the claim verbatim with one complete
-status row. The host applies producer-grant coverage plus its durable commit;
-the satellite opens no database and evaluates no grants — a refused contract
-or any drain failure exits nonzero with no ack on stdout.
+project onto the SDK wire shape (self-checked against the embedded manifest
+contract) when the activation's live producer grants authorize every emitted
+kind, and the ack echoes the claim verbatim with one complete status row. A
+grant denial acks terminal with `grant_denied`; the satellite opens no
+database and any other failure exits nonzero with no ack on stdout.
 
 See `doc.go` for the full godoc contract.
 

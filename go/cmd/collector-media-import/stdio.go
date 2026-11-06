@@ -15,9 +15,11 @@ import (
 	"time"
 
 	sdkcollector "github.com/eshu-hq/eshu-sdk/collector"
+	"gopkg.in/yaml.v3"
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/collector/extensionhost"
+	"github.com/eshu-hq/eshu/go/internal/component"
 	"github.com/eshu-hq/eshu/go/internal/factenvelope"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
@@ -33,6 +35,15 @@ const (
 	// stdin drains to one SDK result on stdout, instead of the default
 	// one-shot Postgres drain.
 	sdkStdioFlag = "--sdk-stdio"
+	// grantDeniedFailureClass is the bounded failure class a terminal
+	// denial ack carries. The host records it on the claim, so a
+	// deterministic denial terminal-fails instead of burning the attempt
+	// budget on retries that can never succeed.
+	grantDeniedFailureClass = "grant_denied"
+	// componentHomeEnv is the registry home the activation reconcile
+	// populates with live producer grants before install. It is owned by
+	// the component registry contract; this caller only reads it.
+	componentHomeEnv = "ESHU_COMPONENT_HOME"
 )
 
 // isSDKStdio reports whether the invocation selects the satellite claim
@@ -50,10 +61,22 @@ func isSDKStdio(args []string) bool {
 // pinned whisper.cpp backend is verified at drain start (binary and model
 // digests plus the engine version) and the activation artifact directory is
 // drained through the existing source. The satellite opens no database: the
-// drained envelopes commit into the SDK result for the host's
-// grant-checked commit.
+// drained envelopes commit into the SDK result for the host's durable
+// commit after this adapter's grant checks pass.
 func runSDKStdio(ctx context.Context, stdin io.Reader, stdout io.Writer) error {
 	return serveStdioClaim(ctx, stdin, stdout, os.Getenv, openProductionSource)
+}
+
+// runSDKStdioCommand serves one host claim on stdio. Only the bare
+// --sdk-stdio flag is admitted: any other argument is a miswired adapter
+// invocation and fails closed instead of serving under surprising flags.
+func runSDKStdioCommand(ctx context.Context, args []string) error {
+	for _, arg := range args {
+		if arg != sdkStdioFlag {
+			return fmt.Errorf("collector --sdk-stdio takes no other arguments, got %q", arg)
+		}
+	}
+	return runSDKStdio(ctx, os.Stdin, os.Stdout)
 }
 
 // openProductionSource verifies the pinned backend and opens the activation
@@ -81,14 +104,12 @@ func openProductionSource(cfg Config, logger *slog.Logger) (collector.Source, er
 type openStdioSource func(Config, *slog.Logger) (collector.Source, error)
 
 // serveStdioClaim serves one host claim from stdin and writes one SDK
-// result to stdout. The claim's generation drains through the existing
-// directory source and drain loop unchanged; the drained envelopes are
-// committed into the SDK result, which travels the grant-checked SDK path:
-// the result is self-checked against the host contract the claim carries,
-// and the host applies producer-grant coverage plus its durable commit
-// before completing the claim. The satellite performs no grant evaluation
-// itself (it holds no registry) and no direct store write (it runs without
-// network); any failure exits nonzero with no ack on stdout.
+// result to stdout. It runs the existing startup verification, drains the
+// activation artifact dir through the untouched drainOnce, and commits the
+// drained envelopes into the SDK result only when the activation's live
+// producer grants authorize every emitted kind. A deterministic grant denial
+// acks a terminal result so the host terminal-fails the claim; any other
+// failure is a process error so the host can retry it.
 func serveStdioClaim(
 	ctx context.Context,
 	stdin io.Reader,
@@ -108,6 +129,23 @@ func serveStdioClaim(
 		return fmt.Errorf("media import satellite is disabled without %s=true", envEnabled)
 	}
 	logger := slog.Default()
+	manifest, err := loadMediaSDKManifest()
+	if err != nil {
+		return err
+	}
+	contract, err := sdkContractForManifest(manifest)
+	if err != nil {
+		return err
+	}
+	validator := sdkcollector.NewValidator(contract)
+	grantHome := ""
+	if getenv != nil {
+		grantHome = strings.TrimSpace(getenv(componentHomeEnv))
+	}
+	grants := liveProducerGrants(grantHome)
+	if err := manifest.ValidateWithGrants(grants); err != nil {
+		return denyStdioClaim(stdout, validator, request, logger, fmt.Errorf("media-import activation denied: %w", err))
+	}
 	src, err := openSource(cfg, logger)
 	if err != nil {
 		return err
@@ -117,13 +155,114 @@ func serveStdioClaim(
 	if err != nil {
 		return err
 	}
+	now := time.Now().UTC()
+	for _, envelopes := range capture.facts {
+		for _, envelope := range envelopes {
+			allowed, _ := component.EvaluateEmission(
+				grants,
+				manifest.Metadata.ID,
+				manifest.Metadata.Version,
+				envelope.FactKind,
+				envelope.SchemaVersion,
+				manifest.Spec.CollectorKinds,
+				now,
+			)
+			if !allowed {
+				return denyStdioClaim(stdout, validator, request, logger, fmt.Errorf(
+					"fact kind %q is core-owned by Eshu and has no live producer grant for %q version %q",
+					envelope.FactKind, manifest.Metadata.ID, manifest.Metadata.Version,
+				))
+			}
+		}
+	}
 	result, err := ackResult(request, capture, generations)
 	if err != nil {
 		return err
 	}
-	if _, err := sdkcollector.NewValidator(request.Contract).ValidateResult(result); err != nil {
-		return fmt.Errorf("validate claim result against host contract: %w", err)
+	if _, err := validator.ValidateResult(result); err != nil {
+		return fmt.Errorf("validate claim result against SDK contract: %w", err)
 	}
+	return encodeStdioResult(stdout, result)
+}
+
+// denyStdioClaim acks a deterministic grant denial as a terminal result with
+// zero facts. The cause is logged for the operator; the ack itself carries
+// only the bounded failure class, so no grant material or payload ever
+// reaches the wire.
+func denyStdioClaim(stdout io.Writer, validator sdkcollector.Validator, request extensionhost.Request, logger *slog.Logger, cause error) error {
+	if logger != nil {
+		logger.Warn("sdk-stdio grant denied", "error", cause)
+	}
+	result := sdkcollector.Result{
+		ProtocolVersion: sdkcollector.ProtocolVersionV1Alpha1,
+		State:           sdkcollector.ResultTerminal,
+		Claim:           request.Claim,
+		Generation: sdkcollector.Generation{
+			ID:         request.Claim.GenerationID,
+			ObservedAt: time.Now().UTC(),
+		},
+		Statuses: []sdkcollector.Status{{Class: sdkcollector.StatusFailure, FailureClass: grantDeniedFailureClass}},
+	}
+	if _, err := validator.ValidateResult(result); err != nil {
+		return fmt.Errorf("sdk-stdio denial fails SDK validation: %w", err)
+	}
+	return encodeStdioResult(stdout, result)
+}
+
+// loadMediaSDKManifest decodes the embedded component manifest without grant
+// context: grant admission runs separately so a denial acks terminal
+// instead of failing the process.
+func loadMediaSDKManifest() (component.Manifest, error) {
+	var manifest component.Manifest
+	if err := yaml.Unmarshal(embeddedManifest, &manifest); err != nil {
+		return component.Manifest{}, fmt.Errorf("sdk-stdio decodes the embedded manifest: %w", err)
+	}
+	return manifest, nil
+}
+
+// sdkContractForManifest builds the SDK validation contract from the
+// embedded manifest, mirroring the host's admission contract: the protocol
+// the manifest declares and exactly the fact families it emits.
+func sdkContractForManifest(manifest component.Manifest) (sdkcollector.Contract, error) {
+	contract := sdkcollector.Contract{
+		ProtocolVersion: manifest.Spec.Runtime.SDKProtocol,
+		Facts:           make([]sdkcollector.FactDeclaration, 0, len(manifest.Spec.EmittedFacts)),
+	}
+	for _, family := range manifest.Spec.EmittedFacts {
+		declaration := sdkcollector.FactDeclaration{
+			Kind:             family.Kind,
+			SchemaVersions:   append([]string(nil), family.SchemaVersions...),
+			SourceConfidence: make([]sdkcollector.SourceConfidence, 0, len(family.SourceConfidence)),
+		}
+		for _, confidence := range family.SourceConfidence {
+			declaration.SourceConfidence = append(declaration.SourceConfidence, sdkcollector.SourceConfidence(confidence))
+		}
+		contract.Facts = append(contract.Facts, declaration)
+	}
+	if len(contract.Facts) == 0 {
+		return sdkcollector.Contract{}, fmt.Errorf("sdk-stdio manifest %q declares no emitted fact families", manifest.Metadata.ID)
+	}
+	return contract, nil
+}
+
+// liveProducerGrants reads the activation's producer grants from the
+// component registry home. An empty home or an unreadable set yields no
+// grants, which denies core-owned emission fail-closed exactly like the
+// host's emission recheck.
+func liveProducerGrants(home string) []component.ProducerGrant {
+	if strings.TrimSpace(home) == "" {
+		return nil
+	}
+	grants, err := component.NewRegistry(home).ProducerGrants()
+	if err != nil {
+		return nil
+	}
+	return grants
+}
+
+// encodeStdioResult writes one indented SDK result: the ack the host
+// decodes and commits.
+func encodeStdioResult(stdout io.Writer, result sdkcollector.Result) error {
 	encoder := json.NewEncoder(stdout)
 	encoder.SetIndent("", "  ")
 	if err := encoder.Encode(result); err != nil {
@@ -213,10 +352,11 @@ func ackResult(
 			}
 			// Name the claim the host commits under: the host
 			// persists satellite results under the claimed work
-			// item's scope and generation, and the SDK contract
-			// requires the refs to match. The drain's
+			// item's source system, scope, and generation, and the
+			// SDK contract requires the refs to match. The drain's
 			// content-derived identity survives in the stable
 			// key and payload, so re-runs stay idempotent.
+			fact.SourceRef.SourceSystem = request.Claim.SourceSystem
 			fact.SourceRef.ScopeID = request.Claim.Scope.ID
 			fact.SourceRef.GenerationID = request.Claim.GenerationID
 			wire = append(wire, fact)

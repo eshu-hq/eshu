@@ -50,6 +50,15 @@ func repoManifestGrants() []component.ProducerGrant {
 	}
 }
 
+// provenSeedImages are the integration-proven seed images: the `docker
+// build` of Dockerfile.seed records its content digests in
+// image-provenance.md (both gates PASS per arch), and the manifest
+// artifacts entries pin the same digests. A seed rebuild re-pins these
+// constants in the same commit as the manifest fill.
+const provenSeedImageAmd64 = "ghcr.io/eshu-hq/eshu-collector-document-import@sha256:95b253e6df0ab75af737209fe7667ebf3855381ea47fd91f9b0837c5911b7ed8"
+
+const provenSeedImageArm64 = "ghcr.io/eshu-hq/eshu-collector-document-import@sha256:3926a2cabd8d5c608a21d7ca42d038ecfc916e04fdc08836807c9257731d6404"
+
 // TestRepoManifestSeedContract proves the checked-in manifest carries the
 // arbiter-ruled seed contract: pinned identity, the SDK process runtime,
 // one digest-pinned artifact per platform, and exactly the two documentation
@@ -76,9 +85,20 @@ func TestRepoManifestSeedContract(t *testing.T) {
 	if len(manifest.Spec.Artifacts) != 2 {
 		t.Fatalf("manifest artifacts = %d, want 2 (amd64+arm64)", len(manifest.Spec.Artifacts))
 	}
+	wantImages := map[string]string{
+		"linux/amd64": provenSeedImageAmd64,
+		"linux/arm64": provenSeedImageArm64,
+	}
 	for _, artifact := range manifest.Spec.Artifacts {
 		if err := artifact.Validate(); err != nil {
 			t.Fatalf("manifest artifact %q fails the digest gate: %v", artifact.Platform, err)
+		}
+		want, ok := wantImages[artifact.Platform]
+		if !ok {
+			t.Fatalf("manifest artifact platform %q is not a pinned seed platform", artifact.Platform)
+		}
+		if artifact.Image != want {
+			t.Fatalf("manifest artifact %q image = %q, want the proven seed image %q", artifact.Platform, artifact.Image, want)
 		}
 	}
 	wantFamilies := map[string]struct {

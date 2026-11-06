@@ -39,7 +39,7 @@ func main() {
 	}
 
 	if isSDKStdio(os.Args[1:]) {
-		if err := runSDKStdio(context.Background(), os.Stdin, os.Stdout); err != nil {
+		if err := runSDKStdioCommand(context.Background(), os.Args[1:]); err != nil {
 			_, _ = fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
 		}

@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -140,7 +141,7 @@ func TestSDKStdioClaimDrainAck(t *testing.T) {
 	var stdout bytes.Buffer
 	err := serveSDKStdio(context.Background(), bytes.NewReader(stdioTestRequest(t, stdioTestClaim())), &stdout, sdkStdioDeps{
 		getenv:       func(key string) string { return stdioTestEnv(t, dir)[key] },
-		manifestPath: seedTestManifest(t, work),
+		manifestPath: seedTestManifest(t, filepath.Join(work, "manifest.yaml")),
 		grantHome:    grantHome,
 		newExtractor: func(Config) (extractor, error) { return engine, nil },
 	})
@@ -185,7 +186,7 @@ func TestSDKStdioEmptyDrainAcksUnchanged(t *testing.T) {
 	var stdout bytes.Buffer
 	err := serveSDKStdio(context.Background(), bytes.NewReader(stdioTestRequest(t, stdioTestClaim())), &stdout, sdkStdioDeps{
 		getenv:       func(key string) string { return stdioTestEnv(t, t.TempDir())[key] },
-		manifestPath: seedTestManifest(t, work),
+		manifestPath: seedTestManifest(t, filepath.Join(work, "manifest.yaml")),
 		grantHome:    grantHome,
 		newExtractor: func(Config) (extractor, error) { return stdioTestEngine(), nil },
 	})
@@ -214,7 +215,7 @@ func TestSDKStdioGrantDeniedAcksTerminal(t *testing.T) {
 	var stdout bytes.Buffer
 	err := serveSDKStdio(context.Background(), bytes.NewReader(stdioTestRequest(t, stdioTestClaim())), &stdout, sdkStdioDeps{
 		getenv:       func(key string) string { return stdioTestEnv(t, dir)[key] },
-		manifestPath: seedTestManifest(t, work),
+		manifestPath: seedTestManifest(t, filepath.Join(work, "manifest.yaml")),
 		grantHome:    t.TempDir(),
 		newExtractor: func(Config) (extractor, error) { return stdioTestEngine(), nil },
 	})
@@ -253,7 +254,7 @@ func TestSDKStdioRejectsBadInput(t *testing.T) {
 	deps := func() sdkStdioDeps {
 		return sdkStdioDeps{
 			getenv:       func(key string) string { return stdioTestEnv(t, t.TempDir())[key] },
-			manifestPath: seedTestManifest(t, work),
+			manifestPath: seedTestManifest(t, filepath.Join(work, "manifest.yaml")),
 			grantHome:    grantHome,
 			newExtractor: func(Config) (extractor, error) { return stdioTestEngine(), nil },
 		}

@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	"gopkg.in/yaml.v3"
 
@@ -35,10 +36,10 @@ const satelliteActivationValues = `
   grants:
     - kind: documentation_document
       schemaVersions: ["1.0.0"]
-      scope: document_import
+      scope: documentation
     - kind: documentation_section
       schemaVersions: ["1.1.0"]
-      scope: document_import
+      scope: documentation
 - instanceId: transcription-cx-qa
   componentId: dev.eshu.collector.media_import
   componentVersion: 0.1.0
@@ -50,10 +51,10 @@ const satelliteActivationValues = `
   grants:
     - kind: documentation_document
       schemaVersions: ["1.0.0"]
-      scope: media_import
+      scope: documentation
     - kind: documentation_section
       schemaVersions: ["1.1.0"]
-      scope: media_import
+      scope: documentation
 `
 
 type satelliteActivationSeed struct {
@@ -178,9 +179,11 @@ func TestSatelliteActivationSeedCommandsMatchImageBinaries(t *testing.T) {
 
 // TestSatelliteActivationGrantsMatchManifestEmittedFacts keeps every grant
 // honest: the kinds and schema versions must equal the manifest's declared
-// emitted facts, and every entry must name the component's scope. Grant
-// lifetimes ride the chart default (the draft carries no expiresIn); the
-// `eshu component grant` refusal on unknown kinds is the host-side gate.
+// emitted facts, every scope must be a member of the manifest's declared
+// collector kinds, and the activation-built grants must pass host admission
+// (Manifest.ValidateWithGrants). Grant lifetimes ride the chart default (the
+// draft carries no expiresIn); the `eshu component grant` refusal on unknown
+// kinds is the host-side gate.
 func TestSatelliteActivationGrantsMatchManifestEmittedFacts(t *testing.T) {
 	t.Parallel()
 
@@ -197,7 +200,14 @@ func TestSatelliteActivationGrantsMatchManifestEmittedFacts(t *testing.T) {
 			if len(activation.Grants) == 0 {
 				t.Fatalf("activation %q declares no grants", activation.ComponentID)
 			}
+			declared := map[string]bool{}
+			for _, scope := range manifest.Spec.CollectorKinds {
+				if strings.TrimSpace(scope) != "" {
+					declared[scope] = true
+				}
+			}
 			seen := map[string]bool{}
+			grants := make([]component.ProducerGrant, 0, len(activation.Grants))
 			for _, grant := range activation.Grants {
 				if seen[grant.Kind] {
 					t.Errorf("duplicate grant %q in activation %q", grant.Kind, activation.ComponentID)
@@ -208,13 +218,26 @@ func TestSatelliteActivationGrantsMatchManifestEmittedFacts(t *testing.T) {
 				}
 				if strings.TrimSpace(grant.Scope) == "" {
 					t.Errorf("grant %q has no scope", grant.Kind)
+				} else if !declared[grant.Scope] {
+					t.Errorf("grant %q scope = %q, want a member of manifest collectorKinds %q", grant.Kind, grant.Scope, manifest.Spec.CollectorKinds)
 				}
+				grants = append(grants, component.ProducerGrant{
+					ProducerID:     activation.ComponentID,
+					Version:        activation.ComponentVersion,
+					Kind:           grant.Kind,
+					SchemaVersions: grant.SchemaVersions,
+					Scope:          grant.Scope,
+					ExpiresAt:      time.Now().UTC().Add(24 * time.Hour),
+				})
 				seen[grant.Kind] = true
 			}
 			for kind := range want {
 				if !seen[kind] {
 					t.Errorf("manifest emitted kind %q has no activation grant entry", kind)
 				}
+			}
+			if err := manifest.ValidateWithGrants(grants); err != nil {
+				t.Errorf("activation %q grants refused at host admission: %v", activation.ComponentID, err)
 			}
 		})
 	}

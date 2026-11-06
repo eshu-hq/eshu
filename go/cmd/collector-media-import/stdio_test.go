@@ -17,6 +17,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/collector/extensionhost"
+	"github.com/eshu-hq/eshu/go/internal/component"
 )
 
 // stdioClaimRequest builds one host claim envelope over stdin: the claim the
@@ -119,10 +120,12 @@ func TestStdioClaimDrainsToAck(t *testing.T) {
 
 	dir := t.TempDir()
 	writeArtifact(t, dir, "standup.wav", encodeWAV(t))
+	grantHome := t.TempDir()
+	recordMediaGrants(t, grantHome)
 	engine := &stubTranscriptEngine{result: benignResult()}
 	stdin := bytes.NewReader(stdioClaimRequest(t, nil))
 	var stdout bytes.Buffer
-	if err := serveStdioClaim(context.Background(), stdin, &stdout, testGetenv(stdioEnv(dir)), stubSource(engine)); err != nil {
+	if err := serveStdioClaim(context.Background(), stdin, &stdout, testGetenv(grantedEnv(dir, grantHome)), stubSource(engine)); err != nil {
 		t.Fatalf("serveStdioClaim: %v", err)
 	}
 	result := decodeStdioResult(t, &stdout)
@@ -240,33 +243,26 @@ func TestStdioMalformedRequestFailsClosed(t *testing.T) {
 	}
 }
 
-// TestStdioContractRefusalFailsClosed proves the adapter emits nothing the
-// host contract does not admit: when the granted contract omits the
-// transcript families, the drained facts fail closed instead of leaving the
-// satellite as bytes the host's grant check would refuse. The host-side
-// producer-grant revocation itself is NOT_CHECKED here: the satellite holds
-// no registry and performs no grant evaluation; the denial surfaces on the
-// host's validateGrantCoverage path, never in this binary.
+// TestStdioContractRefusalFailsClosed proves a grant-less activation acks a
+// terminal denial instead of draining: core-owned transcript families need a
+// live producer grant, so without one the adapter terminal-fails the claim
+// with grant_denied and emits zero facts.
 func TestStdioContractRefusalFailsClosed(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
 	writeArtifact(t, dir, "standup.wav", encodeWAV(t))
-	stdin := bytes.NewReader(stdioClaimRequest(t, func(request *extensionhost.Request) {
-		request.Contract.Facts = []sdkcollector.FactDeclaration{
-			{
-				Kind:             "documentation_document",
-				SchemaVersions:   []string{"9.9.9"},
-				SourceConfidence: []sdkcollector.SourceConfidence{sdkcollector.SourceConfidenceObserved},
-			},
-		}
-	}))
+	stdin := bytes.NewReader(stdioClaimRequest(t, nil))
 	var stdout bytes.Buffer
-	if err := serveStdioClaim(context.Background(), stdin, &stdout, testGetenv(stdioEnv(dir)), stubSource(&stubTranscriptEngine{result: benignResult()})); err == nil {
-		t.Fatal("unadmitted contract: got nil error, want a failure")
+	if err := serveStdioClaim(context.Background(), stdin, &stdout, testGetenv(grantedEnv(dir, t.TempDir())), stubSource(&stubTranscriptEngine{result: benignResult()})); err != nil {
+		t.Fatalf("serveStdioClaim on a grant-less activation: %v (want a terminal ack, not a process failure)", err)
 	}
-	if stdout.Len() != 0 {
-		t.Fatalf("refused claim wrote %d ack bytes, want silence", stdout.Len())
+	result := decodeStdioResult(t, &stdout)
+	if result.State != sdkcollector.ResultTerminal {
+		t.Fatalf("result state = %q, want terminal for a grant-less activation", result.State)
+	}
+	if len(result.Facts) != 0 {
+		t.Fatalf("denied result carries %d facts, want zero", len(result.Facts))
 	}
 }
 
@@ -277,9 +273,11 @@ func TestStdioEmptyDirAcksUnchanged(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
+	grantHome := t.TempDir()
+	recordMediaGrants(t, grantHome)
 	stdin := bytes.NewReader(stdioClaimRequest(t, nil))
 	var stdout bytes.Buffer
-	if err := serveStdioClaim(context.Background(), stdin, &stdout, testGetenv(stdioEnv(dir)), stubSource(&stubTranscriptEngine{result: benignResult()})); err != nil {
+	if err := serveStdioClaim(context.Background(), stdin, &stdout, testGetenv(grantedEnv(dir, grantHome)), stubSource(&stubTranscriptEngine{result: benignResult()})); err != nil {
 		t.Fatalf("serveStdioClaim on empty dir: %v", err)
 	}
 	result := decodeStdioResult(t, &stdout)
@@ -297,12 +295,118 @@ func TestStdioSourceErrorFailsClosed(t *testing.T) {
 	t.Parallel()
 
 	dir := filepath.Join(t.TempDir(), "does-not-exist")
+	grantHome := t.TempDir()
+	recordMediaGrants(t, grantHome)
 	stdin := bytes.NewReader(stdioClaimRequest(t, nil))
 	var stdout bytes.Buffer
-	if err := serveStdioClaim(context.Background(), stdin, &stdout, testGetenv(stdioEnv(dir)), stubSource(&stubTranscriptEngine{})); err == nil {
+	if err := serveStdioClaim(context.Background(), stdin, &stdout, testGetenv(grantedEnv(dir, grantHome)), stubSource(&stubTranscriptEngine{})); err == nil {
 		t.Fatal("missing dir: got nil error, want a failure")
 	}
 	if stdout.Len() != 0 {
 		t.Fatalf("failed claim wrote %d ack bytes, want silence (fail closed, no partial ack)", stdout.Len())
+	}
+}
+
+// recordMediaGrants authorizes the media test component for both
+// documentation families, scoped to the documentation collector kind.
+func recordMediaGrants(t *testing.T, home string) {
+	t.Helper()
+	registry := component.NewRegistry(home)
+	for _, grant := range []component.ProducerGrant{
+		{
+			ProducerID:     mediaComponentID,
+			Version:        "0.1.0",
+			Kind:           "documentation_document",
+			SchemaVersions: []string{"1.0.0"},
+			Scope:          "documentation",
+			ExpiresAt:      time.Now().UTC().Add(24 * time.Hour),
+		},
+		{
+			ProducerID:     mediaComponentID,
+			Version:        "0.1.0",
+			Kind:           "documentation_section",
+			SchemaVersions: []string{"1.1.0"},
+			Scope:          "documentation",
+			ExpiresAt:      time.Now().UTC().Add(24 * time.Hour),
+		},
+	} {
+		if err := registry.RecordGrant(grant); err != nil {
+			t.Fatalf("record grant for %s: %v", grant.Kind, err)
+		}
+	}
+}
+
+// grantedEnv returns the stdio env with live grants wired through
+// ESHU_COMPONENT_HOME.
+func grantedEnv(dir, grantHome string) map[string]string {
+	pairs := stdioEnv(dir)
+	pairs["ESHU_COMPONENT_HOME"] = grantHome
+	return pairs
+}
+
+// TestStdioGrantDeniedAcksTerminal RED: a grant-less activation must ack a
+// terminal denial with grant_denied instead of burning retry budget.
+func TestStdioGrantDeniedAcksTerminal(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	writeArtifact(t, dir, "standup.wav", encodeWAV(t))
+	stdin := bytes.NewReader(stdioClaimRequest(t, nil))
+	var stdout bytes.Buffer
+	if err := serveStdioClaim(context.Background(), stdin, &stdout, testGetenv(grantedEnv(dir, t.TempDir())), stubSource(&stubTranscriptEngine{result: benignResult()})); err != nil {
+		t.Fatalf("serveStdioClaim on a denied grant: %v (want a terminal ack, not a process failure)", err)
+	}
+	result := decodeStdioResult(t, &stdout)
+	if result.State != sdkcollector.ResultTerminal {
+		t.Fatalf("result state = %q, want terminal for a revoked grant", result.State)
+	}
+	denied := false
+	for _, status := range result.Statuses {
+		if status.Class == sdkcollector.StatusFailure && status.FailureClass == "grant_denied" {
+			denied = true
+		}
+	}
+	if !denied {
+		t.Fatalf("result statuses = %+v, want a grant_denied failure row", result.Statuses)
+	}
+	if len(result.Facts) != 0 {
+		t.Fatalf("denied result carries %d facts, want zero", len(result.Facts))
+	}
+}
+
+// TestStdioClaimRekeysSourceSystem RED: the ack must bind every fact to the
+// claim's SourceSystem, not the drain default.
+func TestStdioClaimRekeysSourceSystem(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	writeArtifact(t, dir, "standup.wav", encodeWAV(t))
+	grantHome := t.TempDir()
+	recordMediaGrants(t, grantHome)
+	stdin := bytes.NewReader(stdioClaimRequest(t, func(request *extensionhost.Request) {
+		request.Claim.SourceSystem = "claim-system-xyz"
+	}))
+	var stdout bytes.Buffer
+	if err := serveStdioClaim(context.Background(), stdin, &stdout, testGetenv(grantedEnv(dir, grantHome)), stubSource(&stubTranscriptEngine{result: benignResult()})); err != nil {
+		t.Fatalf("serveStdioClaim: %v", err)
+	}
+	result := decodeStdioResult(t, &stdout)
+	if len(result.Facts) == 0 {
+		t.Fatal("ack carries zero facts, want the drained transcript facts")
+	}
+	for _, fact := range result.Facts {
+		if fact.SourceRef.SourceSystem != "claim-system-xyz" {
+			t.Fatalf("fact SourceSystem = %q, want the claim SourceSystem %q", fact.SourceRef.SourceSystem, "claim-system-xyz")
+		}
+	}
+}
+
+// TestRunSDKStdioCommandRejectsExtraArgs RED: --sdk-stdio takes no other
+// arguments; extras fail closed instead of serving under surprising flags.
+func TestRunSDKStdioCommandRejectsExtraArgs(t *testing.T) {
+	t.Parallel()
+
+	if err := runSDKStdioCommand(context.Background(), []string{"--sdk-stdio", "extra"}); err == nil {
+		t.Fatal("runSDKStdioCommand with an extra arg: got nil error, want a usage failure")
 	}
 }
