@@ -37,6 +37,9 @@ permissions:
   actions: read
   contents: read
   issues: write
+  # The merged-PR lookup calls GET repos/{repo}/commits/{sha}/pulls, which
+  # requires the pull-requests scope; without it the notify path 403s.
+  pull-requests: read
 
 jobs:
   alarm:

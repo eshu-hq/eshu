@@ -5,7 +5,6 @@
 # Fake gh(1) for test-dirgate-main-alarm.sh: serves case fixtures by URL
 # fragment and records mutating calls. Split out of the test so no heredoc
 # exceeds the 512-byte budget.
-#!/usr/bin/env bash
 set -u
 dir="${DIRGATE_ALARM_CASE:?}"
 if [ "${1:-}" != "api" ]; then
