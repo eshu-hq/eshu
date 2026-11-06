@@ -26,7 +26,10 @@ _LEADING_KEYWORD = re.compile(
     r"^(?:then|do|else|if|elif|while|until|!|exec|nohup|command|builtin)\s+")
 _LEADING_WRAPPERS = (
     re.compile(r"^sudo(?:\s+(?:-[ughpCDRTU]\s+\S+|-\S+))*\s+"),
-    re.compile(r"^timeout(?:\s+(?:-[sk]\s+\S+|-\S+))*\s+\d+(?:\.\d+)?[smhd]?\s+"),
+    # Atomic group: `-k` matches both option spellings, so without it an
+    # ambiguous flag run explores every partition before failing (CodeQL
+    # exponential backtracking). First match wins; behavior is unchanged.
+    re.compile(r"^timeout(?>(?:\s+(?:-[sk]\s+\S+|-\S+))*)\s+\d+(?:\.\d+)?[smhd]?\s+"),
     re.compile(r"^env(?:\s+(?:-\S+|\w+=\S*))*\s+"),
     re.compile(r"^nice(?:\s+(?:-n\s+\S+|-\S+))*\s+"),
     re.compile(r"^time(?:\s+-\S+)*\s+"),

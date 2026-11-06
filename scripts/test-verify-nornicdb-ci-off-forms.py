@@ -15,12 +15,15 @@ test-verify-nornicdb-ci-off-shapes.py.
 from __future__ import annotations
 
 import importlib.util
+import time
 import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 _SPEC = importlib.util.spec_from_file_location(
     "nornicdb_ci_off_shapes_base", ROOT / "scripts/test-verify-nornicdb-ci-off-shapes.py")
+_SHELL_SPEC = importlib.util.spec_from_file_location(
+    "nornicdb_ci_off_shell", ROOT / "scripts/lib/nornicdb_ci_off_shell.py")
 _BASE = importlib.util.module_from_spec(_SPEC)  # type: ignore[arg-type]
 _SPEC.loader.exec_module(_BASE)  # type: ignore[union-attr]
 ShapeTest = _BASE.ShapeTest
@@ -272,6 +275,20 @@ class ShellFormTest(ShapeTest):
         self.assert_red(self.build(*script_job("export COMPOSE_PROFILES=nornicdb")),
                         "scripts/s.sh", "compose profile")
         self.assert_green(self.build(*script_job("docker compose --profile neo4j up -d")))
+
+    def test_ambiguous_timeout_options_finish_quickly(self) -> None:
+        """REGRESSION (CodeQL): ambiguous ``timeout`` flags must not backtrack.
+
+        ``-k`` matches both option spellings, so ``timeout -k -! ...`` with no
+        duration explores every partition before failing. The wrapper must
+        return the line unchanged, and fast.
+        """
+        shell = importlib.util.module_from_spec(_SHELL_SPEC)  # type: ignore[arg-type]
+        _SHELL_SPEC.loader.exec_module(shell)  # type: ignore[union-attr]
+        line = ("timeout " + "-k -! " * 24).rstrip()
+        started = time.monotonic()
+        self.assertEqual(shell.commands(line), [line])
+        self.assertLess(time.monotonic() - started, 2.0)
 
 
 class StatedLimitTest(ShapeTest):
