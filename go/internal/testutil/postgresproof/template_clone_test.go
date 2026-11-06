@@ -70,6 +70,34 @@ func TestBootstrapTemplateKeyScopesServerAndFlavour(t *testing.T) {
 	}
 }
 
+// TestIsolatedFlavourContract pins the S4 isolated flavour (#10148 PR-B): the
+// constant validates as a template name segment, the fixed schema name is a
+// safe unquoted identifier inside the 63-byte limit, and the builder
+// search_path resolves unqualified names in that schema first with public
+// behind it, so pg_trgm operator classes keep resolving there.
+func TestIsolatedFlavourContract(t *testing.T) {
+	t.Parallel()
+	if err := validateBootstrapTemplateFlavour(FlavourIsolatedBootstrap); err != nil {
+		t.Fatalf("isolated flavour %q rejected: %v", FlavourIsolatedBootstrap, err)
+	}
+	if len(IsolatedBootstrapSchema) > 63 {
+		t.Fatalf("isolated schema %q exceeds 63 bytes", IsolatedBootstrapSchema)
+	}
+	for _, b := range []byte(IsolatedBootstrapSchema) {
+		if (b < 'a' || b > 'z') && (b < '0' || b > '9') && b != '_' {
+			t.Fatalf("isolated schema %q carries byte %q outside [a-z0-9_]", IsolatedBootstrapSchema, b)
+		}
+	}
+	if got, want := isolatedBootstrapSearchPath(), IsolatedBootstrapSchema+",public"; got != want {
+		t.Fatalf("isolated search_path = %q, want %q", got, want)
+	}
+	if name, err := bootstrapTemplateName(FlavourIsolatedBootstrap); err != nil {
+		t.Fatalf("isolated flavour template name: %v", err)
+	} else if err := validateBootstrapTemplateName(name); err != nil {
+		t.Fatalf("generated isolated template name %q refused: %v", name, err)
+	}
+}
+
 // TestDiscardBootstrapTemplatesEmpty is the no-op half of the TestMain
 // teardown contract: a process that built no template discards nothing and
 // reports no error.

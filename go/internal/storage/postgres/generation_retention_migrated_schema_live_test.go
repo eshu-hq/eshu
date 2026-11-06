@@ -5,16 +5,11 @@ package postgres
 
 import (
 	"context"
-	"crypto/sha256"
 	"database/sql"
-	"encoding/hex"
-	"net/url"
 	"os"
 	"strings"
 	"testing"
 	"time"
-
-	_ "github.com/jackc/pgx/v5/stdlib"
 
 	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
@@ -46,69 +41,20 @@ var generationRetentionMigratedSchemaStatements = map[string]string{
 	"chunk_mirror_orphans":             generationRetentionChunkDeleteMirrorOrphansQuery,
 }
 
-// generationRetentionSchemaPrefix marks every schema the retention live tests
-// create, so a leaked one is recognizable in pg_namespace.
-const generationRetentionSchemaPrefix = "eshu_ret_"
-
-// generationRetentionSchemaMaxBytes is Postgres's identifier limit (NAMEDATALEN
-// 64 minus the terminating NUL); a longer name is silently truncated by the
-// server, which would make two long test names share one schema.
-const generationRetentionSchemaMaxBytes = 63
-
-// generationRetentionMigratedSchemaName derives the isolated schema name for one
-// test from its name, so concurrent tests never DROP each other's schema (#7260).
-// It lowercases the name and replaces every byte outside [a-z0-9_] (including
-// the "/" of a subtest) with "_". When the result would exceed the 63-byte
-// identifier limit it truncates and appends "_" plus the first 8 hex digits of
-// the SHA-256 of the original name, so two long names that share a prefix stay
-// distinct. The result is deterministic and always a valid unquoted identifier.
-func generationRetentionMigratedSchemaName(testName string) string {
-	var sanitized strings.Builder
-	for _, b := range []byte(strings.ToLower(testName)) {
-		if (b >= 'a' && b <= 'z') || (b >= '0' && b <= '9') || b == '_' {
-			sanitized.WriteByte(b)
-			continue
-		}
-		sanitized.WriteByte('_')
-	}
-	name := generationRetentionSchemaPrefix + sanitized.String()
-	if len(name) <= generationRetentionSchemaMaxBytes {
-		return name
-	}
-	digest := sha256.Sum256([]byte(testName))
-	suffix := "_" + hex.EncodeToString(digest[:])[:8]
-	return name[:generationRetentionSchemaMaxBytes-len(suffix)] + suffix
-}
-
-// installGenerationRetentionTrigramExtension installs pg_trgm into public, the
-// same pin the sibling live helpers use. The bootstrap's own CREATE EXTENSION
-// would otherwise land in the first schema on the search_path and vanish with
-// that schema's DROP, breaking a concurrently bootstrapped sibling with
-// "operator class gin_trgm_ops does not exist". IF NOT EXISTS alone does not
-// make the first creation safe: two sessions can both pass the existence check
-// and one fails with a pg_extension_name_index unique violation. The
-// transaction-scoped advisory lock and the CREATE share one session, so the
-// installs run one at a time and the lock releases at COMMIT.
-func installGenerationRetentionTrigramExtension(ctx context.Context, t *testing.T, admin *sql.DB) {
-	t.Helper()
-	postgresproof.InstallTrigramExtension(ctx, t, admin)
-}
-
-// openGenerationRetentionMigratedSchema applies the real bootstrap migrations
-// to an isolated schema of the database named by ESHU_POSTGRES_TEST_DSN or
-// ESHU_POSTGRES_DSN, or skips. It never uses a hand-written schema, so the retention SQL is proven
-// against the tables and columns production actually has.
+// openGenerationRetentionMigratedSchema clones the process isolated-flavour
+// template (#10148 PR-B) instead of bootstrapping a per-test schema in the
+// shared database. Each test gets its own database holding the 276-shape
+// layout (the fixed isolated schema first on the search_path, pg_trgm in
+// public), so the retention SQL is proven against the tables and columns
+// production actually has. Isolation is stronger than the per-test schemas
+// this replaced: no sibling can drop or observe another test's schema, so
+// t.Parallel needs no name-derivation contract (#7260 retired here).
 //
-// The retention tests that share this opener are safe under t.Parallel with
-// each other (#7260): each test gets its own schema (see
-// generationRetentionMigratedSchemaName), so two of them never drop each
-// other's schema, and pg_trgm, which is database-wide, is installed once into
-// public under an advisory lock (see installGenerationRetentionTrigramExtension)
-// instead of into a private schema that a sibling's DROP would take with it.
-// The lock serializes only this opener's installs: other live helpers in this
-// package install pg_trgm without it, which is safe only while none of them
-// runs under t.Parallel. Before parallelizing one of those, hoist this lock
-// into a shared installer that every live pg_trgm install takes.
+// Cloning needs CREATE DATABASE, so the opener derives the administrative
+// session (database "postgres", every other setting byte-identical) from
+// the working DSN and requires ESHU_POSTGRES_DISPOSABLE=1. The require flag
+// fails closed on an unset DSN or a missing opt-in, matching the previous
+// skip/fail contract.
 func openGenerationRetentionMigratedSchema(t *testing.T) (*sql.DB, context.Context) {
 	t.Helper()
 	dsn := strings.TrimSpace(os.Getenv("ESHU_POSTGRES_TEST_DSN"))
@@ -123,47 +69,26 @@ func openGenerationRetentionMigratedSchema(t *testing.T) (*sql.DB, context.Conte
 		}
 		t.Skip("set ESHU_POSTGRES_TEST_DSN or ESHU_POSTGRES_DSN to run the migrated-schema retention proof")
 	}
-	admin, err := sql.Open("pgx", dsn)
+	admin, err := postgresproof.WithDatabase(dsn, "postgres")
 	if err != nil {
-		t.Fatalf("open Postgres: %v", err)
+		t.Fatalf("derive Postgres administrative DSN: %v", err)
 	}
-	admin.SetMaxOpenConns(1)
-	t.Cleanup(func() { _ = admin.Close() })
-
+	optIn := strings.TrimSpace(os.Getenv("ESHU_POSTGRES_DISPOSABLE"))
+	if optIn != "1" {
+		if os.Getenv(generationRetentionMigratedSchemaRequiredEnv) == "1" {
+			t.Fatalf("%s=1 but ESHU_POSTGRES_DISPOSABLE is not 1: the migrated-schema proof clones a database and cannot run half-isolated", generationRetentionMigratedSchemaRequiredEnv)
+		}
+		t.Skip("set ESHU_POSTGRES_DISPOSABLE=1 to run the migrated-schema retention proof on a cloned database")
+	}
+	// Clones the process isolated template (#10148 PR-B) instead of
+	// bootstrapping again.
+	template := postgresproof.OpenIsolatedBootstrapTemplate(t, admin, optIn, 5*time.Minute,
+		func(ctx context.Context, database *sql.DB) error {
+			return ApplyBootstrap(ctx, SQLDB{DB: database})
+		})
+	_, database := postgresproof.OpenIsolatedBootstrapTemplateClone(t, admin, optIn, 5*time.Minute, template)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
-	installGenerationRetentionTrigramExtension(ctx, t, admin)
-	schema := generationRetentionMigratedSchemaName(t.Name())
-	t.Logf("isolated retention schema %s", schema)
-	if _, err := admin.ExecContext(ctx, "DROP SCHEMA IF EXISTS "+quoteSQLIdentifier(schema)+" CASCADE; CREATE SCHEMA "+quoteSQLIdentifier(schema)); err != nil {
-		t.Fatalf("create isolated schema: %v", err)
-	}
-	t.Cleanup(func() {
-		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cleanupCancel()
-		if _, err := admin.ExecContext(cleanupCtx, "DROP SCHEMA IF EXISTS "+quoteSQLIdentifier(schema)+" CASCADE"); err != nil {
-			t.Errorf("drop isolated schema: %v", err)
-		}
-	})
-
-	parsed, err := url.Parse(dsn)
-	if err != nil {
-		t.Fatalf("parse Postgres DSN: %v", err)
-	}
-	query := parsed.Query()
-	// public stays on the path so a pg_trgm extension a sibling live test
-	// installed there still resolves its operator classes; every table the
-	// bootstrap creates lands in the isolated schema, which comes first.
-	query.Set("search_path", schema+",public")
-	parsed.RawQuery = query.Encode()
-	database, err := sql.Open("pgx", parsed.String())
-	if err != nil {
-		t.Fatalf("open isolated schema: %v", err)
-	}
-	t.Cleanup(func() { _ = database.Close() })
-	if err := ApplyBootstrap(ctx, SQLDB{DB: database}); err != nil {
-		t.Fatalf("apply bootstrap migrations: %v", err)
-	}
 	return database, ctx
 }
 

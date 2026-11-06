@@ -554,6 +554,9 @@ func TestScannerMigration241RefusesNonPublicSchemaLive(t *testing.T) {
 	if dsn == "" {
 		t.Skip("set ESHU_POSTGRES_DSN to run the 241 public-schema guard proof")
 	}
+	// S4 audit (#10148 PR-B): the apply is one hand-written table, not a
+	// bootstrap — the 241 definition is applied directly below and must
+	// refuse — so there is no template flavour to clone; this stays.
 	database := postgresproof.OpenIsolatedSchema(t, dsn, "guard241", func(ctx context.Context, db *sql.DB) error {
 		_, err := db.ExecContext(ctx, `CREATE TABLE guard_probe (id integer PRIMARY KEY)`)
 		return err

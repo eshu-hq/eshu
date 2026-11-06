@@ -36,7 +36,10 @@
 // `OpenBootstrapTemplateClone` can clone a fresh disposable database per
 // caller instead of applying the bootstrap per test. The template is
 // process-scoped and dropped by `DiscardBootstrapTemplates`, which the
-// owning test package calls from `TestMain`.
+// owning test package calls from `TestMain`. `OpenIsolatedBootstrapTemplate`
+// is the isolated-flavour counterpart: the production bootstrap applied in
+// a fixed-name schema first on the search path with pg_trgm in public, for
+// callers that used to bootstrap a per-test schema in the shared database.
 // DeferredPartitionProofDSN reads the DSN the deferred-partition and
 // activation-obligation proofs share, or skips.
 //

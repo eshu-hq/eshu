@@ -83,6 +83,8 @@ func TestReducerFairnessIsolatedSchemaDefinitionDriftLive(t *testing.T) {
 	for _, mutation := range mutations {
 		t.Run(mutation.name, func(t *testing.T) {
 			ctx := context.Background()
+			// S4 audit (#10148 PR-B): the apply is hand-written DDL, not a
+			// bootstrap, so there is no template flavour to clone; this stays.
 			apply := func(ctx context.Context, db *sql.DB) error {
 				_, err := db.ExecContext(ctx, driftBaseDDL)
 				return err
