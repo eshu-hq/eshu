@@ -330,7 +330,8 @@ repository's manifest rows), and they are not reopened by a manifest change:
 an alert finding whose matched pin changed keeps its old version or status
 until that alert scope's own next generation. Provider alert scopes usually
 re-collect after a lockfile push, but nothing in this change guarantees it.
-Tracked in #10061.
+Tracked in #10061; closed there — see
+`docs/internal/evidence/10061-alert-scope-reopen.md`.
 
 ## Related hazards
 

@@ -33,6 +33,10 @@ type manifestChange struct {
 	deltaPaths int
 	// views is the number of generation views compared.
 	views int
+	// repos is the distinct repository ids the changed keys' dependencies
+	// name, the prefilter the security-alert arm of the holder read takes
+	// (#10061).
+	repos map[string]struct{}
 }
 
 // changedManifestDependencyKeys derives the changed packages from the full
@@ -61,17 +65,25 @@ func changedManifestDependencyKeys(generation ManifestDependencyGeneration) mani
 	if scope := facts.ParseDeltaScope(generation.Current.Rows); scope.IsDelta {
 		change.deltaPaths = len(scope.Touched())
 	}
+	change.repos = map[string]struct{}{}
 	packages := map[string]struct{}{}
 	labels := map[string]string{}
+	keyRepos := map[string][]string{}
 	mark := func(key string) {
 		change.keys[key] = struct{}{}
 		packages[labels[key]] = struct{}{}
+		for _, repo := range keyRepos[key] {
+			change.repos[repo] = struct{}{}
+		}
 	}
 	keyed := func(dependency correlation.PackageManifestDependency) []string {
 		label := dependency.PackageManager + "\x00" + strings.ToLower(dependency.DependencyName)
 		var keys []string
 		for key := range manifestDependencyKeySet(dependency) {
 			labels[key] = label
+			if repo := strings.TrimSpace(dependency.RepositoryID); repo != "" {
+				keyRepos[key] = append(keyRepos[key], repo)
+			}
 			keys = append(keys, key)
 		}
 		return keys
@@ -190,6 +202,17 @@ func (c manifestChange) ecosystems() []string {
 	out := make([]string, 0, len(seen))
 	for ecosystem := range seen {
 		out = append(out, ecosystem)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// repositoryIDs returns the sorted repositories the changed keys belong to,
+// the prefilter the security-alert arm of the holder read takes.
+func (c manifestChange) repositoryIDs() []string {
+	out := make([]string, 0, len(c.repos))
+	for repo := range c.repos {
+		out = append(out, repo)
 	}
 	sort.Strings(out)
 	return out

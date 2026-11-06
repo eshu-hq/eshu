@@ -232,7 +232,7 @@ func (p *registrationFanOut) FindInFlightScopes(context.Context, string) ([]stri
 	return nil, nil
 }
 
-func (p *registrationFanOut) FindPackageHolderCandidates(context.Context, string, []string) ([]supplychaincore.PackageHolderCandidate, error) {
+func (p *registrationFanOut) FindPackageHolderCandidates(context.Context, string, supplychaincore.PackageHolderQuery) ([]supplychaincore.PackageHolderCandidate, error) {
 	return nil, nil
 }
 

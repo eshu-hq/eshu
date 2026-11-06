@@ -127,10 +127,23 @@ type ManifestDependencyGenerationReader interface {
 	FindInFlightNonMarkerScopes(ctx context.Context, ownScopeID string) ([]string, error)
 }
 
-// PackageHolderCandidate is one active vulnerability.affected_package identity
-// the package-keyed holder read returns. The handler matches it against the
-// changed dependency keys with affectedPackageConsumptionKeys, the same join
-// the findings pass uses, so the read itself can stay a coarse prefilter.
+// PackageHolderQuery is the package-keyed holder read's prefilter: the
+// ecosystems the changed keys name, which select active
+// vulnerability.affected_package identities, and the repositories the changed
+// keys belong to, which select active security_alert.repository_alert
+// identities (#10061). It is a struct so the fanout.go port signature stays
+// one line within the #9874 zone ruling's footprint.
+type PackageHolderQuery struct {
+	Ecosystems    []string
+	RepositoryIDs []string
+}
+
+// PackageHolderCandidate is one active package-holder identity the
+// package-keyed holder read returns: a vulnerability.affected_package fact or
+// a security_alert.repository_alert fact, reduced to the identity fields the
+// handler matches against the changed dependency keys with
+// affectedPackageConsumptionKeys, the same join the findings pass uses, so
+// the read itself can stay a coarse prefilter.
 type PackageHolderCandidate struct {
 	ScopeID     string
 	Ecosystem   string
@@ -217,7 +230,7 @@ func (h SupplyChainImpactHandler) runManifestTrigger(ctx context.Context, intent
 			h.countFanOut(ctx, fanOutCauseManifestDependency, readFailureOutcome(err), 1)
 			return reducercontract.Result{}, fanOutError{fmt.Errorf("find in-flight supply chain impact scopes: %w", err)}
 		}
-		candidates, err := h.FanOut.FindPackageHolderCandidates(ctx, intent.ScopeID, change.ecosystems())
+		candidates, err := h.FanOut.FindPackageHolderCandidates(ctx, intent.ScopeID, PackageHolderQuery{Ecosystems: change.ecosystems(), RepositoryIDs: change.repositoryIDs()})
 		if err != nil {
 			h.countFanOut(ctx, fanOutCauseManifestDependency, readFailureOutcome(err), 1)
 			return reducercontract.Result{}, fanOutError{fmt.Errorf("find supply chain impact package holders: %w", err)}
