@@ -366,7 +366,7 @@ ifa_fault_shard_select_cells() {
 ifa_fault_shard_parse_spec() {
 	local spec="$1"
 	if [[ -z "${spec}" ]]; then
-		echo "verify-ifa-fault-injection: --shard requires a k/n argument (e.g. --shard 2/8)" >&2
+		echo "verify-ifa-fault-injection: --shard requires a k/n argument (e.g. --shard 2/15)" >&2
 		return 2
 	fi
 	if [[ "${spec}" != */* ]]; then

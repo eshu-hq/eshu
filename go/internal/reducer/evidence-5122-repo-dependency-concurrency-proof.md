@@ -436,8 +436,8 @@ go test -tags ifarepodependencyproof ./internal/replay/offlinetier \
   -run 'TestRepoDependencyIfa(ProofRejectsNonDisposableDatabase|ProofRejectsMismatchedHTTPBackend|ProofCleansAmbiguousCommittedLock|CleanupPreservesUnrelatedArtifact|ConcurrencyLive)$' \
   -count=1 -v
 
-# Production grouped-retry seam, deterministic retry-fired proof on the same
-# pinned live backend.
+# Grouped-retry seam, same pinned backend. Historical NornicDB run: the test
+# was then named ...LiveNornicDB (since renamed to ...Live, now on Neo4j).
 ESHU_REPO_DEPENDENCY_CONCURRENCY_PROVE_LIVE=1 \
 ESHU_GRAPH_BACKEND=nornicdb \
 ESHU_NEO4J_DATABASE="$NORNICDB_DATABASE" \
@@ -445,7 +445,15 @@ NEO4J_URI="$NORNICDB_BOLT_DSN" \
 NEO4J_USERNAME="$NORNICDB_USERNAME" \
 NEO4J_PASSWORD="$NORNICDB_PASSWORD" \
 go test -tags ifafaultinjection ./cmd/reducer \
-  -run '^TestReducerGroupedRetrySeamLive$' -count=10 -v
+  -run '^TestReducerGroupedRetrySeamLiveNornicDB$' -count=10 -v
+
+# Reproduce on Neo4j (NOT a recorded run; env as in scripts/run-ifa-scheduled-proofs.sh):
+ESHU_REPO_DEPENDENCY_CONCURRENCY_PROVE_LIVE=1 ESHU_GRAPH_BACKEND=neo4j \
+ESHU_NEO4J_URI="$NEO4J_BOLT_URI" NEO4J_URI="$NEO4J_BOLT_URI" \
+ESHU_NEO4J_DATABASE=neo4j NEO4J_DATABASE=neo4j ESHU_NEO4J_USERNAME=neo4j \
+NEO4J_USERNAME=neo4j ESHU_NEO4J_PASSWORD="$NEO4J_PASSWORD" \
+NEO4J_PASSWORD="$NEO4J_PASSWORD" go test -tags ifafaultinjection ./cmd/reducer \
+  -run '^TestReducerGroupedRetrySeamLive$' -count=1 -v
 
 # Real-Postgres partition-count and distinct-process owner fence.
 ESHU_SHARED_PROJECTION_RESCALE_PROOF_DSN="$POSTGRES_DSN" \
