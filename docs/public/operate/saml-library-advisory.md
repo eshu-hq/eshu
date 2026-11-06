@@ -1,7 +1,8 @@
 # SAML Library Advisory (GO-2026-6909)
 
-**Who is affected:** deployments that set `ESHU_SAML_PROVIDERS_JSON`. SAML sign-in
-is off unless an operator configures it.
+**Who is affected:** deployments that configure SAML providers (see the
+[environment variable reference](../reference/environment-variables.md)). SAML
+sign-in is off unless an operator configures it.
 
 **Fixed in:** the Eshu build that pins `github.com/eshu-hq/saml v0.5.1-eshu.1`
 (see `replace github.com/crewjam/saml` in `go/go.mod`). Earlier builds link

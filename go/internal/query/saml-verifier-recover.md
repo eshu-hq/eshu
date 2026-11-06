@@ -18,7 +18,7 @@ inside an `EncryptedAssertion`) and passes on the fork.
 
 Observability Evidence: one new counter, `eshu_dp_query_saml_verifier_panics_total`
 (`samlVerifierPanics`, an `Int64Counter` registered once by
-`initSAMLVerifierInstruments` in `saml_verifier_recover.go`), with no labels.
+`initSAMLVerifierInstruments` in `saml_verifier.go`), with no labels.
 A recovered panic also logs an error line carrying `provider_config_id`,
 `panic`, and `stack`, and reaches the existing `assertion_invalid`
 governance-audit event. `TestVerifySAMLResponseRecoversCrewjamPanic` asserts the
