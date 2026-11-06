@@ -366,7 +366,7 @@ operational lessons that future storage changes still need to respect.
   The planner ignores a partial index's statistics, so a `payload->>'key' = ANY`
   probe is estimated at 1/200 per id, and the sum falls at 200 ids. A plan flip can
   therefore sit below a length that plans well: the CVE probe walked at 172 to 199
-  ids and not at 240 before migration 281 (#9994, #10050). Plan every length a chunk can have.
+  ids and not at 240 before migration 283 (#9994, #10050). Plan every length a chunk can have.
   `UpstreamCVEIDs` (#9914) is the one list outside `retiredArms`: the frozen
   predicate never had it, so its suppression arm renders beside them and its KEV
   and EPSS probe is cut into statements of at most `MaxCVEIDsPerStatement`

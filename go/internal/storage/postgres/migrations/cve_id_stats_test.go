@@ -17,7 +17,7 @@ import (
 func TestCVEIDExpressionStatisticsMigrationExists(t *testing.T) {
 	t.Parallel()
 
-	const wantFile = "281_fact_records_vulnerability_cve_id_stats.sql"
+	const wantFile = "283_fact_records_vulnerability_cve_id_stats.sql"
 	defs := BootstrapDefinitions()
 	var found *Definition
 	for i := range defs {

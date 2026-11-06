@@ -448,9 +448,9 @@ re-derive the digest, the count, and the manifest row if
 the number moves again. Evidence:
 `docs/internal/evidence/10005-crossplane-delta-overlay.md`.
 
-## Migration 281: vulnerability CVE key expression statistics (#10050)
+## Migration 283: vulnerability CVE key expression statistics (#10050)
 
-`281_fact_records_vulnerability_cve_id_stats.sql` adds the
+`283_fact_records_vulnerability_cve_id_stats.sql` adds the
 `fact_records_vulnerability_cve_id_stats` extended-statistics object on
 `((payload->>'cve_id'))` from `fact_records`, then `ANALYZE fact_records`,
 following migration 119's pattern. PostgreSQL ignores a partial index's

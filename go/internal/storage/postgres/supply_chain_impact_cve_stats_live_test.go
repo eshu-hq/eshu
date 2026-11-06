@@ -4,7 +4,7 @@
 package postgres
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #10050 disposable PostgreSQL 18 proof that migration 281's extended-statistics object on payload->>'cve_id' holds every key probe on the CVE index on its anchor past the advisory-index walk the fixture reproduces without it; dropping the object is the RED control
+//eshu:readiness:reason #10050 disposable PostgreSQL 18 proof that migration 283's extended-statistics object on payload->>'cve_id' holds every key probe on the CVE index on its anchor past the advisory-index walk the fixture reproduces without it; dropping the object is the RED control
 //eshu:readiness:env ESHU_SUPPLY_CHAIN_IMPACT_EVIDENCE_PROOF_DISPOSABLE ESHU_SUPPLY_CHAIN_IMPACT_EVIDENCE_PROOF_DSN
 
 import (
@@ -20,9 +20,9 @@ import (
 // cveStatsMigrationFile is the #10050 statistics migration the plan proof
 // applies and drops. The test reads its SQL from the embedded bootstrap
 // definitions, so the proof always runs the shipped bytes.
-const cveStatsMigrationFile = "281_fact_records_vulnerability_cve_id_stats.sql"
+const cveStatsMigrationFile = "283_fact_records_vulnerability_cve_id_stats.sql"
 
-// cveStatsObjectName is the extended-statistics object migration 281 creates.
+// cveStatsObjectName is the extended-statistics object migration 283 creates.
 const cveStatsObjectName = "fact_records_vulnerability_cve_id_stats"
 
 // cveStatsSweepLengths is every probed list length: the whole chunked range
@@ -91,7 +91,7 @@ func TestSupplyChainImpactCVEStatsHoldProbePastTheWalkLive(t *testing.T) {
 		return walks
 	}
 
-	// With migration 281 applied at bootstrap, no length may walk.
+	// With migration 283 applied at bootstrap, no length may walk.
 	set("random_page_cost = 1.1")
 	set("plan_cache_mode = force_custom_plan")
 	for _, length := range []int{1, 120, 180, 400} {
@@ -99,7 +99,7 @@ func TestSupplyChainImpactCVEStatsHoldProbePastTheWalkLive(t *testing.T) {
 		t.Logf("with-stats n=%d: candidate est=%.0f actual=%.0f buffers=%d", length, est, actual, buffers)
 	}
 	if walks := sweep("with-stats"); walks != 0 {
-		t.Fatalf("with-stats: %d advisory walks: migration 281's object does not hold the probe (RED)", walks)
+		t.Fatalf("with-stats: %d advisory walks: migration 283's object does not hold the probe (RED)", walks)
 	}
 
 	// The control: without the object the same fixture must walk, so the
@@ -322,7 +322,7 @@ FROM generate_series(1, 60000) AS n`); err != nil {
 	supplyChainImpactFixtureAnalyze(t, ctx, database)
 }
 
-// applyCVEStatsMigration re-applies migration 281's shipped SQL bytes, so
+// applyCVEStatsMigration re-applies migration 283's shipped SQL bytes, so
 // the re-applied arm of the proof runs the same statements bootstrap ran.
 func applyCVEStatsMigration(t *testing.T, ctx context.Context, database *sql.DB) {
 	t.Helper()
