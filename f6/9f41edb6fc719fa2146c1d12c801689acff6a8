@@ -1,0 +1,18 @@
+go/internal/query/admin/provider/config/termination_transport_shim_dest_test.go
+  h_78a442cba0b3e6 11,116-128,185-186,204-207
+go/internal/query/admin/provider/config/termination_transport_shim_proof_test.go
+  h_78a442cba0b3e6 9,19,199-287
+go/internal/query/admin/provider/config/termination_transport_shim_test.go
+  h_78a442cba0b3e6 155-157,171-173,182-184
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f69f41edb6fc719fa2146c1d12c801689acff6a8",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
