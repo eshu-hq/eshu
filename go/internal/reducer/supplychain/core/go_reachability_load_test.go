@@ -90,6 +90,17 @@ func (s *goCrossScopeBackedLoader) ListActiveGoReachabilityFacts(
 	return append([]facts.Envelope(nil), s.goFacts...), nil
 }
 
+// ListActivePackageManifestDependencyFactsWithRefusals keeps the #10095 stub
+// on the refusing seam (#10109): it holds no manifest rows, so it reports no
+// refusal, matching the pre-#10109 skip for these tests.
+func (s *goCrossScopeBackedLoader) ListActivePackageManifestDependencyFactsWithRefusals(
+	context.Context,
+	[]string,
+	[]string,
+) ([]facts.Envelope, bool, error) {
+	return nil, false, nil
+}
+
 // goCrossScopeHolderSeed mirrors seedGoFenceChain (#10055 acceptance seed):
 // a Go advisory holder with its CVE, gomod affected_package, and consumption
 // facts. The Go evidence itself lives in goFacts, standing in for the active
