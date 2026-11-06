@@ -327,3 +327,31 @@ func TestLoadActiveCodeCallSymbolDefinitionFactsLogsLoadFailure(t *testing.T) {
 		}
 	}
 }
+
+// TestWidenAnchoredLegBaseScopes pins the #10182 base binding: an anchored
+// leg unions its producers with the baselined targets and records the width,
+// the corpus-wide unanchored leg keeps its nil binding, and a union leg that
+// already binds the union scopes is a no-op.
+func TestWidenAnchoredLegBaseScopes(t *testing.T) {
+	t.Parallel()
+
+	anchoredWidth := 0
+	legs := []codeCallSymbolDefinitionLeg{
+		{keys: []string{"package:alpha-pkg#Widget"}, producerScopeIDs: []string{"scope:b"}, baseScopes: &anchoredWidth},
+		{keys: []string{"scip-java key"}, baseQuery: "unanchored"},
+		{keys: []string{"package:gone-pkg#Gone"}, producerScopeIDs: []string{"scope:a", "scope:b"}},
+	}
+	widenAnchoredLegBaseScopes(legs, []string{"scope:b", "scope:a"})
+	if got, want := legs[0].producerScopeIDs, []string{"scope:a", "scope:b"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("anchored leg scopes = %#v, want %#v", got, want)
+	}
+	if got, want := anchoredWidth, 2; got != want {
+		t.Fatalf("anchored leg base width = %d, want %d", got, want)
+	}
+	if legs[1].producerScopeIDs != nil {
+		t.Fatalf("unanchored leg scopes = %#v, want nil (no binding to widen)", legs[1].producerScopeIDs)
+	}
+	if got, want := legs[2].producerScopeIDs, []string{"scope:a", "scope:b"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("union leg scopes = %#v, want %#v (already the union set)", got, want)
+	}
+}
