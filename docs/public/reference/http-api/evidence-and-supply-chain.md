@@ -839,7 +839,7 @@ preserve audit signal. Every finding row carries a `suppression` block (always p
 `eshu_policy`, `provider_dismissal`, or `advisory_retraction`), justification, author, timestamps, reason, evidence reference, and any VEX document/statement IDs so
 callers can explain why a finding is hidden or why a related suppression did not apply. Provider dismissals are evidence: the reducer surfaces them as
 `provider_dismissed` without removing the finding from the default view. `advisory_retracted` is set by the reducer alone, when every source record of the CVE is an NVD
-`Rejected` record or an OSV withdrawn record, and a live source keeps the finding active; the reason and any `replaced_by` CVE ids ride in
+`Rejected` record or an OSV withdrawn record, and a live source keeps the finding active, except that on an OS package finding only records that list the package and join this host count, so a live record for another package, one with no package fact, or one whose fact has no installed package, SBOM path or consuming repository behind it does not; the reason and any `replaced_by` CVE ids ride in
 `provenance.advisory_retraction`. After the reducer commits a pass that changed or retracted a finding, it reopens every other scope that holds an active copy of the same CVE (including the operator suppression scope), so those copies re-derive and the retraction, or its reversal, reaches each copy once that holder's next pass runs, instead of waiting for the scope's own cadence; a restored record returns each copy to its state before the retraction.
 
 Version fields intentionally do not collapse into one string:

@@ -27,6 +27,7 @@ func appendSupplyChainImpactPackageFindings(
 	pkgs []supplychainmodel.AffectedPackage,
 	index supplyChainImpactIndex,
 ) []SupplyChainImpactFinding {
+	cves, pkgs = liveAdvisoryPackages(cves, pkgs, index)
 	pkg := representativeAffectedPackage(pkgs)
 	paths := supplyChainSBOMPaths(pkg, index)
 	if len(paths) == 0 {

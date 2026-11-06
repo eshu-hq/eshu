@@ -52,6 +52,14 @@ type SupplyChainImpactFactFilter struct {
 	PackageIDs []string
 	PURLs      []string
 	CVEIDs     []string
+	// UpstreamCVEIDs is the CVE ids loaded distro records name in their upstream
+	// lists (#9914). They load only the KEV and EPSS facts and the suppressions for
+	// those CVEs, never their cve, affected_package or affected_product facts, so
+	// an OS finding takes severity only from the record that decided it until the
+	// full widening is measured. The arm a CVE takes depends on the loaded set, not
+	// on arrival order or the fact that triggered the pass: a CVE with any loaded
+	// CVE-keyed fact is in CVEIDs, and one named only by an upstream list is here.
+	UpstreamCVEIDs []string
 	// AdvisoryIDs binds both the top-level exact-match predicate and the
 	// normalized suppression-scope predicate. It is populated alongside
 	// CVEIDs because supplyChainCVEID prefers cve_id over advisory_id when
@@ -426,6 +434,7 @@ func buildSupplyChainImpactFindingsAndExclusions(envelopes []facts.Envelope) ([]
 		osAdvisoryJoins:             countOSAdvisoryJoins(index),
 		osAdvisoriesJoinedViaSource: countOSAdvisoriesJoinedViaSource(findings),
 		osReleaseNotInAdvisory:      countOSReleaseNotInAdvisory(findings),
+		osUpstreamGroups:            index.osUpstream.cells,
 	}, nil
 }
 

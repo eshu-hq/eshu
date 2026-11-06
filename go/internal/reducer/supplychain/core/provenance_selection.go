@@ -170,6 +170,9 @@ func selectAdvisoryProvenance(
 		if sorted[i].Source != sorted[j].Source {
 			return sorted[i].Source < sorted[j].Source
 		}
+		if sorted[i].releaseTier != sorted[j].releaseTier {
+			return sorted[i].releaseTier < sorted[j].releaseTier
+		}
 		if sorted[i].AdvisoryID != sorted[j].AdvisoryID {
 			return sorted[i].AdvisoryID < sorted[j].AdvisoryID
 		}
@@ -194,7 +197,14 @@ func selectAdvisoryProvenance(
 			break
 		}
 	}
-	for _, observation := range sorted {
+	deciding, holding := -1, false
+	if osPackageClassEcosystem(ecosystem) {
+		deciding, holding = decidingObservation(sorted)
+		if deciding >= 0 {
+			selection.DecidingAdvisoryID = sorted[deciding].AdvisoryID
+		}
+	}
+	for at, observation := range sorted {
 		if observation.retracted() {
 			continue
 		}
@@ -204,6 +214,12 @@ func selectAdvisoryProvenance(
 			selection.SeverityScoreSource = observation.SeverityScoreSource
 			selection.SeverityVector = observation.SeverityVector
 			selection.SeverityLabel = observation.SeverityLabel
+		}
+		// A holder's own fix and range are the only ones offered: another record's
+		// lower fix would tell a host still inside this range to upgrade to where it
+		// already is (#9914).
+		if holding && at != deciding {
+			continue
 		}
 		if selection.FixedVersionSource == "" && len(observation.FixedVersions) > 0 {
 			selection.FixedVersionSource = observation.Source
@@ -285,6 +301,18 @@ func selectAdvisoryProvenance(
 	}
 	selection.EvidenceFactIDs = payloadcore.UniqueSortedStrings(selection.EvidenceFactIDs)
 	return selection
+}
+
+// osPackageClassEcosystem reports whether ecosystem is an OS package class: one
+// of the vendor classes advisorySourcePriority ranks, or the "os" ecosystem the
+// OSV converter emits for a distro package.
+func osPackageClassEcosystem(ecosystem string) bool {
+	ecosystem = packageidentity.LowerASCII(strings.TrimSpace(ecosystem))
+	if ecosystem == "os" {
+		return true
+	}
+	_, ok := vendorForOSPackageClass(ecosystem)
+	return ok
 }
 
 // singleFixedVersion returns the observation's fixed version only when it

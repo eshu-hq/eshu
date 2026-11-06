@@ -94,3 +94,40 @@ changing anything here.
   they produce no impact finding. A failed govulncheck run emits no
   reachability fact and reads `unknown`; the reducer does not join
   `scanner_worker.warning`, so the failure class is not on the finding.
+- The OS advisory grouping pass (#9914, `groupOSAdvisoriesByUpstream`) is the
+  only place a distro record is filed under a CVE id. Keep it in the index
+  build: never in verdict code, never by changing the producer's `cve_id`, and
+  never from the raw payload (it reads the typed `Upstream` field only). It must
+  stay zero-allocation for a record that is not an OS vendor record and carries
+  no `upstream` list (`BenchmarkBuildSupplyChainImpactIndexUpstreamGrouping`).
+  It joins on `AdvisoryID`, never `cve_id`: an alias can give unrelated records
+  one `cve_id`. Changing the key rule moves `finding_id`, the winners key and
+  `cve_id` filters for every grouped OS finding, so treat it as an identity
+  migration.
+- `UpstreamCVEIDs` on the load filter asks for the CVEs an `upstream` list names
+  and reads KEV, EPSS and suppression scopes only. It reads the raw payload, because
+  the filter runs before the typed decode, and it forms no group. Do not move an
+  upstream id onto `CVEIDs`, directly or through `appendSignalCVEIDs`: that loads
+  the CVE's NVD record and product rows, the widening the #9914 shim failed. Widen
+  only with a budget measurement on a store that holds NVD data.
+- An OS-class finding is named by `decidingObservation`, not `IdentitySource`, so
+  its identity does not depend on what the pass loaded. Do not let a scored source
+  rename one, and do not move this rule to other ecosystems: #9693 pins theirs.
+- Among live records the one whose range holds the installed version decides, highest
+  fix first, and only its fix and range are offered. `osVerdictComparator` must stay
+  the comparator `evaluateSupplyChainVersionMatch` uses for each family, or a record
+  can be named by a different order than the one that set the verdict.
+- An OS-class finding judges retraction over the records listing its package
+  (`recordsListingThePackage`). Do not widen that to language ecosystems here: the
+  base behaviour there is not this rule's defect, and changing it needs its own proof.
+- A fact that cannot anchor a finding on an index must not change the finding that
+  index would produce without it (`onlyRetractedRecordsAnchor`, ruling 9914-r5). Pass
+  `liveAdvisoryPackages` the index that classifies the group, or the two paths disagree.
+- A record is retracted as a whole (`retractedRecordOf`, ruling 9914-retract): a fact that
+  pairing left without a cve observation takes its record's lifecycle only when every cve
+  fact of that source and advisory id retracted. A source with no cve fact stays live, and
+  a retracted finding offers no fix, so the authorized pass selects no branch for one.
+- A consumer that reads affected packages reads them from the index, after
+  `liveAdvisoryPackages`, as the primary path and the derived conflict gate do. A
+  second typed decode sees the producer's `cve_id` and misses every grouped
+  finding.

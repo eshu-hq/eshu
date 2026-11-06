@@ -183,13 +183,13 @@ func TestSameSourceRetractedRecordsAreListedInFullAndInOrder(t *testing.T) {
 	}
 }
 
-// TestDuplicatePackageFactForAWithdrawnAdvisoryFailsTowardActive documents the
-// safe direction of an unmatched, statusless package observation: a second
-// package fact for a withdrawn advisory matches no CVE fact, so it counts as a
-// live source and the finding stays active. The OSV collector merges every
-// affected entry per (advisory, package, source) into one fact, so a collector
-// cannot produce this shape; the reducer-side behavior is covered here only.
-func TestDuplicatePackageFactForAWithdrawnAdvisoryFailsTowardActive(t *testing.T) {
+// TestSecondPackageFactOfAWithdrawnRecordKeepsItsRetraction reverses the #9695 pin
+// on this shape (arbiter ruling 9914-retract): a second package fact of a withdrawn
+// advisory pairs with no CVE fact, and it takes its record's lifecycle instead of
+// counting as a live source. The OSV collector merges every affected entry per
+// (advisory, package, source) into one fact, so a collector cannot produce this
+// shape; the reducer-side behavior is covered here only.
+func TestSecondPackageFactOfAWithdrawnRecordKeepsItsRetraction(t *testing.T) {
 	t.Parallel()
 
 	withdrawn := vulnerabilityCVEFactWithdrawn(
@@ -201,8 +201,8 @@ func TestDuplicatePackageFactForAWithdrawnAdvisoryFailsTowardActive(t *testing.T
 		retractionPackageFact("pkg-2", "CVE-2026-6301", "osv", "GHSA-wdrn-dddd-eeee", "1.0.2"),
 		retractionConsumption(),
 	)
-	if got := finding.Suppression.State; got != SupplyChainSuppressionStateActive {
-		t.Fatalf("state = %q, want active: the second package fact has no retracting record", got)
+	if got := finding.Suppression.State; got != SupplyChainSuppressionStateAdvisoryRetracted {
+		t.Fatalf("state = %q, want advisory_retracted: the second package fact belongs to the withdrawn record", got)
 	}
 }
 

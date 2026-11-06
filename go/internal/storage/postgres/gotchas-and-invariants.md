@@ -367,6 +367,10 @@ operational lessons that future storage changes still need to respect.
   probe is estimated at 1/200 per id, and the sum falls at 200 ids. A plan flip can
   therefore sit below a length that plans well: the CVE probe walks at 172 to 199
   ids and not at 240 (#9994). Plan every length a chunk can have.
+  `UpstreamCVEIDs` (#9914) is the one list outside `retiredArms`: the frozen
+  predicate never had it, so its suppression arm renders beside them and its KEV
+  and EPSS probe is cut into statements of at most `MaxCVEIDsPerStatement`
+  (120) ids.
 - Vulnerability-suppression deployment context is narrowing-only (#5466).
   `ListActiveSupplyChainImpactFacts` discovers suppressions through
   `cve_id`, `advisory_id`, `package_id`, `purl`, `repository_id`, or

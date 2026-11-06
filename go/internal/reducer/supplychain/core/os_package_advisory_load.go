@@ -191,6 +191,9 @@ type supplyChainImpactBuildStats struct {
 	// osReleaseNotInAdvisory counts the final findings whose advisory
 	// carries release tags but none for the installed release, by vendor.
 	osReleaseNotInAdvisory map[string]int
+	// osUpstreamGroups counts the vulnerability.cve records the OS advisory
+	// grouping pass examined, by source and result (#9914).
+	osUpstreamGroups map[osUpstreamGroupKey]int
 }
 
 // countOSAdvisoriesJoinedViaSource counts the final findings that joined
@@ -283,10 +286,22 @@ func (s supplyChainImpactBuildStats) osAdvisoriesJoined() int {
 // (#9806 PR-2b).
 func countOSAdvisoryJoins(index supplyChainImpactIndex) map[osAdvisoryJoinKey]int {
 	var out map[osAdvisoryJoinKey]int
+	// The upstream grouping pass (#9914) files one OS fact under every CVE its
+	// record names; the census counts each fact once, as before.
+	var counted map[string]struct{}
+	if index.osUpstream.rekeyed {
+		counted = make(map[string]struct{})
+	}
 	for _, pkgs := range index.affectedPackages {
 		for _, pkg := range pkgs {
 			if !isOSAffectedPackage(pkg.Ecosystem, pkg.PURL) {
 				continue
+			}
+			if counted != nil {
+				if _, seen := counted[pkg.FactID]; seen {
+					continue
+				}
+				counted[pkg.FactID] = struct{}{}
 			}
 			vendor := classifyAffectedPackageAdvisorySource(pkg)
 			if vendor == "" {
@@ -372,6 +387,9 @@ func (h SupplyChainImpactHandler) recordBuildStats(
 	h.emitOSAdvisoryJoins(ctx, stats.osAdvisoryJoins)
 	h.emitOSAdvisoryReleaseSelections(ctx, stats.osAdvisoryJoins)
 	h.emitOSReleaseNotInAdvisory(ctx, stats.osReleaseNotInAdvisory)
+	h.emitOSAdvisoryUpstreamGroups(ctx, stats.osUpstreamGroups)
+	subSignals[osAdvisoriesGroupedSubSignal] = float64(stats.osAdvisoriesWithGrouping(osUpstreamGrouped))
+	subSignals[osAdvisoriesUngroupedSubSignal] = float64(stats.osAdvisoriesWithGrouping(osUpstreamUngrouped))
 	subSignals[negatedProductsExcludedSubSignal] = float64(stats.negatedProductsExcluded)
 	subSignals[osAdvisoriesConsideredSubSignal] = float64(stats.osAdvisoriesConsidered())
 	subSignals[osAdvisoriesJoinedSubSignal] = float64(stats.osAdvisoriesJoined())

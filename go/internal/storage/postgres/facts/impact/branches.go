@@ -18,6 +18,10 @@ const (
 	ShapeGuard = "guard"
 )
 
+// BranchVulnerabilityUpstreamCVEID names the key probe that reads the
+// signal kinds for the CVE ids distro records name in their upstream lists.
+const BranchVulnerabilityUpstreamCVEID = "vulnerability_upstream_cve_id"
+
 // Branch is one id-resolution statement. Each returns (fact_id, fact_kind)
 // for active, non-tombstone rows that satisfy one part of the retired
 // predicate; the union over every branch the loader issues is exactly the
@@ -163,6 +167,9 @@ func probeBranches() []Branch {
 	return []Branch{
 		withMaxListLength(
 			keyProbe("vulnerability_cve_id", IndexVulnerabilityCVEV2, "cve_id", CVEIDs, vulnerability...),
+			MaxCVEIDsPerStatement),
+		withMaxListLength(
+			keyProbe(BranchVulnerabilityUpstreamCVEID, IndexVulnerabilityCVEV2, "cve_id", UpstreamCVEIDs, KindEPSSScore, KindKnownExploited),
 			MaxCVEIDsPerStatement),
 		keyProbe("vulnerability_advisory_id", IndexVulnerabilityAdvisoryV2, "advisory_id", AdvisoryIDs, vulnerability...),
 		keyProbe("affected_package_package_id", IndexAffectedPackagePackageID, "package_id", PackageIDs, KindAffectedPackage),
