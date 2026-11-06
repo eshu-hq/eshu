@@ -1,0 +1,20 @@
+docs/internal/evidence/10094-crossplane-redrive-delta-base.md
+  h_78a442cba0b3e6 11-15,163-164,258-297
+docs/internal/measurements.jsonl
+  h_78a442cba0b3e6 312-316
+docs/public/observability/telemetry-coverage-reducer-domains.md
+  h_78a442cba0b3e6 42
+go/internal/storage/postgres/crossplane/README.md
+  h_78a442cba0b3e6 285-290
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e96e6d6f747284696cf69e479c2b2be82b79c7cd",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

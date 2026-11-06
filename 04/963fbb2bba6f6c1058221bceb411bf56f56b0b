@@ -1,0 +1,20 @@
+docs/internal/evidence/10094-crossplane-redrive-delta-base.md
+  h_78a442cba0b3e6 155-156,375-399
+docs/internal/measurements.jsonl
+  h_78a442cba0b3e6 329
+go/internal/storage/postgres/crossplane/README.md
+  h_78a442cba0b3e6 288-291
+go/internal/storage/postgres/crossplane/query_plan_delta_base_helpers_test.go
+  h_78a442cba0b3e6 144-153,230-231
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "04963fbb2bba6f6c1058221bceb411bf56f56b0b",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
