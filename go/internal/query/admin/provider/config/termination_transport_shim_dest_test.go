@@ -8,6 +8,7 @@ package config_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"strings"
@@ -112,6 +113,19 @@ func (h *shimDestReadHandler) portRequest(ctx context.Context, path, tenantID st
 	}
 	resp, err := h.Client.Do(req)
 	if err != nil {
+		// Terminated-transport cancel contract (D0 F2, decided in-lane):
+		// when the caller walks away, the port call fails with a
+		// context.Canceled error on an already-canceled request
+		// context — the same predicate tracing.ClientCanceled uses —
+		// so the dest answers 499 exactly like the reference path
+		// instead of masking the cancel as a 500. A canceled inner
+		// context on a live request stays a server fault (500).
+		// 499 is querycontract.StatusClientClosedRequest; the dest
+		// copy stays stdlib-only, so the literal is pinned here and
+		// the byte-diff cancel tests below guard it.
+		if errors.Is(err, context.Canceled) && errors.Is(ctx.Err(), context.Canceled) {
+			return 499, nil
+		}
 		return http.StatusInternalServerError, nil
 	}
 	defer resp.Body.Close()
@@ -168,6 +182,8 @@ func (h *shimDestReadHandler) handleGet(w http.ResponseWriter, r *http.Request) 
 		shimWriteJSON(w, http.StatusOK, shimDestProjectDetail(detail))
 	case http.StatusNotFound:
 		shimWriteError(w, http.StatusNotFound, shimNotFoundMessage)
+	case 499: // querycontract.StatusClientClosedRequest: caller walked away.
+		shimWriteError(w, 499, shimReadFailedMessage)
 	default:
 		shimWriteError(w, http.StatusInternalServerError, shimReadFailedMessage)
 	}
@@ -185,6 +201,10 @@ func (h *shimDestReadHandler) handleListRevisions(w http.ResponseWriter, r *http
 	}
 	status, body := h.portRequest(r.Context(), "/v0/port/provider-configs/revisions", tenantID, shimDestResolveBounds(r),
 		map[string]string{"provider_config_id": id})
+	if status == 499 { // querycontract.StatusClientClosedRequest: caller walked away.
+		shimWriteError(w, 499, shimRevisionsFailedMessage)
+		return
+	}
 	if status != http.StatusOK {
 		shimWriteError(w, http.StatusInternalServerError, shimRevisionsFailedMessage)
 		return

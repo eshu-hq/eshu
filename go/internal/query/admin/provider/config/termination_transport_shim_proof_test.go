@@ -6,6 +6,7 @@ package config_test
 // D0 termination-transport shim: byte-diff harness, fail-closed proof, and latency benchmarks. See termination_transport_shim_test.go for the theory.
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/admin/provider/config"
 	"github.com/eshu-hq/eshu/go/internal/query/auth"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 var (
@@ -186,6 +188,95 @@ func TestShimByteParityWithRelay(t *testing.T) {
 			}
 			if got := shimHeader.Get("Content-Type"); got != refHeader.Get("Content-Type") {
 				t.Errorf("Content-Type = %q, want reference %q", got, refHeader.Get("Content-Type"))
+			}
+			if shimBody != refBody {
+				t.Errorf("body differs:\nshim: %s\nref:  %s", shimBody, refBody)
+			}
+		})
+	}
+}
+
+// shimServeCanceled serves a request whose context is already canceled:
+// the caller walking away before the handler runs.
+func shimServeCanceled(t *testing.T, h http.Handler, method, target string, authCtx *auth.AuthContext) (int, string, http.Header) {
+	t.Helper()
+	req := httptest.NewRequest(method, target, nil)
+	ctx, cancel := context.WithCancel(req.Context())
+	cancel()
+	req = req.WithContext(ctx)
+	if authCtx != nil {
+		req = req.WithContext(auth.ContextWithAuthContext(req.Context(), *authCtx))
+	}
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	res := rec.Result()
+	body, _ := io.ReadAll(res.Body)
+	return res.StatusCode, string(body), res.Header
+}
+
+// TestShimByteParityClientCancel pins the terminated-transport cancel
+// contract (D0 F2, decided in-lane per owner): when the caller walks away
+// (canceled request context), both the reference and the terminated shim
+// answer 499 with byte-identical bodies — the same signal
+// tracing.WriteServerFailure gives the in-tree path.
+func TestShimByteParityClientCancel(t *testing.T) {
+	t.Parallel()
+
+	adminA := shimAuthPtr(shimAdminAuth("tenant_a"))
+	targets := []string{
+		"/api/v0/auth/admin/provider-configs",
+		"/api/v0/auth/admin/provider-configs/pc_1",
+		"/api/v0/auth/admin/provider-configs/pc_1/revisions",
+	}
+	for _, target := range targets {
+		t.Run(target, func(t *testing.T) {
+			t.Parallel()
+			w := newShimWorld(t, shimFixtureStore())
+
+			refStatus, refBody, _ := shimServeCanceled(t, w.reference, http.MethodGet, target, adminA)
+			shimStatus, shimBody, _ := shimServeCanceled(t, w.shim, http.MethodGet, target, adminA)
+
+			if refStatus != querycontract.StatusClientClosedRequest {
+				t.Fatalf("reference status = %d, want 499 (client cancel contract)", refStatus)
+			}
+			if shimStatus != refStatus {
+				t.Errorf("status = %d, want reference %d (body %q)", shimStatus, refStatus, shimBody)
+			}
+			if shimBody != refBody {
+				t.Errorf("body differs:\nshim: %s\nref:  %s", shimBody, refBody)
+			}
+		})
+	}
+}
+
+// TestShimByteParityInnerCancel pins the complement: a canceled inner
+// context on a live request is a server fault, not a client cancel, so
+// both sides answer 500 (tracing.ClientCanceled requires the request
+// context itself to be canceled).
+func TestShimByteParityInnerCancel(t *testing.T) {
+	t.Parallel()
+
+	adminA := shimAuthPtr(shimAdminAuth("tenant_a"))
+	targets := []string{
+		"/api/v0/auth/admin/provider-configs",
+		"/api/v0/auth/admin/provider-configs/pc_1",
+		"/api/v0/auth/admin/provider-configs/pc_1/revisions",
+	}
+	for _, target := range targets {
+		t.Run(target, func(t *testing.T) {
+			t.Parallel()
+			store := shimFixtureStore()
+			store.forceErr = context.Canceled
+			w := newShimWorld(t, store)
+
+			refStatus, refBody, _ := shimServe(t, w.reference, http.MethodGet, target, adminA)
+			shimStatus, shimBody, _ := shimServe(t, w.shim, http.MethodGet, target, adminA)
+
+			if refStatus != http.StatusInternalServerError {
+				t.Fatalf("reference status = %d, want 500 (inner cancel is a server fault)", refStatus)
+			}
+			if shimStatus != refStatus {
+				t.Errorf("status = %d, want reference %d (body %q)", shimStatus, refStatus, shimBody)
 			}
 			if shimBody != refBody {
 				t.Errorf("body differs:\nshim: %s\nref:  %s", shimBody, refBody)

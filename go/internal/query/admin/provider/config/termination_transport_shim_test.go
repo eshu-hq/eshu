@@ -152,6 +152,9 @@ func (f *shimFakeStore) note(method string) {
 
 func (f *shimFakeStore) GetProviderConfigDetail(ctx context.Context, providerConfigID, tenantID string) (config.Detail, bool, error) {
 	f.note("get")
+	if err := ctx.Err(); err != nil {
+		return config.Detail{}, false, err
+	}
 	if f.forceErr != nil {
 		return config.Detail{}, false, f.forceErr
 	}
@@ -165,6 +168,9 @@ func (f *shimFakeStore) GetProviderConfigDetail(ctx context.Context, providerCon
 
 func (f *shimFakeStore) ListProviderConfigDetails(ctx context.Context, tenantID string) ([]config.Detail, error) {
 	f.note("list")
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if f.forceErr != nil {
 		return nil, f.forceErr
 	}
@@ -173,6 +179,9 @@ func (f *shimFakeStore) ListProviderConfigDetails(ctx context.Context, tenantID 
 
 func (f *shimFakeStore) ListProviderConfigRevisions(ctx context.Context, providerConfigID, tenantID string) ([]config.RevisionItem, error) {
 	f.note("revisions")
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if f.forceErr != nil {
 		return nil, f.forceErr
 	}
