@@ -298,7 +298,7 @@ The finding's stored `cvss_score` now holds the derived score, so
 `cvssPriorityContribution` awards the CVSS priority contribution to
 vector-only findings the same way it does for reported scores. That raises
 the priority of OSV findings that carried a vector and no score; it is the
-only change to priority scoring.
+only change to priority scoring. The #9882 exploited tier (`ExploitedTier`, set by `withSupplyChainImpactPriority`) ranks exploited-ness alongside the score and never changes status or missing-evidence truth; proof is the tier fixture, tier-order, and affected_exact-guard tests, with no new metric or span.
 
 The SQL bucket reads `cvss_score` first and falls back to
 `provenance.selected_severity_label` only when the score is zero or absent.

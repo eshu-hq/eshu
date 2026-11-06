@@ -154,6 +154,7 @@ func supplyChainImpactTypedPayload(
 		PriorityBucket:        finding.PriorityBucket,
 		PriorityReasonCodes:   nonNilStrings(payloadcore.UniqueSortedStrings(finding.PriorityReasonCodes)),
 		PriorityContributions: nonNilMapSlice(serializePriorityContributions(finding.PriorityContributions)),
+		ExploitedTier:         exploitedTierPointer(finding.ExploitedTier),
 		RuntimeReachability:   finding.RuntimeReachability,
 		RepositoryID:          finding.RepositoryID,
 		SubjectDigest:         finding.SubjectDigest,
@@ -271,6 +272,16 @@ func supplyChainImpactRemediationPayload(r SupplyChainImpactRemediation) map[str
 		out["missing_evidence"] = payloadcore.UniqueSortedStrings(r.MissingEvidence)
 	}
 	return out
+}
+
+// exploitedTierPointer carries the #9882 additive tier onto the governed
+// payload. A finding that never passed priority scoring (empty tier) emits no
+// key, so pre-tier rows and un-scored findings decode identically.
+func exploitedTierPointer(tier string) *string {
+	if tier == "" {
+		return nil
+	}
+	return &tier
 }
 
 func serializePriorityContributions(values []SupplyChainImpactPriorityContribution) []map[string]any {

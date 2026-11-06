@@ -154,6 +154,42 @@ func TestDecodeSupplyChainImpactFindingRowPreservesPriority(t *testing.T) {
 	}
 }
 
+func TestDecodeSupplyChainImpactFindingRowPreservesExploitedTier(t *testing.T) {
+	t.Parallel()
+
+	payload := []byte(`{
+		"cve_id": "CVE-2026-3003",
+		"impact_status": "possibly_affected",
+		"known_exploited": true,
+		"priority_score": 87,
+		"exploited_tier": "kev"
+	}`)
+
+	row, err := impact.DecodeFindingRow("finding-tier", "inferred", payload)
+	if err != nil {
+		t.Fatalf("impact.DecodeFindingRow() error = %v", err)
+	}
+	if got, want := row.ExploitedTier, "kev"; got != want {
+		t.Fatalf("ExploitedTier = %q, want %q", got, want)
+	}
+	if got := impact.BuildFindingResult(&row).ExploitedTier; got != "kev" {
+		t.Fatalf("FindingResult.ExploitedTier = %q, want %q", got, "kev")
+	}
+
+	legacy := []byte(`{
+		"cve_id": "CVE-2026-3004",
+		"impact_status": "possibly_affected",
+		"priority_score": 87
+	}`)
+	legacyRow, err := impact.DecodeFindingRow("finding-legacy", "inferred", legacy)
+	if err != nil {
+		t.Fatalf("impact.DecodeFindingRow() error = %v", err)
+	}
+	if legacyRow.ExploitedTier != "" {
+		t.Fatalf("ExploitedTier = %q for a row written before the tier existed, want empty so the response omits it", legacyRow.ExploitedTier)
+	}
+}
+
 func TestSupplyChainImpactFindingQuerySupportsPriorityFiltersAndSort(t *testing.T) {
 	t.Parallel()
 

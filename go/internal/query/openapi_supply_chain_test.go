@@ -219,7 +219,7 @@ func TestOpenAPISpecIncludesSupplyChainImpactFindings(t *testing.T) {
 	findings := testutil.MustMapField(t, properties, "findings")
 	items := testutil.MustMapField(t, findings, "items")
 	itemProperties := testutil.MustMapField(t, items, "properties")
-	for _, want := range []string{"priority_score", "priority_bucket", "priority_reason_codes", "priority_contributions", "vulnerable_range"} {
+	for _, want := range []string{"priority_score", "priority_bucket", "priority_reason_codes", "priority_contributions", "exploited_tier", "vulnerable_range"} {
 		if _, ok := itemProperties[want]; !ok {
 			t.Fatalf("finding schema missing %q", want)
 		}

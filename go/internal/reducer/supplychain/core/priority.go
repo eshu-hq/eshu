@@ -23,6 +23,65 @@ type SupplyChainImpactPriorityContribution struct {
 	Contribution int
 }
 
+// Exploited-tier vocabulary for issue #9882 item 4.5. The tier ranks a finding
+// by exploited-ness alongside priority_score, which keeps its derivation and
+// stays the score consumers sort on. CISA KEV feeds the kev rung today; the
+// ssvc_active rung is reserved for 4.1 CVE-ADP SSVC (no collector emits an
+// SSVC exploitation state yet, so nothing in production reaches it); an EPSS
+// observation without an exploited listing feeds the epss rung; findings with
+// no exploit signal are none.
+const (
+	SupplyChainExploitedTierKEV        = "kev"
+	SupplyChainExploitedTierSSVCActive = "ssvc_active"
+	SupplyChainExploitedTierEPSS       = "epss"
+	SupplyChainExploitedTierNone       = "none"
+)
+
+// supplyChainExploitedTier ranks a finding by exploited-ness. KEV and an SSVC
+// "active" exploitation state share the top rung; EPSS without an exploited
+// listing is next; anything else is none. The ssvcExploitation argument
+// carries the SSVC exploitation state ("active", or empty when unknown); it is
+// empty for every production finding until 4.1 feeds it. An EPSS value counts
+// as a signal only when it parses as a finite number, so malformed values
+// never promote a finding. The tier never changes impact_status or
+// missing-evidence truth.
+func supplyChainExploitedTier(knownExploited bool, ssvcExploitation, epssProbability, epssPercentile string) string {
+	if knownExploited {
+		return SupplyChainExploitedTierKEV
+	}
+	if strings.EqualFold(strings.TrimSpace(ssvcExploitation), "active") {
+		return SupplyChainExploitedTierSSVCActive
+	}
+	if isFinitePriorityFloat(epssProbability) || isFinitePriorityFloat(epssPercentile) {
+		return SupplyChainExploitedTierEPSS
+	}
+	return SupplyChainExploitedTierNone
+}
+
+// supplyChainExploitedTierRank orders tiers for the #9882 tier-order proof:
+// kev and ssvc_active share the top rung, epss follows, none is last, and an
+// empty tier (rows written before the tier existed) ranks below none so old
+// rows never outrank a ranked finding by accident.
+func supplyChainExploitedTierRank(tier string) int {
+	switch tier {
+	case SupplyChainExploitedTierKEV, SupplyChainExploitedTierSSVCActive:
+		return 3
+	case SupplyChainExploitedTierEPSS:
+		return 2
+	case SupplyChainExploitedTierNone:
+		return 1
+	default:
+		return 0
+	}
+}
+
+// isFinitePriorityFloat reports whether raw is a parseable finite number.
+// NaN and infinities parse successfully with strconv but are malformed EPSS.
+func isFinitePriorityFloat(raw string) bool {
+	value, ok := parsePriorityFloat(raw)
+	return ok && !math.IsNaN(value) && !math.IsInf(value, 0)
+}
+
 func withSupplyChainImpactPriority(finding SupplyChainImpactFinding) SupplyChainImpactFinding {
 	contributions := buildSupplyChainImpactPriorityContributions(finding)
 	score := 0
@@ -41,6 +100,7 @@ func withSupplyChainImpactPriority(finding SupplyChainImpactFinding) SupplyChain
 	score = clampPriorityScore(score)
 	finding.PriorityScore = score
 	finding.PriorityBucket = supplyChainPriorityBucket(score)
+	finding.ExploitedTier = supplyChainExploitedTier(finding.KnownExploited, "", finding.EPSSProbability, finding.EPSSPercentile)
 	finding.PriorityContributions = contributions
 	finding.PriorityReasonCodes = supplyChainPriorityReasonCodes(contributions)
 	finding.PriorityReason = supplyChainPriorityReason(finding)
