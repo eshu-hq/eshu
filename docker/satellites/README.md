@@ -77,8 +77,10 @@ Each Dockerfile ends its runtime stage with a `RUN sha256sum -c`-shaped
 gate (written as explicit comparisons so the failure names the stale pin):
 it re-hashes the engine binary, re-resolves the libraries through `ldd`
 plus `readlink -f`, recomputes the set hash, re-hashes the model, and
-compares all three (plus the reported engine version for OCR) against the
-build args. Any mismatch fails the build with the re-pin pointer. The gate
+compares all three (plus the reported engine version — exact match for
+tesseract, "whisper.cpp version: <v>" prefix match for whisper-cli)
+against the build args. Any mismatch fails the build with the re-pin
+pointer. The gate
 also prints the resolved per-file library list, which is the operator's
 source for `ESHU_DOC_IMPORT_TESSERACT_LIBRARIES`.
 
