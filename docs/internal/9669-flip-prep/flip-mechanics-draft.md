@@ -8,6 +8,13 @@ an execution. No IaC values are changed by this document; every file below
 is named so the flip executor can open it, not edited here. A fresh arbiter
 review is required before any real flip.
 
+Refresh at eshu `origin/main` `e30c99c1cf` (lane base was `60f2fe256d`;
+satellite `eshu-api` `origin/main` is at `f62086c51d59aa68b3fee2dd299e85cdf7119cfc`):
+satellite native dispatch waves #42/#43/#45/#46/#47 merged (satellite #44
+open follow-up); eshu admission seams #10233/#10245 and the Leaf B
+read-transport spec #10250 merged. The flip sequence below is unchanged —
+no flip, cutover, deploy, or removal has occurred.
+
 ## 1. Single-IaC-pin-both-edges plan
 
 Deployment IaC lives in `eshu-hq/eshu-deploy` (moved there under #8871; see
@@ -45,20 +52,22 @@ HTTP half (API edge):
 
 - Route census: re-run the `CUTOVER_OWNERSHIP.md` method
   (`rg -c '^\| \`(GET|POST|PATCH|PUT|DELETE)' go/cmd/api/CUTOVER_OWNERSHIP.md`
-  reads 278 at this HEAD) and the `cutover_ownership_test.go` drift gate
+  reads 278 at this HEAD — re-verified at `e30c99c1cf`) and the `cutover_ownership_test.go` drift gate
   against the live spec (`GET /api/v0/openapi.json`).
 - Envelope parity: negotiation (`Accept: application.eshu.envelope+json`
   via `WriteSuccess`/`WriteErrorEnvelope`), pagination (bounded `limit`,
   `page_position`, resume cursor, `truncated`, `TruthLevelPartial`),
   capability/profile gating, authz (`auth_scoped_routes_completeness`,
-  fail-closed `BrowserSessionRoutePolicy`), per the Leaf B harness scope in
-  `../eshu-9669-census/go/cmd/api/READ_TRANSPORT_CENSUS.md:166-184`.
+  fail-closed `BrowserSessionRoutePolicy`), per the Leaf B harness scope
+  (pending: census lane has not landed its `READ_TRANSPORT_CENSUS.md`;
+  scope stated inline above).
 
 MCP half (MCP edge):
 
 - Served surface: `tools/list` returns exactly the 2 router tools
   (`find_tool`, `call_tool`); registry census
-  (`TestToolRegistryCensusCount`, currently 171) matches the dest
+  (`TestToolRegistryCensusCount`, currently 171, re-verified at
+  `e30c99c1cf`) matches the dest
   `tools.json` `tool_count` byte-for-byte in registration order.
 - Live sweep: every registry tool answers transport HTTP 200 via
   `call_tool` with the canonical `{data, truth, error}` envelope or a

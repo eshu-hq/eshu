@@ -22,16 +22,44 @@ below, not an import) and one test file's string literal.
 
 ## Census result
 
-107 files import `go/internal/query` at HEAD `60f2fe256d`
-(re-measured by the coordinator with the method above):
+107 files import `go/internal/query` at HEAD `e30c99c1cf`
+(re-measured in this worktree after rebasing onto `origin/main`
+`e30c99c1cf` with the method above; `git grep` corroboration returns
+the identical 107-file set):
 
 - 8 non-test files (the runtime severance surface, Groups A–D).
 - 99 `*_test.go` files (the test severance surface, Group F).
 
-The lane brief said 107 — confirmed. The MCP tool
+The lane brief said 107 — confirmed, unchanged after the rebase
+(8 non-test + 99 test, same split). The MCP tool
 census at this HEAD is `censusToolCount = 171`
-(`go/internal/mcp/tool_registry_census_test.go:36`) plus the 2 router tools
+(`go/internal/mcp/tool_registry_census_test.go:36`, re-verified at
+`e30c99c1cf`) plus the 2 router tools
 (`find_tool`, `call_tool`), giving a 173-tool served surface.
+
+## Landings since the lane base `60f2fe256d` (refresh at `e30c99c1cf`)
+
+Eshu `origin/main` is at `e30c99c1cf7aca98d4bb89dc2d76a22e116120a9`.
+Satellite `eshu-api` `origin/main` is at
+`f62086c51d59aa68b3fee2dd299e85cdf7119cfc`.
+No flip, cutover, deploy, or removal has occurred — preparation only.
+
+- Satellite native dispatch landed: #42 (AdminIdentityMutations family),
+  #43 (AdminReads fragment, relay + union), #45 (Setup carve-out),
+  #46 (AdminProviderConfigMutations family), #47 (AdminRecoveryMutations
+  subset). Open: satellite #44 (Setup OpenAPI fragment public-spec
+  posture follow-up).
+- Eshu admission seams landed, unwired: #10233
+  (GovernanceAuditAdmission,
+  `go/internal/query/governance_audit_admission.go`) and #10245
+  (RecoveryAdmission v0,
+  `go/internal/query/admin/recovery_admission.go`). Neither severs an
+  in-tree import yet.
+- Leaf B read-transport spec merged: #10250
+  (`go/cmd/api/READ_TRANSPORT_SPEC.md` plus the red-first conformance
+  skeleton, `CoreReadContractsVersion` still `v0`). The Group F
+  replacement-harness question below now has a named in-tree skeleton;
+  the cross-repo parity harness itself is still pending.
 
 ## Group A — dispatch envelope and budget (3 files)
 
@@ -132,8 +160,10 @@ in-tree import they were meant to sever.
 
 ## Open questions
 
-1. Resolved: the count is 107 exact-package importers (8 non-test + 99 test). The bare-pattern 109 counts two string literals (`kind_real_consumer.go:51`, `tools_runtime_test.go:129`). Re-run the module-prefixed method at flip time.
+1. Resolved: the count is 107 exact-package importers (8 non-test + 99 test). The bare-pattern 108 counts the `kind_real_consumer.go` string literals (`:51`, `:77`). Re-run the module-prefixed method at flip time.
 2. Owner confirms the auth-predicate contract (Group C) carries fail-closed
    semantics verbatim.
 3. Decide whether Group F parity tests are replaced by the Leaf B cross-repo
-   parity harness or by satellite-local tests.
+   parity harness or by satellite-local tests. Update: the Leaf B spec
+   and red-first conformance skeleton merged (#10250); the harness
+   itself is still pending, so this stays open.
