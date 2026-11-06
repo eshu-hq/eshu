@@ -169,8 +169,11 @@ and table move together.
    `live-backend-tests.yml`, `golden-corpus-gate.yml` scope).
 4. Latency-gate ownership: satellite repo owns the latency gate against a
    pinned core image; core keeps contract-registry + static-contract gates.
-5. Status audit-read contract (Leaf B-D): new read admission vs scoped
-   `ReadStore` extension — blocks Status/SupplyChain dispatch, NOT this wave.
+5. [TBD5-spec] Status audit-read contract (Leaf B-D): new read
+   admission vs scoped `ReadStore` extension — blocks Status/SupplyChain
+   dispatch, NOT this wave. (Disambiguated D0 per the arbiter D-wave
+   ruling: TBD5-spec is this Leaf B item; TBD5-resolver is the arbiter's
+   dest session resolver, tracked satellite-side.)
 6. SupplyChain split point (reads native vs whole-family dispatch) — same,
    not this wave.
 
