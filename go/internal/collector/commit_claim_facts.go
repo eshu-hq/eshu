@@ -84,7 +84,7 @@ type CommitClaimFactsRequest struct {
 // No new metrics: the fence probe travels the instrumented claim-plane client
 // path (eshu_dp_workflow_claim_plane_requests_total with
 // operation="HeartbeatClaim"). The committer write bypasses
-// Service.commitWithTelemetry, so ehsu_dp_facts_emitted_total and
+// Service.commitWithTelemetry, so eshu_dp_facts_emitted_total and
 // eshu_dp_facts_committed_total do NOT fire on this path; the wire call
 // itself reads on the same two client metrics with
 // operation="CommitClaimFacts".

@@ -145,7 +145,9 @@ func TestClaimPlaneClientCommitClaimFactsRejectsOversizedResult(t *testing.T) {
 	defer server.Close()
 	client := NewClaimPlaneClient(server.URL, server.Client())
 
-	err := client.CommitClaimFacts(context.Background(), testMutation(), "commit-lane-key-big", oversizedCommitResult())
+	// commitFactsMutation carries the planned IDs so the size check is the
+	// only failure: deleting it must turn this test red via the wire call.
+	err := client.CommitClaimFacts(context.Background(), commitFactsMutation(), "commit-lane-key-big", oversizedCommitResult())
 	if err == nil {
 		t.Fatal("CommitClaimFacts() error = nil, want oversized rejection")
 	}

@@ -249,9 +249,41 @@ func TestCommitClaimFactsRoundTripsResultBytes(t *testing.T) {
 	}
 }
 
+// TestCommitClaimFactsTakesCollectorKindFromTarget proves the committed
+// envelopes carry the fenced target's collector kind even when the result
+// echo names another kind: reverting to echo-sourcing must turn this red.
+func TestCommitClaimFactsTakesCollectorKindFromTarget(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.November, 6, 12, 0, 0, 0, time.UTC)
+	mutation := commitLaneMutation(now)
+	store := &commitLaneStore{}
+	committer := &commitLaneCommitter{}
+
+	result := commitLaneResult(mutation, 1)
+	result.Claim.CollectorKind = "terraform"
+	req := CommitClaimFactsRequest{
+		Mutation:       mutation,
+		Scope:          commitLaneScope(),
+		Generation:     commitLaneGeneration(now),
+		ComponentID:    "git-commit-lane",
+		IdempotencyKey: "commit-lane-key-kind",
+		ResultJSON:     mustCommitLaneResultJSON(t, result),
+	}
+	if err := CommitClaimFacts(context.Background(), store, committer, req); err != nil {
+		t.Fatalf("CommitClaimFacts() error = %v, want nil", err)
+	}
+	if len(committer.recorded) != 1 {
+		t.Fatalf("recorded envelopes = %d, want 1", len(committer.recorded))
+	}
+	if got := committer.recorded[0].CollectorKind; got != "git" {
+		t.Fatalf("envelope CollectorKind = %q, want the fenced target %q, not the echo", got, "git")
+	}
+}
+
 // TestCommitClaimFactsStaleFenceWritesNoPartialFacts proves the fenced-epoch
-// half: a fenced-away epoch fails closed before any byte is decoded or
-// committed, so a stale retry leaves zero partial facts.
+// half: a fenced-away epoch decodes but fails closed at the fence probe
+// before anything is committed, so a stale retry leaves zero partial facts.
 func TestCommitClaimFactsStaleFenceWritesNoPartialFacts(t *testing.T) {
 	t.Parallel()
 
@@ -399,7 +431,10 @@ func TestCommitClaimFactsRequiresIdempotencyKey(t *testing.T) {
 		Mutation:   mutation,
 		Scope:      commitLaneScope(),
 		Generation: commitLaneGeneration(now),
-		ResultJSON: mustCommitLaneResultJSON(t, commitLaneResult(mutation, 1)),
+		// ComponentID is set so the missing key is the only failure:
+		// deleting the key check must turn this test red.
+		ComponentID: "git-commit-lane",
+		ResultJSON:  mustCommitLaneResultJSON(t, commitLaneResult(mutation, 1)),
 	}
 	if err := CommitClaimFacts(context.Background(), store, committer, req); err == nil {
 		t.Fatal("CommitClaimFacts() error = nil, want missing idempotency key")
