@@ -1,0 +1,20 @@
+go/internal/query/supply/chain/supply_read_admission.go
+  h_78a442cba0b3e6 1-109
+go/internal/query/supply/chain/supply_read_admission_contract_test.go
+  h_78a442cba0b3e6 1-87
+go/internal/status/read_admission.go
+  h_78a442cba0b3e6 1-59
+go/internal/status/read_admission_contract_test.go
+  h_78a442cba0b3e6 1-64
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "fd70e8658787ff5ab0c98f756fea0d0f7ec8a85d",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
