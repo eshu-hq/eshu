@@ -1,0 +1,305 @@
+[
+  {
+    "FactID": "2ff407edfee20d83d44e74b63dc52cee1a19e72f9435931c5cc048f1754fd026",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+    "FactKind": "vulnerability.cve",
+    "StableFactKey": "0fe4e482aea89574fdd27cfce3e753f7a98e86a36fa5c96c7e58069a8e0d734b",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "USN-6000-1",
+      "aliases": null,
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "USN-6000-1"
+      ],
+      "cve_id": "USN-6000-1",
+      "cvss_vector": "",
+      "database_specific": null,
+      "details": "",
+      "ecosystem_specific": null,
+      "modified_at": "2026-10-26T18:02:41Z",
+      "published_at": "2023-09-15T04:15:10Z",
+      "related": null,
+      "severity": null,
+      "severity_label": "",
+      "source": "osv",
+      "source_schema_version": "1.9.0",
+      "summary": "",
+      "upstream": [
+        "CVE-2024-00000",
+        "CVE-2024-00001",
+        "CVE-2024-00002",
+        "CVE-2024-00003",
+        "CVE-2024-00004",
+        "CVE-2024-00005",
+        "CVE-2024-00006",
+        "CVE-2024-00007",
+        "CVE-2024-00008",
+        "CVE-2024-00009",
+        "CVE-2024-00010",
+        "CVE-2024-00011",
+        "CVE-2024-00012",
+        "CVE-2024-00013",
+        "CVE-2024-00014",
+        "CVE-2024-00015",
+        "CVE-2024-00016",
+        "CVE-2024-00017",
+        "CVE-2024-00018",
+        "CVE-2024-00019",
+        "CVE-2024-00020",
+        "CVE-2024-00021",
+        "CVE-2024-00022",
+        "CVE-2024-00023",
+        "CVE-2024-00024",
+        "CVE-2024-00025",
+        "CVE-2024-00026",
+        "CVE-2024-00027",
+        "CVE-2024-00028",
+        "CVE-2024-00029",
+        "CVE-2024-00030",
+        "CVE-2024-00031",
+        "CVE-2024-00032",
+        "CVE-2024-00033",
+        "CVE-2024-00034",
+        "CVE-2024-00035",
+        "CVE-2024-00036",
+        "CVE-2024-00037",
+        "CVE-2024-00038",
+        "CVE-2024-00039",
+        "CVE-2024-00040",
+        "CVE-2024-00041",
+        "CVE-2024-00042",
+        "CVE-2024-00043",
+        "CVE-2024-00044",
+        "CVE-2024-00045",
+        "CVE-2024-00046",
+        "CVE-2024-00047",
+        "CVE-2024-00048",
+        "CVE-2024-00049",
+        "CVE-2024-00050",
+        "CVE-2024-00051",
+        "CVE-2024-00052",
+        "CVE-2024-00053",
+        "CVE-2024-00054",
+        "CVE-2024-00055",
+        "CVE-2024-00056",
+        "CVE-2024-00057",
+        "CVE-2024-00058",
+        "CVE-2024-00059",
+        "CVE-2024-00060",
+        "CVE-2024-00061",
+        "CVE-2024-00062",
+        "CVE-2024-00063",
+        "CVE-2024-00064",
+        "CVE-2024-00065",
+        "CVE-2024-00066",
+        "CVE-2024-00067",
+        "CVE-2024-00068",
+        "CVE-2024-00069",
+        "CVE-2024-00070",
+        "CVE-2024-00071",
+        "CVE-2024-00072",
+        "CVE-2024-00073",
+        "CVE-2024-00074",
+        "CVE-2024-00075",
+        "CVE-2024-00076",
+        "CVE-2024-00077",
+        "CVE-2024-00078",
+        "CVE-2024-00079",
+        "CVE-2024-00080",
+        "CVE-2024-00081",
+        "CVE-2024-00082",
+        "CVE-2024-00083",
+        "CVE-2024-00084",
+        "CVE-2024-00085",
+        "CVE-2024-00086",
+        "CVE-2024-00087",
+        "CVE-2024-00088",
+        "CVE-2024-00089"
+      ],
+      "withdrawn_at": ""
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+      "FactKey": "0fe4e482aea89574fdd27cfce3e753f7a98e86a36fa5c96c7e58069a8e0d734b",
+      "SourceURI": "",
+      "SourceRecordID": "USN-6000-1"
+    }
+  },
+  {
+    "FactID": "876acec8df8f7662138cfc76950f277a4f40c5666b543b7d23e21e3afc0392e1",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+    "FactKind": "vulnerability.affected_package",
+    "StableFactKey": "2290cf532ea0b1d5a00932de089dbb165501fdd2f00465a94b796215736c53dc",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "USN-6000-1",
+      "affected_ranges": [
+        {
+          "events": [
+            {
+              "introduced": "0"
+            },
+            {
+              "fixed": "5.15.0-100.110"
+            }
+          ],
+          "releases": [
+            "ubuntu:22.04"
+          ],
+          "type": "ECOSYSTEM"
+        }
+      ],
+      "affected_versions": null,
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "USN-6000-1",
+        "os://ubuntu/linux-0",
+        "pkg:deb/ubuntu/linux-0?arch=source\u0026distro=jammy"
+      ],
+      "cve_id": "USN-6000-1",
+      "ecosystem": "os",
+      "fixed_versions": [
+        "5.15.0-100.110"
+      ],
+      "package_id": "os://ubuntu/linux-0",
+      "package_name": "linux-0",
+      "purl": "pkg:deb/ubuntu/linux-0?arch=source\u0026distro=jammy",
+      "source": "osv"
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+      "FactKey": "2290cf532ea0b1d5a00932de089dbb165501fdd2f00465a94b796215736c53dc",
+      "SourceURI": "",
+      "SourceRecordID": "os://ubuntu/linux-0#USN-6000-1"
+    }
+  },
+  {
+    "FactID": "bf604593799085f6cc90ae707e39d7e4862df7db6a621ae3cbb9426df6f570b7",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+    "FactKind": "vulnerability.affected_package",
+    "StableFactKey": "d62a2df6d45314ecdc240f1e5475def19245c7cee8f629a4022826409b61705d",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "USN-6000-1",
+      "affected_ranges": [
+        {
+          "events": [
+            {
+              "introduced": "0"
+            },
+            {
+              "fixed": "5.15.0-100.110"
+            }
+          ],
+          "releases": [
+            "ubuntu:22.04"
+          ],
+          "type": "ECOSYSTEM"
+        }
+      ],
+      "affected_versions": null,
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "USN-6000-1",
+        "os://ubuntu/linux-1",
+        "pkg:deb/ubuntu/linux-1?arch=source\u0026distro=jammy"
+      ],
+      "cve_id": "USN-6000-1",
+      "ecosystem": "os",
+      "fixed_versions": [
+        "5.15.0-100.110"
+      ],
+      "package_id": "os://ubuntu/linux-1",
+      "package_name": "linux-1",
+      "purl": "pkg:deb/ubuntu/linux-1?arch=source\u0026distro=jammy",
+      "source": "osv"
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+      "FactKey": "d62a2df6d45314ecdc240f1e5475def19245c7cee8f629a4022826409b61705d",
+      "SourceURI": "",
+      "SourceRecordID": "os://ubuntu/linux-1#USN-6000-1"
+    }
+  },
+  {
+    "FactID": "1f2b999b0bbd9073233a3f3c634739a3e1d8a07d7a5803708977703839c349b5",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+    "FactKind": "vulnerability.affected_package",
+    "StableFactKey": "7b6cebe4f129a45df48aedd16d8aa80a84e66cfac5506c15c5cd3f43c37d7f7a",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "USN-6000-1",
+      "affected_ranges": [
+        {
+          "events": [
+            {
+              "introduced": "0"
+            },
+            {
+              "fixed": "5.15.0-100.110"
+            }
+          ],
+          "releases": [
+            "ubuntu:22.04"
+          ],
+          "type": "ECOSYSTEM"
+        }
+      ],
+      "affected_versions": null,
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "USN-6000-1",
+        "os://ubuntu/linux-2",
+        "pkg:deb/ubuntu/linux-2?arch=source\u0026distro=jammy"
+      ],
+      "cve_id": "USN-6000-1",
+      "ecosystem": "os",
+      "fixed_versions": [
+        "5.15.0-100.110"
+      ],
+      "package_id": "os://ubuntu/linux-2",
+      "package_name": "linux-2",
+      "purl": "pkg:deb/ubuntu/linux-2?arch=source\u0026distro=jammy",
+      "source": "osv"
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+      "FactKey": "7b6cebe4f129a45df48aedd16d8aa80a84e66cfac5506c15c5cd3f43c37d7f7a",
+      "SourceURI": "",
+      "SourceRecordID": "os://ubuntu/linux-2#USN-6000-1"
+    }
+  }
+]

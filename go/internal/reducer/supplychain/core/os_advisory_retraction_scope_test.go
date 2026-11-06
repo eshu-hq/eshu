@@ -24,18 +24,16 @@ func TestOSRetractionIsJudgedOverTheRecordsThatListThePackage(t *testing.T) {
 	t.Parallel()
 
 	const cve = "CVE-2023-38039"
-	libfoo := debianRecord("DEBIAN-CVE-2023-38039", "11", "bullseye", "1.2.3-1", cve)
-	libfoo.Affected[0].Package.Name = "libfoo"
-	libfoo.Affected[0].Package.PURL = "pkg:deb/debian/libfoo?arch=source&distro=bullseye"
+	libfooKey := "built-retraction-libfoo"
 	scoredNVD := vulnerabilityCVEFactWithProvenance("nvd-1", cve, "nvd", cve, 9.8, "", "CRITICAL", "2026-10-01T00:00:00Z")
 
 	variants := map[string]struct {
 		live      []facts.Envelope
 		wantScore float64
 	}{
-		"live record listing another package": {live: upstreamEnvelopes(t, nil, libfoo)},
+		"live record listing another package": {live: upstreamEnvelopes(t, nil, libfooKey)},
 		"live scored nvd":                     {live: []facts.Envelope{scoredNVD}, wantScore: 9.8},
-		"both":                                {live: append(upstreamEnvelopes(t, nil, libfoo), scoredNVD), wantScore: 9.8},
+		"both":                                {live: append(upstreamEnvelopes(t, nil, libfooKey), scoredNVD), wantScore: 9.8},
 	}
 	for name, variant := range variants {
 		for status, wantCode := range map[string]string{"": AdvisoryRetractionWithdrawn, "Rejected": AdvisoryRetractionRejected} {

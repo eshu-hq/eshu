@@ -3,10 +3,10 @@
   "blocking": true,
   "totals": {
     "total": 457,
-    "covered": 449,
+    "covered": 448,
     "uncovered": 0,
     "unresolved": 0,
-    "exempt": 8,
+    "exempt": 9,
     "percent_satisfied": 100
   },
   "registry_summaries": [
@@ -103,10 +103,10 @@
     {
       "registry": "surface_inventory",
       "total": 22,
-      "covered": 17,
+      "covered": 16,
       "uncovered": 0,
       "unresolved": 0,
-      "exempt": 5,
+      "exempt": 6,
       "percent_satisfied": 100
     }
   ],
@@ -150,10 +150,10 @@
     {
       "scenario_type": "fault",
       "total": 11,
-      "covered": 8,
+      "covered": 7,
       "uncovered": 0,
       "unresolved": 0,
-      "exempt": 3,
+      "exempt": 4,
       "percent_satisfied": 100
     },
     {
@@ -4707,11 +4707,8 @@
       "registry": "surface_inventory",
       "key": "collector:vulnerability_intelligence",
       "scenario_type": "fault",
-      "status": "covered",
-      "scenario": "go_test",
-      "ref": "go/internal/replay/inputtape/fault_collectors_test.go",
-      "proof_gate": "go-test-race",
-      "detail": "artifact present: go/internal/replay/inputtape/fault_collectors_test.go"
+      "status": "exempt",
+      "detail": "Satellite-owned collection boundary: collection runs from eshu-hq/eshu-collector-vulnerability-intelligence while the coordinator still plans vulnerability-intelligence claims and the reducer/query surfaces still serve the fact kinds. No in-tree vulnerability-intelligence client remains to drive an injected-timeout fault against, so the fault axis has nothing in-tree to bound."
     }
   ],
   "gaps": null,

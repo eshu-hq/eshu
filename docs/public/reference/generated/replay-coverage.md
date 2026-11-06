@@ -20,8 +20,8 @@ Every non-exempt required surface maps to a committed scenario and the named pro
 | Reducer drain (crash) | 1 | 1 | 100.00% | 0 | 0 |
 | Retractable edge types (delta) | 65 | 65 | 100.00% | 0 | 0 |
 | Retractable node types (delta) | 103 | 103 | 100.00% | 0 | 1 |
-| Collectors | 22 | 22 | 100.00% | 0 | 5 |
-| **Total** | **457** | **457** | **100.00%** | **0** | **8** |
+| Collectors | 22 | 22 | 100.00% | 0 | 6 |
+| **Total** | **457** | **457** | **100.00%** | **0** | **9** |
 
 ## Coverage by scenario type
 
@@ -31,7 +31,7 @@ Every non-exempt required surface maps to a committed scenario and the named pro
 | cost | 31 | 31 | 100.00% | 0 | 1 |
 | crash | 2 | 2 | 100.00% | 0 | 0 |
 | delta_tombstone | 169 | 169 | 100.00% | 0 | 1 |
-| fault | 11 | 11 | 100.00% | 0 | 3 |
+| fault | 11 | 11 | 100.00% | 0 | 4 |
 | ordering | 3 | 3 | 100.00% | 0 | 0 |
 
 ## Language parser coverage
@@ -506,4 +506,4 @@ None. Every non-exempt required surface has a replay scenario; exemptions carry 
 | `collector:tempo` | baseline | cassette | golden-corpus-gate-neo4j | `testdata/cassettes/tempo/supply-chain-demo.json` |
 | `collector:tempo` | fault | exempt | — | Satellite-owned collection boundary: collection runs from eshu-hq/eshu-collector-tempo while the coordinator still plans tempo claims and the reducer/query surfaces still serve the fact kinds. No in-tree Tempo client remains to drive an injected-timeout fault against, so the fault axis has nothing in-tree to bound. |
 | `collector:vulnerability_intelligence` | baseline | cassette | golden-corpus-gate-neo4j | `testdata/cassettes/vulnerabilityintelligence/supply-chain-demo.json` |
-| `collector:vulnerability_intelligence` | fault | go_test | go-test-race | `go/internal/replay/inputtape/fault_collectors_test.go` |
+| `collector:vulnerability_intelligence` | fault | exempt | — | Satellite-owned collection boundary: collection runs from eshu-hq/eshu-collector-vulnerability-intelligence while the coordinator still plans vulnerability-intelligence claims and the reducer/query surfaces still serve the fact kinds. No in-tree vulnerability-intelligence client remains to drive an injected-timeout fault against, so the fault axis has nothing in-tree to bound. |

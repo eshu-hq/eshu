@@ -30,22 +30,21 @@ func TestOSVUbuntuJoinIgnoresWhichEntryPurlTheMergeKeeps(t *testing.T) {
 		trustyVersioned   = "pkg:deb/ubuntu/curl@7.35.0-1ubuntu2.8?arch=source&distro=trusty"
 		trustyVersionless = "pkg:deb/ubuntu/curl?arch=source&distro=trusty"
 	)
-	versioned := osvFixtureRecord(t, "ubuntu-cve-2016-5419.json")
-	if got := versioned.Affected[0].Package.PURL; got != trustyVersioned {
-		t.Fatalf("fixture drift: first entry purl = %q, want %q", got, trustyVersioned)
+	// The frozen fixture still carries the versioned Ubuntu shape the ruling
+	// reasons about; the versionless "mixed" shape is frozen beside it.
+	if got := osvFixtureFirstEntryPURL(t, "file-ubuntu-cve-2016-5419"); got != trustyVersioned {
+		t.Fatalf("fixture drift: kept purl = %q, want %q", got, trustyVersioned)
 	}
-	mixed := osvFixtureRecord(t, "ubuntu-cve-2016-5419.json")
-	mixed.Affected[0].Package.PURL = trustyVersionless
 
 	shapes := []struct {
-		name          string
+		key           string
 		reverse       bool
 		wantVersioned bool
 	}{
-		{name: "mixed", reverse: false, wantVersioned: false},
-		{name: "mixed, entries reversed", reverse: true, wantVersioned: false},
-		{name: "versioned", reverse: false, wantVersioned: true},
-		{name: "versioned, entries reversed", reverse: true, wantVersioned: true},
+		{key: "built-merge-mixed", reverse: false, wantVersioned: false},
+		{key: "built-merge-mixed", reverse: true, wantVersioned: false},
+		{key: "built-merge-versioned", reverse: false, wantVersioned: true},
+		{key: "built-merge-versioned", reverse: true, wantVersioned: true},
 	}
 	// Live tags (#9806 PR-2b-1 activation): every range names its release
 	// line and each host below is listed (trusty Ubuntu:14.04:LTS, xenial
@@ -70,15 +69,11 @@ func TestOSVUbuntuJoinIgnoresWhichEntryPurlTheMergeKeeps(t *testing.T) {
 		{"xenial at its fix", ubuntuCurl("16.04", "7.47.0-1ubuntu2.1"), SupplyChainImpactNotAffectedKnownFixed, supplyChainVersionReasonDPKGExactKnownFixed},
 	}
 	for _, shape := range shapes {
-		record := versioned
-		if strings.HasPrefix(shape.name, "mixed") {
-			record = mixed
-		}
 		for _, row := range rows {
-			t.Run(shape.name+"/"+row.name, func(t *testing.T) {
+			t.Run(shape.key+"/"+row.name, func(t *testing.T) {
 				t.Parallel()
 
-				advisory := convertedOSVRecord(t, record, shape.reverse)
+				advisory := convertedOSVFixture(t, shape.key, shape.reverse)
 				if got := keptAffectedPackagePURLHasVersion(t, advisory); got != shape.wantVersioned {
 					t.Fatalf("precondition: kept affected purl versioned = %v, want %v", got, shape.wantVersioned)
 				}

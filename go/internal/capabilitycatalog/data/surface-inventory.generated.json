@@ -2283,12 +2283,13 @@
       "category": "collector",
       "name": "vulnerability_intelligence",
       "readiness": "implemented",
-      "owner": "internal/collector/vulnerabilityintelligence",
+      "owner": "internal/coordinator/vulnerability",
       "proof": "reference/collector-reducer-readiness.md#vulnerability-intelligence-promotion-proof",
       "docs": [
         "reference/collector-reducer-readiness.md",
         "reference/security-intelligence.md"
       ],
+      "notes": "The in-tree producer (go/cmd/collector-vulnerability-intelligence, go/internal/collector/vulnerabilityintelligence) was removed after the satellite cutover (eshu-hq/eshu#9999); collection runs from eshu-hq/eshu-collector-vulnerability-intelligence through the extension host while the coordinator still plans vulnerability intelligence claims and the reducer/query surfaces still serve the fact kinds.",
       "collector_contract": {
         "fact_kinds": [
           "vulnerability.affected_package",
@@ -2315,11 +2316,10 @@
           "list_supply_chain_impact_findings"
         ],
         "proof_gates": [
-          "cd go \u0026\u0026 go test ./internal/collector/vulnerabilityintelligence ./internal/reducer ./internal/query ./internal/mcp -count=1"
+          "cd go \u0026\u0026 go test ./internal/coordinator/vulnerability ./internal/reducer ./internal/query ./internal/mcp -count=1"
         ],
         "fixture_refs": [
-          "docs/public/reference/collector-reducer-readiness.md#vulnerability-intelligence-promotion-proof",
-          "go/internal/collector/vulnerabilityintelligence/testdata"
+          "docs/public/reference/collector-reducer-readiness.md#vulnerability-intelligence-promotion-proof"
         ],
         "truth_profile": "provider_gated"
       }
@@ -2433,11 +2433,6 @@
     {
       "category": "command",
       "name": "collector-synth-zero",
-      "readiness": "implemented"
-    },
-    {
-      "category": "command",
-      "name": "collector-vulnerability-intelligence",
       "readiness": "implemented"
     },
     {

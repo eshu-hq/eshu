@@ -9280,7 +9280,7 @@
     {
       "capability": "reachability.go.govulncheck",
       "display_name": "Go Reachability (govulncheck)",
-      "owner_package": "internal/collector/vulnerabilityintelligence",
+      "owner_package": "internal/reducer/supplychain/core",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
       "surfaces": [

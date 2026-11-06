@@ -160,7 +160,6 @@ jobs:
               - 'AGENTS.md'
               - 'docs/internal/design/430-nornicdb-graph-search-split.md'
               - 'docs/internal/design/5351-ifa-materialized-edge-known-gaps.md'
-              - 'docs/internal/evidence/8870-vulnerability-intelligence-version-provenance.md'
               - 'docs/internal/evidence/8874-eshu-cli-contract.md'
               - 'docs/internal/remote-validation/inventory.generated.json'
               - 'docs/public/deployment/credential-file-cleanup.md'

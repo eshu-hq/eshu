@@ -35,7 +35,7 @@ func fleetOSRow(row installedOSRow, scope, generation, digest string) []facts.En
 func TestFleetOSAdvisoryClassifiesOneFindingPerDigest(t *testing.T) {
 	t.Parallel()
 
-	advisory := convertedOSVFixture(t, "ubuntu-cve-2016-5419.json", false)
+	advisory := convertedOSVFixture(t, "file-ubuntu-cve-2016-5419", false)
 	const (
 		scopeFixed = "image://fleet/xenial-fixed"
 		genFixed   = "fleet-gen-fixed"

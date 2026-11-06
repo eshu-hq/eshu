@@ -10,7 +10,9 @@ package impact
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"os"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -20,9 +22,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/collector/extensionhost"
 	hostvulnerability "github.com/eshu-hq/eshu/go/internal/collector/extensionhost/vulnerability"
-	"github.com/eshu-hq/eshu/go/internal/collector/vulnerabilityintelligence"
-	"github.com/eshu-hq/eshu/go/internal/collector/vulnerabilityintelligence/vulnruntime"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	chain "github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	projectorruntime "github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	storagepostgres "github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -38,36 +39,126 @@ const (
 	recencyEndpoint = "https://nvd.example.test"
 )
 
-// nvdProvider returns the same NVD answer every time, observed at the clock the
-// claim carries, so two claims differ only in time.
-type nvdProvider struct{ observedAt func() time.Time }
+// recencyCollectorKind is the vulnerability intelligence collector kind the
+// envelopes carry. The in-tree collector is deleted (eshu-hq/eshu#9999); the
+// kind stays because the satellite emits it through the extension host.
+const recencyCollectorKind = "vulnerability_intelligence"
 
-func (p nvdProvider) Collect(_ context.Context, target vulnruntime.TargetConfig, boundary vulnruntime.Boundary) ([]facts.Envelope, time.Time, error) {
-	observedAt := p.observedAt()
-	envCtx := vulnerabilityintelligence.VulnerabilityEnvelopeContext{
-		ScopeID: boundary.ScopeID, GenerationID: boundary.GenerationID, CollectorInstanceID: boundary.CollectorInstanceID,
-		FencingToken: boundary.FencingToken, ObservedAt: observedAt, SourceURI: recencyEndpoint,
+// recencyNVDEnvelopes returns the same NVD answer every time: one complete
+// source snapshot plus one CVE record, observed at the clock the claim
+// carries, so two claims differ only in time. The payload shape mirrors what
+// the retired in-tree NVD envelope builders emitted, built here from the
+// core-owned facts contract and the SDK factschema the satellite also emits.
+func recencyNVDEnvelopes(generationID string, observedAt time.Time) []facts.Envelope {
+	snapshotStableKey := facts.StableID(chain.VulnerabilitySourceSnapshotFactKind, map[string]any{"source": "nvd"})
+	snapshot := facts.Envelope{
+		FactID:           recencyFactID(chain.VulnerabilitySourceSnapshotFactKind, snapshotStableKey, generationID),
+		ScopeID:          recencyScopeID,
+		GenerationID:     generationID,
+		FactKind:         chain.VulnerabilitySourceSnapshotFactKind,
+		StableFactKey:    snapshotStableKey,
+		SchemaVersion:    chain.VulnerabilityIntelligenceSchemaVersionV1,
+		CollectorKind:    recencyCollectorKind,
+		SourceConfidence: facts.SourceConfidenceReported,
+		ObservedAt:       observedAt.UTC(),
+		Payload: map[string]any{
+			"collector_instance_id": recencyInstance,
+			"source":                "nvd",
+			"query_count":           1,
+			"result_count":          1,
+			"response_digest":       "",
+			"complete":              true,
+			"warning_code":          "",
+			"warning_message":       "",
+			"license":               "LicenseRef-NVD-API-Terms-of-Use",
+			"attribution":           "This product uses the NVD API but is not endorsed or certified by the NVD.",
+		},
+		SourceRef: facts.Ref{
+			SourceSystem:   recencyCollectorKind,
+			ScopeID:        recencyScopeID,
+			GenerationID:   generationID,
+			FactKey:        snapshotStableKey,
+			SourceURI:      recencyEndpoint,
+			SourceRecordID: "nvd#" + generationID,
+		},
 	}
-	snapshot, err := vulnerabilityintelligence.NewNVDSourceSnapshotEnvelope(envCtx, vulnerabilityintelligence.VulnerabilitySourceSnapshot{
-		QueryCount: 1, ResultCount: 1, Complete: true,
-	})
-	if err != nil {
-		return nil, time.Time{}, err
-	}
-	// The descriptor binds the snapshot to the configured target, as
-	// annotateNVDExecutedCoverage does for a live NVD fetch; without it
-	// readiness reads the snapshot as legacy and never as covered.
+	// The descriptor binds the snapshot to the configured target, as the live
+	// NVD fetch did; without it readiness reads the snapshot as legacy and
+	// never as covered.
 	snapshot.Payload["coverage_descriptor"] = vulnerabilityv1.NVDCoverageDescriptor{
 		Version: "nvd.v1", Source: "nvd", Mode: "cve", CVEIDs: []string{recencyCVE},
 		EndpointCandidates: []string{recencyEndpoint}, ExecutedEndpoint: recencyEndpoint,
 	}
-	record, err := vulnerabilityintelligence.NVDRecordEnvelopes(envCtx, vulnerabilityintelligence.NVDCVE{
-		ID: recencyCVE, Descriptions: []vulnerabilityintelligence.NVDDescription{{Lang: "en", Value: "an unchanged advisory"}},
+	cveStableKey := facts.StableID(chain.VulnerabilityCVEFactKind, map[string]any{
+		"cve_id": recencyCVE, "source": "nvd",
 	})
-	if err != nil {
-		return nil, time.Time{}, err
+	record := facts.Envelope{
+		FactID:           recencyFactID(chain.VulnerabilityCVEFactKind, cveStableKey, generationID),
+		ScopeID:          recencyScopeID,
+		GenerationID:     generationID,
+		FactKind:         chain.VulnerabilityCVEFactKind,
+		StableFactKey:    cveStableKey,
+		SchemaVersion:    chain.VulnerabilityIntelligenceSchemaVersionV1,
+		CollectorKind:    recencyCollectorKind,
+		SourceConfidence: facts.SourceConfidenceReported,
+		ObservedAt:       observedAt.UTC(),
+		Payload: map[string]any{
+			"collector_instance_id": recencyInstance,
+			"source":                "nvd",
+			"cve_id":                recencyCVE,
+			"advisory_id":           recencyCVE,
+			"status":                "",
+			"published_at":          "",
+			"modified_at":           "",
+			"source_identifier":     "",
+			"descriptions":          []map[string]string{{"lang": "en", "value": "an unchanged advisory"}},
+			"cwes":                  nil,
+			"cvss_score":            0.0,
+			"cvss_vector":           "",
+			"severity_label":        "",
+			"cvss_metrics":          nil,
+			"correlation_anchors":   []string{recencyCVE},
+		},
+		SourceRef: facts.Ref{
+			SourceSystem:   recencyCollectorKind,
+			ScopeID:        recencyScopeID,
+			GenerationID:   generationID,
+			FactKey:        cveStableKey,
+			SourceURI:      recencyEndpoint,
+			SourceRecordID: recencyCVE,
+		},
 	}
-	return append([]facts.Envelope{snapshot}, record...), observedAt, nil
+	return []facts.Envelope{snapshot, record}
+}
+
+func recencyFactID(factKind, stableFactKey, generationID string) string {
+	return facts.StableID("VulnerabilityIntelligenceFact", map[string]any{
+		"fact_kind":       factKind,
+		"generation_id":   generationID,
+		"scope_id":        recencyScopeID,
+		"stable_fact_key": stableFactKey,
+	})
+}
+
+// recencyFreshnessHint digests the envelopes the way the ingestion store's
+// duplicate check compares them: same facts, same hint, so the second
+// identical claim skips without storing a new generation.
+func recencyFreshnessHint(envs []facts.Envelope) string {
+	encoded := make([]string, 0, len(envs))
+	for _, env := range envs {
+		raw, err := json.Marshal(map[string]any{
+			"fact_kind":      env.FactKind,
+			"payload":        env.Payload,
+			"schema_version": env.SchemaVersion,
+			"stable_key":     env.StableFactKey,
+		})
+		if err != nil {
+			panic(err)
+		}
+		encoded = append(encoded, string(raw))
+	}
+	sort.Strings(encoded)
+	return facts.StableID("vulnerability_intelligence.collection.freshness", map[string]any{"envelopes": encoded})
 }
 
 type recencyProof struct {
@@ -98,33 +189,63 @@ VALUES ($1, 'vulnerability_intelligence', 'continuous', TRUE, $2::jsonb, now(), 
 	return &recencyProof{t: t, db: db, store: storagepostgres.NewIngestionStore(storagepostgres.SQLDB{DB: db})}
 }
 
-// claim runs one real ClaimedSource claim at observedAt and commits what it
-// returns through the production IngestionStore, projecting any stored
-// generation.
+// claim commits one NVD answer observed at observedAt through the production
+// IngestionStore and records the source-state rows the extension host writes
+// for an extracted-collector claim, projecting any stored generation. The
+// envelopes are built from the core-owned facts contract and the SDK
+// factschema the satellite emits; the in-tree collector is deleted
+// (eshu-hq/eshu#9999), so nothing here imports it.
 func (p *recencyProof) claim(observedAt time.Time) {
 	p.t.Helper()
 	p.gen++
-	source, err := vulnruntime.NewClaimedSource(vulnruntime.SourceConfig{
+	generationID := "vulnerability_intelligence:generation-" + string(rune('0'+p.gen))
+	envs := recencyNVDEnvelopes(generationID, observedAt)
+	recorder, err := hostvulnerability.NewRecorder(hostvulnerability.Config{
+		Store:               vulnerabilitystore.NewVulnerabilitySourceStateStore(storagepostgres.SQLDB{DB: p.db}),
 		CollectorInstanceID: recencyInstance,
-		Targets: []vulnruntime.TargetConfig{{
-			Source: vulnruntime.SourceNVD, ScopeID: recencyScopeID, CVEIDs: []string{recencyCVE}, BaseURL: recencyEndpoint,
-		}},
-		Provider:   nvdProvider{observedAt: func() time.Time { return observedAt }},
-		StateStore: vulnerabilitystore.NewVulnerabilitySourceStateStore(storagepostgres.SQLDB{DB: p.db}),
-		Now:        func() time.Time { return observedAt },
+		Clock:               func() time.Time { return observedAt },
 	})
 	if err != nil {
-		p.t.Fatalf("NewClaimedSource() error = %v", err)
+		p.t.Fatalf("hostvulnerability.NewRecorder() error = %v", err)
 	}
-	collected, ok, err := source.NextClaimed(context.Background(), workflow.WorkItem{
-		CollectorKind: scope.CollectorVulnerabilityIntelligence, CollectorInstanceID: recencyInstance,
-		ScopeID: recencyScopeID, GenerationID: "vulnerability_intelligence:generation-" + string(rune('0'+p.gen)), CurrentFencingToken: 1,
-	})
-	if err != nil || !ok {
-		p.t.Fatalf("NextClaimed() = ok %v, error %v", ok, err)
+	outcome := extensionhost.ClaimOutcome{
+		Item: workflow.WorkItem{
+			CollectorKind: scope.CollectorVulnerabilityIntelligence, CollectorInstanceID: recencyInstance,
+			ScopeID: recencyScopeID,
+		},
+		State: sdkcollector.ResultComplete, FactCount: len(envs),
+		AttemptedAt: observedAt, ObservedAt: observedAt,
 	}
-	if err := p.store.CommitScopeGeneration(context.Background(), collected.Scope, collected.Generation, collected.Facts); err != nil {
+	ctx := context.Background()
+	if err := recorder.RecordClaimOutcome(ctx, outcome); err != nil {
+		p.t.Fatalf("RecordClaimOutcome() error = %v", err)
+	}
+	collected := collector.FactsFromSlice(
+		scope.IngestionScope{
+			ScopeID: recencyScopeID, SourceSystem: string(scope.CollectorVulnerabilityIntelligence),
+			ScopeKind: scope.KindVulnerabilityIntelligence, CollectorKind: scope.CollectorVulnerabilityIntelligence,
+			PartitionKey: "nvd", Metadata: map[string]string{"source": "nvd"},
+		},
+		scope.ScopeGeneration{
+			GenerationID: generationID,
+			ScopeID:      recencyScopeID,
+			ObservedAt:   observedAt.UTC(),
+			IngestedAt:   observedAt.UTC(),
+			Status:       scope.GenerationStatusPending,
+			TriggerKind:  scope.TriggerKindSnapshot,
+			// The hint is the duplicate check's identity: an unchanged answer
+			// carries the same hint, so the second claim skips without
+			// storing a new generation (#9694). Nothing here attests a whole
+			// fetch, so the destructive-successor guard stays armed.
+			FreshnessHint: recencyFreshnessHint(envs),
+		},
+		envs,
+	)
+	if err := p.store.CommitScopeGeneration(ctx, collected.Scope, collected.Generation, collected.Facts); err != nil {
 		p.t.Fatalf("CommitScopeGeneration() error = %v", err)
+	}
+	if err := recorder.RecordClaimCommitted(ctx, outcome); err != nil {
+		p.t.Fatalf("RecordClaimCommitted() error = %v", err)
 	}
 	queue := storagepostgres.NewProjectorQueue(storagepostgres.SQLDB{DB: p.db}, "recency-proof", time.Minute)
 	for {

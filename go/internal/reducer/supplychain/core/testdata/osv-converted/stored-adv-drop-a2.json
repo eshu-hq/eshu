@@ -1,0 +1,121 @@
+[
+  {
+    "FactID": "a5c2cd92eca86b272b98b7c5a018ee43a6798e3e67589f49ff843f285a7838f9",
+    "ScopeID": "scope-adv-a",
+    "GenerationID": "gen-a2",
+    "FactKind": "vulnerability.cve",
+    "StableFactKey": "5199ceaf058bf382d53a35e40fe998cc5e3e6be5ea0d5490b22e03a309abec4c",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-01T00:00:00Z",
+    "Payload": {
+      "advisory_id": "ADV-DROP",
+      "aliases": null,
+      "collector_instance_id": "osv-test",
+      "correlation_anchors": [
+        "ADV-DROP"
+      ],
+      "cve_id": "ADV-DROP",
+      "cvss_vector": "",
+      "database_specific": null,
+      "details": "",
+      "ecosystem_specific": null,
+      "modified_at": "",
+      "published_at": "",
+      "related": null,
+      "severity": null,
+      "severity_label": "",
+      "source": "osv",
+      "source_schema_version": "",
+      "summary": "",
+      "withdrawn_at": ""
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "scope-adv-a",
+      "GenerationID": "gen-a2",
+      "FactKey": "5199ceaf058bf382d53a35e40fe998cc5e3e6be5ea0d5490b22e03a309abec4c",
+      "SourceURI": "https://api.osv.dev/v1/vulns/ADV-DROP",
+      "SourceRecordID": "ADV-DROP"
+    }
+  },
+  {
+    "FactID": "abed419791b6ba1d97d88ebe905ebd644ef899852a9f088151ef9cbf29fdc6e0",
+    "ScopeID": "scope-adv-a",
+    "GenerationID": "gen-a2",
+    "FactKind": "vulnerability.affected_package",
+    "StableFactKey": "5771d49cc552abb72a4c033f29878d8c024878f30933c490f69cf8e92c5ae565",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-01T00:00:00Z",
+    "Payload": {
+      "advisory_id": "ADV-DROP",
+      "affected_ranges": null,
+      "affected_versions": null,
+      "collector_instance_id": "osv-test",
+      "correlation_anchors": [
+        "ADV-DROP",
+        "npm://registry.npmjs.org/old-name"
+      ],
+      "cve_id": "ADV-DROP",
+      "ecosystem": "npm",
+      "fixed_versions": null,
+      "package_id": "npm://registry.npmjs.org/old-name",
+      "package_name": "old-name",
+      "purl": "",
+      "source": "osv"
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "scope-adv-a",
+      "GenerationID": "gen-a2",
+      "FactKey": "5771d49cc552abb72a4c033f29878d8c024878f30933c490f69cf8e92c5ae565",
+      "SourceURI": "https://api.osv.dev/v1/vulns/ADV-DROP",
+      "SourceRecordID": "npm://registry.npmjs.org/old-name#ADV-DROP"
+    }
+  },
+  {
+    "FactID": "1fcdc479695e9fd9394511e49af23b40007f1e5f9a656e3c8ad1e4728f070f9c",
+    "ScopeID": "scope-adv-a",
+    "GenerationID": "gen-a2",
+    "FactKind": "vulnerability.affected_package",
+    "StableFactKey": "017c80c79f88289b8736f7c0747b2b0de490bf533116b24816c53aafa31c69e5",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-01T00:00:00Z",
+    "Payload": {
+      "advisory_id": "ADV-DROP",
+      "affected_ranges": null,
+      "affected_versions": null,
+      "collector_instance_id": "osv-test",
+      "correlation_anchors": [
+        "ADV-DROP",
+        "npm://registry.npmjs.org/kept-name"
+      ],
+      "cve_id": "ADV-DROP",
+      "ecosystem": "npm",
+      "fixed_versions": null,
+      "package_id": "npm://registry.npmjs.org/kept-name",
+      "package_name": "kept-name",
+      "purl": "",
+      "source": "osv"
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "scope-adv-a",
+      "GenerationID": "gen-a2",
+      "FactKey": "017c80c79f88289b8736f7c0747b2b0de490bf533116b24816c53aafa31c69e5",
+      "SourceURI": "https://api.osv.dev/v1/vulns/ADV-DROP",
+      "SourceRecordID": "npm://registry.npmjs.org/kept-name#ADV-DROP"
+    }
+  }
+]

@@ -1,0 +1,86 @@
+[
+  {
+    "FactID": "742ffe2e3a3c1872eed5a8aeee79086328cbac7938998b3e54dc332e01ce62a5",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+    "FactKind": "vulnerability.cve",
+    "StableFactKey": "36ffd36e2d4913da71178fc8ae53c47d44db1743bbc01bcfffe1eccb50b63c93",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "DEBIAN-CVE-2099-0001",
+      "aliases": null,
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "DEBIAN-CVE-2099-0001"
+      ],
+      "cve_id": "DEBIAN-CVE-2099-0001",
+      "cvss_vector": "",
+      "database_specific": null,
+      "details": "",
+      "ecosystem_specific": null,
+      "modified_at": "",
+      "published_at": "",
+      "related": null,
+      "severity": null,
+      "severity_label": "",
+      "source": "osv",
+      "source_schema_version": "",
+      "summary": "",
+      "withdrawn_at": ""
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+      "FactKey": "36ffd36e2d4913da71178fc8ae53c47d44db1743bbc01bcfffe1eccb50b63c93",
+      "SourceURI": "",
+      "SourceRecordID": "DEBIAN-CVE-2099-0001"
+    }
+  },
+  {
+    "FactID": "c39d9c6bd0bc6b6db6fe407adc147ac5273c73e0c63bfff4c82b66ce7c8dca26",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+    "FactKind": "vulnerability.affected_package",
+    "StableFactKey": "25429701685d6dc2c17346b3fc7314cac2e9826b08be344b9d74d60ba3d46166",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "DEBIAN-CVE-2099-0001",
+      "affected_ranges": null,
+      "affected_versions": [
+        "7.88.1-10+deb12u2"
+      ],
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "DEBIAN-CVE-2099-0001",
+        "os://debian/curl",
+        "pkg:deb/debian/curl?arch=source\u0026distro=bookworm"
+      ],
+      "cve_id": "DEBIAN-CVE-2099-0001",
+      "ecosystem": "os",
+      "fixed_versions": null,
+      "package_id": "os://debian/curl",
+      "package_name": "curl",
+      "purl": "pkg:deb/debian/curl?arch=source\u0026distro=bookworm",
+      "source": "osv"
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+      "FactKey": "25429701685d6dc2c17346b3fc7314cac2e9826b08be344b9d74d60ba3d46166",
+      "SourceURI": "",
+      "SourceRecordID": "os://debian/curl#DEBIAN-CVE-2099-0001"
+    }
+  }
+]

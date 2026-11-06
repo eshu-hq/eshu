@@ -292,3 +292,28 @@ exemptions:
       tempo claims and the reducer/query surfaces still serve the fact
       kinds. No in-tree Tempo client remains to drive an injected-timeout
       fault against, so the fault axis has nothing in-tree to bound.
+
+  # eshu-hq/eshu#9999: the vulnerability-intelligence collection boundary
+  # moved to the eshu-hq/eshu-collector-vulnerability-intelligence
+  # satellite. The in-tree producer
+  # (go/cmd/collector-vulnerability-intelligence,
+  # go/internal/collector/vulnerabilityintelligence) and its
+  # injected-timeout fault case are deleted, and the coordinator
+  # (go/internal/coordinator/vulnerability) plans work without resolving
+  # credentials or contacting the sources, so no in-tree network boundary
+  # remains for a fault scenario to bound. Baseline replay still covers
+  # the surface
+  # (testdata/cassettes/vulnerabilityintelligence/supply-chain-demo.json);
+  # fault proof for the collection boundary belongs to the satellite
+  # repository. Remove this exemption only if an in-tree
+  # vulnerability-intelligence collection boundary returns.
+  - surface: collector:vulnerability_intelligence
+    scenario_type: fault
+    reason: >-
+      Satellite-owned collection boundary: collection runs from
+      eshu-hq/eshu-collector-vulnerability-intelligence while the
+      coordinator still plans vulnerability-intelligence claims and the
+      reducer/query surfaces still serve the fact kinds. No in-tree
+      vulnerability-intelligence client remains to drive an
+      injected-timeout fault against, so the fault axis has nothing
+      in-tree to bound.

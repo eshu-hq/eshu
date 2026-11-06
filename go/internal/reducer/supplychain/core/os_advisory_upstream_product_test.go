@@ -40,7 +40,7 @@ func TestUpstreamCopiesDoNotHideProductFindings(t *testing.T) {
 	if len(want) != 1 {
 		t.Fatalf("baseline findings = %d, want 1: %#v", len(want), want)
 	}
-	distro := convertedOSVRecord(t, debianRecord("DEBIAN-CVE-2026-0101", "12", "bookworm", "7.88.1-10+deb12u3", cve), false)
+	distro := convertedOSVFixture(t, "built-product-2026-0101", false)
 	for order, shuffled := range orderings(append(slices.Clone(base), distro...)) {
 		got := BuildSupplyChainImpactFindings(shuffled)
 		if len(got) != 1 {
@@ -66,7 +66,7 @@ func TestUpstreamCopiesBesideAnInstalledPackageReadTwoFindings(t *testing.T) {
 
 	const cve = "CVE-2026-0101"
 	envelopes := append(nvdProductEnvelopes(cve, 8.6),
-		convertedOSVRecord(t, debianRecord("DEBIAN-CVE-2026-0101", "12", "bookworm", "7.88.1-10+deb12u3", cve), false)...)
+		convertedOSVFixture(t, "built-product-2026-0101", false)...)
 	envelopes = append(envelopes, debianCurl("12", "7.88.1-10+deb12u2").envelope())
 	for order, shuffled := range orderings(envelopes) {
 		got := BuildSupplyChainImpactFindings(shuffled)
@@ -111,7 +111,7 @@ func TestNativePackagesStillSkipProducts(t *testing.T) {
 	tests := map[string][]facts.Envelope{
 		"language package alone": native,
 		"native package beside a distro copy": append(slices.Clone(native),
-			convertedOSVRecord(t, debianRecord("DEBIAN-CVE-2026-0101", "12", "bookworm", "7.88.1-10+deb12u3", cve), false)...),
+			convertedOSVFixture(t, "built-product-2026-0101", false)...),
 	}
 	for name, envelopes := range tests {
 		for order, shuffled := range orderings(envelopes) {
@@ -133,7 +133,7 @@ func TestProductPathJudgesOnlyNativeObservations(t *testing.T) {
 	t.Parallel()
 
 	const cve = "CVE-2026-0101"
-	distro := convertedOSVRecord(t, debianRecord("DEBIAN-CVE-2026-0101", "12", "bookworm", "7.88.1-10+deb12u3", cve), false)
+	distro := convertedOSVFixture(t, "built-product-2026-0101", false)
 
 	withoutNVD := append(slices.Clone(nvdProductEnvelopes(cve, 8.6)[1:]), distro...)
 	if got := BuildSupplyChainImpactFindings(withoutNVD); len(got) != 0 {
@@ -162,7 +162,7 @@ func TestProductPathCountsARecordsOwnCVEFactAsNative(t *testing.T) {
 	const cve = "CVE-2026-0101"
 	const id = "DSA-9998-1"
 	var own facts.Envelope
-	for _, envelope := range convertedOSVRecord(t, debianRecord(id, "12", "bookworm", "7.88.1-10+deb12u3"), false) {
+	for _, envelope := range convertedOSVFixture(t, "built-product-dsa-noupstream", false) {
 		if envelope.FactKind == chain.VulnerabilityCVEFactKind {
 			own = envelope
 			own.FactID += "-own"
@@ -174,7 +174,7 @@ func TestProductPathCountsARecordsOwnCVEFactAsNative(t *testing.T) {
 	if len(want) != 1 || want[0].AdvisoryID != id {
 		t.Fatalf("baseline = %#v, want one product finding named %s", want, id)
 	}
-	record := convertedOSVRecord(t, debianRecord(id, "12", "bookworm", "7.88.1-10+deb12u3", cve), false)
+	record := convertedOSVFixture(t, "built-product-dsa-upstream", false)
 	got := BuildSupplyChainImpactFindings(append(append(slices.Clone(products), own), record...))
 	if len(got) != 1 || got[0].AdvisoryID != id {
 		t.Errorf("findings = %#v, want the one product finding named %s", got, id)

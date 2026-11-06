@@ -13,11 +13,11 @@ import (
 // osAdvisoryBenchRecords are the live OS records the join bench feeds: two
 // Debian, one Alpine, two Ubuntu (one versionless purl, one versioned).
 var osAdvisoryBenchRecords = []string{
-	"debian-cve-2023-38039.json",
-	"debian-cve-2003-1605.json",
-	"alpine-cve-2023-27537.json",
-	"ubuntu-cve-2022-27775.json",
-	"ubuntu-cve-2016-5419.json",
+	"file-debian-cve-2023-38039",
+	"file-debian-cve-2003-1605",
+	"file-alpine-cve-2023-27537",
+	"file-ubuntu-cve-2022-27775",
+	"file-ubuntu-cve-2016-5419",
 }
 
 // osAdvisoryBenchEnvelopes builds one pass: the converted advisory facts plus
@@ -70,7 +70,7 @@ func BenchmarkOSAdvisoryJoin(b *testing.B) {
 		{"5x", osAdvisoryBenchRecords, 50, "curl"},
 		{"10x", osAdvisoryBenchRecords, 100, "curl"},
 		{"miss-10x", osAdvisoryBenchRecords, 100, "wget"},
-		{"registry-10x", []string{"ghsa-35jh-r3h4-6jhm.json"}, 100, "lodash"},
+		{"registry-10x", []string{"file-ghsa-35jh-r3h4-6jhm"}, 100, "lodash"},
 	} {
 		b.Run(scale.name, func(b *testing.B) {
 			envelopes := osAdvisoryBenchEnvelopes(b, scale.records, scale.images, scale.pkg)
@@ -159,7 +159,7 @@ func BenchmarkOSAdvisoryJoinTargets(b *testing.B) {
 // many images, each of which must keep its own verdict.
 func osFleetDigestBenchEnvelopes(b *testing.B, images int) []facts.Envelope {
 	b.Helper()
-	envelopes := convertedOSVFixture(b, "debian-cve-2023-38039.json", false)
+	envelopes := convertedOSVFixture(b, "file-debian-cve-2023-38039", false)
 	versions := []string{"7.88.1-10+deb12u2", "7.88.1-10+deb12u3", "8.3.0-1"}
 	for i := range images {
 		scope := fmt.Sprintf("image://fleet/bench-%d", i)

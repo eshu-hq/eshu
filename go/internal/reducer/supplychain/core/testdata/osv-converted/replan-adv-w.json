@@ -1,0 +1,83 @@
+[
+  {
+    "FactID": "ecf6e5f179ef5b3f90f7c08b8db225d350190b7303b21dac48447d9e64f3e191",
+    "ScopeID": "scope-adv-a",
+    "GenerationID": "gen-a2",
+    "FactKind": "vulnerability.cve",
+    "StableFactKey": "a779265fa52ddff6c9a93e3f7be7daec976271fbd8206bdb6ecd4de543dd0c05",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-01T00:00:00Z",
+    "Payload": {
+      "advisory_id": "ADV-W",
+      "aliases": null,
+      "collector_instance_id": "osv-test",
+      "correlation_anchors": [
+        "ADV-W"
+      ],
+      "cve_id": "ADV-W",
+      "cvss_vector": "",
+      "database_specific": null,
+      "details": "",
+      "ecosystem_specific": null,
+      "modified_at": "",
+      "published_at": "",
+      "related": null,
+      "severity": null,
+      "severity_label": "",
+      "source": "osv",
+      "source_schema_version": "",
+      "summary": "",
+      "withdrawn_at": ""
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "scope-adv-a",
+      "GenerationID": "gen-a2",
+      "FactKey": "a779265fa52ddff6c9a93e3f7be7daec976271fbd8206bdb6ecd4de543dd0c05",
+      "SourceURI": "https://api.osv.dev/v1/vulns/ADV-W",
+      "SourceRecordID": "ADV-W"
+    }
+  },
+  {
+    "FactID": "88f23a78f26384b54127387a674c0bd1f7005803e0ff49a4e8306b8c63f3237d",
+    "ScopeID": "scope-adv-a",
+    "GenerationID": "gen-a2",
+    "FactKind": "vulnerability.affected_package",
+    "StableFactKey": "f37a1dc1e834065810ff3f7718f660f7f38608912412e1de81b5e3ba0d212607",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-01T00:00:00Z",
+    "Payload": {
+      "advisory_id": "ADV-W",
+      "affected_ranges": null,
+      "affected_versions": null,
+      "collector_instance_id": "osv-test",
+      "correlation_anchors": [
+        "ADV-W",
+        "npm://registry.npmjs.org/left-pad"
+      ],
+      "cve_id": "ADV-W",
+      "ecosystem": "npm",
+      "fixed_versions": null,
+      "package_id": "npm://registry.npmjs.org/left-pad",
+      "package_name": "left-pad",
+      "purl": "",
+      "source": "osv"
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "scope-adv-a",
+      "GenerationID": "gen-a2",
+      "FactKey": "f37a1dc1e834065810ff3f7718f660f7f38608912412e1de81b5e3ba0d212607",
+      "SourceURI": "https://api.osv.dev/v1/vulns/ADV-W",
+      "SourceRecordID": "npm://registry.npmjs.org/left-pad#ADV-W"
+    }
+  }
+]

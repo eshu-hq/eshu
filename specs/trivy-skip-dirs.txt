@@ -28,9 +28,8 @@
 # --skip-dirs argument, but Trivy itself does not care about order.
 
 # Intentionally-vulnerable govuln test fixtures: they embed known CVEs to
-# test the vulnerability-intelligence collector and MUST NOT be "fixed".
+# test govuln scanning and MUST NOT be "fixed".
 go/cmd/eshu/testdata/vuln_scan_repo_fixtures
-go/internal/collector/vulnerabilityintelligence/testdata
 
 # Replay parser-fixture source trees: synthetic Terraform/Kubernetes/
 # Dockerfile inputs that exist to exercise the parsers, not to deploy --

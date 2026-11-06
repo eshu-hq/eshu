@@ -31,7 +31,7 @@ import (
 // go/internal/runtime/deploy_checkout_test.go: every helper fails closed on
 // any other commit, so a skew between the pins surfaces as a test failure,
 // not a silent drift.
-const expectedDeployCheckoutCommit = "696793e14c1fcf00a45571cfce889fe82ea15451"
+const expectedDeployCheckoutCommit = "1dbb815f6fd152cdd34a29d5a77c1580f2ae4b33"
 
 // deployCheckoutForContract resolves the eshu-deploy checkout the census rule
 // test reads observability rule files from. It fails closed: an absent

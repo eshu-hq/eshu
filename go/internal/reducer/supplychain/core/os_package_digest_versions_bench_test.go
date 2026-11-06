@@ -20,7 +20,7 @@ func BenchmarkOSFleetDigestVersions(b *testing.B) {
 	for _, perDigest := range []int{1, 3} {
 		for _, digests := range []int{10, 50, 100} {
 			b.Run(fmt.Sprintf("versions-%d/digests-%d", perDigest, digests), func(b *testing.B) {
-				envelopes := convertedOSVFixture(b, "debian-cve-2023-38039.json", false)
+				envelopes := convertedOSVFixture(b, "file-debian-cve-2023-38039", false)
 				for i := range digests {
 					scope := fmt.Sprintf("image://fleet/versions-%d", i)
 					generation := fmt.Sprintf("versions-gen-%d", i)

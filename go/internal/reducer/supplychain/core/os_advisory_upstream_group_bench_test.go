@@ -4,10 +4,11 @@
 package core
 
 import (
+	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/vulnerabilityintelligence"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
@@ -48,29 +49,49 @@ func upstreamBenchEnvelopes(untagged, osUngrouped, osGrouped int) []facts.Envelo
 	return out
 }
 
+// stampFrozenOSVRecord loads one frozen template record and rewrites the
+// id-derived strings per (from, to) pairs, so benchmarks scale record counts
+// without re-running conversion. FactID and stable-key hashes keep the
+// template values; benchmarks measure classification cost, never identity.
+// Callers pass pairs that name disjoint id families (template ids always
+// start at zero), so no replacement ever rewrites another pair's output.
+func stampFrozenOSVRecord(tb testing.TB, key string, pairs ...string) []facts.Envelope {
+	tb.Helper()
+	if len(pairs)%2 != 0 {
+		tb.Fatalf("stampFrozenOSVRecord needs (from, to) pairs")
+	}
+	envs := convertedOSVFixture(tb, key, false)
+	raw, err := json.Marshal(envs)
+	if err != nil {
+		tb.Fatalf("marshal frozen fixture %s: %v", key, err)
+	}
+	stamped := string(raw)
+	for i := 0; i < len(pairs); i += 2 {
+		stamped = strings.ReplaceAll(stamped, pairs[i], pairs[i+1])
+	}
+	var out []facts.Envelope
+	if err := json.Unmarshal([]byte(stamped), &out); err != nil {
+		tb.Fatalf("decode stamped fixture %s: %v", key, err)
+	}
+	return out
+}
+
 // upstreamBundleEnvelopes builds records shaped like a live USN bulletin: each
 // names cves upstream CVEs and affects pkgs packages. USN-6766-1 names 90 CVEs.
 // With hosts set it adds one installed row per package.
 func upstreamBundleEnvelopes(tb testing.TB, records, cves, pkgs int, hosts bool) []facts.Envelope {
 	tb.Helper()
+	if pkgs != 3 {
+		tb.Fatalf("upstreamBundleEnvelopes supports the frozen 3-package shape, got pkgs=%d", pkgs)
+	}
 	var out []facts.Envelope
 	for r := 0; r < records; r++ {
-		upstream := make([]string, 0, cves)
+		pairs := []string{"USN-6000-1", fmt.Sprintf("USN-%d-1", 6000+r)}
 		for c := 0; c < cves; c++ {
-			upstream = append(upstream, fmt.Sprintf("CVE-2024-%05d", r*cves+c))
+			pairs = append(pairs,
+				fmt.Sprintf("CVE-2024-%05d", c), fmt.Sprintf("CVE-2024-%05d", r*cves+c))
 		}
-		affected := make([]vulnerabilityintelligence.OSVAffected, 0, pkgs)
-		for p := 0; p < pkgs; p++ {
-			name := fmt.Sprintf("linux-%d", p)
-			affected = append(affected, vulnerabilityintelligence.OSVAffected{
-				Package: vulnerabilityintelligence.OSVPackage{Name: name, Ecosystem: "Ubuntu:22.04:LTS", PURL: "pkg:deb/ubuntu/" + name + "?arch=source&distro=jammy"},
-				Ranges:  []vulnerabilityintelligence.OSVRange{{Type: "ECOSYSTEM", Events: []vulnerabilityintelligence.OSVEvent{{Introduced: "0"}, {Fixed: "5.15.0-100.110"}}}},
-			})
-		}
-		out = append(out, convertedOSVRecord(tb, vulnerabilityintelligence.OSVVulnerability{
-			Schema: "1.9.0", ID: fmt.Sprintf("USN-%d-1", 6000+r), Modified: "2026-10-26T18:02:41Z",
-			Published: "2023-09-15T04:15:10Z", Upstream: upstream, Affected: affected,
-		}, false)...)
+		out = append(out, stampFrozenOSVRecord(tb, fmt.Sprintf("built-bench-usn-cves-%d", cves), pairs...)...)
 	}
 	if hosts {
 		for p := 0; p < pkgs; p++ {
@@ -147,8 +168,10 @@ func BenchmarkBuildSupplyChainImpactFindingsTwoLiveRecords(b *testing.B) {
 		var envelopes []facts.Envelope
 		for at := range cves {
 			cve := fmt.Sprintf("CVE-2026-%05d", at)
-			envelopes = append(envelopes, convertedOSVRecord(b, debianRecord(fmt.Sprintf("DLA-%d-1", at), "11", "bullseye", "7.74.0-1.3+deb11u10", cve), false)...)
-			envelopes = append(envelopes, convertedOSVRecord(b, debianRecord(fmt.Sprintf("DSA-%d-1", at), "11", "bullseye", "7.74.0-1.3+deb11u12", cve), false)...)
+			envelopes = append(envelopes, stampFrozenOSVRecord(b, "built-bench-dla-0",
+				"DLA-0-1", fmt.Sprintf("DLA-%d-1", at), "CVE-2026-00000", cve)...)
+			envelopes = append(envelopes, stampFrozenOSVRecord(b, "built-bench-dsa-0",
+				"DSA-0-1", fmt.Sprintf("DSA-%d-1", at), "CVE-2026-00000", cve)...)
 		}
 		envelopes = append(envelopes, debianCurl("11", "7.74.0-1.3+deb11u11").envelope())
 		b.Run(fmt.Sprintf("cves=%d", cves), func(b *testing.B) {

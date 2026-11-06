@@ -8,73 +8,81 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
+	"strings"
 	"testing"
-	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/vulnerabilityintelligence"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	chain "github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
 
-// osvLiveFixtureDir holds live OSV records committed by the converter
-// package. These tests drive them through the real converter so the reducer
-// sees the exact purl and range shapes OSV publishes, not hand-made ones
-// (#9848: hand-made purls hid that no OS advisory ever joined).
-const osvLiveFixtureDir = "../../../collector/vulnerabilityintelligence/testdata/osv"
-
-// convertedOSVFixture converts one committed OSV record with the in-tree
-// converter and round-trips each payload through JSON, as the fact store
-// does. reverse feeds the record's affected entries in reverse order.
-func convertedOSVFixture(t testing.TB, name string, reverse bool) []facts.Envelope {
+// Frozen OSV/NVD converter output (eshu-hq/eshu#9999). The in-tree collector
+// is deleted, and the satellite owns conversion now, so core tests cannot run
+// the converter at test time. The JSON files under testdata/osv-converted are
+// the in-tree converter's output frozen at the delete branch's base commit:
+// every envelope below is byte-identical to what the helpers in this file
+// produced from the live records before the delete, including the payload
+// round-trip the fact store performs. The shapes stay producer-real (the
+// #9848 lesson: hand-made purls hid that no OS advisory ever joined), frozen
+// instead of live.
+//
+// A frozen key is either "file-<name>" for a live-record conversion or
+// "built-<case>" for a hand-built record conversion. The ".reversed" variant
+// holds the same record converted with its affected entries reversed.
+func convertedOSVFixture(t testing.TB, key string, reverse bool) []facts.Envelope {
 	t.Helper()
-	return convertedOSVRecord(t, osvFixtureRecord(t, name), reverse)
-}
-
-// osvFixtureRecord decodes one committed OSV record, for a test that must
-// change one field of a live record before converting it.
-func osvFixtureRecord(t testing.TB, name string) vulnerabilityintelligence.OSVVulnerability {
-	t.Helper()
-	raw, err := os.ReadFile(filepath.Join(osvLiveFixtureDir, name))
-	if err != nil {
-		t.Fatalf("read OSV fixture %s: %v", name, err)
-	}
-	var record vulnerabilityintelligence.OSVVulnerability
-	if err := json.Unmarshal(raw, &record); err != nil {
-		t.Fatalf("decode OSV fixture %s: %v", name, err)
-	}
-	return record
-}
-
-// convertedOSVRecord converts record with the in-tree converter and
-// round-trips each payload through JSON. reverse feeds the affected entries in
-// reverse order; record itself is not modified.
-func convertedOSVRecord(t testing.TB, record vulnerabilityintelligence.OSVVulnerability, reverse bool) []facts.Envelope {
-	t.Helper()
-	record.Affected = slices.Clone(record.Affected)
+	path := key
 	if reverse {
-		slices.Reverse(record.Affected)
+		path += ".reversed"
 	}
-	envelopes, _, err := vulnerabilityintelligence.OSVRecordEnvelopesReport(vulnerabilityintelligence.OSVEnvelopeContext{
-		ScopeID:             "vuln-intel://osv/fixture",
-		GenerationID:        "osv:fixture:2026-11-02T00:00:00Z",
-		CollectorInstanceID: "public-osv",
-		ObservedAt:          time.Date(2026, 11, 2, 0, 0, 0, 0, time.UTC),
-	}, record)
+	raw, err := os.ReadFile(filepath.Join("testdata", "osv-converted", path+".json"))
 	if err != nil {
-		t.Fatalf("convert OSV record %s: %v", record.ID, err)
+		t.Fatalf("read frozen OSV fixture %s: %v", path, err)
 	}
-	for i := range envelopes {
-		encoded, err := json.Marshal(envelopes[i].Payload)
-		if err != nil {
-			t.Fatalf("encode payload: %v", err)
-		}
-		var payload map[string]any
-		if err := json.Unmarshal(encoded, &payload); err != nil {
-			t.Fatalf("decode payload: %v", err)
-		}
-		envelopes[i].Payload = payload
+	var envelopes []facts.Envelope
+	if err := json.Unmarshal(raw, &envelopes); err != nil {
+		t.Fatalf("decode frozen OSV fixture %s: %v", path, err)
 	}
 	return envelopes
+}
+
+// osvFixtureUpstream returns the upstream id list of one live fixture file,
+// frozen alongside the converted output. Sibling tests re-key records to
+// these ids, so the ids stay visible after the live files are gone.
+func osvFixtureUpstream(t testing.TB, name string) []string {
+	t.Helper()
+	raw, err := os.ReadFile(filepath.Join("testdata", "osv-converted", "_upstream.json"))
+	if err != nil {
+		t.Fatalf("read frozen OSV upstream index: %v", err)
+	}
+	var index map[string][]string
+	if err := json.Unmarshal(raw, &index); err != nil {
+		t.Fatalf("decode frozen OSV upstream index: %v", err)
+	}
+	lookup := name
+	if rest, ok := strings.CutPrefix(name, "file-"); ok {
+		lookup = rest + ".json"
+	}
+	upstream, ok := index[lookup]
+	if !ok {
+		t.Fatalf("no frozen upstream for %s", name)
+	}
+	return upstream
+}
+
+// osvFixtureFirstEntryPURL returns the kept purl of the frozen conversion of
+// one live fixture file. The merge-order pin uses it to assert the versioned
+// Ubuntu shape is still what the ruling reasons about.
+func osvFixtureFirstEntryPURL(t testing.TB, key string) string {
+	t.Helper()
+	for _, envelope := range convertedOSVFixture(t, key, false) {
+		if envelope.FactKind != chain.VulnerabilityAffectedPackageFactKind {
+			continue
+		}
+		purl, _ := envelope.Payload["purl"].(string)
+		return purl
+	}
+	t.Fatalf("no affected_package envelope in frozen fixture %s", key)
+	return ""
 }
 
 // installedOSRow is one vendor os_package row in the producer's documented

@@ -25,7 +25,8 @@ import (
 // ListEvidenceQuery were pinned to
 // fact_kind = 'vulnerability.affected_package', silently dropping
 // package-matching rows of other kinds. GitLab (GLAD) CVE envelopes carry
-// package_id (gitlab_gemnasium_envelope.go newGitLabCVEEnvelope), so a
+// package_id (newGitLabCVEEnvelope in
+// eshu-hq/eshu-collector-vulnerability-intelligence), so a
 // package-scoped read must return those CVE rows even when no
 // affected_package sibling exists.
 //

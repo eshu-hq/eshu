@@ -427,13 +427,7 @@ span, EPSS counters, and one INFO line; no CVE id reaches a label or log.
 
 Inside `ESHU_COLLECTOR_INSTANCES_JSON`, vulnerability targets may set `fallback_urls` for source mirrors. The instance configuration may also set `source_cache.directory`, `source_cache.mode` (`refresh` or `offline`), `source_cache.freshness_ttl`, `source_cache.retention`, and `source_cache.use_cached_on_fetch_error`. Offline mode never calls live upstreams and fails closed when the cached artifact is missing or stale.
 
-| Variable | Default | Read by | Purpose |
-| --- | --- | --- | --- |
-| `ESHU_VULNERABILITY_INTELLIGENCE_COLLECTOR_INSTANCE_ID` | required when more than one enabled vulnerability-intelligence instance exists | collector-vulnerability-intelligence | Selects the claim-capable `vulnerability_intelligence` instance. |
-| `ESHU_VULNERABILITY_INTELLIGENCE_POLL_INTERVAL` | `1s` | collector-vulnerability-intelligence | Delay between empty workflow-claim polls. |
-| `ESHU_VULNERABILITY_INTELLIGENCE_CLAIM_LEASE_TTL` | `60s` | collector-vulnerability-intelligence | Lease TTL used when claiming and refreshing work. |
-| `ESHU_VULNERABILITY_INTELLIGENCE_HEARTBEAT_INTERVAL` | `20s` | collector-vulnerability-intelligence | Heartbeat interval for active workflow claims. Must be less than the claim lease TTL. |
-| `ESHU_VULNERABILITY_INTELLIGENCE_COLLECTOR_OWNER_ID` | host/process-derived | collector-vulnerability-intelligence | Owner label written into workflow claim rows. |
+The `collector-vulnerability-intelligence` binary that read `ESHU_VULNERABILITY_INTELLIGENCE_*` claim-loop variables is deleted (eshu-hq/eshu#9999); satellite claims are driven through `ESHU_COLLECTOR_INSTANCES_JSON` like every other collector, so the prefixed variables are gone with the binary.
 
 ## Confluence Collector
 

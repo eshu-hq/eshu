@@ -6,7 +6,6 @@ package core
 import (
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/vulnerabilityintelligence"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
 )
@@ -19,24 +18,6 @@ import (
 func TestOSVOSAdvisoryVersionListNeverExact(t *testing.T) {
 	t.Parallel()
 
-	events := func(introduced, fixed string) []vulnerabilityintelligence.OSVRange {
-		return []vulnerabilityintelligence.OSVRange{{Type: "ECOSYSTEM", Events: []vulnerabilityintelligence.OSVEvent{
-			{Introduced: introduced}, {Fixed: fixed},
-		}}}
-	}
-	entry := func(ecosystem, distro string, versions []string, ranges []vulnerabilityintelligence.OSVRange) vulnerabilityintelligence.OSVAffected {
-		return vulnerabilityintelligence.OSVAffected{
-			Package: vulnerabilityintelligence.OSVPackage{
-				Name: "curl", Ecosystem: ecosystem, PURL: "pkg:deb/debian/curl?arch=source&distro=" + distro,
-			},
-			Versions: versions,
-			Ranges:   ranges,
-		}
-	}
-	osvRecord := func(t *testing.T, record vulnerabilityintelligence.OSVVulnerability) []facts.Envelope {
-		t.Helper()
-		return convertedOSVRecord(t, record, false)
-	}
 	vendorFact := derivedPartitionAdvisory("vendor", "vuln-intel://debian/dsa", "3.0.11-1~deb12u3")
 	// The helper's fact is published for Debian 12; this host is on 11.
 	vendorFact[1] = withDistroLine(vendorFact[1], "debian-11")
@@ -49,10 +30,8 @@ func TestOSVOSAdvisoryVersionListNeverExact(t *testing.T) {
 		wantReason string
 	}{
 		{
-			name: "osv versions-only entry, host on an unlisted release",
-			envelopes: append(osvRecord(t, vulnerabilityintelligence.OSVVulnerability{ID: "DEBIAN-CVE-2099-0001", Affected: []vulnerabilityintelligence.OSVAffected{
-				entry("Debian:12", "bookworm", []string{"7.88.1-10+deb12u2"}, nil),
-			}}), debianCurl("11", "7.88.1-10+deb12u2").envelope()),
+			name:       "osv versions-only entry, host on an unlisted release",
+			envelopes:  append(convertedOSVFixture(t, "built-versionlist-0001", false), debianCurl("11", "7.88.1-10+deb12u2").envelope()),
 			wantStatus: SupplyChainImpactPossiblyAffected,
 			wantReason: supplyChainVersionReasonOSReleaseUnverified,
 		},
@@ -65,11 +44,8 @@ func TestOSVOSAdvisoryVersionListNeverExact(t *testing.T) {
 			// single-fix shortcut. Known-fixed with a host-tag match is the
 			// ruled-precise outcome, not a bug; the untagged ambiguous
 			// verdict no longer applies once every range names its line.
-			name: "osv versions list plus two releases' fixes at or below the version",
-			envelopes: append(osvRecord(t, vulnerabilityintelligence.OSVVulnerability{ID: "DEBIAN-CVE-2099-0012", Affected: []vulnerabilityintelligence.OSVAffected{
-				entry("Debian:12", "bookworm", []string{"7.88.1-10+deb12u2"}, events("0", "7.88.1-10+deb12u1")),
-				entry("Debian:11", "bullseye", nil, events("0", "7.74.0-1.3+deb11u7")),
-			}}), debianCurl("12", "7.88.1-10+deb12u2").envelope()),
+			name:       "osv versions list plus two releases' fixes at or below the version",
+			envelopes:  append(convertedOSVFixture(t, "built-versionlist-0012", false), debianCurl("12", "7.88.1-10+deb12u2").envelope()),
 			wantStatus: SupplyChainImpactNotAffectedKnownFixed,
 			wantReason: supplyChainVersionReasonDPKGKnownFixed,
 		},

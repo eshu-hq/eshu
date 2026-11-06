@@ -1,0 +1,104 @@
+[
+  {
+    "FactID": "9cbdb85a07187eece5b9410fce30294826d7f3fc58d423cf184cdf2789909a82",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+    "FactKind": "vulnerability.cve",
+    "StableFactKey": "4186721865f9b3d78d71cf533f9f8a130633098033cd0189a7dfe47f2416b2eb",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "ALPINE-CVE-2022-1271",
+      "aliases": null,
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "ALPINE-CVE-2022-1271"
+      ],
+      "cve_id": "ALPINE-CVE-2022-1271",
+      "cvss_vector": "",
+      "database_specific": null,
+      "details": "",
+      "ecosystem_specific": null,
+      "modified_at": "2026-10-26T18:02:41Z",
+      "published_at": "2023-09-15T04:15:10Z",
+      "related": null,
+      "severity": null,
+      "severity_label": "",
+      "source": "osv",
+      "source_schema_version": "1.9.0",
+      "summary": "",
+      "upstream": [
+        "CVE-2022-1271"
+      ],
+      "withdrawn_at": ""
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+      "FactKey": "4186721865f9b3d78d71cf533f9f8a130633098033cd0189a7dfe47f2416b2eb",
+      "SourceURI": "",
+      "SourceRecordID": "ALPINE-CVE-2022-1271"
+    }
+  },
+  {
+    "FactID": "b450451f725eb19812be851b4e35e71e9725f7b6281578be14386d9a2b81d141",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+    "FactKind": "vulnerability.affected_package",
+    "StableFactKey": "7e231a5c0567b86db56ff87b15bd93812503ce417166cb2da87d3f353b951669",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "ALPINE-CVE-2022-1271",
+      "affected_ranges": [
+        {
+          "events": [
+            {
+              "introduced": "0"
+            },
+            {
+              "fixed": "8.0.0-r0"
+            }
+          ],
+          "releases": [
+            "alpine:3.18"
+          ],
+          "type": "ECOSYSTEM"
+        }
+      ],
+      "affected_versions": null,
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "ALPINE-CVE-2022-1271",
+        "os://alpine/curl",
+        "pkg:apk/alpine/curl?arch=source"
+      ],
+      "cve_id": "ALPINE-CVE-2022-1271",
+      "ecosystem": "os",
+      "fixed_versions": [
+        "8.0.0-r0"
+      ],
+      "package_id": "os://alpine/curl",
+      "package_name": "curl",
+      "purl": "pkg:apk/alpine/curl?arch=source",
+      "source": "osv"
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+      "FactKey": "7e231a5c0567b86db56ff87b15bd93812503ce417166cb2da87d3f353b951669",
+      "SourceURI": "",
+      "SourceRecordID": "os://alpine/curl#ALPINE-CVE-2022-1271"
+    }
+  }
+]

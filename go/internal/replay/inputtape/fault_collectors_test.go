@@ -50,7 +50,6 @@ import (
 	packageruntime "github.com/eshu-hq/eshu/go/internal/collector/registry/package/runtime"
 	"github.com/eshu-hq/eshu/go/internal/collector/sbom/runtime"
 	"github.com/eshu-hq/eshu/go/internal/collector/securityalerts"
-	"github.com/eshu-hq/eshu/go/internal/collector/vulnerabilityintelligence"
 	"github.com/eshu-hq/eshu/go/internal/replay/inputtape"
 	"gopkg.in/yaml.v3"
 )
@@ -166,14 +165,10 @@ func collectorFaultCases() []collectorFaultCase {
 				return err
 			},
 		},
-		{
-			surface: "collector:vulnerability_intelligence",
-			collect: func() error {
-				client := vulnerabilityintelligence.NewOSVClient("https://osv.invalid", timeoutFaultClient())
-				_, err := client.GetVulnerability(context.Background(), "GHSA-0000-0000-0000")
-				return err
-			},
-		},
+		// The vulnerability intelligence boundary moved to the extracted
+		// satellite (eshu-hq/eshu#9999): core owns no OSV HTTP client to
+		// fault-probe anymore, so this table carries no vuln case. The
+		// satellite owns its client fault behavior.
 		{
 			surface: "collector:oci_registry",
 			collect: func() error {

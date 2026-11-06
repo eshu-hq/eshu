@@ -60,7 +60,7 @@ capabilities:
   # derives preview from its local-only matrix support.
   - capability: reachability.go.govulncheck
     display_name: Go Reachability (govulncheck)
-    owner_package: internal/collector/vulnerabilityintelligence
+    owner_package: internal/reducer/supplychain/core
     linked_issues: [3021, 2704, 2705]
     docs:
       - reference/vulnerability-scanner-confidence.md

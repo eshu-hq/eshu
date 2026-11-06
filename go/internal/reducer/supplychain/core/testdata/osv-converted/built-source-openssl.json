@@ -1,0 +1,101 @@
+[
+  {
+    "FactID": "420db00caf6be67d078adca08f8caff7dd2c5722d3f7f5acdb9eeaad1c880d3c",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+    "FactKind": "vulnerability.cve",
+    "StableFactKey": "823f5e2cb101bf58279e03ff134d2cada43a12ec8eb4916a19d2696ccbf0caad",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "DEBIAN-CVE-2023-0464",
+      "aliases": null,
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "DEBIAN-CVE-2023-0464"
+      ],
+      "cve_id": "DEBIAN-CVE-2023-0464",
+      "cvss_vector": "",
+      "database_specific": null,
+      "details": "",
+      "ecosystem_specific": null,
+      "modified_at": "",
+      "published_at": "",
+      "related": null,
+      "severity": null,
+      "severity_label": "",
+      "source": "osv",
+      "source_schema_version": "",
+      "summary": "",
+      "withdrawn_at": ""
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+      "FactKey": "823f5e2cb101bf58279e03ff134d2cada43a12ec8eb4916a19d2696ccbf0caad",
+      "SourceURI": "",
+      "SourceRecordID": "DEBIAN-CVE-2023-0464"
+    }
+  },
+  {
+    "FactID": "1c9700798769ce4ed369b926d09fa0f2f8a637896ec482ee97683d8a47ee1cbc",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+    "FactKind": "vulnerability.affected_package",
+    "StableFactKey": "078b9277aaaa9194317b16f85d8c8c7c219fca25eaa32eec2fbb87b50513de60",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "DEBIAN-CVE-2023-0464",
+      "affected_ranges": [
+        {
+          "events": [
+            {
+              "introduced": "0"
+            },
+            {
+              "fixed": "3.0.11-1+deb12u2"
+            }
+          ],
+          "releases": [
+            "debian:12"
+          ],
+          "type": "ECOSYSTEM"
+        }
+      ],
+      "affected_versions": null,
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "DEBIAN-CVE-2023-0464",
+        "os://debian/openssl",
+        "pkg:deb/debian/openssl?arch=source\u0026distro=bookworm"
+      ],
+      "cve_id": "DEBIAN-CVE-2023-0464",
+      "ecosystem": "os",
+      "fixed_versions": [
+        "3.0.11-1+deb12u2"
+      ],
+      "package_id": "os://debian/openssl",
+      "package_name": "openssl",
+      "purl": "pkg:deb/debian/openssl?arch=source\u0026distro=bookworm",
+      "source": "osv"
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+      "FactKey": "078b9277aaaa9194317b16f85d8c8c7c219fca25eaa32eec2fbb87b50513de60",
+      "SourceURI": "",
+      "SourceRecordID": "os://debian/openssl#DEBIAN-CVE-2023-0464"
+    }
+  }
+]

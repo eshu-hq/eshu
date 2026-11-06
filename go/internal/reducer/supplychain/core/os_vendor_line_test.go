@@ -335,7 +335,7 @@ func TestVendorLineJoinStatsCountEachOutcome(t *testing.T) {
 func TestVendorLineAgainstHostLineOSV(t *testing.T) {
 	t.Parallel()
 	const host = "7.88.1-10+deb12u3" // exactly the bookworm fix in the tagged OSV record
-	osv := convertedOSVFixture(t, "debian-cve-2023-38039.json", false)
+	osv := convertedOSVFixture(t, "file-debian-cve-2023-38039", false)
 	vendor := func(purl string) facts.Envelope {
 		return facts.Envelope{FactID: "vendor-9945", FactKind: chain.VulnerabilityAffectedPackageFactKind, Payload: map[string]any{
 			"cve_id": "DEBIAN-CVE-2023-38039", "advisory_id": "DSA-9945-1", "source": "debian",

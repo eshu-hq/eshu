@@ -1,0 +1,962 @@
+[
+  {
+    "FactID": "11a069ce3193458581c3e7423667e20d9d282ec93e8e8ded6bec59190d5bf4f2",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+    "FactKind": "vulnerability.cve",
+    "StableFactKey": "c009aec6ec4e392952bc5ddec1d8664c286201c4976a158a1b30307d3dedc40b",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "GHSA-35jh-r3h4-6jhm",
+      "aliases": [
+        "CVE-2021-23337"
+      ],
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "CVE-2021-23337",
+        "GHSA-35jh-r3h4-6jhm"
+      ],
+      "cve_id": "CVE-2021-23337",
+      "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:H/UI:N/S:U/C:H/I:H/A:H",
+      "database_specific": {
+        "cwe_ids": [
+          "CWE-77",
+          "CWE-94"
+        ],
+        "github_reviewed": true,
+        "github_reviewed_at": "2021-03-31T23:59:26Z",
+        "nvd_published_at": "2021-02-15T13:15:00Z",
+        "severity": "HIGH"
+      },
+      "details": "`lodash` versions prior to 4.17.21 are vulnerable to Command Injection via the template function.",
+      "ecosystem_specific": null,
+      "modified_at": "2026-10-17T02:55:38.085813876Z",
+      "published_at": "2021-05-06T16:05:51Z",
+      "related": null,
+      "severity": [
+        {
+          "score": "CVSS:3.1/AV:N/AC:L/PR:H/UI:N/S:U/C:H/I:H/A:H",
+          "type": "CVSS_V3"
+        }
+      ],
+      "severity_label": "high",
+      "source": "osv",
+      "source_schema_version": "1.9.0",
+      "summary": "Command Injection in lodash",
+      "withdrawn_at": ""
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+      "FactKey": "c009aec6ec4e392952bc5ddec1d8664c286201c4976a158a1b30307d3dedc40b",
+      "SourceURI": "",
+      "SourceRecordID": "GHSA-35jh-r3h4-6jhm"
+    }
+  },
+  {
+    "FactID": "80311a53a3992931db74b97fd3e33d5e695a57a08c0bcbfc980fa4951f8e77ba",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+    "FactKind": "vulnerability.affected_package",
+    "StableFactKey": "ebca1e6309d5190f6562bd3107840135bc749744abf2ebf5842272374017c435",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "GHSA-35jh-r3h4-6jhm",
+      "affected_ranges": [
+        {
+          "events": [
+            {
+              "introduced": "0"
+            },
+            {
+              "fixed": "4.17.21"
+            }
+          ],
+          "type": "SEMVER"
+        }
+      ],
+      "affected_versions": null,
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "CVE-2021-23337",
+        "GHSA-35jh-r3h4-6jhm",
+        "npm://registry.npmjs.org/lodash",
+        "pkg:npm/lodash"
+      ],
+      "cve_id": "CVE-2021-23337",
+      "ecosystem": "npm",
+      "fixed_versions": [
+        "4.17.21"
+      ],
+      "package_id": "npm://registry.npmjs.org/lodash",
+      "package_name": "lodash",
+      "purl": "pkg:npm/lodash",
+      "source": "osv"
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+      "FactKey": "ebca1e6309d5190f6562bd3107840135bc749744abf2ebf5842272374017c435",
+      "SourceURI": "",
+      "SourceRecordID": "npm://registry.npmjs.org/lodash#GHSA-35jh-r3h4-6jhm"
+    }
+  },
+  {
+    "FactID": "414843a68ebd7a726e88262b870e17872ef91a5a69aaa834e6f28be4529ae69c",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+    "FactKind": "vulnerability.affected_package",
+    "StableFactKey": "31104d80ceaa544f423ccf6418e7f5ca2098f6c7591ca1a483f7cf8d0eff5e89",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "GHSA-35jh-r3h4-6jhm",
+      "affected_ranges": [
+        {
+          "events": [
+            {
+              "introduced": "0"
+            },
+            {
+              "fixed": "4.17.21"
+            }
+          ],
+          "type": "SEMVER"
+        }
+      ],
+      "affected_versions": null,
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "CVE-2021-23337",
+        "GHSA-35jh-r3h4-6jhm",
+        "npm://registry.npmjs.org/lodash-es",
+        "pkg:npm/lodash-es"
+      ],
+      "cve_id": "CVE-2021-23337",
+      "ecosystem": "npm",
+      "fixed_versions": [
+        "4.17.21"
+      ],
+      "package_id": "npm://registry.npmjs.org/lodash-es",
+      "package_name": "lodash-es",
+      "purl": "pkg:npm/lodash-es",
+      "source": "osv"
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+      "FactKey": "31104d80ceaa544f423ccf6418e7f5ca2098f6c7591ca1a483f7cf8d0eff5e89",
+      "SourceURI": "",
+      "SourceRecordID": "npm://registry.npmjs.org/lodash-es#GHSA-35jh-r3h4-6jhm"
+    }
+  },
+  {
+    "FactID": "a352ef151e764be01c67a47806876090e8330ee2eda0d19fc6d14b9c19fe8f9e",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+    "FactKind": "vulnerability.affected_package",
+    "StableFactKey": "745788651b16201ada421f3a12848832724abb80ceb31e0eb05a4085288732d1",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "GHSA-35jh-r3h4-6jhm",
+      "affected_ranges": [
+        {
+          "events": [
+            {
+              "introduced": "0"
+            },
+            {
+              "last_affected": "4.5.0"
+            }
+          ],
+          "type": "SEMVER"
+        }
+      ],
+      "affected_versions": null,
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "CVE-2021-23337",
+        "GHSA-35jh-r3h4-6jhm",
+        "npm://registry.npmjs.org/lodash.template",
+        "pkg:npm/lodash.template"
+      ],
+      "cve_id": "CVE-2021-23337",
+      "ecosystem": "npm",
+      "fixed_versions": null,
+      "package_id": "npm://registry.npmjs.org/lodash.template",
+      "package_name": "lodash.template",
+      "purl": "pkg:npm/lodash.template",
+      "source": "osv"
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+      "FactKey": "745788651b16201ada421f3a12848832724abb80ceb31e0eb05a4085288732d1",
+      "SourceURI": "",
+      "SourceRecordID": "npm://registry.npmjs.org/lodash.template#GHSA-35jh-r3h4-6jhm"
+    }
+  },
+  {
+    "FactID": "66567313a4da7b643bcb87ba49fde5a114b5c173a7ea23a84aafcc2073b43b48",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+    "FactKind": "vulnerability.affected_package",
+    "StableFactKey": "5b59e55f88a8177ede48930e72e90da4d60754c0b20d55e6bbd91930937beb5d",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "GHSA-35jh-r3h4-6jhm",
+      "affected_ranges": [
+        {
+          "events": [
+            {
+              "introduced": "0"
+            },
+            {
+              "last_affected": "1.0.0"
+            }
+          ],
+          "type": "SEMVER"
+        }
+      ],
+      "affected_versions": null,
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "CVE-2021-23337",
+        "GHSA-35jh-r3h4-6jhm",
+        "npm://registry.npmjs.org/lodash-template",
+        "pkg:npm/lodash-template"
+      ],
+      "cve_id": "CVE-2021-23337",
+      "ecosystem": "npm",
+      "fixed_versions": null,
+      "package_id": "npm://registry.npmjs.org/lodash-template",
+      "package_name": "lodash-template",
+      "purl": "pkg:npm/lodash-template",
+      "source": "osv"
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+      "FactKey": "5b59e55f88a8177ede48930e72e90da4d60754c0b20d55e6bbd91930937beb5d",
+      "SourceURI": "",
+      "SourceRecordID": "npm://registry.npmjs.org/lodash-template#GHSA-35jh-r3h4-6jhm"
+    }
+  },
+  {
+    "FactID": "07b7ffc074e2bd6d5b5fb0571714464850b0e80712dd8bbf09d13cfb5daf5fa7",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+    "FactKind": "vulnerability.affected_package",
+    "StableFactKey": "22982d91ddf2db5b5479966cde348e9c2e2a85680f82b6e119ab1e81c5b17abc",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "GHSA-35jh-r3h4-6jhm",
+      "affected_ranges": [
+        {
+          "events": [
+            {
+              "introduced": "0"
+            },
+            {
+              "fixed": "4.17.21"
+            }
+          ],
+          "type": "ECOSYSTEM"
+        }
+      ],
+      "affected_versions": [
+        "0.10.0",
+        "0.7.0",
+        "0.8.1",
+        "0.8.2",
+        "0.9.0",
+        "0.9.1",
+        "0.9.2",
+        "1.0.0.rc.1",
+        "1.0.0.rc.2",
+        "1.0.0.rc.3",
+        "1.0.1",
+        "1.1.0",
+        "1.1.1",
+        "1.2.0",
+        "1.2.1",
+        "1.3.1",
+        "2.0.0",
+        "2.1.0",
+        "2.2.0",
+        "2.2.1",
+        "2.3.0",
+        "2.4.0",
+        "2.4.1",
+        "3.1.0",
+        "3.10.0",
+        "3.10.1",
+        "3.2.0",
+        "3.3.0",
+        "3.3.1",
+        "3.3.1.1",
+        "3.4.0",
+        "3.5.0",
+        "3.6.0",
+        "3.7.0",
+        "3.9.3",
+        "4.0.0",
+        "4.11.2",
+        "4.12.0",
+        "4.13.1",
+        "4.14.1",
+        "4.15.0",
+        "4.16.1",
+        "4.16.3",
+        "4.16.4",
+        "4.16.6",
+        "4.17.10",
+        "4.17.11",
+        "4.17.14",
+        "4.17.15",
+        "4.17.2",
+        "4.17.4",
+        "4.17.5",
+        "4.3.0",
+        "4.5.1",
+        "4.6.1"
+      ],
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "CVE-2021-23337",
+        "GHSA-35jh-r3h4-6jhm",
+        "pkg:gem/lodash-rails",
+        "rubygems://rubygems.org/lodash-rails"
+      ],
+      "cve_id": "CVE-2021-23337",
+      "ecosystem": "rubygems",
+      "fixed_versions": [
+        "4.17.21"
+      ],
+      "package_id": "rubygems://rubygems.org/lodash-rails",
+      "package_name": "lodash-rails",
+      "purl": "pkg:gem/lodash-rails",
+      "source": "osv"
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+      "FactKey": "22982d91ddf2db5b5479966cde348e9c2e2a85680f82b6e119ab1e81c5b17abc",
+      "SourceURI": "",
+      "SourceRecordID": "rubygems://rubygems.org/lodash-rails#GHSA-35jh-r3h4-6jhm"
+    }
+  },
+  {
+    "FactID": "6dc65c322ff1e12360b8346710998aa87adbaaa4cc802163c1266257a82b1b5c",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+    "FactKind": "vulnerability.reference",
+    "StableFactKey": "31a890b04f4ab44705253184de47335e6bb7bda5dc07c915c68e54829cfef922",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "GHSA-35jh-r3h4-6jhm",
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "CVE-2021-23337",
+        "GHSA-35jh-r3h4-6jhm",
+        "https://nvd.nist.gov/vuln/detail/CVE-2021-23337"
+      ],
+      "cve_id": "CVE-2021-23337",
+      "reference_type": "ADVISORY",
+      "source": "osv",
+      "url": "https://nvd.nist.gov/vuln/detail/CVE-2021-23337"
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+      "FactKey": "31a890b04f4ab44705253184de47335e6bb7bda5dc07c915c68e54829cfef922",
+      "SourceURI": "",
+      "SourceRecordID": "GHSA-35jh-r3h4-6jhm#https://nvd.nist.gov/vuln/detail/CVE-2021-23337"
+    }
+  },
+  {
+    "FactID": "6369c8ad1ed9cc858421c04c14157e25a8d39f73cec052299a8f66b2fa7f0bd4",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+    "FactKind": "vulnerability.reference",
+    "StableFactKey": "6416da5106c24d6821f11858d752ea084b5fcb6829dff04e79cccce0eccc042c",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "GHSA-35jh-r3h4-6jhm",
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "CVE-2021-23337",
+        "GHSA-35jh-r3h4-6jhm",
+        "https://github.com/lodash/lodash/commit/3469357cff396a26c363f8c1b5a91dde28ba4b1c"
+      ],
+      "cve_id": "CVE-2021-23337",
+      "reference_type": "WEB",
+      "source": "osv",
+      "url": "https://github.com/lodash/lodash/commit/3469357cff396a26c363f8c1b5a91dde28ba4b1c"
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+      "FactKey": "6416da5106c24d6821f11858d752ea084b5fcb6829dff04e79cccce0eccc042c",
+      "SourceURI": "",
+      "SourceRecordID": "GHSA-35jh-r3h4-6jhm#https://github.com/lodash/lodash/commit/3469357cff396a26c363f8c1b5a91dde28ba4b1c"
+    }
+  },
+  {
+    "FactID": "bb4f83ae583d462ff9d1f87bc0fd9fbce09741c53a4925294649ab405ed47cad",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+    "FactKind": "vulnerability.reference",
+    "StableFactKey": "299e3ccecb9f1daa9d5c282b471443dbcbc292b0d27b7d09137959e22ddb39ed",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "GHSA-35jh-r3h4-6jhm",
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "CVE-2021-23337",
+        "GHSA-35jh-r3h4-6jhm",
+        "https://www.oracle.com/security-alerts/cpuoct2021.html"
+      ],
+      "cve_id": "CVE-2021-23337",
+      "reference_type": "WEB",
+      "source": "osv",
+      "url": "https://www.oracle.com/security-alerts/cpuoct2021.html"
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+      "FactKey": "299e3ccecb9f1daa9d5c282b471443dbcbc292b0d27b7d09137959e22ddb39ed",
+      "SourceURI": "",
+      "SourceRecordID": "GHSA-35jh-r3h4-6jhm#https://www.oracle.com/security-alerts/cpuoct2021.html"
+    }
+  },
+  {
+    "FactID": "be066fec3d6304f2faa273da947d74a777cfa7844b4602c0a7369175ef0d274a",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+    "FactKind": "vulnerability.reference",
+    "StableFactKey": "6ad28ce34f296fc95a4e53a6024332f289fcda292cb610004dcfda883ca7a125",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "GHSA-35jh-r3h4-6jhm",
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "CVE-2021-23337",
+        "GHSA-35jh-r3h4-6jhm",
+        "https://www.oracle.com/security-alerts/cpujul2022.html"
+      ],
+      "cve_id": "CVE-2021-23337",
+      "reference_type": "WEB",
+      "source": "osv",
+      "url": "https://www.oracle.com/security-alerts/cpujul2022.html"
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+      "FactKey": "6ad28ce34f296fc95a4e53a6024332f289fcda292cb610004dcfda883ca7a125",
+      "SourceURI": "",
+      "SourceRecordID": "GHSA-35jh-r3h4-6jhm#https://www.oracle.com/security-alerts/cpujul2022.html"
+    }
+  },
+  {
+    "FactID": "96213b9362646ea3a10836ede16c4471318408bfcdcd02107c1e2f305fc00bdb",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+    "FactKind": "vulnerability.reference",
+    "StableFactKey": "d4d62caf60927f3209a493ef78c07ca6a1ff4102b85c723e98f1cc7d861ff452",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "GHSA-35jh-r3h4-6jhm",
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "CVE-2021-23337",
+        "GHSA-35jh-r3h4-6jhm",
+        "https://www.oracle.com/security-alerts/cpujan2022.html"
+      ],
+      "cve_id": "CVE-2021-23337",
+      "reference_type": "WEB",
+      "source": "osv",
+      "url": "https://www.oracle.com/security-alerts/cpujan2022.html"
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+      "FactKey": "d4d62caf60927f3209a493ef78c07ca6a1ff4102b85c723e98f1cc7d861ff452",
+      "SourceURI": "",
+      "SourceRecordID": "GHSA-35jh-r3h4-6jhm#https://www.oracle.com/security-alerts/cpujan2022.html"
+    }
+  },
+  {
+    "FactID": "343c26f7b705322e7b0325802fca27b68098694cfeb9e1e1825a664c9cfc92ed",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+    "FactKind": "vulnerability.reference",
+    "StableFactKey": "59de3074fcdcabc7b667a0e0e21cd7bddd69be85d10d3cd2b619ba3f82f38a05",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "GHSA-35jh-r3h4-6jhm",
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "CVE-2021-23337",
+        "GHSA-35jh-r3h4-6jhm",
+        "https://www.oracle.com//security-alerts/cpujul2021.html"
+      ],
+      "cve_id": "CVE-2021-23337",
+      "reference_type": "WEB",
+      "source": "osv",
+      "url": "https://www.oracle.com//security-alerts/cpujul2021.html"
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+      "FactKey": "59de3074fcdcabc7b667a0e0e21cd7bddd69be85d10d3cd2b619ba3f82f38a05",
+      "SourceURI": "",
+      "SourceRecordID": "GHSA-35jh-r3h4-6jhm#https://www.oracle.com//security-alerts/cpujul2021.html"
+    }
+  },
+  {
+    "FactID": "c5ed94acd0bc515f2258f3051917598ce556c4a61c20552573e9edbb29fbe8a1",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+    "FactKind": "vulnerability.reference",
+    "StableFactKey": "85ccca13282e87c61460e827a441e2fba7e746780ee0e7d12a214fca85c8c010",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "GHSA-35jh-r3h4-6jhm",
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "CVE-2021-23337",
+        "GHSA-35jh-r3h4-6jhm",
+        "https://snyk.io/vuln/SNYK-JS-LODASH-1040724"
+      ],
+      "cve_id": "CVE-2021-23337",
+      "reference_type": "WEB",
+      "source": "osv",
+      "url": "https://snyk.io/vuln/SNYK-JS-LODASH-1040724"
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+      "FactKey": "85ccca13282e87c61460e827a441e2fba7e746780ee0e7d12a214fca85c8c010",
+      "SourceURI": "",
+      "SourceRecordID": "GHSA-35jh-r3h4-6jhm#https://snyk.io/vuln/SNYK-JS-LODASH-1040724"
+    }
+  },
+  {
+    "FactID": "3b0f5598278868a8fc42fd9ee6510865209fcbec8ff5184881f7085915eef7d3",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+    "FactKind": "vulnerability.reference",
+    "StableFactKey": "9751781103f0bcf5966f890ed68d1d0b667b2fdd79a1fe6786a208fc23292ffb",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "GHSA-35jh-r3h4-6jhm",
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "CVE-2021-23337",
+        "GHSA-35jh-r3h4-6jhm",
+        "https://snyk.io/vuln/SNYK-JAVA-ORGWEBJARSNPM-1074929"
+      ],
+      "cve_id": "CVE-2021-23337",
+      "reference_type": "WEB",
+      "source": "osv",
+      "url": "https://snyk.io/vuln/SNYK-JAVA-ORGWEBJARSNPM-1074929"
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+      "FactKey": "9751781103f0bcf5966f890ed68d1d0b667b2fdd79a1fe6786a208fc23292ffb",
+      "SourceURI": "",
+      "SourceRecordID": "GHSA-35jh-r3h4-6jhm#https://snyk.io/vuln/SNYK-JAVA-ORGWEBJARSNPM-1074929"
+    }
+  },
+  {
+    "FactID": "095af7c054312e1014b594cc4e26e0a47e03eea47983f09a3607d35de727ed75",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+    "FactKind": "vulnerability.reference",
+    "StableFactKey": "271718c0572d22f1b9697590aae9467b01cc50117e1620cdbb65e9d71f48d07f",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "GHSA-35jh-r3h4-6jhm",
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "CVE-2021-23337",
+        "GHSA-35jh-r3h4-6jhm",
+        "https://snyk.io/vuln/SNYK-JAVA-ORGWEBJARSBOWERGITHUBLODASH-1074931"
+      ],
+      "cve_id": "CVE-2021-23337",
+      "reference_type": "WEB",
+      "source": "osv",
+      "url": "https://snyk.io/vuln/SNYK-JAVA-ORGWEBJARSBOWERGITHUBLODASH-1074931"
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+      "FactKey": "271718c0572d22f1b9697590aae9467b01cc50117e1620cdbb65e9d71f48d07f",
+      "SourceURI": "",
+      "SourceRecordID": "GHSA-35jh-r3h4-6jhm#https://snyk.io/vuln/SNYK-JAVA-ORGWEBJARSBOWERGITHUBLODASH-1074931"
+    }
+  },
+  {
+    "FactID": "124b5c72f3c3182969190ac6264c25f2d5fd643f506a6b57ad03ad498b78de46",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+    "FactKind": "vulnerability.reference",
+    "StableFactKey": "5e311b26c40b69c2247c5ce08c9fb3774c5dce5e77daaee29b50f9a052ff58cb",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "GHSA-35jh-r3h4-6jhm",
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "CVE-2021-23337",
+        "GHSA-35jh-r3h4-6jhm",
+        "https://snyk.io/vuln/SNYK-JAVA-ORGWEBJARSBOWER-1074928"
+      ],
+      "cve_id": "CVE-2021-23337",
+      "reference_type": "WEB",
+      "source": "osv",
+      "url": "https://snyk.io/vuln/SNYK-JAVA-ORGWEBJARSBOWER-1074928"
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+      "FactKey": "5e311b26c40b69c2247c5ce08c9fb3774c5dce5e77daaee29b50f9a052ff58cb",
+      "SourceURI": "",
+      "SourceRecordID": "GHSA-35jh-r3h4-6jhm#https://snyk.io/vuln/SNYK-JAVA-ORGWEBJARSBOWER-1074928"
+    }
+  },
+  {
+    "FactID": "d6cdb771b3af8524600b492a9ca982a82eb3db06cc8c0d430a472278a6bb4f59",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+    "FactKind": "vulnerability.reference",
+    "StableFactKey": "8c48c97c843750f74936eb77d7341a423d5485b5fc17ab9f261d3abbab55b03b",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "GHSA-35jh-r3h4-6jhm",
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "CVE-2021-23337",
+        "GHSA-35jh-r3h4-6jhm",
+        "https://snyk.io/vuln/SNYK-JAVA-ORGWEBJARS-1074930"
+      ],
+      "cve_id": "CVE-2021-23337",
+      "reference_type": "WEB",
+      "source": "osv",
+      "url": "https://snyk.io/vuln/SNYK-JAVA-ORGWEBJARS-1074930"
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+      "FactKey": "8c48c97c843750f74936eb77d7341a423d5485b5fc17ab9f261d3abbab55b03b",
+      "SourceURI": "",
+      "SourceRecordID": "GHSA-35jh-r3h4-6jhm#https://snyk.io/vuln/SNYK-JAVA-ORGWEBJARS-1074930"
+    }
+  },
+  {
+    "FactID": "5709d15a5b4d5719f1861266d46fa25750df7cd4c7f3ddf0ece2df44fd2307b8",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+    "FactKind": "vulnerability.reference",
+    "StableFactKey": "007043df2a4bdb8b267afc4cd2accb06d2a62545bdf13689daf53f1884cda7c0",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "GHSA-35jh-r3h4-6jhm",
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "CVE-2021-23337",
+        "GHSA-35jh-r3h4-6jhm",
+        "https://snyk.io/vuln/SNYK-JAVA-ORGFUJIONWEBJARS-1074932"
+      ],
+      "cve_id": "CVE-2021-23337",
+      "reference_type": "WEB",
+      "source": "osv",
+      "url": "https://snyk.io/vuln/SNYK-JAVA-ORGFUJIONWEBJARS-1074932"
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+      "FactKey": "007043df2a4bdb8b267afc4cd2accb06d2a62545bdf13689daf53f1884cda7c0",
+      "SourceURI": "",
+      "SourceRecordID": "GHSA-35jh-r3h4-6jhm#https://snyk.io/vuln/SNYK-JAVA-ORGFUJIONWEBJARS-1074932"
+    }
+  },
+  {
+    "FactID": "df4f8469ec30e9ee56c20aacd16087d7476b9d6514355bfa85efd9d37ba54e01",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+    "FactKind": "vulnerability.reference",
+    "StableFactKey": "c720dde50a9aa8f24edb9dad170564b476f4d10f47674c6bd6c7b1031ae0e6d8",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "GHSA-35jh-r3h4-6jhm",
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "CVE-2021-23337",
+        "GHSA-35jh-r3h4-6jhm",
+        "https://security.netapp.com/advisory/ntap-20210312-0006"
+      ],
+      "cve_id": "CVE-2021-23337",
+      "reference_type": "WEB",
+      "source": "osv",
+      "url": "https://security.netapp.com/advisory/ntap-20210312-0006"
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+      "FactKey": "c720dde50a9aa8f24edb9dad170564b476f4d10f47674c6bd6c7b1031ae0e6d8",
+      "SourceURI": "",
+      "SourceRecordID": "GHSA-35jh-r3h4-6jhm#https://security.netapp.com/advisory/ntap-20210312-0006"
+    }
+  },
+  {
+    "FactID": "8a1932c5551cde0028f0c7e2a91c31ecbb542c502ea63c8eeee805fe609a9c72",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+    "FactKind": "vulnerability.reference",
+    "StableFactKey": "6f9440aef32b90e7b3cdba601c7726a5b22c72e148c3312506e5149ac914f199",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "GHSA-35jh-r3h4-6jhm",
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "CVE-2021-23337",
+        "GHSA-35jh-r3h4-6jhm",
+        "https://github.com/rubysec/ruby-advisory-db/blob/master/gems/lodash-rails/CVE-2021-23337.yml"
+      ],
+      "cve_id": "CVE-2021-23337",
+      "reference_type": "WEB",
+      "source": "osv",
+      "url": "https://github.com/rubysec/ruby-advisory-db/blob/master/gems/lodash-rails/CVE-2021-23337.yml"
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+      "FactKey": "6f9440aef32b90e7b3cdba601c7726a5b22c72e148c3312506e5149ac914f199",
+      "SourceURI": "",
+      "SourceRecordID": "GHSA-35jh-r3h4-6jhm#https://github.com/rubysec/ruby-advisory-db/blob/master/gems/lodash-rails/CVE-2021-23337.yml"
+    }
+  },
+  {
+    "FactID": "9d97abc931ed96500bc14da56da757a3da237d67fea4de06b0ed2f56f8e67d9d",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+    "FactKind": "vulnerability.reference",
+    "StableFactKey": "ca1843b7cf81a822be4b36f22f19f46d79520e6777b3dd1d4b7d3c8f5fc6e7b3",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "GHSA-35jh-r3h4-6jhm",
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "CVE-2021-23337",
+        "GHSA-35jh-r3h4-6jhm",
+        "https://github.com/lodash/lodash/blob/ddfd9b11a0126db2302cb70ec9973b66baec0975/lodash.js"
+      ],
+      "cve_id": "CVE-2021-23337",
+      "reference_type": "WEB",
+      "source": "osv",
+      "url": "https://github.com/lodash/lodash/blob/ddfd9b11a0126db2302cb70ec9973b66baec0975/lodash.js"
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+      "FactKey": "ca1843b7cf81a822be4b36f22f19f46d79520e6777b3dd1d4b7d3c8f5fc6e7b3",
+      "SourceURI": "",
+      "SourceRecordID": "GHSA-35jh-r3h4-6jhm#https://github.com/lodash/lodash/blob/ddfd9b11a0126db2302cb70ec9973b66baec0975/lodash.js"
+    }
+  },
+  {
+    "FactID": "553bbeb4728fa02432429743698ee673f305d111239734aebaca0c7ce15b3827",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+    "FactKind": "vulnerability.reference",
+    "StableFactKey": "3938f3684611be32abc94c09354745678da76aab297c9c82b8502aaa727477ab",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "GHSA-35jh-r3h4-6jhm",
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "CVE-2021-23337",
+        "GHSA-35jh-r3h4-6jhm",
+        "https://github.com/lodash/lodash"
+      ],
+      "cve_id": "CVE-2021-23337",
+      "reference_type": "PACKAGE",
+      "source": "osv",
+      "url": "https://github.com/lodash/lodash"
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+      "FactKey": "3938f3684611be32abc94c09354745678da76aab297c9c82b8502aaa727477ab",
+      "SourceURI": "",
+      "SourceRecordID": "GHSA-35jh-r3h4-6jhm#https://github.com/lodash/lodash"
+    }
+  },
+  {
+    "FactID": "468f83f31813b8465869ef9b8add8e79090079bdc46bd96db9103df29e4f9a9e",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+    "FactKind": "vulnerability.reference",
+    "StableFactKey": "8f31fcf16e77a70829df4c6c3f90d4671eb561d49f94729d2b2ebd1fc48514d0",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "GHSA-35jh-r3h4-6jhm",
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "CVE-2021-23337",
+        "GHSA-35jh-r3h4-6jhm",
+        "https://cert-portal.siemens.com/productcert/pdf/ssa-637483.pdf"
+      ],
+      "cve_id": "CVE-2021-23337",
+      "reference_type": "WEB",
+      "source": "osv",
+      "url": "https://cert-portal.siemens.com/productcert/pdf/ssa-637483.pdf"
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+      "FactKey": "8f31fcf16e77a70829df4c6c3f90d4671eb561d49f94729d2b2ebd1fc48514d0",
+      "SourceURI": "",
+      "SourceRecordID": "GHSA-35jh-r3h4-6jhm#https://cert-portal.siemens.com/productcert/pdf/ssa-637483.pdf"
+    }
+  }
+]

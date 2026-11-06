@@ -99,7 +99,8 @@ func TestAdvisoryEvidenceQueryProbesLookupValueFirstWithoutScopeFanout(t *testin
 	// literal so the planner can use the package_id/purl partial indexes
 	// that are partial on vulnerability.affected_package. GitLab CVE
 	// envelopes also carry package_id
-	// (gitlab_gemnasium_envelope.go newGitLabCVEEnvelope), so the
+	// (newGitLabCVEEnvelope in
+	// eshu-hq/eshu-collector-vulnerability-intelligence), so the
 	// affected_package pin alone would drop package-matching rows of
 	// other kinds (issue #9474 P1): the four five-kind slices below
 	// cover them. Without the literals the legs fall back to per-scope

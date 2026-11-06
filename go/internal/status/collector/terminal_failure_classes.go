@@ -85,9 +85,10 @@ var registryFailureClasses = []string{
 //     registry_metadata_too_large (collector/registry/package/runtime/
 //     http_provider.go).
 //   - vulnerability_intelligence: non_retryable, the terminal sourceFailure
-//     class (collector/vulnerabilityintelligence/vulnruntime/source_state.go
-//     over vulnsource.ErrorClassNonRetryable). Its rate_limited and retryable
-//     classes are common.
+//     class (ErrorClassNonRetryable in the extracted satellite
+//     eshu-hq/eshu-collector-vulnerability-intelligence, recorded through
+//     the extension host over vulnsource.ErrorClassNonRetryable). Its
+//     rate_limited and retryable classes are common.
 //   - scanner_worker: the scannercomponent.FailureClass vocabulary
 //     (collector/scannercomponent/vocabulary.go). The worker dead-letters a
 //     claim with FailClaimTerminal and the analyzer's class.

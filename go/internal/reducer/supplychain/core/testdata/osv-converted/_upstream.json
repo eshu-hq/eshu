@@ -1,0 +1,25 @@
+{
+  "alpine-cve-2023-27537.json": [
+    "CVE-2023-27537"
+  ],
+  "alsa-2021-4511.json": [
+    "CVE-2021-22876",
+    "CVE-2021-22898",
+    "CVE-2021-22925"
+  ],
+  "debian-cve-2003-1605.json": null,
+  "debian-cve-2023-38039.json": null,
+  "ghsa-35jh-r3h4-6jhm.json": null,
+  "rlsa-2021-1610.json": [
+    "CVE-2020-8231",
+    "CVE-2020-8284",
+    "CVE-2020-8285",
+    "CVE-2020-8286"
+  ],
+  "ubuntu-cve-2016-5419.json": [
+    "CVE-2016-5419"
+  ],
+  "ubuntu-cve-2022-27775.json": [
+    "CVE-2022-27775"
+  ]
+}

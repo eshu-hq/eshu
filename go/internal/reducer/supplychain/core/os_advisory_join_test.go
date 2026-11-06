@@ -6,9 +6,7 @@ package core
 import (
 	"slices"
 	"testing"
-	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/vulnerabilityintelligence"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -39,36 +37,36 @@ func TestOSVOSAdvisoryJoinsInstalledRowAndStatesReleaseAmbiguity(t *testing.T) {
 		// DEBIAN-CVE-2023-38039: bookworm fixed 7.88.1-10+deb12u3, trixie
 		// and forky fixed 8.3.0-1. The fixture lists Debian 12/13/14.
 		// Listed host below its own fix: the host line decides, exact.
-		{"debian bookworm below every fix", "debian-cve-2023-38039.json", debianCurl("12", "7.88.1-10+deb12u2"), SupplyChainImpactAffectedExact, supplyChainVersionReasonDPKGAffectedRange},
+		{"debian bookworm below every fix", "file-debian-cve-2023-38039", debianCurl("12", "7.88.1-10+deb12u2"), SupplyChainImpactAffectedExact, supplyChainVersionReasonDPKGAffectedRange},
 		// Unlisted host: no host line to decide, never exact/known-fixed.
-		{"debian bullseye, a release the record does not list", "debian-cve-2023-38039.json", debianCurl("11", "7.74.0-1.3+deb11u7"), SupplyChainImpactPossiblyAffected, unlisted},
-		{"debian buster, a release the record does not list", "debian-cve-2023-38039.json", debianCurl("10", "7.64.0-4+deb10u2"), SupplyChainImpactPossiblyAffected, unlisted},
+		{"debian bullseye, a release the record does not list", "file-debian-cve-2023-38039", debianCurl("11", "7.74.0-1.3+deb11u7"), SupplyChainImpactPossiblyAffected, unlisted},
+		{"debian buster, a release the record does not list", "file-debian-cve-2023-38039", debianCurl("10", "7.64.0-4+deb10u2"), SupplyChainImpactPossiblyAffected, unlisted},
 		// Listed host at its own fix (equal, hence the exact known-fixed
 		// reason, not the above-fix range reason).
-		{"debian bookworm at its backported fix", "debian-cve-2023-38039.json", debianCurl("12", "7.88.1-10+deb12u3"), SupplyChainImpactNotAffectedKnownFixed, supplyChainVersionReasonDPKGExactKnownFixed},
-		{"debian trixie below its fix", "debian-cve-2023-38039.json", debianCurl("13", "8.2.0-1"), SupplyChainImpactAffectedExact, supplyChainVersionReasonDPKGAffectedRange},
-		{"debian trixie at its fix", "debian-cve-2023-38039.json", debianCurl("13", "8.3.0-1"), SupplyChainImpactNotAffectedKnownFixed, supplyChainVersionReasonDPKGExactKnownFixed},
+		{"debian bookworm at its backported fix", "file-debian-cve-2023-38039", debianCurl("12", "7.88.1-10+deb12u3"), SupplyChainImpactNotAffectedKnownFixed, supplyChainVersionReasonDPKGExactKnownFixed},
+		{"debian trixie below its fix", "file-debian-cve-2023-38039", debianCurl("13", "8.2.0-1"), SupplyChainImpactAffectedExact, supplyChainVersionReasonDPKGAffectedRange},
+		{"debian trixie at its fix", "file-debian-cve-2023-38039", debianCurl("13", "8.3.0-1"), SupplyChainImpactNotAffectedKnownFixed, supplyChainVersionReasonDPKGExactKnownFixed},
 		// ALPINE-CVE-2023-27537: v3.14-v3.16 fixed 8.0.1-r0, v3.17
 		// 7.88.1-r1, v3.18 onward 8.0.0-r0. Purl pkg:apk/alpine/curl?arch=source.
 		// The fixture lists v3.14-v3.24.
-		{"alpine below every fix", "alpine-cve-2023-27537.json", alpineCurl("3.18.4", "7.88.1-r0"), SupplyChainImpactAffectedExact, supplyChainVersionReasonAPKAffectedRange},
-		{"alpine v3.13, a release the record does not list", "alpine-cve-2023-27537.json", alpineCurl("3.13.12", "7.79.1-r0"), SupplyChainImpactPossiblyAffected, unlisted},
-		{"alpine v3.18 at its fix", "alpine-cve-2023-27537.json", alpineCurl("3.18.4", "8.0.0-r0"), SupplyChainImpactNotAffectedKnownFixed, supplyChainVersionReasonAPKExactKnownFixed},
+		{"alpine below every fix", "file-alpine-cve-2023-27537", alpineCurl("3.18.4", "7.88.1-r0"), SupplyChainImpactAffectedExact, supplyChainVersionReasonAPKAffectedRange},
+		{"alpine v3.13, a release the record does not list", "file-alpine-cve-2023-27537", alpineCurl("3.13.12", "7.79.1-r0"), SupplyChainImpactPossiblyAffected, unlisted},
+		{"alpine v3.18 at its fix", "file-alpine-cve-2023-27537", alpineCurl("3.18.4", "8.0.0-r0"), SupplyChainImpactNotAffectedKnownFixed, supplyChainVersionReasonAPKExactKnownFixed},
 		// Listed host above its own fix: known-fixed via the range path.
-		{"alpine above every fix", "alpine-cve-2023-27537.json", alpineCurl("3.18.4", "8.0.1-r0"), SupplyChainImpactNotAffectedKnownFixed, supplyChainVersionReasonAPKKnownFixed},
+		{"alpine above every fix", "file-alpine-cve-2023-27537", alpineCurl("3.18.4", "8.0.1-r0"), SupplyChainImpactNotAffectedKnownFixed, supplyChainVersionReasonAPKKnownFixed},
 		// UBUNTU-CVE-2022-27775: versionless purls; focal fixed
 		// 7.68.0-1ubuntu2.10, jammy 7.81.0-1ubuntu1.1. The fixture lists
 		// focal and jammy only.
-		{"ubuntu versionless purl below every fix", "ubuntu-cve-2022-27775.json", ubuntuCurl("20.04", "7.68.0-1ubuntu2.7"), SupplyChainImpactAffectedExact, supplyChainVersionReasonDPKGAffectedRange},
-		{"ubuntu bionic, a release the record does not list", "ubuntu-cve-2022-27775.json", ubuntuCurl("18.04", "7.58.0-2ubuntu3.16"), SupplyChainImpactPossiblyAffected, unlisted},
-		{"ubuntu versionless purl jammy below its fix", "ubuntu-cve-2022-27775.json", ubuntuCurl("22.04", "7.81.0-1ubuntu1"), SupplyChainImpactAffectedExact, supplyChainVersionReasonDPKGAffectedRange},
-		{"ubuntu versionless purl jammy at its fix", "ubuntu-cve-2022-27775.json", ubuntuCurl("22.04", "7.81.0-1ubuntu1.1"), SupplyChainImpactNotAffectedKnownFixed, supplyChainVersionReasonDPKGExactKnownFixed},
+		{"ubuntu versionless purl below every fix", "file-ubuntu-cve-2022-27775", ubuntuCurl("20.04", "7.68.0-1ubuntu2.7"), SupplyChainImpactAffectedExact, supplyChainVersionReasonDPKGAffectedRange},
+		{"ubuntu bionic, a release the record does not list", "file-ubuntu-cve-2022-27775", ubuntuCurl("18.04", "7.58.0-2ubuntu3.16"), SupplyChainImpactPossiblyAffected, unlisted},
+		{"ubuntu versionless purl jammy below its fix", "file-ubuntu-cve-2022-27775", ubuntuCurl("22.04", "7.81.0-1ubuntu1"), SupplyChainImpactAffectedExact, supplyChainVersionReasonDPKGAffectedRange},
+		{"ubuntu versionless purl jammy at its fix", "file-ubuntu-cve-2022-27775", ubuntuCurl("22.04", "7.81.0-1ubuntu1.1"), SupplyChainImpactNotAffectedKnownFixed, supplyChainVersionReasonDPKGExactKnownFixed},
 		// UBUNTU-CVE-2016-5419: versioned purls (pkg:deb/ubuntu/curl@<v>?...);
 		// trusty fixed 7.35.0-1ubuntu2.8, xenial 7.47.0-1ubuntu2.1. The
 		// fixture lists trusty and xenial.
-		{"ubuntu versioned purl below every fix", "ubuntu-cve-2016-5419.json", ubuntuCurl("14.04", "7.35.0-1ubuntu2.7"), SupplyChainImpactAffectedExact, supplyChainVersionReasonDPKGAffectedRange},
-		{"ubuntu versioned purl trusty at its fix", "ubuntu-cve-2016-5419.json", ubuntuCurl("14.04", "7.35.0-1ubuntu2.8"), SupplyChainImpactNotAffectedKnownFixed, supplyChainVersionReasonDPKGExactKnownFixed},
-		{"ubuntu versioned purl above every fix", "ubuntu-cve-2016-5419.json", ubuntuCurl("16.04", "7.47.0-1ubuntu2.1"), SupplyChainImpactNotAffectedKnownFixed, supplyChainVersionReasonDPKGExactKnownFixed},
+		{"ubuntu versioned purl below every fix", "file-ubuntu-cve-2016-5419", ubuntuCurl("14.04", "7.35.0-1ubuntu2.7"), SupplyChainImpactAffectedExact, supplyChainVersionReasonDPKGAffectedRange},
+		{"ubuntu versioned purl trusty at its fix", "file-ubuntu-cve-2016-5419", ubuntuCurl("14.04", "7.35.0-1ubuntu2.8"), SupplyChainImpactNotAffectedKnownFixed, supplyChainVersionReasonDPKGExactKnownFixed},
+		{"ubuntu versioned purl above every fix", "file-ubuntu-cve-2016-5419", ubuntuCurl("16.04", "7.47.0-1ubuntu2.1"), SupplyChainImpactNotAffectedKnownFixed, supplyChainVersionReasonDPKGExactKnownFixed},
 	}
 	for _, tc := range tests {
 		for _, reverse := range []bool{false, true} {
@@ -118,32 +116,17 @@ func TestOSVOSAdvisoryJoinsInstalledRowAndStatesReleaseAmbiguity(t *testing.T) {
 func TestOSVOSAdvisoryJoinNegatives(t *testing.T) {
 	t.Parallel()
 
-	purlLess := vulnerabilityintelligence.OSVVulnerability{
-		ID: "SYNTHETIC-OS-PURLLESS",
-		Affected: []vulnerabilityintelligence.OSVAffected{{
-			Package: vulnerabilityintelligence.OSVPackage{Name: "curl", Ecosystem: "Debian:12"},
-			Ranges: []vulnerabilityintelligence.OSVRange{{Type: "ECOSYSTEM", Events: []vulnerabilityintelligence.OSVEvent{
-				{Introduced: "0"}, {Fixed: "7.88.1-10+deb12u3"},
-			}}},
-		}},
-	}
-	purlLessEnvelopes, _, err := vulnerabilityintelligence.OSVRecordEnvelopesReport(vulnerabilityintelligence.OSVEnvelopeContext{
-		ScopeID: "vuln-intel://osv/fixture", GenerationID: "osv:fixture:1",
-		CollectorInstanceID: "public-osv", ObservedAt: time.Date(2026, 11, 2, 0, 0, 0, 0, time.UTC),
-	}, purlLess)
-	if err != nil {
-		t.Fatalf("convert purl-less record: %v", err)
-	}
+	purlLessEnvelopes := convertedOSVFixture(t, "built-purlless", false)
 	lodashRow := installedOSRow{vendor: "debian", release: "12", manager: "dpkg", name: "lodash", arch: "all", version: "4.17.20-1"}
 
 	tests := []struct {
 		name      string
 		envelopes []facts.Envelope
 	}{
-		{"debian advisory against an ubuntu row", append(convertedOSVFixture(t, "debian-cve-2023-38039.json", false), ubuntuCurl("22.04", "7.88.1-10+deb12u2").envelope())},
-		{"ubuntu advisory against a debian row", append(convertedOSVFixture(t, "ubuntu-cve-2022-27775.json", false), debianCurl("12", "7.68.0-1ubuntu2.7").envelope())},
+		{"debian advisory against an ubuntu row", append(convertedOSVFixture(t, "file-debian-cve-2023-38039", false), ubuntuCurl("22.04", "7.88.1-10+deb12u2").envelope())},
+		{"ubuntu advisory against a debian row", append(convertedOSVFixture(t, "file-ubuntu-cve-2022-27775", false), debianCurl("12", "7.68.0-1ubuntu2.7").envelope())},
 		{"purl-less os entry", append(purlLessEnvelopes, debianCurl("12", "7.88.1-10+deb12u2").envelope())},
-		{"npm advisory against a same-named os row", append(convertedOSVFixture(t, "ghsa-35jh-r3h4-6jhm.json", false), lodashRow.envelope())},
+		{"npm advisory against a same-named os row", append(convertedOSVFixture(t, "file-ghsa-35jh-r3h4-6jhm", false), lodashRow.envelope())},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -163,21 +146,21 @@ func TestOSVOSAdvisoryLookupKeysMeetTheInstalledKey(t *testing.T) {
 	t.Parallel()
 
 	for fixture, want := range map[string][]string{
-		"debian-cve-2023-38039.json": {"os://debian/curl", "pkg:deb/debian/curl"},
-		"alpine-cve-2023-27537.json": {"os://alpine/curl", "pkg:apk/alpine/curl"},
-		"ubuntu-cve-2022-27775.json": {"os://ubuntu/curl", "pkg:deb/ubuntu/curl"},
-		"ubuntu-cve-2016-5419.json":  {"os://ubuntu/curl", "pkg:deb/ubuntu/curl"},
+		"file-debian-cve-2023-38039": {"os://debian/curl", "pkg:deb/debian/curl"},
+		"file-alpine-cve-2023-27537": {"os://alpine/curl", "pkg:apk/alpine/curl"},
+		"file-ubuntu-cve-2022-27775": {"os://ubuntu/curl", "pkg:deb/ubuntu/curl"},
+		"file-ubuntu-cve-2016-5419":  {"os://ubuntu/curl", "pkg:deb/ubuntu/curl"},
 		// The rpm advisories carry both the raw upstream namespace purl and
 		// the canonical pkg:rpm/<vendor>/<name> key; the canonical key is
 		// the one the installed row's split_part(purl, '@', 1) yields
 		// (#9844). The os:// form keeps the advisory package id, which
 		// uses the raw namespace.
-		"alsa-2021-4511.json": {
+		"file-alsa-2021-4511": {
 			"os://almalinux/curl", "os://almalinux/libcurl", "os://almalinux/libcurl-devel", "os://almalinux/libcurl-minimal",
 			"pkg:rpm/alma/curl", "pkg:rpm/alma/libcurl", "pkg:rpm/alma/libcurl-devel", "pkg:rpm/alma/libcurl-minimal",
 			"pkg:rpm/almalinux/curl", "pkg:rpm/almalinux/libcurl", "pkg:rpm/almalinux/libcurl-devel", "pkg:rpm/almalinux/libcurl-minimal",
 		},
-		"rlsa-2021-1610.json": {
+		"file-rlsa-2021-1610": {
 			"os://rocky-linux/curl",
 			"pkg:rpm/rocky-linux/curl", "pkg:rpm/rocky/curl",
 		},
@@ -235,12 +218,12 @@ func TestOSVOSAdvisoryJoinsAlmaRockyRows(t *testing.T) {
 		wantReason string
 	}{
 		// ALSA-2021:4511 fixes curl at 7.61.1-22.el8.
-		{"alma below the fix", "alsa-2021-4511.json", almaCurl("8", "7.61.1-18.el8"), SupplyChainImpactPossiblyAffected, unverified},
-		{"alma at the fix", "alsa-2021-4511.json", almaCurl("8", "7.61.1-22.el8"), SupplyChainImpactNotAffectedKnownFixed, supplyChainVersionReasonRPMKnownFixed},
-		{"alma above the fix", "alsa-2021-4511.json", almaCurl("8", "7.61.1-23.el8"), SupplyChainImpactNotAffectedKnownFixed, supplyChainVersionReasonRPMKnownFixed},
+		{"alma below the fix", "file-alsa-2021-4511", almaCurl("8", "7.61.1-18.el8"), SupplyChainImpactPossiblyAffected, unverified},
+		{"alma at the fix", "file-alsa-2021-4511", almaCurl("8", "7.61.1-22.el8"), SupplyChainImpactNotAffectedKnownFixed, supplyChainVersionReasonRPMKnownFixed},
+		{"alma above the fix", "file-alsa-2021-4511", almaCurl("8", "7.61.1-23.el8"), SupplyChainImpactNotAffectedKnownFixed, supplyChainVersionReasonRPMKnownFixed},
 		// RLSA-2021:1610 fixes curl at 0:7.61.1-18.el8.
-		{"rocky below the fix", "rlsa-2021-1610.json", rockyCurl("8", "0:7.61.1-16.el8"), SupplyChainImpactPossiblyAffected, unverified},
-		{"rocky at the fix", "rlsa-2021-1610.json", rockyCurl("8", "0:7.61.1-18.el8"), SupplyChainImpactNotAffectedKnownFixed, supplyChainVersionReasonRPMKnownFixed},
+		{"rocky below the fix", "file-rlsa-2021-1610", rockyCurl("8", "0:7.61.1-16.el8"), SupplyChainImpactPossiblyAffected, unverified},
+		{"rocky at the fix", "file-rlsa-2021-1610", rockyCurl("8", "0:7.61.1-18.el8"), SupplyChainImpactNotAffectedKnownFixed, supplyChainVersionReasonRPMKnownFixed},
 	}
 	for _, tc := range tests {
 		for _, reverse := range []bool{false, true} {
@@ -256,7 +239,7 @@ func TestOSVOSAdvisoryJoinsAlmaRockyRows(t *testing.T) {
 				// An ALSA or RLSA bulletin names its CVEs in upstream, so the
 				// grouping pass (#9914) splits it into one finding per CVE; the
 				// verdict is the same on every one.
-				upstream := slices.Clone(osvFixtureRecord(t, tc.fixture).Upstream)
+				upstream := slices.Clone(osvFixtureUpstream(t, tc.fixture))
 				slices.Sort(upstream)
 				if len(findings) != len(upstream) {
 					t.Fatalf("findings = %d, want one OS package finding per upstream CVE %v: %#v", len(findings), upstream, findings)
@@ -302,10 +285,10 @@ func TestOSVOSAdvisoryJoinAlmaRockyNegatives(t *testing.T) {
 		name      string
 		envelopes []facts.Envelope
 	}{
-		{"alma advisory against a rocky row", append(convertedOSVFixture(t, "alsa-2021-4511.json", false), rockyCurl("8", "7.61.1-18.el8").envelope())},
-		{"rocky advisory against an alma row", append(convertedOSVFixture(t, "rlsa-2021-1610.json", false), almaCurl("8", "0:7.61.1-16.el8").envelope())},
-		{"alma advisory against a redhat row", append(convertedOSVFixture(t, "alsa-2021-4511.json", false), redhatRow.envelope())},
-		{"alma advisory against a dpkg row", append(convertedOSVFixture(t, "alsa-2021-4511.json", false), debianCurl("12", "7.61.1-18.el8").envelope())},
+		{"alma advisory against a rocky row", append(convertedOSVFixture(t, "file-alsa-2021-4511", false), rockyCurl("8", "7.61.1-18.el8").envelope())},
+		{"rocky advisory against an alma row", append(convertedOSVFixture(t, "file-rlsa-2021-1610", false), almaCurl("8", "0:7.61.1-16.el8").envelope())},
+		{"alma advisory against a redhat row", append(convertedOSVFixture(t, "file-alsa-2021-4511", false), redhatRow.envelope())},
+		{"alma advisory against a dpkg row", append(convertedOSVFixture(t, "file-alsa-2021-4511", false), debianCurl("12", "7.61.1-18.el8").envelope())},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

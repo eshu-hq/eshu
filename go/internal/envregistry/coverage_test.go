@@ -34,7 +34,6 @@ var coreScanFiles = []string{
 	"cmd/collector-pagerduty/config.go",
 	"cmd/collector-security-alerts/config.go",
 	"cmd/collector-sbom-attestation/config.go",
-	"cmd/collector-vulnerability-intelligence/config.go",
 	"cmd/collector-package-registry/config.go",
 	"cmd/collector-oci-registry/config.go",
 	"internal/collector/claim/store/select.go",

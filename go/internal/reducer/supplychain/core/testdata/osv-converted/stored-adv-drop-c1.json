@@ -1,0 +1,83 @@
+[
+  {
+    "FactID": "8fd4a10a87add7598eb838a897371f87c0d274b51005167ab40700cef10423a4",
+    "ScopeID": "scope-adv-c",
+    "GenerationID": "gen-c1",
+    "FactKind": "vulnerability.cve",
+    "StableFactKey": "5199ceaf058bf382d53a35e40fe998cc5e3e6be5ea0d5490b22e03a309abec4c",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-01T00:00:00Z",
+    "Payload": {
+      "advisory_id": "ADV-DROP",
+      "aliases": null,
+      "collector_instance_id": "osv-test",
+      "correlation_anchors": [
+        "ADV-DROP"
+      ],
+      "cve_id": "ADV-DROP",
+      "cvss_vector": "",
+      "database_specific": null,
+      "details": "",
+      "ecosystem_specific": null,
+      "modified_at": "",
+      "published_at": "",
+      "related": null,
+      "severity": null,
+      "severity_label": "",
+      "source": "osv",
+      "source_schema_version": "",
+      "summary": "",
+      "withdrawn_at": ""
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "scope-adv-c",
+      "GenerationID": "gen-c1",
+      "FactKey": "5199ceaf058bf382d53a35e40fe998cc5e3e6be5ea0d5490b22e03a309abec4c",
+      "SourceURI": "https://api.osv.dev/v1/vulns/ADV-DROP",
+      "SourceRecordID": "ADV-DROP"
+    }
+  },
+  {
+    "FactID": "0fd73dafbd9a0d309cf2c28da1574faca33527724e962180aa659471e0c7409d",
+    "ScopeID": "scope-adv-c",
+    "GenerationID": "gen-c1",
+    "FactKind": "vulnerability.affected_package",
+    "StableFactKey": "7fd9c9578d020f072d73b12e9fa7ed350b0baaf5f34f9241f985ee65df9c27a1",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-01T00:00:00Z",
+    "Payload": {
+      "advisory_id": "ADV-DROP",
+      "affected_ranges": null,
+      "affected_versions": null,
+      "collector_instance_id": "osv-test",
+      "correlation_anchors": [
+        "ADV-DROP",
+        "npm://registry.npmjs.org/unpointed-name"
+      ],
+      "cve_id": "ADV-DROP",
+      "ecosystem": "npm",
+      "fixed_versions": null,
+      "package_id": "npm://registry.npmjs.org/unpointed-name",
+      "package_name": "unpointed-name",
+      "purl": "",
+      "source": "osv"
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "scope-adv-c",
+      "GenerationID": "gen-c1",
+      "FactKey": "7fd9c9578d020f072d73b12e9fa7ed350b0baaf5f34f9241f985ee65df9c27a1",
+      "SourceURI": "https://api.osv.dev/v1/vulns/ADV-DROP",
+      "SourceRecordID": "npm://registry.npmjs.org/unpointed-name#ADV-DROP"
+    }
+  }
+]

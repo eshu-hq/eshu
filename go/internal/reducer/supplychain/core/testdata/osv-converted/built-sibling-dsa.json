@@ -1,0 +1,162 @@
+[
+  {
+    "FactID": "b5a88c30f47199d670648a22fae5939464b0b16c5b1b8c981b9070292f0073d1",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+    "FactKind": "vulnerability.cve",
+    "StableFactKey": "e8bc0227d140d00f179683b97140e2d27cbbc8bec1dbb949a53407a5a7d37e48",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "DSA-5651-1",
+      "aliases": null,
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "DSA-5651-1"
+      ],
+      "cve_id": "DSA-5651-1",
+      "cvss_vector": "",
+      "database_specific": null,
+      "details": "",
+      "ecosystem_specific": null,
+      "modified_at": "2026-10-26T18:02:41.322030738Z",
+      "published_at": "2023-09-15T04:15:10.127Z",
+      "related": null,
+      "severity": null,
+      "severity_label": "",
+      "source": "osv",
+      "source_schema_version": "1.9.0",
+      "summary": "",
+      "upstream": [
+        "CVE-2023-38039",
+        "DEBIAN-CVE-2023-38039"
+      ],
+      "withdrawn_at": ""
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+      "FactKey": "e8bc0227d140d00f179683b97140e2d27cbbc8bec1dbb949a53407a5a7d37e48",
+      "SourceURI": "",
+      "SourceRecordID": "DSA-5651-1"
+    }
+  },
+  {
+    "FactID": "767e498d5b4ebb686453f4398ccce79b5440e9b62f51d007c77dcddf0b299a0e",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+    "FactKind": "vulnerability.affected_package",
+    "StableFactKey": "9d8d338a2284c5c7f923678ac9035bae9cc2909ddc85ec2d03586226ad061af2",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "DSA-5651-1",
+      "affected_ranges": [
+        {
+          "events": [
+            {
+              "introduced": "0"
+            },
+            {
+              "fixed": "7.88.1-10+deb12u3"
+            }
+          ],
+          "releases": [
+            "debian:12"
+          ],
+          "type": "ECOSYSTEM"
+        },
+        {
+          "events": [
+            {
+              "introduced": "0"
+            },
+            {
+              "fixed": "8.3.0-1"
+            }
+          ],
+          "releases": [
+            "debian:13",
+            "debian:14"
+          ],
+          "type": "ECOSYSTEM"
+        }
+      ],
+      "affected_versions": [
+        "7.88.1-10",
+        "7.88.1-10+deb12u1",
+        "7.88.1-10+deb12u1~bpo11+1",
+        "7.88.1-10+deb12u2",
+        "7.88.1-10+deb12u3~bpo11+1"
+      ],
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "DSA-5651-1",
+        "os://debian/curl",
+        "pkg:deb/debian/curl?arch=source\u0026distro=bookworm",
+        "pkg:deb/debian/curl?arch=source\u0026distro=forky",
+        "pkg:deb/debian/curl?arch=source\u0026distro=trixie"
+      ],
+      "cve_id": "DSA-5651-1",
+      "ecosystem": "os",
+      "fixed_versions": [
+        "7.88.1-10+deb12u3",
+        "8.3.0-1"
+      ],
+      "package_id": "os://debian/curl",
+      "package_name": "curl",
+      "purl": "pkg:deb/debian/curl?arch=source\u0026distro=bookworm",
+      "source": "osv"
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+      "FactKey": "9d8d338a2284c5c7f923678ac9035bae9cc2909ddc85ec2d03586226ad061af2",
+      "SourceURI": "",
+      "SourceRecordID": "os://debian/curl#DSA-5651-1"
+    }
+  },
+  {
+    "FactID": "508bf95dd3008a7586d8c8583af016d4627ed4e3a4f0320998cd7858c8cb4167",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+    "FactKind": "vulnerability.reference",
+    "StableFactKey": "1cb038906a85fc2cb15ebf77d827f0b5b43c903869fc53027b7efc99ff2fb34d",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "DSA-5651-1",
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "DSA-5651-1",
+        "https://security-tracker.debian.org/tracker/CVE-2023-38039"
+      ],
+      "cve_id": "DSA-5651-1",
+      "reference_type": "ADVISORY",
+      "source": "osv",
+      "url": "https://security-tracker.debian.org/tracker/CVE-2023-38039"
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+      "FactKey": "1cb038906a85fc2cb15ebf77d827f0b5b43c903869fc53027b7efc99ff2fb34d",
+      "SourceURI": "",
+      "SourceRecordID": "DSA-5651-1#https://security-tracker.debian.org/tracker/CVE-2023-38039"
+    }
+  }
+]

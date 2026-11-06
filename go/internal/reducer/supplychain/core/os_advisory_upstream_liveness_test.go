@@ -13,16 +13,16 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
 )
 
-// retractedDLA converts a DLA that lists bullseye and marks its cve fact with
-// status when status is non-empty, or sets the OSV withdrawn timestamp when it
-// is empty. It returns the envelopes and the record's two fact ids.
+// retractedDLA loads the frozen DLA that lists bullseye (withdrawn at the
+// converter when status is empty) and marks its cve fact with status when
+// status is non-empty. It returns the envelopes and the record's two fact ids.
 func retractedDLA(t *testing.T, status string) ([]facts.Envelope, []string) {
 	t.Helper()
-	record := debianRecord("DLA-9999-1", "11", "bullseye", "7.74.0-1.3+deb11u10", "CVE-2023-38039")
+	key := "built-dla-9999"
 	if status == "" {
-		record.Withdrawn = "2026-01-02T00:00:00Z"
+		key = "built-retracted-dla-withdrawn"
 	}
-	envelopes := convertedOSVRecord(t, record, false)
+	envelopes := convertedOSVFixture(t, key, false)
 	var ids []string
 	for at := range envelopes {
 		switch envelopes[at].FactKind {
@@ -54,14 +54,13 @@ func retractedDLA(t *testing.T, status string) ([]facts.Envelope, []string) {
 func TestRetractedRecordDoesNotDecideALiveGroup(t *testing.T) {
 	t.Parallel()
 
-	const cve = "CVE-2023-38039"
 	for name, status := range map[string]string{"withdrawn": "", "rejected": "Rejected"} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
 			dla, dlaFacts := retractedDLA(t, status)
 			envelopes := append(upstreamEnvelopes(t, nil,
-				debianRecord("DEBIAN-CVE-2023-38039", "12", "bookworm", "7.88.1-10+deb12u3", cve)), dla...)
+				frozenDebianCVE), dla...)
 			envelopes = append(envelopes, debianCurl("11", "7.74.0-1.3+deb11u7").envelope())
 			for order, shuffled := range orderings(envelopes) {
 				findings := BuildSupplyChainImpactFindings(shuffled)

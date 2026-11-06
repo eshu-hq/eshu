@@ -5,9 +5,7 @@ package core
 
 import (
 	"testing"
-	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/vulnerabilityintelligence"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -27,18 +25,6 @@ func lastFactIDWins(in []facts.Envelope) []facts.Envelope {
 	return out
 }
 
-func nvdConfiguration(configurationNegate, nodeNegate bool, match vulnerabilityintelligence.NVDCPEMatch) vulnerabilityintelligence.NVDConfiguration {
-	return vulnerabilityintelligence.NVDConfiguration{
-		Operator: "OR",
-		Negate:   configurationNegate,
-		Nodes: []vulnerabilityintelligence.NVDConfigNode{{
-			Operator: "OR",
-			Negate:   nodeNegate,
-			CPEMatch: []vulnerabilityintelligence.NVDCPEMatch{match},
-		}},
-	}
-}
-
 // TestNVDCollectorOutputGivesOrderIndependentFindings pushes one NVD record,
 // whose CPE match repeats across configurations, through the real collector
 // function and the reducer (with the storage layer's last-write-wins fact
@@ -47,43 +33,24 @@ func nvdConfiguration(configurationNegate, nodeNegate bool, match vulnerabilityi
 func TestNVDCollectorOutputGivesOrderIndependentFindings(t *testing.T) {
 	t.Parallel()
 
-	match := vulnerabilityintelligence.NVDCPEMatch{
-		Vulnerable:      true,
-		Criteria:        testImpactProductCriteria,
-		MatchCriteriaID: testImpactMatchCriteriaID,
-	}
-	plain := nvdConfiguration(false, false, match)
-	negatedConfiguration := nvdConfiguration(true, false, match)
-	negatedNode := nvdConfiguration(false, true, match)
-
 	for _, tc := range []struct {
-		name           string
-		configurations []vulnerabilityintelligence.NVDConfiguration
-		wantFindings   int
+		name         string
+		fixture      string
+		wantFindings int
 	}{
-		{name: "plain then negated", configurations: []vulnerabilityintelligence.NVDConfiguration{plain, negatedConfiguration}, wantFindings: 1},
-		{name: "negated then plain", configurations: []vulnerabilityintelligence.NVDConfiguration{negatedConfiguration, plain}, wantFindings: 1},
-		{name: "plain then negated node", configurations: []vulnerabilityintelligence.NVDConfiguration{plain, negatedNode}, wantFindings: 1},
-		{name: "negated node then plain", configurations: []vulnerabilityintelligence.NVDConfiguration{negatedNode, plain}, wantFindings: 1},
-		{name: "every occurrence negated", configurations: []vulnerabilityintelligence.NVDConfiguration{negatedConfiguration, negatedNode}, wantFindings: 0},
-		{name: "every occurrence negated, reversed", configurations: []vulnerabilityintelligence.NVDConfiguration{negatedNode, negatedConfiguration}, wantFindings: 0},
+		{name: "plain then negated", fixture: "built-negate-plain-negated-configuration", wantFindings: 1},
+		{name: "negated then plain", fixture: "built-negate-negated-then-plain", wantFindings: 1},
+		{name: "plain then negated node", fixture: "built-negate-plain-negated-node", wantFindings: 1},
+		{name: "negated node then plain", fixture: "built-negate-negated-node-then-plain", wantFindings: 1},
+		{name: "every occurrence negated", fixture: "built-negate-both-negated", wantFindings: 0},
+		{name: "every occurrence negated, reversed", fixture: "built-negate-both-negated-reversed", wantFindings: 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			emitted, err := vulnerabilityintelligence.NVDRecordEnvelopes(
-				vulnerabilityintelligence.VulnerabilityEnvelopeContext{
-					ScopeID:             "vuln-intel://nvd/cve",
-					GenerationID:        "nvd:2026-10-31T00:00:00Z",
-					CollectorInstanceID: "public-nvd",
-					ObservedAt:          time.Date(2026, 10, 31, 0, 0, 0, 0, time.UTC),
-					SourceURI:           "https://services.nvd.nist.gov/rest/json/cves/2.0?cveId=CVE-2026-0960",
-				},
-				vulnerabilityintelligence.NVDCVE{ID: "CVE-2026-0960", Configurations: tc.configurations},
-			)
-			if err != nil {
-				t.Fatalf("NVDRecordEnvelopes() error = %v", err)
-			}
+			// Frozen NVD converter output (eshu-hq/eshu#9999): the satellite
+			// owns the converter now, so the test loads the frozen shapes.
+			emitted := convertedOSVFixture(t, tc.fixture, false)
 
 			stored := lastFactIDWins(emitted)
 			stored = append(stored, ownedSBOMProductEvidence()...)

@@ -1,0 +1,398 @@
+[
+  {
+    "FactID": "97fbdbabf52b8985a5d333d6a8fa6b60780403af715f73a86f90c3838a03084c",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+    "FactKind": "vulnerability.cve",
+    "StableFactKey": "bdf4aba8889125c5a6367ec8e76a69dd68d47a51812c9960dca6cb55b8be895b",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "ALSA-2021:4511",
+      "aliases": null,
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "ALSA-2021:4511"
+      ],
+      "cve_id": "ALSA-2021:4511",
+      "cvss_vector": "",
+      "database_specific": null,
+      "details": "The curl packages provide the libcurl library and the curl utility for downloading files from servers using various protocols, including HTTP, FTP, and LDAP.\n\nSecurity Fix(es):\n\n* curl: Leak of authentication credentials in URL via automatic Referer (CVE-2021-22876)\n\n* curl: TELNET stack contents disclosure (CVE-2021-22898)\n\n* curl: Incorrect fix for CVE-2021-22898 TELNET stack contents disclosure (CVE-2021-22925)\n\nFor more details about the security issue(s), including the impact, a CVSS score, acknowledgments, and other related information, refer to the CVE page(s) listed in the References section.\n\nAdditional Changes:\n\nFor detailed information on changes in this release, see the AlmaLinux Release Notes linked from the References section.",
+      "ecosystem_specific": null,
+      "modified_at": "2026-10-29T11:01:42.763436957Z",
+      "published_at": "2021-11-09T09:38:13Z",
+      "related": [
+        "CVE-2021-22876",
+        "CVE-2021-22898",
+        "CVE-2021-22925"
+      ],
+      "severity": null,
+      "severity_label": "",
+      "source": "osv",
+      "source_schema_version": "1.9.2",
+      "summary": "Moderate: curl security and bug fix update",
+      "upstream": [
+        "CVE-2021-22876",
+        "CVE-2021-22898",
+        "CVE-2021-22925"
+      ],
+      "withdrawn_at": ""
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+      "FactKey": "bdf4aba8889125c5a6367ec8e76a69dd68d47a51812c9960dca6cb55b8be895b",
+      "SourceURI": "",
+      "SourceRecordID": "ALSA-2021:4511"
+    }
+  },
+  {
+    "FactID": "b3f357632ee7cd76de73b936d28615b054a8527beb9b7e293fffedf89dbe4e67",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+    "FactKind": "vulnerability.affected_package",
+    "StableFactKey": "03934c06692257585b9cf72f459bef5a7225b03ba48cdfb93495451513b4d430",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "ALSA-2021:4511",
+      "affected_ranges": [
+        {
+          "events": [
+            {
+              "introduced": "0"
+            },
+            {
+              "fixed": "7.61.1-22.el8"
+            }
+          ],
+          "type": "ECOSYSTEM"
+        }
+      ],
+      "affected_versions": null,
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "ALSA-2021:4511",
+        "os://almalinux/libcurl-minimal",
+        "pkg:rpm/almalinux/libcurl-minimal"
+      ],
+      "cve_id": "ALSA-2021:4511",
+      "ecosystem": "os",
+      "fixed_versions": [
+        "7.61.1-22.el8"
+      ],
+      "package_id": "os://almalinux/libcurl-minimal",
+      "package_name": "libcurl-minimal",
+      "purl": "pkg:rpm/almalinux/libcurl-minimal",
+      "source": "osv"
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+      "FactKey": "03934c06692257585b9cf72f459bef5a7225b03ba48cdfb93495451513b4d430",
+      "SourceURI": "",
+      "SourceRecordID": "os://almalinux/libcurl-minimal#ALSA-2021:4511"
+    }
+  },
+  {
+    "FactID": "04fcf1a24978ed0661a425f1811a1393a712b36f240ced6298ad184872bb8396",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+    "FactKind": "vulnerability.affected_package",
+    "StableFactKey": "6ff1718a92900fcdeb27bef946fe3d9bff20781ce6d2384eed1268928285afe6",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "ALSA-2021:4511",
+      "affected_ranges": [
+        {
+          "events": [
+            {
+              "introduced": "0"
+            },
+            {
+              "fixed": "7.61.1-22.el8"
+            }
+          ],
+          "type": "ECOSYSTEM"
+        }
+      ],
+      "affected_versions": null,
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "ALSA-2021:4511",
+        "os://almalinux/libcurl-devel",
+        "pkg:rpm/almalinux/libcurl-devel"
+      ],
+      "cve_id": "ALSA-2021:4511",
+      "ecosystem": "os",
+      "fixed_versions": [
+        "7.61.1-22.el8"
+      ],
+      "package_id": "os://almalinux/libcurl-devel",
+      "package_name": "libcurl-devel",
+      "purl": "pkg:rpm/almalinux/libcurl-devel",
+      "source": "osv"
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+      "FactKey": "6ff1718a92900fcdeb27bef946fe3d9bff20781ce6d2384eed1268928285afe6",
+      "SourceURI": "",
+      "SourceRecordID": "os://almalinux/libcurl-devel#ALSA-2021:4511"
+    }
+  },
+  {
+    "FactID": "8328434867fba8ba4ca17d997e4d22d3919e959906d78ac5c5cd9f63d6ae6795",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+    "FactKind": "vulnerability.affected_package",
+    "StableFactKey": "08cfe5cdee87e07ef3c872f6e0856e418189329f59d5a22d1b8b8e1610b66821",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "ALSA-2021:4511",
+      "affected_ranges": [
+        {
+          "events": [
+            {
+              "introduced": "0"
+            },
+            {
+              "fixed": "7.61.1-22.el8"
+            }
+          ],
+          "type": "ECOSYSTEM"
+        }
+      ],
+      "affected_versions": null,
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "ALSA-2021:4511",
+        "os://almalinux/libcurl",
+        "pkg:rpm/almalinux/libcurl"
+      ],
+      "cve_id": "ALSA-2021:4511",
+      "ecosystem": "os",
+      "fixed_versions": [
+        "7.61.1-22.el8"
+      ],
+      "package_id": "os://almalinux/libcurl",
+      "package_name": "libcurl",
+      "purl": "pkg:rpm/almalinux/libcurl",
+      "source": "osv"
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+      "FactKey": "08cfe5cdee87e07ef3c872f6e0856e418189329f59d5a22d1b8b8e1610b66821",
+      "SourceURI": "",
+      "SourceRecordID": "os://almalinux/libcurl#ALSA-2021:4511"
+    }
+  },
+  {
+    "FactID": "b34aa0fb6871dd83fb6de317ba1f2b9af6df80deffd46edef2e04dbedb0e9361",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+    "FactKind": "vulnerability.affected_package",
+    "StableFactKey": "2a16e9877d78e1d1351ec2b05836a25e92903d3360d408be0488c7687d3a865c",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "ALSA-2021:4511",
+      "affected_ranges": [
+        {
+          "events": [
+            {
+              "introduced": "0"
+            },
+            {
+              "fixed": "7.61.1-22.el8"
+            }
+          ],
+          "type": "ECOSYSTEM"
+        }
+      ],
+      "affected_versions": null,
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "ALSA-2021:4511",
+        "os://almalinux/curl",
+        "pkg:rpm/almalinux/curl"
+      ],
+      "cve_id": "ALSA-2021:4511",
+      "ecosystem": "os",
+      "fixed_versions": [
+        "7.61.1-22.el8"
+      ],
+      "package_id": "os://almalinux/curl",
+      "package_name": "curl",
+      "purl": "pkg:rpm/almalinux/curl",
+      "source": "osv"
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+      "FactKey": "2a16e9877d78e1d1351ec2b05836a25e92903d3360d408be0488c7687d3a865c",
+      "SourceURI": "",
+      "SourceRecordID": "os://almalinux/curl#ALSA-2021:4511"
+    }
+  },
+  {
+    "FactID": "dcf6a26b1d8811d95fae734af1b57f8af6985545d395d5088b8334b5cb648571",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+    "FactKind": "vulnerability.reference",
+    "StableFactKey": "88e70d180406d07bbab00a811778d2c54a327f9408af6f2932ab9fe7438683df",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "ALSA-2021:4511",
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "ALSA-2021:4511",
+        "https://errata.almalinux.org/8/ALSA-2021-4511.html"
+      ],
+      "cve_id": "ALSA-2021:4511",
+      "reference_type": "ADVISORY",
+      "source": "osv",
+      "url": "https://errata.almalinux.org/8/ALSA-2021-4511.html"
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+      "FactKey": "88e70d180406d07bbab00a811778d2c54a327f9408af6f2932ab9fe7438683df",
+      "SourceURI": "",
+      "SourceRecordID": "ALSA-2021:4511#https://errata.almalinux.org/8/ALSA-2021-4511.html"
+    }
+  },
+  {
+    "FactID": "d1190c89064740a0f1ff842308eabc7d66b0e4e93300ec101bea2fe1c94888ec",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+    "FactKind": "vulnerability.reference",
+    "StableFactKey": "fc5c18c9917d18149f3b87c038870428c2a0a4f067e18ce5df5616eef19e873f",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "ALSA-2021:4511",
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "ALSA-2021:4511",
+        "https://vulners.com/cve/CVE-2021-22876"
+      ],
+      "cve_id": "ALSA-2021:4511",
+      "reference_type": "REPORT",
+      "source": "osv",
+      "url": "https://vulners.com/cve/CVE-2021-22876"
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+      "FactKey": "fc5c18c9917d18149f3b87c038870428c2a0a4f067e18ce5df5616eef19e873f",
+      "SourceURI": "",
+      "SourceRecordID": "ALSA-2021:4511#https://vulners.com/cve/CVE-2021-22876"
+    }
+  },
+  {
+    "FactID": "c7deeb5e29e0ebbd97cb650e9602ccd5c3166082c9cf9bf4ae25edd8fefe8c89",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+    "FactKind": "vulnerability.reference",
+    "StableFactKey": "c2a4c35d3bff104a3bee3811e16ff1c634da4fcc6ee4c0fc92fcac6d5fdbcfc4",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "ALSA-2021:4511",
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "ALSA-2021:4511",
+        "https://vulners.com/cve/CVE-2021-22898"
+      ],
+      "cve_id": "ALSA-2021:4511",
+      "reference_type": "REPORT",
+      "source": "osv",
+      "url": "https://vulners.com/cve/CVE-2021-22898"
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+      "FactKey": "c2a4c35d3bff104a3bee3811e16ff1c634da4fcc6ee4c0fc92fcac6d5fdbcfc4",
+      "SourceURI": "",
+      "SourceRecordID": "ALSA-2021:4511#https://vulners.com/cve/CVE-2021-22898"
+    }
+  },
+  {
+    "FactID": "ff1e9c41f525b3a1f228177d18e137eef7ffd83940b65a08c3a7605561d00cf4",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+    "FactKind": "vulnerability.reference",
+    "StableFactKey": "21abeaee608b662e80c71b953294c2455807811e323f427868febc2bb4c20f4c",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "ALSA-2021:4511",
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "ALSA-2021:4511",
+        "https://vulners.com/cve/CVE-2021-22925"
+      ],
+      "cve_id": "ALSA-2021:4511",
+      "reference_type": "REPORT",
+      "source": "osv",
+      "url": "https://vulners.com/cve/CVE-2021-22925"
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+      "FactKey": "21abeaee608b662e80c71b953294c2455807811e323f427868febc2bb4c20f4c",
+      "SourceURI": "",
+      "SourceRecordID": "ALSA-2021:4511#https://vulners.com/cve/CVE-2021-22925"
+    }
+  }
+]

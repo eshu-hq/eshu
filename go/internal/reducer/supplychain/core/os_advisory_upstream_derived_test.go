@@ -60,8 +60,10 @@ func TestDerivedConflictGateSeesGroupedFindings(t *testing.T) {
 
 	const id = "UBUNTU-CVE-2025-99991"
 	record := func(upstream ...string) []facts.Envelope {
-		return convertedOSVRecord(t, distroRecord(id, "Ubuntu:22.04:LTS",
-			"pkg:deb/ubuntu/curl?arch=source&distro=jammy", "7.81.0-1ubuntu1.20", upstream), false)
+		if len(upstream) == 0 {
+			return convertedOSVFixture(t, "built-derived-noupstream", false)
+		}
+		return convertedOSVFixture(t, "built-derived-upstream", false)
 	}
 	for name, tc := range map[string]struct {
 		envelopes []facts.Envelope
@@ -104,15 +106,11 @@ func TestDerivedConflictGateSeesGroupedFindings(t *testing.T) {
 func TestDerivedConflictGateFiltersAnotherReleaseLineInAGroup(t *testing.T) {
 	t.Parallel()
 
-	const cve = "CVE-2025-99991"
 	const id = "UBUNTU-CVE-2025-99991"
-	jammy, _ := authorizedAdvisories(convertedOSVRecord(t, distroRecord(id, "Ubuntu:22.04:LTS",
-		"pkg:deb/ubuntu/curl?arch=source&distro=jammy", "7.81.0-1ubuntu1.20", []string{cve}), false))
-	_, noble := authorizedAdvisories(convertedOSVRecord(t, distroRecord(id, "Ubuntu:24.04:LTS",
-		"pkg:deb/ubuntu/curl?arch=source&distro=noble", "8.5.0-2ubuntu10.5", []string{cve}), false))
+	jammy, _ := authorizedAdvisories(convertedOSVFixture(t, "built-derived-upstream", false))
+	_, noble := authorizedAdvisories(convertedOSVFixture(t, "built-derived-noble", false))
 	noble.FactID += "-noble"
-	usn, _ := authorizedAdvisories(convertedOSVRecord(t, distroRecord("USN-7000-1", "Ubuntu:24.04:LTS",
-		"pkg:deb/ubuntu/curl?arch=source&distro=noble", "8.5.0-2ubuntu10.6", []string{cve}), false))
+	usn, _ := authorizedAdvisories(convertedOSVFixture(t, "built-derived-usn-noble", false))
 
 	advisories := append(append(jammy, noble), usn...)
 	target := authorizedOSVTarget(0, advisories, authorizedOSVAuthority(advisories), ubuntuCurl("22.04", "7.81.0-1ubuntu1.1"))

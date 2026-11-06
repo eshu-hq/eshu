@@ -201,7 +201,7 @@ func (a *advisoryEvidenceAccumulator) addSourceEvidence(
 		// TODO(#4795 struct gap): vulnerability/v1.CVE (sdk/go/factschema)
 		// has no Aliases field yet; OSV-sourced vulnerability.cve facts carry
 		// a real "aliases" list
-		// (go/internal/collector/vulnerabilityintelligence/envelope.go). Read
+		// (envelope.go in eshu-hq/eshu-collector-vulnerability-intelligence). Read
 		// raw until a W1 change extends the struct.
 		Aliases:       sortedStrings(querycontract.StringSliceVal(payload, "aliases")),
 		PublishedAt:   decode.DerefString(cve.PublishedAt),
@@ -259,7 +259,8 @@ func (a *advisoryEvidenceAccumulator) addAffectedPackage(
 		// TODO(#4795 struct gap): vulnerability/v1.AffectedPackage (sdk/go/factschema)
 		// has no ParsedAffectedRange field yet (GitLab Gemnasium-sourced facts
 		// carry a real "parsed_affected_range" object,
-		// go/internal/collector/vulnerabilityintelligence/gitlab_gemnasium_envelope.go),
+		// gitlab_gemnasium_envelope.go in
+		// eshu-hq/eshu-collector-vulnerability-intelligence),
 		// and its typed AffectedRanges field is []AffectedRange, a different Go
 		// shape than this response's []map[string]any. Read both raw until a
 		// W1 change extends the struct (or a verified round trip is added).

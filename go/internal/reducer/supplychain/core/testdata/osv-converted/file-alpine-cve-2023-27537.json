@@ -1,0 +1,180 @@
+[
+  {
+    "FactID": "666a813430a1cc63598a2e9e9de040e074de00b20d70f67c3b7b13ad4270b1e1",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+    "FactKind": "vulnerability.cve",
+    "StableFactKey": "468efac21bfebb67a7aea6bc147784b5a7343fa11aebba38394c67c59b926f4a",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "ALPINE-CVE-2023-27537",
+      "aliases": null,
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "ALPINE-CVE-2023-27537"
+      ],
+      "cve_id": "ALPINE-CVE-2023-27537",
+      "cvss_vector": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:N/I:N/A:H",
+      "database_specific": null,
+      "details": "A double free vulnerability exists in libcurl \u003c8.0.0 when sharing HSTS data between separate \"handles\". This sharing was introduced without considerations for do this sharing across separate threads but there was no indication of this fact in the documentation. Due to missing mutexes or thread locks, two threads sharing the same HSTS data could end up doing a double-free or use-after-free.",
+      "ecosystem_specific": null,
+      "modified_at": "2026-10-26T17:17:58.616035208Z",
+      "published_at": "2023-03-30T20:15:07.617Z",
+      "related": null,
+      "severity": [
+        {
+          "score": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:N/I:N/A:H",
+          "type": "CVSS_V3"
+        }
+      ],
+      "severity_label": "",
+      "source": "osv",
+      "source_schema_version": "1.9.0",
+      "summary": "",
+      "upstream": [
+        "CVE-2023-27537"
+      ],
+      "withdrawn_at": ""
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+      "FactKey": "468efac21bfebb67a7aea6bc147784b5a7343fa11aebba38394c67c59b926f4a",
+      "SourceURI": "",
+      "SourceRecordID": "ALPINE-CVE-2023-27537"
+    }
+  },
+  {
+    "FactID": "428800342c39bef79a5fd2575a509d36b7d39c022032aa6605ecb60786753d35",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+    "FactKind": "vulnerability.affected_package",
+    "StableFactKey": "c1a2c3b931a5f86e8f6b1f39a954634671c4e160a41fd262c65403eb96644f9b",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "ALPINE-CVE-2023-27537",
+      "affected_ranges": [
+        {
+          "events": [
+            {
+              "introduced": "0"
+            },
+            {
+              "fixed": "7.88.1-r1"
+            }
+          ],
+          "releases": [
+            "alpine:3.17"
+          ],
+          "type": "ECOSYSTEM"
+        },
+        {
+          "events": [
+            {
+              "introduced": "0"
+            },
+            {
+              "fixed": "8.0.0-r0"
+            }
+          ],
+          "releases": [
+            "alpine:3.18",
+            "alpine:3.19",
+            "alpine:3.20",
+            "alpine:3.21",
+            "alpine:3.22",
+            "alpine:3.23",
+            "alpine:3.24"
+          ],
+          "type": "ECOSYSTEM"
+        },
+        {
+          "events": [
+            {
+              "introduced": "0"
+            },
+            {
+              "fixed": "8.0.1-r0"
+            }
+          ],
+          "releases": [
+            "alpine:3.14",
+            "alpine:3.15",
+            "alpine:3.16"
+          ],
+          "type": "ECOSYSTEM"
+        }
+      ],
+      "affected_versions": null,
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "ALPINE-CVE-2023-27537",
+        "os://alpine/curl",
+        "pkg:apk/alpine/curl?arch=source"
+      ],
+      "cve_id": "ALPINE-CVE-2023-27537",
+      "ecosystem": "os",
+      "fixed_versions": [
+        "7.88.1-r1",
+        "8.0.0-r0",
+        "8.0.1-r0"
+      ],
+      "package_id": "os://alpine/curl",
+      "package_name": "curl",
+      "purl": "pkg:apk/alpine/curl?arch=source",
+      "source": "osv"
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+      "FactKey": "c1a2c3b931a5f86e8f6b1f39a954634671c4e160a41fd262c65403eb96644f9b",
+      "SourceURI": "",
+      "SourceRecordID": "os://alpine/curl#ALPINE-CVE-2023-27537"
+    }
+  },
+  {
+    "FactID": "36c946c6522a3a6cd5ee3e11cbc4b16a53b1f2a924def7cd4cb471734b43a297",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+    "FactKind": "vulnerability.reference",
+    "StableFactKey": "d6590342166042d7aa7e632ec82fb5cbc567cd6b9c83ca7564ca5f4335e8c506",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "ALPINE-CVE-2023-27537",
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "ALPINE-CVE-2023-27537",
+        "https://security.alpinelinux.org/vuln/CVE-2023-27537"
+      ],
+      "cve_id": "ALPINE-CVE-2023-27537",
+      "reference_type": "ADVISORY",
+      "source": "osv",
+      "url": "https://security.alpinelinux.org/vuln/CVE-2023-27537"
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+      "FactKey": "d6590342166042d7aa7e632ec82fb5cbc567cd6b9c83ca7564ca5f4335e8c506",
+      "SourceURI": "",
+      "SourceRecordID": "ALPINE-CVE-2023-27537#https://security.alpinelinux.org/vuln/CVE-2023-27537"
+    }
+  }
+]

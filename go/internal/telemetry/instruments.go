@@ -2102,12 +2102,7 @@ type Instruments struct {
 	// because no affected entry was usable, by source, target ecosystem, and
 	// reason.
 	VulnerabilityIntelligenceRecordsSkipped metric.Int64Counter
-	// VulnerabilityIntelligenceReleaseTagsUnparseable counts usable OSV OS
-	// entries kept without a release tag because their release line did not
-	// parse, by source and target ecosystem (#9806). Untagged ranges are
-	// kept, never dropped, so this counter is the operator's proof the
-	// kept-but-untagged path fires.
-	VulnerabilityIntelligenceReleaseTagsUnparseable metric.Int64Counter
+
 	// VulnerabilityIntelligenceIdentityEdgesEmitted counts the identity-edge
 	// elements (aliases, related, upstream ids) written on vulnerability.cve
 	// facts, by source, closed edge kind, and closed status (active or
@@ -4181,14 +4176,6 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	if err != nil {
 		return nil, fmt.Errorf("register VulnerabilityIntelligenceRecordsSkipped counter: %w", err)
 	}
-	inst.VulnerabilityIntelligenceReleaseTagsUnparseable, err = meter.Int64Counter(
-		"eshu_dp_vulnerability_intelligence_release_tags_unparseable_total",
-		metric.WithDescription("Total usable OSV OS entries kept without a release tag because their release line did not parse, by source and target ecosystem"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("register VulnerabilityIntelligenceReleaseTagsUnparseable counter: %w", err)
-	}
-
 	inst.VulnerabilityIntelligenceIdentityEdgesEmitted, err = meter.Int64Counter(
 		"eshu_dp_vulnerability_intelligence_identity_edges_emitted_total",
 		metric.WithDescription("Total vulnerability identity-edge elements (aliases, related, upstream) written on CVE facts by source, edge kind, and status (active or withdrawn)"),
