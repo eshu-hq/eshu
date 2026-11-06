@@ -1,0 +1,14 @@
+go/internal/query/session_admission.go
+  h_78a442cba0b3e6 117-122
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "be3e90fcfb258fbf136c75b05897a6e1cc673752",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
