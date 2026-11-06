@@ -151,12 +151,15 @@ func shimRevisionFromConfig(item config.RevisionItem) shimRevisionDTO {
 		HasSecret:  item.HasSecret,
 		CreatedAt:  item.CreatedAt,
 	}
+	// Normalize to UTC like the reference: audit.AddOptionalTime renders
+	// activated_at/superseded_at UTC-normalized, so a non-UTC store
+	// instant must render identically here or the bodies differ.
 	if !item.ActivatedAt.IsZero() {
-		at := item.ActivatedAt
+		at := item.ActivatedAt.UTC()
 		out.ActivatedAt = &at
 	}
 	if !item.SupersededAt.IsZero() {
-		st := item.SupersededAt
+		st := item.SupersededAt.UTC()
 		out.SupersededAt = &st
 	}
 	return out

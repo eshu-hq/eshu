@@ -23,6 +23,12 @@ var (
 	shimFixtureCreated = time.Date(2026, 3, 4, 5, 6, 7, 0, time.UTC)
 	shimFixtureUpdated = time.Date(2026, 3, 5, 6, 7, 8, 0, time.UTC)
 	shimFixtureActive  = time.Date(2026, 3, 6, 7, 8, 9, 0, time.UTC)
+	// shimFixtureActiveOff is 08:08:09 wall clock in a +01:00 zone (same
+	// area as the UTC fixtures but textually distinct): the reference
+	// normalizes revision instants to UTC while the shim must do the same,
+	// or the JSON bodies differ.
+	shimFixtureActiveOff = time.Date(2026, 3, 6, 8, 8, 9, 0, time.FixedZone("CET", 60*60))
+	shimFixtureSupOff    = time.Date(2026, 3, 7, 9, 9, 10, 0, time.FixedZone("CET", 60*60))
 )
 
 func shimFixtureStore() *shimFakeStore {
@@ -70,17 +76,35 @@ func shimFixtureStore() *shimFakeStore {
 		ActivatedAt:  shimFixtureCreated,
 		SupersededAt: shimFixtureActive,
 	}
+	pc3 := config.Detail{
+		ProviderConfigID: "pc_3",
+		ProviderKind:     "oidc",
+		Status:           "active",
+		ActiveRevisionID: "rev_3",
+		ManagedBy:        "database",
+		CreatedAt:        shimFixtureCreated,
+		UpdatedAt:        shimFixtureUpdated,
+	}
+	// rev3 carries non-UTC-offset instants: the reference renders them
+	// UTC-normalized, so the shim converter must normalize too.
+	rev3 := config.RevisionItem{
+		RevisionID:   "rev_3",
+		Status:       "active",
+		CreatedAt:    shimFixtureCreated,
+		ActivatedAt:  shimFixtureActiveOff,
+		SupersededAt: shimFixtureSupOff,
+	}
 	return &shimFakeStore{
 		details: map[string]map[string]config.Detail{
-			"tenant_a": {"pc_1": pc1, "pc_2": pc2},
+			"tenant_a": {"pc_1": pc1, "pc_2": pc2, "pc_3": pc3},
 			"tenant_b": {"pc_9": pc9},
 		},
 		lists: map[string][]config.Detail{
-			"tenant_a": {pc1, pc2},
+			"tenant_a": {pc1, pc2, pc3},
 			"tenant_b": {pc9},
 		},
 		revs: map[string]map[string][]config.RevisionItem{
-			"tenant_a": {"pc_1": {rev1, rev0}, "pc_2": {}},
+			"tenant_a": {"pc_1": {rev1, rev0}, "pc_2": {}, "pc_3": {rev3}},
 		},
 	}
 }
@@ -170,6 +194,7 @@ func TestShimByteParityWithRelay(t *testing.T) {
 		{"get unknown", http.MethodGet, "/api/v0/auth/admin/provider-configs/pc_nope", adminA},
 		{"get denied", http.MethodGet, "/api/v0/auth/admin/provider-configs/pc_1", enforcedDeny},
 		{"revisions found", http.MethodGet, "/api/v0/auth/admin/provider-configs/pc_1/revisions", adminA},
+		{"revisions non-UTC offset", http.MethodGet, "/api/v0/auth/admin/provider-configs/pc_3/revisions", adminA},
 		{"revisions empty", http.MethodGet, "/api/v0/auth/admin/provider-configs/pc_2/revisions", adminA},
 		{"revisions unknown", http.MethodGet, "/api/v0/auth/admin/provider-configs/pc_nope/revisions", adminA},
 		{"revisions denied", http.MethodGet, "/api/v0/auth/admin/provider-configs/pc_1/revisions", nonScopes},
