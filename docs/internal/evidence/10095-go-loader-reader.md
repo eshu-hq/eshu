@@ -9,7 +9,7 @@ lane-1 remainder under the full merge bar.
 ## Pre-edit gate (answered from source before any edit)
 
 - **Entry point:** `SupplyChainImpactHandler.Handle`
-  (`go/internal/reducer/supplychain/core/impact.go:159`) →
+  (`go/internal/reducer/supplychain/core/impact.go` symbol `SupplyChainImpactHandler.Handle`) →
   `loadSupplyChainImpactEvidence` (`evidence_load.go:113`) →
   `appendGoReachabilityEvidenceFacts` (`go_reachability_load.go:69`) →
   `loadGoReachabilityEvidenceFacts` (`go_reachability_load.go:43`) →
