@@ -482,8 +482,8 @@ storage, the pipeline command binaries, the cassettes, or the snapshot). Its
 `corpus-gate (nornicdb)` was watch-only (`golden-corpus-gate`: `blocking: false`,
 layer `secondary`) and is now off in CI (2026-11-05, manual tier): a red NornicDB cell was a backend-drift signal to triage, and
 `required-gates-complete` does not wait for it. The `differential nornicdb vs
-neo4j` join also consumes NornicDB captures and stays blocking. The four
-producer jobs run in parallel on separate hosted runners with fail-fast disabled;
+neo4j` join consumes Neo4j captures only and stays blocking. The two
+producer jobs (`corpus-gate (neo4j)` and the Neo4j differential capture) run in parallel on separate hosted runners with fail-fast disabled;
 local runs sharing a host still use the cross-run lock and run serially. The
 replay-coverage manifest cites the Neo4j row as each entry's `proof_gate`,
 because the coverage gate rejects a proof gate that does not block.

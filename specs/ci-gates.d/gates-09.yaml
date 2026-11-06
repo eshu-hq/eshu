@@ -328,7 +328,7 @@ gates:
     ci_only_reason: ""
 
   - id: golden-corpus-differential
-    name: Differential NornicDB vs Neo4j oracle (Docker)
+    name: Differential capture checks on Neo4j (Docker; NornicDB legs off)
     category: exactness
     layer: truth
     purpose: "Runs the golden corpus on Neo4j with capture; failed runs, empty captures, missing coverage or unanchored id writers block. NornicDB legs are off (2026-11-05)."
