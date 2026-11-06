@@ -61,7 +61,7 @@ explicit gap admission:
 ## 4. Single version pair — TBD (Leaf B confirmation pending)
 
 - `CoreReadContractsVersion = "v0"`
-  (`go/internal/query/querycontract/api_boundary.go:16`, pinned by
+  (`go/internal/query/querycontract/api_boundary.go` symbol `CoreReadContractsVersion`, pinned by
   `api_boundary_test.go` — re-verified still `v0` at `e30c99c1cf`); the Postgres `ReadStore` half pinned by
   `TestReadStoreContractIsVersioned`.
 - `SuppressionAdmission` at `SuppressionAdmissionContractVersion`, bound
