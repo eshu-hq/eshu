@@ -1,0 +1,18 @@
+go/cmd/api/READ_TRANSPORT_SPEC.md
+  h_78a442cba0b3e6 1-184
+go/cmd/api/read_transport_conformance.go
+  h_78a442cba0b3e6 1-119
+go/cmd/api/read_transport_conformance_test.go
+  h_78a442cba0b3e6 1-129
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0d8f006373bc7772557e4e13b2f663e7d62354d0",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
