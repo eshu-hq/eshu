@@ -449,7 +449,11 @@ func (r *Runtime) generationCurrent(
 		}
 		active, found, err := r.ActiveGeneration(ctx, intent.ScopeID)
 		if err != nil {
-			return false, reboundFrom, fmt.Errorf("active generation lookup: %w", err)
+			return false, reboundFrom, reducercontract.GenerationRebindLookupError{
+				ScopeID:      intent.ScopeID,
+				GenerationID: intent.GenerationID,
+				Err:          err,
+			}
 		}
 		active = strings.TrimSpace(active)
 		if !found || active == "" || active == intent.GenerationID {
