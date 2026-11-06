@@ -135,3 +135,6 @@ if ! rg -q 'parser source changed without language/support docs update' \
   sed -n '1,160p' /tmp/eshu-parser-relationship-kit.err >&2
   exit 1
 fi
+
+# shellcheck source=scripts/lib/test-verify-parser-relationship-kit-merge-ref-cases.sh
+. "${repo_root}/scripts/lib/test-verify-parser-relationship-kit-merge-ref-cases.sh"
