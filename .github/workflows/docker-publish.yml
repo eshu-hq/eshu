@@ -229,7 +229,7 @@ jobs:
       # the shared :runtime tag) has no room for a second target-less build:
       # sharing :runtime would overwrite the main image's cache on push. This
       # proof writes no cache at all, so there is nothing to share, evict, or
-      # leak — cold builds are the accepted cost (see timeout below).
+      # leak — cold builds are the accepted cost (90-minute job timeout).
       - name: Build satellite gate image
         if: ${{ env.LANE_APPLIES == 'true' }}
         run: |
