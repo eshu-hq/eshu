@@ -147,11 +147,15 @@ its original condition kept in a comment. The read-API latency cell was turned
 off the same way on 2026-11-03. A guard keeps the legs off:
 `scripts/verify-nornicdb-ci-off.py` (registry gate `nornicdb-ci-off`). It fails
 when a job that can run (its `if` is not `${{ false }}`) starts NornicDB, found
-three ways: a workflow line that selects the `nornicdb` backend (matrix cell,
+four ways: a workflow line that selects `nornicdb` (a matrix value under any key,
 `ESHU_GRAPH_BACKEND`, `--backend nornicdb`), brings up the `nornicdb` compose
-service, or `docker run`s a NornicDB image; a `docker run` of a NornicDB image
-inside a `scripts/*.sh` file the job invokes; or a `--shard "${{ matrix.X }}/N"`
-run whose matrix value `live_backend_shards.partition_runs` gives NornicDB runs.
+service, or `docker run`s a NornicDB image; the same starts in a `scripts/*.sh`
+or `*.py` file the job runs, or in a script that file runs one level deeper (a
+shell statement counts only when it is the command, and a Python file is parsed
+for spawn calls, so a fixture or regex that quotes a command is skipped); or a
+`--shard "${{ matrix.X }}/N"` run whose matrix value
+`live_backend_shards.partition_runs` gives NornicDB runs. A variable image name
+or a script reached by a variable path is not resolved.
 It also fails a disabled job whose registry row is still blocking. Restoring the
 replay tier's `if`, or putting shard 1 back in the live-backend matrix, fails it
 whatever the exact-text pins around those lines say.
@@ -201,5 +205,5 @@ To re-enable everything, revert in this order and run each check after its step:
    (`cd go && go test ./cmd/replay-coverage-gate/ -update-dashboard`). With the
    `replay-tier` row blocking again (delete its `disabled:` marker), its 167
    surfaces return from "Proof off" to satisfied (457/457). While the row is off,
-   they are reported as unproven.
+   they are reported as unproven and #10223 tracks restoring their proof.
 6. Run the focused tests the disabling PR listed, then open a normal PR.

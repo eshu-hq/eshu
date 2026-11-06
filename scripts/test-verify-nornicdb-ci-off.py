@@ -169,6 +169,69 @@ class NornicOffGateTest(unittest.TestCase):
         root = self.build(REPLAY_WORKFLOW_LIVE)
         self.assertEqual(self.run_gate(root).returncode, 0)
 
+    def test_script_that_brings_up_the_nornicdb_compose_service_fails(self) -> None:
+        """RED: the workflow-line `up ... nornicdb` marker also applies to an invoked script."""
+        script = "#!/usr/bin/env bash\ndocker compose up -d \\\n  nornicdb postgres\n"
+        root = self.build_with_script(REPLAY_WORKFLOW_LIVE, script)
+        result = self.run_gate(root)
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn("scripts/verify-replay-tier.sh", result.stderr)
+
+    def test_script_that_calls_a_second_script_is_followed(self) -> None:
+        """RED: the start is one script deeper than the one the workflow runs."""
+        root = self.build_with_script(
+            REPLAY_WORKFLOW_LIVE, "#!/usr/bin/env bash\nbash scripts/lib/inner.sh\n")
+        (root / "scripts/lib").mkdir()
+        (root / "scripts/lib/inner.sh").write_text(REPLAY_SCRIPT, encoding="utf-8")
+        result = self.run_gate(root)
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn("scripts/lib/inner.sh", result.stderr)
+
+    def test_nested_script_that_starts_only_neo4j_passes(self) -> None:
+        """GREEN: following a script one level deeper adds no false positive."""
+        root = self.build_with_script(
+            REPLAY_WORKFLOW_LIVE, "#!/usr/bin/env bash\nbash scripts/lib/inner.sh\n")
+        (root / "scripts/lib").mkdir()
+        (root / "scripts/lib/inner.sh").write_text(
+            REPLAY_SCRIPT.replace("NORNICDB_NO_AUTH", "NEO4J_AUTH"), encoding="utf-8")
+        self.assertEqual(self.run_gate(root).returncode, 0)
+
+    def test_matrix_value_nornicdb_under_any_key_fails(self) -> None:
+        """RED: the matrix key is not special; a nornicdb value in any matrix is a start."""
+        for line in ("backend: [neo4j, nornicdb]", "- backend: nornicdb",
+                     "- store: \"nornicdb\""):
+            with self.subTest(line=line):
+                workflow = OFF_WORKFLOW + f"    strategy2:\n      matrix:\n        {line}\n"
+                result = self.run_gate(self.build(workflow))
+                self.assertEqual(result.returncode, 1, line)
+                self.assertIn("nornicdb", result.stderr)
+
+    def test_matrix_without_nornicdb_passes(self) -> None:
+        """GREEN: a matrix on another key with Neo4j only is fine."""
+        workflow = OFF_WORKFLOW + "    strategy2:\n      matrix:\n        backend: [neo4j]\n"
+        self.assertEqual(self.run_gate(self.build(workflow)).returncode, 0)
+
+    def test_python_script_that_docker_runs_nornicdb_fails(self) -> None:
+        """RED: a `.py` script a live job runs is read for a docker run too."""
+        workflow = REPLAY_WORKFLOW_LIVE.replace(
+            "scripts/verify-replay-tier.sh", "scripts/replay_tier.py")
+        root = self.build(workflow)
+        (root / "scripts").mkdir()
+        (root / "scripts/replay_tier.py").write_text(REPLAY_PY, encoding="utf-8")
+        result = self.run_gate(root)
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn("scripts/replay_tier.py", result.stderr)
+
+    def test_python_script_that_docker_runs_neo4j_passes(self) -> None:
+        """GREEN: the same Python script against a Neo4j image is not a start."""
+        workflow = REPLAY_WORKFLOW_LIVE.replace(
+            "scripts/verify-replay-tier.sh", "scripts/replay_tier.py")
+        root = self.build(workflow)
+        (root / "scripts").mkdir()
+        (root / "scripts/replay_tier.py").write_text(
+            REPLAY_PY.replace("nornicdb", "neo4j").replace("NORNICDB", "NEO4J"), encoding="utf-8")
+        self.assertEqual(self.run_gate(root).returncode, 0)
+
     def test_committed_tree_is_clean(self) -> None:
         """GREEN: the committed workflows and registry satisfy the gate."""
         result = self.run_gate(ROOT)
@@ -183,6 +246,19 @@ docker run -d --name "replay-$$" \\
 \t-p "7474:7474" \\
 \t-e NORNICDB_NO_AUTH=true \\
 \t"${REPLAY_IMAGE}" >/dev/null
+"""
+
+REPLAY_PY = """\
+import subprocess
+
+subprocess.run(
+    [
+        "docker", "run", "-d",
+        "-e", "NORNICDB_NO_AUTH=true",
+        "ghcr.io/eshu-hq/nornicdb-amd64-cpu:x",
+    ],
+    check=True,
+)
 """
 
 REPLAY_WORKFLOW_LIVE = """\
