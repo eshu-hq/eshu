@@ -14,6 +14,12 @@
 // catch-up recovery path; both share runClaimedFanOut. CrossplaneRedriveStateStore
 // durably tracks claim/completion per (xrd_scope_id, xrd_generation_id) with
 // FOR UPDATE SKIP LOCKED convergence and fencing-token completion.
+// Discovery runs two legs per sweep: the active leg pages
+// ListCrossplaneRedriveTargetScopesQuery over each claim scope's active
+// generation, then the optional DeltaBase collaborator
+// (CrossplaneRedriveDeltaBaseTargetLister, implemented by postgres.FactStore
+// with a base text derived from that query) pages claims that live only in
+// the base full generation of a delta-active scope (#10094).
 // CrossplaneRedriveTargetLedgerStore durably records already-satisfied
 // (target scope, XRD identity) pairs; only
 // crossplane.CrossplaneSatisfiedByMaterializationHandler writes it, strictly

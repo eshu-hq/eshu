@@ -193,6 +193,27 @@ with a retryable error and the intent retries; the decision still counts as
 `union_base_missing`. A legacy delta with no baseline (`union_no_baseline`)
 keeps its delta-only rows, as the projector loads it.
 
+## Crossplane redrive sweep, delta-base leg (#10094)
+
+When an XRD activates, the cross-scope redrive sweep re-enqueues the
+SATISFIED_BY materialization of every other scope with a matching claim. It
+used to find only claims in each scope's active generation. A claim living
+only in the base of a delta-active repository was never re-driven, and a
+quiet repository kept no edge until its next commit that touched a K8s or
+XRD file. The sweep now runs a second leg after the active one. One
+delta-active scope lookup per sweep is followed by a base page derived from
+the same discovery text, through the same base rule the readers use. That
+leg schedules each scope against its active delta. Discovery applies no
+overlay; the materialization reads the overlaid snapshot and is the only
+writer. Watch `eshu_dp_crossplane_redrive_targets_enqueued_total` and
+`eshu_dp_crossplane_redrive_pages_processed_total` by `read` (`active` or
+`delta_base`). A failed lookup or base page fails the sweep, counts
+`sweep_error` on `eshu_dp_crossplane_redrive_sweeps_total`, and leaves the
+claim for the catch-up loop. A scope scheduled while full-active can still
+lose its intent if a delta that touches no K8s file activates before the
+reducer runs it, because the reducer drops a superseded generation's intent.
+That window predates this leg and is tracked in #10106.
+
 ## Operator signals
 
 - `eshu_dp_projector_delta_union_total` by closed `outcome`

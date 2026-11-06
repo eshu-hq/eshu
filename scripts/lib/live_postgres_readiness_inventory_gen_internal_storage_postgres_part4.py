@@ -150,6 +150,9 @@ TABLE = {
         "go/internal/storage/postgres/satisfied_by_read_index_live_test.go": (
             "TestCrossplaneXRDReadsUseThePartialIndexLive",
         ),
+        "go/internal/storage/postgres/satisfied_by_redrive_base_leg_live_test.go": (
+            "TestCrossplaneRedriveDiscoveryReshapeDifferentialLive",
+        ),
         "go/internal/storage/postgres/security_alert_impact_producer_store_live_test.go": (
             "TestReducerContentionGateSecurityAlertImpactProducerStateScopesToTheGeneration",
             "TestReducerContentionGateSecurityAlertImpactProducerStatePlanUsesScopeGenerationIndex",

@@ -33,6 +33,12 @@ handler. `internal/reducer/crossplane` owns the
 
 - `CrossplaneSatisfiedByRedriveSweeper` with `Sweep`, `SweepBatch`,
   `CrossplaneRedriveSweepResult`, and `CrossplaneRedriveIntentReplayer`.
+- The discovery text `ListCrossplaneRedriveTargetScopesQuery`, its free
+  placeholder `CrossplaneRedriveDeltaBaseGenerationParam`, and the delta-base leg
+  contract (#10094): `CrossplaneRedriveDeltaBaseTargetLister` (the sweeper's
+  `DeltaBase` field, implemented by `postgres.FactStore`),
+  `CrossplaneRedriveTargetPage`, `CrossplaneRedriveTargetScope`, and
+  `QueryCrossplaneRedriveTargetScopes`.
 - `CrossplaneRedriveStateStore` with `NewCrossplaneRedriveStateStore`,
   `EnsureQueued`, `ClaimExact`/`ClaimBatch`, `MarkCompleted`, and
   `CrossplaneRedriveClaim`.
@@ -44,8 +50,9 @@ See `doc.go` for the godoc contract.
 ## Files
 
 - `query.go` — the cross-scope target-scope discovery query
-  (`listCrossplaneRedriveTargetScopesQuery`), keyset-paginated on `scope_id`,
-  `LIMIT`-bounded.
+  (`ListCrossplaneRedriveTargetScopesQuery`), keyset-paginated on `scope_id`,
+  `LIMIT`-bounded. Exported so the parent package derives the delta-base leg
+  from it.
 - `state.go` — `CrossplaneRedriveStateStore`: `EnsureQueued`,
   `ClaimExact`/`ClaimBatch` (`FOR UPDATE SKIP LOCKED`, returning a bumped
   `claim_fencing_token`), `MarkCompleted` (fenced by that token, not
@@ -60,6 +67,8 @@ See `doc.go` for the godoc contract.
   `CrossplaneSatisfiedByRedriveSweeper.Sweep` (the live post-Ack trigger path)
   and `.SweepBatch` (the startup/periodic catch-up recovery path); both share
   `runClaimedFanOut`.
+- `sweep_delta_base.go` — the delta-base leg contract, the leg order
+  (`runLegs`), and the per-leg telemetry (#10094).
 
 ## Dependencies
 
@@ -70,7 +79,8 @@ See `doc.go` for the godoc contract.
 ## Fences
 
 All three fences are required by the design and enforced in
-`listCrossplaneRedriveTargetScopesQuery` / `sweepJoinKey`:
+`ListCrossplaneRedriveTargetScopesQuery` / `sweepJoinKey`. The delta-base
+leg (fence 4) reaches the claims the active-generation fence hides:
 
 1. **Active-generation fence**: the target-discovery join requires
    `scope.active_generation_id = fact.generation_id`, and `sweepJoinKey`
@@ -131,6 +141,46 @@ All three fences are required by the design and enforced in
    projector-triggered SATISFIED_BY intent resolves directly against the
    already-active XRD.
 
+4. **Delta-base leg (#10094)**: a claim that lives only in the base full
+   generation of a delta-active scope (the delta did not touch its file) is
+   invisible to fences 1 and 2, and a quiet repository gets no new
+   generation to re-run its own intent. `postgres.FactStore` implements
+   `CrossplaneRedriveDeltaBaseTargetLister` by deriving the base text from
+   `ListCrossplaneRedriveTargetScopesQuery` with
+   `deriveDeltaOverlayBaseQuery`, bound at `$6` to the candidate base
+   generation ids of the delta-active scopes with a baseline
+   (`deltaOverlayBaseGenerations(readDeltaOverlayTargets)`). It is
+   never a hand-copied predicate. The base leg keeps fence 3 and returns the
+   active delta id. It applies no overlay, so a scope whose delta deleted
+   the claim is still scheduled. The handler is the only truth writer: it
+   reads the overlaid snapshot and writes nothing for that claim. A nil
+   `DeltaBase` keeps the active leg only.
+
+   Leg order (`runLegs`): the active leg pages every join key to its end,
+   then the delta-active scope lookup runs once per sweep, then the base leg
+   pages every key with its own cursor. `seenTargets` schedules a scope
+   found by both legs once. This order closes the race:
+   - A scope that was delta-active when its active page ran was delta-active
+     before the lookup, so the base leg reaches it.
+   - A scope that turns delta-active after its active page ran was
+     full-active at that moment, so the active leg scheduled it against
+     that generation. If the delta activates before the reducer runs the
+     intent, the reducer's generation check drops the intent as superseded,
+     and a delta that touches no K8s file derives none of its own. That
+     scheduling-to-execution window predates #10094 (the active-only sweep
+     had it too); the leg order neither opens nor closes it. Tracked in
+     #10106; see the evidence note.
+   - A scope that turns full-active after the lookup is dropped at
+     execution by the base text's `is_delta` and `status = 'active'`
+     predicates. Its new full generation's own claims derive its own intent.
+
+   Reading the lookup before the active legs would lose the first case. A
+   delta that touches no K8s file derives no SATISFIED_BY intent of its own,
+   because the projector builds intents only from a generation's own facts
+   (`generationOwnedFacts` in `internal/projector/runtime/projection.go`).
+   This amends the arbiter's first race wording; see the evidence note.
+   `TestRunLegsReadsDeltaGenerationsOnceAfterEveryActivePage` pins the order.
+
 Trigger: `ProjectorQueue.Ack` calls `runCrossplaneRedriveHook` AFTER its own
 transaction commits (never inside it), which calls `Sweep`. The hook is a
 no-op unless `CrossplaneRedrive` is wired; a hook failure is logged and never
@@ -166,9 +216,17 @@ returns promptly on context cancellation, all against a fake
   import this leaf without a cycle. Tests import root only for the
   `SQLDB`/`SQLQueryer` wrapper types, `ApplyBootstrap`, and the
   `ReducerQueue`/`FactStore` constructors. The shared seed and assertion
-  helpers live in this package's own external test files; the two private
-  production symbols external tests need (the target-discovery query and the
-  completed outcome) are exposed through `export_test.go`, never hand-copied.
+  helpers live in this package's own external test files; the private
+  production symbols external tests need (the sweep outcomes) are exposed
+  through `export_test.go`, never hand-copied. The discovery text is
+  exported.
+- `ListCrossplaneRedriveTargetScopesQuery` must keep its two active
+  fragments written exactly once (`AND scope.active_generation_id =
+  fact.generation_id` and `AND generation.status = 'active'`), leave `$6`
+  unused, and keep its DISTINCT `(scope_id, generation_id)` branch: the
+  delta-base leg is derived from this text, and
+  `TestCrossplaneRedriveDiscoveryReshapeDifferentialLive` (root package)
+  compares it with its per-claim and pre-#10094 forms.
 - `RecordRedriven` MUST be called ONLY from
   `crossplane.CrossplaneSatisfiedByMaterializationHandler`, strictly after it
   commits a SATISFIED_BY edge — NEVER from the sweep's enqueue path.
@@ -196,8 +254,13 @@ returns promptly on context cancellation, all against a fake
 Low-cardinality only, no per-scope/per-XRD label:
 `eshu_dp_crossplane_redrive_sweeps_total` (by `outcome`:
 `no_active_xrd`/`already_in_progress`/`completed`/`reclaimed_mid_sweep`/
-`sweep_error`), `eshu_dp_crossplane_redrive_targets_enqueued_total`,
-`eshu_dp_crossplane_redrive_pages_processed_total`.
+`sweep_error`), `eshu_dp_crossplane_redrive_targets_enqueued_total` and
+`eshu_dp_crossplane_redrive_pages_processed_total`, both by `read`: `active`
+or `delta_base`, the discovery leg that found the target or ran the page
+(#10094). A target both legs reach counts once, for `active`. A rising
+`delta_base` count means delta-active scopes are being re-driven from their
+base. No `delta_base` series at all, while scopes are delta-active, means the
+leg is not wired.
 
 Observability Evidence: an unschedulable target makes Sweep or SweepBatch
 return an error. The projector's live hook logs the error and increments its
@@ -215,6 +278,18 @@ statement to update the winning row. The target-discovery query, claim fan-out,
 indexes, and worker count are unchanged. No repo-scale throughput claim follows.
 See [the #8948 evidence](../../../../../docs/internal/evidence/8948-crossplane-redrive-replay.md)
 for direct live interleavings and the 501-target paged sweep measurement.
+
+Performance Evidence (#10094): the discovery text collapses claims to one
+(scope, generation) row before its joins. The delta-base leg derived from it
+uses `fact_records_active_k8s_claim_redrive_idx` with the candidate base
+generation ids pushed into the index condition. Before the rebase onto the
+generation-id derivation, the plan corpus with 2000 delta-active scopes
+measured the active leg at 1.8 ms, the base leg at 4.2 ms, and lookup plus
+base at 18.8 ms, within the 25 ms bound then in force. At the rebased head
+a quiet-host worse-of-two measured added cost 26.854 ms, most of it the
+shared lookup's candidate aggregation rather than the base leg; the bound
+was recalibrated to 30 ms on that basis and the verdict passes. See
+[the #10094 evidence](../../../../../docs/internal/evidence/10094-crossplane-redrive-delta-base.md).
 
 No-Regression Evidence (comment correction): relative to merged source
 `5e4089e538`, the after-tree has identical comment-stripped Go syntax in

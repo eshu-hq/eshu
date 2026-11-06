@@ -139,6 +139,11 @@ tests:
     class: postgres_ci
     reason: "#10005 disposable PostgreSQL plan-shape guard for migration 280: on a bootstrapped database with many non-XRD content entities, the active Crossplane XRD text and its derived delta-base text are both served by fact_records_crossplane_xrd_entity_idx with no sequential scan of fact_records; reads ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DSN with its disposable opt-in"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/satisfied_by_redrive_base_leg_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10094 disposable PostgreSQL differential for the Crossplane redrive discovery reshape: the shipped DISTINCT-branch text, its per-claim form, and the pre-#10094 text return identical active row sets, and the base texts derived from the shipped and per-claim forms return identical delta-base row sets, over duplicate claims, NULL and entity_kind payloads, tombstones, two-generation scopes, a ledger row, a legacy delta, a missing base, and every keyset page size; reads ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DSN with its disposable opt-in"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/search/index/retention/drain_live_test.go
     tag: ~
     class: postgres_ci

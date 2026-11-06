@@ -13,6 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
+	crossplanestore "github.com/eshu-hq/eshu/go/internal/storage/postgres/crossplane"
 )
 
 // listActiveCrossplaneXRDFactsQuery loads active content_entity facts whose
@@ -375,4 +376,60 @@ func (s FactStore) crossplaneDeltaOverlayTelemetry(read string) deltaOverlayTele
 		sink.counter = s.instruments.CrossplaneSatisfiedByReadDeltaUnion
 	}
 	return sink
+}
+
+// FactStore is the Crossplane redrive sweep's delta-base discovery
+// collaborator (#10094).
+var _ crossplanestore.CrossplaneRedriveDeltaBaseTargetLister = FactStore{}
+
+// CrossplaneRedriveDeltaBaseGenerations returns the candidate base
+// generation ids the Crossplane redrive sweep's delta-base leg can reach:
+// the activated full generations at the union-base commit of every
+// delta-active scope with a recorded baseline. It runs the shared
+// reader-side target lookup (deltaOverlayTargetsQuery) and
+// deltaOverlayBaseGenerations, the same pair the delta-overlay readers
+// use, so the base leg reaches exactly the generations those readers
+// overlay. A legacy delta has no base and contributes none. An empty
+// result (no baseline, or no activated full generation at the commit)
+// means the sweep runs no base statement.
+func (s FactStore) CrossplaneRedriveDeltaBaseGenerations(ctx context.Context) ([]string, error) {
+	if s.database == nil {
+		return nil, fmt.Errorf("fact store database is required")
+	}
+	targets, err := s.readDeltaOverlayTargets(ctx)
+	if err != nil {
+		return nil, err
+	}
+	baseGenerations, _ := deltaOverlayBaseGenerations(targets)
+	return baseGenerations, nil
+}
+
+// ListCrossplaneRedriveDeltaBaseTargetScopes runs one page of the Crossplane
+// redrive delta-base leg: the base text deriveDeltaOverlayBaseQuery derives
+// from crossplanestore.ListCrossplaneRedriveTargetScopesQuery, bound to
+// baseGenerations at
+// crossplanestore.CrossplaneRedriveDeltaBaseGenerationParam. It returns
+// each delta-active scope with a matching claim in an activated full
+// generation at the delta's union-base commit, and the scope's active
+// delta generation. The leg is a superset of the base the projector picks
+// and applies no overlay; the handler reads the overlaid snapshot. With no
+// base generation no statement runs.
+func (s FactStore) ListCrossplaneRedriveDeltaBaseTargetScopes(
+	ctx context.Context,
+	page crossplanestore.CrossplaneRedriveTargetPage,
+	baseGenerations []string,
+) ([]crossplanestore.CrossplaneRedriveTargetScope, error) {
+	if s.database == nil {
+		return nil, fmt.Errorf("fact store database is required")
+	}
+	if len(baseGenerations) == 0 {
+		return nil, nil
+	}
+	query, err := deriveDeltaOverlayBaseQuery(crossplanestore.ListCrossplaneRedriveTargetScopesQuery, crossplanestore.CrossplaneRedriveDeltaBaseGenerationParam)
+	if err != nil {
+		return nil, err
+	}
+	return crossplanestore.QueryCrossplaneRedriveTargetScopes(ctx, s.database,
+		"list crossplane redrive delta base target scopes", query,
+		slices.Concat(page.QueryArgs(), []any{baseGenerations})...)
 }

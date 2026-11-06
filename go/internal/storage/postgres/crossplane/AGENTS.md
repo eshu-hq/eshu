@@ -18,9 +18,25 @@
   own issue with queue proof per `eshu-postgres-rigor` (selection, claim,
   idempotency, stale-lease behavior — never serialize workers or shrink
   batches as the fix).
-- Keep the target-discovery query and the completed outcome available to the
-  external tests through `export_test.go`. Do not hand-copy the SQL into a
+- Keep the sweep outcomes available to the external tests through
+  `export_test.go`. The discovery text is the exported
+  `ListCrossplaneRedriveTargetScopesQuery`. Do not hand-copy the SQL into a
   test.
+- The delta-base leg (#10094) is derived, never written here: the parent
+  `postgres.FactStore` implements `CrossplaneRedriveDeltaBaseTargetLister`
+  by running `deriveDeltaOverlayBaseQuery` on
+  `ListCrossplaneRedriveTargetScopesQuery`. Keep both active fragments
+  (`AND scope.active_generation_id = fact.generation_id`,
+  `AND generation.status = 'active'`) written exactly once, keep `$6` free,
+  and keep the DISTINCT `(scope_id, generation_id)` branch (the per-claim
+  shape costs about 7x on the active leg and drove the base leg to a 3.5 s
+  custom plan; see `docs/internal/evidence/10094-crossplane-redrive-delta-base.md`).
+  Never add a hand-copied base predicate or an overlay in this package.
+- Keep the leg order in `runLegs`: every key's active leg, then ONE
+  delta-active scope lookup, then every key's base leg. Moving the lookup
+  ahead of an active page reopens a miss for a scope that turns delta-active
+  through a delta that touches no K8s file (no intent of its own).
+  `TestRunLegsReadsDeltaGenerationsOnceAfterEveryActivePage` fails on that.
 - Never import the parent `postgres` package from production code here:
   `cmd/projector`, `cmd/reducer`, and root `internal/storage/postgres`
   import this package directly, and importing back would be a cycle. Tests
@@ -90,7 +106,7 @@
   invocation whose lease was reclaimed by another invocation under the SAME
   owner string silently complete a claim it no longer holds. Do not weaken
   this back to an owner-string fence.
-- Operator dashboard decision: the three new counters
+- Operator dashboard decision: the three counters
   (`eshu_dp_crossplane_redrive_sweeps_total`,
   `..._targets_enqueued_total`, `..._pages_processed_total`) are
   intentionally NOT added to
@@ -116,6 +132,11 @@
 - Dropping `FOR UPDATE SKIP LOCKED` lets two concurrent claimants take the
   same XRD generation; dropping the fencing-token match lets a stale claimant
   complete a re-claimed sweep.
+- A nil `DeltaBase` in `cmd/projector` (`buildCrossplaneRedriveSweeper`)
+  silently leaves every base-only claim of a delta-active scope without a
+  SATISFIED_BY edge until that repository's next commit. The `read=delta_base`
+  series of `eshu_dp_crossplane_redrive_targets_enqueued_total` is the
+  operator signal.
 
 ## Verification
 

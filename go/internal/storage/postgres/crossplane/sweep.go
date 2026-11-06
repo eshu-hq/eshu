@@ -64,9 +64,16 @@ type crossplaneRedriveXRDJoinKey struct {
 // false when the sweep never started real work (no active XRD in the
 // generation, or the row was already claimed/completed by another owner).
 type CrossplaneRedriveSweepResult struct {
-	Attempted       bool
+	Attempted bool
+	// TargetsEnqueued counts the distinct target scopes scheduled by every
+	// discovery leg; PagesProcessed counts every leg's pages.
 	TargetsEnqueued int
 	PagesProcessed  int
+	// DeltaBaseTargetsEnqueued and DeltaBasePagesProcessed are the part of
+	// TargetsEnqueued and PagesProcessed the delta-base leg contributed
+	// (#10094). A target both legs reach counts once, for the active leg.
+	DeltaBaseTargetsEnqueued int
+	DeltaBasePagesProcessed  int
 	// Outcome is a small fixed vocabulary suitable for a low-cardinality
 	// telemetry label: no_active_xrd, already_in_progress, completed,
 	// reclaimed_mid_sweep, sweep_error.
@@ -115,6 +122,10 @@ type CrossplaneSatisfiedByRedriveSweeper struct {
 	State CrossplaneRedriveStateStore
 	// Replayer durably schedules each target scope's SATISFIED_BY intent.
 	Replayer CrossplaneRedriveIntentReplayer
+	// DeltaBase discovers targets whose matching claim lives only in the
+	// base full generation of a delta-active scope (#10094). Nil keeps the
+	// active leg only, which misses those scopes.
+	DeltaBase CrossplaneRedriveDeltaBaseTargetLister
 	// Owner identifies this process class for the claim lease (mirrors
 	// ProjectorQueue/ReducerQueue's LeaseOwner). NOT used as a completion
 	// fence -- MarkCompleted fences on the bumped claim_fencing_token instead,
@@ -230,11 +241,12 @@ func (s CrossplaneSatisfiedByRedriveSweeper) Sweep(
 	return s.runClaimedFanOut(ctx, xrdScopeID, xrdGenerationID, fencingToken, keys)
 }
 
-// sweepJoinKey pages through target scopes matching one XRD (group,
-// claim_kind) join key and durably schedules each newly seen target once.
-// seenTargets deduplicates scopes across join keys in this generation.
-// superseded reports the active-generation fence firing mid-sweep, so the
-// caller stops processing further join keys.
+// sweepJoinKey pages one discovery leg's target scopes for one XRD (group,
+// claim_kind) join key, with its own keyset cursor, and durably schedules
+// each newly seen target once. seenTargets deduplicates scopes across legs
+// and join keys in this generation. superseded reports the
+// active-generation fence firing mid-sweep, so the caller stops processing
+// further legs and join keys.
 //
 // ReplayCrossplaneSatisfiedByMaterialization uses the stable queue item's
 // atomic replay UPDATE: succeeded work reopens, while claimed or running
@@ -256,11 +268,13 @@ func (s CrossplaneSatisfiedByRedriveSweeper) sweepJoinKey(
 	xrdScopeID string,
 	xrdGenerationID string,
 	key crossplaneRedriveXRDJoinKey,
+	leg crossplaneRedriveLeg,
 	seenTargets map[string]struct{},
 	result *CrossplaneRedriveSweepResult,
 ) (bool, error) {
-	after := ""
-	pageSize := s.pageSize()
+	page := CrossplaneRedriveTargetPage{
+		Group: key.group, ClaimKind: key.claimKind, XRDScopeID: xrdScopeID, Limit: s.pageSize(),
+	}
 	for {
 		stillActive, err := s.isXRDGenerationStillActive(ctx, xrdScopeID, xrdGenerationID)
 		if err != nil {
@@ -282,72 +296,39 @@ func (s CrossplaneSatisfiedByRedriveSweeper) sweepJoinKey(
 		// write from the same pool -- a self-inflicted pool-exhaustion
 		// deadlock under a small pool, and needless connection pressure even
 		// under a larger one.
-		page, err := s.fetchTargetScopePage(ctx, key, xrdScopeID, after, pageSize)
+		targets, err := leg.fetch(ctx, page)
 		if err != nil {
 			return false, err
 		}
 
-		last := after
-		for _, target := range page {
-			last = target.scopeID
-			if _, seen := seenTargets[target.scopeID]; seen {
+		last := page.AfterScopeID
+		for _, target := range targets {
+			last = target.ScopeID
+			if _, seen := seenTargets[target.ScopeID]; seen {
 				continue
 			}
-			scheduled, err := s.Replayer.ReplayCrossplaneSatisfiedByMaterialization(ctx, target.scopeID, target.generationID)
+			scheduled, err := s.Replayer.ReplayCrossplaneSatisfiedByMaterialization(ctx, target.ScopeID, target.GenerationID)
 			if err != nil {
-				return false, fmt.Errorf("replay crossplane satisfied-by materialization for %q: %w", target.scopeID, err)
+				return false, fmt.Errorf("replay crossplane satisfied-by materialization for %q: %w", target.ScopeID, err)
 			}
 			if !scheduled {
-				return false, fmt.Errorf("replay crossplane satisfied-by materialization for %q: stable work item is not schedulable", target.scopeID)
+				return false, fmt.Errorf("replay crossplane satisfied-by materialization for %q: stable work item is not schedulable", target.ScopeID)
 			}
-			seenTargets[target.scopeID] = struct{}{}
+			seenTargets[target.ScopeID] = struct{}{}
+			if leg.read == crossplaneRedriveReadDeltaBase {
+				result.DeltaBaseTargetsEnqueued++
+			}
 		}
 		result.PagesProcessed++
+		if leg.read == crossplaneRedriveReadDeltaBase {
+			result.DeltaBasePagesProcessed++
+		}
 
-		if len(page) < pageSize {
+		if len(targets) < page.Limit {
 			return false, nil
 		}
-		after = last
+		page.AfterScopeID = last
 	}
-}
-
-// crossplaneRedriveTargetScope is one row of
-// listCrossplaneRedriveTargetScopesQuery's result: a target Claim scope and
-// its current active generation.
-type crossplaneRedriveTargetScope struct {
-	scopeID      string
-	generationID string
-}
-
-// fetchTargetScopePage runs and fully drains one page of the target-discovery
-// query, closing its rows before returning so the caller never holds this
-// SELECT's connection open while issuing a write.
-func (s CrossplaneSatisfiedByRedriveSweeper) fetchTargetScopePage(
-	ctx context.Context,
-	key crossplaneRedriveXRDJoinKey,
-	xrdScopeID string,
-	after string,
-	pageSize int,
-) ([]crossplaneRedriveTargetScope, error) {
-	rows, err := s.DB.QueryContext(ctx, listCrossplaneRedriveTargetScopesQuery,
-		key.group, key.claimKind, xrdScopeID, after, pageSize)
-	if err != nil {
-		return nil, fmt.Errorf("list crossplane redrive target scopes: %w", err)
-	}
-	defer func() { _ = rows.Close() }()
-
-	page := make([]crossplaneRedriveTargetScope, 0, pageSize)
-	for rows.Next() {
-		var target crossplaneRedriveTargetScope
-		if scanErr := rows.Scan(&target.scopeID, &target.generationID); scanErr != nil {
-			return nil, fmt.Errorf("scan crossplane redrive target scope: %w", scanErr)
-		}
-		page = append(page, target)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("list crossplane redrive target scopes: %w", err)
-	}
-	return page, nil
 }
 
 func (s CrossplaneSatisfiedByRedriveSweeper) isXRDGenerationStillActive(
@@ -441,16 +422,4 @@ func (s CrossplaneSatisfiedByRedriveSweeper) recordSweep(ctx context.Context, ou
 	s.Instruments.CrossplaneRedriveSweeps.Add(ctx, 1, metric.WithAttributes(
 		telemetry.AttrOutcome(outcome),
 	))
-}
-
-func (s CrossplaneSatisfiedByRedriveSweeper) recordTargetsAndPages(ctx context.Context, targets, pages int) {
-	if s.Instruments == nil {
-		return
-	}
-	if s.Instruments.CrossplaneRedriveTargetsEnqueued != nil && targets > 0 {
-		s.Instruments.CrossplaneRedriveTargetsEnqueued.Add(ctx, int64(targets))
-	}
-	if s.Instruments.CrossplaneRedrivePagesProcessed != nil && pages > 0 {
-		s.Instruments.CrossplaneRedrivePagesProcessed.Add(ctx, int64(pages))
-	}
 }

@@ -156,7 +156,7 @@ func testCrossplaneRedriveTargetDiscoveryQueryPlanLive(t *testing.T) {
 				t.Fatalf("disable bitmapscan: %v", err)
 			}
 		}
-		rows, err := tx.QueryContext(ctx, "EXPLAIN (ANALYZE, BUFFERS) "+crossplanestore.ListCrossplaneRedriveTargetScopesQueryForTest,
+		rows, err := tx.QueryContext(ctx, "EXPLAIN (ANALYZE, BUFFERS) "+crossplanestore.ListCrossplaneRedriveTargetScopesQuery,
 			matchGroup, matchKind, xrdScopeID, "", 500)
 		if err != nil {
 			t.Fatalf("%s: explain query: %v", label, err)
@@ -203,6 +203,9 @@ func testCrossplaneRedriveTargetDiscoveryQueryPlanLive(t *testing.T) {
 	if len(indexed) != matchingScopes {
 		t.Fatalf("expected %d matching target scopes, got %d", matchingScopes, len(indexed))
 	}
+
+	// #10094: the same corpus with half its claim scopes delta-active.
+	testCrossplaneRedriveDeltaBasePlanLive(ctx, t, db, conn, matchGroup, matchKind, xrdScopeID)
 }
 
 // crossplaneRedriveExecer is the minimal write surface the seed helpers need.
@@ -294,7 +297,7 @@ func collectCrossplaneRedriveTargetScopes(
 	after := ""
 	const pageSize = 500
 	for {
-		rows, err := tx.QueryContext(ctx, crossplanestore.ListCrossplaneRedriveTargetScopesQueryForTest, group, kind, xrdScopeID, after, pageSize)
+		rows, err := tx.QueryContext(ctx, crossplanestore.ListCrossplaneRedriveTargetScopesQuery, group, kind, xrdScopeID, after, pageSize)
 		if err != nil {
 			t.Fatalf("query target scopes: %v", err)
 		}
