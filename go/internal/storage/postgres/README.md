@@ -2122,13 +2122,13 @@ server-side `UPDATE` loop excludes exactly the round-trips that dominate here.
 
 On the ingester those drains are paced by ingestion, not by a timer.
 `collector.Service` runs `AfterBatchDrained` when the source batch exhausts
-after at least one committed generation (`committedSinceDrain`, cleared at
-`go/internal/collector/service.go:262`, set again at `:306`), and on every
+after at least one committed generation (`committedSinceDrain`, cleared in
+`Service.Run`, `go/internal/collector/service.go`, set again on commit), and on every
 idle poll via the `AfterEmptyBatchDrained` escape the ingester enables for
 `RepoShardCount > 1` or a single shard with scheduled sync off (a
 collector-off ingester, #7665).
 
-The escape is level-gated on the flag (`service.go:251`), not on commit
+The escape is level-gated on the flag (the `emptyBatchEscape` read), not on commit
 history. A shard that has never committed, because it owns no repositories
 under the current shard assignment, keeps the escape live for the life of the
 process, so it fires on every idle poll. A shard that committed and then goes

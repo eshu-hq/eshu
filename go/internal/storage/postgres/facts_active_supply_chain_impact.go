@@ -233,6 +233,7 @@ func supplyChainImpactParamValues(filter supplychaincore.SupplyChainImpactFactFi
 		factimpact.LowerRepositoryIDs:  lowerCleanedStringFilterValues(filter.RepositoryIDs),
 		factimpact.LowerAdvisoryIDs:    lowerCleanedStringFilterValues(filter.AdvisoryIDs),
 		factimpact.SuppressionLimit:    maxSupplyChainImpactActiveEvidenceRowsPerCall + 1,
+		factimpact.UpstreamCVEIDs:      filter.UpstreamCVEIDs,
 	}
 }
 
@@ -360,6 +361,7 @@ func normalizeSupplyChainImpactFactFilter(filter *supplychaincore.SupplyChainImp
 	filter.PackageIDs = cleanStringFilterValues(filter.PackageIDs)
 	filter.PURLs = cleanStringFilterValues(filter.PURLs)
 	filter.CVEIDs = cleanStringFilterValues(filter.CVEIDs)
+	filter.UpstreamCVEIDs = cleanStringFilterValues(filter.UpstreamCVEIDs)
 	filter.AdvisoryIDs = cleanStringFilterValues(filter.AdvisoryIDs)
 	filter.SubjectDigests = cleanStringFilterValues(filter.SubjectDigests)
 	filter.DocumentIDs = cleanStringFilterValues(filter.DocumentIDs)
@@ -371,7 +373,7 @@ func normalizeSupplyChainImpactFactFilter(filter *supplychaincore.SupplyChainImp
 
 func supplyChainImpactFactFilterEmpty(filter supplychaincore.SupplyChainImpactFactFilter) bool {
 	return len(filter.PackageIDs) == 0 && len(filter.PURLs) == 0 &&
-		len(filter.CVEIDs) == 0 && len(filter.AdvisoryIDs) == 0 && len(filter.SubjectDigests) == 0 &&
+		len(filter.CVEIDs) == 0 && len(filter.UpstreamCVEIDs) == 0 && len(filter.AdvisoryIDs) == 0 && len(filter.SubjectDigests) == 0 &&
 		len(filter.DocumentIDs) == 0 && len(filter.ProductCriteria) == 0 &&
 		len(filter.RepositoryIDs) == 0 && len(filter.FileRepositoryIDs) == 0 &&
 		len(filter.ImageRefs) == 0

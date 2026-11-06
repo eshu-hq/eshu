@@ -37,16 +37,16 @@ func (s *InMemoryStore) Load(_ context.Context, key Key) (Watermark, bool, error
 	return value, ok, nil
 }
 
-// Save upserts value, rejecting a fencing token strictly older than the
-// stored row's fencing token with ErrStaleFence. A fencing token equal to
-// the stored row's is accepted (idempotent redelivery).
+// Save upserts value under the Store guard, rejecting a stale write with
+// ErrStaleFence. A fencing token equal to the stored row's, in the same
+// generation, is accepted (idempotent redelivery).
 func (s *InMemoryStore) Save(_ context.Context, value Watermark) error {
 	if err := value.Validate(); err != nil {
 		return err
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if existing, ok := s.rows[value.Key]; ok && value.FencingToken < existing.FencingToken {
+	if existing, ok := s.rows[value.Key]; ok && !value.supersedes(existing) {
 		return ErrStaleFence
 	}
 	s.rows[value.Key] = value

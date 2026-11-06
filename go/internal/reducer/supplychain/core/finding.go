@@ -81,10 +81,16 @@ type SupplyChainImpactFinding struct {
 	PriorityBucket        string
 	PriorityReasonCodes   []string
 	PriorityContributions []SupplyChainImpactPriorityContribution
-	RuntimeReachability   string
-	Reachability          *SupplyChainReachability
-	RepositoryID          string
-	SubjectDigest         string
+	// ExploitedTier ranks the finding by exploited-ness (#9882 item 4.5):
+	// kev for CISA KEV, ssvc_active for an SSVC "active" exploitation state
+	// (reserved until 4.1 feeds it), epss for an EPSS observation without an
+	// exploited listing, none otherwise. Additive triage metadata alongside
+	// PriorityScore: it never changes impact_status or missing-evidence truth.
+	ExploitedTier       string
+	RuntimeReachability string
+	Reachability        *SupplyChainReachability
+	RepositoryID        string
+	SubjectDigest       string
 	// ScanTargetID is the immutable authorization boundary for a derived
 	// image scan. It is empty for legacy repository and image findings.
 	ScanTargetID string

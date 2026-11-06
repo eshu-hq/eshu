@@ -33,9 +33,11 @@ type SourceState struct {
 	// scopes, read as pending when any requested package has no scope.
 	Derived bool `json:"derived,omitempty"`
 	// ScopeCount is the number of distinct derived scopes kept: the newest
-	// scope per requested package, then deduplicated.
+	// scope per requested package and release, then deduplicated. It includes a
+	// planned release with no state yet, which reads pending.
 	ScopeCount int `json:"scope_count,omitempty"`
-	// PackageCount is the number of requested packages a scope covered.
+	// PackageCount is the number of requested packages a scope covered or the
+	// latest plan expects a scope for; it does not mean every release is fresh.
 	PackageCount int `json:"package_count,omitempty"`
 	// UnmatchedPackageCount is the number of requested packages no derived
 	// scope covered. It includes packages the planner skipped and scopes

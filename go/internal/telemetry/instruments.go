@@ -1056,6 +1056,11 @@ type Instruments struct {
 	// installed row's release line (#9806 PR-2b), and for a vendor-sourced fact
 	// whether its purl distro line is the host's (#9945).
 	SupplyChainImpactOSAdvisoryReleaseSelections metric.Int64Counter
+	// SupplyChainImpactOSAdvisoryUpstreamGroups counts the vulnerability.cve
+	// records the OS advisory grouping pass examined, by source (debian,
+	// ubuntu, alpine, alma, rocky, other) and result (grouped, ungrouped):
+	// whether the record's upstream list filed it under a CVE id (#9914).
+	SupplyChainImpactOSAdvisoryUpstreamGroups metric.Int64Counter
 	// SupplyChainImpactOSReleaseNotInAdvisory counts the OS findings whose
 	// advisory carries release tags but none for the installed release,
 	// labeled source (debian, ubuntu, alpine, alma, rocky, other) (#9806). Absence
@@ -1063,6 +1068,14 @@ type Instruments struct {
 	// possibly_affected; a climbing rate on a steady corpus means advisories
 	// stop listing the releases the fleet runs.
 	SupplyChainImpactOSReleaseNotInAdvisory metric.Int64Counter
+	// SupplyChainImpactOSRepresentativeJoins counts the OS-shaped (cve,
+	// package_id) groups a supply-chain impact pass classified, once per index it
+	// evaluated, labeled source (debian, ubuntu, alpine, alma, rocky, other: the
+	// fact that named the group) and outcome (joined, reselected, other_anchor,
+	// no_joinable_representative, no_installed_row) (#9990).
+	// no_joinable_representative is a group with installed rows under its keys
+	// and no fact of the group that can join them: no finding, by this count only.
+	SupplyChainImpactOSRepresentativeJoins metric.Int64Counter
 	// SupplyChainImpactFindingsRetracted counts prior supply-chain impact
 	// finding rows a reducer pass tombstoned because its complete finding set
 	// for the (scope, generation) no longer derives them (#6831) -- for
@@ -3268,6 +3281,10 @@ type Instruments struct {
 	// collector instance, and ecosystem. Registered by
 	// registerActivationDerivedScopeInstruments.
 	ActivationDerivedScopesPlanned metric.Int64Counter
+	// ActivationDerivedScopesFenced counts #10055 go-reachability generations the
+	// commit-skew fence retracted, by collector kind, ecosystem, and reason.
+	// Registered by registerActivationDerivedScopeInstruments.
+	ActivationDerivedScopesFenced metric.Int64Counter
 	// SecurityAlertOrgFanoutRepositories counts #8805 allowlisted
 	// repositories handled by the org-scope per-repository fan-out, by
 	// provider and the closed outcome set in contract/security_alert.go.
@@ -4898,12 +4915,26 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	if err != nil {
 		return nil, fmt.Errorf("register SupplyChainImpactOSAdvisoryReleaseSelections counter: %w", err)
 	}
+	inst.SupplyChainImpactOSAdvisoryUpstreamGroups, err = meter.Int64Counter(
+		"eshu_dp_supply_chain_impact_os_advisory_upstream_groups_total",
+		metric.WithDescription("Vulnerability records a supply-chain impact pass examined for OS advisory grouping, by source (debian, ubuntu, alpine, alma, rocky, other) and result (grouped, ungrouped): grouped means the record's upstream list named a CVE and the record is indexed under it; ungrouped means an OS vendor record with no usable CVE in its upstream list keeps its own group. A source that reads only ungrouped means the producer's upstream lists are not reaching the reducer."),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register SupplyChainImpactOSAdvisoryUpstreamGroups counter: %w", err)
+	}
 	inst.SupplyChainImpactOSReleaseNotInAdvisory, err = meter.Int64Counter(
 		"eshu_dp_supply_chain_impact_os_release_not_in_advisory_total",
 		metric.WithDescription("OS findings whose advisory carries release tags but none for the installed release, by source (debian, ubuntu, alpine, alma, rocky, other)"),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register SupplyChainImpactOSReleaseNotInAdvisory counter: %w", err)
+	}
+	inst.SupplyChainImpactOSRepresentativeJoins, err = meter.Int64Counter(
+		"eshu_dp_supply_chain_impact_os_representative_joins_total",
+		metric.WithDescription("OS-shaped advisory package groups a supply-chain impact pass classified, once per index it evaluated, by source (debian, ubuntu, alpine, alma, rocky, other: the fact that named the group) and outcome: joined means the source-order representative joined an installed row, reselected means another fact of the group joined it because the source-order fact had no anchor, other_anchor means an SBOM path or consuming repository anchors the finding, no_joinable_representative means installed rows sit under the group's keys but no fact of the group can join them so no finding is emitted, no_installed_row means no installed row sits under the group's lookup keys in that index"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register SupplyChainImpactOSRepresentativeJoins counter: %w", err)
 	}
 
 	inst.SupplyChainImpactFindingsRetracted, err = meter.Int64Counter(

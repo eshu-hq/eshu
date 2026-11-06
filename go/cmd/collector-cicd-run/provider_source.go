@@ -54,3 +54,52 @@ func (s providerRoutedSource) NextClaimed(
 	}
 	return source.NextClaimed(ctx, item)
 }
+
+// ObserveClaimedGenerationCommitted implements
+// collector.ClaimedGenerationCommitObserver. ClaimedService finds this hook by
+// type assertion on its Source, so the router must forward it: before #10063
+// this binary never reached the GitHub source's hook, never wrote a run
+// watermark, and leaked one staged entry per claim. A provider with no hook
+// (GitLab) is a no-op. An unregistered scope is an error the service counts.
+func (s providerRoutedSource) ObserveClaimedGenerationCommitted(ctx context.Context, item workflow.WorkItem) error {
+	source, err := s.sourceForObserver(item)
+	if err != nil {
+		return err
+	}
+	if observer, ok := source.(collector.ClaimedGenerationCommitObserver); ok {
+		return observer.ObserveClaimedGenerationCommitted(ctx, item)
+	}
+	return nil
+}
+
+// ObserveClaimedGenerationRefused implements
+// collector.ClaimedGenerationRefusalObserver, forwarding by the same rules as
+// ObserveClaimedGenerationCommitted.
+func (s providerRoutedSource) ObserveClaimedGenerationRefused(
+	ctx context.Context,
+	item workflow.WorkItem,
+	refusal collector.CommitRefusal,
+) error {
+	source, err := s.sourceForObserver(item)
+	if err != nil {
+		return err
+	}
+	if observer, ok := source.(collector.ClaimedGenerationRefusalObserver); ok {
+		return observer.ObserveClaimedGenerationRefused(ctx, item, refusal)
+	}
+	return nil
+}
+
+// sourceForObserver resolves the provider source that collected item.
+func (s providerRoutedSource) sourceForObserver(item workflow.WorkItem) (collector.ClaimedSource, error) {
+	source, ok := s.byScopeID[item.ScopeID]
+	if !ok {
+		return nil, fmt.Errorf("ci/cd run scope %q has no registered provider source", item.ScopeID)
+	}
+	return source, nil
+}
+
+var (
+	_ collector.ClaimedGenerationCommitObserver  = providerRoutedSource{}
+	_ collector.ClaimedGenerationRefusalObserver = providerRoutedSource{}
+)

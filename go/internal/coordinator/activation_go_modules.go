@@ -9,11 +9,15 @@ import (
 	"fmt"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
+
 	"github.com/eshu-hq/eshu/go/internal/collector/scannercomponent"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/component/activation"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/reachability"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/schedule"
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
@@ -27,6 +31,19 @@ type GoModuleRepositoryReader interface {
 		context.Context,
 		scannercomponent.GoModuleRepositoryFilter,
 	) (scannercomponent.GoModuleRepositoryPage, error)
+}
+
+// GoEvidenceFencer retracts go-reachability generations the commit-skew rule named,
+// and reopens the scopes holding findings for each repository in the same transaction.
+// Each fence names the generation the page read as active, so a successor activated
+// since that read makes it a no-op. The result counts what it actually did, and it is
+// valid alongside an error.
+type GoEvidenceFencer interface {
+	FenceStaleGoEvidence(
+		context.Context,
+		[]scannercomponent.StaleEvidenceFence,
+		time.Time,
+	) (scannercomponent.StaleEvidenceFenceResult, error)
 }
 
 // checkGoModuleDerivation is the rule set for a Go reachability activation's
@@ -90,6 +107,12 @@ func activationPlansOnlyDerivedScopes(kind scope.CollectorKind, config activatio
 // mid-bucket is planned on that repository's next rotation visit. A page that plans
 // no run creates none, so it is re-read every tick for its bucket; that bounded cost
 // is deliberate, because it admits a target as soon as it closes.
+//
+// The commit-skew fence runs on the page before the plan is admitted. A failed
+// fence fails the pass and creates no run, so the next reconcile re-reads the page
+// and retries; with a run in place the bucket would stop at the planned probe and
+// the fence would wait a whole rotation. A fenced repository is still planned, on
+// this page and later ones, because only a claim can land its successor.
 func (s Service) scheduleGoModuleDerivedScopes(
 	ctx context.Context,
 	observedAt time.Time,
@@ -117,6 +140,9 @@ func (s Service) scheduleGoModuleDerivedScopes(
 	if s.GoModuleRepositoryReader == nil {
 		return fmt.Errorf("go module repository reader is required for go reachability activation %q", instance.InstanceID)
 	}
+	if s.GoEvidenceFencer == nil {
+		return fmt.Errorf("go evidence fencer is required for go reachability activation %q", instance.InstanceID)
+	}
 	// The section's interval, not the instance's: an activation has no top-level
 	// scan_interval, so the instance's is the global reconcile interval.
 	if err := validateGoModuleInterval(derivation, s.Config.ReconcileInterval); err != nil {
@@ -138,6 +164,12 @@ func (s Service) scheduleGoModuleDerivedScopes(
 	}
 	if page.AlreadyPlanned {
 		return nil
+	}
+	s.warnGoRotationOutgrowsRetention(instance, page, interval)
+	fence := reachability.StaleEvidence(page.Repositories, observedAt, interval, page.SlotCount)
+	fenced, err := s.fenceStaleGoEvidence(ctx, observedAt, instance, fence)
+	if err != nil {
+		return fmt.Errorf("fence stale go evidence for %q: %w", instance.InstanceID, err)
 	}
 	run, items, skipped, err := reachability.Plan(reachability.PlanRequest{
 		Instance: instance, ObservedAt: observedAt, PlanKey: planKey, Repositories: page.Repositories,
@@ -172,7 +204,69 @@ func (s Service) scheduleGoModuleDerivedScopes(
 			"skipped_unsupported_remote", skipped[reachability.SkipUnsupportedRemote],
 			"skipped_unsupported_remote_with_evidence", skipped[reachability.SkipUnsupportedRemoteWithEvidence],
 			"skipped_missing_commit", skipped[reachability.SkipMissingCommit],
+			"fenced_stale_evidence", fenced.Fenced,
+			"fence_holders_reopened", fenced.HoldersReopened,
+			"fence_candidates_skipped_no_commit", fence.SkippedNoCommit,
+			"fence_history_pruned", fence.HistoryPruned,
 		)
 	}
 	return nil
+}
+
+// goRotationRetentionBreachReason names the breach on the warning log.
+const goRotationRetentionBreachReason = "go_rotation_exceeds_half_retention_cutoff"
+
+// warnGoRotationOutgrowsRetention warns when the rotation period is longer than half
+// the generation retention soft cutoff (#10089). The commit-skew fence measures skew
+// from the repository's superseded generations, which retention prunes at that cutoff,
+// and its bound is two rotations. Past this point a busy repository can read as pruned
+// and be fenced while its successor is still in flight on a healthy scanner, so a rising
+// fence_history_pruned would otherwise have no named cause. It runs once per plan bucket,
+// on the slot count the page read returned, and writes no metric.
+func (s Service) warnGoRotationOutgrowsRetention(
+	instance workflow.CollectorInstance,
+	page scannercomponent.GoModuleRepositoryPage,
+	interval time.Duration,
+) {
+	if s.Logger == nil || s.GenerationRetentionSoftCutoff <= 0 {
+		return
+	}
+	rotation := schedule.OwnedTargetRotationFreshness(int64(page.SlotCount), interval, s.GenerationRetentionSoftCutoff/2)
+	if !rotation.Exceeds() {
+		return
+	}
+	s.Logger.Warn(
+		"workflow coordinator go reachability rotation is longer than half the generation retention cutoff",
+		"collector_kind", instance.CollectorKind,
+		"collector_instance_id", instance.InstanceID,
+		"reason", goRotationRetentionBreachReason,
+		"slot_count", rotation.SlotCount,
+		"interval_seconds", rotation.Interval.Seconds(),
+		"rotation_period_seconds", rotation.Period.Seconds(),
+		"retention_cutoff_seconds", s.GenerationRetentionSoftCutoff.Seconds(),
+		"total_candidates", page.TotalCandidates,
+	)
+}
+
+// fenceStaleGoEvidence applies one page's fence decision and counts the generations
+// actually retracted, including those retracted before an error. A fence that lost
+// the race to a successor counts nothing, so the metric means evidence was retracted.
+func (s Service) fenceStaleGoEvidence(
+	ctx context.Context,
+	observedAt time.Time,
+	instance workflow.CollectorInstance,
+	decision reachability.FenceDecision,
+) (scannercomponent.StaleEvidenceFenceResult, error) {
+	if len(decision.Fences) == 0 {
+		return scannercomponent.StaleEvidenceFenceResult{}, nil
+	}
+	fenced, err := s.GoEvidenceFencer.FenceStaleGoEvidence(ctx, decision.Fences, observedAt)
+	if fenced.Fenced > 0 && s.ActivationDerivedScopesFenced != nil {
+		s.ActivationDerivedScopesFenced.Add(ctx, int64(fenced.Fenced), metric.WithAttributes(
+			attribute.String(telemetry.MetricDimensionCollectorKind, string(instance.CollectorKind)),
+			attribute.String(telemetry.MetricDimensionEcosystem, scannercomponent.EcosystemGo),
+			attribute.String(telemetry.MetricDimensionReason, reachability.FenceReasonStaleEvidence),
+		))
+	}
+	return fenced, err
 }

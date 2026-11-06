@@ -5,27 +5,32 @@
 `gomodules` reads one rotation page of repositories for the Go reachability
 scanner: their canonical id, active-generation commit, and stored remote. It keeps
 a repository whose stored content holds a `go.mod`, or whose go-reachability scope
-still holds Go evidence.
+still holds Go evidence. It also retracts Go evidence the commit-skew rule names, and
+reopens the scopes holding findings for that repository.
 
 ## Ownership boundary
 
-This package owns one read. The coordinator root owns the schedule and admission,
-and `coordinator/reachability` owns planning. It writes nothing and needs no
+This package owns one read and one write. The coordinator root owns the schedule and
+admission, and `coordinator/reachability` owns planning and the skew rule. It needs no
 migration.
 
 ## Exported surface
 
-- `Store`, `NewStore`, and `Store.ListGoModuleRepositories`.
+- `Store`, `NewStore`, `Store.ListGoModuleRepositories`, `Store.WithHolderReopener`,
+  `Store.FenceStaleGoEvidence`, and `HolderReopener`.
 
 ## Dependencies
 
-`collector/scannercomponent` for the value types and `storage/postgres/db` for the
-queryer.
+`collector/scannercomponent` for the value types, `facts` for the finding fact kind, and
+`storage/postgres/db` for the queryer. The composition root binds `HolderReopener` to
+`postgres.ReopenSupplyChainImpactHolderInTransaction`.
 
 ## Telemetry
 
-None of its own. The coordinator wraps the queryer so the read reports on
-`eshu_dp_postgres_query_duration_seconds{store="go_module_repositories"}`.
+None of its own. The coordinator wraps the queryer so the read and the fence report
+on `eshu_dp_postgres_query_duration_seconds{store="go_module_repositories"}`, and
+records `eshu_dp_workflow_coordinator_activation_derived_scopes_fenced_total` from the
+count the fence returns.
 
 ## Gotchas / invariants
 
@@ -62,6 +67,15 @@ None of its own. The coordinator wraps the queryer so the read reports on
 - `HasGoEvidence` is set on every returned row with evidence, so the planner can raise
   its invariant alarm for a non-canonical remote that holds evidence. A dead remote is
   not this case: it is planned, and its claim fails (eshu-hq/eshu#10055).
+- The page also returns the go-reachability scope's active generation and commit, and, only
+  for a skewed row, `evidence_left_at`: the newest `superseded_at` among the repository's own
+  generations at that commit. `reachability.StaleEvidence` applies the rule, and
+  `FenceStaleGoEvidence` writes the verdict.
+- A fence takes the scope row, supersedes the generation, finds the holders on
+  `fact_records_supply_chain_impact_repository_lookup_idx`, and reopens each, in one
+  transaction with a 2s `lock_timeout`. A successor's ack in either order ends on the
+  successor. A fence that loses the race changes nothing and counts nothing. Evidence:
+  `docs/internal/evidence/10055-commit-skew-fence.md`.
 - A repository scope that retires leaves its go-reachability scope active, because
   candidates are active repository scopes only. Core lifecycle owns that, not this
   query (eshu-hq/eshu#10054).

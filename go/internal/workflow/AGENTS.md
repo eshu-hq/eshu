@@ -102,6 +102,21 @@
   `TestVulnerabilityIntelligenceGHSAParityRows` pins each of these. The table is
   a hand-copied snapshot of checked inputs, not proof for every input; re-copy it
   when the collector's rules change.
+- **cve_list admits owned CVE IDs only** — the `cve_list` target case in
+  `vulnerability_intelligence_cvelist_config.go` requires `scope_id` of exactly
+  `vuln-intel://cve_list/cve` (no trimming, no case folding), a non-empty
+  `cve_ids` set of at most 100 (the satellite per-claim budget
+  `cveListMaxRequestsPerClaim`), no `modified_start`/`modified_end` window, and
+  no `results_per_page`. `base_url` takes the shared URL shape check (no
+  credentials). Core admits a cve_list target for configuration parity only, so
+  the core and collector pair can be tested; collection was approved scoped to
+  owned CVEs (eshu-hq/eshu#9880) with at most one request per second. Readiness
+  reads accept a CVE-selected cve_list target as a candidate but it never
+  certifies empty coverage, and the in-tree collector (`vulnruntime`) refuses a
+  cve_list source when its service builds the claimed source, so an instance
+  that carries a cve_list target does not start in-tree. `TestValidateVulnerabilityCVEListTargetAdmitsOwnedCVEs`
+  and `TestValidateVulnerabilityCVEListTargetRefusesMirrorShapes` pin the admit
+  matrix.
 - **OSV directory names are a closed list** — `OSVDirectoryEcosystem`
   (`osv_directory_ecosystems.go`) maps the 11 OSV change-feed bucket
   directories (`npm`, `PyPI`, `Go`, `Maven`, `NuGet`, `Packagist`, `RubyGems`,

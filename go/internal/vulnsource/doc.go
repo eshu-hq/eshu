@@ -10,7 +10,9 @@
 // recorder and pinned against the coordinator's and the readiness reader's
 // scope grammar (#9420); of the ghsa scopes it accepts
 // vuln-intel://ghsa/reviewed and vuln-intel://ghsa/malware, with the same
-// optional '?' suffix as the other sources. DefaultFreshnessWindow is the shared freshness window.
+// optional '?' suffix as the other sources. It accepts
+// vuln-intel://cve_list/cve for explicit owned CVE IDs (#9880).
+// DefaultFreshnessWindow is the shared freshness window.
 //
 // The package also owns the coordinator-minted scope shapes a core binary must
 // read without a collector. ParseDerivedOSVSlotScope, DerivedScopePackageKeys,

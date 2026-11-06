@@ -173,9 +173,20 @@ func (a arm) applies(kind string) bool {
 	}
 }
 
+// upstreamScopeArm matches a suppression scoped to a CVE a distro record names
+// (#9914). The list holds canonical upper-case keys, so the scope is folded up
+// rather than through a lowered twin. It is not a retired arm: the pre-#8880
+// predicate had no such list, and the guard does not read it.
+func upstreamScopeArm(b *binder) string {
+	ref := b.list(UpstreamCVEIDs)
+	return "(cardinality(" + ref + ") > 0 AND upper(btrim(fact.payload->'scope'->>'cve_id', " +
+		SuppressionScopeTrimCharactersSQL + ")) = ANY(" + ref + "))"
+}
+
 // kindDisjunction renders every arm that applies to one kind, with the kind
 // gates dropped (the statement already fixes the kind). It is exact for that
-// kind: the retired predicate restricted to the kind is this disjunction.
+// kind: the retired predicate restricted to the kind is this disjunction, plus
+// the upstream scope arm for suppressions.
 func kindDisjunction(b *binder, kind string) string {
 	var parts []string
 	for _, candidate := range renderedArms() {
@@ -185,6 +196,9 @@ func kindDisjunction(b *binder, kind string) string {
 		if candidate.applies(kind) {
 			parts = append(parts, candidate.render(b))
 		}
+	}
+	if kind == KindSuppression {
+		parts = append(parts, upstreamScopeArm(b))
 	}
 	return "(\n      " + strings.Join(parts, "\n      OR ") + "\n  )"
 }

@@ -429,7 +429,9 @@ push. If verification fails, run a new full `eshu-code-review`.
 
 If `make pre-push` prints `DEFER-CI` for a blocking gate on the surface you
 changed, run that gate (`make pre-pr` or its registry `local.command`) before
-you push. `make pre-pr` and `make pre-pr-full` are RECOMMENDED, not required,
+you push. A `docs/**` or `go/**` diff always triggers the deferred blocking
+doc-citations gate, so run its registry `local.command` before you push.
+`make pre-pr` and `make pre-pr-full` are RECOMMENDED, not required,
 for queue/lease/claim code, schema DDL, hot-path Cypher or graph writes, reducer
 projection or materialization, `go/internal/ifa`, and a package move (prefer
 `pre-pr-full` for a move: build tags hide files from `./...`).

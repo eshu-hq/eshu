@@ -1,0 +1,138 @@
+                                                                                          QUERY PLAN
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Unique  (cost=168.50..168.51 rows=1 width=18) (actual time=0.425..0.500 rows=20.00 loops=1)
+   Buffers: shared hit=52
+   ->  Sort  (cost=168.50..168.51 rows=1 width=18) (actual time=0.424..0.456 rows=1000.00 loops=1)
+         Sort Key: finding.scope_id
+         Sort Method: quicksort  Memory: 25kB
+         Buffers: shared hit=52
+         ->  Hash Join  (cost=8.24..168.49 rows=1 width=18) (actual time=0.101..0.377 rows=1000.00 loops=1)
+               Hash Cond: ((finding.scope_id = scope.scope_id) AND (finding.generation_id = scope.active_generation_id))
+               Buffers: shared hit=49
+               ->  Bitmap Heap Scan on fact_records finding  (cost=4.72..164.67 rows=56 width=31) (actual time=0.078..0.199 rows=1000.00 loops=1)
+                     Recheck Cond: (((payload ->> 'repository_id'::text) = 'repository:r_probe01'::text) AND (fact_kind = 'reducer_supply_chain_impact_finding'::text) AND (NOT is_tombstone))
+                     Filter: (scope_id <> 'go-reachability://repository:r_probe01'::text)
+                     Heap Blocks: exact=34
+                     Buffers: shared hit=47
+                     ->  Bitmap Index Scan on fact_records_supply_chain_impact_repository_lookup_idx  (cost=0.00..4.71 rows=56 width=0) (actual time=0.068..0.068 rows=1000.00 loops=1)
+                           Index Cond: ((payload ->> 'repository_id'::text) = 'repository:r_probe01'::text)
+                           Index Searches: 1
+                           Buffers: shared hit=13
+               ->  Hash  (cost=2.61..2.61 rows=61 width=39) (actual time=0.021..0.021 rows=61.00 loops=1)
+                     Buckets: 1024  Batches: 1  Memory Usage: 13kB
+                     Buffers: shared hit=2
+                     ->  Seq Scan on ingestion_scopes scope  (cost=0.00..2.61 rows=61 width=39) (actual time=0.003..0.013 rows=61.00 loops=1)
+                           Buffers: shared hit=2
+ Planning:
+   Buffers: shared hit=4195
+ Planning Time: 5.049 ms
+ Execution Time: 0.520 ms
+(27 rows)
+
+                                                                        QUERY PLAN
+----------------------------------------------------------------------------------------------------------------------------------------------------------
+ Aggregate  (cost=28.68..28.69 rows=1 width=8) (actual time=0.040..0.040 rows=1.00 loops=1)
+   Buffers: shared hit=5
+   ->  Bitmap Heap Scan on scope_generations history  (cost=4.67..28.56 rows=46 width=8) (actual time=0.026..0.036 rows=50.00 loops=1)
+         Recheck Cond: (scope_id = 'repository:r_probe01'::text)
+         Filter: ((status = 'superseded'::text) AND (source_commit_sha = 'E-commit'::text))
+         Rows Removed by Filter: 1
+         Heap Blocks: exact=3
+         Buffers: shared hit=5
+         ->  Bitmap Index Scan on scope_generations_scope_generation_idx  (cost=0.00..4.66 rows=51 width=0) (actual time=0.014..0.014 rows=51.00 loops=1)
+               Index Cond: (scope_id = 'repository:r_probe01'::text)
+               Index Searches: 1
+               Buffers: shared hit=2
+ Planning:
+   Buffers: shared hit=150
+ Planning Time: 0.304 ms
+ Execution Time: 0.051 ms
+(16 rows)
+
+                                                                                                    QUERY PLAN
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Sort  (cost=54.40..54.41 rows=1 width=189) (actual time=0.788..0.791 rows=20.00 loops=1)
+   Sort Key: candidate.scope_id
+   Sort Method: quicksort  Memory: 27kB
+   Buffers: shared hit=421
+   ->  Nested Loop Left Join  (cost=6.95..54.39 rows=1 width=189) (actual time=0.210..0.783 rows=20.00 loops=1)
+         Buffers: shared hit=421
+         ->  Merge Join  (cost=6.68..13.32 rows=1 width=106) (actual time=0.150..0.266 rows=20.00 loops=1)
+               Merge Cond: (generation.generation_id = candidate.active_generation_id)
+               Buffers: shared hit=170
+               ->  Index Scan using scope_generations_pkey on scope_generations generation  (cost=0.28..134.83 rows=61 width=24) (actual time=0.005..0.125 rows=61.00 loops=1)
+                     Filter: (status = 'active'::text)
+                     Rows Removed by Filter: 1000
+                     Index Searches: 1
+                     Buffers: shared hit=166
+               ->  Sort  (cost=6.40..6.40 rows=1 width=111) (actual time=0.129..0.131 rows=20.00 loops=1)
+                     Sort Key: candidate.active_generation_id
+                     Sort Method: quicksort  Memory: 27kB
+                     Buffers: shared hit=4
+                     ->  Hash Right Join  (cost=3.46..6.39 rows=1 width=111) (actual time=0.113..0.124 rows=20.00 loops=1)
+                           Hash Cond: (reach_scope.scope_id = ('go-reachability://'::text || candidate.repository_id))
+                           Buffers: shared hit=4
+                           ->  Seq Scan on ingestion_scopes reach_scope  (cost=0.00..2.61 rows=61 width=39) (actual time=0.002..0.005 rows=61.00 loops=1)
+                                 Buffers: shared hit=2
+                           ->  Hash  (cost=3.45..3.45 rows=1 width=97) (actual time=0.106..0.106 rows=20.00 loops=1)
+                                 Buckets: 1024  Batches: 1  Memory Usage: 11kB
+                                 Buffers: shared hit=2
+                                 ->  Subquery Scan on candidate  (cost=3.20..3.45 rows=1 width=97) (actual time=0.053..0.061 rows=20.00 loops=1)
+                                       Filter: ((candidate.candidate_rank / '256'::bigint) = ('0'::bigint % (ceil(((candidate.total_candidates)::numeric / '256'::numeric)))::bigint))
+                                       Buffers: shared hit=2
+                                       ->  WindowAgg  (cost=3.20..3.26 rows=7 width=105) (actual time=0.049..0.052 rows=20.00 loops=1)
+                                             Window: w2 AS ()
+                                             Storage: Memory  Maximum Storage: 19kB
+                                             Buffers: shared hit=2
+                                             ->  WindowAgg  (cost=3.03..3.14 rows=7 width=85) (actual time=0.035..0.039 rows=20.00 loops=1)
+                                                   Window: w1 AS (ORDER BY scope.scope_id ROWS UNBOUNDED PRECEDING)
+                                                   Storage: Memory  Maximum Storage: 17kB
+                                                   Buffers: shared hit=2
+                                                   ->  Sort  (cost=3.01..3.03 rows=7 width=77) (actual time=0.032..0.033 rows=20.00 loops=1)
+                                                         Sort Key: scope.scope_id
+                                                         Sort Method: quicksort  Memory: 27kB
+                                                         Buffers: shared hit=2
+                                                         ->  Seq Scan on ingestion_scopes scope  (cost=0.00..2.92 rows=7 width=77) (actual time=0.022..0.028 rows=20.00 loops=1)
+                                                               Filter: ((active_generation_id IS NOT NULL) AND (source_system = 'git'::text) AND (scope_kind = 'repository'::text))
+                                                               Rows Removed by Filter: 41
+                                                               Buffers: shared hit=2
+         ->  Index Scan using scope_generations_pkey on scope_generations reach_generation  (cost=0.28..2.33 rows=1 width=24) (actual time=0.001..0.001 rows=1.00 loops=20)
+               Index Cond: (generation_id = reach_scope.active_generation_id)
+               Filter: (status = 'active'::text)
+               Index Searches: 20
+               Buffers: shared hit=60
+         SubPlan 1
+           ->  Seq Scan on content_files file  (cost=0.00..1.35 rows=1 width=0) (actual time=0.001..0.001 rows=1.00 loops=20)
+                 Filter: ((repo_id = candidate.repository_id) AND ((relative_path = 'go.mod'::text) OR (relative_path ~~ '%/go.mod'::text)))
+                 Rows Removed by Filter: 10
+                 Buffers: shared hit=20
+         SubPlan 3
+           ->  Nested Loop  (cost=0.29..10.59 rows=1 width=0) (actual time=0.009..0.009 rows=1.00 loops=20)
+                 Join Filter: (fact.generation_id = reach.active_generation_id)
+                 Buffers: shared hit=83
+                 ->  Seq Scan on ingestion_scopes reach  (cost=0.00..2.92 rows=1 width=39) (actual time=0.002..0.002 rows=1.00 loops=20)
+                       Filter: ((active_generation_id IS NOT NULL) AND (scope_id = ('go-reachability://'::text || candidate.repository_id)))
+                       Rows Removed by Filter: 30
+                       Buffers: shared hit=40
+                 ->  Index Only Scan using fact_records_collector_status_active_idx on fact_records fact  (cost=0.29..7.63 rows=4 width=31) (actual time=0.006..0.006 rows=1.00 loops=20)
+                       Index Cond: ((scope_id = ('go-reachability://'::text || candidate.repository_id)) AND (fact_kind = ANY ('{vulnerability.go_module_evidence,vulnerability.go_call_reachability}'::text[])))
+                       Heap Fetches: 0
+                       Index Searches: 20
+                       Buffers: shared hit=43
+         SubPlan 5
+           ->  Aggregate  (cost=26.72..26.73 rows=1 width=8) (actual time=0.014..0.014 rows=1.00 loops=20)
+                 Buffers: shared hit=88
+                 ->  Bitmap Heap Scan on scope_generations history  (cost=4.44..26.71 rows=1 width=8) (actual time=0.006..0.010 rows=50.00 loops=20)
+                       Recheck Cond: ((scope_id = candidate.scope_id) AND (status = 'superseded'::text))
+                       Filter: (source_commit_sha = reach_generation.source_commit_sha)
+                       Heap Blocks: exact=41
+                       Buffers: shared hit=88
+                       ->  Bitmap Index Scan on scope_generations_scope_idx  (cost=0.00..4.44 rows=16 width=0) (actual time=0.004..0.004 rows=50.00 loops=20)
+                             Index Cond: ((scope_id = candidate.scope_id) AND (status = 'superseded'::text))
+                             Index Searches: 20
+                             Buffers: shared hit=47
+ Planning:
+   Buffers: shared hit=516
+ Planning Time: 4.801 ms
+ Execution Time: 0.840 ms
+(84 rows)

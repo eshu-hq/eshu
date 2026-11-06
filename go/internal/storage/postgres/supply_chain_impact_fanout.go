@@ -302,6 +302,26 @@ func (s SupplyChainImpactFanOutStore) ReopenHolder(
 	return s.enqueueMissingHolder(ctx, holderScopeID, origin, stamp, now)
 }
 
+// ReopenSupplyChainImpactHolderInTransaction is ReopenHolder on the caller's
+// transaction, stamped with the generation that changed. The commit-skew fence
+// (eshu-hq/eshu#10055) uses it so a retraction and its holders' reopen commit
+// together: a crash cannot leave a retracted generation whose holders were never
+// told. It takes one holder's item row locks and no scope row, and the caller owns
+// their duration, so reopen holders in a stable order.
+func ReopenSupplyChainImpactHolderInTransaction(
+	ctx context.Context,
+	tx db.ExecQueryer,
+	holderScopeID, sourceScopeID, sourceGenerationID string,
+	now time.Time,
+) error {
+	store := SupplyChainImpactFanOutStore{DB: tx, Now: func() time.Time { return now }}
+	_, err := store.ReopenHolder(ctx, holderScopeID, supplychaincore.FanOutOrigin{
+		SourceScopeID:      sourceScopeID,
+		SourceGenerationID: sourceGenerationID,
+	})
+	return err
+}
+
 // enqueueMissingHolder creates the holder's supply_chain_impact item when its
 // active generation has none (the projector enqueues one only when the
 // generation's own facts name a trigger). A holder with no active generation, or

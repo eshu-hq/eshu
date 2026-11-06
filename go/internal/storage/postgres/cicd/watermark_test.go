@@ -103,7 +103,10 @@ func TestCICDRunWatermarkStoreSaveRejectsOlderFence(t *testing.T) {
 	query := database.execs[0].query
 	for _, want := range []string{
 		"ON CONFLICT (scope_id, repository) DO UPDATE",
-		"WHERE cicd_run_watermarks.fencing_token <= EXCLUDED.fencing_token",
+		"cicd_run_watermarks.generation_id = EXCLUDED.generation_id",
+		"AND cicd_run_watermarks.fencing_token <= EXCLUDED.fencing_token",
+		"cicd_run_watermarks.generation_id <> EXCLUDED.generation_id",
+		"AND cicd_run_watermarks.last_run_id::bigint <= EXCLUDED.last_run_id::bigint",
 	} {
 		if !strings.Contains(query, want) {
 			t.Fatalf("Save() query missing %q:\n%s", want, query)

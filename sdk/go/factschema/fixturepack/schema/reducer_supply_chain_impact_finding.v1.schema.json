@@ -120,6 +120,12 @@
       },
       "type": "array"
     },
+    "exploited_tier": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
     "finding_id": {
       "type": "string"
     },

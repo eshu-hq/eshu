@@ -233,13 +233,27 @@ The sum is clamped to 0-100. A `not_affected_known_fixed` finding is capped at
 20. Buckets: `critical` at 95 or more, `high` at 60, `medium` at 30, `low`
 above 0, otherwise `informational`.
 
+Alongside the score, each finding carries an additive `exploited_tier`
+(item 4.5, #9882): `kev` for CISA KEV, `ssvc_active` for an SSVC "active"
+exploitation state (reserved until 4.1 feeds it), `epss` for an EPSS
+observation without an exploited listing, `none` otherwise. The tier order
+holds regardless of CVSS: an exploited finding outranks an EPSS-only finding,
+which outranks one with no exploit signal. The tier never changes the score's
+derivation, winner ordering stays `priority_score DESC`, and the tier never
+proves impact: even `kev` never turns missing evidence into `affected_exact`.
+The tier reads alongside `priority_contributions`, which names the score input
+behind each rung. Rows written before the tier existed omit it.
+
 The shared QA environment shows why these inputs matter. Today most OSV
 findings have no CVSS, and no finding has KEV or EPSS, so priority rests almost
 entirely on structure (repository, deployment, reachability). Items 1.1, 1.2,
 1.12, and 2.1 fix that.
 
-- **Planned (item 4.5).** Exploited tiers first: KEV or SSVC "active", then a
-  public exploit, then EPSS probability. EPSS is never multiplied by CVSS.
+- **Done (item 4.5, narrowed scope).** Exploited tier first: KEV, with SSVC
+  "active" as a reserved rung fed by 4.1, then EPSS probability. No Exploit-DB
+  input and no EU-only KEV flag (both not planned, #9881 and #9960). EPSS is
+  never multiplied by CVSS. The tier is additive: `priority_score` keeps its
+  derivation and stays the score consumers sort on.
 
 ## 6. Hidden findings: VEX and suppressions
 
@@ -305,7 +319,7 @@ correctly.
 | Am I affected by CVE-X? | MCP `list_supply_chain_impact_findings` with `cve_id`, or `GET /api/v0/supply-chain/impact/findings?cve_id=` |
 | Which repositories, images, and workloads? | The same call. Each finding carries `repository_id`, `subject_digest`, `workload_ids`, and `deployment_ids`. |
 | Why is this finding here? | MCP `explain_supply_chain_impact`, or `GET /api/v0/supply-chain/impact/explain`: evidence path, match reason, and provenance |
-| How urgent, and why? | The finding's `priority_score`, `priority_bucket`, and `priority_contributions` |
+| How urgent, and why? | The finding's `priority_score`, `priority_bucket`, `exploited_tier`, and `priority_contributions` |
 | What do the sources say, before impact? | MCP `list_advisory_evidence`, or `GET /api/v0/supply-chain/advisories/evidence` |
 | How many, by severity or status? | MCP `get_supply_chain_impact_inventory` |
 | What can I fix by upgrading? | The finding's `remediation` block: first patched version, and whether the manifest range allows it |

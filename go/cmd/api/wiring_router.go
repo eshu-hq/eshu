@@ -351,6 +351,9 @@ func newRouterWithSemanticEmbeddingWithReadStore(
 	if err != nil {
 		return nil, fmt.Errorf("new status request handler: %w", err)
 	}
+	// The core-owned recovery Handler backs the admin refinalize and
+	// recover-generations operations; it travels through the versioned
+	// #8872 recovery admission contract (admin.RecoveryAdmission v0).
 	router.Admin.Recovery = recoveryHandler
 	router.Admin.Reindexer = reindexer
 	router.Admin.Repositories = contentReader

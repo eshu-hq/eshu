@@ -19,7 +19,24 @@ const (
 	// (orphaned stale fence, IAM gap, unsupported target) drove
 	// workflow_claims.failed_retryable into the millions.
 	defaultClaimMaxAttempts = 10
+	// defaultExpiredLeaseMaxRequeues caps expired-lease requeues on one
+	// workflow work item (eshu-hq/eshu#10113). The reaper dead-letters the
+	// item instead of requeueing once its AttemptCount has reached this
+	// value without a returned failure verdict, so a run that never returns
+	// (for example a pod evicted over its ephemeral allowance) cannot loop
+	// forever. The value intentionally equals defaultClaimMaxAttempts so one
+	// mental model bounds both a run that keeps failing retryably and a run
+	// that never returns; normal lease churn of one or two expiries keeps
+	// working as today.
+	defaultExpiredLeaseMaxRequeues = 10
 )
+
+// FailureClassExpiredLeaseBudgetExhausted labels workflow work items the
+// expired-lease reaper dead-lettered after the item's AttemptCount reached
+// DefaultExpiredLeaseMaxRequeues without a returned failure verdict
+// (eshu-hq/eshu#10113). It lives in the workflow package (not the collector
+// package) because the writer is the storage reaper, not a collector runner.
+const FailureClassExpiredLeaseBudgetExhausted = "expired_lease_budget_exhausted"
 
 func DefaultClaimLeaseTTL() time.Duration {
 	return defaultClaimLeaseTTL
@@ -46,4 +63,11 @@ func DefaultExpiredClaimRequeueDelay() time.Duration {
 // it. See issue #612 for the runtime symptom this guard prevents.
 func DefaultClaimMaxAttempts() int {
 	return defaultClaimMaxAttempts
+}
+
+// DefaultExpiredLeaseMaxRequeues returns the bounded expired-lease requeue
+// budget the workflow reaper enforces per work item (eshu-hq/eshu#10113).
+// See defaultExpiredLeaseMaxRequeues for the value rationale.
+func DefaultExpiredLeaseMaxRequeues() int {
+	return defaultExpiredLeaseMaxRequeues
 }

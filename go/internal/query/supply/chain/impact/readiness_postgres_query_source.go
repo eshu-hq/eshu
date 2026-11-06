@@ -346,6 +346,14 @@ vulnerability_source_state AS (
             WHEN freshness_state IN ('pending', 'stale', 'rate_limited', 'failed', 'partial')
                 THEN source || ':' || freshness_state
             ELSE NULL END), NULL), '{}'::text[])
+        -- Name each uncovered release, so an operator can see which release of
+        -- a multi-release package holds coverage back: osv:failed:alpine:v3.17.
+        || COALESCE((
+            SELECT ARRAY_AGG(DISTINCT kept.source || ':' || kept.aged_freshness || ':' || kept.distro || ':' || kept.release)
+            FROM derived_vulnerability_source_kept AS kept
+            WHERE kept.release IS NOT NULL AND kept.distro IS NOT NULL
+              AND kept.aged_freshness IN ('pending', 'stale', 'rate_limited', 'failed', 'partial')
+        ), '{}'::text[])
         || COALESCE((
             SELECT ARRAY_AGG(DISTINCT 'osv:skipped:' || skip.skip_reason)
             FROM vulnerability_source_state_candidates AS skipped_candidates

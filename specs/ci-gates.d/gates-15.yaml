@@ -52,7 +52,10 @@ gates:
       - "scripts/ci/select-docker-publish-lanes.sh"
       - "scripts/verify-apk-floors.sh"
       - "scripts/test-verify-apk-floors.sh"
+      - "scripts/verify-doc-import-pins.sh"
+      - "scripts/test-verify-doc-import-pins.sh"
       - "scripts/fixtures/apk-floors/**"
+      - "specs/doc-import-pins/**"
     local:
       command: "bash scripts/verify-apk-floors.sh"
       test_command: "bash scripts/test-verify-apk-floors.sh"

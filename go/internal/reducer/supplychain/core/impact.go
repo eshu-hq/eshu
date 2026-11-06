@@ -52,6 +52,14 @@ type SupplyChainImpactFactFilter struct {
 	PackageIDs []string
 	PURLs      []string
 	CVEIDs     []string
+	// UpstreamCVEIDs is the CVE ids loaded distro records name in their upstream
+	// lists (#9914). They load only the KEV and EPSS facts and the suppressions for
+	// those CVEs, never their cve, affected_package or affected_product facts, so
+	// an OS finding takes severity only from the record that decided it until the
+	// full widening is measured. The arm a CVE takes depends on the loaded set, not
+	// on arrival order or the fact that triggered the pass: a CVE with any loaded
+	// CVE-keyed fact is in CVEIDs, and one named only by an upstream list is here.
+	UpstreamCVEIDs []string
 	// AdvisoryIDs binds both the top-level exact-match predicate and the
 	// normalized suppression-scope predicate. It is populated alongside
 	// CVEIDs because supplyChainCVEID prefers cve_id over advisory_id when
@@ -409,6 +417,7 @@ func buildSupplyChainImpactFindingsAndExclusions(envelopes []facts.Envelope) ([]
 	if err != nil {
 		return nil, nil, supplyChainImpactBuildStats{}, err
 	}
+	index.osRepresentativeOutcomes = make(map[osRepresentativeOutcomeKey]int)
 	findings := appendSupplyChainImpactIndexFindings(nil, index)
 	findings, securityAlertQuarantined, err := appendSecurityAlertImpactFindings(findings, envelopes, index)
 	if err != nil {
@@ -424,8 +433,10 @@ func buildSupplyChainImpactFindingsAndExclusions(envelopes []facts.Envelope) ([]
 	return findings, quarantined, supplyChainImpactBuildStats{
 		negatedProductsExcluded:     index.negatedProductsExcluded,
 		osAdvisoryJoins:             countOSAdvisoryJoins(index),
+		osRepresentativeOutcomes:    index.osRepresentativeOutcomes,
 		osAdvisoriesJoinedViaSource: countOSAdvisoriesJoinedViaSource(findings),
 		osReleaseNotInAdvisory:      countOSReleaseNotInAdvisory(findings),
+		osUpstreamGroups:            index.osUpstream.cells,
 	}, nil
 }
 
@@ -467,11 +478,15 @@ func supplyChainImpactFindingHasOwnedAnchor(finding SupplyChainImpactFinding) bo
 	return slices.Contains(finding.EvidencePath, chain.VulnerabilityOSPackageFactKind)
 }
 
+// supplyChainImpactFindingHasUnsupportedMatcher reports a finding with no version
+// matcher and nothing else to stand on (#9990): a joined installed row keeps it
+// visible as possibly_affected with the matcher reported missing.
 func supplyChainImpactFindingHasUnsupportedMatcher(finding SupplyChainImpactFinding) bool {
 	if strings.TrimSpace(finding.MatchReason) != supplyChainVersionReasonUnsupportedEcosystem {
 		return false
 	}
-	return normalizedSupplyChainVersionEcosystem(finding.Ecosystem) != "os"
+	return normalizedSupplyChainVersionEcosystem(finding.Ecosystem) != "os" &&
+		!slices.Contains(finding.EvidencePath, chain.VulnerabilityOSPackageFactKind)
 }
 
 func supplyChainImpactStatuses() []SupplyChainImpactStatus {

@@ -1,0 +1,112 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package core
+
+import (
+	"fmt"
+	"slices"
+	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
+)
+
+const parityCVE = "CVE-2099-9990"
+
+type parityHost struct {
+	name, packageID, line string
+	row                   installedOSRow
+	own                   string
+}
+
+func parityFact(id, source, eco, packageID, purl string) facts.Envelope {
+	payload := map[string]any{"cve_id": parityCVE, "advisory_id": "ADV-" + id, "package_id": packageID, "package_name": "curl",
+		"affected_versions": []any{"1.0-3"}, "fixed_versions": []any{"1.0-2"}}
+	if source != "" {
+		payload["source"] = source
+	}
+	if eco != "" {
+		payload["ecosystem"] = eco
+	}
+	if purl != "" {
+		payload["purl"] = purl
+	}
+	return facts.Envelope{FactID: id, FactKind: chain.VulnerabilityAffectedPackageFactKind, Payload: payload}
+}
+
+func TestParityGrid(t *testing.T) {
+	hosts := []parityHost{
+		{"ubuntu", "pkg:deb/ubuntu/curl", "?distro=ubuntu-22.04", ubuntuCurl("22.04", "1.0-3"), "ubuntu"},
+		{"debian", "pkg:deb/debian/curl", "?distro=debian-12", debianCurl("12", "1.0-3"), "debian"},
+		{"alpine", "pkg:apk/alpine/curl", "?distro=alpine-3.18", alpineCurl("3.18.4", "1.0-3"), "alpine"},
+		{"alma", "pkg:rpm/alma/curl", "", almaCurl("8", "1.0-3"), "alma"},
+		{"rocky", "pkg:rpm/rocky/curl", "", rockyCurl("8", "1.0-3"), "rocky"},
+	}
+	ecos := []string{"deb", "dpkg", "", "os", "ubuntu", "debian", "apk", "alpine", "rpm", "alma", "rocky"}
+	sources := []string{"nvd", "debian", "ubuntu", "alpine", "glad", "ghsa", "", "osv", "redhat", "alma"}
+	const digest = "sha256:" + "9990999099909990999099909990999099909990999099909990999099909990"
+	for _, h := range hosts {
+		for _, ownEco := range ecos {
+			for _, otherEco := range ecos {
+				for _, src := range sources {
+					for _, withPURL := range []bool{false, true} {
+						for _, anchor := range []string{"none", "consumption", "sbom", "analysis"} {
+							own := parityFact("own", h.own, ownEco, h.packageID, h.packageID+h.line)
+							purl := ""
+							if withPURL {
+								purl = h.packageID + h.line
+							}
+							other := parityFact("other", src, otherEco, h.packageID, purl)
+							envs := []facts.Envelope{vulnerabilityCVEFact("cve", parityCVE, 7.5), h.row.envelope()}
+							switch anchor {
+							case "consumption":
+								envs = append(envs, packageConsumptionFactWithRange("consume", h.packageID, "repository:r_1", "1.0-3"))
+							case "sbom":
+								envs = append(envs,
+									sbomComponentImpactFactWithPackageIDVersion("component", "doc", h.packageID+"@1.0-3", h.packageID, "1.0-3"),
+									sbomAttachmentImpactFact("attachment", "doc", digest),
+									containerImageIdentityImpactFact("image", digest, "repository:r_1"))
+							case "analysis":
+								row := h.row.envelope()
+								envs = append(envs, scannerWorkerAnalysisFact(row.ScopeID, row.GenerationID, digest, "registry.example/app@"+digest))
+							}
+							for order, pair := range [][]facts.Envelope{{own, other}, {other, own}} {
+								shape := fmt.Sprintf("os|%s|own=%q|other=%q|src=%q|purl=%v|%s", h.name, ownEco, otherEco, src, withPURL, anchor)
+								input := append(slices.Clone(pair), envs...)
+								findings := BuildSupplyChainImpactFindings(input)
+								parityCapture("grid", fmt.Sprintf("%s|order=%d", shape, order), input, findings, nil)
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	// Language groups: byte-identical is the whole contract.
+	for _, eco := range []string{"npm", "pypi", "maven", "gomod", "nuget", "cargo", "rubygems", "composer", "", "generic"} {
+		pkg := "pkg:" + eco + "/example"
+		for _, srcA := range []string{"ghsa", "glad", "osv", "nvd", "pysec", ""} {
+			for _, srcB := range []string{"ghsa", "glad", "osv", "nvd", "pysec", ""} {
+				for _, anchor := range []string{"none", "consumption", "sbom"} {
+					a, b := parityFact("a", srcA, eco, pkg, pkg), parityFact("b", srcB, eco, pkg, "")
+					envs := []facts.Envelope{vulnerabilityCVEFact("cve", parityCVE, 7.5), ubuntuCurl("22.04", "1.0-3").envelope()}
+					switch anchor {
+					case "consumption":
+						envs = append(envs, packageConsumptionFactWithRange("consume", pkg, "repository:r_1", "1.0-3"))
+					case "sbom":
+						envs = append(envs,
+							sbomComponentImpactFactWithPackageIDVersion("component", "doc", pkg+"@1.0-3", pkg, "1.0-3"),
+							sbomAttachmentImpactFact("attachment", "doc", digest),
+							containerImageIdentityImpactFact("image", digest, "repository:r_1"))
+					}
+					for order, pair := range [][]facts.Envelope{{a, b}, {b, a}} {
+						input := append(slices.Clone(pair), envs...)
+						findings := BuildSupplyChainImpactFindings(input)
+						parityCapture("grid", fmt.Sprintf("lang|%q|%q|%q|%s|order=%d", eco, srcA, srcB, anchor, order), input, findings, nil)
+					}
+				}
+			}
+		}
+	}
+}

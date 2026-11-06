@@ -8,12 +8,15 @@ package postgres
 //eshu:readiness:env ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DSN ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DISPOSABLE
 
 import (
+	"bytes"
 	"context"
+	"log/slog"
 	"reflect"
 	"slices"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -356,5 +359,188 @@ func TestDeriveDeltaOverlayBaseQueryForCodeCallReaders(t *testing.T) {
 	}
 	if _, err := deriveDeltaOverlayBaseQuery(listActiveCodeCallSymbolDefinitionFactsQuery, 1); err == nil {
 		t.Fatalf("derive with $1 bound by the active text succeeded, want fail-closed")
+	}
+}
+
+// rewriteContentManifest retags one stored manifest with a delta generation's
+// rewritten content, the way the content writer records a delta that changed
+// the manifest itself.
+func rewriteContentManifest(f *deltaManifestFixture, scopeID, generationID, relativePath, content string) {
+	f.t.Helper()
+	f.exec("rewrite manifest "+scopeID+"/"+relativePath, `
+UPDATE content_files SET content = $1, content_hash = md5($1), generation_id = $2
+WHERE repo_id = $3 AND relative_path = $4`,
+		content, generationID, scopeID, relativePath)
+}
+
+// seedAnchoredUnionScopes seeds one package-anchored and one Go-anchored
+// scope, each with a full generation holding a producer manifest and one
+// definition, plus a delta generation on top. When rewriteManifests is true
+// the deltas rename the manifests, so active producer discovery comes back
+// empty while the base generations still hold the definitions (#10104 firing
+// shape); otherwise the deltas touch an unrelated file and discovery still
+// anchors (manifest-stable shape). It returns the two anchored keys to load.
+func seedAnchoredUnionScopes(t *testing.T, f *deltaManifestFixture, prefix string, rewriteManifests bool) []string {
+	t.Helper()
+	now := time.Now().UTC()
+	packageScope, goScope := prefix+"-pkg-scope", prefix+"-go-scope"
+	packageFull, goFull := prefix+"-pkg-full", prefix+"-go-full"
+	packageDelta, goDelta := prefix+"-pkg-delta", prefix+"-go-delta"
+
+	f.scope(packageScope)
+	f.generation(packageScope, deltaManifestGeneration{id: packageFull, commit: "c0"})
+	seedActiveCodeCallSymbolManifest(t, f.ctx, f.database, packageScope, "package.json", `{"name":"alpha-pkg"}`, packageFull, now)
+	seedActiveCodeCallSymbolPackageFact(t, f.ctx, f.database, prefix+"-pkg-base", packageScope, packageFull, "src/widget.js", "alpha-pkg", "Widget", now)
+	f.activate(packageScope, packageFull)
+	f.generation(packageScope, deltaManifestGeneration{id: packageDelta, isDelta: true, commit: "c1", baseline: "c0", unionBase: "c0"})
+	if rewriteManifests {
+		rewriteContentManifest(f, packageScope, packageDelta, "package.json", `{"name":"renamed-pkg"}`)
+		f.deltaRepository(packageScope, packageDelta, []string{"package.json"}, nil)
+	} else {
+		f.deltaRepository(packageScope, packageDelta, []string{"src/other.js"}, nil)
+	}
+	f.activate(packageScope, packageDelta)
+
+	f.scope(goScope)
+	f.generation(goScope, deltaManifestGeneration{id: goFull, commit: "c0"})
+	seedActiveCodeCallSymbolGoMod(t, f.ctx, f.database, goScope, "go.mod", "github.com/acme/widget", goFull, now)
+	seedActiveCodeCallSymbolFact(t, f.ctx, f.database, prefix+"-go-base", goScope, goFull, "lib/widget.go", "scip-go gomod github.com/acme/widget New().", now)
+	f.activate(goScope, goFull)
+	f.generation(goScope, deltaManifestGeneration{id: goDelta, isDelta: true, commit: "c1", baseline: "c0", unionBase: "c0"})
+	if rewriteManifests {
+		rewriteContentManifest(f, goScope, goDelta, "go.mod", "module github.com/acme/renamed\n\ngo 1.24\n")
+		f.deltaRepository(goScope, goDelta, []string{"go.mod"}, nil)
+	} else {
+		f.deltaRepository(goScope, goDelta, []string{"lib/other.js"}, nil)
+	}
+	f.activate(goScope, goDelta)
+
+	return []string{"package:alpha-pkg#Widget", "scip-go gomod github.com/acme/widget New()."}
+}
+
+// TestLoadActiveCodeCallSymbolDefinitionFactsManifestChangingDeltaLive is the
+// #10104 regression: both deltas rename their producer manifests, so active
+// producer discovery comes back empty for the package and Go groups while the
+// base generations still hold the definitions. Pre-fix the anchored legs
+// vanish with their base scans and the load returns nothing; post-fix each
+// group runs a base-only union leg ($5 baselined-target scopes, $6 candidate
+// base generations) and both base definitions load, adding only the union
+// base pages to the tally.
+func TestLoadActiveCodeCallSymbolDefinitionFactsManifestChangingDeltaLive(t *testing.T) {
+	f := openDeltaManifestFixture(t)
+	keys := seedAnchoredUnionScopes(t, f, "call-union", true)
+
+	var logged bytes.Buffer
+	previous := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&logged, nil)))
+	t.Cleanup(func() { slog.SetDefault(previous) })
+
+	got := loadCallSymbolIDs(t, f, keys)
+	t.Logf("loaded call symbol facts for manifest-changing delta scopes = %v", got)
+	want := []string{"call-union-go-base", "call-union-pkg-base"}
+	if !slices.Equal(got, want) {
+		t.Fatalf("loaded call symbol facts = %v, want %v", got, want)
+	}
+	assertDeltaManifestOutcomes(t,
+		f.deltaUnionOutcomesForMetric(t, "eshu_dp_code_call_symbol_definition_read_delta_union_total"),
+		map[string]int64{"union_base_found": 2})
+	for _, want := range []string{
+		"package_producer_scope_count=0",
+		"go_producer_scope_count=0",
+		"package_union_scope_count=2",
+		"go_union_scope_count=2",
+	} {
+		if !strings.Contains(logged.String(), want) {
+			t.Fatalf("load log is missing %q:\n%s", want, logged.String())
+		}
+	}
+
+	counter := &overlayCountingQueryer{SQLDB: SQLDB{DB: f.database}}
+	store := NewFactStore(counter)
+	loaded, err := store.LoadActiveCodeCallSymbolDefinitionFacts(f.ctx, keys)
+	if err != nil {
+		t.Fatalf("LoadActiveCodeCallSymbolDefinitionFacts(): %v", err)
+	}
+	if len(loaded) != 2 {
+		t.Fatalf("loaded %d facts, want 2 union base definitions", len(loaded))
+	}
+	tally := tallyCallSymbolStatements(t, counter.queries)
+	t.Logf("manifest-changing statements: active=%d targets=%d base=%d resolve=%d inputs=%d other=%d",
+		tally.active, tally.targets, tally.base, tally.resolve, tally.inputs, tally.other)
+	if tally.active != 0 || tally.targets != 1 || tally.base != 2 || tally.resolve != 2 || tally.inputs != 1 || tally.other != 2 {
+		t.Fatalf("statement tally = %+v, want active=0 targets=1 base=2 resolve=2 inputs=1 other=2", tally)
+	}
+}
+
+// TestLoadActiveCodeCallSymbolDefinitionFactsManifestStableAnchoredLive pins
+// the anchored manifest-stable shape the row-1 PR covers by construction:
+// the deltas leave both manifests alone, discovery anchors both groups, and
+// the unchanged base definitions stay visible through the same leg+base
+// machinery the union legs reuse. It passes identically pre- and post-#10104.
+func TestLoadActiveCodeCallSymbolDefinitionFactsManifestStableAnchoredLive(t *testing.T) {
+	f := openDeltaManifestFixture(t)
+	keys := seedAnchoredUnionScopes(t, f, "call-stable", false)
+
+	got := loadCallSymbolIDs(t, f, keys)
+	t.Logf("loaded call symbol facts for manifest-stable delta scopes = %v", got)
+	want := []string{"call-stable-go-base", "call-stable-pkg-base"}
+	if !slices.Equal(got, want) {
+		t.Fatalf("loaded call symbol facts = %v, want %v", got, want)
+	}
+	assertDeltaManifestOutcomes(t,
+		f.deltaUnionOutcomesForMetric(t, "eshu_dp_code_call_symbol_definition_read_delta_union_total"),
+		map[string]int64{"union_base_found": 2})
+
+	counter := &overlayCountingQueryer{SQLDB: SQLDB{DB: f.database}}
+	store := NewFactStore(counter)
+	loaded, err := store.LoadActiveCodeCallSymbolDefinitionFacts(f.ctx, keys)
+	if err != nil {
+		t.Fatalf("LoadActiveCodeCallSymbolDefinitionFacts(): %v", err)
+	}
+	if len(loaded) != 2 {
+		t.Fatalf("loaded %d facts, want 2 overlaid base definitions", len(loaded))
+	}
+	tally := tallyCallSymbolStatements(t, counter.queries)
+	t.Logf("manifest-stable statements: active=%d targets=%d base=%d resolve=%d inputs=%d other=%d",
+		tally.active, tally.targets, tally.base, tally.resolve, tally.inputs, tally.other)
+	if tally.active != 2 || tally.targets != 1 || tally.base != 2 || tally.resolve != 2 || tally.inputs != 1 || tally.other != 2 {
+		t.Fatalf("statement tally = %+v, want active=2 targets=1 base=2 resolve=2 inputs=1 other=2", tally)
+	}
+}
+
+// TestLoadActiveCodeCallSymbolDefinitionFactsAnchoredNoDeltaStatementsLive
+// proves an anchored read with no delta-active scope issues no base, resolve,
+// or inputs statement: only the producer reads, the anchored active scans,
+// and the single delta-target lookup run. It passes identically pre- and
+// post-#10104, pinning the no-delta steady state for anchored keys.
+func TestLoadActiveCodeCallSymbolDefinitionFactsAnchoredNoDeltaStatementsLive(t *testing.T) {
+	f := openDeltaManifestFixture(t)
+	now := time.Now().UTC()
+	f.scope("call-anchored-pkg-scope")
+	f.generation("call-anchored-pkg-scope", deltaManifestGeneration{id: "call-anchored-pkg-full", commit: "c0"})
+	seedActiveCodeCallSymbolManifest(t, f.ctx, f.database, "call-anchored-pkg-scope", "package.json", `{"name":"alpha-pkg"}`, "call-anchored-pkg-full", now)
+	seedActiveCodeCallSymbolPackageFact(t, f.ctx, f.database, "anchored-pkg-def", "call-anchored-pkg-scope", "call-anchored-pkg-full", "src/widget.js", "alpha-pkg", "Widget", now)
+	f.activate("call-anchored-pkg-scope", "call-anchored-pkg-full")
+	f.scope("call-anchored-go-scope")
+	f.generation("call-anchored-go-scope", deltaManifestGeneration{id: "call-anchored-go-full", commit: "c0"})
+	seedActiveCodeCallSymbolGoMod(t, f.ctx, f.database, "call-anchored-go-scope", "go.mod", "github.com/acme/widget", "call-anchored-go-full", now)
+	seedActiveCodeCallSymbolFact(t, f.ctx, f.database, "anchored-go-def", "call-anchored-go-scope", "call-anchored-go-full", "lib/widget.go", "scip-go gomod github.com/acme/widget New().", now)
+	f.activate("call-anchored-go-scope", "call-anchored-go-full")
+	keys := []string{"package:alpha-pkg#Widget", "scip-go gomod github.com/acme/widget New()."}
+
+	counter := &overlayCountingQueryer{SQLDB: SQLDB{DB: f.database}}
+	store := NewFactStore(counter)
+	loaded, err := store.LoadActiveCodeCallSymbolDefinitionFacts(f.ctx, keys)
+	if err != nil {
+		t.Fatalf("LoadActiveCodeCallSymbolDefinitionFacts(): %v", err)
+	}
+	if len(loaded) != 2 {
+		t.Fatalf("loaded %d facts, want 2 anchored definitions", len(loaded))
+	}
+	tally := tallyCallSymbolStatements(t, counter.queries)
+	t.Logf("anchored no-delta statements: active=%d targets=%d base=%d resolve=%d inputs=%d other=%d",
+		tally.active, tally.targets, tally.base, tally.resolve, tally.inputs, tally.other)
+	if tally.active != 2 || tally.targets != 1 || tally.base != 0 || tally.resolve != 0 || tally.inputs != 0 || tally.other != 2 {
+		t.Fatalf("statement tally = %+v, want active=2 targets=1 base=0 resolve=0 inputs=0 other=0+2 discovery", tally)
 	}
 }

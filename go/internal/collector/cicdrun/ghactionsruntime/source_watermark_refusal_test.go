@@ -87,8 +87,8 @@ func (s *watermarkClaimStore) FailClaimTerminal(context.Context, workflow.ClaimM
 // or the next cycle would stop detecting the gap those runs left. A committed
 // or unchanged-skip cycle advances it, as before. It drives the real
 // ClaimedService over this source, so the row proves the service's routing and
-// the source's hook. It does not go through providerRoutedSource, so it says
-// nothing about the collector-cicd-run binary, which reaches neither hook (#10063).
+// the source's hook. TestRoutedClaimAppliesTheWatermarkPerCommitDisposition in
+// cmd/collector-cicd-run proves the same rows through providerRoutedSource.
 func TestWatermarkHoldsPerCommitDisposition(t *testing.T) {
 	t.Parallel()
 

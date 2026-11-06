@@ -17,6 +17,9 @@ extensions. Follow the root `AGENTS.md`, `docs/internal/agent-guide.md`, and
 - `host_derived_target` is host-owned: never let static config set it, and never
   put a clone URL in a scope id, error, log, or metric. Keep owner keys bound to
   host and owner, since the minted token goes to that remote.
+- `SourceCommitSHA` on a derived generation comes only from the target this host
+  delivered on the claim, never from the component's result or from static config.
+  The coordinator's commit-skew fence (#10055) trusts it as the evidence commit.
 - Grant decisions are reported at the owning site (`NewSource` for activation,
   `Source.validateGrantCoverage` for emission), once per distinct core kind per
   result. Observation must never change the allow/deny outcome, and no observer
