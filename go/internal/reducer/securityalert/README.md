@@ -196,17 +196,22 @@ stands until the next such observation re-derives it or an operator
 re-drives it. The alert, the telemetry joining recipe, and the re-drive
 steps live in
 [the delta-union runbook](../../../../docs/public/operate/graph-delta-union.md#security-alert-reconciliation-on-a-refused-base-10193).
-The reducer-root tests
+The reducer-root stub tests
 `TestSecurityAlertReconciliationHandlerRefusedBaseCommitsProviderOnly` and
 `TestSecurityAlertReconciliationHandlerHealedBaseRederivesMatched` pin
-both directions through `Handle` and the real Postgres writer. If refused
+both handler directions through `Handle` with the recording writer on a
+simulated refused base (stubbed delta-only rows), and
+`TestSecurityAlertReconciliationHandlerRefusedBaseStoreRead` drives a real
+`FactStore` refusal (counted `union_base_missing`, WARN, delta-only rows)
+into the same handler. If refused
 bases stop being rare, reopen #10193 and take the expected-wait option.
 
 No-Regression Evidence: #10193 changes no production Go code, SQL, queue
-behavior, or payload bytes. It adds the two reducer-root handler tests
-above (refused base commits one upserted `provider_only` row; healed base
-re-derives `matched`) and operator docs. The existing reconciliation
-suites stay the regression proof for every other status.
+behavior, or payload bytes. It adds the two reducer-root stub tests above
+(refused base commits one upserted `provider_only` row; healed base
+re-derives `matched`), the store-driven refusal test, and operator docs.
+The existing reconciliation suites stay the regression proof for every
+other status.
 
 No-Observability-Change: eshu_dp_package_manifest_dependency_read_delta_union_total, eshu_dp_security_alert_reconciliation_impact_wait_total, eshu_dp_reducer_executions_total
 The read's refusal counter and WARN, the handler success line's
