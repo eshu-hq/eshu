@@ -1,0 +1,25 @@
+specs/live-tests.d/live-tests-readiness-part4.generated.yaml
+  s_7547c0f0af67d4::t_7f7301a8665978 237
+  s_7547c0f0af67d4::t_91c7f524e097da 247,250
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9d188d941dd4ce649b0fcf773d7c5dcc78f24534",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  },
+  "sessions": {
+    "s_7547c0f0af67d4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7c8b2d5-3286-4c2a-be1f-589162535d83",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
