@@ -177,8 +177,8 @@ a tracking `issue`, on a manual, non-blocking row) and the workflow job it names
 is `if: ${{ false }}`; `ci-gates` drift check 16 and the coverage gate both check
 the pair. Flipping a gate to manual and non-blocking without the marker still
 fails the coverage gate. Six `class: ci`, `backends: nornicdb` live tests (for
-example `go/internal/query/nornicdb_answer_truth_live_test.go`) and the 31
-`dedicated_ci` NornicDB entries (replay tier and Ifá) no longer run in any job.
+example `go/internal/query/nornicdb_answer_truth_live_test.go`) and the replay
+tier's and Ifá's `dedicated_ci` NornicDB entries no longer run in any job.
 
 To re-enable everything, revert in this order and run each check after its step:
 
