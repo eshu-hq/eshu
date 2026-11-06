@@ -1,0 +1,119 @@
+# Seed image for the #8879 document-import satellite caller (Event-B).
+#
+# What it is: a rebuild of the OCR satellite runtime
+# (docker/satellites/ocr/Dockerfile) plus the seed vehicle the activation
+# chart drives: the caller at its canonical SDK path, the legacy ENTRYPOINT
+# path, the chart-default seed path, and the installed component manifest.
+#
+# Layout:
+#   /usr/local/bin/collector                          caller (canonical SDK path; ruling item 1)
+#   /usr/local/bin/eshu-collector-document-import     symlink (legacy ENTRYPOINT path, keeps working)
+#   /collector                                        symlink (chart-default seed init command)
+#   /manifest.yaml                                    component manifest copy (ruling item 3)
+#   /usr/bin/tesseract, /usr/share/tessdata/...      pinned engine (unchanged satellite runtime)
+#
+# Why rebuild instead of FROM the satellite runtime: the OCR product image
+# is not registry-published from this lane, so there is no digest to pin as
+# a base. Byte-equivalence with the satellite runtime comes from the same
+# inputs: the same base-image pins, the same apk floors, the same
+# specs/satellite-pins digest gate, and the same static caller build flags.
+#
+# Pin-fill protocol (the image cannot contain its own digest): the COPY of
+# manifest.yaml below carries the pre-pin bytes, so the in-image copy's
+# artifacts[0].image is informational only. The authoritative pin is the
+# repository manifest.yaml (filled with this build's content digest, see
+# image-provenance.md) and the destination copies `collector seed`
+# stamps at deploy time. Do NOT rebuild after the pin fill: a rebuild
+# changes the content digest and voids the recorded pin. A release publish
+# rebuilds from identical inputs (same source, same pre-pin manifest
+# bytes), so its digest equals the recorded local proof digest.
+#
+# Build from the repository root (classic builder compatible: no
+# BuildKit-only syntax). All four EXPECT_* build args are required; values
+# come from specs/satellite-pins/ocr.<arch>.json. Local proof (linux/arm64):
+#   docker build -f go/cmd/collector-document-import/Dockerfile.seed \
+#     --build-arg EXPECT_BINARY_SHA256=62a760cd1c23d95211e7c42dddc761c2c9cb9488628941e9be6cd9b6748e9c77 \
+#     --build-arg EXPECT_LIBS_SHA256=8c31dbcc54632daf9221abacd24f5daa49bb19548bf71b800c5913b4e215a160 \
+#     --build-arg EXPECT_MODEL_SHA256=daa0c97d651c19fba3b25e81317cd697e9908c8208090c94c3905381c23fc047 \
+#     --build-arg EXPECT_ENGINE_VERSION=5.5.0 \
+#     -t eshu-seed-document-import:local .
+
+ARG ESHU_ALPINE_IMAGE=alpine:3.21@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d
+ARG ESHU_GO_IMAGE=golang:1.26.10-alpine@sha256:9ce231b28998b32e116927c61aa5c406183061d4f3f2d61b292c88e7f6bdf7ca
+
+# caller: statically linked document-import caller built from this source,
+# so the seed and --sdk-stdio branches are the bytes under test. The caller
+# transitively needs CGO (tree-sitter parser bindings), built with
+# CGO_ENABLED=1 and -extldflags '-static', the same shape as the
+# repository-root image builder and the satellite Dockerfile.
+FROM ${ESHU_GO_IMAGE} AS caller
+ARG ESHU_VERSION=dev
+RUN apk add --no-cache build-base git
+WORKDIR /build
+COPY go/go.mod go/go.sum ./go/
+COPY sdk/go/collector/go.mod ./sdk/go/collector/
+COPY sdk/go/factschema/go.mod ./sdk/go/factschema/
+RUN cd go && go mod download
+COPY go/ ./go/
+COPY sdk/go/collector/ ./sdk/go/collector/
+COPY sdk/go/factschema/ ./sdk/go/factschema/
+RUN cd go \
+    && export CGO_ENABLED=1 \
+    && export GOFLAGS="-buildvcs=false" \
+    && LDFLAGS="-s -w -buildid= -extldflags '-static' -X github.com/eshu-hq/eshu/go/internal/buildinfo.Version=${ESHU_VERSION}" \
+    && go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/collector ./cmd/collector-document-import
+
+# runtime: pinned engine plus the seed vehicle. The apk floors below are the
+# fail-closed drift guard scripts/verify-apk-floors.sh checks with
+# --dockerfile; the exact pins live in specs/satellite-pins/ocr.<arch>.json
+# and the RUN digest gate enforces them. This stage MUST stay last: a plain
+# `docker build -f` resolves to the last stage.
+FROM ${ESHU_ALPINE_IMAGE} AS runtime
+ARG EXPECT_BINARY_SHA256
+ARG EXPECT_LIBS_SHA256
+ARG EXPECT_MODEL_SHA256
+ARG EXPECT_ENGINE_VERSION
+RUN apk add --no-cache \
+        "tesseract-ocr>=5.5.0-r0" "tesseract-ocr-data-eng>=5.5.0-r0" \
+        "leptonica>=1.84.1-r0" "libwebp>=1.4.0-r0" "libwebpmux>=1.4.0-r0" \
+        "libsharpyuv>=1.4.0-r0" "musl>=1.2.5-r12" "libgcc>=14.2.0-r4" \
+        "libgomp>=14.2.0-r4" "libstdc++>=14.2.0-r4" "giflib>=5.2.2-r2" \
+        "libjpeg-turbo>=3.0.4-r0" "libpng>=1.6.59-r0" "tiff>=4.7.2-r0" \
+        "zlib>=1.3.2-r1" "zstd-libs>=1.5.6-r2" \
+        "libssl3>=3.3.7-r2" "libcrypto3>=3.3.7-r2"
+# Seed vehicle: one binary, three paths. The legacy ENTRYPOINT path and the
+# chart-default seed path are symlinks to the canonical SDK path, so every
+# entry vector executes the same bytes.
+COPY --from=caller --chmod=755 /go-bin/collector /usr/local/bin/collector
+RUN ln -s /usr/local/bin/collector /usr/local/bin/eshu-collector-document-import \
+    && ln -s /usr/local/bin/collector /collector
+# Installed manifest for the --sdk-stdio adapter (identity, contract, and
+# grant scopes). The artifacts[0].image it carries is the pre-pin value;
+# see the header: the authoritative pin lives in the repository manifest
+# and in the copies `collector seed` stamps.
+COPY go/cmd/collector-document-import/manifest.yaml /manifest.yaml
+# Build-time digest gate over the binary, the runtime shared-object set,
+# and the model (identical to the satellite Dockerfile gate).
+RUN set -eu; \
+    [ -n "${EXPECT_BINARY_SHA256:-}" ] || { echo "GATE FAIL: EXPECT_BINARY_SHA256 build arg is required (see specs/satellite-pins/ocr.<arch>.json)" >&2; exit 1; }; \
+    [ -n "${EXPECT_LIBS_SHA256:-}" ] || { echo "GATE FAIL: EXPECT_LIBS_SHA256 build arg is required (see specs/satellite-pins/ocr.<arch>.json)" >&2; exit 1; }; \
+    [ -n "${EXPECT_MODEL_SHA256:-}" ] || { echo "GATE FAIL: EXPECT_MODEL_SHA256 build arg is required (see specs/satellite-pins/ocr.<arch>.json)" >&2; exit 1; }; \
+    [ -n "${EXPECT_ENGINE_VERSION:-}" ] || { echo "GATE FAIL: EXPECT_ENGINE_VERSION build arg is required (see specs/satellite-pins/ocr.<arch>.json)" >&2; exit 1; }; \
+    got="$(sha256sum /usr/bin/tesseract | awk '{print $1}')"; \
+    [ "${got}" = "${EXPECT_BINARY_SHA256}" ] || { echo "GATE FAIL: tesseract sha256:${got} != pinned ${EXPECT_BINARY_SHA256}; re-record specs/satellite-pins (see docker/satellites/README.md)" >&2; exit 1; }; \
+    got="$(sha256sum /usr/share/tessdata/eng.traineddata | awk '{print $1}')"; \
+    [ "${got}" = "${EXPECT_MODEL_SHA256}" ] || { echo "GATE FAIL: eng.traineddata sha256:${got} != pinned ${EXPECT_MODEL_SHA256}; re-record specs/satellite-pins (see docker/satellites/README.md)" >&2; exit 1; }; \
+    reported="$(tesseract --version 2>/dev/null | head -n 1)"; \
+    [ "${reported}" = "tesseract ${EXPECT_ENGINE_VERSION}" ] || { echo "GATE FAIL: binary reports '${reported}', configured '${EXPECT_ENGINE_VERSION}'" >&2; exit 1; }; \
+    linked="$(ldd /usr/bin/tesseract | awk '{ if ($2 == "=>") print $3; else print $1 }' | xargs -n1 readlink -f | LC_ALL=C sort -u)"; \
+    [ -n "${linked}" ] || { echo "GATE FAIL: ldd resolved no libraries for /usr/bin/tesseract" >&2; exit 1; }; \
+    extra="$(apk info -L libssl3 libcrypto3 2>/dev/null | grep -E '\.so(\.[0-9]+)*$' | xargs -n1 readlink -f | LC_ALL=C sort -u)"; \
+    [ -n "${extra}" ] || { echo "GATE FAIL: apk listed no shared objects for the floored-but-unlinked packages (libssl3 libcrypto3)" >&2; exit 1; }; \
+    libs="$(printf '%s\n%s\n' "${linked}" "${extra}" | LC_ALL=C sort -u | xargs sha256sum | awk '{print $2" "$1}' | LC_ALL=C sort)"; \
+    printf 'pinned runtime libraries:\n%s\n' "${libs}"; \
+    got="$(printf '%s\n' "${libs}" | sha256sum | awk '{print $1}')"; \
+    [ "${got}" = "${EXPECT_LIBS_SHA256}" ] || { echo "GATE FAIL: library set sha256:${got} != pinned ${EXPECT_LIBS_SHA256}; re-record specs/satellite-pins (see docker/satellites/README.md)" >&2; exit 1; }; \
+    echo "GATE PASS: ocr satellite pins hold (binary, ${EXPECT_ENGINE_VERSION}, model, $(printf '%s\n' "${libs}" | wc -l) libraries)"
+USER 65532:65532
+WORKDIR /data
+ENTRYPOINT ["/usr/local/bin/collector"]

@@ -22,8 +22,26 @@ import (
 const runtimeName = "collector-document-import"
 
 func main() {
-	if handled, err := buildinfo.PrintVersionFlag(os.Args[1:], os.Stdout, "eshu-collector-document-import"); handled {
+	args := os.Args[1:]
+	if handled, err := buildinfo.PrintVersionFlag(args, os.Stdout, "eshu-collector-document-import"); handled {
 		if err != nil {
+			_, _ = fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
+
+	// Satellite branches run before telemetry and the database: the seed
+	// image carries no exporter or store handles for either.
+	if len(args) > 0 && args[0] == "seed" {
+		if err := runSeedCommand(args[1:]); err != nil {
+			_, _ = fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
+	if hasSDKStdioFlag(args) {
+		if err := runSDKStdioCommand(context.Background(), args); err != nil {
 			_, _ = fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
 		}

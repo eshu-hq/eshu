@@ -19,9 +19,10 @@ Runtime enablement, sandboxing, and dependency review stay caller-owned per
 the `document/ocr` contract; this binary is the caller that carries them for
 its own drain.
 
-What it explicitly does not do: deploy itself (no chart, no IaC reference, no
-image-pin change), run on a schedule (one-shot, then exit), or fall back to
-another engine (a missing pin is a startup error, never a quiet substitution).
+What it explicitly does not do: deploy itself (no chart, no IaC reference; the
+satellite activation lives in the deploy chart, not here), run on a schedule
+(one-shot, then exit), or fall back to another engine (a missing pin is a
+startup error, never a quiet substitution).
 
 ## Exported surface
 
@@ -32,6 +33,39 @@ Package `main`; nothing is imported by other packages.
   distinct artifact, identity from content SHA-256.
 - `drainOnce` — one-shot commit loop over the source.
 - `buildDrain`, `buildEngine` — pinned backend verification and drain wiring.
+- `runSeedCommand`, `seedComponent`, `parseSeedArgs` (`seed.go`) — the
+  satellite seed branch: copy the caller plus the installed manifest into
+  the activation destination, stamping the digest-pinned seed image.
+- `serveSDKStdio`, `captureCommitter` (`sdkstdio.go`) — the satellite claim
+  adapter: one host claim from stdin, existing verification plus the
+  untouched drain, grant-checked commit into the SDK ack.
+
+See `doc.go` for the full godoc contract.
+
+## Satellite activation (Event-B)
+
+The seed image (`Dockerfile.seed`, provenance in `image-provenance.md`)
+carries the caller at `/usr/local/bin/collector` (plus the legacy
+`/usr/local/bin/eshu-collector-document-import` and `/collector` symlinks)
+and the component manifest at `/manifest.yaml`. The activation chart runs
+`/collector seed --dest <runtimeDir> --image-ref <seed.image>` as a seed
+init container, then launches `<runtimeDir>/collector --sdk-stdio` per
+claim through the component-extension host.
+
+- `seed` writes `<dest>/collector` (executable) and
+  `<dest>/manifest.yaml` (seed image stamped in), failing closed on any
+  reference that is not digest-pinned (`repo@sha256:<64 hex>`).
+- `--sdk-stdio` reads one bounded host claim, verifies the environment and
+  engine pins exactly like the one-shot path, drains the activation
+  artifact dir, and acks `complete` (facts), `unchanged` (empty drain), or
+  `terminal` (deterministic grant denial). Facts are bound to the claimed
+  scope and generation on the wire; content identity (stable key, payload)
+  travels unchanged. The durable commit stays host-side.
+- Grant source is the activation registry (`ESHU_COMPONENT_HOME`), which
+  the chart reconcile populates before install. An unreadable or empty
+  grant set denies core-owned emission fail-closed, mirroring the host's
+  emission recheck. No new environment variables were added for either
+  branch.
 
 See `doc.go` for the full godoc contract.
 

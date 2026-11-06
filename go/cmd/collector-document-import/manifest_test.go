@@ -1,0 +1,128 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package main
+
+import (
+	"os"
+	"testing"
+	"time"
+
+	"gopkg.in/yaml.v3"
+
+	"github.com/eshu-hq/eshu/go/internal/component"
+)
+
+// loadRepoManifest reads the checked-in seed manifest under test.
+func loadRepoManifest(t *testing.T) component.Manifest {
+	t.Helper()
+	raw, err := os.ReadFile("manifest.yaml")
+	if err != nil {
+		t.Fatalf("read manifest.yaml: %v", err)
+	}
+	var manifest component.Manifest
+	if err := yaml.Unmarshal(raw, &manifest); err != nil {
+		t.Fatalf("decode manifest.yaml: %v", err)
+	}
+	return manifest
+}
+
+// repoManifestGrants authorizes the checked-in component identity for both
+// documentation families, mirroring the activation grant flow.
+func repoManifestGrants() []component.ProducerGrant {
+	return []component.ProducerGrant{
+		{
+			ProducerID:     componentID,
+			Version:        componentVersion,
+			Kind:           "documentation_document",
+			SchemaVersions: []string{"1.0.0"},
+			Scope:          "documentation",
+			ExpiresAt:      time.Now().UTC().Add(24 * time.Hour),
+		},
+		{
+			ProducerID:     componentID,
+			Version:        componentVersion,
+			Kind:           "documentation_section",
+			SchemaVersions: []string{"1.1.0"},
+			Scope:          "documentation",
+			ExpiresAt:      time.Now().UTC().Add(24 * time.Hour),
+		},
+	}
+}
+
+// TestRepoManifestSeedContract proves the checked-in manifest carries the
+// arbiter-ruled seed contract: pinned identity, the SDK process runtime,
+// one digest-pinned artifact, and exactly the two documentation families
+// the caller drains.
+func TestRepoManifestSeedContract(t *testing.T) {
+	t.Parallel()
+
+	manifest := loadRepoManifest(t)
+	if manifest.APIVersion != "eshu.dev/v1alpha1" || manifest.Kind != "ComponentPackage" {
+		t.Fatalf("manifest head = %q/%q, want eshu.dev/v1alpha1/ComponentPackage", manifest.APIVersion, manifest.Kind)
+	}
+	if manifest.Metadata.ID != componentID {
+		t.Fatalf("manifest id = %q, want %q", manifest.Metadata.ID, componentID)
+	}
+	if manifest.Metadata.Version != componentVersion {
+		t.Fatalf("manifest version = %q, want %q", manifest.Metadata.Version, componentVersion)
+	}
+	if manifest.Spec.Runtime.SDKProtocol != "collector-sdk/v1alpha1" || manifest.Spec.Runtime.Adapter != "process" {
+		t.Fatalf("manifest runtime = %+v, want collector-sdk/v1alpha1/process", manifest.Spec.Runtime)
+	}
+	if len(manifest.Spec.CollectorKinds) != 1 || manifest.Spec.CollectorKinds[0] != "documentation" {
+		t.Fatalf("manifest collectorKinds = %q, want [documentation]", manifest.Spec.CollectorKinds)
+	}
+	if len(manifest.Spec.Artifacts) != 1 {
+		t.Fatalf("manifest artifacts = %d, want 1", len(manifest.Spec.Artifacts))
+	}
+	if err := manifest.Spec.Artifacts[0].Validate(); err != nil {
+		t.Fatalf("manifest artifact fails the digest gate: %v", err)
+	}
+	wantFamilies := map[string]struct {
+		version    string
+		confidence string
+	}{
+		"documentation_document": {"1.0.0", "observed"},
+		"documentation_section":  {"1.1.0", "observed"},
+	}
+	if len(manifest.Spec.EmittedFacts) != len(wantFamilies) {
+		t.Fatalf("manifest emittedFacts = %d families, want %d", len(manifest.Spec.EmittedFacts), len(wantFamilies))
+	}
+	for _, family := range manifest.Spec.EmittedFacts {
+		want, ok := wantFamilies[family.Kind]
+		if !ok {
+			t.Fatalf("manifest declares unexpected family %q", family.Kind)
+		}
+		if len(family.SchemaVersions) != 1 || family.SchemaVersions[0] != want.version {
+			t.Fatalf("family %q versions = %q, want [%s]", family.Kind, family.SchemaVersions, want.version)
+		}
+		if len(family.SourceConfidence) != 1 || family.SourceConfidence[0] != want.confidence {
+			t.Fatalf("family %q confidence = %q, want [%s]", family.Kind, family.SourceConfidence, want.confidence)
+		}
+		if family.PayloadSchemaRef != family.Kind {
+			t.Fatalf("family %q payloadSchemaRef = %q, want the kind-keyed fixture-pack ref", family.Kind, family.PayloadSchemaRef)
+		}
+	}
+	if phases := manifest.Spec.ConsumerContracts.Reducer.Phases; len(phases) != 1 || phases[0] != "documentation_materialization" {
+		t.Fatalf("manifest reducer phases = %q, want [documentation_materialization]", phases)
+	}
+	if manifest.Spec.Telemetry.MetricsPrefix == "" {
+		t.Fatal("manifest telemetry metricsPrefix is empty")
+	}
+}
+
+// TestRepoManifestGrantGating proves the checked-in manifest admits the
+// activation only with live producer grants for both core-owned families,
+// and fails closed without them.
+func TestRepoManifestGrantGating(t *testing.T) {
+	t.Parallel()
+
+	manifest := loadRepoManifest(t)
+	if err := manifest.ValidateWithGrants(repoManifestGrants()); err != nil {
+		t.Fatalf("manifest with live grants: %v", err)
+	}
+	if err := manifest.ValidateWithGrants(nil); err == nil {
+		t.Fatal("manifest without grants: got nil error, want the core-owned denial")
+	}
+}
