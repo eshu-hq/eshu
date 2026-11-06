@@ -186,7 +186,9 @@ jobs:
       LANE_APPLIES: ${{ needs.changes.outputs.satellites }}
     # Cold builds (see NOTE below): the emulated whisper compile is the long
     # pole. Fail-closed on timeout rather than silently skipping a combo.
-    timeout-minutes: 90
+    # 75 is the longest the required-gates publisher await covers (80m
+    # budget minus the 5m publication margin, per TestPublisherBudgetCoversPayload).
+    timeout-minutes: 75
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -229,7 +231,7 @@ jobs:
       # the shared :runtime tag) has no room for a second target-less build:
       # sharing :runtime would overwrite the main image's cache on push. This
       # proof writes no cache at all, so there is nothing to share, evict, or
-      # leak — cold builds are the accepted cost (90-minute job timeout).
+      # leak — cold builds are the accepted cost (75-minute job timeout).
       - name: Build satellite gate image
         if: ${{ env.LANE_APPLIES == 'true' }}
         run: |
