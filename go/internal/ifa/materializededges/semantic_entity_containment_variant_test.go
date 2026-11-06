@@ -10,13 +10,14 @@ import (
 	entity "github.com/eshu-hq/eshu/go/internal/storage/cypher/semantic/entity"
 )
 
-// semanticEntityContainmentVariantRelPath is the NornicDB expected-edge
-// variant: same four pairs as the base set, with the canonical-owned rows
+// semanticEntityContainmentVariantRelPath is the canonical-ownership
+// expected-edge variant (asserted on Neo4j and NornicDB alike; the file name
+// predates Neo4j): same four pairs as the base set, with the canonical-owned rows
 // stamped by the canonical writer instead of the semantic writer (#8359).
 const semanticEntityContainmentVariantRelPath = "go/internal/ifa/testdata/semanticentitycontainment/ifa-semantic-entity-containment-family-expected-edges.nornicdb.json"
 
-// TestSemanticEntityContainmentVariantMirrorsBasePairs pins the NornicDB
-// variant to the base expected set: identical (source, target) pair
+// TestSemanticEntityContainmentVariantMirrorsBasePairs pins the
+// canonical-ownership variant to the base expected set: identical (source, target) pair
 // multiset and single fixture repo, so the two files can never drift into
 // asserting different endpoint populations. The stamp split is the only
 // allowed difference: the semantic-owned Variable edge keeps the semantic

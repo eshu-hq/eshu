@@ -13,7 +13,10 @@
 #      service), and every compose project command in a watched workflow names
 #      docker-compose.neo4j.yml (a project command that names the wrong file
 #      loses the Neo4j log and teardown on the failure path);
-#   3. scripts/lib/ifa_graph_backend.sh defaults to Neo4j, maps it to the neo4j
+#   3. semantic_entity_containment asserts the canonical-ownership .nornicdb.json
+#      expected-edge sibling on Neo4j (and on a manual NornicDB run) and falls
+#      back to the base file only when the sibling is absent;
+#   4. scripts/lib/ifa_graph_backend.sh defaults to Neo4j, maps it to the neo4j
 #      service, database and compose file, still supports a manual nornicdb run,
 #      and rejects an unknown backend.
 #
@@ -111,15 +114,44 @@ check_backend_lib() {
 	return 0
 }
 
+# check_containment_selection ROOT sources the live-gate library from ROOT with a
+# fake eshu-ifa that records the -expected argument, and compares which fixture
+# file ifa_semantic_entity_containment_assert hands to assert-edges. Neo4j keeps
+# canonical ownership of canonical-entity CONTAINS edges since #10138, so it must
+# select the .nornicdb.json sibling, not the all-semantic base file.
+check_containment_selection() {
+	local root="$1" work backend got want base
+	work="$(mktemp -d -t ifa-containment-select.XXXXXX)"
+	mkdir -p "${work}/bin" "${work}/fx"
+	printf '#!/usr/bin/env bash\nwhile [[ $# -gt 0 ]]; do [[ "$1" == -expected ]] && { printf "%%s\\n" "$2"; exit 0; }; shift; done\nexit 1\n' >"${work}/bin/eshu-ifa"
+	chmod +x "${work}/bin/eshu-ifa"
+	base="${work}/fx/family-expected-edges.json"
+	: >"${base}"
+	for backend in neo4j nornicdb; do
+		: >"${base%.json}.nornicdb.json"
+		want="${base%.json}.nornicdb.json"
+		got="$(ESHU_GRAPH_BACKEND="${backend}" bash -c 'source "$1"; ifa_semantic_entity_containment_assert x "$2" "$3"' _ \
+			"${root}/scripts/lib/ifa_direct_family_live.sh" "${work}/bin" "${base}" 2>&1 | tail -1)"
+		[[ "${got}" == "${want}" ]] || { echo "containment fixture on ${backend}: asserted '${got}', want the .nornicdb.json sibling '${want}'"; rm -rf "${work}"; return 1; }
+	done
+	rm -f "${base%.json}.nornicdb.json"
+	got="$(ESHU_GRAPH_BACKEND=neo4j bash -c 'source "$1"; ifa_semantic_entity_containment_assert x "$2" "$3"' _ \
+		"${root}/scripts/lib/ifa_direct_family_live.sh" "${work}/bin" "${base}" 2>&1 | tail -1)"
+	[[ "${got}" == "${base}" ]] || { echo "containment fixture without a sibling: asserted '${got}', want the base file '${base}'"; rm -rf "${work}"; return 1; }
+	rm -rf "${work}"
+	return 0
+}
+
 # --- GREEN: the real tree passes ---
 output="$(check_tree "${repo_root}")" || fail "the tree is wired to NornicDB:
 ${output}"
 output="$(check_backend_lib "${repo_root}")" || fail "${output}"
+output="$(check_containment_selection "${repo_root}")" || fail "${output}"
 
 # --- RED: each check fails on a planted violation ---
 scratch="$(mktemp -d -t ifa-graph-backend-guard.XXXXXX)"
 trap 'rm -rf "${scratch}"' EXIT
-for file in "${watched[@]}" scripts/lib/ifa_graph_backend.sh; do
+for file in "${watched[@]}" scripts/lib/ifa_graph_backend.sh scripts/lib/ifa_direct_family_live.sh; do
 	mkdir -p "${scratch}/base/$(dirname "${file}")"
 	cp "${repo_root}/${file}" "${scratch}/base/${file}"
 done
@@ -172,6 +204,20 @@ cp -R "${scratch}/base/." "${scratch}/comment/"
 printf '# NornicDB was retired from this gate by owner order 2026-11-05.\n' >>"${scratch}/comment/scripts/verify-ifa-determinism.sh"
 output="$(check_tree "${scratch}/comment")" || fail "a comment naming NornicDB was flagged: ${output}"
 
+# check_containment_selection RED: the pre-fix selection (sibling only on a
+# manual nornicdb run) sends Neo4j to the all-semantic base file.
+mkdir -p "${scratch}/selection-nornic-only"
+cp -R "${scratch}/base/." "${scratch}/selection-nornic-only/"
+sed -i.bak -e 's/^\tif \[\[ -f "${expected_edges%.json}.nornicdb.json" \]\]; then$/\tif [[ "${ESHU_GRAPH_BACKEND:-}" == "nornicdb" \&\& -f "${expected_edges%.json}.nornicdb.json" ]]; then/' \
+	"${scratch}/selection-nornic-only/scripts/lib/ifa_direct_family_live.sh"
+if cmp -s "${scratch}/base/scripts/lib/ifa_direct_family_live.sh" "${scratch}/selection-nornic-only/scripts/lib/ifa_direct_family_live.sh"; then
+	fail "RED case selection-nornic-only: the mutation changed nothing (stale guard)"
+fi
+if output="$(check_containment_selection "${scratch}/selection-nornic-only")"; then
+	fail "RED case selection-nornic-only: check_containment_selection passed a Neo4j run on the base file"
+fi
+[[ "${output}" == *"containment fixture on neo4j"* ]] || fail "RED case selection-nornic-only: wrong failure: ${output}"
+
 # check_backend_lib RED: a default flipped to nornicdb and a lib that accepts anything.
 mkdir -p "${scratch}/lib-default"
 cp -R "${scratch}/base/." "${scratch}/lib-default/"
@@ -189,4 +235,4 @@ if check_backend_lib "${scratch}/lib-lenient" >/dev/null; then
 	fail "RED case lib-lenient: check_backend_lib passed a lib that accepts an unknown backend"
 fi
 
-printf 'test-ifa-graph-backend-neo4j: pass (%s watched files, 11 tree mutations, 1 comment case, 2 library mutations)\n' "${#watched[@]}"
+printf 'test-ifa-graph-backend-neo4j: pass (%s watched files, 11 tree mutations, 1 comment case, 2 library mutations, 1 fixture-selection mutation)\n' "${#watched[@]}"
