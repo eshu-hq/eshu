@@ -60,14 +60,15 @@ def run_step(command: str) -> str:
 class ShapeTest(unittest.TestCase):
     """Plant one construct in a fixture tree and run the gate over it."""
 
-    def build(self, wf: str, files: dict[str, str] | None = None) -> Path:
+    def build(self, wf: str, files: dict[str, str] | None = None,
+              name: str = "wf.yml") -> Path:
         """Write a fixture repository; ``files`` maps repo paths to contents."""
         temp = tempfile.TemporaryDirectory()
         self.addCleanup(temp.cleanup)
         root = Path(temp.name)
         (root / ".github/workflows").mkdir(parents=True)
         (root / "specs/ci-gates.d").mkdir(parents=True)
-        (root / ".github/workflows/wf.yml").write_text(wf, encoding="utf-8")
+        (root / ".github/workflows" / name).write_text(wf, encoding="utf-8")
         (root / "specs/ci-gates.d/gates-01.yaml").write_text(REGISTRY, encoding="utf-8")
         for rel, text in (files or {}).items():
             path = root / rel

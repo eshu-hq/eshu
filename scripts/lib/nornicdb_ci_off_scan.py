@@ -6,11 +6,13 @@ NornicDB backend? A body is a live job's lines, a composite action's
 ``action.yml``, or a script a job runs. Everything is derived from the
 committed files; no file name is listed here.
 
-What a start is (the guard's header lists the same four reads):
+What a start is (the guard's header lists the same four reads and the stated limits):
 
 * a workflow or action line that selects ``nornicdb`` (matrix value, env key,
-  ``--backend nornicdb``), brings up the compose service, ``docker run``s an
-  image, or assigns ``ESHU_GRAPH_BACKEND=nornicdb`` inside a command;
+  ``--backend nornicdb``, an expression that picks it for a backend key),
+  brings up the compose service or profile, ``docker run``s an image, or
+  assigns ``ESHU_GRAPH_BACKEND=nornicdb`` inside a command; a job ``services:``
+  or ``container:`` image that names NornicDB; names are matched ignoring case;
 * the same inside a shell or Python script the body runs, followed through
   every script it runs in turn (cycle-safe, no depth cap);
 * the same inside a local composite action (``uses: ./.github/actions/<name>``)
@@ -20,7 +22,10 @@ Shell text is read after ``\\`` continuations are joined, and a shell variable
 assigned a literal earlier in the same body (the same step in a workflow) is
 substituted into later statements, so ``svc=nornicdb`` then ``up -d "$svc"``
 reads as ``up -d nornicdb``. A value computed at run time (``$(...)``, an
-argument, a default) is not resolved; that stays a stated limit.
+argument, a default) is not resolved; that stays a stated limit. A script
+statement is read by ``nornicdb_ci_off_shell``, which splits a line at ``&&``,
+``;``, ``|`` and ``then`` outside quotes, drops ``sudo``, ``timeout N`` and the
+like, and reads a ``bash -c '...'`` body, so a start behind those still counts.
 """
 
 from __future__ import annotations
@@ -31,21 +36,33 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
+import nornicdb_ci_off_shell as shell
+
 OFF_NOTE = "NornicDB CI is off by owner order (2026-11-05)"
 BACKEND_ENV = "ESHU_GRAPH_BACKEND"
 MATRIX_VALUE = "lists nornicdb as a matrix value"
-START_MARKERS = (
-    (re.compile(r"graph_backend:\s*\[?[^\n]*\bnornicdb\b"), "selects the nornicdb graph backend"),
-    (re.compile(r"graph_service:\s*[\"']?nornicdb\b"), "selects the nornicdb compose service"),
-    (re.compile(rf"{BACKEND_ENV}:\s*[\"']?nornicdb\b"), f"sets {BACKEND_ENV} to nornicdb"),
-    (re.compile(rf"\b{BACKEND_ENV}=[\"']?nornicdb\b"),
-     f"assigns {BACKEND_ENV}=nornicdb in a run command"),
-    (re.compile(r"--backend[ =][\"']?nornicdb\b"), "runs a runner with --backend nornicdb"),
-    (re.compile(r"\bup\b[^\n]*\bnornicdb\b"), "brings up the nornicdb compose service"),
-    (re.compile(r"\bdocker run\b[^\n]*nornicdb"), "docker-runs a NornicDB image"),
-    (re.compile(r"^\s*(?:-\s*)?\w+:\s*\[[^\]]*\bnornicdb\b"), MATRIX_VALUE),
-    (re.compile(r"^\s*-\s*\w+:\s*[\"']?nornicdb[\"']?\s*$"), MATRIX_VALUE),
-)
+_EXPRESSION_BACKEND = (r"\b(?:ESHU_GRAPH_BACKEND|graph_backend|graph_service|backend):\s*"
+                       r"\$\{\{[^\n]*\bnornicdb\b")
+_PROFILES_BODY = r"COMPOSE_PROFILES(?:=|:\s*)[\"']?[^\"'\n]*\bnornicdb\b"
+_PROFILES_ENV = r"\b" + _PROFILES_BODY
+_PROFILE_UP = r"^(?=.*\b(?:up|run)\b).*--profile[ =][\"']?nornicdb\b"
+START_MARKERS = tuple((re.compile(pattern, re.IGNORECASE), reason) for pattern, reason in (
+    (r"graph_backend:\s*\[?[^\n]*\bnornicdb\b", "selects the nornicdb graph backend"),
+    (r"graph_service:\s*[\"']?nornicdb\b", "selects the nornicdb compose service"),
+    (rf"{BACKEND_ENV}:\s*[\"']?nornicdb\b", f"sets {BACKEND_ENV} to nornicdb"),
+    (_EXPRESSION_BACKEND, "selects the nornicdb backend through an expression"),
+    (rf"\b{BACKEND_ENV}=[\"']?nornicdb\b", f"assigns {BACKEND_ENV}=nornicdb in a run command"),
+    (r"--backend[ =][\"']?nornicdb\b", "runs a runner with --backend nornicdb"),
+    (r"\bup\b[^\n]*\bnornicdb\b", "brings up the nornicdb compose service"),
+    (_PROFILE_UP, "brings up the nornicdb compose profile"),
+    (_PROFILES_ENV, "enables the nornicdb compose profile"),
+    (r"\bdocker run\b[^\n]*nornicdb", "docker-runs a NornicDB image"),
+    (r"^\s*(?:-\s*)?\w+:\s*\[[^\]]*\bnornicdb\b", MATRIX_VALUE),
+    (r"^\s*-\s*\w+:\s*[\"']?nornicdb[\"']?\s*$", MATRIX_VALUE),
+))
+# A job ``services:`` or ``container:`` names the image GitHub starts for the job.
+JOB_CONTAINER = re.compile(r"^(\s*)(?:services|container):\s*(.*)$")
+JOB_IMAGE = re.compile(r"^\s*(?:-\s+)?image:\s*[\"']?([^\s\"']+)")
 # The script a statement runs: its first word after env assignments and an
 # interpreter, so a script merely named in a string or an argument is not
 # followed. A leading ``${VAR}/`` or ``${{ expr }}/`` (``github.action_path``)
@@ -54,21 +71,23 @@ RUNS_SCRIPT = re.compile(
     r"^(?:-\s+)?(?:run:\s*)?(?:\w+=[^\s\"'$()]+\s+)*"
     r"(?:(?:bash|sh|source|exec|python3?|\.)\s+)?(?:-[\w-]+\s+)*[\"']?"
     r"((?:(?:\$\{?\w+\}?|\$\{\{[^}]*\}\})/)?[A-Za-z0-9_./-]+\.(?:sh|py))[\"']?(?:\s|$)")
-STATEMENT_SPLIT = re.compile(r"&&|\|\||;|\||\bthen\b|\bdo\b")
 SCRIPT_DOCKER_RUN = re.compile(r"^docker run\b.*nornicdb", re.IGNORECASE)
 # A shell statement starts a backend only when the statement itself is the
 # command. A line that merely quotes the command (an assertion in a self-test,
 # a regex, a usage string) starts with something else and does not match.
 _LEAD = r"^(?:\w+=[^\s\"'$()]+\s+)*(?:bash\s+|sh\s+|\./)?"
-SCRIPT_START_MARKERS = (
-    (re.compile(_LEAD + r"(?:\S*compose\.sh|docker[ -]compose)\b.*\bup\b.*\bnornicdb\b"),
+SCRIPT_START_MARKERS = tuple((re.compile(pattern, re.IGNORECASE), reason) for pattern, reason in (
+    (_LEAD + r"(?:\S*compose\.sh|docker[ -]compose)\b.*\bup\b.*\bnornicdb\b",
      "brings up the nornicdb compose service"),
-    (re.compile(_LEAD + r"\S*scripts/\S+\s.*--backend[ =][\"']?nornicdb\b"),
+    (_LEAD + r"(?:\S*compose\.sh|docker[ -]compose)\b(?=.*\b(?:up|run)\b).*"
+     r"--profile[ =][\"']?nornicdb\b", "brings up the nornicdb compose profile"),
+    (_LEAD + r"\S*scripts/\S+\s.*--backend[ =][\"']?nornicdb\b",
      "runs a runner with --backend nornicdb"),
-    (re.compile(rf"^(?:export\s+|declare\s+-x\s+)?(?:\w+=[^\s\"'$()]+\s+)*"
-                rf"{BACKEND_ENV}=[\"']?nornicdb\b"),
-     f"sets {BACKEND_ENV} to nornicdb"),
-)
+    (rf"^(?:export\s+|declare\s+-x\s+)?(?:\w+=[^\s\"'$()]+\s+)*"
+     rf"{BACKEND_ENV}=[\"']?nornicdb\b", f"sets {BACKEND_ENV} to nornicdb"),
+    (r"^(?:export\s+|declare\s+-x\s+)?(?:\w+=[^\s\"'$()]+\s+)*" + _PROFILES_BODY,
+     "enables the nornicdb compose profile"),
+))
 PY_SPAWNERS = {"run", "Popen", "call", "check_call", "check_output", "system", "popen"}
 PY_COMMAND_START = re.compile(
     r"\bdocker run\b.*nornicdb|\bdocker[ -]compose\b.*\bup\b.*\bnornicdb\b", re.IGNORECASE)
@@ -168,9 +187,36 @@ def shell_statements(lines: Numbered, split_steps: bool) -> Numbered:
     return expand_literals(join_continuations(lines), split_steps)
 
 
+def job_image_hits(unit: Unit) -> list[str]:
+    """Return job ``services:`` and ``container:`` images that name NornicDB.
+
+    GitHub starts those containers for the job, so an image there is a start
+    with no ``run:`` line. A ``container: <image>`` string and an ``image:`` key
+    anywhere under a ``services:`` or ``container:`` block both count.
+    """
+    hits = []
+    block_indent: int | None = None
+    for number, line in unit.lines:
+        indent = len(line) - len(line.lstrip())
+        if block_indent is not None and indent <= block_indent:
+            block_indent = None
+        block = JOB_CONTAINER.match(line)
+        image = JOB_IMAGE.match(line) if block_indent is not None else None
+        value = None
+        if block:
+            value = block.group(2)
+            block_indent = indent if not value.strip() else None
+        elif image:
+            value = image.group(1)
+        if value and re.search(r"nornicdb", value, re.IGNORECASE):
+            hits.append(f"{unit.subject} runs a NornicDB image as a job service or container "
+                        f"({unit.label}:{number}: {line.strip()})")
+    return hits
+
+
 def unit_marker_hits(unit: Unit) -> list[str]:
     """Return one message per workflow-style start marker found in a unit's statements."""
-    hits = []
+    hits = job_image_hits(unit)
     for number, statement in shell_statements(unit.lines, split_steps=True):
         for pattern, reason in START_MARKERS:
             if pattern.search(statement):
@@ -221,27 +267,32 @@ def script_starts(text: str, python: bool = False) -> list[str]:
         return python_starts(text)
     starts = []
     for number, line in shell_statements(list(enumerate(text.splitlines(), 1)), False):
-        statement = line.strip()
-        if statement.startswith("#"):
+        if line.strip().startswith("#"):
             continue
-        if SCRIPT_DOCKER_RUN.match(statement):
-            starts.append(f"docker-runs a NornicDB image (line {number}: {statement[:80]})")
-            continue
-        for pattern, reason in SCRIPT_START_MARKERS:
-            if pattern.search(statement):
-                starts.append(f"{reason} (line {number}: {statement[:80]})")
-                break
+        for command in shell.commands(line):
+            if SCRIPT_DOCKER_RUN.match(command):
+                starts.append(f"docker-runs a NornicDB image (line {number}: {command[:80]})")
+                continue
+            for pattern, reason in SCRIPT_START_MARKERS:
+                if pattern.search(command):
+                    starts.append(f"{reason} (line {number}: {command[:80]})")
+                    break
     return starts
 
 
 def command_words(text: str) -> list[str]:
-    """Return the script paths a shell or workflow text runs as commands."""
+    """Return the script paths a shell or workflow text runs as commands.
+
+    Each line is split into the commands it runs (see ``nornicdb_ci_off_shell``),
+    so ``cd x && ./a.sh``, ``sudo ./a.sh``, ``timeout 60 ./a.sh`` and
+    ``bash -c './a.sh'`` all reach ``a.sh``.
+    """
     words = []
     for _, line in join_continuations(list(enumerate(text.splitlines(), 1))):
         if line.strip().startswith("#"):
             continue
-        for statement in STATEMENT_SPLIT.split(line):
-            match = RUNS_SCRIPT.match(statement.strip())
+        for command in shell.commands(re.sub(r"^\s*(?:-\s+)?(?:run:\s*)?", "", line)):
+            match = RUNS_SCRIPT.match(command)
             if match:
                 words.append(match.group(1))
     return words

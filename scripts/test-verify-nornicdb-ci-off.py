@@ -350,16 +350,18 @@ class RealTreeMutantTest(unittest.TestCase):
 
 def load_tests(loader: unittest.TestLoader, tests: unittest.TestSuite,
                pattern: str | None) -> unittest.TestSuite:
-    """Also run the shape cases in test-verify-nornicdb-ci-off-shapes.py.
+    """Also run the cases in the two sibling test files.
 
     The registry row and the workflow step name one test command; this hook keeps
-    both running the shape cases without a second command.
+    both running test-verify-nornicdb-ci-off-shapes.py and
+    test-verify-nornicdb-ci-off-forms.py without a second command.
     """
-    path = ROOT / "scripts/test-verify-nornicdb-ci-off-shapes.py"
-    spec = importlib.util.spec_from_file_location("nornicdb_ci_off_shapes", path)
-    module = importlib.util.module_from_spec(spec)  # type: ignore[arg-type]
-    spec.loader.exec_module(module)  # type: ignore[union-attr]
-    tests.addTests(loader.loadTestsFromModule(module))
+    for name in ("shapes", "forms"):
+        path = ROOT / f"scripts/test-verify-nornicdb-ci-off-{name}.py"
+        spec = importlib.util.spec_from_file_location(f"nornicdb_ci_off_{name}", path)
+        module = importlib.util.module_from_spec(spec)  # type: ignore[arg-type]
+        spec.loader.exec_module(module)  # type: ignore[union-attr]
+        tests.addTests(loader.loadTestsFromModule(module))
     return tests
 
 

@@ -150,27 +150,54 @@ when a job that can run (its `if` is not `${{ false }}`) starts NornicDB, found
 four ways, each read from the committed files with no list of exceptions:
 
 1. A workflow line selects `nornicdb` (a matrix value under any key,
-   `ESHU_GRAPH_BACKEND`, `--backend nornicdb`), assigns
-   `ESHU_GRAPH_BACKEND=nornicdb` inside a command, brings up the `nornicdb`
-   compose service, or `docker run`s a NornicDB image. Lines are read after `\`
-   continuations are joined, and a shell variable set to a literal earlier in the
-   same step is substituted (`svc=nornicdb` then `up -d "$svc"`).
-2. A `scripts/*.sh` or `*.py` file the job runs, or any script that file runs in
-   turn, does the same, or exports `ESHU_GRAPH_BACKEND=nornicdb`. The walk has no
-   depth cap and a script cycle ends it. A shell statement counts only when it is
-   the command, and a Python file is parsed for spawn calls, so a fixture or
-   regex that quotes a command is skipped.
+   `ESHU_GRAPH_BACKEND`, `--backend nornicdb`, or an expression that picks it
+   for the key `backend`, `graph_backend`, `graph_service` or
+   `ESHU_GRAPH_BACKEND`), assigns `ESHU_GRAPH_BACKEND=nornicdb` or
+   `COMPOSE_PROFILES=nornicdb` inside a command, brings up the `nornicdb`
+   compose service or profile, or `docker run`s a NornicDB image. A job
+   `services:` or `container:` image that names NornicDB counts too. Names are
+   matched ignoring case. Lines are read after `\` continuations are joined,
+   and a shell variable set to a literal earlier in the same step is
+   substituted (`svc=nornicdb` then `up -d "$svc"`). Workflows are `*.yml` and
+   `*.yaml`, and the indentation is read from the file, not assumed.
+2. A `*.sh` or `*.py` file the job runs, or any script that file runs in turn,
+   does the same, or exports `ESHU_GRAPH_BACKEND=nornicdb`. The walk has no
+   depth cap and a script cycle ends it. A shell line is split at `&&`, `;`,
+   `|` and `then` outside quotes, `sudo`, `timeout N`, `env` and the like are
+   dropped, and a `bash -c '...'` body is read, so `cd x && docker ...` and
+   `sudo docker run ...` count. A statement counts only when it is the command,
+   and a Python file is parsed for spawn calls, so a fixture or regex that
+   quotes a command is skipped.
 3. A local composite action the job calls (`uses: ./.github/actions/<name>`),
    or an action that one calls, does either of the above in its `action.yml` or in
    a script it runs.
 4. A `--shard "${{ matrix.X }}/N"` run whose matrix value
    `live_backend_shards.partition_runs` gives NornicDB runs.
 
-Each message names the workflow, the job, and the file and line. Not resolved: a
-backend or service name computed at run time (`$(...)`, a function argument, a
-`${X:-nornicdb}` default), an environment assignment inside a Python script, a
-reusable workflow's jobs as part of its caller (the callee file is scanned on its
-own), and remote actions or images.
+Each message names the workflow, the job, and the file and line. A workflow
+with no block-style `jobs:` mapping, or a job written inline without `uses:`,
+fails too, because the guard cannot read it (the `call-*` jobs in `test.yml` are
+inline reusable-workflow calls and are read as text).
+
+Stated limits, each pinned by a test in
+`scripts/test-verify-nornicdb-ci-off-forms.py` so that closing one changes the
+test and this list together:
+
+- A backend or service name computed at run time is not resolved: `$(...)`, a
+  function argument, or a `${X:-nornicdb}` default assigned to a variable first.
+- A compose file's own default service (`docker compose -f <file> up` with no
+  service named) is not opened. The disabled e2e cell (commented out in
+  `e2e-tests.yml`) paired the deploy repo's `docker-compose.yaml` with
+  `graph_service: nornicdb`, so a job that ran that file bare could start
+  NornicDB; the guard reads the matrix value, not the file.
+- An expression that picks the backend is read only on the four keys above; a
+  `${{ ... 'nornicdb' ... }}` under another matrix key is not.
+- A command substitution inside a double-quoted string is part of that string.
+- An environment assignment inside a Python script, a reusable workflow's jobs
+  as part of its caller (the callee file is scanned on its own), and remote
+  actions or images.
+- A dead step (`if: false`) inside a live job is flagged, because only a
+  job-level `if` switches a job off. That errs on the safe side.
 
 The guard also fails a disabled job whose registry row is still blocking. Restoring the
 replay tier's `if`, or putting shard 1 back in the live-backend matrix, fails it
@@ -215,8 +242,10 @@ To re-enable everything, revert in this order and run each check after its step:
    `scripts/lib/golden-corpus-capture-leg-cases.sh`. Pass `nornicdb neo4j` to
    `stage-differential-capture.sh`.
 4. Delete the `nornicdb-ci-off` registry row, its two steps in
-   `verify-agent-hygiene.yml`, and `scripts/verify-nornicdb-ci-off.py` with its
-   test. Do this last: until then the guard refuses any live NornicDB leg.
+   `verify-agent-hygiene.yml`, `scripts/verify-nornicdb-ci-off.py`, its two
+   scanner modules (`scripts/lib/nornicdb_ci_off_scan.py` and
+   `scripts/lib/nornicdb_ci_off_shell.py`), and its three test files
+   (`scripts/test-verify-nornicdb-ci-off*.py`). Do this last: until then the guard refuses any live NornicDB leg.
 5. Regenerate the replay-coverage dashboard
    (`cd go && go test ./cmd/replay-coverage-gate/ -update-dashboard`). With the
    `replay-tier` row blocking again (delete its `disabled:` marker), its 167

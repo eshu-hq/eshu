@@ -6,31 +6,47 @@ NornicDB leg runs in CI. This gate holds two invariants over the committed
 workflows and the gate registry. Neither one keeps a list of exceptions.
 
 1. A live job (one whose ``if`` is not the literal ``${{ false }}``) starts no
-   NornicDB backend. A start is found five ways, all read from the committed
-   files; the scanners live in ``scripts/lib/nornicdb_ci_off_scan.py``:
+   NornicDB backend. A start is found four ways, all read from the committed
+   files; the scanners live in ``scripts/lib/nornicdb_ci_off_scan.py`` and
+   ``scripts/lib/nornicdb_ci_off_shell.py``:
    (a) a workflow line that selects ``nornicdb`` (a matrix value under any
-   key, an environment value, ``--backend nornicdb``), assigns
-   ``ESHU_GRAPH_BACKEND=nornicdb`` inside a command, brings up the ``nornicdb``
-   compose service, or ``docker run``s a NornicDB image, read after ``\\``
-   continuation lines are joined and after a shell variable set to a literal
-   earlier in the same step is substituted; (b) the same start markers, and an
-   ``export ESHU_GRAPH_BACKEND=nornicdb``, inside a ``scripts/*.sh`` or ``*.py``
-   file the job runs, or inside any script that file runs in turn (a cycle ends
-   the walk; there is no depth cap), comments skipped; (c) the same reads over
-   a local composite action (``uses: ./.github/actions/<name>``) the job calls,
-   and over any action that one calls, with the scripts those actions run;
+   key, an environment value, ``--backend nornicdb``, an expression that picks
+   it for a backend key), assigns ``ESHU_GRAPH_BACKEND=nornicdb`` inside a
+   command, brings up the ``nornicdb`` compose service or profile, or
+   ``docker run``s a NornicDB image, read after ``\\`` continuation lines are
+   joined, after a shell variable set to a literal earlier in the same step is
+   substituted, and ignoring case; or a job ``services:``/``container:`` image
+   that names NornicDB. Workflows are ``*.yml`` and ``*.yaml``, and the
+   indentation is read from the file;
+   (b) the same start markers, and an ``export ESHU_GRAPH_BACKEND=nornicdb``,
+   inside a ``*.sh`` or ``*.py`` file the job runs, or inside any script that
+   file runs in turn (a cycle ends the walk; there is no depth cap), comments
+   skipped. A shell line is split at ``&&``, ``;``, ``|`` and ``then`` outside
+   quotes, ``sudo``, ``timeout N``, ``env`` and the like are dropped, and a
+   ``bash -c '...'`` body is read, so ``cd x && docker ...`` counts;
+   (c) the same reads over a local composite action
+   (``uses: ./.github/actions/<name>``) the job calls, and over any action
+   that one calls, with the scripts those actions run;
    (d) a ``--shard "${{ matrix.X }}/N"`` run whose matrix value the
    live-backend planner (``live_backend_shards``) assigns NornicDB runs.
    A re-enabled job, matrix cell, or shard fails here whatever the exact-text
    pins around it say. Each message names the workflow, the job, and the
-   file and line.
+   file and line. A workflow with no block-style ``jobs:`` mapping, or a job
+   written inline without ``uses:``, fails too: the guard cannot read it.
 
-   Stated limits (the guard does not claim these): a service name or backend
-   computed at run time (``$(...)``, a function argument, a ``${X:-nornicdb}``
-   default) is not resolved; Python scripts are read only for process-spawning
-   calls, not for environment assignments; a reusable workflow
-   (``uses: ./.github/workflows/x.yml``) is read as its own file, not as part
-   of the caller; and a remote action or image is not opened.
+   Stated limits (the guard does not claim these; test-verify-nornicdb-ci-off-
+   forms.py pins them): a service name or backend computed at run time
+   (``$(...)``, a function argument, a ``${X:-nornicdb}`` default assigned to a
+   variable first) is not resolved; a compose file's own default service
+   (``docker compose -f <file> up`` with no service named) is not opened; an
+   expression that picks the backend is read only on the keys ``backend``,
+   ``graph_backend``, ``graph_service`` and ``ESHU_GRAPH_BACKEND``; a command
+   substitution inside a double-quoted string is part of that string; Python
+   scripts are read only for process-spawning calls, not for environment
+   assignments; a reusable workflow (``uses: ./.github/workflows/x.yml``) is
+   read as its own file, not as part of the caller; and a remote action or
+   image is not opened. A dead step (``if: false``) inside a live job is still
+   flagged: only a job-level ``if`` switches a job off.
 2. A registry row whose CI job is permanently disabled is not blocking and is
    not in a blocking tier. Otherwise the aggregate would wait on a check that
    never runs.
@@ -100,35 +116,61 @@ def shard_nornicdb_runs(root: Path, matrix_var: str, total: str,
     return flagged
 
 
+def indent_of(line: str) -> int:
+    """Return the number of leading spaces of a line."""
+    return len(line) - len(line.lstrip(" "))
+
+
 def workflow_jobs(text: str) -> dict[str, dict[str, object]]:
-    """Split a workflow into jobs keyed by job id (2-space keys under jobs:)."""
+    """Split a workflow into jobs keyed by job id.
+
+    Indentation is read from the file, not assumed: the job keys sit at the
+    indentation of the first line under ``jobs:``, and a job's own keys (``if``,
+    ``name``) at the indentation of the first line under that job. A job id may
+    be quoted. A job written inline (``id: {..}``) is kept as one line, so the
+    start markers still read it. Only a reusable-workflow call (``uses:``) may
+    be inline, because it has no steps, container, or services and its callee is
+    scanned as its own file; any other inline job carries ``unreadable`` and the
+    guard reports it.
+    """
     numbered = scan.numbered_active(text)
-    lines = [line for _, line in numbered]
-    try:
-        start = lines.index("jobs:") + 1
-    except ValueError:
+    top = min((indent_of(line) for _, line in numbered), default=0)
+    start = next((i + 1 for i, (_, line) in enumerate(numbered)
+                  if line.strip() == "jobs:" and indent_of(line) == top), None)
+    if start is None:
         return {}
     jobs: dict[str, dict[str, object]] = {}
-    current: str | None = None
+    current: dict[str, object] | None = None
+    job_indent: int | None = None
+    key_indent: int | None = None
     for number, line in numbered[start:]:
-        if not line.startswith(" "):
+        indent = indent_of(line)
+        if indent <= top:
             break
-        key = re.fullmatch(r"  ([A-Za-z0-9_-]+):", line)
-        if key:
-            current = key.group(1)
-            jobs[current] = {"lines": [], "numbered": [], "name": current, "off": False}
+        if job_indent is None:
+            job_indent = indent
+        key = re.fullmatch(r"\s*([\"']?)([A-Za-z0-9_.-]+)\1:[ ]*(.*)", line)
+        if indent == job_indent and key:
+            inline = key.group(3)
+            current = {"lines": [line] if inline else [],
+                       "numbered": [(number, line)] if inline else [],
+                       "name": key.group(2), "off": False,
+                       "unreadable": line.strip() if inline and "uses:" not in inline else ""}
+            jobs[key.group(2)] = current
+            key_indent = None
             continue
         if current is None:
             continue
-        job = jobs[current]
-        job["lines"].append(line)  # type: ignore[union-attr]
-        job["numbered"].append((number, line))  # type: ignore[union-attr]
+        current["lines"].append(line)  # type: ignore[union-attr]
+        current["numbered"].append((number, line))  # type: ignore[union-attr]
+        if key_indent is None:
+            key_indent = indent
         stripped = line.strip()
-        if line.startswith("    ") and not line.startswith("     "):
+        if indent == key_indent:
             if OFF_CONDITION.match(stripped):
-                job["off"] = True
+                current["off"] = True
             elif stripped.startswith("name:"):
-                job["name"] = stripped[len("name:"):].strip().strip("\"'")
+                current["name"] = stripped[len("name:"):].strip().strip("\"'")
     return jobs
 
 
@@ -190,10 +232,19 @@ def check(root: Path) -> list[str]:
     """Return one message per violation of the two invariants."""
     errors: list[str] = []
     workflows: dict[str, dict[str, dict[str, object]]] = {}
-    for path in sorted((root / ".github/workflows").glob("*.yml")):
+    for path in sorted(p for p in (root / ".github/workflows").glob("*.y*ml")
+                       if p.suffix in (".yml", ".yaml")):
         jobs = workflow_jobs(path.read_text(encoding="utf-8"))
         workflows[path.name] = jobs
+        if not jobs:
+            errors.append(f"{path.name}: no block-style `jobs:` mapping was found, so the "
+                          f"guard cannot tell whether it starts NornicDB; {scan.OFF_NOTE}")
         for job_id, job in jobs.items():
+            if job["unreadable"]:
+                errors.append(f"{path.name}/{job_id}: the job is written inline "
+                              f"({job['unreadable'][:60]!r}), so the guard cannot read it; "
+                              f"write it as a block mapping")
+                continue
             if job["off"]:
                 continue
             errors.extend(job_violations(root, path.name, job_id, job["numbered"]))  # type: ignore[arg-type]
