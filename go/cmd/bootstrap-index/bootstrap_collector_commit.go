@@ -76,8 +76,12 @@ func (s *collectorDrainState) commitCollectedGeneration(
 	cycleStart time.Time,
 ) error {
 	factCountPre := collected.FactCount()
+	// The disposition box lets a committer that rolls a generation back
+	// report the refusal on the context while still returning nil, so no
+	// collector starts failing claims over a refusal (#10037).
+	commitCtx, disposition := collector.WithCommitDisposition(cycleCtx)
 	if err := s.committer.CommitScopeGeneration(
-		cycleCtx,
+		commitCtx,
 		collected.Scope,
 		collected.Generation,
 		collected.Facts,
@@ -147,19 +151,29 @@ func (s *collectorDrainState) commitCollectedGeneration(
 		}
 	}
 
+	// A refused generation was rolled back before anything persisted: it
+	// counts no committed facts and adds nothing to the bootstrap totals
+	// (#10085). Emitted and observed signals stay: the facts were produced.
+	_, refused := disposition.Refusal()
+
 	duration := time.Since(cycleStart).Seconds()
 	if s.instruments != nil {
-		s.instruments.FactsCommitted.Add(cycleCtx, int64(factCount), metric.WithAttributes(
-			telemetry.AttrScopeKind(string(collected.Scope.ScopeKind)),
-		))
+		if !refused {
+			s.instruments.FactsCommitted.Add(cycleCtx, int64(factCount), metric.WithAttributes(
+				telemetry.AttrScopeKind(string(collected.Scope.ScopeKind)),
+			))
+		}
 		s.instruments.CollectorObserveDuration.Record(cycleCtx, duration, metric.WithAttributes(
 			telemetry.AttrCollectorKind("bootstrap-index"),
 		))
 	}
 
-	totalFacts := s.totalFacts.Add(int64(factCount))
-	totalEntities := s.totalEntities.Add(int64(entityCount))
-	total := s.total.Add(1)
+	var totalFacts, totalEntities, total int64
+	if !refused {
+		totalFacts = s.totalFacts.Add(int64(factCount))
+		totalEntities = s.totalEntities.Add(int64(entityCount))
+		total = s.total.Add(1)
+	}
 
 	if s.logger != nil {
 		// Per-repo log: include content_entity count and per-file-kind breakdown
@@ -179,8 +193,9 @@ func (s *collectorDrainState) commitCollectedGeneration(
 		s.logger.InfoContext(cycleCtx, "bootstrap scope collected", logAttrs...)
 
 		// Periodic progress: every bootstrapProgressInterval repos emit a
-		// summary so a 70-min run does not look silent.
-		if total%bootstrapProgressInterval == 0 {
+		// summary so a 70-min run does not look silent. A refusal adds no
+		// scope, so it must not re-emit the summary on a stale total.
+		if !refused && total%bootstrapProgressInterval == 0 {
 			s.logger.InfoContext(
 				cycleCtx, "bootstrap collection progress",
 				slog.Int("scopes_done", int(total)),
