@@ -5,6 +5,7 @@ package core
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -17,27 +18,39 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
 )
 
+// loadActivePackageManifestDependencyFacts loads the manifest dependencies
+// one pass matches against, and whether the read refused a reached
+// delta-active scope's base (#10109). This handler retracts superseded
+// findings before it writes, so it reads refusal-aware: a refusal is
+// incomplete evidence, not a failed load — the caller marks the pass partial
+// (upsert only, retract nothing) and proceeds with no manifest rows. A
+// retryable probe failure stays an error so the queue retries it. A loader
+// without the seam is a forgotten wire, not an empty manifest set: fail
+// closed.
 func (h SupplyChainImpactHandler) loadActivePackageManifestDependencyFacts(
 	ctx context.Context,
 	envelopes []facts.Envelope,
-) ([]facts.Envelope, error) {
-	loader, ok := h.FactLoader.(correlation.ActivePackageManifestDependencyFactLoader)
-	if !ok {
-		return nil, nil
-	}
+) ([]facts.Envelope, bool, error) {
 	filter := supplyChainImpactManifestDependencyFilter(envelopes)
 	if len(filter.Ecosystems) == 0 || len(filter.PackageNames) == 0 {
-		return nil, nil
+		return nil, false, nil
 	}
-	dependencies, err := loader.ListActivePackageManifestDependencyFacts(
+	loader, ok := h.FactLoader.(correlation.ManifestDependencyRefusingLoader)
+	if !ok {
+		return nil, false, fmt.Errorf("supply chain impact manifest dependency refusing loader is required")
+	}
+	dependencies, refused, err := loader.ListActivePackageManifestDependencyFactsWithRefusals(
 		ctx,
 		filter.Ecosystems,
 		filter.PackageNames,
 	)
-	if err != nil {
-		return nil, factload.ClassifyFactLoadError(err)
+	if refused {
+		return nil, true, nil
 	}
-	return dependencies, nil
+	if err != nil {
+		return nil, false, factload.ClassifyFactLoadError(err)
+	}
+	return dependencies, false, nil
 }
 
 func supplyChainImpactManifestDependencyFilter(envelopes []facts.Envelope) correlation.PackageManifestDependencyFactFilter {

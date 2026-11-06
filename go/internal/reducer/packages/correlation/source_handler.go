@@ -25,6 +25,10 @@ import (
 // dependency facts filtered by ecosystem and package name. Exported because
 // the supply-chain impact handler narrows the same manifest facts through
 // this interface; the postgres loader satisfies it structurally.
+//
+// This is the delta-only seam: a refused base keeps the delta's rows. It
+// stays correct for consumers that never retract on the read. Retracting
+// consumers must use ManifestDependencyRefusingLoader instead (#10109).
 type ActivePackageManifestDependencyFactLoader interface {
 	ListActivePackageManifestDependencyFacts(
 		ctx context.Context,
@@ -39,6 +43,22 @@ type ActivePackageManifestDependencyFactLoader interface {
 // structurally.
 type ActiveRepositoryFactLoader interface {
 	ListActiveRepositoryFacts(ctx context.Context) ([]facts.Envelope, error)
+}
+
+// ManifestDependencyRefusingLoader is the refusal-aware manifest read for
+// retracting consumers (#10109). The postgres loader satisfies it
+// structurally. Unlike ActivePackageManifestDependencyFactLoader, refused
+// reports true when a reached delta-active scope's base is missing, pruned,
+// or scope-mismatched: the delta-only rows are unusable for a consumer that
+// retracts, so the read fails with the counted non-retryable refusal instead
+// of returning them. A retryable probe failure returns refused=false with
+// the probe error so the consumer retries.
+type ManifestDependencyRefusingLoader interface {
+	ListActivePackageManifestDependencyFactsWithRefusals(
+		ctx context.Context,
+		ecosystems []string,
+		packageNames []string,
+	) ([]facts.Envelope, bool, error)
 }
 
 // PackageSourceHandler classifies package-registry source hints
@@ -277,21 +297,33 @@ func (h PackageSourceHandler) loadActivePackageManifestDependencyFacts(
 	ctx context.Context,
 	envelopes []facts.Envelope,
 ) ([]facts.Envelope, error) {
-	loader, ok := h.FactLoader.(ActivePackageManifestDependencyFactLoader)
-	if !ok {
-		return nil, nil
-	}
+	// This handler feeds the shared repo-dependency projection lane: its
+	// refresh intents retract stale consumer-repo DEPENDS_ON edges, so a
+	// delta-only fallback for a refused base would delete correct edges.
+	// The refusing read fails before any write or intent emission instead
+	// (#10109). A loader without the seam, when the pass would read
+	// manifest evidence, is a forgotten wire, not an empty manifest set:
+	// fail closed.
 	filter := packageManifestDependencyFilter(envelopes)
 	if len(filter.Ecosystems) == 0 || len(filter.PackageNames) == 0 {
 		return nil, nil
 	}
-	dependencies, err := loader.ListActivePackageManifestDependencyFacts(
+	loader, ok := h.FactLoader.(ManifestDependencyRefusingLoader)
+	if !ok {
+		return nil, fmt.Errorf("package source correlation manifest dependency refusing loader is required")
+	}
+	dependencies, refused, err := loader.ListActivePackageManifestDependencyFactsWithRefusals(
 		ctx,
 		filter.Ecosystems,
 		filter.PackageNames,
 	)
 	if err != nil {
 		return nil, factload.ClassifyFactLoadError(err)
+	}
+	if refused {
+		return nil, factload.ClassifyFactLoadError(fmt.Errorf(
+			"package source correlation manifest dependency base refused without an error",
+		))
 	}
 	return dependencies, nil
 }

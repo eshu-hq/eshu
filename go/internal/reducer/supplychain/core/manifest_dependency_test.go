@@ -17,19 +17,20 @@ import (
 )
 
 type manifestBackedSupplyChainImpactLoader struct {
-	scopeFacts           []facts.Envelope
-	activeFacts          []facts.Envelope
-	repositoryFacts      []facts.Envelope
-	manifestFacts        []facts.Envelope
-	jvmReachabilityFacts []facts.Envelope
-	repositoryCalls      int
-	manifestCalls        int
-	jvmReachabilityCalls int
-	jvmFilters           []JVMReachabilityFactFilter
-	manifestEcosystem    []string
-	manifestNames        []string
-	kindCalls            [][]string
-	filters              []SupplyChainImpactFactFilter
+	scopeFacts            []facts.Envelope
+	activeFacts           []facts.Envelope
+	repositoryFacts       []facts.Envelope
+	manifestFacts         []facts.Envelope
+	manifestRefusalErr    error
+	jvmReachabilityFacts  []facts.Envelope
+	repositoryCalls       int
+	manifestRefusingCalls int
+	jvmReachabilityCalls  int
+	jvmFilters            []JVMReachabilityFactFilter
+	manifestEcosystem     []string
+	manifestNames         []string
+	kindCalls             [][]string
+	filters               []SupplyChainImpactFactFilter
 }
 
 func (s *manifestBackedSupplyChainImpactLoader) ListFacts(
@@ -63,17 +64,6 @@ func (s *manifestBackedSupplyChainImpactLoader) ListActiveRepositoryFacts(
 ) ([]facts.Envelope, error) {
 	s.repositoryCalls++
 	return append([]facts.Envelope(nil), s.repositoryFacts...), nil
-}
-
-func (s *manifestBackedSupplyChainImpactLoader) ListActivePackageManifestDependencyFacts(
-	_ context.Context,
-	ecosystems []string,
-	packageNames []string,
-) ([]facts.Envelope, error) {
-	s.manifestCalls++
-	s.manifestEcosystem = append([]string(nil), ecosystems...)
-	s.manifestNames = append([]string(nil), packageNames...)
-	return append([]facts.Envelope(nil), s.manifestFacts...), nil
 }
 
 func (s *manifestBackedSupplyChainImpactLoader) ListActiveJVMReachabilityFacts(
@@ -135,8 +125,8 @@ func TestSupplyChainImpactHandlerUsesManifestDependencyBeforeRegistryCorrelation
 	if err != nil {
 		t.Fatalf("Handle() error = %v, want nil", err)
 	}
-	if loader.manifestCalls != 1 {
-		t.Fatalf("ListActivePackageManifestDependencyFacts() calls = %d, want 1", loader.manifestCalls)
+	if loader.manifestRefusingCalls != 1 {
+		t.Fatalf("ListActivePackageManifestDependencyFactsWithRefusals() calls = %d, want 1", loader.manifestRefusingCalls)
 	}
 	if got, want := strings.Join(loader.manifestEcosystem, ","), "npm"; got != want {
 		t.Fatalf("manifest ecosystems = %q, want %q", got, want)
@@ -248,8 +238,8 @@ func TestSupplyChainImpactHandlerUsesRepositoryScopedSecurityAlertLockfileEviden
 	if loader.repositoryCalls != 1 {
 		t.Fatalf("ListActiveRepositoryFacts() calls = %d, want 1", loader.repositoryCalls)
 	}
-	if loader.manifestCalls != 1 {
-		t.Fatalf("ListActivePackageManifestDependencyFacts() calls = %d, want 1", loader.manifestCalls)
+	if loader.manifestRefusingCalls != 1 {
+		t.Fatalf("ListActivePackageManifestDependencyFactsWithRefusals() calls = %d, want 1", loader.manifestRefusingCalls)
 	}
 	if got, want := len(writer.write.Findings), 1; got != want {
 		t.Fatalf("len(Findings) = %d, want %d: %#v", got, want, writer.write.Findings)

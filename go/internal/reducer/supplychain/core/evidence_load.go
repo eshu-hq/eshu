@@ -146,11 +146,9 @@ func (h SupplyChainImpactHandler) loadSupplyChainImpactEvidence(
 	repositoryFacts := len(repositories)
 	envelopes = append(envelopes, repositories...)
 
-	phaseStarted = time.Now()
-	manifestDependencies, err := h.loadActivePackageManifestDependencyFacts(ctx, envelopes)
-	timing.loadManifestDependenciesDuration = time.Since(phaseStarted)
+	manifestDependencies, manifestRefused, err := h.loadManifestDependencyEvidence(ctx, envelopes, &timing)
 	if err != nil {
-		return supplyChainImpactLoadedEvidence{}, timing, fmt.Errorf("load active package manifest dependency facts: %w", err)
+		return supplyChainImpactLoadedEvidence{}, timing, err
 	}
 	manifestDependencyFacts := len(manifestDependencies)
 	envelopes = append(envelopes, manifestDependencies...)
@@ -246,6 +244,10 @@ func (h SupplyChainImpactHandler) loadSupplyChainImpactEvidence(
 		}
 	}
 
+	// A refused manifest base is incomplete evidence: the pass upserts but
+	// retracts nothing (#10109).
+	truncation.manifestRefused = manifestRefused
+
 	return supplyChainImpactLoadedEvidence{
 		envelopes:                       envelopes,
 		scopeFacts:                      scopeFacts,
@@ -273,31 +275,6 @@ func (h SupplyChainImpactHandler) loadSupplyChainImpactEvidence(
 		floorArmed:                      floorArmed,
 		crossScopeProducerDelta:         producerDelta,
 	}, timing, nil
-}
-
-// applySupplyChainImpactSecurityAlertScope runs the security-alert scoping
-// tail of loadSupplyChainImpactEvidence as one timed step: when the pass
-// carries provider alerts, evidence outside their scope is dropped and the
-// scoped-out count is reported. It returns the scoped evidence, whether
-// scoping applied, how many envelopes it removed, and the post-scope count.
-func applySupplyChainImpactSecurityAlertScope(
-	intent reducercontract.Intent,
-	envelopes []facts.Envelope,
-	timing *supplyChainImpactTiming,
-) ([]facts.Envelope, bool, int, int) {
-	preCount := len(envelopes)
-	started := time.Now()
-	applied := supplyChainImpactUsesSecurityAlertScope(intent, envelopes)
-	if applied {
-		envelopes = scopeSupplyChainImpactEvidenceToSecurityAlerts(envelopes)
-	}
-	timing.securityAlertScopingDuration = time.Since(started)
-	postCount := len(envelopes)
-	scopedOut := 0
-	if applied && preCount > postCount {
-		scopedOut = preCount - postCount
-	}
-	return envelopes, applied, scopedOut, postCount
 }
 
 // supplyChainImpactCrossScopeFloor carries the #5709 floor's state across the

@@ -80,6 +80,17 @@ func (crossScopeReadinessProofLoader) ListActiveSupplyChainImpactFacts(
 	return nil, false, nil
 }
 
+// ListActivePackageManifestDependencyFactsWithRefusals keeps the proof loader
+// on the refusing seam (#10109): it holds no manifest rows, so it reports no
+// refusal, matching the pre-lane skip for these proofs.
+func (crossScopeReadinessProofLoader) ListActivePackageManifestDependencyFactsWithRefusals(
+	context.Context,
+	[]string,
+	[]string,
+) ([]facts.Envelope, bool, error) {
+	return nil, false, nil
+}
+
 // crossScopeReadinessProofScopeFacts is one CVE, one affected package, and the
 // package-consumption correlation that carries the repository ID.
 func crossScopeReadinessProofScopeFacts() []facts.Envelope {

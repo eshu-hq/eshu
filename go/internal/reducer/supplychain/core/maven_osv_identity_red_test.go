@@ -52,6 +52,20 @@ func (l *mavenManifestEntityNameLoader) ListActivePackageManifestDependencyFacts
 	_ []string,
 	packageNames []string,
 ) ([]facts.Envelope, error) {
+	return l.matchingManifestRows(packageNames), nil
+}
+
+// ListActivePackageManifestDependencyFactsWithRefusals keeps the exact-match
+// predicate on the refusing seam (#10109): no refusal, same filtered rows.
+func (l *mavenManifestEntityNameLoader) ListActivePackageManifestDependencyFactsWithRefusals(
+	_ context.Context,
+	_ []string,
+	packageNames []string,
+) ([]facts.Envelope, bool, error) {
+	return l.matchingManifestRows(packageNames), false, nil
+}
+
+func (l *mavenManifestEntityNameLoader) matchingManifestRows(packageNames []string) []facts.Envelope {
 	l.requestedNames = append([]string(nil), packageNames...)
 	var out []facts.Envelope
 	for _, row := range l.rows {
@@ -60,7 +74,7 @@ func (l *mavenManifestEntityNameLoader) ListActivePackageManifestDependencyFacts
 			out = append(out, row)
 		}
 	}
-	return out, nil
+	return out
 }
 
 // RED: a Maven manifest dependency stores entity_name as "group:artifact" (QA:

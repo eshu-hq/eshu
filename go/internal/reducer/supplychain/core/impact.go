@@ -23,29 +23,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
-// SupplyChainImpactStatus names the reducer decision for one vulnerability
-// impact finding.
-type SupplyChainImpactStatus string
-
-const (
-	// SupplyChainImpactAffectedExact means package identity and observed
-	// version match the affected package evidence exactly.
-	SupplyChainImpactAffectedExact SupplyChainImpactStatus = "affected_exact"
-	// SupplyChainImpactAffectedDerived means impact follows from SBOM, image,
-	// repository, or runtime joins after package identity is established.
-	SupplyChainImpactAffectedDerived SupplyChainImpactStatus = "affected_derived"
-	// SupplyChainImpactPossiblyAffected means advisory evidence exists but
-	// package identity or version precision is incomplete.
-	SupplyChainImpactPossiblyAffected SupplyChainImpactStatus = "possibly_affected"
-	// SupplyChainImpactNotAffectedKnownFixed means the observed version is at
-	// or beyond a source-reported fixed version under Eshu's conservative
-	// numeric version comparison.
-	SupplyChainImpactNotAffectedKnownFixed SupplyChainImpactStatus = "not_affected_known_fixed"
-	// SupplyChainImpactUnknown means vulnerability source truth exists but Eshu
-	// lacks enough package or runtime evidence to decide impact.
-	SupplyChainImpactUnknown SupplyChainImpactStatus = "unknown_impact"
-)
-
 // SupplyChainImpactFactFilter bounds active evidence loading for one impact
 // reducer intent.
 type SupplyChainImpactFactFilter struct {
@@ -297,6 +274,7 @@ func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent reducercont
 	)
 	subSignals["evidence_truncated_rounds"] = boolSignal(loaded.truncation.rounds)
 	subSignals["evidence_truncated_budget"] = boolSignal(loaded.truncation.budget)
+	subSignals["evidence_truncated_manifest_refused"] = boolSignal(loaded.truncation.manifestRefused)
 	subSignals["suppression_evidence_truncated"] = boolSignal(loaded.truncation.suppressionTail)
 	subSignals["python_reachability_files_folded"] = float64(loaded.pythonReachabilityFacts)
 	subSignals["python_reachability_payload_bytes_folded"] = float64(loaded.pythonReachabilityPayloadBytes)
@@ -487,14 +465,4 @@ func supplyChainImpactFindingHasUnsupportedMatcher(finding SupplyChainImpactFind
 	}
 	return normalizedSupplyChainVersionEcosystem(finding.Ecosystem) != "os" &&
 		!slices.Contains(finding.EvidencePath, chain.VulnerabilityOSPackageFactKind)
-}
-
-func supplyChainImpactStatuses() []SupplyChainImpactStatus {
-	return []SupplyChainImpactStatus{
-		SupplyChainImpactAffectedExact,
-		SupplyChainImpactAffectedDerived,
-		SupplyChainImpactPossiblyAffected,
-		SupplyChainImpactNotAffectedKnownFixed,
-		SupplyChainImpactUnknown,
-	}
 }

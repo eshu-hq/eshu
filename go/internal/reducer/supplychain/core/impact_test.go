@@ -53,6 +53,17 @@ func (s *stubSupplyChainImpactFactLoader) ListFactsByKind(
 	return append([]facts.Envelope(nil), s.scopeFacts...), nil
 }
 
+// ListActivePackageManifestDependencyFactsWithRefusals keeps the shared
+// stub on the refusing seam (#10109): it holds no manifest rows, so it
+// reports no refusal, matching the pre-#10109 skip for these tests.
+func (s *stubSupplyChainImpactFactLoader) ListActivePackageManifestDependencyFactsWithRefusals(
+	context.Context,
+	[]string,
+	[]string,
+) ([]facts.Envelope, bool, error) {
+	return nil, false, nil
+}
+
 func (s *stubSupplyChainImpactFactLoader) ListActiveSupplyChainImpactFacts(
 	_ context.Context,
 	filter SupplyChainImpactFactFilter,

@@ -93,6 +93,17 @@ func (l *repositoryAnchorSupplyChainImpactFactLoader) ListActiveSupplyChainImpac
 	return append([]facts.Envelope(nil), l.activeForFilter(filter)...), false, nil
 }
 
+// ListActivePackageManifestDependencyFactsWithRefusals keeps the fixture on
+// the refusing seam (#10109): it holds no manifest rows, so it reports no
+// refusal.
+func (l *repositoryAnchorSupplyChainImpactFactLoader) ListActivePackageManifestDependencyFactsWithRefusals(
+	context.Context,
+	[]string,
+	[]string,
+) ([]facts.Envelope, bool, error) {
+	return nil, false, nil
+}
+
 func repositoryAnchorDebianOSPackageFact(factID, scopeID, generationID string) facts.Envelope {
 	return facts.Envelope{
 		FactID:       factID,

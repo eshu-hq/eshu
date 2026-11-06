@@ -122,6 +122,10 @@ func (l *catalogDiffLoader) ListActivePackageManifestDependencyFacts(context.Con
 	return append([]facts.Envelope(nil), l.dependencies...), nil
 }
 
+func (l *catalogDiffLoader) ListActivePackageManifestDependencyFactsWithRefusals(context.Context, []string, []string) ([]facts.Envelope, bool, error) {
+	return append([]facts.Envelope(nil), l.dependencies...), false, nil
+}
+
 func (l *catalogDiffLoader) ListActiveRepositoryFacts(context.Context) ([]facts.Envelope, error) {
 	return append([]facts.Envelope(nil), l.repositories...), nil
 }

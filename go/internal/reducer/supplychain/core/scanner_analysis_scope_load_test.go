@@ -111,6 +111,17 @@ func (l *scanScopedSupplyChainImpactFactLoader) ListActiveSupplyChainImpactFacts
 	return append([]facts.Envelope(nil), l.activeFacts...), false, nil
 }
 
+// ListActivePackageManifestDependencyFactsWithRefusals keeps the fixture on
+// the refusing seam (#10109): it holds no manifest rows, so it reports no
+// refusal. Wrappers that embed this loader promote the method.
+func (l *scanScopedSupplyChainImpactFactLoader) ListActivePackageManifestDependencyFactsWithRefusals(
+	context.Context,
+	[]string,
+	[]string,
+) ([]facts.Envelope, bool, error) {
+	return nil, false, nil
+}
+
 // TestSupplyChainImpactHandlerLoadsScannerAnalysisFromOSPackageScanScope is
 // the regression guard for the scanner-analysis-scope LOAD STAGE: it proves
 // loadSupplyChainImpactScannerAnalysisScopeFacts fetches the sibling

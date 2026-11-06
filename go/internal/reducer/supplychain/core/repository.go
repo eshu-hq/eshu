@@ -21,7 +21,7 @@ func (h SupplyChainImpactHandler) loadActiveSupplyChainImpactRepositoryFacts(
 	if !ok || correlation.HasPackageSourceRepositoryFact(envelopes) {
 		return nil, nil
 	}
-	if _, ok := h.FactLoader.(correlation.ActivePackageManifestDependencyFactLoader); !ok {
+	if _, ok := h.FactLoader.(correlation.ManifestDependencyRefusingLoader); !ok {
 		return nil, nil
 	}
 	filter := supplyChainImpactManifestDependencyFilter(envelopes)

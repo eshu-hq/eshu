@@ -5,6 +5,7 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"time"
@@ -77,7 +78,40 @@ func (s FactStore) ListActivePackageManifestDependencyFacts(
 	}
 
 	packageManagers, query := activePackageManifestDependencyQuery(ecosystems)
-	return s.listManifestDependencyFactsWithQuery(ctx, started, packageManagers, query, packageNames)
+	loaded, _, err := s.listManifestDependencyFactsWithQuery(ctx, started, packageManagers, query, packageNames, false)
+	return loaded, err
+}
+
+// ListActivePackageManifestDependencyFactsWithRefusals is
+// ListActivePackageManifestDependencyFacts for retracting consumers (#10109):
+// the package-source correlation and supply-chain impact handlers retract
+// before they write, so they cannot use the delta-only rows the default read
+// falls back to. A reached scope whose base the projector refuses too
+// (union_base_missing or union_scope_mismatch) fails the read with
+// ManifestDeltaBaseRefusedError — counted, logged, non-retryable with
+// ManifestDependencyDeltaBaseRefusedFailureClass — and refused reports true
+// with no fallback rows. A failed retention-probe statement fails the read
+// with a retryable error instead (refused is false: the base may be intact).
+// A legacy delta with no baseline (union_no_baseline) and a resolved base
+// with no matching row (union_base_unmatched) keep their delta-only rows
+// with refused=false, exactly as the default read: the base pages run the
+// same (package manager, name) probes, so an unmatched base holds nothing
+// for the requested keys and the delta-only rows are the complete answer.
+func (s FactStore) ListActivePackageManifestDependencyFactsWithRefusals(
+	ctx context.Context,
+	ecosystems []string,
+	packageNames []string,
+) ([]facts.Envelope, bool, error) {
+	started := time.Now()
+	if s.database == nil {
+		return nil, false, fmt.Errorf("fact store database is required")
+	}
+	if len(ecosystems) == 0 || len(packageNames) == 0 {
+		return nil, false, nil
+	}
+
+	packageManagers, query := activePackageManifestDependencyQuery(ecosystems)
+	return s.listManifestDependencyFactsWithQuery(ctx, started, packageManagers, query, packageNames, true)
 }
 
 // listManifestDependencyFactsWithQuery runs one manifest dependency read for
@@ -91,26 +125,28 @@ func (s FactStore) listManifestDependencyFactsWithQuery(
 	packageManagers []string,
 	query string,
 	packageNames []string,
-) ([]facts.Envelope, error) {
+	refuse bool,
+) ([]facts.Envelope, bool, error) {
 	// The read label names the query text that ran: keep the pre-transform
 	// text, because on a snapshot clone the static rewrite below changes
 	// the text and no rewritten text is in the label table.
 	rawQuery := query
 	baseQuery, err := deriveDeltaOverlayBaseQuery(query, manifestDeltaOverlayScopeParam)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	if query, err = s.protectedImpactStaticFactSQL(query); err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	if baseQuery, err = s.protectedImpactStaticFactSQL(baseQuery); err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	// One read-only repeatable-read snapshot keeps the active pages, the
 	// delta-target lookup, the delta-base pages, the base resolution, and the
 	// overlay inputs on the same active generations (#9991). Inside the
 	// impact snapshot this nests as a no-op.
 	var loaded []facts.Envelope
+	var refusals []deltaOverlayRefusal
 	activeRows := 0
 	sink := s.manifestDeltaOverlayTelemetry(manifestDependencyReadLabel(rawQuery))
 	err = s.withDeltaOverlaySnapshot(ctx, func(snapshot *deltaOverlaySnapshot) error {
@@ -133,14 +169,35 @@ func (s FactStore) listManifestDependencyFactsWithQuery(
 				return err
 			}
 		}
-		loaded, err = reader.overlayDeltaBase(ctx, sink, targets, active, base)
+		if !refuse {
+			loaded, err = reader.overlayDeltaBase(ctx, sink, targets, active, base)
+			return err
+		}
+		loaded, refusals, err = reader.overlayDeltaBaseWithRefusals(ctx, sink, targets, active, base)
 		return err
 	})
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	s.recordManifestDependencyRead(ctx, rawQuery, started, activeRows)
-	return loaded, nil
+	if !refuse {
+		return loaded, false, nil
+	}
+	// Each refusal is already counted and logged by
+	// overlayDeltaBaseWithRefusals; the caller decides whether the
+	// delta-only rows are usable. The refusing read never returns them:
+	// a retracting consumer must fail before its retract, not proceed on
+	// a partial union. refused reports true only for the counted
+	// non-retryable refusal: a retryable probe failure returns refused=false
+	// so the consumer retries instead of treating it as a lost base.
+	if rerr := manifestDeltaOverlayRefusal(manifestDependencyReadLabel(rawQuery), refusals); rerr != nil {
+		var refusal *ManifestDeltaBaseRefusedError
+		if errors.As(rerr, &refusal) {
+			return nil, true, rerr
+		}
+		return nil, false, rerr
+	}
+	return loaded, false, nil
 }
 
 // listPackageManifestDependencyFactPages runs one manifest dependency query

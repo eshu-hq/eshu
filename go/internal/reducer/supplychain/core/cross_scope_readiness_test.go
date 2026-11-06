@@ -51,6 +51,17 @@ func (s *scopeOnlySupplyChainImpactFactLoader) ListFactsByKind(
 	return append([]facts.Envelope(nil), s.scopeFacts...), nil
 }
 
+// ListActivePackageManifestDependencyFactsWithRefusals keeps the fixture on
+// the refusing seam (#10109): it holds no manifest rows, so it reports no
+// refusal.
+func (s *scopeOnlySupplyChainImpactFactLoader) ListActivePackageManifestDependencyFactsWithRefusals(
+	context.Context,
+	[]string,
+	[]string,
+) ([]facts.Envelope, bool, error) {
+	return nil, false, nil
+}
+
 // supplyChainImpactIntentUnderTheFloor builds an intent whose repair cycle just
 // began, so the 30-minute elapsed bound is nowhere near reached and the
 // readiness lookup is what governs the decision.

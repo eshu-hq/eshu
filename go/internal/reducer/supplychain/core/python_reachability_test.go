@@ -425,6 +425,15 @@ func (l *pythonReachabilityImpactLoader) ListActivePackageManifestDependencyFact
 	return nil, nil
 }
 
+func (l *pythonReachabilityImpactLoader) ListActivePackageManifestDependencyFactsWithRefusals(
+	context.Context,
+	[]string,
+	[]string,
+) ([]facts.Envelope, bool, error) {
+	l.manifestCalls++
+	return nil, false, nil
+}
+
 func (l *pythonReachabilityImpactLoader) ListActiveSupplyChainImpactFacts(
 	_ context.Context,
 	filter SupplyChainImpactFactFilter,
