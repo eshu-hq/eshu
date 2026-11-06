@@ -47,6 +47,10 @@ fail() { printf 'test-run-live-postgres-readiness-selftest-seeds: %s\n' "$*" >&2
 ) &
 
 bash "${repo_root}/scripts/test-live-postgres-readiness-seed-pool.sh" >/dev/null || fail "seed pool self-test failed"
+# The fake go's event selector decides every runner verdict the self-test
+# reads (#10238), so its own cases and mutants run here once.
+selector_out="$(python3 "${repo_root}/scripts/test-live-postgres-readiness-fake-go-events.py" 2>&1)" ||
+  fail "fake go event selector self-test failed: ${selector_out}"
 
 pristine="${work}/tree"
 mkdir -p "${pristine}"

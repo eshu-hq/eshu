@@ -184,6 +184,29 @@ check_batched_package_failures() {
   done
 }
 
+# check_blank_event_line requires a blank line in a package's event stream to
+# fail that package: the verifier treats a blank line as a corrupt stream. The
+# fake go must print it byte for byte, so a trailing blank line planted after
+# the terminal event reaches the verifier, and so does one between events in
+# another package. A fake go that captured the selection with $(...) lost the
+# trailing one, so only the interior one failed its package (#10238).
+check_blank_event_line() {
+  local out
+  write_events
+  printf '\n' >>"$(events_of "${first_pkg}")"
+  sed -i.bak "1a\\
+" "$(events_of "${last_pkg}")"
+  rm -f "${fake}"/*.bak
+  out="$(run_runner)" && fail "blank event lines passed the runner: ${out}"
+  # The blank is the line after the package's events: 2 per proof, the terminal.
+  [[ "${out}" == *"invalid go test JSON line $((2 * $(count_in "${first_pkg}") + 2)):"* ]] ||
+    fail "trailing blank line in ${first_pkg} not rejected: ${out}"
+  [[ "${out}" == *"invalid go test JSON line 2:"* ]] ||
+    fail "interior blank line in ${last_pkg} not rejected: ${out}"
+  [[ "${out}" == *"failed packages: ${first_pkg} ${last_pkg}"* ]] ||
+    fail "blank lines did not fail exactly ${first_pkg} and ${last_pkg}: ${out}"
+}
+
 # An extra skip excuse (LIVE_READINESS_EXTRA_SKIP) covers a behavior-gated
 # proof: absence or skip passes, a failure still fails, and an unknown name
 # dies loud in parse_skips.

@@ -25,7 +25,8 @@
 #
 # Environment (finish): JOB_STATUS, READINESS_JOB_STARTED_EPOCH, CAP_MINUTES
 # (must equal the job's timeout-minutes; the cigates readiness test pins it),
-# optional READINESS_JOB_LABEL, optional READINESS_RUNNER_CPU (tests; default
+# optional READINESS_JOB_LABEL, optional READINESS_BUDGET_PERCENT (the share of
+# the cap above which a passing job warns; default 80), optional READINESS_RUNNER_CPU (tests; default
 # from lscpu and nproc), optional READINESS_JOB_NOW_EPOCH (tests), optional
 # GITHUB_STEP_SUMMARY.
 set -euo pipefail
@@ -36,7 +37,10 @@ fail() { printf 'live-postgres-readiness-job-summary: %s\n' "$*" >&2; exit 2; }
 # a cap hit: runner setup runs before the first step starts the clock.
 grace_s=90
 # budget_percent is the share of the cap above which a passing job warns.
-budget_percent=80
+# The default suits the shard legs. The hermetic job sets
+# READINESS_BUDGET_PERCENT=67, two thirds of its cap: the 20 minutes its
+# headroom target allows (#10238).
+budget_percent="${READINESS_BUDGET_PERCENT-80}"
 
 # emit prints the verdict lines to stdout and, minus the ::annotation lines,
 # to the step summary.
@@ -48,6 +52,12 @@ emit() {
       printf '%s\n' "${line}" >>"${GITHUB_STEP_SUMMARY}"
     fi
   done
+}
+
+# minutes prints SECONDS as minutes with one decimal, rounded down.
+minutes() {
+  local tenths=$(($1 * 10 / 60))
+  printf '%d.%d' $((tenths / 10)) $((tenths % 10))
 }
 
 # runner_cpu prints the CPU model and vCPU count, or unknown off Linux.
@@ -67,9 +77,12 @@ runner_cpu() {
 finish() {
   local status="${JOB_STATUS:-}" started="${READINESS_JOB_STARTED_EPOCH:-}"
   local cap="${CAP_MINUTES:-}" now cap_s threshold elapsed percent label cpu head cpu_line
+  local elapsed_min left_min
   label="${READINESS_JOB_LABEL:-hermetic}"
   [[ "${label}" =~ ^[a-z0-9][a-z0-9\ /()._-]*$ ]] || fail "READINESS_JOB_LABEL is not a plain job name: '${label}'"
   [[ "${cap}" =~ ^[1-9][0-9]*$ ]] || fail "CAP_MINUTES must be a positive integer, got '${cap}'"
+  [[ "${budget_percent}" =~ ^([1-9][0-9]?|100)$ ]] ||
+    fail "READINESS_BUDGET_PERCENT must be a whole percentage from 1 to 100, got '${budget_percent}'"
   cpu="$(runner_cpu)"
   head="### live-postgres-readiness ${label}"
   cpu_line="Runner CPU: ${cpu}."
@@ -89,29 +102,31 @@ finish() {
   [[ "${now}" =~ ^[0-9]+$ && "${now}" -ge "${started}" ]] || fail "bad end epoch '${now}'"
   elapsed=$((now - started))
   percent=$((elapsed * 100 / cap_s))
+  elapsed_min="$(minutes "${elapsed}")"
+  left_min="$(minutes $((cap_s > elapsed ? cap_s - elapsed : 0)))"
   case "${status}" in
     success)
       if [[ "${percent}" -ge "${budget_percent}" ]]; then
         emit "${head}: PASSED, over budget" \
-          "Ran ${elapsed}s, ${percent}% of the ${cap}-minute cap (budget ${budget_percent}%). Split or trim the longest step before the cap cancels a run." \
-          "${cpu_line}" "::warning title=${label} job near its cap::${elapsed}s is ${percent}% of the ${cap}-minute cap"
+          "Ran ${elapsed}s (${elapsed_min} minutes), ${percent}% of the ${cap}-minute cap (budget ${budget_percent}%), ${left_min} minutes of headroom. Split or trim the longest step before the cap cancels a run." \
+          "${cpu_line}" "::warning title=${label} job near its cap::${elapsed}s (${elapsed_min} minutes) is ${percent}% of the ${cap}-minute cap"
       else
         emit "${head}: PASSED" \
-          "Ran ${elapsed}s, ${percent}% of the ${cap}-minute cap." "${cpu_line}"
+          "Ran ${elapsed}s (${elapsed_min} minutes), ${percent}% of the ${cap}-minute cap, ${left_min} minutes of headroom." "${cpu_line}"
       fi
       ;;
     failure)
       emit "${head}: FAILED" \
-        "A step exited nonzero after ${elapsed}s (${percent}% of the ${cap}-minute cap). This is a failure, not a timeout: read the failing step's log." "${cpu_line}"
+        "A step exited nonzero after ${elapsed}s (${elapsed_min} minutes, ${percent}% of the ${cap}-minute cap). This is a failure, not a timeout: read the failing step's log." "${cpu_line}"
       ;;
     cancelled)
       if [[ "${elapsed}" -ge "${threshold}" ]]; then
         emit "${head}: CANCELLED BY THE TIME CAP" \
-          "The job ran ${elapsed}s and was cancelled at its ${cap}-minute cap. No test failed: the run was cut off. Compare the step durations and the runner CPU and rerun; a repeat means the job outgrew the cap (#8241, #9582)." \
+          "The job ran ${elapsed}s (${elapsed_min} minutes) and was cancelled at its ${cap}-minute cap. No test failed: the run was cut off. Compare the step durations and the runner CPU and rerun; a repeat means the job outgrew the cap (#8241, #9582)." \
           "${cpu_line}" "::error title=${label} job hit its ${cap}-minute cap::cancelled after ${elapsed}s, not failed by a test"
       else
         emit "${head}: CANCELLED BEFORE THE CAP" \
-          "The job was cancelled after ${elapsed}s, ${percent}% of the ${cap}-minute cap. Not a timeout and not a test failure: a newer run in the same concurrency group or a manual cancel." "${cpu_line}"
+          "The job was cancelled after ${elapsed}s (${elapsed_min} minutes), ${percent}% of the ${cap}-minute cap. Not a timeout and not a test failure: a newer run in the same concurrency group or a manual cancel." "${cpu_line}"
       fi
       ;;
     *) fail "unknown job status '${status}'" ;;
