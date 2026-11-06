@@ -1,0 +1,26 @@
+# Seed image for the #8877 SBOM shadow window: the pinned release worker image
+# plus the shadow extractor binary at the path runtime-config.yaml launches.
+#
+# Production assembly (window step, needs registry access + push rights):
+#   go build -trimpath -o eshu-collector-sbom-shadow ./cmd/collector-sbom-shadow
+#   docker buildx build --provenance=true --sbom=true \
+#     --build-arg BASE_IMAGE=ghcr.io/eshu-hq/eshu:<release-tag>@sha256:<release-digest> \
+#     -f go/cmd/collector-sbom-shadow/Dockerfile.seed -t <seed-ref> .
+#   docker push <seed-ref>
+# then pin the pushed digest into manifest.yaml (artifacts) and
+# deployment.yaml (image). Pushing never changes the digest, so a local
+# proof digest and the pushed digest of identical inputs are equal.
+# Pinned base (re-read live at lane build time, 2026-11-06, via
+# kubectl: every eshu-namespace Deployment runs this image; the
+# sha-7b3d6999…@ae20f270… pin from the synth-zero lane is superseded —
+# never trust that string, re-read kubectl).
+# Tag-only base is forbidden: the digest binds the
+# exact bytes the window proves.
+ARG BASE_IMAGE=ghcr.io/eshu-hq/eshu:sha-4963587d2b19ab4a5b6c964443ed2a33edf20a83@sha256:7803e3b61e54179e3e09abbf53a914a190d3b4c4d21676dbf912be5faa99ddd0
+FROM ${BASE_IMAGE}
+# Explicit non-root execution (Trivy DS-0002): numeric uid 10001 matches the
+# release image's eshu user (repo Dockerfile) and needs no passwd entry, so
+# the local-proof alpine base builds and runs unchanged. --chmod keeps the
+# binary executable whatever umask built it.
+COPY --chmod=755 go/cmd/collector-sbom-shadow/eshu-collector-sbom-shadow /usr/local/bin/eshu-collector-sbom-shadow
+USER 10001:10001
