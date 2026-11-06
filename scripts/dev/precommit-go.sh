@@ -354,6 +354,11 @@ case "${cmd}" in
 		bin="$(ensure_govulncheck)"
 		( cd "${go_dir}" && "${bin}" -scan package ./... ) \
 			|| die "govulncheck: vulnerabilities found (see output above)"
+		# A go.mod replace hides its module from the scan above (govulncheck
+		# looks advisories up by the replacement path); mirror the CI re-check
+		# (#10212). It finds govulncheck on PATH.
+		PATH="$(dirname "${bin}"):${PATH}" bash "${script_root}/scripts/ci/govulncheck-replace-recheck.sh" "${go_dir}" \
+			|| die "govulncheck: replaced-module re-check failed (see output above)"
 		;;
 	nancy)
 		# nancy is declared ADVISORY (specs/ci-gates.v1.yaml, #5791/#5804): OSS
