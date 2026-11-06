@@ -220,7 +220,7 @@ import (
 // single-expression extended-statistics object on (payload->>'cve_id')
 // holding the CVE key probes on their partial index; CREATE STATISTICS plus
 // ANALYZE, no index).
-const goldenBootstrapDefinitionsDigest = "faedac99797d2d6994d5c59368e552c04b0d9343e219aa95dce1d67eb4af3b66"
+const goldenBootstrapDefinitionsDigest = "9b61c91f19e75f2157376c1953454134c85cf4929f3fdfd9b9ca93ab94edac8e"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or

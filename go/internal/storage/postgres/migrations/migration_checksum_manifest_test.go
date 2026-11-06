@@ -355,7 +355,7 @@ var migrationShippedChecksums = map[string]string{
 	// #10050: single-expression extended statistics on
 	// (payload->>'cve_id') holding the CVE key probes on their partial
 	// index (migration 281).
-	"281_fact_records_vulnerability_cve_id_stats.sql": "26f1ae5d7fa3b0fc9702cd212b000efaa41d4c5cb2cefacb73da2ada40756003",
+	"281_fact_records_vulnerability_cve_id_stats.sql": "2d580fee981b0e73669decbe3e3a69b47866cd66a4259de2183ca7246f799a6c",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition
