@@ -55,6 +55,17 @@ func (l *fencingLoader) ListFacts(ctx context.Context, _, _ string) ([]facts.Env
 	return append([]facts.Envelope(nil), l.envelopes...), nil
 }
 
+// ListActivePackageManifestDependencyFactsWithRefusals keeps the fencing
+// loader on the refusing seam (#10109): it holds no manifest rows, so it
+// reports no refusal, matching the pre-lane skip for these proofs.
+func (l *fencingLoader) ListActivePackageManifestDependencyFactsWithRefusals(
+	context.Context,
+	[]string,
+	[]string,
+) ([]facts.Envelope, bool, error) {
+	return nil, false, nil
+}
+
 // fencingEvidence derives exactly one finding, anchored to repositoryID: an npm
 // package a repository consumes at an affected version.
 func fencingEvidence(repositoryID string) []facts.Envelope {
