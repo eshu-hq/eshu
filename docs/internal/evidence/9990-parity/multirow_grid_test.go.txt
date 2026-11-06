@@ -1,0 +1,195 @@
+// Multi-row parity harness for #9990 (ruling 9990-f6). Copy next to the core package
+// tests as zz_multirow_grid_test.go and run with MULTIROW_OUT=<file>. Not built by CI.
+package core
+
+import (
+	"bufio"
+	"encoding/json"
+	"fmt"
+	"os"
+	"slices"
+	"sort"
+	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
+)
+
+const mrCVE = "CVE-2099-9991"
+
+func mrFact(id, source, eco, pkgID, purl string, extra map[string]any) facts.Envelope {
+	p := map[string]any{"cve_id": mrCVE, "advisory_id": "ADV-" + id, "package_id": pkgID, "package_name": "curl"}
+	if source != "" {
+		p["source"] = source
+	}
+	if eco != "" {
+		p["ecosystem"] = eco
+	}
+	if purl != "" {
+		p["purl"] = purl
+	}
+	for k, v := range extra {
+		p[k] = v
+	}
+	return facts.Envelope{FactID: id, FactKind: chain.VulnerabilityAffectedPackageFactKind, Payload: p}
+}
+
+type mrRow struct {
+	id, ver, scope, digest string
+}
+
+func mrRows(mk func(version string) installedOSRow, rows []mrRow) ([]facts.Envelope, []facts.Envelope) {
+	var out, analyses []facts.Envelope
+	seen := map[string]bool{}
+	for _, r := range rows {
+		e := mk(r.ver).envelope()
+		e.FactID, e.ScopeID, e.GenerationID = r.id, "image://"+r.scope, "g-"+r.scope
+		out = append(out, e)
+		if r.digest != "" && !seen[r.scope] {
+			seen[r.scope] = true
+			d := "sha256:" + r.digest
+			analyses = append(analyses, scannerWorkerAnalysisFact("image://"+r.scope, "g-"+r.scope, d, "registry.example/"+r.scope+"@"+d))
+		}
+	}
+	return out, analyses
+}
+
+func mrDigest(c string) string {
+	s := ""
+	for i := 0; i < 64; i++ {
+		s += c
+	}
+	return s
+}
+
+// One line per call: shape, order labels, JSON of findings sorted by JSON.
+func TestMultiRowGrid(t *testing.T) {
+	path := os.Getenv("MULTIROW_OUT")
+	if path == "" {
+		t.Skip("no MULTIROW_OUT")
+	}
+	f, err := os.Create(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	w := bufio.NewWriter(f)
+	defer w.Flush()
+	type host struct {
+		name, id, q, own string
+		mk               func(string) installedOSRow
+	}
+	hosts := []host{
+		{"ubuntu", "pkg:deb/ubuntu/curl", "?distro=ubuntu-22.04", "ubuntu", func(v string) installedOSRow { return ubuntuCurl("22.04", v) }},
+		{"debian", "pkg:deb/debian/curl", "?distro=debian-12", "debian", func(v string) installedOSRow { return debianCurl("12", v) }},
+		{"alma", "pkg:rpm/alma/curl", "", "alma", func(v string) installedOSRow { return almaCurl("8", v) }},
+	}
+	a, b, c := mrDigest("a"), mrDigest("b"), mrDigest("c")
+	topos := map[string][]mrRow{
+		"T1-two-digests-v-n":      {{"row-v", "1.0-3", "a", a}, {"row-n", "", "b", b}},
+		"T2-digestless-v-n":       {{"row-v", "1.0-3", "a", ""}, {"row-n", "", "b", ""}},
+		"T3-same-digest-v-n":      {{"row-v", "1.0-3", "a", a}, {"row-n", "", "a", a}},
+		"T4-digest-v-less-n":      {{"row-v", "1.0-3", "a", a}, {"row-n", "", "b", ""}},
+		"T5-digest-n-less-v":      {{"row-v", "1.0-3", "a", ""}, {"row-n", "", "b", b}},
+		"T6-three-digests-v-v-n":  {{"row-v", "1.0-3", "a", a}, {"row-w", "1.0-4", "b", b}, {"row-n", "", "c", c}},
+		"T7-two-digests-v-v":      {{"row-v", "1.0-3", "a", a}, {"row-w", "1.0-4", "b", b}},
+		"T8-two-digests-n-n":      {{"row-n", "", "a", a}, {"row-m", "", "b", b}},
+		"T9-one-v":                {{"row-v", "1.0-3", "a", a}},
+		"T10-one-n":               {{"row-n", "", "a", a}},
+		"T11-digestless-v-v":      {{"row-v", "1.0-3", "a", ""}, {"row-w", "1.0-4", "b", ""}},
+		"T12-digestless-n-n":      {{"row-n", "", "a", ""}, {"row-m", "", "b", ""}},
+		"T13-whitespace-version":  {{"row-v", "1.0-3", "a", a}, {"row-n", "  ", "b", b}},
+	}
+	topoNames := make([]string, 0, len(topos))
+	for k := range topos {
+		topoNames = append(topoNames, k)
+	}
+	sort.Strings(topoNames)
+	ownEcos := []string{"", " ", "os", "deb", "dpkg"}
+	type oth struct {
+		name, source, eco string
+		purl              bool
+	}
+	others := []oth{
+		{"osv-spelled-nopurl", "osv", "VENDOR", false},
+		{"nvd-os-nopurl", "nvd", "os", false},
+		{"blank-source-blank-eco", "", "", false},
+		{"osv-os-purl-joins", "osv", "os", true},
+		{"vendor-blank-nopurl-joins", "VENDOR", "", false},
+		{"nvd-blank-purl", "nvd", "", true},
+	}
+	fix5 := map[string]any{"fixed_versions": []any{"1.0-5"}}
+	fix2 := map[string]any{"fixed_versions": []any{"1.0-2"}}
+	list := map[string]any{"affected_versions": []any{"1.0-3"}}
+	ownShapes := []struct {
+		name  string
+		extra map[string]any
+	}{{"fix-above", fix5}, {"list", list}}
+	anchors := []string{"none", "consumer", "sbom-a"}
+	emit := func(shape, order string, input []facts.Envelope) {
+		fs := BuildSupplyChainImpactFindings(slices.Clone(input))
+		var lines []string
+		for _, x := range fs {
+			j, err := json.Marshal(x)
+			if err != nil {
+				t.Fatal(err)
+			}
+			lines = append(lines, string(j))
+		}
+		sort.Strings(lines)
+		j, _ := json.Marshal(lines)
+		fmt.Fprintf(w, "%s\t%s\t%s\n", shape, order, j)
+	}
+	for _, h := range hosts {
+		for _, topo := range topoNames {
+			for _, ownEco := range ownEcos {
+				for _, os := range ownShapes {
+					for _, ot := range others {
+						for _, anchor := range anchors {
+							own := mrFact("own", h.own, ownEco, h.id, h.id+h.q, os.extra)
+							src, eco := ot.source, ot.eco
+							if src == "VENDOR" {
+								src = h.own
+							}
+							if eco == "VENDOR" {
+								eco = h.own
+							}
+							purl := ""
+							if ot.purl {
+								purl = h.id + h.q
+							}
+							other := mrFact("other", src, eco, h.id, purl, fix2)
+							rows, analyses := mrRows(h.mk, topos[topo])
+							envs := []facts.Envelope{vulnerabilityCVEFact("cve", mrCVE, 7.5)}
+							envs = append(envs, analyses...)
+							switch anchor {
+							case "consumer":
+								envs = append(envs, packageConsumptionFactWithRange("consume", h.id, "repository:r_1", "1.0-3"))
+							case "sbom-a":
+								d := "sha256:" + a
+								envs = append(envs,
+									sbomComponentImpactFactWithPackageIDVersion("component", "doc", h.id+"@1.0-3", h.id, "1.0-3"),
+									sbomAttachmentImpactFact("attachment", "doc", d),
+									containerImageIdentityImpactFact("image", d, "repository:r_1"))
+							}
+							shape := fmt.Sprintf("%s|%s|own=%q|%s|other=%s|%s", h.name, topo, ownEco, os.name, ot.name, anchor)
+							rev := slices.Clone(rows)
+							slices.Reverse(rev)
+							for fo, pair := range [][]facts.Envelope{{own, other}, {other, own}} {
+								for ro, rs := range [][]facts.Envelope{rows, rev} {
+									input := append(append(slices.Clone(pair), rs...), envs...)
+									emit(shape, fmt.Sprintf("f%d.r%d", fo, ro), input)
+								}
+							}
+							// control: own fact alone, both row orders
+							for ro, rs := range [][]facts.Envelope{rows, rev} {
+								input := append(append([]facts.Envelope{own}, rs...), envs...)
+								emit(shape, fmt.Sprintf("ctl.r%d", ro), input)
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+}

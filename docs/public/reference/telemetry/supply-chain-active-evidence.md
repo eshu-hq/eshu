@@ -173,3 +173,18 @@ advisories all name installed binaries.
 
 The success line also carries the `os_release_not_in_advisory` sub-signal,
 written even when zero.
+
+Several sources can publish one package id for one CVE, and one fact names the
+finding. These signals say what that fact joined (#9990).
+
+| Metric | Type | Key labels | Use |
+| --- | --- | --- | --- |
+| `eshu_dp_supply_chain_impact_os_representative_joins_total` | counter | `source` (`debian`, `ubuntu`, `alpine`, `alma`, `rocky`, `other`: the fact that named the group), `outcome` (`joined`, `reselected`, `other_anchor`, `no_joinable_representative`, `no_installed_row`) | One increment per OS-shaped (CVE, package id) group, once per index the pass evaluates, so a group on a protection-engaged pass counts once on the fleet-wide index and once on each scan target's. `joined` means the fact source order picked joined an installed row, including a blank-ecosystem group narrowed to the facts that join. `reselected` means source order picked a fact with no anchor and another fact of the group joined the row and named the finding. `other_anchor` means no row joined, but an SBOM subject or a consuming repository anchors the finding. `no_joinable_representative` means installed rows sit under the group's keys and no fact of the group passes the join's gates, so no finding is written: usually no fact comes from those rows' vendor, a vendor fact also fails on an ecosystem or purl that does not meet the row, and no fact joins a row from a non-vendor repository. `no_installed_row` means no row in that index sits under the group's keys, which is normal when no scanned host holds the package; an `os://` package id with no purl also lands here, because rows are keyed by purl. |
+
+The success line carries the same split as the `os_representatives_joined`,
+`os_representatives_reselected`, `os_representatives_other_anchor`,
+`os_representatives_no_joinable`, and `os_representatives_no_installed_row`
+sub-signals, written even when zero. A rising `no_joinable_representative`
+points at facts that do not meet the installed rows, so read the group's facts and
+the rows' repository class first. `reselected` above zero is expected once
+a vendor producer and another source publish the same package id.

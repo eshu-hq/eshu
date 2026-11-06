@@ -1068,6 +1068,14 @@ type Instruments struct {
 	// possibly_affected; a climbing rate on a steady corpus means advisories
 	// stop listing the releases the fleet runs.
 	SupplyChainImpactOSReleaseNotInAdvisory metric.Int64Counter
+	// SupplyChainImpactOSRepresentativeJoins counts the OS-shaped (cve,
+	// package_id) groups a supply-chain impact pass classified, once per index it
+	// evaluated, labeled source (debian, ubuntu, alpine, alma, rocky, other: the
+	// fact that named the group) and outcome (joined, reselected, other_anchor,
+	// no_joinable_representative, no_installed_row) (#9990).
+	// no_joinable_representative is a group with installed rows under its keys
+	// and no fact of the group that can join them: no finding, by this count only.
+	SupplyChainImpactOSRepresentativeJoins metric.Int64Counter
 	// SupplyChainImpactFindingsRetracted counts prior supply-chain impact
 	// finding rows a reducer pass tombstoned because its complete finding set
 	// for the (scope, generation) no longer derives them (#6831) -- for
@@ -4920,6 +4928,13 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register SupplyChainImpactOSReleaseNotInAdvisory counter: %w", err)
+	}
+	inst.SupplyChainImpactOSRepresentativeJoins, err = meter.Int64Counter(
+		"eshu_dp_supply_chain_impact_os_representative_joins_total",
+		metric.WithDescription("OS-shaped advisory package groups a supply-chain impact pass classified, once per index it evaluated, by source (debian, ubuntu, alpine, alma, rocky, other: the fact that named the group) and outcome: joined means the source-order representative joined an installed row, reselected means another fact of the group joined it because the source-order fact had no anchor, other_anchor means an SBOM path or consuming repository anchors the finding, no_joinable_representative means installed rows sit under the group's keys but no fact of the group can join them so no finding is emitted, no_installed_row means no installed row sits under the group's lookup keys in that index"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register SupplyChainImpactOSRepresentativeJoins counter: %w", err)
 	}
 
 	inst.SupplyChainImpactFindingsRetracted, err = meter.Int64Counter(

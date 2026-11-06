@@ -194,6 +194,9 @@ type supplyChainImpactBuildStats struct {
 	// osUpstreamGroups counts the vulnerability.cve records the OS advisory
 	// grouping pass examined, by source and result (#9914).
 	osUpstreamGroups map[osUpstreamGroupKey]int
+	// osRepresentativeOutcomes counts the OS-shaped package groups the pass
+	// classified, by the fact that named them and by what it joined (#9990).
+	osRepresentativeOutcomes map[osRepresentativeOutcomeKey]int
 }
 
 // countOSAdvisoriesJoinedViaSource counts the final findings that joined
@@ -390,6 +393,7 @@ func (h SupplyChainImpactHandler) recordBuildStats(
 	h.emitOSAdvisoryUpstreamGroups(ctx, stats.osUpstreamGroups)
 	subSignals[osAdvisoriesGroupedSubSignal] = float64(stats.osAdvisoriesWithGrouping(osUpstreamGrouped))
 	subSignals[osAdvisoriesUngroupedSubSignal] = float64(stats.osAdvisoriesWithGrouping(osUpstreamUngrouped))
+	h.recordOSRepresentativeOutcomes(ctx, stats, subSignals)
 	subSignals[negatedProductsExcludedSubSignal] = float64(stats.negatedProductsExcluded)
 	subSignals[osAdvisoriesConsideredSubSignal] = float64(stats.osAdvisoriesConsidered())
 	subSignals[osAdvisoriesJoinedSubSignal] = float64(stats.osAdvisoriesJoined())

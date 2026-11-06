@@ -80,14 +80,20 @@ func evaluateSupplyChainVersionMatch(
 		}
 	}
 
+	// A blank ecosystem reads the family from the group's OS purls, as "os" does: the
+	// same fact earns the dpkg verdict under either (#9990). A purl that is not an OS
+	// purl names no family, so a language fact is untouched. A spelling the identity
+	// table does not know, such as dpkg, keeps the matcher it names.
+	raw := packageidentity.LowerASCII(strings.TrimSpace(ecosystem))
 	normalized := normalizedSupplyChainVersionEcosystem(ecosystem)
-	if normalized == "" {
-		normalized = packageidentity.LowerASCII(strings.TrimSpace(ecosystem))
-	} else if normalized == string(packageidentity.EcosystemOS) {
+	switch {
+	case raw == "" || normalized == string(packageidentity.EcosystemOS):
 		normalized = osPackageVersionFamily(pkgs)
 		if normalized == "" {
-			normalized = packageidentity.LowerASCII(strings.TrimSpace(ecosystem))
+			normalized = raw
 		}
+	case normalized == "":
+		normalized = raw
 	}
 	switch normalized {
 	case string(packageidentity.EcosystemNPM):

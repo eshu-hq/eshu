@@ -1,0 +1,107 @@
+// Multi-row parity harness for #9990 (ruling 9990-f6). Copy next to the core package
+// tests as zz_multirow_auth_test.go and run with MULTIROW_OUT=<file>. Not built by CI.
+package core
+
+import (
+	"bufio"
+	"encoding/json"
+	"fmt"
+	"os"
+	"slices"
+	"sort"
+	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/facts"
+)
+
+func mrAuthAdvisory(e facts.Envelope, source string) facts.Envelope {
+	e.ScopeID = "vuln-intel://" + source + "/feed"
+	e.GenerationID = "gen-" + source
+	e.SourceRef.SourceRecordID = e.FactID
+	return e
+}
+
+func mrAuthAuthority(source string) AdvisoryAuthorityDependency {
+	return AdvisoryAuthorityDependency{
+		Kind: "public_registration", ID: "registration-" + source, RevisionID: "revision-" + source,
+		AdvisoryScopeID: "vuln-intel://" + source + "/feed", AdvisoryGenerationID: "gen-" + source,
+		ConfigFingerprint: "config-" + source, ProviderID: source, TrustedSourceClass: source,
+		ContentProfile: "supply_chain_impact_v1",
+	}
+}
+
+// Authorized path, mixed rows: one target with both rows, two targets, three shapes of other.
+func TestMultiRowAuthGrid(t *testing.T) {
+	path := os.Getenv("MULTIROW_OUT")
+	if path == "" {
+		t.Skip("no MULTIROW_OUT")
+	}
+	f, err := os.Create(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	w := bufio.NewWriter(f)
+	defer w.Flush()
+	const id, purl = "pkg:deb/ubuntu/curl", "pkg:deb/ubuntu/curl?distro=ubuntu-22.04"
+	ownEcos := []string{"", " ", "os", "deb", "dpkg", "ubuntu"}
+	others := []struct {
+		name, source, eco, purl string
+	}{{"osv-ubuntu", "osv", "ubuntu", ""}, {"nvd-os", "nvd", "os", ""}, {"osv-os-purl", "osv", "os", purl}, {"nvd-blank", "nvd", "", ""}}
+	fix5 := map[string]any{"fixed_versions": []any{"1.0-5"}}
+	fix2 := map[string]any{"fixed_versions": []any{"1.0-2"}}
+	list := map[string]any{"affected_versions": []any{"1.0-3"}}
+	own := func(eco string, x map[string]any) facts.Envelope {
+		e := mrFact("own", "ubuntu", eco, id, purl, x)
+		e.Payload["source"], e.Payload["advisory_id"] = "ubuntu", "USN-1"
+		return e
+	}
+	for _, eco := range ownEcos {
+		for _, shape := range []struct {
+			name string
+			x    map[string]any
+		}{{"fix-above", fix5}, {"list", list}} {
+			for _, ot := range others {
+				cve := vulnerabilityCVEFact("cve", mrCVE, 7.5)
+				cve.Payload["source"], cve.Payload["advisory_id"] = "ubuntu", "USN-1"
+				other := mrFact("other", ot.source, ot.eco, id, ot.purl, fix2)
+				adv := []facts.Envelope{mrAuthAdvisory(cve, "ubuntu"), mrAuthAdvisory(own(eco, shape.x), "ubuntu"), mrAuthAdvisory(other, ot.source)}
+				auth := []AdvisoryAuthorityDependency{mrAuthAuthority("ubuntu"), mrAuthAuthority(ot.source)}
+				for fo, order := range [][]facts.Envelope{{adv[0], adv[1], adv[2]}, {adv[0], adv[2], adv[1]}} {
+					for _, topo := range []string{"one-target-v-n", "one-target-n-v", "two-targets"} {
+						var targets []AuthorizedScanImpactEvidence
+						switch topo {
+						case "two-targets":
+							targets = []AuthorizedScanImpactEvidence{
+								authorizedOSVTarget(0, slices.Clone(order), auth, ubuntuCurl("22.04", "1.0-3")),
+								authorizedOSVTarget(1, slices.Clone(order), auth, ubuntuCurl("22.04", "")),
+							}
+						default:
+							tg := authorizedOSVTarget(0, slices.Clone(order), auth, ubuntuCurl("22.04", "1.0-3"))
+							rowN := ubuntuCurl("22.04", "").envelope()
+							rowN.FactID, rowN.ScopeID, rowN.GenerationID = "row-n", tg.OSPackages[0].ScopeID, tg.OSPackages[0].GenerationID
+							if topo == "one-target-v-n" {
+								tg.OSPackages = append(tg.OSPackages, rowN)
+							} else {
+								tg.OSPackages = append([]facts.Envelope{rowN}, tg.OSPackages...)
+							}
+							targets = []AuthorizedScanImpactEvidence{tg}
+						}
+						fs, err := BuildAuthorizedScanImpactFindings(nil, targets)
+						var lines []string
+						for _, x := range fs {
+							j, _ := json.Marshal(x)
+							lines = append(lines, string(j))
+						}
+						sort.Strings(lines)
+						j, _ := json.Marshal(lines)
+						fmt.Fprintf(w, "%s\tf%d\t%s\n", fmt.Sprintf("auth|%s|own=%q|%s|other=%s|none", topo, eco, shape.name, ot.name), fo, j)
+						if err != nil {
+							t.Fatalf("%v", err)
+						}
+					}
+				}
+			}
+		}
+	}
+}
