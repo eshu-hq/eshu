@@ -1,0 +1,28 @@
+.github/workflows/mcp-schema-drift.yml
+  h_78a442cba0b3e6 193
+.github/workflows/security-scan.yml
+  h_78a442cba0b3e6 114
+.github/workflows/test.yml
+  h_78a442cba0b3e6 105
+go/internal/cigates/docsset.go
+  h_78a442cba0b3e6 79
+specs/ci-docs-lockstep-paths.txt
+  h_78a442cba0b3e6 49
+specs/ci-pr-workflows.d/e2e-tests.yml
+  h_78a442cba0b3e6 43
+specs/ci-pr-workflows.d/live-backend-tests.yml
+  h_78a442cba0b3e6 103
+specs/ci-pr-workflows.d/read-api-latency-gate.yml
+  h_78a442cba0b3e6 54
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "bd3eb4010cdfa2a39f4b8bdacbe1c556538b2f78",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
