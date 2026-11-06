@@ -20,17 +20,19 @@ installed version is decided by the facts that join, and a row with no version k
 whole-group read it has at the base.
 
 No-Regression Evidence: a parity differential on `BuildSupplyChainImpactFindings`
-against base `b16cb9689b`, with the branch's production files. The harness and the
+against base `654ebd8f11` (main at the rebase, holding #9914 and #10143), with the
+branch's production files. The harness and the
 commands to rerun it are in [9990-parity](9990-parity/README.md). It records the
 input digest and the output of every call on the package's own test corpus, and on a
 grid: 5 hosts (ubuntu, debian, alpine, alma, rocky) x 11 own-fact ecosystems x 11
 other-fact ecosystems x 10 sources x other-fact purl on or off x 4 anchors (none,
 consumption, SBOM, analysis), each in 2 fact orders, plus a language control. That is
-49,480 shapes and 98,960 grid calls, 2,160 of them language calls.
+49,480 shapes and 98,960 grid calls, 2,160 of them language calls. Rerun on private
+worktrees at the new base and this head after the rebase onto main.
 
-| Measured against base `b16cb9689b` | Result |
+| Measured against base `654ebd8f11` | Result |
 | --- | --- |
-| Test-corpus calls changed (519 fleet, 42 authorized) | 0 |
+| Test-corpus calls changed (18,960 fleet and 516 authorized identical; 1,281 head-only calls from the branch's new tests) | 0 |
 | Language grid calls changed | 0 of 2,160 |
 | Grid calls whose row changed | 0 |
 | Grid calls that lost a row | 0 |
@@ -43,7 +45,8 @@ consumption, SBOM, analysis), each in 2 fact orders, plus a language control. Th
 - On this grid the new rows' findings (18,254) are `affected_exact` /
   `dpkg_exact_affected_version` (6,410), `possibly_affected` / `os_release_unverified`
   (8,880), `possibly_affected` / `installed_version_malformed` (2,860), and
-  `possibly_affected` / `unsupported_ecosystem` (104). A blank own-fact ecosystem
+  `possibly_affected` / `unsupported_ecosystem` (104). Rerun at this head against
+  `654ebd8f11`, the recount reads the same figures exactly. A blank own-fact ecosystem
   accounts for 6,186 of those findings. This is what the grid produces, not every
   verdict a new row can carry: see "What the grid cannot see" below.
 - The 104 `unsupported_ecosystem` findings are a blank joining fact with no purl whose
@@ -118,42 +121,27 @@ cannot see a group whose joined rows are mixed. A second harness, in
 with and without an image digest, with and without an installed version) x 5 own-fact
 ecosystems x 2 fact shapes x 6 other facts x 3 anchors. That is 7,020 shapes and 42,120
 calls: each shape in both fact orders and both row orders, plus the own fact alone as a
-control. Run on private worktrees at the base `b16cb9689b`, the previous head
-`599b7642a4`, and this branch's code:
+control. Rerun on private worktrees at the base `654ebd8f11` (main, holding #9914
+and #10143) and this head after the rebase:
 
 | Versioned-row findings against the own-only control | Findings | Differ | False `not_affected_known_fixed` |
 | --- | --- | --- | --- |
-| Previous head (`599b7642a4`) | 2,112 | 280 | 64 |
-| This head, split by row | 2,152 | 0 | 0 |
+| This head, split by row | 2,496 | 0 | 0 |
 
-- Base rows moved: 0, in both builds. Against the base, this head leaves 12,692 calls
-  identical and adds a row on 15,388 (the previous head added 15,332; the 56 extra are
-  the row with no version, which the split now reads when it shares one index with the
-  versioned row).
-- Authorized path, 288 calls: base rows moved 0. The previous head and this head differ
-  only where one target holds both rows (16 corrected, 16 added); two targets are equal.
-- Shapes order-dependent by fact order or row order, against this branch's base: 3,348 at
-  the base, 3,708 at the previous head and 3,700 here. 360 are order-dependent here and
-  not at the base, and 8 are the reverse. The previous head has the same 360, so the
-  split did not add them. Main has since changed how digest-less rows (#10111) and
-  per-digest rows (#10143) are classified, so this figure overstates what a merge leaves.
-- The same grid against main, my own runs, tip merged into each main (the prose
-  conflicts resolved by keeping this branch; no Go file conflicts):
-
-  | Main | Order-dependent on main | Order-dependent with this branch | Added | Removed | Base rows moved | Versioned rows vs control (findings, differ, false known-fixed) |
-  | --- | --- | --- | --- | --- | --- | --- |
-  | `eaa15d68d8`, the parent of #10143 | 2,926 | 2,992 | 70 | 4 | 0 | 2,420, 0, 0 |
-  | `35023cc39d`, current, holds #10143 | 2,852 | 2,852 | 0 | 0 | 0 | 2,496, 0, 0 |
-
-  Against `eaa15d68d8` the 70 shapes added are all topology `T3-same-digest-v-n` (two
-  rows of one digest, one versioned and one not); no digest-less shape is above main
-  there. On rows sharing one digest the order-dependent count is above main until #10143
-  lands. It has landed: with #10143 on main the added and removed sets are empty
-  (arbiter ruling 9990-f6, 2.8). Identical calls against main: 12,628 at `eaa15d68d8` and
-  12,564 at `35023cc39d`; the rest only add a row. The authorized path, 288 calls, moves
-  no row against either main (144 identical and 144 only-added at `35023cc39d`; 152 and
-  136 at `eaa15d68d8`). This does not change the committed grid's figure of "none
-  added", which is about its own 49,480 shapes.
+- Base rows moved: 0. Against the base, this head leaves 12,564 calls
+  identical and adds a row on 15,516. The own-only control calls gain the
+  versionless row by design, so their counts are not cited.
+- Authorized path, 288 calls: base rows moved 0 (144 identical, 144 only-added).
+- Shapes order-dependent by fact order or row order: 2,852 at the base and 2,852
+  here, added 0, removed 0. The order-dependent set is the base's: the count on rows
+  sharing one digest stood above base until #10143 landed, and #10143 is on main, so
+  nothing is added (arbiter ruling 9990-f6, 2.8).
+- Earlier trials merged the tip into `eaa15d68d8` (the parent of #10143: 2,926 and
+  2,992, 70 added and 4 removed, all 70 topology `T3-same-digest-v-n`) and into
+  `35023cc39d` (holds #10143: 2,852 both ways, 0 added, versioned rows 2,496 with 0
+  differing and 0 false known-fixed, authorized 144 and 144). The rerun at the rebased
+  head reads the same as that second trial. This does not change the committed grid's
+  figure of "none added", which is about its own 49,480 shapes.
 - This note did not isolate why a shared shard reads in an order-dependent way. The
   ruling's reading is that the classifier reads one row per shard.
 - A row with no installed version keeps the base's whole-group read, with the other fact
@@ -226,22 +214,26 @@ a language package). They can disagree on a language package's spelling, such as
 and `rubygems`, and every language spelling ranks under one table
 (`TestLanguageGroupKeepsItsPickAcrossEcosystemSpellings`).
 
-Benchmark Evidence: allocation counts at baseline `b16cb9689b` against this branch's
-production files, at `-benchtime=5x -benchmem`. They do not depend on host load. The
+Benchmark Evidence: allocation counts at baseline `654ebd8f11` against this head's
+production files, at `-benchtime=5x -benchmem`, medians of 3 passes (own-host spread
+at most 25 allocations). They do not depend on host load. The
 input for `OSRepresentativeSelection` is 500 groups of 2-3 facts with one installed row
 each, with no backend because the builder is pure. The timing comparison needs load1
 under 9, interleaved runs, `-count` of 10 or more, and `benchstat`; it is recorded in
-the table below only once a quiet host has run it.
+the table below only once a quiet host has run it. The absolute counts moved down from
+the previous baseline's column because main's bench fixtures evolved (#10143 and the
+join census); the branch deltas below are what this change owns, and they match the
+deltas measured on the old baseline to within run-to-run noise.
 
 | Benchmark | Base allocs | Head allocs | Delta |
 | --- | --- | --- | --- |
-| `OSAdvisoryJoin/10x` | 4,232 | 4,245 | +13 |
-| `OSAdvisoryJoin/miss-10x` | 2,245 | 2,267 | +22 |
-| `OSFleetDigestFanout/fleet-10x` | 69,496 | 69,511 | +15 |
-| `OSRepresentativeSelection/joined` | 214,681 | 219,179 | +4,498 |
-| `OSRepresentativeSelection/language` | 82,089 | 86,089 | +4,000 |
-| `OSRepresentativeSelection/no-joinable` | 69,590 | 79,592 | +10,002 |
-| `OSRepresentativeSelection/reselected` | 92,591 | 192,676 | +100,085 |
+| `OSAdvisoryJoin/10x` | 5,310 | 5,322 | +12 |
+| `OSAdvisoryJoin/miss-10x` | 2,263 | 2,286 | +23 |
+| `OSFleetDigestFanout/fleet-10x` | 15,502 | 15,504 | +2 |
+| `OSRepresentativeSelection/joined` | 165,127 | 169,630 | +4,503 |
+| `OSRepresentativeSelection/language` | 82,088 | 86,088 | +4,000 |
+| `OSRepresentativeSelection/no-joinable` | 69,588 | 79,592 | +10,004 |
+| `OSRepresentativeSelection/reselected` | 92,590 | 142,123 | +49,533 |
 
 - Against the previous head (`0aa2b5578a`), rebuilt the same way, no benchmark moves by
   more than 14 allocations (`OSRepresentativeSelection/joined` 219,174 to 219,180,
@@ -255,13 +247,16 @@ the table below only once a quiet host has run it.
   79,592, `reselected` 192,675 to 192,676, `OSFleetDigestFanout/fleet-10x` 69,506 to
   69,511), inside a run-to-run spread of up to 21. The row split costs a spelled
   ecosystem two comparisons and one trim.
-- `BenchmarkSplitDirectBlankGroup`, 100 hosts that each carry a digest, previous head to
-  this head: `spelled-all-versioned` 31,068 to 31,063; `spelled-one-versionless` 38,093
-  to 38,094; `blank-all-versioned` 27,886 to 27,904 (+18); `blank-all-versionless`
-  30,142 to 30,169 (+27); `blank-one-versionless` 37,914 to 28,016. The blank cases
-  pay one more row walk, about 20 to 30 allocations a group; no producer writes them. A
-  blank group with mixed rows falls by about 9,900, because the versioned rows now
-  classify on one fact instead of two. Timing is not read.
+- `BenchmarkSplitDirectBlankGroup`, 100 hosts that each carry a digest, at this head
+  (`-benchtime=20x`, medians of 3): `spelled-all-versioned` 19,475;
+  `spelled-one-versionless` 19,469; `blank-all-versioned` 16,210;
+  `blank-all-versionless` 18,814; `blank-one-versionless` 16,309. The absolute counts
+  sit below the previous head's column on every sub-benchmark including the spelled
+  ones this change does not touch, so the shift comes from main's fleet-path evolution
+  between the baselines, not from this branch. The blank cases pay one more row walk
+  than the spelled ones on the same tree; no producer writes them. A blank group with
+  mixed rows classifies its versioned rows on one fact instead of two. Timing is not
+  read.
 - `reselected` is new work, not a slowdown: at the base those groups yield nothing,
   and at head they cost what a joined group costs and yield the finding.
 - `no-joinable` is the largest cost on a group that still yields nothing: about 20
