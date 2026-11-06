@@ -40,7 +40,11 @@ func TestScannerDiscoveryScaleShapeLive(t *testing.T) {
 	if adminDSN == "" {
 		t.Skip("set ESHU_POSTGRES_DSN and ESHU_POSTGRES_DISPOSABLE=1 to run the derivation scale proof")
 	}
-	ctx, database := postgresproof.OpenDisposableBootstrapDatabase(t, adminDSN, optIn, 30*time.Minute,
+	// Clones the process template (#10148 PR-A) instead of bootstrapping again.
+	ctx, database := openDisposablePublicBootstrapCloneDB(t, adminDSN, optIn,
+		"set ESHU_POSTGRES_DSN and ESHU_POSTGRES_DISPOSABLE=1 to run the derivation scale proof",
+		postgresproof.FlavourPublicBootstrap,
+		30*time.Minute,
 		func(ctx context.Context, database *sql.DB) error {
 			return ApplyBootstrap(ctx, SQLDB{DB: database})
 		})

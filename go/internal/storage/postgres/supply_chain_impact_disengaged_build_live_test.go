@@ -37,10 +37,13 @@ func TestAuthorizedImpactLoaderDisengagedBuildsAdvisoryFindingLive(t *testing.T)
 	if adminDSN == "" {
 		t.Skip("set ESHU_POSTGRES_DSN and ESHU_POSTGRES_DISPOSABLE=1 to run the disengaged-build proof")
 	}
-	ctx, database := postgresproof.OpenDisposableBootstrapDatabase(t, adminDSN, optIn, 5*time.Minute,
+	// Clones the process template (#10148 PR-A) instead of bootstrapping again.
+	template := postgresproof.OpenBootstrapTemplate(t, adminDSN, optIn, 5*time.Minute,
+		postgresproof.FlavourPublicBootstrap,
 		func(ctx context.Context, database *sql.DB) error {
 			return postgres.ApplyBootstrap(ctx, postgres.SQLDB{DB: database})
 		})
+	ctx, database := postgresproof.OpenBootstrapTemplateClone(t, adminDSN, optIn, 5*time.Minute, template)
 	replaceSetSeedScope(t, ctx, database)
 	cappedSeedIntelFact(t, ctx, database, "vuln-cve:disengaged", "vulnerability.cve",
 		`{"cve_id":"CVE-2026-9299","advisory_id":"CVE-2026-9299","cvss_score":8.1,"aliases":["CVE-2026-9299"]}`)

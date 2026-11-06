@@ -43,10 +43,13 @@ func openProtectedPublishProof(t *testing.T) *protectedPublishProof {
 	if adminDSN == "" {
 		t.Skip("set ESHU_POSTGRES_DSN and ESHU_POSTGRES_DISPOSABLE=1 to run the protected publish proof")
 	}
-	ctx, admin := postgresproof.OpenDisposableBootstrapDatabase(t, adminDSN, optIn, 5*time.Minute,
+	// Clones the process template (#10148 PR-A) instead of bootstrapping again.
+	template := postgresproof.OpenBootstrapTemplate(t, adminDSN, optIn, 5*time.Minute,
+		postgresproof.FlavourPublicBootstrap,
 		func(ctx context.Context, database *sql.DB) error {
 			return ApplyBootstrap(ctx, SQLDB{DB: database})
 		})
+	ctx, admin := postgresproof.OpenBootstrapTemplateClone(t, adminDSN, optIn, 5*time.Minute, template)
 
 	for _, function := range []string{
 		"eshu_security.authorize_impact_publication_v1",

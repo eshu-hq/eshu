@@ -58,15 +58,21 @@ type fleetGateRun struct {
 // runner rather than the reducer contention gate.
 func newFleetGateRun(t *testing.T) *fleetGateRun {
 	t.Helper()
-	ctx, db := postgresproof.OpenDisposableBootstrapDatabase(
+	// Clones the process template (#10148 PR-A) instead of bootstrapping again.
+	template := postgresproof.OpenBootstrapTemplate(
 		t,
 		os.Getenv("ESHU_FLEET_GATE_PROOF_DSN"),
 		os.Getenv("ESHU_FLEET_GATE_PROOF_DISPOSABLE"),
 		5*time.Minute,
+		postgresproof.FlavourPublicWithoutContentSearchIndexes,
 		func(ctx context.Context, database *sql.DB) error {
 			return postgres.ApplyBootstrapWithoutContentSearchIndexes(ctx, postgres.SQLDB{DB: database})
 		},
 	)
+	ctx, db := postgresproof.OpenBootstrapTemplateClone(t,
+		os.Getenv("ESHU_FLEET_GATE_PROOF_DSN"),
+		os.Getenv("ESHU_FLEET_GATE_PROOF_DISPOSABLE"),
+		5*time.Minute, template)
 	now := time.Date(2026, 11, 4, 12, 0, 0, 0, time.UTC)
 	fanOut := fanOutLiveStore(db)
 	c := &convergence{

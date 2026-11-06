@@ -35,6 +35,15 @@ owns those steps after it receives the isolated connection.
   connection per concurrent claimer plus slack, so claim-race proofs never
   serialize behind one connection (pool.go). Callers prove the concurrency
   is real with distinct `pg_backend_pid` values and pool stats, not sleeps.
+- `OpenBootstrapTemplate` builds one template database per (proof server,
+  flavour) per test process with the caller's apply and caches it;
+  `OpenBootstrapTemplateClone` (or the error-returning
+  `CloneBootstrapTemplate`) clones it into a fresh disposable database.
+  `DiscardBootstrapTemplates` drops every template the process built, called
+  from the owning test package's `TestMain` (template_clone.go). Flavours are
+  pinned apply shapes shared through `FlavourPublicBootstrap` and
+  `FlavourPublicWithoutContentSearchIndexes`; distinct apply shapes need
+  distinct flavours.
 
 The godoc contract is in [doc.go](doc.go).
 
