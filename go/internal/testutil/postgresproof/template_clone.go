@@ -229,7 +229,11 @@ func waitForTemplateIdle(ctx context.Context, adminDB *sql.DB, template string) 
 // the generated clone. It reports errors instead of failing the test so
 // parallel clone workers can report through their own channel. The opt-in,
 // administrative-DSN, and template-namespace checks match the TB wrapper:
-// destructive DDL never runs on an unvalidated target.
+// destructive DDL never runs on an unvalidated target. The returned cleanup
+// has no error channel, so a failing clone drop is silent there by
+// construction; the DiscardBootstrapTemplates path is the one that reports
+// drop failures, and callers that need a loud clone teardown should drop
+// through it.
 func CloneBootstrapTemplate(
 	ctx context.Context,
 	adminDSN, optIn, template string,
@@ -255,7 +259,7 @@ func CloneBootstrapTemplate(
 		return nil, nil, fmt.Errorf("generate disposable PostgreSQL database name: %w", err)
 	}
 	clone := "eshu_content_index_proof_" + hex.EncodeToString(random)
-	if _, err := adminDB.ExecContext(ctx, "CREATE DATABASE "+quoteIdentifier(clone)+" TEMPLATE "+quoteIdentifier(template)); err != nil {
+	if err := cloneBootstrapTemplateDatabase(ctx, adminDB, clone, template); err != nil {
 		_ = adminDB.Close()
 		return nil, nil, fmt.Errorf("clone bootstrap template database: %w", err)
 	}
@@ -266,16 +270,49 @@ func CloneBootstrapTemplate(
 	targetDB := stdlib.OpenDB(*targetConfig, inventory.WriterConnectOption())
 	if err := targetDB.PingContext(ctx); err != nil {
 		_ = targetDB.Close()
-		dropDisposableDatabaseName(ctx, adminDB, clone)
+		_ = dropDisposableDatabaseName(ctx, adminDB, clone)
 		_ = adminDB.Close()
 		return nil, nil, fmt.Errorf("ping cloned PostgreSQL database: %w", err)
 	}
 	cleanup := func() {
 		_ = targetDB.Close()
-		dropDisposableDatabaseName(context.Background(), adminDB, clone)
+		_ = dropDisposableDatabaseName(context.Background(), adminDB, clone)
 		_ = adminDB.Close()
 	}
 	return targetDB, cleanup, nil
+}
+
+// cloneBootstrapTemplateDatabase issues one CREATE DATABASE ... TEMPLATE,
+// retrying a bounded number of times on SQLSTATE 55006. waitForTemplateIdle
+// proves zero sessions at build time, but a later transient backend on the
+// template (an autovacuum worker on a just-bootstrapped database is the
+// realistic one) can still refuse the clone with "database is being accessed
+// by other users". That is the mirror image of the disposable drop race, so
+// the clone reuses its bound, its delay, and its SQLSTATE classifier: a
+// genuinely parked session still fails loudly after the bound, and any other
+// CREATE failure returns immediately.
+func cloneBootstrapTemplateDatabase(ctx context.Context, admin disposableDropAdmin, clone, template string) error {
+	var lastErr error
+	for attempt := 1; attempt <= disposableDropMaxAttempts; attempt++ {
+		if _, err := admin.ExecContext(ctx, "CREATE DATABASE "+quoteIdentifier(clone)+" TEMPLATE "+quoteIdentifier(template)); err != nil {
+			lastErr = err
+			if disposableDropSQLState(err) != "55006" {
+				return fmt.Errorf("clone bootstrap template database %q from %q: %w", clone, template, err)
+			}
+		} else {
+			return nil
+		}
+		if attempt < disposableDropMaxAttempts {
+			timer := time.NewTimer(disposableDropRetryDelay)
+			select {
+			case <-ctx.Done():
+				timer.Stop()
+				return lastErr
+			case <-timer.C:
+			}
+		}
+	}
+	return fmt.Errorf("clone bootstrap template database %q from %q after %d attempts: %w", clone, template, disposableDropMaxAttempts, lastErr)
 }
 
 // OpenBootstrapTemplateClone clones template and returns the open handle,
@@ -302,11 +339,14 @@ func OpenBootstrapTemplateClone(
 }
 
 // dropDisposableDatabaseName drops one generated database without a *testing.T,
-// for error-returning paths that cannot fail the test.
-func dropDisposableDatabaseName(ctx context.Context, adminDB *sql.DB, databaseName string) {
+// for error-returning paths that cannot fail the test. The error returns to
+// the caller: DiscardBootstrapTemplates appends it, wrapping the template
+// name, so TestMain can fail the process instead of leaking the template
+// silently.
+func dropDisposableDatabaseName(ctx context.Context, adminDB disposableDropAdmin, databaseName string) error {
 	dropCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
-	_ = terminateAndDropDisposableDatabase(dropCtx, adminDB, databaseName)
+	return terminateAndDropDisposableDatabase(dropCtx, adminDB, databaseName)
 }
 
 // DiscardBootstrapTemplates force-drops every template this process built
@@ -339,7 +379,9 @@ func DiscardBootstrapTemplates() []error {
 			errs = append(errs, fmt.Errorf("open administrative database for template %q: %w", name, err))
 			continue
 		}
-		dropDisposableDatabaseName(context.Background(), adminDB, name)
+		if err := dropDisposableDatabaseName(context.Background(), adminDB, name); err != nil {
+			errs = append(errs, fmt.Errorf("drop bootstrap template %q: %w", name, err))
+		}
 		_ = adminDB.Close()
 	}
 	return errs

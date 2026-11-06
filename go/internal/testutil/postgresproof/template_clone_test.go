@@ -4,6 +4,9 @@
 package postgresproof
 
 import (
+	"context"
+	"database/sql"
+	"errors"
 	"strings"
 	"testing"
 )
@@ -73,5 +76,118 @@ func TestDiscardBootstrapTemplatesEmpty(t *testing.T) {
 	t.Parallel()
 	if errs := DiscardBootstrapTemplates(); len(errs) != 0 {
 		t.Fatalf("empty discard reported %v", errs)
+	}
+}
+
+// TestDiscardBootstrapTemplatesReportsDropFailure is the failing-drop half
+// of the TestMain teardown contract (#10148 F1): a template whose force-drop
+// fails must surface in the Discard return (wrapping the template name) so
+// TestMain can fail the process instead of leaking the template silently.
+// The cached entry points at a refused port, so the drop fails without a
+// live server.
+func TestDiscardBootstrapTemplatesReportsDropFailure(t *testing.T) {
+	bootstrapTemplateCache.Lock()
+	saved := bootstrapTemplateCache.byKey
+	bootstrapTemplateCache.byKey = map[string]string{}
+	dsn := "postgres://eshu:change-me@127.0.0.1:1/postgres?sslmode=disable"
+	name := bootstrapTemplateNamePrefix + "public_deadbeef"
+	bootstrapTemplateCache.byKey[bootstrapTemplateKey(dsn, "public")] = name
+	bootstrapTemplateCache.Unlock()
+	defer func() {
+		bootstrapTemplateCache.Lock()
+		bootstrapTemplateCache.byKey = saved
+		bootstrapTemplateCache.Unlock()
+	}()
+	errs := DiscardBootstrapTemplates()
+	if len(errs) == 0 {
+		t.Fatal("discard with a failing drop reported no error, want the drop failure")
+	}
+	for _, err := range errs {
+		if err == nil {
+			t.Fatal("discard returned a nil error entry")
+		}
+		if !strings.Contains(err.Error(), name) {
+			t.Fatalf("discard error = %v, want it to wrap template name %q", err, name)
+		}
+	}
+}
+
+// TestDropDisposableDatabaseNameReportsFailure pins the F1 primitive: the
+// error-returning drop used by Discard must propagate a failing drop
+// instead of discarding it.
+func TestDropDisposableDatabaseNameReportsFailure(t *testing.T) {
+	t.Parallel()
+	boom := errors.New("boom")
+	admin := &scriptedDropAdmin{dropResults: []error{boom}}
+	if err := dropDisposableDatabaseName(context.Background(), admin, "eshu_content_index_proof_deadbeef"); !errors.Is(err, boom) {
+		t.Fatalf("dropDisposableDatabaseName() = %v, want the drop failure %v", err, boom)
+	}
+}
+
+// scriptedCloneAdmin scripts CREATE DATABASE outcomes for the clone retry
+// proof: it records every CREATE without touching a server, so the 55006
+// retry matrix runs deterministically.
+type scriptedCloneAdmin struct {
+	createCalls   int
+	createResults []error
+}
+
+func (f *scriptedCloneAdmin) ExecContext(_ context.Context, query string, _ ...any) (sql.Result, error) {
+	if strings.HasPrefix(query, "CREATE DATABASE") {
+		f.createCalls++
+		if len(f.createResults) > 0 {
+			err := f.createResults[0]
+			f.createResults = f.createResults[1:]
+			return stubSQLResult{}, err
+		}
+		return stubSQLResult{}, nil
+	}
+	return stubSQLResult{}, errors.New("unexpected admin query: " + query)
+}
+
+// TestCloneRetriesObjectInUseThenSucceeds pins the F2 remedy: a clone CREATE
+// that reports SQLSTATE 55006 (a transient backend on the template winning
+// the race after waitForTemplateIdle proved zero sessions) is retried with
+// the same bound as the disposable drop, instead of failing the test.
+func TestCloneRetriesObjectInUseThenSucceeds(t *testing.T) {
+	t.Parallel()
+	admin := &scriptedCloneAdmin{createResults: []error{objectInUseError(), objectInUseError(), nil}}
+	if err := cloneBootstrapTemplateDatabase(context.Background(), admin, "eshu_content_index_proof_clone", bootstrapTemplateNamePrefix+"public_deadbeef"); err != nil {
+		t.Fatalf("cloneBootstrapTemplateDatabase() = %v, want success after 55006 retries", err)
+	}
+	if admin.createCalls != 3 {
+		t.Fatalf("CREATE calls = %d, want 3 (initial plus two 55006 retries)", admin.createCalls)
+	}
+}
+
+// TestCloneAbortsOnNonObjectInUse pins that only the clone race (55006)
+// retries: any other CREATE failure returns immediately.
+func TestCloneAbortsOnNonObjectInUse(t *testing.T) {
+	t.Parallel()
+	admin := &scriptedCloneAdmin{createResults: []error{errors.New("permission denied")}}
+	if err := cloneBootstrapTemplateDatabase(context.Background(), admin, "eshu_content_index_proof_clone", bootstrapTemplateNamePrefix+"public_deadbeef"); err == nil {
+		t.Fatal("cloneBootstrapTemplateDatabase() = nil, want the permission error")
+	}
+	if admin.createCalls != 1 {
+		t.Fatalf("CREATE calls = %d, want 1 (no retry on non-55006)", admin.createCalls)
+	}
+}
+
+// TestCloneGivesUpAfterBoundedAttempts pins the F2 retry bound: a template
+// that never goes idle fails loudly instead of stalling the test, so a
+// genuinely parked session still observes 55006 after the bound.
+func TestCloneGivesUpAfterBoundedAttempts(t *testing.T) {
+	t.Parallel()
+	results := make([]error, disposableDropMaxAttempts+2)
+	for i := range results {
+		results[i] = objectInUseError()
+	}
+	admin := &scriptedCloneAdmin{createResults: results}
+	err := cloneBootstrapTemplateDatabase(context.Background(), admin, "eshu_content_index_proof_clone", bootstrapTemplateNamePrefix+"public_deadbeef")
+	if err == nil || !strings.Contains(err.Error(), "55006") {
+		t.Fatalf("cloneBootstrapTemplateDatabase() = %v, want the persistent 55006", err)
+	}
+	if admin.createCalls != disposableDropMaxAttempts {
+		t.Fatalf("CREATE calls = %d, want %d (bounded, not endless)", admin.createCalls, disposableDropMaxAttempts)
 	}
 }
