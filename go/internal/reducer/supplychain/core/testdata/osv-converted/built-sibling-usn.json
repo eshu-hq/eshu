@@ -1,0 +1,253 @@
+[
+  {
+    "FactID": "06417ccd20985faaa4e52ba00a3e9e804fd3983b3db4c77a73553f05565e012b",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+    "FactKind": "vulnerability.cve",
+    "StableFactKey": "f871a5d307919f30b01221828c4b1b340cd42da2e29e63b37ba7bc2dd765696c",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "USN-6766-1",
+      "aliases": null,
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "USN-6766-1"
+      ],
+      "cve_id": "USN-6766-1",
+      "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N",
+      "database_specific": null,
+      "details": "An information disclosure vulnerability exists in curl 7.65.0 to 7.82.0 are vulnerable that by using an IPv6 address that was in the connection pool but with a different zone id it could reuse a connection instead.",
+      "ecosystem_specific": null,
+      "modified_at": "2026-05-29T18:00:19.352805442Z",
+      "published_at": "2022-04-27T06:00:00Z",
+      "related": [
+        "USN-5397-1"
+      ],
+      "severity": [
+        {
+          "score": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N",
+          "type": "CVSS_V3"
+        },
+        {
+          "score": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N",
+          "type": "CVSS_V3"
+        },
+        {
+          "score": "low",
+          "type": "Ubuntu"
+        }
+      ],
+      "severity_label": "",
+      "source": "osv",
+      "source_schema_version": "1.7.5",
+      "summary": "",
+      "upstream": [
+        "CVE-2022-27774",
+        "CVE-2022-27775",
+        "UBUNTU-CVE-2022-27775"
+      ],
+      "withdrawn_at": ""
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+      "FactKey": "f871a5d307919f30b01221828c4b1b340cd42da2e29e63b37ba7bc2dd765696c",
+      "SourceURI": "",
+      "SourceRecordID": "USN-6766-1"
+    }
+  },
+  {
+    "FactID": "c162c6fa6e736042fa06eab71a827756bf02f7a346cae1d5a6b17eff27263e97",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+    "FactKind": "vulnerability.affected_package",
+    "StableFactKey": "a9b5cb3eba0f41f88d164ff8127b8d8e35b61ed0c1bdcc41d8da6ee75e12f502",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "USN-6766-1",
+      "affected_ranges": [
+        {
+          "events": [
+            {
+              "introduced": "0"
+            },
+            {
+              "fixed": "7.68.0-1ubuntu2.10"
+            }
+          ],
+          "releases": [
+            "ubuntu:20.04"
+          ],
+          "type": "ECOSYSTEM"
+        },
+        {
+          "events": [
+            {
+              "introduced": "0"
+            },
+            {
+              "fixed": "7.81.0-1ubuntu1.1"
+            }
+          ],
+          "releases": [
+            "ubuntu:22.04"
+          ],
+          "type": "ECOSYSTEM"
+        }
+      ],
+      "affected_versions": [
+        "7.65.3-1ubuntu3",
+        "7.65.3-1ubuntu4",
+        "7.66.0-1ubuntu1",
+        "7.67.0-2ubuntu1",
+        "7.68.0-1ubuntu1",
+        "7.68.0-1ubuntu2",
+        "7.68.0-1ubuntu2.1",
+        "7.68.0-1ubuntu2.2",
+        "7.68.0-1ubuntu2.4",
+        "7.68.0-1ubuntu2.5",
+        "7.68.0-1ubuntu2.6",
+        "7.68.0-1ubuntu2.7",
+        "7.74.0-1.3ubuntu2",
+        "7.74.0-1.3ubuntu3",
+        "7.80.0-3",
+        "7.81.0-1"
+      ],
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "USN-6766-1",
+        "os://ubuntu/curl",
+        "pkg:deb/ubuntu/curl?arch=source\u0026distro=focal",
+        "pkg:deb/ubuntu/curl?arch=source\u0026distro=jammy"
+      ],
+      "cve_id": "USN-6766-1",
+      "ecosystem": "os",
+      "fixed_versions": [
+        "7.68.0-1ubuntu2.10",
+        "7.81.0-1ubuntu1.1"
+      ],
+      "package_id": "os://ubuntu/curl",
+      "package_name": "curl",
+      "purl": "pkg:deb/ubuntu/curl?arch=source\u0026distro=focal",
+      "source": "osv"
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+      "FactKey": "a9b5cb3eba0f41f88d164ff8127b8d8e35b61ed0c1bdcc41d8da6ee75e12f502",
+      "SourceURI": "",
+      "SourceRecordID": "os://ubuntu/curl#USN-6766-1"
+    }
+  },
+  {
+    "FactID": "71a3eb5299065685874803e18b238d5789c7436b349a747fa56d2457fcc137c8",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+    "FactKind": "vulnerability.reference",
+    "StableFactKey": "2dab2a5bd9b40955e7d02a9063dd3414fb35e72a568db233c6913b9d4f92408e",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "USN-6766-1",
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "USN-6766-1",
+        "https://ubuntu.com/security/CVE-2022-27775"
+      ],
+      "cve_id": "USN-6766-1",
+      "reference_type": "REPORT",
+      "source": "osv",
+      "url": "https://ubuntu.com/security/CVE-2022-27775"
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+      "FactKey": "2dab2a5bd9b40955e7d02a9063dd3414fb35e72a568db233c6913b9d4f92408e",
+      "SourceURI": "",
+      "SourceRecordID": "USN-6766-1#https://ubuntu.com/security/CVE-2022-27775"
+    }
+  },
+  {
+    "FactID": "e19222194d296e1fe30aaed32e20983c6c216d617379c9914344a2b710f4747f",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+    "FactKind": "vulnerability.reference",
+    "StableFactKey": "652016cdce1886975d8cda2213ba873d227c9b9deb7d1758ba2a7eae5b2d0cb2",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "USN-6766-1",
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "USN-6766-1",
+        "https://ubuntu.com/security/notices/USN-5397-1"
+      ],
+      "cve_id": "USN-6766-1",
+      "reference_type": "ADVISORY",
+      "source": "osv",
+      "url": "https://ubuntu.com/security/notices/USN-5397-1"
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+      "FactKey": "652016cdce1886975d8cda2213ba873d227c9b9deb7d1758ba2a7eae5b2d0cb2",
+      "SourceURI": "",
+      "SourceRecordID": "USN-6766-1#https://ubuntu.com/security/notices/USN-5397-1"
+    }
+  },
+  {
+    "FactID": "41904718c219b1c42fb915164ddcd9329c59c0eee18e0ad466430683b8c348be",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+    "FactKind": "vulnerability.reference",
+    "StableFactKey": "7e4052629557c4910439417d1ebcef484fdac8d61d5e5a09b62d22d46c3bead2",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "USN-6766-1",
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "USN-6766-1",
+        "https://www.cve.org/CVERecord?id=CVE-2022-27775"
+      ],
+      "cve_id": "USN-6766-1",
+      "reference_type": "REPORT",
+      "source": "osv",
+      "url": "https://www.cve.org/CVERecord?id=CVE-2022-27775"
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+      "FactKey": "7e4052629557c4910439417d1ebcef484fdac8d61d5e5a09b62d22d46c3bead2",
+      "SourceURI": "",
+      "SourceRecordID": "USN-6766-1#https://www.cve.org/CVERecord?id=CVE-2022-27775"
+    }
+  }
+]

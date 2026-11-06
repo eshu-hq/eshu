@@ -1,0 +1,104 @@
+[
+  {
+    "FactID": "e83e731d168a7038ba608a4b2dc4292c53081eac83d4fc8784b87c93bd3c3ef4",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+    "FactKind": "vulnerability.cve",
+    "StableFactKey": "b8797afb84b7ef6a898b3efa64df05c159c72bac41b1344c55542ee1055a9d70",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "DSA-1-1",
+      "aliases": null,
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "DSA-1-1"
+      ],
+      "cve_id": "DSA-1-1",
+      "cvss_vector": "",
+      "database_specific": null,
+      "details": "",
+      "ecosystem_specific": null,
+      "modified_at": "2026-10-26T18:02:41Z",
+      "published_at": "2023-09-15T04:15:10Z",
+      "related": null,
+      "severity": null,
+      "severity_label": "",
+      "source": "osv",
+      "source_schema_version": "1.9.0",
+      "summary": "",
+      "upstream": [
+        "CVE-2023-1"
+      ],
+      "withdrawn_at": ""
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+      "FactKey": "b8797afb84b7ef6a898b3efa64df05c159c72bac41b1344c55542ee1055a9d70",
+      "SourceURI": "",
+      "SourceRecordID": "DSA-1-1"
+    }
+  },
+  {
+    "FactID": "e555493b09a4e2ab25873e163fc4414e6f0cb4973c8255bad5555ed5aaa22e62",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+    "FactKind": "vulnerability.affected_package",
+    "StableFactKey": "b2ad79a75764c70d19ced3d213736614f296ce89918d8dc913777b7a6bd05ae7",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "DSA-1-1",
+      "affected_ranges": [
+        {
+          "events": [
+            {
+              "introduced": "0"
+            },
+            {
+              "fixed": "7.88.1-10+deb12u3"
+            }
+          ],
+          "releases": [
+            "debian:12"
+          ],
+          "type": "ECOSYSTEM"
+        }
+      ],
+      "affected_versions": null,
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "DSA-1-1",
+        "os://debian/curl",
+        "pkg:deb/debian/curl?arch=source\u0026distro=bookworm"
+      ],
+      "cve_id": "DSA-1-1",
+      "ecosystem": "os",
+      "fixed_versions": [
+        "7.88.1-10+deb12u3"
+      ],
+      "package_id": "os://debian/curl",
+      "package_name": "curl",
+      "purl": "pkg:deb/debian/curl?arch=source\u0026distro=bookworm",
+      "source": "osv"
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+      "FactKey": "b2ad79a75764c70d19ced3d213736614f296ce89918d8dc913777b7a6bd05ae7",
+      "SourceURI": "",
+      "SourceRecordID": "os://debian/curl#DSA-1-1"
+    }
+  }
+]

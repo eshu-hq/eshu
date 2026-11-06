@@ -1,0 +1,83 @@
+[
+  {
+    "FactID": "08c93be511e0e5de155d6698d8ffd66710c88f68eacc14555254825d9ff3ec5e",
+    "ScopeID": "scope-adv-a",
+    "GenerationID": "gen-a2",
+    "FactKind": "vulnerability.cve",
+    "StableFactKey": "d680317d39f6b5acb3203d4beeef56c14e262743e879363f896678cb446e107f",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-01T00:00:00Z",
+    "Payload": {
+      "advisory_id": "ADV-TOMB",
+      "aliases": null,
+      "collector_instance_id": "osv-test",
+      "correlation_anchors": [
+        "ADV-TOMB"
+      ],
+      "cve_id": "ADV-TOMB",
+      "cvss_vector": "",
+      "database_specific": null,
+      "details": "",
+      "ecosystem_specific": null,
+      "modified_at": "",
+      "published_at": "",
+      "related": null,
+      "severity": null,
+      "severity_label": "",
+      "source": "osv",
+      "source_schema_version": "",
+      "summary": "",
+      "withdrawn_at": ""
+    },
+    "IsTombstone": true,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "scope-adv-a",
+      "GenerationID": "gen-a2",
+      "FactKey": "d680317d39f6b5acb3203d4beeef56c14e262743e879363f896678cb446e107f",
+      "SourceURI": "https://api.osv.dev/v1/vulns/ADV-TOMB",
+      "SourceRecordID": "ADV-TOMB"
+    }
+  },
+  {
+    "FactID": "c73a4c1ab1f9ed59b1196cbc342df4d4551885d7f0c28f1a7800ab14d9d1ce4c",
+    "ScopeID": "scope-adv-a",
+    "GenerationID": "gen-a2",
+    "FactKind": "vulnerability.affected_package",
+    "StableFactKey": "857298399a1078e2b0e55a730314ae0070a3c2e3be4fb9a96159a390a562186d",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-01T00:00:00Z",
+    "Payload": {
+      "advisory_id": "ADV-TOMB",
+      "affected_ranges": null,
+      "affected_versions": null,
+      "collector_instance_id": "osv-test",
+      "correlation_anchors": [
+        "ADV-TOMB",
+        "npm://registry.npmjs.org/tombstoned-name"
+      ],
+      "cve_id": "ADV-TOMB",
+      "ecosystem": "npm",
+      "fixed_versions": null,
+      "package_id": "npm://registry.npmjs.org/tombstoned-name",
+      "package_name": "tombstoned-name",
+      "purl": "",
+      "source": "osv"
+    },
+    "IsTombstone": true,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "scope-adv-a",
+      "GenerationID": "gen-a2",
+      "FactKey": "857298399a1078e2b0e55a730314ae0070a3c2e3be4fb9a96159a390a562186d",
+      "SourceURI": "https://api.osv.dev/v1/vulns/ADV-TOMB",
+      "SourceRecordID": "npm://registry.npmjs.org/tombstoned-name#ADV-TOMB"
+    }
+  }
+]

@@ -31,25 +31,29 @@ func TestOSAdvisoryPassIndexesSiblingCVEFactWithUpstream(t *testing.T) {
 
 	cases := []struct {
 		name     string
+		key      string
 		fixture  string
 		recordID string
 		upstream []string
 	}{
 		{
 			name:     "debian security bulletin with a bundled CVE and its DEBIAN-CVE twin",
-			fixture:  "debian-cve-2023-38039.json",
+			key:      "built-sibling-dsa",
+			fixture:  "file-debian-cve-2023-38039",
 			recordID: "DSA-5651-1",
 			upstream: []string{"CVE-2023-38039", "DEBIAN-CVE-2023-38039"},
 		},
 		{
 			name:     "ubuntu security notice naming two CVEs",
-			fixture:  "ubuntu-cve-2022-27775.json",
+			key:      "built-sibling-usn",
+			fixture:  "file-ubuntu-cve-2022-27775",
 			recordID: "USN-6766-1",
 			upstream: []string{"CVE-2022-27775", "CVE-2022-27774", "UBUNTU-CVE-2022-27775"},
 		},
 		{
 			name:     "alpine record re-keyed to its CVE",
-			fixture:  "alpine-cve-2023-27537.json",
+			key:      "built-sibling-alpine",
+			fixture:  "file-alpine-cve-2023-27537",
 			recordID: "ALPINE-CVE-2023-27537",
 			upstream: []string{"CVE-2023-27537"},
 		},
@@ -64,11 +68,7 @@ func TestOSAdvisoryPassIndexesSiblingCVEFactWithUpstream(t *testing.T) {
 			t.Run(name, func(t *testing.T) {
 				t.Parallel()
 
-				record := osvFixtureRecord(t, tc.fixture)
-				record.ID = tc.recordID
-				record.Aliases = nil
-				record.Upstream = tc.upstream
-				envelopes := convertedOSVRecord(t, record, reverse)
+				envelopes := convertedOSVFixture(t, tc.key, reverse)
 				scopeID, generationID := envelopes[0].ScopeID, envelopes[0].GenerationID
 
 				loader := &scanScopedSupplyChainImpactFactLoader{

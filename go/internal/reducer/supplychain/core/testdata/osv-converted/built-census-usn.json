@@ -1,0 +1,106 @@
+[
+  {
+    "FactID": "06417ccd20985faaa4e52ba00a3e9e804fd3983b3db4c77a73553f05565e012b",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+    "FactKind": "vulnerability.cve",
+    "StableFactKey": "f871a5d307919f30b01221828c4b1b340cd42da2e29e63b37ba7bc2dd765696c",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "USN-6766-1",
+      "aliases": null,
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "USN-6766-1"
+      ],
+      "cve_id": "USN-6766-1",
+      "cvss_vector": "",
+      "database_specific": null,
+      "details": "",
+      "ecosystem_specific": null,
+      "modified_at": "2026-10-26T18:02:41Z",
+      "published_at": "2023-09-15T04:15:10Z",
+      "related": null,
+      "severity": null,
+      "severity_label": "",
+      "source": "osv",
+      "source_schema_version": "1.9.0",
+      "summary": "",
+      "upstream": [
+        "CVE-2024-1111",
+        "CVE-2024-2004",
+        "CVE-2024-2398"
+      ],
+      "withdrawn_at": ""
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+      "FactKey": "f871a5d307919f30b01221828c4b1b340cd42da2e29e63b37ba7bc2dd765696c",
+      "SourceURI": "",
+      "SourceRecordID": "USN-6766-1"
+    }
+  },
+  {
+    "FactID": "c162c6fa6e736042fa06eab71a827756bf02f7a346cae1d5a6b17eff27263e97",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+    "FactKind": "vulnerability.affected_package",
+    "StableFactKey": "a9b5cb3eba0f41f88d164ff8127b8d8e35b61ed0c1bdcc41d8da6ee75e12f502",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "USN-6766-1",
+      "affected_ranges": [
+        {
+          "events": [
+            {
+              "introduced": "0"
+            },
+            {
+              "fixed": "7.81.0-1ubuntu1.17"
+            }
+          ],
+          "releases": [
+            "ubuntu:22.04"
+          ],
+          "type": "ECOSYSTEM"
+        }
+      ],
+      "affected_versions": null,
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "USN-6766-1",
+        "os://ubuntu/curl",
+        "pkg:deb/ubuntu/curl?arch=source\u0026distro=jammy"
+      ],
+      "cve_id": "USN-6766-1",
+      "ecosystem": "os",
+      "fixed_versions": [
+        "7.81.0-1ubuntu1.17"
+      ],
+      "package_id": "os://ubuntu/curl",
+      "package_name": "curl",
+      "purl": "pkg:deb/ubuntu/curl?arch=source\u0026distro=jammy",
+      "source": "osv"
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+      "FactKey": "a9b5cb3eba0f41f88d164ff8127b8d8e35b61ed0c1bdcc41d8da6ee75e12f502",
+      "SourceURI": "",
+      "SourceRecordID": "os://ubuntu/curl#USN-6766-1"
+    }
+  }
+]

@@ -1,0 +1,104 @@
+[
+  {
+    "FactID": "bb329f8401941b7483bc3fdffd6dc57afc40f9ce836fad5b785dfab8a4519bdf",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+    "FactKind": "vulnerability.cve",
+    "StableFactKey": "f234ca12579365d2e434424de9ebb399adc912b96685e3c52476bd704118ed1b",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "DEBIAN-CVE-2024-0002",
+      "aliases": null,
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "DEBIAN-CVE-2024-0002"
+      ],
+      "cve_id": "DEBIAN-CVE-2024-0002",
+      "cvss_vector": "",
+      "database_specific": null,
+      "details": "",
+      "ecosystem_specific": null,
+      "modified_at": "2026-10-26T18:02:41Z",
+      "published_at": "2023-09-15T04:15:10Z",
+      "related": null,
+      "severity": null,
+      "severity_label": "",
+      "source": "osv",
+      "source_schema_version": "1.9.0",
+      "summary": "",
+      "upstream": [
+        "DEBIAN-CVE-2024-0002"
+      ],
+      "withdrawn_at": ""
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+      "FactKey": "f234ca12579365d2e434424de9ebb399adc912b96685e3c52476bd704118ed1b",
+      "SourceURI": "",
+      "SourceRecordID": "DEBIAN-CVE-2024-0002"
+    }
+  },
+  {
+    "FactID": "5db98992f3cbcd8eb262c57e3cdade23ab391ff31a16cef804169a7b6dbd14c4",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+    "FactKind": "vulnerability.affected_package",
+    "StableFactKey": "edfecc004fb2cbf8d779ff9199b18e1a021303fe836ccad5581da1982a73f095",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "DEBIAN-CVE-2024-0002",
+      "affected_ranges": [
+        {
+          "events": [
+            {
+              "introduced": "0"
+            },
+            {
+              "fixed": "1.0-2"
+            }
+          ],
+          "releases": [
+            "debian:12"
+          ],
+          "type": "ECOSYSTEM"
+        }
+      ],
+      "affected_versions": null,
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "DEBIAN-CVE-2024-0002",
+        "os://debian/curl",
+        "pkg:deb/debian/curl?distro=bookworm"
+      ],
+      "cve_id": "DEBIAN-CVE-2024-0002",
+      "ecosystem": "os",
+      "fixed_versions": [
+        "1.0-2"
+      ],
+      "package_id": "os://debian/curl",
+      "package_name": "curl",
+      "purl": "pkg:deb/debian/curl?distro=bookworm",
+      "source": "osv"
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+      "FactKey": "edfecc004fb2cbf8d779ff9199b18e1a021303fe836ccad5581da1982a73f095",
+      "SourceURI": "",
+      "SourceRecordID": "os://debian/curl#DEBIAN-CVE-2024-0002"
+    }
+  }
+]

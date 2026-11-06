@@ -10,11 +10,16 @@ import (
 	"testing"
 )
 
-// osReleaseLineVectorsPath is the table the converter's osvReleaseLine test
-// also reads. The two key functions are written apart (the OSV ecosystem string
-// versus the installed row's distro_version), so one shared table is the only
-// thing that makes them agree (#9806 PR-2b, ruling decision 8).
-const osReleaseLineVectorsPath = "../../../collector/vulnerabilityintelligence/testdata/os_release_line_vectors.json"
+// osReleaseLineVectorsPath is a frozen copy of the table the converter's
+// osvReleaseLine test reads from the satellite collector
+// (eshu-collector-vulnerability-intelligence testdata/os_release_line_vectors.json).
+// The two key functions are written apart (the OSV ecosystem string versus the
+// installed row's distro_version), so one shared table was the only thing that
+// made them agree (#9806 PR-2b, ruling decision 8). The collector delete (#9999)
+// splits the table: the satellite owns the converter side, this frozen copy pins
+// the reducer side. A change to either key function alone fails the converter's
+// or this test; a cross-repo drift needs a satellite-side bump to resync.
+const osReleaseLineVectorsPath = "testdata/os_release_line_vectors.json"
 
 // TestOSHostReleaseLineMatchesSharedVectors pins osHostReleaseLine to the
 // shared vector table. A change to either key function alone fails the

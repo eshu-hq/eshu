@@ -1,0 +1,104 @@
+[
+  {
+    "FactID": "90d6944988c66735db1963f562d7cde4a8a2fd2597a57365312663635566747b",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+    "FactKind": "vulnerability.cve",
+    "StableFactKey": "3698ca819a29a12cda9c92b618e14c894dff4d542047dceaa3ad82d14e44f2b8",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "DEBIAN-CVE-2023-38039",
+      "aliases": null,
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "DEBIAN-CVE-2023-38039"
+      ],
+      "cve_id": "DEBIAN-CVE-2023-38039",
+      "cvss_vector": "",
+      "database_specific": null,
+      "details": "",
+      "ecosystem_specific": null,
+      "modified_at": "2026-10-26T18:02:41Z",
+      "published_at": "2023-09-15T04:15:10Z",
+      "related": null,
+      "severity": null,
+      "severity_label": "",
+      "source": "osv",
+      "source_schema_version": "1.9.0",
+      "summary": "",
+      "upstream": [
+        "CVE-2023-38039"
+      ],
+      "withdrawn_at": ""
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+      "FactKey": "3698ca819a29a12cda9c92b618e14c894dff4d542047dceaa3ad82d14e44f2b8",
+      "SourceURI": "",
+      "SourceRecordID": "DEBIAN-CVE-2023-38039"
+    }
+  },
+  {
+    "FactID": "d6e2c5f3778476b4b116662af51f62ec4f11f2b7065cae62cf0fa2e49ad05bb2",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+    "FactKind": "vulnerability.affected_package",
+    "StableFactKey": "389cb4c5f1a7e6039b66254169f8aea22faea5c76356eaf28eb7e94a077854cd",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "DEBIAN-CVE-2023-38039",
+      "affected_ranges": [
+        {
+          "events": [
+            {
+              "introduced": "0"
+            },
+            {
+              "fixed": "1.2.3-1"
+            }
+          ],
+          "releases": [
+            "debian:11"
+          ],
+          "type": "ECOSYSTEM"
+        }
+      ],
+      "affected_versions": null,
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "DEBIAN-CVE-2023-38039",
+        "os://debian/libfoo",
+        "pkg:deb/debian/libfoo?arch=source\u0026distro=bullseye"
+      ],
+      "cve_id": "DEBIAN-CVE-2023-38039",
+      "ecosystem": "os",
+      "fixed_versions": [
+        "1.2.3-1"
+      ],
+      "package_id": "os://debian/libfoo",
+      "package_name": "libfoo",
+      "purl": "pkg:deb/debian/libfoo?arch=source\u0026distro=bullseye",
+      "source": "osv"
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+      "FactKey": "389cb4c5f1a7e6039b66254169f8aea22faea5c76356eaf28eb7e94a077854cd",
+      "SourceURI": "",
+      "SourceRecordID": "os://debian/libfoo#DEBIAN-CVE-2023-38039"
+    }
+  }
+]

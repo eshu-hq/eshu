@@ -1,0 +1,83 @@
+[
+  {
+    "FactID": "f4310c56c609b5ccbf916587cf17026d9c6f0aeeff8e7f65522fe025e7f2a803",
+    "ScopeID": "scope-adv-b",
+    "GenerationID": "gen-b1",
+    "FactKind": "vulnerability.cve",
+    "StableFactKey": "5d59cf7b281a7614d4333b4d92ee7d7588163a4ea43876e2d5438aeb97f5f9ee",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-01T00:00:00Z",
+    "Payload": {
+      "advisory_id": "ADV-OTHER",
+      "aliases": null,
+      "collector_instance_id": "osv-test",
+      "correlation_anchors": [
+        "ADV-OTHER"
+      ],
+      "cve_id": "ADV-OTHER",
+      "cvss_vector": "",
+      "database_specific": null,
+      "details": "",
+      "ecosystem_specific": null,
+      "modified_at": "",
+      "published_at": "",
+      "related": null,
+      "severity": null,
+      "severity_label": "",
+      "source": "osv",
+      "source_schema_version": "",
+      "summary": "",
+      "withdrawn_at": ""
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "scope-adv-b",
+      "GenerationID": "gen-b1",
+      "FactKey": "5d59cf7b281a7614d4333b4d92ee7d7588163a4ea43876e2d5438aeb97f5f9ee",
+      "SourceURI": "https://api.osv.dev/v1/vulns/ADV-OTHER",
+      "SourceRecordID": "ADV-OTHER"
+    }
+  },
+  {
+    "FactID": "125c679317416e43c817d00a53c4127fdf3bd16611e74e1af6ed4a42b217f718",
+    "ScopeID": "scope-adv-b",
+    "GenerationID": "gen-b1",
+    "FactKind": "vulnerability.affected_package",
+    "StableFactKey": "9f94c7bf238f274a8594ae50bb5bc4d730f532f1983eaf152abe0d69ef385fca",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-01T00:00:00Z",
+    "Payload": {
+      "advisory_id": "ADV-OTHER",
+      "affected_ranges": null,
+      "affected_versions": null,
+      "collector_instance_id": "osv-test",
+      "correlation_anchors": [
+        "ADV-OTHER",
+        "npm://registry.npmjs.org/other-name"
+      ],
+      "cve_id": "ADV-OTHER",
+      "ecosystem": "npm",
+      "fixed_versions": null,
+      "package_id": "npm://registry.npmjs.org/other-name",
+      "package_name": "other-name",
+      "purl": "",
+      "source": "osv"
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "scope-adv-b",
+      "GenerationID": "gen-b1",
+      "FactKey": "9f94c7bf238f274a8594ae50bb5bc4d730f532f1983eaf152abe0d69ef385fca",
+      "SourceURI": "https://api.osv.dev/v1/vulns/ADV-OTHER",
+      "SourceRecordID": "npm://registry.npmjs.org/other-name#ADV-OTHER"
+    }
+  }
+]

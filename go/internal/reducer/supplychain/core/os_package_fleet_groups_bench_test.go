@@ -32,7 +32,7 @@ func BenchmarkOSFleetDigestlessFanout(b *testing.B) {
 		{"spread-10x", 100, true},
 	} {
 		b.Run(scale.name, func(b *testing.B) {
-			envelopes := convertedOSVFixture(b, "debian-cve-2023-38039.json", false)
+			envelopes := convertedOSVFixture(b, "file-debian-cve-2023-38039", false)
 			for i := range scale.rows {
 				row := debianCurl("12", versions[0])
 				if scale.spread {

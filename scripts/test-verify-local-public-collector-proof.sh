@@ -159,4 +159,25 @@ if rg -nI 'password=|secret=|jfrog\.io|b[o]atsgr[o]up|10\.[0-9]+\.[0-9]+\.[0-9]+
 	exit 1
 fi
 
+# Satellite seed sidecar: the seed function lives in the lib to keep the proof
+# script under the tooling line cap. The lib must exist, export the seed
+# function, and pin the satellite digest (no floating tags for proof images).
+seed_lib="${repo_root}/scripts/lib/public_collector_proof_satellite_seed.sh"
+if [[ ! -f "${seed_lib}" ]]; then
+	echo "expected scripts/lib/public_collector_proof_satellite_seed.sh to exist" >&2
+	exit 1
+fi
+if ! rg -q "^seed_vulnerability_satellite()" "${seed_lib}"; then
+	echo "satellite seed lib missing required function seed_vulnerability_satellite" >&2
+	exit 1
+fi
+if ! rg -q "ghcr.io/eshu-hq/eshu-collector-vulnerability-intelligence@sha256:[0-9a-f]{64}" "${seed_lib}"; then
+	echo "satellite seed lib must pin the satellite image by digest" >&2
+	exit 1
+fi
+if rg -nI 'password=|secret=|jfrog\.io|b[o]atsgr[o]up|10\.[0-9]+\.[0-9]+\.[0-9]+|NVD_API_KEY' "${seed_lib}"; then
+	echo "public_collector_proof_satellite_seed.sh must not embed secrets or internal locators" >&2
+	exit 1
+fi
+
 printf 'test-verify-local-public-collector-proof tests passed\n'

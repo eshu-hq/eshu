@@ -1,0 +1,101 @@
+[
+  {
+    "FactID": "beac65791b6e19ee9c2869e320f6f09255077ebc4b872e6442f9546df27f62af",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+    "FactKind": "vulnerability.cve",
+    "StableFactKey": "e167e21c430a594b10ca008cb73f8f4558eae241c3b0386c8a3d43055db55587",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "ALPINE-CVE-2024-0004",
+      "aliases": null,
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "ALPINE-CVE-2024-0004"
+      ],
+      "cve_id": "ALPINE-CVE-2024-0004",
+      "cvss_vector": "",
+      "database_specific": null,
+      "details": "",
+      "ecosystem_specific": null,
+      "modified_at": "2026-10-26T18:02:41Z",
+      "published_at": "2023-09-15T04:15:10Z",
+      "related": null,
+      "severity": null,
+      "severity_label": "",
+      "source": "osv",
+      "source_schema_version": "1.9.0",
+      "summary": "",
+      "withdrawn_at": ""
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+      "FactKey": "e167e21c430a594b10ca008cb73f8f4558eae241c3b0386c8a3d43055db55587",
+      "SourceURI": "",
+      "SourceRecordID": "ALPINE-CVE-2024-0004"
+    }
+  },
+  {
+    "FactID": "bab3a1fbf31bb092ce225c586596f52ec63eb13befc28818ad0ba5ff6910ff5a",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+    "FactKind": "vulnerability.affected_package",
+    "StableFactKey": "f182ba16d274af66e986eb69745d3c2a0bb7193d1e9662cfa79cbbcd460eb28f",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "ALPINE-CVE-2024-0004",
+      "affected_ranges": [
+        {
+          "events": [
+            {
+              "introduced": "0"
+            },
+            {
+              "fixed": "1.0-2"
+            }
+          ],
+          "releases": [
+            "alpine:3.18"
+          ],
+          "type": "ECOSYSTEM"
+        }
+      ],
+      "affected_versions": null,
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "ALPINE-CVE-2024-0004",
+        "os://alpine/curl",
+        "pkg:apk/alpine/curl"
+      ],
+      "cve_id": "ALPINE-CVE-2024-0004",
+      "ecosystem": "os",
+      "fixed_versions": [
+        "1.0-2"
+      ],
+      "package_id": "os://alpine/curl",
+      "package_name": "curl",
+      "purl": "pkg:apk/alpine/curl",
+      "source": "osv"
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+      "FactKey": "f182ba16d274af66e986eb69745d3c2a0bb7193d1e9662cfa79cbbcd460eb28f",
+      "SourceURI": "",
+      "SourceRecordID": "os://alpine/curl#ALPINE-CVE-2024-0004"
+    }
+  }
+]

@@ -15,7 +15,8 @@ import (
 	"testing"
 	"time"
 
-	vuln "github.com/eshu-hq/eshu/go/internal/collector/vulnerabilityintelligence"
+	"github.com/eshu-hq/eshu/go/internal/facts"
+	chain "github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
@@ -64,12 +65,23 @@ FROM (VALUES
 ) AS f(fact_id, fact_kind, payload);
 `
 
-func osvPackage(ecosystem, name string) vuln.OSVAffected {
-	return vuln.OSVAffected{Package: vuln.OSVPackage{Ecosystem: ecosystem, Name: name}}
+func osvPackage(ecosystem, name string) osvAffectedPackage {
+	return osvAffectedPackage{Ecosystem: ecosystem, Name: name}
 }
 
-// seedOSVRecord writes one OSV record through the real collector and fact
-// store, so the stored payload is the producer's shape by construction.
+func osvPackagePURL(ecosystem, name, purl string) osvAffectedPackage {
+	return osvAffectedPackage{Ecosystem: ecosystem, Name: name, PURL: purl}
+}
+
+// seedOSVRecord writes one OSV record's affected packages and its CVE
+// identity through the fact store, so the stored payload is the producer's
+// shape by construction. The in-tree converter is deleted (eshu-hq/eshu#9999)
+// and the converter now lives in the extracted satellite
+// (eshu-hq/eshu-collector-vulnerability-intelligence), so the seeds build the
+// producer-shaped vulnerability.affected_package payload directly with the
+// package_id derivation the satellite converter computes for each entry
+// (see seedAffectedIdentity). The CVE envelope is shape ballast: these reads
+// only consume affected_package rows.
 func seedOSVRecord(
 	ctx context.Context,
 	t *testing.T,
@@ -77,25 +89,122 @@ func seedOSVRecord(
 	scopeID, generationID string,
 	tombstone bool,
 	id string,
-	affected ...vuln.OSVAffected,
+	affected ...osvAffectedPackage,
 ) {
 	t.Helper()
-	envelopes, err := vuln.OSVRecordEnvelopes(vuln.OSVEnvelopeContext{
-		ScopeID:             scopeID,
-		GenerationID:        generationID,
-		CollectorInstanceID: "osv-test",
-		ObservedAt:          time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC),
-		SourceURI:           "https://api.osv.dev/v1/vulns/" + id,
-	}, vuln.OSVVulnerability{ID: id, Affected: affected})
-	if err != nil {
-		t.Fatalf("OSVRecordEnvelopes(%s) error = %v", id, err)
-	}
-	for i := range envelopes {
-		envelopes[i].IsTombstone = tombstone
+	observedAt := time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC)
+	cveFactID := "seed-" + scopeID + "-" + generationID + "-" + id + "-cve"
+	envelopes := []facts.Envelope{{
+		FactID:           cveFactID,
+		ScopeID:          scopeID,
+		GenerationID:     generationID,
+		FactKind:         chain.VulnerabilityCVEFactKind,
+		StableFactKey:    cveFactID,
+		SchemaVersion:    chain.VulnerabilityIntelligenceSchemaVersionV1,
+		CollectorKind:    "vulnerability_intelligence",
+		SourceConfidence: facts.SourceConfidenceReported,
+		ObservedAt:       observedAt,
+		Payload: map[string]any{
+			"collector_instance_id": "osv-test",
+			"source":                "osv",
+			"advisory_id":           id,
+			"cve_id":                id,
+		},
+		IsTombstone: tombstone,
+	}}
+	for i, a := range affected {
+		identity, emit := seedAffectedIdentity(t, a)
+		if !emit {
+			continue
+		}
+		factID := fmt.Sprintf("seed-%s-%s-%s-%d", scopeID, generationID, id, i)
+		envelopes = append(envelopes, facts.Envelope{
+			FactID:           factID,
+			ScopeID:          scopeID,
+			GenerationID:     generationID,
+			FactKind:         chain.VulnerabilityAffectedPackageFactKind,
+			StableFactKey:    factID,
+			SchemaVersion:    chain.VulnerabilityIntelligenceSchemaVersionV1,
+			CollectorKind:    "vulnerability_intelligence",
+			SourceConfidence: facts.SourceConfidenceReported,
+			ObservedAt:       observedAt,
+			Payload: map[string]any{
+				"collector_instance_id": "osv-test",
+				"source":                "osv",
+				"advisory_id":           id,
+				"cve_id":                id,
+				"ecosystem":             identity.Ecosystem,
+				"package_name":          identity.Name,
+				"package_id":            identity.PackageID,
+			},
+			IsTombstone: tombstone,
+		})
 	}
 	if err := store.UpsertFacts(ctx, envelopes); err != nil {
 		t.Fatalf("UpsertFacts(%s) error = %v", id, err)
 	}
+}
+
+// osvAffectedPackage is the affected-entry shape the retired in-tree OSV
+// converter accepted: an ecosystem, a name, and an optional purl.
+type osvAffectedPackage struct {
+	Ecosystem string
+	Name      string
+	PURL      string
+}
+
+// osvStoredIdentity is the (ecosystem, package name, package id) triple the
+// OSV converter derives for one affected entry and the stored-names read
+// consumes.
+type osvStoredIdentity struct {
+	Ecosystem string
+	Name      string
+	PackageID string
+}
+
+// seedAffectedIdentities is the package_id derivation the satellite OSV
+// converter computes for every affected entry these seeds use. Each value
+// was probed from the satellite's OSVRecordEnvelopesReport on the matching
+// input (ecosystem, name, purl); the table pins the producer shape so a
+// satellite derivation change fails loudly here instead of seeding a shape
+// the producer no longer writes.
+var seedAffectedIdentities = map[osvAffectedPackage]osvStoredIdentity{
+	{Ecosystem: "npm", Name: "@Scope/Pkg"}:           {Ecosystem: "npm", Name: "@scope/pkg", PackageID: "npm://registry.npmjs.org/@scope/pkg"},
+	{Ecosystem: "npm", Name: "left-pad"}:             {Ecosystem: "npm", Name: "left-pad", PackageID: "npm://registry.npmjs.org/left-pad"},
+	{Ecosystem: "npm", Name: "kept-name"}:            {Ecosystem: "npm", Name: "kept-name", PackageID: "npm://registry.npmjs.org/kept-name"},
+	{Ecosystem: "npm", Name: "old-name"}:             {Ecosystem: "npm", Name: "old-name", PackageID: "npm://registry.npmjs.org/old-name"},
+	{Ecosystem: "npm", Name: "ancient-name"}:         {Ecosystem: "npm", Name: "ancient-name", PackageID: "npm://registry.npmjs.org/ancient-name"},
+	{Ecosystem: "npm", Name: "tombstoned-name"}:      {Ecosystem: "npm", Name: "tombstoned-name", PackageID: "npm://registry.npmjs.org/tombstoned-name"},
+	{Ecosystem: "npm", Name: "unpointed-name"}:       {Ecosystem: "npm", Name: "unpointed-name", PackageID: "npm://registry.npmjs.org/unpointed-name"},
+	{Ecosystem: "npm", Name: "unactivated-name"}:     {Ecosystem: "npm", Name: "unactivated-name", PackageID: "npm://registry.npmjs.org/unactivated-name"},
+	{Ecosystem: "npm", Name: "other-name"}:           {Ecosystem: "npm", Name: "other-name", PackageID: "npm://registry.npmjs.org/other-name"},
+	{Ecosystem: "PyPI", Name: "Foo_Bar"}:             {Ecosystem: "pypi", Name: "foo-bar", PackageID: "pypi://pypi.org/simple/foo-bar"},
+	{Ecosystem: "PyPI", Name: "Some_Pkg"}:            {Ecosystem: "pypi", Name: "some-pkg", PackageID: "pypi://pypi.org/simple/some-pkg"},
+	{Ecosystem: "Maven", Name: "org.apache:commons"}: {Ecosystem: "maven", Name: "commons", PackageID: "maven://repo.maven.apache.org/maven2/org.apache:commons"},
+	{Ecosystem: "Maven", Name: "org.example:lib"}:    {Ecosystem: "maven", Name: "lib", PackageID: "maven://repo.maven.apache.org/maven2/org.example:lib"},
+	{Ecosystem: "Maven", Name: "com.other:lib"}:      {Ecosystem: "maven", Name: "lib", PackageID: "maven://repo.maven.apache.org/maven2/com.other:lib"},
+	{Ecosystem: "Go", Name: "github.com/Foo/Bar"}:    {Ecosystem: "gomod", Name: "github.com/Foo/Bar", PackageID: "gomod://proxy.golang.org/github.com/Foo/Bar"},
+	{Ecosystem: "Go", Name: "github.com/Acme/Mod"}:   {Ecosystem: "gomod", Name: "github.com/Acme/Mod", PackageID: "gomod://proxy.golang.org/github.com/Acme/Mod"},
+	{Ecosystem: "SwiftURL", Name: "github.com/apple/swift-nio", PURL: "pkg:swift/github.com/apple/swift-nio"}: {Ecosystem: "swift", Name: "swift-nio", PackageID: "swift://github.com/apple/swift-nio"},
+	{Ecosystem: "Hex", Name: "plug", PURL: "pkg:hex/acme/plug"}:                                               {Ecosystem: "hex", Name: "plug", PackageID: "hex://unknown/acme/plug"},
+}
+
+// seedAffectedIdentity returns the stored triple the satellite OSV converter
+// derives for one affected entry, and whether the converter emits the entry.
+// A SwiftURL entry without a purl is skipped by the converter
+// (RecordSkipped), so it stores no names. An entry missing from the table is
+// a seed the probe never covered: fail loudly instead of seeding a guessed
+// shape.
+func seedAffectedIdentity(t *testing.T, a osvAffectedPackage) (osvStoredIdentity, bool) {
+	t.Helper()
+	if a.Ecosystem == "SwiftURL" && a.PURL == "" {
+		return osvStoredIdentity{}, false
+	}
+	identity, ok := seedAffectedIdentities[a]
+	if !ok {
+		t.Fatalf("seedAffectedIdentity: no probed producer shape for %#v", a)
+	}
+	return identity, true
 }
 
 // seedStoredNamesFixture seeds the generations, the producer-shaped records and
@@ -129,10 +238,8 @@ func seedStoredNamesFixture(ctx context.Context, t *testing.T, db *sql.DB, store
 		osvPackage("Maven", "org.example:lib"),
 		osvPackage("Maven", "com.other:lib"),
 		osvPackage("Go", "github.com/Acme/Mod"),
-		vuln.OSVAffected{Package: vuln.OSVPackage{
-			Ecosystem: "SwiftURL", Name: "github.com/apple/swift-nio", PURL: "pkg:swift/github.com/apple/swift-nio",
-		}},
-		vuln.OSVAffected{Package: vuln.OSVPackage{Ecosystem: "Hex", Name: "plug", PURL: "pkg:hex/acme/plug"}})
+		osvPackagePURL("SwiftURL", "github.com/apple/swift-nio", "pkg:swift/github.com/apple/swift-nio"),
+		osvPackagePURL("Hex", "plug", "pkg:hex/acme/plug"))
 	// An advisory the caller does not ask about.
 	seedOSVRecord(ctx, t, store, "scope-adv-b", "gen-b1", false, "ADV-OTHER", osvPackage("npm", "other-name"))
 	if _, err := db.ExecContext(ctx, storedNamesGuardRows); err != nil {

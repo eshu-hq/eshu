@@ -808,11 +808,8 @@ linters:
       - path: 'internal/coordinator/'
         linters:
           - wrapcheck
-      # Vulnerability intelligence and terraform state collectors
-      # are at the boundary with upstream provider APIs.
-      - path: 'internal/collector/vulnerabilityintelligence/'
-        linters:
-          - wrapcheck
+      # The terraform state collector is at the boundary with upstream
+      # provider APIs.
       - path: 'internal/collector/terraformstate/'
         linters:
           - wrapcheck

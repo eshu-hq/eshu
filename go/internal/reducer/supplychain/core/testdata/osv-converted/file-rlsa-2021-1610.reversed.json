@@ -1,0 +1,373 @@
+[
+  {
+    "FactID": "f6c3ffefe30a7d9a7dd4e3e8d7291dc1b05a19f289e686be3fc49056b0c3074d",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+    "FactKind": "vulnerability.cve",
+    "StableFactKey": "0ccfe176c5ce483631582b04dcae82d0d7b48faf016dd8d00a61e1f5dd976dbf",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "RLSA-2021:1610",
+      "aliases": null,
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "RLSA-2021:1610"
+      ],
+      "cve_id": "RLSA-2021:1610",
+      "cvss_vector": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:H/A:N",
+      "database_specific": null,
+      "details": "The curl packages provide the libcurl library and the curl utility for downloading files from servers using various protocols, including HTTP, FTP, and LDAP.\n\nSecurity Fix(es):\n\n* curl: FTP PASV command response can cause curl to connect to arbitrary host (CVE-2020-8284)\n\n* curl: Malicious FTP server can trigger stack overflow when CURLOPT_CHUNK_BGN_FUNCTION is used (CVE-2020-8285)\n\n* curl: Inferior OCSP verification (CVE-2020-8286)\n\n* curl: Expired pointer dereference via multi API with CURLOPT_CONNECT_ONLY option set (CVE-2020-8231)\n\nFor more details about the security issue(s), including the impact, a CVSS score, acknowledgments, and other related information, refer to the CVE page(s) listed in the References section.\n\nAdditional Changes:\n\nFor detailed information on changes in this release, see the Rocky Linux 8.4 Release Notes linked from the References section.",
+      "ecosystem_specific": null,
+      "modified_at": "2026-02-05T12:15:06.287170Z",
+      "published_at": "2021-05-18T05:39:00Z",
+      "related": null,
+      "severity": [
+        {
+          "score": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:H/A:N",
+          "type": "CVSS_V3"
+        }
+      ],
+      "severity_label": "",
+      "source": "osv",
+      "source_schema_version": "1.7.3",
+      "summary": "Moderate: curl security and bug fix update",
+      "upstream": [
+        "CVE-2020-8231",
+        "CVE-2020-8284",
+        "CVE-2020-8285",
+        "CVE-2020-8286"
+      ],
+      "withdrawn_at": ""
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+      "FactKey": "0ccfe176c5ce483631582b04dcae82d0d7b48faf016dd8d00a61e1f5dd976dbf",
+      "SourceURI": "",
+      "SourceRecordID": "RLSA-2021:1610"
+    }
+  },
+  {
+    "FactID": "24b8cbabccfb60e38fc59f5de817f2aef09b52b42d95a4b0619403d3f8413312",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+    "FactKind": "vulnerability.affected_package",
+    "StableFactKey": "3008d5d65518106bee257c9353c987653ba7a993f97ffd85d27c5b20fa840929",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "RLSA-2021:1610",
+      "affected_ranges": [
+        {
+          "events": [
+            {
+              "introduced": "0"
+            },
+            {
+              "fixed": "0:7.61.1-18.el8"
+            }
+          ],
+          "type": "ECOSYSTEM"
+        }
+      ],
+      "affected_versions": null,
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "RLSA-2021:1610",
+        "os://rocky-linux/curl",
+        "pkg:rpm/rocky-linux/curl?distro=rocky-linux-8-4-legacy\u0026epoch=0"
+      ],
+      "cve_id": "RLSA-2021:1610",
+      "ecosystem": "os",
+      "fixed_versions": [
+        "0:7.61.1-18.el8"
+      ],
+      "package_id": "os://rocky-linux/curl",
+      "package_name": "curl",
+      "purl": "pkg:rpm/rocky-linux/curl?distro=rocky-linux-8-4-legacy\u0026epoch=0",
+      "source": "osv"
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+      "FactKey": "3008d5d65518106bee257c9353c987653ba7a993f97ffd85d27c5b20fa840929",
+      "SourceURI": "",
+      "SourceRecordID": "os://rocky-linux/curl#RLSA-2021:1610"
+    }
+  },
+  {
+    "FactID": "84bef203da700357bc431e586ca228e3c747e5bf410daaf8780056711256860e",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+    "FactKind": "vulnerability.reference",
+    "StableFactKey": "f6f3c23ae6d39edad220db7d89e4c4178c70df4b48572a695820706f2acd8332",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "RLSA-2021:1610",
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "RLSA-2021:1610",
+        "https://errata.rockylinux.org/RLSA-2021:1610"
+      ],
+      "cve_id": "RLSA-2021:1610",
+      "reference_type": "ADVISORY",
+      "source": "osv",
+      "url": "https://errata.rockylinux.org/RLSA-2021:1610"
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+      "FactKey": "f6f3c23ae6d39edad220db7d89e4c4178c70df4b48572a695820706f2acd8332",
+      "SourceURI": "",
+      "SourceRecordID": "RLSA-2021:1610#https://errata.rockylinux.org/RLSA-2021:1610"
+    }
+  },
+  {
+    "FactID": "3404b7aa349b6b609146206339deef6c18e40691c46509a70f0d0ee9c054ccd2",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+    "FactKind": "vulnerability.reference",
+    "StableFactKey": "2a4e72f6dab71110f48271be5dc659b46153b8d86207700ec485916854f521d2",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "RLSA-2021:1610",
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "RLSA-2021:1610",
+        "https://bugzilla.redhat.com/show_bug.cgi?id=1868032"
+      ],
+      "cve_id": "RLSA-2021:1610",
+      "reference_type": "REPORT",
+      "source": "osv",
+      "url": "https://bugzilla.redhat.com/show_bug.cgi?id=1868032"
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+      "FactKey": "2a4e72f6dab71110f48271be5dc659b46153b8d86207700ec485916854f521d2",
+      "SourceURI": "",
+      "SourceRecordID": "RLSA-2021:1610#https://bugzilla.redhat.com/show_bug.cgi?id=1868032"
+    }
+  },
+  {
+    "FactID": "a981b5a9b36be618284b6f314a6a2468404db3b9bf8a7503c7647ca50ac62f08",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+    "FactKind": "vulnerability.reference",
+    "StableFactKey": "32ee50908b2917cbe28fab71ef73220a8f659e241c7602d31ec9a40d90531e2f",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "RLSA-2021:1610",
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "RLSA-2021:1610",
+        "https://bugzilla.redhat.com/show_bug.cgi?id=1873327"
+      ],
+      "cve_id": "RLSA-2021:1610",
+      "reference_type": "REPORT",
+      "source": "osv",
+      "url": "https://bugzilla.redhat.com/show_bug.cgi?id=1873327"
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+      "FactKey": "32ee50908b2917cbe28fab71ef73220a8f659e241c7602d31ec9a40d90531e2f",
+      "SourceURI": "",
+      "SourceRecordID": "RLSA-2021:1610#https://bugzilla.redhat.com/show_bug.cgi?id=1873327"
+    }
+  },
+  {
+    "FactID": "5d2b7ddea66041dde8b183839d17f61b6103240da0990ae1f3841e8be87bc864",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+    "FactKind": "vulnerability.reference",
+    "StableFactKey": "46d63eacfe81faee2d191e2a1858012544bf4c647161efa7cd0be7bb2461d194",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "RLSA-2021:1610",
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "RLSA-2021:1610",
+        "https://bugzilla.redhat.com/show_bug.cgi?id=1895391"
+      ],
+      "cve_id": "RLSA-2021:1610",
+      "reference_type": "REPORT",
+      "source": "osv",
+      "url": "https://bugzilla.redhat.com/show_bug.cgi?id=1895391"
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+      "FactKey": "46d63eacfe81faee2d191e2a1858012544bf4c647161efa7cd0be7bb2461d194",
+      "SourceURI": "",
+      "SourceRecordID": "RLSA-2021:1610#https://bugzilla.redhat.com/show_bug.cgi?id=1895391"
+    }
+  },
+  {
+    "FactID": "8c590a7b0803a377b487af8889e810a26334f5dcd3189fa88fd6694c1b466a0c",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+    "FactKind": "vulnerability.reference",
+    "StableFactKey": "d8cb77d9d864fce0d89fd41b6dc651a0f624f0c1ce756a4d40f96326efc4230c",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "RLSA-2021:1610",
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "RLSA-2021:1610",
+        "https://bugzilla.redhat.com/show_bug.cgi?id=1902667"
+      ],
+      "cve_id": "RLSA-2021:1610",
+      "reference_type": "REPORT",
+      "source": "osv",
+      "url": "https://bugzilla.redhat.com/show_bug.cgi?id=1902667"
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+      "FactKey": "d8cb77d9d864fce0d89fd41b6dc651a0f624f0c1ce756a4d40f96326efc4230c",
+      "SourceURI": "",
+      "SourceRecordID": "RLSA-2021:1610#https://bugzilla.redhat.com/show_bug.cgi?id=1902667"
+    }
+  },
+  {
+    "FactID": "3163a7623f80bcaf1d9814ba56b9ff6dd859c05a9b7f088802791de799a12e7e",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+    "FactKind": "vulnerability.reference",
+    "StableFactKey": "963f81966885767dc4e7f4bc25eed8662d26671d295eddd256496b9dfce5482a",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "RLSA-2021:1610",
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "RLSA-2021:1610",
+        "https://bugzilla.redhat.com/show_bug.cgi?id=1902687"
+      ],
+      "cve_id": "RLSA-2021:1610",
+      "reference_type": "REPORT",
+      "source": "osv",
+      "url": "https://bugzilla.redhat.com/show_bug.cgi?id=1902687"
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+      "FactKey": "963f81966885767dc4e7f4bc25eed8662d26671d295eddd256496b9dfce5482a",
+      "SourceURI": "",
+      "SourceRecordID": "RLSA-2021:1610#https://bugzilla.redhat.com/show_bug.cgi?id=1902687"
+    }
+  },
+  {
+    "FactID": "bffd65f29ee94291a12d36ad5ebd2a49c3e59e0bfd2febb4a0718af7183ae42f",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+    "FactKind": "vulnerability.reference",
+    "StableFactKey": "f01d3ea03d462eef163a1ff9b213b75426745489f4d7ac31b300e76b90ad0ed1",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "RLSA-2021:1610",
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "RLSA-2021:1610",
+        "https://bugzilla.redhat.com/show_bug.cgi?id=1906096"
+      ],
+      "cve_id": "RLSA-2021:1610",
+      "reference_type": "REPORT",
+      "source": "osv",
+      "url": "https://bugzilla.redhat.com/show_bug.cgi?id=1906096"
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+      "FactKey": "f01d3ea03d462eef163a1ff9b213b75426745489f4d7ac31b300e76b90ad0ed1",
+      "SourceURI": "",
+      "SourceRecordID": "RLSA-2021:1610#https://bugzilla.redhat.com/show_bug.cgi?id=1906096"
+    }
+  },
+  {
+    "FactID": "d8d860f31e2e66fc361b660e5fc4d693dd7dc5607748ac1e2dd060cf6222c5de",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+    "FactKind": "vulnerability.reference",
+    "StableFactKey": "0570a51e8fe28295bd4fc9c660c7e393693d6f7ceb9dd6e8d1841acc3c633ad6",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "RLSA-2021:1610",
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "RLSA-2021:1610",
+        "https://bugzilla.redhat.com/show_bug.cgi?id=1918692"
+      ],
+      "cve_id": "RLSA-2021:1610",
+      "reference_type": "REPORT",
+      "source": "osv",
+      "url": "https://bugzilla.redhat.com/show_bug.cgi?id=1918692"
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+      "FactKey": "0570a51e8fe28295bd4fc9c660c7e393693d6f7ceb9dd6e8d1841acc3c633ad6",
+      "SourceURI": "",
+      "SourceRecordID": "RLSA-2021:1610#https://bugzilla.redhat.com/show_bug.cgi?id=1918692"
+    }
+  }
+]

@@ -104,8 +104,7 @@ func TestOSFindingIdentityDoesNotDependOnWhatThePassLoaded(t *testing.T) {
 
 	const cve = "CVE-2023-38039"
 	base := append(upstreamEnvelopes(t, nil,
-		debianRecord("DEBIAN-CVE-2023-38039", "12", "bookworm", "7.88.1-10+deb12u3", cve),
-		debianRecord("DLA-9999-1", "11", "bullseye", "7.74.0-1.3+deb11u10", cve),
+		frozenDebianCVE, frozenDLA9999,
 	), debianCurl("11", "7.74.0-1.3+deb11u7").envelope())
 	nvd := vulnerabilityCVEFactWithProvenance("nvd-1", cve, "nvd", cve, 7.5, "", "HIGH", "2026-10-01T00:00:00Z")
 	ghsa := vulnerabilityCVEFactWithProvenance("ghsa-1", cve, "osv", "GHSA-aaaa-bbbb-cccc", 8.1, "", "HIGH", "2026-10-01T00:00:00Z")
@@ -146,12 +145,11 @@ func TestOSFindingIdentityDoesNotDependOnWhatThePassLoaded(t *testing.T) {
 func TestRetractedRecordDoesNotNameALiveGroup(t *testing.T) {
 	t.Parallel()
 
-	const cve = "CVE-2023-38039"
 	host := debianCurl("11", "7.74.0-1.3+deb11u7").envelope()
 	for name, status := range map[string]string{"withdrawn": "", "rejected": "Rejected"} {
 		dla, _ := retractedDLA(t, status)
 		mixed := append(upstreamEnvelopes(t, nil,
-			debianRecord("DEBIAN-CVE-2023-38039", "12", "bookworm", "7.88.1-10+deb12u3", cve)), dla...)
+			frozenDebianCVE), dla...)
 		got := BuildSupplyChainImpactFindings(append(mixed, host))
 		if len(got) != 1 || got[0].AdvisoryID != "DEBIAN-CVE-2023-38039" {
 			t.Errorf("%s mixed: findings = %#v, want one named DEBIAN-CVE-2023-38039", name, got)

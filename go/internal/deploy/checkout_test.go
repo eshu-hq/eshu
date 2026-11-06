@@ -11,11 +11,12 @@ import (
 )
 
 // expectedDeployCheckoutCommit pins the eshu-hq/eshu-deploy commit the
-// repointed boundary test asserts against (#8871 in-tree removal). It must
+// repointed boundary test asserts against (#9999 vulnerability-intelligence
+// satellite cutover). It must
 // match the twin pin in go/internal/runtime/deploy_checkout_test.go: both
 // helpers fail closed on any other commit, so a skew between the twins
 // surfaces as a test failure, not a silent drift.
-const expectedDeployCheckoutCommit = "696793e14c1fcf00a45571cfce889fe82ea15451"
+const expectedDeployCheckoutCommit = "1dbb815f6fd152cdd34a29d5a77c1580f2ae4b33"
 
 // deployCheckoutForContract resolves the eshu-deploy checkout the boundary
 // test reads deploy assets from. It fails closed: an absent

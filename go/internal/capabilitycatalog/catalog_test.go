@@ -426,7 +426,7 @@ func TestRealSpecsReachabilityRows(t *testing.T) {
 		maturity     Maturity
 		ownerPackage string
 	}{
-		{"reachability.go.govulncheck", MaturityGeneralAvailability, "internal/collector/vulnerabilityintelligence"},
+		{"reachability.go.govulncheck", MaturityGeneralAvailability, "internal/reducer/supplychain/core"},
 		{"reachability.python.value_flow", MaturityGated, "internal/parser/python/pydataflow"},
 		{"reachability.typescript.value_flow", MaturityGated, "internal/parser/javascript/jsdataflow"},
 		{"reachability.javascript.value_flow", MaturityGated, "internal/parser/javascript/jsdataflow"},

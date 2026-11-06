@@ -63,16 +63,16 @@ func upstreamGroupCells(t *testing.T, envelopes []facts.Envelope) (map[string]in
 func TestOSAdvisoryUpstreamGroupCounter(t *testing.T) {
 	t.Parallel()
 
-	withUpstream := func(id, ecosystem, purl string, upstream ...string) []facts.Envelope {
-		return convertedOSVRecord(t, distroRecord(id, ecosystem, purl, "1.0-2", upstream), false)
+	withUpstream := func(key string) []facts.Envelope {
+		return convertedOSVFixture(t, key, false)
 	}
 	var envelopes []facts.Envelope
-	envelopes = append(envelopes, withUpstream("DSA-9998-1", "Debian:12", "pkg:deb/debian/curl?distro=bookworm", "CVE-2024-0001", "DEBIAN-CVE-2024-0001")...)
-	envelopes = append(envelopes, withUpstream("DLA-9999-1", "Debian:11", "pkg:deb/debian/curl?distro=bullseye", "CVE-2024-0001")...)
-	envelopes = append(envelopes, withUpstream("DEBIAN-CVE-2024-0002", "Debian:12", "pkg:deb/debian/curl?distro=bookworm", "DEBIAN-CVE-2024-0002")...)
-	envelopes = append(envelopes, withUpstream("USN-6766-1", "Ubuntu:22.04:LTS", "pkg:deb/ubuntu/curl?distro=jammy", "CVE-2024-0003")...)
-	envelopes = append(envelopes, withUpstream("ALPINE-CVE-2024-0004", "Alpine:v3.18", "pkg:apk/alpine/curl")...)
-	envelopes = append(envelopes, withUpstream("SOME-OTHER-1", "Debian:12", "pkg:deb/debian/curl?distro=bookworm", "CVE-2024-0005")...)
+	envelopes = append(envelopes, withUpstream("built-signal-dsa")...)
+	envelopes = append(envelopes, withUpstream("built-signal-dla")...)
+	envelopes = append(envelopes, withUpstream("built-signal-debian-cve")...)
+	envelopes = append(envelopes, withUpstream("built-signal-usn")...)
+	envelopes = append(envelopes, withUpstream("built-signal-alpine")...)
+	envelopes = append(envelopes, withUpstream("built-signal-some-other")...)
 	envelopes = append(envelopes, nvdCVEFact("CVE-2024-0001"), nvdCVEFact("CVE-2024-0006"))
 
 	cells, subSignals, _ := upstreamGroupCells(t, envelopes)
@@ -101,8 +101,8 @@ func TestOSAdvisoryUpstreamGroupCounterPlantedRed(t *testing.T) {
 	t.Parallel()
 
 	var envelopes []facts.Envelope
-	envelopes = append(envelopes, convertedOSVRecord(t, debianRecord("DSA-9998-1", "12", "bookworm", "1.0-2"), false)...)
-	envelopes = append(envelopes, convertedOSVRecord(t, distroRecord("ALPINE-CVE-2024-0004", "Alpine:v3.18", "pkg:apk/alpine/curl", "1.0-2", nil), false)...)
+	envelopes = append(envelopes, convertedOSVFixture(t, "built-signal-dsa-noupstream", false)...)
+	envelopes = append(envelopes, convertedOSVFixture(t, "built-signal-alpine-noupstream", false)...)
 
 	cells, subSignals, _ := upstreamGroupCells(t, envelopes)
 	if want := map[string]int64{"debian/ungrouped": 1, "alpine/ungrouped": 1}; !maps.Equal(cells, want) {
@@ -119,9 +119,7 @@ func TestOSAdvisoryUpstreamGroupCounterPlantedRed(t *testing.T) {
 func TestOSAdvisoryJoinCensusCountsEachFactOnce(t *testing.T) {
 	t.Parallel()
 
-	bundle := distroRecord("USN-6766-1", "Ubuntu:22.04:LTS", "pkg:deb/ubuntu/curl?arch=source&distro=jammy", "7.81.0-1ubuntu1.17",
-		[]string{"CVE-2024-2398", "CVE-2024-2004", "CVE-2024-1111"})
-	envelopes := append(convertedOSVRecord(t, bundle, false), ubuntuCurl("22.04", "7.81.0-1ubuntu1.1").envelope())
+	envelopes := append(convertedOSVFixture(t, "built-census-usn", false), ubuntuCurl("22.04", "7.81.0-1ubuntu1.1").envelope())
 	_, _, stats := upstreamGroupCells(t, envelopes)
 	if got := stats.osAdvisoriesConsidered(); got != 1 {
 		t.Errorf("osAdvisoriesConsidered = %d, want the bundle's 1 affected fact", got)

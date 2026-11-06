@@ -99,13 +99,13 @@ claims:
       - id: secrets_iam.secret_access_paths.list
         claimed_maturity: general_availability
     truth_level: derived
-    owner_packages: [internal/query, internal/collector/vulnerabilityintelligence]
-    implementation_paths: [go/internal/query, go/internal/collector/vulnerabilityintelligence]
+    owner_packages: [internal/query]
+    implementation_paths: [go/internal/query]
     mcp_surfaces: [investigate_hardcoded_secrets, list_secrets_iam_secret_access_paths]
     deterministic_evidence_source: "Scanner, collector, reducer, and query tests verify deterministic evidence packets before any narration layer."
     semantic_output: not_used
     proof:
-      command: "cd go && go test ./internal/query ./internal/collector/vulnerabilityintelligence -count=1"
+      command: "cd go && go test ./internal/query -count=1"
       signals:
         - capability: security.hardcoded_secrets
           kind: go_test

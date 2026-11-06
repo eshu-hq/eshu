@@ -15,7 +15,6 @@ import (
 	"testing"
 	"time"
 
-	vuln "github.com/eshu-hq/eshu/go/internal/collector/vulnerabilityintelligence"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/vulnerability"
 	vulnerabilitystore "github.com/eshu-hq/eshu/go/internal/storage/postgres/vulnerability"
 )
@@ -38,9 +37,10 @@ func replanLiveStores(t *testing.T) (context.Context, *sql.DB, *FactStore, vulne
 	return ctx, db, store, vulnerabilitystore.NewOwnedTargetReplanStore(SQLDB{DB: db})
 }
 
-// seedReplanAdvisory writes one OSV record through the real collector and
-// fact store, so the stored payload is the producer's shape by construction.
-func seedReplanAdvisory(ctx context.Context, t *testing.T, store *FactStore, id string, affected ...vuln.OSVAffected) {
+// seedReplanAdvisory writes one OSV record's affected packages and its CVE
+// identity through the fact store with the producer-shaped payload
+// (see seedOSVRecord).
+func seedReplanAdvisory(ctx context.Context, t *testing.T, store *FactStore, id string, affected ...osvAffectedPackage) {
 	t.Helper()
 	seedOSVRecord(ctx, t, store, "scope-adv-a", "gen-a2", false, id, affected...)
 }
@@ -250,20 +250,20 @@ func TestOSVDeltaReplanFoldingDifferentialLive(t *testing.T) {
 
 	// Stored advisories through the real collector: the union rebuilds from
 	// whatever the producer wrote, by construction.
-	seedReplanAdvisory(ctx, t, store, "ADV-D1", vuln.OSVAffected{Package: vuln.OSVPackage{Ecosystem: "npm", Name: "@Scope/Pkg"}})
-	seedReplanAdvisory(ctx, t, store, "ADV-D2", vuln.OSVAffected{Package: vuln.OSVPackage{Ecosystem: "npm", Name: "left-pad"}})
-	seedReplanAdvisory(ctx, t, store, "ADV-D3", vuln.OSVAffected{Package: vuln.OSVPackage{Ecosystem: "PyPI", Name: "Foo_Bar"}})
-	seedReplanAdvisory(ctx, t, store, "ADV-D4", vuln.OSVAffected{Package: vuln.OSVPackage{Ecosystem: "Maven", Name: "org.apache:commons"}})
-	seedReplanAdvisory(ctx, t, store, "ADV-D5", vuln.OSVAffected{Package: vuln.OSVPackage{Ecosystem: "Go", Name: "github.com/Foo/Bar"}})
-	seedReplanAdvisory(ctx, t, store, "ADV-D6", vuln.OSVAffected{Package: vuln.OSVPackage{Ecosystem: "SwiftURL", Name: "github.com/apple/swift-nio"}})
+	seedReplanAdvisory(ctx, t, store, "ADV-D1", osvPackage("npm", "@Scope/Pkg"))
+	seedReplanAdvisory(ctx, t, store, "ADV-D2", osvPackage("npm", "left-pad"))
+	seedReplanAdvisory(ctx, t, store, "ADV-D3", osvPackage("PyPI", "Foo_Bar"))
+	seedReplanAdvisory(ctx, t, store, "ADV-D4", osvPackage("Maven", "org.apache:commons"))
+	seedReplanAdvisory(ctx, t, store, "ADV-D5", osvPackage("Go", "github.com/Foo/Bar"))
+	seedReplanAdvisory(ctx, t, store, "ADV-D6", osvPackage("SwiftURL", "github.com/apple/swift-nio"))
 	// ADV-D9 is the dropped name: the record carries only the new name, the
 	// stored advisory still holds left-pad, and the union must re-query it.
 	seedReplanAdvisory(ctx, t, store, "ADV-D9",
-		vuln.OSVAffected{Package: vuln.OSVPackage{Ecosystem: "npm", Name: "left-pad"}},
-		vuln.OSVAffected{Package: vuln.OSVPackage{Ecosystem: "npm", Name: "kept-name"}})
+		osvPackage("npm", "left-pad"),
+		osvPackage("npm", "kept-name"))
 	// ADV-W is withdrawn with an empty current record: only the stored name
 	// resolves, and the retraction flows through the same drain.
-	seedReplanAdvisory(ctx, t, store, "ADV-W", vuln.OSVAffected{Package: vuln.OSVPackage{Ecosystem: "npm", Name: "left-pad"}})
+	seedReplanAdvisory(ctx, t, store, "ADV-W", osvPackage("npm", "left-pad"))
 
 	changed := []vulnerability.OSVDeltaChangedRecord{
 		replanChangedRecord("ADV-D1", "npm", "@scope/pkg", false, feed),

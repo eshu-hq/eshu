@@ -18,7 +18,7 @@ import (
 func TestOSVReleaseTagsReachTheReducerAfterActivation(t *testing.T) {
 	t.Parallel()
 
-	envelopes := convertedOSVFixture(t, "debian-cve-2023-38039.json", false)
+	envelopes := convertedOSVFixture(t, "file-debian-cve-2023-38039", false)
 
 	tagged := false
 	decodedHostLine := false

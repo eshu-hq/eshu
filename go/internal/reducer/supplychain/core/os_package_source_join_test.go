@@ -7,35 +7,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/vulnerabilityintelligence"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
-
-// opensslSourceAdvisoryRecord is a synthetic OSV record in the exact shape
-// Debian publishes for a source package: the affected package names the
-// source (openssl), not any binary built from it, with a versionless
-// arch=source purl. It goes through the real in-tree converter like the
-// committed fixtures, so the reducer sees the production advisory shape.
-func opensslSourceAdvisoryRecord(ecosystem, purl string) vulnerabilityintelligence.OSVVulnerability {
-	return vulnerabilityintelligence.OSVVulnerability{
-		ID: "DEBIAN-CVE-2023-0464",
-		Affected: []vulnerabilityintelligence.OSVAffected{{
-			Package: vulnerabilityintelligence.OSVPackage{
-				Name:      "openssl",
-				Ecosystem: ecosystem,
-				PURL:      purl,
-			},
-			Ranges: []vulnerabilityintelligence.OSVRange{{Type: "ECOSYSTEM", Events: []vulnerabilityintelligence.OSVEvent{
-				{Introduced: "0"}, {Fixed: "3.0.11-1+deb12u2"},
-			}}},
-		}},
-	}
-}
-
-func convertSourceAdvisoryRecord(t testing.TB, record vulnerabilityintelligence.OSVVulnerability) []facts.Envelope {
-	t.Helper()
-	return convertedOSVRecord(t, record, false)
-}
 
 // libsslRow is a Debian libssl3 installed row built from the openssl source
 // package: the binary name differs from the source name, so only the
@@ -59,9 +32,12 @@ func libsslRow(vendor, release, version, source string) installedOSRow {
 func TestOSSourcePackageAdvisoryJoinsInstalledBinaryRow(t *testing.T) {
 	t.Parallel()
 
+	// The source advisory is the frozen converter output
+	// (testdata/osv-converted/built-source-openssl.json, eshu-hq/eshu#9999):
+	// a synthetic record in the exact shape Debian publishes for a source
+	// package.
 	envelopes := append(
-		convertSourceAdvisoryRecord(t, opensslSourceAdvisoryRecord(
-			"Debian:12", "pkg:deb/debian/openssl?arch=source&distro=bookworm")),
+		convertedOSVFixture(t, "built-source-openssl", false),
 		libsslRow("debian", "12", "3.0.9-1~deb12u1", "openssl").envelope(),
 	)
 	findings := BuildSupplyChainImpactFindings(envelopes)
@@ -138,8 +114,7 @@ func TestOSSourcePackageAdvisoryJoinCountsViaSourceSignal(t *testing.T) {
 	t.Parallel()
 
 	sourceEnvelopes := append(
-		convertSourceAdvisoryRecord(t, opensslSourceAdvisoryRecord(
-			"Debian:12", "pkg:deb/debian/openssl?arch=source&distro=bookworm")),
+		convertedOSVFixture(t, "built-source-openssl", false),
 		libsslRow("debian", "12", "3.0.9-1~deb12u1", "openssl").envelope(),
 	)
 	_, _, sourceStats, err := buildSupplyChainImpactFindingsAndExclusions(sourceEnvelopes)
@@ -151,7 +126,7 @@ func TestOSSourcePackageAdvisoryJoinCountsViaSourceSignal(t *testing.T) {
 	}
 
 	binaryEnvelopes := append(
-		convertedOSVFixture(t, "debian-cve-2023-38039.json", false),
+		convertedOSVFixture(t, "file-debian-cve-2023-38039", false),
 		debianCurl("12", "7.88.1-10+deb12u2").envelope(),
 	)
 	_, _, binaryStats, err := buildSupplyChainImpactFindingsAndExclusions(binaryEnvelopes)
@@ -170,7 +145,7 @@ func TestOSBinaryPackageAdvisoryJoinRecordsBinaryDerivation(t *testing.T) {
 	t.Parallel()
 
 	envelopes := append(
-		convertedOSVFixture(t, "debian-cve-2023-38039.json", false),
+		convertedOSVFixture(t, "file-debian-cve-2023-38039", false),
 		debianCurl("12", "7.88.1-10+deb12u2").envelope(),
 	)
 	findings := BuildSupplyChainImpactFindings(envelopes)
@@ -197,8 +172,7 @@ func TestOSSourcePackageAdvisoryJoinNegatives(t *testing.T) {
 	t.Parallel()
 
 	advisory := func() []facts.Envelope {
-		return convertSourceAdvisoryRecord(t, opensslSourceAdvisoryRecord(
-			"Debian:12", "pkg:deb/debian/openssl?arch=source&distro=bookworm"))
+		return convertedOSVFixture(t, "built-source-openssl", false)
 	}
 
 	tests := []struct {
@@ -238,8 +212,7 @@ func TestOSSourcePackageAdvisorySameNameRowJoinsOnce(t *testing.T) {
 		source:  "openssl",
 	}
 	envelopes := append(
-		convertSourceAdvisoryRecord(t, opensslSourceAdvisoryRecord(
-			"Debian:12", "pkg:deb/debian/openssl?arch=source&distro=bookworm")),
+		convertedOSVFixture(t, "built-source-openssl", false),
 		row.envelope(),
 	)
 	findings := BuildSupplyChainImpactFindings(envelopes)
@@ -254,8 +227,7 @@ func TestOSSourcePackageAdvisorySameNameRowJoinsOnce(t *testing.T) {
 // carries the extra source key the dual-key index serves (#9859 criterion 5).
 func osSourceBenchEnvelopes(b *testing.B, count int) []facts.Envelope {
 	b.Helper()
-	envelopes := convertSourceAdvisoryRecord(b, opensslSourceAdvisoryRecord(
-		"Debian:12", "pkg:deb/debian/openssl?arch=source&distro=bookworm"))
+	envelopes := convertedOSVFixture(b, "built-source-openssl", false)
 	for i := range count {
 		row := libsslRow("debian", "12", "3.0.9-1~deb12u1", "openssl").envelope()
 		row.FactID = fmt.Sprintf("os-debian-libssl3-%d", i)

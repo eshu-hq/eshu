@@ -172,7 +172,7 @@ func TestDigestlessFleetCoalescedShardsKeepOneStableFix(t *testing.T) {
 		envelope.Payload = payload
 		return envelope
 	}
-	advisory := convertedOSVFixture(t, "debian-cve-2023-38039.json", false)
+	advisory := convertedOSVFixture(t, "file-debian-cve-2023-38039", false)
 	rows := []facts.Envelope{bare("12", "d12"), bare("13", "d13")}
 	want, findings := fleetFindingsJSON(t, advisory, rows)
 	if len(findings) != 1 {

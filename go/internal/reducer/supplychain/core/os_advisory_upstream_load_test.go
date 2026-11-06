@@ -24,9 +24,7 @@ import (
 func TestSupplyChainImpactFilterAsksForTheUpstreamCVEs(t *testing.T) {
 	t.Parallel()
 
-	record := debianRecord("DSA-9998-1", "12", "bookworm", "7.88.1-10+deb12u3",
-		"CVE-2023-38039", " cve-2024-1 ", "DEBIAN-CVE-2023-38039", "CVE-")
-	filter := supplyChainImpactFilter(convertedOSVRecord(t, record, false))
+	filter := supplyChainImpactFilter(convertedOSVFixture(t, "built-filter-mixed", false))
 	if want := []string{"CVE-2023-38039", "CVE-2024-1"}; !reflect.DeepEqual(filter.UpstreamCVEIDs, want) {
 		t.Errorf("UpstreamCVEIDs = %v, want %v", filter.UpstreamCVEIDs, want)
 	}
@@ -34,7 +32,7 @@ func TestSupplyChainImpactFilterAsksForTheUpstreamCVEs(t *testing.T) {
 		t.Errorf("CVEIDs = %v, want %v: an upstream key must not reach the full arm", filter.CVEIDs, want)
 	}
 
-	native := convertedOSVRecord(t, debianRecord("DSA-9998-1", "12", "bookworm", "7.88.1-10+deb12u3", "CVE-2023-38039", "CVE-2024-1"), false)
+	native := convertedOSVFixture(t, "built-filter-native", false)
 	for _, envelope := range native {
 		envelope.Payload["cve_id"] = "CVE-2023-38039"
 	}
@@ -59,7 +57,7 @@ func TestUpstreamSignalsDoNotWidenTheNextRound(t *testing.T) {
 			chain.VulnerabilitySuppressionJustificationIgnored, "eshu:policy/operator@example.com",
 			"2026-01-01T00:00:00Z", "2030-01-01T00:00:00Z", map[string]any{"cve_id": cve})
 	}
-	record := convertedOSVRecord(t, debianRecord("DEBIAN-CVE-2023-38039", "12", "bookworm", "7.88.1-10+deb12u3", named), false)
+	record := convertedOSVFixture(t, frozenDebianCVE, false)
 
 	for name, signal := range map[string]facts.Envelope{
 		"kev":                        vulnerabilityKEVFact("kev-1", named),
@@ -113,8 +111,7 @@ func TestHandlerLoadsTheSignalsOfTheCVEAFindingCarries(t *testing.T) {
 	t.Parallel()
 
 	const cve = "CVE-2023-38039"
-	record := convertedOSVRecord(t,
-		debianRecord("DEBIAN-CVE-2023-38039", "12", "bookworm", "7.88.1-10+deb12u3", cve), false)
+	record := convertedOSVFixture(t, frozenDebianCVE, false)
 	installed := debianCurl("12", "7.88.1-10+deb12u2").envelope()
 	var cveFacts, packageFacts []facts.Envelope
 	for _, envelope := range record {
@@ -233,8 +230,8 @@ func assertUpstreamSignalsReachTheFinding(t *testing.T, cve string, scope, byPac
 func TestUpstreamKeysAcrossRecordsAreSearchedSorted(t *testing.T) {
 	t.Parallel()
 
-	envelopes := convertedOSVRecord(t, debianRecord("DSA-2-1", "12", "bookworm", "7.88.1-10+deb12u3", "CVE-2024-9"), false)
-	envelopes = append(envelopes, convertedOSVRecord(t, debianRecord("DSA-1-1", "12", "bookworm", "7.88.1-10+deb12u3", "CVE-2023-1"), false)...)
+	envelopes := convertedOSVFixture(t, "built-load-dsa-2-1", false)
+	envelopes = append(envelopes, convertedOSVFixture(t, "built-load-dsa-1-1", false)...)
 	envelopes = append(envelopes, vulnerabilityKEVFact("kev-1", "CVE-2023-1"), vulnerabilityKEVFact("kev-2", "CVE-2024-9"))
 	filter := supplyChainImpactFilter(envelopes)
 	if want := []string{"CVE-2023-1", "CVE-2024-9"}; !reflect.DeepEqual(filter.UpstreamCVEIDs, want) {
@@ -275,8 +272,7 @@ func TestUpstreamArmYieldsToANativeRecordArrivingLater(t *testing.T) {
 	t.Parallel()
 
 	const cve = "CVE-2023-38039"
-	record := convertedOSVRecord(t,
-		debianRecord("DEBIAN-CVE-2023-38039", "12", "bookworm", "7.88.1-10+deb12u3", cve), false)
+	record := convertedOSVFixture(t, frozenDebianCVE, false)
 	scope := append(slices.Clone(record), debianCurl("12", "7.88.1-10+deb12u2").envelope())
 	kev := vulnerabilityKEVFact("kev-1", cve)
 	native := vulnerabilityCVEFact("nvd-1", cve, 9.8)

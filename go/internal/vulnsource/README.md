@@ -84,10 +84,11 @@ add a `ghsa` target to a production coordinator configuration.
   `vuln-intel://ghsa/reviewed` and `vuln-intel://ghsa/malware` to `ghsa`, and the
   readiness query's source list names it, so a configured target does not make
   readiness reads return `readiness_unavailable`.
-- The in-tree collector (`collector/vulnerabilityintelligence/vulnruntime`) still
-  refuses a `ghsa` source. `validateTarget` rejects it when the service builds
-  its claimed source, so an instance that carries a `ghsa` target does
-  not start; one already running keeps going until its next restart.
+- The extracted satellite (`eshu-hq/eshu-collector-vulnerability-intelligence`)
+  refuses a `ghsa` source in its collect dispatch, so an instance that
+  carries a `ghsa` target does not start. Core admits a `ghsa` target for
+  configuration parity only (see `validateVulnerabilityGHSATarget`); it is
+  not activatable for production truth until `eshu-hq/eshu#10037` lands.
 
 ## GHSA and OSV copies of one advisory
 

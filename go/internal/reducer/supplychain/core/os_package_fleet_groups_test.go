@@ -28,11 +28,7 @@ func digestlessOSRow(row installedOSRow, scope string) facts.Envelope {
 // entry relabelled Debian:11, so the fact's ranges name only that release line.
 func taggedOSVDebian11Facts(t testing.TB) []facts.Envelope {
 	t.Helper()
-	record := osvFixtureRecord(t, "debian-cve-2023-38039.json")
-	entry := record.Affected[0]
-	entry.Package.Ecosystem = "Debian:11"
-	record.Affected = append(record.Affected[:0:0], entry)
-	return convertedOSVRecord(t, record, false)
+	return convertedOSVFixture(t, "built-fleet-debian11", false)
 }
 
 // vendorDebian11Facts is the vendor-sourced fact published for debian-11 whose

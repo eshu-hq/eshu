@@ -29,36 +29,34 @@ func deb11u(suffix string) string { return "7.74.0-1.3+deb11u" + suffix }
 func TestLiveRecordHoldingTheInstalledVersionDecidesTheFinding(t *testing.T) {
 	t.Parallel()
 
-	const cve = "CVE-2023-38039"
 	tests := []struct {
 		name         string
 		host         string
-		dlaFix       string
-		dsaFix       string
+		dlaKey       string
+		dsaKey       string
 		wantStatus   SupplyChainImpactStatus
 		wantAdvisory string
 		wantFix      string
 	}{
-		{"dla_u10_dsa_u12", deb11u("11"), deb11u("10"), deb11u("12"), SupplyChainImpactAffectedExact, "DSA-2000-1", deb11u("12")},
-		{"reversed", deb11u("11"), deb11u("12"), deb11u("10"), SupplyChainImpactAffectedExact, "DLA-1000-1", deb11u("12")},
-		{"both_hold", deb11u("11"), deb11u("12"), deb11u("14"), SupplyChainImpactAffectedExact, "DSA-2000-1", deb11u("14")},
+		{"dla_u10_dsa_u12", deb11u("11"), "built-holding-dla-bullseye-u10", "built-holding-dsa-bullseye-u12", SupplyChainImpactAffectedExact, "DSA-2000-1", deb11u("12")},
+		{"reversed", deb11u("11"), "built-holding-dla-bullseye-u12", "built-holding-dsa-bullseye-u10", SupplyChainImpactAffectedExact, "DLA-1000-1", deb11u("12")},
+		{"both_hold", deb11u("11"), "built-holding-dla-bullseye-u12", "built-holding-dsa-bullseye-u14", SupplyChainImpactAffectedExact, "DSA-2000-1", deb11u("14")},
 		// Rule 3: neither holds, so the first sorted record names it as before.
-		{"neither_holds", deb11u("11"), deb11u("8"), deb11u("10"), SupplyChainImpactNotAffectedKnownFixed, "DLA-1000-1", deb11u("8")},
+		{"neither_holds", deb11u("11"), "built-holding-dla-bullseye-u8", "built-holding-dsa-bullseye-u10", SupplyChainImpactNotAffectedKnownFixed, "DLA-1000-1", deb11u("8")},
 		// u10 beats u9 by dpkg order and loses by string order, and DLA sorts first.
-		{"highest_by_dpkg_order", deb11u("8"), deb11u("9"), deb11u("10"), SupplyChainImpactAffectedExact, "DSA-2000-1", deb11u("10")},
+		{"highest_by_dpkg_order", deb11u("8"), "built-holding-dla-bullseye-u9", "built-holding-dsa-bullseye-u10", SupplyChainImpactAffectedExact, "DSA-2000-1", deb11u("10")},
 		// A tilde sorts below the bare version, so u10~bpo is still inside <u10.
-		{"holding_by_dpkg_tilde", deb11u("10~bpo11+1"), deb11u("9"), deb11u("10"), SupplyChainImpactAffectedExact, "DSA-2000-1", deb11u("10")},
+		{"holding_by_dpkg_tilde", deb11u("10~bpo11+1"), "built-holding-dla-bullseye-u9", "built-holding-dsa-bullseye-u10", SupplyChainImpactAffectedExact, "DSA-2000-1", deb11u("10")},
 		// An epoch beats the upstream version, so 1:7.0 is the higher fix.
-		{"highest_by_dpkg_epoch", deb11u("8"), "1:7.0.0-1", deb11u("12"), SupplyChainImpactAffectedExact, "DLA-1000-1", "1:7.0.0-1"},
-		{"equal_fixes_keep_sort_order", deb11u("11"), deb11u("12"), deb11u("12"), SupplyChainImpactAffectedExact, "DLA-1000-1", deb11u("12")},
+		{"highest_by_dpkg_epoch", deb11u("8"), "built-holding-dla-bullseye-epoch", "built-holding-dsa-bullseye-u12", SupplyChainImpactAffectedExact, "DLA-1000-1", "1:7.0.0-1"},
+		{"equal_fixes_keep_sort_order", deb11u("11"), "built-holding-dla-bullseye-u12", "built-holding-dsa-bullseye-u12", SupplyChainImpactAffectedExact, "DLA-1000-1", deb11u("12")},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
 			envelopes := append(upstreamEnvelopes(t, nil,
-				debianRecord("DLA-1000-1", "11", "bullseye", tc.dlaFix, cve),
-				debianRecord("DSA-2000-1", "11", "bullseye", tc.dsaFix, cve),
+				tc.dlaKey, tc.dsaKey,
 			), debianCurl("11", tc.host).envelope())
 			wantRange := ">=0 <" + tc.wantFix
 			for order, shuffled := range orderings(envelopes) {
@@ -101,14 +99,10 @@ func vendorSourced(envelopes []facts.Envelope, source string) []facts.Envelope {
 func TestHoldingRecordWithNoFixDoesNotBorrowAnotherRecordsFix(t *testing.T) {
 	t.Parallel()
 
-	const cve = "CVE-2023-38039"
 	host := deb11u("11")
-	listing := debianRecord("DSA-2000-1", "11", "debian-11", deb11u("12"), cve)
-	listing.Affected[0].Ranges = nil
-	listing.Affected[0].Versions = []string{host}
 	envelopes := append(
-		vendorSourced(upstreamEnvelopes(t, nil, debianRecord("DLA-1000-1", "11", "debian-11", deb11u("10"), cve)), "debian"),
-		vendorSourced(upstreamEnvelopes(t, nil, listing), "debian")...)
+		vendorSourced(upstreamEnvelopes(t, nil, "built-holding-dla-debian11-u10"), "debian"),
+		vendorSourced(upstreamEnvelopes(t, nil, "built-holding-listing"), "debian")...)
 	envelopes = append(envelopes, debianCurl("11", host).envelope())
 	for order, shuffled := range orderings(envelopes) {
 		findings := BuildSupplyChainImpactFindings(shuffled)
@@ -133,17 +127,16 @@ func TestHoldingRecordWithNoFixDoesNotBorrowAnotherRecordsFix(t *testing.T) {
 func TestVendorRecordWithNoVerifiedLineDoesNotHold(t *testing.T) {
 	t.Parallel()
 
-	const cve = "CVE-2023-38039"
-	for _, tc := range []struct{ name, distro string }{
-		{"another release", "debian-12"},
-		{"an unreadable line", "bullseye"},
+	for _, tc := range []struct{ name, dlaKey string }{
+		{"another release", "built-holding-dla-debian12"},
+		{"an unreadable line", "built-holding-dla-bullseye-u14"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
 			envelopes := append(
-				vendorSourced(upstreamEnvelopes(t, nil, debianRecord("DLA-1000-1", "11", tc.distro, deb11u("14"), cve)), "debian"),
-				vendorSourced(upstreamEnvelopes(t, nil, debianRecord("DSA-2000-1", "11", "debian-11", deb11u("12"), cve)), "debian")...)
+				vendorSourced(upstreamEnvelopes(t, nil, tc.dlaKey), "debian"),
+				vendorSourced(upstreamEnvelopes(t, nil, "built-holding-dsa-u12"), "debian")...)
 			envelopes = append(envelopes, debianCurl("11", deb11u("11")).envelope())
 			for order, shuffled := range orderings(envelopes) {
 				findings := BuildSupplyChainImpactFindings(shuffled)
@@ -166,11 +159,8 @@ func TestVendorRecordWithNoVerifiedLineDoesNotHold(t *testing.T) {
 func TestUntaggedRecordsKeepTheFirstSortedName(t *testing.T) {
 	t.Parallel()
 
-	const cve = "CVE-2023-38039"
-	purl := "pkg:deb/debian/curl?arch=source"
 	envelopes := append(upstreamEnvelopes(t, nil,
-		distroRecord("DLA-1000-1", "Debian", purl, deb11u("10"), []string{cve}),
-		distroRecord("DSA-2000-1", "Debian", purl, deb11u("12"), []string{cve}),
+		"built-holding-untagged-dla", "built-holding-untagged-dsa",
 	), debianCurl("11", deb11u("11")).envelope())
 	for order, shuffled := range orderings(envelopes) {
 		findings := BuildSupplyChainImpactFindings(shuffled)
@@ -225,11 +215,10 @@ func TestLanguageFindingFixStaysFirstSorted(t *testing.T) {
 func TestDerivedPathNamesTheHoldingRecord(t *testing.T) {
 	t.Parallel()
 
-	const cve = "CVE-2023-38039"
 	var advisories []facts.Envelope
 	for _, envelopes := range [][]facts.Envelope{
-		convertedOSVRecord(t, debianRecord("DLA-1000-1", "11", "bullseye", deb11u("10"), cve), false),
-		convertedOSVRecord(t, debianRecord("DSA-2000-1", "11", "bullseye", deb11u("12"), cve), false),
+		convertedOSVFixture(t, "built-holding-dla-bullseye-u10", false),
+		convertedOSVFixture(t, "built-holding-dsa-bullseye-u12", false),
 	} {
 		kept, _ := authorizedAdvisories(envelopes)
 		advisories = append(advisories, kept...)
@@ -264,8 +253,8 @@ func TestConflictingInstalledVersionsDoNotPickAHolder(t *testing.T) {
 	// On the scanned row alone the DSA holds and the DLA says fixed, so the DSA would
 	// name the finding if the row counted.
 	input := append(
-		convertedOSVRecord(t, debianRecord("DLA-1000-1", "11", "bullseye", deb11u("12"), cve), false),
-		convertedOSVRecord(t, debianRecord("DSA-2000-1", "11", "bullseye", deb11u("14"), cve), false)...)
+		convertedOSVFixture(t, "built-holding-dla-bullseye-u12", false),
+		convertedOSVFixture(t, "built-holding-dsa-bullseye-u14", false)...)
 	input = append(input, fleetOSRow(debianCurl("11", scanRow), "image://conflict", "generation-conflict", digest)...)
 	input = append(input,
 		sbomComponentImpactFactWithPackageIDVersion("component-conflict", "doc-conflict", "pkg:deb/debian/curl@"+sbomRow, packageID, sbomRow),
@@ -454,12 +443,11 @@ func TestOSHoldingFactsDoesNotAllocateForOneFact(t *testing.T) {
 func TestFleetDigestsEachNameTheirOwnHolder(t *testing.T) {
 	t.Parallel()
 
-	const cve = "CVE-2023-38039"
 	vulnerable := "sha256:" + strings.Repeat("a", 64)
 	patched := "sha256:" + strings.Repeat("b", 64)
 	advisories := append(
-		convertedOSVRecord(t, debianRecord("DLA-1000-1", "11", "bullseye", deb11u("10"), cve), false),
-		convertedOSVRecord(t, debianRecord("DSA-2000-1", "11", "bullseye", deb11u("12"), cve), false)...,
+		convertedOSVFixture(t, "built-holding-dla-bullseye-u10", false),
+		convertedOSVFixture(t, "built-holding-dsa-bullseye-u12", false)...,
 	)
 	rows := append(
 		fleetOSRow(debianCurl("11", deb11u("11")), "image://fleet/u11", "gen-u11", vulnerable),

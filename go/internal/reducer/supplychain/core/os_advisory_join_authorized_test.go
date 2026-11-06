@@ -58,7 +58,7 @@ func TestSupplyChainImpactAuthorizedPathCountsOSAdvisoryJoins(t *testing.T) {
 	h := newHeadroomHarness(t)
 	loader := expandingImpactLoader()
 	loader.activeForFilter = nil
-	advisories, authority := authorizedOSVAdvisories(t, "debian-cve-2023-38039.json")
+	advisories, authority := authorizedOSVAdvisories(t, "file-debian-cve-2023-38039")
 	targets := []AuthorizedScanImpactEvidence{
 		authorizedOSVTarget(0, advisories, authority, debianCurl("12", "7.88.1-10+deb12u2")),
 		authorizedOSVTarget(1, advisories, authority, ubuntuCurl("22.04", "7.81.0-1ubuntu1")),

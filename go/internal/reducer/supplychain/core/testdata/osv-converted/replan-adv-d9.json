@@ -1,0 +1,121 @@
+[
+  {
+    "FactID": "53faa7e02ea3db3e4768f0cdbcea7493223c20bb638429cbb380bc66c18f2e9f",
+    "ScopeID": "scope-adv-a",
+    "GenerationID": "gen-a2",
+    "FactKind": "vulnerability.cve",
+    "StableFactKey": "996ecfdee3a12cac5ae256842912f5c748b937ec0f2996036fb5011a3bce91d9",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-01T00:00:00Z",
+    "Payload": {
+      "advisory_id": "ADV-D9",
+      "aliases": null,
+      "collector_instance_id": "osv-test",
+      "correlation_anchors": [
+        "ADV-D9"
+      ],
+      "cve_id": "ADV-D9",
+      "cvss_vector": "",
+      "database_specific": null,
+      "details": "",
+      "ecosystem_specific": null,
+      "modified_at": "",
+      "published_at": "",
+      "related": null,
+      "severity": null,
+      "severity_label": "",
+      "source": "osv",
+      "source_schema_version": "",
+      "summary": "",
+      "withdrawn_at": ""
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "scope-adv-a",
+      "GenerationID": "gen-a2",
+      "FactKey": "996ecfdee3a12cac5ae256842912f5c748b937ec0f2996036fb5011a3bce91d9",
+      "SourceURI": "https://api.osv.dev/v1/vulns/ADV-D9",
+      "SourceRecordID": "ADV-D9"
+    }
+  },
+  {
+    "FactID": "811e7231ce628e3a0afc5f805cf9dffa9e4b4407208c719d2f4ccfa523f05ac3",
+    "ScopeID": "scope-adv-a",
+    "GenerationID": "gen-a2",
+    "FactKind": "vulnerability.affected_package",
+    "StableFactKey": "c3ee99b0c3fd2e452bdb34ad11003a367d65590d680e6d4aa5ff9b21ddf07753",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-01T00:00:00Z",
+    "Payload": {
+      "advisory_id": "ADV-D9",
+      "affected_ranges": null,
+      "affected_versions": null,
+      "collector_instance_id": "osv-test",
+      "correlation_anchors": [
+        "ADV-D9",
+        "npm://registry.npmjs.org/left-pad"
+      ],
+      "cve_id": "ADV-D9",
+      "ecosystem": "npm",
+      "fixed_versions": null,
+      "package_id": "npm://registry.npmjs.org/left-pad",
+      "package_name": "left-pad",
+      "purl": "",
+      "source": "osv"
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "scope-adv-a",
+      "GenerationID": "gen-a2",
+      "FactKey": "c3ee99b0c3fd2e452bdb34ad11003a367d65590d680e6d4aa5ff9b21ddf07753",
+      "SourceURI": "https://api.osv.dev/v1/vulns/ADV-D9",
+      "SourceRecordID": "npm://registry.npmjs.org/left-pad#ADV-D9"
+    }
+  },
+  {
+    "FactID": "a1a69b91ab0d8ba51961cf8d4ea110277c32c9681b042355a4ef3ce4562d3048",
+    "ScopeID": "scope-adv-a",
+    "GenerationID": "gen-a2",
+    "FactKind": "vulnerability.affected_package",
+    "StableFactKey": "a5412f933ed91f9101099a2c956c7f2b425ef2c76c71420c0f16ea39bea3883d",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-01T00:00:00Z",
+    "Payload": {
+      "advisory_id": "ADV-D9",
+      "affected_ranges": null,
+      "affected_versions": null,
+      "collector_instance_id": "osv-test",
+      "correlation_anchors": [
+        "ADV-D9",
+        "npm://registry.npmjs.org/kept-name"
+      ],
+      "cve_id": "ADV-D9",
+      "ecosystem": "npm",
+      "fixed_versions": null,
+      "package_id": "npm://registry.npmjs.org/kept-name",
+      "package_name": "kept-name",
+      "purl": "",
+      "source": "osv"
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "scope-adv-a",
+      "GenerationID": "gen-a2",
+      "FactKey": "a5412f933ed91f9101099a2c956c7f2b425ef2c76c71420c0f16ea39bea3883d",
+      "SourceURI": "https://api.osv.dev/v1/vulns/ADV-D9",
+      "SourceRecordID": "npm://registry.npmjs.org/kept-name#ADV-D9"
+    }
+  }
+]

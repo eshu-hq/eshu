@@ -33,6 +33,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 RUNTIME_LIB="${REPO_ROOT}/scripts/lib/compose_verification_runtime_common.sh"
 ASSERTIONS_LIB="${REPO_ROOT}/scripts/lib/public_collector_proof_assertions.sh"
+SEED_LIB="${REPO_ROOT}/scripts/lib/public_collector_proof_satellite_seed.sh"
 
 KEEP_STACK="${ESHU_KEEP_COMPOSE_STACK:-false}"
 MODE="live"
@@ -320,6 +321,9 @@ cleanup() {
 		fi
 		if [[ "${KEEP_STACK}" != "true" ]]; then
 			"${COMPOSE_CMD[@]}" down -v --remove-orphans >/dev/null 2>&1 || true
+			# The satellite component home is a standalone docker volume (not
+			# compose-managed), so down -v leaves it behind; remove it here.
+			docker volume rm "${COMPOSE_PROJECT}_vuln_component_home" >/dev/null 2>&1 || true
 		fi
 	fi
 	[[ -n "${TMP_DIR}" ]] && rm -rf "${TMP_DIR}"
@@ -351,6 +355,8 @@ main() {
 	source "${RUNTIME_LIB}"
 	# shellcheck source=scripts/lib/public_collector_proof_assertions.sh disable=SC1091
 	source "${ASSERTIONS_LIB}"
+	# shellcheck source=scripts/lib/public_collector_proof_satellite_seed.sh disable=SC1091
+	source "${SEED_LIB}"
 
 	TMP_DIR="$(mktemp -d)"
 	trap cleanup EXIT
@@ -382,11 +388,23 @@ main() {
 	# claim-driven workers in the coordinator service's environment, bound to the
 	# coordinator instance ids above. The image has no ENTRYPOINT, so passing the
 	# binary as the run command fully replaces the service CMD.
+	#
+	# The vulnerability-intelligence collector is the extracted satellite
+	# (eshu-hq/eshu#9999): the monolith image no longer ships its binary, so
+	# the proof seeds the digest-pinned satellite image into a component home
+	# and runs the component-extension host against it.
+	seed_vulnerability_satellite
 	"${COMPOSE_CMD[@]}" run -d --no-deps \
-		-e ESHU_VULNERABILITY_INTELLIGENCE_COLLECTOR_INSTANCE_ID=public-proof-vulnerability-intelligence \
-		-e ESHU_VULNERABILITY_INTELLIGENCE_COLLECTOR_OWNER_ID=public-proof-vulnerability-worker \
-		-e ESHU_VULNERABILITY_INTELLIGENCE_POLL_INTERVAL=2s \
-		workflow-coordinator /usr/local/bin/eshu-collector-vulnerability-intelligence >/dev/null
+		-v "${COMPOSE_PROJECT}_vuln_component_home:/components" \
+		-e ESHU_COMPONENT_HOME=/components \
+		-e ESHU_COMPONENT_TRUST_MODE=allowlist \
+		-e ESHU_COMPONENT_ALLOW_IDS=dev.eshu.collector.vulnerability_intelligence \
+		-e ESHU_COMPONENT_ALLOW_PUBLISHERS=eshu-hq \
+		-e ESHU_COMPONENT_COLLECTOR_INSTANCE_ID=public-proof-vulnerability-intelligence \
+		-e ESHU_COMPONENT_COLLECTOR_OWNER_ID=public-proof-vulnerability-worker \
+		-e ESHU_COMPONENT_COLLECTOR_SCOPE_KIND=vulnerability_intelligence \
+		-e ESHU_COMPONENT_COLLECTOR_POLL_INTERVAL=2s \
+		workflow-coordinator /usr/local/bin/eshu-collector-component-extension >/dev/null
 	"${COMPOSE_CMD[@]}" run -d --no-deps \
 		-e ESHU_PACKAGE_REGISTRY_COLLECTOR_INSTANCE_ID=public-proof-package-registry \
 		-e ESHU_PACKAGE_REGISTRY_COLLECTOR_OWNER_ID=public-proof-package-worker \

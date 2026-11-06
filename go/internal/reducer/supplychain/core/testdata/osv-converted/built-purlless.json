@@ -1,0 +1,100 @@
+[
+  {
+    "FactID": "470465099add70921e95906d0f460b91d4e2eebf187deb3c0d8096763a703951",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:1",
+    "FactKind": "vulnerability.cve",
+    "StableFactKey": "98c0543fd41e7ab390bd3de88986f9ad4219169459cf4b6dba2078587b9d15a6",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "SYNTHETIC-OS-PURLLESS",
+      "aliases": null,
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "SYNTHETIC-OS-PURLLESS"
+      ],
+      "cve_id": "SYNTHETIC-OS-PURLLESS",
+      "cvss_vector": "",
+      "database_specific": null,
+      "details": "",
+      "ecosystem_specific": null,
+      "modified_at": "",
+      "published_at": "",
+      "related": null,
+      "severity": null,
+      "severity_label": "",
+      "source": "osv",
+      "source_schema_version": "",
+      "summary": "",
+      "withdrawn_at": ""
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:1",
+      "FactKey": "98c0543fd41e7ab390bd3de88986f9ad4219169459cf4b6dba2078587b9d15a6",
+      "SourceURI": "",
+      "SourceRecordID": "SYNTHETIC-OS-PURLLESS"
+    }
+  },
+  {
+    "FactID": "48653ef96148c7c0fa31b224d229e5d0117f8d465e73c7d3081cb9567b4b5bb8",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:1",
+    "FactKind": "vulnerability.affected_package",
+    "StableFactKey": "acb3f66cc941d428963d8a6e7d1801cbe8f810b5a7c43ef988c0b3e31c569ee9",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "SYNTHETIC-OS-PURLLESS",
+      "affected_ranges": [
+        {
+          "events": [
+            {
+              "introduced": "0"
+            },
+            {
+              "fixed": "7.88.1-10+deb12u3"
+            }
+          ],
+          "releases": [
+            "debian:12"
+          ],
+          "type": "ECOSYSTEM"
+        }
+      ],
+      "affected_versions": null,
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "SYNTHETIC-OS-PURLLESS",
+        "os://os/curl"
+      ],
+      "cve_id": "SYNTHETIC-OS-PURLLESS",
+      "ecosystem": "os",
+      "fixed_versions": [
+        "7.88.1-10+deb12u3"
+      ],
+      "package_id": "os://os/curl",
+      "package_name": "curl",
+      "purl": "",
+      "source": "osv"
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:1",
+      "FactKey": "acb3f66cc941d428963d8a6e7d1801cbe8f810b5a7c43ef988c0b3e31c569ee9",
+      "SourceURI": "",
+      "SourceRecordID": "os://os/curl#SYNTHETIC-OS-PURLLESS"
+    }
+  }
+]

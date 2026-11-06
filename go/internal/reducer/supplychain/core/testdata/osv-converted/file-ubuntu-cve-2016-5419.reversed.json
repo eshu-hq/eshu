@@ -1,0 +1,280 @@
+[
+  {
+    "FactID": "8bf4216c47d548a3b7eba7e788c394c0981e92fc53301bb5a57cdc1d6397217d",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+    "FactKind": "vulnerability.cve",
+    "StableFactKey": "62abdeced5f488785ac7933f1b44b2701fd7e6f8223634e0999ccaec4004b3c2",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "UBUNTU-CVE-2016-5419",
+      "aliases": null,
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "UBUNTU-CVE-2016-5419"
+      ],
+      "cve_id": "UBUNTU-CVE-2016-5419",
+      "cvss_vector": "CVSS:3.0/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N",
+      "database_specific": null,
+      "details": "curl and libcurl before 7.50.1 do not prevent TLS session resumption when the client certificate has changed, which allows remote attackers to bypass intended restrictions by resuming a session.",
+      "ecosystem_specific": null,
+      "modified_at": "2026-04-22T10:52:31.964408Z",
+      "published_at": "2016-08-03T00:00:00Z",
+      "related": [
+        "USN-3048-1"
+      ],
+      "severity": [
+        {
+          "score": "CVSS:3.0/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N",
+          "type": "CVSS_V3"
+        },
+        {
+          "score": "medium",
+          "type": "Ubuntu"
+        }
+      ],
+      "severity_label": "",
+      "source": "osv",
+      "source_schema_version": "1.7.5",
+      "summary": "",
+      "upstream": [
+        "CVE-2016-5419"
+      ],
+      "withdrawn_at": ""
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+      "FactKey": "62abdeced5f488785ac7933f1b44b2701fd7e6f8223634e0999ccaec4004b3c2",
+      "SourceURI": "",
+      "SourceRecordID": "UBUNTU-CVE-2016-5419"
+    }
+  },
+  {
+    "FactID": "582de8883d105d59af0228f87981e3c3077931b0007db4c6d9cffbc369b4d94e",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+    "FactKind": "vulnerability.affected_package",
+    "StableFactKey": "2fd128d0a5419230301cc5c9797cb6bb3fb646585f4d54aaf24ca75b39a200a4",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "UBUNTU-CVE-2016-5419",
+      "affected_ranges": [
+        {
+          "events": [
+            {
+              "introduced": "0"
+            },
+            {
+              "fixed": "7.35.0-1ubuntu2.8"
+            }
+          ],
+          "releases": [
+            "ubuntu:14.04"
+          ],
+          "type": "ECOSYSTEM"
+        },
+        {
+          "events": [
+            {
+              "introduced": "0"
+            },
+            {
+              "fixed": "7.47.0-1ubuntu2.1"
+            }
+          ],
+          "releases": [
+            "ubuntu:16.04"
+          ],
+          "type": "ECOSYSTEM"
+        }
+      ],
+      "affected_versions": [
+        "7.32.0-1ubuntu1",
+        "7.33.0-1ubuntu1",
+        "7.34.0-1ubuntu1",
+        "7.35.0-1ubuntu1",
+        "7.35.0-1ubuntu2",
+        "7.35.0-1ubuntu2.1",
+        "7.35.0-1ubuntu2.2",
+        "7.35.0-1ubuntu2.3",
+        "7.35.0-1ubuntu2.5",
+        "7.35.0-1ubuntu2.6",
+        "7.35.0-1ubuntu2.7",
+        "7.43.0-1ubuntu2",
+        "7.45.0-1ubuntu1",
+        "7.46.0-1ubuntu1",
+        "7.47.0-1ubuntu1",
+        "7.47.0-1ubuntu2"
+      ],
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "UBUNTU-CVE-2016-5419",
+        "os://ubuntu/curl",
+        "pkg:deb/ubuntu/curl@7.35.0-1ubuntu2.8?arch=source\u0026distro=trusty",
+        "pkg:deb/ubuntu/curl@7.47.0-1ubuntu2.1?arch=source\u0026distro=xenial"
+      ],
+      "cve_id": "UBUNTU-CVE-2016-5419",
+      "ecosystem": "os",
+      "fixed_versions": [
+        "7.35.0-1ubuntu2.8",
+        "7.47.0-1ubuntu2.1"
+      ],
+      "package_id": "os://ubuntu/curl",
+      "package_name": "curl",
+      "purl": "pkg:deb/ubuntu/curl@7.35.0-1ubuntu2.8?arch=source\u0026distro=trusty",
+      "source": "osv"
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+      "FactKey": "2fd128d0a5419230301cc5c9797cb6bb3fb646585f4d54aaf24ca75b39a200a4",
+      "SourceURI": "",
+      "SourceRecordID": "os://ubuntu/curl#UBUNTU-CVE-2016-5419"
+    }
+  },
+  {
+    "FactID": "27bdffb4153bb916274d2a8a1e00736eea5db0c47486ce4953aa63cea9a27c4b",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+    "FactKind": "vulnerability.reference",
+    "StableFactKey": "1559b73f463b566811d2276d0fa871c6814d41ead8c339e5ad0cdbf5576f63a4",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "UBUNTU-CVE-2016-5419",
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "UBUNTU-CVE-2016-5419",
+        "https://ubuntu.com/security/CVE-2016-5419"
+      ],
+      "cve_id": "UBUNTU-CVE-2016-5419",
+      "reference_type": "REPORT",
+      "source": "osv",
+      "url": "https://ubuntu.com/security/CVE-2016-5419"
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+      "FactKey": "1559b73f463b566811d2276d0fa871c6814d41ead8c339e5ad0cdbf5576f63a4",
+      "SourceURI": "",
+      "SourceRecordID": "UBUNTU-CVE-2016-5419#https://ubuntu.com/security/CVE-2016-5419"
+    }
+  },
+  {
+    "FactID": "5d82032ba99f1fbd2afbd592cd89613a4389a55fc838b39ed18ab859b96bcccc",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+    "FactKind": "vulnerability.reference",
+    "StableFactKey": "ba9d5b9c39fd676e76b300f9f539c0a89ad6f868e48e0cb4c045f2d6fe3c0b73",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "UBUNTU-CVE-2016-5419",
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "UBUNTU-CVE-2016-5419",
+        "https://curl.haxx.se/docs/adv_20160803A.html"
+      ],
+      "cve_id": "UBUNTU-CVE-2016-5419",
+      "reference_type": "REPORT",
+      "source": "osv",
+      "url": "https://curl.haxx.se/docs/adv_20160803A.html"
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+      "FactKey": "ba9d5b9c39fd676e76b300f9f539c0a89ad6f868e48e0cb4c045f2d6fe3c0b73",
+      "SourceURI": "",
+      "SourceRecordID": "UBUNTU-CVE-2016-5419#https://curl.haxx.se/docs/adv_20160803A.html"
+    }
+  },
+  {
+    "FactID": "481d69e3ef0c7615a5c22fd2238a9c92308257e4d6aaabad11b9d30f46c93199",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+    "FactKind": "vulnerability.reference",
+    "StableFactKey": "9ac211d87bd9ede461c0c83c42984d81788808f82d36a915a71fddadc0f471b7",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "UBUNTU-CVE-2016-5419",
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "UBUNTU-CVE-2016-5419",
+        "https://ubuntu.com/security/notices/USN-3048-1"
+      ],
+      "cve_id": "UBUNTU-CVE-2016-5419",
+      "reference_type": "ADVISORY",
+      "source": "osv",
+      "url": "https://ubuntu.com/security/notices/USN-3048-1"
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+      "FactKey": "9ac211d87bd9ede461c0c83c42984d81788808f82d36a915a71fddadc0f471b7",
+      "SourceURI": "",
+      "SourceRecordID": "UBUNTU-CVE-2016-5419#https://ubuntu.com/security/notices/USN-3048-1"
+    }
+  },
+  {
+    "FactID": "8a14a56caa26c854bdc7ec19daa269838d09c48802a2ac356251155c07c25c3c",
+    "ScopeID": "vuln-intel://osv/fixture",
+    "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+    "FactKind": "vulnerability.reference",
+    "StableFactKey": "b2873a7a2be089100513f54b57c529bc11df085862d3910772de6a80023f107b",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-02T00:00:00Z",
+    "Payload": {
+      "advisory_id": "UBUNTU-CVE-2016-5419",
+      "collector_instance_id": "public-osv",
+      "correlation_anchors": [
+        "UBUNTU-CVE-2016-5419",
+        "https://www.cve.org/CVERecord?id=CVE-2016-5419"
+      ],
+      "cve_id": "UBUNTU-CVE-2016-5419",
+      "reference_type": "REPORT",
+      "source": "osv",
+      "url": "https://www.cve.org/CVERecord?id=CVE-2016-5419"
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://osv/fixture",
+      "GenerationID": "osv:fixture:2026-11-02T00:00:00Z",
+      "FactKey": "b2873a7a2be089100513f54b57c529bc11df085862d3910772de6a80023f107b",
+      "SourceURI": "",
+      "SourceRecordID": "UBUNTU-CVE-2016-5419#https://www.cve.org/CVERecord?id=CVE-2016-5419"
+    }
+  }
+]

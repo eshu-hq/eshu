@@ -1,0 +1,83 @@
+[
+  {
+    "FactID": "42ac9129f3051e7444e73ad1250c7035e18f2e7bcbfca23c96e52bf9a28d2762",
+    "ScopeID": "scope-adv-a",
+    "GenerationID": "gen-a2",
+    "FactKind": "vulnerability.cve",
+    "StableFactKey": "ca031cb31790f16e8867612c5a5b21c05926fbbda294c06b5ea3ca09de1434e9",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-01T00:00:00Z",
+    "Payload": {
+      "advisory_id": "ADV-D5",
+      "aliases": null,
+      "collector_instance_id": "osv-test",
+      "correlation_anchors": [
+        "ADV-D5"
+      ],
+      "cve_id": "ADV-D5",
+      "cvss_vector": "",
+      "database_specific": null,
+      "details": "",
+      "ecosystem_specific": null,
+      "modified_at": "",
+      "published_at": "",
+      "related": null,
+      "severity": null,
+      "severity_label": "",
+      "source": "osv",
+      "source_schema_version": "",
+      "summary": "",
+      "withdrawn_at": ""
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "scope-adv-a",
+      "GenerationID": "gen-a2",
+      "FactKey": "ca031cb31790f16e8867612c5a5b21c05926fbbda294c06b5ea3ca09de1434e9",
+      "SourceURI": "https://api.osv.dev/v1/vulns/ADV-D5",
+      "SourceRecordID": "ADV-D5"
+    }
+  },
+  {
+    "FactID": "7d583320d797528f3266186476fc46258a6bbb31afc2cb5ec740ad5df5e39d28",
+    "ScopeID": "scope-adv-a",
+    "GenerationID": "gen-a2",
+    "FactKind": "vulnerability.affected_package",
+    "StableFactKey": "efc24b5df4c276e2d6767097add4ee4be38cc9926e74265cf4071f35154abbae",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-01T00:00:00Z",
+    "Payload": {
+      "advisory_id": "ADV-D5",
+      "affected_ranges": null,
+      "affected_versions": null,
+      "collector_instance_id": "osv-test",
+      "correlation_anchors": [
+        "ADV-D5",
+        "gomod://proxy.golang.org/github.com/Foo/Bar"
+      ],
+      "cve_id": "ADV-D5",
+      "ecosystem": "gomod",
+      "fixed_versions": null,
+      "package_id": "gomod://proxy.golang.org/github.com/Foo/Bar",
+      "package_name": "github.com/Foo/Bar",
+      "purl": "",
+      "source": "osv"
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "scope-adv-a",
+      "GenerationID": "gen-a2",
+      "FactKey": "efc24b5df4c276e2d6767097add4ee4be38cc9926e74265cf4071f35154abbae",
+      "SourceURI": "https://api.osv.dev/v1/vulns/ADV-D5",
+      "SourceRecordID": "gomod://proxy.golang.org/github.com/Foo/Bar#ADV-D5"
+    }
+  }
+]

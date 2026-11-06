@@ -1,0 +1,83 @@
+[
+  {
+    "FactID": "29c05d7f2fddc19387427b649f9ff23b5e9366e592cba91e8691bcfb29a99f2e",
+    "ScopeID": "vuln-intel://nvd/cve",
+    "GenerationID": "nvd:2026-10-31T00:00:00Z",
+    "FactKind": "vulnerability.cve",
+    "StableFactKey": "66100f459437f8ffd43205a89bb92100123cb6785fc14db8e387ae9054ed88ec",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-10-31T00:00:00Z",
+    "Payload": {
+      "advisory_id": "CVE-2026-0960",
+      "collector_instance_id": "public-nvd",
+      "correlation_anchors": [
+        "CVE-2026-0960"
+      ],
+      "cve_id": "CVE-2026-0960",
+      "cvss_metrics": null,
+      "cvss_score": 0,
+      "cvss_vector": "",
+      "cwes": null,
+      "descriptions": null,
+      "modified_at": "",
+      "published_at": "",
+      "severity_label": "",
+      "source": "nvd",
+      "source_identifier": "",
+      "status": ""
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://nvd/cve",
+      "GenerationID": "nvd:2026-10-31T00:00:00Z",
+      "FactKey": "66100f459437f8ffd43205a89bb92100123cb6785fc14db8e387ae9054ed88ec",
+      "SourceURI": "https://services.nvd.nist.gov/rest/json/cves/2.0?cveId=CVE-2026-0960",
+      "SourceRecordID": "CVE-2026-0960"
+    }
+  },
+  {
+    "FactID": "c9f1e7aa7951b6b03be484c4b27bfeeb0958ff74af4c8447a887da6704389435",
+    "ScopeID": "vuln-intel://nvd/cve",
+    "GenerationID": "nvd:2026-10-31T00:00:00Z",
+    "FactKind": "vulnerability.affected_product",
+    "StableFactKey": "5ea0752816e9ef4d3d1643d9851247d1f3ef9fb2a5596481e53459f0d35aaad6",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-10-31T00:00:00Z",
+    "Payload": {
+      "collector_instance_id": "public-nvd",
+      "correlation_anchors": [
+        "CVE-2026-0960",
+        "cpe:2.3:a:example:server:1.4.2:*:*:*:*:*:*:*"
+      ],
+      "criteria": "cpe:2.3:a:example:server:1.4.2:*:*:*:*:*:*:*",
+      "cve_id": "CVE-2026-0960",
+      "match_criteria_id": "b5ec4c98-0000-4000-9000-000000000001",
+      "source": "nvd",
+      "source_configuration_negate": false,
+      "source_configuration_operator": "OR",
+      "source_node_negate": false,
+      "source_node_operator": "OR",
+      "version_end_excluding": "",
+      "version_end_including": "",
+      "version_start_excluding": "",
+      "version_start_including": "",
+      "vulnerable": true
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "vuln-intel://nvd/cve",
+      "GenerationID": "nvd:2026-10-31T00:00:00Z",
+      "FactKey": "5ea0752816e9ef4d3d1643d9851247d1f3ef9fb2a5596481e53459f0d35aaad6",
+      "SourceURI": "https://services.nvd.nist.gov/rest/json/cves/2.0?cveId=CVE-2026-0960",
+      "SourceRecordID": "CVE-2026-0960#b5ec4c98-0000-4000-9000-000000000001"
+    }
+  }
+]

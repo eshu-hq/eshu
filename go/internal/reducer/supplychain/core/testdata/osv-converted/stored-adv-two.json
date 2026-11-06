@@ -1,0 +1,275 @@
+[
+  {
+    "FactID": "1d369c634e2afcb55794975a46a2ece5f3bb7217e7b82bd8b36aa551d830457c",
+    "ScopeID": "scope-adv-b",
+    "GenerationID": "gen-b1",
+    "FactKind": "vulnerability.cve",
+    "StableFactKey": "3bced56723b7093db64d029e08306f7222b500afb67446fed59d57bdd7509b0f",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-01T00:00:00Z",
+    "Payload": {
+      "advisory_id": "ADV-TWO",
+      "aliases": null,
+      "collector_instance_id": "osv-test",
+      "correlation_anchors": [
+        "ADV-TWO"
+      ],
+      "cve_id": "ADV-TWO",
+      "cvss_vector": "",
+      "database_specific": null,
+      "details": "",
+      "ecosystem_specific": null,
+      "modified_at": "",
+      "published_at": "",
+      "related": null,
+      "severity": null,
+      "severity_label": "",
+      "source": "osv",
+      "source_schema_version": "",
+      "summary": "",
+      "withdrawn_at": ""
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "scope-adv-b",
+      "GenerationID": "gen-b1",
+      "FactKey": "3bced56723b7093db64d029e08306f7222b500afb67446fed59d57bdd7509b0f",
+      "SourceURI": "https://api.osv.dev/v1/vulns/ADV-TWO",
+      "SourceRecordID": "ADV-TWO"
+    }
+  },
+  {
+    "FactID": "6642672c09e7cc9c91a9828e6a8b520e85612330b1462386dd03c005386d9e5d",
+    "ScopeID": "scope-adv-b",
+    "GenerationID": "gen-b1",
+    "FactKind": "vulnerability.affected_package",
+    "StableFactKey": "d1a182eaf28dabd1e4f1ffea0117727dc17e76795460a35006f8240221dfa9e3",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-01T00:00:00Z",
+    "Payload": {
+      "advisory_id": "ADV-TWO",
+      "affected_ranges": null,
+      "affected_versions": null,
+      "collector_instance_id": "osv-test",
+      "correlation_anchors": [
+        "ADV-TWO",
+        "pypi://pypi.org/simple/some-pkg"
+      ],
+      "cve_id": "ADV-TWO",
+      "ecosystem": "pypi",
+      "fixed_versions": null,
+      "package_id": "pypi://pypi.org/simple/some-pkg",
+      "package_name": "some-pkg",
+      "purl": "",
+      "source": "osv"
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "scope-adv-b",
+      "GenerationID": "gen-b1",
+      "FactKey": "d1a182eaf28dabd1e4f1ffea0117727dc17e76795460a35006f8240221dfa9e3",
+      "SourceURI": "https://api.osv.dev/v1/vulns/ADV-TWO",
+      "SourceRecordID": "pypi://pypi.org/simple/some-pkg#ADV-TWO"
+    }
+  },
+  {
+    "FactID": "fdcf5356d40ccbdde024576de7dc312a5f0ec6b6d9eb45eec52e50294c7197ba",
+    "ScopeID": "scope-adv-b",
+    "GenerationID": "gen-b1",
+    "FactKind": "vulnerability.affected_package",
+    "StableFactKey": "7685a3f53607f48cefd4c16bc21c312b258b62f80a1cc9e0be6a75c8b6a9c7e9",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-01T00:00:00Z",
+    "Payload": {
+      "advisory_id": "ADV-TWO",
+      "affected_ranges": null,
+      "affected_versions": null,
+      "collector_instance_id": "osv-test",
+      "correlation_anchors": [
+        "ADV-TWO",
+        "maven://repo.maven.apache.org/maven2/org.example:lib"
+      ],
+      "cve_id": "ADV-TWO",
+      "ecosystem": "maven",
+      "fixed_versions": null,
+      "package_id": "maven://repo.maven.apache.org/maven2/org.example:lib",
+      "package_name": "lib",
+      "purl": "",
+      "source": "osv"
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "scope-adv-b",
+      "GenerationID": "gen-b1",
+      "FactKey": "7685a3f53607f48cefd4c16bc21c312b258b62f80a1cc9e0be6a75c8b6a9c7e9",
+      "SourceURI": "https://api.osv.dev/v1/vulns/ADV-TWO",
+      "SourceRecordID": "maven://repo.maven.apache.org/maven2/org.example:lib#ADV-TWO"
+    }
+  },
+  {
+    "FactID": "ca9ee2a46b366d5ea1adb30714d957637706e50dcd71cf2ff1812cba8b32497e",
+    "ScopeID": "scope-adv-b",
+    "GenerationID": "gen-b1",
+    "FactKind": "vulnerability.affected_package",
+    "StableFactKey": "b01cdd7528088302a1f1f1c58be1deff4eb56cad43304b9e76df404a101102ba",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-01T00:00:00Z",
+    "Payload": {
+      "advisory_id": "ADV-TWO",
+      "affected_ranges": null,
+      "affected_versions": null,
+      "collector_instance_id": "osv-test",
+      "correlation_anchors": [
+        "ADV-TWO",
+        "maven://repo.maven.apache.org/maven2/com.other:lib"
+      ],
+      "cve_id": "ADV-TWO",
+      "ecosystem": "maven",
+      "fixed_versions": null,
+      "package_id": "maven://repo.maven.apache.org/maven2/com.other:lib",
+      "package_name": "lib",
+      "purl": "",
+      "source": "osv"
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "scope-adv-b",
+      "GenerationID": "gen-b1",
+      "FactKey": "b01cdd7528088302a1f1f1c58be1deff4eb56cad43304b9e76df404a101102ba",
+      "SourceURI": "https://api.osv.dev/v1/vulns/ADV-TWO",
+      "SourceRecordID": "maven://repo.maven.apache.org/maven2/com.other:lib#ADV-TWO"
+    }
+  },
+  {
+    "FactID": "612a4b35e46ec6a1e143b2b8536b922367d8c8b9f8b3b2eeb7bdaeeddd7d8189",
+    "ScopeID": "scope-adv-b",
+    "GenerationID": "gen-b1",
+    "FactKind": "vulnerability.affected_package",
+    "StableFactKey": "e3c1e2d5ba769ab626a531e1ec4d762ff12e1359fcf44b0b648a30c554460eb5",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-01T00:00:00Z",
+    "Payload": {
+      "advisory_id": "ADV-TWO",
+      "affected_ranges": null,
+      "affected_versions": null,
+      "collector_instance_id": "osv-test",
+      "correlation_anchors": [
+        "ADV-TWO",
+        "gomod://proxy.golang.org/github.com/Acme/Mod"
+      ],
+      "cve_id": "ADV-TWO",
+      "ecosystem": "gomod",
+      "fixed_versions": null,
+      "package_id": "gomod://proxy.golang.org/github.com/Acme/Mod",
+      "package_name": "github.com/Acme/Mod",
+      "purl": "",
+      "source": "osv"
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "scope-adv-b",
+      "GenerationID": "gen-b1",
+      "FactKey": "e3c1e2d5ba769ab626a531e1ec4d762ff12e1359fcf44b0b648a30c554460eb5",
+      "SourceURI": "https://api.osv.dev/v1/vulns/ADV-TWO",
+      "SourceRecordID": "gomod://proxy.golang.org/github.com/Acme/Mod#ADV-TWO"
+    }
+  },
+  {
+    "FactID": "4d12247de57c59a148995747adbf24a36e5fff5ed5686c972ada28f3425cdf24",
+    "ScopeID": "scope-adv-b",
+    "GenerationID": "gen-b1",
+    "FactKind": "vulnerability.affected_package",
+    "StableFactKey": "9684881a941f7ad73f43b44347b719386b44e31490002e6434ce795a5570cfd6",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-01T00:00:00Z",
+    "Payload": {
+      "advisory_id": "ADV-TWO",
+      "affected_ranges": null,
+      "affected_versions": null,
+      "collector_instance_id": "osv-test",
+      "correlation_anchors": [
+        "ADV-TWO",
+        "pkg:swift/github.com/apple/swift-nio",
+        "swift://github.com/apple/swift-nio"
+      ],
+      "cve_id": "ADV-TWO",
+      "ecosystem": "swift",
+      "fixed_versions": null,
+      "package_id": "swift://github.com/apple/swift-nio",
+      "package_name": "swift-nio",
+      "purl": "pkg:swift/github.com/apple/swift-nio",
+      "source": "osv"
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "scope-adv-b",
+      "GenerationID": "gen-b1",
+      "FactKey": "9684881a941f7ad73f43b44347b719386b44e31490002e6434ce795a5570cfd6",
+      "SourceURI": "https://api.osv.dev/v1/vulns/ADV-TWO",
+      "SourceRecordID": "swift://github.com/apple/swift-nio#ADV-TWO"
+    }
+  },
+  {
+    "FactID": "66f0a1309f234619d3fb6dabaf41d3fb8b9de45d22d30d6389f54ab04fd22897",
+    "ScopeID": "scope-adv-b",
+    "GenerationID": "gen-b1",
+    "FactKind": "vulnerability.affected_package",
+    "StableFactKey": "1a8a32aae548545f1c182c8da9daf3a6513043c2479960f005d8f980edc3af09",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-01T00:00:00Z",
+    "Payload": {
+      "advisory_id": "ADV-TWO",
+      "affected_ranges": null,
+      "affected_versions": null,
+      "collector_instance_id": "osv-test",
+      "correlation_anchors": [
+        "ADV-TWO",
+        "hex://unknown/acme/plug",
+        "pkg:hex/acme/plug"
+      ],
+      "cve_id": "ADV-TWO",
+      "ecosystem": "hex",
+      "fixed_versions": null,
+      "package_id": "hex://unknown/acme/plug",
+      "package_name": "plug",
+      "purl": "pkg:hex/acme/plug",
+      "source": "osv"
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "scope-adv-b",
+      "GenerationID": "gen-b1",
+      "FactKey": "1a8a32aae548545f1c182c8da9daf3a6513043c2479960f005d8f980edc3af09",
+      "SourceURI": "https://api.osv.dev/v1/vulns/ADV-TWO",
+      "SourceRecordID": "hex://unknown/acme/plug#ADV-TWO"
+    }
+  }
+]

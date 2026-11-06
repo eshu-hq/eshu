@@ -1,0 +1,83 @@
+[
+  {
+    "FactID": "d82ed640bb55ea3b0bafee09399a05dc7de179375ed3211e4d78bbc68a59ce20",
+    "ScopeID": "scope-adv-a",
+    "GenerationID": "gen-a2",
+    "FactKind": "vulnerability.cve",
+    "StableFactKey": "6f80fa3149c614548ccd5cae1e4071b6b4e5f6920245630fbaf8dd3d60bd9c9e",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-01T00:00:00Z",
+    "Payload": {
+      "advisory_id": "ADV-D4",
+      "aliases": null,
+      "collector_instance_id": "osv-test",
+      "correlation_anchors": [
+        "ADV-D4"
+      ],
+      "cve_id": "ADV-D4",
+      "cvss_vector": "",
+      "database_specific": null,
+      "details": "",
+      "ecosystem_specific": null,
+      "modified_at": "",
+      "published_at": "",
+      "related": null,
+      "severity": null,
+      "severity_label": "",
+      "source": "osv",
+      "source_schema_version": "",
+      "summary": "",
+      "withdrawn_at": ""
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "scope-adv-a",
+      "GenerationID": "gen-a2",
+      "FactKey": "6f80fa3149c614548ccd5cae1e4071b6b4e5f6920245630fbaf8dd3d60bd9c9e",
+      "SourceURI": "https://api.osv.dev/v1/vulns/ADV-D4",
+      "SourceRecordID": "ADV-D4"
+    }
+  },
+  {
+    "FactID": "b7d258d6b7c9615bd9fa4065118ee153636c1094319a1dc682507f4783593cd0",
+    "ScopeID": "scope-adv-a",
+    "GenerationID": "gen-a2",
+    "FactKind": "vulnerability.affected_package",
+    "StableFactKey": "a7389abda9940921968c5202e2abdc9de35a0b7d1c28cd07e22548b046f8100f",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-01T00:00:00Z",
+    "Payload": {
+      "advisory_id": "ADV-D4",
+      "affected_ranges": null,
+      "affected_versions": null,
+      "collector_instance_id": "osv-test",
+      "correlation_anchors": [
+        "ADV-D4",
+        "maven://repo.maven.apache.org/maven2/org.apache:commons"
+      ],
+      "cve_id": "ADV-D4",
+      "ecosystem": "maven",
+      "fixed_versions": null,
+      "package_id": "maven://repo.maven.apache.org/maven2/org.apache:commons",
+      "package_name": "commons",
+      "purl": "",
+      "source": "osv"
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "scope-adv-a",
+      "GenerationID": "gen-a2",
+      "FactKey": "a7389abda9940921968c5202e2abdc9de35a0b7d1c28cd07e22548b046f8100f",
+      "SourceURI": "https://api.osv.dev/v1/vulns/ADV-D4",
+      "SourceRecordID": "maven://repo.maven.apache.org/maven2/org.apache:commons#ADV-D4"
+    }
+  }
+]

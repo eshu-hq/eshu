@@ -1,0 +1,83 @@
+[
+  {
+    "FactID": "9f04cbb38fc1864c3edaa80b9335258104cfb902f17ec0a8c52a266aeb6fb1bc",
+    "ScopeID": "scope-adv-a",
+    "GenerationID": "gen-a2",
+    "FactKind": "vulnerability.cve",
+    "StableFactKey": "0f98b4521955f1fece6af142f21cf521b8fd979572d550167fdb7493fc560165",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-01T00:00:00Z",
+    "Payload": {
+      "advisory_id": "ADV-D3",
+      "aliases": null,
+      "collector_instance_id": "osv-test",
+      "correlation_anchors": [
+        "ADV-D3"
+      ],
+      "cve_id": "ADV-D3",
+      "cvss_vector": "",
+      "database_specific": null,
+      "details": "",
+      "ecosystem_specific": null,
+      "modified_at": "",
+      "published_at": "",
+      "related": null,
+      "severity": null,
+      "severity_label": "",
+      "source": "osv",
+      "source_schema_version": "",
+      "summary": "",
+      "withdrawn_at": ""
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "scope-adv-a",
+      "GenerationID": "gen-a2",
+      "FactKey": "0f98b4521955f1fece6af142f21cf521b8fd979572d550167fdb7493fc560165",
+      "SourceURI": "https://api.osv.dev/v1/vulns/ADV-D3",
+      "SourceRecordID": "ADV-D3"
+    }
+  },
+  {
+    "FactID": "125ac8dd323efe5ff8a989ae5fb4416377e3e8232067a3ebb3381faa5f029ec7",
+    "ScopeID": "scope-adv-a",
+    "GenerationID": "gen-a2",
+    "FactKind": "vulnerability.affected_package",
+    "StableFactKey": "6d5f21418bb52eb46233eb9cc6c3104c526a59068a138c11dd063bee9cb88a92",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "vulnerability_intelligence",
+    "FencingToken": 0,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-11-01T00:00:00Z",
+    "Payload": {
+      "advisory_id": "ADV-D3",
+      "affected_ranges": null,
+      "affected_versions": null,
+      "collector_instance_id": "osv-test",
+      "correlation_anchors": [
+        "ADV-D3",
+        "pypi://pypi.org/simple/foo-bar"
+      ],
+      "cve_id": "ADV-D3",
+      "ecosystem": "pypi",
+      "fixed_versions": null,
+      "package_id": "pypi://pypi.org/simple/foo-bar",
+      "package_name": "foo-bar",
+      "purl": "",
+      "source": "osv"
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "vulnerability_intelligence",
+      "ScopeID": "scope-adv-a",
+      "GenerationID": "gen-a2",
+      "FactKey": "6d5f21418bb52eb46233eb9cc6c3104c526a59068a138c11dd063bee9cb88a92",
+      "SourceURI": "https://api.osv.dev/v1/vulns/ADV-D3",
+      "SourceRecordID": "pypi://pypi.org/simple/foo-bar#ADV-D3"
+    }
+  }
+]

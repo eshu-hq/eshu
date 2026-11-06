@@ -10,34 +10,20 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/vulnerabilityintelligence"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
 
-// distroRecord builds one single-release OSV distro record in the converter's
-// input shape: the record id, the OSV ecosystem it is published for, the purl
-// the vendor feed carries, one fixed version, and the upstream list.
-func distroRecord(id, ecosystem, purl, fixed string, upstream []string) vulnerabilityintelligence.OSVVulnerability {
-	return vulnerabilityintelligence.OSVVulnerability{
-		Schema:    "1.9.0",
-		ID:        id,
-		Modified:  "2026-10-26T18:02:41Z",
-		Published: "2023-09-15T04:15:10Z",
-		Upstream:  upstream,
-		Affected: []vulnerabilityintelligence.OSVAffected{{
-			Package: vulnerabilityintelligence.OSVPackage{Name: "curl", Ecosystem: ecosystem, PURL: purl},
-			Ranges: []vulnerabilityintelligence.OSVRange{{
-				Type:   "ECOSYSTEM",
-				Events: []vulnerabilityintelligence.OSVEvent{{Introduced: "0"}, {Fixed: fixed}},
-			}},
-		}},
-	}
-}
-
-func debianRecord(id, release, distro, fixed string, upstream ...string) vulnerabilityintelligence.OSVVulnerability {
-	return distroRecord(id, "Debian:"+release, "pkg:deb/debian/curl?arch=source&distro="+distro, fixed, upstream)
-}
+// Frozen fixture keys (testdata/osv-converted, eshu-hq/eshu#9999) for the
+// distro records this package used to build through the in-tree converter.
+// Each key names the record the helper it replaces constructed.
+const (
+	frozenDebianCVE      = "built-debian-cve"
+	frozenDLA9999        = "built-dla-9999"
+	frozenDLA9999Grouped = "built-dla-9999-group"
+	frozenDSA9998        = "built-dsa-9998"
+	frozenDSA9998Grouped = "built-dsa-9998-group"
+)
 
 // nvdCVEFact is the NVD record for a CVE: the sibling every distro record's
 // upstream list points at. It carries no score and no package fact.
@@ -45,13 +31,14 @@ func nvdCVEFact(cveID string) facts.Envelope {
 	return vulnerabilityCVEFactWithProvenance("nvd-"+cveID, cveID, "nvd", cveID, 0, "", "", "2026-10-01T00:00:00Z")
 }
 
-// upstreamEnvelopes converts the distro records and appends an NVD sibling
-// for each id in nvd, so each test states only what differs.
-func upstreamEnvelopes(t *testing.T, nvd []string, records ...vulnerabilityintelligence.OSVVulnerability) []facts.Envelope {
+// upstreamEnvelopes loads the frozen distro-record fixtures for keys and
+// appends an NVD sibling for each id in nvd, so each test states only what
+// differs.
+func upstreamEnvelopes(t *testing.T, nvd []string, keys ...string) []facts.Envelope {
 	t.Helper()
 	var out []facts.Envelope
-	for _, record := range records {
-		out = append(out, convertedOSVRecord(t, record, false)...)
+	for _, key := range keys {
+		out = append(out, convertedOSVFixture(t, key, false)...)
 	}
 	for _, cveID := range nvd {
 		out = append(out, nvdCVEFact(cveID))
@@ -87,19 +74,10 @@ func TestUpstreamGroupingMergesBulletinsIntoOneFindingPerCVE(t *testing.T) {
 	t.Parallel()
 
 	const cve = "CVE-2023-38039"
-	debianCVE := func() vulnerabilityintelligence.OSVVulnerability {
-		return debianRecord("DEBIAN-CVE-2023-38039", "12", "bookworm", "7.88.1-10+deb12u3", cve)
-	}
-	dla := func(fixed string) vulnerabilityintelligence.OSVVulnerability {
-		return debianRecord("DLA-9999-1", "11", "bullseye", fixed, cve, "DEBIAN-CVE-2023-38039")
-	}
-	dsa := func() vulnerabilityintelligence.OSVVulnerability {
-		return debianRecord("DSA-9998-1", "12", "bookworm", "7.88.1-10+deb12u3", cve, "DEBIAN-CVE-2023-38039")
-	}
 
 	tests := []struct {
 		name         string
-		records      []vulnerabilityintelligence.OSVVulnerability
+		records      []string
 		host         installedOSRow
 		wantStatus   SupplyChainImpactStatus
 		wantAdvisory string
@@ -107,7 +85,7 @@ func TestUpstreamGroupingMergesBulletinsIntoOneFindingPerCVE(t *testing.T) {
 	}{
 		{
 			name:         "bullseye below the DLA fix reads exact and names the DLA",
-			records:      []vulnerabilityintelligence.OSVVulnerability{debianCVE(), dla("7.74.0-1.3+deb11u10")},
+			records:      []string{frozenDebianCVE, frozenDLA9999Grouped},
 			host:         debianCurl("11", "7.74.0-1.3+deb11u7"),
 			wantStatus:   SupplyChainImpactAffectedExact,
 			wantAdvisory: "DLA-9999-1",
@@ -115,7 +93,7 @@ func TestUpstreamGroupingMergesBulletinsIntoOneFindingPerCVE(t *testing.T) {
 		},
 		{
 			name:         "bullseye at the DLA fix is known fixed and names the DLA",
-			records:      []vulnerabilityintelligence.OSVVulnerability{debianCVE(), dla("7.74.0-1.3+deb11u10")},
+			records:      []string{frozenDebianCVE, frozenDLA9999Grouped},
 			host:         debianCurl("11", "7.74.0-1.3+deb11u10"),
 			wantStatus:   SupplyChainImpactNotAffectedKnownFixed,
 			wantAdvisory: "DLA-9999-1",
@@ -125,7 +103,7 @@ func TestUpstreamGroupingMergesBulletinsIntoOneFindingPerCVE(t *testing.T) {
 			// The unlisted DLA copy must not name the finding or supply its
 			// (blanked) fix for a host the DEBIAN-CVE record lists.
 			name:         "bookworm host keeps the record that lists bookworm",
-			records:      []vulnerabilityintelligence.OSVVulnerability{debianCVE(), dla("7.74.0-1.3+deb11u10")},
+			records:      []string{frozenDebianCVE, frozenDLA9999Grouped},
 			host:         debianCurl("12", "7.88.1-10+deb12u2"),
 			wantStatus:   SupplyChainImpactAffectedExact,
 			wantAdvisory: "DEBIAN-CVE-2023-38039",
@@ -134,7 +112,7 @@ func TestUpstreamGroupingMergesBulletinsIntoOneFindingPerCVE(t *testing.T) {
 		{
 			// Two records list bookworm: the AdvisoryID order breaks the tie.
 			name:         "two records list the host line, advisory id order decides",
-			records:      []vulnerabilityintelligence.OSVVulnerability{dsa(), debianCVE()},
+			records:      []string{frozenDSA9998Grouped, frozenDebianCVE},
 			host:         debianCurl("12", "7.88.1-10+deb12u2"),
 			wantStatus:   SupplyChainImpactAffectedExact,
 			wantAdvisory: "DEBIAN-CVE-2023-38039",
@@ -173,9 +151,7 @@ func TestUpstreamGroupingFindingIsOrderIndependent(t *testing.T) {
 
 	const cve = "CVE-2023-38039"
 	envelopes := append(upstreamEnvelopes(t, []string{cve},
-		debianRecord("DEBIAN-CVE-2023-38039", "12", "bookworm", "7.88.1-10+deb12u3", cve),
-		debianRecord("DLA-9999-1", "11", "bullseye", "7.74.0-1.3+deb11u10", cve, "DEBIAN-CVE-2023-38039"),
-		debianRecord("DSA-9998-1", "12", "bookworm", "7.88.1-10+deb12u3", cve),
+		frozenDebianCVE, frozenDLA9999Grouped, frozenDSA9998,
 	), debianCurl("11", "7.74.0-1.3+deb11u7").envelope())
 
 	want := BuildSupplyChainImpactFindings(envelopes)
@@ -196,10 +172,7 @@ func TestUpstreamGroupingFindingIsOrderIndependent(t *testing.T) {
 func TestUpstreamGroupingBundleSplitsIntoOneFindingPerCVE(t *testing.T) {
 	t.Parallel()
 
-	bundle := distroRecord("USN-6766-1", "Ubuntu:22.04:LTS",
-		"pkg:deb/ubuntu/curl?arch=source&distro=jammy", "7.81.0-1ubuntu1.17",
-		[]string{"CVE-2024-2398", "CVE-2024-2004", "UBUNTU-CVE-2024-2398", "UBUNTU-CVE-2024-2004"})
-	envelopes := append(convertedOSVRecord(t, bundle, false), ubuntuCurl("22.04", "7.81.0-1ubuntu1.1").envelope())
+	envelopes := append(convertedOSVFixture(t, "built-bundle-usn", false), ubuntuCurl("22.04", "7.81.0-1ubuntu1.1").envelope())
 
 	for order, shuffled := range orderings(envelopes) {
 		findings := BuildSupplyChainImpactFindings(shuffled)
@@ -240,29 +213,27 @@ func TestUpstreamGroupingUbuntuAndAlpineRekey(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		record     vulnerabilityintelligence.OSVVulnerability
+		record     string
 		host       installedOSRow
 		wantCVE    string
 		wantAdvID  string
 		wantStatus SupplyChainImpactStatus
 	}{
 		{
-			name: "ubuntu cve record",
-			record: distroRecord("UBUNTU-CVE-2022-27775", "Ubuntu:22.04:LTS",
-				"pkg:deb/ubuntu/curl?arch=source&distro=jammy", "7.81.0-1ubuntu1.1", []string{"CVE-2022-27775"}),
-			host: ubuntuCurl("22.04", "7.81.0-1ubuntu1"), wantCVE: "CVE-2022-27775", wantAdvID: "UBUNTU-CVE-2022-27775",
+			name:   "ubuntu cve record",
+			record: "built-group-ubuntu-cve",
+			host:   ubuntuCurl("22.04", "7.81.0-1ubuntu1"), wantCVE: "CVE-2022-27775", wantAdvID: "UBUNTU-CVE-2022-27775",
 			wantStatus: SupplyChainImpactAffectedExact,
 		},
 		{
-			name: "alpine cve record",
-			record: distroRecord("ALPINE-CVE-2022-1271", "Alpine:v3.18",
-				"pkg:apk/alpine/curl?arch=source", "8.0.0-r0", []string{"CVE-2022-1271"}),
-			host: alpineCurl("3.18.4", "7.88.1-r0"), wantCVE: "CVE-2022-1271", wantAdvID: "ALPINE-CVE-2022-1271",
+			name:   "alpine cve record",
+			record: "built-group-alpine-cve",
+			host:   alpineCurl("3.18.4", "7.88.1-r0"), wantCVE: "CVE-2022-1271", wantAdvID: "ALPINE-CVE-2022-1271",
 			wantStatus: SupplyChainImpactAffectedExact,
 		},
 	}
 	for _, tc := range tests {
-		envelopes := append(convertedOSVRecord(t, tc.record, false), tc.host.envelope())
+		envelopes := append(convertedOSVFixture(t, tc.record, false), tc.host.envelope())
 		for order, shuffled := range orderings(envelopes) {
 			findings := BuildSupplyChainImpactFindings(shuffled)
 			if len(findings) != 1 {
@@ -285,21 +256,21 @@ func TestUpstreamGroupingLeavesRecordsWithoutACVEKeyUnchanged(t *testing.T) {
 
 	const id = "DEBIAN-CVE-2023-38039"
 	host := debianCurl("12", "7.88.1-10+deb12u2")
-	run := func(upstream ...string) []SupplyChainImpactFinding {
-		record := debianRecord(id, "12", "bookworm", "7.88.1-10+deb12u3", upstream...)
-		return BuildSupplyChainImpactFindings(append(convertedOSVRecord(t, record, false), host.envelope()))
+	runKeys := map[string]string{
+		"only non-CVE upstream ids":             "built-run-variant-0",
+		"blank and whitespace entries":          "built-run-variant-1",
+		"a CVE prefix with nothing after it":    "built-run-variant-2",
+		"upstream equal to the record's own id": "built-run-variant-3",
 	}
-	baseline := run()
+	run := func(key string) []SupplyChainImpactFinding {
+		return BuildSupplyChainImpactFindings(append(convertedOSVFixture(t, key, false), host.envelope()))
+	}
+	baseline := run("built-debian-cve-noupstream")
 	if len(baseline) != 1 || baseline[0].CVEID != id {
 		t.Fatalf("baseline without upstream = %#v, want one finding keyed %q", baseline, id)
 	}
-	for name, upstream := range map[string][]string{
-		"only non-CVE upstream ids":             {"DEBIAN-CVE-2023-38039", "UBUNTU-CVE-2023-38039"},
-		"blank and whitespace entries":          {"", "   ", "\t"},
-		"a CVE prefix with nothing after it":    {"CVE-", " cve- "},
-		"upstream equal to the record's own id": {id},
-	} {
-		if got := run(upstream...); !reflect.DeepEqual(got, baseline) {
+	for name, key := range runKeys {
+		if got := run(key); !reflect.DeepEqual(got, baseline) {
 			t.Errorf("%s: findings changed\n got: %#v\nwant: %#v", name, got, baseline)
 		}
 	}
@@ -322,7 +293,7 @@ func TestUpstreamGroupingKeysAreCaseAndWhitespaceInsensitive(t *testing.T) {
 		"lowercase and whitespace":    {" cve-2023-38039 "},
 		"respelled beside canonical":  {" cve-2023-38039 ", cve},
 	} {
-		envelopes := convertedOSVRecord(t, debianRecord("DEBIAN-CVE-2023-38039", "12", "bookworm", "7.88.1-10+deb12u3"), false)
+		envelopes := convertedOSVFixture(t, "built-debian-cve-noupstream", false)
 		for _, envelope := range envelopes {
 			if envelope.FactKind == chain.VulnerabilityCVEFactKind {
 				envelope.Payload["upstream"] = upstream
@@ -341,9 +312,8 @@ func TestUpstreamGroupingKeysAreCaseAndWhitespaceInsensitive(t *testing.T) {
 func TestUpstreamGroupingWithoutASiblingRecordStillRekeys(t *testing.T) {
 	t.Parallel()
 
-	record := debianRecord("DSA-9998-1", "12", "bookworm", "7.88.1-10+deb12u3", "CVE-2023-38039")
 	findings := BuildSupplyChainImpactFindings(append(
-		convertedOSVRecord(t, record, false), debianCurl("12", "7.88.1-10+deb12u2").envelope()))
+		convertedOSVFixture(t, frozenDSA9998, false), debianCurl("12", "7.88.1-10+deb12u2").envelope()))
 	if len(findings) != 1 || findings[0].CVEID != "CVE-2023-38039" || findings[0].AdvisoryID != "DSA-9998-1" {
 		t.Fatalf("findings = %#v, want CVE-2023-38039 deciding record DSA-9998-1", findings)
 	}
@@ -355,9 +325,7 @@ func TestUpstreamGroupingWithoutASiblingRecordStillRekeys(t *testing.T) {
 func TestUpstreamGroupingMutualUpstreamTerminatesAndIsStable(t *testing.T) {
 	t.Parallel()
 
-	a := debianRecord("CVE-2024-0001", "12", "bookworm", "7.88.1-10+deb12u3", "CVE-2024-0002")
-	b := debianRecord("CVE-2024-0002", "12", "bookworm", "7.88.1-10+deb12u3", "CVE-2024-0001")
-	envelopes := append(upstreamEnvelopes(t, nil, a, b), debianCurl("12", "7.88.1-10+deb12u2").envelope())
+	envelopes := append(upstreamEnvelopes(t, nil, "built-cycle-a", "built-cycle-b"), debianCurl("12", "7.88.1-10+deb12u2").envelope())
 	want := BuildSupplyChainImpactFindings(envelopes)
 	var gotCVEs []string
 	for _, finding := range want {

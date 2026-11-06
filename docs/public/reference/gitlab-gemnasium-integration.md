@@ -184,8 +184,8 @@ Conceptually, this record produces:
 There is no end-to-end fixture corpus under `testdata` for GLAD today, so this
 page does not provide a runnable ingestion command. Instead, the parsing,
 ecosystem normalization, and envelope emission are exercised by the unit tests
-in the `go/internal/collector/vulnerabilityintelligence` package
-(`gitlab_gemnasium_range_test.go`, `gitlab_gemnasium_envelope_test.go`, and
+in the extracted satellite (`eshu-hq/eshu-collector-vulnerability-intelligence`:
+`gitlab_gemnasium_range_test.go`, `gitlab_gemnasium_envelope_test.go`, and
 `gitlab_gemnasium_conflict_test.go`), which build `GitLabAdvisory` values
 directly and assert the parsed range structure, normalized identity, fact
 kinds, stable fact keys, and payloads.
