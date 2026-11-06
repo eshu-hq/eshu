@@ -28,6 +28,8 @@ func TestSourceForScopeIDMapsEveryScopeAuthority(t *testing.T) {
 		{scopeID: "vuln-intel://ghsa/reviewed", want: SourceGHSA, wantOK: true},
 		{scopeID: "vuln-intel://ghsa/malware", want: SourceGHSA, wantOK: true},
 		{scopeID: "vuln-intel://ghsa/reviewed?modified=1", want: SourceGHSA, wantOK: true},
+		{scopeID: "vuln-intel://cve_list/cve", want: SourceCVEList, wantOK: true},
+		{scopeID: "vuln-intel://cve_list/cve?owned=1", want: SourceCVEList, wantOK: true},
 		{scopeID: "  vuln-intel://cisa/kev  ", want: SourceCISAKEV, wantOK: true},
 		// Unknown or malformed scopes never invent a source token.
 		{scopeID: "vuln-intel://cisa/other"},

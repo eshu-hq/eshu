@@ -7,6 +7,11 @@
       "attribution": "CISA Known Exploited Vulnerabilities Catalog, https://www.cisa.gov/known-exploited-vulnerabilities-catalog"
     },
     {
+      "source": "cve_list",
+      "license": "LicenseRef-CVE-Program-Terms-of-Use",
+      "attribution": "Copyright (c) 1999-2026, The MITRE Corporation. CVE List v5 content is used per the CVE Program Terms of Use, https://www.cve.org/Legal/TermsOfUse."
+    },
+    {
       "source": "first_epss",
       "license": "NOASSERTION",
       "attribution": "EPSS scores are provided by FIRST, https://www.first.org/epss"
