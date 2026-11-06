@@ -158,7 +158,7 @@ whatever the exact-text pins around those lines say.
 
 | Leg | Workflow and job | How it is off | Registry row |
 | --- | --- | --- | --- |
-| Offline replay tier | `verify-replay-tier.yml` / `replay-tier` | `if: ${{ false }}` | `replay-tier`: manual, non-blocking, `disabled:` marker (#7331) |
+| Offline replay tier | `verify-replay-tier.yml` / `replay-tier` | `if: ${{ false }}` | `replay-tier`: manual, non-blocking, `disabled:` marker (#10223) |
 | E2E NornicDB cell | `e2e-tests.yml` / `test` | matrix cell commented out | `e2e-tests`: `test (nornicdb)` removed from `check_names` |
 | Golden corpus NornicDB cell | `golden-corpus-gate.yml` / `corpus-gate` | matrix cell commented out | `golden-corpus-gate`: manual, non-blocking, no `check_names` |
 | Differential NornicDB captures | `golden-corpus-gate.yml` / `differential-capture`, `differential` | matrix is `[neo4j]`; staging names `neo4j`; backend-diff step is `if: ${{ false }}`; writer coverage reads Neo4j only | `golden-corpus-differential`: stays blocking (Neo4j only) |

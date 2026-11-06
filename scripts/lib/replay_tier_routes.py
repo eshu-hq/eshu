@@ -107,7 +107,7 @@ REGISTRY_GATE_CONTROL_LINES = """
     ci_only_reason: "Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
     disabled:
       reason: "Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
-      issue: "#7331"
+      issue: "#10223"
 """.strip("\n").splitlines()
 
 # A fixed reviewed selector keeps the live-tests.d/ branch open for every
