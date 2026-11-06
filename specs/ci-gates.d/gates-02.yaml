@@ -590,6 +590,8 @@ gates:
       - "scripts/test-dirgate-main-alarm.sh"
       # The mirror executes the fake helper; a fake-only change must select it.
       - "scripts/gh-fake-dirgate-alarm.sh"
+      # The alarm sources the policy lib for clean(); a lib-only change must select it.
+      - "scripts/lib/main-health-policy.sh"
       # The mirror asserts the alarm workflow's trigger, permissions and
       # concurrency group, so an edit to the workflow must select it.
       - ".github/workflows/dirgate-main-alarm.yml"
