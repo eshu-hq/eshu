@@ -1,0 +1,28 @@
+docs/internal/evidence/8872-eshu-api-destination-plan.md
+  h_78a442cba0b3e6 18-20,33-37
+go/cmd/api/READ_TRANSPORT_CENSUS.md
+  h_78a442cba0b3e6 1-202
+go/cmd/api/READ_TRANSPORT_SPEC.md
+  h_78a442cba0b3e6 172-176
+go/cmd/api/read_transport_census_test.go
+  h_78a442cba0b3e6 1-108
+go/internal/query/admin/provider/config/termination_transport_shim_dest_test.go
+  h_78a442cba0b3e6 1-266
+go/internal/query/admin/provider/config/termination_transport_shim_port_test.go
+  h_78a442cba0b3e6 1-163
+go/internal/query/admin/provider/config/termination_transport_shim_proof_test.go
+  h_78a442cba0b3e6 1-382
+go/internal/query/admin/provider/config/termination_transport_shim_test.go
+  h_78a442cba0b3e6 1-184
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "77b858ae6941e5fb72f1e8b42070b35f694a3352",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
