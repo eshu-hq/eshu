@@ -216,6 +216,10 @@ import (
 // 282_fact_records_os_package_fleet_release_source_idx.sql (the two partial
 // expression indexes serving the readiness fleet probe's binary-name and
 // source_package arms; one CREATE INDEX CONCURRENTLY each).
+// #10050 adds 281_fact_records_vulnerability_cve_id_stats.sql (the
+// single-expression extended-statistics object on (payload->>'cve_id')
+// holding the CVE key probes on their partial index; CREATE STATISTICS plus
+// ANALYZE, no index).
 const goldenBootstrapDefinitionsDigest = "faedac99797d2d6994d5c59368e552c04b0d9343e219aa95dce1d67eb4af3b66"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the

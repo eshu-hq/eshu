@@ -352,6 +352,10 @@ var migrationShippedChecksums = map[string]string{
 	"280_fact_records_crossplane_xrd_entity_idx.sql":           "8d37a887df6a49dcabba4013617f49001c982414a497cac4a4b039fb130ea132",
 	"281_fact_records_os_package_fleet_release_idx.sql":        "64cc468f370939da2a981299dc57d764300ec81a5d9833d5d586a64e1c3be5c7",
 	"282_fact_records_os_package_fleet_release_source_idx.sql": "f4667eba816c0a57d05f4bcd48ca422c51bbb42543fa6f6f6cfee025a2a67fc2",
+	// #10050: single-expression extended statistics on
+	// (payload->>'cve_id') holding the CVE key probes on their partial
+	// index (migration 281).
+	"281_fact_records_vulnerability_cve_id_stats.sql": "26f1ae5d7fa3b0fc9702cd212b000efaa41d4c5cb2cefacb73da2ada40756003",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition
