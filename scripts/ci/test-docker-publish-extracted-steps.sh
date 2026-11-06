@@ -57,14 +57,15 @@ run_selection() {
     PR_HEAD_SHA="${head}" BEFORE_SHA="${base}" bash scripts/ci/select-docker-publish-lanes.sh)
 }
 # The Helm chart lane moved to eshu-hq/eshu-deploy under #8871: only the
-# eshu-side image, apkfloors, and scannerpins lanes remain selectable here.
+# eshu-side image, apkfloors, scannerpins, and satellites lanes remain
+# selectable here.
 for mode in tag workflow_dispatch; do
   if [[ "${mode}" == tag ]]; then
     run_selection push "${base}" "${base}" tag
   else
     run_selection workflow_dispatch "${base}"
   fi
-  for lane in image apkfloors scannerpins; do
+  for lane in image apkfloors scannerpins satellites; do
     rg -q "^${lane}=true$" "${scratch}/output"
   done
 done
@@ -72,6 +73,7 @@ run_selection merge_group "${image_head}"
 rg -q '^image=true$' "${scratch}/output"
 rg -q '^apkfloors=true$' "${scratch}/output"
 rg -q '^scannerpins=true$' "${scratch}/output"
+rg -q '^satellites=false$' "${scratch}/output" # root Dockerfile is not a satellite path.
 mkdir -p "${repo}/go"
 printf 'package sample\n' > "${repo}/go/sample.go"
 git -C "${repo}" add go/sample.go
@@ -89,6 +91,7 @@ run_selection merge_group "${go_head}"
 rg -q '^image=false$' "${scratch}/output"
 rg -q '^apkfloors=false$' "${scratch}/output"
 rg -q '^scannerpins=false$' "${scratch}/output"
+rg -q '^satellites=false$' "${scratch}/output"
 git -C "${repo}" add scripts/ci/select-docker-publish-lanes.sh
 git -C "${repo}" commit -qm selector-helper
 selector_head="$(git -C "${repo}" rev-parse HEAD)"
@@ -96,7 +99,20 @@ run_selection merge_group "${selector_head}"
 rg -q '^image=true$' "${scratch}/output"
 rg -q '^apkfloors=true$' "${scratch}/output"
 rg -q '^scannerpins=true$' "${scratch}/output"
+rg -q '^satellites=true$' "${scratch}/output"
 git -C "${repo}" update-ref refs/remotes/origin/main "${selector_head}"
+# #8879: a lone touch to the lane self-test selects the satellites lane
+# (whose coverage it carries) and nothing else.
+selftest_base="$(git -C "${repo}" rev-parse HEAD)"
+printf '# selftest\n' >> "${repo}/scripts/ci/test-docker-publish-extracted-steps.sh"
+git -C "${repo}" add scripts/ci/test-docker-publish-extracted-steps.sh
+git -C "${repo}" commit -qm lane-selftest
+run_selection pull_request "$(git -C "${repo}" rev-parse HEAD)" "${selftest_base}"
+rg -q '^image=false$' "${scratch}/output"
+rg -q '^apkfloors=false$' "${scratch}/output"
+rg -q '^scannerpins=false$' "${scratch}/output"
+rg -q '^satellites=true$' "${scratch}/output"
+git -C "${repo}" update-ref refs/remotes/origin/main "$(git -C "${repo}" rev-parse HEAD)"
 
 # #7762: the runtime image tool verifier and its suite select the image lane,
 # whose verify-reproducibility job runs them against the built rootfs. The
@@ -112,6 +128,7 @@ for tool_script in scripts/verify-runtime-image-tools.sh scripts/test-verify-run
   run_selection pull_request "$(git -C "${repo}" rev-parse HEAD)" "${tool_base}"
   rg -q '^image=true$' "${scratch}/output"
   rg -q '^apkfloors=false$' "${scratch}/output"
+  rg -q '^satellites=false$' "${scratch}/output"
 done
 # The reproducibility build asserts the canonical mirror digests from
 # specs/ci-images.v1.json and feeds them to the runtime image build, so a
@@ -128,6 +145,7 @@ for repro_file in specs/ci-images.v1.json scripts/ci/build-reproducibility-image
   run_selection pull_request "$(git -C "${repo}" rev-parse HEAD)" "${repro_base}"
   rg -q '^image=true$' "${scratch}/output"
   rg -q '^apkfloors=false$' "${scratch}/output"
+  rg -q '^satellites=false$' "${scratch}/output"
 done
 # #9491: the scanner digest pin verifier, its suite, and the relocated pin
 # leaf (#8878) select the scannerpins lane, while unrelated paths leave it
@@ -160,6 +178,7 @@ git -C "${repo}" add go/internal/other/other.go
 git -C "${repo}" commit -qm unrelated-go
 run_selection pull_request "$(git -C "${repo}" rev-parse HEAD)" "${pins_base}"
 rg -q '^scannerpins=false$' "${scratch}/output"
+rg -q '^satellites=false$' "${scratch}/output"
 # #9491: the shared installer the scannerpins live job uses is a registry
 # trigger for this gate, so a lone touch must select the scannerpins lane;
 # otherwise the registry selects the gate while every publish job skips and
@@ -192,6 +211,7 @@ git -C "${repo}" commit -qm builder-again
 run_selection pull_request "$(git -C "${repo}" rev-parse HEAD)" "${builder_base}"
 rg -q '^image=true$' "${scratch}/output"
 rg -q '^scannerpins=false$' "${scratch}/output"
+rg -q '^satellites=false$' "${scratch}/output"
 # #10164: the document-import pin files feed the job-document-import target
 # build (image lane) and the --stage apk audit (apkfloors lane). Any other
 # lane combination leaves a registry-selected gate with every publish job
@@ -206,5 +226,22 @@ for docimport_path in specs/doc-import-pins/tesseract-5.5.0.amd64.sha256 specs/d
   rg -q '^image=true$' "${scratch}/output"
   rg -q '^apkfloors=true$' "${scratch}/output"
   rg -q '^scannerpins=false$' "${scratch}/output"
+  rg -q '^satellites=false$' "${scratch}/output"
+done
+# #8879: the satellite Dockerfiles and per-arch pin files feed the satellite
+# digest-gate builds (satellites lane) and the --dockerfile apk audit
+# (apkfloors lane). Any other lane combination leaves a registry-selected
+# gate with every publish job skipped and the aggregator fails closed.
+for sat_path in docker/satellites/ocr/Dockerfile docker/satellites/transcription/Dockerfile specs/satellite-pins/ocr.amd64.json specs/satellite-pins/transcription.arm64.json specs/satellite-pins/README.md; do
+  sat_base="$(git -C "${repo}" rev-parse HEAD)"
+  mkdir -p "${repo}/$(dirname "${sat_path}")"
+  printf '# satellite pins\n' > "${repo}/${sat_path}"
+  git -C "${repo}" add "${sat_path}"
+  git -C "${repo}" commit -qm "${sat_path##*/}"
+  run_selection pull_request "$(git -C "${repo}" rev-parse HEAD)" "${sat_base}"
+  rg -q '^image=false$' "${scratch}/output"
+  rg -q '^apkfloors=true$' "${scratch}/output"
+  rg -q '^scannerpins=false$' "${scratch}/output"
+  rg -q '^satellites=true$' "${scratch}/output"
 done
 printf 'PASS: production workflow selector steps execute with expected event behavior\n'

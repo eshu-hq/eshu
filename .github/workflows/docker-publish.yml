@@ -22,6 +22,7 @@ on:
       'scripts/test-verify-apk-floors.sh', 'scripts/verify-doc-import-pins.sh', 'scripts/test-verify-doc-import-pins.sh',
       'scripts/fixtures/apk-floors/**',
       'specs/doc-import-pins/**',
+      'docker/satellites/**', 'specs/satellite-pins/**',
       'scripts/verify-runtime-image-tools.sh', 'scripts/test-verify-runtime-image-tools.sh',
       'scripts/lib/rootfs-resolve.sh',
       'scripts/verify-scanner-digest-pins.sh', 'scripts/test-verify-scanner-digest-pins.sh',
@@ -70,6 +71,7 @@ jobs:
       image: ${{ steps.filter.outputs.image }}
       apkfloors: ${{ steps.filter.outputs.apkfloors }}
       scannerpins: ${{ steps.filter.outputs.scannerpins }}
+      satellites: ${{ steps.filter.outputs.satellites }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
@@ -156,6 +158,72 @@ jobs:
           CRANE_BIN: ${{ runner.temp }}/crane
           GH_TOKEN: ${{ github.token }}
         run: bash scripts/verify-scanner-digest-pins.sh
+  # #8879: build-only proof of the satellite digest gates. These images are
+  # never published from this workflow — publication stays manual until the
+  # Event-B publish lane lands. Each step proves one satellite x arch combo:
+  # the RUN gate inside the Dockerfile fails the build when its pin file
+  # drifts (binary, model, engine version, library set). All four combos run
+  # on pull_request and push alike — the pin files are arch-specific, so an
+  # amd64-only proof would leave the arm64 gate unverified.
+  verify-satellite-gates:
+    needs: [changes]
+    if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'verify-satellite-gates')) && ((github.event_name != 'workflow_dispatch' || inputs.mode == 'release') && needs.changes.outputs.satellites == 'true') }}
+    env:
+      LANE_APPLIES: ${{ needs.changes.outputs.satellites }}
+    timeout-minutes: 60
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - sat: ocr
+            arch: amd64
+          - sat: ocr
+            arch: arm64
+          - sat: transcription
+            arch: amd64
+          - sat: transcription
+            arch: arm64
+    steps:
+      - name: Checkout repository
+        if: ${{ env.LANE_APPLIES == 'true' }}
+        uses: actions/checkout@v5
+      - name: Set up Docker Buildx
+        if: ${{ env.LANE_APPLIES == 'true' }}
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: image=${{ env.CI_BUILDKIT_IMAGE }}
+      - name: Read pin digests
+        if: ${{ env.LANE_APPLIES == 'true' }}
+        id: pins
+        run: |
+          python3 - <<'EOF' >>"${GITHUB_OUTPUT}"
+          import json
+          p = json.load(open('specs/satellite-pins/${{ matrix.sat }}.${{ matrix.arch }}.json'))
+          print('binary=' + p['binary']['sha256'])
+          print('libs=' + p['libraries_set_sha256'])
+          print('model=' + p['model']['sha256'])
+          print('engine_version=' + p['engine'].get('version', ''))
+          EOF
+      - name: Build satellite gate image
+        if: ${{ env.LANE_APPLIES == 'true' }}
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/satellites/${{ matrix.sat }}/Dockerfile
+          push: false
+          build-args: |
+            ESHU_ALPINE_IMAGE=${{ env.ESHU_ALPINE_IMAGE }}
+            ESHU_GO_IMAGE=${{ env.ESHU_GO_IMAGE }}
+            ESHU_VERSION=${{ github.ref_type == 'tag' && github.ref_name || github.sha }}
+            EXPECT_BINARY_SHA256=${{ steps.pins.outputs.binary }}
+            EXPECT_LIBS_SHA256=${{ steps.pins.outputs.libs }}
+            EXPECT_MODEL_SHA256=${{ steps.pins.outputs.model }}
+            EXPECT_ENGINE_VERSION=${{ steps.pins.outputs.engine_version }}
+          provenance: false
+          platforms: linux/${{ matrix.arch }}
   build-and-push-image:
     needs: [changes]
     if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'build-and-push-image')) && ((github.event_name != 'workflow_dispatch' || inputs.mode == 'release') && needs.changes.outputs.image == 'true') }}
@@ -280,6 +348,14 @@ jobs:
           cache-to: ${{ github.event_name == 'push' && 'type=registry,ref=ghcr.io/eshu-hq/eshu-buildcache:job-document-import,mode=max' || '' }}
           no-cache-filters: job-document-import
           platforms: ${{ env.IMAGE_PLATFORMS }}
+      # #8879: audit the satellite Dockerfiles too — their apk floors live in
+      # the satellite final stages, not the root final stage, so the default
+      # audit never sees them.
+      - name: Audit satellite stage floors
+        if: ${{ env.LANE_APPLIES == 'true' }}
+        run: |
+          bash scripts/verify-apk-floors.sh --dockerfile docker/satellites/ocr/Dockerfile
+          bash scripts/verify-apk-floors.sh --dockerfile docker/satellites/transcription/Dockerfile
       - name: Generate artifact attestation
         if: ${{ github.event_name != 'pull_request' }}
         uses: actions/attest-build-provenance@v1
