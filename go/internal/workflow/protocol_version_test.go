@@ -27,6 +27,7 @@ import (
 var claimPlaneVersionedMethods = []string{
 	"CheckClaimPacing",
 	"ClaimNextEligible",
+	"CommitClaimFacts",
 	"CompleteClaim",
 	"CreateRun",
 	"EnqueueWorkItems",
@@ -103,6 +104,9 @@ func newVersionRecordingPlane(t testing.TB) *versionRecordingPlane {
 		write(writer, ok)
 	}))
 	mux.HandleFunc("/workflow.v1/CompleteClaim", record(func(writer http.ResponseWriter, _ *http.Request) {
+		write(writer, ok)
+	}))
+	mux.HandleFunc("/workflow.v1/CommitClaimFacts", record(func(writer http.ResponseWriter, _ *http.Request) {
 		write(writer, ok)
 	}))
 	mux.HandleFunc("/workflow.v1/ReleaseClaim", record(func(writer http.ResponseWriter, _ *http.Request) {
@@ -185,6 +189,13 @@ func TestClaimPlaneClientPinsProtocolMajorOne(t *testing.T) {
 	}{
 		{"heartbeat", func() error { return client.HeartbeatClaim(ctx, testMutation()) }},
 		{"complete", func() error { return client.CompleteClaim(ctx, testMutation()) }},
+		{"commit facts", func() error {
+			mutation := testMutation()
+			mutation.ScopeID = "scope-commit-lane"
+			mutation.SourceRunID = "source-run-commit-lane"
+			mutation.GenerationID = "gen-commit-lane"
+			return client.CommitClaimFacts(ctx, mutation, "commit-1", json.RawMessage(`{"state":"complete"}`))
+		}},
 		{"release", func() error { return client.ReleaseClaim(ctx, testMutation()) }},
 		{"fail retryable", func() error { return client.FailClaimRetryable(ctx, testMutation()) }},
 		{"fail terminal", func() error { return client.FailClaimTerminal(ctx, testMutation()) }},
