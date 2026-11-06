@@ -1,0 +1,16 @@
+go/internal/reducer/supplychain/core/evidence_load_helpers.go
+  h_78a442cba0b3e6 1-57
+go/internal/reducer/supplychain/core/impact_status.go
+  h_78a442cba0b3e6 1-37
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ed74ef9791827e286ba45064addb7287e4a3182f",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
