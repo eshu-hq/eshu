@@ -68,7 +68,9 @@ against activations (forbidden by the issue and the root rules).
 
 The `quiet_delta_replay` subtest of the scheduled
 `TestCrossplaneSatisfiedByRedriveClosesXRDLagWindowLive`
-(`go/internal/storage/postgres/crossplane/satisfied_by_quiet_delta_replay_live_test.go`)
+(`go/internal/storage/postgres/crossplane/satisfied_by_quiet_delta_replay_test.go`,
+folded into the scheduled aggregator like the #10094 delta-base cases,
+so the runner's reviewed selector is unchanged)
 runs the real sweeper, `ReducerQueue` (Claim/Ack), `NewDefaultRuntime`
 with the Postgres freshness check and active-generation lookup, and the
 real materialization handler over `FactStore`, on disposable PostgreSQL
