@@ -1,0 +1,54 @@
+docs/internal/evidence/10094-crossplane-redrive-delta-base.md
+  h_78a442cba0b3e6 94-101
+docs/internal/evidence/10106-quiet-delta-replay-rebind.md
+  h_78a442cba0b3e6 1-160
+docs/public/operate/graph-delta-union.md
+  h_78a442cba0b3e6 212-218
+go/cmd/reducer/active_generation_wiring_test.go
+  h_78a442cba0b3e6 1-58
+go/cmd/reducer/main.go
+  h_78a442cba0b3e6 330
+go/internal/reducer/AGENTS.md
+  h_78a442cba0b3e6 30-31
+go/internal/reducer/README.md
+  h_78a442cba0b3e6 352-356
+go/internal/reducer/contract/doc.go
+  h_78a442cba0b3e6 33-38
+go/internal/reducer/contract/generation_check.go
+  h_78a442cba0b3e6 21-28,122-161
+go/internal/reducer/crossplane/satisfied_by_load.go
+  h_78a442cba0b3e6 42-46
+go/internal/reducer/defaults.go
+  h_78a442cba0b3e6 189-191
+go/internal/reducer/defaults_registry.go
+  h_78a442cba0b3e6 37
+go/internal/reducer/generation_rebind_test.go
+  h_78a442cba0b3e6 1-219
+go/internal/reducer/runtime.go
+  h_78a442cba0b3e6 10,22-26,77-80,357,359,361,363,384-460
+go/internal/storage/postgres/README.md
+  h_78a442cba0b3e6 182
+go/internal/storage/postgres/crossplane/README.md
+  h_78a442cba0b3e6 83-85,170-173,185-207
+go/internal/storage/postgres/crossplane/satisfied_by_quiet_delta_replay_live_test.go
+  h_78a442cba0b3e6 1-273
+go/internal/storage/postgres/crossplane/satisfied_by_redrive_behavior_live_test.go
+  h_78a442cba0b3e6 98
+go/internal/storage/postgres/generation_freshness.go
+  h_78a442cba0b3e6 225-261
+go/internal/storage/postgres/reducer_generation_filter_sql.go
+  h_78a442cba0b3e6 133-139
+go/internal/storage/postgres/reducer_queue_supersession_test.go
+  h_78a442cba0b3e6 49-50,97-98
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5422d844d1331ec632836536aedaf55e06eb9b30",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
