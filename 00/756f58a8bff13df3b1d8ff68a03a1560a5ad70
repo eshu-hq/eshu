@@ -1,0 +1,26 @@
+docs/public/reference/ci-gates.md
+  h_78a442cba0b3e6 235
+scripts/dev/precommit-go.sh
+  h_78a442cba0b3e6 32-38,256
+scripts/test-pre-pr-whole-module-gates.sh
+  h_78a442cba0b3e6 107
+scripts/test-precommit-go-cgo-cflags.sh
+  h_78a442cba0b3e6 1-104
+scripts/test-precommit-go-filecap.sh
+  h_78a442cba0b3e6 72
+scripts/test-verify-measurement-citations-wrapper.sh
+  h_78a442cba0b3e6 28
+specs/ci-gates.d/gates-01.yaml
+  h_78a442cba0b3e6 43-48,52-55
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "00756f58a8bff13df3b1d8ff68a03a1560a5ad70",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
