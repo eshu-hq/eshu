@@ -218,6 +218,14 @@ type SupplyChainImpactFanOut interface {
 	// FindPackageHolderCandidates returns active package-holder identities outside
 	// ownScopeID for query (#9874, #10061; see manifest_trigger.go).
 	FindPackageHolderCandidates(ctx context.Context, ownScopeID string, query PackageHolderQuery) ([]PackageHolderCandidate, error)
+	// FindRepositoryFindingHolders returns the scopes, other than ownScopeID,
+	// that hold an active finding row whose payload repository_id is one of
+	// repositoryIDs. The #9874 marker calls it when its diff may have missed a
+	// removal (an unreadable prior view, a walk over the depth cap, or a
+	// skipped pruned intermediate), so a stale finding for a package the
+	// repository no longer declares is re-derived (#10059). Same bounded
+	// timeout and error contract as FindHolderScopes.
+	FindRepositoryFindingHolders(ctx context.Context, ownScopeID string, repositoryIDs []string) ([]string, error)
 	// OwedRecorder returns the recorder the writer runs inside its transaction for
 	// the calling pass's own item.
 	OwedRecorder(intent reducercontract.Intent) FanOutOwedRecorder
@@ -425,67 +433,6 @@ func fanOutOneHop(intent reducercontract.Intent) bool {
 func fanOutOriginOf(intent reducercontract.Intent) map[string]any {
 	stamp, _ := intent.Payload[PayloadKeyFanOutOrigin].(map[string]any)
 	return stamp
-}
-
-// fanOutRemaining returns the continuation list stored on the intent's item,
-// sorted and de-duplicated. The payload round-trips through JSON, so the list
-// arrives as []any.
-func fanOutRemaining(intent reducercontract.Intent) []string {
-	var raw []string
-	switch list := intent.Payload[PayloadKeyFanOutRemaining].(type) {
-	case []string:
-		raw = list
-	case []any:
-		for _, item := range list {
-			if id, ok := item.(string); ok && id != "" {
-				raw = append(raw, id)
-			}
-		}
-	}
-	return unionSortedStrings(nil, raw)
-}
-
-// nextFanOutChunk splits a sorted holder list into the first limit holders and
-// the rest.
-func nextFanOutChunk(sorted []string, limit int) ([]string, []string) {
-	if len(sorted) <= limit {
-		return sorted, nil
-	}
-	return sorted[:limit], sorted[limit:]
-}
-
-// chunkStrings splits values into slices of at most size, keeping order.
-func chunkStrings(values []string, size int) [][]string {
-	var chunks [][]string
-	for start := 0; start < len(values); start += size {
-		end := start + size
-		if end > len(values) {
-			end = len(values)
-		}
-		chunks = append(chunks, values[start:end])
-	}
-	return chunks
-}
-
-// unionSortedStrings returns the sorted, de-duplicated union of a and b with
-// blanks dropped.
-func unionSortedStrings(a, b []string) []string {
-	seen := make(map[string]struct{}, len(a)+len(b))
-	out := make([]string, 0, len(a)+len(b))
-	for _, list := range [][]string{a, b} {
-		for _, id := range list {
-			if id == "" {
-				continue
-			}
-			if _, ok := seen[id]; ok {
-				continue
-			}
-			seen[id] = struct{}{}
-			out = append(out, id)
-		}
-	}
-	sort.Strings(out)
-	return out
 }
 
 // owedRecorder returns the recorder the writer runs inside its transaction, or

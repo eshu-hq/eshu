@@ -358,16 +358,18 @@ func TestManifestTriggerPriorDeltaIsOverlaidOnItsBase(t *testing.T) {
 	}
 }
 
-// TestManifestTriggerKnownLimitPriorDeltaWithMissingBase pins the known
-// correctness gap the lane lead asked to keep visible (#9874 condition b):
-// when the prior generation is a delta whose base full generation is missing
-// or pruned, the prior view holds only that delta's own rows, so a pin that
-// only the base held looks never-present and its removal is NOT fanned out.
-// The finding for left-pad then stays until left-pad's advisory scope reruns.
-// The pass reports the gap on manifest_trigger_prior_base_missing. If this
-// test starts failing because left-pad's holder IS reopened, the gap was
-// closed: update the evidence note and this test together.
-func TestManifestTriggerKnownLimitPriorDeltaWithMissingBase(t *testing.T) {
+// TestManifestTriggerPriorBaseMissingReopensRepositoryHolders is the #10059
+// regression for the gap TestManifestTriggerKnownLimitPriorDeltaWithMissingBase
+// used to pin: when the prior generation is a delta whose base full generation
+// is missing or pruned, the prior view holds only that delta's own rows, so a
+// pin that only the base held looks never-present and its removal is invisible
+// to the package-keyed diff. The pass now reopens every scope holding an
+// active finding for the generation's repository, so left-pad's holder is
+// reopened through the repository-keyed read even though the package-keyed
+// read cannot see the removal. The pass still reports the gap on
+// manifest_trigger_prior_base_missing, with the reopened count on
+// manifest_trigger_repository_holders.
+func TestManifestTriggerPriorBaseMissingReopensRepositoryHolders(t *testing.T) {
 	t.Parallel()
 
 	generation := ManifestDependencyGeneration{
@@ -382,7 +384,10 @@ func TestManifestTriggerKnownLimitPriorDeltaWithMissingBase(t *testing.T) {
 		},
 	}
 	port := &stubManifestPort{
-		stubFanOut:  &stubFanOut{candidates: standardCandidates()},
+		stubFanOut: &stubFanOut{
+			candidates:        standardCandidates(),
+			repositoryHolders: []string{"vuln-intel://osv/c"},
+		},
 		generations: []ManifestDependencyGeneration{generation},
 	}
 	h, _ := manifestHandler(t, port, nil)
@@ -390,13 +395,102 @@ func TestManifestTriggerKnownLimitPriorDeltaWithMissingBase(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Handle() error = %v", err)
 	}
+	found := false
 	for _, scope := range port.reopened {
 		if scope == "vuln-intel://osv/c" {
-			t.Fatalf("left-pad's holder was reopened; the known gap is closed, update the evidence note")
+			found = true
 		}
+	}
+	if !found {
+		t.Fatalf("reopened = %v, want left-pad's holder reopened through the repository-keyed read", port.reopened)
 	}
 	if got := result.SubSignals["manifest_trigger_prior_base_missing"]; got != 1 {
 		t.Fatalf("manifest_trigger_prior_base_missing = %v, want 1", got)
+	}
+	if got := result.SubSignals["manifest_trigger_repository_holders"]; got != 1 {
+		t.Fatalf("manifest_trigger_repository_holders = %v, want 1", got)
+	}
+	if want := [][]string{{"repository:r_checkout"}}; !reflect.DeepEqual(port.repositoryReads, want) {
+		t.Fatalf("repository reads = %v, want %v (the current generation's repo ids)", port.repositoryReads, want)
+	}
+}
+
+// TestManifestTriggerDegradedAndPrunedChainsReopenRepositoryHolders proves the
+// other two #10059 triggers reopen the same way: a walk over the depth cap
+// (degraded) and a skipped pruned intermediate (chain pruned) can both hide a
+// removal from the package-keyed diff.
+func TestManifestTriggerDegradedAndPrunedChainsReopenRepositoryHolders(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name       string
+		generation ManifestDependencyGeneration
+	}{
+		{"degraded", ManifestDependencyGeneration{
+			Activation: ManifestGenerationActive,
+			Current: ManifestDependencyView{Rows: []facts.Envelope{
+				depRow("n-lodash", "package-lock.json", "lodash", "4.17.21"),
+			}},
+			Degraded: true,
+		}},
+		{"chain pruned", ManifestDependencyGeneration{
+			Activation: ManifestGenerationActive,
+			Current: ManifestDependencyView{Rows: []facts.Envelope{
+				depRow("n-lodash", "package-lock.json", "lodash", "4.17.21"),
+			}},
+			HasBaseline: true,
+			Baseline: ManifestDependencyView{Rows: []facts.Envelope{
+				depRow("old-lodash", "package-lock.json", "lodash", "4.17.20"),
+			}},
+			ChainPruned: true,
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			port := &stubManifestPort{
+				stubFanOut: &stubFanOut{
+					repositoryHolders: []string{"vuln-intel://osv/a"},
+				},
+				generations: []ManifestDependencyGeneration{tc.generation},
+			}
+			h, _ := manifestHandler(t, port, nil)
+			result, err := h.Handle(context.Background(), manifestIntent(1, nil))
+			if err != nil {
+				t.Fatalf("Handle() error = %v", err)
+			}
+			if want := []string{"vuln-intel://osv/a"}; !reflect.DeepEqual(port.reopened, want) {
+				t.Fatalf("reopened = %v, want %v", port.reopened, want)
+			}
+			if got := result.SubSignals["manifest_trigger_repository_holders"]; got != 1 {
+				t.Fatalf("manifest_trigger_repository_holders = %v, want 1", got)
+			}
+		})
+	}
+}
+
+// TestManifestTriggerSkipsRepositoryReadWithoutAGap proves a clean pass never
+// touches the repository-keyed read: it is scoped to the three gap flags, so
+// the common path keeps exactly the two reads it had.
+func TestManifestTriggerSkipsRepositoryReadWithoutAGap(t *testing.T) {
+	t.Parallel()
+
+	port := &stubManifestPort{
+		stubFanOut: &stubFanOut{
+			candidates:        standardCandidates(),
+			repositoryHolders: []string{"vuln-intel://osv/a"},
+		},
+		generations: []ManifestDependencyGeneration{activeFullChange()},
+	}
+	h, _ := manifestHandler(t, port, nil)
+	if _, err := h.Handle(context.Background(), manifestIntent(1, nil)); err != nil {
+		t.Fatalf("Handle() error = %v", err)
+	}
+	if len(port.repositoryReads) != 0 {
+		t.Fatalf("repository reads = %v, want none on a pass with no gap", port.repositoryReads)
+	}
+	if want := []string{"vuln-intel://osv/a", "vuln-intel://osv/b", "vuln-intel://osv/c"}; !reflect.DeepEqual(port.reopened, want) {
+		t.Fatalf("reopened = %v, want %v", port.reopened, want)
 	}
 }
 

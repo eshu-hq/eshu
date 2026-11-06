@@ -211,7 +211,10 @@ func (h SupplyChainImpactHandler) runManifestTrigger(ctx context.Context, intent
 		}
 		change := changedManifestDependencyKeys(generation)
 		change.mergeSubSignals(signals)
-		if len(change.keys) == 0 {
+		// A gap pass (an unreadable prior view, a walk over the cap, or a
+		// skipped pruned intermediate) may hide a removal, so it reopens the
+		// repository's finding holders even when the diff names no package.
+		if len(change.keys) == 0 && !change.needsRepositoryReopen() {
 			return h.finishManifestTrigger(ctx, intent, reader, state, &baseline, "manifest_dependency trigger: no changed package", signals)
 		}
 		// The in-flight read comes FIRST, then the holder read, the order
@@ -236,6 +239,26 @@ func (h SupplyChainImpactHandler) runManifestTrigger(ctx context.Context, intent
 			return reducercontract.Result{}, fanOutError{fmt.Errorf("find supply chain impact package holders: %w", err)}
 		}
 		holders = unionSortedStrings(matchPackageHolders(intent.ScopeID, candidates, change.keys), withoutScope(inFlight, intent.ScopeID))
+		if change.needsRepositoryReopen() {
+			// The diff may have missed a removal, so reopen every scope
+			// holding an active finding for the generation's repository
+			// (#10059). A generation with no repo ids names no repository
+			// and reopens nothing extra. The holders join the same capped
+			// list, so the completion stamp still waits for the drain.
+			repositories := manifestRepositoryIDs(generation.Current.Rows)
+			var repositoryHolders []string
+			if len(repositories) > 0 {
+				var err error
+				repositoryHolders, err = h.FanOut.FindRepositoryFindingHolders(ctx, intent.ScopeID, repositories)
+				if err != nil {
+					h.countFanOut(ctx, fanOutCauseManifestDependency, readFailureOutcome(err), 1)
+					return reducercontract.Result{}, fanOutError{fmt.Errorf("find supply chain impact repository holders: %w", err)}
+				}
+			}
+			repositoryHolders = withoutScope(repositoryHolders, intent.ScopeID)
+			signals["manifest_trigger_repository_holders"] = float64(len(repositoryHolders))
+			holders = unionSortedStrings(holders, repositoryHolders)
+		}
 	}
 	return h.reopenManifestHolders(ctx, intent, reader, state, holders, len(remaining) > 0, baseline, signals)
 }

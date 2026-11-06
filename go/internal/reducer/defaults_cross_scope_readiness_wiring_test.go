@@ -236,6 +236,10 @@ func (p *registrationFanOut) FindPackageHolderCandidates(context.Context, string
 	return nil, nil
 }
 
+func (p *registrationFanOut) FindRepositoryFindingHolders(context.Context, string, []string) ([]string, error) {
+	return nil, nil
+}
+
 func (p *registrationFanOut) OwedRecorder(reducercontract.Intent) supplychaincore.FanOutOwedRecorder {
 	return nil
 }
