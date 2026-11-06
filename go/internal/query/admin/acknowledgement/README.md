@@ -22,6 +22,11 @@ This leaf owns the request contract only:
 - `admission.go` - the versioned `TerminalFailureAdmission` port,
   `TerminalFailureAdmissionContractVersion`, and the core-store
   compile-time assertion.
+- `terminal_failure_read_admission.go` - the versioned #9669 D1
+  `TerminalFailureReadAdmission` read port (D3 consumer),
+  `TerminalFailureReadAdmissionContractVersion`, and the core-store
+  compile-time assertion. Unwired: no handler, route, or caller depends
+  on it yet.
 
 The acknowledgement table (migration 231), `TerminalFailureAckStore`, and the
 status read that consumes the rows live in `go/internal/storage/postgres`
