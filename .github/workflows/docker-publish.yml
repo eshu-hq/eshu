@@ -218,24 +218,48 @@ jobs:
         id: pins
         run: |
           python3 - <<'EOF' >>"${GITHUB_OUTPUT}"
-          import json
-          p = json.load(open('specs/satellite-pins/${{ matrix.sat }}.${{ matrix.arch }}.json'))
+          import json, re
+          sat = '${{ matrix.sat }}'
+          p = json.load(open(f'specs/satellite-pins/{sat}.${{ matrix.arch }}.json'))
           print('binary=' + p['binary']['sha256'])
           print('libs=' + p['libraries_set_sha256'])
           print('model=' + p['model']['sha256'])
           print('engine_version=' + p['engine'].get('version', ''))
+          # The transcription model fetch uses WHISPER_MODEL_* Dockerfile
+          # defaults; the pin's model revision+sha are the single source of
+          # truth, so the step fails closed when they disagree. A rotation
+          # that updates one but not the other would otherwise fetch stale
+          # bytes and fail only at the runtime gate.
+          extra = []
+          if 'revision' in p.get('model', {}):
+              dockerfile = open(f'docker/satellites/{sat}/Dockerfile').read()
+              for key in ('WHISPER_MODEL_SHA256', 'WHISPER_MODEL_REVISION'):
+                  m = re.search(rf'^ARG {key}=(\S+)\s*$', dockerfile, re.M)
+                  assert m, f'Dockerfile default {key} missing for {sat}'
+                  pin_value = p['model']['sha256'] if key.endswith('SHA256') else p['model']['revision']
+                  assert m.group(1) == pin_value, f'{key} default {m.group(1)} != pin {pin_value}'
+                  extra.append(f'--build-arg {key}={pin_value}')
+              print('extra_args=' + ' '.join(extra))
+          else:
+              print('extra_args=')
           EOF
-      # NOTE: plain `docker build`, not build-push-action, deliberately. The
+      # NOTE: `docker buildx build`, not build-push-action, deliberately. The
       # #9632 guard requires every build-push-action step to read and write a
       # per-target GHCR cache tag, and its owner model (target-less implies
       # the shared :runtime tag) has no room for a second target-less build:
       # sharing :runtime would overwrite the main image's cache on push. This
       # proof writes no cache at all, so there is nothing to share, evict, or
       # leak — cold builds are the accepted cost (75-minute job timeout).
+      # buildx (not plain `docker build`) because the gate matrix covers
+      # linux/arm64 and the amd64 runners cannot run an arm64 image build
+      # without the buildx builder: plain `docker build --platform` fails
+      # with `exec format error` (main run 42243732374). This reuses the
+      # same setup-buildx builder as the image lane, which already proves
+      # multi-arch through it (the published image ships amd64+arm64).
       - name: Build satellite gate image
         if: ${{ env.LANE_APPLIES == 'true' }}
         run: |
-          docker build --platform "linux/${{ matrix.arch }}" \
+          docker buildx build --platform "linux/${{ matrix.arch }}" \
             -f "docker/satellites/${{ matrix.sat }}/Dockerfile" \
             --build-arg "ESHU_ALPINE_IMAGE=${{ env.ESHU_ALPINE_IMAGE }}" \
             --build-arg "ESHU_GO_IMAGE=${{ env.ESHU_GO_IMAGE }}" \
@@ -244,6 +268,7 @@ jobs:
             --build-arg "EXPECT_LIBS_SHA256=${{ steps.pins.outputs.libs }}" \
             --build-arg "EXPECT_MODEL_SHA256=${{ steps.pins.outputs.model }}" \
             --build-arg "EXPECT_ENGINE_VERSION=${{ steps.pins.outputs.engine_version }}" \
+            ${{ steps.pins.outputs.extra_args }} \
             .
   build-and-push-image:
     needs: [changes]
