@@ -58,6 +58,7 @@ func DecodeFindingRow(
 		PriorityContributions: decodeSupplyChainImpactPriorityContributions(
 			payload["priority_contributions"],
 		),
+		ExploitedTier:            querycontract.StringVal(payload, "exploited_tier"),
 		RuntimeReachability:      querycontract.StringVal(payload, "runtime_reachability"),
 		Reachability:             decodeSupplyChainReachability(payload),
 		RepositoryID:             querycontract.StringVal(payload, "repository_id"),
