@@ -33,6 +33,25 @@ const (
 	TriggerManifestDependency = "manifest_dependency"
 )
 
+// IntentCarriesFanOutDebt reports whether a supply_chain_impact intent still
+// owes holder fan-out: a continuation list of holders a capped claim did not
+// reach, or the owed marker of a commit whose fan-out has not finished. A
+// manifest-dependency marker never counts: a superseded marker generation is
+// diffed through by the next marker pass from the newest completion-stamped
+// baseline (#9874), so its list needs no rescue. The reducer claim sweep and
+// the runtime generation guard both read this predicate so an intent whose
+// generation was superseded mid-debt still completes its fan-out instead of
+// stranding the holders it never reopened (#10060).
+func IntentCarriesFanOutDebt(intent reducercontract.Intent) bool {
+	if intent.Domain != reducercontract.DomainSupplyChainImpact {
+		return false
+	}
+	if trigger, _ := intent.Payload[PayloadKeyTrigger].(string); trigger == TriggerManifestDependency {
+		return false
+	}
+	return fanOutOwed(intent) || len(fanOutRemaining(intent)) > 0
+}
+
 // ManifestGenerationActivation is the marker generation's place relative to
 // its scope's active generation.
 type ManifestGenerationActivation string

@@ -215,6 +215,10 @@
     "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
     "tests": ["TestFindHolderScopesTimesOutUnderALockedTableLive", "TestUpdateFanOutStateCarriesAContinuationAcrossClaimsLive", "TestUpdateFanOutStateConsumeOnlyLeavesTheListAloneLive", "TestUpdateFanOutStateConsumesTheOriginStampLive", "TestUpdateFanOutStateFailsWhenTheLeaseIsLostLive", "TestUpdateFanOutStateKeepsANewerStampLive", "TestUpdateFanOutStateRejectsAStaleAttemptLive"]
   },
+  "go/internal/storage/postgres/supply_chain_impact_fanout_stranded_continuation_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": ["TestFanOutRaceDebtRetrySurvivesActivationLive", "TestFanOutRacePartiallyDrainedContinuationSurvivesActivationLive", "TestFanOutRaceStrandedContinuationConcurrentClaimersConvergeLive", "TestFanOutRaceStrandedContinuationDrainsAfterNewerGenerationActivatesLive", "TestFanOutRaceSweepRechecksDebtCommittedWhileWaitingLive"]
+  },
   "go/internal/storage/postgres/supply_chain_impact_fanout_writer_live_test.go": {
     "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
     "tests": ["TestMutualFanOutHasNoDeadlockLive", "TestWriterReportsChangesAgainstThePreviousGenerationLive"]

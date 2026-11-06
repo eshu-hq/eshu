@@ -12,6 +12,7 @@ import (
 	"time"
 
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 )
 
 // GenerationFreshnessCheck reports whether the given generation is still
@@ -353,7 +354,12 @@ func (r *Runtime) markFailed(position int, completedAt time.Time, failureClass, 
 }
 
 func (r *Runtime) execute(ctx context.Context, intent reducercontract.Intent) (reducercontract.Result, error) {
-	// Generation guard: skip stale intents before touching Neo4j.
+	// Generation guard: skip stale intents before touching Neo4j. A stale
+	// supply_chain_impact intent that still owes holder fan-out is the one
+	// exception (#10060): its remaining holders exist nowhere else, so it
+	// runs and drains them under its own generation instead of being
+	// acked away as superseded. A check error (including a not-yet-active
+	// deferral) still stops it above.
 	reboundFrom := ""
 	if r.GenerationCheck != nil {
 		current, from, err := r.generationCurrent(ctx, &intent)
@@ -361,7 +367,7 @@ func (r *Runtime) execute(ctx context.Context, intent reducercontract.Intent) (r
 			return reducercontract.Result{}, err
 		}
 		reboundFrom = from
-		if !current {
+		if !current && !supplychaincore.IntentCarriesFanOutDebt(intent) {
 			return reducercontract.Result{
 				IntentID:        intent.IntentID,
 				Domain:          intent.Domain,

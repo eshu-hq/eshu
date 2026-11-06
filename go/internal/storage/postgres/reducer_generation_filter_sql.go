@@ -3,6 +3,11 @@
 
 package postgres
 
+import (
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
+)
+
 // activeFactWorkItemsScopeStateCTE resolves each scope's active generation once
 // (#6794): one row per scope, with the active generation's id and ingested_at
 // when that generation exists and belongs to the scope. It is hash-joined to
@@ -124,9 +129,11 @@ const supersedeInactiveReducerGenerationsJoin = `ingestion_scopes AS scope,
 
 // supersedeInactiveReducerGenerationsPredicate selects the unleased rows of an
 // older, inactive generation the sweep may supersede: the generation guard
-// (never the scope's active generation, only an older one) and the readiness
-// gate described on supersedeInactiveReducerGenerationsCTE. The sweep's lock
-// step applies it, so a waited lock rechecks it on the newest row version.
+// (never the scope's active generation, only an older one), the readiness
+// gate described on supersedeInactiveReducerGenerationsCTE, and the fan-out
+// debt spare in the same place. The sweep's lock step applies it, so a waited
+// lock rechecks it on the newest row version — a debt write committed while
+// the claim waited on the row is seen and spares the row (#10060).
 var supersedeInactiveReducerGenerationsPredicate = `stale.stage = 'reducer'
       AND stale.status IN ('pending', 'retrying', 'failed', 'dead_letter')
       AND ($2::text[] IS NULL OR stale.domain = ANY($2::text[]))
@@ -154,6 +161,18 @@ var supersedeInactiveReducerGenerationsPredicate = `stale.stage = 'reducer'
         ` + reducerClaimReadinessGateSQL("stale", "supersede_readiness_req", "supersede_readiness_phase") + `
         OR ` + reducerClaimReadinessGateForGenerationSQL("stale", "scope.active_generation_id", "supersede_active_readiness_req", "supersede_active_readiness_phase") + `
       )
+      AND NOT (
+        stale.domain = '` + string(reducercontract.DomainSupplyChainImpact) + `'
+        AND COALESCE(stale.payload->>'` + supplychaincore.PayloadKeyTrigger + `', '') <> '` + supplychaincore.TriggerManifestDependency + `'
+        AND (
+          COALESCE(stale.payload->>'` + supplychaincore.PayloadKeyFanOutOwed + `', '') = 'true'
+          OR CASE
+               WHEN jsonb_typeof(stale.payload->'` + supplychaincore.PayloadKeyFanOutRemaining + `') = 'array'
+               THEN jsonb_array_length(stale.payload->'` + supplychaincore.PayloadKeyFanOutRemaining + `') > 0
+               ELSE FALSE
+             END
+        )
+      )
 `
 
 // supersedeInactiveReducerGenerationsCTE terminalizes unleased older-generation
@@ -178,6 +197,26 @@ var supersedeInactiveReducerGenerationsPredicate = `stale.stage = 'reducer'
 // gate, so no live row becomes claimable early. Domains with no readiness
 // requirement row are unaffected — the NOT EXISTS is vacuously true for them,
 // preserving today's generation-ordering-only behavior.
+//
+// A supply_chain_impact row that still owes holder fan-out must NOT be
+// superseded either (#10060): a fan-out past the per-claim holder cap stores
+// the unreached holders in payload fanout_remaining (with fanout_owed set
+// until the last one drains), and that payload is the only record of the
+// debt — the acknowledgement consumed cross_scope_replay_required when the
+// item re-pended. The successor generation's pass does not cover it: its
+// changed-CVE set is diffed against this generation's stored rows, which
+// already carry the committing change, so it fans out to nobody and the
+// listed holders keep stale copies. The trailing NOT arm holds such a row
+// out of the sweep until its debt drains; the runtime generation guard
+// carries the matching IntentCarriesFanOutDebt exception so the spared row
+// still executes and completes. Manifest-dependency markers are excluded:
+// their completion stamp is written only after the last chunk, so the next
+// marker pass diffs through a superseded one from the last stamped baseline
+// (#9874) and needs no rescue. The arm is row-local (domain equality plus
+// payload probes on the already-fetched tuple; the CASE keeps
+// jsonb_array_length off non-array values and the COALESCE keeps an absent
+// owed key FALSE instead of NULL, which would spare every row), so it adds
+// no join or scan.
 //
 // The sweep is a blocking write over terminal and waiting rows that operator
 // replays also lock, so it takes its locks first, in work_item_id COLLATE "C"

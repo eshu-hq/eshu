@@ -345,6 +345,11 @@ tests:
     class: dedicated_ci
     reason: "dev-1-5: reducer-contention verified 7/7 named Go test passes with -json -race (summed test elapsed 6.43s); docs/internal/evidence/7533-contention-live-proof.md"
     runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_fanout_stranded_continuation_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#10060: reducer-contention family (fanOutLiveDB); 5 stranded-continuation proofs verified locally on disposable postgres:18 including -race; docs/internal/evidence/10060-stranded-continuation.md"
+    runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_fanout_writer_live_test.go
     tag: ~
     class: dedicated_ci
