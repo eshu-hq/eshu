@@ -114,10 +114,15 @@ const LocalIdentityAdmissionContractVersion = "v0"
 // the local bootstrap/login/invitation/password/MFA/break-glass/API-token/
 // TOTP routes and GET /api/v0/auth/profile.
 //
-// The seam is hash-only on purpose: every method takes hashes and returns
-// metadata or bounded status enums — never a raw password, token, invite
-// code, credential handle, or recovery secret. Login client secrets and
-// SAML keys are NOT in this contract: they stay on the D9 login-family
+// Inbound params are mixed: raw caller-supplied proofs for verification
+// (Password, CurrentPassword, MFATOTPCode, SecretPlaintext, Code)
+// alongside values the handlers pre-hash before the store
+// (SubjectIDHash, PasswordHash, InviteCodeHash, MFARecoveryCodeHash,
+// BreakGlassCodeHash, RecoveryCodeHashes). MFACredentialHandle is a
+// stored enrollment attribute persisted to secret_credential_handle,
+// not a verification proof; outbound results stay hash/metadata-only
+// and never include credential handles. Login client secrets and SAML
+// keys are NOT in this contract: they stay on the D9 login-family
 // pins, per the NEVER list in the arbiter D-wave ruling on #9669.
 //
 // D-wave consumer: D8 (session resolver + session/token lifecycle, per the
