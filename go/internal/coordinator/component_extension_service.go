@@ -324,6 +324,14 @@ func (s Service) scheduleVulnerabilityActivationDerivedScopes(
 	if err != nil {
 		return fmt.Errorf("plan vulnerability intelligence derived scopes for %q: %w", instance.InstanceID, err)
 	}
+	// The owned-package derivation signal fires on the same gate as the
+	// window log above: a disabled derivation made no read and records
+	// nothing (#9287 criterion 4). The activation records selected-only:
+	// the activation planner returns no skip evidence, so the skipped
+	// counter stays in-tree-only by contract while selected covers both
+	// paths. An instance that plans exclusively through activations
+	// would otherwise keep both counters dark.
+	s.recordOwnedDerivedPage(ctx, instance, ownedPage, vulnerability.IntelligenceDerivationObservation{})
 	if len(items) == 0 {
 		return nil
 	}

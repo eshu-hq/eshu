@@ -39,3 +39,18 @@ leak/exclusion cases) and
 `TestServiceRecordsOwnedDerivedSelectionPerPass` (production schedule path
 with on/off gating); operators read the two counters beside the existing
 owned-package window log line.
+
+## Activation-path partition (follow-up)
+
+`scheduleVulnerabilityActivationDerivedScopes`
+(`component_extension_service.go`) performs the same owned read and window
+log but never entered the in-tree scheduler, so it never recorded: on an
+instance that plans exclusively through activations both counters
+stayed dark while the read selected targets every pass. The activation now
+calls `recordOwnedDerivedPage` right after planning with an empty skip
+observation. Contract: selected covers both paths; skipped stays
+in-tree-only (the activation planner returns no skip evidence), pinned by
+`TestActivationDerivedScopesRecordOwnedDerivedSelection` (fails with zero
+observations before the call, passes with npm=1 maven=1 and empty skipped
+after). No query text changed; the call reads only the already-fetched
+page.
