@@ -7,17 +7,19 @@ import (
 	"context"
 	"log/slog"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/parser/php/composer"
 	producerstore "github.com/eshu-hq/eshu/go/internal/storage/postgres/code/producers"
 )
 
 // This file holds the definition-leg machinery for
 // LoadActiveCodeCallSymbolDefinitionFacts: the per-group leg binding, the
-// leg passes (active scans, union legs, widened anchored base bindings), and
-// the load stats line operators read. The query texts, the public loader, the
-// page drivers, and the overlay merge stay in
+// leg passes (active scans, union legs, widened anchored base bindings),
+// the union-row narrowing, and the load stats line operators read. The query
+// texts, the public loader, the page drivers, and the overlay merge stay in
 // facts_active_code_call_symbols.go, which points here; nothing here runs
 // without that caller.
 
@@ -45,6 +47,13 @@ type codeCallSymbolDefinitionLeg struct {
 	// nil on the unanchored leg (no scope binding) and on union legs (their
 	// width already accrues to the union count).
 	baseScopes *int
+	// narrowVendored marks a package-group union leg whose base page must
+	// drop npm-vendored rows before the overlay (#10204). Anchored legs and
+	// Go union legs never carry it: anchored behavior is out of scope and
+	// Go definitions cannot collide through a vendored path (a nested
+	// go.mod would make the scope a producer; without one the outer
+	// module stamps an unmatchable import path).
+	narrowVendored bool
 }
 
 // codeCallSymbolAnchoredUnion remembers an anchored key group whose active
@@ -55,6 +64,8 @@ type codeCallSymbolAnchoredUnion struct {
 	keys       []string
 	seconds    *float64
 	unionCount *int
+	// narrowVendored carries the leg's group narrowing into the union leg.
+	narrowVendored bool
 }
 
 // appendCodeCallSymbolUnionLegs appends one base-only union leg per anchored
@@ -77,6 +88,7 @@ func appendCodeCallSymbolUnionLegs(
 			baseQuery:        anchoredBase,
 			producerScopeIDs: unionScopes,
 			seconds:          group.seconds,
+			narrowVendored:   group.narrowVendored,
 		})
 	}
 	return legs
@@ -111,6 +123,92 @@ func unionScopeIDs(a, b []string) []string {
 	return slices.Compact(union)
 }
 
+// excludeVendoredUnionBaseRows drops union-leg base rows no producer anchor
+// could have published (#10204): a row whose file sits under a node_modules
+// segment (the producer manifest read excludes those manifests, while the
+// definition stamp keeps the nearest manifest's name) is a vendored copy,
+// unless it carries a queried composer package id — ComposerManifestsQuery
+// has no node_modules exclusion and the parser stamps such files, so they
+// stay. Rows at any other path stay, as does anything without positive
+// vendored evidence (an unparseable payload or a missing path keeps its row):
+// the narrowing must never drop a legitimate renamed-publisher base.
+func excludeVendoredUnionBaseRows(page []facts.Envelope, keys []string) []facts.Envelope {
+	queriedComposer := make(map[string]struct{})
+	for _, key := range keys {
+		if name := producerstore.PackageName(key); name != "" && composer.ValidPackageName(name) {
+			queriedComposer[name] = struct{}{}
+		}
+	}
+	kept := page[:0]
+	for _, env := range page {
+		if !unionBaseRowIsNpmVendored(env, queriedComposer) {
+			kept = append(kept, env)
+		}
+	}
+	return kept
+}
+
+// unionBaseRowIsNpmVendored reports whether the row is an npm-vendored copy:
+// its file sits under a node_modules segment and none of its definitions
+// carries a queried composer package id. The segment test mirrors the
+// producer manifest read's `relative_path !~* '(^|/)node_modules[^/]*/'`
+// (ASCII case folding, any suffix including none); the composer keep-out
+// uses the schema grammar both routers share, so the filter cannot disagree
+// with the anchor about which names are composer's.
+func unionBaseRowIsNpmVendored(env facts.Envelope, queriedComposer map[string]struct{}) bool {
+	path, _ := env.Payload["relative_path"].(string)
+	if !isNodeModulesPath(path) {
+		return false
+	}
+	for _, item := range codeCallSymbolDefinitionItems(env) {
+		if id, _ := item["package_id"].(string); id != "" {
+			if _, ok := queriedComposer[id]; ok {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+// isNodeModulesPath reports whether path sits under a node_modules
+// directory: every slash-separated segment but the last whose
+// ASCII-lowercased form starts with node_modules, matching the manifest
+// read's node_modules[^/]*/ (which also covers node_modules.bak-style
+// renamed backups, and the bare directory). The last segment is the file
+// name, which the SQL trailing slash never matches, so a file merely named
+// node_modules stays.
+func isNodeModulesPath(path string) bool {
+	segments := strings.Split(path, "/")
+	for _, segment := range segments[:len(segments)-1] {
+		if strings.HasPrefix(strings.ToLower(segment), "node_modules") {
+			return true
+		}
+	}
+	return false
+}
+
+// codeCallSymbolDefinitionItems returns every parsed definition object on a
+// loaded file fact, across the same five arrays the definition match scans.
+// Anything unexpected (a missing payload, a non-object array entry) yields
+// nothing, so the caller keeps the row: only positive vendored evidence
+// drops it.
+func codeCallSymbolDefinitionItems(env facts.Envelope) []map[string]any {
+	parsed, _ := env.Payload["parsed_file_data"].(map[string]any)
+	if parsed == nil {
+		return nil
+	}
+	var items []map[string]any
+	for _, array := range []string{"functions", "classes", "structs", "interfaces", "type_aliases"} {
+		definitions, _ := parsed[array].([]any)
+		for _, definition := range definitions {
+			if item, ok := definition.(map[string]any); ok {
+				items = append(items, item)
+			}
+		}
+	}
+	return items
+}
+
 // loadCodeCallSymbolDefinitionLegRows runs the three scans and returns the
 // active rows and the base candidates separately for the overlay, recording
 // producer, union, and base scope counts and leg durations in load. Active
@@ -119,8 +217,10 @@ func unionScopeIDs(a, b []string) []string {
 // delta-active scope with a recorded baseline exists; an anchored group with
 // keys but no producer then contributes a base-only union leg, and an
 // anchored group with a surviving producer widens its base $5 to the
-// producers plus the baselined targets' scopes (#10104, #10182). The page
-// driver it pages through lives in facts_active_code_call_symbols.go.
+// producers plus the baselined targets' scopes (#10104, #10182), and a
+// package-group union leg narrows its base page past vendored non-producers
+// (#10204). The page driver it pages through lives in
+// facts_active_code_call_symbols.go.
 func (s FactStore) loadCodeCallSymbolDefinitionLegRows(
 	ctx context.Context,
 	snapshot *deltaOverlaySnapshot,
@@ -156,15 +256,16 @@ func (s FactStore) loadCodeCallSymbolDefinitionLegRows(
 		})
 	}
 	for _, leg := range []struct {
-		keys       []string
-		producers  func(context.Context, []string) ([]string, error)
-		scopeCount *int
-		seconds    *float64
-		unionCount *int
-		baseScopes *int
+		keys           []string
+		producers      func(context.Context, []string) ([]string, error)
+		scopeCount     *int
+		seconds        *float64
+		unionCount     *int
+		baseScopes     *int
+		narrowVendored bool
 	}{
-		{packageKeys, producers.PackageScopeIDs, &load.packageProducerScopes, &load.packageSeconds, &load.packageUnionScopes, &load.packageBaseScopes},
-		{goKeys, producers.GoModuleScopeIDs, &load.goProducerScopes, &load.goSeconds, &load.goUnionScopes, &load.goBaseScopes},
+		{packageKeys, producers.PackageScopeIDs, &load.packageProducerScopes, &load.packageSeconds, &load.packageUnionScopes, &load.packageBaseScopes, true},
+		{goKeys, producers.GoModuleScopeIDs, &load.goProducerScopes, &load.goSeconds, &load.goUnionScopes, &load.goBaseScopes, false},
 	} {
 		if len(leg.keys) == 0 {
 			continue
@@ -196,9 +297,10 @@ func (s FactStore) loadCodeCallSymbolDefinitionLegRows(
 			// the producer manifest can still hold this group's base
 			// definitions, so remember it for the union leg below (#10104).
 			emptyAnchored = append(emptyAnchored, codeCallSymbolAnchoredUnion{
-				keys:       leg.keys,
-				seconds:    leg.seconds,
-				unionCount: leg.unionCount,
+				keys:           leg.keys,
+				seconds:        leg.seconds,
+				unionCount:     leg.unionCount,
+				narrowVendored: leg.narrowVendored,
 			})
 		}
 		*leg.seconds = time.Since(started).Seconds()
@@ -238,6 +340,14 @@ func (s FactStore) loadCodeCallSymbolDefinitionLegRows(
 			if err != nil {
 				s.recordDeltaOverlayFailure(ctx, sink)
 				return nil, nil, err
+			}
+			if legs[i].narrowVendored {
+				// Union-leg narrowing (#10204): the scope filter still
+				// covers every baselined delta-active scope (the base
+				// manifest content a scope-side lookup would need is
+				// last-writer-wins in content_files), so vendored rows
+				// drop here, per group, before the overlay can reach them.
+				page = excludeVendoredUnionBaseRows(page, legs[i].keys)
 			}
 			baseRows = appendUniqueFactEnvelopes(baseRows, page)
 			*legs[i].seconds += time.Since(started).Seconds()

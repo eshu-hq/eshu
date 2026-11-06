@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/facts"
 	producerstore "github.com/eshu-hq/eshu/go/internal/storage/postgres/code/producers"
 )
 
@@ -353,5 +354,72 @@ func TestWidenAnchoredLegBaseScopes(t *testing.T) {
 	}
 	if got, want := legs[2].producerScopeIDs, []string{"scope:a", "scope:b"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("union leg scopes = %#v, want %#v (already the union set)", got, want)
+	}
+}
+
+// vendoredUnionRow builds one union-leg base row at path carrying one
+// function definition with packageID, the shape
+// excludeVendoredUnionBaseRows decides on.
+func vendoredUnionRow(factID, path, packageID string) facts.Envelope {
+	return facts.Envelope{
+		FactID:  factID,
+		ScopeID: "scope",
+		Payload: map[string]any{
+			"relative_path": path,
+			"parsed_file_data": map[string]any{
+				"functions": []any{map[string]any{"package_id": packageID}},
+			},
+		},
+	}
+}
+
+// TestExcludeVendoredUnionBaseRows pins the #10204 narrowing: npm-vendored
+// rows drop, publishable paths stay, composer rows under node_modules stay
+// when queried (ComposerManifestsQuery has no node_modules exclusion), and
+// rows without positive vendored evidence stay.
+func TestExcludeVendoredUnionBaseRows(t *testing.T) {
+	t.Parallel()
+
+	npmKeys := []string{"package:alpha-pkg#Widget"}
+	composerKeys := []string{"package:acme/widget#Widget"}
+	rows := []facts.Envelope{
+		vendoredUnionRow("legit", "src/widget.js", "alpha-pkg"),
+		vendoredUnionRow("vendored", "node_modules/alpha-pkg/src/widget.js", "alpha-pkg"),
+		vendoredUnionRow("vendored-backup", "node_modules.bak/alpha-pkg/src/widget.js", "alpha-pkg"),
+		vendoredUnionRow("vendored-case", "Node_Modules-old/alpha-pkg/src/widget.js", "alpha-pkg"),
+		vendoredUnionRow("composer", "node_modules/acme-widget/src/widget.php", "acme/widget"),
+		vendoredUnionRow("scoped", "node_modules/@acme/widget/src/widget.js", "@acme/widget"),
+		vendoredUnionRow("file-named-vendored", "src/node_modules", "alpha-pkg"),
+		{FactID: "no-payload", ScopeID: "scope"},
+	}
+	got := excludeVendoredUnionBaseRows(rows, npmKeys)
+	var ids []string
+	for _, env := range got {
+		ids = append(ids, env.FactID)
+	}
+	for _, want := range []string{"legit", "file-named-vendored", "no-payload"} {
+		found := false
+		for _, id := range ids {
+			found = found || id == want
+		}
+		if !found {
+			t.Fatalf("kept rows = %v, want it to contain %q", ids, want)
+		}
+	}
+	for _, dropped := range []string{"vendored", "vendored-backup", "vendored-case", "composer", "scoped"} {
+		for _, id := range ids {
+			if id == dropped {
+				t.Fatalf("kept rows = %v, want %q dropped (npm query, no composer keep-out)", ids, dropped)
+			}
+		}
+	}
+
+	composerGot := excludeVendoredUnionBaseRows(rows, composerKeys)
+	kept := false
+	for _, env := range composerGot {
+		kept = kept || env.FactID == "composer"
+	}
+	if !kept {
+		t.Fatalf("composer query kept %d rows, want the queried composer row kept", len(composerGot))
 	}
 }

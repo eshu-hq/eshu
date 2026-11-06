@@ -198,14 +198,16 @@ func (s FactStore) codeCallSymbolDeltaOverlayTelemetry() deltaOverlayTelemetry {
 // A key whose producers survive only partly — a delta drops one publisher
 // while another still anchors the group — keeps its anchored leg, whose base
 // pass widens $5 to the producers plus the baselined targets' scopes under
-// the same match gate (#10182). Every other key keeps the corpus-wide scan,
+// the same match gate (#10182). The package group's union page additionally
+// drops npm-vendored rows (node_modules paths no anchor could publish,
+// #10204) before the overlay. Every other key keeps the corpus-wide scan,
 // and the groups run separately so one group's manifest never widens another.
 //
 // A scope whose active generation is a git delta reads its delta overlaid on
 // its #7797 base full generation (#10003 row 1); see overlayDeltaBase for
 // the win and refusal rules. Every statement runs on one read-only
-// repeatable-read snapshot. The leg bindings live in
-// active_code_call_symbol_legs.go.
+// repeatable-read snapshot. The leg bindings, the leg-page execution, and
+// the union-row narrowing live in active_code_call_symbol_legs.go.
 func (s FactStore) LoadActiveCodeCallSymbolDefinitionFacts(
 	ctx context.Context,
 	symbolKeys []string,
