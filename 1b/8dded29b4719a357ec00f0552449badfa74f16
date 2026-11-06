@@ -1,0 +1,16 @@
+scripts/lib/live_postgres_readiness_gen_render.py
+  h_78a442cba0b3e6 42-45,49
+specs/live-tests.d/live-tests-readiness-part3.generated.yaml
+  h_78a442cba0b3e6 492-496
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1b8dded29b4719a357ec00f0552449badfa74f16",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
