@@ -8,7 +8,7 @@
 # fault-specific mechanics that script needs and no sibling Ifá verifier does:
 # writing a faultreplay v1 fault-script JSON fixture
 # (go/internal/replay/faultreplay/script.go) for the two fault kinds that DO
-# have a live-Postgres/live-NornicDB seam (fail-graph-write-once-then-succeed
+# have a live-Postgres/live-graph-backend seam (fail-graph-write-once-then-succeed
 # and restart-backend-between-phase-groups, both wired only under the
 # ifafaultinjection build tag into go/cmd/reducer), polling
 # fact_work_items for a claimed/running row (the non-vacuity precondition for
@@ -302,7 +302,7 @@ ifa_fault_count_retried() {
 # asserting the retried-intent count for domain STRICTLY EXCEEDS the fault-free
 # baseline captured in cell 1. Requiring a strict increase over baseline -- rather
 # than merely count > 0 -- makes the signal specific to the injected fault: a
-# natural counting-class retry (a real NornicDB deadlock / TransactionExecutionLimit,
+# natural counting-class retry (a real graph-backend deadlock or transient error (for example a NornicDB TransactionExecutionLimit),
 # or a transient EntityNotFound under the concurrent projector+reducer this gate
 # runs) would also appear in the identical fault-free baseline drive, so it cannot
 # green the check on its own while the decorator sits silently inert (the

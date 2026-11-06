@@ -77,7 +77,9 @@ ifa_fault_run_bounded() {
 # backend (ESHU_GRAPH_BACKEND, Neo4j by default; see ifa_graph_backend.sh):
 #   IFA_FAULT_BACKEND_IMAGES            JSON array of the only accepted rendered images
 #   IFA_FAULT_BACKEND_DEFAULT_PLATFORM  platform assumed when Compose renders none
-#                                       (empty = Compose must render one)
+#                                       (empty = Compose must render one). The Neo4j
+#                                       default is linux/amd64, which matches the CI
+#                                       runners; an arm64 host is not validated here.
 #   IFA_FAULT_BACKEND_ENV_PATTERN       allowlist of container env names to retain
 # Both backends are pinned by immutable digest; an unmapped image fails before any
 # identity artifact is written. The Neo4j digest is the index digest of

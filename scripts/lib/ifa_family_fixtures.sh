@@ -193,10 +193,9 @@ kubernetes_correlation_expected_edges="${repo_root}/go/internal/ifa/testdata/kub
 # the repository fact, the three typed file facts the File endpoints project
 # from, and the six content entities the semantic subset admits four of. The
 # three canonical-owned content entities carry the exact CanonicalEntityID
-# derivation the projector recomputes (#8359 ruling); the
-# .nornicdb.json expected-edge variant (asserted on every backend, Neo4j since
-# #10138) records the canonical writer's stamp on those three pairs (see the
-# assert fn in scripts/lib/ifa_direct_family_live.sh).
+# derivation the projector recomputes (#8359 ruling); the .nornicdb.json
+# expected-edge variant (asserted on every backend since #10138) records the
+# canonical writer's stamp on those three pairs (scripts/lib/ifa_direct_family_live.sh).
 semantic_entity_containment_cassette="${repo_root}/testdata/cassettes/semanticentitycontainment/ifa-semantic-entity-containment-family.json"
 semantic_entity_containment_expected_edges="${repo_root}/go/internal/ifa/testdata/semanticentitycontainment/ifa-semantic-entity-containment-family-expected-edges.json"
 semantic_entity_containment_expected_edges_nornicdb="${repo_root}/go/internal/ifa/testdata/semanticentitycontainment/ifa-semantic-entity-containment-family-expected-edges.nornicdb.json"
