@@ -66,6 +66,19 @@ func TestOSRepresentativeOutcomeNamesWhatEachGroupJoined(t *testing.T) {
 			map[osRepresentativeOutcomeKey]int{{"ubuntu", osRepresentativeReselected}: 1},
 		},
 		{
+			// The R5 shape (arbiter ruling 9914-r5, decision 1): the ubuntu
+			// record is withdrawn but joins, the live nvd fact cannot anchor,
+			// so the liveness filter keeps the retracted record's fact and the
+			// group counts joined.
+			"a live fact that cannot join beside a withdrawn fact that can",
+			[]facts.Envelope{
+				unjoinableRetractedCVE("withdrawn"), unjoinableLiveCVE("nvd"),
+				unjoinableRetractedPackage("deb"), unjoinableLivePackage("nvd", "deb", ""), host,
+			},
+			1,
+			map[osRepresentativeOutcomeKey]int{{"ubuntu", osRepresentativeJoined}: 1},
+		},
+		{
 			"a consumer anchors the group",
 			[]facts.Envelope{cve, repJoinOwnFact("deb"), debian, host, consumption},
 			1,
@@ -244,23 +257,43 @@ func TestReselectedRepresentativeKeepsRetractionRules(t *testing.T) {
 		wantRetracted bool
 	}{
 		{"every source withdrew", true, true, true},
-		{"only the joining source withdrew", true, false, false},
+		// A group whose only joining record is withdrawn keeps its finding with
+		// the retraction shown (arbiter ruling 9914-r5, decision 1): the live
+		// record's fact has no anchor, so the finding is the retracted
+		// record's, exactly as if the live record listed no package.
+		{"only the joining source withdrew", true, false, true},
 		{"only the other source withdrew", false, true, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			build := func(ecosystem string) SupplyChainImpactFinding {
-				findings := BuildSupplyChainImpactFindings([]facts.Envelope{
-					ownCVE(tc.own), otherCVE(tc.other), repJoinOwnFact(ecosystem),
-					repJoinOtherFact("affected-other", "nvd", ecosystem),
-					ubuntuCurl("22.04", repJoinVersion).envelope(),
-				})
+			build := func(ecosystem string, withOther bool) SupplyChainImpactFinding {
+				envs := []facts.Envelope{ownCVE(tc.own), otherCVE(tc.other), repJoinOwnFact(ecosystem)}
+				if withOther {
+					envs = append(envs, repJoinOtherFact("affected-other", "nvd", ecosystem))
+				}
+				envs = append(envs, ubuntuCurl("22.04", repJoinVersion).envelope())
+				findings := BuildSupplyChainImpactFindings(envs)
 				if len(findings) != 1 {
-					t.Fatalf("ecosystem %s: findings = %d, want 1", ecosystem, len(findings))
+					t.Fatalf("ecosystem %s withOther %v: findings = %d, want 1", ecosystem, withOther, len(findings))
 				}
 				return findings[0]
 			}
-			reselected, control := build("deb"), build("ubuntu")
+			reselected := build("deb", true)
+			// The reselected group is narrowed to the facts that join, so only
+			// the ubuntu record lists the package there: the control is the
+			// group without the nvd fact, and the retraction is judged over the
+			// records listing the package (9914-r5 decision 1,
+			// recordsListingThePackage; 9990-f6 5.4). The other rows keep the
+			// whole-group ubuntu control.
+			control := build("ubuntu", true)
+			if tc.name == "every source withdrew" {
+				control = build("deb", false)
+			}
+			// The reselected row is named by the record that decided it (f156
+			// decision 1): deb with nvd reads USN-9990-1 on the merged tree.
+			if reselected.AdvisoryID != "USN-9990-1" {
+				t.Fatalf("advisory = %q, want USN-9990-1", reselected.AdvisoryID)
+			}
 			if got := reselected.AdvisoryRetraction != nil; got != tc.wantRetracted {
 				t.Fatalf("retracted = %v, want %v", got, tc.wantRetracted)
 			}

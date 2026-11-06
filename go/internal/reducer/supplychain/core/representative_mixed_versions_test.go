@@ -105,11 +105,6 @@ func TestVersionedRowEqualsTheOwnOnlyControl(t *testing.T) {
 						}
 						f, ok := mixedFindingForRow(got, r.id)
 						if !ok {
-							// One index shard holds both rows here and reads one of them in the
-							// reselected order: #9984 splits digest-less rows, #10143 one digest.
-							if topo.name == "two digest-less" || topo.name == "one digest holds both" {
-								continue
-							}
 							t.Fatalf("order %s: no finding on %s: %s", repDirectOrderLabel(order), r.id, repDirectSummary(got))
 						}
 						if !reflect.DeepEqual(f, want) {
@@ -329,5 +324,94 @@ func TestVersionedRowBesideAVersionlessRowIsDecidedByTheFactsThatJoin(t *testing
 	}
 	if wrong > 0 {
 		t.Fatalf("%d of %d orders read the fix of a fact that cannot join on the versioned row", wrong, orders)
+	}
+}
+
+// TestMixedRowsWithdrawalAcrossTheRowSplit pins the liveness filter's second
+// pass over the row split (ruling 9990-f6 5.1): the recursive classify call runs
+// liveAdvisoryPackages again on each part, and that pass is idempotent there,
+// so withdrawal moves nothing the split does not own.
+func TestMixedRowsWithdrawalAcrossTheRowSplit(t *testing.T) {
+	t.Parallel()
+	rows, analyses := mixedEnvs(mixedTopologies[0].rows)
+	own := repJoinVendorFixFact("")
+	other := repJoinOtherFact(repDirectOtherID, "osv", "ubuntu")
+	mkCVE := func(withdrawn bool, factID, source, advisory string) facts.Envelope {
+		if withdrawn {
+			return vulnerabilityCVEFactWithdrawn(factID, vendorLineCVE, source, advisory, 7.5, "HIGH", "2026-10-01T00:00:00Z", "2026-11-01T00:00:00Z")
+		}
+		return vulnerabilityCVEFactWithProvenance(factID, vendorLineCVE, source, advisory, 7.5, "", "HIGH", "2026-10-01T00:00:00Z")
+	}
+	build := func(ownWithdrawn, otherWithdrawn bool, pkgs []facts.Envelope) []SupplyChainImpactFinding {
+		envs := append([]facts.Envelope{
+			mkCVE(ownWithdrawn, "cve-own", "ubuntu", "USN-9990-1"),
+			mkCVE(otherWithdrawn, "cve-other", "osv", "EXT-"+repDirectOtherID),
+		}, pkgs...)
+		envs = append(envs, rows...)
+		return BuildSupplyChainImpactFindings(append(envs, analyses...))
+	}
+	byRow := func(t *testing.T, findings []SupplyChainImpactFinding) map[string]SupplyChainImpactFinding {
+		t.Helper()
+		out := map[string]SupplyChainImpactFinding{}
+		for _, r := range mixedTopologies[0].rows {
+			f, ok := mixedFindingForRow(findings, r.id)
+			if !ok {
+				t.Fatalf("no finding on %s: %s", r.id, repDirectSummary(findings))
+			}
+			out[r.id] = f
+		}
+		if len(findings) != len(out) {
+			t.Fatalf("findings = %d, want one per row: %s", len(findings), repDirectSummary(findings))
+		}
+		return out
+	}
+	pkgOrders := [][]facts.Envelope{{own, other}, {other, own}}
+
+	// Withdrawing the only record that joins leaves nothing that anchors: the
+	// blank ecosystem is outside the OS class the retraction rule covers
+	// (9914-r5 limit 1.7a), so the withdrawn fact is dropped and the live fact
+	// that cannot join yields no finding, in either fact order.
+	for _, pkgs := range pkgOrders {
+		if got := build(true, false, pkgs); len(got) != 0 {
+			t.Fatalf("own withdrawn: findings = %d, want 0: %s", len(got), repDirectSummary(got))
+		}
+	}
+
+	// Withdrawing the record that cannot join changes nothing but the name: the
+	// live record decides both rows with no retraction shown, in either order.
+	for _, pkgs := range pkgOrders {
+		for id, f := range byRow(t, build(false, true, pkgs)) {
+			if f.AdvisoryRetraction != nil {
+				t.Fatalf("%s: retraction shown, want the live record's answer: %+v", id, f.AdvisoryRetraction)
+			}
+			if f.AdvisoryID != "USN-9990-1" || f.FixedVersion != "1.0-5" {
+				t.Fatalf("%s: advisory %q fix %q, want the live record USN-9990-1/1.0-5", id, f.AdvisoryID, f.FixedVersion)
+			}
+		}
+	}
+
+	// Withdrawing both keeps both rows with the retraction shown. The versioned
+	// row never carries the fact that cannot join; the verdicts match the live
+	// baseline row for row. The versionless row's evidence still differs by fact
+	// order there, which is #10034 item 1's class, so only the versioned row's
+	// evidence is pinned.
+	live := map[string]SupplyChainImpactFinding{}
+	for _, pkgs := range pkgOrders {
+		for id, f := range byRow(t, build(false, false, pkgs)) {
+			live[repDirectOrderLabel(pkgs)+id] = f
+		}
+	}
+	for _, pkgs := range pkgOrders {
+		for id, f := range byRow(t, build(true, true, pkgs)) {
+			if f.AdvisoryRetraction == nil {
+				t.Fatalf("%s: no retraction shown, want both records withdrawn", id)
+			}
+			if want := live[repDirectOrderLabel(pkgs)+id]; f.Status != want.Status || f.MatchReason != want.MatchReason {
+				t.Fatalf("%s: verdict %s/%s, want the live baseline %s/%s", id, f.Status, f.MatchReason, want.Status, want.MatchReason)
+			}
+			if id == "row-v" && slices.Contains(f.EvidenceFactIDs, repDirectOtherID) {
+				t.Fatalf("versioned row carries the fact that cannot join: %v", f.EvidenceFactIDs)
+			}
+		}
 	}
 }
