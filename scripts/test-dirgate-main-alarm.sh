@@ -45,69 +45,9 @@ fi
 #   POST <path> || <body-file>
 fakebin="${work}/fakebin"
 mkdir -p "${fakebin}"
-cat >"${fakebin}/gh" <<'FAKE'
-#!/usr/bin/env bash
-set -u
-dir="${DIRGATE_ALARM_CASE:?}"
-if [ "${1:-}" != "api" ]; then
-	echo "fake gh: only 'api' is implemented, got: $*" >&2
-	exit 2
-fi
-shift
-if [ "${1:-}" = "-X" ]; then
-	shift 2
-fi
-path="$1"
-shift
-body=""
-while [ $# -gt 0 ]; do
-	case "$1" in
-	-f|--field)
-		body="${body}${2}
-"
-		shift 2
-		;;
-		*)
-		shift
-		;;
-	esac
-done
-mutate() {
-	local out="${dir}/payload-$1.txt"
-	printf '%s' "${body}" >"${out}"
-	printf 'POST %s || %s\n' "${path}" "${out}" >>"${dir}/calls.log"
-	printf '{}\n'
-}
-case "${path}" in
-	*/jobs\?*|*/jobs)
-		cat "${dir}/jobs.json"
-		;;
-	*/jobs/*/logs)
-		cat "${dir}/job.log"
-		;;
-	*/commits/*/pulls*)
-		cat "${dir}/prs.json"
-		;;
-	*/issues/*/comments*)
-		if printf '%s' "${body}" | rg -q '^body='; then
-			mutate "comment"
-		else
-			cat "${dir}/comments.json"
-		fi
-		;;
-	*/issues\?*|*/issues)
-		if printf '%s' "${body}" | rg -q '^title='; then
-			mutate "issue"
-		else
-			cat "${dir}/issues.json"
-		fi
-		;;
-	*)
-		echo "fake gh: unexpected path: ${path}" >&2
-		exit 2
-		;;
-esac
-FAKE
+# The fake lives in scripts/gh-fake-dirgate-alarm.sh so no heredoc here
+# exceeds the 512-byte budget; assemble it verbatim.
+cp "${repo_root}/scripts/gh-fake-dirgate-alarm.sh" "${fakebin}/gh"
 chmod +x "${fakebin}/gh"
 
 export GITHUB_REPOSITORY="eshu-hq/eshu"
