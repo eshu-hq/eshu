@@ -376,28 +376,55 @@ func vendoredUnionRow(factID, path, packageID string) facts.Envelope {
 // TestExcludeVendoredUnionBaseRows pins the #10204 narrowing: npm-vendored
 // rows drop, publishable paths stay, composer rows under node_modules stay
 // when queried (ComposerManifestsQuery has no node_modules exclusion), and
-// rows without positive vendored evidence stay.
+// rows without positive vendored evidence stay, including vendored-path rows
+// with unparseable or definition-less payloads (fail open, #10204 P2).
 func TestExcludeVendoredUnionBaseRows(t *testing.T) {
 	t.Parallel()
 
 	npmKeys := []string{"package:alpha-pkg#Widget"}
 	composerKeys := []string{"package:acme/widget#Widget"}
-	rows := []facts.Envelope{
-		vendoredUnionRow("legit", "src/widget.js", "alpha-pkg"),
-		vendoredUnionRow("vendored", "node_modules/alpha-pkg/src/widget.js", "alpha-pkg"),
-		vendoredUnionRow("vendored-backup", "node_modules.bak/alpha-pkg/src/widget.js", "alpha-pkg"),
-		vendoredUnionRow("vendored-case", "Node_Modules-old/alpha-pkg/src/widget.js", "alpha-pkg"),
-		vendoredUnionRow("composer", "node_modules/acme-widget/src/widget.php", "acme/widget"),
-		vendoredUnionRow("scoped", "node_modules/@acme/widget/src/widget.js", "@acme/widget"),
-		vendoredUnionRow("file-named-vendored", "src/node_modules", "alpha-pkg"),
-		{FactID: "no-payload", ScopeID: "scope"},
+	// newRows rebuilds the table per query: excludeVendoredUnionBaseRows
+	// filters in place (kept := page[:0]), so reusing one slice across the
+	// npm and composer queries would read stale backing-array rows.
+	newRows := func() []facts.Envelope {
+		return []facts.Envelope{
+			vendoredUnionRow("legit", "src/widget.js", "alpha-pkg"),
+			vendoredUnionRow("vendored", "node_modules/alpha-pkg/src/widget.js", "alpha-pkg"),
+			vendoredUnionRow("vendored-backup", "node_modules.bak/alpha-pkg/src/widget.js", "alpha-pkg"),
+			vendoredUnionRow("vendored-case", "Node_Modules-old/alpha-pkg/src/widget.js", "alpha-pkg"),
+			vendoredUnionRow("composer", "node_modules/acme-widget/src/widget.php", "acme/widget"),
+			vendoredUnionRow("scoped", "node_modules/@acme/widget/src/widget.js", "@acme/widget"),
+			vendoredUnionRow("file-named-vendored", "src/node_modules", "alpha-pkg"),
+			vendoredUnionRow("vendored-empty-package-id", "node_modules/alpha-pkg/src/widget.js", ""),
+			{FactID: "no-payload", ScopeID: "scope"},
+			{
+				FactID:  "vendored-unparseable",
+				ScopeID: "scope",
+				Payload: map[string]any{
+					"relative_path":    "node_modules/alpha-pkg/src/widget.js",
+					"parsed_file_data": "not-an-object",
+				},
+			},
+			{
+				FactID:  "vendored-empty-defs",
+				ScopeID: "scope",
+				Payload: map[string]any{
+					"relative_path":    "node_modules/alpha-pkg/src/widget.js",
+					"parsed_file_data": map[string]any{"functions": []any{}},
+				},
+			},
+		}
 	}
+	rows := newRows()
 	got := excludeVendoredUnionBaseRows(rows, npmKeys)
 	var ids []string
 	for _, env := range got {
 		ids = append(ids, env.FactID)
 	}
-	for _, want := range []string{"legit", "file-named-vendored", "no-payload"} {
+	for _, want := range []string{
+		"legit", "file-named-vendored", "no-payload",
+		"vendored-unparseable", "vendored-empty-defs", "vendored-empty-package-id",
+	} {
 		found := false
 		for _, id := range ids {
 			found = found || id == want
@@ -414,7 +441,7 @@ func TestExcludeVendoredUnionBaseRows(t *testing.T) {
 		}
 	}
 
-	composerGot := excludeVendoredUnionBaseRows(rows, composerKeys)
+	composerGot := excludeVendoredUnionBaseRows(newRows(), composerKeys)
 	kept := false
 	for _, env := range composerGot {
 		kept = kept || env.FactID == "composer"

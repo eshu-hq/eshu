@@ -149,25 +149,30 @@ func excludeVendoredUnionBaseRows(page []facts.Envelope, keys []string) []facts.
 }
 
 // unionBaseRowIsNpmVendored reports whether the row is an npm-vendored copy:
-// its file sits under a node_modules segment and none of its definitions
-// carries a queried composer package id. The segment test mirrors the
-// producer manifest read's `relative_path !~* '(^|/)node_modules[^/]*/'`
-// (ASCII case folding, any suffix including none); the composer keep-out
-// uses the schema grammar both routers share, so the filter cannot disagree
-// with the anchor about which names are composer's.
+// its file sits under a node_modules segment and at least one of its
+// definitions carries a non-empty, non-queried-composer package id. The
+// segment test mirrors the producer manifest read's
+// `relative_path !~* '(^|/)node_modules[^/]*/'` (ASCII case folding, any
+// suffix including none); the composer keep-out uses the schema grammar both
+// routers share, so the filter cannot disagree with the anchor about which
+// names are composer's. Fail open: a vendored-path row whose payload is
+// unparseable or carries no definition with a non-empty package id keeps its
+// row, since there is no positive vendored evidence to drop it on.
 func unionBaseRowIsNpmVendored(env facts.Envelope, queriedComposer map[string]struct{}) bool {
 	path, _ := env.Payload["relative_path"].(string)
 	if !isNodeModulesPath(path) {
 		return false
 	}
+	seenPackageID := false
 	for _, item := range codeCallSymbolDefinitionItems(env) {
 		if id, _ := item["package_id"].(string); id != "" {
+			seenPackageID = true
 			if _, ok := queriedComposer[id]; ok {
 				return false
 			}
 		}
 	}
-	return true
+	return seenPackageID
 }
 
 // isNodeModulesPath reports whether path sits under a node_modules
