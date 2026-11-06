@@ -354,6 +354,11 @@ values each counter carries.
   snapshot, so when `ActiveGeneration` is wired the runtime rebinds it to
   the active generation and re-checks instead of dropping it; churn past
   the rebind budget returns the retryable `GenerationRebindExhaustedError`.
+  One exception (#10060): a superseded
+  `supply_chain_impact` intent that still owes holder fan-out
+  (`supplychaincore.IntentCarriesFanOutDebt`) executes so its stored holder
+  list drains; the claim sweep spares the same rows. A not-yet-active
+  generation still defers.
 - **CI/CD generation, git-workflow-evidence and `deployment_mapping`
   invariants live in
   [`gotchas-cicd-and-deployment.md`](gotchas-cicd-and-deployment.md)** — split

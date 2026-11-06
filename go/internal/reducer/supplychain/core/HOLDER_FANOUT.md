@@ -50,6 +50,15 @@ more than 256 holders drains across claims.
   drain claim drains the stored list.
 - A claim reopens at most 256 holders; the rest is stored as `fanout_remaining`
   on the committing item and drained by its next claims.
+- A continuation survives its scope's next generation (#10060): the claim-time
+  supersede sweep spares a non-marker `supply_chain_impact` row that still
+  carries `fanout_remaining` or `fanout_owed`, and the reducer runtime's
+  generation guard lets that stale intent execute (`IntentCarriesFanOutDebt`),
+  so it drains the stored list under its own generation instead of dying
+  `superseded` with the holders unreopened. The successor generation's pass is
+  not a substitute: its changed-CVE diff is taken against this generation's
+  stored rows, which already carry the change. Markers are exempt from the
+  rescue because the completion-stamp baseline already diffs through them.
 - Owed marker: when a commit changed rows, the writer sets `fanout_owed` on the
   pass's own item inside the same transaction, fenced on the lease and the
   attempt, so a pass that lost its lease cannot commit. The fan-out clears it

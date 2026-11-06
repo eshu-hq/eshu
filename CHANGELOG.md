@@ -9,6 +9,20 @@ recent shipped work grouped by feature area.
 
 ## Unreleased
 
+### A capped CVE holder fan-out no longer strands its remaining holders
+
+- **A fan-out continuation superseded by a newer generation still drains**
+  ([#10060](https://github.com/eshu-hq/eshu/issues/10060)). A holder fan-out
+  past the 256-holder cap stores the unreached holders on its queue item; if a
+  newer generation activated before the continuation was claimed, the claim
+  sweep marked the item `superseded` — terminal — and those holders kept stale
+  findings, because the successor pass diffs clean against the committing
+  generation's rows. The sweep now spares non-marker `supply_chain_impact`
+  rows carrying fan-out debt, and the runtime generation guard lets the spared
+  stale intent execute and drain its list. Manifest markers keep their
+  completion-stamp behavior. See
+  [stranded-continuation evidence](docs/internal/evidence/10060-stranded-continuation.md).
+
 ### SAML sign-in no longer panics or misreads NameID on incomplete assertions
 
 - **`crewjam/saml` is replaced by the `eshu-hq/saml` fork**
