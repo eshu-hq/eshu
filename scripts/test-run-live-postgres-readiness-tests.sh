@@ -30,14 +30,14 @@ for arg in "$@"; do [[ "${arg}" == ./* ]] && pkg="${arg}"; done
 key="${pkg//[^a-z]/_}"
 [[ -f "${ESHU_FAKE_DIR}/${key}.names" ]] || { echo "unexpected package ${pkg}" >&2; exit 9; }
 EOF
-cat >>"${seed_dir}/bin/go" <<'EOF'
-while [[ $# -gt 0 ]]; do [[ "$1" == -run ]] && pattern="$2"; shift; done
-[[ -n "${pattern:-}" ]] || { echo 'missing -run' >&2; exit 9; }
-printf '%s\n' "${pkg}" >>"${ESHU_FAKE_DIR}/calls"
 # One process checks the pattern and selects the events. A bash [[ =~ ]] loop
 # recompiled the largest package's 28 KB pattern per name and per line (#10238).
 # The selection goes to a file the fake cats at the end: $(...) would strip
 # trailing blank lines the event verifier must see as corruption.
+cat >>"${seed_dir}/bin/go" <<'EOF'
+while [[ $# -gt 0 ]]; do [[ "$1" == -run ]] && pattern="$2"; shift; done
+[[ -n "${pattern:-}" ]] || { echo 'missing -run' >&2; exit 9; }
+printf '%s\n' "${pkg}" >>"${ESHU_FAKE_DIR}/calls"
 selected="${ESHU_FAKE_DIR}/${key}.sel.$$"; trap 'rm -f "${selected}"' EXIT
 python3 "${ESHU_FAKE_EVENTS}" "${pattern}" "${ESHU_FAKE_DIR}/${key}.names" "${ESHU_FAKE_DIR}/${key}.jsonl" >"${selected}"; rc=$?
 [[ "${rc}" -eq 0 ]] || exit "${rc}"
