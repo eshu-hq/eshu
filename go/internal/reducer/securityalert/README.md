@@ -179,6 +179,41 @@ and the `cmd/reducer` wiring test guard the wire. The producer probe is keyed on
 the intent's own scope and generation, so impact evidence produced by another
 scope's impact run is not waited on.
 
+### A refused delta base commits provider_only (#10193)
+
+This handler stays on the default manifest read, whose refused-base
+fallback returns the delta's rows only. When an alert's pin exists only in
+a refused base (`union_base_missing` / `union_scope_mismatch` on the
+manifest read), the alert commits `provider_only` immediately: it never
+waits, because `decisionWaitsOnImpactEvidence` requires `unmatched` with a
+`DependencyEvidenceID`. That is the documented leave-as-is behavior, not
+an oversight: the writer is upsert-only (`CanonicalWrites=0`, no DELETE),
+the blast radius is one alert's status, and neither failing the intent nor
+waiting can see the refusal, because the read returns rows and no refusal
+signal. No trigger fires when the base heals — only provider-alert and
+package-identity observations create reconciliation intents — so the value
+stands until the next such observation re-derives it or an operator
+re-drives it. The alert, the telemetry joining recipe, and the re-drive
+steps live in
+[the delta-union runbook](../../../../docs/public/operate/graph-delta-union.md#security-alert-reconciliation-on-a-refused-base-10193).
+The reducer-root tests
+`TestSecurityAlertReconciliationHandlerRefusedBaseCommitsProviderOnly` and
+`TestSecurityAlertReconciliationHandlerHealedBaseRederivesMatched` pin
+both directions through `Handle` and the real Postgres writer. If refused
+bases stop being rare, reopen #10193 and take the expected-wait option.
+
+No-Regression Evidence: #10193 changes no production Go code, SQL, queue
+behavior, or payload bytes. It adds the two reducer-root handler tests
+above (refused base commits one upserted `provider_only` row; healed base
+re-derives `matched`) and operator docs. The existing reconciliation
+suites stay the regression proof for every other status.
+
+No-Observability-Change: eshu_dp_package_manifest_dependency_read_delta_union_total, eshu_dp_security_alert_reconciliation_impact_wait_total, eshu_dp_reducer_executions_total
+The read's refusal counter and WARN, the handler success line's
+`provider_only=<n>` summary, and the committed reconciliation payload are
+the joining signals; #10193 registers no new instrument and adds no label,
+span, or log key.
+
 ### The manifest-consumption seam
 
 Matching a provider alert against repository manifest/lockfile dependency
