@@ -232,7 +232,7 @@ results are derived from the inputs rather than written by hand. See
 | Gate id | Name | Category | Tier | Blocking | Local execution | CI workflow / job | Triggers |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `go-fmt` | Go gofumpt formatting | hygiene | pre-commit | true | `bash scripts/dev/precommit-go.sh fmt-all` | test.yml / go-core | 6 path(s): go/**, scripts/dev/precommit-go.sh, scripts/lib/go-toolchain.sh, … |
-| `go-lint` | Go lint (golangci-lint) | hygiene | pre-commit | true | `bash scripts/dev/precommit-go.sh lint-all` | test.yml / go-core | 6 path(s): go/**, scripts/dev/precommit-go.sh, scripts/lib/go-toolchain.sh, … |
+| `go-lint` | Go lint (golangci-lint) | hygiene | pre-commit | true | `bash scripts/dev/precommit-go.sh lint-all`<br>then self-test: `bash scripts/test-precommit-go-cgo-cflags.sh` | test.yml / go-core | 7 path(s): go/**, scripts/dev/precommit-go.sh, scripts/lib/go-toolchain.sh, … |
 | `go-build` | Go build (all binaries) | build | pre-push | true | `cd go && go build ./...` | test.yml / go-core | 1 path(s): go/** |
 | `go-vet` | Go vet | hygiene | pre-push | true | `cd go && go vet ./...` | test.yml / go-core | 1 path(s): go/** |
 | `go-file-cap` | Go 500-line file cap | hygiene | pre-commit | true | `bash scripts/dev/precommit-go.sh filecap-all`<br>then self-test: `bash scripts/test-precommit-go-filecap.sh && cd tools/golangci-lint-filelength && env -u GOROOT go test -count=1 .` | test.yml / go-core | 9 path(s): go/**, scripts/dev/precommit-go.sh, scripts/lib/go-toolchain.sh, … |
