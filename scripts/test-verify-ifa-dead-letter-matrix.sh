@@ -76,7 +76,7 @@ require "--keep flag is parsed" '--keep) keep=1 ;;'
 require "isolated compose project default" 'DEADLETTER_MATRIX_COMPOSE_PROJECT:=eshu-ifa-deadletter-matrix-$$'
 # Bind the BRING-UP line, not the bare -p flag: both teardowns carry the same
 # flag, so deleting `up -d` left this pin green with no stack ever started.
-require "compose -p flag on up" 'bash scripts/ci/compose.sh -p "${DEADLETTER_MATRIX_COMPOSE_PROJECT}" -f "${compose_file}" -- up -d nornicdb postgres'
+require "compose -p flag on up" 'bash scripts/ci/compose.sh -p "${DEADLETTER_MATRIX_COMPOSE_PROJECT}" -f "${compose_file}" -- up -d "${IFA_GRAPH_SERVICE}" postgres'
 for reserved in \
 	'ESHU_POSTGRES_PORT:=15432' 'NEO4J_BOLT_PORT:=7687' 'NEO4J_HTTP_PORT:=7474' \
 	'ESHU_POSTGRES_PORT:=15532' 'NEO4J_BOLT_PORT:=7788' 'NEO4J_HTTP_PORT:=7575' \
@@ -251,11 +251,11 @@ done
 # dumps no logs, and tears nothing down.
 for needle in \
 	'DETERMINISM_COMPOSE_PROJECT: eshu-ifa-determinism-${{ github.run_id }}-${{ github.run_attempt }}' \
-	'run: bash scripts/ci/compose.sh -p "${DETERMINISM_COMPOSE_PROJECT}" -f eshu-deploy/compose/docker-compose.yaml -- logs --tail=200 || true' \
-	'run: bash scripts/ci/compose.sh -p "${DETERMINISM_COMPOSE_PROJECT}" -f eshu-deploy/compose/docker-compose.yaml -- down -v || true' \
+	'run: bash scripts/ci/compose.sh -p "${DETERMINISM_COMPOSE_PROJECT}" -f eshu-deploy/compose/docker-compose.neo4j.yml -- logs --tail=200 || true' \
+	'run: bash scripts/ci/compose.sh -p "${DETERMINISM_COMPOSE_PROJECT}" -f eshu-deploy/compose/docker-compose.neo4j.yml -- down -v || true' \
 	'DEADLETTER_MATRIX_COMPOSE_PROJECT: eshu-ifa-deadletter-matrix-${{ github.run_id }}-${{ github.run_attempt }}' \
-	'run: bash scripts/ci/compose.sh -p "${DEADLETTER_MATRIX_COMPOSE_PROJECT}" -f eshu-deploy/compose/docker-compose.yaml -- logs --tail=200 || true' \
-	'run: bash scripts/ci/compose.sh -p "${DEADLETTER_MATRIX_COMPOSE_PROJECT}" -f eshu-deploy/compose/docker-compose.yaml -- down -v || true'; do
+	'run: bash scripts/ci/compose.sh -p "${DEADLETTER_MATRIX_COMPOSE_PROJECT}" -f eshu-deploy/compose/docker-compose.neo4j.yml -- logs --tail=200 || true' \
+	'run: bash scripts/ci/compose.sh -p "${DEADLETTER_MATRIX_COMPOSE_PROJECT}" -f eshu-deploy/compose/docker-compose.neo4j.yml -- down -v || true'; do
 	rg --fixed-strings --quiet -- "${needle}" "${workflow}" \
 		|| fail "matrix workflow does not address the kept compose project: ${needle}"
 done

@@ -13,9 +13,9 @@ import urllib.request
 
 
 ROOT = Path(__file__).resolve().parents[2]
-NORNIC_DIGEST = "sha256:74a8ed7b36f37bdd1a7e32d8bc6aa3fa88908b7207bfa6568567ab94e4a4b3b1"
+NEO4J_DIGEST = "sha256:eabfbb042bdaca2fd5e1950db1329b22c794eee80f0eacc4e7a729d44b2e863f"
 POSTGRES_DIGEST = "sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873"
-NORNIC_REPOSITORY = "ghcr.io/eshu-hq/nornicdb-amd64-cpu"
+NEO4J_REPOSITORY = "ghcr.io/eshu-hq/ci-neo4j-community"
 POSTGRES_REPOSITORY = "ghcr.io/eshu-hq/ci-postgres-alpine"
 SHA_PATTERN = re.compile(r"[0-9a-f]{40}")
 CONTAINER_PATTERN = re.compile(r"[0-9a-f]{64}")
@@ -56,7 +56,7 @@ def verify_endpoint(identity: Mapping[str, Any], http_port: str, bolt_port: str)
             identity.get("http_host_port") != http_port or
             identity.get("bolt_host_ip") != "127.0.0.1" or
             identity.get("bolt_host_port") != bolt_port):
-        raise ValueError("observed NornicDB endpoint mapping drifted")
+        raise ValueError("observed Neo4j endpoint mapping drifted")
 
 
 def verify_backends(
@@ -67,8 +67,8 @@ def verify_backends(
     mismatch_ports: tuple[str, str],
 ) -> None:
     """Require distinct, observed pinned services at their declared ports."""
-    verify_identity(primary, NORNIC_REPOSITORY, NORNIC_DIGEST, "primary NornicDB")
-    verify_identity(mismatch, NORNIC_REPOSITORY, NORNIC_DIGEST, "mismatch NornicDB")
+    verify_identity(primary, NEO4J_REPOSITORY, NEO4J_DIGEST, "primary Neo4j")
+    verify_identity(mismatch, NEO4J_REPOSITORY, NEO4J_DIGEST, "mismatch Neo4j")
     verify_identity(postgres, POSTGRES_REPOSITORY, POSTGRES_DIGEST, "PostgreSQL")
     if primary["container_id"] == mismatch["container_id"]:
         raise ValueError("primary and mismatch endpoints share a container")
@@ -76,8 +76,8 @@ def verify_backends(
         raise ValueError("primary and mismatch endpoint ports must differ")
     verify_endpoint(primary, *primary_ports)
     verify_endpoint(mismatch, *mismatch_ports)
-    if primary.get("component") != "NornicDB" or mismatch.get("component") != "NornicDB":
-        raise ValueError("observed graph backend is not NornicDB")
+    if primary.get("component") != "Neo4j Kernel" or mismatch.get("component") != "Neo4j Kernel":
+        raise ValueError("observed graph backend is not Neo4j")
     if not required(postgres.get("version"), "PostgreSQL version").startswith("18.6"):
         raise ValueError("observed PostgreSQL is not version 18.6")
 
@@ -206,12 +206,13 @@ def docker_identity(container: str, canonical: str) -> dict[str, Any]:
     return identity
 
 
-def nornic_component(port: int) -> dict[str, str]:
+def neo4j_component(port: int) -> dict[str, str]:
     """Observe the graph engine name and version through its live HTTP API."""
-    statement = "CALL dbms.components() YIELD name, versions RETURN name, versions"
+    statement = ("CALL dbms.components() YIELD name, versions "
+                 "WHERE name = 'Neo4j Kernel' RETURN name, versions")
     payload = json.dumps({"statements": [{"statement": statement}]}).encode()
     request = urllib.request.Request(
-        f"http://127.0.0.1:{port}/db/nornic/tx/commit",
+        f"http://127.0.0.1:{port}/db/neo4j/tx/commit",
         data=payload,
         headers={"Content-Type": "application/json"},
         method="POST",
@@ -254,14 +255,14 @@ def main() -> int:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--local-proof", action="store_true")
     args = parser.parse_args()
-    primary = docker_identity(args.primary, f"{NORNIC_REPOSITORY}@{NORNIC_DIGEST}")
-    mismatch = docker_identity(args.mismatch, f"{NORNIC_REPOSITORY}@{NORNIC_DIGEST}")
+    primary = docker_identity(args.primary, f"{NEO4J_REPOSITORY}@{NEO4J_DIGEST}")
+    mismatch = docker_identity(args.mismatch, f"{NEO4J_REPOSITORY}@{NEO4J_DIGEST}")
     if args.local_proof and os.environ.get("GITHUB_ACTIONS") == "true":
         raise ValueError("local proof mode is forbidden on GitHub Actions")
     primary_port = int(primary["http_host_port"]) if args.local_proof else 17474
     mismatch_port = int(mismatch["http_host_port"]) if args.local_proof else 18474
-    primary.update(nornic_component(primary_port))
-    mismatch.update(nornic_component(mismatch_port))
+    primary.update(neo4j_component(primary_port))
+    mismatch.update(neo4j_component(mismatch_port))
     postgres = docker_identity(args.postgres, f"{POSTGRES_REPOSITORY}@{POSTGRES_DIGEST}")
     postgres["version"] = postgres_version(args.postgres)
     checkout_sha = subprocess.run(

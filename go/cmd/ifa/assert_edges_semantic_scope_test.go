@@ -72,8 +72,8 @@ func semanticScopeTestGraph() []graphdump.Edge {
 	}
 }
 
-// semanticScopeTestVariantExpected loads the NornicDB expected-edge variant
-// through the same loader the command uses.
+// semanticScopeTestVariantExpected loads the canonical-ownership expected-edge
+// variant (the file both live backends assert) through the same loader the command uses.
 func semanticScopeTestVariantExpected(t *testing.T) []materializededges.ExpectedEdge {
 	t.Helper()
 	path := filepath.Join(repoRootDir(t), "go/internal/ifa/testdata/semanticentitycontainment/ifa-semantic-entity-containment-family-expected-edges.nornicdb.json")
@@ -90,8 +90,8 @@ func semanticScopeTestVariantExpected(t *testing.T) []materializededges.Expected
 	return expected
 }
 
-// semanticScopeTestVariantGraph is the NornicDB live shape the variant
-// asserts: enrichment on the canonical nodes plus the canonical writer's own
+// semanticScopeTestVariantGraph is the live shape the variant asserts on both
+// Neo4j and NornicDB: enrichment on the canonical nodes plus the canonical writer's own
 // edges for the three canonical-owned pairs, and the semantic writer's edge
 // for the semantic-owned Variable.
 func semanticScopeTestVariantGraph() []graphdump.Edge {
@@ -211,7 +211,7 @@ func TestAssertSemanticEntityContainmentIgnoresSiblingCanonicalPopulation(t *tes
 }
 
 // TestAssertSemanticEntityContainmentVariantAdmitsCanonicalPairs is the
-// NornicDB variant's green path: the three canonical-owned pairs stamped by
+// canonical-ownership variant's green path: the three canonical-owned pairs stamped by
 // the canonical writer plus the semantic-owned Variable edge assert exactly.
 func TestAssertSemanticEntityContainmentVariantAdmitsCanonicalPairs(t *testing.T) {
 	t.Parallel()

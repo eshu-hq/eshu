@@ -36,7 +36,7 @@ matrix, load saturation, replay drive, contract-layer, materialized-edge
 coverage, determinism) plus every other `blocking: true` registry row for the
 changed paths. It is disabled as a required check for now; a red gate under it
 is still a finding ([When a PR may merge](agent-git-hygiene.md#when-a-pr-may-merge)). The live Ifá/Odù cells (fault
-injection, determinism and dead-letter matrices) need Docker/NornicDB/Postgres
+injection, determinism and dead-letter matrices) need Docker/Neo4j/Postgres
 and never ran locally; `make pre-pr` ran only their static mirrors. The
 hermetic Ifá rows (load saturation, contract-layer, materialized-edge coverage)
 do run locally in `make pre-pr` and are deferred by `make pre-push`, so run

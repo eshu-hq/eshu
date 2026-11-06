@@ -193,9 +193,9 @@ kubernetes_correlation_expected_edges="${repo_root}/go/internal/ifa/testdata/kub
 # the repository fact, the three typed file facts the File endpoints project
 # from, and the six content entities the semantic subset admits four of. The
 # three canonical-owned content entities carry the exact CanonicalEntityID
-# derivation the projector recomputes (#8359 ruling); the NornicDB
-# expected-edge variant records the canonical writer's stamp on those three
-# pairs (see the assert fn in scripts/lib/ifa_direct_family_live.sh).
+# derivation the projector recomputes (#8359 ruling); the .nornicdb.json
+# expected-edge variant (asserted on every backend since #10138) records the
+# canonical writer's stamp on those three pairs (scripts/lib/ifa_direct_family_live.sh).
 semantic_entity_containment_cassette="${repo_root}/testdata/cassettes/semanticentitycontainment/ifa-semantic-entity-containment-family.json"
 semantic_entity_containment_expected_edges="${repo_root}/go/internal/ifa/testdata/semanticentitycontainment/ifa-semantic-entity-containment-family-expected-edges.json"
 semantic_entity_containment_expected_edges_nornicdb="${repo_root}/go/internal/ifa/testdata/semanticentitycontainment/ifa-semantic-entity-containment-family-expected-edges.nornicdb.json"
@@ -441,7 +441,7 @@ ifa_family_fixtures_require() {
 	[[ -f "${kubernetes_correlation_expected_edges}" ]] || { echo "${gate}: kubernetes-correlation expected-edge set not found: ${kubernetes_correlation_expected_edges}" >&2; exit 1; }
 	[[ -f "${semantic_entity_containment_cassette}" ]] || { echo "${gate}: semantic-entity-containment cassette not found: ${semantic_entity_containment_cassette}" >&2; exit 1; }
 	[[ -f "${semantic_entity_containment_expected_edges}" ]] || { echo "${gate}: semantic-entity-containment expected-edge set not found: ${semantic_entity_containment_expected_edges}" >&2; exit 1; }
-	[[ -f "${semantic_entity_containment_expected_edges_nornicdb}" ]] || { echo "${gate}: semantic-entity-containment NornicDB expected-edge set not found: ${semantic_entity_containment_expected_edges_nornicdb}" >&2; exit 1; }
+	[[ -f "${semantic_entity_containment_expected_edges_nornicdb}" ]] || { echo "${gate}: semantic-entity-containment canonical-ownership (.nornicdb.json) expected-edge set not found: ${semantic_entity_containment_expected_edges_nornicdb}" >&2; exit 1; }
 	[[ -f "${cloud_resource_cassette}" ]] || { echo "${gate}: cloud-resource cassette not found: ${cloud_resource_cassette}" >&2; exit 1; }
 	[[ -f "${cloud_resource_expected_edges}" ]] || { echo "${gate}: cloud-resource expected-edge set not found: ${cloud_resource_expected_edges}" >&2; exit 1; }
 	[[ -f "${built_from_cassette}" ]] || { echo "${gate}: built-from cassette not found: ${built_from_cassette}" >&2; exit 1; }

@@ -3,7 +3,7 @@
     "package": "github.com/eshu-hq/eshu/go/cmd/reducer",
     "tag": "ifafaultinjection",
     "tests": [
-      "TestReducerGroupedRetrySeamLiveNornicDB"
+      "TestReducerGroupedRetrySeamLive"
     ]
   },
   "go/internal/replay/offlinetier/repo_dependency_ifa_cleanup_live_test.go": {

@@ -6,6 +6,11 @@
 # only safe for this committed synthetic CI corpus; do not reuse this collector
 # against live, production, customer, or otherwise private datasets.
 
+# Backend selection is shared with every other Ifá live gate, so a standalone
+# source of this library (the unit tests do that) still resolves the profile.
+# shellcheck source=ifa_graph_backend.sh
+source "$(dirname "${BASH_SOURCE[0]}")/ifa_graph_backend.sh"
+
 ifa_fault_sha256_file() {
 	local path="$1"
 	if command -v shasum >/dev/null 2>&1; then
@@ -68,18 +73,49 @@ ifa_fault_run_bounded() {
 	fi
 }
 
+# ifa_fault_backend_profile sets the identity profile of the selected graph
+# backend (ESHU_GRAPH_BACKEND, Neo4j by default; see ifa_graph_backend.sh):
+#   IFA_FAULT_BACKEND_IMAGES            JSON array of the only accepted rendered images
+#   IFA_FAULT_BACKEND_DEFAULT_PLATFORM  platform assumed when Compose renders none
+#                                       (empty = Compose must render one). The Neo4j
+#                                       default is linux/amd64, which matches the CI
+#                                       runners; an arm64 host is not validated here.
+#   IFA_FAULT_BACKEND_ENV_PATTERN       allowlist of container env names to retain
+# Both backends are pinned by immutable digest; an unmapped image fails before any
+# identity artifact is written. The Neo4j digest is the index digest of
+# neo4j:2026-community and of the ci-neo4j-community mirror CI substitutes for it.
+# The Neo4j allowlist excludes NEO4J_AUTH, which carries the password.
+ifa_fault_backend_profile() {
+	ifa_graph_backend_init || return 1
+	case "${ESHU_GRAPH_BACKEND}" in
+	neo4j)
+		IFA_FAULT_BACKEND_IMAGES='["ghcr.io/eshu-hq/ci-neo4j-community@sha256:eabfbb042bdaca2fd5e1950db1329b22c794eee80f0eacc4e7a729d44b2e863f","neo4j:2026-community@sha256:eabfbb042bdaca2fd5e1950db1329b22c794eee80f0eacc4e7a729d44b2e863f"]'
+		IFA_FAULT_BACKEND_DEFAULT_PLATFORM=linux/amd64
+		IFA_FAULT_BACKEND_ENV_PATTERN='^NEO4J_(PLUGINS|server_memory_heap_initial__size|server_memory_heap_max__size|server_memory_pagecache_size)='
+		;;
+	nornicdb)
+		IFA_FAULT_BACKEND_IMAGES='["ghcr.io/eshu-hq/nornicdb-amd64-cpu:fix-500-e022384c@sha256:74a8ed7b36f37bdd1a7e32d8bc6aa3fa88908b7207bfa6568567ab94e4a4b3b1"]'
+		IFA_FAULT_BACKEND_DEFAULT_PLATFORM=""
+		IFA_FAULT_BACKEND_ENV_PATTERN='^(NORNICDB_(NO_AUTH|DATA_DIR|HTTP_PORT|BOLT_PORT|ASYNC_WRITES_ENABLED|HEIMDALL_ENABLED|QDRANT_GRPC_ENABLED|EMBEDDING_ENABLED|EMBEDDING_PROVIDER|SEARCH_BM25_ENABLED|SEARCH_VECTOR_ENABLED|SEARCH_BM25_WARMING|SEARCH_VECTOR_WARMING|PERSIST_SEARCH_INDEXES)=)'
+		;;
+	esac
+}
+
 # ifa_fault_backend_selection accepts only the exact public immutable image and
 # platform this proof lane validates. Alternative registries need their own
 # public-safe proof mapping before their failure artifacts may be retained.
 ifa_fault_backend_selection() {
 	local compose_config="$1"
-	ifa_fault_run_bounded jq -er '
-		.services.nornicdb
+	ifa_fault_backend_profile || return 1
+	ifa_fault_run_bounded jq -er --arg svc "${IFA_GRAPH_SERVICE}" \
+		--argjson images "${IFA_FAULT_BACKEND_IMAGES}" \
+		--arg default_platform "${IFA_FAULT_BACKEND_DEFAULT_PLATFORM}" '
+		.services[$svc]
 		| select(
-			.image == "ghcr.io/eshu-hq/nornicdb-amd64-cpu:fix-500-e022384c@sha256:74a8ed7b36f37bdd1a7e32d8bc6aa3fa88908b7207bfa6568567ab94e4a4b3b1"
-			and .platform == "linux/amd64"
+			(.image as $image | $images | index($image) != null)
+			and ((.platform // $default_platform) == "linux/amd64")
 		)
-		| [.image, .platform]
+		| [.image, (.platform // $default_platform)]
 		| @tsv
 	' "${compose_config}"
 }
@@ -93,7 +129,10 @@ ifa_fault_write_backend_provenance() {
 	local compose_config="$1" container_json="$2" runtime_image_json="$3"
 	local output="$4" temporary="${4}.tmp"
 	rm -f "${temporary}"
+	ifa_fault_backend_profile || return 1
 	ifa_fault_run_bounded jq -n \
+		--arg svc "${IFA_GRAPH_SERVICE}" \
+		--arg default_platform "${IFA_FAULT_BACKEND_DEFAULT_PLATFORM}" \
 		--slurpfile compose "${compose_config}" \
 		--slurpfile container "${container_json}" \
 		--slurpfile runtime "${runtime_image_json}" '
@@ -102,8 +141,8 @@ ifa_fault_write_backend_provenance() {
 			| split("/") as $parts
 			| ($parts[-1] | sub(":[^:]+$"; "")) as $leaf
 			| (($parts[0:-1] + [$leaf]) | join("/"));
-		($compose[0].services.nornicdb.image // "") as $rendered_image
-		| ($compose[0].services.nornicdb.platform // "") as $rendered_platform
+		($compose[0].services[$svc].image // "") as $rendered_image
+		| ($compose[0].services[$svc].platform // $default_platform) as $rendered_platform
 		| (try ($rendered_image | capture("@(?<digest>sha256:[0-9a-f]{64})$").digest) catch "") as $index_digest
 		| (if $rendered_image == "" then "" else ($rendered_image | repository_from_image) end) as $repository
 		| (
@@ -292,13 +331,14 @@ ifa_fault_capture_failure_diagnostics() {
 			"${work_root}/backend-runtime-image.json" \
 			"${work_root}/backend-runtime-image.json.error" \
 			"${work_root}/backend-provenance.json" \
-			"${work_root}/nornicdb-environment.txt" \
-			"${work_root}/nornicdb-environment.txt.error"
+			"${work_root}/backend-environment.txt" \
+			"${work_root}/backend-environment.txt.error"
+		ifa_fault_backend_profile || complete=0
 		if ifa_fault_capture_command "${manifest}" backend-compose-config \
 			"${work_root}/backend-compose-config.json" \
 			bash -o pipefail -c \
-			'bash scripts/ci/compose.sh -p "$1" -f "$2" -- config --format json 2>/dev/null | jq -e '\''{services: {nornicdb: {image: .services.nornicdb.image, platform: .services.nornicdb.platform}}} | select(.services.nornicdb.image == "ghcr.io/eshu-hq/nornicdb-amd64-cpu:fix-500-e022384c@sha256:74a8ed7b36f37bdd1a7e32d8bc6aa3fa88908b7207bfa6568567ab94e4a4b3b1" and .services.nornicdb.platform == "linux/amd64")'\''' \
-			_ "${compose_project}" "${compose_file}"; then
+			'bash scripts/ci/compose.sh -p "$1" -f "$2" -- config --format json 2>/dev/null | jq -e --arg svc "$3" --argjson images "$4" --arg default_platform "$5" '\''{services: {($svc): {image: .services[$svc].image, platform: .services[$svc].platform}}} | select((.services[$svc].image as $image | $images | index($image) != null) and ((.services[$svc].platform // $default_platform) == "linux/amd64"))'\''' \
+			_ "${compose_project}" "${compose_file}" "${IFA_GRAPH_SERVICE}" "${IFA_FAULT_BACKEND_IMAGES}" "${IFA_FAULT_BACKEND_DEFAULT_PLATFORM}"; then
 			backend_selection="$(ifa_fault_backend_selection \
 				"${work_root}/backend-compose-config.json")" || true
 			if [[ -n "${backend_selection}" ]]; then
@@ -339,9 +379,9 @@ ifa_fault_capture_failure_diagnostics() {
 			ifa_fault_capture_command "${manifest}" compose-logs "${logs}/compose-services.log" \
 				bash scripts/ci/compose.sh -p "${compose_project}" -f "${compose_file}" -- logs --no-color || complete=0
 			ifa_fault_capture_command "${manifest}" backend-image "${work_root}/backend-image.txt" \
-				bash scripts/ci/compose.sh -p "${compose_project}" -f "${compose_file}" -- images nornicdb || complete=0
+				bash scripts/ci/compose.sh -p "${compose_project}" -f "${compose_file}" -- images "${IFA_GRAPH_SERVICE}" || complete=0
 			container_id="$(ifa_fault_run_bounded \
-				bash scripts/ci/compose.sh -p "${compose_project}" -f "${compose_file}" -- ps -q nornicdb 2>/dev/null)" || true
+				bash scripts/ci/compose.sh -p "${compose_project}" -f "${compose_file}" -- ps -q "${IFA_GRAPH_SERVICE}" 2>/dev/null)" || true
 		fi
 		if [[ -n "${backend_selection}" && -n "${container_id}" ]]; then
 			ifa_fault_capture_command "${manifest}" backend-container "${work_root}/backend-container.json" \
@@ -374,8 +414,8 @@ ifa_fault_capture_failure_diagnostics() {
 					"${manifest}" backend-provenance-match failed expected-does-not-equal-runtime
 				complete=0
 			fi
-			ifa_fault_capture_command "${manifest}" nornicdb-environment "${work_root}/nornicdb-environment.txt" \
-				bash -c 'docker inspect "$1" | jq -r '\''.[0].Config.Env[] | select(test("^(NORNICDB_(NO_AUTH|DATA_DIR|HTTP_PORT|BOLT_PORT|ASYNC_WRITES_ENABLED|HEIMDALL_ENABLED|QDRANT_GRPC_ENABLED|EMBEDDING_ENABLED|EMBEDDING_PROVIDER|SEARCH_BM25_ENABLED|SEARCH_VECTOR_ENABLED|SEARCH_BM25_WARMING|SEARCH_VECTOR_WARMING|PERSIST_SEARCH_INDEXES)=)"))'\'' | LC_ALL=C sort' _ "${container_id}" || complete=0
+			ifa_fault_capture_command "${manifest}" backend-environment "${work_root}/backend-environment.txt" \
+				bash -c 'docker inspect "$1" | jq -r --arg pattern "$2" '\''.[0].Config.Env[] | select(test($pattern))'\'' | LC_ALL=C sort' _ "${container_id}" "${IFA_FAULT_BACKEND_ENV_PATTERN}" || complete=0
 		elif [[ -n "${backend_selection}" ]]; then
 			ifa_fault_record_diagnostic_status "${manifest}" backend-container failed container-id-unavailable
 			complete=0

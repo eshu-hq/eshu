@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2025-2026 eshu-hq
-# Run the seven Ifá repository-dependency and one reducer retry live proofs.
+# Run the seven Ifá repository-dependency and one reducer retry live proofs
+# against two disposable Neo4j instances (owner order 2026-11-05; Neo4j is the
+# supported graph backend). Auth is disabled on the loopback-only instances
+# because the repository-dependency HTTP helper sends no credentials.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -15,7 +18,7 @@ verify_reviewed_source() {
   [[ -z "${proof_status}" ]]
 }
 verify_reviewed_source
-image="ghcr.io/eshu-hq/nornicdb-amd64-cpu:fix-500-e022384c@sha256:74a8ed7b36f37bdd1a7e32d8bc6aa3fa88908b7207bfa6568567ab94e4a4b3b1"
+image="ghcr.io/eshu-hq/ci-neo4j-community@sha256:eabfbb042bdaca2fd5e1950db1329b22c794eee80f0eacc4e7a729d44b2e863f"
 primary="eshu-ifa-scheduled-primary-$$"
 secondary="eshu-ifa-scheduled-mismatch-$$"
 events_dir="${RUNNER_TEMP:-/tmp}/ifa-scheduled"
@@ -29,18 +32,15 @@ for entry in "${primary}:17474:17687" "${secondary}:18474:18687"; do
   IFS=: read -r name http bolt <<< "${entry}"
   docker run -d --name "${name}" \
     -p "127.0.0.1:${http}:7474" -p "127.0.0.1:${bolt}:7687" \
-    -e NORNICDB_NO_AUTH=true -e NORNICDB_DATA_DIR=/data \
-    -e NORNICDB_HTTP_PORT=7474 -e NORNICDB_BOLT_PORT=7687 \
-    -e NORNICDB_ASYNC_WRITES_ENABLED=false \
-    -e NORNICDB_HEIMDALL_ENABLED=false \
-    -e NORNICDB_EMBEDDING_ENABLED=false \
-    -e NORNICDB_SEARCH_BM25_ENABLED=false \
-    -e NORNICDB_SEARCH_VECTOR_ENABLED=false "${image}" >/dev/null
+    -e NEO4J_AUTH=none -e NEO4J_PLUGINS='[]' \
+    -e NEO4J_server_memory_heap_initial__size=512m \
+    -e NEO4J_server_memory_heap_max__size=512m \
+    -e NEO4J_server_memory_pagecache_size=512m "${image}" >/dev/null
 done
-for http in 17474 18474; do
+for name in "${primary}" "${secondary}"; do
   ready=false
   for attempt in $(seq 1 60); do
-    if curl -fsS "http://127.0.0.1:${http}/health" >/dev/null; then
+    if docker exec "${name}" cypher-shell "RETURN 1" >/dev/null 2>&1; then
       ready=true
       break
     fi
@@ -49,7 +49,7 @@ for http in 17474 18474; do
   [[ "${ready}" == true ]] || { docker logs "${primary}"; docker logs "${secondary}"; exit 1; }
 done
 
-export ESHU_GRAPH_BACKEND=nornicdb
+export ESHU_GRAPH_BACKEND=neo4j
 export ESHU_REPLAY_TIER_LIVE=1
 export ESHU_REPO_DEPENDENCY_CONCURRENCY_PROVE_LIVE=1
 export ESHU_REPO_DEPENDENCY_PROOF_HTTP_URL=http://127.0.0.1:17474
@@ -58,7 +58,7 @@ export ESHU_REPO_DEPENDENCY_QUARANTINE_PROOF_DSN='postgres://eshu:change-me@127.
 export ESHU_REPO_DEPENDENCY_QUARANTINE_PROOF_DISPOSABLE=1
 export ESHU_NEO4J_URI=bolt://127.0.0.1:17687
 export NEO4J_URI="${ESHU_NEO4J_URI}"
-export ESHU_NEO4J_DATABASE=nornic
+export ESHU_NEO4J_DATABASE=neo4j
 export NEO4J_DATABASE="${ESHU_NEO4J_DATABASE}"
 export ESHU_NEO4J_USERNAME=neo4j
 export NEO4J_USERNAME="${ESHU_NEO4J_USERNAME}"
@@ -72,7 +72,7 @@ verify_reviewed_source
 go test -json -race -p=1 -count=1 -timeout=6m -tags ifarepodependencyproof ./internal/replay/offlinetier -run '^(TestRepoDependencyIfaCleanupPreservesUnrelatedArtifact|TestRepoDependencyIfaConcurrencyLive|TestRepoDependencyIfaProcessDeathLive|TestRepoDependencyIfaProofCleansAmbiguousCommittedLock|TestRepoDependencyIfaProofRejectsMismatchedHTTPBackend|TestRepoDependencyIfaProofRejectsNonDisposableDatabase|TestRepoDependencyIfaQuarantineLive|TestRepoDependencyProofSchemasShareTrigramLive)$' | tee "${events_dir}/repo.jsonl"
 python3 ../scripts/lib/ifa_scheduled_events.py --events "${events_dir}/repo.jsonl" --package github.com/eshu-hq/eshu/go/internal/replay/offlinetier
 verify_reviewed_source
-go test -json -race -p=1 -count=1 -timeout=6m -tags ifafaultinjection ./cmd/reducer -run '^TestReducerGroupedRetrySeamLiveNornicDB$' | tee "${events_dir}/reducer.jsonl"
+go test -json -race -p=1 -count=1 -timeout=6m -tags ifafaultinjection ./cmd/reducer -run '^TestReducerGroupedRetrySeamLive$' | tee "${events_dir}/reducer.jsonl"
 python3 ../scripts/lib/ifa_scheduled_events.py --events "${events_dir}/reducer.jsonl" --package github.com/eshu-hq/eshu/go/cmd/reducer
 verify_reviewed_source
 python3 ../scripts/lib/ifa_scheduled_bundle.py --directory "${events_dir}"

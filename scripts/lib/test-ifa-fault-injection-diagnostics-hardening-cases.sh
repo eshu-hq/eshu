@@ -72,7 +72,7 @@ test_ifa_fault_backend_requires_official_proof_image() (
 	override_digest="sha256:3333333333333333333333333333333333333333333333333333333333333333"
 	rm -f "${case_dir}/diagnostics-complete"
 	for artifact in backend-image.txt.error backend-container.json.error \
-		backend-runtime-image.json.error nornicdb-environment.txt.error; do
+		backend-runtime-image.json.error backend-environment.txt.error; do
 		printf 'stale private-registry.internal evidence\n' >"${case_dir}/${artifact}"
 	done
 	set +e
@@ -94,7 +94,7 @@ test_ifa_fault_backend_requires_official_proof_image() (
 			fail "backend image override leaked a private registry in ${artifact##*/}"
 		fi
 	done
-	[[ ! -e "${case_dir}/nornicdb-environment.txt.error" ]] \
+	[[ ! -e "${case_dir}/backend-environment.txt.error" ]] \
 		|| fail "unmapped backend override retained stale environment diagnostics"
 	if [[ -e "${case_dir}/logs/compose-services.log" ]] \
 		&& rg --quiet 'private-registry\.internal|/private/compose/path' \
@@ -217,6 +217,9 @@ test_ifa_fault_invalid_timeout_fails_before_collection() (
 )
 
 run_ifa_fault_injection_diagnostics_hardening_cases() {
+	# These cases fake the NornicDB image identity; the Neo4j profile has its own cases.
+	local ESHU_GRAPH_BACKEND=nornicdb
+	export ESHU_GRAPH_BACKEND
 	test_ifa_fault_cleanup_names_only_produced_artifacts
 	test_ifa_fault_backend_accepts_index_repository_digest
 	test_ifa_fault_backend_digest_mismatch_retains_evidence

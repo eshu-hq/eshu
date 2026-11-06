@@ -25,6 +25,8 @@ workflows:
   - scripts/lib/ifa_family_*.sh
   - scripts/lib/ifa_*_live*.sh
   - scripts/lib/ifa_fault_*.sh
+  - scripts/lib/ifa_fault_weights.py
+  - scripts/lib/ifa_fault_neo4j_walls.tsv
   - scripts/lib/test-ifa-determinism-*.sh
   - scripts/lib/test-ifa-family-registry-*.sh
   - scripts/lib/test-ifa-fault-injection-*.sh
@@ -233,6 +235,7 @@ workflows:
   - scripts/verify-ifa-dead-letter-matrix.sh
   - scripts/test-verify-ifa-dead-letter-matrix.sh
   - scripts/lib/ifa_determinism_common.sh
+  - scripts/lib/ifa_graph_backend.sh
   - go/internal/storage/cypher/fault/executor/*.go
   - go/internal/replay/faultreplay/**
   - go/cmd/reducer/ifa_lease_expiry*.go
@@ -243,6 +246,7 @@ workflows:
   - scripts/ci/install-apt-packages.sh
   - scripts/ci/go-mod-download-retry.sh
   - scripts/test-verify-ifa-fault-injection.sh
+  - scripts/test-ifa-graph-backend-neo4j.sh
   - go/internal/storage/cypher/edge/writer/sql.go
   - specs/ifa-materialized-edge-coverage.v1.yaml
   - specs/ifa-materialized-edge-coverage-direct.v1.yaml
@@ -493,5 +497,5 @@ workflows:
   job_names:
     dead-letter-matrix: dead-letter-matrix
     determinism-matrix: determinism-matrix
-    fault-injection: fault-injection (shard ${{ matrix.shard }}/8)
+    fault-injection: fault-injection (shard ${{ matrix.shard }}/15)
     static-mirror: static mirror

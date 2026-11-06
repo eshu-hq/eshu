@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Shared helpers for Ifá P3 (#4396) Docker-backed determinism verifiers:
-# building host binaries, waiting for the Postgres + NornicDB Compose
+# building host binaries, waiting for the Postgres + graph-backend Compose
 # backends, querying Postgres (compose or --no-compose), and starting/
 # tracking background host processes. Extracted so
 # scripts/verify-ifa-determinism.sh (the N-cell graph-determinism matrix,
@@ -25,9 +25,12 @@
 # shellcheck source=cgo-cflags.sh
 # (The literal scripts/ path lets the ci-gates trigger walk see this dependency.)
 source "$(dirname "${BASH_SOURCE[0]}")/../../scripts/lib/cgo-cflags.sh"
+# Graph-backend selection (Neo4j by default; see ifa_graph_backend.sh).
+# shellcheck source=ifa_graph_backend.sh
+source "$(dirname "${BASH_SOURCE[0]}")/ifa_graph_backend.sh"
 
 # ifa_det_build_bin builds go/cmd/<cmd> into <bin_dir>/eshu-<cmd> with cgo
-# enabled (NornicDB's Bolt driver needs cgo). An optional third argument
+# enabled (the graph drivers' build needs cgo). An optional third argument
 # names one or more comma-separated Go build tags (passed to `go build
 # -tags`); the default (omitted or empty) builds exactly what every normal
 # and CI build links. verify-ifa-determinism.sh's own --teeth mode is the
@@ -147,7 +150,7 @@ ifa_det_stop_join_untrack_bg_pid() {
 # working in both compose mode (via the postgres container) and --no-compose
 # mode (via a local psql client against dsn).
 #
-# Args: compose_project use_compose dsn sql [compose_file=docker-compose.yaml]
+# Args: compose_project use_compose dsn sql [compose_file=$IFA_GRAPH_COMPOSE_FILE, else docker-compose.neo4j.yml]
 #
 # Stdout is streamed straight through unbuffered, byte-identical to the
 # pre-existing behavior, on both the success and the failure path -- callers
@@ -162,7 +165,7 @@ ifa_det_stop_join_untrack_bg_pid() {
 # psql error text unrecoverable).
 ifa_det_pg() {
 	local compose_project="$1" use_compose="$2" dsn="$3" sql="$4"
-	local compose_file="${5:-docker-compose.yaml}"
+	local compose_file="${5:-${IFA_GRAPH_COMPOSE_FILE:-docker-compose.neo4j.yml}}"
 	local errfile rc
 	errfile="$(mktemp)"
 	if [[ "${use_compose}" -eq 1 ]]; then
@@ -185,27 +188,27 @@ ifa_det_pg() {
 	return "${rc}"
 }
 
-# ifa_det_wait_for_backends polls the compose project's nornicdb + postgres
-# containers (over their in-container ports, not the host-mapped ones — the
-# health checks run via `docker compose exec`, so they never see the host
-# port remapping) until both report ready, or returns non-zero after the
-# ~120s budget (60 iterations * 2s).
+# ifa_det_wait_for_backends polls the compose project's graph-backend (Neo4j by
+# default, see ifa_graph_backend.sh) + postgres containers (over their
+# in-container ports, not the host-mapped ones — the health checks run via
+# `docker compose exec`, so they never see the host port remapping) until both
+# report ready, or returns non-zero after the ~120s budget (60 iterations * 2s).
 #
-# Args: compose_project [compose_file=docker-compose.yaml]
+# Args: compose_project [compose_file=$IFA_GRAPH_COMPOSE_FILE, else docker-compose.neo4j.yml]
 ifa_det_wait_for_backends() {
 	local compose_project="$1"
-	local compose_file="${2:-docker-compose.yaml}"
+	local compose_file="${2:-${IFA_GRAPH_COMPOSE_FILE:-docker-compose.neo4j.yml}}"
 	local _
+	ifa_graph_backend_init || return 1
 	for _ in $(seq 1 60); do
-		if bash scripts/ci/compose.sh -p "${compose_project}" -f "${compose_file}" -- exec -T nornicdb \
-			wget --spider -q http://localhost:7474/health >/dev/null 2>&1 &&
+		if ifa_graph_probe "${compose_project}" "${compose_file}" &&
 			bash scripts/ci/compose.sh -p "${compose_project}" -f "${compose_file}" -- exec -T postgres \
 				pg_isready -U eshu -d eshu >/dev/null 2>&1; then
 			return 0
 		fi
 		sleep 2
 	done
-	echo "ifa_det_wait_for_backends: Postgres + NornicDB did not become ready within budget" >&2
+	echo "ifa_det_wait_for_backends: Postgres + ${IFA_GRAPH_LABEL} did not become ready within budget" >&2
 	return 1
 }
 

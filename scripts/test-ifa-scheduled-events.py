@@ -34,7 +34,7 @@ class ScheduledProofTest(unittest.TestCase):
         script = (ROOT / MODULE.RUNNER).read_text(encoding="utf-8")
         for old, new in (
             ("ESHU_REPO_DEPENDENCY_PROOF_MISMATCH_HTTP_URL", "MISSING_ENDPOINT"),
-            ("ESHU_GRAPH_BACKEND=nornicdb", "ESHU_GRAPH_BACKEND=neo4j"),
+            ("ESHU_GRAPH_BACKEND=neo4j", "ESHU_GRAPH_BACKEND=nornicdb"),
             ("ifa_scheduled_events.py --events", "missing_verifier --events"),
             ("ifa_scheduled_manifest.py --primary", "missing_manifest.py --primary"),
             ("ifa_scheduled_bundle.py --directory", "missing_bundle.py --directory"),
@@ -276,7 +276,7 @@ class ScheduledProofTest(unittest.TestCase):
 
     def test_manifest_pin_drift_fails(self) -> None:
         """A receipt cannot silently name another backend image."""
-        with mock.patch.object(MODULE, "NORNIC_DIGEST", "sha256:wrong"):
+        with mock.patch.object(MODULE, "NEO4J_DIGEST", "sha256:wrong"):
             with self.assertRaises(ValueError):
                 MODULE.verify_inventory(ROOT, MODULE.load_inventory())
 

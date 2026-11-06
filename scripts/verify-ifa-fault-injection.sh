@@ -13,7 +13,7 @@
 # PLUS a generated synth-multiscope GCP cassette (`eshu-ifa synth-cassette`) PLUS
 # every other registered materialized-edge family's own committed cassette (see
 # the numbered cell list below -- deliberately not enumerated by name here, since a fixed family list here goes stale)
-# through a FRESH Postgres + NornicDB Compose stack per cell (`down -v` between every cell,
+# through a FRESH Postgres + graph-backend (Neo4j) Compose stack per cell (`down -v` between every cell,
 # mirroring every sibling verify-ifa-*.sh script), then injects one scripted fault per cell into the
 # real eshu-reducer binary and asserts that, after the fault and a full
 # drain, the SHA-256 of the retained canonical graph dump is BYTE-IDENTICAL
@@ -62,10 +62,10 @@
 #
 # Usage:
 #   scripts/verify-ifa-fault-injection.sh [--no-compose] [--keep] [--list-cells] [--shard k/n]
-#     --no-compose  assume Postgres + NornicDB are already running on the
+#     --no-compose  assume Postgres + the graph backend are already running on the
 #                   configured ports; skip compose up/down here. Cell 5
 #                   (restart-backend-between-phase-groups) needs this script
-#                   to own the compose lifecycle to restart nornicdb, so
+#                   to own the compose lifecycle to restart the graph service, so
 #                   --no-compose SKIPS cell 5 with an explicit warning rather
 #                   than silently no-op'ing the restart.
 #     --keep        leave the last cell's work dir (every digest + full
@@ -136,7 +136,10 @@ export NEO4J_HTTP_PORT="${NEO4J_HTTP_PORT:-7688}"
 # Deploy lanes moved to eshu-deploy under #8871: the Compose file comes
 # from the ESHU_DEPLOY_CHECKOUT checkout (CI pins the extraction commit).
 : "${ESHU_DEPLOY_CHECKOUT:?ESHU_DEPLOY_CHECKOUT must point at an eshu-hq/eshu-deploy checkout; the gate workflow checks it out at the pinned extraction commit}"
-compose_file="${ESHU_DEPLOY_CHECKOUT}/compose/docker-compose.yaml"
+# Neo4j is the default graph backend; ESHU_GRAPH_BACKEND=nornicdb restores the
+# retired NornicDB variant for a manual run (scripts/lib/ifa_graph_backend.sh).
+ifa_graph_backend_init || exit 2
+compose_file="$(ifa_graph_compose_file "${ESHU_DEPLOY_CHECKOUT}")"
 [[ -f "${compose_file}" ]] || { printf 'verify-ifa-fault-injection: compose file %s missing from ESHU_DEPLOY_CHECKOUT=%s\n' "${compose_file}" "${ESHU_DEPLOY_CHECKOUT}" >&2; exit 1; }
 cassette="${repo_root}/testdata/cassettes/gcpcloud/supply-chain-demo.json"
 drive_workers=4
@@ -203,13 +206,12 @@ trap cleanup EXIT
 # original handler is still in flight, mirroring faultreplay.Config's own
 # Workers>=2 requirement for the hermetic equivalent (runner.go's validate).
 # ----------------------------------------------------------------------------
-export ESHU_GRAPH_BACKEND=nornicdb
 export NEO4J_URI="bolt://localhost:${NEO4J_BOLT_PORT}"
 export NEO4J_USERNAME=neo4j
 export NEO4J_PASSWORD="${ESHU_NEO4J_PASSWORD}"
-export NEO4J_DATABASE=nornic
-export ESHU_NEO4J_DATABASE=nornic
-export DEFAULT_DATABASE=nornic
+export NEO4J_DATABASE="${IFA_GRAPH_DATABASE}"
+export ESHU_NEO4J_DATABASE="${IFA_GRAPH_DATABASE}"
+export DEFAULT_DATABASE="${IFA_GRAPH_DATABASE}"
 export ESHU_POSTGRES_DSN="postgresql://eshu:${ESHU_POSTGRES_PASSWORD}@localhost:${ESHU_POSTGRES_PORT}/eshu"
 export ESHU_CONTENT_STORE_DSN="${ESHU_POSTGRES_DSN}"
 export ESHU_LISTEN_ADDR="127.0.0.1:0"

@@ -321,8 +321,8 @@ for path, tag, cls, reason, runner, backends in rows:
         if runner == "ifa-scheduled":
             if (path not in ifa_scheduled_paths
                     or tag.strip() != ifa_scheduled_inventory[path]["tag"]
-                    or backends != "nornicdb"):
-                sys.exit(f"Ifá scheduled row needs its exact runner, tag, and NornicDB backend: {path}")
+                    or backends != "neo4j"):
+                sys.exit(f"Ifá scheduled row needs its exact runner, tag, and Neo4j backend: {path}")
             verified_ifa_scheduled_paths.add(path)
         elif runner == "delta-union-scheduled":
             if (path != "go/cmd/projector/delta_union_live_test.go"

@@ -276,8 +276,8 @@ These are the original workflow comments in source order.
       # can run (#6162).
       # #6162: upload the kept (--keep) work dir's mutated cassette and
       # host binary logs, not just the backend container log tail above.
-  # Sharded across eight parallel runners (four until #8790's measured
-  # rebalance: positional assignment had drifted shards to 24-36 minutes, and
+  # Sharded across fifteen parallel runners (eight, and four before #8790's
+  # measured rebalance: positional assignment had drifted shards to 24-36 minutes, and
   # some were cancelled at the 35-minute timeout). The matrix ran serially until the
   # cell count outgrew the 30-minute ceiling: a measured 21m2s for 18 cells
   # (~1.17 min/cell) left room for roughly seven more cells. The matrix reached

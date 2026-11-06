@@ -24,15 +24,15 @@ sys.modules[SPEC.name] = MODULE
 SPEC.loader.exec_module(MODULE)
 
 
-def nornic_identity(container_id: str, http_port: str, bolt_port: str) -> dict[str, object]:
+def neo4j_identity(container_id: str, http_port: str, bolt_port: str) -> dict[str, object]:
     """Make a synthetic pinned identity for bundle validation."""
     return {
         "container_id": container_id * 64,
         "image_id": "sha256:" + "1" * 64,
         "resolved_image_id": "sha256:" + "1" * 64,
-        "repo_digests": ["ghcr.io/eshu-hq/nornicdb-amd64-cpu@" + MODULE.NORNIC_DIGEST],
-        "image_pin": "ghcr.io/eshu-hq/nornicdb-amd64-cpu@" + MODULE.NORNIC_DIGEST,
-        "component": "NornicDB",
+        "repo_digests": ["ghcr.io/eshu-hq/ci-neo4j-community@" + MODULE.NEO4J_DIGEST],
+        "image_pin": "ghcr.io/eshu-hq/ci-neo4j-community@" + MODULE.NEO4J_DIGEST,
+        "component": "Neo4j Kernel",
         "version": "1.3.3",
         "http_host_ip": "127.0.0.1",
         "http_host_port": http_port,
@@ -62,8 +62,8 @@ class BundleTest(unittest.TestCase):
                 "reviewed_head_sha": checkout_sha,
                 "checkout_sha": checkout_sha,
                 "inventory_sha256": MODULE.inventory_digest(ROOT),
-                "primary": nornic_identity("b", "37474", "37687"),
-                "mismatch": nornic_identity("c", "38474", "38687"),
+                "primary": neo4j_identity("b", "37474", "37687"),
+                "mismatch": neo4j_identity("c", "38474", "38687"),
                 "postgres": {
                     "container_id": "d" * 64,
                     "image_id": "sha256:" + "2" * 64,
@@ -97,8 +97,8 @@ class BundleTest(unittest.TestCase):
                 "event": "pull_request",
                 "run_url": "https://github.com/eshu-hq/eshu/actions/runs/123/attempts/1",
                 "run_id": "123",
-                "primary": nornic_identity("b", "17474", "17687"),
-                "mismatch": nornic_identity("c", "18474", "18687"),
+                "primary": neo4j_identity("b", "17474", "17687"),
+                "mismatch": neo4j_identity("c", "18474", "18687"),
             }
             manifest_path.write_text(json.dumps(hosted))
             with mock.patch.dict(os.environ, {"GITHUB_ACTIONS": "false"}):

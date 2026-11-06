@@ -273,7 +273,7 @@ test_ifa_fault_compose_diagnostics_capture_safe_backend_state() (
 		"${case_dir}/backend-container.json" \
 		"${case_dir}/backend-runtime-image.json" \
 		"${case_dir}/backend-provenance.json" \
-		"${case_dir}/nornicdb-environment.txt" \
+		"${case_dir}/backend-environment.txt" \
 		"${case_dir}/logs/compose-services.log"; do
 		if rg --fixed-strings --quiet -- 'compose-secret' "${artifact}" \
 			|| rg --fixed-strings --quiet -- '/private/compose/path' "${artifact}"; then
@@ -283,9 +283,9 @@ test_ifa_fault_compose_diagnostics_capture_safe_backend_state() (
 	jq -e '.restart_count == 1 and .mounts[0].name == "data-volume" and (.mounts[0] | has("source") | not)' \
 		"${case_dir}/backend-container.json" >/dev/null \
 		|| fail "backend container artifact omits required state or leaks the host mount source"
-	rg --fixed-strings --quiet -- 'NORNICDB_DATA_DIR=/data' "${case_dir}/nornicdb-environment.txt" \
+	rg --fixed-strings --quiet -- 'NORNICDB_DATA_DIR=/data' "${case_dir}/backend-environment.txt" \
 		|| fail "backend environment omitted an allowlisted durability setting"
-	if rg --fixed-strings --quiet -- 'NORNICDB_ADMIN_TOKEN' "${case_dir}/nornicdb-environment.txt"; then
+	if rg --fixed-strings --quiet -- 'NORNICDB_ADMIN_TOKEN' "${case_dir}/backend-environment.txt"; then
 		fail "backend environment captured a non-allowlisted secret"
 	fi
 	jq -e '
@@ -426,6 +426,9 @@ test_ifa_fault_injection_go_mod_prewarm() {
 }
 
 run_ifa_fault_injection_diagnostics_cases() {
+	# These cases fake the NornicDB image identity; the Neo4j profile has its own cases.
+	local ESHU_GRAPH_BACKEND=nornicdb
+	export ESHU_GRAPH_BACKEND
 	test_ifa_fault_upload_condition_mutations
 	test_ifa_fault_prewarm_step_mutation
 	test_ifa_fault_capture_digest_reads_graph_once

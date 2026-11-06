@@ -50,7 +50,7 @@ than there are entries here.
    MERGE exactly once via go/internal/storage/cypher/fault/executor.FaultingExecutor.
 5. restart-backend-between-phase-groups    -- the same tagged reducer
    with a fault script that pauses after the first completed graph-write
-   group; this gate restarts the nornicdb Compose service while the
+   group; this gate restarts the graph-backend (Neo4j) Compose service while the
    reducer is blocked on that pause, then releases it. The decorator writes
    the exact group whose executor call returned success to
    `<sentinel>.trigger.json` before exposing

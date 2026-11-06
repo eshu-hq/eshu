@@ -18,19 +18,19 @@ sys.modules[SPEC.name] = MODULE
 SPEC.loader.exec_module(MODULE)
 
 
-def nornic_identity(container_id: str, http_port: str, bolt_port: str) -> dict[str, object]:
-    """Make one independently observed-looking NornicDB identity."""
+def neo4j_identity(container_id: str, http_port: str, bolt_port: str) -> dict[str, object]:
+    """Make one independently observed-looking Neo4j identity."""
     return {
         "container_id": container_id * 64,
         "image_id": "sha256:" + "1" * 64,
         "resolved_image_id": "sha256:" + "1" * 64,
-        "repo_digests": ["ghcr.io/eshu-hq/nornicdb-amd64-cpu@" + MODULE.NORNIC_DIGEST],
-        "image_pin": "ghcr.io/eshu-hq/nornicdb-amd64-cpu@" + MODULE.NORNIC_DIGEST,
+        "repo_digests": ["ghcr.io/eshu-hq/ci-neo4j-community@" + MODULE.NEO4J_DIGEST],
+        "image_pin": "ghcr.io/eshu-hq/ci-neo4j-community@" + MODULE.NEO4J_DIGEST,
         "http_host_ip": "127.0.0.1",
         "http_host_port": http_port,
         "bolt_host_ip": "127.0.0.1",
         "bolt_host_port": bolt_port,
-        "component": "NornicDB",
+        "component": "Neo4j Kernel",
         "version": "1.3.3",
     }
 
@@ -49,8 +49,8 @@ class ManifestTest(unittest.TestCase):
             "GITHUB_SHA": "e" * 40,
         }
         event = {"pull_request": {"head": {"sha": "a" * 40}}}
-        primary = nornic_identity("b", "17474", "17687")
-        mismatch = nornic_identity("c", "18474", "18687")
+        primary = neo4j_identity("b", "17474", "17687")
+        mismatch = neo4j_identity("c", "18474", "18687")
         postgres = {
             "container_id": "d" * 64,
             "image_id": "sha256:" + "2" * 64,
@@ -74,7 +74,7 @@ class ManifestTest(unittest.TestCase):
             )
 
         manifest = build()
-        tagged_pin = "ghcr.io/eshu-hq/nornicdb-amd64-cpu:reviewed@" + MODULE.NORNIC_DIGEST
+        tagged_pin = "ghcr.io/eshu-hq/ci-neo4j-community:reviewed@" + MODULE.NEO4J_DIGEST
         self.assertEqual(
             build(current_primary={**primary, "image_pin": tagged_pin})["primary"]["image_pin"],
             tagged_pin,
@@ -124,8 +124,8 @@ class ManifestTest(unittest.TestCase):
             '{"7474/tcp":[{"HostIp":"127.0.0.1","HostPort":"37474"}],'
             '"7687/tcp":[{"HostIp":"127.0.0.1","HostPort":"37687"}]}'
         )
-        pin = "ghcr.io/eshu-hq/nornicdb-amd64-cpu:tag@" + MODULE.NORNIC_DIGEST
-        canonical = "ghcr.io/eshu-hq/nornicdb-amd64-cpu@" + MODULE.NORNIC_DIGEST
+        pin = "ghcr.io/eshu-hq/ci-neo4j-community:tag@" + MODULE.NEO4J_DIGEST
+        canonical = "ghcr.io/eshu-hq/ci-neo4j-community@" + MODULE.NEO4J_DIGEST
         responses = [
             mock.Mock(stdout=f"{'b' * 64}|sha256:{'1' * 64}|{pin}|{ports}\n"),
             mock.Mock(stdout=f"sha256:{'1' * 64}|[\"{canonical}\"]\n"),

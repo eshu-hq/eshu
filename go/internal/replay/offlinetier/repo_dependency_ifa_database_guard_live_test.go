@@ -144,7 +144,7 @@ func TestRepoDependencyIfaProofRejectsMismatchedHTTPBackend(t *testing.T) {
 	}
 	mismatchHTTPURL := strings.TrimSpace(os.Getenv(repoDependencyIfaMismatchHTTPBaseURLEnv))
 	if mismatchHTTPURL == "" {
-		t.Skipf("set %s to a different clean disposable NornicDB HTTP endpoint", repoDependencyIfaMismatchHTTPBaseURLEnv)
+		t.Skipf("set %s to a different clean disposable Neo4j HTTP endpoint", repoDependencyIfaMismatchHTTPBaseURLEnv)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()

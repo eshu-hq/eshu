@@ -49,4 +49,4 @@ workflows:
   jobs:
   - ifa-scheduled
   job_names:
-    ifa-scheduled: "If\xE1 scheduled proof vs NornicDB and PostgreSQL"
+    ifa-scheduled: "If\xE1 scheduled proof vs Neo4j and PostgreSQL"

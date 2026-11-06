@@ -35,7 +35,13 @@ env:
 jobs:
   ifa-scheduled:
     if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'ifa-scheduled') }}
-    name: Ifá scheduled proof vs NornicDB and PostgreSQL
+    # Owner order 2026-11-05: the Ifá proofs run on Neo4j, the supported graph
+    # backend (docs/internal/design/7331-neo4j-primary-graph-backend-decision.md).
+    # scripts/run-ifa-scheduled-proofs.sh starts two disposable Neo4j instances.
+    # To restore the retired NornicDB variant, re-pin its image in that script
+    # and set ESHU_GRAPH_BACKEND, ESHU_NEO4J_DATABASE, and the identity checks in
+    # scripts/lib/ifa_scheduled_manifest.py back to nornicdb and nornic.
+    name: Ifá scheduled proof vs Neo4j and PostgreSQL
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     services:

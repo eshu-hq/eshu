@@ -78,11 +78,18 @@ to this change rather than relying on PR/commit prose.
   `TestWrapIfaFaultExecutorGroupRetryLaneRetriesInPlaceBelowTheRetryingExecutor`
   failed above the retry seam, then passed with exactly one real session write
   after the induced first attempt was absorbed below the seam.
-- **Pinned live-backend non-vacuity:**
-  `TestReducerGroupedRetrySeamLiveNornicDB` runs the production composition on
-  NornicDB commit `1492458852588c884c32f70d27ea2ee07086769c`. In 10/10 runs it
-  asserts the group fault fired, the retry counter equals one, and both MERGE
-  statements persisted exactly once.
+- **Pinned live-backend non-vacuity (historical NornicDB run):** When this
+  note was written (2026-07-14, commit `59fb4f2c39`), the proof was named
+  `TestReducerGroupedRetrySeamLiveNornicDB` and ran the production composition
+  on NornicDB commit `1492458852588c884c32f70d27ea2ee07086769c`. That note
+  recorded a ten-run pass on that backend: the group fault fired, the retry
+  counter equaled one, and both MERGE statements persisted exactly once. The
+  result belongs to the NornicDB run only.
+- **Current live backend (Neo4j, renamed test):** The same test body is now
+  `TestReducerGroupedRetrySeamLive`. It speaks Bolt and runs against the Neo4j
+  image that `scripts/run-ifa-scheduled-proofs.sh` starts. The 2026-11-05
+  update in `docs/internal/evidence/7533-ifa-scheduled-live-proof.md` records
+  one local Neo4j run of it. No repeated-run Neo4j result is recorded here.
 - **Retry-budget boundary:**
   `TestRetryingExecutorExecuteGroupDoesNotRetryDriverBudgetExhaustion` uses the
   driver's typed `TransactionExecutionLimit` with a final transient deadlock.

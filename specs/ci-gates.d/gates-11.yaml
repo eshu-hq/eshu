@@ -5,7 +5,7 @@ gates:
     name: Ifa P3 graph-determinism matrix (+ --teeth non-idempotent-write gate)
     category: exactness
     layer: replay
-    purpose: "Runs each Ifá scenario (Odù) at 1, 2 and 4 workers on real Postgres and NornicDB and fails if the resulting graph differs."
+    purpose: "Runs each Ifá scenario (Odù) at 1, 2 and 4 workers on real Postgres and Neo4j and fails if the resulting graph differs."
     tier: pre-pr
     blocking: true
     triggers:
@@ -469,6 +469,7 @@ gates:
       # renamed off the prefix and then sourced would still go dark, here and
       # under the wider form alike.
       - "scripts/lib/ifa_determinism_common*.sh"
+      - "scripts/lib/ifa_graph_backend.sh"
       - "scripts/ci/compose.sh"
       - "scripts/lib/ci-image-compose.sh"
       - "scripts/lib/ci_image_compose.py"

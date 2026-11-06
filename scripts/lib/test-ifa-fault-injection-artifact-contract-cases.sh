@@ -54,9 +54,11 @@ test_ifa_fault_failure_artifact_contract() {
 	local workflow="${repo_root}/.github/workflows/ifa-determinism-gate.yml"
 	local fragment="${repo_root}/specs/ci-pr-workflows.d/ifa-determinism-gate.yml"
 	local caller="${repo_root}/.github/workflows/test.yml"
-	local needle
+	local needle shard_n
+	shard_n="$(rg --only-matching --replace '$1' '^readonly IFA_FAULT_SHARD_DEFAULT_N=([0-9]+)$' "${repo_root}/scripts/lib/ifa_fault_shard.sh")" \
+		|| fail "could not read IFA_FAULT_SHARD_DEFAULT_N"
 	for needle in \
-		'run: bash scripts/verify-ifa-fault-injection.sh --keep --shard "${IFA_FAULT_SHARD}/8"' \
+		"run: bash scripts/verify-ifa-fault-injection.sh --keep --shard \"\${IFA_FAULT_SHARD}/${shard_n}\"" \
 		'uses: actions/upload-artifact@v4' \
 		'name: ifa-fault-injection-shard-${{ matrix.shard }}-attempt-${{ github.run_attempt }}-failure' \
 		'/tmp/ifa-fault-injection.*/graph-*.dump' \
@@ -71,7 +73,7 @@ test_ifa_fault_failure_artifact_contract() {
 		'/tmp/ifa-fault-injection.*/backend-container.json' \
 		'/tmp/ifa-fault-injection.*/backend-runtime-image.json' \
 		'/tmp/ifa-fault-injection.*/backend-provenance.json' \
-		'/tmp/ifa-fault-injection.*/nornicdb-environment.txt' \
+		'/tmp/ifa-fault-injection.*/backend-environment.txt' \
 		'/tmp/ifa-fault-injection.*/diagnostics-manifest.tsv' \
 		'/tmp/ifa-fault-injection.*/diagnostics-complete' \
 		'/tmp/ifa-fault-injection.*/current-cell' \
@@ -112,7 +114,7 @@ test_ifa_fault_failure_artifact_contract() {
 	fi
 	rg --fixed-strings --quiet -- 'FAULT_COMPOSE_PROJECT: eshu-ifa-fault-injection-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.shard }}' "${workflow}" \
 		|| fail "fault job does not pin a stable per-shard Compose project"
-	rg --fixed-strings --quiet -- 'bash scripts/ci/compose.sh -p "${FAULT_COMPOSE_PROJECT}" -f eshu-deploy/compose/docker-compose.yaml -- down -v' "${workflow}" \
+	rg --fixed-strings --quiet -- 'bash scripts/ci/compose.sh -p "${FAULT_COMPOSE_PROJECT}" -f eshu-deploy/compose/docker-compose.neo4j.yml -- down -v' "${workflow}" \
 		|| fail "workflow teardown does not target the retained fault stack"
 	rg --fixed-strings --quiet -- 'name: Verify fault-injection diagnostic completeness' "${workflow}" \
 		|| fail "workflow does not fail closed when diagnostic collection is incomplete"

@@ -86,7 +86,7 @@ ifa_repo_dependency_live_run_standalone_cell() {
 	local cell_start
 	cell_start=$(date +%s)
 	if [[ "${use_compose}" -eq 1 ]]; then
-		bash scripts/ci/compose.sh -p "${compose_project}" -f "${compose_file}" -- up -d nornicdb postgres || return 1
+		bash scripts/ci/compose.sh -p "${compose_project}" -f "${compose_file}" -- up -d "${IFA_GRAPH_SERVICE}" postgres || return 1
 		ifa_det_wait_for_backends "${compose_project}" "${compose_file}" || return 1
 	fi
 	"${bin_dir}/eshu-bootstrap-data-plane" >"${log_dir}/bootstrap-data-plane-repo-dependency.log" 2>&1 || return 1

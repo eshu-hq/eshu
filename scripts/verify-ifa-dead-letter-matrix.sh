@@ -3,7 +3,7 @@
 # schema-major-mutated demo-org GCP cassette (mutated via `ifa mutate-cassette`,
 # exactly as scripts/verify-ifa-dead-letter-determinism.sh's slice-4 proof
 # already does) through `eshu-ifa drive -workers N` for N in {1, 2, 4}, each
-# against an INDEPENDENT, FRESH Postgres + NornicDB Compose stack (`docker
+# against an INDEPENDENT, FRESH Postgres + graph-backend (Neo4j) Compose stack (`docker
 # compose down -v` between every cell), drains to this script's OWN
 # terminal condition (status NOT IN ('succeeded', 'superseded',
 # 'dead_letter') = 0 — deliberately NOT cmd/golden-corpus-gate's
@@ -39,7 +39,7 @@
 #
 # Usage:
 #   scripts/verify-ifa-dead-letter-matrix.sh [--no-compose] [--keep]
-#     --no-compose  assume Postgres + NornicDB are already running on the
+#     --no-compose  assume Postgres + the graph backend are already running on the
 #                   configured ports; skip compose up/down here. Because
 #                   each cell still needs a FRESH database, --no-compose
 #                   pairs only with a caller that resets both backends
@@ -91,7 +91,10 @@ export NEO4J_HTTP_PORT="${NEO4J_HTTP_PORT:-7681}"
 # Deploy lanes moved to eshu-deploy under #8871: the Compose file comes
 # from the ESHU_DEPLOY_CHECKOUT checkout (CI pins the extraction commit).
 : "${ESHU_DEPLOY_CHECKOUT:?ESHU_DEPLOY_CHECKOUT must point at an eshu-hq/eshu-deploy checkout; the gate workflow checks it out at the pinned extraction commit}"
-compose_file="${ESHU_DEPLOY_CHECKOUT}/compose/docker-compose.yaml"
+# Neo4j is the default graph backend; ESHU_GRAPH_BACKEND=nornicdb restores the
+# retired NornicDB variant for a manual run (scripts/lib/ifa_graph_backend.sh).
+ifa_graph_backend_init || exit 2
+compose_file="$(ifa_graph_compose_file "${ESHU_DEPLOY_CHECKOUT}")"
 [[ -f "${compose_file}" ]] || { printf 'verify-ifa-dead-letter-matrix: compose file %s missing from ESHU_DEPLOY_CHECKOUT=%s\n' "${compose_file}" "${ESHU_DEPLOY_CHECKOUT}" >&2; exit 1; }
 source_cassette="${repo_root}/testdata/cassettes/gcpcloud/supply-chain-demo.json"
 worker_counts=(1 2 4)
@@ -151,13 +154,12 @@ cleanup() {
 }
 trap cleanup EXIT
 
-export ESHU_GRAPH_BACKEND=nornicdb
 export NEO4J_URI="bolt://localhost:${NEO4J_BOLT_PORT}"
 export NEO4J_USERNAME=neo4j
 export NEO4J_PASSWORD="${ESHU_NEO4J_PASSWORD}"
-export NEO4J_DATABASE=nornic
-export ESHU_NEO4J_DATABASE=nornic
-export DEFAULT_DATABASE=nornic
+export NEO4J_DATABASE="${IFA_GRAPH_DATABASE}"
+export ESHU_NEO4J_DATABASE="${IFA_GRAPH_DATABASE}"
+export DEFAULT_DATABASE="${IFA_GRAPH_DATABASE}"
 # shellcheck source=scripts/lib/ci-image-compose.sh
 source "${repo_root}/scripts/lib/ci-image-compose.sh"
 if [[ "${use_compose}" -eq 1 ]]; then
@@ -201,10 +203,10 @@ for n in "${worker_counts[@]}"; do
 	log "cell N=${n}: fresh stack"
 
 	if [[ "${use_compose}" -eq 1 ]]; then
-		bash scripts/ci/compose.sh -p "${DEADLETTER_MATRIX_COMPOSE_PROJECT}" -f "${compose_file}" -- up -d nornicdb postgres
+		bash scripts/ci/compose.sh -p "${DEADLETTER_MATRIX_COMPOSE_PROJECT}" -f "${compose_file}" -- up -d "${IFA_GRAPH_SERVICE}" postgres
 		log "N=${n}: wait for backends"
 		ifa_det_wait_for_backends "${DEADLETTER_MATRIX_COMPOSE_PROJECT}" "${compose_file}" \
-			|| die "N=${n}: Postgres + NornicDB did not become ready within budget"
+			|| die "N=${n}: Postgres + ${IFA_GRAPH_LABEL} did not become ready within budget"
 	fi
 
 	log "N=${n}: apply Postgres + graph schema (eshu-bootstrap-data-plane)"

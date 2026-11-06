@@ -52,7 +52,7 @@ races only the changed packages, `make pre-pr` adds the registry race gates, `pr
 the whole-module `go test ./... -race`, CI the authoritative full gate.
 
 **Where Ifá/Odù protection lives:** neither `make pre-push` nor a bare
-`make pre-pr` runs a live Ifá/Odù cell (Docker/NornicDB/Postgres-only, CI or
+`make pre-pr` runs a live Ifá/Odù cell (Docker/Neo4j/Postgres-only, CI or
 explicit local request). CI's `required-gates-complete` aggregate collects
 every Ifá/Odù gate plus every other `blocking: true` row the changed paths
 select. It is disabled as a required check for now; a red gate under it is
