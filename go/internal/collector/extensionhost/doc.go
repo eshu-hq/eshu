@@ -53,7 +53,10 @@
 // When Config.DerivedTargetResolver is set, the host adds a derived scope's
 // target to the per-claim config under HostDerivedTargetKey. A Go reachability
 // scope also selects its installation through a host-and-owner key resolved from
-// that target, because a static table cannot name scopes that are derived.
+// that target, because a static table cannot name scopes that are derived. The
+// generation the claim commits carries that target's commit in SourceCommitSHA, so
+// the coordinator can compare evidence with the repository's active commit. Every
+// other scope's generation stays as it was.
 //
 // When Config.ClaimOutcomeRecorder is set, the Source reports one
 // ClaimOutcome per claim on every exit path and, for a completed claim, the

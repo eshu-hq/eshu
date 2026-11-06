@@ -199,7 +199,7 @@ func (s *Source) nextClaimed(
 			cause: err,
 		}
 	}
-	collected, ok, err := s.resolveResult(item, result)
+	collected, ok, err := s.resolveResult(item, result, s.derivedCommitSHA(request))
 	return collected, ok, result, ResultOriginSDK, err
 }
 
@@ -223,10 +223,11 @@ func (s *Source) runClaim(ctx context.Context, request Request, relay *claimRela
 }
 
 // resolveResult maps a validated SDK result state to the ClaimedService
-// outcome.
+// outcome. sourceCommitSHA is stamped on any generation it collects.
 func (s *Source) resolveResult(
 	item workflow.WorkItem,
 	result sdkcollector.Result,
+	sourceCommitSHA string,
 ) (collector.CollectedGeneration, bool, error) {
 	switch result.State {
 	case sdkcollector.ResultRetryable:
@@ -242,12 +243,12 @@ func (s *Source) resolveResult(
 			cause:    errors.New("extension requested terminal result"),
 		}
 	case sdkcollector.ResultUnchanged:
-		collected := s.collectedGeneration(item, result, nil)
+		collected := s.collectedGeneration(item, result, nil, sourceCommitSHA)
 		collected.Unchanged = true
 		return collected, true, nil
 	default:
 		envelopes := s.envelopesForResult(item, result)
-		return s.collectedGeneration(item, result, envelopes), true, nil
+		return s.collectedGeneration(item, result, envelopes, sourceCommitSHA), true, nil
 	}
 }
 

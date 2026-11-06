@@ -72,8 +72,8 @@ flowchart TB
    scheduled AWS and AWS freshness planners, plus freshness trigger stores,
    and handed to
    `NewHostedWithStatusServer`, which mounts the admin surface.
-   The Go reachability reader (`gomodules.Store`) reports under the store label
-   `go_module_repositories`.
+   The Go reachability reader and evidence fencer (`gomodules.Store`) report under
+   the store label `go_module_repositories`.
 7. `NotifyContext` installs SIGINT/SIGTERM shutdown; `Service.Run` blocks
    until the context is cancelled.
 

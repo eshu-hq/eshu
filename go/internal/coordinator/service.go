@@ -128,7 +128,11 @@ type Service struct {
 	// GoModuleRepositoryReader reads one rotation page of repositories for a
 	// Go reachability activation. It is required only when an activation
 	// enables derive_from_go_modules.
-	GoModuleRepositoryReader          GoModuleRepositoryReader
+	GoModuleRepositoryReader GoModuleRepositoryReader
+	// GoEvidenceFencer retracts Go evidence the commit-skew rule names. It is
+	// required with GoModuleRepositoryReader: without it, evidence of an old
+	// commit could stay active with no bound.
+	GoEvidenceFencer                  GoEvidenceFencer
 	TenantGrantReader                 TenantGrantReader
 	OSPackageAdvisoryTargetReader     OSPackageAdvisoryTargetReader
 	SBOMComponentAdvisoryTargetReader SBOMComponentAdvisoryTargetReader
@@ -170,9 +174,12 @@ type Service struct {
 	GCPFreshnessFanOut gcpFreshnessFanOutRecorder
 	// ActivationDerivedScopes is optional. When set, it counts the derived
 	// scopes planned for a component activation per ecosystem (#9311).
-	ActivationDerivedScopes   activationDerivedScopeCounter
-	IncidentFreshnessTriggers IncidentFreshnessTriggerStore
-	GovernanceAudit           GovernanceAuditAppender
+	ActivationDerivedScopes activationDerivedScopeCounter
+	// ActivationDerivedScopesFenced is optional. When set, it counts the
+	// go-reachability generations the commit-skew fence retracted (#10055).
+	ActivationDerivedScopesFenced activationDerivedScopeCounter
+	IncidentFreshnessTriggers     IncidentFreshnessTriggerStore
+	GovernanceAudit               GovernanceAuditAppender
 	// SemanticProviderWorker is the optional egress-gated semantic-provider
 	// execution worker. It is nil unless explicitly configured, and even when
 	// configured it makes no real provider traffic unless its default-OFF

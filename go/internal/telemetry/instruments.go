@@ -3268,6 +3268,10 @@ type Instruments struct {
 	// collector instance, and ecosystem. Registered by
 	// registerActivationDerivedScopeInstruments.
 	ActivationDerivedScopesPlanned metric.Int64Counter
+	// ActivationDerivedScopesFenced counts #10055 go-reachability generations the
+	// commit-skew fence retracted, by collector kind, ecosystem, and reason.
+	// Registered by registerActivationDerivedScopeInstruments.
+	ActivationDerivedScopesFenced metric.Int64Counter
 	// SecurityAlertOrgFanoutRepositories counts #8805 allowlisted
 	// repositories handled by the org-scope per-repository fan-out, by
 	// provider and the closed outcome set in contract/security_alert.go.
