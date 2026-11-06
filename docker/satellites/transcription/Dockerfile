@@ -104,6 +104,7 @@ LABEL eshu.satellite="transcription" eshu.satellite.engine="whisper.cpp" eshu.sa
 RUN apk add --no-cache "libstdc++>=14.2.0-r4" "libgcc>=14.2.0-r4" "musl>=1.2.5-r12" \
         "libssl3>=3.3.7-r2" "libcrypto3>=3.3.7-r2" "zlib>=1.3.2-r1" \
     && mkdir -p /opt/whisper/bin /opt/whisper/models /data
+ARG EXPECT_ENGINE_VERSION
 COPY --from=whisper /out/whisper-cli /opt/whisper/bin/whisper-cli
 COPY --from=model /out/ggml-base.en.bin /opt/whisper/models/ggml-base.en.bin
 COPY --from=go-caller /go-bin/eshu-collector-media-import /usr/local/bin/eshu-collector-media-import
@@ -118,6 +119,10 @@ RUN set -eu; \
     [ -n "${EXPECT_BINARY_SHA256:-}" ] || { echo "GATE FAIL: EXPECT_BINARY_SHA256 build arg is required (see specs/satellite-pins/transcription.<arch>.json)" >&2; exit 1; }; \
     [ -n "${EXPECT_LIBS_SHA256:-}" ] || { echo "GATE FAIL: EXPECT_LIBS_SHA256 build arg is required (see specs/satellite-pins/transcription.<arch>.json)" >&2; exit 1; }; \
     [ -n "${EXPECT_MODEL_SHA256:-}" ] || { echo "GATE FAIL: EXPECT_MODEL_SHA256 build arg is required (see specs/satellite-pins/transcription.<arch>.json)" >&2; exit 1; }; \
+    [ -n "${EXPECT_ENGINE_VERSION:-}" ] || { echo "GATE FAIL: EXPECT_ENGINE_VERSION build arg is required (see specs/satellite-pins/transcription.<arch>.json)" >&2; exit 1; }; \
+    reported="$(/opt/whisper/bin/whisper-cli --version 2>/dev/null | head -n 1)"; \
+    want="whisper.cpp version: ${EXPECT_ENGINE_VERSION#v}"; \
+    [ "${reported#"$want"}" != "${reported}" ] || { echo "GATE FAIL: binary reports '${reported}', want prefix '${want}'" >&2; exit 1; }; \
     got="$(sha256sum /opt/whisper/bin/whisper-cli | awk '{print $1}')"; \
     [ "${got}" = "${EXPECT_BINARY_SHA256}" ] || { echo "GATE FAIL: whisper-cli sha256:${got} != pinned ${EXPECT_BINARY_SHA256}; the binary is toolchain-dependent, re-record the reference (see docker/satellites/README.md)" >&2; exit 1; }; \
     got="$(sha256sum /opt/whisper/models/ggml-base.en.bin | awk '{print $1}')"; \
@@ -127,7 +132,7 @@ RUN set -eu; \
     printf 'pinned runtime libraries:\n%s\n' "${libs}"; \
     got="$(printf '%s\n' "${libs}" | sha256sum | awk '{print $1}')"; \
     [ "${got}" = "${EXPECT_LIBS_SHA256}" ] || { echo "GATE FAIL: library set sha256:${got} != pinned ${EXPECT_LIBS_SHA256}; re-record specs/satellite-pins (see docker/satellites/README.md)" >&2; exit 1; }; \
-    echo "GATE PASS: transcription satellite pins hold (binary, model, $(printf '%s\n' "${libs}" | wc -l) libraries)"
+    echo "GATE PASS: transcription satellite pins hold (binary, ${EXPECT_ENGINE_VERSION}, model, $(printf '%s\n' "${libs}" | wc -l) libraries)"
 USER 65532:65532
 WORKDIR /data
 ENTRYPOINT ["/usr/local/bin/eshu-collector-media-import"]

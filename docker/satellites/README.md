@@ -64,7 +64,8 @@ docker build -f docker/satellites/ocr/Dockerfile \
 
 # Transcription, arm64 (values from specs/satellite-pins/transcription.arm64.json):
 docker build -f docker/satellites/transcription/Dockerfile \
-  --build-arg EXPECT_BINARY_SHA256=dac1dc5c95b1ca44ca30472a820ddb6b11a4345e5d39521e0658bc2c812ade3d \
+  --build-arg EXPECT_BINARY_SHA256=85e9b7b0771b3c402d89d2969d6f39ccfee463cd22eff3fb4ab919249cd0a099 \
+  --build-arg EXPECT_ENGINE_VERSION=v1.9.5 \
   --build-arg EXPECT_LIBS_SHA256=0cbdd437b33d1ccc2df3a16bbd9229e2cf8c41ebb3a9a55a4c4d14bb32854f80 \
   --build-arg EXPECT_MODEL_SHA256=a03779c86df3323075f5e796cb2ce5029f00ec8869eee3fdfb897afe36c6d002 \
   -t eshu-satellite-transcription:arm64 .
@@ -138,13 +139,13 @@ Wiring note (no scan configuration changes in this lane):
 
 - `trivy-fs` already covers these Dockerfiles: it scans the repository
   filesystem on every PR, including Dockerfile misconfiguration checks, and
-  this directory is not in `specs/trivy-skip-dirs.txt. No workflow change
+  this directory is not in `specs/trivy-skip-dirs.txt`. No workflow change
   was needed for that coverage.
 - `trivy-image` does NOT cover these images: that job scans only the
   published `ghcr.io/eshu-hq/eshu` image after `docker-publish` runs, and
-  these satellites are neither published nor referenced by
-  `scripts/ci/select-docker-publish-lanes.sh` (which matches only the root
-  `Dockerfile`). Wiring image scans needs a publish lane plus a
+  these satellites are not published from any workflow yet (the satellites
+  lane in `docker-publish.yml` is build-only proof; the selector does match
+  `docker/satellites/**`). Wiring image scans needs a publish lane plus a
   `security-scan.yml` entry, which belongs with the deployment lane that
   first publishes a satellite, not here.
 - Until then, scan locally before publishing:

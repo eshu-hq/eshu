@@ -23,6 +23,7 @@ on:
       'scripts/fixtures/apk-floors/**',
       'specs/doc-import-pins/**',
       'docker/satellites/**', 'specs/satellite-pins/**',
+      'scripts/ci/test-docker-publish-extracted-steps.sh',
       'scripts/verify-runtime-image-tools.sh', 'scripts/test-verify-runtime-image-tools.sh',
       'scripts/lib/rootfs-resolve.sh',
       'scripts/verify-scanner-digest-pins.sh', 'scripts/test-verify-scanner-digest-pins.sh',
@@ -110,6 +111,15 @@ jobs:
       - name: Audit document-import stage floors and pins
         if: ${{ env.LANE_APPLIES == 'true' }}
         run: bash scripts/verify-apk-floors.sh --stage job-document-import
+      # #8879: audit the satellite Dockerfiles too — their apk floors live in
+      # the satellite final stages, not the root final stage, so the default
+      # audit never sees them. This job runs on the apkfloors lane, which
+      # satellite paths select — unlike build-and-push-image (image lane).
+      - name: Audit satellite stage floors
+        if: ${{ env.LANE_APPLIES == 'true' }}
+        run: |
+          bash scripts/verify-apk-floors.sh --dockerfile docker/satellites/ocr/Dockerfile
+          bash scripts/verify-apk-floors.sh --dockerfile docker/satellites/transcription/Dockerfile
       # #10205 P2: PR builds prove only the amd64 digest, so a static
       # well-formedness guard runs on both pin files here, in the lane that
       # pin changes already select.
@@ -160,11 +170,15 @@ jobs:
         run: bash scripts/verify-scanner-digest-pins.sh
   # #8879: build-only proof of the satellite digest gates. These images are
   # never published from this workflow — publication stays manual until the
-  # Event-B publish lane lands. Each step proves one satellite x arch combo:
+  # Event-B publish lane lands. Each matrix combo proves one satellite x arch:
   # the RUN gate inside the Dockerfile fails the build when its pin file
-  # drifts (binary, model, engine version, library set). All four combos run
-  # on pull_request and push alike — the pin files are arch-specific, so an
-  # amd64-only proof would leave the arm64 gate unverified.
+  # drifts (binary, model, library set, plus the engine version — exact match
+  # for tesseract, "whisper.cpp version: <v>" prefix match for whisper-cli).
+  # All four combos run on pull_request and push alike — the pin files are
+  # arch-specific, so an amd64-only proof would leave the arm64 gate
+  # unverified. EXPECT_ENGINE_VERSION is declared and checked by both
+  # Dockerfiles; WHISPER_MODEL_SHA256 keeps its Dockerfile default because
+  # the model stage already fails closed on a default/content mismatch.
   verify-satellite-gates:
     needs: [changes]
     if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'verify-satellite-gates')) && ((github.event_name != 'workflow_dispatch' || inputs.mode == 'release') && needs.changes.outputs.satellites == 'true') }}
@@ -348,14 +362,6 @@ jobs:
           cache-to: ${{ github.event_name == 'push' && 'type=registry,ref=ghcr.io/eshu-hq/eshu-buildcache:job-document-import,mode=max' || '' }}
           no-cache-filters: job-document-import
           platforms: ${{ env.IMAGE_PLATFORMS }}
-      # #8879: audit the satellite Dockerfiles too — their apk floors live in
-      # the satellite final stages, not the root final stage, so the default
-      # audit never sees them.
-      - name: Audit satellite stage floors
-        if: ${{ env.LANE_APPLIES == 'true' }}
-        run: |
-          bash scripts/verify-apk-floors.sh --dockerfile docker/satellites/ocr/Dockerfile
-          bash scripts/verify-apk-floors.sh --dockerfile docker/satellites/transcription/Dockerfile
       - name: Generate artifact attestation
         if: ${{ github.event_name != 'pull_request' }}
         uses: actions/attest-build-provenance@v1
