@@ -253,7 +253,7 @@ jobs:
           cache: false
       - name: Pre-warm Go modules
         run: scripts/ci/go-mod-download-retry.sh
-      - name: Install govulncheck (pinned)
+      - name: Install govulncheck (@latest)
         run: scripts/ci/go-install-retry.sh golang.org/x/vuln/cmd/govulncheck@latest
       - name: Run govulncheck on every Go package
         working-directory: go
