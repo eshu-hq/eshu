@@ -145,7 +145,16 @@ By owner order (2026-11-05, #7331) no NornicDB leg runs in CI while Neo4j is the
 supported backend. Nothing was deleted: each leg is switched off in place, with
 its original condition kept in a comment. The read-API latency cell was turned
 off the same way on 2026-11-03. A guard keeps the legs off:
-`scripts/verify-nornicdb-ci-off.py` (registry gate `nornicdb-ci-off`).
+`scripts/verify-nornicdb-ci-off.py` (registry gate `nornicdb-ci-off`). It fails
+when a job that can run (its `if` is not `${{ false }}`) starts NornicDB, found
+three ways: a workflow line that selects the `nornicdb` backend (matrix cell,
+`ESHU_GRAPH_BACKEND`, `--backend nornicdb`), brings up the `nornicdb` compose
+service, or `docker run`s a NornicDB image; a `docker run` of a NornicDB image
+inside a `scripts/*.sh` file the job invokes; or a `--shard "${{ matrix.X }}/N"`
+run whose matrix value `live_backend_shards.partition_runs` gives NornicDB runs.
+It also fails a disabled job whose registry row is still blocking. Restoring the
+replay tier's `if`, or putting shard 1 back in the live-backend matrix, fails it
+whatever the exact-text pins around those lines say.
 
 | Leg | Workflow and job | How it is off | Registry row |
 | --- | --- | --- | --- |

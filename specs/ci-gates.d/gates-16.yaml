@@ -132,11 +132,17 @@ gates:
     name: No live NornicDB CI leg while the owner order stands
     category: hygiene
     layer: hygiene
-    purpose: "Fails when a live CI job starts NornicDB, or a permanently disabled CI job still has a blocking registry row (owner order 2026-11-05, #7331)."
+    purpose: "Fails when a CI job that can run starts NornicDB, or a disabled job still has a blocking registry row (owner order 2026-11-05, #7331)."
     tier: pre-push
     blocking: true
     triggers:
       - ".github/workflows/*.yml"
+      - "scripts/*.sh"
+      - "scripts/lib/live_backend_shards.py"
+      - "scripts/lib/live_backend_test_targets.py"
+      - "scripts/lib/live_tests_registry.py"
+      - "specs/live-tests.v1.yaml"
+      - "specs/live-tests.d/**"
       - "specs/ci-gates.d/**"
       - "specs/ci-gates.v1.yaml"
       - "scripts/verify-nornicdb-ci-off.py"
