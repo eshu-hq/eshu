@@ -6,7 +6,10 @@ The dirgate gate (`go/cmd/dirgate`) lets a Go package directory grow past
 `max(40, its non-test .go count at the base)` only when the commit that adds the
 files carries this trailer, one line for each directory. It also names growth
 that landed concurrently and was never waived; a one-commit repair PR carries the
-trailer for that.
+trailer for that. On a pull request, and on `make pre-push`, that debt fails only
+a change that touches the directory (adds, removes or renames its files, or names
+it in a trailer); the push run on main checks every directory and catches it where
+it is made. Check `main` for a repair in flight first.
 
 ```text
 Dirgate-Growth: <dir> +<N> #<issue> <reason>

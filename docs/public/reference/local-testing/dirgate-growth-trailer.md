@@ -30,8 +30,21 @@ directory over 40 files needs a trailer.
 `delta_needed` guards each merge. `abs_needed` catches the case no per-merge
 check can see: two PRs each add one file to a 39-file directory, both pass their
 own run, and both land. The directory is then at 41 with no waiver. The push run
-of the second merge goes RED (`40 -> 41`), and every later PR is RED too, naming
-the overshoot as "already on base and never waived".
+of the second merge goes RED (`40 -> 41`), naming the overshoot as "already on
+base and never waived".
+
+On a `pull_request` run, and on `make pre-push` (which simulates it),
+`abs_needed` counts only for the directories the change touched. A directory is
+touched when its set of non-test `.go` files differs between the base and the
+merge ref (files added, removed or renamed), or when a valid trailer in the
+change names it. `delta_needed` and the trailer check cover every directory. So a
+branch that does not touch the overshoot directory is not failed for it, and one
+dropped trailer no longer blocks unrelated PRs, or their authors' pre-push floor,
+until a repair merges. A branch that adds a file to the overshoot directory owes
+the overshoot plus its own growth: one new file on a directory 1 over needs `+2`.
+Push, schedule, `workflow_dispatch`, `merge_group`, and a missing or unknown
+event name still check every directory. The push run on main is what catches the
+debt where it is made.
 
 ## The trailer
 
@@ -52,9 +65,10 @@ line to add, and the commit that carries an invalid trailer.
 
 ### Repairing concurrent growth
 
-When the gate names growth "already on base and never waived", either move the
-extra files out (GREEN by shrink), or land a one-commit PR that carries the
-trailer:
+When the gate names growth "already on base and never waived", first check
+`main`: a repair PR may already be in flight, and two repairs leave one unit of
+permanent slack. Then either move the extra files out (GREEN by shrink), or land
+a one-commit PR that carries the trailer:
 
 ```text
 Dirgate-Growth: <dir> +<N> #<issue> concurrent merges of #A and #B
@@ -67,11 +81,11 @@ merges, every surface is GREEN. No history rewrite is needed.
 
 | Where | Head | Base | Result |
 | --- | --- | --- | --- |
-| `pull_request` (CI) | `HEAD`, which must be the merge commit | `HEAD^1` | enforced; a non-merge `HEAD` exits 2 |
-| `merge_group` (CI) | `HEAD` | `HEAD^1` | enforced |
-| `push`, `schedule` | `HEAD` | `HEAD^1` | enforced |
-| `workflow_dispatch`, or no event name | `HEAD` | `HEAD^1` | enforced |
-| `make pre-push` | `origin/main` merged with `HEAD` | `origin/main` | enforced |
+| `pull_request` (CI) | `HEAD`, which must be the merge commit | `HEAD^1` | enforced; `abs_needed` only for touched directories; a non-merge `HEAD` exits 2 |
+| `merge_group` (CI) | `HEAD` | `HEAD^1` | enforced, every directory |
+| `push`, `schedule` | `HEAD` | `HEAD^1` | enforced, every directory |
+| `workflow_dispatch`, or no event name | `HEAD` | `HEAD^1` | enforced, every directory |
+| `make pre-push` | `origin/main` merged with `HEAD` | `origin/main` | enforced; `abs_needed` only for touched directories |
 | pre-commit hook | the index | merge base | naming and baseline findings enforced; growth and trailer findings are notes |
 
 CI uses `HEAD^1`, never the merge base. A PR that branched before main moved

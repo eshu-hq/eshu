@@ -17,6 +17,14 @@ const (
 	modePreCommit = "pre-commit"
 )
 
+// eventPullRequest is the one CI event whose absolute check is scoped to the
+// directories the change touched. A pull request that does not touch a directory
+// cannot have caused its debt, and failing it blocks unrelated work until someone
+// repairs the base. Pre-push simulates this event, so it is scoped the same way.
+// The debt still fails push, schedule, dispatch and merge_group runs, where it
+// is made.
+const eventPullRequest = "pull_request"
+
 // defaultBaseRef is the local comparison branch.
 const defaultBaseRef = "origin/main"
 
@@ -30,6 +38,10 @@ type resolution struct {
 	pending    bool   // the commit message does not exist yet (pre-commit)
 	notes      []string
 	only       map[string]bool // go/-relative directories to judge; nil = all
+	// absScoped narrows the absolute term to the directories the change touched.
+	// A pull_request run and a pre-push run (which simulates it) set it; every
+	// other event sweeps every directory.
+	absScoped bool
 }
 
 // resolveCI compares headRef (the merge ref in CI) with its first parent. A merge-base would
@@ -45,7 +57,7 @@ func resolveCI(g gitRepo, event, headRef string) (resolution, error) {
 	if len(fields) < 2 {
 		return resolution{}, fmt.Errorf("%s has no parent, so there is no base to compare with", headRef)
 	}
-	if event == "pull_request" && len(fields) < 3 {
+	if event == eventPullRequest && len(fields) < 3 {
 		return resolution{}, fmt.Errorf("%s is not a merge commit; a pull_request run must check out the merge ref (parent 1 is the base, parent 2 the PR head)", headRef)
 	}
 	headTree, err := g.line("rev-parse", fields[0]+"^{tree}")
@@ -62,12 +74,16 @@ func resolveCI(g gitRepo, event, headRef string) (resolution, error) {
 		baseCommit: fields[1],
 		headTree:   headTree,
 		revRange:   fields[1] + ".." + fields[0],
+		// Exact match: a missing or unknown event name keeps the full sweep.
+		absScoped: event == eventPullRequest,
 	}, nil
 }
 
 // resolvePrePush compares what the branch would look like merged onto the base
 // ref with the base ref. A conflicting merge falls back to the merge base and
-// says so.
+// says so. It simulates the pull_request check, so the absolute term is scoped
+// to the directories the branch touched; debt on the base that the branch does
+// not touch is left to the push run on main.
 func resolvePrePush(g gitRepo, baseRef string) (resolution, error) {
 	base, err := g.resolveCommit(baseRef)
 	if err != nil || base == "" {
@@ -79,7 +95,7 @@ func resolvePrePush(g gitRepo, baseRef string) (resolution, error) {
 	out, mergeErr := g.output("merge-tree", "--write-tree", base, "HEAD")
 	if mergeErr == nil {
 		tree := strings.TrimSpace(strings.SplitN(out, "\n", 2)[0])
-		return resolution{mode: modePrePush, baseCommit: base, headTree: tree, revRange: base + "..HEAD"}, nil
+		return resolution{mode: modePrePush, baseCommit: base, headTree: tree, revRange: base + "..HEAD", absScoped: true}, nil
 	}
 	if exitCode(mergeErr) != 1 {
 		return resolution{}, fmt.Errorf("merge %s into HEAD: %w", baseRef, mergeErr)
@@ -94,6 +110,7 @@ func resolvePrePush(g gitRepo, baseRef string) (resolution, error) {
 	}
 	return resolution{
 		mode: modePrePush, baseCommit: mb, headTree: headTree, revRange: mb + "..HEAD",
+		absScoped: true,
 		notes: []string{fmt.Sprintf(
 			"merging %s into HEAD conflicts, so the merge-base fallback is in use (base %s); it cannot see growth that landed on %s, so rebase before you push",
 			baseRef, short(mb), baseRef)},
