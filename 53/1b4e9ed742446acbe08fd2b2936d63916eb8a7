@@ -1,0 +1,18 @@
+go/cmd/api/MUTATION_TRANSPORT_SPEC.md
+  h_78a442cba0b3e6 1-260
+go/cmd/api/mutation_transport_conformance.go
+  h_78a442cba0b3e6 1-121
+go/cmd/api/mutation_transport_conformance_test.go
+  h_78a442cba0b3e6 1-164
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "531b4e9ed742446acbe08fd2b2936d63916eb8a7",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
