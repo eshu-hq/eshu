@@ -36,7 +36,7 @@
 #     --build-arg EXPECT_LIBS_SHA256=8c31dbcc54632daf9221abacd24f5daa49bb19548bf71b800c5913b4e215a160 \
 #     --build-arg EXPECT_MODEL_SHA256=daa0c97d651c19fba3b25e81317cd697e9908c8208090c94c3905381c23fc047 \
 #     --build-arg EXPECT_ENGINE_VERSION=5.5.0 \
-#     -t eshu-seed-document-import:local .
+#     -t eshu-collector-document-import:local .
 
 ARG ESHU_ALPINE_IMAGE=alpine:3.21@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d
 ARG ESHU_GO_IMAGE=golang:1.26.10-alpine@sha256:9ce231b28998b32e116927c61aa5c406183061d4f3f2d61b292c88e7f6bdf7ca

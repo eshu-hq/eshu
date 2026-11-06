@@ -36,7 +36,7 @@ spec:
     adapter: process
   artifacts:
     - platform: linux/amd64
-      image: ghcr.io/eshu-hq/eshu-document-import@sha256:0000000000000000000000000000000000000000000000000000000000000000
+      image: ghcr.io/eshu-hq/eshu-collector-document-import@sha256:0000000000000000000000000000000000000000000000000000000000000000
   emittedFacts:
     - kind: documentation_document
       payloadSchemaRef: documentation_document
@@ -73,7 +73,7 @@ func seedTestBinary(t *testing.T, dir string, body []byte) string {
 	return path
 }
 
-const seedTestRef = "ghcr.io/eshu-hq/eshu-document-import@sha256:9b766668cec1b7fe5901716e2fd4df14b98dbb2a049c646674370ff7f56bb495"
+const seedTestRef = "ghcr.io/eshu-hq/eshu-collector-document-import@sha256:9b766668cec1b7fe5901716e2fd4df14b98dbb2a049c646674370ff7f56bb495"
 
 // TestSeedWritesCollectorAndManifest proves the seed path copies the caller
 // binary and stamps the seed image digest into the destination manifest.
@@ -132,9 +132,9 @@ func TestSeedRefusesNonDigestRef(t *testing.T) {
 	refs := map[string]string{
 		"tag only":      "ghcr.io/eshu-hq/eshu-document-import:latest",
 		"bare repo":     "ghcr.io/eshu-hq/eshu-document-import",
-		"short digest":  "ghcr.io/eshu-hq/eshu-document-import@sha256:abc123",
+		"short digest":  "ghcr.io/eshu-hq/eshu-collector-document-import@sha256:abc123",
 		"empty":         "",
-		"wrong algo":    "ghcr.io/eshu-hq/eshu-document-import@sha512:9b766668cec1b7fe5901716e2fd4df14b98dbb2a049c646674370ff7f56bb495",
+		"wrong algo":    "ghcr.io/eshu-hq/eshu-collector-document-import@sha512:9b766668cec1b7fe5901716e2fd4df14b98dbb2a049c646674370ff7f56bb495",
 		"trailing junk": seedTestRef + "-extra",
 	}
 	for name, ref := range refs {

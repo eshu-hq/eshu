@@ -73,11 +73,13 @@ func TestRepoManifestSeedContract(t *testing.T) {
 	if len(manifest.Spec.CollectorKinds) != 1 || manifest.Spec.CollectorKinds[0] != "documentation" {
 		t.Fatalf("manifest collectorKinds = %q, want [documentation]", manifest.Spec.CollectorKinds)
 	}
-	if len(manifest.Spec.Artifacts) != 1 {
-		t.Fatalf("manifest artifacts = %d, want 1", len(manifest.Spec.Artifacts))
+	if len(manifest.Spec.Artifacts) != 2 {
+		t.Fatalf("manifest artifacts = %d, want 2 (amd64+arm64)", len(manifest.Spec.Artifacts))
 	}
-	if err := manifest.Spec.Artifacts[0].Validate(); err != nil {
-		t.Fatalf("manifest artifact fails the digest gate: %v", err)
+	for _, artifact := range manifest.Spec.Artifacts {
+		if err := artifact.Validate(); err != nil {
+			t.Fatalf("manifest artifact %q fails the digest gate: %v", artifact.Platform, err)
+		}
 	}
 	wantFamilies := map[string]struct {
 		version    string

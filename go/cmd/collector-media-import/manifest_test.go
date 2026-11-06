@@ -14,11 +14,14 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
-// provenSeedImage is the dispatch-proven seed image: the local `docker
-// build` of Dockerfile.seed records its content digest here, and the
-// manifest artifacts entry pins the same digest. A seed rebuild re-pins
-// this constant in the same commit as the manifest fill.
-const provenSeedImage = "ghcr.io/eshu-hq/eshu-seed-media-import@sha256:b4f5815054962645451e33d76acb5434e4fcd7daac51773fc1ecd0b6236aa857"
+// provenSeedImages are the dispatch-proven seed images: the integration
+// `docker build` of Dockerfile.seed records its content digests here (both
+// gates PASS per arch), and the manifest artifacts entries pin the same
+// digests. A seed rebuild re-pins these constants in the same commit as the
+// manifest fill.
+const provenSeedImageAmd64 = "ghcr.io/eshu-hq/eshu-collector-media-import@sha256:7edeb6797c2e809027bbe74cfe126d828c267a3ea98184ae1dcb6317998f702f"
+
+const provenSeedImageArm64 = "ghcr.io/eshu-hq/eshu-collector-media-import@sha256:e5f8836129531e7629201bbdb6883cc56dd9a68d2918f9f80a2d0056eac26d51"
 
 var seedDigestPattern = regexp.MustCompile(`^.+@sha256:[A-Fa-f0-9]{64}$`)
 
@@ -78,22 +81,31 @@ func TestSeedManifestRuntime(t *testing.T) {
 	}
 }
 
-// TestSeedManifestArtifactPinsDispatchProvenImage proves the single artifact
-// entry names exactly the dispatch-proven digest-pinned seed image: the
-// host launches these bytes and nothing else.
+// TestSeedManifestArtifactPinsDispatchProvenImage proves each artifact
+// entry names exactly the dispatch-proven digest-pinned seed image for its
+// platform: the host launches these bytes and nothing else.
 func TestSeedManifestArtifactPinsDispatchProvenImage(t *testing.T) {
 	t.Parallel()
 
 	manifest := loadSeedManifest(t)
-	if len(manifest.Spec.Artifacts) != 1 {
-		t.Fatalf("artifacts = %d, want exactly 1 pinned seed image", len(manifest.Spec.Artifacts))
+	want := map[string]string{
+		"linux/amd64": provenSeedImageAmd64,
+		"linux/arm64": provenSeedImageArm64,
 	}
-	image := manifest.Spec.Artifacts[0].Image
-	if !seedDigestPattern.MatchString(image) {
-		t.Fatalf("artifact image %q is not digest-pinned (want repo@sha256:<64hex>)", image)
+	if len(manifest.Spec.Artifacts) != len(want) {
+		t.Fatalf("artifacts = %d, want exactly %d pinned seed images", len(manifest.Spec.Artifacts), len(want))
 	}
-	if image != provenSeedImage {
-		t.Fatalf("artifact image %q != dispatch-proven seed image %q", image, provenSeedImage)
+	for _, artifact := range manifest.Spec.Artifacts {
+		expected, ok := want[artifact.Platform]
+		if !ok {
+			t.Fatalf("artifact platform %q is not a pinned seed platform", artifact.Platform)
+		}
+		if !seedDigestPattern.MatchString(artifact.Image) {
+			t.Fatalf("artifact image %q is not digest-pinned (want repo@sha256:<64hex>)", artifact.Image)
+		}
+		if artifact.Image != expected {
+			t.Fatalf("artifact image %q != dispatch-proven seed image %q", artifact.Image, expected)
+		}
 	}
 }
 

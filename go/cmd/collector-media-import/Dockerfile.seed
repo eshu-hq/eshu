@@ -20,7 +20,7 @@
 #     --build-arg EXPECT_LIBS_SHA256=<libraries_set_sha256> \
 #     --build-arg EXPECT_MODEL_SHA256=<model.sha256> \
 #     --build-arg EXPECT_ENGINE_VERSION=<engine.version> \
-#     -t eshu-seed-media-import:<arch> .
+#     -t eshu-collector-media-import:<arch> .
 # Reference values live in specs/satellite-pins/transcription.<arch>.json.
 # The seed dispatch that materializes the payload for the image build is:
 #   collector seed --dest <dir> --image-ref <repo@sha256:…>

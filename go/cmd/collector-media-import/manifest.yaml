@@ -24,16 +24,15 @@ spec:
     sdkProtocol: collector-sdk/v1alpha1
     adapter: process
   artifacts:
-    # SEED_IMAGE_DIGEST is the local-proof content digest from this lane's
-    # `docker build` of Dockerfile.seed (linux/arm64, 2026-11-06): the
-    # image rebuilds the transcription satellite runtime plus the caller
-    # binary at /usr/local/bin/collector and this manifest at
-    # /manifest.yaml, and both digest gates passed in that build.
-    # Promotion re-pins this entry to the pushed digest (same convention
-    # as the synth-zero window assembly); manifest_test.go binds the entry
-    # to the proven constant so a divergent fill fails.
+    # Local-proof content digests from the integration `docker build` of
+    # Dockerfile.seed (2026-11-06, both gates PASS per arch).
+    # Promotion re-pins these entries to the pushed digests (same convention
+    # as the synth-zero window assembly); manifest_test.go binds the entries
+    # to the proven constants so a divergent fill fails.
+    - platform: linux/amd64
+      image: ghcr.io/eshu-hq/eshu-collector-media-import@sha256:7edeb6797c2e809027bbe74cfe126d828c267a3ea98184ae1dcb6317998f702f
     - platform: linux/arm64
-      image: ghcr.io/eshu-hq/eshu-seed-media-import@sha256:b4f5815054962645451e33d76acb5434e4fcd7daac51773fc1ecd0b6236aa857
+      image: ghcr.io/eshu-hq/eshu-collector-media-import@sha256:e5f8836129531e7629201bbdb6883cc56dd9a68d2918f9f80a2d0056eac26d51
   emittedFacts:
     - kind: documentation_document
       schemaVersions:
