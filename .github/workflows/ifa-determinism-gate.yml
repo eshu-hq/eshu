@@ -117,7 +117,7 @@ jobs:
         run: bash scripts/verify-ifa-determinism.sh --keep
       - name: Dump service logs on failure
         if: ${{ failure() }}
-        run: bash scripts/ci/compose.sh -p "${DETERMINISM_COMPOSE_PROJECT}" -f eshu-deploy/compose/docker-compose.yaml -- logs --tail=200 || true
+        run: bash scripts/ci/compose.sh -p "${DETERMINISM_COMPOSE_PROJECT}" -f eshu-deploy/compose/docker-compose.neo4j.yml -- logs --tail=200 || true
       - name: Upload determinism-matrix diagnostics
         if: failure() && steps.determinism_matrix.outcome == 'failure'
         uses: actions/upload-artifact@v4
@@ -131,7 +131,7 @@ jobs:
           retention-days: 7
       - name: Tear down Docker services
         if: ${{ always() }}
-        run: bash scripts/ci/compose.sh -p "${DETERMINISM_COMPOSE_PROJECT}" -f eshu-deploy/compose/docker-compose.yaml -- down -v || true
+        run: bash scripts/ci/compose.sh -p "${DETERMINISM_COMPOSE_PROJECT}" -f eshu-deploy/compose/docker-compose.neo4j.yml -- down -v || true
   dead-letter-matrix:
     if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'dead-letter-matrix') }}
     name: dead-letter-matrix
@@ -171,7 +171,7 @@ jobs:
         run: bash scripts/verify-ifa-dead-letter-matrix.sh --keep
       - name: Dump service logs on failure
         if: ${{ failure() }}
-        run: bash scripts/ci/compose.sh -p "${DEADLETTER_MATRIX_COMPOSE_PROJECT}" -f eshu-deploy/compose/docker-compose.yaml -- logs --tail=200 || true
+        run: bash scripts/ci/compose.sh -p "${DEADLETTER_MATRIX_COMPOSE_PROJECT}" -f eshu-deploy/compose/docker-compose.neo4j.yml -- logs --tail=200 || true
       - name: Upload dead-letter-matrix diagnostics
         if: failure() && steps.dead_letter_matrix.outcome == 'failure'
         uses: actions/upload-artifact@v4
@@ -184,7 +184,7 @@ jobs:
           retention-days: 7
       - name: Tear down Docker services
         if: ${{ always() }}
-        run: bash scripts/ci/compose.sh -p "${DEADLETTER_MATRIX_COMPOSE_PROJECT}" -f eshu-deploy/compose/docker-compose.yaml -- down -v || true
+        run: bash scripts/ci/compose.sh -p "${DEADLETTER_MATRIX_COMPOSE_PROJECT}" -f eshu-deploy/compose/docker-compose.neo4j.yml -- down -v || true
   fault-injection:
     if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'fault-injection') }}
     name: fault-injection (shard ${{ matrix.shard }}/8)
@@ -264,4 +264,4 @@ jobs:
           retention-days: 7
       - name: Tear down Docker services
         if: ${{ always() }}
-        run: bash scripts/ci/compose.sh -p "${FAULT_COMPOSE_PROJECT}" -f eshu-deploy/compose/docker-compose.yaml -- down -v || true
+        run: bash scripts/ci/compose.sh -p "${FAULT_COMPOSE_PROJECT}" -f eshu-deploy/compose/docker-compose.neo4j.yml -- down -v || true

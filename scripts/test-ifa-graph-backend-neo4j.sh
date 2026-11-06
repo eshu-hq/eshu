@@ -8,7 +8,11 @@
 # fail by planting one violation per check in a scratch copy (RED):
 #   1. the determinism workflow pins ESHU_GRAPH_BACKEND: neo4j at the top level;
 #   2. no active (non-comment) line of a watched workflow or gate script names
-#      NornicDB (service, image, database, backend value, or restart target);
+#      NornicDB (service, image, database, backend value, or restart target)
+#      or the NornicDB compose file (docker-compose.yaml, which has no neo4j
+#      service), and every compose project command in a watched workflow names
+#      docker-compose.neo4j.yml (a project command that names the wrong file
+#      loses the Neo4j log and teardown on the failure path);
 #   3. scripts/lib/ifa_graph_backend.sh defaults to Neo4j, maps it to the neo4j
 #      service, database and compose file, still supports a manual nornicdb run,
 #      and rejects an unknown backend.
@@ -61,6 +65,25 @@ check_tree() {
 			echo "${file}: active line names NornicDB: $(printf '%s' "${hits}" | head -1)"
 			count=$((count + 1))
 		fi
+		# The NornicDB compose file never contains the word nornic in its name,
+		# so the check above cannot see it.
+		hits="$(rg -n -- 'docker-compose\.yaml' "${root}/${file}" | rg -v -- '^[0-9]+:[[:space:]]*#' || true)"
+		if [[ -n "${hits}" ]]; then
+			echo "${file}: active line names the NornicDB compose file docker-compose.yaml: $(printf '%s' "${hits}" | head -1)"
+			count=$((count + 1))
+		fi
+		case "${file}" in
+		.github/workflows/*)
+			# Every compose project command (logs, down, ps, ...) must name the
+			# Neo4j compose file. A bare scripts/ci/compose.sh line without -f
+			# is also wrong: compose then falls back to the default file.
+			hits="$(rg -n -- 'scripts/ci/compose\.sh' "${root}/${file}" | rg -v -- '^[0-9]+:[[:space:]]*#' | rg -v -- 'docker-compose\.neo4j\.yml' || true)"
+			if [[ -n "${hits}" ]]; then
+				echo "${file}: compose project command does not name docker-compose.neo4j.yml: $(printf '%s' "${hits}" | head -1)"
+				count=$((count + 1))
+			fi
+			;;
+		esac
 	done
 	if ! rg --quiet --fixed-strings -- ': "${ESHU_GRAPH_BACKEND:=neo4j}"' "${root}/scripts/lib/ifa_graph_backend.sh" 2>/dev/null; then
 		echo "scripts/lib/ifa_graph_backend.sh: ESHU_GRAPH_BACKEND must default to neo4j"
@@ -131,6 +154,14 @@ plant scheduled-runner-image scripts/run-ifa-scheduled-proofs.sh \
 	's#^image="ghcr.io/eshu-hq/ci-neo4j-community@#image="ghcr.io/eshu-hq/nornicdb-amd64-cpu@#' "run-ifa-scheduled-proofs.sh: active line names NornicDB"
 plant scheduled-workflow-name .github/workflows/ifa-scheduled-proofs.yml \
 	's/vs Neo4j and PostgreSQL/vs NornicDB and PostgreSQL/' "ifa-scheduled-proofs.yml: active line names NornicDB"
+plant workflow-logs-wrong-compose-file .github/workflows/ifa-determinism-gate.yml \
+	'120s#docker-compose\.neo4j\.yml#docker-compose.yaml#' "names the NornicDB compose file docker-compose.yaml"
+plant workflow-down-wrong-compose-file .github/workflows/ifa-determinism-gate.yml \
+	'267s#docker-compose\.neo4j\.yml#docker-compose.yaml#' "names the NornicDB compose file docker-compose.yaml"
+plant workflow-compose-without-file .github/workflows/ifa-determinism-gate.yml \
+	'174s# -f eshu-deploy/compose/docker-compose\.neo4j\.yml##' "does not name docker-compose.neo4j.yml"
+plant script-compose-file-nornic scripts/lib/ifa_fault_injection_common.sh \
+	's#^\(.*\)bash scripts/ci/compose.sh#\1docker-compose.yaml bash scripts/ci/compose.sh#' "names the NornicDB compose file docker-compose.yaml"
 plant lib-default-flipped scripts/lib/ifa_graph_backend.sh \
 	's/ESHU_GRAPH_BACKEND:=neo4j/ESHU_GRAPH_BACKEND:=nornicdb/' "must default to neo4j"
 
@@ -158,4 +189,4 @@ if check_backend_lib "${scratch}/lib-lenient" >/dev/null; then
 	fail "RED case lib-lenient: check_backend_lib passed a lib that accepts an unknown backend"
 fi
 
-printf 'test-ifa-graph-backend-neo4j: pass (%s watched files, 7 tree mutations, 1 comment case, 2 library mutations)\n' "${#watched[@]}"
+printf 'test-ifa-graph-backend-neo4j: pass (%s watched files, 11 tree mutations, 1 comment case, 2 library mutations)\n' "${#watched[@]}"

@@ -150,7 +150,7 @@ ifa_det_stop_join_untrack_bg_pid() {
 # working in both compose mode (via the postgres container) and --no-compose
 # mode (via a local psql client against dsn).
 #
-# Args: compose_project use_compose dsn sql [compose_file=docker-compose.yaml]
+# Args: compose_project use_compose dsn sql [compose_file=$IFA_GRAPH_COMPOSE_FILE, else docker-compose.neo4j.yml]
 #
 # Stdout is streamed straight through unbuffered, byte-identical to the
 # pre-existing behavior, on both the success and the failure path -- callers
@@ -165,7 +165,7 @@ ifa_det_stop_join_untrack_bg_pid() {
 # psql error text unrecoverable).
 ifa_det_pg() {
 	local compose_project="$1" use_compose="$2" dsn="$3" sql="$4"
-	local compose_file="${5:-docker-compose.yaml}"
+	local compose_file="${5:-${IFA_GRAPH_COMPOSE_FILE:-docker-compose.neo4j.yml}}"
 	local errfile rc
 	errfile="$(mktemp)"
 	if [[ "${use_compose}" -eq 1 ]]; then
@@ -194,10 +194,10 @@ ifa_det_pg() {
 # `docker compose exec`, so they never see the host port remapping) until both
 # report ready, or returns non-zero after the ~120s budget (60 iterations * 2s).
 #
-# Args: compose_project [compose_file=docker-compose.yaml]
+# Args: compose_project [compose_file=$IFA_GRAPH_COMPOSE_FILE, else docker-compose.neo4j.yml]
 ifa_det_wait_for_backends() {
 	local compose_project="$1"
-	local compose_file="${2:-docker-compose.yaml}"
+	local compose_file="${2:-${IFA_GRAPH_COMPOSE_FILE:-docker-compose.neo4j.yml}}"
 	local _
 	ifa_graph_backend_init || return 1
 	for _ in $(seq 1 60); do
