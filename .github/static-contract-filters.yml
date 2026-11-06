@@ -66,6 +66,8 @@ telemetry:
   - 'scripts/*verify-telemetry-coverage*.sh'
   - 'scripts/lib/telemetry-coverage-*.sh'
   - 'scripts/lib/test-verify-telemetry-coverage-*'
+  - 'scripts/lib/test-merge-ref-fixture.sh'
+  - 'scripts/lib/gate-diff-base.sh'
 dashboard:
   - '.github/workflows/static-contract-gates.yml'
   - 'specs/ci-gates.v1.yaml'
@@ -417,6 +419,8 @@ rootcauseevidence:
   - 'docs/internal/evidence/**'
   - 'scripts/verify-root-cause-evidence.sh'
   - 'scripts/test-verify-root-cause-evidence.sh'
+  - 'scripts/lib/test-merge-ref-fixture.sh'
+  - 'scripts/lib/gate-diff-base.sh'
 pgstatementreport:
   - '.github/workflows/static-contract-gates.yml'
   - 'specs/ci-gates.v1.yaml'

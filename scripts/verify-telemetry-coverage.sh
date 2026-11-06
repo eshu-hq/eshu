@@ -38,7 +38,8 @@ if [ -z "$repo_root" ]; then
   repo_root="$(cd "$script_dir/.." && pwd)"
 fi
 
-base="${ESHU_TELEMETRY_COVERAGE_BASE:-}"
+# A pull_request run diffs the merge ref first parent, not the moved base tip (#10248).
+base="${ESHU_TELEMETRY_COVERAGE_BASE:-$(eshu_gate_merge_ref_parent "$repo_root")}"
 if [ -z "$base" ] && [ -n "${GITHUB_BASE_REF:-}" ]; then
   # Never change the depth of a complete checkout to resolve the base: every
   # worktree shares one .git/shallow, so a --depth fetch here shallows all of

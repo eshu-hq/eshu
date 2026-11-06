@@ -175,6 +175,8 @@ gates:
       - "docs/internal/evidence/**"
       - "scripts/verify-root-cause-evidence.sh"
       - "scripts/test-verify-root-cause-evidence.sh"
+      - "scripts/lib/test-merge-ref-fixture.sh"
+      - "scripts/lib/gate-diff-base.sh"
       - "specs/ci-gates.v1.yaml"
       - "specs/ci-gates.d/**"
       - ".github/static-contract-filters.yml"

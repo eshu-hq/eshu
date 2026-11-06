@@ -38,3 +38,7 @@ else
   record_fail "resolving the CI base failed on a complete checkout"
 fi
 unset shallow_seed shallow_clone
+
+# Moved-base cases (#10248): a pull_request run diffs the merge ref first parent.
+# shellcheck source=scripts/lib/test-verify-telemetry-coverage-merge-ref-cases.sh
+. "${repo_root}/scripts/lib/test-verify-telemetry-coverage-merge-ref-cases.sh"
