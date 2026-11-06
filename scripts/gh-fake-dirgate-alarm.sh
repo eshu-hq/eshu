@@ -53,8 +53,19 @@ case "${path}" in
 			cat "${dir}/comments.json"
 		fi
 		;;
+	*/labels)
+		name="$(printf '%s' "${body}" | rg '^name=' | head -1 | cut -d= -f2-)"
+		printf '%s\n' "${name}" >>"${dir}/labels-known.txt"
+		mutate "label"
+		;;
 	*/issues\?*|*/issues)
 		if printf '%s' "${body}" | rg -q '^title='; then
+			for want in $(printf '%s' "${body}" | rg '^labels\[\]=' | cut -d= -f2-); do
+				if ! rg -q -x -e "${want}" "${dir}/labels-known.txt" 2>/dev/null; then
+					echo "fake gh: 422 unknown label: ${want}" >&2
+					exit 1
+				fi
+			done
 			mutate "issue"
 		else
 			cat "${dir}/issues.json"

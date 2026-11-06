@@ -60,6 +60,7 @@ new_case() {
 	case_dir="${work}/$1"
 	mkdir -p "${case_dir}"
 	: >"${case_dir}/calls.log"
+	: >"${case_dir}/labels-known.txt"
 	printf '[]\n' >"${case_dir}/comments.json"
 	printf '[]\n' >"${case_dir}/prs.json"
 	printf '[]\n' >"${case_dir}/issues.json"
@@ -192,6 +193,7 @@ printf '%s\n' "${RED_LOG}" >"${case_dir}/job.log"
 run_alarm
 check "fallback: exits 0" "${last_rc}"
 check "fallback: opens exactly one issue" "$([ "$(rg -c 'POST repos/eshu-hq/eshu/issues ' "${case_dir}/calls.log")" -eq 1 ] && echo 0 || echo 1)"
+check "fallback: bootstraps the label before the issue" "$(called 'POST repos/eshu-hq/eshu/labels' && echo 0 || echo 1)"
 check "fallback: issue title names the short sha" "$(issue_body_has "dirgate full sweep red @${SHORT}" && echo 0 || echo 1)"
 check "fallback: issue names the directory and trailer" "$(issue_body_has 'Dirgate-Growth: internal/telemetry \+1' && echo 0 || echo 1)"
 check "fallback: decision line printed" "$(out_has 'state=notify.*action=open-issue' && echo 0 || echo 1)"
@@ -222,18 +224,30 @@ check "wiring: ripgrep is provisioned before the alarm runs" "$(rg -q 'install-a
 # 9. Missing ripgrep: the alarm must fail loudly instead of degrading a real
 #    RED to silent unknown (an absent `rg` makes `rg ... || true` match
 #    nothing, so reds stays empty and the run reports unknown/none).
+#    The shim hides only the rg binary: every directory holding an executable
+#    rg contributes symlinks for all its other executables, so sibling tools
+#    (bash, jq, ...) stay available and this case passes or fails only on the
+#    guard in every standard tool layout.
 new_case rg-missing-fails-closed
-rg_dir="$(dirname "$(command -v rg)")"
+shim="${work}/norg-shim"
+mkdir -p "${shim}"
 clean_path=""
 while IFS= read -r d; do
-	[ "${d}" = "${rg_dir}" ] || clean_path="${clean_path:+${clean_path}:}${d}"
+	if [ -x "${d}/rg" ]; then
+		for t in "${d}"/*; do
+			[ "${t}" = "${d}/rg" ] && continue
+			[ -f "${t}" ] && [ -x "${t}" ] && ln -sf "${t}" "${shim}/$(basename "${t}")"
+		done
+	else
+		clean_path="${clean_path:+${clean_path}:}${d}"
+	fi
 done < <(printf '%s' "${PATH}" | tr ':' '\n')
 push_event "failure"
 dirgate_jobs "failure"
 printf '%s\n' "${RED_LOG}" >"${case_dir}/job.log"
 printf '[{"number":10240,"merged_at":"2026-11-06T09:00:00Z"}]' >"${case_dir}/prs.json"
 old_path="${PATH}"
-PATH="${fakebin}:${clean_path}"
+PATH="${fakebin}:${shim}:${clean_path}"
 set +e
 run_alarm
 set -e

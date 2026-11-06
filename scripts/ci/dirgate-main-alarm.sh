@@ -179,5 +179,10 @@ if printf '%s' "${issues_json}" | jq -e --arg t "${title}" 'any(.[]; .title == $
 	decide "notify" "none"
 	exit 0
 fi
+# Best-effort label bootstrap (mirrors main-health.sh): issue creation with
+# an unknown label 422s, so ensure ours exists before the labeled-issue POST.
+# A pre-existing label 422s back, which is fine.
+notify "create ${label} label" -X POST "repos/${repo}/labels" -f name="${label}" -f color=B60205 \
+	-f description="Managed by the dirgate-main-alarm watcher" >/dev/null 2>&1 || true
 notify "open ${label} issue" -X POST "repos/${repo}/issues" -f title="${title}" -f body="${body}" -f "labels[]=${label}" >/dev/null
 decide "notify" "open-issue"
