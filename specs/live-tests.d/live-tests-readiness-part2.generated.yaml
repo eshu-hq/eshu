@@ -54,6 +54,11 @@ tests:
     class: postgres_ci
     reason: "#10003 row 1 disposable PostgreSQL proof that LoadActiveCodeCallSymbolDefinitionFacts overlays a delta-active git scope on its #7797 base full generation: the unchanged bar definition of the base stays visible to the code-call materialization pass; reads ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DSN with its disposable opt-in"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/active_code_call_symbols_variant_b_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10182 disposable PostgreSQL proof that a delta which drops one of two publishers of one anchored key group keeps the dropped publisher's base definitions visible: the anchored base scan binds the active-only producer set and the dropped scope's base rows go unread; reads ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DSN with its disposable opt-in"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/active_jvm_reachability_delta_live_test.go
     tag: ~
     class: postgres_ci

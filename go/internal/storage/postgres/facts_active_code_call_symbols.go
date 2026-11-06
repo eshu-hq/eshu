@@ -6,7 +6,6 @@ package postgres
 import (
 	"context"
 	"fmt"
-	"slices"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -142,18 +141,21 @@ const listActiveCodeCallSymbolDefinitionFactsQuery = codeCallSymbolDefinitionFac
 // listAnchoredActiveCodeCallSymbolDefinitionFactsQuery is the same scan
 // restricted to the producer scopes in $5, so its cost follows the producer
 // file facts instead of the whole corpus (#7601). That cost promise holds
-// for anchored legs, whose $5 is the producer set; base-only union legs
-// (#10104) bind the baselined delta-active targets instead, so their width
-// scales with the delta-active scope count (read it off the union scope
-// counters on the load log line).
+// for anchored legs, whose active $5 is the producer set; the base pass
+// widens $5 to the union of the producers and the baselined delta-active
+// targets (#10182), and base-only union legs (#10104) bind the baselined
+// delta-active targets outright, so base width scales with the delta-active
+// scope count (read it off the base and union scope counters on the load log
+// line).
 const listAnchoredActiveCodeCallSymbolDefinitionFactsQuery = codeCallSymbolDefinitionFactsSelect +
 	"  AND fact.scope_id = ANY($5::text[])\n" +
 	codeCallSymbolDefinitionFactsMatch
 
 // The candidate base generation ids bind at $5 of the derived unanchored
 // base text ($1-$4 are keys, cursor, page size) and at $6 of the anchored
-// base text ($5 is the producer scopes for anchored legs, or the baselined
-// delta-active targets' scope ids for union legs, #10104).
+// base text ($5 is the producer scopes for anchored legs — widened with the
+// baselined delta-active targets' scope ids in the base pass, #10182 — or
+// the baselined delta-active targets' scope ids for union legs, #10104).
 const (
 	codeCallSymbolDeltaOverlayScopeParam         = 5
 	codeCallAnchoredSymbolDeltaOverlayScopeParam = 6
@@ -193,8 +195,11 @@ func (s FactStore) codeCallSymbolDeltaOverlayTelemetry() deltaOverlayTelemetry {
 // carrying a baseline it stays unresolved; otherwise its group runs a
 // base-only union leg over the baselined targets' scopes, and the match on
 // each definition's own package id gates the wider base scopes (#10104).
-// Every other key keeps the corpus-wide scan, and the groups run separately
-// so one group's manifest never widens another.
+// A key whose producers survive only partly — a delta drops one publisher
+// while another still anchors the group — keeps its anchored leg, whose base
+// pass widens $5 to the producers plus the baselined targets' scopes under
+// the same match gate (#10182). Every other key keeps the corpus-wide scan,
+// and the groups run separately so one group's manifest never widens another.
 //
 // A scope whose active generation is a git delta reads its delta overlaid on
 // its #7797 base full generation (#10003 row 1); see overlayDeltaBase for
@@ -261,131 +266,6 @@ func (s FactStore) LoadActiveCodeCallSymbolDefinitionFacts(
 	})
 	load.log(ctx, err)
 	return loaded, err
-}
-
-// loadCodeCallSymbolDefinitionLegRows runs the three scans and returns the
-// active rows and the base candidates separately for the overlay, recording
-// producer scope counts and leg durations in load. Active pages, the
-// delta-target lookup, then base pages run in that order on the one
-// snapshot; any failure aborts the read. The base pages run only when a
-// delta-active scope with a recorded baseline exists; an anchored group with
-// keys but no producer then contributes a base-only union leg (see
-// active_code_call_symbol_legs.go, #10104).
-func (s FactStore) loadCodeCallSymbolDefinitionLegRows(
-	ctx context.Context,
-	snapshot *deltaOverlaySnapshot,
-	packageKeys, goKeys, otherKeys []string,
-	unanchoredBase, anchoredBase string,
-	sink deltaOverlayTelemetry,
-	load *codeCallSymbolLoadStats,
-) (active, base []facts.Envelope, err error) {
-	producers := producerstore.New(s.database).WithInstruments(s.instruments)
-
-	// The statement order matches the pre-overlay read exactly (unanchored
-	// scan, then per anchored leg its producer discovery and scan), so the
-	// only new statements are the overlay's own: the delta-target lookup
-	// after the active pages and the base pages after that.
-	var legs []codeCallSymbolDefinitionLeg
-	var emptyAnchored []codeCallSymbolAnchoredUnion
-	var activeRows []facts.Envelope
-	if len(otherKeys) > 0 {
-		started := time.Now()
-		page, err := s.loadActiveCodeCallSymbolDefinitionFacts(
-			ctx, listActiveCodeCallSymbolDefinitionFactsQuery, otherKeys, nil, nil,
-		)
-		if err != nil {
-			return nil, nil, err
-		}
-		activeRows = append(activeRows, page...)
-		load.otherScanSeconds = time.Since(started).Seconds()
-		legs = append(legs, codeCallSymbolDefinitionLeg{
-			keys:        otherKeys,
-			activeQuery: listActiveCodeCallSymbolDefinitionFactsQuery,
-			baseQuery:   unanchoredBase,
-			seconds:     &load.otherScanSeconds,
-		})
-	}
-	for _, leg := range []struct {
-		keys       []string
-		producers  func(context.Context, []string) ([]string, error)
-		scopeCount *int
-		seconds    *float64
-		unionCount *int
-	}{
-		{packageKeys, producers.PackageScopeIDs, &load.packageProducerScopes, &load.packageSeconds, &load.packageUnionScopes},
-		{goKeys, producers.GoModuleScopeIDs, &load.goProducerScopes, &load.goSeconds, &load.goUnionScopes},
-	} {
-		if len(leg.keys) == 0 {
-			continue
-		}
-		started := time.Now()
-		producerScopeIDs, err := leg.producers(ctx, leg.keys)
-		if err != nil {
-			return nil, nil, err
-		}
-		*leg.scopeCount = len(producerScopeIDs)
-		if len(producerScopeIDs) > 0 {
-			anchored, err := s.loadActiveCodeCallSymbolDefinitionFacts(
-				ctx, listAnchoredActiveCodeCallSymbolDefinitionFactsQuery, leg.keys, producerScopeIDs, nil,
-			)
-			if err != nil {
-				return nil, nil, err
-			}
-			activeRows = appendUniqueFactEnvelopes(activeRows, anchored)
-			legs = append(legs, codeCallSymbolDefinitionLeg{
-				keys:             leg.keys,
-				activeQuery:      listAnchoredActiveCodeCallSymbolDefinitionFactsQuery,
-				baseQuery:        anchoredBase,
-				producerScopeIDs: producerScopeIDs,
-				seconds:          leg.seconds,
-			})
-		} else {
-			// Empty discovery issues no active scan. A delta that rewrote
-			// the producer manifest can still hold this group's base
-			// definitions, so remember it for the union leg below (#10104).
-			emptyAnchored = append(emptyAnchored, codeCallSymbolAnchoredUnion{
-				keys:       leg.keys,
-				seconds:    leg.seconds,
-				unionCount: leg.unionCount,
-			})
-		}
-		*leg.seconds = time.Since(started).Seconds()
-	}
-	targets, err := snapshot.deltaTargets(ctx)
-	if err != nil {
-		s.recordDeltaOverlayFailure(ctx, sink)
-		return nil, nil, err
-	}
-	var baseRows []facts.Envelope
-	if baseGenerations, runBase := deltaOverlayBaseGenerations(targets); runBase {
-		// Base-only union legs (#10104): per anchored group with keys but
-		// no producer, the base pass binds the baselined targets' scope
-		// ids at $5 and the candidate base generation ids at $6 — split
-		// domains, never the same set (#9611).
-		var unionScopes []string
-		for _, target := range targets {
-			if target.commits.Baseline == "" {
-				continue
-			}
-			unionScopes = append(unionScopes, target.scopeID)
-		}
-		slices.Sort(unionScopes)
-		unionScopes = slices.Compact(unionScopes)
-		legs = appendCodeCallSymbolUnionLegs(legs, emptyAnchored, unionScopes, anchoredBase)
-		for i := range legs {
-			started := time.Now()
-			page, err := s.loadActiveCodeCallSymbolDefinitionFacts(
-				ctx, legs[i].baseQuery, legs[i].keys, legs[i].producerScopeIDs, baseGenerations,
-			)
-			if err != nil {
-				s.recordDeltaOverlayFailure(ctx, sink)
-				return nil, nil, err
-			}
-			baseRows = appendUniqueFactEnvelopes(baseRows, page)
-			*legs[i].seconds += time.Since(started).Seconds()
-		}
-	}
-	return activeRows, baseRows, nil
 }
 
 // loadActiveCodeCallSymbolDefinitionFacts pages one definition scan to the

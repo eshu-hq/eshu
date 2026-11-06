@@ -26,6 +26,9 @@ TABLE = {
             "TestLoadActiveCodeCallSymbolDefinitionFactsManifestStableAnchoredLive",
             "TestLoadActiveCodeCallSymbolDefinitionFactsAnchoredNoDeltaStatementsLive",
         ),
+        "go/internal/storage/postgres/active_code_call_symbols_variant_b_live_test.go": (
+            "TestLoadActiveCodeCallSymbolDefinitionFactsDroppedPublisherVariantBLive",
+        ),
         "go/internal/storage/postgres/active_jvm_reachability_delta_live_test.go": (
             "TestListActiveJVMReachabilityFactsDeltaActiveScopeLive",
             "TestListActiveJVMReachabilityFactsDeltaStatementsLive",
