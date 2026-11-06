@@ -1,0 +1,16 @@
+docs/internal/evidence/10269-coalesce-shim.py
+  h_78a442cba0b3e6 1-141
+docs/internal/evidence/10269-stale-crossplane-row-coalesce-design.md
+  h_78a442cba0b3e6 1-335
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "438370b214db86168be92cf1044e08a4786ddd40",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
