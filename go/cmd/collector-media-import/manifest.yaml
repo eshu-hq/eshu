@@ -1,0 +1,59 @@
+# Media-import transcription satellite seed package (#8879 Event-B).
+#
+# Identity is pinned: the worker's claim-capable activation must equal
+# metadata.id/metadata.version here before the host admits the satellite,
+# and the emitted families below must be covered by a live producer grant
+# for dev.eshu.collector.media_import, or host admission refuses the
+# component (core-owned kinds are never admittable without grants).
+# The satellite speaks collector-sdk/v1alpha1 over stdio (--sdk-stdio):
+# one host claim drains the activation artifact dir through the pinned
+# whisper.cpp backend and acks with the drained transcript facts.
+#
+# Consumer contract is registry-derived, not invented: documentation
+# document 1.0.0 and documentation section 1.1.0 both carry ReducerDomain
+# documentation_materialization in
+# go/internal/facts/fact_kind_registry.generated.go, so the reducer phases
+# name it. These facts project graph truth like the document-import
+# satellite's; source_evidence_only would be a lie here.
+apiVersion: eshu.dev/v1alpha1
+kind: ComponentPackage
+metadata:
+  id: dev.eshu.collector.media_import
+  name: Media-import transcription satellite (8879 seed)
+  publisher: eshu-hq
+  version: 0.1.0
+spec:
+  compatibleCore: ">=0.0.5 <0.2.0"
+  componentType: collector
+  collectorKinds:
+    - documentation
+  runtime:
+    sdkProtocol: collector-sdk/v1alpha1
+    adapter: process
+  artifacts:
+    # Local-proof content digests from the integration `docker build` of
+    # Dockerfile.seed (2026-11-06, both gates PASS per arch).
+    # Promotion re-pins these entries to the pushed digests (same convention
+    # as the synth-zero window assembly); manifest_test.go binds the entries
+    # to the proven constants so a divergent fill fails.
+    - platform: linux/amd64
+      image: ghcr.io/eshu-hq/eshu-collector-media-import@sha256:7edeb6797c2e809027bbe74cfe126d828c267a3ea98184ae1dcb6317998f702f
+    - platform: linux/arm64
+      image: ghcr.io/eshu-hq/eshu-collector-media-import@sha256:e5f8836129531e7629201bbdb6883cc56dd9a68d2918f9f80a2d0056eac26d51
+  emittedFacts:
+    - kind: documentation_document
+      schemaVersions:
+        - 1.0.0
+      sourceConfidence:
+        - observed
+    - kind: documentation_section
+      schemaVersions:
+        - 1.1.0
+      sourceConfidence:
+        - observed
+  consumerContracts:
+    reducer:
+      phases:
+        - documentation_materialization
+  telemetry:
+    metricsPrefix: eshu_dp_media_transcript_

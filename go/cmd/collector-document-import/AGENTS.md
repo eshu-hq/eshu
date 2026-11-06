@@ -24,9 +24,15 @@
   on file names, timestamps, or run counters.
 - Envelopes from `ocr.Extract` commit unchanged. No new fact kinds, no new
   payload shapes, no new metrics on this path.
-- No polling loop, no status server, no claim mechanics: one-shot drain,
-  then exit. If `collector.Service` semantics become necessary, prove it from
+- No polling loop, no status server: one-shot drain, then exit. If
+  `collector.Service` semantics become necessary, prove it from
   `go/internal/collector/service.go` first.
+- Claim mechanics exist only in the arbiter-ruled satellite branches
+  (#8879 Event-B): `seed` copies bytes and stamps a digest, `--sdk-stdio`
+  serves one stdin claim through the untouched `drainOnce` plus the
+  grant-checked SDK ack. Neither branch adds polling, scheduling, or a
+  database handle; the durable commit stays host-side. Do not widen them
+  without a new ruling.
 - Keep the artifact cap positive and residency to one file: `io.LimitReader`
   at `maxBytes+1`, `Lstat` before open, `os.SameFile` after open, no bodies
   retained between scan and drain, no symlink following.

@@ -1,0 +1,65 @@
+# Document-import satellite caller component package (#8879 Event-B).
+#
+# Identity is pinned: the worker activation's producer grants must name
+# metadata.id/metadata.version, or host admission refuses the install. The
+# emitted families are the exact kinds the caller drains: documentation
+# document 1.0.0 plus documentation section 1.1.0, both observed confidence,
+# both core-owned, so activation requires live producer grants for the two
+# families (scoped to the documentation collector kind) before install.
+#
+# Consumer contract is registry-derived, not invented: both kinds carry
+# ReducerDomain documentation_materialization in
+# go/internal/facts/fact_kind_registry.generated.go, so the reducer phases
+# name it. Unlike the synthetic window emitter, these facts project graph
+# truth; source_evidence_only would be a lie here.
+#
+# Pin-fill protocol: each artifacts[].image is the content digest of the
+# seed image Dockerfile.seed builds for that platform (see
+# image-provenance.md). An all-zeros
+# value below is the pre-pin placeholder the image build COPYs: the
+# in-image /manifest.yaml copy keeps the pre-pin bytes by construction
+# (the image cannot contain its own digest), and only the repository file
+# and the copies `collector seed` stamps carry the authoritative pin. Do
+# NOT rebuild after the pin fill: a rebuild voids the recorded digest.
+apiVersion: eshu.dev/v1alpha1
+kind: ComponentPackage
+metadata:
+  id: dev.eshu.collector.document_import
+  name: Document import collector (OCR satellite caller)
+  publisher: eshu-hq
+  version: 0.1.0
+spec:
+  compatibleCore: ">=0.0.5 <0.2.0"
+  componentType: collector
+  collectorKinds:
+    - documentation
+  runtime:
+    sdkProtocol: collector-sdk/v1alpha1
+    adapter: process
+  artifacts:
+    # Local-proof content digests from the integration `docker build` of
+    # Dockerfile.seed (2026-11-06, both gates PASS per arch). Promotion
+    # re-pins these entries to the pushed digests.
+    - platform: linux/amd64
+      image: ghcr.io/eshu-hq/eshu-collector-document-import@sha256:95b253e6df0ab75af737209fe7667ebf3855381ea47fd91f9b0837c5911b7ed8
+    - platform: linux/arm64
+      image: ghcr.io/eshu-hq/eshu-collector-document-import@sha256:3926a2cabd8d5c608a21d7ca42d038ecfc916e04fdc08836807c9257731d6404
+  emittedFacts:
+    - kind: documentation_document
+      payloadSchemaRef: documentation_document
+      schemaVersions:
+        - 1.0.0
+      sourceConfidence:
+        - observed
+    - kind: documentation_section
+      payloadSchemaRef: documentation_section
+      schemaVersions:
+        - 1.1.0
+      sourceConfidence:
+        - observed
+  consumerContracts:
+    reducer:
+      phases:
+        - documentation_materialization
+  telemetry:
+    metricsPrefix: eshu_dp_collector_document_import_

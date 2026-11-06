@@ -30,6 +30,22 @@ func main() {
 		return
 	}
 
+	if len(os.Args) > 1 && os.Args[1] == "seed" {
+		if err := runSeedCommand(os.Args[2:]); err != nil {
+			_, _ = fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
+
+	if isSDKStdio(os.Args[1:]) {
+		if err := runSDKStdioCommand(context.Background(), os.Args[1:]); err != nil {
+			_, _ = fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
+
 	bootstrap, err := telemetry.NewBootstrap(runtimeName)
 	if err != nil {
 		fallback := slog.New(slog.NewJSONHandler(os.Stderr, nil))

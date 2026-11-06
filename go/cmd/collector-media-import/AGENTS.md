@@ -28,8 +28,21 @@
 - Envelopes from `media.Extract` commit unchanged. No new fact kinds, no new
   payload shapes, no new metrics on this path.
 - No polling loop, no status server, no claim mechanics: one-shot drain,
-  then exit. If `collector.Service` semantics become necessary, prove it from
-  `go/internal/collector/service.go` first.
+  then exit. The `--sdk-stdio` satellite adapter is the single authorized
+  exception (arbiter-ruled #8879 Event-B seed contract): it serves exactly
+  one host claim per process and exits, with no polling, no service, and no
+  direct store write. If `collector.Service` semantics become necessary,
+  prove it from `go/internal/collector/service.go` first.
+- Seed digest discipline: each `manifest.yaml` artifacts entry stays pinned to
+  the locally built seed image digest for its platform, and
+  `provenSeedImageAmd64`/`provenSeedImageArm64` in `manifest_test.go` name
+  the same digests. A seed rebuild re-pins all of them in the same commit;
+  promotion re-pins them to the pushed digests.
+- Satellite failures stay silent on stdout except for a terminal grant
+  denial: success acks complete/unchanged and a revoked grant acks terminal
+  with `grant_denied`, so a failed claim otherwise leaves no partial result
+  for the host to misread. Other refusals name the cause on stderr and exit
+  nonzero.
 - Keep the artifact cap positive and residency to one file: `io.LimitReader`
   at `maxBytes+1`, `Lstat` before open, `os.SameFile` after open, no bodies
   retained between scan and drain, no symlink following.

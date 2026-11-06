@@ -34,6 +34,40 @@ Package `main`; nothing is imported by other packages.
   distinct artifact, identity from content SHA-256.
 - `drainOnce` — one-shot commit loop over the source.
 - `buildDrain`, `buildEngine` — pinned backend verification and drain wiring.
+- `runSeed`, `runSeedCommand` — `collector seed` dispatch: digest-ref
+  validation plus the caller binary and embedded `manifest.yaml` copy.
+- `serveStdioClaim`, `runSDKStdioCommand`, `captureCommitter`, `ackResult` —
+  `--sdk-stdio` grant-checked claim adapter: one host claim in, one SDK
+  result out, existing drain unchanged in between, terminal `grant_denied`
+  ack on revoked grants.
+
+## Satellite seed (Event-B)
+
+`manifest.yaml` is the component package the host admits
+(`dev.eshu.collector.media_import` 0.1.0, process adapter over
+`collector-sdk/v1alpha1`, seed image digest-pinned, emitted families
+`documentation_document` 1.0.0 plus `documentation_section` 1.1.0).
+`Dockerfile.seed` rebuilds the transcription satellite runtime from its
+pinned stages and adds the seed contract surface: `/usr/local/bin/collector`
+(a symlink, so the existing `ENTRYPOINT` path keeps working) and
+`/manifest.yaml`. The local proof build is linux/arm64; promotion re-pins
+the manifest entry to the pushed digest.
+
+`collector seed --dest <dir> --image-ref <repo@sha256:…>` materializes the
+seed payload (binary as `collector`, manifest as `manifest.yaml` with the
+passed digest stamped into the artifact entry for the seed runner's
+platform) and fails closed on any non-digest reference, any reference
+outside this component's own seed repository, or a manifest with no entry
+for the runner's platform — leaving no partial payload. Sibling platform
+slots are left byte-identical.
+
+`--sdk-stdio` serves one host claim: the claim's generation drains through
+the existing source and drain into an in-memory capture, the envelopes
+project onto the SDK wire shape (self-checked against the embedded manifest
+contract) when the activation's live producer grants authorize every emitted
+kind, and the ack echoes the claim verbatim with one complete status row. A
+grant denial acks terminal with `grant_denied`; the satellite opens no
+database and any other failure exits nonzero with no ack on stdout.
 
 See `doc.go` for the full godoc contract.
 
@@ -123,6 +157,29 @@ operator-supplied 64-hex-character pin strings; terminal counts unchanged.
 
 No-Observability-Change: no new metric, label, span, or log line; the
 extraction and commit instruments above are untouched.
+
+### Seed and stdio paths (Event-B, this PR)
+
+No-Regression Evidence: the `seed` and `--sdk-stdio` entry points are new
+dispatch branches; the drain loop, whisper backend calls, queue/lease
+handling, and batching are untouched. Baseline is the pre-change focused
+suite (`go test ./cmd/collector-media-import/ -count=1`: green, 42 pass
+lines, ~0.01 s); after measurement at this HEAD the same suite stays green
+with unchanged timings, plus the new seed/stdio suites (per-arch stamp,
+sibling-untouched,
+wrong-repo and missing-platform refusals, claim ack and grant-denied ack)
+and the four gated seed-image builds (11-library set, GATE PASS per arch).
+Backend: pinned whisper.cpp v1.9.5 via the apk floors; linux/arm64 + amd64
+builds. Input shape: seed payload is the caller binary plus manifest under
+fixed names into the operator `--dest` dir (0750); stdio serves exactly one
+host claim over the inherited pipe. Terminal counts are the drain's own
+generation/envelope totals. Gate impact is nil by construction: both paths
+run only under their explicit subcommands.
+
+No-Observability-Change: no new metric, label, span, or log key on either
+path; `seed` writes files only, `--sdk-stdio` acks over stdout, and the
+drain's existing extraction/commit signals are unchanged. Seed files are
+covered by the `telemetry-coverage-collectors.md` drain row.
 
 ## Gotchas / invariants
 
