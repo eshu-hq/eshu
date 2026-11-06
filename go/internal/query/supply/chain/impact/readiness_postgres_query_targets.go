@@ -55,7 +55,7 @@ const (
 // read. Its state rows stay out of fetchConfirmedSources: the CVE List is
 // class C/D enrichment, and a stale enrichment source must not hold the
 // advisory family it enriches stale.
-const readinessConfiguredSourceTargetsCTE = `invalid_vulnerability_source_targets AS (
+var readinessConfiguredSourceTargetsCTE = `invalid_vulnerability_source_targets AS (
     SELECT EXISTS (
         SELECT 1 FROM collector_instances AS instance
         WHERE instance.collector_kind = 'vulnerability_intelligence'
@@ -258,7 +258,11 @@ target_vulnerability_source_overflow AS (
 // Each lateral carries OFFSET 0 so the planner keeps one index-only key seek
 // and one primary-key state probe per package instead of flattening into a
 // states scan.
-const readinessDerivedSourceStateCTE = `readiness_ecosystem_aliases AS (
+//
+// A var, not a const: the chain splices the fleet probe CTEs built by
+// readinessDerivedReleaseFleetProbeCTE, whose release-line expression comes
+// from osPackageFleetReleaseLineExpression (#10135).
+var readinessDerivedSourceStateCTE = `readiness_ecosystem_aliases AS (
     SELECT alias.spelling, alias.canonical, alias.derivation::boolean AS derivation
     FROM UNNEST($23::text[], $24::text[], $25::text[]) AS alias(spelling, canonical, derivation)
 ),
@@ -338,17 +342,44 @@ planner_skipped_packages AS (
       AND NULLIF(TRIM(skip.package->>'package_name'), '') IS NOT NULL
       AND NULLIF(TRIM(skipped.target->>'reason'), '') IS NOT NULL
 ),
-` + readinessDerivedReleaseMatchCTE + `derived_vulnerability_source_kept AS (
+` + readinessDerivedReleaseMatchCTE + readinessDerivedReleaseFleetProbeCTE() + `derived_vulnerability_source_kept AS (
     SELECT kept.*, CASE kept.aged_freshness WHEN 'rate_limited' THEN 0 WHEN 'failed' THEN 1
         WHEN 'partial' THEN 2 WHEN 'pending' THEN 3 WHEN 'stale' THEN 4 WHEN 'fresh' THEN 5 ELSE 3 END AS severity
     FROM (
         SELECT DISTINCT ON (collector_instance_id COLLATE "C", source COLLATE "C", ecosystem COLLATE "C", scope_id COLLATE "C") *,
-            CASE WHEN freshness_state = 'fresh'
+            CASE WHEN retired THEN 'fresh'
+                WHEN freshness_state = 'fresh'
                 AND (last_success_at IS NULL OR last_success_at <= $22::timestamptz)
                 THEN 'stale' ELSE freshness_state END AS aged_freshness
-        FROM derived_vulnerability_source_matched
+        FROM (
+            SELECT matched.*,
+                -- A non-fresh release the fleet no longer carries retires:
+                -- it reads fresh so it stops holding the package not
+                -- covered, and derived_vulnerability_release_retired names it
+                -- for the operator. A triple the probe never saw keeps
+                -- counting: only a probed, release-qualified, real-state row
+                -- can read absent, so pending rows and non-Alpine releases
+                -- default present here.
+                (matched.release IS NOT NULL
+                    AND (matched.freshness_state <> 'fresh'
+                        OR (matched.last_success_at IS NULL OR matched.last_success_at <= $22::timestamptz))
+                    AND NOT COALESCE(presence.fleet_present, TRUE)) AS retired
+            FROM derived_vulnerability_source_matched AS matched
+            LEFT JOIN derived_vulnerability_release_fleet_presence AS presence
+              ON presence.package_id = matched.package_id
+             AND presence.distro = matched.distro
+             AND presence.release = matched.release
+        ) AS aged
         ORDER BY collector_instance_id COLLATE "C", source COLLATE "C", ecosystem COLLATE "C", scope_id COLLATE "C", updated_at DESC NULLS LAST
     ) AS kept
+),
+-- The retired releases that kept rewrote to fresh, one row per instance,
+-- source, distro and release, so the aggregate can name what stopped
+-- counting without holding the package not covered.
+derived_vulnerability_release_retired AS (
+    SELECT DISTINCT kept.collector_instance_id, kept.source, kept.distro, kept.release
+    FROM derived_vulnerability_source_kept AS kept
+    WHERE kept.retired
 ),
 derived_vulnerability_source_totals AS (
     SELECT config.collector_instance_id, config.source, config.ecosystem,
@@ -405,6 +436,19 @@ derived_vulnerability_source_aggregates AS (
             'pending_count', COUNT(*) FILTER (WHERE kept.aged_freshness = 'pending'),
             'skipped_package_count', totals.skipped_packages,
             'skip_reasons', COALESCE(totals.skip_reasons, '[]'::jsonb),
+            -- Releases the fleet probe retired for this instance and source:
+            -- they stopped counting because no active installed package
+            -- carries them, not because the plan skipped them. The name
+            -- carries no package, only source, distro and release.
+            'retired_releases', COALESCE((
+                SELECT JSONB_AGG(retired.release_name ORDER BY retired.release_name)
+                FROM (
+                    SELECT DISTINCT retired.source || ':' || retired.distro || ':' || retired.release AS release_name
+                    FROM derived_vulnerability_release_retired AS retired
+                    WHERE retired.collector_instance_id = totals.collector_instance_id
+                      AND retired.source = totals.source
+                ) AS retired
+            ), '[]'::jsonb),
             'scope_ids', COALESCE(TO_JSONB((ARRAY_AGG(kept.scope_id ORDER BY kept.severity,
                 kept.last_success_at NULLS FIRST, kept.scope_id COLLATE "C") FILTER (WHERE kept.scope_id IS NOT NULL))[1:10]),
                 '[]'::jsonb)) AS derived_detail

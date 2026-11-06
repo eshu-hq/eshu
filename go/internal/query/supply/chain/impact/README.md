@@ -176,8 +176,11 @@ the expected releases: a planned release with no state reads pending. The plan n
 removes a state row, because it is one limit-sized window of the installed fleet and
 what it leaves out says nothing about the fleet. One state-only rule removes a row:
 a scope id with no `release=` parameter at all stops counting for a package and
-distro once a real state row with a release exists for the same instance. A release
-that left the fleet keeps counting until its state is fresh (#10135).
+distro once a real state row with a release exists for the same instance. A
+non-fresh release that left the fleet retires once no active installed
+package still carries it (#10135): the fleet probe reads fresh for a triple
+neither name arm carries, named in `retired_releases`, never in
+`incomplete_reasons`.
 The distinct winners are aged by the read cutoff, and one aggregate
 `SourceState` row (`Derived`, `derived://<source>/<ecosystem>`) reports the
 worst state and the counts. A requested package with no matching scope makes

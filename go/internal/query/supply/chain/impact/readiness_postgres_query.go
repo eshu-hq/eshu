@@ -7,7 +7,10 @@ package impact
 // in ListReadinessQueryCore, followed by the unsupported-target and
 // source-snapshot CTEs, followed by the final SELECT that assembles one row
 // per evidence family for the requested target.
-const ListReadinessQuery = ListReadinessQueryCore +
+//
+// A var, not a const: the derived-state leg splices the fleet probe CTEs
+// built by readinessDerivedReleaseFleetProbeCTE (#10135).
+var ListReadinessQuery = ListReadinessQueryCore +
 	listSupplyChainImpactReadinessQueryUnsupportedAndSource +
 	listSupplyChainImpactReadinessQueryScanTier +
 	listSupplyChainImpactReadinessQuerySelect
@@ -17,14 +20,14 @@ const ListReadinessQuery = ListReadinessQueryCore +
 // consumption/registry, SBOM component/attestation, container image identity,
 // vulnerability source snapshot) scoped to the caller's target — CVE ID,
 // package ID, repository ID, image digest, or image ref, in any combination.
-const ListReadinessQueryCore = listSupplyChainImpactReadinessQueryCoreBeforePackageManifest +
+var ListReadinessQueryCore = listSupplyChainImpactReadinessQueryCoreBeforePackageManifest +
 	listSupplyChainImpactReadinessPackageManifestQuery +
 	listSupplyChainImpactReadinessQueryCoreAfterPackageManifest
 
 // listSupplyChainImpactReadinessQueryCoreBeforePackageManifest splices the
 // repository-anchored package_manifest_active CTE between the advisory/SBOM
 // CTEs and package_registry_active onward.
-const listSupplyChainImpactReadinessQueryCoreBeforePackageManifest = listSupplyChainImpactReadinessQueryCoreHead +
+var listSupplyChainImpactReadinessQueryCoreBeforePackageManifest = listSupplyChainImpactReadinessQueryCoreHead +
 	readinessPackageManifestActiveCTE +
 	listSupplyChainImpactReadinessQueryCoreFromPackageRegistry
 
@@ -109,7 +112,7 @@ package_consumption_correlation_active AS (
 ),
 `
 
-const listSupplyChainImpactReadinessQueryCoreFromPackageRegistry = `package_registry_active AS (
+var listSupplyChainImpactReadinessQueryCoreFromPackageRegistry = `package_registry_active AS (
     SELECT fact.payload, fact.observed_at
     FROM fact_records AS fact
     JOIN ingestion_scopes AS scope

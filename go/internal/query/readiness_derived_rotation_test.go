@@ -124,17 +124,17 @@ func plannedRotationReleases(t *testing.T, raw string) map[string]map[string]boo
 //
 //	pkg-104  v3.17 fresh, v3.18 failed and newest  -> failed, naming v3.18 (on both releases)
 //	pkg-200  v3.18 fresh, a stale legacy scope     -> fresh
-//	pkg-250  v3.18 fresh, v3.17 failed, gone       -> failed, naming v3.17
+//	pkg-250  v3.18 fresh, v3.17 failed, gone       -> fresh: v3.17 left the
+//	fleet (img-a carries only pkgs 0-149, so no active fact carries pkg-250
+//	at 3.17) and retires under #10135
 //
 // pkg-120 has no v3.17 state row, so it reads pending in exactly the windows whose
 // plan names that release, and fresh in the rest.
 //
-// The planner only mints release scope ids once #9993 lands. Until then there is
-// nothing for readiness to read from the plan, so the test skips with that reason.
-// It skips only when none of the nine plans names a release, and
-// testSupplyChainImpactReadinessDerivedRotationSkipTracksPlanner fails if that
-// check ever stops following the planner, so the skip cannot hide the proof once
-// the planner does mint release scopes.
+// The planner mints release scope ids since #9993 landed, so the nine stored
+// plans name releases and the skip below stays off. If the planner ever stops
+// minting them, testSupplyChainImpactReadinessDerivedRotationSkipTracksPlanner
+// fails, so the skip cannot hide the proof.
 func testSupplyChainImpactReadinessDerivedRotationKeepsVerdictsLive(t *testing.T) {
 	for _, layout := range []string{"hash", "image-grouped"} {
 		t.Run(layout, func(t *testing.T) {
@@ -221,8 +221,11 @@ func testSupplyChainImpactReadinessDerivedRotationKeepsVerdictsLive(t *testing.T
 				if state, reasons := verdict("pkg-200"); state != "fresh" {
 					t.Errorf("window %d: pkg-200 = %s %v, want fresh (plan names %v)", window, state, reasons, planned["pkg-200"])
 				}
-				if state, reasons := verdict("pkg-250"); state != "failed" || !slices.Contains(reasons, "osv:failed:alpine:v3.17") {
-					t.Errorf("window %d: pkg-250 = %s %v, want failed naming v3.17 (plan names %v)", window, state, reasons, planned["pkg-250"])
+				// pkg-250's v3.17 left the fleet (no active fact carries it),
+				// so its failed state retires under #10135 and the package reads
+				// fresh in every window, naming nothing.
+				if state, reasons := verdict("pkg-250"); state != "fresh" || len(reasons) != 0 {
+					t.Errorf("window %d: pkg-250 = %s %v, want fresh with no reasons (plan names %v)", window, state, reasons, planned["pkg-250"])
 				}
 				wantState := "fresh"
 				if planned["pkg-120"]["v3.17"] {

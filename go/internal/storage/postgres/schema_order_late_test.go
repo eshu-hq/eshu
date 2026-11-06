@@ -467,4 +467,8 @@ var orderedBootstrapDefinitionNamesLate = []string{
 	// Migration 280 (#10005) adds the partial index serving the Crossplane
 	// SATISFIED_BY XRD read and its derived delta-base read.
 	"fact_records_crossplane_xrd_entity_idx",
+	// Migrations 281-282 (#10135) add the binary-name and source_package
+	// partial expression indexes serving the readiness fleet probe.
+	"fact_records_os_package_fleet_release_idx",
+	"fact_records_os_package_fleet_release_source_idx",
 }

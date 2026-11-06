@@ -75,6 +75,15 @@ Read `doc.go` and `README.md` first.
   instance, package and distro. Key that on the scope id, never on an empty
   release value. `TestSupplyChainImpactReadinessDerivedStateOnlyRulesLive/VerdictIgnoresPlanWindowLive`
   and the rotation test pin it.
+- A non-fresh Alpine release with no active installed package carrying it MUST
+  retire (#10135): the fleet probe (`readinessDerivedReleaseFleetProbeCTE`)
+  checks each resolved triple against the active `vulnerability.os_package`
+  facts by installed name or source name with the coordinator's
+  major.minor release line, and only a triple neither arm carries reads fresh.
+  The probe MUST stay a batched per-triple EXISTS over migrations 281-282 (no
+  sequential scan, no new placeholder), and the retired release MUST surface in
+  `retired_releases`, never in `incomplete_reasons`.
+  `TestSupplyChainImpactReadinessDerivedReleaseFleetLive` pins it.
 - Files must stay under 500 lines. `readiness.go`
   (489), `findings.go` (458), and
   `readiness_postgres_query.go` (438) are the ones

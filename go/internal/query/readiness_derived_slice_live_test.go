@@ -85,6 +85,10 @@ func testSupplyChainImpactReadinessDerivedPlanSliceCannotHideReleaseLive(t *test
 			seedDerivedInstance(t, ctx, db, now, "derived-alpine", "alpine")
 			seedCurlState(t, ctx, db, now.Add(-time.Hour), curlV317Scope, tc.older)
 			seedCurlState(t, ctx, db, now, curlV318Scope, tc.newer)
+			// Both releases stay installed: the failed release under test
+			// must keep counting in every plan window (#10135).
+			seedFleetImage(t, ctx, db, now, "img-317", "3.17.3", "curl")
+			seedFleetImage(t, ctx, db, now, "img-318", "3.18.4", "curl")
 			seedPlannerRun(t, ctx, db, now, "derived-alpine", []map[string]any{plannedAlpineTarget(tc.planned, "curl")}, nil)
 
 			readiness := readDerivedReadiness(t, db, curlPackageID)
@@ -108,6 +112,10 @@ func testSupplyChainImpactReadinessDerivedVerdictIgnoresPlanWindowLive(t *testin
 	seedDerivedInstance(t, ctx, db, now, "derived-alpine", "alpine")
 	seedCurlState(t, ctx, db, now.Add(-time.Hour), curlV317Scope, "fresh")
 	seedCurlState(t, ctx, db, now, curlV318Scope, "failed")
+	// Both releases stay installed: the failed v3.18 state must read the
+	// same in every plan window (#10135).
+	seedFleetImage(t, ctx, db, now, "img-317", "3.17.3", "curl")
+	seedFleetImage(t, ctx, db, now, "img-318", "3.18.4", "curl")
 
 	plans := []struct {
 		name string
@@ -165,6 +173,8 @@ func testSupplyChainImpactReadinessDerivedLegacyScopeNeverMasksReleaseLive(t *te
 		seedDerivedInstance(t, ctx, db, now, "derived-alpine", "alpine")
 		seedCurlState(t, ctx, db, now.Add(-time.Hour), curlV318Scope, "failed")
 		seedCurlState(t, ctx, db, now, curlLegacy, "fresh")
+		// The failed release stays installed (#10135).
+		seedFleetImage(t, ctx, db, now, "img-318", "3.18.4", "curl")
 
 		readiness := readDerivedReadiness(t, db, curlPackageID)
 		state := onlyDerivedState(t, readiness)
@@ -213,6 +223,10 @@ func testSupplyChainImpactReadinessDerivedAgedOutReleaseIsNamedStaleLive(t *test
 	seedDerivedInstance(t, ctx, db, now, "derived-alpine", "alpine")
 	seedCurlState(t, ctx, db, now.Add(-15*24*time.Hour), curlV317Scope, "fresh")
 	seedCurlState(t, ctx, db, now, curlV318Scope, "fresh")
+	// Both releases stay installed: the aged-out v3.17 state must still
+	// read stale, not retire (#10135).
+	seedFleetImage(t, ctx, db, now, "img-317", "3.17.3", "curl")
+	seedFleetImage(t, ctx, db, now, "img-318", "3.18.4", "curl")
 
 	readiness := readDerivedReadiness(t, db, curlPackageID)
 	state := onlyDerivedState(t, readiness)
