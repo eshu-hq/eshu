@@ -1,0 +1,14 @@
+go/cmd/api/REMOVAL_CONSUMER_DRAIN_CHECKLIST.md
+  h_78a442cba0b3e6 30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "50801ff90cfae051fe81aa2f39a5997e27bdbe52",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
