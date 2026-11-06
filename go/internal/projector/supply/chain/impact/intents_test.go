@@ -167,23 +167,63 @@ func TestBuildSupplyChainImpactReducerIntentGoSuccessorPass(t *testing.T) {
 // TestBuildSupplyChainImpactReducerIntentGoNoModulesPass proves a trusted
 // no_go_modules generation (warning only, no Go facts) also raises a pass
 // (#10077): that pass derives zero findings, so the writer retracts the
-// previous generation's copies and the fan-out reopens the holders.
+// previous generation's copies and the fan-out reopens the holders. The
+// anchor is vulnerability.warning: the retraction fixture in
+// store_live_test.go
+// (TestListGoModuleRepositoriesDropsRepositoryAfterRetractionLive) seeds the
+// post-retraction active generation holding exactly that kind, while
+// scanner_worker.warning models transient scan failures that must never
+// retract (see TestBuildSupplyChainImpactReducerIntentGoFailureWarningNoIntent).
 func TestBuildSupplyChainImpactReducerIntentGoNoModulesPass(t *testing.T) {
 	t.Parallel()
 
 	scopeID := "go-reachability://repository:r_1a2b3c4d"
 	lookup := projectorintent.NewFactLookup([]facts.Envelope{
-		{FactKind: facts.ScannerWorkerWarningFactKind, FactID: "go-warning-1"},
+		{FactKind: chain.VulnerabilityWarningFactKind, FactID: "go-warning-1"},
 	})
 	intent, ok := BuildSupplyChainImpactReducerIntent(scopeID, "gen-3", lookup)
 	if !ok {
 		t.Fatal("no intent queued for a go-reachability warning-only generation")
 	}
-	if intent.Reason != "go reachability evidence observed" {
-		t.Fatalf("intent.Reason = %q", intent.Reason)
+	if intent.Reason != "go reachability warning observed" {
+		t.Fatalf("intent.Reason = %q, want the warning-anchored reason", intent.Reason)
 	}
 	if intent.FactID != "go-warning-1" {
 		t.Fatalf("intent.FactID = %q, want the warning anchor", intent.FactID)
+	}
+}
+
+// TestBuildSupplyChainImpactReducerIntentGoFailureWarningNoIntent proves a
+// transient govulncheck failure never raises a retracting pass (#10077,
+// review P1-1): the emitter models failed runs as scanner_worker.warning
+// facts carrying the failure class in reason and warning_class (see
+// deriveGoRunFacts: "a failed analysis must not ... retract a prior run's
+// evidence"), so the trigger must ignore that kind whatever payload it
+// carries. Both failure classes are covered.
+func TestBuildSupplyChainImpactReducerIntentGoFailureWarningNoIntent(t *testing.T) {
+	t.Parallel()
+
+	for _, class := range []string{"analysis_failed", "toolchain_unsupported"} {
+		t.Run(class, func(t *testing.T) {
+			t.Parallel()
+
+			lookup := projectorintent.NewFactLookup([]facts.Envelope{{
+				FactKind: facts.ScannerWorkerWarningFactKind,
+				FactID:   "go-failure-warning-" + class,
+				Payload: map[string]any{
+					"analyzer":            "go_reachability",
+					"target_kind":         "repository",
+					"target_locator_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+					"reason":              class,
+					"warning_class":       class,
+					"analysis_status":     "partial",
+					"coverage_status":     "incomplete",
+				},
+			}})
+			if _, ok := BuildSupplyChainImpactReducerIntent("go-reachability://repository:r_1a2b3c4d", "gen-4", lookup); ok {
+				t.Fatalf("queued a supply_chain_impact intent for a %s scanner_worker.warning: a transient failure must not retract prior evidence", class)
+			}
+		})
 	}
 }
 
@@ -201,15 +241,22 @@ func TestBuildSupplyChainImpactReducerIntentGoEmptyGenerationNoIntent(t *testing
 
 // TestBuildSupplyChainImpactReducerIntentWarningAloneNoIntent pins the
 // warning anchor is scoped to go-reachability generations: a warning on any
-// other scope must not raise a pass.
+// other scope must not raise a pass. Both warning kinds are covered so the
+// scope-form gate cannot be bypassed through either.
 func TestBuildSupplyChainImpactReducerIntentWarningAloneNoIntent(t *testing.T) {
 	t.Parallel()
 
-	lookup := projectorintent.NewFactLookup([]facts.Envelope{
-		{FactKind: facts.ScannerWorkerWarningFactKind, FactID: "warning-elsewhere"},
-	})
-	if _, ok := BuildSupplyChainImpactReducerIntent("scope-9", "gen-1", lookup); ok {
-		t.Fatal("queued a supply_chain_impact intent for a warning outside a go-reachability scope")
+	for _, kind := range []string{facts.ScannerWorkerWarningFactKind, chain.VulnerabilityWarningFactKind} {
+		t.Run(kind, func(t *testing.T) {
+			t.Parallel()
+
+			lookup := projectorintent.NewFactLookup([]facts.Envelope{
+				{FactKind: kind, FactID: "warning-elsewhere"},
+			})
+			if _, ok := BuildSupplyChainImpactReducerIntent("scope-9", "gen-1", lookup); ok {
+				t.Fatalf("queued a supply_chain_impact intent for a %s outside a go-reachability scope", kind)
+			}
+		})
 	}
 }
 

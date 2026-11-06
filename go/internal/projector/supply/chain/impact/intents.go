@@ -88,18 +88,31 @@ func triggerFact(envelope facts.Envelope) bool {
 
 // goReachabilityFactKinds are the fact kinds a go-reachability://
 // generation anchors its supply_chain_impact pass on: the two govulncheck
-// evidence kinds for a successor, and the scanner-worker warning kind so a
-// trusted no_go_modules generation (warning only, no Go facts) raises the
-// pass that retracts the previous generation's copies (#10077).
+// evidence kinds for a successor, and vulnerability.warning so a trusted
+// no_go_modules generation (warning only, no Go facts) raises the pass that
+// retracts the previous generation's copies (#10077). The retraction kind
+// is vulnerability.warning: the planner's retraction fixture
+// (TestListGoModuleRepositoriesDropsRepositoryAfterRetractionLive) seeds the
+// post-retraction active generation holding exactly that kind.
+// scanner_worker.warning is deliberately absent: it models transient scan
+// failures (analysis_failed, toolchain_unsupported) and a failed analysis
+// must not retract a prior run's evidence, so that kind never anchors a
+// pass whatever payload it carries.
 var goReachabilityFactKinds = []string{
 	chain.VulnerabilityGoModuleEvidenceFactKind,
 	chain.VulnerabilityGoCallReachabilityFactKind,
-	facts.ScannerWorkerWarningFactKind,
+	chain.VulnerabilityWarningFactKind,
 }
 
-// goReachabilityReason is the human-readable reason of every
+// goReachabilityReason is the human-readable reason of a Go-evidence
 // go-reachability:// pass.
 const goReachabilityReason = "go reachability evidence observed"
+
+// goReachabilityWarningReason is the human-readable reason of a
+// warning-anchored go-reachability:// pass. It differs from the evidence
+// reason on purpose: a warning-only pass observed no evidence, and the
+// reason is how operators tell a retraction from a finding-bearing pass.
+const goReachabilityWarningReason = "go reachability warning observed"
 
 // buildGoReachabilityIntent returns the supply_chain_impact intent for a
 // go-reachability:// generation anchored on its earliest Go evidence or
@@ -116,12 +129,16 @@ func buildGoReachabilityIntent(
 	if !ok {
 		return projectorintent.ReducerIntent{}, false
 	}
+	reason := goReachabilityReason
+	if envelope.FactKind == chain.VulnerabilityWarningFactKind {
+		reason = goReachabilityWarningReason
+	}
 	return projectorintent.ReducerIntent{
 		ScopeID:      scopeID,
 		GenerationID: generationID,
 		Domain:       reducer.DomainSupplyChainImpact,
 		EntityKey:    "supply_chain_impact:" + scopeID,
-		Reason:       goReachabilityReason,
+		Reason:       reason,
 		FactID:       envelope.FactID,
 		SourceSystem: projectorintent.SourceSystem(envelope),
 	}, true
@@ -135,7 +152,7 @@ func goReachabilityTriggerFact(envelope facts.Envelope) bool {
 	switch envelope.FactKind {
 	case chain.VulnerabilityGoModuleEvidenceFactKind,
 		chain.VulnerabilityGoCallReachabilityFactKind,
-		facts.ScannerWorkerWarningFactKind:
+		chain.VulnerabilityWarningFactKind:
 		return true
 	default:
 		return false
