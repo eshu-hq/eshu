@@ -4,6 +4,7 @@
 package shared
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
@@ -196,6 +197,81 @@ func strongerCodeCallSymbolMethod(
 		return left
 	}
 	return right
+}
+
+// SamePackageGoCalleeKeysForDeltaRepos derives stable symbol keys for
+// keyless same-package Go calls on delta-generation repositories, so the
+// active symbol-definition load can fetch the unchanged files' definitions
+// those calls resolve against.
+//
+// The tree-sitter Go parser emits a same-package call as a name-only
+// function_calls edge: no callee_symbol, no import binding, nothing
+// ReferencedSymbolKeys can carry to the overlay. On a full generation that
+// is fine — every definition shares the index, so the repo-unique-name
+// fallback resolves the call. On a delta generation only the changed files'
+// facts are loaded, so the fallback finds nothing and the row drops as an
+// unresolved callee while the file-scoped refresh still retracts its old
+// edge (#10049 delta-reader Reds: the three cross-file CALLS).
+//
+// The derived key reuses the exact shape the Go parser stamps on a
+// definition: "scip-go gomod <package import path> <Name>().". It only fires
+// when the call is provably same-package: a bare unqualified Go name in a
+// file with no imports at all. A file with imports may dot-import another
+// package, and a dot import is recorded without its "." alias, so bare names
+// there can belong to another package and must keep today's behavior. A
+// derived key that matches nothing (a builtin, a method, a removed callee)
+// loads nothing and resolves nothing, exactly as today.
+//
+// Callers pass only delta-generation repository IDs: full generations keep
+// their keyless path byte-identical.
+func SamePackageGoCalleeKeysForDeltaRepos(
+	envelopes []facts.Envelope,
+	deltaRepos map[string]struct{},
+) []string {
+	if len(deltaRepos) == 0 {
+		return nil
+	}
+	var keys []string
+	for _, env := range envelopes {
+		if env.FactKind != factload.FactKindFile {
+			continue
+		}
+		if _, onDelta := deltaRepos[payloadcore.PayloadStr(env.Payload, "repo_id")]; !onDelta {
+			continue
+		}
+		fileData, ok := env.Payload["parsed_file_data"].(map[string]any)
+		if !ok {
+			continue
+		}
+		importPath := strings.TrimSpace(payloadcore.AnyToString(fileData["package_import_path"]))
+		if importPath == "" {
+			continue
+		}
+		if len(payloadcore.MapSlice(fileData["imports"])) > 0 {
+			continue
+		}
+		for _, edge := range payloadcore.MapSlice(fileData["function_calls"]) {
+			if len(codeCallEdgeSymbolKeys(edge)) > 0 {
+				continue
+			}
+			if strings.TrimSpace(payloadcore.AnyToString(edge["lang"])) != "go" {
+				continue
+			}
+			name := strings.TrimSpace(payloadcore.AnyToString(edge["full_name"]))
+			if name == "" || name != strings.TrimSpace(payloadcore.AnyToString(edge["name"])) {
+				continue
+			}
+			if strings.ContainsAny(name, "./ \t\n") || strings.HasPrefix(name, "scip-") {
+				continue
+			}
+			keys = append(keys, "scip-go gomod "+importPath+" "+name+"().")
+		}
+	}
+	if len(keys) == 0 {
+		return nil
+	}
+	slices.Sort(keys)
+	return slices.Compact(keys)
 }
 
 func dedupeCodeCallSymbolKeys(keys []codeCallSymbolKey) []codeCallSymbolKey {

@@ -10,7 +10,16 @@ prerequisites make it safe and are already on main: the symbol-definition
 read overlays the delta on the active generation (#10003 row 1, #10124), so
 callees in unchanged files still resolve under the file-scoped refresh; and
 an unusable delta scope fails the work item closed (#10023, #10114) instead
-of falling back to the whole-repository retract.
+of falling back to the whole-repository retract. The overlay only runs for
+requested keys, and the tree-sitter Go parser emits same-package calls as
+keyless name-only edges, so the delta requests nothing and cross-file
+callees stay unresolved while the refresh retracts their old edges (live
+B-7: only the same-file edge survived). The handler therefore derives the
+definitions' own `scip-go gomod` keys for provably same-package calls on
+delta generations only (`SamePackageGoCalleeKeysForDeltaRepos`: bare
+unqualified Go name, file with no imports — a dot import is recorded without
+its alias, so files with imports keep today's behavior); full generations
+keep the keyless path byte-identical.
 
 The handler's three symbol-to-runtime domains (`handles_route`, `runs_in`,
 `invokes_cloud_action`) retract repo-wide and have no file-scoped retract.
@@ -34,6 +43,14 @@ Proof, all hermetic in this change:
 - `TestCodeCallMaterializationHandlerDeltaGatesRuntimeDomains` (RED first):
   a delta emits zero rows in all three runtime domains; the full control
   emits per-edge rows plus one refresh per domain.
+- `TestCodeCallMaterializationHandlerDeltaUnkeyedSamePackageCalls` (RED
+  first, live-shape follow-up): real parser-shaped keyless Go edges on a
+  delta resolve all four CALLS rows once the handler derives the callees'
+  own keys for the overlay; before, only the same-file row survived with
+  three unresolved callees — the live B-7 signature.
+- `TestSamePackageGoCalleeKeysForDeltaRepos`: the key-derivation edge cases
+  (keyed/qualified/foreign/malformed names, files with imports, missing
+  package identity, non-delta repos, empty delta set).
 - `TestCodeCallProjectionRunnerFileAndWholeRefreshInterleaveDrains`: a
   file-scoped and a whole-scope refresh pending for one repository in one
   acceptance unit — the fenced shape cannot retract, write, or mark on an

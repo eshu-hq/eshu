@@ -129,6 +129,16 @@ func (h Handler) Handle(
 
 	symbolLoadStart := time.Now()
 	symbolKeys := shared.ReferencedSymbolKeys(envelopes)
+	// A delta generation carries its changed files' facts only, and
+	// same-package Go calls are keyless name-only edges, so the scan above
+	// yields nothing for them and the overlay would never run: their
+	// cross-file callees stay unresolvable while the file-scoped refresh
+	// below still retracts the old edges (#10049 delta-reader Reds). Derive
+	// the definitions' own stable keys for the delta repositories' provably
+	// same-package calls so the overlay fetches the unchanged files'
+	// definitions. Full generations keep the keyless path untouched.
+	deltaGenerationRepoIDs := codecall.DeltaGenerationRepoIDs(envelopes)
+	symbolKeys = append(symbolKeys, shared.SamePackageGoCalleeKeysForDeltaRepos(envelopes, deltaGenerationRepoIDs)...)
 	symbolDefinitionEnvelopes, err := loadActiveCodeCallSymbolDefinitionFacts(ctx, h.FactLoader, symbolKeys)
 	if err != nil {
 		return reducercontract.Result{}, fmt.Errorf("load active code call symbol definition facts: %w", err)
@@ -159,7 +169,6 @@ func (h Handler) Handle(
 
 	intentBuildStart := time.Now()
 	fileScopesByRepoID := fileScopeResult.ScopesByRepoID
-	deltaGenerationRepoIDs := codecall.DeltaGenerationRepoIDs(envelopes)
 	intentRows := codecall.BuildRefreshIntentsWithDeltaFileScopes(contextByRepoID, fileScopesByRepoID, deltaGenerationRepoIDs, createdAt)
 	intentRows = append(
 		intentRows,
