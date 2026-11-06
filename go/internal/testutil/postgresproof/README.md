@@ -41,9 +41,11 @@ owns those steps after it receives the isolated connection.
   `CloneBootstrapTemplate`) clones it into a fresh disposable database.
   `DiscardBootstrapTemplates` drops every template the process built, called
   from the owning test package's `TestMain` (template_clone.go). Flavours are
-  pinned apply shapes shared through `FlavourPublicBootstrap` and
-  `FlavourPublicWithoutContentSearchIndexes`; distinct apply shapes need
-  distinct flavours.
+  pinned apply shapes shared through `FlavourPublicBootstrap`,
+  `FlavourPublicWithoutContentSearchIndexes`, and `FlavourIsolatedBootstrap`
+  (the 276-shape production bootstrap in a fixed-name schema first on the
+  search path, pg_trgm in public); distinct apply shapes need distinct
+  flavours.
 
 The godoc contract is in [doc.go](doc.go).
 
@@ -127,6 +129,30 @@ go test ./internal/testutil/postgresproof -count=1
 - No-Regression Evidence: the committed differential proves clone output
   identical to a fresh real bootstrap on every catalog line for both
   flavours (`bootstrap_vs_clone=true`); the template is built by the
+  production entry point from `template0` in the same process, never reused
+  across processes; the default direct-bootstrap path is unchanged for
+  callers that do not opt in.
+- No-Observability-Change: test-only helper, no metric, span, log key, or
+  status surface touched; see Telemetry above.
+
+## Performance Evidence (#10148 PR-B)
+
+- Performance Evidence: one isolated-flavour template build per proof
+  server per test process replaces one full bootstrap per isolated-schema
+  caller (the retention family and the winners resweep proof). Local
+  backend: PostgreSQL 18.6, 309-migration bootstrap (282 applied in the
+  isolated flavour). After: the committed differential builds 3 templates +
+  3 fresh bootstraps + fingerprints in 11.4 s; the isolated concurrency
+  proof builds the template once, then 1 reference + 4 parallel clones +
+  fingerprints in 29.9 s; a converted retention proof through the clone
+  funnel passes in about 1 s after the process template exists.
+  Runner-side before/after belongs to the gate dispatch the coordinator
+  owns.
+- No-Regression Evidence: the committed differential proves clone output
+  identical to a fresh real bootstrap on every catalog line for all three
+  flavours (`bootstrap_vs_clone=true`); the isolated parallel clones match
+  the template fingerprint and the parked-session clone fails with SQLSTATE
+  55006 after the bounded retry; the isolated template is built by the
   production entry point from `template0` in the same process, never reused
   across processes; the default direct-bootstrap path is unchanged for
   callers that do not opt in.

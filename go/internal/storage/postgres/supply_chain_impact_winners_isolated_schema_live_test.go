@@ -25,10 +25,21 @@ import (
 // posture: SECURITY DEFINER, a search_path of pg_catalog, that one schema and pg_temp last,
 // and no PUBLIC execute.
 func TestSupplyChainImpactWinnersResweepCaptureTriggersBindTheirOwnSchemaLive(t *testing.T) {
-	dsn := supplyChainImpactLiveDSN(t, "#9805 isolated schema capture proof")
-	database := postgresproof.OpenIsolatedSchema(t, dsn, "winners_isolated", func(ctx context.Context, database *sql.DB) error {
-		return postgres.ApplyBootstrapWithoutContentSearchIndexes(ctx, postgres.SQLDB{DB: database})
-	})
+	// Clones the process isolated template (#10148 PR-B) instead of
+	// bootstrapping a schema in the shared database. The clone holds the
+	// production bootstrap minus the public-only definitions, so the capture
+	// triggers still bind their own (isolated, non-public) schema and the
+	// definer posture below still proves what it proved. The template pins
+	// the full ApplyBootstrap shape rather than the content-search-deferred
+	// one this test used before: none of this test's assertions touches a
+	// content search index, and the committed differential pins the clone
+	// identical to the fresh bootstrap it replaces.
+	adminDSN, optIn := supplyChainImpactDisposableAdmin(t, "#9805 isolated schema capture proof")
+	template := postgresproof.OpenIsolatedBootstrapTemplate(t, adminDSN, optIn, 5*time.Minute,
+		func(ctx context.Context, database *sql.DB) error {
+			return postgres.ApplyBootstrap(ctx, postgres.SQLDB{DB: database})
+		})
+	_, database := postgresproof.OpenIsolatedBootstrapTemplateClone(t, adminDSN, optIn, 5*time.Minute, template)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	t.Cleanup(cancel)
 	exec := func(query string, args ...any) {
