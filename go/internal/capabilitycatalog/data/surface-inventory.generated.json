@@ -2427,6 +2427,11 @@
     },
     {
       "category": "command",
+      "name": "collector-sbom-shadow",
+      "readiness": "implemented"
+    },
+    {
+      "category": "command",
       "name": "collector-security-alerts",
       "readiness": "implemented"
     },
