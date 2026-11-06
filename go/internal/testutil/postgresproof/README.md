@@ -150,3 +150,21 @@ go test ./internal/testutil/postgresproof -count=1
 - No-Observability-Change: test-only helper, no metric, span, log key, or
   status surface touched; the verification reports via `t.Errorf` test
   output only. See Telemetry above.
+
+## Performance Evidence (#10148 fix3 hermetic pin)
+
+- Performance Evidence: fix3 is a behavior-preserving extraction
+  (`registerCloneTeardown`: same verify-then-cleanup registration order as
+  the two inline `t.Cleanup` calls it replaces) plus routing the
+  `pg_database` probe through `newCloneExistenceProber`. No hot-path
+  change: clone creation DDL and the drop path are untouched. Fix3 proof:
+  3 new hermetic tests PASS (`ok 0.322s`, rerun `ok 0.609s`), no live
+  server dialed; `postgresproof` package vet clean.
+- No-Regression Evidence: registration order identical to before, so the
+  PR-A `bootstrap_vs_clone=true` differential still applies; pre-existing
+  tests in the file untouched. The LIFO wiring test replays the recorded
+  registration in reverse and fails the swapped-order mutant.
+- No-Observability-Change: test-only helper, no metric, span, log key, or
+  status surface touched; reports via `t.Errorf` test output only.
+  Baseline: unmerged tip `ccac709983`; rebased onto `87d4e7cab` with no
+  content change. See Telemetry above.
