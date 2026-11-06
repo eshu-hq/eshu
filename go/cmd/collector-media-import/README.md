@@ -34,6 +34,35 @@ Package `main`; nothing is imported by other packages.
   distinct artifact, identity from content SHA-256.
 - `drainOnce` — one-shot commit loop over the source.
 - `buildDrain`, `buildEngine` — pinned backend verification and drain wiring.
+- `runSeed`, `runSeedCommand` — `collector seed` dispatch: digest-ref
+  validation plus the caller binary and embedded `manifest.yaml` copy.
+- `serveStdioClaim`, `captureCommitter`, `ackResult` — `--sdk-stdio` thin
+  claim adapter: one host claim in, one SDK result out, existing drain
+  unchanged in between.
+
+## Satellite seed (Event-B)
+
+`manifest.yaml` is the component package the host admits
+(`dev.eshu.collector.media_import` 0.1.0, process adapter over
+`collector-sdk/v1alpha1`, seed image digest-pinned, emitted families
+`documentation_document` 1.0.0 plus `documentation_section` 1.1.0).
+`Dockerfile.seed` rebuilds the transcription satellite runtime from its
+pinned stages and adds the seed contract surface: `/usr/local/bin/collector`
+(a symlink, so the existing `ENTRYPOINT` path keeps working) and
+`/manifest.yaml`. The local proof build is linux/arm64; promotion re-pins
+the manifest entry to the pushed digest.
+
+`collector seed --dest <dir> --image-ref <repo@sha256:…>` materializes the
+seed payload (binary as `collector`, manifest as `manifest.yaml`) and fails
+closed on any non-digest reference, leaving no partial payload.
+
+`--sdk-stdio` serves one host claim: the claim's generation drains through
+the existing source and drain into an in-memory capture, the envelopes
+project onto the SDK wire shape (self-checked against the host contract the
+claim carries), and the ack echoes the claim verbatim with one complete
+status row. The host applies producer-grant coverage plus its durable commit;
+the satellite opens no database and evaluates no grants — a refused contract
+or any drain failure exits nonzero with no ack on stdout.
 
 See `doc.go` for the full godoc contract.
 

@@ -1,0 +1,53 @@
+# Media-import transcription satellite seed package (#8879 Event-B).
+#
+# Identity is pinned: the worker's claim-capable activation must equal
+# metadata.id/metadata.version here before the host admits the satellite,
+# and the emitted families below must be covered by a live producer grant
+# for dev.eshu.collector.media_import, or host admission refuses the
+# component (core-owned kinds are never admittable without grants).
+# The satellite speaks collector-sdk/v1alpha1 over stdio (--sdk-stdio):
+# one host claim drains the activation artifact dir through the pinned
+# whisper.cpp backend and acks with the drained transcript facts.
+apiVersion: eshu.dev/v1alpha1
+kind: ComponentPackage
+metadata:
+  id: dev.eshu.collector.media_import
+  name: Media-import transcription satellite (8879 seed)
+  publisher: eshu-hq
+  version: 0.1.0
+spec:
+  compatibleCore: ">=0.0.5 <0.2.0"
+  componentType: collector
+  collectorKinds:
+    - documentation
+  runtime:
+    sdkProtocol: collector-sdk/v1alpha1
+    adapter: process
+  artifacts:
+    # SEED_IMAGE_DIGEST is the local-proof content digest from this lane's
+    # `docker build` of Dockerfile.seed (linux/arm64, 2026-11-06): the
+    # image rebuilds the transcription satellite runtime plus the caller
+    # binary at /usr/local/bin/collector and this manifest at
+    # /manifest.yaml, and both digest gates passed in that build.
+    # Promotion re-pins this entry to the pushed digest (same convention
+    # as the synth-zero window assembly); manifest_test.go binds the entry
+    # to the proven constant so a divergent fill fails.
+    - platform: linux/arm64
+      image: ghcr.io/eshu-hq/eshu-seed-media-import@sha256:b4f5815054962645451e33d76acb5434e4fcd7daac51773fc1ecd0b6236aa857
+  emittedFacts:
+    - kind: documentation_document
+      schemaVersions:
+        - 1.0.0
+      sourceConfidence:
+        - observed
+    - kind: documentation_section
+      schemaVersions:
+        - 1.1.0
+      sourceConfidence:
+        - observed
+  consumerContracts:
+    reducer:
+      phases:
+        - source_evidence_only:no_graph_truth
+  telemetry:
+    metricsPrefix: eshu_dp_media_transcript_
