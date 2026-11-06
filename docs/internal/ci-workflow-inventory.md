@@ -158,7 +158,7 @@ whatever the exact-text pins around those lines say.
 
 | Leg | Workflow and job | How it is off | Registry row |
 | --- | --- | --- | --- |
-| Offline replay tier | `verify-replay-tier.yml` / `replay-tier` | `if: ${{ false }}` | `replay-tier`: manual, non-blocking |
+| Offline replay tier | `verify-replay-tier.yml` / `replay-tier` | `if: ${{ false }}` | `replay-tier`: manual, non-blocking, `disabled:` marker (#7331) |
 | E2E NornicDB cell | `e2e-tests.yml` / `test` | matrix cell commented out | `e2e-tests`: `test (nornicdb)` removed from `check_names` |
 | Golden corpus NornicDB cell | `golden-corpus-gate.yml` / `corpus-gate` | matrix cell commented out | `golden-corpus-gate`: manual, non-blocking, no `check_names` |
 | Differential NornicDB captures | `golden-corpus-gate.yml` / `differential-capture`, `differential` | matrix is `[neo4j]`; staging names `neo4j`; backend-diff step is `if: ${{ false }}`; writer coverage reads Neo4j only | `golden-corpus-differential`: stays blocking (Neo4j only) |
@@ -171,7 +171,12 @@ do not move. Go unit tests of `go/internal/storage/nornicdb` and the
 `race-graph-writes.yml` run are not CI legs and stay on. The Ifá determinism
 gates run on NornicDB too; this change does not touch them. Turning the replay
 tier off leaves 167 replay-coverage surfaces unproven (457/457 to 290/457); the
-coverage gate reports them as "Proof off" instead of failing.
+coverage gate reports them as "Proof off" instead of failing. A proof gate counts
+as off only when its registry row carries the `disabled:` marker (a `reason` and
+a tracking `issue`, on a manual, non-blocking row) and the workflow job it names
+is `if: ${{ false }}`; `ci-gates` drift check 16 and the coverage gate both check
+the pair. Flipping a gate to manual and non-blocking without the marker still
+fails the coverage gate.
 
 To re-enable everything, revert in this order and run each check after its step:
 
@@ -192,6 +197,7 @@ To re-enable everything, revert in this order and run each check after its step:
    test. Do this last: until then the guard refuses any live NornicDB leg.
 5. Regenerate the replay-coverage dashboard
    (`cd go && go test ./cmd/replay-coverage-gate/ -update-dashboard`). With the
-   `replay-tier` row blocking again, its 167 surfaces return from "Proof off" to
-   satisfied (457/457). While the row is off, they are reported as unproven.
+   `replay-tier` row blocking again (delete its `disabled:` marker), its 167
+   surfaces return from "Proof off" to satisfied (457/457). While the row is off,
+   they are reported as unproven.
 6. Run the focused tests the disabling PR listed, then open a normal PR.

@@ -91,13 +91,16 @@
 //
 // # Proof gates that are switched off
 //
-// A proof gate whose registry row is tier manual and non-blocking is off: an
-// owner order disabled its CI job. A surface whose scenario resolved but whose
-// proof gate is off gets StatusProofOff. It is unproven, so it is not counted as
-// satisfied; it is reported in the JSON report's proof_off_surfaces list and the
-// dashboard's "Proof off" section; and it does not fail the blocking gate. The
-// rule reads the registry row, not a list kept here. A non-blocking row on a
-// live tier, a blank or unknown proof_gate, and a row with no local command stay
+// A proof gate is off only when its registry row carries the disabled marker (a
+// reason and a tracking issue, on a manual, non-blocking row) and the workflow
+// job the row names is permanently disabled; both are checked, so the row and the
+// job cannot disagree. A surface whose scenario resolved but whose proof gate is
+// off gets StatusProofOff. It is unproven, so it is not counted as satisfied; it
+// is reported in the JSON report's proof_off_surfaces list and the dashboard's
+// "Proof off" section; and it does not fail the blocking gate. The rule reads the
+// registry row and the workflow, not a list kept here. A non-blocking row without
+// the marker, a marker on a job that can still run, a marker that cannot be
+// checked, a blank or unknown proof_gate, and a row with no local command are
 // invalid and fail the gate.
 //
 // # The language-parser scoreboard (C-11)

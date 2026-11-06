@@ -953,7 +953,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "capability_matrix",
@@ -2857,7 +2857,7 @@
       "scenario": "go_test",
       "ref": "go/internal/replay/offlinetier/delta_tier_reducer_inheritance_edge_retract_live_test.go",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_edge_type",
@@ -2867,7 +2867,7 @@
       "scenario": "go_test",
       "ref": "go/internal/replay/offlinetier/delta_tier_reducer_security_group_reachability_retract_live_test.go",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_edge_type",
@@ -2877,7 +2877,7 @@
       "scenario": "go_test",
       "ref": "go/internal/replay/offlinetier/delta_tier_reducer_security_group_reachability_retract_live_test.go",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_edge_type",
@@ -2887,7 +2887,7 @@
       "scenario": "go_test",
       "ref": "go/internal/replay/offlinetier/delta_tier_canonical_governance_edge_retract_live_test.go",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_edge_type",
@@ -2897,7 +2897,7 @@
       "scenario": "go_test",
       "ref": "go/internal/replay/offlinetier/delta_tier_reducer_cloud_image_edge_retract_live_test.go",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_edge_type",
@@ -2907,7 +2907,7 @@
       "scenario": "go_test",
       "ref": "go/internal/reducer/provenance_replay_tombstone_live_test.go",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_edge_type",
@@ -2917,7 +2917,7 @@
       "scenario": "go_test",
       "ref": "go/internal/replay/offlinetier/delta_tier_reducer_edge_retract_live_test.go",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_edge_type",
@@ -2927,7 +2927,7 @@
       "scenario": "go_test",
       "ref": "go/internal/replay/offlinetier/delta_tier_reducer_iam_edge_retract_live_test.go",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_edge_type",
@@ -2937,7 +2937,7 @@
       "scenario": "go_test",
       "ref": "go/internal/replay/offlinetier/delta_tier_reducer_iam_edge_retract_live_test.go",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_edge_type",
@@ -2947,7 +2947,7 @@
       "scenario": "go_test",
       "ref": "go/internal/replay/offlinetier/delta_tier_reducer_iam_edge_retract_live_test.go",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_edge_type",
@@ -2957,7 +2957,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_edge_type",
@@ -2967,7 +2967,7 @@
       "scenario": "go_test",
       "ref": "go/internal/replay/offlinetier/delta_tier_reducer_content_edge_retract_live_test.go",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_edge_type",
@@ -2977,7 +2977,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_edge_type",
@@ -2987,7 +2987,7 @@
       "scenario": "go_test",
       "ref": "go/internal/replay/offlinetier/delta_tier_reducer_repo_dependency_retract_live_test.go",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_edge_type",
@@ -2997,7 +2997,7 @@
       "scenario": "go_test",
       "ref": "go/internal/replay/offlinetier/delta_tier_reducer_repo_dependency_retract_live_test.go",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_edge_type",
@@ -3007,7 +3007,7 @@
       "scenario": "go_test",
       "ref": "go/internal/reducer/provenance_replay_tombstone_live_test.go",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_edge_type",
@@ -3017,7 +3017,7 @@
       "scenario": "go_test",
       "ref": "go/internal/replay/offlinetier/delta_tier_reducer_repo_dependency_retract_live_test.go",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_edge_type",
@@ -3027,7 +3027,7 @@
       "scenario": "go_test",
       "ref": "go/internal/replay/offlinetier/delta_tier_reducer_content_edge_retract_live_test.go",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_edge_type",
@@ -3037,7 +3037,7 @@
       "scenario": "go_test",
       "ref": "go/internal/replay/offlinetier/delta_tier_reducer_repo_dependency_retract_live_test.go",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_edge_type",
@@ -3047,7 +3047,7 @@
       "scenario": "go_test",
       "ref": "go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_edge_type",
@@ -3057,7 +3057,7 @@
       "scenario": "go_test",
       "ref": "go/internal/replay/offlinetier/delta_tier_reducer_content_edge_retract_live_test.go",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_edge_type",
@@ -3067,7 +3067,7 @@
       "scenario": "go_test",
       "ref": "go/internal/replay/offlinetier/delta_tier_reducer_rationale_edge_retract_live_test.go",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_edge_type",
@@ -3077,7 +3077,7 @@
       "scenario": "go_test",
       "ref": "go/internal/replay/offlinetier/delta_tier_canonical_kustomize_extends_base_edge_retract_live_test.go",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_edge_type",
@@ -3087,7 +3087,7 @@
       "scenario": "go_test",
       "ref": "go/internal/replay/offlinetier/delta_tier_reducer_cloud_edge_retract_live_test.go",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_edge_type",
@@ -3097,7 +3097,7 @@
       "scenario": "go_test",
       "ref": "go/internal/replay/offlinetier/delta_tier_reducer_runtime_edge_retract_live_test.go",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_edge_type",
@@ -3107,7 +3107,7 @@
       "scenario": "go_test",
       "ref": "go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_edge_type",
@@ -3117,7 +3117,7 @@
       "scenario": "go_test",
       "ref": "go/internal/replay/offlinetier/delta_tier_reducer_repo_dependency_retract_live_test.go",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_edge_type",
@@ -3127,7 +3127,7 @@
       "scenario": "go_test",
       "ref": "go/internal/replay/offlinetier/delta_tier_reducer_cloud_edge_retract_live_test.go",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_edge_type",
@@ -3137,7 +3137,7 @@
       "scenario": "go_test",
       "ref": "go/internal/replay/offlinetier/delta_tier_canonical_governance_edge_retract_live_test.go",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_edge_type",
@@ -3147,7 +3147,7 @@
       "scenario": "go_test",
       "ref": "go/internal/replay/offlinetier/delta_tier_reducer_inheritance_edge_retract_live_test.go",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_edge_type",
@@ -3157,7 +3157,7 @@
       "scenario": "go_test",
       "ref": "go/internal/replay/offlinetier/delta_tier_canonical_governance_edge_retract_live_test.go",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_edge_type",
@@ -3167,7 +3167,7 @@
       "scenario": "go_test",
       "ref": "go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_edge_type",
@@ -3177,7 +3177,7 @@
       "scenario": "go_test",
       "ref": "go/internal/replay/offlinetier/delta_tier_reducer_inheritance_edge_retract_live_test.go",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_edge_type",
@@ -3187,7 +3187,7 @@
       "scenario": "go_test",
       "ref": "go/internal/replay/offlinetier/delta_tier_reducer_edge_retract_live_test.go",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_edge_type",
@@ -3197,7 +3197,7 @@
       "scenario": "go_test",
       "ref": "go/internal/replay/offlinetier/delta_tier_reducer_runtime_edge_retract_live_test.go",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_edge_type",
@@ -3207,7 +3207,7 @@
       "scenario": "go_test",
       "ref": "go/internal/replay/offlinetier/delta_tier_reducer_cloud_edge_retract_live_test.go",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_edge_type",
@@ -3217,7 +3217,7 @@
       "scenario": "go_test",
       "ref": "go/internal/replay/offlinetier/delta_tier_canonical_governance_edge_retract_live_test.go",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_edge_type",
@@ -3237,7 +3237,7 @@
       "scenario": "go_test",
       "ref": "go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_edge_type",
@@ -3247,7 +3247,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_edge_type",
@@ -3257,7 +3257,7 @@
       "scenario": "go_test",
       "ref": "go/internal/replay/offlinetier/delta_tier_reducer_inheritance_edge_retract_live_test.go",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_edge_type",
@@ -3267,7 +3267,7 @@
       "scenario": "go_test",
       "ref": "go/internal/replay/offlinetier/delta_tier_reducer_repo_dependency_retract_live_test.go",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_edge_type",
@@ -3277,7 +3277,7 @@
       "scenario": "go_test",
       "ref": "go/internal/reducer/provenance_replay_tombstone_live_test.go",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_edge_type",
@@ -3287,7 +3287,7 @@
       "scenario": "go_test",
       "ref": "go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_edge_type",
@@ -3297,7 +3297,7 @@
       "scenario": "go_test",
       "ref": "go/internal/replay/offlinetier/delta_tier_reducer_repo_dependency_retract_live_test.go",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_edge_type",
@@ -3307,7 +3307,7 @@
       "scenario": "go_test",
       "ref": "go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_edge_type",
@@ -3317,7 +3317,7 @@
       "scenario": "go_test",
       "ref": "go/internal/replay/offlinetier/delta_tier_canonical_flux_edge_retract_live_test.go",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_edge_type",
@@ -3327,7 +3327,7 @@
       "scenario": "go_test",
       "ref": "go/internal/replay/offlinetier/delta_tier_reducer_edge_retract_live_test.go",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_edge_type",
@@ -3337,7 +3337,7 @@
       "scenario": "go_test",
       "ref": "go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_edge_type",
@@ -3347,7 +3347,7 @@
       "scenario": "go_test",
       "ref": "go/internal/replay/offlinetier/delta_tier_reducer_ssm_host_retract_live_test.go",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_edge_type",
@@ -3357,7 +3357,7 @@
       "scenario": "go_test",
       "ref": "go/internal/replay/offlinetier/delta_tier_reducer_cloud_edge_retract_live_test.go",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_edge_type",
@@ -3367,7 +3367,7 @@
       "scenario": "go_test",
       "ref": "go/internal/replay/offlinetier/delta_tier_reducer_runtime_edge_retract_live_test.go",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_edge_type",
@@ -3377,7 +3377,7 @@
       "scenario": "go_test",
       "ref": "go/internal/replay/offlinetier/delta_tier_reducer_repo_dependency_retract_live_test.go",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_edge_type",
@@ -3387,7 +3387,7 @@
       "scenario": "go_test",
       "ref": "go/internal/replay/offlinetier/delta_tier_reducer_crossplane_edge_retract_live_test.go",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_edge_type",
@@ -3397,7 +3397,7 @@
       "scenario": "go_test",
       "ref": "go/internal/replay/offlinetier/delta_tier_reducer_secrets_iam_edge_retract_live_test.go",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_edge_type",
@@ -3407,7 +3407,7 @@
       "scenario": "go_test",
       "ref": "go/internal/replay/offlinetier/delta_tier_reducer_content_edge_retract_live_test.go",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_edge_type",
@@ -3417,7 +3417,7 @@
       "scenario": "go_test",
       "ref": "go/internal/replay/offlinetier/delta_tier_reducer_repo_dependency_retract_live_test.go",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_edge_type",
@@ -3427,7 +3427,7 @@
       "scenario": "go_test",
       "ref": "go/internal/replay/offlinetier/delta_tier_reducer_security_group_reachability_retract_live_test.go",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_edge_type",
@@ -3437,7 +3437,7 @@
       "scenario": "go_test",
       "ref": "go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_edge_type",
@@ -3447,7 +3447,7 @@
       "scenario": "go_test",
       "ref": "go/internal/replay/offlinetier/delta_tier_reducer_workload_uses_edge_retract_live_test.go",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_edge_type",
@@ -3457,7 +3457,7 @@
       "scenario": "go_test",
       "ref": "go/internal/replay/offlinetier/delta_tier_reducer_metaclass_edge_retract_live_test.go",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_edge_type",
@@ -3467,7 +3467,7 @@
       "scenario": "go_test",
       "ref": "go/internal/replay/offlinetier/delta_tier_reducer_repo_dependency_retract_live_test.go",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_edge_type",
@@ -3477,7 +3477,7 @@
       "scenario": "go_test",
       "ref": "go/internal/replay/offlinetier/delta_tier_reducer_workload_uses_edge_retract_live_test.go",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_edge_type",
@@ -3487,7 +3487,7 @@
       "scenario": "go_test",
       "ref": "go/internal/replay/offlinetier/delta_tier_canonical_governance_edge_retract_live_test.go",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_edge_type",
@@ -3497,7 +3497,7 @@
       "scenario": "go_test",
       "ref": "go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -3507,7 +3507,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -3517,7 +3517,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -3527,7 +3527,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -3537,7 +3537,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -3547,7 +3547,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -3557,7 +3557,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -3567,7 +3567,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -3577,7 +3577,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -3587,7 +3587,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -3597,7 +3597,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -3607,7 +3607,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -3617,7 +3617,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -3627,7 +3627,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -3637,7 +3637,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -3647,7 +3647,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -3657,7 +3657,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -3667,7 +3667,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -3677,7 +3677,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -3687,7 +3687,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -3697,7 +3697,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -3707,7 +3707,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -3717,7 +3717,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -3727,7 +3727,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -3737,7 +3737,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -3747,7 +3747,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -3757,7 +3757,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -3767,7 +3767,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -3777,7 +3777,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -3787,7 +3787,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -3797,7 +3797,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -3807,7 +3807,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -3817,7 +3817,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -3827,7 +3827,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -3837,7 +3837,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -3847,7 +3847,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -3857,7 +3857,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -3867,7 +3867,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -3877,7 +3877,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -3887,7 +3887,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -3897,7 +3897,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -3907,7 +3907,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -3917,7 +3917,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -3927,7 +3927,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -3937,7 +3937,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -3947,7 +3947,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -3957,7 +3957,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -3967,7 +3967,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -3977,7 +3977,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -3987,7 +3987,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -3997,7 +3997,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -4007,7 +4007,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -4017,7 +4017,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -4027,7 +4027,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -4037,7 +4037,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -4047,7 +4047,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -4057,7 +4057,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -4067,7 +4067,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -4077,7 +4077,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -4087,7 +4087,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -4097,7 +4097,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -4107,7 +4107,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -4117,7 +4117,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -4127,7 +4127,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -4137,7 +4137,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -4147,7 +4147,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -4157,7 +4157,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -4167,7 +4167,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -4177,7 +4177,7 @@
       "scenario": "go_test",
       "ref": "go/internal/replay/offlinetier/delta_tier_reducer_ssm_host_retract_live_test.go",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -4187,7 +4187,7 @@
       "scenario": "go_test",
       "ref": "go/internal/replay/offlinetier/delta_tier_reducer_ssm_host_retract_live_test.go",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -4197,7 +4197,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -4207,7 +4207,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -4217,7 +4217,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -4227,7 +4227,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -4237,7 +4237,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -4247,7 +4247,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -4257,7 +4257,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -4267,7 +4267,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -4277,7 +4277,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -4287,7 +4287,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -4297,7 +4297,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -4307,7 +4307,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -4317,7 +4317,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -4327,7 +4327,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -4337,7 +4337,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -4347,7 +4347,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -4357,7 +4357,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -4367,7 +4367,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -4377,7 +4377,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -4387,7 +4387,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -4397,7 +4397,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -4407,7 +4407,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -4424,7 +4424,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -4434,7 +4434,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -4444,7 +4444,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -4454,7 +4454,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -4464,7 +4464,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -4474,7 +4474,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -4484,7 +4484,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -4494,7 +4494,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -4504,7 +4504,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -4514,7 +4514,7 @@
       "scenario": "cassette",
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "retractable_type",
@@ -4524,7 +4524,7 @@
       "scenario": "go_test",
       "ref": "go/internal/replay/offlinetier/delta_tier_reducer_semantic_variable_retract_live_test.go",
       "proof_gate": "replay-tier",
-      "detail": "proof gate \"replay-tier\" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+      "detail": "proof gate \"replay-tier\" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)"
     },
     {
       "registry": "surface_inventory",

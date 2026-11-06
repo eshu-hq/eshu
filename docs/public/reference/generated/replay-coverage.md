@@ -52,7 +52,7 @@ None. Every non-exempt required surface has a replay scenario; exemptions carry 
 
 ### `replay-tier` (167)
 
-proof gate "replay-tier" is off (tier manual, non-blocking): Disabled by owner order (2026-11-05): the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend (#7331). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI).
+proof gate "replay-tier" is off (Owner order 2026-11-05: the offline NornicDB replay tier does not run in CI while Neo4j is the supported backend. Re-enable it with the steps in docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)., tracked in #7331)
 
 - `capability:freshness.changed_since` (delta_tombstone)
 - `retractable_edge:ALIASES` (delta_tombstone)

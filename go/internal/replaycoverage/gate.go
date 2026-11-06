@@ -48,6 +48,10 @@ type Inputs struct {
 	DepthRequirements DepthRequirements
 	// ProofGates is the CI-gate registry used to validate proof_gate names.
 	ProofGates *cigates.Registry
+	// JobDisabled confirms that the workflow job a disabled-marked proof gate
+	// names is really off. Nil means no marker can be confirmed, so every
+	// disabled-marked gate fails the blocking gate.
+	JobDisabled JobDisabledFunc
 	// Resolver verifies a manifest entry's scenario artifact exists.
 	Resolver Resolver
 	// Blocking flips every coverage finding from advisory to required. Local
@@ -78,7 +82,7 @@ func RunGate(in Inputs) (Coverage, CoverageReport, *goldengate.Report) {
 	cov := Reconcile(supported, surfaceManifest, in.Resolver)
 	var proofGateDetails proofGateValidationDetails
 	if in.ProofGates != nil {
-		proofGateDetails = proofGateValidationDetailsByScenario(manifest, in.AuthzProofs, in.ProofGates)
+		proofGateDetails = proofGateValidationDetailsByScenario(manifest, in.AuthzProofs, in.ProofGates, in.JobDisabled)
 		cov = applyProofGateValidation(cov, proofGateDetails)
 	}
 	cov = applyDepthExemptions(cov, depthExempt)

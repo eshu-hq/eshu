@@ -108,3 +108,32 @@ func loadGateFragments(path string, parsed *registryFile) error {
 	}
 	return nil
 }
+
+// loadSideLists copies the registry's hygiene_hooks and non_gate_workflows lists
+// into reg. Both are back-compatible: an absent list is valid.
+func loadSideLists(path string, parsed registryFile, reg *Registry) error {
+	// Parse hygiene_hooks (back-compatible: absent list is valid).
+	for i, hf := range parsed.HygieneHooks {
+		id := strings.TrimSpace(hf.ID)
+		if id == "" {
+			return fmt.Errorf("ci-gates registry %s: hygiene_hooks[%d] has blank id", path, i)
+		}
+		reg.HygieneHooks = append(reg.HygieneHooks, HygieneHook{
+			ID:     id,
+			Reason: strings.TrimSpace(hf.Reason),
+		})
+	}
+
+	// Parse non_gate_workflows (back-compatible: absent list is valid).
+	for i, nf := range parsed.NonGateWorkflows {
+		file := strings.TrimSpace(nf.File)
+		if file == "" {
+			return fmt.Errorf("ci-gates registry %s: non_gate_workflows[%d] has blank file", path, i)
+		}
+		reg.NonGateWorkflows = append(reg.NonGateWorkflows, NonGateWorkflow{
+			File:   file,
+			Reason: strings.TrimSpace(nf.Reason),
+		})
+	}
+	return nil
+}

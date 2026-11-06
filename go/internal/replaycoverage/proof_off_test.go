@@ -4,6 +4,7 @@
 package replaycoverage
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
@@ -12,14 +13,22 @@ import (
 )
 
 // offProofGate returns a registry row that is switched off the way an owner
-// order does it: tier manual and non-blocking, with the reason recorded.
+// order does it: tier manual and non-blocking, with the disabled marker that
+// carries the reason and the tracking issue.
 func offProofGate(id string) cigates.Gate {
 	gate := replayProofGate(id, "bash scripts/verify-"+id+".sh", id+".yml")
 	gate.Tier = cigates.TierManual
 	gate.Blocking = false
 	gate.CIOnlyReason = "disabled by owner order"
+	gate.Disabled = &cigates.Disabled{Reason: "disabled by owner order", Issue: "#7331"}
 	return gate
 }
+
+// jobsAreDisabled stands in for the workflow check when every named job is off.
+func jobsAreDisabled(cigates.Gate) (bool, error) { return true, nil }
+
+// jobsAreLive stands in for the workflow check when the named job can still run.
+func jobsAreLive(cigates.Gate) (bool, error) { return false, nil }
 
 // proofOffInputs reconciles one collector surface whose scenario names proofGate,
 // so each case isolates how the gate's registry row changes that one surface.
@@ -35,9 +44,10 @@ func proofOffInputs(proofGate string, gates ...cigates.Gate) Inputs {
 			Ref:          "present",
 			ProofGate:    proofGate,
 		}}},
-		Resolver:   stubResolver{present: map[string]bool{"present": true}},
-		ProofGates: replayProofRegistry(gates...),
-		Blocking:   true,
+		Resolver:    stubResolver{present: map[string]bool{"present": true}},
+		ProofGates:  replayProofRegistry(gates...),
+		JobDisabled: jobsAreDisabled,
+		Blocking:    true,
 	}
 }
 
@@ -49,17 +59,18 @@ func proofOffManifest(proofGate string) Manifest {
 // reported. It must not fail the registry check.
 func TestValidateRequiredProofGatesAllowsOwnerDisabledGate(t *testing.T) {
 	registry := replayProofRegistry(offProofGate("replay-tier"))
-	if errs := ValidateRequiredProofGates(proofOffManifest("replay-tier"), AuthzProofLedger{}, registry); len(errs) != 0 {
+	if errs := ValidateRequiredProofGates(proofOffManifest("replay-tier"), AuthzProofLedger{}, registry, jobsAreDisabled); len(errs) != 0 {
 		t.Fatalf("owner-disabled proof gate must not fail validation: %v", errs)
 	}
 }
 
-// Case 1 boundary: only a manual, non-blocking row is owner-disabled. A
+// Case 1 boundary: only a row with the disabled marker is owner-disabled. A
 // non-blocking row on a live tier is an advisory gate and still fails.
 func TestValidateRequiredProofGatesStillRejectsNonBlockingGateOnALiveTier(t *testing.T) {
 	gate := offProofGate("replay-tier")
+	gate.Disabled = nil
 	gate.Tier = cigates.TierPrePR
-	errs := ValidateRequiredProofGates(proofOffManifest("replay-tier"), AuthzProofLedger{}, replayProofRegistry(gate))
+	errs := ValidateRequiredProofGates(proofOffManifest("replay-tier"), AuthzProofLedger{}, replayProofRegistry(gate), jobsAreDisabled)
 	if len(errs) != 1 || !strings.Contains(errs[0].Error(), `proof_gate "replay-tier" is not blocking`) {
 		t.Fatalf("errors = %v, want one not-blocking error", errs)
 	}
@@ -69,7 +80,7 @@ func TestValidateRequiredProofGatesStillRejectsNonBlockingGateOnALiveTier(t *tes
 func TestValidateRequiredProofGatesStillChecksADisabledGateLocalCommand(t *testing.T) {
 	gate := offProofGate("replay-tier")
 	gate.Local = nil
-	errs := ValidateRequiredProofGates(proofOffManifest("replay-tier"), AuthzProofLedger{}, replayProofRegistry(gate))
+	errs := ValidateRequiredProofGates(proofOffManifest("replay-tier"), AuthzProofLedger{}, replayProofRegistry(gate), jobsAreDisabled)
 	if len(errs) != 1 || !strings.Contains(errs[0].Error(), "has no local command") {
 		t.Fatalf("errors = %v, want one missing-local-command error", errs)
 	}
@@ -111,7 +122,7 @@ func TestRunGateStillFailsOnUnknownProofGate(t *testing.T) {
 	if cov.Surfaces[0].Status != StatusUnresolved || rep.Totals.ProofOff != 0 {
 		t.Fatalf("status = %v, proof_off = %d, want unresolved and 0", cov.Surfaces[0].Status, rep.Totals.ProofOff)
 	}
-	errs := ValidateRequiredProofGates(in.Manifest, AuthzProofLedger{}, in.ProofGates)
+	errs := ValidateRequiredProofGates(in.Manifest, AuthzProofLedger{}, in.ProofGates, in.JobDisabled)
 	if len(errs) != 1 || !strings.Contains(errs[0].Error(), `unknown proof_gate "typo-gate"`) {
 		t.Fatalf("errors = %v, want one unknown proof_gate error", errs)
 	}
@@ -144,5 +155,87 @@ func TestRenderDashboardNamesSurfacesWhoseProofGateIsOff(t *testing.T) {
 		if !strings.Contains(out, want) {
 			t.Errorf("dashboard is missing %q:\n%s", want, out)
 		}
+	}
+}
+
+// Case 4: flipping a proof gate to manual and non-blocking is not enough. Without
+// the disabled marker the gate is advisory, so it fails the coverage gate the
+// way it did before the marker existed.
+func TestRunGateStillFailsOnNonBlockingGateWithoutDisabledMarker(t *testing.T) {
+	gate := offProofGate("golden-corpus-gate-neo4j")
+	gate.Disabled = nil
+	in := proofOffInputs("golden-corpus-gate-neo4j", gate)
+	cov, rep, gr := RunGate(in)
+	if !gr.Failed() {
+		t.Fatal("a non-blocking proof gate with no disabled marker must fail the blocking gate")
+	}
+	if cov.Surfaces[0].Status != StatusUnresolved || rep.Totals.ProofOff != 0 {
+		t.Fatalf("status = %v, proof_off = %d, want unresolved and 0", cov.Surfaces[0].Status, rep.Totals.ProofOff)
+	}
+	errs := ValidateRequiredProofGates(in.Manifest, AuthzProofLedger{}, in.ProofGates, in.JobDisabled)
+	if len(errs) != 1 || !strings.Contains(errs[0].Error(), `proof_gate "golden-corpus-gate-neo4j" is not blocking`) {
+		t.Fatalf("errors = %v, want one not-blocking error", errs)
+	}
+}
+
+// Case 5: the marker is a claim about a workflow job. When the job can still run,
+// the row and the job disagree, so the gate must not read as owner-disabled.
+func TestRunGateFailsWhenDisabledMarkerNamesALiveJob(t *testing.T) {
+	in := proofOffInputs("replay-tier", offProofGate("replay-tier"))
+	in.JobDisabled = jobsAreLive
+	cov, rep, gr := RunGate(in)
+	if !gr.Failed() {
+		t.Fatal("a disabled marker on a live job must fail the blocking gate")
+	}
+	if cov.Surfaces[0].Status != StatusUnresolved || rep.Totals.ProofOff != 0 {
+		t.Fatalf("status = %v, proof_off = %d, want unresolved and 0", cov.Surfaces[0].Status, rep.Totals.ProofOff)
+	}
+	errs := ValidateRequiredProofGates(in.Manifest, AuthzProofLedger{}, in.ProofGates, in.JobDisabled)
+	if len(errs) != 1 || !strings.Contains(errs[0].Error(), "can still run") {
+		t.Fatalf("errors = %v, want one live-job error", errs)
+	}
+}
+
+// Case 5 boundary: a marker that cannot be checked is never trusted.
+func TestDisabledMarkerIsNotTrustedWhenTheJobCheckIsUnavailableOrFails(t *testing.T) {
+	cases := map[string]func(cigates.Gate) (bool, error){
+		"no checker":    nil,
+		"lookup failed": func(cigates.Gate) (bool, error) { return false, errors.New("no job named x") },
+	}
+	for name, check := range cases {
+		t.Run(name, func(t *testing.T) {
+			in := proofOffInputs("replay-tier", offProofGate("replay-tier"))
+			in.JobDisabled = check
+			if _, _, gr := RunGate(in); !gr.Failed() {
+				t.Fatal("an unverifiable disabled marker must fail the blocking gate")
+			}
+			errs := ValidateRequiredProofGates(in.Manifest, AuthzProofLedger{}, in.ProofGates, check)
+			if len(errs) != 1 || !strings.Contains(errs[0].Error(), "disabled marker") {
+				t.Fatalf("errors = %v, want one disabled-marker error", errs)
+			}
+		})
+	}
+}
+
+// A blocking row that also carries the marker contradicts itself. A blocking
+// gate is not off, so the row is refused rather than read either way.
+func TestDisabledMarkerOnABlockingRowFails(t *testing.T) {
+	gate := offProofGate("replay-tier")
+	gate.Blocking = true
+	in := proofOffInputs("replay-tier", gate)
+	errs := ValidateRequiredProofGates(in.Manifest, AuthzProofLedger{}, in.ProofGates, in.JobDisabled)
+	if len(errs) != 1 || !strings.Contains(errs[0].Error(), "disabled marker") {
+		t.Fatalf("errors = %v, want one disabled-marker error", errs)
+	}
+}
+
+// A marker does not make a live-tier advisory gate "off": the tier must be manual.
+func TestDisabledMarkerOnALiveTierFails(t *testing.T) {
+	gate := offProofGate("replay-tier")
+	gate.Tier = cigates.TierPrePR
+	in := proofOffInputs("replay-tier", gate)
+	errs := ValidateRequiredProofGates(in.Manifest, AuthzProofLedger{}, in.ProofGates, in.JobDisabled)
+	if len(errs) != 1 || !strings.Contains(errs[0].Error(), "manual and non-blocking") {
+		t.Fatalf("errors = %v, want one manual-and-non-blocking error", errs)
 	}
 }
