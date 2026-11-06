@@ -179,10 +179,8 @@ High-signal invariants for this package:
   the sweep while neither its own nor the active generation's readiness would
   allow a claim (#7664 own-or-active OR), so a still-pending gate never gets
   permanently terminalized into unreplayable `superseded` the instant a newer
-  generation activates; the candidate gate stays own-generation, so no live row becomes claimable early. The sweep also exempts the scope-keyed `crossplane_satisfied_by_materialization` domain (#10106): its handler materializes the active snapshot, so rows stay claimable for the runtime rebind. It likewise spares a non-marker `supply_chain_impact` row
-  still owing holder fan-out (`fanout_remaining`/`fanout_owed`, #10060), whose
-  payload list the successor pass cannot reconstruct; the runtime guard then
-  lets it drain. Markers are not spared (#9874 stamp baseline covers them).
+  generation activates; the candidate gate stays own-generation, so no live row becomes claimable early. The sweep also exempts the scope-keyed `crossplane_satisfied_by_materialization` domain (#10106): its handler materializes the active snapshot, so rows stay claimable for the runtime rebind.
+  The #10060 holder fan-out debt-spare rule lives in [`HOLDER_FANOUT.md`](../../reducer/supplychain/core/HOLDER_FANOUT.md).
 - Workflow, AWS pagination, AWS scan-status, webhook, incident freshness, and
   hosted tenant/workspace grant stores use fencing, coalescing, or idempotent
   conflict keys so stale workers or replayed deliveries cannot overwrite newer
