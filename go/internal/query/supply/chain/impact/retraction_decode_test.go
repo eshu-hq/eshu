@@ -54,6 +54,7 @@ func TestDecodeFindingRowKeepsTheAdvisoryRetraction(t *testing.T) {
 	retraction := row.Provenance.AdvisoryRetraction
 	if retraction == nil {
 		t.Fatalf("AdvisoryRetraction = nil, want it decoded from provenance: %#v", row.Provenance)
+		return
 	}
 	if retraction.ReasonCode != "rejected" || retraction.Reason == "" {
 		t.Fatalf("retraction = %#v, want reason_code rejected and a reason", retraction)

@@ -45,6 +45,16 @@ const (
 // carries no CVE selector and no ecosystem, and its records carry no CVE key,
 // so neither the CVE arm nor the osv/glad ecosystem arm selects it. Its state
 // rows stay out of fetchConfirmedSources for the same reason.
+//
+// A cve_list target (#9880) is a well-formed source the workflow validator
+// admits for explicit owned CVE ids, and a CVE-selected one is a readiness
+// candidate: its snapshot freshness is the operator signal for the CNA
+// enrichment. It is never coverage_eligible (only an exact NVD CVE selector
+// certifies empty advisory coverage), and a target with no CVE ids or with a
+// modified window is malformed: owned CVEs only, never a window or corpus
+// read. Its state rows stay out of fetchConfirmedSources: the CVE List is
+// class C/D enrichment, and a stale enrichment source must not hold the
+// advisory family it enriches stale.
 const readinessConfiguredSourceTargetsCTE = `invalid_vulnerability_source_targets AS (
     SELECT EXISTS (
         SELECT 1 FROM collector_instances AS instance
@@ -61,7 +71,7 @@ const readinessConfiguredSourceTargetsCTE = `invalid_vulnerability_source_target
                      OR JSONB_TYPEOF(target->'scope_id') IS DISTINCT FROM 'string'
                      OR NULLIF(TRIM(target->>'scope_id'), '') IS NULL
                      OR JSONB_TYPEOF(target->'source') IS DISTINCT FROM 'string'
-                     OR TRIM(target->>'source') NOT IN ('nvd', 'first_epss', 'cisa_kev', 'osv', 'ghsa')
+                     OR TRIM(target->>'source') NOT IN ('nvd', 'first_epss', 'cisa_kev', 'osv', 'ghsa', 'cve_list')
                      OR COALESCE(JSONB_TYPEOF(target->'cve_ids'), 'null') NOT IN ('array', 'null')
                      OR COALESCE(JSONB_TYPEOF(target->'fallback_urls'), 'null') NOT IN ('array', 'null')
                      OR (TRIM(target->>'source') IN ('nvd', 'first_epss')
@@ -70,6 +80,11 @@ const readinessConfiguredSourceTargetsCTE = `invalid_vulnerability_source_target
                          AND (TRIM(target->>'source') = 'first_epss'
                              OR NULLIF(TRIM(target->>'modified_start'), '') IS NULL
                              OR NULLIF(TRIM(target->>'modified_end'), '') IS NULL))
+                     OR (TRIM(target->>'source') = 'cve_list'
+                         AND (JSONB_ARRAY_LENGTH(CASE WHEN JSONB_TYPEOF(target->'cve_ids') = 'array'
+                             THEN target->'cve_ids' ELSE '[]'::jsonb END) = 0
+                             OR NULLIF(TRIM(target->>'modified_start'), '') IS NOT NULL
+                             OR NULLIF(TRIM(target->>'modified_end'), '') IS NOT NULL))
                      OR (TRIM(target->>'source') = 'osv' AND (
                          NULLIF(TRIM(target->>'ecosystem'), '') IS NULL
                          OR JSONB_ARRAY_LENGTH(CASE WHEN JSONB_TYPEOF(target->'queries') = 'array'
@@ -188,6 +203,7 @@ configured_vulnerability_source_targets AS (
             NULLIF(TRIM(target->>'modified_start'), '') IS NOT NULL OR
             NULLIF(TRIM(target->>'modified_end'), '') IS NOT NULL))
           OR (selector.source = 'first_epss' AND selector.cve_selected)
+          OR (selector.source = 'cve_list' AND selector.cve_selected)
           OR selector.source = 'cisa_kev'))
         OR (selector.source IN ('osv', 'glad')
             AND NULLIF(LOWER(TRIM(target->>'ecosystem') COLLATE "C") COLLATE "default", '') IN

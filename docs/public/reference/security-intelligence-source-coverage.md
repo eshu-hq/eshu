@@ -180,7 +180,7 @@ route, MCP tool, or runtime configuration knob.
 
 Eshu collects advisory source truth from OSV, FIRST EPSS, CISA KEV, and NVD CVE
 API 2.0. The GitLab Advisory Database is not collected: its normalizer is
-fixture-only, gated off pending an owner and legal record (#9992). GitHub Advisory Database (`ghsa`) targets admit reviewed and malware advisories only, and are off by default. They are not activatable for production truth until [#10037](https://github.com/eshu-hq/eshu/issues/10037) lands: core admits the target only so the collector pair can be tested, so do not add a `ghsa` target to a production coordinator configuration. Readiness reads accept a `ghsa` target, but the in-tree collector refuses it when its service starts, so an instance that carries a `ghsa` target does not start. Each source is
+fixture-only, gated off pending an owner and legal record (#9992). GitHub Advisory Database (`ghsa`) targets admit reviewed and malware advisories only, and are off by default. They are not activatable for production truth until [#10037](https://github.com/eshu-hq/eshu/issues/10037) lands: core admits the target only so the collector pair can be tested, so do not add a `ghsa` target to a production coordinator configuration. Readiness reads accept a `ghsa` target, but the in-tree collector refuses it when its service starts, so an instance that carries a `ghsa` target does not start. CVE List v5 (`cve_list`) targets collect explicit owned CVE IDs only (at most one request per second, at most 100 CVE IDs per claim); whole-corpus mirroring is out of scope ([#9880](https://github.com/eshu-hq/eshu/issues/9880)). CVE List snapshots and this page carry the required attribution: Copyright (c) 1999-2026, The MITRE Corporation. CVE List v5 content is used per the [CVE Program Terms of Use](https://www.cve.org/Legal/TermsOfUse). Each source is
 normalized into the shared `vulnerability.*` fact contract with
 `source_confidence=reported` and a source-namespaced stable fact key, so a
 GLAD fixture observation of `CVE-2026-0001` coexists with OSV, GHSA, or NVD
@@ -224,14 +224,15 @@ Selection rules:
 - For OS package classes (`rpm`, `deb`, `apk`, `rhel`, `redhat`, `debian`,
   `ubuntu`, `alpine`, `amazonlinux`, `suse`, `opensuse`, `wolfi`,
   `chainguard`, `oracle`, `rocky`, `alma`, `centos`), the matching vendor
-  advisory outranks GLAD, GHSA, OSV, and NVD because vendor backports change
+  advisory outranks GLAD, GHSA, OSV, CVE List, and NVD because vendor backports change
   applicability. RPM-family installed package evidence must include distro,
   distro version, arch, repository class, and a matching
   `vendor_advisory_source`; third-party or ambiguous vendor-origin rows remain
   source warnings and do not join as vendor-applicable impact truth.
 - For language ecosystems (npm, PyPI, Go, Maven, Crates.io, RubyGems,
   Composer, Pub, Hex, Swift, NuGet), GHSA outranks GLAD, OSV-via-OSV,
-  PYSEC-via-OSV, RUSTSEC-via-OSV, GO-via-OSV, and NVD.
+  PYSEC-via-OSV, RUSTSEC-via-OSV, GO-via-OSV, CVE List, and NVD. A CVE that
+  NVD has not scored shows severity from the CNA; a scored tie keeps NVD as an alternate.
   The reducer has version matchers for npm, PyPI, Cargo, Go, Pub, Hex, Swift,
   NuGet, Maven, RubyGems, and Composer; vendor-backed RPM-family, Debian/dpkg,
   and Alpine/APK facts use the OS package priority above. A matcher alone does
