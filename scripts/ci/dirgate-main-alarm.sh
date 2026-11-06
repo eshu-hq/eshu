@@ -139,10 +139,14 @@ trap 'rm -f "${body_file}"' EXIT
 	while IFS= read -r line; do
 		printf -- '- `%s`\n' "$(printf '%s' "${line}" | clean)"
 	done < <(printf '%s\n' "${reds}")
-	printf '\nSuggested waiver (replace `#<issue>` with the repair PR number):\n\n'
-	while IFS= read -r line; do
-		printf -- '- `%s`\n' "$(printf '%s' "${line}" | clean)"
-	done < <(printf '%s\n' "${trailers}")
+	# No colon-form trailer exists for partial-waiver, unused-trailer, or
+	# over-waived REDs; an empty bullet list would mislead the merger.
+	if [[ -n "${trailers}" ]]; then
+		printf '\nSuggested waiver (replace `#<issue>` with the repair PR number):\n\n'
+		while IFS= read -r line; do
+			printf -- '- `%s`\n' "$(printf '%s' "${line}" | clean)"
+		done < <(printf '%s\n' "${trailers}")
+	fi
 } >"${body_file}"
 body="$(cat "${body_file}")"
 

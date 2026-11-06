@@ -129,6 +129,25 @@ check "red: comment links the failed run" "$(comment_body_has "${RUN_URL}" && ec
 check "red: opens no issue" "$(not_called 'POST repos/eshu-hq/eshu/issues ' && echo 0 || echo 1)"
 check "red: decision line printed" "$(out_has 'state=notify.*action=comment-pr' && echo 0 || echo 1)"
 
+# 1b. RED with a non-missing-trailer shape (partial waiver): the comment still
+#     names the RED directory but must not render an empty Suggested waiver
+#     section, since no colon-form trailer exists to suggest.
+PARTIAL_WAIVER_LOG=$(printf '%s\n' \
+	'2026-11-06T10:00:00Z dirgate: mode=ci base=bbbbbbbbbb head-tree=hhhhhhhhhh trailer-range=bbbbbbbbbb..aaaaaaaaaa' \
+	'2026-11-06T10:00:01Z dirgate: RED go/internal/telemetry: 67 -> 68 non-test .go files (base -> head), partial waiver covers 0.' \
+	'2026-11-06T10:00:01Z   Dirgate-Growth waives internal/telemetry (no colon form emitted)' \
+	'2026-11-06T10:00:02Z dirgate: evaluated 311 directories: 1 RED, 0 NOTE' \
+	'2026-11-06T10:00:02Z ##[error]Process completed with exit code 1.')
+new_case red-partial-waiver-no-empty-section
+push_event "failure"
+dirgate_jobs "failure"
+printf '%s\n' "${PARTIAL_WAIVER_LOG}" >"${case_dir}/job.log"
+printf '[{"number":10240,"merged_at":"2026-11-06T09:00:00Z"}]' >"${case_dir}/prs.json"
+run_alarm
+check "waiver-shape: exits 0" "${last_rc}"
+check "waiver-shape: comments once on the merged PR" "$([ "$(rg -c 'POST repos/eshu-hq/eshu/issues/10240/comments' "${case_dir}/calls.log")" -eq 1 ] && echo 0 || echo 1)"
+check "waiver-shape: no empty Suggested waiver section" "$(comment_body_has 'Suggested waiver' && echo 1 || echo 0)"
+
 # 2. Clean push to main: conclusion success makes zero API reads past the
 #    payload and zero writes.
 new_case green-silent
