@@ -352,6 +352,7 @@ nav:
       - Secret-Line Finalizer Signals: reference/telemetry/secret-lines.md
       - Content File Upsert Outcomes: reference/telemetry/content-file-upserts.md
       - Unscoped Content Search Signals: reference/telemetry/unscoped-file-search.md
+      - SAML Verifier Panic Signal: reference/telemetry/saml-verifier-panics.md
       - Deferred Backfill Block Timing: reference/telemetry/deferred-backfill-blocks.md
       - Generation Outcome Telemetry: reference/telemetry/generation-outcomes.md
       - Supply-Chain Impact Winners Resweep: reference/telemetry/supply-chain-impact-winners.md
@@ -456,6 +457,7 @@ nav:
     - Health Checks: operate/health-checks.md
     - MCP OAuth 2.1 Discovery: operate/mcp-oauth-discovery.md
     - MCP Client Authentication: operate/mcp-client-auth.md
+    - SAML Library Advisory: operate/saml-library-advisory.md
     - Telemetry: operate/telemetry.md
     - Freshness and Convergence: operate/freshness-convergence.md
     - Correlation Admission Decisions: operate/correlation-admission-decisions.md

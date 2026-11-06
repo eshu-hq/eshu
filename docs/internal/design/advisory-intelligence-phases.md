@@ -167,7 +167,7 @@ once the ADR lands.
 | 4.2 | GHSA database | A, C | REST `updated` cursor fixture. Reviewed and malware records. Owner decides on unreviewed records. | GHSA source state fresh. |
 | 4.3 | ENISA EUVD | C, D | Alias merge fixture, EU KEV as its own exploited source (`known_exploited` with `source`). No `epss_score` from EUVD. | EU KEV flags appear. NOT PLANNED — owner decision 2026-11-05, see #9960. |
 | 4.4 | Exploit-DB | C | New kind `vulnerability.exploit_reference` (EDB id, CVE codes, verified). License sign-off first. | Exploit references on matching findings. NOT PLANNED — owner decision 2026-11-05, see #9881. |
-| 4.5 | Priority for SSVC, exploit references, and each KEV source | C | Priority fixtures. Exploited tiers come first, then EPSS probability. Never multiply EPSS by CVSS. | Priority order on QA findings matches the tiers. |
+| 4.5 | Priority tiers for CISA KEV, reserved SSVC-active rung, and EPSS (KEV + EPSS + NVD only; Exploit-DB #9881 and EU KEV #9960 not planned) | C | Priority fixtures (KEV, SSVC-active, EPSS-only, none). Additive `exploited_tier` alongside `priority_score`; tier order holds regardless of CVSS; priority never changes impact status. | Priority order on QA findings matches the tiers. |
 
 Each new source also needs:
 

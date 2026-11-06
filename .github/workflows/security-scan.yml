@@ -233,7 +233,9 @@ jobs:
     if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'govulncheck')) && (github.event_name != 'workflow_run' && (github.event_name != 'pull_request' || (needs.changes.outputs.code == 'true' || needs.changes.outputs.lockstep == 'true'))) }}
     name: govulncheck (Go vulnerability database)
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    # 30, not 20: the replaced-module re-check below compiles and runs the
+    # advisory regression tests twice on a cold Go build cache (#10212).
+    timeout-minutes: 30
     needs: [changes]
     permissions:
       contents: read
@@ -251,7 +253,7 @@ jobs:
           cache: false
       - name: Pre-warm Go modules
         run: scripts/ci/go-mod-download-retry.sh
-      - name: Install govulncheck (pinned)
+      - name: Install govulncheck (@latest)
         run: scripts/ci/go-install-retry.sh golang.org/x/vuln/cmd/govulncheck@latest
       - name: Run govulncheck on every Go package
         working-directory: go
@@ -260,6 +262,15 @@ jobs:
           ../scripts/ci/run-scan-with-tee.sh govulncheck govulncheck.out \
             'govulncheck: vulnerabilities found, see govulncheck.out above\n' \
             -- govulncheck -scan package ./...
+      # govulncheck looks advisories up by the replacement module path, so a
+      # go.mod replace turns the scan above green whether or not the fork fixes
+      # anything. This step re-checks every replaced module against the
+      # upstream module and version go.mod requires (#10212, GO-2026-6909).
+      # govulncheck is installed at @latest above, so the script fails closed
+      # when the query output lacks the expected config envelope instead of
+      # reading a changed schema as "no advisory".
+      - name: Re-check replaced modules against upstream advisories
+        run: scripts/ci/govulncheck-replace-recheck.sh go
       - name: Upload govulncheck output as workflow artifact
         if: ${{ always() }}
         uses: actions/upload-artifact@v4

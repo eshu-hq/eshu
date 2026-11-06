@@ -23,11 +23,11 @@ const ExtensionDefinedFailureToken = "extension_defined"
 // does not match it is free text and reads UnknownFailureToken.
 var extensionFailureClassPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,95}$`)
 
-// commonFailureClasses is every failure class the claim runner persists on a
-// terminal work item whatever the collector kind. It holds the five provider
-// classes the shared SDK writes and the four the claim runner writes itself.
-// The literals are pinned here, not imported, so the status leaf stays free of
-// collector runtime packages. Sources:
+// commonFailureClasses is every failure class persisted on a terminal work
+// item whatever the collector kind. It holds the five provider classes the
+// shared SDK writes, the four the claim runner writes itself, and the one the
+// expired-lease reaper writes. The literals are pinned here, not imported, so
+// the status leaf stays free of collector runtime packages. Sources:
 //
 //   - auth_denied, not_found, rate_limited, terminal, retryable: the SDK
 //     provider classes (go/internal/collector/sdk/failure.go, also mapped by
@@ -42,12 +42,18 @@ var extensionFailureClassPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,95
 //     FailClaimTerminal calls in collector/claimed_service.go).
 //   - collect_failure, commit_failure: the claim-stage fallbacks for a
 //     non-retryable collect or commit error (collector/claimed_service.go).
+//   - expired_lease_budget_exhausted: the expired-lease reaper dead-letter
+//     class when the attempt budget ran out without a returned failure
+//     verdict (FailureClassExpiredLeaseBudgetExhausted, workflow/defaults.go,
+//     written by storage/postgres ReapExpiredClaims, #10113).
 //
-// Keep the nine aligned with securityAlertTerminalFailureClasses in the
-// security-alert read (#8803), which pins the same set for that one kind.
+// The security-alert read (#8803) pins the nine claim-runner classes for
+// that one kind in securityAlertTerminalFailureClasses; the tenth here is the
+// reaper class, which that surface reports as unclassified.
 var commonFailureClasses = []string{
 	"auth_denied", "not_found", "rate_limited", "terminal", "retryable",
 	"attempt_budget_exhausted", "identity_mismatch", "collect_failure", "commit_failure",
+	"expired_lease_budget_exhausted",
 }
 
 // registryFailureClasses are the bounded classes collector.RegistryFailure

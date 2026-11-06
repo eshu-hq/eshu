@@ -78,6 +78,10 @@ type supplyChainImpactIndex struct {
 	// osUpstream holds what the OS advisory grouping pass counted and did
 	// (#9914); see groupOSAdvisoriesByUpstream.
 	osUpstream osUpstreamGrouping
+	// osRepresentativeOutcomes receives one count per OS-shaped package group
+	// this index classifies (#9990). Nil records nothing. It has one owner
+	// goroutine, the pass that builds the findings.
+	osRepresentativeOutcomes map[osRepresentativeOutcomeKey]int
 }
 
 // buildSupplyChainImpactIndex and buildSupplyChainImpactIndexWithQuarantine

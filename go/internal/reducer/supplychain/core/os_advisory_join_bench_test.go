@@ -142,7 +142,7 @@ func BenchmarkOSAdvisoryJoinTargets(b *testing.B) {
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
 			joins := make(map[osAdvisoryJoinKey]int)
-			if _, _, err := buildAuthorizedScanImpactFindingsWithQuarantine(nil, targets, joins); err != nil {
+			if _, _, err := buildAuthorizedScanImpactFindingsWithQuarantine(nil, targets, joins, nil); err != nil {
 				b.Fatalf("authorized pass: %v", err)
 			}
 		}

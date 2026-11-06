@@ -225,6 +225,8 @@ gates:
       - "scripts/test-precommit-go-toolchain-isolation.sh"
       - "scripts/ci/go-mod-download-retry.sh"
       - "scripts/ci/go-install-retry.sh"
+      - "scripts/ci/govulncheck-replace-recheck.sh"
+      - "scripts/test-govulncheck-replace-recheck.sh"
     local:
       command: "bash scripts/dev/precommit-go.sh govulncheck"
       # Self-test mirror: precommit-go.sh installs its scanners from the repo
@@ -232,7 +234,9 @@ gates:
       # toolchain-switched parent made every install fail to compile and this
       # gate died before govulncheck ran. The self-test is hermetic (it fakes
       # `go`), so it needs no network and no real toolchain.
-      test_command: "bash scripts/test-precommit-go-toolchain-isolation.sh"
+      # The replaced-module re-check (#10212) has its own planted RED/GREEN
+      # cases, run against stub go and govulncheck binaries.
+      test_command: "bash scripts/test-precommit-go-toolchain-isolation.sh && bash scripts/test-govulncheck-replace-recheck.sh"
     ci:
       workflow: security-scan.yml
       job: "govulncheck (Go vulnerability database)"

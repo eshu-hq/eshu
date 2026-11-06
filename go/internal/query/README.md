@@ -1217,7 +1217,7 @@ live in [evidence-notes.md](evidence-notes.md).
   handler has no durable record of which one a given browser holds.
 - SAML routes (`saml_handler.go`) are public only for metadata, login, and ACS.
   Login stores a RelayState hash with the AuthnRequest ID; ACS requires that
-  RelayState, validates the SAML response through `crewjam/saml`, reserves a
+  RelayState, validates the SAML response through `crewjam/saml` (the `eshu-hq/saml` fork, see `docs/public/operate/saml-library-advisory.md`; `CrewjamSAMLVerifier.VerifySAMLResponse` recovers a library panic and counts it), reserves a
   replay hash before session creation, and then creates the same browser-session
   cookies as the explicit credential exchange. SAML claims identify an external
   subject; they do not grant permissions until the store resolves them to an

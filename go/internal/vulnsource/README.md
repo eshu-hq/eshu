@@ -23,9 +23,11 @@ core-owned: the workflow coordinator mints `vuln-intel://osv/<ecosystem>/...`,
 `vuln-intel://nvd/_window/<start>-<end>`, and
 `vuln-intel://first_epss/_findings/<chunk>`, and configured targets use
 `vuln-intel://nvd/...`, `vuln-intel://cisa/kev`, `vuln-intel://first/epss`,
-`vuln-intel://glad/<ecosystem>`, and `vuln-intel://ghsa/<reviewed|malware>`
+`vuln-intel://glad/<ecosystem>`, `vuln-intel://ghsa/<reviewed|malware>`
 (GHSA admits reviewed and malware advisories only; `unreviewed` and any
-trailing path return `ok=false`). It returns `ok=false` for anything else,
+trailing path return `ok=false`), and `vuln-intel://cve_list/cve` for
+explicit owned CVE IDs (CVE List v5, #9880; whole-corpus reads have no
+scope). It returns `ok=false` for anything else,
 so a writer never invents a token. Tests in `coordinator/vulnerability` and
 `query/supply/chain/impact` pin it against the coordinator's format strings
 and the readiness reader's scope table. The coordinator test lists one row per

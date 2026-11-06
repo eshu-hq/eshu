@@ -795,7 +795,9 @@ evidence, workload/service/environment anchors, priority metadata, and missing
 evidence separate. Priority is an explainable triage score only. A `critical`
 or `high` priority bucket never turns missing version, package, SBOM, image,
 deployment, or workload evidence into `affected_exact` or `affected_derived`
-truth.
+truth. The additive `exploited_tier` (item 4.5, #9882) ranks exploited-ness
+alongside the score and obeys the same rule: even `kev` never promotes missing
+evidence to exact truth.
 
 ### Detection Profiles
 
@@ -844,17 +846,11 @@ callers can explain why a finding is hidden or why a related suppression did not
 
 Version fields intentionally do not collapse into one string:
 
-- `observed_version`: exact installed version from lockfile, manifest, SBOM, or
-  image evidence when known.
-- `requested_range`: original manifest/requested dependency value, including
-  range-only values such as npm caret ranges.
-- `fixed_version`: source-selected fixed version when advisory evidence
-  reports one.
-- `vulnerable_range`: source-reported affected range expression copied from
-  the advisory the reducer's provenance selector picked. Persisted on the
-  canonical finding payload so the findings list, the explain route, and
-  the MCP tools all expose the same expression. Older rows written before
-  remediation computation may omit this value.
+- `observed_version`: exact installed version from lockfile, manifest, SBOM, or image evidence when known.
+- `requested_range`: original manifest/requested dependency value, including range-only values such as npm caret ranges.
+- `fixed_version`: source-selected fixed version when advisory evidence reports one.
+- `vulnerable_range`: source-reported affected range expression copied from the advisory the reducer's provenance selector picked. Persisted on the canonical finding payload so the findings list, the explain route, and
+  the MCP tools all expose the same expression. Older rows written before remediation computation may omit this value.
 - `match_reason`: reducer explanation for the version decision, including
   supported npm, Go module, PyPI, Composer, RubyGems, Cargo, Hex, Pub, Swift,
   NuGet, Maven, and implemented OS package matches; range-only manifests; and
@@ -873,14 +869,16 @@ Priority fields intentionally describe urgency without changing impact truth:
   CISA KEV, advisory age, dependency scope, direct/transitive relationship,
   exact/range-only/missing version evidence, SBOM/image evidence, deployed
   workload evidence, owned repository evidence, and fixed-version availability.
+- `exploited_tier`: additive exploited rank from item 4.5 (#9882): `kev` for
+  CISA KEV, `ssvc_active` for SSVC active exploitation (reserved until 4.1),
+  `epss` for EPSS without an exploited listing, `none` otherwise. Omitted for
+  rows written before the tier existed.
 
 Reachability fields are enrichment and prioritization metadata. They do not
 change `impact_status`, `confidence`, missing-evidence truth, suppression
 state, or readiness:
 
-- `runtime_reachability`: legacy compact signal such as `image_sbom`,
-  `package_manifest`, `symbol_reachable`, `jvm_package_api_reachable`, or
-  `not_called`.
+- `runtime_reachability`: legacy compact signal such as `image_sbom`, `package_manifest`, `symbol_reachable`, `jvm_package_api_reachable`, or `not_called`.
 - `reachability.state`: one of `reachable`, `not_called`, `unknown`,
   `unavailable`, or `missing_evidence`.
 - `reachability.confidence`: confidence in the reachability signal, separate
@@ -1231,9 +1229,9 @@ Older finding facts written before remediation computation landed expose a
 missing `remediation` block; callers must treat that as "no remediation
 computed yet," not "no fix available."
 
-No-Regression Evidence: `go test ./internal/reducer ./internal/query ./internal/mcp ./internal/storage/postgres -run 'TestSupplyChainImpactPriority|TestSupplyChainListImpactFindingsFiltersAndSortsByPriority|TestSupplyChainListImpactFindingsRejectsInvalidPriorityFilters|TestDecodeSupplyChainImpactFindingRowPreservesPriority|TestSupplyChainImpactFindingQuerySupportsPriorityFiltersAndSort|TestResolveRouteMapsSupplyChainImpactPriorityFilters|TestSupplyChainImpactToolSchemaAdvertisesPriorityFilters|TestBootstrapDefinitionsIncludeSupplyChainImpactFactIndexes' -count=1` covers score contribution explainability, truth-preserving missing-evidence behavior, API/MCP priority filters and sorts, query shape, and the priority lookup index. The sorted read remains bounded by active reducer impact facts and pages by `(priority_score, finding_id)`.
+No-Regression Evidence: `go test ./internal/reducer ./internal/query ./internal/mcp ./internal/storage/postgres -run 'TestSupplyChainImpactPriority|TestSupplyChainImpactExploitedTierFixtures|TestSupplyChainImpactExploitedTierOrderHoldsRegardlessOfCVSS|TestSupplyChainImpactExploitedTierNeverPromotesImpactStatus|TestSupplyChainListImpactFindingsFiltersAndSortsByPriority|TestSupplyChainListImpactFindingsRejectsInvalidPriorityFilters|TestDecodeSupplyChainImpactFindingRowPreservesPriority|TestDecodeSupplyChainImpactFindingRowPreservesExploitedTier|TestSupplyChainImpactFindingQuerySupportsPriorityFiltersAndSort|TestResolveRouteMapsSupplyChainImpactPriorityFilters|TestSupplyChainImpactToolSchemaAdvertisesPriorityFilters|TestBootstrapDefinitionsIncludeSupplyChainImpactFactIndexes' -count=1` covers score contribution explainability, tier fixtures, CVSS-independent tier order, the affected_exact guard, truth-preserving missing-evidence behavior, API/MCP priority filters and sorts, query shape, and the priority lookup index. The sorted read remains bounded by active reducer impact facts and pages by `(priority_score, finding_id)`.
 
-No-Observability-Change: priority scoring reuses the existing `SupplyChainImpactFindings` reducer counter, `reducer_supply_chain_impact_finding` fact kind, impact evidence fields, readiness envelope, and `query.supply_chain_impact_findings` request span. No new graph write, queue, worker, metric instrument, or runtime deployment knob is introduced.
+No-Observability-Change: priority scoring and the additive exploited tier reuse the existing `SupplyChainImpactFindings` reducer counter, `reducer_supply_chain_impact_finding` fact kind, impact evidence fields, readiness envelope, and `query.supply_chain_impact_findings` request span. No new graph write, queue, worker, metric instrument, or runtime deployment knob is introduced.
 
 No-Regression Evidence: `go test ./internal/query -run 'Test(SupplyChain.*RepositorySelector|SupplyChainAggregateRoutesRejectInvalidRepositorySelector|SupplyChainListImpactFindingsUsesBoundedStore|SupplyChainListSecurityAlertReconciliationsSeparatesProviderAndEshuState|SecurityAlertReconciliationAggregateSourceFreshnessUsesCurrentFactAlias|PackageRegistryCorrelationsResolveRepositorySelectors|CICDRunCorrelationsResolveRepositorySelectors|CICDRunCorrelationAggregatesResolveRepositorySelectors|ServiceCatalogCorrelationsResolveRepositorySelectors|SupplyChainImpactExplainResolvesRepositorySelectors)' -count=1` covers internal id fast paths, repository name/slug/path resolution, invalid selector errors, provider-only alert scope preservation for repository reads, and bounded API reads for impact findings, impact aggregates, provider security-alert reconciliations, reconciliation aggregates, package registry correlations, CI/CD correlations, service-catalog correlations, and impact explain.
 

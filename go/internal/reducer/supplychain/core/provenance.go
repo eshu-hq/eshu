@@ -109,13 +109,20 @@ func sortedPackageKeys(groups map[string][]supplychainmodel.AffectedPackage) []s
 // representativeAffectedPackage picks the highest-priority source's affected
 // package as the row used for shape fields (ecosystem, package name, purl).
 // Per-source provenance still flows through the AdvisoryProvenanceObservation
-// list so callers do not lose vendor or upstream rows.
+// list so callers do not lose vendor or upstream rows. A fact marked
+// JoinRepresentative wins before source order: it is the best-ranked fact that
+// joins the installed row once the group is narrowed to the facts that join (#9990).
 func representativeAffectedPackage(packages []supplychainmodel.AffectedPackage) supplychainmodel.AffectedPackage {
 	if len(packages) == 0 {
 		return supplychainmodel.AffectedPackage{}
 	}
 	if len(packages) == 1 {
 		return packages[0]
+	}
+	for _, pkg := range packages {
+		if pkg.JoinRepresentative {
+			return pkg
+		}
 	}
 	ecosystem := packageidentity.LowerASCII(strings.TrimSpace(packages[0].Ecosystem))
 	sorted := append([]supplychainmodel.AffectedPackage(nil), packages...)

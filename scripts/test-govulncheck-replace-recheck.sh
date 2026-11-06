@@ -1,0 +1,175 @@
+#!/usr/bin/env bash
+#
+# Executable regression test for scripts/ci/govulncheck-replace-recheck.sh
+# (#10212). It runs the REAL script against stub `go` and `govulncheck`
+# binaries and a throwaway git repo, with canned `govulncheck -mode query`
+# output, and asserts the exit code of every planted case:
+#
+#   green: a known advisory whose regression tests pass with the replacement
+#          and fail on upstream                                  -> exit 0
+#   green: a replaced module with no advisory                    -> exit 0
+#   red:   an advisory ID no test is named for (a NEW finding)   -> exit 1
+#   red:   an advisory that now has a fixed version              -> exit 1
+#   red:   tests that also pass on upstream (no differential)    -> exit 1
+#   red:   dropping the replace breaks the build, not the tests  -> exit 1
+#   red:   tests that fail even with the replacement             -> exit 1
+#   red:   a local-path replace                                  -> exit 1
+#   red:   an advisory ID that is not GO-YYYY-NNNN              -> exit 1
+#   red:   jq is on PATH but fails (exit 127)                    -> exit 1
+#   red:   jq is missing from PATH                               -> exit 1
+#   red:   query output with no recognized envelope (schema drift,
+#          empty, or not JSON) must never read as "no advisory"  -> exit 1
+#   green: the real no-advisory shape (config + progress, no osv) -> exit 0
+set -euo pipefail
+
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+script="${repo_root}/scripts/ci/govulncheck-replace-recheck.sh"
+[ -x "${script}" ] || { printf 'test-govulncheck-replace-recheck: missing executable %s\n' "${script}" >&2; exit 1; }
+command -v jq >/dev/null || { printf 'test-govulncheck-replace-recheck: jq is required\n' >&2; exit 1; }
+
+tmp_root="$(mktemp -d)"
+trap 'rm -rf "${tmp_root}"' EXIT
+failures=0
+fail() { printf 'test-govulncheck-replace-recheck: FAIL: %s\n' "$*" >&2; failures=$((failures + 1)); }
+pass() { printf 'test-govulncheck-replace-recheck: ok: %s\n' "$*"; }
+
+# Stub go: `list -m -json all` prints $STUB_MODULES; `mod edit` is a no-op;
+# `test` consults STUB_REPLACED_TEST for the real go.mod and STUB_UPSTREAM_TEST
+# when -modfile= is passed (pass | fail | build).
+bin="${tmp_root}/bin"
+mkdir -p "${bin}"
+cat >"${bin}/go" <<'STUB'
+#!/usr/bin/env bash
+case "$1" in
+list) cat "${STUB_MODULES}"; exit 0 ;;
+mod) exit 0 ;;
+test)
+	mode="${STUB_REPLACED_TEST}"
+	for arg in "$@"; do
+		case "${arg}" in -modfile=*) mode="${STUB_UPSTREAM_TEST}" ;; esac
+	done
+	case "${mode}" in
+	pass) echo "ok  	example/pkg	0.01s"; exit 0 ;;
+	fail) echo "--- FAIL: TestPlantedGO20266909 (0.00s)"; echo "FAIL"; exit 1 ;;
+	build) echo "FAIL	example/pkg [build failed]"; exit 1 ;;
+	esac ;;
+esac
+exit 2
+STUB
+cat >"${bin}/govulncheck" <<'STUB'
+#!/usr/bin/env bash
+cat "${STUB_QUERY}"
+STUB
+chmod +x "${bin}/go" "${bin}/govulncheck"
+
+# Throwaway module dir inside a git repo, with one test named for GO-2026-6909.
+module="${tmp_root}/repo/mod"
+mkdir -p "${module}/pkg"
+git -C "${tmp_root}/repo" init -q
+printf 'module example\n' >"${module}/go.mod"
+: >"${module}/go.sum"
+cat >"${module}/pkg/x_test.go" <<'EOF'
+package pkg
+
+import "testing"
+
+func TestPlantedGO20266909(t *testing.T) {}
+EOF
+
+replaced_module='{"Path":"example.com/up","Version":"v1.0.0","Replace":{"Path":"example.com/fork","Version":"v1.0.0-fork.1"}}'
+local_module='{"Path":"example.com/up","Version":"v1.0.0","Replace":{"Path":"../fork"}}'
+osv_open='{"osv":{"id":"GO-2026-6909","affected":[{"package":{"name":"example.com/up"},"ranges":[{"type":"SEMVER","events":[{"introduced":"0"}]}]}]}}'
+osv_fixed='{"osv":{"id":"GO-2026-6909","affected":[{"package":{"name":"example.com/up"},"ranges":[{"type":"SEMVER","events":[{"introduced":"0"},{"fixed":"1.1.0"}]}]}]}}'
+osv_badid='{"osv":{"id":"GO-2026-6909.*","affected":[{"package":{"name":"example.com/up"},"ranges":[{"type":"SEMVER","events":[{"introduced":"0"}]}]}]}}'
+osv_unknown='{"osv":{"id":"GO-2026-7777","affected":[{"package":{"name":"example.com/up"},"ranges":[{"type":"SEMVER","events":[{"introduced":"0"}]}]}]}}'
+# Envelope copied from a real `govulncheck -mode query -format json` run
+# (scanner v1.6.0, protocol v1.0.0): a config message, a progress message, and
+# one osv message per advisory. A query with no advisory is the first two only.
+config='{"config":{"protocol_version":"v1.0.0","scanner_name":"govulncheck","scanner_version":"v1.6.0","db":"https://vuln.go.dev","db_last_modified":"2026-11-05T23:49:57Z","scan_level":"symbol","scan_mode":"query"}}
+{"progress":{"message":"Looking up vulnerabilities in example.com/up at v1.0.0..."}}'
+
+# jq that is found on PATH but fails, as a broken install or a half-restored
+# runner image would. The script must go red, not report "0 replaced modules".
+badjq_bin="${tmp_root}/badjq-bin"
+mkdir -p "${badjq_bin}"
+printf '#!/usr/bin/env bash\necho "jq: command not found" >&2\nexit 127\n' >"${badjq_bin}/jq"
+chmod +x "${badjq_bin}/jq"
+
+# PATH with every tool the script needs except jq, to prove the up-front check.
+nojq_bin="${tmp_root}/nojq-bin"
+mkdir -p "${nojq_bin}"
+for tool in bash env git mktemp rm sort paste dirname cat mkdir cp grep; do
+	ln -s "$(command -v "${tool}")" "${nojq_bin}/${tool}"
+done
+ln -s "${bin}/go" "${nojq_bin}/go"
+ln -s "${bin}/govulncheck" "${nojq_bin}/govulncheck"
+
+# run_case <name> <want-exit> <modules-json> <query-json-or-empty> <replaced-test> <upstream-test> <want-message>
+# want-message must appear in the output, so a red case cannot pass for the
+# wrong reason.
+run_case() {
+	local name="$1" want="$2" modules="$3" osv="$4" replaced="$5" upstream="$6" msg="$7" got out
+	printf '%s\n' "${modules}" >"${tmp_root}/modules.json"
+	if [ -n "${RAW_QUERY+x}" ]; then
+		# RAW_QUERY replaces the whole govulncheck output, even when empty.
+		printf '%s' "${RAW_QUERY}" >"${tmp_root}/query.json"
+	elif [ -n "${osv}" ]; then
+		printf '%s\n%s\n' "${config}" "${osv}" >"${tmp_root}/query.json"
+	else
+		printf '%s\n' "${config}" >"${tmp_root}/query.json"
+	fi
+	out="${tmp_root}/out.txt"
+	set +e
+	PATH="${CASE_PATH:-${bin}:${PATH}}" STUB_MODULES="${tmp_root}/modules.json" STUB_QUERY="${tmp_root}/query.json" \
+		STUB_REPLACED_TEST="${replaced}" STUB_UPSTREAM_TEST="${upstream}" \
+		bash "${script}" "${module}" >"${out}" 2>&1
+	got=$?
+	set -e
+	if [ "${got}" -ne "${want}" ]; then
+		cat "${out}" >&2
+		fail "${name}: exit ${got}, want ${want}"
+		return
+	fi
+	if ! grep -q -F -e "${msg}" "${out}"; then
+		cat "${out}" >&2
+		fail "${name}: output missing ${msg}"
+		return
+	fi
+	pass "${name} (exit ${got})"
+}
+
+run_case "known advisory with a holding differential is green" 0 "${replaced_module}" "${osv_open}" pass fail "tests pass with the replacement and fail on upstream"
+run_case "replaced module with no advisory is green" 0 "${replaced_module}" "" pass pass "no advisory against the original module"
+run_case "unknown advisory ID with no named test is red" 1 "${replaced_module}" "${osv_unknown}" pass fail "no Go test is named for it"
+run_case "advisory with a fixed version is red" 1 "${replaced_module}" "${osv_fixed}" pass fail "has a fixed version"
+run_case "tests that pass on upstream are red" 1 "${replaced_module}" "${osv_open}" pass pass "PASS on upstream"
+run_case "build break instead of test failure is red" 1 "${replaced_module}" "${osv_open}" pass build "broke the build instead of failing the tests"
+run_case "tests that fail with the replacement are red" 1 "${replaced_module}" "${osv_open}" fail fail "regression tests fail with the replacement in place"
+run_case "local-path replace is red" 1 "${local_module}" "" pass pass "replaced by a local path"
+run_case "malformed advisory ID is red" 1 "${replaced_module}" "${osv_badid}" pass fail "is not of the form GO-YYYY-NNNN"
+CASE_PATH="${badjq_bin}:${bin}:${PATH}" run_case "jq that fails is red, not zero modules" 1 "${replaced_module}" "${osv_open}" pass fail "jq failed while listing replaced modules"
+CASE_PATH="${nojq_bin}" run_case "missing jq is red" 1 "${replaced_module}" "${osv_open}" pass fail "required tool not found on PATH: jq"
+
+# Schema-drift guard: the advisory list is read from top-level osv messages. If
+# govulncheck changes its output so none is found, that must go red instead of
+# reading as "no advisory". Each payload below carries an advisory the script
+# would otherwise miss, or nothing at all.
+drift_json='{"config":{"protocol_version":"v2.0.0","scanner_name":"govulncheck","scan_mode":"query"}}
+{"vulnerability":{"id":"GO-2026-6909"}}'
+nomarker_json='{"progress":{"message":"Looking up vulnerabilities in example.com/up at v1.0.0..."}}
+{"advisory":{"id":"GO-2026-6909"}}'
+unknown_key_json="${config}
+${osv_open}
+{\"sbom\":{\"id\":\"x\"}}"
+RAW_QUERY="${drift_json}" run_case "changed protocol version is red, not no advisory" 1 "${replaced_module}" "" pass pass "unrecognized govulncheck query output"
+RAW_QUERY="${nomarker_json}" run_case "valid JSON without the config marker is red" 1 "${replaced_module}" "" pass pass "unrecognized govulncheck query output"
+RAW_QUERY="${unknown_key_json}" run_case "an unknown message type is red" 1 "${replaced_module}" "" pass pass "unknown message type"
+RAW_QUERY="" run_case "empty query output is red" 1 "${replaced_module}" "" pass pass "produced no output"
+RAW_QUERY="govulncheck: something went wrong" run_case "non-JSON query output is red" 1 "${replaced_module}" "" pass pass "is not valid JSON"
+RAW_QUERY='[1,2]' run_case "a non-object JSON value is red" 1 "${replaced_module}" "" pass pass "unrecognized govulncheck query output"
+
+if [ "${failures}" -gt 0 ]; then
+	printf 'test-govulncheck-replace-recheck: %d failure(s)\n' "${failures}" >&2
+	exit 1
+fi
+printf 'test-govulncheck-replace-recheck: all checks passed\n'
