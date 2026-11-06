@@ -36,7 +36,10 @@ while [[ $# -gt 0 ]]; do [[ "$1" == -run ]] && pattern="$2"; shift; done
 printf '%s\n' "${pkg}" >>"${ESHU_FAKE_DIR}/calls"
 # One process checks the pattern and selects the events. A bash [[ =~ ]] loop
 # recompiled the largest package's 28 KB pattern per name and per line (#10238).
-selected="$(python3 "${ESHU_FAKE_EVENTS}" "${pattern}" "${ESHU_FAKE_DIR}/${key}.names" "${ESHU_FAKE_DIR}/${key}.jsonl")"; rc=$?
+# The selection goes to a file the fake cats at the end: $(...) would strip
+# trailing blank lines the event verifier must see as corruption.
+selected="${ESHU_FAKE_DIR}/${key}.sel.$$"; trap 'rm -f "${selected}"' EXIT
+python3 "${ESHU_FAKE_EVENTS}" "${pattern}" "${ESHU_FAKE_DIR}/${key}.names" "${ESHU_FAKE_DIR}/${key}.jsonl" >"${selected}"; rc=$?
 [[ "${rc}" -eq 0 ]] || exit "${rc}"
 EOF
 cat >>"${seed_dir}/bin/go" <<'EOF'
@@ -56,7 +59,7 @@ cat >>"${seed_dir}/bin/go" <<'EOF'
 done <"${ESHU_FAKE_DIR}/envs"
 EOF
 cat >>"${seed_dir}/bin/go" <<'EOF'
-[[ -z "${selected}" ]] || printf '%s\n' "${selected}"
+cat "${selected}"
 if [[ -f "${ESHU_FAKE_DIR}/${key}.exit" ]]; then exit "$(cat "${ESHU_FAKE_DIR}/${key}.exit")"; fi
 exit 0
 EOF
@@ -166,6 +169,9 @@ check_batched_package_failures
 # A package that exits nonzero fails the run and names that package; the
 # other packages still run so one CI run reports every broken proof.
 check_package_exits
+
+# A blank line in an event stream is corrupt and fails its package.
+check_blank_event_line
 
 # A package that exits nonzero preserves its event stream and stderr for
 # post-mortem: the death point (mid-test cutoff vs exact-name omission) is

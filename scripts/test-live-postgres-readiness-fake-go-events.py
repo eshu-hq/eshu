@@ -26,16 +26,21 @@ TERMINAL = '{"Action":"pass","Package":"example.test/pkg","Elapsed":1.0}'
 
 
 def select(helper: pathlib.Path, pattern: str, names: list[str], events: str):
-    """Run a selector copy and return its status, stderr, and selected lines."""
+    """Run a selector copy and return its status, stderr, and raw stdout bytes."""
     with tempfile.TemporaryDirectory() as temp:
         root = pathlib.Path(temp)
         (root / "names").write_text("".join(f"{n}\n" for n in names), encoding="utf-8")
-        (root / "events").write_text(events, encoding="utf-8")
+        (root / "events").write_bytes(events.encode())
         done = subprocess.run(
             [sys.executable, str(helper), pattern, str(root / "names"),
              str(root / "events")],
-            capture_output=True, text=True, check=False)
-        return done.returncode, done.stderr, done.stdout.splitlines()
+            capture_output=True, check=False)
+        return done.returncode, done.stderr.decode(), done.stdout
+
+
+def out(*lines: str) -> bytes:
+    """Return the exact bytes a selector run prints for the given lines."""
+    return b"".join(line.encode() + b"\n" for line in lines)
 
 
 def stream(*lines: str, last_newline: bool = True) -> str:
@@ -53,32 +58,44 @@ def problems(helper: pathlib.Path) -> list[str]:
 
     clean = stream(*(f % n for n in NAMES for f in (RUN, PASS)), TERMINAL)
     status, _, lines = select(helper, PATTERN, NAMES, clean)
-    expect("clean stream", (status, len(lines)), (0, 7))
+    expect("clean stream", (status, lines.count(b"\n")), (0, 7))
     # A line naming no test is kept (the package terminal, blanks, noise).
     _, _, lines = select(helper, PATTERN, NAMES, stream(TERMINAL, "", "plain text"))
-    expect("lines with no test name", lines, [TERMINAL, "", "plain text"])
+    expect("lines with no test name", lines, out(TERMINAL, "", "plain text"))
     # A test outside the enrolled set is kept: the pattern never selected it,
     # so the stream must still carry it for the verifier to reject.
     stranger = stream(RUN % "TestStranger", PASS % "TestStranger")
     _, _, lines = select(helper, PATTERN, NAMES, stranger)
-    expect("test outside the enrolled set", len(lines), 2)
+    expect("test outside the enrolled set", lines, out(RUN % "TestStranger", PASS % "TestStranger"))
     # An enrolled test the pattern does not select is dropped, with its events.
     _, _, lines = select(helper, "^(TestAlpha|TestGamma)$", NAMES,
                          stream(RUN % "TestBeta", PASS % "TestBeta", RUN % "TestAlpha"))
-    expect("enrolled test the pattern skips", lines, [RUN % "TestAlpha"])
+    expect("enrolled test the pattern skips", lines, out(RUN % "TestAlpha"))
     # A subtest name outside the enrolled set is kept like any other stranger.
     _, _, lines = select(helper, "^(TestAlpha)$", NAMES, stream(RUN % "TestBeta/case two"))
-    expect("unenrolled subtest", lines, [RUN % "TestBeta/case two"])
+    expect("unenrolled subtest", lines, out(RUN % "TestBeta/case two"))
     # An enrolled subtest follows its parent: kept when the parent is selected,
     # dropped when it is not. Only the first slash splits parent from subtest.
     subs = ["TestAlpha", "TestAlpha/a/b", "TestBeta", "TestBeta/c"]
     _, _, lines = select(helper, "^(TestAlpha)$", subs,
                          stream(RUN % "TestAlpha/a/b", RUN % "TestBeta/c"))
-    expect("enrolled subtests", lines, [RUN % "TestAlpha/a/b"])
+    expect("enrolled subtests", lines, out(RUN % "TestAlpha/a/b"))
     # A final line with no newline is dropped, as a bash read loop drops it.
     _, _, lines = select(helper, PATTERN, NAMES,
                          stream(RUN % "TestAlpha", PASS % "TestAlpha", last_newline=False))
-    expect("unterminated last line", lines, [RUN % "TestAlpha"])
+    expect("unterminated last line", lines, out(RUN % "TestAlpha"))
+    # The output is byte-exact: every kept line ends in a newline, and blank
+    # lines survive at the end, alone, and between events, as the old bash
+    # loop printed them. The self-test's verifier treats a blank line as a
+    # corrupt stream, so dropping one would hide that fault (#10238).
+    _, _, lines = select(helper, PATTERN, NAMES, stream(RUN % "TestAlpha", "", ""))
+    expect("trailing blank lines", lines, out(RUN % "TestAlpha", "", ""))
+    _, _, lines = select(helper, PATTERN, NAMES, stream("", ""))
+    expect("only blank lines", lines, b"\n\n")
+    _, _, lines = select(helper, PATTERN, NAMES, stream(RUN % "TestAlpha", "", PASS % "TestAlpha"))
+    expect("interior blank line", lines, out(RUN % "TestAlpha", "", PASS % "TestAlpha"))
+    _, _, lines = select(helper, PATTERN, NAMES, "")
+    expect("empty stream", lines, b"")
     # The call is rejected with status 9 when the pattern selects no enrolled
     # name, when it is not anchored, and when it is not a regular expression.
     status, err, _ = select(helper, "^(TestNope)$", NAMES, clean)
@@ -98,6 +115,8 @@ MUTATIONS = {
         'or (b"/" in test and pattern.search(test.split(b"/", 1)[0]))', ""),
     "subtest-uses-last-slash": ('test.split(b"/", 1)[0]', 'test.rsplit(b"/", 1)[0]'),
     "drops-lines-without-test": ("if (test is None or pattern.search(test)", "if (pattern.search(test or b'')"),
+    "joins-without-final-newline": (
+        'b"".join(line + b"\\n" for line in selected)', 'b"\\n".join(selected)'),
     "keeps-unterminated-line": ("    lines.pop()\n", ""),
     "decoy-unchecked": ("if pattern.search(DECOY.encode()):", "if False:"),
     "empty-selection-passes": ("if not any(pattern.search(name) for name in names):", "if False:"),
