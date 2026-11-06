@@ -1,0 +1,16 @@
+docs/internal/9669-flip-prep/flip-mechanics-draft.md
+  h_78a442cba0b3e6 11-17,55,68-69
+docs/internal/9669-flip-prep/mcp-query-dependency-inventory.md
+  h_78a442cba0b3e6 25-28,33-34,36-37,40-63,167-169
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "34471d74acde166ec43095169ea1f592d9cd63c0",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
