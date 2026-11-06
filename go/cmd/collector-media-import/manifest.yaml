@@ -8,6 +8,13 @@
 # The satellite speaks collector-sdk/v1alpha1 over stdio (--sdk-stdio):
 # one host claim drains the activation artifact dir through the pinned
 # whisper.cpp backend and acks with the drained transcript facts.
+#
+# Consumer contract is registry-derived, not invented: documentation
+# document 1.0.0 and documentation section 1.1.0 both carry ReducerDomain
+# documentation_materialization in
+# go/internal/facts/fact_kind_registry.generated.go, so the reducer phases
+# name it. These facts project graph truth like the document-import
+# satellite's; source_evidence_only would be a lie here.
 apiVersion: eshu.dev/v1alpha1
 kind: ComponentPackage
 metadata:
@@ -47,6 +54,6 @@ spec:
   consumerContracts:
     reducer:
       phases:
-        - source_evidence_only:no_graph_truth
+        - documentation_materialization
   telemetry:
     metricsPrefix: eshu_dp_media_transcript_

@@ -37,6 +37,8 @@ spec:
   artifacts:
     - platform: linux/amd64
       image: ghcr.io/eshu-hq/eshu-collector-document-import@sha256:0000000000000000000000000000000000000000000000000000000000000000
+    - platform: linux/arm64
+      image: ghcr.io/eshu-hq/eshu-collector-document-import@sha256:1111111111111111111111111111111111111111111111111111111111111111
   emittedFacts:
     - kind: documentation_document
       payloadSchemaRef: documentation_document
@@ -85,7 +87,7 @@ func TestSeedWritesCollectorAndManifest(t *testing.T) {
 	manifest := seedTestManifest(t, work)
 	dest := filepath.Join(work, "dest")
 
-	if err := seedComponent(dest, seedTestRef, binary, manifest); err != nil {
+	if err := seedComponent(dest, seedTestRef, binary, manifest, "linux/amd64"); err != nil {
 		t.Fatalf("seedComponent: %v", err)
 	}
 	gotBinary, err := os.ReadFile(filepath.Join(dest, "collector"))
@@ -110,14 +112,24 @@ func TestSeedWritesCollectorAndManifest(t *testing.T) {
 	if err := yaml.Unmarshal(raw, &stamped); err != nil {
 		t.Fatalf("decode dest manifest: %v", err)
 	}
-	if len(stamped.Spec.Artifacts) != 1 {
-		t.Fatalf("dest artifacts = %d, want 1", len(stamped.Spec.Artifacts))
+	if len(stamped.Spec.Artifacts) != 2 {
+		t.Fatalf("dest artifacts = %d, want 2 (amd64+arm64)", len(stamped.Spec.Artifacts))
 	}
-	if stamped.Spec.Artifacts[0].Image != seedTestRef {
-		t.Fatalf("dest image = %q, want %q", stamped.Spec.Artifacts[0].Image, seedTestRef)
+	for _, entry := range stamped.Spec.Artifacts {
+		if entry.Platform == "linux/amd64" {
+			if entry.Image != seedTestRef {
+				t.Fatalf("dest amd64 image = %q, want %q", entry.Image, seedTestRef)
+			}
+			continue
+		}
+		if entry.Image != "ghcr.io/eshu-hq/eshu-collector-document-import@sha256:1111111111111111111111111111111111111111111111111111111111111111" {
+			t.Fatalf("dest sibling platform %q image moved = %q, want it byte-identical", entry.Platform, entry.Image)
+		}
 	}
-	if err := stamped.Spec.Artifacts[0].Validate(); err != nil {
-		t.Fatalf("dest artifact fails the digest gate: %v", err)
+	for _, entry := range stamped.Spec.Artifacts {
+		if err := entry.Validate(); err != nil {
+			t.Fatalf("dest artifact fails the digest gate: %v", err)
+		}
 	}
 	if stamped.Metadata.ID != componentID {
 		t.Fatalf("dest id = %q, want %q", stamped.Metadata.ID, componentID)
@@ -130,12 +142,13 @@ func TestSeedRefusesNonDigestRef(t *testing.T) {
 	t.Parallel()
 
 	refs := map[string]string{
-		"tag only":      "ghcr.io/eshu-hq/eshu-document-import:latest",
-		"bare repo":     "ghcr.io/eshu-hq/eshu-document-import",
+		"tag only":      "ghcr.io/eshu-hq/eshu-collector-document-import:latest",
+		"bare repo":     "ghcr.io/eshu-hq/eshu-collector-document-import",
 		"short digest":  "ghcr.io/eshu-hq/eshu-collector-document-import@sha256:abc123",
 		"empty":         "",
 		"wrong algo":    "ghcr.io/eshu-hq/eshu-collector-document-import@sha512:9b766668cec1b7fe5901716e2fd4df14b98dbb2a049c646674370ff7f56bb495",
 		"trailing junk": seedTestRef + "-extra",
+		"foreign repo":  "ghcr.io/eshu-hq/eshu-collector-media-import@sha256:9b766668cec1b7fe5901716e2fd4df14b98dbb2a049c646674370ff7f56bb495",
 	}
 	for name, ref := range refs {
 		t.Run(name, func(t *testing.T) {
@@ -146,7 +159,7 @@ func TestSeedRefusesNonDigestRef(t *testing.T) {
 			manifest := seedTestManifest(t, work)
 			dest := filepath.Join(work, "dest")
 
-			err := seedComponent(dest, ref, binary, manifest)
+			err := seedComponent(dest, ref, binary, manifest, "linux/amd64")
 			if err == nil {
 				t.Fatalf("seedComponent(%q): got nil error, want a digest refusal", ref)
 			}
@@ -154,6 +167,46 @@ func TestSeedRefusesNonDigestRef(t *testing.T) {
 				t.Fatalf("seedComponent(%q) wrote %d dest entries, want a closed failure with none", ref, len(entries))
 			}
 		})
+	}
+}
+
+// TestSeedRefusesMissingPlatform proves a manifest with no entry for the
+// seed runner's platform fails closed with an empty destination, instead of
+// stamping the digest into another arch's slot.
+func TestSeedRefusesMissingPlatform(t *testing.T) {
+	t.Parallel()
+
+	work := t.TempDir()
+	binary := seedTestBinary(t, work, []byte("fake-collector-bytes"))
+	raw := `apiVersion: eshu.dev/v1alpha1
+kind: ComponentPackage
+metadata:
+  id: dev.eshu.collector.document_import
+  name: Document import collector test
+  publisher: eshu-hq
+  version: 0.1.0
+spec:
+  runtime:
+    sdkProtocol: collector-sdk/v1alpha1
+    adapter: process
+  artifacts:
+    - platform: linux/amd64
+      image: ghcr.io/eshu-hq/eshu-collector-document-import@sha256:0000000000000000000000000000000000000000000000000000000000000000
+`
+	manifest := filepath.Join(work, "manifest.yaml")
+	if err := os.WriteFile(manifest, []byte(raw), 0o600); err != nil {
+		t.Fatalf("write test manifest: %v", err)
+	}
+	dest := filepath.Join(work, "dest")
+
+	err := seedComponent(dest, seedTestRef, binary, manifest, "linux/arm64")
+	if err == nil {
+		t.Fatal("seedComponent for a missing platform: got nil error, want a failure")
+	} else if !strings.Contains(err.Error(), "linux/arm64") {
+		t.Fatalf("seedComponent error = %q, want it to name the missing platform", err)
+	}
+	if entries, _ := os.ReadDir(dest); len(entries) != 0 {
+		t.Fatalf("seedComponent wrote %d dest entries, want a closed failure with none", len(entries))
 	}
 }
 
@@ -166,10 +219,10 @@ func TestSeedRefusesMissingInputs(t *testing.T) {
 	binary := seedTestBinary(t, work, []byte("fake-collector-bytes"))
 	manifest := seedTestManifest(t, work)
 
-	if err := seedComponent(filepath.Join(work, "d1"), seedTestRef, filepath.Join(work, "missing"), manifest); err == nil {
+	if err := seedComponent(filepath.Join(work, "d1"), seedTestRef, filepath.Join(work, "missing"), manifest, "linux/amd64"); err == nil {
 		t.Fatal("seedComponent with a missing binary: got nil error, want a failure")
 	}
-	if err := seedComponent(filepath.Join(work, "d2"), seedTestRef, binary, filepath.Join(work, "missing.yaml")); err == nil {
+	if err := seedComponent(filepath.Join(work, "d2"), seedTestRef, binary, filepath.Join(work, "missing.yaml"), "linux/amd64"); err == nil {
 		t.Fatal("seedComponent with a missing manifest: got nil error, want a failure")
 	}
 }

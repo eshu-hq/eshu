@@ -149,4 +149,10 @@ func TestSeedManifestEmittedFacts(t *testing.T) {
 			}
 		}
 	}
+	// The reducer contract is registry-derived and kind-global: both
+	// documentation kinds carry ReducerDomain documentation_materialization,
+	// so the phases name it. source_evidence_only would be a lie here.
+	if phases := manifest.Spec.ConsumerContracts.Reducer.Phases; len(phases) != 1 || phases[0] != "documentation_materialization" {
+		t.Fatalf("manifest reducer phases = %q, want [documentation_materialization]", phases)
+	}
 }

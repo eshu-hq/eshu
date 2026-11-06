@@ -53,8 +53,12 @@ pinned stages and adds the seed contract surface: `/usr/local/bin/collector`
 the manifest entry to the pushed digest.
 
 `collector seed --dest <dir> --image-ref <repo@sha256:…>` materializes the
-seed payload (binary as `collector`, manifest as `manifest.yaml`) and fails
-closed on any non-digest reference, leaving no partial payload.
+seed payload (binary as `collector`, manifest as `manifest.yaml` with the
+passed digest stamped into the artifact entry for the seed runner's
+platform) and fails closed on any non-digest reference, any reference
+outside this component's own seed repository, or a manifest with no entry
+for the runner's platform — leaving no partial payload. Sibling platform
+slots are left byte-identical.
 
 `--sdk-stdio` serves one host claim: the claim's generation drains through
 the existing source and drain into an in-memory capture, the envelopes

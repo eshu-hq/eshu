@@ -13,8 +13,9 @@
 # name it. Unlike the synthetic window emitter, these facts project graph
 # truth; source_evidence_only would be a lie here.
 #
-# Pin-fill protocol: artifacts[0].image is the content digest of the seed
-# image Dockerfile.seed builds (see image-provenance.md). An all-zeros
+# Pin-fill protocol: each artifacts[].image is the content digest of the
+# seed image Dockerfile.seed builds for that platform (see
+# image-provenance.md). An all-zeros
 # value below is the pre-pin placeholder the image build COPYs: the
 # in-image /manifest.yaml copy keeps the pre-pin bytes by construction
 # (the image cannot contain its own digest), and only the repository file

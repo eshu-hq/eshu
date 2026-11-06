@@ -20,7 +20,7 @@
 #
 # Pin-fill protocol (the image cannot contain its own digest): the COPY of
 # manifest.yaml below carries the pre-pin bytes, so the in-image copy's
-# artifacts[0].image is informational only. The authoritative pin is the
+# artifacts[].image entries are informational only. The authoritative pin is the
 # repository manifest.yaml (filled with this build's content digest, see
 # image-provenance.md) and the destination copies `collector seed`
 # stamps at deploy time. Do NOT rebuild after the pin fill: a rebuild
@@ -88,9 +88,9 @@ COPY --from=caller --chmod=755 /go-bin/collector /usr/local/bin/collector
 RUN ln -s /usr/local/bin/collector /usr/local/bin/eshu-collector-document-import \
     && ln -s /usr/local/bin/collector /collector
 # Installed manifest for the --sdk-stdio adapter (identity, contract, and
-# grant scopes). The artifacts[0].image it carries is the pre-pin value;
-# see the header: the authoritative pin lives in the repository manifest
-# and in the copies `collector seed` stamps.
+# grant scopes). The artifacts[].image entries it carries are the pre-pin
+# values; see the header: the authoritative pin lives in the repository
+# manifest and in the copies `collector seed` stamps.
 COPY go/cmd/collector-document-import/manifest.yaml /manifest.yaml
 # Build-time digest gate over the binary, the runtime shared-object set,
 # and the model (identical to the satellite Dockerfile gate).

@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -23,6 +24,11 @@ import (
 const (
 	componentID      = "dev.eshu.collector.document_import"
 	componentVersion = "0.1.0"
+	// seedImageRepo is the only repository the seed stamp accepts. A
+	// well-formed digest from any other repo is refused: the installed
+	// manifest must name the bytes kubelet actually pulled for this
+	// component, never a foreign image.
+	seedImageRepo = "ghcr.io/eshu-hq/eshu-collector-document-import"
 	// installedManifestPath is the manifest copy the seed image carries.
 	// The seed subcommand copies it into the activation destination with
 	// the built image digest stamped in.
@@ -56,12 +62,13 @@ func parseSeedArgs(args []string) (dest string, imageRef string, err error) {
 }
 
 // seedComponent copies the caller binary and the installed manifest into
-// dest, stamping imageRef into the manifest copy's first artifact. The
-// reference is validated through the shared component artifact gate before
-// anything is written, so a non-digest ref leaves dest untouched. The
-// manifest edit preserves the source document's comments by rewriting only
-// the image scalar.
-func seedComponent(dest, imageRef, collectorSrc, manifestSrc string) error {
+// dest, stamping imageRef into the manifest copy's artifact for platform.
+// The reference must name this component's own repository and pass the
+// shared component artifact gate before anything is written, so a foreign
+// or non-digest ref leaves dest untouched. The manifest edit preserves the
+// source document's comments by rewriting only the image scalar; sibling
+// platform slots are left byte-identical.
+func seedComponent(dest, imageRef, collectorSrc, manifestSrc, platform string) error {
 	raw, err := os.ReadFile(manifestSrc)
 	if err != nil {
 		return fmt.Errorf("read seed manifest %q: %w", manifestSrc, err)
@@ -77,14 +84,16 @@ func seedComponent(dest, imageRef, collectorSrc, manifestSrc string) error {
 	if err := yaml.Unmarshal(raw, &document); err != nil {
 		return fmt.Errorf("decode seed manifest %q: %w", manifestSrc, err)
 	}
-	artifact, err := seedArtifactNode(&document)
+	artifact, err := seedArtifactNodeForPlatform(&document, platform)
 	if err != nil {
 		return fmt.Errorf("seed manifest %q: %w", manifestSrc, err)
 	}
-	platform := seedScalar(artifact, "platform")
 	image := seedMappingValue(artifact, "image")
 	if image == nil || image.Kind != yaml.ScalarNode {
-		return fmt.Errorf("seed manifest %q declares no spec.artifacts[0].image to stamp", manifestSrc)
+		return fmt.Errorf("seed manifest %q declares no spec.artifacts image for platform %q to stamp", manifestSrc, platform)
+	}
+	if repo := seedImageRepoOfRef(imageRef); repo != seedImageRepo {
+		return fmt.Errorf("collector seed --image-ref %q: repo %q is not this component's seed repository %q", imageRef, repo, seedImageRepo)
 	}
 	candidate := component.Artifact{Platform: platform, Image: imageRef}
 	if err := candidate.Validate(); err != nil {
@@ -127,18 +136,55 @@ func seedComponent(dest, imageRef, collectorSrc, manifestSrc string) error {
 	if verified.Metadata.ID != componentID {
 		return fmt.Errorf("stamped manifest %q is component %q, want %q", manifestDest, verified.Metadata.ID, componentID)
 	}
-	if err := verified.Spec.Artifacts[0].Validate(); err != nil {
-		return fmt.Errorf("stamped manifest %q: %w", manifestDest, err)
+	matched := false
+	for _, entry := range verified.Spec.Artifacts {
+		if entry.Platform == platform {
+			matched = true
+			if err := entry.Validate(); err != nil {
+				return fmt.Errorf("stamped manifest %q: %w", manifestDest, err)
+			}
+			if entry.Image != imageRef {
+				return fmt.Errorf("stamped manifest %q image = %q, want %q", manifestDest, entry.Image, imageRef)
+			}
+			continue
+		}
+		if want := seedSourceImage(manifest, entry.Platform); entry.Image != want {
+			return fmt.Errorf("stamped manifest %q moved sibling platform %q image = %q, want %q", manifestDest, entry.Platform, entry.Image, want)
+		}
 	}
-	if verified.Spec.Artifacts[0].Image != imageRef {
-		return fmt.Errorf("stamped manifest %q image = %q, want %q", manifestDest, verified.Spec.Artifacts[0].Image, imageRef)
+	if !matched {
+		return fmt.Errorf("stamped manifest %q declares no artifact for platform %q", manifestDest, platform)
 	}
 	return nil
 }
 
-// seedArtifactNode locates spec.artifacts[0] in a decoded manifest
-// document for the seed stamp.
-func seedArtifactNode(document *yaml.Node) (*yaml.Node, error) {
+// seedImageRepoOfRef returns the repository half of a repo@digest reference,
+// or "" when the reference has no digest separator.
+func seedImageRepoOfRef(imageRef string) string {
+	repo, _, found := strings.Cut(imageRef, "@")
+	if !found {
+		return ""
+	}
+	return strings.TrimSpace(repo)
+}
+
+// seedSourceImage returns the image the source manifest pins for platform,
+// or "" when the source declares none.
+func seedSourceImage(manifest component.Manifest, platform string) string {
+	for _, entry := range manifest.Spec.Artifacts {
+		if entry.Platform == platform {
+			return entry.Image
+		}
+	}
+	return ""
+}
+
+// seedArtifactNodeForPlatform locates the spec.artifacts entry for platform
+// in a decoded manifest document for the seed stamp. Every real reader is
+// platform-matched (the host OCI picker, the helm contract test), so a
+// positional first-slot stamp would write one arch's digest into another
+// arch's slot.
+func seedArtifactNodeForPlatform(document *yaml.Node, platform string) (*yaml.Node, error) {
 	if document == nil || len(document.Content) == 0 {
 		return nil, fmt.Errorf("manifest document is empty")
 	}
@@ -151,11 +197,15 @@ func seedArtifactNode(document *yaml.Node) (*yaml.Node, error) {
 	if artifacts == nil || artifacts.Kind != yaml.SequenceNode || len(artifacts.Content) == 0 {
 		return nil, fmt.Errorf("manifest declares no spec.artifacts to stamp")
 	}
-	first := artifacts.Content[0]
-	if first.Kind != yaml.MappingNode {
-		return nil, fmt.Errorf("manifest spec.artifacts[0] is not a mapping")
+	for _, entry := range artifacts.Content {
+		if entry.Kind != yaml.MappingNode {
+			continue
+		}
+		if seedScalar(entry, "platform") == platform {
+			return entry, nil
+		}
 	}
-	return first, nil
+	return nil, fmt.Errorf("manifest declares no spec.artifacts entry for platform %q", platform)
 }
 
 // seedMappingValue returns the value for key in a mapping node, or nil.
@@ -182,7 +232,9 @@ func seedScalar(node *yaml.Node, key string) string {
 
 // runSeedCommand runs `collector seed --dest <dir> --image-ref
 // <repo@sha256:…>` against the running binary and the installed manifest.
-// It is the entry the satellite seed init container invokes.
+// It is the entry the satellite seed init container invokes. The platform
+// is the seed runner's own arch, so tests pin each arch deterministically
+// by calling seedComponent directly.
 func runSeedCommand(args []string) error {
 	dest, imageRef, err := parseSeedArgs(args)
 	if err != nil {
@@ -192,7 +244,7 @@ func runSeedCommand(args []string) error {
 	if err != nil {
 		return fmt.Errorf("collector seed resolves the caller binary: %w", err)
 	}
-	return seedComponent(dest, imageRef, self, installedManifestPath)
+	return seedComponent(dest, imageRef, self, installedManifestPath, runtime.GOOS+"/"+runtime.GOARCH)
 }
 
 // copySeedFile copies one file with the given mode, failing closed when the
