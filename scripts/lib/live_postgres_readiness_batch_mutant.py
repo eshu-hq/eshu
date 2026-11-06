@@ -29,8 +29,7 @@ NEW_ORDER = """check_batched_package_failures
 check_each_proof
 """
 CALLBACK_ANCHOR = (
-    'printf \'%s\\n\' "${pkg}" >>"${ESHU_FAKE_DIR}/calls"; '
-    'declare -A enrolled; matched=0\n'
+    'printf \'%s\\n\' "${pkg}" >>"${ESHU_FAKE_DIR}/calls"\n'
 )
 CALLBACK_REPLACEMENT = r'''if [[ "${pkg}" == "${ESHU_SEED_MIDDLE}" ]] &&
   ! rg -qF '"Test":' "${ESHU_FAKE_DIR}/${ESHU_SEED_FIRST_KEY}.jsonl" &&
@@ -39,7 +38,6 @@ CALLBACK_REPLACEMENT = r'''if [[ "${pkg}" == "${ESHU_SEED_MIDDLE}" ]] &&
 else
   printf '%s\n' "${pkg}" >>"${ESHU_FAKE_DIR}/calls"
 fi
-declare -A enrolled; matched=0
 '''
 WRAPPER = r'''#!/usr/bin/env bash
 set -u

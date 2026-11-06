@@ -53,6 +53,26 @@ check_cases() {
   has "${out}" "CANCELLED BEFORE THE CAP" && has "${out}" "concurrency" || return 1
   out="$(run_case "${script}" cancelled 599 10)" || return 1
   has "${out}" "CANCELLED BY THE TIME CAP" && has "${out}" "10-minute cap" || return 1
+  # A passing job reports its measured minutes against the cap and the
+  # minutes left, not only seconds and a percentage (#10238).
+  out="$(run_case "${script}" success 1410)" || return 1
+  has "${out}" "Ran 1410s (23.5 minutes), 78% of the 30-minute cap, 6.5 minutes of headroom." || return 1
+  out="$(run_case "${script}" success 300)" || return 1
+  has "${out}" "Ran 300s (5.0 minutes), 16% of the 30-minute cap, 25.0 minutes of headroom." || return 1
+  # The cancel and failure verdicts report minutes too.
+  out="$(run_case "${script}" cancelled 1795)" || return 1
+  has "${out}" "ran 1795s (29.9 minutes)" || return 1
+  out="$(run_case "${script}" failure 120)" || return 1
+  has "${out}" "after 120s (2.0 minutes, 6% of the 30-minute cap)" || return 1
+  # The hermetic job warns at two thirds of its cap, the 20 minutes the
+  # headroom target allows; READINESS_BUDGET_PERCENT sets that share, and the
+  # default stays 80% for the shard legs.
+  out="$(READINESS_BUDGET_PERCENT=67 run_case "${script}" success 1200)" || return 1
+  has "${out}" "PASSED" && ! has "${out}" "over budget" && ! has "${out}" "::warning" || return 1
+  out="$(READINESS_BUDGET_PERCENT=67 run_case "${script}" success 1260)" || return 1
+  has "${out}" "PASSED, over budget" && has "${out}" "budget 67%" && has "${out}" "::warning" || return 1
+  out="$(run_case "${script}" success 1260)" || return 1
+  ! has "${out}" "over budget" && ! has "${out}" "::warning" || return 1
   # Every verdict names its job and the runner CPU, so the hermetic wall reads
   # next to each shard wall in the run summary (#9582).
   out="$(run_case "${script}" success 300)" || return 1
@@ -77,6 +97,12 @@ JOB_STATUS=cancelled READINESS_JOB_STARTED_EPOCH=abc CAP_MINUTES=30 bash "${real
 out="$(JOB_STATUS=cancelled READINESS_JOB_STARTED_EPOCH= CAP_MINUTES=30 bash "${real}" finish 2>&1)" ||
   fail "cancel without a start time was refused"
 has "${out}" "start time unknown" && ! has "${out}" "TIME CAP" || fail "cancel without a start time was classified"
+
+# A budget share that is not a percentage of the cap is refused.
+for bad in 0 101 abc ""; do
+  READINESS_BUDGET_PERCENT="${bad}" JOB_STATUS=success READINESS_JOB_STARTED_EPOCH=1 READINESS_JOB_NOW_EPOCH=2 \
+    CAP_MINUTES=30 bash "${real}" finish >/dev/null 2>&1 && fail "budget percent '${bad}' accepted"
+done
 
 # A job label outside the plain set is refused, so a matrix expression typo
 # cannot inject markdown or an annotation into the summary.
@@ -110,6 +136,8 @@ seed failure-as-cap '    failure)
 seed every-cancel-is-cap 'if [[ "${elapsed}" -ge "${threshold}" ]]; then' 'if true; then'
 seed grace-dropped 'threshold=$((cap_s - grace_s))' 'threshold=$((cap_s + 1))'
 seed label-ignored 'label="${READINESS_JOB_LABEL:-hermetic}"' 'label=hermetic'
+seed minutes-dropped 'Ran ${elapsed}s (${elapsed_min} minutes), ${percent}% of the ${cap}-minute cap, ${left_min} minutes of headroom.' 'Ran ${elapsed}s, ${percent}% of the ${cap}-minute cap.'
+seed budget-env-ignored 'budget_percent="${READINESS_BUDGET_PERCENT-80}"' 'budget_percent=80'
 seed cpu-dropped '"Runner CPU: ${cpu}."' '""'
 
 printf 'test-live-postgres-readiness-job-summary: PASS\n'
