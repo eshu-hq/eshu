@@ -165,6 +165,7 @@ func (s Service) scheduleGoModuleDerivedScopes(
 	if page.AlreadyPlanned {
 		return nil
 	}
+	s.warnGoRotationOutgrowsRetention(instance, page, interval)
 	fence := reachability.StaleEvidence(page.Repositories, observedAt, interval, page.SlotCount)
 	fenced, err := s.fenceStaleGoEvidence(ctx, observedAt, instance, fence)
 	if err != nil {
@@ -210,6 +211,41 @@ func (s Service) scheduleGoModuleDerivedScopes(
 		)
 	}
 	return nil
+}
+
+// goRotationRetentionBreachReason names the breach on the warning log.
+const goRotationRetentionBreachReason = "go_rotation_exceeds_half_retention_cutoff"
+
+// warnGoRotationOutgrowsRetention warns when the rotation period is longer than half
+// the generation retention soft cutoff (#10089). The commit-skew fence measures skew
+// from the repository's superseded generations, which retention prunes at that cutoff,
+// and its bound is two rotations. Past this point a busy repository can read as pruned
+// and be fenced while its successor is still in flight on a healthy scanner, so a rising
+// fence_history_pruned would otherwise have no named cause. It runs once per plan bucket,
+// on the slot count the page read returned, and writes no metric.
+func (s Service) warnGoRotationOutgrowsRetention(
+	instance workflow.CollectorInstance,
+	page scannercomponent.GoModuleRepositoryPage,
+	interval time.Duration,
+) {
+	if s.Logger == nil || s.GenerationRetentionSoftCutoff <= 0 {
+		return
+	}
+	rotation := schedule.OwnedTargetRotationFreshness(int64(page.SlotCount), interval, s.GenerationRetentionSoftCutoff/2)
+	if !rotation.Exceeds() {
+		return
+	}
+	s.Logger.Warn(
+		"workflow coordinator go reachability rotation is longer than half the generation retention cutoff",
+		"collector_kind", instance.CollectorKind,
+		"collector_instance_id", instance.InstanceID,
+		"reason", goRotationRetentionBreachReason,
+		"slot_count", rotation.SlotCount,
+		"interval_seconds", rotation.Interval.Seconds(),
+		"rotation_period_seconds", rotation.Period.Seconds(),
+		"retention_cutoff_seconds", s.GenerationRetentionSoftCutoff.Seconds(),
+		"total_candidates", page.TotalCandidates,
+	)
 }
 
 // fenceStaleGoEvidence applies one page's fence decision and counts the generations
