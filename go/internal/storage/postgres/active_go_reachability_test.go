@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/scannercomponent"
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
 
@@ -69,6 +70,46 @@ func TestListActiveGoReachabilityFactsQueryProbesScopeGenerationKind(t *testing.
 	}
 	if strings.Contains(listActiveGoReachabilityFactsQuery, "LIMIT") {
 		t.Fatalf("listActiveGoReachabilityFactsQuery must not bound core evidence:\n%s", listActiveGoReachabilityFactsQuery)
+	}
+}
+
+// TestGoReachabilityScopeIDsMirrorScannerComponent pins the #10095
+// cross-package sync: the storage canonical-id gate must accept exactly the
+// language scannercomponent.GoReachabilityScopeID owns, so an owner-pattern
+// change fails this build instead of silently unloading Go evidence
+// (fail-closed to pre-#10095 verdicts). Every accepted id must map to the
+// owner's scope id, and every refused input must refuse on both sides.
+func TestGoReachabilityScopeIDsMirrorScannerComponent(t *testing.T) {
+	t.Parallel()
+
+	for _, repositoryID := range []string{
+		"repository:r_10095a01",
+		"repository:r_0001a055",
+		"repository:r_ffffffff",
+		"repository:r_00000000",
+		" https://example.com/owner/repo ",
+		"repository:r_SHORT",
+		"repository:r_10095A01",
+		"repository:r_10095a0",
+		"repository:r_10095a011",
+		"git-repository:repository:r_10095a01",
+		"repo://owner/repo",
+		"",
+	} {
+		ownerScope, ownerErr := scannercomponent.GoReachabilityScopeID(strings.TrimSpace(repositoryID))
+		mirrorScopes := goReachabilityScopeIDs([]string{repositoryID})
+		if ownerErr != nil {
+			if len(mirrorScopes) != 0 {
+				t.Fatalf("goReachabilityScopeIDs(%q) = %q, want nothing: owner refuses it", repositoryID, mirrorScopes)
+			}
+			continue
+		}
+		if len(mirrorScopes) != 1 || mirrorScopes[0] != ownerScope {
+			t.Fatalf("goReachabilityScopeIDs(%q) = %q, want [%q]: mirror disagrees with scannercomponent.GoReachabilityScopeID", repositoryID, mirrorScopes, ownerScope)
+		}
+		if wantScope := scannercomponent.GoReachabilityScopePrefix + strings.TrimSpace(repositoryID); ownerScope != wantScope {
+			t.Fatalf("scannercomponent.GoReachabilityScopeID(%q) = %q, want %q", repositoryID, ownerScope, wantScope)
+		}
 	}
 }
 
