@@ -56,6 +56,9 @@ gates:
       - "scripts/test-verify-doc-import-pins.sh"
       - "scripts/fixtures/apk-floors/**"
       - "specs/doc-import-pins/**"
+      - "docker/satellites/ocr/Dockerfile"
+      - "docker/satellites/transcription/Dockerfile"
+      - "specs/satellite-pins/**"
     local:
       command: "bash scripts/verify-apk-floors.sh"
       test_command: "bash scripts/test-verify-apk-floors.sh"
@@ -133,6 +136,8 @@ gates:
     triggers:
       - "go/**"
       - "Dockerfile"
+      - "docker/satellites/**"
+      - "specs/satellite-pins/**"
     ci:
       workflow: docker-publish.yml
       job: "build-and-push-image"
@@ -140,6 +145,29 @@ gates:
       - credentials
       - release_token
     ci_only_reason: "post-merge publication requires registry push credentials and cannot block its own merge"
+
+  - id: satellite-gates
+    name: Satellite digest gates hold for every satellite x arch
+    category: exactness
+    layer: contract
+    purpose: "Fails when a satellite digest gate does not hold for any satellite x arch (binary, model, version, or library set drifted from its pin file)."
+    tier: ci-heavy
+    blocking: true
+    triggers:
+      - "docker/satellites/ocr/Dockerfile"
+      - "docker/satellites/transcription/Dockerfile"
+      - "docker/satellites/README.md"
+      - "specs/satellite-pins/**"
+      - ".github/workflows/docker-publish.yml"
+      - "scripts/ci/select-docker-publish-lanes.sh"
+      - "scripts/ci/test-docker-publish-extracted-steps.sh"
+    ci:
+      workflow: docker-publish.yml
+      job: "verify-satellite-gates"
+    requirements:
+      - network
+      - docker
+    ci_only_reason: "multi-arch image builds (including emulated whisper builds) run CI-only; the pins and floors are proven locally by the digest-gate builds and floor audits before merge"
 
   # Non-blocking since the owner decision to move macOS CI to nightly +
   # workflow_dispatch (macos.yml has no pull_request or push trigger).

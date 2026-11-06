@@ -1,17 +1,22 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Selects the eshu-side docker-publish lanes (image, apkfloors, scannerpins)
-# from the changed paths. The Helm chart lane moved to eshu-hq/eshu-deploy
-# under #8871: eshu-deploy's chart-release.yml owns chart publication, so
-# the chart lane and its triggers (deploy/helm/*, push-helm-chart.sh) no
-# longer live here. Only image, apkfloors, and scannerpins remain.
+# Selects the eshu-side docker-publish lanes (image, apkfloors, scannerpins,
+# satellites) from the changed paths. The Helm chart lane moved to
+# eshu-hq/eshu-deploy under #8871: eshu-deploy's chart-release.yml owns chart
+# publication, so the chart lane and its triggers (deploy/helm/*,
+# push-helm-chart.sh) no longer live here. Only image, apkfloors,
+# scannerpins, and satellites remain. The satellites lane is build-only proof
+# (never published from this workflow): it proves the satellite digest gates
+# hold for every satellite x arch before merge; publication stays manual
+# until the Event-B publish lane lands (#8879).
 
 if [[ "${GITHUB_REF_TYPE}" == tag || "${GITHUB_EVENT_NAME}" == workflow_dispatch ]]; then
   {
     echo 'image=true'
     echo 'apkfloors=true'
     echo 'scannerpins=true'
+    echo 'satellites=true'
   } >> "${GITHUB_OUTPUT}"
   exit 0
 fi
@@ -39,6 +44,7 @@ esac
 image=false
 apkfloors=false
 scannerpins=false
+satellites=false
 while IFS= read -r path; do
   case "${path}" in
     Dockerfile)
@@ -101,6 +107,23 @@ while IFS= read -r path; do
       image=true
       apkfloors=true
       ;;
+    # Lane self-test (#8879): the satellites-lane coverage lives in this
+    # script, so a lone touch must run the satellites lane — otherwise the
+    # registry selects satellite-gates while every publish job skips and
+    # the aggregator fails closed.
+    scripts/ci/test-docker-publish-extracted-steps.sh)
+      satellites=true
+      ;;
+    # Satellite gates (#8879): the per-arch engine/library/model digests feed
+    # the satellite digest-gate builds (satellites lane), and the satellite
+    # Dockerfiles carry apk floors the --dockerfile audit covers (apkfloors
+    # lane), so a pin or Dockerfile change must run both. Otherwise the
+    # registry selects those gates while every publish job skips, and the
+    # aggregator fails closed.
+    docker/satellites/**|specs/satellite-pins/**)
+      satellites=true
+      apkfloors=true
+      ;;
     # Scanner module files: a go.mod/go.sum bump is worth a pins
     # re-verification, so it runs the scannerpins lane as well as the image
     # lane (which go/* below would otherwise select alone).
@@ -120,6 +143,7 @@ while IFS= read -r path; do
       image=true
       apkfloors=true
       scannerpins=true
+      satellites=true
       ;;
   esac
 done < <(git diff --name-only "${base_sha}" "${head_sha}")
@@ -127,4 +151,5 @@ done < <(git diff --name-only "${base_sha}" "${head_sha}")
   echo "image=${image}"
   echo "apkfloors=${apkfloors}"
   echo "scannerpins=${scannerpins}"
+  echo "satellites=${satellites}"
 } >> "${GITHUB_OUTPUT}"

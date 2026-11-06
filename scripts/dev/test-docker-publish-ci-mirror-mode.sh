@@ -62,6 +62,13 @@ expected_release_condition() {
     verify-scanner-digest-pins)
       release="(${guard}) && (github.event_name == 'pull_request' && needs.changes.outputs.scannerpins == 'true')"
       ;;
+    # #8879: the satellites proof runs on pull_request and push alike (the
+    # pin files are arch-specific, so the main push must prove what the PR
+    # plan cannot schedule from trusted definitions). No pull_request
+    # restriction, unlike the token-floor audits above.
+    verify-satellite-gates)
+      release="(${guard}) && needs.changes.outputs.satellites == 'true'"
+      ;;
     build-and-push-image|verify-reproducibility)
       release="(${guard}) && needs.changes.outputs.image == 'true'"
       ;;
@@ -85,7 +92,7 @@ rg -q '^        default: release$' "${workflow}" || fail 'normal dispatch defaul
 # The chart lane (package-and-push-chart) moved to eshu-deploy's
 # chart-release.yml under #8871; it is no longer part of this partition.
 expected_jobs="$(printf '%s\n' changes verify-apk-floors build-and-push-image \
-  promote-moving-tags verify-reproducibility \
+  promote-moving-tags verify-reproducibility verify-satellite-gates \
   verify-scanner-digest-pins attach-release-sbom publish-ci-service-mirrors \
   verify-public-ci-service-mirrors | LC_ALL=C sort)"
 actual_jobs="$(awk '
@@ -103,7 +110,7 @@ actual_jobs="$(awk '
 
 for job in changes verify-apk-floors build-and-push-image \
   promote-moving-tags \
-  verify-reproducibility verify-scanner-digest-pins attach-release-sbom; do
+  verify-reproducibility verify-satellite-gates verify-scanner-digest-pins attach-release-sbom; do
   condition="$(job_condition "${job}")"
   [[ "${condition}" == "$(expected_release_condition "${job}")" ]] ||
     fail "${job} release condition differs from its guarded exact shape"

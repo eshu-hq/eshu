@@ -10,10 +10,13 @@ workflows:
   - scripts/ci/build-reproducibility-image.sh
   - specs/ci-images.v1.json
   - specs/doc-import-pins/**
+  - docker/satellites/**
+  - specs/satellite-pins/**
   - Dockerfile
   - .dockerignore
   - .github/workflows/docker-publish.yml
   - scripts/ci/select-docker-publish-lanes.sh
+  - scripts/ci/test-docker-publish-extracted-steps.sh
   - scripts/verify-apk-floors.sh
   - scripts/test-verify-apk-floors.sh
   - scripts/verify-doc-import-pins.sh
@@ -42,5 +45,6 @@ workflows:
   - verify-apk-floors
   - verify-public-ci-service-mirrors
   - verify-reproducibility
+  - verify-satellite-gates
   - verify-scanner-digest-pins
   job_names:
