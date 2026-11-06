@@ -1,0 +1,16 @@
+docs/internal/evidence/10060-stranded-continuation.md
+  h_78a442cba0b3e6 5
+go/internal/storage/postgres/shared_intents_first_projection.go
+  h_78a442cba0b3e6 103-104
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "064bafb445809f9bd1953d3d94ec130b4895c3a6",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
