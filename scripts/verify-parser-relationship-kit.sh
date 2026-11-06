@@ -14,8 +14,11 @@ fi
 # default, are documented in the helper.
 # shellcheck source=scripts/lib/gate-diff-base.sh
 . "$script_dir/lib/gate-diff-base.sh"
+# On a pull_request run diff against the merge ref's first parent, not the moved
+# base tip (#10222); an explicit override still wins.
+parser_kit_base="${ESHU_PARSER_RELATIONSHIP_KIT_BASE:-$(eshu_gate_merge_ref_parent "$repo_root")}"
 eshu_gate_resolve_diff_base "verify-parser-relationship-kit" "$repo_root" \
-  "${ESHU_PARSER_RELATIONSHIP_KIT_BASE:-}"
+  "$parser_kit_base"
 base="$eshu_gate_diff_base"
 
 changed_files=()
