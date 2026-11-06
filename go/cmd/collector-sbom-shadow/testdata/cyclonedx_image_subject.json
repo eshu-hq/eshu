@@ -1,0 +1,105 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.5",
+  "serialNumber": "urn:uuid:3e671687-395b-41f5-a30f-a58921a69b79",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2026-05-15T12:00:00Z",
+    "tools": {
+      "components": [
+        {
+          "type": "application",
+          "name": "syft",
+          "version": "1.20.0"
+        }
+      ]
+    },
+    "component": {
+      "type": "container",
+      "bom-ref": "pkg:oci/example@sha256:1111111111111111111111111111111111111111111111111111111111111111",
+      "name": "registry.example.com/library/example",
+      "version": "1.2.3",
+      "purl": "pkg:oci/example@sha256:1111111111111111111111111111111111111111111111111111111111111111",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "1111111111111111111111111111111111111111111111111111111111111111"
+        }
+      ]
+    }
+  },
+  "components": [
+    {
+      "type": "library",
+      "bom-ref": "pkg:npm/lodash@4.17.21",
+      "name": "lodash",
+      "version": "4.17.21",
+      "purl": "pkg:npm/lodash@4.17.21",
+      "supplier": {
+        "name": "OpenJS Foundation",
+        "url": ["https://openjsf.org/"]
+      },
+      "publisher": "OpenJS Foundation",
+      "hashes": [
+        {"alg": "SHA-256", "content": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"}
+      ],
+      "licenses": [
+        {"license": {"id": "MIT"}}
+      ],
+      "externalReferences": [
+        {"type": "vcs", "url": "https://github.com/lodash/lodash"}
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:npm/lodash@4.17.21#dup",
+      "name": "lodash",
+      "version": "4.17.21",
+      "purl": "pkg:npm/lodash@4.17.21",
+      "licenses": [
+        {"expression": "MIT"}
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:pypi/requests@2.31.0",
+      "name": "requests",
+      "version": "2.31.0",
+      "purl": "pkg:pypi/requests@2.31.0",
+      "licenses": [
+        {"license": {"name": "Apache License 2.0"}}
+      ],
+      "hashes": [
+        {"alg": "SHA-512", "content": "abc123abc123abc123abc123abc123abc123abc123abc123abc123abc123abc123abc123abc123abc123abc123abc123abc123abc123abc123abc123abc123ab"}
+      ]
+    },
+    {
+      "type": "operating-system",
+      "name": "alpine",
+      "version": "3.19",
+      "cpe": "cpe:2.3:o:alpine:alpine_linux:3.19:*:*:*:*:*:*:*"
+    },
+    {
+      "type": "library",
+      "bom-ref": "missing-purl-ref",
+      "name": "",
+      "version": "0.0.0"
+    }
+  ],
+  "dependencies": [
+    {
+      "ref": "pkg:oci/example@sha256:1111111111111111111111111111111111111111111111111111111111111111",
+      "dependsOn": [
+        "pkg:npm/lodash@4.17.21",
+        "pkg:pypi/requests@2.31.0"
+      ]
+    },
+    {
+      "ref": "pkg:npm/lodash@4.17.21",
+      "dependsOn": ["pkg:pypi/requests@2.31.0"]
+    }
+  ],
+  "vulnerabilities": [
+    {"id": "CVE-2099-0001"}
+  ]
+}
