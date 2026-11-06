@@ -43,16 +43,18 @@ type stubFanOut struct {
 	owedRecorded  int
 	// reads records the order of the two read calls.
 	reads []string
-	// candidates, candidateErr, and candidateEcosystems serve and record the
-	// #9874 package-keyed holder read.
+	// candidates, candidateErr, candidateEcosystems, and candidateQueries
+	// serve and record the #9874/#10061 package-keyed holder read.
 	candidates          []PackageHolderCandidate
 	candidateErr        error
 	candidateEcosystems [][]string
+	candidateQueries    []PackageHolderQuery
 }
 
-func (s *stubFanOut) FindPackageHolderCandidates(_ context.Context, _ string, ecosystems []string) ([]PackageHolderCandidate, error) {
+func (s *stubFanOut) FindPackageHolderCandidates(_ context.Context, _ string, query PackageHolderQuery) ([]PackageHolderCandidate, error) {
 	s.reads = append(s.reads, "candidates")
-	s.candidateEcosystems = append(s.candidateEcosystems, append([]string(nil), ecosystems...))
+	s.candidateEcosystems = append(s.candidateEcosystems, append([]string(nil), query.Ecosystems...))
+	s.candidateQueries = append(s.candidateQueries, query)
 	if s.candidateErr != nil {
 		return nil, s.candidateErr
 	}

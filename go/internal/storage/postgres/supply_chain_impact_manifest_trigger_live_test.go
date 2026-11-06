@@ -155,7 +155,7 @@ func TestFindPackageHolderCandidatesLive(t *testing.T) {
 	manifestLiveSeedFact(t, ctx, db, "vuln-intel://osv/c", fanOutGen("vuln-intel://osv/c", "g1"), tomb)
 	manifestLiveSeedFact(t, ctx, db, manifestLiveGitScope, fanOutGen(manifestLiveGitScope, "g1"), manifestLiveAffected("ap-own", "npm", "lodash"))
 
-	got, err := fanOutLiveStore(db).FindPackageHolderCandidates(ctx, manifestLiveGitScope, []string{"NPM"})
+	got, err := fanOutLiveStore(db).FindPackageHolderCandidates(ctx, manifestLiveGitScope, supplychaincore.PackageHolderQuery{Ecosystems: []string{"NPM"}})
 	if err != nil {
 		t.Fatalf("FindPackageHolderCandidates() error = %v", err)
 	}
@@ -166,7 +166,7 @@ func TestFindPackageHolderCandidatesLive(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("candidates = %+v, want %+v", got, want)
 	}
-	if none, err := fanOutLiveStore(db).FindPackageHolderCandidates(ctx, manifestLiveGitScope, nil); err != nil || len(none) != 0 {
+	if none, err := fanOutLiveStore(db).FindPackageHolderCandidates(ctx, manifestLiveGitScope, supplychaincore.PackageHolderQuery{}); err != nil || len(none) != 0 {
 		t.Fatalf("empty ecosystems = %v, %v; want no rows and no error", none, err)
 	}
 }
@@ -199,7 +199,7 @@ func TestFindPackageHolderCandidatesMatchesRawEcosystemSpellingsLive(t *testing.
 			manifestLiveAffected(fmt.Sprintf("ap-raw-%02d", i), tc.stored, "pkg"))
 	}
 	for i, tc := range cases {
-		got, err := fanOutLiveStore(db).FindPackageHolderCandidates(ctx, manifestLiveGitScope, []string{tc.asked})
+		got, err := fanOutLiveStore(db).FindPackageHolderCandidates(ctx, manifestLiveGitScope, supplychaincore.PackageHolderQuery{Ecosystems: []string{tc.asked}})
 		if err != nil {
 			t.Fatalf("FindPackageHolderCandidates(%q) error = %v", tc.asked, err)
 		}

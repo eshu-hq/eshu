@@ -48,18 +48,55 @@ WHERE fact.fact_kind = 'vulnerability.affected_package'
   AND (LOWER(BTRIM(fact.payload->>'ecosystem') COLLATE "C") COLLATE "default") = ANY($1::text[])
 `
 
-// FindPackageHolderCandidates returns the active affected-package identities
-// outside ownScopeID whose ecosystem is one of ecosystems, deduplicated. It
-// runs as one read-only transaction under the holder-read statement timeout
-// and fails with supplychaincore.ErrFanOutReadTimeout when the timeout fires.
-// An empty ecosystem list returns nothing without touching the database.
+// findAlertHolderCandidatesQuery returns the active repository-alert
+// identities (#10061), outside the asking scope, whose payload repository_id
+// is one of $1: the security-alert arm of the package-keyed holder read. The
+// repository predicate is the leading expression of
+// fact_records_security_alert_repository_lookup_idx (migration 003), so the
+// read seeks the generation repository's alerts and joins to the active
+// generation afterwards; no migration is needed. Alerts a provider already
+// closed (dismissed, auto_dismissed, fixed — the set
+// securityAlertCanSeedImpact refuses to seed a finding from) are left out:
+// reopening their scope could not change a finding. Shape matches
+// findPackageHolderCandidatesQuery (same five identity columns, no DISTINCT,
+// no ORDER BY; the store dedupes), and the handler matches names with the
+// findings pass's own consumption-key join, so an alert for an unchanged
+// package of the same repository is filtered there, not here.
+//
+// Performance Evidence: docs/internal/evidence/10061-alert-scope-reopen.md
+// (threshold stated before the probe there).
+const findAlertHolderCandidatesQuery = `
+SELECT fact.scope_id,
+       COALESCE(fact.payload->>'ecosystem', ''),
+       COALESCE(fact.payload->>'package_name', ''),
+       COALESCE(fact.payload->>'purl', ''),
+       COALESCE(fact.payload->>'package_id', '')
+FROM fact_records AS fact
+JOIN ingestion_scopes AS scope
+  ON scope.scope_id = fact.scope_id
+ AND scope.active_generation_id = fact.generation_id
+WHERE fact.fact_kind = 'security_alert.repository_alert'
+  AND fact.is_tombstone = FALSE
+  AND fact.scope_id <> $2
+  AND fact.payload->>'repository_id' = ANY($1::text[])
+  AND LOWER(BTRIM(COALESCE(fact.payload->>'provider_state', ''))) NOT IN ('dismissed', 'auto_dismissed', 'fixed')
+`
+
+// FindPackageHolderCandidates returns the active package-holder identities
+// outside ownScopeID the query selects, deduplicated: affected-package rows
+// in the query ecosystems, plus repository-alert rows for the query
+// repositories. It runs as one read-only transaction under the holder-read
+// statement timeout and fails with supplychaincore.ErrFanOutReadTimeout when
+// the timeout fires. An empty query returns nothing without touching the
+// database.
 func (s SupplyChainImpactFanOutStore) FindPackageHolderCandidates(
 	ctx context.Context,
 	ownScopeID string,
-	ecosystems []string,
+	query supplychaincore.PackageHolderQuery,
 ) ([]supplychaincore.PackageHolderCandidate, error) {
-	folded := ecosystemSpellings(ecosystems)
-	if len(folded) == 0 {
+	folded := ecosystemSpellings(query.Ecosystems)
+	repositories := uniqueNonEmptyStrings(query.RepositoryIDs)
+	if len(folded) == 0 && len(repositories) == 0 {
 		return nil, nil
 	}
 	tx, err := s.beginBoundedRead(ctx)
@@ -67,27 +104,40 @@ func (s SupplyChainImpactFanOutStore) FindPackageHolderCandidates(
 		return nil, err
 	}
 	defer func() { _ = tx.Rollback() }()
-	rows, err := tx.QueryContext(ctx, findPackageHolderCandidatesQuery, folded, ownScopeID)
-	if err != nil {
-		return nil, classifyFanOutReadError(err)
-	}
-	defer func() { _ = rows.Close() }()
 	seen := map[supplychaincore.PackageHolderCandidate]struct{}{}
 	var out []supplychaincore.PackageHolderCandidate
-	for rows.Next() {
-		var candidate supplychaincore.PackageHolderCandidate
-		if err := rows.Scan(&candidate.ScopeID, &candidate.Ecosystem, &candidate.PackageName,
-			&candidate.PURL, &candidate.PackageID); err != nil {
-			return nil, fmt.Errorf("scan supply chain impact package holder: %w", err)
+	collect := func(statement string, keys []string) error {
+		rows, err := tx.QueryContext(ctx, statement, keys, ownScopeID)
+		if err != nil {
+			return classifyFanOutReadError(err)
 		}
-		if _, dup := seen[candidate]; dup {
-			continue
+		defer func() { _ = rows.Close() }()
+		for rows.Next() {
+			var candidate supplychaincore.PackageHolderCandidate
+			if err := rows.Scan(&candidate.ScopeID, &candidate.Ecosystem, &candidate.PackageName,
+				&candidate.PURL, &candidate.PackageID); err != nil {
+				return fmt.Errorf("scan supply chain impact package holder: %w", err)
+			}
+			if _, dup := seen[candidate]; dup {
+				continue
+			}
+			seen[candidate] = struct{}{}
+			out = append(out, candidate)
 		}
-		seen[candidate] = struct{}{}
-		out = append(out, candidate)
+		if err := rows.Err(); err != nil {
+			return classifyFanOutReadError(err)
+		}
+		return nil
 	}
-	if err := rows.Err(); err != nil {
-		return nil, classifyFanOutReadError(err)
+	if len(folded) > 0 {
+		if err := collect(findPackageHolderCandidatesQuery, folded); err != nil {
+			return nil, err
+		}
+	}
+	if len(repositories) > 0 {
+		if err := collect(findAlertHolderCandidatesQuery, repositories); err != nil {
+			return nil, err
+		}
 	}
 	return out, nil
 }

@@ -132,8 +132,11 @@ it to `handleManifestTrigger` before the fencing token and the evidence load
    a pruned intermediate is skipped (`manifest_trigger_chain_pruned`).
    Tombstoned rows always count.
 3. When a package changed, reads the in-flight `supply_chain_impact` scopes
-   FIRST (`FindInFlightNonMarkerScopes`), then the active `vulnerability.affected_package`
-   identities in those ecosystems (`FindPackageHolderCandidates`), and keeps
+   FIRST (`FindInFlightNonMarkerScopes`), then the active package-holder
+   identities (`FindPackageHolderCandidates` with a `PackageHolderQuery`:
+   `vulnerability.affected_package` rows in those ecosystems, plus
+   `security_alert.repository_alert` rows for the repositories the changed
+   keys belong to, #10061), and keeps
    the in-flight scopes plus the scopes whose identity shares a consumption key
    with a changed dependency, the findings pass's own join. The order is the
    CVE fan-out's: a pass still claimed or running at the first read is flagged
@@ -172,11 +175,17 @@ rerun, one-hop holder reruns, and it stops. An in-flight non-marker holder
 pass still gets exactly what the CVE path gives it: one replay of its pass
 after it acknowledges.
 
-Not reopened: security alert scopes. They build findings from manifest
-consumptions too (`appendSecurityAlertImpactFindings`), but the holder read
-covers only `vulnerability.affected_package` facts, so an alert finding whose
-matched pin changed waits for that alert scope's next generation. Tracked in
-#10061.
+Security alert scopes are reopened since #10061. They build findings from
+manifest consumptions too (`appendSecurityAlertImpactFindings`), keyed by
+repository, and hold no `vulnerability.affected_package` facts, so the
+holder read's alert arm selects active `security_alert.repository_alert`
+facts by the changed keys' repository id
+(`fact_records_security_alert_repository_lookup_idx` leads with
+`payload->>'repository_id'`; no migration) and the same consumption-key join
+keeps only the alerts naming a changed package. Alerts a provider already
+closed (`dismissed`, `auto_dismissed`, `fixed` — the set
+`securityAlertCanSeedImpact` refuses to seed from) do not reopen their
+scope. Evidence: `docs/internal/evidence/10061-alert-scope-reopen.md`.
 
 Known limit: when a delta in the diffed chain has a base that cannot be read
 (missing, pruned, or a legacy delta), its view is the delta's own rows, so a

@@ -215,9 +215,9 @@ type SupplyChainImpactFanOut interface {
 	// rows yet is invisible to FindHolderScopes. Same bounded timeout and error
 	// contract as FindHolderScopes.
 	FindInFlightScopes(ctx context.Context, ownScopeID string) ([]string, error)
-	// FindPackageHolderCandidates returns active vulnerability.affected_package
-	// identities outside ownScopeID in the ecosystems (#9874, manifest_trigger.go).
-	FindPackageHolderCandidates(ctx context.Context, ownScopeID string, ecosystems []string) ([]PackageHolderCandidate, error)
+	// FindPackageHolderCandidates returns active package-holder identities outside
+	// ownScopeID for query (#9874, #10061; see manifest_trigger.go).
+	FindPackageHolderCandidates(ctx context.Context, ownScopeID string, query PackageHolderQuery) ([]PackageHolderCandidate, error)
 	// OwedRecorder returns the recorder the writer runs inside its transaction for
 	// the calling pass's own item.
 	OwedRecorder(intent reducercontract.Intent) FanOutOwedRecorder
