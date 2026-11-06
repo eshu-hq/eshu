@@ -309,11 +309,15 @@ func openReducerFairnessDBWithSchema(t *testing.T, ctx context.Context, dsn stri
 	if err != nil {
 		t.Fatalf("retarget fairness proof DSN: %v", err)
 	}
-	_, database := postgresproof.OpenDisposableBootstrapDatabase(t, admin,
+	// Clones the process template (#10148 PR-A) instead of bootstrapping again.
+	template := postgresproof.OpenBootstrapTemplate(t, admin,
 		reducerFairnessProofOptIn(t, dsn), 5*time.Minute,
+		postgresproof.FlavourPublicWithoutContentSearchIndexes,
 		func(ctx context.Context, database *sql.DB) error {
 			return ApplyBootstrapWithoutContentSearchIndexes(ctx, SQLDB{DB: database})
 		})
+	_, database := postgresproof.OpenBootstrapTemplateClone(t, admin,
+		reducerFairnessProofOptIn(t, dsn), 5*time.Minute, template)
 	target, err := postgresproof.WithDatabase(admin, currentProofDatabase(ctx, t, database))
 	if err != nil {
 		t.Fatalf("target fairness proof database: %v", err)

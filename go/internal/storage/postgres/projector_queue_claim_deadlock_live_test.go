@@ -164,9 +164,12 @@ func withDSNParam(dsn, param string) string {
 // disposable-public pattern (openDisposablePublicBootstrapDB).
 func openClaimDeadlockProofDB(t *testing.T, dsn string, conns int) *sql.DB {
 	t.Helper()
-	pool := openDisposablePublicBootstrapDB(t, claimDeadlockProofAdminDSN(t, dsn), claimDeadlockProofOptIn(t, dsn),
+	// Clones the process template (#10148 PR-A) instead of bootstrapping again.
+	_, pool := openDisposablePublicBootstrapCloneDB(t, claimDeadlockProofAdminDSN(t, dsn), claimDeadlockProofOptIn(t, dsn),
 		"set ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN and ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DISPOSABLE=1 "+
 			"(or the ESHU_POSTGRES_TEST_DSN/_DISPOSABLE pair) to run the projector claim proofs",
+		postgresproof.FlavourPublicWithoutContentSearchIndexes,
+		5*time.Minute,
 		func(ctx context.Context, database *sql.DB) error {
 			return ApplyBootstrapWithoutContentSearchIndexes(ctx, SQLDB{DB: database})
 		})

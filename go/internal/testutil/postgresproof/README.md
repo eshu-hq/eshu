@@ -35,6 +35,15 @@ owns those steps after it receives the isolated connection.
   connection per concurrent claimer plus slack, so claim-race proofs never
   serialize behind one connection (pool.go). Callers prove the concurrency
   is real with distinct `pg_backend_pid` values and pool stats, not sleeps.
+- `OpenBootstrapTemplate` builds one template database per (proof server,
+  flavour) per test process with the caller's apply and caches it;
+  `OpenBootstrapTemplateClone` (or the error-returning
+  `CloneBootstrapTemplate`) clones it into a fresh disposable database.
+  `DiscardBootstrapTemplates` drops every template the process built, called
+  from the owning test package's `TestMain` (template_clone.go). Flavours are
+  pinned apply shapes shared through `FlavourPublicBootstrap` and
+  `FlavourPublicWithoutContentSearchIndexes`; distinct apply shapes need
+  distinct flavours.
 
 The godoc contract is in [doc.go](doc.go).
 
@@ -104,3 +113,22 @@ go test ./internal/testutil/postgresproof -count=1
 - No-Regression Evidence: projector deadlock load test green 6 consecutive runs (claims 668–2071, 0 deadlocks, 0 errors, 0 overlapping leases), teardown clean every run; contention intact.
 - Performance Evidence: teardown-only path; worst case about 2 s inside the 15 s cleanup budget, after all assertions; claim SQL and worker counts untouched.
 - No-Observability-Change: test-only change, no runtime signal. Baseline: pre-fix teardown flaked with 55006 on loaded runners (local PG 18).
+
+## Performance Evidence (#10148 PR-A)
+
+- Performance Evidence: one template build per (proof server, flavour) per
+  test process replaces one full bootstrap per caller. Local backend:
+  PostgreSQL 18.6, 306-migration bootstrap. After: the committed
+  differential builds 2 templates + 2 fresh bootstraps + fingerprints in
+  11.5 s; the concurrency proof reuses the flavour-A template for 4
+  parallel clones + fingerprints in 10.4 s; a converted gate test through
+  the clone funnel passes in 0.91 s. Runner-side before/after belongs to
+  the gate dispatch the coordinator owns (ruling dispatch 2 intact).
+- No-Regression Evidence: the committed differential proves clone output
+  identical to a fresh real bootstrap on every catalog line for both
+  flavours (`bootstrap_vs_clone=true`); the template is built by the
+  production entry point from `template0` in the same process, never reused
+  across processes; the default direct-bootstrap path is unchanged for
+  callers that do not opt in.
+- No-Observability-Change: test-only helper, no metric, span, log key, or
+  status surface touched; see Telemetry above.

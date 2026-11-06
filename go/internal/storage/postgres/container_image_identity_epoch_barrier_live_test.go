@@ -21,6 +21,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/containerimage"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
+	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
 
 // epochBarrierFactLoader serves no facts: the barrier proof exercises epoch
@@ -137,11 +138,15 @@ func openEpochBarrierProofDB(t *testing.T) *sql.DB {
 	} else if optIn != "1" {
 		t.Fatal("ESHU_CONTAINER_IMAGE_IDENTITY_EPOCH_PROOF_DSN is set without ESHU_CONTAINER_IMAGE_IDENTITY_EPOCH_PROOF_DISPOSABLE=1")
 	}
-	return openDisposablePublicBootstrapDB(t, adminDSN, optIn,
+	// Clones the process template (#10148 PR-A) instead of bootstrapping again.
+	_, database := openDisposablePublicBootstrapCloneDB(t, adminDSN, optIn,
 		"set ESHU_POSTGRES_TEST_DSN and ESHU_POSTGRES_DISPOSABLE=1 (or the ESHU_CONTAINER_IMAGE_IDENTITY_EPOCH_PROOF_DSN/_DISPOSABLE pair) to run the epoch barrier proof",
+		postgresproof.FlavourPublicBootstrap,
+		5*time.Minute,
 		func(ctx context.Context, database *sql.DB) error {
 			return ApplyBootstrap(ctx, SQLDB{DB: database})
 		})
+	return database
 }
 
 // TestContainerImageIdentityEpochBarrierDefersPendingLive holds generation B's

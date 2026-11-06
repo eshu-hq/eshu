@@ -42,10 +42,13 @@ func TestAuthorizedLoaderEngagedFoldPublishesFoldedEvidenceLive(t *testing.T) {
 	if adminDSN == "" {
 		t.Skip("needs ESHU_POSTGRES_DSN")
 	}
-	ctx, admin := postgresproof.OpenDisposableBootstrapDatabase(t, adminDSN, optIn, 5*time.Minute,
+	// Clones the process template (#10148 PR-A) instead of bootstrapping again.
+	template := postgresproof.OpenBootstrapTemplate(t, adminDSN, optIn, 5*time.Minute,
+		postgresproof.FlavourPublicBootstrap,
 		func(ctx context.Context, database *sql.DB) error {
 			return ApplyBootstrap(ctx, SQLDB{DB: database})
 		})
+	ctx, admin := postgresproof.OpenBootstrapTemplateClone(t, adminDSN, optIn, 5*time.Minute, template)
 
 	const roleName = "fold_engaged_worker"
 	const rolePassword = "local-proof-only"

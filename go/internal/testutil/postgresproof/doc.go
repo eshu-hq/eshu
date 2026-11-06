@@ -30,6 +30,13 @@
 // host, so full bootstraps must use OpenDisposableBootstrapDatabase. It
 // does not validate the DSN or require an opt-in; the live-postgres-readiness
 // runner checks the proof DSNs it passes.
+//
+// `OpenBootstrapTemplate` builds one template database per (proof server,
+// flavour) per test process with the caller's apply and caches it, so
+// `OpenBootstrapTemplateClone` can clone a fresh disposable database per
+// caller instead of applying the bootstrap per test. The template is
+// process-scoped and dropped by `DiscardBootstrapTemplates`, which the
+// owning test package calls from `TestMain`.
 // DeferredPartitionProofDSN reads the DSN the deferred-partition and
 // activation-obligation proofs share, or skips.
 //
