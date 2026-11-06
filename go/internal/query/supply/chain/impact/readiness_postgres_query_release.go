@@ -41,7 +41,9 @@ package impact
 // packages), so the plan side carries the target's ordinal and looks the id up
 // after the newest state per release is chosen. Carrying the id through the
 // planned-release and window sorts spilled to disk at the 5000-query ceiling
-// where the statement before this change did not.
+// where the statement before this change did not. Each planned batch target
+// must name a single release, because every package in its queries[] is
+// attributed to the target's release.
 //
 // Bounds: the plan is capped by the derivation budget (5000 queries), and the
 // EXISTS gate skips it for requests with no OS package, the only ecosystem with
