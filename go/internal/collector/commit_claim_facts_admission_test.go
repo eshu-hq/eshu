@@ -246,6 +246,79 @@ func TestCommitClaimFactsRejectsComponentMismatch(t *testing.T) {
 	}
 }
 
+// TestCommitClaimFactsRejectsWorkItemMismatch fails closed when the result
+// echo names a different work item than the fenced epoch: a carrier from a
+// neighboring epoch must never commit into this one, so the fence probe never
+// runs. Deleting the work-item check turns this test red.
+func TestCommitClaimFactsRejectsWorkItemMismatch(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.November, 6, 12, 0, 0, 0, time.UTC)
+	mutation := commitLaneMutation(now)
+	store := &commitLaneStore{}
+	committer := &commitLaneCommitter{}
+
+	result := commitLaneResult(mutation, 1)
+	result.Claim.WorkItemID = "work-item-someone-else"
+	req := CommitClaimFactsRequest{
+		Mutation:       mutation,
+		Scope:          commitLaneScope(),
+		Generation:     commitLaneGeneration(now),
+		ComponentID:    "git-commit-lane",
+		IdempotencyKey: "commit-lane-key-work-item-mismatch",
+		ResultJSON:     mustCommitLaneResultJSON(t, result),
+	}
+	if err := CommitClaimFacts(context.Background(), store, committer, req); err == nil {
+		t.Fatal("CommitClaimFacts() error = nil, want work item mismatch")
+	}
+	if store.heartbeatCalls != 0 || committer.calls != 0 {
+		t.Fatalf("store calls = %d, commit calls = %d, want 0/0 for a cross-epoch carrier",
+			store.heartbeatCalls, committer.calls)
+	}
+}
+
+// TestCommitClaimFactsRejectsFencingTokenMismatch fails closed when the
+// result echo carries a fencing token from another epoch — a mismatched
+// integer or a non-integer the lane cannot compare: the epoch confusion the
+// fencing token exists to prevent must never reach the probe. Deleting the
+// fencing-token check turns both cases red.
+func TestCommitClaimFactsRejectsFencingTokenMismatch(t *testing.T) {
+	t.Parallel()
+
+	cases := map[string]string{
+		"mismatched":  "8",
+		"non-integer": "not-an-integer",
+	}
+	for name, token := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			now := time.Date(2026, time.November, 6, 12, 0, 0, 0, time.UTC)
+			mutation := commitLaneMutation(now)
+			store := &commitLaneStore{}
+			committer := &commitLaneCommitter{}
+
+			result := commitLaneResult(mutation, 1)
+			result.Claim.FencingToken = token
+			req := CommitClaimFactsRequest{
+				Mutation:       mutation,
+				Scope:          commitLaneScope(),
+				Generation:     commitLaneGeneration(now),
+				ComponentID:    "git-commit-lane",
+				IdempotencyKey: "commit-lane-key-fencing-mismatch-" + name,
+				ResultJSON:     mustCommitLaneResultJSON(t, result),
+			}
+			if err := CommitClaimFacts(context.Background(), store, committer, req); err == nil {
+				t.Fatalf("CommitClaimFacts() error = nil, want fencing token mismatch (%s)", name)
+			}
+			if store.heartbeatCalls != 0 || committer.calls != 0 {
+				t.Fatalf("store calls = %d, commit calls = %d, want 0/0 for a fencing mismatch (%s)",
+					store.heartbeatCalls, committer.calls, name)
+			}
+		})
+	}
+}
+
 // TestCommitClaimFactsPreservesPayloadPrecision pins the canonical decode
 // discipline: a payload integer past float64 range survives the lane exactly.
 // Without UseNumber it degrades to the nearest float64 and this fails.

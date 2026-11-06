@@ -109,11 +109,13 @@ func mustCommitLaneResultJSON(t *testing.T, result sdkcollector.Result) []byte {
 
 // commitLaneStore is a ClaimControlStore stub: the fence probe answers with
 // heartbeatErr, CompleteClaim acks and records. Zero calls means the lane
-// never reached the plane.
+// never reached the plane. heartbeatMutation records the mutation the probe
+// carried, so tests can pin what the lane stamped before probing.
 type commitLaneStore struct {
-	heartbeatErr   error
-	heartbeatCalls int
-	completeCalls  int
+	heartbeatErr      error
+	heartbeatCalls    int
+	heartbeatMutation workflow.ClaimMutation
+	completeCalls     int
 }
 
 func (s *commitLaneStore) ClaimNextEligible(
@@ -125,8 +127,9 @@ func (s *commitLaneStore) ClaimNextEligible(
 	return workflow.WorkItem{}, workflow.Claim{}, false, nil
 }
 
-func (s *commitLaneStore) HeartbeatClaim(_ context.Context, _ workflow.ClaimMutation) error {
+func (s *commitLaneStore) HeartbeatClaim(_ context.Context, mutation workflow.ClaimMutation) error {
 	s.heartbeatCalls++
+	s.heartbeatMutation = mutation
 	return s.heartbeatErr
 }
 
@@ -313,6 +316,52 @@ func TestCommitClaimFactsStaleFenceWritesNoPartialFacts(t *testing.T) {
 	}
 }
 
+// TestCommitClaimFactsStampsFreshObservedAtForProbe pins the lease math the
+// Postgres heartbeat runs: lease_expires_at derives from the probed
+// ObservedAt, so a claim-time ObservedAt from a satellite that collected for
+// minutes would write an already-past expiry. The lane stamps now (UTC)
+// immediately before the probe, so even a stale caller-supplied ObservedAt
+// succeeds with a live lease. Deleting the stamp turns this test red.
+func TestCommitClaimFactsStampsFreshObservedAtForProbe(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.November, 6, 12, 0, 0, 0, time.UTC)
+	stale := now.Add(-30 * time.Minute)
+	mutation := commitLaneMutation(stale)
+	store := &commitLaneStore{}
+	committer := &commitLaneCommitter{}
+
+	req := CommitClaimFactsRequest{
+		Mutation:       mutation,
+		Scope:          commitLaneScope(),
+		Generation:     commitLaneGeneration(stale),
+		ComponentID:    "git-commit-lane",
+		IdempotencyKey: "commit-lane-key-stale-observed",
+		ResultJSON:     mustCommitLaneResultJSON(t, commitLaneResult(mutation, 1)),
+	}
+	before := time.Now().UTC()
+	if err := CommitClaimFacts(context.Background(), store, committer, req); err != nil {
+		t.Fatalf("CommitClaimFacts() error = %v, want nil for a stale caller ObservedAt", err)
+	}
+	if store.heartbeatCalls != 1 || committer.calls != 1 {
+		t.Fatalf("probe calls = %d, commit calls = %d, want 1/1 for a stamped probe",
+			store.heartbeatCalls, committer.calls)
+	}
+	got := store.heartbeatMutation.ObservedAt
+	if !got.After(stale) {
+		t.Fatalf("probe ObservedAt = %v, want after the stale caller value %v", got, stale)
+	}
+	if got.Before(before.Add(-time.Minute)) {
+		t.Fatalf("probe ObservedAt = %v, want stamped at test time, not carried stale", got)
+	}
+	if got.After(time.Now().UTC().Add(time.Minute)) {
+		t.Fatalf("probe ObservedAt = %v, want no later than now", got)
+	}
+	if !committer.mutations[0].ObservedAt.Equal(got) {
+		t.Fatal("commit mutation ObservedAt does not match the stamped probe value")
+	}
+}
+
 // TestCommitClaimFactsRejectsOversizedPayload mirrors the oversized-metadata
 // fail-closed contract: a payload past the byte cap fails before any fence
 // probe or commit, so an unbounded satellite cannot exhaust the committer.
@@ -418,7 +467,9 @@ func TestCommitClaimFactsRejectsIdentityMismatch(t *testing.T) {
 }
 
 // TestCommitClaimFactsRequiresIdempotencyKey fails a keyless commit before
-// any plane contact: without the key a retry cannot prove itself a replay.
+// any plane contact: the key travels for wire symmetry with the claim-plane
+// protocol, even though the generation (not the key) is the retry key the
+// boundary dedupes on.
 func TestCommitClaimFactsRequiresIdempotencyKey(t *testing.T) {
 	t.Parallel()
 
