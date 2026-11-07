@@ -146,8 +146,15 @@
 // advisory_retracted), so operators can detect VEX/operator-policy suppression drift without
 // re-running the reducer; provider-dismissed and scope-mismatch counts
 // stay separated from operator-asserted hides because they keep audit
-// signal rather than hiding findings. The same reducer registers
-// SupplyChainRemediationDecisions
+// signal rather than hiding findings. The same reducer registers the
+// suppression-diff signals (#10019): SupplyChainSuppressionDiffTotal
+// (eshu_dp_supply_chain_impact_suppression_diff_total, labeled by domain,
+// outcome, and baseline kind), SupplyChainSuppressionDiffDuration
+// (eshu_dp_supply_chain_impact_suppression_diff_duration_seconds),
+// SupplyChainSuppressionWalkTruncatedTotal, and
+// SupplyChainSuppressionNoCVEScopeTotal, so an operator can see whether a
+// suppression-only pass named its CVEs and from what baseline. The same
+// reducer registers SupplyChainRemediationDecisions
 // (eshu_dp_supply_chain_remediation_decisions_total), labeled by reducer
 // domain, outcome (confidence: exact, partial, unknown), and reason (closed
 // remediation-reason enum: direct_upgrade_allowed, direct_range_blocked,

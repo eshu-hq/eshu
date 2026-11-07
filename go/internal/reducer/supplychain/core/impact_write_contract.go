@@ -3,7 +3,10 @@
 
 package core
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 // SupplyChainImpactWrite carries findings for durable publication.
 type SupplyChainImpactWrite struct {
@@ -13,6 +16,15 @@ type SupplyChainImpactWrite struct {
 	SourceSystem string
 	Cause        string
 	Findings     []SupplyChainImpactFinding
+	// ScopeFactKinds are the fact kinds of the intent's own generation: what
+	// this pass's generation carried, never what cross-scope expansion
+	// resolved elsewhere. The writer diffs suppressions only when they are
+	// present, so KEV, EPSS and advisory scopes issue no new statement.
+	ScopeFactKinds []string
+	// SuppressionDiffTimeout overrides the suppression diff statement bound
+	// inside the write transaction. Non-positive keeps the default. Tests
+	// shorten it to prove the bound; production leaves it unset.
+	SuppressionDiffTimeout time.Duration
 	// ScanPublications pins each complete derived target result to its
 	// protected scan attempt. The writer publishes these witnesses and all
 	// findings in one transaction; an omitted witness rejects derived rows.
@@ -63,9 +75,19 @@ type SupplyChainImpactWriteResult struct {
 	EvidenceSummary string
 	// ChangedCVEIDs are the CVE ids, sorted and de-duplicated, of every finding
 	// row this pass wrote that was new, revived, or different in content from the
-	// stored row, plus every row it retracted (#9695). The holder fan-out asks
+	// stored row, plus every row it retracted (#9695), plus the CVEs the
+	// pass's changed suppressions name (#10019). The holder fan-out asks
 	// for the holders of exactly these CVEs.
 	ChangedCVEIDs []string
+	// SuppressionCVEIDs are the CVEs the pass's changed suppressions name
+	// (#10019), the subset of ChangedCVEIDs the suppression diff contributed.
+	// A one-hop re-derivation fans out nothing of its own rewrite, but it
+	// still fans these out: a stamped first pass of an operator generation
+	// would otherwise admit without fanning out.
+	SuppressionCVEIDs []string
+	// suppressionDiff is the pass's suppression diff report for the
+	// handler's signals: action, baseline, counts, and duration.
+	suppressionDiff suppressionDiffReport
 	// RecoveryCVEIDs are the CVE ids of every active and tombstoned finding row
 	// the scope holds at this generation. Set only when the write asked for
 	// Recovery.

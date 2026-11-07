@@ -28,13 +28,18 @@ type suppressionDiffRow struct {
 // suppressionGeneration is one retained generation of a suppression scope, as
 // the baseline read returns it. A zero ActivatedAt means it was never activated.
 // Admitted reports that some pass committed a write admission for it, which
-// makes it the point the fan-out has already covered up to.
+// makes it the point the fan-out has already covered up to. Owed reports that
+// the generation's reducer item still carries fan-out debt: an owed marker or
+// an unreached-holder continuation list (#10060). An admitted generation that
+// still owes has not finished fanning out, so a successor must cover its
+// range again instead of taking it as covered.
 type suppressionGeneration struct {
 	GenerationID string
 	Status       string
 	ActivatedAt  time.Time
 	IngestedAt   time.Time
 	Admitted     bool
+	Owed         bool
 }
 
 // suppressionDiffBaseline names the generation a pass diffs against and how it
@@ -135,13 +140,17 @@ func unionSuppressionFanOutCVEIDs(changed []string, rows []suppressionDiffRow) [
 // against. The plain previous generation is wrong here: a generation activated
 // and then superseded before its reducer item ran never fans out, so its change
 // would fall between two diffs. The newest older generation some pass admitted
-// marks what has been covered, so the diff spans every generation since. Failed
-// and never-activated generations never count: a never-activated one was seen by
-// no reader, and a failed one is excluded by rule, not because no reader saw it.
-// The projector's failure path fails an active generation too and leaves its
-// activated_at set, so a reader may have seen it (see the design's Known limits).
-// With no admitted generation retained, the oldest retained one covers all that
-// can still be compared.
+// marks what has been covered, so the diff spans every generation since. An
+// admitted generation whose item still owes fan-out (#10060: an owed marker or
+// an unreached-holder continuation) has not finished covering its range, so it
+// is skipped in favor of an older cleared one: the walk then spans the owed
+// range again, and the owed continuation drains it too (a duplicate reopen,
+// never a loss). Failed and never-activated generations never count:
+// a never-activated one was seen by no reader, and a failed one is excluded by
+// rule, not because no reader saw it. The projector's failure path fails an
+// active generation too and leaves its activated_at set, so a reader may have
+// seen it (see the design's Known limits). With no cleared admitted generation
+// retained, the oldest retained one covers all that can still be compared.
 //
 // "Older" and "newest" use the lifecycle order (ingested_at, generation_id), the
 // order the supersede sweep, the freshness guard and the projector use. A zero
@@ -156,7 +165,7 @@ func selectSuppressionDiffBaseline(currentID string, candidates []suppressionGen
 	}
 	currentGeneration := candidates[current]
 
-	var admitted, oldest *suppressionGeneration
+	var admittedClear, oldest *suppressionGeneration
 	for i := range candidates {
 		candidate := &candidates[i]
 		if !suppressionGenerationReadable(*candidate) || !suppressionGenerationNewer(currentGeneration, *candidate) {
@@ -165,13 +174,14 @@ func selectSuppressionDiffBaseline(currentID string, candidates []suppressionGen
 		if oldest == nil || suppressionGenerationNewer(*oldest, *candidate) {
 			oldest = candidate
 		}
-		if candidate.Admitted && (admitted == nil || suppressionGenerationNewer(*candidate, *admitted)) {
-			admitted = candidate
+		if candidate.Admitted && !candidate.Owed &&
+			(admittedClear == nil || suppressionGenerationNewer(*candidate, *admittedClear)) {
+			admittedClear = candidate
 		}
 	}
 	switch {
-	case admitted != nil:
-		return suppressionDiffBaseline{GenerationID: admitted.GenerationID, Kind: suppressionBaselineAdmitted}
+	case admittedClear != nil:
+		return suppressionDiffBaseline{GenerationID: admittedClear.GenerationID, Kind: suppressionBaselineAdmitted}
 	case oldest != nil:
 		return suppressionDiffBaseline{GenerationID: oldest.GenerationID, Kind: suppressionBaselineOldestRetained}
 	default:

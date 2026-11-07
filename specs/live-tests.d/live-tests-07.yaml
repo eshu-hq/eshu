@@ -350,6 +350,21 @@ tests:
     class: dedicated_ci
     reason: "#10060: reducer-contention family (fanOutLiveDB); 5 stranded-continuation proofs verified locally on disposable postgres:18 including -race; docs/internal/evidence/10060-stranded-continuation.md"
     runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_fanout_suppression_composition_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#10019: reducer-contention family (convergence harness); 3/3 named Go tests pass with -json -race on disposable postgres:18 (summed test elapsed 75.11s): pre-activation deferral, coalesced chain with net-zero, capped continuation past a newer generation"
+    runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_fanout_suppression_cveid_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#10019: reducer-contention family (convergence harness); 3/3 named Go tests pass with -json -race on disposable postgres:18 (summed test elapsed 6.24s): cve_id-only suppression reopens the OS holder, unchanged set reopens nobody, retry repeats the set"
+    runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_fanout_suppression_wire_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#10019: reducer-contention family (convergence harness); 3/3 named Go tests pass with -json -race on disposable postgres:18 (summed test elapsed 10.39s): signal scopes issue no statement, diff bound fails and recovers, pair plan anchor"
+    runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_fanout_writer_live_test.go
     tag: ~
     class: dedicated_ci

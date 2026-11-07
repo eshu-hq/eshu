@@ -94,11 +94,13 @@ func (w PostgresSupplyChainImpactWriter) WriteSupplyChainImpactFindings(
 	retracted := outcome.retracted
 	canonicalWrites := supplyChainImpactCanonicalWrites(write.Findings)
 	return SupplyChainImpactWriteResult{
-		CanonicalWrites: canonicalWrites,
-		FactsWritten:    len(write.Findings),
-		FactsRetracted:  retracted,
-		ChangedCVEIDs:   outcome.changedCVEs,
-		RecoveryCVEIDs:  outcome.recoveryCVEs,
+		CanonicalWrites:   canonicalWrites,
+		FactsWritten:      len(write.Findings),
+		FactsRetracted:    retracted,
+		ChangedCVEIDs:     outcome.changedCVEs,
+		RecoveryCVEIDs:    outcome.recoveryCVEs,
+		SuppressionCVEIDs: outcome.suppressionCVEs,
+		suppressionDiff:   outcome.suppression,
 		EvidenceSummary: fmt.Sprintf(
 			"wrote supply chain impact findings=%d canonical_writes=%d retracted=%d",
 			len(write.Findings), canonicalWrites, retracted,

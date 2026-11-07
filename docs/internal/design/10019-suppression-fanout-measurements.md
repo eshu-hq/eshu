@@ -150,16 +150,21 @@ part of an operator write. The real suppression count is NOT_CHECKED.
 ## Tests committed now
 
 `suppression_diff_test.go` and `suppression_walk_test.go` test the pure functions in
-`suppression_diff.go` and `suppression_walk.go`. Nothing in production calls them yet.
+`suppression_diff.go` and `suppression_walk.go`; the wiring calls them from
+`commitSupplyChainImpactRows` (`suppression_fanout_wire.go`), proved by
+`suppression_fanout_wire_test.go` (writer transaction against faked reads) and the
+live proofs in `supply_chain_impact_fanout_suppression_cveid_live_test.go`,
+`..._suppression_wire_live_test.go`, and `..._suppression_composition_live_test.go`.
 
 | Function | Covers |
 |---|---|
 | `changedSuppressionCVEIDs` | Added, removed, edited, re-scoped, no CVE, blank, Unicode whitespace, lower case, dedupe, order |
 | `countSuppressionsWithoutCVEScope` | Limit 1's counter input |
 | `unionSuppressionFanOutCVEIDs` | Unchanged set stays empty, suppression-only, overlap |
-| `selectSuppressionDiffBaseline` | Plain chain, coalesced, late stale pass, never-activated, failed, no admission, first generation, ingest-order ties, activated_at and ingest order disagreeing |
+| `selectSuppressionDiffBaseline` | Plain chain, coalesced, late stale pass, never-activated, failed, no admission, first generation, ingest-order ties, activated_at and ingest order disagreeing, admitted-but-owed skipped for an older cleared admission, all-owed falls back to oldest retained, owed without admission never a baseline, current generation's owed marker ignored |
 | `planSuppressionWalk`, `walkSuppressionDiff` | Net-zero plants against a brute-force oracle, the cap and its truncation count, the oldest-retained fallback, read errors, a 12-generation chain, candidates in any read order, a retained generation older than the baseline, and a suppression that names a CVE in one step and none in another |
 | `decideSuppressionDiff`, `failClosedError` | KEV, EPSS, advisory, no facts, first pass, superseded-but-activated, pending, never activated, duplicate, recovery, mixed kinds; the pending outcome returns the existing deferral |
+| `runSuppressionDiff` (wired) | Suppression-only union and owed recording, duplicate names nothing and reopens nobody, signal scopes issue no statement, recovery replays the walk, pending fails closed with no admission, no-baseline names every suppression, walk spans an owed generation, read error fails as the retryable fan-out class, the statement bound brackets the walk, one-hop still fans out suppression ids, retry repeats the recovery set |
 
 **Mutants.** Each was applied in a private detached worktree on the committed tests, which
 must fail on it and pass on the real code:
@@ -175,3 +180,10 @@ must fail on it and pass on the real code:
 The full drain's wall time with the real fan-out store (the holder read was timed alone);
 production `work_mem`, and a truly cold cache (the "cold" read was not OS-cold); real
 generation layout on the heap, which the fixture only approximates.
+
+Measured at wiring (not a quiet host, so not the K round): 260 OS holders deriving
+through the full pipeline take 36 s for the first drain and 6 s for the 4-worker
+concurrent drain of the capped continuation plus a newer generation
+(`TestSuppressionFanOutCappedContinuationSurvivesNewerGenerationLive` logs both).
+The 36 s is holder derivation, not the diff; the diff's own p50/p95 at the cap is
+still the condition-1 follow-up.

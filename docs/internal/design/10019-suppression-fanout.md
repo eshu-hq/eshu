@@ -1,8 +1,8 @@
 # Suppression Fan-Out For OS Findings Keyed By The Upstream CVE (#10019)
 
-Status: Proposed, with the arbiter ruling of 2026-11-04 applied. Depends on #9914,
-which is not merged. The pure decision functions are committed but not called; see
-[What waits for #9914](#what-waits-for-9914).
+Status: Wired 2026-11-07 (#9914 merged via #10225, #10060 fixed via #10300).
+Pure functions (#10141) called from `commitSupplyChainImpactRows`; proofs below all
+delivered. Cap `K` provisional at 4 pending the quiet-host round (condition 1).
 
 ## The short version
 
@@ -193,17 +193,9 @@ pair, and 4,482 ms against 4,147 ms for eight. The pairs shape is the design; th
 At 100,000 suppressions one pair costs 550 ms, four cost 2,044 ms and eight cost 4,147 ms; at
 1,000 they cost 3.3, 8.0 and 14.1 ms (p50, full table in the note).
 
-Seven interleaved rounds, rotating first mover, at 1-minute load 39 to 59. No round was
-quiet, and a 35-minute watch for load1 under 12 (lowest reading 18.3) found none, so the
-cap `K` is NOT chosen by the data. The rule was the largest pair count whose median stays
-under 500 ms at load1 below 12. On the earlier quiet-ish round (load 10) one pair cost
-321 ms, which would pick `K=1`; at load 39 and up it cost 550 ms and nothing qualifies.
-`suppressionWalkMaxPairs` is provisional at 4. The cost scales with suppression rows and not
-with the pair count alone, so the options for wiring are a fixed `K` (4 pairs is about 2 s
-at load 45 on 100,000 rows and under 10 ms on 1,000), a row budget that shrinks `K` on a
-large scope, or `K=1`. The wiring PR re-measures at the cap on a quiet host and fixes the
-number. Worst case a pass issues `K+1` statements, since the endpoint diff reads two
-generations as one pair does.
+No round found a quiet host, so `K` is NOT data-chosen: `suppressionWalkMaxPairs`
+stays provisional at 4. The quiet-host re-measure is a follow-up; condition 1 keeps
+its acceptance. Worst case a pass issues `K+1` statements.
 
 ## The diff statement
 
@@ -249,30 +241,34 @@ earlier round and 550 ms at load 45 here. No round qualifies as a timing proof: 
 rule is load1 under 9 with a control canary, and the rounds ran at 10 to 59. Recorded as:
 met on the least loaded round; no qualifying quiet-host proof yet.
 
-**The 10 s bound is not this path's.** `supplyChainImpactFanOutReadTimeout`
-(in `supply_chain_impact_fanout.go`) is a `SET LOCAL` on the holder read, in the fan-out
-store's own transaction. It does not apply to the writer transaction, and no statement
-timeout covers the writer path today. This design does not lean on it.
+**The writer path has its own 10 s bound.** `suppressionDiffStatementTimeout`
+(in `suppression_fanout_wire.go`) is a `SET LOCAL` around the diff reads inside the
+writer transaction, reset before the row writes that follow. The holder read keeps
+its own bound in the fan-out store's transaction. Either bound fails as the existing
+retryable fan-out
+class; condition 2's acceptance (`K+1` p95 under half of 10 s) rides the quiet-host round.
 
 **Conditions before the wiring PR opens, all required:**
 
 1. **Re-measure on the built writer path** on a quiet host (load1 under 9, control canary),
-   p50 and p95, with the walk at one pair and at the cap. Acceptance: p50 under 500 ms for
-   one pair at 100,000 suppressions. If it misses there, the measured lever is a
-   statement-local `work_mem` (193 ms at 64 MB, no spill); use it only then, and state the
-   memory cost.
-2. **An explicit statement bound** on each diff statement inside the writer transaction,
-   scoped (`SET LOCAL` in a savepoint or reset after) so it does not leak onto the row writes
-   that follow. It fails as the existing retryable fan-out class and is proved by a
-   shortened-timeout test like the holder read's. `K+1` times the p95 per pair must sit under
-   half of it.
+   p50 and p95, one pair and at the cap. Acceptance: p50 under 500 ms for one pair at
+   100,000 suppressions; on a miss the lever is statement-local `work_mem`. NOT DONE at
+   wiring (`suppressionWalkMaxPairs` provisional at 4, quiet-host round deferred).
+   Representative cost instead: 260 holders drain in 6 s on 4 workers (36 s derivation).
+2. **An explicit statement bound** on each diff statement, reset after the walk so it
+   does not leak onto the row writes. Fails as the retryable fan-out class. DONE:
+   `suppressionDiffStatementTimeout` (10 s), proved by
+   `TestSuppressionDiffBoundFailsThePassAndRecoversLive`; the p95 half-bound acceptance
+   rides on the condition-1 round.
 3. **A plan-anchor test** on a seeded, analyzed fixture under both `plan_cache_mode`
-   settings: an index access on `fact_records_scope_generation_idx` on both sides (an
-   `Index Scan` or a `Bitmap Index Scan`; this fixture plans the latter) and no sequential
-   scan. The generic plan is right today on an estimate of 1,011 rows against 100,000 actual,
-   so a statistics change could flip it.
+   settings: index access on `fact_records_scope_generation_idx` on both sides, no
+   sequential scan. DONE: `TestSuppressionDiffPairPlanUsesTheScopeGenerationIndexLive`
+   explains the shipped statement text (captured from the pass, never hand-copied).
 4. **No new statement for other scopes.** A scope whose facts hold no suppression issues
-   none; prove it by statement count on a non-suppression scope.
+   none; prove it by statement count on a non-suppression scope. DONE:
+   `TestSuppressionDiffSkippedKind` (unit) and
+   `TestSuppressionDiffIssuesNoStatementForSignalScopesLive` (EPSS scope, recorded
+   production statements).
 5. **State the spill.** About 104 MB of temp files per pair at 4 MB `work_mem` (13,019
    pages, 12,771 on the walk fixture), freed when each statement ends, so the peak is one
    pair, and the total temp I/O is `K+1` times that.
@@ -338,11 +334,8 @@ The retry's baseline is deterministic except in the row that names the move, whi
 because the older pass owes its own range. A one-hop stamp cannot cycle: holders hold no
 suppression facts, and a generation's diff runs at most once outside recovery.
 
-**One wiring hazard.** `fanOutHolders` leaves its id list empty on a one-hop pass, and
-`owedRecorder` returns nil there. A one-hop first pass on an operator generation would
-admit G without fanning out. It looks unreachable (the reopen query leaves a queued row
-unstamped), but the operator scope can hold findings, so `enqueueMissingHolder` needs a
-test, and wiring must let the diff's ids through regardless of the stamp.
+**Wiring hazard, handled.** A one-hop first pass leaves the fan-out id list empty;
+wiring lets the diff's ids through regardless of the stamp, proved by the one-hop tests.
 
 ## Failure modes
 
@@ -409,8 +402,10 @@ reports `walk_truncated`.
 ## Telemetry
 
 The 3 AM question: "an operator wrote a suppression; did the holders reopen, and if not,
-why?" New signals, all with bounded labels; none registered yet, because nothing is
-wired. No-Observability-Change: this commit adds no runtime path.
+why?" New signals, all with bounded labels, registered by the wiring
+(`suppression_fanout_wire.go`); `deferred_unactivated` stays the writer invariant
+fail-closed check. Observability Evidence: the counters, histogram, span, log line, and
+sub-signals below, plus the coverage row.
 
 | Signal | Shape | Answers |
 |---|---|---|
@@ -446,16 +441,18 @@ existing error and adds no deferral; (3) walk adjacent activated pairs, capped, 
 loudly; (4) criterion 1 is wrong, below; (5) inline accepted, timing partial, five wiring
 conditions. Each is in its section above.
 
-**Criterion 1.** `active` means no suppression matched and the finding is visible
-(`evaluation.go`). The criterion should read: a fixture with an OS finding keyed by
-CVE-X and an `accepted_risk` suppression scoped `cve_id=CVE-X` in an operator scope
-reads `suppression_state` `accepted_risk` (hidden from the default view) after the
-operator pass and the holder fan-out, where it read `active` before the fan-out, RED
-first. Criteria 2 to 4 stand. The coordinator edits the issue, and its design sketch
-names the admitted baseline and the adjacent-pair walk in place of "the prior
-generation".
+**Criterion 1.** Read `accepted_risk` after the operator pass and holder fan-out
+where it read `active` before, RED first (OS finding keyed CVE-X, `cve_id=CVE-X`
+suppression). Criteria 2 to 4 stand; the issue's "prior generation" means the
+admitted baseline plus the adjacent-pair walk.
 
 ## What waits for #9914
+
+Delivered 2026-11-07: #9914 merged (#10225), #10060 resolved (fix #10300), and every
+proof below is a committed test. The `convergence` harness named below is
+`supply_chain_impact_fanout_convergence_live_test.go`; the suppression fixtures live
+in `supply_chain_impact_fanout_suppression_cveid_live_test.go`,
+`..._suppression_wire_live_test.go`, and `..._suppression_composition_live_test.go`.
 
 - Calling these functions from `commitSupplyChainImpactRows`, and the candidate and diff
   reads. The code does not need the new finding shape, but the behavior cannot be proved

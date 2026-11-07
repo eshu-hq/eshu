@@ -65,11 +65,14 @@ func runSupplyChainImpactTx(
 
 // supplyChainImpactTxOutcome is what one committed pass reports: how many rows
 // it retracted, which CVEs its rows changed, and, for a recovery write, every
-// CVE the scope's rows name.
+// CVE the scope's rows name. suppressionCVEs are the CVEs the pass's changed
+// suppressions name (#10019); suppression is the diff report behind them.
 type supplyChainImpactTxOutcome struct {
-	retracted    int
-	changedCVEs  []string
-	recoveryCVEs []string
+	retracted       int
+	changedCVEs     []string
+	recoveryCVEs    []string
+	suppressionCVEs []string
+	suppression     suppressionDiffReport
 }
 
 // commitSupplyChainImpactRows runs one pass's statements inside tx and returns
@@ -110,6 +113,17 @@ func commitSupplyChainImpactRows(
 	); err != nil {
 		return supplyChainImpactTxOutcome{}, fmt.Errorf("lock supply chain impact conflict domain: %w", err)
 	}
+	// The suppression diff runs before the admission row is written: its
+	// duplicate answer reads only previously committed admissions, so a
+	// first pass is never judged by its own upsert, and the fail-closed
+	// answer for a pending generation rolls back with no admission row. The
+	// union lands on changedCVEs below, before the owed marker is recorded,
+	// so a suppression-only change still sets the marker (#10019).
+	supp, err := runSuppressionDiff(ctx, tx, write.ScopeID, write.GenerationID,
+		write.ScopeFactKinds, write.Recovery, write.SuppressionDiffTimeout)
+	if err != nil {
+		return supplyChainImpactTxOutcome{suppression: supp}, err
+	}
 	// Admission second, still before any row is touched: a pass whose fencing
 	// token is older than one already admitted for this (scope, generation) is
 	// rejected whole. Without it a stale pass that commits after a fresher one
@@ -132,7 +146,7 @@ func commitSupplyChainImpactRows(
 	// change set compares the new rows with the rows they replace (#9695).
 	stored, err := readStoredSupplyChainImpactFindings(ctx, tx, write.ScopeID, write.GenerationID)
 	if err != nil {
-		return supplyChainImpactTxOutcome{}, err
+		return supplyChainImpactTxOutcome{suppression: supp}, err
 	}
 	// Bounded chunked bulk insert: findings are upserted in O(N/batchSize)
 	// round-trips rather than one ExecContext per finding.
@@ -154,8 +168,14 @@ func commitSupplyChainImpactRows(
 			return supplyChainImpactTxOutcome{}, fmt.Errorf("publish protected scan impact result: %w", err)
 		}
 	}
+	rowChanged := changedCVEIDs(meta, stored, write.GenerationID, write.FencingToken, !write.PartialEvidence)
+	if len(supp.cveIDs) > 0 {
+		rowChanged = unionSortedStrings(rowChanged, supp.cveIDs)
+	}
 	outcome := supplyChainImpactTxOutcome{
-		changedCVEs: changedCVEIDs(meta, stored, write.GenerationID, write.FencingToken, !write.PartialEvidence),
+		changedCVEs:     rowChanged,
+		suppressionCVEs: supp.cveIDs,
+		suppression:     supp,
 	}
 	if write.Owed != nil && len(outcome.changedCVEs) > 0 {
 		if err := write.Owed.RecordFanOutOwed(ctx, tx); err != nil {
