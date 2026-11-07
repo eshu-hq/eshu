@@ -59,8 +59,11 @@ func (w *capturingUnroutableWriter) WriteUnroutableIntents(
 // poisonFailingEdgeWriter mirrors the production writer's fail-closed delta
 // rejection: any retract batch holding a delta-flagged row with no usable
 // delta_file_paths fails with the same typed error production returns,
-// before any statement runs. The poison split uses the shared predicate the
-// worker quarantines with, so the test proves the two agree.
+// before any statement runs. The poison split reuses the shared predicate the
+// worker quarantines with, so this test exercises the quarantine path without
+// proving the production collector agrees row for row; that lockstep is pinned
+// by TestUnusableDeltaRefreshFailsClosedInsteadOfRetractingRepoWide (writer)
+// and TestRowHasUnusableDeltaScope (predicate).
 type poisonFailingEdgeWriter struct {
 	fakeEdgeWriter
 	retractBatches [][]sharedintent.Row
@@ -375,4 +378,129 @@ func markedKeys(set map[string]bool) []string {
 		keys = append(keys, key)
 	}
 	return keys
+}
+
+// failingUnroutableWriter records the attempted dead-letter rows and then
+// fails the durable record, so the cycle must fail closed before anything
+// completes.
+type failingUnroutableWriter struct {
+	rows []sharedintent.UnroutableRow
+}
+
+func (w *failingUnroutableWriter) WriteUnroutableIntents(
+	_ context.Context,
+	rows []sharedintent.UnroutableRow,
+) error {
+	w.rows = append(w.rows, rows...)
+	return errors.New("unroutable store unavailable")
+}
+
+// TestSharedPartitionFailsCycleWhenUnroutableSinkFails pins the fail-closed
+// record exit (#10069): when the durable unroutable write fails, the cycle
+// errors with nothing completed and the usable remainder never retracts, so
+// the batch re-runs and re-records idempotently. Ignoring the sink error
+// would complete the poisoned row with no durable record, reintroducing the
+// silent loss #5984 fixed.
+func TestSharedPartitionFailsCycleWhenUnroutableSinkFails(t *testing.T) {
+	t.Parallel()
+
+	createdAt := time.Date(2026, 8, 15, 12, 0, 0, 0, time.UTC)
+	poisonRefresh := deadLetterRefreshRow(deadLetterPoisonRepo, false, createdAt)
+	poisonRefresh.Payload["delta_projection"] = true
+	poisonRefresh.Payload["delta_file_paths"] = []string{}
+	healthyRefresh := deadLetterRefreshRow(deadLetterHealthyRepo, false, createdAt.Add(time.Minute))
+	reader := &fakeSharedIntentReader{intents: []sharedintent.Row{poisonRefresh, healthyRefresh}}
+	edges := &poisonFailingEdgeWriter{}
+	unroutable := &failingUnroutableWriter{}
+	cfg := PartitionProcessorConfig{
+		Domain:         reducercontract.DomainRationaleEdges,
+		PartitionID:    0,
+		PartitionCount: 1,
+		LeaseOwner:     "test-runner",
+		LeaseTTL:       time.Minute,
+		BatchLimit:     10,
+		EvidenceSource: "reducer/rationale",
+	}
+
+	_, err := ProcessPartitionOnce(
+		context.Background(), createdAt.Add(time.Hour), cfg,
+		&fakeLeaseManager{granted: true}, reader, edges,
+		acceptedGenerationFixed(deadLetterGenID, true), nil,
+		readinessLookupFixed(true, true), nil, nil, nil, nil, unroutable,
+	)
+	if err == nil {
+		t.Fatalf("ProcessPartitionOnce() = nil, want the failing unroutable write to fail the cycle and retry")
+	}
+	if len(reader.marked) != 0 {
+		t.Fatalf("marked = %v, want nothing completed when the dead-letter record fails", reader.marked)
+	}
+	if len(unroutable.rows) != 1 {
+		t.Fatalf("attempted unroutable rows = %+v, want exactly one attempted dead letter for the poisoned refresh", unroutable.rows)
+	}
+	if len(edges.retractBatches) != 1 {
+		t.Fatalf("retract batches = %d, want 1 (the usable remainder must not retract before the dead letter is durable)", len(edges.retractBatches))
+	}
+}
+
+// lyingUnusableDeltaEdgeWriter returns the typed fail-closed rejection for
+// every retract batch even though no row is unusable under the shared
+// predicate: the split cannot explain the failure, so the cycle must fail and
+// retry instead of completing anything as a dead letter.
+type lyingUnusableDeltaEdgeWriter struct {
+	fakeEdgeWriter
+	retractBatches [][]sharedintent.Row
+}
+
+func (w *lyingUnusableDeltaEdgeWriter) RetractEdges(
+	_ context.Context,
+	_ string,
+	rows []sharedintent.Row,
+	_ string,
+) error {
+	w.retractBatches = append(w.retractBatches, append([]sharedintent.Row(nil), rows...))
+	return sharedintent.NewUnusableDeltaScopeRowError("repo-healthy")
+}
+
+// TestSharedPartitionRetriesTypedErrorWhenSplitExplainsNothing pins the
+// split-empty exit (#10069): a typed rejection with no poisoned row under the
+// shared predicate fails the cycle with nothing completed and no dead letter.
+// Completing anything here would be silent loss, since the split cannot say
+// which row the writer rejected.
+func TestSharedPartitionRetriesTypedErrorWhenSplitExplainsNothing(t *testing.T) {
+	t.Parallel()
+
+	createdAt := time.Date(2026, 8, 15, 12, 0, 0, 0, time.UTC)
+	refresh := deadLetterRefreshRow(deadLetterHealthyRepo, false, createdAt)
+	edge := deadLetterEdgeRow("edge-1", deadLetterHealthyRepo, createdAt.Add(time.Minute))
+	reader := &fakeSharedIntentReader{intents: []sharedintent.Row{refresh, edge}}
+	edges := &lyingUnusableDeltaEdgeWriter{}
+	unroutable := &capturingUnroutableWriter{}
+	cfg := PartitionProcessorConfig{
+		Domain:         reducercontract.DomainRationaleEdges,
+		PartitionID:    0,
+		PartitionCount: 1,
+		LeaseOwner:     "test-runner",
+		LeaseTTL:       time.Minute,
+		BatchLimit:     10,
+		EvidenceSource: "reducer/rationale",
+	}
+
+	_, err := ProcessPartitionOnce(
+		context.Background(), createdAt.Add(time.Hour), cfg,
+		&fakeLeaseManager{granted: true}, reader, edges,
+		acceptedGenerationFixed(deadLetterGenID, true), nil,
+		readinessLookupFixed(true, true), nil, nil, nil, nil, unroutable,
+	)
+	if err == nil {
+		t.Fatalf("ProcessPartitionOnce() = nil, want the unexplained typed rejection to fail the cycle and retry")
+	}
+	if len(reader.marked) != 0 {
+		t.Fatalf("marked = %v, want nothing completed when the split explains nothing", reader.marked)
+	}
+	if len(unroutable.rows) != 0 {
+		t.Fatalf("unroutable rows = %+v, want no dead letter when the split explains nothing", unroutable.rows)
+	}
+	if len(edges.retractBatches) != 1 {
+		t.Fatalf("retract batches = %d, want 1 (no quarantine retract runs when the split explains nothing)", len(edges.retractBatches))
+	}
 }

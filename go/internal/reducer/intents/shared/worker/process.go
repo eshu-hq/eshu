@@ -280,7 +280,7 @@ func ProcessPartitionOnce(
 		LeaseAcquired:                true,
 		ProcessedIntents:             len(processedIDs),
 		UpsertedRows:                 len(upsertRows),
-		RetractedRows:                len(retractRows),
+		RetractedRows:                len(retractRows) - len(writeResult.deadLettered),
 		StaleIntents:                 len(batch.StaleIDs),
 		SupersededGenerationIntents:  batch.SupersededGenerationCount,
 		AbsentGenerationGoneIntents:  len(batch.AbsentDrainedIDs),

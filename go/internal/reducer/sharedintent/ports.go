@@ -70,7 +70,9 @@ type UnroutableRow struct {
 	ScopeID          string
 	GenerationID     string
 	EvidenceSource   string
-	// Reason is one of the bounded UnroutableReason* constants above.
+	// Reason is one of the bounded unroutable reasons: the
+	// UnroutableReason* constants above or UnusableDeltaScopeReason
+	// (unusable_delta_scope) in unusable_delta.go.
 	Reason string
 	// DecidedAt is when the writer rejected the row.
 	DecidedAt time.Time
