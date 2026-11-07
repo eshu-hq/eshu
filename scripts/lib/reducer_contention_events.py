@@ -17,10 +17,19 @@ OWNER_JOB = re.compile(
 )
 STEP_NAME = re.compile(r"(?m)^      - name: ([^\n]+)\n")
 PROOF_STEPS = {
-    "github.com/eshu-hq/eshu/go/internal/storage/postgres": "Run reducer contention gate",
-    "github.com/eshu-hq/eshu/go/internal/query": "Run story target-support semantics proof",
-    "github.com/eshu-hq/eshu/go/internal/storage/postgres/readiness/wait":
+    # #10148 S5: the stress test runs in its own step against the same
+    # package, so one package may own several steps; enrollment holds when
+    # every proof is selected by at least one of them (union).
+    "github.com/eshu-hq/eshu/go/internal/storage/postgres": (
+        "Run reducer contention gate",
+        "Run fan-out stress proof",
+    ),
+    "github.com/eshu-hq/eshu/go/internal/query": (
+        "Run story target-support semantics proof",
+    ),
+    "github.com/eshu-hq/eshu/go/internal/storage/postgres/readiness/wait": (
         "Run readiness wait ledger proofs",
+    ),
 }
 CONTRACT_STEP = "Verify contention runner contract"
 GO_CAPTURE = re.compile(
@@ -156,25 +165,29 @@ def verify_inventory(root: Path, inventory: dict[str, dict[str, object]]) -> Non
     steps = workflow_steps(workflow)
     if tuple(active_commands(steps, CONTRACT_STEP)) != CONTRACT_COMMANDS:
         raise ValueError("non-fail-closed contention runner contract")
-    selectors: dict[str, re.Pattern[str]] = {}
-    for package, name in PROOF_STEPS.items():
-        commands = active_commands(steps, name)
-        if len(commands) != 3 or commands[0] != "set -o pipefail":
-            raise ValueError(f"non-fail-closed Go event capture for {package}")
-        capture = GO_CAPTURE.fullmatch(commands[1])
-        if capture is None:
-            raise ValueError(f"non-fail-closed Go event capture for {package}")
-        relative_package, expression, events = capture.groups()
-        selected_package = "github.com/eshu-hq/eshu/go/" + relative_package[2:].rstrip("/")
-        if selected_package != package:
-            raise ValueError(f"no workflow selector for {package}")
-        verifier = (
-            "python3 ../scripts/lib/reducer_contention_events.py "
-            f'--events "{events}" --package {package}'
-        )
-        if commands[2] != verifier:
-            raise ValueError(f"missing event verifier for {package}")
-        selectors[package] = re.compile(expression)
+    selectors: dict[str, list[re.Pattern[str]]] = {}
+    for package, names in PROOF_STEPS.items():
+        owned: list[re.Pattern[str]] = []
+        for name in names:
+            commands = active_commands(steps, name)
+            if len(commands) != 3 or commands[0] != "set -o pipefail":
+                raise ValueError(f"non-fail-closed Go event capture for {package}")
+            capture = GO_CAPTURE.fullmatch(commands[1])
+            if capture is None:
+                raise ValueError(f"non-fail-closed Go event capture for {package}")
+            relative_package, expression, events = capture.groups()
+            selected_package = "github.com/eshu-hq/eshu/go/" + relative_package[2:].rstrip("/")
+            if selected_package != package:
+                raise ValueError(f"no workflow selector for {package}")
+            verifier = (
+                "python3 ../scripts/lib/reducer_contention_events.py "
+                f'--events "{events}" --package {package} '
+                f"--select '{expression}'"
+            )
+            if commands[2] != verifier:
+                raise ValueError(f"missing event verifier for {package}")
+            owned.append(re.compile(expression))
+        selectors[package] = owned
     for relative, row in inventory.items():
         package = row["package"]
         tests = row["tests"]
@@ -195,7 +208,11 @@ def verify_inventory(root: Path, inventory: dict[str, dict[str, object]]) -> Non
             raise ValueError(f"source Test inventory changed: {relative}: {actual} != {tests}")
         if package not in selectors:
             raise ValueError(f"no workflow selector for {package}")
-        missing = [name for name in tests if not selectors[package].search(name)]
+        missing = [
+            name
+            for name in tests
+            if not any(selector.search(name) for selector in selectors[package])
+        ]
         if missing:
             raise ValueError(f"unselected tests in {relative}: {missing}")
 
@@ -266,6 +283,7 @@ def main() -> int:
     parser.add_argument("--repo-root", type=Path, default=Path(__file__).resolve().parents[2])
     parser.add_argument("--events", type=Path)
     parser.add_argument("--package")
+    parser.add_argument("--select")
     args = parser.parse_args()
     try:
         inventory = load_inventory()
@@ -275,11 +293,15 @@ def main() -> int:
             return 0
         if not args.package:
             parser.error("--package is required with --events")
+        if not args.select:
+            parser.error("--select is required with --events")
+        selector = re.compile(args.select)
         expected = {
             name
             for row in inventory.values()
             if row["package"] == args.package
             for name in row["tests"]
+            if selector.search(name)
         }
         if not expected:
             raise ValueError(f"no enrolled tests for {args.package}")

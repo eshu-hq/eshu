@@ -322,17 +322,20 @@ func activeWorkProjectionProofEnv(t *testing.T, workflow string) bool {
 		return false
 	}
 	const marker = "go test ./internal/storage/postgres/ -run"
+	// #10148 S5: the stress test runs in its own step against the same
+	// package, so every step that runs the package's suite must carry the
+	// live DSN and the require switch; one valid step no longer suffices.
 	proofSteps := 0
-	validEnv := false
+	validEnv := true
 	for _, step := range job.Steps {
 		if !strings.Contains(step.Run, marker) {
 			continue
 		}
 		proofSteps++
-		validEnv = strings.TrimSpace(step.Env["ESHU_POSTGRES_DSN"]) != "" &&
+		validEnv = validEnv && strings.TrimSpace(step.Env["ESHU_POSTGRES_DSN"]) != "" &&
 			step.Env["ESHU_REQUIRE_ACTIVE_WORK_PROJECTION_PROOF"] == "1"
 	}
-	return proofSteps == 1 && validEnv
+	return proofSteps >= 1 && validEnv
 }
 
 func TestActiveWorkProjectionProofEnvIsInProofStep(t *testing.T) {
@@ -356,7 +359,8 @@ func TestActiveWorkProjectionProofEnvIsInProofStep(t *testing.T) {
 		{"missing DSN", job + "      - name: Run\n        env:\n" + required + run},
 		{"missing required flag", job + "      - name: Run\n        env:\n" + dsn + run},
 		{"run marker in scalar only", job + "      - name: Run\n        env:\n" + dsn + required + "          UNUSED: |\n            " + run},
-		{"duplicate proof step", job + "      - name: First\n        env:\n" + dsn + required + run + "      - name: Second\n        env:\n" + dsn + required + run},
+		{"second proof step missing DSN", job + "      - name: First\n        env:\n" + dsn + required + run + "      - name: Second\n        env:\n" + required + run},
+		{"second proof step missing required flag", job + "      - name: First\n        env:\n" + dsn + required + run + "      - name: Second\n        env:\n" + dsn + run},
 		{"malformed YAML", job + "      - name: Run\n        env: [\n" + run},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -368,5 +372,12 @@ func TestActiveWorkProjectionProofEnvIsInProofStep(t *testing.T) {
 	green := job + "      - name: Run\n        env:\n" + dsn + required + run
 	if !activeWorkProjectionProofEnv(t, green) {
 		t.Fatal("the Postgres proof step's live DSN and required flag were rejected")
+	}
+	// #10148 S5: the stress step runs the same package in a second step, so
+	// two valid proof steps pass while one leaking step fails.
+	twoValid := job + "      - name: First\n        env:\n" + dsn + required + run +
+		"      - name: Second\n        env:\n" + dsn + required + run
+	if !activeWorkProjectionProofEnv(t, twoValid) {
+		t.Fatal("two valid Postgres proof steps were rejected")
 	}
 }

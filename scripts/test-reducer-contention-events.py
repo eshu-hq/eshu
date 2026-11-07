@@ -67,6 +67,10 @@ class EventProofTest(unittest.TestCase):
                     "-run '^TestServiceStoryTargetSupportSQLSemanticsLive$'",
                     "-run '^TestStoryLive$'",
                     1,
+                ).replace(
+                    "--select '^TestServiceStoryTargetSupportSQLSemanticsLive$'",
+                    "--select '^TestStoryLive$'",
+                    1,
                 )
             )
             inventory = {
@@ -105,6 +109,125 @@ class EventProofTest(unittest.TestCase):
                 )
             )
             with self.assertRaisesRegex(ValueError, "fail-closed"):
+                MODULE.verify_inventory(root, inventory)
+
+    def test_second_postgres_step_covers_by_union(self) -> None:
+        """A proof selected only by the stress step stays enrolled."""
+        package = "github.com/eshu-hq/eshu/go/internal/storage/postgres"
+
+        def proof_step(name: str, relative: str, expression: str, events: str) -> str:
+            selected = "github.com/eshu-hq/eshu/go/" + relative[2:].rstrip("/")
+            return (
+                f"      - name: {name}\n"
+                "        working-directory: go\n"
+                "        env:\n"
+                '          ESHU_X: "1"\n'
+                "        run: |\n"
+                "          set -o pipefail\n"
+                f"          go test {relative} -run '{expression}' -json -race "
+                '-count=1 -timeout 10s -v | tee "${RUNNER_TEMP}/' + events + '.jsonl"\n'
+                "          python3 ../scripts/lib/reducer_contention_events.py "
+                f'--events "${{RUNNER_TEMP}}/{events}.jsonl" --package {selected} '
+                f"--select '{expression}'\n"
+            )
+
+        workflow = (
+            "name: fixture\n"
+            "on: push\n"
+            "concurrency: {}\n"
+            "permissions: {}\n"
+            "jobs:\n"
+            "  contention-gate:\n"
+            "    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'contention-gate') }}\n"
+            "    name: gate\n"
+            "    runs-on: ubuntu-24.04\n"
+            "    timeout-minutes: 45\n"
+            "    services:\n"
+            "      postgres:\n"
+            "        image: fixture\n"
+            "    steps:\n"
+            "      - name: Verify contention runner contract\n"
+            "        run: |\n"
+            "          python3 scripts/lib/reducer_contention_events.py\n"
+            "          python3 scripts/test-reducer-contention-events.py\n"
+            "          python3 scripts/test-reducer-contention-ledger-policy.py\n"
+            "          bash scripts/verify-live-tests-ledger.sh\n"
+            + proof_step(
+                "Run reducer contention gate",
+                "./internal/storage/postgres/",
+                "^(TestMainLive)$",
+                "contention-storage_postgres",
+            )
+            + proof_step(
+                "Run fan-out stress proof",
+                "./internal/storage/postgres/",
+                "^(TestStressLive)$",
+                "contention-storage_postgres_stress",
+            )
+            + proof_step(
+                "Run story target-support semantics proof",
+                "./internal/query/",
+                "^(TestStoryLive)$",
+                "contention-query_story",
+            )
+            + proof_step(
+                "Run readiness wait ledger proofs",
+                "./internal/storage/postgres/readiness/wait/",
+                "^(TestWaitLive)$",
+                "contention-readiness_wait",
+            )
+        )
+        stress_verifier = (
+            "python3 ../scripts/lib/reducer_contention_events.py "
+            '--events "${RUNNER_TEMP}/contention-storage_postgres_stress.jsonl" '
+            f"--package {package} --select '^(TestStressLive)$'"
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            path = root / MODULE.WORKFLOW
+            path.parent.mkdir(parents=True)
+            path.write_text(workflow)
+            sources = {
+                "go/internal/storage/postgres/proof_live_test.go": (
+                    "package postgres\n"
+                    "func TestMainLive(t *testing.T) {}\n"
+                    "func TestStressLive(t *testing.T) {}\n"
+                ),
+                "go/internal/query/proof_live_test.go": (
+                    "package query\nfunc TestStoryLive(t *testing.T) {}\n"
+                ),
+                "go/internal/storage/postgres/readiness/wait/proof_live_test.go": (
+                    "package wait\nfunc TestWaitLive(t *testing.T) {}\n"
+                ),
+            }
+            for relative, body in sources.items():
+                target = root / relative
+                target.parent.mkdir(parents=True)
+                target.write_text(body)
+            inventory = {
+                "go/internal/storage/postgres/proof_live_test.go": {
+                    "package": package,
+                    "tests": ["TestMainLive", "TestStressLive"],
+                },
+                "go/internal/query/proof_live_test.go": {
+                    "package": "github.com/eshu-hq/eshu/go/internal/query",
+                    "tests": ["TestStoryLive"],
+                },
+                "go/internal/storage/postgres/readiness/wait/proof_live_test.go": {
+                    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres/readiness/wait",
+                    "tests": ["TestWaitLive"],
+                },
+            }
+            MODULE.verify_inventory(root, inventory)
+            path.write_text(
+                path.read_text().replace("^(TestStressLive)$", "^(TestNothingLive)$")
+            )
+            with self.assertRaisesRegex(ValueError, "unselected tests.*TestStressLive"):
+                MODULE.verify_inventory(root, inventory)
+            path.write_text(
+                workflow.replace(stress_verifier, "          echo event verifier removed", 1)
+            )
+            with self.assertRaisesRegex(ValueError, "missing event verifier"):
                 MODULE.verify_inventory(root, inventory)
 
     def test_ci_wiring_selects_harness_changes(self) -> None:
@@ -286,7 +409,7 @@ class EventProofTest(unittest.TestCase):
         )
         verifier = (
             "--package github.com/eshu-hq/eshu/go/internal/storage/"
-            "postgres/readiness/wait\n"
+            "postgres/readiness/wait --select '^TestReadinessWait.*Live$'\n"
         )
         mutations.append(
             (
