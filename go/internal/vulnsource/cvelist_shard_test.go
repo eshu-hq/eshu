@@ -32,6 +32,8 @@ func TestCVEListShardForCVEIDGroupsByThousands(t *testing.T) {
 		{cveID: "CVE-24-12345"},
 		{cveID: "CVE-2024-123"},
 		{cveID: "CVE-2024-12x45"},
+		{cveID: "CVE-2024-+1234"},
+		{cveID: "CVE-2024--1234"},
 		{cveID: "GHSA-abcd-1234-efgh"},
 	}
 

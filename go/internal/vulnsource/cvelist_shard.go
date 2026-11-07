@@ -54,6 +54,11 @@ func splitCVEListID(cveID string) (year string, sequence int, valid bool) {
 	if len(seq) < 4 {
 		return "", 0, false
 	}
+	for i := 0; i < len(seq); i++ {
+		if seq[i] < '0' || seq[i] > '9' {
+			return "", 0, false
+		}
+	}
 	n, err := strconv.Atoi(seq)
 	if err != nil {
 		return "", 0, false
