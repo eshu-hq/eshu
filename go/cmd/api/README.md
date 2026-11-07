@@ -392,7 +392,10 @@ gates everything: unset keeps the core dark and the public `:8080`
 surface byte-identical. A set-but-half-configured gate refuses startup
 with the missing variable named, before any socket opens. An unexpected
 serve error fails the process (`os.Exit(1)`); only `http.ErrServerClosed`
-is a clean shutdown.
+is a clean shutdown. The listener serves unauthenticated inside the
+cluster trust boundary: bind it to a cluster-internal address and admit
+only the satellite plane (NetworkPolicy, Stage 2 deploy work). Do not
+expose it beyond the cluster.
 
 No-Regression Evidence (#8877): dark mode adds zero goroutines, zero
 sockets, and zero queries — `wireCommitListener` returns nil before the
@@ -408,7 +411,7 @@ address, `runtime.server.failed` before the fatal exit,
 `runtime.shutdown.failed` on commit-server shutdown failure
 (`main.go:104`), and `runtime.startup.failed` on any wiring refusal.
 Pool-close failures log a warning without an event
-(`commit_listener.go:227`).
+(`commit_listener.go:261`).
 
 ## Related docs
 

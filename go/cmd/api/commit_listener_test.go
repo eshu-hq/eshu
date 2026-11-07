@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -127,6 +128,47 @@ func TestLoadCommitConfigRefusesWithoutPlaneURL(t *testing.T) {
 	err := commitListenerErr(env)
 	if err == nil || !strings.Contains(err.Error(), "ESHU_COMMIT_CLAIM_PLANE_URL") {
 		t.Fatalf("loadCommitConfig() error = %v, want the plane URL variable named", err)
+	}
+}
+
+// TestLoadCommitConfigRefusesGarbagePlaneURL proves a malformed plane URL
+// is half-configuration: startup refuses it with the variable named,
+// before any socket opens, instead of serving commits that all fail later.
+func TestLoadCommitConfigRefusesGarbagePlaneURL(t *testing.T) {
+	t.Parallel()
+
+	for _, raw := range []string{":::not-a-url", "notaurl", "http://", "ftp://host/x"} {
+		env := commitListenerTestEnv()
+		env["ESHU_COMMIT_CLAIM_PLANE_URL"] = raw
+		err := commitListenerErr(env)
+		if err == nil || !strings.Contains(err.Error(), "ESHU_COMMIT_CLAIM_PLANE_URL") {
+			t.Errorf("loadCommitConfig() with plane URL %q error = %v, want the plane URL variable named", raw, err)
+		}
+	}
+}
+
+// TestLoadCommitConfigManifestErrorNamesVariable proves manifest read and
+// parse failures meet the same bar as the grants path: the error names
+// the variable and the path.
+func TestLoadCommitConfigManifestErrorNamesVariable(t *testing.T) {
+	t.Parallel()
+
+	env := commitListenerTestEnv()
+	env["ESHU_COMMIT_MANIFEST_PATH"] = "testdata/does-not-exist.json"
+	err := commitListenerErr(env)
+	if err == nil || !strings.Contains(err.Error(), "ESHU_COMMIT_MANIFEST_PATH") ||
+		!strings.Contains(err.Error(), "testdata/does-not-exist.json") {
+		t.Errorf("loadCommitConfig() error = %v, want the manifest variable and path named", err)
+	}
+
+	corrupt := filepath.Join(t.TempDir(), "corrupt.json")
+	if werr := os.WriteFile(corrupt, []byte("{not json"), 0o600); werr != nil {
+		t.Fatalf("write corrupt manifest: %v", werr)
+	}
+	env["ESHU_COMMIT_MANIFEST_PATH"] = corrupt
+	err = commitListenerErr(env)
+	if err == nil || !strings.Contains(err.Error(), "ESHU_COMMIT_MANIFEST_PATH") {
+		t.Errorf("loadCommitConfig() error = %v, want the manifest variable named", err)
 	}
 }
 

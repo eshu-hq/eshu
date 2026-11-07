@@ -12,10 +12,10 @@ import (
 )
 
 // ClaimPlaneBinding shares one dialed claim-plane client between the
-// commit handler control store and the ingestion fence pinner. Both
-// faces must hold the same instance: the fence pins the claim the
-// control store fenced first, so splitting them across two clients
-// would pin under one epoch and commit under another.
+// commit handler control store and the ingestion fence pinner. One
+// shared instance keeps a single connection pool, timeout, and observer
+// binding behind both faces, and a single dial site so the two faces
+// cannot drift to different base URLs.
 type ClaimPlaneBinding struct {
 	ControlStore collector.ClaimControlStore
 	Pinner       fence.Pinner

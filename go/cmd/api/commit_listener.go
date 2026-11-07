@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -88,6 +89,23 @@ func commitEnvError(name string) error {
 	return fmt.Errorf("commit listener: %s is required when %s is set", name, envCommitListen)
 }
 
+// normalizeCommitPlaneURL validates the claim-plane endpoint. Blank stays
+// a missing-input refusal; anything else must be an absolute http(s) URL
+// with a host. A malformed URL is half-configuration: accepting it would
+// open the socket while every commit fails later, so startup refuses it
+// with the variable named.
+func normalizeCommitPlaneURL(raw string) (string, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return "", commitEnvError(envCommitClaimPlaneURL)
+	}
+	parsed, err := url.Parse(trimmed)
+	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
+		return "", fmt.Errorf("commit listener: invalid %s %q: absolute http(s) URL with a host is required", envCommitClaimPlaneURL, raw)
+	}
+	return trimmed, nil
+}
+
 // loadGrantsFile parses the optional grants file. An empty path pairs
 // nothing; a set path must parse.
 func loadGrantsFile(path string) ([]component.ProducerGrant, error) {
@@ -123,15 +141,15 @@ func loadCommitConfig(getenv func(string) string) (*commitConfig, error) {
 	}
 	manifest, err := component.LoadManifest(manifestPath)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("commit listener: %s: load manifest %q: %w", envCommitManifestPath, manifestPath, err)
 	}
 	grants, err := loadGrantsFile(getenv(envCommitGrantsPath))
 	if err != nil {
 		return nil, err
 	}
-	claimPlane := strings.TrimSpace(getenv(envCommitClaimPlaneURL))
-	if claimPlane == "" {
-		return nil, commitEnvError(envCommitClaimPlaneURL)
+	claimPlane, err := normalizeCommitPlaneURL(getenv(envCommitClaimPlaneURL))
+	if err != nil {
+		return nil, err
 	}
 	sourceSystem := strings.TrimSpace(getenv(envCommitSourceSystem))
 	if sourceSystem == "" {

@@ -10,8 +10,8 @@ import (
 )
 
 // TestDialClaimPlaneSharesOneClient proves both binding faces hold the
-// same client instance: the fence must pin the claim the control store
-// fenced first.
+// same client instance: one pool, timeout, and observer behind both
+// faces, with no drift between them.
 func TestDialClaimPlaneSharesOneClient(t *testing.T) {
 	t.Parallel()
 
