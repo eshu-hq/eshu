@@ -325,7 +325,7 @@ of process, so the plane `Complete` ack cannot carry them (#8877).
 `CommitClaimFacts` is the internal-only commit half of commit-then-complete:
 strict decode, framing and identity checks, one committer write with the
 fence probe immediately before it; then `CompleteClaim` closes the epoch
-unchanged. The wire mirror is `workflow.ClaimPlaneClient.CommitClaimFacts` (`POST /workflow.v1/CommitClaimFacts`); the server half runs admission first.
+unchanged. The wire mirror is `workflow.ClaimPlaneClient.CommitClaimFacts` (`POST /workflow.v1/CommitClaimFacts`); the server half is `extensionhost.CommitHandler`, which runs the full admission stack first.
 
 - No-Regression Evidence: follow-up-only change to the #10302 lane: one
   production line (stamp now UTC before the fence probe), pinned by a
