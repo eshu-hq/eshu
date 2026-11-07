@@ -165,6 +165,14 @@ gates:
       - docker
       - nornicdb
     ci_only_reason: "Disabled by owner order (2026-11-05): the NornicDB corpus-gate cell does not run in CI while Neo4j is the supported backend (#7331); the Neo4j cell is the blocking truth gate (golden-corpus-gate-neo4j). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
+    # D13 (#9669 removal prep): RETARGET at the removal PR, owner Leaf B
+    # cross-repo parity harness (checklist row 13). The corpus pipeline runs
+    # over HTTP, so the gate follows the satellite: replay the golden corpus
+    # against an eshu-api deployment instead of the in-tree binary.
+    # Removal-PR action: drop the go/cmd/api/** trigger above and add the
+    # satellite pin inputs (Dockerfile api-satellite pin / deploy checkout
+    # pin), mirroring the #8871 compose-lane move noted above. Triggers stay
+    # until then: the binary is still built in-tree.
 
   - id: read-api-latency-gate
     name: Read API Latency Gate (Docker)
@@ -224,6 +232,15 @@ gates:
       - docker
       - nornicdb
     ci_only_reason: "Disabled by owner order (2026-11-03): the NornicDB latency gate does not run in CI while Neo4j is the supported backend. Revisit NornicDB once Neo4j works as expected; run it by hand with the local command."
+    # D13 (#9669 removal prep): RETIRE in core at the removal PR, owner
+    # eshu-api satellite (checklist row 12: the satellite repo owns the
+    # latency gate against a pinned core image; core keeps only the
+    # contract-registry and static-contract gates). The in-process latency
+    # measurement of the in-tree path has no meaning once the path lives
+    # off-repo. Removal-PR action: delete this row and the
+    # read-api-latency-gate.yml workflow (or hand both to the satellite);
+    # the static mirrors below retire with it unless the satellite adopts
+    # them. Triggers stay until then: the binary is still built in-tree.
   - id: query-methodology-scale-neo4j
     name: Query Methodology Neo4j Scale Calibration
     category: exactness
@@ -251,6 +268,11 @@ gates:
       - docker
       - postgres
     ci_only_reason: "Manually dispatched hosted Neo4j scale/concurrency/resource evidence, not an automatic PR or merge-group check; claim-specific calibration remains required."
+    # D13 (#9669 removal prep): RETIRE in core at the removal PR, owner
+    # eshu-api satellite (checklist row 12). Scale/concurrency calibration
+    # of reads served off-repo belongs to the satellite's latency evidence,
+    # not the core registry. Removal-PR action: delete this row with the
+    # read-api-latency-gate.yml workflow (or hand both to the satellite).
 
   - id: read-api-work-budget-mirror
     name: Read API work budget refresh mirror (static)
@@ -280,6 +302,10 @@ gates:
       workflow: "read-api-latency-gate.yml"
       job: "static-mirror (work budget refresh)"
     requirements: []
+    # D13 (#9669 removal prep): RETIRE in core with the latency-gate parent
+    # above (checklist row 12), owner eshu-api satellite. This mirror
+    # self-tests the satellite-owned work-budget scripts; it retires with
+    # them unless the satellite adopts it.
   # #6965 phase 6: the cross-backend comparator (scripts/compare-backend-latency.sh)
   # reads -latency-report JSON but never runs the live gate itself, so its
   # formulas and identity-mismatch/non-comparable refusals get the same
@@ -303,6 +329,10 @@ gates:
       workflow: "read-api-latency-gate.yml"
       job: "static-mirror (backend latency comparator)"
     requirements: []
+    # D13 (#9669 removal prep): RETIRE in core with the latency-gate parent
+    # above (checklist row 12), owner eshu-api satellite. This mirror
+    # self-tests the satellite-owned comparator script; it retires with it
+    # unless the satellite adopts it.
   # #6782 slice 1 added the B-7 golden corpus on Neo4j as the second cell of
   # golden-corpus-gate.yml's corpus-gate matrix. It landed non-blocking because
   # required-gates judges a PR with main's registry: a new blocking check_name
@@ -437,6 +467,12 @@ gates:
       - go
       - docker
     ci_only_reason: ""
+    # D13 (#9669 removal prep): RETARGET at the removal PR, owner Leaf B
+    # cross-repo parity harness (checklist row 13). Same retarget as the
+    # NornicDB cell above: replay the golden corpus against an eshu-api
+    # deployment instead of the in-tree binary. Removal-PR action: drop the
+    # go/cmd/api/** trigger above and add the satellite pin inputs.
+    # Triggers stay until then: the binary is still built in-tree.
 
   # #6784 slice B: every CI-class row from specs/live-tests.v1.yaml runs on
   # NornicDB and Neo4j. It landed non-blocking because required-gates judges

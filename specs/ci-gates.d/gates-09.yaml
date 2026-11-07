@@ -418,6 +418,13 @@ gates:
     # -diff-left2/-diff-right2): single-pair mode has no quorum and never
     # reaches runBackendDiffQuorum, so the ceiling flag has nothing to bound
     # there and is intentionally not added to this command.
+    # D13 (#9669 removal prep): RETARGET at the removal PR, owner Leaf B
+    # cross-repo parity harness (checklist row 13). The capture legs run
+    # against the served API, so they follow the satellite: replay the
+    # golden corpus with differential capture against an eshu-api deployment
+    # instead of the in-tree binary. Removal-PR action: drop the
+    # go/cmd/api/** trigger above and add the satellite pin inputs.
+    # Triggers stay until then: the binary is still built in-tree.
 
   # #5538 task 4 root-cause fix: three review rounds each found more packages
   # missing from golden-corpus-gate's own path filter because completeness was

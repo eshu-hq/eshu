@@ -42,6 +42,14 @@ COPY sdk/go/factschema/ ./sdk/go/factschema/
 
 # Build all Go binaries. xx-go sets GOARCH, CGO_ENABLED, and CC automatically
 # for the target platform. CGO is required for tree-sitter parser bindings.
+# D13 (#9669 removal prep, checklist row 11): RETARGET at the removal PR —
+# owner eshu-api satellite. The eshu-api repo Dockerfile owns the api build;
+# core drops the `./cmd/api` build below and COPYs the digest-pinned
+# satellite release binary under its old /go-bin/eshu-api path (the #9679
+# mcp-server precedent: the mcp-satellite stage below), keeping the CMD and
+# :8080/healthz contract below until the stack flips. No deletion and no
+# binary swap until every consumer row drains (all TODO); this stage keeps
+# building in-tree.
 RUN cd go \
     && export CGO_ENABLED=1 \
     && export GOFLAGS="-buildvcs=false" \
@@ -209,5 +217,7 @@ USER eshu
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -fsS http://localhost:8080/healthz || exit 1
 
-# Default command - run the Go API server
+# Default command - run the Go API server. D13: CMD stays on eshu-api through
+# the row-11 retarget above (same binary path, satellite-built); only the
+# stack flip re-points it, after cutover-good.
 CMD ["eshu-api"]
