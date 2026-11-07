@@ -212,11 +212,16 @@ def weighted_bounds(runs: list[str], weights: Weights | WeightsV2,
 
     Raises:
         ValueError: There are fewer runs than shards (v1 path).
-        ValueError: The v2 shard count is not six.
+        ValueError: The requested shard count differs from the model's
+            shard count.
+        ValueError: Duplicate or noncontiguous runs in the v2 plan
+            (Scorer construction).
         ValueError: Invalid exact partition dimensions on the v2 path.
         ValueError: No cap-feasible cut from the primary exact search.
         ValueError: No spread-feasible cut fits the budget (v2 predicted
             job spread exceeds 15% of mean).
+        ValueError: Invalid row or shard intervals during costing and
+            row post-checks.
         ValueError: A shard's rows fail the row-union check.
         ValueError: A runner row exceeds its seconds budget.
     """
