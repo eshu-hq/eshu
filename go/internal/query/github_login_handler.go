@@ -4,26 +4,23 @@
 package query
 
 import (
-	"context"
 	"errors"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/authsafe"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 )
 
-// GitHub sign-in errors (issue #5166, F-5) let the connector map fail-closed
-// outcomes to stable HTTP statuses without leaking provider, org, or team
-// details. github.com user login is plain OAuth2, not OIDC — see
-// internal/githublogin's doc.go — so these are distinct from
-// ErrOIDCLogin*, but GitHubLoginHandler maps them to the identical
-// 503/400/403 shape as OIDCLoginHandler.
+// GitHub sign-in errors live in auth (D13, #9669); these aliases keep every
+// existing reference working, including errors.Is identity: each alias holds
+// the same sentinel value, so the 503/400/403 mapping is unchanged.
 var (
-	ErrGitHubLoginUnavailable    = errors.New("github login unavailable")
-	ErrGitHubLoginInvalidRequest = errors.New("github login invalid request")
-	ErrGitHubLoginDenied         = errors.New("github login denied")
+	ErrGitHubLoginUnavailable    = auth.ErrGitHubLoginUnavailable
+	ErrGitHubLoginInvalidRequest = auth.ErrGitHubLoginInvalidRequest
+	ErrGitHubLoginDenied         = auth.ErrGitHubLoginDenied
 )
 
 // Fixed messages for GitHub login failures the sentinels above do not classify
@@ -39,91 +36,23 @@ const (
 // an empty redirect URL with no error of its own.
 var errGitHubLoginRedirectEmpty = errors.New("github login service returned an empty redirect URL")
 
-// GitHubLoginAdmissionContractVersion versions the #8872
-// admission-contract shape for GitHub login (GET
-// /api/v0/auth/github/login, GET /api/v0/auth/github/callback).
-// Canonical logins persist through explicit core-owned admission
-// contracts: eshu-api keeps the HTTP shape and calls this versioned
-// port, which the core-owned Service implementation satisfies. A renamed,
-// added, removed, or re-signed method fails the frozen method-set test
-// until that list is deliberately updated in the same diff; bump this
-// version alongside so dest consumers can pin the shape they code
-// against.
-//
-// The optional GitHubProviderLister is not part of v0: a dest client
-// that implements only the 2 admission methods silently drops runtime
-// provider discovery (RegisteredProviders returns nil). Dest must also
-// implement the lister or accept DB-row-only discovery. Browser-session
-// issuance on callback belongs to the BrowserSessions family's own seam,
-// not this contract.
-const GitHubLoginAdmissionContractVersion = "v0"
+// The GitHub login admission contract lives in auth (D13, #9669); these
+// aliases keep the handler, the frozen method-set test, and every dest
+// consumer compiling against the identical shape.
+const GitHubLoginAdmissionContractVersion = auth.GitHubLoginAdmissionContractVersion
 
-// GitHubLoginAdmission is the versioned admission-contract port the API
-// handler depends on instead of a concrete login service. It aliases the
-// narrow login service so existing fakes and the core-owned Service
-// implementation keep satisfying it unchanged.
-type GitHubLoginAdmission = GitHubLoginService
+type (
+	GitHubLoginAdmission        = auth.GitHubLoginAdmission
+	GitHubLoginService          = auth.GitHubLoginService
+	GitHubLoginStartRequest     = auth.GitHubLoginStartRequest
+	GitHubLoginStartResponse    = auth.GitHubLoginStartResponse
+	GitHubLoginCompleteRequest  = auth.GitHubLoginCompleteRequest
+	GitHubLoginCompleteResponse = auth.GitHubLoginCompleteResponse
+	GitHubProviderLister        = auth.GitHubProviderLister
+	GitHubRegisteredProvider    = auth.GitHubRegisteredProvider
+)
 
-// GitHubLoginService resolves GitHub Authorization Code login requests into
-// Eshu browser-session authorization contexts.
-type GitHubLoginService interface {
-	StartGitHubLogin(context.Context, GitHubLoginStartRequest) (GitHubLoginStartResponse, error)
-	CompleteGitHubLogin(context.Context, GitHubLoginCompleteRequest) (GitHubLoginCompleteResponse, error)
-}
-
-// GitHubLoginStartRequest selects one configured GitHub provider and the
-// tenant/workspace boundary the dashboard session should enter after
-// callback.
-type GitHubLoginStartRequest struct {
-	ProviderConfigID string
-	TenantID         string
-	WorkspaceID      string
-	ReturnToPath     string
-}
-
-// GitHubLoginStartResponse contains the provider authorization redirect URL.
-type GitHubLoginStartResponse struct {
-	RedirectURL string
-}
-
-// GitHubLoginCompleteRequest carries the callback state and authorization
-// code.
-type GitHubLoginCompleteRequest struct {
-	State string
-	Code  string
-}
-
-// GitHubLoginCompleteResponse carries the resolved Eshu auth context and
-// optional local path for post-login browser navigation, mirroring
-// OIDCLoginCompleteResponse.
-type GitHubLoginCompleteResponse struct {
-	Auth                AuthContext
-	ProviderConfigID    string
-	ProviderSubjectID   string
-	ProviderGroupHashes []string
-	ProviderProofAt     time.Time
-	ReturnToPath        string
-}
-
-// DefaultGitHubSessionRefreshWindow bounds external-proof staleness for
-// already-issued GitHub browser sessions, mirroring
-// DefaultOIDCSessionRefreshWindow.
-const DefaultGitHubSessionRefreshWindow = 15 * time.Minute
-
-// GitHubProviderLister is an optional extension on GitHubLoginService
-// implementations that can enumerate the set of provider_config_ids they
-// manage, mirroring OIDCProviderLister.
-type GitHubProviderLister interface {
-	ListGitHubProviderIDs() []GitHubRegisteredProvider
-}
-
-// GitHubRegisteredProvider carries the identity fields needed for provider
-// discovery. Only the safe-to-surface subset of ProviderConfig is included —
-// no client id, secret, base URL, or allowed-org list.
-type GitHubRegisteredProvider struct {
-	ProviderConfigID string
-	TenantID         string
-}
+const DefaultGitHubSessionRefreshWindow = auth.DefaultGitHubSessionRefreshWindow
 
 // GitHubLoginHandler serves GitHub login and callback routes, mirroring
 // OIDCLoginHandler's shape.

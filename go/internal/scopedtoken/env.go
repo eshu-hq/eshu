@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 )
 
 // FileEnvVar points at an operator-managed, secret-mounted scoped-token
@@ -16,13 +16,13 @@ import (
 const FileEnvVar = "ESHU_SCOPED_TOKENS_FILE"
 
 // ResolverFromEnv loads the scoped-token registry referenced by
-// ESHU_SCOPED_TOKENS_FILE, if set, and returns it as a query.ScopedTokenResolver.
+// ESHU_SCOPED_TOKENS_FILE, if set, and returns it as a auth.ScopedTokenResolver.
 //
 // It returns a nil resolver (not a typed nil) when the variable is unset so the
 // caller's dev-mode and shared-token paths stay intact. A configured-but-
 // unreadable or malformed registry is a hard startup error: a hosted deployment
 // must fail closed rather than silently run without tenant isolation.
-func ResolverFromEnv(getenv func(string) string) (query.ScopedTokenResolver, error) {
+func ResolverFromEnv(getenv func(string) string) (auth.ScopedTokenResolver, error) {
 	path := strings.TrimSpace(getenv(FileEnvVar))
 	if path == "" {
 		return nil, nil

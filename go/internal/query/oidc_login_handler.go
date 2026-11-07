@@ -4,22 +4,23 @@
 package query
 
 import (
-	"context"
 	"errors"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/authsafe"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 )
 
-// OIDC login errors let provider implementations map fail-closed outcomes to
-// stable HTTP statuses without leaking provider or claim details.
+// OIDC sign-in errors live in auth (D13, #9669); these aliases keep every
+// existing reference working, including errors.Is identity: each alias holds
+// the same sentinel value, so the 503/400/403 mapping is unchanged.
 var (
-	ErrOIDCLoginUnavailable    = errors.New("oidc login unavailable")
-	ErrOIDCLoginInvalidRequest = errors.New("oidc login invalid request")
-	ErrOIDCLoginDenied         = errors.New("oidc login denied")
+	ErrOIDCLoginUnavailable    = auth.ErrOIDCLoginUnavailable
+	ErrOIDCLoginInvalidRequest = auth.ErrOIDCLoginInvalidRequest
+	ErrOIDCLoginDenied         = auth.ErrOIDCLoginDenied
 )
 
 // Fixed messages for OIDC login failures the sentinels above do not classify
@@ -35,97 +36,23 @@ const (
 // an empty redirect URL with no error of its own.
 var errOIDCLoginRedirectEmpty = errors.New("oidc login service returned an empty redirect URL")
 
-// OIDCLoginAdmissionContractVersion versions the #8872
-// admission-contract shape for OIDC login (GET
-// /api/v0/auth/oidc/login, GET /api/v0/auth/oidc/callback). Canonical
-// logins persist through explicit core-owned admission contracts:
-// eshu-api keeps the HTTP shape and calls this versioned port, which the
-// core-owned Service implementation satisfies. A renamed, added, removed,
-// or re-signed method fails the frozen method-set test until that list is
-// deliberately updated in the same diff; bump this version alongside so
-// dest consumers can pin the shape they code against.
-//
-// The optional OIDCProviderLister is not part of v0: a dest client that
-// implements only the 2 admission methods silently drops runtime provider
-// discovery (RegisteredProviders returns nil). Dest must also implement
-// the lister or accept DB-row-only discovery. Browser-session issuance on
-// callback belongs to the BrowserSessions family's own seam, not this
-// contract.
-const OIDCLoginAdmissionContractVersion = "v0"
+// The OIDC login admission contract lives in auth (D13, #9669); these
+// aliases keep the handler, the frozen method-set test, and every dest
+// consumer compiling against the identical shape.
+const OIDCLoginAdmissionContractVersion = auth.OIDCLoginAdmissionContractVersion
 
-// OIDCLoginAdmission is the versioned admission-contract port the API
-// handler depends on instead of a concrete login service. It aliases the
-// narrow login service so existing fakes and the core-owned Service
-// implementation keep satisfying it unchanged.
-type OIDCLoginAdmission = OIDCLoginService
+type (
+	OIDCLoginAdmission        = auth.OIDCLoginAdmission
+	OIDCLoginService          = auth.OIDCLoginService
+	OIDCLoginStartRequest     = auth.OIDCLoginStartRequest
+	OIDCLoginStartResponse    = auth.OIDCLoginStartResponse
+	OIDCLoginCompleteRequest  = auth.OIDCLoginCompleteRequest
+	OIDCLoginCompleteResponse = auth.OIDCLoginCompleteResponse
+	OIDCProviderLister        = auth.OIDCProviderLister
+	OIDCRegisteredProvider    = auth.OIDCRegisteredProvider
+)
 
-// OIDCLoginService resolves generic OIDC Authorization Code login requests
-// into Eshu browser-session authorization contexts.
-type OIDCLoginService interface {
-	StartOIDCLogin(context.Context, OIDCLoginStartRequest) (OIDCLoginStartResponse, error)
-	CompleteOIDCLogin(context.Context, OIDCLoginCompleteRequest) (OIDCLoginCompleteResponse, error)
-}
-
-// OIDCLoginStartRequest selects one configured identity provider and the
-// tenant/workspace boundary the dashboard session should enter after callback.
-type OIDCLoginStartRequest struct {
-	ProviderConfigID string
-	TenantID         string
-	WorkspaceID      string
-	ReturnToPath     string
-}
-
-// OIDCLoginStartResponse contains the provider authorization redirect URL.
-type OIDCLoginStartResponse struct {
-	RedirectURL string
-}
-
-// OIDCLoginCompleteRequest carries the callback state and authorization code.
-type OIDCLoginCompleteRequest struct {
-	State string
-	Code  string
-}
-
-// OIDCLoginCompleteResponse carries the resolved Eshu auth context and optional
-// local path for post-login browser navigation.
-//
-// ProviderGroupHashes carries the hashed external group claims that mapped to
-// this session's grants at login. They are persisted hash-only so bounded
-// active-session refresh can re-resolve the group-to-role mappings and detect
-// removed or tombstoned mappings rather than trusting stale role IDs alone.
-type OIDCLoginCompleteResponse struct {
-	Auth                AuthContext
-	ProviderConfigID    string
-	ProviderSubjectID   string
-	ProviderGroupHashes []string
-	ProviderProofAt     time.Time
-	ReturnToPath        string
-}
-
-// DefaultOIDCSessionRefreshWindow bounds external IdP proof staleness for
-// already-issued OIDC browser sessions.
-const DefaultOIDCSessionRefreshWindow = 15 * time.Minute
-
-// OIDCProviderLister is an optional extension on OIDCLoginService implementations
-// that can enumerate the set of provider_config_ids they manage. The
-// AuthProviderListHandler uses it to surface runtime-configured OIDC providers
-// for the pre-auth provider discovery endpoint. Each entry is
-// (ProviderConfigID, TenantID) — no client secrets, issuer URLs, or claim
-// mappings are exposed. Implementations that do not list providers need not
-// implement this interface.
-type OIDCProviderLister interface {
-	// ListOIDCProviderIDs returns the (ProviderConfigID, TenantID) pairs for
-	// every OIDC provider registered at runtime. The caller is responsible for
-	// deduplicating against DB rows before surfacing to clients.
-	ListOIDCProviderIDs() []OIDCRegisteredProvider
-}
-
-// OIDCRegisteredProvider carries the identity fields needed for provider
-// discovery. Only the safe-to-surface subset of ProviderConfig is included.
-type OIDCRegisteredProvider struct {
-	ProviderConfigID string
-	TenantID         string
-}
+const DefaultOIDCSessionRefreshWindow = auth.DefaultOIDCSessionRefreshWindow
 
 // OIDCLoginHandler serves generic OIDC login and callback routes.
 type OIDCLoginHandler struct {

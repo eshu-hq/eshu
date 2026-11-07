@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/oidclogin"
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -72,7 +72,7 @@ type Config struct {
 	Logger *slog.Logger
 }
 
-// Resolver implements query.ScopedTokenResolver for IdP-issued OAuth2 bearer
+// Resolver implements auth.ScopedTokenResolver for IdP-issued OAuth2 bearer
 // access tokens. See the package doc and README for the full algorithm and
 // the security reasoning behind each denial path.
 type Resolver struct {
@@ -121,7 +121,7 @@ func NewResolver(ctx context.Context, cfg Config) (*Resolver, error) {
 	return &Resolver{cache: c, grantResolver: cfg.GrantResolver, now: now, logger: cfg.Logger}, nil
 }
 
-// ResolveScopedToken implements query.ScopedTokenResolver.
+// ResolveScopedToken implements auth.ScopedTokenResolver.
 //
 // Three outcomes:
 //
@@ -142,15 +142,15 @@ func NewResolver(ctx context.Context, cfg Config) (*Resolver, error) {
 //     hash — never the raw token).
 //   - (auth, true, nil): the token verified and mapped to at least one
 //     granted role.
-func (r *Resolver) ResolveScopedToken(ctx context.Context, credential string) (query.AuthContext, bool, error) {
+func (r *Resolver) ResolveScopedToken(ctx context.Context, credential string) (auth.AuthContext, bool, error) {
 	credential = strings.TrimSpace(credential)
 	if !isJWTShaped(credential) {
-		return query.AuthContext{}, false, nil
+		return auth.AuthContext{}, false, nil
 	}
 
 	snap := r.cache.currentAndMaybeRebuild(ctx)
 	if snap.empty() {
-		return query.AuthContext{}, false, nil
+		return auth.AuthContext{}, false, nil
 	}
 
 	ctx, span := startResolveSpan(ctx)
@@ -161,14 +161,14 @@ func (r *Resolver) ResolveScopedToken(ctx context.Context, credential string) (q
 		// Pre-parse: the credential could not even be parsed far enough to read
 		// its issuer, so it is not a recognized issued token. Mark it
 		// unrecognized so the middleware can steer the client to OAuth discovery.
-		return query.AuthContext{}, false, r.deny(ctx, "", outcomeMalformed, true)
+		return auth.AuthContext{}, false, r.deny(ctx, "", outcomeMalformed, true)
 	}
 
 	entry, matched := snap.byIssuer[iss]
 	if !matched {
 		// Pre-match: the issuer is not in the active snapshot, so this token was
 		// issued by an authority this deployment does not accept — unrecognized.
-		return query.AuthContext{}, false, r.deny(ctx, iss, outcomeUnknownIssuer, true)
+		return auth.AuthContext{}, false, r.deny(ctx, iss, outcomeUnknownIssuer, true)
 	}
 
 	token, err := entry.verifier.Verify(ctx, credential)
@@ -176,19 +176,19 @@ func (r *Resolver) ResolveScopedToken(ctx context.Context, credential string) (q
 		// Post-match: the issuer WAS recognized; the token failed cryptographic
 		// or temporal verification (expired, bad signature, wrong audience).
 		// The credential was understood, so it is not "unrecognized".
-		return query.AuthContext{}, false, r.deny(ctx, iss, classifyVerifyError(err), false)
+		return auth.AuthContext{}, false, r.deny(ctx, iss, classifyVerifyError(err), false)
 	}
 
 	claims, err := extractVerifiedClaims(token, entry.provider.SubjectClaim, entry.provider.GroupsClaim)
 	if err != nil || claims.Subject == "" {
 		// Post-match: verified token whose claims are malformed. Still a
 		// recognized issuer's token, so not "unrecognized".
-		return query.AuthContext{}, false, r.deny(ctx, iss, outcomeMalformed, false)
+		return auth.AuthContext{}, false, r.deny(ctx, iss, outcomeMalformed, false)
 	}
 
 	groupHashes := hashStrings(claims.Groups)
 	if len(groupHashes) == 0 {
-		return query.AuthContext{}, false, r.deny(ctx, iss, outcomeNoGrants, false)
+		return auth.AuthContext{}, false, r.deny(ctx, iss, outcomeNoGrants, false)
 	}
 
 	now := r.now().UTC()
@@ -204,15 +204,15 @@ func (r *Resolver) ResolveScopedToken(ctx context.Context, credential string) (q
 			"iss", iss, "provider_config_id", entry.provider.ProviderConfigID, "error", err)
 		// An unreachable grant store is an availability failure, not a statement
 		// that this subject has no entitlements (#5567).
-		return query.AuthContext{}, false, r.deny(ctx, iss, outcomeGrantResolutionUnavailable, false)
+		return auth.AuthContext{}, false, r.deny(ctx, iss, outcomeGrantResolutionUnavailable, false)
 	}
 	if !ok || len(grants.RoleIDs) == 0 {
-		return query.AuthContext{}, false, r.deny(ctx, iss, outcomeNoGrants, false)
+		return auth.AuthContext{}, false, r.deny(ctx, iss, outcomeNoGrants, false)
 	}
 
 	subjectIDHash := oidclogin.SHA256Hash(entry.provider.ProviderConfigID + ":" + claims.Subject)
-	auth := query.AuthContext{
-		Mode:                         query.AuthModeScoped,
+	authCtx := auth.AuthContext{
+		Mode:                         auth.AuthModeScoped,
 		TenantID:                     entry.provider.TenantID,
 		WorkspaceID:                  entry.provider.WorkspaceID,
 		SubjectClass:                 subjectClassExternalOIDCUser,
@@ -230,7 +230,7 @@ func (r *Resolver) ResolveScopedToken(ctx context.Context, credential string) (q
 	r.cache.recordOutcome(ctx, outcomeValid)
 	r.logger0().Info("oidc bearer token validated",
 		"iss", iss, "subject_hash", subjectIDHash, "outcome", outcomeValid)
-	return auth, true, nil
+	return authCtx, true, nil
 }
 
 // deny records the outcome counter, logs a structured warning carrying only
@@ -238,7 +238,7 @@ func (r *Resolver) ResolveScopedToken(ctx context.Context, credential string) (q
 // the generic wrapped error the middleware maps to a 401.
 //
 // When unrecognized is true, the returned error also wraps
-// query.ErrBearerCredentialUnrecognized (issue #5163, F-2): the credential was
+// auth.ErrBearerCredentialUnrecognized (issue #5163, F-2): the credential was
 // never a recognized issued token for this deployment (a pre-parse-unparseable
 // JWT, or a JWT whose issuer is not in the active snapshot), so the middleware
 // may steer the client to the RFC 9728 discovery document. A post-match denial
@@ -251,7 +251,7 @@ func (r *Resolver) deny(ctx context.Context, iss, outcome string, unrecognized b
 	r.cache.recordOutcome(ctx, outcome)
 	r.logger0().Warn("oidc bearer token denied", "iss", iss, "outcome", outcome)
 	if unrecognized {
-		return &denialError{outcome: outcome, wrapped: query.ErrBearerCredentialUnrecognized}
+		return &denialError{outcome: outcome, wrapped: auth.ErrBearerCredentialUnrecognized}
 	}
 	return &denialError{outcome: outcome}
 }
@@ -259,12 +259,12 @@ func (r *Resolver) deny(ctx context.Context, iss, outcome string, unrecognized b
 // denialError is a bearer denial that carries the bounded outcome which caused
 // it, so the governance audit trail can record why a credential was rejected
 // (#5567) without parsing the message. The message and the
-// query.ErrBearerCredentialUnrecognized wrapping are unchanged from the
+// auth.ErrBearerCredentialUnrecognized wrapping are unchanged from the
 // fmt.Errorf values this replaces, because the middleware's RFC 9728 discovery
 // decision reads that sentinel through errors.Is.
 type denialError struct {
 	outcome string
-	// wrapped is query.ErrBearerCredentialUnrecognized for a pre-match denial
+	// wrapped is auth.ErrBearerCredentialUnrecognized for a pre-match denial
 	// and nil for a post-match one.
 	wrapped error
 }

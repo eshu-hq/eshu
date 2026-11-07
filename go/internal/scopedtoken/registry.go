@@ -12,7 +12,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 )
 
 // registryVersion is the only supported scoped-token registry schema version.
@@ -60,7 +60,7 @@ type registryFile struct {
 // using an operator-managed, hashed-token grant table. It is read-only after
 // construction and safe for concurrent use.
 type Registry struct {
-	byHash map[string]query.AuthContext
+	byHash map[string]auth.AuthContext
 }
 
 // LoadRegistryFromFile reads and validates a scoped-token registry file. It
@@ -79,7 +79,7 @@ func LoadRegistryFromFile(path string) (*Registry, error) {
 	if doc.Version != registryVersion {
 		return nil, fmt.Errorf("scoped token registry version %d is unsupported; expected %d", doc.Version, registryVersion)
 	}
-	byHash := make(map[string]query.AuthContext, len(doc.Tokens))
+	byHash := make(map[string]auth.AuthContext, len(doc.Tokens))
 	for i, entry := range doc.Tokens {
 		hash, auth, err := entry.normalize()
 		if err != nil {
@@ -95,21 +95,21 @@ func LoadRegistryFromFile(path string) (*Registry, error) {
 
 // normalize validates one entry and returns its lookup hash and auth context.
 // It never returns the hash inside an error so token material stays private.
-func (e Entry) normalize() (string, query.AuthContext, error) {
+func (e Entry) normalize() (string, auth.AuthContext, error) {
 	hash := strings.ToLower(strings.TrimSpace(e.TokenSHA256))
 	if len(hash) != sha256HexLen {
-		return "", query.AuthContext{}, fmt.Errorf("token_sha256 must be %d hex characters", sha256HexLen)
+		return "", auth.AuthContext{}, fmt.Errorf("token_sha256 must be %d hex characters", sha256HexLen)
 	}
 	if _, err := hex.DecodeString(hash); err != nil {
-		return "", query.AuthContext{}, fmt.Errorf("token_sha256 must be hex-encoded")
+		return "", auth.AuthContext{}, fmt.Errorf("token_sha256 must be hex-encoded")
 	}
 	tenant := strings.TrimSpace(e.TenantID)
 	workspace := strings.TrimSpace(e.WorkspaceID)
 	if tenant == "" || workspace == "" {
-		return "", query.AuthContext{}, fmt.Errorf("tenant_id and workspace_id are required")
+		return "", auth.AuthContext{}, fmt.Errorf("tenant_id and workspace_id are required")
 	}
-	auth := query.AuthContext{
-		Mode:                 query.AuthModeScoped,
+	authCtx := auth.AuthContext{
+		Mode:                 auth.AuthModeScoped,
 		TenantID:             tenant,
 		WorkspaceID:          workspace,
 		SubjectClass:         strings.TrimSpace(e.SubjectClass),
@@ -119,13 +119,13 @@ func (e Entry) normalize() (string, query.AuthContext, error) {
 		AllowedScopeIDs:      append([]string(nil), e.AllowedScopeIDs...),
 		AllowedRepositoryIDs: append([]string(nil), e.AllowedRepositoryIDs...),
 	}
-	if !validOptionalAuditHash(auth.SubjectIDHash) {
-		return "", query.AuthContext{}, fmt.Errorf("subject_id_hash must be a sha256 hash when set")
+	if !validOptionalAuditHash(authCtx.SubjectIDHash) {
+		return "", auth.AuthContext{}, fmt.Errorf("subject_id_hash must be a sha256 hash when set")
 	}
-	if !validOptionalAuditHash(auth.PolicyRevisionHash) {
-		return "", query.AuthContext{}, fmt.Errorf("policy_revision_hash must be a sha256 hash when set")
+	if !validOptionalAuditHash(authCtx.PolicyRevisionHash) {
+		return "", auth.AuthContext{}, fmt.Errorf("policy_revision_hash must be a sha256 hash when set")
 	}
-	return hash, auth, nil
+	return hash, authCtx, nil
 }
 
 func validOptionalAuditHash(value string) bool {
@@ -152,23 +152,23 @@ func validOptionalAuditHash(value string) bool {
 // scoped authorization context. It returns (zero, false, nil) for an empty or
 // unrecognized credential so the caller can fall through to shared-token or
 // unauthenticated handling. It never logs or returns the credential.
-func (r *Registry) ResolveScopedToken(_ context.Context, credential string) (query.AuthContext, bool, error) {
+func (r *Registry) ResolveScopedToken(_ context.Context, credential string) (auth.AuthContext, bool, error) {
 	if r == nil {
-		return query.AuthContext{}, false, nil
+		return auth.AuthContext{}, false, nil
 	}
 	credential = strings.TrimSpace(credential)
 	if credential == "" {
-		return query.AuthContext{}, false, nil
+		return auth.AuthContext{}, false, nil
 	}
 	sum := sha256.Sum256([]byte(credential))
-	auth, ok := r.byHash[hex.EncodeToString(sum[:])]
+	authCtx, ok := r.byHash[hex.EncodeToString(sum[:])]
 	if !ok {
-		return query.AuthContext{}, false, nil
+		return auth.AuthContext{}, false, nil
 	}
 	// Return defensive copies so a handler cannot mutate the shared grant table.
-	auth.AllowedScopeIDs = append([]string(nil), auth.AllowedScopeIDs...)
-	auth.AllowedRepositoryIDs = append([]string(nil), auth.AllowedRepositoryIDs...)
-	return auth, true, nil
+	authCtx.AllowedScopeIDs = append([]string(nil), authCtx.AllowedScopeIDs...)
+	authCtx.AllowedRepositoryIDs = append([]string(nil), authCtx.AllowedRepositoryIDs...)
+	return authCtx, true, nil
 }
 
 // Len reports the number of registered scoped tokens. Used for startup logging

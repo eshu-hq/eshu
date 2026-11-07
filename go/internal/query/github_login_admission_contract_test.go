@@ -16,9 +16,13 @@ import (
 // consumers can pin the shape, keeping the eshu-api extraction boundary
 // from drifting silently. The optional GitHubProviderLister is
 // deliberately not part of v0 (see the GitHubLoginAdmission doc comment).
+//
+// The contract lives in auth since the D13 (#9669) drain, so the frozen
+// spelling names auth. types; the version stays v0 because the method set
+// is identical modulo the home package.
 var frozenGitHubLoginAdmission = []string{
-	"CompleteGitHubLogin func(context.Context, query.GitHubLoginCompleteRequest) (query.GitHubLoginCompleteResponse, error)",
-	"StartGitHubLogin func(context.Context, query.GitHubLoginStartRequest) (query.GitHubLoginStartResponse, error)",
+	"CompleteGitHubLogin func(context.Context, auth.GitHubLoginCompleteRequest) (auth.GitHubLoginCompleteResponse, error)",
+	"StartGitHubLogin func(context.Context, auth.GitHubLoginStartRequest) (auth.GitHubLoginStartResponse, error)",
 }
 
 // gitHubLoginAdmissionMethodSet reflects the live GitHubLoginAdmission

@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/authsafe"
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 )
 
 const (
@@ -77,23 +77,23 @@ func (s *Service) RegisteredProviders() []ProviderConfig {
 // StartOIDCLogin stores state/nonce hashes and returns the provider redirect.
 func (s *Service) StartOIDCLogin(
 	ctx context.Context,
-	req query.OIDCLoginStartRequest,
-) (query.OIDCLoginStartResponse, error) {
+	req auth.OIDCLoginStartRequest,
+) (auth.OIDCLoginStartResponse, error) {
 	provider, err := s.provider(ctx, req.ProviderConfigID, req.TenantID, req.WorkspaceID)
 	if err != nil {
-		return query.OIDCLoginStartResponse{}, err
+		return auth.OIDCLoginStartResponse{}, err
 	}
 	tenantID, workspaceID, err := resolveProviderContext(provider, req.TenantID, req.WorkspaceID)
 	if err != nil {
-		return query.OIDCLoginStartResponse{}, err
+		return auth.OIDCLoginStartResponse{}, err
 	}
 	state, err := s.newSecret()
 	if err != nil {
-		return query.OIDCLoginStartResponse{}, fmt.Errorf("%w: create state", query.ErrOIDCLoginUnavailable)
+		return auth.OIDCLoginStartResponse{}, fmt.Errorf("%w: create state", auth.ErrOIDCLoginUnavailable)
 	}
 	nonce, err := s.newSecret()
 	if err != nil {
-		return query.OIDCLoginStartResponse{}, fmt.Errorf("%w: create nonce", query.ErrOIDCLoginUnavailable)
+		return auth.OIDCLoginStartResponse{}, fmt.Errorf("%w: create nonce", auth.ErrOIDCLoginUnavailable)
 	}
 	now := s.now().UTC()
 	record := StateRecord{
@@ -112,64 +112,64 @@ func (s *Service) StartOIDCLogin(
 		UpdatedAt:        now,
 	}
 	if err := s.stateStore.CreateState(ctx, record); err != nil {
-		return query.OIDCLoginStartResponse{}, fmt.Errorf("%w: persist state", query.ErrOIDCLoginUnavailable)
+		return auth.OIDCLoginStartResponse{}, fmt.Errorf("%w: persist state", auth.ErrOIDCLoginUnavailable)
 	}
 	connector, err := s.connector(ctx, provider)
 	if err != nil {
-		return query.OIDCLoginStartResponse{}, err
+		return auth.OIDCLoginStartResponse{}, err
 	}
-	return query.OIDCLoginStartResponse{RedirectURL: connector.AuthCodeURL(state, nonce)}, nil
+	return auth.OIDCLoginStartResponse{RedirectURL: connector.AuthCodeURL(state, nonce)}, nil
 }
 
 // CompleteOIDCLogin validates the callback and returns a browser-session auth context.
 func (s *Service) CompleteOIDCLogin(
 	ctx context.Context,
-	req query.OIDCLoginCompleteRequest,
-) (query.OIDCLoginCompleteResponse, error) {
+	req auth.OIDCLoginCompleteRequest,
+) (auth.OIDCLoginCompleteResponse, error) {
 	if err := s.ready(); err != nil {
-		return query.OIDCLoginCompleteResponse{}, err
+		return auth.OIDCLoginCompleteResponse{}, err
 	}
 	state := strings.TrimSpace(req.State)
 	code := strings.TrimSpace(req.Code)
 	if state == "" || code == "" {
-		return query.OIDCLoginCompleteResponse{}, query.ErrOIDCLoginInvalidRequest
+		return auth.OIDCLoginCompleteResponse{}, auth.ErrOIDCLoginInvalidRequest
 	}
 	now := s.now().UTC()
 	record, ok, err := s.stateStore.ConsumeState(ctx, SHA256Hash(state), now)
 	if err != nil {
-		return query.OIDCLoginCompleteResponse{}, &query.SSOLoginDeniedError{Sentinel: query.ErrOIDCLoginUnavailable, Reason: "state_store_unavailable"}
+		return auth.OIDCLoginCompleteResponse{}, &auth.SSOLoginDeniedError{Sentinel: auth.ErrOIDCLoginUnavailable, Reason: "state_store_unavailable"}
 	}
 	if !ok {
-		return query.OIDCLoginCompleteResponse{}, &query.SSOLoginDeniedError{Sentinel: query.ErrOIDCLoginDenied, Reason: "state_invalid"}
+		return auth.OIDCLoginCompleteResponse{}, &auth.SSOLoginDeniedError{Sentinel: auth.ErrOIDCLoginDenied, Reason: "state_invalid"}
 	}
 	provider, err := s.provider(ctx, record.ProviderConfigID, record.TenantID, record.WorkspaceID)
 	if err != nil {
-		return query.OIDCLoginCompleteResponse{}, err
+		return auth.OIDCLoginCompleteResponse{}, err
 	}
 	if record.RedirectURIHash != SHA256Hash(provider.RedirectURL) {
-		return query.OIDCLoginCompleteResponse{}, &query.SSOLoginDeniedError{Sentinel: query.ErrOIDCLoginDenied, Reason: "redirect_mismatch"}
+		return auth.OIDCLoginCompleteResponse{}, &auth.SSOLoginDeniedError{Sentinel: auth.ErrOIDCLoginDenied, Reason: "redirect_mismatch"}
 	}
 	connector, err := s.connector(ctx, provider)
 	if err != nil {
-		return query.OIDCLoginCompleteResponse{}, err
+		return auth.OIDCLoginCompleteResponse{}, err
 	}
 	tokens, err := connector.Exchange(ctx, code)
 	if err != nil {
-		return query.OIDCLoginCompleteResponse{}, &query.SSOLoginDeniedError{Sentinel: query.ErrOIDCLoginDenied, Reason: "code_exchange_failed"}
+		return auth.OIDCLoginCompleteResponse{}, &auth.SSOLoginDeniedError{Sentinel: auth.ErrOIDCLoginDenied, Reason: "code_exchange_failed"}
 	}
 	claims, err := connector.VerifyIDToken(ctx, strings.TrimSpace(tokens.IDToken))
 	if err != nil {
-		return query.OIDCLoginCompleteResponse{}, &query.SSOLoginDeniedError{Sentinel: query.ErrOIDCLoginDenied, Reason: "id_token_invalid"}
+		return auth.OIDCLoginCompleteResponse{}, &auth.SSOLoginDeniedError{Sentinel: auth.ErrOIDCLoginDenied, Reason: "id_token_invalid"}
 	}
 	if SHA256Hash(claims.Nonce) != record.NonceHash {
-		return query.OIDCLoginCompleteResponse{}, &query.SSOLoginDeniedError{Sentinel: query.ErrOIDCLoginDenied, Reason: "nonce_mismatch"}
+		return auth.OIDCLoginCompleteResponse{}, &auth.SSOLoginDeniedError{Sentinel: auth.ErrOIDCLoginDenied, Reason: "nonce_mismatch"}
 	}
 	if strings.TrimSpace(claims.Subject) == "" {
-		return query.OIDCLoginCompleteResponse{}, &query.SSOLoginDeniedError{Sentinel: query.ErrOIDCLoginDenied, Reason: "subject_missing"}
+		return auth.OIDCLoginCompleteResponse{}, &auth.SSOLoginDeniedError{Sentinel: auth.ErrOIDCLoginDenied, Reason: "subject_missing"}
 	}
 	groupHashes := hashStrings(claims.Groups)
 	if len(groupHashes) == 0 {
-		return query.OIDCLoginCompleteResponse{}, &query.SSOLoginDeniedError{Sentinel: query.ErrOIDCLoginDenied, Reason: "no_group_claim"}
+		return auth.OIDCLoginCompleteResponse{}, &auth.SSOLoginDeniedError{Sentinel: auth.ErrOIDCLoginDenied, Reason: "no_group_claim"}
 	}
 	grants, ok, err := s.grantResolver.ResolveGroupGrants(ctx, GrantQuery{
 		ProviderConfigID: provider.ProviderConfigID,
@@ -179,15 +179,15 @@ func (s *Service) CompleteOIDCLogin(
 		AsOf:             now,
 	})
 	if err != nil {
-		return query.OIDCLoginCompleteResponse{}, &query.SSOLoginDeniedError{Sentinel: query.ErrOIDCLoginUnavailable, Reason: "grant_resolution_unavailable"}
+		return auth.OIDCLoginCompleteResponse{}, &auth.SSOLoginDeniedError{Sentinel: auth.ErrOIDCLoginUnavailable, Reason: "grant_resolution_unavailable"}
 	}
 	if !ok || len(grants.RoleIDs) == 0 {
-		return query.OIDCLoginCompleteResponse{}, &query.SSOLoginDeniedError{Sentinel: query.ErrOIDCLoginDenied, Reason: "no_grants"}
+		return auth.OIDCLoginCompleteResponse{}, &auth.SSOLoginDeniedError{Sentinel: auth.ErrOIDCLoginDenied, Reason: "no_grants"}
 	}
 	subjectIDHash := SHA256Hash(provider.ProviderConfigID + ":" + strings.TrimSpace(claims.Subject))
-	return query.OIDCLoginCompleteResponse{
-		Auth: query.AuthContext{
-			Mode:                         query.AuthModeScoped,
+	return auth.OIDCLoginCompleteResponse{
+		Auth: auth.AuthContext{
+			Mode:                         auth.AuthModeScoped,
 			TenantID:                     record.TenantID,
 			WorkspaceID:                  record.WorkspaceID,
 			SubjectClass:                 oidcSubjectClass,
@@ -243,24 +243,24 @@ func (s *Service) provider(ctx context.Context, providerConfigID, tenantID, work
 			// directly — ErrOIDCLoginInvalidRequest maps to 400, not the
 			// opaque 503 every other resolver failure (DB unavailable,
 			// decrypt failure, malformed configuration) maps to below.
-			if errors.Is(err, query.ErrOIDCLoginInvalidRequest) {
+			if errors.Is(err, auth.ErrOIDCLoginInvalidRequest) {
 				return ProviderConfig{}, err
 			}
-			return ProviderConfig{}, fmt.Errorf("%w: resolve db provider", query.ErrOIDCLoginUnavailable)
+			return ProviderConfig{}, fmt.Errorf("%w: resolve db provider", auth.ErrOIDCLoginUnavailable)
 		}
 		if found {
 			return dbProvider, nil
 		}
 	}
-	return ProviderConfig{}, query.ErrOIDCLoginInvalidRequest
+	return ProviderConfig{}, auth.ErrOIDCLoginInvalidRequest
 }
 
 func (s *Service) ready() error {
 	if s == nil || s.stateStore == nil || s.grantResolver == nil || s.connectorFactory == nil {
-		return query.ErrOIDCLoginUnavailable
+		return auth.ErrOIDCLoginUnavailable
 	}
 	if s.configErr != nil {
-		return fmt.Errorf("%w: %v", query.ErrOIDCLoginInvalidRequest, s.configErr)
+		return fmt.Errorf("%w: %v", auth.ErrOIDCLoginInvalidRequest, s.configErr)
 	}
 	return nil
 }
@@ -268,7 +268,7 @@ func (s *Service) ready() error {
 func (s *Service) connector(ctx context.Context, provider ProviderConfig) (Connector, error) {
 	connector, err := s.connectorFactory(ctx, provider)
 	if err != nil {
-		return nil, fmt.Errorf("%w: connect provider", query.ErrOIDCLoginUnavailable)
+		return nil, fmt.Errorf("%w: connect provider", auth.ErrOIDCLoginUnavailable)
 	}
 	return connector, nil
 }

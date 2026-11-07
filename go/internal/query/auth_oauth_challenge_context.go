@@ -4,9 +4,9 @@
 package query //nolint:dirgate // #6818 move 4b: root auth surface (aliases, forwarders, route policies, handler wiring) stays in package query; moving it into auth/ strands root handler callers and turns this rename into a root-surface relocation, which is a separate follow-up.
 
 import (
-	"errors"
 	"net/http"
 
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
@@ -24,7 +24,10 @@ import (
 // error from the resolver chain never carries this sentinel, so it fails safe
 // to the bare challenge — the deliberate fail-safe against the
 // anthropics/claude-code#59467 challenge-on-every-401 bug.
-var ErrBearerCredentialUnrecognized = errors.New("query: bearer credential not a recognized issued token")
+// ErrBearerCredentialUnrecognized lives in auth (D13, #9669); this alias
+// holds the same sentinel value, so the middleware errors.Is challenge
+// decision rows are unchanged.
+var ErrBearerCredentialUnrecognized = auth.ErrBearerCredentialUnrecognized
 
 // requestWithOAuthChallenge forwards to querycontract.RequestWithOAuthChallenge.
 // The implementation, and its context-key pair (oauthChallengePolicyFromContext,
