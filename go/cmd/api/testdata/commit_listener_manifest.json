@@ -1,0 +1,47 @@
+{
+  "apiVersion": "eshu.dev/v1alpha1",
+  "kind": "ComponentPackage",
+  "metadata": {
+    "id": "dev.eshu.test.commitprobe",
+    "name": "CommitProbe",
+    "publisher": "eshu",
+    "version": "0.1.0"
+  },
+  "spec": {
+    "compatibleCore": "\u003e=0.1.0",
+    "componentType": "collector",
+    "collectorKinds": [
+      "probe"
+    ],
+    "runtime": {
+      "sdkProtocol": "collector-sdk/v1alpha1",
+      "adapter": "process"
+    },
+    "artifacts": [
+      {
+        "platform": "linux/arm64",
+        "image": "ghcr.io/eshu-hq/commitprobe@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    ],
+    "emittedFacts": [
+      {
+        "kind": "dev.eshu.test.commitprobe.check",
+        "schemaVersions": [
+          "1.0.0"
+        ],
+        "sourceConfidence": [
+          "observed"
+        ]
+      }
+    ],
+    "consumerContracts": {
+      "reducer": {
+        "phases": null
+      }
+    },
+    "telemetry": {
+      "metricsPrefix": ""
+    },
+    "quotas": {}
+  }
+}
