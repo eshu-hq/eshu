@@ -232,23 +232,27 @@ var supersedeInactiveReducerGenerationsPredicate = `stale.stage = 'reducer'
 // The Crossplane arm (#10269) bounds the #10106 exemption: per-generation
 // rows of one scope are interchangeable executions (the handler reads the
 // active snapshot by scope), so a stale row retires when a newer
-// pending/retrying sibling exists. Snapshot transitivity collapses a chain
-// G1<G2<G3 in one statement — G1 sees carrier G2 and G2 sees carrier G3 —
+// pending/retrying sibling exists. Locked-set transitivity collapses a
+// chain G1<G2<G3 in one statement — G1 sees carrier G2 and G2 sees carrier
+// G3, the middle row being both carrier and superseded in the one update —
 // so handler executions per scope per drain epoch are <= 1, plus at most 1
 // when a row was already in flight while newer generations queued (the
 // conservative carrier set never prunes against a claimed/running sibling).
 // "Newer" is generation activation order (ingested_at, then generation_id),
 // the order the generation guard above already uses; updated_at is rewritten
-// by retry/claim stamps and does not order generations. The carrier probe
-// reads the statement snapshot: a sibling another claimer leases between
-// the snapshot and the stale row's lock still counts as carrier for this
-// statement (the EvalPlanQual recheck re-fetches only the locked stale
-// row). That is safe in the one direction that matters — the leased
-// carrier executes next and discharges the debt; if it later dead-letters,
-// the debt rests on dead-letter replay exactly as it does when a sole row
-// dead-letters. TestReducerClaimCoalesceCarrierClaimedBeforeLockLive pins
-// this interleave. The probe is gated by the domain arm, so
-// non-Crossplane candidates never pay it.
+// by retry/claim stamps and does not order generations. Carrier
+// membership is membership in the lock step's output (#10325): carriers
+// lock in the same ordered pass (the active-generation arm below), and a
+// sibling another claimer leases between the snapshot and its lock fails
+// the lock step's row-self status quals on EvalPlanQual recheck, so it
+// never counts as carrier and the stale row survives as the #10106 rebind
+// fallback. A snapshot EXISTS over the live table (the merged #10320 form)
+// kept counting that leased sibling and destroyed the fallback when the
+// in-flight carrier later dead-lettered.
+// TestReducerClaimCoalesceCarrierClaimedBeforeLockLive and the
+// stale_coalesce sibling-claimed subtest pin this interleave. The carrier
+// condition is gated by the domain arm, so non-Crossplane candidates
+// never pay it.
 //
 // The sweep is a blocking write over terminal and waiting rows that operator
 // replays also lock, so it takes its locks first, in work_item_id COLLATE "C"

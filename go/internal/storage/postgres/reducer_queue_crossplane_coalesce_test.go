@@ -14,39 +14,66 @@ import (
 )
 
 // TestCrossplaneCoalesceSweepShape pins the #10269 conditional form of the
-// #10106 exemption: a stale crossplane_satisfied_by_materialization row is
-// superseded only when a newer pending/retrying sibling for the same scope
-// carries the debt. The blanket exemption must not survive as a standalone
-// arm, and the carrier set must stay conservative (no claimed/running,
-// failed, dead_letter, or succeeded carriers).
+// #10106 exemption as corrected by #10325: a stale
+// crossplane_satisfied_by_materialization row is superseded only when the
+// sweep's own locked set holds a newer pending/retrying sibling for the
+// same scope to carry the debt. Carrier membership is membership in the
+// lock step's output — decided by row-self status quals the EvalPlanQual
+// recheck re-evaluates — never a snapshot EXISTS over the live table (the
+// merged #10320 form, which kept counting a carrier claimed between
+// snapshot and lock and destroyed the #10106 rebind fallback). The blanket
+// exemption must not survive as a standalone arm, and the carrier set must
+// stay conservative (no claimed/running, failed, dead_letter, or
+// succeeded carriers).
 func TestCrossplaneCoalesceSweepShape(t *testing.T) {
 	t.Parallel()
 
 	predicate := supersedeInactiveReducerGenerationsPredicate
+	// No domain is exempt from locking, and the lock predicate carries no
+	// carrier probe: every stale candidate, Crossplane rows included,
+	// enters the one ordered lock step.
+	if strings.Contains(predicate, "crossplane_satisfied_by_materialization") {
+		t.Errorf("supersede lock predicate must not exempt or probe the Crossplane domain:\n%s", predicate)
+	}
+	if strings.Contains(predicate, "FROM fact_work_items AS sibling") {
+		t.Errorf("supersede lock predicate must not carry the snapshot sibling EXISTS:\n%s", predicate)
+	}
+	cte := supersedeInactiveReducerGenerationsCTE
 	for _, want := range []string{
+		// Carrier arm: also lock a pending/retrying Crossplane row on the
+		// scope's active generation when an older stale sibling is queued.
+		"stale.domain = 'crossplane_satisfied_by_materialization'",
+		"AND stale.generation_id = scope.active_generation_id",
+		"FROM fact_work_items AS older_sibling",
+		// Newest locked carrier per scope, derived once from the locked
+		// set; AS MATERIALIZED is load-bearing (see the SQL comment).
+		"superseded_crossplane_newest_carrier AS MATERIALIZED (",
+		"FROM superseded_stale_reducer_locked AS carrier",
+		"carrier.domain = 'crossplane_satisfied_by_materialization'",
+		"carrier.status IN ('pending', 'retrying')",
+		"carrier.generation_ingested_at DESC",
+		"carrier.generation_id DESC",
+		// Locked active-generation carriers are never themselves
+		// superseded.
+		"AND stale.generation_id <> scope.active_generation_id",
+		// The UPDATE supersedes a Crossplane row only against the locked
+		// set's newest carrier, strictly newer in activation order.
 		"AND (stale.domain <> 'crossplane_satisfied_by_materialization'",
-		"OR EXISTS (",
-		"FROM fact_work_items AS sibling",
-		"sibling.stage = 'reducer'",
-		"sibling.domain = 'crossplane_satisfied_by_materialization'",
-		"sibling.scope_id = stale.scope_id",
-		"sibling.work_item_id <> stale.work_item_id",
-		"sibling.status IN ('pending', 'retrying')",
-		"sibling_generation.ingested_at > stale_generation.ingested_at",
-		"sibling_generation.generation_id > stale_generation.generation_id",
+		"FROM superseded_crossplane_newest_carrier AS carrier",
+		"carrier.generation_ingested_at > carrier_stale_generation.ingested_at",
+		"carrier.generation_id > carrier_stale_generation.generation_id",
 	} {
-		if !strings.Contains(predicate, want) {
-			t.Errorf("supersede predicate missing coalesce arm %q:\n%s", want, predicate)
+		if !strings.Contains(cte, want) {
+			t.Errorf("supersede CTE missing coalesce arm %q:\n%s", want, cte)
 		}
 	}
-	// The carrier probe must join the sibling's own generation row so
-	// "newer" is generation activation order, never updated_at.
-	if strings.Contains(predicate, "sibling.updated_at") {
-		t.Errorf("carrier ordering must not use updated_at:\n%s", predicate)
+	// "Newer" is generation activation order, never updated_at, which
+	// claim/retry stamps rewrite.
+	if strings.Contains(cte, "carrier.updated_at") || strings.Contains(cte, "sibling.updated_at") {
+		t.Errorf("carrier ordering must not use updated_at:\n%s", cte)
 	}
-	if !strings.Contains(supersedeInactiveReducerGenerationsCTE,
-		"WHERE "+supersedeInactiveReducerGenerationsPredicate) {
-		t.Fatal("sweep lock step must carry the full coalesce predicate for the EvalPlanQual recheck")
+	if !strings.Contains(cte, "WHERE ("+predicate+")") {
+		t.Fatal("sweep lock step must carry the full supersede predicate for the EvalPlanQual recheck")
 	}
 }
 
