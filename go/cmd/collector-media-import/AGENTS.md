@@ -37,7 +37,9 @@
   the locally built seed image digest for its platform, and
   `provenSeedImageAmd64`/`provenSeedImageArm64` in `manifest_test.go` name
   the same digests. A seed rebuild re-pins all of them in the same commit;
-  promotion re-pins them to the pushed digests.
+  promotion re-pins them to the pushed digests. The engine pin tables in
+  `engine.go` follow `specs/satellite-pins/transcription.<arch>.json`;
+  re-record both together.
 - Satellite failures stay silent on stdout except for a terminal grant
   denial: success acks complete/unchanged and a revoked grant acks terminal
   with `grant_denied`, so a failed claim otherwise leaves no partial result

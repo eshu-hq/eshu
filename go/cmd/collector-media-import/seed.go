@@ -57,7 +57,12 @@ func runSeedCommand(args []string) error {
 	if err != nil {
 		return fmt.Errorf("collector seed resolves the caller binary: %w", err)
 	}
-	return runSeed(strings.TrimSpace(*dest), strings.TrimSpace(*imageRef), self, runtime.GOOS+"/"+runtime.GOARCH)
+	platform := runtime.GOOS + "/" + runtime.GOARCH
+	engine, err := enginePayloadForPlatform(platform)
+	if err != nil {
+		return err
+	}
+	return runSeed(strings.TrimSpace(*dest), strings.TrimSpace(*imageRef), self, platform, engine)
 }
 
 // embeddedManifest carries the authored component manifest inside the caller
@@ -68,13 +73,15 @@ func runSeedCommand(args []string) error {
 var embeddedManifest []byte
 
 // runSeed validates the image reference and materializes the seed payload
-// into dest: the caller binary under the satellite path name plus the
-// embedded component manifest with imageRef stamped into the artifact entry
-// for platform. The reference must name this component's own repository and
-// pass the shared component artifact gate before anything is written, so a
-// foreign or non-digest ref leaves dest untouched. Sibling platform slots
-// are left byte-identical.
-func runSeed(dest, imageRef, selfPath, platform string) error {
+// into dest: the caller binary under the satellite path name, the embedded
+// component manifest with imageRef stamped into the artifact entry for
+// platform, and the pinned engine payload under engine/. The reference must
+// name this component's own repository and pass the shared component
+// artifact gate before anything is written, so a foreign or non-digest ref
+// leaves dest untouched. The engine payload must name the same platform.
+// Sibling platform slots are left byte-identical. Any failure after the
+// destination is created removes it, so no partial payload survives.
+func runSeed(dest, imageRef, selfPath, platform string, engine engineSeedPayload) error {
 	if strings.TrimSpace(dest) == "" {
 		return fmt.Errorf("seed destination directory is required")
 	}
@@ -107,12 +114,21 @@ func runSeed(dest, imageRef, selfPath, platform string) error {
 	if err := candidate.Validate(); err != nil {
 		return fmt.Errorf("collector seed --image-ref %q: %w", imageRef, err)
 	}
+	if engine.platform != platform {
+		return fmt.Errorf("engine payload is for platform %q, want %q", engine.platform, platform)
+	}
 	image.Value = imageRef
 	image.Tag = "!!str"
 
 	if err := os.MkdirAll(dest, 0o750); err != nil {
 		return fmt.Errorf("create seed destination: %w", err)
 	}
+	completed := false
+	defer func() {
+		if !completed {
+			_ = os.RemoveAll(dest)
+		}
+	}()
 	if err := copySeedFile(selfPath, filepath.Join(dest, "collector"), 0o555); err != nil {
 		return err
 	}
@@ -162,6 +178,10 @@ func runSeed(dest, imageRef, selfPath, platform string) error {
 	if !matched {
 		return fmt.Errorf("stamped manifest declares no artifact for platform %q", platform)
 	}
+	if err := seedEnginePayload(dest, engine); err != nil {
+		return err
+	}
+	completed = true
 	return nil
 }
 

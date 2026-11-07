@@ -28,11 +28,13 @@
   `collector.Service` semantics become necessary, prove it from
   `go/internal/collector/service.go` first.
 - Claim mechanics exist only in the arbiter-ruled satellite branches
-  (#8879 Event-B): `seed` copies bytes and stamps a digest, `--sdk-stdio`
-  serves one stdin claim through the untouched `drainOnce` plus the
-  grant-checked SDK ack. Neither branch adds polling, scheduling, or a
-  database handle; the durable commit stays host-side. Do not widen them
-  without a new ruling.
+  (#8879 Event-B): `seed` copies the caller, the stamped manifest, and the
+  pinned engine payload (`engine.go` tables follow
+  `specs/satellite-pins/ocr.<arch>.json`; re-record both together),
+  `--sdk-stdio` serves one stdin claim through the untouched `drainOnce`
+  plus the grant-checked SDK ack against the embedded manifest. Neither
+  branch adds polling, scheduling, or a database handle; the durable commit
+  stays host-side. Do not widen them without a new ruling.
 - Keep the artifact cap positive and residency to one file: `io.LimitReader`
   at `maxBytes+1`, `Lstat` before open, `os.SameFile` after open, no bodies
   retained between scan and drain, no symlink following.

@@ -5,6 +5,7 @@ package main
 
 import (
 	"bytes"
+	_ "embed"
 	"flag"
 	"fmt"
 	"io"
@@ -35,6 +36,14 @@ const (
 	installedManifestPath = "/manifest.yaml"
 )
 
+// embeddedManifest carries the authored component manifest inside the caller
+// binary so the claim path serves exactly the manifest the binary was built
+// with, without reading the source tree at claim time. The /manifest.yaml
+// file stays only as the seed source inside the seed image.
+//
+//go:embed manifest.yaml
+var embeddedManifest []byte
+
 // parseSeedArgs parses `collector seed --dest <dir> --image-ref
 // <repo@sha256:…>`. Both flags are required and no positional arguments are
 // admitted, so a miswired seed init container fails with the usage instead
@@ -61,14 +70,16 @@ func parseSeedArgs(args []string) (dest string, imageRef string, err error) {
 	return dest, imageRef, nil
 }
 
-// seedComponent copies the caller binary and the installed manifest into
-// dest, stamping imageRef into the manifest copy's artifact for platform.
-// The reference must name this component's own repository and pass the
-// shared component artifact gate before anything is written, so a foreign
-// or non-digest ref leaves dest untouched. The manifest edit preserves the
+// seedComponent copies the caller binary, the installed manifest, and the
+// pinned engine payload into dest, stamping imageRef into the manifest
+// copy's artifact for platform. The reference must name this component's own
+// repository and pass the shared component artifact gate before anything is
+// written, so a foreign or non-digest ref leaves dest untouched. The engine
+// payload must name the same platform. The manifest edit preserves the
 // source document's comments by rewriting only the image scalar; sibling
-// platform slots are left byte-identical.
-func seedComponent(dest, imageRef, collectorSrc, manifestSrc, platform string) error {
+// platform slots are left byte-identical. Any failure after the destination
+// is created removes it, so no partial payload survives.
+func seedComponent(dest, imageRef, collectorSrc, manifestSrc, platform string, engine engineSeedPayload) error {
 	// #nosec G304 -- manifestSrc is the installed /manifest.yaml or a test fixture path, never operator free-form input.
 	raw, err := os.ReadFile(manifestSrc)
 	if err != nil {
@@ -100,12 +111,21 @@ func seedComponent(dest, imageRef, collectorSrc, manifestSrc, platform string) e
 	if err := candidate.Validate(); err != nil {
 		return fmt.Errorf("collector seed --image-ref %q: %w", imageRef, err)
 	}
+	if engine.platform != platform {
+		return fmt.Errorf("engine payload is for platform %q, want %q", engine.platform, platform)
+	}
 	image.Value = imageRef
 	image.Tag = "!!str"
 
 	if err := os.MkdirAll(dest, 0o750); err != nil {
 		return fmt.Errorf("create seed destination %q: %w", dest, err)
 	}
+	completed := false
+	defer func() {
+		if !completed {
+			_ = os.RemoveAll(dest)
+		}
+	}()
 	if err := copySeedFile(collectorSrc, filepath.Join(dest, "collector"), 0o755); err != nil {
 		return err
 	}
@@ -158,6 +178,10 @@ func seedComponent(dest, imageRef, collectorSrc, manifestSrc, platform string) e
 	if !matched {
 		return fmt.Errorf("stamped manifest %q declares no artifact for platform %q", manifestDest, platform)
 	}
+	if err := seedEnginePayload(dest, engine); err != nil {
+		return err
+	}
+	completed = true
 	return nil
 }
 
@@ -247,7 +271,12 @@ func runSeedCommand(args []string) error {
 	if err != nil {
 		return fmt.Errorf("collector seed resolves the caller binary: %w", err)
 	}
-	return seedComponent(dest, imageRef, self, installedManifestPath, runtime.GOOS+"/"+runtime.GOARCH)
+	platform := runtime.GOOS + "/" + runtime.GOARCH
+	engine, err := enginePayloadForPlatform(platform)
+	if err != nil {
+		return err
+	}
+	return seedComponent(dest, imageRef, self, installedManifestPath, platform, engine)
 }
 
 // copySeedFile copies one file with the given mode, failing closed when the
