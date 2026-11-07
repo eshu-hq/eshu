@@ -91,6 +91,16 @@ See `AGENTS.md`. The ones that bite:
 - No-Observability-Change: no new metrics, spans, or logs; the declare
   surfaces through the existing `report.Deleted["collector_instances"]`
   count and the residue census.
+- No-Regression Evidence: the stranded-leg cleanup entry (`cleanup.go`)
+  runs only with explicit seed/count env and skips otherwise, so normal
+  legs execute zero added statements. Live run against the QA writer via
+  the loopback forward: seed 1 with 100000 pending items, 200 runs,
+  0 claims, 1 instance row in; post-census 0 and 70s resurvey 0 out, exit
+  0 in 72s (70s of it the resurvey sleep). Deletes are the existing
+  seed-scoped batch path plus the exact-ID instance delete. No baseline
+  pair applies (one-shot cleanup tool, not a hot-path change).
+- No-Observability-Change: the entry logs its pre/post counts through the
+  test log only; no new metrics, spans, or production logs.
 
 ## How the spec maps to code
 
