@@ -22,6 +22,15 @@ RET 1 (`GET /api/v0/index-status`, alias of canonical
 closure or carve-out before the removal PR opens. Per-route evidence
 in the D13 disposition report; headline per family below.
 
+## Drain blockers (recorded, not worked around)
+
+- Row 6 (`go/cmd/golden-corpus-gate/query.go`): blocked — no
+  `eshu-sdk/api` module exists and no cached SDK module defines
+  `EnvelopeMIMEType`; the value lives only in-repo
+  (`querycontract/http.go:15`). Unblock path: publish the constant
+  from an SDK module (e.g. `sdk/go/apicontract`), then switch the
+  import with a pin test. Row stays TODO until then.
+
 ### APIRouter
 - `GET /api/v0/openapi.json`
 ### Admin
