@@ -58,7 +58,7 @@ passes).
 
 New `stale_coalesce` subtests under the scheduled
 `TestCrossplaneSatisfiedByRedriveClosesXRDLagWindowLive`
-(`satisfied_by_stale_coalesce_live_test.go`), all through the real
+(`satisfied_by_stale_coalesce_test.go`), all through the real
 `ReducerQueue` and reducer `Runtime`:
 
 - Seven shim guard cases in one drain: sole stale row executes;
