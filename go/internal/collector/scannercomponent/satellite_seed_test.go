@@ -5,6 +5,7 @@ package scannercomponent
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -186,6 +187,81 @@ func TestVerifySatelliteSeededArtifactIgnoresOtherIDs(t *testing.T) {
 			}
 		})
 	}
+}
+
+// seedCapableManifestIDs lists the component IDs of every collector caller
+// manifest whose binary stamps --image-ref at seed time: a sibling seed.go
+// next to manifest.yaml marks a seed-capable caller. A future third
+// seed-capable caller appears here first, before any registry entry.
+func seedCapableManifestIDs(t *testing.T, cmdRoot string) map[string]string {
+	t.Helper()
+
+	ids := map[string]string{}
+	seeds, err := filepath.Glob(filepath.Join(cmdRoot, "collector-*", "seed.go"))
+	if err != nil {
+		t.Fatalf("glob seed owners: %v", err)
+	}
+	for _, seed := range seeds {
+		manifestPath := filepath.Join(filepath.Dir(seed), "manifest.yaml")
+		// #nosec G304 -- path derives from the repo glob, not operator input.
+		raw, err := os.ReadFile(manifestPath)
+		if err != nil {
+			t.Fatalf("read %s: %v", manifestPath, err)
+		}
+		var manifest eshucomponent.Manifest
+		if err := yaml.Unmarshal(raw, &manifest); err != nil {
+			t.Fatalf("decode %s: %v", manifestPath, err)
+		}
+		if manifest.Metadata.ID == "" {
+			t.Fatalf("manifest %s has no metadata id", manifestPath)
+		}
+		ids[manifest.Metadata.ID] = manifestPath
+	}
+	return ids
+}
+
+// TestSatelliteSeedRegistryCoversSeedCapableCallers is the reverse binding
+// for TestSatelliteSeedPinsMatchCallerManifests: a future seed-capable
+// caller manifest with no registry entry fails here instead of passing
+// through admission silently (#10285).
+func TestSatelliteSeedRegistryCoversSeedCapableCallers(t *testing.T) {
+	t.Parallel()
+
+	t.Run("every seed-capable caller has a registry entry", func(t *testing.T) {
+		t.Parallel()
+
+		for id, path := range seedCapableManifestIDs(t, "../../../cmd") {
+			if _, ok := SatelliteSeedPins()[id]; !ok {
+				t.Errorf("seed-capable caller %q (%s) has no satellite registry entry", id, path)
+			}
+		}
+	})
+
+	t.Run("an uncovered seed-capable caller is reported", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+		dir := filepath.Join(root, "collector-fake")
+		if err := os.MkdirAll(dir, 0o750); err != nil {
+			t.Fatalf("mkdir fake caller: %v", err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "seed.go"), []byte("package main\n"), 0o600); err != nil {
+			t.Fatalf("write fake seed.go: %v", err)
+		}
+		const manifest = "metadata:\n  id: dev.eshu.collector.unregistered\n"
+		if err := os.WriteFile(filepath.Join(dir, "manifest.yaml"), []byte(manifest), 0o600); err != nil {
+			t.Fatalf("write fake manifest.yaml: %v", err)
+		}
+		ids := seedCapableManifestIDs(t, root)
+		if len(ids) != 1 {
+			t.Fatalf("seed-capable ids = %d, want 1", len(ids))
+		}
+		for id := range ids {
+			if _, ok := SatelliteSeedPins()[id]; ok {
+				t.Fatalf("fake caller %q unexpectedly has a registry entry", id)
+			}
+		}
+	})
 }
 
 // TestSatelliteSeedPinsMatchCallerManifests binds the host-side registry to
