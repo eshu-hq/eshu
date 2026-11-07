@@ -88,10 +88,14 @@ func componentCollectorInstancesFromEnv(getenv func(string) string, observer com
 		}
 		// The reconcile init container installed this manifest from the
 		// seeded manifest.yaml: for eshu.scanner.* it must equal the
-		// platform pin, or nothing is planned for it. A drifted seed
-		// image stops here, before any instance can claim (#8878).
+		// platform pin, and for a registry-scoped satellite it must equal
+		// the satellite pins, or nothing is planned for it. A drifted seed
+		// image stops here, before any instance can claim (#8878, #10285).
 		if err := scannercomponent.VerifySeededArtifact(manifest); err != nil {
 			return nil, nil, nil, fmt.Errorf("verify seeded scanner manifest for %q: %w", entry.ID, err)
+		}
+		if err := scannercomponent.VerifySatelliteSeededArtifact(manifest); err != nil {
+			return nil, nil, nil, fmt.Errorf("verify seeded satellite manifest for %q: %w", entry.ID, err)
 		}
 		componentInstances, skipped, err := desiredInstancesForComponent(entry, manifest)
 		if err != nil {

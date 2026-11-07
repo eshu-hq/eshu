@@ -16,7 +16,8 @@ package never executes an analyzer.
 
 This package owns the frozen analyzer, target, and failure vocabularies, the
 per-analyzer manifests and required grants, component-ID resolution, and the
-seeded-artifact admission check (`VerifySeededArtifact`). It never touches
+seeded-artifact admission check (`VerifySeededArtifact`) and the satellite
+seed-pin admission check (`VerifySatelliteSeededArtifact`). It never touches
 Postgres, the graph, the reducer, or the API/MCP surfaces, and it invents no
 protocol: manifests speak the v1alpha3 shape the host already decodes.
 
@@ -43,6 +44,12 @@ activation flow defines lifetimes).
   Postgres reader, and the extension host. Plain values only, no store handles.
 - `VerifySeededArtifact` — admission check that a seeded manifest artifact
   equals the platform pin.
+- `VerifySatelliteSeededArtifact` — admission check that a seeded satellite
+  manifest artifact equals the registry pin for its satellite ID.
+- `SatelliteSeedPins`, `SatelliteDocumentImportID`
+  (`dev.eshu.collector.document_import`), `SatelliteMediaImportID`
+  (`dev.eshu.collector.media_import`) — the satellite seed-pin registry and the
+  two satellite IDs it covers.
 
 See `doc.go` for the full godoc contract.
 
