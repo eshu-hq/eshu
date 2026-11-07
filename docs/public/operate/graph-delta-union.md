@@ -157,12 +157,14 @@ sum by (outcome) (
 ) > 0
 ```
 
-Severity: warning. Name: `EshuManifestDependencyReadDeltaBaseRefused`.
-The deploy alert pack carries the rule files in the eshu-deploy checkout
-([Hosted Ops Alert Pack](hosted-ops-alert-pack.md)); its `runbook`
-annotation points at this section. The metric names no scope (scope and
-generation ids never become labels), so the alert says a refusal happened,
-not where. The WARN line below says where.
+Severity: warning. Proposed name:
+`EshuManifestDependencyReadDeltaBaseRefused`. No such rule exists in the
+eshu-deploy checkout yet: when it lands as a proposed addition to
+`observability/hosted-operations-alerts.yaml` in that checkout, its
+`runbook` annotation must point at this section
+([Hosted Ops Alert Pack](hosted-ops-alert-pack.md)). The metric names no
+scope (scope and generation ids never become labels), so the proposed alert
+says a refusal happened, not where. The WARN line below says where.
 
 ### Find the affected alerts
 
@@ -177,8 +179,8 @@ not where. The WARN line below says where.
    committed after the refusal timestamp. The handler's success line is the
    second join key: its evidence summary carries `provider_only=1` with the
    intent's scope and generation.
-3. Consumer (b) never takes a refusing read, so it emits no
-   `manifest_refused` truncation signal of its own. A post-refusal
+3. Security-alert reconciliation never takes a refusing read, so the
+   reconciliation emits no refusal signal of its own. A post-refusal
    `provider_only` for the refused scope with no refusal signal from the
    reconciliation itself is the signature.
 
@@ -202,11 +204,21 @@ not where. The WARN line below says where.
    `dependency_evidence_id`. If it still reads `provider_only`, the base
    pin genuinely does not exist and the original value was correct.
 
-Proof: `TestSecurityAlertReconciliationHandlerRefusedBaseCommitsProviderOnly`
-commits exactly one upserted `provider_only` row (`CanonicalWrites=0`, no
-DELETE) through the real handler and writer on a refused base, and
-`TestSecurityAlertReconciliationHandlerHealedBaseRederivesMatched` proves
-the same alert re-derives to `matched` once the base pin is visible again.
+Proof: `TestSecurityAlertReconciliationHandlerRefusedBaseStoreRead` drives
+a real `FactStore` refusal (no full generation at the delta's union-base
+commit: `union_base_missing` counted once, WARN emitted, delta-only rows)
+into the real handler, which commits exactly one upserted `provider_only`
+row (`CanonicalWrites=0`, no DELETE; the writer stays a recording execer,
+so the live write itself is asserted by row shape, not by a second
+database). The reducer-root stub tests pin both handler directions on the
+simulated refused base:
+`TestSecurityAlertReconciliationHandlerRefusedBaseCommitsProviderOnly`
+(refused base commits `provider_only`) and
+`TestSecurityAlertReconciliationHandlerHealedBaseRederivesMatched` (the
+same alert re-derives to `matched` once the base pin is visible again).
+The read half underneath both suites is pinned by the manifest overlay
+live suite (`TestListActivePackageManifestDependencyFactsDeltaBaseUnavailableLive`
+and the delta-union cases).
 
 No-Observability-Change: #10193 adds no metric, label, span, or log key.
 The alert and the join use signals that already exist:

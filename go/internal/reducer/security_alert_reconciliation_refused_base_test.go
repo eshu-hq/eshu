@@ -19,12 +19,16 @@ import (
 // refusedBaseReconciliationFixture builds one provider alert whose package
 // pin lives only in the delta's base full generation (#10193). The stub
 // loader's manifest facts are what ListActivePackageManifestDependencyFacts
-// returns for the alert's package name: on a refused base
-// (union_base_missing / union_scope_mismatch) that read counts the refusal,
-// logs the "manifest dependency read" WARN, and returns the delta's rows
-// only, so the base-only pin is absent; after the base heals, the same read
-// returns the base pin. An impact finding for the alert's advisory exists in
-// both cases, so owned dependency evidence is the only missing half.
+// returns for the alert's package name: a simulated refused base, stubbed
+// to the delta-only rows the real read returns on a refusal
+// (union_base_missing / union_scope_mismatch), so the base-only pin is
+// absent; after the base heals, the same read returns the base pin. The stub
+// performs no base resolution and emits no refusal counter or WARN: that
+// read half is pinned by the existing manifest overlay live suite and by
+// TestSecurityAlertReconciliationHandlerRefusedBaseStoreRead, which drives
+// a real FactStore refusal into the handler. An impact finding for the
+// alert's advisory exists in both cases, so owned dependency evidence is
+// the only missing half.
 func refusedBaseReconciliationFixture(manifestFacts []facts.Envelope) (*recordingSecurityAlertReconciliationFactLoader, string) {
 	repoID := "repo://github/acme/api"
 	packageID := "npm://registry.npmjs.org/base-only-lib"

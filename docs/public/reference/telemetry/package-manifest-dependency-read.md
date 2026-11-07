@@ -50,9 +50,9 @@ Find the refusal on this counter and its WARN line (`scope_id`,
 `reducer_security_alert_reconciliation` facts with
 `reconciliation_status = provider_only` for the same repository committed
 after the refusal; the handler success line's `provider_only=<n>` evidence
-summary is the second key. The reconciliation emits no `manifest_refused`
-signal of its own — that absence beside a post-refusal `provider_only` is
-the signature. The alert expression and the re-drive steps are in
+summary is the second key. The reconciliation emits no refusal signal of
+its own — that absence beside a post-refusal `provider_only` is the
+signature. The alert expression and the re-drive steps are in
 [Security-alert reconciliation on a refused base](../../operate/graph-delta-union.md#security-alert-reconciliation-on-a-refused-base-10193).
 
 Read them together. Wall time that grows with pages is the expected cost of a
