@@ -1,0 +1,18 @@
+go/internal/storage/postgres/reducer_generation_filter_sql.go
+  h_78a442cba0b3e6 235-237,243-255
+go/internal/storage/postgres/reducer_queue_crossplane_coalesce_concurrency_test.go
+  h_78a442cba0b3e6 85,89-96,160-165,169-170
+go/internal/storage/postgres/reducer_queue_crossplane_coalesce_test.go
+  h_78a442cba0b3e6 17-27,32-41,43-60,62-64,66-67,70-73,75-76
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "86e94836ed55b47fc53718167b974fdaf4a6fc44",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
