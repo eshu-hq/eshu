@@ -62,7 +62,7 @@ while IFS= read -r path; do
     .dockerignore)
       image=true
       ;;
-    scripts/verify-apk-floors.sh|scripts/test-verify-apk-floors.sh|scripts/fixtures/apk-floors/*|scripts/verify-doc-import-pins.sh|scripts/test-verify-doc-import-pins.sh)
+    scripts/verify-apk-floors.sh|scripts/test-verify-apk-floors.sh|scripts/fixtures/apk-floors/*)
       apkfloors=true
       ;;
     # Scanner digest pins (#9491): the drift-gate verifier with its
@@ -104,15 +104,6 @@ while IFS= read -r path; do
       ;;
     scripts/ci/build-reproducibility-image.sh)
       image=true
-      ;;
-    # Document-import pins (#10164): the per-arch tesseract checksums feed
-    # the job-document-import target build in build-and-push-image (image
-    # lane) and the --stage audit in verify-apk-floors (apkfloors lane), so
-    # a pin change must run both. Otherwise the registry selects those gates
-    # while every publish job skips, and the aggregator fails closed.
-    specs/doc-import-pins/**)
-      image=true
-      apkfloors=true
       ;;
     # Lane self-test (#8879): the satellites-lane coverage lives in this
     # script, so a lone touch must run the satellites lane — otherwise the

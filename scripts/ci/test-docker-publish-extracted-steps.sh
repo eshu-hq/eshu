@@ -150,18 +150,6 @@ done
 # #9491: the scanner digest pin verifier, its suite, and the relocated pin
 # leaf (#8878) select the scannerpins lane, while unrelated paths leave it
 # off.
-# #10205 P2 follow-up: the doc-import pin guard (well-formedness verifier
-# plus self-test) selects the apkfloors lane, like the apk-floors scripts
-# above; the scanner-pins block below covers a different verifier.
-for pins_path in scripts/verify-doc-import-pins.sh scripts/test-verify-doc-import-pins.sh; do
-  guard_base="$(git -C "${repo}" rev-parse HEAD)"
-  mkdir -p "${repo}/scripts"
-  printf '# guard\n' > "${repo}/${pins_path}"
-  git -C "${repo}" add "${pins_path}"
-  git -C "${repo}" commit -qm "${pins_path##*/}"
-  run_selection pull_request "$(git -C "${repo}" rev-parse HEAD)" "${guard_base}"
-  rg -q '^apkfloors=true$' "${scratch}/output"
-done
 for pins_path in scripts/verify-scanner-digest-pins.sh scripts/test-verify-scanner-digest-pins.sh scripts/check-scanner-freshness.sh scripts/test-check-scanner-freshness.sh go/internal/collector/scannercomponent/manifest.go; do
   pins_base="$(git -C "${repo}" rev-parse HEAD)"
   mkdir -p "${repo}/$(dirname "${pins_path}")"
@@ -212,22 +200,6 @@ run_selection pull_request "$(git -C "${repo}" rev-parse HEAD)" "${builder_base}
 rg -q '^image=true$' "${scratch}/output"
 rg -q '^scannerpins=false$' "${scratch}/output"
 rg -q '^satellites=false$' "${scratch}/output"
-# #10164: the document-import pin files feed the job-document-import target
-# build (image lane) and the --stage apk audit (apkfloors lane). Any other
-# lane combination leaves a registry-selected gate with every publish job
-# skipped and the aggregator fails closed.
-for docimport_path in specs/doc-import-pins/tesseract-5.5.0.amd64.sha256 specs/doc-import-pins/README.md; do
-  docimport_base="$(git -C "${repo}" rev-parse HEAD)"
-  mkdir -p "${repo}/$(dirname "${docimport_path}")"
-  printf '# doc-import pins\n' > "${repo}/${docimport_path}"
-  git -C "${repo}" add "${docimport_path}"
-  git -C "${repo}" commit -qm "${docimport_path##*/}"
-  run_selection pull_request "$(git -C "${repo}" rev-parse HEAD)" "${docimport_base}"
-  rg -q '^image=true$' "${scratch}/output"
-  rg -q '^apkfloors=true$' "${scratch}/output"
-  rg -q '^scannerpins=false$' "${scratch}/output"
-  rg -q '^satellites=false$' "${scratch}/output"
-done
 # #8879: the satellite Dockerfiles and per-arch pin files feed the satellite
 # digest-gate builds (satellites lane) and the --dockerfile apk audit
 # (apkfloors lane). Any other lane combination leaves a registry-selected
