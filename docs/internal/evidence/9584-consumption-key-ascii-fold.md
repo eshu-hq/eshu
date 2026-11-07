@@ -62,11 +62,13 @@ names, Go module paths, and crates.io names are ASCII-only; npm rejects names
 that are not URL-safe; NuGet IDs may not hold characters that are not valid in
 a URL. The citations are in `go/internal/packageidentity/README.md`. A
 non-ASCII name keeps its non-ASCII letters in its keys and joins only an
-identically spelled record. One residual is left open: nuget.org validates new IDs with an ASCII-only
+identically spelled record. One residual was left open and is now confirmed
+(#9594, 2026-11-07): nuget.org validates new IDs with an ASCII-only
 pattern but still reads legacy IDs with `\w`, and it compares them with .NET
-`ToLowerInvariant`. Two legacy IDs that differ only in non-ASCII case are one
-package there and two keys here. Not joining them is the fail-closed
-direction; #9594 tracks confirming it.
+`OrdinalIgnoreCase`/`ToLowerInvariant`. Two legacy IDs that differ only in
+non-ASCII case are one package there and two keys here. Not joining them is
+the fail-closed direction; see
+`docs/internal/evidence/9594-nuget-unicode-comparison.md`.
 
 ### Folds this change leaves alone
 

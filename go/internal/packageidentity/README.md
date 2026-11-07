@@ -102,13 +102,20 @@ truth; reducers admit user-facing truth.
 - NuGet decision (#9594, confirmed 2026-11-06): keep ASCII-only, no
   per-ecosystem Unicode fold. NuGet.Client compares package IDs with
   `StringComparer.OrdinalIgnoreCase`
-  (`NuGet/NuGet.Client`,
-  `src/NuGet.Core/NuGet.Packaging/Core/comparers/PackageIdentityComparer.cs`:
-  `Equals`, `GetHashCode`, `Compare`), and nuget.org stores and serves
-  packages under `id.ToLowerInvariant()`
-  (`NuGet/NuGetGallery`, `src/Catalog/FlatContainerPackagePathProvider.cs`)
-  while taking new IDs ASCII-only (`PackageIdValidator.cs`:
+  ([`PackageIdentityComparer.cs` at `d4425db`](https://github.com/NuGet/NuGet.Client/blob/d4425db531b7bd34d4d7cb19a7e9c65fbcf4705b/src/NuGet.Core/NuGet.Packaging/Core/comparers/PackageIdentityComparer.cs#L70-L125):
+  `Equals` (L84), `GetHashCode` (L99), `Compare` (L125)), and nuget.org
+  stores and serves packages under `id.ToLowerInvariant()`
+  ([`FlatContainerPackagePathProvider.cs` at `0e80f87`](https://github.com/NuGet/NuGetGallery/blob/0e80f87628349207cdcaf55358491f8a6f1ca276/src/Catalog/FlatContainerPackagePathProvider.cs#L18-L34))
+  while taking new IDs ASCII-only
+  ([`PackageIdValidator.cs` at `2f271fb`](https://github.com/NuGet/NuGetGallery/blob/2f271fb8651906ecd841d0a658f9afc670e7021d/src/NuGetGallery.Core/Packaging/PackageIdValidator.cs#L13-L19):
   `^[A-Za-z0-9_]+([.-][A-Za-z0-9_]+)*$`, `\w` only for reading legacy IDs).
+  The [nuspec reference](https://learn.microsoft.com/en-us/nuget/reference/nuspec)
+  states the ID is "the case-insensitive package identifier, which must be
+  unique across nuget.org", and a recorded registry read (2026-11-07) shows
+  the search API answering `packageid:newtonsoft.json` and
+  `packageid:Newtonsoft.Json` with the same record while the flat container
+  serves only the lowercased blob: see
+  `docs/internal/evidence/9594-nuget-unicode-comparison.md`.
   Under that fold U+0130 stays apart from "i" (it lowercases to "i" plus
   U+0307; [UnicodeData](https://www.unicode.org/Public/UNIDATA/UnicodeData.txt):
   `0130` maps up to `0049 0307`, `212A` maps down to `006B`), so Eshu and the
