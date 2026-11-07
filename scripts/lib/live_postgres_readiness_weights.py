@@ -212,6 +212,10 @@ def weighted_bounds(runs: list[str], weights: Weights | WeightsV2,
 
     Raises:
         ValueError: There are fewer runs than shards.
+        ValueError: No spread-feasible cut fits the budget (v2 predicted
+            job spread exceeds 15% of mean).
+        ValueError: A shard's rows fail the row-union check.
+        ValueError: A runner row exceeds its seconds budget.
     """
     import live_postgres_readiness_v2 as v2
     if isinstance(weights, v2.WeightsV2):
