@@ -20,6 +20,7 @@ func seedWant(instanceID string) workflow.DesiredCollectorInstance {
 		Mode:          workflow.CollectorModeScheduled,
 		Enabled:       true,
 		ClaimsEnabled: true,
+		DisplayName:   Prefix + "harness",
 		Configuration: "{}",
 	}
 }
