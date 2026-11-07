@@ -349,6 +349,22 @@ func TestLoadCommitConfigLoadsCoreOwnedKindsWithGrants(t *testing.T) {
 	}
 }
 
+// TestLoadCommitConfigRefusesCoreOwnedKindsWithoutGrants proves the
+// fail-closed deny direction at the same layer: a manifest declaring
+// core-owned kinds with no grants file still refuses startup, so the
+// allow-path fix cannot silently admit grant-less producers.
+func TestLoadCommitConfigRefusesCoreOwnedKindsWithoutGrants(t *testing.T) {
+	t.Parallel()
+
+	env := commitListenerTestEnv()
+	env["ESHU_COMMIT_MANIFEST_PATH"] = "testdata/commit_listener_core_owned_manifest.json"
+	delete(env, "ESHU_COMMIT_GRANTS_PATH")
+	err := commitListenerErr(env)
+	if err == nil || !strings.Contains(err.Error(), "core-owned") {
+		t.Fatalf("loadCommitConfig() error = %v, want the core-owned refusal", err)
+	}
+}
+
 // TestBuildCommitMuxServesOnlyProtocolRoute proves the mount serves the
 // protocol route through the real handler and nothing else: garbage on the
 // route reaches admission (400, not 404) while other paths 404. The lazily
