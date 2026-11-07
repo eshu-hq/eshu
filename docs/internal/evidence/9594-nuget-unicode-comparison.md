@@ -8,9 +8,9 @@ next to its case variant, and does Eshu's ASCII-only fold agree with it?
 
 The [nuspec reference](https://learn.microsoft.com/en-us/nuget/reference/nuspec)
 defines `id` as "the case-insensitive package identifier, which must be unique
-across nuget.org or whatever gallery the package resides in". Case variants
-therefore cannot coexist as separate packages: registering an ID next to its
-case variant is rejected by uniqueness, whatever the letters.
+across nuget.org or whatever gallery the package resides in". ASCII case
+variants cannot coexist as separate packages (registry read below); for
+non-ASCII case pairs no probe exists, so rejection is assumed, not confirmed.
 
 ## Client comparer (pinned)
 
