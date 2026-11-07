@@ -179,7 +179,7 @@ High-signal invariants for this package:
   the sweep while neither its own nor the active generation's readiness would
   allow a claim (#7664 own-or-active OR), so a still-pending gate never gets
   permanently terminalized into unreplayable `superseded` the instant a newer
-  generation activates; the candidate gate stays own-generation, so no live row becomes claimable early. The sweep also exempts the scope-keyed `crossplane_satisfied_by_materialization` domain (#10106): its handler materializes the active snapshot, so rows stay claimable for the runtime rebind.
+  generation activates; the candidate gate stays own-generation, so no live row becomes claimable early. The sweep spares the scope-keyed `crossplane_satisfied_by_materialization` domain unless a newer pending/retrying sibling for the same scope carries the debt (#10106, #10269): its handler materializes the active snapshot, so a sole stale row stays claimable for the runtime rebind while per-generation backlog rows coalesce onto the newest carrier; see `docs/internal/evidence/10269-stale-crossplane-row-coalesce.md`.
   The #10060 holder fan-out debt-spare rule lives in [`HOLDER_FANOUT.md`](../../reducer/supplychain/core/HOLDER_FANOUT.md).
 - Workflow, AWS pagination, AWS scan-status, webhook, incident freshness, and
   hosted tenant/workspace grant stores use fencing, coalescing, or idempotent

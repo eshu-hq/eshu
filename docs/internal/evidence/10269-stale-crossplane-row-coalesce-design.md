@@ -1,6 +1,18 @@
 # #10269: Coalesce Stale Per-Generation Crossplane Rows — Design (Deferred)
 
-Status: DESIGN + PROOF ONLY. Do not implement from this branch and do not
+Status: IMPLEMENTED. #10106 merged as `0228c689f4` (#10298), lifting the
+DEFER-AFTER-MERGE condition. Design A below landed in
+`supersedeInactiveReducerGenerationsPredicate` with the conservative
+`pending`/`retrying` carrier set as written; see
+[10269-stale-crossplane-row-coalesce.md](10269-stale-crossplane-row-coalesce.md)
+for the RED/GREEN, drain, and EXPLAIN evidence. One design expectation
+did not hold on real Postgres: the carrier probe reads the statement
+snapshot (the EvalPlanQual recheck re-fetches only the locked stale
+row), so interleave (a) retires against a carrier leased mid-statement;
+the implementation note records why that direction is safe. The text
+below is the original deferred design, kept for the decision record.
+
+Original status: DESIGN + PROOF ONLY. Do not implement from this branch and do not
 merge this note as an implementation. The arbiter ruled DEFER-AFTER-MERGE:
 #10106 is unmerged, and this change is only meaningful stacked on its
 claim-time exemption, so it must be implemented by re-reading this note
