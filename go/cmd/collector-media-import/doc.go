@@ -15,7 +15,7 @@
 //     collector seed --dest <dir> --image-ref <repo@sha256:…> copies the
 //     caller binary, the embedded manifest.yaml, and the pinned whisper
 //     engine payload into <dir> and fails closed on any non-digest
-//     reference. The engine payload lands under engine/ (bin/ + models/),
+//     reference. The engine payload lands under engine/ (bin/ + lib/ + models/),
 //     with every file's SHA-256 verified against the per-platform pin set
 //     during a streaming copy, plus a pin manifest (pin-manifest.yaml) and
 //     the musl loader path file (lib-path); any failure removes the

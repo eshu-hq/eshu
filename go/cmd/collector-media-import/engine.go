@@ -19,7 +19,7 @@ import (
 // engineSeedFile is one pinned engine file the seed copies from the seed
 // image into the activation destination. Source is the absolute path in the
 // seed image; target is the path under <dest>/engine/ using the satellite
-// layout (bin/ + models/). SHA256 is the pinned hex digest the copy is
+// layout (bin/ + lib/ + models/). SHA256 is the pinned hex digest the copy is
 // verified against before the seed completes. The model is streamed, never
 // held whole in memory.
 type engineSeedFile struct {
@@ -89,9 +89,26 @@ var whisperModelPins = map[string]enginePinnedSource{
 	"linux/arm64": {path: "/opt/whisper/models/ggml-base.en.bin", sha256: "a03779c86df3323075f5e796cb2ce5029f00ec8869eee3fdfb897afe36c6d002"},
 }
 
+// whisperLibraryPins is the pinned whisper-cli runtime closure per platform:
+// the two shared libraries the binary needs that ship in neither the worker
+// image nor the seeded payload by default. Live QA proved the gap:
+// whisper-cli exits 127 with an empty engine/lib because libstdc++.so.6 and
+// libgcc_s.so.1 resolve nowhere. Digests equal the specs/satellite-pins
+// entries; the drift test proves it on every arch.
+var whisperLibraryPins = map[string][]enginePinnedSource{
+	"linux/amd64": {
+		{path: "/usr/lib/libgcc_s.so.1", sha256: "2298274ad3316109d6e895083398e220f16fbdd12957c4afcc9af8849e734151"},
+		{path: "/usr/lib/libstdc++.so.6.0.33", sha256: "08d5c7eb7c1e210d0fb56a33af0b97ab86339f2d321ceb31fcd53c563f8803c9"},
+	},
+	"linux/arm64": {
+		{path: "/usr/lib/libgcc_s.so.1", sha256: "69c45f16064b7b61b9a3d64c37395d13368a8fe719745d49e9508ec650fea971"},
+		{path: "/usr/lib/libstdc++.so.6.0.33", sha256: "1f1a71be4319632f743507ef7c6eaebaccad8d6f277055cf2c6b16b544f9f418"},
+	},
+}
+
 // enginePayloadForPlatform builds the pinned engine set for platform: the
-// binary under bin/ and the model under models/. An unpinned platform fails
-// before anything is written.
+// binary under bin/, the runtime libraries under lib/, and the model under
+// models/. An unpinned platform fails before anything is written.
 func enginePayloadForPlatform(platform string) (engineSeedPayload, error) {
 	binary, ok := whisperBinaryPins[platform]
 	if !ok {
@@ -101,17 +118,27 @@ func enginePayloadForPlatform(platform string) (engineSeedPayload, error) {
 	if !ok {
 		return engineSeedPayload{}, fmt.Errorf("engine payload declares no pinned model for platform %q", platform)
 	}
+	libs, ok := whisperLibraryPins[platform]
+	if !ok {
+		return engineSeedPayload{}, fmt.Errorf("engine payload declares no pinned whisper runtime libraries for platform %q", platform)
+	}
+	files := []engineSeedFile{
+		{
+			source: binary.path, target: "bin/" + filepath.Base(binary.path),
+			sha256: binary.sha256, executable: true,
+		},
+		{
+			source: model.path, target: "models/" + filepath.Base(model.path), sha256: model.sha256,
+		},
+	}
+	for _, lib := range libs {
+		files = append(files, engineSeedFile{
+			source: lib.path, target: "lib/" + filepath.Base(lib.path), sha256: lib.sha256,
+		})
+	}
 	return engineSeedPayload{
 		engine: whisperEngineName, version: whisperEngineVersion, platform: platform,
-		files: []engineSeedFile{
-			{
-				source: binary.path, target: "bin/" + filepath.Base(binary.path),
-				sha256: binary.sha256, executable: true,
-			},
-			{
-				source: model.path, target: "models/" + filepath.Base(model.path), sha256: model.sha256,
-			},
-		},
+		files: files,
 	}, nil
 }
 

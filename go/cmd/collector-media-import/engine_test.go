@@ -231,6 +231,10 @@ type satellitePinFile struct {
 		Path   string `json:"path"`
 		SHA256 string `json:"sha256"`
 	} `json:"model"`
+	Libraries []struct {
+		Path   string `json:"path"`
+		SHA256 string `json:"sha256"`
+	} `json:"libraries"`
 }
 
 // TestEnginePayloadPinsMatchSatellitePins proves the embedded pin tables are
@@ -258,8 +262,8 @@ func TestEnginePayloadPinsMatchSatellitePins(t *testing.T) {
 			t.Fatalf("%s: payload engine = %q %q, pins = %q %q",
 				arch, payload.engine, payload.version, pins.Engine.Name, pins.Engine.Version)
 		}
-		if len(payload.files) != 2 {
-			t.Fatalf("%s: payload files = %d, want 2 (binary + model)", arch, len(payload.files))
+		if len(payload.files) != 4 {
+			t.Fatalf("%s: payload files = %d, want 4 (binary + model + 2 runtime libs)", arch, len(payload.files))
 		}
 		bySource := map[string]engineSeedFile{}
 		for _, file := range payload.files {
@@ -280,6 +284,67 @@ func TestEnginePayloadPinsMatchSatellitePins(t *testing.T) {
 		if model.sha256 != pins.Model.SHA256 || model.target != "models/ggml-base.en.bin" || model.executable {
 			t.Fatalf("%s: model entry = %+v, want target models/ggml-base.en.bin sha %q non-executable",
 				arch, model, pins.Model.SHA256)
+		}
+		for _, lib := range pins.Libraries {
+			base := filepath.Base(lib.Path)
+			if base != "libstdc++.so.6.0.33" && base != "libgcc_s.so.1" {
+				continue
+			}
+			entry, ok := bySource[lib.Path]
+			if !ok {
+				t.Fatalf("%s: payload omits pinned runtime library %q (a pin unseeded)", arch, lib.Path)
+			}
+			if entry.sha256 != lib.SHA256 || entry.target != "lib/"+base || entry.executable {
+				t.Fatalf("%s: library entry = %+v, want target lib/%s sha %q non-executable",
+					arch, entry, base, lib.SHA256)
+			}
+		}
+	}
+}
+
+// TestEnginePayloadSeedsWhisperRuntimeLibs proves the payload carries the
+// two shared libraries whisper-cli needs at runtime (libstdc++.so.6 and
+// libgcc_s.so.1): live QA showed the binary fails to start with the seeded
+// empty lib/ dir because neither library ships in the worker image.
+func TestEnginePayloadSeedsWhisperRuntimeLibs(t *testing.T) {
+	t.Parallel()
+	for _, arch := range []string{"amd64", "arm64"} {
+		platform := "linux/" + arch
+		payload, err := enginePayloadForPlatform(platform)
+		if err != nil {
+			t.Fatalf("enginePayloadForPlatform(%q): %v", platform, err)
+		}
+		// #nosec G304 -- test-only read of the committed satellite pins.
+		raw, err := os.ReadFile(filepath.Join("..", "..", "..", "specs", "satellite-pins", "transcription."+arch+".json"))
+		if err != nil {
+			t.Fatalf("read satellite pins for %s: %v", arch, err)
+		}
+		var pins satellitePinFile
+		if err := json.Unmarshal(raw, &pins); err != nil {
+			t.Fatalf("decode satellite pins for %s: %v", arch, err)
+		}
+		want := map[string]string{}
+		for _, lib := range pins.Libraries {
+			if base := filepath.Base(lib.Path); base == "libstdc++.so.6.0.33" || base == "libgcc_s.so.1" {
+				want[lib.Path] = lib.SHA256
+			}
+		}
+		if len(want) != 2 {
+			t.Fatalf("%s: pins list %d whisper runtime libs, want libstdc++.so.6.0.33 + libgcc_s.so.1", arch, len(want))
+		}
+		bySource := map[string]engineSeedFile{}
+		for _, file := range payload.files {
+			bySource[file.source] = file
+		}
+		for path, sha := range want {
+			entry, ok := bySource[path]
+			if !ok {
+				t.Fatalf("%s: payload omits runtime library %q (whisper-cli cannot start without it)", arch, path)
+			}
+			if entry.target != "lib/"+filepath.Base(path) || entry.sha256 != sha || entry.executable {
+				t.Fatalf("%s: library entry = %+v, want target lib/%s sha %q non-executable",
+					arch, entry, filepath.Base(path), sha)
+			}
 		}
 	}
 }

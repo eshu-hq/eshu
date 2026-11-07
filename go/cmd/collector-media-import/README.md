@@ -36,7 +36,7 @@ Package `main`; nothing is imported by other packages.
 - `buildDrain`, `buildEngine` — pinned backend verification and drain wiring.
 - `runSeed`, `runSeedCommand` — `collector seed` dispatch: digest-ref
   validation plus the caller binary, embedded `manifest.yaml`, and pinned
-  whisper engine payload copy (`engine/` with `bin/` + `models/`, every
+  whisper engine payload copy (`engine/` with `bin/` + `lib/` + `models/`, every
   file SHA-256-verified during a streaming copy, plus `pin-manifest.yaml`
   and the musl loader path file `lib-path`).
 - `serveStdioClaim`, `runSDKStdioCommand`, `captureCommitter`, `ackResult` —
@@ -60,7 +60,8 @@ the manifest entry to the pushed digest.
 seed payload (binary as `collector`, manifest as `manifest.yaml` with the
 passed digest stamped into the artifact entry for the seed runner's
 platform, engine as `engine/` with `bin/whisper-cli` plus
-`models/ggml-base.en.bin`, every file SHA-256-verified during a streaming
+`lib/libstdc++.so.6.0.33`, `lib/libgcc_s.so.1`, and `models/ggml-base.en.bin`,
+every file SHA-256-verified during a streaming
 copy, plus `pin-manifest.yaml` and the musl loader path file `lib-path`)
 and fails closed on any non-digest reference, any reference outside this
 component's own seed repository, a manifest with no entry for the runner's
@@ -192,7 +193,8 @@ covered by the `telemetry-coverage-collectors.md` drain row.
 ### Seeded engine payload (this PR)
 
 No-Regression Evidence: `seed` additionally copies the pinned engine tree
-(`bin/whisper-cli`, `models/ggml-base.en.bin`) into `<dest>/engine/`,
+(`bin/whisper-cli`, `lib/libstdc++.so.6.0.33`, `lib/libgcc_s.so.1`,
+`models/ggml-base.en.bin`) into `<dest>/engine/`,
 streaming each file while hashing against its pin; any mismatch removes the
 payload. Baseline is the payload without engines (every claim fails at pin
 verification); after measurement at this HEAD the focused suite stays green
@@ -220,6 +222,21 @@ touched: the seeder runs once per pod start.
 
 No-Observability-Change: still no metric, label, span, or log line; the
 link derivation adds no signal.
+
+No-Regression Evidence (runtime-libs payload): the two `lib/` entries
+(`libstdc++.so.6.0.33`, `libgcc_s.so.1`) ride the same digest-verified
+streaming copy as every other payload file; any mismatch removes the whole
+payload. Baseline is the lib-less payload (live QA: `whisper-cli` exits 127
+with an empty `engine/lib`); after measurement at this HEAD the focused
+suite stays green (`go test ./cmd/collector-media-import/ -count=1`)
+including the new payload-contents test and the extended per-arch pin-drift
+test. Backend: pinned whisper.cpp v1.9.5; linux/arm64 + amd64 pin tables.
+Input shape: two seed-image absolute paths under fixed `lib/` names, 0444.
+The copy runs only inside `seed`, once per pod start; claim decode/validate
+path untouched, so gate impact is nil by construction.
+
+No-Observability-Change (runtime-libs payload): no new metric, label, span,
+or log line; the lib entries add no signal.
 
 ## Gotchas / invariants
 
