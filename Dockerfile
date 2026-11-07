@@ -171,6 +171,9 @@ FROM ${ESHU_ALPINE_IMAGE} AS runtime
 # transitively by curl) are
 # pinned for CVE-2026-45447 (OpenSSL PKCS7_verify use-after-free, #7315),
 # then raised to 3.3.7-r2 for CVE-2026-75804 and CVE-2026-84782 (#7571).
+# musl/musl-utils are held at 1.2.5-r12 for CVE-2026-107891 (HIGH) and zlib
+# at 1.4-r0 for CVE-2026-85091 (HIGH); both arrive with the Alpine base at
+# older builds and only the floors below force the patched versions in.
 #
 # Three controls keep these packages current:
 #   1. The version floors below are the fail-closed guard: the build fails if
@@ -188,7 +191,8 @@ FROM ${ESHU_ALPINE_IMAGE} AS runtime
 # floor above. scripts/verify-runtime-image-tools.sh asserts its
 # REQUIRED_TOOLS list is present in the built image.
 RUN apk add --no-cache git openssh-client curl "c-ares>=1.34.9-r0" \
-    "libexpat>=2.10.0-r0" "libssl3>=3.3.7-r2" "libcrypto3>=3.3.7-r2"
+    "libexpat>=2.10.0-r0" "libssl3>=3.3.7-r2" "libcrypto3>=3.3.7-r2" \
+    "musl>=1.2.5-r12" "musl-utils>=1.2.5-r12" "zlib>=1.4-r0"
 
 # Copy Go binaries
 COPY --from=builder /go-bin/ /usr/local/bin/
