@@ -7,7 +7,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/eshu-hq/eshu/go/internal/cli/investigation"
-	"github.com/eshu-hq/eshu/go/internal/query"
 )
 
 // investigationExportDepsValue is the read seam the CLI tests swap so they can
@@ -67,7 +66,7 @@ func runInvestigationExport(cmd *cobra.Command, _ []string) error {
 	out, _ := cmd.Flags().GetString("out")
 	maxSourceFacts, _ := cmd.Flags().GetInt("max-source-facts")
 
-	format, err := query.ParseInvestigationPacketFormat(rawFormat)
+	format, err := investigation.ParsePacketFormat(rawFormat)
 	if err != nil {
 		return err
 	}
@@ -84,7 +83,7 @@ func runInvestigationExport(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
-	data, err := query.RenderInvestigationPacket(packet, format)
+	data, err := investigation.RenderPacket(packet, format)
 	if err != nil {
 		return err
 	}

@@ -15,7 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/cli/procexec"
 	"github.com/eshu-hq/eshu/go/internal/cli/servicereport"
 	"github.com/eshu-hq/eshu/go/internal/eshulocal"
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/serviceintel"
 	"github.com/spf13/cobra"
 )
@@ -204,12 +204,12 @@ func mcpStartProfileOverrides(profileFlag string) (map[string]string, error) {
 	if raw == "" {
 		return nil, nil
 	}
-	profile, err := query.ParseQueryProfile(raw)
+	profile, err := querycontract.ParseQueryProfile(raw)
 	if err != nil {
 		return nil, fmt.Errorf("parse --profile: %w", err)
 	}
 	switch profile {
-	case query.ProfileLocalLightweight:
+	case querycontract.ProfileLocalLightweight:
 		// Clear any inherited ESHU_GRAPH_BACKEND: lightweight rejects a non-empty
 		// graph backend, so an explicit --profile local_lightweight must fully
 		// determine the runtime config rather than fail on a shell-set backend.
@@ -217,16 +217,16 @@ func mcpStartProfileOverrides(profileFlag string) (map[string]string, error) {
 			"ESHU_QUERY_PROFILE": string(profile),
 			"ESHU_GRAPH_BACKEND": "",
 		}, nil
-	case query.ProfileLocalAuthoritative:
+	case querycontract.ProfileLocalAuthoritative:
 		return map[string]string{
 			"ESHU_QUERY_PROFILE": string(profile),
-			"ESHU_GRAPH_BACKEND": string(query.GraphBackendNornicDB),
+			"ESHU_GRAPH_BACKEND": string(querycontract.GraphBackendNornicDB),
 		}, nil
 	default:
 		return nil, fmt.Errorf(
 			"eshu mcp start supports only %q or %q profiles, got %q",
-			query.ProfileLocalLightweight,
-			query.ProfileLocalAuthoritative,
+			querycontract.ProfileLocalLightweight,
+			querycontract.ProfileLocalAuthoritative,
 			profile,
 		)
 	}

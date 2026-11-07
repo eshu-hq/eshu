@@ -13,7 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/cli/localsupervisor"
 	"github.com/eshu-hq/eshu/go/internal/cli/procexec"
 	"github.com/eshu-hq/eshu/go/internal/eshulocal"
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/spf13/cobra"
 )
 
@@ -190,8 +190,8 @@ func runGraphStart(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("resolve eshu executable: %w", err)
 	}
 	env := procexec.MergeEnvironment(procexec.Environ(), map[string]string{
-		"ESHU_QUERY_PROFILE":            string(query.ProfileLocalAuthoritative),
-		"ESHU_GRAPH_BACKEND":            string(query.GraphBackendNornicDB),
+		"ESHU_QUERY_PROFILE":            string(querycontract.ProfileLocalAuthoritative),
+		"ESHU_GRAPH_BACKEND":            string(querycontract.GraphBackendNornicDB),
 		localsupervisor.ProgressModeEnv: progressMode,
 		localsupervisor.LogModeEnv:      logMode,
 		localsupervisor.LogDirEnv:       layout.LogsDir,

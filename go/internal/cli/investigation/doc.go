@@ -7,8 +7,8 @@
 //
 // BuildPacket is the entry point. It takes a Request naming the family, the
 // scope the operator asked about, and an optional bounds override, reads the
-// matching API route through Deps, and returns a packet the caller renders with
-// query.RenderInvestigationPacket.
+// matching API route through Deps, and returns a packet the caller renders
+// with RenderPacket.
 //
 // Two results are both successes. A packet whose Refusal is set is a valid,
 // share-safe artifact stating why the question could not be answered: an

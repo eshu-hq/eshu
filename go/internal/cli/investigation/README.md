@@ -61,6 +61,12 @@ Scope handling:
 Output:
 
 - `WriteArtifact(stdout, stderr io.Writer, out string, data []byte)`.
+- `PacketFormat` (`PacketFormatJSON`, `PacketFormatMarkdown`,
+  `PacketFormatHTML`), `ParsePacketFormat(raw string)`, and
+  `RenderPacket(packet, format)` — the render seam the cobra wrapper uses so
+  `go/cmd/eshu` renders without importing the packet contract directly. The
+  seam delegates to `internal/query`; the schema and renderers stay owned
+  there.
 
 See `doc.go` for the godoc contract.
 
