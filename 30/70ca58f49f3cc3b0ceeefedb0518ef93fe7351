@@ -1,0 +1,28 @@
+go/internal/query/admin/backfill_admission.go
+  h_78a442cba0b3e6 1-76
+go/internal/query/admin/backfill_admission_contract_test.go
+  h_78a442cba0b3e6 1-61
+go/internal/query/admin/dead_letter_admission.go
+  h_78a442cba0b3e6 1-80
+go/internal/query/admin/dead_letter_admission_contract_test.go
+  h_78a442cba0b3e6 1-62
+go/internal/query/admin/reindex_admission.go
+  h_78a442cba0b3e6 1-86
+go/internal/query/admin/reindex_admission_contract_test.go
+  h_78a442cba0b3e6 1-64
+go/internal/query/admin/skip_admission.go
+  h_78a442cba0b3e6 1-83
+go/internal/query/admin/skip_admission_contract_test.go
+  h_78a442cba0b3e6 1-59
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3070ca58f49f3cc3b0ceeefedb0518ef93fe7351",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
