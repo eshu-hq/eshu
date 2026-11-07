@@ -71,11 +71,20 @@ Proof, all hermetic in this change:
 
 ## No-Regression Evidence:
 
-Full generations are unchanged apart from follow-up stream order (the
-marker moved ahead of the delta return, so it streams before the
-full-only follow-ups); fact kinds, payloads, and counts per generation are
-identical, and `TestGenerationContentVersionPinsCollectorOutput` passes
-with no epoch re-pin — no fixture file's attributed output moved. The new
+Full generations keep the #10049 follow-up stream order and per-generation
+fact kinds and counts; the #10301 parser change adds one `alias` string to
+blank/dot import facts, so payload bytes move for files with those imports.
+`TestGenerationContentVersionPinsCollectorOutput` is re-pinned in this change
+with an epoch advance (epoch `9a6c02597e8ae5ea`), pinned by the new
+`src/import_bindings.go` fixture carrying a blank import, a dot import, and
+a bare call. The advance fixes same-commit recollection: a re-sync at an
+unchanged commit under the new epoch stores one new generation instead of
+being dropped as a duplicate.
+
+Pre-upgrade window: generations stored under older epochs still carry
+alias-free import facts. Delta derivation reading those facts sees blank/dot
+imports as alias-free and may derive same-package keys for dot-imported bare
+names, until the repository stores a generation under the new epoch. The new
 work is bounded per delta: one additional work item whose handler loads
 the delta generation's changed-file facts and the referenced symbol keys
 (the #10124 overlay measured that read at a 1.25x counterfactual against
@@ -86,17 +95,14 @@ an unusable scope dead-letters on attempt 1 before the symbol load, so a
 bad delta costs no symbol query and no graph write. End-to-end delta
 wall time is NOT_CHECKED here: the live delta-reader leg runs at promotion
 (the shared host was under another lane's live proof during this change).
-- No-Regression Evidence: #10301 import-aware derivation adds no new
-  envelope scan — it reuses the already-loaded `parsed_file_data` maps,
-  iterating at most the file's own import entries (one short-circuiting
-  alias check each) before deriving the same per-callee `scip-go gomod`
-  keys import-free files already derived. Micro-benchmark (50 delta files
-  x 8 plain imports x 10 bare calls, linux/arm64, `go test -bench`):
-  base skip-all ~7us/op, import-aware ~115us/op (~2.3us per import-bearing
-  file) — noise against the handler's millisecond fact loads, and the extra
-  overlay load is one key per distinct callee, the shape #10049 already
-  accepted. Parser side: no new tree walk; only dot/blank imports gain one
-  `alias` string each, all other payload bytes identical.
+#10301 import-aware derivation adds no new envelope scan — it reuses the
+already-loaded `parsed_file_data` maps, checking at most the file's own
+import entries (one short-circuiting alias check each) before deriving the
+same per-callee `scip-go gomod` keys import-free files already derived. No
+benchmark is claimed here: the work scales with a file's own import list,
+and the extra overlay load is one key per distinct callee, the shape #10049
+already accepted. Parser side: no new tree walk; only blank/dot imports gain
+one `alias` string each.
 
 ## Observability Evidence:
 
@@ -108,9 +114,10 @@ ERROR log for fenced deltas, the overlay outcome counter
 `eshu_dp_code_call_symbol_definition_read_delta_union_total`, and the
 standard reducer execution and code-call edge batch telemetry. Docs that
 called those signals dormant "until #10049" now describe them as live.
-- Observability Evidence: #10301 adds no new instrument; it is visible
-  through the existing delta signals. The handler completion log reports a
-  nonzero `symbol_key_count` for import-bearing deltas (0 before the fix,
-  with `code_call_unresolved_callee_count` at the dropped-edge count), and
-  `eshu_dp_code_call_symbol_definition_read_delta_union_total` counts the
-  overlay read the derived keys trigger.
+
+#10301 adds no new instrument; it is visible through the existing delta
+signals. The handler completion log reports a nonzero `symbol_key_count`
+for import-bearing deltas (0 before the fix, with
+`code_call_unresolved_callee_count` at the dropped-edge count), and
+`eshu_dp_code_call_symbol_definition_read_delta_union_total` counts the
+overlay read the derived keys trigger.

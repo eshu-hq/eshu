@@ -218,8 +218,9 @@ func strongerCodeCallSymbolMethod(
 // when the call is provably same-package: a bare unqualified Go name in a
 // file whose imports carry no local binding. A dot import (recorded with its
 // "." alias since #10301) pulls another package's exported names into the
-// bare namespace, and any other alias can shadow a bare name, so a file with
-// an aliased import keeps today's behavior: no derived keys. A derived key
+// bare namespace, so a file with one keeps today's behavior: no derived
+// keys. Named and blank bindings inject no bare names; skipping them too is
+// the deliberate fail-safe. A derived key
 // that matches nothing (a builtin, a method, a removed callee) loads nothing
 // and resolves nothing, exactly as today.
 //
@@ -277,11 +278,10 @@ func SamePackageGoCalleeKeysForDeltaRepos(
 
 // goFileHasImportAlias reports whether any entry in the file's imports
 // bucket binds a local name: a named alias, or the blank ("_") or dot (".")
-// binding the Go parser records since #10301. Such a file's bare call names
-// are not provably same-package — a dot import pulls another package's names
-// into the bare namespace and any alias can shadow a bare name — so the
-// caller skips derivation for the whole file, the fail-safe behavior. Files
-// with only plain imports (no alias key) derive normally.
+// binding the Go parser records since #10301. Only a dot import pulls
+// another package's names into the bare namespace; named and blank bindings
+// inject none, and skipping them too is the deliberate fail-safe, so only
+// files with plain imports (no alias key) derive keys.
 func goFileHasImportAlias(fileData map[string]any) bool {
 	for _, entry := range payloadcore.MapSlice(fileData["imports"]) {
 		if strings.TrimSpace(payloadcore.AnyToString(entry["alias"])) != "" {
