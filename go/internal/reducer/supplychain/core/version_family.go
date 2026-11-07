@@ -80,7 +80,7 @@ func evaluateSupplyChainVersionMatchForRow(
 		return evaluateComposerSemverMatch(observed, fixedVersion, pkgs)
 	case string(packageidentity.EcosystemMaven):
 		return evaluateMavenVersionMatch(observed, fixedVersion, pkgs)
-	case "redhat", "fedora", "centos", "rocky", "alma", "amazonlinux", "rpm":
+	case "redhat", "fedora", "centos", "rocky", "alma", "amazon", "amazonlinux", "rpm":
 		return evaluateRPMVersionMatch(observed, fixedVersion, pkgs)
 	case "debian", "ubuntu", "deb", "dpkg":
 		return evaluateOSPackageVersionMatch(

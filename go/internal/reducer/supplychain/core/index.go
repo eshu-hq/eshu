@@ -4,6 +4,7 @@
 package core
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -278,6 +279,15 @@ func classifySupplyChainImpactPackage(
 		pkgs,
 		joinedPackageManager,
 	)
+	// A per-vendor signal for an unsupported_ecosystem finding on an OS-shaped
+	// group (#10034 item 4): the finding keeps the generic matcher token and
+	// names the closed vendor label the representative outcome counts under,
+	// so the operator sees which vendor leaves the row unverified.
+	if versionDecision.Reason == supplyChainVersionReasonUnsupportedEcosystem &&
+		slices.ContainsFunc(pkgs, affectedFactHasOSShape) {
+		versionDecision.MissingEvidence = append(versionDecision.MissingEvidence,
+			supplyChainMissingUnsupportedMatcherForVendor(osAdvisoryJoinVendorLabel(classifyAffectedPackageAdvisorySource(pkg))))
+	}
 	if hasComponentPath && (osVersionConflict || sbomVersionEvidenceConflicts(finding.Ecosystem, component, consumption)) {
 		versionDecision = possiblyAffectedDecision(
 			supplyChainVersionReasonSBOMVersionConflict,

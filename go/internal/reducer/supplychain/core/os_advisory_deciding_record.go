@@ -159,7 +159,7 @@ func osVerdictComparator(ecosystem string, pkgs []supplychainmodel.AffectedPacka
 		family = raw
 	}
 	switch family {
-	case "redhat", "fedora", "centos", "rocky", "alma", "amazonlinux", "rpm":
+	case "redhat", "fedora", "centos", "rocky", "alma", "amazon", "amazonlinux", "rpm":
 		return compareRPMEVR
 	case "debian", "ubuntu", "deb", "dpkg":
 		return compareDPKGVersion

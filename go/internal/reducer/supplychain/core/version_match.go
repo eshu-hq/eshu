@@ -48,6 +48,14 @@ const (
 	supplyChainMissingSBOMVersionConflict = "sbom component version evidence conflicts"
 )
 
+// supplyChainMissingUnsupportedMatcherForVendor qualifies the unsupported
+// matcher token with the closed vendor label whose matcher is missing
+// (#10034 item 4). The label is the one the representative outcome counts
+// under, so the finding and the counter agree.
+func supplyChainMissingUnsupportedMatcherForVendor(vendor string) string {
+	return supplyChainMissingUnsupportedMatcher + " for " + vendor
+}
+
 type supplyChainVersionMatchDecision struct {
 	Status              SupplyChainImpactStatus
 	Confidence          string

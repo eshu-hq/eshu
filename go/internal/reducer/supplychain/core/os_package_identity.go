@@ -273,7 +273,7 @@ func osPackageVendorMatchesFamily(vendorSource string, packageManager string, di
 		return vendorSource == "alpine" || distro == "alpine"
 	case "rpm":
 		return vendorSource == "redhat" || vendorSource == "fedora" || vendorSource == "centos" ||
-			vendorSource == "rocky" || vendorSource == "alma" || vendorSource == "amazonlinux"
+			vendorSource == "rocky" || vendorSource == "alma" || vendorSource == "amazon" || vendorSource == "amazonlinux"
 	default:
 		return false
 	}
