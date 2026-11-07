@@ -42,7 +42,7 @@ func TestOSHoldingFactsAcrossRanges(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			if got := osHoldingFacts("5.0-1", "debian", tc.pkgs); !slices.Equal(got, tc.want) {
+			if got := osHoldingFacts("5.0-1", "debian", tc.pkgs, ""); !slices.Equal(got, tc.want) {
 				t.Errorf("holders = %+v, want %+v", got, tc.want)
 			}
 		})

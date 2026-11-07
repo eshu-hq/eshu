@@ -357,7 +357,7 @@ func remediationEcosystemOperations(ecosystem string) (remediationVersionOperati
 		}, true
 	default:
 		switch packageidentity.LowerASCII(strings.TrimSpace(ecosystem)) {
-		case "redhat", "fedora", "centos", "rocky", "alma", "amazonlinux", "rpm":
+		case "redhat", "fedora", "centos", "rocky", "alma", "amazon", "amazonlinux", "rpm":
 			return remediationVersionOperations{
 				valid:            validRPMEVR,
 				compare:          compareRPMEVR,

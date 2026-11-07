@@ -48,6 +48,14 @@ const (
 	supplyChainMissingSBOMVersionConflict = "sbom component version evidence conflicts"
 )
 
+// supplyChainMissingUnsupportedMatcherForVendor qualifies the unsupported
+// matcher token with the closed vendor label whose matcher is missing
+// (#10034 item 4). The label is the one the representative outcome counts
+// under, so the finding and the counter agree.
+func supplyChainMissingUnsupportedMatcherForVendor(vendor string) string {
+	return supplyChainMissingUnsupportedMatcher + " for " + vendor
+}
+
 type supplyChainVersionMatchDecision struct {
 	Status              SupplyChainImpactStatus
 	Confidence          string
@@ -64,103 +72,12 @@ func evaluateSupplyChainVersionMatch(
 	fixedVersion string,
 	pkgs []supplychainmodel.AffectedPackage,
 ) supplyChainVersionMatchDecision {
-	observed = strings.TrimSpace(observed)
-	requestedRange = strings.TrimSpace(requestedRange)
-	fixedVersion = strings.TrimSpace(fixedVersion)
-	if observed == "" {
-		if requestedRange != "" {
-			return supplyChainVersionMatchDecision{
-				Reason:          supplyChainVersionReasonRangeOnlyManifest,
-				MissingEvidence: []string{supplyChainMissingInstalledVersion},
-			}
-		}
-		return supplyChainVersionMatchDecision{
-			Reason:          supplyChainVersionReasonMissingInstalled,
-			MissingEvidence: []string{supplyChainMissingInstalledVersion},
-		}
-	}
-
-	// A blank ecosystem reads the family from the group's OS purls, as "os" does: the
-	// same fact earns the dpkg verdict under either (#9990). A purl that is not an OS
-	// purl names no family, so a language fact is untouched. A spelling the identity
-	// table does not know, such as dpkg, keeps the matcher it names.
-	raw := packageidentity.LowerASCII(strings.TrimSpace(ecosystem))
-	normalized := normalizedSupplyChainVersionEcosystem(ecosystem)
-	switch {
-	case raw == "" || normalized == string(packageidentity.EcosystemOS):
-		normalized = osPackageVersionFamily(pkgs)
-		if normalized == "" {
-			normalized = raw
-		}
-	case normalized == "":
-		normalized = raw
-	}
-	switch normalized {
-	case string(packageidentity.EcosystemNPM):
-		return evaluateNPMSemverMatch(observed, fixedVersion, pkgs)
-	case string(packageidentity.EcosystemNuGet):
-		return evaluateNuGetSemverMatch(observed, fixedVersion, pkgs)
-	case string(packageidentity.EcosystemCargo):
-		return evaluateCargoSemverMatch(observed, fixedVersion, pkgs)
-	case string(packageidentity.EcosystemHex):
-		return evaluateHexSemverMatch(observed, fixedVersion, pkgs)
-	case string(packageidentity.EcosystemGoModule):
-		return evaluateGoSemverMatch(observed, fixedVersion, pkgs)
-	case string(packageidentity.EcosystemPyPI):
-		return evaluatePyPIPep440Match(observed, fixedVersion, pkgs)
-	case string(packageidentity.EcosystemSwift):
-		return evaluateSwiftSemverMatch(observed, fixedVersion, pkgs)
-	case string(packageidentity.EcosystemPub):
-		return evaluatePubSemverMatch(observed, fixedVersion, pkgs)
-	case string(packageidentity.EcosystemComposer):
-		return evaluateComposerSemverMatch(observed, fixedVersion, pkgs)
-	case string(packageidentity.EcosystemMaven):
-		return evaluateMavenVersionMatch(observed, fixedVersion, pkgs)
-	case "redhat", "fedora", "centos", "rocky", "alma", "amazonlinux", "rpm":
-		return evaluateRPMVersionMatch(observed, fixedVersion, pkgs)
-	case "debian", "ubuntu", "deb", "dpkg":
-		return evaluateOSPackageVersionMatch(
-			observed,
-			fixedVersion,
-			pkgs,
-			supplyChainVersionReasonDPKGExactAffected,
-			supplyChainVersionReasonDPKGExactKnownFixed,
-			supplyChainVersionReasonDPKGAffectedRange,
-			supplyChainVersionReasonDPKGKnownFixed,
-			compareDPKGVersion,
-		)
-	case "alpine", "apk":
-		return evaluateOSPackageVersionMatch(
-			observed,
-			fixedVersion,
-			pkgs,
-			supplyChainVersionReasonAPKExactAffected,
-			supplyChainVersionReasonAPKExactKnownFixed,
-			supplyChainVersionReasonAPKAffectedRange,
-			supplyChainVersionReasonAPKKnownFixed,
-			compareAPKVersion,
-		)
-	case string(packageidentity.EcosystemRubyGems):
-		return evaluateRubyGemsVersionMatch(observed, fixedVersion, pkgs)
-	default:
-		return supplyChainVersionMatchDecision{
-			Status:          SupplyChainImpactPossiblyAffected,
-			Confidence:      "partial",
-			Reason:          supplyChainVersionReasonUnsupportedEcosystem,
-			MissingEvidence: []string{supplyChainMissingUnsupportedMatcher},
-			FailClosed:      true,
-		}
-	}
+	return evaluateSupplyChainVersionMatchForRow(ecosystem, observed, requestedRange, fixedVersion, pkgs, "")
 }
 
-func osPackageVersionFamily(pkgs []supplychainmodel.AffectedPackage) string {
-	for _, pkg := range pkgs {
-		if family := osPackageFamilyFromPURL(pkg.PURL); family != "" {
-			return family
-		}
-	}
-	return ""
-}
+// evaluateSupplyChainVersionMatchForRow and the OS version-family derivation
+// live in version_family.go (split out to keep this file under the repo's
+// 500-line cap).
 
 func normalizedSupplyChainVersionEcosystem(ecosystem string) string {
 	return string(packageidentity.NormalizeEcosystem(packageidentity.Ecosystem(ecosystem)))

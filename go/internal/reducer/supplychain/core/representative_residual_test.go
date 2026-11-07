@@ -13,9 +13,13 @@ import (
 )
 
 // TestJoinedRowWithNoDerivableFamilyStaysVisible pins the residual of the
-// unsupported-matcher exemption (#9990): the fact joins an installed row and no purl
-// names a version family, so the version cannot be compared. The row is an owned
-// anchor and the advisory names the package, so the finding stays, marked unverified.
+// unsupported-matcher exemption (#9990) after #10034 item 2 emptied it: the
+// fact joins an installed row and no purl names a version family, so the
+// family is the row's (dpkg) and the version is compared under it. The fact
+// carries no purl, so its line is unreadable and it holds no release
+// evidence: the dpkg matcher reads os_release_unverified (#9945). The row is
+// an owned anchor and the advisory names the package, so the finding stays,
+// marked unverified.
 // The join meets on the row's own package id, so an os:// id joins an os:// row. That
 // is a synthetic row, because no collector writes an os:// purl; the next test holds the
 // same id against a purl-keyed row.
@@ -41,8 +45,8 @@ func TestJoinedRowWithNoDerivableFamilyStaysVisible(t *testing.T) {
 				t.Fatalf("findings = %d, want 1: %#v", len(findings), findings)
 			}
 			got := findings[0]
-			if got.Status != SupplyChainImpactPossiblyAffected || got.MatchReason != supplyChainVersionReasonUnsupportedEcosystem {
-				t.Fatalf("verdict = %s/%s, want possibly_affected/unsupported_ecosystem", got.Status, got.MatchReason)
+			if got.Status != SupplyChainImpactPossiblyAffected || got.MatchReason != supplyChainVersionReasonOSReleaseUnverified {
+				t.Fatalf("verdict = %s/%s, want possibly_affected/os_release_unverified", got.Status, got.MatchReason)
 			}
 			if !slices.Contains(got.EvidencePath, chain.VulnerabilityOSPackageFactKind) {
 				t.Fatalf("evidence path %v, want the installed row on it", got.EvidencePath)
@@ -56,7 +60,9 @@ func TestJoinedRowWithNoDerivableFamilyStaysVisible(t *testing.T) {
 
 // TestOSPackageIDWithNoPURLDoesNotJoinAPURLKeyedRow pins the limit of that residual:
 // installed rows are keyed by their purl, so an os:// id with no purl meets nothing,
-// yields no finding, and is counted, not silent.
+// yields no finding, and is counted, not silent. The count is no_joinable_identity,
+// not no_installed_row: the identity can meet no row even when the package is
+// installed (#10034 item 3).
 func TestOSPackageIDWithNoPURLDoesNotJoinAPURLKeyedRow(t *testing.T) {
 	t.Parallel()
 	findings, _, stats, err := buildSupplyChainImpactFindingsAndExclusions([]facts.Envelope{
@@ -70,7 +76,7 @@ func TestOSPackageIDWithNoPURLDoesNotJoinAPURLKeyedRow(t *testing.T) {
 	if len(findings) != 0 {
 		t.Fatalf("findings = %d, want 0: %#v", len(findings), findings)
 	}
-	want := map[osRepresentativeOutcomeKey]int{{"ubuntu", osRepresentativeNoInstalledRow}: 1}
+	want := map[osRepresentativeOutcomeKey]int{{"ubuntu", osRepresentativeNoJoinableIdentity}: 1}
 	if !maps.Equal(stats.osRepresentativeOutcomes, want) {
 		t.Fatalf("outcomes = %v, want %v", stats.osRepresentativeOutcomes, want)
 	}

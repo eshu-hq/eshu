@@ -402,7 +402,7 @@ func TestOSHoldingFacts(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			if got := osHoldingFacts(tc.observed, tc.ecosystem, tc.pkgs); !slices.Equal(got, tc.want) {
+			if got := osHoldingFacts(tc.observed, tc.ecosystem, tc.pkgs, ""); !slices.Equal(got, tc.want) {
 				t.Errorf("holders = %+v, want %+v", got, tc.want)
 			}
 		})
@@ -420,7 +420,7 @@ func TestOSHoldingFactsWithNoFixInTheHoldingRange(t *testing.T) {
 	readable := supplychainmodel.AffectedPackage{FactID: "b", Source: "debian", ReleaseLine: "host:line", AffectedRanges: []supplychainmodel.AffectedRange{{
 		Kind: "ECOSYSTEM", Events: []supplychainmodel.AffectedRangeEvent{{Introduced: "0"}, {Fixed: "6.0-1"}},
 	}}}
-	got := osHoldingFacts("5.0-1", "debian", []supplychainmodel.AffectedPackage{open, readable})
+	got := osHoldingFacts("5.0-1", "debian", []supplychainmodel.AffectedPackage{open, readable}, "")
 	want := []osHoldingFact{{factID: "a"}, {factID: "b", fixRank: 1}}
 	if !slices.Equal(got, want) {
 		t.Errorf("holders = %+v, want %+v", got, want)
@@ -431,7 +431,7 @@ func TestOSHoldingFactsWithNoFixInTheHoldingRange(t *testing.T) {
 // finding has one package fact, and with one fact there is nothing to choose.
 func TestOSHoldingFactsDoesNotAllocateForOneFact(t *testing.T) {
 	pkgs := []supplychainmodel.AffectedPackage{{FactID: "a", Source: "debian"}}
-	if allocs := testing.AllocsPerRun(100, func() { osHoldingFacts("5.0-1", "debian", pkgs) }); allocs != 0 {
+	if allocs := testing.AllocsPerRun(100, func() { osHoldingFacts("5.0-1", "debian", pkgs, "") }); allocs != 0 {
 		t.Errorf("allocs = %v, want 0", allocs)
 	}
 }

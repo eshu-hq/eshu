@@ -135,7 +135,7 @@ func vendorForOSPackageClass(ecosystem string) (string, bool) {
 	switch ecosystem {
 	case "rpm", "rhel", "redhat", "centos", "rockylinux", "rocky":
 		return "redhat", true
-	case "deb", "debian":
+	case "deb", "debian", "dpkg":
 		return "debian", true
 	case "ubuntu":
 		return "ubuntu", true

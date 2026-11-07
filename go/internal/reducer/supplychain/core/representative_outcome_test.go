@@ -118,6 +118,15 @@ func TestOSRepresentativeOutcomeNamesWhatEachGroupJoined(t *testing.T) {
 			0,
 			map[osRepresentativeOutcomeKey]int{{"other", osRepresentativeNoInstalledRow}: 1},
 		},
+		{
+			// #10034 item 3: an os:// identity with no purl can meet no
+			// purl-keyed row even when the package is installed, so it counts
+			// its own outcome instead of no_installed_row.
+			"an identity that can meet no installed row",
+			[]facts.Envelope{cve, repJoinNoPURLFact("os://ubuntu/curl"), debianCurl("12", repJoinVersion).envelope()},
+			0,
+			map[osRepresentativeOutcomeKey]int{{"ubuntu", osRepresentativeNoJoinableIdentity}: 1},
+		},
 		{"a language group", []facts.Envelope{
 			cve,
 			vulnerabilityAffectedPackageFactWithSource("affected-npm", vendorLineCVE, "ghsa", "GHSA-9990", "pkg:npm/example", "npm", "example", "1.2.3", "1.3.0"),

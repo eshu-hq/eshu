@@ -55,7 +55,7 @@ func osRemediationSourceSupported(family string, source string) bool {
 	switch family {
 	case "rpm":
 		switch source {
-		case "redhat", "fedora", "centos", "rocky", "alma", "amazonlinux":
+		case "redhat", "fedora", "centos", "rocky", "alma", "amazon", "amazonlinux":
 			return true
 		default:
 			return false
@@ -94,7 +94,7 @@ func osRemediationFamilyForFinding(finding SupplyChainImpactFinding) string {
 
 func osRemediationFamilyFromSource(source string) string {
 	switch packageidentity.LowerASCII(strings.TrimSpace(source)) {
-	case "redhat", "fedora", "centos", "rocky", "alma", "amazonlinux":
+	case "redhat", "fedora", "centos", "rocky", "alma", "amazon", "amazonlinux":
 		return "rpm"
 	case "debian", "ubuntu":
 		return "dpkg"
@@ -107,7 +107,7 @@ func osRemediationFamilyFromSource(source string) string {
 
 func osRemediationFamily(ecosystem string) string {
 	switch packageidentity.LowerASCII(strings.TrimSpace(ecosystem)) {
-	case "redhat", "fedora", "centos", "rocky", "alma", "amazonlinux", "rpm":
+	case "redhat", "fedora", "centos", "rocky", "alma", "amazon", "amazonlinux", "rpm":
 		return "rpm"
 	case "debian", "ubuntu", "deb", "dpkg":
 		return "dpkg"
