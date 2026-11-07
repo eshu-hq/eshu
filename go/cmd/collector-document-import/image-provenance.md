@@ -41,6 +41,25 @@ one binary; `/collector seed --dest` writes executable `collector` plus
 a `manifest.yaml` stamped with the passed digest (exit 0); a tag-only
 `--image-ref` fails closed (exit 1).
 
+## Republish builds (2026-11-07, merged tree)
+
+Built from `origin/main` at the #10319 merge (`791f45842c`), which adds the
+seeded engine payload (bin, flat lib, tessdata) to the seed. Same
+pin-derived expect args and `Dockerfile.seed`; all four in-image gates
+PASS (22-library set per arch). Published tags
+`:seed-791f45842c-amd64` / `-arm64`:
+
+- `seed-document-import:amd64`:
+  `sha256:e8d2297bfeacea416d1bb0ec9ccb09d5a27060591042f5572225cf34502efead`
+- `seed-document-import:arm64`:
+  `sha256:c1bf5ce2fd46038d82db5823d76429137d258fe1d276dd98b94917b04d613db4`
+
+`manifest.yaml` in the repository is re-pinned to the digests above (media
+lane: `sha256:68636a8e8bf2c4f3ca2b037505e8d2ee5d28cc0050eae0f29d1554dbd128111a`
+amd64,
+`sha256:825c7b3acef7617f14787c6fd007296902f5716f299012e9b1b33530c2c5b688`
+arm64, same build convention). Do NOT rebuild after this fill.
+
 ## Pin-fill protocol (read before rebuilding)
 
 `manifest.yaml` in the repository pins the digests above. The in-image
