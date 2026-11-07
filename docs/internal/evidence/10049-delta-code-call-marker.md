@@ -95,14 +95,38 @@ an unusable scope dead-letters on attempt 1 before the symbol load, so a
 bad delta costs no symbol query and no graph write. End-to-end delta
 wall time is NOT_CHECKED here: the live delta-reader leg runs at promotion
 (the shared host was under another lane's live proof during this change).
-#10301 import-aware derivation adds no new envelope scan — it reuses the
-already-loaded `parsed_file_data` maps, checking at most the file's own
-import entries (one short-circuiting alias check each) before deriving the
-same per-callee `scip-go gomod` keys import-free files already derived. No
-benchmark is claimed here: the work scales with a file's own import list,
-and the extra overlay load is one key per distinct callee, the shape #10049
-already accepted. Parser side: no new tree walk; only blank/dot imports gain
-one `alias` string each.
+No-Regression Evidence (#10301, measured): the derivation micro-benchmark
+is committed as `BenchmarkSamePackageGoCalleeKeysForDeltaRepos` with its
+pre-#10301 baseline `BenchmarkPreAliasGateSamePackageGoCalleeKeys` in
+`go/internal/reducer/code/call/shared/symbol_index_bench_test.go` (the
+baseline is the verbatim base-`a218b94c42e` gate, measurement only, so the
+figures are committed and re-runnable, not uncommitted). Backend go1.26.10
+linux/arm64, GOMAXPROCS 16 (ARM implementer 0x41 part 0xd84). Input shape:
+one delta repo, 13 files, 42 keyless Go edges — 4 import-free files and 4
+plain-import files with 4 calls each over 2 distinct callee names per group,
+plus dot/blank/named-import skips, one missing-identity file, and one
+non-delta file with 2 calls each. Seventeen rounds at `-benchtime=10000x`:
+baseline 4339–4431 ns/op (1473 B/op, 34 allocs/op, 2 keys/op), after
+7695–7944 ns/op (2754 B/op, 51 allocs/op, 4 keys/op). The +~3.4 µs/op is the
+intended recall gain: 4 more files (16 more edges) derive keys under the
+relaxed gate, so Gamma/Delta now resolve where the baseline skipped them.
+Cost scales with the file's own import list (one short-circuiting alias
+check per entry) plus one key per distinct callee through the existing
+sort/Compact dedupe. #10301 import-aware derivation adds no new envelope
+scan — it reuses the already-loaded `parsed_file_data` maps. Terminal rows
+are pinned by `TestCodeCallMaterializationHandlerDeltaImportBearingSamePackageCalls`:
+exactly one CALLS edge (`entity:plain-caller->entity:ledger-total`) and
+exactly one requested overlay key; the dot-imported file's call stays
+unresolved by design. Full generations are untouched: non-delta repositories
+derive no keys (unit test asserts empty). Observability Evidence (#10301):
+no new instrument. The delta path exercises the existing signals named in
+the Observability section below: the handler completion log reports
+`symbol_key_count` and `code_call_unresolved_callee_count` (the
+unresolved-callee handler test pins `code_call_unresolved_callee_count` at
+1.0), and `eshu_dp_code_call_symbol_definition_read_delta_union_total`
+counts the overlay read the derived keys trigger. Parser side: no new tree
+walk; only blank/dot imports gain one `alias` string each. No new lock,
+queue, or serialization was added.
 
 ## Observability Evidence:
 

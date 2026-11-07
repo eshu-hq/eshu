@@ -12,7 +12,7 @@ package main
 import (
 	"fmt"
 
-	_ "net/http/pprof"
+	_ "embed"
 	. "strings" //nolint:staticcheck // ST1001: fixture exists to pin dot-import alias output (#10301)
 )
 
