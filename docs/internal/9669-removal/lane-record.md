@@ -32,6 +32,9 @@ in the D13 disposition report; headline per family below.
 - eshu-api#66 CLOSED by satellite #67 (merged): flat-with-embedded-truth
   recorded as the edge contract on relayed lanes, pinned by byte-identity
   tests, independent review clean. One arbiter pre-removal condition cleared.
+- eshu-mcp#60 CLOSED by #62 (merged): unknown-tool path emits the
+  canonical code + suggestions, fail-closed, independently reviewed
+  clean, full CI green. Second arbiter pre-removal condition cleared.
 - Row 5 (`go/cmd/eshu`) DRAINED and merged (PR #10348 at 466eebde):
   service/graph/investigation off in-tree query imports onto
   querycontract ports + CLI-owned render seam, focused contract tests,
