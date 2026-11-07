@@ -11,7 +11,8 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/ask/provider"
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/ask"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 const (
@@ -120,7 +121,7 @@ func matchesIndexedRepositoryCountCore(clause string) bool {
 	return false
 }
 
-func indexedRepositoryCountValue(envelope *query.ResponseEnvelope) (int64, bool) {
+func indexedRepositoryCountValue(envelope *querycontract.ResponseEnvelope) (int64, bool) {
 	if envelope == nil || envelope.Data == nil {
 		return 0, false
 	}
@@ -155,7 +156,7 @@ func indexedRepositoryCountSummary(total int64) string {
 	)
 }
 
-func applyIndexedRepositoryCountResult(packet *query.AnswerPacket, envelope *query.ResponseEnvelope) {
+func applyIndexedRepositoryCountResult(packet *ask.AnswerPacket, envelope *querycontract.ResponseEnvelope) {
 	packet.Summary = ""
 	packet.ResultRef = ""
 	packet.Result = nil

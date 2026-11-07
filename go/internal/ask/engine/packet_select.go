@@ -7,7 +7,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/ask"
 )
 
 // packetRankKey is the deterministic sort key used to select the primary answer
@@ -48,7 +48,7 @@ func (k packetRankKey) greaterThan(other packetRankKey) bool {
 // It returns (-1, "") when packets is empty. The reason is "relevance" when the
 // ranked winner differs from the first supported packet, "first_supported" when
 // they coincide, and "only_packet" for a single-packet answer.
-func selectPrimaryPacketIndex(question string, packets []query.AnswerPacket) (int, string) {
+func selectPrimaryPacketIndex(question string, packets []ask.AnswerPacket) (int, string) {
 	if len(packets) == 0 {
 		return -1, ""
 	}
@@ -71,7 +71,7 @@ func selectPrimaryPacketIndex(question string, packets []query.AnswerPacket) (in
 }
 
 // packetRankKeyFor builds the rank key for a packet against the question tokens.
-func packetRankKeyFor(qTokens map[string]struct{}, p query.AnswerPacket) packetRankKey {
+func packetRankKeyFor(qTokens map[string]struct{}, p ask.AnswerPacket) packetRankKey {
 	return packetRankKey{
 		tier:      packetTier(p),
 		relevance: relevanceScore(qTokens, p),
@@ -81,7 +81,7 @@ func packetRankKeyFor(qTokens map[string]struct{}, p query.AnswerPacket) packetR
 }
 
 // packetTier buckets a packet by how publishable its evidence is.
-func packetTier(p query.AnswerPacket) int {
+func packetTier(p ask.AnswerPacket) int {
 	switch {
 	case p.Supported && !p.Partial && p.Summary != "":
 		return 3
@@ -96,17 +96,17 @@ func packetTier(p query.AnswerPacket) int {
 
 // truthRank orders truth classes from strongest to weakest so a deterministic
 // graph answer outranks a fallback or content hint at equal relevance.
-func truthRank(class query.AnswerTruthClass) int {
+func truthRank(class ask.AnswerTruthClass) int {
 	switch class {
-	case query.AnswerTruthDeterministic:
+	case ask.AnswerTruthDeterministic:
 		return 5
-	case query.AnswerTruthSemanticObservation:
+	case ask.AnswerTruthSemanticObservation:
 		return 4
-	case query.AnswerTruthDerived:
+	case ask.AnswerTruthDerived:
 		return 3
-	case query.AnswerTruthCodeHint:
+	case ask.AnswerTruthCodeHint:
 		return 2
-	case query.AnswerTruthFallback:
+	case ask.AnswerTruthFallback:
 		return 1
 	default:
 		return 0
@@ -120,7 +120,7 @@ func truthRank(class query.AnswerTruthClass) int {
 // Question field is deliberately excluded: every packet in an answer carries the
 // same normalized question, so including it would saturate the score and erase
 // the relevance signal.
-func relevanceScore(qTokens map[string]struct{}, p query.AnswerPacket) int {
+func relevanceScore(qTokens map[string]struct{}, p ask.AnswerPacket) int {
 	if len(qTokens) == 0 {
 		return 0
 	}
@@ -137,7 +137,7 @@ func relevanceScore(qTokens map[string]struct{}, p query.AnswerPacket) int {
 // firstSupportedIndex returns the index of the first supported packet, or 0 when
 // none is supported. It mirrors the historical first-supported fallback so the
 // selection reason can report when the ranked winner coincides with it.
-func firstSupportedIndex(packets []query.AnswerPacket) int {
+func firstSupportedIndex(packets []ask.AnswerPacket) int {
 	for i, p := range packets {
 		if p.Supported {
 			return i

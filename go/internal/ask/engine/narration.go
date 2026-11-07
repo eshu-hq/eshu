@@ -10,7 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/answernarration"
 	"github.com/eshu-hq/eshu/go/internal/ask/provider"
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/ask"
 	"github.com/eshu-hq/eshu/go/internal/status"
 )
 
@@ -115,7 +115,7 @@ that surfaces this so the answer does not look complete:
 // signal it appends the partial-signal instructions whose provenance kind the
 // validator will accept for that packet's signal source, so the model can
 // produce narration the validator accepts.
-func buildNarrationSystemPrompt(packet query.AnswerPacket, citationIDs []string) string {
+func buildNarrationSystemPrompt(packet ask.AnswerPacket, citationIDs []string) string {
 	base := narrationSystemPrompt
 	if !packetHasCitableProvenance(packet, citationIDs) {
 		base = narrationSystemPromptTruth
@@ -132,7 +132,7 @@ func buildNarrationSystemPrompt(packet query.AnswerPacket, citationIDs []string)
 // narration call. It mirrors the validator's ProvenanceCitation acceptance rule
 // (validator.go provenanceAllowed) so the prompt and validator agree on whether
 // citation provenance is usable.
-func packetHasCitableProvenance(packet query.AnswerPacket, citationIDs []string) bool {
+func packetHasCitableProvenance(packet ask.AnswerPacket, citationIDs []string) bool {
 	if strings.TrimSpace(packet.CitationRef) != "" {
 		return true
 	}
@@ -150,7 +150,7 @@ func packetHasCitableProvenance(packet query.AnswerPacket, citationIDs []string)
 // reasons (provenance kind "unsupported_reason"); a partial/truncated or
 // missing-evidence-only packet with no copyable string falls back to freshness
 // provenance, which the validator accepts for any partial packet.
-func partialSignalInstructions(packet query.AnswerPacket) string {
+func partialSignalInstructions(packet ask.AnswerPacket) string {
 	switch {
 	case len(packet.Limitations) > 0:
 		return partialSignalLimitationInstructions
@@ -166,7 +166,7 @@ func partialSignalInstructions(packet query.AnswerPacket) string {
 // or any limitation, missing-evidence, or unsupported-reason entry. It mirrors
 // the validator's packetHasPartialSignal so the prompt and the validator agree
 // on when partial-signal narration is required.
-func packetHasPartialSignal(packet query.AnswerPacket) bool {
+func packetHasPartialSignal(packet ask.AnswerPacket) bool {
 	return packet.Partial ||
 		packet.Truncated ||
 		len(packet.Limitations) > 0 ||
@@ -283,7 +283,7 @@ func (e *Engine) narrate(ctx context.Context, ans *Answer, posture status.Answer
 // finding reason codes are audit-safe (no free-form text), so they are logged
 // to let an operator distinguish a format/binding rejection from an
 // adapter/parse failure at 3 AM.
-func (e *Engine) rejectNarration(ans *Answer, reason string, primary query.AnswerPacket, findings []answernarration.Finding) {
+func (e *Engine) rejectNarration(ans *Answer, reason string, primary ask.AnswerPacket, findings []answernarration.Finding) {
 	ans.Narrated = false
 	ans.Limitations = appendLimitation(ans.Limitations, "narration rejected by validator")
 	reasons := make([]string, 0, len(findings))
@@ -300,7 +300,7 @@ func (e *Engine) rejectNarration(ans *Answer, reason string, primary query.Answe
 // callNarrationAdapter issues a single bounded narration completion call with
 // no tools and returns the raw text. It returns (text, true) on success and
 // ("", false) if the adapter errors. It never leaks provider error bodies.
-func (e *Engine) callNarrationAdapter(ctx context.Context, primary query.AnswerPacket, citationIDs []string) (string, bool) {
+func (e *Engine) callNarrationAdapter(ctx context.Context, primary ask.AnswerPacket, citationIDs []string) (string, bool) {
 	packetJSON, err := json.Marshal(primary)
 	if err != nil {
 		return "", false
@@ -320,7 +320,7 @@ func (e *Engine) callNarrationAdapter(ctx context.Context, primary query.AnswerP
 // to an answernarration.Narration. The TruthClass, Supported, and Partial
 // fields are taken from the primary packet to prevent drift. On any parse
 // failure it returns a non-nil error.
-func parseNarrationJSON(text string, primary query.AnswerPacket) (answernarration.Narration, error) {
+func parseNarrationJSON(text string, primary ask.AnswerPacket) (answernarration.Narration, error) {
 	text = strings.TrimSpace(text)
 	var local narrationLocalShape
 	if err := json.Unmarshal([]byte(text), &local); err != nil {
@@ -352,7 +352,7 @@ func parseNarrationJSON(text string, primary query.AnswerPacket) (answernarratio
 
 // primaryPacket returns the first supported packet from packets, or packets[0]
 // when no packet is supported. Callers must ensure len(packets) > 0.
-func primaryPacket(packets []query.AnswerPacket) query.AnswerPacket {
+func primaryPacket(packets []ask.AnswerPacket) ask.AnswerPacket {
 	for _, p := range packets {
 		if p.Supported {
 			return p
@@ -367,7 +367,7 @@ func primaryPacket(packets []query.AnswerPacket) query.AnswerPacket {
 // narration, deterministic prose, and the handler's published packet in
 // agreement on which packet backs the answer. Callers must ensure the answer
 // carries at least one packet.
-func selectedNarrationPacket(ans *Answer) query.AnswerPacket {
+func selectedNarrationPacket(ans *Answer) ask.AnswerPacket {
 	idx := selectedPacketIndex(ans)
 	if idx >= 0 && idx < len(ans.Packets) {
 		return ans.Packets[idx]

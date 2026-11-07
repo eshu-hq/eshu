@@ -7,11 +7,12 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/ask"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // extractEmbeddedPacket checks whether env.Data is a JSON object containing an
-// "answer_packet" key and, if so, decodes that sub-value into a query.AnswerPacket.
+// "answer_packet" key and, if so, decodes that sub-value into an ask.AnswerPacket.
 //
 // Route handlers like service-story and code-topic embed a pre-built AnswerPacket
 // directly in the response Data rather than leaving packet construction to the engine.
@@ -22,26 +23,26 @@ import (
 // Returns (packet, true) when the embedded packet was successfully decoded.
 // Returns (zero, false) when env is nil, Data is not an object, the key is absent,
 // or the decode fails — in all fallback cases NewAnswerPacket should be used instead.
-func extractEmbeddedPacket(env *query.ResponseEnvelope) (query.AnswerPacket, bool) {
+func extractEmbeddedPacket(env *querycontract.ResponseEnvelope) (ask.AnswerPacket, bool) {
 	if env == nil {
-		return query.AnswerPacket{}, false
+		return ask.AnswerPacket{}, false
 	}
 	// Marshal Data to JSON so we can inspect it as a raw map.
 	dataBytes, err := json.Marshal(env.Data)
 	if err != nil {
-		return query.AnswerPacket{}, false
+		return ask.AnswerPacket{}, false
 	}
 	var dataMap map[string]json.RawMessage
 	if err := json.Unmarshal(dataBytes, &dataMap); err != nil {
-		return query.AnswerPacket{}, false
+		return ask.AnswerPacket{}, false
 	}
 	raw, ok := dataMap["answer_packet"]
 	if !ok {
-		return query.AnswerPacket{}, false
+		return ask.AnswerPacket{}, false
 	}
-	var pkt query.AnswerPacket
+	var pkt ask.AnswerPacket
 	if err := json.Unmarshal(raw, &pkt); err != nil {
-		return query.AnswerPacket{}, false
+		return ask.AnswerPacket{}, false
 	}
 	return pkt, true
 }
@@ -55,16 +56,16 @@ const maxToolResultBytes = 4096
 func answerPacketForToolResult(
 	question string,
 	toolName string,
-	envelope *query.ResponseEnvelope,
-) query.AnswerPacket {
-	var packet query.AnswerPacket
+	envelope *querycontract.ResponseEnvelope,
+) ask.AnswerPacket {
+	var packet ask.AnswerPacket
 	if packet, ok := extractEmbeddedPacket(envelope); ok {
 		if toolName == indexedRepositoryInventoryTool && asksForIndexedRepositoryCount(question) {
 			applyIndexedRepositoryCountResult(&packet, envelope)
 		}
 		return packet
 	}
-	packet = query.NewAnswerPacket(query.AnswerPacketInput{
+	packet = ask.NewAnswerPacket(ask.AnswerPacketInput{
 		Question:    question,
 		PrimaryTool: toolName,
 		Envelope:    envelope,
@@ -80,16 +81,16 @@ func answerPacketForToolResult(
 // Only prompt-useful fields are included; raw provider or LLM bodies are never
 // present.
 type toolResultSkeleton struct {
-	Summary    string                 `json:"summary,omitempty"`
-	TruthClass query.AnswerTruthClass `json:"truth_class"`
-	Supported  bool                   `json:"supported"`
-	Partial    bool                   `json:"partial"`
+	Summary    string               `json:"summary,omitempty"`
+	TruthClass ask.AnswerTruthClass `json:"truth_class"`
+	Supported  bool                 `json:"supported"`
+	Partial    bool                 `json:"partial"`
 }
 
 // marshalToolResult serialises pkt into a bounded JSON string for the
 // tool-result message. If the full serialisation exceeds maxToolResultBytes
 // only a minimal skeleton is returned.
-func marshalToolResult(pkt query.AnswerPacket) string {
+func marshalToolResult(pkt ask.AnswerPacket) string {
 	skeleton := toolResultSkeleton{
 		Summary:    pkt.Summary,
 		TruthClass: pkt.TruthClass,
@@ -135,7 +136,7 @@ func marshalPlainValue(value any) string {
 // bestPacketSummary returns the Summary of the first supported packet with a
 // non-empty Summary. It never fabricates; an empty string means no supported
 // evidence was assembled.
-func bestPacketSummary(packets []query.AnswerPacket) string {
+func bestPacketSummary(packets []ask.AnswerPacket) string {
 	for _, p := range packets {
 		if p.Supported && p.Summary != "" {
 			return p.Summary
@@ -170,7 +171,7 @@ const toolResultWrapperOverhead = 128
 //
 // An empty string is returned when Data is nil or cannot be marshalled —
 // callers treat an empty Summary as "no summary available", the safe fallback.
-func envelopeDataSummary(env *query.ResponseEnvelope) string {
+func envelopeDataSummary(env *querycontract.ResponseEnvelope) string {
 	if env == nil || env.Data == nil {
 		return ""
 	}

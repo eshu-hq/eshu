@@ -8,7 +8,7 @@ import (
 	"fmt"
 
 	"github.com/eshu-hq/eshu/go/internal/ask/provider"
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/ask"
 )
 
 // StreamEvent is the handler-layer streaming event emitted by AskStream.
@@ -219,7 +219,7 @@ func (e *Engine) dispatchCallStream(
 			Tool:       call.Name,
 			Args:       call.Arguments,
 			Supported:  false,
-			TruthClass: query.AnswerTruthUnsupported,
+			TruthClass: ask.AnswerTruthUnsupported,
 			Err:        "refused: unbounded list/search call",
 		}
 		ans.Trace = append(ans.Trace, te)
@@ -240,7 +240,7 @@ func (e *Engine) dispatchCallStream(
 			Tool:       call.Name,
 			Args:       call.Arguments,
 			Supported:  false,
-			TruthClass: query.AnswerTruthUnsupported,
+			TruthClass: ask.AnswerTruthUnsupported,
 			Err:        runErr.Error(),
 		}
 		ans.Trace = append(ans.Trace, te)
@@ -264,7 +264,7 @@ func (e *Engine) dispatchCallStream(
 				Tool:       call.Name,
 				Args:       call.Arguments,
 				Supported:  false,
-				TruthClass: query.AnswerTruthUnsupported,
+				TruthClass: ask.AnswerTruthUnsupported,
 			}
 			ans.Trace = append(ans.Trace, te)
 			emit(StreamEvent{Kind: KindTraceEntry, TraceEntry: &te})
@@ -322,7 +322,7 @@ func (e *Engine) dispatchCallStream(
 		Tool:       call.Name,
 		Args:       call.Arguments,
 		Supported:  false,
-		TruthClass: query.AnswerTruthUnsupported,
+		TruthClass: ask.AnswerTruthUnsupported,
 	}
 	ans.Trace = append(ans.Trace, te)
 	emit(StreamEvent{Kind: KindTraceEntry, TraceEntry: &te})

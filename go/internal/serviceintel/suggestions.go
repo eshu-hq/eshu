@@ -7,8 +7,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/ask"
 	"github.com/eshu-hq/eshu/go/internal/query/evidence"
+	"github.com/eshu-hq/eshu/go/internal/query/playbook"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // maxInvestigations bounds the suggested-investigation list so a report stays a
@@ -60,7 +62,7 @@ type SuggestedInvestigation struct {
 	// ExpectedTruthClass is the truth class the operator should expect the
 	// NextCall to yield. It is sourced from the section truth or the linked
 	// playbook, never invented.
-	ExpectedTruthClass query.AnswerTruthClass `json:"expected_truth_class"`
+	ExpectedTruthClass ask.AnswerTruthClass `json:"expected_truth_class"`
 }
 
 // suggestInvestigations derives the bounded, de-duplicated, ordered guided
@@ -173,7 +175,7 @@ func missingEvidenceInvestigation(spec sectionSpec, section ReportSection) Sugge
 	}
 }
 
-func staleFreshnessInvestigation(spec sectionSpec, section ReportSection, cause query.FreshnessCause, check *query.FreshnessNextCheck) SuggestedInvestigation {
+func staleFreshnessInvestigation(spec sectionSpec, section ReportSection, cause querycontract.FreshnessCause, check *querycontract.FreshnessNextCheck) SuggestedInvestigation {
 	call := freshnessNextCall(check)
 	return SuggestedInvestigation{
 		ID:                 investigationID(spec.Kind, BasisStaleFreshness, string(cause)),
@@ -209,17 +211,17 @@ func highImpactInvestigation(spec sectionSpec, input SectionInput, section Repor
 // staleFreshnessSignal reports whether a section is stale or building with a
 // proven cause and a bounded, executable next check. It returns the cause and
 // the next check so callers never re-dereference the truth envelope.
-func staleFreshnessSignal(section ReportSection) (query.FreshnessCause, *query.FreshnessNextCheck, bool) {
+func staleFreshnessSignal(section ReportSection) (querycontract.FreshnessCause, *querycontract.FreshnessNextCheck, bool) {
 	truth := section.Answer.Truth
 	if truth == nil {
 		return "", nil, false
 	}
 	switch truth.Freshness.State {
-	case query.FreshnessStale, query.FreshnessBuilding:
+	case querycontract.FreshnessStale, querycontract.FreshnessBuilding:
 	default:
 		return "", nil, false
 	}
-	if !query.ValidFreshnessCause(truth.Freshness.Cause) {
+	if !querycontract.ValidFreshnessCause(truth.Freshness.Cause) {
 		return "", nil, false
 	}
 	// A suggestion must be executable: require a bounded next check that names a
@@ -236,7 +238,7 @@ func staleFreshnessSignal(section ReportSection) (query.FreshnessCause, *query.F
 // check's scoped Params (repository, generation, source, or status filters) are
 // preserved as call arguments so the drilldown stays narrowly targeted, matching
 // what AnswerPacket carries in recommended_next_calls.
-func freshnessNextCall(check *query.FreshnessNextCheck) NextCall {
+func freshnessNextCall(check *querycontract.FreshnessNextCheck) NextCall {
 	call := NextCall{
 		Tool:   strings.TrimSpace(check.Tool),
 		Route:  strings.TrimSpace(check.Route),
@@ -300,7 +302,7 @@ func citationHandleArgs(handles []evidence.EvidenceCitationHandle) []map[string]
 // (completing or refreshing it yields the same axis); otherwise a linked
 // playbook's terminal expected truth is used; otherwise authoritative resolution
 // is assumed. The class is never invented beyond these grounded sources.
-func expectedTruthClass(section ReportSection, call NextCall) query.AnswerTruthClass {
+func expectedTruthClass(section ReportSection, call NextCall) ask.AnswerTruthClass {
 	if section.Answer.Truth != nil && section.Answer.TruthClass != "" {
 		return section.Answer.TruthClass
 	}
@@ -309,17 +311,17 @@ func expectedTruthClass(section ReportSection, call NextCall) query.AnswerTruthC
 			return class
 		}
 	}
-	return query.AnswerTruthDeterministic
+	return ask.AnswerTruthDeterministic
 }
 
 // playbookTerminalTruth returns the terminal step's expected truth class for a
 // playbook, the truth the workflow is declared to reach.
-func playbookTerminalTruth(id string) (query.AnswerTruthClass, bool) {
-	playbook, ok := query.LookupPlaybook(id)
-	if !ok || len(playbook.Steps) == 0 {
+func playbookTerminalTruth(id string) (ask.AnswerTruthClass, bool) {
+	definition, ok := playbook.Lookup(id)
+	if !ok || len(definition.Steps) == 0 {
 		return "", false
 	}
-	class := playbook.Steps[len(playbook.Steps)-1].ExpectedTruth
+	class := definition.Steps[len(definition.Steps)-1].ExpectedTruth
 	if class == "" {
 		return "", false
 	}
@@ -340,14 +342,14 @@ func appendUniqueInvestigation(list []SuggestedInvestigation, candidate Suggeste
 // isAmbiguousInput reports whether a section's source route failed because the
 // service target was ambiguous.
 func isAmbiguousInput(input SectionInput) bool {
-	return input.Err != nil && input.Err.Code == query.ErrorCodeAmbiguous
+	return input.Err != nil && input.Err.Code == querycontract.ErrorCodeAmbiguous
 }
 
 func investigationID(kind SectionKind, basis InvestigationBasis, target string) string {
 	return fmt.Sprintf("%s:%s:%s", kind, basis, target)
 }
 
-func ambiguityEvidence(err *query.ErrorEnvelope) []string {
+func ambiguityEvidence(err *querycontract.ErrorEnvelope) []string {
 	if err == nil {
 		return nil
 	}

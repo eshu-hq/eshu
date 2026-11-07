@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/query/evidence"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // FromServiceStory maps a get_service_story dossier response into the report
@@ -21,18 +21,18 @@ import (
 //
 // A nil truth marks every section unsupported, reflecting a dossier that could
 // not be classified rather than fabricating confidence.
-func FromServiceStory(dossier map[string]any, truth *query.TruthEnvelope) ReportInput {
+func FromServiceStory(dossier map[string]any, truth *querycontract.TruthEnvelope) ReportInput {
 	if dossier == nil {
 		return ReportInput{}
 	}
 	identity := subMap(dossier, "service_identity")
 	subject := ReportSubject{
-		ServiceID:   query.StringVal(identity, "service_id"),
-		ServiceName: query.StringVal(identity, "service_name"),
-		RepoID:      query.StringVal(identity, "repo_id"),
-		RepoName:    query.StringVal(identity, "repo_name"),
+		ServiceID:   querycontract.StringVal(identity, "service_id"),
+		ServiceName: querycontract.StringVal(identity, "service_name"),
+		RepoID:      querycontract.StringVal(identity, "repo_id"),
+		RepoName:    querycontract.StringVal(identity, "repo_name"),
 	}
-	truncated := query.BoolVal(subMap(dossier, "result_limits"), "truncated")
+	truncated := querycontract.BoolVal(subMap(dossier, "result_limits"), "truncated")
 	serviceHandle, hasHandle := serviceEntityHandle(subject)
 
 	entrypoints := sliceLen(dossier, "entrypoints")
@@ -49,10 +49,10 @@ func FromServiceStory(dossier map[string]any, truth *query.TruthEnvelope) Report
 	input.Sections = []SectionInput{
 		{
 			Kind:        SectionIdentity,
-			Summary:     identitySummary(subject, query.StringVal(identity, "kind")),
+			Summary:     identitySummary(subject, querycontract.StringVal(identity, "kind")),
 			Truth:       truth,
 			Evidence:    handlesIf(hasHandle, serviceHandle),
-			Limitations: query.StringSliceVal(identity, "limitations"),
+			Limitations: querycontract.StringSliceVal(identity, "limitations"),
 			Truncated:   truncated,
 			NoEvidence:  !hasHandle,
 		},
@@ -84,12 +84,12 @@ func FromServiceStory(dossier map[string]any, truth *query.TruthEnvelope) Report
 // NoEvidence when the inventory is empty so Compose keeps it visible with a
 // fallback next call. A nil dossier yields a zero SectionInput the caller can
 // skip.
-func FromSupplyChainInventory(inventory map[string]any, subject ReportSubject, truth *query.TruthEnvelope) SectionInput {
+func FromSupplyChainInventory(inventory map[string]any, subject ReportSubject, truth *querycontract.TruthEnvelope) SectionInput {
 	if inventory == nil {
 		return SectionInput{}
 	}
-	count := query.IntVal(inventory, "count")
-	truncated := query.BoolVal(inventory, "truncated")
+	count := querycontract.IntVal(inventory, "count")
+	truncated := querycontract.BoolVal(inventory, "truncated")
 	hasEvidence := count > 0
 	handle, hasHandle := serviceEntityHandle(subject)
 	return SectionInput{
@@ -136,7 +136,7 @@ const maxReportIncidents = 50
 // section truncated on overflow), and marks NoEvidence when the service has no
 // routed incidents. Callers invoke it only when the durable incident source is
 // wired; an unwired source leaves the section unsupported with its fallback.
-func FromIncidentEvidence(records []IncidentRecord, subject ReportSubject, truth *query.TruthEnvelope) SectionInput {
+func FromIncidentEvidence(records []IncidentRecord, subject ReportSubject, truth *querycontract.TruthEnvelope) SectionInput {
 	incidents := distinctIncidents(records)
 	truncated := len(incidents) > maxReportIncidents
 	if truncated {
@@ -232,7 +232,7 @@ func apiSurfaceEndpointCount(dossier map[string]any) int {
 	if apiSurface == nil {
 		return 0
 	}
-	if count := query.IntVal(apiSurface, "endpoint_count"); count > 0 {
+	if count := querycontract.IntVal(apiSurface, "endpoint_count"); count > 0 {
 		return count
 	}
 	return sliceLen(apiSurface, "endpoints")

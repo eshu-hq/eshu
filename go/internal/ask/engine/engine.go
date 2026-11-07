@@ -10,7 +10,8 @@ import (
 	"log/slog"
 
 	"github.com/eshu-hq/eshu/go/internal/ask/provider"
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/ask"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/status"
 )
 
@@ -73,7 +74,7 @@ filter is applied deterministically:
 type RunResult struct {
 	// Envelope is the canonical ResponseEnvelope when the tool response
 	// carries the structured truth/error envelope shape.
-	Envelope *query.ResponseEnvelope
+	Envelope *querycontract.ResponseEnvelope
 	// Value is the decoded plain-JSON result when the tool response is not a
 	// structured envelope. It is nil when Envelope is non-nil.
 	Value any
@@ -106,7 +107,7 @@ type TraceEntry struct {
 	Supported bool
 	// TruthClass is the prompt-facing truth classification derived from the
 	// ResponseEnvelope. It is AnswerTruthUnsupported when Supported is false.
-	TruthClass query.AnswerTruthClass
+	TruthClass ask.AnswerTruthClass
 	// Err records a non-nil transport or dispatch error message. It is empty
 	// when the tool call completed without a Go error (envelope errors are
 	// encoded in TruthClass / Supported instead).
@@ -129,7 +130,7 @@ type Answer struct {
 	// Packets are the canonical evidence-backed AnswerPackets collected during
 	// the tool-call phase. They are the authoritative answer truth regardless
 	// of whether narration was produced.
-	Packets []query.AnswerPacket
+	Packets []ask.AnswerPacket
 	// PrimaryPacketIndex explicitly selects the packet that backs the published
 	// answer when deterministic routing identifies one canonical result. Nil
 	// means consumers use their ordinary first-supported-packet selection. The
