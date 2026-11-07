@@ -141,3 +141,14 @@ reconcile function still refuses `ghsa`.
 No-Observability-Change: core adds no metric, span, or log. A refused `ghsa` target
 surfaces through the existing configuration validation error at coordinator and
 collector-instance load, which names the key and quotes no value.
+
+## CVE List shard mapping
+
+`CVEListShardForCVEID` maps a CVE ID to its CVE List v5 shard directory,
+`cves/<year>/<NNNxxx>`, grouping sequence numbers in batches of 1,000;
+`CVEListDirtyShards` reduces delta-touched IDs to the sorted unique shards
+needing re-collection, and `CVEListShardGenerations` builds one full-replace
+generation per dirty shard with its 1:1 record-to-fact count. This is the
+item 5.1 measurement substrate (#9961, plan §4.4): pure string accounting,
+no network, database, or workflow mutation. The measured verdict lives in
+`docs/internal/evidence/9961-shard-scoped-generations.md`.
