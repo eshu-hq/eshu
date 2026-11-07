@@ -1,0 +1,16 @@
+docs/internal/evidence/10069-shared-intent-dead-letter-diagnosis.md
+  h_78a442cba0b3e6 1-223
+go/internal/reducer/intents/shared/worker/poisoned_refresh_partition_10069_test.go
+  h_78a442cba0b3e6 1-214
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "797035e080573fb5173a28e4eb797e64eebe6a4d",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
