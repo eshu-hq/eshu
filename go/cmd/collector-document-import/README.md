@@ -192,6 +192,19 @@ No-Observability-Change: `engine.go` emits no metric, label, span, or log
 line; it is covered by the same `telemetry-coverage-collectors.md` drain
 row, and extraction/commit signals stay the existing `eshu_dp_ocr_*` set.
 
+No-Regression Evidence: the seed additionally plants relative soname links
+derived from each `lib/` ELF's DT_SONAME (digest-verified bytes stay the
+trust root; unsafe names, collisions, and multi-SONAME fail closed), and
+re-seed is idempotent via chmod-retry with mode re-assertion. Baseline is
+the link-less payload (loader `No such file`); after measurement the
+focused suite stays green including the guard table and reseed tests, and
+the live alpine shim resolves `tesseract 5.5.0` via the
+loader path file without `LD_LIBRARY_PATH`. No hot path is touched: the
+seeder runs once per pod start.
+
+No-Observability-Change: still no metric, label, span, or log line; the
+link derivation adds no signal.
+
 Follow-up (digest-pin normalization, #10039 review thread).
 No-Regression Evidence: `loadHexDigest` now returns the normalized lowercase
 digest instead of the raw `sha256:`-prefixed/uppercase input, and library

@@ -211,6 +211,16 @@ line; it is covered by the same `telemetry-coverage-collectors.md` drain
 row, and extraction/commit signals stay the existing
 `eshu_dp_media_transcript_*` set.
 
+No-Regression Evidence: the seed additionally plants relative soname links
+derived from each `lib/` ELF's DT_SONAME (same helper as the OCR lane),
+and re-seed is idempotent via chmod-retry with mode re-assertion.
+Baseline is the link-less payload; after measurement the focused suite
+stays green including the guard table and reseed tests. No hot path is
+touched: the seeder runs once per pod start.
+
+No-Observability-Change: still no metric, label, span, or log line; the
+link derivation adds no signal.
+
 ## Gotchas / invariants
 
 - Disabled means exit 0 with zero commits: the binary is built but never

@@ -5,6 +5,7 @@ package main
 
 import (
 	"crypto/sha256"
+	"debug/elf"
 	"encoding/hex"
 	"fmt"
 	"io"
@@ -150,6 +151,12 @@ func seedEnginePayload(dest string, payload engineSeedPayload) error {
 			_ = os.RemoveAll(root)
 			return err
 		}
+		if strings.HasPrefix(file.target, "lib/") {
+			if err := plantSonameSymlink(filepath.Join(root, file.target)); err != nil {
+				_ = os.RemoveAll(root)
+				return err
+			}
+		}
 	}
 	manifest := enginePinManifest{
 		Schema: "engine-payload/v1", Engine: payload.engine,
@@ -166,7 +173,7 @@ func seedEnginePayload(dest string, payload engineSeedPayload) error {
 		return fmt.Errorf("encode engine pin manifest: %w", err)
 	}
 	// #nosec G304,G306 -- target joins the operator --dest dir with the fixed engine/pin-manifest.yaml name; the manifest carries digests only.
-	if err := os.WriteFile(filepath.Join(root, "pin-manifest.yaml"), raw, 0o444); err != nil {
+	if err := writeFileOverwrite(filepath.Join(root, "pin-manifest.yaml"), raw, 0o444); err != nil {
 		_ = os.RemoveAll(root)
 		return fmt.Errorf("write engine pin manifest: %w", err)
 	}
@@ -176,9 +183,29 @@ func seedEnginePayload(dest string, payload engineSeedPayload) error {
 		return fmt.Errorf("resolve seeded engine lib dir: %w", err)
 	}
 	// #nosec G304,G306 -- target joins the operator --dest dir with the fixed engine/lib-path name; the lib-path carries no secrets (a directory path only) and the worker reads it as the component user.
-	if err := os.WriteFile(filepath.Join(root, "lib-path"), []byte(libDir+"\n"), 0o444); err != nil {
+	if err := writeFileOverwrite(filepath.Join(root, "lib-path"), []byte(libDir+"\n"), 0o444); err != nil {
 		_ = os.RemoveAll(root)
 		return fmt.Errorf("write engine lib-path: %w", err)
+	}
+	return nil
+}
+
+// writeFileOverwrite writes data with mode, retrying once with owner-write
+// when a previous seed left the file read-only, then re-asserts the mode
+// (WriteFile applies it only at creation). Keeps re-seed idempotent.
+func writeFileOverwrite(path string, data []byte, mode os.FileMode) error {
+	// #nosec G304 -- path joins the seeded engine dir with fixed file names.
+	if err := os.WriteFile(path, data, mode); err != nil {
+		if chmodErr := os.Chmod(path, 0o600); chmodErr != nil {
+			return fmt.Errorf("write engine payload %q: %w", path, err)
+		}
+		// #nosec G304 -- same fixed engine-dir path retried after chmod.
+		if err := os.WriteFile(path, data, mode); err != nil {
+			return fmt.Errorf("write engine payload %q: %w", path, err)
+		}
+	}
+	if err := os.Chmod(path, mode); err != nil {
+		return fmt.Errorf("write engine payload %q: %w", path, err)
 	}
 	return nil
 }
@@ -211,6 +238,16 @@ func copyFileVerified(source, target, wantSHA256 string, mode os.FileMode) error
 	// #nosec G304 -- target joins the operator --dest dir with fixed engine/ names.
 	out, err := os.OpenFile(target, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, mode)
 	if err != nil {
+		// A previous seed run left read-only payload files behind (binaries
+		// seed 0555). Adding owner-write and retrying once keeps re-seed
+		// idempotent; the explicit Chmod below re-asserts the final mode,
+		// so no extra permission survives the copy.
+		if chmodErr := os.Chmod(target, 0o600); chmodErr == nil {
+			// #nosec G304 -- same fixed engine-dir target retried after chmod.
+			out, err = os.OpenFile(target, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, mode)
+		}
+	}
+	if err != nil {
 		return fmt.Errorf("write engine payload %q: %w", target, err)
 	}
 	hasher := sha256.New()
@@ -225,6 +262,84 @@ func copyFileVerified(source, target, wantSHA256 string, mode os.FileMode) error
 	if got := hex.EncodeToString(hasher.Sum(nil)); got != want {
 		_ = os.Remove(target)
 		return fmt.Errorf("engine payload %q has sha256:%s, want sha256:%s", target, got, want)
+	}
+	// Re-assert the mode: OpenFile applies it only at creation, so a
+	// re-seed that reused an existing file would otherwise keep the
+	// transient 0600 from the retry above.
+	if err := os.Chmod(target, mode); err != nil {
+		_ = os.Remove(target)
+		return fmt.Errorf("write engine payload %q: %w", target, err)
+	}
+	return nil
+}
+
+// sonameOf returns the ELF DT_SONAME declared by the copied file at path,
+// or "" when the file is not an ELF object or declares none. Non-ELF bytes
+// (models, fixtures) are not an error: they flow through the same seeder.
+// A malformed ELF or dynamic section fails closed.
+func sonameOf(path string) (string, error) {
+	// #nosec G304 -- path is the just-verified seed copy under --dest or a test fixture.
+	fh, err := os.Open(path)
+	if err != nil {
+		return "", fmt.Errorf("read engine soname %q: %w", path, err)
+	}
+	magic := make([]byte, 4)
+	n, _ := io.ReadFull(fh, magic)
+	_ = fh.Close()
+	if n < len(magic) || magic[0] != 0x7f || magic[1] != 'E' || magic[2] != 'L' || magic[3] != 'F' {
+		return "", nil
+	}
+	// #nosec G304 -- same verified copy; debug/elf reads only headers and the dynamic section.
+	ef, err := elf.Open(path)
+	if err != nil {
+		return "", fmt.Errorf("read engine soname %q: %w", path, err)
+	}
+	defer func() { _ = ef.Close() }()
+	sonames, err := ef.DynString(elf.DT_SONAME)
+	if err != nil {
+		return "", fmt.Errorf("read engine soname %q: %w", path, err)
+	}
+	if len(sonames) == 0 {
+		return "", nil
+	}
+	if len(sonames) != 1 {
+		return "", fmt.Errorf("engine payload %q declares %d SONAMEs, want exactly one", path, len(sonames))
+	}
+	return sonames[0], nil
+}
+
+// plantSonameSymlink derives the DT_SONAME from the verified copy at
+// copiedPath and plants a relative soname -> filename symlink beside it.
+// Files without a SONAME, or whose SONAME equals the file name, need no
+// link. An unsafe SONAME or a colliding link fails closed.
+func plantSonameSymlink(copiedPath string) error {
+	soname, err := sonameOf(copiedPath)
+	if err != nil {
+		return err
+	}
+	if soname == "" {
+		return nil
+	}
+	real := filepath.Base(copiedPath)
+	if soname == real {
+		return nil
+	}
+	if soname != filepath.Base(soname) || soname == "." || soname == ".." || strings.Contains(soname, "/") || filepath.IsAbs(soname) {
+		return fmt.Errorf("engine payload %q declares unsafe SONAME %q", copiedPath, soname)
+	}
+	link := filepath.Join(filepath.Dir(copiedPath), soname)
+	if fi, statErr := os.Lstat(link); statErr == nil {
+		if fi.Mode()&os.ModeSymlink != 0 {
+			if target, readErr := os.Readlink(link); readErr == nil && target == real {
+				return nil
+			}
+		}
+		return fmt.Errorf("engine payload soname link %q collides with an existing file", link)
+	} else if !os.IsNotExist(statErr) {
+		return fmt.Errorf("inspect engine soname link %q: %w", link, statErr)
+	}
+	if err := os.Symlink(real, link); err != nil {
+		return fmt.Errorf("plant engine soname link %q: %w", link, err)
 	}
 	return nil
 }
