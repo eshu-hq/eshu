@@ -72,10 +72,6 @@ type fakeLeg struct {
 	reaps            int
 	seeded           bool
 	enqueues         int
-	// declared holds the harness seed instance rows recorded by the
-	// scoped declare; declareCalls counts DeclareSeedInstance calls.
-	declared     map[string]workflow.DesiredCollectorInstance
-	declareCalls int
 }
 
 func newFakeLeg(f faults, pin bool, budget int) *fakeLeg {
@@ -83,7 +79,7 @@ func newFakeLeg(f faults, pin bool, budget int) *fakeLeg {
 		f: f, pin: pin, budget: budget, quota: "package_registry",
 		items: map[string]*fakeItem{}, claims: map[string]*fakeClaim{}, quotaW: map[string]int{},
 		others:  map[string]int{"workflow_work_items|pending": 3, "collector_instances|true": 2},
-		regrant: map[string]bool{}, declared: map[string]workflow.DesiredCollectorInstance{},
+		regrant: map[string]bool{},
 	}
 }
 

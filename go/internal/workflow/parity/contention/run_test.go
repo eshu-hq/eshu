@@ -205,3 +205,32 @@ func TestRunRefusesNonEmptyBaseline(t *testing.T) {
 		t.Fatalf("baseline abort deleted rows: leftover kept=%v deleted=%v skipped=%q", ok, report.Deleted, report.CleanupSkipped)
 	}
 }
+
+// TestBaselineStaysCleanWithSatelliteSideRowStanding is the negative
+// control for the arbiter (b2) rename: the satellite declares the renamed
+// harness instance from its own instances file, so the census carries its
+// collector_instances row as an "other" row. The renamed id sits outside
+// the instance-% census family, so the baseline stays clean, the run goes
+// CLEAN, and the reversal leaves the satellite-side row standing.
+func TestBaselineStaysCleanWithSatelliteSideRowStanding(t *testing.T) {
+	leg := newFakeLeg(faults{}, false, 4)
+	leg.others["collector_instances|true"]++ // satellite-side declaration of InstanceID, standing
+	before := leg.others["collector_instances|true"]
+	report, err := Run(context.Background(), fastSpec(), Leg{
+		Name: "in-tree", Backend: leg, Observer: leg, Pin: false, Advisory: false, Quota: true,
+		HarnessReaper: true, ServerLatency: "fake", DatabaseName: "fake",
+	}, fastOptions())
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if report.Verdict != VerdictClean {
+		t.Fatalf("verdict = %s, want %s\n%s", report.Verdict, VerdictClean, report.Summary())
+	}
+	if got := report.Deleted["collector_instances"]; got != 0 {
+		t.Fatalf("deleted collector_instances = %d, want 0 (satellite owns its row)", got)
+	}
+	if got := leg.others["collector_instances|true"]; got != before {
+		t.Fatalf("satellite-side instance rows = %d, want standing %d", got, before)
+	}
+	assertCleanedUp(t, report, leg)
+}

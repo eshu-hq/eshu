@@ -122,7 +122,7 @@ Every row the run writes carries the prefix `synth-8875-rehearsal-`:
 - `run_id`: `synth-8875-rehearsal-run-<seed>-<n>`
 - `work_item_id`: `synth-8875-rehearsal-wi-<seed>-<n>`
 - `scope_id`: `synth-8875-rehearsal-scope-<k>`
-- collector instance: `synth-8875-rehearsal-instance-1` on an enumerated
+- collector instance: `synth-8875-rehearsal-leg-1` on an enumerated
   synthetic instance with an existing claim-capable kind. On the in-tree leg
   the advisory lock key derives from kind + instance
   ([`workflow_control_open_targets.go:28`](https://github.com/eshu-hq/eshu/blob/15caae83c5cd1595480c20173bab20f1f65614f7/go/internal/storage/postgres/workflow_control_open_targets.go#L28)),
