@@ -137,33 +137,17 @@ const supersedeInactiveReducerGenerationsJoin = `ingestion_scopes AS scope,
 var supersedeInactiveReducerGenerationsPredicate = `stale.stage = 'reducer'
       AND stale.status IN ('pending', 'retrying', 'failed', 'dead_letter')
       AND ($2::text[] IS NULL OR stale.domain = ANY($2::text[]))
-      -- #10106/#10269: Crossplane SATISFIED_BY intents are keyed per
-      -- scope, not per generation: the handler materializes the scope's
-      -- active snapshot, and Runtime.execute rebinds a superseded intent
-      -- onto the active generation. A stale row of this domain is
-      -- retired only when a newer pending/retrying sibling for the same
-      -- scope carries the same debt; a sole stale row (a replay a quiet
-      -- delta superseded before execution, where the delta derives no
-      -- replacement intent) stays claimable for the rebind. The carrier
-      -- set excludes claimed/running (an in-flight carrier can still
-      -- dead-letter, and superseded is unreplayable, so the stale row is
-      -- the fallback) and failed/dead_letter/succeeded (none will run).
-      AND (stale.domain <> '` + string(reducercontract.DomainCrossplaneSatisfiedByMaterialization) + `'
-        OR EXISTS (
-          SELECT 1
-          FROM fact_work_items AS sibling
-          JOIN scope_generations AS sibling_generation
-            ON sibling_generation.scope_id = sibling.scope_id
-           AND sibling_generation.generation_id = sibling.generation_id
-          WHERE sibling.stage = 'reducer'
-            AND sibling.domain = '` + string(reducercontract.DomainCrossplaneSatisfiedByMaterialization) + `'
-            AND sibling.scope_id = stale.scope_id
-            AND sibling.work_item_id <> stale.work_item_id
-            AND sibling.status IN ('pending', 'retrying')
-            AND (sibling_generation.ingested_at > stale_generation.ingested_at
-              OR (sibling_generation.ingested_at = stale_generation.ingested_at
-                AND sibling_generation.generation_id > stale_generation.generation_id))
-        ))
+      -- #10106/#10269: no domain is exempt from LOCKING here. Crossplane
+      -- SATISFIED_BY rows are scope-keyed replays that rebind to the
+      -- active generation at execute time, so terminalizing a sole stale
+      -- row would drop debt a quiet delta never re-derives; the UPDATE
+      -- below therefore supersedes a locked Crossplane row only when the
+      -- locked set also contains a newer pending/retrying sibling for
+      -- the same scope to carry that debt (see there). Locking every
+      -- stale candidate in this one ordered pass is what makes that
+      -- check race-free: a sibling claimed between snapshot and lock
+      -- fails this predicate's row-self status qual on EvalPlanQual
+      -- recheck and never enters the locked set.
       AND scope.scope_id = stale.scope_id
       AND stale_generation.scope_id = stale.scope_id
       AND stale_generation.generation_id = stale.generation_id
@@ -198,6 +182,13 @@ var supersedeInactiveReducerGenerationsPredicate = `stale.stage = 'reducer'
 // supersedeInactiveReducerGenerationsCTE terminalizes unleased older-generation
 // reducer rows during claim so audit history remains durable without letting
 // obsolete work keep readiness in progress forever.
+//
+// One domain is spared conditionally: crossplane_satisfied_by_materialization
+// rows are scope-keyed replays that rebind to the active generation at execute
+// time (#10106), so a stale row is superseded here only when a newer sibling
+// for the same scope is pending/retrying and carries the same debt forward
+// (#10269). A sole stale row — or one whose newest sibling is failed or
+// dead-lettered — is never terminalized by the sweep.
 //
 // A readiness-gated domain (reducer_claim_readiness_requirements) must NOT be
 // superseded while its required canonical-node phase is still unmet under
@@ -241,23 +232,27 @@ var supersedeInactiveReducerGenerationsPredicate = `stale.stage = 'reducer'
 // The Crossplane arm (#10269) bounds the #10106 exemption: per-generation
 // rows of one scope are interchangeable executions (the handler reads the
 // active snapshot by scope), so a stale row retires when a newer
-// pending/retrying sibling exists. Snapshot transitivity collapses a chain
-// G1<G2<G3 in one statement — G1 sees carrier G2 and G2 sees carrier G3 —
+// pending/retrying sibling exists. Locked-set transitivity collapses a
+// chain G1<G2<G3 in one statement — G1 sees carrier G2 and G2 sees carrier
+// G3, the middle row being both carrier and superseded in the one update —
 // so handler executions per scope per drain epoch are <= 1, plus at most 1
 // when a row was already in flight while newer generations queued (the
 // conservative carrier set never prunes against a claimed/running sibling).
 // "Newer" is generation activation order (ingested_at, then generation_id),
 // the order the generation guard above already uses; updated_at is rewritten
-// by retry/claim stamps and does not order generations. The carrier probe
-// reads the statement snapshot: a sibling another claimer leases between
-// the snapshot and the stale row's lock still counts as carrier for this
-// statement (the EvalPlanQual recheck re-fetches only the locked stale
-// row). That is safe in the one direction that matters — the leased
-// carrier executes next and discharges the debt; if it later dead-letters,
-// the debt rests on dead-letter replay exactly as it does when a sole row
-// dead-letters. TestReducerClaimCoalesceCarrierClaimedBeforeLockLive pins
-// this interleave. The probe is gated by the domain arm, so
-// non-Crossplane candidates never pay it.
+// by retry/claim stamps and does not order generations. Carrier
+// membership is membership in the lock step's output (#10325): carriers
+// lock in the same ordered pass (the active-generation arm below), and a
+// sibling another claimer leases between the snapshot and its lock fails
+// the lock step's row-self status quals on EvalPlanQual recheck, so it
+// never counts as carrier and the stale row survives as the #10106 rebind
+// fallback. A snapshot EXISTS over the live table (the merged #10320 form)
+// kept counting that leased sibling and destroyed the fallback when the
+// in-flight carrier later dead-lettered.
+// TestReducerClaimCoalesceCarrierClaimedBeforeLockLive and the
+// stale_coalesce sibling-claimed subtest pin this interleave. The carrier
+// condition is gated by the domain arm, so non-Crossplane candidates
+// never pay it.
 //
 // The sweep is a blocking write over terminal and waiting rows that operator
 // replays also lock, so it takes its locks first, in work_item_id COLLATE "C"
@@ -281,12 +276,68 @@ var supersedeInactiveReducerGenerationsPredicate = `stale.stage = 'reducer'
 // used here).
 var supersedeInactiveReducerGenerationsCTE = `
 superseded_stale_reducer_locked AS (
-    SELECT stale.work_item_id
+    SELECT stale.work_item_id,
+           stale.scope_id,
+           stale.domain,
+           stale.status,
+           stale.generation_id,
+           stale_generation.ingested_at AS generation_ingested_at
     FROM fact_work_items AS stale,
          ` + supersedeInactiveReducerGenerationsJoin + `
-    WHERE ` + supersedeInactiveReducerGenerationsPredicate + `
+    WHERE (` + supersedeInactiveReducerGenerationsPredicate + `)
+       -- #10269 carrier arm: also lock a pending/retrying Crossplane row
+       -- on the scope's ACTIVE generation when an older stale sibling is
+       -- queued, so the UPDATE can coalesce that sibling into it. Stale-
+       -- generation carriers enter through the predicate above already;
+       -- only the active generation needs this arm, and the UPDATE's
+       -- generation recheck keeps these rows themselves un-superseded.
+       -- One scan, one LockRows pass in work_item_id order: the #8205
+       -- global lock order is unchanged.
+       OR (stale.stage = 'reducer'
+           AND stale.domain = 'crossplane_satisfied_by_materialization'
+           AND stale.status IN ('pending', 'retrying')
+           AND scope.scope_id = stale.scope_id
+           AND stale_generation.scope_id = stale.scope_id
+           AND stale_generation.generation_id = stale.generation_id
+           AND scope.active_generation_id = active_generation.generation_id
+           AND active_generation.scope_id = stale.scope_id
+           AND stale.generation_id = scope.active_generation_id
+           AND EXISTS (
+             SELECT 1
+             FROM fact_work_items AS older_sibling
+             JOIN scope_generations AS older_generation
+               ON older_generation.scope_id = older_sibling.scope_id
+              AND older_generation.generation_id = older_sibling.generation_id
+             WHERE older_sibling.stage = 'reducer'
+               AND older_sibling.domain = 'crossplane_satisfied_by_materialization'
+               AND ($2::text[] IS NULL OR older_sibling.domain = ANY($2::text[]))
+               AND older_sibling.scope_id = stale.scope_id
+               AND older_sibling.work_item_id <> stale.work_item_id
+               AND older_sibling.status IN ('pending', 'retrying', 'failed', 'dead_letter')
+               AND (older_generation.ingested_at < stale_generation.ingested_at
+                    OR (older_generation.ingested_at = stale_generation.ingested_at
+                        AND older_generation.generation_id < stale_generation.generation_id))))
     ORDER BY stale.work_item_id COLLATE "C"
     FOR NO KEY UPDATE OF stale
+),
+-- Newest locked pending/retrying Crossplane carrier per scope, derived
+-- once from the locked set so the UPDATE probes it per row instead of
+-- re-scanning the locked set for every Crossplane candidate (measured:
+-- a per-row EXISTS over the locked CTE cost ~0.13 ms x carrier
+-- candidates on a 2,600-row sweep). AS MATERIALIZED is load-bearing:
+-- the inlined form re-ran the DISTINCT ON as a per-row subquery scan
+-- under the UPDATE's left join (same probe).
+superseded_crossplane_newest_carrier AS MATERIALIZED (
+    SELECT DISTINCT ON (carrier.scope_id)
+           carrier.scope_id,
+           carrier.generation_ingested_at,
+           carrier.generation_id
+    FROM superseded_stale_reducer_locked AS carrier
+    WHERE carrier.domain = 'crossplane_satisfied_by_materialization'
+      AND carrier.status IN ('pending', 'retrying')
+    ORDER BY carrier.scope_id,
+             carrier.generation_ingested_at DESC,
+             carrier.generation_id DESC
 ),
 superseded_stale_reducer_generations AS (
     UPDATE fact_work_items AS stale
@@ -316,6 +367,39 @@ superseded_stale_reducer_generations AS (
       AND scope.scope_id = stale.scope_id
       AND stale.stage = 'reducer'
       AND stale.status IN ('pending', 'retrying', 'failed', 'dead_letter')
+      -- The lock step also locks active-generation Crossplane carriers
+      -- (#10269 arm above); they are never themselves superseded. Every
+      -- other locked row passed the lock predicate's older-generation
+      -- guard, so this id check is the whole generation recheck.
+      AND stale.generation_id <> scope.active_generation_id
+      -- #10269: a Crossplane row is superseded only when the locked set
+      -- holds a newer carrier for the same scope: same domain, strictly
+      -- newer generation in activation order (ingested_at, then
+      -- generation_id — never updated_at, which claim/retry stamps
+      -- rewrite), with the status the EvalPlanQual recheck confirmed at
+      -- lock time still pending/retrying. The carrier set is
+      -- conservative by design: claimed/running siblings are never in
+      -- the locked set (an in-flight carrier can still dead-letter, and
+      -- superseded is unreplayable, so pruning against it could destroy
+      -- the only fallback), and a failed/dead_letter newest sibling
+      -- absorbs nothing, so the older row survives to claim and rebind
+      -- (#10106). A snapshot EXISTS over the live table was proven live
+      -- to destroy that fallback when the carrier was claimed between
+      -- snapshot and lock; membership in the lock step's output is the
+      -- race-free form of the same check. Chain transitivity: a middle
+      -- row is both carrier (for older rows) and superseded (against a
+      -- newer carrier) in this one update.
+      AND (stale.domain <> 'crossplane_satisfied_by_materialization'
+           OR EXISTS (
+             SELECT 1
+             FROM superseded_crossplane_newest_carrier AS carrier
+             JOIN scope_generations AS carrier_stale_generation
+               ON carrier_stale_generation.scope_id = stale.scope_id
+              AND carrier_stale_generation.generation_id = stale.generation_id
+             WHERE carrier.scope_id = stale.scope_id
+               AND (carrier.generation_ingested_at > carrier_stale_generation.ingested_at
+                    OR (carrier.generation_ingested_at = carrier_stale_generation.ingested_at
+                        AND carrier.generation_id > carrier_stale_generation.generation_id))))
     RETURNING stale.work_item_id
 )
 `

@@ -1,5 +1,13 @@
 # #10269: Stale Per-Generation Crossplane Rows Coalesce at Claim Time
 
+Status: SUPERSEDED. The snapshot-EXISTS design below merged in PR
+#10320, was proven unsound by the live EvalPlanQual interleave (a
+sibling claimed mid-sweep), and is superseded by the lock-step carrier
+membership design recorded in
+[10269-stale-crossplane-row-coalesce-implementation.md](10269-stale-crossplane-row-coalesce-implementation.md)
+for issue #10325. The rest of this file is preserved as the historical
+record.
+
 Root-Cause Evidence: the #10106 fix exempted
 `crossplane_satisfied_by_materialization` from the claim-time
 inactive-generation sweep with a blanket

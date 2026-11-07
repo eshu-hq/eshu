@@ -187,11 +187,11 @@ same-scope activation that lands before the reducer runs it:
    handler materializes the scope's active snapshot. Two mechanisms keep
    such an intent runnable when its scheduling generation is superseded
    before execution. The claim-time inactive-generation sweep spares the
-   domain unless a newer pending/retrying sibling for the same scope
-   exists (`supersedeInactiveReducerGenerationsPredicate`, #10269), so a
-   still-pending sole replay stays claimable instead of being
-   terminalized, while queued per-generation rows coalesce onto the
-   newest carrier instead of each re-running the materialization.
+   domain conditionally (#10269): a stale row is terminalized only when a
+   newer pending/retrying sibling for the same scope is locked in the same
+   claim and carries the debt forward, so a sole still-pending replay
+   stays claimable instead of being terminalized, while a backlog of
+   per-generation rows coalesces onto the newest carrier.
    `Runtime.execute` then rebinds the claimed intent to the scope's active
    generation (`ActiveGeneration`, `postgres.NewActiveGenerationID`) and
    re-checks freshness before dispatch; the handler writes under the

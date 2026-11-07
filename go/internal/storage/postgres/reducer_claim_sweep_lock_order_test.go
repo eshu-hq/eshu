@@ -12,16 +12,17 @@ import (
 // supersedeInactiveReducerGenerationsCTE.
 const (
 	sweepLockStepStart = "superseded_stale_reducer_locked AS ("
-	sweepLockStepEnd   = "FOR NO KEY UPDATE OF stale\n),\nsuperseded_stale_reducer_generations AS ("
+	sweepLockStepEnd   = "FOR NO KEY UPDATE OF stale\n),"
 )
 
 // TestSupersedeSweepLocksStaleRowsInWorkItemOrder pins the #8205 shape of the
 // reducer claim-time supersede sweep, derived from the shipped constant: a
 // lock step that carries the whole sweep predicate (generation guard and
-// readiness gate), sorts on stale.work_item_id COLLATE "C" and takes a waiting
+// readiness gate) plus the #10269 active-generation carrier arm in the same
+// scan, sorts on stale.work_item_id COLLATE "C" and takes a waiting
 // FOR NO KEY UPDATE OF stale, followed by an UPDATE restricted to the locked
-// ids that rechecks stage and status. Both claim statements embed it ahead of
-// their candidate selection.
+// rows that rechecks stage, status, and generation. Both claim statements
+// embed it ahead of their candidate selection.
 func TestSupersedeSweepLocksStaleRowsInWorkItemOrder(t *testing.T) {
 	t.Parallel()
 	cte := supersedeInactiveReducerGenerationsCTE
@@ -30,7 +31,7 @@ func TestSupersedeSweepLocksStaleRowsInWorkItemOrder(t *testing.T) {
 		t.Fatalf("sweep has no lock step ending %q before its UPDATE:\n%s", sweepLockStepEnd, cte)
 	}
 	lockStep := cte[start : end+len("FOR NO KEY UPDATE OF stale")]
-	if !strings.Contains(lockStep, "WHERE "+supersedeInactiveReducerGenerationsPredicate) {
+	if !strings.Contains(lockStep, "WHERE ("+supersedeInactiveReducerGenerationsPredicate+")") {
 		t.Errorf("lock step must carry the whole sweep predicate:\n%s", lockStep)
 	}
 	for _, want := range []string{
@@ -52,6 +53,8 @@ func TestSupersedeSweepLocksStaleRowsInWorkItemOrder(t *testing.T) {
 	for _, want := range []string{
 		"WHERE stale.work_item_id = ANY(ARRAY(SELECT work_item_id FROM superseded_stale_reducer_locked))",
 		"AND stale.status IN ('pending', 'retrying', 'failed', 'dead_letter')",
+		"AND stale.generation_id <> scope.active_generation_id",
+		"FROM superseded_crossplane_newest_carrier AS carrier",
 	} {
 		if !strings.Contains(update, want) {
 			t.Errorf("sweep UPDATE lacks %q:\n%s", want, update)

@@ -82,15 +82,18 @@ FROM fact_work_items WHERE work_item_id LIKE 'co-conc-%'`).Scan(&superseded, &cl
 	}
 }
 
-// TestReducerClaimCoalesceCarrierClaimedBeforeLockLive is the snapshot
+// TestReducerClaimCoalesceCarrierClaimedBeforeLockLive is the EvalPlanQual
 // interleave: session X holds the stale row's lock uncommitted so the sweep
 // waits on it; meanwhile another worker leases the carrier (the only real
 // transition out of pending — dead-letter writes require
-// claimed/running) and commits. The carrier probe reads the statement
-// snapshot, so the stale row still retires against the snapshot carrier.
-// That is safe: the leased carrier remains claimed and executable, so the
-// debt holder survives the prune; were it to dead-letter later, the debt
-// would rest on dead-letter replay exactly as a sole row's does.
+// claimed/running) and commits. Carrier membership is membership in the
+// lock step's output, decided by row-self status quals the recheck
+// re-evaluates on the newest row version, so the claimed carrier never
+// enters the locked set and the stale row survives as the #10106 rebind
+// fallback. The merged #10320 snapshot-EXISTS probe retired the stale row
+// in this interleave; #10325 proved that unsound (an in-flight carrier can
+// still dead-letter, and superseded is unreplayable) and replaced it with
+// the lock-step form this test now pins.
 func TestReducerClaimCoalesceCarrierClaimedBeforeLockLive(t *testing.T) {
 	dsn := reducerSupersedeReadinessDSN()
 	if dsn == "" {
@@ -154,15 +157,17 @@ WHERE work_item_id = 'co-epq-g1'`, base.Add(5*time.Hour)); err != nil {
 		t.Fatalf("Claim() error = %v", err)
 	}
 
-	// The debt holder must survive: the carrier stays claimed under the
-	// other worker's lease. The stale row retires against the snapshot
-	// carrier (see the test doc); it must never be the case that both
-	// rows are gone.
+	// Both rows must survive: the carrier stays claimed under the other
+	// worker's lease (its claimed version never entered the locked
+	// carrier set), and the stale row stays pending — the claim defers
+	// behind the carrier's lease on the shared conflict domain — as the
+	// rebind fallback if that carrier later dead-letters. Superseding it
+	// here is the #10320 snapshot-probe outcome #10325 removed.
 	if status, _ := readReducerSupersedeReadinessWorkItemStatus(t, ctx, db, "co-epq-g1"); status != "claimed" {
 		t.Fatalf("carrier status = %q, want claimed (debt holder must survive the prune)", status)
 	}
-	if status, _ := readReducerSupersedeReadinessWorkItemStatus(t, ctx, db, "co-epq-g0"); status != "superseded" {
-		t.Fatalf("stale row status = %q, want superseded against the snapshot carrier", status)
+	if status, _ := readReducerSupersedeReadinessWorkItemStatus(t, ctx, db, "co-epq-g0"); status != "pending" {
+		t.Fatalf("stale row status = %q, want pending (no locked carrier; the rebind fallback must survive)", status)
 	}
 }
 
