@@ -291,9 +291,16 @@ func onlyRetractedRecordsAnchor(
 	}) {
 		return false
 	}
+	// A consuming repository does not anchor the live side here, though it
+	// anchors a group with no retracted contender (the representative outcome
+	// still counts other_anchor there). Consumption says the package is
+	// depended upon, but it does not speak to the scanned row: against a
+	// retracted record that joins the row, the row wins and reads the
+	// retracted record's finding with the retraction shown (#10034, the
+	// live-record-with-consumer limit). The retracted side already counts
+	// only a joined row or an SBOM path; the live side must not count more.
 	return !slices.ContainsFunc(live, func(pkg supplychainmodel.AffectedPackage) bool {
-		return hasMatchingOSPackage(pkg, index) || hasSBOMPath(pkg) ||
-			len(consumptionRepositoriesForPackage(pkg.PackageID, index.consumption)) > 0
+		return hasMatchingOSPackage(pkg, index) || hasSBOMPath(pkg)
 	})
 }
 

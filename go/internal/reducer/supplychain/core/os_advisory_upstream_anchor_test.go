@@ -12,8 +12,10 @@ import (
 )
 
 // TestRetractedFindingStaysOnlyWithoutALiveAnchor holds the rule's edges: a live fact
-// with any anchor of its own still decides the group, the rule stays inside the OS
-// class, and an SBOM path anchors the retracted record as an installed row does.
+// with a joined row or an SBOM path of its own still decides the group, a consuming
+// repository alone does not beat a retracted record that joins the row (#10034), the
+// rule stays inside the OS class, and an SBOM path anchors the retracted record as an
+// installed row does.
 func TestRetractedFindingStaysOnlyWithoutALiveAnchor(t *testing.T) {
 	t.Parallel()
 
@@ -41,24 +43,19 @@ func TestRetractedFindingStaysOnlyWithoutALiveAnchor(t *testing.T) {
 		}
 	})
 
-	t.Run("a live record anchored only by a consuming repository decides", func(t *testing.T) {
+	t.Run("a live record anchored only by a consuming repository loses to a joined retracted record", func(t *testing.T) {
 		t.Parallel()
-		envelopes := []facts.Envelope{
-			withdrawn, unjoinableLiveCVE("nvd"), unjoinableRetractedPackage("os"), unjoinableLivePackage("nvd", "os", ""), host,
+		// Consumption says the package is depended upon, but it does not
+		// speak to the scanned row: the row the retracted record joins reads
+		// that record's finding with the retraction shown (#10034, the
+		// live-record-with-consumer limit).
+		base := []facts.Envelope{
+			withdrawn, unjoinableLiveCVE("nvd"), unjoinableRetractedPackage("os"), host,
 			packageConsumptionFactWithRange("consumption-1", unjoinablePackageID, testImpactRepositoryID, unjoinableVersion),
 		}
-		for order, shuffled := range orderings(envelopes) {
-			findings := BuildSupplyChainImpactFindings(shuffled)
-			if len(findings) != 1 {
-				t.Fatalf("%s: findings = %d, want 1", order, len(findings))
-			}
-			got := findings[0]
-			if got.AdvisoryID != "EXT-1" || got.RepositoryID != testImpactRepositoryID || got.AdvisoryRetraction != nil {
-				t.Errorf("%s: advisory/repository/retraction = %q/%q/%#v, want the live record's on the repository, with no retraction", order, got.AdvisoryID, got.RepositoryID, got.AdvisoryRetraction)
-			}
-			if !slices.Contains(got.EvidenceFactIDs, "affected-own") {
-				t.Errorf("%s: evidence %v is missing the retired fact", order, got.EvidenceFactIDs)
-			}
+		control := BuildSupplyChainImpactFindings(slices.Clone(base))
+		for _, shuffled := range orderings(append(slices.Clone(base), unjoinableLivePackage("nvd", "os", ""))) {
+			assertRetractedRecordFinding(t, BuildSupplyChainImpactFindings(shuffled), control)
 		}
 	})
 
