@@ -323,3 +323,43 @@ func TestSeedEnginePayloadIgnoresNonELF(t *testing.T) {
 		t.Fatalf("lib dir = %v, want only the opaque payload file", names)
 	}
 }
+
+// TestSeedEnginePayloadSweepsStaleSonameLinks proves a re-seed with a new
+// payload version removes the previous version's soname links: without the
+// sweep the stale link shadows the fresh payload and the loader resolves
+// the old library.
+func TestSeedEnginePayloadSweepsStaleSonameLinks(t *testing.T) {
+	t.Parallel()
+	src := t.TempDir()
+	oldReal, oldSoname := "libsonametest.so.5.0.5", "libsonametest.so.5"
+	newReal, newSoname := "libsonametest.so.6.0.0", "libsonametest.so.6"
+	oldSrc, oldSHA := writeSonameFixture(t, src, oldReal, oldSoname)
+	newSrc, newSHA := writeSonameFixture(t, src, newReal, newSoname)
+	binSrc, binSHA := fixtureEngineFile(t, src, "tesseract", []byte("fake-tesseract-binary"))
+	modelSrc, modelSHA := fixtureEngineFile(t, src, "eng.traineddata", []byte("fake-model-bytes"))
+	files := func(libSrc, libReal, libSHA string) []engineSeedFile {
+		return []engineSeedFile{
+			{source: binSrc, target: "bin/tesseract", sha256: binSHA, executable: true},
+			{source: libSrc, target: "lib/" + libReal, sha256: libSHA},
+			{source: modelSrc, target: "tessdata/eng.traineddata", sha256: modelSHA},
+		}
+	}
+	dest := filepath.Join(t.TempDir(), "dest")
+	if err := seedEnginePayload(dest, engineSeedPayload{engine: "tesseract", version: "5.5.0", platform: "linux/test", files: files(oldSrc, oldReal, oldSHA)}); err != nil {
+		t.Fatalf("seedEnginePayload v5: %v", err)
+	}
+	if err := seedEnginePayload(dest, engineSeedPayload{engine: "tesseract", version: "6.0.0", platform: "linux/test", files: files(newSrc, newReal, newSHA)}); err != nil {
+		t.Fatalf("seedEnginePayload v6: %v", err)
+	}
+	libDir := filepath.Join(dest, "engine", "lib")
+	if _, err := os.Lstat(filepath.Join(libDir, oldSoname)); !os.IsNotExist(err) {
+		t.Fatalf("stale soname link %q survives the version-change reseed (err=%v)", oldSoname, err)
+	}
+	got, err := os.Readlink(filepath.Join(libDir, newSoname))
+	if err != nil {
+		t.Fatalf("readlink %q after version-change reseed: %v", newSoname, err)
+	}
+	if got != newReal {
+		t.Fatalf("soname link target = %q, want relative %q", got, newReal)
+	}
+}

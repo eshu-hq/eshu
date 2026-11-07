@@ -645,3 +645,29 @@ func TestSeedEnginePayloadIgnoresNonELF(t *testing.T) {
 		t.Fatalf("lib dir = %v, want only the opaque payload file", names)
 	}
 }
+
+// TestStaleSonameLinksReportsOnlyUnplantedSymlinks proves the re-seed sweep
+// candidate set is exactly the symlinks a fresh payload did not plant: real
+// files are never candidates, even when absent from the planted set.
+func TestStaleSonameLinksReportsOnlyUnplantedSymlinks(t *testing.T) {
+	t.Parallel()
+	libDir := t.TempDir()
+	// #nosec G306 -- test fixture dir under t.TempDir.
+	if err := os.WriteFile(filepath.Join(libDir, "libreal.so.6.0.0"), []byte("fake-lib"), 0o444); err != nil {
+		t.Fatalf("write real fixture: %v", err)
+	}
+	// #nosec G306 -- test fixture dir under t.TempDir.
+	if err := os.WriteFile(filepath.Join(libDir, "keep.dat"), []byte("not-a-link"), 0o444); err != nil {
+		t.Fatalf("write real fixture: %v", err)
+	}
+	if err := os.Symlink("libreal.so.6.0.0", filepath.Join(libDir, "libreal.so.6")); err != nil {
+		t.Fatalf("plant keeper link: %v", err)
+	}
+	if err := os.Symlink("libgone.so.5.0.5", filepath.Join(libDir, "libgone.so.5")); err != nil {
+		t.Fatalf("plant stale link: %v", err)
+	}
+	stale := staleSonameLinks(libDir, map[string]bool{"libreal.so.6": true})
+	if len(stale) != 1 || stale[0] != "libgone.so.5" {
+		t.Fatalf("staleSonameLinks = %v, want [libgone.so.5]", stale)
+	}
+}

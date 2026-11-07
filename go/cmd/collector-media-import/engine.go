@@ -158,6 +158,27 @@ func seedEnginePayload(dest string, payload engineSeedPayload) error {
 			}
 		}
 	}
+	planted := make(map[string]bool)
+	for _, file := range payload.files {
+		if !strings.HasPrefix(file.target, "lib/") {
+			continue
+		}
+		copied := filepath.Join(root, file.target)
+		soname, err := sonameOf(copied)
+		if err != nil {
+			_ = os.RemoveAll(root)
+			return err
+		}
+		if soname != "" && soname != filepath.Base(file.target) {
+			planted[soname] = true
+		}
+	}
+	for _, stale := range staleSonameLinks(filepath.Join(root, "lib"), planted) {
+		if err := os.Remove(filepath.Join(root, "lib", stale)); err != nil && !os.IsNotExist(err) {
+			_ = os.RemoveAll(root)
+			return fmt.Errorf("remove stale soname link %q: %w", stale, err)
+		}
+	}
 	manifest := enginePinManifest{
 		Schema: "engine-payload/v1", Engine: payload.engine,
 		Version: payload.version, Platform: payload.platform,
@@ -342,4 +363,26 @@ func plantSonameSymlink(copiedPath string) error {
 		return fmt.Errorf("plant engine soname link %q: %w", link, err)
 	}
 	return nil
+}
+
+// staleSonameLinks lists lib-dir entries that are symlinks outside the
+// planted set: leftovers from an earlier seed that a re-seed into the same
+// dest would otherwise leave behind to shadow the fresh payload. Only
+// symlinks are reported; real files are never sweep candidates.
+func staleSonameLinks(libDir string, planted map[string]bool) []string {
+	entries, err := os.ReadDir(libDir)
+	if err != nil {
+		return nil
+	}
+	var stale []string
+	for _, e := range entries {
+		if planted[e.Name()] {
+			continue
+		}
+		if e.Type()&os.ModeSymlink == 0 {
+			continue
+		}
+		stale = append(stale, e.Name())
+	}
+	return stale
 }
