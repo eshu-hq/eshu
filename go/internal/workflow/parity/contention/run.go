@@ -139,13 +139,10 @@ func (r *runner) execute(report *Report) error {
 		r.abort(violation(TriggerResidue, "baseline already holds %d synthetic rows", baseline.prefixedTotal()))
 		return nil
 	}
-	// Scoped seed-instance declare (arbiter option i): after the clean
-	// baseline, before any seed write, so the probe stays first and the
-	// seeded items resolve to a declared instance on gated claim planes.
-	if err := r.leg.Observer.DeclareSeedInstance(ctx, r.seedInstance()); err != nil {
-		return fmt.Errorf("declare seed instance: %w", err)
-	}
-	// The database sampler starts before the seed and runs through the
+	// The satellite declares the renamed seed instance from its own
+	// instances file (arbiter (b2) on #10280), so the harness declares
+	// nothing: after the clean baseline the sampler starts before the
+	// seed and runs through the
 	// drain, so loss, dual claims, the queue cap, and non-synthetic changes
 	// are watched while the backlog is written and during the stats wait.
 	var bg sync.WaitGroup
@@ -247,14 +244,14 @@ func (r *runner) isolationProbe(ctx context.Context) error {
 }
 
 // probeRecord states what the §4 dry claim proves on this target. The
-// harness instance is not an enumerated instance and holds no rows, so the
-// idle answer is vacuous: it cannot show that the selector excludes real
-// work (reading isolation_probe).
+// harness instance sits outside the census instance family and names no
+// harness item before the seed, so the idle answer is vacuous: it cannot
+// show that the selector excludes real work (reading isolation_probe).
 func (r *runner) probeRecord() Criterion {
 	if r.spec.Target == TargetLive {
 		return Criterion{Status: StatusVacuous, Detail: "dry claim idle on " + InstanceID +
-			", which is not an enumerated live instance (synth-8875-tfstate, synth-8875-pkgreg) and has no rows; " +
-			"#510 claims_enabled does not apply to it. It shows no row names this instance, not that real work is excluded."}
+			", which is not an enumerated live instance (synth-8875-tfstate, synth-8875-pkgreg) and names no harness item before the seed; " +
+			"the satellite declares it from its own instances file. It shows no work is claimable on this instance yet, not that real work is excluded."}
 	}
 	return Criterion{Status: StatusVacuous, Detail: "dry claim idle on " + InstanceID + "; a local target holds no real work to exclude"}
 }
@@ -360,11 +357,8 @@ func (r *runner) reverse(ctx context.Context, report *Report) error {
 		if err != nil {
 			return fmt.Errorf("prefix cleanup: %w", err)
 		}
-		n, err := r.leg.Observer.DeleteSeedInstance(ctx)
-		if err != nil {
-			return fmt.Errorf("seed instance cleanup: %w", err)
-		}
-		deleted["collector_instances"] += int(n)
+		// The harness declares no instance row, so there is none to
+		// delete: the satellite owns its declaration row for InstanceID.
 	}
 	final, err := r.leg.Observer.Census(ctx)
 	if err != nil {

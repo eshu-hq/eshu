@@ -69,28 +69,26 @@ See `AGENTS.md`. The ones that bite:
   `quota_held_items`, and the drain criterion skips only those.
 
 - Cleanup deletes only this seed's own rows (`run-<seed>-`, `wi-<seed>-`,
-  and their claims) plus the harness scope family (`scope-`) and the
-  declared seed instance row. Census and
-  residue count the harness id families only. The deployed synthetic
-  instances' rows (scope `synth-8875-rehearsal-tfstate`, which carries the
-  bare prefix) are therefore "other" rows that must stay unchanged. A
-  baseline that already holds harness rows aborts, and the reversal then
-  deletes nothing (`cleanup_skipped` says so).
-- After a clean baseline, setup declares the harness seed instance row
-  (`declare.go`: upsert exactly `InstanceID`, no deactivate step) so gated
-  claim planes resolve the seeded items; the reversal deletes exactly that
-  row again.
-- No-Regression Evidence: the declare adds one PK upsert per run in setup
+  and their claims) plus the harness scope family (`scope-`). Census and
+  residue count the harness id families only. The harness instance
+  (`synth-8875-rehearsal-leg-1`) sits outside the census instance family
+  (`synth-8875-rehearsal-instance-%`), so the satellite's declaration row
+  for it, and the deployed synthetic instances' rows (scope
+  `synth-8875-rehearsal-tfstate`, which carries the bare prefix), are
+  therefore "other" rows that must stay unchanged. A baseline that already
+  holds harness rows aborts, and the reversal then deletes nothing
+  (`cleanup_skipped` says so).
+- The harness declares no instance row: the satellite declares the renamed
+  seed instance from its own instances file, so claims on it resolve while
+  it is declared (arbiter (b2) on #10280). The reversal deletes no
+  `collector_instances` row.
+- No-Regression Evidence: the revert removes one PK upsert per run in setup
   and one PK delete per run in reversal, both single-threaded phases outside
-  the worker window; worker, claim, and queue code is untouched. Measured on
-  scratch Postgres 18 over loopback (empty table, `EXPLAIN ANALYZE`): upsert
-  Execution 0.133 ms, delete Execution 0.042 ms. Full contention suite with
-  PG tests executing stays green (ok 43.3s). Suite wall times across runs are
-  not a before/after pair (different test sets executed), so no speedup is
-  claimed; the bound is two point writes against a 100k-item seed.
-- No-Observability-Change: no new metrics, spans, or logs; the declare
-  surfaces through the existing `report.Deleted["collector_instances"]`
-  count and the residue census.
+  the worker window; worker, claim, and queue code is untouched. Full
+  contention suite stays green (see the implementing PR's proof).
+- No-Observability-Change: no new metrics, spans, or logs; the reversal
+  surfaces through the existing `report.Deleted` counts and the residue
+  census.
 
 ## How the spec maps to code
 
@@ -106,7 +104,7 @@ See `AGENTS.md`. The ones that bite:
 | §6 sampler | `loops.go` `sample` (1 s; census and fencing every 10 ticks) |
 | §6 criteria | `analysis.go` `finish` |
 | §7 triggers | `tracker.go` (client) and `loops.go` (database); `run.go` `abort` |
-| §8 reversal | `run.go` `reverse`; `sqlobserver.go` `DeletePrefixed`; `declare.go` `DeleteSeedInstance` |
+| §8 reversal | `run.go` `reverse`; `sqlobserver.go` `DeletePrefixed` (the harness declares no instance row; the satellite owns its row for `InstanceID`) |
 | §9 evidence | `report.go` |
 
 ## What a pass proves and does not prove
@@ -155,7 +153,7 @@ numbers refer to `REMOVAL_CONTENTION_SPEC.md` on this branch.
 | `starvation` | §6, line 186 | Longest ClaimNext call under the bound, and every backlog scope granted inside the window. Enqueue-to-claim wait is not judged. |
 | `drain` | §6, line 195 | After the window, workers claim and complete the rest until only quota-held items are non-terminal, no claim is live, and every stale writer fired. |
 | `planner_statistics` | §2 `backlog_items`, line 84 | Wait read-only (default 5m) for autovacuum to analyze `workflow_work_items` after seeding; `stats_ready=false` records a cold-statistics window. |
-| `isolation_probe` | §4, lines 125-126 and 135-136 | The harness instance `synth-8875-rehearsal-instance-1` is not an enumerated live instance (`synth-8875-tfstate`, `synth-8875-pkgreg`), so `claims_enabled` from #510 does not apply to it and no row names it. The dry claim returns idle by construction. The report records `isolation_probe` as `VACUOUS` on both targets, and the arbiter rules on the instance. |
+| `isolation_probe` | §4, lines 125-126 and 135-136 | The harness instance `synth-8875-rehearsal-leg-1` keeps the synthetic prefix but sits outside the census instance family, so the baseline ignores the satellite's declaration row for it. The dry claim returns idle by construction before any write. The report records `isolation_probe` as `VACUOUS` on both targets, and the arbiter rules on the instance. |
 | `zero_loss` | §6, line 193 | Each sample requires synthetic item rows >= created (terminal plus non-terminal by construction). An advisory insert can briefly put rows above created. After the run, every client-acked terminal must be terminal in the database. |
 | `lock_waiters` | §2 `pg_headroom`, line 89 | Live counts lock waiters on core's database only. Locally the ceiling sits above the 25 advisory goroutines plus W. |
 

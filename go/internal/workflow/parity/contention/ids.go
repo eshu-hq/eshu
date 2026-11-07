@@ -35,8 +35,10 @@ func seedItemPattern(seed int64) string { return fmt.Sprintf("%swi-%d-%%", Prefi
 // InstanceID is the synthetic collector instance every harness item and
 // selector names. Claim selection filters on (kind, instance), so no real
 // collector can claim a harness item and no harness worker can claim a real
-// one.
-const InstanceID = Prefix + "instance-1"
+// one. It keeps the synthetic Prefix but sits outside the census
+// instance-% family (arbiter (b2) on #10280): the satellite declares it
+// from its own instances file, and the baseline gate ignores that row.
+const InstanceID = Prefix + "leg-1"
 
 // IsSynthetic reports whether id carries the synthetic prefix.
 func IsSynthetic(id string) bool {

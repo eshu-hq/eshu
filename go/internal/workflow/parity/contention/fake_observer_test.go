@@ -9,8 +9,6 @@ import (
 	"sort"
 	"strings"
 	"time"
-
-	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
 // Observer half of fakeLeg.
@@ -90,9 +88,6 @@ func (l *fakeLeg) Census(context.Context) (Census, error) {
 	for _, cl := range l.claims {
 		c.Prefixed["workflow_claims|"+cl.status]++
 	}
-	for range l.declared {
-		c.Prefixed["collector_instances|true"]++
-	}
 	for k, v := range l.others {
 		c.Other[k] = v
 	}
@@ -149,35 +144,6 @@ func (l *fakeLeg) NonTerminalItems(_ context.Context, limit int) ([]string, erro
 		}
 	}
 	return out, nil
-}
-
-// DeclareSeedInstance records exactly the harness seed instance row. Any
-// other id is refused before anything is recorded: the fake mirrors the
-// scoped declare's boundary.
-func (l *fakeLeg) DeclareSeedInstance(_ context.Context, want workflow.DesiredCollectorInstance) error {
-	if err := checkSeedInstance(want.InstanceID); err != nil {
-		return err
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	l.declareCalls++
-	l.declared[want.InstanceID] = want
-	return nil
-}
-
-// DeleteSeedInstance removes exactly the harness seed instance row.
-func (l *fakeLeg) DeleteSeedInstance(context.Context) (int64, error) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	n := int64(len(l.declared))
-	l.declared = map[string]workflow.DesiredCollectorInstance{}
-	return n, nil
-}
-
-func (l *fakeLeg) declaredCount() int {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	return len(l.declared)
 }
 
 func (l *fakeLeg) DeletePrefixed(_ context.Context, seed int64, _ int) (map[string]int, error) {

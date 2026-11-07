@@ -67,11 +67,12 @@ func SpecReadings() []SpecReading {
 		},
 		{
 			ID: "isolation_probe", Spec: "§4, lines 125-126 and 135-136",
-			Quote: "collector instance: synth-8875-rehearsal-instance-1 on an enumerated synthetic instance with an existing claim-capable kind ... " +
+			Quote: "collector instance: synth-8875-rehearsal-leg-1 on an enumerated synthetic instance with an existing claim-capable kind ... " +
 				"The lane proves this first with a dry claim that must return idle while real work exists.",
-			Reading: "The harness claims only on synth-8875-rehearsal-instance-1, which is not one of the enumerated live instances " +
-				"(synth-8875-tfstate, synth-8875-pkgreg), so #510's claims_enabled does not apply to it and no row names it. " +
-				"The dry claim on it returns idle by construction: on live it shows only that no row names this instance, " +
+			Reading: "The harness claims only on synth-8875-rehearsal-leg-1, which keeps the synthetic prefix but sits outside " +
+				"the census instance family (synth-8875-rehearsal-instance-%), so the baseline ignores the satellite's " +
+				"declaration row for it and no harness item names it before the seed. " +
+				"The dry claim on it returns idle by construction: on live it shows only that no item names this instance yet, " +
 				"not that the selector excludes real work. The report marks the probe VACUOUS on both targets; the arbiter rules on the instance at the live-run review.",
 		},
 		{

@@ -7,8 +7,6 @@ import (
 	"context"
 	"sort"
 	"time"
-
-	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
 // Snapshot is the cheap per-sample view of one leg's synthetic rows.
@@ -109,12 +107,8 @@ type Observer interface {
 	// NonTerminalItems lists up to limit synthetic items not yet terminal.
 	NonTerminalItems(ctx context.Context, limit int) ([]string, error)
 	// DeletePrefixed deletes synthetic rows child-first in bounded batches
-	// and returns rows deleted per table. Never TRUNCATE.
+	// and returns rows deleted per table. Never TRUNCATE. The harness
+	// declares no collector_instances row (the satellite declares
+	// InstanceID from its own instances file), so none is deleted here.
 	DeletePrefixed(ctx context.Context, seed int64, batch int) (map[string]int, error)
-	// DeclareSeedInstance upserts exactly the harness seed instance row
-	// (arbiter option i): no deactivate-stale step, never another id.
-	DeclareSeedInstance(ctx context.Context, want workflow.DesiredCollectorInstance) error
-	// DeleteSeedInstance removes exactly the harness seed instance row
-	// and reports rows deleted.
-	DeleteSeedInstance(ctx context.Context) (int64, error)
 }
