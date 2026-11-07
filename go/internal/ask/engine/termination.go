@@ -3,7 +3,7 @@
 
 package engine
 
-import "github.com/eshu-hq/eshu/go/internal/query"
+import "github.com/eshu-hq/eshu/go/internal/query/ask"
 
 // Termination reasons recorded on Answer.TerminationReason for operator
 // telemetry. They are low-cardinality and safe to emit as structured-log or
@@ -61,7 +61,7 @@ type evidenceProgress struct {
 // cannot defeat the stop; but a distinct result from the same tool — a
 // multi-entity comparison — is correctly counted as new evidence and does not
 // trip the stop prematurely.
-func (p *evidenceProgress) observe(packets []query.AnswerPacket) (progress, haveEvidence bool) {
+func (p *evidenceProgress) observe(packets []ask.AnswerPacket) (progress, haveEvidence bool) {
 	if p.seen == nil {
 		p.seen = make(map[string]struct{})
 	}
@@ -83,13 +83,13 @@ func (p *evidenceProgress) observe(packets []query.AnswerPacket) (progress, have
 // different summaries are distinct evidence; two calls that return the same
 // summary are redundant. The NUL separator cannot appear in a tool name, so it
 // unambiguously joins the two fields.
-func packetIdentity(pkt query.AnswerPacket) string {
+func packetIdentity(pkt ask.AnswerPacket) string {
 	return pkt.PrimaryTool + "\x00" + pkt.Summary
 }
 
 // packetIsAnswerEvidence reports whether pkt is a supported, complete,
 // summary-bearing answer packet — the bar for both deterministic prose and the
 // sufficiency stop's evidence signal.
-func packetIsAnswerEvidence(pkt query.AnswerPacket) bool {
+func packetIsAnswerEvidence(pkt ask.AnswerPacket) bool {
 	return pkt.Supported && !pkt.Partial && pkt.Summary != ""
 }

@@ -10,7 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/answerguardrail"
 	"github.com/eshu-hq/eshu/go/internal/ask/provider"
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/ask"
 	"github.com/eshu-hq/eshu/go/internal/status"
 )
 
@@ -207,7 +207,7 @@ func (e *Engine) dispatchCall(
 			Tool:       call.Name,
 			Args:       call.Arguments,
 			Supported:  false,
-			TruthClass: query.AnswerTruthUnsupported,
+			TruthClass: ask.AnswerTruthUnsupported,
 			Err:        "refused: unbounded list/search call",
 		})
 		e.log().Warn("ask: refused unbounded list/search call before dispatch",
@@ -226,7 +226,7 @@ func (e *Engine) dispatchCall(
 			Tool:       call.Name,
 			Args:       call.Arguments,
 			Supported:  false,
-			TruthClass: query.AnswerTruthUnsupported,
+			TruthClass: ask.AnswerTruthUnsupported,
 			Err:        runErr.Error(),
 		})
 		messages = append(messages, provider.Message{
@@ -249,7 +249,7 @@ func (e *Engine) dispatchCall(
 				Tool:       call.Name,
 				Args:       call.Arguments,
 				Supported:  false,
-				TruthClass: query.AnswerTruthUnsupported,
+				TruthClass: ask.AnswerTruthUnsupported,
 			})
 			e.log().Warn("ask: tool result runaway; bounded continuation offered",
 				"tool", call.Name,
@@ -305,7 +305,7 @@ func (e *Engine) dispatchCall(
 		Tool:       call.Name,
 		Args:       call.Arguments,
 		Supported:  false,
-		TruthClass: query.AnswerTruthUnsupported,
+		TruthClass: ask.AnswerTruthUnsupported,
 	})
 	messages = append(messages, provider.Message{
 		Role:       provider.RoleTool,

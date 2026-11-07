@@ -7,7 +7,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/ask"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // Compose arranges per-section answer evidence into a deterministic service
@@ -43,7 +44,7 @@ func Compose(in ReportInput) Report {
 
 // composeSection builds one report section from its static spec and the
 // caller-supplied evidence. It delegates truth classification and the honesty
-// contract to query.NewAnswerPacket, then derives the section status from the
+// contract to ask.NewAnswerPacket, then derives the section status from the
 // resulting packet.
 func composeSection(spec sectionSpec, input SectionInput, subject ReportSubject) ReportSection {
 	needsFallback := sectionNeedsFallback(input)
@@ -58,7 +59,7 @@ func composeSection(spec sectionSpec, input SectionInput, subject ReportSubject)
 		limitations = appendUniqueString(limitations, fallbackLimitation(spec, subject))
 	}
 
-	packet := query.NewAnswerPacket(query.AnswerPacketInput{
+	packet := ask.NewAnswerPacket(ask.AnswerPacketInput{
 		PromptFamily:         spec.PromptFamily,
 		Question:             sectionQuestion(spec, subject),
 		PrimaryTool:          spec.Tool,
@@ -101,7 +102,7 @@ func sectionNeedsFallback(input SectionInput) bool {
 	// unavailable, which arrives with no evidence and is already covered above)
 	// must not be reclassified by the composer.
 	switch input.Truth.Freshness.State {
-	case query.FreshnessStale, query.FreshnessBuilding:
+	case querycontract.FreshnessStale, querycontract.FreshnessBuilding:
 		return true
 	}
 	return false
@@ -110,22 +111,22 @@ func sectionNeedsFallback(input SectionInput) bool {
 // sectionEnvelope builds the ResponseEnvelope handed to the AnswerPacket
 // builder. A source error or absent truth yields an error envelope (unsupported
 // section); otherwise the source truth is preserved verbatim.
-func sectionEnvelope(spec sectionSpec, input SectionInput, subject ReportSubject) *query.ResponseEnvelope {
+func sectionEnvelope(spec sectionSpec, input SectionInput, subject ReportSubject) *querycontract.ResponseEnvelope {
 	if input.Err != nil {
-		return &query.ResponseEnvelope{Error: input.Err}
+		return &querycontract.ResponseEnvelope{Error: input.Err}
 	}
 	if input.Truth == nil {
-		return &query.ResponseEnvelope{Error: &query.ErrorEnvelope{
-			Code:    query.ErrorCodeNotFound,
+		return &querycontract.ResponseEnvelope{Error: &querycontract.ErrorEnvelope{
+			Code:    querycontract.ErrorCodeNotFound,
 			Message: fmt.Sprintf("no %s evidence available for service %s", strings.ToLower(spec.Title), subjectName(subject)),
 		}}
 	}
-	return &query.ResponseEnvelope{Truth: input.Truth}
+	return &querycontract.ResponseEnvelope{Truth: input.Truth}
 }
 
 // statusFromPacket derives a section status from an embedded answer packet,
 // never reclassifying the source truth.
-func statusFromPacket(packet query.AnswerPacket) SectionStatus {
+func statusFromPacket(packet ask.AnswerPacket) SectionStatus {
 	switch {
 	case !packet.Supported:
 		return StatusUnsupported

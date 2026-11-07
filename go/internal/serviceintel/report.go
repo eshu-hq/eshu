@@ -4,8 +4,9 @@
 package serviceintel
 
 import (
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/ask"
 	"github.com/eshu-hq/eshu/go/internal/query/evidence"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // ReportSchema is the wire schema identifier for a service intelligence report.
@@ -96,7 +97,7 @@ type SectionInput struct {
 	Summary string
 	// Truth is the source route's TruthEnvelope. It is preserved on the section,
 	// never reclassified. A nil Truth (with no Err) marks the section empty.
-	Truth *query.TruthEnvelope
+	Truth *querycontract.TruthEnvelope
 	// Evidence are the resolved evidence handles backing the section.
 	Evidence []evidence.EvidenceCitationHandle
 	// MissingEvidence lists evidence handles requested but not resolved.
@@ -117,7 +118,7 @@ type SectionInput struct {
 	HighImpact bool
 	// Err, when set, marks the section unavailable because the source route
 	// errored. It takes precedence over Truth.
-	Err *query.ErrorEnvelope
+	Err *querycontract.ErrorEnvelope
 }
 
 // ReportInput is the full composition input: the subject plus the per-section
@@ -143,7 +144,7 @@ type ReportSection struct {
 	Status SectionStatus `json:"status"`
 	// Answer is the canonical answer packet for the section. It is the source of
 	// truth for the section's truth class, evidence, limitations, and next calls.
-	Answer query.AnswerPacket `json:"answer"`
+	Answer ask.AnswerPacket `json:"answer"`
 }
 
 // Report is an operator-ready service intelligence artifact composed from
@@ -164,10 +165,10 @@ type Report struct {
 	// report never reads as complete while sections are missing.
 	Partial bool `json:"partial"`
 	// TruthClass is the identity section's truth class, copied not reclassified.
-	TruthClass query.AnswerTruthClass `json:"truth_class"`
+	TruthClass ask.AnswerTruthClass `json:"truth_class"`
 	// Truth is a copy of the identity section's TruthEnvelope, or nil when the
 	// identity anchor is unsupported.
-	Truth *query.TruthEnvelope `json:"truth,omitempty"`
+	Truth *querycontract.TruthEnvelope `json:"truth,omitempty"`
 	// Sections carries every fixed section in canonical order.
 	Sections []ReportSection `json:"sections"`
 	// Limitations aggregates the de-duplicated bounded caveats across sections so

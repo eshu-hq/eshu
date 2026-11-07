@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 )
 
 type callerCredentialsKey struct{}
@@ -62,7 +62,7 @@ func callerCredentialsFromContext(ctx context.Context) (callerCredentials, bool)
 }
 
 func validateCallerCredentials(ctx context.Context, credentials callerCredentials, marked bool) error {
-	auth, authenticated := query.AuthContextFromContext(ctx)
+	authCtx, authenticated := auth.AuthContextFromContext(ctx)
 	if !marked {
 		if authenticated {
 			return errors.New("authenticated Ask request has no caller credentials")
@@ -72,12 +72,12 @@ func validateCallerCredentials(ctx context.Context, credentials callerCredential
 	if !authenticated {
 		return nil // Authentication-disabled local request; dispatch without credentials.
 	}
-	switch auth.Mode {
-	case query.AuthModeBrowserSession:
+	switch authCtx.Mode {
+	case auth.AuthModeBrowserSession:
 		if strings.TrimSpace(credentials.authorization) == "" && credentials.hasSession {
 			return nil
 		}
-	case query.AuthModeShared, query.AuthModeScoped:
+	case auth.AuthModeShared, auth.AuthModeScoped:
 		if strings.TrimSpace(credentials.authorization) != "" {
 			return nil
 		}

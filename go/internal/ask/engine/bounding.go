@@ -8,7 +8,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/ask"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // MCP dispatch error codes the engine recognises as runaway-read signals. They
@@ -117,17 +118,17 @@ func refusalToolResult(hint string) string {
 // recommended bounded retry of the same tool. It returns (zero, false) when the
 // envelope is not a recognised runaway signal, so ordinary error envelopes keep
 // their existing unsupported-packet path.
-func oversizedContinuationPacket(question, toolName string, env *query.ResponseEnvelope) (query.AnswerPacket, bool) {
+func oversizedContinuationPacket(question, toolName string, env *querycontract.ResponseEnvelope) (ask.AnswerPacket, bool) {
 	code := envelopeErrorCode(env)
 	if code != errCodeResponseOverBudget && code != errCodeDispatchTimeout {
-		return query.AnswerPacket{}, false
+		return ask.AnswerPacket{}, false
 	}
 	reason := runawayReason(code, toolName)
 	guidance := runawayGuidance(env)
-	return query.AnswerPacket{
+	return ask.AnswerPacket{
 		Question:           strings.TrimSpace(question),
 		PrimaryTool:        toolName,
-		TruthClass:         query.AnswerTruthUnsupported,
+		TruthClass:         ask.AnswerTruthUnsupported,
 		Supported:          false,
 		Partial:            true,
 		UnsupportedReasons: []string{reason},
@@ -142,7 +143,7 @@ func oversizedContinuationPacket(question, toolName string, env *query.ResponseE
 // continuationToolResult is the bounded JSON tool-result fed to the model for a
 // runaway tool result. It surfaces the narrowing guidance so the model retries a
 // bounded call rather than treating the outcome as a dead end.
-func continuationToolResult(pkt query.AnswerPacket) string {
+func continuationToolResult(pkt ask.AnswerPacket) string {
 	guidance := ""
 	if len(pkt.Limitations) > 0 {
 		guidance = pkt.Limitations[0]
@@ -150,7 +151,7 @@ func continuationToolResult(pkt query.AnswerPacket) string {
 	b, err := json.Marshal(map[string]any{
 		"supported":   false,
 		"partial":     true,
-		"truth_class": string(query.AnswerTruthUnsupported),
+		"truth_class": string(ask.AnswerTruthUnsupported),
 		"retry_tool":  pkt.PrimaryTool,
 		"retry":       guidance,
 	})
@@ -176,7 +177,7 @@ func runawayReason(code, toolName string) string {
 // runawayGuidance returns the narrowing guidance to surface for a runaway tool
 // result: the dispatch layer's own guidance detail when present, else a bounded
 // default that instructs adding a limit and scope.
-func runawayGuidance(env *query.ResponseEnvelope) string {
+func runawayGuidance(env *querycontract.ResponseEnvelope) string {
 	if env != nil && env.Error != nil {
 		if raw, ok := env.Error.Details["guidance"]; ok {
 			if s, isStr := raw.(string); isStr && strings.TrimSpace(s) != "" {
@@ -189,7 +190,7 @@ func runawayGuidance(env *query.ResponseEnvelope) string {
 
 // envelopeErrorCode returns the string error code carried by env, or "" when env
 // has no error envelope.
-func envelopeErrorCode(env *query.ResponseEnvelope) string {
+func envelopeErrorCode(env *querycontract.ResponseEnvelope) string {
 	if env == nil || env.Error == nil {
 		return ""
 	}
