@@ -20,20 +20,24 @@ Use when the flip pin itself is bad: either edge serves wrong truth from a
 dest image. Restore authority to the last-good core build.
 
 ```bash
-# 0. Identify what moved (read-only)
-kubectl -n eshu get deploy/eshu-api -o jsonpath='{.spec.template.spec.containers[*].image}{"\n"}'
+# 0. Identify what moved (read-only — the flipped API edge, not the
+#    monolith which keeps serving everything else under deploy/eshu-api)
+kubectl -n eshu get deploy/eshu-extracted-api -o jsonpath='{.spec.template.spec.containers[*].image}{"\n"}'
 kubectl -n eshu get deploy/eshu-mcp-server -o jsonpath='{.spec.template.spec.containers[*].image}{"\n"}'
 gh release list --repo eshu-hq/eshu-mcp
 ```
 
 ```bash
 # 1. Revert the cutover commit touching the eshu-deploy image values
-#    (image.repository/image.tag or the mcpServer/api overrides —
-#    verify by rendering at rollback time). ArgoCD self-heals from git.
-#    If git is unavailable, force values directly:
-helm upgrade eshu deploy/helm/eshu --set image.repository=TBD-LAST-GOOD-REPO \
-  --set image.tag=TBD-LAST-GOOD-TAG -n eshu
-kubectl -n eshu rollout status deploy/eshu-api
+#    (the per-service pins — verify names/paths by rendering at
+#    rollback time; the shared image.repository/image.tag pair does
+#    NOT move the dest edges). ArgoCD self-heals from git.
+#    If git is unavailable, force values directly (chart at helm/eshu):
+helm upgrade eshu helm/eshu \
+  --set extractedApi.image.repository=TBD-LAST-GOOD-REPO \
+  --set extractedApi.image.tag=TBD-LAST-GOOD-TAG \
+  --set mcpServer.image=TBD-LAST-GOOD-MCP-IMAGE -n eshu
+kubectl -n eshu rollout status deploy/eshu-extracted-api
 kubectl -n eshu rollout status deploy/eshu-mcp-server
 ```
 
@@ -70,12 +74,18 @@ git -C TBD-DEST-CHECKOUT revert TBD-BAD-MERGE-SHA && git push origin main
 
 | Placeholder | Meaning | Fill with |
 | --- | --- | --- |
-| `TBD-LAST-GOOD-REPO` / `TBD-LAST-GOOD-TAG` | Last-supported artifact coordinates | Dest-or-core image repo + tag/digest from the flip pin record |
+| `TBD-LAST-GOOD-REPO` / `TBD-LAST-GOOD-TAG` | Last-supported artifact coordinates | Dest-or-core image repo + tag/digest from the flip pin record (D11 condition C4; the truncated year-old #8873 record is not usable) |
 | `TBD-MCP-HOST` / API host | Flipped topology addresses | Live service hostnames/ports at flip time |
 | `TBD-DEST-CHECKOUT` / `TBD-BAD-MERGE-SHA` | Bad dest change identity | Clone path + reverted SHA if Shape 2 fires |
 | Evidence location `TBD` | Where rollback proof lands | PR/issue comment URL + command log with exit codes |
 | Topology `TBD` | What serves what after restore | Deployment image digests + ArgoCD sync state post-restore |
 | Artifact digest `TBD` | Exact restored bytes | `image@sha256:…` for both Deployments post-restore |
+
+Flip pin record procedure (C4): the flip executor captures complete
+`repo:tag@digest` coordinates for both Deployments pre-flip (core
+last-good) and post-flip (dest) and writes them here and into the
+flip record. Pin holder: named by the owner before the lane closes
+(TBD — flagged on #9669, not filled here).
 
 ## Rollback execution log (empty until executed)
 
@@ -84,9 +94,13 @@ trigger, shape used, exact commands with exit codes, restored digests,
 parity re-proof output, and owner acceptance. The #8873 rollback-path proof
 (pre-cutover, read-only) is the pattern to follow, not a substitute.
 
-## Open questions
+## Open questions (D11 arbiter conditions in parentheses)
 
 1. Who holds the flip pin record (last-good coordinates) at flip time?
+   Owner names the holder before the lane closes (C4).
 2. Does ArgoCD self-heal fast enough that the `helm upgrade` fallback is
    unnecessary — or must both paths be rehearsed?
-3. Owner confirms the “no state moves” note still holds after the flip diff.
+3. Owner confirms the “no state moves” note still holds after the flip diff;
+   reconfirm against the final flip diff immediately before execution —
+   if any claim/lease state moves, Shape 1 is void until a fenced design
+   lands (C7).
