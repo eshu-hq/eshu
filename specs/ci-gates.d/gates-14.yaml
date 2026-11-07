@@ -290,7 +290,6 @@ gates:
       - ".dockerignore"
       - ".github/workflows/docker-publish.yml"
       - "scripts/ci/select-docker-publish-lanes.sh"
-      - "specs/doc-import-pins/**"
     ci:
       workflow: docker-publish.yml
       job: "build-and-push-image"

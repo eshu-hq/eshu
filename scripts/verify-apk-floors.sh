@@ -27,10 +27,9 @@
 #   scripts/verify-apk-floors.sh [--dockerfile PATH] [--stage NAME]
 #
 # --stage audits a named build stage (its base image and its apk tokens)
-# instead of the final stage. The document-import Job image
-# (Dockerfile target job-document-import, #9382) pins exact versions
-# (name=version, not name>=version): each pin must still be served by the
-# index, so a pin that left the repository fails instead of floating.
+# instead of the final stage. A stage that pins exact versions
+# (name=version, not name>=version) fails when a pin leaves the served
+# index instead of floating.
 # Without --stage the final stage is audited exactly as before.
 #
 # Environment:

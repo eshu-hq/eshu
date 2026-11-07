@@ -9,7 +9,6 @@ workflows:
   paths:
   - scripts/ci/build-reproducibility-image.sh
   - specs/ci-images.v1.json
-  - specs/doc-import-pins/**
   - docker/satellites/**
   - specs/satellite-pins/**
   - Dockerfile
@@ -19,8 +18,6 @@ workflows:
   - scripts/ci/test-docker-publish-extracted-steps.sh
   - scripts/verify-apk-floors.sh
   - scripts/test-verify-apk-floors.sh
-  - scripts/verify-doc-import-pins.sh
-  - scripts/test-verify-doc-import-pins.sh
   - scripts/fixtures/apk-floors/**
   - scripts/verify-runtime-image-tools.sh
   - scripts/test-verify-runtime-image-tools.sh
