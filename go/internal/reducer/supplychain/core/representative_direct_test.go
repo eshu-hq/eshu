@@ -254,9 +254,10 @@ func repDirectBorrowedScenario() repDirectScenario {
 // TestBlankFactDoesNotBorrowItsMatcherFromAFactThatCannotJoin is test 4.4. The
 // blank joining fact has no purl of its own, and the only OS purl in the group
 // belongs to a fact that cannot join. The group is decided by the joining fact
-// alone, so the version family is unknown and the verdict is
-// unsupported_ecosystem, equal to the control without the other fact. Reading the
-// family from that purl is #10034 item 2.
+// alone, so the version family is the joined row's (#10034 item 2), never the
+// non-joining fact's purl: the verdict is os_release_unverified, equal to the
+// control without the other fact. The blank fact carries no purl, so its line
+// is unreadable and it holds no release evidence (#9945).
 func TestBlankFactDoesNotBorrowItsMatcherFromAFactThatCannotJoin(t *testing.T) {
 	t.Parallel()
 	sc := repDirectBorrowedScenario()
@@ -265,9 +266,9 @@ func TestBlankFactDoesNotBorrowItsMatcherFromAFactThatCannotJoin(t *testing.T) {
 		assertRepDirectEqualsControl(t, runs, controls)
 		for _, run := range runs {
 			got := run.findings[0]
-			if got.Status != SupplyChainImpactPossiblyAffected || got.MatchReason != supplyChainVersionReasonUnsupportedEcosystem {
+			if got.Status != SupplyChainImpactPossiblyAffected || got.MatchReason != supplyChainVersionReasonOSReleaseUnverified {
 				t.Fatalf("order %s: verdict = %s/%s, want %s/%s", run.order, got.Status, got.MatchReason,
-					SupplyChainImpactPossiblyAffected, supplyChainVersionReasonUnsupportedEcosystem)
+					SupplyChainImpactPossiblyAffected, supplyChainVersionReasonOSReleaseUnverified)
 			}
 			if slices.Contains(got.EvidenceFactIDs, repDirectOtherID) {
 				t.Fatalf("order %s: evidence %v holds the fact that cannot join", run.order, got.EvidenceFactIDs)

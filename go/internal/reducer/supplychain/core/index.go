@@ -124,7 +124,7 @@ func classifySupplyChainImpactPackage(
 	if hasOSPackage && !osVersionConflict {
 		// Two live records can disagree about this row: the one whose range holds
 		// its version names the finding and supplies the fix (#9914).
-		holders = osHoldingFacts(osPackage.InstalledVersion, pkg.Ecosystem, pkgs)
+		holders = osHoldingFacts(osPackage.InstalledVersion, pkg.Ecosystem, pkgs, osPackage.PackageManager)
 	}
 	finding := baseSupplyChainImpactFinding(cves, pkgs, holders, index)
 	// repoFromConsumption is the single provenance signal both image-evidence
@@ -263,12 +263,20 @@ func classifySupplyChainImpactPackage(
 			}
 		}
 	}
-	versionDecision := evaluateSupplyChainVersionMatch(
+	// A finding joined to an installed row reads its version family from that
+	// row's package manager, which is host truth (#10034 item 2). Without a
+	// joined row the family falls back to the group's purls.
+	joinedPackageManager := ""
+	if hasOSPackage {
+		joinedPackageManager = osPackage.PackageManager
+	}
+	versionDecision := evaluateSupplyChainVersionMatchForRow(
 		finding.Ecosystem,
 		finding.ObservedVersion,
 		finding.RequestedRange,
 		finding.FixedVersion,
 		pkgs,
+		joinedPackageManager,
 	)
 	if hasComponentPath && (osVersionConflict || sbomVersionEvidenceConflicts(finding.Ecosystem, component, consumption)) {
 		versionDecision = possiblyAffectedDecision(

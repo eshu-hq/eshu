@@ -37,12 +37,13 @@ func osHoldingFacts(
 	observed string,
 	ecosystem string,
 	pkgs []supplychainmodel.AffectedPackage,
+	installedPackageManager string,
 ) []osHoldingFact {
 	observed = strings.TrimSpace(observed)
 	if len(pkgs) < 2 || observed == "" {
 		return nil
 	}
-	compare := osVerdictComparator(ecosystem, pkgs)
+	compare := osVerdictComparator(ecosystem, pkgs, installedPackageManager)
 	if compare == nil {
 		return nil
 	}
@@ -145,14 +146,17 @@ func rankOSHoldingFixes(holders []osHoldingFact, fixes []string, compare version
 
 // osVerdictComparator returns the comparator evaluateSupplyChainVersionMatch uses
 // for an OS-class finding, or nil for an ecosystem with no matcher, where nothing
-// can be proven to hold.
-func osVerdictComparator(ecosystem string, pkgs []supplychainmodel.AffectedPackage) versionCompareFunc {
+// can be proven to hold. The family derivation mirrors the verdict's: a blank or
+// "os" ecosystem reads the joined row's package manager first (#10034 item 2),
+// so the record the verdict holds is the record the comparator ranks.
+func osVerdictComparator(ecosystem string, pkgs []supplychainmodel.AffectedPackage, installedPackageManager string) versionCompareFunc {
+	raw := packageidentity.LowerASCII(strings.TrimSpace(ecosystem))
 	family := normalizedSupplyChainVersionEcosystem(ecosystem)
-	if family == string(packageidentity.EcosystemOS) {
-		family = osPackageVersionFamily(pkgs)
+	if raw == "" || family == string(packageidentity.EcosystemOS) {
+		family = osPackageVersionFamilyForRow(installedPackageManager, pkgs)
 	}
 	if family == "" {
-		family = packageidentity.LowerASCII(strings.TrimSpace(ecosystem))
+		family = raw
 	}
 	switch family {
 	case "redhat", "fedora", "centos", "rocky", "alma", "amazonlinux", "rpm":
