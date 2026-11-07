@@ -269,6 +269,11 @@ tests:
     class: postgres_ci
     reason: "#9299 disposable PostgreSQL proof that a complete protected static impact write commits its finding fact and authority revision instead of dead-lettering on the missing publication transaction"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/supply_chain_impact_upstream_nvd_widen_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#9994 disposable PostgreSQL 18 proof that the #9914 widened upstream probe — the CVE key probe over all five vulnerability kinds — holds its anchor on an NVD-bearing store at the 120-id chunk bound under custom and generic plans; the no-statistics control must walk, so a hold proves the measurement and not the fixture"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/terms_foreign_key_migration_budget_live_test.go
     tag: ~
     class: postgres_ci
