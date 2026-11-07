@@ -43,23 +43,37 @@ type graphReadProbe struct {
 
 // validateGraphReadProbeRegistry fails closed when the satellite does not
 // serve the pinned API/MCP surfaces the probe fixtures depend on, before any
-// probe runs.
+// probe runs. It fetches for standalone callers; the probe runner validates
+// the same set it builds from (see runGraphReadProbe) so validation and
+// execution cannot disagree across fetches.
 func validateGraphReadProbeRegistry(client *http.Client, apiBaseURL, mcpURL, userToken string) error {
 	targets, _, _, err := currentAPIAndMCPSurfaces(client, apiBaseURL, mcpURL, userToken)
 	if err != nil {
 		return err
 	}
-	for _, route := range []string{"GET /api/v0/repositories", "POST /api/v0/code/cypher"} {
+	return validatePinnedProbeTargets(targets)
+}
+
+// pinnedProbeAPIRoutes and pinnedProbeMCPTools are the satellite surfaces the
+// probe fixtures depend on. validatePinnedProbeTargets fails closed when the
+// fetched target set lacks one, so a satellite that drops a pinned surface
+// stops the run before any probe executes.
+var pinnedProbeAPIRoutes = []string{"GET /api/v0/repositories", "POST /api/v0/code/cypher"}
+
+var pinnedProbeMCPTools = []string{
+	"list_indexed_repositories",
+	"get_repository_stats",
+	"execute_cypher_query",
+	"visualize_graph_query",
+}
+
+func validatePinnedProbeTargets(targets []string) error {
+	for _, route := range pinnedProbeAPIRoutes {
 		if !slices.Contains(targets, "api:"+route) {
 			return fmt.Errorf("graph-read probe registry references API surface %q the satellite does not serve", route)
 		}
 	}
-	for _, tool := range []string{
-		"list_indexed_repositories",
-		"get_repository_stats",
-		"execute_cypher_query",
-		"visualize_graph_query",
-	} {
+	for _, tool := range pinnedProbeMCPTools {
 		if !slices.Contains(targets, "mcp:"+tool) {
 			return fmt.Errorf("graph-read probe registry references MCP surface %q the satellite does not advertise", tool)
 		}
@@ -130,9 +144,6 @@ func checkGraphReadProbeMode(
 			return http.ErrUseLastResponse
 		},
 	}
-	if err := validateGraphReadProbeRegistry(client, apiBaseURL, mcpURL, userToken); err != nil {
-		return err
-	}
 	return runGraphReadProbe(stdout, client, apiBaseURL, mcpURL, userToken, adminToken)
 }
 
@@ -153,7 +164,17 @@ func runGraphReadProbe(
 	if _, err := url.ParseRequestURI(mcpURL); err != nil {
 		return errors.New("invalid MCP URL")
 	}
-	registry, err := buildCurrentProbeRegistry(client, apiBaseURL, mcpURL, userToken)
+	// Single fetch for the whole run: the registry is validated and built
+	// from the same target set, so a satellite change cannot slip between a
+	// validation fetch and an execution fetch.
+	targets, document, tools, err := currentAPIAndMCPSurfaces(client, apiBaseURL, mcpURL, userToken)
+	if err != nil {
+		return err
+	}
+	if err := validatePinnedProbeTargets(targets); err != nil {
+		return err
+	}
+	registry, err := buildProbeRegistry(targets, document, tools)
 	if err != nil {
 		return err
 	}

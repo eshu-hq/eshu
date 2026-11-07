@@ -14,16 +14,29 @@ const selectorPrefix = "{{selector:"
 
 func selector(name string) string { return selectorPrefix + name + "}}" }
 
-// buildCurrentProbeRegistry builds the probe registry from the satellite,
-// not from in-tree packages (Refs eshu-hq/eshu#9669, row 7): API routes come
-// from the served OpenAPI document and MCP tools from the satellite
-// tools/list. A satellite that drops a pinned surface fails closed in
-// validateGraphReadProbeRegistry before any probe runs.
+// buildCurrentProbeRegistry builds the probe registry from a single fetch of
+// the satellite surfaces, not from in-tree packages (Refs eshu-hq/eshu#9669,
+// row 7): API routes come from the served OpenAPI document and MCP tools from
+// the satellite tools/list. The pinned surfaces the probe fixtures depend on
+// are validated present in that same fetched set, so a satellite that drops a
+// pinned surface fails closed before any probe runs. Advertised tools outside
+// the pinned set are probed by design: this inventory discovers the live
+// surface. The unknown-tool guard below is defense-in-depth for callers that
+// build from any other target set.
 func buildCurrentProbeRegistry(client *http.Client, apiBaseURL, mcpURL, userToken string) ([]graphReadProbe, error) {
 	targets, document, tools, err := currentAPIAndMCPSurfaces(client, apiBaseURL, mcpURL, userToken)
 	if err != nil {
 		return nil, err
 	}
+	if err := validatePinnedProbeTargets(targets); err != nil {
+		return nil, err
+	}
+	return buildProbeRegistry(targets, document, tools)
+}
+
+// buildProbeRegistry builds probes from already-fetched satellite surfaces:
+// the same target set the caller validated, so validation and execution agree.
+func buildProbeRegistry(targets []string, document map[string]any, tools map[string]satelliteMCPTool) ([]graphReadProbe, error) {
 	registry := make([]graphReadProbe, 0, len(targets))
 	for _, identity := range targets {
 		if strings.HasPrefix(identity, "api:") {

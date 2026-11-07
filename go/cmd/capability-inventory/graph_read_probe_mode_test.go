@@ -11,8 +11,11 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/mcp"
 )
 
 type roundTripFunc func(*http.Request) (*http.Response, error)
@@ -185,6 +188,55 @@ func probeRegistrySatelliteClient(t *testing.T) (*http.Client, string, string) {
 	t.Helper()
 	server := newProbeRegistrySatellite(t)
 	return server.Client(), server.URL, server.URL
+}
+
+// TestProbeRegistryStubMatchesLocalContract guards the frozen stub satellite
+// against rot: every route and tool the registry tests assert on must exist
+// in the in-repo contract sources the satellite serves from.
+func TestProbeRegistryStubMatchesLocalContract(t *testing.T) {
+	t.Parallel()
+
+	var stubSpec struct {
+		Paths map[string]map[string]any `json:"paths"`
+	}
+	if err := json.Unmarshal([]byte(probeRegistryStubSpec), &stubSpec); err != nil {
+		t.Fatalf("parse probeRegistryStubSpec: %v", err)
+	}
+	local, err := localOpenAPISpecDocument()
+	if err != nil {
+		t.Fatalf("localOpenAPISpecDocument() error = %v", err)
+	}
+	localRoutes := openAPIRoutes(local)
+	for path, operations := range stubSpec.Paths {
+		for method := range operations {
+			route := strings.ToUpper(method) + " " + path
+			if !slices.Contains(localRoutes, route) {
+				t.Errorf("stub route %q missing from the local OpenAPI contract", route)
+			}
+		}
+	}
+
+	var stubTools struct {
+		Result struct {
+			Tools []satelliteMCPTool `json:"tools"`
+		} `json:"result"`
+	}
+	if err := json.Unmarshal([]byte(probeRegistryStubTools), &stubTools); err != nil {
+		t.Fatalf("parse probeRegistryStubTools: %v", err)
+	}
+	liveTools := mcp.ReadOnlyTools()
+	for _, tool := range stubTools.Result.Tools {
+		found := false
+		for _, live := range liveTools {
+			if live.Name == tool.Name {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("stub tool %q missing from mcp.ReadOnlyTools()", tool.Name)
+		}
+	}
 }
 
 func TestValidateGraphReadProbeRegistryAcceptsCurrentSurfaces(t *testing.T) {
