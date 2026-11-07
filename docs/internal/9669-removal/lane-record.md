@@ -29,6 +29,9 @@ in the D13 disposition report; headline per family below.
   Package-level drain incomplete by design: the offline inventory still
   reads the `query/openapi` leaf seam until eshu-api#65 lands a served
   spec document. No PR until #65 closes; the branch holds the progress.
+- eshu-api#66 CLOSED by satellite #67 (merged): flat-with-embedded-truth
+  recorded as the edge contract on relayed lanes, pinned by byte-identity
+  tests, independent review clean. One arbiter pre-removal condition cleared.
 - Row 6 (`go/cmd/golden-corpus-gate/query.go`): blocked — no
   `eshu-sdk/api` module exists and no cached SDK module defines
   `EnvelopeMIMEType`; the value lives only in-repo
