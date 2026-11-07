@@ -45,7 +45,7 @@ const satelliteActivationValues = `
   componentVersion: 0.1.0
   mode: scheduled
   seed:
-    image: ghcr.io/eshu-hq/eshu-collector-media-import@sha256:79db3b3d7f044e266a631d4d838ffce4d66dced25f9bc9102fb32d3ac090b801
+    image: ghcr.io/eshu-hq/eshu-collector-media-import@sha256:bae515ec1b7543696a1641eccbfa7c5e6c73220702573c54690f771eee455ce4
     command: ["/usr/local/bin/collector", "seed"]
     pullPolicy: IfNotPresent
   grants:

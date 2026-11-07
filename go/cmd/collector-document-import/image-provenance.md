@@ -86,6 +86,22 @@ image exits 0 and the seeded `engine/lib` carries relative soname links
 `libleptonica.so.6 -> libleptonica.so.6.0.0`); tag digests verified with
 an independent registry read. Do NOT rebuild after the pin fill.
 
+## Republish builds (2026-11-07, merged tree at #10336)
+
+Built from `origin/main` at the #10336 merge (`dce4ab7ef5`), which seeds the
+whisper runtime libs (`libstdc++.so.6.0.33`, `libgcc_s.so.1`) into the media
+payload. Media images rebuilt per arch with all in-image gates PASS (arm64
+against re-recorded libz 1.4 pins per #10339; amd64 likewise after its own
+re-record in the same PR). Published tags `:seed-dce4ab7ef5-amd64` / `-arm64`:
+
+- `seed-media-import:amd64`:
+  `sha256:bae515ec1b7543696a1641eccbfa7c5e6c73220702573c54690f771eee455ce4`
+- `seed-media-import:arm64`:
+  `sha256:348d7ae76d875e52eb95ebfc25ede0599dc959e7d4fd74a0a2c3efdba98bfb22`
+
+Tag digests verified with independent registry reads. Doc images unchanged
+(`:seed-ba038ecaf2` still current). Do NOT rebuild after the pin fill.
+
 ## Pin-fill protocol (read before rebuilding)
 
 `manifest.yaml` in the repository pins the digests above. The in-image
