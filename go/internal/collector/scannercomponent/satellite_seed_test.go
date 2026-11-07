@@ -130,6 +130,26 @@ func TestVerifySatelliteSeededArtifactDeniesPlatformMismatch(t *testing.T) {
 	}
 }
 
+// TestVerifySatelliteSeededArtifactDeniesDuplicatePlatform proves a
+// satellite manifest that repeats one pinned platform while dropping another
+// is denied: per-entry equality alone would admit the duplicated pin, so the
+// platform set must match exactly (#10285).
+func TestVerifySatelliteSeededArtifactDeniesDuplicatePlatform(t *testing.T) {
+	t.Parallel()
+
+	for _, id := range satelliteIDs() {
+		t.Run(id, func(t *testing.T) {
+			t.Parallel()
+
+			manifest := pinnedSatelliteManifest(t, id)
+			manifest.Spec.Artifacts[1] = manifest.Spec.Artifacts[0]
+			if err := VerifySatelliteSeededArtifact(manifest); err == nil {
+				t.Fatalf("VerifySatelliteSeededArtifact(%q) error = nil, want denial for a duplicated platform", id)
+			}
+		})
+	}
+}
+
 // TestVerifySatelliteSeededArtifactDeniesMissingArtifacts proves a satellite
 // manifest with no artifacts to compare is denied rather than admitted
 // (#10285).

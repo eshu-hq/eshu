@@ -86,11 +86,16 @@ func VerifySatelliteSeededArtifact(manifest component.Manifest) error {
 	if len(manifest.Spec.Artifacts) != len(pins) {
 		return fmt.Errorf("satellite component %q declares no pinned seed image artifact set: refusing admission without the pinned platform images", id)
 	}
+	seen := make(map[string]struct{}, len(pins))
 	for _, artifact := range manifest.Spec.Artifacts {
 		want, ok := pins[artifact.Platform]
 		if !ok || artifact.Image != want {
 			return fmt.Errorf("satellite component %q seeded artifact is not the pinned platform image set: refusing admission", id)
 		}
+		if _, dup := seen[artifact.Platform]; dup {
+			return fmt.Errorf("satellite component %q declares a duplicate seed image artifact: refusing admission without the pinned platform images", id)
+		}
+		seen[artifact.Platform] = struct{}{}
 	}
 	return nil
 }
