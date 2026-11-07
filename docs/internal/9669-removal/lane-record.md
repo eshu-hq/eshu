@@ -24,6 +24,11 @@ in the D13 disposition report; headline per family below.
 
 ## Drain blockers (recorded, not worked around)
 
+- Row 7 (`go/cmd/capability-inventory`): probe-registry path drained
+  (independent review PASS, non-blocking P2s; tests green on re-run).
+  Package-level drain incomplete by design: the offline inventory still
+  reads the `query/openapi` leaf seam until eshu-api#65 lands a served
+  spec document. No PR until #65 closes; the branch holds the progress.
 - Row 6 (`go/cmd/golden-corpus-gate/query.go`): blocked — no
   `eshu-sdk/api` module exists and no cached SDK module defines
   `EnvelopeMIMEType`; the value lives only in-repo
