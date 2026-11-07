@@ -1,0 +1,16 @@
+docs/internal/evidence/10269-stale-crossplane-row-coalesce-design.md
+  h_78a442cba0b3e6 1,18-19,144-155
+go/internal/storage/postgres/crossplane/satisfied_by_stale_coalesce_test.go
+  h_78a442cba0b3e6 282-285
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "bd63aeffc4935584f1374ad8fba843a2b2a3f66d",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
