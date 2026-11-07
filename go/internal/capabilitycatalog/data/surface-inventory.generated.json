@@ -2372,11 +2372,6 @@
     },
     {
       "category": "command",
-      "name": "cli",
-      "readiness": "implemented"
-    },
-    {
-      "category": "command",
       "name": "collector-cicd-run",
       "readiness": "implemented"
     },
