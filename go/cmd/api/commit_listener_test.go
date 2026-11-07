@@ -324,6 +324,47 @@ func TestLoadCommitConfigLoadsManifestAndGrants(t *testing.T) {
 	}
 }
 
+// TestLoadCommitConfigLoadsCoreOwnedKindsWithGrants proves a producer whose
+// manifest declares core-owned fact kinds starts when its grants file covers
+// them: the manifest load consults the grants instead of rejecting every
+// core-owned kind grant-less.
+func TestLoadCommitConfigLoadsCoreOwnedKindsWithGrants(t *testing.T) {
+	t.Parallel()
+
+	env := commitListenerTestEnv()
+	env["ESHU_COMMIT_MANIFEST_PATH"] = "testdata/commit_listener_core_owned_manifest.json"
+	env["ESHU_COMMIT_GRANTS_PATH"] = "testdata/commit_listener_core_owned_grants.json"
+	cfg, err := loadCommitConfig(commitListenerGetenv(env))
+	if err != nil {
+		t.Fatalf("loadCommitConfig() error = %v, want nil for grant-covered core-owned kinds", err)
+	}
+	if cfg == nil {
+		t.Fatal("loadCommitConfig() = nil, want config")
+	}
+	if cfg.manifest.Metadata.ID != "dev.eshu.test.coreprobe" {
+		t.Fatalf("manifest id = %q, want the core-owned testdata producer", cfg.manifest.Metadata.ID)
+	}
+	if len(cfg.grants) != 1 || cfg.grants[0].Kind != "sbom.document" {
+		t.Fatalf("grants = %+v, want the one core-kind testdata grant", cfg.grants)
+	}
+}
+
+// TestLoadCommitConfigRefusesCoreOwnedKindsWithoutGrants proves the
+// fail-closed deny direction at the same layer: a manifest declaring
+// core-owned kinds with no grants file still refuses startup, so the
+// allow-path fix cannot silently admit grant-less producers.
+func TestLoadCommitConfigRefusesCoreOwnedKindsWithoutGrants(t *testing.T) {
+	t.Parallel()
+
+	env := commitListenerTestEnv()
+	env["ESHU_COMMIT_MANIFEST_PATH"] = "testdata/commit_listener_core_owned_manifest.json"
+	delete(env, "ESHU_COMMIT_GRANTS_PATH")
+	err := commitListenerErr(env)
+	if err == nil || !strings.Contains(err.Error(), "core-owned") {
+		t.Fatalf("loadCommitConfig() error = %v, want the core-owned refusal", err)
+	}
+}
+
 // TestBuildCommitMuxServesOnlyProtocolRoute proves the mount serves the
 // protocol route through the real handler and nothing else: garbage on the
 // route reaches admission (400, not 404) while other paths 404. The lazily
