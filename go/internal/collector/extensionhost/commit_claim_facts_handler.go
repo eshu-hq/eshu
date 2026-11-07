@@ -19,7 +19,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/component"
 	"github.com/eshu-hq/eshu/go/internal/scope"
-	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
 // DefaultCommitHandlerTimeout bounds one core commit from envelope read to
@@ -61,8 +60,9 @@ type CommitHandlerConfig struct {
 	// probe (HeartbeatClaim) runs on it before any byte is committed.
 	ControlStore collector.ClaimControlStore
 	// Committer persists the generation. It must implement
-	// collector.ClaimedCommitter with the claim-plane fence when the epoch
-	// is plane-held (validateClaimPlaneFence refuses a mismatched pair).
+	// collector.ClaimedCommitter with the claim-plane fence: the
+	// commit-time pin that binds scope identity runs only there, so an
+	// unfenced committer is refused at construction.
 	Committer collector.Committer
 	// Clock stamps ingestion time. Nil uses time.Now.
 	Clock func() time.Time
@@ -96,9 +96,11 @@ type CommitHandler struct {
 }
 
 // NewCommitHandler validates the commit bundle fail-closed: no store, no
-// committer, no manifest kinds, no scope kind, no source system, and no
-// instance identity ever build a handler that would admit a result it
-// cannot fence or attribute.
+// unfenced committer, no manifest kinds, no scope kind, no source system,
+// and no instance identity ever build a handler that would admit a result
+// it cannot fence or attribute. The fenced committer is unconditional:
+// the scope-binding pin runs only on the plane path, so every allowed
+// wiring pins before COMMIT.
 func NewCommitHandler(cfg CommitHandlerConfig) (*CommitHandler, error) {
 	if cfg.ControlStore == nil {
 		return nil, errors.New("commit handler: claim control store is required")
@@ -119,12 +121,14 @@ func NewCommitHandler(cfg CommitHandlerConfig) (*CommitHandler, error) {
 	if componentID == "" {
 		return nil, errors.New("commit handler: component manifest id is required")
 	}
-	// Fail fast on a mismatched fence pair, mirroring validateClaimPlaneFence
-	// in the lane: a plane-held epoch needs a committer that fences the
-	// plane, and an in-tree epoch refuses one.
-	_, planeStore := cfg.ControlStore.(*workflow.ClaimPlaneClient)
-	if fenced := collector.CommitterFencesClaimPlane(cfg.Committer); planeStore != fenced {
-		return nil, errors.New("commit handler: claim-plane control store requires a claim-plane-fenced committer and vice versa")
+	// Fail fast without a claim-plane-fenced committer: the commit-time
+	// pin that binds scope, source run, and generation to the live epoch
+	// only runs on the plane path, so an unfenced committer would admit
+	// commits whose scope identity nothing verifies. The store half stays
+	// open (any ClaimControlStore probes the epoch), but every allowed
+	// wiring pins before COMMIT.
+	if !collector.CommitterFencesClaimPlane(cfg.Committer) {
+		return nil, errors.New("commit handler: claim-plane-fenced committer is required: the commit-time pin that binds scope identity runs only on the plane path")
 	}
 	contract, err := sdkContract(cfg.Manifest)
 	if err != nil {

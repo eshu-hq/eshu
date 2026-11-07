@@ -30,8 +30,8 @@ func TestCommitHandlerRejectsUnknownKind(t *testing.T) {
 	if code := commitHandlerEnvelopeCode(t, recorder); code != workflowv1.CodeInvalid {
 		t.Fatalf("envelope code = %q, want invalid", code)
 	}
-	if bundle.store.heartbeatCalls != 0 || bundle.committer.calls != 0 {
-		t.Fatalf("probe calls = %d, commit calls = %d, want 0/0", bundle.store.heartbeatCalls, bundle.committer.calls)
+	if bundle.hits.heartbeat.Load() != 0 || bundle.committer.calls != 0 {
+		t.Fatalf("probe calls = %d, commit calls = %d, want 0/0", bundle.hits.heartbeat.Load(), bundle.committer.calls)
 	}
 }
 
@@ -53,8 +53,8 @@ func TestCommitHandlerRejectsUndeclaredEchoKind(t *testing.T) {
 	if code := commitHandlerEnvelopeCode(t, recorder); code != workflowv1.CodeInvalid {
 		t.Fatalf("envelope code = %q, want invalid", code)
 	}
-	if bundle.store.heartbeatCalls != 0 || bundle.committer.calls != 0 {
-		t.Fatalf("probe calls = %d, commit calls = %d, want 0/0", bundle.store.heartbeatCalls, bundle.committer.calls)
+	if bundle.hits.heartbeat.Load() != 0 || bundle.committer.calls != 0 {
+		t.Fatalf("probe calls = %d, commit calls = %d, want 0/0", bundle.hits.heartbeat.Load(), bundle.committer.calls)
 	}
 }
 
@@ -86,8 +86,8 @@ func TestCommitHandlerRejectsLaneMismatchedEcho(t *testing.T) {
 			if code := commitHandlerEnvelopeCode(t, recorder); code != workflowv1.CodeInvalid {
 				t.Fatalf("envelope code = %q, want invalid", code)
 			}
-			if bundle.store.heartbeatCalls != 0 || bundle.committer.calls != 0 {
-				t.Fatalf("probe calls = %d, commit calls = %d, want 0/0", bundle.store.heartbeatCalls, bundle.committer.calls)
+			if bundle.hits.heartbeat.Load() != 0 || bundle.committer.calls != 0 {
+				t.Fatalf("probe calls = %d, commit calls = %d, want 0/0", bundle.hits.heartbeat.Load(), bundle.committer.calls)
 			}
 		})
 	}
@@ -121,8 +121,8 @@ func TestCommitHandlerRejectsExtendedMismatch(t *testing.T) {
 			if code := commitHandlerEnvelopeCode(t, recorder); code != workflowv1.CodeInvalid {
 				t.Fatalf("envelope code = %q, want invalid", code)
 			}
-			if bundle.store.heartbeatCalls != 0 || bundle.committer.calls != 0 {
-				t.Fatalf("probe calls = %d, commit calls = %d, want 0/0", bundle.store.heartbeatCalls, bundle.committer.calls)
+			if bundle.hits.heartbeat.Load() != 0 || bundle.committer.calls != 0 {
+				t.Fatalf("probe calls = %d, commit calls = %d, want 0/0", bundle.hits.heartbeat.Load(), bundle.committer.calls)
 			}
 		})
 	}
@@ -149,8 +149,8 @@ func TestCommitHandlerRejectsDivergentEchoSourceSystem(t *testing.T) {
 	if code := commitHandlerEnvelopeCode(t, recorder); code != workflowv1.CodeInvalid {
 		t.Fatalf("envelope code = %q, want invalid", code)
 	}
-	if bundle.store.heartbeatCalls != 0 || bundle.committer.calls != 0 {
-		t.Fatalf("probe calls = %d, commit calls = %d, want 0/0", bundle.store.heartbeatCalls, bundle.committer.calls)
+	if bundle.hits.heartbeat.Load() != 0 || bundle.committer.calls != 0 {
+		t.Fatalf("probe calls = %d, commit calls = %d, want 0/0", bundle.hits.heartbeat.Load(), bundle.committer.calls)
 	}
 }
 
@@ -180,7 +180,7 @@ func TestCommitHandlerRejectsUnknownEnvelopeField(t *testing.T) {
 	if code := commitHandlerEnvelopeCode(t, recorder); code != workflowv1.CodeInvalid {
 		t.Fatalf("envelope code = %q, want invalid", code)
 	}
-	if bundle.store.heartbeatCalls != 0 || bundle.committer.calls != 0 {
-		t.Fatalf("probe calls = %d, commit calls = %d, want 0/0", bundle.store.heartbeatCalls, bundle.committer.calls)
+	if bundle.hits.heartbeat.Load() != 0 || bundle.committer.calls != 0 {
+		t.Fatalf("probe calls = %d, commit calls = %d, want 0/0", bundle.hits.heartbeat.Load(), bundle.committer.calls)
 	}
 }

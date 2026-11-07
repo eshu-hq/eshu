@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 
 	sdkcollector "github.com/eshu-hq/eshu-sdk/collector"
@@ -17,6 +18,37 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
+
+// commitHandlerPlaneHits counts the plane operations a test's handler
+// drove: heartbeat probes and completions. Counters are atomic because
+// the stub server answers on its own goroutines.
+type commitHandlerPlaneHits struct {
+	heartbeat atomic.Int64
+	complete  atomic.Int64
+}
+
+// commitHandlerOKPlaneStub serves the plane operations the handler's fence
+// probe and completion use: heartbeat and complete answer {"ok":true} while
+// counting hits, so tests assert probe-before-commit ordering through the
+// production ClaimPlaneClient instead of a stub copy. Any other path
+// answers 404: the handler must never call it.
+func commitHandlerOKPlaneStub(t *testing.T, hits *commitHandlerPlaneHits) *httptest.Server {
+	t.Helper()
+	answer := func(hit *atomic.Int64) http.HandlerFunc {
+		return func(writer http.ResponseWriter, _ *http.Request) {
+			hit.Add(1)
+			writer.Header().Set("Content-Type", "application/json")
+			writer.Header().Set(workflowv1.VersionHeader, "1")
+			_ = json.NewEncoder(writer).Encode(map[string]any{"ok": true})
+		}
+	}
+	mux := http.NewServeMux()
+	mux.HandleFunc("/workflow.v1/HeartbeatClaim", answer(&hits.heartbeat))
+	mux.HandleFunc("/workflow.v1/CompleteClaim", answer(&hits.complete))
+	server := httptest.NewServer(mux)
+	t.Cleanup(server.Close)
+	return server
+}
 
 // commitHandlerPlaneStub serves one coded HeartbeatClaim refusal: the fence
 // the plane holds, with the production client classifying the envelope. The
@@ -113,7 +145,7 @@ func TestCommitHandlerFenceEqualityTable(t *testing.T) {
 		revoked.Revoked = true
 		live := []component.ProducerGrant{revoked}
 		store := &commitHandlerStubStore{}
-		committer := &commitHandlerStubCommitter{}
+		committer := &commitHandlerStubCommitter{fenced: true}
 		handler, err := NewCommitHandler(CommitHandlerConfig{
 			Manifest:            manifest,
 			Grants:              grants,
@@ -163,8 +195,8 @@ func TestCommitHandlerOrderingAfterAckBeforeComplete(t *testing.T) {
 	if len(bundle.committer.recorded) != 1 {
 		t.Fatalf("recorded envelopes = %d, want 1: facts visible before CompleteClaim", len(bundle.committer.recorded))
 	}
-	if bundle.store.completeCalls != 0 {
-		t.Fatalf("CompleteClaim calls = %d, want 0: the handler never completes", bundle.store.completeCalls)
+	if bundle.hits.complete.Load() != 0 {
+		t.Fatalf("CompleteClaim calls = %d, want 0: the handler never completes", bundle.hits.complete.Load())
 	}
 	firstIDs := map[string]struct{}{bundle.committer.recorded[0].FactID: {}}
 
@@ -183,11 +215,12 @@ func TestCommitHandlerOrderingAfterAckBeforeComplete(t *testing.T) {
 	}
 
 	// Complete then succeeds on the same fencing token.
-	if err := bundle.store.CompleteClaim(context.Background(), mutation); err != nil {
+	plane := workflow.NewClaimPlaneClient(bundle.server.URL, bundle.server.Client())
+	if err := plane.CompleteClaim(context.Background(), mutation); err != nil {
 		t.Fatalf("CompleteClaim() error = %v, want nil", err)
 	}
-	if bundle.store.completeCalls != 1 {
-		t.Fatalf("CompleteClaim calls = %d, want 1", bundle.store.completeCalls)
+	if bundle.hits.complete.Load() != 1 {
+		t.Fatalf("CompleteClaim calls = %d, want 1", bundle.hits.complete.Load())
 	}
 }
 

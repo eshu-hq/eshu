@@ -22,37 +22,64 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
-// commitHandlerTestBundle wires one handler from the test manifest with an
-// in-memory control store and committer: the core-side equivalent of the
-// service wiring that pairs a claim-plane client with
-// IngestionStore{ClaimPlane}.
+// commitHandlerTestBundle wires one handler from the test manifest with the
+// production claim-plane client against a hit-counting stub plane plus a
+// fenced recording committer: the test equivalent of the service wiring
+// that pairs a claim-plane client with IngestionStore{ClaimPlane}. The
+// constructor refuses anything else, because the scope-binding pin runs
+// only on the plane path.
 type commitHandlerTestBundle struct {
 	handler   *CommitHandler
-	store     *commitHandlerStubStore
+	server    *httptest.Server
+	hits      *commitHandlerPlaneHits
 	committer *commitHandlerStubCommitter
 	manifest  component.Manifest
 	now       time.Time
+}
+
+// TestCommitHandlerRequiresFencedCommitter proves the scope-binding pin
+// always runs on every allowed wiring: a committer that does not fence
+// the claim plane would commit without the commit-time scope match, so
+// the constructor refuses it fail-closed even when the store pairing is
+// otherwise consistent.
+func TestCommitHandlerRequiresFencedCommitter(t *testing.T) {
+	t.Parallel()
+
+	_, err := NewCommitHandler(CommitHandlerConfig{
+		Manifest:            testManifest(),
+		SourceSystem:        "git",
+		ScopeKind:           scope.KindRepository,
+		CollectorInstanceID: "scorecard-instance",
+		ControlStore:        &commitHandlerStubStore{},
+		Committer:           &commitHandlerStubCommitter{},
+	})
+	if err == nil {
+		t.Fatal("NewCommitHandler() error = nil, want fenced-committer refusal")
+	}
 }
 
 func mustNewCommitHandlerTestBundle(t *testing.T) *commitHandlerTestBundle {
 	t.Helper()
 	now := time.Date(2026, time.November, 7, 12, 0, 0, 0, time.UTC)
 	manifest := testManifest()
-	store := &commitHandlerStubStore{}
-	committer := &commitHandlerStubCommitter{}
+	hits := &commitHandlerPlaneHits{}
+	server := commitHandlerOKPlaneStub(t, hits)
+	// Fenced: the stub records the commit instead of pinning; pin behavior
+	// is covered in the fence package and the plane's pin SQL.
+	committer := &commitHandlerStubCommitter{fenced: true}
 	handler, err := NewCommitHandler(CommitHandlerConfig{
 		Manifest:            manifest,
 		SourceSystem:        "git",
 		ScopeKind:           scope.KindRepository,
 		CollectorInstanceID: "scorecard-instance",
-		ControlStore:        store,
+		ControlStore:        workflow.NewClaimPlaneClient(server.URL, server.Client()),
 		Committer:           committer,
 		Clock:               func() time.Time { return now },
 	})
 	if err != nil {
 		t.Fatalf("NewCommitHandler() error = %v, want nil", err)
 	}
-	return &commitHandlerTestBundle{handler: handler, store: store, committer: committer, manifest: manifest, now: now}
+	return &commitHandlerTestBundle{handler: handler, server: server, hits: hits, committer: committer, manifest: manifest, now: now}
 }
 
 // commitHandlerPlanned returns the fenced epoch the wire carries beside the
@@ -267,8 +294,8 @@ func TestCommitHandlerAcksOnlyAfterCommit(t *testing.T) {
 	if err := json.Unmarshal(recorder.Body.Bytes(), &ack); err != nil || !ack.OK {
 		t.Fatalf("ack = %q, want {\"ok\":true}", recorder.Body.String())
 	}
-	if bundle.store.heartbeatCalls != 1 {
-		t.Fatalf("fence probe calls = %d, want 1", bundle.store.heartbeatCalls)
+	if bundle.hits.heartbeat.Load() != 1 {
+		t.Fatalf("fence probe calls = %d, want 1", bundle.hits.heartbeat.Load())
 	}
 	if bundle.committer.calls != 1 {
 		t.Fatalf("commit calls = %d, want 1", bundle.committer.calls)
@@ -276,8 +303,8 @@ func TestCommitHandlerAcksOnlyAfterCommit(t *testing.T) {
 	if len(bundle.committer.recorded) != 1 {
 		t.Fatalf("recorded envelopes = %d, want 1", len(bundle.committer.recorded))
 	}
-	if bundle.store.completeCalls != 0 {
-		t.Fatalf("CompleteClaim calls = %d, want 0: the handler never completes", bundle.store.completeCalls)
+	if bundle.hits.complete.Load() != 0 {
+		t.Fatalf("CompleteClaim calls = %d, want 0: the handler never completes", bundle.hits.complete.Load())
 	}
 	if got := bundle.committer.mutations[0]; got.ClaimID != mutation.ClaimID || got.FencingToken != mutation.FencingToken {
 		t.Fatalf("commit mutation = %+v, want the fenced epoch", got)
@@ -335,8 +362,8 @@ func TestCommitHandlerRejectsVersionMismatch(t *testing.T) {
 	if code := commitHandlerEnvelopeCode(t, recorder); code != workflowv1.CodeVersionMismatch {
 		t.Fatalf("envelope code = %q, want version_mismatch", code)
 	}
-	if bundle.store.heartbeatCalls != 0 || bundle.committer.calls != 0 {
-		t.Fatalf("probe calls = %d, commit calls = %d, want 0/0", bundle.store.heartbeatCalls, bundle.committer.calls)
+	if bundle.hits.heartbeat.Load() != 0 || bundle.committer.calls != 0 {
+		t.Fatalf("probe calls = %d, commit calls = %d, want 0/0", bundle.hits.heartbeat.Load(), bundle.committer.calls)
 	}
 }
 
@@ -357,8 +384,8 @@ func TestCommitHandlerRejectsTrailingEnvelopeData(t *testing.T) {
 	if code := commitHandlerEnvelopeCode(t, recorder); code != workflowv1.CodeInvalid {
 		t.Fatalf("envelope code = %q, want invalid", code)
 	}
-	if bundle.store.heartbeatCalls != 0 || bundle.committer.calls != 0 {
-		t.Fatalf("probe calls = %d, commit calls = %d, want 0/0", bundle.store.heartbeatCalls, bundle.committer.calls)
+	if bundle.hits.heartbeat.Load() != 0 || bundle.committer.calls != 0 {
+		t.Fatalf("probe calls = %d, commit calls = %d, want 0/0", bundle.hits.heartbeat.Load(), bundle.committer.calls)
 	}
 }
 
@@ -381,7 +408,7 @@ func TestCommitHandlerRejectsStatuses(t *testing.T) {
 	if code := commitHandlerEnvelopeCode(t, recorder); code != workflowv1.CodeInvalid {
 		t.Fatalf("envelope code = %q, want invalid", code)
 	}
-	if bundle.store.heartbeatCalls != 0 || bundle.committer.calls != 0 {
-		t.Fatalf("probe calls = %d, commit calls = %d, want 0/0", bundle.store.heartbeatCalls, bundle.committer.calls)
+	if bundle.hits.heartbeat.Load() != 0 || bundle.committer.calls != 0 {
+		t.Fatalf("probe calls = %d, commit calls = %d, want 0/0", bundle.hits.heartbeat.Load(), bundle.committer.calls)
 	}
 }

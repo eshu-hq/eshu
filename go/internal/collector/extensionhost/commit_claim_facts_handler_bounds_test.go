@@ -99,8 +99,8 @@ func TestCommitHandlerRejectsOversizeBody(t *testing.T) {
 	if code := commitHandlerEnvelopeCode(t, recorder); code != workflowv1.CodeInvalid {
 		t.Fatalf("envelope code = %q, want invalid", code)
 	}
-	if bundle.store.heartbeatCalls != 0 || bundle.committer.calls != 0 {
-		t.Fatalf("probe calls = %d, commit calls = %d, want 0/0", bundle.store.heartbeatCalls, bundle.committer.calls)
+	if bundle.hits.heartbeat.Load() != 0 || bundle.committer.calls != 0 {
+		t.Fatalf("probe calls = %d, commit calls = %d, want 0/0", bundle.hits.heartbeat.Load(), bundle.committer.calls)
 	}
 }
 
@@ -127,8 +127,8 @@ func TestCommitHandlerRequiresPlannedIDs(t *testing.T) {
 	if recorder.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400 (body %q)", recorder.Code, recorder.Body.String())
 	}
-	if bundle.store.heartbeatCalls != 0 || bundle.committer.calls != 0 {
-		t.Fatalf("probe calls = %d, commit calls = %d, want 0/0", bundle.store.heartbeatCalls, bundle.committer.calls)
+	if bundle.hits.heartbeat.Load() != 0 || bundle.committer.calls != 0 {
+		t.Fatalf("probe calls = %d, commit calls = %d, want 0/0", bundle.hits.heartbeat.Load(), bundle.committer.calls)
 	}
 }
 
