@@ -100,7 +100,8 @@ type CommitHandler struct {
 // and no instance identity ever build a handler that would admit a result
 // it cannot fence or attribute. The fenced committer is unconditional:
 // the scope-binding pin runs only on the plane path, so every allowed
-// wiring pins before COMMIT.
+// production wiring (IngestionStore with ClaimPlane plus Pinner) pins
+// before COMMIT; test and stub wirings record without pinning.
 func NewCommitHandler(cfg CommitHandlerConfig) (*CommitHandler, error) {
 	if cfg.ControlStore == nil {
 		return nil, errors.New("commit handler: claim control store is required")
@@ -126,7 +127,8 @@ func NewCommitHandler(cfg CommitHandlerConfig) (*CommitHandler, error) {
 	// only runs on the plane path, so an unfenced committer would admit
 	// commits whose scope identity nothing verifies. The store half stays
 	// open (any ClaimControlStore probes the epoch), but every allowed
-	// wiring pins before COMMIT.
+	// production wiring (IngestionStore with ClaimPlane plus Pinner) pins
+	// before COMMIT; test and stub wirings record without pinning.
 	if !collector.CommitterFencesClaimPlane(cfg.Committer) {
 		return nil, errors.New("commit handler: claim-plane-fenced committer is required: the commit-time pin that binds scope identity runs only on the plane path")
 	}
