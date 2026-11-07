@@ -232,11 +232,21 @@ log, queue, worker, or runtime-behavior surface.
 
 ## Import Flags
 Go import entries carry no `type_only`, `deferred`, or `inferred` flag (issue
-#7344). Blank (`_`) and dot (`.`) imports are retained as ordinary import
-entries with the alias dropped, because the Go compiler rejects an import cycle
-even when one edge is a blank or dot import. Dropping or flagging one would hide
-a real cycle. The decision is pinned by
-`TestDefaultEngineParsePathGoImportsCarryNoFlags`.
+#7344). Every import form is retained as an ordinary import entry — including
+blank (`_`) and dot (`.`) imports, whose local binding is recorded verbatim in
+the entry's `alias` field (plain imports carry no `alias` key) — because the Go
+compiler rejects an import cycle even when one edge is a blank or dot import.
+Dropping or flagging one would hide a real cycle. The decision is pinned by
+`go/internal/parser/golang/engine_go_import_flags_test.go::TestDefaultEngineParsePathGoImportsCarryNoFlags`.
+
+Delta `CALLS` derivation (issue #10301) reads that binding back: same-package
+callee keys are derived only for files whose imports are all plain (no `alias`
+key). A file with a dot import keeps today's behavior because the dot-imported
+package's exported names enter the bare namespace, so a bare callee may belong
+to another package. Named and blank bindings inject no bare names, but they are
+skipped too as a deliberate fail-safe — recall loss only, never wrong truth.
+Pinned by
+`go/internal/reducer/code/call/shared/symbol_index_delta_test.go::TestSamePackageGoCalleeKeysForDeltaRepos`.
 
 ## Package Cycles
 `file_import_cycles` answers Go at package level (`language=go`, issue #7347):
