@@ -109,6 +109,17 @@ gates:
     # invocation anywhere in its command/test_command chain.
     requirements: []
     ci_only_reason: ""
+    # D13 (#9669 removal prep): RETIRE at the removal PR, owner eshu-api
+    # satellite (Leaf B parity harness). This gate statically links in-tree
+    # go/cmd/api HandleFunc registrations to OpenAPI fragments and test
+    # references; after extraction the handler set lives in eshu-api, which
+    # owns its own route coverage. Removal-PR action: delete this row, drop
+    # the `route:` filter's go/cmd/api/** entry in
+    # .github/static-contract-filters.yml, and retire or satellite-adopt
+    # scripts/verify-route-coverage.sh (go/internal/query stays core, but
+    # with no in-tree handlers there is nothing left to link). Triggers stay
+    # until then: the handlers are still in-tree, so narrowing now would
+    # blind the gate.
 
   - id: edge-source-tool-coverage
     name: Verify Edge Source-Tool Coverage

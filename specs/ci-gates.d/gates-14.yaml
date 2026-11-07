@@ -258,6 +258,13 @@ gates:
       - node
       - docker
     ci_only_reason: ""
+    # D13 (#9669 removal prep): RETARGET at the removal PR, owner eshu-deploy
+    # / Leaf B (checklist row 13). This gate boots the fresh stack and probes
+    # whatever API the stack ships, so it follows the satellite with no
+    # harness change. Removal-PR action: drop the go/cmd/api/** trigger
+    # above; the gate keeps selecting on stack changes via the Dockerfile
+    # and frontend.yml triggers. Triggers stay until then: the binary is
+    # still built in-tree.
 
   - id: trivy-image
     name: Trivy image scan (GHCR)
