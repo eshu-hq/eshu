@@ -187,3 +187,27 @@ concurrent drain of the capped continuation plus a newer generation
 (`TestSuppressionFanOutCappedContinuationSurvivesNewerGenerationLive` logs both).
 The 36 s is holder derivation, not the diff; the diff's own p50/p95 at the cap is
 still the condition-1 follow-up.
+
+## Wiring regression record
+
+No-Regression Evidence: baseline is the pre-wire operator pass (no diff, empty
+`ChangedCVEIDs`, holders reopen on the holders' own cadence). After measurement
+on live proof Postgres 18.6 (disposable proof database,
+`ESHU_SUPPLY_CHAIN_IMPACT_PROOF_DISPOSABLE=1`): 260 OS holders, 256 reopened +
+4 deferred at the 256-holder cap, 36 s first-pass derivation, 6 s concurrent
+4-worker drain of the capped continuation plus a newer generation. Input shape:
+operator scope, one `accepted_risk` suppression scoped `cve_id=CVE-X` per holder
+CVE plus the unchanged-set, duplicate-delivery, retry-after-read-failure, and
+newer-generation-before-continuation cases. The wiring adds at most K+1 bounded
+diff reads (10 s `SET LOCAL` each, reset after) plus the admission and
+candidate reads to the write path; scopes without suppression facts issue no
+new statement. Safe because any diff read error or timeout fails the pass as
+the existing retryable fan-out class with no partial set and no admission move.
+Observability Evidence: `eshu_dp_supply_chain_impact_suppression_diff_total`
+(outcome, baseline), `eshu_dp_supply_chain_impact_suppression_diff_duration_seconds`,
+`eshu_dp_supply_chain_impact_suppression_walk_truncated_total`,
+`eshu_dp_supply_chain_impact_suppression_no_cve_scope_total`, the
+`supply_chain_impact.suppression_diff` span, one structured log line per diff,
+and `suppression_diff_*` sub-signals beside `fanout_*`; the existing
+`eshu_dp_supply_chain_impact_fanout_total{cause="suppression"}` shows the
+reopens. `SupplyChainImpactFanOutFailureClass` is unchanged.
