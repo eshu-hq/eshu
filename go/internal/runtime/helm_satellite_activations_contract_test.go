@@ -30,7 +30,7 @@ const satelliteActivationValues = `
   componentVersion: 0.1.0
   mode: scheduled
   seed:
-    image: ghcr.io/eshu-hq/eshu-collector-document-import@sha256:e8d2297bfeacea416d1bb0ec9ccb09d5a27060591042f5572225cf34502efead
+    image: ghcr.io/eshu-hq/eshu-collector-document-import@sha256:2e813571b2e23367cbf09e4fb8c1bff6028a81567c8d55001511a8e8f8a40ca5
     command: ["/usr/local/bin/collector", "seed"]
     pullPolicy: IfNotPresent
   grants:
@@ -45,7 +45,7 @@ const satelliteActivationValues = `
   componentVersion: 0.1.0
   mode: scheduled
   seed:
-    image: ghcr.io/eshu-hq/eshu-collector-media-import@sha256:68636a8e8bf2c4f3ca2b037505e8d2ee5d28cc0050eae0f29d1554dbd128111a
+    image: ghcr.io/eshu-hq/eshu-collector-media-import@sha256:79db3b3d7f044e266a631d4d838ffce4d66dced25f9bc9102fb32d3ac090b801
     command: ["/usr/local/bin/collector", "seed"]
     pullPolicy: IfNotPresent
   grants:

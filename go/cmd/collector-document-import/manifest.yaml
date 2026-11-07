@@ -41,9 +41,9 @@ spec:
     # Dockerfile.seed (2026-11-06, both gates PASS per arch). Promotion
     # re-pins these entries to the pushed digests.
     - platform: linux/amd64
-      image: ghcr.io/eshu-hq/eshu-collector-document-import@sha256:e8d2297bfeacea416d1bb0ec9ccb09d5a27060591042f5572225cf34502efead
+      image: ghcr.io/eshu-hq/eshu-collector-document-import@sha256:2e813571b2e23367cbf09e4fb8c1bff6028a81567c8d55001511a8e8f8a40ca5
     - platform: linux/arm64
-      image: ghcr.io/eshu-hq/eshu-collector-document-import@sha256:c1bf5ce2fd46038d82db5823d76429137d258fe1d276dd98b94917b04d613db4
+      image: ghcr.io/eshu-hq/eshu-collector-document-import@sha256:e15c3b8f1597537ca2661e6fbf5a26c2515a3c818be77e2f9e0e8770ae0e9d5d
   emittedFacts:
     - kind: documentation_document
       payloadSchemaRef: documentation_document

@@ -55,9 +55,9 @@ func repoManifestGrants() []component.ProducerGrant {
 // image-provenance.md (both gates PASS per arch), and the manifest
 // artifacts entries pin the same digests. A seed rebuild re-pins these
 // constants in the same commit as the manifest fill.
-const provenSeedImageAmd64 = "ghcr.io/eshu-hq/eshu-collector-document-import@sha256:e8d2297bfeacea416d1bb0ec9ccb09d5a27060591042f5572225cf34502efead"
+const provenSeedImageAmd64 = "ghcr.io/eshu-hq/eshu-collector-document-import@sha256:2e813571b2e23367cbf09e4fb8c1bff6028a81567c8d55001511a8e8f8a40ca5"
 
-const provenSeedImageArm64 = "ghcr.io/eshu-hq/eshu-collector-document-import@sha256:c1bf5ce2fd46038d82db5823d76429137d258fe1d276dd98b94917b04d613db4"
+const provenSeedImageArm64 = "ghcr.io/eshu-hq/eshu-collector-document-import@sha256:e15c3b8f1597537ca2661e6fbf5a26c2515a3c818be77e2f9e0e8770ae0e9d5d"
 
 // TestRepoManifestSeedContract proves the checked-in manifest carries the
 // arbiter-ruled seed contract: pinned identity, the SDK process runtime,

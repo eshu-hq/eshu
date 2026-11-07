@@ -60,6 +60,32 @@ amd64,
 `sha256:825c7b3acef7617f14787c6fd007296902f5716f299012e9b1b33530c2c5b688`
 arm64, same build convention). Do NOT rebuild after this fill.
 
+## Republish builds (2026-11-07, merged tree at #10329)
+
+Built from `origin/main` at the #10329 merge (`ba038ecaf2`), which adds the
+stale soname-link sweep on re-seed. Same pins, Dockerfiles, and gate
+convention as the #10319 republish; all in-image gates PASS per arch
+(whisper/media stages cache-hit on identical inputs; caller stage rebuilt
+with the sweep). Published tags `:seed-ba038ecaf2-amd64` / `-arm64`:
+
+- `seed-document-import:amd64`:
+  `sha256:2e813571b2e23367cbf09e4fb8c1bff6028a81567c8d55001511a8e8f8a40ca5`
+- `seed-document-import:arm64`:
+  `sha256:e15c3b8f1597537ca2661e6fbf5a26c2515a3c818be77e2f9e0e8770ae0e9d5d`
+
+Media lane (same build convention, tags `:seed-ba038ecaf2-amd64` / `-arm64`):
+
+- `seed-media-import:amd64`:
+  `sha256:79db3b3d7f044e266a631d4d838ffce4d66dced25f9bc9102fb32d3ac090b801`
+- `seed-media-import:arm64`:
+  `sha256:c8dc6397f47e27602e2ec57a87c152f92d9b278edcf890a6e784e3b6956d7dd3`
+
+Artifact smoke (2026-11-07): `collector seed` from the pushed arm64 doc
+image exits 0 and the seeded `engine/lib` carries relative soname links
+(`libtesseract.so.5 -> libtesseract.so.5.0.5`,
+`libleptonica.so.6 -> libleptonica.so.6.0.0`); tag digests verified with
+an independent registry read. Do NOT rebuild after the pin fill.
+
 ## Pin-fill protocol (read before rebuilding)
 
 `manifest.yaml` in the repository pins the digests above. The in-image
