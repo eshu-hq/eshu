@@ -37,7 +37,8 @@ base worktree and this branch).
 No-Observability-Change: no new metric, span, or log. Picks that move land in
 the existing `os_representatives_*` outcome cells (`joined`, `reselected`,
 `other_anchor`, `no_joinable`, `no_installed_row`) and the finding's existing
-`MissingEvidence` reasons; `recordOSRepresentativeOutcome` is untouched.
+`MissingEvidence` reasons; for item 1, `recordOSRepresentativeOutcome` is untouched
+(items 2-4 add the `no_joinable_identity` cell per the delta below).
 
 ## #10034 items 2-4 and the #9914-limit comments
 
@@ -50,7 +51,7 @@ here). All commands with `env -u GOROOT`.
 
 | item | RED (failing proof) | fix | GREEN |
 | --- | --- | --- | --- |
-| 2 version family | `TestJoinedRowSuppliesTheVersionFamily`: purl family beat the joined row's own fact in one fact order | `version_family.go`: row package manager is host truth; purls must agree or the group stays unsupported | `TestJoinedRowSuppliesTheVersionFamily`, `TestForeignPURLDoesNotDecideTheVersionFamily`, `TestDisagreeingPURLsWithoutARowStayUnsupported` pass; `osVerdictComparator` mirrors the row rule |
+| 2 version family | `TestJoinedRowSuppliesTheVersionFamily`: purl family beat the joined row's own fact in one fact order | `version_family.go`: row package manager is host truth; purls must agree or the group stays unsupported | `TestJoinedRowSuppliesTheVersionFamily`, `TestForeignPURLDoesNotDecideTheVersionFamily`, `TestDisagreeingPURLsWithoutARowStayUnsupported`, `TestUnanimousPURLsYieldToTheJoinedRow` pass; `osVerdictComparator` mirrors the row rule |
 | 3 purl-carry | declined: `os://` identities are legal and language facts may lack purl, so a purl mandate would strand them | distinct `no_joinable_identity` outcome (`representative_join.go`) separates "cannot meet the row" from "not installed" | `TestUnmeetableIdentityCountsItsOwnOutcome`, `TestKeylessIdentityCountsItsOwnOutcome` pass; README + `telemetry-coverage-reducer-domains.md` updated |
 | 4 amazon + vendor token | `TestAmazonSpellingReadsTheRPMMatcher`: amazon rows missed the RPM matcher; unsupported reason named no vendor | `amazon` added to the rpm arms (`version_family.go`, deciding record, identity, remediation); per-vendor token via closed `osAdvisoryJoinVendorLabel` | `TestAmazonSpellingReadsTheRPMMatcher`, `TestUnsupportedEcosystemNamesItsVendor` pass |
 | L1 dpkg spelling | `TestDpkgSpellingReadsTheOSRetractionRule`: dpkg facts missed the debian retraction arm | one-line class fix in `provenance_selection.go` | `TestDpkgSpellingReadsTheOSRetractionRule`, `TestDpkgSpellingKeepsTheRetractionAnchor` pass |
@@ -79,7 +80,7 @@ names the file. No new metric, span, or log.
 No-Regression Evidence: the whole-index path reuses the naming's filter pair
 instead of recomputing it, so a group that shards to nothing classifies
 exactly the code the base ran; only a fleet shard pays one extra filtered
-join scan on its own rows. Baseline `52e0cbae93` vs head `6ae4ae9b3d`,
+join scan on its own rows. Baseline `52e0cbae93` vs head `667f7d2f2`,
 `BenchmarkBuildFindingsMultiSourceGroups` (500 three-source CVE groups per
 shape, live and all_rejected, `-benchmem -count=6`, darwin/arm64 Apple M5
 Max, go1.27.3):

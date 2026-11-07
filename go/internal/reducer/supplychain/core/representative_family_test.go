@@ -122,3 +122,50 @@ func TestDisagreeingPURLsWithoutARowStayUnsupported(t *testing.T) {
 		}
 	}
 }
+
+// TestUnanimousPURLsYieldToTheJoinedRow pins the precedence the neighboring
+// tests leave open (#10034 item 2): the joined row's package manager is host
+// truth for a blank or "os" ecosystem even when the group purls unanimously
+// name another family. Two unanimous apk purls with a dpkg row read the dpkg
+// matcher (not apk, not unsupported), and unanimous deb purls with an apk
+// row read the apk matcher, in both purl orders. Observed equals the fix, so
+// each direction answers with its own matcher's known-fixed reason; the
+// purl-first mutant (row manager as fallback) answers with the purl family's
+// reason instead and fails here while passing the neighboring tests.
+func TestUnanimousPURLsYieldToTheJoinedRow(t *testing.T) {
+	t.Parallel()
+	const version = "7.88.1-r0"
+	apkA := supplychainmodel.AffectedPackage{PURL: "pkg:apk/alpine/curl?arch=x86_64"}
+	apkB := supplychainmodel.AffectedPackage{PURL: "pkg:apk/alpine/curl?arch=aarch64"}
+	debA := supplychainmodel.AffectedPackage{PURL: "pkg:deb/debian/curl?arch=amd64&distro=debian-12"}
+	debB := supplychainmodel.AffectedPackage{PURL: "pkg:deb/debian/curl?arch=arm64&distro=debian-12"}
+	cases := []struct {
+		name       string
+		ecosystem  string
+		manager    string
+		first      supplychainmodel.AffectedPackage
+		second     supplychainmodel.AffectedPackage
+		wantReason string
+	}{
+		{"apk purls dpkg row", "", "dpkg", apkA, apkB, supplyChainVersionReasonDPKGExactKnownFixed},
+		{"apk purls dpkg row reversed", "", "dpkg", apkB, apkA, supplyChainVersionReasonDPKGExactKnownFixed},
+		{"apk purls dpkg row os ecosystem", "os", "dpkg", apkA, apkB, supplyChainVersionReasonDPKGExactKnownFixed},
+		{"apk purls dpkg row os ecosystem reversed", "os", "dpkg", apkB, apkA, supplyChainVersionReasonDPKGExactKnownFixed},
+		{"deb purls apk row", "", "apk", debA, debB, supplyChainVersionReasonAPKExactKnownFixed},
+		{"deb purls apk row reversed", "", "apk", debB, debA, supplyChainVersionReasonAPKExactKnownFixed},
+		{"deb purls apk row os ecosystem", "os", "apk", debA, debB, supplyChainVersionReasonAPKExactKnownFixed},
+		{"deb purls apk row os ecosystem reversed", "os", "apk", debB, debA, supplyChainVersionReasonAPKExactKnownFixed},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got := evaluateSupplyChainVersionMatchForRow(tc.ecosystem, version, "", version,
+				[]supplychainmodel.AffectedPackage{tc.first, tc.second}, tc.manager)
+			if got.Status != SupplyChainImpactNotAffectedKnownFixed || got.Reason != tc.wantReason {
+				t.Fatalf("unanimous purls with %s row: verdict = %s/%s, want %s/%s",
+					tc.manager, got.Status, got.Reason,
+					SupplyChainImpactNotAffectedKnownFixed, tc.wantReason)
+			}
+		})
+	}
+}
