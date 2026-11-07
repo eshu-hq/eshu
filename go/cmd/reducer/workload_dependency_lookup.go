@@ -6,12 +6,12 @@ package main
 import (
 	"context"
 
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
 type neo4jWorkloadDependencyLookup struct {
-	reader query.GraphQuery
+	reader querycontract.GraphQuery
 }
 
 func (l neo4jWorkloadDependencyLookup) ListRepoDependencyEdges(
@@ -43,8 +43,8 @@ func (l neo4jWorkloadDependencyLookup) ListRepoDependencyEdges(
 
 	edges := make([]reducer.RepoDependencyEdge, 0, len(rows))
 	for _, row := range rows {
-		sourceRepoID := query.StringVal(row, "source_repo_id")
-		targetRepoID := query.StringVal(row, "target_repo_id")
+		sourceRepoID := querycontract.StringVal(row, "source_repo_id")
+		targetRepoID := querycontract.StringVal(row, "target_repo_id")
 		if sourceRepoID == "" || targetRepoID == "" {
 			continue
 		}
@@ -75,8 +75,8 @@ func (l neo4jWorkloadDependencyLookup) ListRepoWorkloads(
 
 	workloads := make([]reducer.RepoWorkload, 0, len(rows))
 	for _, row := range rows {
-		repoID := query.StringVal(row, "repo_id")
-		workloadID := query.StringVal(row, "workload_id")
+		repoID := querycontract.StringVal(row, "repo_id")
+		workloadID := querycontract.StringVal(row, "workload_id")
 		if repoID == "" || workloadID == "" {
 			continue
 		}
@@ -114,7 +114,7 @@ func (l neo4jWorkloadDependencyLookup) ListWorkloadDependencyEdges(
 
 	edges := make([]reducer.ExistingWorkloadDependencyEdge, 0, len(rows))
 	for _, row := range rows {
-		repoID := query.StringVal(row, "repo_id")
+		repoID := querycontract.StringVal(row, "repo_id")
 		if repoID == "" {
 			continue
 		}

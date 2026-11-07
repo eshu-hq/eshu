@@ -6,7 +6,7 @@ package main
 import (
 	"context"
 
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
@@ -15,7 +15,7 @@ import (
 // SAME_NAME edges in Go (#5385 section 1.3). The read anchors on the
 // workload_name index (probe P2: NodeIndexSeek on pinned Neo4j).
 type neo4jWorkloadSiblingLookup struct {
-	reader query.GraphQuery
+	reader querycontract.GraphQuery
 }
 
 func (l neo4jWorkloadSiblingLookup) ListWorkloadSiblings(
@@ -36,9 +36,9 @@ func (l neo4jWorkloadSiblingLookup) ListWorkloadSiblings(
 	siblings := make([]reducer.WorkloadSibling, 0, len(rows))
 	for _, row := range rows {
 		sibling := reducer.WorkloadSibling{
-			ID:     query.StringVal(row, "id"),
-			Name:   query.StringVal(row, "name"),
-			RepoID: query.StringVal(row, "repo_id"),
+			ID:     querycontract.StringVal(row, "id"),
+			Name:   querycontract.StringVal(row, "name"),
+			RepoID: querycontract.StringVal(row, "repo_id"),
 		}
 		if sibling.ID == "" || sibling.Name == "" || sibling.RepoID == "" {
 			continue

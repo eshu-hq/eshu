@@ -11,7 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/graph"
 	"github.com/eshu-hq/eshu/go/internal/graphowner"
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/taint"
 	"github.com/eshu-hq/eshu/go/internal/reducer/obscoverage"
@@ -123,7 +123,7 @@ func newGraphOwnerGates(database db.ExecQueryer, instruments *telemetry.Instrume
 // (issue #5652: a bare-MATCH-anchored UNWIND SET silently drops its write on
 // the pinned production NornicDB image, so those writers now confirm a uid
 // exists via a separate read before running a MERGE-anchored write) — it is
-// typically the same query.GraphQuery graph-read port already wired for other
+// typically the same querycontract.GraphQuery graph-read port already wired for other
 // reducer read paths.
 //
 // searchKey is the #7245 infra search key dialect resolved from the configured
@@ -209,7 +209,7 @@ func newCanonicalGraphWriters(exec sourcecypher.Executor, reader sourcecypher.Po
 // context, matching this startup sequence's pre-existing behavior: it must
 // complete before the reducer service begins serving work, independent of any
 // request-scoped deadline the caller may be operating under.
-func seedReducerProjectedSourceLedgers(database db.ExecQueryer, graphReader query.GraphQuery) (postgres.ProjectedSourceEdgeStore, error) {
+func seedReducerProjectedSourceLedgers(database db.ExecQueryer, graphReader querycontract.GraphQuery) (postgres.ProjectedSourceEdgeStore, error) {
 	backfillStateMarker := postgres.NewCodeValueFlowBackfillStateStore(database)
 	backfiller := taint.InterprocProjectedEdgeBackfiller{
 		Reader:      taint.InterprocProjectedEdgeBackfillReader{Graph: graphReader},

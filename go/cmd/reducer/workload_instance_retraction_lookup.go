@@ -6,7 +6,7 @@ package main
 import (
 	"context"
 
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
@@ -16,7 +16,7 @@ import (
 // the durable instance id for repos whose overlay used a pre-canonical alias
 // or non-canonical case).
 type neo4jWorkloadInstanceRetractionLookup struct {
-	reader query.GraphQuery
+	reader querycontract.GraphQuery
 }
 
 // ListWorkloadInstances returns the WorkloadInstance nodes owned by repoIDs and
@@ -38,7 +38,7 @@ func (l neo4jWorkloadInstanceRetractionLookup) ListWorkloadInstances(
 	// with a MATCH in between. On NornicDB v1.3.3 that collision makes the
 	// first RETURN column come back named after the first UNWIND value
 	// (e.g. the literal key "'r1'") instead of "repo_id", so
-	// query.StringVal(row, "repo_id") below always reads "" and every row
+	// querycontract.StringVal(row, "repo_id") below always reads "" and every row
 	// is silently dropped -- ListWorkloadInstances returned nothing on
 	// NornicDB and stale WorkloadInstance nodes were never retracted. Do
 	// not rename the RETURN alias back to match the UNWIND binding; the
@@ -58,8 +58,8 @@ func (l neo4jWorkloadInstanceRetractionLookup) ListWorkloadInstances(
 
 	instances := make([]reducer.ExistingWorkloadInstance, 0, len(rows))
 	for _, row := range rows {
-		repoID := query.StringVal(row, "repo_id")
-		instanceID := query.StringVal(row, "instance_id")
+		repoID := querycontract.StringVal(row, "repo_id")
+		instanceID := querycontract.StringVal(row, "instance_id")
 		if repoID == "" || instanceID == "" {
 			continue
 		}

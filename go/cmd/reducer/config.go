@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/cpubudget"
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/liveness"
@@ -247,12 +247,12 @@ func loadReducerProjectorDrainGate(
 	if getenv == nil {
 		getenv = func(string) string { return "" }
 	}
-	profile, err := query.ParseQueryProfile(getenv(queryProfileEnv))
+	profile, err := querycontract.ParseQueryProfile(getenv(queryProfileEnv))
 	if err != nil {
 		return false, err
 	}
 	return graphBackend == runtimecfg.GraphBackendNornicDB &&
-		profile == query.ProfileLocalAuthoritative, nil
+		profile == querycontract.ProfileLocalAuthoritative, nil
 }
 
 func loadReducerWorkerCount(getenv func(string) string, graphBackend runtimecfg.GraphBackend) int {

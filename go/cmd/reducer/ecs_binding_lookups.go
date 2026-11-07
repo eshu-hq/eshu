@@ -8,7 +8,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
@@ -18,7 +18,7 @@ import (
 // truth. One index-anchored read per intent, keyed by workload name
 // like the sibling lookup.
 type neo4jECSBindingInstanceLookup struct {
-	reader query.GraphQuery
+	reader querycontract.GraphQuery
 }
 
 func (l neo4jECSBindingInstanceLookup) ListECSBindingInstanceEnvironments(
@@ -39,8 +39,8 @@ func (l neo4jECSBindingInstanceLookup) ListECSBindingInstanceEnvironments(
 	}
 	seen := make(map[string]map[string]struct{}, len(workloadNames))
 	for _, row := range rows {
-		name := query.StringVal(row, "name")
-		env := strings.TrimSpace(query.StringVal(row, "environment"))
+		name := querycontract.StringVal(row, "name")
+		env := strings.TrimSpace(querycontract.StringVal(row, "environment"))
 		if name == "" || env == "" {
 			continue
 		}
