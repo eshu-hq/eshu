@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 package packet //nolint:filelength // 811-line JSON wire-shape vocabulary for the supply-chain explanation API (advisory, explanation, readiness, runtime context); splitting would scatter one golden-locked wire contract that moved as a single unit.
 
 import "strings"

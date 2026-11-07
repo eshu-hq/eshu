@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/packetdogfood"
 	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 )
 
 // TestFixturePacketBudgetsAreAchievable grounds the dogfood benchmark's lower
@@ -61,7 +62,7 @@ func packetTokenBudget(t *testing.T, task packetdogfood.Task) int {
 	return 0
 }
 
-func tokenBudget(t *testing.T, packet query.InvestigationEvidencePacket) int {
+func tokenBudget(t *testing.T, packet packet.InvestigationEvidencePacket) int {
 	t.Helper()
 	raw, err := json.Marshal(packet)
 	if err != nil {
@@ -80,7 +81,7 @@ func freshGraphTruth() *query.TruthEnvelope {
 	}
 }
 
-func buildSupplyChainPacket(t *testing.T) query.InvestigationEvidencePacket {
+func buildSupplyChainPacket(t *testing.T) packet.InvestigationEvidencePacket {
 	t.Helper()
 	result := query.SupplyChainImpactExplanationResult{
 		Outcome: "finding_explained",
@@ -97,14 +98,14 @@ func buildSupplyChainPacket(t *testing.T) query.InvestigationEvidencePacket {
 		Evidence:  []query.SupplyChainImpactEvidenceFactSummary{{FactID: "fact-advisory", FactKind: "vulnerability_advisory", SourceSystem: "osv"}},
 		Freshness: query.SupplyChainImpactExplanationFreshness{State: "fresh", LatestObservedAt: "2026-06-18T00:00:00Z"},
 	}
-	packet, err := query.BuildSupplyChainImpactPacket(result, freshGraphTruth(), nil)
+	packet, err := packet.BuildSupplyChainImpactPacket(result, freshGraphTruth(), nil)
 	if err != nil {
 		t.Fatalf("build supply-chain packet: %v", err)
 	}
 	return packet
 }
 
-func buildDeployableUnitPacket(t *testing.T) query.InvestigationEvidencePacket {
+func buildDeployableUnitPacket(t *testing.T) packet.InvestigationEvidencePacket {
 	t.Helper()
 	decisions := []query.AdmissionDecisionResult{
 		{
@@ -114,16 +115,16 @@ func buildDeployableUnitPacket(t *testing.T) query.InvestigationEvidencePacket {
 			CanonicalWrite: query.AdmissionDecisionCanonicalWrite{Eligible: true, Written: true, TargetKind: "CORRELATES_DEPLOYABLE_UNIT", TargetID: "workload:checkout"},
 		},
 	}
-	packet, err := query.BuildDeployableUnitPacket(decisions, map[string]string{"scope_id": "s1", "generation_id": "g1"}, freshGraphTruth(), nil)
+	packet, err := packet.BuildDeployableUnitPacket(decisions, map[string]string{"scope_id": "s1", "generation_id": "g1"}, freshGraphTruth(), nil)
 	if err != nil {
 		t.Fatalf("build deployable-unit packet: %v", err)
 	}
 	return packet
 }
 
-func buildDriftPacket(t *testing.T) query.InvestigationEvidencePacket {
+func buildDriftPacket(t *testing.T) packet.InvestigationEvidencePacket {
 	t.Helper()
-	findings := []query.CloudRuntimeDriftFindingView{
+	findings := []packet.CloudRuntimeDriftFindingView{
 		{
 			FactID: "fact-drift-1", Provider: "aws", ScopeID: "acct-1", GenerationID: "g9", CloudResourceUID: "aws:s3:bucket-a",
 			FindingKind: "orphaned_cloud_resource", ManagementStatus: "terraform_state_only", SourceState: "orphaned",
@@ -132,7 +133,7 @@ func buildDriftPacket(t *testing.T) query.InvestigationEvidencePacket {
 	}
 	truth := freshGraphTruth()
 	truth.Basis = query.TruthBasisRuntimeState
-	packet, err := query.BuildDriftPacket(findings, map[string]string{"scope_id": "acct-1", "provider": "aws"}, truth, nil)
+	packet, err := packet.BuildDriftPacket(findings, map[string]string{"scope_id": "acct-1", "provider": "aws"}, truth, nil)
 	if err != nil {
 		t.Fatalf("build drift packet: %v", err)
 	}
