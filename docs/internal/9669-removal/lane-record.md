@@ -32,6 +32,10 @@ in the D13 disposition report; headline per family below.
 - eshu-api#66 CLOSED by satellite #67 (merged): flat-with-embedded-truth
   recorded as the edge contract on relayed lanes, pinned by byte-identity
   tests, independent review clean. One arbiter pre-removal condition cleared.
+- Row 5 (`go/cmd/eshu`) DRAINED and merged (PR #10348 at 466eebde):
+  service/graph/investigation off in-tree query imports onto
+  querycontract ports + CLI-owned render seam, focused contract tests,
+  independent review clean, full CI green. First checklist row closed.
 - Row 6 (`go/cmd/golden-corpus-gate/query.go`): blocked — no
   `eshu-sdk/api` module exists and no cached SDK module defines
   `EnvelopeMIMEType`; the value lives only in-repo
