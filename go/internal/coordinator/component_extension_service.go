@@ -308,18 +308,29 @@ func (s Service) scheduleVulnerabilityActivationDerivedScopes(
 	if err != nil {
 		return fmt.Errorf("load vulnerability intelligence installed evidence targets for %q: %w", instance.InstanceID, err)
 	}
+	// The rolling NVD window derivation reads the stored cursor through the
+	// same probe as the in-tree path (eshu-hq/eshu#9877 Path A). A disabled
+	// derivation reads nothing; an enabled one without a reader fails
+	// loudly instead of silently planning every window from zero.
+	nvdCursor, nvdCursorSet, err := s.vulnerabilityNVDWindowCursor(ctx, derivation.DeriveNVDWindows, instance.InstanceID)
+	if err != nil {
+		return fmt.Errorf("load vulnerability intelligence NVD window cursor for %q: %w", instance.InstanceID, err)
+	}
 	planKey := derivedTargetPlanKey(instance, observedAt, interval, derivation.PlanKeyDerivation().PlanningMode)
 	run, items, err := vulnerability.PlanActivationDerivedWork(vulnerability.ActivationDerivedPlanRequest{
-		Instance:             instance,
-		ObservedAt:           observedAt,
-		PlanKey:              planKey,
-		SourceSystem:         sourceSystem,
-		HostScopeID:          hostScopeID,
-		Derivation:           derivation,
-		OwnedPackageTargets:  ownedPage.Targets,
-		OwnedPackageWindow:   ownedPage.Window,
-		OSPackageTargets:     osTargets,
-		SBOMComponentTargets: sbomTargets,
+		Instance:                 instance,
+		ObservedAt:               observedAt,
+		PlanKey:                  planKey,
+		SourceSystem:             sourceSystem,
+		HostScopeID:              hostScopeID,
+		Derivation:               derivation,
+		ComponentConfig:          string(config.ComponentConfig),
+		NVDWindowCursorUnixMicro: nvdCursor,
+		NVDWindowCursorSet:       nvdCursorSet,
+		OwnedPackageTargets:      ownedPage.Targets,
+		OwnedPackageWindow:       ownedPage.Window,
+		OSPackageTargets:         osTargets,
+		SBOMComponentTargets:     sbomTargets,
 	})
 	if err != nil {
 		return fmt.Errorf("plan vulnerability intelligence derived scopes for %q: %w", instance.InstanceID, err)

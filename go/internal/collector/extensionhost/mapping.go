@@ -54,7 +54,14 @@ func (s *Source) collectedGeneration(
 		// backstop.
 		TrustedDeletion: result.Generation.TrustedDeletion,
 	}
-	return collector.FactsFromSlice(scopeValue, generation, envelopes)
+	collected := collector.FactsFromSlice(scopeValue, generation, envelopes)
+	// Arm the rolling NVD window cursor writer from the satellite-stamped
+	// advance verdict (eshu-hq/eshu#9877 Path A). No verdict or a hold
+	// verdict arms nothing: the generation still commits, the cursor holds.
+	if writer := s.armNVDWindowCursorWriter(item, result.Generation.ObservedAt, envelopes); writer != nil {
+		collected.StateWriter = writer
+	}
+	return collected
 }
 
 func (s *Source) envelopesForResult(item workflow.WorkItem, result sdkcollector.Result) []facts.Envelope {
