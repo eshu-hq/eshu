@@ -174,6 +174,13 @@ func TestRuntimeExecuteRebindLookupErrorPropagates(t *testing.T) {
 	if !errors.Is(err, lookupErr) {
 		t.Fatalf("execute() error = %v, want wrapped %v", err, lookupErr)
 	}
+	if !IsRetryable(err) {
+		t.Fatalf("execute() error = %v, want retryable: a transient lookup failure must not dead-letter", err)
+	}
+	var classed interface{ FailureClass() string }
+	if !errors.As(err, &classed) || classed.FailureClass() != reducercontract.GenerationActivationNotReadyFailureClass {
+		t.Fatalf("execute() error = %v, want failure class %q", err, reducercontract.GenerationActivationNotReadyFailureClass)
+	}
 	if len(handler.generations) != 0 {
 		t.Fatalf("handler generations = %v, want none", handler.generations)
 	}

@@ -120,6 +120,43 @@ func (GenerationNotYetActiveError) FailureClass() string {
 	return GenerationActivationNotReadyFailureClass
 }
 
+// GenerationRebindLookupError reports that the rebind probe for a
+// scope-keyed intent could not read the scope's active generation (#10106):
+// the lookup itself failed transiently (a database or backend error), so the
+// runtime cannot tell whether a successor generation carries the work. It is
+// retryable and self-classifies as GenerationActivationNotReadyFailureClass,
+// the enrolled non-counting class: waiting on a readable active generation
+// is not a failure on the intent's own merits, so it must never erode the
+// retry budget or dead-letter. It unwraps to the underlying lookup failure.
+type GenerationRebindLookupError struct {
+	// ScopeID is the intent's ingestion scope.
+	ScopeID string
+	// GenerationID is the superseded generation the intent was scheduled against.
+	GenerationID string
+	// Err is the underlying active-generation lookup failure.
+	Err error
+}
+
+// Error describes the scope, the scheduled generation, and the lookup failure.
+func (e GenerationRebindLookupError) Error() string {
+	return fmt.Sprintf(
+		"generation rebind lookup not ready: scope %s generation %s: active generation lookup: %v",
+		e.ScopeID, e.GenerationID, e.Err,
+	)
+}
+
+// Unwrap exposes the underlying lookup failure to errors.Is and errors.As.
+func (e GenerationRebindLookupError) Unwrap() error { return e.Err }
+
+// Retryable reports true: the durable queue re-runs the intent after its
+// retry delay, by which time the transient lookup failure may have cleared.
+func (GenerationRebindLookupError) Retryable() bool { return true }
+
+// FailureClass returns GenerationActivationNotReadyFailureClass.
+func (GenerationRebindLookupError) FailureClass() string {
+	return GenerationActivationNotReadyFailureClass
+}
+
 // GenerationRebindExhaustedError reports that a scope-keyed intent's scope
 // activated a newer generation on every rebind attempt within one Execute
 // (#10106): activation churn outran the bounded rebind budget, so no
