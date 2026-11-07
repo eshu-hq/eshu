@@ -206,14 +206,21 @@ def weighted_bounds(runs: list[str], weights: Weights | WeightsV2,
 
     V1 minimizes the largest shard, then squared costs at that limit.
     V2 maximizes the smallest guarded job, minimizes the largest, then
-    minimizes squared costs. Returns ``shard_count + 1`` boundaries.
+    minimizes squared costs. When that cut misses the 15% spread budget,
+    V2 falls back to the spread-constrained optimum before failing.
+    Returns ``shard_count + 1`` boundaries.
 
     Raises:
         ValueError: There are fewer runs than shards.
+        ValueError: No spread-feasible cut fits the budget (v2 predicted
+            job spread exceeds 15% of mean).
+        ValueError: A shard's rows fail the row-union check.
+        ValueError: A runner row exceeds its seconds budget.
     """
     import live_postgres_readiness_v2 as v2
     if isinstance(weights, v2.WeightsV2):
-        from live_postgres_readiness_v2_planner import exact_bounds
+        from live_postgres_readiness_v2_planner import (
+            exact_bounds, exact_bounds_spread)
         if shard_count is None:
             shard_count = weights.shard_count
         if shard_count != weights.shard_count:
@@ -229,7 +236,12 @@ def weighted_bounds(runs: list[str], weights: Weights | WeightsV2,
         mean_sum = sum(jobs)
         if mean_sum == 0 or max(abs(job * shard_count - mean_sum)
                                 for job in jobs) * 100 > 15 * mean_sum:
-            raise ValueError("v2 predicted job spread exceeds 15% of mean")
+            try:
+                bounds = exact_bounds_spread(
+                    len(runs), shard_count, BUDGET_SECONDS * UNIT,
+                    scorer.cost)
+            except ValueError:
+                raise ValueError("v2 predicted job spread exceeds 15% of mean")
         for low, high in zip(bounds, bounds[1:]):
             rows = v2.split_rows(runs[low:high], weights)
             if [run for row in rows for run in row] != runs[low:high]:
