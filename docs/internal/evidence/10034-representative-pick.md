@@ -79,7 +79,7 @@ names the file. No new metric, span, or log.
 No-Regression Evidence: the whole-index path reuses the naming's filter pair
 instead of recomputing it, so a group that shards to nothing classifies
 exactly the code the base ran; only a fleet shard pays one extra filtered
-join scan on its own rows. Baseline `52e0cbae93` vs head `63999479ef`,
+join scan on its own rows. Baseline `52e0cbae93` vs head `6ae4ae9b3d`,
 `BenchmarkBuildFindingsMultiSourceGroups` (500 three-source CVE groups per
 shape, live and all_rejected, `-benchmem -count=6`, darwin/arm64 Apple M5
 Max, go1.27.3):
@@ -89,16 +89,16 @@ Max, go1.27.3):
 | live | 123.1k | 123.1k | identical |
 | all_rejected | 134.1k | 134.1k | identical |
 
-`benchstat` reports `~` (p=0.470 live, p=0.065 all_rejected) on allocs/op and
+`benchstat` reports `~` (p=0.974 live, p=0.716 all_rejected) on allocs/op and
 `~` on B/op for both shapes: zero new allocations on the measured path. Wall
 time on the loaded host read at or below the base on both shapes
-(-5.11% live, -5.83% all_rejected), so no wall-time regression is claimed or
+(-5.12% live, -3.27% all_rejected), so no wall-time regression is claimed or
 needed here either: the verdict rests on the identical allocation profile and
 the unchanged algorithmic order for the no-shard path. An intermediate
 revision that re-filtered inside every classification showed +2.98% allocs/op
 on all_rejected; the bisect (pre-L2 vs head) proved the L2 commit the sole
 delta, and the reuse above removed it. Raw runs: `/tmp/bench-10034-L2-base.txt`,
-`/tmp/bench-10034-L2-reuse.txt` (regenerable with the command above on a
+`/tmp/bench-10034-final.txt` (regenerable with the command above on a
 detached base worktree and this branch). The finding count is unchanged: the
 benchmark asserts a finding per group, and the full core package (including
 every RED/GREEN test in the table above) is green.
