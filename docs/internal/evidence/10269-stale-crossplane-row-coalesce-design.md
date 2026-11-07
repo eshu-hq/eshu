@@ -1,23 +1,22 @@
-# #10269: Coalesce Stale Per-Generation Crossplane Rows — Design (Deferred)
+# #10269: Coalesce Stale Per-Generation Crossplane Rows — Design (Implemented)
 
 Status: IMPLEMENTED. #10106 merged as `0228c689f4` (#10298), lifting the
-DEFER-AFTER-MERGE condition. Design A below landed in
-`supersedeInactiveReducerGenerationsPredicate` with the conservative
-`pending`/`retrying` carrier set as written; see
-[10269-stale-crossplane-row-coalesce.md](10269-stale-crossplane-row-coalesce.md)
-for the RED/GREEN, drain, and EXPLAIN evidence. One design expectation
-did not hold on real Postgres: the carrier probe reads the statement
-snapshot (the EvalPlanQual recheck re-fetches only the locked stale
-row), so interleave (a) retires against a carrier leased mid-statement;
-the implementation note records why that direction is safe. The text
-below is the original deferred design, kept for the decision record.
-
-Original status: DESIGN + PROOF ONLY. Do not implement from this branch and do not
-merge this note as an implementation. The arbiter ruled DEFER-AFTER-MERGE:
-#10106 is unmerged, and this change is only meaningful stacked on its
-claim-time exemption, so it must be implemented by re-reading this note
-after #10106 lands, not by merging code from here. This branch changes
-no production code.
+DEFER-AFTER-MERGE condition. The prune-in-sweep design below shipped on
+top of merged #10106; the shipped mechanism and proof are recorded in
+`10269-stale-crossplane-row-coalesce-implementation.md`, with RED/GREEN,
+drain, and EXPLAIN evidence in
+[10269-stale-crossplane-row-coalesce.md](10269-stale-crossplane-row-coalesce.md).
+One design expectation did not hold on real Postgres: the carrier probe
+reads the statement snapshot (the EvalPlanQual recheck re-fetches only
+the locked stale row, never a re-evaluated carrier EXISTS), so carrier
+membership is decided from the lock step output instead — carriers
+locked in the same ordered pass, with row-self status quals deciding
+membership, so a sibling claimed between snapshot and lock never enters
+the locked set and the stale row survives. This note is the preserved
+design record: it was written under the DEFER-AFTER-MERGE ruling while
+#10106 was still unmerged, so design-time passages about unmerged
+#10106, untested predictions, or "no production code" state are
+historical — the implementation note records what actually shipped.
 
 Bases this design was grounded in:
 
@@ -142,11 +141,18 @@ Design decisions, each load-bearing:
 - The change folds into the existing single lock step instead of adding
   a second locking CTE. One lock acquisition in global
   `work_item_id COLLATE "C"` order keeps the #8205 deadlock argument
-  intact, and the `FOR NO KEY UPDATE OF stale` recheck (EvalPlanQual)
-  re-evaluates the whole predicate, EXISTS included, on the newest row
-  version. A sibling claimed between snapshot and lock stops being a
-  carrier (`claimed` not in set), so the stale row is dropped from the
-  lock set and survives — the safe direction.
+  intact. Superseded expectation: the design assumed the
+  `FOR NO KEY UPDATE OF stale` recheck (EvalPlanQual) would re-evaluate
+  the whole predicate, EXISTS included, on the newest row version. The
+  live interleave test disproved this — a sibling claimed while the
+  sweep waited on the stale row's lock was still seen as pending. The
+  shipped mechanism instead decides carrier membership from the lock
+  step output (carriers locked in the same ordered pass; membership
+  decided by row-self status quals, which EvalPlanQual does
+  re-evaluate), so a sibling claimed between snapshot and lock never
+  enters the locked set and the stale row survives — the safe direction.
+  See the implementation note ("Why not the design sketch's snapshot
+  EXISTS").
 - Snapshot transitivity collapses a chain in one statement: with
   G1<G2<G3 pending, G1 sees carrier G2 and G2 sees carrier G3 in the
   statement snapshot, so both are superseded and G3 alone executes.

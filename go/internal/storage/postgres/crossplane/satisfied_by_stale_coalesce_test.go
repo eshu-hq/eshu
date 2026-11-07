@@ -279,9 +279,10 @@ func testCrossplaneStaleRowCoalesceLive(t *testing.T) {
 
 		// X holds the stale g1 row lock with a version-bumping update. The
 		// sweep's lock step snapshots g2 as a pending carrier and waits on
-		// X; meanwhile a third session claims g2. When X commits, the
-		// EvalPlanQual recheck must re-evaluate the carrier EXISTS on the
-		// newest state: g2 claimed is not a carrier, so g1 survives.
+		// X; meanwhile a third session claims g2. When X commits, g2's
+		// claimed version fails the lock step's row-self status quals, so
+		// g2 never enters the locked carrier set: with no locked carrier,
+		// the carrier condition fails and g1 survives.
 		holder := crossplaneRedriveProofConn(t, targetDSN)
 		tx, err := holder.BeginTx(ctx, nil)
 		if err != nil {
