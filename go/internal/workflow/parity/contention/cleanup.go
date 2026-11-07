@@ -4,16 +4,9 @@
 package contention
 
 import (
-	"context"
-	"database/sql"
 	"fmt"
-	"os"
-	"strconv"
 	"strings"
-	"testing"
 	"time"
-
-	_ "github.com/jackc/pgx/v5/stdlib"
 
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -84,97 +77,4 @@ func checkStrandedPreconditions(c Census, snap Snapshot, nonterm, doubleTerm []s
 		return fmt.Errorf("instance-family rows = %d, want exactly 1", instances)
 	}
 	return nil
-}
-
-// TestCleanupStrandedSeed reverses one killed leg through the harness's own
-// delete paths: exact-prefix DeletePrefixed plus the exact-ID seed instance
-// delete. It deletes nothing unless the pre-census matches the killed leg's
-// record exactly.
-func TestCleanupStrandedSeed(t *testing.T) {
-	seedRaw, pendingRaw := os.Getenv(envCleanupSeed), os.Getenv(envCleanupPending)
-	if seedRaw == "" || pendingRaw == "" {
-		t.Skip(envCleanupSeed + " and " + envCleanupPending + " are required; skipping the stranded-leg cleanup")
-	}
-	seed, err := strconv.ParseInt(seedRaw, 10, 64)
-	if err != nil || seed <= 0 {
-		t.Fatalf("%s=%q must be a positive seed", envCleanupSeed, seedRaw)
-	}
-	wantPending, err := strconv.ParseInt(pendingRaw, 10, 64)
-	if err != nil || wantPending <= 0 {
-		t.Fatalf("%s=%q must be a positive count", envCleanupPending, pendingRaw)
-	}
-	dsn := os.Getenv(envSatelliteDSN)
-	if dsn == "" {
-		t.Fatalf("%s is required; refusing to clean without the satellite DSN", envSatelliteDSN)
-	}
-	requireLoopbackDSN(t, envSatelliteDSN, dsn)
-	db, err := sql.Open("pgx", dsn)
-	if err != nil {
-		t.Fatalf("open satellite db: %v", err)
-	}
-	t.Cleanup(func() { _ = db.Close() })
-	db.SetMaxOpenConns(4)
-	ctx := context.Background()
-	name, err := CurrentDatabase(ctx, db)
-	if err != nil {
-		t.Fatalf("current database: %v", err)
-	}
-	if want := os.Getenv(envSatelliteDB); want == "" || name != want || forbiddenSatelliteDatabases[name] {
-		t.Fatalf("satellite DSN reaches database %q; refusing to clean", name)
-	}
-	obs, err := NewSQLObserver(ctx, db)
-	if err != nil {
-		t.Fatalf("observer: %v", err)
-	}
-	census, err := obs.Census(ctx)
-	if err != nil {
-		t.Fatalf("pre-census: %v", err)
-	}
-	snap, err := obs.Snapshot(ctx)
-	if err != nil {
-		t.Fatalf("pre-snapshot: %v", err)
-	}
-	nonterm, err := obs.NonTerminalItems(ctx, int(wantPending)+1)
-	if err != nil {
-		t.Fatalf("nonterminal items: %v", err)
-	}
-	if int64(len(nonterm)) > wantPending {
-		t.Fatalf("nonterminal list truncated at %d; refusing to clean blind", len(nonterm))
-	}
-	doubleTerm, err := obs.DoubleTerminal(ctx)
-	if err != nil {
-		t.Fatalf("double terminal: %v", err)
-	}
-	if err := checkStrandedPreconditions(census, snap, nonterm, doubleTerm, seed, wantPending); err != nil {
-		t.Fatalf("preconditions: %v (deleted nothing)", err)
-	}
-	deleted, err := obs.DeletePrefixed(ctx, seed, 1000)
-	if err != nil {
-		t.Fatalf("delete prefixed: %v", err)
-	}
-	t.Logf("prefix delete: %v", deleted)
-	n, err := obs.DeleteSeedInstance(ctx)
-	if err != nil {
-		t.Fatalf("delete seed instance: %v", err)
-	}
-	if n != 1 {
-		t.Fatalf("seed instance deleted = %d, want 1", n)
-	}
-	final, err := obs.Census(ctx)
-	if err != nil {
-		t.Fatalf("post-census: %v", err)
-	}
-	if got := final.prefixedTotal(); got != 0 {
-		t.Fatalf("residue after cleanup: %d synthetic rows", got)
-	}
-	t.Logf("post-census clean; waiting %s for one reconcile tick, then re-census", resurveyDelay)
-	time.Sleep(resurveyDelay)
-	again, err := obs.Census(ctx)
-	if err != nil {
-		t.Fatalf("resurvey census: %v", err)
-	}
-	if got := again.prefixedTotal(); got != 0 {
-		t.Fatalf("resurrected rows after one tick: %d synthetic rows", got)
-	}
-	t.Logf("cleanup complete: seed %d reversed, no resurrection", seed)
 }
