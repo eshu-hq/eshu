@@ -9,6 +9,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 import live_postgres_readiness_weights as wt
 import live_postgres_readiness_v2 as v2
@@ -224,6 +225,20 @@ class V2ModelTest(unittest.TestCase):
                         with self.assertRaises(ValueError):
                             planner.exact_bounds_spread(
                                 len(costs), 3, cap, interval)
+
+    def test_spread_search_budget_exhaustion_fails_closed(self) -> None:
+        # #9390 task B: the bounded search must fail closed, not hang,
+        # when the segment budget runs out on a feasible instance
+        # ([0, 2, 4] meets spread unpatched, so only the exhausted
+        # budget can raise here).
+        costs = [4, 4, 4, 4]
+        interval = lambda a, b: sum(costs[a:b])
+        self.assertEqual(
+            planner.exact_bounds_spread(len(costs), 2, 20, interval),
+            [0, 2, 4])
+        with mock.patch.object(planner, "_SPREAD_SEARCH_BUDGET", 0):
+            with self.assertRaises(ValueError):
+                planner.exact_bounds_spread(len(costs), 2, 20, interval)
 
     def test_nonmonotone_interval_does_not_prune_a_feasible_cut(self) -> None:
         prices = {(0, 1): 5, (0, 2): 15, (0, 3): 5,
