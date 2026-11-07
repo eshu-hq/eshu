@@ -35,6 +35,16 @@ in the D13 disposition report; headline per family below.
 - eshu-mcp#60 CLOSED by #62 (merged): unknown-tool path emits the
   canonical code + suggestions, fail-closed, independently reviewed
   clean, full CI green. Second arbiter pre-removal condition cleared.
+- Dispatch-host analysis (lane report, needs arbiter confirmation
+  before any deletion commit): surviving host is the core-owned
+  Postgres-backed admission/read-contract implementations behind
+  versioned ports (`querycontract.CoreReadContractsVersion = "v0"` +
+  per-family admission contracts) — not an HTTP binary; the
+  satellite owns HTTP shape only, calling those contracts natively.
+  Relay-forever disqualified (arbiter §4 + two-deploys-one-truth).
+  Requires: wiring the unwired seams (D3 identity/recovery, D6
+  Status+SupplyChain audit-read pin), resolving TBD5/TBD6, satellite
+  natively terminating reads per the transport rules.
 - Row 5 (`go/cmd/eshu`) DRAINED and merged (PR #10348 at 466eebde):
   service/graph/investigation off in-tree query imports onto
   querycontract ports + CLI-owned render seam, focused contract tests,
