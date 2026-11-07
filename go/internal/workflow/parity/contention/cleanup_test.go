@@ -46,7 +46,9 @@ func TestCheckStrandedPreconditions(t *testing.T) {
 		return out
 	}
 	clean := func() (Census, *Snapshot, []string, []string) {
-		return strandedCensus(100000, 0, nil, []bool{false}),
+		c := strandedCensus(100000, 0, nil, []bool{false})
+		c.Prefixed["workflow_runs|complete"] = 200
+		return c,
 			&Snapshot{ItemsByStatus: map[string]int{"pending": 100000}, ItemTotal: 100000},
 			seedItems(1, 100000), nil
 	}
@@ -58,6 +60,27 @@ func TestCheckStrandedPreconditions(t *testing.T) {
 		"claimed items fail": func(c Census, s *Snapshot, nt, dt []string) {
 			c.Prefixed["workflow_work_items|pending"] = 99990
 			c.Prefixed["workflow_work_items|claimed"] = 10
+		},
+		"claimed census key fails at work-item arm": func(c Census, s *Snapshot, nt, dt []string) {
+			c.Prefixed["workflow_work_items|claimed"] = 10
+		},
+		"claimed seed entry fails at status arm": func(c Census, s *Snapshot, nt, dt []string) {
+			nt[0] = ids{seed: 1}.workItem(0) + ":claimed"
+		},
+		"run count mismatch fails": func(c Census, s *Snapshot, nt, dt []string) {
+			c.Prefixed["workflow_runs|complete"] = 199
+		},
+		"progress rows fail": func(c Census, s *Snapshot, nt, dt []string) {
+			c.Prefixed["workflow_run_progress|row"] = 5
+		},
+		"completeness rows fail": func(c Census, s *Snapshot, nt, dt []string) {
+			c.Prefixed["workflow_run_completeness|row"] = 5
+		},
+		"quota rows fail": func(c Census, s *Snapshot, nt, dt []string) {
+			c.Prefixed["component_quota_windows|scope"] = 2
+		},
+		"pacing rows fail": func(c Census, s *Snapshot, nt, dt []string) {
+			c.Prefixed["workflow_claim_pacing|signal"] = 1
 		},
 		"claim rows fail": func(c Census, s *Snapshot, nt, dt []string) {
 			c.Prefixed["workflow_claims|active"] = 3
@@ -76,7 +99,7 @@ func TestCheckStrandedPreconditions(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			c, s, nt, dt := clean()
 			mutate(c, s, nt, dt)
-			err := checkStrandedPreconditions(c, *s, nt, dt, 1, 100000)
+			err := checkStrandedPreconditions(c, *s, nt, dt, 1, 100000, 200)
 			if name == "clean stranded leg passes" && err != nil {
 				t.Fatalf("clean: %v", err)
 			}
@@ -87,14 +110,14 @@ func TestCheckStrandedPreconditions(t *testing.T) {
 	}
 	t.Run("double terminal fails", func(t *testing.T) {
 		c, s, nt, _ := clean()
-		if err := checkStrandedPreconditions(c, *s, nt, []string{"x"}, 1, 100000); err == nil {
+		if err := checkStrandedPreconditions(c, *s, nt, []string{"x"}, 1, 100000, 200); err == nil {
 			t.Fatal("want mismatch error, got nil")
 		}
 	})
 	t.Run("truncated nonterminal list fails", func(t *testing.T) {
 		c, s, _, dt := clean()
 		short := seedItems(1, 10)
-		if err := checkStrandedPreconditions(c, *s, short, dt, 1, 100000); err == nil {
+		if err := checkStrandedPreconditions(c, *s, short, dt, 1, 100000, 200); err == nil {
 			t.Fatal("want mismatch error, got nil")
 		}
 	})
@@ -116,6 +139,14 @@ func TestCleanupStrandedSeed(t *testing.T) {
 	wantPending, err := strconv.ParseInt(pendingRaw, 10, 64)
 	if err != nil || wantPending <= 0 {
 		t.Fatalf("%s=%q must be a positive count", envCleanupPending, pendingRaw)
+	}
+	runsRaw := os.Getenv(envCleanupRuns)
+	if runsRaw == "" {
+		t.Skip(envCleanupRuns + " is required; skipping the stranded-leg cleanup")
+	}
+	wantRuns, err := strconv.ParseInt(runsRaw, 10, 64)
+	if err != nil || wantRuns <= 0 {
+		t.Fatalf("%s=%q must be a positive count", envCleanupRuns, runsRaw)
 	}
 	dsn := os.Getenv(envSatelliteDSN)
 	if dsn == "" {
@@ -159,7 +190,7 @@ func TestCleanupStrandedSeed(t *testing.T) {
 	if err != nil {
 		t.Fatalf("double terminal: %v", err)
 	}
-	if err := checkStrandedPreconditions(census, snap, nonterm, doubleTerm, seed, wantPending); err != nil {
+	if err := checkStrandedPreconditions(census, snap, nonterm, doubleTerm, seed, wantPending, wantRuns); err != nil {
 		t.Fatalf("preconditions: %v (deleted nothing)", err)
 	}
 	deleted, err := obs.DeletePrefixed(ctx, seed, 1000)
