@@ -57,6 +57,15 @@ func deltaUnkeyedGoFileEnvelope(relativePath string, functions []any, calls []an
 	}
 }
 
+// deltaUnkeyedGoFileEnvelopeWithImports mirrors deltaUnkeyedGoFileEnvelope
+// for a changed file that carries imports, exactly as the tree-sitter Go
+// engine emits them (#10301: plain imports record no alias).
+func deltaUnkeyedGoFileEnvelopeWithImports(relativePath string, functions []any, calls []any, imports []any) facts.Envelope {
+	env := deltaUnkeyedGoFileEnvelope(relativePath, functions, calls)
+	env.Payload["parsed_file_data"].(map[string]any)["imports"] = imports
+	return env
+}
+
 func deltaUnkeyedGoFunction(uid, name string, line, endLine int) map[string]any {
 	return map[string]any{
 		"name":                name,
@@ -233,5 +242,128 @@ func TestCodeCallMaterializationHandlerDeltaUnkeyedSamePackageCalls(t *testing.T
 	wantPaths := []string{"/repo/app/main.go", "/repo/app/moved.go"}
 	if !reflect.DeepEqual(refreshPaths, wantPaths) {
 		t.Fatalf("refresh delta_file_paths = %#v, want %#v", refreshPaths, wantPaths)
+	}
+}
+
+// TestCodeCallMaterializationHandlerDeltaImportBearingSamePackageCalls is the
+// #10301 residual the import-free derivation left behind: the moved caller
+// lives in a file WITH a plain import (no dot-import), so its keyless
+// same-package call must still resolve against the unchanged file's
+// definition instead of dropping while the file-scoped refresh retracts the
+// old edge. A companion dot-imported file proves the fail-safe side: its bare
+// call still derives nothing.
+func TestCodeCallMaterializationHandlerDeltaImportBearingSamePackageCalls(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.November, 7, 10, 0, 0, 0, time.UTC)
+	primary := []facts.Envelope{
+		{
+			FactKind: factload.FactKindRepository,
+			Payload: map[string]any{
+				"repo_id":              "repo-delta",
+				"source_run_id":        "run-delta",
+				"graph_id":             "repo-delta",
+				"graph_kind":           "repository",
+				"name":                 "repo-delta",
+				"path":                 "/repo",
+				"delta_generation":     true,
+				"delta_relative_paths": []string{"app/plain.go", "app/dotted.go"},
+			},
+		},
+		deltaUnkeyedGoFileEnvelopeWithImports("app/plain.go",
+			[]any{
+				deltaUnkeyedGoFunction("entity:plain-caller", "deltaReaderPlainCaller", 11, 13),
+			},
+			[]any{
+				deltaUnkeyedGoCall("deltaReaderLedgerTotal", 12),
+			},
+			[]any{
+				map[string]any{"name": "fmt", "line_number": 4, "lang": "go"},
+			},
+		),
+		deltaUnkeyedGoFileEnvelopeWithImports("app/dotted.go",
+			[]any{
+				deltaUnkeyedGoFunction("entity:dotted-caller", "deltaReaderDottedCaller", 11, 13),
+			},
+			[]any{
+				// ReportLine is defined only in the unchanged report.go,
+				// which no derived key loads: the dot import means this
+				// bare call may belong to example.com/other, so it must
+				// stay unresolved rather than guess same-package.
+				deltaUnkeyedGoCall("deltaReaderReportLine", 12),
+			},
+			[]any{
+				map[string]any{"name": "example.com/other", "alias": ".", "line_number": 4, "lang": "go"},
+			},
+		),
+	}
+	base := []facts.Envelope{
+		deltaUnkeyedGoFileEnvelope("app/ledger.go",
+			[]any{
+				deltaUnkeyedGoFunction("entity:ledger-total", "deltaReaderLedgerTotal", 8, 10),
+			},
+			nil,
+		),
+		deltaUnkeyedGoFileEnvelope("app/report.go",
+			[]any{
+				deltaUnkeyedGoFunction("entity:report-line", "deltaReaderReportLine", 8, 10),
+			},
+			nil,
+		),
+	}
+	loader := &keyFilteringSymbolLoader{primary: primary, base: base}
+	writer := &recordingCodeCallIntentWriter{}
+	handler := Handler{FactLoader: loader, IntentWriter: writer}
+
+	intent := reducercontract.Intent{
+		IntentID:     "intent-code-call-delta-import-bearing",
+		ScopeID:      "scope-delta",
+		GenerationID: "gen-delta",
+		SourceSystem: "git",
+		Domain:       reducercontract.DomainCodeCallMaterialization,
+		Cause:        "parser follow-up required",
+		EnqueuedAt:   now,
+		AvailableAt:  now,
+		Status:       reducercontract.IntentStatusPending,
+	}
+	result, err := handler.Handle(context.Background(), intent)
+	if err != nil {
+		t.Fatalf("Handle() error = %v", err)
+	}
+	if result.Status != reducercontract.ResultStatusSucceeded {
+		t.Fatalf("result.Status = %q, want %q", result.Status, reducercontract.ResultStatusSucceeded)
+	}
+
+	var got []string
+	for _, row := range writer.rows {
+		if row.Payload["evidence_source"] != "parser/code-calls" || row.ProjectionDomain != reducercontract.DomainCodeCalls {
+			continue
+		}
+		if row.Payload["intent_type"] == "repo_refresh" {
+			continue
+		}
+		got = append(got,
+			payloadcore.AnyToString(row.Payload["caller_entity_id"])+"->"+
+				payloadcore.AnyToString(row.Payload["callee_entity_id"]))
+	}
+	sort.Strings(got)
+	want := []string{
+		"entity:plain-caller->entity:ledger-total",
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("code-call edges = %#v, want %#v", got, want)
+	}
+
+	// The overlay load must have requested only the provably same-package
+	// callee: the plain-imported file's call derives its key, while the
+	// dot-imported file's call derives nothing.
+	var requested []string
+	for _, keys := range loader.requested {
+		requested = append(requested, keys...)
+	}
+	sort.Strings(requested)
+	wantRequested := []string{"scip-go gomod " + deltaUnkeyedGoImportPath + " deltaReaderLedgerTotal()."}
+	if !reflect.DeepEqual(requested, wantRequested) {
+		t.Fatalf("requested symbol keys = %#v, want %#v", requested, wantRequested)
 	}
 }

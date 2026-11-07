@@ -16,7 +16,11 @@ import (
 // rejects an import cycle even when one edge is a blank (`_`) or dot (`.`)
 // import, so every form is retained as an ordinary edge and none is flagged.
 // Dropping a blank or dot import would hide a cycle the compiler refuses to
-// build; flagging it would let the cycle query exclude a real edge.
+// build; flagging it would let the cycle query exclude a real edge. The
+// local binding is still recorded: named aliases keep their alias, and blank
+// and dot imports record "_" and "." so delta derivation (#10301) can tell a
+// file whose bare names may come from a dot-imported package apart from one
+// whose bare names are provably same-package.
 func TestDefaultEngineParsePathGoImportsCarryNoFlags(t *testing.T) {
 	t.Parallel()
 
@@ -48,19 +52,26 @@ func main() { fmt.Println(str.ToUpper("x"), Pi) }
 		t.Fatalf("imports = %T, want []map[string]any", got["imports"])
 	}
 	seen := map[string]bool{}
+	aliases := map[string]any{}
 	for _, item := range items {
 		name, _ := item["name"].(string)
 		seen[name] = true
-		if name == "embed" || name == "math" {
-			if alias, present := item["alias"]; present {
-				t.Errorf("go import %q alias = %#v, want dropped for blank and dot imports", name, alias)
-			}
-		}
+		aliases[name] = item["alias"]
 		for _, flag := range []string{"type_only", "deferred", "inferred"} {
 			if value, present := item[flag]; present {
 				t.Errorf("go import %q flag %q = %#v, want absent", name, flag, value)
 			}
 		}
+	}
+	// Blank and dot imports record their binding so delta derivation can see
+	// them; a named alias keeps its alias and a plain import keeps none.
+	for name, want := range map[string]any{"embed": "_", "math": ".", "strings": "str"} {
+		if got := aliases[name]; got != want {
+			t.Errorf("go import %q alias = %#v, want %#v", name, got, want)
+		}
+	}
+	if got := aliases["fmt"]; got != nil {
+		t.Errorf(`go plain import "fmt" alias = %#v, want absent`, got)
 	}
 	for _, want := range []string{"fmt", "strings", "embed", "math"} {
 		if !seen[want] {

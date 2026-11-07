@@ -17,9 +17,10 @@ callees stay unresolved while the refresh retracts their old edges (live
 B-7: only the same-file edge survived). The handler therefore derives the
 definitions' own `scip-go gomod` keys for provably same-package calls on
 delta generations only (`SamePackageGoCalleeKeysForDeltaRepos`: bare
-unqualified Go name, file with no imports — a dot import is recorded without
-its alias, so files with imports keep today's behavior); full generations
-keep the keyless path byte-identical.
+unqualified Go name in a file whose imports carry no alias — the parser
+records blank and dot imports with their `_`/`.` alias since #10301, so a
+file with an aliased import still derives nothing); full generations keep
+the keyless path byte-identical.
 
 The handler's three symbol-to-runtime domains (`handles_route`, `runs_in`,
 `invokes_cloud_action`) retract repo-wide and have no file-scoped retract.
@@ -49,8 +50,13 @@ Proof, all hermetic in this change:
   own keys for the overlay; before, only the same-file row survived with
   three unresolved callees — the live B-7 signature.
 - `TestSamePackageGoCalleeKeysForDeltaRepos`: the key-derivation edge cases
-  (keyed/qualified/foreign/malformed names, files with imports, missing
-  package identity, non-delta repos, empty delta set).
+  (keyed/qualified/foreign/malformed names, dot/blank/aliased imports,
+  missing package identity, non-delta repos, empty delta set).
+- `TestCodeCallMaterializationHandlerDeltaImportBearingSamePackageCalls`
+  (RED first, #10301): the moved caller lives in a file WITH a plain import
+  (no dot-import), so its keyless same-package call resolves against the
+  unchanged file's definition; the companion dot-imported file's call derives
+  no key and stays unresolved — the fail-safe side.
 - `TestCodeCallProjectionRunnerFileAndWholeRefreshInterleaveDrains`: a
   file-scoped and a whole-scope refresh pending for one repository in one
   acceptance unit — the fenced shape cannot retract, write, or mark on an
@@ -65,11 +71,20 @@ Proof, all hermetic in this change:
 
 ## No-Regression Evidence:
 
-Full generations are unchanged apart from follow-up stream order (the
-marker moved ahead of the delta return, so it streams before the
-full-only follow-ups); fact kinds, payloads, and counts per generation are
-identical, and `TestGenerationContentVersionPinsCollectorOutput` passes
-with no epoch re-pin — no fixture file's attributed output moved. The new
+Full generations keep the #10049 follow-up stream order and per-generation
+fact kinds and counts; the #10301 parser change adds one `alias` string to
+blank/dot import facts, so payload bytes move for files with those imports.
+`TestGenerationContentVersionPinsCollectorOutput` is re-pinned in this change
+with an epoch advance (epoch `9a6c02597e8ae5ea`), pinned by the new
+`src/import_bindings.go` fixture carrying a blank import, a dot import, and
+a bare call. The advance fixes same-commit recollection: a re-sync at an
+unchanged commit under the new epoch stores one new generation instead of
+being dropped as a duplicate.
+
+Pre-upgrade window: generations stored under older epochs still carry
+alias-free import facts. Delta derivation reading those facts sees blank/dot
+imports as alias-free and may derive same-package keys for dot-imported bare
+names, until the repository stores a generation under the new epoch. The new
 work is bounded per delta: one additional work item whose handler loads
 the delta generation's changed-file facts and the referenced symbol keys
 (the #10124 overlay measured that read at a 1.25x counterfactual against
@@ -80,6 +95,38 @@ an unusable scope dead-letters on attempt 1 before the symbol load, so a
 bad delta costs no symbol query and no graph write. End-to-end delta
 wall time is NOT_CHECKED here: the live delta-reader leg runs at promotion
 (the shared host was under another lane's live proof during this change).
+No-Regression Evidence (#10301, measured): the derivation micro-benchmark
+is committed as `BenchmarkSamePackageGoCalleeKeysForDeltaRepos` with its
+pre-#10301 baseline `BenchmarkPreAliasGateSamePackageGoCalleeKeys` in
+`go/internal/reducer/code/call/shared/symbol_index_bench_test.go` (the
+baseline is the verbatim base-`a218b94c42e` gate, measurement only, so the
+figures are committed and re-runnable, not uncommitted). Backend go1.26.10
+linux/arm64, GOMAXPROCS 16 (ARM implementer 0x41 part 0xd84). Input shape:
+one delta repo, 13 files, 42 keyless Go edges — 4 import-free files and 4
+plain-import files with 4 calls each over 2 distinct callee names per group,
+plus dot/blank/named-import skips, one missing-identity file, and one
+non-delta file with 2 calls each. Seventeen rounds at `-benchtime=10000x`:
+baseline 4339–4431 ns/op (1473 B/op, 34 allocs/op, 2 keys/op), after
+7695–7944 ns/op (2754 B/op, 51 allocs/op, 4 keys/op). The +~3.4 µs/op is the
+intended recall gain: 4 more files (16 more edges) derive keys under the
+relaxed gate, so Gamma/Delta now resolve where the baseline skipped them.
+Cost scales with the file's own import list (one short-circuiting alias
+check per entry) plus one key per distinct callee through the existing
+sort/Compact dedupe. #10301 import-aware derivation adds no new envelope
+scan — it reuses the already-loaded `parsed_file_data` maps. Terminal rows
+are pinned by `TestCodeCallMaterializationHandlerDeltaImportBearingSamePackageCalls`:
+exactly one CALLS edge (`entity:plain-caller->entity:ledger-total`) and
+exactly one requested overlay key; the dot-imported file's call stays
+unresolved by design. Full generations are untouched: non-delta repositories
+derive no keys (unit test asserts empty). Observability Evidence (#10301):
+no new instrument. The delta path exercises the existing signals named in
+the Observability section below: the handler completion log reports
+`symbol_key_count` and `code_call_unresolved_callee_count` (the
+unresolved-callee handler test pins `code_call_unresolved_callee_count` at
+1.0), and `eshu_dp_code_call_symbol_definition_read_delta_union_total`
+counts the overlay read the derived keys trigger. Parser side: no new tree
+walk; only blank/dot imports gain one `alias` string each. No new lock,
+queue, or serialization was added.
 
 ## Observability Evidence:
 
@@ -91,3 +138,10 @@ ERROR log for fenced deltas, the overlay outcome counter
 `eshu_dp_code_call_symbol_definition_read_delta_union_total`, and the
 standard reducer execution and code-call edge batch telemetry. Docs that
 called those signals dormant "until #10049" now describe them as live.
+
+#10301 adds no new instrument; it is visible through the existing delta
+signals. The handler completion log reports a nonzero `symbol_key_count`
+for import-bearing deltas (0 before the fix, with
+`code_call_unresolved_callee_count` at the dropped-edge count), and
+`eshu_dp_code_call_symbol_definition_read_delta_union_total` counts the
+overlay read the derived keys trigger.

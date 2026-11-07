@@ -216,11 +216,13 @@ func strongerCodeCallSymbolMethod(
 // The derived key reuses the exact shape the Go parser stamps on a
 // definition: "scip-go gomod <package import path> <Name>().". It only fires
 // when the call is provably same-package: a bare unqualified Go name in a
-// file with no imports at all. A file with imports may dot-import another
-// package, and a dot import is recorded without its "." alias, so bare names
-// there can belong to another package and must keep today's behavior. A
-// derived key that matches nothing (a builtin, a method, a removed callee)
-// loads nothing and resolves nothing, exactly as today.
+// file whose imports carry no local binding. A dot import (recorded with its
+// "." alias since #10301) pulls another package's exported names into the
+// bare namespace, so a file with one keeps today's behavior: no derived
+// keys. Named and blank bindings inject no bare names; skipping them too is
+// the deliberate fail-safe. A derived key
+// that matches nothing (a builtin, a method, a removed callee) loads nothing
+// and resolves nothing, exactly as today.
 //
 // Callers pass only delta-generation repository IDs: full generations keep
 // their keyless path byte-identical.
@@ -247,7 +249,7 @@ func SamePackageGoCalleeKeysForDeltaRepos(
 		if importPath == "" {
 			continue
 		}
-		if len(payloadcore.MapSlice(fileData["imports"])) > 0 {
+		if goFileHasImportAlias(fileData) {
 			continue
 		}
 		for _, edge := range payloadcore.MapSlice(fileData["function_calls"]) {
@@ -272,6 +274,21 @@ func SamePackageGoCalleeKeysForDeltaRepos(
 	}
 	slices.Sort(keys)
 	return slices.Compact(keys)
+}
+
+// goFileHasImportAlias reports whether any entry in the file's imports
+// bucket binds a local name: a named alias, or the blank ("_") or dot (".")
+// binding the Go parser records since #10301. Only a dot import pulls
+// another package's names into the bare namespace; named and blank bindings
+// inject none, and skipping them too is the deliberate fail-safe, so only
+// files with plain imports (no alias key) derive keys.
+func goFileHasImportAlias(fileData map[string]any) bool {
+	for _, entry := range payloadcore.MapSlice(fileData["imports"]) {
+		if strings.TrimSpace(payloadcore.AnyToString(entry["alias"])) != "" {
+			return true
+		}
+	}
+	return false
 }
 
 func dedupeCodeCallSymbolKeys(keys []codeCallSymbolKey) []codeCallSymbolKey {
