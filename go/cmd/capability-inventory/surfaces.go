@@ -4,7 +4,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -21,7 +20,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts/semantic"
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/mcp"
-	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
@@ -32,9 +30,10 @@ const defaultSurfaceArtifactOut = "internal/capabilitycatalog/data/surface-inven
 // source tree rooted at root (the repository root). The collector, reducer
 // domain, and MCP tool sets come from in-code registries; command binaries and
 // console pages are read from the source tree; API routes are parsed from the
-// served OpenAPI spec. This is the authoritative live set the surface inventory
-// drift gate reconciles against, so a surface added or removed in code without
-// updating the committed artifact is caught.
+// OpenAPI spec assembly the eshu-api surface serves (see openapi_source.go).
+// This is the authoritative live set the surface inventory drift gate
+// reconciles against, so a surface added or removed in code without updating
+// the committed artifact is caught.
 func liveSurfaces(root string) (capabilitycatalog.LiveSurfaces, error) {
 	commands, err := enumerateCommandBinaries(filepath.Join(root, "go", "cmd"))
 	if err != nil {
@@ -153,38 +152,19 @@ func enumerateConsolePages(root string) ([]string, error) {
 	return names, nil
 }
 
-// httpOperationMethods is the set of OpenAPI path-item keys that are HTTP
-// operations. Other keys (parameters, summary, description, servers, $ref) are
-// path-item metadata, not operations, and are skipped.
-var httpOperationMethods = map[string]struct{}{
-	"get": {}, "put": {}, "post": {}, "delete": {},
-	"options": {}, "head": {}, "patch": {}, "trace": {},
-}
-
-// enumerateAPIRoutes parses the served OpenAPI spec and returns one surface per
-// method+path operation (for example "GET /api/v0/capabilities"). Recording the
-// method, not just the path key, means adding a second operation such as
-// "POST /api/v0/foo" beside an existing "GET /api/v0/foo" changes the inventory,
-// so method-level API surface changes cannot bypass the drift gate. The spec is
-// the single declaration of the HTTP surface.
+// enumerateAPIRoutes parses the OpenAPI spec assembly the eshu-api surface
+// serves (see openapi_source.go) and returns one surface per method+path
+// operation (for example "GET /api/v0/capabilities"). Recording the method,
+// not just the path key, means adding a second operation such as
+// "POST /api/v0/foo" beside an existing "GET /api/v0/foo" changes the
+// inventory, so method-level API surface changes cannot bypass the drift
+// gate. The spec is the single declaration of the HTTP surface.
 func enumerateAPIRoutes() ([]string, error) {
-	var doc struct {
-		Paths map[string]map[string]json.RawMessage `json:"paths"`
+	document, err := localOpenAPISpecDocument()
+	if err != nil {
+		return nil, err
 	}
-	if err := json.Unmarshal([]byte(query.OpenAPISpec()), &doc); err != nil {
-		return nil, fmt.Errorf("parse openapi spec: %w", err)
-	}
-	var names []string
-	for path, item := range doc.Paths {
-		for method := range item {
-			if _, ok := httpOperationMethods[strings.ToLower(method)]; !ok {
-				continue
-			}
-			names = append(names, strings.ToUpper(method)+" "+path)
-		}
-	}
-	sort.Strings(names)
-	return names, nil
+	return openAPIRoutes(document), nil
 }
 
 // enumerateCollectors returns every collector family from the scope registry.

@@ -4,7 +4,6 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,10 +11,11 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/mcp"
 )
 
 type roundTripFunc func(*http.Request) (*http.Response, error)
@@ -117,14 +117,155 @@ func assertRepositoryScopedDiscoveryBody(t *testing.T, request *http.Request) {
 	}
 }
 
+// probeRegistryStubSpec is the canned satellite OpenAPI document the
+// registry tests build against: every asserted identity plus the anyOf
+// scope shape the AWS runtime-drift fixture test pins. Probes run against
+// the satellite, so the registry tests run against a stub satellite rather
+// than in-tree packages.
+const probeRegistryStubSpec = `{
+  "openapi": "3.0.0",
+  "paths": {
+    "/api/v0/repositories": {"get": {"responses": {"200": {"description": "ok"}}}},
+    "/api/v0/code/cypher": {"post": {"requestBody": {"content": {"application/json": {"schema": {"type": "object", "properties": {"cypher_query": {"type": "string"}}, "required": ["cypher_query"]}}}}, "responses": {"200": {"description": "ok"}}}},
+    "/api/v0/aws/runtime-drift/findings": {"post": {"requestBody": {"content": {"application/json": {"schema": {"type": "object", "properties": {"scope_id": {"type": "string"}, "account_id": {"type": "string"}}, "anyOf": [{"required": ["scope_id"]}, {"required": ["account_id"]}]}}}}, "responses": {"200": {"description": "ok"}}}},
+    "/api/v0/auth/github/login": {"get": {"responses": {"200": {"description": "ok"}}}},
+    "/api/v0/auth/github/callback": {"get": {"responses": {"200": {"description": "ok"}}}},
+    "/api/v0/codeowners/ownership": {"get": {"responses": {"200": {"description": "ok"}}}},
+    "/api/v0/replatforming/selectors": {"get": {"responses": {"200": {"description": "ok"}}}},
+    "/api/v0/services/{service_name}/intelligence-report": {"get": {"responses": {"200": {"description": "ok"}}}},
+    "/api/v0/terraform/config-state-drift/findings": {"post": {"responses": {"200": {"description": "ok"}}}},
+    "/api/v0/admin/reindex": {"post": {"responses": {"200": {"description": "ok"}}}},
+    "/api/v0/supply-chain/impact/suppressions": {"post": {"responses": {"200": {"description": "ok"}}}},
+    "/api/v0/auth/browser-session": {"delete": {"responses": {"200": {"description": "ok"}}}},
+    "/api/v0/answer-quality/score": {"post": {"responses": {"200": {"description": "ok"}}}},
+    "/api/v0/investigation/packet/render": {"post": {"responses": {"200": {"description": "ok"}}}},
+    "/api/v0/report/bundle/capture": {"post": {"responses": {"200": {"description": "ok"}}}},
+    "/api/v0/report/bundle/validate": {"post": {"responses": {"200": {"description": "ok"}}}},
+    "/api/v0/service/report/compose": {"post": {"responses": {"200": {"description": "ok"}}}},
+    "/api/v0/admin/work-items/query": {"post": {"responses": {"200": {"description": "ok"}}}},
+    "/api/v0/images/tag-history": {"get": {"responses": {"200": {"description": "ok"}}}}
+  }
+}`
+
+// probeRegistryStubTools is the canned satellite tools/list payload: every
+// MCP tool the registry tests assert on.
+const probeRegistryStubTools = `{"jsonrpc":"2.0","id":1,"result":{"tools":[
+  {"name":"list_indexed_repositories","inputSchema":{"type":"object"}},
+  {"name":"get_repository_stats","inputSchema":{"type":"object"}},
+  {"name":"execute_cypher_query","inputSchema":{"type":"object"}},
+  {"name":"visualize_graph_query","inputSchema":{"type":"object"}},
+  {"name":"list_codeowners_ownership","inputSchema":{"type":"object"}},
+  {"name":"list_terraform_config_state_drift_findings","inputSchema":{"type":"object"}},
+  {"name":"investigate_code_divergence","inputSchema":{"type":"object"}}
+]}}`
+
+// newProbeRegistrySatellite serves the canned eshu-api surface the registry
+// tests build against: the OpenAPI document at /api/v0/openapi.json and the
+// MCP tools/list payload for every POST. One server plays both roles because
+// the two fetches key on path and method, never on host.
+func newProbeRegistrySatellite(t *testing.T) *httptest.Server {
+	t.Helper()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if request.URL.Path == "/api/v0/openapi.json" {
+			_, _ = w.Write([]byte(probeRegistryStubSpec))
+			return
+		}
+		if request.Method == http.MethodPost {
+			_, _ = w.Write([]byte(probeRegistryStubTools))
+			return
+		}
+		t.Errorf("stub satellite got unexpected %s %s", request.Method, request.URL.Path)
+		_, _ = w.Write([]byte(`{}`))
+	}))
+	t.Cleanup(server.Close)
+	return server
+}
+
+// probeRegistrySatelliteClient builds the registry against the stub
+// satellite: the same fetch path production uses, with no in-tree packages.
+func probeRegistrySatelliteClient(t *testing.T) (*http.Client, string, string) {
+	t.Helper()
+	server := newProbeRegistrySatellite(t)
+	return server.Client(), server.URL, server.URL
+}
+
+// TestProbeRegistryStubMatchesLocalContract guards the frozen stub satellite
+// against rot: every route and tool the registry tests assert on must exist
+// in the in-repo contract sources the satellite serves from.
+func TestProbeRegistryStubMatchesLocalContract(t *testing.T) {
+	t.Parallel()
+
+	var stubSpec struct {
+		Paths map[string]map[string]any `json:"paths"`
+	}
+	if err := json.Unmarshal([]byte(probeRegistryStubSpec), &stubSpec); err != nil {
+		t.Fatalf("parse probeRegistryStubSpec: %v", err)
+	}
+	local, err := localOpenAPISpecDocument()
+	if err != nil {
+		t.Fatalf("localOpenAPISpecDocument() error = %v", err)
+	}
+	localRoutes := openAPIRoutes(local)
+	for path, operations := range stubSpec.Paths {
+		for method := range operations {
+			route := strings.ToUpper(method) + " " + path
+			if !slices.Contains(localRoutes, route) {
+				t.Errorf("stub route %q missing from the local OpenAPI contract", route)
+			}
+		}
+	}
+
+	var stubTools struct {
+		Result struct {
+			Tools []satelliteMCPTool `json:"tools"`
+		} `json:"result"`
+	}
+	if err := json.Unmarshal([]byte(probeRegistryStubTools), &stubTools); err != nil {
+		t.Fatalf("parse probeRegistryStubTools: %v", err)
+	}
+	liveTools := mcp.ReadOnlyTools()
+	for _, tool := range stubTools.Result.Tools {
+		found := false
+		for _, live := range liveTools {
+			if live.Name == tool.Name {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("stub tool %q missing from mcp.ReadOnlyTools()", tool.Name)
+		}
+	}
+}
+
 func TestValidateGraphReadProbeRegistryAcceptsCurrentSurfaces(t *testing.T) {
-	if err := validateGraphReadProbeRegistry(); err != nil {
+	client, apiURL, mcpURL := probeRegistrySatelliteClient(t)
+	if err := validateGraphReadProbeRegistry(client, apiURL, mcpURL, "user-token"); err != nil {
 		t.Fatalf("validateGraphReadProbeRegistry() error = %v", err)
 	}
 }
 
+func TestValidateGraphReadProbeRegistryFailsClosedOnMissingSurface(t *testing.T) {
+	thin := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if request.URL.Path == "/api/v0/openapi.json" {
+			_, _ = w.Write([]byte(`{"openapi":"3.0.0","paths":{"/api/v0/repositories":{"get":{}}}}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"jsonrpc":"2.0","id":1,"result":{"tools":[]}}`))
+	}))
+	defer thin.Close()
+
+	err := validateGraphReadProbeRegistry(thin.Client(), thin.URL, thin.URL, "user-token")
+	if err == nil || !strings.Contains(err.Error(), "the satellite does not serve") {
+		t.Fatalf("validateGraphReadProbeRegistry() error = %v, want fail-closed on the missing cypher surface", err)
+	}
+}
+
 func TestCurrentProbeRegistryClassifiesEverySurfaceWithoutGenericUnsupported(t *testing.T) {
-	registry, err := buildCurrentProbeRegistry()
+	client, apiURL, mcpURL := probeRegistrySatelliteClient(t)
+	registry, err := buildCurrentProbeRegistry(client, apiURL, mcpURL, "user-token")
 	if err != nil {
 		t.Fatalf("buildCurrentProbeRegistry() error = %v", err)
 	}
@@ -144,7 +285,8 @@ func TestCurrentProbeRegistryClassifiesEverySurfaceWithoutGenericUnsupported(t *
 }
 
 func TestCurrentProbeRegistrySynthesizesAWSRuntimeDriftAnyOfScope(t *testing.T) {
-	registry, err := buildCurrentProbeRegistry()
+	client, apiURL, mcpURL := probeRegistrySatelliteClient(t)
+	registry, err := buildCurrentProbeRegistry(client, apiURL, mcpURL, "user-token")
 	if err != nil {
 		t.Fatalf("buildCurrentProbeRegistry() error = %v", err)
 	}
@@ -159,7 +301,8 @@ func TestCurrentProbeRegistrySynthesizesAWSRuntimeDriftAnyOfScope(t *testing.T) 
 }
 
 func TestCurrentProbeRegistryIsRedactedAndClassifiesMappedDelta(t *testing.T) {
-	registry, err := buildCurrentProbeRegistry()
+	client, apiURL, mcpURL := probeRegistrySatelliteClient(t)
+	registry, err := buildCurrentProbeRegistry(client, apiURL, mcpURL, "user-token")
 	if err != nil {
 		t.Fatalf("buildCurrentProbeRegistry() error = %v", err)
 	}
@@ -251,6 +394,19 @@ func requireProbeIdentity(t *testing.T, registry []graphReadProbe, identity stri
 	return graphReadProbe{}
 }
 
+// probeRunStubSpec is the small satellite surface the declared-arguments run
+// test executes against: two executable reads, one executable MCP-free write
+// path for SKIP coverage, and nothing the stub discovery can fully resolve
+// (the divergence fingerprint stays undiscovered, failing the run closed).
+const probeRunStubSpec = `{
+  "openapi": "3.0.0",
+  "paths": {
+    "/api/v0/repositories": {"get": {"responses": {"200": {"description": "ok"}}}},
+    "/api/v0/code/cypher": {"post": {"requestBody": {"content": {"application/json": {"schema": {"type": "object", "properties": {"cypher_query": {"type": "string"}}, "required": ["cypher_query"]}}}}, "responses": {"200": {"description": "ok"}}}},
+    "/api/v0/admin/reindex": {"post": {"responses": {"200": {"description": "ok"}}}}
+  }
+}`
+
 func TestRunGraphReadProbeUsesDeclaredArgumentsAuthAndExplicitSelectorFailure(t *testing.T) {
 	const userToken = "user-secret"
 	const adminToken = "admin-secret"
@@ -260,6 +416,15 @@ func TestRunGraphReadProbeUsesDeclaredArgumentsAuthAndExplicitSelectorFailure(t 
 			request.URL.Path == "/api/v0/docs" || request.URL.Path == "/api/v0/redoc" ||
 			request.URL.Path == "/api/v0/auth/setup-state" || strings.HasPrefix(request.URL.Path, "/api/v0/auth/github/") {
 			wantToken = ""
+		}
+		if request.URL.Path == "/api/v0/openapi.json" {
+			wantHeader := ""
+			if request.Header.Get("Authorization") != wantHeader {
+				t.Errorf("API auth = %q, want no Authorization for the public doc route", request.Header.Get("Authorization"))
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(probeRunStubSpec))
+			return
 		}
 		// Collector selector discovery reads with the admin token.
 		if strings.HasPrefix(request.URL.Path, "/api/v0/admin/") || request.URL.Path == "/api/v0/status/collectors" {
@@ -288,20 +453,30 @@ func TestRunGraphReadProbeUsesDeclaredArgumentsAuthAndExplicitSelectorFailure(t 
 	defer api.Close()
 
 	mcp := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
-		var call struct {
+		var envelope struct {
+			Method string `json:"method"`
 			Params struct {
 				Name      string         `json:"name"`
 				Arguments map[string]any `json:"arguments"`
 			} `json:"params"`
 		}
-		if err := json.NewDecoder(request.Body).Decode(&call); err != nil {
+		if err := json.NewDecoder(request.Body).Decode(&envelope); err != nil {
 			t.Errorf("decode MCP call: %v", err)
 		}
+		if envelope.Method == "tools/list" {
+			if request.Header.Get("Authorization") != "Bearer "+userToken {
+				t.Errorf("MCP tools/list auth = %q, want user bearer", request.Header.Get("Authorization"))
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(probeRegistryStubTools))
+			return
+		}
+		call := envelope.Params
 		wantToken := userToken
-		if strings.Contains(call.Params.Name, "cypher") || call.Params.Name == "visualize_graph_query" {
+		if strings.Contains(call.Name, "cypher") || call.Name == "visualize_graph_query" {
 			wantToken = adminToken
-			if call.Params.Arguments["cypher_query"] != graphReadProbeCypher {
-				t.Errorf("MCP arguments = %#v, want checked-in query", call.Params.Arguments)
+			if call.Arguments["cypher_query"] != graphReadProbeCypher {
+				t.Errorf("MCP arguments = %#v, want checked-in query", call.Arguments)
 			}
 		}
 		if request.Header.Get("Authorization") != "Bearer "+wantToken {
@@ -317,8 +492,8 @@ func TestRunGraphReadProbeUsesDeclaredArgumentsAuthAndExplicitSelectorFailure(t 
 	if err == nil || !strings.Contains(err.Error(), "missing discovered selector class") {
 		t.Fatalf("runGraphReadProbe() error = %v, want explicit missing-selector failure", err)
 	}
-	if strings.Contains(err.Error(), "current surfaces lack checked-in fixtures") {
-		t.Fatalf("runGraphReadProbe() retained generic unsupported bucket: %v", err)
+	if !strings.Contains(err.Error(), "surface mcp:investigate_code_divergence fixture:") {
+		t.Fatalf("runGraphReadProbe() error = %v, want the failing surface named, not a generic bucket", err)
 	}
 	if !strings.Contains(output.String(), "PASS") || !strings.Contains(output.String(), "SKIP") {
 		t.Fatalf("output = %q, want classified PASS and mutation SKIP rows", output.String())
@@ -326,7 +501,8 @@ func TestRunGraphReadProbeUsesDeclaredArgumentsAuthAndExplicitSelectorFailure(t 
 }
 
 func TestCurrentProbeRegistryResolvesEveryExecutableFixture(t *testing.T) {
-	registry, err := buildCurrentProbeRegistry()
+	client, apiURL, mcpURL := probeRegistrySatelliteClient(t)
+	registry, err := buildCurrentProbeRegistry(client, apiURL, mcpURL, "user-token")
 	if err != nil {
 		t.Fatalf("buildCurrentProbeRegistry() error = %v", err)
 	}
@@ -358,73 +534,53 @@ func TestRunGraphReadProbeFailsClosedOnUnsupportedSurface(t *testing.T) {
 	defer server.Close()
 
 	err := runGraphReadProbe(&strings.Builder{}, server.Client(), server.URL, server.URL, "user", "admin")
-	if err == nil || !strings.Contains(err.Error(), "bounded selector discovery HTTP status 404") {
-		t.Fatalf("runGraphReadProbe() error = %v, want explicit selector-discovery failure", err)
+	if err == nil || !strings.Contains(err.Error(), "satellite openapi HTTP status 404") {
+		t.Fatalf("runGraphReadProbe() error = %v, want explicit satellite-fetch failure", err)
 	}
 }
 
-// probeFixtureGraphReader is a minimal query.GraphQuery fake used only to let
-// the real TagHistoryHandler reach its success path; it asserts nothing about
-// query.GraphQuery is required to correctly reject/accept repository_id
-// shape, which happens before Run is ever called.
-type probeFixtureGraphReader struct{}
-
-func (probeFixtureGraphReader) Run(context.Context, string, map[string]any) ([]map[string]any, error) {
-	return nil, nil
-}
-
-func (probeFixtureGraphReader) RunSingle(context.Context, string, map[string]any) (map[string]any, error) {
-	return nil, nil
-}
-
-// TestGraphReadProbeTagHistoryFixtureMatchesRealHandlerContract mounts the
-// actual query.TagHistoryHandler -- not a generic always-200 stub -- to prove
-// the tag-history probe fixture satisfies the real repository_id contract.
+// TestGraphReadProbeTagHistoryFixtureUsesOCIRegistrySelector proves the
+// tag-history probe fixture resolves through the dedicated
+// "oci_repository_id" selector class instead of the discovered,
+// git-shaped "repository_id" class: the served tag-history read contract
+// requires the oci-registry:// prefix and 400s otherwise, so a fixture
+// carrying the git shape would fail against the satellite.
 //
-// go/internal/query/tag_history.go composeOCIImageRef requires repository_id
-// to carry the oci-registry:// prefix and 400s otherwise (proven here on a
-// git-shaped id, the same shape the "repository_id" selector class discovers
-// from GET /api/v0/repositories). The checked-in fixture must instead resolve
-// through the dedicated "oci_repository_id" selector class so it is accepted.
-func TestGraphReadProbeTagHistoryFixtureMatchesRealHandlerContract(t *testing.T) {
-	registry, err := buildCurrentProbeRegistry()
+// The 400 itself is pinned by the serving side's own contract tests; this
+// test pins the fixture side -- what this command sends. It runs against
+// the stub satellite, not in-tree packages (Refs eshu-hq/eshu#9669, row 7).
+func TestGraphReadProbeTagHistoryFixtureUsesOCIRegistrySelector(t *testing.T) {
+	client, apiURL, mcpURL := probeRegistrySatelliteClient(t)
+	registry, err := buildCurrentProbeRegistry(client, apiURL, mcpURL, "user-token")
 	if err != nil {
 		t.Fatalf("buildCurrentProbeRegistry() error = %v", err)
 	}
 	probe := requireProbeIdentity(t, registry, "api:GET /api/v0/images/tag-history")
-
-	handler := &query.TagHistoryHandler{Neo4j: probeFixtureGraphReader{}, Profile: query.ProfileLocalAuthoritative}
-	mux := http.NewServeMux()
-	handler.Mount(mux)
-
-	// RED: the git-shaped repository_id the discovered "repository_id"
-	// selector class would have supplied (what the fixture sent before this
-	// fix) is rejected by the real handler.
-	gitShaped := httptest.NewRecorder()
-	mux.ServeHTTP(gitShaped, httptest.NewRequest(
-		http.MethodGet, "/api/v0/images/tag-history?repository_id=repository%3Ar_fixture&tag=latest&limit=1", nil,
-	))
-	if got, want := gitShaped.Code, http.StatusBadRequest; got != want {
-		t.Fatalf("git-shaped repository_id status = %d, want %d (the old fixture shape must still 400); body = %s",
-			got, want, gitShaped.Body.String())
+	if !probe.execute {
+		t.Fatal("tag-history probe execute = false, want an executable read fixture")
 	}
 
-	// GREEN: the checked-in fixture, resolved through the real
-	// oci_repository_id selector, is accepted by the real handler.
 	selectors := map[string]string{
-		"oci_repository_id": "oci-registry://ghcr.io/eshu-hq/demo", "tag": "latest",
+		"repository_id":     "repository:r_fixture",
+		"oci_repository_id": "oci-registry://ghcr.io/eshu-hq/demo",
+		"tag":               "latest",
 	}
 	resolved, err := resolveProbeSelectors(probe, selectors)
 	if err != nil {
 		t.Fatalf("resolveProbeSelectors() error = %v", err)
 	}
+	repositoryID, _ := resolved.query["repository_id"].(string)
+	if !strings.HasPrefix(repositoryID, "oci-registry://") {
+		t.Fatalf("resolved repository_id = %q, want the oci-registry:// class, not the git-shaped repository_id", repositoryID)
+	}
+	if tag, _ := resolved.query["tag"].(string); tag != "latest" {
+		t.Fatalf("resolved tag = %q, want latest", tag)
+	}
 	values := url.Values{}
 	for name, value := range resolved.query {
 		values.Set(name, fmt.Sprint(value))
 	}
-	fixture := httptest.NewRecorder()
-	mux.ServeHTTP(fixture, httptest.NewRequest(http.MethodGet, resolved.path+"?"+values.Encode(), nil))
-	if got, want := fixture.Code, http.StatusOK; got != want {
-		t.Fatalf("resolved tag-history fixture status = %d, want %d; body = %s", got, want, fixture.Body.String())
+	if strings.Contains(values.Encode(), "repository%3Ar_fixture") {
+		t.Fatalf("fixture query = %q, want no git-shaped repository_id", values.Encode())
 	}
 }

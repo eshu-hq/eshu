@@ -200,6 +200,44 @@ func TestSurfaceInventoryDriftAgainstRealCode(t *testing.T) {
 	}
 }
 
+// TestEnumerateAPIRoutesListsMethodPathPairs pins the offline surface
+// inventory's route source to the served OpenAPI assembly: one sorted,
+// deduplicated "METHOD /path" entry per operation, including the pinned read
+// routes. The drift gate compares this set against the committed artifact;
+// this test pins the wiring shape so a sourcing regression fails here first
+// with a focused message.
+func TestEnumerateAPIRoutesListsMethodPathPairs(t *testing.T) {
+	t.Parallel()
+	routes, err := enumerateAPIRoutes()
+	if err != nil {
+		t.Fatalf("enumerateAPIRoutes() error = %v", err)
+	}
+	if len(routes) == 0 {
+		t.Fatal("enumerateAPIRoutes() returned zero routes, want the live set")
+	}
+	seen := make(map[string]struct{}, len(routes))
+	previous := ""
+	for _, route := range routes {
+		method, path, ok := strings.Cut(route, " ")
+		if !ok || method == "" || !strings.HasPrefix(path, "/") {
+			t.Fatalf("route %q is not a METHOD /path pair", route)
+		}
+		if _, dup := seen[route]; dup {
+			t.Fatalf("duplicate route %q", route)
+		}
+		seen[route] = struct{}{}
+		if route < previous {
+			t.Fatalf("routes not sorted: %q after %q", previous, route)
+		}
+		previous = route
+	}
+	for _, want := range []string{"GET /api/v0/repositories", "POST /api/v0/code/cypher"} {
+		if _, ok := seen[want]; !ok {
+			t.Fatalf("routes missing pinned probe surface %q", want)
+		}
+	}
+}
+
 func TestGoldenCorpusMockCommandsRemainFixtureOnly(t *testing.T) {
 	t.Parallel()
 
