@@ -84,6 +84,37 @@ func main() {
 	}
 	defer cleanup()
 
+	// The commit listener is the serving socket for the satellite
+	// CommitClaimFacts proxy. Unset ESHU_COMMIT_LISTEN keeps the core
+	// dark: wireCommitListener returns nil and nothing below runs.
+	commitSrv, commitCleanup, err := wireCommitListener(ctx, os.Getenv, logger)
+	if err != nil {
+		logger.Error("wire commit listener failed", telemetry.EventAttr("runtime.startup.failed"), "error", err)
+		os.Exit(1)
+	}
+	commitDone := make(chan struct{})
+	if commitSrv != nil {
+		defer commitCleanup()
+		go func() {
+			defer close(commitDone)
+			<-ctx.Done()
+			shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), apiShutdownTimeout(os.Getenv))
+			defer shutdownCancel()
+			if err := commitSrv.Shutdown(shutdownCtx); err != nil {
+				logger.Error("commit listener shutdown failed", telemetry.EventAttr("runtime.shutdown.failed"), "error", err)
+			}
+		}()
+		go func() {
+			logger.Info("commit listener listening on address", telemetry.EventAttr("runtime.server.listening"), "address", commitSrv.Addr)
+			if err := commitSrv.ListenAndServe(); commitServeFailed(err) {
+				logger.Error("commit listen failed", telemetry.EventAttr("runtime.server.failed"), "error", err, "address", commitSrv.Addr)
+				os.Exit(1)
+			}
+		}()
+	} else {
+		close(commitDone)
+	}
+
 	addr := os.Getenv("ESHU_API_ADDR")
 	if addr == "" {
 		addr = ":8080"
@@ -123,9 +154,7 @@ func main() {
 
 	logger.Info("eshu-api listening on address", telemetry.EventAttr("runtime.server.listening"), "address", addr)
 	serveErr := srv.ListenAndServe()
-	if diagnostics != nil && serveErr != nil && serveErr != http.ErrServerClosed {
-		cancel()
-	}
+	mainFailed := awaitCommitShutdown(ctx, cancel, serveErr, commitDone)
 	waitForDiagnosticShutdown(diagnostics != nil, shutdownDone)
 	if diagnostics != nil {
 		flushCtx, flushCancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -134,7 +163,7 @@ func main() {
 		}
 		flushCancel()
 	}
-	if serveErr != nil && serveErr != http.ErrServerClosed {
+	if mainFailed {
 		logger.Error("api listen failed", telemetry.EventAttr("runtime.server.failed"), "error", serveErr, "address", addr)
 		os.Exit(1)
 	}
