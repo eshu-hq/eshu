@@ -162,10 +162,15 @@ func (h *CommitHandler) matchReturnedClaim(mutation workflow.ClaimMutation, resu
 // buildTarget builds the commit scope and generation for one admitted
 // result. The kind gate runs first: a kind the manifest never declared fails
 // closed instead of committing under a fabricated scope. The scope identity
-// comes from the handler's configured binding and the planned IDs the match
-// already proved, never from the producer-controlled echo: source system
-// from config, scope and generation IDs from the wire planned IDs the echo
-// was checked against. The partition falls back to
+// comes from the handler's configured binding and the host-attested planned
+// IDs, never from the producer-controlled echo: source system from config,
+// scope and generation IDs from the wire planned IDs the satellite host
+// stamps from its held lease and the echo was checked against. That binding
+// is enforced twice: the match refuses echo-vs-wire drift pre-probe, and
+// the commit-time pin (fence.RequestFor plus the plane's PinForCommit,
+// which matches claim, token, scope, source run, and generation against
+// the live epoch row) refuses wire-vs-epoch drift pre-commit with a
+// stale-fence 409 and zero commits. The partition falls back to
 // source-system:scope-id exactly like the in-tree mapper, because the wire
 // carries no fairness key; TestCommitHandlerScopeMirrorsInTreeMapping pins
 // the two builders identical for that shape. A scope the planner files
