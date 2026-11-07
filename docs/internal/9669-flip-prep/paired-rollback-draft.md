@@ -20,8 +20,9 @@ Use when the flip pin itself is bad: either edge serves wrong truth from a
 dest image. Restore authority to the last-good core build.
 
 ```bash
-# 0. Identify what moved (read-only)
-kubectl -n eshu get deploy/eshu-api -o jsonpath='{.spec.template.spec.containers[*].image}{"\n"}'
+# 0. Identify what moved (read-only — the flipped API edge, not the
+#    monolith which keeps serving everything else under deploy/eshu-api)
+kubectl -n eshu get deploy/eshu-extracted-api -o jsonpath='{.spec.template.spec.containers[*].image}{"\n"}'
 kubectl -n eshu get deploy/eshu-mcp-server -o jsonpath='{.spec.template.spec.containers[*].image}{"\n"}'
 gh release list --repo eshu-hq/eshu-mcp
 ```
