@@ -211,7 +211,10 @@ def weighted_bounds(runs: list[str], weights: Weights | WeightsV2,
     Returns ``shard_count + 1`` boundaries.
 
     Raises:
-        ValueError: There are fewer runs than shards.
+        ValueError: There are fewer runs than shards (v1 path).
+        ValueError: The v2 shard count is not six.
+        ValueError: Invalid exact partition dimensions on the v2 path.
+        ValueError: No cap-feasible cut from the primary exact search.
         ValueError: No spread-feasible cut fits the budget (v2 predicted
             job spread exceeds 15% of mean).
         ValueError: A shard's rows fail the row-union check.
