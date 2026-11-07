@@ -5,20 +5,20 @@ package query
 
 import (
 	"crypto/rand"
-	"encoding/base64"
 	"net/http"
 
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 )
 
-// setupRecoveryCodeCount is the number of one-time MFA recovery codes the
-// final wizard step generates. Matches the count local identity invitations
-// commonly seed; enough for repeated recovery without being unwieldy to copy.
-const setupRecoveryCodeCount = 10
-
-// setupRecoveryCodeBytes is the raw entropy per generated recovery code.
-const setupRecoveryCodeBytes = 20
+// The MFA recovery-code issuance contract lives in auth (D13, #9669); these
+// aliases keep the wizard and its tests pinned to the identical count and
+// per-code entropy.
+const (
+	setupRecoveryCodeCount = auth.MFARecoveryCodeCount
+	setupRecoveryCodeBytes = auth.MFARecoveryCodeBytes
+)
 
 // handleCompleteMFA is the wizard's final step: reprove the bootstrap
 // credential, generate a fresh set of MFA recovery codes, issue the browser
@@ -136,23 +136,15 @@ func (h *SetupHandler) handleCompleteMFA(w http.ResponseWriter, r *http.Request)
 	})
 }
 
-// generateRecoveryCodes returns setupRecoveryCodeCount fresh crypto/rand
-// recovery codes. It does not use h.newSecret, which tests override with a
-// deterministic sequence for session-secret assertions, so a NewSecret double
-// never makes recovery codes predictable. Production always reads
-// crypto/rand; only package tests set readEntropy, to drive the failure step.
+// generateRecoveryCodes delegates to the auth-owned issuance contract. It
+// does not use h.newSecret, which tests override with a deterministic
+// sequence for session-secret assertions, so a NewSecret double never makes
+// recovery codes predictable. Production always reads crypto/rand; only
+// package tests set readEntropy, to drive the failure step.
 func (h *SetupHandler) generateRecoveryCodes() ([]string, error) {
 	readEntropy := h.readEntropy
 	if readEntropy == nil {
 		readEntropy = rand.Read
 	}
-	codes := make([]string, 0, setupRecoveryCodeCount)
-	for i := 0; i < setupRecoveryCodeCount; i++ {
-		var buf [setupRecoveryCodeBytes]byte
-		if _, err := readEntropy(buf[:]); err != nil {
-			return nil, err
-		}
-		codes = append(codes, base64.RawURLEncoding.EncodeToString(buf[:]))
-	}
-	return codes, nil
+	return auth.GenerateMFARecoveryCodes(readEntropy)
 }

@@ -27,6 +27,8 @@ already authenticated, plus the wire shapes those handlers exchange.
 | Session timeout resolution | `auth/session/timeouts.go` (#6818 move 4a) | function forwarder |
 | Read-only sign-in policy | `sign_in_policy.go` | exported type aliases; root keeps the write-side `SignInPolicyUpdateRequest`/`SignInPolicyMutationStore`/sentinel errors, which no hoisted symbol needs |
 | Audit actor classification | `audit_actor.go` | exported type alias and function forwarder |
+| External-provider login contracts | `login_contracts.go` (D13, #9669) | exported type aliases and one function forwarder; root keeps the HTTP handlers, error-to-status writers, and audit emitters |
+| MFA recovery-code issuance | `mfa_recovery.go` (D13, #9669) | constant aliases; the setup wizard delegates generation to `GenerateMFARecoveryCodes` |
 
 `unauthorizedResponse` and `writePermissionDeniedEnvelope` did NOT move
 here -- see [doc.go](doc.go) for why, and `querycontract.WriteUnauthorized` /
@@ -48,6 +50,14 @@ surface (`CookieSecureMode` and its constants/validators,
 `BrowserSessionResponse`, `BrowserSessionAuthResponse`,
 `NormalizeBrowserSessionAuthContext`, `BrowserSessionAuthResponseFor`,
 `ResolveSessionTimeouts`) moved to package `session` (#6818 move 4a).
+The D13 (#9669) surface: `AuthLoginContractsVersion` plus the GitHub/OIDC
+login admission ports (`GitHubLoginService`, `OIDCLoginService` and their
+request/response shapes, sentinels, and refresh windows),
+`SSOLoginDeniedError`/`SSOLoginDenialReason`,
+`ErrBearerCredentialUnrecognized`, `ScopedTokenResolver`,
+`BrowserSessionResolver`, and the MFA recovery-code contract
+(`MFARecoveryContractsVersion`, `MFARecoveryCodeCount`,
+`MFARecoveryCodeBytes`, `GenerateMFARecoveryCodes`).
 See [doc.go](doc.go).
 
 ## Dependencies

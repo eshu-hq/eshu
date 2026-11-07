@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 )
 
 // Config describes the enabled OIDC provider set.
@@ -229,13 +229,13 @@ func WithSecretGenerator(newSecret func() (string, error)) Option {
 func resolveProviderContext(provider ProviderConfig, tenantID string, workspaceID string) (string, string, error) {
 	tenantID = defaultString(strings.TrimSpace(tenantID), provider.TenantID)
 	if tenantID != provider.TenantID {
-		return "", "", query.ErrOIDCLoginInvalidRequest
+		return "", "", auth.ErrOIDCLoginInvalidRequest
 	}
 	workspaceID = strings.TrimSpace(workspaceID)
 	if provider.WorkspaceID != "" {
 		workspaceID = defaultString(workspaceID, provider.WorkspaceID)
 		if workspaceID != provider.WorkspaceID {
-			return "", "", query.ErrOIDCLoginInvalidRequest
+			return "", "", auth.ErrOIDCLoginInvalidRequest
 		}
 	}
 	return tenantID, workspaceID, nil

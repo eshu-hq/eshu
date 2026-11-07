@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/authsafe"
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 )
 
 const githubSecretBytes = 32
@@ -126,17 +126,17 @@ func (s *Service) CompleteGitHubLogin(ctx context.Context, req CompleteRequest) 
 	now := s.now().UTC()
 	record, ok, err := s.stateStore.ConsumeState(ctx, SHA256Hash(state), now)
 	if err != nil {
-		return CompleteResponse{}, &query.SSOLoginDeniedError{Sentinel: ErrGitHubLoginUnavailable, Reason: "state_store_unavailable"}
+		return CompleteResponse{}, &auth.SSOLoginDeniedError{Sentinel: ErrGitHubLoginUnavailable, Reason: "state_store_unavailable"}
 	}
 	if !ok {
-		return CompleteResponse{}, &query.SSOLoginDeniedError{Sentinel: ErrGitHubLoginDenied, Reason: "state_invalid"}
+		return CompleteResponse{}, &auth.SSOLoginDeniedError{Sentinel: ErrGitHubLoginDenied, Reason: "state_invalid"}
 	}
 	provider, err := s.provider(ctx, record.ProviderConfigID, record.TenantID, record.WorkspaceID)
 	if err != nil {
 		return CompleteResponse{}, err
 	}
 	if record.RedirectURIHash != SHA256Hash(provider.RedirectURL) {
-		return CompleteResponse{}, &query.SSOLoginDeniedError{Sentinel: ErrGitHubLoginDenied, Reason: "redirect_mismatch"}
+		return CompleteResponse{}, &auth.SSOLoginDeniedError{Sentinel: ErrGitHubLoginDenied, Reason: "redirect_mismatch"}
 	}
 	connector, err := s.connector(ctx, provider)
 	if err != nil {
@@ -146,32 +146,32 @@ func (s *Service) CompleteGitHubLogin(ctx context.Context, req CompleteRequest) 
 	if err != nil {
 		slog.WarnContext(ctx, "github login denied: code exchange failed",
 			"provider_config_id", provider.ProviderConfigID, "reason", "code_exchange_failed")
-		return CompleteResponse{}, &query.SSOLoginDeniedError{Sentinel: ErrGitHubLoginDenied, Reason: "code_exchange_failed"}
+		return CompleteResponse{}, &auth.SSOLoginDeniedError{Sentinel: ErrGitHubLoginDenied, Reason: "code_exchange_failed"}
 	}
 	identity, err := connector.FetchIdentity(ctx, strings.TrimSpace(tokens.AccessToken), provider.AllowedOrgs)
 	if err != nil {
 		slog.WarnContext(ctx, "github login denied: identity fetch failed",
 			"provider_config_id", provider.ProviderConfigID, "reason", "identity_fetch_failed")
-		return CompleteResponse{}, &query.SSOLoginDeniedError{Sentinel: ErrGitHubLoginDenied, Reason: "identity_fetch_failed"}
+		return CompleteResponse{}, &auth.SSOLoginDeniedError{Sentinel: ErrGitHubLoginDenied, Reason: "identity_fetch_failed"}
 	}
 	if strings.TrimSpace(identity.Subject) == "" {
-		return CompleteResponse{}, &query.SSOLoginDeniedError{Sentinel: ErrGitHubLoginDenied, Reason: "subject_missing"}
+		return CompleteResponse{}, &auth.SSOLoginDeniedError{Sentinel: ErrGitHubLoginDenied, Reason: "subject_missing"}
 	}
 	if strings.TrimSpace(identity.Email) == "" {
 		slog.WarnContext(ctx, "github login denied: no verified primary email",
 			"provider_config_id", provider.ProviderConfigID, "reason", "email_not_verified")
-		return CompleteResponse{}, &query.SSOLoginDeniedError{Sentinel: ErrGitHubLoginDenied, Reason: "email_not_verified"}
+		return CompleteResponse{}, &auth.SSOLoginDeniedError{Sentinel: ErrGitHubLoginDenied, Reason: "email_not_verified"}
 	}
 	if !anyOrgAllowed(identity.ActiveOrgs, provider.AllowedOrgs) {
 		slog.WarnContext(ctx, "github login denied: no active membership in an allowed org",
 			"provider_config_id", provider.ProviderConfigID, "reason", "org_not_allowed")
-		return CompleteResponse{}, &query.SSOLoginDeniedError{Sentinel: ErrGitHubLoginDenied, Reason: "org_not_allowed"}
+		return CompleteResponse{}, &auth.SSOLoginDeniedError{Sentinel: ErrGitHubLoginDenied, Reason: "org_not_allowed"}
 	}
 	groupHashes := hashTeamHandles(identity.TeamHandles, provider.AllowedOrgs)
 	if len(groupHashes) == 0 {
 		slog.WarnContext(ctx, "github login denied: no team membership maps to a role",
 			"provider_config_id", provider.ProviderConfigID, "reason", "no_team_role_mapping")
-		return CompleteResponse{}, &query.SSOLoginDeniedError{Sentinel: ErrGitHubLoginDenied, Reason: "no_team_role_mapping"}
+		return CompleteResponse{}, &auth.SSOLoginDeniedError{Sentinel: ErrGitHubLoginDenied, Reason: "no_team_role_mapping"}
 	}
 	grants, ok, err := s.grantResolver.ResolveGroupGrants(ctx, GrantQuery{
 		ProviderConfigID: provider.ProviderConfigID,
@@ -181,17 +181,17 @@ func (s *Service) CompleteGitHubLogin(ctx context.Context, req CompleteRequest) 
 		AsOf:             now,
 	})
 	if err != nil {
-		return CompleteResponse{}, &query.SSOLoginDeniedError{Sentinel: ErrGitHubLoginUnavailable, Reason: "grant_resolution_unavailable"}
+		return CompleteResponse{}, &auth.SSOLoginDeniedError{Sentinel: ErrGitHubLoginUnavailable, Reason: "grant_resolution_unavailable"}
 	}
 	if !ok || len(grants.RoleIDs) == 0 {
 		slog.WarnContext(ctx, "github login denied: team hashes resolved to no active role grant",
 			"provider_config_id", provider.ProviderConfigID, "reason", "no_role_grant")
-		return CompleteResponse{}, &query.SSOLoginDeniedError{Sentinel: ErrGitHubLoginDenied, Reason: "no_role_grant"}
+		return CompleteResponse{}, &auth.SSOLoginDeniedError{Sentinel: ErrGitHubLoginDenied, Reason: "no_role_grant"}
 	}
 	subjectIDHash := SHA256Hash(provider.ProviderConfigID + ":" + strings.TrimSpace(identity.Subject))
 	return CompleteResponse{
-		Auth: query.AuthContext{
-			Mode:                         query.AuthModeScoped,
+		Auth: auth.AuthContext{
+			Mode:                         auth.AuthModeScoped,
 			TenantID:                     record.TenantID,
 			WorkspaceID:                  record.WorkspaceID,
 			SubjectClass:                 githubSubjectClass,

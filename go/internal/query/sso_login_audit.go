@@ -9,56 +9,18 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 )
 
-// SSOLoginDeniedError wraps an SSO login sentinel — ErrGitHubLoginDenied,
-// ErrGitHubLoginUnavailable, ErrOIDCLoginDenied, or ErrOIDCLoginUnavailable —
-// with the specific classification that produced it (e.g. "org_not_allowed",
-// "no_grants"). The githublogin and oidclogin CompleteXLogin implementations
-// already compute this classification internally (issue #5601: it used to be
-// logged via slog and then discarded); wrapping it here lets the query-layer
-// callback handler record WHY a login was denied as a governance-audit
-// ReasonCode instead of a generic catch-all, without changing the HTTP
-// status mapping in writeGitHubLoginError/writeOIDCLoginError — errors.Is
-// against the wrapped Sentinel keeps matching through Unwrap exactly as it
-// did before this type existed.
-type SSOLoginDeniedError struct {
-	// Sentinel is the bare provider sentinel this error wraps
-	// (ErrGitHubLoginDenied, ErrGitHubLoginUnavailable, ErrOIDCLoginDenied,
-	// or ErrOIDCLoginUnavailable).
-	Sentinel error
-	// Reason is a stable, low-cardinality classification safe to use
-	// verbatim as a governanceaudit.Event.ReasonCode: lowercase ASCII
-	// letters, digits, and underscore, at most 64 characters (see
-	// governanceaudit.validReasonCode).
-	Reason string
-}
+// SSOLoginDeniedError lives in auth (D13, #9669); this alias keeps the
+// callback handlers, the login services, and every errors.Is/errors.As
+// caller matching the identical wrapped sentinel.
+type SSOLoginDeniedError = auth.SSOLoginDeniedError
 
-// Error implements the error interface.
-func (e *SSOLoginDeniedError) Error() string {
-	if e.Sentinel == nil {
-		return e.Reason
-	}
-	if e.Reason == "" {
-		return e.Sentinel.Error()
-	}
-	return e.Sentinel.Error() + ": " + e.Reason
-}
-
-// Unwrap exposes the wrapped sentinel so errors.Is(err, ErrGitHubLoginDenied)
-// (or the OIDC/Unavailable equivalents) keeps matching unchanged.
-func (e *SSOLoginDeniedError) Unwrap() error { return e.Sentinel }
-
-// SSOLoginDenialReason extracts the classification an SSOLoginDeniedError
-// carries via errors.As. Returns fallback when err does not wrap one (or
-// wraps one with an empty Reason), so callers always get a valid non-empty
-// reason code to audit.
+// SSOLoginDenialReason forwards to the auth-owned extractor so audit
+// callers keep one stable entry point.
 func SSOLoginDenialReason(err error, fallback string) string {
-	var denied *SSOLoginDeniedError
-	if errors.As(err, &denied) && denied.Reason != "" {
-		return denied.Reason
-	}
-	return fallback
+	return auth.SSOLoginDenialReason(err, fallback)
 }
 
 // recordSSOLoginAuthentication appends one identity_authentication

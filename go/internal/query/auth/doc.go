@@ -46,4 +46,12 @@
 // already imports this package for RepositoryAccessFilterFromContext, and
 // the reverse edge would cycle) -- see querycontract.WriteUnauthorized and
 // querycontract.WritePermissionDenied instead.
+//
+// D13 (eshu-hq/eshu#9669) moved the external-provider login contracts here
+// (login_contracts.go: the GitHub/OIDC admission ports, the SSO denial
+// wrapper and reason extractor, the bearer-unrecognized sentinel, and the
+// resolver interfaces) and the MFA recovery-code issuance contract
+// (mfa_recovery.go). Root keeps aliases and one forwarder so in-tree router
+// callers compile unchanged; the HTTP handlers, error-to-status writers,
+// and audit emitters stay in root until the removal PR relocates them.
 package auth

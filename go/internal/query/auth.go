@@ -95,24 +95,15 @@ var ErrBrowserSessionRefreshRequired = errors.New("browser session refresh requi
 // methods, so the alias is complete.
 type AuthContext = auth.AuthContext
 
-// ScopedTokenResolver resolves a presented bearer credential into an auth
-// context without exposing raw token values to handlers.
-type ScopedTokenResolver interface {
-	ResolveScopedToken(context.Context, string) (AuthContext, bool, error)
-}
+// ScopedTokenResolver lives in auth (D13, #9669); this alias keeps the
+// middleware, the resolver chain, and every dest consumer compiling
+// against the identical interface.
+type ScopedTokenResolver = auth.ScopedTokenResolver
 
-// BrowserSessionResolver resolves a session-cookie credential into an auth
-// context using only server-side hashes. Raw session and CSRF values are hashed
-// by middleware before this interface is called.
-type BrowserSessionResolver interface {
-	ResolveBrowserSession(
-		context.Context,
-		string,
-		string,
-		bool,
-		time.Time,
-	) (AuthContext, bool, error)
-}
+// BrowserSessionResolver lives in auth (D13, #9669); this alias keeps the
+// middleware and every dest consumer compiling against the identical
+// interface.
+type BrowserSessionResolver = auth.BrowserSessionResolver
 
 // GovernanceAuditAppender records validation-safe governance audit events.
 // It lives in auth (#6642) so a handler-family subpackage can accept an

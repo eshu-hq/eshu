@@ -16,9 +16,13 @@ import (
 // consumers can pin the shape, keeping the eshu-api extraction boundary
 // from drifting silently. The optional OIDCProviderLister is deliberately
 // not part of v0 (see the OIDCLoginAdmission doc comment).
+//
+// The contract lives in auth since the D13 (#9669) drain, so the frozen
+// spelling names auth. types; the version stays v0 because the method set
+// is identical modulo the home package.
 var frozenOIDCLoginAdmission = []string{
-	"CompleteOIDCLogin func(context.Context, query.OIDCLoginCompleteRequest) (query.OIDCLoginCompleteResponse, error)",
-	"StartOIDCLogin func(context.Context, query.OIDCLoginStartRequest) (query.OIDCLoginStartResponse, error)",
+	"CompleteOIDCLogin func(context.Context, auth.OIDCLoginCompleteRequest) (auth.OIDCLoginCompleteResponse, error)",
+	"StartOIDCLogin func(context.Context, auth.OIDCLoginStartRequest) (auth.OIDCLoginStartResponse, error)",
 }
 
 // oidcLoginAdmissionMethodSet reflects the live OIDCLoginAdmission method

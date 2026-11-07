@@ -17,7 +17,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	pgstatus "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/boundederr"
@@ -28,13 +28,13 @@ import (
 // CompositeResolver tries scoped-token resolvers in order and returns the first
 // match. Unknown credentials fall through; resolver errors fail closed.
 type CompositeResolver struct {
-	resolvers []query.ScopedTokenResolver
+	resolvers []auth.ScopedTokenResolver
 }
 
 // ChainResolvers returns one resolver that tries each non-nil resolver in
 // order. It returns nil when no resolver is configured.
-func ChainResolvers(resolvers ...query.ScopedTokenResolver) query.ScopedTokenResolver {
-	chain := make([]query.ScopedTokenResolver, 0, len(resolvers))
+func ChainResolvers(resolvers ...auth.ScopedTokenResolver) auth.ScopedTokenResolver {
+	chain := make([]auth.ScopedTokenResolver, 0, len(resolvers))
 	for _, resolver := range resolvers {
 		if resolver != nil {
 			chain = append(chain, resolver)
@@ -46,13 +46,13 @@ func ChainResolvers(resolvers ...query.ScopedTokenResolver) query.ScopedTokenRes
 	return &CompositeResolver{resolvers: chain}
 }
 
-// ResolveScopedToken implements query.ScopedTokenResolver.
+// ResolveScopedToken implements auth.ScopedTokenResolver.
 func (r *CompositeResolver) ResolveScopedToken(
 	ctx context.Context,
 	credential string,
-) (query.AuthContext, bool, error) {
+) (auth.AuthContext, bool, error) {
 	if r == nil {
-		return query.AuthContext{}, false, nil
+		return auth.AuthContext{}, false, nil
 	}
 	for _, resolver := range r.resolvers {
 		auth, ok, err := resolver.ResolveScopedToken(ctx, credential)
@@ -60,7 +60,7 @@ func (r *CompositeResolver) ResolveScopedToken(
 			return auth, ok, err
 		}
 	}
-	return query.AuthContext{}, false, nil
+	return auth.AuthContext{}, false, nil
 }
 
 // PostgresIdentityResolver resolves generated personal and service-principal
@@ -78,17 +78,17 @@ func NewPostgresIdentityResolver(store *pgstatus.ScopedAPITokenStore) *PostgresI
 	return &PostgresIdentityResolver{store: store, now: time.Now}
 }
 
-// ResolveScopedToken implements query.ScopedTokenResolver.
+// ResolveScopedToken implements auth.ScopedTokenResolver.
 func (r *PostgresIdentityResolver) ResolveScopedToken(
 	ctx context.Context,
 	credential string,
-) (query.AuthContext, bool, error) {
+) (auth.AuthContext, bool, error) {
 	if r == nil || r.store == nil {
-		return query.AuthContext{}, false, nil
+		return auth.AuthContext{}, false, nil
 	}
 	credential = trimCredential(credential)
 	if credential == "" {
-		return query.AuthContext{}, false, nil
+		return auth.AuthContext{}, false, nil
 	}
 	now := r.now()
 	if now.IsZero() {
@@ -97,13 +97,13 @@ func (r *PostgresIdentityResolver) ResolveScopedToken(
 	tokenHash := pgstatus.ScopedAPITokenHash(credential)
 	resolution, ok, err := r.store.ResolveIdentityAPITokenHash(ctx, tokenHash, now)
 	if err != nil || !ok {
-		return query.AuthContext{}, ok, r.classifyStoreError(ctx, err)
+		return auth.AuthContext{}, ok, r.classifyStoreError(ctx, err)
 	}
 	if err := r.store.MarkIdentityAPITokenUsed(ctx, tokenHash, now); err != nil {
-		return query.AuthContext{}, false, r.classifyStoreError(ctx, err)
+		return auth.AuthContext{}, false, r.classifyStoreError(ctx, err)
 	}
-	return query.AuthContext{
-		Mode:                         query.AuthModeScoped,
+	return auth.AuthContext{
+		Mode:                         auth.AuthModeScoped,
 		TenantID:                     resolution.TenantID,
 		WorkspaceID:                  resolution.WorkspaceID,
 		SubjectClass:                 resolution.SubjectClass,

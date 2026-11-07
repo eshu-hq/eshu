@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/oidclogin"
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 )
 
 const (
@@ -25,15 +25,15 @@ const (
 	githubSubjectClass = "external_github_user"
 )
 
-// Sign-in errors are query.ErrGitHubLogin{Unavailable,InvalidRequest,Denied}
+// Sign-in errors are auth.ErrGitHubLogin{Unavailable,InvalidRequest,Denied}
 // (aliased below), not a package-local set: mirrors oidclogin, which uses
-// query.ErrOIDCLogin* directly rather than defining its own, so
+// auth.ErrOIDCLogin* directly rather than defining its own, so
 // query.GitHubLoginHandler's error mapping and this package's Service agree
 // on one canonical set of sentinels.
 var (
-	ErrGitHubLoginUnavailable    = query.ErrGitHubLoginUnavailable
-	ErrGitHubLoginInvalidRequest = query.ErrGitHubLoginInvalidRequest
-	ErrGitHubLoginDenied         = query.ErrGitHubLoginDenied
+	ErrGitHubLoginUnavailable    = auth.ErrGitHubLoginUnavailable
+	ErrGitHubLoginInvalidRequest = auth.ErrGitHubLoginInvalidRequest
+	ErrGitHubLoginDenied         = auth.ErrGitHubLoginDenied
 )
 
 // Config describes the enabled GitHub provider set for the env-file
@@ -219,14 +219,14 @@ var SHA256Hash = oidclogin.SHA256Hash
 
 // StartRequest, StartResponse, CompleteRequest, and CompleteResponse are the
 // SAME types query.GitHubLoginHandler uses (mirrors oidclogin's use of
-// query.OIDCLoginStartRequest et al. directly as its own method
+// auth.OIDCLoginStartRequest et al. directly as its own method
 // signatures) — Service.StartGitHubLogin/CompleteGitHubLogin satisfy
-// query.GitHubLoginService without any field-mapping adapter in cmd/api.
+// auth.GitHubLoginService without any field-mapping adapter in cmd/api.
 type (
-	StartRequest     = query.GitHubLoginStartRequest
-	StartResponse    = query.GitHubLoginStartResponse
-	CompleteRequest  = query.GitHubLoginCompleteRequest
-	CompleteResponse = query.GitHubLoginCompleteResponse
+	StartRequest     = auth.GitHubLoginStartRequest
+	StartResponse    = auth.GitHubLoginStartResponse
+	CompleteRequest  = auth.GitHubLoginCompleteRequest
+	CompleteResponse = auth.GitHubLoginCompleteResponse
 )
 
 // DefaultSessionRefreshWindow bounds external-proof staleness for
@@ -235,7 +235,7 @@ type (
 // re-check against) — a stale GitHub-backed session is refreshed by
 // re-resolving the session's already-granted roles through the same
 // GrantResolver, not by re-contacting GitHub.
-const DefaultSessionRefreshWindow = query.DefaultGitHubSessionRefreshWindow
+const DefaultSessionRefreshWindow = auth.DefaultGitHubSessionRefreshWindow
 
 func defaultString(value string, fallback string) string {
 	if strings.TrimSpace(value) == "" {
