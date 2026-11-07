@@ -97,8 +97,8 @@ does, so each generation sits contiguously on the heap (about 8,330 heap blocks 
 
 ## Quiet-host round (#10330)
 
-Performance Evidence: run 2026-11-07 on a private native PG18.6 (Ubuntu 18.6,
-stock settings: `shared_buffers` 128 MB, `work_mem` 4 MB), full bootstrap schema
+Performance Evidence: run 2026-11-07 on a private native PG18.6 host
+(stock settings: `shared_buffers` 128 MB, `work_mem` 4 MB), full bootstrap schema
 at 52e0cbae93 (309 migrations). One operator-shaped scope of 9 generations with
 100,000 suppressions each, seeded by one `INSERT ... SELECT` across all
 generations, so generations interleave on the heap (pessimistic, like the
@@ -130,8 +130,7 @@ round qualifies where the earlier ones did not.
 
 **Reading it.**
 
-- One pair at 100,000 suppressions: p50 143 ms, max 145 ms (the p95 estimate over
-  seven rounds), range 141-145 ms. Under the 500 ms acceptance with margin.
+- One pair at 100,000 suppressions: p50 143 ms, max 145 ms over seven rounds (p95 not estimable at n=7), range 141-145 ms. Under the 500 ms acceptance with margin.
 - The capped walk at K=4 over the 9-generation chain (endpoint g1-g5 plus pairs
   g5-g6, g6-g7, g7-g8, g8-g9, the exact plan `planSuppressionWalk` issues):
   p50 740 ms, max 790 ms.
@@ -180,7 +179,7 @@ Against the threshold: buffers and plan pass. Time passes at load 10, 17 and 32 
 custom plan, and misses at load 32 with the generic plan (518 ms) and at load 49 (666 ms).
 The least loaded round gave 321 ms with a tight range. No round met the repo timing rule
 (load1 under 9 with a control canary), so the timing is recorded as met on the least loaded
-round with no qualifying quiet-host proof yet.
+round.
 
 **The earlier fixture is pessimistic on one point.** g1 to g5 were inserted together and
 interleave on the heap, so g5 costs 41,751 pages. g6 was inserted alone and costs 8,418.

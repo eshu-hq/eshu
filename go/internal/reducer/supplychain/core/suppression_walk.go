@@ -11,7 +11,7 @@ import (
 
 // suppressionWalkMaxPairs is the most adjacent generation pairs one pass diffs
 // one by one; past it the pass folds the older remainder into one endpoint diff.
-// The value is data-chosen: the quiet-host re-measure at the cap (#10330) on
+// The value is data-supported: the quiet-host re-measure at the cap (#10330) on
 // PostgreSQL 18.6 (stock 4 MB work_mem, generic plans, 100,000 suppressions
 // per generation) timed one pair at p50 143 ms with a 145 ms max over seven
 // rounds, so K=4 walks at most five statements in about 0.7 s, inside the 5 s
