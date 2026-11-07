@@ -487,3 +487,12 @@ only the limit. No
 payload bytes ever reach the message. An operator greps one deterministic
 failure instead of ten burned attempts; the paged assembler preserves
 runner-classified verdicts instead of re-wrapping them.
+
+## Core commit handler (#8877)
+
+`CommitHandler` serves the core side of `POST /workflow.v1/CommitClaimFacts`: admission first, then `collector.CommitClaimFacts` with a per-kind scope builder mirroring `mapping.go`; `{"ok":true}` only after COMMIT.
+
+No-Regression Evidence: stub-harness replay of the lane contract (baseline: no core endpoint, forwarded commits land nowhere; after: 19 handler tests green with -race plus untouched lane and package suites).
+Fence refusals commit zero facts; retries return identical FactIDs; caps refuse pre-commit.
+Bounded 4 MiB decode, no new goroutines, locks, or metrics, 60s bound under the 120s proxy; every refusal precedes the fence probe and the shared carrier check keeps handler and lane identical.
+No-Observability-Change: no new metrics, spans, or logs; outcomes surface as HTTP status plus the existing claim-plane client metrics, as with the lane.

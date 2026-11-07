@@ -120,11 +120,8 @@ func CommitClaimFacts(
 			workflow.MaxCommitClaimFactsBytes,
 		)
 	}
-	result, err := decodeCommitClaimResult(req.ResultJSON)
+	result, err := CheckCommitClaimCarrier(req)
 	if err != nil {
-		return err
-	}
-	if err := checkCommitClaimIdentity(req, result); err != nil {
 		return err
 	}
 	envelopes, err := mapCommitClaimEnvelopes(req, result)
@@ -160,6 +157,24 @@ func CommitClaimFacts(
 		return fmt.Errorf("commit claim facts commit: %w", err)
 	}
 	return nil
+}
+
+// CheckCommitClaimCarrier runs the lane's pure-bytes carrier check without
+// committing: strict-decode the result, then prove it belongs to the fenced
+// epoch and fits the single-call framing. The core commit handler
+// (extensionhost.CommitHandler) runs this before its own admission stack,
+// so the two paths share one decode-and-identity implementation instead of
+// a copy that can drift. A carrier failure here is terminal-invalid: retry
+// cannot change what the result belongs to.
+func CheckCommitClaimCarrier(req CommitClaimFactsRequest) (sdkcollector.Result, error) {
+	result, err := decodeCommitClaimResult(req.ResultJSON)
+	if err != nil {
+		return sdkcollector.Result{}, err
+	}
+	if err := checkCommitClaimIdentity(req, result); err != nil {
+		return sdkcollector.Result{}, err
+	}
+	return result, nil
 }
 
 // decodeCommitClaimResult strict-decodes one collector result: unknown
