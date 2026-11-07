@@ -192,9 +192,9 @@ facts by the changed keys' repository id
 (`fact_records_security_alert_repository_lookup_idx` leads with
 `payload->>'repository_id'`; no migration) and the same consumption-key join
 keeps only the alerts naming a changed package. Alerts a provider already
-closed (`dismissed`, `auto_dismissed`, `fixed` — the set
-`securityAlertCanSeedImpact` refuses to seed from) do not reopen their
-scope. Evidence: `docs/internal/evidence/10061-alert-scope-reopen.md`.
+closed (`provider_state` `dismissed`, `auto_dismissed`, or `fixed` — only
+the provider-state subset of what `securityAlertCanSeedImpact` refuses to
+seed from) do not reopen their scope. Evidence: `docs/internal/evidence/10061-alert-scope-reopen.md`.
 
 Gap passes: when a delta in the diffed chain has a base that cannot be read
 (missing, pruned, or a legacy delta), its view is the delta's own rows, so a

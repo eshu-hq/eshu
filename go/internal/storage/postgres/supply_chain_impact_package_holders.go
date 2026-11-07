@@ -55,8 +55,9 @@ WHERE fact.fact_kind = 'vulnerability.affected_package'
 // fact_records_security_alert_repository_lookup_idx (migration 003), so the
 // read seeks the generation repository's alerts and joins to the active
 // generation afterwards; no migration is needed. Alerts a provider already
-// closed (dismissed, auto_dismissed, fixed — the set
-// securityAlertCanSeedImpact refuses to seed a finding from) are left out:
+// closed (provider_state dismissed, auto_dismissed, or fixed — only the
+// provider-state subset of what securityAlertCanSeedImpact refuses to seed
+// a finding from) are left out:
 // reopening their scope could not change a finding. Shape matches
 // findPackageHolderCandidatesQuery (same five identity columns, no DISTINCT,
 // no ORDER BY; the store dedupes), and the handler matches names with the
