@@ -19,9 +19,9 @@ import (
 // gates PASS per arch), and the manifest artifacts entries pin the same
 // digests. A seed rebuild re-pins these constants in the same commit as the
 // manifest fill.
-const provenSeedImageAmd64 = "ghcr.io/eshu-hq/eshu-collector-media-import@sha256:79db3b3d7f044e266a631d4d838ffce4d66dced25f9bc9102fb32d3ac090b801"
+const provenSeedImageAmd64 = "ghcr.io/eshu-hq/eshu-collector-media-import@sha256:bae515ec1b7543696a1641eccbfa7c5e6c73220702573c54690f771eee455ce4"
 
-const provenSeedImageArm64 = "ghcr.io/eshu-hq/eshu-collector-media-import@sha256:c8dc6397f47e27602e2ec57a87c152f92d9b278edcf890a6e784e3b6956d7dd3"
+const provenSeedImageArm64 = "ghcr.io/eshu-hq/eshu-collector-media-import@sha256:348d7ae76d875e52eb95ebfc25ede0599dc959e7d4fd74a0a2c3efdba98bfb22"
 
 var seedDigestPattern = regexp.MustCompile(`^.+@sha256:[A-Fa-f0-9]{64}$`)
 
