@@ -168,6 +168,63 @@ class V2ModelTest(unittest.TestCase):
                         with self.assertRaises(ValueError):
                             planner.exact_bounds(len(costs), 3, cap, interval)
 
+    def test_spread_fallback_finds_the_cut_the_primary_misses(self) -> None:
+        # #9390 task B: the primary cut maximizes the minimum over
+        # cap-feasible cuts and raises at 18.62% spread here, while
+        # [0, 2, 4, 5, 6, 9, 12] meets the cap at 14.85% spread.
+        counts = [4, 5, 3]
+        prices = [447, 796, 102, 347, 831, 892, 810, 618, 105, 179, 687, 614]
+        runs: list[str] = []
+        priced: dict[str, float] = {}
+        for package, count in enumerate(counts):
+            for test in range(count):
+                run = f"./p{package}|Test{test}Live"
+                runs.append(run)
+                priced[run] = prices[len(runs) - 1] / 10
+        model = v2.weights_from_json({
+            **document(),
+            "fixed_job_seconds": 10.0, "cold_cache_seconds": 5.0,
+            "package_first_seconds": {"./p0": 220.8, "./p1": 199.5,
+                                      "./p2": 148.5},
+            "package_repeat_seconds": {"./p0": 6.0, "./p1": 4.3,
+                                       "./p2": 2.4},
+            "test_seconds": priced})
+        scorer = v2.Scorer(runs, model)
+        cap = 16559
+        primary = planner.exact_bounds(len(runs), 6, cap, scorer.cost)
+        jobs = [scorer.cost(a, b) for a, b in zip(primary, primary[1:])]
+        self.assertGreater(max(abs(job * 6 - sum(jobs)) for job in jobs)
+                           * 100 / sum(jobs), 15)
+        self.assertEqual(wt.weighted_bounds(runs, model), [0, 2, 4, 5, 6, 9, 12])
+
+    def test_spread_fallback_matches_bruteforce_small_instances(self) -> None:
+        for costs in ([4, 4, 4, 9, 4, 4], [9, 2, 8, 3, 7, 4],
+                      [2, 0, 10, 1, 0, 8]):
+            for cap in (10, 20):
+                with self.subTest(costs=costs, cap=cap):
+                    interval = lambda a, b: sum(costs[a:b])
+                    candidates = []
+                    for cuts in itertools.combinations(range(1, len(costs)), 2):
+                        bounds = (0, *cuts, len(costs))
+                        values = [interval(a, b)
+                                  for a, b in zip(bounds, bounds[1:])]
+                        total = sum(values)
+                        if max(values) <= cap and (
+                                total == 0 or max(abs(
+                                    value * 3 - total) for value in values)
+                                * 100 / total <= 15):
+                            candidates.append(((-min(values), max(values),
+                                                sum(value * value
+                                                    for value in values),
+                                                bounds), bounds))
+                    if candidates:
+                        self.assertEqual(tuple(planner.exact_bounds_spread(
+                            len(costs), 3, cap, interval)), min(candidates)[1])
+                    else:
+                        with self.assertRaises(ValueError):
+                            planner.exact_bounds_spread(
+                                len(costs), 3, cap, interval)
+
     def test_nonmonotone_interval_does_not_prune_a_feasible_cut(self) -> None:
         prices = {(0, 1): 5, (0, 2): 15, (0, 3): 5,
                   (1, 2): 5, (1, 3): 5, (2, 3): 5}
