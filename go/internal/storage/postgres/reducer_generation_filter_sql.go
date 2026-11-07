@@ -137,13 +137,33 @@ const supersedeInactiveReducerGenerationsJoin = `ingestion_scopes AS scope,
 var supersedeInactiveReducerGenerationsPredicate = `stale.stage = 'reducer'
       AND stale.status IN ('pending', 'retrying', 'failed', 'dead_letter')
       AND ($2::text[] IS NULL OR stale.domain = ANY($2::text[]))
-      -- #10106: Crossplane SATISFIED_BY intents are keyed per scope, not
-      -- per generation: the handler materializes the scope's active
-      -- snapshot, and Runtime.execute rebinds a superseded intent onto
-      -- the active generation. Terminalizing the row here would drop a
-      -- replay a quiet delta superseded before execution, and the delta
-      -- derives no replacement intent of its own.
-      AND stale.domain <> 'crossplane_satisfied_by_materialization'
+      -- #10106/#10269: Crossplane SATISFIED_BY intents are keyed per
+      -- scope, not per generation: the handler materializes the scope's
+      -- active snapshot, and Runtime.execute rebinds a superseded intent
+      -- onto the active generation. A stale row of this domain is
+      -- retired only when a newer pending/retrying sibling for the same
+      -- scope carries the same debt; a sole stale row (a replay a quiet
+      -- delta superseded before execution, where the delta derives no
+      -- replacement intent) stays claimable for the rebind. The carrier
+      -- set excludes claimed/running (an in-flight carrier can still
+      -- dead-letter, and superseded is unreplayable, so the stale row is
+      -- the fallback) and failed/dead_letter/succeeded (none will run).
+      AND (stale.domain <> '` + string(reducercontract.DomainCrossplaneSatisfiedByMaterialization) + `'
+        OR EXISTS (
+          SELECT 1
+          FROM fact_work_items AS sibling
+          JOIN scope_generations AS sibling_generation
+            ON sibling_generation.scope_id = sibling.scope_id
+           AND sibling_generation.generation_id = sibling.generation_id
+          WHERE sibling.stage = 'reducer'
+            AND sibling.domain = '` + string(reducercontract.DomainCrossplaneSatisfiedByMaterialization) + `'
+            AND sibling.scope_id = stale.scope_id
+            AND sibling.work_item_id <> stale.work_item_id
+            AND sibling.status IN ('pending', 'retrying')
+            AND (sibling_generation.ingested_at > stale_generation.ingested_at
+              OR (sibling_generation.ingested_at = stale_generation.ingested_at
+                AND sibling_generation.generation_id > stale_generation.generation_id))
+        ))
       AND scope.scope_id = stale.scope_id
       AND stale_generation.scope_id = stale.scope_id
       AND stale_generation.generation_id = stale.generation_id
@@ -217,6 +237,27 @@ var supersedeInactiveReducerGenerationsPredicate = `stale.stage = 'reducer'
 // jsonb_array_length off non-array values and the COALESCE keeps an absent
 // owed key FALSE instead of NULL, which would spare every row), so it adds
 // no join or scan.
+//
+// The Crossplane arm (#10269) bounds the #10106 exemption: per-generation
+// rows of one scope are interchangeable executions (the handler reads the
+// active snapshot by scope), so a stale row retires when a newer
+// pending/retrying sibling exists. Snapshot transitivity collapses a chain
+// G1<G2<G3 in one statement — G1 sees carrier G2 and G2 sees carrier G3 —
+// so handler executions per scope per drain epoch are <= 1, plus at most 1
+// when a row was already in flight while newer generations queued (the
+// conservative carrier set never prunes against a claimed/running sibling).
+// "Newer" is generation activation order (ingested_at, then generation_id),
+// the order the generation guard above already uses; updated_at is rewritten
+// by retry/claim stamps and does not order generations. The carrier probe
+// reads the statement snapshot: a sibling another claimer leases between
+// the snapshot and the stale row's lock still counts as carrier for this
+// statement (the EvalPlanQual recheck re-fetches only the locked stale
+// row). That is safe in the one direction that matters — the leased
+// carrier executes next and discharges the debt; if it later dead-letters,
+// the debt rests on dead-letter replay exactly as it does when a sole row
+// dead-letters. TestReducerClaimCoalesceCarrierClaimedBeforeLockLive pins
+// this interleave. The probe is gated by the domain arm, so
+// non-Crossplane candidates never pay it.
 //
 // The sweep is a blocking write over terminal and waiting rows that operator
 // replays also lock, so it takes its locks first, in work_item_id COLLATE "C"
