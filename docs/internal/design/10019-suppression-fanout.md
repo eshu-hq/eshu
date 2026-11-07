@@ -2,7 +2,7 @@
 
 Status: Wired 2026-11-07 (#9914 merged via #10225, #10060 fixed via #10300).
 Pure functions (#10141) called from `commitSupplyChainImpactRows`; proofs below all
-delivered. Cap `K` data-chosen at 4 by the quiet-host round (condition 1, #10330).
+delivered. Cap `K` stays at 4, supported by the quiet-host round (condition 1, #10330); larger caps were not probed.
 
 ## The short version
 
@@ -195,7 +195,7 @@ At 100,000 suppressions one pair costs 550 ms, four cost 2,044 ms and eight cost
 quiet host (#10330: load1 6.4-7.2, canary 232-253 ms) one pair costs 143 ms at p50 (145 ms max
 over seven rounds) and the capped walk of five statements costs 740 ms at p50 (790 ms max).
 
-`K` is data-chosen at 4: (K+1) x 145 ms stays far inside the 5 s headroom. A larger cap was
+`K` stays at 4: (K+1) x 145 ms stays far inside the 5 s headroom. A larger cap was
 not probed on a quiet host, so the cap stays where the wiring shipped it. Worst case a pass
 issues `K+1` statements.
 
@@ -257,7 +257,7 @@ class; condition 2's acceptance (`K+1` p95 under half of 10 s) is met by the qui
 1. **Re-measure on the built writer path** on a quiet host (load1 under 9, control canary), p50
    and p95, one pair and at the cap. Acceptance: p50 under 500 ms for one pair at 100,000
    suppressions; on a miss the lever is statement-local `work_mem`. DONE (#10330): pair p50
-   143 ms (max 145 ms), capped walk p50 740 ms (max 790 ms); K data-chosen at 4. Cost instead:
+   143 ms (max 145 ms), capped walk p50 740 ms (max 790 ms); K stays at 4 with larger caps unprobed. Cost instead:
    260 holders drain in 6 s on 4 workers (36 s derivation).
 2. **An explicit statement bound** on each diff statement, reset after the walk so it
    does not leak onto the row writes. Fails as the retryable fan-out class. DONE:
