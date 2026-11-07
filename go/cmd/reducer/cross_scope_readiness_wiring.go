@@ -4,7 +4,7 @@
 package main
 
 import (
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
 	"github.com/eshu-hq/eshu/go/internal/reducer/iamcan"
 	"github.com/eshu-hq/eshu/go/internal/reducer/workloadinstance"
@@ -24,7 +24,7 @@ func iamCanPerformCrossScopeTargetsFor(database db.Queryer, factStore *postgres.
 
 // workloadInstanceExistenceFor wires the #6785 USES readiness gate's
 // graph-backed WorkloadInstance existence lookup.
-func workloadInstanceExistenceFor(graphReader query.GraphQuery) workloadinstance.ExistenceLookup {
+func workloadInstanceExistenceFor(graphReader querycontract.GraphQuery) workloadinstance.ExistenceLookup {
 	return workloadinstance.GraphExistenceLookup{Graph: graphReader}
 }
 

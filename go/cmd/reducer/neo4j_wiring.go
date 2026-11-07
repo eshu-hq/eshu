@@ -18,7 +18,7 @@ import (
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 
 	"github.com/eshu-hq/eshu/go/internal/graph/capture"
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
@@ -177,7 +177,7 @@ func (r neo4jSessionRunner) QueryCypherExists(ctx context.Context, cypher string
 }
 
 // Run executes a read-only Cypher query and returns row maps. This implements
-// query.GraphQuery for reducer-local graph lookups.
+// querycontract.GraphQuery for reducer-local graph lookups.
 func (r neo4jSessionRunner) Run(ctx context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 	if r.Driver == nil {
 		return nil, fmt.Errorf("neo4j driver is required")
@@ -251,7 +251,7 @@ func (c reducerNeo4jDriverCloser) Close() error {
 // has no capture-shaped method, and the materializer adapter is wrapped
 // inside newReducerCypherExecutor. A nil session returns both seams
 // unchanged.
-func applyReducerCapture(session *capture.Session, exec sourcecypher.Executor, reader query.GraphQuery) (sourcecypher.Executor, query.GraphQuery) {
+func applyReducerCapture(session *capture.Session, exec sourcecypher.Executor, reader querycontract.GraphQuery) (sourcecypher.Executor, querycontract.GraphQuery) {
 	return session.Writer(exec), session.ReaderIfConfigured(reader)
 }
 
@@ -268,7 +268,7 @@ func openReducerNeo4jAdapters(
 	parent context.Context,
 	getenv func(string) string,
 	instruments *telemetry.Instruments,
-) (sourcecypher.Executor, reducer.CypherExecutor, node.CypherReader, query.GraphQuery, io.Closer, error) {
+) (sourcecypher.Executor, reducer.CypherExecutor, node.CypherReader, querycontract.GraphQuery, io.Closer, error) {
 	graphBackend, err := runtimecfg.LoadGraphBackend(getenv)
 	if err != nil {
 		return nil, nil, nil, nil, nil, err

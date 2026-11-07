@@ -16,7 +16,7 @@ import (
 
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/reducer/codedivergence"
@@ -305,7 +305,7 @@ func buildReducerCodeEvidenceHandlers(
 	database db.ExecQueryer,
 	factStore postgres.FactStore,
 	graphWriters canonicalGraphWriters,
-	graphReader query.GraphQuery,
+	graphReader querycontract.GraphQuery,
 	logger *slog.Logger,
 ) reducer.CodeEvidenceHandlers {
 	functionSummaryStore := postgres.NewFunctionSummaryStore(database)
@@ -350,7 +350,7 @@ func buildReducerCodeEvidenceHandlers(
 func buildReducerCrossScopeHandlers(
 	database db.ExecQueryer,
 	factStore *postgres.FactStore,
-	graphReader query.GraphQuery,
+	graphReader querycontract.GraphQuery,
 	logger *slog.Logger,
 ) reducer.CrossScopeHandlers {
 	return reducer.CrossScopeHandlers{

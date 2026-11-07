@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/telemetry/snapshot"
@@ -80,7 +80,7 @@ func (c cachedGraphOrphanNodes) GraphOrphanNodeCounts(ctx context.Context) (map[
 func registerGraphBackedGauges(
 	instruments *telemetry.Instruments,
 	meter metric.Meter,
-	graphReader query.GraphQuery,
+	graphReader querycontract.GraphQuery,
 	orphanObserver telemetry.GraphOrphanObserver,
 	getenv func(string) string,
 	logger *slog.Logger,
@@ -133,7 +133,7 @@ func registerProvenanceCoverageGauges(
 	refresher *snapshot.Refresher,
 	instruments *telemetry.Instruments,
 	meter metric.Meter,
-	graphReader query.GraphQuery,
+	graphReader querycontract.GraphQuery,
 	getenv func(string) string,
 ) error {
 	store := edgewriter.NewProvenanceCountStore(graphReader)

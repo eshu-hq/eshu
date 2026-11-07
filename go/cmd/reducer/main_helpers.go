@@ -19,7 +19,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/buildinfo"
 	"github.com/eshu-hq/eshu/go/internal/clock"
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/projection"
 	"github.com/eshu-hq/eshu/go/internal/reducer/codeintel"
@@ -173,7 +173,7 @@ func registerReducerObservableGauges(
 	database *sql.DB,
 	activeWorkers *atomic.Int64,
 	graphOrphanObserver telemetry.GraphOrphanObserver,
-	graphReader query.GraphQuery,
+	graphReader querycontract.GraphQuery,
 	getenv func(string) string,
 	logger *slog.Logger,
 ) (graphRefresher *snapshot.Refresher, postgresRefresher *snapshot.Refresher, err error) {

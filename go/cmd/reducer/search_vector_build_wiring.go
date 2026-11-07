@@ -10,7 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/semanticsearch"
 	reducersearchvector "github.com/eshu-hq/eshu/go/internal/reducer/searchvector"
 	"github.com/eshu-hq/eshu/go/internal/searchembedruntime"
 	"github.com/eshu-hq/eshu/go/internal/searchvector"
@@ -33,7 +33,7 @@ func searchVectorBuildRunnerFor(
 	if !embeddingConfig.Enabled {
 		return nil, nil
 	}
-	vectorConfig := query.DefaultPersistedLocalSemanticSearchHybridConfig()
+	vectorConfig := semanticsearch.DefaultPersistedLocalSemanticSearchHybridConfig()
 	vectorConfig.ProviderProfileID = embeddingConfig.ProviderProfileID
 	vectorConfig.SourceClass = embeddingConfig.SourceClass
 	vectorConfig.EmbeddingModelID = embeddingConfig.EmbeddingModelID

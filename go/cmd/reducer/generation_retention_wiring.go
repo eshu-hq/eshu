@@ -12,7 +12,7 @@ import (
 
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/freshness/links"
 	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/retention"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -78,12 +78,12 @@ func validateGenerationRetentionConfig(
 	if getenv == nil {
 		getenv = func(string) string { return "" }
 	}
-	profile, err := query.ParseQueryProfile(getenv(queryProfileEnv))
+	profile, err := querycontract.ParseQueryProfile(getenv(queryProfileEnv))
 	if err != nil {
 		return err
 	}
 	switch profile {
-	case query.ProfileLocalLightweight, query.ProfileLocalAuthoritative, query.ProfileLocalFullStack:
+	case querycontract.ProfileLocalLightweight, querycontract.ProfileLocalAuthoritative, querycontract.ProfileLocalFullStack:
 		return nil
 	default:
 		return fmt.Errorf("%s=false requires an explicit local %s profile; production reducers must run generation retention", generationRetentionEnabledEnv, queryProfileEnv)

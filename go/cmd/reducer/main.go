@@ -22,7 +22,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/clock"
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudasset"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/projection"
@@ -46,7 +46,7 @@ func buildReducerService(
 	cypherExec reducer.CypherExecutor,
 	intentStore *postgres.SharedIntentStore,
 	neo4jReader node.CypherReader,
-	graphReader query.GraphQuery,
+	graphReader querycontract.GraphQuery,
 	getenv func(string) string,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
@@ -205,7 +205,7 @@ func buildReducerService(
 		logger.Info(
 			"reducer claims will wait for source-local projection drain",
 			"graph_backend", string(graphBackend),
-			"query_profile", string(query.ProfileLocalAuthoritative),
+			"query_profile", string(querycontract.ProfileLocalAuthoritative),
 		)
 	}
 	claimDomains, err := loadReducerClaimDomains(getenv)
@@ -429,7 +429,7 @@ func buildReducerService(
 	}
 	serviceExecutor := leaseExpiryBarrier.wrapReducer(executor)
 
-	// graphReader already satisfies OrphanSweepReader (query.GraphQuery.Run has
+	// graphReader already satisfies OrphanSweepReader (querycontract.GraphQuery.Run has
 	// the same shape) and is the same read port graphOrphanSweepRunnerFor uses.
 	edgeWriter := newSharedProjectionEdgeWriter(neo4jExec, neo4jBatchSize(getenv),
 		instruments, logger, graphReader, codeCallEdgeBatchSize, codeCallEdgeGroupBatchSize,

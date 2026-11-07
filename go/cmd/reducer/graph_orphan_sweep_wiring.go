@@ -9,7 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/orphan"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	sweeporphan "github.com/eshu-hq/eshu/go/internal/storage/cypher/sweep/orphan"
@@ -35,7 +35,7 @@ type graphOrphanSweeper struct {
 
 func graphOrphanSweepRunnerFor(
 	executor sourcecypher.Executor,
-	reader query.GraphQuery,
+	reader querycontract.GraphQuery,
 	leaseManager sharedintent.PartitionLeaseManager,
 	cfg graphOrphanSweepConfig,
 	fingerprints deployableUnitGapPostgres,

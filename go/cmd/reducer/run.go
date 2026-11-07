@@ -20,7 +20,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/graph/anchor"
 	legacyworkload "github.com/eshu-hq/eshu/go/internal/graph/legacy/workload"
 	"github.com/eshu-hq/eshu/go/internal/graphschemacompat"
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/census"
 	"github.com/eshu-hq/eshu/go/internal/reducer/workload/legacy/retire"
@@ -220,7 +220,7 @@ func startIDAnchorCensus(
 // Neo4j-only statement in every golden-corpus capture and show up as a backend
 // divergence. It falls back to the decorated reader when the raw port is not a
 // single-row reader, and returns nil when neither is configured.
-func idAnchorCensusReader(raw node.CypherReader, decorated query.GraphQuery) anchor.RowReader {
+func idAnchorCensusReader(raw node.CypherReader, decorated querycontract.GraphQuery) anchor.RowReader {
 	if rowReader, ok := raw.(anchor.RowReader); ok {
 		return rowReader
 	}
@@ -242,7 +242,7 @@ func idAnchorCensusReader(raw node.CypherReader, decorated query.GraphQuery) anc
 func legacyWorkloadRetirementHandler(
 	cypherExec reducer.CypherExecutor,
 	rawReader node.CypherReader,
-	decorated query.GraphQuery,
+	decorated querycontract.GraphQuery,
 	backend runtimecfg.GraphBackend,
 	db *sql.DB,
 	instruments *telemetry.Instruments,

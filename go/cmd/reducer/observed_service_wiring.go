@@ -12,7 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
 
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -28,7 +28,7 @@ func buildObservedReducerService(
 	neo4jExecutor sourcecypher.Executor,
 	cypherExecutor reducer.CypherExecutor,
 	neo4jReader node.CypherReader,
-	graphReader query.GraphQuery,
+	graphReader querycontract.GraphQuery,
 	getenv func(string) string,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
