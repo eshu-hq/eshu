@@ -139,13 +139,13 @@ func loadCommitConfig(getenv func(string) string) (*commitConfig, error) {
 	if manifestPath == "" {
 		return nil, commitEnvError(envCommitManifestPath)
 	}
-	manifest, err := component.LoadManifest(manifestPath)
-	if err != nil {
-		return nil, fmt.Errorf("commit listener: %s: load manifest %q: %w", envCommitManifestPath, manifestPath, err)
-	}
 	grants, err := loadGrantsFile(getenv(envCommitGrantsPath))
 	if err != nil {
 		return nil, err
+	}
+	manifest, err := component.LoadManifestWithGrants(manifestPath, grants)
+	if err != nil {
+		return nil, fmt.Errorf("commit listener: %s: load manifest %q: %w", envCommitManifestPath, manifestPath, err)
 	}
 	claimPlane, err := normalizeCommitPlaneURL(getenv(envCommitClaimPlaneURL))
 	if err != nil {

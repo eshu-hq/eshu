@@ -413,6 +413,23 @@ address, `runtime.server.failed` before the fatal exit,
 Pool-close failures log a warning without an event
 (`commit_listener.go:261`).
 
+## Startup config-load change notes
+
+No-Regression Evidence (#8877): the grants-before-manifest reorder in
+`loadCommitConfig` runs once per process boot, never per request: the
+commit handler, proxy, fence, and store paths are byte-untouched.
+Baseline is the existing `TestLoadCommitConfig*` matrix, which passes
+unchanged post-change; the new core-owned regression failed pre-fix
+with the production refusal and passes post-fix. After measurement:
+full `cmd/api` suite green in 0.43s and 0.48s on go1.26.6 linux/arm64
+in-worktree; `-race` green on the config set. Input shape is the
+env-map matrix (dark, garbage plane URL, malformed grants, manifest
+without/with core-owned kinds). No per-request delta exists to
+benchmark: the request path has zero diff.
+
+No-Observability-Change: no spans, metrics, or log lines added or
+altered; the lifecycle events listed above are unchanged.
+
 ## Related docs
 
 - `docs/public/deployment/service-runtimes.md` — API runtime lane and scaling notes

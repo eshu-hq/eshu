@@ -324,6 +324,31 @@ func TestLoadCommitConfigLoadsManifestAndGrants(t *testing.T) {
 	}
 }
 
+// TestLoadCommitConfigLoadsCoreOwnedKindsWithGrants proves a producer whose
+// manifest declares core-owned fact kinds starts when its grants file covers
+// them: the manifest load consults the grants instead of rejecting every
+// core-owned kind grant-less.
+func TestLoadCommitConfigLoadsCoreOwnedKindsWithGrants(t *testing.T) {
+	t.Parallel()
+
+	env := commitListenerTestEnv()
+	env["ESHU_COMMIT_MANIFEST_PATH"] = "testdata/commit_listener_core_owned_manifest.json"
+	env["ESHU_COMMIT_GRANTS_PATH"] = "testdata/commit_listener_core_owned_grants.json"
+	cfg, err := loadCommitConfig(commitListenerGetenv(env))
+	if err != nil {
+		t.Fatalf("loadCommitConfig() error = %v, want nil for grant-covered core-owned kinds", err)
+	}
+	if cfg == nil {
+		t.Fatal("loadCommitConfig() = nil, want config")
+	}
+	if cfg.manifest.Metadata.ID != "dev.eshu.test.coreprobe" {
+		t.Fatalf("manifest id = %q, want the core-owned testdata producer", cfg.manifest.Metadata.ID)
+	}
+	if len(cfg.grants) != 1 || cfg.grants[0].Kind != "sbom.document" {
+		t.Fatalf("grants = %+v, want the one core-kind testdata grant", cfg.grants)
+	}
+}
+
 // TestBuildCommitMuxServesOnlyProtocolRoute proves the mount serves the
 // protocol route through the real handler and nothing else: garbage on the
 // route reaches admission (400, not 404) while other paths 404. The lazily
