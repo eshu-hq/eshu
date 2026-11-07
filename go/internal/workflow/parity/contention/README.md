@@ -69,12 +69,17 @@ See `AGENTS.md`. The ones that bite:
   `quota_held_items`, and the drain criterion skips only those.
 
 - Cleanup deletes only this seed's own rows (`run-<seed>-`, `wi-<seed>-`,
-  and their claims) plus the harness scope family (`scope-`). Census and
+  and their claims) plus the harness scope family (`scope-`) and the
+  declared seed instance row. Census and
   residue count the harness id families only. The deployed synthetic
   instances' rows (scope `synth-8875-rehearsal-tfstate`, which carries the
   bare prefix) are therefore "other" rows that must stay unchanged. A
   baseline that already holds harness rows aborts, and the reversal then
   deletes nothing (`cleanup_skipped` says so).
+- After a clean baseline, setup declares the harness seed instance row
+  (`declare.go`: upsert exactly `InstanceID`, no deactivate step) so gated
+  claim planes resolve the seeded items; the reversal deletes exactly that
+  row again.
 
 ## How the spec maps to code
 
@@ -90,7 +95,7 @@ See `AGENTS.md`. The ones that bite:
 | §6 sampler | `loops.go` `sample` (1 s; census and fencing every 10 ticks) |
 | §6 criteria | `analysis.go` `finish` |
 | §7 triggers | `tracker.go` (client) and `loops.go` (database); `run.go` `abort` |
-| §8 reversal | `run.go` `reverse`; `sqlobserver.go` `DeletePrefixed` |
+| §8 reversal | `run.go` `reverse`; `sqlobserver.go` `DeletePrefixed`; `declare.go` `DeleteSeedInstance` |
 | §9 evidence | `report.go` |
 
 ## What a pass proves and does not prove
