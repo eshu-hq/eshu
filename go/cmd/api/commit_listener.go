@@ -23,7 +23,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
-	"github.com/eshu-hq/eshu/go/internal/workflow"
 	"go.opentelemetry.io/otel"
 )
 
@@ -162,17 +161,17 @@ func loadCommitConfig(getenv func(string) string) (*commitConfig, error) {
 // mirrors the extension satellite wiring: the ingestion store admits only
 // claims the satellite plane fenced first.
 func buildCommitMux(cfg *commitConfig, database db.ExecQueryer, claimPlaneURL string, logger *slog.Logger) (*http.ServeMux, error) {
-	plane := workflow.NewClaimPlaneClient(claimPlaneURL, &http.Client{Timeout: commitListenTimeout})
+	binding := extensionhost.DialClaimPlane(claimPlaneURL, &http.Client{Timeout: commitListenTimeout})
 	store := postgres.NewIngestionStore(database)
 	store.Logger = logger
-	store.ClaimPlane = &postgres.ClaimPlaneFence{Pinner: plane}
+	store.ClaimPlane = &postgres.ClaimPlaneFence{Pinner: binding.Pinner}
 	handler, err := extensionhost.NewCommitHandler(extensionhost.CommitHandlerConfig{
 		Manifest:            cfg.manifest,
 		Grants:              cfg.grants,
 		SourceSystem:        cfg.sourceSystem,
 		ScopeKind:           cfg.scopeKind,
 		CollectorInstanceID: cfg.instanceID,
-		ControlStore:        plane,
+		ControlStore:        binding.ControlStore,
 		Committer:           store,
 	})
 	if err != nil {
