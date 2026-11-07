@@ -217,6 +217,7 @@ check "wiring: trigger is completed Build Test runs" "$([ "$(yq -r '.["on"].work
 check "wiring: trigger branch is main" "$([ "$(yq -r '.["on"].workflow_run.branches | join(",")' "${wf}")" = "main" ] && echo 0 || echo 1)"
 check "wiring: permissions are actions-read, contents-read, issues-write, pull-requests-read" "$([ "$(yq -r '.permissions.actions' "${wf}")" = "read" ] && [ "$(yq -r '.permissions.contents' "${wf}")" = "read" ] && [ "$(yq -r '.permissions.issues' "${wf}")" = "write" ] && [ "$(yq -r '.permissions["pull-requests"]' "${wf}")" = "read" ] && echo 0 || echo 1)"
 check "wiring: registry triggers cover the fake helper" "$(rg -q 'scripts/gh-fake-dirgate-alarm.sh' "${repo_root}/specs/ci-gates.d/gates-02.yaml" && echo 0 || echo 1)"
+check "wiring: registry triggers cover the sourced policy lib" "$([ "$(yq -r '.gates[] | select(.id=="dirgate-main-alarm") | .triggers[]' "${repo_root}/specs/ci-gates.d/gates-02.yaml" | rg -c 'scripts/lib/main-health-policy.sh')" -ge 1 ] && echo 0 || echo 1)"
 check "wiring: one non-cancelling concurrency group" "$([ "$(yq -r '.jobs.alarm.concurrency.group' "${wf}")" = "dirgate-main-alarm" ] && [ "$(yq -r '.jobs.alarm.concurrency."cancel-in-progress"' "${wf}")" = "false" ] && echo 0 || echo 1)"
 check "wiring: the job runs the alarm script" "$(rg -q 'run: scripts/ci/dirgate-main-alarm.sh' "${wf}" && echo 0 || echo 1)"
 check "wiring: ripgrep is provisioned before the alarm runs" "$(rg -q 'install-apt-packages.sh ripgrep' "${wf}" && echo 0 || echo 1)"
