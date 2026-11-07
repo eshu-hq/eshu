@@ -23,10 +23,10 @@
     {"path": "/usr/lib/libgcc_s.so.1", "sha256": "2298274ad3316109d6e895083398e220f16fbdd12957c4afcc9af8849e734151"},
     {"path": "/usr/lib/libssl.so.3", "sha256": "06f404e940a5baaf86df4ecec140947fc727bb08cafe0de9f9a503eb5aa9b3c3"},
     {"path": "/usr/lib/libstdc++.so.6.0.33", "sha256": "08d5c7eb7c1e210d0fb56a33af0b97ab86339f2d321ceb31fcd53c563f8803c9"},
-    {"path": "/usr/lib/libz.so.1.3.2", "sha256": "b4c94dba7f00904f686c8f4f9d095a9eb278d2a2c1b8c7017960dbc5cf684ac0"},
+    {"path": "/usr/lib/libz.so.1.4", "sha256": "7dde1827af80c790a6c49c1b6cf7eda5ca302ad5af46cee2f492db78948b9984"},
     {"path": "/usr/lib/ossl-modules/legacy.so", "sha256": "499d2581ca59723523a9f1d499612268dd83b4436031743aaada16c380dfed7a"}
   ],
-  "libraries_set_sha256": "bf93a6b7e15a5d7a7e25e0b51e3e44726ff4408346bc99ddc9851858afd3e4a9",
+  "libraries_set_sha256": "1f9722f5261711a1245b45e8d9594350b7cb56e7448fc829ca6204705536a292",
   "model": {
     "path": "/opt/whisper/models/ggml-base.en.bin",
     "sha256": "a03779c86df3323075f5e796cb2ce5029f00ec8869eee3fdfb897afe36c6d002",
@@ -40,13 +40,13 @@
     "musl": "1.2.5-r12",
     "libssl3": "3.3.7-r2",
     "libcrypto3": "3.3.7-r2",
-    "zlib": "1.3.2-r1"
+    "zlib": "1.4-r0"
   },
   "build_apk": {
     "build-base": "0.5-r3",
     "cmake": "3.31.1-r0",
     "git": "2.47.3-r0"
   },
-  "measured": "2026-11-05, buildx linux/amd64 reference build of the whisper stage under QEMU user-mode emulation on an arm64 host (alpine:3.21/gcc 14.2.0/cmake 3.31.1 toolchain from the pinned Dockerfile); the /out/whisper-cli digest reproduced byte-for-byte across two independent stage builds and the stage .git HEAD equals the pinned commit d1be6fde. Runtime library digests carried over from the 2026-11-04 qemu amd64 reference run (they match the ocr.amd64.json entries for the same packages). Full gated image build eshu-satellite-transcription:amd64 prints GATE PASS (binary, model, 3 libraries); scripts/verify-apk-floors.sh --dockerfile PASS (6 comparisons); disabled start exits 0 with collector.disabled.",
+  "measured": "2026-11-05, buildx linux/amd64 reference build of the whisper stage under QEMU user-mode emulation on an arm64 host (alpine:3.21/gcc 14.2.0/cmake 3.31.1 toolchain from the pinned Dockerfile); the /out/whisper-cli digest reproduced byte-for-byte across two independent stage builds and the stage .git HEAD equals the pinned commit d1be6fde. Runtime library digests carried over from the 2026-11-04 qemu amd64 reference run (they match the ocr.amd64.json entries for the same packages). Full gated image build eshu-satellite-transcription:amd64 prints GATE PASS (binary, model, 3 libraries); scripts/verify-apk-floors.sh --dockerfile PASS (6 comparisons); disabled start exits 0 with collector.disabled. 2026-11-07, re-recorded zlib float: Alpine 3.21 index moved zlib 1.3.2-r1 to 1.4-r0 (real file libz.so.1.3.2 to libz.so.1.4, digest 7dde1827, matching the OCR amd64 gate measurement the same day); only that entry and the set hash changed, all other entries verified byte-identical against a fresh throwaway-container harvest.",
   "notes": "Binary reference recorded 2026-11-05: build the whisper stage for this arch, hash /out/whisper-cli, store it here, then run the full build with all three digest args. The whispercpp engine takes no per-file library pins (binary plus model only); the library list and set hash exist for the image gate."
 }
