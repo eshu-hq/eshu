@@ -1,0 +1,14 @@
+docs/internal/evidence/10269-stale-crossplane-row-coalesce-implementation.md
+  h_78a442cba0b3e6 61
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c81e48751de1c4c3651aaafb969d1dec4d3bd7d8",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
