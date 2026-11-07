@@ -154,11 +154,8 @@ func main() {
 
 	logger.Info("eshu-api listening on address", telemetry.EventAttr("runtime.server.listening"), "address", addr)
 	serveErr := srv.ListenAndServe()
-	if diagnostics != nil && serveErr != nil && serveErr != http.ErrServerClosed {
-		cancel()
-	}
+	mainFailed := awaitCommitShutdown(ctx, cancel, serveErr, commitDone)
 	waitForDiagnosticShutdown(diagnostics != nil, shutdownDone)
-	<-commitDone
 	if diagnostics != nil {
 		flushCtx, flushCancel := context.WithTimeout(context.Background(), 10*time.Second)
 		if err := diagnostics.Flush(flushCtx); err != nil {
@@ -166,7 +163,7 @@ func main() {
 		}
 		flushCancel()
 	}
-	if serveErr != nil && serveErr != http.ErrServerClosed {
+	if mainFailed {
 		logger.Error("api listen failed", telemetry.EventAttr("runtime.server.failed"), "error", serveErr, "address", addr)
 		os.Exit(1)
 	}

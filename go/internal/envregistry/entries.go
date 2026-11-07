@@ -78,7 +78,7 @@ var coreEntries = []Entry{
 
 	// api
 	{Name: "ESHU_API_ADDR", Type: VarString, Default: ":8080", Subsystem: "api", Description: "API server listen address."},
-	{Name: "ESHU_COMMIT_LISTEN", Type: VarString, Subsystem: "api", Description: "CommitClaimFacts listener address for the satellite proxy (#8877). Unset keeps the listener dark; the host binds exactly as given."},
+	{Name: "ESHU_COMMIT_LISTEN", Type: VarString, Subsystem: "api", Description: "CommitClaimFacts listener address for the satellite proxy (#8877). Unset keeps the listener dark; empty host or literal IP with port, hostnames refused."},
 	{Name: "ESHU_COMMIT_MANIFEST_PATH", Type: VarString, Subsystem: "api", Description: "Component manifest path for the commit listener (#8877). Required when ESHU_COMMIT_LISTEN is set."},
 	{Name: "ESHU_COMMIT_GRANTS_PATH", Type: VarString, Subsystem: "api", Description: "Optional producer-grants JSON path for the commit listener (#8877). Empty pairs nothing."},
 	{Name: "ESHU_COMMIT_CLAIM_PLANE_URL", Type: VarString, Subsystem: "api", Description: "Satellite claim-plane base URL the commit listener fences against (#8877). Required when ESHU_COMMIT_LISTEN is set."},

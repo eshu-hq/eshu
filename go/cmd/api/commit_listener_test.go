@@ -4,6 +4,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"io"
@@ -13,6 +14,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 
@@ -43,6 +45,7 @@ func TestNormalizeCommitAddr(t *testing.T) {
 		{name: "loopback preserved", raw: "127.0.0.1:8089", want: "127.0.0.1:8089"},
 		{name: "all-interfaces preserved", raw: "0.0.0.0:8089", want: "0.0.0.0:8089"},
 		{name: "garbage fails", raw: "nope", fail: true},
+		{name: "hostname refused", raw: "localhost:8089", fail: true},
 		{name: "missing port fails", raw: "host:", fail: true},
 		{name: "bad port fails", raw: ":99999", fail: true},
 	}
@@ -137,6 +140,63 @@ func TestLoadCommitConfigRefusesWithoutIdentity(t *testing.T) {
 	err := commitListenerErr(env)
 	if err == nil || !strings.Contains(err.Error(), "ESHU_COMMIT_INSTANCE_ID") {
 		t.Fatalf("loadCommitConfig() error = %v, want the instance variable named", err)
+	}
+}
+
+// TestAwaitCommitShutdownCancelsOnUnexpectedServeError replays the #10338
+// P1 interleaving: the commit watcher closes commitDone only on ctx.Done
+// (as in main.go), the main bind fails, and nothing else cancels. The
+// fixed code cancels unconditionally; the old diagnostics-gated cancel
+// hung here forever, so the timeout guard IS the regression assertion.
+func TestAwaitCommitShutdownCancelsOnUnexpectedServeError(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	commitDone := make(chan struct{})
+	go func() {
+		defer close(commitDone)
+		<-ctx.Done()
+	}()
+	done := make(chan bool, 1)
+	go func() {
+		done <- awaitCommitShutdown(ctx, cancel, errors.New("listen tcp :8080: bind: address already in use"), commitDone)
+	}()
+	select {
+	case failed := <-done:
+		if !failed {
+			t.Fatal("awaitCommitShutdown() = false, want true for an unexpected serve error")
+		}
+	case <-time.After(15 * time.Second):
+		t.Fatal("awaitCommitShutdown() hung: context was not cancelled on unexpected serve error")
+	}
+}
+
+// TestAwaitCommitShutdownCleanOnServerClosed proves the graceful path is
+// untouched: a signal cancel closes commitDone through the watcher and
+// the join reports non-fatal.
+func TestAwaitCommitShutdownCleanOnServerClosed(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	commitDone := make(chan struct{})
+	go func() {
+		defer close(commitDone)
+		<-ctx.Done()
+	}()
+	cancel()
+	done := make(chan bool, 1)
+	go func() {
+		done <- awaitCommitShutdown(ctx, cancel, http.ErrServerClosed, commitDone)
+	}()
+	select {
+	case failed := <-done:
+		if failed {
+			t.Fatal("awaitCommitShutdown() = true, want false for http.ErrServerClosed")
+		}
+	case <-time.After(15 * time.Second):
+		t.Fatal("awaitCommitShutdown() hung on the clean shutdown path")
 	}
 }
 

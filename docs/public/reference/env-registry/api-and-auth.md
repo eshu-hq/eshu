@@ -37,7 +37,7 @@ Listen addresses, authentication, browser sessions, OIDC and GitHub login, and t
 | `ESHU_COMMIT_CLAIM_PLANE_URL` | string | — | Satellite claim-plane base URL the commit listener fences against (#8877). Required when ESHU_COMMIT_LISTEN is set. |
 | `ESHU_COMMIT_GRANTS_PATH` | string | — | Optional producer-grants JSON path for the commit listener (#8877). Empty pairs nothing. |
 | `ESHU_COMMIT_INSTANCE_ID` | string | — | Collector instance id the commit listener binds results to (#8877). Required when ESHU_COMMIT_LISTEN is set. |
-| `ESHU_COMMIT_LISTEN` | string | — | CommitClaimFacts listener address for the satellite proxy (#8877). Unset keeps the listener dark; the host binds exactly as given. |
+| `ESHU_COMMIT_LISTEN` | string | — | CommitClaimFacts listener address for the satellite proxy (#8877). Unset keeps the listener dark; empty host or literal IP with port, hostnames refused. |
 | `ESHU_COMMIT_MANIFEST_PATH` | string | — | Component manifest path for the commit listener (#8877). Required when ESHU_COMMIT_LISTEN is set. |
 | `ESHU_COMMIT_SCOPE_KIND` | string | — | Scope kind committed generations carry (#8877). Required when ESHU_COMMIT_LISTEN is set. |
 | `ESHU_COMMIT_SOURCE_SYSTEM` | string | — | Source system the commit listener serves (#8877). Required when ESHU_COMMIT_LISTEN is set. |

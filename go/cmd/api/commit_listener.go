@@ -31,8 +31,10 @@ import (
 // unset (or blank) keeps the core dark and nothing else is read. When set,
 // every other variable is required except ESHU_COMMIT_GRANTS_PATH, which
 // stays optional so a manifest-only producer can pair. The address binds
-// exactly as given: the satellite plane is a separate pod, so rewriting
-// the host would break the only legitimate caller.
+// exactly as given: empty host or literal IP with port 1-65535; DNS
+// hostnames are refused. The host is never rewritten: the satellite plane
+// is a separate pod, so rewriting it would break the only legitimate
+// caller.
 const (
 	envCommitListen        = "ESHU_COMMIT_LISTEN"
 	envCommitManifestPath  = "ESHU_COMMIT_MANIFEST_PATH"
@@ -204,6 +206,21 @@ var openCommitAccess = func(ctx context.Context, getenv func(string) string, log
 // would look healthy while the proxy has no core URL.
 func commitServeFailed(err error) bool {
 	return err != nil && err != http.ErrServerClosed
+}
+
+// awaitCommitShutdown joins the commit listener shutdown after the main
+// server returns. An unexpected main-serve error cancels the context
+// unconditionally — gating the cancel on diagnostics (or anything else)
+// deadlocks when the commit listener is enabled: the commit watcher waits
+// on ctx.Done while main waits on commitDone, and neither fires (#10338).
+// cancel is idempotent, so a concurrent signal cancel is harmless. It
+// reports whether the main failure was fatal.
+func awaitCommitShutdown(ctx context.Context, cancel context.CancelFunc, serveErr error, commitDone <-chan struct{}) bool {
+	if commitServeFailed(serveErr) {
+		cancel()
+	}
+	<-commitDone
+	return commitServeFailed(serveErr)
 }
 
 // wireCommitListener builds the serving half of the mount. It returns nil
