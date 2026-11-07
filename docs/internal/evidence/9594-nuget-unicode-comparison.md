@@ -36,7 +36,7 @@ Permalink:
   stores the blob under `id.ToLowerInvariant()` (L33); `GetIconPath` (L40-L45)
   does the same (L60).
   Permalink:
-  <https://github.com/NuGet/NuGetGallery/blob/0e80f87628349207cdcaf55358491f8a6f1ca276/src/Catalog/FlatContainerPackagePathProvider.cs#L18-L34>
+  <https://github.com/NuGet/NuGetGallery/blob/0e80f87628349207cdcaf55358491f8a6f1ca276/src/Catalog/FlatContainerPackagePathProvider.cs#L18-L60>
 - `src/NuGetGallery.Core/Packaging/PackageIdValidator.cs` at `2f271fb`
   (`2f271fb8651906ecd841d0a658f9afc670e7021d`): new IDs must match
   `^[A-Za-z0-9_]+([.-][A-Za-z0-9_]+)*$` (L13-L15); reads of legacy IDs use
