@@ -4,28 +4,25 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"sort"
 	"strings"
-
-	"github.com/eshu-hq/eshu/go/internal/mcp"
-	"github.com/eshu-hq/eshu/go/internal/query"
 )
 
 const selectorPrefix = "{{selector:"
 
 func selector(name string) string { return selectorPrefix + name + "}}" }
 
-func buildCurrentProbeRegistry() ([]graphReadProbe, error) {
-	targets, err := currentAPIAndMCPSurfaces()
+// buildCurrentProbeRegistry builds the probe registry from the satellite,
+// not from in-tree packages (Refs eshu-hq/eshu#9669, row 7): API routes come
+// from the served OpenAPI document and MCP tools from the satellite
+// tools/list. A satellite that drops a pinned surface fails closed in
+// validateGraphReadProbeRegistry before any probe runs.
+func buildCurrentProbeRegistry(client *http.Client, apiBaseURL, mcpURL, userToken string) ([]graphReadProbe, error) {
+	targets, document, tools, err := currentAPIAndMCPSurfaces(client, apiBaseURL, mcpURL, userToken)
 	if err != nil {
 		return nil, err
-	}
-	tools := make(map[string]mcp.ToolDefinition, len(mcp.ReadOnlyTools()))
-	for _, tool := range mcp.ReadOnlyTools() {
-		tools[tool.Name] = tool
 	}
 	registry := make([]graphReadProbe, 0, len(targets))
 	for _, identity := range targets {
@@ -40,7 +37,7 @@ func buildCurrentProbeRegistry() ([]graphReadProbe, error) {
 		name := strings.TrimPrefix(identity, "mcp:")
 		tool, ok := tools[name]
 		if !ok {
-			return nil, fmt.Errorf("current MCP surface %q has no tool definition", name)
+			return nil, fmt.Errorf("satellite MCP surface %q has no tool definition", name)
 		}
 		execute, reason := classifyMCPExecution(name)
 		registry = append(registry, graphReadProbe{
@@ -48,19 +45,17 @@ func buildCurrentProbeRegistry() ([]graphReadProbe, error) {
 			arguments: synthesizeToolArguments(tool.InputSchema), auth: mcpProbeAuth(name), execute: execute, unsafeReason: reason,
 		})
 	}
-	if err := enrichAPIProbeFixtures(registry); err != nil {
-		return nil, err
-	}
+	enrichAPIProbeFixtures(registry, document)
 	applyMappedDeltaFixtures(registry)
 	sort.Slice(registry, func(left, right int) bool { return registry[left].identity < registry[right].identity })
 	return registry, nil
 }
 
-func enrichAPIProbeFixtures(registry []graphReadProbe) error {
-	var document map[string]any
-	if err := json.Unmarshal([]byte(query.OpenAPISpec()), &document); err != nil {
-		return fmt.Errorf("parse current OpenAPI fixtures: %w", err)
-	}
+// enrichAPIProbeFixtures synthesizes safe read fixtures for executable API
+// probes from the satellite-served OpenAPI document: required and paging
+// query parameters plus JSON request bodies. Probes whose route the document
+// does not describe keep no fixtures and fail at selector resolution.
+func enrichAPIProbeFixtures(registry []graphReadProbe, document map[string]any) {
 	paths, _ := document["paths"].(map[string]any)
 	for index := range registry {
 		probe := &registry[index]
@@ -102,7 +97,6 @@ func enrichAPIProbeFixtures(registry []graphReadProbe) error {
 			}
 		}
 	}
-	return nil
 }
 
 func openAPIObjectSlice(value any) []map[string]any {
@@ -460,9 +454,9 @@ func applyMappedDeltaFixtures(registry []graphReadProbe) {
 			}
 		case "api:GET /api/v0/images/tag-history":
 			// repository_id here must be the oci-registry://-shaped class, not
-			// the discovered git-shaped "repository_id": TagHistoryHandler
-			// requires the oci-registry:// prefix and 400s otherwise (see
-			// go/internal/query/tag_history.go composeOCIImageRef).
+			// the discovered git-shaped "repository_id": the served
+			// tag-history read contract requires the oci-registry:// prefix
+			// and 400s otherwise.
 			probe.query = map[string]any{"repository_id": selector("oci_repository_id"), "tag": selector("tag"), "limit": 1}
 		case "mcp:list_container_image_tag_history":
 			probe.arguments = map[string]any{

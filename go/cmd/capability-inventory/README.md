@@ -121,16 +121,19 @@ go run ./cmd/capability-inventory -mode graph-read-probe
   `-update` regenerates `specs/remote-validation-baseline.txt` from the current
   tree and ratchets FROZEN_MAX down to the new count; it never raises the
   ceiling and never requires a human to hand-edit the file.
-- `graph-read-probe` derives the complete current API/MCP name set from the
-  served OpenAPI and MCP registries plus the five known directly registered
-  HTTP surfaces. Its checked-in registry classifies all 418 unique identities:
-  safe read/validation fixtures are synthesized from current OpenAPI and MCP
-  schemas, while mutation-only routes carry `execute=false` and a specific
-  safety reason. Before execution it performs a bounded repository inventory
-  read to discover selector values, resolves only declared selector classes,
-  and fails rather than inventing a missing identifier. Public validation,
-  user-token reads, and admin-only Cypher surfaces keep separate auth postures.
-  It never prints token values.
+- `graph-read-probe` derives the complete API/MCP name set from the satellite
+  at probe time, not from in-tree packages: API routes come from the served
+  OpenAPI document (`GET /api/v0/openapi.json` on the eshu-api surface) and
+  MCP tools come from the satellite's `tools/list`, plus the five known
+  directly registered HTTP surfaces. It classifies every served identity:
+  safe read/validation fixtures are synthesized from the served OpenAPI and
+  MCP schemas, while mutation-only routes carry `execute=false` and a
+  specific safety reason. Before execution it validates that the satellite
+  serves the pinned probe surfaces, then performs a bounded repository
+  inventory read to discover selector values, resolves only declared
+  selector classes, and fails rather than inventing a missing identifier.
+  Public validation, user-token reads, and admin-only Cypher surfaces keep
+  separate auth postures. It never prints token values.
 
 ## Related
 
