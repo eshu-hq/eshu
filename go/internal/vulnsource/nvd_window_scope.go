@@ -78,8 +78,12 @@ func ParseNVDWindowScope(scopeID string) (start, end time.Time, ok bool) {
 }
 
 // IsNVDWindowScope reports whether scopeID has the per-window NVD scope
-// shape.
+// shape. The prefix check keeps the hot non-window path to one string
+// comparison; only a candidate window scope pays for the full parse.
 func IsNVDWindowScope(scopeID string) bool {
+	if !strings.HasPrefix(scopeID, nvdWindowScopePrefix) {
+		return false
+	}
 	_, _, ok := ParseNVDWindowScope(scopeID)
 	return ok
 }
