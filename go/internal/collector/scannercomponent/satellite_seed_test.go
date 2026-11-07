@@ -23,7 +23,7 @@ func satelliteIDs() []string {
 // pinnedSatelliteManifest builds a seeded manifest for one satellite whose
 // artifacts equal the registry pins: exactly what an uncompromised chart
 // seed.image stamps.
-func pinnedSatelliteManifest(t *testing.T, id string) eshucomponent.Manifest {
+func pinnedSatelliteManifest(t testing.TB, id string) eshucomponent.Manifest {
 	t.Helper()
 
 	pins := SatelliteSeedPins()[id]
@@ -218,6 +218,30 @@ func seedCapableManifestIDs(t *testing.T, cmdRoot string) map[string]string {
 		ids[manifest.Metadata.ID] = manifestPath
 	}
 	return ids
+}
+
+// BenchmarkVerifySatelliteSeededArtifact bounds the per-artifact admission
+// cost the worker and planner paths pay: one map lookup plus a small platform
+// set compare, measured for a pinned satellite and a pass-through ID (#10285).
+func BenchmarkVerifySatelliteSeededArtifact(b *testing.B) {
+	pinned := pinnedSatelliteManifest(b, SatelliteDocumentImportID)
+	other := pinned
+	other.Metadata.ID = "dev.eshu.collector.third-party"
+
+	b.Run("pinned", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			if err := VerifySatelliteSeededArtifact(pinned); err != nil {
+				b.Fatalf("admit pinned: %v", err)
+			}
+		}
+	})
+	b.Run("passthrough", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			if err := VerifySatelliteSeededArtifact(other); err != nil {
+				b.Fatalf("admit third-party: %v", err)
+			}
+		}
+	})
 }
 
 // TestSatelliteSeedRegistryCoversSeedCapableCallers is the reverse binding
