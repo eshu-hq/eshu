@@ -314,14 +314,22 @@ func TestSeedWritesEnginePayload(t *testing.T) {
 	}
 
 	broken := fixtureMediaEnginePayload(t)
+	// Reach the engine copy: the platform guard would otherwise reject this
+	// fixture ("linux/test") before any copy, and the test would pass
+	// without exercising engine-failure propagation or dest cleanup.
+	broken.platform = "linux/amd64"
 	broken.files[0].source = filepath.Join(t.TempDir(), "missing-whisper-cli")
 	badSelf := filepath.Join(t.TempDir(), "collector-fixture")
 	if err := os.WriteFile(badSelf, []byte("fake-collector-binary"), 0o755); err != nil {
 		t.Fatalf("write fixture binary: %v", err)
 	}
 	badDest := filepath.Join(t.TempDir(), "dest")
-	if err := runSeed(badDest, mediaSeedTestRef, badSelf, "linux/amd64", broken); err == nil {
+	seedErr := runSeed(badDest, mediaSeedTestRef, badSelf, "linux/amd64", broken)
+	if seedErr == nil {
 		t.Fatal("runSeed with a missing engine binary: got nil error, want a failure")
+	}
+	if !strings.Contains(seedErr.Error(), "bin/whisper-cli") {
+		t.Fatalf("missing-source error = %q, want it to name the engine target", seedErr)
 	}
 	if _, statErr := os.Stat(badDest); !os.IsNotExist(statErr) {
 		t.Fatalf("failed seed left dest behind, want no partial payload")

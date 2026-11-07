@@ -38,8 +38,12 @@ type engineSeedPayload struct {
 }
 
 // enginePinManifest is the pin record the seed writes beside the copied
-// engine. The IaC lane reads it to point the ESHU_MEDIA_IMPORT_WHISPER_*
-// pins at the runtime dir; every seeded file appears exactly once.
+// engine. The satellite activation's IaC consumer (component-activation
+// chart helper) reads Files to repoint the WHISPER_* pins at the seeded
+// engine dir; every seeded file appears exactly once. Keys are
+// schema/engine/version/platform and files[{path,source,sha256}]; lib-path
+// (same dir) is consumed through an extraVolumes ConfigMap subPath mount
+// at the musl loader path.
 type enginePinManifest struct {
 	Schema   string           `yaml:"schema"`
 	Engine   string           `yaml:"engine"`

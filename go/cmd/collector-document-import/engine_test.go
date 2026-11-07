@@ -348,6 +348,10 @@ func TestSeedComponentWritesEnginePayload(t *testing.T) {
 	}
 
 	tampered := fixtureDocEnginePayload(t)
+	// Reach the engine copy: the platform guard would otherwise reject this
+	// fixture ("linux/test") before any digest verification, and the test
+	// would pass without exercising fail-closed cleanup.
+	tampered.platform = "linux/amd64"
 	fh, err := os.OpenFile(tampered.files[0].source, os.O_WRONLY|os.O_APPEND, 0o600)
 	if err != nil {
 		t.Fatalf("open fixture for tampering: %v", err)
@@ -358,8 +362,12 @@ func TestSeedComponentWritesEnginePayload(t *testing.T) {
 	}
 	_ = fh.Close()
 	badDest := filepath.Join(work, "bad-dest")
-	if err := seedComponent(badDest, seedTestRef, binary, manifest, "linux/amd64", tampered); err == nil {
+	seedErr := seedComponent(badDest, seedTestRef, binary, manifest, "linux/amd64", tampered)
+	if seedErr == nil {
 		t.Fatal("seedComponent with a tampered engine binary: got nil error, want a digest failure")
+	}
+	if !strings.Contains(seedErr.Error(), "bin/tesseract") {
+		t.Fatalf("tamper error = %q, want it to name the mismatched engine file", seedErr)
 	}
 	if _, statErr := os.Stat(badDest); !os.IsNotExist(statErr) {
 		t.Fatalf("tampered seed left dest behind, want no partial payload")
