@@ -27,32 +27,39 @@ func appendSupplyChainImpactPackageFindings(
 	pkgs []supplychainmodel.AffectedPackage,
 	index supplyChainImpactIndex,
 ) []SupplyChainImpactFinding {
-	cves, pkgs = liveAdvisoryPackages(cves, pkgs, index)
-	pkg := representativeAffectedPackage(pkgs)
+	// The liveness filter runs here on the whole index for the group's naming:
+	// the representative, paths, narrowing, and outcome read the filtered
+	// group exactly as before, so a retracted record the whole-group anchor
+	// keeps still names the group. The fleet fanout below still shards every
+	// row any fact of the group joins, and every shard's verdict filters the
+	// unfiltered group on its own index, so an anchor is judged on the scope
+	// it anchors (#10034, the different-vendor group limit).
+	_, filtered := liveAdvisoryPackages(cves, pkgs, index)
+	pkg := representativeAffectedPackage(filtered)
 	paths := supplyChainSBOMPaths(pkg, index)
 	reselected := false
 	if len(paths) == 0 {
 		// Mixed rows under a blank ecosystem: classify the versioned rows, which have
 		// no base row, apart from the rows with no version, which do (ruling 9990-f6).
-		if versioned, versionless, split := splitDirectBlankGroupByRowVersion(pkgs, pkg, index); split {
+		if versioned, versionless, split := splitDirectBlankGroupByRowVersion(filtered, pkg, index); split {
 			findings = appendSupplyChainImpactPackageFindings(findings, cves, pkgs, versioned)
 			return appendSupplyChainImpactPackageFindings(findings, cves, pkgs, versionless)
 		}
 		// No SBOM path: let the facts that join the installed row decide the
 		// finding when source order picked one with no anchor at all, or a blank
 		// ecosystem that joins beside a fact that cannot (#9990).
-		if joining, wasReselected, ok := withJoinableOSRepresentative(pkgs, pkg, index); ok {
-			pkgs, reselected = joining, wasReselected
-			pkg = representativeAffectedPackage(pkgs)
+		if joining, wasReselected, ok := withJoinableOSRepresentative(filtered, pkg, index); ok {
+			filtered, reselected = joining, wasReselected
+			pkg = representativeAffectedPackage(filtered)
 			paths = supplyChainSBOMPaths(pkg, index)
 		}
 	}
-	index.recordOSRepresentativeOutcome(pkgs, pkg, reselected, len(paths) > 0)
+	index.recordOSRepresentativeOutcome(filtered, pkg, reselected, len(paths) > 0)
 	if len(paths) == 0 {
-		return appendSupplyChainImpactFleetOSFindings(findings, cves, pkgs, index)
+		return appendSupplyChainImpactFleetOSFindings(findings, cves, pkgs, index, true)
 	}
 	if len(paths) == 1 && firstConsumption(pkg.PackageID, index.consumption).FactID == "" && !hasMatchingOSPackage(pkg, index) {
-		return appendSupplyChainImpactFinding(findings, classifySupplyChainImpactPackage(cves, pkgs, index))
+		return appendSupplyChainImpactFinding(findings, classifySupplyChainImpactPackage(cves, filtered, index, false))
 	}
 	pathDigests := make(map[string]bool, len(paths))
 	for _, path := range paths {
@@ -85,7 +92,7 @@ func appendSupplyChainImpactPackageFindings(
 		// Repository coincidence alone cannot establish this association.
 		scoped.consumption = nil
 		scoped.osPackages = osByDigest[path.attachment.SubjectDigest]
-		findings = appendSupplyChainImpactFinding(findings, classifySupplyChainImpactPackage(cves, pkgs, scoped))
+		findings = appendSupplyChainImpactFinding(findings, classifySupplyChainImpactPackage(cves, filtered, scoped, false))
 	}
 	// Keep independently owned manifest and scan evidence visible. A scanner
 	// digest without a matching SBOM is still a valid OS-package path, and these
@@ -95,7 +102,7 @@ func appendSupplyChainImpactPackageFindings(
 	base.components = nil
 	base.osPackages = baseOS
 	if len(consumptionRepositoriesForPackage(pkg.PackageID, base.consumption)) > 0 || hasMatchingOSPackage(pkg, base) {
-		findings = appendSupplyChainImpactFleetOSFindings(findings, cves, pkgs, base)
+		findings = appendSupplyChainImpactFleetOSFindings(findings, cves, filtered, base, false)
 	}
 	return findings
 }
@@ -115,18 +122,19 @@ func appendSupplyChainImpactManifestFindings(
 	cves supplyChainCVEGroup,
 	pkgs []supplychainmodel.AffectedPackage,
 	index supplyChainImpactIndex,
+	narrowPerShard bool,
 ) []SupplyChainImpactFinding {
 	pkg := representativeAffectedPackage(pkgs)
 	repositories := consumptionRepositoriesForPackage(pkg.PackageID, index.consumption)
 	if len(repositories) == 0 {
-		return appendSupplyChainImpactFinding(findings, classifySupplyChainImpactPackage(cves, pkgs, index))
+		return appendSupplyChainImpactFinding(findings, classifySupplyChainImpactPackage(cves, pkgs, index, narrowPerShard))
 	}
 	for _, repositoryID := range repositories {
 		scoped := index
 		scoped.consumption = map[string][]supplychainmodel.PackageConsumption{
 			pkg.PackageID: consumptionRowsForRepository(index.consumption[pkg.PackageID], repositoryID),
 		}
-		findings = appendSupplyChainImpactFinding(findings, classifySupplyChainImpactPackage(cves, pkgs, scoped))
+		findings = appendSupplyChainImpactFinding(findings, classifySupplyChainImpactPackage(cves, pkgs, scoped, narrowPerShard))
 	}
 	return findings
 }
@@ -153,11 +161,11 @@ func appendSupplyChainImpactFleetOSFindings(
 	cves supplyChainCVEGroup,
 	pkgs []supplychainmodel.AffectedPackage,
 	index supplyChainImpactIndex,
+	narrowPerShard bool,
 ) []SupplyChainImpactFinding {
-	pkg := representativeAffectedPackage(pkgs)
-	osByDigest, baseOS := groupOSPackagesByDigest(pkg, index)
+	osByDigest, baseOS := groupOSPackagesByDigest(pkgs, index)
 	if len(osByDigest) == 0 && len(baseOS) == 0 {
-		return appendSupplyChainImpactManifestFindings(findings, cves, pkgs, index)
+		return appendSupplyChainImpactManifestFindings(findings, cves, pkgs, index, narrowPerShard)
 	}
 	digests := make([]string, 0, len(osByDigest))
 	for digest := range osByDigest {
@@ -172,41 +180,55 @@ func appendSupplyChainImpactFleetOSFindings(
 		for _, shard := range splitOSPackagesByReleaseLine(osByDigest[digest]) {
 			scoped := index
 			scoped.osPackages = shard
-			findings = appendSupplyChainImpactManifestFindings(findings, cves, pkgs, scoped)
+			findings = appendSupplyChainImpactManifestFindings(findings, cves, pkgs, scoped, narrowPerShard)
 		}
 	}
 	for _, shard := range splitOSPackagesByReleaseLine(baseOS) {
 		scoped := index
 		scoped.osPackages = shard
-		findings = appendSupplyChainImpactManifestFindings(findings, cves, pkgs, scoped)
+		findings = appendSupplyChainImpactManifestFindings(findings, cves, pkgs, scoped, narrowPerShard)
 	}
 	return findings
 }
 
-// groupOSPackagesByDigest partitions the advisory's matching installed rows
-// by the image digest their sibling scanner analysis resolves, mirroring the
+// groupOSPackagesByDigest partitions the group's matching installed rows by
+// the image digest their sibling scanner analysis resolves, mirroring the
 // osByDigest partition in appendSupplyChainImpactPackageFindings. Rows with
 // no digest-bearing sibling stay in base for splitOSPackagesByReleaseLine.
+//
+// It unions every fact's matching rows, not just the representative's
+// (#10034, the different-vendor group limit): the representative names the
+// group, but a fact it outranks can join rows it never meets, and those rows
+// still classify on their own shards. A row lands under its first matching
+// key; the digest partition is row-intrinsic and the classifier merges rows
+// across keys, so key assignment never changes a verdict.
 func groupOSPackagesByDigest(
-	pkg supplychainmodel.AffectedPackage,
+	pkgs []supplychainmodel.AffectedPackage,
 	index supplyChainImpactIndex,
 ) (map[string]map[string][]supplychainmodel.OSPackage, map[string][]supplychainmodel.OSPackage) {
 	byDigest := map[string]map[string][]supplychainmodel.OSPackage{}
 	base := map[string][]supplychainmodel.OSPackage{}
-	vendorSource := classifyAffectedPackageAdvisorySource(pkg)
-	for _, key := range affectedOSPackageLookupKeys(pkg) {
-		for _, installed := range index.osPackages[key] {
-			if !osPackageMatchesAffectedPackage(installed, pkg, vendorSource) {
-				continue
-			}
-			analysis := index.scannerAnalyses[supplychainmodel.ScopeGenerationKey(installed.ScopeID, installed.GenerationID)]
-			if analysis.ImageDigest != "" {
-				if byDigest[analysis.ImageDigest] == nil {
-					byDigest[analysis.ImageDigest] = map[string][]supplychainmodel.OSPackage{}
+	seen := make(map[string]bool)
+	for _, pkg := range pkgs {
+		vendorSource := classifyAffectedPackageAdvisorySource(pkg)
+		for _, key := range affectedOSPackageLookupKeys(pkg) {
+			for _, installed := range index.osPackages[key] {
+				if seen[installed.FactID] {
+					continue
 				}
-				byDigest[analysis.ImageDigest][key] = append(byDigest[analysis.ImageDigest][key], installed)
-			} else {
-				base[key] = append(base[key], installed)
+				if !osPackageMatchesAffectedPackage(installed, pkg, vendorSource) {
+					continue
+				}
+				seen[installed.FactID] = true
+				analysis := index.scannerAnalyses[supplychainmodel.ScopeGenerationKey(installed.ScopeID, installed.GenerationID)]
+				if analysis.ImageDigest != "" {
+					if byDigest[analysis.ImageDigest] == nil {
+						byDigest[analysis.ImageDigest] = map[string][]supplychainmodel.OSPackage{}
+					}
+					byDigest[analysis.ImageDigest][key] = append(byDigest[analysis.ImageDigest][key], installed)
+				} else {
+					base[key] = append(base[key], installed)
+				}
 			}
 		}
 	}

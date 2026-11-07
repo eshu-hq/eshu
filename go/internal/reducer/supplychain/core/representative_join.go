@@ -134,6 +134,43 @@ func withJoinableOSRepresentative(
 	return joining, !direct, true
 }
 
+// narrowShardToJoinableOSRepresentative ranks this scope's facts the way the
+// naming ranks the whole group (#9990) and keeps the ones that join this
+// scope's installed row. A live fact that cannot join must not reach release
+// narrowing, provenance, holders, or the matcher, or its purl fixes the
+// version family while the row's own fact is ignored in every fact order
+// (#10034, the different-vendor group limit). The mark stays on this scope's
+// slice, which the verdict ranks.
+func narrowShardToJoinableOSRepresentative(
+	pkgs []supplychainmodel.AffectedPackage,
+	index supplyChainImpactIndex,
+) []supplychainmodel.AffectedPackage {
+	if joining, _, ok := withJoinableOSRepresentative(pkgs, representativeAffectedPackage(pkgs), index); ok {
+		return joining
+	}
+	return pkgs
+}
+
+// liveShardPackages filters the group to the facts live on this shard's
+// scope, because an anchor is judged on the scope it anchors (#10034, the
+// different-vendor group limit): a live fact joining only one shard no longer
+// keeps a retracted record's facts on the shards it never joins.
+// Single-shard indexes classify exactly as before. The no-SBOM fleet also
+// narrows to the facts that join the shard's row; an SBOM-scoped finding
+// holds every fact of the group its digest names, narrowing or not.
+func liveShardPackages(
+	cves supplyChainCVEGroup,
+	pkgs []supplychainmodel.AffectedPackage,
+	index supplyChainImpactIndex,
+	narrowPerShard bool,
+) (supplyChainCVEGroup, []supplychainmodel.AffectedPackage) {
+	cves, pkgs = liveAdvisoryPackages(cves, pkgs, index)
+	if narrowPerShard {
+		pkgs = narrowShardToJoinableOSRepresentative(pkgs, index)
+	}
+	return cves, pkgs
+}
+
 // splitDirectBlankGroupByRowVersion splits a group by the version of the installed rows
 // its representative joins, when the rows are mixed, so the rule for a row that exists
 // at the base and the rule for a row this change creates each read only their own rows

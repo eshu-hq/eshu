@@ -93,7 +93,9 @@ func classifySupplyChainImpactPackage(
 	cves supplyChainCVEGroup,
 	pkgs []supplychainmodel.AffectedPackage,
 	index supplyChainImpactIndex,
+	narrowPerShard bool,
 ) SupplyChainImpactFinding {
+	cves, pkgs = liveShardPackages(cves, pkgs, index, narrowPerShard)
 	pkg := representativeAffectedPackage(pkgs)
 	component, attachment, image, hasComponentPath, imagePathMissing := firstSBOMImpactPath(pkg, index)
 	consumption := firstConsumption(pkg.PackageID, index.consumption)

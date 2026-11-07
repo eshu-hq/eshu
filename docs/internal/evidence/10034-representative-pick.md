@@ -38,3 +38,29 @@ No-Observability-Change: no new metric, span, or log. Picks that move land in
 the existing `os_representatives_*` outcome cells (`joined`, `reselected`,
 `other_anchor`, `no_joinable`, `no_installed_row`) and the finding's existing
 `MissingEvidence` reasons; `recordOSRepresentativeOutcome` is untouched.
+
+## #10034 items 2-4 and the #9914-limit comments
+
+RED first in every row: each test below failed on the tree before its fix and
+passed after, with the full core package green at the end
+(`go test ./internal/reducer/supplychain/core/ -count=1 -timeout 8m` ok;
+`go test ./internal/reducer/...` ok except the environmental
+`maintenance/census` pair, which needs `ESHU_DEPLOY_CHECKOUT` and never ran
+here). All commands with `env -u GOROOT`.
+
+| item | RED (failing proof) | fix | GREEN |
+| --- | --- | --- | --- |
+| 2 version family | `TestJoinedRowSuppliesTheVersionFamily`: purl family beat the joined row's own fact in one fact order | `version_family.go`: row package manager is host truth; purls must agree or the group stays unsupported | `TestJoinedRowSuppliesTheVersionFamily`, `TestForeignPURLDoesNotDecideTheVersionFamily`, `TestDisagreeingPURLsWithoutARowStayUnsupported` pass; `osVerdictComparator` mirrors the row rule |
+| 3 purl-carry | declined: `os://` identities are legal and language facts may lack purl, so a purl mandate would strand them | distinct `no_joinable_identity` outcome (`representative_join.go`) separates "cannot meet the row" from "not installed" | `TestUnmeetableIdentityCountsItsOwnOutcome`, `TestKeylessIdentityCountsItsOwnOutcome` pass; README + `telemetry-coverage-reducer-domains.md` updated |
+| 4 amazon + vendor token | `TestAmazonSpellingReadsTheRPMMatcher`: amazon rows missed the RPM matcher; unsupported reason named no vendor | `amazon` added to the rpm arms (`version_family.go`, deciding record, identity, remediation); per-vendor token via closed `osAdvisoryJoinVendorLabel` | `TestAmazonSpellingReadsTheRPMMatcher`, `TestUnsupportedEcosystemNamesItsVendor` pass |
+| L1 dpkg spelling | `TestDpkgSpellingReadsTheOSRetractionRule`: dpkg facts missed the debian retraction arm | one-line class fix in `provenance_selection.go` | `TestDpkgSpellingReadsTheOSRetractionRule`, `TestDpkgSpellingKeepsTheRetractionAnchor` pass |
+| L3 live consumer | `TestLiveConsumerDoesNotBeatARetractedRowJoin`: consumption on the live side anchored a retracted-row join | `onlyRetractedRecordsAnchor` no longer counts consumption on the live side (`os_advisory_upstream_group.go`) | `TestLiveConsumerDoesNotBeatARetractedRowJoin` pass |
+| L2 different-vendor group | `TestDifferentVendorGroupJudgesAnchorPerShard`: a live ubuntu fact pinned a retracted debian group in every fact order | liveness filter + join narrowing run per shard inside `classifySupplyChainImpactPackage` (fleet only; SBOM digest scopes keep whole-group facts) | `TestDifferentVendorGroupJudgesAnchorPerShard` pass; intermediate full-package runs read 8 failures while narrowing sat before filtering or ran on SBOM scopes, green after it moved behind the filter with the fleet-only gate |
+
+## Observability delta (items 2-4)
+
+One new outcome cell: `no_joinable_identity`, with the
+`os_representatives_no_joinable_identity` sub-signal, counted and emitted
+beside the existing outcome cells in `recordOSRepresentativeOutcome`. No new
+metric, span, or log beyond that cell; the unsupported-ecosystem reason now
+carries the vendor token the finding and the counter agree on.
