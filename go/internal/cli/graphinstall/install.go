@@ -17,7 +17,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/eshulocal"
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 const (
@@ -198,7 +198,7 @@ func ManagedBinaryIfPresent(readVersion VersionReader) (string, error) {
 func writeInstallManifest(targetPath, manifestPath string, source preparedInstallSource, reused bool) (Result, error) {
 	installedAt := installNow().UTC().Format(time.RFC3339Nano)
 	manifest := installManifest{
-		Backend:      string(query.GraphBackendNornicDB),
+		Backend:      string(querycontract.GraphBackendNornicDB),
 		BinaryPath:   targetPath,
 		Version:      source.Version,
 		SHA256:       source.BinarySHA256,

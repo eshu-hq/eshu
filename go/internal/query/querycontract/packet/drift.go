@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package packet
 
 import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // driftReproduceRoute is the bounded read that backs the drift packet.
@@ -21,7 +23,7 @@ const driftReproduceRoute = "POST /api/v0/cloud/runtime-drift/findings"
 // no provider, so the packet is deterministic.
 //
 // A nil bounds override uses the contract defaults.
-func BuildDriftPacket(findings []CloudRuntimeDriftFindingView, scope map[string]string, truth *TruthEnvelope, bounds *PacketBounds) (InvestigationEvidencePacket, error) {
+func BuildDriftPacket(findings []CloudRuntimeDriftFindingView, scope map[string]string, truth *querycontract.TruthEnvelope, bounds *PacketBounds) (InvestigationEvidencePacket, error) {
 	in := InvestigationPacketInput{
 		Family:           InvestigationFamilyDrift,
 		Subject:          normalizeSubject(scope),
@@ -164,7 +166,7 @@ func driftGraphAnswers(findings []CloudRuntimeDriftFindingView) []PacketGraphAns
 			To:            matched,
 			Hop:           "iac_management",
 			Present:       true,
-			TruthClass:    AnswerTruthDeterministic,
+			TruthClass:    querycontract.AnswerTruthDeterministic,
 			SourceFactIDs: refs,
 		})
 	}
@@ -227,4 +229,48 @@ func driftGeneration(findings []CloudRuntimeDriftFindingView) string {
 		}
 	}
 	return ""
+}
+
+// Cloud runtime drift read vocabulary, moved from root package query
+// (cloud_runtime_drift.go) and go/internal/query/iac (management_safety.go)
+// so the drift packet composer and eshu-cli read them without importing the
+// handler packages. JSON shapes are unchanged; the drift route handlers now
+// spell these names with the packet qualifier.
+
+// CloudRuntimeDriftFindingView is the bounded, non-sensitive wire shape for one
+// provider-neutral runtime drift finding. It carries the canonical identity, the
+// finding classification, the provider-neutral source state, and the
+// safety/refusal posture, but never the raw provider locator or raw evidence
+// atoms.
+type CloudRuntimeDriftFindingView struct {
+	FactID                       string   `json:"fact_id"`
+	Provider                     string   `json:"provider"`
+	ScopeID                      string   `json:"scope_id"`
+	GenerationID                 string   `json:"generation_id"`
+	SourceSystem                 string   `json:"source_system,omitempty"`
+	CloudResourceUID             string   `json:"cloud_resource_uid"`
+	FindingKind                  string   `json:"finding_kind"`
+	ManagementStatus             string   `json:"management_status"`
+	Confidence                   float64  `json:"confidence"`
+	SourceState                  string   `json:"source_state"`
+	MatchedTerraformStateAddress string   `json:"matched_terraform_state_address,omitempty"`
+	MissingEvidence              []string `json:"missing_evidence,omitempty"`
+	RecommendedAction            string   `json:"recommended_action,omitempty"`
+	// DriftedAttributes carries the bounded declared/observed value pairs for
+	// an image_version_drift finding (#5453). Empty for orphaned/unmanaged/
+	// unknown/ambiguous findings, which carry no comparable value evidence.
+	DriftedAttributes []querycontract.DriftedAttributeView `json:"drifted_attributes,omitempty"`
+	SafetyGate        ManagementSafetyGate                 `json:"safety_gate"`
+}
+
+// ManagementSafetyGate describes the safety decision that applies before a
+// caller turns one read-only finding into a Terraform import or migration task.
+type ManagementSafetyGate struct {
+	Outcome          string   `json:"outcome"`
+	ReadOnly         bool     `json:"read_only"`
+	ReviewRequired   bool     `json:"review_required"`
+	RefusedActions   []string `json:"refused_actions,omitempty"`
+	Warnings         []string `json:"warnings,omitempty"`
+	Redactions       []string `json:"redactions,omitempty"`
+	AuditExpectation string   `json:"audit_expectation"`
 }

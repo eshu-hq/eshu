@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 )
 
@@ -25,7 +26,7 @@ func TestSupplyChainListImpactFindingsFiltersAndSortsByPriority(t *testing.T) {
 				PriorityScore:       87,
 				PriorityBucket:      "critical",
 				PriorityReasonCodes: []string{"cisa_kev", "runtime_reachable"},
-				PriorityContributions: []impact.PriorityContribution{
+				PriorityContributions: []packet.PriorityContribution{
 					{ReasonCode: "cisa_kev", Input: "kev", Value: "true", Contribution: 25},
 				},
 			},
@@ -56,7 +57,7 @@ func TestSupplyChainListImpactFindingsFiltersAndSortsByPriority(t *testing.T) {
 	}
 
 	var resp struct {
-		Findings []impact.FindingResult `json:"findings"`
+		Findings []packet.FindingResult `json:"findings"`
 	}
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal: %v", err)

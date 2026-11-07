@@ -8,7 +8,8 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/cli/investigation"
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 )
 
 // failClient fails every call. BuildPacket tests inject their own fetches
@@ -27,25 +28,25 @@ func (c *failClient) PostEnvelope(string, any, any) error {
 	return nil
 }
 
-func exactTruth() *query.TruthEnvelope {
-	return &query.TruthEnvelope{
-		Level:     query.TruthLevelExact,
-		Basis:     query.TruthBasisAuthoritativeGraph,
-		Profile:   query.ProfileLocalAuthoritative,
-		Backend:   query.GraphBackendNornicDB,
-		Freshness: query.TruthFreshness{State: query.FreshnessFresh},
+func exactTruth() *querycontract.TruthEnvelope {
+	return &querycontract.TruthEnvelope{
+		Level:     querycontract.TruthLevelExact,
+		Basis:     querycontract.TruthBasisAuthoritativeGraph,
+		Profile:   querycontract.ProfileLocalAuthoritative,
+		Backend:   querycontract.GraphBackendNornicDB,
+		Freshness: querycontract.TruthFreshness{State: querycontract.FreshnessFresh},
 	}
 }
 
 func supplyChainEnvelope() investigation.SupplyChainExplainEnvelope {
 	return investigation.SupplyChainExplainEnvelope{
-		Data: query.SupplyChainImpactExplanationResult{
+		Data: packet.ExplanationResult{
 			Outcome: "finding_explained",
-			Input: query.SupplyChainImpactExplanationFilter{
+			Input: packet.ExplanationFilter{
 				AdvisoryID: "GHSA-aaaa-bbbb-cccc",
 				PackageID:  "pkg:golang/example.com/vuln",
 			},
-			Finding: &query.SupplyChainImpactFindingResult{
+			Finding: &packet.FindingResult{
 				FindingID:       "finding-1",
 				AdvisoryID:      "GHSA-aaaa-bbbb-cccc",
 				PackageName:     "example.com/vuln",
@@ -54,14 +55,14 @@ func supplyChainEnvelope() investigation.SupplyChainExplainEnvelope {
 				ServiceIDs:      []string{"service:checkout"},
 				EvidenceFactIDs: []string{"fact-advisory"},
 			},
-			Path: []query.SupplyChainImpactPathHop{
+			Path: []packet.PathHop{
 				{Hop: "advisory", Status: "present", EvidenceFactIDs: []string{"fact-advisory"}},
 				{Hop: "service", Status: "present"},
 			},
-			Evidence: []query.SupplyChainImpactEvidenceFactSummary{
+			Evidence: []packet.EvidenceFactSummary{
 				{FactID: "fact-advisory", FactKind: "vulnerability_advisory", SourceSystem: "osv"},
 			},
-			Freshness: query.SupplyChainImpactExplanationFreshness{
+			Freshness: packet.ExplanationFreshness{
 				State: "fresh", LatestObservedAt: "2026-06-18T00:00:00Z",
 			},
 		},
@@ -77,38 +78,38 @@ func TestBuildPacketUnknownFamilyRefusesWithoutFetching(t *testing.T) {
 	t.Parallel()
 
 	deps := investigation.Deps{
-		FetchSupplyChainExplain: func(investigation.Client, query.SupplyChainImpactExplanationFilter) (investigation.SupplyChainExplainEnvelope, error) {
+		FetchSupplyChainExplain: func(investigation.Client, packet.ExplanationFilter) (investigation.SupplyChainExplainEnvelope, error) {
 			t.Fatal("no fetch may run for an unrecognized family")
 			return investigation.SupplyChainExplainEnvelope{}, nil
 		},
 	}
-	packet, err := investigation.BuildPacket(&failClient{t: t}, deps, investigation.Request{
-		Family:  query.InvestigationFamily("not_a_family"),
+	pkt, err := investigation.BuildPacket(&failClient{t: t}, deps, investigation.Request{
+		Family:  packet.InvestigationFamily("not_a_family"),
 		Subject: map[string]string{"x": "y"},
 	})
 	if err != nil {
 		t.Fatalf("BuildPacket: %v", err)
 	}
-	if packet.Refusal != query.PacketRefusalUnknownFamily {
-		t.Fatalf("refusal = %q, want unknown_family", packet.Refusal)
+	if pkt.Refusal != packet.PacketRefusalUnknownFamily {
+		t.Fatalf("refusal = %q, want unknown_family", pkt.Refusal)
 	}
-	if packet.Identity.Family != query.InvestigationFamily("not_a_family") {
-		t.Fatalf("family = %q, want the operator's raw family echoed back", packet.Identity.Family)
+	if pkt.Identity.Family != packet.InvestigationFamily("not_a_family") {
+		t.Fatalf("family = %q, want the operator's raw family echoed back", pkt.Identity.Family)
 	}
 }
 
 func TestBuildPacketEmptyFamilyStillNamesTheScope(t *testing.T) {
 	t.Parallel()
 
-	packet, err := investigation.BuildPacket(&failClient{t: t}, investigation.Deps{}, investigation.Request{})
+	pkt, err := investigation.BuildPacket(&failClient{t: t}, investigation.Deps{}, investigation.Request{})
 	if err != nil {
 		t.Fatalf("BuildPacket: %v", err)
 	}
-	if packet.Refusal != query.PacketRefusalUnknownFamily {
-		t.Fatalf("refusal = %q, want unknown_family", packet.Refusal)
+	if pkt.Refusal != packet.PacketRefusalUnknownFamily {
+		t.Fatalf("refusal = %q, want unknown_family", pkt.Refusal)
 	}
-	if packet.Identity.Subject["requested"] != "unspecified" {
-		t.Fatalf("subject = %v, want the placeholder scope", packet.Identity.Subject)
+	if pkt.Identity.Subject["requested"] != "unspecified" {
+		t.Fatalf("subject = %v, want the placeholder scope", pkt.Identity.Subject)
 	}
 }
 
@@ -118,15 +119,15 @@ func TestBuildPacketSupplyChain(t *testing.T) {
 	t.Run("complete scope produces a supported packet", func(t *testing.T) {
 		t.Parallel()
 
-		var gotFilter query.SupplyChainImpactExplanationFilter
+		var gotFilter packet.ExplanationFilter
 		deps := investigation.Deps{
-			FetchSupplyChainExplain: func(_ investigation.Client, filter query.SupplyChainImpactExplanationFilter) (investigation.SupplyChainExplainEnvelope, error) {
+			FetchSupplyChainExplain: func(_ investigation.Client, filter packet.ExplanationFilter) (investigation.SupplyChainExplainEnvelope, error) {
 				gotFilter = filter
 				return supplyChainEnvelope(), nil
 			},
 		}
-		packet, err := investigation.BuildPacket(&failClient{t: t}, deps, investigation.Request{
-			Family:  query.InvestigationFamilySupplyChainImpact,
+		pkt, err := investigation.BuildPacket(&failClient{t: t}, deps, investigation.Request{
+			Family:  packet.InvestigationFamilySupplyChainImpact,
 			Subject: supplyChainScope(),
 		})
 		if err != nil {
@@ -135,11 +136,11 @@ func TestBuildPacketSupplyChain(t *testing.T) {
 		if gotFilter.AdvisoryID != "GHSA-aaaa-bbbb-cccc" || gotFilter.PackageID != "pkg:golang/example.com/vuln" {
 			t.Fatalf("filter = %+v, want the subject mapped onto the filter", gotFilter)
 		}
-		if !packet.Answer.Supported {
+		if !pkt.Answer.Supported {
 			t.Fatal("expected a supported packet")
 		}
-		if packet.Schema != query.InvestigationEvidencePacketSchema {
-			t.Fatalf("schema = %q", packet.Schema)
+		if pkt.Schema != packet.InvestigationEvidencePacketSchema {
+			t.Fatalf("schema = %q", pkt.Schema)
 		}
 	})
 
@@ -147,20 +148,20 @@ func TestBuildPacketSupplyChain(t *testing.T) {
 		t.Parallel()
 
 		deps := investigation.Deps{
-			FetchSupplyChainExplain: func(investigation.Client, query.SupplyChainImpactExplanationFilter) (investigation.SupplyChainExplainEnvelope, error) {
+			FetchSupplyChainExplain: func(investigation.Client, packet.ExplanationFilter) (investigation.SupplyChainExplainEnvelope, error) {
 				t.Fatal("an advisory with no target must refuse before any fetch")
 				return investigation.SupplyChainExplainEnvelope{}, nil
 			},
 		}
-		packet, err := investigation.BuildPacket(&failClient{t: t}, deps, investigation.Request{
-			Family:  query.InvestigationFamilySupplyChainImpact,
+		pkt, err := investigation.BuildPacket(&failClient{t: t}, deps, investigation.Request{
+			Family:  packet.InvestigationFamilySupplyChainImpact,
 			Subject: map[string]string{"advisory_id": "GHSA-x"},
 		})
 		if err != nil {
 			t.Fatalf("BuildPacket: %v", err)
 		}
-		if packet.Refusal != query.PacketRefusalScopeNotFound {
-			t.Fatalf("refusal = %q, want scope_not_found", packet.Refusal)
+		if pkt.Refusal != packet.PacketRefusalScopeNotFound {
+			t.Fatalf("refusal = %q, want scope_not_found", pkt.Refusal)
 		}
 	})
 
@@ -168,19 +169,19 @@ func TestBuildPacketSupplyChain(t *testing.T) {
 		t.Parallel()
 
 		deps := investigation.Deps{
-			FetchSupplyChainExplain: func(investigation.Client, query.SupplyChainImpactExplanationFilter) (investigation.SupplyChainExplainEnvelope, error) {
+			FetchSupplyChainExplain: func(investigation.Client, packet.ExplanationFilter) (investigation.SupplyChainExplainEnvelope, error) {
 				return investigation.SupplyChainExplainEnvelope{}, &statusError{code: 501}
 			},
 		}
-		packet, err := investigation.BuildPacket(&failClient{t: t}, deps, investigation.Request{
-			Family:  query.InvestigationFamilySupplyChainImpact,
+		pkt, err := investigation.BuildPacket(&failClient{t: t}, deps, investigation.Request{
+			Family:  packet.InvestigationFamilySupplyChainImpact,
 			Subject: supplyChainScope(),
 		})
 		if err != nil {
 			t.Fatalf("BuildPacket: %v", err)
 		}
-		if packet.Refusal != query.PacketRefusalProfileUnsupported {
-			t.Fatalf("refusal = %q, want profile_unsupported", packet.Refusal)
+		if pkt.Refusal != packet.PacketRefusalProfileUnsupported {
+			t.Fatalf("refusal = %q, want profile_unsupported", pkt.Refusal)
 		}
 	})
 
@@ -189,12 +190,12 @@ func TestBuildPacketSupplyChain(t *testing.T) {
 
 		sentinel := errors.New("dial tcp 127.0.0.1:8080: connect: connection refused")
 		deps := investigation.Deps{
-			FetchSupplyChainExplain: func(investigation.Client, query.SupplyChainImpactExplanationFilter) (investigation.SupplyChainExplainEnvelope, error) {
+			FetchSupplyChainExplain: func(investigation.Client, packet.ExplanationFilter) (investigation.SupplyChainExplainEnvelope, error) {
 				return investigation.SupplyChainExplainEnvelope{}, sentinel
 			},
 		}
 		_, err := investigation.BuildPacket(&failClient{t: t}, deps, investigation.Request{
-			Family:  query.InvestigationFamilySupplyChainImpact,
+			Family:  packet.InvestigationFamilySupplyChainImpact,
 			Subject: supplyChainScope(),
 		})
 		if !errors.Is(err, sentinel) {
@@ -206,21 +207,21 @@ func TestBuildPacketSupplyChain(t *testing.T) {
 		t.Parallel()
 
 		deps := investigation.Deps{
-			FetchSupplyChainExplain: func(investigation.Client, query.SupplyChainImpactExplanationFilter) (investigation.SupplyChainExplainEnvelope, error) {
+			FetchSupplyChainExplain: func(investigation.Client, packet.ExplanationFilter) (investigation.SupplyChainExplainEnvelope, error) {
 				return investigation.SupplyChainExplainEnvelope{
-					Error: &query.ErrorEnvelope{Code: query.ErrorCodeNotFound, Message: "no finding"},
+					Error: &querycontract.ErrorEnvelope{Code: querycontract.ErrorCodeNotFound, Message: "no finding"},
 				}, nil
 			},
 		}
-		packet, err := investigation.BuildPacket(&failClient{t: t}, deps, investigation.Request{
-			Family:  query.InvestigationFamilySupplyChainImpact,
+		pkt, err := investigation.BuildPacket(&failClient{t: t}, deps, investigation.Request{
+			Family:  packet.InvestigationFamilySupplyChainImpact,
 			Subject: supplyChainScope(),
 		})
 		if err != nil {
 			t.Fatalf("BuildPacket: %v", err)
 		}
-		if packet.Refusal != query.PacketRefusalScopeNotFound {
-			t.Fatalf("refusal = %q, want scope_not_found", packet.Refusal)
+		if pkt.Refusal != packet.PacketRefusalScopeNotFound {
+			t.Fatalf("refusal = %q, want scope_not_found", pkt.Refusal)
 		}
 	})
 
@@ -228,29 +229,29 @@ func TestBuildPacketSupplyChain(t *testing.T) {
 		t.Parallel()
 
 		envelope := supplyChainEnvelope()
-		envelope.Data.Evidence = []query.SupplyChainImpactEvidenceFactSummary{
+		envelope.Data.Evidence = []packet.EvidenceFactSummary{
 			{FactID: "fact-1", FactKind: "k"},
 			{FactID: "fact-2", FactKind: "k"},
 			{FactID: "fact-3", FactKind: "k"},
 		}
 		envelope.Data.Finding.EvidenceFactIDs = nil
 		deps := investigation.Deps{
-			FetchSupplyChainExplain: func(investigation.Client, query.SupplyChainImpactExplanationFilter) (investigation.SupplyChainExplainEnvelope, error) {
+			FetchSupplyChainExplain: func(investigation.Client, packet.ExplanationFilter) (investigation.SupplyChainExplainEnvelope, error) {
 				return envelope, nil
 			},
 		}
-		packet, err := investigation.BuildPacket(&failClient{t: t}, deps, investigation.Request{
-			Family:  query.InvestigationFamilySupplyChainImpact,
+		pkt, err := investigation.BuildPacket(&failClient{t: t}, deps, investigation.Request{
+			Family:  packet.InvestigationFamilySupplyChainImpact,
 			Subject: supplyChainScope(),
 			Bounds:  investigation.BoundsFromMaxSourceFacts(1),
 		})
 		if err != nil {
 			t.Fatalf("BuildPacket: %v", err)
 		}
-		if len(packet.SourceFacts) != 1 {
-			t.Fatalf("source facts = %d, want 1", len(packet.SourceFacts))
+		if len(pkt.SourceFacts) != 1 {
+			t.Fatalf("source facts = %d, want 1", len(pkt.SourceFacts))
 		}
-		if !packet.Bounds.Truncated {
+		if !pkt.Bounds.Truncated {
 			t.Fatal("expected bounds.truncated when the cap bites")
 		}
 	})

@@ -133,4 +133,4 @@ itself plus the one stderr line `WriteArtifact` prints when `--out` is set.
   flags, streams, and the API client are resolved
 - `go/internal/cli/apierr/README.md` — why the status crosses the package
   boundary through an interface
-- `go/internal/query/investigation_packet.go` — the v2 packet contract
+- `go/internal/query/querycontract/packet/envelope.go` — the v2 packet contract

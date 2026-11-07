@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 )
 
 func TestCov6AWSRuntimeDriftOutcomes(t *testing.T) {
@@ -30,7 +31,7 @@ func TestCov6AWSRuntimeDriftOutcomes(t *testing.T) {
 			t.Fatalf("drift outcome(%q) = %q, want %q", status, got, want)
 		}
 	}
-	gated := ManagementFindingRow{SafetyGate: ManagementSafetyGate{ReviewRequired: true}}
+	gated := ManagementFindingRow{SafetyGate: packet.ManagementSafetyGate{ReviewRequired: true}}
 	if got := awsRuntimeDriftPromotionOutcome(gated); got != awsRuntimeDriftPromotionRejected {
 		t.Fatalf("gated promotion = %q, want rejected", got)
 	}

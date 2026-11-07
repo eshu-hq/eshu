@@ -10,7 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/cli/graphinstall"
 	"github.com/eshu-hq/eshu/go/internal/eshulocal"
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 func TestUpgradeForLayoutRequiresStoppedOwner(t *testing.T) {
@@ -26,8 +26,8 @@ func TestUpgradeForLayoutRequiresStoppedOwner(t *testing.T) {
 	graphReadOwnerRecord = func(path string) (eshulocal.OwnerRecord, error) {
 		return eshulocal.OwnerRecord{
 			PID:           42,
-			Profile:       string(query.ProfileLocalAuthoritative),
-			GraphBackend:  string(query.GraphBackendNornicDB),
+			Profile:       string(querycontract.ProfileLocalAuthoritative),
+			GraphBackend:  string(querycontract.GraphBackendNornicDB),
 			GraphPID:      88,
 			GraphBoltPort: 17687,
 			GraphHTTPPort: 17474,

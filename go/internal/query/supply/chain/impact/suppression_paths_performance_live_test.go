@@ -21,6 +21,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 	storagepostgres "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -133,7 +134,7 @@ ALTER TABLE supply_chain_impact_canonical_winners
 
 	explanation, err := direct.ExplainSupplyChainImpact(
 		ctx,
-		ExplanationFilter{FindingID: "finding:000501"},
+		packet.ExplanationFilter{FindingID: "finding:000501"},
 	)
 	if err != nil {
 		t.Fatalf("explain finding: %v", err)
@@ -159,7 +160,7 @@ ALTER TABLE supply_chain_impact_canonical_winners
 			return err
 		}},
 		{"explain", func() error {
-			_, err := direct.ExplainSupplyChainImpact(ctx, ExplanationFilter{FindingID: "finding:000501"})
+			_, err := direct.ExplainSupplyChainImpact(ctx, packet.ExplanationFilter{FindingID: "finding:000501"})
 			return err
 		}},
 		{"winner_rebuild", func() error {

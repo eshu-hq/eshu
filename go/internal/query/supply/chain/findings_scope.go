@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 	"github.com/eshu-hq/eshu/go/internal/query/selector"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 )
@@ -41,12 +42,12 @@ func (h *Handler) writeEmptyImpactFindingsPage(
 	profile string,
 ) {
 	body := map[string]any{
-		"findings":          []impact.FindingResult{},
+		"findings":          []packet.FindingResult{},
 		"count":             0,
 		"limit":             limit,
 		"truncated":         false,
 		"detection_profile": profile,
-		"readiness":         impact.BuildReadinessUnavailable(impact.TargetScope{}, nil, false),
+		"readiness":         packet.BuildReadinessUnavailable(packet.TargetScope{}, nil, false),
 	}
 	querycontract.WriteSuccess(w, r, http.StatusOK, body, querycontract.BuildTruthEnvelope(
 		h.profile(),
@@ -64,8 +65,8 @@ func (h *Handler) writeEmptyImpactFindingsPage(
 // scope that legitimately has no findings, and readiness is reported
 // unavailable rather than falsely clean.
 func (h *Handler) writeEmptyImpactExplanation(w http.ResponseWriter, r *http.Request) {
-	filter := impact.ExplanationFilter{}
-	readiness := impact.BuildReadinessUnavailable(impact.TargetScope{}, nil, false)
+	filter := packet.ExplanationFilter{}
+	readiness := packet.BuildReadinessUnavailable(packet.TargetScope{}, nil, false)
 	body := impact.BuildNoEvidenceExplanation(filter, readiness)
 	querycontract.WriteSuccess(w, r, http.StatusOK, body, querycontract.BuildTruthEnvelope(
 		h.profile(),
@@ -151,7 +152,7 @@ func (h *Handler) writeEmptyImpactGroupedInventory(
 		"truncated":         false,
 		"next_offset":       nil,
 		"distinct_findings": 0,
-		"freshness":         impact.GroupedInventoryFreshness{State: impact.FreshnessLabelUnknown},
+		"freshness":         impact.GroupedInventoryFreshness{State: packet.FreshnessLabelUnknown},
 		"scope":             map[string]string{},
 	}, querycontract.BuildTruthEnvelope(
 		h.profile(),

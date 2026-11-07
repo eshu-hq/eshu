@@ -15,7 +15,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/cli/firstrun"
 	"github.com/eshu-hq/eshu/go/internal/cli/opdigest"
 	"github.com/eshu-hq/eshu/go/internal/packetdogfood"
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 )
 
 // exerciseFirstRunReportArtifact renders the first-run evidence artifact from
@@ -58,15 +59,15 @@ func exerciseOperatorDigestArtifact() error {
 // exerciseInvestigationEvidencePacketArtifact renders the fixture supply-chain
 // packet and checks it is a supported, complete v2 packet.
 func exerciseInvestigationEvidencePacketArtifact() error {
-	packet, err := supportedSupplyChainPacket()
+	pkt, err := supportedSupplyChainPacket()
 	if err != nil {
 		return err
 	}
-	raw, err := query.RenderInvestigationPacket(packet, query.InvestigationPacketFormatJSON)
+	raw, err := packet.RenderInvestigationPacket(pkt, packet.InvestigationPacketFormatJSON)
 	if err != nil {
 		return err
 	}
-	if !packet.Answer.Supported || packet.Answer.Partial {
+	if !pkt.Answer.Supported || pkt.Answer.Partial {
 		return fmt.Errorf("investigation packet exercise did not produce a supported complete packet")
 	}
 	if !bytes.Contains(raw, []byte(`investigation_evidence_packet.v2`)) {
@@ -81,16 +82,16 @@ func exerciseInvestigationEvidencePacketArtifact() error {
 // pins that the fixture stays supported and complete — if it drifts to
 // partial, the exercise proves nothing. That test is in this package, so it
 // reaches this function without the identifier being exported.
-func supportedSupplyChainPacket() (query.InvestigationEvidencePacket, error) {
+func supportedSupplyChainPacket() (packet.InvestigationEvidencePacket, error) {
 	directDependency := true
-	result := query.SupplyChainImpactExplanationResult{
+	result := packet.ExplanationResult{
 		Outcome: "finding_explained",
-		Input: query.SupplyChainImpactExplanationFilter{
+		Input: packet.ExplanationFilter{
 			AdvisoryID:   "GHSA-aaaa-bbbb-cccc",
 			PackageID:    "pkg:golang/example.com/vuln",
 			RepositoryID: "repo-1",
 		},
-		Finding: &query.SupplyChainImpactFindingResult{
+		Finding: &packet.FindingResult{
 			FindingID:        "finding-1",
 			AdvisoryID:       "GHSA-aaaa-bbbb-cccc",
 			PackageID:        "pkg:golang/example.com/vuln",
@@ -101,40 +102,40 @@ func supportedSupplyChainPacket() (query.InvestigationEvidencePacket, error) {
 			EvidenceFactIDs:  []string{"fact-advisory", "fact-sbom"},
 			DirectDependency: &directDependency,
 		},
-		Anchors: query.SupplyChainImpactExplanationAnchors{
+		Anchors: packet.ExplanationAnchors{
 			RepositoryID:  "repo-1",
 			ImageDigests:  []string{"sha256:abc"},
 			Workloads:     []string{"workload:checkout"},
 			Services:      []string{"service:checkout"},
 			SBOMDocuments: []string{"sbom:checkout"},
 		},
-		Path: []query.SupplyChainImpactPathHop{
+		Path: []packet.PathHop{
 			{Hop: "advisory", Status: "present", EvidenceFactIDs: []string{"fact-advisory"}},
 			{Hop: "sbom", Status: "present", EvidenceFactIDs: []string{"fact-sbom"}},
 			{Hop: "image", Status: "present"},
 			{Hop: "workload", Status: "present"},
 			{Hop: "service", Status: "present"},
 		},
-		Evidence: []query.SupplyChainImpactEvidenceFactSummary{
+		Evidence: []packet.EvidenceFactSummary{
 			{FactID: "fact-advisory", FactKind: "vulnerability_advisory", SourceSystem: "osv", ObservedAt: "2026-06-18T00:00:00Z"},
 			{FactID: "fact-sbom", FactKind: "sbom_component", SourceSystem: "sbom_document", ObservedAt: "2026-06-18T00:00:00Z"},
 		},
-		Readiness: query.SupplyChainImpactReadinessEnvelope{State: query.ReadinessStateReadyWithFindings},
-		Freshness: query.SupplyChainImpactExplanationFreshness{
+		Readiness: packet.ReadinessEnvelope{State: packet.ReadinessStateReadyWithFindings},
+		Freshness: packet.ExplanationFreshness{
 			State:             "fresh",
 			LatestObservedAt:  "2026-06-18T00:00:00Z",
 			EvidenceFactCount: 2,
 		},
 	}
-	truth := &query.TruthEnvelope{
-		Level:      query.TruthLevelExact,
+	truth := &querycontract.TruthEnvelope{
+		Level:      querycontract.TruthLevelExact,
 		Capability: "supply_chain.impact_explain",
-		Profile:    query.ProfileLocalAuthoritative,
-		Basis:      query.TruthBasisAuthoritativeGraph,
-		Backend:    query.GraphBackendNornicDB,
-		Freshness:  query.TruthFreshness{State: query.FreshnessFresh},
+		Profile:    querycontract.ProfileLocalAuthoritative,
+		Basis:      querycontract.TruthBasisAuthoritativeGraph,
+		Backend:    querycontract.GraphBackendNornicDB,
+		Freshness:  querycontract.TruthFreshness{State: querycontract.FreshnessFresh},
 	}
-	return query.BuildSupplyChainImpactPacket(result, truth, nil)
+	return packet.BuildSupplyChainImpactPacket(result, truth, nil)
 }
 
 // exerciseEvidencePacketDogfoodFixture scores the committed dogfood benchmark

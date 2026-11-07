@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 )
 
 func TestHandleTerraformImportPlanCandidatesReturnsSafeS3Candidate(t *testing.T) {
@@ -32,7 +33,7 @@ func TestHandleTerraformImportPlanCandidatesReturnsSafeS3Candidate(t *testing.T)
 			GenerationID:      "generation:aws-1",
 			SourceSystem:      "aws",
 			RecommendedAction: "triage_owner_and_import_or_retire",
-			SafetyGate: ManagementSafetyGate{
+			SafetyGate: packet.ManagementSafetyGate{
 				Outcome:        "read_only_allowed",
 				ReadOnly:       true,
 				ReviewRequired: false,
@@ -134,7 +135,7 @@ func TestHandleTerraformImportPlanCandidatesReturnsSafeLambdaCandidate(t *testin
 			ScopeID:          "aws:123456789012:us-east-1:lambda",
 			GenerationID:     "generation:aws-1",
 			SourceSystem:     "aws",
-			SafetyGate: ManagementSafetyGate{
+			SafetyGate: packet.ManagementSafetyGate{
 				Outcome:        "read_only_allowed",
 				ReadOnly:       true,
 				ReviewRequired: false,
@@ -219,7 +220,7 @@ func TestHandleTerraformImportPlanCandidatesRefusesSensitiveFinding(t *testing.T
 			GenerationID:     "generation:aws-1",
 			SourceSystem:     "aws",
 			WarningFlags:     []string{"security_sensitive_resource"},
-			SafetyGate: ManagementSafetyGate{
+			SafetyGate: packet.ManagementSafetyGate{
 				Outcome:        "security_review_required",
 				ReadOnly:       true,
 				ReviewRequired: true,

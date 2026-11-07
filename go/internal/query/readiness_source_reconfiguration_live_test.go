@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 )
 
@@ -25,14 +26,14 @@ func TestSupplyChainImpactReadinessReconfiguredExactSelectorRefusesOldSuccessLiv
 	seedReadinessScopeState(t, ctx, database, now, "changing-instance", "same-scope", "nvd", "fresh", "succeeded")
 	seedReadinessNVDCommittedSnapshot(t, ctx, database, now, "same-scope", "changing-instance", "CVE-2026-9227")
 	before := readReadinessScopeAPI(t, database, "CVE-2026-9227")
-	if before.State != impact.ReadinessStateReadyZeroFindings {
+	if before.State != packet.ReadinessStateReadyZeroFindings {
 		t.Fatalf("CVE A before reconfiguration = %q, want ready_zero_findings", before.State)
 	}
 	if _, err := database.ExecContext(ctx, `UPDATE collector_instances SET updated_at = $1
         WHERE instance_id = 'changing-instance'`, now.Add(time.Second)); err != nil {
 		t.Fatalf("reconcile unchanged instance: %v", err)
 	}
-	if unchanged := readReadinessScopeAPI(t, database, "CVE-2026-9227"); unchanged.State != impact.ReadinessStateReadyZeroFindings {
+	if unchanged := readReadinessScopeAPI(t, database, "CVE-2026-9227"); unchanged.State != packet.ReadinessStateReadyZeroFindings {
 		t.Fatalf("unchanged reconciliation lost committed coverage: %+v", unchanged)
 	}
 	changed, err := json.Marshal(map[string]any{"targets": []map[string]any{{
@@ -46,7 +47,7 @@ func TestSupplyChainImpactReadinessReconfiguredExactSelectorRefusesOldSuccessLiv
 		t.Fatalf("reconfigure exact target in place: %v", err)
 	}
 	after := readReadinessScopeAPI(t, database, "CVE-2026-9228")
-	if after.State != impact.ReadinessStateTargetIncomplete {
+	if after.State != packet.ReadinessStateTargetIncomplete {
 		t.Fatalf("CVE B inherited CVE A source success: %+v", after)
 	}
 	// An old A generation can commit after B is configured. Observation time
@@ -55,7 +56,7 @@ func TestSupplyChainImpactReadinessReconfiguredExactSelectorRefusesOldSuccessLiv
         WHERE fact_id = 'same-scope-snapshot'`, now.Add(3*time.Second)); err != nil {
 		t.Fatalf("record late A snapshot commit: %v", err)
 	}
-	if lateA := readReadinessScopeAPI(t, database, "CVE-2026-9228"); lateA.State != impact.ReadinessStateTargetIncomplete {
+	if lateA := readReadinessScopeAPI(t, database, "CVE-2026-9228"); lateA.State != packet.ReadinessStateTargetIncomplete {
 		t.Fatalf("late A snapshot certified B: %+v", lateA)
 	}
 	original, err := json.Marshal(map[string]any{"targets": []map[string]any{{
@@ -68,7 +69,7 @@ func TestSupplyChainImpactReadinessReconfiguredExactSelectorRefusesOldSuccessLiv
         WHERE instance_id = 'changing-instance'`, original, now.Add(4*time.Second)); err != nil {
 		t.Fatalf("restore exact target: %v", err)
 	}
-	if restored := readReadinessScopeAPI(t, database, "CVE-2026-9227"); restored.State != impact.ReadinessStateReadyZeroFindings {
+	if restored := readReadinessScopeAPI(t, database, "CVE-2026-9227"); restored.State != packet.ReadinessStateReadyZeroFindings {
 		t.Fatalf("A->B->A lost still-active A evidence: %+v", restored)
 	}
 }
@@ -90,7 +91,7 @@ func TestSupplyChainImpactReadinessMalformedCVEElementsRefuseCleanZeroLive(t *te
 			})
 			seedReadinessScopeState(t, ctx, database, now, "malformed-elements-instance", "exact", "nvd", "fresh", "succeeded")
 			readiness := readReadinessScopeAPI(t, database, "CVE-2026-9227")
-			if readiness.State != impact.ReadinessStateReadinessUnavailable {
+			if readiness.State != packet.ReadinessStateReadinessUnavailable {
 				t.Fatalf("malformed %s CVE element readiness = %+v, want readiness_unavailable", tc.name, readiness)
 			}
 		})
@@ -128,7 +129,7 @@ func TestSupplyChainImpactReadinessConflictingDuplicateScopeUnavailableLive(t *t
 	})
 	seedReadinessScopeState(t, ctx, database, now, "duplicate-instance", "same-scope", "nvd", "fresh", "succeeded")
 	readiness := readReadinessScopeAPI(t, database, "CVE-2026-9227")
-	if readiness.State != impact.ReadinessStateReadinessUnavailable {
+	if readiness.State != packet.ReadinessStateReadinessUnavailable {
 		t.Fatalf("conflicting duplicate scope readiness = %+v, want readiness_unavailable", readiness)
 	}
 	assertReadinessTargetsMalformed(t, ctx, database, "conflicting duplicate scope")
@@ -226,7 +227,7 @@ func TestSupplyChainImpactReadinessNVDConfiguredFallbackIdentityLive(t *testing.
         '{coverage_descriptor}', $1::jsonb) WHERE fact_id = 'fallback-scope-snapshot'`, descriptor); err != nil {
 		t.Fatalf("seed executed fallback: %v", err)
 	}
-	if initial := readReadinessScopeAPI(t, database, "CVE-2026-9227"); initial.State != impact.ReadinessStateReadyZeroFindings {
+	if initial := readReadinessScopeAPI(t, database, "CVE-2026-9227"); initial.State != packet.ReadinessStateReadyZeroFindings {
 		t.Fatalf("configured fallback coverage = %+v, want ready_zero_findings", initial)
 	}
 	reordered, err := json.Marshal(map[string]any{"targets": []map[string]any{{
@@ -240,7 +241,7 @@ func TestSupplyChainImpactReadinessNVDConfiguredFallbackIdentityLive(t *testing.
         WHERE instance_id = 'fallback-instance'`, reordered); err != nil {
 		t.Fatalf("reorder configured endpoints: %v", err)
 	}
-	if sameSet := readReadinessScopeAPI(t, database, "CVE-2026-9227"); sameSet.State != impact.ReadinessStateReadyZeroFindings {
+	if sameSet := readReadinessScopeAPI(t, database, "CVE-2026-9227"); sameSet.State != packet.ReadinessStateReadyZeroFindings {
 		t.Fatalf("reordered configured endpoints lost coverage: %+v", sameSet)
 	}
 	withBlankFallback, err := json.Marshal(map[string]any{"targets": []map[string]any{{
@@ -254,7 +255,7 @@ func TestSupplyChainImpactReadinessNVDConfiguredFallbackIdentityLive(t *testing.
         WHERE instance_id = 'fallback-instance'`, withBlankFallback); err != nil {
 		t.Fatalf("add blank fallback: %v", err)
 	}
-	if sameSet := readReadinessScopeAPI(t, database, "CVE-2026-9227"); sameSet.State != impact.ReadinessStateReadyZeroFindings {
+	if sameSet := readReadinessScopeAPI(t, database, "CVE-2026-9227"); sameSet.State != packet.ReadinessStateReadyZeroFindings {
 		t.Fatalf("ignored blank fallback changed coverage: %+v", sameSet)
 	}
 	changed, err := json.Marshal(map[string]any{"targets": []map[string]any{{
@@ -268,7 +269,7 @@ func TestSupplyChainImpactReadinessNVDConfiguredFallbackIdentityLive(t *testing.
         WHERE instance_id = 'fallback-instance'`, changed); err != nil {
 		t.Fatalf("change configured endpoint set: %v", err)
 	}
-	if newSet := readReadinessScopeAPI(t, database, "CVE-2026-9227"); newSet.State != impact.ReadinessStateTargetIncomplete {
+	if newSet := readReadinessScopeAPI(t, database, "CVE-2026-9227"); newSet.State != packet.ReadinessStateTargetIncomplete {
 		t.Fatalf("changed endpoint set inherited old coverage: %+v", newSet)
 	}
 }

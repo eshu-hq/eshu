@@ -1,29 +1,12 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package impact
+package packet
 
 import (
 	"sort"
 	"strings"
 )
-
-// UnsupportedTarget describes one observed vulnerability
-// target Eshu cannot match precisely with the current matcher set. Targets
-// carry the kind of evidence Eshu saw and a stable reason code so callers can
-// tell "we observed something we cannot resolve" from "we collected nothing".
-//
-// Unsupported targets never imply the target is safe or affected. They are
-// coverage-gap evidence: the producer observed a real artifact but the
-// matcher could not turn that artifact into a finding.
-type UnsupportedTarget struct {
-	TargetKind     string `json:"target_kind"`
-	Reason         string `json:"reason"`
-	Count          int    `json:"count"`
-	Ecosystem      string `json:"ecosystem,omitempty"`
-	LockfileFlavor string `json:"lockfile_flavor,omitempty"`
-	FeatureToken   string `json:"feature_token,omitempty"`
-}
 
 const (
 	// UnsupportedTargetKindEcosystem marks owned dependency evidence in an
@@ -72,12 +55,13 @@ var allowedUnsupportedTargetKinds = map[string]struct{}{
 	UnsupportedTargetKindImageTarget:             {},
 }
 
-// normalizeUnsupportedTargets trims, drops empty/unknown entries, merges
+// NormalizeUnsupportedTargets trims, drops empty/unknown entries, merges
 // duplicates by (target_kind, reason, ecosystem, lockfile_flavor,
 // feature_token), and returns a deterministic ordering. Counts on duplicate
 // keys are summed so a producer that emits one fact per observation does not
 // inflate the envelope with redundant rows.
-func normalizeUnsupportedTargets(targets []UnsupportedTarget) []UnsupportedTarget {
+// NormalizeUnsupportedTargets trims and merges duplicate targets.
+func NormalizeUnsupportedTargets(targets []UnsupportedTarget) []UnsupportedTarget {
 	if len(targets) == 0 {
 		return nil
 	}

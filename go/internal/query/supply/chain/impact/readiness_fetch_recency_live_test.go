@@ -25,6 +25,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	chain "github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	projectorruntime "github.com/eshu-hq/eshu/go/internal/projector/runtime"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	storagepostgres "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	vulnerabilitystore "github.com/eshu-hq/eshu/go/internal/storage/postgres/vulnerability"
@@ -281,13 +282,13 @@ func (p *recencyProof) lastSuccess() time.Time {
 	return at
 }
 
-func (p *recencyProof) readiness() ReadinessEnvelope {
+func (p *recencyProof) readiness() packet.ReadinessEnvelope {
 	p.t.Helper()
 	snapshot, err := NewPostgresReadinessStore(p.db).ReadSupplyChainImpactReadiness(context.Background(), ReadinessQuery{CVEID: recencyCVE})
 	if err != nil {
 		p.t.Fatalf("ReadSupplyChainImpactReadiness() error = %v", err)
 	}
-	return BuildReadiness(TargetScope{CVEID: recencyCVE}, nil, false, snapshot)
+	return packet.BuildReadiness(packet.TargetScope{CVEID: recencyCVE}, nil, false, snapshot)
 }
 
 // TestReadinessAdvisoryFreshAfterSkippedUnchangedFetchLive is the #9694 F1
@@ -311,14 +312,14 @@ func TestReadinessAdvisoryFreshAfterSkippedUnchangedFetchLive(t *testing.T) {
 		t.Fatalf("%d facts were re-observed inside the window, want 0: the skip stores nothing", got)
 	}
 	envelope := p.readiness()
-	if ReadinessMissingContains(envelope.MissingEvidence, MissingEvidenceAdvisorySources) {
-		t.Fatalf("missing_evidence = %v, want no %s for a source fetched just now", envelope.MissingEvidence, MissingEvidenceAdvisorySources)
+	if packet.ReadinessMissingContains(envelope.MissingEvidence, packet.MissingEvidenceAdvisorySources) {
+		t.Fatalf("missing_evidence = %v, want no %s for a source fetched just now", envelope.MissingEvidence, packet.MissingEvidenceAdvisorySources)
 	}
-	if ReadinessMissingContains(envelope.MissingEvidence, MissingEvidenceTargetCollection) {
-		t.Fatalf("missing_evidence = %v, want no %s: the snapshot's source was fetched just now", envelope.MissingEvidence, MissingEvidenceTargetCollection)
+	if packet.ReadinessMissingContains(envelope.MissingEvidence, packet.MissingEvidenceTargetCollection) {
+		t.Fatalf("missing_evidence = %v, want no %s: the snapshot's source was fetched just now", envelope.MissingEvidence, packet.MissingEvidenceTargetCollection)
 	}
 	for _, family := range envelope.EvidenceSources {
-		if family.Family == EvidenceFamilyVulnerabilityAdvisory && family.Freshness != FreshnessLabelFresh {
+		if family.Family == packet.EvidenceFamilyVulnerabilityAdvisory && family.Freshness != packet.FreshnessLabelFresh {
 			t.Fatalf("advisory freshness = %q, want fresh", family.Freshness)
 		}
 	}
@@ -331,8 +332,8 @@ func TestReadinessAdvisoryStaleWhenNeverRefetchedLive(t *testing.T) {
 	p := openRecencyProof(t)
 	p.claim(time.Now().UTC().Add(-30 * 24 * time.Hour))
 	envelope := p.readiness()
-	if !ReadinessMissingContains(envelope.MissingEvidence, MissingEvidenceAdvisorySources) {
-		t.Fatalf("missing_evidence = %v, want %s for a source not fetched in 30 days", envelope.MissingEvidence, MissingEvidenceAdvisorySources)
+	if !packet.ReadinessMissingContains(envelope.MissingEvidence, packet.MissingEvidenceAdvisorySources) {
+		t.Fatalf("missing_evidence = %v, want %s for a source not fetched in 30 days", envelope.MissingEvidence, packet.MissingEvidenceAdvisorySources)
 	}
 }
 
@@ -428,11 +429,11 @@ func TestReadinessKeepsAdvisorySourcesForARefusedShrinkFromTheExtractedCollector
 			refusal := p.refuseShrink(now)
 			p.recordExtractedClaim(now, tc.partial, refusal)
 			envelope := p.readiness()
-			if got := ReadinessMissingContains(envelope.MissingEvidence, MissingEvidenceAdvisorySources); got != tc.wantMissing {
+			if got := packet.ReadinessMissingContains(envelope.MissingEvidence, packet.MissingEvidenceAdvisorySources); got != tc.wantMissing {
 				t.Fatalf("missing_evidence = %v, advisory_sources reported = %v, want %v", envelope.MissingEvidence, got, tc.wantMissing)
 			}
 			for _, family := range envelope.EvidenceSources {
-				if family.Family == EvidenceFamilyVulnerabilityAdvisory && family.Freshness == FreshnessLabelFresh {
+				if family.Family == packet.EvidenceFamilyVulnerabilityAdvisory && family.Freshness == packet.FreshnessLabelFresh {
 					t.Fatalf("advisory freshness = %q, want anything but fresh for a refused row", family.Freshness)
 				}
 			}
@@ -476,7 +477,7 @@ func TestReadinessGlobalLayoutWithoutLocalClaimColumnsUsesLegacyLive(t *testing.
 	p := openRecencyProof(t)
 	p.claim(time.Now().UTC().Add(-30 * 24 * time.Hour))
 	envelope := p.readiness()
-	if !ReadinessMissingContains(envelope.MissingEvidence, MissingEvidenceAdvisorySources) {
-		t.Fatalf("missing_evidence = %v, want %s for a source not fetched in 30 days", envelope.MissingEvidence, MissingEvidenceAdvisorySources)
+	if !packet.ReadinessMissingContains(envelope.MissingEvidence, packet.MissingEvidenceAdvisorySources) {
+		t.Fatalf("missing_evidence = %v, want %s for a source not fetched in 30 days", envelope.MissingEvidence, packet.MissingEvidenceAdvisorySources)
 	}
 }

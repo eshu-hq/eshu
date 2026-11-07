@@ -12,7 +12,8 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/cli/investigation"
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 )
 
 // The packet contract advertises a share_safe_v2 redaction profile whose rules
@@ -49,20 +50,20 @@ var carrierPrefixes = []struct{ name, prefix string }{
 	{"slash", "/"},
 }
 
-var packetFormats = []query.InvestigationPacketFormat{
-	query.InvestigationPacketFormatJSON,
-	query.InvestigationPacketFormatMarkdown,
-	query.InvestigationPacketFormatHTML,
+var packetFormats = []packet.InvestigationPacketFormat{
+	packet.InvestigationPacketFormatJSON,
+	packet.InvestigationPacketFormatMarkdown,
+	packet.InvestigationPacketFormatHTML,
 }
 
 // renderAndWrite runs the same path the CLI runs: render the packet, then write
 // it through WriteArtifact to a real file, and return the bytes that landed on
 // disk. Checking the file rather than the in-memory render catches a leak added
 // by the writer itself.
-func renderAndWrite(t *testing.T, packet query.InvestigationEvidencePacket, format query.InvestigationPacketFormat) string {
+func renderAndWrite(t *testing.T, pkt packet.InvestigationEvidencePacket, format packet.InvestigationPacketFormat) string {
 	t.Helper()
 
-	data, err := query.RenderInvestigationPacket(packet, format)
+	data, err := packet.RenderInvestigationPacket(pkt, format)
 	if err != nil {
 		t.Fatalf("render %s: %v", format, err)
 	}
@@ -91,10 +92,10 @@ func TestArtifactDropsServerAndTransportText(t *testing.T) {
 	for _, prefix := range carrierPrefixes {
 		carrier := prefix.prefix + leakCanary
 
-		for _, family := range []query.InvestigationFamily{
-			query.InvestigationFamilySupplyChainImpact,
-			query.InvestigationFamilyDeployableUnit,
-			query.InvestigationFamilyDrift,
+		for _, family := range []packet.InvestigationFamily{
+			packet.InvestigationFamilySupplyChainImpact,
+			packet.InvestigationFamilyDeployableUnit,
+			packet.InvestigationFamilyDrift,
 		} {
 			for _, source := range []struct {
 				name string
@@ -102,8 +103,8 @@ func TestArtifactDropsServerAndTransportText(t *testing.T) {
 			}{
 				{
 					name: "envelope error message",
-					deps: depsReturningEnvelopeError(&query.ErrorEnvelope{
-						Code: query.ErrorCodeNotFound, Message: "no match for " + carrier,
+					deps: depsReturningEnvelopeError(&querycontract.ErrorEnvelope{
+						Code: querycontract.ErrorCodeNotFound, Message: "no match for " + carrier,
 					}),
 				},
 				{
@@ -151,7 +152,7 @@ func TestArtifactKeepsTheOperatorScope(t *testing.T) {
 	for _, prefix := range carrierPrefixes {
 		carrier := prefix.prefix + presentCanary
 		packet, err := investigation.BuildPacket(nil, investigation.Deps{}, investigation.Request{
-			Family:  query.InvestigationFamily("unknown_family_for_control"),
+			Family:  packet.InvestigationFamily("unknown_family_for_control"),
 			Subject: map[string]string{"advisory_id": carrier},
 		})
 		if err != nil {
@@ -188,22 +189,22 @@ func TestSubjectValuesReachTheRequestURL(t *testing.T) {
 	}
 }
 
-func scopeFor(family query.InvestigationFamily) map[string]string {
+func scopeFor(family packet.InvestigationFamily) map[string]string {
 	switch family {
-	case query.InvestigationFamilyDeployableUnit:
+	case packet.InvestigationFamilyDeployableUnit:
 		return map[string]string{"scope_id": "s1", "generation_id": "g1"}
-	case query.InvestigationFamilyDrift:
+	case packet.InvestigationFamilyDrift:
 		return map[string]string{"scope_id": "acct1"}
-	case query.InvestigationFamilySupplyChainImpact:
+	case packet.InvestigationFamilySupplyChainImpact:
 		return map[string]string{"advisory_id": "GHSA-x", "package_id": "pkg:npm/y"}
 	default:
 		return map[string]string{"advisory_id": "GHSA-x", "package_id": "pkg:npm/y"}
 	}
 }
 
-func depsReturningEnvelopeError(errEnv *query.ErrorEnvelope) investigation.Deps {
+func depsReturningEnvelopeError(errEnv *querycontract.ErrorEnvelope) investigation.Deps {
 	return investigation.Deps{
-		FetchSupplyChainExplain: func(investigation.Client, query.SupplyChainImpactExplanationFilter) (investigation.SupplyChainExplainEnvelope, error) {
+		FetchSupplyChainExplain: func(investigation.Client, packet.ExplanationFilter) (investigation.SupplyChainExplainEnvelope, error) {
 			return investigation.SupplyChainExplainEnvelope{Error: errEnv}, nil
 		},
 		FetchAdmissionDecisions: func(investigation.Client, url.Values) (investigation.AdmissionDecisionsEnvelope, error) {
@@ -217,7 +218,7 @@ func depsReturningEnvelopeError(errEnv *query.ErrorEnvelope) investigation.Deps 
 
 func depsReturningFetchError(err error) investigation.Deps {
 	return investigation.Deps{
-		FetchSupplyChainExplain: func(investigation.Client, query.SupplyChainImpactExplanationFilter) (investigation.SupplyChainExplainEnvelope, error) {
+		FetchSupplyChainExplain: func(investigation.Client, packet.ExplanationFilter) (investigation.SupplyChainExplainEnvelope, error) {
 			return investigation.SupplyChainExplainEnvelope{}, err
 		},
 		FetchAdmissionDecisions: func(investigation.Client, url.Values) (investigation.AdmissionDecisionsEnvelope, error) {

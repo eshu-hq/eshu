@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -82,7 +83,7 @@ WHERE uid BETWEEN 'uid-000001' AND 'uid-001000'
 			t.Fatalf("route status = %d, want %d; body = %s", got, want, response.Body.String())
 		}
 		var body struct {
-			Findings []impact.FindingResult `json:"findings"`
+			Findings []packet.FindingResult `json:"findings"`
 		}
 		if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
 			t.Fatalf("decode route response: %v", err)

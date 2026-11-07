@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/admission"
@@ -80,7 +81,7 @@ func (s PostgresAdmissionDecisionReadStore) ListAdmissionDecisionEvidence(
 	ctx context.Context,
 	decisionID string,
 	limit int,
-) ([]AdmissionDecisionEvidenceRow, error) {
+) ([]packet.AdmissionDecisionEvidenceRow, error) {
 	if s.store == nil {
 		return nil, fmt.Errorf("admission decision store is required")
 	}
@@ -88,9 +89,9 @@ func (s PostgresAdmissionDecisionReadStore) ListAdmissionDecisionEvidence(
 	if err != nil {
 		return nil, err
 	}
-	out := make([]AdmissionDecisionEvidenceRow, 0, len(rows))
+	out := make([]packet.AdmissionDecisionEvidenceRow, 0, len(rows))
 	for _, row := range rows {
-		out = append(out, AdmissionDecisionEvidenceRow{
+		out = append(out, packet.AdmissionDecisionEvidenceRow{
 			EvidenceID:   row.EvidenceID,
 			DecisionID:   row.DecisionID,
 			SourceHandle: row.SourceHandle,
@@ -134,14 +135,14 @@ func admissionDecisionReadRowFromPostgres(row admissionstore.AdmissionDecision) 
 		SourceHandles:       admissionDecisionSourceHandlesFromPostgres(row.SourceHandles),
 		RedactionState:      row.RedactionState,
 		RedactionReason:     row.RedactionReason,
-		CanonicalWrite: AdmissionDecisionCanonicalWrite{
+		CanonicalWrite: packet.AdmissionDecisionCanonicalWrite{
 			Eligible:      row.CanonicalWrite.Eligible,
 			Written:       row.CanonicalWrite.Written,
 			TargetKind:    row.CanonicalWrite.TargetKind,
 			TargetID:      row.CanonicalWrite.TargetID,
 			SkippedReason: row.CanonicalWrite.SkippedReason,
 		},
-		RecommendedAction: AdmissionDecisionNextAction{
+		RecommendedAction: packet.AdmissionDecisionNextAction{
 			Action: row.RecommendedAction.Action,
 			Reason: row.RecommendedAction.Reason,
 			Owner:  row.RecommendedAction.Owner,
@@ -154,10 +155,10 @@ func admissionDecisionReadRowFromPostgres(row admissionstore.AdmissionDecision) 
 
 func admissionDecisionSourceHandlesFromPostgres(
 	handles []admissionstore.AdmissionDecisionSourceHandle,
-) []AdmissionDecisionSourceHandle {
-	out := make([]AdmissionDecisionSourceHandle, 0, len(handles))
+) []packet.AdmissionDecisionSourceHandle {
+	out := make([]packet.AdmissionDecisionSourceHandle, 0, len(handles))
 	for _, handle := range handles {
-		out = append(out, AdmissionDecisionSourceHandle{
+		out = append(out, packet.AdmissionDecisionSourceHandle{
 			Kind:    handle.Kind,
 			ID:      handle.ID,
 			ScopeID: handle.ScopeID,

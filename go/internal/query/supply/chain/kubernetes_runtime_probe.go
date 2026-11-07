@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 	"go.opentelemetry.io/otel/attribute"
@@ -71,7 +72,7 @@ type KubernetesRuntimeCandidate struct {
 	EdgeGenerationID string
 }
 
-// impact.KubernetesRuntimeWorkloadRef moved to internal/query/supply/chain/impact
+// packet.KubernetesRuntimeWorkloadRef moved to internal/query/supply/chain/impact
 // with the other runtime-evidence read-model types (#6060 lane A); see
 // compat_supply_chain.go.
 
@@ -80,7 +81,7 @@ type KubernetesRuntimeCandidate struct {
 // internal join key and is deliberately not repeated in the public nested ref.
 type KubernetesRuntimeWorkloadMatch struct {
 	Digest      string
-	WorkloadRef impact.KubernetesRuntimeWorkloadRef
+	WorkloadRef packet.KubernetesRuntimeWorkloadRef
 }
 
 type kubernetesRuntimeMatchKey struct {
@@ -178,7 +179,7 @@ func (h *Handler) applySupplyChainKubernetesRuntimeEvidence(
 		}
 	}
 	matches = sortedUniqueKubernetesRuntimeWorkloadMatches(matches)
-	byDigest := make(map[string][]impact.KubernetesRuntimeWorkloadRef)
+	byDigest := make(map[string][]packet.KubernetesRuntimeWorkloadRef)
 	for _, match := range matches {
 		if match.WorkloadRef.UID == "" || match.Digest == "" {
 			continue
@@ -190,15 +191,15 @@ func (h *Handler) applySupplyChainKubernetesRuntimeEvidence(
 		}
 		byDigest[match.Digest] = append(byDigest[match.Digest], match.WorkloadRef)
 	}
-	refsByDigest := make(map[string][]impact.KubernetesRuntimeWorkloadRef, len(fanout.slots))
-	metadataByDigest := make(map[string]*impact.KubernetesRuntimeProbeMetadata, len(fanout.slots))
+	refsByDigest := make(map[string][]packet.KubernetesRuntimeWorkloadRef, len(fanout.slots))
+	metadataByDigest := make(map[string]*packet.KubernetesRuntimeProbeMetadata, len(fanout.slots))
 	truncatedDigestCount := 0
 	unknownDigestCount := 0
 	workloadCount := 0
 	confirmedDigests := 0
 	for _, slot := range fanout.slots {
 		authorized := byDigest[slot.plan.Digest]
-		metadata := &impact.KubernetesRuntimeProbeMetadata{CandidateLimit: slot.plan.Quota}
+		metadata := &packet.KubernetesRuntimeProbeMetadata{CandidateLimit: slot.plan.Quota}
 		if allScopes {
 			switch {
 			case len(authorized) > slot.plan.Quota:
@@ -234,7 +235,7 @@ func (h *Handler) applySupplyChainKubernetesRuntimeEvidence(
 		}
 		remainingOccurrences[digest]--
 		rows[i].KubernetesRuntimeWorkloadRefs = append(
-			[]impact.KubernetesRuntimeWorkloadRef(nil),
+			[]packet.KubernetesRuntimeWorkloadRef(nil),
 			refsByDigest[digest]...,
 		)
 		metadataCopy := *metadata

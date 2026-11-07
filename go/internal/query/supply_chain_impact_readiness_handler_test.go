@@ -10,11 +10,12 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 )
 
 type recordingSupplyChainImpactReadinessStore struct {
-	snapshot  impact.ReadinessSnapshot
+	snapshot  packet.ReadinessSnapshot
 	err       error
 	lastQuery impact.ReadinessQuery
 	calls     int
@@ -23,17 +24,17 @@ type recordingSupplyChainImpactReadinessStore struct {
 func (s *recordingSupplyChainImpactReadinessStore) ReadSupplyChainImpactReadiness(
 	_ context.Context,
 	query impact.ReadinessQuery,
-) (impact.ReadinessSnapshot, error) {
+) (packet.ReadinessSnapshot, error) {
 	s.lastQuery = query
 	s.calls++
 	if s.err != nil {
-		return impact.ReadinessSnapshot{}, s.err
+		return packet.ReadinessSnapshot{}, s.err
 	}
-	clone := impact.ReadinessSnapshot{
-		EvidenceSources:    append([]impact.EvidenceFamily(nil), s.snapshot.EvidenceSources...),
-		SourceSnapshots:    append([]impact.SourceSnapshot(nil), s.snapshot.SourceSnapshots...),
-		SourceStates:       append([]impact.SourceState(nil), s.snapshot.SourceStates...),
-		UnsupportedTargets: append([]impact.UnsupportedTarget(nil), s.snapshot.UnsupportedTargets...),
+	clone := packet.ReadinessSnapshot{
+		EvidenceSources:    append([]packet.EvidenceFamily(nil), s.snapshot.EvidenceSources...),
+		SourceSnapshots:    append([]packet.SourceSnapshot(nil), s.snapshot.SourceSnapshots...),
+		SourceStates:       append([]packet.SourceState(nil), s.snapshot.SourceStates...),
+		UnsupportedTargets: append([]packet.UnsupportedTarget(nil), s.snapshot.UnsupportedTargets...),
 		TargetIncomplete:   s.snapshot.TargetIncomplete,
 		IncompleteReasons:  append([]string(nil), s.snapshot.IncompleteReasons...),
 	}
@@ -44,11 +45,11 @@ func TestSupplyChainListImpactFindingsAttachesReadinessForZeroFindings(t *testin
 	t.Parallel()
 
 	readiness := &recordingSupplyChainImpactReadinessStore{
-		snapshot: impact.ReadinessSnapshot{
-			EvidenceSources: []impact.EvidenceFamily{
-				{Family: impact.EvidenceFamilyVulnerabilityAdvisory, FactCount: 5, Freshness: impact.FreshnessLabelFresh},
-				{Family: impact.EvidenceFamilyPackageConsumption, FactCount: 2, Freshness: impact.FreshnessLabelFresh},
-				{Family: impact.EvidenceFamilyPackageRegistry, FactCount: 1, Freshness: impact.FreshnessLabelFresh},
+		snapshot: packet.ReadinessSnapshot{
+			EvidenceSources: []packet.EvidenceFamily{
+				{Family: packet.EvidenceFamilyVulnerabilityAdvisory, FactCount: 5, Freshness: packet.FreshnessLabelFresh},
+				{Family: packet.EvidenceFamilyPackageConsumption, FactCount: 2, Freshness: packet.FreshnessLabelFresh},
+				{Family: packet.EvidenceFamilyPackageRegistry, FactCount: 1, Freshness: packet.FreshnessLabelFresh},
 			},
 		},
 	}
@@ -78,23 +79,23 @@ func TestSupplyChainListImpactFindingsAttachesReadinessForZeroFindings(t *testin
 	}
 
 	var resp struct {
-		Findings  []impact.FindingResult   `json:"findings"`
+		Findings  []packet.FindingResult   `json:"findings"`
 		Count     int                      `json:"count"`
 		Limit     int                      `json:"limit"`
 		Truncated bool                     `json:"truncated"`
-		Readiness impact.ReadinessEnvelope `json:"readiness"`
+		Readiness packet.ReadinessEnvelope `json:"readiness"`
 	}
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal: %v", err)
 	}
-	if resp.Readiness.State != impact.ReadinessStateReadyZeroFindings {
-		t.Fatalf("readiness.state = %q, want %q", resp.Readiness.State, impact.ReadinessStateReadyZeroFindings)
+	if resp.Readiness.State != packet.ReadinessStateReadyZeroFindings {
+		t.Fatalf("readiness.state = %q, want %q", resp.Readiness.State, packet.ReadinessStateReadyZeroFindings)
 	}
 	if resp.Readiness.TargetScope.RepositoryID != "repo://example/api" {
 		t.Fatalf("readiness.target_scope.repository_id = %q, want repo://example/api", resp.Readiness.TargetScope.RepositoryID)
 	}
-	if resp.Readiness.Freshness != impact.FreshnessLabelFresh {
-		t.Fatalf("readiness.freshness = %q, want %q", resp.Readiness.Freshness, impact.FreshnessLabelFresh)
+	if resp.Readiness.Freshness != packet.FreshnessLabelFresh {
+		t.Fatalf("readiness.freshness = %q, want %q", resp.Readiness.Freshness, packet.FreshnessLabelFresh)
 	}
 	if resp.Count != 0 || resp.Truncated {
 		t.Fatalf("count/truncated = %d/%v, want zero", resp.Count, resp.Truncated)
@@ -125,18 +126,18 @@ func TestSupplyChainListImpactFindingsReadinessSurfacesNotConfigured(t *testing.
 	}
 
 	var resp struct {
-		Readiness impact.ReadinessEnvelope `json:"readiness"`
+		Readiness packet.ReadinessEnvelope `json:"readiness"`
 	}
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal: %v", err)
 	}
-	if resp.Readiness.State != impact.ReadinessStateNotConfigured {
-		t.Fatalf("readiness.state = %q, want %q", resp.Readiness.State, impact.ReadinessStateNotConfigured)
+	if resp.Readiness.State != packet.ReadinessStateNotConfigured {
+		t.Fatalf("readiness.state = %q, want %q", resp.Readiness.State, packet.ReadinessStateNotConfigured)
 	}
 	if resp.Readiness.TargetScope.CVEID != "CVE-2026-0001" {
 		t.Fatalf("readiness.target_scope.cve_id = %q, want CVE-2026-0001", resp.Readiness.TargetScope.CVEID)
 	}
-	if !impact.ReadinessMissingContains(resp.Readiness.MissingEvidence, impact.MissingEvidenceAdvisorySources) {
+	if !packet.ReadinessMissingContains(resp.Readiness.MissingEvidence, packet.MissingEvidenceAdvisorySources) {
 		t.Fatalf("missing_evidence = %#v, want advisory_sources", resp.Readiness.MissingEvidence)
 	}
 }
@@ -145,9 +146,9 @@ func TestSupplyChainListImpactFindingsReadinessWithFindings(t *testing.T) {
 	t.Parallel()
 
 	readiness := &recordingSupplyChainImpactReadinessStore{
-		snapshot: impact.ReadinessSnapshot{
-			EvidenceSources: []impact.EvidenceFamily{
-				{Family: impact.EvidenceFamilyVulnerabilityAdvisory, FactCount: 4, Freshness: impact.FreshnessLabelFresh},
+		snapshot: packet.ReadinessSnapshot{
+			EvidenceSources: []packet.EvidenceFamily{
+				{Family: packet.EvidenceFamilyVulnerabilityAdvisory, FactCount: 4, Freshness: packet.FreshnessLabelFresh},
 			},
 		},
 	}
@@ -176,15 +177,15 @@ func TestSupplyChainListImpactFindingsReadinessWithFindings(t *testing.T) {
 	}
 
 	var resp struct {
-		Findings  []impact.FindingResult   `json:"findings"`
+		Findings  []packet.FindingResult   `json:"findings"`
 		Truncated bool                     `json:"truncated"`
-		Readiness impact.ReadinessEnvelope `json:"readiness"`
+		Readiness packet.ReadinessEnvelope `json:"readiness"`
 	}
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal: %v", err)
 	}
-	if resp.Readiness.State != impact.ReadinessStateReadyWithFindings {
-		t.Fatalf("readiness.state = %q, want %q", resp.Readiness.State, impact.ReadinessStateReadyWithFindings)
+	if resp.Readiness.State != packet.ReadinessStateReadyWithFindings {
+		t.Fatalf("readiness.state = %q, want %q", resp.Readiness.State, packet.ReadinessStateReadyWithFindings)
 	}
 	if !resp.Readiness.Counts.FindingsTruncated {
 		t.Fatal("readiness.counts.findings_truncated = false, want true (page limit was 1, store had 2)")
@@ -202,13 +203,13 @@ func TestSupplyChainListImpactFindingsReadinessSurfacesUnsupported(t *testing.T)
 	// unsupported target evidence. The state and unsupported_targets[]
 	// payload come through the JSON envelope without leaking package names.
 	readiness := &recordingSupplyChainImpactReadinessStore{
-		snapshot: impact.ReadinessSnapshot{
-			EvidenceSources: []impact.EvidenceFamily{
-				{Family: impact.EvidenceFamilyVulnerabilityAdvisory, FactCount: 2, Freshness: impact.FreshnessLabelFresh},
-				{Family: impact.EvidenceFamilyPackageConsumption, FactCount: 1, Freshness: impact.FreshnessLabelFresh},
+		snapshot: packet.ReadinessSnapshot{
+			EvidenceSources: []packet.EvidenceFamily{
+				{Family: packet.EvidenceFamilyVulnerabilityAdvisory, FactCount: 2, Freshness: packet.FreshnessLabelFresh},
+				{Family: packet.EvidenceFamilyPackageConsumption, FactCount: 1, Freshness: packet.FreshnessLabelFresh},
 			},
-			UnsupportedTargets: []impact.UnsupportedTarget{
-				{TargetKind: impact.UnsupportedTargetKindEcosystem, Reason: "unsupported_ecosystem", Ecosystem: "pypi", Count: 2},
+			UnsupportedTargets: []packet.UnsupportedTarget{
+				{TargetKind: packet.UnsupportedTargetKindEcosystem, Reason: "unsupported_ecosystem", Ecosystem: "pypi", Count: 2},
 			},
 		},
 	}
@@ -232,19 +233,19 @@ func TestSupplyChainListImpactFindingsReadinessSurfacesUnsupported(t *testing.T)
 	}
 
 	var resp struct {
-		Readiness impact.ReadinessEnvelope `json:"readiness"`
+		Readiness packet.ReadinessEnvelope `json:"readiness"`
 	}
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal: %v", err)
 	}
-	if resp.Readiness.State != impact.ReadinessStateUnsupported {
-		t.Fatalf("readiness.state = %q, want %q", resp.Readiness.State, impact.ReadinessStateUnsupported)
+	if resp.Readiness.State != packet.ReadinessStateUnsupported {
+		t.Fatalf("readiness.state = %q, want %q", resp.Readiness.State, packet.ReadinessStateUnsupported)
 	}
-	if !impact.ReadinessMissingContains(resp.Readiness.MissingEvidence, impact.MissingEvidenceUnsupportedTargets) {
+	if !packet.ReadinessMissingContains(resp.Readiness.MissingEvidence, packet.MissingEvidenceUnsupportedTargets) {
 		t.Fatalf("missing_evidence = %#v, want unsupported_targets", resp.Readiness.MissingEvidence)
 	}
 	if len(resp.Readiness.UnsupportedTargets) != 1 ||
-		resp.Readiness.UnsupportedTargets[0].TargetKind != impact.UnsupportedTargetKindEcosystem ||
+		resp.Readiness.UnsupportedTargets[0].TargetKind != packet.UnsupportedTargetKindEcosystem ||
 		resp.Readiness.UnsupportedTargets[0].Count != 2 {
 		t.Fatalf("unsupported_targets = %#v, want one ecosystem entry with count=2", resp.Readiness.UnsupportedTargets)
 	}
@@ -270,7 +271,7 @@ func TestSupplyChainListImpactFindingsReadinessWithoutStore(t *testing.T) {
 	}
 
 	var resp struct {
-		Readiness *impact.ReadinessEnvelope `json:"readiness"`
+		Readiness *packet.ReadinessEnvelope `json:"readiness"`
 	}
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal: %v", err)
@@ -278,7 +279,7 @@ func TestSupplyChainListImpactFindingsReadinessWithoutStore(t *testing.T) {
 	if resp.Readiness == nil {
 		t.Fatal("readiness = nil, want envelope")
 	}
-	if resp.Readiness.State != impact.ReadinessStateNotConfigured {
-		t.Fatalf("readiness.state = %q, want %q (no store => no source evidence)", resp.Readiness.State, impact.ReadinessStateNotConfigured)
+	if resp.Readiness.State != packet.ReadinessStateNotConfigured {
+		t.Fatalf("readiness.state = %q, want %q (no store => no source evidence)", resp.Readiness.State, packet.ReadinessStateNotConfigured)
 	}
 }

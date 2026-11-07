@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 )
 
 func impactParamRequest(params string) (*httptest.ResponseRecorder, *http.Request) {
@@ -155,20 +157,20 @@ func TestPriorityFilter(t *testing.T) {
 func TestNormalizeReadinessCollections(t *testing.T) {
 	t.Parallel()
 
-	families := normalizeEvidenceSources([]EvidenceFamily{
-		{Family: EvidenceFamilySBOMComponent},
+	families := packet.NormalizeEvidenceSources([]packet.EvidenceFamily{
+		{Family: packet.EvidenceFamilySBOMComponent},
 		{Family: "unknown-family"},
 		{Family: "  "},
-		{Family: EvidenceFamilyVulnerabilityAdvisory},
+		{Family: packet.EvidenceFamilyVulnerabilityAdvisory},
 	})
-	if len(families) != 2 || families[0].Family != EvidenceFamilySBOMComponent {
+	if len(families) != 2 || families[0].Family != packet.EvidenceFamilySBOMComponent {
 		t.Errorf("families = %+v, want the two known kinds sorted", families)
 	}
-	if normalizeEvidenceSources(nil) == nil {
+	if packet.NormalizeEvidenceSources(nil) == nil {
 		t.Error("empty families must yield an empty slice, not nil")
 	}
 
-	snapshots := normalizeSourceSnapshots([]SourceSnapshot{
+	snapshots := packet.NormalizeSourceSnapshots([]packet.SourceSnapshot{
 		{Source: "npm", Ecosystem: "npm", SnapshotDigest: "d2"},
 		{Source: " npm ", Ecosystem: "npm", SnapshotDigest: "d1"},
 		{Source: "npm", Ecosystem: "npm", SnapshotDigest: "d1"},
@@ -178,10 +180,10 @@ func TestNormalizeReadinessCollections(t *testing.T) {
 		t.Errorf("snapshots = %+v, want 2 deduplicated and sorted", snapshots)
 	}
 
-	if got := uniqueSortedReadinessStrings([]string{"b", "a", " ", "b"}); len(got) != 2 || got[0] != "a" {
+	if got := packet.UniqueSortedReadinessStrings([]string{"b", "a", " ", "b"}); len(got) != 2 || got[0] != "a" {
 		t.Errorf("unique sorted = %v", got)
 	}
-	if !ReadinessMissingContains([]string{"a"}, "a") || ReadinessMissingContains(nil, "a") {
+	if !packet.ReadinessMissingContains([]string{"a"}, "a") || packet.ReadinessMissingContains(nil, "a") {
 		t.Error("ReadinessMissingContains wrong")
 	}
 }

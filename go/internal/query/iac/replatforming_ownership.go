@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 )
 
 // Ownership-candidate kinds. A packet groups its candidates by these kinds so a
@@ -80,7 +81,7 @@ type replatformingOwnershipPacket struct {
 	OwnerCandidates []ReplatformingOwnerCandidate `json:"owner_candidates"`
 	// SafetyGate is the read-only safety decision carried verbatim from the
 	// finding so a consumer cannot turn a refused finding into an import.
-	SafetyGate ManagementSafetyGate `json:"safety_gate"`
+	SafetyGate packet.ManagementSafetyGate `json:"safety_gate"`
 	// Freshness is the per-item freshness derived from the finding's source
 	// state, so a stale or unavailable finding is visibly not fresh.
 	Freshness querycontract.TruthFreshness `json:"freshness"`
@@ -115,15 +116,15 @@ func buildReplatformingOwnershipSummary(
 		Packets: make([]replatformingOwnershipPacket, 0, len(findings)),
 	}
 	for i := range findings {
-		packet := buildReplatformingOwnershipPacket(findings[i], filter)
-		summary.Packets = append(summary.Packets, packet)
-		if packet.SourceState == ReplatformingSourceStateRejected {
+		ownership := buildReplatformingOwnershipPacket(findings[i], filter)
+		summary.Packets = append(summary.Packets, ownership)
+		if ownership.SourceState == ReplatformingSourceStateRejected {
 			summary.RejectedCount++
 		}
-		if ownershipPacketIsAmbiguous(packet) {
+		if ownershipPacketIsAmbiguous(ownership) {
 			summary.AmbiguousCount++
 		}
-		if ownershipPacketIsUnattributed(packet) {
+		if ownershipPacketIsUnattributed(ownership) {
 			summary.UnattributedCount++
 		}
 	}
@@ -143,7 +144,7 @@ func buildReplatformingOwnershipPacket(
 	NormalizeManagementFindingSafety(&finding)
 	state := ResolveReplatformingSourceState(finding.ManagementStatus, finding.SafetyGate.ReviewRequired)
 
-	packet := replatformingOwnershipPacket{
+	ownership := replatformingOwnershipPacket{
 		ItemID:                       finding.ID,
 		Provider:                     firstNonEmpty(finding.Provider, "aws"),
 		AccountID:                    ownershipAccountID(finding, filter),
@@ -162,10 +163,10 @@ func buildReplatformingOwnershipPacket(
 	}
 
 	var missing []string
-	packet.OwnerCandidates, missing = ownershipCandidates(finding, packet.AccountID)
-	packet.MissingEvidence = missing
-	packet.RecommendedNextCalls = ownershipRecommendedNextCalls(finding, missing)
-	return packet
+	ownership.OwnerCandidates, missing = ownershipCandidates(finding, ownership.AccountID)
+	ownership.MissingEvidence = missing
+	ownership.RecommendedNextCalls = ownershipRecommendedNextCalls(finding, missing)
+	return ownership
 }
 
 // ownershipCandidates assembles the candidate list and the missing-evidence

@@ -8,6 +8,8 @@ import (
 	"encoding/json"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 )
 
 // A vulnerability collector that fetches an unchanged answer stores no new
@@ -36,25 +38,25 @@ func recencySnapshot(source, freshness string, lastUpdated time.Time) map[string
 	}
 }
 
-func readRecencySnapshot(t *testing.T, advisoryObserved time.Time, states, snapshots []map[string]any) ReadinessSnapshot {
+func readRecencySnapshot(t *testing.T, advisoryObserved time.Time, states, snapshots []map[string]any) packet.ReadinessSnapshot {
 	t.Helper()
 	return readRecencyRows(t, advisoryObserved, nil, states, snapshots)
 }
 
 // readRecencyRows is readRecencySnapshot with an optional exploitability family
 // observed at exploitObserved.
-func readRecencyRows(t *testing.T, advisoryObserved time.Time, exploitObserved *time.Time, states, snapshots []map[string]any) ReadinessSnapshot {
+func readRecencyRows(t *testing.T, advisoryObserved time.Time, exploitObserved *time.Time, states, snapshots []map[string]any) packet.ReadinessSnapshot {
 	t.Helper()
 	statesJSON, err := json.Marshal(states)
 	if err != nil {
 		t.Fatalf("marshal states: %v", err)
 	}
 	rows := [][]any{
-		cov8ReadinessRow(EvidenceFamilyVulnerabilityAdvisory, 4, advisoryObserved, nil, nil, nil, nil, nil),
+		cov8ReadinessRow(packet.EvidenceFamilyVulnerabilityAdvisory, 4, advisoryObserved, nil, nil, nil, nil, nil),
 		cov8ReadinessRow(sourceStateFamilyMarker, 0, nil, false, nil, nil, string(statesJSON), nil),
 	}
 	if exploitObserved != nil {
-		rows = append(rows, cov8ReadinessRow(EvidenceFamilyVulnerabilityExploitability, 2, *exploitObserved, nil, nil, nil, nil, nil))
+		rows = append(rows, cov8ReadinessRow(packet.EvidenceFamilyVulnerabilityExploitability, 2, *exploitObserved, nil, nil, nil, nil, nil))
 	}
 	if len(snapshots) > 0 {
 		snapshotsJSON, err := json.Marshal(snapshots)
@@ -75,15 +77,15 @@ func readRecencyRows(t *testing.T, advisoryObserved time.Time, exploitObserved *
 	return snapshot
 }
 
-func advisoryFamily(t *testing.T, snapshot ReadinessSnapshot) EvidenceFamily {
+func advisoryFamily(t *testing.T, snapshot packet.ReadinessSnapshot) packet.EvidenceFamily {
 	t.Helper()
 	for _, family := range snapshot.EvidenceSources {
-		if family.Family == EvidenceFamilyVulnerabilityAdvisory {
+		if family.Family == packet.EvidenceFamilyVulnerabilityAdvisory {
 			return family
 		}
 	}
 	t.Fatalf("no advisory family in %+v", snapshot.EvidenceSources)
-	return EvidenceFamily{}
+	return packet.EvidenceFamily{}
 }
 
 func TestReadinessUnchangedAnswerStaysFreshFromTheLastSuccessfulFetch(t *testing.T) {
@@ -94,15 +96,15 @@ func TestReadinessUnchangedAnswerStaysFreshFromTheLastSuccessfulFetch(t *testing
 		[]map[string]any{recencyState("osv", "vuln-intel://osv/npm/example", "fresh", "succeeded", now.Add(-time.Hour))}, nil)
 
 	family := advisoryFamily(t, snapshot)
-	if family.Freshness != FreshnessLabelFresh {
-		t.Fatalf("advisory freshness = %q with a successful fetch an hour ago, want %q", family.Freshness, FreshnessLabelFresh)
+	if family.Freshness != packet.FreshnessLabelFresh {
+		t.Fatalf("advisory freshness = %q with a successful fetch an hour ago, want %q", family.Freshness, packet.FreshnessLabelFresh)
 	}
 	if got, want := family.LatestObservedAt, old.Format(time.RFC3339); got != want {
 		t.Fatalf("latest_observed_at = %q, want the unchanged fact time %q: facts are not re-observed", got, want)
 	}
-	envelope := BuildReadiness(TargetScope{CVEID: "CVE-2026-0001"}, nil, false, snapshot)
-	if ReadinessMissingContains(envelope.MissingEvidence, MissingEvidenceAdvisorySources) {
-		t.Fatalf("missing_evidence = %v, want no %s for a source fetched an hour ago", envelope.MissingEvidence, MissingEvidenceAdvisorySources)
+	envelope := packet.BuildReadiness(packet.TargetScope{CVEID: "CVE-2026-0001"}, nil, false, snapshot)
+	if packet.ReadinessMissingContains(envelope.MissingEvidence, packet.MissingEvidenceAdvisorySources) {
+		t.Fatalf("missing_evidence = %v, want no %s for a source fetched an hour ago", envelope.MissingEvidence, packet.MissingEvidenceAdvisorySources)
 	}
 }
 
@@ -128,12 +130,12 @@ func TestReadinessStillReportsAdvisorySourcesWhenTheSourceWasNotFetched(t *testi
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			snapshot := readRecencySnapshot(t, old, tc.states, nil)
-			if got := advisoryFamily(t, snapshot).Freshness; got != FreshnessLabelStale {
-				t.Fatalf("advisory freshness = %q, want %q: the source was not fetched", got, FreshnessLabelStale)
+			if got := advisoryFamily(t, snapshot).Freshness; got != packet.FreshnessLabelStale {
+				t.Fatalf("advisory freshness = %q, want %q: the source was not fetched", got, packet.FreshnessLabelStale)
 			}
-			envelope := BuildReadiness(TargetScope{CVEID: "CVE-2026-0001"}, nil, false, snapshot)
-			if !ReadinessMissingContains(envelope.MissingEvidence, MissingEvidenceAdvisorySources) {
-				t.Fatalf("missing_evidence = %v, want %s", envelope.MissingEvidence, MissingEvidenceAdvisorySources)
+			envelope := packet.BuildReadiness(packet.TargetScope{CVEID: "CVE-2026-0001"}, nil, false, snapshot)
+			if !packet.ReadinessMissingContains(envelope.MissingEvidence, packet.MissingEvidenceAdvisorySources) {
+				t.Fatalf("missing_evidence = %v, want %s", envelope.MissingEvidence, packet.MissingEvidenceAdvisorySources)
 			}
 		})
 	}
@@ -146,23 +148,23 @@ func TestReadinessNVDSnapshotStaysFreshFromTheLastSuccessfulFetch(t *testing.T) 
 	fresh := recencyState("nvd", "vuln-intel://nvd/cve", "fresh", "succeeded", now.Add(-time.Hour))
 	snapshot := readRecencySnapshot(t, now.Add(-time.Hour),
 		[]map[string]any{fresh}, []map[string]any{recencySnapshot("nvd", "fresh", old)})
-	if len(snapshot.SourceSnapshots) != 1 || snapshot.SourceSnapshots[0].Freshness != FreshnessLabelFresh {
+	if len(snapshot.SourceSnapshots) != 1 || snapshot.SourceSnapshots[0].Freshness != packet.FreshnessLabelFresh {
 		t.Fatalf("snapshots = %+v, want the NVD snapshot fresh from the last successful fetch", snapshot.SourceSnapshots)
 	}
-	envelope := BuildReadiness(TargetScope{CVEID: "CVE-2026-0001"}, nil, false, snapshot)
-	if ReadinessMissingContains(envelope.MissingEvidence, MissingEvidenceTargetCollection) {
-		t.Fatalf("missing_evidence = %v, want no %s", envelope.MissingEvidence, MissingEvidenceTargetCollection)
+	envelope := packet.BuildReadiness(packet.TargetScope{CVEID: "CVE-2026-0001"}, nil, false, snapshot)
+	if packet.ReadinessMissingContains(envelope.MissingEvidence, packet.MissingEvidenceTargetCollection) {
+		t.Fatalf("missing_evidence = %v, want no %s", envelope.MissingEvidence, packet.MissingEvidenceTargetCollection)
 	}
 
 	stale := recencyState("nvd", "vuln-intel://nvd/cve", "fresh", "succeeded", now.Add(-20*24*time.Hour))
 	snapshot = readRecencySnapshot(t, now.Add(-time.Hour),
 		[]map[string]any{stale}, []map[string]any{recencySnapshot("nvd", "fresh", old)})
-	if len(snapshot.SourceSnapshots) != 1 || snapshot.SourceSnapshots[0].Freshness != FreshnessLabelStale {
+	if len(snapshot.SourceSnapshots) != 1 || snapshot.SourceSnapshots[0].Freshness != packet.FreshnessLabelStale {
 		t.Fatalf("snapshots = %+v, want the NVD snapshot stale when the source was not fetched", snapshot.SourceSnapshots)
 	}
 }
 
-func familyFreshness(snapshot ReadinessSnapshot, name string) string {
+func familyFreshness(snapshot packet.ReadinessSnapshot, name string) string {
 	for _, family := range snapshot.EvidenceSources {
 		if family.Family == name {
 			return family.Freshness
@@ -189,12 +191,12 @@ func TestReadinessFetchConfirmationTable(t *testing.T) {
 		{
 			"exploitability fresh from a KEV success",
 			[]map[string]any{recencyState("cisa_kev", "k", "fresh", "succeeded", recent)},
-			FreshnessLabelStale, FreshnessLabelFresh,
+			packet.FreshnessLabelStale, packet.FreshnessLabelFresh,
 		},
 		{
 			"exploitability fresh from an EPSS success",
 			[]map[string]any{recencyState("first_epss", "e", "fresh", "succeeded", recent)},
-			FreshnessLabelStale, FreshnessLabelFresh,
+			packet.FreshnessLabelStale, packet.FreshnessLabelFresh,
 		},
 		{
 			"exploitability stays stale when EPSS failed beside a fresh KEV",
@@ -202,12 +204,12 @@ func TestReadinessFetchConfirmationTable(t *testing.T) {
 				recencyState("cisa_kev", "k", "fresh", "succeeded", recent),
 				recencyState("first_epss", "e", "failed", "failed", recent),
 			},
-			FreshnessLabelStale, FreshnessLabelStale,
+			packet.FreshnessLabelStale, packet.FreshnessLabelStale,
 		},
 		{
 			"exploitability stays stale with no exploitability state",
 			[]map[string]any{recencyState("osv", "o", "fresh", "succeeded", recent)},
-			FreshnessLabelFresh, FreshnessLabelStale,
+			packet.FreshnessLabelFresh, packet.FreshnessLabelStale,
 		},
 		{
 			"advisory stays stale when NVD failed beside a fresh OSV",
@@ -215,7 +217,7 @@ func TestReadinessFetchConfirmationTable(t *testing.T) {
 				recencyState("osv", "o", "fresh", "succeeded", recent),
 				recencyState("nvd", "n", "failed", "failed", recent),
 			},
-			FreshnessLabelStale, FreshnessLabelStale,
+			packet.FreshnessLabelStale, packet.FreshnessLabelStale,
 		},
 		{
 			"advisory stays stale when GLAD failed beside a fresh OSV",
@@ -223,37 +225,37 @@ func TestReadinessFetchConfirmationTable(t *testing.T) {
 				recencyState("osv", "o", "fresh", "succeeded", recent),
 				recencyState("glad", "g", "failed", "failed", recent),
 			},
-			FreshnessLabelStale, FreshnessLabelStale,
+			packet.FreshnessLabelStale, packet.FreshnessLabelStale,
 		},
 		{
 			"advisory fresh from NVD alone",
 			[]map[string]any{recencyState("nvd", "n", "fresh", "succeeded", recent)},
-			FreshnessLabelFresh, FreshnessLabelStale,
+			packet.FreshnessLabelFresh, packet.FreshnessLabelStale,
 		},
 		{
 			"advisory fresh from GLAD alone",
 			[]map[string]any{recencyState("glad", "g", "fresh", "succeeded", recent)},
-			FreshnessLabelFresh, FreshnessLabelStale,
+			packet.FreshnessLabelFresh, packet.FreshnessLabelStale,
 		},
 		{
 			"a fresh state that did not succeed does not confirm",
 			[]map[string]any{recencyState("osv", "o", "fresh", "skipped", recent)},
-			FreshnessLabelStale, FreshnessLabelStale,
+			packet.FreshnessLabelStale, packet.FreshnessLabelStale,
 		},
 		{
 			"a fresh state that is partial does not confirm",
 			[]map[string]any{recencyState("osv", "o", "fresh", "partial", recent)},
-			FreshnessLabelStale, FreshnessLabelStale,
+			packet.FreshnessLabelStale, packet.FreshnessLabelStale,
 		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			snapshot := readRecencyRows(t, old, &old, tc.states, nil)
-			if got := familyFreshness(snapshot, EvidenceFamilyVulnerabilityAdvisory); got != tc.wantAdvisory {
+			if got := familyFreshness(snapshot, packet.EvidenceFamilyVulnerabilityAdvisory); got != tc.wantAdvisory {
 				t.Fatalf("advisory freshness = %q, want %q", got, tc.wantAdvisory)
 			}
-			if got := familyFreshness(snapshot, EvidenceFamilyVulnerabilityExploitability); got != tc.wantExploit {
+			if got := familyFreshness(snapshot, packet.EvidenceFamilyVulnerabilityExploitability); got != tc.wantExploit {
 				t.Fatalf("exploitability freshness = %q, want %q", got, tc.wantExploit)
 			}
 		})
@@ -284,7 +286,7 @@ func TestReadinessSnapshotsFreshenPerSource(t *testing.T) {
 				t.Fatalf("snapshots = %+v, want one", snapshot.SourceSnapshots)
 			}
 			got := snapshot.SourceSnapshots[0]
-			if got.Freshness != FreshnessLabelFresh {
+			if got.Freshness != packet.FreshnessLabelFresh {
 				t.Fatalf("%s snapshot freshness = %q, want fresh", source, got.Freshness)
 			}
 			if got.LastUpdatedAt != newest.Format(time.RFC3339) {
@@ -300,7 +302,7 @@ func TestReadinessSnapshotsFreshenPerSource(t *testing.T) {
 			} {
 				snapshot := readRecencySnapshot(t, now.Add(-time.Hour), []map[string]any{state},
 					[]map[string]any{recencySnapshot(source, "fresh", old)})
-				if got := snapshot.SourceSnapshots[0].Freshness; got != FreshnessLabelStale {
+				if got := snapshot.SourceSnapshots[0].Freshness; got != packet.FreshnessLabelStale {
 					t.Fatalf("%s snapshot freshness = %q with a %s state, want stale", source, got, name)
 				}
 			}
@@ -311,7 +313,7 @@ func TestReadinessSnapshotsFreshenPerSource(t *testing.T) {
 		snapshot := readRecencySnapshot(t, now.Add(-time.Hour),
 			[]map[string]any{recencyState("nvd", "n", "fresh", "succeeded", newest)},
 			[]map[string]any{recencySnapshot("osv", "fresh", old)})
-		if got := snapshot.SourceSnapshots[0].Freshness; got != FreshnessLabelStale {
+		if got := snapshot.SourceSnapshots[0].Freshness; got != packet.FreshnessLabelStale {
 			t.Fatalf("osv snapshot freshness = %q with only an nvd state, want stale", got)
 		}
 	})

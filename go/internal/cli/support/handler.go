@@ -12,7 +12,8 @@ import (
 	"net/http"
 
 	"github.com/eshu-hq/eshu/go/internal/answerquality"
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 	"github.com/eshu-hq/eshu/go/internal/reportbundle"
 	"github.com/eshu-hq/eshu/go/internal/serviceintel"
 )
@@ -56,8 +57,8 @@ func decodeBody(w http.ResponseWriter, r *http.Request, dst any, maxBytes int64)
 	if err := dec.Decode(dst); err != nil {
 		var tooLarge *http.MaxBytesError
 		if errors.As(err, &tooLarge) {
-			query.WriteErrorEnvelope(w, r, http.StatusRequestEntityTooLarge, &query.ErrorEnvelope{
-				Code:    query.ErrorCodeInvalidArgument,
+			querycontract.WriteErrorEnvelope(w, r, http.StatusRequestEntityTooLarge, &querycontract.ErrorEnvelope{
+				Code:    querycontract.ErrorCodeInvalidArgument,
 				Message: fmt.Sprintf("request body exceeds %d bytes", maxBytes),
 			})
 			return false
@@ -66,15 +67,15 @@ func decodeBody(w http.ResponseWriter, r *http.Request, dst any, maxBytes int64)
 		if errors.Is(err, io.EOF) {
 			msg = "request body is required"
 		}
-		query.WriteErrorEnvelope(w, r, http.StatusBadRequest, &query.ErrorEnvelope{
-			Code:    query.ErrorCodeInvalidArgument,
+		querycontract.WriteErrorEnvelope(w, r, http.StatusBadRequest, &querycontract.ErrorEnvelope{
+			Code:    querycontract.ErrorCodeInvalidArgument,
 			Message: msg,
 		})
 		return false
 	}
 	if err := dec.Decode(&struct{}{}); err != io.EOF {
-		query.WriteErrorEnvelope(w, r, http.StatusBadRequest, &query.ErrorEnvelope{
-			Code:    query.ErrorCodeInvalidArgument,
+		querycontract.WriteErrorEnvelope(w, r, http.StatusBadRequest, &querycontract.ErrorEnvelope{
+			Code:    querycontract.ErrorCodeInvalidArgument,
 			Message: "request body must hold one JSON object",
 		})
 		return false
@@ -84,8 +85,8 @@ func decodeBody(w http.ResponseWriter, r *http.Request, dst any, maxBytes int64)
 
 // refuseMissing writes the 400 for a missing required request field.
 func refuseMissing(w http.ResponseWriter, r *http.Request, message string) {
-	query.WriteErrorEnvelope(w, r, http.StatusBadRequest, &query.ErrorEnvelope{
-		Code:    query.ErrorCodeInvalidArgument,
+	querycontract.WriteErrorEnvelope(w, r, http.StatusBadRequest, &querycontract.ErrorEnvelope{
+		Code:    querycontract.ErrorCodeInvalidArgument,
 		Message: message,
 	})
 }
@@ -93,8 +94,8 @@ func refuseMissing(w http.ResponseWriter, r *http.Request, message string) {
 // RenderRequest carries the already-fetched packet and the wanted format.
 // Format defaults to JSON, mirroring ParseInvestigationPacketFormat.
 type RenderRequest struct {
-	Packet query.InvestigationEvidencePacket `json:"packet"`
-	Format string                            `json:"format,omitempty"`
+	Packet packet.InvestigationEvidencePacket `json:"packet"`
+	Format string                             `json:"format,omitempty"`
 }
 
 // renderPacket renders a client-supplied packet. Unlike the query routes it
@@ -112,26 +113,26 @@ func (h *Handlers) renderPacket(w http.ResponseWriter, r *http.Request) {
 		refuseMissing(w, r, "packet.packet_id is required")
 		return
 	}
-	format, err := query.ParseInvestigationPacketFormat(req.Format)
+	format, err := packet.ParseInvestigationPacketFormat(req.Format)
 	if err != nil {
-		query.WriteErrorEnvelope(w, r, http.StatusBadRequest, &query.ErrorEnvelope{
-			Code:    query.ErrorCodeInvalidArgument,
+		querycontract.WriteErrorEnvelope(w, r, http.StatusBadRequest, &querycontract.ErrorEnvelope{
+			Code:    querycontract.ErrorCodeInvalidArgument,
 			Message: err.Error(),
 		})
 		return
 	}
-	raw, err := query.RenderInvestigationPacket(req.Packet, format)
+	raw, err := packet.RenderInvestigationPacket(req.Packet, format)
 	if err != nil {
-		query.WriteErrorEnvelope(w, r, http.StatusBadRequest, &query.ErrorEnvelope{
-			Code:    query.ErrorCodeInvalidArgument,
+		querycontract.WriteErrorEnvelope(w, r, http.StatusBadRequest, &querycontract.ErrorEnvelope{
+			Code:    querycontract.ErrorCodeInvalidArgument,
 			Message: err.Error(),
 		})
 		return
 	}
 	switch format {
-	case query.InvestigationPacketFormatMarkdown:
+	case packet.InvestigationPacketFormatMarkdown:
 		w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
-	case query.InvestigationPacketFormatHTML:
+	case packet.InvestigationPacketFormatHTML:
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	default:
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
@@ -144,10 +145,10 @@ func (h *Handlers) renderPacket(w http.ResponseWriter, r *http.Request) {
 // optional captured supply-chain inventory plus its truth — exactly the
 // bytes the service-report command reads from its input files.
 type ComposeRequest struct {
-	Dossier          map[string]any       `json:"dossier"`
-	Truth            *query.TruthEnvelope `json:"truth"`
-	SupplyChain      map[string]any       `json:"supply_chain,omitempty"`
-	SupplyChainTruth *query.TruthEnvelope `json:"supply_chain_truth,omitempty"`
+	Dossier          map[string]any               `json:"dossier"`
+	Truth            *querycontract.TruthEnvelope `json:"truth"`
+	SupplyChain      map[string]any               `json:"supply_chain,omitempty"`
+	SupplyChainTruth *querycontract.TruthEnvelope `json:"supply_chain_truth,omitempty"`
 }
 
 // composeReport composes a service intelligence report from captured inputs,
@@ -171,7 +172,7 @@ func (h *Handlers) composeReport(w http.ResponseWriter, r *http.Request) {
 			serviceintel.FromSupplyChainInventory(req.SupplyChain, input.Subject, req.SupplyChainTruth))
 	}
 	report := serviceintel.Compose(input)
-	query.WriteSuccess(w, r, http.StatusOK, report, report.Truth)
+	querycontract.WriteSuccess(w, r, http.StatusOK, report, report.Truth)
 }
 
 // captureBundle runs reportbundle.Capture over client-supplied inputs. The
@@ -197,21 +198,21 @@ func (h *Handlers) captureBundle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := reportbundle.CheckTargetCredentials(input.Target); err != nil {
-		query.WriteErrorEnvelope(w, r, http.StatusUnprocessableEntity, &query.ErrorEnvelope{
-			Code:    query.ErrorCodeInvalidArgument,
+		querycontract.WriteErrorEnvelope(w, r, http.StatusUnprocessableEntity, &querycontract.ErrorEnvelope{
+			Code:    querycontract.ErrorCodeInvalidArgument,
 			Message: err.Error(),
 		})
 		return
 	}
 	bundle, err := reportbundle.Capture(input)
 	if err != nil {
-		query.WriteErrorEnvelope(w, r, http.StatusUnprocessableEntity, &query.ErrorEnvelope{
-			Code:    query.ErrorCodeInvalidArgument,
+		querycontract.WriteErrorEnvelope(w, r, http.StatusUnprocessableEntity, &querycontract.ErrorEnvelope{
+			Code:    querycontract.ErrorCodeInvalidArgument,
 			Message: err.Error(),
 		})
 		return
 	}
-	query.WriteSuccess(w, r, http.StatusOK, bundle, bundle.Response.Truth)
+	querycontract.WriteSuccess(w, r, http.StatusOK, bundle, bundle.Response.Truth)
 }
 
 // ValidateRequest carries the bundle file bytes plus the --require-public
@@ -243,7 +244,7 @@ func (h *Handlers) validateBundle(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		verdict.Message = err.Error()
 	}
-	query.WriteSuccess(w, r, http.StatusOK, verdict, nil)
+	querycontract.WriteSuccess(w, r, http.StatusOK, verdict, nil)
 }
 
 // scoreEvidence scores captured answer evidence, running the same
@@ -254,14 +255,14 @@ func (h *Handlers) scoreEvidence(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		var tooLarge *http.MaxBytesError
 		if errors.As(err, &tooLarge) {
-			query.WriteErrorEnvelope(w, r, http.StatusRequestEntityTooLarge, &query.ErrorEnvelope{
-				Code:    query.ErrorCodeInvalidArgument,
+			querycontract.WriteErrorEnvelope(w, r, http.StatusRequestEntityTooLarge, &querycontract.ErrorEnvelope{
+				Code:    querycontract.ErrorCodeInvalidArgument,
 				Message: fmt.Sprintf("request body exceeds %d bytes", maxScoreBodyBytes),
 			})
 			return
 		}
-		query.WriteErrorEnvelope(w, r, http.StatusBadRequest, &query.ErrorEnvelope{
-			Code:    query.ErrorCodeInvalidArgument,
+		querycontract.WriteErrorEnvelope(w, r, http.StatusBadRequest, &querycontract.ErrorEnvelope{
+			Code:    querycontract.ErrorCodeInvalidArgument,
 			Message: fmt.Sprintf("read request body: %v", err),
 		})
 		return
@@ -273,15 +274,15 @@ func (h *Handlers) scoreEvidence(w http.ResponseWriter, r *http.Request) {
 	strict.DisallowUnknownFields()
 	var shape answerquality.Evidence
 	if err := strict.Decode(&shape); err != nil {
-		query.WriteErrorEnvelope(w, r, http.StatusBadRequest, &query.ErrorEnvelope{
-			Code:    query.ErrorCodeInvalidArgument,
+		querycontract.WriteErrorEnvelope(w, r, http.StatusBadRequest, &querycontract.ErrorEnvelope{
+			Code:    querycontract.ErrorCodeInvalidArgument,
 			Message: fmt.Sprintf("decode answer-quality evidence: %v", err),
 		})
 		return
 	}
 	if err := strict.Decode(&struct{}{}); err != io.EOF {
-		query.WriteErrorEnvelope(w, r, http.StatusBadRequest, &query.ErrorEnvelope{
-			Code:    query.ErrorCodeInvalidArgument,
+		querycontract.WriteErrorEnvelope(w, r, http.StatusBadRequest, &querycontract.ErrorEnvelope{
+			Code:    querycontract.ErrorCodeInvalidArgument,
 			Message: "request body must hold one JSON object",
 		})
 		return
@@ -292,11 +293,11 @@ func (h *Handlers) scoreEvidence(w http.ResponseWriter, r *http.Request) {
 	}
 	evidence, err := answerquality.ParseEvidence(raw)
 	if err != nil {
-		query.WriteErrorEnvelope(w, r, http.StatusBadRequest, &query.ErrorEnvelope{
-			Code:    query.ErrorCodeInvalidArgument,
+		querycontract.WriteErrorEnvelope(w, r, http.StatusBadRequest, &querycontract.ErrorEnvelope{
+			Code:    querycontract.ErrorCodeInvalidArgument,
 			Message: err.Error(),
 		})
 		return
 	}
-	query.WriteSuccess(w, r, http.StatusOK, answerquality.Score(evidence), nil)
+	querycontract.WriteSuccess(w, r, http.StatusOK, answerquality.Score(evidence), nil)
 }

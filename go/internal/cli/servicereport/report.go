@@ -10,7 +10,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/serviceintel"
 )
 
@@ -76,10 +76,10 @@ func SupplyChainSection(path string, subject serviceintel.ReportSubject) (*servi
 // bare dossier, with a nil truth envelope, whenever "data" decodes to nil --
 // which covers a bare dossier with no wrapper and an explicit "data": null
 // alike.
-func ParseServiceStoryResponse(raw []byte) (map[string]any, *query.TruthEnvelope, error) {
+func ParseServiceStoryResponse(raw []byte) (map[string]any, *querycontract.TruthEnvelope, error) {
 	var envelope struct {
-		Data  map[string]any       `json:"data"`
-		Truth *query.TruthEnvelope `json:"truth"`
+		Data  map[string]any               `json:"data"`
+		Truth *querycontract.TruthEnvelope `json:"truth"`
 	}
 	if err := json.Unmarshal(raw, &envelope); err != nil {
 		return nil, nil, fmt.Errorf("decode service-story response: %w", err)

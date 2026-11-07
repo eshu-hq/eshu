@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package packet
 
 import (
 	"fmt"
 	"sort"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/answer"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/evidence"
 )
@@ -20,7 +21,7 @@ const (
 	defaultPacketMaxSourceFacts          = 200
 	defaultPacketMaxReducerDecisions     = 200
 	defaultPacketMaxGraphAnswers         = 200
-	defaultPacketMaxCitations            = evidenceCitationMaxLimit
+	defaultPacketMaxCitations            = evidence.EvidenceCitationMaxLimit
 	defaultPacketMaxSemanticObservations = 50
 	defaultPacketMaxMissingEvidence      = 200
 )
@@ -41,7 +42,7 @@ type InvestigationPacketInput struct {
 	Generation string
 	// Truth is the canonical truth envelope for the answer. A nil envelope yields
 	// an unsupported (but valid) packet.
-	Truth *TruthEnvelope
+	Truth *querycontract.TruthEnvelope
 	// Summary is the proposed human-readable answer. It is dropped when the packet
 	// is unsupported or partial-with-no-evidence.
 	Summary string
@@ -162,9 +163,9 @@ func buildRefusalPacket(in InvestigationPacketInput) (InvestigationEvidencePacke
 		Schema:    InvestigationEvidencePacketSchema,
 		Identity:  buildPacketIdentity(in, PacketBasisDeterministic),
 		Refusal:   in.Refusal,
-		Freshness: TruthFreshness{State: FreshnessUnavailable},
+		Freshness: querycontract.TruthFreshness{State: querycontract.FreshnessUnavailable},
 		Answer: PacketAnswer{
-			TruthClass:         AnswerTruthUnsupported,
+			TruthClass:         querycontract.AnswerTruthUnsupported,
 			Supported:          false,
 			UnsupportedReasons: []string{refusalReason(in.Refusal)},
 		},
@@ -213,39 +214,42 @@ func buildPacketIdentity(in InvestigationPacketInput, basis PacketBasis) PacketI
 // answer that is either complete or still backed by resolved evidence.
 func buildPacketAnswer(in InvestigationPacketInput, packet *InvestigationEvidencePacket) PacketAnswer {
 	plan := PacketAnswer{
-		TruthClass:  ClassifyAnswerTruth(in.Truth),
+		TruthClass:  answer.ClassifyAnswerTruth(in.Truth),
 		Supported:   in.Truth != nil,
 		Limitations: dedupeStrings(in.Limitations),
 	}
 	if !plan.Supported {
-		plan.UnsupportedReasons = appendReason(plan.UnsupportedReasons,
+		plan.UnsupportedReasons = querycontract.AppendReason(plan.UnsupportedReasons,
 			"no truth envelope; the investigation resolved no answerable evidence")
 		return plan
 	}
 	if packet.Bounds.Truncated {
 		plan.Partial = true
-		plan.UnsupportedReasons = appendReason(plan.UnsupportedReasons,
+		plan.UnsupportedReasons = querycontract.AppendReason(plan.UnsupportedReasons,
 			"packet truncated; not all evidence is included")
 	}
 	if len(packet.MissingEvidence) > 0 {
 		plan.Partial = true
-		plan.UnsupportedReasons = appendReason(plan.UnsupportedReasons,
+		plan.UnsupportedReasons = querycontract.AppendReason(plan.UnsupportedReasons,
 			"some hops could not be resolved; see missing_evidence")
 	}
 	switch in.Truth.Freshness.State {
-	case FreshnessStale:
+	case querycontract.FreshnessFresh, querycontract.FreshnessUnavailable:
+		// Fresh needs no caveat and unavailable carries no cause to name;
+		// both leave plan.Partial untouched, as before.
+	case querycontract.FreshnessStale:
 		plan.Partial = true
-		plan.UnsupportedReasons = appendReason(plan.UnsupportedReasons,
+		plan.UnsupportedReasons = querycontract.AppendReason(plan.UnsupportedReasons,
 			answer.FreshnessReason("underlying data is stale", in.Truth.Freshness.Cause))
-	case FreshnessBuilding:
+	case querycontract.FreshnessBuilding:
 		plan.Partial = true
-		plan.UnsupportedReasons = appendReason(plan.UnsupportedReasons,
+		plan.UnsupportedReasons = querycontract.AppendReason(plan.UnsupportedReasons,
 			answer.FreshnessReason("underlying index is still building", in.Truth.Freshness.Cause))
 	}
 	hasEvidence := len(packet.SourceFacts) > 0 || len(packet.GraphAnswers) > 0 || len(packet.Citations) > 0
 	if !hasEvidence {
 		plan.Partial = true
-		plan.UnsupportedReasons = appendReason(plan.UnsupportedReasons,
+		plan.UnsupportedReasons = querycontract.AppendReason(plan.UnsupportedReasons,
 			"no supporting evidence resolved for this investigation")
 	}
 	if !plan.Partial || hasEvidence {
@@ -309,9 +313,9 @@ func applyPacketBounds(packet *InvestigationEvidencePacket, override *PacketBoun
 	return bounds
 }
 
-func packetFreshness(truth *TruthEnvelope) TruthFreshness {
+func packetFreshness(truth *querycontract.TruthEnvelope) querycontract.TruthFreshness {
 	if truth == nil {
-		return TruthFreshness{State: FreshnessUnavailable}
+		return querycontract.TruthFreshness{State: querycontract.FreshnessUnavailable}
 	}
 	return truth.Freshness
 }

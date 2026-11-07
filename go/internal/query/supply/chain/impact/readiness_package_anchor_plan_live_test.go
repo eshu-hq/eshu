@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/packageidentity"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 	storagepostgres "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
@@ -441,7 +442,7 @@ func productionPackageConsumptionCount(t *testing.T, ctx context.Context, db *sq
 		if err := rows.Scan(&family, &factCount, &latest, &incomplete, &reasons, &a, &b, &c); err != nil {
 			t.Fatalf("scan production row: %v", err)
 		}
-		if family == string(EvidenceFamilyPackageConsumption) {
+		if family == string(packet.EvidenceFamilyPackageConsumption) {
 			total += factCount
 			seen = true
 		}

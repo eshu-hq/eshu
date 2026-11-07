@@ -20,6 +20,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 	storagepostgres "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
@@ -81,7 +82,7 @@ func TestSupplyChainImpactReadinessConfiguredSourceScopesLive(t *testing.T) {
 		t.Fatalf("status = %d, want 200; body = %s", response.Code, response.Body.String())
 	}
 	var body struct {
-		Readiness impact.ReadinessEnvelope `json:"readiness"`
+		Readiness packet.ReadinessEnvelope `json:"readiness"`
 	}
 	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
 		t.Fatalf("decode response: %v", err)
@@ -137,7 +138,7 @@ func seedReadinessScopeState(t *testing.T, ctx context.Context, db *sql.DB, now 
 	}
 }
 
-func readReadinessScopeAPI(t *testing.T, db *sql.DB, cveID string) impact.ReadinessEnvelope {
+func readReadinessScopeAPI(t *testing.T, db *sql.DB, cveID string) packet.ReadinessEnvelope {
 	t.Helper()
 	handler := &SupplyChainHandler{
 		ImpactFindings: &recordingSupplyChainImpactFindingStore{},
@@ -153,7 +154,7 @@ func readReadinessScopeAPI(t *testing.T, db *sql.DB, cveID string) impact.Readin
 		t.Fatalf("status = %d, want 200; body = %s", response.Code, response.Body.String())
 	}
 	var body struct {
-		Readiness impact.ReadinessEnvelope `json:"readiness"`
+		Readiness packet.ReadinessEnvelope `json:"readiness"`
 	}
 	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
 		t.Fatalf("decode response: %v", err)
@@ -195,7 +196,7 @@ func TestSupplyChainImpactReadinessSelectorAndPendingScopeLive(t *testing.T) {
 		got["selector-instance/missing-state"] != "pending" {
 		t.Fatalf("selected states = %v, want two fresh and one pending", got)
 	}
-	if readiness.State != impact.ReadinessStateTargetIncomplete {
+	if readiness.State != packet.ReadinessStateTargetIncomplete {
 		t.Fatalf("readiness = %q, want target_incomplete for configured target without state", readiness.State)
 	}
 }
@@ -213,7 +214,7 @@ func TestSupplyChainImpactReadinessScopeOverflowLive(t *testing.T) {
 	seedReadinessSourceSnapshotFact(t, ctx, db, now, "scope-199", "nvd", "", "overflow-instance", true)
 	readiness := readReadinessScopeAPI(t, db, "CVE-2026-9227")
 	if len(readiness.SourceStates) != 200 || len(readiness.SourceSnapshots) != 1 ||
-		readiness.SourceSnapshots[0].Source != "nvd" || readiness.State == impact.ReadinessStateReadinessUnavailable {
+		readiness.SourceSnapshots[0].Source != "nvd" || readiness.State == packet.ReadinessStateReadinessUnavailable {
 		t.Fatalf("200 configured scopes = %d states, %d snapshots, readiness %q; want full bounded result",
 			len(readiness.SourceStates), len(readiness.SourceSnapshots), readiness.State)
 	}
@@ -226,8 +227,8 @@ func TestSupplyChainImpactReadinessScopeOverflowLive(t *testing.T) {
 	}
 	seedReadinessScopeState(t, ctx, db, now, "overflow-instance", "scope-200", "nvd", "failed", "failed_terminal")
 	readiness = readReadinessScopeAPI(t, db, "CVE-2026-9227")
-	if readiness.State != impact.ReadinessStateReadinessUnavailable ||
-		!impact.ReadinessMissingContains(readiness.MissingEvidence, impact.MissingEvidenceReadinessUnavailable) {
+	if readiness.State != packet.ReadinessStateReadinessUnavailable ||
+		!packet.ReadinessMissingContains(readiness.MissingEvidence, packet.MissingEvidenceReadinessUnavailable) {
 		t.Fatalf("201 configured scopes = %+v, want explicit readiness_unavailable", readiness)
 	}
 }
@@ -278,8 +279,8 @@ func TestSupplyChainImpactReadinessGLADSnapshotKeepsEcosystemBoundaryLive(t *tes
 	if len(snapshot.SourceSnapshots) != 1 || snapshot.SourceSnapshots[0].Source != "glad" || snapshot.SourceSnapshots[0].Ecosystem != "npm" {
 		t.Fatalf("GLAD source snapshots = %+v, want only npm", snapshot.SourceSnapshots)
 	}
-	readiness := impact.BuildReadiness(impact.TargetScope{PackageID: "npm://registry.npmjs.org/example"}, nil, false, snapshot)
-	if readiness.State == impact.ReadinessStateReadyZeroFindings {
+	readiness := packet.BuildReadiness(packet.TargetScope{PackageID: "npm://registry.npmjs.org/example"}, nil, false, snapshot)
+	if readiness.State == packet.ReadinessStateReadyZeroFindings {
 		t.Fatalf("GLAD source snapshot certified clean zero without advisory coverage: %+v", readiness)
 	}
 }
@@ -300,8 +301,8 @@ func TestSupplyChainImpactReadinessOSVEcosystemBoundaryLive(t *testing.T) {
 	if len(snapshot.SourceStates) != 1 || snapshot.SourceStates[0].ScopeID != "osv-npm" {
 		t.Fatalf("OSV source states = %+v, want only npm", snapshot.SourceStates)
 	}
-	readiness := impact.BuildReadiness(impact.TargetScope{PackageID: "npm://registry.npmjs.org/example"}, nil, false, snapshot)
-	if readiness.State == impact.ReadinessStateReadyZeroFindings {
+	readiness := packet.BuildReadiness(packet.TargetScope{PackageID: "npm://registry.npmjs.org/example"}, nil, false, snapshot)
+	if readiness.State == packet.ReadinessStateReadyZeroFindings {
 		t.Fatalf("OSV source health certified advisory absence: %+v", readiness)
 	}
 }
@@ -325,14 +326,14 @@ func TestSupplyChainImpactReadinessCoverageEligibilityLive(t *testing.T) {
 		source   string
 		results  int
 		warnings int
-		want     impact.ReadinessState
+		want     packet.ReadinessState
 	}{
-		{"exact NVD CVE", map[string]any{"source": "nvd", "scope_id": "exact", "cve_ids": []string{"CVE-2026-9227"}}, "nvd", 0, 0, impact.ReadinessStateReadyZeroFindings},
-		{"NVD modified window", map[string]any{"source": "nvd", "scope_id": "window", "modified_start": "2026-05-01T00:00:00Z", "modified_end": "2026-05-02T00:00:00Z"}, "nvd", 0, 0, impact.ReadinessStateEvidenceIncomplete},
-		{"KEV catalog", map[string]any{"source": "cisa_kev", "scope_id": "kev"}, "cisa_kev", 0, 0, impact.ReadinessStateEvidenceIncomplete},
-		{"EPSS CVE", map[string]any{"source": "first_epss", "scope_id": "epss", "cve_ids": []string{"CVE-2026-9227"}}, "first_epss", 0, 0, impact.ReadinessStateEvidenceIncomplete},
-		{"exact NVD with unprojected result", map[string]any{"source": "nvd", "scope_id": "reported", "cve_ids": []string{"CVE-2026-9227"}}, "nvd", 1, 0, impact.ReadinessStateTargetIncomplete},
-		{"exact NVD with warning", map[string]any{"source": "nvd", "scope_id": "warning", "cve_ids": []string{"CVE-2026-9227"}}, "nvd", 0, 1, impact.ReadinessStateTargetIncomplete},
+		{"exact NVD CVE", map[string]any{"source": "nvd", "scope_id": "exact", "cve_ids": []string{"CVE-2026-9227"}}, "nvd", 0, 0, packet.ReadinessStateReadyZeroFindings},
+		{"NVD modified window", map[string]any{"source": "nvd", "scope_id": "window", "modified_start": "2026-05-01T00:00:00Z", "modified_end": "2026-05-02T00:00:00Z"}, "nvd", 0, 0, packet.ReadinessStateEvidenceIncomplete},
+		{"KEV catalog", map[string]any{"source": "cisa_kev", "scope_id": "kev"}, "cisa_kev", 0, 0, packet.ReadinessStateEvidenceIncomplete},
+		{"EPSS CVE", map[string]any{"source": "first_epss", "scope_id": "epss", "cve_ids": []string{"CVE-2026-9227"}}, "first_epss", 0, 0, packet.ReadinessStateEvidenceIncomplete},
+		{"exact NVD with unprojected result", map[string]any{"source": "nvd", "scope_id": "reported", "cve_ids": []string{"CVE-2026-9227"}}, "nvd", 1, 0, packet.ReadinessStateTargetIncomplete},
+		{"exact NVD with warning", map[string]any{"source": "nvd", "scope_id": "warning", "cve_ids": []string{"CVE-2026-9227"}}, "nvd", 0, 1, packet.ReadinessStateTargetIncomplete},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx, db, now := readinessScopeLiveDatabase(t)
@@ -360,11 +361,11 @@ func TestSupplyChainImpactReadinessSuccessWithoutCommittedSnapshotLive(t *testin
 	})
 	seedReadinessScopeState(t, ctx, db, now, "uncommitted-instance", "uncommitted", "nvd", "fresh", "succeeded")
 	readiness := readReadinessScopeAPI(t, db, "CVE-2026-9227")
-	if readiness.State == impact.ReadinessStateReadinessUnavailable {
+	if readiness.State == packet.ReadinessStateReadinessUnavailable {
 		_, diagnosticErr := impact.NewPostgresReadinessStore(db).ReadSupplyChainImpactReadiness(ctx, impact.ReadinessQuery{CVEID: "CVE-2026-9227"})
 		t.Logf("unavailable diagnostic: %v", diagnosticErr)
 	}
-	if readiness.State != impact.ReadinessStateTargetIncomplete {
+	if readiness.State != packet.ReadinessStateTargetIncomplete {
 		t.Fatalf("uncommitted source success readiness = %+v, want target_incomplete", readiness)
 	}
 }
@@ -417,7 +418,7 @@ func TestSupplyChainImpactReadinessSuccessExpiresAtReadTimeLive(t *testing.T) {
 			t.Errorf("incomplete_reasons = %v, want %s:stale", readiness.IncompleteReasons, tc.source)
 		}
 	}
-	if readiness.State != impact.ReadinessStateTargetIncomplete {
+	if readiness.State != packet.ReadinessStateTargetIncomplete {
 		t.Fatalf("aged source readiness = %+v, want target_incomplete", readiness)
 	}
 }
@@ -431,7 +432,7 @@ func TestSupplyChainImpactReadinessIncompleteSnapshotLive(t *testing.T) {
 	seedReadinessSourceSnapshotFact(t, ctx, db, now, "snapshot-scope", "nvd", "", "snapshot-instance", false)
 	readiness := readReadinessScopeAPI(t, db, "CVE-2026-9227")
 	if len(readiness.SourceSnapshots) != 1 || readiness.SourceSnapshots[0].Complete ||
-		readiness.State != impact.ReadinessStateTargetIncomplete {
+		readiness.State != packet.ReadinessStateTargetIncomplete {
 		t.Fatalf("incomplete source snapshot readiness = %+v, want one incomplete snapshot and target_incomplete", readiness)
 	}
 }
@@ -458,7 +459,7 @@ func TestSupplyChainImpactReadinessDerivedOnlyNullTargetsLive(t *testing.T) {
 		t.Fatalf("seed derived-only instance: %v", err)
 	}
 	readiness := readReadinessScopeAPI(t, db, "CVE-2026-9227")
-	if readiness.State == impact.ReadinessStateReadinessUnavailable {
+	if readiness.State == packet.ReadinessStateReadinessUnavailable {
 		t.Fatalf("derived-only instance with null explicit targets unavailable: %+v", readiness)
 	}
 }
@@ -471,7 +472,7 @@ func TestSupplyChainImpactReadinessMalformedSelectorRefusesCleanZeroLive(t *test
 	})
 	seedReadinessScopeState(t, ctx, db, now, "malformed-selector-instance", "exact", "nvd", "fresh", "succeeded")
 	readiness := readReadinessScopeAPI(t, db, "CVE-2026-9227")
-	if readiness.State != impact.ReadinessStateReadinessUnavailable {
+	if readiness.State != packet.ReadinessStateReadinessUnavailable {
 		t.Fatalf("malformed selector readiness = %+v, want readiness_unavailable", readiness)
 	}
 }
@@ -484,7 +485,7 @@ func TestSupplyChainImpactReadinessMalformedConfiguredTargetRefusesCleanZeroLive
 	})
 	seedReadinessScopeState(t, ctx, db, now, "malformed-instance", "exact", "nvd", "fresh", "succeeded")
 	readiness := readReadinessScopeAPI(t, db, "CVE-2026-9227")
-	if readiness.State != impact.ReadinessStateReadinessUnavailable {
+	if readiness.State != packet.ReadinessStateReadinessUnavailable {
 		t.Fatalf("malformed configured target readiness = %+v, want readiness_unavailable", readiness)
 	}
 }

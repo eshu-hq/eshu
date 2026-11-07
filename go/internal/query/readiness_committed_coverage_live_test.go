@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 )
 
 func TestSupplyChainImpactReadinessAdvisoryDoesNotCertifyUncommittedCoverageLive(t *testing.T) {
@@ -23,12 +23,12 @@ func TestSupplyChainImpactReadinessAdvisoryDoesNotCertifyUncommittedCoverageLive
 		snapshot    bool
 		mismatch    bool
 		otherSource bool
-		want        impact.ReadinessState
+		want        packet.ReadinessState
 	}{
-		{name: "no committed snapshot", want: impact.ReadinessStateTargetIncomplete},
-		{name: "no snapshot with another fresh source", otherSource: true, want: impact.ReadinessStateTargetIncomplete},
-		{name: "mismatched descriptor", snapshot: true, mismatch: true, want: impact.ReadinessStateTargetIncomplete},
-		{name: "matching committed snapshot", snapshot: true, want: impact.ReadinessStateReadyZeroFindings},
+		{name: "no committed snapshot", want: packet.ReadinessStateTargetIncomplete},
+		{name: "no snapshot with another fresh source", otherSource: true, want: packet.ReadinessStateTargetIncomplete},
+		{name: "mismatched descriptor", snapshot: true, mismatch: true, want: packet.ReadinessStateTargetIncomplete},
+		{name: "matching committed snapshot", snapshot: true, want: packet.ReadinessStateReadyZeroFindings},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx, database, now := readinessScopeLiveDatabase(t)
@@ -56,16 +56,16 @@ func TestSupplyChainImpactReadinessAdvisoryDoesNotCertifyUncommittedCoverageLive
 				t.Fatalf("readiness = %+v, want %q", readiness, tc.want)
 			}
 			if len(readiness.EvidenceSources) == 0 ||
-				readiness.EvidenceSources[0].Family != impact.EvidenceFamilyVulnerabilityAdvisory ||
+				readiness.EvidenceSources[0].Family != packet.EvidenceFamilyVulnerabilityAdvisory ||
 				readiness.EvidenceSources[0].FactCount != 1 {
 				t.Fatalf("advisory evidence = %+v, want one active CVE fact", readiness.EvidenceSources)
 			}
-			if tc.want == impact.ReadinessStateTargetIncomplete &&
+			if tc.want == packet.ReadinessStateTargetIncomplete &&
 				!slices.Contains(readiness.IncompleteReasons, "nvd:committed_snapshot_missing") {
 				t.Fatalf("incomplete reasons = %v, want committed_snapshot_missing", readiness.IncompleteReasons)
 			}
-			if tc.want == impact.ReadinessStateTargetIncomplete &&
-				!slices.Contains(readiness.MissingEvidence, impact.MissingEvidenceTargetCollection) {
+			if tc.want == packet.ReadinessStateTargetIncomplete &&
+				!slices.Contains(readiness.MissingEvidence, packet.MissingEvidenceTargetCollection) {
 				t.Fatalf("missing evidence = %v, want target_collection_incomplete", readiness.MissingEvidence)
 			}
 		})
@@ -158,12 +158,12 @@ func TestSupplyChainImpactReadinessCommittedCoverageEdgesLive(t *testing.T) {
 			seedReadinessNVDCommittedSnapshot(t, ctx, db, now, "coverage-edge-scope", "coverage-edge", "CVE-2026-9227")
 			tc.mutate(t, ctx, db, now)
 			readiness := readReadinessScopeAPI(t, db, "CVE-2026-9227")
-			want := impact.ReadinessStateTargetIncomplete
+			want := packet.ReadinessStateTargetIncomplete
 			if tc.name == "nonzero result snapshot" {
 				// A covered snapshot that counted a record is not a coverage
 				// gap; without the advisory fact it is missing advisory
 				// evidence, never committed_snapshot_missing (#9227 F1 ruling).
-				want = impact.ReadinessStateEvidenceIncomplete
+				want = packet.ReadinessStateEvidenceIncomplete
 				if slices.Contains(readiness.IncompleteReasons, "nvd:committed_snapshot_missing") {
 					t.Fatalf("covered nonzero snapshot reported committed_snapshot_missing: %+v", readiness)
 				}
@@ -196,10 +196,10 @@ func TestSupplyChainImpactReadinessCommittedCoverageSurvivesSkippedFetchLive(t *
 		t.Fatalf("age the committed snapshot facts: %v", err)
 	}
 	readiness := readReadinessScopeAPI(t, db, "CVE-2026-9227")
-	if readiness.State != impact.ReadinessStateReadyZeroFindings {
-		t.Fatalf("a snapshot confirmed by a fresh fetch readiness = %+v, want %s", readiness, impact.ReadinessStateReadyZeroFindings)
+	if readiness.State != packet.ReadinessStateReadyZeroFindings {
+		t.Fatalf("a snapshot confirmed by a fresh fetch readiness = %+v, want %s", readiness, packet.ReadinessStateReadyZeroFindings)
 	}
-	if len(readiness.SourceSnapshots) != 1 || readiness.SourceSnapshots[0].Freshness != impact.FreshnessLabelFresh {
+	if len(readiness.SourceSnapshots) != 1 || readiness.SourceSnapshots[0].Freshness != packet.FreshnessLabelFresh {
 		t.Fatalf("source snapshots = %+v, want one snapshot labelled fresh from the fetch", readiness.SourceSnapshots)
 	}
 }
@@ -249,7 +249,7 @@ func TestSupplyChainImpactReadinessRolledBackGenerationCannotCertifyZeroLive(t *
 		t.Fatalf("rollback failed generation commit: %v", err)
 	}
 	readiness := readReadinessScopeAPI(t, database, "CVE-2026-9227")
-	if readiness.State != impact.ReadinessStateTargetIncomplete {
+	if readiness.State != packet.ReadinessStateTargetIncomplete {
 		t.Fatalf("rolled-back generation certified zero: %+v", readiness)
 	}
 }

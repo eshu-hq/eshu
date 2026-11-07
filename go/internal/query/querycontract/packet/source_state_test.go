@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package impact
+package packet
 
 import (
 	"testing"
@@ -251,9 +251,9 @@ func TestAgeSourceStatesAtReadTime(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got := ageSourceStates([]SourceState{tc.state}, cutoff)
+			got := AgeSourceStates([]SourceState{tc.state}, cutoff)
 			if len(got) != 1 || got[0].FreshnessState != tc.want {
-				t.Fatalf("ageSourceStates() = %+v, want %s", got, tc.want)
+				t.Fatalf("AgeSourceStates() = %+v, want %s", got, tc.want)
 			}
 		})
 	}
@@ -262,7 +262,7 @@ func TestAgeSourceStatesAtReadTime(t *testing.T) {
 func TestAgeSourceSnapshotsAtReadTime(t *testing.T) {
 	t.Parallel()
 	cutoff := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
-	got := ageSourceSnapshots([]SourceSnapshot{
+	got := AgeSourceSnapshots([]SourceSnapshot{
 		{Source: "nvd", Freshness: "fresh", LastUpdatedAt: "2026-10-20T00:00:00Z"},
 		{Source: "first_epss", Freshness: "fresh", LastUpdatedAt: "2026-09-20T00:00:00Z"},
 		{Source: "glad", Freshness: "fresh"},
@@ -270,6 +270,6 @@ func TestAgeSourceSnapshotsAtReadTime(t *testing.T) {
 	if got[0].Freshness != FreshnessLabelFresh ||
 		got[1].Freshness != FreshnessLabelStale ||
 		got[2].Freshness != FreshnessLabelStale {
-		t.Fatalf("ageSourceSnapshots() = %+v", got)
+		t.Fatalf("AgeSourceSnapshots() = %+v", got)
 	}
 }

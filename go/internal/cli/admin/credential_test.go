@@ -19,7 +19,6 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/secretcrypto"
 	pgstorage "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
@@ -235,7 +234,7 @@ VALUES ($1, $2, 'totp', 'active', 'sha256:totp-handle', NULL, $3, $3, NULL, NULL
 	if err != nil {
 		t.Fatalf("newLocalIdentityFactorID() error = %v", err)
 	}
-	newRecoveryCodeHash := query.IdentityHash(newRecovery)
+	newRecoveryCodeHash := identityHash(newRecovery)
 	if err := store.ResetBootstrapCredential(ctx, pgstorage.ResetBootstrapCredentialInput{
 		TenantID:               pgstorage.BootstrapAdminTenantID,
 		WorkspaceID:            pgstorage.BootstrapAdminWorkspaceID,
@@ -243,7 +242,7 @@ VALUES ($1, $2, 'totp', 'active', 'sha256:totp-handle', NULL, $3, $3, NULL, NULL
 		KeyID:                  newKeyID,
 		PasswordHash:           newHash,
 		PasswordAlgorithm:      "bcrypt",
-		PasswordParametersHash: query.IdentityHash("bcrypt"),
+		PasswordParametersHash: identityHash("bcrypt"),
 		MFAFactorID:            newMFAFactorID,
 		RecoveryCodeHash:       newRecoveryCodeHash,
 		ResetAt:                time.Now().UTC(),
@@ -322,7 +321,7 @@ VALUES ($1, $2, 'totp', 'active', 'sha256:totp-handle', NULL, $3, $3, NULL, NULL
 	// exercises identity_local_auth_attempts' lockout bookkeeping, an
 	// unrelated code path with its own pgx NULL-timestamp binding issue this
 	// test must not couple to.
-	originalRecoveryCodeHash := query.IdentityHash(originalRecoveryCode)
+	originalRecoveryCodeHash := identityHash(originalRecoveryCode)
 	var originalCodeStatus string
 	row = database.QueryRowContext(ctx, `SELECT status FROM identity_mfa_recovery_codes WHERE user_id = $1 AND recovery_code_hash = $2`, userID, originalRecoveryCodeHash)
 	if err := row.Scan(&originalCodeStatus); err != nil {
@@ -376,7 +375,7 @@ func seedIdentityFixture(
 		PasswordParametersHash: "sha256:bcrypt-cost",
 		MFAFactorID:            mfaFactorID,
 		MFAFactorKind:          "recovery_code",
-		RecoveryCodeHashes:     []string{query.IdentityHash(recoveryCode)},
+		RecoveryCodeHashes:     []string{identityHash(recoveryCode)},
 		PolicyRevisionHash:     "sha256:policy",
 		CreatedAt:              now,
 		MustChangePassword:     false,

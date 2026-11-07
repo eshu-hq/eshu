@@ -6,6 +6,7 @@ package query
 import (
 	"database/sql"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 	supplychain "github.com/eshu-hq/eshu/go/internal/query/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/advisory"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/alerts"
@@ -386,21 +387,21 @@ type SupplyChainRuntimeContext = impact.RuntimeContext
 // SupplyChainRuntimeContextResult is the response-side runtime-context
 // envelope attached to one impact finding. See
 // impact.RuntimeContextResult.
-type SupplyChainRuntimeContextResult = impact.RuntimeContextResult
+type SupplyChainRuntimeContextResult = packet.RuntimeContextResult
 
 // SupplyChainRuntimeEnvironmentEvidenceProbe describes the bounded current
 // confirmation work for one finding's environment candidates. See
 // impact.RuntimeEnvironmentEvidenceProbe.
-type SupplyChainRuntimeEnvironmentEvidenceProbe = impact.RuntimeEnvironmentEvidenceProbe
+type SupplyChainRuntimeEnvironmentEvidenceProbe = packet.RuntimeEnvironmentEvidenceProbe
 
 // KubernetesRuntimeWorkloadRef is one current, authorized Kubernetes workload
 // observed running a finding's exact subject digest. See
 // impact.KubernetesRuntimeWorkloadRef.
-type KubernetesRuntimeWorkloadRef = impact.KubernetesRuntimeWorkloadRef
+type KubernetesRuntimeWorkloadRef = packet.KubernetesRuntimeWorkloadRef
 
 // KubernetesRuntimeProbeMetadata describes the bounded, page-weighted
 // digest-local candidate budget. See impact.KubernetesRuntimeProbeMetadata.
-type KubernetesRuntimeProbeMetadata = impact.KubernetesRuntimeProbeMetadata
+type KubernetesRuntimeProbeMetadata = packet.KubernetesRuntimeProbeMetadata
 
 // SupplyChainImpactProfilePrecise selects exact installed-version
 // anchored findings only. See impact.ProfilePrecise.
@@ -434,19 +435,19 @@ type (
 	SupplyChainImpactAggregateCount               = impact.AggregateCount
 	SupplyChainImpactAggregateFilter              = impact.AggregateFilter
 	SupplyChainImpactAggregateStore               = impact.AggregateStore
-	SupplyChainImpactEvidenceFactSummary          = impact.EvidenceFactSummary
-	SupplyChainImpactExplanationAnchors           = impact.ExplanationAnchors
-	SupplyChainImpactExplanationFilter            = impact.ExplanationFilter
-	SupplyChainImpactExplanationFreshness         = impact.ExplanationFreshness
-	SupplyChainImpactExplanationResult            = impact.ExplanationResult
+	SupplyChainImpactEvidenceFactSummary          = packet.EvidenceFactSummary
+	SupplyChainImpactExplanationAnchors           = packet.ExplanationAnchors
+	SupplyChainImpactExplanationFilter            = packet.ExplanationFilter
+	SupplyChainImpactExplanationFreshness         = packet.ExplanationFreshness
+	SupplyChainImpactExplanationResult            = packet.ExplanationResult
 	SupplyChainImpactFindingFilter                = impact.FindingFilter
-	SupplyChainImpactFindingResult                = impact.FindingResult
+	SupplyChainImpactFindingResult                = packet.FindingResult
 	SupplyChainImpactFindingRow                   = impact.FindingRow
 	SupplyChainImpactFindingStore                 = impact.FindingStore
 	SupplyChainImpactInventoryDimension           = impact.InventoryDimension
 	SupplyChainImpactInventoryRow                 = impact.InventoryRow
-	SupplyChainImpactPathHop                      = impact.PathHop
-	SupplyChainImpactReadinessEnvelope            = impact.ReadinessEnvelope
+	SupplyChainImpactPathHop                      = packet.PathHop
+	SupplyChainImpactReadinessEnvelope            = packet.ReadinessEnvelope
 	PostgresSupplyChainImpactFindingStore         = impact.PostgresFindingStore
 	PostgresSupplyChainImpactAggregateStore       = impact.PostgresAggregateStore
 	PostgresSupplyChainImpactReadinessStore       = impact.PostgresReadinessStore
@@ -455,7 +456,7 @@ type (
 
 const (
 	SupplyChainImpactAggregateMaxLimit       = impact.AggregateMaxLimit
-	ReadinessStateReadyWithFindings          = impact.ReadinessStateReadyWithFindings
+	ReadinessStateReadyWithFindings          = packet.ReadinessStateReadyWithFindings
 	SupplyChainImpactInventoryByImpactStatus = impact.InventoryByStatus
 	SupplyChainImpactWinnersReadEnv          = impact.WinnersReadEnv
 )

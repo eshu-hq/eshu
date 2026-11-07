@@ -190,32 +190,6 @@ type cloudRuntimeDriftRequest struct {
 	Offset           int      `json:"offset"`
 }
 
-// CloudRuntimeDriftFindingView is the bounded, non-sensitive wire shape for one
-// provider-neutral runtime drift finding. It carries the canonical identity, the
-// finding classification, the provider-neutral source state, and the
-// safety/refusal posture, but never the raw provider locator or raw evidence
-// atoms.
-type CloudRuntimeDriftFindingView struct {
-	FactID                       string   `json:"fact_id"`
-	Provider                     string   `json:"provider"`
-	ScopeID                      string   `json:"scope_id"`
-	GenerationID                 string   `json:"generation_id"`
-	SourceSystem                 string   `json:"source_system,omitempty"`
-	CloudResourceUID             string   `json:"cloud_resource_uid"`
-	FindingKind                  string   `json:"finding_kind"`
-	ManagementStatus             string   `json:"management_status"`
-	Confidence                   float64  `json:"confidence"`
-	SourceState                  string   `json:"source_state"`
-	MatchedTerraformStateAddress string   `json:"matched_terraform_state_address,omitempty"`
-	MissingEvidence              []string `json:"missing_evidence,omitempty"`
-	RecommendedAction            string   `json:"recommended_action,omitempty"`
-	// DriftedAttributes carries the bounded declared/observed value pairs for
-	// an image_version_drift finding (#5453). Empty for orphaned/unmanaged/
-	// unknown/ambiguous findings, which carry no comparable value evidence.
-	DriftedAttributes []DriftedAttributeView  `json:"drifted_attributes,omitempty"`
-	SafetyGate        IaCManagementSafetyGate `json:"safety_gate"`
-}
-
 // Mount registers the provider-neutral runtime drift readback route.
 func (h *CloudRuntimeDriftHandler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v0/cloud/runtime-drift/findings", h.listFindings)

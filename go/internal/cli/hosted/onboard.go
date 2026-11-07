@@ -10,7 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/cli/evidredact"
 	"github.com/eshu-hq/eshu/go/internal/cli/mcpsetup"
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/playbook"
 )
 
 // ScopedIsolationLimitation documents, in the artifact itself, the
@@ -308,7 +308,7 @@ func tokenSourceNameFromRef(tokenRef string) string {
 }
 
 // StarterPrompts returns a small, bounded set of starter prompts for an
-// onboarding team. They are sourced from the query playbook catalog (the single
+// onboarding team. They are sourced from the playbook catalog leaf (the single
 // source of truth for first-class starter workflows) so the prompts always name
 // real first-class tools; a stable fallback is used only if the catalog is
 // empty.
@@ -331,27 +331,27 @@ func StarterPrompts() []string {
 	return prompts
 }
 
-// StarterPlaybooks projects the query playbook catalog into the artifact's
+// StarterPlaybooks projects the playbook catalog leaf into the artifact's
 // starter-workflow shape: playbook ID, version, prompt family, ordered tools,
 // and the truth class each step is expected to return.
 func StarterPlaybooks() []StarterPlaybook {
-	catalog := query.PlaybookCatalog()
+	catalog := playbook.Catalog()
 	playbooks := make([]StarterPlaybook, 0, len(catalog))
-	for _, playbook := range catalog {
-		prompt := strings.TrimSpace(playbook.Description)
+	for _, entry := range catalog {
+		prompt := strings.TrimSpace(entry.Description)
 		if prompt == "" {
-			prompt = strings.TrimSpace(playbook.Name)
+			prompt = strings.TrimSpace(entry.Name)
 		}
-		tools := make([]string, 0, len(playbook.Steps))
-		truthClasses := make([]string, 0, len(playbook.Steps))
-		for _, step := range playbook.Steps {
+		tools := make([]string, 0, len(entry.Steps))
+		truthClasses := make([]string, 0, len(entry.Steps))
+		for _, step := range entry.Steps {
 			tools = append(tools, step.Tool)
 			truthClasses = append(truthClasses, string(step.ExpectedTruth))
 		}
 		playbooks = append(playbooks, StarterPlaybook{
-			PlaybookID:           playbook.ID,
-			Version:              playbook.Version,
-			PromptFamily:         playbook.PromptFamily,
+			PlaybookID:           entry.ID,
+			Version:              entry.Version,
+			PromptFamily:         entry.PromptFamily,
 			Prompt:               prompt,
 			Tools:                tools,
 			ExpectedTruthClasses: truthClasses,

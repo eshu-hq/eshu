@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -35,7 +36,7 @@ type DeployableUnitPacketResponder interface {
 	RespondDeployableUnitPacket(
 		w http.ResponseWriter,
 		r *http.Request,
-		decisions []AdmissionDecisionResult,
+		decisions []packet.AdmissionDecisionResult,
 		subject map[string]string,
 		truth *querycontract.TruthEnvelope,
 	)
@@ -114,7 +115,7 @@ func (h *Handler) getDeployableUnitPacket(w http.ResponseWriter, r *http.Request
 		writeReadFailure(w, r, err, AdmissionDecisionCapability, deployableUnitPacketReadFailedMessage)
 		return
 	}
-	decisions := make([]AdmissionDecisionResult, 0, len(rows))
+	decisions := make([]packet.AdmissionDecisionResult, 0, len(rows))
 	for _, row := range rows {
 		decisions = append(decisions, AdmissionDecisionResultFromRow(row))
 	}

@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
@@ -61,7 +62,7 @@ func ExplanationAmbiguousCandidateCount(err error) int {
 // evidence fact previews referenced by the finding.
 func (s PostgresFindingStore) ExplainSupplyChainImpact(
 	ctx context.Context,
-	filter ExplanationFilter,
+	filter packet.ExplanationFilter,
 ) (ExplanationRow, error) {
 	if s.DB == nil && s.reader == nil {
 		return ExplanationRow{}, fmt.Errorf("supply chain impact finding database is required")
@@ -367,7 +368,7 @@ LIMIT 2
 
 func supplyChainImpactExplanationQueryArgs(
 	ctx context.Context,
-	filter ExplanationFilter,
+	filter packet.ExplanationFilter,
 	now func() time.Time,
 ) []any {
 	args := []any{
@@ -441,8 +442,8 @@ ORDER BY fact.fact_id ASC
 // filter, so a caller-supplied value with leading or trailing space does not
 // silently miss an exact-match anchor.
 func TrimExplanationFilter(
-	filter ExplanationFilter,
-) ExplanationFilter {
+	filter packet.ExplanationFilter,
+) packet.ExplanationFilter {
 	filter.FindingID = strings.TrimSpace(filter.FindingID)
 	filter.AdvisoryID = strings.TrimSpace(filter.AdvisoryID)
 	filter.CVEID = strings.TrimSpace(filter.CVEID)

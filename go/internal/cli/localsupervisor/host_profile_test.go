@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 func TestResolveLocalHostRuntimeConfig(t *testing.T) {
@@ -16,8 +16,8 @@ func TestResolveLocalHostRuntimeConfig(t *testing.T) {
 		if err != nil {
 			t.Fatalf("resolveLocalHostRuntimeConfig() error = %v, want nil", err)
 		}
-		if got.Profile != query.ProfileLocalLightweight {
-			t.Fatalf("Profile = %q, want %q", got.Profile, query.ProfileLocalLightweight)
+		if got.Profile != querycontract.ProfileLocalLightweight {
+			t.Fatalf("Profile = %q, want %q", got.Profile, querycontract.ProfileLocalLightweight)
 		}
 		if got.GraphBackend != "" {
 			t.Fatalf("GraphBackend = %q, want empty", got.GraphBackend)
@@ -27,25 +27,25 @@ func TestResolveLocalHostRuntimeConfig(t *testing.T) {
 	t.Run("authoritative defaults to nornicdb", func(t *testing.T) {
 		got, err := resolveLocalHostRuntimeConfig(func(key string) string {
 			if key == "ESHU_QUERY_PROFILE" {
-				return string(query.ProfileLocalAuthoritative)
+				return string(querycontract.ProfileLocalAuthoritative)
 			}
 			return ""
 		})
 		if err != nil {
 			t.Fatalf("resolveLocalHostRuntimeConfig() error = %v, want nil", err)
 		}
-		if got.Profile != query.ProfileLocalAuthoritative {
-			t.Fatalf("Profile = %q, want %q", got.Profile, query.ProfileLocalAuthoritative)
+		if got.Profile != querycontract.ProfileLocalAuthoritative {
+			t.Fatalf("Profile = %q, want %q", got.Profile, querycontract.ProfileLocalAuthoritative)
 		}
-		if got.GraphBackend != query.GraphBackendNornicDB {
-			t.Fatalf("GraphBackend = %q, want %q", got.GraphBackend, query.GraphBackendNornicDB)
+		if got.GraphBackend != querycontract.GraphBackendNornicDB {
+			t.Fatalf("GraphBackend = %q, want %q", got.GraphBackend, querycontract.GraphBackendNornicDB)
 		}
 	})
 
 	t.Run("rejects unsupported profiles", func(t *testing.T) {
 		_, err := resolveLocalHostRuntimeConfig(func(key string) string {
 			if key == "ESHU_QUERY_PROFILE" {
-				return string(query.ProfileProduction)
+				return string(querycontract.ProfileProduction)
 			}
 			return ""
 		})
@@ -57,7 +57,7 @@ func TestResolveLocalHostRuntimeConfig(t *testing.T) {
 	t.Run("rejects graph backend override in lightweight mode", func(t *testing.T) {
 		_, err := resolveLocalHostRuntimeConfig(func(key string) string {
 			if key == "ESHU_GRAPH_BACKEND" {
-				return string(query.GraphBackendNornicDB)
+				return string(querycontract.GraphBackendNornicDB)
 			}
 			return ""
 		})
@@ -72,11 +72,11 @@ func TestResolveLocalHostRuntimeConfig(t *testing.T) {
 // like "who calls this function" are answerable on a fresh install, while the
 // watch owner used by the lightweight indexer stays Postgres-only.
 func TestDefaultProfileForMode(t *testing.T) {
-	if got := defaultProfileForMode(ModeMCPStdio); got != query.ProfileLocalAuthoritative {
-		t.Fatalf("defaultProfileForMode(mcp_stdio) = %q, want %q", got, query.ProfileLocalAuthoritative)
+	if got := defaultProfileForMode(ModeMCPStdio); got != querycontract.ProfileLocalAuthoritative {
+		t.Fatalf("defaultProfileForMode(mcp_stdio) = %q, want %q", got, querycontract.ProfileLocalAuthoritative)
 	}
-	if got := defaultProfileForMode(ModeWatch); got != query.ProfileLocalLightweight {
-		t.Fatalf("defaultProfileForMode(watch) = %q, want %q", got, query.ProfileLocalLightweight)
+	if got := defaultProfileForMode(ModeWatch); got != querycontract.ProfileLocalLightweight {
+		t.Fatalf("defaultProfileForMode(watch) = %q, want %q", got, querycontract.ProfileLocalLightweight)
 	}
 }
 
@@ -98,7 +98,7 @@ func TestRequestedAttachRuntimeConfig(t *testing.T) {
 	t.Run("graph backend only resolves authoritative", func(t *testing.T) {
 		got, explicit, err := requestedAttachRuntimeConfig(func(key string) string {
 			if key == "ESHU_GRAPH_BACKEND" {
-				return string(query.GraphBackendNornicDB)
+				return string(querycontract.GraphBackendNornicDB)
 			}
 			return ""
 		})
@@ -108,41 +108,41 @@ func TestRequestedAttachRuntimeConfig(t *testing.T) {
 		if !explicit {
 			t.Fatalf("explicit = false, want true when ESHU_GRAPH_BACKEND is set")
 		}
-		if got.Profile != query.ProfileLocalAuthoritative {
-			t.Fatalf("Profile = %q, want %q", got.Profile, query.ProfileLocalAuthoritative)
+		if got.Profile != querycontract.ProfileLocalAuthoritative {
+			t.Fatalf("Profile = %q, want %q", got.Profile, querycontract.ProfileLocalAuthoritative)
 		}
-		if got.GraphBackend != query.GraphBackendNornicDB {
-			t.Fatalf("GraphBackend = %q, want %q", got.GraphBackend, query.GraphBackendNornicDB)
+		if got.GraphBackend != querycontract.GraphBackendNornicDB {
+			t.Fatalf("GraphBackend = %q, want %q", got.GraphBackend, querycontract.GraphBackendNornicDB)
 		}
 	})
 }
 
 func TestResolveLocalHostRuntimeConfigWithDefault(t *testing.T) {
 	t.Run("authoritative default selects nornicdb when env unset", func(t *testing.T) {
-		got, err := resolveLocalHostRuntimeConfigWithDefault(func(string) string { return "" }, query.ProfileLocalAuthoritative)
+		got, err := resolveLocalHostRuntimeConfigWithDefault(func(string) string { return "" }, querycontract.ProfileLocalAuthoritative)
 		if err != nil {
 			t.Fatalf("resolveLocalHostRuntimeConfigWithDefault() error = %v, want nil", err)
 		}
-		if got.Profile != query.ProfileLocalAuthoritative {
-			t.Fatalf("Profile = %q, want %q", got.Profile, query.ProfileLocalAuthoritative)
+		if got.Profile != querycontract.ProfileLocalAuthoritative {
+			t.Fatalf("Profile = %q, want %q", got.Profile, querycontract.ProfileLocalAuthoritative)
 		}
-		if got.GraphBackend != query.GraphBackendNornicDB {
-			t.Fatalf("GraphBackend = %q, want %q", got.GraphBackend, query.GraphBackendNornicDB)
+		if got.GraphBackend != querycontract.GraphBackendNornicDB {
+			t.Fatalf("GraphBackend = %q, want %q", got.GraphBackend, querycontract.GraphBackendNornicDB)
 		}
 	})
 
 	t.Run("explicit lightweight env overrides authoritative default", func(t *testing.T) {
 		got, err := resolveLocalHostRuntimeConfigWithDefault(func(key string) string {
 			if key == "ESHU_QUERY_PROFILE" {
-				return string(query.ProfileLocalLightweight)
+				return string(querycontract.ProfileLocalLightweight)
 			}
 			return ""
-		}, query.ProfileLocalAuthoritative)
+		}, querycontract.ProfileLocalAuthoritative)
 		if err != nil {
 			t.Fatalf("resolveLocalHostRuntimeConfigWithDefault() error = %v, want nil", err)
 		}
-		if got.Profile != query.ProfileLocalLightweight {
-			t.Fatalf("Profile = %q, want %q", got.Profile, query.ProfileLocalLightweight)
+		if got.Profile != querycontract.ProfileLocalLightweight {
+			t.Fatalf("Profile = %q, want %q", got.Profile, querycontract.ProfileLocalLightweight)
 		}
 		if got.GraphBackend != "" {
 			t.Fatalf("GraphBackend = %q, want empty", got.GraphBackend)

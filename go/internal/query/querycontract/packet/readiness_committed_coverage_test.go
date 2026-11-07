@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package impact
+package packet
 
 import (
 	"database/sql"
@@ -70,11 +70,11 @@ func TestCoveredNonzeroSnapshotDoesNotCertifyAbsence(t *testing.T) {
 // bit survives the SQL-to-Go boundary without leaking into the API shape.
 func TestDecodeSourceStatesCarriesCoverageZero(t *testing.T) {
 	t.Parallel()
-	states, err := decodeSourceStates(sql.NullString{Valid: true, String: `[
+	states, err := DecodeSourceStates(sql.NullString{Valid: true, String: `[
 		{"scope_id":"zero","source":"nvd","freshness_state":"fresh","coverage_eligible":true,"coverage_zero":true},
 		{"scope_id":"known","source":"nvd","freshness_state":"fresh","coverage_eligible":true,"coverage_zero":false}]`})
 	if err != nil {
-		t.Fatalf("decodeSourceStates() error = %v", err)
+		t.Fatalf("DecodeSourceStates() error = %v", err)
 	}
 	if len(states) != 2 || !states[0].coverageZero || states[1].coverageZero {
 		t.Fatalf("decoded coverage_zero = %+v, want [true false]", states)

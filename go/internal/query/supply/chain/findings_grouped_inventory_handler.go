@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 )
 
@@ -186,7 +187,7 @@ func withMissingEvidence(reasons []string, reason string) []string {
 
 func normalizeGroupedInventoryFreshness(f impact.GroupedInventoryFreshness) impact.GroupedInventoryFreshness {
 	if strings.TrimSpace(f.State) == "" {
-		f.State = impact.FreshnessLabelUnknown
+		f.State = packet.FreshnessLabelUnknown
 	}
 	return f
 }

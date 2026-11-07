@@ -25,7 +25,7 @@ import (
 	nornicstorage "github.com/orneryd/nornicdb/pkg/storage"
 
 	"github.com/eshu-hq/eshu/go/internal/eshulocal"
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // embeddedLocalNornicDBAvailable reports that this Eshu binary was built with
@@ -76,7 +76,7 @@ func startEmbeddedLocalNornicDB(ctx context.Context, layout eshulocal.Layout) (*
 	}
 
 	graph := &ManagedGraph{
-		Backend:  query.GraphBackendNornicDB,
+		Backend:  querycontract.GraphBackendNornicDB,
 		Version:  nornicbuildinfo.DisplayVersion(),
 		Address:  localNornicDBBindAddress,
 		BoltPort: boltPort,

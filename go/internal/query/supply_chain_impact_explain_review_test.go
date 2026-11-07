@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 )
 
@@ -14,7 +15,7 @@ func TestBuildSupplyChainImpactExplanationOmitsEmptyDependencyChain(t *testing.T
 	t.Parallel()
 
 	got := impact.BuildExplanation(
-		impact.ExplanationFilter{FindingID: "finding-empty-chain"},
+		packet.ExplanationFilter{FindingID: "finding-empty-chain"},
 		impact.ExplanationRow{
 			Finding: impact.FindingRow{
 				FindingID: "finding-empty-chain",
@@ -23,7 +24,7 @@ func TestBuildSupplyChainImpactExplanationOmitsEmptyDependencyChain(t *testing.T
 				Status:    "possibly_affected",
 			},
 		},
-		impact.ReadinessEnvelope{State: impact.ReadinessStateReadyWithFindings},
+		packet.ReadinessEnvelope{State: packet.ReadinessStateReadyWithFindings},
 	)
 
 	payload, err := json.Marshal(got)
@@ -43,7 +44,7 @@ func TestBuildSupplyChainImpactExplanationUsesEvidenceDerivedDependencyChainForM
 	t.Parallel()
 
 	got := impact.BuildExplanation(
-		impact.ExplanationFilter{FindingID: "finding-evidence-chain"},
+		packet.ExplanationFilter{FindingID: "finding-evidence-chain"},
 		impact.ExplanationRow{
 			Finding: impact.FindingRow{
 				FindingID: "finding-evidence-chain",
@@ -60,7 +61,7 @@ func TestBuildSupplyChainImpactExplanationUsesEvidenceDerivedDependencyChainForM
 				}),
 			},
 		},
-		impact.ReadinessEnvelope{State: impact.ReadinessStateReadyWithFindings},
+		packet.ReadinessEnvelope{State: packet.ReadinessStateReadyWithFindings},
 	)
 
 	if got.DependencyChain == nil {
@@ -78,7 +79,7 @@ func TestBuildSupplyChainImpactExplanationDoesNotTreatClockPathAsLockfile(t *tes
 	t.Parallel()
 
 	got := impact.BuildExplanation(
-		impact.ExplanationFilter{FindingID: "finding-clock-path"},
+		packet.ExplanationFilter{FindingID: "finding-clock-path"},
 		impact.ExplanationRow{
 			Finding: impact.FindingRow{
 				FindingID: "finding-clock-path",
@@ -92,7 +93,7 @@ func TestBuildSupplyChainImpactExplanationDoesNotTreatClockPathAsLockfile(t *tes
 				}),
 			},
 		},
-		impact.ReadinessEnvelope{State: impact.ReadinessStateReadyWithFindings},
+		packet.ReadinessEnvelope{State: packet.ReadinessStateReadyWithFindings},
 	)
 
 	if !containsString(got.Anchors.ManifestPaths, "src/clock.go") {

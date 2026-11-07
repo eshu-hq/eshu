@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 )
 
 // seedPlannerSkippedRun records one vulnerability-intelligence planner run
@@ -76,8 +76,8 @@ func TestSupplyChainImpactReadinessPlannerSkippedPackageReportsSkipLive(t *testi
 	if state.UnmatchedPackageCount != 1 || state.SkippedPackageCount != 1 {
 		t.Fatalf("derived aggregate = %+v, want unmatched 1 and skipped 1", state)
 	}
-	if readiness.State != string(impact.ReadinessStateTargetSkipped) {
-		t.Fatalf("readiness state = %q, want %q", readiness.State, string(impact.ReadinessStateTargetSkipped))
+	if readiness.State != string(packet.ReadinessStateTargetSkipped) {
+		t.Fatalf("readiness state = %q, want %q", readiness.State, string(packet.ReadinessStateTargetSkipped))
 	}
 	if !slices.Contains(readiness.IncompleteReasons, "osv:skipped:derived_target_non_exact_version") {
 		t.Fatalf("incomplete reasons = %v, want osv:skipped:derived_target_non_exact_version", readiness.IncompleteReasons)

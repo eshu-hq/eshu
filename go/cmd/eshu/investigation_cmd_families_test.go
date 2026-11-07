@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/cli/investigation"
 	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 )
 
 func runExportWithDeps(t *testing.T, args []string, deps investigation.Deps) (string, error) {
@@ -52,12 +53,12 @@ func TestInvestigationExportDeployableUnit(t *testing.T) {
 	if gotParams.Get("domain") != "deployable_unit_correlation" || gotParams.Get("scope_id") != "s1" || gotParams.Get("generation_id") != "g1" || gotParams.Get("anchor_kind") != "repository" || gotParams.Get("anchor_id") != "repo-1" {
 		t.Errorf("params = %v, want persisted domain, scope, generation, and repository anchor set", gotParams)
 	}
-	var packet query.InvestigationEvidencePacket
-	if err := json.Unmarshal([]byte(out), &packet); err != nil {
+	var pkt packet.InvestigationEvidencePacket
+	if err := json.Unmarshal([]byte(out), &pkt); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if packet.Identity.Family != query.InvestigationFamilyDeployableUnit || !packet.Answer.Supported {
-		t.Errorf("packet family/supported wrong: %q supported=%t", packet.Identity.Family, packet.Answer.Supported)
+	if pkt.Identity.Family != packet.InvestigationFamilyDeployableUnit || !pkt.Answer.Supported {
+		t.Errorf("packet family/supported wrong: %q supported=%t", pkt.Identity.Family, pkt.Answer.Supported)
 	}
 }
 
@@ -76,12 +77,12 @@ func TestInvestigationExportDeployableUnitRequiresScopeAndGeneration(t *testing.
 		if err != nil {
 			t.Fatalf("export: %v", err)
 		}
-		var packet query.InvestigationEvidencePacket
-		if err := json.Unmarshal([]byte(out), &packet); err != nil {
+		var pkt packet.InvestigationEvidencePacket
+		if err := json.Unmarshal([]byte(out), &pkt); err != nil {
 			t.Fatalf("decode: %v", err)
 		}
-		if packet.Refusal != query.PacketRefusalScopeNotFound {
-			t.Errorf("refusal = %q, want scope_not_found", packet.Refusal)
+		if pkt.Refusal != packet.PacketRefusalScopeNotFound {
+			t.Errorf("refusal = %q, want scope_not_found", pkt.Refusal)
 		}
 	}
 }
@@ -108,7 +109,7 @@ func TestInvestigationExportDrift(t *testing.T) {
 		FetchDriftFindings: func(_ investigation.Client, body map[string]any) (investigation.DriftFindingsEnvelope, error) {
 			gotBody = body
 			env := investigation.DriftFindingsEnvelope{Truth: &query.TruthEnvelope{Level: query.TruthLevelExact, Basis: query.TruthBasisRuntimeState, Freshness: query.TruthFreshness{State: query.FreshnessFresh}}}
-			env.Data.DriftFindings = []query.CloudRuntimeDriftFindingView{
+			env.Data.DriftFindings = []packet.CloudRuntimeDriftFindingView{
 				{FactID: "f1", Provider: "aws", ScopeID: "acct1", CloudResourceUID: "aws:s3:b", FindingKind: "orphaned_cloud_resource", MatchedTerraformStateAddress: "aws_s3_bucket.b"},
 			}
 			return env, nil

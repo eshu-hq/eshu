@@ -6,6 +6,8 @@ package impact
 import (
 	"reflect"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 )
 
 func TestNormalizedSupplyChainImpactMissingEvidenceLazyFastPath(t *testing.T) {
@@ -44,8 +46,8 @@ func TestNormalizedSupplyChainImpactMissingEvidenceFallbacksPreserveContract(t *
 				ServiceIDs:   []string{"service:example-api"},
 				EvidencePath: []string{serviceCatalogCorrelationFactKind},
 				MissingEvidence: []string{
-					ServiceCatalogAnchorMissingReason,
-					ServiceCatalogCorrelationMissingReason,
+					packet.ServiceCatalogAnchorMissingReason,
+					packet.ServiceCatalogCorrelationMissingReason,
 					"runtime evidence missing",
 				},
 			},
@@ -56,11 +58,11 @@ func TestNormalizedSupplyChainImpactMissingEvidenceFallbacksPreserveContract(t *
 			row: FindingRow{
 				EvidencePath: []string{serviceCatalogCorrelationFactKind},
 				MissingEvidence: []string{
-					ServiceCatalogCorrelationMissingReason,
-					ServiceCatalogAnchorMissingReason,
+					packet.ServiceCatalogCorrelationMissingReason,
+					packet.ServiceCatalogAnchorMissingReason,
 				},
 			},
-			want: []string{ServiceCatalogAnchorMissingReason},
+			want: []string{packet.ServiceCatalogAnchorMissingReason},
 		},
 	}
 

@@ -12,7 +12,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/eshulocal"
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // TestRunOwnedHostWithLayoutWritesOperatorLinesToInjectedWriter is the only
@@ -29,7 +29,7 @@ import (
 // lockedBuffer: a variant that lets a real finalizer run would race under
 // -race with a bare bytes.Buffer, and the guard should already be in place.
 func TestRunOwnedHostWithLayoutWritesOperatorLinesToInjectedWriter(t *testing.T) {
-	t.Setenv("ESHU_QUERY_PROFILE", string(query.ProfileLocalAuthoritative))
+	t.Setenv("ESHU_QUERY_PROFILE", string(querycontract.ProfileLocalAuthoritative))
 	t.Setenv(deferContentSearchIndexesEnv, "1")
 
 	originalPrepareWorkspace := localHostPrepareWorkspace
@@ -78,7 +78,7 @@ func TestRunOwnedHostWithLayoutWritesOperatorLinesToInjectedWriter(t *testing.T)
 	}
 	localHostStartManagedGraph = func(context.Context, eshulocal.Layout, RuntimeConfig) (*ManagedGraph, error) {
 		return &ManagedGraph{
-			Backend:  query.GraphBackendNornicDB,
+			Backend:  querycontract.GraphBackendNornicDB,
 			Address:  "127.0.0.1",
 			BoltPort: 17687,
 			HTTPPort: 17474,

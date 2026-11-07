@@ -163,8 +163,8 @@ type GroupedInventoryRow struct {
 }
 
 // GroupedInventoryFreshness reports how fresh the evidence behind a grouped
-// page is, using the readiness freshness labels (FreshnessLabelFresh,
-// FreshnessLabelStale, FreshnessLabelUnknown).
+// page is, using the readiness freshness labels (packet.FreshnessLabelFresh,
+// packet.FreshnessLabelStale, packet.FreshnessLabelUnknown).
 type GroupedInventoryFreshness struct {
 	State            string `json:"state"`
 	LatestObservedAt string `json:"latest_observed_at,omitempty"`

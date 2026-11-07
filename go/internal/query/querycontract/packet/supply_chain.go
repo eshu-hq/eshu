@@ -1,18 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package packet
 
 import (
 	"fmt"
-	"net/http"
 	"sort"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	supplychain "github.com/eshu-hq/eshu/go/internal/query/supply/chain"
-	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
-	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 )
 
 // BuildSupplyChainImpactPacket maps a reducer-owned supply-chain impact
@@ -29,7 +25,7 @@ import (
 //
 // A nil bounds override uses the contract defaults; a non-nil override (for
 // example the CLI --max-source-facts flag) lowers a per-layer cap.
-func BuildSupplyChainImpactPacket(result impact.ExplanationResult, truth *TruthEnvelope, bounds *PacketBounds) (InvestigationEvidencePacket, error) {
+func BuildSupplyChainImpactPacket(result ExplanationResult, truth *querycontract.TruthEnvelope, bounds *PacketBounds) (InvestigationEvidencePacket, error) {
 	in := InvestigationPacketInput{
 		Family:     InvestigationFamilySupplyChainImpact,
 		Subject:    supplyChainPacketSubject(result.Input),
@@ -52,18 +48,18 @@ func BuildSupplyChainImpactPacket(result impact.ExplanationResult, truth *TruthE
 
 // supplyChainPacketSubject collects the canonical, non-empty scope keys that name
 // the investigation.
-func supplyChainPacketSubject(filter impact.ExplanationFilter) map[string]string {
+func supplyChainPacketSubject(filter ExplanationFilter) map[string]string {
 	subject := map[string]string{}
-	addSubjectKey(subject, "finding_id", filter.FindingID)
-	addSubjectKey(subject, "advisory_id", filter.AdvisoryID)
-	addSubjectKey(subject, "cve_id", filter.CVEID)
-	addSubjectKey(subject, "package_id", filter.PackageID)
-	addSubjectKey(subject, "repository_id", filter.RepositoryID)
-	addSubjectKey(subject, "subject_digest", filter.SubjectDigest)
+	AddSubjectKey(subject, "finding_id", filter.FindingID)
+	AddSubjectKey(subject, "advisory_id", filter.AdvisoryID)
+	AddSubjectKey(subject, "cve_id", filter.CVEID)
+	AddSubjectKey(subject, "package_id", filter.PackageID)
+	AddSubjectKey(subject, "repository_id", filter.RepositoryID)
+	AddSubjectKey(subject, "subject_digest", filter.SubjectDigest)
 	return subject
 }
 
-func addSubjectKey(subject map[string]string, key, value string) {
+func AddSubjectKey(subject map[string]string, key, value string) {
 	if v := strings.TrimSpace(value); v != "" {
 		subject[key] = v
 	}
@@ -72,7 +68,7 @@ func addSubjectKey(subject map[string]string, key, value string) {
 // supplyChainPacketQuestion derives the canonical question. When the filter named
 // only a finding id, it prefers the resolved finding's advisory so a
 // finding-scoped lookup still produces the more useful advisory-reach question.
-func supplyChainPacketQuestion(filter impact.ExplanationFilter, finding *impact.FindingResult) string {
+func supplyChainPacketQuestion(filter ExplanationFilter, finding *FindingResult) string {
 	advisory := strings.TrimSpace(filter.AdvisoryID)
 	cve := strings.TrimSpace(filter.CVEID)
 	if advisory == "" && cve == "" && finding != nil {
@@ -97,7 +93,7 @@ func supplyChainPacketQuestion(filter impact.ExplanationFilter, finding *impact.
 // canonical truth so the packet's freshness reflects the evidence snapshot
 // without mutating the caller's envelope. A nil truth yields an unsupported
 // packet downstream.
-func supplyChainPacketTruth(truth *TruthEnvelope, freshness impact.ExplanationFreshness) *TruthEnvelope {
+func supplyChainPacketTruth(truth *querycontract.TruthEnvelope, freshness ExplanationFreshness) *querycontract.TruthEnvelope {
 	if truth == nil {
 		return nil
 	}
@@ -108,16 +104,16 @@ func supplyChainPacketTruth(truth *TruthEnvelope, freshness impact.ExplanationFr
 	return &clone
 }
 
-func freshnessStateFromString(raw string) FreshnessState {
+func freshnessStateFromString(raw string) querycontract.FreshnessState {
 	switch strings.ToLower(strings.TrimSpace(raw)) {
-	case string(FreshnessFresh):
-		return FreshnessFresh
-	case string(FreshnessStale):
-		return FreshnessStale
-	case string(FreshnessBuilding):
-		return FreshnessBuilding
-	case string(FreshnessUnavailable):
-		return FreshnessUnavailable
+	case string(querycontract.FreshnessFresh):
+		return querycontract.FreshnessFresh
+	case string(querycontract.FreshnessStale):
+		return querycontract.FreshnessStale
+	case string(querycontract.FreshnessBuilding):
+		return querycontract.FreshnessBuilding
+	case string(querycontract.FreshnessUnavailable):
+		return querycontract.FreshnessUnavailable
 	default:
 		return ""
 	}
@@ -125,7 +121,7 @@ func freshnessStateFromString(raw string) FreshnessState {
 
 // supplyChainPacketSourceFacts maps evidence-fact summaries into the raw-evidence
 // layer and returns the set of known fact ids for referential-integrity checks.
-func supplyChainPacketSourceFacts(evidence []impact.EvidenceFactSummary) ([]PacketSourceFact, map[string]struct{}) {
+func supplyChainPacketSourceFacts(evidence []EvidenceFactSummary) ([]PacketSourceFact, map[string]struct{}) {
 	facts := make([]PacketSourceFact, 0, len(evidence))
 	known := make(map[string]struct{}, len(evidence))
 	for _, fact := range evidence {
@@ -144,7 +140,7 @@ func supplyChainPacketSourceFacts(evidence []impact.EvidenceFactSummary) ([]Pack
 	return facts, known
 }
 
-func supplyChainFactSummary(fact impact.EvidenceFactSummary) string {
+func supplyChainFactSummary(fact EvidenceFactSummary) string {
 	parts := []string{}
 	if kind := strings.TrimSpace(fact.FactKind); kind != "" {
 		parts = append(parts, kind)
@@ -161,7 +157,7 @@ func supplyChainFactSummary(fact impact.EvidenceFactSummary) string {
 // supplyChainPacketDecisions maps the reducer-owned finding into a single
 // reducer-decision entry. Source-fact references are filtered to those present
 // in the source layer so the decision is always traceable.
-func supplyChainPacketDecisions(finding *impact.FindingResult, knownFactIDs map[string]struct{}) []PacketReducerDecision {
+func supplyChainPacketDecisions(finding *FindingResult, knownFactIDs map[string]struct{}) []PacketReducerDecision {
 	if finding == nil {
 		return nil
 	}
@@ -201,7 +197,7 @@ func impactStatusToDecisionState(impactStatus string) string {
 	}
 }
 
-func supplyChainDecisionReason(finding *impact.FindingResult) string {
+func supplyChainDecisionReason(finding *FindingResult) string {
 	status := strings.TrimSpace(finding.Status)
 	if status == "" {
 		status = "unknown"
@@ -234,7 +230,7 @@ func filterKnownFactIDs(ids []string, known map[string]struct{}) []string {
 // layer, preserving each present hop's backing source-fact ids (filtered to the
 // facts actually present in the source layer) so the graph answer is traceable.
 // Missing hops are carried by supplyChainPacketMissingHops instead.
-func supplyChainPacketGraphAnswers(path []impact.PathHop, knownFactIDs map[string]struct{}) []PacketGraphAnswer {
+func supplyChainPacketGraphAnswers(path []PathHop, knownFactIDs map[string]struct{}) []PacketGraphAnswer {
 	answers := make([]PacketGraphAnswer, 0, len(path))
 	for _, hop := range path {
 		present := strings.EqualFold(strings.TrimSpace(hop.Status), "present")
@@ -244,7 +240,7 @@ func supplyChainPacketGraphAnswers(path []impact.PathHop, knownFactIDs map[strin
 			SourceFactIDs: filterKnownFactIDs(hop.EvidenceFactIDs, knownFactIDs),
 		}
 		if present {
-			answer.TruthClass = AnswerTruthDeterministic
+			answer.TruthClass = querycontract.AnswerTruthDeterministic
 		}
 		answers = append(answers, answer)
 	}
@@ -254,7 +250,7 @@ func supplyChainPacketGraphAnswers(path []impact.PathHop, knownFactIDs map[strin
 // supplyChainPacketMissingHops names every unresolved hop with a reason so a gap
 // is explicit rather than hidden. It folds per-hop missing evidence and the
 // top-level missing-evidence reasons, deduplicated.
-func supplyChainPacketMissingHops(result impact.ExplanationResult) []PacketMissingHop {
+func supplyChainPacketMissingHops(result ExplanationResult) []PacketMissingHop {
 	seen := map[string]struct{}{}
 	hops := []PacketMissingHop{}
 	add := func(hop, reason string) {
@@ -286,7 +282,7 @@ func supplyChainPacketMissingHops(result impact.ExplanationResult) []PacketMissi
 	return hops
 }
 
-func supplyChainPacketSummary(result impact.ExplanationResult) string {
+func supplyChainPacketSummary(result ExplanationResult) string {
 	if result.Finding == nil {
 		return ""
 	}
@@ -302,7 +298,7 @@ func supplyChainPacketSummary(result impact.ExplanationResult) string {
 // limitations. The upstream readiness envelope only populates IncompleteReasons
 // for the target-incomplete state, so a non-ready state is also recorded by name
 // to ensure the packet always explains why the investigation is constrained.
-func supplyChainPacketLimitations(readiness impact.ReadinessEnvelope) []string {
+func supplyChainPacketLimitations(readiness ReadinessEnvelope) []string {
 	limitations := []string{}
 	for _, reason := range readiness.IncompleteReasons {
 		if r := strings.TrimSpace(reason); r != "" {
@@ -318,9 +314,9 @@ func supplyChainPacketLimitations(readiness impact.ReadinessEnvelope) []string {
 
 // supplyChainReadinessIsReady reports whether a readiness state means evidence is
 // fully collected (no constraint to surface).
-func supplyChainReadinessIsReady(state impact.ReadinessState) bool {
+func supplyChainReadinessIsReady(state ReadinessState) bool {
 	switch state {
-	case impact.ReadinessStateReadyWithFindings, impact.ReadinessStateReadyZeroFindings:
+	case ReadinessStateReadyWithFindings, ReadinessStateReadyZeroFindings:
 		return true
 	default:
 		return false
@@ -350,63 +346,4 @@ func packetFirstNonEmpty(values ...string) string {
 		}
 	}
 	return ""
-}
-
-// === Lane-B packet responder (formerly chain_impact_packet_responder.go) ===
-
-// Fixed bodies of the two packet build steps behind GET
-// /api/v0/investigations/supply-chain/impact/packet (#7674). Neither builds
-// from a read: a build error quotes packet contents, so it goes on the request
-// span, never into the body.
-const (
-	supplyChainImpactPacketBuildFailedMessage   = "supply-chain impact packet build failed"
-	supplyChainImpactRefusalPacketFailedMessage = "supply-chain impact refusal packet build failed"
-)
-
-// supplyChainImpactPacketResponder implements
-// supplychain.ImpactPacketResponder from the lane-B packet
-// envelope. It lives in root because the envelope types
-// (InvestigationEvidencePacket, PacketBounds, the refusal composer) live
-// here; the hub passes only leaf values and the live request, so bounds
-// still come from packetBoundsFromRequest on the same request the route
-// received — byte-identical to the pre-move route.
-//
-// If lane-B moves the envelope to an importable leaf, delete this type and
-// have the hub call the leaf directly.
-type supplyChainImpactPacketResponder struct{}
-
-// NewSupplyChainImpactPacketResponder builds the lane-B packet responder
-// cmd wiring injects into the supply-chain hub handler.
-func NewSupplyChainImpactPacketResponder() supplychain.ImpactPacketResponder {
-	return supplyChainImpactPacketResponder{}
-}
-
-// RespondSupplyChainImpactPacket composes body and truth into the portable
-// packet and writes it, exactly as the pre-move getImpactPacket did.
-func (supplyChainImpactPacketResponder) RespondSupplyChainImpactPacket(
-	w http.ResponseWriter,
-	r *http.Request,
-	body impact.ExplanationResult,
-	truth *querycontract.TruthEnvelope,
-) {
-	packet, err := BuildSupplyChainImpactPacket(body, truth, packetBoundsFromRequest(r))
-	if err != nil {
-		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, supplyChainImpactPacketBuildFailedMessage)
-		return
-	}
-	writeInvestigationPacket(w, r, packet)
-}
-
-// RespondSupplyChainImpactScopeRefusal writes the scope-not-found refusal
-// packet, exactly as the pre-move getImpactPacket did.
-func (supplyChainImpactPacketResponder) RespondSupplyChainImpactScopeRefusal(
-	w http.ResponseWriter,
-	r *http.Request,
-) {
-	packet, err := refusalPacketForAPI(InvestigationFamilySupplyChainImpact, PacketRefusalScopeNotFound)
-	if err != nil {
-		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, supplyChainImpactRefusalPacketFailedMessage)
-		return
-	}
-	writeInvestigationPacket(w, r, packet)
 }

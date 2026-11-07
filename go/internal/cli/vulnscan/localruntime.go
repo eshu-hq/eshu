@@ -19,7 +19,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/cli/localsupervisor"
 	"github.com/eshu-hq/eshu/go/internal/cli/procexec"
 	"github.com/eshu-hq/eshu/go/internal/eshulocal"
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 const (
@@ -186,7 +186,7 @@ func attachLocalOwner(layout eshulocal.Layout) (eshulocal.OwnerRecord, localsupe
 		//nolint:wrapcheck // the owner-record error already names the field it could not read
 		return eshulocal.OwnerRecord{}, localsupervisor.RuntimeConfig{}, false, err
 	}
-	if runtimeConfig.Profile != query.ProfileLocalAuthoritative {
+	if runtimeConfig.Profile != querycontract.ProfileLocalAuthoritative {
 		return eshulocal.OwnerRecord{}, localsupervisor.RuntimeConfig{}, false,
 			fmt.Errorf("vuln-scan repo requires local_authoritative; running local Eshu service profile is %q", runtimeConfig.Profile)
 	}
@@ -285,8 +285,8 @@ func startLocalOwner(ctx context.Context, layout eshulocal.Layout) (*exec.Cmd, e
 		return nil, fmt.Errorf("resolve eshu executable: %w", err)
 	}
 	env := procexec.MergeEnvironment(procexec.Environ(), map[string]string{
-		"ESHU_QUERY_PROFILE":            string(query.ProfileLocalAuthoritative),
-		"ESHU_GRAPH_BACKEND":            string(query.GraphBackendNornicDB),
+		"ESHU_QUERY_PROFILE":            string(querycontract.ProfileLocalAuthoritative),
+		"ESHU_GRAPH_BACKEND":            string(querycontract.GraphBackendNornicDB),
 		localsupervisor.ProgressModeEnv: localsupervisor.ProgressModeQuiet,
 		localsupervisor.LogModeEnv:      localsupervisor.LogModeFile,
 		localsupervisor.LogDirEnv:       layout.LogsDir,

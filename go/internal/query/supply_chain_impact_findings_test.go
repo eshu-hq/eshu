@@ -14,6 +14,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 )
 
@@ -154,7 +155,7 @@ func TestSupplyChainListImpactFindingsUsesBoundedStore(t *testing.T) {
 	}
 
 	var resp struct {
-		Findings   []impact.FindingResult `json:"findings"`
+		Findings   []packet.FindingResult `json:"findings"`
 		Count      int                    `json:"count"`
 		Limit      int                    `json:"limit"`
 		Truncated  bool                   `json:"truncated"`
@@ -238,7 +239,7 @@ func TestSupplyChainListImpactFindingsDoesNotReportPresentCatalogCorrelationAsMi
 	}
 
 	var resp struct {
-		Findings []impact.FindingResult `json:"findings"`
+		Findings []packet.FindingResult `json:"findings"`
 	}
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal: %v", err)
@@ -250,8 +251,8 @@ func TestSupplyChainListImpactFindingsDoesNotReportPresentCatalogCorrelationAsMi
 	if containsString(missing, "service catalog correlation evidence missing") {
 		t.Fatalf("MissingEvidence = %#v, must not claim present catalog correlation is missing", missing)
 	}
-	if !containsString(missing, impact.ServiceCatalogAnchorMissingReason) {
-		t.Fatalf("MissingEvidence = %#v, want %s", missing, impact.ServiceCatalogAnchorMissingReason)
+	if !containsString(missing, packet.ServiceCatalogAnchorMissingReason) {
+		t.Fatalf("MissingEvidence = %#v, want %s", missing, packet.ServiceCatalogAnchorMissingReason)
 	}
 }
 

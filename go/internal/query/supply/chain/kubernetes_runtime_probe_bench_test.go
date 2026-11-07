@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 )
@@ -27,7 +28,7 @@ func BenchmarkApplySupplyChainKubernetesRuntimeEvidence200Digests(b *testing.B) 
 		}
 		matches[i] = KubernetesRuntimeWorkloadMatch{
 			Digest: digest,
-			WorkloadRef: impact.KubernetesRuntimeWorkloadRef{
+			WorkloadRef: packet.KubernetesRuntimeWorkloadRef{
 				UID: uid, ClusterID: "cluster-a", Namespace: "default", Name: fmt.Sprintf("workload-%03d", i),
 			},
 		}

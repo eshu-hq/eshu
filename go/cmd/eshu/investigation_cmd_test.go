@@ -13,6 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/cli/investigation"
 	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 )
 
 func runInvestigationExportCmd(t *testing.T, args []string, fetch func(investigation.Client, query.SupplyChainImpactExplanationFilter) (investigation.SupplyChainExplainEnvelope, error)) (string, error) {
@@ -83,18 +84,18 @@ func TestInvestigationExportSupplyChainJSON(t *testing.T) {
 	if err != nil {
 		t.Fatalf("export: %v", err)
 	}
-	var packet query.InvestigationEvidencePacket
-	if err := json.Unmarshal([]byte(out), &packet); err != nil {
+	var pkt packet.InvestigationEvidencePacket
+	if err := json.Unmarshal([]byte(out), &pkt); err != nil {
 		t.Fatalf("decode packet: %v\n%s", err, out)
 	}
-	if packet.Identity.Family != query.InvestigationFamilySupplyChainImpact {
-		t.Errorf("family = %q", packet.Identity.Family)
+	if pkt.Identity.Family != packet.InvestigationFamilySupplyChainImpact {
+		t.Errorf("family = %q", pkt.Identity.Family)
 	}
-	if !packet.Answer.Supported {
+	if !pkt.Answer.Supported {
 		t.Error("expected supported packet")
 	}
-	if packet.Schema != query.InvestigationEvidencePacketSchema {
-		t.Errorf("schema = %q", packet.Schema)
+	if pkt.Schema != packet.InvestigationEvidencePacketSchema {
+		t.Errorf("schema = %q", pkt.Schema)
 	}
 }
 
@@ -124,12 +125,12 @@ func TestInvestigationExportUnknownFamilyRefuses(t *testing.T) {
 	if err != nil {
 		t.Fatalf("export: %v", err)
 	}
-	var packet query.InvestigationEvidencePacket
-	if err := json.Unmarshal([]byte(out), &packet); err != nil {
+	var pkt packet.InvestigationEvidencePacket
+	if err := json.Unmarshal([]byte(out), &pkt); err != nil {
 		t.Fatalf("decode packet: %v", err)
 	}
-	if packet.Refusal != query.PacketRefusalUnknownFamily {
-		t.Errorf("refusal = %q, want unknown_family", packet.Refusal)
+	if pkt.Refusal != packet.PacketRefusalUnknownFamily {
+		t.Errorf("refusal = %q, want unknown_family", pkt.Refusal)
 	}
 }
 
@@ -143,12 +144,12 @@ func TestInvestigationExportMissingScopeRefuses(t *testing.T) {
 	if err != nil {
 		t.Fatalf("export: %v", err)
 	}
-	var packet query.InvestigationEvidencePacket
-	if err := json.Unmarshal([]byte(out), &packet); err != nil {
+	var pkt packet.InvestigationEvidencePacket
+	if err := json.Unmarshal([]byte(out), &pkt); err != nil {
 		t.Fatalf("decode packet: %v", err)
 	}
-	if packet.Refusal != query.PacketRefusalScopeNotFound {
-		t.Errorf("refusal = %q, want scope_not_found", packet.Refusal)
+	if pkt.Refusal != packet.PacketRefusalScopeNotFound {
+		t.Errorf("refusal = %q, want scope_not_found", pkt.Refusal)
 	}
 }
 
@@ -161,12 +162,12 @@ func TestInvestigationExportErrorEnvelopeRefuses(t *testing.T) {
 	if err != nil {
 		t.Fatalf("export: %v", err)
 	}
-	var packet query.InvestigationEvidencePacket
-	if err := json.Unmarshal([]byte(out), &packet); err != nil {
+	var pkt packet.InvestigationEvidencePacket
+	if err := json.Unmarshal([]byte(out), &pkt); err != nil {
 		t.Fatalf("decode packet: %v", err)
 	}
-	if packet.Refusal != query.PacketRefusalScopeNotFound {
-		t.Errorf("refusal = %q, want scope_not_found", packet.Refusal)
+	if pkt.Refusal != packet.PacketRefusalScopeNotFound {
+		t.Errorf("refusal = %q, want scope_not_found", pkt.Refusal)
 	}
 }
 
@@ -215,14 +216,14 @@ func TestInvestigationExportMaxSourceFactsWired(t *testing.T) {
 	if err != nil {
 		t.Fatalf("export: %v", err)
 	}
-	var packet query.InvestigationEvidencePacket
-	if err := json.Unmarshal([]byte(out), &packet); err != nil {
+	var pkt packet.InvestigationEvidencePacket
+	if err := json.Unmarshal([]byte(out), &pkt); err != nil {
 		t.Fatalf("decode packet: %v", err)
 	}
-	if len(packet.SourceFacts) != 1 {
-		t.Errorf("source facts = %d, want 1 (capped by --max-source-facts)", len(packet.SourceFacts))
+	if len(pkt.SourceFacts) != 1 {
+		t.Errorf("source facts = %d, want 1 (capped by --max-source-facts)", len(pkt.SourceFacts))
 	}
-	if !packet.Bounds.Truncated {
+	if !pkt.Bounds.Truncated {
 		t.Error("expected bounds.truncated when --max-source-facts caps the layer")
 	}
 }
@@ -236,12 +237,12 @@ func TestInvestigationExportUnsupportedProfileRefuses(t *testing.T) {
 	if err != nil {
 		t.Fatalf("export: %v", err)
 	}
-	var packet query.InvestigationEvidencePacket
-	if err := json.Unmarshal([]byte(out), &packet); err != nil {
+	var pkt packet.InvestigationEvidencePacket
+	if err := json.Unmarshal([]byte(out), &pkt); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if packet.Refusal != query.PacketRefusalProfileUnsupported {
-		t.Errorf("refusal = %q, want profile_unsupported", packet.Refusal)
+	if pkt.Refusal != packet.PacketRefusalProfileUnsupported {
+		t.Errorf("refusal = %q, want profile_unsupported", pkt.Refusal)
 	}
 }
 

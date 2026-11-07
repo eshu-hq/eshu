@@ -3,6 +3,10 @@
 
 package impact
 
+import (
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
+)
+
 // FindingRow is one durable impact finding decoded from
 // reducer-owned facts.
 type FindingRow struct {
@@ -37,15 +41,15 @@ type FindingRow struct {
 	PriorityScore         int
 	PriorityBucket        string
 	PriorityReasonCodes   []string
-	PriorityContributions []PriorityContribution
+	PriorityContributions []packet.PriorityContribution
 	// ExploitedTier is the additive #9882 item-4.5 exploited rank (kev,
 	// ssvc_active, epss, none), decoded from the persisted finding payload.
 	// Empty for rows written before the tier existed; the response omits it
 	// then rather than inventing a rank. Kept in the same field position as
-	// FindingResult so the FindingResult(row) conversion stays valid.
+	// packet.FindingResult so the packet.FindingResult(row) conversion stays valid.
 	ExploitedTier       string
 	RuntimeReachability string
-	Reachability        *ReachabilityResult
+	Reachability        *packet.ReachabilityResult
 	RepositoryID        string
 	SubjectDigest       string
 	ImageRef            string
@@ -61,8 +65,8 @@ type FindingRow struct {
 	// alone). Older rows written before #5426 landed decode this as a nil
 	// map, never as a fabricated value, and the response omits the field
 	// entirely for them. Kept in the same field
-	// position as FindingResult so the
-	// FindingResult(row) conversion stays valid.
+	// position as packet.FindingResult so the
+	// packet.FindingResult(row) conversion stays valid.
 	EnvironmentEvidence map[string]string
 	// CIDeclaredArtifactDigest and CIDeclaredImageRef carry the matched
 	// cicd_run_correlation deployment's OWN declared artifact identity
@@ -74,8 +78,8 @@ type FindingRow struct {
 	// not one inferred from the finding's own SubjectDigest/ImageRef. Empty
 	// for older rows written before #5469 landed, and for any row whose only
 	// CI/CD evidence matched through the weak branch. Kept in the same field
-	// position as FindingResult so the
-	// FindingResult(row) conversion stays valid.
+	// position as packet.FindingResult so the
+	// packet.FindingResult(row) conversion stays valid.
 	CIDeclaredArtifactDigest string
 	CIDeclaredImageRef       string
 	// CloudRuntimeResourceRefs names the observed cloud compute resources
@@ -86,25 +90,25 @@ type FindingRow struct {
 	// populates it at read time via applySupplyChainCloudRuntimeEvidence (a
 	// bounded CloudResource graph probe), mirroring how trace_deployment_chain
 	// derives its runtime_confirmed tier from live graph evidence. Kept in the
-	// same field position as FindingResult so the
-	// FindingResult(row) conversion stays valid.
+	// same field position as packet.FindingResult so the
+	// packet.FindingResult(row) conversion stays valid.
 	CloudRuntimeResourceRefs []string
 	// KubernetesRuntimeWorkloadRefs names current, authorized workloads observed
 	// running this finding's exact subject digest. It is query-time evidence and
 	// is intentionally distinct from repository-level RuntimeContext.WorkloadIDs.
-	KubernetesRuntimeWorkloadRefs []KubernetesRuntimeWorkloadRef
+	KubernetesRuntimeWorkloadRefs []packet.KubernetesRuntimeWorkloadRef
 	// KubernetesRuntimeProbe reports the digest-local candidate budget and only
 	// discloses truncation when the all-scopes authorization contract permits it.
-	KubernetesRuntimeProbe *KubernetesRuntimeProbeMetadata
+	KubernetesRuntimeProbe *packet.KubernetesRuntimeProbeMetadata
 	// RuntimeContext carries the read-time-resolved runtime context
 	// (workloads, services, deployments, environments, catalog refs) resolved
 	// from this finding's repository_id at query time (issue #5746). Like
 	// CloudRuntimeResourceRefs it is NOT decoded from the persisted payload:
 	// the findings handler populates it at read time via
 	// applySupplyChainRuntimeContext. Kept in the same field position as
-	// FindingResult so the
-	// FindingResult(row) conversion stays valid.
-	RuntimeContext    *RuntimeContextResult
+	// packet.FindingResult so the
+	// packet.FindingResult(row) conversion stays valid.
+	RuntimeContext    *packet.RuntimeContextResult
 	CatalogEntityRefs []string
 	CatalogOwnerRefs  []string
 	DependencyPath    []string
@@ -115,12 +119,12 @@ type FindingRow struct {
 	EvidenceFactIDs   []string
 	SourceFreshness   string
 	SourceConfidence  string
-	Provenance        *Provenance
+	Provenance        *packet.Provenance
 	// Suppression carries the reducer VEX/operator-policy decision; it is
 	// always populated (state=active when no suppression matched) so callers
 	// can audit suppression provenance even when the finding is hidden from
 	// the default view.
-	Suppression *SuppressionDecisionRow
+	Suppression *packet.SuppressionDecisionRow
 	// DetectionProfile records which evidence tier produced the row:
 	// precise for exact installed-version anchors, comprehensive for
 	// range-only, SBOM-derived, CPE-derived, malformed, or missing-version
@@ -128,21 +132,21 @@ type FindingRow struct {
 	// findings.
 	// Older rows written before profile tagging may return blank.
 	DetectionProfile string
-	// Remediation is the reducer-owned advisory-only safe-upgrade
+	// packet.Remediation is the reducer-owned advisory-only safe-upgrade
 	// recommendation for this finding. Older rows written before #595
 	// landed will leave this nil; callers must treat that as "no
 	// remediation computed" rather than "no fix available".
-	Remediation *Remediation
+	Remediation *packet.Remediation
 	// DeploymentTruthTier classifies the strongest deployment evidence
 	// available for this finding's repository or workload context (#5471).
 	DeploymentTruthTier string
-	// VersionResolutionTier and VersionResolutionCorroboration are NOT
+	// VersionResolutionTier and packet.VersionResolutionCorroboration are NOT
 	// decoded from the persisted finding payload. They are computed at read
 	// time by supplyChainVersionResolution (#5469) from this row's own
 	// fields, mirroring how DeploymentTruthTier is derived rather than
 	// stored. Kept in the same field position as
-	// FindingResult so the
-	// FindingResult(row) conversion stays valid.
+	// packet.FindingResult so the
+	// packet.FindingResult(row) conversion stays valid.
 	VersionResolutionTier          string
-	VersionResolutionCorroboration []VersionResolutionCorroboration
+	VersionResolutionCorroboration []packet.VersionResolutionCorroboration
 }

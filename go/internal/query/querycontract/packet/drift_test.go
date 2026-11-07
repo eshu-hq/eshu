@@ -1,17 +1,21 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package packet
 
-import "testing"
+import (
+	"testing"
 
-func driftTruth() *TruthEnvelope {
-	return &TruthEnvelope{
-		Level:     TruthLevelExact,
-		Basis:     TruthBasisRuntimeState,
-		Profile:   ProfileProduction,
-		Backend:   GraphBackendNornicDB,
-		Freshness: TruthFreshness{State: FreshnessFresh},
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+)
+
+func driftTruth() *querycontract.TruthEnvelope {
+	return &querycontract.TruthEnvelope{
+		Level:     querycontract.TruthLevelExact,
+		Basis:     querycontract.TruthBasisRuntimeState,
+		Profile:   querycontract.ProfileProduction,
+		Backend:   querycontract.GraphBackendNornicDB,
+		Freshness: querycontract.TruthFreshness{State: querycontract.FreshnessFresh},
 	}
 }
 
@@ -28,7 +32,7 @@ func driftFindings() []CloudRuntimeDriftFindingView {
 			CloudResourceUID: "aws:s3:bucket-b", FindingKind: "ambiguous_cloud_resource",
 			ManagementStatus: "ambiguous_management",
 			MissingEvidence:  []string{"no terraform state addresses this resource"},
-			SafetyGate:       IaCManagementSafetyGate{Outcome: "rejected", ReviewRequired: true, Warnings: []string{"ambiguous_ownership"}},
+			SafetyGate:       ManagementSafetyGate{Outcome: "rejected", ReviewRequired: true, Warnings: []string{"ambiguous_ownership"}},
 		},
 		{
 			FactID: "fact-drift-3", Provider: "aws", ScopeID: "acct-1", GenerationID: "gen-9",

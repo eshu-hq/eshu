@@ -3,10 +3,14 @@
 
 package impact
 
+import (
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
+)
+
 import "github.com/eshu-hq/eshu/go/internal/truth"
 
 // Agreement is the closed, three-state vocabulary a
-// VersionResolutionCorroboration entry reports (issue #5469
+// packet.VersionResolutionCorroboration entry reports (issue #5469
 // review finding R6). Raw textual equality across incomparable identity axes
 // -- a dpkg version string can never equal a sha256 digest -- would make
 // "disagrees" a guaranteed-false comparison an operator could mistake for a
@@ -30,22 +34,6 @@ const (
 	axisImageRef supplyChainVersionResolutionAxis = "image_ref"
 	axisVersion  supplyChainVersionResolutionAxis = "version"
 )
-
-// VersionResolutionCorroboration is one weaker deployment-truth
-// tier's own digest/version claim for a finding whose judged version/digest
-// (version_resolution_tier) was resolved from a stronger tier. Every present
-// weaker tier is disclosed here, including a tier whose claim disagrees with
-// the winner -- Agreement is "disagrees" in that case rather than the entry
-// being dropped, so an operator can see that two evidence sources disagree
-// instead of only ever seeing confirmation. A cross-axis pair (for example a
-// version compared against a digest) can never textually agree, so it is
-// reported "not_comparable" rather than a misleading "disagrees".
-type VersionResolutionCorroboration struct {
-	Tier            string `json:"tier"`
-	DigestOrVersion string `json:"digest_or_version,omitempty"`
-	EvidenceKind    string `json:"evidence_kind,omitempty"`
-	Agreement       string `json:"agreement"`
-}
 
 // supplyChainVersionResolutionCandidate is one deployment-truth tier's claim
 // under consideration for version resolution. Ineligible is set only for a
@@ -222,7 +210,7 @@ func supplyChainVersionResolutionAgreement(
 // at all -- not even a config-materialized one -- returns ("", nil).
 func supplyChainVersionResolution(
 	row *FindingRow,
-) (tier string, corroboration []VersionResolutionCorroboration) {
+) (tier string, corroboration []packet.VersionResolutionCorroboration) {
 	ciContradicts := supplyChainCIDeclaredDigestContradictsFinding(row)
 
 	// truth.AllDeploymentTruthTiers has exactly four members; the candidate
@@ -278,11 +266,11 @@ func supplyChainVersionResolution(
 // not_comparable, since there is no winning value to compare against.
 // Returns nil when there is nothing to disclose, matching the "omitted when
 // no weaker tier makes a claim" contract on
-// FindingResult.VersionResolutionCorroboration.
+// packet.FindingResult.VersionResolutionCorroboration.
 func supplyChainVersionResolutionCorroborationEntries(
 	candidates []supplyChainVersionResolutionCandidate,
 	winnerIndex int,
-) []VersionResolutionCorroboration {
+) []packet.VersionResolutionCorroboration {
 	entryCount := len(candidates)
 	var winner supplyChainVersionResolutionCandidate
 	if winnerIndex != -1 {
@@ -292,7 +280,7 @@ func supplyChainVersionResolutionCorroborationEntries(
 	if entryCount == 0 {
 		return nil
 	}
-	entries := make([]VersionResolutionCorroboration, 0, entryCount)
+	entries := make([]packet.VersionResolutionCorroboration, 0, entryCount)
 	for i, c := range candidates {
 		if i == winnerIndex {
 			continue
@@ -301,7 +289,7 @@ func supplyChainVersionResolutionCorroborationEntries(
 		if winnerIndex != -1 {
 			agreement = supplyChainVersionResolutionAgreement(c.value, c.axis, winner.value, winner.axis)
 		}
-		entries = append(entries, VersionResolutionCorroboration{
+		entries = append(entries, packet.VersionResolutionCorroboration{
 			Tier:            string(c.tier),
 			DigestOrVersion: c.value,
 			EvidenceKind:    c.kind,

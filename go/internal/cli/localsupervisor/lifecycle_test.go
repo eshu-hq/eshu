@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/eshulocal"
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 func TestGraphStopSignalsLiveOwnerInsteadOfGraphProcess(t *testing.T) {
@@ -32,8 +32,8 @@ func TestGraphStopSignalsLiveOwnerInsteadOfGraphProcess(t *testing.T) {
 	record := eshulocal.OwnerRecord{
 		PID:           42,
 		WorkspaceID:   "workspace-id",
-		Profile:       string(query.ProfileLocalAuthoritative),
-		GraphBackend:  string(query.GraphBackendNornicDB),
+		Profile:       string(querycontract.ProfileLocalAuthoritative),
+		GraphBackend:  string(querycontract.GraphBackendNornicDB),
 		GraphPID:      88,
 		GraphBoltPort: 17687,
 		GraphHTTPPort: 17474,
@@ -88,8 +88,8 @@ func TestGraphStopStopsRecordedGraphWhenOwnerIsDead(t *testing.T) {
 	record := eshulocal.OwnerRecord{
 		PID:           42,
 		WorkspaceID:   "workspace-id",
-		Profile:       string(query.ProfileLocalAuthoritative),
-		GraphBackend:  string(query.GraphBackendNornicDB),
+		Profile:       string(querycontract.ProfileLocalAuthoritative),
+		GraphBackend:  string(querycontract.GraphBackendNornicDB),
 		GraphPID:      88,
 		GraphBoltPort: 17687,
 		GraphHTTPPort: 17474,
@@ -139,8 +139,8 @@ func TestGraphStopReclaimsDeadAuthoritativeOwnerRecord(t *testing.T) {
 	record := eshulocal.OwnerRecord{
 		PID:          42,
 		WorkspaceID:  "workspace-id",
-		Profile:      string(query.ProfileLocalAuthoritative),
-		GraphBackend: string(query.GraphBackendNornicDB),
+		Profile:      string(querycontract.ProfileLocalAuthoritative),
+		GraphBackend: string(querycontract.GraphBackendNornicDB),
 		GraphPID:     42,
 	}
 	graphReadOwnerRecord = func(path string) (eshulocal.OwnerRecord, error) {
@@ -185,7 +185,7 @@ func TestGraphStopSignalsLightweightOwnerWhenAlive(t *testing.T) {
 
 	record := eshulocal.OwnerRecord{
 		PID:                99,
-		Profile:            string(query.ProfileLocalLightweight),
+		Profile:            string(querycontract.ProfileLocalLightweight),
 		PostgresSocketPath: "/tmp/.s.PGSQL.15439",
 	}
 	graphReadOwnerRecord = func(path string) (eshulocal.OwnerRecord, error) {
@@ -235,7 +235,7 @@ func TestGraphStopCleansStaleLightweightRecordWithoutSignalingReusedPID(t *testi
 	}
 	record := eshulocal.OwnerRecord{
 		PID:                99,
-		Profile:            string(query.ProfileLocalLightweight),
+		Profile:            string(querycontract.ProfileLocalLightweight),
 		PostgresSocketPath: "/tmp/.s.PGSQL.15439",
 	}
 	graphReadOwnerRecord = func(path string) (eshulocal.OwnerRecord, error) {
@@ -286,7 +286,7 @@ func TestGraphStopKeepsLightweightRecordWhenOwnerLockHeldAndSocketUnhealthy(t *t
 	}
 	record := eshulocal.OwnerRecord{
 		PID:                99,
-		Profile:            string(query.ProfileLocalLightweight),
+		Profile:            string(querycontract.ProfileLocalLightweight),
 		PostgresPID:        77,
 		PostgresDataDir:    "/tmp/eshu/postgres",
 		PostgresSocketPath: "/tmp/.s.PGSQL.15439",
@@ -343,7 +343,7 @@ func TestGraphStopStopsStaleLightweightPostgresBeforeRemovingRecord(t *testing.T
 	}
 	record := eshulocal.OwnerRecord{
 		PID:                99,
-		Profile:            string(query.ProfileLocalLightweight),
+		Profile:            string(querycontract.ProfileLocalLightweight),
 		PostgresPID:        77,
 		PostgresDataDir:    "/tmp/eshu/postgres",
 		PostgresSocketPath: "/tmp/.s.PGSQL.15439",
@@ -405,7 +405,7 @@ func TestGraphStopReturnsNilWhenLightweightOwnerAlreadyDead(t *testing.T) {
 	}
 	record := eshulocal.OwnerRecord{
 		PID:     99,
-		Profile: string(query.ProfileLocalLightweight),
+		Profile: string(querycontract.ProfileLocalLightweight),
 	}
 	graphReadOwnerRecord = func(path string) (eshulocal.OwnerRecord, error) {
 		return record, nil

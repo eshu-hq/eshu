@@ -9,7 +9,8 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/cli/investigation"
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 )
 
 func TestBuildPacketDeployableUnit(t *testing.T) {
@@ -23,11 +24,11 @@ func TestBuildPacketDeployableUnit(t *testing.T) {
 			FetchAdmissionDecisions: func(_ investigation.Client, params url.Values) (investigation.AdmissionDecisionsEnvelope, error) {
 				gotParams = params
 				env := investigation.AdmissionDecisionsEnvelope{Truth: exactTruth()}
-				env.Data.Decisions = []query.AdmissionDecisionResult{{
+				env.Data.Decisions = []packet.AdmissionDecisionResult{{
 					DecisionID: "d1", Domain: "deployable_unit_correlation", State: "admitted",
 					ScopeID: "s1", GenerationID: "g1", AnchorKind: "repository", AnchorID: "repo-1",
 					CandidateKind: "deployable_unit", CandidateID: "w1",
-					CanonicalWrite: query.AdmissionDecisionCanonicalWrite{
+					CanonicalWrite: packet.AdmissionDecisionCanonicalWrite{
 						Written: true, TargetKind: "CORRELATES_DEPLOYABLE_UNIT", TargetID: "w1",
 					},
 				}}
@@ -35,7 +36,7 @@ func TestBuildPacketDeployableUnit(t *testing.T) {
 			},
 		}
 		packet, err := investigation.BuildPacket(&failClient{t: t}, deps, investigation.Request{
-			Family: query.InvestigationFamilyDeployableUnit,
+			Family: packet.InvestigationFamilyDeployableUnit,
 			Subject: map[string]string{
 				"scope_id": "s1", "generation_id": "g1", "repository_id": "repo-1", "workload_id": "w1",
 			},
@@ -65,15 +66,15 @@ func TestBuildPacketDeployableUnit(t *testing.T) {
 			{"workload_id": "w1", "generation_id": "g1"},
 			{"scope_id": "s1", "workload_id": "w1"},
 		} {
-			packet, err := investigation.BuildPacket(&failClient{t: t}, deps, investigation.Request{
-				Family:  query.InvestigationFamilyDeployableUnit,
+			pkt, err := investigation.BuildPacket(&failClient{t: t}, deps, investigation.Request{
+				Family:  packet.InvestigationFamilyDeployableUnit,
 				Subject: subject,
 			})
 			if err != nil {
 				t.Fatalf("BuildPacket(%v): %v", subject, err)
 			}
-			if packet.Refusal != query.PacketRefusalScopeNotFound {
-				t.Fatalf("refusal = %q for %v, want scope_not_found", packet.Refusal, subject)
+			if pkt.Refusal != packet.PacketRefusalScopeNotFound {
+				t.Fatalf("refusal = %q for %v, want scope_not_found", pkt.Refusal, subject)
 			}
 		}
 	})
@@ -86,15 +87,15 @@ func TestBuildPacketDeployableUnit(t *testing.T) {
 				return investigation.AdmissionDecisionsEnvelope{}, &statusError{code: 503}
 			},
 		}
-		packet, err := investigation.BuildPacket(&failClient{t: t}, deps, investigation.Request{
-			Family:  query.InvestigationFamilyDeployableUnit,
+		pkt, err := investigation.BuildPacket(&failClient{t: t}, deps, investigation.Request{
+			Family:  packet.InvestigationFamilyDeployableUnit,
 			Subject: map[string]string{"scope_id": "s1", "generation_id": "g1"},
 		})
 		if err != nil {
 			t.Fatalf("BuildPacket: %v", err)
 		}
-		if packet.Refusal != query.PacketRefusalBackendUnavailable {
-			t.Fatalf("refusal = %q, want backend_unavailable", packet.Refusal)
+		if pkt.Refusal != packet.PacketRefusalBackendUnavailable {
+			t.Fatalf("refusal = %q, want backend_unavailable", pkt.Refusal)
 		}
 	})
 }
@@ -109,12 +110,12 @@ func TestBuildPacketDrift(t *testing.T) {
 		deps := investigation.Deps{
 			FetchDriftFindings: func(_ investigation.Client, body map[string]any) (investigation.DriftFindingsEnvelope, error) {
 				gotBody = body
-				env := investigation.DriftFindingsEnvelope{Truth: &query.TruthEnvelope{
-					Level:     query.TruthLevelExact,
-					Basis:     query.TruthBasisRuntimeState,
-					Freshness: query.TruthFreshness{State: query.FreshnessFresh},
+				env := investigation.DriftFindingsEnvelope{Truth: &querycontract.TruthEnvelope{
+					Level:     querycontract.TruthLevelExact,
+					Basis:     querycontract.TruthBasisRuntimeState,
+					Freshness: querycontract.TruthFreshness{State: querycontract.FreshnessFresh},
 				}}
-				env.Data.DriftFindings = []query.CloudRuntimeDriftFindingView{{
+				env.Data.DriftFindings = []packet.CloudRuntimeDriftFindingView{{
 					FactID: "f1", Provider: "aws", ScopeID: "acct1",
 					CloudResourceUID: "aws:s3:b", FindingKind: "orphaned_cloud_resource",
 					MatchedTerraformStateAddress: "aws_s3_bucket.b",
@@ -122,8 +123,8 @@ func TestBuildPacketDrift(t *testing.T) {
 				return env, nil
 			},
 		}
-		packet, err := investigation.BuildPacket(&failClient{t: t}, deps, investigation.Request{
-			Family:  query.InvestigationFamilyDrift,
+		pkt, err := investigation.BuildPacket(&failClient{t: t}, deps, investigation.Request{
+			Family:  packet.InvestigationFamilyDrift,
 			Subject: map[string]string{"scope_id": "acct1", "provider": "aws"},
 		})
 		if err != nil {
@@ -132,8 +133,8 @@ func TestBuildPacketDrift(t *testing.T) {
 		if gotBody["scope_id"] != "acct1" || gotBody["provider"] != "aws" {
 			t.Fatalf("body = %v", gotBody)
 		}
-		if packet.Identity.Family != query.InvestigationFamilyDrift {
-			t.Fatalf("family = %q", packet.Identity.Family)
+		if pkt.Identity.Family != packet.InvestigationFamilyDrift {
+			t.Fatalf("family = %q", pkt.Identity.Family)
 		}
 	})
 
@@ -146,15 +147,15 @@ func TestBuildPacketDrift(t *testing.T) {
 				return investigation.DriftFindingsEnvelope{}, nil
 			},
 		}
-		packet, err := investigation.BuildPacket(&failClient{t: t}, deps, investigation.Request{
-			Family:  query.InvestigationFamilyDrift,
+		pkt, err := investigation.BuildPacket(&failClient{t: t}, deps, investigation.Request{
+			Family:  packet.InvestigationFamilyDrift,
 			Subject: map[string]string{"provider": "aws"},
 		})
 		if err != nil {
 			t.Fatalf("BuildPacket: %v", err)
 		}
-		if packet.Refusal != query.PacketRefusalScopeNotFound {
-			t.Fatalf("refusal = %q, want scope_not_found", packet.Refusal)
+		if pkt.Refusal != packet.PacketRefusalScopeNotFound {
+			t.Fatalf("refusal = %q, want scope_not_found", pkt.Refusal)
 		}
 	})
 
@@ -164,12 +165,12 @@ func TestBuildPacketDrift(t *testing.T) {
 		deps := investigation.Deps{
 			FetchDriftFindings: func(investigation.Client, map[string]any) (investigation.DriftFindingsEnvelope, error) {
 				return investigation.DriftFindingsEnvelope{
-					Error: &query.ErrorEnvelope{Code: query.ErrorCodeInvalidArgument, Message: "bad provider"},
+					Error: &querycontract.ErrorEnvelope{Code: querycontract.ErrorCodeInvalidArgument, Message: "bad provider"},
 				}, nil
 			},
 		}
 		_, err := investigation.BuildPacket(&failClient{t: t}, deps, investigation.Request{
-			Family:  query.InvestigationFamilyDrift,
+			Family:  packet.InvestigationFamilyDrift,
 			Subject: map[string]string{"scope_id": "acct1"},
 		})
 		if err == nil {

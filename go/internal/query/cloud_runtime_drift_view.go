@@ -7,18 +7,20 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 )
 
 // cloudRuntimeDriftFindingViews projects reducer rows into the bounded wire shape.
 // Each view applies the shared safety gate so an unsafe finding is reported as
 // rejected with a refused action rather than dropped, and the provider-neutral
 // source state is resolved through the same taxonomy the AWS surface uses.
-func cloudRuntimeDriftFindingViews(rows []MultiCloudRuntimeDriftFindingRow) []CloudRuntimeDriftFindingView {
-	views := make([]CloudRuntimeDriftFindingView, 0, len(rows))
+func cloudRuntimeDriftFindingViews(rows []MultiCloudRuntimeDriftFindingRow) []packet.CloudRuntimeDriftFindingView {
+	views := make([]packet.CloudRuntimeDriftFindingView, 0, len(rows))
 	for _, row := range rows {
 		status := strings.TrimSpace(row.ManagementStatus)
 		gate := iacManagementSafetyGate(status, row.WarningFlags, nil)
-		views = append(views, CloudRuntimeDriftFindingView{
+		views = append(views, packet.CloudRuntimeDriftFindingView{
 			FactID:                       row.FactID,
 			Provider:                     strings.TrimSpace(row.Provider),
 			ScopeID:                      row.ScopeID,
@@ -49,7 +51,7 @@ type cloudRuntimeDriftSourceStateGroup struct {
 
 // cloudRuntimeDriftSourceStateGroups rolls views up by provider-neutral source
 // state in canonical order so callers can summarize refusal posture cheaply.
-func cloudRuntimeDriftSourceStateGroups(views []CloudRuntimeDriftFindingView) []cloudRuntimeDriftSourceStateGroup {
+func cloudRuntimeDriftSourceStateGroups(views []packet.CloudRuntimeDriftFindingView) []cloudRuntimeDriftSourceStateGroup {
 	byState := map[string]*cloudRuntimeDriftSourceStateGroup{}
 	var states []string
 	for _, view := range views {
@@ -74,7 +76,7 @@ func cloudRuntimeDriftSourceStateGroups(views []CloudRuntimeDriftFindingView) []
 
 func cloudRuntimeDriftStory(
 	filter MultiCloudRuntimeDriftFilter,
-	views []CloudRuntimeDriftFindingView,
+	views []packet.CloudRuntimeDriftFindingView,
 	total int,
 ) string {
 	scope := filter.ScopeID

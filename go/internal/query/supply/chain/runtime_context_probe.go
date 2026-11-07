@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 )
 
@@ -39,7 +40,7 @@ type supplyChainImpactRuntimeContextReader interface {
 // internal/query/supply/chain/impact with the other runtime-evidence
 // read-model types (#6060 lane A); see compat_supply_chain.go.
 
-// impact.RuntimeEnvironmentEvidenceProbe moved to
+// packet.RuntimeEnvironmentEvidenceProbe moved to
 // internal/query/supply/chain/impact with the other runtime-evidence
 // read-model types (#6060 lane A); see compat_supply_chain.go.
 
@@ -63,7 +64,7 @@ const MaxRuntimeEnvironmentCandidates = ImpactFindingMaxLimit
 // needed for them.
 type RuntimeEnvironmentPlan struct {
 	candidates []impact.RuntimeEnvironmentCandidate
-	metadata   *impact.RuntimeEnvironmentEvidenceProbe
+	metadata   *packet.RuntimeEnvironmentEvidenceProbe
 }
 
 // applySupplyChainRuntimeContext resolves each finding row's runtime context
@@ -159,7 +160,7 @@ func (h *Handler) applySupplyChainRuntimeContext(
 			append([]string(nil), resolved.Environments...),
 			mapStringKeys(digestEvidence)...,
 		))
-		rows[i].RuntimeContext = &impact.RuntimeContextResult{
+		rows[i].RuntimeContext = &packet.RuntimeContextResult{
 			TruthBasis:               supplyChainRuntimeContextTruthBasis,
 			WorkloadIDs:              UniqueSortedNonEmpty(resolved.WorkloadIDs),
 			ServiceIDs:               UniqueSortedNonEmpty(resolved.ServiceIDs),
@@ -241,7 +242,7 @@ func PlanRuntimeEnvironmentCandidates(
 		if len(available[rowIndex]) == 0 {
 			continue
 		}
-		plans[rowIndex].metadata = &impact.RuntimeEnvironmentEvidenceProbe{
+		plans[rowIndex].metadata = &packet.RuntimeEnvironmentEvidenceProbe{
 			CandidateLimit:      len(plans[rowIndex].candidates),
 			CandidatesTruncated: len(plans[rowIndex].candidates) < len(available[rowIndex]),
 		}

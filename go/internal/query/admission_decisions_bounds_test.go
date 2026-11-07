@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 )
 
 func TestAdmissionDecisionUnsupportedProfileReturnsContractErrorBeforeStoreRead(t *testing.T) {
@@ -46,9 +48,9 @@ func TestAdmissionDecisionUnsupportedProfileReturnsContractErrorBeforeStoreRead(
 func TestAdmissionDecisionHandlerCapsIncludedEvidencePerDecision(t *testing.T) {
 	t.Parallel()
 
-	evidence := make([]AdmissionDecisionEvidenceRow, 0, 25)
+	evidence := make([]packet.AdmissionDecisionEvidenceRow, 0, 25)
 	for i := range 25 {
-		evidence = append(evidence, AdmissionDecisionEvidenceRow{
+		evidence = append(evidence, packet.AdmissionDecisionEvidenceRow{
 			EvidenceID:   "evidence-extra",
 			DecisionID:   "decision-1",
 			SourceHandle: "fact:relationship:1",
@@ -61,7 +63,7 @@ func TestAdmissionDecisionHandlerCapsIncludedEvidencePerDecision(t *testing.T) {
 		rows: []AdmissionDecisionReadRow{
 			admissionDecisionReadRow("decision-1", "admitted"),
 		},
-		evidence: map[string][]AdmissionDecisionEvidenceRow{
+		evidence: map[string][]packet.AdmissionDecisionEvidenceRow{
 			"decision-1": evidence,
 		},
 	}
@@ -87,7 +89,7 @@ func TestAdmissionDecisionHandlerCapsIncludedEvidencePerDecision(t *testing.T) {
 		t.Fatalf("evidence limit = %d, want %d for limit+1 truncation proof", got, want)
 	}
 	var body struct {
-		Decisions []AdmissionDecisionResult `json:"decisions"`
+		Decisions []packet.AdmissionDecisionResult `json:"decisions"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
 		t.Fatalf("decode response: %v; body = %s", err, rec.Body.String())

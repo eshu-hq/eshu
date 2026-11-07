@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/eshulocal"
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 func TestGraphStatusForLayoutWithoutOwnerRecord(t *testing.T) {
@@ -68,8 +68,8 @@ func TestGraphStatusForLayoutReportsRunningAuthoritativeBackend(t *testing.T) {
 	record := eshulocal.OwnerRecord{
 		PID:           100,
 		StartedAt:     "2026-04-22T20:00:00Z",
-		Profile:       string(query.ProfileLocalAuthoritative),
-		GraphBackend:  string(query.GraphBackendNornicDB),
+		Profile:       string(querycontract.ProfileLocalAuthoritative),
+		GraphBackend:  string(querycontract.GraphBackendNornicDB),
 		GraphAddress:  "127.0.0.1",
 		GraphPID:      200,
 		GraphBoltPort: 17687,
@@ -107,11 +107,11 @@ func TestGraphStatusForLayoutReportsRunningAuthoritativeBackend(t *testing.T) {
 	if !got.OwnerPresent {
 		t.Fatal("OwnerPresent = false, want true")
 	}
-	if got.Profile != string(query.ProfileLocalAuthoritative) {
-		t.Fatalf("Profile = %q, want %q", got.Profile, query.ProfileLocalAuthoritative)
+	if got.Profile != string(querycontract.ProfileLocalAuthoritative) {
+		t.Fatalf("Profile = %q, want %q", got.Profile, querycontract.ProfileLocalAuthoritative)
 	}
-	if got.GraphBackend != string(query.GraphBackendNornicDB) {
-		t.Fatalf("GraphBackend = %q, want %q", got.GraphBackend, query.GraphBackendNornicDB)
+	if got.GraphBackend != string(querycontract.GraphBackendNornicDB) {
+		t.Fatalf("GraphBackend = %q, want %q", got.GraphBackend, querycontract.GraphBackendNornicDB)
 	}
 	if !got.GraphInstalled {
 		t.Fatal("GraphInstalled = false, want true")

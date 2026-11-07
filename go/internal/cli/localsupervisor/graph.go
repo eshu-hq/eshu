@@ -21,7 +21,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/eshulocal"
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 var (
@@ -43,7 +43,7 @@ var (
 // value is not usable; construct one through StartManagedNornicDB or
 // ManagedGraphFromRecord.
 type ManagedGraph struct {
-	Backend    query.GraphBackend
+	Backend    querycontract.GraphBackend
 	Version    string
 	BinaryPath string
 	Address    string
@@ -61,7 +61,7 @@ type ManagedGraph struct {
 
 func startManagedLocalGraph(ctx context.Context, layout eshulocal.Layout, runtimeConfig RuntimeConfig) (*ManagedGraph, error) {
 	switch runtimeConfig.GraphBackend {
-	case query.GraphBackendNornicDB:
+	case querycontract.GraphBackendNornicDB:
 		return StartManagedNornicDB(ctx, layout)
 	default:
 		return nil, fmt.Errorf("graph backend %q is not supported by local_authoritative host", runtimeConfig.GraphBackend)
@@ -310,7 +310,7 @@ func ManagedGraphFromRecord(record eshulocal.OwnerRecord) *ManagedGraph {
 		return nil
 	}
 	return &ManagedGraph{
-		Backend:    query.GraphBackend(record.GraphBackend),
+		Backend:    querycontract.GraphBackend(record.GraphBackend),
 		Version:    record.GraphVersion,
 		Address:    record.GraphAddress,
 		BoltPort:   record.GraphBoltPort,
@@ -324,7 +324,7 @@ func ManagedGraphFromRecord(record eshulocal.OwnerRecord) *ManagedGraph {
 }
 
 func graphEnvOverrides(graph *ManagedGraph) map[string]string {
-	if graph == nil || graph.Backend != query.GraphBackendNornicDB {
+	if graph == nil || graph.Backend != querycontract.GraphBackendNornicDB {
 		return nil
 	}
 	boltURI := fmt.Sprintf("bolt://%s:%d", graph.Address, graph.BoltPort)

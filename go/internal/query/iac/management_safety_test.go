@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
@@ -135,7 +136,7 @@ func TestIaCManagementSafetySummaryCountsReviewAndRedactions(t *testing.T) {
 			ID:               "finding:one",
 			WarningFlags:     []string{"security_sensitive_resource"},
 			ManagementStatus: ManagementStatusCloudOnly,
-			SafetyGate: ManagementSafetyGate{
+			SafetyGate: packet.ManagementSafetyGate{
 				Outcome:        "security_review_required",
 				ReviewRequired: true,
 				Redactions:     []string{"sensitive_evidence_value"},

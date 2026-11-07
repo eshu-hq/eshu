@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 )
 
@@ -16,9 +17,9 @@ func TestSupplyChainExplainImpactAmbiguousScope(t *testing.T) {
 	t.Parallel()
 
 	readiness := &recordingSupplyChainImpactReadinessStore{
-		snapshot: impact.ReadinessSnapshot{
-			EvidenceSources: []impact.EvidenceFamily{
-				{Family: impact.EvidenceFamilyPackageConsumption, FactCount: 2, Freshness: impact.FreshnessLabelFresh},
+		snapshot: packet.ReadinessSnapshot{
+			EvidenceSources: []packet.EvidenceFamily{
+				{Family: packet.EvidenceFamilyPackageConsumption, FactCount: 2, Freshness: packet.FreshnessLabelFresh},
 			},
 		},
 	}
@@ -42,7 +43,7 @@ func TestSupplyChainExplainImpactAmbiguousScope(t *testing.T) {
 	}
 
 	var envelope struct {
-		Data  impact.ExplanationResult `json:"data"`
+		Data  packet.ExplanationResult `json:"data"`
 		Truth *TruthEnvelope           `json:"truth"`
 		Error *ErrorEnvelope           `json:"error"`
 	}
@@ -80,7 +81,7 @@ func TestSupplyChainExplainImpactAmbiguousScope(t *testing.T) {
 	if !containsString(resp.MissingEvidence, "ambiguous_scope") {
 		t.Fatalf("MissingEvidence = %#v, want ambiguous_scope", resp.MissingEvidence)
 	}
-	if got, want := resp.Readiness.State, impact.ReadinessStateAmbiguousScope; got != want {
+	if got, want := resp.Readiness.State, packet.ReadinessStateAmbiguousScope; got != want {
 		t.Fatalf("Readiness.State = %q, want %q", got, want)
 	}
 	if got, want := resp.Readiness.Counts.FindingsReturned, 2; got != want {
@@ -98,11 +99,11 @@ func TestSupplyChainImpactAmbiguousExplanationUsesCandidateCount(t *testing.T) {
 	t.Parallel()
 
 	body := impact.BuildAmbiguousExplanation(
-		impact.ExplanationFilter{AdvisoryID: "GHSA-ambiguous", RepositoryID: "repo://example/api"},
-		impact.ReadinessEnvelope{State: impact.ReadinessStateReadyZeroFindings},
+		packet.ExplanationFilter{AdvisoryID: "GHSA-ambiguous", RepositoryID: "repo://example/api"},
+		packet.ReadinessEnvelope{State: packet.ReadinessStateReadyZeroFindings},
 		4,
 	)
-	if got, want := body.Readiness.State, impact.ReadinessStateAmbiguousScope; got != want {
+	if got, want := body.Readiness.State, packet.ReadinessStateAmbiguousScope; got != want {
 		t.Fatalf("Readiness.State = %q, want %q", got, want)
 	}
 	if got, want := body.Readiness.Counts.FindingsReturned, 4; got != want {

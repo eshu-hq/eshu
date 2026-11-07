@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 )
 
 // DecodeFindingRow decodes one reducer_supply_chain_impact_finding
@@ -93,7 +94,7 @@ func DecodeFindingRow(
 	return row, nil
 }
 
-func decodeSupplyChainReachability(payload map[string]any) *ReachabilityResult {
+func decodeSupplyChainReachability(payload map[string]any) *packet.ReachabilityResult {
 	raw, ok := payload["reachability"].(map[string]any)
 	if !ok {
 		return nil
@@ -102,7 +103,7 @@ func decodeSupplyChainReachability(payload map[string]any) *ReachabilityResult {
 	if state == "" {
 		return nil
 	}
-	return &ReachabilityResult{
+	return &packet.ReachabilityResult{
 		State:            state,
 		Confidence:       querycontract.StringVal(raw, "confidence"),
 		Source:           querycontract.StringVal(raw, "source"),
@@ -145,16 +146,16 @@ func inferLegacyDetectionProfile(impactStatus string, observedVersion string, ma
 	}
 }
 
-func decodeSupplyChainSuppressionDecision(payload map[string]any) *SuppressionDecisionRow {
+func decodeSupplyChainSuppressionDecision(payload map[string]any) *packet.SuppressionDecisionRow {
 	raw, ok := payload["suppression"].(map[string]any)
 	if !ok || len(raw) == 0 {
 		state := querycontract.StringVal(payload, "suppression_state")
 		if state == "" {
 			return nil
 		}
-		return &SuppressionDecisionRow{State: state}
+		return &packet.SuppressionDecisionRow{State: state}
 	}
-	row := SuppressionDecisionRow{
+	row := packet.SuppressionDecisionRow{
 		State:          querycontract.StringVal(raw, "state"),
 		SuppressionID:  querycontract.StringVal(raw, "suppression_id"),
 		Source:         querycontract.StringVal(raw, "source"),
@@ -176,12 +177,12 @@ func decodeSupplyChainSuppressionDecision(payload map[string]any) *SuppressionDe
 	return &row
 }
 
-func decodeSupplyChainImpactProvenance(payload map[string]any) *Provenance {
+func decodeSupplyChainImpactProvenance(payload map[string]any) *packet.Provenance {
 	raw, ok := payload["provenance"].(map[string]any)
 	if !ok || len(raw) == 0 {
 		return nil
 	}
-	provenance := Provenance{
+	provenance := packet.Provenance{
 		SelectedSeveritySource:      querycontract.StringVal(raw, "selected_severity_source"),
 		SelectedSeverityScore:       querycontract.FloatVal(raw, "selected_severity_score"),
 		SelectedSeverityScoreSource: querycontract.StringVal(raw, "selected_severity_score_source"),
@@ -196,40 +197,24 @@ func decodeSupplyChainImpactProvenance(payload map[string]any) *Provenance {
 	provenance.FixedVersionBranches = decodeFixedVersionBranches(raw["fixed_version_branches"])
 	provenance.AdvisorySources = decodeAdvisorySources(raw["advisory_sources"])
 	provenance.AdvisoryRetraction = decodeAdvisoryRetraction(raw["advisory_retraction"])
-	if provenance.isEmpty() {
+	if provenance.IsEmpty() {
 		return nil
 	}
 	return &provenance
 }
 
-func (p Provenance) isEmpty() bool {
-	return p.SelectedSeveritySource == "" &&
-		p.SelectedSeverityScore == 0 &&
-		p.SelectedSeverityScoreSource == "" &&
-		p.SelectedSeverityVector == "" &&
-		p.SelectedSeverityLabel == "" &&
-		p.SelectedFixedVersionSource == "" &&
-		p.SelectedRangeSource == "" &&
-		p.SelectedEPSSScoreDate == "" &&
-		p.SelectedEPSSModelVersion == "" &&
-		len(p.AlternateSeverities) == 0 &&
-		len(p.FixedVersionBranches) == 0 &&
-		len(p.AdvisorySources) == 0 &&
-		p.AdvisoryRetraction == nil
-}
-
-func decodeAlternateSeverities(raw any) []AlternateSeverity {
+func decodeAlternateSeverities(raw any) []packet.AlternateSeverity {
 	items, ok := raw.([]any)
 	if !ok || len(items) == 0 {
 		return nil
 	}
-	out := make([]AlternateSeverity, 0, len(items))
+	out := make([]packet.AlternateSeverity, 0, len(items))
 	for _, item := range items {
 		row, ok := item.(map[string]any)
 		if !ok {
 			continue
 		}
-		out = append(out, AlternateSeverity{
+		out = append(out, packet.AlternateSeverity{
 			Source:      querycontract.StringVal(row, "source"),
 			Score:       querycontract.FloatVal(row, "score"),
 			ScoreSource: querycontract.StringVal(row, "score_source"),
@@ -243,18 +228,18 @@ func decodeAlternateSeverities(raw any) []AlternateSeverity {
 	return out
 }
 
-func decodeFixedVersionBranches(raw any) []FixedVersionBranch {
+func decodeFixedVersionBranches(raw any) []packet.FixedVersionBranch {
 	items, ok := raw.([]any)
 	if !ok || len(items) == 0 {
 		return nil
 	}
-	out := make([]FixedVersionBranch, 0, len(items))
+	out := make([]packet.FixedVersionBranch, 0, len(items))
 	for _, item := range items {
 		row, ok := item.(map[string]any)
 		if !ok {
 			continue
 		}
-		out = append(out, FixedVersionBranch{
+		out = append(out, packet.FixedVersionBranch{
 			Version: querycontract.StringVal(row, "version"),
 			Source:  querycontract.StringVal(row, "source"),
 		})
@@ -265,18 +250,18 @@ func decodeFixedVersionBranches(raw any) []FixedVersionBranch {
 	return out
 }
 
-func decodeAdvisorySources(raw any) []AdvisorySource {
+func decodeAdvisorySources(raw any) []packet.AdvisorySource {
 	items, ok := raw.([]any)
 	if !ok || len(items) == 0 {
 		return nil
 	}
-	out := make([]AdvisorySource, 0, len(items))
+	out := make([]packet.AdvisorySource, 0, len(items))
 	for _, item := range items {
 		row, ok := item.(map[string]any)
 		if !ok {
 			continue
 		}
-		out = append(out, AdvisorySource{
+		out = append(out, packet.AdvisorySource{
 			Source:          querycontract.StringVal(row, "source"),
 			AdvisoryID:      querycontract.StringVal(row, "advisory_id"),
 			SourceUpdatedAt: querycontract.StringVal(row, "source_updated_at"),
@@ -291,32 +276,12 @@ func decodeAdvisorySources(raw any) []AdvisorySource {
 	return out
 }
 
-// AdvisoryRetraction is the explanation the reducer attaches to a finding whose
-// every source record rejected or withdrew its advisory (#9695). ReplacedBy
-// repeats only what a source stated; Eshu never infers a replacement.
-type AdvisoryRetraction struct {
-	ReasonCode string             `json:"reason_code"`
-	Reason     string             `json:"reason"`
-	ReplacedBy []string           `json:"replaced_by,omitempty"`
-	Sources    []RetractionSource `json:"sources,omitempty"`
-}
-
-// RetractionSource is one source record that retracted its advisory.
-type RetractionSource struct {
-	Source      string   `json:"source"`
-	AdvisoryID  string   `json:"advisory_id,omitempty"`
-	ReasonCode  string   `json:"reason_code"`
-	Status      string   `json:"status,omitempty"`
-	WithdrawnAt string   `json:"withdrawn_at,omitempty"`
-	ReplacedBy  []string `json:"replaced_by,omitempty"`
-}
-
-func decodeAdvisoryRetraction(raw any) *AdvisoryRetraction {
+func decodeAdvisoryRetraction(raw any) *packet.AdvisoryRetraction {
 	row, ok := raw.(map[string]any)
 	if !ok || len(row) == 0 {
 		return nil
 	}
-	retraction := AdvisoryRetraction{
+	retraction := packet.AdvisoryRetraction{
 		ReasonCode: querycontract.StringVal(row, "reason_code"),
 		Reason:     querycontract.StringVal(row, "reason"),
 		ReplacedBy: querycontract.StringSliceVal(row, "replaced_by"),
@@ -327,7 +292,7 @@ func decodeAdvisoryRetraction(raw any) *AdvisoryRetraction {
 			if !ok {
 				continue
 			}
-			retraction.Sources = append(retraction.Sources, RetractionSource{
+			retraction.Sources = append(retraction.Sources, packet.RetractionSource{
 				Source:      querycontract.StringVal(source, "source"),
 				AdvisoryID:  querycontract.StringVal(source, "advisory_id"),
 				ReasonCode:  querycontract.StringVal(source, "reason_code"),

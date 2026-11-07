@@ -11,6 +11,7 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 )
@@ -219,7 +220,7 @@ func supplyChainRuntimePlanIndexRows(
 	return 0, false
 }
 
-func supplyChainRuntimeFilterExplainArgs(filter impact.ExplanationFilter) []any {
+func supplyChainRuntimeFilterExplainArgs(filter packet.ExplanationFilter) []any {
 	args := []any{
 		impact.FindingFactKind,
 		filter.FindingID,

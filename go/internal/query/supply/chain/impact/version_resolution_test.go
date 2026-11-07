@@ -6,10 +6,11 @@ package impact
 import (
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 )
 
-var supplyChainImpactFindingResultBenchmarkSink FindingResult
+var supplyChainImpactFindingResultBenchmarkSink packet.FindingResult
 
 // TestSupplyChainVersionResolutionTier proves the #5469 tiered version
 // resolution: the judged version/digest for a finding comes from the
@@ -48,18 +49,18 @@ func TestSupplyChainVersionResolutionTier(t *testing.T) {
 		name              string
 		row               FindingRow
 		wantTier          truth.DeploymentTruthTier
-		wantCorroboration []VersionResolutionCorroboration
+		wantCorroboration []packet.VersionResolutionCorroboration
 	}{
 		{
 			name: "kubernetes runtime confirms the parent finding digest",
 			row: FindingRow{
 				SubjectDigest: digest,
-				KubernetesRuntimeWorkloadRefs: []KubernetesRuntimeWorkloadRef{{
+				KubernetesRuntimeWorkloadRefs: []packet.KubernetesRuntimeWorkloadRef{{
 					UID: "workload-1", ClusterID: "cluster-a", Namespace: "payments", Name: "api",
 				}},
 			},
 			wantTier: truth.TierRuntimeConfirmed,
-			wantCorroboration: []VersionResolutionCorroboration{{
+			wantCorroboration: []packet.VersionResolutionCorroboration{{
 				Tier:            string(truth.TierConfigOnly),
 				DigestOrVersion: digest,
 				EvidenceKind:    "config_materialization",
@@ -79,7 +80,7 @@ func TestSupplyChainVersionResolutionTier(t *testing.T) {
 			// any version/digest at all gets at least a config_only claim,
 			// matching deployment_truth_tier's own hasDeploymentAnchor rule
 			// (SubjectDigest alone qualifies).
-			wantCorroboration: []VersionResolutionCorroboration{
+			wantCorroboration: []packet.VersionResolutionCorroboration{
 				{
 					Tier:            string(truth.TierProvenanceCIDeclared),
 					DigestOrVersion: digest,
@@ -112,7 +113,7 @@ func TestSupplyChainVersionResolutionTier(t *testing.T) {
 				CIDeclaredArtifactDigest: otherDigest,
 			},
 			wantTier: truth.TierRuntimeConfirmed,
-			wantCorroboration: []VersionResolutionCorroboration{
+			wantCorroboration: []packet.VersionResolutionCorroboration{
 				{
 					Tier:            string(truth.TierProvenanceCIDeclared),
 					DigestOrVersion: otherDigest,
@@ -134,7 +135,7 @@ func TestSupplyChainVersionResolutionTier(t *testing.T) {
 				CIDeclaredArtifactDigest: otherDigest,
 			},
 			wantTier: truth.TierConfigOnly,
-			wantCorroboration: []VersionResolutionCorroboration{
+			wantCorroboration: []packet.VersionResolutionCorroboration{
 				{
 					Tier:            string(truth.TierProvenanceCIDeclared),
 					DigestOrVersion: otherDigest,
@@ -153,7 +154,7 @@ func TestSupplyChainVersionResolutionTier(t *testing.T) {
 				Environments:             []string{"prod"},
 			},
 			wantTier: truth.TierProvenanceCIDeclared,
-			wantCorroboration: []VersionResolutionCorroboration{
+			wantCorroboration: []packet.VersionResolutionCorroboration{
 				{
 					Tier:            string(truth.TierConfigOnly),
 					DigestOrVersion: "1.2.3",
@@ -327,7 +328,7 @@ func TestBuildSupplyChainImpactFindingResultAllocationBudget(t *testing.T) {
 		ServiceIDs:               []string{"service:example-api"},
 		Environments:             []string{"prod"},
 		EvidencePath:             []string{cicdRunCorrelationFactKind, "reducer_platform_materialization"},
-		MissingEvidence:          []string{ServiceCatalogCorrelationMissingReason},
+		MissingEvidence:          []string{packet.ServiceCatalogCorrelationMissingReason},
 	}
 
 	allocations := testing.AllocsPerRun(1000, func() {
@@ -373,7 +374,7 @@ func BenchmarkBuildSupplyChainImpactFindingResult(b *testing.B) {
 		ServiceIDs:               []string{"service:example-api"},
 		Environments:             []string{"prod"},
 		EvidencePath:             []string{cicdRunCorrelationFactKind, "reducer_platform_materialization"},
-		MissingEvidence:          []string{ServiceCatalogCorrelationMissingReason},
+		MissingEvidence:          []string{packet.ServiceCatalogCorrelationMissingReason},
 	}
 
 	b.ReportAllocs()

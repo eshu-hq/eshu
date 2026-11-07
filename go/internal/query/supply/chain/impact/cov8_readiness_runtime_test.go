@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
@@ -228,11 +229,11 @@ func TestCov8ReadinessSnapshotRows(t *testing.T) {
 	fresh := time.Now().UTC().Add(-time.Hour)
 	stale := time.Now().UTC().Add(-30 * 24 * time.Hour)
 	tx := &cov8ImpactTx{steps: []cov8ImpactStep{cov8AuthorityPresentStep(), {rows: [][]any{
-		cov8ReadinessRow(EvidenceFamilyVulnerabilityAdvisory, 2, fresh, false, nil, nil, nil, nil),
-		cov8ReadinessRow(EvidenceFamilyVulnerabilityAdvisory, 1, stale, nil, nil, nil, nil, nil),
-		cov8ReadinessRow(EvidenceFamilyPackageRegistry, 1, nil, nil, nil, nil, nil, nil),
+		cov8ReadinessRow(packet.EvidenceFamilyVulnerabilityAdvisory, 2, fresh, false, nil, nil, nil, nil),
+		cov8ReadinessRow(packet.EvidenceFamilyVulnerabilityAdvisory, 1, stale, nil, nil, nil, nil, nil),
+		cov8ReadinessRow(packet.EvidenceFamilyPackageRegistry, 1, nil, nil, nil, nil, nil, nil),
 		// Zero counts and unknown families never surface.
-		cov8ReadinessRow(EvidenceFamilySBOMComponent, 0, fresh, nil, nil, nil, nil, nil),
+		cov8ReadinessRow(packet.EvidenceFamilySBOMComponent, 0, fresh, nil, nil, nil, nil, nil),
 		cov8ReadinessRow("not.a.family", 9, fresh, nil, nil, nil, nil, nil),
 		// Marker rows fold metadata instead of counts.
 		cov8ReadinessRow(sourceSnapshotFamilyMarker, 0, nil, true, "{stale-cache}", `[{"source":"nvd"}]`, nil, nil),
@@ -244,22 +245,22 @@ func TestCov8ReadinessSnapshotRows(t *testing.T) {
 	if err != nil {
 		t.Fatalf("snapshot read = %v, want nil", err)
 	}
-	byFamily := map[string]EvidenceFamily{}
+	byFamily := map[string]packet.EvidenceFamily{}
 	for _, family := range snapshot.EvidenceSources {
 		byFamily[family.Family] = family
 	}
-	advisory, ok := byFamily[EvidenceFamilyVulnerabilityAdvisory]
+	advisory, ok := byFamily[packet.EvidenceFamilyVulnerabilityAdvisory]
 	if !ok || advisory.FactCount != 3 {
 		t.Errorf("advisory family = %+v, want aggregated count 3", advisory)
 	}
-	if advisory.Freshness != FreshnessLabelFresh {
+	if advisory.Freshness != packet.FreshnessLabelFresh {
 		t.Errorf("advisory freshness = %q, want fresh (latest observation wins)", advisory.Freshness)
 	}
-	registry, ok := byFamily[EvidenceFamilyPackageRegistry]
-	if !ok || registry.Freshness != FreshnessLabelUnknown {
+	registry, ok := byFamily[packet.EvidenceFamilyPackageRegistry]
+	if !ok || registry.Freshness != packet.FreshnessLabelUnknown {
 		t.Errorf("registry family = %+v, want unknown freshness", registry)
 	}
-	if _, ok := byFamily[EvidenceFamilySBOMComponent]; ok {
+	if _, ok := byFamily[packet.EvidenceFamilySBOMComponent]; ok {
 		t.Error("zero-count family surfaces, want skipped")
 	}
 	if _, ok := byFamily["not.a.family"]; ok {
@@ -287,7 +288,7 @@ func TestCov8ReadinessStaleFamily(t *testing.T) {
 
 	stale := time.Now().UTC().Add(-30 * 24 * time.Hour)
 	tx := &cov8ImpactTx{steps: []cov8ImpactStep{cov8AuthorityPresentStep(), {rows: [][]any{
-		cov8ReadinessRow(EvidenceFamilyScannerWorkerAnalysis, 1, stale, nil, nil, nil, nil, nil),
+		cov8ReadinessRow(packet.EvidenceFamilyScannerWorkerAnalysis, 1, stale, nil, nil, nil, nil, nil),
 	}}}}
 	store := NewPostgresReadinessStoreWithReadStore(&cov8ImpactReadStore{tx: tx})
 	snapshot, err := store.ReadSupplyChainImpactReadiness(
@@ -296,7 +297,7 @@ func TestCov8ReadinessStaleFamily(t *testing.T) {
 		t.Fatalf("stale read = %v, want nil", err)
 	}
 	if len(snapshot.EvidenceSources) != 1 ||
-		snapshot.EvidenceSources[0].Freshness != FreshnessLabelStale {
+		snapshot.EvidenceSources[0].Freshness != packet.FreshnessLabelStale {
 		t.Errorf("sources = %+v, want one stale family", snapshot.EvidenceSources)
 	}
 }
@@ -325,7 +326,7 @@ func TestCov8ReadinessErrorArms(t *testing.T) {
 
 	cursorDown := NewPostgresReadinessStoreWithReadStore(&cov8ImpactReadStore{
 		tx: &cov8ImpactTx{steps: []cov8ImpactStep{cov8AuthorityPresentStep(), {
-			rows:    [][]any{cov8ReadinessRow(EvidenceFamilyPackageRegistry, 1, nil, nil, nil, nil, nil, nil)},
+			rows:    [][]any{cov8ReadinessRow(packet.EvidenceFamilyPackageRegistry, 1, nil, nil, nil, nil, nil, nil)},
 			rowsErr: errors.New("cursor lost"),
 		}}},
 	})

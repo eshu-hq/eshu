@@ -7,6 +7,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 )
 
 // safeReadyFinding returns a cloud_only finding whose safety gate is read-only
@@ -27,7 +29,7 @@ func safeReadyFinding(resourceType, resourceID, arn string) ManagementFindingRow
 		GenerationID:     "generation:aws-1",
 		SourceSystem:     "aws",
 		Tags:             map[string]string{"Owner": "payments-secret-team", "secret_token": "AKIAEXAMPLESECRET"},
-		SafetyGate: ManagementSafetyGate{
+		SafetyGate: packet.ManagementSafetyGate{
 			Outcome:        "read_only_allowed",
 			ReadOnly:       true,
 			ReviewRequired: false,
@@ -155,7 +157,7 @@ func TestConfigShapeHintAbsentForRefusedCandidate(t *testing.T) {
 	t.Parallel()
 
 	finding := safeReadyFinding("ec2", "security-group/sg-123", "arn:aws:ec2:us-east-1:123456789012:security-group/sg-123")
-	finding.SafetyGate = ManagementSafetyGate{
+	finding.SafetyGate = packet.ManagementSafetyGate{
 		Outcome:        "security_review_required",
 		ReadOnly:       true,
 		ReviewRequired: true,

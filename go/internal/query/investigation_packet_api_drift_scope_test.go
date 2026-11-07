@@ -11,6 +11,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 )
 
 // failingMultiCloudRuntimeDriftStore records whether the drift finding store
@@ -137,12 +139,12 @@ func TestInvestigationPacketAPIDriftScopedGrantsAcrossTenants(t *testing.T) {
 		t.Fatalf("tenant-a status = %d, want %d; body = %s", got, want, rec.Body.String())
 	}
 	var envelope struct {
-		Data InvestigationEvidencePacket `json:"data"`
+		Data packet.InvestigationEvidencePacket `json:"data"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &envelope); err != nil {
 		t.Fatalf("decode envelope: %v; body = %s", err, rec.Body.String())
 	}
-	if envelope.Data.Refusal != PacketRefusalNone {
+	if envelope.Data.Refusal != packet.PacketRefusalNone {
 		t.Fatalf("tenant-a refusal = %q, want none", envelope.Data.Refusal)
 	}
 	if len(envelope.Data.SourceFacts) == 0 {
@@ -154,15 +156,15 @@ func assertDriftPacketRefused(t *testing.T, body []byte) {
 	t.Helper()
 
 	var envelope struct {
-		Data InvestigationEvidencePacket `json:"data"`
+		Data packet.InvestigationEvidencePacket `json:"data"`
 	}
 	if err := json.Unmarshal(body, &envelope); err != nil {
 		t.Fatalf("decode envelope: %v; body = %s", err, string(body))
 	}
-	if got, want := envelope.Data.Identity.Family, InvestigationFamilyDrift; got != want {
+	if got, want := envelope.Data.Identity.Family, packet.InvestigationFamilyDrift; got != want {
 		t.Fatalf("family = %q, want %q", got, want)
 	}
-	if got, want := envelope.Data.Refusal, PacketRefusalScopeNotFound; got != want {
+	if got, want := envelope.Data.Refusal, packet.PacketRefusalScopeNotFound; got != want {
 		t.Fatalf("refusal = %q, want %q", got, want)
 	}
 }

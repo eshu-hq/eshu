@@ -10,8 +10,9 @@ v2 packet is a *self-contained artifact* that separates the evidence layers so
 each can be audited on its own.
 
 The schema identifier is `investigation_evidence_packet.v2`. The contract types
-live in `go/internal/query/investigation_packet.go`,
-`investigation_packet_build.go`, and `investigation_packet_validate.go`. The
+live in `go/internal/query/querycontract/packet/envelope.go`,
+`go/internal/query/querycontract/packet/build.go`, and
+`go/internal/query/querycontract/packet/validate.go`. The
 packet reuses the existing truth, freshness, and evidence-handle contracts from
 `contract.go` and `evidence/citation.go` rather than redefining them.
 

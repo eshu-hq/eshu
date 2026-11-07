@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
@@ -28,7 +29,7 @@ func TestExplainSupplyChainImpactUsesPublicFindingIDFastPath(t *testing.T) {
 
 	explanation, err := store.ExplainSupplyChainImpact(
 		context.Background(),
-		impact.ExplanationFilter{FindingID: "finding:public"},
+		packet.ExplanationFilter{FindingID: "finding:public"},
 	)
 	if err != nil {
 		t.Fatalf("ExplainSupplyChainImpact() error = %v, want nil", err)
@@ -53,7 +54,7 @@ func TestExplainSupplyChainImpactFallsBackForLegacyFindingIdentity(t *testing.T)
 
 	explanation, err := store.ExplainSupplyChainImpact(
 		context.Background(),
-		impact.ExplanationFilter{FindingID: "fact:legacy"},
+		packet.ExplanationFilter{FindingID: "fact:legacy"},
 	)
 	if err != nil {
 		t.Fatalf("ExplainSupplyChainImpact() error = %v, want nil", err)
@@ -81,7 +82,7 @@ func TestExplainSupplyChainImpactFastPathPreservesAmbiguity(t *testing.T) {
 
 	_, err := store.ExplainSupplyChainImpact(
 		context.Background(),
-		impact.ExplanationFilter{FindingID: "finding:duplicate"},
+		packet.ExplanationFilter{FindingID: "finding:duplicate"},
 	)
 	if !errors.Is(err, impact.ErrExplanationAmbiguous) {
 		t.Fatalf("ExplainSupplyChainImpact() error = %v, want ambiguity", err)
@@ -102,7 +103,7 @@ func TestExplainSupplyChainImpactNonFindingScopeUsesCompatibilityQuery(t *testin
 
 	_, err := store.ExplainSupplyChainImpact(
 		context.Background(),
-		impact.ExplanationFilter{
+		packet.ExplanationFilter{
 			CVEID:     "CVE-2026-54654",
 			PackageID: "pkg:deb/example/bounded",
 		},

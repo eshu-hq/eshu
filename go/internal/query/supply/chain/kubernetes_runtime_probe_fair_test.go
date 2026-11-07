@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 )
@@ -127,7 +128,7 @@ func TestApplyKubernetesRuntimeEvidenceHotDigestCannotStarveColdDigests(t *testi
 		for j := 0; j < count; j++ {
 			uid := fmt.Sprintf("workload-%03d-%03d", i, j)
 			graphRows[digest] = append(graphRows[digest], kubernetesRuntimeGraphRow(digest, uid))
-			matches = append(matches, KubernetesRuntimeWorkloadMatch{Digest: digest, WorkloadRef: impact.KubernetesRuntimeWorkloadRef{UID: uid}})
+			matches = append(matches, KubernetesRuntimeWorkloadMatch{Digest: digest, WorkloadRef: packet.KubernetesRuntimeWorkloadRef{UID: uid}})
 		}
 	}
 	graph := &fairKubernetesRuntimeGraph{rows: graphRows, barrier: make(chan struct{})}
@@ -178,7 +179,7 @@ func TestApplyKubernetesRuntimeEvidenceBoundsRepeatedDigestRefsAcrossPage(t *tes
 	for i := range graphRows {
 		uid := fmt.Sprintf("workload-%03d", i)
 		graphRows[i] = kubernetesRuntimeGraphRow(digest, uid)
-		matches[i] = KubernetesRuntimeWorkloadMatch{Digest: digest, WorkloadRef: impact.KubernetesRuntimeWorkloadRef{UID: uid}}
+		matches[i] = KubernetesRuntimeWorkloadMatch{Digest: digest, WorkloadRef: packet.KubernetesRuntimeWorkloadRef{UID: uid}}
 	}
 	graph := &fairKubernetesRuntimeGraph{rows: map[string][]map[string]any{digest: graphRows}}
 	inventory := &stubKubernetesWorkloadInventory{rows: matches}
@@ -223,8 +224,8 @@ func TestApplyKubernetesRuntimeEvidenceMaxPageRetainsOneRefPerFinding(t *testing
 		kubernetesRuntimeGraphRow(digest, "workload-001"),
 	}
 	matches := []KubernetesRuntimeWorkloadMatch{
-		{Digest: digest, WorkloadRef: impact.KubernetesRuntimeWorkloadRef{UID: "workload-000"}},
-		{Digest: digest, WorkloadRef: impact.KubernetesRuntimeWorkloadRef{UID: "workload-001"}},
+		{Digest: digest, WorkloadRef: packet.KubernetesRuntimeWorkloadRef{UID: "workload-000"}},
+		{Digest: digest, WorkloadRef: packet.KubernetesRuntimeWorkloadRef{UID: "workload-001"}},
 	}
 	graph := &fairKubernetesRuntimeGraph{rows: map[string][]map[string]any{digest: graphRows}}
 	inventory := &stubKubernetesWorkloadInventory{rows: matches}
@@ -306,7 +307,7 @@ func TestApplyKubernetesRuntimeEvidenceSingleDigestKeepsAllScopesSentinel(t *tes
 	for i := range graphRows {
 		uid := fmt.Sprintf("workload-%03d", i)
 		graphRows[i] = kubernetesRuntimeGraphRow(digest, uid)
-		matches[i] = KubernetesRuntimeWorkloadMatch{Digest: digest, WorkloadRef: impact.KubernetesRuntimeWorkloadRef{UID: uid}}
+		matches[i] = KubernetesRuntimeWorkloadMatch{Digest: digest, WorkloadRef: packet.KubernetesRuntimeWorkloadRef{UID: uid}}
 	}
 	graph := &fairKubernetesRuntimeGraph{rows: map[string][]map[string]any{digest: graphRows}}
 	inventory := &stubKubernetesWorkloadInventory{rows: matches}
@@ -394,7 +395,7 @@ func TestApplyKubernetesRuntimeEvidenceDeterministicAuthorizedTrim(t *testing.T)
 		for j := 67; j >= 0; j-- {
 			uid := fmt.Sprintf("workload-%03d", j)
 			graphRows[digest] = append(graphRows[digest], kubernetesRuntimeGraphRow(digest, uid))
-			matches = append(matches, KubernetesRuntimeWorkloadMatch{Digest: digest, WorkloadRef: impact.KubernetesRuntimeWorkloadRef{UID: uid}})
+			matches = append(matches, KubernetesRuntimeWorkloadMatch{Digest: digest, WorkloadRef: packet.KubernetesRuntimeWorkloadRef{UID: uid}})
 		}
 	}
 	graph := &fairKubernetesRuntimeGraph{rows: graphRows}

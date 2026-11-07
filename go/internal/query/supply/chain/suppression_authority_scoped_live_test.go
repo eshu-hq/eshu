@@ -10,6 +10,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 )
 
@@ -104,7 +105,7 @@ func assertScopedSuppressionAuthority(
 		})
 	}
 
-	explanation, err := direct.ExplainSupplyChainImpact(ctx, impact.ExplanationFilter{
+	explanation, err := direct.ExplainSupplyChainImpact(ctx, packet.ExplanationFilter{
 		FindingID:       suppressionAuthorityLiveFinding,
 		AllowedScopeIDs: []string{suppressionAuthorityLiveSource},
 	})
@@ -115,7 +116,7 @@ func assertScopedSuppressionAuthority(
 		t.Fatalf("scoped explain suppression = %#v, want ignored", explanation.Finding.Suppression)
 	}
 
-	if _, err := direct.ExplainSupplyChainImpact(ctx, impact.ExplanationFilter{
+	if _, err := direct.ExplainSupplyChainImpact(ctx, packet.ExplanationFilter{
 		FindingID:       suppressionAuthorityLiveFinding,
 		AllowedScopeIDs: []string{"scope:5465:unrelated"},
 	}); err == nil {

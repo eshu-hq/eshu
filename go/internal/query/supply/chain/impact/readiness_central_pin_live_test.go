@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 	storagepostgres "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
@@ -62,7 +63,7 @@ func TestReadinessExcludesCentralVersionPinsLive(t *testing.T) {
 		t.Fatalf("BackfillPackageManifestConsumptionKeys(): %v", err)
 	}
 	store := NewPostgresReadinessStore(db)
-	read := func(query ReadinessQuery) ReadinessSnapshot {
+	read := func(query ReadinessQuery) packet.ReadinessSnapshot {
 		t.Helper()
 		snapshot, err := store.ReadSupplyChainImpactReadiness(ctx, query)
 		if err != nil {
@@ -90,32 +91,32 @@ func TestReadinessExcludesCentralVersionPinsLive(t *testing.T) {
 
 	// End to end: with fresh advisory and registry evidence in place, the
 	// pin-only repository must still say its owned packages are missing.
-	scope := TargetScope{RepositoryID: "repository:nuget-pin-only"}
+	scope := packet.TargetScope{RepositoryID: "repository:nuget-pin-only"}
 	snapshot := withFreshAdvisoryAndRegistry(read(ReadinessQuery{RepositoryID: scope.RepositoryID}))
-	envelope := BuildReadiness(scope, nil, false, snapshot)
-	if envelope.State != ReadinessStateEvidenceIncomplete ||
-		!slices.Contains(envelope.MissingEvidence, MissingEvidenceOwnedPackages) {
+	envelope := packet.BuildReadiness(scope, nil, false, snapshot)
+	if envelope.State != packet.ReadinessStateEvidenceIncomplete ||
+		!slices.Contains(envelope.MissingEvidence, packet.MissingEvidenceOwnedPackages) {
 		t.Fatalf("pin-only repository readiness = %q missing %v, want %q with %q",
-			envelope.State, envelope.MissingEvidence, ReadinessStateEvidenceIncomplete, MissingEvidenceOwnedPackages)
+			envelope.State, envelope.MissingEvidence, packet.ReadinessStateEvidenceIncomplete, packet.MissingEvidenceOwnedPackages)
 	}
 }
 
 // withFreshAdvisoryAndRegistry overlays the advisory and registry evidence a
 // configured deployment would have, so only package.consumption decides
 // whether the repository's owned packages are proven.
-func withFreshAdvisoryAndRegistry(snapshot ReadinessSnapshot) ReadinessSnapshot {
-	sources := make([]EvidenceFamily, 0, len(snapshot.EvidenceSources)+2)
+func withFreshAdvisoryAndRegistry(snapshot packet.ReadinessSnapshot) packet.ReadinessSnapshot {
+	sources := make([]packet.EvidenceFamily, 0, len(snapshot.EvidenceSources)+2)
 	for _, source := range snapshot.EvidenceSources {
-		if source.Family == EvidenceFamilyVulnerabilityAdvisory || source.Family == EvidenceFamilyPackageRegistry {
+		if source.Family == packet.EvidenceFamilyVulnerabilityAdvisory || source.Family == packet.EvidenceFamilyPackageRegistry {
 			continue
 		}
 		sources = append(sources, source)
 	}
 	snapshot.EvidenceSources = append(sources,
-		EvidenceFamily{Family: EvidenceFamilyVulnerabilityAdvisory, FactCount: 1, Freshness: FreshnessLabelFresh},
-		EvidenceFamily{Family: EvidenceFamilyPackageRegistry, FactCount: 1, Freshness: FreshnessLabelFresh},
+		packet.EvidenceFamily{Family: packet.EvidenceFamilyVulnerabilityAdvisory, FactCount: 1, Freshness: packet.FreshnessLabelFresh},
+		packet.EvidenceFamily{Family: packet.EvidenceFamilyPackageRegistry, FactCount: 1, Freshness: packet.FreshnessLabelFresh},
 	)
-	snapshot.SourceStates = []SourceState{{Source: "osv", FreshnessState: "fresh", TerminalStatus: "succeeded"}}
+	snapshot.SourceStates = []packet.SourceState{{Source: "osv", FreshnessState: "fresh", TerminalStatus: "succeeded"}}
 	return snapshot
 }
 

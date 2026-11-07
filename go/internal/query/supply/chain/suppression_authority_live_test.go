@@ -17,6 +17,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 	// Registers the "pgx" driver this test opens by name. Other files in this
 	// package also blank-import it, so the driver would resolve without this
@@ -91,7 +92,7 @@ func TestSupplyChainSuppressionAuthorityDirectAndMaterializedParityLive(t *testi
 	assertSuppressionAuthorityFilter(t, ctx, direct, aggregates, "ignored", true, 1)
 	assertSuppressionAuthorityFilter(t, ctx, direct, aggregates, "expired", true, 0)
 	assertSuppressionExpiryEdgeCases(t, ctx, direct)
-	explanation, err := direct.ExplainSupplyChainImpact(ctx, impact.ExplanationFilter{
+	explanation, err := direct.ExplainSupplyChainImpact(ctx, packet.ExplanationFilter{
 		FindingID: suppressionAuthorityLiveFinding,
 	})
 	if err != nil {
@@ -100,7 +101,7 @@ func TestSupplyChainSuppressionAuthorityDirectAndMaterializedParityLive(t *testi
 	if got := explanation.Finding.Suppression.State; got != "ignored" {
 		t.Fatalf("explain suppression state = %q, want ignored", got)
 	}
-	explanation, err = direct.ExplainSupplyChainImpact(ctx, impact.ExplanationFilter{
+	explanation, err = direct.ExplainSupplyChainImpact(ctx, packet.ExplanationFilter{
 		FindingID: suppressionAuthorityLiveSourceFact,
 	})
 	if err != nil {
@@ -132,7 +133,7 @@ func TestSupplyChainSuppressionAuthorityDirectAndMaterializedParityLive(t *testi
 	assertSuppressionAuthorityCursor(t, ctx, materialized)
 	assertSuppressionExpiryEdgeCases(t, ctx, direct)
 	assertSuppressionExpiryEdgeCases(t, ctx, materialized)
-	explanation, err = direct.ExplainSupplyChainImpact(ctx, impact.ExplanationFilter{
+	explanation, err = direct.ExplainSupplyChainImpact(ctx, packet.ExplanationFilter{
 		FindingID: suppressionAuthorityLiveFinding,
 	})
 	if err != nil {

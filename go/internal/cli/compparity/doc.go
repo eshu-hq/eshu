@@ -11,7 +11,8 @@
 // belong to internal/competitiveparity; this package feeds it a live
 // inventory and hands back its rendered report. The exercises reach into
 // internal/cli/firstrun, internal/cli/opdigest, internal/cli/evidpacket,
-// internal/packetdogfood, internal/capabilitycatalog, and internal/query, so
+// internal/packetdogfood, internal/capabilitycatalog,
+// internal/query/querycontract, and internal/query/querycontract/packet, so
 // a breaking change in any of those surfaces turns the parity gate red.
 //
 // One input is injected by the caller instead of computed here: Inventory

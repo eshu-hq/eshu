@@ -3,26 +3,30 @@
 
 package impact
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
+)
 
 func TestBuildSupplyChainImpactReadinessClassifiesNuGetReadyZeroFindings(t *testing.T) {
 	t.Parallel()
 
-	envelope := BuildReadiness(
-		TargetScope{RepositoryID: "repo://example/dotnet-worker"},
+	envelope := packet.BuildReadiness(
+		packet.TargetScope{RepositoryID: "repo://example/dotnet-worker"},
 		nil,
 		false,
-		ReadinessSnapshot{
-			EvidenceSources: []EvidenceFamily{
-				{Family: EvidenceFamilyVulnerabilityAdvisory, FactCount: 8, Freshness: FreshnessLabelFresh},
-				{Family: EvidenceFamilyPackageConsumption, FactCount: 2, Freshness: FreshnessLabelFresh},
-				{Family: EvidenceFamilyPackageRegistry, FactCount: 2, Freshness: FreshnessLabelFresh},
+		packet.ReadinessSnapshot{
+			EvidenceSources: []packet.EvidenceFamily{
+				{Family: packet.EvidenceFamilyVulnerabilityAdvisory, FactCount: 8, Freshness: packet.FreshnessLabelFresh},
+				{Family: packet.EvidenceFamilyPackageConsumption, FactCount: 2, Freshness: packet.FreshnessLabelFresh},
+				{Family: packet.EvidenceFamilyPackageRegistry, FactCount: 2, Freshness: packet.FreshnessLabelFresh},
 			},
 		},
 	)
 
-	if envelope.State != ReadinessStateReadyZeroFindings {
-		t.Fatalf("state = %q, want %q for NuGet evidence with no impact findings", envelope.State, ReadinessStateReadyZeroFindings)
+	if envelope.State != packet.ReadinessStateReadyZeroFindings {
+		t.Fatalf("state = %q, want %q for NuGet evidence with no impact findings", envelope.State, packet.ReadinessStateReadyZeroFindings)
 	}
 	if len(envelope.MissingEvidence) != 0 {
 		t.Fatalf("missing_evidence = %#v, want empty", envelope.MissingEvidence)

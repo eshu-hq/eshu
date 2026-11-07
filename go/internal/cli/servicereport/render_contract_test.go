@@ -10,8 +10,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/query/evidence"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/answer"
 	"github.com/eshu-hq/eshu/go/internal/serviceintel"
 )
 
@@ -207,11 +208,11 @@ func TestRenderReportJSONKeyContract(t *testing.T) {
 // The three next-call label fields (tool, route, playbook) are spread across
 // three calls because nextCallLabel prints only the first one that is set.
 func sentinelReport() serviceintel.Report {
-	envelope := func(name string) *query.TruthEnvelope {
-		return &query.TruthEnvelope{
-			Level:     query.TruthLevel(sentinel(name + "-level")),
+	envelope := func(name string) *querycontract.TruthEnvelope {
+		return &querycontract.TruthEnvelope{
+			Level:     querycontract.TruthLevel(sentinel(name + "-level")),
 			Reason:    sentinel(name + "-reason"),
-			Freshness: query.TruthFreshness{State: query.FreshnessState(sentinel(name + "-freshness"))},
+			Freshness: querycontract.TruthFreshness{State: querycontract.FreshnessState(sentinel(name + "-freshness"))},
 		}
 	}
 	handle := func(name string) evidence.EvidenceCitationHandle {
@@ -238,7 +239,7 @@ func sentinelReport() serviceintel.Report {
 		},
 		Supported:  true,
 		Partial:    true,
-		TruthClass: query.AnswerTruthClass(sentinel("truth-class")),
+		TruthClass: querycontract.AnswerTruthClass(sentinel("truth-class")),
 		Truth:      envelope("report-truth"),
 		Sections: []serviceintel.ReportSection{{
 			Kind:  serviceintel.SectionKind(sentinel("section-kind")),
@@ -246,12 +247,12 @@ func sentinelReport() serviceintel.Report {
 			// RenderReport upper-cases the status, so the sentinel is already
 			// upper-case and survives the round trip unchanged.
 			Status: serviceintel.SectionStatus(strings.ToUpper(sentinel("section-status"))),
-			Answer: query.AnswerPacket{
+			Answer: answer.AnswerPacket{
 				PromptFamily:         sentinel("prompt-family"),
 				Question:             sentinel("question"),
 				PrimaryTool:          sentinel("primary-tool"),
 				PrimaryRoute:         sentinel("primary-route"),
-				TruthClass:           query.AnswerTruthClass(sentinel("answer-truth-class")),
+				TruthClass:           querycontract.AnswerTruthClass(sentinel("answer-truth-class")),
 				Summary:              sentinel("answer-summary"),
 				Supported:            true,
 				Partial:              true,
@@ -284,7 +285,7 @@ func sentinelReport() serviceintel.Report {
 				Basis:              serviceintel.InvestigationBasis(sentinel("investigation-basis")),
 				Reason:             sentinel("investigation-reason"),
 				EvidenceBasis:      []string{sentinel("investigation-evidence-basis")},
-				ExpectedTruthClass: query.AnswerTruthClass(sentinel("investigation-truth-class")),
+				ExpectedTruthClass: querycontract.AnswerTruthClass(sentinel("investigation-truth-class")),
 				NextCall: serviceintel.NextCall{
 					Tool:      sentinel("investigation-next-call-tool"),
 					Reason:    sentinel("investigation-next-call-reason"),

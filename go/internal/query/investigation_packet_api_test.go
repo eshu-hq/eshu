@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 )
 
@@ -19,16 +20,16 @@ func TestInvestigationPacketAPISupplyChainMatchesSharedBuilder(t *testing.T) {
 	t.Parallel()
 
 	row := exactManifestAndImageExplanationRow()
-	filter := impact.ExplanationFilter{FindingID: row.Finding.FindingID}
-	readinessSnapshot := impact.ReadinessSnapshot{
-		EvidenceSources: []impact.EvidenceFamily{
-			{Family: impact.EvidenceFamilyVulnerabilityAdvisory, FactCount: 1, Freshness: impact.FreshnessLabelFresh},
-			{Family: impact.EvidenceFamilyPackageConsumption, FactCount: 1, Freshness: impact.FreshnessLabelFresh},
+	filter := packet.ExplanationFilter{FindingID: row.Finding.FindingID}
+	readinessSnapshot := packet.ReadinessSnapshot{
+		EvidenceSources: []packet.EvidenceFamily{
+			{Family: packet.EvidenceFamilyVulnerabilityAdvisory, FactCount: 1, Freshness: packet.FreshnessLabelFresh},
+			{Family: packet.EvidenceFamilyPackageConsumption, FactCount: 1, Freshness: packet.FreshnessLabelFresh},
 		},
 	}
-	readiness := impact.BuildReadiness(
+	readiness := packet.BuildReadiness(
 		impact.FindingReadinessScope(row.Finding, filter),
-		[]impact.FindingResult{impact.FindingResult(row.Finding)},
+		[]packet.FindingResult{packet.FindingResult(row.Finding)},
 		false,
 		readinessSnapshot,
 	)
@@ -38,13 +39,13 @@ func TestInvestigationPacketAPISupplyChainMatchesSharedBuilder(t *testing.T) {
 		TruthBasisSemanticFacts,
 		"resolved from one reducer-owned impact finding and its bounded evidence fact ids; reachability and deployment anchors are reported only when evidence exists",
 	)
-	expected, err := BuildSupplyChainImpactPacket(
+	expected, err := packet.BuildSupplyChainImpactPacket(
 		impact.BuildExplanation(filter, row, readiness),
 		truth,
 		nil,
 	)
 	if err != nil {
-		t.Fatalf("BuildSupplyChainImpactPacket() error = %v", err)
+		t.Fatalf("packet.BuildSupplyChainImpactPacket() error = %v", err)
 	}
 
 	handler := &SupplyChainHandler{
@@ -92,12 +93,12 @@ func TestInvestigationPacketAPISupplyChainScopedRequiresRepositoryBeforeStoreRea
 		t.Fatal("impact explanation store was called without a repository-scoped subject")
 	}
 	var envelope struct {
-		Data InvestigationEvidencePacket `json:"data"`
+		Data packet.InvestigationEvidencePacket `json:"data"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &envelope); err != nil {
 		t.Fatalf("decode envelope: %v; body = %s", err, rec.Body.String())
 	}
-	if got, want := envelope.Data.Refusal, PacketRefusalScopeNotFound; got != want {
+	if got, want := envelope.Data.Refusal, packet.PacketRefusalScopeNotFound; got != want {
 		t.Fatalf("refusal = %q, want %q", got, want)
 	}
 }
@@ -153,8 +154,8 @@ func TestInvestigationPacketAPIDeployableUnitMatchesSharedBuilder(t *testing.T) 
 		"generation_id": "generation-1",
 		"repository_id": "repo://team/api",
 	}
-	expected, err := BuildDeployableUnitPacket(
-		[]AdmissionDecisionResult{
+	expected, err := packet.BuildDeployableUnitPacket(
+		[]packet.AdmissionDecisionResult{
 			admissionDecisionResult(decisions[0]),
 			admissionDecisionResult(decisions[1]),
 		},
@@ -163,7 +164,7 @@ func TestInvestigationPacketAPIDeployableUnitMatchesSharedBuilder(t *testing.T) 
 		nil,
 	)
 	if err != nil {
-		t.Fatalf("BuildDeployableUnitPacket() error = %v", err)
+		t.Fatalf("packet.BuildDeployableUnitPacket() error = %v", err)
 	}
 
 	handler := &EvidenceHandler{
@@ -188,7 +189,7 @@ type failingSupplyChainImpactExplanationStore struct {
 
 func (s *failingSupplyChainImpactExplanationStore) ExplainSupplyChainImpact(
 	context.Context,
-	impact.ExplanationFilter,
+	packet.ExplanationFilter,
 ) (impact.ExplanationRow, error) {
 	s.called = true
 	return impact.ExplanationRow{}, errors.New("broad supply-chain impact explanation read")
@@ -210,9 +211,9 @@ func TestInvestigationPacketAPIDriftMatchesSharedBuilder(t *testing.T) {
 		"provider":           "aws",
 		"cloud_resource_uid": "aws:ec2:us-east-1:instance/i-123",
 	}
-	expected, err := BuildDriftPacket(views, subject, truth, nil)
+	expected, err := packet.BuildDriftPacket(views, subject, truth, nil)
 	if err != nil {
-		t.Fatalf("BuildDriftPacket() error = %v", err)
+		t.Fatalf("packet.BuildDriftPacket() error = %v", err)
 	}
 
 	handler := &CloudRuntimeDriftHandler{
@@ -226,7 +227,7 @@ func TestInvestigationPacketAPIDriftMatchesSharedBuilder(t *testing.T) {
 	assertPacketJSONEqual(t, got, expected)
 }
 
-func requestPacket(t *testing.T, handler http.Handler, method, target string, body []byte) InvestigationEvidencePacket {
+func requestPacket(t *testing.T, handler http.Handler, method, target string, body []byte) packet.InvestigationEvidencePacket {
 	t.Helper()
 
 	req := httptest.NewRequest(method, target, bytes.NewReader(body))
@@ -251,21 +252,21 @@ func requestPacket(t *testing.T, handler http.Handler, method, target string, bo
 	if envelope.Truth == nil {
 		t.Fatal("envelope truth = nil, want packet truth")
 	}
-	var packet InvestigationEvidencePacket
+	var packet packet.InvestigationEvidencePacket
 	if err := json.Unmarshal(envelope.Data, &packet); err != nil {
 		t.Fatalf("decode packet: %v; data = %s", err, string(envelope.Data))
 	}
 	return packet
 }
 
-func assertPacketJSONEqual(t *testing.T, got, want InvestigationEvidencePacket) {
+func assertPacketJSONEqual(t *testing.T, got, want packet.InvestigationEvidencePacket) {
 	t.Helper()
 
-	gotJSON, err := RenderInvestigationPacket(got, InvestigationPacketFormatJSON)
+	gotJSON, err := packet.RenderInvestigationPacket(got, packet.InvestigationPacketFormatJSON)
 	if err != nil {
 		t.Fatalf("render got packet: %v", err)
 	}
-	wantJSON, err := RenderInvestigationPacket(want, InvestigationPacketFormatJSON)
+	wantJSON, err := packet.RenderInvestigationPacket(want, packet.InvestigationPacketFormatJSON)
 	if err != nil {
 		t.Fatalf("render want packet: %v", err)
 	}

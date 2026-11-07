@@ -7,22 +7,23 @@ import (
 	"fmt"
 
 	"github.com/eshu-hq/eshu/go/internal/cli/apierr"
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 )
 
 // RefusalFromErrorCode maps an in-envelope error code to a packet refusal state
 // when one applies. Codes without a refusal mapping return false so the caller
 // surfaces them as a CLI error instead of an artifact that looks like an answer.
-func RefusalFromErrorCode(code query.ErrorCode) (query.PacketRefusalState, bool) {
+func RefusalFromErrorCode(code querycontract.ErrorCode) (packet.PacketRefusalState, bool) {
 	switch code {
-	case query.ErrorCodeNotFound, query.ErrorCodeScopeNotFound, query.ErrorCodeServiceNotFound:
-		return query.PacketRefusalScopeNotFound, true
-	case query.ErrorCodeUnsupportedCapability, query.ErrorCodeCapabilityDegraded:
-		return query.PacketRefusalProfileUnsupported, true
-	case query.ErrorCodeBackendUnavailable, query.ErrorCodeIndexBuilding:
-		return query.PacketRefusalBackendUnavailable, true
+	case querycontract.ErrorCodeNotFound, querycontract.ErrorCodeScopeNotFound, querycontract.ErrorCodeServiceNotFound:
+		return packet.PacketRefusalScopeNotFound, true
+	case querycontract.ErrorCodeUnsupportedCapability, querycontract.ErrorCodeCapabilityDegraded:
+		return packet.PacketRefusalProfileUnsupported, true
+	case querycontract.ErrorCodeBackendUnavailable, querycontract.ErrorCodeIndexBuilding:
+		return packet.PacketRefusalBackendUnavailable, true
 	default:
-		return query.PacketRefusalNone, false
+		return packet.PacketRefusalNone, false
 	}
 }
 
@@ -38,23 +39,23 @@ func RefusalFromErrorCode(code query.ErrorCode) (query.PacketRefusalState, bool)
 // pins that.
 //
 // apierr.StatusCode reports false for a nil error, so no nil guard is needed.
-func RefusalFromFetchError(err error) (query.PacketRefusalState, bool) {
+func RefusalFromFetchError(err error) (packet.PacketRefusalState, bool) {
 	status, ok := apierr.StatusCode(err)
 	if !ok {
-		return query.PacketRefusalNone, false
+		return packet.PacketRefusalNone, false
 	}
 	switch status {
 	case 404:
-		return query.PacketRefusalScopeNotFound, true
+		return packet.PacketRefusalScopeNotFound, true
 	case 501:
 		// The explain handler returns 501 for a profile that cannot serve the
 		// capability; GetEnvelope surfaces it as a transport error before the
 		// in-envelope unsupported_capability code can be read.
-		return query.PacketRefusalProfileUnsupported, true
+		return packet.PacketRefusalProfileUnsupported, true
 	case 503:
-		return query.PacketRefusalBackendUnavailable, true
+		return packet.PacketRefusalBackendUnavailable, true
 	default:
-		return query.PacketRefusalNone, false
+		return packet.PacketRefusalNone, false
 	}
 }
 
@@ -64,23 +65,23 @@ func RefusalFromFetchError(err error) (query.PacketRefusalState, bool) {
 // The CLI error names the code and message the API returned. That text goes to
 // stderr and never into the artifact, which is what keeps server-supplied
 // strings out of a share-safe packet.
-func RefusalFromEnvelopeError(errEnv *query.ErrorEnvelope) (query.PacketRefusalState, bool, error) {
+func RefusalFromEnvelopeError(errEnv *querycontract.ErrorEnvelope) (packet.PacketRefusalState, bool, error) {
 	if errEnv == nil {
-		return query.PacketRefusalNone, false, nil
+		return packet.PacketRefusalNone, false, nil
 	}
 	if refusal, ok := RefusalFromErrorCode(errEnv.Code); ok {
 		return refusal, true, nil
 	}
-	return query.PacketRefusalNone, false, fmt.Errorf("read failed: %s: %s", errEnv.Code, errEnv.Message)
+	return packet.PacketRefusalNone, false, fmt.Errorf("read failed: %s: %s", errEnv.Code, errEnv.Message)
 }
 
 // refusalPacket builds a valid refusal artifact for a family and scope.
 //
 // The packet builder's error is returned unwrapped so the operator reads the
 // contract's own message; a prefix here would change CLI output for no gain.
-func refusalPacket(family query.InvestigationFamily, subject map[string]string, refusal query.PacketRefusalState) (query.InvestigationEvidencePacket, error) {
+func refusalPacket(family packet.InvestigationFamily, subject map[string]string, refusal packet.PacketRefusalState) (packet.InvestigationEvidencePacket, error) {
 	//nolint:wrapcheck // operator-facing text stays exactly as the contract wrote it
-	return query.NewInvestigationEvidencePacket(query.InvestigationPacketInput{
+	return packet.NewInvestigationEvidencePacket(packet.InvestigationPacketInput{
 		Family:  family,
 		Subject: SubjectOrPlaceholder(subject),
 		Refusal: refusal,

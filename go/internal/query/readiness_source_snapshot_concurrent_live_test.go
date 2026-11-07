@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 	storagepostgres "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
@@ -100,16 +101,16 @@ func TestSupplyChainImpactReadinessConcurrentReconfigurationUsesOneSnapshotLive(
 		t.Fatalf("status = %d; body=%s", response.Code, response.Body.String())
 	}
 	var body struct {
-		Readiness impact.ReadinessEnvelope `json:"readiness"`
+		Readiness packet.ReadinessEnvelope `json:"readiness"`
 	}
 	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
 		t.Fatalf("decode readiness: %v", err)
 	}
-	if body.Readiness.State != impact.ReadinessStateReadyZeroFindings {
+	if body.Readiness.State != packet.ReadinessStateReadyZeroFindings {
 		t.Fatalf("one repeatable-read snapshot lost A coverage: %+v", body.Readiness)
 	}
 	current := readReadinessScopeAPI(t, database, "CVE-2026-9228")
-	if current.State != impact.ReadinessStateTargetIncomplete {
+	if current.State != packet.ReadinessStateTargetIncomplete {
 		t.Fatalf("new transaction inherited A coverage for B: %+v", current)
 	}
 }

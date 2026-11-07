@@ -16,7 +16,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/cli/procexec"
 	"github.com/eshu-hq/eshu/go/internal/eshulocal"
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // TestRunAttachedLocalMCPStdioUsesRecordedPostgresPort proves attach-stdio
@@ -205,7 +205,7 @@ func TestLocalBootstrapDefinitionsIncludeContentSearchIndexesByDefault(t *testin
 }
 
 func TestRunAttachedLocalMCPStdioRejectsRequestedProfileMismatch(t *testing.T) {
-	t.Setenv("ESHU_QUERY_PROFILE", string(query.ProfileLocalAuthoritative))
+	t.Setenv("ESHU_QUERY_PROFILE", string(querycontract.ProfileLocalAuthoritative))
 
 	layout := eshulocal.Layout{
 		WorkspaceID:     "workspace-id",
@@ -216,7 +216,7 @@ func TestRunAttachedLocalMCPStdioRejectsRequestedProfileMismatch(t *testing.T) {
 		WorkspaceID:        layout.WorkspaceID,
 		PostgresPort:       15439,
 		PostgresSocketPath: "/tmp/.s.PGSQL.15439",
-		Profile:            string(query.ProfileLocalLightweight),
+		Profile:            string(querycontract.ProfileLocalLightweight),
 	}
 
 	originalReadOwnerRecord := ReadOwnerRecord
@@ -268,8 +268,8 @@ func TestRunAttachedLocalMCPStdioRejectsUnhealthyAuthoritativeGraph(t *testing.T
 		WorkspaceID:        layout.WorkspaceID,
 		PostgresPort:       15439,
 		PostgresSocketPath: "/tmp/.s.PGSQL.15439",
-		Profile:            string(query.ProfileLocalAuthoritative),
-		GraphBackend:       string(query.GraphBackendNornicDB),
+		Profile:            string(querycontract.ProfileLocalAuthoritative),
+		GraphBackend:       string(querycontract.GraphBackendNornicDB),
 		GraphPID:           77,
 		GraphBoltPort:      17687,
 		GraphHTTPPort:      17474,
@@ -325,7 +325,7 @@ func TestLocalHostIngesterOverridesUseFilesystemDirectMode(t *testing.T) {
 		CacheDir:      "/eshu/cache",
 	}
 
-	got := localHostIngesterOverrides(layout, ModeWatch, RuntimeConfig{Profile: query.ProfileLocalLightweight}, func(string) string { return "" })
+	got := localHostIngesterOverrides(layout, ModeWatch, RuntimeConfig{Profile: querycontract.ProfileLocalLightweight}, func(string) string { return "" })
 	if got["ESHU_REPO_SOURCE_MODE"] != "filesystem" {
 		t.Fatalf("ESHU_REPO_SOURCE_MODE = %q, want %q", got["ESHU_REPO_SOURCE_MODE"], "filesystem")
 	}
@@ -343,9 +343,9 @@ func TestLocalHostIngesterOverridesUseFilesystemDirectMode(t *testing.T) {
 
 func TestLocalHostEnvHonorsRuntimeConfig(t *testing.T) {
 	t.Run("lightweight disables neo4j", func(t *testing.T) {
-		got := ChildEnv("dsn", RuntimeConfig{Profile: query.ProfileLocalLightweight}, nil, nil)
-		if envValue(got, "ESHU_QUERY_PROFILE") != string(query.ProfileLocalLightweight) {
-			t.Fatalf("ESHU_QUERY_PROFILE = %q, want %q", envValue(got, "ESHU_QUERY_PROFILE"), query.ProfileLocalLightweight)
+		got := ChildEnv("dsn", RuntimeConfig{Profile: querycontract.ProfileLocalLightweight}, nil, nil)
+		if envValue(got, "ESHU_QUERY_PROFILE") != string(querycontract.ProfileLocalLightweight) {
+			t.Fatalf("ESHU_QUERY_PROFILE = %q, want %q", envValue(got, "ESHU_QUERY_PROFILE"), querycontract.ProfileLocalLightweight)
 		}
 		if envValue(got, "ESHU_DISABLE_NEO4J") != "true" {
 			t.Fatalf("ESHU_DISABLE_NEO4J = %q, want %q", envValue(got, "ESHU_DISABLE_NEO4J"), "true")
@@ -365,14 +365,14 @@ func TestLocalHostEnvHonorsRuntimeConfig(t *testing.T) {
 		})
 
 		got := ChildEnv("dsn", RuntimeConfig{
-			Profile:      query.ProfileLocalAuthoritative,
-			GraphBackend: query.GraphBackendNornicDB,
+			Profile:      querycontract.ProfileLocalAuthoritative,
+			GraphBackend: querycontract.GraphBackendNornicDB,
 		}, nil, nil)
-		if envValue(got, "ESHU_QUERY_PROFILE") != string(query.ProfileLocalAuthoritative) {
-			t.Fatalf("ESHU_QUERY_PROFILE = %q, want %q", envValue(got, "ESHU_QUERY_PROFILE"), query.ProfileLocalAuthoritative)
+		if envValue(got, "ESHU_QUERY_PROFILE") != string(querycontract.ProfileLocalAuthoritative) {
+			t.Fatalf("ESHU_QUERY_PROFILE = %q, want %q", envValue(got, "ESHU_QUERY_PROFILE"), querycontract.ProfileLocalAuthoritative)
 		}
-		if envValue(got, "ESHU_GRAPH_BACKEND") != string(query.GraphBackendNornicDB) {
-			t.Fatalf("ESHU_GRAPH_BACKEND = %q, want %q", envValue(got, "ESHU_GRAPH_BACKEND"), query.GraphBackendNornicDB)
+		if envValue(got, "ESHU_GRAPH_BACKEND") != string(querycontract.GraphBackendNornicDB) {
+			t.Fatalf("ESHU_GRAPH_BACKEND = %q, want %q", envValue(got, "ESHU_GRAPH_BACKEND"), querycontract.GraphBackendNornicDB)
 		}
 		if envValue(got, "ESHU_DISABLE_NEO4J") != "" {
 			t.Fatalf("ESHU_DISABLE_NEO4J = %q, want empty override", envValue(got, "ESHU_DISABLE_NEO4J"))
@@ -383,11 +383,11 @@ func TestLocalHostEnvHonorsRuntimeConfig(t *testing.T) {
 		got := ChildEnv(
 			"dsn",
 			RuntimeConfig{
-				Profile:      query.ProfileLocalAuthoritative,
-				GraphBackend: query.GraphBackendNornicDB,
+				Profile:      querycontract.ProfileLocalAuthoritative,
+				GraphBackend: querycontract.GraphBackendNornicDB,
 			},
 			&ManagedGraph{
-				Backend:  query.GraphBackendNornicDB,
+				Backend:  querycontract.GraphBackendNornicDB,
 				Address:  "127.0.0.1",
 				BoltPort: 17687,
 				Username: "admin",
@@ -412,16 +412,16 @@ func TestLocalHostEnvHonorsRuntimeConfig(t *testing.T) {
 
 func TestRuntimeConfigFromOwnerRecordDefaultsAuthoritativeBackendToNornicDB(t *testing.T) {
 	got, err := RuntimeConfigFromOwnerRecord(eshulocal.OwnerRecord{
-		Profile: string(query.ProfileLocalAuthoritative),
+		Profile: string(querycontract.ProfileLocalAuthoritative),
 	})
 	if err != nil {
 		t.Fatalf("RuntimeConfigFromOwnerRecord() error = %v, want nil", err)
 	}
-	if got.Profile != query.ProfileLocalAuthoritative {
-		t.Fatalf("Profile = %q, want %q", got.Profile, query.ProfileLocalAuthoritative)
+	if got.Profile != querycontract.ProfileLocalAuthoritative {
+		t.Fatalf("Profile = %q, want %q", got.Profile, querycontract.ProfileLocalAuthoritative)
 	}
-	if got.GraphBackend != query.GraphBackendNornicDB {
-		t.Fatalf("GraphBackend = %q, want %q", got.GraphBackend, query.GraphBackendNornicDB)
+	if got.GraphBackend != querycontract.GraphBackendNornicDB {
+		t.Fatalf("GraphBackend = %q, want %q", got.GraphBackend, querycontract.GraphBackendNornicDB)
 	}
 }
 

@@ -7,15 +7,16 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 )
 
 func buildSupplyChainImpactPath(
 	row ExplanationRow,
 	missing []string,
-) []PathHop {
-	var hops []PathHop
+) []packet.PathHop {
+	var hops []packet.PathHop
 	for _, hop := range row.Finding.EvidencePath {
-		hops = append(hops, PathHop{
+		hops = append(hops, packet.PathHop{
 			Hop:             hop,
 			Status:          "present",
 			EvidenceFactIDs: evidenceFactIDsForHop(hop, row),
@@ -23,7 +24,7 @@ func buildSupplyChainImpactPath(
 	}
 	hops = append(hops, semanticSupplyChainImpactHops(row, missing)...)
 	for _, reason := range missing {
-		hops = append(hops, PathHop{
+		hops = append(hops, packet.PathHop{
 			Hop:             reason,
 			Status:          "missing_evidence",
 			MissingEvidence: []string{reason},
@@ -38,14 +39,14 @@ func buildSupplyChainImpactPath(
 func semanticSupplyChainImpactHops(
 	row ExplanationRow,
 	missing []string,
-) []PathHop {
+) []packet.PathHop {
 	repositoryEvidence := evidenceFactIDsForSemanticHop(row, "repository")
 	imageEvidence := evidenceFactIDsForSemanticHop(row, "image")
 	workloadEvidence := evidenceFactIDsForSemanticHop(row, "workload")
 	deploymentEvidence := evidenceFactIDsForSemanticHop(row, "deployment")
 	serviceEvidence := evidenceFactIDsForSemanticHop(row, "service")
 	environmentEvidence := evidenceFactIDsForSemanticHop(row, "environment")
-	return []PathHop{
+	return []packet.PathHop{
 		semanticSupplyChainImpactHop(
 			"repository",
 			row.Finding.RepositoryID != "" || len(repositoryEvidence) > 0,
@@ -90,15 +91,15 @@ func semanticSupplyChainImpactHop(
 	present bool,
 	evidenceFactIDs []string,
 	missingEvidence []string,
-) PathHop {
+) packet.PathHop {
 	if present {
-		return PathHop{
+		return packet.PathHop{
 			Hop:             hop,
 			Status:          "present",
 			EvidenceFactIDs: evidenceFactIDs,
 		}
 	}
-	return PathHop{
+	return packet.PathHop{
 		Hop:             hop,
 		Status:          "missing_evidence",
 		MissingEvidence: missingEvidence,
@@ -196,8 +197,8 @@ func missingReasonForSemanticHop(hop string, missing []string) []string {
 			}
 		case "service":
 			if reason == "service evidence missing" ||
-				reason == ServiceCatalogCorrelationMissingReason ||
-				reason == ServiceCatalogAnchorMissingReason ||
+				reason == packet.ServiceCatalogCorrelationMissingReason ||
+				reason == packet.ServiceCatalogAnchorMissingReason ||
 				strings.HasPrefix(reason, "service catalog evidence ") {
 				return []string{reason}
 			}
@@ -239,8 +240,8 @@ func supplyChainImpactPathMissingReason(reason string) bool {
 		"environment evidence missing",
 		"workload evidence missing",
 		"service evidence missing",
-		ServiceCatalogCorrelationMissingReason,
-		ServiceCatalogAnchorMissingReason:
+		packet.ServiceCatalogCorrelationMissingReason,
+		packet.ServiceCatalogAnchorMissingReason:
 		return true
 	}
 	for _, prefix := range []string{

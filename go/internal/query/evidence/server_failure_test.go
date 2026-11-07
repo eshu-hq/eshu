@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil/failure"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
@@ -205,7 +206,7 @@ func (s erroringAdmissionDecisionStore) ListAdmissionDecisions(
 
 func (s erroringAdmissionDecisionStore) ListAdmissionDecisionEvidence(
 	context.Context, string, int,
-) ([]AdmissionDecisionEvidenceRow, error) {
+) ([]packet.AdmissionDecisionEvidenceRow, error) {
 	return nil, s.err
 }
 
@@ -221,6 +222,6 @@ func (s evidenceFailingAdmissionDecisionStore) ListAdmissionDecisions(
 
 func (s evidenceFailingAdmissionDecisionStore) ListAdmissionDecisionEvidence(
 	context.Context, string, int,
-) ([]AdmissionDecisionEvidenceRow, error) {
+) ([]packet.AdmissionDecisionEvidenceRow, error) {
 	return nil, s.err
 }

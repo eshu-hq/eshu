@@ -10,13 +10,14 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 )
 
 func buildSupplyChainAdvisoryExplanation(
 	row ExplanationRow,
-) AdvisoryExplanation {
+) packet.AdvisoryExplanation {
 	finding := row.Finding
-	out := AdvisoryExplanation{
+	out := packet.AdvisoryExplanation{
 		CVEID:      finding.CVEID,
 		AdvisoryID: finding.AdvisoryID,
 	}
@@ -24,7 +25,7 @@ func buildSupplyChainAdvisoryExplanation(
 		out.RangeSource = finding.Provenance.SelectedRangeSource
 		out.SelectedSeveritySource = finding.Provenance.SelectedSeveritySource
 		out.SelectedFixedVersionSource = finding.Provenance.SelectedFixedVersionSource
-		out.Sources = append([]AdvisorySource(nil), finding.Provenance.AdvisorySources...)
+		out.Sources = append([]packet.AdvisorySource(nil), finding.Provenance.AdvisorySources...)
 	}
 	for _, fact := range row.EvidenceFacts {
 		if !strings.Contains(fact.FactKind, "vulnerability") {
@@ -51,9 +52,9 @@ func buildSupplyChainAdvisoryExplanation(
 
 func buildSupplyChainComponentExplanation(
 	row ExplanationRow,
-) ComponentExplanation {
+) packet.ComponentExplanation {
 	finding := row.Finding
-	out := ComponentExplanation{
+	out := packet.ComponentExplanation{
 		PackageID:       finding.PackageID,
 		Ecosystem:       finding.Ecosystem,
 		PackageName:     finding.PackageName,
@@ -101,10 +102,10 @@ func buildSupplyChainComponentExplanation(
 
 func buildSupplyChainVersionExplanation(
 	row ExplanationRow,
-	advisory AdvisoryExplanation,
-	component ComponentExplanation,
-) VersionExplanation {
-	version := VersionExplanation{
+	advisory packet.AdvisoryExplanation,
+	component packet.ComponentExplanation,
+) packet.VersionExplanation {
+	version := packet.VersionExplanation{
 		ObservedVersion: component.ObservedVersion,
 		ManifestRange:   component.ManifestRange,
 		VulnerableRange: advisory.VulnerableRange,
@@ -207,8 +208,8 @@ func lowestFixedVersion(candidates []string) string {
 func buildSupplyChainDependencyChain(
 	finding FindingRow,
 	facts []EvidenceFact,
-) *DependencyChain {
-	out := DependencyChain{
+) *packet.DependencyChain {
+	out := packet.DependencyChain{
 		Path:             append([]string(nil), finding.DependencyPath...),
 		Depth:            finding.DependencyDepth,
 		DirectDependency: cloneBoolPointer(finding.DirectDependency),
@@ -232,8 +233,8 @@ func buildSupplyChainDependencyChain(
 
 func buildSupplyChainExplanationAnchors(
 	row ExplanationRow,
-) ExplanationAnchors {
-	out := ExplanationAnchors{
+) packet.ExplanationAnchors {
+	out := packet.ExplanationAnchors{
 		RepositoryID:    row.Finding.RepositoryID,
 		SubjectDigest:   row.Finding.SubjectDigest,
 		ImageRefs:       compactStrings([]string{row.Finding.ImageRef}),
@@ -303,7 +304,7 @@ func buildSupplyChainExplanationAnchors(
 	return out
 }
 
-func appendDeploymentAnchors(out *ExplanationAnchors, payload map[string]any) {
+func appendDeploymentAnchors(out *packet.ExplanationAnchors, payload map[string]any) {
 	appendUniqueString(&out.Deployments, querycontract.StringVal(payload, "deployment_id"))
 	for _, entityKey := range querycontract.StringSliceVal(payload, "entity_keys") {
 		if strings.HasPrefix(entityKey, "deployment:") {
@@ -314,10 +315,10 @@ func appendDeploymentAnchors(out *ExplanationAnchors, payload map[string]any) {
 
 func summarizeSupplyChainEvidenceFacts(
 	facts []EvidenceFact,
-) []EvidenceFactSummary {
-	out := make([]EvidenceFactSummary, 0, len(facts))
+) []packet.EvidenceFactSummary {
+	out := make([]packet.EvidenceFactSummary, 0, len(facts))
 	for _, fact := range facts {
-		summary := EvidenceFactSummary{
+		summary := packet.EvidenceFactSummary{
 			FactID:           fact.FactID,
 			FactKind:         fact.FactKind,
 			SourceSystem:     fact.SourceSystem,
@@ -333,12 +334,12 @@ func summarizeSupplyChainEvidenceFacts(
 
 func explanationMissingEvidence(
 	finding FindingRow,
-	readiness ReadinessEnvelope,
-	advisory AdvisoryExplanation,
-	component ComponentExplanation,
-	version VersionExplanation,
-	dependencyChain *DependencyChain,
-	anchors ExplanationAnchors,
+	readiness packet.ReadinessEnvelope,
+	advisory packet.AdvisoryExplanation,
+	component packet.ComponentExplanation,
+	version packet.VersionExplanation,
+	dependencyChain *packet.DependencyChain,
+	anchors packet.ExplanationAnchors,
 ) []string {
 	missing := normalizedSupplyChainImpactMissingEvidence(&finding)
 	missing = append(missing, readiness.MissingEvidence...)
@@ -360,14 +361,14 @@ func explanationMissingEvidence(
 func supplyChainExplanationFreshness(
 	facts []EvidenceFact,
 	readinessFreshness string,
-) ExplanationFreshness {
+) packet.ExplanationFreshness {
 	var latest time.Time
 	for _, fact := range facts {
 		if fact.ObservedAt.After(latest) {
 			latest = fact.ObservedAt
 		}
 	}
-	out := ExplanationFreshness{
+	out := packet.ExplanationFreshness{
 		State:             explanationFreshnessState(readinessFreshness),
 		EvidenceFactCount: len(facts),
 	}
@@ -381,15 +382,15 @@ func explanationFreshnessState(readinessFreshness string) string {
 	if strings.TrimSpace(readinessFreshness) != "" {
 		return readinessFreshness
 	}
-	return FreshnessLabelUnknown
+	return packet.FreshnessLabelUnknown
 }
 
-func providerAlertAnchor(fact EvidenceFact) ProviderAlertAnchor {
+func providerAlertAnchor(fact EvidenceFact) packet.ProviderAlertAnchor {
 	if !strings.Contains(strings.ToLower(fact.FactKind), "alert") &&
 		querycontract.StringVal(fact.Payload, "alert_id") == "" {
-		return ProviderAlertAnchor{}
+		return packet.ProviderAlertAnchor{}
 	}
-	return ProviderAlertAnchor{
+	return packet.ProviderAlertAnchor{
 		Provider:     querycontract.StringVal(fact.Payload, "provider"),
 		AlertID:      querycontract.StringVal(fact.Payload, "alert_id"),
 		State:        querycontract.StringVal(fact.Payload, "state"),
@@ -397,7 +398,7 @@ func providerAlertAnchor(fact EvidenceFact) ProviderAlertAnchor {
 	}
 }
 
-func appendPathAnchors(out *ExplanationAnchors, path string) {
+func appendPathAnchors(out *packet.ExplanationAnchors, path string) {
 	path = strings.TrimSpace(path)
 	if path == "" {
 		return
@@ -408,7 +409,7 @@ func appendPathAnchors(out *ExplanationAnchors, path string) {
 	}
 }
 
-func appendLockfilePathAnchors(out *ExplanationAnchors, lockfilePath string) {
+func appendLockfilePathAnchors(out *packet.ExplanationAnchors, lockfilePath string) {
 	lockfilePath = strings.TrimSpace(lockfilePath)
 	if lockfilePath == "" {
 		return
@@ -417,7 +418,7 @@ func appendLockfilePathAnchors(out *ExplanationAnchors, lockfilePath string) {
 	appendUniqueString(&out.LockfilePaths, lockfilePath)
 }
 
-func dependencyChainHasEvidence(chain DependencyChain) bool {
+func dependencyChainHasEvidence(chain packet.DependencyChain) bool {
 	return len(chain.Path) > 0 || chain.Depth > 0 || chain.DirectDependency != nil
 }
 

@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 )
 
 // TestSupplyChainImpactExplainScopedGrantsAcrossTenants is the #5167 W5
@@ -83,7 +83,7 @@ func TestSupplyChainImpactExplainScopedGrantsAcrossTenants(t *testing.T) {
 		WorkspaceID:          "workspace-b",
 		AllowedRepositoryIDs: []string{"repo://example/other"},
 	}
-	explanations.lastFilter = impact.ExplanationFilter{}
+	explanations.lastFilter = packet.ExplanationFilter{}
 	reqB := httptest.NewRequest(
 		http.MethodGet,
 		"/api/v0/supply-chain/impact/explain?repository_id=payments-api&advisory_id=GHSA-test-1",
@@ -106,7 +106,7 @@ func TestSupplyChainImpactExplainScopedGrantsAcrossTenants(t *testing.T) {
 func assertEmptyImpactExplanationResponse(t *testing.T, body []byte) {
 	t.Helper()
 
-	var resp impact.ExplanationResult
+	var resp packet.ExplanationResult
 	if err := json.Unmarshal(body, &resp); err != nil {
 		t.Fatalf("decode explain response: %v; body = %s", err, string(body))
 	}
@@ -116,8 +116,8 @@ func assertEmptyImpactExplanationResponse(t *testing.T, body []byte) {
 	if resp.Finding != nil {
 		t.Fatalf("empty scoped explanation Finding = %#v, want nil", resp.Finding)
 	}
-	if resp.Readiness.State != impact.ReadinessStateReadinessUnavailable {
-		t.Fatalf("empty scoped explanation readiness state = %q, want %q", resp.Readiness.State, impact.ReadinessStateReadinessUnavailable)
+	if resp.Readiness.State != packet.ReadinessStateReadinessUnavailable {
+		t.Fatalf("empty scoped explanation readiness state = %q, want %q", resp.Readiness.State, packet.ReadinessStateReadinessUnavailable)
 	}
 	if resp.Advisory.CVEID != "" || resp.Advisory.AdvisoryID != "" || resp.Component.PackageID != "" {
 		t.Fatalf("empty scoped explanation echoed requested anchors: %#v", resp)

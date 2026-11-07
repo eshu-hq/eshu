@@ -8,6 +8,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/iac"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
@@ -59,7 +60,7 @@ type IaCManagementEvidenceRow = iac.ManagementEvidenceRow
 // classification for an IaC management finding. Its home is iac/; staying
 // non-family files (cloud_runtime_drift.go) keep spelling
 // query.IaCManagementSafetyGate unchanged.
-type IaCManagementSafetyGate = iac.ManagementSafetyGate
+type IaCManagementSafetyGate = packet.ManagementSafetyGate
 
 // IaCReachabilityStore reads reducer-materialized dead-IaC cleanup findings.
 // Its home is iac/; the staying auth_scoped_routes_iac.go and

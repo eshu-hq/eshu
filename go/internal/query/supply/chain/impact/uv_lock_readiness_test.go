@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/parser/pythondep"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 )
 
 // readinessGapConfigKinds are the config_kind values the
@@ -42,7 +43,7 @@ func TestUVLockReadinessGapKindsMatchTheSQL(t *testing.T) {
 
 // uvLockUnsupportedTargets maps parsed uv.lock rows the way the readiness CTE
 // does: a gap config_kind becomes one dependency_source target.
-func uvLockUnsupportedTargets(t *testing.T, body string) []UnsupportedTarget {
+func uvLockUnsupportedTargets(t *testing.T, body string) []packet.UnsupportedTarget {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "uv.lock")
 	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
@@ -53,13 +54,13 @@ func uvLockUnsupportedTargets(t *testing.T, body string) []UnsupportedTarget {
 		t.Fatalf("ParseUVLock() error = %v", err)
 	}
 	rows, _ := payload["variables"].([]map[string]any)
-	var targets []UnsupportedTarget
+	var targets []packet.UnsupportedTarget
 	for _, row := range rows {
 		kind, _ := row["config_kind"].(string)
 		for _, gap := range readinessGapConfigKinds {
 			if kind == gap {
-				targets = append(targets, UnsupportedTarget{
-					TargetKind:   UnsupportedTargetKindDependencySource,
+				targets = append(targets, packet.UnsupportedTarget{
+					TargetKind:   packet.UnsupportedTargetKindDependencySource,
 					Reason:       kind + "_unsupported",
 					Count:        1,
 					Ecosystem:    "pypi",
@@ -71,16 +72,16 @@ func uvLockUnsupportedTargets(t *testing.T, body string) []UnsupportedTarget {
 	return targets
 }
 
-func uvLockReadiness(targets []UnsupportedTarget) ReadinessEnvelope {
-	return BuildReadiness(
-		TargetScope{RepositoryID: "repo://example/python-service"},
+func uvLockReadiness(targets []packet.UnsupportedTarget) packet.ReadinessEnvelope {
+	return packet.BuildReadiness(
+		packet.TargetScope{RepositoryID: "repo://example/python-service"},
 		nil,
 		false,
-		ReadinessSnapshot{
-			EvidenceSources: []EvidenceFamily{
-				{Family: EvidenceFamilyVulnerabilityAdvisory, FactCount: 8, Freshness: FreshnessLabelFresh},
-				{Family: EvidenceFamilyPackageConsumption, FactCount: 2, Freshness: FreshnessLabelFresh},
-				{Family: EvidenceFamilyPackageRegistry, FactCount: 2, Freshness: FreshnessLabelFresh},
+		packet.ReadinessSnapshot{
+			EvidenceSources: []packet.EvidenceFamily{
+				{Family: packet.EvidenceFamilyVulnerabilityAdvisory, FactCount: 8, Freshness: packet.FreshnessLabelFresh},
+				{Family: packet.EvidenceFamilyPackageConsumption, FactCount: 2, Freshness: packet.FreshnessLabelFresh},
+				{Family: packet.EvidenceFamilyPackageRegistry, FactCount: 2, Freshness: packet.FreshnessLabelFresh},
 			},
 			UnsupportedTargets: targets,
 		},
@@ -101,22 +102,22 @@ func TestUVLockProjectRootDoesNotMakeReadinessUnsupported(t *testing.T) {
 		"[[package]]\nname = \"lib\"\nversion = \"0.1.0\"\nsource = { editable = \"packages/lib\" }\n\n" +
 		"[[package]]\nname = \"requests\"\nversion = \"2.31.0\"\nsource = { registry = \"https://pypi.org/simple\" }\n"
 
-	if got := uvLockReadiness(uvLockUnsupportedTargets(t, lock)); got.State != ReadinessStateReadyZeroFindings {
+	if got := uvLockReadiness(uvLockUnsupportedTargets(t, lock)); got.State != packet.ReadinessStateReadyZeroFindings {
 		t.Fatalf("state = %q (unsupported_targets %#v), want %q: the project and its members are not dependency gaps",
-			got.State, got.UnsupportedTargets, ReadinessStateReadyZeroFindings)
+			got.State, got.UnsupportedTargets, packet.ReadinessStateReadyZeroFindings)
 	}
 
 	// The row the reader used to emit for the project itself is a gap.
-	rootRow := []UnsupportedTarget{{
-		TargetKind: UnsupportedTargetKindDependencySource, Reason: "editable_dependency_unsupported",
+	rootRow := []packet.UnsupportedTarget{{
+		TargetKind: packet.UnsupportedTargetKindDependencySource, Reason: "editable_dependency_unsupported",
 		Count: 1, Ecosystem: "pypi", FeatureToken: "editable_dependency",
 	}}
-	if got := uvLockReadiness(rootRow); got.State != ReadinessStateUnsupported {
-		t.Fatalf("state = %q, want %q for an emitted editable root row", got.State, ReadinessStateUnsupported)
+	if got := uvLockReadiness(rootRow); got.State != packet.ReadinessStateUnsupported {
+		t.Fatalf("state = %q, want %q for an emitted editable root row", got.State, packet.ReadinessStateUnsupported)
 	}
 
 	vendored := lock + "\n[[package]]\nname = \"vendored\"\nversion = \"1.0.0\"\nsource = { path = \"../vendored\" }\n"
-	if got := uvLockReadiness(uvLockUnsupportedTargets(t, vendored)); got.State != ReadinessStateUnsupported {
-		t.Fatalf("state = %q, want %q: a local path dependency outside the workspace is a real gap", got.State, ReadinessStateUnsupported)
+	if got := uvLockReadiness(uvLockUnsupportedTargets(t, vendored)); got.State != packet.ReadinessStateUnsupported {
+		t.Fatalf("state = %q, want %q: a local path dependency outside the workspace is a real gap", got.State, packet.ReadinessStateUnsupported)
 	}
 }

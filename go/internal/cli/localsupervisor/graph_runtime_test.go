@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/eshulocal"
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 func TestUseProcessLocalNornicDBDefaultsToEmbedded(t *testing.T) {
@@ -86,7 +86,7 @@ func TestStartManagedLocalNornicDBDefaultsToEmbeddedRuntime(t *testing.T) {
 	embeddedCalled := false
 	localGraphStartEmbedded = func(ctx context.Context, layout eshulocal.Layout) (*ManagedGraph, error) {
 		embeddedCalled = true
-		return &ManagedGraph{Backend: query.GraphBackendNornicDB, PID: os.Getpid()}, nil
+		return &ManagedGraph{Backend: querycontract.GraphBackendNornicDB, PID: os.Getpid()}, nil
 	}
 	localGraphStartProcess = func(ctx context.Context, layout eshulocal.Layout) (*ManagedGraph, error) {
 		t.Fatal("process runtime selected despite embedded default")
@@ -122,7 +122,7 @@ func TestStartManagedLocalNornicDBCanUseProcessRuntime(t *testing.T) {
 	}
 	localGraphStartProcess = func(ctx context.Context, layout eshulocal.Layout) (*ManagedGraph, error) {
 		processCalled = true
-		return &ManagedGraph{Backend: query.GraphBackendNornicDB, PID: 1234}, nil
+		return &ManagedGraph{Backend: querycontract.GraphBackendNornicDB, PID: 1234}, nil
 	}
 
 	graph, err := StartManagedNornicDB(context.Background(), eshulocal.Layout{})

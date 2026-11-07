@@ -13,11 +13,11 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/eshulocal"
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 func TestRunOwnedLocalHostWithLayoutAuthoritativeStartsManagedGraph(t *testing.T) {
-	t.Setenv("ESHU_QUERY_PROFILE", string(query.ProfileLocalAuthoritative))
+	t.Setenv("ESHU_QUERY_PROFILE", string(querycontract.ProfileLocalAuthoritative))
 
 	originalPrepareWorkspace := localHostPrepareWorkspace
 	originalStartEmbeddedPostgres := localHostStartEmbeddedPostgres
@@ -67,11 +67,11 @@ func TestRunOwnedLocalHostWithLayoutAuthoritativeStartsManagedGraph(t *testing.T
 		}, nil
 	}
 	localHostStartManagedGraph = func(ctx context.Context, layout eshulocal.Layout, runtimeConfig RuntimeConfig) (*ManagedGraph, error) {
-		if runtimeConfig.GraphBackend != query.GraphBackendNornicDB {
-			t.Fatalf("runtimeConfig.GraphBackend = %q, want %q", runtimeConfig.GraphBackend, query.GraphBackendNornicDB)
+		if runtimeConfig.GraphBackend != querycontract.GraphBackendNornicDB {
+			t.Fatalf("runtimeConfig.GraphBackend = %q, want %q", runtimeConfig.GraphBackend, querycontract.GraphBackendNornicDB)
 		}
 		return &ManagedGraph{
-			Backend:    query.GraphBackendNornicDB,
+			Backend:    querycontract.GraphBackendNornicDB,
 			Version:    "1.0.42",
 			BinaryPath: "/tmp/nornicdb",
 			Address:    "127.0.0.1",
@@ -93,8 +93,8 @@ func TestRunOwnedLocalHostWithLayoutAuthoritativeStartsManagedGraph(t *testing.T
 	}
 	graphBootstrapped := false
 	localHostApplyGraphBootstrap = func(ctx context.Context, runtimeConfig RuntimeConfig, graph *ManagedGraph) error {
-		if runtimeConfig.GraphBackend != query.GraphBackendNornicDB {
-			t.Fatalf("graph bootstrap backend = %q, want %q", runtimeConfig.GraphBackend, query.GraphBackendNornicDB)
+		if runtimeConfig.GraphBackend != querycontract.GraphBackendNornicDB {
+			t.Fatalf("graph bootstrap backend = %q, want %q", runtimeConfig.GraphBackend, querycontract.GraphBackendNornicDB)
 		}
 		if graph == nil || graph.BoltPort != 17687 {
 			t.Fatalf("graph bootstrap managed graph = %#v, want bolt port 17687", graph)
@@ -165,8 +165,8 @@ func TestRunOwnedLocalHostWithLayoutAuthoritativeStartsManagedGraph(t *testing.T
 	if written.GraphPID != 88 {
 		t.Fatalf("written.GraphPID = %d, want %d", written.GraphPID, 88)
 	}
-	if written.GraphBackend != string(query.GraphBackendNornicDB) {
-		t.Fatalf("written.GraphBackend = %q, want %q", written.GraphBackend, query.GraphBackendNornicDB)
+	if written.GraphBackend != string(querycontract.GraphBackendNornicDB) {
+		t.Fatalf("written.GraphBackend = %q, want %q", written.GraphBackend, querycontract.GraphBackendNornicDB)
 	}
 	if written.GraphBoltPort != 17687 {
 		t.Fatalf("written.GraphBoltPort = %d, want %d", written.GraphBoltPort, 17687)
@@ -192,7 +192,7 @@ func TestRunOwnedLocalHostWithLayoutAuthoritativeStartsManagedGraph(t *testing.T
 }
 
 func TestRunOwnedLocalHostWithLayoutAuthoritativeResetsStateBeforePostgres(t *testing.T) {
-	t.Setenv("ESHU_QUERY_PROFILE", string(query.ProfileLocalAuthoritative))
+	t.Setenv("ESHU_QUERY_PROFILE", string(querycontract.ProfileLocalAuthoritative))
 
 	originalPrepareWorkspace := localHostPrepareWorkspace
 	originalResetAuthoritativeState := localHostResetAuthoritativeState
@@ -253,7 +253,7 @@ func TestRunOwnedLocalHostWithLayoutAuthoritativeResetsStateBeforePostgres(t *te
 	localHostStartManagedGraph = func(ctx context.Context, layout eshulocal.Layout, runtimeConfig RuntimeConfig) (*ManagedGraph, error) {
 		order = append(order, "graph")
 		return &ManagedGraph{
-			Backend:  query.GraphBackendNornicDB,
+			Backend:  querycontract.GraphBackendNornicDB,
 			Address:  "127.0.0.1",
 			BoltPort: 17687,
 			HTTPPort: 17474,

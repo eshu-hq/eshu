@@ -6,6 +6,8 @@ package query
 import (
 	"github.com/eshu-hq/eshu/go/internal/query/evidence"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
+
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
@@ -35,11 +37,11 @@ type (
 	AdmissionDecisionReadStore         = evidence.AdmissionDecisionReadStore
 	AdmissionDecisionReadFilter        = evidence.AdmissionDecisionReadFilter
 	AdmissionDecisionReadRow           = evidence.AdmissionDecisionReadRow
-	AdmissionDecisionEvidenceRow       = evidence.AdmissionDecisionEvidenceRow
-	AdmissionDecisionResult            = evidence.AdmissionDecisionResult
-	AdmissionDecisionSourceHandle      = evidence.AdmissionDecisionSourceHandle
-	AdmissionDecisionCanonicalWrite    = evidence.AdmissionDecisionCanonicalWrite
-	AdmissionDecisionNextAction        = evidence.AdmissionDecisionNextAction
+	AdmissionDecisionEvidenceRow       = packet.AdmissionDecisionEvidenceRow
+	AdmissionDecisionResult            = packet.AdmissionDecisionResult
+	AdmissionDecisionSourceHandle      = packet.AdmissionDecisionSourceHandle
+	AdmissionDecisionCanonicalWrite    = packet.AdmissionDecisionCanonicalWrite
+	AdmissionDecisionNextAction        = packet.AdmissionDecisionNextAction
 	RecommendedNextCall                = evidence.RecommendedNextCall
 	PostgresAdmissionDecisionReadStore = evidence.PostgresAdmissionDecisionReadStore
 )
@@ -55,11 +57,6 @@ type (
 	evidenceCitationFileLookup         = evidence.EvidenceCitationFileLookup
 	evidenceCitationFileKey            = evidence.EvidenceCitationFileKey
 )
-
-// evidenceCitationMaxLimit bounds the citation packet handles per request.
-// Staying callers: the lane-B packet builder's per-layer citation cap. See
-// evidence.EvidenceCitationMaxLimit.
-const evidenceCitationMaxLimit = evidence.EvidenceCitationMaxLimit
 
 // NewPostgresAdmissionDecisionReadStore creates the Postgres-backed admission
 // decision read model. See evidence.NewPostgresAdmissionDecisionReadStore.

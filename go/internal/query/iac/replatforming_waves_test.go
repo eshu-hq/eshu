@@ -6,6 +6,8 @@ package iac
 import (
 	"reflect"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 )
 
 // blastSignal builds a replatformingItemSignal for tests.
@@ -17,7 +19,7 @@ func blastSignal(dependencyCount, missingEvidenceCount int) replatformingItemSig
 }
 
 // waveTestItem builds a minimal valid migration packet item for wave tests.
-func waveTestItem(id string, state ReplatformingSourceState, importReady bool, gate ManagementSafetyGate) MigrationPacketItem {
+func waveTestItem(id string, state ReplatformingSourceState, importReady bool, gate packet.ManagementSafetyGate) MigrationPacketItem {
 	item := MigrationPacketItem{
 		ItemID:       id,
 		Provider:     "aws",
@@ -42,12 +44,12 @@ func waveTestItem(id string, state ReplatformingSourceState, importReady bool, g
 	return item
 }
 
-func readOnlyGate() ManagementSafetyGate {
-	return ManagementSafetyGate{Outcome: "read_only", ReadOnly: true}
+func readOnlyGate() packet.ManagementSafetyGate {
+	return packet.ManagementSafetyGate{Outcome: "read_only", ReadOnly: true}
 }
 
-func reviewGate() ManagementSafetyGate {
-	return ManagementSafetyGate{Outcome: "review_required", ReviewRequired: true}
+func reviewGate() packet.ManagementSafetyGate {
+	return packet.ManagementSafetyGate{Outcome: "review_required", ReviewRequired: true}
 }
 
 // TestAssignReplatformingWavesOrdersEarlySafeFirst proves independent, import-ready,

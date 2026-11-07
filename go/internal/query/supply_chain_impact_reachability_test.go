@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 )
 
@@ -108,7 +109,7 @@ func TestSupplyChainImpactFindingsExposeReachabilityWithoutDowngradingImpact(t *
 				Confidence:          "exact",
 				RepositoryID:        "repo://example/go",
 				RuntimeReachability: "not_called",
-				Reachability: &impact.ReachabilityResult{
+				Reachability: &packet.ReachabilityResult{
 					State:      "not_called",
 					Confidence: "strong",
 					Source:     "govulncheck",
@@ -121,7 +122,7 @@ func TestSupplyChainImpactFindingsExposeReachabilityWithoutDowngradingImpact(t *
 				Confidence:          "exact",
 				RepositoryID:        "repo://example/ruby",
 				RuntimeReachability: "package_manifest",
-				Reachability: &impact.ReachabilityResult{
+				Reachability: &packet.ReachabilityResult{
 					State:      "reachable",
 					Confidence: "partial",
 					Source:     "bundler",
@@ -146,7 +147,7 @@ func TestSupplyChainImpactFindingsExposeReachabilityWithoutDowngradingImpact(t *
 	}
 
 	var resp struct {
-		Findings []impact.FindingResult `json:"findings"`
+		Findings []packet.FindingResult `json:"findings"`
 	}
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal: %v", err)

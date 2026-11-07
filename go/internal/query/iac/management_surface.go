@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -197,7 +198,7 @@ func (h *Handler) loadExactIaCManagementFinding(
 	return &finding, total, nil
 }
 
-func managementSafetyGateForExactFinding(finding *ManagementFindingRow) ManagementSafetyGate {
+func managementSafetyGateForExactFinding(finding *ManagementFindingRow) packet.ManagementSafetyGate {
 	if finding == nil {
 		return managementEmptySafetyGate()
 	}

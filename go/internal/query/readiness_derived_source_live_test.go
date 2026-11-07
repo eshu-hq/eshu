@@ -18,6 +18,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 )
 
@@ -156,7 +157,7 @@ func TestSupplyChainImpactReadinessDerivedUnrelatedScopesDoNotOverflowLive(t *te
 	seedDerivedScope(t, ctx, db, now, "derived-npm", lodashScope, "npm", "fresh", "succeeded", lodashKeys)
 
 	readiness := readDerivedReadiness(t, db, "package_id=npm://registry.npmjs.org/lodash")
-	if readiness.State == string(impact.ReadinessStateReadinessUnavailable) {
+	if readiness.State == string(packet.ReadinessStateReadinessUnavailable) {
 		t.Fatalf("201 unrelated derived scopes made readiness unavailable: %+v", readiness)
 	}
 	state := onlyDerivedState(t, readiness)
@@ -177,7 +178,7 @@ func TestSupplyChainImpactReadinessDerivedMissingScopeReadsPendingLive(t *testin
 		state.FreshnessState != "pending" || state.TerminalStatus != "pending" {
 		t.Fatalf("derived aggregate = %+v, want scope_count 0, unmatched 1, pending", state)
 	}
-	if readiness.State != string(impact.ReadinessStateTargetIncomplete) ||
+	if readiness.State != string(packet.ReadinessStateTargetIncomplete) ||
 		!slices.Contains(readiness.IncompleteReasons, "osv:pending") {
 		t.Fatalf("readiness = %+v, want target_incomplete with osv:pending", readiness)
 	}
@@ -221,7 +222,7 @@ func TestSupplyChainImpactReadinessConfiguredOSVOverflowStillRefusesLive(t *test
 	seedReadinessScopeInstance(t, ctx, db, now, "configured-osv", targets)
 
 	readiness := readDerivedReadiness(t, db, "package_id=npm://registry.npmjs.org/lodash")
-	if readiness.State != string(impact.ReadinessStateReadinessUnavailable) {
+	if readiness.State != string(packet.ReadinessStateReadinessUnavailable) {
 		t.Fatalf("201 configured OSV targets readiness = %+v, want readiness_unavailable", readiness)
 	}
 }
