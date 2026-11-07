@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/mcp"
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/visualization"
 	"github.com/eshu-hq/eshu/go/internal/repositoryidentity"
 )
 
@@ -344,7 +344,7 @@ func TestGoldenSnapshotPinsServiceStoryVisualizationIdentityFields(t *testing.T)
 	if !ok || len(nodes) < 2 {
 		t.Fatalf("derive_visualization_packet source evidence nodes = %#v, want at least two observations", graph["nodes"])
 	}
-	packet := query.BuildServiceStoryVisualizationPacket(source, nil)
+	packet := visualization.BuildServiceStoryPacket(source, nil)
 	body, err := json.Marshal(map[string]any{"visualization_packet": packet})
 	if err != nil {
 		t.Fatalf("json.Marshal() error = %v", err)
