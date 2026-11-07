@@ -28,8 +28,10 @@ func TestSeedStampsCollectorAndManifest(t *testing.T) {
 	if err := os.WriteFile(self, []byte("fake-collector-binary"), 0o755); err != nil {
 		t.Fatalf("write fixture binary: %v", err)
 	}
+	engine := fixtureMediaEnginePayload(t)
+	engine.platform = "linux/amd64"
 	dest := t.TempDir()
-	if err := runSeed(dest, mediaSeedTestRef, self, "linux/amd64"); err != nil {
+	if err := runSeed(dest, mediaSeedTestRef, self, "linux/amd64", engine); err != nil {
 		t.Fatalf("runSeed: %v", err)
 	}
 	collector, err := os.ReadFile(filepath.Join(dest, "collector"))
@@ -99,8 +101,10 @@ func TestSeedRejectsNonDigestRef(t *testing.T) {
 		if err := os.WriteFile(self, []byte("fake-collector-binary"), 0o755); err != nil {
 			t.Fatalf("write fixture binary: %v", err)
 		}
+		engine := fixtureMediaEnginePayload(t)
+		engine.platform = "linux/amd64"
 		dest := t.TempDir()
-		if err := runSeed(dest, ref, self, "linux/amd64"); err == nil {
+		if err := runSeed(dest, ref, self, "linux/amd64", engine); err == nil {
 			t.Fatalf("ref %q: got nil error, want a digest-pin failure", ref)
 		} else if !strings.Contains(err.Error(), "--image-ref") {
 			t.Fatalf("ref %q: error %q does not name --image-ref", ref, err)
@@ -121,8 +125,10 @@ func TestSeedRejectsMissingPlatform(t *testing.T) {
 	if err := os.WriteFile(self, []byte("fake-collector-binary"), 0o755); err != nil {
 		t.Fatalf("write fixture binary: %v", err)
 	}
+	engine := fixtureMediaEnginePayload(t)
+	engine.platform = "linux/riscv64"
 	dest := t.TempDir()
-	if err := runSeed(dest, mediaSeedTestRef, self, "linux/riscv64"); err == nil {
+	if err := runSeed(dest, mediaSeedTestRef, self, "linux/riscv64", engine); err == nil {
 		t.Fatal("runSeed for a missing platform: got nil error, want a failure")
 	} else if !strings.Contains(err.Error(), "linux/riscv64") {
 		t.Fatalf("runSeed error = %q, want it to name the missing platform", err)

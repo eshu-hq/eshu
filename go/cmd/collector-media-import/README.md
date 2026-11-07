@@ -35,7 +35,10 @@ Package `main`; nothing is imported by other packages.
 - `drainOnce` — one-shot commit loop over the source.
 - `buildDrain`, `buildEngine` — pinned backend verification and drain wiring.
 - `runSeed`, `runSeedCommand` — `collector seed` dispatch: digest-ref
-  validation plus the caller binary and embedded `manifest.yaml` copy.
+  validation plus the caller binary, embedded `manifest.yaml`, and pinned
+  whisper engine payload copy (`engine/` with `bin/` + `models/`, every
+  file SHA-256-verified during a streaming copy, plus `pin-manifest.yaml`
+  and the musl loader path file `lib-path`).
 - `serveStdioClaim`, `runSDKStdioCommand`, `captureCommitter`, `ackResult` —
   `--sdk-stdio` grant-checked claim adapter: one host claim in, one SDK
   result out, existing drain unchanged in between, terminal `grant_denied`
@@ -56,10 +59,15 @@ the manifest entry to the pushed digest.
 `collector seed --dest <dir> --image-ref <repo@sha256:…>` materializes the
 seed payload (binary as `collector`, manifest as `manifest.yaml` with the
 passed digest stamped into the artifact entry for the seed runner's
-platform) and fails closed on any non-digest reference, any reference
-outside this component's own seed repository, or a manifest with no entry
-for the runner's platform — leaving no partial payload. Sibling platform
-slots are left byte-identical.
+platform, engine as `engine/` with `bin/whisper-cli` plus
+`models/ggml-base.en.bin`, every file SHA-256-verified during a streaming
+copy, plus `pin-manifest.yaml` and the musl loader path file `lib-path`)
+and fails closed on any non-digest reference, any reference outside this
+component's own seed repository, a manifest with no entry for the runner's
+platform, or any copy or digest failure — removing the destination so no
+partial payload survives. Sibling platform slots are left byte-identical.
+The env pins move to the runtime dir at the IaC step; the seed writes
+exactly the pinned set (no seeded file unpinned, no pin unseeded).
 
 `--sdk-stdio` serves one host claim: the claim's generation drains through
 the existing source and drain into an in-memory capture, the envelopes
@@ -180,6 +188,28 @@ No-Observability-Change: no new metric, label, span, or log key on either
 path; `seed` writes files only, `--sdk-stdio` acks over stdout, and the
 drain's existing extraction/commit signals are unchanged. Seed files are
 covered by the `telemetry-coverage-collectors.md` drain row.
+
+### Seeded engine payload (this PR)
+
+No-Regression Evidence: `seed` additionally copies the pinned engine tree
+(`bin/whisper-cli`, `models/ggml-base.en.bin`) into `<dest>/engine/`,
+streaming each file while hashing against its pin; any mismatch removes the
+payload. Baseline is the payload without engines (every claim fails at pin
+verification); after measurement at this HEAD the focused suite stays green
+(`go test ./cmd/collector-media-import/ -count=1`) including tamper,
+missing-source, and pin-drift RED/GREEN pairs. The copy helper is the same
+one proven live for OCR; the whisper container end-to-end stays NOT_CHECKED.
+Backend: pinned whisper.cpp v1.9.5; linux/arm64 + amd64 pin tables. Input
+shape: seed-image absolute paths under the fixed `engine/` names into the
+operator `--dest` dir (0750, engine subdirs 0750, payload files 0444/0555).
+Terminal counts are the drain's own generation/envelope totals; the claim
+decode/validate/commit path is untouched. Gate impact is nil by
+construction: the copy runs only inside `seed`.
+
+No-Observability-Change: `engine.go` emits no metric, label, span, or log
+line; it is covered by the same `telemetry-coverage-collectors.md` drain
+row, and extraction/commit signals stay the existing
+`eshu_dp_media_transcript_*` set.
 
 ## Gotchas / invariants
 

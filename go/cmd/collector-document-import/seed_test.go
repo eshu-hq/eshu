@@ -86,9 +86,11 @@ func TestSeedWritesCollectorAndManifest(t *testing.T) {
 	work := t.TempDir()
 	binary := seedTestBinary(t, filepath.Join(work, "collector"), []byte("fake-collector-bytes"))
 	manifest := seedTestManifest(t, filepath.Join(work, "manifest.yaml"))
+	engine := fixtureDocEnginePayload(t)
+	engine.platform = "linux/amd64"
 	dest := filepath.Join(work, "dest")
 
-	if err := seedComponent(dest, seedTestRef, binary, manifest, "linux/amd64"); err != nil {
+	if err := seedComponent(dest, seedTestRef, binary, manifest, "linux/amd64", engine); err != nil {
 		t.Fatalf("seedComponent: %v", err)
 	}
 	gotBinary, err := os.ReadFile(filepath.Join(dest, "collector"))
@@ -158,9 +160,11 @@ func TestSeedRefusesNonDigestRef(t *testing.T) {
 			work := t.TempDir()
 			binary := seedTestBinary(t, filepath.Join(work, "collector"), []byte("fake-collector-bytes"))
 			manifest := seedTestManifest(t, filepath.Join(work, "manifest.yaml"))
+			engine := fixtureDocEnginePayload(t)
+			engine.platform = "linux/amd64"
 			dest := filepath.Join(work, "dest")
 
-			err := seedComponent(dest, ref, binary, manifest, "linux/amd64")
+			err := seedComponent(dest, ref, binary, manifest, "linux/amd64", engine)
 			if err == nil {
 				t.Fatalf("seedComponent(%q): got nil error, want a digest refusal", ref)
 			}
@@ -198,9 +202,11 @@ spec:
 	if err := os.WriteFile(manifest, []byte(raw), 0o600); err != nil {
 		t.Fatalf("write test manifest: %v", err)
 	}
+	engine := fixtureDocEnginePayload(t)
+	engine.platform = "linux/arm64"
 	dest := filepath.Join(work, "dest")
 
-	err := seedComponent(dest, seedTestRef, binary, manifest, "linux/arm64")
+	err := seedComponent(dest, seedTestRef, binary, manifest, "linux/arm64", engine)
 	if err == nil {
 		t.Fatal("seedComponent for a missing platform: got nil error, want a failure")
 	} else if !strings.Contains(err.Error(), "linux/arm64") {
@@ -219,11 +225,16 @@ func TestSeedRefusesMissingInputs(t *testing.T) {
 	work := t.TempDir()
 	binary := seedTestBinary(t, filepath.Join(work, "collector"), []byte("fake-collector-bytes"))
 	manifest := seedTestManifest(t, filepath.Join(work, "manifest.yaml"))
+	engine := fixtureDocEnginePayload(t)
+	engine.platform = "linux/amd64"
 
-	if err := seedComponent(filepath.Join(work, "d1"), seedTestRef, filepath.Join(work, "missing"), manifest, "linux/amd64"); err == nil {
+	if err := seedComponent(filepath.Join(work, "d1"), seedTestRef, filepath.Join(work, "missing"), manifest, "linux/amd64", engine); err == nil {
 		t.Fatal("seedComponent with a missing binary: got nil error, want a failure")
 	}
-	if err := seedComponent(filepath.Join(work, "d2"), seedTestRef, binary, filepath.Join(work, "missing.yaml"), "linux/amd64"); err == nil {
+	if entries, _ := os.ReadDir(filepath.Join(work, "d1")); len(entries) != 0 {
+		t.Fatalf("seedComponent with a missing binary wrote %d dest entries, want a closed failure with none", len(entries))
+	}
+	if err := seedComponent(filepath.Join(work, "d2"), seedTestRef, binary, filepath.Join(work, "missing.yaml"), "linux/amd64", engine); err == nil {
 		t.Fatal("seedComponent with a missing manifest: got nil error, want a failure")
 	}
 }

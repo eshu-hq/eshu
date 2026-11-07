@@ -33,12 +33,17 @@ Package `main`; nothing is imported by other packages.
   distinct artifact, identity from content SHA-256.
 - `drainOnce` — one-shot commit loop over the source.
 - `buildDrain`, `buildEngine` — pinned backend verification and drain wiring.
-- `runSeedCommand`, `seedComponent`, `parseSeedArgs` (`seed.go`) — the
-  satellite seed branch: copy the caller plus the installed manifest into
-  the activation destination, stamping the digest-pinned seed image.
+- `runSeedCommand`, `seedComponent`, `parseSeedArgs` (`seed.go`) plus
+  `enginePayloadForPlatform`, `seedEnginePayload` (`engine.go`) — the
+  satellite seed branch: copy the caller, the installed manifest (stamped
+  with the digest-pinned seed image), and the pinned tesseract engine
+  payload (`engine/` with `bin/` + flat `lib/` + `tessdata/`, every file
+  SHA-256-verified during a streaming copy, plus `pin-manifest.yaml` and
+  the musl loader path file `lib-path`).
 - `serveSDKStdio`, `captureCommitter` (`sdkstdio.go`) — the satellite claim
   adapter: one host claim from stdin, existing verification plus the
-  untouched drain, grant-checked commit into the SDK ack.
+  untouched drain, grant-checked commit into the SDK ack, served against
+  the embedded manifest (`manifest.yaml` compiled into the caller).
 
 See `doc.go` for the full godoc contract.
 
@@ -52,15 +57,23 @@ and the component manifest at `/manifest.yaml`. The activation chart runs
 init container, then launches `<runtimeDir>/collector --sdk-stdio` per
 claim through the component-extension host.
 
-- `seed` writes `<dest>/collector` (executable) and
-  `<dest>/manifest.yaml` (seed image stamped in), failing closed on any
-  reference that is not digest-pinned (`repo@sha256:<64 hex>`).
+- `seed` writes `<dest>/collector` (executable),
+  `<dest>/manifest.yaml` (seed image stamped in), and `<dest>/engine/`
+  (`bin/tesseract`, every `ESHU_DOC_IMPORT_TESSERACT_LIBRARIES` pin flat
+  under `lib/`, `tessdata/eng.traineddata`, plus `pin-manifest.yaml` and
+  the musl loader path file `lib-path`), failing closed on any reference
+  that is not digest-pinned (`repo@sha256:<64 hex>`) and removing the
+  destination on any copy or digest failure, so no partial payload survives.
+  The env pins move to the runtime dir at the IaC step; the seed writes
+  exactly the pinned set (no seeded file unpinned, no pin unseeded).
 - `--sdk-stdio` reads one bounded host claim, verifies the environment and
   engine pins exactly like the one-shot path, drains the activation
   artifact dir, and acks `complete` (facts), `unchanged` (empty drain), or
   `terminal` (deterministic grant denial). Facts are bound to the claimed
   scope and generation on the wire; content identity (stable key, payload)
-  travels unchanged. The durable commit stays host-side.
+  travels unchanged. The durable commit stays host-side. The claim path
+  serves the embedded manifest, so `/manifest.yaml` stays only as the seed
+  source inside the seed image.
 - Grant source is the activation registry (`ESHU_COMPONENT_HOME`), which
   the chart reconcile populates before install. An unreadable or empty
   grant set denies core-owned emission fail-closed, mirroring the host's
@@ -156,6 +169,28 @@ No-Observability-Change: no new metric, label, span, or log key on either
 path; `seed` writes files only, `--sdk-stdio` acks over stdout, and the
 drain's existing extraction/commit signals are unchanged. Seed files are
 covered by the `telemetry-coverage-collectors.md` drain row.
+
+### Seeded engine payload (this PR)
+
+No-Regression Evidence: `seed` additionally copies the pinned engine tree
+(`bin/tesseract`, 22 flat libs, `tessdata/eng.traineddata`) into
+`<dest>/engine/`, streaming each file while hashing against its pin; any
+mismatch removes the payload. Baseline is the payload without engines (every
+claim fails at pin verification); after measurement at this HEAD the focused
+suite stays green (`go test ./cmd/collector-document-import/ -count=1`)
+including tamper, missing-source, and pin-drift RED/GREEN pairs, and a live
+alpine:3.21 shim acks `unchanged` with zero facts on an empty dir (identical
+ack with `manifest.yaml` deleted). Backend: pinned tesseract 5.5.0;
+linux/arm64 + amd64 pin tables. Input shape: seed-image absolute paths under
+the fixed `engine/` names into the operator `--dest` dir (0750, engine
+subdirs 0750, payload files 0444/0555). Terminal counts are the drain's own
+generation/envelope totals; the claim decode/validate/commit path is
+untouched except the manifest byte source. Gate impact is nil by
+construction: the copy runs only inside `seed`.
+
+No-Observability-Change: `engine.go` emits no metric, label, span, or log
+line; it is covered by the same `telemetry-coverage-collectors.md` drain
+row, and extraction/commit signals stay the existing `eshu_dp_ocr_*` set.
 
 Follow-up (digest-pin normalization, #10039 review thread).
 No-Regression Evidence: `loadHexDigest` now returns the normalized lowercase

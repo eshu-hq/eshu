@@ -95,9 +95,6 @@ func serveSDKStdio(ctx context.Context, stdin io.Reader, stdout io.Writer, deps 
 		logger = sdkStdioDiscardLogger()
 	}
 	manifestPath := deps.manifestPath
-	if manifestPath == "" {
-		manifestPath = installedManifestPath
-	}
 	newExtractor := deps.newExtractor
 	if newExtractor == nil {
 		newExtractor = defaultSDKStdioExtractor
@@ -255,18 +252,28 @@ func decodeSDKStdioRequest(stdin io.Reader) (extensionhost.Request, error) {
 	return request, nil
 }
 
-// loadSDKStdioManifest reads the installed component manifest without grant
-// context: grant admission runs separately so a denial acks terminal
-// instead of failing the process.
+// loadSDKStdioManifest reads the component manifest without grant context:
+// grant admission runs separately so a denial acks terminal instead of
+// failing the process. An empty path serves the embedded manifest, which is
+// the production claim path: the claim runs from the seeded payload without
+// a /manifest.yaml file beside it. A set path reads a fixture manifest for
+// tests.
 func loadSDKStdioManifest(path string) (component.Manifest, error) {
-	// #nosec G304 -- path is the installed /manifest.yaml constant, never operator free-form input.
+	if strings.TrimSpace(path) == "" {
+		var manifest component.Manifest
+		if err := yaml.Unmarshal(embeddedManifest, &manifest); err != nil {
+			return component.Manifest{}, fmt.Errorf("sdk-stdio decodes the embedded manifest: %w", err)
+		}
+		return manifest, nil
+	}
+	// #nosec G304 -- path is a test fixture manifest, never operator free-form input.
 	raw, err := os.ReadFile(path)
 	if err != nil {
-		return component.Manifest{}, fmt.Errorf("sdk-stdio reads the installed manifest %q: %w", path, err)
+		return component.Manifest{}, fmt.Errorf("sdk-stdio reads the manifest %q: %w", path, err)
 	}
 	var manifest component.Manifest
 	if err := yaml.Unmarshal(raw, &manifest); err != nil {
-		return component.Manifest{}, fmt.Errorf("sdk-stdio decodes the installed manifest %q: %w", path, err)
+		return component.Manifest{}, fmt.Errorf("sdk-stdio decodes the manifest %q: %w", path, err)
 	}
 	return manifest, nil
 }
