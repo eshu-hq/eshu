@@ -8,7 +8,19 @@ consumer-drain and removal preparation only — no deletion, no deletion PR,
 no traffic shift; merge of any removal PR needs a separate cutover-good ruling.
 First deliverable: refresh the stale removal-tail narrative at this base.
 
-## 51 unmounted GETs (fallthrough-401, enumerated live 2026-11-07)
+## 51 GETs with 401 gate posture (enumerated live 2026-11-07)
+
+Correction to the flip record's "fallthrough" framing: the 401 is gate
+posture, not unmounted-path proof — all 51 are mounted in-tree
+(`mounted-by=newRouter`) and relay-recognized satellite-side, with no
+satellite-native termination path for 49. Disposition: SAT 2, MCP 37
+(dispatch-to-survivor on the MCP edge, own removal #9670), CORE 11,
+RET 1 (`GET /api/v0/index-status`, alias of canonical
+`GET /api/v0/status/index` — repoint the sole alias consumer, the
+`get_index_status` tool, to canonical, then retire). GAP=star on 49
+(openapi.json and auth/sessions excluded); every star needs satellite
+closure or carve-out before the removal PR opens. Per-route evidence
+in the D13 disposition report; headline per family below.
 
 ### APIRouter
 - `GET /api/v0/openapi.json`

@@ -3,11 +3,13 @@
 
 # Removal-tail PREP: satellite-to-satellite rollback rehearsal plan draft (#9669)
 
-Refs #9669, part of #6707. Status: draft only — no rehearsal has run, no
-traffic has moved, and every placeholder below is TBD until the serving
-satellite revision exists. Record the chosen disposition on #9669 before
-the removal PR (issue acceptance: "Rollback disposition per #9383 …
-record that disposition here before the removal PR").
+Refs #9669, part of #6707. Status: draft only for code-deletion
+rollback — the pin-level rehearsal already ran under D12 (reverse-pin
+PR restored the last-good pins, re-verified truth/availability/state,
+restore PR re-applied the dest pins; evidence on #9669). D12 proves
+satellite pin rollback, not rollback of a code deletion; the removal
+PR must record its own disposition (revert PR plus prior core digest)
+on #9669 before it merges, updating this draft.
 
 Precedent: the #9665/#9670 arbiter ruling
 (`docs/internal/evidence/arbiter-9665-9670-ruling.md`, Decision 1–2) and

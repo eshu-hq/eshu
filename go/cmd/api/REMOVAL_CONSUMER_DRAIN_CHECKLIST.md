@@ -8,27 +8,29 @@ occurred, no deletions in this artifact, and every row below is TODO.
 Leaf executors (Leaves B–E) drain these consumers; the removal PR deletes
 only when each row proves zero remaining in-tree callers.
 
-Source of truth for served routes stays
-[READ_TRANSPORT_CENSUS.md](../../../../eshu-9669-census/go/cmd/api/READ_TRANSPORT_CENSUS.md)
-(read-only reference in the sibling `eshu-9669-census` worktree) and
-[CUTOVER_OWNERSHIP.md](CUTOVER_OWNERSHIP.md). Counts below were measured
-in this worktree on `drive/9669-removal-tail` and re-verified after
-rebasing onto `origin/main` `e30c99c1cf` (lane base was `60f2fe256d`):
-the re-prove command returns the identical 88-file set outside
-`go/cmd/api` and `go/internal/query`, and the exact-package MCP census
-is still 107 (8 non-test + 99 test, `git grep` corroboration identical).
-Re-run the listed command before the removal PR — counts drift as
-sibling lanes land.
+Source of truth for served routes stays [CUTOVER_OWNERSHIP.md](CUTOVER_OWNERSHIP.md)
+(278 rows; count with the escaped pipe `rg -c '^\| '` — the bare
+`'^| '` pattern alternates and overcounts to 364). Counts below were
+re-measured on `origin/main` `475ab11911` (D13 lane base; prior base
+`e30c99c1cf`): the re-prove command returns the identical 88-file set
+outside `go/cmd/api` and `go/internal/query`, and the exact-package MCP
+census is still 107 (8 true non-test imports + 99 test). Re-run the
+listed command before the removal PR — counts drift as sibling lanes
+land. Full D13 re-prove (0 of 13 rows drain; every Go row still has
+surviving importers) and the 51-route disposition (SAT 2, MCP 37,
+CORE 11, RET 1; 49 need satellite closure or carve-out) live in the
+D13 lane record at `docs/internal/9669-removal/lane-record.md`.
 
-Landings since the lane base (dest-side and seam progress; every row
-below stays TODO — no drain is claimed): satellite `eshu-api`
-`origin/main` at `f62086c51d59aa68b3fee2dd299e85cdf7119cfc` with native
-dispatch merged for AdminIdentityMutations (#42), AdminReads fragment
-(#43), Setup carve-out (#45), AdminProviderConfigMutations (#46), and
-the AdminRecoveryMutations subset (#47; satellite #44 open follow-up);
-eshu admission seams merged but unwired — GovernanceAuditAdmission
-(#10233) and RecoveryAdmission v0 (#10245); Leaf B read-transport spec
-plus red-first conformance skeleton merged (#10250).
+Landings since the prior base (dest-side and seam progress; every row
+below stays TODO — no drain is claimed): satellite `eshu-api` at
+`v0.4.0` (`1f50a05`, D0–D10 waves merged, parity/read-latency/test/race
+green at the release commit) and `eshu-mcp` at `v0.2.10` (tools.json
+171/171 byte-identical); D11 flip pins live on the QA edges
+(flip-good for the pin move, not cutover-good); D12 Plan A rollback
+rehearsal complete with evidence on #9669; four satellite P2s filed
+(eshu-mcp#60, eshu-mcp#61, eshu-api#65, eshu-api#66), all deferred to
+removal review. In-tree admission seams still unwired; `go/internal/mcp`
+does NOT move in #9669 (in-tree reproduction contract per #9670).
 
 Re-prove command (whole checklist, non-test Go files importing
 `go/internal/query` outside the API tree itself):
@@ -37,21 +39,25 @@ Re-prove command (whole checklist, non-test Go files importing
 rg -ln 'internal/query"' go --glob '*.go' | rg -v '_test\.go' | rg -v '^(go/cmd/api|go/internal/query)/' | sort
 ```
 
+Row-2 census fix: from the repo root the MCP path needs the `go/`
+prefix — `rg -l 'eshu-hq/eshu/go/internal/query"' --type go
+go/internal/mcp/` (the bare `internal/mcp/` form exits 2).
+
 ## Consumer rows
 
 | # | Consumer | Current import / target | Replacement path | Status |
 | --- | --- | --- | --- | --- |
 | 1 | `go/cmd/api` (in-tree handlers, wiring, `newRouter`/`wireAPI`) | Owns all 278 route rows across 66 families (`CUTOVER_OWNERSHIP.md`); reads via reader ports, one bounded suppression mutation | Moves to eshu-api as the native handler set; reads via versioned core contracts (`CoreReadContractsVersion = "v0"`, `go/internal/query/querycontract/api_boundary.go`); mutations via versioned admission contracts | TODO |
 | 2 | `go/internal/mcp` — 8 non-test files (`transport_auth.go`, `dispatch_calls.go`, `dispatch_budget.go`, `dispatch_envelope.go`, `run_readonly.go`, `summaries.go`, `summaries_families.go`, `router/access.go`) plus 99 test files (107 total importing the exact query package; `kind_real_consumer.go` only mentions the path in a string/comment, not an import — re-measured with `rg -l 'eshu-hq/eshu/go/internal/query"' --type go internal/mcp/`) | `ResponseEnvelope`, filters, views | Adapt to versioned read contracts; MCP calls eshu-api transport (Leaf C/D lane) | TODO |
-| 3 | `go/internal/cli` — 48 files (investigation fetch/packet/subject/refusal, support handler, report/servicereport, compparity exercises, docs verify, admin credential flows, localsupervisor embedded graph/host lifecycle, vulnscan localruntime) | `TruthEnvelope`, `ErrorEnvelope`, packet helpers | eshu-cli HTTP client against eshu-api; `localsupervisor` embedded stores stay core-local; doc/parity assertions re-point at the eshu-api OpenAPI surface | TODO |
-| 4 | `go/cmd/reducer` — 23 files (`wiring_handlers.go`, workload/sibling/instance-retraction/dependency lookups, neo4j/retention/orphan-sweep/readiness/provenance wiring) | `GraphQuery` port and related wiring types | Import ports from `querycontract` (core-owned); drop handler imports; reducer stays core | TODO |
+| 3 | `go/internal/cli` — 22 files at `475ab11911` (was 48: admin credential flows, compparity exercises, docs verify, graphinstall, hosted onboard, investigation fetch/packet/refusal/subject, localsupervisor config/graph/host/lifecycle/mcpbridge, report/servicereport, support handler, vulnscan localruntime) | `TruthEnvelope`, `ErrorEnvelope`, packet helpers | eshu-cli HTTP client against eshu-api; `localsupervisor` embedded stores stay core-local; doc/parity assertions re-point at the eshu-api OpenAPI surface | TODO |
+| 4 | `go/cmd/reducer` — 17 files at `475ab11911` (was 23: canonical_graph_writers, config, cross_scope_readiness_wiring, ecs_binding_lookups, generation_retention_wiring, graph_orphan_sweep_wiring, main, main_helpers, neo4j_wiring, observed_service_wiring, provenance_gauge_wiring, run, search_vector_build_wiring, wiring_handlers, workload/sibling/instance-retraction lookups) | `GraphQuery` port and related wiring types | Import ports from `querycontract` (core-owned); drop handler imports; reducer stays core | TODO |
 | 5 | `go/cmd/eshu` — 3 non-test files (`service.go`, `graph.go`, `investigation_cmd.go`) plus 8 parity/perf test files | Profiles, backends, packet render helpers; local `api`/`graph` service commands | eshu-cli HTTP client against eshu-api; local modes via core contracts | TODO |
 | 6 | `go/cmd/golden-corpus-gate` — 2 files (`query.go`, plus test) | `EnvelopeMIMEType` | Contract constant from eshu-sdk/api client; gate retargets the eshu-api base URL | TODO |
 | 7 | `go/cmd/capability-inventory` — 4 files (`surfaces.go`, `graph_read_probe_registry.go`, plus tests) | `OpenAPISpec`, probe registry | Fetch OpenAPI/capabilities from eshu-api; probes run against the satellite | TODO |
 | 8 | Shared ask/serviceintel helpers — `go/internal/ask/engine` (26 files: `AnswerPacket`, `ResponseEnvelope`, truth classes), `go/internal/serviceintelhttp` (6 files), `go/internal/reportbundle` + `answerquality` + `answernarration` (pure packet/score shapes), `go/internal/serviceintel` (6 files) | Handler-adjacent shapes and HTTP helpers | Ask engine moves with the Ask family (Native now); pure shapes hoist to eshu-sdk or the eshu-api contract module; `serviceintelhttp` moves with ServiceIntelHTTP (Native now) | TODO |
 | 9 | Auth/session/fact helpers — `go/internal/scopedtoken`, `oidcbearer`, `oidclogin`, `githublogin` (zero non-test `internal/query"` matches; 10 test files still import the query root: 4 scopedtoken, 4 oidcbearer, 2 oidclogin) plus 3 string-mention false positives with zero AST-exact imports, pinned by new `TestQueryRootDrained` pin tests: `go/internal/facts/docs/documentation.go` + `go/internal/facts/semantic/semantic.go` (`NoReducerEvidence` strings, kept per arbiter) and `go/internal/evidencecontinuity/gatetriggers.go` (doc-example comment, neutralized to a `cigates` example) | Auth/session helpers, provider config, doc shapes, gate triggers | Versioned auth/session contracts; identity stores stay core; fact schemas to eshu-sdk; triggers re-point at eshu-api evidence routes | TODO (10 auth test files) |
 | 10 | Doc/closure references — `askwiring`, `cigates`, `cli/support` docs; `cli/admin` credential flows | `cmd/api` doc references; admin credential clients | Re-point docs at eshu-api; credential flows at admission-contract clients | TODO |
-| 11 | `Dockerfile` — line 50 builds `/go-bin/eshu-api` from `./cmd/api`; line 291 `CMD ["eshu-api"]`; `HEALTHCHECK` on `:8080/healthz` | Core image ships the in-tree API binary as default command | eshu-api repo Dockerfile owns the api build; core image drops the `eshu-api` binary and retargets `CMD`/healthcheck | TODO |
+| 11 | `Dockerfile` — line 50 builds `/go-bin/eshu-api` from `./cmd/api`; line 290 `CMD ["eshu-api"]`; `HEALTHCHECK` on `:8080/healthz` | Core image ships the in-tree API binary as default command | eshu-api repo Dockerfile owns the api build; core image drops the `eshu-api` binary and retargets `CMD`/healthcheck | TODO |
 | 12 | `specs/ci-pr-workflows.d/read-api-latency-gate.yml` — triggers on `go/**`, route-budget files (`testdata/benchmarks/read-api-route-budgets.txt`, `read-api-route-work-budgets.txt`), compose files | In-process latency measurement of the in-tree path | eshu-api repo owns the latency gate against a pinned core image; core keeps the contract-registry and static-contract gates | TODO |
 | 13 | Live/e2e gate specs — `e2e-tests.yml`, `live-backend-tests.yml`, `live-postgres-readiness.yml`, `golden-corpus-gate.yml` (all reference `go/cmd/api/**` or `CUTOVER_OWNERSHIP.md`) | Gates exercise the in-tree binary surface | Leaf B cross-repo parity harness replays golden-corpus and replay coverage against an eshu-api deployment instead of the in-tree binary | TODO |
 
