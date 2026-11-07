@@ -2,7 +2,7 @@
 
 Status: Wired 2026-11-07 (#9914 merged via #10225, #10060 fixed via #10300).
 Pure functions (#10141) called from `commitSupplyChainImpactRows`; proofs below all
-delivered. Cap `K` provisional at 4 pending the quiet-host round (condition 1).
+delivered. Cap `K` provisional at 4 pending the quiet-host round (condition 1, tracked in #10330).
 
 ## The short version
 
@@ -194,7 +194,7 @@ At 100,000 suppressions one pair costs 550 ms, four cost 2,044 ms and eight cost
 1,000 they cost 3.3, 8.0 and 14.1 ms (p50, full table in the note).
 
 No round found a quiet host, so `K` is NOT data-chosen: `suppressionWalkMaxPairs`
-stays provisional at 4. The quiet-host re-measure is a follow-up; condition 1 keeps
+stays provisional at 4. The quiet-host re-measure is filed as #10330; condition 1 keeps
 its acceptance. Worst case a pass issues `K+1` statements.
 
 ## The diff statement
@@ -253,7 +253,7 @@ class; condition 2's acceptance (`K+1` p95 under half of 10 s) rides the quiet-h
 1. **Re-measure on the built writer path** on a quiet host (load1 under 9, control canary),
    p50 and p95, one pair and at the cap. Acceptance: p50 under 500 ms for one pair at
    100,000 suppressions; on a miss the lever is statement-local `work_mem`. NOT DONE at
-   wiring (`suppressionWalkMaxPairs` provisional at 4, quiet-host round deferred).
+   wiring (`suppressionWalkMaxPairs` provisional at 4, quiet-host round filed as #10330).
    Representative cost instead: 260 holders drain in 6 s on 4 workers (36 s derivation).
 2. **An explicit statement bound** on each diff statement, reset after the walk so it
    does not leak onto the row writes. Fails as the retryable fan-out class. DONE:
@@ -446,9 +446,9 @@ where it read `active` before, RED first (OS finding keyed CVE-X, `cve_id=CVE-X`
 suppression). Criteria 2 to 4 stand; the issue's "prior generation" means the
 admitted baseline plus the adjacent-pair walk.
 
-## What waits for #9914
+## Wiring prerequisites (all delivered 2026-11-07)
 
-Delivered 2026-11-07: #9914 merged (#10225), #10060 resolved (fix #10300), and every
+#9914 merged (#10225), #10060 resolved (fix #10300), and every
 proof below is a committed test. The `convergence` harness named below is
 `supply_chain_impact_fanout_convergence_live_test.go`; the suppression fixtures live
 in `supply_chain_impact_fanout_suppression_cveid_live_test.go`,
@@ -481,15 +481,12 @@ in `supply_chain_impact_fanout_suppression_cveid_live_test.go`,
 - Telemetry registration, the coverage doc, `HOLDER_FANOUT.md`, the `ChangedCVEIDs` comment
   on `SupplyChainImpactWriteResult`, and the #9914 operator guidance.
 
-**Rebase plan.** After #9914 merges, `git rebase origin/main`. No conflict is expected in the
-fan-out files (at 9c99579a2a #9914 changes only `active_filter.go` and `impact.go` there).
-Then rerun the focused tests, confirm via the merged `signalCVEIDs` that a `cve_id` scope reaches the holder read, write the positive proof RED, and wire.
-
 ## Not checked
 
 - The real suppression count, holder cadence, and holder count in the QA environment.
-- The pre-activation deferral live for the `supply_chain_impact` domain; the live proof is for
-  `workload_materialization`.
+- The pre-activation deferral live for the `supply_chain_impact` domain is now proved by
+  `TestSuppressionFanOutPreActivationDefersLive` (the older `workload_materialization`
+  proof stands alongside it).
 - Whether real activation order can ever disagree with ingest order, and whether retention
   can prune an activated generation that sits between an admitted baseline and the active one.
 - Measurement caveats (drain wall time, `work_mem`, cold cache, heap layout): see
