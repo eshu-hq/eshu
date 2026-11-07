@@ -1,0 +1,28 @@
+docs/internal/evidence/10269-stale-crossplane-row-coalesce-implementation.md
+  h_78a442cba0b3e6 1-138
+go/internal/storage/postgres/README.md
+  h_78a442cba0b3e6 182
+go/internal/storage/postgres/crossplane/README.md
+  h_78a442cba0b3e6 189-194
+go/internal/storage/postgres/crossplane/satisfied_by_redrive_behavior_live_test.go
+  h_78a442cba0b3e6 99
+go/internal/storage/postgres/crossplane/satisfied_by_stale_coalesce_live_test.go
+  h_78a442cba0b3e6 1-463
+go/internal/storage/postgres/reducer_claim_sweep_lock_order_test.go
+  h_78a442cba0b3e6 15,21-22,24-25,34,56-57
+go/internal/storage/postgres/reducer_generation_filter_sql.go
+  h_78a442cba0b3e6 140-150,186-192,254-259,262-294,298-316,345-377
+go/internal/storage/postgres/reducer_queue_supersession_test.go
+  h_78a442cba0b3e6 49-59,106-116
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6339655946089ca8d49bc42b04d64e857d27285f",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
