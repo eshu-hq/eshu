@@ -336,8 +336,10 @@ unchanged. The wire mirror is `workflow.ClaimPlaneClient.CommitClaimFacts` (`POS
   with -race on the stub harness (no database backend): a 3-fact SDK result
   plus version/page/status/identity/unknown-field rejections (including the
   work-item and fencing-token epoch-identity arms), a cap+1 oversized
-  carrier, and an undecodable carrier that never probes. Reject paths record
-  0 envelopes with 0 store or committer calls; stale fence maps to
+  carrier, and an undecodable carrier that never probes. Reject-before-probe
+  paths record 0 envelopes with 0 store or committer calls; a decodable
+  stale-fence carrier probes once, then fails with zero commits and zero
+  envelopes. Stale fence maps to
   ErrClaimRejected; the probe stamps now (UTC) so a stale caller ObservedAt
   still succeeds; retries return nil twice with identical deterministic
   FactIDs (dedup stays the boundary's finalized-skip). Memory is bounded by
