@@ -18,12 +18,8 @@ import (
 )
 
 const (
-	evidenceCitationCapability   = "evidence_citation.packet"
-	evidenceCitationDefaultLimit = 10
-	// EvidenceCitationMaxLimit bounds the citation packet handles per
-	// request. Root's packet builder derives its per-layer citation cap
-	// from it (see investigation_packet_build.go).
-	EvidenceCitationMaxLimit        = 50
+	evidenceCitationCapability      = "evidence_citation.packet"
+	evidenceCitationDefaultLimit    = 10
 	evidenceCitationMaxInputHandles = 500
 	evidenceCitationMaxExcerptLines = 40
 )
@@ -155,8 +151,8 @@ func normalizeEvidenceCitationRequest(
 	if limit <= 0 {
 		limit = evidenceCitationDefaultLimit
 	}
-	if limit > EvidenceCitationMaxLimit {
-		limit = EvidenceCitationMaxLimit
+	if limit > evidence.EvidenceCitationMaxLimit {
+		limit = evidence.EvidenceCitationMaxLimit
 	}
 	if len(req.Handles) > evidenceCitationMaxInputHandles {
 		return nil, limit, false, fmt.Errorf("handles exceeds maximum of %d", evidenceCitationMaxInputHandles)

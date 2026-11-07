@@ -11,7 +11,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 	"github.com/eshu-hq/eshu/go/internal/reportbundle"
 	"github.com/eshu-hq/eshu/go/internal/serviceintel"
 )
@@ -47,11 +48,11 @@ func requireBadRequest(t *testing.T, body []byte, code int, route string) {
 	if code != http.StatusBadRequest {
 		t.Fatalf("%s: status = %d, want 400; body=%s", route, code, body)
 	}
-	var envelope query.ResponseEnvelope
+	var envelope querycontract.ResponseEnvelope
 	if err := json.Unmarshal(body, &envelope); err != nil {
 		t.Fatalf("%s: decode error envelope: %v", route, err)
 	}
-	if envelope.Error == nil || envelope.Error.Code != query.ErrorCodeInvalidArgument {
+	if envelope.Error == nil || envelope.Error.Code != querycontract.ErrorCodeInvalidArgument {
 		t.Fatalf("%s: error = %+v, want invalid_argument", route, envelope.Error)
 	}
 }
@@ -61,16 +62,16 @@ func requireBadRequest(t *testing.T, body []byte, code int, route string) {
 // byte-only comparison, so the header needs its own assertion.
 func TestRenderEndpointSetsContentTypePerFormat(t *testing.T) {
 	t.Parallel()
-	packet := samplePacket()
-	for format, wantType := range map[query.InvestigationPacketFormat]string{
-		query.InvestigationPacketFormatJSON:     "application/json; charset=utf-8",
-		query.InvestigationPacketFormatMarkdown: "text/markdown; charset=utf-8",
-		query.InvestigationPacketFormatHTML:     "text/html; charset=utf-8",
+	pkt := samplePacket()
+	for format, wantType := range map[packet.InvestigationPacketFormat]string{
+		packet.InvestigationPacketFormatJSON:     "application/json; charset=utf-8",
+		packet.InvestigationPacketFormatMarkdown: "text/markdown; charset=utf-8",
+		packet.InvestigationPacketFormatHTML:     "text/html; charset=utf-8",
 	} {
 		t.Run(string(format), func(t *testing.T) {
 			t.Parallel()
 			rec := serveRequest(t, http.MethodPost, "/api/v0/investigation/packet/render",
-				mustJSON(t, RenderRequest{Packet: packet, Format: string(format)}), query.EnvelopeMIMEType)
+				mustJSON(t, RenderRequest{Packet: pkt, Format: string(format)}), querycontract.EnvelopeMIMEType)
 			if rec.Code != http.StatusOK {
 				t.Fatalf("status = %d, want 200; body=%s", rec.Code, rec.Body.String())
 			}
@@ -85,9 +86,9 @@ func TestRenderEndpointSetsContentTypePerFormat(t *testing.T) {
 // an omitted format renders JSON, byte-identical to the explicit request.
 func TestRenderEndpointEmptyFormatDefaultsJSON(t *testing.T) {
 	t.Parallel()
-	packet := samplePacket()
+	pkt := samplePacket()
 	implicit := serveRequest(t, http.MethodPost, "/api/v0/investigation/packet/render",
-		mustJSON(t, RenderRequest{Packet: packet}), query.EnvelopeMIMEType)
+		mustJSON(t, RenderRequest{Packet: pkt}), querycontract.EnvelopeMIMEType)
 	if implicit.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body=%s", implicit.Code, implicit.Body.String())
 	}
@@ -95,7 +96,7 @@ func TestRenderEndpointEmptyFormatDefaultsJSON(t *testing.T) {
 		t.Fatalf("Content-Type = %q, want application/json", got)
 	}
 	explicit := serveRequest(t, http.MethodPost, "/api/v0/investigation/packet/render",
-		mustJSON(t, RenderRequest{Packet: packet, Format: "json"}), query.EnvelopeMIMEType)
+		mustJSON(t, RenderRequest{Packet: pkt, Format: "json"}), querycontract.EnvelopeMIMEType)
 	if !bytes.Equal(implicit.Body.Bytes(), explicit.Body.Bytes()) {
 		t.Fatal("empty format renders differently from explicit json")
 	}
@@ -114,7 +115,7 @@ func TestRenderEndpointRejectsMissingPacket(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			rec := serveRequest(t, http.MethodPost, "/api/v0/investigation/packet/render", body, query.EnvelopeMIMEType)
+			rec := serveRequest(t, http.MethodPost, "/api/v0/investigation/packet/render", body, querycontract.EnvelopeMIMEType)
 			requireBadRequest(t, rec.Body.Bytes(), rec.Code, "render "+name)
 		})
 	}
@@ -124,23 +125,23 @@ func TestRenderEndpointRejectsMissingPacket(t *testing.T) {
 // and malformed-JSON refusal on the render route.
 func TestRenderEndpointRejectsBadShapes(t *testing.T) {
 	t.Parallel()
-	packet := samplePacket()
+	pkt := samplePacket()
 	t.Run("unknown field", func(t *testing.T) {
 		t.Parallel()
-		body := withUnknownField(t, mustJSON(t, RenderRequest{Packet: packet}))
-		rec := serveRequest(t, http.MethodPost, "/api/v0/investigation/packet/render", body, query.EnvelopeMIMEType)
+		body := withUnknownField(t, mustJSON(t, RenderRequest{Packet: pkt}))
+		rec := serveRequest(t, http.MethodPost, "/api/v0/investigation/packet/render", body, querycontract.EnvelopeMIMEType)
 		requireBadRequest(t, rec.Body.Bytes(), rec.Code, "render unknown field")
 	})
 	t.Run("trailing value", func(t *testing.T) {
 		t.Parallel()
 		rec := serveRequest(t, http.MethodPost, "/api/v0/investigation/packet/render",
-			withTrailingValue(t, RenderRequest{Packet: packet}), query.EnvelopeMIMEType)
+			withTrailingValue(t, RenderRequest{Packet: pkt}), querycontract.EnvelopeMIMEType)
 		requireBadRequest(t, rec.Body.Bytes(), rec.Code, "render trailing value")
 	})
 	t.Run("malformed json", func(t *testing.T) {
 		t.Parallel()
 		rec := serveRequest(t, http.MethodPost, "/api/v0/investigation/packet/render",
-			[]byte(`{"packet":`), query.EnvelopeMIMEType)
+			[]byte(`{"packet":`), querycontract.EnvelopeMIMEType)
 		requireBadRequest(t, rec.Body.Bytes(), rec.Code, "render malformed json")
 	})
 }
@@ -157,7 +158,7 @@ func TestComposeEndpointRequiresDossier(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			rec := serveRequest(t, http.MethodPost, "/api/v0/service/report/compose", body, query.EnvelopeMIMEType)
+			rec := serveRequest(t, http.MethodPost, "/api/v0/service/report/compose", body, querycontract.EnvelopeMIMEType)
 			requireBadRequest(t, rec.Body.Bytes(), rec.Code, "compose "+name)
 		})
 	}
@@ -177,11 +178,11 @@ func TestComposeEndpointMatchesLocalComposeWithSupplyChain(t *testing.T) {
 	want := serviceintel.Compose(input)
 	rec := serveRequest(t, http.MethodPost, "/api/v0/service/report/compose",
 		mustJSON(t, ComposeRequest{Dossier: dossier, Truth: truth, SupplyChain: supplyChain, SupplyChainTruth: truth}),
-		query.EnvelopeMIMEType)
+		querycontract.EnvelopeMIMEType)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body=%s", rec.Code, rec.Body.String())
 	}
-	var envelope query.ResponseEnvelope
+	var envelope querycontract.ResponseEnvelope
 	if err := json.Unmarshal(rec.Body.Bytes(), &envelope); err != nil {
 		t.Fatalf("decode envelope: %v", err)
 	}
@@ -210,7 +211,7 @@ func TestComposeEndpointRejectsBadShapes(t *testing.T) {
 		dossier, _ := sampleDossier()
 		dossier["pad"] = strings.Repeat("z", maxComposeBodyBytes+1)
 		rec := serveRequest(t, http.MethodPost, "/api/v0/service/report/compose",
-			mustJSON(t, ComposeRequest{Dossier: dossier}), query.EnvelopeMIMEType)
+			mustJSON(t, ComposeRequest{Dossier: dossier}), querycontract.EnvelopeMIMEType)
 		if rec.Code != http.StatusRequestEntityTooLarge {
 			t.Fatalf("status = %d, want 413; body=%s", rec.Code, rec.Body.String())
 		}
@@ -218,19 +219,19 @@ func TestComposeEndpointRejectsBadShapes(t *testing.T) {
 	t.Run("malformed json", func(t *testing.T) {
 		t.Parallel()
 		rec := serveRequest(t, http.MethodPost, "/api/v0/service/report/compose",
-			[]byte(`{"dossier":`), query.EnvelopeMIMEType)
+			[]byte(`{"dossier":`), querycontract.EnvelopeMIMEType)
 		requireBadRequest(t, rec.Body.Bytes(), rec.Code, "compose malformed json")
 	})
 	t.Run("unknown field", func(t *testing.T) {
 		t.Parallel()
 		rec := serveRequest(t, http.MethodPost, "/api/v0/service/report/compose",
-			withUnknownField(t, mustJSON(t, good)), query.EnvelopeMIMEType)
+			withUnknownField(t, mustJSON(t, good)), querycontract.EnvelopeMIMEType)
 		requireBadRequest(t, rec.Body.Bytes(), rec.Code, "compose unknown field")
 	})
 	t.Run("trailing value", func(t *testing.T) {
 		t.Parallel()
 		rec := serveRequest(t, http.MethodPost, "/api/v0/service/report/compose",
-			withTrailingValue(t, good), query.EnvelopeMIMEType)
+			withTrailingValue(t, good), querycontract.EnvelopeMIMEType)
 		requireBadRequest(t, rec.Body.Bytes(), rec.Code, "compose trailing value")
 	})
 }
@@ -259,7 +260,7 @@ func TestCaptureEndpointRequiresFields(t *testing.T) {
 	t.Parallel()
 	input := sampleCaptureInput()
 	emptyEnvelope := input
-	emptyEnvelope.Envelope = query.ResponseEnvelope{}
+	emptyEnvelope.Envelope = querycontract.ResponseEnvelope{}
 	noSurface := input
 	noSurface.Surface = ""
 	noTarget := input
@@ -275,7 +276,7 @@ func TestCaptureEndpointRequiresFields(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			rec := serveRequest(t, http.MethodPost, "/api/v0/report/bundle/capture", body, query.EnvelopeMIMEType)
+			rec := serveRequest(t, http.MethodPost, "/api/v0/report/bundle/capture", body, querycontract.EnvelopeMIMEType)
 			requireBadRequest(t, rec.Body.Bytes(), rec.Code, "capture "+name)
 		})
 	}
@@ -290,19 +291,19 @@ func TestCaptureEndpointRejectsBadShapes(t *testing.T) {
 	t.Run("malformed json", func(t *testing.T) {
 		t.Parallel()
 		rec := serveRequest(t, http.MethodPost, "/api/v0/report/bundle/capture",
-			[]byte(`{"surface":`), query.EnvelopeMIMEType)
+			[]byte(`{"surface":`), querycontract.EnvelopeMIMEType)
 		requireBadRequest(t, rec.Body.Bytes(), rec.Code, "capture malformed json")
 	})
 	t.Run("unknown field", func(t *testing.T) {
 		t.Parallel()
 		rec := serveRequest(t, http.MethodPost, "/api/v0/report/bundle/capture",
-			withUnknownField(t, mustJSON(t, input)), query.EnvelopeMIMEType)
+			withUnknownField(t, mustJSON(t, input)), querycontract.EnvelopeMIMEType)
 		requireBadRequest(t, rec.Body.Bytes(), rec.Code, "capture unknown field")
 	})
 	t.Run("trailing value", func(t *testing.T) {
 		t.Parallel()
 		rec := serveRequest(t, http.MethodPost, "/api/v0/report/bundle/capture",
-			withTrailingValue(t, input), query.EnvelopeMIMEType)
+			withTrailingValue(t, input), querycontract.EnvelopeMIMEType)
 		requireBadRequest(t, rec.Body.Bytes(), rec.Code, "capture trailing value")
 	})
 }
@@ -323,7 +324,7 @@ func TestValidateEndpointRejectsBadShapes(t *testing.T) {
 		big := bundle
 		big.ReporterNote = strings.Repeat("n", maxValidateBodyBytes+1)
 		rec := serveRequest(t, http.MethodPost, "/api/v0/report/bundle/validate",
-			mustJSON(t, ValidateRequest{Bundle: big}), query.EnvelopeMIMEType)
+			mustJSON(t, ValidateRequest{Bundle: big}), querycontract.EnvelopeMIMEType)
 		if rec.Code != http.StatusRequestEntityTooLarge {
 			t.Fatalf("status = %d, want 413; body=%s", rec.Code, rec.Body.String())
 		}
@@ -331,19 +332,19 @@ func TestValidateEndpointRejectsBadShapes(t *testing.T) {
 	t.Run("malformed json", func(t *testing.T) {
 		t.Parallel()
 		rec := serveRequest(t, http.MethodPost, "/api/v0/report/bundle/validate",
-			[]byte(`{"bundle":`), query.EnvelopeMIMEType)
+			[]byte(`{"bundle":`), querycontract.EnvelopeMIMEType)
 		requireBadRequest(t, rec.Body.Bytes(), rec.Code, "validate malformed json")
 	})
 	t.Run("unknown field", func(t *testing.T) {
 		t.Parallel()
 		rec := serveRequest(t, http.MethodPost, "/api/v0/report/bundle/validate",
-			withUnknownField(t, mustJSON(t, good)), query.EnvelopeMIMEType)
+			withUnknownField(t, mustJSON(t, good)), querycontract.EnvelopeMIMEType)
 		requireBadRequest(t, rec.Body.Bytes(), rec.Code, "validate unknown field")
 	})
 	t.Run("trailing value", func(t *testing.T) {
 		t.Parallel()
 		rec := serveRequest(t, http.MethodPost, "/api/v0/report/bundle/validate",
-			withTrailingValue(t, good), query.EnvelopeMIMEType)
+			withTrailingValue(t, good), querycontract.EnvelopeMIMEType)
 		requireBadRequest(t, rec.Body.Bytes(), rec.Code, "validate trailing value")
 	})
 }
@@ -357,7 +358,7 @@ func TestScoreEndpointRejectsBadShapes(t *testing.T) {
 	t.Run("oversize", func(t *testing.T) {
 		t.Parallel()
 		rec := serveRequest(t, http.MethodPost, "/api/v0/answer-quality/score",
-			oversizedRawJSON(maxScoreBodyBytes), query.EnvelopeMIMEType)
+			oversizedRawJSON(maxScoreBodyBytes), querycontract.EnvelopeMIMEType)
 		if rec.Code != http.StatusRequestEntityTooLarge {
 			t.Fatalf("status = %d, want 413; body=%s", rec.Code, rec.Body.String())
 		}
@@ -365,25 +366,25 @@ func TestScoreEndpointRejectsBadShapes(t *testing.T) {
 	t.Run("malformed json", func(t *testing.T) {
 		t.Parallel()
 		rec := serveRequest(t, http.MethodPost, "/api/v0/answer-quality/score",
-			[]byte(`{"version":`), query.EnvelopeMIMEType)
+			[]byte(`{"version":`), querycontract.EnvelopeMIMEType)
 		requireBadRequest(t, rec.Body.Bytes(), rec.Code, "score malformed json")
 	})
 	t.Run("unknown field", func(t *testing.T) {
 		t.Parallel()
 		rec := serveRequest(t, http.MethodPost, "/api/v0/answer-quality/score",
-			withUnknownField(t, mustJSON(t, good)), query.EnvelopeMIMEType)
+			withUnknownField(t, mustJSON(t, good)), querycontract.EnvelopeMIMEType)
 		requireBadRequest(t, rec.Body.Bytes(), rec.Code, "score unknown field")
 	})
 	t.Run("trailing value", func(t *testing.T) {
 		t.Parallel()
 		rec := serveRequest(t, http.MethodPost, "/api/v0/answer-quality/score",
-			withTrailingValue(t, good), query.EnvelopeMIMEType)
+			withTrailingValue(t, good), querycontract.EnvelopeMIMEType)
 		requireBadRequest(t, rec.Body.Bytes(), rec.Code, "score trailing value")
 	})
 	t.Run("missing version", func(t *testing.T) {
 		t.Parallel()
 		rec := serveRequest(t, http.MethodPost, "/api/v0/answer-quality/score",
-			[]byte(`{}`), query.EnvelopeMIMEType)
+			[]byte(`{}`), querycontract.EnvelopeMIMEType)
 		requireBadRequest(t, rec.Body.Bytes(), rec.Code, "score missing version")
 	})
 	t.Run("empty body", func(t *testing.T) {
@@ -395,7 +396,7 @@ func TestScoreEndpointRejectsBadShapes(t *testing.T) {
 			t.Run(name, func(t *testing.T) {
 				t.Parallel()
 				rec := serveRequest(t, http.MethodPost, "/api/v0/answer-quality/score",
-					body, query.EnvelopeMIMEType)
+					body, querycontract.EnvelopeMIMEType)
 				if rec.Code != http.StatusBadRequest {
 					t.Fatalf("score %s: status = %d, want 400", name, rec.Code)
 				}

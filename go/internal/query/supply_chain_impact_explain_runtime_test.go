@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 )
 
@@ -14,7 +15,7 @@ func TestBuildSupplyChainImpactExplanationReturnsRuntimePathAndMissingHops(t *te
 	t.Parallel()
 
 	got := impact.BuildExplanation(
-		impact.ExplanationFilter{FindingID: "finding-runtime"},
+		packet.ExplanationFilter{FindingID: "finding-runtime"},
 		impact.ExplanationRow{
 			Finding: impact.FindingRow{
 				FindingID:           "finding-runtime",
@@ -52,7 +53,7 @@ func TestBuildSupplyChainImpactExplanationReturnsRuntimePathAndMissingHops(t *te
 				}),
 			},
 		},
-		impact.ReadinessEnvelope{State: impact.ReadinessStateReadyWithFindings},
+		packet.ReadinessEnvelope{State: packet.ReadinessStateReadyWithFindings},
 	)
 
 	raw, err := json.Marshal(got)
@@ -83,7 +84,7 @@ func TestBuildSupplyChainImpactExplanationReturnsSemanticMissingHops(t *testing.
 	t.Parallel()
 
 	got := impact.BuildExplanation(
-		impact.ExplanationFilter{FindingID: "finding-repo-only"},
+		packet.ExplanationFilter{FindingID: "finding-repo-only"},
 		impact.ExplanationRow{
 			Finding: impact.FindingRow{
 				FindingID:           "finding-repo-only",
@@ -112,7 +113,7 @@ func TestBuildSupplyChainImpactExplanationReturnsSemanticMissingHops(t *testing.
 				}),
 			},
 		},
-		impact.ReadinessEnvelope{State: impact.ReadinessStateReadyWithFindings},
+		packet.ReadinessEnvelope{State: packet.ReadinessStateReadyWithFindings},
 	)
 
 	raw, err := json.Marshal(got)
@@ -138,7 +139,7 @@ func TestBuildSupplyChainImpactExplanationMapsPreciseRuntimeMissingHops(t *testi
 	t.Parallel()
 
 	got := impact.BuildExplanation(
-		impact.ExplanationFilter{FindingID: "finding-workload-only"},
+		packet.ExplanationFilter{FindingID: "finding-workload-only"},
 		impact.ExplanationRow{
 			Finding: impact.FindingRow{
 				FindingID:           "finding-workload-only",
@@ -154,7 +155,7 @@ func TestBuildSupplyChainImpactExplanationMapsPreciseRuntimeMissingHops(t *testi
 				},
 			},
 		},
-		impact.ReadinessEnvelope{State: impact.ReadinessStateReadyWithFindings},
+		packet.ReadinessEnvelope{State: packet.ReadinessStateReadyWithFindings},
 	)
 
 	raw, err := json.Marshal(got)
@@ -178,7 +179,7 @@ func TestBuildSupplyChainImpactExplanationUsesCatalogAnchorMissingReason(t *test
 	t.Parallel()
 
 	got := impact.BuildExplanation(
-		impact.ExplanationFilter{FindingID: "finding-catalog-anchor"},
+		packet.ExplanationFilter{FindingID: "finding-catalog-anchor"},
 		impact.ExplanationRow{
 			Finding: impact.FindingRow{
 				FindingID:           "finding-catalog-anchor",
@@ -197,7 +198,7 @@ func TestBuildSupplyChainImpactExplanationUsesCatalogAnchorMissingReason(t *test
 					serviceCatalogCorrelationFactKind + ":catalog-1",
 				},
 				MissingEvidence: []string{
-					impact.ServiceCatalogCorrelationMissingReason,
+					packet.ServiceCatalogCorrelationMissingReason,
 				},
 			},
 			EvidenceFacts: []impact.EvidenceFact{
@@ -212,26 +213,26 @@ func TestBuildSupplyChainImpactExplanationUsesCatalogAnchorMissingReason(t *test
 				}),
 			},
 		},
-		impact.ReadinessEnvelope{State: impact.ReadinessStateReadyWithFindings},
+		packet.ReadinessEnvelope{State: packet.ReadinessStateReadyWithFindings},
 	)
 
 	if got.Finding == nil {
 		t.Fatal("Finding = nil, want explained finding")
 	}
-	if containsString(got.Finding.MissingEvidence, impact.ServiceCatalogCorrelationMissingReason) {
+	if containsString(got.Finding.MissingEvidence, packet.ServiceCatalogCorrelationMissingReason) {
 		t.Fatalf("Finding.MissingEvidence = %#v, must not claim present catalog correlation is missing", got.Finding.MissingEvidence)
 	}
-	if !containsString(got.Finding.MissingEvidence, impact.ServiceCatalogAnchorMissingReason) {
-		t.Fatalf("Finding.MissingEvidence = %#v, want %s", got.Finding.MissingEvidence, impact.ServiceCatalogAnchorMissingReason)
+	if !containsString(got.Finding.MissingEvidence, packet.ServiceCatalogAnchorMissingReason) {
+		t.Fatalf("Finding.MissingEvidence = %#v, want %s", got.Finding.MissingEvidence, packet.ServiceCatalogAnchorMissingReason)
 	}
-	assertImpactPathHopMissingReason(t, got.Path, "service", impact.ServiceCatalogAnchorMissingReason)
+	assertImpactPathHopMissingReason(t, got.Path, "service", packet.ServiceCatalogAnchorMissingReason)
 }
 
 func TestBuildSupplyChainImpactExplanationKeepsRepositoryOnlyCatalogHop(t *testing.T) {
 	t.Parallel()
 
 	got := impact.BuildExplanation(
-		impact.ExplanationFilter{FindingID: "finding-catalog-repo-only"},
+		packet.ExplanationFilter{FindingID: "finding-catalog-repo-only"},
 		impact.ExplanationRow{
 			Finding: impact.FindingRow{
 				FindingID:           "finding-catalog-repo-only",
@@ -249,7 +250,7 @@ func TestBuildSupplyChainImpactExplanationKeepsRepositoryOnlyCatalogHop(t *testi
 				EvidenceFactIDs: []string{"consume-1", "workload-1", "catalog-1"},
 				MissingEvidence: []string{
 					"runtime deployment evidence not linked to vulnerable package",
-					impact.ServiceCatalogAnchorMissingReason,
+					packet.ServiceCatalogAnchorMissingReason,
 				},
 			},
 			EvidenceFacts: []impact.EvidenceFact{
@@ -259,7 +260,7 @@ func TestBuildSupplyChainImpactExplanationKeepsRepositoryOnlyCatalogHop(t *testi
 				}),
 			},
 		},
-		impact.ReadinessEnvelope{State: impact.ReadinessStateReadyWithFindings},
+		packet.ReadinessEnvelope{State: packet.ReadinessStateReadyWithFindings},
 	)
 
 	raw, err := json.Marshal(got)
@@ -276,15 +277,15 @@ func TestBuildSupplyChainImpactExplanationKeepsRepositoryOnlyCatalogHop(t *testi
 	}
 	assertImpactPathContainsHop(t, impactPath, "workload", "present")
 	assertImpactPathContainsHop(t, impactPath, "service", "missing_evidence")
-	assertImpactPathContainsMissingEvidence(t, impactPath, "service", impact.ServiceCatalogAnchorMissingReason)
-	assertJSONListContains(t, payload["missing_evidence"], impact.ServiceCatalogAnchorMissingReason)
+	assertImpactPathContainsMissingEvidence(t, impactPath, "service", packet.ServiceCatalogAnchorMissingReason)
+	assertJSONListContains(t, payload["missing_evidence"], packet.ServiceCatalogAnchorMissingReason)
 }
 
 func TestBuildSupplyChainImpactExplanationReturnsDeploymentLaneHopWithoutEnvironment(t *testing.T) {
 	t.Parallel()
 
 	got := impact.BuildExplanation(
-		impact.ExplanationFilter{FindingID: "finding-deployment-lane"},
+		packet.ExplanationFilter{FindingID: "finding-deployment-lane"},
 		impact.ExplanationRow{
 			Finding: impact.FindingRow{
 				FindingID:           "finding-deployment-lane",
@@ -321,7 +322,7 @@ func TestBuildSupplyChainImpactExplanationReturnsDeploymentLaneHopWithoutEnviron
 				}),
 			},
 		},
-		impact.ReadinessEnvelope{State: impact.ReadinessStateReadyWithFindings},
+		packet.ReadinessEnvelope{State: packet.ReadinessStateReadyWithFindings},
 	)
 
 	raw, err := json.Marshal(got)
@@ -375,7 +376,7 @@ func assertImpactPathContainsHop(t *testing.T, raw []any, wantHop string, wantSt
 
 func assertImpactPathHopMissingReason(
 	t *testing.T,
-	impactPath []impact.PathHop,
+	impactPath []packet.PathHop,
 	wantHop string,
 	wantReason string,
 ) {

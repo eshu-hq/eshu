@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/vulnsource"
@@ -83,19 +84,19 @@ func (q readinessSQLQueryer) QueryContext(ctx context.Context, query string, arg
 func (s PostgresReadinessStore) ReadSupplyChainImpactReadiness(
 	ctx context.Context,
 	query ReadinessQuery,
-) (ReadinessSnapshot, error) {
+) (packet.ReadinessSnapshot, error) {
 	if s.DB == nil && s.reader == nil {
-		return ReadinessSnapshot{}, fmt.Errorf("supply chain impact readiness database is required")
+		return packet.ReadinessSnapshot{}, fmt.Errorf("supply chain impact readiness database is required")
 	}
 	if !query.hasFactAnchor() {
-		return ReadinessSnapshot{}, nil
+		return packet.ReadinessSnapshot{}, nil
 	}
 	var database db.Queryer
 	var commit func() error
 	if s.reader != nil {
 		transaction, err := s.reader.BeginReadOnlySnapshot(ctx)
 		if err != nil {
-			return ReadinessSnapshot{}, fmt.Errorf("begin supply chain impact readiness snapshot: %w", err)
+			return packet.ReadinessSnapshot{}, fmt.Errorf("begin supply chain impact readiness snapshot: %w", err)
 		}
 		defer func() { _ = transaction.Rollback() }()
 		database = transaction
@@ -104,7 +105,7 @@ func (s PostgresReadinessStore) ReadSupplyChainImpactReadiness(
 		database = readinessSQLQueryer{database: s.DB}
 		starter, canStartTransaction := s.DB.(readinessTransactionStarter)
 		if query.needsTargetResolution() && !canStartTransaction {
-			return ReadinessSnapshot{}, fmt.Errorf("supply chain impact readiness target resolution requires a repeatable-read transaction")
+			return packet.ReadinessSnapshot{}, fmt.Errorf("supply chain impact readiness target resolution requires a repeatable-read transaction")
 		}
 		if canStartTransaction {
 			transaction, err := starter.BeginTx(ctx, &sql.TxOptions{
@@ -112,7 +113,7 @@ func (s PostgresReadinessStore) ReadSupplyChainImpactReadiness(
 				ReadOnly:  true,
 			})
 			if err != nil {
-				return ReadinessSnapshot{}, fmt.Errorf("begin supply chain impact readiness snapshot: %w", err)
+				return packet.ReadinessSnapshot{}, fmt.Errorf("begin supply chain impact readiness snapshot: %w", err)
 			}
 			defer func() { _ = transaction.Rollback() }()
 			database = readinessSQLQueryer{database: transaction}
@@ -124,27 +125,27 @@ func (s PostgresReadinessStore) ReadSupplyChainImpactReadiness(
 	if query.needsTargetResolution() {
 		ready, err := packageManifestConsumptionKeysReady(ctx, database)
 		if err != nil {
-			return ReadinessSnapshot{}, err
+			return packet.ReadinessSnapshot{}, err
 		}
 		if !ready {
-			return ReadinessSnapshot{}, ErrReadinessConsumptionKeysNotReady
+			return packet.ReadinessSnapshot{}, ErrReadinessConsumptionKeysNotReady
 		}
 		target, err = resolveReadinessTarget(ctx, database, query)
 		if err != nil {
-			return ReadinessSnapshot{}, err
+			return packet.ReadinessSnapshot{}, err
 		}
 		if err := validateReadinessTargetKeyOwners(ctx, database, target); err != nil {
-			return ReadinessSnapshot{}, err
+			return packet.ReadinessSnapshot{}, err
 		}
 	}
 
 	snapshot, err := s.readSupplyChainImpactReadiness(ctx, database, query, target)
 	if err != nil {
-		return ReadinessSnapshot{}, err
+		return packet.ReadinessSnapshot{}, err
 	}
 	if commit != nil {
 		if err := commit(); err != nil {
-			return ReadinessSnapshot{}, fmt.Errorf("commit supply chain impact readiness snapshot: %w", err)
+			return packet.ReadinessSnapshot{}, fmt.Errorf("commit supply chain impact readiness snapshot: %w", err)
 		}
 	}
 	return snapshot, nil
@@ -196,7 +197,7 @@ func (s PostgresReadinessStore) readSupplyChainImpactReadiness(
 	database db.Queryer,
 	query ReadinessQuery,
 	target readinessTarget,
-) (ReadinessSnapshot, error) {
+) (packet.ReadinessSnapshot, error) {
 	window := s.FreshnessWindow
 	if window <= 0 {
 		window = supplyChainImpactReadinessFreshnessWindow
@@ -225,16 +226,16 @@ func (s PostgresReadinessStore) readSupplyChainImpactReadiness(
 	}
 	rows, err := database.QueryContext(ctx, statement, args...)
 	if err != nil {
-		return ReadinessSnapshot{}, fmt.Errorf("read supply chain impact readiness: %w", err)
+		return packet.ReadinessSnapshot{}, fmt.Errorf("read supply chain impact readiness: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 
-	families := make(map[string]EvidenceFamily, len(supplyChainImpactReadinessFamilies))
+	families := make(map[string]packet.EvidenceFamily, len(supplyChainImpactReadinessFamilies))
 	var targetIncomplete bool
 	var incompleteReasons []string
-	var sourceSnapshots []SourceSnapshot
-	var sourceStates []SourceState
-	var unsupportedTargets []UnsupportedTarget
+	var sourceSnapshots []packet.SourceSnapshot
+	var sourceStates []packet.SourceState
+	var unsupportedTargets []packet.UnsupportedTarget
 
 	for rows.Next() {
 		var family string
@@ -246,7 +247,7 @@ func (s PostgresReadinessStore) readSupplyChainImpactReadiness(
 		var sourceStatesJSON sql.NullString
 		var unsupportedTargetsJSON sql.NullString
 		if err := rows.Scan(&family, &factCount, &latest, &incompleteFlag, &reasons, &sourceSnapshotsJSON, &sourceStatesJSON, &unsupportedTargetsJSON); err != nil {
-			return ReadinessSnapshot{}, fmt.Errorf("scan supply chain impact readiness row: %w", err)
+			return packet.ReadinessSnapshot{}, fmt.Errorf("scan supply chain impact readiness row: %w", err)
 		}
 		if family == sourceSnapshotFamilyMarker {
 			if incompleteFlag.Valid && incompleteFlag.Bool {
@@ -255,51 +256,51 @@ func (s PostgresReadinessStore) readSupplyChainImpactReadiness(
 			}
 			decodedSnapshots, err := decodeSourceSnapshots(sourceSnapshotsJSON)
 			if err != nil {
-				return ReadinessSnapshot{}, err
+				return packet.ReadinessSnapshot{}, err
 			}
-			sourceSnapshots = append(sourceSnapshots, ageSourceSnapshots(decodedSnapshots, freshnessCutoff)...)
+			sourceSnapshots = append(sourceSnapshots, packet.AgeSourceSnapshots(decodedSnapshots, freshnessCutoff)...)
 			continue
 		}
 		if family == sourceStateInvalidMarker {
 			if incompleteFlag.Valid && incompleteFlag.Bool {
-				return ReadinessSnapshot{}, ErrReadinessSourceTargetsMalformed
+				return packet.ReadinessSnapshot{}, ErrReadinessSourceTargetsMalformed
 			}
 			continue
 		}
 		if family == sourceStateOverflowMarker {
 			if incompleteFlag.Valid && incompleteFlag.Bool {
-				return ReadinessSnapshot{}, ErrReadinessSourceTargetsOverflow
+				return packet.ReadinessSnapshot{}, ErrReadinessSourceTargetsOverflow
 			}
 			continue
 		}
 		if family == sourceStateFamilyMarker {
-			decodedStates, err := decodeSourceStates(sourceStatesJSON)
+			decodedStates, err := packet.DecodeSourceStates(sourceStatesJSON)
 			if err != nil {
-				return ReadinessSnapshot{}, err
+				return packet.ReadinessSnapshot{}, err
 			}
 			if incompleteFlag.Valid && incompleteFlag.Bool {
 				targetIncomplete = true
 				incompleteReasons = append(incompleteReasons, reasons...)
-			} else if sourceStatesSkipped(decodedStates) {
+			} else if packet.SourceStatesSkipped(decodedStates) {
 				// A skipped aggregate never marks the family incomplete, but
 				// its osv:skipped:<reason> entries still name the terminal
 				// verdict the envelope reports.
 				incompleteReasons = append(incompleteReasons, reasons...)
 			}
-			sourceStates = append(sourceStates, ageSourceStates(decodedStates, freshnessCutoff)...)
+			sourceStates = append(sourceStates, packet.AgeSourceStates(decodedStates, freshnessCutoff)...)
 			continue
 		}
 		if family == unsupportedTargetFamilyMarker {
 			decodedTargets, err := decodeUnsupportedTargets(unsupportedTargetsJSON)
 			if err != nil {
-				return ReadinessSnapshot{}, err
+				return packet.ReadinessSnapshot{}, err
 			}
 			unsupportedTargets = append(unsupportedTargets, decodedTargets...)
 			continue
 		}
 		existing, ok := families[family]
 		if !ok {
-			existing = EvidenceFamily{Family: family}
+			existing = packet.EvidenceFamily{Family: family}
 		}
 		existing.FactCount += factCount
 		if latest.Valid {
@@ -307,25 +308,25 @@ func (s PostgresReadinessStore) readSupplyChainImpactReadiness(
 			if existing.LatestObservedAt == "" || latestUTC.Format(time.RFC3339) > existing.LatestObservedAt {
 				existing.LatestObservedAt = latestUTC.Format(time.RFC3339)
 				if latestUTC.After(freshnessCutoff) {
-					existing.Freshness = FreshnessLabelFresh
+					existing.Freshness = packet.FreshnessLabelFresh
 				} else {
-					existing.Freshness = FreshnessLabelStale
+					existing.Freshness = packet.FreshnessLabelStale
 				}
 			}
 		}
 		families[family] = existing
 	}
 	if err := rows.Err(); err != nil {
-		return ReadinessSnapshot{}, fmt.Errorf("read supply chain impact readiness: %w", err)
+		return packet.ReadinessSnapshot{}, fmt.Errorf("read supply chain impact readiness: %w", err)
 	}
 
 	// A hint-skipped fetch leaves the active facts old, so freshness for the
 	// advisory families and the NVD snapshot comes from the source state's last
 	// successful fetch (#9694).
-	freshenFamiliesFromFetch(families, sourceStates)
-	sourceSnapshots = freshenSnapshotsFromFetch(sourceSnapshots, sourceStates)
+	packet.FreshenFamiliesFromFetch(families, sourceStates)
+	sourceSnapshots = packet.FreshenSnapshotsFromFetch(sourceSnapshots, sourceStates)
 
-	sources := make([]EvidenceFamily, 0, len(families))
+	sources := make([]packet.EvidenceFamily, 0, len(families))
 	for _, family := range supplyChainImpactReadinessFamilies {
 		entry, ok := families[family]
 		if !ok {
@@ -335,18 +336,18 @@ func (s PostgresReadinessStore) readSupplyChainImpactReadiness(
 			continue
 		}
 		if entry.Freshness == "" {
-			entry.Freshness = FreshnessLabelUnknown
+			entry.Freshness = packet.FreshnessLabelUnknown
 		}
 		sources = append(sources, entry)
 	}
 
-	return ReadinessSnapshot{
+	return packet.ReadinessSnapshot{
 		EvidenceSources:    sources,
 		SourceSnapshots:    sourceSnapshots,
 		SourceStates:       sourceStates,
 		UnsupportedTargets: unsupportedTargets,
 		TargetIncomplete:   targetIncomplete,
-		IncompleteReasons:  uniqueSortedReadinessStrings(incompleteReasons),
+		IncompleteReasons:  packet.UniqueSortedReadinessStrings(incompleteReasons),
 	}, nil
 }
 

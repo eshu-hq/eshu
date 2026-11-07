@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 )
 
@@ -70,9 +71,9 @@ type failingSupplyChainImpactReadinessStore struct {
 func (s *failingSupplyChainImpactReadinessStore) ReadSupplyChainImpactReadiness(
 	context.Context,
 	impact.ReadinessQuery,
-) (impact.ReadinessSnapshot, error) {
+) (packet.ReadinessSnapshot, error) {
 	s.called = true
-	return impact.ReadinessSnapshot{}, errors.New("broad supply-chain impact readiness read")
+	return packet.ReadinessSnapshot{}, errors.New("broad supply-chain impact readiness read")
 }
 
 func TestAuthMiddlewareWithScopedTokensAllowsSupplyChainImpactRoutes(t *testing.T) {
@@ -452,8 +453,8 @@ func assertZeroImpactFindingsResponse(t *testing.T, body []byte) {
 	if resp.Count != 0 || len(resp.Findings) != 0 || resp.Truncated {
 		t.Fatalf("empty scoped findings page = %#v, want zero findings", resp)
 	}
-	if resp.Readiness.State != string(impact.ReadinessStateReadinessUnavailable) {
-		t.Fatalf("empty scoped readiness state = %q, want %q", resp.Readiness.State, impact.ReadinessStateReadinessUnavailable)
+	if resp.Readiness.State != string(packet.ReadinessStateReadinessUnavailable) {
+		t.Fatalf("empty scoped readiness state = %q, want %q", resp.Readiness.State, packet.ReadinessStateReadinessUnavailable)
 	}
 }
 

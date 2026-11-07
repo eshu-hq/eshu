@@ -12,7 +12,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/reportbundle"
 	"github.com/eshu-hq/eshu/go/internal/urlredact"
 )
@@ -231,10 +231,10 @@ func WriteBundle(path string, raw []byte) error {
 }
 
 // fetchEnvelope issues the query the reporter ran and decodes it into the
-// canonical query.ResponseEnvelope shape, through the same envelope calls every
+// canonical querycontract.ResponseEnvelope shape, through the same envelope calls every
 // other envelope-backed verb uses.
-func fetchEnvelope(client EnvelopeClient, method, endpoint string, params map[string]any) (query.ResponseEnvelope, error) {
-	var envelope query.ResponseEnvelope
+func fetchEnvelope(client EnvelopeClient, method, endpoint string, params map[string]any) (querycontract.ResponseEnvelope, error) {
+	var envelope querycontract.ResponseEnvelope
 	switch method {
 	case "GET":
 		// --endpoint may already carry its own query string. Splitting it and
@@ -254,7 +254,7 @@ func fetchEnvelope(client EnvelopeClient, method, endpoint string, params map[st
 		// two failures.
 		path, targetParams, err := reportbundle.SplitTargetQuery(endpoint)
 		if err != nil {
-			return query.ResponseEnvelope{}, err //nolint:wrapcheck // wrapping would double the prefix CaptureBundle already adds
+			return querycontract.ResponseEnvelope{}, err //nolint:wrapcheck // wrapping would double the prefix CaptureBundle already adds
 		}
 		values := url.Values{}
 		for key, value := range targetParams {
@@ -277,18 +277,18 @@ func fetchEnvelope(client EnvelopeClient, method, endpoint string, params map[st
 			requestPath += "?" + values.Encode()
 		}
 		if err := client.GetEnvelope(requestPath, &envelope); err != nil {
-			return query.ResponseEnvelope{}, requestErrorWithoutURL(err, path)
+			return querycontract.ResponseEnvelope{}, requestErrorWithoutURL(err, path)
 		}
 	case "POST":
 		postPath, _, err := reportbundle.SplitTargetQuery(endpoint)
 		if err != nil {
-			return query.ResponseEnvelope{}, err //nolint:wrapcheck // wrapping would double the prefix CaptureBundle already adds
+			return querycontract.ResponseEnvelope{}, err //nolint:wrapcheck // wrapping would double the prefix CaptureBundle already adds
 		}
 		if err := client.PostEnvelope(endpoint, params, &envelope); err != nil {
-			return query.ResponseEnvelope{}, requestErrorWithoutURL(err, postPath)
+			return querycontract.ResponseEnvelope{}, requestErrorWithoutURL(err, postPath)
 		}
 	default:
-		return query.ResponseEnvelope{}, fmt.Errorf("unsupported --method %q: want GET or POST", method)
+		return querycontract.ResponseEnvelope{}, fmt.Errorf("unsupported --method %q: want GET or POST", method)
 	}
 	return envelope, nil
 }
@@ -374,7 +374,7 @@ func safeErrorPath(path string) string {
 // response data. Truncation is a read-model field, not part of the envelope
 // contract (see query.AnswerPacket), so this is a best-effort read of the SAME
 // shape a maintainer would see, not a new contract.
-func observedTruncation(envelope query.ResponseEnvelope) bool {
+func observedTruncation(envelope querycontract.ResponseEnvelope) bool {
 	data, ok := envelope.Data.(map[string]any)
 	if !ok {
 		return false
@@ -385,7 +385,7 @@ func observedTruncation(envelope query.ResponseEnvelope) bool {
 
 // envelopeProfile returns the query profile the envelope's truth reports, or
 // empty when no truth envelope is present (for example an error response).
-func envelopeProfile(envelope query.ResponseEnvelope) query.QueryProfile {
+func envelopeProfile(envelope querycontract.ResponseEnvelope) querycontract.QueryProfile {
 	if envelope.Truth == nil {
 		return ""
 	}

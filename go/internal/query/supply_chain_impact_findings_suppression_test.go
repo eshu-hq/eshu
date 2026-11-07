@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 )
 
@@ -49,7 +50,7 @@ func TestSupplyChainListImpactFindingsHonorsIncludeSuppressedTrue(t *testing.T) 
 				FindingID: "finding-not-affected",
 				CVEID:     "CVE-2026-0001",
 				Status:    "affected_exact",
-				Suppression: &impact.SuppressionDecisionRow{
+				Suppression: &packet.SuppressionDecisionRow{
 					State:         "not_affected",
 					SuppressionID: "suppression-1",
 					Source:        "vex_statement",
@@ -74,7 +75,7 @@ func TestSupplyChainListImpactFindingsHonorsIncludeSuppressedTrue(t *testing.T) 
 		t.Fatalf("IncludeSuppressed = false, want true")
 	}
 	var resp struct {
-		Findings []impact.FindingResult `json:"findings"`
+		Findings []packet.FindingResult `json:"findings"`
 	}
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal: %v", err)
@@ -131,7 +132,7 @@ func TestSupplyChainListImpactFindingsFiltersBySuppressionState(t *testing.T) {
 				FindingID: "finding-provider",
 				CVEID:     "CVE-2026-0040",
 				Status:    "affected_exact",
-				Suppression: &impact.SuppressionDecisionRow{
+				Suppression: &packet.SuppressionDecisionRow{
 					State:         "provider_dismissed",
 					SuppressionID: "suppression-provider",
 					Source:        "provider_dismissal",

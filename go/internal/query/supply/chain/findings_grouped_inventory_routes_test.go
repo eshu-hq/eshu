@@ -14,6 +14,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 )
 
@@ -206,7 +207,7 @@ func TestGroupedInventoryEmptyStorePageIsExplicitlyEmpty(t *testing.T) {
 	if body.Buckets == nil || len(body.Buckets) != 0 {
 		t.Fatalf("buckets = %v, want an empty array, not null; body = %s", body.Buckets, rec.Body.String())
 	}
-	if body.Freshness["state"] != impact.FreshnessLabelUnknown {
+	if body.Freshness["state"] != packet.FreshnessLabelUnknown {
 		t.Fatalf("freshness = %v, want unknown when the store reports none", body.Freshness)
 	}
 }

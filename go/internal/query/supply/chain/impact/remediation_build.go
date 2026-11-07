@@ -3,6 +3,10 @@
 
 package impact
 
+import (
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
+)
+
 import "strings"
 
 // buildSupplyChainRemediationExplanation enriches the reducer-emitted
@@ -16,11 +20,11 @@ import "strings"
 // already carry.
 func buildSupplyChainRemediationExplanation(
 	row ExplanationRow,
-	advisory AdvisoryExplanation,
-	version VersionExplanation,
-	component ComponentExplanation,
-	dependencyChain *DependencyChain,
-) *Remediation {
+	advisory packet.AdvisoryExplanation,
+	version packet.VersionExplanation,
+	component packet.ComponentExplanation,
+	dependencyChain *packet.DependencyChain,
+) *packet.Remediation {
 	if row.Finding.Remediation == nil {
 		return nil
 	}

@@ -14,7 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/cli/graphinstall"
 	"github.com/eshu-hq/eshu/go/internal/cli/procexec"
 	"github.com/eshu-hq/eshu/go/internal/eshulocal"
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 func startProcessLocalNornicDB(ctx context.Context, layout eshulocal.Layout) (*ManagedGraph, error) {
@@ -83,7 +83,7 @@ func startProcessLocalNornicDB(ctx context.Context, layout eshulocal.Layout) (*M
 	}
 
 	graph := &ManagedGraph{
-		Backend:    query.GraphBackendNornicDB,
+		Backend:    querycontract.GraphBackendNornicDB,
 		Version:    version,
 		BinaryPath: binaryPath,
 		Address:    localNornicDBBindAddress,

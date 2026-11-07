@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package packet
 
 import (
 	"encoding/json"
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/evidence"
 )
 
@@ -24,13 +25,13 @@ func baseSupplyChainInput() InvestigationPacketInput {
 		},
 		Question:   "What does GHSA-xxxx-yyyy-zzzz reach?",
 		Generation: "gen-460ece25",
-		Truth: &TruthEnvelope{
-			Level:      TruthLevelExact,
+		Truth: &querycontract.TruthEnvelope{
+			Level:      querycontract.TruthLevelExact,
 			Capability: "supply_chain.impact_explain",
-			Profile:    ProfileLocalAuthoritative,
-			Basis:      TruthBasisAuthoritativeGraph,
-			Backend:    GraphBackendNornicDB,
-			Freshness:  TruthFreshness{State: FreshnessFresh},
+			Profile:    querycontract.ProfileLocalAuthoritative,
+			Basis:      querycontract.TruthBasisAuthoritativeGraph,
+			Backend:    querycontract.GraphBackendNornicDB,
+			Freshness:  querycontract.TruthFreshness{State: querycontract.FreshnessFresh},
 		},
 		Summary: "Advisory reaches svc-checkout through 1 workload.",
 		SourceFacts: []PacketSourceFact{
@@ -41,8 +42,8 @@ func baseSupplyChainInput() InvestigationPacketInput {
 			{Domain: "supply_chain_impact", Subject: "finding-1", State: "admitted", Target: "AFFECTS", Generation: "gen-460ece25", SourceFactIDs: []string{"fact-advisory-1", "sbom-component-1"}},
 		},
 		GraphAnswers: []PacketGraphAnswer{
-			{Relationship: "RUNS_IN", From: "image:sha256:abc", To: "workload:checkout", Hop: "workload", Present: true, TruthClass: AnswerTruthDeterministic},
-			{Relationship: "SERVES", From: "workload:checkout", To: "service:svc-checkout", Hop: "service", Present: true, TruthClass: AnswerTruthDeterministic},
+			{Relationship: "RUNS_IN", From: "image:sha256:abc", To: "workload:checkout", Hop: "workload", Present: true, TruthClass: querycontract.AnswerTruthDeterministic},
+			{Relationship: "SERVES", From: "workload:checkout", To: "service:svc-checkout", Hop: "service", Present: true, TruthClass: querycontract.AnswerTruthDeterministic},
 		},
 		Citations: []evidence.EvidenceCitationHandle{
 			{Kind: "supply_chain_finding", EvidenceFamily: "vulnerability_advisory", Reason: "advisory evidence"},
@@ -70,7 +71,7 @@ func TestNewInvestigationEvidencePacketDeterministicSupplyChain(t *testing.T) {
 	if packet.Answer.Summary == "" {
 		t.Error("summary dropped for a supported complete answer")
 	}
-	if packet.Answer.TruthClass != AnswerTruthDeterministic {
+	if packet.Answer.TruthClass != querycontract.AnswerTruthDeterministic {
 		t.Errorf("truth_class = %q, want deterministic", packet.Answer.TruthClass)
 	}
 	if packet.Validation.Status != "passed" {
@@ -278,7 +279,7 @@ func TestNewInvestigationEvidencePacketNoEvidencePartialDropsSummary(t *testing.
 
 func TestNewInvestigationEvidencePacketStaleFreshnessPartial(t *testing.T) {
 	in := baseSupplyChainInput()
-	in.Truth.Freshness = TruthFreshness{State: FreshnessStale}
+	in.Truth.Freshness = querycontract.TruthFreshness{State: querycontract.FreshnessStale}
 	packet, err := NewInvestigationEvidencePacket(in)
 	if err != nil {
 		t.Fatalf("build packet: %v", err)
@@ -286,7 +287,7 @@ func TestNewInvestigationEvidencePacketStaleFreshnessPartial(t *testing.T) {
 	if !packet.Answer.Partial {
 		t.Error("stale freshness should mark the answer partial")
 	}
-	if packet.Freshness.State != FreshnessStale {
+	if packet.Freshness.State != querycontract.FreshnessStale {
 		t.Errorf("top-level freshness = %q, want stale", packet.Freshness.State)
 	}
 }
@@ -301,7 +302,7 @@ func TestNewInvestigationEvidencePacketUnsupportedNoTruth(t *testing.T) {
 	if packet.Answer.Supported {
 		t.Error("packet without truth should be unsupported")
 	}
-	if packet.Answer.TruthClass != AnswerTruthUnsupported {
+	if packet.Answer.TruthClass != querycontract.AnswerTruthUnsupported {
 		t.Errorf("truth_class = %q, want unsupported", packet.Answer.TruthClass)
 	}
 }

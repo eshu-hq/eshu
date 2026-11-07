@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 	"github.com/eshu-hq/eshu/go/internal/truth"
@@ -81,7 +82,7 @@ func TestSupplyChainListAndExplainReportSameDeploymentTruthForRuntimeConfirmedFi
 		t.Fatalf("list status = %d, want %d; body = %s", got, want, listW.Body.String())
 	}
 	var listResp struct {
-		Findings []impact.FindingResult `json:"findings"`
+		Findings []packet.FindingResult `json:"findings"`
 	}
 	if err := json.Unmarshal(listW.Body.Bytes(), &listResp); err != nil {
 		t.Fatalf("list json.Unmarshal: %v", err)
@@ -97,7 +98,7 @@ func TestSupplyChainListAndExplainReportSameDeploymentTruthForRuntimeConfirmedFi
 	if got, want := explainW.Code, http.StatusOK; got != want {
 		t.Fatalf("explain status = %d, want %d; body = %s", got, want, explainW.Body.String())
 	}
-	var explainResp impact.ExplanationResult
+	var explainResp packet.ExplanationResult
 	if err := json.Unmarshal(explainW.Body.Bytes(), &explainResp); err != nil {
 		t.Fatalf("explain json.Unmarshal: %v", err)
 	}
@@ -132,7 +133,7 @@ func TestSupplyChainListAndExplainReportSameKubernetesRuntimeEvidence(t *testing
 	}}}
 	inventory := &stubKubernetesWorkloadInventory{rows: []KubernetesRuntimeWorkloadMatch{{
 		Digest: digest,
-		WorkloadRef: impact.KubernetesRuntimeWorkloadRef{
+		WorkloadRef: packet.KubernetesRuntimeWorkloadRef{
 			UID: "kw-parity", ClusterID: "cluster-a", Namespace: "payments", Name: "api",
 		},
 	}}}
@@ -156,7 +157,7 @@ func TestSupplyChainListAndExplainReportSameKubernetesRuntimeEvidence(t *testing
 		t.Fatalf("list status = %d, want %d; body=%s", listW.Code, http.StatusOK, listW.Body.String())
 	}
 	var listResp struct {
-		Findings []impact.FindingResult `json:"findings"`
+		Findings []packet.FindingResult `json:"findings"`
 	}
 	if err := json.Unmarshal(listW.Body.Bytes(), &listResp); err != nil || len(listResp.Findings) != 1 {
 		t.Fatalf("list response decode: err=%v findings=%#v", err, listResp.Findings)
@@ -167,7 +168,7 @@ func TestSupplyChainListAndExplainReportSameKubernetesRuntimeEvidence(t *testing
 	if explainW.Code != http.StatusOK {
 		t.Fatalf("explain status = %d, want %d; body=%s", explainW.Code, http.StatusOK, explainW.Body.String())
 	}
-	var explainResp impact.ExplanationResult
+	var explainResp packet.ExplanationResult
 	if err := json.Unmarshal(explainW.Body.Bytes(), &explainResp); err != nil || explainResp.Finding == nil {
 		t.Fatalf("explain response decode: err=%v finding=%#v", err, explainResp.Finding)
 	}
@@ -308,7 +309,7 @@ func TestSupplyChainListAndExplainReportSameRuntimeContextForFindingThatHasOne(t
 		t.Fatalf("list status = %d, want %d; body = %s", got, want, listW.Body.String())
 	}
 	var listResp struct {
-		Findings []impact.FindingResult `json:"findings"`
+		Findings []packet.FindingResult `json:"findings"`
 	}
 	if err := json.Unmarshal(listW.Body.Bytes(), &listResp); err != nil {
 		t.Fatalf("list json.Unmarshal: %v", err)
@@ -327,7 +328,7 @@ func TestSupplyChainListAndExplainReportSameRuntimeContextForFindingThatHasOne(t
 	if got, want := explainW.Code, http.StatusOK; got != want {
 		t.Fatalf("explain status = %d, want %d; body = %s", got, want, explainW.Body.String())
 	}
-	var explainResp impact.ExplanationResult
+	var explainResp packet.ExplanationResult
 	if err := json.Unmarshal(explainW.Body.Bytes(), &explainResp); err != nil {
 		t.Fatalf("explain json.Unmarshal: %v", err)
 	}

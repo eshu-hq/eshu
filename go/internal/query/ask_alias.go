@@ -40,13 +40,6 @@ func ClassifyAnswerTruth(truth *TruthEnvelope) AnswerTruthClass {
 	return ask.ClassifyAnswerTruth(truth)
 }
 
-// appendReason appends a reason, dropping blanks and duplicates. Its home is
-// ask; this forwarder keeps the investigation packet builders (which stay in
-// root per their own move rows) calling the package-local name.
-func appendReason(reasons []string, reason string) []string {
-	return ask.AppendReason(reasons, reason)
-}
-
 // AskAnswer is the engine answer shape. See ask.AskAnswer.
 type AskAnswer = ask.AskAnswer
 

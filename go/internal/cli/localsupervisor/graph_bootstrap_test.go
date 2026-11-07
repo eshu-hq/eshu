@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/graph"
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 func TestApplyLocalGraphBootstrapAppliesNornicDBSchema(t *testing.T) {
@@ -36,11 +36,11 @@ func TestApplyLocalGraphBootstrapAppliesNornicDBSchema(t *testing.T) {
 	err := applyLocalGraphBootstrap(
 		context.Background(),
 		RuntimeConfig{
-			Profile:      query.ProfileLocalAuthoritative,
-			GraphBackend: query.GraphBackendNornicDB,
+			Profile:      querycontract.ProfileLocalAuthoritative,
+			GraphBackend: querycontract.GraphBackendNornicDB,
 		},
 		&ManagedGraph{
-			Backend:  query.GraphBackendNornicDB,
+			Backend:  querycontract.GraphBackendNornicDB,
 			Address:  "127.0.0.1",
 			BoltPort: 17687,
 			Username: "admin",
@@ -59,8 +59,8 @@ func TestApplyLocalGraphBootstrapAppliesNornicDBSchema(t *testing.T) {
 	if gotURI != "bolt://127.0.0.1:17687" {
 		t.Fatalf("ESHU_NEO4J_URI = %q, want bolt://127.0.0.1:17687", gotURI)
 	}
-	if gotBackendEnv != string(query.GraphBackendNornicDB) {
-		t.Fatalf("ESHU_GRAPH_BACKEND = %q, want %q", gotBackendEnv, query.GraphBackendNornicDB)
+	if gotBackendEnv != string(querycontract.GraphBackendNornicDB) {
+		t.Fatalf("ESHU_GRAPH_BACKEND = %q, want %q", gotBackendEnv, querycontract.GraphBackendNornicDB)
 	}
 }
 
@@ -68,10 +68,10 @@ func TestApplyLocalGraphBootstrapRejectsBackendMismatch(t *testing.T) {
 	err := applyLocalGraphBootstrap(
 		context.Background(),
 		RuntimeConfig{
-			Profile:      query.ProfileLocalAuthoritative,
-			GraphBackend: query.GraphBackendNornicDB,
+			Profile:      querycontract.ProfileLocalAuthoritative,
+			GraphBackend: querycontract.GraphBackendNornicDB,
 		},
-		&ManagedGraph{Backend: query.GraphBackendNeo4j},
+		&ManagedGraph{Backend: querycontract.GraphBackendNeo4j},
 	)
 	if err == nil || !strings.Contains(err.Error(), "backend mismatch") {
 		t.Fatalf("applyLocalGraphBootstrap() error = %v, want backend mismatch", err)
@@ -91,7 +91,7 @@ func TestApplyLocalGraphBootstrapSkipsLightweightProfile(t *testing.T) {
 
 	err := applyLocalGraphBootstrap(
 		context.Background(),
-		RuntimeConfig{Profile: query.ProfileLocalLightweight},
+		RuntimeConfig{Profile: querycontract.ProfileLocalLightweight},
 		nil,
 	)
 	if err != nil {

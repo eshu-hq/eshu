@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 	storagepostgres "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
@@ -100,7 +101,7 @@ func TestSupplyChainImpactReadinessMutableRefIncludesEveryCurrentDigestLive(t *t
 		t.Fatalf("read production mutable-ref readiness: %v", err)
 	}
 	t.Logf("513-digest production readiness elapsed=%s", time.Since(started))
-	for _, family := range []string{EvidenceFamilyContainerImageIdentity, EvidenceFamilySBOMComponent} {
+	for _, family := range []string{packet.EvidenceFamilyContainerImageIdentity, packet.EvidenceFamilySBOMComponent} {
 		var got int
 		for _, source := range snapshot.EvidenceSources {
 			if source.Family == family {
@@ -120,7 +121,7 @@ func TestSupplyChainImpactReadinessMutableRefIncludesEveryCurrentDigestLive(t *t
 	}
 	var crossScopeWarnings int
 	for _, gap := range crossScope.UnsupportedTargets {
-		if gap.TargetKind == UnsupportedTargetKindSBOMTarget && gap.Reason == "unsupported_field" {
+		if gap.TargetKind == packet.UnsupportedTargetKindSBOMTarget && gap.Reason == "unsupported_field" {
 			crossScopeWarnings += gap.Count
 		}
 	}

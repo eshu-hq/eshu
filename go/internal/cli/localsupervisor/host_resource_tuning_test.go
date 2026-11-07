@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/eshulocal"
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 func TestLocalHostIngesterOverridesTuneAuthoritativeNornicDBToHostCPU(t *testing.T) {
@@ -20,7 +20,7 @@ func TestLocalHostIngesterOverridesTuneAuthoritativeNornicDBToHostCPU(t *testing
 	got := localHostIngesterOverrides(
 		eshulocal.Layout{WorkspaceRoot: "/workspace/repo", CacheDir: "/workspace/cache"},
 		ModeWatch,
-		RuntimeConfig{Profile: query.ProfileLocalAuthoritative, GraphBackend: query.GraphBackendNornicDB},
+		RuntimeConfig{Profile: querycontract.ProfileLocalAuthoritative, GraphBackend: querycontract.GraphBackendNornicDB},
 		func(string) string { return "" },
 	)
 
@@ -44,7 +44,7 @@ func TestLocalHostReducerOverridesTuneAuthoritativeNornicDBToHostCPU(t *testing.
 
 	got := localHostReducerOverrides(
 		2,
-		RuntimeConfig{Profile: query.ProfileLocalAuthoritative, GraphBackend: query.GraphBackendNornicDB},
+		RuntimeConfig{Profile: querycontract.ProfileLocalAuthoritative, GraphBackend: querycontract.GraphBackendNornicDB},
 		func(string) string { return "" },
 	)
 
@@ -78,7 +78,7 @@ func TestLocalHostResourceOverridesPreserveExplicitEnvironment(t *testing.T) {
 		}
 	}
 
-	runtimeConfig := RuntimeConfig{Profile: query.ProfileLocalAuthoritative, GraphBackend: query.GraphBackendNornicDB}
+	runtimeConfig := RuntimeConfig{Profile: querycontract.ProfileLocalAuthoritative, GraphBackend: querycontract.GraphBackendNornicDB}
 	ingester := localHostIngesterOverrides(
 		eshulocal.Layout{WorkspaceRoot: "/workspace/repo", CacheDir: "/workspace/cache"},
 		ModeWatch,

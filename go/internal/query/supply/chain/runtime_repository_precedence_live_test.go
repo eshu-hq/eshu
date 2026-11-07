@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 )
 
@@ -221,7 +222,7 @@ func assertRuntimeRepositoryPrecedenceFilter(
 	if tc.environment != "" {
 		return
 	}
-	_, err = findingStore.ExplainSupplyChainImpact(ctx, impact.ExplanationFilter{
+	_, err = findingStore.ExplainSupplyChainImpact(ctx, packet.ExplanationFilter{
 		CVEID:                runtimeFilterLiveCVE,
 		PackageID:            packageID,
 		WorkloadID:           tc.workloadID,

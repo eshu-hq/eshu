@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/packageidentity"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 	storagepostgres "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
@@ -153,7 +154,7 @@ func TestSupplyChainImpactReadinessPackageConsumptionScopeLive(t *testing.T) {
 			if tc.wantSBOM > 0 {
 				var sbomCount int
 				for _, source := range snapshot.EvidenceSources {
-					if source.Family == EvidenceFamilySBOMComponent {
+					if source.Family == packet.EvidenceFamilySBOMComponent {
 						sbomCount = source.FactCount
 					}
 				}
@@ -188,9 +189,9 @@ func (q *readinessMarkerArgumentQueryer) QueryContext(ctx context.Context, query
 	return q.DB.QueryContext(ctx, query, args...)
 }
 
-func readinessPackageConsumptionFactCount(snapshot ReadinessSnapshot) int {
+func readinessPackageConsumptionFactCount(snapshot packet.ReadinessSnapshot) int {
 	for _, source := range snapshot.EvidenceSources {
-		if source.Family == EvidenceFamilyPackageConsumption {
+		if source.Family == packet.EvidenceFamilyPackageConsumption {
 			return source.FactCount
 		}
 	}

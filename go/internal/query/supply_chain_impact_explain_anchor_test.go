@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 )
 
@@ -44,7 +45,7 @@ func TestSupplyChainExplainImpactAcceptsWorkloadAndServiceAnchors(t *testing.T) 
 		t.Fatalf("ImageRef = %q, want %q", got, want)
 	}
 
-	var resp impact.ExplanationResult
+	var resp packet.ExplanationResult
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal() error = %v", err)
 	}
@@ -63,13 +64,13 @@ func TestSupplyChainExplainImpactNoEvidenceSurfacesUnsupportedEcosystem(t *testi
 		err: impact.ErrExplanationNotFound,
 	}
 	readiness := &recordingSupplyChainImpactReadinessStore{
-		snapshot: impact.ReadinessSnapshot{
-			EvidenceSources: []impact.EvidenceFamily{
-				{Family: impact.EvidenceFamilyVulnerabilityAdvisory, FactCount: 2, Freshness: impact.FreshnessLabelFresh},
-				{Family: impact.EvidenceFamilyPackageConsumption, FactCount: 1, Freshness: impact.FreshnessLabelFresh},
+		snapshot: packet.ReadinessSnapshot{
+			EvidenceSources: []packet.EvidenceFamily{
+				{Family: packet.EvidenceFamilyVulnerabilityAdvisory, FactCount: 2, Freshness: packet.FreshnessLabelFresh},
+				{Family: packet.EvidenceFamilyPackageConsumption, FactCount: 1, Freshness: packet.FreshnessLabelFresh},
 			},
-			UnsupportedTargets: []impact.UnsupportedTarget{
-				{TargetKind: impact.UnsupportedTargetKindEcosystem, Reason: "unsupported_ecosystem", Ecosystem: "pypi", Count: 1},
+			UnsupportedTargets: []packet.UnsupportedTarget{
+				{TargetKind: packet.UnsupportedTargetKindEcosystem, Reason: "unsupported_ecosystem", Ecosystem: "pypi", Count: 1},
 			},
 		},
 	}
@@ -88,17 +89,17 @@ func TestSupplyChainExplainImpactNoEvidenceSurfacesUnsupportedEcosystem(t *testi
 		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
 	}
 
-	var resp impact.ExplanationResult
+	var resp packet.ExplanationResult
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal() error = %v", err)
 	}
 	if got, want := resp.Outcome, "no_finding"; got != want {
 		t.Fatalf("Outcome = %q, want %q", got, want)
 	}
-	if got, want := resp.Readiness.State, impact.ReadinessStateUnsupported; got != want {
+	if got, want := resp.Readiness.State, packet.ReadinessStateUnsupported; got != want {
 		t.Fatalf("Readiness.State = %q, want %q", got, want)
 	}
-	if !impact.ReadinessMissingContains(resp.MissingEvidence, impact.MissingEvidenceUnsupportedTargets) {
+	if !packet.ReadinessMissingContains(resp.MissingEvidence, packet.MissingEvidenceUnsupportedTargets) {
 		t.Fatalf("MissingEvidence = %#v, want unsupported target reason", resp.MissingEvidence)
 	}
 	if len(resp.Readiness.UnsupportedTargets) != 1 ||
@@ -114,8 +115,8 @@ func TestSupplyChainExplainImpactNoEvidenceSurfacesPermissionHiddenSourceState(t
 		err: impact.ErrExplanationNotFound,
 	}
 	readiness := &recordingSupplyChainImpactReadinessStore{
-		snapshot: impact.ReadinessSnapshot{
-			SourceStates: []impact.SourceState{
+		snapshot: packet.ReadinessSnapshot{
+			SourceStates: []packet.SourceState{
 				{
 					ScopeID:        "vuln-intel://osv/npm/example",
 					Source:         "osv",
@@ -143,11 +144,11 @@ func TestSupplyChainExplainImpactNoEvidenceSurfacesPermissionHiddenSourceState(t
 		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
 	}
 
-	var resp impact.ExplanationResult
+	var resp packet.ExplanationResult
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal() error = %v", err)
 	}
-	if got, want := resp.Readiness.State, impact.ReadinessStateTargetIncomplete; got != want {
+	if got, want := resp.Readiness.State, packet.ReadinessStateTargetIncomplete; got != want {
 		t.Fatalf("Readiness.State = %q, want %q", got, want)
 	}
 	if len(resp.Readiness.SourceStates) != 1 {
@@ -168,11 +169,11 @@ func TestSupplyChainExplainImpactNoEvidenceDoesNotMarkDerivedAnchorReady(t *test
 		err: impact.ErrExplanationNotFound,
 	}
 	readiness := &recordingSupplyChainImpactReadinessStore{
-		snapshot: impact.ReadinessSnapshot{
-			EvidenceSources: []impact.EvidenceFamily{
-				{Family: impact.EvidenceFamilyVulnerabilityAdvisory, FactCount: 2, Freshness: impact.FreshnessLabelFresh},
-				{Family: impact.EvidenceFamilyPackageConsumption, FactCount: 1, Freshness: impact.FreshnessLabelFresh},
-				{Family: impact.EvidenceFamilyPackageRegistry, FactCount: 1, Freshness: impact.FreshnessLabelFresh},
+		snapshot: packet.ReadinessSnapshot{
+			EvidenceSources: []packet.EvidenceFamily{
+				{Family: packet.EvidenceFamilyVulnerabilityAdvisory, FactCount: 2, Freshness: packet.FreshnessLabelFresh},
+				{Family: packet.EvidenceFamilyPackageConsumption, FactCount: 1, Freshness: packet.FreshnessLabelFresh},
+				{Family: packet.EvidenceFamilyPackageRegistry, FactCount: 1, Freshness: packet.FreshnessLabelFresh},
 			},
 		},
 	}
@@ -191,18 +192,18 @@ func TestSupplyChainExplainImpactNoEvidenceDoesNotMarkDerivedAnchorReady(t *test
 		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
 	}
 
-	var resp impact.ExplanationResult
+	var resp packet.ExplanationResult
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal() error = %v", err)
 	}
-	if got, want := resp.Readiness.State, impact.ReadinessStateEvidenceIncomplete; got != want {
+	if got, want := resp.Readiness.State, packet.ReadinessStateEvidenceIncomplete; got != want {
 		t.Fatalf("Readiness.State = %q, want %q", got, want)
 	}
-	if !impact.ReadinessMissingContains(resp.MissingEvidence, impact.ServiceCatalogAnchorMissingReason) {
-		t.Fatalf("MissingEvidence = %#v, want %q", resp.MissingEvidence, impact.ServiceCatalogAnchorMissingReason)
+	if !packet.ReadinessMissingContains(resp.MissingEvidence, packet.ServiceCatalogAnchorMissingReason) {
+		t.Fatalf("MissingEvidence = %#v, want %q", resp.MissingEvidence, packet.ServiceCatalogAnchorMissingReason)
 	}
-	if !impact.ReadinessMissingContains(resp.Readiness.MissingEvidence, impact.ServiceCatalogAnchorMissingReason) {
-		t.Fatalf("Readiness.MissingEvidence = %#v, want %q", resp.Readiness.MissingEvidence, impact.ServiceCatalogAnchorMissingReason)
+	if !packet.ReadinessMissingContains(resp.Readiness.MissingEvidence, packet.ServiceCatalogAnchorMissingReason) {
+		t.Fatalf("Readiness.MissingEvidence = %#v, want %q", resp.Readiness.MissingEvidence, packet.ServiceCatalogAnchorMissingReason)
 	}
 }
 

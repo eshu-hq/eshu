@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 )
 
 // stubDeployableUnitPacketResponder records the deployable-unit packet seam
@@ -20,7 +21,7 @@ import (
 // precedent. It composes nothing: packet bytes stay root's job, proved by
 // the unchanged root packet tests.
 type stubDeployableUnitPacketResponder struct {
-	composed []AdmissionDecisionResult
+	composed []packet.AdmissionDecisionResult
 	subject  map[string]string
 	truth    *querycontract.TruthEnvelope
 	refusals int
@@ -29,11 +30,11 @@ type stubDeployableUnitPacketResponder struct {
 func (s *stubDeployableUnitPacketResponder) RespondDeployableUnitPacket(
 	_ http.ResponseWriter,
 	_ *http.Request,
-	decisions []AdmissionDecisionResult,
+	decisions []packet.AdmissionDecisionResult,
 	subject map[string]string,
 	truth *querycontract.TruthEnvelope,
 ) {
-	s.composed = append([]AdmissionDecisionResult(nil), decisions...)
+	s.composed = append([]packet.AdmissionDecisionResult(nil), decisions...)
 	s.subject = subject
 	s.truth = truth
 }
@@ -65,7 +66,7 @@ func (s *recordingDeployableUnitDecisionStore) ListAdmissionDecisions(
 
 func (s *recordingDeployableUnitDecisionStore) ListAdmissionDecisionEvidence(
 	context.Context, string, int,
-) ([]AdmissionDecisionEvidenceRow, error) {
+) ([]packet.AdmissionDecisionEvidenceRow, error) {
 	return nil, nil
 }
 

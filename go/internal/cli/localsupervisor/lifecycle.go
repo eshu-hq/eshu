@@ -15,7 +15,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/cli/graphinstall"
 	"github.com/eshu-hq/eshu/go/internal/eshulocal"
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 var (
@@ -129,7 +129,7 @@ func StatusForLayout(layout eshulocal.Layout) (StatusOutput, error) {
 	status.Profile = string(runtimeConfig.Profile)
 	status.GraphBackend = string(runtimeConfig.GraphBackend)
 
-	if runtimeConfig.Profile == query.ProfileLocalAuthoritative {
+	if runtimeConfig.Profile == querycontract.ProfileLocalAuthoritative {
 		status.GraphRunning = graphHealthyFromOwnerRecord(record)
 	}
 
@@ -175,7 +175,7 @@ func StopForLayout(layout eshulocal.Layout) error {
 		return err
 	}
 
-	if runtimeConfig.Profile == query.ProfileLocalLightweight {
+	if runtimeConfig.Profile == querycontract.ProfileLocalLightweight {
 		if !graphLightweightOwnerHealthy(record) {
 			return graphReclaimStaleLightweightOwner(layout)
 		}
@@ -231,7 +231,7 @@ func graphReclaimStaleLightweightOwner(layout eshulocal.Layout) (retErr error) {
 	if err != nil {
 		return err
 	}
-	if runtimeConfig.Profile != query.ProfileLocalLightweight {
+	if runtimeConfig.Profile != querycontract.ProfileLocalLightweight {
 		return fmt.Errorf("owner record changed to profile %q while reclaiming local lightweight stop", runtimeConfig.Profile)
 	}
 	if graphOwnerSocketHealthy(record.SocketPath) {
@@ -273,7 +273,7 @@ func graphReclaimStaleAuthoritativeOwner(layout eshulocal.Layout) (retErr error)
 	if err != nil {
 		return err
 	}
-	if runtimeConfig.Profile != query.ProfileLocalAuthoritative {
+	if runtimeConfig.Profile != querycontract.ProfileLocalAuthoritative {
 		return fmt.Errorf("owner record changed to profile %q while reclaiming local authoritative stop", runtimeConfig.Profile)
 	}
 	if graphProcessAlive(record.PID) || graphStopGraphHealthy(record) {

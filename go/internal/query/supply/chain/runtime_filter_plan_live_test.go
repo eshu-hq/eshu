@@ -25,6 +25,7 @@ import (
 	// visible only when ESHU_POSTGRES_TEST_DSN is set, so CI would skip green.
 	_ "github.com/jackc/pgx/v5/stdlib"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 )
@@ -391,7 +392,7 @@ FROM generate_series(1, 100000) AS sample`,
 		tx,
 		"explain_workload_service",
 		impact.ExplainFindingQuery,
-		supplyChainRuntimeFilterExplainArgs(impact.ExplanationFilter{
+		supplyChainRuntimeFilterExplainArgs(packet.ExplanationFilter{
 			CVEID:                runtimeFilterLiveCVE,
 			PackageID:            runtimeFilterLivePackage,
 			WorkloadID:           "workload:5747:scalar",

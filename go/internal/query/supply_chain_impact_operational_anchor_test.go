@@ -10,6 +10,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 )
 
@@ -35,7 +36,7 @@ func TestSupplyChainListImpactFindingsExposesOperationalAnchors(t *testing.T) {
 	}
 
 	var resp struct {
-		Findings []impact.FindingResult `json:"findings"`
+		Findings []packet.FindingResult `json:"findings"`
 	}
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal() error = %v", err)
@@ -92,7 +93,7 @@ func TestSupplyChainListImpactFindingsSuppressesStaleCatalogAnchorMissing(t *tes
 	}
 
 	var resp struct {
-		Findings []impact.FindingResult `json:"findings"`
+		Findings []packet.FindingResult `json:"findings"`
 	}
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal() error = %v", err)
@@ -110,7 +111,7 @@ func TestSupplyChainListImpactFindingsSuppressesStaleCatalogAnchorMissing(t *tes
 	if len(got.ServiceIDs) != 0 {
 		t.Fatalf("ServiceIDs = %#v, want no fabricated service identity", got.ServiceIDs)
 	}
-	if containsString(got.MissingEvidence, impact.ServiceCatalogAnchorMissingReason) {
+	if containsString(got.MissingEvidence, packet.ServiceCatalogAnchorMissingReason) {
 		t.Fatalf("MissingEvidence = %#v, must not claim catalog anchor is missing", got.MissingEvidence)
 	}
 	if !containsString(got.MissingEvidence, "environment evidence missing") {
@@ -156,7 +157,7 @@ func TestSupplyChainExplainImpactExposesOperationalAnchors(t *testing.T) {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
 	}
 
-	var resp impact.ExplanationResult
+	var resp packet.ExplanationResult
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal() error = %v", err)
 	}
@@ -214,14 +215,14 @@ func TestSupplyChainExplainImpactTreatsCatalogEntityAsServiceHop(t *testing.T) {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
 	}
 
-	var resp impact.ExplanationResult
+	var resp packet.ExplanationResult
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal() error = %v", err)
 	}
 	if resp.Finding == nil {
 		t.Fatal("Finding = nil, want catalog-entity finding")
 	}
-	if containsString(resp.Finding.MissingEvidence, impact.ServiceCatalogAnchorMissingReason) {
+	if containsString(resp.Finding.MissingEvidence, packet.ServiceCatalogAnchorMissingReason) {
 		t.Fatalf("Finding.MissingEvidence = %#v, must not claim catalog anchor is missing", resp.Finding.MissingEvidence)
 	}
 	if !reflect.DeepEqual(resp.Anchors.CatalogEntities, []string{"api:default/example-api"}) {
@@ -282,14 +283,14 @@ func catalogEntityOperationalFindingRow() impact.FindingRow {
 		EvidenceFactIDs: []string{"consume-1", "workload-1", "catalog-1", "deployment-1"},
 		MissingEvidence: []string{
 			"environment evidence missing",
-			impact.ServiceCatalogAnchorMissingReason,
+			packet.ServiceCatalogAnchorMissingReason,
 		},
 	}
 }
 
 func assertImpactPathHopStatus(
 	t *testing.T,
-	impactPath []impact.PathHop,
+	impactPath []packet.PathHop,
 	wantHop string,
 	wantStatus string,
 ) {

@@ -16,7 +16,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/cli/procexec"
 	"github.com/eshu-hq/eshu/go/internal/eshulocal"
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	pgstorage "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
@@ -34,7 +34,7 @@ func ChildEnv(dsn string, runtimeConfig RuntimeConfig, graph *ManagedGraph, over
 		"ESHU_QUERY_PROFILE":     string(runtimeConfig.Profile),
 		"ESHU_DISABLE_NEO4J":     "",
 	}
-	if runtimeConfig.Profile == query.ProfileLocalLightweight {
+	if runtimeConfig.Profile == querycontract.ProfileLocalLightweight {
 		values["ESHU_DISABLE_NEO4J"] = "true"
 	}
 	if runtimeConfig.GraphBackend != "" {
@@ -77,8 +77,8 @@ func localHostIngesterOverrides(
 // shouldTuneLocalAuthoritativeNornicDB limits owner-injected CPU defaults to
 // the local profile/backend pair proven by the NornicDB full-corpus lane.
 func shouldTuneLocalAuthoritativeNornicDB(runtimeConfig RuntimeConfig) bool {
-	return runtimeConfig.Profile == query.ProfileLocalAuthoritative &&
-		runtimeConfig.GraphBackend == query.GraphBackendNornicDB
+	return runtimeConfig.Profile == querycontract.ProfileLocalAuthoritative &&
+		runtimeConfig.GraphBackend == querycontract.GraphBackendNornicDB
 }
 
 // localHostCPUCount normalizes runtime CPU discovery so test doubles and
@@ -104,36 +104,36 @@ func setOverrideIfUnset(overrides map[string]string, getenv func(string) string,
 // the lightweight profile as the default when no profile is requested. It is the
 // default-preserving entry point for watch-mode owners (the lightweight indexer).
 func resolveLocalHostRuntimeConfig(getenv func(string) string) (RuntimeConfig, error) {
-	return resolveLocalHostRuntimeConfigWithDefault(getenv, query.ProfileLocalLightweight)
+	return resolveLocalHostRuntimeConfigWithDefault(getenv, querycontract.ProfileLocalLightweight)
 }
 
 // resolveLocalHostRuntimeConfigWithDefault resolves the local owner runtime
 // config, falling back to defaultProfile only when ESHU_QUERY_PROFILE is unset.
 // An explicit ESHU_QUERY_PROFILE always wins so operators can opt out of the
 // mode default (for example forcing lightweight on a large repo).
-func resolveLocalHostRuntimeConfigWithDefault(getenv func(string) string, defaultProfile query.QueryProfile) (RuntimeConfig, error) {
+func resolveLocalHostRuntimeConfigWithDefault(getenv func(string) string, defaultProfile querycontract.QueryProfile) (RuntimeConfig, error) {
 	profile := defaultProfile
 	rawProfile := strings.TrimSpace(getenv("ESHU_QUERY_PROFILE"))
 	if rawProfile != "" {
-		parsedProfile, err := query.ParseQueryProfile(rawProfile)
+		parsedProfile, err := querycontract.ParseQueryProfile(rawProfile)
 		if err != nil {
 			return RuntimeConfig{}, fmt.Errorf("parse ESHU_QUERY_PROFILE: %w", err)
 		}
 		switch parsedProfile {
-		case query.ProfileLocalLightweight, query.ProfileLocalAuthoritative:
+		case querycontract.ProfileLocalLightweight, querycontract.ProfileLocalAuthoritative:
 			profile = parsedProfile
 		default:
 			return RuntimeConfig{}, fmt.Errorf(
 				"local Eshu service supports only %q or %q query profiles, got %q",
-				query.ProfileLocalLightweight,
-				query.ProfileLocalAuthoritative,
+				querycontract.ProfileLocalLightweight,
+				querycontract.ProfileLocalAuthoritative,
 				parsedProfile,
 			)
 		}
 	}
 
 	rawGraphBackend := strings.TrimSpace(getenv("ESHU_GRAPH_BACKEND"))
-	if profile == query.ProfileLocalLightweight {
+	if profile == querycontract.ProfileLocalLightweight {
 		if rawGraphBackend != "" {
 			return RuntimeConfig{}, fmt.Errorf("ESHU_GRAPH_BACKEND is not supported with %q", profile)
 		}
@@ -143,11 +143,11 @@ func resolveLocalHostRuntimeConfigWithDefault(getenv func(string) string, defaul
 	if rawGraphBackend == "" {
 		return RuntimeConfig{
 			Profile:      profile,
-			GraphBackend: query.GraphBackendNornicDB,
+			GraphBackend: querycontract.GraphBackendNornicDB,
 		}, nil
 	}
 
-	graphBackend, err := query.ParseGraphBackend(rawGraphBackend)
+	graphBackend, err := querycontract.ParseGraphBackend(rawGraphBackend)
 	if err != nil {
 		return RuntimeConfig{}, fmt.Errorf("parse ESHU_GRAPH_BACKEND: %w", err)
 	}
@@ -172,7 +172,7 @@ func requestedAttachRuntimeConfig(getenv func(string) string) (RuntimeConfig, bo
 		return RuntimeConfig{}, false, nil
 	}
 
-	runtimeConfig, err := resolveLocalHostRuntimeConfigWithDefault(getenv, query.ProfileLocalAuthoritative)
+	runtimeConfig, err := resolveLocalHostRuntimeConfigWithDefault(getenv, querycontract.ProfileLocalAuthoritative)
 	if err != nil {
 		return RuntimeConfig{}, false, err
 	}
@@ -185,24 +185,24 @@ func requestedAttachRuntimeConfig(getenv func(string) string) (RuntimeConfig, bo
 // is read as NornicDB.
 func RuntimeConfigFromOwnerRecord(record eshulocal.OwnerRecord) (RuntimeConfig, error) {
 	if strings.TrimSpace(record.Profile) == "" {
-		return RuntimeConfig{Profile: query.ProfileLocalLightweight}, nil
+		return RuntimeConfig{Profile: querycontract.ProfileLocalLightweight}, nil
 	}
 
-	profile, err := query.ParseQueryProfile(record.Profile)
+	profile, err := querycontract.ParseQueryProfile(record.Profile)
 	if err != nil {
 		return RuntimeConfig{}, fmt.Errorf("parse owner record profile: %w", err)
 	}
-	if profile == query.ProfileLocalLightweight {
+	if profile == querycontract.ProfileLocalLightweight {
 		return RuntimeConfig{Profile: profile}, nil
 	}
 	if strings.TrimSpace(record.GraphBackend) == "" {
 		return RuntimeConfig{
 			Profile:      profile,
-			GraphBackend: query.GraphBackendNornicDB,
+			GraphBackend: querycontract.GraphBackendNornicDB,
 		}, nil
 	}
 
-	graphBackend, err := query.ParseGraphBackend(record.GraphBackend)
+	graphBackend, err := querycontract.ParseGraphBackend(record.GraphBackend)
 	if err != nil {
 		return RuntimeConfig{}, fmt.Errorf("parse owner record graph backend: %w", err)
 	}

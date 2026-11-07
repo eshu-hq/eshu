@@ -8,6 +8,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
@@ -118,7 +119,7 @@ func TestImpactExplanationGuardedReadPort(t *testing.T) {
 	want := errors.New("reader is stale")
 	guard := &rejectingImpactReader{err: want}
 	store := NewPostgresFindingStoreWithReadStore(guard, false)
-	_, err := store.ExplainSupplyChainImpact(t.Context(), ExplanationFilter{FindingID: "finding:abc"})
+	_, err := store.ExplainSupplyChainImpact(t.Context(), packet.ExplanationFilter{FindingID: "finding:abc"})
 	if !errors.Is(err, want) || guard.begins != 1 || guard.queries != 0 {
 		t.Fatalf("error %v, snapshot starts %d, guarded queries %d; want stale reader before business SQL", err, guard.begins, guard.queries)
 	}
@@ -138,7 +139,7 @@ func TestImpactExplanationHydratesEvidenceThroughGuardedReadPort(t *testing.T) {
 	want := errors.New("reader became stale during evidence hydration")
 	guard := &findingThenRejectingImpactReader{err: want}
 	store := NewPostgresFindingStoreWithReadStore(guard, false)
-	_, err := store.ExplainSupplyChainImpact(t.Context(), ExplanationFilter{FindingID: "finding:abc"})
+	_, err := store.ExplainSupplyChainImpact(t.Context(), packet.ExplanationFilter{FindingID: "finding:abc"})
 	if !errors.Is(err, want) || guard.queries != 2 {
 		t.Fatalf("error %v, guarded queries %d; want evidence reader error after finding query", err, guard.queries)
 	}

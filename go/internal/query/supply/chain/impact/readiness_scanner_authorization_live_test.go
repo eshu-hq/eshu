@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query/auth"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 	storagepostgres "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
@@ -176,7 +177,7 @@ func readReadinessImageWarnings(t *testing.T, ctx context.Context, database *sql
 	}
 	count := 0
 	for _, target := range snapshot.UnsupportedTargets {
-		if target.TargetKind == UnsupportedTargetKindImageTarget {
+		if target.TargetKind == packet.UnsupportedTargetKindImageTarget {
 			count += target.Count
 		}
 	}
@@ -207,8 +208,8 @@ func TestReadinessScannerSourceBindingAuthorizationLive(t *testing.T) {
 		t.Fatalf("AllScopes readiness store: %v", err)
 	}
 	for _, family := range allScopesSnapshot.EvidenceSources {
-		if (family.Family == EvidenceFamilyScannerWorkerAnalysis ||
-			family.Family == EvidenceFamilyVulnerabilityOSPackage) && family.FactCount != 0 {
+		if (family.Family == packet.EvidenceFamilyScannerWorkerAnalysis ||
+			family.Family == packet.EvidenceFamilyVulnerabilityOSPackage) && family.FactCount != 0 {
 			t.Fatalf("AllScopes-only %s count=%d, want 0", family.Family, family.FactCount)
 		}
 	}

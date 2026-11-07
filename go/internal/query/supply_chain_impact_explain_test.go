@@ -15,18 +15,19 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 )
 
 type recordingSupplyChainImpactExplanationStore struct {
 	row        impact.ExplanationRow
 	err        error
-	lastFilter impact.ExplanationFilter
+	lastFilter packet.ExplanationFilter
 }
 
 func (s *recordingSupplyChainImpactExplanationStore) ExplainSupplyChainImpact(
 	_ context.Context,
-	filter impact.ExplanationFilter,
+	filter packet.ExplanationFilter,
 ) (impact.ExplanationRow, error) {
 	s.lastFilter = filter
 	if s.err != nil {
@@ -106,12 +107,12 @@ func TestSupplyChainExplainImpactFindingIncludesEvidenceChain(t *testing.T) {
 	t.Parallel()
 
 	readiness := &recordingSupplyChainImpactReadinessStore{
-		snapshot: impact.ReadinessSnapshot{
-			EvidenceSources: []impact.EvidenceFamily{
-				{Family: impact.EvidenceFamilyVulnerabilityAdvisory, FactCount: 2, Freshness: impact.FreshnessLabelFresh},
-				{Family: impact.EvidenceFamilyPackageConsumption, FactCount: 1, Freshness: impact.FreshnessLabelFresh},
-				{Family: impact.EvidenceFamilySBOMComponent, FactCount: 1, Freshness: impact.FreshnessLabelFresh},
-				{Family: impact.EvidenceFamilyContainerImageIdentity, FactCount: 1, Freshness: impact.FreshnessLabelFresh},
+		snapshot: packet.ReadinessSnapshot{
+			EvidenceSources: []packet.EvidenceFamily{
+				{Family: packet.EvidenceFamilyVulnerabilityAdvisory, FactCount: 2, Freshness: packet.FreshnessLabelFresh},
+				{Family: packet.EvidenceFamilyPackageConsumption, FactCount: 1, Freshness: packet.FreshnessLabelFresh},
+				{Family: packet.EvidenceFamilySBOMComponent, FactCount: 1, Freshness: packet.FreshnessLabelFresh},
+				{Family: packet.EvidenceFamilyContainerImageIdentity, FactCount: 1, Freshness: packet.FreshnessLabelFresh},
 			},
 		},
 	}
@@ -136,7 +137,7 @@ func TestSupplyChainExplainImpactFindingIncludesEvidenceChain(t *testing.T) {
 		t.Fatalf("FindingID = %q, want %q", got, want)
 	}
 
-	var resp impact.ExplanationResult
+	var resp packet.ExplanationResult
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal: %v", err)
 	}
@@ -312,9 +313,9 @@ func TestBuildSupplyChainImpactExplanationCoversEvidenceClasses(t *testing.T) {
 			t.Parallel()
 
 			got := impact.BuildExplanation(
-				impact.ExplanationFilter{FindingID: tc.row.Finding.FindingID},
+				packet.ExplanationFilter{FindingID: tc.row.Finding.FindingID},
 				tc.row,
-				impact.ReadinessEnvelope{State: impact.ReadinessStateReadyWithFindings},
+				packet.ReadinessEnvelope{State: packet.ReadinessStateReadyWithFindings},
 			)
 			if got.Outcome != tc.wantOutcome {
 				t.Fatalf("Outcome = %q, want %q", got.Outcome, tc.wantOutcome)
@@ -341,9 +342,9 @@ func TestSupplyChainExplainImpactNoEvidenceResponse(t *testing.T) {
 	t.Parallel()
 
 	readiness := &recordingSupplyChainImpactReadinessStore{
-		snapshot: impact.ReadinessSnapshot{
-			EvidenceSources: []impact.EvidenceFamily{
-				{Family: impact.EvidenceFamilyVulnerabilityAdvisory, FactCount: 1, Freshness: impact.FreshnessLabelFresh},
+		snapshot: packet.ReadinessSnapshot{
+			EvidenceSources: []packet.EvidenceFamily{
+				{Family: packet.EvidenceFamilyVulnerabilityAdvisory, FactCount: 1, Freshness: packet.FreshnessLabelFresh},
 			},
 		},
 	}
@@ -365,7 +366,7 @@ func TestSupplyChainExplainImpactNoEvidenceResponse(t *testing.T) {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
 	}
 
-	var resp impact.ExplanationResult
+	var resp packet.ExplanationResult
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal: %v", err)
 	}
@@ -387,8 +388,8 @@ func TestSupplyChainExplainImpactNoEvidenceResponse(t *testing.T) {
 	if !containsString(resp.MissingEvidence, "impact_finding") {
 		t.Fatalf("MissingEvidence = %#v, want impact_finding", resp.MissingEvidence)
 	}
-	if !containsString(resp.MissingEvidence, impact.MissingEvidenceOwnedPackages) {
-		t.Fatalf("MissingEvidence = %#v, want %q", resp.MissingEvidence, impact.MissingEvidenceOwnedPackages)
+	if !containsString(resp.MissingEvidence, packet.MissingEvidenceOwnedPackages) {
+		t.Fatalf("MissingEvidence = %#v, want %q", resp.MissingEvidence, packet.MissingEvidenceOwnedPackages)
 	}
 }
 
@@ -414,10 +415,10 @@ func exactManifestAndImageExplanationRow() impact.ExplanationRow {
 			DirectDependency:    boolPtr(false),
 			EvidencePath:        []string{"vulnerability.affected_package", "reducer_package_consumption_correlation", "sbom.component"},
 			EvidenceFactIDs:     []string{"affected-1", "consume-1", "component-1", "attach-1", "image-1", "workload-1"},
-			Provenance: &impact.Provenance{
+			Provenance: &packet.Provenance{
 				SelectedRangeSource:        "ghsa",
 				SelectedFixedVersionSource: "ghsa",
-				AdvisorySources: []impact.AdvisorySource{
+				AdvisorySources: []packet.AdvisorySource{
 					{Source: "ghsa", AdvisoryID: "GHSA-test-1", SourceUpdatedAt: "2026-05-24T11:00:00Z"},
 				},
 			},

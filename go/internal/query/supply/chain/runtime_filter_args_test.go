@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 )
 
@@ -99,7 +100,7 @@ func TestSupplyChainRuntimeFilterAggregateAndExplainArgsMatchQueryPlaceholders(t
 		},
 		"explain": {
 			impact.ExplainFindingQuery,
-			supplyChainRuntimeFilterExplainArgs(impact.ExplanationFilter{}),
+			supplyChainRuntimeFilterExplainArgs(packet.ExplanationFilter{}),
 		},
 	}
 	for name, test := range cases {

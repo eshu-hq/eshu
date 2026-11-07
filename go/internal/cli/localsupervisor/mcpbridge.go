@@ -19,7 +19,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/eshulocal"
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 const (
@@ -348,7 +348,7 @@ func RunAttachedMCPHTTP(ctx context.Context, layout eshulocal.Layout, host strin
 	if err != nil {
 		return err
 	}
-	if runtimeConfig.Profile == query.ProfileLocalAuthoritative && !GraphHealthy(record) {
+	if runtimeConfig.Profile == querycontract.ProfileLocalAuthoritative && !GraphHealthy(record) {
 		return fmt.Errorf("local Eshu service owner for workspace %q has an unhealthy graph backend", layout.WorkspaceRoot)
 	}
 

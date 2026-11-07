@@ -16,6 +16,13 @@ package evidence
 // handler-family subpackage cannot import root. #6597 moved them into this
 // leaf and deleted root's #6060 aliases; every field and JSON tag is
 // unchanged.
+// EvidenceCitationMaxLimit bounds the citation packet handles per request.
+// It moved here from the evidence handler package's citation.go so the
+// packet leaf's per-layer citation cap reads the same contract constant the
+// citation route enforces; the handler keeps spelling the short name through
+// its own alias below.
+const EvidenceCitationMaxLimit = 50
+
 type EvidenceCitationResponse struct {
 	Subject              map[string]any           `json:"subject,omitempty"`
 	Question             string                   `json:"question,omitempty"`

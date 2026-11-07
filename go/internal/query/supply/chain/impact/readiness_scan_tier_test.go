@@ -7,6 +7,8 @@ import (
 	"reflect"
 	"sort"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 )
 
 // TestBuildSupplyChainImpactReadinessScanTierProvesScannedImage is issue
@@ -20,24 +22,24 @@ import (
 func TestBuildSupplyChainImpactReadinessScanTierProvesScannedImage(t *testing.T) {
 	t.Parallel()
 
-	envelope := BuildReadiness(
-		TargetScope{SubjectDigest: "sha256:scanned-distroless"},
+	envelope := packet.BuildReadiness(
+		packet.TargetScope{SubjectDigest: "sha256:scanned-distroless"},
 		nil,
 		false,
-		ReadinessSnapshot{
-			EvidenceSources: []EvidenceFamily{
+		packet.ReadinessSnapshot{
+			EvidenceSources: []packet.EvidenceFamily{
 				// vulnerability.advisory evidence is a separate, general
 				// precondition (the CVE database itself must be populated
 				// before any zero-finding answer is trustworthy) — it is not
 				// what this test is proving. Set it so the only variable
 				// under test is the scan-tier family.
-				{Family: EvidenceFamilyVulnerabilityAdvisory, FactCount: 5, Freshness: FreshnessLabelFresh},
-				{Family: EvidenceFamilyScannerWorkerAnalysis, FactCount: 1, Freshness: FreshnessLabelFresh},
+				{Family: packet.EvidenceFamilyVulnerabilityAdvisory, FactCount: 5, Freshness: packet.FreshnessLabelFresh},
+				{Family: packet.EvidenceFamilyScannerWorkerAnalysis, FactCount: 1, Freshness: packet.FreshnessLabelFresh},
 			},
 		},
 	)
-	if envelope.State != ReadinessStateReadyZeroFindings {
-		t.Fatalf("state = %q, want %q (a scanner_worker.analysis fact alone proves the image was scanned with zero findings)", envelope.State, ReadinessStateReadyZeroFindings)
+	if envelope.State != packet.ReadinessStateReadyZeroFindings {
+		t.Fatalf("state = %q, want %q (a scanner_worker.analysis fact alone proves the image was scanned with zero findings)", envelope.State, packet.ReadinessStateReadyZeroFindings)
 	}
 	if len(envelope.MissingEvidence) != 0 {
 		t.Fatalf("missing_evidence = %#v, want empty for a scanned image with zero findings", envelope.MissingEvidence)
@@ -56,19 +58,19 @@ func TestBuildSupplyChainImpactReadinessScanTierProvesScannedImage(t *testing.T)
 func TestBuildSupplyChainImpactReadinessScanTierEvidenceAvoidsNotConfigured(t *testing.T) {
 	t.Parallel()
 
-	envelope := BuildReadiness(
-		TargetScope{SubjectDigest: "sha256:scanned-with-packages"},
+	envelope := packet.BuildReadiness(
+		packet.TargetScope{SubjectDigest: "sha256:scanned-with-packages"},
 		nil,
 		false,
-		ReadinessSnapshot{
-			EvidenceSources: []EvidenceFamily{
-				{Family: EvidenceFamilyScannerWorkerAnalysis, FactCount: 1, Freshness: FreshnessLabelFresh},
-				{Family: EvidenceFamilyVulnerabilityOSPackage, FactCount: 42, Freshness: FreshnessLabelFresh},
+		packet.ReadinessSnapshot{
+			EvidenceSources: []packet.EvidenceFamily{
+				{Family: packet.EvidenceFamilyScannerWorkerAnalysis, FactCount: 1, Freshness: packet.FreshnessLabelFresh},
+				{Family: packet.EvidenceFamilyVulnerabilityOSPackage, FactCount: 42, Freshness: packet.FreshnessLabelFresh},
 			},
 		},
 	)
-	if envelope.State == ReadinessStateNotConfigured {
-		t.Fatalf("state = %q, want anything but %q: OS-package scan-tier evidence is real observed coverage", envelope.State, ReadinessStateNotConfigured)
+	if envelope.State == packet.ReadinessStateNotConfigured {
+		t.Fatalf("state = %q, want anything but %q: OS-package scan-tier evidence is real observed coverage", envelope.State, packet.ReadinessStateNotConfigured)
 	}
 }
 
@@ -81,20 +83,20 @@ func TestBuildSupplyChainImpactReadinessScanTierEvidenceAvoidsNotConfigured(t *t
 func TestBuildSupplyChainImpactReadinessNeverScannedStaysEvidenceIncomplete(t *testing.T) {
 	t.Parallel()
 
-	envelope := BuildReadiness(
-		TargetScope{SubjectDigest: "sha256:never-scanned"},
+	envelope := packet.BuildReadiness(
+		packet.TargetScope{SubjectDigest: "sha256:never-scanned"},
 		nil,
 		false,
-		ReadinessSnapshot{
-			EvidenceSources: []EvidenceFamily{
-				{Family: EvidenceFamilyVulnerabilityAdvisory, FactCount: 1, Freshness: FreshnessLabelFresh},
+		packet.ReadinessSnapshot{
+			EvidenceSources: []packet.EvidenceFamily{
+				{Family: packet.EvidenceFamilyVulnerabilityAdvisory, FactCount: 1, Freshness: packet.FreshnessLabelFresh},
 			},
 		},
 	)
-	if envelope.State != ReadinessStateEvidenceIncomplete {
-		t.Fatalf("state = %q, want %q", envelope.State, ReadinessStateEvidenceIncomplete)
+	if envelope.State != packet.ReadinessStateEvidenceIncomplete {
+		t.Fatalf("state = %q, want %q", envelope.State, packet.ReadinessStateEvidenceIncomplete)
 	}
-	if !ReadinessMissingContains(envelope.MissingEvidence, MissingEvidenceSBOMOrImage) {
+	if !packet.ReadinessMissingContains(envelope.MissingEvidence, packet.MissingEvidenceSBOMOrImage) {
 		t.Fatalf("missing_evidence = %#v, want sbom_or_image_evidence for a never-scanned image", envelope.MissingEvidence)
 	}
 }
@@ -106,14 +108,14 @@ func TestBuildSupplyChainImpactReadinessNeverScannedStaysEvidenceIncomplete(t *t
 func TestBuildSupplyChainImpactReadinessNormalizesScanTierFamilies(t *testing.T) {
 	t.Parallel()
 
-	envelope := BuildReadiness(
-		TargetScope{SubjectDigest: "sha256:normalize-scan-tier"},
+	envelope := packet.BuildReadiness(
+		packet.TargetScope{SubjectDigest: "sha256:normalize-scan-tier"},
 		nil,
 		false,
-		ReadinessSnapshot{
-			EvidenceSources: []EvidenceFamily{
-				{Family: EvidenceFamilyVulnerabilityOSPackage, FactCount: 3},
-				{Family: EvidenceFamilyScannerWorkerAnalysis, FactCount: 1},
+		packet.ReadinessSnapshot{
+			EvidenceSources: []packet.EvidenceFamily{
+				{Family: packet.EvidenceFamilyVulnerabilityOSPackage, FactCount: 3},
+				{Family: packet.EvidenceFamilyScannerWorkerAnalysis, FactCount: 1},
 			},
 		},
 	)
@@ -121,7 +123,7 @@ func TestBuildSupplyChainImpactReadinessNormalizesScanTierFamilies(t *testing.T)
 	for _, source := range envelope.EvidenceSources {
 		got = append(got, source.Family)
 	}
-	want := []string{EvidenceFamilyScannerWorkerAnalysis, EvidenceFamilyVulnerabilityOSPackage}
+	want := []string{packet.EvidenceFamilyScannerWorkerAnalysis, packet.EvidenceFamilyVulnerabilityOSPackage}
 	sort.Strings(want)
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("evidence_sources = %#v, want %#v", got, want)

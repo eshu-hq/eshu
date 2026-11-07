@@ -82,8 +82,8 @@ Internal packages: `internal/cli/scan` for the scan `RunRepo` runs first and
 the truth envelope it falls back to, `internal/cli/reposelector` for resolving
 the scanned root to a repository id, `internal/cli/localsupervisor` and
 `internal/cli/procexec` for the local runtime, `internal/eshulocal` for
-workspace layout and the owner record, `internal/query` for the profile and
-graph-backend constants,
+workspace layout and the owner record, `internal/query/querycontract` for
+the profile and graph-backend constants,
 `internal/exports` for the shared SARIF snapshot shape, `internal/buildinfo`
 for the tool version stamped into a SARIF run, and
 `internal/vulnerabilityparity` plus `internal/vulnerabilityparityproof` for the

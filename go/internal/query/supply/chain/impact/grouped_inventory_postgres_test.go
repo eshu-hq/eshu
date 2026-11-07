@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
@@ -289,9 +290,9 @@ func TestGroupedInventoryStoreFreshnessStates(t *testing.T) {
 		wantCompleteness GroupCompleteness
 		wantObservedAt   bool
 	}{
-		{"fresh watermark", &groupedFakeQueryer{watermark: []time.Time{groupedTestNow.Add(-time.Minute)}, page: rows()}, FreshnessLabelFresh, GroupCompletenessComplete, true},
-		{"stale watermark", &groupedFakeQueryer{watermark: []time.Time{groupedTestNow.Add(-10 * time.Minute)}, page: rows()}, FreshnessLabelStale, GroupCompletenessReadModelUnavailable, true},
-		{"probe error", &groupedFakeQueryer{watermarkErr: errors.New("boom"), page: rows()}, FreshnessLabelUnknown, GroupCompletenessReadModelUnavailable, false},
+		{"fresh watermark", &groupedFakeQueryer{watermark: []time.Time{groupedTestNow.Add(-time.Minute)}, page: rows()}, packet.FreshnessLabelFresh, GroupCompletenessComplete, true},
+		{"stale watermark", &groupedFakeQueryer{watermark: []time.Time{groupedTestNow.Add(-10 * time.Minute)}, page: rows()}, packet.FreshnessLabelStale, GroupCompletenessReadModelUnavailable, true},
+		{"probe error", &groupedFakeQueryer{watermarkErr: errors.New("boom"), page: rows()}, packet.FreshnessLabelUnknown, GroupCompletenessReadModelUnavailable, false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -311,7 +312,7 @@ func TestGroupedInventoryStoreFreshnessStates(t *testing.T) {
 				wantMissing = 1
 			}
 			if len(named.MissingEvidence) != wantMissing ||
-				(wantMissing == 1 && named.MissingEvidence[0] != MissingEvidenceReadinessUnavailable) {
+				(wantMissing == 1 && named.MissingEvidence[0] != packet.MissingEvidenceReadinessUnavailable) {
 				t.Fatalf("named missing evidence = %v", named.MissingEvidence)
 			}
 			if unattributed.Completeness != GroupCompletenessUnattributed ||
@@ -485,7 +486,7 @@ func TestGroupedInventoryStoreLogsWatermarkProbeFailure(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SupplyChainImpactGroupedInventory() error = %v", err)
 	}
-	if page.Rows[0].Completeness != GroupCompletenessReadModelUnavailable || page.Freshness.State != FreshnessLabelUnknown {
+	if page.Rows[0].Completeness != GroupCompletenessReadModelUnavailable || page.Freshness.State != packet.FreshnessLabelUnknown {
 		t.Fatalf("page = %#v, want read_model_unavailable rows with unknown freshness", page)
 	}
 	line := logs.String()

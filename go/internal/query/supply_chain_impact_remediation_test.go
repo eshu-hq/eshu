@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 )
 
@@ -21,10 +22,10 @@ func TestSupplyChainExplainImpactSurfacesRemediation(t *testing.T) {
 	t.Parallel()
 
 	readiness := &recordingSupplyChainImpactReadinessStore{
-		snapshot: impact.ReadinessSnapshot{
-			EvidenceSources: []impact.EvidenceFamily{
-				{Family: impact.EvidenceFamilyVulnerabilityAdvisory, FactCount: 1, Freshness: impact.FreshnessLabelFresh},
-				{Family: impact.EvidenceFamilyPackageConsumption, FactCount: 1, Freshness: impact.FreshnessLabelFresh},
+		snapshot: packet.ReadinessSnapshot{
+			EvidenceSources: []packet.EvidenceFamily{
+				{Family: packet.EvidenceFamilyVulnerabilityAdvisory, FactCount: 1, Freshness: packet.FreshnessLabelFresh},
+				{Family: packet.EvidenceFamilyPackageConsumption, FactCount: 1, Freshness: packet.FreshnessLabelFresh},
 			},
 		},
 	}
@@ -45,7 +46,7 @@ func TestSupplyChainExplainImpactSurfacesRemediation(t *testing.T) {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
 	}
 
-	var resp impact.ExplanationResult
+	var resp packet.ExplanationResult
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal: %v", err)
 	}
@@ -77,7 +78,7 @@ func TestSupplyChainExplainImpactRemediationEnrichesTransitiveParent(t *testing.
 	t.Parallel()
 
 	row := remediationExplanationRow()
-	row.Finding.Remediation = &impact.Remediation{
+	row.Finding.Remediation = &packet.Remediation{
 		Reason:              "transitive_parent_upgrade_required",
 		Confidence:          "partial",
 		FirstPatchedVersion: "2.3.4",
@@ -92,7 +93,7 @@ func TestSupplyChainExplainImpactRemediationEnrichesTransitiveParent(t *testing.
 	handler := &SupplyChainHandler{
 		ImpactExplanations: store,
 		Readiness: &recordingSupplyChainImpactReadinessStore{
-			snapshot: impact.ReadinessSnapshot{},
+			snapshot: packet.ReadinessSnapshot{},
 		},
 	}
 	mux := http.NewServeMux()
@@ -109,7 +110,7 @@ func TestSupplyChainExplainImpactRemediationEnrichesTransitiveParent(t *testing.
 		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
 	}
 
-	var resp impact.ExplanationResult
+	var resp packet.ExplanationResult
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal: %v", err)
 	}
@@ -174,7 +175,7 @@ func remediationExplanationRow() impact.ExplanationRow {
 			DependencyPath:   []string{"example"},
 			DependencyDepth:  1,
 			DirectDependency: &direct,
-			Remediation: &impact.Remediation{
+			Remediation: &packet.Remediation{
 				Ecosystem:           "npm",
 				CurrentVersion:      "1.2.3",
 				FirstPatchedVersion: "1.3.0",
@@ -183,7 +184,7 @@ func remediationExplanationRow() impact.ExplanationRow {
 				Direct:              boolPtr(true),
 				Confidence:          "exact",
 				Reason:              "direct_upgrade_allowed",
-				PatchedVersionBranches: []impact.FixedVersionBranch{
+				PatchedVersionBranches: []packet.FixedVersionBranch{
 					{Version: "1.3.0", Source: "ghsa"},
 				},
 			},

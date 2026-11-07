@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 )
 
 // TestTerraformImportMappingForFindingDeterministicIDs proves each supported
@@ -178,7 +179,7 @@ func terraformImportPlanFixture(resourceType, resourceID, arn string) Management
 		ScopeID:          "aws:123456789012:us-east-1:" + resourceType,
 		GenerationID:     "generation:aws-1",
 		SourceSystem:     "aws",
-		SafetyGate: ManagementSafetyGate{
+		SafetyGate: packet.ManagementSafetyGate{
 			Outcome:        "read_only_allowed",
 			ReadOnly:       true,
 			ReviewRequired: false,

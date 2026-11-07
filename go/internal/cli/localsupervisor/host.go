@@ -20,7 +20,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/buildinfo"
 	"github.com/eshu-hq/eshu/go/internal/cpubudget"
 	"github.com/eshu-hq/eshu/go/internal/eshulocal"
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // The supervisor's injection seams. Each is a variable so a test can replace
@@ -105,8 +105,8 @@ const (
 // A lightweight owner carries an empty GraphBackend; an authoritative owner
 // always carries one.
 type RuntimeConfig struct {
-	Profile      query.QueryProfile
-	GraphBackend query.GraphBackend
+	Profile      querycontract.QueryProfile
+	GraphBackend querycontract.GraphBackend
 }
 
 // RunOwnedHost takes ownership of the workspace at workspaceRoot and supervises
@@ -129,11 +129,11 @@ func RunOwnedHost(ctx context.Context, out io.Writer, workspaceRoot string, mode
 // ingester in one binary and can answer graph-backed questions (transitive
 // callers, import dependencies, read-only Cypher) immediately. Watch-mode owners
 // (the lightweight indexer) stay Postgres-only by default.
-func defaultProfileForMode(mode HostMode) query.QueryProfile {
+func defaultProfileForMode(mode HostMode) querycontract.QueryProfile {
 	if mode == ModeMCPStdio {
-		return query.ProfileLocalAuthoritative
+		return querycontract.ProfileLocalAuthoritative
 	}
-	return query.ProfileLocalLightweight
+	return querycontract.ProfileLocalLightweight
 }
 
 // RunOwnedHostWithLayout is RunOwnedHost against an already-resolved layout. It
@@ -160,7 +160,7 @@ func RunOwnedHostWithLayout(ctx context.Context, out io.Writer, layout eshulocal
 		}
 	}()
 
-	if runtimeConfig.Profile == query.ProfileLocalAuthoritative {
+	if runtimeConfig.Profile == querycontract.ProfileLocalAuthoritative {
 		if err := localHostResetAuthoritativeState(layout); err != nil {
 			return err
 		}
@@ -183,7 +183,7 @@ func RunOwnedHostWithLayout(ctx context.Context, out io.Writer, layout eshulocal
 	_, _ = fmt.Fprintln(out, "local postgres schema ready")
 
 	var managedGraph *ManagedGraph
-	if runtimeConfig.Profile == query.ProfileLocalAuthoritative {
+	if runtimeConfig.Profile == querycontract.ProfileLocalAuthoritative {
 		managedGraph, err = localHostStartManagedGraph(ctx, layout, runtimeConfig)
 		if err != nil {
 			return err
@@ -234,7 +234,7 @@ func RunOwnedHostWithLayout(ctx context.Context, out io.Writer, layout eshulocal
 	}
 
 	expectedProjectors := 0
-	if runtimeConfig.Profile == query.ProfileLocalAuthoritative {
+	if runtimeConfig.Profile == querycontract.ProfileLocalAuthoritative {
 		expectedProjectors, err = localHostContentSearchIndexExpectedProjectors(layout.WorkspaceRoot)
 		if err != nil {
 			return fmt.Errorf("discover workspace repos for local authoritative finalization: %w", err)
@@ -250,7 +250,7 @@ func RunOwnedHostWithLayout(ctx context.Context, out io.Writer, layout eshulocal
 		}()
 	}
 
-	if runtimeConfig.Profile == query.ProfileLocalAuthoritative && deferContentSearchIndexes(os.Getenv) {
+	if runtimeConfig.Profile == querycontract.ProfileLocalAuthoritative && deferContentSearchIndexes(os.Getenv) {
 		stopDeferredIndexes, err := localHostStartDeferredContentSearchIndexes(ctx, out, managedPostgres.DSN, expectedProjectors)
 		if err != nil {
 			_, _ = fmt.Fprintf(out, "warning: deferred content search index maintainer unavailable: %v\n", err)
@@ -265,7 +265,7 @@ func RunOwnedHostWithLayout(ctx context.Context, out io.Writer, layout eshulocal
 
 	children := make([]Child, 0, 3)
 
-	if runtimeConfig.Profile == query.ProfileLocalAuthoritative {
+	if runtimeConfig.Profile == querycontract.ProfileLocalAuthoritative {
 		reducerCmd, err := StartChildProcess(
 			"eshu-reducer",
 			[]string{"eshu-reducer"},
@@ -311,7 +311,7 @@ func RunOwnedHostWithLayout(ctx context.Context, out io.Writer, layout eshulocal
 		}
 	}
 
-	if mode == ModeWatch && runtimeConfig.Profile == query.ProfileLocalAuthoritative {
+	if mode == ModeWatch && runtimeConfig.Profile == querycontract.ProfileLocalAuthoritative {
 		return WaitOwnerChildren(ctx, children, map[string]struct{}{
 			"eshu-ingester": {},
 		})
@@ -434,7 +434,7 @@ func RunAttachedMCPStdio(ctx context.Context, layout eshulocal.Layout) (bool, er
 			requestedRuntimeConfig.GraphBackend,
 		)
 	}
-	if runtimeConfig.Profile == query.ProfileLocalAuthoritative && !GraphHealthy(record) {
+	if runtimeConfig.Profile == querycontract.ProfileLocalAuthoritative && !GraphHealthy(record) {
 		return true, fmt.Errorf(
 			"local Eshu service is running profile %q with graph backend %q, but the graph backend is unhealthy; run eshu graph status or restart the service",
 			runtimeConfig.Profile,

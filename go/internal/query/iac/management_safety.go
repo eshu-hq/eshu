@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
@@ -18,18 +19,6 @@ const (
 	managementRedactedMarker                      = "[REDACTED]"
 	managementSafetyAuditExpectation              = "log caller, scope, route, finding id, and safety outcome without resource secrets"
 )
-
-// ManagementSafetyGate describes the safety decision that applies before a
-// caller turns one read-only finding into a Terraform import or migration task.
-type ManagementSafetyGate struct {
-	Outcome          string   `json:"outcome"`
-	ReadOnly         bool     `json:"read_only"`
-	ReviewRequired   bool     `json:"review_required"`
-	RefusedActions   []string `json:"refused_actions,omitempty"`
-	Warnings         []string `json:"warnings,omitempty"`
-	Redactions       []string `json:"redactions,omitempty"`
-	AuditExpectation string   `json:"audit_expectation"`
-}
 
 type managementSafetySummaryRow struct {
 	TotalFindings         int      `json:"total_findings"`
@@ -127,11 +116,11 @@ func NewManagementSafetyGate(
 	status string,
 	warnings []string,
 	redactions []string,
-) ManagementSafetyGate {
+) packet.ManagementSafetyGate {
 	warnings = mergeStringSets(warnings, nil)
 	redactions = mergeStringSets(redactions, nil)
 	reviewRequired := managementSafetyRequiresReview(status, warnings)
-	gate := ManagementSafetyGate{
+	gate := packet.ManagementSafetyGate{
 		Outcome:          managementSafetyOutcomeReadOnlyAllowed,
 		ReadOnly:         true,
 		ReviewRequired:   reviewRequired,
@@ -160,7 +149,7 @@ func managementSafetyRequiresReview(status string, warnings []string) bool {
 	return false
 }
 
-func managementEmptySafetyGate() ManagementSafetyGate {
+func managementEmptySafetyGate() packet.ManagementSafetyGate {
 	return NewManagementSafetyGate(ManagementStatusUnknown, []string{"insufficient_coverage"}, nil)
 }
 

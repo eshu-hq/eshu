@@ -17,7 +17,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/eshulocal"
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // stubMCPSessionChildren replaces the child-spawning and network seams with
@@ -71,7 +71,7 @@ func TestStartMCPSessionSpawnsAPIThenSatellite(t *testing.T) {
 	t.Setenv("ESHU_API_KEY", "")
 	starts, waits := stubMCPSessionChildren(t, 19191, 19192)
 
-	runtimeConfig := RuntimeConfig{Profile: query.ProfileLocalAuthoritative, GraphBackend: query.GraphBackendNornicDB}
+	runtimeConfig := RuntimeConfig{Profile: querycontract.ProfileLocalAuthoritative, GraphBackend: querycontract.GraphBackendNornicDB}
 	layout := eshulocal.Layout{LogsDir: t.TempDir()}
 	session, err := StartMCPSession(context.Background(), "host=127.0.0.1 port=15439 user=eshu dbname=postgres", runtimeConfig, nil, layout)
 	if err != nil {
@@ -101,7 +101,7 @@ func TestStartMCPSessionSpawnsAPIThenSatellite(t *testing.T) {
 	if got := localHostEnvValue(satellite.env, "ESHU_MCP_TRANSPORT"); got != "http" {
 		t.Fatalf("ESHU_MCP_TRANSPORT = %q, want http", got)
 	}
-	if got := localHostEnvValue(satellite.env, "ESHU_MCP_QUERY_PROFILE"); got != string(query.ProfileLocalAuthoritative) {
+	if got := localHostEnvValue(satellite.env, "ESHU_MCP_QUERY_PROFILE"); got != string(querycontract.ProfileLocalAuthoritative) {
 		t.Fatalf("ESHU_MCP_QUERY_PROFILE = %q, want local_authoritative", got)
 	}
 	if got := localHostEnvValue(satellite.env, "ESHU_MCP_ADDR"); got != "" {
@@ -337,7 +337,7 @@ func TestStartMCPSessionStopsAPIWhenSatelliteFails(t *testing.T) {
 	}
 	defer func() { StartChildProcess = originalStartChild }()
 
-	runtimeConfig := RuntimeConfig{Profile: query.ProfileLocalLightweight}
+	runtimeConfig := RuntimeConfig{Profile: querycontract.ProfileLocalLightweight}
 	layout := eshulocal.Layout{LogsDir: t.TempDir()}
 	if _, err := StartMCPSession(context.Background(), "dsn", runtimeConfig, nil, layout); !errors.Is(err, wantErr) {
 		t.Fatalf("StartMCPSession() error = %v, want %v", err, wantErr)
@@ -394,8 +394,8 @@ func TestRunAttachedMCPHTTPStartsSessionChildrenAndWaits(t *testing.T) {
 		WorkspaceID:        "workspace-id",
 		PostgresPort:       15439,
 		PostgresSocketPath: "/tmp/.s.PGSQL.15439",
-		Profile:            string(query.ProfileLocalAuthoritative),
-		GraphBackend:       string(query.GraphBackendNornicDB),
+		Profile:            string(querycontract.ProfileLocalAuthoritative),
+		GraphBackend:       string(querycontract.GraphBackendNornicDB),
 	}
 	ReadOwnerRecord = func(string) (eshulocal.OwnerRecord, error) { return record, nil }
 	ProcessAlive = func(int) bool { return true }

@@ -13,6 +13,7 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 )
 
@@ -275,7 +276,7 @@ func assertSupplyChainRuntimeNormalizationFilterLive(
 	if environment != "" {
 		return
 	}
-	_, err = findingStore.ExplainSupplyChainImpact(ctx, impact.ExplanationFilter{
+	_, err = findingStore.ExplainSupplyChainImpact(ctx, packet.ExplanationFilter{
 		CVEID:           runtimeFilterLiveCVE,
 		PackageID:       runtimeFilterLivePackage,
 		WorkloadID:      workloadID,

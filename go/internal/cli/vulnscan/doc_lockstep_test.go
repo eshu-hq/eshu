@@ -85,7 +85,7 @@ func TestPackageStaysCobraFreeAndDeclaresItsProcessContact(t *testing.T) {
 		"github.com/eshu-hq/eshu/go/internal/cli/scan",
 		"github.com/eshu-hq/eshu/go/internal/eshulocal",
 		"github.com/eshu-hq/eshu/go/internal/exports",
-		"github.com/eshu-hq/eshu/go/internal/query",
+		"github.com/eshu-hq/eshu/go/internal/query/querycontract",
 		"github.com/eshu-hq/eshu/go/internal/vulnerabilityparity",
 		"github.com/eshu-hq/eshu/go/internal/vulnerabilityparityproof",
 		"io",

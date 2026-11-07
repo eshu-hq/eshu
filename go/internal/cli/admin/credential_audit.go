@@ -11,10 +11,19 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
-	"github.com/eshu-hq/eshu/go/internal/query"
 	pgstorage "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/governance/audit"
 )
+
+// GovernanceAuditAppender records validation-safe governance audit events.
+// It is structurally identical to the former query.GovernanceAuditAppender
+// (append one batch of governanceaudit events); the durable store this
+// package wires already satisfies it, so declaring it here drops the
+// handler-package import without changing where retrieval and reset events
+// land.
+type GovernanceAuditAppender interface {
+	Append(context.Context, []governanceaudit.Event) error
+}
 
 // Bootstrap admin credential CLI durable audit events (issue #4963
 // acceptance criterion: "Bootstrap mode choice, generation, retrieval, and
@@ -45,11 +54,10 @@ const (
 // matching every other governance-audit call site in this codebase (see
 // go/cmd/api/seed_initial_admin_audit.go's auditBootstrapModeChoice), which
 // never fails the primary operation because audit wiring is unavailable.
-// Returns query.GovernanceAuditAppender: credential.go already imports
-// internal/query for query.IdentityHash, so reusing its interface here,
-// rather than declaring a structurally-identical local one, is not a new
-// dependency edge.
-func newAdminCredentialAuditAppender(database db.ExecQueryer) query.GovernanceAuditAppender {
+// Returns GovernanceAuditAppender, the CLI-local audit interface declared
+// above: credential.go hashes with its own CLI-local identityHash, so no
+// handler-package import remains in this package.
+func newAdminCredentialAuditAppender(database db.ExecQueryer) GovernanceAuditAppender {
 	if database == nil {
 		return nil
 	}
@@ -75,7 +83,7 @@ func newAdminCredentialAuditAppender(database db.ExecQueryer) query.GovernanceAu
 // "" on a failure that never resolved an envelope (not found, select error);
 // a decrypt failure still carries the envelope's own keyID, since that much
 // was read from the row before Open failed.
-func auditBootstrapCredentialRetrieved(ctx context.Context, appender query.GovernanceAuditAppender, keyID string, retrieveErr error) {
+func auditBootstrapCredentialRetrieved(ctx context.Context, appender GovernanceAuditAppender, keyID string, retrieveErr error) {
 	reason := bootstrapCredentialAuditReasonRetrieved
 	decision := governanceaudit.DecisionAllowed
 	if retrieveErr != nil {
@@ -95,7 +103,7 @@ func auditBootstrapCredentialRetrieved(ctx context.Context, appender query.Gover
 // against — while a failure before sealing carries the prior envelope's key
 // id when blank-username recovery resolved one, and "" when no envelope was
 // ever resolved (see resetInitialCredential's doc comment).
-func auditBootstrapCredentialReset(ctx context.Context, appender query.GovernanceAuditAppender, keyID string, resetErr error) {
+func auditBootstrapCredentialReset(ctx context.Context, appender GovernanceAuditAppender, keyID string, resetErr error) {
 	reason := bootstrapCredentialAuditReasonReset
 	decision := governanceaudit.DecisionAllowed
 	if resetErr != nil {
@@ -109,7 +117,7 @@ func auditBootstrapCredentialReset(ctx context.Context, appender query.Governanc
 // audit event. Best-effort, fire-and-forget: matches every other
 // governance-audit call site in this codebase, which never fails the
 // primary CLI operation on an audit-append error.
-func auditBootstrapCredentialCLIEvent(ctx context.Context, appender query.GovernanceAuditAppender, reason string, decision governanceaudit.Decision, keyID string) {
+func auditBootstrapCredentialCLIEvent(ctx context.Context, appender GovernanceAuditAppender, reason string, decision governanceaudit.Decision, keyID string) {
 	if appender == nil {
 		return
 	}

@@ -5,6 +5,8 @@ package impact
 
 import (
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 )
 
 func impactPathTestRow() ExplanationRow {
@@ -75,7 +77,7 @@ func TestSemanticSupplyChainImpactHops(t *testing.T) {
 		"environment evidence missing",
 		"image or SBOM attachment evidence missing",
 	})
-	byHop := make(map[string]PathHop, len(hops))
+	byHop := make(map[string]packet.PathHop, len(hops))
 	for _, hop := range hops {
 		byHop[hop.Hop] = hop
 	}

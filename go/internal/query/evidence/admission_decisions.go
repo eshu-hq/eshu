@@ -8,6 +8,7 @@ import (
 	"strconv"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -87,7 +88,7 @@ func (h *Handler) listAdmissionDecisions(w http.ResponseWriter, r *http.Request)
 	if truncated {
 		rows = rows[:limit]
 	}
-	results := make([]AdmissionDecisionResult, 0, len(rows))
+	results := make([]packet.AdmissionDecisionResult, 0, len(rows))
 	for _, row := range rows {
 		result := AdmissionDecisionResultFromRow(row)
 		if includeEvidence {
@@ -169,8 +170,8 @@ func queryParamBool(r *http.Request, key string) bool {
 }
 
 func boundedAdmissionDecisionEvidence(
-	evidence []AdmissionDecisionEvidenceRow,
-) ([]AdmissionDecisionEvidenceRow, *bool) {
+	evidence []packet.AdmissionDecisionEvidenceRow,
+) ([]packet.AdmissionDecisionEvidenceRow, *bool) {
 	truncated := len(evidence) > admissionDecisionEvidenceLimit
 	if truncated {
 		evidence = evidence[:admissionDecisionEvidenceLimit]
@@ -180,7 +181,7 @@ func boundedAdmissionDecisionEvidence(
 
 func (h *Handler) writeEmptyAdmissionDecisionPage(w http.ResponseWriter, r *http.Request, limit int) {
 	querycontract.WriteSuccess(w, r, http.StatusOK, map[string]any{
-		"decisions":              []AdmissionDecisionResult{},
+		"decisions":              []packet.AdmissionDecisionResult{},
 		"count":                  0,
 		"limit":                  limit,
 		"truncated":              false,
@@ -278,8 +279,8 @@ func admissionDecisionBaseArgs(filter AdmissionDecisionReadFilter) map[string]st
 // row into the HTTP/MCP read shape. Root keeps the pre-move spelling
 // through its admissionDecisionResult forwarder (see compat_evidence.go)
 // for the staying packet test.
-func AdmissionDecisionResultFromRow(row AdmissionDecisionReadRow) AdmissionDecisionResult {
-	return AdmissionDecisionResult{
+func AdmissionDecisionResultFromRow(row AdmissionDecisionReadRow) packet.AdmissionDecisionResult {
+	return packet.AdmissionDecisionResult{
 		DecisionID:          row.DecisionID,
 		Domain:              row.Domain,
 		State:               row.State,
@@ -299,8 +300,8 @@ func AdmissionDecisionResultFromRow(row AdmissionDecisionReadRow) AdmissionDecis
 		SourceHandles:       nonNilAdmissionDecisionSourceHandles(row.SourceHandles),
 		RedactionState:      row.RedactionState,
 		RedactionReason:     row.RedactionReason,
-		CanonicalWrite:      row.CanonicalWrite,
-		RecommendedAction:   row.RecommendedAction,
+		CanonicalWrite:      packet.AdmissionDecisionCanonicalWrite(row.CanonicalWrite),
+		RecommendedAction:   packet.AdmissionDecisionNextAction(row.RecommendedAction),
 		PayloadVersion:      row.PayloadVersion,
 		DecidedAt:           row.DecidedAt,
 		UpdatedAt:           row.UpdatedAt,
@@ -318,10 +319,10 @@ func validAdmissionDecisionState(state string) bool {
 }
 
 func nonNilAdmissionDecisionSourceHandles(
-	handles []AdmissionDecisionSourceHandle,
-) []AdmissionDecisionSourceHandle {
+	handles []packet.AdmissionDecisionSourceHandle,
+) []packet.AdmissionDecisionSourceHandle {
 	if handles == nil {
-		return []AdmissionDecisionSourceHandle{}
+		return []packet.AdmissionDecisionSourceHandle{}
 	}
 	return handles
 }

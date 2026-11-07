@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 )
 
@@ -14,7 +15,7 @@ func TestBuildSupplyChainImpactExplanationMapsDeploymentOnlyCatalogAnchorGap(t *
 	t.Parallel()
 
 	got := impact.BuildExplanation(
-		impact.ExplanationFilter{FindingID: "finding-repository-catalog-only"},
+		packet.ExplanationFilter{FindingID: "finding-repository-catalog-only"},
 		impact.ExplanationRow{
 			Finding: impact.FindingRow{
 				FindingID:           "finding-repository-catalog-only",
@@ -31,7 +32,7 @@ func TestBuildSupplyChainImpactExplanationMapsDeploymentOnlyCatalogAnchorGap(t *
 				},
 				MissingEvidence: []string{
 					"environment evidence missing",
-					impact.ServiceCatalogAnchorMissingReason,
+					packet.ServiceCatalogAnchorMissingReason,
 				},
 				EvidenceFactIDs: []string{"catalog-1"},
 			},
@@ -42,7 +43,7 @@ func TestBuildSupplyChainImpactExplanationMapsDeploymentOnlyCatalogAnchorGap(t *
 				}),
 			},
 		},
-		impact.ReadinessEnvelope{State: impact.ReadinessStateReadyWithFindings},
+		packet.ReadinessEnvelope{State: packet.ReadinessStateReadyWithFindings},
 	)
 
 	raw, err := json.Marshal(got)
@@ -60,6 +61,6 @@ func TestBuildSupplyChainImpactExplanationMapsDeploymentOnlyCatalogAnchorGap(t *
 	assertImpactPathContainsHop(t, impactPath, "deployment", "present")
 	assertImpactPathContainsHop(t, impactPath, "environment", "missing_evidence")
 	assertImpactPathContainsHop(t, impactPath, "service", "missing_evidence")
-	assertImpactPathContainsMissingEvidence(t, impactPath, "service", impact.ServiceCatalogAnchorMissingReason)
-	assertJSONListContains(t, payload["missing_evidence"], impact.ServiceCatalogAnchorMissingReason)
+	assertImpactPathContainsMissingEvidence(t, impactPath, "service", packet.ServiceCatalogAnchorMissingReason)
+	assertJSONListContains(t, payload["missing_evidence"], packet.ServiceCatalogAnchorMissingReason)
 }

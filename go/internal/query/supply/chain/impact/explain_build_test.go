@@ -7,6 +7,8 @@ import (
 	"errors"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 )
 
 func explainBuildTestRow() ExplanationRow {
@@ -22,7 +24,7 @@ func explainBuildTestRow() ExplanationRow {
 			FixedVersion:    "1.3.1",
 			RepositoryID:    "repo-1",
 			WorkloadIDs:     []string{"workload-1"},
-			Provenance: &Provenance{
+			Provenance: &packet.Provenance{
 				SelectedRangeSource:        "advisory",
 				SelectedSeveritySource:     "advisory",
 				SelectedFixedVersionSource: "advisory",
@@ -104,7 +106,7 @@ func TestBuildSupplyChainVersionExplanation(t *testing.T) {
 		t.Errorf("FixedVersion = %q", version.FixedVersion)
 	}
 
-	ranged := ComponentExplanation{ManifestRange: ">= 1.0.0"}
+	ranged := packet.ComponentExplanation{ManifestRange: ">= 1.0.0"}
 	if got := buildSupplyChainVersionExplanation(row, advisory, ranged); got.VersionEvidence != "range_only" {
 		t.Errorf("ranged VersionEvidence = %q, want range_only", got.VersionEvidence)
 	}
@@ -294,11 +296,11 @@ func TestExplanationMissingEvidence(t *testing.T) {
 	t.Parallel()
 
 	row := FindingRow{}
-	readiness := ReadinessEnvelope{MissingEvidence: []string{"owned_packages"}}
+	readiness := packet.ReadinessEnvelope{MissingEvidence: []string{"owned_packages"}}
 	missing := explanationMissingEvidence(
 		row, readiness,
-		AdvisoryExplanation{}, ComponentExplanation{},
-		VersionExplanation{VersionEvidence: "missing"}, nil, ExplanationAnchors{},
+		packet.AdvisoryExplanation{}, packet.ComponentExplanation{},
+		packet.VersionExplanation{VersionEvidence: "missing"}, nil, packet.ExplanationAnchors{},
 	)
 	for _, want := range []string{"owned_packages", "vulnerable_range", "observed_version", "fixed_version", "dependency_chain"} {
 		found := false
@@ -351,7 +353,7 @@ func TestSupplyChainExplanationFreshness(t *testing.T) {
 	if freshness.LatestObservedAt != "2026-10-01T00:00:00Z" {
 		t.Errorf("LatestObservedAt = %q", freshness.LatestObservedAt)
 	}
-	if freshness.State != FreshnessLabelUnknown {
+	if freshness.State != packet.FreshnessLabelUnknown {
 		t.Errorf("State = %q, want the unknown label", freshness.State)
 	}
 	if got := supplyChainExplanationFreshness(nil, "fresh"); got.State != "fresh" {
@@ -372,7 +374,7 @@ func TestProviderAlertAnchor(t *testing.T) {
 	if alert.Provider != "github" || alert.AlertID != "1" || alert.ManifestPath != "go.mod" {
 		t.Errorf("alert anchor mismatch: %+v", alert)
 	}
-	if got := providerAlertAnchor(EvidenceFact{FactKind: "sbom.component", Payload: map[string]any{}}); got != (ProviderAlertAnchor{}) {
+	if got := providerAlertAnchor(EvidenceFact{FactKind: "sbom.component", Payload: map[string]any{}}); got != (packet.ProviderAlertAnchor{}) {
 		t.Errorf("non-alert fact must anchor to nothing: %+v", got)
 	}
 }
@@ -385,13 +387,13 @@ func TestBuildSupplyChainRemediationExplanation(t *testing.T) {
 
 	direct := true
 	row := explainBuildTestRow()
-	row.Finding.Remediation = &Remediation{Reason: "upgrade", Confidence: "high"}
-	chain := &DependencyChain{Path: []string{"root", "left-pad"}, DirectDependency: &direct}
+	row.Finding.Remediation = &packet.Remediation{Reason: "upgrade", Confidence: "high"}
+	chain := &packet.DependencyChain{Path: []string{"root", "left-pad"}, DirectDependency: &direct}
 	remediation := buildSupplyChainRemediationExplanation(
 		row,
-		AdvisoryExplanation{VulnerableRange: ">= 1.0.0"},
-		VersionExplanation{FixedVersion: "1.3.1"},
-		ComponentExplanation{ManifestRange: ">= 1.0.0", ObservedVersion: "1.3.0", Ecosystem: "npm"},
+		packet.AdvisoryExplanation{VulnerableRange: ">= 1.0.0"},
+		packet.VersionExplanation{FixedVersion: "1.3.1"},
+		packet.ComponentExplanation{ManifestRange: ">= 1.0.0", ObservedVersion: "1.3.0", Ecosystem: "npm"},
 		chain,
 	)
 	if remediation == nil {
@@ -410,7 +412,7 @@ func TestBuildSupplyChainRemediationExplanation(t *testing.T) {
 	if remediation.ParentPackage != "root" {
 		t.Errorf("ParentPackage = %q, want root", remediation.ParentPackage)
 	}
-	if buildSupplyChainRemediationExplanation(ExplanationRow{}, AdvisoryExplanation{}, VersionExplanation{}, ComponentExplanation{}, nil) != nil {
+	if buildSupplyChainRemediationExplanation(ExplanationRow{}, packet.AdvisoryExplanation{}, packet.VersionExplanation{}, packet.ComponentExplanation{}, nil) != nil {
 		t.Error("remediation-less findings must yield nil")
 	}
 	if remediationParentFromChain([]string{"only"}) != "" {
@@ -442,7 +444,7 @@ func TestExplanationAmbiguousCandidateCount(t *testing.T) {
 func TestTrimExplanationFilter(t *testing.T) {
 	t.Parallel()
 
-	trimmed := TrimExplanationFilter(ExplanationFilter{
+	trimmed := TrimExplanationFilter(packet.ExplanationFilter{
 		FindingID: " f1 ", CVEID: " CVE-1 ", PackageID: " p ",
 		RepositoryID: " r ", SubjectDigest: " s ", ImageRef: " i ",
 		WorkloadID: " w ", ServiceID: " svc ", AdvisoryID: " a ",

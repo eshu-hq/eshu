@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package impact
+package packet
 
 import (
 	"sort"
@@ -24,7 +24,8 @@ var allowedEvidenceFamilies = map[string]struct{}{
 	EvidenceFamilyScannerWorkerAnalysis:       {},
 }
 
-func normalizeEvidenceSources(sources []EvidenceFamily) []EvidenceFamily {
+// NormalizeEvidenceSources trims and dedupes evidence source families.
+func NormalizeEvidenceSources(sources []EvidenceFamily) []EvidenceFamily {
 	if len(sources) == 0 {
 		return []EvidenceFamily{}
 	}
@@ -45,7 +46,8 @@ func normalizeEvidenceSources(sources []EvidenceFamily) []EvidenceFamily {
 	return cloned
 }
 
-func normalizeSourceSnapshots(snapshots []SourceSnapshot) []SourceSnapshot {
+// NormalizeSourceSnapshots trims snapshot wire values.
+func NormalizeSourceSnapshots(snapshots []SourceSnapshot) []SourceSnapshot {
 	if len(snapshots) == 0 {
 		return nil
 	}
@@ -82,7 +84,9 @@ func normalizeSourceSnapshots(snapshots []SourceSnapshot) []SourceSnapshot {
 	return out
 }
 
-func uniqueSortedReadinessStrings(values []string) []string {
+// UniqueSortedReadinessStrings dedupes reason strings into deterministic order.
+// The readiness store uses it when it assembles a snapshot outside BuildReadiness.
+func UniqueSortedReadinessStrings(values []string) []string {
 	if len(values) == 0 {
 		return nil
 	}

@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/doctruth"
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/openapi"
 )
 
 // VerifyOptions is the resolved input for one `eshu docs verify` run. The CLI
@@ -155,7 +155,7 @@ func NormalizeImageTruthMode(value string) string {
 // path/method pair in the query package's OpenAPI spec, plus the routes the
 // services mount outside that spec (docs UI, health, MCP, admin, metrics).
 func HTTPEndpointTruth() []doctruth.HTTPEndpointTruth {
-	out := endpointTruthFromOpenAPI(query.OpenAPISpec())
+	out := endpointTruthFromOpenAPI(openapi.Spec())
 	out = append(
 		out,
 		doctruth.HTTPEndpointTruth{Method: http.MethodGet, Path: "/api/v0/docs"},

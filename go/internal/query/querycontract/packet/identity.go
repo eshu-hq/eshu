@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package packet
 
 import (
 	"crypto/sha256"
@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/evidence"
 )
 
@@ -56,7 +57,7 @@ func investigationPacketID(packet InvestigationEvidencePacket) (string, error) {
 // digest is reproducible for identical evidence.
 func packetContentDigest(packet InvestigationEvidencePacket) (string, error) {
 	content := struct {
-		Truth     *TruthEnvelope                    `json:"truth"`
+		Truth     *querycontract.TruthEnvelope      `json:"truth"`
 		Source    []PacketSourceFact                `json:"source_facts"`
 		Decisions []PacketReducerDecision           `json:"reducer_decisions"`
 		Graph     []PacketGraphAnswer               `json:"graph_answers"`

@@ -9,6 +9,7 @@ import (
 	"net/http"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -71,7 +72,7 @@ func (h *Handler) explainImpact(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	filter := impact.TrimExplanationFilter(impact.ExplanationFilter{
+	filter := impact.TrimExplanationFilter(packet.ExplanationFilter{
 		FindingID:     querycontract.QueryParam(r, "finding_id"),
 		AdvisoryID:    querycontract.QueryParam(r, "advisory_id"),
 		CVEID:         querycontract.QueryParam(r, "cve_id"),
@@ -186,8 +187,8 @@ func (h *Handler) explainImpact(w http.ResponseWriter, r *http.Request) {
 	row.Finding = rows[0]
 
 	scope := impact.FindingReadinessScope(row.Finding, filter)
-	findingResult := impact.FindingResult(row.Finding)
-	readiness := h.readSupplyChainImpactReadinessForScope(r, scope, []impact.FindingResult{findingResult}, false)
+	findingResult := packet.FindingResult(row.Finding)
+	readiness := h.readSupplyChainImpactReadinessForScope(r, scope, []packet.FindingResult{findingResult}, false)
 	body := impact.BuildExplanation(filter, row, readiness)
 	querycontract.WriteSuccess(w, r, http.StatusOK, body, querycontract.BuildTruthEnvelope(
 		h.profile(),
@@ -199,15 +200,15 @@ func (h *Handler) explainImpact(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) readSupplyChainImpactReadinessForScope(
 	r *http.Request,
-	scope impact.TargetScope,
-	findings []impact.FindingResult,
+	scope packet.TargetScope,
+	findings []packet.FindingResult,
 	truncated bool,
-) impact.ReadinessEnvelope {
+) packet.ReadinessEnvelope {
 	timer := startSupplyChainQueryStage(r.Context(), h.Logger, supplyChainImpactExplanationOperation, scope.RepositoryID, "readiness_snapshot")
 	snapshot, err := h.readSupplyChainImpactReadinessSnapshot(r, scope)
 	doneReadinessStage(r.Context(), timer, err, len(snapshot.EvidenceSources))
 	if err != nil {
-		return impact.BuildReadinessUnavailable(scope, findings, truncated)
+		return packet.BuildReadinessUnavailable(scope, findings, truncated)
 	}
-	return impact.BuildReadiness(scope, findings, truncated, snapshot)
+	return packet.BuildReadiness(scope, findings, truncated, snapshot)
 }

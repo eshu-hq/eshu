@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 )
@@ -353,7 +354,7 @@ type evidenceExplanationStore struct {
 
 func (s *evidenceExplanationStore) ExplainSupplyChainImpact(
 	_ context.Context,
-	_ impact.ExplanationFilter,
+	_ packet.ExplanationFilter,
 ) (impact.ExplanationRow, error) {
 	if s.err != nil {
 		return impact.ExplanationRow{}, s.err
@@ -362,16 +363,16 @@ func (s *evidenceExplanationStore) ExplainSupplyChainImpact(
 }
 
 type evidenceReadinessStore struct {
-	snapshot impact.ReadinessSnapshot
+	snapshot packet.ReadinessSnapshot
 	err      error
 }
 
 func (s *evidenceReadinessStore) ReadSupplyChainImpactReadiness(
 	_ context.Context,
 	_ impact.ReadinessQuery,
-) (impact.ReadinessSnapshot, error) {
+) (packet.ReadinessSnapshot, error) {
 	if s.err != nil {
-		return impact.ReadinessSnapshot{}, s.err
+		return packet.ReadinessSnapshot{}, s.err
 	}
 	return s.snapshot, nil
 }

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -229,11 +230,11 @@ func (h *Handler) listImpactFindings(w http.ResponseWriter, r *http.Request) {
 		attribute.Int("eshu.query.runtime_context_findings", resolvedContextCount),
 		attribute.Int("eshu.query.runtime_context_workloads", resolvedWorkloadCount),
 	)
-	results := make([]impact.FindingResult, 0, len(rows))
+	results := make([]packet.FindingResult, 0, len(rows))
 	for i := range rows {
 		results = append(results, impact.BuildFindingResult(&rows[i]))
 	}
-	scope := impact.TargetScope{
+	scope := packet.TargetScope{
 		CVEID:         filter.CVEID,
 		AdvisoryID:    filter.AdvisoryID,
 		PackageID:     filter.PackageID,
@@ -250,16 +251,16 @@ func (h *Handler) listImpactFindings(w http.ResponseWriter, r *http.Request) {
 	readinessTimer := startSupplyChainQueryStage(r.Context(), h.Logger, supplyChainImpactFindingsOperation, filter.RepositoryID, "readiness_snapshot")
 	snapshot, readinessErr := h.readSupplyChainImpactReadinessSnapshot(r, scope)
 	doneReadinessStage(r.Context(), readinessTimer, readinessErr, len(snapshot.EvidenceSources))
-	var readiness impact.ReadinessEnvelope
+	var readiness packet.ReadinessEnvelope
 	if readinessErr != nil {
 		// Readiness lookup failed (transient Postgres error, statement
 		// timeout, etc.). Do not drop the already-fetched findings page:
 		// return the findings with a `readiness_unavailable` envelope so
 		// callers cannot misread zero findings as safe and can retry the
 		// readiness lookup separately.
-		readiness = impact.BuildReadinessUnavailable(scope, results, truncated)
+		readiness = packet.BuildReadinessUnavailable(scope, results, truncated)
 	} else {
-		readiness = impact.BuildReadiness(scope, results, truncated, snapshot)
+		readiness = packet.BuildReadiness(scope, results, truncated, snapshot)
 	}
 	body := map[string]any{
 		"findings":          results,
@@ -363,10 +364,10 @@ func applyWinnersFreshness(truth *querycontract.TruthEnvelope, fr impact.Winners
 
 func (h *Handler) readSupplyChainImpactReadinessSnapshot(
 	r *http.Request,
-	scope impact.TargetScope,
-) (impact.ReadinessSnapshot, error) {
+	scope packet.TargetScope,
+) (packet.ReadinessSnapshot, error) {
 	if h.Readiness == nil {
-		return impact.ReadinessSnapshot{}, nil
+		return packet.ReadinessSnapshot{}, nil
 	}
 	return h.Readiness.ReadSupplyChainImpactReadiness(r.Context(), impact.ReadinessQuery(scope))
 }

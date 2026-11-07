@@ -12,6 +12,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 )
 
 func TestAdmissionDecisionHandlerReturnsBoundedStatesAndNextCalls(t *testing.T) {
@@ -26,7 +28,7 @@ func TestAdmissionDecisionHandlerReturnsBoundedStatesAndNextCalls(t *testing.T) 
 			admissionDecisionReadRow("decision-5", "permission_hidden"),
 			admissionDecisionReadRow("decision-6", "missing_evidence"),
 		},
-		evidence: map[string][]AdmissionDecisionEvidenceRow{
+		evidence: map[string][]packet.AdmissionDecisionEvidenceRow{
 			"decision-1": {{
 				EvidenceID:   "evidence-1",
 				DecisionID:   "decision-1",
@@ -69,11 +71,11 @@ func TestAdmissionDecisionHandlerReturnsBoundedStatesAndNextCalls(t *testing.T) 
 	}
 
 	var body struct {
-		Decisions            []AdmissionDecisionResult `json:"decisions"`
-		Count                int                       `json:"count"`
-		Limit                int                       `json:"limit"`
-		Truncated            bool                      `json:"truncated"`
-		RecommendedNextCalls []RecommendedNextCall     `json:"recommended_next_calls"`
+		Decisions            []packet.AdmissionDecisionResult `json:"decisions"`
+		Count                int                              `json:"count"`
+		Limit                int                              `json:"limit"`
+		Truncated            bool                             `json:"truncated"`
+		RecommendedNextCalls []RecommendedNextCall            `json:"recommended_next_calls"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
 		t.Fatalf("decode response: %v; body = %s", err, rec.Body.String())
@@ -301,18 +303,18 @@ func admissionDecisionReadRow(decisionID string, state string) AdmissionDecision
 		ConfidenceBucket: "high",
 		ConfidenceBasis:  "explicit relationship evidence",
 		FreshnessState:   "current",
-		SourceHandles: []AdmissionDecisionSourceHandle{{
+		SourceHandles: []packet.AdmissionDecisionSourceHandle{{
 			Kind:    "fact",
 			ID:      "fact:relationship:1",
 			ScopeID: "git-repository-scope:team/api",
 		}},
-		CanonicalWrite: AdmissionDecisionCanonicalWrite{
+		CanonicalWrite: packet.AdmissionDecisionCanonicalWrite{
 			Eligible:   state == "admitted",
 			Written:    state == "admitted",
 			TargetKind: "relationship",
 			TargetID:   "DEPLOYS_FROM:repo://team/api:service:api",
 		},
-		RecommendedAction: AdmissionDecisionNextAction{
+		RecommendedAction: packet.AdmissionDecisionNextAction{
 			Action: "inspect_source_handles",
 			Reason: "review reducer admission evidence",
 		},
@@ -333,7 +335,7 @@ type recordingAdmissionDecisionReadStore struct {
 	lastFilter        AdmissionDecisionReadFilter
 	lastEvidenceLimit int
 	rows              []AdmissionDecisionReadRow
-	evidence          map[string][]AdmissionDecisionEvidenceRow
+	evidence          map[string][]packet.AdmissionDecisionEvidenceRow
 }
 
 func (s *recordingAdmissionDecisionReadStore) ListAdmissionDecisions(
@@ -348,9 +350,9 @@ func (s *recordingAdmissionDecisionReadStore) ListAdmissionDecisionEvidence(
 	_ context.Context,
 	decisionID string,
 	limit int,
-) ([]AdmissionDecisionEvidenceRow, error) {
+) ([]packet.AdmissionDecisionEvidenceRow, error) {
 	s.lastEvidenceLimit = limit
-	rows := append([]AdmissionDecisionEvidenceRow(nil), s.evidence[decisionID]...)
+	rows := append([]packet.AdmissionDecisionEvidenceRow(nil), s.evidence[decisionID]...)
 	if limit > 0 && len(rows) > limit {
 		rows = rows[:limit]
 	}
@@ -373,7 +375,7 @@ func (s *failingAdmissionDecisionReadStore) ListAdmissionDecisionEvidence(
 	context.Context,
 	string,
 	int,
-) ([]AdmissionDecisionEvidenceRow, error) {
+) ([]packet.AdmissionDecisionEvidenceRow, error) {
 	s.called = true
 	return nil, errors.New("broad admission decision evidence read")
 }

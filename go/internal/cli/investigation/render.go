@@ -4,35 +4,32 @@
 package investigation
 
 import (
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 )
 
 // PacketFormat is a supported render format for an investigation evidence
 // packet artifact.
-type PacketFormat = query.InvestigationPacketFormat
+type PacketFormat = packet.InvestigationPacketFormat
 
 // Supported packet render formats, re-exported so the cobra wrapper renders
 // without importing the packet contract directly.
 const (
-	// PacketFormatJSON renders the canonical machine-readable packet.
-	PacketFormatJSON = query.InvestigationPacketFormatJSON
-	// PacketFormatMarkdown renders a human-readable summary.
-	PacketFormatMarkdown = query.InvestigationPacketFormatMarkdown
-	// PacketFormatHTML renders a self-contained HTML summary.
-	PacketFormatHTML = query.InvestigationPacketFormatHTML
+	PacketFormatJSON     = packet.InvestigationPacketFormatJSON
+	PacketFormatMarkdown = packet.InvestigationPacketFormatMarkdown
+	PacketFormatHTML     = packet.InvestigationPacketFormatHTML
 )
 
 // ParsePacketFormat normalizes a requested render format. An empty value
 // defaults to JSON, the canonical machine-readable form.
 func ParsePacketFormat(raw string) (PacketFormat, error) {
 	//nolint:wrapcheck // the packet contract's own message is what the operator needs
-	return query.ParseInvestigationPacketFormat(raw)
+	return packet.ParseInvestigationPacketFormat(raw)
 }
 
 // RenderPacket renders a packet in the requested format. JSON is the
 // canonical form; markdown and HTML are deterministic human-readable views
 // over the same data.
-func RenderPacket(packet query.InvestigationEvidencePacket, format PacketFormat) ([]byte, error) {
+func RenderPacket(body packet.InvestigationEvidencePacket, format PacketFormat) ([]byte, error) {
 	//nolint:wrapcheck // the packet contract's own message is what the operator needs
-	return query.RenderInvestigationPacket(packet, format)
+	return packet.RenderInvestigationPacket(body, format)
 }

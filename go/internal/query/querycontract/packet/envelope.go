@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package packet
 
-import "github.com/eshu-hq/eshu/go/internal/query/querycontract/evidence"
+import (
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/evidence"
+)
 
 // InvestigationEvidencePacketSchema is the stable schema identifier for the
 // portable, source-backed investigation evidence packet (packet v2). The "v2"
@@ -141,9 +144,9 @@ type PacketIdentity struct {
 	// state. Optional but recommended.
 	Generation string `json:"generation,omitempty"`
 	// Profile is the active query profile that produced the evidence.
-	Profile QueryProfile `json:"profile,omitempty"`
+	Profile querycontract.QueryProfile `json:"profile,omitempty"`
 	// Backend is the active graph backend.
-	Backend GraphBackend `json:"backend,omitempty"`
+	Backend querycontract.GraphBackend `json:"backend,omitempty"`
 	// Basis records the deterministic-versus-semantic posture of the packet.
 	Basis PacketBasis `json:"basis"`
 }
@@ -212,7 +215,7 @@ type PacketGraphAnswer struct {
 	// Present reports whether the hop/edge is materialized in the graph.
 	Present bool `json:"present"`
 	// TruthClass is the prompt-facing classification of the answer truth.
-	TruthClass AnswerTruthClass `json:"truth_class,omitempty"`
+	TruthClass querycontract.AnswerTruthClass `json:"truth_class,omitempty"`
 	// SourceFactIDs references the source-fact ids (by FactID or StableKey) that
 	// back a present hop, so a reader can trace the graph answer to raw evidence.
 	SourceFactIDs []string `json:"source_fact_ids,omitempty"`
@@ -266,7 +269,7 @@ type PacketReproduceStep struct {
 // invariant: no confident summary survives when the answer is unsupported.
 type PacketAnswer struct {
 	// TruthClass is the prompt-facing truth classification of the answer.
-	TruthClass AnswerTruthClass `json:"truth_class"`
+	TruthClass querycontract.AnswerTruthClass `json:"truth_class"`
 	// Summary is the human-readable answer, empty when Supported is false.
 	Summary string `json:"summary,omitempty"`
 	// Supported is false when required evidence is unavailable or the packet was
@@ -351,9 +354,9 @@ type InvestigationEvidencePacket struct {
 	// Refusal is the terminal refusal state, empty for a built packet.
 	Refusal PacketRefusalState `json:"refusal,omitempty"`
 	// Truth is a copy of the canonical truth envelope, nil for refused packets.
-	Truth *TruthEnvelope `json:"truth,omitempty"`
+	Truth *querycontract.TruthEnvelope `json:"truth,omitempty"`
 	// Freshness surfaces the freshness label at the top level for quick scanning.
-	Freshness TruthFreshness `json:"freshness"`
+	Freshness querycontract.TruthFreshness `json:"freshness"`
 	// Answer is the short user-facing answer plan.
 	Answer PacketAnswer `json:"answer"`
 	// SourceFacts is the raw-evidence layer.

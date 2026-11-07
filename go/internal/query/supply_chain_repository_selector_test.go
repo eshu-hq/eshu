@@ -13,6 +13,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 )
 
@@ -142,7 +143,7 @@ func TestSupplyChainListImpactFindingsResolvesRepositorySelectors(t *testing.T) 
 			}
 
 			var resp struct {
-				Findings []impact.FindingResult `json:"findings"`
+				Findings []packet.FindingResult `json:"findings"`
 			}
 			if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 				t.Fatalf("json.Unmarshal: %v", err)

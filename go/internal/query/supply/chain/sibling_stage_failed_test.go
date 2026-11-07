@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/advisory"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
@@ -53,7 +54,7 @@ type errExplanationStore struct {
 
 func (s errExplanationStore) ExplainSupplyChainImpact(
 	context.Context,
-	impact.ExplanationFilter,
+	packet.ExplanationFilter,
 ) (impact.ExplanationRow, error) {
 	if s.err != nil {
 		return impact.ExplanationRow{}, s.err
@@ -226,7 +227,7 @@ type stubImpactPacketResponder struct{}
 func (stubImpactPacketResponder) RespondSupplyChainImpactPacket(
 	http.ResponseWriter,
 	*http.Request,
-	impact.ExplanationResult,
+	packet.ExplanationResult,
 	*querycontract.TruthEnvelope,
 ) {
 }

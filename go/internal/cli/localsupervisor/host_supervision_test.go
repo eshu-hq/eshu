@@ -18,11 +18,11 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/eshulocal"
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 func TestRunOwnedLocalHostWithLayoutAuthoritativeWatchStartsReducerAndIngester(t *testing.T) {
-	t.Setenv("ESHU_QUERY_PROFILE", string(query.ProfileLocalAuthoritative))
+	t.Setenv("ESHU_QUERY_PROFILE", string(querycontract.ProfileLocalAuthoritative))
 
 	originalPrepareWorkspace := localHostPrepareWorkspace
 	originalStartEmbeddedPostgres := localHostStartEmbeddedPostgres
@@ -68,7 +68,7 @@ func TestRunOwnedLocalHostWithLayoutAuthoritativeWatchStartsReducerAndIngester(t
 	}
 	localHostStartManagedGraph = func(ctx context.Context, layout eshulocal.Layout, runtimeConfig RuntimeConfig) (*ManagedGraph, error) {
 		return &ManagedGraph{
-			Backend:  query.GraphBackendNornicDB,
+			Backend:  querycontract.GraphBackendNornicDB,
 			Address:  "127.0.0.1",
 			BoltPort: 17687,
 			HTTPPort: 17474,
@@ -145,7 +145,7 @@ func TestRunOwnedLocalHostWithLayoutAuthoritativeWatchStartsReducerAndIngester(t
 // satellite) next to the reducer and ingester, and hands the session to the
 // bridge that owns the process stdio.
 func TestRunOwnedLocalHostWithLayoutMCPStdioStartsSessionAndBridges(t *testing.T) {
-	t.Setenv("ESHU_QUERY_PROFILE", string(query.ProfileLocalAuthoritative))
+	t.Setenv("ESHU_QUERY_PROFILE", string(querycontract.ProfileLocalAuthoritative))
 
 	originalPrepareWorkspace := localHostPrepareWorkspace
 	originalStartEmbeddedPostgres := localHostStartEmbeddedPostgres
@@ -195,7 +195,7 @@ func TestRunOwnedLocalHostWithLayoutMCPStdioStartsSessionAndBridges(t *testing.T
 	}
 	localHostStartManagedGraph = func(ctx context.Context, layout eshulocal.Layout, runtimeConfig RuntimeConfig) (*ManagedGraph, error) {
 		return &ManagedGraph{
-			Backend:  query.GraphBackendNornicDB,
+			Backend:  querycontract.GraphBackendNornicDB,
 			Address:  "127.0.0.1",
 			BoltPort: 17687,
 			HTTPPort: 17474,

@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 )
 
@@ -118,7 +119,7 @@ func TestGroupedInventoryMultiServiceFindingCountsInEveryGroup(t *testing.T) {
 			namedRow(impact.GroupedInventoryByService, "svc-b", 1, impact.GroupCompletenessComplete),
 		},
 		DistinctFindings: 2,
-		Freshness:        impact.GroupedInventoryFreshness{State: impact.FreshnessLabelFresh},
+		Freshness:        impact.GroupedInventoryFreshness{State: packet.FreshnessLabelFresh},
 	}}
 	rec, body := serveGrouped(t, &Handler{ImpactGroupedInventory: store},
 		"/api/v0/supply-chain/impact/inventory?group_by=service_id&limit=10", nil)
@@ -144,7 +145,7 @@ func TestGroupedInventoryMultiServiceFindingCountsInEveryGroup(t *testing.T) {
 	if body.GroupBy != "service_id" || body.Count != 2 || body.Truncated || body.NextOffset != nil {
 		t.Fatalf("envelope = %+v, want group_by service_id, 2 buckets, not truncated", body)
 	}
-	if body.Freshness["state"] != impact.FreshnessLabelFresh {
+	if body.Freshness["state"] != packet.FreshnessLabelFresh {
 		t.Fatalf("freshness = %v, want state fresh", body.Freshness)
 	}
 	for _, b := range body.Buckets {

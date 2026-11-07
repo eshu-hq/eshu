@@ -18,6 +18,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 	// Registers the "pgx" driver this test opens by name. Other files in this
 	// package also blank-import it, so the driver would resolve without this
@@ -186,7 +187,7 @@ func TestSupplyChainImpactRuntimeFiltersEnforceScopedTruthLive(t *testing.T) {
 		})
 	}
 
-	explanation, err := findingStore.ExplainSupplyChainImpact(ctx, impact.ExplanationFilter{
+	explanation, err := findingStore.ExplainSupplyChainImpact(ctx, packet.ExplanationFilter{
 		CVEID:           runtimeFilterLiveCVE,
 		PackageID:       runtimeFilterLivePackage,
 		ServiceID:       "service:5747:allowed",

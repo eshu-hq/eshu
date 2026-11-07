@@ -9,13 +9,15 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
+
 	"github.com/eshu-hq/eshu-sdk/factschema"
 )
 
 func TestCov6BuildNoEvidenceExplanation(t *testing.T) {
 	t.Parallel()
-	filter := ExplanationFilter{CVEID: "CVE-1", PackageID: "pkg:npm/x"}
-	readiness := ReadinessEnvelope{State: ReadinessStateReadyWithFindings, MissingEvidence: []string{"sbom"}}
+	filter := packet.ExplanationFilter{CVEID: "CVE-1", PackageID: "pkg:npm/x"}
+	readiness := packet.ReadinessEnvelope{State: packet.ReadinessStateReadyWithFindings, MissingEvidence: []string{"sbom"}}
 	got := BuildNoEvidenceExplanation(filter, readiness)
 	if got.Outcome != "no_finding" {
 		t.Fatalf("outcome = %q, want no_finding", got.Outcome)
@@ -36,13 +38,13 @@ func TestCov6BuildNoEvidenceExplanation(t *testing.T) {
 
 func TestCov6BuildAmbiguousExplanation(t *testing.T) {
 	t.Parallel()
-	filter := ExplanationFilter{PackageID: "pkg:npm/x"}
-	readiness := ReadinessEnvelope{State: ReadinessStateReadyWithFindings, Counts: ReadinessCounts{FindingsReturned: 1}}
+	filter := packet.ExplanationFilter{PackageID: "pkg:npm/x"}
+	readiness := packet.ReadinessEnvelope{State: packet.ReadinessStateReadyWithFindings, Counts: packet.ReadinessCounts{FindingsReturned: 1}}
 	got := BuildAmbiguousExplanation(filter, readiness, 3)
 	if got.Outcome != "ambiguous_scope" {
 		t.Fatalf("outcome = %q, want ambiguous_scope", got.Outcome)
 	}
-	if got.Readiness.State != ReadinessStateAmbiguousScope {
+	if got.Readiness.State != packet.ReadinessStateAmbiguousScope {
 		t.Fatalf("readiness state = %q, want ambiguous_scope", got.Readiness.State)
 	}
 	if got.Readiness.Counts.FindingsReturned != 3 {
@@ -54,44 +56,44 @@ func TestCov6BuildAmbiguousExplanation(t *testing.T) {
 		t.Fatalf("solo count = %d, want 2", solo.Readiness.Counts.FindingsReturned)
 	}
 	// An already-unavailable envelope keeps its state.
-	dark := ReadinessEnvelope{State: ReadinessStateReadinessUnavailable}
+	dark := packet.ReadinessEnvelope{State: packet.ReadinessStateReadinessUnavailable}
 	kept := supplyChainImpactAmbiguousReadiness(dark, 2)
-	if kept.State != ReadinessStateReadinessUnavailable {
+	if kept.State != packet.ReadinessStateReadinessUnavailable {
 		t.Fatalf("unavailable state = %q, want preserved", kept.State)
 	}
 }
 
 func TestCov6ExplanationScopesAndHandles(t *testing.T) {
 	t.Parallel()
-	if !(ExplanationFilter{FindingID: "f1"}).HasBoundedScope() {
+	if !(packet.ExplanationFilter{FindingID: "f1"}).HasBoundedScope() {
 		t.Fatal("finding_id must bound the scope")
 	}
-	if !(ExplanationFilter{CVEID: "CVE-1", PackageID: "p"}).HasBoundedScope() {
+	if !(packet.ExplanationFilter{CVEID: "CVE-1", PackageID: "p"}).HasBoundedScope() {
 		t.Fatal("cve plus package must bound the scope")
 	}
-	if (ExplanationFilter{CVEID: "CVE-1"}).HasBoundedScope() {
+	if (packet.ExplanationFilter{CVEID: "CVE-1"}).HasBoundedScope() {
 		t.Fatal("bare cve must not bound the scope")
 	}
-	if (ExplanationFilter{AdvisoryID: "a"}).HasBoundedScope() {
+	if (packet.ExplanationFilter{AdvisoryID: "a"}).HasBoundedScope() {
 		t.Fatal("bare advisory must not bound the scope")
 	}
-	if !(ExplanationFilter{AdvisoryID: "a", ServiceID: "s"}).HasBoundedScope() {
+	if !(packet.ExplanationFilter{AdvisoryID: "a", ServiceID: "s"}).HasBoundedScope() {
 		t.Fatal("advisory plus service must bound the scope")
 	}
-	if !(ExplanationFilter{}).hasTargetScope() == false {
+	if (packet.ExplanationFilter{}).ReadinessScope() != (packet.TargetScope{}) {
 		t.Fatal("empty filter must have no target scope")
 	}
 	// Finding-anchored handles name the finding; scope handles hash the scope.
-	if got := supplyChainImpactEvidencePacketHandle(ExplanationFilter{}, " f1 "); got != "supply-chain-impact-explanation:finding:f1" {
+	if got := supplyChainImpactEvidencePacketHandle(packet.ExplanationFilter{}, " f1 "); got != "supply-chain-impact-explanation:finding:f1" {
 		t.Fatalf("finding handle = %q", got)
 	}
-	a := supplyChainImpactEvidencePacketHandle(ExplanationFilter{PackageID: "p"}, "")
-	b := supplyChainImpactEvidencePacketHandle(ExplanationFilter{PackageID: "q"}, "")
+	a := supplyChainImpactEvidencePacketHandle(packet.ExplanationFilter{PackageID: "p"}, "")
+	b := supplyChainImpactEvidencePacketHandle(packet.ExplanationFilter{PackageID: "q"}, "")
 	if !strings.HasPrefix(a, "supply-chain-impact-explanation:scope:") || a == b {
 		t.Fatalf("scope handles = (%q,%q), want distinct scope hashes", a, b)
 	}
 	// Readiness scope fills blanks from the row.
-	scope := FindingReadinessScope(FindingRow{CVEID: "CVE-9"}, ExplanationFilter{PackageID: "p"})
+	scope := FindingReadinessScope(FindingRow{CVEID: "CVE-9"}, packet.ExplanationFilter{PackageID: "p"})
 	if scope.CVEID != "CVE-9" || scope.PackageID != "p" {
 		t.Fatalf("readiness scope = %+v, want row cve plus filter package", scope)
 	}
@@ -108,9 +110,9 @@ func TestCov6ExplanationScopesAndHandles(t *testing.T) {
 
 func TestCov6BuildExplanationMinimalRow(t *testing.T) {
 	t.Parallel()
-	filter := ExplanationFilter{FindingID: "f1"}
+	filter := packet.ExplanationFilter{FindingID: "f1"}
 	row := ExplanationRow{Finding: FindingRow{FindingID: "f1", CVEID: "CVE-1", PackageID: "pkg:npm/x"}}
-	got := BuildExplanation(filter, row, ReadinessEnvelope{State: ReadinessStateReadyWithFindings})
+	got := BuildExplanation(filter, row, packet.ReadinessEnvelope{State: packet.ReadinessStateReadyWithFindings})
 	if got.Outcome != "finding_explained" {
 		t.Fatalf("outcome = %q, want finding_explained", got.Outcome)
 	}
@@ -124,10 +126,10 @@ func TestCov6BuildExplanationMinimalRow(t *testing.T) {
 
 func TestCov6BuildReadinessUnavailable(t *testing.T) {
 	t.Parallel()
-	scope := TargetScope{PackageID: "pkg:npm/x"}
-	findings := []FindingResult{{Status: "affected"}, {Status: "affected"}, {Status: ""}}
-	got := BuildReadinessUnavailable(scope, findings, true)
-	if got.State != ReadinessStateReadinessUnavailable {
+	scope := packet.TargetScope{PackageID: "pkg:npm/x"}
+	findings := []packet.FindingResult{{Status: "affected"}, {Status: "affected"}, {Status: ""}}
+	got := packet.BuildReadinessUnavailable(scope, findings, true)
+	if got.State != packet.ReadinessStateReadinessUnavailable {
 		t.Fatalf("state = %q, want unavailable", got.State)
 	}
 	if got.Counts.FindingsReturned != 3 || !got.Counts.FindingsTruncated {
@@ -139,7 +141,7 @@ func TestCov6BuildReadinessUnavailable(t *testing.T) {
 	if len(got.MissingEvidence) != 1 {
 		t.Fatalf("missing = %v, want the unavailable marker", got.MissingEvidence)
 	}
-	if countFindingsByStatus(nil) != nil || countFindingsByStatus([]FindingResult{{}}) != nil {
+	if packet.CountFindingsByStatus(nil) != nil || packet.CountFindingsByStatus([]packet.FindingResult{{}}) != nil {
 		t.Fatal("empty inputs must count nil")
 	}
 }
@@ -155,10 +157,10 @@ func TestCov6DecodeReadinessMetadata(t *testing.T) {
 	if got, err := decodeSourceSnapshots(sql.NullString{Valid: true, String: "[]"}); err != nil || len(got) != 0 {
 		t.Fatalf("empty snapshots = (%v,%v)", got, err)
 	}
-	if got, err := decodeSourceStates(sql.NullString{}); got != nil || err != nil {
+	if got, err := packet.DecodeSourceStates(sql.NullString{}); got != nil || err != nil {
 		t.Fatalf("null states = (%v,%v), want (nil,nil)", got, err)
 	}
-	if _, err := decodeSourceStates(sql.NullString{Valid: true, String: "bogus"}); err == nil {
+	if _, err := packet.DecodeSourceStates(sql.NullString{Valid: true, String: "bogus"}); err == nil {
 		t.Fatal("bogus states must fail")
 	}
 	if got, err := decodeUnsupportedTargets(sql.NullString{}); got != nil || err != nil {
@@ -171,16 +173,16 @@ func TestCov6DecodeReadinessMetadata(t *testing.T) {
 
 func TestCov6NormalizeUnsupportedTargets(t *testing.T) {
 	t.Parallel()
-	if normalizeUnsupportedTargets(nil) != nil {
+	if packet.NormalizeUnsupportedTargets(nil) != nil {
 		t.Fatal("empty input must normalize nil")
 	}
-	got := normalizeUnsupportedTargets([]UnsupportedTarget{
-		{TargetKind: " " + UnsupportedTargetKindEcosystem + " ", Reason: " r ", Count: 2, Ecosystem: " npm "},
-		{TargetKind: UnsupportedTargetKindEcosystem, Reason: "r", Count: 3, Ecosystem: "npm"},
+	got := packet.NormalizeUnsupportedTargets([]packet.UnsupportedTarget{
+		{TargetKind: " " + packet.UnsupportedTargetKindEcosystem + " ", Reason: " r ", Count: 2, Ecosystem: " npm "},
+		{TargetKind: packet.UnsupportedTargetKindEcosystem, Reason: "r", Count: 3, Ecosystem: "npm"},
 		{TargetKind: "bogus", Reason: "r"},
-		{TargetKind: UnsupportedTargetKindEcosystem, Reason: ""},
+		{TargetKind: packet.UnsupportedTargetKindEcosystem, Reason: ""},
 		{TargetKind: "", Reason: "r"},
-		{TargetKind: UnsupportedTargetKindImageTarget, Reason: "r2", Count: 0},
+		{TargetKind: packet.UnsupportedTargetKindImageTarget, Reason: "r2", Count: 0},
 	})
 	if len(got) != 2 {
 		t.Fatalf("normalized = %+v, want 2 survivors", got)
@@ -188,7 +190,7 @@ func TestCov6NormalizeUnsupportedTargets(t *testing.T) {
 	if got[0].Count != 5 {
 		t.Fatalf("merged count = %d, want 5", got[0].Count)
 	}
-	if got[0].TargetKind != UnsupportedTargetKindEcosystem || got[0].Ecosystem != "npm" {
+	if got[0].TargetKind != packet.UnsupportedTargetKindEcosystem || got[0].Ecosystem != "npm" {
 		t.Fatalf("merged entry = %+v, want trimmed ecosystem row", got[0])
 	}
 	if got[1].Count != 1 {
@@ -299,7 +301,7 @@ func TestCov6ImpactSmallHelpers(t *testing.T) {
 	if !broken.Matched || broken.Err == nil {
 		t.Fatalf("malformed document = %+v, want matched failure", broken)
 	}
-	var anchors ExplanationAnchors
+	var anchors packet.ExplanationAnchors
 	appendDeploymentAnchors(&anchors, map[string]any{"deployment_id": "d1", "entity_keys": []any{"deployment:d2", "service:x"}})
 	if len(anchors.Deployments) != 2 {
 		t.Fatalf("deployments = %v, want id plus entity key", anchors.Deployments)

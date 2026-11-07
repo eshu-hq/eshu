@@ -8,7 +8,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 )
 
 // ParseSubjectFlags turns repeated `key=value` --subject entries into a scope
@@ -48,23 +48,23 @@ func SubjectOrPlaceholder(subject map[string]string) map[string]string {
 
 // ParseFamily normalizes the raw --family flag. An unrecognized value is
 // returned as-is so BuildPacket can echo it back in an unknown_family refusal.
-func ParseFamily(raw string) query.InvestigationFamily {
-	return query.InvestigationFamily(strings.TrimSpace(raw))
+func ParseFamily(raw string) packet.InvestigationFamily {
+	return packet.InvestigationFamily(strings.TrimSpace(raw))
 }
 
 // BoundsFromMaxSourceFacts turns a --max-source-facts override into a bounds
 // value, returning nil for zero or negative so the contract defaults apply.
-func BoundsFromMaxSourceFacts(maxSourceFacts int) *query.PacketBounds {
+func BoundsFromMaxSourceFacts(maxSourceFacts int) *packet.PacketBounds {
 	if maxSourceFacts <= 0 {
 		return nil
 	}
-	return &query.PacketBounds{MaxSourceFacts: maxSourceFacts}
+	return &packet.PacketBounds{MaxSourceFacts: maxSourceFacts}
 }
 
 // SupplyChainFilterFromSubject maps the scope keys this family understands onto
 // the explain filter. Keys it does not understand stay packet context.
-func SupplyChainFilterFromSubject(subject map[string]string) query.SupplyChainImpactExplanationFilter {
-	return query.SupplyChainImpactExplanationFilter{
+func SupplyChainFilterFromSubject(subject map[string]string) packet.ExplanationFilter {
+	return packet.ExplanationFilter{
 		FindingID:     subject["finding_id"],
 		AdvisoryID:    subject["advisory_id"],
 		CVEID:         subject["cve_id"],
@@ -79,7 +79,7 @@ func SupplyChainFilterFromSubject(subject map[string]string) query.SupplyChainIm
 // paired with a target (package, repository, or subject digest). An advisory
 // with no target would match every affected repository, which is not an
 // investigation scope.
-func SupplyChainFilterHasScope(filter query.SupplyChainImpactExplanationFilter) bool {
+func SupplyChainFilterHasScope(filter packet.ExplanationFilter) bool {
 	if strings.TrimSpace(filter.FindingID) != "" {
 		return true
 	}

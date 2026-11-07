@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 
 	"go.opentelemetry.io/otel"
 
@@ -95,33 +96,33 @@ type ManagementFilter struct {
 
 // ManagementFindingRow is one query-facing unmanaged cloud resource finding.
 type ManagementFindingRow struct {
-	ID                           string                  `json:"id"`
-	Provider                     string                  `json:"provider"`
-	AccountID                    string                  `json:"account_id,omitempty"`
-	Region                       string                  `json:"region,omitempty"`
-	ResourceType                 string                  `json:"resource_type,omitempty"`
-	ResourceID                   string                  `json:"resource_id,omitempty"`
-	ARN                          string                  `json:"arn,omitempty"`
-	Tags                         map[string]string       `json:"tags,omitempty"`
-	FindingKind                  string                  `json:"finding_kind"`
-	ManagementStatus             string                  `json:"management_status"`
-	Confidence                   float64                 `json:"confidence"`
-	ScopeID                      string                  `json:"scope_id"`
-	GenerationID                 string                  `json:"generation_id"`
-	SourceSystem                 string                  `json:"source_system"`
-	CandidateID                  string                  `json:"candidate_id,omitempty"`
-	MatchedTerraformStateAddress string                  `json:"matched_terraform_state_address,omitempty"`
-	MatchedTerraformConfigFile   string                  `json:"matched_terraform_config_file,omitempty"`
-	MatchedTerraformModulePath   string                  `json:"matched_terraform_module_path,omitempty"`
-	MatchedOtherIaCSource        string                  `json:"matched_other_iac_source,omitempty"`
-	ServiceCandidates            []string                `json:"service_candidates,omitempty"`
-	EnvironmentCandidates        []string                `json:"environment_candidates,omitempty"`
-	DependencyPaths              []string                `json:"dependency_paths,omitempty"`
-	RecommendedAction            string                  `json:"recommended_action"`
-	MissingEvidence              []string                `json:"missing_evidence,omitempty"`
-	WarningFlags                 []string                `json:"warning_flags,omitempty"`
-	SafetyGate                   ManagementSafetyGate    `json:"safety_gate"`
-	Evidence                     []ManagementEvidenceRow `json:"evidence"`
+	ID                           string                      `json:"id"`
+	Provider                     string                      `json:"provider"`
+	AccountID                    string                      `json:"account_id,omitempty"`
+	Region                       string                      `json:"region,omitempty"`
+	ResourceType                 string                      `json:"resource_type,omitempty"`
+	ResourceID                   string                      `json:"resource_id,omitempty"`
+	ARN                          string                      `json:"arn,omitempty"`
+	Tags                         map[string]string           `json:"tags,omitempty"`
+	FindingKind                  string                      `json:"finding_kind"`
+	ManagementStatus             string                      `json:"management_status"`
+	Confidence                   float64                     `json:"confidence"`
+	ScopeID                      string                      `json:"scope_id"`
+	GenerationID                 string                      `json:"generation_id"`
+	SourceSystem                 string                      `json:"source_system"`
+	CandidateID                  string                      `json:"candidate_id,omitempty"`
+	MatchedTerraformStateAddress string                      `json:"matched_terraform_state_address,omitempty"`
+	MatchedTerraformConfigFile   string                      `json:"matched_terraform_config_file,omitempty"`
+	MatchedTerraformModulePath   string                      `json:"matched_terraform_module_path,omitempty"`
+	MatchedOtherIaCSource        string                      `json:"matched_other_iac_source,omitempty"`
+	ServiceCandidates            []string                    `json:"service_candidates,omitempty"`
+	EnvironmentCandidates        []string                    `json:"environment_candidates,omitempty"`
+	DependencyPaths              []string                    `json:"dependency_paths,omitempty"`
+	RecommendedAction            string                      `json:"recommended_action"`
+	MissingEvidence              []string                    `json:"missing_evidence,omitempty"`
+	WarningFlags                 []string                    `json:"warning_flags,omitempty"`
+	SafetyGate                   packet.ManagementSafetyGate `json:"safety_gate"`
+	Evidence                     []ManagementEvidenceRow     `json:"evidence"`
 	// DriftedAttributes carries the bounded declared/observed value pairs for
 	// an image_version_drift finding (#5453), the same narrow projection
 	// MultiCloudRuntimeDriftFindingRow.DriftedAttributes carries. Empty for

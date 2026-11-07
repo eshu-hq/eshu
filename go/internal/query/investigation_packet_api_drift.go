@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -65,12 +66,12 @@ func (h *CloudRuntimeDriftHandler) getDriftPacket(w http.ResponseWriter, r *http
 	// finding store.
 	access := querycontract.RepositoryAccessFilterFromContext(r.Context())
 	if access.Scoped() && !access.AllowsDirectScopeID(filter.ScopeID) {
-		packet, err := refusalPacketForAPI(InvestigationFamilyDrift, PacketRefusalScopeNotFound)
+		pkt, err := refusalPacketForAPI(packet.InvestigationFamilyDrift, packet.PacketRefusalScopeNotFound)
 		if err != nil {
 			tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, driftRefusalPacketFailedMessage)
 			return
 		}
-		writeInvestigationPacket(w, r, packet)
+		writeInvestigationPacket(w, r, pkt)
 		return
 	}
 	if h == nil || h.Store == nil {
@@ -94,12 +95,12 @@ func (h *CloudRuntimeDriftHandler) getDriftPacket(w http.ResponseWriter, r *http
 		"resolved from active reducer-materialized provider-neutral runtime drift findings (reducer_multi_cloud_runtime_drift_finding)",
 	)
 	subject := map[string]string{"scope_id": filter.ScopeID}
-	addSubjectKey(subject, "provider", filter.Provider)
-	addSubjectKey(subject, "cloud_resource_uid", filter.CloudResourceUID)
-	packet, err := BuildDriftPacket(cloudRuntimeDriftFindingViews(rows), subject, truth, packetBoundsFromRequest(r))
+	packet.AddSubjectKey(subject, "provider", filter.Provider)
+	packet.AddSubjectKey(subject, "cloud_resource_uid", filter.CloudResourceUID)
+	pkt, err := packet.BuildDriftPacket(cloudRuntimeDriftFindingViews(rows), subject, truth, packetBoundsFromRequest(r))
 	if err != nil {
 		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, driftPacketBuildFailedMessage)
 		return
 	}
-	writeInvestigationPacket(w, r, packet)
+	writeInvestigationPacket(w, r, pkt)
 }

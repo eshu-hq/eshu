@@ -10,31 +10,32 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 type terraformImportPlanCandidate struct {
-	ID                       string                    `json:"id"`
-	FindingID                string                    `json:"finding_id"`
-	Status                   string                    `json:"status"`
-	Provider                 string                    `json:"provider"`
-	AccountID                string                    `json:"account_id,omitempty"`
-	Region                   string                    `json:"region,omitempty"`
-	ARN                      string                    `json:"arn,omitempty"`
-	CloudResourceType        string                    `json:"cloud_resource_type,omitempty"`
-	TerraformResourceType    string                    `json:"terraform_resource_type,omitempty"`
-	ImportID                 string                    `json:"import_id,omitempty"`
-	SuggestedResourceAddress string                    `json:"suggested_resource_address,omitempty"`
-	DestinationHint          string                    `json:"destination_hint"`
-	ConfigurationShape       string                    `json:"configuration_shape"`
-	ProviderHint             terraformProviderHint     `json:"provider_hint"`
-	Warnings                 []string                  `json:"warnings,omitempty"`
-	RefusalReasons           []string                  `json:"refusal_reasons,omitempty"`
-	ImportBlock              string                    `json:"import_block,omitempty"`
-	ConfigShapeHint          *terraformConfigShapeHint `json:"config_shape_hint,omitempty"`
-	EvidenceRefs             []string                  `json:"evidence_refs,omitempty"`
-	SafetyGate               ManagementSafetyGate      `json:"safety_gate"`
+	ID                       string                      `json:"id"`
+	FindingID                string                      `json:"finding_id"`
+	Status                   string                      `json:"status"`
+	Provider                 string                      `json:"provider"`
+	AccountID                string                      `json:"account_id,omitempty"`
+	Region                   string                      `json:"region,omitempty"`
+	ARN                      string                      `json:"arn,omitempty"`
+	CloudResourceType        string                      `json:"cloud_resource_type,omitempty"`
+	TerraformResourceType    string                      `json:"terraform_resource_type,omitempty"`
+	ImportID                 string                      `json:"import_id,omitempty"`
+	SuggestedResourceAddress string                      `json:"suggested_resource_address,omitempty"`
+	DestinationHint          string                      `json:"destination_hint"`
+	ConfigurationShape       string                      `json:"configuration_shape"`
+	ProviderHint             terraformProviderHint       `json:"provider_hint"`
+	Warnings                 []string                    `json:"warnings,omitempty"`
+	RefusalReasons           []string                    `json:"refusal_reasons,omitempty"`
+	ImportBlock              string                      `json:"import_block,omitempty"`
+	ConfigShapeHint          *terraformConfigShapeHint   `json:"config_shape_hint,omitempty"`
+	EvidenceRefs             []string                    `json:"evidence_refs,omitempty"`
+	SafetyGate               packet.ManagementSafetyGate `json:"safety_gate"`
 }
 
 type terraformProviderHint struct {

@@ -33,7 +33,9 @@ Intra-repo: `internal/capabilitycatalog` (surface inventory and catalog),
 `internal/competitiveparity` (inventory/report types and rendering),
 `internal/cli/firstrun`, `internal/cli/opdigest` and `internal/cli/evidpacket`
 (exercised sibling CLI logic), `internal/packetdogfood` (benchmark parsing and
-scoring), and `internal/query` (investigation packet building and rendering).
+scoring), and `internal/query/querycontract` plus
+`internal/query/querycontract/packet` (truth envelopes and investigation
+packet building and rendering).
 No cobra:
 `go list -deps ./internal/cli/compparity` resolves nothing under
 `github.com/spf13`. Re-derive import lists with

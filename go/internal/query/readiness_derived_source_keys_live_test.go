@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 	"github.com/eshu-hq/eshu/go/internal/vulnsource"
 )
 
@@ -86,7 +86,7 @@ func TestSupplyChainImpactReadinessDerivedRepositoryAcrossBatchScopesLive(t *tes
 	seedDerivedFacts(t, ctx, db, now, "consumption-scope", "reducer_package_consumption_correlation", consumptions)
 
 	readiness := readDerivedReadiness(t, db, "repository_id=repository:r_9227")
-	if readiness.State == string(impact.ReadinessStateReadinessUnavailable) {
+	if readiness.State == string(packet.ReadinessStateReadinessUnavailable) {
 		t.Fatalf("repository readiness across 300 derived scopes unavailable: %+v", readiness)
 	}
 	state := onlyDerivedState(t, readiness)
@@ -147,7 +147,7 @@ func TestSupplyChainImpactReadinessDerivedLegacyStateWithoutKeysLive(t *testing.
 	readiness := readDerivedReadiness(t, db, "package_id=npm://registry.npmjs.org/lodash")
 	state := onlyDerivedState(t, readiness)
 	if state.ScopeCount != 0 || state.UnmatchedPackageCount != 1 || state.FreshnessState != "pending" ||
-		readiness.State != string(impact.ReadinessStateTargetIncomplete) {
+		readiness.State != string(packet.ReadinessStateTargetIncomplete) {
 		t.Fatalf("legacy keyless state readiness = %+v, want unmatched pending target_incomplete", readiness)
 	}
 }
@@ -162,7 +162,7 @@ func TestSupplyChainImpactReadinessDerivedCVEAffectedPackagesDoNotOverflowLive(t
 	})
 
 	readiness := readDerivedReadiness(t, db, "cve_id=CVE-2026-9302")
-	if readiness.State == string(impact.ReadinessStateReadinessUnavailable) {
+	if readiness.State == string(packet.ReadinessStateReadinessUnavailable) {
 		t.Fatalf("CVE readiness with 201 unrelated derived scopes unavailable: %+v", readiness)
 	}
 	state := onlyDerivedState(t, readiness)

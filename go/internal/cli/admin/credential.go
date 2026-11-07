@@ -6,6 +6,7 @@ package admin
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -18,7 +19,6 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/secretcrypto"
 	pgstorage "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
@@ -192,7 +192,7 @@ func resetInitialCredential(
 	if err != nil {
 		return BootstrapCredentialPayload{}, auditKeyID, fmt.Errorf("generate replacement mfa factor id: %w", err)
 	}
-	recoveryCodeHash := query.IdentityHash(recoveryCode)
+	recoveryCodeHash := identityHash(recoveryCode)
 	resetErr := store.ResetBootstrapCredential(ctx, pgstorage.ResetBootstrapCredentialInput{
 		TenantID:               pgstorage.BootstrapAdminTenantID,
 		WorkspaceID:            pgstorage.BootstrapAdminWorkspaceID,
@@ -200,7 +200,7 @@ func resetInitialCredential(
 		KeyID:                  keyID,
 		PasswordHash:           string(passwordHash),
 		PasswordAlgorithm:      "bcrypt",
-		PasswordParametersHash: query.IdentityHash("bcrypt"),
+		PasswordParametersHash: identityHash("bcrypt"),
 		MFAFactorID:            mfaFactorID,
 		RecoveryCodeHash:       recoveryCodeHash,
 		ResetAt:                now,
@@ -271,6 +271,23 @@ func generateSecret(n int) (string, error) {
 		return "", fmt.Errorf("generate secret: %w", err)
 	}
 	return base64.RawURLEncoding.EncodeToString(buf), nil
+}
+
+// identityHash hashes a local-identity value for audit and storage
+// comparison: blank stays blank, otherwise "sha256:" plus lowercase hex of
+// the SHA-256 sum. This is byte-identical to the former
+// query.IdentityHash (and the API-side hash in
+// go/cmd/api/seed_initial_admin.go, which that file's `package main`
+// prevents importing); the recovery-code and password-parameter hashes
+// persisted here are compared against API-computed values, so the algorithm
+// is pinned by TestIdentityHashMatchesSHA256Vector, not just by review.
+func identityHash(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ""
+	}
+	sum := sha256.Sum256([]byte(value))
+	return "sha256:" + hex.EncodeToString(sum[:])
 }
 
 // newLocalIdentityFactorID returns a fresh opaque MFA factor identifier for

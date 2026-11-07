@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/eshulocal"
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 	"github.com/eshu-hq/eshu/go/internal/status/queue"
 )
@@ -23,8 +23,8 @@ func TestRenderLocalHostProgressSnapshotIncludesKnownWorkTableAndQueue(t *testin
 	rendered := renderLocalHostProgressSnapshot(
 		"/workspace/repo",
 		RuntimeConfig{
-			Profile:      query.ProfileLocalAuthoritative,
-			GraphBackend: query.GraphBackendNornicDB,
+			Profile:      querycontract.ProfileLocalAuthoritative,
+			GraphBackend: querycontract.GraphBackendNornicDB,
 		},
 		statuspkg.Report{
 			AsOf: time.Date(2026, time.April, 23, 21, 15, 0, 0, time.UTC),
@@ -86,8 +86,8 @@ func TestRenderLocalHostProgressSnapshotShowsIdleWhenNoKnownWork(t *testing.T) {
 	rendered := renderLocalHostProgressSnapshot(
 		"/workspace/repo",
 		RuntimeConfig{
-			Profile:      query.ProfileLocalAuthoritative,
-			GraphBackend: query.GraphBackendNornicDB,
+			Profile:      querycontract.ProfileLocalAuthoritative,
+			GraphBackend: querycontract.GraphBackendNornicDB,
 		},
 		statuspkg.Report{
 			AsOf: time.Date(2026, time.April, 23, 21, 15, 0, 0, time.UTC),
@@ -117,8 +117,8 @@ func TestRenderLocalHostProgressSnapshotShowsSharedProjectionBacklog(t *testing.
 	rendered := renderLocalHostProgressSnapshot(
 		"/workspace/repo",
 		RuntimeConfig{
-			Profile:      query.ProfileLocalAuthoritative,
-			GraphBackend: query.GraphBackendNornicDB,
+			Profile:      querycontract.ProfileLocalAuthoritative,
+			GraphBackend: querycontract.GraphBackendNornicDB,
 		},
 		statuspkg.Report{
 			AsOf:   time.Date(2026, time.May, 9, 12, 23, 53, 0, time.UTC),
@@ -159,8 +159,8 @@ func TestLocalHostProgressFingerprintIgnoresAsOfAndBucketsAge(t *testing.T) {
 	t.Parallel()
 
 	runtimeConfig := RuntimeConfig{
-		Profile:      query.ProfileLocalAuthoritative,
-		GraphBackend: query.GraphBackendNornicDB,
+		Profile:      querycontract.ProfileLocalAuthoritative,
+		GraphBackend: querycontract.GraphBackendNornicDB,
 	}
 	base := statuspkg.Report{
 		AsOf: time.Date(2026, time.April, 23, 21, 15, 0, 0, time.UTC),
@@ -267,7 +267,7 @@ func TestLocalHostProgressEnabledHonorsQuietMode(t *testing.T) {
 }
 
 func TestRunOwnedLocalHostWithLayoutWatchStartsAndStopsProgressReporter(t *testing.T) {
-	t.Setenv("ESHU_QUERY_PROFILE", string(query.ProfileLocalAuthoritative))
+	t.Setenv("ESHU_QUERY_PROFILE", string(querycontract.ProfileLocalAuthoritative))
 
 	originalPrepareWorkspace := localHostPrepareWorkspace
 	originalStartEmbeddedPostgres := localHostStartEmbeddedPostgres
@@ -315,7 +315,7 @@ func TestRunOwnedLocalHostWithLayoutWatchStartsAndStopsProgressReporter(t *testi
 	}
 	localHostStartManagedGraph = func(ctx context.Context, layout eshulocal.Layout, runtimeConfig RuntimeConfig) (*ManagedGraph, error) {
 		return &ManagedGraph{
-			Backend:  query.GraphBackendNornicDB,
+			Backend:  querycontract.GraphBackendNornicDB,
 			Address:  "127.0.0.1",
 			BoltPort: 17687,
 			HTTPPort: 17474,
@@ -362,8 +362,8 @@ func TestRunOwnedLocalHostWithLayoutWatchStartsAndStopsProgressReporter(t *testi
 		if workspaceRoot != "/workspace/repo" {
 			t.Fatalf("progress reporter workspace root = %q, want /workspace/repo", workspaceRoot)
 		}
-		if runtimeConfig.Profile != query.ProfileLocalAuthoritative {
-			t.Fatalf("progress reporter profile = %q, want %q", runtimeConfig.Profile, query.ProfileLocalAuthoritative)
+		if runtimeConfig.Profile != querycontract.ProfileLocalAuthoritative {
+			t.Fatalf("progress reporter profile = %q, want %q", runtimeConfig.Profile, querycontract.ProfileLocalAuthoritative)
 		}
 		return func() error {
 			progressStops++

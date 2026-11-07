@@ -405,6 +405,8 @@
 // profile. The contract is documented in
 // docs/public/reference/investigation-evidence-packet.md; the supply-chain
 // (#3141) and deployable-unit/drift (#3142) emitters wire real data into it.
+// Its home is now querycontract/packet; the envelope and builders live there
+// while the HTTP responders stay in this package -- see packet/doc.go.
 //
 // FreshnessHandler serves two bounded freshness drilldowns plus a
 // service-scope changed-since summary. Its home is now freshness/

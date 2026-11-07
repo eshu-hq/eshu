@@ -1,17 +1,21 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package packet
 
-import "testing"
+import (
+	"testing"
 
-func deployableUnitTruth() *TruthEnvelope {
-	return &TruthEnvelope{
-		Level:     TruthLevelExact,
-		Basis:     TruthBasisAuthoritativeGraph,
-		Profile:   ProfileLocalAuthoritative,
-		Backend:   GraphBackendNornicDB,
-		Freshness: TruthFreshness{State: FreshnessFresh},
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+)
+
+func deployableUnitTruth() *querycontract.TruthEnvelope {
+	return &querycontract.TruthEnvelope{
+		Level:     querycontract.TruthLevelExact,
+		Basis:     querycontract.TruthBasisAuthoritativeGraph,
+		Profile:   querycontract.ProfileLocalAuthoritative,
+		Backend:   querycontract.GraphBackendNornicDB,
+		Freshness: querycontract.TruthFreshness{State: querycontract.FreshnessFresh},
 	}
 }
 

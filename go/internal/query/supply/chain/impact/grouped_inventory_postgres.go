@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -211,17 +212,17 @@ func (s PostgresGroupedInventoryStore) winnersFreshness(
 	watermark, probeErr := probe.SupplyChainImpactWinnersWatermark(ctx)
 	if probeErr != nil {
 		s.logWatermarkProbeFailure(ctx, probeErr)
-		return GroupedInventoryFreshness{State: FreshnessLabelUnknown}, false, true, nil
+		return GroupedInventoryFreshness{State: packet.FreshnessLabelUnknown}, false, true, nil
 	}
 	if !watermark.Present {
 		return GroupedInventoryFreshness{}, false, false, ErrGroupedInventoryReadModelUnavailable
 	}
 	freshness = GroupedInventoryFreshness{
-		State:            FreshnessLabelFresh,
+		State:            packet.FreshnessLabelFresh,
 		LatestObservedAt: watermark.MaterializedAt.UTC().Format(time.RFC3339Nano),
 	}
 	if readAt.Sub(watermark.MaterializedAt.UTC()) > WinnersFreshnessWindow {
-		freshness.State = FreshnessLabelStale
+		freshness.State = packet.FreshnessLabelStale
 		return freshness, false, false, nil
 	}
 	return freshness, true, false, nil
@@ -291,7 +292,7 @@ func scanGroupedInventoryRow(
 		row.MissingEvidence = []string{UnattributedMissingEvidence(dimension)}
 	case !available:
 		row.Completeness = GroupCompletenessReadModelUnavailable
-		row.MissingEvidence = []string{MissingEvidenceReadinessUnavailable}
+		row.MissingEvidence = []string{packet.MissingEvidenceReadinessUnavailable}
 	case hidden.Bool:
 		row.Completeness = GroupCompletenessPartial
 	default:

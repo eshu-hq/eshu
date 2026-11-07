@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 	storagepostgres "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
@@ -160,7 +161,7 @@ func assertSupplyChainConflictingAnchorFiltersLive(
 			if tc.environment != "" {
 				return
 			}
-			_, err = findingStore.ExplainSupplyChainImpact(ctx, impact.ExplanationFilter{
+			_, err = findingStore.ExplainSupplyChainImpact(ctx, packet.ExplanationFilter{
 				CVEID:                runtimeFilterLiveCVE,
 				PackageID:            runtimeFilterLivePackage,
 				WorkloadID:           tc.workloadID,
@@ -239,7 +240,7 @@ func assertSupplyChainStaleBakedFiltersLive(
 			if tc.environment != "" {
 				return
 			}
-			_, err = findingStore.ExplainSupplyChainImpact(ctx, impact.ExplanationFilter{
+			_, err = findingStore.ExplainSupplyChainImpact(ctx, packet.ExplanationFilter{
 				CVEID:           runtimeFilterLiveCVE,
 				PackageID:       runtimeFilterLiveBakedPkg,
 				WorkloadID:      tc.workloadID,

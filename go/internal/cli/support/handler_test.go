@@ -14,7 +14,8 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/answerquality"
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 	"github.com/eshu-hq/eshu/go/internal/reportbundle"
 	"github.com/eshu-hq/eshu/go/internal/serviceintel"
 )
@@ -47,21 +48,21 @@ func mustJSON(t *testing.T, v any) []byte {
 
 // samplePacket is a small deterministic investigation packet exercising every
 // rendered layer the endpoint must preserve byte-for-byte.
-func samplePacket() query.InvestigationEvidencePacket {
-	return query.InvestigationEvidencePacket{
-		Schema:   query.InvestigationEvidencePacketSchema,
+func samplePacket() packet.InvestigationEvidencePacket {
+	return packet.InvestigationEvidencePacket{
+		Schema:   packet.InvestigationEvidencePacketSchema,
 		PacketID: "packet-test-001",
-		Identity: query.PacketIdentity{
-			Family:  query.InvestigationFamilySupplyChainImpact,
+		Identity: packet.PacketIdentity{
+			Family:  packet.InvestigationFamilySupplyChainImpact,
 			Subject: map[string]string{"finding_id": "F-1"},
-			Basis:   query.PacketBasisDeterministic,
+			Basis:   packet.PacketBasisDeterministic,
 		},
-		Truth: &query.TruthEnvelope{
-			Level:     query.TruthLevelExact,
-			Basis:     query.TruthBasisAuthoritativeGraph,
-			Freshness: query.TruthFreshness{State: query.FreshnessFresh},
+		Truth: &querycontract.TruthEnvelope{
+			Level:     querycontract.TruthLevelExact,
+			Basis:     querycontract.TruthBasisAuthoritativeGraph,
+			Freshness: querycontract.TruthFreshness{State: querycontract.FreshnessFresh},
 		},
-		Freshness: query.TruthFreshness{State: query.FreshnessFresh},
+		Freshness: querycontract.TruthFreshness{State: querycontract.FreshnessFresh},
 	}
 }
 
@@ -70,20 +71,20 @@ func samplePacket() query.InvestigationEvidencePacket {
 // RenderInvestigationPacket for the same input, in every format.
 func TestRenderEndpointMatchesLocalRender(t *testing.T) {
 	t.Parallel()
-	for _, format := range []query.InvestigationPacketFormat{
-		query.InvestigationPacketFormatJSON,
-		query.InvestigationPacketFormatMarkdown,
-		query.InvestigationPacketFormatHTML,
+	for _, format := range []packet.InvestigationPacketFormat{
+		packet.InvestigationPacketFormatJSON,
+		packet.InvestigationPacketFormatMarkdown,
+		packet.InvestigationPacketFormatHTML,
 	} {
 		t.Run(string(format), func(t *testing.T) {
 			t.Parallel()
-			packet := samplePacket()
-			want, err := query.RenderInvestigationPacket(packet, format)
+			pkt := samplePacket()
+			want, err := packet.RenderInvestigationPacket(pkt, format)
 			if err != nil {
 				t.Fatalf("local render: %v", err)
 			}
 			rec := serveRequest(t, http.MethodPost, "/api/v0/investigation/packet/render",
-				mustJSON(t, RenderRequest{Packet: packet, Format: string(format)}), "")
+				mustJSON(t, RenderRequest{Packet: pkt, Format: string(format)}), "")
 			if rec.Code != http.StatusOK {
 				t.Fatalf("status = %d, want 200; body=%s", rec.Code, rec.Body.String())
 			}
@@ -99,15 +100,15 @@ func TestRenderEndpointMatchesLocalRender(t *testing.T) {
 func TestRenderEndpointRejectsUnknownFormat(t *testing.T) {
 	t.Parallel()
 	rec := serveRequest(t, http.MethodPost, "/api/v0/investigation/packet/render",
-		mustJSON(t, RenderRequest{Packet: samplePacket(), Format: "pdf"}), query.EnvelopeMIMEType)
+		mustJSON(t, RenderRequest{Packet: samplePacket(), Format: "pdf"}), querycontract.EnvelopeMIMEType)
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400; body=%s", rec.Code, rec.Body.String())
 	}
-	var envelope query.ResponseEnvelope
+	var envelope querycontract.ResponseEnvelope
 	if err := json.Unmarshal(rec.Body.Bytes(), &envelope); err != nil {
 		t.Fatalf("decode error envelope: %v", err)
 	}
-	if envelope.Error == nil || envelope.Error.Code != query.ErrorCodeInvalidArgument {
+	if envelope.Error == nil || envelope.Error.Code != querycontract.ErrorCodeInvalidArgument {
 		t.Fatalf("error = %+v, want invalid_argument", envelope.Error)
 	}
 }
@@ -133,7 +134,7 @@ func TestRenderEndpointRejectsOversizeBody(t *testing.T) {
 		mustJSON(t, RenderRequest{
 			Packet: samplePacket(),
 			Format: strings.Repeat("f", maxRenderBodyBytes+1),
-		}), query.EnvelopeMIMEType)
+		}), querycontract.EnvelopeMIMEType)
 	if rec.Code != http.StatusRequestEntityTooLarge {
 		t.Fatalf("status = %d, want 413; body=%s", rec.Code, rec.Body.String())
 	}
@@ -141,13 +142,13 @@ func TestRenderEndpointRejectsOversizeBody(t *testing.T) {
 
 // sampleDossier is a minimal captured service-story dossier with one
 // identity evidence section.
-func sampleDossier() (map[string]any, *query.TruthEnvelope) {
+func sampleDossier() (map[string]any, *querycontract.TruthEnvelope) {
 	return map[string]any{
 			"service": map[string]any{"name": "checkout", "id": "svc-1"},
-		}, &query.TruthEnvelope{
-			Level:     query.TruthLevelExact,
-			Basis:     query.TruthBasisAuthoritativeGraph,
-			Freshness: query.TruthFreshness{State: query.FreshnessFresh},
+		}, &querycontract.TruthEnvelope{
+			Level:     querycontract.TruthLevelExact,
+			Basis:     querycontract.TruthBasisAuthoritativeGraph,
+			Freshness: querycontract.TruthFreshness{State: querycontract.FreshnessFresh},
 		}
 }
 
@@ -158,11 +159,11 @@ func TestComposeEndpointMatchesLocalCompose(t *testing.T) {
 	dossier, truth := sampleDossier()
 	want := serviceintel.Compose(serviceintel.FromServiceStory(dossier, truth))
 	rec := serveRequest(t, http.MethodPost, "/api/v0/service/report/compose",
-		mustJSON(t, ComposeRequest{Dossier: dossier, Truth: truth}), query.EnvelopeMIMEType)
+		mustJSON(t, ComposeRequest{Dossier: dossier, Truth: truth}), querycontract.EnvelopeMIMEType)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body=%s", rec.Code, rec.Body.String())
 	}
-	var envelope query.ResponseEnvelope
+	var envelope querycontract.ResponseEnvelope
 	if err := json.Unmarshal(rec.Body.Bytes(), &envelope); err != nil {
 		t.Fatalf("decode envelope: %v", err)
 	}
@@ -197,12 +198,12 @@ func sampleCaptureInput() reportbundle.CaptureInput {
 		Method:  "GET",
 		Params:  map[string]any{"q": "auth middleware"},
 		Profile: "production",
-		Envelope: query.ResponseEnvelope{
+		Envelope: querycontract.ResponseEnvelope{
 			Data: map[string]any{"repositories": []any{}},
-			Truth: &query.TruthEnvelope{
-				Level:     query.TruthLevelDerived,
-				Basis:     query.TruthBasisHybrid,
-				Freshness: query.TruthFreshness{State: query.FreshnessFresh},
+			Truth: &querycontract.TruthEnvelope{
+				Level:     querycontract.TruthLevelDerived,
+				Basis:     querycontract.TruthBasisHybrid,
+				Freshness: querycontract.TruthFreshness{State: querycontract.FreshnessFresh},
 			},
 		},
 		ReporterNote: "expected the auth middleware repo",
@@ -226,11 +227,11 @@ func TestCaptureEndpointMatchesLocalCapture(t *testing.T) {
 		t.Fatalf("local capture: %v", err)
 	}
 	rec := serveRequest(t, http.MethodPost, "/api/v0/report/bundle/capture",
-		mustJSON(t, input), query.EnvelopeMIMEType)
+		mustJSON(t, input), querycontract.EnvelopeMIMEType)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body=%s", rec.Code, rec.Body.String())
 	}
-	var envelope query.ResponseEnvelope
+	var envelope querycontract.ResponseEnvelope
 	if err := json.Unmarshal(rec.Body.Bytes(), &envelope); err != nil {
 		t.Fatalf("decode envelope: %v", err)
 	}
@@ -264,7 +265,7 @@ func TestCaptureEndpointRefusesCredentialTarget(t *testing.T) {
 	input := sampleCaptureInput()
 	input.Target = "https://svc:" + secret + "@h.internal/tool"
 	rec := serveRequest(t, http.MethodPost, "/api/v0/report/bundle/capture",
-		mustJSON(t, input), query.EnvelopeMIMEType)
+		mustJSON(t, input), querycontract.EnvelopeMIMEType)
 	if rec.Code != http.StatusUnprocessableEntity {
 		t.Fatalf("status = %d, want 422; body=%s", rec.Code, rec.Body.String())
 	}
@@ -283,7 +284,7 @@ func TestCaptureEndpointRedactsCredentialParams(t *testing.T) {
 	input.Target = "/api/v0/search/code"
 	input.Params = map[string]any{"api_key": secret, "q": "auth middleware"}
 	rec := serveRequest(t, http.MethodPost, "/api/v0/report/bundle/capture",
-		mustJSON(t, input), query.EnvelopeMIMEType)
+		mustJSON(t, input), querycontract.EnvelopeMIMEType)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body=%s", rec.Code, rec.Body.String())
 	}
@@ -301,7 +302,7 @@ func TestCaptureEndpointRejectsOversizeBody(t *testing.T) {
 	input := sampleCaptureInput()
 	input.ReporterNote = strings.Repeat("n", maxCaptureBodyBytes+1)
 	rec := serveRequest(t, http.MethodPost, "/api/v0/report/bundle/capture",
-		mustJSON(t, input), query.EnvelopeMIMEType)
+		mustJSON(t, input), querycontract.EnvelopeMIMEType)
 	if rec.Code != http.StatusRequestEntityTooLarge {
 		t.Fatalf("status = %d, want 413; body=%s", rec.Code, rec.Body.String())
 	}
@@ -317,11 +318,11 @@ func TestValidateEndpointVerdict(t *testing.T) {
 		t.Fatalf("local capture: %v", err)
 	}
 	rec := serveRequest(t, http.MethodPost, "/api/v0/report/bundle/validate",
-		mustJSON(t, ValidateRequest{Bundle: bundle}), query.EnvelopeMIMEType)
+		mustJSON(t, ValidateRequest{Bundle: bundle}), querycontract.EnvelopeMIMEType)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("valid bundle status = %d, want 200; body=%s", rec.Code, rec.Body.String())
 	}
-	var envelope query.ResponseEnvelope
+	var envelope querycontract.ResponseEnvelope
 	if err := json.Unmarshal(rec.Body.Bytes(), &envelope); err != nil {
 		t.Fatalf("decode envelope: %v", err)
 	}
@@ -336,7 +337,7 @@ func TestValidateEndpointVerdict(t *testing.T) {
 
 	bundle.Query.Target = "/api/v0/search/code?api_key=planted"
 	rec = serveRequest(t, http.MethodPost, "/api/v0/report/bundle/validate",
-		mustJSON(t, ValidateRequest{Bundle: bundle, RequirePublic: true}), query.EnvelopeMIMEType)
+		mustJSON(t, ValidateRequest{Bundle: bundle, RequirePublic: true}), querycontract.EnvelopeMIMEType)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("invalid bundle status = %d, want 200; body=%s", rec.Code, rec.Body.String())
 	}
@@ -379,11 +380,11 @@ func TestScoreEndpointMatchesLocalScore(t *testing.T) {
 	evidence := sampleEvidence()
 	want := answerquality.Score(evidence)
 	rec := serveRequest(t, http.MethodPost, "/api/v0/answer-quality/score",
-		mustJSON(t, evidence), query.EnvelopeMIMEType)
+		mustJSON(t, evidence), querycontract.EnvelopeMIMEType)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body=%s", rec.Code, rec.Body.String())
 	}
-	var envelope query.ResponseEnvelope
+	var envelope querycontract.ResponseEnvelope
 	if err := json.Unmarshal(rec.Body.Bytes(), &envelope); err != nil {
 		t.Fatalf("decode envelope: %v", err)
 	}

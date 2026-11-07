@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 )
 
 // ReplatformingPlanContractVersion is the wire version of the replatforming
@@ -116,7 +117,7 @@ type MigrationPacketItem struct {
 	FindingKind      string                           `json:"finding_kind,omitempty"`
 	Confidence       string                           `json:"confidence,omitempty"`
 	Freshness        *querycontract.TruthFreshness    `json:"freshness,omitempty"`
-	SafetyGate       ManagementSafetyGate             `json:"safety_gate"`
+	SafetyGate       packet.ManagementSafetyGate      `json:"safety_gate"`
 	SourceLayers     []ReplatformingSourceLayerStatus `json:"source_layers,omitempty"`
 	OwnerCandidates  []ReplatformingOwnerCandidate    `json:"owner_candidates,omitempty"`
 	ImportCandidate  *ReplatformingImportCandidate    `json:"import_candidate,omitempty"`

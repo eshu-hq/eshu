@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package impact
+package packet
 
 import "slices"
 
@@ -32,7 +32,7 @@ func classifyReadinessState(
 	// same reason target_incomplete does: the envelope already names the
 	// gap, and the skip reason says what to fix. Findings still outrank it
 	// (handled by the early ready_with_findings return above).
-	if sourceStatesSkipped(snapshot.SourceStates) {
+	if SourceStatesSkipped(snapshot.SourceStates) {
 		return ReadinessStateTargetSkipped
 	}
 	if advisoryCount == 0 &&
@@ -129,7 +129,7 @@ func classifyMissingEvidence(
 	if len(snapshot.UnsupportedTargets) > 0 {
 		missing = append(missing, MissingEvidenceUnsupportedTargets)
 	}
-	return uniqueSortedReadinessStrings(missing)
+	return UniqueSortedReadinessStrings(missing)
 }
 
 func committedNVDCoverageMissing(snapshot ReadinessSnapshot) bool {

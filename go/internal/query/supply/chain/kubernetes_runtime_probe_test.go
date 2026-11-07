@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 	"github.com/eshu-hq/eshu/go/internal/truth"
@@ -84,7 +85,7 @@ func TestApplySupplyChainKubernetesRuntimeEvidencePromotesExactDigest(t *testing
 		"matched_digest": digest, "workload_uid": "kw-1", "edge_scope_id": "scope-edge", "edge_generation_id": "gen-edge",
 	}}}
 	inventory := &stubKubernetesWorkloadInventory{rows: []KubernetesRuntimeWorkloadMatch{{
-		Digest: digest, WorkloadRef: impact.KubernetesRuntimeWorkloadRef{UID: "kw-1", ClusterID: "cluster-a", Namespace: "payments", Name: "api"},
+		Digest: digest, WorkloadRef: packet.KubernetesRuntimeWorkloadRef{UID: "kw-1", ClusterID: "cluster-a", Namespace: "payments", Name: "api"},
 	}}}
 	handler := &Handler{Neo4j: graph, KubernetesWorkloadInventory: inventory}
 	rows := []impact.FindingRow{
@@ -224,7 +225,7 @@ func TestApplySupplyChainKubernetesRuntimeEvidenceRejectsMalformedAndDeduplicate
 		{"matched_digest": digest, "workload_uid": "kw-missing-edge"},
 	}}
 	inventory := &stubKubernetesWorkloadInventory{rows: []KubernetesRuntimeWorkloadMatch{{
-		Digest: digest, WorkloadRef: impact.KubernetesRuntimeWorkloadRef{UID: "kw-dual", ClusterID: "cluster-a", Namespace: "default", Name: "api"},
+		Digest: digest, WorkloadRef: packet.KubernetesRuntimeWorkloadRef{UID: "kw-dual", ClusterID: "cluster-a", Namespace: "default", Name: "api"},
 	}}}
 	rows := []impact.FindingRow{{FindingID: "f", SubjectDigest: digest}}
 	if err := (&Handler{Neo4j: graph, KubernetesWorkloadInventory: inventory}).
@@ -266,7 +267,7 @@ func TestApplySupplyChainKubernetesRuntimeEvidenceRejectsStoreCrossFindingMismat
 		"matched_digest": digestA, "workload_uid": "kw-a", "edge_scope_id": "scope-a", "edge_generation_id": "gen-a",
 	}}}
 	inventory := &stubKubernetesWorkloadInventory{rows: []KubernetesRuntimeWorkloadMatch{{
-		Digest: digestB, WorkloadRef: impact.KubernetesRuntimeWorkloadRef{UID: "kw-a", ClusterID: "cluster-a", Namespace: "default", Name: "api"},
+		Digest: digestB, WorkloadRef: packet.KubernetesRuntimeWorkloadRef{UID: "kw-a", ClusterID: "cluster-a", Namespace: "default", Name: "api"},
 	}}}
 	rows := []impact.FindingRow{
 		{FindingID: "a", SubjectDigest: digestA},
@@ -307,7 +308,7 @@ func TestApplySupplyChainKubernetesRuntimeEvidenceRecordsZeroInitializedAndFinal
 				"matched_digest": digest, "workload_uid": "kw-1", "edge_scope_id": "scope-1", "edge_generation_id": "gen-1",
 			}},
 			matches: []KubernetesRuntimeWorkloadMatch{{
-				Digest: digest, WorkloadRef: impact.KubernetesRuntimeWorkloadRef{UID: "kw-1", ClusterID: "cluster-a", Namespace: "default", Name: "api"},
+				Digest: digest, WorkloadRef: packet.KubernetesRuntimeWorkloadRef{UID: "kw-1", ClusterID: "cluster-a", Namespace: "default", Name: "api"},
 			}},
 			want: map[string]int64{
 				"eshu.subject_digest_count": 1, "eshu.graph_candidate_count": 1,
@@ -325,7 +326,7 @@ func TestApplySupplyChainKubernetesRuntimeEvidenceRecordsZeroInitializedAndFinal
 				"matched_digest": digest, "workload_uid": "kw-1", "edge_scope_id": "scope-1", "edge_generation_id": "gen-1",
 			}},
 			matches: []KubernetesRuntimeWorkloadMatch{{
-				Digest: digest, WorkloadRef: impact.KubernetesRuntimeWorkloadRef{UID: "kw-1"},
+				Digest: digest, WorkloadRef: packet.KubernetesRuntimeWorkloadRef{UID: "kw-1"},
 			}},
 			want: map[string]int64{
 				"eshu.subject_digest_count": 1, "eshu.graph_candidate_count": 1,

@@ -12,7 +12,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 )
 
@@ -22,8 +22,8 @@ func TestLocalHostProgressTUIModelRendersKnownWorkTable(t *testing.T) {
 	model := localHostProgressTUIModel{
 		workspaceRoot: "/workspace/repo",
 		runtimeConfig: RuntimeConfig{
-			Profile:      query.ProfileLocalAuthoritative,
-			GraphBackend: query.GraphBackendNornicDB,
+			Profile:      querycontract.ProfileLocalAuthoritative,
+			GraphBackend: querycontract.GraphBackendNornicDB,
 		},
 	}
 	updated, cmd := model.Update(localHostProgressReportMsg{report: statuspkg.Report{
@@ -68,8 +68,8 @@ func TestLocalHostProgressTUIModelAlignsKnownWorkColumnsWithStyledBars(t *testin
 
 	model := localHostProgressTUIModel{
 		runtimeConfig: RuntimeConfig{
-			Profile:      query.ProfileLocalAuthoritative,
-			GraphBackend: query.GraphBackendNornicDB,
+			Profile:      querycontract.ProfileLocalAuthoritative,
+			GraphBackend: querycontract.GraphBackendNornicDB,
 		},
 	}
 	updated, _ := model.Update(localHostProgressReportMsg{report: statuspkg.Report{
@@ -119,8 +119,8 @@ func TestLocalHostProgressTUIModelShowsCompleteVerdict(t *testing.T) {
 
 	model := localHostProgressTUIModel{
 		runtimeConfig: RuntimeConfig{
-			Profile:      query.ProfileLocalAuthoritative,
-			GraphBackend: query.GraphBackendNornicDB,
+			Profile:      querycontract.ProfileLocalAuthoritative,
+			GraphBackend: querycontract.GraphBackendNornicDB,
 		},
 	}
 	updated, _ := model.Update(localHostProgressReportMsg{report: statuspkg.Report{
@@ -152,8 +152,8 @@ func TestLocalHostProgressTUIModelShowsSharedProjectionBacklog(t *testing.T) {
 
 	model := localHostProgressTUIModel{
 		runtimeConfig: RuntimeConfig{
-			Profile:      query.ProfileLocalAuthoritative,
-			GraphBackend: query.GraphBackendNornicDB,
+			Profile:      querycontract.ProfileLocalAuthoritative,
+			GraphBackend: querycontract.GraphBackendNornicDB,
 		},
 	}
 	updated, _ := model.Update(localHostProgressReportMsg{report: statuspkg.Report{
@@ -197,8 +197,8 @@ func TestLocalHostProgressTUIModelKeepsCollectorPendingAsIndexing(t *testing.T) 
 
 	model := localHostProgressTUIModel{
 		runtimeConfig: RuntimeConfig{
-			Profile:      query.ProfileLocalAuthoritative,
-			GraphBackend: query.GraphBackendNornicDB,
+			Profile:      querycontract.ProfileLocalAuthoritative,
+			GraphBackend: querycontract.GraphBackendNornicDB,
 		},
 	}
 	updated, _ := model.Update(localHostProgressReportMsg{report: statuspkg.Report{
@@ -230,8 +230,8 @@ func TestLocalHostProgressTUIModelTreatsActiveCollectorGenerationAsCurrent(t *te
 
 	model := localHostProgressTUIModel{
 		runtimeConfig: RuntimeConfig{
-			Profile:      query.ProfileLocalAuthoritative,
-			GraphBackend: query.GraphBackendNornicDB,
+			Profile:      querycontract.ProfileLocalAuthoritative,
+			GraphBackend: querycontract.GraphBackendNornicDB,
 		},
 	}
 	updated, _ := model.Update(localHostProgressReportMsg{report: statuspkg.Report{

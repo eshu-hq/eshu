@@ -3,7 +3,11 @@
 
 package impact
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
+)
 
 func TestBuildSupplyChainImpactReadinessFailsClosedForStalePackageMetadata(t *testing.T) {
 	t.Parallel()
@@ -12,25 +16,25 @@ func TestBuildSupplyChainImpactReadinessFailsClosedForStalePackageMetadata(t *te
 	// join source. A stale registry observation must remain visible as stale
 	// freshness and must not be converted into a clean ready_zero_findings
 	// answer just because advisory and registry fact counts are non-zero.
-	envelope := BuildReadiness(
-		TargetScope{PackageID: "pkg:npm/example"},
+	envelope := packet.BuildReadiness(
+		packet.TargetScope{PackageID: "pkg:npm/example"},
 		nil,
 		false,
-		ReadinessSnapshot{
-			EvidenceSources: []EvidenceFamily{
-				{Family: EvidenceFamilyVulnerabilityAdvisory, FactCount: 4, Freshness: FreshnessLabelFresh},
-				{Family: EvidenceFamilyPackageRegistry, FactCount: 1, Freshness: FreshnessLabelStale},
+		packet.ReadinessSnapshot{
+			EvidenceSources: []packet.EvidenceFamily{
+				{Family: packet.EvidenceFamilyVulnerabilityAdvisory, FactCount: 4, Freshness: packet.FreshnessLabelFresh},
+				{Family: packet.EvidenceFamilyPackageRegistry, FactCount: 1, Freshness: packet.FreshnessLabelStale},
 			},
 		},
 	)
-	if envelope.State != ReadinessStateEvidenceIncomplete {
-		t.Fatalf("state = %q, want %q", envelope.State, ReadinessStateEvidenceIncomplete)
+	if envelope.State != packet.ReadinessStateEvidenceIncomplete {
+		t.Fatalf("state = %q, want %q", envelope.State, packet.ReadinessStateEvidenceIncomplete)
 	}
-	if !ReadinessMissingContains(envelope.MissingEvidence, "package_registry_metadata") {
+	if !packet.ReadinessMissingContains(envelope.MissingEvidence, "package_registry_metadata") {
 		t.Fatalf("missing_evidence = %#v, want package_registry_metadata", envelope.MissingEvidence)
 	}
-	if envelope.Freshness != FreshnessLabelStale {
-		t.Fatalf("freshness = %q, want %q", envelope.Freshness, FreshnessLabelStale)
+	if envelope.Freshness != packet.FreshnessLabelStale {
+		t.Fatalf("freshness = %q, want %q", envelope.Freshness, packet.FreshnessLabelStale)
 	}
 }
 
@@ -39,30 +43,30 @@ func TestBuildSupplyChainImpactReadinessFailsClosedForMissingPackageMetadata(t *
 
 	tests := []struct {
 		name  string
-		scope TargetScope
+		scope packet.TargetScope
 	}{
-		{name: "package anchor", scope: TargetScope{PackageID: "pkg:npm/example"}},
-		{name: "repository target", scope: TargetScope{RepositoryID: "repo://example/api"}},
+		{name: "package anchor", scope: packet.TargetScope{PackageID: "pkg:npm/example"}},
+		{name: "repository target", scope: packet.TargetScope{RepositoryID: "repo://example/api"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			envelope := BuildReadiness(
+			envelope := packet.BuildReadiness(
 				tt.scope,
 				nil,
 				false,
-				ReadinessSnapshot{
-					EvidenceSources: []EvidenceFamily{
-						{Family: EvidenceFamilyVulnerabilityAdvisory, FactCount: 4, Freshness: FreshnessLabelFresh},
-						{Family: EvidenceFamilyPackageConsumption, FactCount: 1, Freshness: FreshnessLabelFresh},
+				packet.ReadinessSnapshot{
+					EvidenceSources: []packet.EvidenceFamily{
+						{Family: packet.EvidenceFamilyVulnerabilityAdvisory, FactCount: 4, Freshness: packet.FreshnessLabelFresh},
+						{Family: packet.EvidenceFamilyPackageConsumption, FactCount: 1, Freshness: packet.FreshnessLabelFresh},
 					},
 				},
 			)
-			if envelope.State != ReadinessStateEvidenceIncomplete {
-				t.Fatalf("state = %q, want %q", envelope.State, ReadinessStateEvidenceIncomplete)
+			if envelope.State != packet.ReadinessStateEvidenceIncomplete {
+				t.Fatalf("state = %q, want %q", envelope.State, packet.ReadinessStateEvidenceIncomplete)
 			}
-			if !ReadinessMissingContains(envelope.MissingEvidence, "package_registry_metadata") {
+			if !packet.ReadinessMissingContains(envelope.MissingEvidence, "package_registry_metadata") {
 				t.Fatalf("missing_evidence = %#v, want package_registry_metadata", envelope.MissingEvidence)
 			}
 		})
@@ -72,22 +76,22 @@ func TestBuildSupplyChainImpactReadinessFailsClosedForMissingPackageMetadata(t *
 func TestBuildSupplyChainImpactReadinessKeepsFreshPackageMetadataReady(t *testing.T) {
 	t.Parallel()
 
-	envelope := BuildReadiness(
-		TargetScope{RepositoryID: "repo://example/api"},
+	envelope := packet.BuildReadiness(
+		packet.TargetScope{RepositoryID: "repo://example/api"},
 		nil,
 		false,
-		ReadinessSnapshot{
-			EvidenceSources: []EvidenceFamily{
-				{Family: EvidenceFamilyVulnerabilityAdvisory, FactCount: 4, Freshness: FreshnessLabelFresh},
-				{Family: EvidenceFamilyPackageConsumption, FactCount: 1, Freshness: FreshnessLabelFresh},
-				{Family: EvidenceFamilyPackageRegistry, FactCount: 1, Freshness: FreshnessLabelFresh},
+		packet.ReadinessSnapshot{
+			EvidenceSources: []packet.EvidenceFamily{
+				{Family: packet.EvidenceFamilyVulnerabilityAdvisory, FactCount: 4, Freshness: packet.FreshnessLabelFresh},
+				{Family: packet.EvidenceFamilyPackageConsumption, FactCount: 1, Freshness: packet.FreshnessLabelFresh},
+				{Family: packet.EvidenceFamilyPackageRegistry, FactCount: 1, Freshness: packet.FreshnessLabelFresh},
 			},
 		},
 	)
-	if envelope.State != ReadinessStateReadyZeroFindings {
-		t.Fatalf("state = %q, want %q", envelope.State, ReadinessStateReadyZeroFindings)
+	if envelope.State != packet.ReadinessStateReadyZeroFindings {
+		t.Fatalf("state = %q, want %q", envelope.State, packet.ReadinessStateReadyZeroFindings)
 	}
-	if ReadinessMissingContains(envelope.MissingEvidence, "package_registry_metadata") {
+	if packet.ReadinessMissingContains(envelope.MissingEvidence, "package_registry_metadata") {
 		t.Fatalf("missing_evidence = %#v, must not include package_registry_metadata", envelope.MissingEvidence)
 	}
 }

@@ -14,7 +14,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/graph"
 	"github.com/eshu-hq/eshu/go/internal/graphschemacompat"
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
@@ -26,7 +26,7 @@ func applyLocalGraphBootstrap(
 	runtimeConfig RuntimeConfig,
 	managedGraph *ManagedGraph,
 ) error {
-	if runtimeConfig.Profile != query.ProfileLocalAuthoritative || managedGraph == nil {
+	if runtimeConfig.Profile != querycontract.ProfileLocalAuthoritative || managedGraph == nil {
 		return nil
 	}
 	backend, err := localGraphSchemaBackend(runtimeConfig, managedGraph)
@@ -48,7 +48,7 @@ func localGraphSchemaBackend(
 		)
 	}
 	switch managedGraph.Backend {
-	case query.GraphBackendNornicDB:
+	case querycontract.GraphBackendNornicDB:
 		return graph.SchemaBackendNornicDB, nil
 	default:
 		return "", fmt.Errorf("local graph backend %q does not support schema bootstrap", managedGraph.Backend)
@@ -102,7 +102,7 @@ func markLocalGraphSchemaApplied(
 	runtimeConfig RuntimeConfig,
 	managedGraph *ManagedGraph,
 ) (err error) {
-	if runtimeConfig.Profile != query.ProfileLocalAuthoritative || managedGraph == nil {
+	if runtimeConfig.Profile != querycontract.ProfileLocalAuthoritative || managedGraph == nil {
 		return nil
 	}
 	backend, err := localGraphSchemaBackend(runtimeConfig, managedGraph)

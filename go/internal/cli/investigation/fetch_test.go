@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/cli/investigation"
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 )
 
 // TestDefaultDepsWiresEveryFamily guards against a family whose fetch is left
@@ -60,7 +60,7 @@ func TestDefaultFetchesBuildTheirRoutes(t *testing.T) {
 		t.Parallel()
 
 		client := &recordClient{}
-		if _, err := deps.FetchSupplyChainExplain(client, query.SupplyChainImpactExplanationFilter{
+		if _, err := deps.FetchSupplyChainExplain(client, packet.ExplanationFilter{
 			AdvisoryID: "GHSA-x", PackageID: "pkg:npm/y", CVEID: "   ",
 		}); err != nil {
 			t.Fatalf("fetch: %v", err)
@@ -114,7 +114,7 @@ func TestDefaultFetchesBuildTheirRoutes(t *testing.T) {
 
 		sentinel := errors.New("request failed: connection refused")
 		if _, err := deps.FetchSupplyChainExplain(&recordClient{err: sentinel},
-			query.SupplyChainImpactExplanationFilter{FindingID: "f"}); !errors.Is(err, sentinel) {
+			packet.ExplanationFilter{FindingID: "f"}); !errors.Is(err, sentinel) {
 			t.Fatalf("err = %v, want the transport error preserved", err)
 		}
 	})

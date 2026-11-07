@@ -17,7 +17,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 )
 
 const (
@@ -47,31 +47,31 @@ func TestSupplyChainImpactReadinessKnownCVECoverageLive(t *testing.T) {
 		dropCVEFact bool
 		advisory    bool
 		resultCount int
-		want        impact.ReadinessState
+		want        packet.ReadinessState
 		wantMissing string
 		wantReason  string
 	}{
 		{
 			name: "known CVE covered with committed advisory", scope: cassetteNVDKnownScope, instance: cassetteNVDKnownInstance,
-			cveID: cassetteNVDKnownCVE, snapshot: true, resultCount: 1, want: impact.ReadinessStateReadyZeroFindings,
+			cveID: cassetteNVDKnownCVE, snapshot: true, resultCount: 1, want: packet.ReadinessStateReadyZeroFindings,
 		},
 		{
 			name: "known CVE covered without advisory", scope: cassetteNVDKnownScope, instance: cassetteNVDKnownInstance,
 			cveID: cassetteNVDKnownCVE, snapshot: true, dropCVEFact: true, resultCount: 1,
-			want: impact.ReadinessStateEvidenceIncomplete, wantMissing: impact.MissingEvidenceAdvisorySources,
+			want: packet.ReadinessStateEvidenceIncomplete, wantMissing: packet.MissingEvidenceAdvisorySources,
 		},
 		{
 			name: "no snapshot with advisory from another scope", scope: cassetteNVDKnownScope, instance: cassetteNVDKnownInstance,
-			cveID: cassetteNVDKnownCVE, advisory: true, want: impact.ReadinessStateTargetIncomplete,
-			wantMissing: impact.MissingEvidenceTargetCollection, wantReason: "nvd:committed_snapshot_missing",
+			cveID: cassetteNVDKnownCVE, advisory: true, want: packet.ReadinessStateTargetIncomplete,
+			wantMissing: packet.MissingEvidenceTargetCollection, wantReason: "nvd:committed_snapshot_missing",
 		},
 		{
 			name: "zero snapshot with advisory", scope: cassetteNVDZeroScope, instance: cassetteNVDZeroInstance,
-			cveID: cassetteNVDZeroCVE, snapshot: true, advisory: true, want: impact.ReadinessStateReadyZeroFindings,
+			cveID: cassetteNVDZeroCVE, snapshot: true, advisory: true, want: packet.ReadinessStateReadyZeroFindings,
 		},
 		{
 			name: "zero snapshot certifies absence", scope: cassetteNVDZeroScope, instance: cassetteNVDZeroInstance,
-			cveID: cassetteNVDZeroCVE, snapshot: true, want: impact.ReadinessStateReadyZeroFindings,
+			cveID: cassetteNVDZeroCVE, snapshot: true, want: packet.ReadinessStateReadyZeroFindings,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -96,7 +96,7 @@ func TestSupplyChainImpactReadinessKnownCVECoverageLive(t *testing.T) {
 			if readiness.State != tc.want {
 				t.Fatalf("readiness = %+v, want %q", readiness, tc.want)
 			}
-			if tc.want == impact.ReadinessStateReadyZeroFindings && readiness.Freshness != "fresh" {
+			if tc.want == packet.ReadinessStateReadyZeroFindings && readiness.Freshness != "fresh" {
 				t.Fatalf("freshness = %q, want fresh", readiness.Freshness)
 			}
 			if tc.wantMissing != "" && !slices.Contains(readiness.MissingEvidence, tc.wantMissing) {
@@ -133,7 +133,7 @@ func TestSupplyChainImpactReadinessStaticWindowStaysHealthOnlyLive(t *testing.T)
 		t.Fatalf("seed historic collection window: %v", err)
 	}
 	readiness := readReadinessScopeAPI(t, db, cassetteNVDZeroCVE)
-	if readiness.State != impact.ReadinessStateReadyZeroFindings || readiness.Freshness != "fresh" {
+	if readiness.State != packet.ReadinessStateReadyZeroFindings || readiness.Freshness != "fresh" {
 		t.Fatalf("readiness = %+v, want ready_zero_findings/fresh", readiness)
 	}
 	if len(readiness.SourceStates) != 2 {
@@ -157,7 +157,7 @@ func TestSupplyChainImpactReadinessLowercaseConfiguredCVELive(t *testing.T) {
 	seedReadinessScopeState(t, ctx, db, now, cassetteNVDZeroInstance, cassetteNVDZeroScope, "nvd", "fresh", "succeeded")
 	seedReadinessCassetteScope(t, ctx, db, now, cassetteNVDZeroScope)
 	readiness := readReadinessScopeAPI(t, db, cassetteNVDZeroCVE)
-	if readiness.State != impact.ReadinessStateReadyZeroFindings || len(readiness.SourceStates) != 1 {
+	if readiness.State != packet.ReadinessStateReadyZeroFindings || len(readiness.SourceStates) != 1 {
 		t.Fatalf("lowercase configured CVE readiness = %+v, want ready_zero_findings with one state", readiness)
 	}
 }

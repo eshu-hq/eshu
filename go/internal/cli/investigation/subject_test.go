@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/cli/investigation"
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 )
 
 func TestParseSubjectFlags(t *testing.T) {
@@ -113,12 +113,12 @@ func TestParseFamilyTrims(t *testing.T) {
 
 	for _, tc := range []struct {
 		raw  string
-		want query.InvestigationFamily
+		want packet.InvestigationFamily
 	}{
-		{raw: "  supply_chain_impact  ", want: query.InvestigationFamilySupplyChainImpact},
-		{raw: "drift", want: query.InvestigationFamilyDrift},
-		{raw: "   ", want: query.InvestigationFamily("")},
-		{raw: "not_a_family", want: query.InvestigationFamily("not_a_family")},
+		{raw: "  supply_chain_impact  ", want: packet.InvestigationFamilySupplyChainImpact},
+		{raw: "drift", want: packet.InvestigationFamilyDrift},
+		{raw: "   ", want: packet.InvestigationFamily("")},
+		{raw: "not_a_family", want: packet.InvestigationFamily("not_a_family")},
 	} {
 		t.Run(tc.raw, func(t *testing.T) {
 			t.Parallel()
@@ -136,11 +136,11 @@ func TestBoundsFromMaxSourceFacts(t *testing.T) {
 	for _, tc := range []struct {
 		name string
 		in   int
-		want *query.PacketBounds
+		want *packet.PacketBounds
 	}{
 		{name: "unset falls back to the contract default", in: 0, want: nil},
 		{name: "negative falls back to the contract default", in: -3, want: nil},
-		{name: "positive overrides", in: 5, want: &query.PacketBounds{MaxSourceFacts: 5}},
+		{name: "positive overrides", in: 5, want: &packet.PacketBounds{MaxSourceFacts: 5}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -165,7 +165,7 @@ func TestSupplyChainFilterFromSubject(t *testing.T) {
 		"subject_digest": "d",
 		"unrelated":      "ignored",
 	}
-	want := query.SupplyChainImpactExplanationFilter{
+	want := packet.ExplanationFilter{
 		FindingID: "f", AdvisoryID: "a", CVEID: "c",
 		PackageID: "p", RepositoryID: "r", SubjectDigest: "d",
 	}
@@ -179,20 +179,20 @@ func TestSupplyChainFilterHasScope(t *testing.T) {
 
 	for _, tc := range []struct {
 		name   string
-		filter query.SupplyChainImpactExplanationFilter
+		filter packet.ExplanationFilter
 		want   bool
 	}{
-		{name: "empty", filter: query.SupplyChainImpactExplanationFilter{}, want: false},
-		{name: "finding id alone is enough", filter: query.SupplyChainImpactExplanationFilter{FindingID: "f"}, want: true},
-		{name: "whitespace finding id is not", filter: query.SupplyChainImpactExplanationFilter{FindingID: "  "}, want: false},
-		{name: "advisory without a target", filter: query.SupplyChainImpactExplanationFilter{AdvisoryID: "a"}, want: false},
-		{name: "target without an advisory", filter: query.SupplyChainImpactExplanationFilter{PackageID: "p"}, want: false},
-		{name: "advisory plus package", filter: query.SupplyChainImpactExplanationFilter{AdvisoryID: "a", PackageID: "p"}, want: true},
-		{name: "cve plus repository", filter: query.SupplyChainImpactExplanationFilter{CVEID: "c", RepositoryID: "r"}, want: true},
-		{name: "cve plus subject digest", filter: query.SupplyChainImpactExplanationFilter{CVEID: "c", SubjectDigest: "d"}, want: true},
+		{name: "empty", filter: packet.ExplanationFilter{}, want: false},
+		{name: "finding id alone is enough", filter: packet.ExplanationFilter{FindingID: "f"}, want: true},
+		{name: "whitespace finding id is not", filter: packet.ExplanationFilter{FindingID: "  "}, want: false},
+		{name: "advisory without a target", filter: packet.ExplanationFilter{AdvisoryID: "a"}, want: false},
+		{name: "target without an advisory", filter: packet.ExplanationFilter{PackageID: "p"}, want: false},
+		{name: "advisory plus package", filter: packet.ExplanationFilter{AdvisoryID: "a", PackageID: "p"}, want: true},
+		{name: "cve plus repository", filter: packet.ExplanationFilter{CVEID: "c", RepositoryID: "r"}, want: true},
+		{name: "cve plus subject digest", filter: packet.ExplanationFilter{CVEID: "c", SubjectDigest: "d"}, want: true},
 		{
 			name:   "whitespace-only halves do not satisfy the pair",
-			filter: query.SupplyChainImpactExplanationFilter{AdvisoryID: " ", PackageID: "p"},
+			filter: packet.ExplanationFilter{AdvisoryID: " ", PackageID: "p"},
 			want:   false,
 		},
 	} {

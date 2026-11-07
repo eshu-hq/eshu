@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 	storagepostgres "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
@@ -155,7 +156,7 @@ func TestGroupedInventoryStoreWinnersLive(t *testing.T) {
 			t.Fatalf("service:d after expiry = %d, want 2 (the hidden suppression expired)", d.Count)
 		}
 		// The watermark is now older than the freshness window for this clock.
-		if d.Completeness != GroupCompletenessReadModelUnavailable || page.Freshness.State != FreshnessLabelStale {
+		if d.Completeness != GroupCompletenessReadModelUnavailable || page.Freshness.State != packet.FreshnessLabelStale {
 			t.Fatalf("service:d completeness/freshness = %q/%q, want read_model_unavailable/stale", d.Completeness, page.Freshness.State)
 		}
 		laterCounts := PostgresAggregateStore{DB: database, Now: func() time.Time { return later }}
