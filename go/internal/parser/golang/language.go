@@ -171,8 +171,15 @@ func Parse(
 				"line_number": nodeLine(pathNode),
 				"lang":        "go",
 			}
+			// The alias is recorded verbatim, including the blank ("_") and
+			// dot (".") bindings: delta derivation (#10301) must tell a
+			// file whose bare names may come from a dot-imported package
+			// apart from one whose bare names are provably same-package.
+			// The in-memory import-alias index still ignores those two
+			// (see symbols.CollectImportAlias): no selector qualifier can
+			// ever be "." or "_", so they bind no qualified resolution.
 			if aliasNode := node.ChildByFieldName("name"); aliasNode != nil {
-				if alias := strings.TrimSpace(nodeText(aliasNode, source)); alias != "" && alias != "." && alias != "_" {
+				if alias := strings.TrimSpace(nodeText(aliasNode, source)); alias != "" {
 					item["alias"] = alias
 				}
 			}

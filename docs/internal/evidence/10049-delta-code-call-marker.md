@@ -17,9 +17,10 @@ callees stay unresolved while the refresh retracts their old edges (live
 B-7: only the same-file edge survived). The handler therefore derives the
 definitions' own `scip-go gomod` keys for provably same-package calls on
 delta generations only (`SamePackageGoCalleeKeysForDeltaRepos`: bare
-unqualified Go name, file with no imports — a dot import is recorded without
-its alias, so files with imports keep today's behavior); full generations
-keep the keyless path byte-identical.
+unqualified Go name in a file whose imports carry no alias — the parser
+records blank and dot imports with their `_`/`.` alias since #10301, so a
+file with an aliased import still derives nothing); full generations keep
+the keyless path byte-identical.
 
 The handler's three symbol-to-runtime domains (`handles_route`, `runs_in`,
 `invokes_cloud_action`) retract repo-wide and have no file-scoped retract.
@@ -49,8 +50,13 @@ Proof, all hermetic in this change:
   own keys for the overlay; before, only the same-file row survived with
   three unresolved callees — the live B-7 signature.
 - `TestSamePackageGoCalleeKeysForDeltaRepos`: the key-derivation edge cases
-  (keyed/qualified/foreign/malformed names, files with imports, missing
-  package identity, non-delta repos, empty delta set).
+  (keyed/qualified/foreign/malformed names, dot/blank/aliased imports,
+  missing package identity, non-delta repos, empty delta set).
+- `TestCodeCallMaterializationHandlerDeltaImportBearingSamePackageCalls`
+  (RED first, #10301): the moved caller lives in a file WITH a plain import
+  (no dot-import), so its keyless same-package call resolves against the
+  unchanged file's definition; the companion dot-imported file's call derives
+  no key and stays unresolved — the fail-safe side.
 - `TestCodeCallProjectionRunnerFileAndWholeRefreshInterleaveDrains`: a
   file-scoped and a whole-scope refresh pending for one repository in one
   acceptance unit — the fenced shape cannot retract, write, or mark on an
@@ -80,6 +86,17 @@ an unusable scope dead-letters on attempt 1 before the symbol load, so a
 bad delta costs no symbol query and no graph write. End-to-end delta
 wall time is NOT_CHECKED here: the live delta-reader leg runs at promotion
 (the shared host was under another lane's live proof during this change).
+- No-Regression Evidence: #10301 import-aware derivation adds no new
+  envelope scan — it reuses the already-loaded `parsed_file_data` maps,
+  iterating at most the file's own import entries (one short-circuiting
+  alias check each) before deriving the same per-callee `scip-go gomod`
+  keys import-free files already derived. Micro-benchmark (50 delta files
+  x 8 plain imports x 10 bare calls, linux/arm64, `go test -bench`):
+  base skip-all ~7us/op, import-aware ~115us/op (~2.3us per import-bearing
+  file) — noise against the handler's millisecond fact loads, and the extra
+  overlay load is one key per distinct callee, the shape #10049 already
+  accepted. Parser side: no new tree walk; only dot/blank imports gain one
+  `alias` string each, all other payload bytes identical.
 
 ## Observability Evidence:
 
@@ -91,3 +108,9 @@ ERROR log for fenced deltas, the overlay outcome counter
 `eshu_dp_code_call_symbol_definition_read_delta_union_total`, and the
 standard reducer execution and code-call edge batch telemetry. Docs that
 called those signals dormant "until #10049" now describe them as live.
+- Observability Evidence: #10301 adds no new instrument; it is visible
+  through the existing delta signals. The handler completion log reports a
+  nonzero `symbol_key_count` for import-bearing deltas (0 before the fix,
+  with `code_call_unresolved_callee_count` at the dropped-edge count), and
+  `eshu_dp_code_call_symbol_definition_read_delta_union_total` counts the
+  overlay read the derived keys trigger.
