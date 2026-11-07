@@ -1,0 +1,14 @@
+docs/internal/evidence/10269-stale-crossplane-row-coalesce.md
+  h_78a442cba0b3e6 3-10
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e37f7a6dbf5502e406035bada582eb5aaefb1256",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
