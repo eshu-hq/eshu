@@ -49,6 +49,12 @@ type CommitHandlerConfig struct {
 	LiveGrants func() ([]component.ProducerGrant, error)
 	// ScopeKind is the scope kind committed generations carry.
 	ScopeKind scope.ScopeKind
+	// SourceSystem is the source system this handler serves. The committed
+	// scope identity is built from it, never from the producer-controlled
+	// result echo: an echo naming any other source system fails closed in
+	// the identity match, so a fencing-token holder cannot overwrite
+	// canonical scope rows that belong to another system.
+	SourceSystem string
 	// CollectorInstanceID binds the result echo to this producer.
 	CollectorInstanceID string
 	// ControlStore is the claim store holding the fenced epoch. The fence
@@ -75,6 +81,7 @@ type CommitHandlerConfig struct {
 type CommitHandler struct {
 	componentID    string
 	instanceID     string
+	sourceSystem   string
 	scopeKind      scope.ScopeKind
 	collectorKinds map[string]struct{}
 	validator      sdkcollector.Validator
@@ -89,8 +96,9 @@ type CommitHandler struct {
 }
 
 // NewCommitHandler validates the commit bundle fail-closed: no store, no
-// committer, no manifest kinds, no scope kind, and no instance identity ever
-// build a handler that would admit a result it cannot fence or attribute.
+// committer, no manifest kinds, no scope kind, no source system, and no
+// instance identity ever build a handler that would admit a result it
+// cannot fence or attribute.
 func NewCommitHandler(cfg CommitHandlerConfig) (*CommitHandler, error) {
 	if cfg.ControlStore == nil {
 		return nil, errors.New("commit handler: claim control store is required")
@@ -103,6 +111,9 @@ func NewCommitHandler(cfg CommitHandlerConfig) (*CommitHandler, error) {
 	}
 	if strings.TrimSpace(cfg.CollectorInstanceID) == "" {
 		return nil, errors.New("commit handler: collector instance id is required")
+	}
+	if strings.TrimSpace(cfg.SourceSystem) == "" {
+		return nil, errors.New("commit handler: source system is required")
 	}
 	componentID := strings.TrimSpace(cfg.Manifest.Metadata.ID)
 	if componentID == "" {
@@ -144,6 +155,7 @@ func NewCommitHandler(cfg CommitHandlerConfig) (*CommitHandler, error) {
 	return &CommitHandler{
 		componentID:    componentID,
 		instanceID:     strings.TrimSpace(cfg.CollectorInstanceID),
+		sourceSystem:   strings.TrimSpace(cfg.SourceSystem),
 		scopeKind:      cfg.ScopeKind,
 		collectorKinds: kinds,
 		validator:      sdkcollector.NewValidator(contract),

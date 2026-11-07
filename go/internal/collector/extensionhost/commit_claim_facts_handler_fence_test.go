@@ -81,6 +81,7 @@ func TestCommitHandlerFenceEqualityTable(t *testing.T) {
 			handler, err := NewCommitHandler(CommitHandlerConfig{
 				Manifest:            manifest,
 				Grants:              grants,
+				SourceSystem:        "git",
 				ScopeKind:           scope.KindRepository,
 				CollectorInstanceID: "scorecard-instance",
 				ControlStore:        workflow.NewClaimPlaneClient(server.URL, server.Client()),
@@ -117,6 +118,7 @@ func TestCommitHandlerFenceEqualityTable(t *testing.T) {
 			Manifest:            manifest,
 			Grants:              grants,
 			LiveGrants:          func() ([]component.ProducerGrant, error) { return live, nil },
+			SourceSystem:        "git",
 			ScopeKind:           scope.KindRepository,
 			CollectorInstanceID: "scorecard-instance",
 			ControlStore:        store,

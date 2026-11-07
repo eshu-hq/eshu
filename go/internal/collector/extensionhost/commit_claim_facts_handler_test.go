@@ -42,6 +42,7 @@ func mustNewCommitHandlerTestBundle(t *testing.T) *commitHandlerTestBundle {
 	committer := &commitHandlerStubCommitter{}
 	handler, err := NewCommitHandler(CommitHandlerConfig{
 		Manifest:            manifest,
+		SourceSystem:        "git",
 		ScopeKind:           scope.KindRepository,
 		CollectorInstanceID: "scorecard-instance",
 		ControlStore:        store,
@@ -283,6 +284,15 @@ func TestCommitHandlerAcksOnlyAfterCommit(t *testing.T) {
 	}
 	if got := bundle.committer.mutations[0]; got.ScopeID != mutation.ScopeID || got.GenerationID != mutation.GenerationID {
 		t.Fatalf("commit planned IDs = %q/%q, want the wire planned IDs", got.ScopeID, got.GenerationID)
+	}
+	if len(bundle.committer.scopes) != 1 {
+		t.Fatalf("recorded scopes = %d, want 1", len(bundle.committer.scopes))
+	}
+	if got := bundle.committer.scopes[0]; got.SourceSystem != "git" {
+		t.Fatalf("commit scope source system = %q, want the configured binding", got.SourceSystem)
+	}
+	if got := bundle.committer.scopes[0]; got.PartitionKey != "git:repo-eshu" {
+		t.Fatalf("commit scope partition = %q, want the fallback shape", got.PartitionKey)
 	}
 }
 

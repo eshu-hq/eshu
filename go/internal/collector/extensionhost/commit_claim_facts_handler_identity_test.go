@@ -128,6 +128,32 @@ func TestCommitHandlerRejectsExtendedMismatch(t *testing.T) {
 	}
 }
 
+// TestCommitHandlerRejectsDivergentEchoSourceSystem proves the committed
+// scope identity never comes from the producer-controlled echo: an echo
+// naming a source system the handler is not bound to fails closed even
+// when every planned ID matches, and never probes the epoch.
+func TestCommitHandlerRejectsDivergentEchoSourceSystem(t *testing.T) {
+	t.Parallel()
+
+	bundle := mustNewCommitHandlerTestBundle(t)
+	workItem, mutation := commitHandlerPlanned(bundle.now)
+	fact := testSDKFact(workItem)
+	fact.SourceRef.SourceSystem = "other-system"
+	result := commitHandlerResult(workItem, fact)
+	result.Claim.SourceSystem = "other-system"
+	recorder := commitHandlerPost(t, bundle.handler, commitHandlerBody(t, mutation, result))
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400 (body %q)", recorder.Code, recorder.Body.String())
+	}
+	if code := commitHandlerEnvelopeCode(t, recorder); code != workflowv1.CodeInvalid {
+		t.Fatalf("envelope code = %q, want invalid", code)
+	}
+	if bundle.store.heartbeatCalls != 0 || bundle.committer.calls != 0 {
+		t.Fatalf("probe calls = %d, commit calls = %d, want 0/0", bundle.store.heartbeatCalls, bundle.committer.calls)
+	}
+}
+
 // TestCommitHandlerRejectsUnknownEnvelopeField proves the proxy never
 // smuggles interpretation past core: a field the protocol does not define
 // fails closed even though the proxy measured the same body as fine.

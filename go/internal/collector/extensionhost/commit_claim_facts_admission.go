@@ -146,6 +146,9 @@ func (h *CommitHandler) matchReturnedClaim(mutation workflow.ClaimMutation, resu
 	if strings.TrimSpace(echo.InstanceID) != h.instanceID {
 		return mismatch("instance")
 	}
+	if strings.TrimSpace(echo.SourceSystem) != h.sourceSystem {
+		return mismatch("source system")
+	}
 	if _, ok := h.collectorKinds[strings.TrimSpace(echo.CollectorKind)]; !ok {
 		return fmt.Errorf("result claim kind %q is not served by this handler", echo.CollectorKind)
 	}
@@ -158,10 +161,16 @@ func (h *CommitHandler) matchReturnedClaim(mutation workflow.ClaimMutation, resu
 
 // buildTarget builds the commit scope and generation for one admitted
 // result. The kind gate runs first: a kind the manifest never declared fails
-// closed instead of committing under a fabricated scope. The partition falls
-// back to source-system:scope-id exactly like the in-tree mapper, because
-// the wire carries no fairness key; TestCommitHandlerScopeMirrorsInTreeMapping
-// pins the two builders identical for that shape.
+// closed instead of committing under a fabricated scope. The scope identity
+// comes from the handler's configured binding and the planned IDs the match
+// already proved, never from the producer-controlled echo: source system
+// from config, scope and generation IDs from the wire planned IDs the echo
+// was checked against. The partition falls back to
+// source-system:scope-id exactly like the in-tree mapper, because the wire
+// carries no fairness key; TestCommitHandlerScopeMirrorsInTreeMapping pins
+// the two builders identical for that shape. A scope the planner files
+// under a fairness key keeps that key only on the in-tree path, so this
+// handler serves producers whose scopes use the fallback shape.
 func (h *CommitHandler) buildTarget(result sdkcollector.Result) (scope.IngestionScope, scope.ScopeGeneration, error) {
 	echo := result.Claim
 	kind := strings.TrimSpace(echo.CollectorKind)
@@ -175,10 +184,10 @@ func (h *CommitHandler) buildTarget(result sdkcollector.Result) (scope.Ingestion
 	}
 	scopeValue := scope.IngestionScope{
 		ScopeID:       strings.TrimSpace(echo.Scope.ID),
-		SourceSystem:  strings.TrimSpace(echo.SourceSystem),
+		SourceSystem:  h.sourceSystem,
 		ScopeKind:     h.scopeKind,
 		CollectorKind: scope.CollectorKind(kind),
-		PartitionKey:  strings.TrimSpace(echo.SourceSystem) + ":" + strings.TrimSpace(echo.Scope.ID),
+		PartitionKey:  h.sourceSystem + ":" + strings.TrimSpace(echo.Scope.ID),
 		Metadata: map[string]string{
 			"component_id": h.componentID,
 			"instance_id":  h.instanceID,
