@@ -80,6 +80,17 @@ See `AGENTS.md`. The ones that bite:
   (`declare.go`: upsert exactly `InstanceID`, no deactivate step) so gated
   claim planes resolve the seeded items; the reversal deletes exactly that
   row again.
+- No-Regression Evidence: the declare adds one PK upsert per run in setup
+  and one PK delete per run in reversal, both single-threaded phases outside
+  the worker window; worker, claim, and queue code is untouched. Measured on
+  scratch Postgres 18 over loopback (empty table, `EXPLAIN ANALYZE`): upsert
+  Execution 0.133 ms, delete Execution 0.042 ms. Full contention suite with
+  PG tests executing stays green (ok 43.3s). Suite wall times across runs are
+  not a before/after pair (different test sets executed), so no speedup is
+  claimed; the bound is two point writes against a 100k-item seed.
+- No-Observability-Change: no new metrics, spans, or logs; the declare
+  surfaces through the existing `report.Deleted["collector_instances"]`
+  count and the residue census.
 
 ## How the spec maps to code
 
