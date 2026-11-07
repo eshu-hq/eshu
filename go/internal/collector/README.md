@@ -327,10 +327,12 @@ strict decode, framing and identity checks, one committer write with the
 fence probe immediately before it; then `CompleteClaim` closes the epoch
 unchanged. The wire mirror is `workflow.ClaimPlaneClient.CommitClaimFacts` (`POST /workflow.v1/CommitClaimFacts`); the server half runs admission first.
 
-- No-Regression Evidence: new-path-only change; no existing function was
-  modified (only the protocol-version pin test gained the new method entry).
-  Baseline: the contract test failed pre-lane with commit calls = 0 (ack,
-  zero facts, the proven production drop). After: the 30 lane tests pass
+- No-Regression Evidence: follow-up-only change to the #10302 lane: one
+  production line (stamp now UTC before the fence probe), pinned by a
+  failing-first stale-ObservedAt test, plus two epoch-identity tests pinning
+  previously mutant-surviving arms. Baseline: the contract test failed
+  pre-lane with commit calls = 0 (ack, zero facts, the proven production
+  drop). After: the 30 lane tests pass
   with -race on the stub harness (no database backend): a 3-fact SDK result
   plus version/page/status/identity/unknown-field rejections (including the
   work-item and fencing-token epoch-identity arms), a cap+1 oversized
