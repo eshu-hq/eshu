@@ -39,22 +39,13 @@ func TestSupplyChainImpactLiveProofsRunInTheReducerContentionGate(t *testing.T) 
 	if err != nil {
 		t.Fatalf("read %s: %v", workflowPath, err)
 	}
-	step := proofStep(t, string(workflow))
-	if !strings.Contains(step, "ESHU_POSTGRES_TEST_DSN:") {
-		t.Fatalf("the step that runs the supply-chain impact proofs in %s no longer passes ESHU_POSTGRES_TEST_DSN: they would skip in CI", workflowPath)
-	}
-	if !strings.Contains(step, supplyChainImpactProofRequiredEnv+": \"1\"") {
-		t.Fatalf("the step that runs the supply-chain impact proofs in %s must set %s=1 so an unset DSN fails them instead of skipping", workflowPath, supplyChainImpactProofRequiredEnv)
-	}
-	// Proofs that read the lane query surface bootstrap a fresh database
-	// through the family disposable pair (the lane's authority migrations
-	// are public-only). Without the pair they skip in CI while the filter
-	// above stays green, so the step must carry both lines.
-	if !strings.Contains(step, "ESHU_SUPPLY_CHAIN_IMPACT_PROOF_DSN:") {
-		t.Fatalf("the step that runs the supply-chain impact proofs in %s no longer passes ESHU_SUPPLY_CHAIN_IMPACT_PROOF_DSN: the disposable-database proofs would skip in CI", workflowPath)
-	}
-	if !strings.Contains(step, "ESHU_SUPPLY_CHAIN_IMPACT_PROOF_DISPOSABLE: \"1\"") {
-		t.Fatalf("the step that runs the supply-chain impact proofs in %s must set ESHU_SUPPLY_CHAIN_IMPACT_PROOF_DISPOSABLE=1 so the disposable-database proofs run instead of failing closed in CI", workflowPath)
+	// #10148 S5: the stress test runs in a second Postgres step, so every
+	// step running the package suite must carry the DSN pair and the
+	// skip-is-failure switch; checking only the first step would let the
+	// stress proof skip silently while staying selected.
+	steps := proofSteps(t, string(workflow))
+	for _, step := range steps {
+		checkSupplyChainProofStepEnv(t, workflowPath, step)
 	}
 	helper, err := os.ReadFile("supply_chain_impact_live_dsn_test.go")
 	if err != nil {
@@ -68,10 +59,81 @@ func TestSupplyChainImpactLiveProofsRunInTheReducerContentionGate(t *testing.T) 
 	}
 
 	proofs := supplyChainImpactLiveProofs(t)
-	filter := reducerContentionGateRunFilter(t, string(workflow))
-	if missing := proofsMissingFromFilter(t, filter, proofs); len(missing) > 0 {
-		t.Fatalf("the reducer contention gate's -run filter %q does not select the supply-chain impact live proofs %v", filter, missing)
+	filters := reducerContentionGateRunFilters(t, string(workflow))
+	if missing := proofsMissingFromFilters(t, filters, proofs); len(missing) > 0 {
+		t.Fatalf("the reducer contention gate's -run filters %q do not select the supply-chain impact live proofs %v", filters, missing)
 	}
+}
+
+// checkSupplyChainProofStepEnv requires the DSN pair and the skip-is-failure
+// switch on one step that runs the Postgres proofs.
+func checkSupplyChainProofStepEnv(t *testing.T, workflowPath, step string) {
+	t.Helper()
+
+	if !strings.Contains(step, "ESHU_POSTGRES_TEST_DSN:") {
+		t.Fatalf("a step that runs the supply-chain impact proofs in %s no longer passes ESHU_POSTGRES_TEST_DSN: they would skip in CI", workflowPath)
+	}
+	if !strings.Contains(step, supplyChainImpactProofRequiredEnv+": \"1\"") {
+		t.Fatalf("a step that runs the supply-chain impact proofs in %s must set %s=1 so an unset DSN fails them instead of skipping", workflowPath, supplyChainImpactProofRequiredEnv)
+	}
+	// Proofs that read the lane query surface bootstrap a fresh database
+	// through the family disposable pair (the lane's authority migrations
+	// are public-only). Without the pair they skip in CI while the filter
+	// above stays green, so the step must carry both lines.
+	if !strings.Contains(step, "ESHU_SUPPLY_CHAIN_IMPACT_PROOF_DSN:") {
+		t.Fatalf("a step that runs the supply-chain impact proofs in %s no longer passes ESHU_SUPPLY_CHAIN_IMPACT_PROOF_DSN: the disposable-database proofs would skip in CI", workflowPath)
+	}
+	if !strings.Contains(step, "ESHU_SUPPLY_CHAIN_IMPACT_PROOF_DISPOSABLE: \"1\"") {
+		t.Fatalf("a step that runs the supply-chain impact proofs in %s must set ESHU_SUPPLY_CHAIN_IMPACT_PROOF_DISPOSABLE=1 so the disposable-database proofs run instead of failing closed in CI", workflowPath)
+	}
+}
+
+// proofsMissingFromFilters returns the proofs no -run filter selects: with the
+// stress test in its own step (#10148 S5), enrollment holds by union.
+func proofsMissingFromFilters(t *testing.T, filters []string, proofs []string) []string {
+	t.Helper()
+	var missing []string
+	for _, name := range proofs {
+		selected := false
+		for _, filter := range filters {
+			selects, err := regexp.Compile(filter)
+			if err != nil {
+				t.Fatalf("compile the -run filter %q: %v", filter, err)
+			}
+			if selects.MatchString(name) {
+				selected = true
+				break
+			}
+		}
+		if !selected {
+			missing = append(missing, name)
+		}
+	}
+	return missing
+}
+
+// reducerContentionGateRunFilters returns the -run pattern of every step that
+// runs the Postgres suite: the main filter plus the stress step's filter.
+func reducerContentionGateRunFilters(t *testing.T, workflow string) []string {
+	t.Helper()
+	const marker = "go test ./internal/storage/postgres/ -run"
+	expression := regexp.MustCompile(`-run '([^']+)'`)
+	steps := regexp.MustCompile(`(?m)^      - name:`).Split(workflow, -1)
+	var filters []string
+	for _, step := range steps {
+		if !strings.Contains(step, marker) {
+			continue
+		}
+		match := expression.FindStringSubmatch(step)
+		if len(match) != 2 {
+			t.Fatal("a Postgres proof step has no single-quoted -run filter; this guard cannot read it")
+		}
+		filters = append(filters, match[1])
+	}
+	if len(filters) == 0 {
+		t.Fatal("the reducer contention gate no longer runs a -run filter; this guard cannot read it")
+	}
+	return filters
 }
 
 // TestProofsMissingFromFilterRejectsAnUnselectedProof is the seeded RED/GREEN
@@ -329,6 +391,65 @@ func proofStep(t *testing.T, workflow string) string {
 	}
 	t.Fatalf("no workflow step runs %q; the guard cannot find the proof step", marker)
 	return ""
+}
+
+// proofSteps returns the text of every workflow step that runs the Postgres
+// proofs, so the env checks apply to the main and the stress step alike.
+func proofSteps(t *testing.T, workflow string) []string {
+	t.Helper()
+
+	const marker = "go test ./internal/storage/postgres/ -run"
+	steps := regexp.MustCompile(`(?m)^      - name:`).Split(workflow, -1)
+	var found []string
+	for _, step := range steps {
+		if strings.Contains(step, marker) {
+			found = append(found, step)
+		}
+	}
+	if len(found) == 0 {
+		t.Fatalf("no workflow step runs %q; the guard cannot find the proof steps", marker)
+	}
+	return found
+}
+
+// TestProofStepsScopeTheEnvChecksToEveryProofStep is the seeded RED/GREEN pair
+// for the multi-step env check (#10148 S5): keys missing from any Postgres
+// proof step must be visible to the loop, and steps that each carry the keys
+// must pass; a proof selected by no step must be reported, and proofs each
+// selected by one step must not.
+func TestProofStepsScopeTheEnvChecksToEveryProofStep(t *testing.T) {
+	t.Parallel()
+
+	const keys = "          ESHU_POSTGRES_TEST_DSN: x\n" +
+		"          ESHU_REQUIRE_SUPPLY_CHAIN_IMPACT_PROOF: \"1\"\n" +
+		"          ESHU_SUPPLY_CHAIN_IMPACT_PROOF_DSN: x\n" +
+		"          ESHU_SUPPLY_CHAIN_IMPACT_PROOF_DISPOSABLE: \"1\"\n"
+	two := "jobs:\n    steps:\n" +
+		"      - name: Main\n        env:\n" + keys + "        run: go test ./internal/storage/postgres/ -run 'A'\n" +
+		"      - name: Stress\n        env:\n" + keys + "        run: go test ./internal/storage/postgres/ -run 'B'\n"
+	if got := proofSteps(t, two); len(got) != 2 {
+		t.Fatalf("GREEN: two Postgres proof steps read back as %d", len(got))
+	}
+	leak := "jobs:\n    steps:\n" +
+		"      - name: Main\n        env:\n" + keys + "        run: go test ./internal/storage/postgres/ -run 'A'\n" +
+		"      - name: Stress\n        run: go test ./internal/storage/postgres/ -run 'B'\n"
+	bare := 0
+	for _, step := range proofSteps(t, leak) {
+		if !strings.Contains(step, "ESHU_POSTGRES_TEST_DSN:") {
+			bare++
+		}
+	}
+	if bare != 1 {
+		t.Fatalf("RED: a Postgres proof step without the DSN keys was not visible (bare=%d)", bare)
+	}
+	filters := []string{"^(TestMainLive)$", "^(TestStressLive)$"}
+	proofs := []string{"TestMainLive", "TestStressLive"}
+	if missing := proofsMissingFromFilters(t, filters, proofs); len(missing) != 0 {
+		t.Fatalf("GREEN: proofs each selected by one step reported %v", missing)
+	}
+	if missing := proofsMissingFromFilters(t, filters[:1], proofs); len(missing) != 1 || missing[0] != "TestStressLive" {
+		t.Fatalf("RED: a proof selected by no step reported %v, want only the stress proof", missing)
+	}
 }
 
 // supplyChainImpactLiveProofs discovers every Test function declared in a
