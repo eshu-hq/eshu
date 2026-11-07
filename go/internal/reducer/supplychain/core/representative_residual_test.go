@@ -60,7 +60,9 @@ func TestJoinedRowWithNoDerivableFamilyStaysVisible(t *testing.T) {
 
 // TestOSPackageIDWithNoPURLDoesNotJoinAPURLKeyedRow pins the limit of that residual:
 // installed rows are keyed by their purl, so an os:// id with no purl meets nothing,
-// yields no finding, and is counted, not silent.
+// yields no finding, and is counted, not silent. The count is no_joinable_identity,
+// not no_installed_row: the identity can meet no row even when the package is
+// installed (#10034 item 3).
 func TestOSPackageIDWithNoPURLDoesNotJoinAPURLKeyedRow(t *testing.T) {
 	t.Parallel()
 	findings, _, stats, err := buildSupplyChainImpactFindingsAndExclusions([]facts.Envelope{
@@ -74,7 +76,7 @@ func TestOSPackageIDWithNoPURLDoesNotJoinAPURLKeyedRow(t *testing.T) {
 	if len(findings) != 0 {
 		t.Fatalf("findings = %d, want 0: %#v", len(findings), findings)
 	}
-	want := map[osRepresentativeOutcomeKey]int{{"ubuntu", osRepresentativeNoInstalledRow}: 1}
+	want := map[osRepresentativeOutcomeKey]int{{"ubuntu", osRepresentativeNoJoinableIdentity}: 1}
 	if !maps.Equal(stats.osRepresentativeOutcomes, want) {
 		t.Fatalf("outcomes = %v, want %v", stats.osRepresentativeOutcomes, want)
 	}

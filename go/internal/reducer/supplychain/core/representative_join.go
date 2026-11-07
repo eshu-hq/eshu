@@ -36,19 +36,28 @@ const (
 	// a row from a non-vendor repository.
 	osRepresentativeNoJoinable = "no_joinable_representative"
 	// osRepresentativeNoInstalledRow: no installed row sits under the group's
-	// lookup keys. Usually the package is not on any scanned host this index holds;
-	// an os:// package id with no purl also lands here, because rows key by purl.
+	// lookup keys. The package is not on any scanned host this index holds,
+	// but the identity could meet a row: it names a purl or a purl-formed
+	// package id.
 	osRepresentativeNoInstalledRow = "no_installed_row"
+	// osRepresentativeNoJoinableIdentity: the group's identity can meet no
+	// installed row at all (#10034 item 3). An os:// package id with no purl,
+	// or a fact with neither, names no purl key, and rows key by purl, so the
+	// row could exist and the identity still could not meet it. The group
+	// yields no finding, as with no_installed_row, but the operator sees
+	// which one it was.
+	osRepresentativeNoJoinableIdentity = "no_joinable_identity"
 )
 
 // Result.SubSignals keys for the representative outcomes. Every key is written
 // on every pass, 0 included, so a clean pass is visible on the success line.
 const (
-	osRepresentativesJoinedSubSignal         = "os_representatives_joined"
-	osRepresentativesReselectedSubSignal     = "os_representatives_reselected"
-	osRepresentativesOtherAnchorSubSignal    = "os_representatives_other_anchor"
-	osRepresentativesNoJoinableSubSignal     = "os_representatives_no_joinable"
-	osRepresentativesNoInstalledRowSubSignal = "os_representatives_no_installed_row"
+	osRepresentativesJoinedSubSignal             = "os_representatives_joined"
+	osRepresentativesReselectedSubSignal         = "os_representatives_reselected"
+	osRepresentativesOtherAnchorSubSignal        = "os_representatives_other_anchor"
+	osRepresentativesNoJoinableSubSignal         = "os_representatives_no_joinable"
+	osRepresentativesNoInstalledRowSubSignal     = "os_representatives_no_installed_row"
+	osRepresentativesNoJoinableIdentitySubSignal = "os_representatives_no_joinable_identity"
 )
 
 // osRepresentativeOutcomeKey is one counter cell: the closed vendor label of the
@@ -276,10 +285,25 @@ func (idx supplyChainImpactIndex) recordOSRepresentativeOutcome(
 		key.outcome = osRepresentativeOtherAnchor
 	case slices.ContainsFunc(pkgs, idx.hasInstalledRowUnderLookupKeys):
 		key.outcome = osRepresentativeNoJoinable
-	default:
+	case slices.ContainsFunc(pkgs, affectedPackageIdentityCanMeetInstalledRow):
 		key.outcome = osRepresentativeNoInstalledRow
+	default:
+		key.outcome = osRepresentativeNoJoinableIdentity
 	}
 	idx.osRepresentativeOutcomes[key]++
+}
+
+// affectedPackageIdentityCanMeetInstalledRow reports whether the fact's
+// identity can meet an installed row at all (#10034 item 3): a purl names the
+// advisory-side lookup key directly, and a purl-formed package id meets a row
+// through the PackageID equality arm. An os:// package id with no purl, or a
+// fact with neither, names neither, and rows key by purl, so such an identity
+// can meet no row even when the package is installed.
+func affectedPackageIdentityCanMeetInstalledRow(pkg supplychainmodel.AffectedPackage) bool {
+	if strings.TrimSpace(pkg.PURL) != "" {
+		return true
+	}
+	return strings.HasPrefix(packageidentity.LowerASCII(strings.TrimSpace(pkg.PackageID)), "pkg:")
 }
 
 // hasInstalledRowUnderLookupKeys reports whether any installed row is indexed
@@ -316,6 +340,7 @@ func (h SupplyChainImpactHandler) recordOSRepresentativeOutcomes(
 	subSignals[osRepresentativesOtherAnchorSubSignal] = float64(stats.osRepresentativesWithOutcome(osRepresentativeOtherAnchor))
 	subSignals[osRepresentativesNoJoinableSubSignal] = float64(stats.osRepresentativesWithOutcome(osRepresentativeNoJoinable))
 	subSignals[osRepresentativesNoInstalledRowSubSignal] = float64(stats.osRepresentativesWithOutcome(osRepresentativeNoInstalledRow))
+	subSignals[osRepresentativesNoJoinableIdentitySubSignal] = float64(stats.osRepresentativesWithOutcome(osRepresentativeNoJoinableIdentity))
 	if h.Instruments == nil || h.Instruments.SupplyChainImpactOSRepresentativeJoins == nil {
 		return
 	}
