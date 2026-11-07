@@ -283,6 +283,12 @@ func (h SupplyChainImpactHandler) fanOutHolders(
 			recoveryOnly = len(write.ChangedCVEIDs) == 0
 			cveIDs = unionSortedStrings(cveIDs, write.RecoveryCVEIDs)
 		}
+	} else {
+		// A one-hop re-derivation fans out nothing of its own rewrite, but
+		// the suppression diff's ids pass through regardless of the stamp:
+		// a stamped first pass of an operator generation would otherwise
+		// admit without fanning out (#10019).
+		cveIDs = write.SuppressionCVEIDs
 	}
 	state := FanOutState{ConsumeOrigin: stamped}
 	if stamped {

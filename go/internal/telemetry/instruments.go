@@ -1192,6 +1192,28 @@ type Instruments struct {
 	// holder read, reopen, or own-item state update, each of which fails the
 	// pass so the queue retries it.
 	SupplyChainImpactFanOut metric.Int64Counter
+	// SupplyChainSuppressionDiffTotal counts suppression diff decisions per
+	// supply-chain impact pass (#10019). Labels: domain
+	// (supply_chain_impact), outcome (ran, skipped_kind, skipped_duplicate,
+	// skipped_never_activated, deferred_unactivated, read_error), and baseline
+	// (admitted, oldest_retained, none). deferred_unactivated is the writer's
+	// invariant fail-closed check: any count means the runtime guard was
+	// bypassed or is not wired.
+	SupplyChainSuppressionDiffTotal metric.Int64Counter
+	// SupplyChainSuppressionDiffDuration records the wall time of one pass's
+	// suppression diff, from the kind check through the walk. Labels: domain
+	// and outcome, as the total above.
+	SupplyChainSuppressionDiffDuration metric.Float64Histogram
+	// SupplyChainSuppressionWalkTruncatedTotal adds the unwalked generation
+	// count of a pass whose walk exceeded the pair cap. Labels: domain and
+	// baseline. Net-zero changes inside the unwalked span stay on the
+	// holders' cadence.
+	SupplyChainSuppressionWalkTruncatedTotal metric.Int64Counter
+	// SupplyChainSuppressionNoCVEScopeTotal adds the distinct changed
+	// suppressions that name no CVE on either side of the diff. Label: domain
+	// only. The holder fan-out cannot reach those suppressions by id, so the
+	// count is what waits on each holder's own next pass.
+	SupplyChainSuppressionNoCVEScopeTotal metric.Int64Counter
 	// SupplyChainImpactWinnersResweepDuration records the wall time of one
 	// committed supply-chain impact winners resweep statement (#9774). It is
 	// registered by registerSupplyChainImpactWinnersInstruments.
@@ -4999,6 +5021,41 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register SupplyChainImpactFanOut counter: %w", err)
+	}
+
+	suppressionDiffBuckets := []float64{0.01, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30}
+	inst.SupplyChainSuppressionDiffTotal, err = meter.Int64Counter(
+		"eshu_dp_supply_chain_impact_suppression_diff_total",
+		metric.WithDescription("Total supply-chain impact suppression diff decisions per pass, by reducer domain, outcome, and baseline kind (#10019)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register SupplyChainSuppressionDiffTotal counter: %w", err)
+	}
+
+	inst.SupplyChainSuppressionDiffDuration, err = meter.Float64Histogram(
+		"eshu_dp_supply_chain_impact_suppression_diff_duration_seconds",
+		metric.WithDescription("Wall time of one supply-chain impact pass's suppression diff, by reducer domain and outcome (#10019)"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(suppressionDiffBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register SupplyChainSuppressionDiffDuration histogram: %w", err)
+	}
+
+	inst.SupplyChainSuppressionWalkTruncatedTotal, err = meter.Int64Counter(
+		"eshu_dp_supply_chain_impact_suppression_walk_truncated_total",
+		metric.WithDescription("Total unwalked generations of supply-chain impact suppression diff walks that exceeded the pair cap, by reducer domain and baseline kind (#10019)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register SupplyChainSuppressionWalkTruncatedTotal counter: %w", err)
+	}
+
+	inst.SupplyChainSuppressionNoCVEScopeTotal, err = meter.Int64Counter(
+		"eshu_dp_supply_chain_impact_suppression_no_cve_scope_total",
+		metric.WithDescription("Total distinct changed suppressions naming no CVE on either side of the supply-chain impact suppression diff, by reducer domain (#10019)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register SupplyChainSuppressionNoCVEScopeTotal counter: %w", err)
 	}
 
 	inst.SupplyChainRemediationDecisions, err = meter.Int64Counter(

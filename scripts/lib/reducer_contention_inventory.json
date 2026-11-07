@@ -290,5 +290,17 @@
   "go/internal/storage/postgres/vulnerability_suppression_advisory_e2e_live_test.go": {
     "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
     "tests": ["TestAdvisoryOnlySuppressionHTTPStoreReducerQueryLive", "TestAdvisorySuppressionIsolatedSchemaDerivesFromBootstrapLive"]
+  },
+  "go/internal/storage/postgres/supply_chain_impact_fanout_suppression_composition_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": ["TestSuppressionFanOutCappedContinuationSurvivesNewerGenerationLive", "TestSuppressionFanOutCoalescedChainReopensBothHoldersLive", "TestSuppressionFanOutPreActivationDefersLive"]
+  },
+  "go/internal/storage/postgres/supply_chain_impact_fanout_suppression_cveid_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": ["TestSuppressionDiffRetryRepeatsTheSetAfterHolderReadFailureLive", "TestSuppressionFanOutCVEIDOnlyScopeReopensOSHolderLive", "TestSuppressionUnchangedSetReopensNobodyLive"]
+  },
+  "go/internal/storage/postgres/supply_chain_impact_fanout_suppression_wire_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": ["TestSuppressionDiffBoundFailsThePassAndRecoversLive", "TestSuppressionDiffIssuesNoStatementForSignalScopesLive", "TestSuppressionDiffPairPlanUsesTheScopeGenerationIndexLive"]
   }
 }

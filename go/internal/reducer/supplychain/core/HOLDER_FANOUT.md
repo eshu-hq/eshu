@@ -44,7 +44,10 @@ more than 256 holders drains across claims.
   committed its rows.
 - One hop: only the attempt a fan-out created is one hop (attempt 1; the reopen
   and the replay both reset the count to 0). That pass re-derives its copy,
-  fans out nothing, and consumes the stamp. A stamp that reaches a later attempt
+  fans out nothing of its own rewrite, and consumes the stamp — except the
+  suppression diff's ids, which pass through regardless of the stamp (#10019:
+  a stamped first pass of an operator generation would otherwise admit without
+  fanning out). A stamp that reaches a later attempt
   was written while a genuine pass ran and failed, so the retry is genuine; an
   owed marker also makes a pass genuine. A continuation is not a hop: a stamped
   drain claim drains the stored list.
@@ -75,6 +78,33 @@ more than 256 holders drains across claims.
   alert scopes derive their own copies); the source scope's pass derives the
   finding from the same evidence, so the missing copy does not hide the
   finding.
+
+## Suppression-only changes (#10019)
+
+A `cve_id`-scoped operator suppression reaches no distro record, so the
+operator pass writes no finding row of its own and the changed-row set is
+empty. The writer diffs the pass's suppression facts against the newest
+admitted older generation whose fan-out debt is cleared
+(`suppression_diff.go`, `suppression_walk.go`, wired in
+`suppression_fanout_wire.go`), walking adjacent activated pairs up to the K=4
+pair cap (`walk_truncated` counts the unwalked tail, which stays on each
+holder's own cadence, and KEV/EPSS facts cannot join by construction). The
+changed suppressions' CVE ids union into `ChangedCVEIDs` before the owed
+marker is recorded, so a suppression-only change still sets the marker and
+reopens the holders through the same edge, with `cause="suppression"`. A
+pass whose own facts hold no suppression issues no new statement; a duplicate
+or clean-retry delivery of an admitted generation names nothing and reopens
+nobody; a pending generation fails closed with the existing
+`generation_activation_not_ready` error. The successor's baseline is the
+newest admitted generation whose owed marker is cleared, so a newer
+generation that activates before the continuation drains covers the owed
+range again instead of trusting it. Signals: `…_suppression_diff_total`
+(`outcome`, `baseline`), `…_diff_duration_seconds`,
+`…_walk_truncated_total`, `…_no_cve_scope_total`, the
+`supply_chain_impact.suppression_diff` span, the result sub-signals
+`suppression_diff_rows`, `suppression_diff_cve_ids`, and
+`suppression_diff_no_cve_scope`, and the `supply chain impact suppression
+diff` log line. Design: `docs/internal/design/10019-suppression-fanout.md`.
 
 ## Enrichment refresh (#9878)
 

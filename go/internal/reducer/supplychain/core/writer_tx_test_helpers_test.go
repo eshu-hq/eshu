@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite/testutil"
@@ -37,6 +38,12 @@ type fakeImpactTxState struct {
 	stored   []fakeStoredFinding
 	cveRows  []string
 	queryErr error
+	// candidates feeds the suppression diff baseline read; diffPairs feeds
+	// one pair read, keyed by (prior, current) generation id; wholeGen feeds
+	// the no-baseline whole-generation read (#10019).
+	candidates []suppressionGeneration
+	diffPairs  map[[2]string][]suppressionDiffRow
+	wholeGen   []suppressionDiffRow
 }
 
 // fakeStoredFinding is one ACTIVE fact_records row the changed-row read returns;
@@ -68,6 +75,8 @@ func (r *fakeImpactRows) Scan(dest ...any) error {
 			*d = value.(bool)
 		case *int64:
 			*d = value.(int64)
+		case *time.Time:
+			*d = value.(time.Time)
 		}
 	}
 	return nil
@@ -123,9 +132,43 @@ func (t fakeImpactTx) QueryContext(_ context.Context, query string, args ...any)
 			rows = append(rows, []any{id})
 		}
 		return &fakeImpactRows{rows: rows}, nil
+	case selectSuppressionCandidatesQuery:
+		rows := make([][]any, 0, len(t.state.candidates))
+		for _, g := range t.state.candidates {
+			rows = append(rows, []any{
+				g.GenerationID, g.Status, !g.ActivatedAt.IsZero(),
+				g.IngestedAt, g.Admitted, g.Owed,
+			})
+		}
+		return &fakeImpactRows{rows: rows}, nil
+	case selectSuppressionDiffPairQuery:
+		var key [2]string
+		if len(args) == 3 {
+			if prior, ok := args[2].(string); ok {
+				key[0] = prior
+			}
+			if current, ok := args[1].(string); ok {
+				key[1] = current
+			}
+		}
+		return &fakeImpactRows{rows: suppressionDiffFakeRows(t.state.diffPairs[key])}, nil
+	case selectSuppressionWholeGenerationQuery:
+		return &fakeImpactRows{rows: suppressionDiffFakeRows(t.state.wholeGen)}, nil
+	case setSuppressionDiffStatementTimeoutQuery:
+		return &fakeImpactRows{}, nil
 	}
 	return nil, errors.New("unexpected query " + query)
 }
 
 func (t fakeImpactTx) Commit() error   { t.state.commits++; return nil }
 func (t fakeImpactTx) Rollback() error { t.state.rollbacks++; return nil }
+
+// suppressionDiffFakeRows renders diff rows as the pair and whole-generation
+// reads return them: suppression id, current CVE id, prior CVE id.
+func suppressionDiffFakeRows(rows []suppressionDiffRow) [][]any {
+	out := make([][]any, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, []any{row.SuppressionID, row.CurrentCVEID, row.PriorCVEID})
+	}
+	return out
+}

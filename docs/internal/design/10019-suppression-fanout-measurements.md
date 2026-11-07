@@ -150,16 +150,21 @@ part of an operator write. The real suppression count is NOT_CHECKED.
 ## Tests committed now
 
 `suppression_diff_test.go` and `suppression_walk_test.go` test the pure functions in
-`suppression_diff.go` and `suppression_walk.go`. Nothing in production calls them yet.
+`suppression_diff.go` and `suppression_walk.go`; the wiring calls them from
+`commitSupplyChainImpactRows` (`suppression_fanout_wire.go`), proved by
+`suppression_fanout_wire_test.go` (writer transaction against faked reads) and the
+live proofs in `supply_chain_impact_fanout_suppression_cveid_live_test.go`,
+`..._suppression_wire_live_test.go`, and `..._suppression_composition_live_test.go`.
 
 | Function | Covers |
 |---|---|
 | `changedSuppressionCVEIDs` | Added, removed, edited, re-scoped, no CVE, blank, Unicode whitespace, lower case, dedupe, order |
 | `countSuppressionsWithoutCVEScope` | Limit 1's counter input |
 | `unionSuppressionFanOutCVEIDs` | Unchanged set stays empty, suppression-only, overlap |
-| `selectSuppressionDiffBaseline` | Plain chain, coalesced, late stale pass, never-activated, failed, no admission, first generation, ingest-order ties, activated_at and ingest order disagreeing |
+| `selectSuppressionDiffBaseline` | Plain chain, coalesced, late stale pass, never-activated, failed, no admission, first generation, ingest-order ties, activated_at and ingest order disagreeing, admitted-but-owed skipped for an older cleared admission, all-owed falls back to oldest retained, owed without admission never a baseline, current generation's owed marker ignored |
 | `planSuppressionWalk`, `walkSuppressionDiff` | Net-zero plants against a brute-force oracle, the cap and its truncation count, the oldest-retained fallback, read errors, a 12-generation chain, candidates in any read order, a retained generation older than the baseline, and a suppression that names a CVE in one step and none in another |
 | `decideSuppressionDiff`, `failClosedError` | KEV, EPSS, advisory, no facts, first pass, superseded-but-activated, pending, never activated, duplicate, recovery, mixed kinds; the pending outcome returns the existing deferral |
+| `runSuppressionDiff` (wired) | Suppression-only union and owed recording, duplicate names nothing and reopens nobody, signal scopes issue no statement, recovery replays the walk, pending fails closed with no admission, no-baseline names every suppression, walk spans an owed generation, read error fails as the retryable fan-out class, the statement bound brackets the walk, one-hop still fans out suppression ids, retry repeats the recovery set |
 
 **Mutants.** Each was applied in a private detached worktree on the committed tests, which
 must fail on it and pass on the real code:
@@ -175,3 +180,34 @@ must fail on it and pass on the real code:
 The full drain's wall time with the real fan-out store (the holder read was timed alone);
 production `work_mem`, and a truly cold cache (the "cold" read was not OS-cold); real
 generation layout on the heap, which the fixture only approximates.
+
+Measured at wiring (not a quiet host, so not the K round): 260 OS holders deriving
+through the full pipeline take 36 s for the first drain and 6 s for the 4-worker
+concurrent drain of the capped continuation plus a newer generation
+(`TestSuppressionFanOutCappedContinuationSurvivesNewerGenerationLive` logs both).
+The 36 s is holder derivation, not the diff; the diff's own p50/p95 at the cap is
+still the condition-1 follow-up.
+
+## Wiring regression record
+
+No-Regression Evidence: baseline is the pre-wire operator pass (no diff, empty
+`ChangedCVEIDs`, holders reopen on the holders' own cadence). After measurement
+on live proof Postgres 18.6 (disposable proof database,
+`ESHU_SUPPLY_CHAIN_IMPACT_PROOF_DISPOSABLE=1`): 260 OS holders, 256 reopened +
+4 deferred at the 256-holder cap, 36 s first-pass derivation, 6 s concurrent
+4-worker drain of the capped continuation plus a newer generation. Input shape:
+operator scope, one `accepted_risk` suppression scoped `cve_id=CVE-X` per holder
+CVE plus the unchanged-set, duplicate-delivery, retry-after-read-failure, and
+newer-generation-before-continuation cases. The wiring adds at most K+1 bounded
+diff reads (10 s `SET LOCAL` each, reset after) plus the admission and
+candidate reads to the write path; scopes without suppression facts issue no
+new statement. Safe because any diff read error or timeout fails the pass as
+the existing retryable fan-out class with no partial set and no admission move.
+Observability Evidence: `eshu_dp_supply_chain_impact_suppression_diff_total`
+(outcome, baseline), `eshu_dp_supply_chain_impact_suppression_diff_duration_seconds`,
+`eshu_dp_supply_chain_impact_suppression_walk_truncated_total`,
+`eshu_dp_supply_chain_impact_suppression_no_cve_scope_total`, the
+`supply_chain_impact.suppression_diff` span, one structured log line per diff,
+and `suppression_diff_*` sub-signals beside `fanout_*`; the existing
+`eshu_dp_supply_chain_impact_fanout_total{cause="suppression"}` shows the
+reopens. `SupplyChainImpactFanOutFailureClass` is unchanged.

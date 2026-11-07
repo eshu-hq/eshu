@@ -222,10 +222,10 @@ func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent reducercont
 
 	phaseStarted = time.Now()
 	write := h.impactWrite(intent, findings, loaded, fencingToken)
-	writeResult, err := h.Writer.WriteSupplyChainImpactFindings(ctx, write)
+	writeResult, err := h.writeFindingsWithSuppressionDiff(ctx, intent, write)
 	if err != nil {
 		h.emitWriteSuperseded(ctx, intent, fencingToken, err)
-		return reducercontract.Result{}, fmt.Errorf("write supply chain impact findings: %w", err)
+		return reducercontract.Result{}, err
 	}
 	timing.writeFindingsDuration = time.Since(phaseStarted)
 
@@ -287,6 +287,9 @@ func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent reducercont
 	}
 	subSignals["findings_retracted"] = float64(writeResult.FactsRetracted)
 	fanOut.mergeSubSignals(subSignals)
+	if writeResult.suppressionDiff.decided() {
+		writeResult.suppressionDiff.mergeSubSignals(subSignals)
+	}
 	h.recordBuildStats(ctx, buildStats, subSignals)
 	subDurations := supplyChainImpactSubDurations(timing)
 	loaded.activeEvidence.mergeInto(subSignals, subDurations)
@@ -324,6 +327,7 @@ func (h SupplyChainImpactHandler) impactWrite(
 		// not qualify: suppression is not part of a finding's identity, so
 		// such a pass still converges (#7154).
 		PartialEvidence: loaded.truncation.partial(),
+		ScopeFactKinds:  loaded.scopeFactKinds,
 		FencingToken:    fencingToken,
 		Recovery:        fanOutOwed(intent) && len(fanOutRemaining(intent)) == 0,
 		Owed:            h.owedRecorder(intent),

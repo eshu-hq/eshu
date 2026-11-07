@@ -255,6 +255,57 @@ func TestSelectSuppressionDiffBaseline(t *testing.T) {
 			},
 			want: suppressionDiffBaseline{GenerationID: "a", Kind: suppressionBaselineOldestRetained},
 		},
+		{
+			name:    "an admitted generation that still owes fan-out is skipped for an older cleared one",
+			current: "c",
+			candidates: []suppressionGeneration{
+				gen("a", 1, true),
+				{GenerationID: "b", Status: "superseded", IngestedAt: at(2), ActivatedAt: at(2), Admitted: true, Owed: true},
+				gen("c", 3, false),
+			},
+			want: suppressionDiffBaseline{GenerationID: "a", Kind: suppressionBaselineAdmitted},
+		},
+		{
+			name:    "newer cleared admission wins over an older cleared one when the newest owes",
+			current: "d",
+			candidates: []suppressionGeneration{
+				gen("a", 1, true),
+				{GenerationID: "b", Status: "superseded", IngestedAt: at(2), ActivatedAt: at(2), Admitted: true, Owed: true},
+				gen("c", 3, true),
+				gen("d", 4, false),
+			},
+			want: suppressionDiffBaseline{GenerationID: "c", Kind: suppressionBaselineAdmitted},
+		},
+		{
+			name:    "when every older admitted generation owes, the oldest retained covers the owed ranges",
+			current: "c",
+			candidates: []suppressionGeneration{
+				{GenerationID: "a", Status: "superseded", IngestedAt: at(1), ActivatedAt: at(1), Admitted: true, Owed: true},
+				{GenerationID: "b", Status: "superseded", IngestedAt: at(2), ActivatedAt: at(2), Admitted: true, Owed: true},
+				gen("c", 3, false),
+			},
+			want: suppressionDiffBaseline{GenerationID: "a", Kind: suppressionBaselineOldestRetained},
+		},
+		{
+			name:    "an owed generation without an admission row is not a baseline",
+			current: "c",
+			candidates: []suppressionGeneration{
+				gen("a", 1, true),
+				{GenerationID: "b", Status: "superseded", IngestedAt: at(2), ActivatedAt: at(2), Owed: true},
+				gen("c", 3, false),
+			},
+			want: suppressionDiffBaseline{GenerationID: "a", Kind: suppressionBaselineAdmitted},
+		},
+		{
+			name:    "the current generation's own owed marker never affects its baseline",
+			current: "c",
+			candidates: []suppressionGeneration{
+				gen("a", 1, true),
+				gen("b", 2, true),
+				{GenerationID: "c", Status: "active", IngestedAt: at(3), ActivatedAt: at(3), Admitted: true, Owed: true},
+			},
+			want: suppressionDiffBaseline{GenerationID: "b", Kind: suppressionBaselineAdmitted},
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

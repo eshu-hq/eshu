@@ -371,6 +371,12 @@ const (
 	// fan-out (#9695): the holder read and the reopen statements. Attributes
 	// carry the source scope, generation, holder count, and outcome counts.
 	SpanSupplyChainImpactFanOut = "supply_chain_impact.fanout"
+	// SpanSupplyChainImpactSuppressionDiff wraps one supply-chain impact
+	// pass's suppression diff (#10019): the candidate read and the walk,
+	// inside the writer transaction. The handler opens it around the write
+	// when the pass's generation carries suppressions; attributes carry the
+	// action, baseline kind, row and id counts, and the diff duration.
+	SpanSupplyChainImpactSuppressionDiff = "supply_chain_impact.suppression_diff"
 	// SpanSupplyChainImpactWinnersResweep wraps one supply-chain impact winners
 	// resweep (#9774): the lease-held transaction that reconciles the winners
 	// read model. Attributes carry the inserted, updated, deleted and unchanged

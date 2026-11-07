@@ -28,7 +28,9 @@
 // carry no family prefix (rule: never repeat the directory in the file
 // name); the impact builders live in short plain-English files
 // (finding.go, writer.go, index_build.go); the suppression story lives in
-// evaluation.go (Decision + Evaluate), decode.go, reasons.go, and scope.go;
+// evaluation.go (Decision + Evaluate), decode.go, reasons.go, and scope.go,
+// with the suppression-only holder fan-out decided in suppression_diff.go
+// and suppression_walk.go and wired in suppression_fanout_wire.go (#10019);
 // and the Go reachability classifier in go_reachability*.go.
 //
 // The exported surface is the join contract other families program against:
