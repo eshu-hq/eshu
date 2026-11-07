@@ -8,7 +8,7 @@
 3. `go/cmd/eshu/investigation_cmd.go` — the cobra `RunE` wrapper. It is the
    only place flags, the API client, the output streams, and the exit code are
    resolved, and it shows how the two halves fit together.
-4. `go/internal/query/investigation_packet.go` — the packet schema and the
+4. `go/internal/query/querycontract/packet/envelope.go` — the packet schema and the
    refusal states this package selects between. Do not restate the schema here.
 
 ## Invariants this package enforces
