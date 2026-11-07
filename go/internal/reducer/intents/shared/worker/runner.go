@@ -271,6 +271,7 @@ func (r *Runner) runOneCycleConcurrent(ctx context.Context) PartitionProcessResu
 func MergePartitionProcessResult(total *PartitionProcessResult, result PartitionProcessResult) {
 	total.ProcessedIntents += result.ProcessedIntents
 	total.BlockedReadiness += result.BlockedReadiness
+	total.UnusableDeltaDeadLettered += result.UnusableDeltaDeadLettered
 	if result.MaxBlockedIntentWaitSeconds > total.MaxBlockedIntentWaitSeconds {
 		total.MaxBlockedIntentWaitSeconds = result.MaxBlockedIntentWaitSeconds
 	}
@@ -386,6 +387,23 @@ func (r *Runner) processPartitionWithTelemetry(
 			telemetry.PhaseAttr(telemetry.PhaseShared),
 		)
 	}
+	if result.UnusableDeltaDeadLettered > 0 && r.Logger != nil {
+		// Operator signal (#10069): refresh intents completed without
+		// retracting because their delta file scope was unusable. Each one
+		// has a durable row in shared_projection_unroutable_intents under the
+		// unusable_delta_scope reason. Expected briefly when a delta
+		// generation's changed paths cannot be qualified; a steady count
+		// means a producer keeps emitting unqualifiable delta scopes.
+		r.Logger.WarnContext(
+			ctx,
+			"shared projection dead-lettered refresh intents with an unusable delta scope",
+			log.Domain(domain),
+			slog.Int("partition_id", partitionID),
+			slog.Int("partition_count", partitionCount),
+			slog.Int("unusable_delta_dead_lettered_count", result.UnusableDeltaDeadLettered),
+			telemetry.PhaseAttr(telemetry.PhaseShared),
+		)
+	}
 
 	if err == nil {
 		r.recordSharedProjectionTiming(ctx, domain, result)
@@ -406,13 +424,17 @@ func (r *Runner) processPartitionWithTelemetry(
 		// (e.g. a graph-write MERGE error): the caller (runOneCycleSequential
 		// / runOneCycleConcurrent) drops this error with `continue` and
 		// retries the same (domain, partition) on the next poll cycle --
-		// shared_projection_intents rows carry no attempt_count column, so
-		// without this log line a failed-then-recovered write leaves zero
-		// durable trace anywhere (unlike a fact_work_items domain, where
-		// WorkSink.Fail durably increments attempt_count). This is the
-		// fired-fault, non-vacuity signal
-		// scripts/verify-ifa-fault-injection.sh's SQL-targeted
-		// fail-graph-write-once-then-succeed-sql cell polls for (issue #5555).
+		// shared_projection_intents rows carry no attempt_count column, so a
+		// transient failure that later recovers leaves zero durable trace
+		// anywhere (unlike a fact_work_items domain, where WorkSink.Fail
+		// durably increments attempt_count). A DETERMINISTIC failure is
+		// different: a retract that fails closed on an unusable delta scope
+		// (#10069) is quarantined into shared_projection_unroutable_intents
+		// and completed instead of retrying, so it never reaches this log
+		// line twice for the same row. This remains the fired-fault,
+		// non-vacuity signal scripts/verify-ifa-fault-injection.sh's
+		// SQL-targeted fail-graph-write-once-then-succeed-sql cell polls for
+		// (issue #5555).
 		r.Logger.ErrorContext(
 			ctx,
 			"shared projection partition processing failed; retrying on next poll cycle",
