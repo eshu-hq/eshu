@@ -93,6 +93,7 @@ func loadGrantsFile(path string) ([]component.ProducerGrant, error) {
 	if strings.TrimSpace(path) == "" {
 		return nil, nil
 	}
+	// #nosec G304 -- path comes only from operator-set ESHU_COMMIT_GRANTS_PATH, never from request input
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("commit listener: %s: read grants %q: %w", envCommitGrantsPath, path, err)
