@@ -139,6 +139,12 @@ func (r *runner) execute(report *Report) error {
 		r.abort(violation(TriggerResidue, "baseline already holds %d synthetic rows", baseline.prefixedTotal()))
 		return nil
 	}
+	// Scoped seed-instance declare (arbiter option i): after the clean
+	// baseline, before any seed write, so the probe stays first and the
+	// seeded items resolve to a declared instance on gated claim planes.
+	if err := r.leg.Observer.DeclareSeedInstance(ctx, r.seedInstance()); err != nil {
+		return fmt.Errorf("declare seed instance: %w", err)
+	}
 	// The database sampler starts before the seed and runs through the
 	// drain, so loss, dual claims, the queue cap, and non-synthetic changes
 	// are watched while the backlog is written and during the stats wait.
@@ -354,6 +360,11 @@ func (r *runner) reverse(ctx context.Context, report *Report) error {
 		if err != nil {
 			return fmt.Errorf("prefix cleanup: %w", err)
 		}
+		n, err := r.leg.Observer.DeleteSeedInstance(ctx)
+		if err != nil {
+			return fmt.Errorf("seed instance cleanup: %w", err)
+		}
+		deleted["collector_instances"] += int(n)
 	}
 	final, err := r.leg.Observer.Census(ctx)
 	if err != nil {

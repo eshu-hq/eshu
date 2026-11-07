@@ -8,6 +8,8 @@ import (
 	"database/sql"
 	"fmt"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
 // censusTable is one table the run can touch: how to read its status,
@@ -285,6 +287,18 @@ func (o *SQLObserver) DeletePrefixed(ctx context.Context, seed int64, batch int)
 		}
 	}
 	return deleted, nil
+}
+
+// DeclareSeedInstance implements Observer: the scoped seed-instance
+// declare over this leg's database (arbiter option i).
+func (o *SQLObserver) DeclareSeedInstance(ctx context.Context, want workflow.DesiredCollectorInstance) error {
+	return declareSeed(ctx, o.db, want) //nolint:wrapcheck // declareSeed already wraps the failure
+}
+
+// DeleteSeedInstance implements Observer: exact-ID removal of the seed
+// instance row this leg declared.
+func (o *SQLObserver) DeleteSeedInstance(ctx context.Context) (int64, error) {
+	return deleteSeed(ctx, o.db) //nolint:wrapcheck // deleteSeed already wraps the failure
 }
 
 // CurrentDatabase returns the connected database name, recorded as
