@@ -63,11 +63,12 @@ round (372-576 ms across the seven rounds, so the host speed varied by about 1.5
 - The single `GROUP BY` statement is exact but never cheaper. It sorts every payload for
   `count(DISTINCT payload)`: 969 ms against 550 ms at one pair, and 1.1 times the pairs
   at eight. At 1,000 suppressions it is three times slower. The pairs shape wins.
-- **No round was quiet.** The lowest start load was 39, so the rule (the largest pair count
+- **No round here was quiet.** The lowest start load was 39, so the rule (the largest pair count
   whose median stays under 500 ms at load1 below 12) picks nothing, and the data cannot choose
   `K`. A watcher polled load1 every 30 s from 19:42 to 20:17 EST (70 polls) for a reading under
   12 held for 20 s, to rerun the rounds. The lowest reading was 18.3 and it ended at 86 to
-  110, so no quiet window came. The options for `K` are in the design doc.
+  110, so no quiet window came. The quiet-host follow-up later ran as #10330 below; the
+  options for `K` are in the design doc.
 
 **The single statement.** Over a chain of N+1 generations, a suppression changed between some
 adjacent pair exactly when it is missing from one generation or its payload varies:
@@ -93,6 +94,55 @@ same index. The hash spills: 8 batches at 4 MB, temp 12,771 pages read and writt
 
 **Fixture note.** This fixture inserts each generation in its own statement, as the store
 does, so each generation sits contiguously on the heap (about 8,330 heap blocks for one generation).
+
+## Quiet-host round (#10330)
+
+Performance Evidence: run 2026-11-07 on a private native PG18.6 (Ubuntu 18.6,
+stock settings: `shared_buffers` 128 MB, `work_mem` 4 MB), full bootstrap schema
+at 52e0cbae93 (309 migrations). One operator-shaped scope of 9 generations with
+100,000 suppressions each, seeded by one `INSERT ... SELECT` across all
+generations, so generations interleave on the heap (pessimistic, like the
+earlier fixture's g1-g5); 1% of the suppressions change between adjacent
+generations (1,000 changed rows per pair, one in twenty of those also moves
+`scope.cve_id`). Background rows in one separate scope: 300,000 EPSS and
+200,000 finding rows. `VACUUM ANALYZE` after the seed.
+`plan_cache_mode = force_generic_plan`; `EXPLAIN (ANALYZE, BUFFERS)` execution
+time. The measured text is the shipped pair statement (the throwaway asserts the
+wire source still carries its shape markers). Each statement ran under the wire's
+own 10 s `SET LOCAL` bound, reset after, so the bound validation rides this
+round. Seven rounds; in each round each arm ran once, with the starting arm
+rotated. Row counts: 900,000 suppressions, 500,000 background.
+
+| Round | Load1 at start | Canary ms | 1-pair ms | Walk-5 ms | Walk max single ms |
+|---:|---:|---:|---:|---:|---:|
+| 1 | 7.20 | 232 | 143 | 740 | 159 |
+| 2 | 6.79 | 232 | 141 | 736 | 151 |
+| 3 | 6.79 | 232 | 143 | 786 | 175 |
+| 4 | 6.79 | 253 | 142 | 779 | 167 |
+| 5 | 6.79 | 232 | 144 | 735 | 152 |
+| 6 | 6.40 | 241 | 145 | 790 | 191 |
+| 7 | 6.40 | 232 | 143 | 729 | 152 |
+
+Control canary: `SELECT count(*) FROM generate_series(1, 3000000)`, run at the
+start of each round (232-253 ms across the seven rounds, so the host speed was
+stable). Every round started under the repo timing rule (load1 under 9), so this
+round qualifies where the earlier ones did not.
+
+**Reading it.**
+
+- One pair at 100,000 suppressions: p50 143 ms, max 145 ms (the p95 estimate over
+  seven rounds), range 141-145 ms. Under the 500 ms acceptance with margin.
+- The capped walk at K=4 over the 9-generation chain (endpoint g1-g5 plus pairs
+  g5-g6, g6-g7, g7-g8, g8-g9, the exact plan `planSuppressionWalk` issues):
+  p50 740 ms, max 790 ms.
+- (K+1) x pair-max = 5 x 145 ms stays far inside the 5 s headroom the 10 s bound
+  needs (condition 2 acceptance met in the same round).
+- The pair plan is unchanged from the loaded host: Hash Full Join over
+  `fact_records_scope_generation_idx` on both sides (Bitmap Heap Scan plus Index
+  Scan), no sequential scan. Temp spill was not re-measured here; the wiring
+  figure (about 104 MB per pair at 4 MB `work_mem`, peak one pair) stands.
+- A larger cap was not probed on a quiet host, so K stays at 4 with the headroom
+  now proven instead of provisional.
 
 ## One pair, earlier runs
 
@@ -185,8 +235,9 @@ Measured at wiring (not a quiet host, so not the K round): 260 OS holders derivi
 through the full pipeline take 36 s for the first drain and 6 s for the 4-worker
 concurrent drain of the capped continuation plus a newer generation
 (`TestSuppressionFanOutCappedContinuationSurvivesNewerGenerationLive` logs both).
-The 36 s is holder derivation, not the diff; the diff's own p50/p95 at the cap is
-still the condition-1 follow-up.
+The 36 s is holder derivation, not the diff; the diff's own p50/p95 at the cap
+was the condition-1 follow-up, now closed by the #10330 quiet-host round above
+(pair p50 143 ms, capped-walk p50 740 ms).
 
 ## Wiring regression record
 

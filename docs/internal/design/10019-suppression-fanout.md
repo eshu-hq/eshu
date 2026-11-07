@@ -2,7 +2,7 @@
 
 Status: Wired 2026-11-07 (#9914 merged via #10225, #10060 fixed via #10300).
 Pure functions (#10141) called from `commitSupplyChainImpactRows`; proofs below all
-delivered. Cap `K` provisional at 4 pending the quiet-host round (condition 1, tracked in #10330).
+delivered. Cap `K` data-chosen at 4 by the quiet-host round (condition 1, #10330).
 
 ## The short version
 
@@ -191,11 +191,13 @@ pair, and 4,482 ms against 4,147 ms for eight. The pairs shape is the design; th
 [the measurements note](10019-suppression-fanout-measurements.md).
 
 At 100,000 suppressions one pair costs 550 ms, four cost 2,044 ms and eight cost 4,147 ms; at
-1,000 they cost 3.3, 8.0 and 14.1 ms (p50, full table in the note).
+1,000 they cost 3.3, 8.0 and 14.1 ms (p50 on the loaded host, full table in the note). On the
+quiet host (#10330: load1 6.4-7.2, canary 232-253 ms) one pair costs 143 ms at p50 (145 ms max
+over seven rounds) and the capped walk of five statements costs 740 ms at p50 (790 ms max).
 
-No round found a quiet host, so `K` is NOT data-chosen: `suppressionWalkMaxPairs`
-stays provisional at 4. The quiet-host re-measure is filed as #10330; condition 1 keeps
-its acceptance. Worst case a pass issues `K+1` statements.
+`K` is data-chosen at 4: (K+1) x 145 ms stays far inside the 5 s headroom. A larger cap was
+not probed on a quiet host, so the cap stays where the wiring shipped it. Worst case a pass
+issues `K+1` statements.
 
 ## The diff statement
 
@@ -236,30 +238,32 @@ sequential scan, taking `AccessShareLock` only. No tried shape beat it, since th
 arm reads the same temp pages. The advisory key is per (scope, generation), so only a retry
 of the same generation waits.
 
-**The timing is partial.** One pair at 100,000 suppressions took 321 ms on the least loaded
-earlier round and 550 ms at load 45 here. No round qualifies as a timing proof: the repo's
-rule is load1 under 9 with a control canary, and the rounds ran at 10 to 59. Recorded as:
-met on the least loaded round; no qualifying quiet-host proof yet.
+**The timing is proven.** The quiet-host round (#10330, full table in the note) ran the shipped
+pair statement on PostgreSQL 18.6 at load1 6.4-7.2 with a 232-253 ms control canary: one pair
+at 100,000 suppressions costs 143 ms at p50 (145 ms max over seven rounds), and the capped
+five-statement walk costs 740 ms at p50 (790 ms max). The plan is unchanged: a Hash Full Join
+over two index accesses on `fact_records_scope_generation_idx` with no sequential scan.
 
 **The writer path has its own 10 s bound.** `suppressionDiffStatementTimeout`
 (in `suppression_fanout_wire.go`) is a `SET LOCAL` around the diff reads inside the
 writer transaction, reset before the row writes that follow. The holder read keeps
 its own bound in the fan-out store's transaction. Either bound fails as the existing
 retryable fan-out
-class; condition 2's acceptance (`K+1` p95 under half of 10 s) rides the quiet-host round.
+class; condition 2's acceptance (`K+1` p95 under half of 10 s) is met by the quiet-host round:
+5 x 145 ms stays far inside 5 s, and every measured statement ran under the wire's 10 s bound.
 
 **Conditions before the wiring PR opens, all required:**
 
-1. **Re-measure on the built writer path** on a quiet host (load1 under 9, control canary),
-   p50 and p95, one pair and at the cap. Acceptance: p50 under 500 ms for one pair at
-   100,000 suppressions; on a miss the lever is statement-local `work_mem`. NOT DONE at
-   wiring (`suppressionWalkMaxPairs` provisional at 4, quiet-host round filed as #10330).
-   Representative cost instead: 260 holders drain in 6 s on 4 workers (36 s derivation).
+1. **Re-measure on the built writer path** on a quiet host (load1 under 9, control canary), p50
+   and p95, one pair and at the cap. Acceptance: p50 under 500 ms for one pair at 100,000
+   suppressions; on a miss the lever is statement-local `work_mem`. DONE (#10330): pair p50
+   143 ms (max 145 ms), capped walk p50 740 ms (max 790 ms); K data-chosen at 4. Cost instead:
+   260 holders drain in 6 s on 4 workers (36 s derivation).
 2. **An explicit statement bound** on each diff statement, reset after the walk so it
    does not leak onto the row writes. Fails as the retryable fan-out class. DONE:
    `suppressionDiffStatementTimeout` (10 s), proved by
    `TestSuppressionDiffBoundFailsThePassAndRecoversLive`; the p95 half-bound acceptance
-   rides on the condition-1 round.
+   is met by the condition-1 round (5 x 145 ms stays far inside 5 s).
 3. **A plan-anchor test** on a seeded, analyzed fixture under both `plan_cache_mode`
    settings: index access on `fact_records_scope_generation_idx` on both sides, no
    sequential scan. DONE: `TestSuppressionDiffPairPlanUsesTheScopeGenerationIndexLive`

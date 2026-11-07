@@ -30,13 +30,13 @@ import (
 // the statement bound, and the report the handler emits.
 
 // suppressionDiffStatementTimeout bounds one diff statement inside the writer
-// transaction. One pair costs about 550 ms at 100,000 suppressions on a
-// loaded host (321 ms on the least loaded round); K=4 pairs plus the endpoint
-// remainder is about 2.8 s, so 10 s holds (K+1) statements with headroom for
-// a p95 under 5 s. The wiring re-measures on a quiet host and fixes K; until
-// then K stays provisional. The holder read uses its own 10 s bound in its
-// own transaction; this one covers only the diff statements and is reset
-// before the row writes that follow.
+// transaction. One pair costs 143 ms at p50 (145 ms max over seven rounds) at
+// 100,000 suppressions on a quiet host (#10330: PostgreSQL 18.6, stock
+// settings, generic plans); K=4 pairs plus the endpoint remainder run five
+// statements in about 0.7 s, so 10 s holds (K+1) statements with headroom for
+// a p95 under 5 s. The holder read uses its own 10 s bound in its own
+// transaction; this one covers only the diff statements and is reset before
+// the row writes that follow.
 const suppressionDiffStatementTimeout = 10 * time.Second
 
 // setSuppressionDiffStatementTimeoutQuery scopes the statement bound to the
