@@ -405,8 +405,10 @@ Commit work itself is bounded by the handler default (60 s) under the
 Observability Evidence (#8877): listener lifecycle is logged with
 `telemetry.EventAttr` — `runtime.server.listening` with the bind
 address, `runtime.server.failed` before the fatal exit,
-`runtime.shutdown.failed` if the pool close fails, and
-`runtime.startup.failed` on any wiring refusal.
+`runtime.shutdown.failed` on commit-server shutdown failure
+(`main.go:104`), and `runtime.startup.failed` on any wiring refusal.
+Pool-close failures log a warning without an event
+(`commit_listener.go:227`).
 
 ## Related docs
 
