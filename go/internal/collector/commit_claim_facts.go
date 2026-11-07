@@ -12,6 +12,7 @@ import (
 	"io"
 	"strconv"
 	"strings"
+	"time"
 
 	sdkcollector "github.com/eshu-hq/eshu-sdk/collector"
 
@@ -81,13 +82,15 @@ type CommitClaimFactsRequest struct {
 // land. The committer re-validates the fence inside its own transaction, so
 // a lease lost between probe and commit still fails closed.
 //
-// No new metrics: the fence probe travels the instrumented claim-plane client
-// path (eshu_dp_workflow_claim_plane_requests_total with
-// operation="HeartbeatClaim"). The committer write bypasses
-// Service.commitWithTelemetry, so eshu_dp_facts_emitted_total and
-// eshu_dp_facts_committed_total do NOT fire on this path; the wire call
-// itself reads on the same two client metrics with
-// operation="CommitClaimFacts".
+// No new metrics: the fence probe reads on the claim-plane client metrics
+// (eshu_dp_workflow_claim_plane_requests_total with
+// operation="HeartbeatClaim") only when the store is the plane client; on
+// the core path it is a direct store heartbeat with no client-metric read,
+// and probe outcomes surface as the handler's error return. The committer
+// write bypasses Service.commitWithTelemetry, so
+// eshu_dp_facts_emitted_total and eshu_dp_facts_committed_total do NOT fire
+// on this path; the wire call itself reads on the same two client metrics
+// with operation="CommitClaimFacts".
 func CommitClaimFacts(
 	ctx context.Context,
 	store ClaimControlStore,
@@ -130,8 +133,14 @@ func CommitClaimFacts(
 	}
 	// Fence and lease probe immediately before the commit: everything above
 	// is pure bytes, so an undecodable or mismatched carrier never extends
-	// a dead epoch and starves reclaim. The heartbeat extends the lease to
-	// cover the commit that follows.
+	// a dead epoch and starves reclaim. The mutation stamps now (UTC) for
+	// the probe: the Postgres heartbeat derives lease_expires_at from the
+	// probed ObservedAt, so a claim-time ObservedAt from a satellite that
+	// collected for minutes would write an already-past expiry. The stamped
+	// mutation also feeds the commit below, keeping probe and write on one
+	// lease. The heartbeat extends the lease to cover the commit that
+	// follows.
+	req.Mutation.ObservedAt = time.Now().UTC()
 	if err := store.HeartbeatClaim(ctx, req.Mutation); err != nil {
 		return fmt.Errorf("commit claim facts fence probe: %w", err)
 	}

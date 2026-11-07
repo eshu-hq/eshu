@@ -327,21 +327,30 @@ strict decode, framing and identity checks, one committer write with the
 fence probe immediately before it; then `CompleteClaim` closes the epoch
 unchanged. The wire mirror is `workflow.ClaimPlaneClient.CommitClaimFacts` (`POST /workflow.v1/CommitClaimFacts`); the server half runs admission first.
 
-- No-Regression Evidence: new-path-only change; no existing function was
-  modified (only the protocol-version pin test gained the new method entry).
-  Baseline: the contract test failed pre-lane with commit calls = 0 (ack,
-  zero facts, the proven production drop). After: the lane tests pass with
-  -race on the stub harness (no database backend): a 3-fact SDK result plus
-  version/page/status/identity/unknown-field rejections, a cap+1 oversized
-  carrier, and an undecodable carrier that never probes. Reject paths record
-  0 envelopes with 0 store or committer calls; stale fence maps to
-  ErrClaimRejected; retries return nil twice with identical deterministic
+- No-Regression Evidence: follow-up-only change to the #10302 lane: one
+  production line (stamp now UTC before the fence probe), pinned by a
+  failing-first stale-ObservedAt test, plus two epoch-identity tests pinning
+  previously mutant-surviving arms. Baseline: the contract test failed
+  pre-lane with commit calls = 0 (ack, zero facts, the proven production
+  drop). After: the 30 lane tests pass
+  with -race on the stub harness (no database backend): a 3-fact SDK result
+  plus version/page/status/identity/unknown-field rejections (including the
+  work-item and fencing-token epoch-identity arms), a cap+1 oversized
+  carrier, and an undecodable carrier that never probes. Reject-before-probe
+  paths record 0 envelopes with 0 store or committer calls; a decodable
+  stale-fence carrier probes once, then fails with zero commits and zero
+  envelopes. Stale fence maps to
+  ErrClaimRejected; the probe stamps now (UTC) so a stale caller ObservedAt
+  still succeeds; retries return nil twice with identical deterministic
   FactIDs (dedup stays the boundary's finalized-skip). Memory is bounded by
   the result cap plus the 64 KiB envelope allowance (4,259,840 B body cap);
   fact writes go only through the existing ClaimedCommitter boundary — no
   new INSERTs, no new queries.
-- No-Observability-Change: the lane adds no metrics, spans, or log lines;
-  the probe and wire call read on the claim-plane client metrics, while the
+- No-Observability-Change: the lane adds no metrics, spans, or log lines.
+  The probe reads on the claim-plane client metrics only when the store is
+  the plane client; on the core path it is a direct store heartbeat with no
+  client-metric read, and probe outcomes surface as the handler's error
+  return. The wire call reads on the same client metrics, while the
   committer write bypasses commitWithTelemetry so fact counters stay silent.
 
 ## Dependencies
