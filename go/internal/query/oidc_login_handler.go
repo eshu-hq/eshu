@@ -48,30 +48,11 @@ type (
 	OIDCLoginStartResponse    = auth.OIDCLoginStartResponse
 	OIDCLoginCompleteRequest  = auth.OIDCLoginCompleteRequest
 	OIDCLoginCompleteResponse = auth.OIDCLoginCompleteResponse
+	OIDCProviderLister        = auth.OIDCProviderLister
+	OIDCRegisteredProvider    = auth.OIDCRegisteredProvider
 )
 
 const DefaultOIDCSessionRefreshWindow = auth.DefaultOIDCSessionRefreshWindow
-
-// OIDCProviderLister is an optional extension on OIDCLoginService implementations
-// that can enumerate the set of provider_config_ids they manage. The
-// AuthProviderListHandler uses it to surface runtime-configured OIDC providers
-// for the pre-auth provider discovery endpoint. Each entry is
-// (ProviderConfigID, TenantID) — no client secrets, issuer URLs, or claim
-// mappings are exposed. Implementations that do not list providers need not
-// implement this interface.
-type OIDCProviderLister interface {
-	// ListOIDCProviderIDs returns the (ProviderConfigID, TenantID) pairs for
-	// every OIDC provider registered at runtime. The caller is responsible for
-	// deduplicating against DB rows before surfacing to clients.
-	ListOIDCProviderIDs() []OIDCRegisteredProvider
-}
-
-// OIDCRegisteredProvider carries the identity fields needed for provider
-// discovery. Only the safe-to-surface subset of ProviderConfig is included.
-type OIDCRegisteredProvider struct {
-	ProviderConfigID string
-	TenantID         string
-}
 
 // OIDCLoginHandler serves generic OIDC login and callback routes.
 type OIDCLoginHandler struct {

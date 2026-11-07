@@ -77,6 +77,8 @@ func TestLoginContractAliasesAreIdentical(t *testing.T) {
 			{reflect.TypeOf((*OIDCLoginService)(nil)).Elem(), reflect.TypeOf((*auth.OIDCLoginService)(nil)).Elem()},
 			{reflect.TypeOf((*ScopedTokenResolver)(nil)).Elem(), reflect.TypeOf((*auth.ScopedTokenResolver)(nil)).Elem()},
 			{reflect.TypeOf((*BrowserSessionResolver)(nil)).Elem(), reflect.TypeOf((*auth.BrowserSessionResolver)(nil)).Elem()},
+			{reflect.TypeOf((*GitHubProviderLister)(nil)).Elem(), reflect.TypeOf((*auth.GitHubProviderLister)(nil)).Elem()},
+			{reflect.TypeOf((*OIDCProviderLister)(nil)).Elem(), reflect.TypeOf((*auth.OIDCProviderLister)(nil)).Elem()},
 		}
 		for _, p := range pairs {
 			got := interfaceMethodSet(p[0])
