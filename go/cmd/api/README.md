@@ -384,6 +384,30 @@ for consistency, permissions, multiple hosts, and qualification limits.
 - The API mux is wrapped with `wrapAPIAuth` before it is handed to the HTTP
   server; do not add unprotected data routes after this wrap point.
 
+## Commit listener
+
+The core API can serve the satellite `CommitClaimFacts` route on an
+internal listener (`commit_listener.go`, #8877). `ESHU_COMMIT_LISTEN`
+gates everything: unset keeps the core dark and the public `:8080`
+surface byte-identical. A set-but-half-configured gate refuses startup
+with the missing variable named, before any socket opens. An unexpected
+serve error fails the process (`os.Exit(1)`); only `http.ErrServerClosed`
+is a clean shutdown.
+
+No-Regression Evidence (#8877): dark mode adds zero goroutines, zero
+sockets, and zero queries — `wireCommitListener` returns nil before the
+pool, the files, and the network. Enabled mode adds one idle accept
+loop plus one shutdown-watcher goroutine and one role-attested pool;
+no query, batch, claim, or lease path changes, so no benchmark is owed.
+Commit work itself is bounded by the handler default (60 s) under the
+120 s satellite proxy bound.
+
+Observability Evidence (#8877): listener lifecycle is logged with
+`telemetry.EventAttr` — `runtime.server.listening` with the bind
+address, `runtime.server.failed` before the fatal exit,
+`runtime.shutdown.failed` if the pool close fails, and
+`runtime.startup.failed` on any wiring refusal.
+
 ## Related docs
 
 - `docs/public/deployment/service-runtimes.md` — API runtime lane and scaling notes
