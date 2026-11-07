@@ -262,9 +262,13 @@ deltas measured on the old baseline to within run-to-run noise.
 - `no-joinable` is the largest cost on a group that still yields nothing: about 20
   allocations per group. A profile of that shape puts it in
   `affectedOSPackageLookupKeys`, reached through `firstOSPackageImpactPath` per fact.
-  If the quiet-host delta on `no-joinable` or `joined` is over 10%, the duplicate
-  lookup between `withJoinableOSRepresentative` and `recordOSRepresentativeOutcome`
-  comes out before push.
+  Quiet-host rerun at load1 under 9, interleaved, `-count=10` per side
+  (`benchstat` base3 vs fix2, `OSRepresentativeSelection`, `-benchtime=1s`):
+  `joined` +7.56% sec/op (+5.68% allocs), `no-joinable` +14.78% sec/op (+9.34%
+  allocs), both inside the decision bounds. If the quiet-host delta on `joined`
+  exceeds +10%, or on `no-joinable` exceeds +19.8% (5 points above the measured
+  +14.78%), the duplicate lookup between `withJoinableOSRepresentative` and
+  `recordOSRepresentativeOutcome` comes out before push.
 - An earlier timing at load 35-66 showed `no-joinable` at +13.2% with a 12-13%
   run-to-run range. That load makes it non-comparable, so it decides nothing.
 

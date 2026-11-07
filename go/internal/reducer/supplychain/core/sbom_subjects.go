@@ -38,6 +38,7 @@ func appendSupplyChainImpactPackageFindings(
 	pkg := representativeAffectedPackage(filtered)
 	paths := supplyChainSBOMPaths(pkg, index)
 	reselected := false
+	decided := ""
 	if len(paths) == 0 {
 		// Mixed rows under a blank ecosystem: classify the versioned rows, which have
 		// no base row, apart from the rows with no version, which do (ruling 9990-f6).
@@ -48,13 +49,15 @@ func appendSupplyChainImpactPackageFindings(
 		// No SBOM path: let the facts that join the installed row decide the
 		// finding when source order picked one with no anchor at all, or a blank
 		// ecosystem that joins beside a fact that cannot (#9990).
-		if joining, wasReselected, ok := withJoinableOSRepresentative(filtered, pkg, index); ok {
+		joining, wasReselected, narrowed, probe := withJoinableOSRepresentative(filtered, pkg, index)
+		decided = probe
+		if narrowed {
 			filtered, reselected = joining, wasReselected
 			pkg = representativeAffectedPackage(filtered)
 			paths = supplyChainSBOMPaths(pkg, index)
 		}
 	}
-	index.recordOSRepresentativeOutcome(filtered, pkg, reselected, len(paths) > 0)
+	index.recordOSRepresentativeOutcome(filtered, pkg, reselected, len(paths) > 0, decided)
 	if len(paths) == 0 {
 		return appendSupplyChainImpactFleetOSFindings(findings, cves, pkgs, filtered, index, true)
 	}
@@ -277,7 +280,7 @@ func consumptionRowsForRepository(
 }
 
 func hasMatchingOSPackage(pkg supplychainmodel.AffectedPackage, index supplyChainImpactIndex) bool {
-	_, ok := firstOSPackageImpactPath(pkg, index)
+	_, ok, _ := firstOSPackageImpactPath(pkg, index)
 	return ok
 }
 

@@ -91,7 +91,7 @@ func TestWithJoinableOSRepresentativeNarrowsOnlyTheRuledGroups(t *testing.T) {
 			t.Parallel()
 			group := slices.Clone(tc.group)
 			before := slices.Clone(group)
-			got, reselected, ok := withJoinableOSRepresentative(group, group[tc.representative], tc.index)
+			got, reselected, ok, _ := withJoinableOSRepresentative(group, group[tc.representative], tc.index)
 			if ok != tc.wantOK || reselected != tc.wantReselected {
 				t.Fatalf("ok = %v, reselected = %v, want %v, %v", ok, reselected, tc.wantOK, tc.wantReselected)
 			}
@@ -153,7 +153,7 @@ func TestNarrowedDirectGroupReadsEveryRowTheRepresentativeJoins(t *testing.T) {
 			if rows := matchingOSPackageImpactPaths(blankOwn, index); len(rows) != 2 {
 				t.Fatalf("the representative joins %d rows, want 2", len(rows))
 			}
-			_, _, ok := withJoinableOSRepresentative([]supplychainmodel.AffectedPackage{blankOwn, other}, blankOwn, index)
+			_, _, ok, _ := withJoinableOSRepresentative([]supplychainmodel.AffectedPackage{blankOwn, other}, blankOwn, index)
 			if ok != tc.wantNarrowed {
 				t.Fatalf("narrowed = %v, want %v", ok, tc.wantNarrowed)
 			}
@@ -183,7 +183,126 @@ func TestNarrowedDirectGroupReadsABlankRowThatDoesNotSortFirst(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, _, ok := withJoinableOSRepresentative([]supplychainmodel.AffectedPackage{blankOwn, other}, blankOwn, index); ok {
+	if _, _, ok, _ := withJoinableOSRepresentative([]supplychainmodel.AffectedPackage{blankOwn, other}, blankOwn, index); ok {
 		t.Fatal("narrowed a group whose joined rows include a row with a blank version")
+	}
+}
+
+// TestWithJoinableDecidedOutcomeMatchesWalkedOutcome pins the fusion contract
+// behind the quiet-host timing fix (#9990): the outcome
+// withJoinableOSRepresentative settles while deciding the narrowing must equal
+// the outcome recordOSRepresentativeOutcome counts by walking, and groups the
+// narrowing cannot settle decide "" so the walked count stands.
+func TestWithJoinableDecidedOutcomeMatchesWalkedOutcome(t *testing.T) {
+	t.Parallel()
+	fact := func(factID, source, ecosystem, packageID, name, purl string) supplychainmodel.AffectedPackage {
+		return supplychainmodel.AffectedPackage{
+			FactID: factID, Source: source, Ecosystem: ecosystem, AdvisoryID: "ADV-" + factID,
+			PackageID: packageID, Name: name, PURL: purl,
+		}
+	}
+	foreign := func(factID string) supplychainmodel.AffectedPackage {
+		return fact(factID, "nvd", "deb", "pkg:deb/debian/notinstalled", "notinstalled", "pkg:deb/debian/notinstalled")
+	}
+	identity := func(factID string) supplychainmodel.AffectedPackage {
+		return fact(factID, "debian", "os", "os://debian/curl", "curl", "")
+	}
+	for _, tc := range []struct {
+		name           string
+		group          []supplychainmodel.AffectedPackage
+		representative int
+		wantDecided    string
+		wantWalked     string
+	}{
+		{
+			"narrowed direct blank decides joined",
+			[]supplychainmodel.AffectedPackage{
+				fact("a-own", "ubuntu", "", repJoinPackageID, "curl", repJoinPURL),
+				fact("b-nvd", "nvd", "os", repJoinPackageID, "curl", ""),
+			},
+			0, osRepresentativeJoined, osRepresentativeJoined,
+		},
+		{
+			"spelled representative that joins decides joined",
+			[]supplychainmodel.AffectedPackage{
+				fact("a-own", "ubuntu", "os", repJoinPackageID, "curl", repJoinPURL),
+				fact("b-nvd", "nvd", "os", repJoinPackageID, "curl", ""),
+			},
+			0, osRepresentativeJoined, osRepresentativeJoined,
+		},
+		{
+			"reselected decides reselected",
+			[]supplychainmodel.AffectedPackage{
+				fact("a-nvd", "nvd", "os", repJoinPackageID, "curl", ""),
+				fact("b-own", "ubuntu", "os", repJoinPackageID, "curl", repJoinPURL),
+			},
+			0, osRepresentativeReselected, osRepresentativeReselected,
+		},
+		{
+			"every fact joins decides joined",
+			[]supplychainmodel.AffectedPackage{
+				fact("a-own", "ubuntu", "", repJoinPackageID, "curl", repJoinPURL),
+				fact("b-own", "ubuntu", "", repJoinPackageID, "curl", repJoinPURL),
+			},
+			0, osRepresentativeJoined, osRepresentativeJoined,
+		},
+		{
+			"no fact joins decides no_joinable_representative",
+			[]supplychainmodel.AffectedPackage{
+				fact("a-nvd", "nvd", "os", repJoinPackageID, "curl", ""),
+				fact("b-nvd", "nvd", "deb", repJoinPackageID, "curl", ""),
+			},
+			0, osRepresentativeNoJoinable, osRepresentativeNoJoinable,
+		},
+		{
+			"no row under the keys decides no_installed_row",
+			[]supplychainmodel.AffectedPackage{foreign("a-nvd"), foreign("b-nvd")},
+			0, osRepresentativeNoInstalledRow, osRepresentativeNoInstalledRow,
+		},
+		{
+			"an identity that meets no row decides no_joinable_identity",
+			[]supplychainmodel.AffectedPackage{identity("a-debian"), identity("b-debian")},
+			0, osRepresentativeNoJoinableIdentity, osRepresentativeNoJoinableIdentity,
+		},
+		{
+			// Decision 4: an OSV fact whose deb purl names no known vendor
+			// classifies to "" and never checks keys, while the walked count
+			// checks keys regardless, so the narrowing decides nothing here.
+			"a blank-vendor fact with rows under its keys decides nothing",
+			[]supplychainmodel.AffectedPackage{
+				fact("a-osv", "osv", "os", repJoinPackageID, "curl", "pkg:deb/kali/curl"),
+				fact("b-osv", "osv", "os", repJoinPackageID, "curl", "pkg:deb/kali/curl"),
+			},
+			0, "", osRepresentativeNoJoinable,
+		},
+		{
+			"a lone fact decides nothing and the walked count stands",
+			[]supplychainmodel.AffectedPackage{
+				fact("a-own", "ubuntu", "os", repJoinPackageID, "curl", repJoinPURL),
+			},
+			0, "", osRepresentativeJoined,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			probed := osPackageRowForTest(t)
+			probed.osRepresentativeOutcomes = map[osRepresentativeOutcomeKey]int{}
+			_, reselected, _, decided := withJoinableOSRepresentative(tc.group, tc.group[tc.representative], probed)
+			if decided != tc.wantDecided {
+				t.Fatalf("decided = %q, want %q", decided, tc.wantDecided)
+			}
+			probed.recordOSRepresentativeOutcome(tc.group, tc.group[tc.representative], reselected, false, "")
+			if len(probed.osRepresentativeOutcomes) != 1 {
+				t.Fatalf("walked %d outcomes, want 1: %v", len(probed.osRepresentativeOutcomes), probed.osRepresentativeOutcomes)
+			}
+			for key := range probed.osRepresentativeOutcomes {
+				if key.outcome != tc.wantWalked {
+					t.Fatalf("walked = %q, want %q", key.outcome, tc.wantWalked)
+				}
+				if decided != "" && key.outcome != decided {
+					t.Fatalf("walked = %q but decided = %q", key.outcome, decided)
+				}
+			}
+		})
 	}
 }
