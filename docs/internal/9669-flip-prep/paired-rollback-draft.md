@@ -28,12 +28,15 @@ gh release list --repo eshu-hq/eshu-mcp
 
 ```bash
 # 1. Revert the cutover commit touching the eshu-deploy image values
-#    (image.repository/image.tag or the mcpServer/api overrides —
-#    verify by rendering at rollback time). ArgoCD self-heals from git.
-#    If git is unavailable, force values directly:
-helm upgrade eshu deploy/helm/eshu --set image.repository=TBD-LAST-GOOD-REPO \
-  --set image.tag=TBD-LAST-GOOD-TAG -n eshu
-kubectl -n eshu rollout status deploy/eshu-api
+#    (the per-service pins — verify names/paths by rendering at
+#    rollback time; the shared image.repository/image.tag pair does
+#    NOT move the dest edges). ArgoCD self-heals from git.
+#    If git is unavailable, force values directly (chart at helm/eshu):
+helm upgrade eshu helm/eshu \
+  --set extractedApi.image.repository=TBD-LAST-GOOD-REPO \
+  --set extractedApi.image.tag=TBD-LAST-GOOD-TAG \
+  --set mcpServer.image=TBD-LAST-GOOD-MCP-IMAGE -n eshu
+kubectl -n eshu rollout status deploy/eshu-extracted-api
 kubectl -n eshu rollout status deploy/eshu-mcp-server
 ```
 

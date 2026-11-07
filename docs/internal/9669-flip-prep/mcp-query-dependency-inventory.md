@@ -143,8 +143,10 @@ in-tree import they were meant to sever.
    behind admission contracts; `Dispatch until Leaf B-D` families
    (Status, SupplyChain) resolve their audit-read / split-point open
    questions first.
-2. **Flip**: the single IaC pin moves both edges (see the flip mechanics
-   draft); MCP satellite serves from the dest artifact against `eshu-api`.
+2. **Flip**: the two per-service IaC pins move (see the flip mechanics
+   draft — `extractedApi.image.*` for the API edge, `mcpServer.image`
+   for the MCP edge; the old "single pin" claim is retired); MCP
+   satellite serves from the dest artifact against `eshu-api`.
 3. **MCP severance**: Groups A–D move to versioned contracts in dependency
    order C (auth first, highest risk) → A (envelope) → D (views follow the
    envelope) → B (read seam last, after callers migrate); Group E repointed;
