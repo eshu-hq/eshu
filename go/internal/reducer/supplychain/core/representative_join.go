@@ -151,24 +151,20 @@ func narrowShardToJoinableOSRepresentative(
 	return pkgs
 }
 
-// liveShardPackages filters the group to the facts live on this shard's
+// liveShardPackages filters the group to the facts live on a fleet shard's
 // scope, because an anchor is judged on the scope it anchors (#10034, the
 // different-vendor group limit): a live fact joining only one shard no longer
-// keeps a retracted record's facts on the shards it never joins.
-// Single-shard indexes classify exactly as before. The no-SBOM fleet also
+// keeps a retracted record's facts on the shards it never joins. It then
 // narrows to the facts that join the shard's row; an SBOM-scoped finding
-// holds every fact of the group its digest names, narrowing or not.
+// holds every fact of the group its digest names, narrowing or not, so the
+// SBOM path never calls this.
 func liveShardPackages(
 	cves supplyChainCVEGroup,
 	pkgs []supplychainmodel.AffectedPackage,
 	index supplyChainImpactIndex,
-	narrowPerShard bool,
 ) (supplyChainCVEGroup, []supplychainmodel.AffectedPackage) {
 	cves, pkgs = liveAdvisoryPackages(cves, pkgs, index)
-	if narrowPerShard {
-		pkgs = narrowShardToJoinableOSRepresentative(pkgs, index)
-	}
-	return cves, pkgs
+	return cves, narrowShardToJoinableOSRepresentative(pkgs, index)
 }
 
 // splitDirectBlankGroupByRowVersion splits a group by the version of the installed rows

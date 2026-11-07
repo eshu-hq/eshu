@@ -63,6 +63,21 @@ func osHoldingFacts(
 	return holders
 }
 
+// osHoldingFactsForRow names the finding's holder facts when the installed
+// row's version is undisputed by release evidence. See osHoldingFacts for the
+// two-live-records rule (#9914).
+func osHoldingFactsForRow(
+	osPackage supplychainmodel.OSPackage,
+	pkg supplychainmodel.AffectedPackage,
+	pkgs []supplychainmodel.AffectedPackage,
+	hasOSPackage, osVersionConflict bool,
+) []osHoldingFact {
+	if !hasOSPackage || osVersionConflict {
+		return nil
+	}
+	return osHoldingFacts(osPackage.InstalledVersion, pkg.Ecosystem, pkgs, osPackage.PackageManager)
+}
+
 // osFactHoldsInstalled reports whether the one fact in pkg holds observed, and the
 // fix its holding range names for the host. pkg is a one-element slice so the
 // exact-list check shares the verdict's own helper.

@@ -95,7 +95,10 @@ func classifySupplyChainImpactPackage(
 	index supplyChainImpactIndex,
 	narrowPerShard bool,
 ) SupplyChainImpactFinding {
-	cves, pkgs = liveShardPackages(cves, pkgs, index, narrowPerShard)
+	// Whole-index input reuses the naming pair; only a shard filters per scope (#10034).
+	if narrowPerShard {
+		cves, pkgs = liveShardPackages(cves, pkgs, index)
+	}
 	pkg := representativeAffectedPackage(pkgs)
 	component, attachment, image, hasComponentPath, imagePathMissing := firstSBOMImpactPath(pkg, index)
 	consumption := firstConsumption(pkg.PackageID, index.consumption)
@@ -123,12 +126,7 @@ func classifySupplyChainImpactPackage(
 		pkg = representativeAffectedPackage(pkgs)
 	}
 	osVersionConflict := hasComponentPath && conflictingOSPackageVersions(pkg.Ecosystem, component.Version, subjectOSRows)
-	var holders []osHoldingFact
-	if hasOSPackage && !osVersionConflict {
-		// Two live records can disagree about this row: the one whose range holds
-		// its version names the finding and supplies the fix (#9914).
-		holders = osHoldingFacts(osPackage.InstalledVersion, pkg.Ecosystem, pkgs, osPackage.PackageManager)
-	}
+	holders := osHoldingFactsForRow(osPackage, pkg, pkgs, hasOSPackage, osVersionConflict)
 	finding := baseSupplyChainImpactFinding(cves, pkgs, holders, index)
 	// repoFromConsumption is the single provenance signal both image-evidence
 	// branches below gate on: the SBOM branch must not overwrite a

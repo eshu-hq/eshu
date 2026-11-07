@@ -64,3 +64,41 @@ One new outcome cell: `no_joinable_identity`, with the
 beside the existing outcome cells in `recordOSRepresentativeOutcome`. No new
 metric, span, or log beyond that cell; the unsupported-ecosystem reason now
 carries the vendor token the finding and the counter agree on.
+
+Observability Evidence: the new stage file
+`go/internal/reducer/supplychain/core/version_family.go` is a pure function
+stage with no emission of its own; it is covered by the existing
+`eshu_dp_supply_chain_impact_os_representative_joins_total` outcome cells
+(including the new `no_joinable_identity` cell and its sub-signal) in the
+supply-chain projection row of
+`docs/public/observability/telemetry-coverage-reducer-domains.md`, which now
+names the file. No new metric, span, or log.
+
+## Cost (items 2-4, L2)
+
+No-Regression Evidence: the whole-index path reuses the naming's filter pair
+instead of recomputing it, so a group that shards to nothing classifies
+exactly the code the base ran; only a fleet shard pays one extra filtered
+join scan on its own rows. Baseline `52e0cbae93` vs head `63999479ef`,
+`BenchmarkBuildFindingsMultiSourceGroups` (500 three-source CVE groups per
+shape, live and all_rejected, `-benchmem -count=6`, darwin/arm64 Apple M5
+Max, go1.27.3):
+
+| shape | allocs/op base | allocs/op head | B/op head vs base |
+| --- | --- | --- | --- |
+| live | 123.1k | 123.1k | identical |
+| all_rejected | 134.1k | 134.1k | identical |
+
+`benchstat` reports `~` (p=0.470 live, p=0.065 all_rejected) on allocs/op and
+`~` on B/op for both shapes: zero new allocations on the measured path. Wall
+time on the loaded host read at or below the base on both shapes
+(-5.11% live, -5.83% all_rejected), so no wall-time regression is claimed or
+needed here either: the verdict rests on the identical allocation profile and
+the unchanged algorithmic order for the no-shard path. An intermediate
+revision that re-filtered inside every classification showed +2.98% allocs/op
+on all_rejected; the bisect (pre-L2 vs head) proved the L2 commit the sole
+delta, and the reuse above removed it. Raw runs: `/tmp/bench-10034-L2-base.txt`,
+`/tmp/bench-10034-L2-reuse.txt` (regenerable with the command above on a
+detached base worktree and this branch). The finding count is unchanged: the
+benchmark asserts a finding per group, and the full core package (including
+every RED/GREEN test in the table above) is green.
