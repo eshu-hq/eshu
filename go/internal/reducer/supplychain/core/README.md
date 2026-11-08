@@ -331,15 +331,9 @@ A source can say its own record no longer stands: NVD sets `vulnStatus` to
 reads both through `advisoryRetractionCode`, and `retractionFromObservations`
 decides per finding.
 
-- **Rule.** A finding retracts only when EVERY source that contributes evidence
-  for it retracted. The sources are the observations the severity selection
-  reads: one per `vulnerability.cve` fact, plus one per `affected_package` fact
-  that no CVE fact matched, which reads as its record when that whole record retracted. A source whose CVE fact is missing from the loaded set, or was
-  quarantined by a failed decode (`unreadableCVEs`, keyed by
-  `supplyChainCVEGroupKey`), counts as live, so a decode failure never hides a vulnerability that source still asserts. A partial load can: a package fact whose own cve fact was cut reads as its record when a loaded cve fact of that record retracted. A rejected CVE
-  with a live GHSA alias, or a withdrawn GHSA whose CVE has a live NVD record,
-  keeps the finding active. The retracting source still shows under
-  `provenance.advisory_sources[]` with its `status` and `replaced_by`.
+- **Rule.** A finding retracts only when EVERY source that contributes evidence for it retracted: one observation per `vulnerability.cve` fact, plus one per `affected_package` fact that no CVE fact matched, which reads as its record when that whole record retracted. A source whose CVE fact is missing, cut by a partial load, or quarantined by a failed decode (`unreadableCVEs`) counts as live.
+  Copies of one record in several scopes (per-window generations, the active-facts second hop) share their (payload source, advisory id); only the newest counts — greatest `source_updated_at` (empty or unparseable ranks oldest), ties on the greater fact id — so an older active copy never blocks a newer withdrawn or Rejected copy's retraction (#10042), and severity, fix, and range read the newest copy (`newestCopyAdvisoryInputs` in `newest_copy.go`, pairing by scope and generation in `matchAffectedForCVE`).
+  A rejected CVE with a live GHSA alias, a withdrawn GHSA with a live NVD record, or a live second stream of one logical source (direct GHSA plus OSV-carried) keeps the finding active, and the retracting source still shows under `provenance.advisory_sources[]`.
 - **What retracts.** Exactly `rejected` and `withdrawn` (case-insensitive,
   trimmed) or a non-empty `withdrawn_at`. Any other status retracts nothing.
 - **What "retract" means here.** The finding stays in the table with

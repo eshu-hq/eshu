@@ -72,25 +72,50 @@ func TestOSRetractionIsJudgedOverTheRecordsThatListThePackage(t *testing.T) {
 	}
 }
 
-// TestOSRetractionKeepsARecordWithOneLiveCVEFactLive: two cve facts sharing an
-// AdvisoryID are one record, whichever of them the package fact pairs with. Live
-// beside withdrawn stays live, as liveAdvisoryPackages reads it, so the retraction
-// cannot depend on the order the facts load in.
-func TestOSRetractionKeepsARecordWithOneLiveCVEFactLive(t *testing.T) {
+// TestOSRetractionNewestCopyOfOneRecordDecides: two cve facts sharing an
+// AdvisoryID are two copies of one record, and the newest copy decides it
+// (#10042). A newer withdrawn copy retracts even beside an older live one;
+// a newer live copy keeps the record live. Either way the answer cannot
+// depend on the order the facts load in.
+//
+// The frozen DLA copy is modified 2026-10-26T18:02:41Z, so the live copy at
+// 2026-10-01T00:00:00Z is its older copy and the live copy at
+// 2026-10-27T00:00:00Z is its newer copy.
+func TestOSRetractionNewestCopyOfOneRecordDecides(t *testing.T) {
 	t.Parallel()
 
-	dla, _ := retractedDLA(t, "")
-	envelopes := append(slices.Clone(dla),
-		vulnerabilityCVEFactWithProvenance("dla-live-copy", "CVE-2023-38039", "osv", "DLA-9999-1", 0, "", "", "2026-10-01T00:00:00Z"),
-		debianCurl("11", "7.74.0-1.3+deb11u7").envelope())
-	for order, shuffled := range orderings(envelopes) {
-		findings := BuildSupplyChainImpactFindings(shuffled)
-		if len(findings) != 1 {
-			t.Fatalf("%s: findings = %d, want 1: %#v", order, len(findings), findings)
-		}
-		if findings[0].AdvisoryRetraction != nil {
-			t.Errorf("%s: AdvisoryRetraction = %#v, want nil: one cve fact of the record is live", order, findings[0].AdvisoryRetraction)
-		}
+	for _, tc := range []struct {
+		name        string
+		liveUpdated string
+		wantRetract bool
+	}{
+		{name: "newer withdrawn retracts beside an older live copy", liveUpdated: "2026-10-01T00:00:00Z", wantRetract: true},
+		{name: "newer live keeps the record live beside an older withdrawal", liveUpdated: "2026-10-27T00:00:00Z", wantRetract: false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			dla, _ := retractedDLA(t, "")
+			envelopes := append(slices.Clone(dla),
+				vulnerabilityCVEFactWithProvenance("dla-live-copy", "CVE-2023-38039", "osv", "DLA-9999-1", 0, "", "", tc.liveUpdated),
+				debianCurl("11", "7.74.0-1.3+deb11u7").envelope())
+			for order, shuffled := range orderings(envelopes) {
+				findings := BuildSupplyChainImpactFindings(shuffled)
+				if len(findings) != 1 {
+					t.Fatalf("%s: findings = %d, want 1: %#v", order, len(findings), findings)
+				}
+				if tc.wantRetract {
+					retraction := findings[0].AdvisoryRetraction
+					if retraction == nil || retraction.ReasonCode != AdvisoryRetractionWithdrawn {
+						t.Errorf("%s: AdvisoryRetraction = %#v, want the newer DLA copy's withdrawal", order, retraction)
+					}
+					continue
+				}
+				if findings[0].AdvisoryRetraction != nil {
+					t.Errorf("%s: AdvisoryRetraction = %#v, want nil: the newer copy of the record is live", order, findings[0].AdvisoryRetraction)
+				}
+			}
+		})
 	}
 }
 

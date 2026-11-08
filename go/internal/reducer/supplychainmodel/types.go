@@ -13,10 +13,18 @@ import (
 // advisory fact (a CVE/GHSA/OSV record) used to classify supply-chain-impact
 // findings.
 type ImpactCVE struct {
-	FactID          string
-	CVEID           string
-	AdvisoryID      string
-	Source          string
+	FactID     string
+	CVEID      string
+	AdvisoryID string
+	Source     string
+	// ScopeID names the scope that holds this copy of the advisory. Copies
+	// of one advisory in several scopes (per-window generations, the
+	// active-facts second hop) share their (Source, AdvisoryID) but never
+	// their scope, so the newest-copy rule pairs and reduces by it.
+	ScopeID string
+	// GenerationID names the generation that holds this copy of the
+	// advisory, qualifying ScopeID the way the loader scopes facts.
+	GenerationID    string
 	CVSSScore       float64
 	CVSSVector      string
 	SeverityLabel   string
@@ -46,10 +54,18 @@ type ImpactCVE struct {
 // advisory-to-package affected-range record: the package identity, version
 // ranges, and fixed-version evidence one advisory names for one ecosystem.
 type AffectedPackage struct {
-	FactID           string
-	CVEID            string
-	Source           string
-	AdvisoryID       string
+	FactID     string
+	CVEID      string
+	Source     string
+	AdvisoryID string
+	// ScopeID names the scope that holds this package fact. It pairs the
+	// fact with the advisory copy recorded in the same scope and
+	// generation, so the newest-copy rule drops a superseded copy whole
+	// instead of pairing its package with another copy's CVE fact.
+	ScopeID string
+	// GenerationID names the generation that holds this package fact,
+	// qualifying ScopeID the way the loader scopes facts.
+	GenerationID     string
 	PackageID        string
 	Ecosystem        string
 	Name             string
