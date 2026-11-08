@@ -88,8 +88,6 @@ func scrapeStore(queryer *fake.ExecQueryer, readerOn bool) postgres.StatusStore 
 // registry collector statements, which the scrape never renders. The
 // terminal-failure read (#8803) runs only when an enabled collector instance
 // exists; this empty store has none, so it adds no statement here. The
-// terminal-failure read (#8803) runs only when an enabled collector instance
-// exists; this empty store has none, so it adds no statement here. The
 // stuck-partial scope read (#10389) runs on every selection, reader on or
 // off, because no stored-summary model owns it.
 func TestStatusMetricsStatementInventory(t *testing.T) {
