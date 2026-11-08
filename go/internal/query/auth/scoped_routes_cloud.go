@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query //nolint:dirgate // #6818 move 4b: root auth surface (aliases, forwarders, route policies, handler wiring) stays in package query; moving it into auth/ strands root handler callers and turns this rename into a root-surface relocation, which is a separate follow-up.
+package auth
 
 import (
 	"net/http"
@@ -12,7 +12,7 @@ import (
 // cloud/aws/kubernetes/observability/ecosystem/misc family: every route in
 // this family now binds its reads to AllowedRepositoryIDs/AllowedScopeIDs
 // (empty-grant short-circuit, redacted or withheld cross-tenant identifiers),
-// so each is safe to move off the pendingRowFilteringRoutes ledger
+// so each is safe to move off the PendingRowFilteringRoutes ledger
 // (auth_scoped_routes_pending_row_filtering.go) and onto this allowlist. Each
 // predicate's doc comment cites the handler file that proves the binding.
 

@@ -11,7 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
 	"github.com/eshu-hq/eshu/go/internal/mcp/contract/tool"
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 )
 
 // RouteResolver maps a tool call to the HTTP route dispatch would send. The
@@ -32,15 +32,15 @@ type routeClass struct {
 	allowlisted bool
 }
 
-// classifyRoute runs the query package's own route ledgers, so the router
+// classifyRoute runs the query auth leaf's own route ledgers, so the router
 // agrees with the API auth middleware by construction.
 func classifyRoute(method, path string) routeClass {
 	req := &http.Request{Method: method, URL: &url.URL{Path: path}}
 	return routeClass{
 		resolved:            true,
-		sharedKeyOnly:       query.IsSharedKeyOnlyRoute(req),
-		pendingRowFiltering: query.IsPendingRowFilteringRoute(req),
-		allowlisted:         query.ScopedHTTPRouteSupportsTenantFilter(req),
+		sharedKeyOnly:       auth.IsSharedKeyOnlyRoute(req),
+		pendingRowFiltering: auth.IsPendingRowFilteringRoute(req),
+		allowlisted:         auth.ScopedHTTPRouteSupportsTenantFilter(req),
 	}
 }
 
@@ -74,7 +74,7 @@ func classifyTool(resolve RouteResolver, tool toolcontract.ToolDefinition) route
 
 // access is the per-call credential view the router filters with.
 type access struct {
-	auth    query.AuthContext
+	auth    auth.AuthContext
 	present bool
 }
 
@@ -82,8 +82,8 @@ type access struct {
 // request. Its absence (stdio, ESHU_MCP_ALLOW_UNAUTHENTICATED) means the
 // router cannot filter and must say so.
 func accessFromContext(ctx context.Context) access {
-	auth, ok := query.AuthContextFromContext(ctx)
-	return access{auth: auth, present: ok}
+	authCtx, ok := auth.AuthContextFromContext(ctx)
+	return access{auth: authCtx, present: ok}
 }
 
 // admits reports whether a credential may call a route of class c. It refuses
@@ -93,13 +93,13 @@ func accessFromContext(ctx context.Context) access {
 // and all-scope callers on grant-bound routes) are admitted here and left to
 // the middleware, which still enforces them at dispatch.
 func (a access) admits(c routeClass) bool {
-	if !a.present || a.auth.Mode == query.AuthModeShared {
+	if !a.present || a.auth.Mode == auth.AuthModeShared {
 		return true
 	}
 	if !c.resolved || c.sharedKeyOnly {
 		return false
 	}
-	if c.pendingRowFiltering && a.auth.Mode != query.AuthModeBrowserSession {
+	if c.pendingRowFiltering && a.auth.Mode != auth.AuthModeBrowserSession {
 		// A #5167 Group B route refuses every scoped bearer; only the
 		// console-session policy below can admit it.
 		return false
@@ -107,7 +107,7 @@ func (a access) admits(c routeClass) bool {
 	if c.allowlisted {
 		return true
 	}
-	if a.auth.Mode == query.AuthModeBrowserSession {
+	if a.auth.Mode == auth.AuthModeBrowserSession {
 		// Off the allowlist, pending row-filtering routes included, the
 		// middleware admits only a tenant-bound all-scopes console session,
 		// and only under deployment policy.

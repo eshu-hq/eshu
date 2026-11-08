@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query //nolint:dirgate // #6818 move 4b: root auth surface (aliases, forwarders, route policies, handler wiring) stays in package query; moving it into auth/ strands root handler callers and turns this rename into a root-surface relocation, which is a separate follow-up.
+package auth
 
 import (
 	"net/http"
@@ -116,7 +116,7 @@ func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 	if r.Method == http.MethodGet && scopedServiceInvestigationRoute(r.URL.Path) {
 		return true
 	}
-	if r.Method == http.MethodGet && scopedServiceIntelligenceReportRoute(r.URL.Path) {
+	if r.Method == http.MethodGet && ScopedServiceIntelligenceReportRoute(r.URL.Path) {
 		return true
 	}
 	if r.Method == http.MethodGet && scopedIncidentContextRoute(r.URL.Path) {
@@ -140,13 +140,13 @@ func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 	if scopedLocalIdentityAPITokenRoute(r) {
 		return true
 	}
-	if scopedAuthProfileReadRoute(r) {
+	if ScopedAuthProfileReadRoute(r) {
 		return true
 	}
-	if scopedAuthAdminReadRoute(r) {
+	if ScopedAuthAdminReadRoute(r) {
 		return true
 	}
-	if scopedAuthAdminMutationRoute(r) {
+	if ScopedAuthAdminMutationRoute(r) {
 		return true
 	}
 	if scopedVulnerabilityScannerContractRoute(r) {
@@ -248,7 +248,7 @@ func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 	if scopedComponentExtensionRoute(r) {
 		return true
 	}
-	if scopedCollectorExtractionReadinessRoute(r) {
+	if ScopedCollectorExtractionReadinessRoute(r) {
 		return true
 	}
 	if scopedCollectorStatusRoute(r) {
@@ -293,7 +293,7 @@ func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 	if scopedWorkItemEvidenceRoute(r) {
 		return true
 	}
-	if scopedImpactCompareRoute(r) {
+	if ScopedImpactCompareRoute(r) {
 		return true
 	}
 	if scopedCloudFamilyRoute(r) {
@@ -323,7 +323,7 @@ func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 // source_response, so there is no tenant data to filter.
 //
 // Both scopedHTTPRouteSupportsTenantFilter above and
-// scopedRouteNeedsNoCallerGrant (auth_browser_session_route_policy.go) call
+// ScopedRouteNeedsNoCallerGrant (auth_browser_session_route_policy.go) call
 // this, exactly as they share scopedTOTPEnrollmentRoute, so the allowlist and
 // the all-scope admission split can never disagree about the route.
 func scopedVisualizationDeriveRoute(r *http.Request) bool {

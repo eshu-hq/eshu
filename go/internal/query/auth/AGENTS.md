@@ -17,6 +17,13 @@ and treat every change here as a security change.
   failure; the boolean is the guard.
 - `CleanedStrings` MUST keep preserving order and dropping blanks. Allow-list
   membership is compared against its output.
+- (D13 #9669 row-2 leaf 2b) The Group C route ledgers live here and only
+  here: the shared-key-only / pending-row-filtering maps, the allowlist
+  matchers, the route-policy decisions, and the denial signal. Root keeps
+  same-named forwarders for its middleware and tests, never a second copy;
+  a second ledger definition compiles cleanly and lets the MCP
+  exhaustiveness gate and the API middleware disagree about a route, which
+  is a silent access widening.
 - `AllowsPermissionFeature` and `AllowsPermissionDataClasses` MUST keep failing
   open on all three pre-catalog cases: no auth context, `PermissionCatalogEnforced`
   false, and `AuthModeShared`. Narrowing any of them denies live traffic on

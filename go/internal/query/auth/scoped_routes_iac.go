@@ -1,9 +1,17 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query //nolint:dirgate // #6818 move 4b: root auth surface (aliases, forwarders, route policies, handler wiring) stays in package query; moving it into auth/ strands root handler callers and turns this rename into a root-surface relocation, which is a separate follow-up.
+package auth
 
 import "net/http"
+
+// replatformingPlanRoute is the stable compose-a-plan POST route. Its
+// canonical home is iac.ReplatformingPlanRoute (iac/ owns the handler and
+// the mux registration); this literal copy keeps the Group C allowlist
+// decision in the auth leaf without importing the handler family, and the
+// OpenAPI marker lockstep in TestScopedTokenAllowlistCompleteness fails the
+// build if the two ever disagree.
+const replatformingPlanRoute = "/api/v0/replatforming/plans"
 
 // This file holds the scoped-token route predicates for the #5167 W4
 // iac/* and replatforming/* POST-body-filtered family: find_dead_iac,

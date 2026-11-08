@@ -11,7 +11,7 @@ import (
 	"net/http"
 
 	"github.com/eshu-hq/eshu/go/internal/mcp/router"
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 )
 
 // ServerOption configures optional Server construction-time behavior.
@@ -143,7 +143,7 @@ func (s *Server) authenticatedTransportHandler(staticMethod string, next http.Ha
 		// denyClassification sentinel above -- that one is for an inner
 		// handler that already counted its own denial. This second signal is
 		// read by this wrapper instead, and only to pick the reason label.
-		ctx, routePolicyDenied := query.WithScopedRouteDenialSignal(ctx)
+		ctx, routePolicyDenied := auth.WithScopedRouteDenialSignal(ctx)
 		r = r.WithContext(ctx)
 		rec := &authDenyStatusRecorder{ResponseWriter: w, status: http.StatusOK}
 		wrapped.ServeHTTP(rec, r)
@@ -270,11 +270,11 @@ func (w *authDenyStatusRecorder) Flush() {
 // never as a principal that must match another empty principal: both sides of
 // an unauthenticated deployment are equally open, so there is nothing to bind.
 func authPrincipalKey(ctx context.Context) string {
-	auth, ok := query.AuthContextFromContext(ctx)
+	authCtx, ok := auth.AuthContextFromContext(ctx)
 	if !ok {
 		return ""
 	}
-	if auth.Mode == query.AuthModeShared {
+	if authCtx.Mode == auth.AuthModeShared {
 		// The shared bearer token has exactly one principal: whoever holds
 		// the one configured secret. There is no finer-grained identity to
 		// bind, and only one valid token can exist at a time, so a constant
@@ -282,5 +282,5 @@ func authPrincipalKey(ctx context.Context) string {
 		// session opened this way.
 		return "shared"
 	}
-	return string(auth.Mode) + "|" + auth.TenantID + "|" + auth.WorkspaceID + "|" + auth.SubjectIDHash
+	return string(authCtx.Mode) + "|" + authCtx.TenantID + "|" + authCtx.WorkspaceID + "|" + authCtx.SubjectIDHash
 }

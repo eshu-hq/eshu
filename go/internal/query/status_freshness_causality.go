@@ -25,14 +25,6 @@ const freshnessCausalityStatusReadFailedMessage = "freshness causality status re
 // error.capability.
 const freshnessCausalityStatusCapability = "operations.freshness_causality_status"
 
-// scopedFreshnessCausalityRoute reports whether the request targets the
-// freshness causality read model. The handler redacts raw scope/generation
-// identifiers in transitions for scoped tokens, so the route is tenant-filter
-// safe.
-func scopedFreshnessCausalityRoute(r *http.Request) bool {
-	return r.Method == http.MethodGet && r.URL.Path == "/api/v0/status/freshness-causality"
-}
-
 // getFreshnessCausality returns the freshness causality read model: why answers
 // are stale (by closed cause), the generation lifecycle including retired
 // generations, and pending projection work. It loads one status snapshot (the

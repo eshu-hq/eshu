@@ -343,10 +343,6 @@ const replatformingOwnershipCapability = iac.ReplatformingOwnershipCapability
 // spelling stays byte-identical to it, so the value must not drift.
 const replatformingRollupsCapability = iac.ReplatformingRollupsCapability
 
-// replatformingPlanRoute mirrors iac.ReplatformingPlanRoute. Its home is
-// iac/; auth_scoped_routes_iac.go keeps spelling the root name unchanged.
-const replatformingPlanRoute = iac.ReplatformingPlanRoute
-
 // iacManagementSafetyGate mirrors iac.NewManagementSafetyGate. Its home is
 // iac/; cloud_runtime_drift_view.go keeps spelling
 // query.iacManagementSafetyGate unchanged.
