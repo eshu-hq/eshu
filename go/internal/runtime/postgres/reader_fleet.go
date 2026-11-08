@@ -201,6 +201,17 @@ func runFleet[T any](access *Access, ctx context.Context, count int, attempt fun
 			continue
 		}
 		failures = errors.Join(failures, attemptErr)
+		var deferral StaleDeferral
+		if errors.As(attemptErr, &deferral) {
+			// One lagged member must not fail the set while a fresh
+			// sibling may serve: a deferral is member-local, so the
+			// fleet tries the next member. When every member defers,
+			// the joined failures still unwrap to a typed
+			// StaleDeferral, and the caller defers with no writer
+			// contact and no writer fallback.
+			tried[reservation.member] = true
+			continue
+		}
 		if sharedFleetFailure(bounded, attemptErr) {
 			return zero, attemptErr
 		}
