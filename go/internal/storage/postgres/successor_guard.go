@@ -70,8 +70,10 @@ func (side guardPriorSide) collector() int {
 // record the active read as it ran, so the in-tx recheck compares it exactly
 // (#8750 window).
 type successorPrior struct {
-	candidate      backfill.UnchangedGenerationCandidate
-	found          bool
+	candidate backfill.UnchangedGenerationCandidate
+	found     bool
+	// priorLive: a prior generation is pending or active (#10037).
+	priorLive      bool
 	counts         guardFactCounts
 	orphanFallback bool
 	fromActive     bool
@@ -137,7 +139,10 @@ func (s IngestionStore) successorPriorForGuard(
 	generation scope.ScopeGeneration,
 ) (successorPrior, error) {
 	prior := successorPrior{candidate: candidate, found: found}
-	if !found || generation.TrustedDeletion {
+	// The write-once arm reads only priorLive, settled here before any
+	// sizing early return; the in-tx recheck re-reads it (#8750 window).
+	prior.priorLive = found && (candidate.Status == scope.GenerationStatusPending || candidate.Status == scope.GenerationStatusActive)
+	if !found || (generation.TrustedDeletion && !generation.WriteOnce) {
 		return prior, nil
 	}
 	store := NewFactStore(database)
@@ -147,6 +152,7 @@ func (s IngestionStore) successorPriorForGuard(
 			return successorPrior{}, fmt.Errorf("read active generation for successor guard on scope %s: %w", scopeValue.ScopeID, err)
 		}
 		prior.activeRead, prior.hasActive, prior.activeID = true, hasActive, activeID
+		prior.priorLive = prior.priorLive || hasActive
 		if hasActive && activeID != candidate.GenerationID {
 			if prior.activeSide, err = s.sizeGuardGeneration(ctx, store, scopeValue, generation, candidate.GenerationID, activeID); err != nil {
 				return successorPrior{}, err
@@ -372,6 +378,8 @@ func (s IngestionStore) refuseDestructiveSuccessor(
 		PriorOrphan:     prior.orphanFallback,
 		SuccessorFacts:  successorFacts,
 		TrustedDeletion: generation.TrustedDeletion,
+		WriteOnce:       generation.WriteOnce,
+		PriorLive:       prior.priorLive,
 	}
 	kind := telemetry.SuccessorGuardKindFull
 	var touchedOrLive map[string]struct{}
@@ -440,13 +448,20 @@ func (s IngestionStore) refuseDestructiveSuccessor(
 	if rollbackErr := tx.Rollback(); rollbackErr != nil {
 		return false, fmt.Errorf("rollback destructive successor: %w", rollbackErr)
 	}
-	s.backfillStore().RecordSkippedRefresh(ctx, scopeValue, generation, prior.candidate.GenerationID,
-		telemetry.RefreshSkipReasonDestructiveSuccessor)
+	// A write-once refusal is benign (#10037): no skipped refresh, no
+	// successor hold; the disposition still marks the claim refused.
+	if decision.Rule != telemetry.SuccessorGuardRuleWriteOnce {
+		s.backfillStore().RecordSkippedRefresh(ctx, scopeValue, generation, prior.candidate.GenerationID,
+			telemetry.RefreshSkipReasonDestructiveSuccessor)
+	}
 	collector.MarkCommitRefused(ctx, collector.CommitRefusal{
 		Reason: telemetry.RefreshSkipReasonDestructiveSuccessor,
 		Rule:   decision.Rule,
 	})
-	consecutive := s.recordSuccessorRefusal(ctx, scopeValue, generation)
+	consecutive := 0
+	if decision.Rule != telemetry.SuccessorGuardRuleWriteOnce {
+		consecutive = s.recordSuccessorRefusal(ctx, scopeValue, generation)
+	}
 	s.logCommitStage(ctx, scopeValue, generation, "refuse_destructive_successor", guardStart,
 		slog.Int("consecutive_refusals", consecutive),
 		slog.String("candidate_generation_id", prior.candidate.GenerationID),

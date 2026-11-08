@@ -150,6 +150,11 @@ const (
 	// SuccessorGuardRuleFileUnionExact: a delta whose lower bound failed and
 	// whose exact union file count was probed against the base's paths.
 	SuccessorGuardRuleFileUnionExact = "file_union_exact"
+	// SuccessorGuardRuleWriteOnce: a write-once scope (#10037) already
+	// holds a pending or active generation, so the successor is refused
+	// benignly — the first committed generation is final and nothing may
+	// supersede it. A prior that only failed does not trigger this rule.
+	SuccessorGuardRuleWriteOnce = "write_once"
 	// SuccessorGuardRuleOther counts a rule outside this set.
 	SuccessorGuardRuleOther = "other"
 )
@@ -177,6 +182,7 @@ var successorGuardRules = [...]string{
 	SuccessorGuardRuleAnchorMissing,
 	SuccessorGuardRuleFileUnionBound,
 	SuccessorGuardRuleFileUnionExact,
+	SuccessorGuardRuleWriteOnce,
 	SuccessorGuardRuleOther,
 }
 

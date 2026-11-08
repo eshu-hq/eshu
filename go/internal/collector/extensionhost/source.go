@@ -102,6 +102,7 @@ func NewSource(config Config) (*Source, error) {
 		grantObserver:         config.GrantObserver,
 		maxPages:              config.MaxResultPages,
 		outcomeRecorder:       config.ClaimOutcomeRecorder,
+		commitPolicy:          config.ClaimCommitPolicy,
 		pendingOutcomes:       newPendingClaimOutcomes(),
 		scopeQueryResolver:    config.ScopeQueryResolver,
 		derivedTargetResolver: config.DerivedTargetResolver,
@@ -248,7 +249,15 @@ func (s *Source) resolveResult(
 		return collected, true, nil
 	default:
 		envelopes := s.envelopesForResult(item, result)
-		return s.collectedGeneration(item, result, envelopes, sourceCommitSHA), true, nil
+		collected := s.collectedGeneration(item, result, envelopes, sourceCommitSHA)
+		// The commit policy owns cursor arming and write-once for the
+		// scope families it handles (#10037). A refusal fails the claim
+		// before anything commits; the buffered fact channel is dropped
+		// with the collected generation.
+		if err := s.applyCommitPolicy(item, result.Generation.ObservedAt, envelopes, &collected); err != nil {
+			return collector.CollectedGeneration{}, false, err
+		}
+		return collected, true, nil
 	}
 }
 

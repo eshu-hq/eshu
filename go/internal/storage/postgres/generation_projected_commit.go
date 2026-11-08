@@ -127,7 +127,7 @@ func (s IngestionStore) recheckSuccessorPrior(
 	generation scope.ScopeGeneration,
 	prior successorPrior,
 ) (successorPrior, error) {
-	if !backfill.GenerationNeedsDuplicateCheck(generation) || generation.TrustedDeletion {
+	if !backfill.GenerationNeedsDuplicateCheck(generation) || (generation.TrustedDeletion && !generation.WriteOnce) {
 		return prior, nil
 	}
 	start := time.Now()

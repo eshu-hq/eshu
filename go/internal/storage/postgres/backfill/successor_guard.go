@@ -22,6 +22,14 @@ type SuccessorGuardInput struct {
 	SuccessorFacts int
 	// TrustedDeletion is the collector's attestation that a shrink is real.
 	TrustedDeletion bool
+	// WriteOnce marks a successor of a write-once scope (#10037): while a
+	// live prior exists it is refused ahead of every other arm.
+	WriteOnce bool
+	// PriorLive reports that a prior generation is pending or active. A
+	// prior that only failed is found but not live, so a write-once
+	// successor over it still stores. The store rechecks it inside the
+	// commit transaction after the scope-row upsert.
+	PriorLive bool
 
 	// Delta marks a delta successor that streamed its delta_generation
 	// repository fact. A generation that claims IsDelta without that fact
@@ -55,6 +63,10 @@ type SuccessorGuardDecision struct {
 
 // DecideSuccessor applies the backstop. The arms, in order:
 //
+//   - a write-once successor over a live (pending or active) prior is
+//     refused, ahead of every other arm (#10037): no generation of a
+//     write-once scope supersedes another, and no attestation may reopen
+//     that hole;
 //   - trusted deletion stores;
 //   - no prior, or a prior with no collector rows, stores (nothing to
 //     retract) — except an orphan prior under an empty successor, which is
@@ -72,6 +84,9 @@ type SuccessorGuardDecision struct {
 // anchor file, so it can only under-estimate the union: a failed bound means
 // "probe", never "refuse".
 func DecideSuccessor(in SuccessorGuardInput) SuccessorGuardDecision {
+	if in.WriteOnce && in.PriorFound && in.PriorLive {
+		return SuccessorGuardDecision{Refuse: true, Rule: telemetry.SuccessorGuardRuleWriteOnce}
+	}
 	if in.TrustedDeletion {
 		return SuccessorGuardDecision{Rule: telemetry.SuccessorGuardRuleTrustedDeletion}
 	}

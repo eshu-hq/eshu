@@ -24,8 +24,12 @@ core-owned: the workflow coordinator mints `vuln-intel://osv/<ecosystem>/...`,
 `vuln-intel://first_epss/_findings/<chunk>`, and configured targets use
 `vuln-intel://nvd/...`, `vuln-intel://cisa/kev`, `vuln-intel://first/epss`,
 `vuln-intel://glad/<ecosystem>`, `vuln-intel://ghsa/<reviewed|malware>`
-(GHSA admits reviewed and malware advisories only; `unreviewed` and any
-trailing path return `ok=false`), and `vuln-intel://cve_list/cve` for
+(GHSA admits reviewed and malware advisories only; `unreviewed` returns
+`ok=false`), the coordinator-minted per-window form
+`vuln-intel://ghsa/<reviewed|malware>/_window/<start_unix_us>-<end_unix_us>`
+(#10037; `ParseGHSAWindowScope` refuses everything outside that grammar,
+and `GHSAStreamScopeID` maps a window back to its anchor for stream-keyed
+source state), and `vuln-intel://cve_list/cve` for
 explicit owned CVE IDs (CVE List v5, #9880; whole-corpus reads have no
 scope). It returns `ok=false` for anything else,
 so a writer never invents a token. Tests in `coordinator/vulnerability` and
@@ -152,3 +156,41 @@ generation per dirty shard with its 1:1 record-to-fact count. This is the
 item 5.1 measurement substrate (#9961, plan §4.4): pure string accounting,
 no network, database, or workflow mutation. The measured verdict lives in
 `docs/internal/evidence/9961-shard-scoped-generations.md`.
+
+## GHSA rolling windows: performance and observability evidence (#10037)
+
+No-Regression Evidence: baseline `origin/main` at `2d477a517d`; after this
+change at the branch HEAD. GHSA remains not activatable: no configuration
+section mints a GHSA window scope, so every production claim today takes
+the unchanged path. The added hot-path work per non-GHSA claim is one
+`strings.Contains` infix check in `IsGHSAWindowScope` plus one map-free
+policy nil check in the extension host; the successor guard gains one
+boolean arm evaluated before the existing arms with no new query (the
+write-once prior read reuses the candidate tuple and active read the
+guard already performs, rechecked in-transaction by the existing #8750
+recheck). Measured locally with `go test -count=1` on the touched
+packages (Go toolchain on this host, no database): `extensionhost`
+0.659s, `coordinator/vulnerability` 0.029s, `vulnsource` under 0.01s for
+the grammar and golden-vector tests, and the storage guard fake-harness
+cells including the racing-recheck cell pass in the
+`internal/storage/postgres` suite. Terminal queue and row counts are
+unchanged because no window scope can be planned yet; the cursor table
+adds at most two rows per collector instance (one per advisory type)
+when activation later lands. Live-DSN cursor cells
+(`TestGHSAWindowCursorCompareAndAdvanceLive`) are enrolled in the
+live-postgres-readiness runner and were NOT_CHECKED locally (no
+`ESHU_POSTGRES_DSN` in this environment); they prove overlapping
+transactions settle at the max and a rollback leaves the cursor.
+
+Observability Evidence: `eshu_dp_ghsa_cursor_lag_seconds{advisory_type}`
+(gauge; a value growing past the anchor refresh interval plus one hour
+means the stream is stuck), `eshu_dp_ghsa_window_advance_total{advisory_type,outcome}`
+with closed outcomes `advanced`, `prefix`, `held`, `no_progress`, the new
+`write_once` label on `eshu_dp_ingestion_successor_guard_decisions_total`,
+WARN log `ghsa window claim refused by commit policy, nothing committed`
+with the failure class, advisory type, work item, and generation (never
+the scope id or a payload value), and the existing `successor_guard`
+commit-stage log naming scope, generation, and rule. The conflict domain
+is one advisory-type stream's cursor row plus one write-once scope row;
+concurrent claims on different windows or types never serialize, and the
+compare-and-advance keeps the max under either commit order.

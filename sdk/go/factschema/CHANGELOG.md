@@ -22,6 +22,14 @@ version — pinning this module pins the fixture pack too.
 
 ### Added
 
+- `vulnerability.source_snapshot` gains the optional `covered_through` field
+  (RFC 3339; eshu-hq/eshu#10037 S3a, additive minor, no decode shim): a
+  rolling-window producer states how far its collection proved coverage, and
+  the host advances the stream cursor to that instant only inside the
+  generation's commit transaction. Producers that do not walk a modified
+  window omit it; this entry tags and publishes no release — the satellite
+  pin follows in S4.
+
 - `vulnerability.go_call_reachability` gains five optional provenance fields,
   `scan_level`, `scan_mode`, `scanner_version`, `source_commit_sha`, and
   `trace_count` (eshu-hq/eshu#10026, part of eshu-hq/eshu#10002; additive

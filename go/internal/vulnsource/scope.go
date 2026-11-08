@@ -50,7 +50,10 @@ const scopeIDPrefix = "vuln-intel://"
 // vuln-intel://cisa/kev, vuln-intel://first/epss, and
 // vuln-intel://glad/<ecosystem>, plus vuln-intel://ghsa/<reviewed|malware>
 // where the advisory type must be exactly one of those two segments with
-// nothing after it (a '?' suffix is allowed, as for the other sources),
+// nothing after it (a '?' suffix is allowed, as for the other sources), and
+// the coordinator-minted per-window form
+// vuln-intel://ghsa/<reviewed|malware>/_window/<digits>-<digits>
+// (eshu-hq/eshu#10037; see ParseGHSAWindowScope),
 // and vuln-intel://cve_list/cve for explicit owned CVE ids.
 // Matching is exact and case-sensitive, the
 // same way readiness compares scope ids. ok is false for any scope id outside
@@ -66,6 +69,11 @@ func SourceForScopeID(scopeID string) (string, bool) {
 		return authority, true
 	case SourceGHSA:
 		if segment, tail := splitScopeSegment(path); (segment == "reviewed" || segment == "malware") && tail == "" && !strings.Contains(path, "/") {
+			return SourceGHSA, true
+		}
+		// The per-window form is admitted only through the strict window
+		// grammar: a malformed window look-alike invents no source token.
+		if IsGHSAWindowScope(strings.TrimSpace(scopeID)) {
 			return SourceGHSA, true
 		}
 	case "cisa":

@@ -482,4 +482,7 @@ var orderedBootstrapDefinitionNamesLate = []string{
 	// Migration 285 (#10389) pins the reviewed pass-state contract as
 	// object comments (catalog-only COMMENT ON, no table or index).
 	"supply_chain_impact_scope_pass_state_contract",
+	// Migration 286 (#10037) adds the per-stream GHSA rolling-window
+	// cursor table the extension host advances in the commit transaction.
+	"vulnerability_ghsa_window_cursors",
 }

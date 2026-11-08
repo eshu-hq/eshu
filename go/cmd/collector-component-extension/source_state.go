@@ -48,3 +48,23 @@ func sourceStateRecorder(
 	}
 	return recorder, nil
 }
+
+// claimCommitPolicy returns the host commit policy for a collector kind,
+// or nil when the kind has none. Only vulnerability_intelligence has one
+// (#10037): the GHSA window policy arms the per-stream cursor
+// compare-and-advance and write-once from the snapshot's stated
+// covered_through, because the extracted collector holds no storage
+// handle by design. The policy handles only GHSA window scopes; every
+// other claim keeps its existing commit behavior, and GHSA stays off
+// because no coordinator configuration can mint a window scope yet.
+func claimCommitPolicy(
+	kind scope.CollectorKind,
+	instanceID string,
+	instruments *telemetry.Instruments,
+	logger *slog.Logger,
+) (extensionhost.ClaimCommitPolicy, error) {
+	if kind != scope.CollectorVulnerabilityIntelligence {
+		return nil, nil
+	}
+	return extensionhost.NewGHSAWindowCommitPolicy(instanceID, instruments, logger)
+}

@@ -121,6 +121,11 @@ Known limit, reading `unknown` rather than leaking text:
 | `launch_failure` | every kind, from the extension host | The host could not launch the extension. |
 | `source_state_record` | every kind, from the extension host | The host could not record a completed claim's source-state attempt row (#9420); the claim fails retryable. |
 | `status_record` | every kind, from the extension host | The host failed to record the extension's status. |
+| `ghsa_window_no_progress` | every kind, from the extension host | A GHSA window's stated `covered_through` did not pass its window start (#10037); the claim fails retryable and nothing commits. |
+| `ghsa_window_unarmed` | every kind, from the extension host | A GHSA window claim reached a host with no commit policy able to arm its cursor writer (#10037); the claim fails retryable and nothing commits. |
+| `ghsa_window_held` | every kind, from the extension host | A GHSA window snapshot stated no usable `covered_through`, so no cursor writer could be armed (#10037); the claim fails retryable and nothing commits. |
+| `ghsa_covered_through_out_of_range` | every kind, from the extension host | A GHSA window's stated `covered_through` is past the claimed window end (#10037); the claim fails retryable and nothing commits. |
+| `ghsa_cache_replay` | every kind, from the extension host | A GHSA window result was served from the satellite cache, and a replay never advances the cursor (#10037); the claim fails retryable and nothing commits. |
 | `extension_defined` | extension-hosted instances | The extension reported a class of its own. |
 
 `last_failure_operation` is a short lowercase token such as `list_org_alerts`,

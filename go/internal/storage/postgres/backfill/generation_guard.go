@@ -200,7 +200,10 @@ const (
 // at all. A snapshot with no hint cannot match, and a default-branch change
 // (#7678) is always stored: its repository fact names another branch.
 func GenerationNeedsDuplicateCheck(generation scope.ScopeGeneration) bool {
-	return !generation.DefaultBranchChanged && strings.TrimSpace(generation.FreshnessHint) != ""
+	// A write-once generation (#10037) always needs the prior read: its
+	// refusal depends on whether a live prior exists, with or without a
+	// freshness hint to dedupe on.
+	return generation.WriteOnce || (!generation.DefaultBranchChanged && strings.TrimSpace(generation.FreshnessHint) != "")
 }
 
 // DecideUnchangedGeneration is the one decision seam for #7978: what the store

@@ -703,7 +703,18 @@ type Instruments struct {
 	// NVDTimeAnomalies counts NVD unreliable-time observations per source
 	// (#9877): unknown head, skew past the 5-minute budget, or record
 	// timestamps past head plus budget. Labels stay source-only.
-	NVDTimeAnomalies                 metric.Int64Counter
+	NVDTimeAnomalies metric.Int64Counter
+	// GHSACursorLagSeconds gauges the GHSA rolling-window lag in seconds
+	// per advisory type (scrape clock minus the latest committed cursor;
+	// #10037). Labels stay advisory-type-only.
+	GHSACursorLagSeconds metric.Float64ObservableGauge
+	// GHSACursorLags is the process-local tracker feeding
+	// GHSACursorLagSeconds.
+	GHSACursorLags *GHSACursorLagTracker
+	// GHSAWindowAdvances counts GHSA window commit-policy outcomes per
+	// advisory type (#10037): advanced, prefix, held, or no_progress.
+	// Labels stay advisory-type and outcome only.
+	GHSAWindowAdvances               metric.Int64Counter
 	SecurityAlertProviderRequests    metric.Int64Counter
 	SecurityAlertFactsEmitted        metric.Int64Counter
 	SecurityAlertRateLimited         metric.Int64Counter
@@ -6685,6 +6696,9 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, err
 	}
 	if err := registerNVDCursorLag(meter, inst); err != nil {
+		return nil, err
+	}
+	if err := registerGHSACursorLag(meter, inst); err != nil {
 		return nil, err
 	}
 	if err := registerSupplyChainImpactHeadroom(meter, inst); err != nil {
