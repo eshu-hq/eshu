@@ -130,9 +130,11 @@ func TestFencingSnapshotRehearsal(t *testing.T) {
 			t.Fatalf("%s: %v", satellite.Name(), err)
 		}
 		out.Record("writer 1 refused stale")
-		complete := s.Mutation(item.WorkItemID, second.ClaimID, second.FencingToken, second.OwnerID)
-		complete.ObservedAt = claimAt
-		out.Call("writer 2 complete", satellite.CompleteClaim(ctx, complete))
+		// The claim stays active here on purpose: the ambiguous-timeout
+		// replay below must run while the epoch is live. The plane pins
+		// only the live epoch (a pin can never anchor a superseded
+		// generation), so replaying after completion would test nothing
+		// production does: the keeper pins, commits, then completes.
 	})
 
 	t.Run("ambiguous-timeout-replay", func(t *testing.T) {
@@ -157,6 +159,16 @@ func TestFencingSnapshotRehearsal(t *testing.T) {
 			t.Fatalf("%s: re-pin commit id %q differs from first pin %q; retry after timeout is not idempotent", satellite.Name(), again, first)
 		}
 		out.Record("replay keeps commit id")
+		complete := s.Mutation(item.WorkItemID, second.ClaimID, second.FencingToken, second.OwnerID)
+		complete.ObservedAt = s.Now
+		out.Call("writer 2 complete", satellite.CompleteClaim(ctx, complete))
+		// The epoch ends at completion: a further pin must be refused as
+		// a stale fence, never anchor a new commit on the finished epoch.
+		if _, err := satellite.PinForCommit(ctx, second.ClaimID, second.FencingToken,
+			item.ScopeID, item.SourceRunID, item.GenerationID, deadline); workflow.ClaimPlaneErrorCode(err) != "stale_fence" {
+			t.Fatalf("%s: post-complete pin err=%v, want a stale_fence refusal", satellite.Name(), err)
+		}
+		out.Record("post-complete pin refused stale")
 	})
 
 	t.Run("high-water-snapshot", func(t *testing.T) {
