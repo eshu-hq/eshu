@@ -385,7 +385,7 @@ decides per finding.
   `outcome=advisory_retracted`, the `suppression_advisory_retracted=` field
   of the evidence summary, and the `advisory_retracted_findings` sub-signal.
 
-No-Regression Evidence (#10401): the tie rank reads lifecycle only through the closed `advisoryRetractionCode` (no new status list, no `ObservedAt`/`WithdrawnAt`/generation key). `TestNewestCopyDivergentTieLiveBeatsRetracted10401` (4 variants x 4 tie shapes x all load orders) fails pre-fix and passes post-fix with the live copy's fields; the retracted-vs-retracted guard and all #10042 controls stay green. `BenchmarkBuildFindingsMultiSourceGroups` shows no regression (live 12.55–13.01 pre vs 12.38–13.34 post ms/op; identical allocs).
+No-Regression Evidence (#10401): the tie rank reads lifecycle only through the closed `advisoryRetractionCode` (no new status list, no `ObservedAt`/`WithdrawnAt`/generation key). `TestNewestCopyDivergentTieLiveBeatsRetracted10401` (4 variants x 4 tie shapes x all load orders) fails pre-fix and passes post-fix with the live copy's fields; the retracted-vs-retracted guard and all #10042 controls stay green. `BenchmarkBuildFindingsMultiSourceGroups` shows no regression (live 12.55–13.01 pre vs 12.38–16.20 post ms/op with one 16.20 sample reading as shared-host noise against the 12.38–13.34 repeat band; identical allocs).
 
 No-Observability-Change (#10401): no new metric, span, log key, queue stage, or setting; ties resolving active read as ordinary active findings.
 
