@@ -33,24 +33,46 @@ func TestScopedEPSSHolderKeepsFindingRowAdvisoryArmOnFollowUp(t *testing.T) {
 	holderEnvelopes := []facts.Envelope{
 		vulnerabilityEPSSFact("fact:9695:epss", cve, "0.5", "0.9"),
 	}
-	// Post-#10420 row shape: the finding row carries its deciding advisory.
-	rows := []ScopedFindingPackage{{
-		CVEID:       cve,
-		AdvisoryID:  cve,
-		PackageID:   "pkg:npm/fanout-9695@1.0.0",
-		PackageName: "fanout-9695",
-		Ecosystem:   "npm",
-	}}
-	stamp := []string{cve}
+	for _, tc := range []struct {
+		name      string
+		advisory  string
+		wantAlive bool
+	}{
+		// Post-#10420 row shape: the finding row carries its deciding
+		// advisory, so the follow-up arm survives the scope intersect.
+		{name: "advisory arm kept", advisory: cve, wantAlive: true},
+		// Pre-#10420 row shape: the old SQL selected no advisory_id and
+		// the old row had no such field, so the arm empties and the
+		// until-stable loop ends before the operator suppression.
+		{name: "advisory arm empty", advisory: "", wantAlive: false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			rows := []ScopedFindingPackage{{
+				CVEID:       cve,
+				AdvisoryID:  tc.advisory,
+				PackageID:   "pkg:npm/fanout-9695@1.0.0",
+				PackageName: "fanout-9695",
+				Ecosystem:   "npm",
+			}}
+			stamp := []string{cve}
 
-	scope, ok := seedScopedSupplyChainImpactScope(holderEnvelopes, rows, stamp)
-	if !ok {
-		t.Fatal("seedScopedSupplyChainImpactScope() = false, want a scope: the finding row seeds packages")
-	}
-	// Round-1 follow-up discovered through the source-side advisory evidence.
-	followUp := restrictSupplyChainImpactFilter(
-		SupplyChainImpactFactFilter{AdvisoryIDs: []string{cve}}, scope)
-	if len(followUp.AdvisoryIDs) != 1 || followUp.AdvisoryIDs[0] != cve {
-		t.Fatalf("follow-up AdvisoryIDs = %v, want [%s]: the advisory arm was emptied, so the loop ends before the operator suppression and the holder copy stays active instead of accepted_risk", followUp.AdvisoryIDs, cve)
+			scope, ok := seedScopedSupplyChainImpactScope(holderEnvelopes, rows, stamp)
+			if !ok {
+				t.Fatal("seedScopedSupplyChainImpactScope() = false, want a scope: the finding row seeds packages")
+			}
+			// Round-1 follow-up discovered through the source-side advisory evidence.
+			followUp := restrictSupplyChainImpactFilter(
+				SupplyChainImpactFactFilter{AdvisoryIDs: []string{cve}}, scope)
+			if tc.wantAlive {
+				if len(followUp.AdvisoryIDs) != 1 || followUp.AdvisoryIDs[0] != cve {
+					t.Fatalf("follow-up AdvisoryIDs = %v, want [%s]: the advisory arm was emptied, so the loop ends before the operator suppression and the holder copy stays active instead of accepted_risk", followUp.AdvisoryIDs, cve)
+				}
+				return
+			}
+			if len(followUp.AdvisoryIDs) != 0 {
+				t.Fatalf("follow-up AdvisoryIDs = %v, want []: an empty advisory arm must empty the follow-up, else the seeded violation proves nothing", followUp.AdvisoryIDs)
+			}
+		})
 	}
 }
