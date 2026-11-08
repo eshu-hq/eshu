@@ -138,8 +138,7 @@ jobs:
           # Exactly one JSON value on stdout: the SDK result.
           jq -s -e 'length == 1' /tmp/shadow-smoke-result.json
           jq -e '.state == "complete"' /tmp/shadow-smoke-result.json
-          jq -e '(.statuses | length == 1) and .statuses[0].class == "complete"' /tmp/shadow-smoke-result.json
-          jq -e '.statuses[0].fact_count == 13' /tmp/shadow-smoke-result.json
+          jq -e '(.statuses // [] | length == 0)' /tmp/shadow-smoke-result.json
           jq -e '(.facts | length == 13)' /tmp/shadow-smoke-result.json
           jq -e '([.facts[] | .kind] | sort | join(" ") == "sbom.component sbom.component sbom.component sbom.component sbom.component sbom.dependency_relationship sbom.dependency_relationship sbom.dependency_relationship sbom.document sbom.external_reference sbom.warning sbom.warning sbom.warning")' /tmp/shadow-smoke-result.json
           jq -e '.generation.id == "gen-shadow-smoke" and (.generation.observed_at != null) and .page == null' /tmp/shadow-smoke-result.json
