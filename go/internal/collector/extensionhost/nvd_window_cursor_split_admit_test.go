@@ -25,25 +25,28 @@ func testNVDWindowSplitPartialPayload() map[string]any {
 	}
 }
 
-// maxEmulatingCommitExecutor applies the cursor table's compare-and-advance
-// to in-memory state the way NVDWindowCursorAdvanceQuery does in SQL (keyed
-// upsert keeping GREATEST of cursor and head), so the two-claim race proves
-// composition through the real armed writers without a live database.
-type maxEmulatingCommitExecutor struct {
+// conditionalCommitExecutor applies the cursor table's compare-and-advance
+// with the real NVDWindowCursorAdvanceQuery gating (nvd_window_cursor.go):
+// only a strictly greater candidate cursor moves the row, and the head rides
+// along as the max of that advance only, so a stale candidate leaves the
+// stored cursor and head untouched. The race below proves composition
+// through the real armed writers under these production semantics, without
+// a live database.
+type conditionalCommitExecutor struct {
 	cursor int64
 	head   int64
 	set    bool
 }
 
-func (r *maxEmulatingCommitExecutor) ExecContext(_ context.Context, _ string, args ...any) (sql.Result, error) {
+func (r *conditionalCommitExecutor) ExecContext(_ context.Context, _ string, args ...any) (sql.Result, error) {
 	cursor, _ := args[1].(int64)
 	head, _ := args[2].(int64)
 	if !r.set || cursor > r.cursor {
 		r.cursor = cursor
+		if head > r.head {
+			r.head = head
+		}
 		r.set = true
-	}
-	if head > r.head {
-		r.head = head
 	}
 	return recordingSQLResult{}, nil
 }
@@ -83,9 +86,25 @@ func TestSplitPartialVerdictArmsWindowCursorWriter(t *testing.T) {
 	}
 }
 
-// TestSplitPartialAndFullCommitsComposeToMax runs the two-claim race both
-// ways: a split-partial and a full advance planned from one cursor commit in
-// either order and the final cursor is the max, with no regression.
+// testNVDWindowSplitStalePayload stamps an adversarial stale verdict: an
+// older advance-to carrying a newer observed head, the shape that
+// distinguishes the real conditional head gating (stale leaves head
+// untouched) from an independent max (stale moves head).
+func testNVDWindowSplitStalePayload() map[string]any {
+	return map[string]any{
+		"coverage_descriptor":            map[string]any{"version": "nvd.v1"},
+		"nvd_window_advance_to_unix_us":  int64(1767225600000000),
+		"nvd_window_head_unix_us":        int64(1767484800000000),
+		"nvd_window_should_advance":      true,
+		"nvd_window_time_anomaly_reason": "",
+	}
+}
+
+// TestSplitPartialAndFullCommitsComposeToMax runs the claim race every way:
+// a split-partial and a full advance commit in either order, and a stale
+// adversarial claim around the full one. The cursor always ends at the max
+// and the head at the max of the observations that advanced, with no
+// regression.
 func TestSplitPartialAndFullCommitsComposeToMax(t *testing.T) {
 	t.Parallel()
 
@@ -105,24 +124,37 @@ func TestSplitPartialAndFullCommitsComposeToMax(t *testing.T) {
 	}
 	partial := arm(testNVDWindowSplitPartialPayload())
 	full := arm(testNVDWindowVerdictPayload(true))
+	stale := arm(testNVDWindowSplitStalePayload())
 	for _, order := range []struct {
-		name    string
-		writers []collector.GenerationStateWriter
+		name       string
+		writers    []collector.GenerationStateWriter
+		wantCursor int64
+		wantHead   int64
 	}{
-		{name: "partial then full", writers: []collector.GenerationStateWriter{partial, full}},
-		{name: "full then partial", writers: []collector.GenerationStateWriter{full, partial}},
+		{name: "partial then full", writers: []collector.GenerationStateWriter{partial, full}, wantCursor: 1767398400000000, wantHead: 1767398400000000},
+		{name: "full then partial", writers: []collector.GenerationStateWriter{full, partial}, wantCursor: 1767398400000000, wantHead: 1767398400000000},
+		// A stale claim committing first stores its newer head; the full
+		// claim then moves the cursor while the head keeps the max of both
+		// observations, exactly like the SQL CASE.
+		{name: "stale then full", writers: []collector.GenerationStateWriter{stale, full}, wantCursor: 1767398400000000, wantHead: 1767484800000000},
+		// A stale claim after the full one advances nothing: the row keeps
+		// the full claim's cursor and head.
+		{name: "full then stale", writers: []collector.GenerationStateWriter{full, stale}, wantCursor: 1767398400000000, wantHead: 1767398400000000},
 	} {
 		t.Run(order.name, func(t *testing.T) {
 			t.Parallel()
 
-			exec := &maxEmulatingCommitExecutor{}
+			exec := &conditionalCommitExecutor{}
 			for _, writer := range order.writers {
 				if err := writer(context.Background(), exec); err != nil {
 					t.Fatalf("StateWriter() error = %v", err)
 				}
 			}
-			if exec.cursor != int64(1767398400000000) {
-				t.Fatalf("race cursor = %d, want max 1767398400000000", exec.cursor)
+			if exec.cursor != order.wantCursor {
+				t.Fatalf("race cursor = %d, want %d", exec.cursor, order.wantCursor)
+			}
+			if exec.head != order.wantHead {
+				t.Fatalf("race head = %d, want %d", exec.head, order.wantHead)
 			}
 		})
 	}
