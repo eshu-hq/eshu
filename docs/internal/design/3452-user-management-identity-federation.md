@@ -355,7 +355,7 @@ Sources used:
 - `apps/console/src/config/environment.ts`
 - `apps/console/src/api/client.ts`
 - `go/internal/query/auth.go`
-- `go/internal/query/auth_scoped_routes.go`
+- `go/internal/query/auth/scoped_routes.go`
 - `go/internal/scopedtoken/README.md`
 - OpenID Connect Core 1.0, `https://openid.net/specs/openid-connect-core-1_0.html`
 - Okta redirect authentication, `https://developer.okta.com/docs/guides/sign-into-web-app-redirect/main/`

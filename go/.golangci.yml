@@ -411,9 +411,9 @@ linters:
       - path: 'internal/parser/registry_definitions\.go'
         linters:
           - funlen
-      # scopedHTTPRouteSupportsTenantFilter moved out of
-      # internal/query/auth_scoped_routes.go into the auth leaf for D13
-      # row-2 leaf 2b (#9669). Same pre-existing function, same
+      # scopedHTTPRouteSupportsTenantFilter moved out of the query root
+      # into the auth leaf for D13 row-2 leaf 2b (#9669). Same
+      # pre-existing function, same
       # grandfathered status, new path -- as codequery/relationships.go
       # already is above after its own family move.
       - path: 'internal/query/auth/scoped_routes\.go'
