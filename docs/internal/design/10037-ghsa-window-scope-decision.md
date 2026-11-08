@@ -167,8 +167,12 @@ projector dead-letter replay is the repair.
   parameters offer none. The fact stays. This is an accepted limit.
 
 **Newest-copy rule (lane 1).** For one payload `source` and `advisory_id`, the copy
-with the greatest `modified_at` is the record. Ties break on the greater `FactID`,
-and an unparseable or empty timestamp ranks oldest. Older copies leave the group
+with the greatest `modified_at` is the record, and an unparseable or empty
+timestamp ranks oldest. A recency tie — equal instants, or both timestamps empty
+or unparseable — breaks live-beats-retracted through the closed classifier
+`advisoryRetractionCode`, and only a same-lifecycle tie breaks on the greater
+`FactID` (#10401: a FactID order is hash-derived, so hiding a live vulnerability
+on zero evidence would spend the expensive error). Older copies leave the group
 whole: their `vulnerability.cve` and `affected_package` facts both go, so a package
 GitHub removed from an advisory stops matching. The rule is a pure function of the
 active facts, so commit order and concurrency cannot change it.
