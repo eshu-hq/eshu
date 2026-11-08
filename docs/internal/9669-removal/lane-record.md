@@ -173,3 +173,47 @@ and a fresh arbiter review in-lane is required before any removal PR.
   `query/openapi` leaf seam until eshu-api#65), and the fresh arbiter
   review itself are outstanding, and the test-file retargets plus the
   51-route satellite closures/carve-outs still block the removal PR.
+
+## Rebase prep note (2026-11-08, base `d7de38f49a`)
+
+Branch rebased onto fresh `origin/main` `d7de38f49a` (prior base
+`d59650c757`; clean rebase, 9/9 commits, zero conflicts). Prep only —
+no PR opened, no merge, no traffic action. Owner acceptance of the
+eventual removal is recorded; cutover-good ruling and row-7 closure
+still gate the merge, and a fresh arbiter review in-lane is required
+before any removal PR.
+
+- Removal scope still exactly the in-tree API surface: `go/cmd/api` is
+  125 tracked files at the old base, the new base, and the rebased head
+  — zero drift (`git ls-files 'go/cmd/api' | wc -l`; old-to-new
+  name-status diff on the path is empty).
+- Removal proof re-run at the rebased head (all exit 0): the re-prove
+  command returns the same 3 files (was 3 — identical set) — only the
+  known string-mention false positives (`facts/docs/documentation.go`,
+  `facts/semantic/semantic.go`, `mcp/kind_real_consumer.go`); total
+  root-package references outside `go/cmd/api` + `go/internal/query`
+  still 174 (171 test + 3 FP); the MCP exact-package census is 99
+  (0 non-test, unchanged); `CUTOVER_OWNERSHIP.md` byte-identical across
+  old base, new base, and head (md5 `9f5514a7`, 364 lines); the 13
+  `TestQueryRootDrained` pin-test packages pass (`go test -count=1
+  -run 'TestQueryRootDrained|TestDrain'` across `answernarration`,
+  `answerquality`, `ask/engine`, `evidencecontinuity`, `facts/docs`,
+  `facts/semantic`, `mcp`, `oidcbearer`, `oidclogin`, `reportbundle`,
+  `scopedtoken`, `serviceintel`, `serviceintelhttp`).
+- New-caller scan (killer risk) clean: non-test query-root reference set
+  identical at old base, new base, and head (same 3 FP files via
+  `git grep`; lane adds no `.go` files); `go/cmd/api` importers outside
+  itself are the same 3 test files, all unchanged since the old base
+  (`naming-glue-gate/candidates_test.go`, `cli/support/closure_test.go`,
+  `workflow/claim_truth_scope_test.go`). No new in-tree callers of the
+  removal surface landed on main.
+- Merges landed on main since the prior base: #10398, #10402, #10403,
+  #10404, #10405, #10406, #10412, #10413, #10414, #10420 — none drains a
+  checklist row. Seam progress only: #10412 mints D3 admin-read pins v0
+  (Gap 02) plus `StatusExtraReadAdmission` v0. Per-row checklist figures
+  re-verified identical; every Go row stays TODO.
+- Readiness: ready for in-lane arbiter review. NOT merge-ready:
+  cutover-good ruling, row-7 closure (offline inventory still reads the
+  `query/openapi` leaf seam until eshu-api#65), and the fresh arbiter
+  review itself are outstanding, and the test-file retargets plus the
+  51-route satellite closures/carve-outs still block the removal PR.
