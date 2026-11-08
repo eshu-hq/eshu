@@ -41,3 +41,37 @@ one dangerous misuse (fencing stores built from a reader).
   never as metric labels.
 - Existing reader/writer instruments are untouched; with zero callers
   the new counter can only report zero until a later slice wires one.
+
+## No-Regression Evidence: runFleet tries the next member on a stale
+deferral (#10416 slice-1 follow-up)
+
+- Baseline: `TestFleetWrappedDeferralTriesNextMember` FAIL — a
+  probe-wrapped `StaleDeferral` from member 0 returned as the fleet
+  error with the sibling untried (tries: member 0 = 1, member 1 = 0).
+- After: PASS — member 1 serves (tries: member 0 = 1, member 1 = 1).
+  Only the fleet member-selection branch changed; no SQL, driver, or
+  pgx behavior changed, so no new live proof is required for the delta.
+- Backend/version: hermetic package unit proof, no live database.
+  `go test -count=1 ./internal/runtime/postgres/` ok (2.5s),
+  `./cmd/reducer/` ok (12.6s); `go test -race` on the fleet and wiring
+  tests ok; `go vet`, `gofmt`, `git diff --check` clean.
+- Input shape and counts: 2-member fleet, 4 connections each,
+  `replayTimeout` 1s; member 0 refuses with a `fmt.Errorf` `%w`-wrapped
+  `StaleDeferral`, exactly as standby probes wrap it. No production
+  query changes shape; no row-count, retry, backoff, or queue change.
+- Why safe: the new branch mirrors the merged single-borrow path
+  line-for-line (join first so all-defer still returns a typed
+  `StaleDeferral` via joined-error traversal, continue before the
+  shared-failure return); the reservation is released before `continue`
+  (no lease leak); the loop stays bounded by the existing
+  `replayTimeout`; terminal error semantics for the audit layer are
+  unchanged (the `StaleReadDeferred` check still resolves).
+
+## No-Observability-Change: runFleet deferral handoff
+
+- No new metrics, spans, or logs. The existing per-attempt member
+  telemetry and `ObserveStaleDeferral` cover the new path: a tick where
+  member 0 defers and member 1 serves records the same single deferral
+  observation as before, with the outcome changed from error to success
+  (the point of the fix; operator-visible as fewer stale-read errors on
+  single-lag ticks, not as new telemetry).
