@@ -118,8 +118,9 @@ func CheckHighWater(rows []FencingSnapshotRow, want map[FencingHighWaterKey]int6
 
 // CheckStaleRace classifies one stale-commit race: the fresh writer's commit
 // must have landed (freshErr nil) and the stale writer's must be refused by
-// a terminal fence rejection (stale fence, unknown claim, or a fence-row
-// refusal). A retryable refusal proves nothing: the writer may still commit.
+// a terminal fence rejection (stale fence or a fence-row refusal). An
+// unknown claim proves nothing: absence is not a fencing decision. A
+// retryable refusal proves nothing: the writer may still commit.
 func CheckStaleRace(freshErr, staleErr error) error {
 	if freshErr != nil {
 		return fmt.Errorf("fencing race: fresh writer commit failed: %w", freshErr)
@@ -129,7 +130,7 @@ func CheckStaleRace(freshErr, staleErr error) error {
 		return fmt.Errorf("fencing race: stale writer error = %v, want a terminal stale or fence refusal", staleErr)
 	}
 	switch rejection.Reason {
-	case fence.ReasonStaleFence, fence.ReasonNotFound,
+	case fence.ReasonStaleFence,
 		fence.ReasonFenceToken, fence.ReasonFenceClaimMismatch:
 		return nil
 	default:
@@ -187,6 +188,9 @@ const teardownResidueQuery = `SELECT
 func TeardownRehearsalRows(ctx context.Context, database db.ExecQueryer, runID string) (map[string]int, error) {
 	if strings.TrimSpace(runID) == "" {
 		return nil, fmt.Errorf("teardown rehearsal rows: runID must not be blank")
+	}
+	if strings.ContainsAny(runID, `%_\`) {
+		return nil, fmt.Errorf("teardown rehearsal rows: runID %q must not carry LIKE metacharacters", runID)
 	}
 	deleted := make(map[string]int, len(teardownDeletes))
 	for _, del := range teardownDeletes {

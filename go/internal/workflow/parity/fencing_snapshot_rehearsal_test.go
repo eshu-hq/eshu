@@ -91,6 +91,15 @@ func TestFencingSnapshotRehearsal(t *testing.T) {
 	ctx := context.Background()
 	_, coreDB := openInTreeBackendWithDB(t, os.Getenv("PARITY_INTREE_DSN"))
 	satelliteDSN := os.Getenv("PARITY_SATELLITE_DSN")
+	if satelliteDSN != "" {
+		// Registered before the reset cleanup, so it runs after it:
+		// the leg must leave zero satellite rows behind.
+		t.Cleanup(func() {
+			if n := CountSuiteRows(t, satelliteDSN); n != 0 {
+				t.Errorf("satellite residue: %d parity rows remain after reset", n)
+			}
+		})
+	}
 	ResetSatellite(t, satelliteDSN)
 	t.Cleanup(func() { ResetSatellite(t, satelliteDSN) })
 	satellite := OpenSatellite(t, os.Getenv("PARITY_SATELLITE_URL"))

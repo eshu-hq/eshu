@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -117,19 +118,23 @@ func (d *rehearsalFenceDB) ExecContext(context.Context, string, ...any) (sql.Res
 	return nil, errors.New("fence never execs")
 }
 
-// flakyPinner scripts pin answers and records identical-argument retries.
+// flakyPinner scripts pin answers and records the full pin identity per
+// call, so the retry assertion compares every argument, not a subset.
 type flakyPinner struct {
 	errs     []error
 	commitID string
 	calls    int
-	argSets  [][3]string
+	argSets  [][6]string
 }
 
-func (p *flakyPinner) PinClaimForCommit(_ context.Context, claimID string, _ int64,
-	scopeID, sourceRunID, generationID string, _ time.Time,
+func (p *flakyPinner) PinClaimForCommit(_ context.Context, claimID string, fencingToken int64,
+	scopeID, sourceRunID, generationID string, deadline time.Time,
 ) (string, error) {
 	p.calls++
-	p.argSets = append(p.argSets, [3]string{claimID, scopeID, generationID})
+	p.argSets = append(p.argSets, [6]string{
+		claimID, strconv.FormatInt(fencingToken, 10),
+		scopeID, sourceRunID, generationID, deadline.UTC().Format(time.RFC3339Nano),
+	})
 	if len(p.errs) > 0 {
 		err := p.errs[0]
 		p.errs = p.errs[1:]
@@ -178,6 +183,10 @@ func TestFencingRehearsalStaleCommitRace(t *testing.T) {
 	retryable := &fence.Rejection{Reason: fence.ReasonPinUnavailable}
 	if err := CheckStaleRace(nil, retryable); err == nil {
 		t.Fatalf("CheckStaleRace(nil, retryable) = nil, want an error: only terminal refusals prove fencing")
+	}
+	absent := &fence.Rejection{Reason: fence.ReasonNotFound}
+	if err := CheckStaleRace(nil, absent); err == nil {
+		t.Fatalf("CheckStaleRace(nil, not_found) = nil, want an error: absence is not a fencing decision")
 	}
 }
 
@@ -308,6 +317,15 @@ func TestFencingRehearsalRollbackTeardown(t *testing.T) {
 		}
 		if len(guarded.stmts) != 0 {
 			t.Fatalf("TeardownRehearsalRows(%q) ran %d statements, want none", blank, len(guarded.stmts))
+		}
+	}
+	for _, wild := range []string{"%", "run_1", `a\b`} {
+		guarded := &rehearsalExecDB{}
+		if _, err := TeardownRehearsalRows(context.Background(), guarded, wild); err == nil {
+			t.Fatalf("TeardownRehearsalRows(%q) = nil, want the metacharacter refusal", wild)
+		}
+		if len(guarded.stmts) != 0 {
+			t.Fatalf("TeardownRehearsalRows(%q) ran %d statements, want none", wild, len(guarded.stmts))
 		}
 	}
 }
