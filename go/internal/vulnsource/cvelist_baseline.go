@@ -180,6 +180,26 @@ func (c CVEListMirrorCursor) NeedsReseed(reachedCursor bool) bool {
 	return !reachedCursor
 }
 
+// Lag measures mirror lag as now minus the cursor fetchTime, classified
+// against the freshness window. Operators read it through the source
+// freshness state; the cadence check is lag within the window (10-15 min
+// per the mirror ADR). An unparseable cursor fetchTime fails: lag from an
+// unknown position is unknown, never zero.
+func (c CVEListMirrorCursor) Lag(now time.Time, window time.Duration) (time.Duration, FreshnessState, error) {
+	fetchTime, err := time.Parse(time.RFC3339Nano, c.FetchTime)
+	if err != nil {
+		return 0, "", fmt.Errorf("vulnsource: unparseable cursor fetchTime %q: %w", c.FetchTime, err)
+	}
+	lag := now.Sub(fetchTime)
+	if lag < 0 {
+		lag = 0
+	}
+	if lag <= window {
+		return lag, FreshnessFresh, nil
+	}
+	return lag, FreshnessStale, nil
+}
+
 // WriteCVEListMirrorCursor persists the cursor atomically (write temp,
 // rename) with owner-only permissions.
 func WriteCVEListMirrorCursor(storeDir string, cur CVEListMirrorCursor) error {
