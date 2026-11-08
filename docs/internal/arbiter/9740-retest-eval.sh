@@ -82,10 +82,10 @@ case "$MODE" in
     if [ "$END" = "now" ]; then END="$NOW_UTC"; fi
     START="$(date -u -d "$END - 14 days" +%Y-%m-%dT%H:%M:%SZ)"
     echo "== 2a window: ${START} .. ${END} step 5m =="
-    R_FLAG="increase(${FANOUT_METRIC}{domain=\"supply_chain_impact\",outcome=\"replay_flagged\"}[1h])"
-    R_EXEC="increase(${EXEC_METRIC}{domain=\"supply_chain_impact\",queue=\"reducer\"}[1h])"
-    R_OPEN="increase(${FANOUT_METRIC}{domain=\"supply_chain_impact\",outcome=\"reopened\"}[1h])"
-    R_NOOP="increase(${FANOUT_METRIC}{domain=\"supply_chain_impact\",outcome=\"pending_noop\"}[1h])"
+    R_FLAG='increase('"${FANOUT_METRIC}"'{domain="supply_chain_impact",outcome="replay_flagged"}[1h])'
+    R_EXEC='increase('"${EXEC_METRIC}"'{domain="supply_chain_impact",queue="reducer"}[1h])'
+    R_OPEN='increase('"${FANOUT_METRIC}"'{domain="supply_chain_impact",outcome="reopened"}[1h])'
+    R_NOOP='increase('"${FANOUT_METRIC}"'{domain="supply_chain_impact",outcome="pending_noop"}[1h])'
     echo "flagged : ${R_FLAG}"
     echo "exec    : ${R_EXEC}"
     echo "age     : ${AGE_METRIC}{domain=\"supply_chain_impact\"}"
