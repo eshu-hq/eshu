@@ -41,6 +41,35 @@ func TestOwnedTargetRotationFreshness(t *testing.T) {
 			maxStaleness: 24*time.Hour - time.Nanosecond, wantPeriod: 24 * time.Hour, wantBound: 24*time.Hour - time.Nanosecond, wantExceeds: true,
 		},
 		{
+			// #9222 recompute at T 32,828: L 2052 is the smallest limit
+			// reaching P 32, which is a 16-minute rotation on the default
+			// 30-second cadence (the closest achievable to 15 minutes:
+			// P must be a power of two, so exactly 15 minutes is off
+			// the ladder).
+			name: "9222 recomputed minimum is a 16 minute rotation", slotCount: 32, interval: 30 * time.Second,
+			maxStaleness: 24 * time.Hour, wantPeriod: 16 * time.Minute, wantBound: 24 * time.Hour, wantExceeds: false,
+		},
+		{
+			// The same P 32 is a 16-hour rotation on the 30-minute QA
+			// cadence, inside the 24-hour default bound (the held 1500
+			// stays at P 64, a 32-hour breach).
+			name: "9222 recomputed minimum fits the default bound at QA cadence", slotCount: 32, interval: halfHour,
+			maxStaleness: 24 * time.Hour, wantPeriod: 16 * time.Hour, wantBound: 24 * time.Hour, wantExceeds: false,
+		},
+		{
+			// At the 30-minute QA cadence even the widest floor misses a
+			// 15-minute rotation: P 16 at the 5000 cap is 8 hours.
+			name: "9222 cap floor still exceeds a 15 minute bound at QA cadence", slotCount: 16, interval: halfHour,
+			maxStaleness: 15 * time.Minute, wantPeriod: 8 * time.Hour, wantBound: 15 * time.Minute, wantExceeds: true,
+		},
+		{
+			// Absolute floor at the QA cadence: one slot still spans one
+			// 30-minute window, so a 15-minute full rotation is infeasible
+			// for any limit there.
+			name: "9222 single slot still exceeds a 15 minute bound at QA cadence", slotCount: 1, interval: halfHour,
+			maxStaleness: 15 * time.Minute, wantPeriod: halfHour, wantBound: 15 * time.Minute, wantExceeds: true,
+		},
+		{
 			name: "blank interval uses the reconcile default like the bucket does", slotCount: 4, interval: 0,
 			maxStaleness: time.Hour, wantPeriod: 4 * DefaultReconcileInterval, wantBound: time.Hour, wantExceeds: false,
 		},
