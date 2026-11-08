@@ -223,13 +223,13 @@ import (
 // #10389 adds 284_supply_chain_impact_scope_pass_state.sql (the durable
 // per-scope supply-chain impact pass state behind the day-stuck-partial
 // status degraded reason; one CREATE TABLE, no index).
-const goldenBootstrapDefinitionsDigest = "98915e27f728f547c1e8c9fcb3f2e5842879e3aa4898c4d077097ea52cf4f2b0"
+const goldenBootstrapDefinitionsDigest = "70edc0646c33997614bcb10f702caf8ad5a8ce878acb6dc935aa66f512efebc7"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or
 // silently dropping files) fails loudly even in the unlikely case of a hash
 // collision.
-const goldenBootstrapDefinitionsCount = 310
+const goldenBootstrapDefinitionsCount = 311
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
 	defs := BootstrapDefinitions()
