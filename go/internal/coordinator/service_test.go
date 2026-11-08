@@ -361,6 +361,57 @@ func TestServiceRunActiveModeReturnsRunReconcileError(t *testing.T) {
 	}
 }
 
+// TestServiceRunActiveModeCompletesInitialReconciliationWhenStoreSkipsPoisonRuns
+// pins the startup half of #10369 at the coordinator boundary: the fixed
+// store skips unknown-trigger rows and returns (reconciled, nil), so the
+// initial workflow run reconciliation completes and Run proceeds instead of
+// exiting with "initial workflow run reconciliation: ...", which crash-looped
+// the coordinator while the poison row sorted first.
+func TestServiceRunActiveModeCompletesInitialReconciliationWhenStoreSkipsPoisonRuns(t *testing.T) {
+	t.Parallel()
+
+	store := &fakeStore{}
+	metrics := &fakeMetrics{}
+	service := Service{
+		Config: Config{
+			DeploymentMode:           deploymentModeActive,
+			ClaimsEnabled:            true,
+			ReconcileInterval:        time.Second,
+			ReapInterval:             time.Second,
+			ClaimLeaseTTL:            time.Minute,
+			HeartbeatInterval:        20 * time.Second,
+			ExpiredClaimLimit:        10,
+			ExpiredClaimRequeueDelay: 5 * time.Second,
+			CollectorInstances: []workflow.DesiredCollectorInstance{{
+				InstanceID:    "collector-git-primary",
+				CollectorKind: scope.CollectorGit,
+				Mode:          workflow.CollectorModeContinuous,
+				Enabled:       true,
+				ClaimsEnabled: true,
+			}},
+		},
+		Store:   store,
+		Metrics: metrics,
+		Clock:   func() time.Time { return time.Date(2026, time.November, 8, 0, 30, 0, 0, time.UTC) },
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	if err := service.Run(ctx); err != nil {
+		t.Fatalf("Run() error = %v, want nil (initial reconciliation must complete when the store skips poison rows)", err)
+	}
+	if got, want := store.runReconcileCalls, 1; got != want {
+		t.Fatalf("run reconcile calls = %d, want %d", got, want)
+	}
+	if got, want := len(metrics.runReconcilations), 1; got != want {
+		t.Fatalf("run reconciliation observations = %d, want %d", got, want)
+	}
+	if got, want := metrics.runReconcilations[0].Outcome, runReconcileOutcomeSuccess; got != want {
+		t.Fatalf("run reconciliation outcome = %q, want %q", got, want)
+	}
+}
+
 // fixedAdmissionStore returns one canned admission from the guarded scheduler so
 // the two shortfall shapes can be told apart: targets an open run already
 // covered, and rows the database refused after the guard admitted them.

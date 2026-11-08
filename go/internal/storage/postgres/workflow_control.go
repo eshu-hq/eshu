@@ -48,8 +48,9 @@ type WorkflowControlStore struct {
 	// authoritative in shared storage.
 	pacingMu     sync.Mutex
 	pacingDepths *claimPacingDepthCache
-	// Instruments records the terminal-dead-letter-block signal during
-	// ReconcileWorkflowRuns (#4459). Nil is a no-op, so binaries without a
+	// Instruments records the terminal-dead-letter-block signal (#4459) and
+	// the unknown-trigger skip signal (#10369) during
+	// ReconcileWorkflowRuns. Nil is a no-op, so binaries without a
 	// wired meter provider are unaffected.
 	Instruments *telemetry.Instruments
 	// QuotaLookup resolves the enforced per-component generation quota
