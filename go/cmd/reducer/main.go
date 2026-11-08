@@ -489,6 +489,9 @@ func buildReducerService(
 			// #9805: one full resweep at startup, then keyed ticks from the dirty
 			// log, with a full-recompute audit as the backstop.
 			KeyedRebuilder: postgres.NewSupplyChainImpactWinnersStore(database).WithInstruments(instruments),
+			// The stale candidate source is attached post-construction in
+			// buildObservedReducerService when routing admits stale audits
+			// (#10416 slice 1); default off leaves this writer-backed.
 			Auditor:        postgres.NewSupplyChainImpactWinnersStore(database),
 			AuditInterval:  loadSupplyChainImpactWinnersAuditInterval(getenv),
 			DirtyLogReader: postgres.NewSupplyChainImpactWinnersStore(database),

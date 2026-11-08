@@ -73,6 +73,14 @@ type StaleDeferral struct {
 // travel through errors.As for logs, never as metric labels or wire text.
 func (e StaleDeferral) Error() string { return "PostgreSQL stale reader deferred" }
 
+// StaleReadDeferred marks a refused stale read for errors.As matching through
+// a minimal interface, so a storage caller can recognize the deferral without
+// importing this package: any error whose chain carries a StaleDeferral
+// answers true, including through the private failure wrapper. It is the
+// slice-1 seam the winners-audit split scan matches on; the deferral itself
+// and its reasons are unchanged.
+func (e StaleDeferral) StaleReadDeferred() bool { return true }
+
 var _ db.ReadStore = staleReadStore{}
 
 // staleReadStore serves guarded reads from the same qualified standby fleet
