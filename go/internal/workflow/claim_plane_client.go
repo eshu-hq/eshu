@@ -64,86 +64,8 @@ type claimPlaneEnvelope struct {
 	RetryAfterSeconds int64  `json:"retry_after_seconds,omitempty"`
 }
 
-// claimPlaneWireItem mirrors the protocol work-item JSON. Durations travel
-// as integer nanoseconds.
-type claimPlaneWireItem struct {
-	WorkItemID          string    `json:"work_item_id"`
-	RunID               string    `json:"run_id"`
-	CollectorKind       string    `json:"collector_kind"`
-	CollectorInstanceID string    `json:"collector_instance_id"`
-	SourceSystem        string    `json:"source_system"`
-	ScopeID             string    `json:"scope_id"`
-	TenantID            string    `json:"tenant_id,omitempty"`
-	WorkspaceID         string    `json:"workspace_id,omitempty"`
-	SubjectClass        string    `json:"subject_class,omitempty"`
-	PolicyRevisionHash  string    `json:"policy_revision_hash,omitempty"`
-	AcceptanceUnitID    string    `json:"acceptance_unit_id"`
-	SourceRunID         string    `json:"source_run_id"`
-	GenerationID        string    `json:"generation_id"`
-	FairnessKey         string    `json:"fairness_key,omitempty"`
-	ClaimPriority       int       `json:"claim_priority"`
-	ClaimEcosystem      string    `json:"claim_ecosystem,omitempty"`
-	Status              string    `json:"status"`
-	AttemptCount        int       `json:"attempt_count"`
-	CurrentClaimID      string    `json:"current_claim_id,omitempty"`
-	CurrentFencingToken int64     `json:"current_fencing_token"`
-	CurrentOwnerID      string    `json:"current_owner_id,omitempty"`
-	LeaseExpiresAt      time.Time `json:"lease_expires_at,omitempty"`
-	VisibleAt           time.Time `json:"visible_at,omitempty"`
-	LastClaimedAt       time.Time `json:"last_claimed_at,omitempty"`
-	LastCompletedAt     time.Time `json:"last_completed_at,omitempty"`
-	LastFailureClass    string    `json:"last_failure_class,omitempty"`
-	LastFailureMessage  string    `json:"last_failure_message,omitempty"`
-	CreatedAt           time.Time `json:"created_at"`
-	UpdatedAt           time.Time `json:"updated_at"`
-}
-
-// claimPlaneWireClaim mirrors the protocol claim JSON.
-type claimPlaneWireClaim struct {
-	ClaimID        string    `json:"claim_id"`
-	WorkItemID     string    `json:"work_item_id"`
-	FencingToken   int64     `json:"fencing_token"`
-	OwnerID        string    `json:"owner_id"`
-	Status         string    `json:"status"`
-	ClaimedAt      time.Time `json:"claimed_at"`
-	HeartbeatAt    time.Time `json:"heartbeat_at"`
-	LeaseExpiresAt time.Time `json:"lease_expires_at"`
-	FinishedAt     time.Time `json:"finished_at,omitempty"`
-	CreatedAt      time.Time `json:"created_at"`
-	UpdatedAt      time.Time `json:"updated_at"`
-}
-
-func wireItemToWorkItem(wire claimPlaneWireItem) WorkItem {
-	return WorkItem{
-		WorkItemID: wire.WorkItemID, RunID: wire.RunID,
-		CollectorKind:       scope.CollectorKind(wire.CollectorKind),
-		CollectorInstanceID: wire.CollectorInstanceID,
-		SourceSystem:        wire.SourceSystem, ScopeID: wire.ScopeID,
-		TenantID: wire.TenantID, WorkspaceID: wire.WorkspaceID,
-		SubjectClass: wire.SubjectClass, PolicyRevisionHash: wire.PolicyRevisionHash,
-		AcceptanceUnitID: wire.AcceptanceUnitID, SourceRunID: wire.SourceRunID,
-		GenerationID: wire.GenerationID, FairnessKey: wire.FairnessKey,
-		ClaimPriority: wire.ClaimPriority, ClaimEcosystem: wire.ClaimEcosystem,
-		Status: WorkItemStatus(wire.Status), AttemptCount: wire.AttemptCount,
-		CurrentClaimID: wire.CurrentClaimID, CurrentFencingToken: wire.CurrentFencingToken,
-		CurrentOwnerID: wire.CurrentOwnerID, LeaseExpiresAt: wire.LeaseExpiresAt,
-		VisibleAt: wire.VisibleAt, LastClaimedAt: wire.LastClaimedAt,
-		LastCompletedAt:  wire.LastCompletedAt,
-		LastFailureClass: wire.LastFailureClass, LastFailureMessage: wire.LastFailureMessage,
-		CreatedAt: wire.CreatedAt, UpdatedAt: wire.UpdatedAt,
-	}
-}
-
-func wireClaimToClaim(wire claimPlaneWireClaim) Claim {
-	return Claim{
-		ClaimID: wire.ClaimID, WorkItemID: wire.WorkItemID,
-		FencingToken: wire.FencingToken, OwnerID: wire.OwnerID,
-		Status: ClaimStatus(wire.Status), ClaimedAt: wire.ClaimedAt,
-		HeartbeatAt: wire.HeartbeatAt, LeaseExpiresAt: wire.LeaseExpiresAt,
-		FinishedAt: wire.FinishedAt, CreatedAt: wire.CreatedAt, UpdatedAt: wire.UpdatedAt,
-	}
-}
-
+// Claim-path wire shapes and their validated converters live in
+// claim_plane_wire.go: the only path from protocol JSON into domain types.
 // post encodes body as JSON, posts it to the operation path with the
 // protocol version header, and decodes a 200 into out. A protocol error
 // status decodes the envelope and maps it to a caller error. Every call
@@ -337,8 +259,15 @@ func (c *ClaimPlaneClient) ClaimNextEligible(
 		return WorkItem{}, Claim{}, false, err
 	}
 	if response.Issued {
-		return wireItemToWorkItem(response.Grant.WorkItem),
-			wireClaimToClaim(response.Grant.Claim), true, nil
+		item, err := wireItemToWorkItem(response.Grant.WorkItem)
+		if err != nil {
+			return WorkItem{}, Claim{}, false, fmt.Errorf("claim-plane ClaimNext: %w", err)
+		}
+		claim, err := wireClaimToClaim(response.Grant.Claim)
+		if err != nil {
+			return WorkItem{}, Claim{}, false, fmt.Errorf("claim-plane ClaimNext: %w", err)
+		}
+		return item, claim, true, nil
 	}
 	return WorkItem{}, Claim{}, false, &ClaimPacingDeferral{
 		Signal:     ClaimPacingSignal(response.Deferral.Signal),
@@ -482,10 +411,14 @@ func (c *ClaimPlaneClient) ListCollectorInstances(ctx context.Context) ([]Collec
 	}
 	instances := make([]CollectorInstance, 0, len(response.Instances))
 	for _, wire := range response.Instances {
+		mode := CollectorMode(wire.Mode)
+		if err := wireEnum("collector mode", mode); err != nil {
+			return nil, fmt.Errorf("claim-plane ListCollectorInstances: %w", err)
+		}
 		instances = append(instances, CollectorInstance{
 			InstanceID:    wire.InstanceID,
 			CollectorKind: scope.CollectorKind(wire.CollectorKind),
-			Mode:          CollectorMode(wire.Mode), Enabled: wire.Enabled,
+			Mode:          mode, Enabled: wire.Enabled,
 			Bootstrap: wire.Bootstrap, ClaimsEnabled: wire.ClaimsEnabled,
 			DisplayName: wire.DisplayName, Configuration: wire.Configuration,
 			LastObservedAt: wire.LastObservedAt, DeactivatedAt: wire.DeactivatedAt,

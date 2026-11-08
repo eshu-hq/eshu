@@ -9,6 +9,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -21,7 +22,11 @@ import (
 // path: an oldest server that omits every optional field still yields a
 // usable grant, and a newest server that adds unknown fields (including
 // unknown error-envelope fields) must not break this client. These tests
-// pin the lenient decode; a strict decoder is a protocol break.
+// pin the lenient field decode; a strict field decoder is a protocol break.
+// Unknown fields stay lenient, but an unknown value for a CLOSED enum is a
+// newer major speaking: the client must fail closed as invalid, never as a
+// fence rejection and never as silent success (version-matrix same-major
+// rule). Open enums such as CollectorKind stay open on decode.
 
 func compatGrantMux(t *testing.T, body map[string]any) *httptest.Server {
 	t.Helper()
@@ -126,5 +131,74 @@ func TestClaimPlaneClientNewestServerUnknownErrorFields(t *testing.T) {
 	})
 	if !errors.Is(err, ErrClaimRejected) {
 		t.Fatalf("unknown error fields: want ErrClaimRejected, got %v", err)
+	}
+}
+
+func compatStatusMux(t *testing.T, run map[string]any, progress []map[string]any) *httptest.Server {
+	t.Helper()
+	now := time.Now().UTC()
+	if run == nil {
+		run = map[string]any{}
+	}
+	for key, value := range map[string]any{
+		"run_id": "run-1", "trigger_kind": "schedule",
+		"status":     "collection_active",
+		"created_at": now, "updated_at": now,
+	} {
+		if _, ok := run[key]; !ok {
+			run[key] = value
+		}
+	}
+	return compatGrantMux(t, map[string]any{
+		"run": run, "progress": progress, "as_of": now,
+	})
+}
+
+// TestClaimPlaneClientNewestServerUnknownEnumValue is the oldest/newest
+// fail-closed proof: a closed enum carrying a value this major never defined
+// is a newer major speaking, so GetRunStatus must report invalid — never a
+// fence rejection, and never silent success with the future value decoded.
+func TestClaimPlaneClientNewestServerUnknownEnumValue(t *testing.T) {
+	server := compatStatusMux(t,
+		map[string]any{"status": "FUTURE_99_XYZ"},
+		[]map[string]any{{
+			"collector_kind":   "jira",
+			"total_work_items": 2, "pending_work_items": 2,
+		}},
+	)
+	defer server.Close()
+	client := NewClaimPlaneClient(server.URL, server.Client())
+
+	report, err := client.GetRunStatus(context.Background(), "run-1")
+	if err == nil {
+		t.Fatalf("unknown run status decoded as success: %+v, want invalid", report.Run.Status)
+	}
+	if errors.Is(err, ErrClaimRejected) {
+		t.Fatalf("unknown run status = %v, must not read as a fence rejection", err)
+	}
+	if !strings.Contains(err.Error(), "invalid") {
+		t.Fatalf("unknown run status err = %v, want invalid mapping", err)
+	}
+}
+
+// TestClaimPlaneClientNewestServerOpenKindStaysOpen guards the exemption:
+// CollectorKind is an open enum, so a kind this major never defined must
+// still decode on the read plane.
+func TestClaimPlaneClientNewestServerOpenKindStaysOpen(t *testing.T) {
+	server := compatStatusMux(t, nil,
+		[]map[string]any{{
+			"collector_kind":   "future-kind-xyz",
+			"total_work_items": 2, "pending_work_items": 2,
+		}},
+	)
+	defer server.Close()
+	client := NewClaimPlaneClient(server.URL, server.Client())
+
+	report, err := client.GetRunStatus(context.Background(), "run-1")
+	if err != nil {
+		t.Fatalf("future collector kind: %v, want success", err)
+	}
+	if len(report.Progress) != 1 || string(report.Progress[0].CollectorKind) != "future-kind-xyz" {
+		t.Fatalf("progress = %+v, want the future kind carried through", report.Progress)
 	}
 }

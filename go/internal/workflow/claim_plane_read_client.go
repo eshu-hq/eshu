@@ -158,16 +158,28 @@ type claimPlaneWireRunStatus struct {
 	AsOf         time.Time                    `json:"as_of"`
 }
 
-func wireRunToRun(wire claimPlaneWireRun) Run {
+func wireRunToRun(wire claimPlaneWireRun) (Run, error) {
+	trigger := TriggerKind(wire.TriggerKind)
+	if err := wireEnum("run trigger kind", trigger); err != nil {
+		return Run{}, err
+	}
+	status := RunStatus(wire.Status)
+	if err := wireEnum("run status", status); err != nil {
+		return Run{}, err
+	}
 	return Run{
-		RunID: wire.RunID, TriggerKind: TriggerKind(wire.TriggerKind), Status: RunStatus(wire.Status),
+		RunID: wire.RunID, TriggerKind: trigger, Status: status,
 		RequestedScopeSet: wire.RequestedScopeSet, RequestedCollector: wire.RequestedCollector,
 		CreatedAt: wire.CreatedAt, UpdatedAt: wire.UpdatedAt, FinishedAt: wire.FinishedAt,
-	}
+	}, nil
 }
 
 func wireRunStatusToReport(wire claimPlaneWireRunStatus) (RunStatusReport, error) {
-	report := RunStatusReport{Run: wireRunToRun(wire.Run), AsOf: wire.AsOf}
+	run, err := wireRunToRun(wire.Run)
+	if err != nil {
+		return RunStatusReport{}, fmt.Errorf("claim-plane GetRunStatus: %w", err)
+	}
+	report := RunStatusReport{Run: run, AsOf: wire.AsOf}
 	for _, entry := range wire.Progress {
 		progress, err := wireProgressToProgress(entry)
 		if err != nil {
@@ -176,6 +188,8 @@ func wireRunStatusToReport(wire claimPlaneWireRunStatus) (RunStatusReport, error
 		report.Progress = append(report.Progress, progress)
 	}
 	for _, entry := range wire.Completeness {
+		// Completeness checkpoints carry no closed enums on the wire:
+		// status, keyspace, and phase travel as plain strings.
 		report.Completeness = append(report.Completeness, wireCompletenessToState(entry))
 	}
 	return report, nil
@@ -231,7 +245,11 @@ func (c *ClaimPlaneClient) ListRuns(
 	}
 	page := RunPage{NextCursor: response.NextCursor, AsOf: response.AsOf}
 	for _, wire := range response.Runs {
-		page.Runs = append(page.Runs, wireRunToRun(wire))
+		run, err := wireRunToRun(wire)
+		if err != nil {
+			return RunPage{}, fmt.Errorf("claim-plane ListRuns: %w", err)
+		}
+		page.Runs = append(page.Runs, run)
 	}
 	return page, nil
 }
