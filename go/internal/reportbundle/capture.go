@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/replay"
 )
 
@@ -29,7 +29,7 @@ const defaultFactRefsUnavailableReason = "no public fact-record read surface"
 // CaptureInput is the caller-supplied material Capture composes into a
 // Bundle. Capture does not perform network calls, MCP invocations, or fact
 // store reads itself — callers (the `eshu report capture` CLI command in
-// Slice 1) own resolving the query.ResponseEnvelope and any evidence
+// Slice 1) own resolving the querycontract.ResponseEnvelope and any evidence
 // hydration; Capture's job is exactly composition, redaction, digesting, and
 // the fail-closed validation gate.
 type CaptureInput struct {
@@ -51,9 +51,9 @@ type CaptureInput struct {
 	// find.
 	ReporterNote string `json:"reporter_note,omitempty"`
 
-	// Envelope is the query.ResponseEnvelope returned by the query. Truth is
+	// Envelope is the querycontract.ResponseEnvelope returned by the query. Truth is
 	// stored verbatim; Data is redacted before it is stored.
-	Envelope query.ResponseEnvelope `json:"envelope"`
+	Envelope querycontract.ResponseEnvelope `json:"envelope"`
 	// Truncated is the observed read-model truncation flag found in the
 	// response data (for example AnswerPacket.Truncated), supplied by the
 	// caller since truncation is not part of the envelope contract itself.
@@ -412,7 +412,7 @@ func dedupeSorted(rules []string) []string {
 // after construction. A key added later would land in a bundle that already
 // passed Validate. Nil stays nil so `details` keeps being omitted from the
 // serialized error.
-func redactErrorEnvelope(envelope *query.ErrorEnvelope) (*query.ErrorEnvelope, []string) {
+func redactErrorEnvelope(envelope *querycontract.ErrorEnvelope) (*querycontract.ErrorEnvelope, []string) {
 	if envelope == nil {
 		return nil, nil
 	}

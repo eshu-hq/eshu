@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // This file is the other half of the egress canary in
@@ -83,7 +83,7 @@ func TestReporterInputPlacementSymmetry(t *testing.T) {
 					Surface:      "api",
 					Target:       "/api/v0/services/checkout/story?" + bytes,
 					Method:       "GET",
-					Envelope:     query.ResponseEnvelope{Data: map[string]any{"owner": "platform-team"}},
+					Envelope:     querycontract.ResponseEnvelope{Data: map[string]any{"owner": "platform-team"}},
 					ReporterNote: "expected the owning team, got an empty list",
 				}
 			},
@@ -98,7 +98,7 @@ func TestReporterInputPlacementSymmetry(t *testing.T) {
 					Surface:      "api",
 					Target:       "/api/v0/services/checkout/story",
 					Method:       "GET",
-					Envelope:     query.ResponseEnvelope{Data: map[string]any{"owner": "platform-team"}},
+					Envelope:     querycontract.ResponseEnvelope{Data: map[string]any{"owner": "platform-team"}},
 					ReporterNote: bytes,
 				}
 			},
@@ -116,9 +116,9 @@ func TestReporterInputPlacementSymmetry(t *testing.T) {
 					Surface: "api",
 					Target:  "/api/v0/services/checkout/story",
 					Method:  "GET",
-					Envelope: query.ResponseEnvelope{
+					Envelope: querycontract.ResponseEnvelope{
 						Data: map[string]any{"owner": "platform-team"},
-						Error: &query.ErrorEnvelope{
+						Error: &querycontract.ErrorEnvelope{
 							Code:    "ambiguous",
 							Message: composedAmbiguousMessage(bytes),
 						},
@@ -127,7 +127,7 @@ func TestReporterInputPlacementSymmetry(t *testing.T) {
 				}
 			},
 			handEdit: func(b *Bundle, bytes string) {
-				b.Response.Error = &query.ErrorEnvelope{
+				b.Response.Error = &querycontract.ErrorEnvelope{
 					Code:    "ambiguous",
 					Message: composedAmbiguousMessage(bytes),
 				}
@@ -180,7 +180,7 @@ func TestCaptureKeepsReporterNoteAroundTheCredential(t *testing.T) {
 		Surface:  "api",
 		Target:   "/api/v0/services/checkout/story",
 		Method:   "GET",
-		Envelope: query.ResponseEnvelope{Data: map[string]any{"owner": "platform-team"}},
+		Envelope: querycontract.ResponseEnvelope{Data: map[string]any{"owner": "platform-team"}},
 		ReporterNote: "expected the platform team, got an empty list.\n" +
 			"curl 'https://eshu.example/api/v0/x?repo=demo&api_key=" + egressNoteQuerySentinel + "'\n" +
 			"same on a retry.",
@@ -219,7 +219,7 @@ func TestCaptureLeavesACleanReporterNoteAlone(t *testing.T) {
 		Surface:      "api",
 		Target:       "/api/v0/services/checkout/story",
 		Method:       "GET",
-		Envelope:     query.ResponseEnvelope{Data: map[string]any{"owner": "platform-team"}},
+		Envelope:     querycontract.ResponseEnvelope{Data: map[string]any{"owner": "platform-team"}},
 		ReporterNote: note,
 	})
 	if err != nil {
@@ -247,9 +247,9 @@ func TestCaptureKeepsTheErrorMessageAroundTheCredential(t *testing.T) {
 		Surface: "api",
 		Target:  "/api/v0/services/checkout/story",
 		Method:  "GET",
-		Envelope: query.ResponseEnvelope{
+		Envelope: querycontract.ResponseEnvelope{
 			Data: map[string]any{"owner": "platform-team"},
-			Error: &query.ErrorEnvelope{
+			Error: &querycontract.ErrorEnvelope{
 				Code:    "ambiguous",
 				Message: composedAmbiguousMessage("checkout?token=" + egressErrorMessageSentinel),
 			},
@@ -292,9 +292,9 @@ func TestCaptureLeavesACleanErrorEnvelopeAlone(t *testing.T) {
 		Surface: "api",
 		Target:  "/api/v0/services/checkout/story",
 		Method:  "GET",
-		Envelope: query.ResponseEnvelope{
+		Envelope: querycontract.ResponseEnvelope{
 			Data: map[string]any{"owner": "platform-team"},
-			Error: &query.ErrorEnvelope{
+			Error: &querycontract.ErrorEnvelope{
 				Code:          "ambiguous",
 				Message:       message,
 				CorrelationID: correlationID,
@@ -331,7 +331,7 @@ func TestCaptureKeepsTheNoteAroundAPercentEncodedCredential(t *testing.T) {
 		Surface:  "api",
 		Target:   "/api/v0/services/checkout/story",
 		Method:   "GET",
-		Envelope: query.ResponseEnvelope{Data: map[string]any{"owner": "platform-team"}},
+		Envelope: querycontract.ResponseEnvelope{Data: map[string]any{"owner": "platform-team"}},
 		ReporterNote: "the owner list came back empty.\n" +
 			"curl 'https://eshu.example/api/v0/x?repo=demo%26redirect_uri=%2Fcb%3Faccess_token%3D" + sentinel + "'\n" +
 			"same on a retry.",
@@ -385,7 +385,7 @@ func TestCaptureStopsAContinuationAtAValueThatEndedMidLine(t *testing.T) {
 		Surface:      "api",
 		Target:       "/api/v0/services/checkout/story",
 		Method:       "GET",
-		Envelope:     query.ResponseEnvelope{Data: map[string]any{"owner": "platform-team"}},
+		Envelope:     querycontract.ResponseEnvelope{Data: map[string]any{"owner": "platform-team"}},
 		ReporterNote: note,
 	})
 	if err != nil {
@@ -428,7 +428,7 @@ func TestCaptureKeepsQueryShapedBenignParams(t *testing.T) {
 			"package_id": purl,
 			"filters":    map[string]any{"nested": "a=b&c=d"},
 		},
-		Envelope: query.ResponseEnvelope{Data: map[string]any{"ok": true}},
+		Envelope: querycontract.ResponseEnvelope{Data: map[string]any{"ok": true}},
 	})
 	if err != nil {
 		t.Fatalf("Capture() error = %v, want nil", err)

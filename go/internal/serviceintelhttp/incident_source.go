@@ -10,7 +10,7 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/servicecatalog"
 	"github.com/eshu-hq/eshu/go/internal/serviceintel"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -20,7 +20,7 @@ import (
 // the report's incidents_support section. It mirrors the get_incident_context
 // surface so the section carries incident-context truth (durable routing facts),
 // not the service-story platform truth. It must stay a capability present in the
-// capability matrix (specs/capability-matrix.v1.yaml); query.BuildTruthEnvelope
+// capability matrix (specs/capability-matrix.v1.yaml); querycontract.BuildTruthEnvelope
 // panics otherwise.
 const incidentContextCapability = "incident.context.read"
 
@@ -161,7 +161,7 @@ func mapIncidentRecords(rows []servicecatalog.ServiceIncidentRecord) []servicein
 func buildReportInput(
 	ctx context.Context,
 	dossier map[string]any,
-	truth *query.TruthEnvelope,
+	truth *querycontract.TruthEnvelope,
 	incidentSource IncidentEvidenceSource,
 	supplyChainSources ...SupplyChainEvidenceSource,
 ) serviceintel.ReportInput {
@@ -192,15 +192,15 @@ func buildReportInput(
 // supply-chain-impact aggregate capability, reusing the resolved profile of the
 // service-story truth so the section reflects reducer-owned impact facts rather
 // than platform service-story truth.
-func supplyChainTruth(storyTruth *query.TruthEnvelope) *query.TruthEnvelope {
-	profile := query.ProfileProduction
+func supplyChainTruth(storyTruth *querycontract.TruthEnvelope) *querycontract.TruthEnvelope {
+	profile := querycontract.ProfileProduction
 	if storyTruth != nil && storyTruth.Profile != "" {
 		profile = storyTruth.Profile
 	}
-	return query.BuildTruthEnvelope(
+	return querycontract.BuildTruthEnvelope(
 		profile,
 		supplyChainImpactAggregateCapability,
-		query.TruthBasisSemanticFacts,
+		querycontract.TruthBasisSemanticFacts,
 		"resolved from reducer-owned supply-chain impact facts; provider APIs are not called",
 	)
 }
@@ -209,15 +209,15 @@ func supplyChainTruth(storyTruth *query.TruthEnvelope) *query.TruthEnvelope {
 // incident-context capability, reusing the resolved profile of the service-story
 // truth so the section reflects incident-context truth rather than the platform
 // service-story truth.
-func incidentTruth(storyTruth *query.TruthEnvelope) *query.TruthEnvelope {
-	profile := query.ProfileProduction
+func incidentTruth(storyTruth *querycontract.TruthEnvelope) *querycontract.TruthEnvelope {
+	profile := querycontract.ProfileProduction
 	if storyTruth != nil && storyTruth.Profile != "" {
 		profile = storyTruth.Profile
 	}
-	return query.BuildTruthEnvelope(
+	return querycontract.BuildTruthEnvelope(
 		profile,
 		incidentContextCapability,
-		query.TruthBasisSemanticFacts,
+		querycontract.TruthBasisSemanticFacts,
 		"resolved from durable incident-routing correlation facts via the incident-repository join; provider APIs are not called",
 	)
 }

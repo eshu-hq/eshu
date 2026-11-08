@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/playbook"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/answer"
 	"github.com/eshu-hq/eshu/go/internal/serviceintel"
 )
 
@@ -106,7 +108,7 @@ func scoreReportCitationCoverage(report serviceintel.Report) CriterionScore {
 func scoreReportTruthClassPreservation(report serviceintel.Report) CriterionScore {
 	for _, section := range report.Sections {
 		if !section.Answer.Supported {
-			if section.Answer.TruthClass != "" && section.Answer.TruthClass != query.AnswerTruthUnsupported {
+			if section.Answer.TruthClass != "" && section.Answer.TruthClass != querycontract.AnswerTruthUnsupported {
 				return fail(CriterionTruthClassPreservation,
 					fmt.Sprintf("unsupported section %s claims truth class %q", section.Kind, section.Answer.TruthClass))
 			}
@@ -116,7 +118,7 @@ func scoreReportTruthClassPreservation(report serviceintel.Report) CriterionScor
 		// a content-index or fallback truth serialized as deterministic is an
 		// upgrade the report must not pass.
 		if section.Answer.Truth != nil {
-			if want := query.ClassifyAnswerTruth(section.Answer.Truth); section.Answer.TruthClass != want {
+			if want := answer.ClassifyAnswerTruth(section.Answer.Truth); section.Answer.TruthClass != want {
 				return fail(CriterionTruthClassPreservation,
 					fmt.Sprintf("section %s truth class %q does not match its envelope (%q)", section.Kind, section.Answer.TruthClass, want))
 			}
@@ -219,8 +221,8 @@ func mentionsTruncation(values []string) bool {
 // catalog (a typoed playbook id is not executable, even alongside a tool or
 // route); otherwise it must name a tool or route.
 func executableCall(call serviceintel.NextCall) bool {
-	if playbook := strings.TrimSpace(call.Playbook); playbook != "" {
-		_, ok := query.LookupPlaybook(playbook)
+	if name := strings.TrimSpace(call.Playbook); name != "" {
+		_, ok := playbook.Lookup(name)
 		return ok
 	}
 	return strings.TrimSpace(call.Tool) != "" || strings.TrimSpace(call.Route) != ""
@@ -228,7 +230,7 @@ func executableCall(call serviceintel.NextCall) bool {
 
 // nextCallsFromAnswer renders an answer packet's recommended_next_calls into the
 // typed NextCall shape for executability scoring.
-func nextCallsFromAnswer(answer query.AnswerPacket) []serviceintel.NextCall {
+func nextCallsFromAnswer(answer answer.AnswerPacket) []serviceintel.NextCall {
 	if len(answer.RecommendedNextCalls) == 0 {
 		return nil
 	}

@@ -8,28 +8,28 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // TestCapture_TruthEnvelopeVerbatimAndExcerptDropped proves the captured
-// query.TruthEnvelope is stored verbatim (not summarized or re-derived) and
+// querycontract.TruthEnvelope is stored verbatim (not summarized or re-derived) and
 // that citation excerpts (inline content bytes) never appear in the default
 // bundle even when the caller supplies them via Citations.
 func TestCapture_TruthEnvelopeVerbatimAndExcerptDropped(t *testing.T) {
 	t.Parallel()
 
-	truth := &query.TruthEnvelope{
-		Level:      query.TruthLevelDerived,
+	truth := &querycontract.TruthEnvelope{
+		Level:      querycontract.TruthLevelDerived,
 		Capability: "trace.service_story",
-		Profile:    query.ProfileLocalAuthoritative,
-		Basis:      query.TruthBasisContentIndex,
-		Backend:    query.GraphBackendNornicDB,
+		Profile:    querycontract.ProfileLocalAuthoritative,
+		Basis:      querycontract.TruthBasisContentIndex,
+		Backend:    querycontract.GraphBackendNornicDB,
 		Reason:     "derived from content index",
 	}
 	bundle, err := Capture(CaptureInput{
 		Surface: "api",
 		Target:  "/api/v0/services/checkout/story",
-		Envelope: query.ResponseEnvelope{
+		Envelope: querycontract.ResponseEnvelope{
 			Data:  map[string]any{"owner": "platform-team"},
 			Truth: truth,
 		},
@@ -61,9 +61,9 @@ func TestCapture_FactRefsDefaultToUnavailable(t *testing.T) {
 	bundle, err := Capture(CaptureInput{
 		Surface: "api",
 		Target:  "/api/v0/services/checkout/story",
-		Envelope: query.ResponseEnvelope{
+		Envelope: querycontract.ResponseEnvelope{
 			Data:  map[string]any{"owner": "platform-team"},
-			Truth: &query.TruthEnvelope{Level: query.TruthLevelExact},
+			Truth: &querycontract.TruthEnvelope{Level: querycontract.TruthLevelExact},
 		},
 	})
 	if err != nil {
@@ -88,9 +88,9 @@ func TestCapture_NilResponseDataYieldsNullWithDigest(t *testing.T) {
 	bundle, err := Capture(CaptureInput{
 		Surface: "api",
 		Target:  "/api/v0/services/checkout/story",
-		Envelope: query.ResponseEnvelope{
+		Envelope: querycontract.ResponseEnvelope{
 			Data:  nil,
-			Truth: &query.TruthEnvelope{Level: query.TruthLevelExact},
+			Truth: &querycontract.TruthEnvelope{Level: querycontract.TruthLevelExact},
 		},
 	})
 	if err != nil {
@@ -116,9 +116,9 @@ func TestCapture_ErrorDetailsAreRedacted(t *testing.T) {
 	bundle, err := Capture(CaptureInput{
 		Surface: "api",
 		Target:  "/api/v0/services/checkout/story",
-		Envelope: query.ResponseEnvelope{
+		Envelope: querycontract.ResponseEnvelope{
 			Data: map[string]any{"owner": "platform-team"},
-			Error: &query.ErrorEnvelope{
+			Error: &querycontract.ErrorEnvelope{
 				Code:    "internal",
 				Message: "upstream refused the call",
 				Details: map[string]any{
@@ -184,12 +184,12 @@ func TestCapture_ErrorDetailsAreRedacted(t *testing.T) {
 // that were the real error.
 func TestCapture_ErrorRedactionDoesNotMutateCallerEnvelope(t *testing.T) {
 	details := map[string]any{"api_key": "sk-live-do-not-share", "attempts": 1}
-	envelope := &query.ErrorEnvelope{Code: "internal", Message: "boom", Details: details}
+	envelope := &querycontract.ErrorEnvelope{Code: "internal", Message: "boom", Details: details}
 
 	if _, err := Capture(CaptureInput{
 		Surface:  "api",
 		Target:   "/api/v0/services/checkout/story",
-		Envelope: query.ResponseEnvelope{Data: map[string]any{"ok": true}, Error: envelope},
+		Envelope: querycontract.ResponseEnvelope{Data: map[string]any{"ok": true}, Error: envelope},
 	}); err != nil {
 		t.Fatalf("Capture() error = %v", err)
 	}
@@ -207,12 +207,12 @@ func TestCapture_ErrorRedactionDoesNotMutateCallerEnvelope(t *testing.T) {
 // into a bundle that has already passed its redaction check.
 func TestCapture_EmptyErrorDetailsDoNotAliasTheCallersMap(t *testing.T) {
 	details := map[string]any{}
-	envelope := &query.ErrorEnvelope{Code: "internal", Message: "boom", Details: details}
+	envelope := &querycontract.ErrorEnvelope{Code: "internal", Message: "boom", Details: details}
 
 	bundle, err := Capture(CaptureInput{
 		Surface:  "api",
 		Target:   "/api/v0/services/checkout/story",
-		Envelope: query.ResponseEnvelope{Data: map[string]any{"ok": true}, Error: envelope},
+		Envelope: querycontract.ResponseEnvelope{Data: map[string]any{"ok": true}, Error: envelope},
 	})
 	if err != nil {
 		t.Fatalf("Capture() error = %v", err)
@@ -231,12 +231,12 @@ func TestCapture_EmptyErrorDetailsDoNotAliasTheCallersMap(t *testing.T) {
 // Nil Details stay nil rather than becoming an empty object, so `details` keeps
 // being omitted from the serialized error (the field is `json:",omitempty"`).
 func TestCapture_NilErrorDetailsStayNil(t *testing.T) {
-	envelope := &query.ErrorEnvelope{Code: "internal", Message: "boom"}
+	envelope := &querycontract.ErrorEnvelope{Code: "internal", Message: "boom"}
 
 	bundle, err := Capture(CaptureInput{
 		Surface:  "api",
 		Target:   "/api/v0/services/checkout/story",
-		Envelope: query.ResponseEnvelope{Data: map[string]any{"ok": true}, Error: envelope},
+		Envelope: querycontract.ResponseEnvelope{Data: map[string]any{"ok": true}, Error: envelope},
 	})
 	if err != nil {
 		t.Fatalf("Capture() error = %v", err)
@@ -251,7 +251,7 @@ func TestCapture_NilErrorEnvelopeStaysNil(t *testing.T) {
 	bundle, err := Capture(CaptureInput{
 		Surface:  "api",
 		Target:   "/api/v0/services/checkout/story",
-		Envelope: query.ResponseEnvelope{Data: map[string]any{"ok": true}},
+		Envelope: querycontract.ResponseEnvelope{Data: map[string]any{"ok": true}},
 	})
 	if err != nil {
 		t.Fatalf("Capture() error = %v", err)

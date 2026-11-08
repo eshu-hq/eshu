@@ -6,13 +6,14 @@ package answernarration
 import (
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/answer"
 )
 
 func TestValidateRejectsUncitedFactualSentence(t *testing.T) {
 	packet := supportedPacket()
 	response := Narration{
-		TruthClass: query.AnswerTruthDeterministic,
+		TruthClass: querycontract.AnswerTruthDeterministic,
 		Supported:  true,
 		Sentences: []Sentence{
 			{Text: "Checkout calls ChargeCard directly.", Kind: SentenceFactual},
@@ -31,7 +32,7 @@ func TestValidateRejectsUncitedFactualSentence(t *testing.T) {
 func TestValidateAcceptsCitedFactualSentence(t *testing.T) {
 	packet := supportedPacket()
 	response := Narration{
-		TruthClass: query.AnswerTruthDeterministic,
+		TruthClass: querycontract.AnswerTruthDeterministic,
 		Supported:  true,
 		Sentences: []Sentence{
 			{
@@ -56,13 +57,13 @@ func TestValidateAcceptsCitedFactualSentence(t *testing.T) {
 }
 
 func TestValidateRejectsUnsupportedConfidenceDrift(t *testing.T) {
-	packet := query.AnswerPacket{
-		TruthClass:         query.AnswerTruthUnsupported,
+	packet := answer.AnswerPacket{
+		TruthClass:         querycontract.AnswerTruthUnsupported,
 		Supported:          false,
 		UnsupportedReasons: []string{"unsupported_capability: graph not available"},
 	}
 	response := Narration{
-		TruthClass: query.AnswerTruthDerived,
+		TruthClass: querycontract.AnswerTruthDerived,
 		Supported:  true,
 		Sentences: []Sentence{
 			{
@@ -86,7 +87,7 @@ func TestValidateRejectsPartialSignalHiding(t *testing.T) {
 	packet.Truncated = true
 	packet.UnsupportedReasons = []string{"result truncated; not all evidence is included"}
 	response := Narration{
-		TruthClass: query.AnswerTruthDeterministic,
+		TruthClass: querycontract.AnswerTruthDeterministic,
 		Supported:  true,
 		Partial:    false,
 		Sentences: []Sentence{
@@ -115,7 +116,7 @@ func TestValidateRejectsPartialSignalWithoutNarratedProvenance(t *testing.T) {
 	packet.Truncated = true
 	packet.UnsupportedReasons = []string{"result truncated; not all evidence is included"}
 	response := Narration{
-		TruthClass: query.AnswerTruthDeterministic,
+		TruthClass: querycontract.AnswerTruthDeterministic,
 		Supported:  true,
 		Partial:    true,
 		Sentences: []Sentence{
@@ -142,7 +143,7 @@ func TestValidateRejectsEmptyLimitationProvenance(t *testing.T) {
 	packet := supportedPacket()
 	packet.Limitations = []string{"results bounded to 50 callers"}
 	response := Narration{
-		TruthClass: query.AnswerTruthDeterministic,
+		TruthClass: querycontract.AnswerTruthDeterministic,
 		Supported:  true,
 		Sentences: []Sentence{
 			{
@@ -162,9 +163,9 @@ func TestValidateRejectsEmptyLimitationProvenance(t *testing.T) {
 
 func TestValidateRejectsTruthClassPromotion(t *testing.T) {
 	packet := supportedPacket()
-	packet.TruthClass = query.AnswerTruthCodeHint
+	packet.TruthClass = querycontract.AnswerTruthCodeHint
 	response := Narration{
-		TruthClass: query.AnswerTruthDeterministic,
+		TruthClass: querycontract.AnswerTruthDeterministic,
 		Supported:  true,
 		Sentences: []Sentence{
 			{
@@ -189,7 +190,7 @@ func TestValidateRejectsTruthClassPromotion(t *testing.T) {
 func TestValidateRejectsUnsafeOutput(t *testing.T) {
 	packet := supportedPacket()
 	response := Narration{
-		TruthClass: query.AnswerTruthDeterministic,
+		TruthClass: querycontract.AnswerTruthDeterministic,
 		Supported:  true,
 		Sentences: []Sentence{
 			{
@@ -214,7 +215,7 @@ func TestValidateRejectsUnsafeOutput(t *testing.T) {
 func TestValidateRejectsTooManyRefsPerSentence(t *testing.T) {
 	packet := supportedPacket()
 	response := Narration{
-		TruthClass: query.AnswerTruthDeterministic,
+		TruthClass: querycontract.AnswerTruthDeterministic,
 		Supported:  true,
 		Sentences: []Sentence{
 			{
@@ -238,9 +239,9 @@ func TestValidateRejectsTooManyRefsPerSentence(t *testing.T) {
 	requireFinding(t, verdict, ReasonOverLimit)
 }
 
-func supportedPacket() query.AnswerPacket {
-	return query.AnswerPacket{
-		TruthClass:  query.AnswerTruthDeterministic,
+func supportedPacket() answer.AnswerPacket {
+	return answer.AnswerPacket{
+		TruthClass:  querycontract.AnswerTruthDeterministic,
 		Supported:   true,
 		Partial:     false,
 		Summary:     "Checkout calls ChargeCard directly.",

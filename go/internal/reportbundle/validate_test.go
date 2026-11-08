@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // TestValidate_PublicProfileWithPayloadsIsRejected is the redaction-safety
@@ -282,7 +282,7 @@ func TestValidationChecksMatchValidateBehavior(t *testing.T) {
 		// query_inputs (which runs first) and would prove nothing about this
 		// check running at all.
 		{"response_error_text", func(b *Bundle) {
-			b.Response.Error = &query.ErrorEnvelope{
+			b.Response.Error = &querycontract.ErrorEnvelope{
 				Code:    "ambiguous",
 				Message: composedAmbiguousMessage("checkout?token=" + egressErrorMessageSentinel),
 			}

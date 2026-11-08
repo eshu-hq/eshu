@@ -3,7 +3,10 @@
 
 package answernarration
 
-import "github.com/eshu-hq/eshu/go/internal/query"
+import (
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/answer"
+)
 
 // Reason identifies a low-cardinality narration validation outcome.
 type Reason string
@@ -86,20 +89,20 @@ type Sentence struct {
 
 // Narration is the candidate presentation text to validate.
 type Narration struct {
-	TruthClass query.AnswerTruthClass `json:"truth_class"`
-	Supported  bool                   `json:"supported"`
-	Partial    bool                   `json:"partial,omitempty"`
-	Sentences  []Sentence             `json:"sentences"`
+	TruthClass querycontract.AnswerTruthClass `json:"truth_class"`
+	Supported  bool                           `json:"supported"`
+	Partial    bool                           `json:"partial,omitempty"`
+	Sentences  []Sentence                     `json:"sentences"`
 }
 
 // Input carries the source answer packet and candidate narration.
 type Input struct {
-	Packet             query.AnswerPacket `json:"packet"`
-	Response           Narration          `json:"response"`
-	CitationIDs        []string           `json:"citation_ids,omitempty"`
-	MaxSentences       int                `json:"max_sentences,omitempty"`
-	MaxSentenceBytes   int                `json:"max_sentence_bytes,omitempty"`
-	MaxRefsPerSentence int                `json:"max_refs_per_sentence,omitempty"`
+	Packet             answer.AnswerPacket `json:"packet"`
+	Response           Narration           `json:"response"`
+	CitationIDs        []string            `json:"citation_ids,omitempty"`
+	MaxSentences       int                 `json:"max_sentences,omitempty"`
+	MaxSentenceBytes   int                 `json:"max_sentence_bytes,omitempty"`
+	MaxRefsPerSentence int                 `json:"max_refs_per_sentence,omitempty"`
 }
 
 // Finding describes one validation failure using an audit-safe reason code.

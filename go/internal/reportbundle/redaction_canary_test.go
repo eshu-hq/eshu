@@ -10,7 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu-sdk/collector"
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // This file holds the redaction canaries: the acceptance-criterion tests that
@@ -77,7 +77,7 @@ func canaryCaptureInput(includePayloads bool) CaptureInput {
 			"repo":    "demo/service",
 			"api_key": sentinelParamValue,
 		},
-		Envelope: query.ResponseEnvelope{
+		Envelope: querycontract.ResponseEnvelope{
 			Data: map[string]any{
 				"owner": "platform-team",
 				"auth": map[string]any{
@@ -90,9 +90,9 @@ func canaryCaptureInput(includePayloads bool) CaptureInput {
 					map[string]any{"repo_id": "demo/service", "excerpt": sentinelEmbeddedExcerptData},
 				},
 			},
-			Truth: &query.TruthEnvelope{
-				Level: query.TruthLevelExact,
-				Basis: query.TruthBasisAuthoritativeGraph,
+			Truth: &querycontract.TruthEnvelope{
+				Level: querycontract.TruthLevelExact,
+				Basis: querycontract.TruthBasisAuthoritativeGraph,
 			},
 		},
 		ReporterNote:    "expected the owning team, got an empty list",
@@ -251,9 +251,9 @@ func TestCapture_RedactsSensitiveTargetQueryString(t *testing.T) {
 		Surface: "api",
 		Target:  targetWithSensitiveQueryString(),
 		Method:  "GET",
-		Envelope: query.ResponseEnvelope{
+		Envelope: querycontract.ResponseEnvelope{
 			Data:  map[string]any{"owner": "platform-team"},
-			Truth: &query.TruthEnvelope{Level: query.TruthLevelExact},
+			Truth: &querycontract.TruthEnvelope{Level: querycontract.TruthLevelExact},
 		},
 	})
 	if err != nil {
@@ -302,7 +302,7 @@ func TestCapture_RefusesUnparseableTargetQueryString(t *testing.T) {
 		Surface:  "api",
 		Target:   targetWithUnparseableQueryString(),
 		Method:   "GET",
-		Envelope: query.ResponseEnvelope{Data: map[string]any{"owner": "platform-team"}},
+		Envelope: querycontract.ResponseEnvelope{Data: map[string]any{"owner": "platform-team"}},
 	})
 	if err == nil {
 		t.Fatalf("Capture(unparseable target query string) error = nil, want refusal; bundle target = %q", bundle.Query.Target)
@@ -331,7 +331,7 @@ func TestCapture_DropsCredentialNestedInTargetParamValue(t *testing.T) {
 		Surface:  "api",
 		Target:   targetWithNestedCredentialValue(),
 		Method:   "GET",
-		Envelope: query.ResponseEnvelope{Data: map[string]any{"owner": "platform-team"}},
+		Envelope: querycontract.ResponseEnvelope{Data: map[string]any{"owner": "platform-team"}},
 	})
 	if err != nil {
 		t.Fatalf("Capture() error = %v, want nil", err)
@@ -358,7 +358,7 @@ func TestCapture_KeepsBenignNestedURLTargetParamValue(t *testing.T) {
 		Surface:  "api",
 		Target:   "/api/v0/services/checkout/story?next=/api/v0/x?page=2&repo=demo%2Fservice",
 		Method:   "GET",
-		Envelope: query.ResponseEnvelope{Data: map[string]any{"ok": true}},
+		Envelope: querycontract.ResponseEnvelope{Data: map[string]any{"ok": true}},
 	})
 	if err != nil {
 		t.Fatalf("Capture() error = %v, want nil", err)
@@ -381,7 +381,7 @@ func TestCapture_ExplicitParamsWinOverTargetQueryString(t *testing.T) {
 		Surface:  "api",
 		Target:   "/api/v0/services/checkout/story?repo=from-target",
 		Params:   map[string]any{"repo": "from-flag"},
-		Envelope: query.ResponseEnvelope{Data: map[string]any{"ok": true}},
+		Envelope: querycontract.ResponseEnvelope{Data: map[string]any{"ok": true}},
 	})
 	if err != nil {
 		t.Fatalf("Capture() error = %v, want nil", err)

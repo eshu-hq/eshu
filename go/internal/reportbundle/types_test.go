@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // TestBundle_SchemaRoundTrip proves the wrong_answer_report.v1 schema is
@@ -29,10 +29,10 @@ func TestBundle_SchemaRoundTrip(t *testing.T) {
 			Profile: "local_authoritative",
 		},
 		Response: CapturedResponse{
-			Truth: &query.TruthEnvelope{
-				Level:   query.TruthLevelExact,
-				Basis:   query.TruthBasisAuthoritativeGraph,
-				Backend: query.GraphBackendNornicDB,
+			Truth: &querycontract.TruthEnvelope{
+				Level:   querycontract.TruthLevelExact,
+				Basis:   querycontract.TruthBasisAuthoritativeGraph,
+				Backend: querycontract.GraphBackendNornicDB,
 			},
 			Truncated:  false,
 			Data:       json.RawMessage(`{"owner":"platform-team"}`),
@@ -80,7 +80,7 @@ func TestBundle_SchemaRoundTrip(t *testing.T) {
 	if decoded.Query.Surface != "api" || decoded.Query.Target != "/api/v0/services/checkout/story" {
 		t.Fatalf("decoded query mismatch: %+v", decoded.Query)
 	}
-	if decoded.Response.Truth == nil || decoded.Response.Truth.Level != query.TruthLevelExact {
+	if decoded.Response.Truth == nil || decoded.Response.Truth.Level != querycontract.TruthLevelExact {
 		t.Fatalf("decoded truth envelope mismatch: %+v", decoded.Response.Truth)
 	}
 	if decoded.Payloads != nil {

@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // minimalPublicBundle returns a bundle produced by Capture from a small,
@@ -20,11 +20,11 @@ func minimalPublicBundle(t *testing.T) Bundle {
 		Target:  "/api/v0/services/checkout/story",
 		Method:  "GET",
 		Params:  map[string]any{"repo": "demo/service"},
-		Envelope: query.ResponseEnvelope{
+		Envelope: querycontract.ResponseEnvelope{
 			Data: map[string]any{"owner": "platform-team"},
-			Truth: &query.TruthEnvelope{
-				Level: query.TruthLevelExact,
-				Basis: query.TruthBasisAuthoritativeGraph,
+			Truth: &querycontract.TruthEnvelope{
+				Level: querycontract.TruthLevelExact,
+				Basis: querycontract.TruthBasisAuthoritativeGraph,
 			},
 		},
 		ReporterNote: "expected the owning team, got an empty list",

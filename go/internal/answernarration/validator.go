@@ -8,7 +8,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/answer"
 )
 
 const (
@@ -172,18 +173,18 @@ func (v *validation) add(reason Reason, index int, detail string) {
 	})
 }
 
-func promotesTruth(source, response query.AnswerTruthClass) bool {
-	if response != query.AnswerTruthDeterministic {
+func promotesTruth(source, response querycontract.AnswerTruthClass) bool {
+	if response != querycontract.AnswerTruthDeterministic {
 		return false
 	}
-	return source == query.AnswerTruthDerived ||
-		source == query.AnswerTruthFallback ||
-		source == query.AnswerTruthCodeHint ||
-		source == query.AnswerTruthSemanticObservation ||
-		source == query.AnswerTruthUnsupported
+	return source == querycontract.AnswerTruthDerived ||
+		source == querycontract.AnswerTruthFallback ||
+		source == querycontract.AnswerTruthCodeHint ||
+		source == querycontract.AnswerTruthSemanticObservation ||
+		source == querycontract.AnswerTruthUnsupported
 }
 
-func packetHasPartialSignal(packet query.AnswerPacket) bool {
+func packetHasPartialSignal(packet answer.AnswerPacket) bool {
 	return packet.Partial ||
 		packet.Truncated ||
 		len(packet.Limitations) > 0 ||
