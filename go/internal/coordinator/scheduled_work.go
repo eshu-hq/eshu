@@ -200,9 +200,16 @@ func (s Service) createWorkflowWork(
 	// the authorized set (eshu-hq/eshu#10149): a scope the open-target
 	// guard or the insert dropped stays pending instead of committing as
 	// drained. The (int, error) wrapper below keeps returning
-	// admitted.inserted, so the satellite callers are untouched.
+	// admitted.inserted, so the satellite callers are untouched. The
+	// refresh and publication progress recorders join the same way
+	// (eshu-hq/eshu#10417): only an inserted scope paces.
+	var insertedScopes map[string]struct{}
 	var insertedReplanScopes map[string]struct{}
 	for _, scopeID := range admission.InsertedScopeIDs {
+		if insertedScopes == nil {
+			insertedScopes = make(map[string]struct{})
+		}
+		insertedScopes[scopeID] = struct{}{}
 		if !strings.Contains(scopeID, "/_replan/") {
 			continue
 		}
@@ -211,7 +218,26 @@ func (s Service) createWorkflowWork(
 		}
 		insertedReplanScopes[scopeID] = struct{}{}
 	}
-	return workAdmission{inserted: admission.InsertedWorkItems, advance: result, authorizedReplanScopes: authorizedReplanScopes, insertedReplanScopes: insertedReplanScopes}, nil
+	return workAdmission{inserted: admission.InsertedWorkItems, advance: result, authorizedReplanScopes: authorizedReplanScopes, insertedReplanScopes: insertedReplanScopes, insertedScopes: insertedScopes}, nil
+}
+
+// filterInsertedScopeIDs returns the planned scope ids that survived
+// admission, in planned order (eshu-hq/eshu#10417). A scope the open-target
+// guard or the insert dropped is absent from the admitted set and stays due.
+// An empty admitted set — the no-work path or a count-only backend —
+// records nothing, never the planned set: recording planned reintroduces
+// the stall this filter exists to close.
+func filterInsertedScopeIDs(planned []string, admitted workAdmission) []string {
+	if len(planned) == 0 || len(admitted.insertedScopes) == 0 {
+		return nil
+	}
+	inserted := make([]string, 0, len(planned))
+	for _, scopeID := range planned {
+		if _, ok := admitted.insertedScopes[scopeID]; ok {
+			inserted = append(inserted, scopeID)
+		}
+	}
+	return inserted
 }
 
 // logScanIntervalOverrides records, once at startup before the first
