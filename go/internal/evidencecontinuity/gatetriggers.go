@@ -232,7 +232,7 @@ func validateGateTriggerCoverage(repoRoot string, contract Contract) ([]Finding,
 }
 
 // proofRefPackageDirs returns the sorted, deduplicated repo-relative
-// directories (slash-separated, e.g. "go/internal/query") of every Go package
+// directories (slash-separated, e.g. "go/internal/cigates") of every Go package
 // named by a parseable `go test` proof ref in the contract.
 func proofRefPackageDirs(contract Contract) []string {
 	seen := map[string]struct{}{}
