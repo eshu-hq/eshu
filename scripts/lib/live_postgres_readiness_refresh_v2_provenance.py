@@ -17,7 +17,7 @@ MODULE_DIR = "scripts/lib/"
 V1_SHARD_COUNT = 4
 SHARD_RE = re.compile(r"live-postgres-readiness \(postgres18\) shard \((\d+)/(\d+)\)")
 EXCUSE_RE = re.compile(
-    r"^\ufeff?\S+Z (?:live-postgres-readiness: extra skip excuse:| +LIVE_READINESS_EXTRA_SKIP:) ((?:Test[A-Za-z0-9_]+ ?)+)$")
+    r"^\ufeff?\S+Z (?:live-postgres-readiness: extra skip excuse:| +LIVE_READINESS_EXTRA_SKIP:) (Test[A-Za-z0-9_]+(?: Test[A-Za-z0-9_]+)* ?)$")
 
 
 def excused_names(log: str) -> frozenset[str]:

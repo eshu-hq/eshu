@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
@@ -17,6 +18,7 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).parent / "dev" / "readiness-refit-evidence"))
 sys.path.insert(0, str(Path(__file__).parent / "lib"))
 import refit_evidence as driver  # noqa: E402
+import live_postgres_readiness_refresh_v2_provenance as provenance  # noqa: E402
 
 
 def _write_run(root: Path, jobs: list[dict[str, Any]],
@@ -131,6 +133,36 @@ class OldLibCompatCases(unittest.TestCase):
         run_dir = _write_run(self.root, [_job("c" * 40)], {"head_sha": "c" * 40})
         self.assertEqual(driver.shard_excuses(run_dir, 1), {1: frozenset({"t1"})})
         self.assertEqual(calls["sha"], "c" * 40)
+
+
+class ExcuseRegexCases(unittest.TestCase):
+    """The excuse line matcher accepts the emitter forms and nothing else."""
+
+    def test_accepts_both_emitter_forms(self) -> None:
+        """The runner and env-var excuse spellings both parse."""
+        log = ("2026-10-26T00:00:00Z live-postgres-readiness: extra skip excuse: TestOne TestTwo\n"
+               "2026-10-26T00:00:00Z   LIVE_READINESS_EXTRA_SKIP: TestThree\n")
+        self.assertEqual(provenance.excused_names(log),
+                         frozenset({"TestOne", "TestTwo", "TestThree"}))
+
+    def test_rejects_malformed_excuse_lines(self) -> None:
+        """Double spaces, leading spaces, and non-Test tokens excuse nothing."""
+        for line in ("2026-10-26T00:00:00Z   LIVE_READINESS_EXTRA_SKIP: TestOne  TestTwo\n",
+                     "2026-10-26T00:00:00Z   LIVE_READINESS_EXTRA_SKIP:  TestOne\n",
+                     "2026-10-26T00:00:00Z   LIVE_READINESS_EXTRA_SKIP: TestOne nope\n",
+                     "2026-10-26T00:00:00Z   LIVE_READINESS_EXTRA_SKIP: \n"):
+            self.assertEqual(provenance.excused_names(line), frozenset(),
+                             f"line excuses unexpectedly: {line!r}")
+
+    def test_packed_names_complete_fast(self) -> None:
+        """Packed Test-prefixed names cannot stall the matcher (ReDoS guard)."""
+        evil = ("2026-10-26T00:00:00Z   LIVE_READINESS_EXTRA_SKIP: "
+                + "TestA" * 128 + "!\n")
+        start = time.monotonic()
+        names = provenance.excused_names(evil)
+        elapsed = time.monotonic() - start
+        self.assertEqual(names, frozenset())
+        self.assertLess(elapsed, 5.0)
 
 
 if __name__ == "__main__":
