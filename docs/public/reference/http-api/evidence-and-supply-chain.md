@@ -671,12 +671,16 @@ least one bounded anchor:
 - `service_id`
 - `workload_id`
 
-The optional `source` filter narrows an already anchored request. Rows group
-GHSA, CVE/NVD, OSV, FIRST EPSS, CISA KEV, CWE,
-reference, affected-package, affected-product/CPE, withdrawn, affected-range,
-and fixed-version evidence under one canonical advisory identity. They also
-surface `source_disagreements[]` for severity, withdrawn status, affected
-ranges, and fixed versions without selecting a winner.
+The optional `source` filter narrows an already anchored request. `advisory_id`
+accepts any recognized id: CVE, GHSA, or OSV-family/source id (`PYSEC`, `GO`,
+`RUSTSEC`, `MAL`, `OSV`, distro, colon-suffixed errata). Aliases and correlation
+anchors join exactly one hop over one shared structural recognizer, with no
+`upstream`/`related`/transitive expansion; lookups uppercase leading alpha tokens.
+Rows group GHSA, CVE/NVD, OSV-family, FIRST EPSS, CISA KEV, CWE, reference,
+affected-package/product/CPE, withdrawn, range, and fixed-version evidence under
+one canonical advisory identity; `osv_ids` carries every recognized non-CVE,
+non-GHSA id, and `source_disagreements[]` covers severity, withdrawn status,
+affected ranges, and fixed versions without selecting a winner.
 
 `repository_id` accepts a canonical source repository id or the same human
 repository selectors used by repository context routes. Repository, service,
@@ -695,15 +699,10 @@ No-Observability-Change: repository/service/workload advisory evidence scopes re
 
 `GET /api/v0/supply-chain/vulnerabilities/{advisory_id}`
 
-Path-param convenience over the same advisory evidence read model. It returns a
-single canonical advisory matched by canonical id, GHSA id, or CVE id (a value
-beginning with `CVE-` is anchored as a CVE), with the same source-specific CVSS,
-EPSS, KEV, CWE, range, fixed-version, reference, and affected-package evidence as
-the list route. An unknown identifier returns a `404` envelope. Like the list
-route, this is source evidence only and does not imply repository, service,
-image, or workload impact; the impact findings routes below carry admitted
-impact truth, including the affected services and repositories the console links
-to.
+Path-param convenience over the same read model. It returns one canonical advisory
+matched by canonical, GHSA, CVE (`CVE-` anchors as CVE), or recognized OSV-family/
+source id, with the same evidence as the list route (`osv_ids` widened likewise).
+Unknown identifiers return `404`; source-only — impact truth stays on the findings routes.
 
 ## Standalone Vulnerability Scanner Read Contract
 

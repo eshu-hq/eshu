@@ -145,7 +145,7 @@ fact, and the reducer contract has no alias field until item 3.1.
 | 3.2 | Reducer-owned advisory groups with caps, quarantine, and allow and deny lists. Findings keyed by group in both SQL sites, with a parity test. | eshu | Seeds: 30 records aliasing one CVE; a DSA bundling 20 CVEs. Theory first on group computation cost. | Group count and quarantine count. | Quarantine metric, group-size histogram |
 | 3.3 | Re-key on group merge or split. Suppressions carried across. `dependencyCatalog` edge and readiness floor. | eshu | Seeds: a late CVE alias; an alias removal. One finding per group after each. | Not observable until aliases change live. | Re-key counter |
 | 3.4 | Alias-aware VEX and suppression matching. | eshu | Seed: VEX names the GHSA id, the finding is keyed by CVE. | Suppression counts unchanged after the cutover to group keys. | Suppression doc |
-| 3.5 | Evidence-route id prefixes generalized to `PYSEC`, `GO`, `RUSTSEC`, `MAL`, and `EUVD`. | eshu | API test. | Evidence lookup by a `PYSEC` id works. | http-api doc |
+| 3.5 | Evidence-route prefix allowlist replaced by one structural advisory-id recognizer shared by SQL and Go (arbiter ruling 3.5, #10410): alias/correlation-anchor hops and `osv_ids` bucketing admit every recognized OSV-family/source id (`PYSEC`, `GO`, `RUSTSEC`, `MAL`, `EUVD`, `OSV`, distro, colon-suffixed errata). | eshu | API test. | Evidence lookup by a `PYSEC` id works. | http-api doc |
 | 3.6 | Decide on graph projection of advisory groups, reducer-owned. | eshu | Arbiter ruling with `cypher-query-rigor` measurements. | n/a | Decision record |
 
 ## Phase 4: New sources

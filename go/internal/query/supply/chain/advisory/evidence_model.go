@@ -174,7 +174,7 @@ func (a *advisoryEvidenceAccumulator) addID(value string) {
 		addSet(a.cveIDs, normalizeCVEID(trimmed))
 	case isGHSAID(trimmed):
 		addSet(a.ghsaIDs, normalizeAdvisoryDisplayID(trimmed))
-	case strings.HasPrefix(strings.ToUpper(trimmed), "OSV-"):
+	case IsAdvisoryRouteID(trimmed):
 		addSet(a.osvIDs, normalizeAdvisoryDisplayID(trimmed))
 	}
 }
@@ -385,10 +385,21 @@ func normalizeAdvisoryDisplayID(value string) string {
 	if strings.HasPrefix(upper, "GHSA-") {
 		return "GHSA-" + trimmed[len("GHSA-"):]
 	}
-	if strings.HasPrefix(upper, "OSV-") {
-		return "OSV-" + trimmed[len("OSV-"):]
+	if !IsAdvisoryRouteID(trimmed) {
+		return trimmed
 	}
-	return trimmed
+	// Widened OSV-family bucket (#10410): uppercase every leading
+	// hyphen-separated token without a digit (pysec- to PYSEC-,
+	// debian-cve- to DEBIAN-CVE-, dsa- to DSA-) and preserve the remainder
+	// byte-identical, so stored uppercase records match lowercase lookups.
+	tokens := strings.Split(trimmed, "-")
+	for i, token := range tokens {
+		if !isAlphaToken(token) {
+			break
+		}
+		tokens[i] = strings.ToUpper(token)
+	}
+	return strings.Join(tokens, "-")
 }
 
 func severitySignature(value SourceEvidence) string {

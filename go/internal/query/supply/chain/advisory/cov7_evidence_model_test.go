@@ -193,8 +193,10 @@ func TestCov7CanonicalKeyTable(t *testing.T) {
 	}
 }
 
-// TestCov7AdvisoryIDNormalization proves CVE uppercasing, GHSA/OSV prefix
-// preservation, whitespace trimming, and the non-ID drop.
+// TestCov7AdvisoryIDNormalization proves CVE uppercasing, GHSA prefix
+// preservation, whitespace trimming, the non-ID drop, and the #10410
+// structural recognizer: any hyphenated structural id (not just OSV-)
+// files into the widened OSV bucket with prefix-token uppercasing.
 func TestCov7AdvisoryIDNormalization(t *testing.T) {
 	t.Parallel()
 
@@ -211,8 +213,8 @@ func TestCov7AdvisoryIDNormalization(t *testing.T) {
 	if len(finished.GHSAIDs) != 1 || finished.GHSAIDs[0] != "GHSA-a-b-c" {
 		t.Fatalf("GHSAIDs = %#v, want GHSA", finished.GHSAIDs)
 	}
-	if len(finished.OSVIDs) != 1 || finished.OSVIDs[0] != "OSV-2026-9" {
-		t.Fatalf("OSVIDs = %#v, want OSV", finished.OSVIDs)
+	if len(finished.OSVIDs) != 2 || finished.OSVIDs[0] != "NOT-AN-ID" || finished.OSVIDs[1] != "OSV-2026-9" {
+		t.Fatalf("OSVIDs = %#v, want structural ids in the widened OSV bucket", finished.OSVIDs)
 	}
 	if got := normalizeAdvisoryDisplayID("cve-2026-7"); got != "CVE-2026-7" {
 		t.Fatalf("display CVE = %q, want uppercased", got)

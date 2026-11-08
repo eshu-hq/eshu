@@ -181,8 +181,11 @@ or `sdk/`.
   status field, so an NVD `Rejected` record is not treated as withdrawn. Only
   OSV maps `withdrawn_at`.
 - The `seed_keys` step of `ListEvidenceQuery`
-  (`query/supply/chain/advisory/evidence_sql.go`) expands aliases one hop and
-  recognizes only the `CVE-`, `GHSA-`, and `OSV-` prefixes.
+  (`query/supply/chain/advisory/evidence_sql.go`) expands aliases and
+  correlation anchors exactly one hop over the structural advisory-id
+  recognizer shared with Go (`AdvisoryRouteIDPattern`, #10410), so
+  `PYSEC-`, distro, and colon-suffixed errata ids hop like `CVE-`/`GHSA-`
+  ids do, with no `upstream`/`related`/transitive expansion.
 - Readiness reads fact counts and `vulnerability_source_states` rows. Its
   `target_vulnerability_source_scopes` step
   (`query/supply/chain/impact/readiness_postgres_query.go`) matches source
