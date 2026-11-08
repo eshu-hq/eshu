@@ -332,7 +332,7 @@ reads both through `advisoryRetractionCode`, and `retractionFromObservations`
 decides per finding.
 
 - **Rule.** A finding retracts only when EVERY source that contributes evidence for it retracted: one observation per `vulnerability.cve` fact, plus one per `affected_package` fact that no CVE fact matched, which reads as its record when that whole record retracted. A source whose CVE fact is missing, cut by a partial load, or quarantined by a failed decode (`unreadableCVEs`) counts as live.
-  Copies of one record in several scopes (per-window generations, the active-facts second hop) share their (payload source, advisory id); only the newest counts — greatest `source_updated_at` (empty or unparseable ranks oldest), ties on the greater fact id — so an older active copy never blocks a newer withdrawn or Rejected copy's retraction (#10042), and severity, fix, and range read the newest copy (`newestCopyAdvisoryInputs` in `newest_copy.go`, pairing by scope and generation in `matchAffectedForCVE`).
+  Copies of one record in several scopes (per-window generations, the active-facts second hop) share their (payload source, advisory id); only the newest counts — greatest `source_updated_at` (empty or unparseable ranks oldest), a recency tie breaks live-beats-retracted through the closed classifier `advisoryRetractionCode` with the greater fact id only the final tiebreak (#10401) — so an older active copy never blocks a newer withdrawn or Rejected copy's retraction (#10042), and severity, fix, and range read the newest copy (`newestCopyAdvisoryInputs` in `newest_copy.go`, pairing by scope and generation in `matchAffectedForCVE`).
   A rejected CVE with a live GHSA alias, a withdrawn GHSA with a live NVD record, or a live second stream of one logical source (direct GHSA plus OSV-carried) keeps the finding active, and the retracting source still shows under `provenance.advisory_sources[]`.
 - **What retracts.** Exactly `rejected` and `withdrawn` (case-insensitive,
   trimmed) or a non-empty `withdrawn_at`. Any other status retracts nothing.
@@ -384,6 +384,10 @@ decides per finding.
 - **Operator signal.** `eshu_dp_supply_chain_suppression_decisions_total` with
   `outcome=advisory_retracted`, the `suppression_advisory_retracted=` field
   of the evidence summary, and the `advisory_retracted_findings` sub-signal.
+
+No-Regression Evidence (#10401): the tie rank reads lifecycle only through the closed `advisoryRetractionCode` (no new status list, no `ObservedAt`/`WithdrawnAt`/generation key). `TestNewestCopyDivergentTieLiveBeatsRetracted10401` (4 variants x 4 tie shapes x all load orders) fails pre-fix and passes post-fix with the live copy's fields; the retracted-vs-retracted guard and all #10042 controls stay green. `BenchmarkBuildFindingsMultiSourceGroups` shows no regression (live 12.55–13.01 pre vs 12.38–16.20 post ms/op with one 16.20 sample reading as shared-host noise against the 12.38–13.34 repeat band; identical allocs).
+
+No-Observability-Change (#10401): no new metric, span, log key, queue stage, or setting; ties resolving active read as ordinary active findings.
 
 ## Files
 

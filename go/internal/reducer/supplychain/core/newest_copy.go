@@ -50,8 +50,10 @@ func newestCopyInstant(updatedAt string) (time.Time, bool) {
 
 // newestCopyAfter reports whether candidate beats the current winner of one
 // copy stream: the greatest SourceUpdatedAt wins, an empty or unparseable
-// timestamp ranks oldest, and ties break on the greater FactID so the answer
-// never depends on fact order (#10042).
+// timestamp ranks oldest, a recency tie breaks live-beats-retracted through
+// the closed classifier advisoryRetractionCode (#10401), and only a
+// same-lifecycle tie breaks on the greater FactID, so the answer never
+// depends on fact order.
 func newestCopyAfter(
 	candidate, winner supplychainmodel.ImpactCVE,
 ) bool {
@@ -62,6 +64,17 @@ func newestCopyAfter(
 	}
 	if candidateOK && !candidateAt.Equal(winnerAt) {
 		return candidateAt.After(winnerAt)
+	}
+	// A tie carries no recency evidence either way — equal instants, or both
+	// timestamps empty or unparseable — so hiding a live vulnerability would
+	// spend the expensive error: the live copy wins and FactID stays only
+	// the final deterministic tiebreak. The lifecycle read is the existing
+	// closed classifier, never a new status list, and neither WithdrawnAt
+	// nor ObservedAt becomes a recency key (#10401).
+	candidateRetracted := advisoryRetractionCode(candidate.Status, candidate.WithdrawnAt) != ""
+	winnerRetracted := advisoryRetractionCode(winner.Status, winner.WithdrawnAt) != ""
+	if candidateRetracted != winnerRetracted {
+		return winnerRetracted
 	}
 	return candidate.FactID > winner.FactID
 }

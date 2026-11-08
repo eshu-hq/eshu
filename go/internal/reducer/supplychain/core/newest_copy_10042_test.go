@@ -14,12 +14,14 @@ import (
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
-// These tests pin the newest-copy rule of #10042 (design 10037, section 4):
-// for one payload source and advisory id, the copy with the greatest
-// modified_at is the record, ties break on the greater FactID, and an empty or
-// unparseable timestamp ranks oldest. Older copies leave the group whole, so a
-// newer withdrawn or Rejected copy retracts the advisory even while an older
-// active copy of it is still in the active fact set.
+// These tests pin the newest-copy rule of #10042 (design 10037, section 4),
+// as refined by #10401: for one payload source and advisory id, the copy with
+// the greatest modified_at is the record, and an empty or unparseable
+// timestamp ranks oldest. Ties break live-beats-retracted first (#10401) and
+// only then on the greater FactID, so same-lifecycle ties stay FactID-ordered
+// while a divergent tie keeps the finding active. Older copies leave the group
+// whole, so a newer withdrawn or Rejected copy retracts the advisory even
+// while an older active copy of it is still in the active fact set.
 //
 // RED on origin/main: retractionFromObservations needs EVERY observation
 // retracted, so an older active copy blocks the retraction, and
@@ -247,11 +249,14 @@ func TestNewestCopySelectionIsIndependentOfLoadOrder(t *testing.T) {
 	}
 }
 
-// TestNewestCopyTiebreakAndUnparseableTimestamps is (c) for the tiebreak: equal
-// modified_at breaks on the greater FactID, and an empty or unparseable
-// timestamp ranks oldest whatever its FactID. Each case must select what the
-// expected winner alone selects, in every load order. RED today.
-func TestNewestCopyTiebreakAndUnparseableTimestamps(t *testing.T) {
+// TestNewestCopyLiveTiebreakAndUnparseableTimestamps is (c) for the tiebreak
+// between two LIVE copies: equal modified_at breaks on the greater FactID,
+// and an empty or unparseable timestamp ranks oldest whatever its FactID.
+// Each case must select what the expected winner alone selects, in every load
+// order. Divergent (live-versus-retracted) ties belong to #10401 and keep the
+// finding active; this test guards that the live-versus-live path is
+// unchanged. GREEN on origin/main and must stay GREEN.
+func TestNewestCopyLiveTiebreakAndUnparseableTimestamps(t *testing.T) {
 	t.Parallel()
 
 	const (
