@@ -42,7 +42,11 @@ func TestAFactOfALiveOrForeignRecordKeepsTheFindingLive(t *testing.T) {
 		// so they pin only that no retraction shows.
 		{name: "P1 one record, cve withdrawn and live, one fact", wantBranches: -1, row: []facts.Envelope{withdrawnGHSA(), liveSibling(), recordConsumer(), ghsa("p1", "4.17.21")}},
 		{name: "P2 two facts", wantBranches: -1, row: []facts.Envelope{withdrawnGHSA(), liveSibling(), recordConsumer(), ghsa("p1", "4.17.21"), ghsa("p2", "4.17.22")}},
-		{name: "P3 three facts read two fix branches", wantBranches: 2, row: []facts.Envelope{withdrawnGHSA(), liveSibling(), recordConsumer(), ghsa("p1", "4.17.21"), ghsa("p2", "4.17.22"), ghsa("p3", "4.17.23")}},
+		// P3: the two copies tie on recency, so the FactID tiebreak elects
+		// the live copy (#10042) and the packages carry no scope to
+		// attribute them to a copy. All three stay live observations, so
+		// all three fixes branch; the set is the same in every load order.
+		{name: "P3 three facts read three fix branches", wantBranches: 3, row: []facts.Envelope{withdrawnGHSA(), liveSibling(), recordConsumer(), ghsa("p1", "4.17.21"), ghsa("p2", "4.17.22"), ghsa("p3", "4.17.23")}},
 		{name: "P4 an OS record", wantBranches: -1, row: []facts.Envelope{withdrawnUSN(), recordLive("cve-own2", "ubuntu", recordVendor), recordHost(), usn("a", "1.0-5"), usn("b", "1.0-6")}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -155,7 +159,7 @@ func TestUnpairedFactObservationTakesItsRecordsLifecycle(t *testing.T) {
 		}
 	})
 
-	t.Run("the lifecycle comes from the smallest fact id, in either input order", func(t *testing.T) {
+	t.Run("the lifecycle comes from the newest copy, in either input order", func(t *testing.T) {
 		t.Parallel()
 		early := supplychainmodel.ImpactCVE{
 			FactID: "c-a", CVEID: recordCVE, Source: "osv", AdvisoryID: advisory, Status: "Withdrawn",
@@ -170,9 +174,12 @@ func TestUnpairedFactObservationTakesItsRecordsLifecycle(t *testing.T) {
 			cvesBefore := slices.Clone(cves)
 			pkgsBefore := slices.Clone(pkgs)
 			unpaired := observationOf(t, buildAdvisoryProvenanceObservations(cves, pkgs), "p3")
-			if unpaired.WithdrawnAt != early.WithdrawnAt || unpaired.Status != early.Status ||
-				unpaired.SourceUpdatedAt != early.SourceUpdatedAt || !slices.Equal(unpaired.ReplacedBy, early.ReplacedBy) {
-				t.Errorf("first cve %s: observation = %#v, want the lifecycle of %s", cves[0].FactID, unpaired, early.FactID)
+			// The newest copy (late) is the record (#10042): the unpaired
+			// fact of a superseded copy reads as its own copy did, and a
+			// fact with no copy of its own reads as the newest copy does.
+			if unpaired.WithdrawnAt != late.WithdrawnAt || unpaired.Status != late.Status ||
+				unpaired.SourceUpdatedAt != late.SourceUpdatedAt || !slices.Equal(unpaired.ReplacedBy, late.ReplacedBy) {
+				t.Errorf("first cve %s: observation = %#v, want the lifecycle of %s", cves[0].FactID, unpaired, late.FactID)
 			}
 			if unpaired.CVEFactID != "" || unpaired.SeverityScore != 0 {
 				t.Errorf("cve fact/severity = %q/%v, want them empty so identity and severity do not move", unpaired.CVEFactID, unpaired.SeverityScore)

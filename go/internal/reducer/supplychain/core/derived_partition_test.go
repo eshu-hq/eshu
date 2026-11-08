@@ -187,9 +187,19 @@ func TestAuthorizedScanImpactConflictingFixedVersions(t *testing.T) {
 		if strings.Contains(finding.PriorityReason, "affected_exact") || finding.Remediation.FirstPatchedVersion != "" {
 			t.Fatalf("reverse=%t stale priority or remediation selected a disputed fix", reverse)
 		}
-		for _, envelope := range []facts.Envelope{public[1], private[1]} {
+		// The two advisories share one (source, advisory id) at one
+		// instant, so the newest-copy rule elects one: "cve-public" beats
+		// "cve-private" on the FactID tiebreak, deterministically in either
+		// input order (#10042). The losing copy's fix still contends
+		// through the conflict gate above, which reads the unreduced index.
+		for _, envelope := range []facts.Envelope{public[0], public[1]} {
 			if !slices.Contains(finding.EvidenceFactIDs, envelope.FactID) {
-				t.Fatalf("reverse=%t missing conflicting provenance %s", reverse, envelope.FactID)
+				t.Fatalf("reverse=%t missing winning-copy provenance %s", reverse, envelope.FactID)
+			}
+		}
+		for _, envelope := range []facts.Envelope{private[0], private[1]} {
+			if slices.Contains(finding.EvidenceFactIDs, envelope.FactID) {
+				t.Fatalf("reverse=%t superseded copy still on the finding: %s", reverse, envelope.FactID)
 			}
 		}
 	}
@@ -394,13 +404,22 @@ func TestAuthorizedScanImpactPublicPrivateExtensionIsolation(t *testing.T) {
 			if finding.Status != SupplyChainImpactPossiblyAffected || finding.MatchReason != "advisory_fixed_version_conflict" {
 				t.Fatalf("reverse=%t target=%s status=%s reason=%s", reverse, finding.ScanTargetID, finding.Status, finding.MatchReason)
 			}
+			// Each target's advisories share one (source, advisory id) at
+			// one instant, so the newest-copy rule elects the public copy
+			// ("cve-public" wins the FactID tiebreak) on both targets
+			// (#10042). No target leaks the other target's private
+			// generation, and each finding keeps only the authority that
+			// granted the copy it reads. Contention still withholds a
+			// definitive fix through the conflict gate above.
 			switch finding.ScanTargetID {
 			case firstTarget:
-				if slices.Contains(finding.EvidenceFactIDs, extension[1].FactID) || !slices.Contains(finding.EvidenceFactIDs, private[1].FactID) || len(finding.AuthorityDependencies) != 2 {
+				if slices.Contains(finding.EvidenceFactIDs, extension[1].FactID) || slices.Contains(finding.EvidenceFactIDs, private[1].FactID) ||
+					!slices.Contains(finding.EvidenceFactIDs, public[1].FactID) || len(finding.AuthorityDependencies) != 1 {
 					t.Fatalf("reverse=%t first target advisory boundary/provenance wrong: %#v", reverse, finding)
 				}
 			case secondTarget:
-				if slices.Contains(finding.EvidenceFactIDs, private[1].FactID) || !slices.Contains(finding.EvidenceFactIDs, extension[1].FactID) || len(finding.AuthorityDependencies) != 2 {
+				if slices.Contains(finding.EvidenceFactIDs, private[1].FactID) || slices.Contains(finding.EvidenceFactIDs, extension[1].FactID) ||
+					!slices.Contains(finding.EvidenceFactIDs, public[1].FactID) || len(finding.AuthorityDependencies) != 1 {
 					t.Fatalf("reverse=%t second target advisory boundary/provenance wrong: %#v", reverse, finding)
 				}
 			default:

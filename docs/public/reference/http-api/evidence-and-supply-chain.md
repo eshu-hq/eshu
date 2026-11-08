@@ -840,8 +840,8 @@ comprehensive evidence bar.
 preserve audit signal. Every finding row carries a `suppression` block (always populated, `state=active` when nothing matched) with the source (`vex_statement`,
 `eshu_policy`, `provider_dismissal`, or `advisory_retraction`), justification, author, timestamps, reason, evidence reference, and any VEX document/statement IDs so
 callers can explain why a finding is hidden or why a related suppression did not apply. Provider dismissals are evidence: the reducer surfaces them as
-`provider_dismissed` without removing the finding from the default view. `advisory_retracted` is set by the reducer alone, when every source record of the CVE is an NVD
-`Rejected` record or an OSV withdrawn record, and a live source keeps the finding active, except that on an OS package finding only records that list the package and join this host count, so a live record for another package, one with no package fact, or one whose fact has no installed package, SBOM path or consuming repository behind it does not; the reason and any `replaced_by` CVE ids ride in
+`provider_dismissed` without removing the finding from the default view. `advisory_retracted` is set by the reducer alone, when the newest copy of every source record of the CVE is an NVD
+`Rejected` record or an OSV withdrawn record, and a live source keeps the finding active, except that on an OS package finding only records that list the package and join this host count, so a live record for another package, one with no package fact, or one whose fact has no installed package, SBOM path or consuming repository behind it does not; one record may arrive as several copies in several scopes and only the newest copy per (source, advisory id) counts, so an older active copy does not block a newer withdrawn or rejected copy's retraction; the reason and any `replaced_by` CVE ids ride in
 `provenance.advisory_retraction`. After the reducer commits a pass that changed or retracted a finding, it reopens every other scope that holds an active copy of the same CVE (including the operator suppression scope), so those copies re-derive and the retraction, or its reversal, reaches each copy once that holder's next pass runs, instead of waiting for the scope's own cadence; a restored record returns each copy to its state before the retraction.
 
 Version fields intentionally do not collapse into one string:
@@ -924,9 +924,8 @@ plus alternate severities reported by other sources for the same advisory:
 - `provenance.advisory_sources[]`: every contributing source observation, including `source`,
   `advisory_id`, `source_updated_at`, `withdrawn_at`, `status`, and `replaced_by`, so callers can
   explain selection and detect retracted records that were excluded from selection. Retracted
-  observations remain visible. When every observation of the CVE is rejected or withdrawn,
-  `provenance.advisory_retraction` (`reason_code`, `reason`, `sources[]`, and `replaced_by` when a
-  source states one) explains why the finding is `advisory_retracted`.
+  observations remain visible. When the newest copy of every source record of the CVE is rejected or
+  withdrawn (on an OS package finding, every record that lists the package and joins this host), `provenance.advisory_retraction` (`reason_code`, `reason`, `sources[]`, and `replaced_by` when a source states one) explains why the finding is `advisory_retracted`.
 
 Selection uses documented per-ecosystem priority: vendor advisories (Red Hat,
 Debian, Ubuntu, Alpine, SUSE, Wolfi, Chainguard, Amazon Linux, Oracle Linux)

@@ -166,6 +166,11 @@ func buildAdvisoryProvenanceObservations(
 	cves []supplychainmodel.ImpactCVE,
 	packages []supplychainmodel.AffectedPackage,
 ) []AdvisoryProvenanceObservation {
+	// Newest copy first (#10042): an older active copy of an advisory must
+	// not block the retraction a newer withdrawn or Rejected copy causes,
+	// on the package path (product.go) and on the CPE path (retraction.go)
+	// alike. Both callers funnel through this builder.
+	cves, packages = newestCopyAdvisoryInputs(cves, packages)
 	observations := make([]AdvisoryProvenanceObservation, 0, len(cves)+len(packages))
 	matchedAffected := make(map[string]bool, len(packages))
 	for _, cve := range cves {
@@ -247,27 +252,6 @@ func retractedRecordOf(
 		}
 	}
 	return record, found
-}
-
-func matchAffectedForCVE(
-	cve supplychainmodel.ImpactCVE,
-	packages []supplychainmodel.AffectedPackage,
-	matched map[string]bool,
-) supplychainmodel.AffectedPackage {
-	for _, pkg := range packages {
-		if matched[pkg.FactID] {
-			continue
-		}
-		if classifyAdvisorySource(pkg.Source, pkg.AdvisoryID) != classifyAdvisorySource(cve.Source, cve.AdvisoryID) {
-			continue
-		}
-		if pkg.AdvisoryID != "" && cve.AdvisoryID != "" && pkg.AdvisoryID != cve.AdvisoryID {
-			continue
-		}
-		matched[pkg.FactID] = true
-		return pkg
-	}
-	return supplychainmodel.AffectedPackage{}
 }
 
 // AdvisoryProvenanceObservation captures one source-attributed advisory

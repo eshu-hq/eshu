@@ -76,6 +76,12 @@ func baseSupplyChainImpactFinding(
 	holders []osHoldingFact,
 	index supplyChainImpactIndex,
 ) SupplyChainImpactFinding {
+	// Newest copy first (#10042): version matching, remediation, and
+	// reachability read the same reduced group the provenance builder
+	// below reads, so a superseded copy decides nothing anywhere on the
+	// finding. The builder re-applies the same idempotent reduction for
+	// its direct CPE-path caller (retraction.go).
+	cves.observations, pkgs = newestCopyAdvisoryInputs(cves.observations, pkgs)
 	pkg := representativeAffectedPackage(pkgs)
 	observations := buildAdvisoryProvenanceObservations(cves.observations, pkgs)
 	markOSHoldingObservations(observations, holders)
