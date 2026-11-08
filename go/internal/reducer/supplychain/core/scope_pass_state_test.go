@@ -94,6 +94,9 @@ func TestSupplyChainImpactScopePassStateQueryPinsFencingGuard(t *testing.T) {
 	if !strings.Contains(supplyChainImpactScopePassStateQuery, "COALESCE(supply_chain_impact_scope_pass_state.partial_since") {
 		t.Fatalf("scope pass-state upsert must preserve the original partial_since:\n%s", supplyChainImpactScopePassStateQuery)
 	}
+	if !strings.Contains(supplyChainImpactScopePassStateQuery, "THEN $5::timestamptz ELSE NULL") {
+		t.Fatalf("scope pass-state upsert must cast the CASE branch (unknown-type params resolve to text, rejected by timestamptz, 42804):\n%s", supplyChainImpactScopePassStateQuery)
+	}
 }
 
 func findExecCallByQuery(calls []testutil.ExecCall, query string) *testutil.ExecCall {

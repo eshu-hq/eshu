@@ -20,13 +20,15 @@ import (
 // pass's state when passes for one scope interleave across generations.
 // $4 is the TEXT[] cause set, empty for a complete pass, encoded the same
 // way as the retraction's keep set; it never reaches a metric label, so the
-// closed cause set needs no folding here.
+// closed cause set needs no folding here. The $5 cast is load-bearing: CASE
+// branches over unknown-type params resolve to text, which timestamptz
+// rejects (42804); direct $5 uses elsewhere coerce to their columns.
 const supplyChainImpactScopePassStateQuery = `
 INSERT INTO supply_chain_impact_scope_pass_state (
     scope_id, fencing_token, partial_evidence, partial_causes, partial_since, last_pass_at, updated_at
 ) VALUES (
     $1, $2, $3, $4,
-    CASE WHEN $3 THEN $5 ELSE NULL END,
+    CASE WHEN $3 THEN $5::timestamptz ELSE NULL END,
     $5, $5
 )
 ON CONFLICT (scope_id) DO UPDATE SET
