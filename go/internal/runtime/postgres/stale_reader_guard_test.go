@@ -186,6 +186,8 @@ func fencingReaderUses(path, src string) []fencingReaderViolation {
 		// conditionally assigned reader that reaches a fencing store
 		// on any path is worth the flag.
 		aliases := map[string]bool{}
+		//nolint:staticcheck // S1021: scanBlock recurses through itself,
+		// so it must be declared before the literal that assigns it.
 		var scanBlock func(list []ast.Stmt)
 		// flagLevel reports fencing calls in one statement without
 		// descending into nested blocks or closures, which each get
