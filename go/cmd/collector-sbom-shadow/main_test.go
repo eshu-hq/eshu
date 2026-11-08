@@ -50,8 +50,8 @@ func shadowRequest() extensionhost.Request {
 // in, one complete result out carrying every envelope the pinned lodash
 // document yields. The per-kind counts mirror the document package's
 // checked-in assertions (1 document with component_count 5, 5 components, 3
-// dependency edges, 1 external reference, 3 warnings), and the status row
-// reports the real parsed fact count.
+// dependency edges, 1 external reference, 3 warnings). The result carries no
+// status rows: the single-call commit lane records none.
 func TestServeReturnsCompleteWithPinnedFacts(t *testing.T) {
 	t.Parallel()
 
@@ -102,15 +102,11 @@ func TestServeReturnsCompleteWithPinnedFacts(t *testing.T) {
 	assertPayload(t, lodash.Payload, "name", "lodash")
 	assertPayload(t, lodash.Payload, "version", "4.17.21")
 	assertPayload(t, lodash.Payload, "package_id", "npm://registry.npmjs.org/lodash")
-	if len(result.Statuses) != 1 {
-		t.Fatalf("statuses = %d, want exactly 1", len(result.Statuses))
-	}
-	status := result.Statuses[0]
-	if status.Class != sdkcollector.StatusComplete {
-		t.Fatalf("status class = %q, want %q", status.Class, sdkcollector.StatusComplete)
-	}
-	if status.FactCount != len(result.Facts) {
-		t.Fatalf("status fact_count = %d, want real parsed count %d", status.FactCount, len(result.Facts))
+	// The single-call commit lane records no statuses, so the emitter
+	// carries none: a complete summary row would turn every commit away
+	// at the lane door. The count stays derivable from the facts.
+	if len(result.Statuses) != 0 {
+		t.Fatalf("statuses = %d, want none (commit lane records none)", len(result.Statuses))
 	}
 	if result.Generation.ID != "gen-1" {
 		t.Fatalf("generation id = %q, want the claim generation", result.Generation.ID)
