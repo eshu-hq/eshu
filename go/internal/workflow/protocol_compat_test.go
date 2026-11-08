@@ -154,10 +154,25 @@ func compatStatusMux(t *testing.T, run map[string]any, progress []map[string]any
 	})
 }
 
+// requireInvalidNotRejected asserts the oldest/newest fail-closed contract:
+// a closed enum carrying a value this major never defined is a newer major
+// speaking, so the call must report invalid — never a fence rejection, and
+// never silent success with the future value decoded.
+func requireInvalidNotRejected(t *testing.T, what string, err error) {
+	t.Helper()
+	if err == nil {
+		t.Fatalf("%s decoded as success, want invalid", what)
+	}
+	if errors.Is(err, ErrClaimRejected) {
+		t.Fatalf("%s = %v, must not read as a fence rejection", what, err)
+	}
+	if !strings.Contains(err.Error(), "invalid") {
+		t.Fatalf("%s err = %v, want invalid mapping", what, err)
+	}
+}
+
 // TestClaimPlaneClientNewestServerUnknownEnumValue is the oldest/newest
-// fail-closed proof: a closed enum carrying a value this major never defined
-// is a newer major speaking, so GetRunStatus must report invalid — never a
-// fence rejection, and never silent success with the future value decoded.
+// fail-closed proof for run status: GetRunStatus must report invalid.
 func TestClaimPlaneClientNewestServerUnknownEnumValue(t *testing.T) {
 	server := compatStatusMux(t,
 		map[string]any{"status": "FUTURE_99_XYZ"},
@@ -169,16 +184,107 @@ func TestClaimPlaneClientNewestServerUnknownEnumValue(t *testing.T) {
 	defer server.Close()
 	client := NewClaimPlaneClient(server.URL, server.Client())
 
-	report, err := client.GetRunStatus(context.Background(), "run-1")
-	if err == nil {
-		t.Fatalf("unknown run status decoded as success: %+v, want invalid", report.Run.Status)
+	_, err := client.GetRunStatus(context.Background(), "run-1")
+	requireInvalidNotRejected(t, "unknown run status", err)
+}
+
+// TestClaimPlaneClientNewestServerUnknownTriggerKind covers the second
+// closed enum on the run wire shape: an unknown trigger kind fails closed.
+func TestClaimPlaneClientNewestServerUnknownTriggerKind(t *testing.T) {
+	server := compatStatusMux(t,
+		map[string]any{"trigger_kind": "FUTURE_99_XYZ"},
+		[]map[string]any{{
+			"collector_kind":   "jira",
+			"total_work_items": 2, "pending_work_items": 2,
+		}},
+	)
+	defer server.Close()
+	client := NewClaimPlaneClient(server.URL, server.Client())
+
+	_, err := client.GetRunStatus(context.Background(), "run-1")
+	requireInvalidNotRejected(t, "unknown run trigger kind", err)
+}
+
+// compatGrantStub serves one ClaimNext grant with the given work-item and
+// claim statuses through the shared lenient-field mux.
+func compatGrantStub(t *testing.T, itemStatus, claimStatus string) *httptest.Server {
+	t.Helper()
+	now := time.Now().UTC()
+	return compatGrantMux(t, map[string]any{
+		"issued": true,
+		"grant": map[string]any{
+			"work_item": map[string]any{
+				"work_item_id": "item-1", "run_id": "run-1",
+				"collector_kind": "jira", "collector_instance_id": "jira-primary",
+				"source_system": "jira", "scope_id": "scope-1",
+				"status":        itemStatus,
+				"attempt_count": 1,
+				"created_at":    now, "updated_at": now,
+			},
+			"claim": map[string]any{
+				"claim_id": "claim-1", "work_item_id": "item-1",
+				"fencing_token": 1, "owner_id": "owner-1",
+				"status":     claimStatus,
+				"claimed_at": now, "heartbeat_at": now,
+				"created_at": now, "updated_at": now,
+			},
+		},
+	})
+}
+
+func compatClaimSelector() ClaimSelector {
+	return ClaimSelector{
+		CollectorKind:       scope.CollectorKind("jira"),
+		CollectorInstanceID: "jira-primary",
+		OwnerID:             "owner-1",
+		ClaimID:             "claim-1",
 	}
-	if errors.Is(err, ErrClaimRejected) {
-		t.Fatalf("unknown run status = %v, must not read as a fence rejection", err)
+}
+
+// TestClaimPlaneClientNewestServerUnknownGrantStatuses covers the claim
+// path pair: an unknown work-item status and an unknown claim status each
+// fail closed on ClaimNextEligible. The reap path delegates to the same
+// claim converter, so covering it here guards both callers.
+func TestClaimPlaneClientNewestServerUnknownGrantStatuses(t *testing.T) {
+	now := time.Now().UTC()
+	for _, grant := range []struct {
+		name        string
+		itemStatus  string
+		claimStatus string
+	}{
+		{"work-item status", "FUTURE_99_XYZ", "active"},
+		{"claim status", "claimed", "FUTURE_99_XYZ"},
+	} {
+		t.Run(grant.name, func(t *testing.T) {
+			server := compatGrantStub(t, grant.itemStatus, grant.claimStatus)
+			defer server.Close()
+			client := NewClaimPlaneClient(server.URL, server.Client())
+
+			_, _, _, err := client.ClaimNextEligible(
+				context.Background(), compatClaimSelector(), now, time.Minute)
+			requireInvalidNotRejected(t, "unknown "+grant.name, err)
+		})
 	}
-	if !strings.Contains(err.Error(), "invalid") {
-		t.Fatalf("unknown run status err = %v, want invalid mapping", err)
-	}
+}
+
+// TestClaimPlaneClientNewestServerUnknownCollectorMode covers the last
+// validated closed enum: an unknown instance mode fails closed on
+// ListCollectorInstances.
+func TestClaimPlaneClientNewestServerUnknownCollectorMode(t *testing.T) {
+	server := compatGrantMux(t, map[string]any{
+		"instances": []map[string]any{{
+			"instance_id": "i-1", "collector_kind": "jira",
+			"mode":           "FUTURE_99_XYZ",
+			"enabled":        true,
+			"claims_enabled": true,
+			"created_at":     time.Now().UTC(), "updated_at": time.Now().UTC(),
+		}},
+	})
+	defer server.Close()
+	client := NewClaimPlaneClient(server.URL, server.Client())
+
+	_, err := client.ListCollectorInstances(context.Background())
+	requireInvalidNotRejected(t, "unknown collector mode", err)
 }
 
 // TestClaimPlaneClientNewestServerOpenKindStaysOpen guards the exemption:
