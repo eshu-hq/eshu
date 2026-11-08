@@ -445,9 +445,11 @@ func writeRefinalizeFailure(w http.ResponseWriter, r *http.Request, err error, f
 // GET /api/v0/admin/shared-projection/tuning-report
 func (h *Handler) tuningReport(w http.ResponseWriter, _ *http.Request) {
 	// Shared-write tuning is managed by the projector pipeline internally.
-	// This endpoint returns a static report indicating the Go-owned surface.
+	// This endpoint returns the pinned static report
+	// (SharedProjectionTuningReportContractVersion): the constants are
+	// the contract, so the served body cannot drift from the pin.
 	querycontract.WriteJSON(w, http.StatusOK, map[string]any{
-		"status": "not_applicable",
-		"detail": "Shared-projection tuning is managed internally by the Go projector pipeline.",
+		"status": SharedProjectionTuningReportStatus,
+		"detail": SharedProjectionTuningReportDetail,
 	})
 }
