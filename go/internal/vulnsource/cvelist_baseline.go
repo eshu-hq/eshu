@@ -141,6 +141,51 @@ func openZipReader(zipPath string) (*zip.ReadCloser, error) {
 	return zr, nil
 }
 
+// cveListBaselineInnerName is the single record-bearing member the upstream
+// midnight wrapper carries (verified live 2026-11-07: the
+// <date>_all_CVEs_at_midnight.zip.zip asset holds exactly one entry,
+// cves.zip, DEFLATEd, so per-shard reads need the extracted inner archive,
+// not a section view of the wrapper).
+const cveListBaselineInnerName = "cves.zip"
+
+// ExtractCVEListInnerZip streams the record-bearing inner archive out of
+// the downloaded midnight wrapper into destPath. It fails closed when the
+// wrapper layout is anything but the single cves.zip member: an upstream
+// shape change must update this function, never silently yield zero
+// records. Extraction streams member to file; neither archive is held
+// whole beyond the zip directory scan.
+func ExtractCVEListInnerZip(wrapperPath, destPath string) error {
+	zr, err := openZipReader(wrapperPath)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = zr.Close() }()
+	if len(zr.File) != 1 || zr.File[0].Name != cveListBaselineInnerName {
+		names := make([]string, 0, len(zr.File))
+		for _, f := range zr.File {
+			names = append(names, f.Name)
+		}
+		return fmt.Errorf("vulnsource: midnight wrapper holds %q, want exactly [%s]", names, cveListBaselineInnerName)
+	}
+	src, err := zr.File[0].Open()
+	if err != nil {
+		return fmt.Errorf("vulnsource: open inner baseline member: %w", err)
+	}
+	defer func() { _ = src.Close() }()
+	out, err := os.OpenFile(destPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
+	if err != nil {
+		return fmt.Errorf("vulnsource: stage inner baseline: %w", err)
+	}
+	if _, err := io.Copy(out, src); err != nil {
+		_ = out.Close()
+		return fmt.Errorf("vulnsource: extract inner baseline: %w", err)
+	}
+	if err := out.Close(); err != nil {
+		return fmt.Errorf("vulnsource: close inner baseline: %w", err)
+	}
+	return nil
+}
+
 // CVEListMirrorCursor is the durable 5.2 mirror position: the newest
 // fully-processed deltaLog fetchTime plus the baseline it applies to. The
 // cursor advances only to fetchTimes the tail actually processed; a tail
