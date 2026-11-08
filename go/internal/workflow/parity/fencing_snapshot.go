@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/claim/fence"
@@ -184,6 +185,9 @@ const teardownResidueQuery = `SELECT
 // counts for the evidence record. It deletes only rows carrying the run
 // prefix; satellite-side claim rows go through ResetSatellite, never here.
 func TeardownRehearsalRows(ctx context.Context, database db.ExecQueryer, runID string) (map[string]int, error) {
+	if strings.TrimSpace(runID) == "" {
+		return nil, fmt.Errorf("teardown rehearsal rows: runID must not be blank")
+	}
 	deleted := make(map[string]int, len(teardownDeletes))
 	for _, del := range teardownDeletes {
 		result, err := database.ExecContext(ctx, del.query, del.arg(runID))
@@ -204,7 +208,8 @@ func TeardownRehearsalRows(ctx context.Context, database db.ExecQueryer, runID s
 	remain := rows.Next()
 	if remain {
 		if err := rows.Scan(&residue); err != nil {
-			return nil, fmt.Errorf("scan teardown residue: %w", rows.Close())
+			_ = rows.Close()
+			return nil, fmt.Errorf("scan teardown residue: %w", err)
 		}
 	}
 	if err := rows.Err(); err != nil {

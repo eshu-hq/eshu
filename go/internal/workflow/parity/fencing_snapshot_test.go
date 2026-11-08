@@ -301,4 +301,13 @@ func TestFencingRehearsalRollbackTeardown(t *testing.T) {
 	if _, err := TeardownRehearsalRows(context.Background(), dirty, "parity-fence-run"); err == nil {
 		t.Fatalf("TeardownRehearsalRows(residue 3) = nil, want the residue refusal")
 	}
+	for _, blank := range []string{"", "  "} {
+		guarded := &rehearsalExecDB{}
+		if _, err := TeardownRehearsalRows(context.Background(), guarded, blank); err == nil {
+			t.Fatalf("TeardownRehearsalRows(%q) = nil, want the blank runID refusal", blank)
+		}
+		if len(guarded.stmts) != 0 {
+			t.Fatalf("TeardownRehearsalRows(%q) ran %d statements, want none", blank, len(guarded.stmts))
+		}
+	}
 }
