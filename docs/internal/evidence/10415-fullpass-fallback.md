@@ -5,7 +5,7 @@ rows. A scoped-path-only probe (`hasOutOfStampActiveSupplyChainImpactRows`)
 checks for active finding rows outside the stamp; when found (or on probe
 error, fail-closed), the pass runs full instead of scoped.
 
-## No-Regression Evidence
+## No-Regression Evidence:
 
 - Baseline: scoped passes load evidence inside the stamp only; full passes
   load everything. No probe exists, so no probe cost.
@@ -27,7 +27,7 @@ error, fail-closed), the pass runs full instead of scoped.
   on the next reopen; early reap harmless). Fallback runs the long-existing
   full path, so the only new behavior is choosing it.
 
-## Observability Evidence
+## Observability Evidence:
 
 - New mode label `scoped_fallback_out_of_stamp` on
   `eshu_dp_supply_chain_impact_pass_total`, enumerated alongside the three
