@@ -135,3 +135,41 @@ in the D13 disposition report; headline per family below.
 - `GET /api/v0/images/tag-history`
 ### WorkItems
 - `GET /api/v0/work-items/evidence`
+
+## Rebase prep note (2026-11-08, base `d59650c757`)
+
+Branch rebased onto fresh `origin/main` `d59650c757` (prior base
+`f528b8ac75`; clean rebase, zero conflicts). Prep only — no PR opened,
+no merge, no traffic action. Owner acceptance of the eventual removal is
+recorded; cutover-good ruling and row-7 closure still gate the merge,
+and a fresh arbiter review in-lane is required before any removal PR.
+
+- Removal scope still exactly the in-tree API surface: `go/cmd/api` is
+  125 tracked files at the old base, the new base, and the rebased head
+  — zero drift (`git ls-files 'go/cmd/api' | wc -l`; old-to-new diff on
+  the path is empty).
+- Removal proof re-run at the rebased head (all exit 0): the re-prove
+  command returns 3 files (was 88) — only the known string-mention
+  false positives (`facts/docs/documentation.go`,
+  `facts/semantic/semantic.go`, `mcp/kind_real_consumer.go`); the MCP
+  exact-package census is 99 (was 107: 8 non-test drained to 0, 99 test
+  remain); `CUTOVER_OWNERSHIP.md` byte-identical (278 route data rows);
+  the 13 `TestQueryRootDrained` pin-test packages pass
+  (`go test -count=1 -run 'TestQueryRootDrained|TestDrain…'`
+  across `answernarration`, `answerquality`, `ask/engine`,
+  `evidencecontinuity`, `facts/docs`, `facts/semantic`, `mcp`,
+  `oidcbearer`, `oidclogin`, `reportbundle`, `scopedtoken`,
+  `serviceintel`, `serviceintelhttp`).
+- Drain PRs landed on main since the prior checklist base: #10348 (row
+  5), #10355 + #10359 (row 4), #10362 (auth), #10363 (capinv row 7),
+  #10364 (ask), #10365 + #10372 (cli row 3), #10366 (golden-corpus row
+  6), #10378 (row-9 remainder), #10381 (row 2 MCP), #10382 (row 8
+  remainder), #10387 (auth tests), #10392 (row 2b). Per-row counts in
+  `go/cmd/api/REMOVAL_CONSUMER_DRAIN_CHECKLIST.md` refreshed for this
+  base; every Go row stays TODO (test-file references still block per
+  the drain rule).
+- Readiness: ready for in-lane arbiter review. NOT merge-ready:
+  cutover-good ruling, row-7 closure (offline inventory still reads the
+  `query/openapi` leaf seam until eshu-api#65), and the fresh arbiter
+  review itself are outstanding, and the test-file retargets plus the
+  51-route satellite closures/carve-outs still block the removal PR.
