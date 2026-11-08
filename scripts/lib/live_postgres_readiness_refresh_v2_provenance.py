@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+from collections.abc import Mapping
 import json
 from pathlib import Path
 import re
@@ -15,6 +16,43 @@ INVENTORY = "scripts/lib/live_postgres_readiness_inventory_generated.py"
 MODULE_DIR = "scripts/lib/"
 V1_SHARD_COUNT = 4
 SHARD_RE = re.compile(r"live-postgres-readiness \(postgres18\) shard \((\d+)/(\d+)\)")
+EXCUSE_RE = re.compile(
+    r"^\ufeff?\S+Z (?:live-postgres-readiness: extra skip excuse:| +LIVE_READINESS_EXTRA_SKIP:) (Test[A-Za-z0-9_]+(?: Test[A-Za-z0-9_]+)* ?)$")
+
+
+def excused_names(log: str) -> frozenset[str]:
+    """Return the test names this shard log excuses via the skip variable.
+
+    The workflow sets LIVE_READINESS_EXTRA_SKIP for behavior-gated proofs;
+    the runner excuses their absence or skip but still fails a real failure,
+    so a green summary with these names covers them without printed rows.
+    """
+    names: set[str] = set()
+    for line in log.splitlines():
+        if match := EXCUSE_RE.fullmatch(line):
+            names.update(match.group(1).split())
+    return frozenset(names)
+
+
+def run_excuse(logs: Mapping[int, str], run_id: str, plan: list[str]) -> frozenset[str]:
+    """Return the run-global skip excuse after agreement and inventory checks.
+
+    Every shard log carries the same excuse names, and every name must be an
+    enrolled test; a disagreeing shard or an unknown name fails closed.
+    """
+    excuses = {number: excused_names(log) for number, log in logs.items()}
+    excuse = frozenset().union(*excuses.values())
+    unknown = sorted(excuse - {run.split("|", 1)[1] for run in plan})
+    if unknown:
+        raise ValueError(f"source {run_id} skip excuse names unknown test(s): {', '.join(unknown)}")
+    if len(set(excuses.values())) != 1:
+        raise ValueError(f"source {run_id} shard skip excuses differ")
+    return next(iter(excuses.values()))
+
+
+def shard_excused_runs(rows: list[frozenset[str]], excuse: frozenset[str]) -> frozenset[str]:
+    """Return the expected runs of these shard rows covered by the excuse."""
+    return frozenset(run for row in rows for run in row if run.split("|", 1)[1] in excuse)
 
 
 def _source_text(root: Path, sha: str, path: str) -> str:

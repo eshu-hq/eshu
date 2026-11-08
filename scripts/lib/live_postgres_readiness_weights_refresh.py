@@ -220,7 +220,7 @@ def main() -> int:
                                       images.shard_counts).line())
         print(images.line())
         print(pool.era_line())
-        if pool.mixed:
+        if pool.mixed or pool.defaulted:
             print(pool.inventory_line())
         for component in cold_components:
             print(component.line())
