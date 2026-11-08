@@ -159,41 +159,18 @@ In words: sources feed intake, which stores versioned facts in Postgres; the red
 
 ### Repository Map
 
-| Repository | What it holds, in plain words |
-| --- | --- |
-| [eshu](https://github.com/eshu-hq/eshu) | This repo: core parsing, facts, reducer, query, and docs. |
-| [eshu-api](https://github.com/eshu-hq/eshu-api) | The extracted HTTP API service. |
-| [eshu-cli](https://github.com/eshu-hq/eshu-cli) | The extracted command-line client. |
-| [eshu-mcp](https://github.com/eshu-hq/eshu-mcp) | The extracted MCP server for AI assistants. |
-| [eshu-sdk](https://github.com/eshu-hq/eshu-sdk) | Shared client and contract libraries. |
-| [eshu-agent-kit](https://github.com/eshu-hq/eshu-agent-kit) | Helpers for coding agents that use Eshu. |
-| [eshu-ingester](https://github.com/eshu-hq/eshu-ingester) | Repository sync, parsing, and fact emission. |
-| [eshu-workflow](https://github.com/eshu-hq/eshu-workflow) | Collector scheduling and claim handling. |
-| [eshu-webhook](https://github.com/eshu-hq/eshu-webhook) | Verified webhook intake for change events. |
-| [eshu-extension-host](https://github.com/eshu-hq/eshu-extension-host) | Runs approved extension collectors safely. |
-| [eshu-scanner-worker](https://github.com/eshu-hq/eshu-scanner-worker) | Heavy security scanning that emits facts. |
-| [eshu-deploy](https://github.com/eshu-hq/eshu-deploy) | Helm, Compose, and GitOps assets to run Eshu. |
-| [eshu-collector-aws-cloud](https://github.com/eshu-hq/eshu-collector-aws-cloud) | Collector: AWS cloud account facts. |
-| [eshu-collector-azure-cloud](https://github.com/eshu-hq/eshu-collector-azure-cloud) | Collector: Azure cloud facts. |
-| [eshu-collector-gcp-cloud](https://github.com/eshu-hq/eshu-collector-gcp-cloud) | Collector: Google Cloud facts. |
-| [eshu-collector-kubernetes-live](https://github.com/eshu-hq/eshu-collector-kubernetes-live) | Collector: live Kubernetes cluster facts. |
-| [eshu-collector-terraform-state](https://github.com/eshu-hq/eshu-collector-terraform-state) | Collector: Terraform state facts, redacted. |
-| [eshu-collector-vault-live](https://github.com/eshu-hq/eshu-collector-vault-live) | Collector: Vault secrets posture, metadata only. |
-| [eshu-collector-oci-registry](https://github.com/eshu-hq/eshu-collector-oci-registry) | Collector: container image registry facts. |
-| [eshu-collector-package-registry](https://github.com/eshu-hq/eshu-collector-package-registry) | Collector: package registry metadata. |
-| [eshu-collector-sbom-attestation](https://github.com/eshu-hq/eshu-collector-sbom-attestation) | Collector: SBOM and attestation documents. |
-| [eshu-collector-vulnerability-intelligence](https://github.com/eshu-hq/eshu-collector-vulnerability-intelligence) | Collector: vulnerability advisory facts. |
-| [eshu-collector-security-alerts](https://github.com/eshu-hq/eshu-collector-security-alerts) | Collector: provider security alert facts. |
-| [eshu-collector-cicd-run](https://github.com/eshu-hq/eshu-collector-cicd-run) | Collector: CI/CD run and job facts. |
-| [eshu-collector-jira](https://github.com/eshu-hq/eshu-collector-jira) | Collector: Jira work-item facts. |
-| [eshu-collector-pagerduty](https://github.com/eshu-hq/eshu-collector-pagerduty) | Collector: PagerDuty incident facts. |
-| [eshu-collector-confluence](https://github.com/eshu-hq/eshu-collector-confluence) | Collector: Confluence documentation facts. |
-| [eshu-collector-grafana](https://github.com/eshu-hq/eshu-collector-grafana) | Collector: Grafana dashboard and rule facts. |
-| [eshu-collector-prometheus-mimir](https://github.com/eshu-hq/eshu-collector-prometheus-mimir) | Collector: Prometheus and Mimir target facts. |
-| [eshu-collector-loki](https://github.com/eshu-hq/eshu-collector-loki) | Collector: Loki log-signal metadata. |
-| [eshu-collector-tempo](https://github.com/eshu-hq/eshu-collector-tempo) | Collector: Tempo trace-signal metadata. |
+Eshu spans 31 repositories: this core, the extracted API, CLI, and MCP
+server, shared libraries (`eshu-sdk`, `eshu-agent-kit`), runtime workers
+(ingester, workflow, webhook, extension host, scanner worker), deployment
+assets (`eshu-deploy`), and 19 collectors. Each collector reads one
+outside system — cloud accounts, registries, trackers, observability
+tools — and emits source facts only; the reducer owns linked truth.
 
-Collector groups: cloud and infrastructure; supply chain and registries; delivery and work; observability. Collectors emit source facts only; the reducer owns linked truth. See [Collector And Reducer Readiness](docs/public/reference/collector-reducer-readiness.md) before you enable a family.
+The full list, one plain sentence per repository and grouped by family,
+lives in [REPOSITORIES.md](REPOSITORIES.md). Start there when you need to
+find which repository owns a piece of the system. See
+[Collector And Reducer Readiness](docs/public/reference/collector-reducer-readiness.md)
+before you enable a collector family.
 
 ## Interfaces
 
