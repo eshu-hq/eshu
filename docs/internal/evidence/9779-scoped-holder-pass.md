@@ -118,3 +118,45 @@ passes at this head. The rollout trigger the issue specified —
 `eshu_dp_reducer_executions_total`, plus the `pass_total` mode share — reads
 from these signals; no dashboard panel was added, matching the existing
 fan-out signals.
+
+## Suppression-branch bridge fix (follow-up to #10403)
+
+The merged head predated the fix, so the contention gate caught a real
+starvation: scoped holder passes ran one load round with zero suppression
+rows and left copies active. The bridge (own id, upstream-key, or
+finding-row deciding advisory admission; stamp keys seed the upstream set)
+restores the arms the full pass follows.
+
+## No-Regression Evidence:
+
+**Baseline (pre-fix head).** Nine suppression live legs red with one
+signature (single load round, suppression branch zero rows, empty
+follow-up); the 260-holder mass leg converged 4 of 260 copies.
+
+**After (this head, disposable PostgreSQL 18.6, local `pg-repro`).**
+All nine legs green: the CVEID-only reopen, coalesced chain,
+pre-activation defer, unchanged-set, diff-retry, rejected/restored
+advisory, and identical-rescan legs, plus the 260-holder mass
+continuation at 260 accepted_risk (first drain 54 s, concurrent 4-worker
+drain 6 s, 256 reopened + 4 deferred). The scoped-vs-full differentials
+stay byte-identical (3 admitted envelopes scoped vs 6 full, identical
+stamped rows). Full `core` package suite plus `-race` green; `go vet`
+and gofumpt clean.
+
+**Input shape.** Single-holder suppression reopens plus the 260-holder
+mass continuation with a newer-generation activation mid-drain.
+
+**Why safe.** Scoped loads are strict subsets of what the full pass
+loads: every follow-up arm intersects a fixed stamp-bounded seed set, so
+the loop terminates and the distro id stays off the full CVE arm (pinned
+by unit test). Full passes, workers, leases, queues, and retries are
+untouched. Rollback is a deploy revert with no migration.
+
+## Observability Evidence:
+
+No new signals. The bridge is observed through the existing
+`eshu_dp_supply_chain_impact_pass_total{domain,mode}`,
+`scoped_cve_count`, `scoped_evidence_envelopes`, and
+`fanout_reopened`/`fanout_deferred` sub-signals plus the per-branch
+`active_evidence_branch_*_rows` tallies, all named in the row above and
+the coverage row for this stage.

@@ -6,6 +6,7 @@ package core
 import (
 	"context"
 	"reflect"
+	"slices"
 	"testing"
 
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
@@ -267,7 +268,9 @@ func scopedPassHandler(loader *scopedSeedLoader, inst *telemetry.Instruments) (*
 
 // TestScopedPassSeedsFromFindingRows pins the #9779 scoped pass: a one-hop
 // pass whose stamp names a bounded set writes with that scope, restricts its
-// active-evidence CVE arm to the stamp, and counts mode=scoped.
+// active-evidence CVE arm to the stamp, and counts mode=scoped. The second
+// CVE's envelopes stay outside the stamp and seeds, so any non-narrowed CVE
+// id in the recorded filters trips the loop below.
 func TestScopedPassSeedsFromFindingRows(t *testing.T) {
 	t.Parallel()
 
@@ -281,6 +284,8 @@ func TestScopedPassSeedsFromFindingRows(t *testing.T) {
 			scopeFacts: []facts.Envelope{
 				vulnerabilityCVEFact("cve-1", "CVE-2026-9001", 9.8),
 				vulnerabilityAffectedPackageFact("affected-1", "CVE-2026-9001", "pkg:npm/example@1", "npm", "example", "1.2.3", "1.3.0"),
+				vulnerabilityCVEFact("cve-2", "CVE-2026-9002", 7.5),
+				vulnerabilityAffectedPackageFact("affected-2", "CVE-2026-9002", "pkg:npm/other@1", "npm", "other", "2.0.0", "2.0.1"),
 			},
 		},
 		seeds: []ScopedFindingPackage{{
@@ -314,5 +319,89 @@ func TestScopedPassSeedsFromFindingRows(t *testing.T) {
 	}
 	if got := scopedPassCount(t, reader); got != 1 {
 		t.Fatalf("pass_total{mode=scoped} = %d, want 1", got)
+	}
+}
+
+// TestScopedPassBridgesDistroSpellingViaUpstream pins the #9779 suppression
+// regression: a holder-side distro record spells its own id with the vendor
+// prefix while the stamp carries the bare CVE. The seed must still admit the
+// record through its upstream list (seeding the upstream and advisory sets),
+// admit the finding row's deciding advisory, keep both in the derivation
+// subset, and restrict the filter so the upstream arm survives while the
+// distro id stays off the full CVE arm. An advisory for another CVE stays
+// out on every leg.
+func TestScopedPassBridgesDistroSpellingViaUpstream(t *testing.T) {
+	t.Parallel()
+
+	const distro, cve = "DEBIAN-CVE-2023-38039", "CVE-2023-38039"
+	record := vulnerabilityCVEFact("rec-1", distro, 0)
+	record.Payload["upstream"] = []string{cve}
+	affected := vulnerabilityAffectedPackageFact("aff-1", distro, "os://debian/curl", "os", "curl", "0", "7.88.1-10+deb12u3")
+	affected.Payload["purl"] = "pkg:deb/debian/curl?arch=source&distro=bookworm"
+	other := vulnerabilityCVEFact("rec-2", "CVE-2024-0001", 9.8)
+	seeds := []ScopedFindingPackage{{
+		CVEID: cve, AdvisoryID: distro, PackageID: "os://debian/curl",
+		PURL: "pkg:deb/debian/curl?arch=source&distro=bookworm", PackageName: "curl", Ecosystem: "os",
+	}}
+	stamp := []string{cve}
+
+	scope, ok := seedScopedSupplyChainImpactScope([]facts.Envelope{record, affected, other}, seeds, stamp)
+	if !ok {
+		t.Fatal("seedScopedSupplyChainImpactScope() = false, want a scope: the bridged record and finding row must seed")
+	}
+	if _, ok := scope.upstream[cve]; !ok {
+		t.Errorf("scope.upstream = %v, want %s from the record's upstream list", setKeys(scope.upstream), cve)
+	}
+	if _, ok := scope.advisoryIDs[distro]; !ok {
+		t.Errorf("scope.advisoryIDs = %v, want %s from the record and finding row", setKeys(scope.advisoryIDs), distro)
+	}
+
+	stampSet := map[string]struct{}{cve: {}}
+	for _, envelope := range []facts.Envelope{record, affected} {
+		if !scopedEnvelopeIncluded(envelope, scope, stampSet) {
+			t.Errorf("scopedEnvelopeIncluded(%s) = false, want true: the bridged advisory joins the subset", envelope.FactID)
+		}
+	}
+	if scopedEnvelopeIncluded(other, scope, stampSet) {
+		t.Error("scopedEnvelopeIncluded(rec-2) = true, want false: another CVE's advisory stays out")
+	}
+
+	subset := scopeSupplyChainImpactEnvelopes([]facts.Envelope{record, affected, other}, scope)
+	filter := restrictSupplyChainImpactFilter(supplyChainImpactFilter(subset), scope)
+	if !slices.Contains(filter.UpstreamCVEIDs, cve) {
+		t.Errorf("restricted UpstreamCVEIDs = %v, want %s: the suppression arm must survive restriction", filter.UpstreamCVEIDs, cve)
+	}
+	if !slices.Contains(filter.AdvisoryIDs, distro) {
+		t.Errorf("restricted AdvisoryIDs = %v, want %s: the record must stay loadable by advisory", filter.AdvisoryIDs, distro)
+	}
+	for _, id := range filter.CVEIDs {
+		if id == distro {
+			t.Errorf("restricted CVEIDs = %v: the distro id must stay off the full arm", filter.CVEIDs)
+		}
+	}
+}
+
+// TestScopedPassSeedsStampKeysOnUpstreamArm pins the mass-holder leg of the
+// #9779 regression: a holder whose deciding record lives in another scope
+// has no own-scope advisory spelling the stamp, so the seed must still open
+// the upstream arm from the stamp's own canonical keys, with the advisory
+// arm from the finding row's deciding advisory.
+func TestScopedPassSeedsStampKeysOnUpstreamArm(t *testing.T) {
+	t.Parallel()
+
+	const distro, cve = "DEBIAN-CVE-2023-38039", "CVE-2023-38039"
+	affected := vulnerabilityAffectedPackageFact("aff-1", distro, "os://debian/curl", "os", "curl", "0", "7.88.1-10+deb12u3")
+	seeds := []ScopedFindingPackage{{
+		CVEID: cve, AdvisoryID: distro, PackageID: "os://debian/curl", Ecosystem: "os",
+	}}
+	scope, ok := seedScopedSupplyChainImpactScope([]facts.Envelope{affected}, seeds, []string{cve})
+	if !ok {
+		t.Fatal("seedScopedSupplyChainImpactScope() = false, want a scope: the finding row must seed without any own-scope record")
+	}
+	if _, ok := scope.upstream[cve]; !ok {
+		t.Errorf("scope.upstream = %v, want %s from the stamp itself", setKeys(scope.upstream), cve)
+	}
+	if _, ok := scope.advisoryIDs[distro]; !ok {
+		t.Errorf("scope.advisoryIDs = %v, want %s from the finding row", setKeys(scope.advisoryIDs), distro)
 	}
 }

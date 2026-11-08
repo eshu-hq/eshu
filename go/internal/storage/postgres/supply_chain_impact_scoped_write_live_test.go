@@ -113,7 +113,7 @@ func TestScopedWriteMatchesFullWriteLive(t *testing.T) {
 		// retracts both, the scoped pass only the stamped one.
 		for _, cve := range baseline {
 			seedScopedFindingRow(t, ctx, db, scope, "g1", "stale-"+scope+"-"+cve,
-				cve, "pkg:stale", "pkg:npm/stale@1", "stale", "npm", false)
+				cve, cve, "pkg:stale", "pkg:npm/stale@1", "stale", "npm", false)
 		}
 	}
 

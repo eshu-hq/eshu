@@ -12,15 +12,16 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
-// listScopedSupplyChainImpactFindingPackagesQuery returns the distinct CVE
-// and package identities of one generation's active finding rows for stamped
-// CVEs (#9779). The fact kind is a literal so the planner proves the
-// predicate of the partial finding indexes under a generic plan, the same
+// listScopedSupplyChainImpactFindingPackagesQuery returns the distinct CVE,
+// advisory, and package identities of one generation's active finding rows
+// for stamped CVEs (#9779). The fact kind is a literal so the planner proves
+// the predicate of the partial finding indexes under a generic plan, the same
 // shape the holder read and the writer's stored read use. The handler seeds
 // its scoped evidence filters from these rows instead of from everything the
 // scope holds.
 const listScopedSupplyChainImpactFindingPackagesQuery = `
 SELECT DISTINCT payload->>'cve_id',
+       COALESCE(payload->>'advisory_id', ''),
        COALESCE(payload->>'package_id', ''),
        COALESCE(payload->>'purl', ''),
        COALESCE(payload->>'package_name', ''),
@@ -34,9 +35,9 @@ WHERE fact_kind = '` + facts.ReducerSupplyChainImpactFindingFactKind + `'
 `
 
 // ListScopedSupplyChainImpactFindingPackages loads the finding-row package
-// seeds of one (scope, generation) for stamped CVEs. An empty stamp reads
-// nothing; tombstoned rows are excluded so a retracted copy never seeds a
-// load.
+// and advisory seeds of one (scope, generation) for stamped CVEs. An empty
+// stamp reads nothing; tombstoned rows are excluded so a retracted copy
+// never seeds a load.
 func (s FactStore) ListScopedSupplyChainImpactFindingPackages(
 	ctx context.Context,
 	scopeID string,
@@ -58,7 +59,7 @@ func (s FactStore) ListScopedSupplyChainImpactFindingPackages(
 		defer func() { _ = rows.Close() }()
 		for rows.Next() {
 			var row supplychaincore.ScopedFindingPackage
-			if err := rows.Scan(&row.CVEID, &row.PackageID, &row.PURL, &row.PackageName, &row.Ecosystem); err != nil {
+			if err := rows.Scan(&row.CVEID, &row.AdvisoryID, &row.PackageID, &row.PURL, &row.PackageName, &row.Ecosystem); err != nil {
 				return fmt.Errorf("scan scoped supply chain impact finding package: %w", err)
 			}
 			if row.CVEID == "" {
