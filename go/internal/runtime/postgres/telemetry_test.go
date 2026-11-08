@@ -184,6 +184,53 @@ func TestRegisterPoolMetricsReportsBothRolesAndUnregisters(t *testing.T) {
 	}
 }
 
+func TestNewObserverCountsStaleDeferralsByFamily(t *testing.T) {
+	reader := sdkmetric.NewManualReader()
+	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+	spans := tracetest.NewSpanRecorder()
+	traces := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(spans))
+	observer, err := NewObserver(provider.Meter("test"), traces.Tracer("test"))
+	if err != nil {
+		t.Fatalf("NewObserver: %v", err)
+	}
+	defers, ok := observer.(staleDeferralObserver)
+	if !ok {
+		t.Fatal("observer does not count stale deferrals")
+	}
+	defers.ObserveStaleDeferral(context.Background(), StaleFamilyAudits)
+	defers.ObserveStaleDeferral(context.Background(), StaleFamilyAudits)
+	defers.ObserveStaleDeferral(context.Background(), StaleFamily("unlisted"))
+	var rm metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &rm); err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	got := map[string]int64{}
+	for _, scope := range rm.ScopeMetrics {
+		for _, m := range scope.Metrics {
+			if m.Name != MetricReaderStaleDeferrals {
+				continue
+			}
+			sum, ok := m.Data.(metricdata.Sum[int64])
+			if !ok {
+				t.Fatalf("%s data = %T", MetricReaderStaleDeferrals, m.Data)
+			}
+			for _, point := range sum.DataPoints {
+				attrs := map[string]string{}
+				for _, attr := range point.Attributes.ToSlice() {
+					attrs[string(attr.Key)] = attr.Value.AsString()
+				}
+				if len(attrs) != 1 {
+					t.Fatalf("stale deferral labels = %v, want only family", attrs)
+				}
+				got[attrs["family"]] = point.Value
+			}
+		}
+	}
+	if got["audits"] != 2 || got["unknown"] != 1 {
+		t.Fatalf("stale deferrals = %v, want audits=2 unknown=1", got)
+	}
+}
+
 func histogramPoints(t *testing.T, rm metricdata.ResourceMetrics, name string) []metricdata.HistogramDataPoint[float64] {
 	t.Helper()
 	for _, scope := range rm.ScopeMetrics {

@@ -15,6 +15,7 @@ const (
 	failureReaderBorrow
 	failureReaderIdentity
 	failureReaderReplay
+	failureReaderStale
 	failureReaderQuery
 	failureReaderRows
 	failureSnapshotBegin
@@ -45,6 +46,8 @@ func (e privateError) Error() string {
 		return "PostgreSQL reader identity check failed"
 	case failureReaderReplay:
 		return "PostgreSQL reader replay check failed"
+	case failureReaderStale:
+		return "PostgreSQL stale reader deferred"
 	case failureReaderQuery:
 		return "PostgreSQL reader query failed"
 	case failureReaderRows:

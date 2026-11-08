@@ -123,10 +123,14 @@ const (
 	memberIdentitySQL = `SELECT current_setting('default_transaction_read_only'), pg_is_in_recovery(), system_identifier::text, current_database(), (extract(epoch from pg_postmaster_start_time())*1000000)::bigint::text, host(inet_server_addr()), current_setting('server_version'), current_setting('server_version_num')::int FROM pg_control_system()`
 )
 
-// checkReader fences one borrowed connection and reports whether its build may
-// export a shared snapshot. An accepted identity refreshes the pool or member
-// verdict that the snapshot-set fast path and the qualification gauge read.
-func (a *Access) checkReader(ctx context.Context, conn *sql.Conn, point checkpoint, member *physicalReaderMember) (exportQualified bool, err error) {
+// fenceReaderIdentity runs the borrowed-connection identity and split-brain
+// qualification shared by the writer-fenced and stale reader paths. It
+// compares the connection against the published writer lineage and, for
+// explicit member fleets, the member's frozen incarnation and addresses, and
+// reports whether the connection's build may export a shared snapshot. A nil
+// checkpoint skips the writer-insertion comparison for the stale path, which
+// never takes one; the writer-lineage comparison still applies.
+func (a *Access) fenceReaderIdentity(ctx context.Context, conn *sql.Conn, member *physicalReaderMember, point *checkpoint) (exportQualified bool, err error) {
 	started := time.Now()
 	// One value holds every scan destination, so the identity scan costs one
 	// heap object however many columns it reads. The build number scans into
@@ -142,7 +146,13 @@ func (a *Access) checkReader(ctx context.Context, conn *sql.Conn, point checkpoi
 		err = conn.QueryRowContext(ctx, memberIdentitySQL).Scan(&id.readOnly, &id.recovery, &id.systemID, &id.database, &id.incarnation, &id.serverAddress, &id.serverVersion, &id.serverVersionNum)
 	}
 	writer := a.lineage.identity()
-	if err == nil && (id.readOnly != "on" || id.systemID != point.systemID || id.database != point.database || id.systemID != writer.systemID || id.database != writer.database || id.recovery == a.samePrimary) {
+	if err == nil && (id.readOnly != "on" || id.systemID != writer.systemID || id.database != writer.database || id.recovery == a.samePrimary) {
+		err = ErrWrongTopology
+	}
+	// The checkpoint owner is vetted where the point enters: borrowFreshFrom
+	// rejects a foreign or missing checkpoint before borrowing, and
+	// fleetCheckpoint does the same for fleet attempts.
+	if err == nil && point != nil && (id.systemID != point.systemID || id.database != point.database) {
 		err = ErrWrongTopology
 	}
 	if err == nil && member != nil && (id.incarnation != member.incarnation || !addressMatches(id.serverAddress, member.addresses)) {
@@ -160,6 +170,17 @@ func (a *Access) checkReader(ctx context.Context, conn *sql.Conn, point checkpoi
 		holder = member.snapshotExport
 	}
 	exportQualified = holder.observe(id.serverVersion, int(id.serverVersionNum), id.recovery)
+	return exportQualified, nil
+}
+
+// checkReader fences one borrowed connection and reports whether its build may
+// export a shared snapshot. An accepted identity refreshes the pool or member
+// verdict that the snapshot-set fast path and the qualification gauge read.
+func (a *Access) checkReader(ctx context.Context, conn *sql.Conn, point checkpoint, member *physicalReaderMember) (exportQualified bool, err error) {
+	exportQualified, err = a.fenceReaderIdentity(ctx, conn, member, &point)
+	if err != nil {
+		return false, err
+	}
 	if a.samePrimary {
 		return exportQualified, nil
 	}
