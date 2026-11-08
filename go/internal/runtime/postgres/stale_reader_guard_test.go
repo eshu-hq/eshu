@@ -122,7 +122,8 @@ func applyAssign(assign *ast.AssignStmt, aliases map[string]bool) {
 
 // fencingReaderUses scans one non-test Go source file for fencing constructor
 // calls whose argument expression reaches Access.Reader() or
-// Access.StaleReader(), either inline or through a same-function alias. It
+// Access.StaleReader(), either inline or through a single-hop same-function
+// alias (chained hops are out of scope by design; see applyAssign). It
 // parses the file so a constructor split across lines is still caught, and
 // it ignores _test.go files.
 func fencingReaderUses(path, src string) []fencingReaderViolation {
