@@ -86,6 +86,22 @@ own; per-claim status rows and the real fact count land on the host's
 - `go/internal/collector/extensionhost/README.md`
 - `go/internal/collector/sbom/document/README.md`
 
+## Performance Evidence: claim source system on facts (#8877)
+
+- Baseline: base commit `3870181f32` build. After: this branch. Same
+  box, same pinned input, `BenchmarkServeComplete` 2,000-op sample,
+  3 runs each.
+- No-Regression Evidence: 268306, 267828, 267227 ns/op baseline vs
+  271646, 269807, 267559 ns/op after (about 1%, noise floor). The
+  change copies one claim string per fact instead of the parser
+  default; no loop, lock, I/O, retry, or batching change. Package
+  suite PASS on the same head.
+- Why safe: one field assignment per emitted fact on a fixed 13-fact
+  emission; the per-run marshal count and stdin cap are untouched.
+- No-Observability-Change: no span, metric, log line, or telemetry
+  surface added or removed. The source-system label is a
+  result-contract field, not an observability signal.
+
 ## Performance Evidence: dropping the summary status row (#8877)
 
 - Baseline: `origin/main` build (`03ea8b5294`), recorded v1alpha1 request

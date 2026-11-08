@@ -120,7 +120,7 @@ func completeResult(request extensionhost.Request, envelopes []facts.Envelope, o
 	}
 	factsOut := make([]sdkcollector.Fact, 0, len(envelopes))
 	for _, envelope := range envelopes {
-		factsOut = append(factsOut, sdkFact(envelope))
+		factsOut = append(factsOut, sdkFact(envelope, request.Claim.SourceSystem))
 	}
 	return sdkcollector.Result{
 		ProtocolVersion: protocol,
@@ -136,10 +136,14 @@ func completeResult(request extensionhost.Request, envelopes []facts.Envelope, o
 }
 
 // sdkFact maps one parser envelope onto the collector SDK fact shape. The
-// scope, generation, and source-system boundaries come from the parser, which
-// derived them from the claim, so host validation sees claim-matching
-// references without the leaf rewriting provenance.
-func sdkFact(envelope facts.Envelope) sdkcollector.Fact {
+// scope, generation, and source-system boundaries follow the claim, so
+// host validation sees claim-matching references: the parser derived
+// the scope and generation from the claim, and the source system rides
+// the claim too, because the commit door requires every fact echo to
+// match it and the parser's family default does not match an
+// attestation claim. The fact kind still names the parser family, so
+// no provenance is rewritten, only the run's system label.
+func sdkFact(envelope facts.Envelope, sourceSystem string) sdkcollector.Fact {
 	return sdkcollector.Fact{
 		Kind:             envelope.FactKind,
 		SchemaVersion:    envelope.SchemaVersion,
@@ -148,7 +152,7 @@ func sdkFact(envelope facts.Envelope) sdkcollector.Fact {
 		ObservedAt:       envelope.ObservedAt,
 		Tombstone:        envelope.IsTombstone,
 		SourceRef: sdkcollector.SourceRef{
-			SourceSystem: envelope.SourceRef.SourceSystem,
+			SourceSystem: sourceSystem,
 			ScopeID:      envelope.SourceRef.ScopeID,
 			GenerationID: envelope.SourceRef.GenerationID,
 			FactKey:      envelope.SourceRef.FactKey,
