@@ -23,7 +23,7 @@ whole body. The superseded census draft is
 
 | # | Family | Moves | Stays |
 |---|--------|-------|-------|
-| 1 | Facts core | Handler `ListFacts` queries | In-cycle `LoadFacts` / `LoadProjectionFacts` in projector and reducer (`internal/storage/postgres/facts.go:246,258`) |
+| 1 | Facts core | None (dropped permanently) | All loads — handler-side and in-cycle — feed just-written generation projection where read-your-writes is structural (`internal/storage/postgres/facts.go:246,258`) |
 | 16 | Readiness and observer gauges | Queue-depth and fence-count gauges (`internal/storage/postgres/queue_observer.go:237`, `internal/storage/postgres/corpus_fence_observer.go:101`) | Reads embedded in reducer claim SQL, and any gauge that ever gates scheduling |
 | 28 | Changed-since | Query reads | Journal writes inside ack transactions |
 | 32 | Search-vector index build | Pending-scope discovery (`internal/storage/postgres/eshu_search_vector_pending.go:114`) | Fenced batch commits (`internal/storage/postgres/eshu_search_vector_fenced_batch.go:81`), revalidated on the writer |
@@ -92,6 +92,11 @@ Auth (W*, checkpoint-bounded only):
 `internal/scopedtoken/identity.go:98`, identity subjects and tokens,
 browser sessions, and OAuth flows. A stale replica changes allow into
 deny or revives a revoked token.
+
+Findings and grouped inventory reads stay on the fenced reader: a
+synchronous handler cannot defer, and a stale page could serve
+suppressed findings as active. They already run on the standby through
+the fenced reader, so moving them would save near zero.
 
 Not production routing candidates: benchmark harnesses, latency-gate
 seeds, embedded test databases, local-supervisor CLIs, AST guards, and

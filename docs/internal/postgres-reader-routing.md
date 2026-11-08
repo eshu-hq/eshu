@@ -102,7 +102,11 @@ flowchart LR
 Audit path. The winners audit splits in two: its slow candidate scan
 (the 60-second query burning the writer today) runs on the replica and
 returns candidates; queuing repairs stays on the writer in a
-transaction. Lag only delays *when* a repair is queued.
+transaction. Lag only delays *when* a repair is queued. The scan drains
+into memory first (peak O(candidates) idents) so the standby connection
+is released before the writer transaction opens; corpus-scale candidate
+counts are a tracked follow-up gating default-enable on
+[eshu-hq/eshu#10416](https://github.com/eshu-hq/eshu/issues/10416).
 
 ## Proof bar for every moved family
 
