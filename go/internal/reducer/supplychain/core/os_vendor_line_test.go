@@ -328,6 +328,40 @@ func TestVendorLineJoinStatsCountEachOutcome(t *testing.T) {
 	}
 }
 
+// TestVendorLineJoinLabelIgnoresRowOrder is the #10056 regression: one vendor
+// fact joined to installed rows on two release lines gets the same counter
+// label whichever row the index meets first. The label is the strongest result
+// over every joined row, so a fact published for one of the joined lines reads
+// vendor_source in both orders.
+func TestVendorLineJoinLabelIgnoresRowOrder(t *testing.T) {
+	t.Parallel()
+	s := vendorLineScenarios[0]
+	want := map[osAdvisoryJoinKey]int{{"debian", osAdvisoryJoinOutcomeJoined, osAdvisoryReleaseVendorSource}: 1}
+	var got []map[osAdvisoryJoinKey]int
+	for _, order := range [][2]string{{"11", s.hostRelease}, {s.hostRelease, "11"}} {
+		first := s.row(order[0]).envelope()
+		first.FactID = "os-debian-curl-" + order[0]
+		second := s.row(order[1]).envelope()
+		second.FactID = "os-debian-curl-" + order[1]
+		envelopes := []facts.Envelope{
+			vulnerabilityCVEFact("cve-9945", vendorLineCVE, 7.5),
+			s.affectedEnvelope(s.purl(s.otherLine)),
+			first, second,
+		}
+		_, _, stats, err := buildSupplyChainImpactFindingsAndExclusions(envelopes)
+		if err != nil {
+			t.Fatalf("rows [%s %s]: build findings: %v", order[0], order[1], err)
+		}
+		got = append(got, stats.osAdvisoryJoins)
+	}
+	if !maps.Equal(got[0], got[1]) {
+		t.Fatalf("row order changed the counter labels: %v vs %v", got[0], got[1])
+	}
+	if !maps.Equal(got[0], want) {
+		t.Fatalf("osAdvisoryJoins = %v, want %v", got[0], want)
+	}
+}
+
 // TestVendorLineAgainstHostLineOSV pins the sharper variant (#9945): a
 // host-line-tagged OSV fact that says the host is fixed, against a vendor fact
 // whose list names the host's version string. The vendor fact only overrides

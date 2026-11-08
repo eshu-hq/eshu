@@ -107,6 +107,53 @@ func osAdvisoryReleaseResult(pkg supplychainmodel.AffectedPackage, installed sup
 	return osAdvisoryReleaseUnlisted
 }
 
+// osAdvisoryReleaseRank orders joined release results by how decisive they are
+// for a host: a result that decides a host from its own line outranks one that
+// only excludes lines, which outranks carrying no evidence. The counter keeps
+// one label per joined fact, so the strongest result over every joined row
+// wins and the label never depends on row order (#10056).
+func osAdvisoryReleaseRank(result string) int {
+	switch result {
+	case osAdvisoryReleaseMatched, osAdvisoryReleaseVendorSource:
+		return 3
+	case osAdvisoryReleaseUntagged:
+		return 2
+	case osAdvisoryReleaseUnlisted, osAdvisoryReleaseVendorLineMismatch:
+		return 1
+	default:
+		return 0
+	}
+}
+
+// strongestOSAdvisoryReleaseResult reports the joined release result for pkg
+// across every installed row it joins, strongest first (#10056). It walks the
+// same lookup keys with the same match predicate as firstOSPackageImpactPath,
+// so the joined set is unchanged: only the label selection moves, from the
+// first row in index order to the strongest result over all joined rows. Each
+// row's own verdict is unchanged; read a finding's match_reason for it.
+func strongestOSAdvisoryReleaseResult(pkg supplychainmodel.AffectedPackage, index supplyChainImpactIndex) (string, bool) {
+	vendorSource := classifyAffectedPackageAdvisorySource(pkg)
+	if vendorSource == "" {
+		return "", false
+	}
+	strongest := ""
+	rank := -1
+	joined := false
+	for _, key := range affectedOSPackageLookupKeys(pkg) {
+		for _, installed := range index.osPackages[key] {
+			if !osPackageMatchesAffectedPackage(installed, pkg, vendorSource) {
+				continue
+			}
+			joined = true
+			result := osAdvisoryReleaseResult(pkg, installed)
+			if r := osAdvisoryReleaseRank(result); r > rank {
+				strongest, rank = result, r
+			}
+		}
+	}
+	return strongest, joined
+}
+
 // emitOSAdvisoryReleaseSelections records one counter point per non-zero
 // joined (vendor, release result) cell. Not-joined cells carry no result and
 // are left to the join counter.
