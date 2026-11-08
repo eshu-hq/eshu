@@ -152,8 +152,8 @@ func TestLoadRuntimeConfigDeniesDriftedScannerArtifact(t *testing.T) {
 // satelliteSeedManifest builds a seeded satellite manifest for one satellite
 // ID: the registry pins as artifacts with the identity, runtime, emitted
 // families, and reducer contract the Event-B caller manifests carry.
-// imageOverride replaces the first artifact image before install (empty
-// keeps the registry pins).
+// imageOverride replaces every artifact image before install (empty keeps
+// the registry pins), so a drifted install denies on any host platform.
 func satelliteSeedManifest(t *testing.T, id string, imageOverride string) component.Manifest {
 	t.Helper()
 
@@ -187,7 +187,9 @@ func satelliteSeedManifest(t *testing.T, id string, imageOverride string) compon
 	manifest.Spec.ConsumerContracts.Reducer.Phases = []string{"documentation_materialization"}
 	manifest.Spec.Telemetry.MetricsPrefix = "eshu_dp_seeded_satellite_test_"
 	if imageOverride != "" {
-		manifest.Spec.Artifacts[0].Image = imageOverride
+		for i := range manifest.Spec.Artifacts {
+			manifest.Spec.Artifacts[i].Image = imageOverride
+		}
 	}
 	return manifest
 }

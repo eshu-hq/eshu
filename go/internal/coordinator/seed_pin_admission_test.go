@@ -140,8 +140,9 @@ func TestLoadConfigDeniesDriftedScannerActivation(t *testing.T) {
 
 // installSatelliteActivation installs one satellite manifest with its
 // documentation grants recorded and one claims-enabled activation, mirroring
-// the chart reconcile state. imageOverride replaces the first artifact image
-// before install (empty keeps the registry pins).
+// the chart reconcile state. imageOverride replaces every artifact image
+// before install (empty keeps the registry pins), so a drifted install
+// denies on any host platform.
 func installSatelliteActivation(t *testing.T, id, imageOverride string) string {
 	t.Helper()
 
@@ -175,7 +176,9 @@ func installSatelliteActivation(t *testing.T, id, imageOverride string) string {
 	manifest.Spec.ConsumerContracts.Reducer.Phases = []string{"documentation_materialization"}
 	manifest.Spec.Telemetry.MetricsPrefix = "eshu_dp_seeded_satellite_test_"
 	if imageOverride != "" {
-		manifest.Spec.Artifacts[0].Image = imageOverride
+		for i := range manifest.Spec.Artifacts {
+			manifest.Spec.Artifacts[i].Image = imageOverride
+		}
 	}
 	raw, err := yaml.Marshal(manifest)
 	if err != nil {

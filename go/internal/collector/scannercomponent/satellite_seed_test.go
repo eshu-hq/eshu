@@ -61,27 +61,83 @@ func driftedSatelliteImage(t *testing.T, id string) string {
 	return ref
 }
 
+// setSatelliteArtifactImage replaces the image of one platform entry in a
+// satellite manifest, failing the test when the platform is absent so a
+// drift or stamp test always touches the slot the check consults.
+func setSatelliteArtifactImage(t *testing.T, manifest *eshucomponent.Manifest, platform, image string) {
+	t.Helper()
+
+	for i, artifact := range manifest.Spec.Artifacts {
+		if artifact.Platform == platform {
+			manifest.Spec.Artifacts[i].Image = image
+			return
+		}
+	}
+	t.Fatalf("manifest for %q declares no %q slot", manifest.Metadata.ID, platform)
+}
+
 // TestVerifySatelliteSeededArtifactAdmitsPinnedSatellites proves admission
 // lets a satellite manifest whose artifacts equal the registry pins through,
-// for both satellite IDs (#10285).
+// for both satellite IDs on both pinned platforms (#10285).
 func TestVerifySatelliteSeededArtifactAdmitsPinnedSatellites(t *testing.T) {
 	t.Parallel()
 
 	for _, id := range satelliteIDs() {
-		t.Run(id, func(t *testing.T) {
-			t.Parallel()
+		for _, platform := range []string{"linux/amd64", "linux/arm64"} {
+			t.Run(id+"/"+platform, func(t *testing.T) {
+				t.Parallel()
 
-			if err := VerifySatelliteSeededArtifact(pinnedSatelliteManifest(t, id)); err != nil {
-				t.Fatalf("VerifySatelliteSeededArtifact(%q) error = %v, want nil for the pinned artifacts", id, err)
-			}
-		})
+				if err := VerifySatelliteSeededArtifact(pinnedSatelliteManifest(t, id), platform); err != nil {
+					t.Fatalf("VerifySatelliteSeededArtifact(%q) error = %v, want nil for the pinned %q artifact", id, err, platform)
+				}
+			})
+		}
 	}
 }
 
 // TestVerifySatelliteSeededArtifactDeniesDriftedArtifact proves a satellite
-// manifest with a drifted artifact digest is denied fail-closed, without
-// echoing either image value (#10285).
+// manifest with a drifted host-platform artifact digest is denied
+// fail-closed, without echoing either image value (#10285). The drift
+// always poisons the checked platform's slot, so the denial does not depend
+// on artifact order.
 func TestVerifySatelliteSeededArtifactDeniesDriftedArtifact(t *testing.T) {
+	t.Parallel()
+
+	for _, id := range satelliteIDs() {
+		for _, platform := range []string{"linux/amd64", "linux/arm64"} {
+			t.Run(id+"/"+platform, func(t *testing.T) {
+				t.Parallel()
+
+				manifest := pinnedSatelliteManifest(t, id)
+				drifted := driftedSatelliteImage(t, id)
+				setSatelliteArtifactImage(t, &manifest, platform, drifted)
+				err := VerifySatelliteSeededArtifact(manifest, platform)
+				if err == nil {
+					t.Fatalf("VerifySatelliteSeededArtifact(%q) error = nil, want denial for a drifted %q artifact", id, platform)
+				}
+				if !strings.Contains(err.Error(), "pinned") {
+					t.Fatalf("VerifySatelliteSeededArtifact(%q) error = %v, want it to name the pinned platform image", id, err)
+				}
+				for _, secret := range []string{drifted} {
+					if strings.Contains(err.Error(), secret) {
+						t.Fatalf("VerifySatelliteSeededArtifact(%q) error = %v, must not echo an image value", id, err)
+					}
+				}
+				for _, pin := range SatelliteSeedPins()[id] {
+					if strings.Contains(err.Error(), pin) {
+						t.Fatalf("VerifySatelliteSeededArtifact(%q) error = %v, must not echo a pinned image value", id, err)
+					}
+				}
+			})
+		}
+	}
+}
+
+// TestVerifySatelliteSeededArtifactDeniesMissingHostPlatform proves a
+// satellite manifest with no artifact for the executing host's platform is
+// denied fail-closed, even when every declared sibling slot is pinned
+// (#10285).
+func TestVerifySatelliteSeededArtifactDeniesMissingHostPlatform(t *testing.T) {
 	t.Parallel()
 
 	for _, id := range satelliteIDs() {
@@ -89,65 +145,83 @@ func TestVerifySatelliteSeededArtifactDeniesDriftedArtifact(t *testing.T) {
 			t.Parallel()
 
 			manifest := pinnedSatelliteManifest(t, id)
-			drifted := driftedSatelliteImage(t, id)
-			manifest.Spec.Artifacts[0].Image = drifted
-			err := VerifySatelliteSeededArtifact(manifest)
-			if err == nil {
-				t.Fatalf("VerifySatelliteSeededArtifact(%q) error = nil, want denial for a drifted artifact", id)
+			manifest.Spec.Artifacts = manifest.Spec.Artifacts[:1]
+			checked := "linux/amd64"
+			if manifest.Spec.Artifacts[0].Platform == checked {
+				checked = "linux/arm64"
 			}
-			if !strings.Contains(err.Error(), "pinned") {
-				t.Fatalf("VerifySatelliteSeededArtifact(%q) error = %v, want it to name the pinned platform images", id, err)
-			}
-			for _, secret := range []string{drifted} {
-				if strings.Contains(err.Error(), secret) {
-					t.Fatalf("VerifySatelliteSeededArtifact(%q) error = %v, must not echo an image value", id, err)
-				}
-			}
-			for _, pin := range SatelliteSeedPins()[id] {
-				if strings.Contains(err.Error(), pin) {
-					t.Fatalf("VerifySatelliteSeededArtifact(%q) error = %v, must not echo a pinned image value", id, err)
-				}
+			if err := VerifySatelliteSeededArtifact(manifest, checked); err == nil {
+				t.Fatalf("VerifySatelliteSeededArtifact(%q) error = nil, want denial with no %q artifact", id, checked)
 			}
 		})
 	}
 }
 
-// TestVerifySatelliteSeededArtifactDeniesPlatformMismatch proves a satellite
-// manifest carrying an artifact for a platform the registry does not pin is
-// denied fail-closed (#10285).
-func TestVerifySatelliteSeededArtifactDeniesPlatformMismatch(t *testing.T) {
+// TestVerifySatelliteSeededArtifactDeniesUnpinnedHostPlatform proves a check
+// for a platform the registry does not pin is denied fail-closed (#10285).
+func TestVerifySatelliteSeededArtifactDeniesUnpinnedHostPlatform(t *testing.T) {
 	t.Parallel()
 
 	for _, id := range satelliteIDs() {
 		t.Run(id, func(t *testing.T) {
 			t.Parallel()
 
-			manifest := pinnedSatelliteManifest(t, id)
-			manifest.Spec.Artifacts[0].Platform = "linux/riscv64"
-			if err := VerifySatelliteSeededArtifact(manifest); err == nil {
+			if err := VerifySatelliteSeededArtifact(pinnedSatelliteManifest(t, id), "linux/riscv64"); err == nil {
 				t.Fatalf("VerifySatelliteSeededArtifact(%q) error = nil, want denial for an unpinned platform", id)
 			}
 		})
 	}
 }
 
-// TestVerifySatelliteSeededArtifactDeniesDuplicatePlatform proves a
-// satellite manifest that repeats one pinned platform while dropping another
-// is denied: per-entry equality alone would admit the duplicated pin, so the
-// platform set must match exactly (#10285).
-func TestVerifySatelliteSeededArtifactDeniesDuplicatePlatform(t *testing.T) {
+// TestVerifySatelliteSeededArtifactAdmitsForeignSiblingEntries proves entries
+// for platforms the check does not consult are ignored: a pinned host slot
+// admits even next to a stale sibling or an unknown platform, which is the
+// installed shape the seed flow leaves after a repin (#9877).
+func TestVerifySatelliteSeededArtifactAdmitsForeignSiblingEntries(t *testing.T) {
 	t.Parallel()
 
 	for _, id := range satelliteIDs() {
-		t.Run(id, func(t *testing.T) {
-			t.Parallel()
+		for _, platform := range []string{"linux/amd64", "linux/arm64"} {
+			t.Run(id+"/"+platform, func(t *testing.T) {
+				t.Parallel()
 
-			manifest := pinnedSatelliteManifest(t, id)
-			manifest.Spec.Artifacts[1] = manifest.Spec.Artifacts[0]
-			if err := VerifySatelliteSeededArtifact(manifest); err == nil {
-				t.Fatalf("VerifySatelliteSeededArtifact(%q) error = nil, want denial for a duplicated platform", id)
-			}
-		})
+				manifest := pinnedSatelliteManifest(t, id)
+				setSatelliteArtifactImage(t, &manifest, platform, SatelliteSeedPins()[id][platform])
+				manifest.Spec.Artifacts = append(manifest.Spec.Artifacts, eshucomponent.Artifact{
+					Platform: "linux/riscv64",
+					Image:    staleSiblingImage(t, id),
+				})
+				if err := VerifySatelliteSeededArtifact(manifest, platform); err != nil {
+					t.Fatalf("VerifySatelliteSeededArtifact(%q) error = %v, want nil with a pinned %q slot", id, err, platform)
+				}
+			})
+		}
+	}
+}
+
+// TestVerifySatelliteSeededArtifactDeniesDuplicateHostPlatform proves a
+// satellite manifest that repeats the host platform's entry is denied: with
+// two competing images for the executing slot the check cannot tell which
+// one the seed stamped, so ambiguity fails closed (#10285).
+func TestVerifySatelliteSeededArtifactDeniesDuplicateHostPlatform(t *testing.T) {
+	t.Parallel()
+
+	for _, id := range satelliteIDs() {
+		for _, platform := range []string{"linux/amd64", "linux/arm64"} {
+			t.Run(id+"/"+platform, func(t *testing.T) {
+				t.Parallel()
+
+				manifest := pinnedSatelliteManifest(t, id)
+				for _, artifact := range manifest.Spec.Artifacts {
+					if artifact.Platform == platform {
+						manifest.Spec.Artifacts = append(manifest.Spec.Artifacts, artifact)
+					}
+				}
+				if err := VerifySatelliteSeededArtifact(manifest, platform); err == nil {
+					t.Fatalf("VerifySatelliteSeededArtifact(%q) error = nil, want denial for a duplicated %q entry", id, platform)
+				}
+			})
+		}
 	}
 }
 
@@ -158,15 +232,17 @@ func TestVerifySatelliteSeededArtifactDeniesMissingArtifacts(t *testing.T) {
 	t.Parallel()
 
 	for _, id := range satelliteIDs() {
-		t.Run(id, func(t *testing.T) {
-			t.Parallel()
+		for _, platform := range []string{"linux/amd64", "linux/arm64"} {
+			t.Run(id+"/"+platform, func(t *testing.T) {
+				t.Parallel()
 
-			manifest := eshucomponent.Manifest{}
-			manifest.Metadata.ID = id
-			if err := VerifySatelliteSeededArtifact(manifest); err == nil {
-				t.Fatalf("VerifySatelliteSeededArtifact(%q) error = nil, want fail-closed denial", id)
-			}
-		})
+				manifest := eshucomponent.Manifest{}
+				manifest.Metadata.ID = id
+				if err := VerifySatelliteSeededArtifact(manifest, platform); err == nil {
+					t.Fatalf("VerifySatelliteSeededArtifact(%q) error = nil, want fail-closed denial", id)
+				}
+			})
+		}
 	}
 }
 
@@ -182,7 +258,7 @@ func TestVerifySatelliteSeededArtifactIgnoresOtherIDs(t *testing.T) {
 
 			manifest := eshucomponent.Manifest{}
 			manifest.Metadata.ID = id
-			if err := VerifySatelliteSeededArtifact(manifest); err != nil {
+			if err := VerifySatelliteSeededArtifact(manifest, "linux/amd64"); err != nil {
 				t.Fatalf("VerifySatelliteSeededArtifact(%q) error = %v, want nil (pass-through)", id, err)
 			}
 		})
@@ -230,14 +306,14 @@ func BenchmarkVerifySatelliteSeededArtifact(b *testing.B) {
 
 	b.Run("pinned", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			if err := VerifySatelliteSeededArtifact(pinned); err != nil {
+			if err := VerifySatelliteSeededArtifact(pinned, "linux/amd64"); err != nil {
 				b.Fatalf("admit pinned: %v", err)
 			}
 		}
 	})
 	b.Run("passthrough", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			if err := VerifySatelliteSeededArtifact(other); err != nil {
+			if err := VerifySatelliteSeededArtifact(other, "linux/amd64"); err != nil {
 				b.Fatalf("admit third-party: %v", err)
 			}
 		}
@@ -329,5 +405,161 @@ func TestSatelliteSeedPinsMatchCallerManifests(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// staleSiblingImage returns a well-formed seed image ref for one satellite
+// that differs from every registry pin: the shape of a build-frozen sibling
+// slot after a repin moved the pins past the image build commit.
+func staleSiblingImage(t *testing.T, id string) string {
+	t.Helper()
+
+	repo := "ghcr.io/eshu-hq/eshu-collector-document-import"
+	if id == SatelliteMediaImportID {
+		repo = "ghcr.io/eshu-hq/eshu-collector-media-import"
+	}
+	ref := repo + "@sha256:" + strings.Repeat("e", 64)
+	for _, pin := range SatelliteSeedPins()[id] {
+		if ref == pin {
+			t.Fatalf("stale sibling image equals a registry pin for %q, want a pre-repin ref", id)
+		}
+	}
+	return ref
+}
+
+// seedStampedSatelliteManifest replays the installed manifest the chart seed
+// path leaves after a repin: the stamped platform slot carries the fresh pin
+// (seed writes --image-ref into the runner's own slot) while the sibling slot
+// keeps the build-frozen pre-repin image (seed leaves sibling slots
+// byte-identical by construction, see TestSeedWritesCollectorAndManifest).
+func seedStampedSatelliteManifest(t *testing.T, id, platform string) eshucomponent.Manifest {
+	t.Helper()
+
+	manifest := pinnedSatelliteManifest(t, id)
+	pins := SatelliteSeedPins()[id]
+	if _, ok := pins[platform]; !ok {
+		t.Fatalf("registry pins for %q declare no %q slot to stamp", id, platform)
+	}
+	stale := staleSiblingImage(t, id)
+	matched := false
+	for i, artifact := range manifest.Spec.Artifacts {
+		if artifact.Platform == platform {
+			manifest.Spec.Artifacts[i].Image = pins[platform]
+			matched = true
+			continue
+		}
+		manifest.Spec.Artifacts[i].Image = stale
+	}
+	if !matched {
+		t.Fatalf("pinned manifest for %q declares no %q slot to stamp", id, platform)
+	}
+	return manifest
+}
+
+// TestVerifySatelliteSeededArtifactDeniesTrimVariantHostPlatform proves a
+// non-canonical host-platform spelling never admits: a trim-variant entry
+// carrying a drifted image is denied both alongside a clean pinned entry
+// (duplicate/ambiguous host slot) and alone (non-canonical host slot), and a
+// lone padded entry carrying the pinned image is denied by the canonical
+// Platform == platform line, for both satellite IDs on both platforms (#9877
+// arbiter ruling 2.4). The image picker matches on TrimSpace while
+// Artifact.Validate accepts padded platforms, so exact-match candidate
+// selection would silently skip the padded entry and admit — the
+// padded-pinned subcase pins the fail-closed behavior of the canonical line,
+// which neither drifted-image subcase exercises.
+func TestVerifySatelliteSeededArtifactDeniesTrimVariantHostPlatform(t *testing.T) {
+	t.Parallel()
+
+	for _, id := range satelliteIDs() {
+		for _, platform := range []string{"linux/amd64", "linux/arm64"} {
+			t.Run(id+"/"+platform+"/alongside-clean", func(t *testing.T) {
+				t.Parallel()
+
+				manifest := pinnedSatelliteManifest(t, id)
+				manifest.Spec.Artifacts = append(manifest.Spec.Artifacts, eshucomponent.Artifact{
+					Platform: " " + platform,
+					Image:    driftedSatelliteImage(t, id),
+				})
+				if err := VerifySatelliteSeededArtifact(manifest, platform); err == nil {
+					t.Fatalf("VerifySatelliteSeededArtifact(%q) error = nil, want denial for a trim-variant %q entry alongside the pinned slot", id, platform)
+				}
+			})
+			t.Run(id+"/"+platform+"/alone", func(t *testing.T) {
+				t.Parallel()
+
+				manifest := pinnedSatelliteManifest(t, id)
+				var kept []eshucomponent.Artifact
+				for _, artifact := range manifest.Spec.Artifacts {
+					if artifact.Platform != platform {
+						kept = append(kept, artifact)
+					}
+				}
+				stripped := kept
+				manifest.Spec.Artifacts = append(stripped, eshucomponent.Artifact{
+					Platform: platform + " ",
+					Image:    driftedSatelliteImage(t, id),
+				})
+				if err := VerifySatelliteSeededArtifact(manifest, platform); err == nil {
+					t.Fatalf("VerifySatelliteSeededArtifact(%q) error = nil, want denial for a lone trim-variant %q entry", id, platform)
+				}
+			})
+			t.Run(id+"/"+platform+"/padded-pinned", func(t *testing.T) {
+				t.Parallel()
+
+				manifest := pinnedSatelliteManifest(t, id)
+				var kept []eshucomponent.Artifact
+				for _, artifact := range manifest.Spec.Artifacts {
+					if artifact.Platform != platform {
+						kept = append(kept, artifact)
+					}
+				}
+				manifest.Spec.Artifacts = append(kept, eshucomponent.Artifact{
+					Platform: " " + platform + " ",
+					Image:    SatelliteSeedPins()[id][platform],
+				})
+				if err := VerifySatelliteSeededArtifact(manifest, platform); err == nil {
+					t.Fatalf("VerifySatelliteSeededArtifact(%q) error = nil, want denial for a lone padded %q entry carrying the pinned image", id, platform)
+				}
+			})
+		}
+	}
+}
+
+// TestVerifySatelliteSeededArtifactDeniesEmptyPlatform proves an empty
+// platform argument denies fail-closed through the same pin-miss path as an
+// unpinned platform (#9877 arbiter ruling 3.1).
+func TestVerifySatelliteSeededArtifactDeniesEmptyPlatform(t *testing.T) {
+	t.Parallel()
+
+	for _, id := range satelliteIDs() {
+		t.Run(id, func(t *testing.T) {
+			t.Parallel()
+
+			if err := VerifySatelliteSeededArtifact(pinnedSatelliteManifest(t, id), ""); err == nil {
+				t.Fatalf("VerifySatelliteSeededArtifact(%q) error = nil, want denial for an empty platform argument", id)
+			}
+		})
+	}
+}
+
+// TestVerifySatelliteSeededArtifactAdmitsSeedStampedSibling proves admission
+// accepts the manifest the real seed flow installs after a repin: the local
+// slot carries the fresh stamp while the sibling slot keeps its build-frozen
+// pre-repin image. QA 2026-11-08 refused exactly this shape on amd64 nodes
+// for document_import (stale arm64 slot) and media_import (stale arm64 slot),
+// CrashLooping the Path-A core and both workers (#9877).
+func TestVerifySatelliteSeededArtifactAdmitsSeedStampedSibling(t *testing.T) {
+	t.Parallel()
+
+	for _, id := range satelliteIDs() {
+		for _, platform := range []string{"linux/amd64", "linux/arm64"} {
+			t.Run(id+"/"+platform, func(t *testing.T) {
+				t.Parallel()
+
+				if err := VerifySatelliteSeededArtifact(seedStampedSatelliteManifest(t, id, platform), platform); err != nil {
+					t.Fatalf("VerifySatelliteSeededArtifact(%q) error = %v, want nil for the seed-stamped %q slot", id, err, platform)
+				}
+			})
+		}
 	}
 }
