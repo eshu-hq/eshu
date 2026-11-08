@@ -45,7 +45,9 @@ activation flow defines lifetimes).
 - `VerifySeededArtifact` — admission check that a seeded manifest artifact
   equals the platform pin.
 - `VerifySatelliteSeededArtifact` — admission check that a seeded satellite
-  manifest artifact equals the registry pin for its satellite ID.
+  manifest's artifact for the executing host's platform equals the registry
+  pin for its satellite ID on that platform. Sibling-platform slots are
+  build-frozen by the seed protocol and are not consulted.
 - `SatelliteSeedPins`, `SatelliteDocumentImportID`
   (`dev.eshu.collector.document_import`), `SatelliteMediaImportID`
   (`dev.eshu.collector.media_import`) — the satellite seed-pin registry and the

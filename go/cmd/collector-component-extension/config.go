@@ -206,13 +206,14 @@ func selectActivation(
 		}
 		// The reconcile init container installed this manifest from the
 		// seeded manifest.yaml: for eshu.scanner.* it must equal the
-		// platform pin, and for a registry-scoped satellite it must equal
-		// the satellite pins, or the worker must not claim. A drifted seed
-		// image stops here, before any claim or execution (#8878, #10285).
+		// platform pin, and for a registry-scoped satellite its artifact
+		// for this host's platform must equal the satellite pin, or the
+		// worker must not claim. A drifted seed image stops here, before
+		// any claim or execution (#8878, #10285).
 		if err := scannercomponent.VerifySeededArtifact(manifest); err != nil {
 			return activationCandidate{}, fmt.Errorf("verify seeded scanner manifest for %q: %w", entry.ID, err)
 		}
-		if err := scannercomponent.VerifySatelliteSeededArtifact(manifest); err != nil {
+		if err := scannercomponent.VerifySatelliteSeededArtifact(manifest, goruntime.GOOS+"/"+goruntime.GOARCH); err != nil {
 			return activationCandidate{}, fmt.Errorf("verify seeded satellite manifest for %q: %w", entry.ID, err)
 		}
 		collectorKind, err := collectorKindForManifest(manifest)

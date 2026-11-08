@@ -11,6 +11,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	scannercomponent "github.com/eshu-hq/eshu/go/internal/collector/scannercomponent"
 	"github.com/eshu-hq/eshu/go/internal/component"
 )
 
@@ -268,5 +269,112 @@ func TestParseSeedArgs(t *testing.T) {
 				t.Fatalf("parseSeedArgs(%q) error = %q, want it to name the seed usage", args, err)
 			}
 		})
+	}
+}
+
+// seedBuildFrozenManifest writes the /manifest.yaml content a seed image
+// built before a repin carries: both slots name the pre-repin images. The
+// digests below are the ba038ecaf2 build-frozen values the :seed-ba038ecaf2
+// images embedded before the #10329 repin moved the registry pins.
+func seedBuildFrozenManifest(t *testing.T, path string) string {
+	t.Helper()
+	raw := `apiVersion: eshu.dev/v1alpha1
+kind: ComponentPackage
+metadata:
+  id: dev.eshu.collector.document_import
+  name: Document import collector (OCR satellite caller)
+  publisher: eshu-hq
+  version: 0.1.0
+spec:
+  compatibleCore: ">=0.0.5 <0.2.0"
+  componentType: collector
+  collectorKinds:
+    - documentation
+  runtime:
+    sdkProtocol: collector-sdk/v1alpha1
+    adapter: process
+  artifacts:
+    - platform: linux/amd64
+      image: ghcr.io/eshu-hq/eshu-collector-document-import@sha256:e8d2297bfeacea416d1bb0ec9ccb09d5a27060591042f5572225cf34502efead
+    - platform: linux/arm64
+      image: ghcr.io/eshu-hq/eshu-collector-document-import@sha256:c1bf5ce2fd46038d82db5823d76429137d258fe1d276dd98b94917b04d613db4
+  emittedFacts:
+    - kind: documentation_document
+      payloadSchemaRef: documentation_document
+      schemaVersions:
+        - 1.0.0
+      sourceConfidence:
+        - observed
+    - kind: documentation_section
+      payloadSchemaRef: documentation_section
+      schemaVersions:
+        - 1.1.0
+      sourceConfidence:
+        - observed
+  consumerContracts:
+    reducer:
+      phases:
+        - documentation_materialization
+  telemetry:
+    metricsPrefix: eshu_dp_collector_document_import_
+`
+	if err := os.WriteFile(path, []byte(raw), 0o600); err != nil {
+		t.Fatalf("write build-frozen manifest: %v", err)
+	}
+	return path
+}
+
+// TestSeedStampedManifestPassesHostAdmission replays the QA #9877 rollout
+// at the seed/admission seam: the seed stamps the deploy-time --image-ref
+// (the current registry pin, as the chart passes it) into the runner's own
+// slot of a build-frozen pre-repin manifest, and host admission for that
+// platform must accept the installed copy even though the sibling slot stays
+// stale. The stale sibling is asserted stale, so the test proves the
+// admission tolerates exactly the installed shape the seed protocol leaves.
+func TestSeedStampedManifestPassesHostAdmission(t *testing.T) {
+	t.Parallel()
+
+	const platform = "linux/amd64"
+	pins := scannercomponent.SatelliteSeedPins()[scannercomponent.SatelliteDocumentImportID]
+	imageRef, ok := pins[platform]
+	if !ok {
+		t.Fatalf("registry pins declare no %q slot to stamp", platform)
+	}
+	const staleSibling = "ghcr.io/eshu-hq/eshu-collector-document-import@sha256:c1bf5ce2fd46038d82db5823d76429137d258fe1d276dd98b94917b04d613db4"
+	if staleSibling == imageRef {
+		t.Fatal("stale sibling equals the current pin, want a pre-repin ref")
+	}
+
+	work := t.TempDir()
+	binary := seedTestBinary(t, filepath.Join(work, "collector"), []byte("fake-collector-bytes"))
+	manifest := seedBuildFrozenManifest(t, filepath.Join(work, "manifest.yaml"))
+	engine := fixtureDocEnginePayload(t)
+	engine.platform = platform
+	dest := filepath.Join(work, "dest")
+
+	if err := seedComponent(dest, imageRef, binary, manifest, platform, engine); err != nil {
+		t.Fatalf("seedComponent: %v", err)
+	}
+	raw, err := os.ReadFile(filepath.Join(dest, "manifest.yaml"))
+	if err != nil {
+		t.Fatalf("read stamped manifest: %v", err)
+	}
+	var stamped component.Manifest
+	if err := yaml.Unmarshal(raw, &stamped); err != nil {
+		t.Fatalf("decode stamped manifest: %v", err)
+	}
+	for _, entry := range stamped.Spec.Artifacts {
+		if entry.Platform == platform {
+			if entry.Image != imageRef {
+				t.Fatalf("stamped %q image = %q, want the seed --image-ref", platform, entry.Image)
+			}
+			continue
+		}
+		if entry.Image != staleSibling {
+			t.Fatalf("stamped sibling %q image moved = %q, want it build-frozen", entry.Platform, entry.Image)
+		}
+	}
+	if err := scannercomponent.VerifySatelliteSeededArtifact(stamped, platform); err != nil {
+		t.Fatalf("host admission error = %v, want nil for the honestly stamped seed", err)
 	}
 }
