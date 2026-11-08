@@ -153,11 +153,12 @@ type Config struct {
 	MaxResultPages int
 	// ScopeQueryResolver, when set, delivers the run's requested_scope_set
 	// entry for each claimed work item onto the satellite claim
-	// (eshu-hq/eshu#9432). Nil means no transport: claims carry no scope
-	// queries and slot scopes keep their fail-closed behavior. A resolver
-	// error wrapping collector.ErrSlotScopeTransport fails the claim
-	// terminal with FailureClassInvalidClaim before the satellite launches;
-	// any other resolver error (a store-transport fault) fails it retryable
+	// (eshu-hq/eshu#9432 for queries, eshu-hq/eshu#9876 for CVE ids). Nil
+	// means no transport: claims carry no scope queries or CVE ids and
+	// sharded scopes keep their fail-closed behavior. A resolver error
+	// wrapping collector.ErrSlotScopeTransport fails the claim terminal
+	// with FailureClassInvalidClaim before the satellite launches; any
+	// other resolver error (a store-transport fault) fails it retryable
 	// with FailureClassLaunchFailure (eshu-hq/eshu#9730).
 	ScopeQueryResolver collector.ScopeQueryResolver
 	// DerivedTargetResolver, when set, delivers a derived scope's target on

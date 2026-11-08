@@ -420,10 +420,16 @@ and only whole trailing chunks past the limit drop, counted as `derived_target_b
 evidence. Non-CVE ids (GHSA-only winners wait for advisory groups) are excluded and counted, never sent.
 An unchanged set plans byte-identical targets; an appended CVE touches only its own scope, while a
 configured target reusing a derived ordinal scope id keeps its scope and drops that chunk with no skip
-row (the distinct/planned count gap still shows it). A component activation refuses an enabled
-`derive_from_findings` section. EPSS attribution text
-stays a pending owner/legal accept: enabling derived EPSS waits for that accept. Counts ride the plan
-span, EPSS counters, and one INFO line; no CVE id reaches a label or log.
+row (the distinct/planned count gap still shows it). A component activation accepts an enabled
+`derive_from_findings` section with the in-tree rules and error text (eshu-hq/eshu#9876):
+the planner reads finding CVE ids through the claim transport (`scope_cve_ids` on each
+`_findings` chunk claim) when enabled, nothing when disabled. Chunks pace to one full
+finding-set fetch per FIRST publication day (sliding 24h from the last plan). Enabling
+derived EPSS anywhere user-visible still waits for the FIRST scope record on eshu-hq/eshu#9876;
+the code lands disabled. Counts ride the plan span, EPSS counters, and one INFO line; no
+CVE id reaches a label or log. The `first_epss` attribution is `EPSS scores are provided by
+FIRST (Forum of Incident Response and Security Teams, Inc.), https://www.first.org/epss`
+(license stays `NOASSERTION`); wording approval only, not legal clearance.
 
 Inside `ESHU_COLLECTOR_INSTANCES_JSON`, vulnerability targets may set `fallback_urls` for source mirrors. The instance configuration may also set `source_cache.directory`, `source_cache.mode` (`refresh` or `offline`), `source_cache.freshness_ttl`, `source_cache.retention`, and `source_cache.use_cached_on_fetch_error`. Offline mode never calls live upstreams and fails closed when the cached artifact is missing or stale.
 

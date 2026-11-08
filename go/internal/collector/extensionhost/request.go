@@ -10,6 +10,7 @@ import (
 	"strconv"
 
 	sdkcollector "github.com/eshu-hq/eshu-sdk/collector"
+	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
@@ -22,13 +23,13 @@ import (
 // claim's target to its own config clone under HostDerivedTargetKey; its errors
 // classify the same way.
 func (s *Source) requestForWorkItem(ctx context.Context, item workflow.WorkItem) (Request, error) {
-	var queries []sdkcollector.ScopeQuery
+	var transport collector.ResolvedScopeTransport
 	if s.scopeQueryResolver != nil {
 		resolved, err := s.scopeQueryResolver(ctx, item)
 		if err != nil {
 			return Request{}, fmt.Errorf("resolve scope queries for claim: %w", err)
 		}
-		queries = resolved
+		transport = resolved
 	}
 	config := cloneConfig(s.config)
 	if s.derivedTargetResolver != nil {
@@ -61,10 +62,12 @@ func (s *Source) requestForWorkItem(ctx context.Context, item workflow.WorkItem)
 			Attempt:      item.AttemptCount,
 			Deadline:     item.LeaseExpiresAt.UTC(),
 			ConfigHandle: s.configHandle,
-			// The resolver returns nil for every scope without transport,
-			// so omitempty keeps the wire byte-identical to the legacy
-			// claim on all non-slot claims.
-			ScopeQueries: queries,
+			// The resolver returns the zero transport for every scope
+			// without transport, so omitempty keeps the wire
+			// byte-identical to the legacy claim on all non-sharded
+			// claims.
+			ScopeQueries: transport.Queries,
+			ScopeCVEIDs:  transport.CVEIDs,
 		},
 		Contract: s.contract,
 		Config:   config,
@@ -85,7 +88,8 @@ func validateReturnedClaim(want sdkcollector.Claim, got sdkcollector.Claim) erro
 		got.Attempt != want.Attempt ||
 		!got.Deadline.Equal(want.Deadline) ||
 		got.ConfigHandle != want.ConfigHandle ||
-		!slices.Equal(got.ScopeQueries, want.ScopeQueries) {
+		!slices.Equal(got.ScopeQueries, want.ScopeQueries) ||
+		!slices.Equal(got.ScopeCVEIDs, want.ScopeCVEIDs) {
 		return fmt.Errorf("extension returned claim identity that does not match host claim")
 	}
 	return nil

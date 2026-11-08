@@ -67,6 +67,37 @@ func IsDerivedOSVSlotScope(scopeID string) bool {
 	return ok
 }
 
+// ParseEPSSFindingsScope validates a findings-derived FIRST EPSS chunk scope
+// id of the form vuln-intel://first_epss/_findings/<chunk> with no query
+// string, and returns its chunk ordinal (eshu-hq/eshu#9876). It reports
+// false for every other scope id. Parsing is validation only: the CVE ids
+// behind a findings scope ride the claim transport, never the scope id.
+func ParseEPSSFindingsScope(scopeID string) (chunk int, ok bool) {
+	parsed, err := url.Parse(strings.TrimSpace(scopeID))
+	if err != nil || parsed.Scheme != "vuln-intel" || parsed.Host != SourceFirstEPSS {
+		return 0, false
+	}
+	if parsed.RawQuery != "" || parsed.Fragment != "" {
+		return 0, false
+	}
+	parts := strings.Split(strings.Trim(parsed.EscapedPath(), "/"), "/")
+	if len(parts) != 2 || parts[0] != "_findings" {
+		return 0, false
+	}
+	ordinal, err := strconv.Atoi(strings.TrimSpace(parts[1]))
+	if err != nil || ordinal < 0 {
+		return 0, false
+	}
+	return ordinal, true
+}
+
+// IsEPSSFindingsScope reports whether scopeID has the findings-derived EPSS
+// chunk shape. Callers that need the ordinal use [ParseEPSSFindingsScope].
+func IsEPSSFindingsScope(scopeID string) bool {
+	_, ok := ParseEPSSFindingsScope(scopeID)
+	return ok
+}
+
 // DerivedScopePackageKeys returns the package keys a coordinator-minted
 // derived OSV scope id records. The extension host's source-state recorder
 // calls it for a claim whose collector already accepted the scope, and the keys

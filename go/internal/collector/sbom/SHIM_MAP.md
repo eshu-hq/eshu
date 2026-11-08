@@ -12,8 +12,8 @@ fails on version drift in either direction and on built SDK modules with
 no recorded pin. Newer tags MUST NOT be substituted without that reviewed
 update):
 
-- `github.com/eshu-hq/eshu-sdk/collector v0.2.0-rc.3`
-- `github.com/eshu-hq/eshu-sdk/factschema v0.1.0-rc.17.0.20261106050329-33c470370a4c`
+- `github.com/eshu-hq/eshu-sdk/collector v0.2.0-rc.4`
+- `github.com/eshu-hq/eshu-sdk/factschema v0.1.0-rc.18`
 
 Pin history: proxy-verified 2026-10-24 at collector/factschema
 `v0.1.0-rc.1`; in-tree moved to standalone modules at collector `rc.3` +
@@ -55,7 +55,13 @@ proxy-verified 2026-11-05 via `go mod download`), and to factschema
 `reducer_supply_chain_impact_finding` `exploited_tier` field
 (eshu-hq/eshu#9882; commit at `33c4703`, zip
 `h1:CqNTSgERdNA8KuLHj+CLOL18hjV8hNIfOLpQU/4bvzE=`, proxy-verified 2026-11-06
-via `go mod download`).
+via `go mod download`), and to collector `v0.2.0-rc.4` for the additive
+`Claim.ScopeCVEIDs` (`scope_cve_ids`, `MaxScopeCVEIDs` = 100) transport field
+plus validator, JSON schema, and goldens, and to factschema `v0.1.0-rc.18`
+(eshu-hq/eshu#9876; both tags at `947f8449`, zips
+`h1:sEINyRomi8ME7WdrhrW4fSWX2vn6GmIw1oEOmNT2PYY=` /
+`h1:RRoYb7+52kaHt2ErQ6e0NEIDBX0nLbnBhXMQgLX75PA=`, proxy-verified 2026-11-08
+via `go get`).
 The extracted port
 (`eshu-collector-sbom-attestation` main, observed 2026-10-27) still builds
 at collector/factschema `v0.1.0-rc.2` — that drift is open until the port
