@@ -136,7 +136,7 @@ reorders; the drift test pins only coverage, not the mapping.
 | `go/internal/serviceintelhttp` | HTTP helpers, selectors | Moves with ServiceIntelHTTP (Native now) |
 | `go/internal/reportbundle`, `answerquality`, `answernarration` | Pure packet/score shapes | Hoist to eshu-sdk or the eshu-api contract module |
 | `go/internal/scopedtoken`, `oidcbearer`, `oidclogin`, `githublogin` | Auth/session helpers, provider config | Versioned auth/session contracts; identity stores stay core |
-| `go/internal/facts`, `evidencecontinuity` | Doc shapes, gate triggers | Fact schemas to eshu-sdk; triggers re-point at eshu-api evidence routes |
+| `go/internal/facts`, `evidencecontinuity` | Doc shapes, gate triggers — string mentions only, zero AST-exact imports (`facts/docs/documentation.go` + `facts/semantic/semantic.go` `NoReducerEvidence` strings kept per arbiter; `evidencecontinuity/gatetriggers.go` doc example neutralized) | Fact schemas to eshu-sdk; triggers re-point at eshu-api evidence routes |
 | `go/internal/cli` docs/verify, compparity | Doc parity assertions | Re-point at eshu-api OpenAPI/spec surface |
 
 Direct `go/cmd/api` importers outside that tree (non-test) are doc/closure
