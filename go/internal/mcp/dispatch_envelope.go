@@ -10,7 +10,7 @@ import (
 	"log/slog"
 
 	resultshape "github.com/eshu-hq/eshu/go/internal/mcp/result/shape"
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 type dispatchResult struct {
@@ -22,7 +22,7 @@ type dispatchResult struct {
 	// synthesized at the MCP transport boundary. The diagnostic lives once in
 	// Envelope.Error.Message, not again in text content.
 	GenericDispatchError bool
-	Envelope             *query.ResponseEnvelope
+	Envelope             *querycontract.ResponseEnvelope
 	IsError              bool
 	ToolName             string
 	// ResourceOnly drops the structured copy of a dual-shape result whose two
@@ -93,7 +93,7 @@ func renderToolResult(toolName string, result *dispatchResult) mcpToolResult {
 			Content: []mcpContent{
 				summary,
 				{Type: "resource", Resource: &mcpResource{
-					URI: "eshu://tool-result/envelope", MimeType: query.EnvelopeMIMEType,
+					URI: "eshu://tool-result/envelope", MimeType: querycontract.EnvelopeMIMEType,
 					Text: string(resourceText),
 				}},
 			},
@@ -143,7 +143,7 @@ func mcpToolErrorResult(mode resultshape.Mode, err error) mcpToolResult {
 func mcpToolErrorResultForCall(mode resultshape.Mode, toolName string, err error, logger *slog.Logger, budget int) mcpToolResult {
 	structured, ok := dispatchErrorStructuredContent(err)
 	if !ok && resultshape.OrDual(mode) == resultshape.Structured {
-		envelope := &query.ResponseEnvelope{Error: &query.ErrorEnvelope{
+		envelope := &querycontract.ResponseEnvelope{Error: &querycontract.ErrorEnvelope{
 			Code: "mcp_dispatch_error", Message: err.Error(), Capability: "mcp.dispatch",
 		}}
 		result := applyResponseBudget(&dispatchResult{
@@ -188,9 +188,9 @@ func estimateResponseTokens(bytes int) int {
 // overBudgetResult builds the bounded canonical envelope returned in place of an
 // over-budget tool response.
 func overBudgetResult(toolName string, size, budget int) *dispatchResult {
-	envelope := &query.ResponseEnvelope{
+	envelope := &querycontract.ResponseEnvelope{
 		Data: nil,
-		Error: &query.ErrorEnvelope{
+		Error: &querycontract.ErrorEnvelope{
 			Code:       errorCodeResponseOverBudget,
 			Message:    fmt.Sprintf("MCP tool %q response of %d bytes exceeds the %d byte response budget", toolName, size, budget),
 			Capability: "mcp.dispatch",
@@ -219,7 +219,7 @@ func responseBudgetGuidance() string {
 		"a row with source_cache_clipped=true has a clipped body, so call get_entity_content for its full text"
 }
 
-func parseCanonicalEnvelope(body []byte) (*query.ResponseEnvelope, bool) {
+func parseCanonicalEnvelope(body []byte) (*querycontract.ResponseEnvelope, bool) {
 	var top map[string]json.RawMessage
 	if err := json.Unmarshal(body, &top); err != nil {
 		return nil, false
@@ -234,7 +234,7 @@ func parseCanonicalEnvelope(body []byte) (*query.ResponseEnvelope, bool) {
 		return nil, false
 	}
 
-	var envelope query.ResponseEnvelope
+	var envelope querycontract.ResponseEnvelope
 	if err := json.Unmarshal(body, &envelope); err != nil {
 		return nil, false
 	}

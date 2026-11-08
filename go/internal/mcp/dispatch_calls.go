@@ -12,7 +12,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // errUnknownTool is the cause selectRoute reports for a tool name no route
@@ -187,5 +187,5 @@ func errorCallOutcome(err error) string {
 // isOverBudget reports whether result is the over-budget replacement envelope.
 func isOverBudget(result *dispatchResult) bool {
 	env := result.Envelope
-	return env != nil && env.Error != nil && env.Error.Code == query.ErrorCode(errorCodeResponseOverBudget)
+	return env != nil && env.Error != nil && env.Error.Code == querycontract.ErrorCode(errorCodeResponseOverBudget)
 }

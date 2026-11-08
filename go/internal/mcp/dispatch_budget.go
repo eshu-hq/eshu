@@ -14,7 +14,7 @@ import (
 	"go.opentelemetry.io/otel/metric"
 
 	resultshape "github.com/eshu-hq/eshu/go/internal/mcp/result/shape"
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/contentread"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/search/rank"
 )
@@ -37,7 +37,7 @@ const defaultToolResponseByteBudget = 256 * 1024
 // concern, not a query-layer capability error, so it is defined here rather than
 // in the query package's ErrorCode enum, mirroring the mcp_dispatch_timeout code
 // emitted by the dispatch deadline guard.
-const errorCodeResponseOverBudget query.ErrorCode = "mcp_response_over_budget"
+const errorCodeResponseOverBudget querycontract.ErrorCode = "mcp_response_over_budget"
 
 // applyResponseBudget enforces a serialized response-size budget on a dispatch
 // result. When budget <= 0 the guard is disabled and the result is returned
@@ -272,7 +272,7 @@ const budgetPageReason = "response_byte_budget"
 // it already): a next_offset past it would be rejected, so it is not emitted.
 var budgetPagedTools = map[string]int{
 	"find_code":             0,
-	"search_entity_content": query.ContentSearchMaxOffset,
+	"search_entity_content": contentread.ContentSearchMaxOffset,
 }
 
 // budgetPage is the outcome of trimming an over-budget response to a page.
@@ -420,11 +420,11 @@ func offsetPrefix(rows []any, positions []int, keep int) []any {
 // recomputed over the kept rows. next_offset is left out when it would exceed
 // maxOffset, because the tool would reject it.
 func budgetPageEnvelope(
-	envelope *query.ResponseEnvelope,
+	envelope *querycontract.ResponseEnvelope,
 	data map[string]any,
 	kept []any,
 	available, keep, offset, maxOffset, budget int,
-) *query.ResponseEnvelope {
+) *querycontract.ResponseEnvelope {
 	page := make(map[string]any, len(data)+2)
 	for key, value := range data {
 		page[key] = value
@@ -451,7 +451,7 @@ func budgetPageEnvelope(
 		Detail:  budgetPageReason,
 		Total:   available,
 	})
-	return &query.ResponseEnvelope{Data: page, Truth: &truth, Error: envelope.Error}
+	return &querycontract.ResponseEnvelope{Data: page, Truth: &truth, Error: envelope.Error}
 }
 
 // recountClipped rewrites a response-level clipped-row count over the kept

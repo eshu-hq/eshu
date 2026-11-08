@@ -9,7 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // RunReadOnlyTool invokes a read-only MCP tool in-process without an HTTP round-trip.
@@ -39,7 +39,7 @@ func RunReadOnlyTool(
 	args map[string]any,
 	authHeader string,
 	logger *slog.Logger,
-) (*query.ResponseEnvelope, any, bool, error) {
+) (*querycontract.ResponseEnvelope, any, bool, error) {
 	result, err := dispatchTool(ctx, handler, toolName, args, authHeader, logger)
 	if err != nil {
 		return nil, nil, false, err

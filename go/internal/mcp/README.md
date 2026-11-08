@@ -269,8 +269,10 @@ definitions),
 intelligence-report tool registrations),
 `internal/mcp/contract/route` (neutral argument/request values), `internal/mcp/contract/tool`
 (neutral `ToolDefinition` registrations), and `internal/mcp/visualization` (visualization registration/request selection),
-`internal/query` (`query.ResponseEnvelope`, `query.EnvelopeMIMEType`,
-`query.AuthContextFromContext`, `query.AuthMode*`, the mounted `http.Handler`),
+`internal/query/querycontract` (`querycontract.ResponseEnvelope`, `querycontract.EnvelopeMIMEType`,
+row-value helpers, plus the `answer` answer-metadata companion and the `contentread`
+content-search page bound), `internal/query` (`query.AuthContextFromContext`,
+`query.AuthMode*`, the mounted `http.Handler`),
 and `internal/telemetry` (`transport_auth_metrics.go` registers one counter
 through the global meter). No direct dependency on storage drivers or facts.
 

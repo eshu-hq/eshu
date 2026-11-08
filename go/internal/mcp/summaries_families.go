@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // summarizeServiceStory renders a bounded service-story dossier summary:
@@ -22,9 +22,9 @@ func summarizeServiceStory(data map[string]any) string {
 	limits := mcpMapField(data, "result_limits")
 	metadata := mcpAnswerMetadata(data)
 
-	name := query.StringVal(identity, "service_name")
+	name := querycontract.StringVal(identity, "service_name")
 	if name == "" {
-		name = query.StringVal(identity, "service_id")
+		name = querycontract.StringVal(identity, "service_id")
 	}
 	if name == "" {
 		name = "service"
@@ -32,15 +32,15 @@ func summarizeServiceStory(data map[string]any) string {
 
 	parts := []string{clampField(name)}
 
-	endpointCount := query.IntVal(apiSurface, "endpoint_count")
+	endpointCount := querycontract.IntVal(apiSurface, "endpoint_count")
 	apiPart := fmt.Sprintf("API surface %d", endpointCount)
-	if query.BoolVal(apiSurface, "truncated") || mcpMetadataTruncated(metadata) {
+	if querycontract.BoolVal(apiSurface, "truncated") || mcpMetadataTruncated(metadata) {
 		apiPart += " (truncated)"
 	}
 	parts = append(parts, apiPart)
 
-	parts = append(parts, fmt.Sprintf("deps %d", query.IntVal(limits, "upstream_count")))
-	parts = append(parts, fmt.Sprintf("consumers %d", query.IntVal(limits, "downstream_count")))
+	parts = append(parts, fmt.Sprintf("deps %d", querycontract.IntVal(limits, "upstream_count")))
+	parts = append(parts, fmt.Sprintf("consumers %d", querycontract.IntVal(limits, "downstream_count")))
 
 	summary := strings.Join(parts, "; ")
 
@@ -49,7 +49,7 @@ func summarizeServiceStory(data map[string]any) string {
 		if count > 1 {
 			summary += fmt.Sprintf(" (+%d more)", count-1)
 		}
-	} else if limitations := query.StringSliceVal(identity, "limitations"); len(limitations) > 0 {
+	} else if limitations := querycontract.StringSliceVal(identity, "limitations"); len(limitations) > 0 {
 		summary += "; top limitation: " + clampField(limitations[0])
 		if len(limitations) > 1 {
 			summary += fmt.Sprintf(" (+%d more)", len(limitations)-1)
@@ -64,7 +64,7 @@ func summarizeServiceInvestigation(data map[string]any) string {
 	if data == nil {
 		return ""
 	}
-	name := query.StringVal(data, "service_name")
+	name := querycontract.StringVal(data, "service_name")
 	if name == "" {
 		name = "service"
 	}
@@ -72,10 +72,10 @@ func summarizeServiceInvestigation(data map[string]any) string {
 	coverage := mcpMapField(data, "coverage_summary")
 
 	summary := fmt.Sprintf("%s — %d finding(s)", clampField(name), findingCount)
-	if query.BoolVal(coverage, "truncated") {
+	if querycontract.BoolVal(coverage, "truncated") {
 		summary += " (truncated)"
 	}
-	if state := query.StringVal(coverage, "state"); state != "" {
+	if state := querycontract.StringVal(coverage, "state"); state != "" {
 		summary += "; coverage " + state
 	}
 	if next := mcpFirstStringInSlice(data, "recommended_next_calls", "tool"); next != "" {
@@ -93,9 +93,9 @@ func summarizeIncidentContext(data map[string]any) string {
 		return ""
 	}
 	incident := mcpMapField(data, "incident")
-	title := query.StringVal(incident, "title")
+	title := querycontract.StringVal(incident, "title")
 	if title == "" {
-		title = query.StringVal(incident, "provider_incident_id")
+		title = querycontract.StringVal(incident, "provider_incident_id")
 	}
 	if title == "" {
 		title = "incident"
@@ -112,7 +112,7 @@ func summarizeIncidentContext(data map[string]any) string {
 	summary := fmt.Sprintf("%s — %d related change(s)", clampField(title), relatedChanges)
 	summary += fmt.Sprintf("; missing evidence %d", missing)
 	summary += fmt.Sprintf("; ambiguous %d", ambiguous)
-	if query.BoolVal(data, "truncated") || mcpMetadataTruncated(metadata) {
+	if querycontract.BoolVal(data, "truncated") || mcpMetadataTruncated(metadata) {
 		summary += "; truncated"
 	}
 	return summary
@@ -128,12 +128,12 @@ func summarizeCitationPacket(data map[string]any) string {
 	if coverage == nil {
 		return ""
 	}
-	resolved := query.IntVal(coverage, "resolved_count")
-	missing := query.IntVal(coverage, "missing_count")
-	requested := query.IntVal(coverage, "input_handle_count")
+	resolved := querycontract.IntVal(coverage, "resolved_count")
+	missing := querycontract.IntVal(coverage, "missing_count")
+	requested := querycontract.IntVal(coverage, "input_handle_count")
 
 	summary := fmt.Sprintf("coverage: resolved %d/requested %d; missing %d", resolved, requested, missing)
-	if query.BoolVal(coverage, "truncated") {
+	if querycontract.BoolVal(coverage, "truncated") {
 		summary += " (truncated)"
 	}
 	return summary
@@ -145,15 +145,15 @@ func summarizeIndexStatus(data map[string]any) string {
 	if data == nil {
 		return ""
 	}
-	state := query.StringVal(data, "status")
+	state := querycontract.StringVal(data, "status")
 	if state == "" {
-		if query.BoolVal(data, "scoped") {
+		if querycontract.BoolVal(data, "scoped") {
 			return summarizeScopedIndexStatus(data)
 		}
 		return ""
 	}
 	summary := "index status: " + clampField(state)
-	if reasons := query.StringSliceVal(data, "reasons"); len(reasons) > 0 {
+	if reasons := querycontract.StringSliceVal(data, "reasons"); len(reasons) > 0 {
 		summary += " — " + clampField(reasons[0])
 		if len(reasons) > 1 {
 			summary += fmt.Sprintf(" (+%d more)", len(reasons)-1)
@@ -167,7 +167,7 @@ func summarizeIndexStatus(data map[string]any) string {
 // sections were withheld, so a caller does not read the absent status as an
 // unknown health.
 func summarizeScopedIndexStatus(data map[string]any) string {
-	count := query.IntVal(data, "repository_count")
+	count := querycontract.IntVal(data, "repository_count")
 	noun := "repositories"
 	if count == 1 {
 		noun = "repository"
@@ -184,12 +184,12 @@ func summarizeHostedReadiness(data map[string]any) string {
 	if data == nil {
 		return ""
 	}
-	state := query.StringVal(data, "state")
+	state := querycontract.StringVal(data, "state")
 	if state == "" {
 		return ""
 	}
 	summary := "hosted readiness: " + clampField(state)
-	if failures := query.StringSliceVal(data, "failure_classes"); len(failures) > 0 {
+	if failures := querycontract.StringSliceVal(data, "failure_classes"); len(failures) > 0 {
 		summary += " — " + clampField(failures[0])
 		if len(failures) > 1 {
 			summary += fmt.Sprintf(" (+%d more)", len(failures)-1)
@@ -204,17 +204,17 @@ func summarizeIngesterStatus(data map[string]any) string {
 	if data == nil {
 		return ""
 	}
-	name := query.StringVal(data, "ingester")
+	name := querycontract.StringVal(data, "ingester")
 	if name == "" {
 		return ""
 	}
 	health := mcpMapField(data, "health")
-	state := query.StringVal(health, "state")
+	state := querycontract.StringVal(health, "state")
 	if state == "" {
 		state = "unknown"
 	}
 	summary := fmt.Sprintf("ingester %s: %s", clampField(name), clampField(state))
-	if reasons := query.StringSliceVal(health, "reasons"); len(reasons) > 0 {
+	if reasons := querycontract.StringSliceVal(health, "reasons"); len(reasons) > 0 {
 		summary += " — " + clampField(reasons[0])
 		if len(reasons) > 1 {
 			summary += fmt.Sprintf(" (+%d more)", len(reasons)-1)
@@ -265,7 +265,7 @@ func summarizeCodeRelationships(data map[string]any) string {
 	for _, raw := range relationships {
 		row, _ := raw.(map[string]any)
 		provenance := mcpMapField(row, "provenance")
-		switch query.StringVal(provenance, "truth_state") {
+		switch querycontract.StringVal(provenance, "truth_state") {
 		case "derived":
 			derived++
 		case "heuristic":
@@ -285,8 +285,8 @@ func summarizeCodeRelationships(data map[string]any) string {
 	}
 
 	coverage := mcpMapField(data, "coverage")
-	if explanation := query.StringVal(coverage, "evidence_explanation"); explanation != "" {
-		reason := query.StringVal(coverage, "missing_edge_reason")
+	if explanation := querycontract.StringVal(coverage, "evidence_explanation"); explanation != "" {
+		reason := querycontract.StringVal(coverage, "missing_edge_reason")
 		if reason != "" && reason != "complete" {
 			parts = append(parts, fmt.Sprintf("%s: %s", reason, explanation))
 		}
