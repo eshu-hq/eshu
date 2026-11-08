@@ -112,7 +112,7 @@ flowchart TB
 | Aggregates | `aggregates_queries.go` | `severity_bucket` comes from `cvss_score` in SQL. It must match the winners `CASE`. |
 | Readiness | `readiness_postgres_query.go` | Reads fact counts and `vulnerability_source_states`. NVD, KEV, and EPSS are matched by literal scope ids. |
 | Runtime context | `kubernetes_runtime_probe.go` | Follows `RUNS_IMAGE` from an image digest to Kubernetes workloads at read time, at most 200 results (`KubernetesRuntimeProbeMaxResults`). |
-| Advisory evidence | `ListEvidenceQuery` | Source-only view. It expands aliases one hop, for the CVE, GHSA, and OSV prefixes only. |
+| Advisory evidence | `ListEvidenceQuery` | Source-only view. It expands aliases and correlation anchors exactly one hop over one structural advisory-id recognizer shared with Go (`AdvisoryRouteIDPattern`): any leading-alpha-token, hyphen, id-body value is hop-eligible, with no `upstream`/`related`/transitive expansion. |
 | Console | `loadVulnerabilities` | 100 rows per status, no paging. |
 
 ## 4. Shared-file zones

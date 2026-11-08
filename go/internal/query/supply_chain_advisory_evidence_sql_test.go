@@ -66,7 +66,7 @@ func TestAdvisoryEvidenceQueryUsesIndexableJSONBPredicates(t *testing.T) {
 		"fact.payload->>'ghsa_id' = lookup.value",
 		"key_source = 'identity'",
 		"key_source = 'alias'",
-		"UPPER(TRIM(key_value)) LIKE 'CVE-%'",
+		"AND TRIM(key_value) ~ '" + advisory.AdvisoryRouteIDPattern + "'",
 		"fact.payload->>'package_id' = pkg.value",
 		"fact.payload->>'purl' = pkg.value",
 	} {

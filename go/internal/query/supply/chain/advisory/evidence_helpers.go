@@ -5,9 +5,44 @@ package advisory
 
 import (
 	"fmt"
+	"regexp"
 	"sort"
 	"strings"
 )
+
+// AdvisoryRouteIDPattern is the structural advisory-id recognizer shared by
+// the SQL seed_keys predicate and the Go display/normalization predicate
+// (eshu-hq/eshu#10410, arbiter ruling 3.5): a leading alphabetic token, a
+// hyphen, then an id body of alphanumerics, hyphen, dot, underscore, or
+// colon. Case is carried by the character classes, so no case folding is
+// needed at the match site. The root recognizer parity test pins the
+// shipped query to this exact string and exercises both sides against one
+// vector table.
+const AdvisoryRouteIDPattern = `^[A-Za-z][A-Za-z0-9]*-[A-Za-z0-9][A-Za-z0-9:._-]*$`
+
+var advisoryRouteIDPattern = regexp.MustCompile(AdvisoryRouteIDPattern)
+
+// IsAdvisoryRouteID reports whether value is a recognized advisory route
+// id after trimming. Exported for the staying root recognizer parity and
+// normalization tests, which pin SQL/Go agreement.
+func IsAdvisoryRouteID(value string) bool {
+	return advisoryRouteIDPattern.MatchString(strings.TrimSpace(value))
+}
+
+// isAlphaToken reports whether token is a non-empty run of ASCII letters.
+// Normalization uppercases leading tokens of this shape (pysec- to PYSEC-,
+// debian-cve- to DEBIAN-CVE-) and stops at the first token carrying a digit.
+func isAlphaToken(token string) bool {
+	if token == "" {
+		return false
+	}
+	for i := 0; i < len(token); i++ {
+		if c := token[i]; c < 'A' || (c > 'Z' && c < 'a') || c > 'z' {
+			return false
+		}
+	}
+	return true
+}
 
 func anyMapSliceVal(payload map[string]any, key string) []map[string]any {
 	raw, ok := payload[key].([]any)

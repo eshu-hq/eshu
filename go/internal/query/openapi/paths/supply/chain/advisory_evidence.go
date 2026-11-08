@@ -7,12 +7,16 @@ package chain
 // `/api/v0/supply-chain/advisories/evidence`,
 // `/api/v0/supply-chain/vulnerabilities/{advisory_id}` routes. openapi.Spec
 // concatenates it into the published document; keep it in lockstep with the
-// handlers and docs/public/reference/http-api.md.
+// handlers and docs/public/reference/http-api.md. Advisory ids are raw
+// source record ids matched verbatim: CVE, GHSA, and every recognized
+// OSV-family/source id (PYSEC, GO, RUSTSEC, MAL, OSV, distro, and
+// colon-suffixed errata ids) share one structural recognizer, and every
+// recognized non-CVE, non-GHSA id files into osv_ids.
 const AdvisoryEvidence = `
     "/api/v0/supply-chain/advisories/evidence": {
       "get": {
         "summary": "List source-only advisory evidence",
-        "description": "Requires limit plus cve_id, advisory_id, package_id, repository_id, service_id, or workload_id. Repository, service, and workload scopes derive advisory anchors from reducer-owned impact findings before reading source facts. Returns source-specific GHSA, CVE/NVD, OSV, GLAD, EPSS, KEV, CWE, range, fixed-version, withdrawal, reference, and disagreement evidence without implying additional repository, image, workload, or deployment impact.",
+        "description": "Requires limit plus cve_id, advisory_id, package_id, repository_id, service_id, or workload_id. advisory_id accepts any recognized advisory id (CVE, GHSA, or OSV-family/source id such as PYSEC, GO, RUSTSEC, MAL, OSV, distro, or colon-suffixed errata); alias and correlation-anchor hops expand one hop over the same structural recognizer with no upstream/related/transitive expansion. Repository, service, and workload scopes derive advisory anchors from reducer-owned impact findings before reading source facts. Returns source-specific GHSA, CVE/NVD, OSV-family (osv_ids carries every recognized non-CVE, non-GHSA advisory id: PYSEC, GO, RUSTSEC, MAL, OSV, distro, and errata ids), GLAD, EPSS, KEV, CWE, range, fixed-version, withdrawal, reference, and disagreement evidence without implying additional repository, image, workload, or deployment impact.",
         "operationId": "listAdvisoryEvidence",
         "x-scoped-token-support": true,
         "parameters": [
@@ -45,7 +49,7 @@ const AdvisoryEvidence = `
                           "canonical_id": {"type": "string"},
                           "cve_ids": {"type": "array", "items": {"type": "string"}},
                           "ghsa_ids": {"type": "array", "items": {"type": "string"}},
-                          "osv_ids": {"type": "array", "items": {"type": "string"}},
+                          "osv_ids": {"type": "array", "items": {"type": "string"}, "description": "Every recognized OSV-family/source advisory id on the grouped row (PYSEC, GO, RUSTSEC, MAL, OSV, distro, and colon-suffixed errata ids). CVE and GHSA ids stay in cve_ids/ghsa_ids; per-source identity stays in source_ids as source:advisory_id."},
                           "source_ids": {"type": "array", "items": {"type": "string"}},
                           "sources": {
                             "type": "array",
@@ -98,10 +102,10 @@ const AdvisoryEvidence = `
     "/api/v0/supply-chain/vulnerabilities/{advisory_id}": {
       "get": {
         "summary": "Get a single advisory by identifier",
-        "description": "Path-param convenience over the advisory evidence read model. Returns one canonical advisory (matched by canonical id, GHSA id, or CVE id) with its source-specific CVSS, EPSS, KEV, CWE, range, fixed-version, reference, and affected-package evidence. This is source evidence only; repository, service, image, and workload impact remain available through the supply-chain impact findings surface.",
+        "description": "Path-param convenience over the advisory evidence read model. Returns one canonical advisory (matched by canonical id, GHSA id, CVE id, or any recognized OSV-family/source advisory id such as PYSEC, distro, or colon-suffixed errata ids) with its source-specific CVSS, EPSS, KEV, CWE, range, fixed-version, reference, and affected-package evidence. osv_ids carries every recognized non-CVE, non-GHSA advisory id on the row. This is source evidence only; repository, service, image, and workload impact remain available through the supply-chain impact findings surface.",
         "operationId": "getVulnerabilityDetail",
         "parameters": [
-          {"name": "advisory_id", "in": "path", "required": true, "schema": {"type": "string"}, "description": "Canonical advisory id, GHSA id, or CVE id."}
+          {"name": "advisory_id", "in": "path", "required": true, "schema": {"type": "string"}, "description": "Canonical advisory id, GHSA id, CVE id, or recognized OSV-family/source advisory id (raw source record id, verbatim)."}
         ],
         "responses": {
           "200": {
@@ -115,7 +119,7 @@ const AdvisoryEvidence = `
                     "canonical_id": {"type": "string"},
                     "cve_ids": {"type": "array", "items": {"type": "string"}},
                     "ghsa_ids": {"type": "array", "items": {"type": "string"}},
-                    "osv_ids": {"type": "array", "items": {"type": "string"}},
+                    "osv_ids": {"type": "array", "items": {"type": "string"}, "description": "Every recognized OSV-family/source advisory id on the advisory (PYSEC, GO, RUSTSEC, MAL, OSV, distro, and colon-suffixed errata ids)."},
                     "sources": {"type": "array", "items": {"type": "object"}},
                     "affected_packages": {"type": "array", "items": {"type": "object"}},
                     "affected_products": {"type": "array", "items": {"type": "object"}},

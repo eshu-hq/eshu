@@ -319,11 +319,7 @@ seed_keys AS MATERIALIZED (
               key_source = 'identity'
               OR (
                   (key_source = 'alias' OR key_source = 'correlation_anchor')
-                  AND (
-                      UPPER(TRIM(key_value)) LIKE 'CVE-%'
-                      OR UPPER(TRIM(key_value)) LIKE 'GHSA-%'
-                      OR UPPER(TRIM(key_value)) LIKE 'OSV-%'
-                  )
+                  AND TRIM(key_value) ~ '^[A-Za-z][A-Za-z0-9]*-[A-Za-z0-9][A-Za-z0-9:._-]*$'
               )
           )
     ) AS values
