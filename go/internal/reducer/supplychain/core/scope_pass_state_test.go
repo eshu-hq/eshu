@@ -77,13 +77,13 @@ func TestWriteSupplyChainImpactCompletePassClearsScopePassState(t *testing.T) {
 	}
 }
 
-// TestSupplyChainImpactScopePassStateQueryPinsFencingGuard pins the two
+// TestSupplyChainImpactScopePassStateQueryPinsFencingGuard pins the three
 // load-bearing SQL choices in the scope pass-state upsert: the fencing-token
-// guard keeps an older admitted pass from overwriting a newer pass's state
-// when passes for one scope interleave across generations, and the COALESCE
-// preserves the original partial_since across further partial passes. The
+// guard orders passes by token (it does not fence across generations, see
+// #10422), the COALESCE preserves the original partial_since across further
+// partial passes, and the CASE branch carries a timestamptz cast. The
 // query text is the contract here; the hermetic tests above locate the
-// statement by const identity and would stay green if either choice were
+// statement by const identity and would stay green if any choice were
 // dropped. (Review F1 on #10389.)
 func TestSupplyChainImpactScopePassStateQueryPinsFencingGuard(t *testing.T) {
 	t.Parallel()

@@ -228,8 +228,8 @@ row carries `scope_id`, the identity-affecting `causes`
 (`active_expansion_rounds`, `evidence_budget`, `manifest_refused`), and
 `partial_since`, when the scope first became continuously partial. A scope
 partial for 24 hours or more degrades status health with one reason per
-scope naming the scope, the stuck age, and the cause; a later complete pass
-clears the row. The state is durable per-scope pass state maintained by the
+scope naming the scope, the stuck age, and the cause; a later full complete pass
+clears the row (a scoped complete leaves the state untouched). The state is durable per-scope pass state maintained by the
 reducer write transaction, not the process-local headroom gauges. It does
 not include finding payloads, repository names, or credential handles.
 

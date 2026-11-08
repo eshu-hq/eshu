@@ -21,9 +21,10 @@ const SupplyChainStuckPartialDegradedAfter = 24 * time.Hour
 // impact pass ended partial for an identity-affecting cause, so the writer
 // upserted without retracting and the scope keeps its stale findings. It is
 // durable per-scope pass state: the reducer write transaction maintains one
-// row per scope, a complete pass clears it, and the status reader serves it
-// live. It never carries finding payloads, only the scope identity, the
-// closed cause set, and the timestamps that size the degraded reason.
+// row per scope, a full complete pass clears it (a scoped complete leaves
+// it untouched), and the status reader serves it live. It never carries
+// finding payloads, only the scope identity, the closed cause set, and the
+// timestamps that size the degraded reason.
 type SupplyChainStuckPartialScope struct {
 	ScopeID string `json:"scope_id"`
 	// Causes is the closed truncation cause set that made the last recorded
@@ -32,7 +33,7 @@ type SupplyChainStuckPartialScope struct {
 	Causes []string `json:"causes"`
 	// PartialSince is when the scope first became continuously partial: set
 	// when a complete scope goes partial, preserved across further partial
-	// passes, cleared by a complete pass.
+	// passes, cleared by a full complete pass.
 	PartialSince time.Time `json:"partial_since"`
 }
 

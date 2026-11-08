@@ -51,7 +51,8 @@
 // SupplyChainStuckPartialScope rows report scopes whose last recorded
 // supply-chain impact pass ended partial; a scope partial for 24 hours or
 // more keeps health degraded with a reason naming the scope and the cause
-// until a later complete pass clears it.
+// until a later full complete pass clears it (a scoped complete leaves the
+// state untouched).
 // semantic.ExtractionStatus reports optional LLM-assisted extraction liveness as
 // unavailable when no provider is configured; when provider profiles are
 // configured, it carries redacted profile state and source-policy gates without
