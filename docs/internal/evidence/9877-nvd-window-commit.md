@@ -36,3 +36,16 @@ row the host recorder already writes, the single
 cursor-lag gauge series the QA watch reads for criterion 5. A held cursor
 (no verdict or `ShouldAdvance=false`) is visible as a committing window
 generation with no cursor movement on the next cycle.
+
+Split-Partial Advance Evidence (#9877 capacity split): the commit path arms
+the cursor writer for a verdict whose advance-to sits strictly inside the
+minted window — `armNVDWindowCursorWriter` requires only `ShouldAdvance`
+with a positive advance-to, never equality with the minted end — so a
+satellite emitted-prefix generation advances the cursor to its emitted
+bound. A split-partial and a full advance planned from one cursor compose to
+the max in either commit order through the keyed `GREATEST` upsert, with no
+regression. Covered by
+`go/internal/collector/extensionhost/nvd_window_cursor_split_admit_test.go`
+(`TestSplitPartialVerdictArmsWindowCursorWriter`,
+`TestSplitPartialAndFullCommitsComposeToMax`; `go test -count=1` exits 0 for
+`go/internal/collector/extensionhost`). No production code changed.

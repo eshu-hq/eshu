@@ -18,6 +18,9 @@ import (
 // exactly these keys into the source snapshot payload beside
 // coverage_descriptor (eshu-hq/eshu#9877 Path A); the values here are pinned
 // against the satellite's copy by the verdict-shape tests on both sides.
+// The commit path reads advance-to, head, and should-advance; the anomaly
+// reason is informational (a hold rides on should-advance=false), so the key
+// stays pinned here while production leaves it unread.
 const (
 	nvdWindowAdvanceToPayloadKey     = "nvd_window_advance_to_unix_us"
 	nvdWindowHeadPayloadKey          = "nvd_window_head_unix_us"
