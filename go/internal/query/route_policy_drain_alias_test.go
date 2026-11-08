@@ -10,6 +10,14 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/auth"
 )
 
+// acceptAuthPolicy takes the auth-owned policy spelling. Passing the root
+// spelling compiles only while the root name is an alias for the auth type,
+// so this and acceptRootPolicy together pin the alias in both directions.
+func acceptAuthPolicy(auth.BrowserSessionRoutePolicy) {}
+
+// acceptRootPolicy takes the root policy spelling. See acceptAuthPolicy.
+func acceptRootPolicy(BrowserSessionRoutePolicy) {}
+
 // TestRoutePolicyDrainAliasesAreIdentical proves the D13 (#9669) row-2
 // leaf-2b drain moved the Group C auth ledgers without changing them: every
 // root name spells the exact auth-owned value, so middleware admission, the
@@ -79,7 +87,7 @@ func TestRoutePolicyDrainAliasesAreIdentical(t *testing.T) {
 		}
 	})
 	t.Run("policy type is identical", func(t *testing.T) {
-		var _ auth.BrowserSessionRoutePolicy = BrowserSessionRoutePolicy{}
-		var _ BrowserSessionRoutePolicy = auth.BrowserSessionRoutePolicy{}
+		acceptAuthPolicy(BrowserSessionRoutePolicy{})
+		acceptRootPolicy(auth.BrowserSessionRoutePolicy{})
 	})
 }
