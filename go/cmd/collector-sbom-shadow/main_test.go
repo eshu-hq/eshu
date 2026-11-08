@@ -323,6 +323,39 @@ func BenchmarkServeComplete(b *testing.B) {
 	}
 }
 
+// TestServeStampsClaimSourceSystem proves attestation-path facts carry
+// the claim's source system: the commit door requires every fact echo
+// to match the claim, and the document parser's family default does
+// not match an attestation claim. The scope and generation already
+// follow the claim; the source system must follow it too.
+func TestServeStampsClaimSourceSystem(t *testing.T) {
+	t.Parallel()
+
+	req := shadowRequest()
+	req.Claim.SourceSystem = "sbom_attestation"
+	raw, err := json.Marshal(req)
+	if err != nil {
+		t.Fatalf("marshal request: %v", err)
+	}
+	var stdout bytes.Buffer
+	if err := serve(bytes.NewReader(raw), &stdout); err != nil {
+		t.Fatalf("serve() error = %v, want nil", err)
+	}
+	var result sdkcollector.Result
+	if err := json.Unmarshal(stdout.Bytes(), &result); err != nil {
+		t.Fatalf("decode result: %v", err)
+	}
+	if len(result.Facts) == 0 {
+		t.Fatal("no facts, want the pinned emission to check")
+	}
+	for i, fact := range result.Facts {
+		if fact.SourceRef.SourceSystem != "sbom_attestation" {
+			t.Errorf("fact %d kind %q source_system = %q, want the claim's sbom_attestation",
+				i, fact.Kind, fact.SourceRef.SourceSystem)
+		}
+	}
+}
+
 func assertPayload(t *testing.T, payload map[string]any, key string, want any) {
 	t.Helper()
 	got, ok := payload[key]
