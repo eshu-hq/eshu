@@ -1082,6 +1082,18 @@ type Instruments struct {
 	// ubuntu, alpine, alma, rocky, other) and result (grouped, ungrouped):
 	// whether the record's upstream list filed it under a CVE id (#9914).
 	SupplyChainImpactOSAdvisoryUpstreamGroups metric.Int64Counter
+	// SupplyChainImpactOSAdvisoryAliasGroups counts the vulnerability.cve
+	// records the alias-connected grouping pass examined, by result
+	// (grouped, ungrouped, quarantined_record_cap, quarantined_group_cap,
+	// denied): whether the record's aliases edges filed it under a group id
+	// or fell back to its per-record key (#10407).
+	SupplyChainImpactOSAdvisoryAliasGroups metric.Int64Counter
+	// SupplyChainImpactAdvisoryGroupSize records one point per grouped
+	// alias component: the component's member-id count (#10407).
+	SupplyChainImpactAdvisoryGroupSize metric.Float64Histogram
+	// SupplyChainImpactAdvisoryGroupComputeDuration records the
+	// alias-connected grouping pass wall time in seconds (#10407).
+	SupplyChainImpactAdvisoryGroupComputeDuration metric.Float64Histogram
 	// SupplyChainImpactOSReleaseNotInAdvisory counts the OS findings whose
 	// advisory carries release tags but none for the installed release,
 	// labeled source (debian, ubuntu, alpine, alma, rocky, other) (#9806). Absence
@@ -4972,6 +4984,36 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register SupplyChainImpactOSAdvisoryUpstreamGroups counter: %w", err)
+	}
+	inst.SupplyChainImpactOSAdvisoryAliasGroups, err = meter.Int64Counter(
+		"eshu_dp_supply_chain_impact_os_advisory_alias_groups_total",
+		metric.WithDescription("Vulnerability records a supply-chain impact pass examined for alias-connected advisory grouping, by result (grouped, ungrouped, quarantined_record_cap, quarantined_group_cap, denied): grouped means the record's aliases edges filed it under the component's group id; ungrouped means the record's component is its own singleton; quarantined means the record or its component exceeded a cap and keeps its per-record key with a marker; denied means a deny-listed id dropped the record entirely (#10407)."),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register SupplyChainImpactOSAdvisoryAliasGroups counter: %w", err)
+	}
+	// Group sizes run 2 (one alias edge) to the 32-member cap; compute runs
+	// in milliseconds on a 10k-record index. Both bucket sets keep the
+	// production shape (small groups, millisecond passes) inside the
+	// measured bands instead of the default OTEL set.
+	advisoryGroupSizeBuckets := []float64{2, 3, 5, 8, 13, 21, 32}
+	advisoryGroupComputeBuckets := []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5}
+	inst.SupplyChainImpactAdvisoryGroupSize, err = meter.Float64Histogram(
+		"eshu_dp_supply_chain_impact_advisory_group_size",
+		metric.WithDescription("Member-id count of each grouped alias-connected advisory component one supply-chain impact pass formed (#10407)."),
+		metric.WithExplicitBucketBoundaries(advisoryGroupSizeBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register SupplyChainImpactAdvisoryGroupSize histogram: %w", err)
+	}
+	inst.SupplyChainImpactAdvisoryGroupComputeDuration, err = meter.Float64Histogram(
+		"eshu_dp_supply_chain_impact_advisory_group_compute_duration_seconds",
+		metric.WithDescription("Wall time in seconds of the alias-connected advisory grouping pass per supply-chain impact index build (#10407)."),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(advisoryGroupComputeBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register SupplyChainImpactAdvisoryGroupComputeDuration histogram: %w", err)
 	}
 	inst.SupplyChainImpactOSReleaseNotInAdvisory, err = meter.Int64Counter(
 		"eshu_dp_supply_chain_impact_os_release_not_in_advisory_total",

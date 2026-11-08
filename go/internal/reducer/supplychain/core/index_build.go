@@ -34,7 +34,11 @@ import (
 // error (a transient condition factdecode.PartitionDecodeFailures does not quarantine)
 // is returned fatally so the caller fails the whole intent for durable
 // triage.
-func buildSupplyChainImpactIndexWithQuarantine(envelopes []facts.Envelope) (supplyChainImpactIndex, []factdecode.QuarantinedFact, error) {
+// buildSupplyChainImpactIndexWithQuarantine accepts an optional alias
+// grouping config (supplyChainAliasGroupConfig): with none the grouping pass
+// runs enabled with empty operator lists; a truncated evidence load passes
+// the disabled config so a partial alias graph never group-keys a finding.
+func buildSupplyChainImpactIndexWithQuarantine(envelopes []facts.Envelope, configs ...supplyChainAliasGroupConfig) (supplyChainImpactIndex, []factdecode.QuarantinedFact, error) {
 	index := supplyChainImpactIndex{
 		affectedPackages:        map[string][]supplychainmodel.AffectedPackage{},
 		affectedProducts:        map[string][]supplychainmodel.AffectedProduct{},
@@ -100,6 +104,9 @@ func buildSupplyChainImpactIndexWithQuarantine(envelopes []facts.Envelope) (supp
 	index.pythonReachability = extractPythonReachabilityEvidence(envelopes)
 	addManifestDependencySupplyChainConsumption(&index, envelopes)
 	groupOSAdvisoriesByUpstream(&index)
+	// Alias grouping runs after the upstream pass over native observations
+	// only, so UpstreamCopy facts never contribute alias edges (#10407).
+	groupOSAdvisoriesByAlias(&index, aliasGroupConfigOrDefault(configs))
 	sort.SliceStable(index.cves, func(i, j int) bool {
 		return index.cves[i].CVEID < index.cves[j].CVEID
 	})

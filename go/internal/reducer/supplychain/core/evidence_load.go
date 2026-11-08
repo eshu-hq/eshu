@@ -16,7 +16,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 )
 
-// supplyChainImpactLoadedEvidence carries the fact envelopes and per-stage
 // loadSupplyChainImpactEvidence runs the scope-fact, repository, manifest-
 // dependency, active-evidence, os-package-advisory, scanner-analysis-scope,
 // resolved-digest-evidence, Python/JVM reachability, and security-alert
@@ -182,8 +181,10 @@ func (h SupplyChainImpactHandler) loadSupplyChainImpactEvidence(
 	// retracts nothing (#10109).
 	truncation.manifestRefused = manifestRefused
 
+	config := supplyChainImpactAliasGroupConfig(h)
 	return supplyChainImpactLoadedEvidence{
 		envelopes:                       envelopes,
+		aliasGroupConfig:                config,
 		scopeFacts:                      scopeFacts,
 		scopeFactKinds:                  scopeFactKinds,
 		repositoryFacts:                 repositoryFacts,
@@ -246,6 +247,13 @@ type supplyChainImpactCrossScopeFloor struct {
 // load only means the load reads fresher data than the signal assumed, which can
 // add evidence and never remove it, and the post-load producer count is what
 // decides.
+// supplyChainImpactAliasGroupConfig resolves the grouping config for one
+// pass from the handler's operator lists. The lists ship empty; populating
+// them is an operator act.
+func supplyChainImpactAliasGroupConfig(h SupplyChainImpactHandler) supplyChainAliasGroupConfig {
+	return supplyChainAliasGroupConfigFromLists(h.AdvisoryGroupAllowList, h.AdvisoryGroupDenyList)
+}
+
 func (h SupplyChainImpactHandler) armCrossScopeProducerFloor(
 	ctx context.Context,
 	intent reducercontract.Intent,

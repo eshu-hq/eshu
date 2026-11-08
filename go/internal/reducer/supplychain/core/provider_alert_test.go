@@ -438,11 +438,18 @@ func TestSupplyChainImpactHandlerLoadsActiveEvidenceFromPackageIdentity(t *testi
 	if got, want := strings.Join(loader.filters[0].PackageIDs, ","), testImpactPackageID; got != want {
 		t.Fatalf("active package IDs = %q, want %q", got, want)
 	}
-	if got, want := len(loader.filters), 2; got != want {
+	if got, want := len(loader.filters), 3; got != want {
 		t.Fatalf("active evidence loads = %d, want %d", got, want)
 	}
 	if got, want := strings.Join(loader.filters[1].CVEIDs, ","), "CVE-2026-0001"; got != want {
 		t.Fatalf("follow-up CVE IDs = %q, want %q", got, want)
+	}
+	// The alias arm (#10407) closes over the loaded cve fact's own aliases:
+	// the cve fact aliases its own id, so the until-stable loop issues one
+	// alias-closure probe that returns nothing new and the next filter is
+	// empty.
+	if got, want := strings.Join(loader.filters[2].AliasIDs, ","), "CVE-2026-0001"; got != want {
+		t.Fatalf("alias follow-up IDs = %q, want %q", got, want)
 	}
 	if result.CanonicalWrites != 1 {
 		t.Fatalf("CanonicalWrites = %d, want 1", result.CanonicalWrites)

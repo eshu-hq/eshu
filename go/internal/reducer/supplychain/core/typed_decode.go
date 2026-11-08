@@ -4,6 +4,7 @@
 package core
 
 import (
+	"slices"
 	"strings"
 
 	vulnerabilityv1 "github.com/eshu-hq/eshu-sdk/factschema/vulnerability/v1"
@@ -47,7 +48,27 @@ func supplyChainCVEFromEnvelope(envelope facts.Envelope) (supplychainmodel.Impac
 		Status:          payloadcore.DerefString(cve.Status),
 		ReplacedBy:      cve.ReplacedBy,
 		Upstream:        cve.Upstream,
+		Aliases:         supplyChainAliasIDs(cve.Aliases),
 	}, nil
+}
+
+// supplyChainAliasIDs normalizes the typed Aliases edge list into the
+// reducer's grouping input: trimmed, blank-free, de-duplicated, and sorted so
+// the union-find pass reads a deterministic edge set however the collector
+// ordered the list. A nil or empty list stays nil, keeping the common
+// alias-free record allocation-free.
+func supplyChainAliasIDs(aliases []string) []string {
+	out := make([]string, 0, len(aliases))
+	for _, alias := range aliases {
+		if trimmed := strings.TrimSpace(alias); trimmed != "" {
+			out = append(out, trimmed)
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	slices.Sort(out)
+	return slices.Compact(out)
 }
 
 // supplyChainAffectedPackageFromEnvelope decodes one

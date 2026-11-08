@@ -127,10 +127,22 @@ type SupplyChainImpactFinding struct {
 	DependencyPath           []string
 	DependencyDepth          int
 	DirectDependency         *bool
-	MissingEvidence          []string
-	EvidencePath             []string
-	EvidenceFactIDs          []string
-	CanonicalWrites          int
+	// AdvisoryGroupMembers is the sorted member-id set of the alias-connected
+	// component this finding's record belongs to (#10407). It is the input
+	// items 3.3 (re-key) and 3.4 (VEX/suppression matching) read without
+	// recomputing history. Nil on ungrouped and quarantined findings, which
+	// keep per-record keys.
+	AdvisoryGroupMembers []string
+	// AdvisoryGroupEPSSSource names the member CVE id that supplied the
+	// group's highest EPSS probability, "" when no member CVE carries one.
+	AdvisoryGroupEPSSSource string
+	// AdvisoryGroupKEVSource names a member CVE id in KEV that flagged the
+	// group as known-exploited, "" when no member CVE is in KEV.
+	AdvisoryGroupKEVSource string
+	MissingEvidence        []string
+	EvidencePath           []string
+	EvidenceFactIDs        []string
+	CanonicalWrites        int
 	// DetectionProfile records which tier this finding meets: precise for
 	// exact installed-version anchors, comprehensive for range-only,
 	// SBOM-derived, product-derived, malformed, or missing-version evidence.

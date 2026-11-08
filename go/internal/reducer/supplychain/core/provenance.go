@@ -60,6 +60,16 @@ func (g supplyChainCVEGroup) representative() supplychainmodel.ImpactCVE {
 	return g.observations[best]
 }
 
+// aliasGroupConfigOrDefault resolves the optional grouping config the index
+// builders accept: the first config wins, and with none the pass runs enabled
+// with empty operator lists.
+func aliasGroupConfigOrDefault(configs []supplyChainAliasGroupConfig) supplyChainAliasGroupConfig {
+	if len(configs) > 0 {
+		return configs[0]
+	}
+	return supplyChainAliasGroupConfig{}
+}
+
 // supplyChainCVEGroupKey is the one definition of the key a vulnerability.cve
 // fact groups under: its trimmed cve_id, or its advisory_id when it has none. The
 // decode that fills ImpactCVE.CVEID and the unreadable-record guard both call it,
@@ -444,6 +454,15 @@ func supplyChainImpactProvenancePayload(finding SupplyChainImpactFinding) map[st
 	}
 	if retraction := serializeAdvisoryRetraction(finding.AdvisoryRetraction); retraction != nil {
 		out["advisory_retraction"] = retraction
+	}
+	if len(finding.AdvisoryGroupMembers) > 0 {
+		out["advisory_group_members"] = append([]string(nil), finding.AdvisoryGroupMembers...)
+	}
+	if finding.AdvisoryGroupEPSSSource != "" {
+		out["advisory_group_epss_source"] = finding.AdvisoryGroupEPSSSource
+	}
+	if finding.AdvisoryGroupKEVSource != "" {
+		out["advisory_group_kev_source"] = finding.AdvisoryGroupKEVSource
 	}
 	if len(out) == 0 {
 		return nil

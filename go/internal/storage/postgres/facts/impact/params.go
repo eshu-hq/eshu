@@ -44,6 +44,11 @@ const (
 	FileRepositoryGenerationIDs
 	SuppressionLimit
 	UpstreamCVEIDs
+	// AliasIDs is the advisory ids loaded vulnerability.cve records name in
+	// their aliases lists. The alias branches probe vulnerability.cve by
+	// cve_id and advisory_id over it, so the until-stable loop closes the
+	// load over the full alias graph (#10407).
+	AliasIDs
 	// paramEnd ends the block so TestEveryParamIsClassified reaches every
 	// list added above it; TestEveryParamConstantIsBelowSentinel fails if any
 	// Param reaches it.
@@ -57,7 +62,7 @@ const (
 func (p Param) IsBase() bool {
 	switch p {
 	case PackageIDs, PURLs, CVEIDs, AdvisoryIDs, SubjectDigests, ProductCriteria,
-		DocumentIDs, RepositoryIDs, ImageRefs, FileRepositoryIDs, UpstreamCVEIDs:
+		DocumentIDs, RepositoryIDs, ImageRefs, FileRepositoryIDs, UpstreamCVEIDs, AliasIDs:
 		return true
 	default:
 		return false

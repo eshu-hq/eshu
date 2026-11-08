@@ -7,6 +7,7 @@ import (
 	"context"
 	"sort"
 	"strings"
+	"time"
 
 	"go.opentelemetry.io/otel/metric"
 
@@ -198,6 +199,42 @@ type supplyChainImpactBuildStats struct {
 	// osRepresentativeOutcomes counts the OS-shaped package groups the pass
 	// classified, by the fact that named them and by what it joined (#9990).
 	osRepresentativeOutcomes map[osRepresentativeOutcomeKey]int
+	// aliasGroups counts the vulnerability.cve records the alias-connected
+	// grouping pass examined, by result (#10407).
+	aliasGroups map[supplyChainAliasGroupKey]int
+	// aliasGroupCount counts the grouped alias components the pass formed.
+	aliasGroupCount int
+	// aliasGroupSizes holds one member count per grouped component for the
+	// group-size histogram.
+	aliasGroupSizes []int
+	// aliasGroupCompute is the grouping pass wall time.
+	aliasGroupCompute time.Duration
+}
+
+// aliasGroupsQuarantined counts the examined records the alias grouping pass
+// quarantined (record cap, group cap, or deny), for the
+// advisory_groups_quarantined success-log sub-signal.
+func (s supplyChainImpactBuildStats) aliasGroupsQuarantined() int {
+	total := 0
+	for key, count := range s.aliasGroups {
+		switch key.result {
+		case aliasGroupResultRecordCap, aliasGroupResultGroupCap, aliasGroupResultDenied:
+			total += count
+		}
+	}
+	return total
+}
+
+// aliasGroupsGrouped counts the examined records the alias grouping pass
+// filed under a group id, for the advisory_groups success-log sub-signal.
+func (s supplyChainImpactBuildStats) aliasGroupsGrouped() int {
+	total := 0
+	for key, count := range s.aliasGroups {
+		if key.result == aliasGroupResultGrouped {
+			total += count
+		}
+	}
+	return total
 }
 
 // countOSAdvisoriesJoinedViaSource counts the final findings that joined
@@ -392,8 +429,11 @@ func (h SupplyChainImpactHandler) recordBuildStats(
 	h.emitOSAdvisoryReleaseSelections(ctx, stats.osAdvisoryJoins)
 	h.emitOSReleaseNotInAdvisory(ctx, stats.osReleaseNotInAdvisory)
 	h.emitOSAdvisoryUpstreamGroups(ctx, stats.osUpstreamGroups)
+	h.emitAliasAdvisoryGroups(ctx, stats)
 	subSignals[osAdvisoriesGroupedSubSignal] = float64(stats.osAdvisoriesWithGrouping(osUpstreamGrouped))
 	subSignals[osAdvisoriesUngroupedSubSignal] = float64(stats.osAdvisoriesWithGrouping(osUpstreamUngrouped))
+	subSignals[aliasAdvisoryGroupsSubSignal] = float64(stats.aliasGroupsGrouped())
+	subSignals[aliasAdvisoryGroupsQuarantinedSubSignal] = float64(stats.aliasGroupsQuarantined())
 	h.recordOSRepresentativeOutcomes(ctx, stats, subSignals)
 	subSignals[negatedProductsExcludedSubSignal] = float64(stats.negatedProductsExcluded)
 	subSignals[osAdvisoriesConsideredSubSignal] = float64(stats.osAdvisoriesConsidered())

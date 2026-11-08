@@ -59,6 +59,7 @@ func supplyChainImpactFollowUpFilter(
 		PURLs:             missingStringValues(current.PURLs, requested.PURLs),
 		CVEIDs:            missingStringValues(current.CVEIDs, requested.CVEIDs),
 		UpstreamCVEIDs:    missingStringValues(current.UpstreamCVEIDs, requested.UpstreamCVEIDs),
+		AliasIDs:          missingStringValues(current.AliasIDs, requested.AliasIDs),
 		AdvisoryIDs:       missingStringValues(current.AdvisoryIDs, requested.AdvisoryIDs),
 		SubjectDigests:    missingStringValues(current.SubjectDigests, requested.SubjectDigests),
 		DocumentIDs:       missingStringValues(current.DocumentIDs, requested.DocumentIDs),
@@ -76,6 +77,7 @@ func mergeSupplyChainImpactFactFilters(filters ...SupplyChainImpactFactFilter) S
 		merged.PURLs = append(merged.PURLs, filter.PURLs...)
 		merged.CVEIDs = append(merged.CVEIDs, filter.CVEIDs...)
 		merged.UpstreamCVEIDs = append(merged.UpstreamCVEIDs, filter.UpstreamCVEIDs...)
+		merged.AliasIDs = append(merged.AliasIDs, filter.AliasIDs...)
 		merged.AdvisoryIDs = append(merged.AdvisoryIDs, filter.AdvisoryIDs...)
 		merged.SubjectDigests = append(merged.SubjectDigests, filter.SubjectDigests...)
 		merged.DocumentIDs = append(merged.DocumentIDs, filter.DocumentIDs...)
@@ -89,6 +91,7 @@ func mergeSupplyChainImpactFactFilters(filters ...SupplyChainImpactFactFilter) S
 		PURLs:             payloadcore.UniqueSortedStrings(merged.PURLs),
 		CVEIDs:            payloadcore.UniqueSortedStrings(merged.CVEIDs),
 		UpstreamCVEIDs:    payloadcore.UniqueSortedStrings(merged.UpstreamCVEIDs),
+		AliasIDs:          payloadcore.UniqueSortedStrings(merged.AliasIDs),
 		AdvisoryIDs:       payloadcore.UniqueSortedStrings(merged.AdvisoryIDs),
 		SubjectDigests:    payloadcore.UniqueSortedStrings(merged.SubjectDigests),
 		DocumentIDs:       payloadcore.UniqueSortedStrings(merged.DocumentIDs),
@@ -111,6 +114,10 @@ func supplyChainImpactFilter(envelopes []facts.Envelope) SupplyChainImpactFactFi
 	// present. The storage reader uses this independent list for both
 	// top-level exact matching and normalized suppression-scope matching.
 	var advisoryIDs []string
+	// aliasIDs collects the typed aliases lists of loaded vulnerability.cve
+	// records: the alias arm the until-stable loop iterates to an
+	// alias-closed fixed point (#10407).
+	var aliasIDs []string
 	// signalCVEIDs is the CVE ids of facts that only describe a CVE. They reach
 	// cveIDs after the loop, unless a record's upstream list is why they are here.
 	var upstreamKeys, signalCVEIDs []string
@@ -120,6 +127,7 @@ func supplyChainImpactFilter(envelopes []facts.Envelope) SupplyChainImpactFactFi
 			cveIDs = append(cveIDs, supplyChainCVEID(envelope.Payload))
 			advisoryIDs = append(advisoryIDs, payloadcore.PayloadStr(envelope.Payload, "advisory_id"))
 			upstreamKeys = appendUpstreamCVEKeys(upstreamKeys, envelope.Payload)
+			aliasIDs = appendAliasIDs(aliasIDs, envelope.Payload)
 		case chain.VulnerabilityAffectedPackageFactKind:
 			purl := payloadcore.PayloadStr(envelope.Payload, "purl")
 			packageIDs = append(packageIDs, canonicalSupplyChainAffectedPackageID(payloadcore.PayloadStr(envelope.Payload, "package_id"), purl))
@@ -228,6 +236,7 @@ func supplyChainImpactFilter(envelopes []facts.Envelope) SupplyChainImpactFactFi
 		PURLs:             payloadcore.UniqueSortedStrings(purls),
 		CVEIDs:            sortedCVEIDs,
 		UpstreamCVEIDs:    missingStringValues(upstreamKeys, sortedCVEIDs),
+		AliasIDs:          payloadcore.UniqueSortedStrings(aliasIDs),
 		AdvisoryIDs:       payloadcore.UniqueSortedStrings(advisoryIDs),
 		SubjectDigests:    payloadcore.UniqueSortedStrings(digests),
 		DocumentIDs:       payloadcore.UniqueSortedStrings(documentIDs),
@@ -236,6 +245,18 @@ func supplyChainImpactFilter(envelopes []facts.Envelope) SupplyChainImpactFactFi
 		FileRepositoryIDs: supplyChainImpactParserFileRepositoryIDs(envelopes),
 		ImageRefs:         payloadcore.UniqueSortedStrings(imageRefs),
 	}
+}
+
+// appendAliasIDs adds the advisory ids a record's aliases list names. The
+// filter reads the raw payload because it runs before the typed decode;
+// blank entries are dropped so the reader never binds an empty probe value.
+func appendAliasIDs(ids []string, payload map[string]any) []string {
+	for _, entry := range payloadcore.PayloadStrings(payload, "", "aliases") {
+		if trimmed := strings.TrimSpace(entry); trimmed != "" {
+			ids = append(ids, trimmed)
+		}
+	}
+	return ids
 }
 
 // appendUpstreamCVEKeys adds the group keys a record's upstream list forms, under
@@ -287,7 +308,7 @@ func supplyChainImpactRepositoryFilterIDs(repositoryIDs []string) []string {
 }
 
 func (f SupplyChainImpactFactFilter) empty() bool {
-	return len(f.PackageIDs) == 0 && len(f.PURLs) == 0 && len(f.CVEIDs) == 0 && len(f.UpstreamCVEIDs) == 0 && len(f.AdvisoryIDs) == 0 &&
+	return len(f.PackageIDs) == 0 && len(f.PURLs) == 0 && len(f.CVEIDs) == 0 && len(f.UpstreamCVEIDs) == 0 && len(f.AliasIDs) == 0 && len(f.AdvisoryIDs) == 0 &&
 		len(f.SubjectDigests) == 0 && len(f.DocumentIDs) == 0 && len(f.ProductCriteria) == 0 &&
 		len(f.RepositoryIDs) == 0 && len(f.FileRepositoryIDs) == 0 && len(f.ImageRefs) == 0
 }

@@ -203,3 +203,48 @@ or gate.
 
 No-Observability-Change: this note adds no metric, span, log key, or status
 field.
+
+## Implementation evidence (#10407)
+
+Benchmark Evidence: the shipped pass
+(`go/internal/reducer/supplychain/core/os_advisory_alias_group.go`,
+`os_advisory_alias_apply.go`, benches
+`BenchmarkAliasGroupingIndexBuild[/Sparse]` plus the `BenchmarkAliasGrouping`
+decode floors) holds the union-find core from the shim above and adds the
+ruled scope the shim excluded: package/product remap, group EPSS/KEV merge,
+per-key outcomes with quarantine markers, and member/provenance emission.
+Measured on Apple M5 Max, Go 1.27.3, 30x samples, in-memory envelopes with
+1.3 KB padded cve payloads (the proof's payload shape):
+`BenchmarkAliasGroupingDecodeFloor` (raw unmarshal) ~3.4 us/record, so the
+5% bar is ~172 ns/record;
+`BenchmarkAliasGroupingTypedDecodeFloor` (the seam the pass actually reads)
+~0.49 us/record; pass cost enabled-minus-disabled
+`BenchmarkAliasGroupingIndexBuild` (adversarial, 100% paired records)
+~590 ns/record at 1x and ~470 ns/record at 10x (~14% of the raw floor),
+`BenchmarkAliasGroupingIndexBuildSparse` (production shape, 5% paired)
+~434 ns/record at 10x (~13% of the raw floor). The gap to the 5% bar is the
+ruled scope over the shim's union-find-only cost, documented in the bench
+comment; absolute cost at 10k (~4.7 ms) is ~0.15% of the committed 3.02 s
+pass, and the 8-worker concurrency proof
+(`TestAliasGroupingConcurrentPassesAgree`) shows identical keys with no
+serialization. Baseline: shim 201 ns/record at 1x, 268 ns/record at 10x on
+i7-8700K (this note, §Scale). Backend: no backend; pure in-memory index
+build, no Postgres, no graph. Input shape: synthetic GHSA/CVE alias pairs
+with one affected_package fact each, plus a sparse 5%-paired variant.
+Terminal counts: grouping changes finding keys only where alias edges join
+records; the DSA 20-upstream regression (`TestAliasGroupingKeepsDSATwenty-
+UpstreamFindings`) and the full core/query/storage/telemetry suites stay
+green, so ungrouped and upstream-only records keep today's keys. The change
+is safe because quarantines fall back to per-record keys with counted
+markers, truncated loads disable grouping entirely, and deny lists default
+empty.
+
+Observability Evidence: the pass emits
+`eshu_dp_supply_chain_impact_os_advisory_alias_groups_total{result}`
+(grouped, ungrouped, quarantined_record_cap, quarantined_group_cap,
+denied), `eshu_dp_supply_chain_impact_advisory_group_size`, and
+`eshu_dp_supply_chain_impact_advisory_group_compute_duration_seconds`
+(with explicit buckets documented in `telemetry-coverage-signals.md`), plus
+the `advisory_groups` and `advisory_groups_quarantined` success-log
+sub-signals, all covered by `scripts/verify-telemetry-coverage.sh` and the
+telemetry package tests.

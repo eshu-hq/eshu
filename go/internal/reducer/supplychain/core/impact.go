@@ -37,6 +37,15 @@ type SupplyChainImpactFactFilter struct {
 	// on arrival order or the fact that triggered the pass: a CVE with any loaded
 	// CVE-keyed fact is in CVEIDs, and one named only by an upstream list is here.
 	UpstreamCVEIDs []string
+	// AliasIDs is the advisory ids loaded vulnerability.cve records name in
+	// their typed aliases lists (#10407). Unlike the upstream arm, alias ids
+	// load the full vulnerability.cve facts (identity, status, and edges)
+	// for those ids: the until-stable loop iterates them to a fixed point so
+	// the grouping pass computes over a closed alias graph. The aliased
+	// record's affected_package facts load through the existing package and
+	// CVE arms when its CVE key enters the filter on the next round,
+	// mirroring the upstream signal arm's discipline (#9994).
+	AliasIDs []string
 	// AdvisoryIDs binds both the top-level exact-match predicate and the
 	// normalized suppression-scope predicate. It is populated alongside
 	// CVEIDs because supplyChainCVEID prefers cve_id over advisory_id when
@@ -114,6 +123,16 @@ type SupplyChainImpactHandler struct {
 	// bytes budget (maxSupplyChainImpactEvidencePayloadBytesPerIntent) when
 	// positive. Optional: zero keeps the default.
 	EvidencePayloadBytesLimit int64
+	// AdvisoryGroupAllowList exempts the named advisory ids from the
+	// alias-group caps: a listed record keeps its edges past the record cap
+	// and a group with a listed member id survives the group cap (#10407).
+	// Optional: empty ships the pass with no exemptions.
+	AdvisoryGroupAllowList []string
+	// AdvisoryGroupDenyList drops the named advisory ids from alias
+	// grouping: a record naming a listed id and every alias edge to a
+	// listed id is dropped entirely (#10407). Optional: empty ships the
+	// pass with no denials.
+	AdvisoryGroupDenyList []string
 	// FencingTokenIssuer supplies the per-pass fencing token (#7142). Required:
 	// Handle fails closed without it, because a pass with no ordering value
 	// cannot be fenced against a fresher pass.
@@ -388,8 +407,8 @@ func applySupplyChainImpactSuppressions(findings []SupplyChainImpactFinding, sup
 // path still reports a visible input_invalid dead-letter (counter + structured
 // log) for the malformed fact while this function stays a pure,
 // table-test-friendly classifier with no telemetry side effects.
-func BuildSupplyChainImpactFindings(envelopes []facts.Envelope) []SupplyChainImpactFinding {
-	findings, _, _ := buildSupplyChainImpactFindingsWithQuarantine(envelopes)
+func BuildSupplyChainImpactFindings(envelopes []facts.Envelope, configs ...supplyChainAliasGroupConfig) []SupplyChainImpactFinding {
+	findings, _, _ := buildSupplyChainImpactFindingsWithQuarantine(envelopes, configs...)
 	return findings
 }
 
@@ -403,15 +422,15 @@ const negatedProductsExcludedSubSignal = "negated_affected_products_excluded"
 // path can report each malformed vulnerability.* fact as a visible input_invalid
 // dead-letter via factdecode.RecordQuarantinedFacts. A non-decode error is
 // returned so the caller fails the whole intent for durable triage.
-func buildSupplyChainImpactFindingsWithQuarantine(envelopes []facts.Envelope) ([]SupplyChainImpactFinding, []factdecode.QuarantinedFact, error) {
-	findings, quarantined, _, err := buildSupplyChainImpactFindingsAndExclusions(envelopes)
+func buildSupplyChainImpactFindingsWithQuarantine(envelopes []facts.Envelope, configs ...supplyChainAliasGroupConfig) ([]SupplyChainImpactFinding, []factdecode.QuarantinedFact, error) {
+	findings, quarantined, _, err := buildSupplyChainImpactFindingsAndExclusions(envelopes, configs...)
 	return findings, quarantined, err
 }
 
 // buildSupplyChainImpactFindingsAndExclusions is the quarantine-aware builder plus
 // the pass counts in supplyChainImpactBuildStats (negated CPE matches, OS joins).
-func buildSupplyChainImpactFindingsAndExclusions(envelopes []facts.Envelope) ([]SupplyChainImpactFinding, []factdecode.QuarantinedFact, supplyChainImpactBuildStats, error) {
-	index, quarantined, err := buildSupplyChainImpactIndexWithQuarantine(envelopes)
+func buildSupplyChainImpactFindingsAndExclusions(envelopes []facts.Envelope, configs ...supplyChainAliasGroupConfig) ([]SupplyChainImpactFinding, []factdecode.QuarantinedFact, supplyChainImpactBuildStats, error) {
+	index, quarantined, err := buildSupplyChainImpactIndexWithQuarantine(envelopes, configs...)
 	if err != nil {
 		return nil, nil, supplyChainImpactBuildStats{}, err
 	}
@@ -435,6 +454,10 @@ func buildSupplyChainImpactFindingsAndExclusions(envelopes []facts.Envelope) ([]
 		osAdvisoriesJoinedViaSource: countOSAdvisoriesJoinedViaSource(findings),
 		osReleaseNotInAdvisory:      countOSReleaseNotInAdvisory(findings),
 		osUpstreamGroups:            index.osUpstream.cells,
+		aliasGroups:                 index.aliasStats.cells,
+		aliasGroupCount:             index.aliasStats.groups,
+		aliasGroupSizes:             index.aliasStats.sizes,
+		aliasGroupCompute:           index.aliasStats.compute,
 	}, nil
 }
 

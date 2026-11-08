@@ -69,3 +69,37 @@ func TestSupplyChainImpactFollowUpFilterTracksAdvisoryIDs(t *testing.T) {
 func equalSuppressionAnchorSlices(got, want []string) bool {
 	return slices.Equal(got, want)
 }
+
+// TestSupplyChainImpactFilterCollectsAliasIDs proves the alias arm (#10407):
+// a vulnerability.cve fact contributes its raw aliases list independently of
+// cve_id and advisory_id, blanks are dropped, and an alias-only filter is
+// non-empty so the until-stable loop keeps iterating to the fixed point.
+func TestSupplyChainImpactFilterCollectsAliasIDs(t *testing.T) {
+	t.Parallel()
+
+	envelopes := []facts.Envelope{
+		{
+			FactID:   "cve-1",
+			FactKind: chain.VulnerabilityCVEFactKind,
+			Payload: map[string]any{
+				"cve_id":      "GHSA-demo-1111-2222",
+				"advisory_id": "GHSA-demo-1111-2222",
+				"aliases":     []any{"GHSA-demo-1111-2222", "CVE-2026-1234", "  ", ""},
+			},
+		},
+	}
+
+	filter := supplyChainImpactFilter(envelopes)
+
+	if got, want := filter.AliasIDs, []string{"CVE-2026-1234", "GHSA-demo-1111-2222"}; !equalSuppressionAnchorSlices(got, want) {
+		t.Fatalf("AliasIDs = %v, want %v (sorted, blanks dropped)", got, want)
+	}
+	if got := (SupplyChainImpactFactFilter{AliasIDs: []string{"CVE-2026-1234"}}); got.empty() {
+		t.Fatalf("alias-only filter %#v reported empty, want non-empty so the alias arm still loads", got)
+	}
+	requested := SupplyChainImpactFactFilter{AliasIDs: []string{"CVE-2026-1234"}}
+	current := SupplyChainImpactFactFilter{AliasIDs: []string{"CVE-2026-1234", "CVE-2026-5678"}}
+	if followUp := supplyChainImpactFollowUpFilter(requested, current); !equalSuppressionAnchorSlices(followUp.AliasIDs, []string{"CVE-2026-5678"}) {
+		t.Fatalf("follow-up AliasIDs = %v, want only the newly discovered value", followUp.AliasIDs)
+	}
+}
