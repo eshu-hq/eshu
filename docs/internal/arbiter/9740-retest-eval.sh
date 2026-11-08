@@ -99,46 +99,67 @@ case "$MODE" in
 import json
 
 def series(path):
+    # Sum across EVERY returned series per timestamp. These counters carry
+    # third labels (fanout cause / execution status), so reading r[0] alone
+    # would silently drop most of the rate and corrupt the 0.5 threshold.
+    from collections import defaultdict
     d = json.load(open(path))
     assert d["status"] == "success", d
-    r = d["data"]["result"]
-    if not r:
-        return []
-    return [(t, float(v)) for t, v in r[0]["values"]]
+    acc = defaultdict(float)
+    for s in d["data"]["result"]:
+        for t, v in s["values"]:
+            acc[t] += float(v)
+    return sorted(acc.items())
 
-flag = dict(series("/tmp/retest-2a-flag.json"))
+flag = series("/tmp/retest-2a-flag.json")
 exc = dict(series("/tmp/retest-2a-exec.json"))
 opn = dict(series("/tmp/retest-2a-open.json"))
 nop = dict(series("/tmp/retest-2a-noop.json"))
 age = series("/tmp/retest-2a-age.json")
 
-best = None
-for t, f in flag.items():
-    e = exc.get(t)
-    if e is None or e <= 0:
-        continue
-    r = f / e
-    if best is None or r > best[1]:
-        best = (t, r, f, e, opn.get(t, 0.0), nop.get(t, 0.0))
-
-if best is None:
-    print("max_ratio: NO_DATA (zero/no execution denominator at every step)")
-else:
-    import datetime
-    ts = datetime.datetime.fromtimestamp(best[0], datetime.timezone.utc).isoformat()
-    print(f"max_ratio: {best[1]:.4f} at {ts} "
-          f"(window {ts} minus 1h; flagged={best[2]:.2f} exec={best[3]:.2f})")
-    print(f"beside: reopened={best[4]:.2f} pending_noop={best[5]:.2f} over that 1h window")
-
-# 30-min straight rise: 7 consecutive strictly increasing 5m age samples.
+# 30-min straight rise first: 7 consecutive strictly increasing 5m age
+# samples. The ruling fires iff some t has ratio>=0.5 AND a rise window
+# ending at or after t, so the ratio search below only considers covered t.
 fires = []
 for i in range(len(age) - 6):
     w = age[i:i + 7]
     if all(b[1] > a[1] for a, b in zip(w, w[1:])):
         fires.append((w[0][0], w[-1][0], w[-1][1] - w[0][1]))
+
+def covered(t):
+    return any(e >= t for _, e, _ in fires)
+
+best = None
+uncovered_peak = None
+for t, f in flag:
+    e = exc.get(t)
+    if e is None or e <= 0:
+        continue
+    r = f / e
+    if uncovered_peak is None or r > uncovered_peak[1]:
+        uncovered_peak = (t, r)
+    if not covered(t):
+        continue
+    if best is None or r > best[1]:
+        best = (t, r, f, e, opn.get(t, 0.0), nop.get(t, 0.0))
+
+import datetime
+if best is None:
+    if uncovered_peak is None:
+        print("max_ratio: NO_DATA (zero/no execution denominator at every step)")
+    else:
+        ts = datetime.datetime.fromtimestamp(uncovered_peak[0], datetime.timezone.utc).isoformat()
+        print(f"max_ratio: NO_FIRE {uncovered_peak[1]:.4f} at {ts} "
+              f"has no 30m rise window ending at/after it")
+else:
+    ts = datetime.datetime.fromtimestamp(best[0], datetime.timezone.utc).isoformat()
+    print(f"max_ratio: {best[1]:.4f} at {ts} "
+          f"(window {ts} minus 1h; flagged={best[2]:.2f} exec={best[3]:.2f}) "
+          f"FIRES iff >= 0.5000 with rise window ending at/after {ts}")
+    print(f"beside: reopened={best[4]:.2f} pending_noop={best[5]:.2f} over that 1h window")
+
 print(f"rise_windows_30m_strict: {len(fires)}")
 for s, e, d in fires[:10]:
-    import datetime
     ss = datetime.datetime.fromtimestamp(s, datetime.timezone.utc).isoformat()
     ee = datetime.datetime.fromtimestamp(e, datetime.timezone.utc).isoformat()
     print(f"  rise {ss} .. {ee} delta={d:.1f}s")
