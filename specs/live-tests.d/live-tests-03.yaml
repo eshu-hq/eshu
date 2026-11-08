@@ -19,6 +19,18 @@ tests:
     tag: ~
     class: scheduled
     reason: "#9487 hermetic PostgreSQL 18 executing proof of the repository-first impact branch: repository scope resolves the live finding while a stale-generation sibling and a tombstone stay excluded, repository+service hit and miss behave, and a workload-only scope resolves; RED-first with a planted branch1 ON TRUE mutation leaking the stale CVE; isolated schema per test with cleanup on pass and fail; local runs took 0.03-0.8s — promote to blocking with repeated timing evidence"
+  - file: go/internal/query/advisory_evidence_recognizer_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "#10410 hermetic PostgreSQL 18 executing proof of the structural evidence-route recognizer: CVE and GHSA seeds pull PYSEC, distro, and colon-errata facts reached only via aliases, direct PYSEC lookup resolves, and upstream-only, related-only, and two-hop alias ids stay out; RED-first against the origin/main CVE/GHSA/OSV allowlist; isolated schema per test with cleanup on pass and fail; local runs took 0.4-0.6s — promote to blocking with repeated timing evidence"
+  - file: go/internal/query/advisory_evidence_recognizer_handler_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "#10410 hermetic PostgreSQL 18 HTTP proof through the production store and shipped SQL: CVE seeding serves PYSEC facts over the evidence route, lowercase pysec and debian-cve lookups resolve uppercase records, and the single-advisory route groups the PYSEC record under its CVE canonical id; isolated schema with cleanup on pass and fail; local runs took 0.4-0.6s — promote to blocking with repeated timing evidence"
+  - file: go/internal/query/advisory_evidence_recognizer_plan_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "#10410 hermetic PostgreSQL 18 EXPLAIN proof of the structural recognizer: the seed/matched CTEs probe the three identity v2 lookup indexes (plus package/purl v2) with no fact_records seq scan for CVE and PYSEC lookups; isolated schema with cleanup on pass and fail; local runs took 0.4-0.6s — promote to blocking with repeated timing evidence"
   - file: go/internal/query/tag_history_nornicdb_live_test.go
     tag: ~
     class: scheduled
