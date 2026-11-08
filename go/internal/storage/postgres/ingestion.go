@@ -200,11 +200,19 @@ func (s IngestionStore) commitScopeGeneration(
 		}
 	}
 
-	if requireClaimFence && claimFence == nil {
-		mutation.ObservedAt = s.now()
-		controlStore := NewWorkflowControlStore(tx)
-		if err := controlStore.HeartbeatClaim(ctx, mutation); err != nil {
-			return fmt.Errorf("verify active workflow claim before ingestion commit: %w", err)
+	if requireClaimFence {
+		switch {
+		case s.ClaimPlane == nil:
+			mutation.ObservedAt = s.now()
+			controlStore := NewWorkflowControlStore(tx)
+			if err := controlStore.HeartbeatClaim(ctx, mutation); err != nil {
+				return fmt.Errorf("verify active workflow claim before ingestion commit: %w", err)
+			}
+		case claimFence == nil:
+			// The claim plane holds this claim, so there is no core claim
+			// row for the in-tree heartbeat to fence on: heartbeating here
+			// would let a stale writer commit. Fail closed (#9376).
+			return fmt.Errorf("claim-plane commit fence: claim plane is configured but no fence session is active")
 		}
 	}
 

@@ -5,7 +5,9 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 	"errors"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -13,6 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/claim/fence"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
@@ -201,4 +204,122 @@ func closedFactStream() <-chan facts.Envelope {
 	stream := make(chan facts.Envelope)
 	close(stream)
 	return stream
+}
+
+// TestPlaneCommitFailedPinNeverFallsBackToSameTxHeartbeat is the #9376
+// criterion-2 stale-writer regression on the main commit path: with
+// ClaimPlane set, a refused pin — terminal stale or exhausted transport
+// retries — surfaces the fence rejection with no core transaction, so the
+// same-transaction HeartbeatClaim can never run and the stale writer
+// cannot commit. It fails if the commit opens a transaction after a
+// failed pin, touches the core claim tables, or commits.
+func TestPlaneCommitFailedPinNeverFallsBackToSameTxHeartbeat(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, time.November, 2, 12, 0, 0, 0, time.UTC)
+	for _, tc := range []struct {
+		name     string
+		err      error
+		reason   fence.Reason
+		terminal bool
+	}{
+		{"stale fence", claimFenceCodedError{"stale_fence"}, fence.ReasonStaleFence, true},
+		{"transport retries exhausted", errors.New("dial tcp: i/o timeout"), fence.ReasonPinUnavailable, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			database := &fakeTransactionalDB{tx: &fakeTx{}}
+			pinner := &claimFenceFakePinner{results: []error{tc.err}}
+			store := NewIngestionStore(database)
+			store.Now = func() time.Time { return now }
+			store.ClaimPlane = &ClaimPlaneFence{Pinner: pinner, Code: claimFenceTestCode, PinBackoff: time.Microsecond}
+			stream := make(chan facts.Envelope, 1)
+			stream <- facts.Envelope{FactID: "f-stale"}
+			close(stream)
+
+			err := store.CommitClaimedScopeGeneration(context.Background(),
+				claimFenceTestMutation("scope-n", "gen-n", "claim-n", 5),
+				claimFenceTestScope("scope-n"), claimFenceTestGeneration("scope-n", "gen-n", now), stream)
+
+			requireRejection(t, err, tc.reason, tc.terminal)
+			if database.beginCalls != 0 {
+				t.Fatalf("begin calls = %d, want 0 (no core transaction without a pin)", database.beginCalls)
+			}
+			if database.tx.committed {
+				t.Fatal("stale writer committed without a pin")
+			}
+			for _, exec := range database.tx.execs {
+				if strings.Contains(exec.query, "workflow_claims") {
+					t.Fatalf("failed pin fell back to the same-transaction heartbeat: %q", exec.query)
+				}
+			}
+			for _, query := range database.tx.queries {
+				if strings.Contains(query.query, "workflow_claims") ||
+					strings.Contains(query.query, "generation_commit_fences") {
+					t.Fatalf("failed pin touched a fenced table: %q", query.query)
+				}
+			}
+			if len(stream) != 0 {
+				t.Fatalf("fact stream left %d undrained facts", len(stream))
+			}
+		})
+	}
+}
+
+// TestPlaneCommitPinsWithoutSameTxHeartbeat is the #9376 criterion-2
+// coupling removal on the main commit path: a pinned plane-held claim
+// commits with exactly one pin, no same-transaction HeartbeatClaim, and
+// the generation_commit_fences row in place of the core claim heartbeat.
+func TestPlaneCommitPinsWithoutSameTxHeartbeat(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, time.November, 2, 12, 0, 0, 0, time.UTC)
+	database := &fakeTransactionalDB{tx: &fakeTx{queryResponses: []queueFakeRows{
+		{rows: [][]any{{sql.NullString{}, sql.NullString{}}}},
+		{rows: [][]any{{int64(4)}}},
+	}}}
+	pinner := &claimFenceFakePinner{}
+	store := NewIngestionStore(database)
+	store.Now = func() time.Time { return now }
+	store.ClaimPlane = &ClaimPlaneFence{
+		Pinner: pinner, Code: claimFenceTestCode, PinBackoff: time.Microsecond,
+		Ticks: func(time.Duration) (<-chan time.Time, func()) { return make(chan time.Time), func() {} },
+	}
+
+	err := store.CommitClaimedScopeGeneration(context.Background(),
+		claimFenceTestMutation("scope-f", "gen-f", "claim-f", 4),
+		claimFenceTestScope("scope-f"), claimFenceTestGeneration("scope-f", "gen-f", now),
+		testfixtures.FactChannel([]facts.Envelope{{
+			FactID: "fact-f", ScopeID: "scope-f", GenerationID: "gen-f",
+			FactKind: "pagerduty_service", StableFactKey: "f", ObservedAt: now,
+			Payload: map[string]any{"serial": float64(1)},
+		}}))
+	if err != nil {
+		t.Fatalf("plane commit error = %v, want nil", err)
+	}
+	if !database.tx.committed {
+		t.Fatal("plane commit committed = false, want true")
+	}
+	calls := pinner.snapshot()
+	want := claimFencePinCall{"claim-f", 4, "scope-f", "gen-f", "gen-f", now.Add(time.Minute)}
+	if len(calls) != 1 || calls[0] != want {
+		t.Fatalf("pin calls = %+v, want exactly [%+v]", calls, want)
+	}
+	for _, exec := range database.tx.execs {
+		if strings.Contains(exec.query, "workflow_claims") {
+			t.Fatalf("plane commit ran the same-transaction heartbeat: %q", exec.query)
+		}
+	}
+	for _, query := range database.tx.queries {
+		if strings.Contains(query.query, "workflow_claims") {
+			t.Fatalf("plane commit read the core claim tables: %q", query.query)
+		}
+	}
+	fenced := false
+	for _, query := range database.tx.queries {
+		if strings.Contains(query.query, "generation_commit_fences") {
+			fenced = true
+		}
+	}
+	if !fenced {
+		t.Fatal("plane commit wrote no generation_commit_fences row")
+	}
 }

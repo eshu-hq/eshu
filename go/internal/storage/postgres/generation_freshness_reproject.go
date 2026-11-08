@@ -169,10 +169,18 @@ func (s IngestionStore) reprojectActiveGeneration(
 			_ = tx.Rollback()
 		}
 	}()
-	if requireClaimFence && claimFence == nil {
-		mutation.ObservedAt = s.now()
-		if err := NewWorkflowControlStore(tx).HeartbeatClaim(ctx, mutation); err != nil {
-			return "", fmt.Errorf("verify active workflow claim before re-projection: %w", err)
+	if requireClaimFence {
+		switch {
+		case s.ClaimPlane == nil:
+			mutation.ObservedAt = s.now()
+			if err := NewWorkflowControlStore(tx).HeartbeatClaim(ctx, mutation); err != nil {
+				return "", fmt.Errorf("verify active workflow claim before re-projection: %w", err)
+			}
+		case claimFence == nil:
+			// The claim plane holds this claim, so there is no core claim
+			// row for the in-tree heartbeat to fence on: heartbeating here
+			// would let a stale writer commit. Fail closed (#9376).
+			return "", fmt.Errorf("claim-plane commit fence: claim plane is configured but no fence session is active")
 		}
 	}
 	if _, err := tx.ExecContext(ctx, lockReprojectScopeQuery, scopeValue.ScopeID); err != nil {
