@@ -2,8 +2,9 @@
 # auth ledgers as they stood at write time. Repointing would falsify
 # the record. Live pointers (3452/4784 design docs, golangci note) are
 # repointed in-tree instead; this fragment covers only the frozen
-# #5167 inventory below. The ledger bodies now live in
-# go/internal/query/auth/scoped_routes*.go with identical content.
+# #5167 inventory below. The ledger bodies moved to
+# go/internal/query/auth/scoped_routes*.go with only comment/path
+# updates in the move (code_flow 1+/1-, pending_row_filtering 6+/6-).
 docs/internal/evidence/5167-code-family-batch-1.md:go/internal/query/auth_scoped_routes_code_flow.go
 docs/internal/evidence/5167-code-family-batch-1.md:go/internal/query/auth_scoped_routes_pending_row_filtering.go
 docs/internal/evidence/5167-code-family-batch-2b.md:go/internal/query/auth_scoped_routes_code_flow.go
