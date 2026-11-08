@@ -104,29 +104,25 @@ the appended-tail case here, and the planted 800 s lone-test case in
 the v2 file exists: a loader that returned v1 then fails them. Every other case
 runs on both models.
 
-The planted cases do not plant a fixed size on the live plan (#9371). A fixed
+The planted cases do not plant a fixed size on the live plan (#9371): a fixed
 plant there measures the live plan's remaining headroom and its package lumps,
 not the model. When #9371 landed, the old 10 x 20 s appended tail sat in a
-window where, under a refit candidate that was later rejected, no five-shard
-cut met both the 1440 s budget and the 15% spread: shard 5 holding one
-`./internal/storage/postgres` row, the last storage test through the end of
-the plan, cost 1447.0 s there, over the budget. Under the weights committed
-then, the same row cost 1421.3 s and fit, so that tail passed. Every weight
-set has such a window, at its own sizes
+window where, under a later-rejected refit candidate, no five-shard cut met
+both budgets (shard 5 holding one `./internal/storage/postgres` row cost
+1447.0 s there, over budget; 1421.3 s under the committed weights, so that
+tail passed). Every weight set has such a window, at its own sizes
 ([The live-plan spread window](#the-live-plan-spread-window)).
 A PR that added eight live tests also
 failed the old seeded case with "no shard partition fits the job budget",
 while the live plan itself still fit. Each case now asserts what it is named for:
 
-- The appended-tail case prices ten tail tests to fill the last shard's own
-  headroom on the live cut. It then requires a clean budget and every job at
-  or under 1440 s. A tail whose test seconds pass the six jobs' combined
-  budget must still fail with "no shard partition fits the job budget".
-- The seeded case runs on a fixed synthetic plan of 20 packages x 20 tests
-  with round prices: 20 tests at 60 s seeded into the first package push the
-  six-way count split to 2030 s, past the 1800 s cap, and the weighted cut holds
-  every job at or under 1440 s. The live count split and the live fit are
-  still asserted, unseeded, on the live plan.
+- The appended-tail case prices ten tail tests to fill the last shard's own headroom
+  on the live cut, then requires a clean budget and every job at or under 1440 s. A tail
+  whose test seconds pass the six jobs' combined budget must still fail with "no shard partition fits the job budget".
+- The seeded case runs on a fixed synthetic plan of 20 packages x 20 tests with round
+  prices: 20 tests at 60 s seeded into the first package push the six-way count split to
+  2030 s, past the 1800 s cap, and the weighted cut holds every job at or under 1440 s.
+  The live count split and the live fit are still asserted, unseeded, on the live plan.
 - The drift cases (#10171) measure what a change adds, not the pool: 41 added
   unpriced tests fail with "41 tests this change adds have no weight (limit
   40)", and 3 pass whatever the pool holds. `drift_report` no longer raises
@@ -146,11 +142,10 @@ The suite fails when:
   covering them. The 20% headroom is the model's error band. Replayed with the
   shipped weights against what each shard actually ran, five weighted-cut
   waves miss by -21% to +67% (prediction minus measurement, as a share of the
-  measurement): run 40071537963 by +14.3%, +17.1%, -5.0%, and -19.8%; run
-  40078812653 by +66.9%, -4.2%, -2.9%, and +0.8%; run 40157207251 by +17.3%,
-  -5.2%, -15.2%, and -20.7%; run 40177924581 by +30.8%, -9.4%, -1.5%, and
-  +12.7%; and the first wave on the refit cut, run 40197054198, by +19.9%,
-  +13.4%, +20.1%, and +10.4% (shards 1 to 4). The two fit waves are in the
+  measurement): runs 40071537963 (+14.3/+17.1/-5.0/-19.8), 40078812653
+  (+66.9/-4.2/-2.9/+0.8), 40157207251 (+17.3/-5.2/-15.2/-20.7), 40177924581
+  (+30.8/-9.4/-1.5/+12.7), and refit-cut run 40197054198 (+19.9/+13.4/+20.1/+10.4)
+  (shards 1 to 4). The two fit waves are in the
   sample, so treat the
   band as a floor. The extremes land on identical content: shard 1's 91 tests
   score +14.3% on one wave and +66.9% on another (1242 s, then 851 s
@@ -163,11 +158,9 @@ The suite fails when:
   crosses the 1800 s cap, so the 80% rule (1.25x) does not cover that spread by
   itself. The cut's worst predicted shard can sit above that line, so read the
   first CI wave on the new cut, and refresh the weights from it, before
-  relaxing anything. The weighted-cut waves measured (shards 1 to 4)
-  1242, 958, 1244, and 1418 s, then 851, 1174, 1185, and 1160 s, then 1218,
-  1235, 1416, and 1572 s, then 1093, 1310, 1219, and 1107 s, so every shard
-  stayed under the cap. The first wave on the refit cut (run 40197054198)
-  measured 1079, 1119, 1052, and 1150 s, also under the cap. The 20%
+  relaxing anything. The weighted-cut waves measured 851 to 1572 s (shards 1 to 4);
+  the first refit-cut wave (run 40197054198) measured 1052 to 1150 s, and every
+  shard stayed under the cap. The 20%
   headroom, not the fit, is what keeps a slow runner under the cap;
 - the live plan's shard spread passes 15% of the mean (the acceptance bound of
   #8930), or the cut on a fixed synthetic plan passes 1%. The fixed plan guards
@@ -204,14 +197,12 @@ the case passes, fails for a range of appended tests, then passes again.
 **Where the window is.** The snippet below counts default-priced tests
 appended to the last package and prints the sizes the live-plan fit case
 rejects. Every enrollment and every refit moves the window, so run it rather
-than trusting a figure on this page. At `29ca2e70d5` (2026-10-31), on the
-#9723 pooled refit (p75 over eight main runs, 41168142712 through 41237451303),
-main plans 779 tests, 16 on default prices, and the fit case (608 s row
-budget, #9469) accepts 120 appended tests with no failing `k` in 0..120. At
-`9ffd76a581` the #9519 refit (p75 over nine main runs) planned 749 tests with
-10 defaults and accepted 42 appended tests (failing 43..51 and 61..69;
-passing 52..60 and 70); at `622c948497` the #10108 refit (p75, runs
-41911058891-41952209683) plans 838 with 3 defaults, window k=0..120.
+than trusting a figure on this page. At `29ca2e70d5` (2026-10-31), on the #9723 pooled
+refit (p75 over eight main runs, 41168142712 through 41237451303), main plans 779 tests
+(16 defaults) and the fit case (608 s row budget, #9469) accepts 120 appended tests with
+no failing `k` in 0..120. At `9ffd76a581` the #9519 refit (p75, nine runs) planned 749
+tests (10 defaults, accepted 42, failing 43..51 and 61..69); at `622c948497` the #10108
+refit (p75, runs 41911058891-41952209683) plans 838 (3 defaults), window k=0..120.
 
 Run this
 from the repository root to print the window for the checkout you are on. It
@@ -237,21 +228,13 @@ print(f"{len(plan)} tests;",
 EOF
 ```
 
-On that plan with the 608 s row budget it prints
-`779 tests; no failing k in 0..120`: 120 appended tests with no failure in the
-tested band. (The `9ffd76a581` plan printed `749 tests; fails k=43..69`.)
+On the current plan it prints `779 tests; no failing k in 0..120`.
 
-**Why the window exists.** This explanation was not re-derived on the
-six-shard cut; its figures are from the five-shard cut at `d363d77b85`. While shard 5 can hold at least one
-`./internal/storage/postgres` test (411 tests on main at `d363d77b85`), the
-fourth cut sits inside that package, and shard 5 pays the package's first-use
-price a second time. As the appended tail grows, shard 5 reaches the 1440 s
-budget, so the cut must move to the package boundary. At `d363d77b85` that
-drops 537.4 s: the second first-use charge (`package_first_seconds` for
-`./internal/storage/postgres` in the v2 file, 536.0 s) plus the one test that
-leaves the shard. Shard 5 then falls below 85% of the mean job. It cannot grow back: any earlier fourth cut re-adds the
-first-use charge and breaks the budget. The window closes when the appended
-tail alone lifts shard 5 over the 85% floor.
+**Why the window exists.** Five-shard-era figures at `d363d77b85`, not
+re-derived on the six-shard cut. While shard 5 holds a `./internal/storage/postgres`
+test, the fourth cut sits inside that package and shard 5 pays its first-use price
+twice; when the tail pushes shard 5 to the 1440 s budget the cut jumps to the package
+boundary (dropping ~537 s), leaving shard 5 under 85% of the mean until the tail alone lifts it back.
 
 **Whether a valid cut exists.** An exhaustive search of every contiguous
 five-shard cut, run before the #9436 refit, found that the planner accepted
@@ -452,14 +435,10 @@ inventory, so a test missing from every log uses the default until the next
 refit. Commit only the regenerated weights file in the refit PR, then run
 the shard contract test again on it.
 
-Keep the earlier runs as extra `--sample` arguments, each in its own directory,
-and pass `--fixed-job-seconds` as the mean over every shard job of every
-sample. The refresh after the first wave on the weighted cut used runs
-40047410741, 40049588589, and 40071537963 (12 shard jobs, mean 85.75 s). The
-shard job logs of a run stay downloadable for the retention window of
-GitHub Actions logs, so refit before they expire. Use only runs whose shard
-jobs all passed, since a failed shard log misses its package groups
-and the refresher fails closed.
+Keep the earlier runs as extra `--sample` arguments and pass `--fixed-job-seconds`
+as the mean over every shard job of every sample. Use only runs whose shard jobs
+all passed (a failed shard log misses its package groups and the refresher fails
+closed), and refit before the log retention window expires.
 
 ### A feature PR that trips the drift gate
 
@@ -482,6 +461,25 @@ Raising `timeout-minutes` only hides a hang. The five-to-six move in #9460 is
 the recorded precedent: five legs saturated at about 1270 s predicted mean
 with no guard-legal contiguous re-cut, so the relief was a sixth shard at
 unchanged prices, cap, and guards.
+
+### Slow-draw HOLD (#9532, 2026-11-08)
+
+The arbiter ruled HOLD: six shards, the 30-minute cap, no per-shard retry, no timeout
+raise (ruling: `docs/internal/arbiter/9532-draw-hold-ruling-2026-11-08.md`; shim
+numbers: `docs/internal/evidence/9532-slow-draw-shim.md`). The 1.5x
+slow-draw premise is dead: October slows were cold-cache runs before the restore step,
+plus fast-draw mispricing since fixed by the pooled-p75 refits.
+
+Warm distribution (n=42, committed pooled-p75 weights): p50 0.960, p90 1.043, p99 1.111,
+max 1.130, none over 1.15. The 1620 s figure (1800 / p99) is a modeled draw bound for
+the record, NOT a gate; the operative model gate stays at 1440 s predicted. The interim
+re-run rule is dropped: a future cap cancellation is recorded with cache-era lines first.
+
+Re-measurement tripwires (any one reopens the decision; record the triggering run on
+#9532 with per-shard cache hit/miss lines): warm-era cap cancellation with a restore
+line; warm ratio above 1.25 or wall above 1500 s; largest predicted job above 1267 s
+after any refit; cold wall above 1600 s, or 2+ fully cold runs in any 10 main runs;
+any cache-era change (restore keys, toolchain, runner image family).
 
 ## Race detector
 

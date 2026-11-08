@@ -1,0 +1,47 @@
+RULING: HOLD — keep 6 shards × 30 min, no retry, no timeout raise; the 1.5× slow-draw premise is dead and the residual risk is cold cache, bounded by tripwires below (eshu-hq/eshu#9532, criterion 5).
+
+Verified myself before ruling (not taken on the brief's word): current config is 6 shards with `timeout-minutes: 30` and restore-only cache (`gobuildreadiness-` key, `gobuild-` fallback) at `.github/workflows/live-postgres-readiness.yml:240,293-299`; committed weights declare `shard_count 6` over source runs 41911058891–41952209683 (`specs/live-postgres-readiness-weights.v2.json`); I recomputed the live plan with `shard_job_seconds`/`weighted_bounds` and reproduced the shim's predicted jobs exactly — shard 1 = 1045.9 s, largest = 1127.4 s, 934 planned tests, `budget_errors: []`; `gh run list` over the last 40 main runs gives 37 success + 3 failure + 0 cancelled; the jobs API for all-cold run 42476140787 gives shard walls [1052, 1253, 1037, 1474, 1466, 1178] s, max 1474 s; 1182/1045.9 = 1.130 confirms the shim's warm max ratio; 1800/1.111 = 1620 s and 1800/1127.4 = 1.597 confirm its arithmetic.
+
+DECISIONS
+
+1. Shard count: HOLD at 6. Do not cut to 5 and do not add a 7th. The smallest fitting count under the modeled limit is 6 (largest predicted job 1127.4 s ≤ 1620 s, spread within 15%, appended window ≥38). Five shards is not a live option anyway: the committed planner, CI reader, and drift gates accept only six (`docs/public/reference/local-testing/live-postgres-readiness-shards.md:381-383`), and the shim's unsupported 5-way exhibit (largest 1225.3 s) leaves only ~59 s under the observed worst cold ratio (1225.3 × 1.421 = 1741 s). Seven shards would spend planner/gate/weights work plus runner-minutes on every run to protect a warm tail (breach needs a ≥1.60× draw on the largest job; warm max observed is 1.130) that has never been observed.
+
+2. Per-job limit: ACCEPT 1620 s (1800 / p99 1.111) as the criterion-2 modeled draw bound for the record. DO NOT promote it to a gate. The operative model gate stays at 1440 s predicted (80% of cap; `BUDGET_SECONDS`, shards doc:52-54,144-145). A p99 read from n=42 jobs is an interpolation between the top order statistics, not a stable population p99 (0/42 over 1.15 still permits roughly a 7%-per-job true rate over 1.15 at 95%); licensing predicted jobs up to 1620 s on that estimate would spend the very headroom that makes the current numbers safe. At today's largest job (1127.4 s) even the observed worst cold ratio (1.421) lands at ~1602 s, under the cap — that margin, not the 1620 figure, is what the HOLD rests on.
+
+3. Timeout: keep 30 minutes. Reject 35. Repo policy already states the reason: "Raising `timeout-minutes` only hides a hang" (shards doc:481), and a gate pins `timeout-minutes` to the 1800 s cap the budget model uses (shards doc:190-191). A 35-minute cap converts a hypothetical breach into a slow success while making every genuinely hung job burn 300 s longer before failing loudly, and it silently moves every budget derived from the cap. It protects against a draw never observed in the warm era (zero cap cancellations in the last 40 main runs).
+
+4. Per-shard retry: reject. The observed failure mode it would need to fix does not exist warm, and the real residual mode — a fully cold run — hits all six shards at once (Oct table and run 42476140787 both show era-wide misses), so a per-shard retry buys nothing a whole-run re-run doesn't, while masking flakes and hangs and re-drawing the same missing cache key.
+
+5. Interim re-run rule: DROP it as a standing rule. It was explicitly interim ("until the arbiter rules"), it never triggered in the warm era, and its shard-1 framing is falsified — the diagnosis on the issue shows slow draws hit shard 1 and shards 2–6 at the same rate (64% vs 65%). Replace it with tripwire recording (below): a future cap cancellation is evidence to record with its cache-era line before any re-run, not an event to erase with one. Ordinary operator re-runs remain available; they no longer substitute for recording.
+
+6. Scope a developer lane may execute WITHOUT re-arbitration (documentation and bookkeeping only): (a) record this decision, the warm distribution, the 1620 s modeled-not-gate bound, and the tripwires in `docs/public/reference/local-testing/live-postgres-readiness-shards.md`; (b) file the shim evidence note under `docs/internal/evidence/` (pool 42410520335..42451082044, cold contrast 42476140787, scorer tolerances as stated in issuecomment-6721451958); (c) close #9532 criteria 1–5 as HOLD, quoting this ruling; (d) file the refresher skip-parsing defect (decision 7) as its own issue in the goal ledger. NOT authorized under this ruling: any edit to the workflow's timeout, retry, or matrix; any weights refit or `shard_count` change; any change to the 1440 s budget, the 608 s row budget, or the cache save/restore policy. Any of those returns to the arbiter with tripwire evidence attached.
+
+7. Refresher skip defect (shim ask b) — design ruled now so the follow-up needs no re-arbitration: a test carrying a `LIVE_READINESS_EXTRA_SKIP` excuse stays in the inventory and the plan; it contributes no price sample (it is neither measured nor silently dropped from coverage); shard-log parsing must count planned = executed + skip-excused, and must keep failing closed on tests missing without an excuse. Pricing a skip at the default as if it had run, or dropping it from the inventory, are both rejected — the first invents a measurement, the second loses the coverage check. The next pooled refit is blocked until this lands; that block does not block the HOLD.
+
+RE-MEASUREMENT TRIPWIRES (any one reopens this decision; record the triggering run on #9532 with its per-shard cache hit/miss lines)
+
+- Any warm-era cap cancellation: a shard job killed at 1800 s whose log shows `Cache restored from key:`.
+- Any warm job ratio above 1.25, or any warm shard wall above 1500 s.
+- Largest predicted job on the live plan above 1267 s after any refit or enrollment (= 1800 / 1.421, the observed worst cold ratio; today's margin is 140 s). Above that line a cold run can breach even though the 1440 s gate still passes — the fix then is a 7th shard or cache-population work, decided on fresh numbers.
+- Any cold shard wall above 1600 s, or 2 or more fully cold runs in any 10 consecutive main runs — at that point cold misses, not draws, own the risk and the cache-population question (readiness never saves its primary key) returns with miss-rate data.
+- Any cache-era change (restore keys, Go toolchain, runner image family) invalidates this distribution; re-measure before citing it.
+
+REQUIRED PROOF
+
+- For this ruling: the phase-1 shim (issuecomment-6721451958) stands as the theory proof; my independent reproductions above (predicted job seconds, last-40 outcomes, cold-run walls, config state) are the corroboration of record.
+- For the authorized docs lane: docs build (`mkdocs build --strict`) and `git diff --check` clean, per repo rules for docs changes, with exits quoted in the PR. No runtime gate is owed because no runtime surface changes.
+- If any tripwire fires: a fresh offline shim on the new pool (same method: warm-only, current weights, full-slice scoring for any cancelled shard) BEFORE any config change is proposed. No executor is dispatched on the tripwire alone.
+
+WHAT I WILL NOT DO, AND WHY
+
+- I will not authorize a timeout raise, a per-shard retry, a 5- or 7-shard cut, or a 1620 s gate: each spends complexity, runner-minutes, or hang-visibility against a warm tail (≥1.60× on the largest job) that 42 warm jobs, 40 main runs, and one fully cold run have never produced. Accuracy first: the original premise (1.5× whole-runner draw, shard 1 singled out) was overturned by evidence on this very issue — Oct slowness was cold-cache before the restore step and fast-draw mispricing since fixed by the pooled-p75 refits — and I will not size today's config to a falsified cause.
+- I will not accept serialization in any form here (fewer parallel legs, serialized retries) as insurance; the six-leg parallel cut is unchanged by this ruling.
+- I will not rule the cache-population question (whether readiness should save its own key) on this evidence: 1-of-8 fully cold with max cold wall 1474 s (326 s of headroom) does not yet meet the bar for reversing a deliberate quota/eviction design; the cold tripwires above define when it does.
+
+WHAT STAYS UNVERIFIED (NOT_CHECKED)
+
+- The shim's warm percentiles below the max (p50 0.960, p90 1.043, p99 1.111): I reproduced the prediction side and the max-ratio/wall endpoints, but did not recompute all 42 job ratios from raw logs. The HOLD does not hinge on p90/p99 precision — it holds at the observed warm max (1.130 → limit 1593 s) and at the observed cold max ratio (1.421 → ~1602 s on the largest job).
+- The 3 failures in the last 40 main runs: verified as completed failures, not cancellations; their step-level causes (reported as test failures at ~13–19 min walls) were not re-read by me.
+- Runner-minute cost figures (~100 per run; +6–8% for 7 shards): shim-reported, not recomputed; decision 1 does not depend on them.
+- The refresher skip-parsing defect: shim-reported, not reproduced by me; decision 7 rules the design, and the follow-up issue must carry its own failing-then-passing proof.
+- True tail beyond n=42 warm jobs: no evidence can exclude a rare >1.60× draw; the tripwires, not a bigger sample claim, are the control for that residual.
