@@ -228,7 +228,7 @@ print(f"{len(plan)} tests;",
 EOF
 ```
 
-On the current plan it prints `779 tests; no failing k in 0..120`.
+On the `29ca2e70d5` plan it printed `779 tests; no failing k in 0..120`.
 
 **Why the window exists.** Five-shard-era figures at `d363d77b85`, not
 re-derived on the six-shard cut. While shard 5 holds a `./internal/storage/postgres`
