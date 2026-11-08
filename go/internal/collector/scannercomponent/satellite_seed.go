@@ -5,6 +5,7 @@ package scannercomponent
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/component"
 )
@@ -85,10 +86,11 @@ func SatelliteSeedPins() map[string]map[string]string {
 // component ID passes through untouched, preserving the scanner and
 // third-party pass-through semantics. A registry-scoped identity with no
 // artifact for the host platform, a platform the registry does not pin, a
-// duplicated host-platform entry, or an image that differs from the pin
-// denies fail-closed. Error text names the component ID (safe per the
-// package privacy rule) and the defect, never an image value: neither the
-// seeded ref nor the pin is echoed.
+// duplicated host-platform entry, a non-canonical (whitespace-padded) host
+// platform spelling, or an image that differs from the pin denies
+// fail-closed. Error text names the component ID (safe per the package
+// privacy rule) and the defect, never an image value: neither the seeded ref
+// nor the pin is echoed.
 func VerifySatelliteSeededArtifact(manifest component.Manifest, platform string) error {
 	id := manifest.Metadata.ID
 	pins, ok := satelliteSeedPins[id]
@@ -99,21 +101,34 @@ func VerifySatelliteSeededArtifact(manifest component.Manifest, platform string)
 	if !ok {
 		return fmt.Errorf("satellite component %q declares no seed image for platform %q: refusing admission without the pinned platform image", id, platform)
 	}
+	// Candidate selection is trim-consistent with the image picker
+	// (ociArtifactImage matches on strings.TrimSpace) and with
+	// Artifact.Validate, which accepts a whitespace-padded platform: every
+	// artifact whose trimmed platform equals the host platform is a
+	// candidate, and the single surviving candidate must then be canonical
+	// (Platform == platform exactly) and pinned (Image == pins[platform]
+	// exactly). A padded host entry therefore denies rather than being
+	// silently skipped (#9877 arbiter ruling 2.4).
+	var candidate *component.Artifact
 	matched := 0
-	for _, artifact := range manifest.Spec.Artifacts {
-		if artifact.Platform != platform {
+	for i, artifact := range manifest.Spec.Artifacts {
+		if strings.TrimSpace(artifact.Platform) != platform {
 			continue
 		}
 		matched++
-		if artifact.Image != want {
-			return fmt.Errorf("satellite component %q seeded artifact is not the pinned platform image: refusing admission", id)
-		}
+		candidate = &manifest.Spec.Artifacts[i]
 	}
 	if matched == 0 {
 		return fmt.Errorf("satellite component %q declares no seed image for platform %q: refusing admission without the pinned platform image", id, platform)
 	}
 	if matched > 1 {
 		return fmt.Errorf("satellite component %q declares a duplicate seed image artifact: refusing admission without the pinned platform images", id)
+	}
+	if candidate.Platform != platform {
+		return fmt.Errorf("satellite component %q declares a non-canonical seed image platform: refusing admission without the pinned platform image", id)
+	}
+	if candidate.Image != want {
+		return fmt.Errorf("satellite component %q seeded artifact is not the pinned platform image: refusing admission", id)
 	}
 	return nil
 }

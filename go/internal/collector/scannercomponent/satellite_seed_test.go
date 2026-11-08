@@ -456,6 +456,71 @@ func seedStampedSatelliteManifest(t *testing.T, id, platform string) eshucompone
 	return manifest
 }
 
+// TestVerifySatelliteSeededArtifactDeniesTrimVariantHostPlatform proves a
+// non-canonical host-platform spelling never admits: a trim-variant entry
+// carrying a drifted image is denied both alongside a clean pinned entry
+// (duplicate/ambiguous host slot) and alone (non-canonical host slot), for
+// both satellite IDs on both platforms (#9877 arbiter ruling 2.4). The image
+// picker matches on TrimSpace while Artifact.Validate accepts padded
+// platforms, so exact-match candidate selection would silently skip the
+// padded entry and admit — this test pins the fail-closed behavior.
+func TestVerifySatelliteSeededArtifactDeniesTrimVariantHostPlatform(t *testing.T) {
+	t.Parallel()
+
+	for _, id := range satelliteIDs() {
+		for _, platform := range []string{"linux/amd64", "linux/arm64"} {
+			t.Run(id+"/"+platform+"/alongside-clean", func(t *testing.T) {
+				t.Parallel()
+
+				manifest := pinnedSatelliteManifest(t, id)
+				manifest.Spec.Artifacts = append(manifest.Spec.Artifacts, eshucomponent.Artifact{
+					Platform: " " + platform,
+					Image:    driftedSatelliteImage(t, id),
+				})
+				if err := VerifySatelliteSeededArtifact(manifest, platform); err == nil {
+					t.Fatalf("VerifySatelliteSeededArtifact(%q) error = nil, want denial for a trim-variant %q entry alongside the pinned slot", id, platform)
+				}
+			})
+			t.Run(id+"/"+platform+"/alone", func(t *testing.T) {
+				t.Parallel()
+
+				manifest := pinnedSatelliteManifest(t, id)
+				var kept []eshucomponent.Artifact
+				for _, artifact := range manifest.Spec.Artifacts {
+					if artifact.Platform != platform {
+						kept = append(kept, artifact)
+					}
+				}
+				stripped := kept
+				manifest.Spec.Artifacts = append(stripped, eshucomponent.Artifact{
+					Platform: platform + " ",
+					Image:    driftedSatelliteImage(t, id),
+				})
+				if err := VerifySatelliteSeededArtifact(manifest, platform); err == nil {
+					t.Fatalf("VerifySatelliteSeededArtifact(%q) error = nil, want denial for a lone trim-variant %q entry", id, platform)
+				}
+			})
+		}
+	}
+}
+
+// TestVerifySatelliteSeededArtifactDeniesEmptyPlatform proves an empty
+// platform argument denies fail-closed through the same pin-miss path as an
+// unpinned platform (#9877 arbiter ruling 3.1).
+func TestVerifySatelliteSeededArtifactDeniesEmptyPlatform(t *testing.T) {
+	t.Parallel()
+
+	for _, id := range satelliteIDs() {
+		t.Run(id, func(t *testing.T) {
+			t.Parallel()
+
+			if err := VerifySatelliteSeededArtifact(pinnedSatelliteManifest(t, id), ""); err == nil {
+				t.Fatalf("VerifySatelliteSeededArtifact(%q) error = nil, want denial for an empty platform argument", id)
+			}
+		})
+	}
+}
+
 // TestVerifySatelliteSeededArtifactAdmitsSeedStampedSibling proves admission
 // accepts the manifest the real seed flow installs after a repin: the local
 // slot carries the fresh stamp while the sibling slot keeps its build-frozen
