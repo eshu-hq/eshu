@@ -75,7 +75,7 @@ The satellite activation config (`eshu-component-activations`, the satellite
 entry) enables `derive_from_owned_packages` for the same 11 ecosystems over
 `osv`, with no `target_limit` and no `planning_mode`: L = 100, rotating. The
 host path is `scheduleVulnerabilityActivationDerivedScopes`
-(`go/internal/coordinator/component_extension_service.go:301`): it reads one
+(`go/internal/coordinator/component_extension_service.go`, `scheduleVulnerabilityActivationDerivedScopes`): it reads one
 clock hash-slot through `vulnerabilityOwnedTargets` with a **zero
 `OwnedTargetSlotSelector`** (slot progress is in-tree only), and
 `PlanActivationDerivedWork` mints the batch/single scopes the satellite then
