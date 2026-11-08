@@ -146,7 +146,8 @@ done
 # itself fails closed in that case.
 mirror="${tmp_root}/ahead"
 make_mirror "${mirror}" v3.21 "c-ares=1.34.7-r0" "libexpat=2.8.4-r0" \
-	"libssl3=3.3.7-r2" "libcrypto3=3.3.7-r2"
+	"libssl3=3.3.7-r2" "libcrypto3=3.3.7-r2" \
+	"musl=1.2.5-r11" "musl-utils=1.2.5-r11" "zlib=1.3.2-r1"
 run_verifier "${repo_dockerfile}" "${mirror}"
 expect_rc 0 "a floor above the served version does not fail the drift check"
 expect_output "note x86_64 c-ares" "the ahead case is reported"
