@@ -73,7 +73,7 @@ more than 256 holders drains across claims.
   byte-identical. If a finding for a stamped CVE depended on evidence the
   scope leaves out, the scoped-vs-full differential goes red and scoping is
   the wrong fix. The sentinel, a set-less stamp, and an owed retry run full.
-  Passes count `mode` (`full`, `scoped`, `scoped_fallback_sentinel`) in
+  Passes count `mode` (`full`, `scoped`, `scoped_fallback_sentinel`, `scoped_fallback_out_of_stamp`) in
   `eshu_dp_supply_chain_impact_pass_total`, and the success log carries
   `scope_id` plus the `scoped_cve_count`, `scoped_evidence_envelopes`, and
   `fanout_replay_cleared` sub-signals.

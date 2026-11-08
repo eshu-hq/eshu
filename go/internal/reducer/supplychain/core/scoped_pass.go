@@ -5,6 +5,7 @@ package core
 
 import (
 	"context"
+	"log/slog"
 	"sort"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -99,6 +100,16 @@ func (h SupplyChainImpactHandler) hasOutOfStampActiveSupplyChainImpactRows(ctx c
 	}
 	has, err := source.HasOutOfStampActiveSupplyChainImpactRows(ctx, intent.ScopeID, intent.GenerationID, cves)
 	if err != nil {
+		// Log the probe failure: the mode counter cannot tell an
+		// error-fallback from a drift-fallback, so without this line a
+		// fallback spike during a store incident reads as drift reap.
+		if h.Logger != nil {
+			h.Logger.WarnContext(ctx, "supply chain impact out-of-stamp probe failed; falling back to full",
+				slog.String("scope_id", intent.ScopeID),
+				slog.String("generation_id", intent.GenerationID),
+				slog.String("error", err.Error()),
+			)
+		}
 		return true
 	}
 	return has
