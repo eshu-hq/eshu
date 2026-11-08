@@ -165,7 +165,8 @@ const (
 
 // osAdvisoryJoinKey is one (vendor, outcome, release) cell. vendor is the
 // closed set debian, ubuntu, alpine, alma, rocky, other. release is the
-// osAdvisoryRelease* result for a joined fact and empty for a not-joined one.
+// strongest osAdvisoryRelease* result over every row a joined fact joins
+// (#10056) and empty for a not-joined one.
 type osAdvisoryJoinKey struct {
 	vendor  string
 	outcome string
@@ -283,10 +284,10 @@ func (s supplyChainImpactBuildStats) osAdvisoriesJoined() int {
 
 // countOSAdvisoryJoins counts every OS affected fact in the index (ecosystem
 // os, or a deb/apk/rpm purl) that has an advisory source, by vendor and by
-// whether firstOSPackageImpactPath finds an installed row for it. It runs the
-// same join the classifier runs, so a join defect shows as not_joined. A
-// joined fact also carries what its ranges say about that row's release line
-// (#9806 PR-2b).
+// whether an installed row joins it. It runs the same join the classifier
+// runs, so a join defect shows as not_joined. A joined fact also carries its
+// strongest release result over every joined row (#9806 PR-2b, #10056), so the
+// label never depends on which row the index meets first.
 func countOSAdvisoryJoins(index supplyChainImpactIndex) map[osAdvisoryJoinKey]int {
 	var out map[osAdvisoryJoinKey]int
 	// The upstream grouping pass (#9914) files one OS fact under every CVE its
@@ -311,9 +312,9 @@ func countOSAdvisoryJoins(index supplyChainImpactIndex) map[osAdvisoryJoinKey]in
 				continue
 			}
 			key := osAdvisoryJoinKey{vendor: osAdvisoryJoinVendorLabel(vendor), outcome: osAdvisoryJoinOutcomeNotJoined}
-			if row, ok, _ := firstOSPackageImpactPath(pkg, index); ok {
+			if release, ok := strongestOSAdvisoryReleaseResult(pkg, index); ok {
 				key.outcome = osAdvisoryJoinOutcomeJoined
-				key.release = osAdvisoryReleaseResult(pkg, row)
+				key.release = release
 			}
 			if out == nil {
 				out = make(map[osAdvisoryJoinKey]int, 2)
