@@ -270,10 +270,7 @@ deltas measured on the old baseline to within run-to-run noise.
   `joined` +4.97%, `no-joinable` +21.02%.
   No-Observability-Change: no new metric, span, or log; counts land in the existing
   `os_representatives_*` cells and `eshu_dp_supply_chain_impact_os_representative_joins_total`.
-  Quiet-host rerun at load1 under 9, interleaved, `-count=10` per side
-  (`benchstat` base3 vs fix2, `OSRepresentativeSelection`, `-benchtime=1s`):
-  `joined` +7.56% sec/op (+5.68% allocs), `no-joinable` +14.78% sec/op (+9.34%
-  allocs), both inside the decision bounds. If the quiet-host delta on `joined`
+  If the quiet-host delta on `joined`
   exceeds +10%, or on `no-joinable` exceeds +19.8% (5 points above the measured
   +14.78%), the duplicate lookup between `withJoinableOSRepresentative` and
   `recordOSRepresentativeOutcome` comes out before push.
