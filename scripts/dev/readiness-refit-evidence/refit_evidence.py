@@ -86,15 +86,62 @@ def measured_seconds(log: str) -> dict[str, float]:
     return seen
 
 
+def run_head_sha(run_dir: Path) -> str:
+    """Returns the run's head SHA, preferring run.json over jobs.json.
+
+    The archived inputs predate run.json for some runs (#10388), so a run
+    without one falls back to the jobs listing. Every job of a run shares
+    its head SHA; anything else fails closed instead of guessing.
+    """
+    run_file = run_dir / "run.json"
+    if run_file.exists():
+        return json.loads(run_file.read_text())["head_sha"]
+    shas = set()
+    for job in json.loads((run_dir / "jobs.json").read_text())["jobs"]:
+        sha = job.get("head_sha")
+        if not sha:
+            raise ValueError(f"{run_dir.name}: a jobs.json job lacks head_sha")
+        shas.add(sha)
+    if len(shas) != 1:
+        raise ValueError(f"{run_dir.name}: no run.json and jobs disagree on head_sha: {sorted(shas)}")
+    return shas.pop()
+
+
+def _excuse_api() -> bool:
+    """Whether the evaluated refresher supports workflow-excused skips."""
+    return callable(getattr(r2.provenance, "run_excuse", None))
+
+
+def parse_shard(log: str, number: int, count: int, excuses: frozenset[str]) -> tuple[
+        list[str], list[tuple[str, str, float]], tuple[tuple[str, ...], str],
+        list[frozenset[str]]]:
+    """Parses one shard log with the evaluated refresher's own signature.
+
+    Refresher commits that predate excused-skip support parse without the
+    excuses argument; excuses under such a commit fail closed instead of
+    being silently dropped.
+    """
+    if _excuse_api():
+        return r2._parse_shard(log, number, count, excuses)
+    if excuses:
+        raise ValueError(f"shard {number}: the evaluated refresher predates excused-skip "
+                         f"support but the shard carries excuses {sorted(excuses)}")
+    return r2._parse_shard(log, number, count)
+
+
 def shard_excuses(run_dir: Path, count: int) -> dict[int, frozenset[str]]:
     """Map each shard to the workflow-excused test names its rows may omit.
 
     Attribution needs the run's own-SHA plan from this checkout, so runs
     whose commit is absent here fail closed instead of parsing blind.
+    Commits that predate excused-skip support yield empty excuses and keep
+    their original parser behavior.
     """
+    if not _excuse_api():
+        return {number: frozenset() for number in range(1, count + 1)}
     root = Path(__file__).resolve().parents[3]
     run_id = run_dir.name
-    sha = json.loads((run_dir / "run.json").read_text())["head_sha"]
+    sha = run_head_sha(run_dir)
     logs = {number: (run_dir / f"shard{number}.log").read_text() for number in range(1, count + 1)}
     plan = r2.provenance.source_inventory(root, sha)
     expected = r2.provenance.source_rows(root, sha, plan, count)
@@ -109,7 +156,7 @@ def run_plan(run_dir: Path, count: int) -> Plan:
     plan, bounds = [], [0]
     excuses = shard_excuses(run_dir, count)
     for number in range(1, count + 1):
-        tests, _, _, _ = r2._parse_shard(  # pylint: disable=protected-access
+        tests, _, _, _ = parse_shard(
             (run_dir / f"shard{number}.log").read_text(), number, count, excuses[number])
         plan.extend(tests)
         bounds.append(len(plan))
@@ -143,7 +190,7 @@ def cmd_poolcheck(args: argparse.Namespace) -> int:
         run_profiles: set[tuple[str, ...]] = set()
         excuses = shard_excuses(run_dir, count)
         for number in range(1, count + 1):
-            found, _, (profile, version), _ = r2._parse_shard(  # pylint: disable=protected-access
+            found, _, (profile, version), _ = parse_shard(
                 (run_dir / f"shard{number}.log").read_text(), number, count, excuses[number])
             tests.extend(found)
             versions.add(version)
@@ -205,7 +252,7 @@ def cmd_shards(args: argparse.Namespace) -> int:
         excuses = shard_excuses(run_dir, count)
         for number in range(1, count + 1):
             log = (run_dir / f"shard{number}.log").read_text()
-            tests, rows, _, _ = r2._parse_shard(log, number, count, excuses[number])  # pylint: disable=protected-access
+            tests, rows, _, _ = parse_shard(log, number, count, excuses[number])
             plan.extend(tests)
             bounds.append(len(plan))
             rows_per.append(len(rows))
@@ -232,7 +279,7 @@ def cmd_tail(args: argparse.Namespace) -> int:
         excuses = shard_excuses(run_dir, count)
         for number in range(1, count + 1):
             log = (run_dir / f"shard{number}.log").read_text(encoding="utf-8")
-            _, rows, _, members = r2._parse_shard(log, number, count, excuses[number])  # pylint: disable=protected-access
+            _, rows, _, members = parse_shard(log, number, count, excuses[number])
             residuals.extend(residual for _, kind, residual in rows if kind == "repeat")
             measured = measured_seconds(log)
             for row in members:
