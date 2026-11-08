@@ -18,6 +18,11 @@ const (
 	// passModeScopedFallbackSentinel would have scoped but the stamp names
 	// an unbounded change, so it ran full.
 	passModeScopedFallbackSentinel = "scoped_fallback_sentinel"
+	// passModeScopedFallbackOutOfStamp qualified for a scoped re-derivation
+	// but ran full: the holder carried active finding rows outside the
+	// stamp, so the pass reaped them instead of leaving them to linger
+	// (#10415).
+	passModeScopedFallbackOutOfStamp = "scoped_fallback_out_of_stamp"
 )
 
 // scopedWriteCVEIDs echoes the load's scope for the writer: the stamped CVEs
@@ -35,6 +40,9 @@ func scopedWriteCVEIDs(loaded supplyChainImpactLoadedEvidence) []string {
 func supplyChainImpactPassMode(intent reducercontract.Intent, loaded supplyChainImpactLoadedEvidence) string {
 	if loaded.scoped != nil {
 		return passModeScoped
+	}
+	if loaded.scopedFallbackOutOfStamp {
+		return passModeScopedFallbackOutOfStamp
 	}
 	if fanOutOneHop(intent) && fanOutStampSentinel(fanOutStampCVEIDs(intent)) {
 		return passModeScopedFallbackSentinel

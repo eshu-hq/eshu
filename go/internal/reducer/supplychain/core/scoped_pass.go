@@ -51,23 +51,57 @@ func (h SupplyChainImpactHandler) scopedSupplyChainImpactFilter(envelopes []fact
 	return filter
 }
 
+// outOfStampActiveRowsSource reports whether one (scope, generation) holds
+// active finding rows outside a stamped CVE set (#10415). The handler
+// asserts it at runtime; a loader without it keeps the pre-fallback scoping
+// behavior, so test doubles and legacy seams never fall back by accident.
+type outOfStampActiveRowsSource interface {
+	HasOutOfStampActiveSupplyChainImpactRows(ctx context.Context, scopeID, generationID string, cveIDs []string) (bool, error)
+}
+
 // scopedSupplyChainImpactFilterEnvelopes resolves one pass's re-derivation
 // scope and the envelope subset its cross-scope filters derive from. A
 // one-hop pass whose stamp names a bounded CVE set re-derives that set only
 // (#9779). The scope carries the stamp and the package seeds; the subset is
 // the stamped envelopes. The protected and static-only paths never scope:
 // their authorization witnesses cover the whole static input set.
+//
+// The boolean reports the #10415 bounded full-pass fallback: the pass
+// qualified for a scoped re-derivation but the holder carries active finding
+// rows outside the stamp, so the pass runs full and reaps them instead of
+// leaving them to linger.
 func (h SupplyChainImpactHandler) scopedSupplyChainImpactFilterEnvelopes(
 	ctx context.Context,
 	intent reducercontract.Intent,
 	envelopes []facts.Envelope,
-) (*scopedSupplyChainImpactScope, []facts.Envelope) {
+) (*scopedSupplyChainImpactScope, []facts.Envelope, bool) {
 	if cves := scopedPassCVEIDs(intent); len(cves) > 0 && h.AuthorizedEvidenceLoader == nil && !h.authorizedStaticOnly {
 		if scoped := h.scopeSupplyChainImpactPass(ctx, intent, envelopes, cves); scoped != nil {
-			return scoped, scopeSupplyChainImpactEnvelopes(envelopes, scoped)
+			if h.hasOutOfStampActiveSupplyChainImpactRows(ctx, intent, cves) {
+				return nil, envelopes, true
+			}
+			return scoped, scopeSupplyChainImpactEnvelopes(envelopes, scoped), false
 		}
 	}
-	return nil, envelopes
+	return nil, envelopes, false
+}
+
+// hasOutOfStampActiveSupplyChainImpactRows reports whether the bounded
+// full-pass fallback must fire: the store holds an active finding row the
+// stamp does not name. A loader without the seam keeps scoping (the
+// production fact store implements it). A check error fails closed to full:
+// an unreadable store must not pin a scoped pass that leaves out-of-stamp
+// rows behind.
+func (h SupplyChainImpactHandler) hasOutOfStampActiveSupplyChainImpactRows(ctx context.Context, intent reducercontract.Intent, cves []string) bool {
+	source, ok := h.FactLoader.(outOfStampActiveRowsSource)
+	if !ok || source == nil {
+		return false
+	}
+	has, err := source.HasOutOfStampActiveSupplyChainImpactRows(ctx, intent.ScopeID, intent.GenerationID, cves)
+	if err != nil {
+		return true
+	}
+	return has
 }
 
 // scopeSupplyChainImpactPass resolves one pass's re-derivation scope: the

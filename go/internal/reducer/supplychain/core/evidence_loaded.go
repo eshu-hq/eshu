@@ -72,6 +72,12 @@ type supplyChainImpactLoadedEvidence struct {
 	// CVEs reach. Nil runs the full pass. Handle reads it for the writer's
 	// scope, the pass-mode counter, and the scoped sub-signals.
 	scoped *scopedSupplyChainImpactScope
+	// scopedFallbackOutOfStamp reports that this pass qualified for a scoped
+	// re-derivation but ran full because the holder carried active finding
+	// rows outside the stamp (#10415). The writer scope stays full and the
+	// pass-mode counter reports the fallback, so the reap is observable at
+	// 3 AM and converges to exactly what a full pass writes.
+	scopedFallbackOutOfStamp bool
 	// crossScopeProducerDelta is the batch-wide cross-scope producer delta
 	// across the until-stable, resolved-digest, and peer-identity stages.
 	// It is the probe's H1a discriminator: a committing pass with zero
