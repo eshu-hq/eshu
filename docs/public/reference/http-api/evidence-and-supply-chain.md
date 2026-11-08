@@ -924,9 +924,8 @@ plus alternate severities reported by other sources for the same advisory:
 - `provenance.advisory_sources[]`: every contributing source observation, including `source`,
   `advisory_id`, `source_updated_at`, `withdrawn_at`, `status`, and `replaced_by`, so callers can
   explain selection and detect retracted records that were excluded from selection. Retracted
-  observations remain visible. When every observation of the CVE is rejected or withdrawn,
-  `provenance.advisory_retraction` (`reason_code`, `reason`, `sources[]`, and `replaced_by` when a
-  source states one) explains why the finding is `advisory_retracted`.
+  observations remain visible. When the newest copy of every source record of the CVE is rejected or
+  withdrawn (on an OS package finding, every record that lists the package and joins this host), `provenance.advisory_retraction` (`reason_code`, `reason`, `sources[]`, and `replaced_by` when a source states one) explains why the finding is `advisory_retracted`.
 
 Selection uses documented per-ecosystem priority: vendor advisories (Red Hat,
 Debian, Ubuntu, Alpine, SUSE, Wolfi, Chainguard, Amazon Linux, Oracle Linux)
