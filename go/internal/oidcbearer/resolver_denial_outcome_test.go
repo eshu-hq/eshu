@@ -8,7 +8,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 )
 
 // TestDenyCarriesBoundedOutcomeForAudit proves a denial error exposes the
@@ -61,17 +61,17 @@ func TestDenyPreservesUnrecognizedWrappingAndMessage(t *testing.T) {
 	ctx := context.Background()
 
 	unrecognized := resolver.deny(ctx, "https://issuer.example.com", outcomeUnknownIssuer, true)
-	if !errors.Is(unrecognized, query.ErrBearerCredentialUnrecognized) {
+	if !errors.Is(unrecognized, auth.ErrBearerCredentialUnrecognized) {
 		t.Fatal("unrecognized denial no longer matches ErrBearerCredentialUnrecognized")
 	}
 	wantUnrecognized := "oidcbearer: bearer token denied: unknown_issuer: " +
-		query.ErrBearerCredentialUnrecognized.Error()
+		auth.ErrBearerCredentialUnrecognized.Error()
 	if got := unrecognized.Error(); got != wantUnrecognized {
 		t.Fatalf("unrecognized message = %q, want %q", got, wantUnrecognized)
 	}
 
 	postMatch := resolver.deny(ctx, "https://issuer.example.com", outcomeExpired, false)
-	if errors.Is(postMatch, query.ErrBearerCredentialUnrecognized) {
+	if errors.Is(postMatch, auth.ErrBearerCredentialUnrecognized) {
 		t.Fatal("post-match denial must NOT match ErrBearerCredentialUnrecognized")
 	}
 	if got, want := postMatch.Error(), "oidcbearer: bearer token denied: expired"; got != want {

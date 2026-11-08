@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/oidclogin"
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 )
 
 const (
@@ -119,34 +119,34 @@ func TestResolveScopedToken_ValidToken_ResolvesAuthContext(t *testing.T) {
 	resolver, _ := newTestResolver(t, idp, []BearerProvider{testProvider()}, grantResolver, nil)
 
 	token := idp.sign(t, defaultTokenClaims(testIssuer, testAudience), false)
-	auth, ok, err := resolver.ResolveScopedToken(context.Background(), token)
+	authCtx, ok, err := resolver.ResolveScopedToken(context.Background(), token)
 	if err != nil {
 		t.Fatalf("ResolveScopedToken() error = %v, want nil", err)
 	}
 	if !ok {
 		t.Fatal("ResolveScopedToken() ok = false, want true for a valid token")
 	}
-	if auth.Mode != query.AuthModeScoped {
-		t.Fatalf("Mode = %q, want AuthModeScoped (inherits the F-6 scoped-route allowlist)", auth.Mode)
+	if authCtx.Mode != auth.AuthModeScoped {
+		t.Fatalf("Mode = %q, want AuthModeScoped (inherits the F-6 scoped-route allowlist)", authCtx.Mode)
 	}
-	if auth.SubjectClass != subjectClassExternalOIDCUser {
-		t.Fatalf("SubjectClass = %q, want %q", auth.SubjectClass, subjectClassExternalOIDCUser)
+	if authCtx.SubjectClass != subjectClassExternalOIDCUser {
+		t.Fatalf("SubjectClass = %q, want %q", authCtx.SubjectClass, subjectClassExternalOIDCUser)
 	}
-	if auth.TenantID != "tenant_a" || auth.WorkspaceID != "workspace_a" {
-		t.Fatalf("TenantID/WorkspaceID = %q/%q, want tenant_a/workspace_a", auth.TenantID, auth.WorkspaceID)
+	if authCtx.TenantID != "tenant_a" || authCtx.WorkspaceID != "workspace_a" {
+		t.Fatalf("TenantID/WorkspaceID = %q/%q, want tenant_a/workspace_a", authCtx.TenantID, authCtx.WorkspaceID)
 	}
-	if len(auth.RoleIDs) != 1 || auth.RoleIDs[0] != "role_engineer" {
-		t.Fatalf("RoleIDs = %v, want [role_engineer]", auth.RoleIDs)
+	if len(authCtx.RoleIDs) != 1 || authCtx.RoleIDs[0] != "role_engineer" {
+		t.Fatalf("RoleIDs = %v, want [role_engineer]", authCtx.RoleIDs)
 	}
-	if !auth.PermissionCatalogEnforced {
+	if !authCtx.PermissionCatalogEnforced {
 		t.Fatal("PermissionCatalogEnforced = false, want true (fake resolver sets it)")
 	}
-	if auth.ExternalProviderConfigID != "pc_1" {
-		t.Fatalf("ExternalProviderConfigID = %q, want pc_1", auth.ExternalProviderConfigID)
+	if authCtx.ExternalProviderConfigID != "pc_1" {
+		t.Fatalf("ExternalProviderConfigID = %q, want pc_1", authCtx.ExternalProviderConfigID)
 	}
 	wantSubjectHash := oidclogin.SHA256Hash("pc_1:user-1")
-	if auth.SubjectIDHash != wantSubjectHash {
-		t.Fatalf("SubjectIDHash = %q, want %q", auth.SubjectIDHash, wantSubjectHash)
+	if authCtx.SubjectIDHash != wantSubjectHash {
+		t.Fatalf("SubjectIDHash = %q, want %q", authCtx.SubjectIDHash, wantSubjectHash)
 	}
 	if grantResolver.calls != 1 {
 		t.Fatalf("grant resolver calls = %d, want 1", grantResolver.calls)

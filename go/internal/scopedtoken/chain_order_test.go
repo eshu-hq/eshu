@@ -8,7 +8,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 )
 
 // fakeChainResolver is a minimal query.ScopedTokenResolver stand-in for
@@ -17,13 +17,13 @@ import (
 type fakeChainResolver struct {
 	name   string
 	called bool
-	auth   query.AuthContext
+	auth   auth.AuthContext
 	ok     bool
 	err    error
 	calls  *[]string
 }
 
-func (f *fakeChainResolver) ResolveScopedToken(context.Context, string) (query.AuthContext, bool, error) {
+func (f *fakeChainResolver) ResolveScopedToken(context.Context, string) (auth.AuthContext, bool, error) {
 	f.called = true
 	if f.calls != nil {
 		*f.calls = append(*f.calls, f.name)
@@ -47,7 +47,7 @@ func TestChainResolversOrderIdentityBearerFile(t *testing.T) {
 	bearer := &fakeChainResolver{name: "bearer", calls: &calls}
 	file := &fakeChainResolver{
 		name: "file", calls: &calls,
-		auth: query.AuthContext{Mode: query.AuthModeScoped, SubjectClass: "file_registry_token"},
+		auth: auth.AuthContext{Mode: auth.AuthModeScoped, SubjectClass: "file_registry_token"},
 		ok:   true,
 	}
 
@@ -74,7 +74,7 @@ func TestChainResolversBearerMatchShortCircuitsBeforeFile(t *testing.T) {
 	identity := &fakeChainResolver{name: "identity", calls: &calls}
 	bearer := &fakeChainResolver{
 		name: "bearer", calls: &calls,
-		auth: query.AuthContext{Mode: query.AuthModeScoped, SubjectClass: "external_oidc_user"},
+		auth: auth.AuthContext{Mode: auth.AuthModeScoped, SubjectClass: "external_oidc_user"},
 		ok:   true,
 	}
 	file := &fakeChainResolver{name: "file", calls: &calls}

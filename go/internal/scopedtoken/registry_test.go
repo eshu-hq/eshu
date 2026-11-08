@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 )
 
 func tokenHash(token string) string {
@@ -52,30 +52,30 @@ func TestLoadRegistryResolvesScopedTokenGrants(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadRegistryFromFile: %v", err)
 	}
-	auth, ok, err := registry.ResolveScopedToken(context.Background(), "team-a-secret")
+	authCtx, ok, err := registry.ResolveScopedToken(context.Background(), "team-a-secret")
 	if err != nil {
 		t.Fatalf("ResolveScopedToken error = %v", err)
 	}
 	if !ok {
 		t.Fatal("ResolveScopedToken ok = false, want true")
 	}
-	if auth.Mode != query.AuthModeScoped {
-		t.Fatalf("Mode = %q, want %q", auth.Mode, query.AuthModeScoped)
+	if authCtx.Mode != auth.AuthModeScoped {
+		t.Fatalf("Mode = %q, want %q", authCtx.Mode, auth.AuthModeScoped)
 	}
-	if auth.TenantID != "team-a" || auth.WorkspaceID != "team-a" {
-		t.Fatalf("tenant/workspace = %q/%q, want team-a/team-a", auth.TenantID, auth.WorkspaceID)
+	if authCtx.TenantID != "team-a" || authCtx.WorkspaceID != "team-a" {
+		t.Fatalf("tenant/workspace = %q/%q, want team-a/team-a", authCtx.TenantID, authCtx.WorkspaceID)
 	}
-	if auth.AllScopes {
+	if authCtx.AllScopes {
 		t.Fatal("AllScopes = true, want false for a scoped team token")
 	}
-	if len(auth.AllowedRepositoryIDs) != 1 || auth.AllowedRepositoryIDs[0] != "repo://acme/payments" {
-		t.Fatalf("AllowedRepositoryIDs = %#v, want [repo://acme/payments]", auth.AllowedRepositoryIDs)
+	if len(authCtx.AllowedRepositoryIDs) != 1 || authCtx.AllowedRepositoryIDs[0] != "repo://acme/payments" {
+		t.Fatalf("AllowedRepositoryIDs = %#v, want [repo://acme/payments]", authCtx.AllowedRepositoryIDs)
 	}
-	if len(auth.AllowedScopeIDs) != 1 || auth.AllowedScopeIDs[0] != "git-repository-scope:acme/payments" {
-		t.Fatalf("AllowedScopeIDs = %#v", auth.AllowedScopeIDs)
+	if len(authCtx.AllowedScopeIDs) != 1 || authCtx.AllowedScopeIDs[0] != "git-repository-scope:acme/payments" {
+		t.Fatalf("AllowedScopeIDs = %#v", authCtx.AllowedScopeIDs)
 	}
-	if auth.SubjectIDHash != "sha256:abc12345" || auth.PolicyRevisionHash != "sha256:def67890" {
-		t.Fatalf("subject/policy hashes = %q/%q", auth.SubjectIDHash, auth.PolicyRevisionHash)
+	if authCtx.SubjectIDHash != "sha256:abc12345" || authCtx.PolicyRevisionHash != "sha256:def67890" {
+		t.Fatalf("subject/policy hashes = %q/%q", authCtx.SubjectIDHash, authCtx.PolicyRevisionHash)
 	}
 }
 
