@@ -7,6 +7,7 @@ import (
 	"context"
 	"crypto/x509"
 	"errors"
+	"fmt"
 	"syscall"
 	"testing"
 	"time"
@@ -75,6 +76,39 @@ func TestFleetWholeReadRetryMayRevisitMember(t *testing.T) {
 			t.Fatalf("member choices after setup fallback first=%d retry=%d, want 1,1", first, retry)
 		}
 	})
+}
+
+// TestFleetWrappedDeferralTriesNextMember pins the wrapped-deferral
+// invariant: a member that refuses with a probe-wrapped StaleDeferral must
+// still hand the tick to the next member. Matching by type identity (==)
+// instead of errors.As would strand the tick on the lagged member, so this
+// test wraps the deferral exactly the way standby probes do.
+func TestFleetWrappedDeferralTriesNextMember(t *testing.T) {
+	access := &Access{
+		readerMembers: []physicalReaderMember{{ordinal: 0, maxOpen: 4}, {ordinal: 1, maxOpen: 4}},
+		allocator:     newReaderAllocator([]int{4, 4}, 8),
+		replayTimeout: time.Second,
+		lineage:       newWriterLineage(physicalIdentity{systemID: "1", database: "postgres", incarnation: "1"}, lineageObservation{}, nil),
+	}
+	ctx := context.WithValue(t.Context(), checkpointKey{}, checkpoint{
+		owner: access, lsn: "0/1", systemID: "1", database: "postgres", incarnation: "1",
+	})
+	access.nextReader.Store(0)
+	tried := map[int]int{}
+	member, err := runFleet(access, ctx, 1, func(_ context.Context, _ context.Context, reservation *readerReservation, _ checkpoint) (int, error) {
+		tried[reservation.member]++
+		if reservation.member == 0 {
+			return 0, fmt.Errorf("standby probe: %w", StaleDeferral{Family: StaleFamilyAudits, Reason: StaleDeferralBudgetExceeded})
+		}
+		reservation.Release()
+		return reservation.member, nil
+	})
+	if err != nil {
+		t.Fatalf("wrapped deferral: fleet error = %v, want the sibling to serve", err)
+	}
+	if member != 1 || tried[0] != 1 || tried[1] != 1 {
+		t.Fatalf("wrapped deferral: member = %d tried = %v, want member 1 with one try per member", member, tried)
+	}
 }
 
 func TestFleetHealthySetupGetsFairShareOfReplayWindow(t *testing.T) {

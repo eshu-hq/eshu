@@ -5,7 +5,11 @@ package main
 
 import (
 	"context"
+	"strings"
 	"testing"
+
+	noopmetric "go.opentelemetry.io/otel/metric/noop"
+	nooptrace "go.opentelemetry.io/otel/trace/noop"
 )
 
 // Wiring proofs for the #10416 slice-1 winners-audit split scan: the reducer
@@ -55,13 +59,30 @@ func TestOpenWinnersStaleAccessRejectsBogusRouting(t *testing.T) {
 func TestOpenWinnersStaleAccessAttemptsOpenWhenEnabled(t *testing.T) {
 	t.Parallel()
 
-	// No DSN is set, so the open must fail: the failure itself proves the
-	// enabled branch reaches the access open instead of silently staying off.
-	access, _, err := openWinnersStaleAccessIfEnabled(context.Background(), staleWiringGetenv("stale-audits"), nil, nil, nil)
+	// The DSN parses but dials a closed port, so config load succeeds and a
+	// failure can only come from inside the access open: Open bootstraps the
+	// physical writer identity with a dial, and the refused dial surfaces as
+	// "writer identity unavailable". (An unset DSN would fail earlier in
+	// config load and prove nothing about Open.)
+	getenv := func(key string) string {
+		switch key {
+		case "ESHU_POSTGRES_READ_ROUTING":
+			return "stale-audits"
+		case "ESHU_POSTGRES_DSN":
+			return "postgresql://127.0.0.1:1/eshu?connect_timeout=2"
+		}
+		return ""
+	}
+	meter := noopmetric.NewMeterProvider().Meter("winners-stale-wiring")
+	tracer := nooptrace.NewTracerProvider().Tracer("winners-stale-wiring")
+	access, _, err := openWinnersStaleAccessIfEnabled(context.Background(), getenv, meter, tracer, nil)
 	if err == nil {
-		t.Fatalf("stale-audits without a DSN: error = nil, want the open to fail")
+		t.Fatalf("stale-audits with a closed-port DSN: error = nil, want the open to fail")
 	}
 	if access != nil {
-		t.Fatalf("stale-audits without a DSN: opened an access despite the error")
+		t.Fatalf("stale-audits with a closed-port DSN: opened an access despite the error")
+	}
+	if !strings.Contains(err.Error(), "writer identity unavailable") {
+		t.Fatalf("stale-audits open error = %v, want the Open bootstrap dial failure proving Open was reached", err)
 	}
 }

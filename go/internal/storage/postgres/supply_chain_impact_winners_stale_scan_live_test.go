@@ -302,10 +302,12 @@ CROSS JOIN generate_series(1, $1) AS g`, bogus)
 	if got := h.count(`SELECT count(*) FROM supply_chain_impact_winners_dirty_log WHERE source = 'audit'`); got != bogus {
 		t.Fatalf("audit-sourced dirty rows = %d, want %d", got, bogus)
 	}
-	// The winners table holds advisory_id NOT NULL, so no NULL can flow from
-	// this table; the seed's NULL preservation (invalid NullString to SQL
-	// NULL, matching the legacy temp-table copy) is proven at the transport
-	// level by the hermetic batch test instead.
+	// The winners table holds advisory_id NOT NULL, so no NULL flows from
+	// this table; the seed's NULL mapping (invalid NullString to a nil
+	// argument, matching the legacy temp-table copy) is proven at the
+	// mapping level by the hermetic batch test. Transport of nil-bearing
+	// unnest arrays through pgx is a tracked follow-up on #10416, proven
+	// before stale-audits enables.
 }
 
 // TestSupplyChainImpactWinnersResweepStaleScanCandidateExplainLive runs EXPLAIN
