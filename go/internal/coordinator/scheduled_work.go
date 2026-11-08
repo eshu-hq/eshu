@@ -240,6 +240,27 @@ func filterInsertedScopeIDs(planned []string, admitted workAdmission) []string {
 	return inserted
 }
 
+// withReplacedNVDAnchor appends the window-replaced NVD anchor to the
+// recorded scopes once its replacement window survives admission
+// (eshu-hq/eshu#10417 P1): admission inserts the window id, never the
+// anchor id, so the inserted intersection alone would leave the anchor due
+// every tick. A blank anchor or window, an unadmitted window, or an
+// already-recorded anchor records nothing extra.
+func withReplacedNVDAnchor(recorded []string, admitted workAdmission, anchor, window string) []string {
+	if strings.TrimSpace(anchor) == "" || strings.TrimSpace(window) == "" || len(admitted.insertedScopes) == 0 {
+		return recorded
+	}
+	if _, ok := admitted.insertedScopes[strings.TrimSpace(window)]; !ok {
+		return recorded
+	}
+	for _, scopeID := range recorded {
+		if strings.TrimSpace(scopeID) == strings.TrimSpace(anchor) {
+			return recorded
+		}
+	}
+	return append(recorded, strings.TrimSpace(anchor))
+}
+
 // logScanIntervalOverrides records, once at startup before the first
 // reconcile, every enabled, claim-enabled, non-bootstrap desired collector
 // instance whose configuration sets scan_interval, with the global reconcile

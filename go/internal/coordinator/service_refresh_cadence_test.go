@@ -270,3 +270,32 @@ func TestServiceRefreshCadenceSkipsProbeWithoutOptIn(t *testing.T) {
 		t.Fatalf("progress records = %v without any refresh_interval, want none", progress.records)
 	}
 }
+
+const refreshCadenceNVDAnchorConfiguration = `{"targets":[
+{"source":"nvd","scope_id":"vuln-intel://nvd/anchor","modified_start":"2026-01-01T00:00:00Z","modified_end":"2026-04-01T00:00:00Z","results_per_page":50,"refresh_interval":"1h"}
+],"derive_nvd_rolling_windows":{"enabled":true}}`
+
+// TestServiceRefreshCadenceRecordsReplacedNVDAnchor proves eshu-hq/eshu#10417
+// on the in-tree path: when rolling windows replace the NVD anchor, the
+// anchor is recorded as last-planned once its replacement window is
+// admitted. Recording only the inserted intersection would drop the anchor
+// (admission inserts the window id, never the anchor id), leaving it due
+// every tick and refetching the whole static window each time.
+func TestServiceRefreshCadenceRecordsReplacedNVDAnchor(t *testing.T) {
+	t.Parallel()
+
+	observedAt := time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC)
+	progress := &fakeTargetRefreshProgressStore{}
+	service := refreshCadenceService(refreshCadenceNVDAnchorConfiguration, &fakeStore{}, progress)
+	service.NVDWindowCursorReader = &fakeNVDWindowCursorReader{cursor: 1768435200000000, set: true}
+
+	if err := service.scheduleVulnerabilityIntelligenceWork(context.Background(), observedAt,
+		[]workflow.CollectorInstance{refreshCadenceInstance(refreshCadenceNVDAnchorConfiguration, observedAt)}); err != nil {
+		t.Fatalf("scheduleVulnerabilityIntelligenceWork() error = %v, want nil", err)
+	}
+	if got := recordScopes(progress.records); len(got) != 1 {
+		t.Fatalf("progress records = %v, want exactly the replaced anchor", progress.records)
+	} else if _, ok := got["vuln-intel://nvd/anchor"]; !ok {
+		t.Fatalf("progress records = %v, want vuln-intel://nvd/anchor", progress.records)
+	}
+}
