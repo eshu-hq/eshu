@@ -268,7 +268,9 @@ func scopedPassHandler(loader *scopedSeedLoader, inst *telemetry.Instruments) (*
 
 // TestScopedPassSeedsFromFindingRows pins the #9779 scoped pass: a one-hop
 // pass whose stamp names a bounded set writes with that scope, restricts its
-// active-evidence CVE arm to the stamp, and counts mode=scoped.
+// active-evidence CVE arm to the stamp, and counts mode=scoped. The second
+// CVE's envelopes stay outside the stamp and seeds, so any non-narrowed CVE
+// id in the recorded filters trips the loop below.
 func TestScopedPassSeedsFromFindingRows(t *testing.T) {
 	t.Parallel()
 
@@ -282,6 +284,8 @@ func TestScopedPassSeedsFromFindingRows(t *testing.T) {
 			scopeFacts: []facts.Envelope{
 				vulnerabilityCVEFact("cve-1", "CVE-2026-9001", 9.8),
 				vulnerabilityAffectedPackageFact("affected-1", "CVE-2026-9001", "pkg:npm/example@1", "npm", "example", "1.2.3", "1.3.0"),
+				vulnerabilityCVEFact("cve-2", "CVE-2026-9002", 7.5),
+				vulnerabilityAffectedPackageFact("affected-2", "CVE-2026-9002", "pkg:npm/other@1", "npm", "other", "2.0.0", "2.0.1"),
 			},
 		},
 		seeds: []ScopedFindingPackage{{
