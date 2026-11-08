@@ -173,9 +173,11 @@ and table move together.
    admission vs scoped `ReadStore` extension — blocks Status/SupplyChain
    dispatch, NOT this wave. (Disambiguated D0 per the arbiter D-wave
    ruling: TBD5-spec is this Leaf B item; TBD5-resolver is the arbiter's
-   dest session resolver, tracked satellite-side.)
-6. SupplyChain split point (reads native vs whole-family dispatch) — same,
-   not this wave.
+   dest session resolver, tracked satellite-side. Decided: answered by D1/D6
+   admission pins; residual Summary leg homed in eshu-api#71/G4.)
+6. [TBD6] SupplyChain split point (reads native vs whole-family dispatch) —
+   same, not this wave. (Decided by D-wave Decision 2, executed in D6 core
+   #10405 + satellite #79.)
 
 ## Open questions for the satellite implementer
 
