@@ -104,20 +104,23 @@ func withJoinableOSRepresentative(
 	pkgs []supplychainmodel.AffectedPackage,
 	representative supplychainmodel.AffectedPackage,
 	index supplyChainImpactIndex,
-) (joining []supplychainmodel.AffectedPackage, reselected, ok bool) {
+) (joining []supplychainmodel.AffectedPackage, reselected, ok bool, decided string) {
 	if len(pkgs) < 2 || len(index.osPackages) == 0 {
-		return pkgs, false, false
+		return pkgs, false, false, ""
 	}
 	if len(consumptionRepositoriesForPackage(representative.PackageID, index.consumption)) > 0 {
-		return pkgs, false, false
+		return pkgs, false, false, ""
 	}
-	_, direct := firstOSPackageImpactPath(representative, index)
+	shaped := slices.ContainsFunc(pkgs, affectedFactHasOSShape)
+	_, direct, repRows := firstOSPackageImpactPath(representative, index)
 	if direct && !blankEcosystemJoinsOnlyVersionedRows(representative, index) {
-		return pkgs, false, false
+		return pkgs, false, false, decidedOutcome(shaped, osRepresentativeJoined)
 	}
 	best, bestRank := -1, 0
+	rowsUnderKeys := repRows
 	for _, pkg := range pkgs {
-		installed, joins := firstOSPackageImpactPath(pkg, index)
+		installed, joins, rows := firstOSPackageImpactPath(pkg, index)
+		rowsUnderKeys = rowsUnderKeys || rows
 		if !joins {
 			continue
 		}
@@ -128,10 +131,45 @@ func withJoinableOSRepresentative(
 		joining = append(joining, pkg)
 	}
 	if best < 0 || (direct && len(joining) == len(pkgs)) {
-		return pkgs, false, false
+		if !shaped {
+			return pkgs, false, false, ""
+		}
+		if direct {
+			return pkgs, false, false, osRepresentativeJoined
+		}
+		// A fact with no vendor never checks keys: firstOSPackageImpactPath
+		// reports no rows under keys for it, while the walked count checks
+		// keys regardless. Deciding no_installed_row here would disagree with
+		// the walked no_joinable_representative, so the walked count stands.
+		if best < 0 && slices.ContainsFunc(pkgs, func(pkg supplychainmodel.AffectedPackage) bool {
+			return classifyAffectedPackageAdvisorySource(pkg) == ""
+		}) {
+			return pkgs, false, false, ""
+		}
+		if rowsUnderKeys {
+			return pkgs, false, false, osRepresentativeNoJoinable
+		}
+		if slices.ContainsFunc(pkgs, affectedPackageIdentityCanMeetInstalledRow) {
+			return pkgs, false, false, osRepresentativeNoInstalledRow
+		}
+		return pkgs, false, false, osRepresentativeNoJoinableIdentity
 	}
 	joining[best].JoinRepresentative = true
-	return joining, !direct, true
+	if !direct {
+		return joining, true, true, decidedOutcome(shaped, osRepresentativeReselected)
+	}
+	return joining, false, true, decidedOutcome(shaped, osRepresentativeJoined)
+}
+
+// decidedOutcome reports the outcome withJoinableOSRepresentative settled while
+// deciding the narrowing, or "" when the outcome still needs the walked count:
+// a group with no OS shape is never counted, so the narrowing runs but decides
+// no outcome for it.
+func decidedOutcome(shaped bool, outcome string) string {
+	if !shaped {
+		return ""
+	}
+	return outcome
 }
 
 // narrowShardToJoinableOSRepresentative ranks this scope's facts the way the
@@ -145,7 +183,7 @@ func narrowShardToJoinableOSRepresentative(
 	pkgs []supplychainmodel.AffectedPackage,
 	index supplyChainImpactIndex,
 ) []supplychainmodel.AffectedPackage {
-	if joining, _, ok := withJoinableOSRepresentative(pkgs, representativeAffectedPackage(pkgs), index); ok {
+	if joining, _, ok, _ := withJoinableOSRepresentative(pkgs, representativeAffectedPackage(pkgs), index); ok {
 		return joining
 	}
 	return pkgs
@@ -304,11 +342,22 @@ func (idx supplyChainImpactIndex) recordOSRepresentativeOutcome(
 	pkg supplychainmodel.AffectedPackage,
 	reselected bool,
 	hasSBOMPath bool,
+	decided string,
 ) {
 	if idx.osRepresentativeOutcomes == nil || !slices.ContainsFunc(pkgs, affectedFactHasOSShape) {
 		return
 	}
 	key := osRepresentativeOutcomeKey{vendor: osAdvisoryJoinVendorLabel(classifyAffectedPackageAdvisorySource(pkg))}
+	// decided carries the outcome withJoinableOSRepresentative settled on these
+	// same facts and this same index, so the walked count below would repeat
+	// its lookups key for key (#9990 quiet-host timing: the duplicate cost the
+	// no-joinable shape ~20%). An empty decided means the narrowing did not run
+	// on this group or could not settle it, and the walks stand.
+	if decided != "" {
+		key.outcome = decided
+		idx.osRepresentativeOutcomes[key]++
+		return
+	}
 	switch {
 	case reselected:
 		key.outcome = osRepresentativeReselected

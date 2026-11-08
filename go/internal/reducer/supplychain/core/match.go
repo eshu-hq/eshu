@@ -228,20 +228,22 @@ func firstSBOMImpactPath(
 func firstOSPackageImpactPath(
 	pkg supplychainmodel.AffectedPackage,
 	index supplyChainImpactIndex,
-) (supplychainmodel.OSPackage, bool) {
+) (supplychainmodel.OSPackage, bool, bool) {
 	vendorSource := classifyAffectedPackageAdvisorySource(pkg)
 	if vendorSource == "" {
-		return supplychainmodel.OSPackage{}, false
+		return supplychainmodel.OSPackage{}, false, false
 	}
+	var rowsUnderKeys bool
 	for _, key := range affectedOSPackageLookupKeys(pkg) {
 		for _, installed := range index.osPackages[key] {
+			rowsUnderKeys = true
 			if !osPackageMatchesAffectedPackage(installed, pkg, vendorSource) {
 				continue
 			}
-			return installed, true
+			return installed, true, true
 		}
 	}
-	return supplychainmodel.OSPackage{}, false
+	return supplychainmodel.OSPackage{}, false, rowsUnderKeys
 }
 
 // matchingOSPackageImpactPaths returns every vendor row for the advisory in a

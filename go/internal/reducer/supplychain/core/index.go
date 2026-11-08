@@ -102,7 +102,7 @@ func classifySupplyChainImpactPackage(
 	pkg := representativeAffectedPackage(pkgs)
 	component, attachment, image, hasComponentPath, imagePathMissing := firstSBOMImpactPath(pkg, index)
 	consumption := firstConsumption(pkg.PackageID, index.consumption)
-	osPackage, hasOSPackage := firstOSPackageImpactPath(pkg, index)
+	osPackage, hasOSPackage, _ := firstOSPackageImpactPath(pkg, index)
 	var subjectOSRows []supplychainmodel.OSPackage
 	if hasComponentPath && hasOSPackage {
 		// The caller scoped these OS rows to this attachment's resolved digest.

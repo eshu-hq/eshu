@@ -311,7 +311,7 @@ func countOSAdvisoryJoins(index supplyChainImpactIndex) map[osAdvisoryJoinKey]in
 				continue
 			}
 			key := osAdvisoryJoinKey{vendor: osAdvisoryJoinVendorLabel(vendor), outcome: osAdvisoryJoinOutcomeNotJoined}
-			if row, ok := firstOSPackageImpactPath(pkg, index); ok {
+			if row, ok, _ := firstOSPackageImpactPath(pkg, index); ok {
 				key.outcome = osAdvisoryJoinOutcomeJoined
 				key.release = osAdvisoryReleaseResult(pkg, row)
 			}

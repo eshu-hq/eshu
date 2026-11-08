@@ -262,9 +262,18 @@ deltas measured on the old baseline to within run-to-run noise.
 - `no-joinable` is the largest cost on a group that still yields nothing: about 20
   allocations per group. A profile of that shape puts it in
   `affectedOSPackageLookupKeys`, reached through `firstOSPackageImpactPath` per fact.
-  If the quiet-host delta on `no-joinable` or `joined` is over 10%, the duplicate
-  lookup between `withJoinableOSRepresentative` and `recordOSRepresentativeOutcome`
-  comes out before push.
+  Benchmark Evidence (quiet-host rerun): control `/tmp/qrtime-9990-base3.txt` vs fix
+  `/tmp/qrtime-9990-fix2.txt`, `OSRepresentativeSelection` at `-benchtime=1s`,
+  `-count=10` per side, interleaved, load1 6.4-8.7, Apple M5 Max, 500 groups of 2-3
+  facts per op: `joined` +7.56% sec/op (+5.68% allocs), `no-joinable` +14.78% sec/op
+  (+9.34% allocs, B/op -1.39%), both inside the decision bounds. Pre-feature base:
+  `joined` +4.97%, `no-joinable` +21.02%.
+  No-Observability-Change: no new metric, span, or log; counts land in the existing
+  `os_representatives_*` cells and `eshu_dp_supply_chain_impact_os_representative_joins_total`.
+  If the quiet-host delta on `joined`
+  exceeds +10%, or on `no-joinable` exceeds +19.8% (5 points above the measured
+  +14.78%), the duplicate lookup between `withJoinableOSRepresentative` and
+  `recordOSRepresentativeOutcome` comes out before push.
 - An earlier timing at load 35-66 showed `no-joinable` at +13.2% with a 12-13%
   run-to-run range. That load makes it non-comparable, so it decides nothing.
 
