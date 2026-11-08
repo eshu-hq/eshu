@@ -53,6 +53,41 @@ func (h SupplyChainImpactHandler) loadActivePackageManifestDependencyFacts(
 	return dependencies, false, nil
 }
 
+// loadScopedPackageManifestDependencyFacts is the #9779 scoped manifest
+// stage: the name list derives from the stamped envelopes, unioned with the
+// finding-row seeds whose advisories may live cross-scope. Unscoped (nil
+// scope) it is the plain stage.
+func (h SupplyChainImpactHandler) loadScopedPackageManifestDependencyFacts(
+	ctx context.Context,
+	envelopes []facts.Envelope,
+	filterEnvelopes []facts.Envelope,
+	scoped *scopedSupplyChainImpactScope,
+) ([]facts.Envelope, bool, error) {
+	if scoped == nil {
+		return h.loadActivePackageManifestDependencyFacts(ctx, envelopes)
+	}
+	filter := restrictManifestFilterToScope(supplyChainImpactManifestDependencyFilter(filterEnvelopes), scoped)
+	if len(filter.Ecosystems) == 0 || len(filter.PackageNames) == 0 {
+		return nil, false, nil
+	}
+	loader, ok := h.FactLoader.(correlation.ManifestDependencyRefusingLoader)
+	if !ok {
+		return nil, false, fmt.Errorf("supply chain impact manifest dependency refusing loader is required")
+	}
+	dependencies, refused, err := loader.ListActivePackageManifestDependencyFactsWithRefusals(
+		ctx,
+		filter.Ecosystems,
+		filter.PackageNames,
+	)
+	if refused {
+		return nil, true, nil
+	}
+	if err != nil {
+		return nil, false, factload.ClassifyFactLoadError(err)
+	}
+	return dependencies, false, nil
+}
+
 func supplyChainImpactManifestDependencyFilter(envelopes []facts.Envelope) correlation.PackageManifestDependencyFactFilter {
 	var ecosystems []string
 	var names []string

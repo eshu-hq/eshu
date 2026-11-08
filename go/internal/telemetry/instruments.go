@@ -1201,6 +1201,16 @@ type Instruments struct {
 	// holder read, reopen, or own-item state update, each of which fails the
 	// pass so the queue retries it.
 	SupplyChainImpactFanOut metric.Int64Counter
+	// SupplyChainImpactPassTotal counts supply-chain impact findings passes
+	// by how they ran (#9779). Labels: domain (supply_chain_impact) and
+	// mode (full, scoped, scoped_fallback_sentinel — the closed set in
+	// supplychain core's pass-mode constants). scoped counts re-derivations
+	// that loaded and published the stamped CVEs only; full counts
+	// everything else, including genuine passes and sentinel fallbacks;
+	// scoped_fallback_sentinel counts one-hop passes whose stamp names an
+	// unbounded change. Read scoped against full to see the rollout's share,
+	// and scoped_fallback_sentinel to see how often the cap binds.
+	SupplyChainImpactPassTotal metric.Int64Counter
 	// SupplyChainSuppressionDiffTotal counts suppression diff decisions per
 	// supply-chain impact pass (#10019). Labels: domain
 	// (supply_chain_impact), outcome (ran, skipped_kind, skipped_duplicate,
@@ -5038,6 +5048,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register SupplyChainImpactFanOut counter: %w", err)
+	}
+
+	inst.SupplyChainImpactPassTotal, err = meter.Int64Counter(
+		"eshu_dp_supply_chain_impact_pass_total",
+		metric.WithDescription("Total supply-chain impact findings passes, by reducer domain and mode (full, scoped, scoped_fallback_sentinel)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register SupplyChainImpactPassTotal counter: %w", err)
 	}
 
 	suppressionDiffBuckets := []float64{0.01, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30}

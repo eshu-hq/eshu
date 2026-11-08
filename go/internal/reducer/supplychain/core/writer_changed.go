@@ -221,6 +221,71 @@ func changedCVEIDs(rows []changedRow, stored []storedFinding, generationID strin
 	return sortedSetKeys(changed)
 }
 
+// derivedCVEIDs returns the sorted CVE ids of every row a pass wrote plus
+// every row its retraction will tombstone (#9740). The written set is the
+// rows about to be upserted; the retracted set mirrors changedCVEIDs' keep
+// logic AND the retraction statement's scope predicate, so the fan-out's
+// disjoint compare sees exactly the rows the pass touched. It
+// over-approximates only where the retraction itself is fenced: a stored row
+// a fresher token protects is still reported, and the pass reruns instead of
+// risking a missed reopen. That is the safe direction. A scoped pass reports
+// inside its stamp only: rows outside it are never tombstoned.
+func derivedCVEIDs(rows []changedRow, stored []storedFinding, generationID string, fencingToken int64, retract bool, scoped []string) []string {
+	own := map[string]storedFinding{}
+	prior := map[string]storedFinding{}
+	for _, row := range stored {
+		if row.generationID == generationID {
+			own[row.factID] = row
+		} else {
+			prior[row.stableKey] = row
+		}
+	}
+	rerun := len(own) > 0
+	inScope := func(cveID string) bool {
+		if len(scoped) == 0 {
+			return true
+		}
+		for _, id := range scoped {
+			if id == cveID {
+				return true
+			}
+		}
+		return false
+	}
+	derived := map[string]struct{}{}
+	keepIDs := make(map[string]struct{}, len(rows))
+	keepKeys := make(map[string]struct{}, len(rows))
+	for _, row := range rows {
+		keepIDs[row.factID] = struct{}{}
+		keepKeys[row.stableKey] = struct{}{}
+		if row.cveID != "" {
+			derived[row.cveID] = struct{}{}
+		}
+	}
+	if retract {
+		if rerun {
+			for factID, row := range own {
+				if _, kept := keepIDs[factID]; kept || row.fencingToken > fencingToken || row.cveID == "" {
+					continue
+				}
+				if inScope(row.cveID) {
+					derived[row.cveID] = struct{}{}
+				}
+			}
+		} else {
+			for key, row := range prior {
+				if _, kept := keepKeys[key]; kept || row.cveID == "" {
+					continue
+				}
+				if inScope(row.cveID) {
+					derived[row.cveID] = struct{}{}
+				}
+			}
+		}
+	}
+	return sortedSetKeys(derived)
+}
+
 // readSupplyChainImpactCVEIDs returns every CVE id the (scope, generation)'s
 // finding rows name, sorted.
 func readSupplyChainImpactCVEIDs(ctx context.Context, tx SupplyChainImpactTx, scopeID, generationID string) ([]string, error) {

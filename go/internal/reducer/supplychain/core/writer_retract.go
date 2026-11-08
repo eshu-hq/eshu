@@ -70,6 +70,7 @@ func runSupplyChainImpactTx(
 type supplyChainImpactTxOutcome struct {
 	retracted       int
 	changedCVEs     []string
+	derivedCVEs     []string
 	recoveryCVEs    []string
 	suppressionCVEs []string
 	suppression     suppressionDiffReport
@@ -172,8 +173,15 @@ func commitSupplyChainImpactRows(
 	if len(supp.cveIDs) > 0 {
 		rowChanged = unionSortedStrings(rowChanged, supp.cveIDs)
 	}
+	// Derived is the disjoint-compare input (#9740): every row the pass
+	// wrote plus every row its retraction tombstones. The suppression diff
+	// joins the union because a suppression-only change rewrites rows the
+	// meta below already carries; naming its ids twice is harmless.
+	derived := derivedCVEIDs(meta, stored, write.GenerationID, write.FencingToken, !write.PartialEvidence, write.ScopedCVEIDs)
+	derived = unionSortedStrings(derived, supp.cveIDs)
 	outcome := supplyChainImpactTxOutcome{
 		changedCVEs:     rowChanged,
+		derivedCVEs:     derived,
 		suppressionCVEs: supp.cveIDs,
 		suppression:     supp,
 	}
@@ -187,7 +195,7 @@ func commitSupplyChainImpactRows(
 		for _, row := range rows {
 			keep = append(keep, row.FactID)
 		}
-		outcome.retracted, err = retractSupersededSupplyChainImpactFindings(ctx, tx, write.ScopeID, write.GenerationID, keep, write.FencingToken)
+		outcome.retracted, err = retractSupersededSupplyChainImpactFindings(ctx, tx, write.ScopeID, write.GenerationID, keep, write.FencingToken, write.ScopedCVEIDs)
 		if err != nil {
 			return supplyChainImpactTxOutcome{}, err
 		}
@@ -280,8 +288,40 @@ SELECT 'fact', 'fact_retract', package_id, repository_id, subject_digest, c0, ad
 FROM retracted
 `
 
+// retractSupersededSupplyChainImpactFindingsScopedQuery is the scoped-pass
+// variant of the replace-set retraction (#9779). The keep set still names the
+// rows the pass just wrote, but the statement only tombstones rows inside the
+// stamped CVE set: rows outside it are not the pass's to retire, so they are
+// left byte-identical however stale the next full pass would find them. Rows
+// without a cve_id never match the set and converge on the next full pass.
+const retractSupersededSupplyChainImpactFindingsScopedQuery = `
+WITH retracted AS (
+    UPDATE fact_records
+    SET is_tombstone = TRUE,
+        fencing_token = $5
+    WHERE fact_kind = $1
+      AND scope_id = $2
+      AND generation_id = $3
+      AND is_tombstone = FALSE
+      AND fact_id NOT IN (SELECT unnest($4::text[]))
+      AND fencing_token <= $5
+      AND payload->>'cve_id' = ANY($6::text[])
+    RETURNING
+        COALESCE(payload->>'package_id', '') AS package_id,
+        COALESCE(payload->>'repository_id', '') AS repository_id,
+        COALESCE(payload->>'subject_digest', '') AS subject_digest,
+        COALESCE(NULLIF(payload->>'cve_id', ''), NULLIF(payload->>'advisory_id', ''), '') AS c0,
+        COALESCE(payload->>'advisory_id', '') AS advisory_id
+)
+INSERT INTO supply_chain_impact_winners_dirty_log
+    (kind, source, package_id, repository_id, subject_digest, c0, advisory_id)
+SELECT 'fact', 'fact_retract', package_id, repository_id, subject_digest, c0, advisory_id
+FROM retracted
+`
+
 // retractSupersededSupplyChainImpactFindings runs the replace-set retraction
-// for one pass and returns how many rows it tombstoned.
+// for one pass and returns how many rows it tombstoned. A scoped pass
+// (#9779) retracts inside its stamped CVE set only.
 func retractSupersededSupplyChainImpactFindings(
 	ctx context.Context,
 	tx SupplyChainImpactTx,
@@ -289,16 +329,21 @@ func retractSupersededSupplyChainImpactFindings(
 	generationID string,
 	keepFactIDs []string,
 	fencingToken int64,
+	scopedCVEIDs []string,
 ) (int, error) {
-	result, err := tx.ExecContext(
-		ctx,
-		retractSupersededSupplyChainImpactFindingsQuery,
+	query := retractSupersededSupplyChainImpactFindingsQuery
+	args := []any{
 		supplyChainImpactFactKind,
 		scopeID,
 		generationID,
 		keepFactIDs,
 		fencingToken,
-	)
+	}
+	if len(scopedCVEIDs) > 0 {
+		query = retractSupersededSupplyChainImpactFindingsScopedQuery
+		args = append(args, scopedCVEIDs)
+	}
+	result, err := tx.ExecContext(ctx, query, args...)
 	if err != nil {
 		return 0, fmt.Errorf("retract superseded supply chain impact findings: %w", err)
 	}

@@ -45,6 +45,8 @@ const (
 	// whether an earlier attempt committed. The fan-out clears it when the last
 	// holder is reopened.
 	PayloadKeyFanOutOwed = "fanout_owed"
+	// Stamp keys, the origin shape, and the replay-flag clear live in
+	// fanout_stamp.go beside the #9740 set they implement.
 )
 
 // FanOutOutcome is what reopening one holder did.
@@ -163,13 +165,6 @@ func (fanOutError) Retryable() bool { return true }
 // FailureClass names the durable failure class for the retrying row.
 func (fanOutError) FailureClass() string { return SupplyChainImpactFanOutFailureClass }
 
-// FanOutOrigin names the pass that caused a reopen.
-type FanOutOrigin struct {
-	SourceScopeID      string
-	SourceGenerationID string
-	SourceIntentID     string
-}
-
 // FanOutOwedRecorder records, inside the writer's transaction, that the commit
 // owes a fan-out. Recording it in the same transaction as the rows makes "an
 // attempt committed" and "the rows are there" one fact: a crash cannot leave one
@@ -232,6 +227,13 @@ type SupplyChainImpactFanOut interface {
 	// UpdateFanOutState applies state to the calling pass's own item, fenced on
 	// its lease.
 	UpdateFanOutState(ctx context.Context, intent reducercontract.Intent, state FanOutState) error
+	// ClearReplayFlagIfStampSeen clears the calling pass's
+	// cross_scope_replay_required when its fan-out stamp still equals the one
+	// it saw at claim time (#9740). A newer stamp turns the clear into a
+	// no-op (reported false) so the pass reruns once under the newer change.
+	// It is fenced on the lease exactly like UpdateFanOutState: a lost lease
+	// is an error, because another worker now owns the item and will redo it.
+	ClearReplayFlagIfStampSeen(ctx context.Context, intent reducercontract.Intent, seen map[string]any) (bool, error)
 }
 
 // fanOutResult is what one pass's fan-out did, for sub-signals and the log.
@@ -251,6 +253,10 @@ type fanOutResult struct {
 	deferred      int
 	newlyDeferred int
 	crashRecovery bool
+	// replayCleared is true when the pass proved its rewrite clear of the
+	// flagged change and its replay flag was cleared (#9740), so the ack
+	// succeeds instead of rerunning it.
+	replayCleared bool
 }
 
 // fanOutHolders runs the holder fan-out for one committed pass. It returns an
@@ -270,6 +276,10 @@ func (h SupplyChainImpactHandler) fanOutHolders(
 	owed := fanOutOwed(intent)
 	oneHop := fanOutOneHop(intent)
 	remaining := fanOutRemaining(intent)
+	// stampCVEs is the change that reopened or flagged this pass, as it saw it
+	// at claim time. A stamp without the key predates the set, and a corrupt
+	// one parses as no set: both fail closed to a full pass and a rerun.
+	stampCVEs := fanOutStampCVEIDs(intent)
 	var cveIDs []string
 	recoveryOnly := false
 	if !oneHop {
@@ -290,20 +300,30 @@ func (h SupplyChainImpactHandler) fanOutHolders(
 		// admit without fanning out (#10019).
 		cveIDs = write.SuppressionCVEIDs
 	}
+	// The stamp the reopened holders carry names what this pass fanned out
+	// plus the change that caused this pass, so a continuation drain keeps
+	// scoping the original change instead of widening to a full pass.
+	stampOut := CapFanOutStampCVEIDs(unionSortedStrings(cveIDs, stampCVEs))
 	state := FanOutState{ConsumeOrigin: stamped}
 	if stamped {
 		state.ExpectedOrigin = fanOutOriginOf(intent)
 	}
 	if len(cveIDs) == 0 && len(remaining) == 0 {
+		result := fanOutResult{cause: cause}
 		if stamped || owed {
 			// Nothing is owed after all; consume the stamp so a later reopen by
 			// another path is judged fresh, and drop a marker with nothing behind it.
 			state.ClearOwed = owed
+			if clear, err := h.clearReplayFlag(ctx, intent, write, stampCVEs, state.ExpectedOrigin); err != nil {
+				return fanOutResult{cause: cause}, err
+			} else {
+				result.replayCleared = clear
+			}
 			if err := h.FanOut.UpdateFanOutState(ctx, intent, state); err != nil {
-				return fanOutResult{cause: cause}, fanOutError{fmt.Errorf("clear supply chain impact fan-out state: %w", err)}
+				return result, fanOutError{fmt.Errorf("clear supply chain impact fan-out state: %w", err)}
 			}
 		}
-		return fanOutResult{cause: cause}, nil
+		return result, nil
 	}
 
 	ctx, span := h.startFanOutSpan(ctx, intent)
@@ -357,6 +377,7 @@ func (h SupplyChainImpactHandler) fanOutHolders(
 		SourceScopeID:      intent.ScopeID,
 		SourceGenerationID: intent.GenerationID,
 		SourceIntentID:     intent.IntentID,
+		CVEIDs:             stampOut,
 	}
 	for _, holder := range batch {
 		outcome, err := h.FanOut.ReopenHolder(ctx, holder, origin)
@@ -378,6 +399,20 @@ func (h SupplyChainImpactHandler) fanOutHolders(
 	// claim snapshot the intent carries, so a changed commit clears it too.
 	markerSet := !oneHop && len(write.ChangedCVEIDs) > 0
 	state.ClearOwed = (owed || markerSet) && len(rest) == 0
+	if len(rest) == 0 && len(remaining) == 0 {
+		// No continuation debt rides to the next claim, so a pass that proved
+		// its rewrite clear of the flagged change clears its replay flag
+		// before the stamp is consumed below: the ack then succeeds instead
+		// of rerunning it. A newer stamp between the compare and the clear
+		// turns the clear into a no-op and the pass reruns once.
+		if clear, err := h.clearReplayFlag(ctx, intent, write, stampCVEs, state.ExpectedOrigin); err != nil {
+			h.countFanOut(ctx, cause, fanOutOutcomeStateError, 1)
+			span.RecordError(err)
+			return result, err
+		} else {
+			result.replayCleared = clear
+		}
+	}
 	if state.ReplaceRemaining || state.ConsumeOrigin || state.ClearOwed {
 		if err := h.FanOut.UpdateFanOutState(ctx, intent, state); err != nil {
 			h.countFanOut(ctx, cause, fanOutOutcomeStateError, 1)

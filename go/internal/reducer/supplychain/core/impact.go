@@ -132,21 +132,31 @@ type SupplyChainImpactHandler struct {
 	Tracer trace.Tracer
 }
 
+// checkSupplyChainImpactIntent rejects an intent the handler cannot run
+// before it spends any work: the wrong domain, or missing loader, writer, or
+// fencing token issuer wiring.
+func (h SupplyChainImpactHandler) checkSupplyChainImpactIntent(intent reducercontract.Intent) error {
+	if intent.Domain != reducercontract.DomainSupplyChainImpact {
+		return fmt.Errorf("supply_chain_impact handler does not accept domain %q", intent.Domain)
+	}
+	if h.FactLoader == nil && h.AuthorizedEvidenceLoader == nil {
+		return fmt.Errorf("supply chain impact evidence loader is required")
+	}
+	if h.Writer == nil {
+		return fmt.Errorf("supply chain impact writer is required")
+	}
+	if h.FencingTokenIssuer == nil {
+		return fmt.Errorf("supply chain impact fencing token issuer is required")
+	}
+	return nil
+}
+
 // Handle executes one supply-chain impact reducer intent.
 func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent reducercontract.Intent) (reducercontract.Result, error) {
 	totalStarted := time.Now()
 
-	if intent.Domain != reducercontract.DomainSupplyChainImpact {
-		return reducercontract.Result{}, fmt.Errorf("supply_chain_impact handler does not accept domain %q", intent.Domain)
-	}
-	if h.FactLoader == nil && h.AuthorizedEvidenceLoader == nil {
-		return reducercontract.Result{}, fmt.Errorf("supply chain impact evidence loader is required")
-	}
-	if h.Writer == nil {
-		return reducercontract.Result{}, fmt.Errorf("supply chain impact writer is required")
-	}
-	if h.FencingTokenIssuer == nil {
-		return reducercontract.Result{}, fmt.Errorf("supply chain impact fencing token issuer is required")
+	if err := h.checkSupplyChainImpactIntent(intent); err != nil {
+		return reducercontract.Result{}, err
 	}
 	if result, handled, err := h.handleManifestTrigger(ctx, intent); handled {
 		return result, err // #9874: a git manifest marker reopens holders, no findings.
@@ -166,6 +176,7 @@ func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent reducercont
 	if err != nil {
 		return reducercontract.Result{}, err
 	}
+	h.emitScopedPassSignals(ctx, intent, loaded)
 	envelopes := loaded.envelopes
 
 	phaseStarted := time.Now()
@@ -277,6 +288,7 @@ func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent reducercont
 	subSignals["evidence_truncated_manifest_refused"] = boolSignal(loaded.truncation.manifestRefused)
 	subSignals["suppression_evidence_truncated"] = boolSignal(loaded.truncation.suppressionTail)
 	subSignals["python_reachability_files_folded"] = float64(loaded.pythonReachabilityFacts)
+	mergeScopedPassSubSignals(subSignals, loaded)
 	subSignals["python_reachability_payload_bytes_folded"] = float64(loaded.pythonReachabilityPayloadBytes)
 	subSignals["evidence_envelopes"] = float64(loaded.evidenceEnvelopeCount())
 	subSignals["evidence_expansion_envelopes"] = float64(loaded.expansionEnvelopes)
@@ -327,10 +339,13 @@ func (h SupplyChainImpactHandler) impactWrite(
 		// not qualify: suppression is not part of a finding's identity, so
 		// such a pass still converges (#7154).
 		PartialEvidence: loaded.truncation.partial(),
-		ScopeFactKinds:  loaded.scopeFactKinds,
-		FencingToken:    fencingToken,
-		Recovery:        fanOutOwed(intent) && len(fanOutRemaining(intent)) == 0,
-		Owed:            h.owedRecorder(intent),
+		// A scoped evidence load re-derives the stamp only, so the writer
+		// publishes and retracts inside the stamp (#9779).
+		ScopedCVEIDs:   scopedWriteCVEIDs(loaded),
+		ScopeFactKinds: loaded.scopeFactKinds,
+		FencingToken:   fencingToken,
+		Recovery:       fanOutOwed(intent) && len(fanOutRemaining(intent)) == 0,
+		Owed:           h.owedRecorder(intent),
 	}
 	if loaded.asAuthorized != nil {
 		write.ScanPublications = loaded.asAuthorized.ScanPublications

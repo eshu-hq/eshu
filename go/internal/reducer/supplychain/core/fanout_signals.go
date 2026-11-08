@@ -30,6 +30,19 @@ func (h SupplyChainImpactHandler) startFanOutSpan(ctx context.Context, intent re
 	))
 }
 
+// countSupplyChainImpactPass counts one findings pass by how it ran (#9779).
+// It fires once per pass that completes its evidence load, whatever the
+// downstream stages do, so scoped and full stay comparable across failures.
+func (h SupplyChainImpactHandler) countSupplyChainImpactPass(ctx context.Context, mode string) {
+	if h.Instruments == nil || h.Instruments.SupplyChainImpactPassTotal == nil {
+		return
+	}
+	h.Instruments.SupplyChainImpactPassTotal.Add(ctx, 1, metric.WithAttributes(
+		telemetry.AttrDomain(string(reducercontract.DomainSupplyChainImpact)),
+		attribute.String("mode", mode),
+	))
+}
+
 func (h SupplyChainImpactHandler) countFanOut(ctx context.Context, cause string, outcome string, n int) {
 	if n <= 0 || h.Instruments == nil || h.Instruments.SupplyChainImpactFanOut == nil {
 		return
@@ -101,4 +114,5 @@ func (r fanOutResult) mergeSubSignals(subSignals map[string]float64) {
 	subSignals["fanout_reopened"] = float64(r.reopened)
 	subSignals["fanout_replay_flagged"] = float64(r.replayFlagged)
 	subSignals["fanout_deferred"] = float64(r.deferred)
+	subSignals["fanout_replay_cleared"] = boolSignal(r.replayCleared)
 }

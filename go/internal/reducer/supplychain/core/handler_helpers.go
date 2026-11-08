@@ -79,11 +79,19 @@ const maxSupplyChainImpactActiveEvidenceLoads = 8
 // (rounds), a spent evidence budget (budget), or a bounded suppression tail
 // (suppressionTail) -- the causes stay apart because only the first two make
 // the finding set incomplete (#7154).
+// loadActiveSupplyChainImpactFactsUntilStable is the until-stable loop with
+// an optional #9779 scope: when set, every follow-up round intersects its
+// CVE- and package-bearing arms with the scope, so the loop converges on the
+// stamped subgraph instead of re-widening to the whole scope. Arms without
+// CVE or package linkage flow through, bounded by discovery like the full
+// pass. A follow-up the scope empties ends the loop: nothing reachable
+// remains unrequested.
 func (h SupplyChainImpactHandler) loadActiveSupplyChainImpactFactsUntilStable(
 	ctx context.Context,
 	envelopes []facts.Envelope,
 	initialFilter SupplyChainImpactFactFilter,
 	budget *supplyChainImpactEvidenceBudget,
+	scoped *scopedSupplyChainImpactScope,
 ) ([]facts.Envelope, supplyChainImpactTruncation, error) {
 	requested := SupplyChainImpactFactFilter{}
 	next := initialFilter
@@ -120,6 +128,9 @@ func (h SupplyChainImpactHandler) loadActiveSupplyChainImpactFactsUntilStable(
 			return withDigest(envelopes), truncation, nil
 		}
 		next = supplyChainImpactFollowUpFilter(requested, supplyChainImpactFilter(envelopes))
+		if scoped != nil {
+			next = restrictSupplyChainImpactFilter(next, scoped)
+		}
 	}
 	return withDigest(envelopes), truncation, nil
 }

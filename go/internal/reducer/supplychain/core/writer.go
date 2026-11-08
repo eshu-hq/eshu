@@ -21,6 +21,28 @@ import (
 
 const supplyChainImpactFactKind = facts.ReducerSupplyChainImpactFindingFactKind
 
+// filterSupplyChainImpactFindingsForScope restricts one write to the stamped
+// CVEs (#9779). Findings outside the stamp are not the pass's to republish:
+// their rows stay exactly as the last full pass left them. The filtered list
+// is a fresh slice, so the caller's backing array is untouched. An empty
+// scope keeps every finding: the pass is full.
+func filterSupplyChainImpactFindingsForScope(write SupplyChainImpactWrite) []SupplyChainImpactFinding {
+	if len(write.ScopedCVEIDs) == 0 {
+		return write.Findings
+	}
+	scoped := make(map[string]struct{}, len(write.ScopedCVEIDs))
+	for _, id := range write.ScopedCVEIDs {
+		scoped[id] = struct{}{}
+	}
+	kept := make([]SupplyChainImpactFinding, 0, len(write.Findings))
+	for _, finding := range write.Findings {
+		if _, ok := scoped[finding.CVEID]; ok {
+			kept = append(kept, finding)
+		}
+	}
+	return kept
+}
+
 // PostgresSupplyChainImpactWriter stores reducer-owned vulnerability impact
 // findings in the shared fact store.
 //
@@ -47,6 +69,9 @@ func (w PostgresSupplyChainImpactWriter) WriteSupplyChainImpactFindings(
 		return SupplyChainImpactWriteResult{}, errSupplyChainImpactMissingFencingToken
 	}
 	now := factwrite.Now(w.Now)
+	if len(write.ScopedCVEIDs) > 0 {
+		write.Findings = filterSupplyChainImpactFindingsForScope(write)
+	}
 	rows := make([]factwrite.VersionedRow, 0, len(write.Findings))
 	meta := make([]changedRow, 0, len(write.Findings))
 	for _, finding := range write.Findings {
@@ -98,6 +123,9 @@ func (w PostgresSupplyChainImpactWriter) WriteSupplyChainImpactFindings(
 		FactsWritten:      len(write.Findings),
 		FactsRetracted:    retracted,
 		ChangedCVEIDs:     outcome.changedCVEs,
+		DerivedCVEIDs:     outcome.derivedCVEs,
+		ScopedCVEIDs:      write.ScopedCVEIDs,
+		EvidenceComplete:  !write.PartialEvidence,
 		RecoveryCVEIDs:    outcome.recoveryCVEs,
 		SuppressionCVEIDs: outcome.suppressionCVEs,
 		suppressionDiff:   outcome.suppression,

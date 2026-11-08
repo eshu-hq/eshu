@@ -247,3 +247,7 @@ func (p *registrationFanOut) OwedRecorder(reducercontract.Intent) supplychaincor
 func (p *registrationFanOut) UpdateFanOutState(context.Context, reducercontract.Intent, supplychaincore.FanOutState) error {
 	return nil
 }
+
+func (p *registrationFanOut) ClearReplayFlagIfStampSeen(context.Context, reducercontract.Intent, map[string]any) (bool, error) {
+	return false, nil
+}

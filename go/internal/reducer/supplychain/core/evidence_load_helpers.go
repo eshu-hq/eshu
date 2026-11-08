@@ -20,10 +20,12 @@ import (
 func (h SupplyChainImpactHandler) loadManifestDependencyEvidence(
 	ctx context.Context,
 	envelopes []facts.Envelope,
+	filterEnvelopes []facts.Envelope,
+	scoped *scopedSupplyChainImpactScope,
 	timing *supplyChainImpactTiming,
 ) ([]facts.Envelope, bool, error) {
 	started := time.Now()
-	dependencies, refused, err := h.loadActivePackageManifestDependencyFacts(ctx, envelopes)
+	dependencies, refused, err := h.loadScopedPackageManifestDependencyFacts(ctx, envelopes, filterEnvelopes, scoped)
 	timing.loadManifestDependenciesDuration = time.Since(started)
 	if err != nil {
 		return nil, false, fmt.Errorf("load active package manifest dependency facts: %w", err)

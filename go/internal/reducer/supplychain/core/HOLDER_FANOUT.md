@@ -51,6 +51,32 @@ more than 256 holders drains across claims.
   was written while a genuine pass ran and failed, so the retry is genuine; an
   owed marker also makes a pass genuine. A continuation is not a hop: a stamped
   drain claim drains the stored list.
+- Stamp (#9740): the reopen stamps the changed CVE ids the committing pass
+  derived, sorted, de-duplicated, and capped at 200 with the `*` sentinel above
+  the cap, and a continuation drain keeps scoping the original change by
+  unioning it in. An enqueued holder stamps no set, so a generation that never
+  had an item runs its establishing pass full. After its writer commit and
+  before its acknowledgement, a stamped pass compares the CVE ids it derived
+  (every row it wrote plus retracted copies) with the stamp: disjoint clears
+  `cross_scope_replay_required` under a lease-and-stamp fence, so the ack
+  succeeds instead of rerunning; a newer stamp between the compare and the
+  clear turns it into a no-op and the pass reruns once. The sentinel, a stamp
+  without a set, and any continuation debt ride to the next claim; a failed
+  pass never reaches the clear, so the retry still happens.
+- Scoped one hop (#9779): a one-hop pass whose stamp names a bounded set
+  re-derives that set only. Its evidence filters derive from the stamped
+  envelopes plus the finding-row package seeds (the scope's own advisories and
+  its active finding rows for the stamped CVEs); the until-stable follow-up
+  intersects every round with the scope, so the loop converges on the stamped
+  subgraph instead of re-widening. The writer upserts findings for stamped
+  CVEs only and retracts inside the set only; rows outside it stay
+  byte-identical. If a finding for a stamped CVE depended on evidence the
+  scope leaves out, the scoped-vs-full differential goes red and scoping is
+  the wrong fix. The sentinel, a set-less stamp, and an owed retry run full.
+  Passes count `mode` (`full`, `scoped`, `scoped_fallback_sentinel`) in
+  `eshu_dp_supply_chain_impact_pass_total`, and the success log carries
+  `scope_id` plus the `scoped_cve_count`, `scoped_evidence_envelopes`, and
+  `fanout_replay_cleared` sub-signals.
 - A claim reopens at most 256 holders; the rest is stored as `fanout_remaining`
   on the committing item and drained by its next claims.
 - A continuation survives its scope's next generation (#10060): the claim-time

@@ -248,7 +248,9 @@ func classifyFanOutReadError(err error) error {
 }
 
 // ReopenHolder reopens the holder's supply_chain_impact item at its current
-// active generation, or enqueues one when that generation has none.
+// active generation, or enqueues one when that generation has none. The stamp
+// carries the origin's CVE set (#9740); the enqueue path stamps none, so a
+// generation that never had an item runs its establishing pass full.
 func (s SupplyChainImpactFanOutStore) ReopenHolder(
 	ctx context.Context,
 	holderScopeID string,
@@ -257,11 +259,9 @@ func (s SupplyChainImpactFanOutStore) ReopenHolder(
 	if s.DB == nil {
 		return "", errors.New("supply chain impact fan-out database is required")
 	}
-	stamp, err := json.Marshal(map[string]string{
-		"scope_id":      origin.SourceScopeID,
-		"generation_id": origin.SourceGenerationID,
-		"intent_id":     origin.SourceIntentID,
-	})
+	canonical := origin
+	canonical.CVEIDs = supplychaincore.CapFanOutStampCVEIDs(origin.CVEIDs)
+	stamp, err := supplychaincore.FanOutStampJSON(canonical)
 	if err != nil {
 		return "", fmt.Errorf("marshal supply chain impact fan-out stamp: %w", err)
 	}
@@ -299,7 +299,7 @@ func (s SupplyChainImpactFanOutStore) ReopenHolder(
 	if matched > 0 {
 		return outcome, nil
 	}
-	return s.enqueueMissingHolder(ctx, holderScopeID, origin, stamp, now)
+	return s.enqueueMissingHolder(ctx, holderScopeID, origin, now)
 }
 
 // ReopenSupplyChainImpactHolderInTransaction is ReopenHolder on the caller's
@@ -327,12 +327,13 @@ func ReopenSupplyChainImpactHolderInTransaction(
 // generation's own facts name a trigger). A holder with no active generation, or
 // whose item already exists in a state the reopen does not move (a dead letter),
 // is left alone and reported as a no-op: a dead letter is already loud and an
-// operator replays it.
+// operator replays it. The enqueued item stamps the origin without its CVE set:
+// this may be the generation's establishing pass, which must derive the whole
+// finding set, so it always runs full.
 func (s SupplyChainImpactFanOutStore) enqueueMissingHolder(
 	ctx context.Context,
 	holderScopeID string,
 	origin supplychaincore.FanOutOrigin,
-	stamp []byte,
 	now time.Time,
 ) (supplychaincore.FanOutOutcome, error) {
 	rows, err := s.DB.QueryContext(ctx, activeGenerationSupplyChainImpactQuery, holderScopeID)
@@ -356,8 +357,14 @@ func (s SupplyChainImpactFanOutStore) enqueueMissingHolder(
 	if strings.TrimSpace(generationID) == "" {
 		return supplychaincore.FanOutPendingNoop, nil
 	}
+	withoutCVEs := origin
+	withoutCVEs.CVEIDs = nil
+	encoded, err := supplychaincore.FanOutStampJSON(withoutCVEs)
+	if err != nil {
+		return "", fmt.Errorf("marshal supply chain impact fan-out stamp: %w", err)
+	}
 	var payload map[string]any
-	if err := json.Unmarshal(stamp, &payload); err != nil {
+	if err := json.Unmarshal(encoded, &payload); err != nil {
 		return "", fmt.Errorf("decode supply chain impact fan-out stamp: %w", err)
 	}
 	queue := NewReducerQueue(s.DB, s.LeaseOwner, 0)
