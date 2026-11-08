@@ -145,6 +145,15 @@ SELECT materialized_at FROM supply_chain_impact_winners_materialization WHERE si
 // read model from the active impact facts.
 type SupplyChainImpactWinnersStore struct {
 	DB db.Queryer
+	// staleCandidates is the optional stale-reader source for the winners-audit
+	// candidate scan (#10416 slice 1). When set, the audit reads its differing
+	// keys from this handle instead of building a temp table on the writer, and
+	// seeds them into the writer transaction in bounded batches. It is set only
+	// through WithStaleCandidates, only on the Auditor instance: the Rebuilder,
+	// KeyedRebuilder, and DirtyLogReader instances of this same struct must
+	// never carry one, since their reads feed locks, claims, and gauges in the
+	// same cycle. Nil keeps the legacy writer-backed audit byte-identical.
+	staleCandidates db.Queryer
 	// MaxIdentifiers and MaxKeyFraction cap a keyed resweep (#9805): a tick whose
 	// consumed dirty-log rows expand to more identifiers than MaxIdentifiers, or
 	// to more than MaxKeyFraction of the stored winners, runs the full rebuild in

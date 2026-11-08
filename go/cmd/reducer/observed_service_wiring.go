@@ -34,7 +34,7 @@ func buildObservedReducerService(
 	instruments *telemetry.Instruments,
 	meter metric.Meter,
 	logger *slog.Logger,
-) (reducer.Service, *snapshot.Refresher, *snapshot.Refresher, error) {
+) (reducer.Service, *snapshot.Refresher, *snapshot.Refresher, func(), error) {
 	activeWorkers := new(atomic.Int64)
 	instrumentedDB := &postgres.InstrumentedDB{
 		Inner:       postgres.SQLDB{DB: db},
@@ -54,7 +54,15 @@ func buildObservedReducerService(
 		postgres.WithHeartbeatInterval(reducerHeartbeatInterval),
 	)
 	if err != nil {
-		return reducer.Service{}, nil, nil, fmt.Errorf("identity epoch cache: %w", err)
+		return reducer.Service{}, nil, nil, nil, fmt.Errorf("identity epoch cache: %w", err)
+	}
+	// The winners-audit split scan (#10416 slice 1) opens a stale reader
+	// access only when routing admits stale audits. Default off returns nil
+	// without touching the database, so the Auditor stays writer-backed
+	// exactly as before.
+	staleAccess, closeStaleAccess, err := openWinnersStaleAccessIfEnabled(ctx, getenv, meter, tracer, logger)
+	if err != nil {
+		return reducer.Service{}, nil, nil, nil, err
 	}
 	serviceRunner, err := buildReducerService(
 		ctx,
@@ -71,16 +79,29 @@ func buildObservedReducerService(
 		identityCache,
 	)
 	if err != nil {
-		return reducer.Service{}, nil, nil, err
+		closeStaleAccess()
+		return reducer.Service{}, nil, nil, nil, err
+	}
+	if staleAccess != nil {
+		// Thread the stale reader to the Auditor only: verify, repair
+		// queueing, and commit stay on the writer transaction either way.
+		// The maintainer field is a shared pointer, so this survives the
+		// service copies below.
+		if maintainer := serviceRunner.SupplyChainImpactWinnersMaintainer; maintainer != nil {
+			maintainer.Auditor = postgres.NewSupplyChainImpactWinnersStore(instrumentedDB).
+				WithStaleCandidates(staleAccess.StaleReader())
+		}
 	}
 	serviceRunner, err = withStatusSummaryWriter(serviceRunner, getenv, instrumentedDB, tracer, instruments, logger)
 	if err != nil {
-		return reducer.Service{}, nil, nil, err
+		closeStaleAccess()
+		return reducer.Service{}, nil, nil, nil, err
 	}
 	graphRefresher, postgresRefresher, err := registerReducerObservableGauges(instruments, meter, db, activeWorkers, graphOrphanObserver(serviceRunner), graphReader, getenv, logger)
 	if err != nil {
-		return reducer.Service{}, nil, nil, err
+		closeStaleAccess()
+		return reducer.Service{}, nil, nil, nil, err
 	}
 	serviceRunner.Executor = newActiveWorkerExecutor(serviceRunner.Executor, activeWorkers)
-	return serviceRunner, graphRefresher, postgresRefresher, nil
+	return serviceRunner, graphRefresher, postgresRefresher, closeStaleAccess, nil
 }

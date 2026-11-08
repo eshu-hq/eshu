@@ -93,10 +93,11 @@ func run(parent context.Context) error {
 	}
 	defer func() { _ = neo4jCloser.Close() }()
 
-	serviceRunner, graphRefresher, postgresRefresher, err := buildObservedReducerService(parent, db, neo4jExecutor, cypherExecutor, neo4jReader, graphReader, os.Getenv, tracer, instruments, meter, logger)
+	serviceRunner, graphRefresher, postgresRefresher, closeStaleAccess, err := buildObservedReducerService(parent, db, neo4jExecutor, cypherExecutor, neo4jReader, graphReader, os.Getenv, tracer, instruments, meter, logger)
 	if err != nil {
 		return err
 	}
+	defer closeStaleAccess()
 	retryPolicy, err := loadReducerQueueConfig(os.Getenv)
 	if err != nil {
 		return err

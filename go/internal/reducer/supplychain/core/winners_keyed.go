@@ -61,6 +61,12 @@ type SupplyChainImpactWinnersAudit struct {
 	// Skipped is true when the audit could not take the resweep lock for its
 	// diff step; it did nothing and the next interval retries.
 	Skipped bool
+	// Deferred is true when the audit's candidate scan was refused by the
+	// stale reader (replay budget exceeded or routing off the scan): the tick
+	// ended with no writer contact and queued nothing. It is distinct from
+	// Skipped (the lock was never attempted) and from error (nothing failed).
+	// The next interval retries.
+	Deferred bool
 	// ReadDuration is the wall time of the audit's full recompute read, which
 	// runs outside the resweep lock.
 	ReadDuration time.Duration

@@ -136,6 +136,18 @@ func (m SupplyChainImpactWinnersMaintainer) runAuditOnce(ctx context.Context) (e
 		span.SetStatus(codes.Error, "winners audit failed")
 		return fmt.Errorf("audit winners: %w", auditErr)
 	}
+	// A deferred audit never reached the writer: the stale candidate scan was
+	// refused, so the tick ends here with no fallback to the writer scan. It
+	// is checked before Skipped because a deferred pass never attempted the
+	// lock. The refusal itself is counted at the stale reader by family; the
+	// tick records no duration, no repairs, and no skip.
+	if audit.Deferred {
+		span.SetAttributes(attribute.Bool("deferred", true))
+		if m.Logger != nil {
+			m.Logger.InfoContext(ctx, "supply chain impact winners audit deferred")
+		}
+		return nil
+	}
 	if audit.Skipped {
 		span.SetAttributes(attribute.Bool("skipped", true))
 		if in := m.Instruments; in != nil && in.SupplyChainImpactWinnersAuditSkipped != nil {
