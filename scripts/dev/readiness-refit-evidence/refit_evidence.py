@@ -28,10 +28,8 @@ from __future__ import annotations
 
 import argparse
 import contextlib
-import datetime as dt
 import io
 import json
-import re
 import statistics
 import sys
 from collections import Counter
@@ -40,71 +38,16 @@ from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, "scripts/lib")
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 # pylint: disable=wrong-import-position,import-error
 import live_postgres_readiness_refresh_v2 as r2  # noqa: E402
 import live_postgres_readiness_v2 as v2  # noqa: E402
 import live_postgres_readiness_weights as wt  # noqa: E402
+from refit_metadata import (  # noqa: E402
+    job_wall, measured_seconds, percentile, run_head_sha, shard_jobs)
 
 # A plan of ordered test keys plus the shard bounds into it.
 Plan = tuple[list[str], list[int]]
-
-# The readiness shard job name, as matched by fetch.sh. Key shard jobs by the
-# shard number this parses, not by a character offset: two-digit shard counts
-# such as "shard (10/12)" break fixed-offset keying.
-SHARD_JOB_RE = re.compile(r"live-postgres-readiness \(postgres18\) shard \((\d+)/\d+\)")
-
-
-def job_wall(job: dict[str, Any]) -> float:
-    """Returns a job's wall time in seconds from its start and completion."""
-    def parse(value: str) -> dt.datetime:
-        """Returns the time of a GitHub API timestamp ending in Z."""
-        return dt.datetime.fromisoformat(value.replace("Z", "+00:00"))
-    return (parse(job["completed_at"]) - parse(job["started_at"])).total_seconds()
-
-
-def shard_jobs(run_dir: Path) -> dict[str, dict[str, Any]]:
-    """Returns the run's readiness shard jobs keyed by shard number."""
-    jobs = json.loads((run_dir / "jobs.json").read_text())["jobs"]
-    keyed: dict[str, dict[str, Any]] = {}
-    for job in jobs:
-        if match := SHARD_JOB_RE.fullmatch(job["name"]):
-            keyed[match.group(1)] = job
-    return keyed
-
-
-def measured_seconds(log: str) -> dict[str, float]:
-    """Returns measured test seconds keyed by "package|test" for one shard log."""
-    seen: dict[str, float] = {}
-    pending: list[tuple[str, float]] = []
-    for line in log.splitlines():
-        if match := r2.TEST_RE.fullmatch(line):
-            pending.append((match.group(2), float(match.group(3))))
-        elif match := r2.PACKAGE_RE.fullmatch(line):
-            for test, seconds in pending:
-                seen[f"{match.group(2)}|{test}"] = seconds
-            pending = []
-    return seen
-
-
-def run_head_sha(run_dir: Path) -> str:
-    """Returns the run's head SHA, preferring run.json over jobs.json.
-
-    The archived inputs predate run.json for some runs (#10388), so a run
-    without one falls back to the jobs listing. Every job of a run shares
-    its head SHA; anything else fails closed instead of guessing.
-    """
-    run_file = run_dir / "run.json"
-    if run_file.exists():
-        return json.loads(run_file.read_text())["head_sha"]
-    shas = set()
-    for job in json.loads((run_dir / "jobs.json").read_text())["jobs"]:
-        sha = job.get("head_sha")
-        if not sha:
-            raise ValueError(f"{run_dir.name}: a jobs.json job lacks head_sha")
-        shas.add(sha)
-    if len(shas) != 1:
-        raise ValueError(f"{run_dir.name}: no run.json and jobs disagree on head_sha: {sorted(shas)}")
-    return shas.pop()
 
 
 def _excuse_api() -> bool:
@@ -112,21 +55,54 @@ def _excuse_api() -> bool:
     return callable(getattr(r2.provenance, "run_excuse", None))
 
 
-def parse_shard(log: str, number: int, count: int, excuses: frozenset[str]) -> tuple[
+def parse_shard(log: str, number: int, count: int, excuses: frozenset[str],
+                 excused_packages: frozenset[str] = frozenset()) -> tuple[
         list[str], list[tuple[str, str, float]], tuple[tuple[str, ...], str],
         list[frozenset[str]]]:
     """Parses one shard log with the evaluated refresher's own signature.
 
     Refresher commits that predate excused-skip support parse without the
     excuses argument; excuses under such a commit fail closed instead of
-    being silently dropped.
+    being silently dropped. A 0/0 package row parses only for a package in
+    excused_packages, mirroring the refresher's excuse-scoped carve-out.
     """
     if _excuse_api():
-        return r2._parse_shard(log, number, count, excuses)
+        return r2._parse_shard(log, number, count, excuses, excused_packages)
     if excuses:
         raise ValueError(f"shard {number}: the evaluated refresher predates excused-skip "
                          f"support but the shard carries excuses {sorted(excuses)}")
     return r2._parse_shard(log, number, count)
+
+
+def _attribution(run_dir: Path, count: int) -> tuple[
+        dict[int, frozenset[str]], dict[int, frozenset[str]]]:
+    """Map each shard to its excused test names and fully-excused packages.
+
+    Attribution needs the run's own-SHA plan from this checkout, so runs
+    whose commit is absent here fail closed instead of parsing blind.
+    Commits that predate excused-skip support yield empty excuses and keep
+    their original parser behavior.
+    """
+    if not _excuse_api():
+        empty = {number: frozenset() for number in range(1, count + 1)}
+        return empty, empty
+    root = Path(__file__).resolve().parents[3]
+    run_id = run_dir.name
+    sha = run_head_sha(run_dir)
+    logs = {number: (run_dir / f"shard{number}.log").read_text() for number in range(1, count + 1)}
+    plan = r2.provenance.source_inventory(root, sha)
+    expected = r2.provenance.source_rows(root, sha, plan, count)
+    excuse = r2.provenance.run_excuse(logs, run_id, plan)
+    names, packages = {}, {}
+    for number in range(1, count + 1):
+        covered = r2.provenance.shard_excused_runs(expected[number], excuse)
+        names[number] = frozenset(run.split("|", 1)[1] for run in covered)
+        packages[number] = frozenset(
+            package for package in {run.split("|", 1)[0] for row in expected[number]
+                                    for run in row}
+            if all(run in covered for row in expected[number] for run in row
+                   if run.split("|", 1)[0] == package))
+    return names, packages
 
 
 def shard_excuses(run_dir: Path, count: int) -> dict[int, frozenset[str]]:
@@ -137,27 +113,17 @@ def shard_excuses(run_dir: Path, count: int) -> dict[int, frozenset[str]]:
     Commits that predate excused-skip support yield empty excuses and keep
     their original parser behavior.
     """
-    if not _excuse_api():
-        return {number: frozenset() for number in range(1, count + 1)}
-    root = Path(__file__).resolve().parents[3]
-    run_id = run_dir.name
-    sha = run_head_sha(run_dir)
-    logs = {number: (run_dir / f"shard{number}.log").read_text() for number in range(1, count + 1)}
-    plan = r2.provenance.source_inventory(root, sha)
-    expected = r2.provenance.source_rows(root, sha, plan, count)
-    excuse = r2.provenance.run_excuse(logs, run_id, plan)
-    return {number: frozenset(run.split("|", 1)[1]
-            for run in r2.provenance.shard_excused_runs(expected[number], excuse))
-            for number in range(1, count + 1)}
+    return _attribution(run_dir, count)[0]
 
 
 def run_plan(run_dir: Path, count: int) -> Plan:
     """Returns the tests the run executed, in order, and its shard bounds."""
     plan, bounds = [], [0]
-    excuses = shard_excuses(run_dir, count)
+    excuses, packages = _attribution(run_dir, count)
     for number in range(1, count + 1):
         tests, _, _, _ = parse_shard(
-            (run_dir / f"shard{number}.log").read_text(), number, count, excuses[number])
+            (run_dir / f"shard{number}.log").read_text(), number, count,
+            excuses[number], packages[number])
         plan.extend(tests)
         bounds.append(len(plan))
     return plan, bounds
@@ -166,11 +132,6 @@ def run_plan(run_dir: Path, count: int) -> Plan:
 def load_weights(path: Path) -> Any:
     """Returns the v2 weights object stored in a weights JSON file."""
     return v2.weights_from_json(json.loads(path.read_text()))
-
-
-def percentile(values: Sequence[float], quantile: float) -> float:
-    """Returns a percentile by linear interpolation, inclusive method."""
-    return statistics.quantiles(values, n=100, method="inclusive")[round(quantile * 100) - 1]
 
 
 def cmd_poolcheck(args: argparse.Namespace) -> int:
@@ -193,10 +154,11 @@ def cmd_poolcheck(args: argparse.Namespace) -> int:
         tests: list[str] = []
         versions: set[str] = set()
         run_profiles: set[tuple[str, ...]] = set()
-        excuses = shard_excuses(run_dir, count)
+        excuses, packages = _attribution(run_dir, count)
         for number in range(1, count + 1):
             found, _, (profile, version), _ = parse_shard(
-                (run_dir / f"shard{number}.log").read_text(), number, count, excuses[number])
+                (run_dir / f"shard{number}.log").read_text(), number, count,
+                excuses[number], packages[number])
             tests.extend(found)
             versions.add(version)
             run_profiles.add(profile)
@@ -254,10 +216,11 @@ def cmd_shards(args: argparse.Namespace) -> int:
         jobs = shard_jobs(run_dir)
         count = len(jobs)
         plan, bounds, measured, rows_per = [], [0], [], []
-        excuses = shard_excuses(run_dir, count)
+        excuses, packages = _attribution(run_dir, count)
         for number in range(1, count + 1):
             log = (run_dir / f"shard{number}.log").read_text()
-            tests, rows, _, _ = parse_shard(log, number, count, excuses[number])
+            tests, rows, _, _ = parse_shard(log, number, count, excuses[number],
+                                            packages[number])
             plan.extend(tests)
             bounds.append(len(plan))
             rows_per.append(len(rows))
@@ -281,10 +244,11 @@ def cmd_tail(args: argparse.Namespace) -> int:
     ratios, worst, residuals = [], [], []
     for run_dir in args.runs:
         count = len(list(run_dir.glob("shard[0-9].log")))
-        excuses = shard_excuses(run_dir, count)
+        excuses, packages = _attribution(run_dir, count)
         for number in range(1, count + 1):
             log = (run_dir / f"shard{number}.log").read_text(encoding="utf-8")
-            _, rows, _, members = parse_shard(log, number, count, excuses[number])
+            _, rows, _, members = parse_shard(log, number, count, excuses[number],
+                                              packages[number])
             residuals.extend(residual for _, kind, residual in rows if kind == "repeat")
             measured = measured_seconds(log)
             for row in members:

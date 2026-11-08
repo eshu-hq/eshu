@@ -197,7 +197,7 @@ class OldLibCompatCases(unittest.TestCase):
                 source_rows=lambda root, sha, plan, count: {1: [frozenset({"p|t1"})]},
                 run_excuse=lambda logs, run_id, plan: frozenset({"t1"}),
                 shard_excused_runs=lambda rows, excuse: frozenset({"p|t1"})),
-            _parse_shard=lambda log, number, total, excused=frozenset(): ([], [], ((), ""), []))
+            _parse_shard=lambda log, number, total, excused=frozenset(), excused_packages=frozenset(): ([], [], ((), ""), []))
         driver.r2 = lib
         run_dir = _write_run(self.root, [_job("c" * 40)], {"head_sha": "c" * 40})
         self.assertEqual(driver.shard_excuses(run_dir, 1), {1: frozenset({"t1"})})
