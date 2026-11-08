@@ -40,10 +40,13 @@ func TestSharedProjectionTuningReportContractIsVersioned(t *testing.T) {
 	if len(got) != 2 {
 		t.Fatalf("tuning report keys = %v, want exactly [detail status]: bump %s with the shape change", got, SharedProjectionTuningReportContractVersion)
 	}
-	if got["status"] != SharedProjectionTuningReportStatus {
-		t.Errorf("status = %q, want pinned %q: bump %s with the shape change", got["status"], SharedProjectionTuningReportStatus, SharedProjectionTuningReportContractVersion)
+	// Independent frozen literals: comparing against the constants
+	// under test would make this test its own oracle. A changed value
+	// fails here even if the constant moves with it.
+	if got["status"] != "not_applicable" {
+		t.Errorf("status = %q, want frozen %q: bump %s with the shape change", got["status"], "not_applicable", SharedProjectionTuningReportContractVersion)
 	}
-	if got["detail"] != SharedProjectionTuningReportDetail {
-		t.Errorf("detail = %q, want pinned %q: bump %s with the shape change", got["detail"], SharedProjectionTuningReportDetail, SharedProjectionTuningReportContractVersion)
+	if got["detail"] != "Shared-projection tuning is managed internally by the Go projector pipeline." {
+		t.Errorf("detail = %q, want frozen %q: bump %s with the shape change", got["detail"], "Shared-projection tuning is managed internally by the Go projector pipeline.", SharedProjectionTuningReportContractVersion)
 	}
 }

@@ -38,5 +38,6 @@ const SharedProjectionTuningReportDetail = "Shared-projection tuning is managed 
 // that kind of blanket shape.
 //
 // Rollback: revert this pin and the handler's use of the constants.
-// The seam is unwired — no route or caller depends on the constants
-// yet — so rollback moves no traffic and changes no data.
+// The handler serves the tuning route from these constants, and the
+// served body is byte-identical to the base literals, so rollback
+// moves no traffic and changes no data.

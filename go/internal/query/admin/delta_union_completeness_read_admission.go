@@ -24,9 +24,10 @@ const DeltaUnionCompletenessReadAdmissionContractVersion = "v0"
 // DeltaUnionCompletenessReadAdmission is the versioned
 // admission-contract port the API handler depends on instead of a
 // direct checker handle. It carries exactly the Check method the
-// route admits through, so the boundary is identity-verified by the
-// frozen contract test rather than a parallel hand-maintained shape;
-// it will back the eshu-api extraction handoff for this read. The
+// route admits through, so the boundary is held honest by the
+// compile-time assertion below plus the frozen method-set contract
+// test — any one-sided signature drift fails compilation or the
+// test; it will back the eshu-api extraction handoff for this read. The
 // seam is read-only on purpose: the check compares the ACTIVE fact
 // side against anchored per-repo graph reads and never repairs, so a
 // dest consumer implementing only this contract can serve the report
