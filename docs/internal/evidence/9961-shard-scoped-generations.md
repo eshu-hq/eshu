@@ -107,6 +107,13 @@ measured above (≤1,000 facts per shard, ≤~12k per heavy day). Recording a
 Neo4j-backed projection profile at full-shard volume is recommended as a
 5.2 acceptance criterion, not a reason to redo 5.1.
 
+Correction 2026-11-07: the "Neo4j-backed projection profile" recommendation
+above is void — no Neo4j write path for these facts exists in-repo
+(verified: zero vulnerability-projection Cypher; projection is reducer-side
+Postgres). #10354 criterion 1 now measures the shipped Postgres projection
+path (build wall-clock plus writer-transaction EXPLAIN) instead. The
+in-memory numbers above stand unchanged.
+
 ## Filing verdict
 
 - **5.2 (CVE List baseline + `deltaLog.json` tail): FILE.** The 5.1 theory
