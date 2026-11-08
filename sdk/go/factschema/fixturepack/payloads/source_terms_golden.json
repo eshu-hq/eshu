@@ -14,7 +14,7 @@
     {
       "source": "first_epss",
       "license": "NOASSERTION",
-      "attribution": "EPSS scores are provided by FIRST, https://www.first.org/epss"
+      "attribution": "EPSS scores are provided by FIRST (Forum of Incident Response and Security Teams, Inc.), https://www.first.org/epss"
     },
     {
       "source": "nvd",

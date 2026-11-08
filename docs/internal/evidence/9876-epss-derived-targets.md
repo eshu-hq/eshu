@@ -77,3 +77,71 @@ same counts. No CVE id reaches a label, span attribute, or log field; the
 metric test pins admitted=3, skipped reasons 2/100, and exclusion of
 non-EPSS and empty evidence. No metric, span, log key, route, queue table,
 or runtime knob was renamed.
+
+## Activation Transport Build (Arbiter Decision 2, Landed Disabled)
+
+The 2026-11-07 arbiter ruling keeps derived EPSS disabled anywhere
+user-visible until the FIRST scope record lands on #9876, and requires the
+enablement to land as code + config across four repos. This section records
+the `drive/9876-epss-transport` build, which stays disabled: no QA config
+flip, no `ScopeQuery` stuffing, no SPDX invention.
+
+- **eshu-sdk**: additive `Claim.ScopeCVEIDs` (`scope_cve_ids`, at most
+  `MaxScopeCVEIDs` = 100) with validator, JSON schema, schema goldens, and
+  round-trip/empty-serialization tests mirroring `claim_scope_queries`.
+  Empty omits from the wire so old satellites read byte-identical claims.
+- **Satellite** (`eshu-collector-vulnerability-intelligence`, release after
+  `v0.1.3`): `ParseSettings` accepts `derive_from_findings` (sources
+  exactly `first_epss`, anything else fails closed); the handler resolves
+  `vuln-intel://first_epss/_findings/<chunk>` to a `first_epss` target
+  built from the claim's transported CVE ids only when derived EPSS is
+  enabled and 1-100 ids ride the claim. Absent or malformed transport on a
+  findings scope is terminal (`findings_transport`), never the retryable
+  `unknown_scope` loop. Proven against a fake FIRST server with request
+  counts (1 claim = 1 FIRST request; terminal paths = 0 requests), with the
+  `first_epss` source-state recording pinned for `_findings` scopes.
+- **Core**: the activation validator applies the in-tree findings rules;
+  `ActivationDerivation.Enabled()` includes `DeriveFromFindings` while
+  `PlanKeyDerivation` precedence is unchanged; the activation service reads
+  finding CVEs only when enabled, plans through
+  `PlanActivationDerivedWork` (now returning the EPSS observation), reports
+  the observation on the in-tree log line and counters, and records
+  admitted `_findings` scopes as last-planned. Findings chunks pace to one
+  full finding-set fetch per FIRST publication day (sliding 24h from the
+  last plan; Decision 5, measured by the pacing and service tests).
+- **Deploy**: the satellite-plan Helm gate drops `derive_from_findings`
+  from the unresolvable set only for the new satellite version; the render
+  still fails when findings are enabled against a `v0.1.3` pin.
+- **Attribution** (Decision 3): `EPSS scores are provided by FIRST (Forum of
+  Incident Response and Security Teams, Inc.), https://www.first.org/epss`
+  on the `first_epss` snapshot terms (license stays `NOASSERTION`) and on
+  `security-intelligence-source-coverage.md` and the
+  vulnerability-scanner read contract. Wording approval only, not legal
+  clearance.
+
+## Transport Build No-Regression Note (Core Commit)
+
+- No-Regression Evidence: `BenchmarkEmit` (claim emit path touched by
+  `request.go`) baseline at `52e0cbae93` vs after (this commit), both
+  `-benchtime 100x -count 3`, `go1.26.10 linux/arm64`, unit fixtures, no
+  DB: identical allocs per op on every sub-bench (130/55/55/55/55),
+  ns/op and B/op within run-to-run noise (e.g. vault_live 9873 vs 9959
+  ns/op, 11935 vs 11942 B/op). `BenchmarkInTreeSchedulable` likewise:
+  identical allocs (6/16), in-tree_1000_targets 420592-426908 vs
+  426242-429541 ns/op (within-run variance exceeds the delta).
+  Focused suites green after: `collector`, `extensionhost`,
+  `extensionhost/vulnerability`, `sbom/runtime`, `coordinator`,
+  `coordinator/vulnerability`, `vulnsource`, `workflow` (`-count=1`),
+  plus `sdk/go/factschema/fixturepack`; `go vet` clean on all touched
+  packages. Terminal queue/row counts: N/A, no queue change.
+- Observability Evidence: no new metric, span, log, or status keys. The
+  activation path reuses the in-tree EPSS instruments from #9967
+  (`RecordEPSSDerivedPage`, existing log line and counters) and emits
+  only when the findings section is enabled; disabled derivations read
+  nothing (no CVE read, no progress read) and record nothing, pinned by
+  the activation and service tests.
+- Why safe: legacy scopes resolve the zero transport without touching
+  the run store, and `omitempty` keeps the wire byte-identical on
+  non-sharded claims; the enabled path adds two bounded reads per plan
+  tick plus pacing that caps fetches at one full finding-set pass per
+  FIRST publication day (Decision 5).

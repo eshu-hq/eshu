@@ -316,8 +316,23 @@ func (s Service) scheduleVulnerabilityActivationDerivedScopes(
 	if err != nil {
 		return fmt.Errorf("load vulnerability intelligence NVD window cursor for %q: %w", instance.InstanceID, err)
 	}
+	// Findings-derived EPSS reads the active finding CVE ids and the
+	// findings publication progress only when the section is enabled: a
+	// disabled derivation reads nothing and plans no first_epss targets.
+	var findingCVEIDs []string
+	var findingsLastPlanned map[string]time.Time
+	if derivation.DeriveFromFindings.Enabled {
+		findingCVEIDs, err = s.vulnerabilityFindingCVEIDs(ctx, derivation.DeriveFromFindings)
+		if err != nil {
+			return fmt.Errorf("load vulnerability intelligence finding CVE ids for %q: %w", instance.InstanceID, err)
+		}
+		findingsLastPlanned, err = s.vulnerabilityFindingsRefreshProgress(ctx, instance.InstanceID)
+		if err != nil {
+			return fmt.Errorf("load vulnerability intelligence findings refresh progress for %q: %w", instance.InstanceID, err)
+		}
+	}
 	planKey := derivedTargetPlanKey(instance, observedAt, interval, derivation.PlanKeyDerivation().PlanningMode)
-	run, items, err := vulnerability.PlanActivationDerivedWork(vulnerability.ActivationDerivedPlanRequest{
+	run, items, observation, err := vulnerability.PlanActivationDerivedWork(vulnerability.ActivationDerivedPlanRequest{
 		Instance:                 instance,
 		ObservedAt:               observedAt,
 		PlanKey:                  planKey,
@@ -331,9 +346,17 @@ func (s Service) scheduleVulnerabilityActivationDerivedScopes(
 		OwnedPackageWindow:       ownedPage.Window,
 		OSPackageTargets:         osTargets,
 		SBOMComponentTargets:     sbomTargets,
+		FindingCVEIDs:            findingCVEIDs,
+		TargetLastPlanned:        findingsLastPlanned,
 	})
 	if err != nil {
 		return fmt.Errorf("plan vulnerability intelligence derived scopes for %q: %w", instance.InstanceID, err)
+	}
+	// The EPSS observation fires on the same gate as the read: an enabled
+	// findings derivation logs and counts the plan even when every chunk
+	// paced out, while a disabled derivation records nothing.
+	if derivation.DeriveFromFindings.Enabled {
+		s.reportEPSSDerived(ctx, instance, observation)
 	}
 	// The owned-package derivation signal fires on the same gate as the
 	// window log above: a disabled derivation made no read and records
@@ -350,6 +373,16 @@ func (s Service) scheduleVulnerabilityActivationDerivedScopes(
 	enqueued, err := s.createWorkflowWorkIfNoOpenTargets(ctx, instance, run, items)
 	if err != nil {
 		return fmt.Errorf("create vulnerability intelligence derived scoped work for %q: %w", instance.InstanceID, err)
+	}
+	// Record the admitted findings chunks as last-planned after admission,
+	// never inside the shared admission transaction: a crash between the
+	// two only refetches once, and the next due tick repairs it. The
+	// recorded scopes pace the next plan to one fetch per publication
+	// window (eshu-hq/eshu#9876 Decision 5).
+	if derivation.DeriveFromFindings.Enabled {
+		if err := s.recordVulnerabilityTargetRefreshPlanned(ctx, instance.InstanceID, vulnerabilityFindingsPlannedScopeIDs(items), observedAt); err != nil {
+			return fmt.Errorf("record vulnerability intelligence findings refresh progress for %q: %w", instance.InstanceID, err)
+		}
 	}
 	if s.Logger != nil {
 		s.Logger.Info(

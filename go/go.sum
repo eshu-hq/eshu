@@ -465,8 +465,12 @@ github.com/eshu-hq/embedded-postgres v1.34.0-eshu.1 h1:SBFlZaq6+VZ04JxcrJl2DU4F/
 github.com/eshu-hq/embedded-postgres v1.34.0-eshu.1/go.mod h1:1sJQmsa9f9xLU2bfoXpeLb7Px/AUfIJKo+Yiez8nFC0=
 github.com/eshu-hq/eshu-sdk/collector v0.2.0-rc.3 h1:m+sfCl0YZdWtuMY4hIiYYs5Ip/3t9o2kDlX2BaxsF9M=
 github.com/eshu-hq/eshu-sdk/collector v0.2.0-rc.3/go.mod h1:PPYMfpF8xIytKCLpAP/1T7bGJzUTc5tboKH1+j8ZK20=
+github.com/eshu-hq/eshu-sdk/collector v0.2.0-rc.4 h1:sEINyRomi8ME7WdrhrW4fSWX2vn6GmIw1oEOmNT2PYY=
+github.com/eshu-hq/eshu-sdk/collector v0.2.0-rc.4/go.mod h1:PPYMfpF8xIytKCLpAP/1T7bGJzUTc5tboKH1+j8ZK20=
 github.com/eshu-hq/eshu-sdk/factschema v0.1.0-rc.17.0.20261106050329-33c470370a4c h1:CqNTSgERdNA8KuLHj+CLOL18hjV8hNIfOLpQU/4bvzE=
 github.com/eshu-hq/eshu-sdk/factschema v0.1.0-rc.17.0.20261106050329-33c470370a4c/go.mod h1:GysO1GSvcUYSSl7ydDx34MYRSw4yI2DgADT0twajVXY=
+github.com/eshu-hq/eshu-sdk/factschema v0.1.0-rc.18 h1:RRoYb7+52kaHt2ErQ6e0NEIDBX0nLbnBhXMQgLX75PA=
+github.com/eshu-hq/eshu-sdk/factschema v0.1.0-rc.18/go.mod h1:GysO1GSvcUYSSl7ydDx34MYRSw4yI2DgADT0twajVXY=
 github.com/eshu-hq/eshu-workflow v0.2.0 h1:ZBzeMONwvGc5gns2sa13J9Z0I7GuH1BDsMSGj8/hvZU=
 github.com/eshu-hq/eshu-workflow v0.2.0/go.mod h1:75giclkExwlfslZf9p1nLK/5TnC+WHkN5jMoxJBohg0=
 github.com/eshu-hq/saml v0.5.1-eshu.1 h1:51xC1JYE+V7kkZHcfv3TgFFAWMZ2jEsSR83qPgVrRMM=

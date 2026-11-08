@@ -4,12 +4,17 @@
 package coordinator
 
 import (
+	"bytes"
 	"context"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	"github.com/eshu-hq/eshu/go/internal/component"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/egress"
@@ -153,6 +158,148 @@ func TestServiceRunPlansDerivedOSVScopesForVulnerabilityActivation(t *testing.T)
 	}
 	if got, want := reader.requests[0].Limit, 126; got != want {
 		t.Fatalf("owned target read limit = %d, want %d (target_limit 125 plus lookahead)", got, want)
+	}
+}
+
+// TestServiceRunPlansFindingsEPSSForVulnerabilityActivation proves the
+// activation findings path end to end (eshu-hq/eshu#9876): an activation
+// whose config block enables derive_from_findings reads the active finding
+// CVE ids once, mints _findings chunk claims, reports the EPSS observation
+// on the in-tree log line and counters, and records the chunks as
+// last-planned so the next tick inside the publication window plans nothing.
+func TestServiceRunPlansFindingsEPSSForVulnerabilityActivation(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.October, 27, 22, 15, 0, 0, time.UTC)
+	instance := testVulnerabilityActivationInstance(now, testVulnerabilityActivationConfiguration(
+		`{"derive_from_findings":{"enabled":true,"sources":["first_epss"]}}`,
+		string(scope.CollectorVulnerabilityIntelligence),
+		string(scope.CollectorVulnerabilityIntelligence),
+	))
+	store := &fakeStore{instances: []workflow.CollectorInstance{instance}}
+	reader := &fakeOwnedPackageTargetReader{}
+	findingReader := &fakeFindingCVEIDReader{ids: []string{"CVE-2026-0002", "CVE-2026-0001"}}
+	progress := &fakeTargetRefreshProgressStore{}
+	var logs bytes.Buffer
+	meterReader := sdkmetric.NewManualReader()
+	meterProvider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(meterReader))
+	metrics, err := NewMetrics(meterProvider.Meter("test"))
+	if err != nil {
+		t.Fatalf("NewMetrics() error = %v, want nil", err)
+	}
+	service := testVulnerabilityActivationService(t, now, instance, store, reader, `{"mode":"broad"}`)
+	service.FindingCVEIDReader = findingReader
+	service.TargetRefreshProgressStore = progress
+	service.Logger = slog.New(slog.NewJSONHandler(&logs, nil))
+	service.Metrics = metrics
+
+	if err := runCancelledReconcile(t, service); err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+	scopes := map[string]workflow.WorkItem{}
+	for _, item := range store.enqueuedItems {
+		scopes[item.ScopeID] = item
+	}
+	derived, ok := scopes["vuln-intel://first_epss/_findings/0"]
+	if !ok {
+		t.Fatalf("enqueued scopes = %v, want the findings chunk scope", keysOf(scopes))
+	}
+	if got, want := derived.SourceSystem, string(scope.CollectorVulnerabilityIntelligence); got != want {
+		t.Fatalf("derived SourceSystem = %q, want %q", got, want)
+	}
+	if findingReader.calls != 1 {
+		t.Fatalf("finding CVE reads = %d, want 1", findingReader.calls)
+	}
+	if progress.reads != 1 {
+		t.Fatalf("progress reads = %d, want 1", progress.reads)
+	}
+	if len(progress.records) != 1 || len(progress.records[0]) != 1 || progress.records[0][0] != "vuln-intel://first_epss/_findings/0" {
+		t.Fatalf("progress records = %v, want the admitted chunk scope", progress.records)
+	}
+	if !strings.Contains(logs.String(), `"msg":"workflow coordinator planned findings-derived EPSS targets"`) {
+		t.Fatalf("logs = %s, want the findings-derived EPSS log line", logs.String())
+	}
+	var rm metricdata.ResourceMetrics
+	if err := meterReader.Collect(context.Background(), &rm); err != nil {
+		t.Fatalf("Collect() error = %v, want nil", err)
+	}
+	if got := epssCounterValue(rm, epssDerivedAdmittedMetric, ""); got != 1 {
+		t.Fatalf("admitted EPSS targets = %d, want 1", got)
+	}
+}
+
+// TestServiceRunSkipsFindingsEPSSInsidePublicationWindow proves Decision 5
+// at the service seam: a second reconcile inside the window reads the CVE
+// ids but mints no _findings claims, because the progress record from the
+// first tick covers the chunk.
+func TestServiceRunSkipsFindingsEPSSInsidePublicationWindow(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.October, 27, 22, 15, 0, 0, time.UTC)
+	instance := testVulnerabilityActivationInstance(now, testVulnerabilityActivationConfiguration(
+		`{"derive_from_findings":{"enabled":true,"sources":["first_epss"]}}`,
+		string(scope.CollectorVulnerabilityIntelligence),
+		string(scope.CollectorVulnerabilityIntelligence),
+	))
+	progress := &fakeTargetRefreshProgressStore{progress: map[string]time.Time{
+		"vuln-intel://first_epss/_findings/0": now.Add(-30 * time.Minute),
+	}}
+	findingReader := &fakeFindingCVEIDReader{ids: []string{"CVE-2026-0001"}}
+	store := &fakeStore{instances: []workflow.CollectorInstance{instance}}
+	reader := &fakeOwnedPackageTargetReader{}
+	service := testVulnerabilityActivationService(t, now, instance, store, reader, `{"mode":"broad"}`)
+	service.FindingCVEIDReader = findingReader
+	service.TargetRefreshProgressStore = progress
+
+	if err := runCancelledReconcile(t, service); err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+	scopes := map[string]workflow.WorkItem{}
+	for _, item := range store.enqueuedItems {
+		scopes[item.ScopeID] = item
+	}
+	for scopeID := range scopes {
+		if strings.HasPrefix(scopeID, "vuln-intel://first_epss/_findings/") {
+			t.Fatalf("enqueued scopes = %v, want no findings chunk inside the window", keysOf(scopes))
+		}
+	}
+}
+
+// TestServiceRunReadsNothingForDisabledFindingsEPSS pins the disabled gate:
+// without the findings section the service touches neither the finding CVE
+// reader nor the progress store and logs no EPSS line.
+func TestServiceRunReadsNothingForDisabledFindingsEPSS(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.October, 27, 22, 15, 0, 0, time.UTC)
+	instance := testVulnerabilityActivationInstance(now, testVulnerabilityActivationConfiguration(
+		`{"derive_from_owned_packages":{"enabled":true,"sources":["osv"],"ecosystems":["npm"]}}`,
+		string(scope.CollectorVulnerabilityIntelligence),
+		string(scope.CollectorVulnerabilityIntelligence),
+	))
+	store := &fakeStore{instances: []workflow.CollectorInstance{instance}}
+	reader := &fakeOwnedPackageTargetReader{targets: []workflow.OwnedPackageDependencyTarget{{
+		Ecosystem: "npm", PackageName: "vite", Version: "5.4.21", Lockfile: true, RepositoryID: "repo-eshu",
+	}}}
+	findingReader := &fakeFindingCVEIDReader{ids: []string{"CVE-2026-0001"}}
+	progress := &fakeTargetRefreshProgressStore{}
+	var logs bytes.Buffer
+	service := testVulnerabilityActivationService(t, now, instance, store, reader, `{"mode":"broad"}`)
+	service.FindingCVEIDReader = findingReader
+	service.TargetRefreshProgressStore = progress
+	service.Logger = slog.New(slog.NewJSONHandler(&logs, nil))
+
+	if err := runCancelledReconcile(t, service); err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+	if findingReader.calls != 0 {
+		t.Fatalf("finding CVE reads = %d, want 0 for a disabled derivation", findingReader.calls)
+	}
+	if progress.reads != 0 || len(progress.records) != 0 {
+		t.Fatalf("progress reads = %d records = %v, want none for a disabled derivation", progress.reads, progress.records)
+	}
+	if strings.Contains(logs.String(), "findings-derived EPSS targets") {
+		t.Fatalf("logs = %s, want no EPSS line for a disabled derivation", logs.String())
 	}
 }
 

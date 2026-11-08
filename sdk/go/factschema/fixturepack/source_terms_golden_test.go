@@ -24,7 +24,7 @@ var licenseIdentifier = regexp.MustCompile(`^[A-Za-z0-9.+-]+$`)
 const maxAttributionLen = 300
 
 func TestSourceTermsGoldenFullContentDigest(t *testing.T) {
-	const expected = "7367741d838d024c8813a705447cf9691bdfbe9daf66c78c931911fdc3fad225"
+	const expected = "85b285fe3611896ce624b58e3198ff8635c51ff532975a3bef131314f6c23186"
 	got := fmt.Sprintf("%x", sha256.Sum256(SourceTermsGolden()))
 	if got != expected {
 		t.Fatalf("source terms golden digest = %s, want %s; review every source before updating the pin", got, expected)
@@ -51,11 +51,11 @@ func TestSourceTermsGoldenRejectsSeededCorruption(t *testing.T) {
 		"license left blank":       {`"license": "CC0-1.0"`, `"license": ""`},
 		"license with a space":     {`"license": "CC0-1.0"`, `"license": "CC0 1.0"`},
 		"license a free sentence":  {`"license": "NOASSERTION"`, `"license": "no stated license"`},
-		"attribution left blank":   {`"attribution": "EPSS scores are provided by FIRST, https://www.first.org/epss"`, `"attribution": ""`},
-		"attribution on two lines": {`EPSS scores are provided by FIRST,`, `EPSS scores are\nprovided by FIRST,`},
-		"attribution with a tab":   {`EPSS scores are provided by FIRST,`, `EPSS scores are\tprovided by FIRST,`},
+		"attribution left blank":   {`"attribution": "EPSS scores are provided by FIRST (Forum of Incident Response and Security Teams, Inc.), https://www.first.org/epss"`, `"attribution": ""`},
+		"attribution on two lines": {`EPSS scores are provided by FIRST (Forum of Incident Response and Security Teams, Inc.),`, `EPSS scores are\nprovided by FIRST,`},
+		"attribution with a tab":   {`EPSS scores are provided by FIRST (Forum of Incident Response and Security Teams, Inc.),`, `EPSS scores are\tprovided by FIRST,`},
 		"attribution too long": {
-			`"attribution": "EPSS scores are provided by FIRST, https://www.first.org/epss"`,
+			`"attribution": "EPSS scores are provided by FIRST (Forum of Incident Response and Security Teams, Inc.), https://www.first.org/epss"`,
 			`"attribution": "` + strings.Repeat("x", maxAttributionLen+1) + `"`,
 		},
 		"source dropped":           {`"source": "osv"`, `"source": "osv_other"`},

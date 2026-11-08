@@ -63,6 +63,52 @@ func TestParseDerivedOSVSlotScopeRejectsNonSlotShapes(t *testing.T) {
 	}
 }
 
+// TestParseEPSSFindingsScopeAcceptsChunkShape proves the coordinator-minted
+// findings chunk scope parses to its ordinal (eshu-hq/eshu#9876): the scope
+// id carries no CVE ids, so parsing is shape only.
+func TestParseEPSSFindingsScopeAcceptsChunkShape(t *testing.T) {
+	t.Parallel()
+
+	chunk, ok := ParseEPSSFindingsScope("vuln-intel://first_epss/_findings/17")
+	if !ok {
+		t.Fatal("ParseEPSSFindingsScope rejected the pinned chunk shape")
+	}
+	if chunk != 17 {
+		t.Fatalf("chunk = %d, want 17", chunk)
+	}
+	if !IsEPSSFindingsScope("vuln-intel://first_epss/_findings/0") {
+		t.Fatal("IsEPSSFindingsScope rejected chunk 0")
+	}
+}
+
+// TestParseEPSSFindingsScopeRejectsNonFindingsShapes proves every other
+// scope id, and every malformed findings-namespace id, fails the parser:
+// the satellite fails those terminal, never as unknown_scope.
+func TestParseEPSSFindingsScopeRejectsNonFindingsShapes(t *testing.T) {
+	t.Parallel()
+
+	for _, scopeID := range []string{
+		"",
+		"vuln-intel://osv/npm/_slot/3/0",
+		"vuln-intel://first/epss",
+		"vuln-intel://first_epss/_findings",
+		"vuln-intel://first_epss/_findings/",
+		"vuln-intel://first_epss/_findings/not-a-number",
+		"vuln-intel://first_epss/_findings/0/extra",
+		"vuln-intel://first_epss/_findings/0?cve=CVE-2026-0001",
+		"vuln-intel://first_epss/_findings/0#frag",
+		"https://api.first.org/data/v1/epss",
+		"vuln-intel://first-epss/_findings/0",
+	} {
+		if _, ok := ParseEPSSFindingsScope(scopeID); ok {
+			t.Errorf("ParseEPSSFindingsScope(%q) accepted, want reject", scopeID)
+		}
+		if IsEPSSFindingsScope(scopeID) {
+			t.Errorf("IsEPSSFindingsScope(%q) = true, want false", scopeID)
+		}
+	}
+}
+
 // TestDerivedScopePackageKeysRejectsSlotScopeWithoutTransport pins fail-closed
 // key derivation: a bare slot scope id carries no queries, so scope-id-only
 // resolution must refuse it rather than record no package keys and read every

@@ -33,8 +33,8 @@ func TestRequestForWorkItemCarriesResolvedScopeQueries(t *testing.T) {
 
 	runner := &recordingRunner{}
 	source := mustNewSource(t, runner, &recordingStatusRecorder{})
-	source.scopeQueryResolver = func(context.Context, workflow.WorkItem) ([]sdkcollector.ScopeQuery, error) {
-		return slotQueries(), nil
+	source.scopeQueryResolver = func(context.Context, workflow.WorkItem) (collector.ResolvedScopeTransport, error) {
+		return collector.ResolvedScopeTransport{Queries: slotQueries()}, nil
 	}
 	item := testWorkItem()
 	item.ScopeID = testSlotScopeID
@@ -48,6 +48,31 @@ func TestRequestForWorkItemCarriesResolvedScopeQueries(t *testing.T) {
 	}
 	if request.Claim.ScopeQueries[0].Package != "left-pad" || request.Claim.ScopeQueries[0].Version != "1.3.0" {
 		t.Fatalf("ScopeQueries[0] = %+v, want left-pad@1.3.0", request.Claim.ScopeQueries[0])
+	}
+}
+
+// TestRequestForWorkItemCarriesResolvedScopeCVEIDs proves the findings half
+// of the claim transport (eshu-hq/eshu#9876): resolved CVE ids ride the
+// claim's scope_cve_ids, with no scope queries attached.
+func TestRequestForWorkItemCarriesResolvedScopeCVEIDs(t *testing.T) {
+	t.Parallel()
+
+	source := mustNewSource(t, &recordingRunner{}, &recordingStatusRecorder{})
+	source.scopeQueryResolver = func(context.Context, workflow.WorkItem) (collector.ResolvedScopeTransport, error) {
+		return collector.ResolvedScopeTransport{CVEIDs: []string{"CVE-2026-0001", "CVE-2026-0002"}}, nil
+	}
+	item := testWorkItem()
+	item.ScopeID = "vuln-intel://first_epss/_findings/0"
+
+	request, err := source.requestForWorkItem(context.Background(), item)
+	if err != nil {
+		t.Fatalf("requestForWorkItem() error = %v, want nil", err)
+	}
+	if len(request.Claim.ScopeCVEIDs) != 2 || request.Claim.ScopeCVEIDs[0] != "CVE-2026-0001" {
+		t.Fatalf("ScopeCVEIDs = %+v, want the chunk CVE ids", request.Claim.ScopeCVEIDs)
+	}
+	if request.Claim.ScopeQueries != nil {
+		t.Fatalf("ScopeQueries = %+v, want nil on a findings claim", request.Claim.ScopeQueries)
 	}
 }
 
@@ -83,8 +108,8 @@ func TestNextClaimedResolverFailureIsTerminalInvalidClaim(t *testing.T) {
 
 	runner := &recordingRunner{result: completeResult(testWorkItem())}
 	source := mustNewSource(t, runner, &recordingStatusRecorder{})
-	source.scopeQueryResolver = func(context.Context, workflow.WorkItem) ([]sdkcollector.ScopeQuery, error) {
-		return nil, fmt.Errorf("%w: no requested scope set entry", collector.ErrSlotScopeTransport)
+	source.scopeQueryResolver = func(context.Context, workflow.WorkItem) (collector.ResolvedScopeTransport, error) {
+		return collector.ResolvedScopeTransport{}, fmt.Errorf("%w: no requested scope set entry", collector.ErrSlotScopeTransport)
 	}
 
 	_, _, err := source.NextClaimed(context.Background(), testWorkItem())
@@ -104,8 +129,8 @@ func TestNextClaimedResolverTransientErrorIsRetryable(t *testing.T) {
 
 	runner := &recordingRunner{result: completeResult(testWorkItem())}
 	source := mustNewSource(t, runner, &recordingStatusRecorder{})
-	source.scopeQueryResolver = func(context.Context, workflow.WorkItem) ([]sdkcollector.ScopeQuery, error) {
-		return nil, errors.New("read workflow run requested scope set: connection reset by peer")
+	source.scopeQueryResolver = func(context.Context, workflow.WorkItem) (collector.ResolvedScopeTransport, error) {
+		return collector.ResolvedScopeTransport{}, errors.New("read workflow run requested scope set: connection reset by peer")
 	}
 
 	_, _, err := source.NextClaimed(context.Background(), testWorkItem())
@@ -124,8 +149,8 @@ func TestNextClaimedDeliversScopeQueriesToRunner(t *testing.T) {
 	item.ScopeID = testSlotScopeID
 	runner := &recordingRunner{}
 	source := mustNewSource(t, runner, &recordingStatusRecorder{})
-	source.scopeQueryResolver = func(context.Context, workflow.WorkItem) ([]sdkcollector.ScopeQuery, error) {
-		return slotQueries(), nil
+	source.scopeQueryResolver = func(context.Context, workflow.WorkItem) (collector.ResolvedScopeTransport, error) {
+		return collector.ResolvedScopeTransport{Queries: slotQueries()}, nil
 	}
 	runner.result = completeResult(item)
 	runner.result.Claim.ScopeQueries = slotQueries()
@@ -160,8 +185,8 @@ func BenchmarkRequestForWorkItemWithoutResolver(b *testing.B) {
 // carries them. See the no-regression note in README.md.
 func BenchmarkRequestForWorkItemWithScopeQueries(b *testing.B) {
 	source := mustNewSourceWithManifest(b, testManifest(), &recordingRunner{}, &recordingStatusRecorder{})
-	source.scopeQueryResolver = func(context.Context, workflow.WorkItem) ([]sdkcollector.ScopeQuery, error) {
-		return slotQueries(), nil
+	source.scopeQueryResolver = func(context.Context, workflow.WorkItem) (collector.ResolvedScopeTransport, error) {
+		return collector.ResolvedScopeTransport{Queries: slotQueries()}, nil
 	}
 	item := testWorkItem()
 	b.ResetTimer()
@@ -206,5 +231,43 @@ func TestValidateReturnedClaimComparesScopeQueries(t *testing.T) {
 	reordered.ScopeQueries = []sdkcollector.ScopeQuery{slotQueries()[1], slotQueries()[0]}
 	if err := validateReturnedClaim(withQueries, reordered); err == nil {
 		t.Fatal("reordered scope queries accepted, want identity mismatch")
+	}
+}
+
+// TestValidateReturnedClaimComparesScopeCVEIDs proves the echo check is
+// strict on the findings transport (eshu-hq/eshu#9876): a tampered CVE id
+// list fails, empty equals empty.
+func TestValidateReturnedClaimComparesScopeCVEIDs(t *testing.T) {
+	t.Parallel()
+
+	withCVEIDs := testSDKClaim(testWorkItem())
+	withCVEIDs.ScopeCVEIDs = []string{"CVE-2026-0001", "CVE-2026-0002"}
+
+	if err := validateReturnedClaim(withCVEIDs, withCVEIDs); err != nil {
+		t.Fatalf("identical scope CVE ids rejected: %v", err)
+	}
+	plain := testSDKClaim(testWorkItem())
+	if err := validateReturnedClaim(plain, plain); err != nil {
+		t.Fatalf("empty scope CVE ids rejected: %v", err)
+	}
+	stripped := withCVEIDs
+	stripped.ScopeCVEIDs = nil
+	if err := validateReturnedClaim(withCVEIDs, stripped); err == nil {
+		t.Fatal("stripped scope CVE ids accepted, want identity mismatch")
+	}
+	added := plain
+	added.ScopeCVEIDs = []string{"CVE-2026-0001"}
+	if err := validateReturnedClaim(plain, added); err == nil {
+		t.Fatal("injected scope CVE ids accepted, want identity mismatch")
+	}
+	tampered := withCVEIDs
+	tampered.ScopeCVEIDs = []string{"CVE-2026-0001", "CVE-2026-9999"}
+	if err := validateReturnedClaim(withCVEIDs, tampered); err == nil {
+		t.Fatal("tampered scope CVE id accepted, want identity mismatch")
+	}
+	reordered := withCVEIDs
+	reordered.ScopeCVEIDs = []string{"CVE-2026-0002", "CVE-2026-0001"}
+	if err := validateReturnedClaim(withCVEIDs, reordered); err == nil {
+		t.Fatal("reordered scope CVE ids accepted, want identity mismatch")
 	}
 }
