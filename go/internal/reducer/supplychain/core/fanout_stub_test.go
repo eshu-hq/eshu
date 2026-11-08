@@ -36,6 +36,11 @@ type stubFanOut struct {
 	origins       []FanOutOrigin
 	stateCalls    []FanOutState
 	stateFailures []int // 1-based UpdateFanOutState call numbers that fail
+	// clearCalls records the seen stamp of every ClearReplayFlagIfStampSeen
+	// call; clearResult is what the next call reports.
+	clearCalls    []map[string]any
+	clearResult   bool
+	clearErr      error
 	payload       map[string]any
 	inFlight      []string
 	inFlightErr   error
@@ -120,6 +125,14 @@ func (s *stubFanOut) ReopenHolder(_ context.Context, holderScopeID string, origi
 		return outcome, nil
 	}
 	return FanOutReopened, nil
+}
+
+func (s *stubFanOut) ClearReplayFlagIfStampSeen(_ context.Context, _ reducercontract.Intent, seen map[string]any) (bool, error) {
+	s.clearCalls = append(s.clearCalls, seen)
+	if s.clearErr != nil {
+		return false, s.clearErr
+	}
+	return s.clearResult, nil
 }
 
 func (s *stubFanOut) UpdateFanOutState(_ context.Context, _ reducercontract.Intent, state FanOutState) error {

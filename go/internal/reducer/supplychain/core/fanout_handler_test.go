@@ -40,8 +40,8 @@ func TestChangedWriteReopensEveryHolderButTheOwnScope(t *testing.T) {
 		t.Fatalf("FindHolderScopes cve ids = %v, want the changed CVE only", port.findCalls)
 	}
 	for _, origin := range port.origins {
-		wantOrigin := FanOutOrigin{SourceScopeID: "vuln-intel://nvd/cve", SourceGenerationID: "generation-fanout", SourceIntentID: "intent-fanout"}
-		if origin != wantOrigin {
+		wantOrigin := FanOutOrigin{SourceScopeID: "vuln-intel://nvd/cve", SourceGenerationID: "generation-fanout", SourceIntentID: "intent-fanout", CVEIDs: []string{"CVE-2026-9001"}}
+		if !reflect.DeepEqual(origin, wantOrigin) {
 			t.Fatalf("origin = %+v, want %+v", origin, wantOrigin)
 		}
 	}

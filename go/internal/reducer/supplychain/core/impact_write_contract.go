@@ -63,6 +63,14 @@ type SupplyChainImpactWrite struct {
 	// CVEs are known and are not empty, so the marker "this commit owes a
 	// fan-out" commits with the rows or not at all. A failure rolls the write back.
 	Owed FanOutOwedRecorder
+	// ScopedCVEIDs restricts one re-derivation to the stamped change that
+	// caused it (#9779). When set, the writer upserts findings for these CVEs
+	// only and retracts inside the set only; every row outside it is left
+	// byte-identical. Empty runs the full pass: upsert everything derived and
+	// retract everything else. Handle sets it only for a one-hop pass whose
+	// stamp names a bounded set; the sentinel, a stamp without a set, and an
+	// owed retry all run full.
+	ScopedCVEIDs []string
 }
 
 // SupplyChainImpactWriteResult summarizes durable impact publication.
@@ -92,6 +100,19 @@ type SupplyChainImpactWriteResult struct {
 	// the scope holds at this generation. Set only when the write asked for
 	// Recovery.
 	RecoveryCVEIDs []string
+	// DerivedCVEIDs are the CVE ids of every finding row this pass wrote,
+	// plus every row it retracted (#9740). The fan-out compares them with the
+	// stamp that flagged the pass: disjoint means the flagged change cannot
+	// affect what the pass wrote.
+	DerivedCVEIDs []string
+	// EvidenceComplete reports the pass loaded its whole evidence set. A
+	// truncated load (#7154) may have missed the flagged change, so the
+	// fan-out never clears a replay flag on its derived set: the pass
+	// reruns instead.
+	EvidenceComplete bool
+	// ScopedCVEIDs echoes the write's scope: the stamped CVEs this
+	// re-derivation covered, or empty for a full pass (#9779).
+	ScopedCVEIDs []string
 }
 
 // SupplyChainImpactWriter persists reducer-owned impact findings.

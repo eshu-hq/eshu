@@ -17,74 +17,6 @@ import (
 )
 
 // supplyChainImpactLoadedEvidence carries the fact envelopes and per-stage
-// fact counts SupplyChainImpactHandler.Handle's multi-stage evidence-loading
-// pipeline produces, so the pipeline lives in its own function
-// (loadSupplyChainImpactEvidence) while Handle stays focused on
-// classification, suppression, and the write/emit tail.
-type supplyChainImpactLoadedEvidence struct {
-	envelopes    []facts.Envelope
-	asAuthorized *AuthorizedSupplyChainImpactLoad
-	scopeFacts   int
-	// scopeFactKinds are the fact kinds of the intent's own generation (the
-	// first load, before any cross-scope expansion). The holder fan-out
-	// classifies its cause from them (#9878): they name what this pass's
-	// generation carried, never what the expansion resolved elsewhere.
-	scopeFactKinds          []string
-	repositoryFacts         int
-	manifestDependencyFacts int
-	activeEvidenceFacts     int
-	// truncation names why a bounded load stopped short, by cause (#7154).
-	// Only truncation.partial() makes the finding set incomplete.
-	truncation supplyChainImpactTruncation
-	// suppressionEvidenceTruncated is true when any bounded load stopped
-	// short: a suppression candidate set that is not provably complete is
-	// discarded so findings fail open.
-	suppressionEvidenceTruncated bool
-	// expansionEnvelopes counts the expansion envelopes in the evidence set:
-	// the static load's charged envelopes plus, on the protected-scan path, the
-	// derived facts added after it.
-	expansionEnvelopes int
-	// budgetEnvelopes is what the pass charged against the per-intent evidence
-	// budget (budget.used) and nothing else. The #9778 headroom gauge and the
-	// evidence_budget_ratio sub-signal read it, because the protected-scan path
-	// raises expansionEnvelopes with derived facts the budget never charged.
-	budgetEnvelopes int
-	// budgetPayloadBytes is the raw JSON bytes the pass kept decoded, charged
-	// against the retained-payload-bytes budget (#9781).
-	budgetPayloadBytes int64
-	// activeEvidence is the pass's per-statement active-evidence accounting
-	// (#8880), merged into the success log's sub-signals and sub-durations.
-	activeEvidence                  supplyChainImpactActiveEvidenceTally
-	osPackageAdvisoryFacts          int
-	osPackageAdvisoryTargetsSkipped int
-	scannerAnalysisScopeFacts       int
-	resolvedDigestEvidenceFacts     int
-	pythonReachabilityFacts         int
-	// pythonReachabilityPayloadBytes is the raw JSON bytes the Python stage
-	// read and folded, dropped instead of retained (#9860). Folded bytes are
-	// observed, not charged: like the #9781 active-evidence fold, folding
-	// bounds memory by dropping the payloads, so only retained bytes trip
-	// the byte budget.
-	pythonReachabilityPayloadBytes int64
-	jvmReachabilityFactCount       int
-	goReachabilityFacts            int
-	postSecurityAlertScopeFacts    int
-	securityAlertScopingApplied    bool
-	securityAlertScopedOutFacts    int
-	// floorArmed reports whether the #5709 floor could have deferred this
-	// pass: a producer-reachable initial filter on a wired seam. It is the
-	// probe's H1b discriminator (unreachable initial filter means the
-	// resolved-digest stage ran unprotected) and is carried here so Handle
-	// and the deferral branch log the same value the load decided on.
-	floorArmed bool
-	// crossScopeProducerDelta is the batch-wide cross-scope producer delta
-	// across the until-stable, resolved-digest, and peer-identity stages.
-	// It is the probe's H1a discriminator: a committing pass with zero
-	// pinned-digest rows but a positive batch delta had its floor disarmed
-	// by another finding's evidence.
-	crossScopeProducerDelta int
-}
-
 // loadSupplyChainImpactEvidence runs the scope-fact, repository, manifest-
 // dependency, active-evidence, os-package-advisory, scanner-analysis-scope,
 // resolved-digest-evidence, Python/JVM reachability, and security-alert
@@ -137,6 +69,8 @@ func (h SupplyChainImpactHandler) loadSupplyChainImpactEvidence(
 		envelopes = appendUniqueSupplyChainImpactFacts(envelopes, h.authorizedStaticAdvisories...)
 	}
 
+	scoped, filterEnvelopes := h.scopedSupplyChainImpactFilterEnvelopes(ctx, intent, envelopes)
+
 	phaseStarted = time.Now()
 	repositories, err := h.loadActiveSupplyChainImpactRepositoryFacts(ctx, envelopes)
 	timing.loadRepositoryFactsDuration = time.Since(phaseStarted)
@@ -146,7 +80,7 @@ func (h SupplyChainImpactHandler) loadSupplyChainImpactEvidence(
 	repositoryFacts := len(repositories)
 	envelopes = append(envelopes, repositories...)
 
-	manifestDependencies, manifestRefused, err := h.loadManifestDependencyEvidence(ctx, envelopes, &timing)
+	manifestDependencies, manifestRefused, err := h.loadManifestDependencyEvidence(ctx, envelopes, filterEnvelopes, scoped, &timing)
 	if err != nil {
 		return supplyChainImpactLoadedEvidence{}, timing, err
 	}
@@ -160,9 +94,9 @@ func (h SupplyChainImpactHandler) loadSupplyChainImpactEvidence(
 	// producer-bearing stage has run; both halves and the reason the order
 	// matters are below in this file.
 	//
-	// activeEvidenceFilter is computed once here and handed to both, so the
-	// floor and the load cannot disagree about what this pass asked for.
-	activeEvidenceFilter := supplyChainImpactFilter(envelopes)
+	// The filter is computed once here and handed to both the floor and the
+	// load, so the two cannot disagree about what this pass asked for.
+	activeEvidenceFilter := h.scopedSupplyChainImpactFilter(envelopes, scoped)
 	floor, err := h.armCrossScopeProducerFloor(ctx, intent, envelopes, activeEvidenceFilter)
 	if err != nil {
 		return supplyChainImpactLoadedEvidence{}, timing, err
@@ -174,7 +108,7 @@ func (h SupplyChainImpactHandler) loadSupplyChainImpactEvidence(
 
 	activeEvidenceStartCount := len(envelopes)
 	phaseStarted = time.Now()
-	envelopes, truncation, err = h.loadActiveSupplyChainImpactFactsUntilStable(ctx, envelopes, activeEvidenceFilter, budget)
+	envelopes, truncation, err = h.loadActiveSupplyChainImpactFactsUntilStable(ctx, envelopes, activeEvidenceFilter, budget, scoped)
 	timing.loadActiveEvidenceDuration = time.Since(phaseStarted)
 	if err != nil {
 		return supplyChainImpactLoadedEvidence{}, timing, fmt.Errorf("load active supply chain impact facts: %w", err)
@@ -274,6 +208,7 @@ func (h SupplyChainImpactHandler) loadSupplyChainImpactEvidence(
 		securityAlertScopedOutFacts:     securityAlertScopedOutFacts,
 		floorArmed:                      floorArmed,
 		crossScopeProducerDelta:         producerDelta,
+		scoped:                          scoped,
 	}, timing, nil
 }
 

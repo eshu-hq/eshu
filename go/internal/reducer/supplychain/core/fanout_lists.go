@@ -54,6 +54,22 @@ func chunkStrings(values []string, size int) [][]string {
 	return chunks
 }
 
+// overlapsStrings reports whether the sets a and b share an element. Both
+// inputs are small stamp/derived sets, so a map probe is cheaper than a
+// merge walk and needs no ordering precondition.
+func overlapsStrings(a, b []string) bool {
+	set := make(map[string]struct{}, len(a))
+	for _, id := range a {
+		set[id] = struct{}{}
+	}
+	for _, id := range b {
+		if _, ok := set[id]; ok {
+			return true
+		}
+	}
+	return false
+}
+
 // unionSortedStrings returns the sorted, de-duplicated union of a and b with
 // blanks dropped.
 func unionSortedStrings(a, b []string) []string {

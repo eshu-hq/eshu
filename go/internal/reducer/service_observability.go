@@ -62,6 +62,13 @@ func (s Service) recordReducerResult(ctx context.Context, intent reducercontract
 		for _, a := range domainAttrs {
 			logAttrs = append(logAttrs, a)
 		}
+		// The scope id lets an operator aggregate passes per scope per hour
+		// from the success log alone (partition_key is only a proxy:
+		// "supply_chain_impact:<scope>"). A bounded top-k of scopes by
+		// passes per hour names a hot holder without a new component (#9779).
+		for _, a := range telemetry.ScopeAttrs(intent.ScopeID, intent.GenerationID, intent.SourceSystem) {
+			logAttrs = append(logAttrs, a)
+		}
 		logAttrs = append(logAttrs, log.Queue("reducer"))
 		logAttrs = append(logAttrs, log.IntentID(intent.IntentID))
 		logAttrs = append(logAttrs, log.Status(status))
