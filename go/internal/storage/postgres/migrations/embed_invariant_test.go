@@ -223,6 +223,12 @@ import (
 // #10389 adds 284_supply_chain_impact_scope_pass_state.sql (the durable
 // per-scope supply-chain impact pass state behind the day-stuck-partial
 // status degraded reason; one CREATE TABLE, no index).
+// #10389 adds 285_supply_chain_impact_scope_pass_state_contract.sql (the
+// reviewed pass-state contract as object comments; catalog-only).
+// #10037 adds 286_vulnerability_ghsa_window_cursors.sql (the per-stream
+// GHSA rolling-window cursor table; 284 went to #10389's scope-pass-state
+// file and 285 to its contract comments, so this lane takes the next free
+// slot).
 const goldenBootstrapDefinitionsDigest = "70edc0646c33997614bcb10f702caf8ad5a8ce878acb6dc935aa66f512efebc7"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
