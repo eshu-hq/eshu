@@ -38,24 +38,6 @@ type fencingReaderViolation struct {
 	call string
 }
 
-// readerSelectorReached reports whether an expression subtree contains a
-// direct Access.Reader() or Access.StaleReader() selector.
-func readerSelectorReached(expr ast.Node) bool {
-	reached := false
-	ast.Inspect(expr, func(inner ast.Node) bool {
-		sel, ok := inner.(*ast.SelectorExpr)
-		if !ok {
-			return true
-		}
-		if sel.Sel.Name == "Reader" || sel.Sel.Name == "StaleReader" {
-			reached = true
-			return false
-		}
-		return true
-	})
-	return reached
-}
-
 // isReaderCall reports whether an expression is a direct Access.Reader() or
 // Access.StaleReader() call. Only this form creates an alias: a value merely
 // computed from a reader (for example `n := countRows(access.Reader())`) is
@@ -70,6 +52,41 @@ func isReaderCall(expr ast.Node) bool {
 		return false
 	}
 	return sel.Sel.Name == "Reader" || sel.Sel.Name == "StaleReader"
+}
+
+// applyInit records aliases from an if/for/switch initializer, which runs
+// before the controlled body.
+func applyInit(stmt ast.Stmt, aliases map[string]bool) {
+	if assign, ok := stmt.(*ast.AssignStmt); ok {
+		applyAssign(assign, aliases)
+	}
+}
+
+// applyValueSpec records the names a var declaration binds a guarded
+// reader call to, positionally. A declaration without values, or with any
+// other value, removes the names.
+func applyValueSpec(spec *ast.ValueSpec, aliases map[string]bool) {
+	for i, name := range spec.Names {
+		if name.Name == "_" {
+			continue
+		}
+		reaches := false
+		if len(spec.Values) == len(spec.Names) {
+			reaches = isReaderCall(spec.Values[i])
+		} else {
+			for _, value := range spec.Values {
+				if isReaderCall(value) {
+					reaches = true
+					break
+				}
+			}
+		}
+		if reaches {
+			aliases[name.Name] = true
+		} else {
+			delete(aliases, name.Name)
+		}
+	}
 }
 
 // applyAssign records the identifiers an assignment binds a guarded reader
@@ -161,29 +178,94 @@ func fencingReaderUses(path, src string) []fencingReaderViolation {
 		if !ok || fn.Body == nil {
 			continue
 		}
-		// Single in-order pass: a fencing call sees only the aliases
-		// assigned by earlier statements, so a variable reused for the
-		// writer after the call is not misread, and one assigned the
-		// reader after the call does not taint it.
+		// Single in-order pass over every statement, including nested
+		// blocks: a fencing call sees only the aliases assigned by
+		// earlier statements, so a variable reused for the writer after
+		// the call is not misread, and one assigned the reader after
+		// the call does not taint it. Nested scopes share the map: a
+		// conditionally assigned reader that reaches a fencing store
+		// on any path is worth the flag.
 		aliases := map[string]bool{}
-		var track func(stmt ast.Stmt)
-		track = func(stmt ast.Stmt) {
+		var scanBlock func(list []ast.Stmt)
+		// flagLevel reports fencing calls in one statement without
+		// descending into nested blocks or closures, which each get
+		// their own pass below.
+		flagLevel := func(stmt ast.Stmt, scope map[string]bool) {
 			ast.Inspect(stmt, func(node ast.Node) bool {
+				switch node.(type) {
+				case *ast.BlockStmt, *ast.FuncLit, *ast.CaseClause, *ast.CommClause:
+					return false
+				}
 				call, ok := node.(*ast.CallExpr)
 				if !ok || !wanted[callName(call)] {
 					return true
 				}
-				flagCall(call, callName(call), aliases)
+				flagCall(call, callName(call), scope)
 				return true
 			})
-			assign, ok := stmt.(*ast.AssignStmt)
-			if ok {
-				applyAssign(assign, aliases)
+		}
+		scanBlock = func(list []ast.Stmt) {
+			for _, stmt := range list {
+				flagLevel(stmt, aliases)
+				switch stmt := stmt.(type) {
+				case *ast.AssignStmt:
+					applyAssign(stmt, aliases)
+				case *ast.DeclStmt:
+					if gen, ok := stmt.Decl.(*ast.GenDecl); ok && gen.Tok == token.VAR {
+						for _, spec := range gen.Specs {
+							if vs, ok := spec.(*ast.ValueSpec); ok {
+								applyValueSpec(vs, aliases)
+							}
+						}
+					}
+				case *ast.IfStmt:
+					applyInit(stmt.Init, aliases)
+					scanBlock(stmt.Body.List)
+					switch els := stmt.Else.(type) {
+					case *ast.BlockStmt:
+						scanBlock(els.List)
+					case *ast.IfStmt:
+						scanBlock([]ast.Stmt{els})
+					}
+				case *ast.ForStmt:
+					applyInit(stmt.Init, aliases)
+					scanBlock(stmt.Body.List)
+				case *ast.RangeStmt:
+					scanBlock(stmt.Body.List)
+				case *ast.SwitchStmt:
+					applyInit(stmt.Init, aliases)
+					scanBlock(stmt.Body.List)
+				case *ast.TypeSwitchStmt:
+					applyInit(stmt.Init, aliases)
+					scanBlock(stmt.Body.List)
+				case *ast.SelectStmt:
+					scanBlock(stmt.Body.List)
+				case *ast.CaseClause:
+					scanBlock(stmt.Body)
+				case *ast.CommClause:
+					scanBlock(stmt.Body)
+				}
+				// Closures see a copy of the current scope: an outer
+				// alias used inside is still caught, while anything
+				// assigned inside never leaks out.
+				ast.Inspect(stmt, func(node ast.Node) bool {
+					lit, ok := node.(*ast.FuncLit)
+					if !ok {
+						return true
+					}
+					inner := map[string]bool{}
+					for name := range aliases {
+						inner[name] = true
+					}
+					outer := aliases
+					aliases = inner
+					scanBlock(lit.Body.List)
+					aliases = outer
+					return false
+				})
 			}
 		}
-		for _, stmt := range fn.Body.List {
-			track(stmt)
-		}
+		scanBlock(fn.Body.List)
 	}
 	return violations
 }
@@ -270,6 +352,30 @@ func wire(access *Access) {
 `
 	if got := fencingReaderUses("wiring.go", chained); len(got) != 0 {
 		t.Fatalf("chained alias violations = %+v, want none (single-hop only, documented)", got)
+	}
+	varDecl := `package wiring
+
+func wire(access *Access) {
+	var rs = access.StaleReader()
+	store := NewWriteFence(rs)
+	_ = store
+}
+`
+	if got := fencingReaderUses("wiring.go", varDecl); len(got) != 1 || got[0].call != "NewWriteFence" {
+		t.Fatalf("var-declared StaleReader() violation = %+v, want one NewWriteFence hit", got)
+	}
+	nested := `package wiring
+
+func wire(access *Access, cond bool) {
+	if cond {
+		rs := access.StaleReader()
+		store := NewWriteFence(rs)
+		_ = store
+	}
+}
+`
+	if got := fencingReaderUses("wiring.go", nested); len(got) != 1 || got[0].call != "NewWriteFence" {
+		t.Fatalf("block-nested StaleReader() violation = %+v, want one NewWriteFence hit", got)
 	}
 }
 

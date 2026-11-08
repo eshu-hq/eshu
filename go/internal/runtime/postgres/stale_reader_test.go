@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"errors"
+	"net"
 	"strings"
 	"testing"
 	"time"
@@ -34,6 +35,8 @@ func (c *staleFixtureConn) BeginTx(context.Context, driver.TxOptions) (driver.Tx
 
 func (c *staleFixtureConn) QueryContext(_ context.Context, statement string, _ []driver.NamedValue) (driver.Rows, error) {
 	switch {
+	case strings.Contains(statement, "pg_postmaster_start_time"):
+		return &queryIdentityRows{columns: []string{"read_only", "recovery", "system_id", "database", "incarnation", "server_address", "server_version", "server_version_num"}, values: []driver.Value{"on", c.recovery, c.systemID, "eshu", "", "127.0.0.1", "18.7", int64(180007)}}, nil
 	case strings.Contains(statement, "pg_control_system()"):
 		return &queryIdentityRows{columns: []string{"read_only", "recovery", "system_id", "database", "server_version", "server_version_num"}, values: []driver.Value{"on", c.recovery, c.systemID, "eshu", "18.7", int64(180007)}}, nil
 	case strings.Contains(statement, "pg_last_xact_replay_timestamp()"):
@@ -177,6 +180,72 @@ func TestStaleReaderCarriesNoSnapshotSetSurface(t *testing.T) {
 	access := newStaleFixtureAccess(t, &staleFixtureConn{recovery: true, replayAge: time.Second, systemID: "7"}, nil)
 	if setter, ok := access.StaleReader().(db.ReadSnapshotSetBeginner); ok {
 		t.Fatalf("stale reader exposes snapshot sets: %T", setter)
+	}
+}
+
+// newStaleFleetFixtureAccess returns an Access with a two-member standby
+// fleet. Member order starts at index 0, so callers control which member
+// the fleet tries first. Each member gets its own fake pool and identity.
+func newStaleFleetFixtureAccess(tb testing.TB, first, second *staleFixtureConn) *Access {
+	tb.Helper()
+	member := func(ordinal int, conn *staleFixtureConn) physicalReaderMember {
+		pool := sql.OpenDB(staleFixtureConnector{conn: conn})
+		tb.Cleanup(func() { _ = pool.Close() })
+		return physicalReaderMember{
+			ordinal: ordinal, id: string(rune('a' + ordinal)), host: "127.0.0.1",
+			pool: pool, addresses: []net.IP{net.ParseIP("127.0.0.1")}, maxOpen: 1,
+			snapshotExport: newSnapshotExportQualification(nil),
+		}
+	}
+	permits := make(chan struct{}, 2)
+	permits <- struct{}{}
+	permits <- struct{}{}
+	return &Access{
+		readerMembers:     []physicalReaderMember{member(0, first), member(1, second)},
+		allocator:         newReaderAllocator([]int{1, 1}, 2),
+		readerPermits:     permits,
+		replayTimeout:     time.Second,
+		lineage:           newWriterLineage(physicalIdentity{systemID: "7", database: "eshu"}, lineageObservation{}, nil),
+		readRouting:       ReadRoutingStaleAudits,
+		staleReplayBudget: DefaultStaleReplayBudget,
+		snapshotExport:    newSnapshotExportQualification(nil),
+	}
+}
+
+func TestStaleFleetTriesNextMemberAfterDeferral(t *testing.T) {
+	t.Parallel()
+	var business bool
+	lagged := &staleFixtureConn{recovery: true, replayAge: 61 * time.Second, systemID: "7", businessOn: &business}
+	fresh := &staleFixtureConn{recovery: true, replayAge: time.Second, systemID: "7", businessOn: &business}
+	access := newStaleFleetFixtureAccess(t, lagged, fresh)
+	rows, err := access.StaleReader().QueryContext(context.Background(), "SELECT 42")
+	if err != nil {
+		t.Fatalf("fleet read with one fresh member: %v", err)
+	}
+	defer rows.Close()
+	if !rows.Next() {
+		t.Fatal("fleet read returned no rows")
+	}
+	if !business {
+		t.Fatal("fleet read never reached a business query")
+	}
+}
+
+func TestStaleFleetDefersWhenEveryMemberLags(t *testing.T) {
+	t.Parallel()
+	var business bool
+	lagged := &staleFixtureConn{recovery: true, replayAge: 61 * time.Second, systemID: "7", businessOn: &business}
+	access := newStaleFleetFixtureAccess(t, lagged, lagged)
+	_, err := access.StaleReader().QueryContext(context.Background(), "SELECT 42")
+	var deferral StaleDeferral
+	if !errors.As(err, &deferral) {
+		t.Fatalf("all-lagged fleet error = %v, want a typed stale deferral", err)
+	}
+	if deferral.Reason != StaleDeferralBudgetExceeded {
+		t.Fatalf("deferral reason = %q, want budget-exceeded", deferral.Reason)
+	}
+	if business {
+		t.Fatal("all-lagged fleet ran business SQL before the deferral")
 	}
 }
 

@@ -56,7 +56,7 @@ func NewObserver(meter metric.Meter, tracer trace.Tracer) (Observer, error) {
 		return nil, fmt.Errorf("register PostgreSQL reader snapshot export denials: %w", err)
 	}
 	staleDeferrals, err := meter.Int64Counter(MetricReaderStaleDeferrals,
-		metric.WithDescription("Unfenced stale reads refused because the standby was past the replay budget, by closed family"))
+		metric.WithDescription("Unfenced stale reads refused because routing is off, the target is not a standby, the standby never replayed, or the standby was past the replay budget, by closed family"))
 	if err != nil {
 		return nil, fmt.Errorf("register PostgreSQL reader stale deferrals: %w", err)
 	}

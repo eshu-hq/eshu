@@ -55,9 +55,6 @@ const (
 	StaleDeferralNeverReplayed StaleDeferralReason = "never_replayed"
 	// StaleDeferralBudgetExceeded means the replay age passed the budget.
 	StaleDeferralBudgetExceeded StaleDeferralReason = "budget_exceeded"
-	// StaleDeferralSnapshotSet means a pinned snapshot set needs a writer
-	// fence that the stale path never takes.
-	StaleDeferralSnapshotSet StaleDeferralReason = "snapshot_set"
 )
 
 // StaleDeferral reports a stale-reader refusal. Callers must defer the work,
@@ -334,6 +331,17 @@ func runStaleFleet(access *Access, ctx context.Context, attempt func(context.Con
 		}
 		reservation.Release()
 		failures = errors.Join(failures, attemptErr)
+		var deferral StaleDeferral
+		if errors.As(attemptErr, &deferral) {
+			// One lagged member must not fail the tick while a fresh
+			// sibling may serve: a deferral is member-local, so the
+			// fleet tries the next member. When every member defers,
+			// the joined failures below still unwrap to a typed
+			// StaleDeferral, and the caller defers with no writer
+			// contact and no writer fallback.
+			tried[reservation.member] = true
+			continue
+		}
 		if sharedFleetFailure(bounded, attemptErr) {
 			return nil, attemptErr
 		}

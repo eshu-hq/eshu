@@ -25,8 +25,9 @@ const (
 	// undeclared_build).
 	MetricReaderSnapshotExportDenials = "eshu_dp_postgres_reader_snapshot_export_denials_total"
 	// MetricReaderStaleDeferrals counts unfenced stale reads refused because
-	// the standby was past the replay budget, not a standby, or the routing
-	// mode is off, by closed family (audits today).
+	// the routing mode is off, the target is not a standby, the standby
+	// never replayed, or the standby was past the replay budget, by closed
+	// family (audits today).
 	MetricReaderStaleDeferrals = "eshu_dp_postgres_reader_stale_deferrals_total"
 )
 

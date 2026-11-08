@@ -12,14 +12,16 @@ one dangerous misuse (fencing stores built from a reader).
   is referenced only by its own tests; no `go/cmd` wiring constructs
   it, so the steady-state statement delta is zero.
 - After: identical to baseline. With routing `off` (the default) every
-  borrow attempt defers before touching any pool, and the off-path
-  allocates nothing. Enabling the path requires both
+  borrow attempt defers before touching any pool or connection, and the
+  off-path borrows nothing. Enabling the path requires both
   `ESHU_POSTGRES_READ_ROUTING=stale-audits` and explicit wiring at a
   call site; neither ships in this slice.
 - Backend/version: package unit proof with a fake database driver
-  (16 fixture tests: serve-fresh, budget-exceeded, not-standby,
-  never-replayed, split-brain, routing-off, no-observer, snapshot-set
-  absence, fixed error string, config parses, guard RED/GREEN, OTEL
+  (`go test ./internal/runtime/postgres/`: 178 top-level PASS, 0 FAIL,
+  covering serve-fresh, budget-exceeded, not-standby, never-replayed,
+  split-brain, routing-off, no-observer, snapshot-set absence, fleet
+  failover and all-lagged deferral, fixed error string, config parses,
+  guard RED/GREEN including var-declared and nested aliases, OTEL
   closed labels); `go test -race` on the touched packages, exit 0.
 - Input shape and counts: no production query changes shape; no
   row-count, retry, backoff, or queue change. The intended behavior
