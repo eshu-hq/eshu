@@ -297,7 +297,7 @@ CROSS JOIN generate_series(1, $1) AS g`, bogus)
 		}
 	}
 	if seeds != 2 {
-		t.Fatalf("ident seed batches = %d, want 2 for %d candidates: memory is bounded by the batch", seeds, bogus)
+		t.Fatalf("ident seed batches = %d, want 2 for %d candidates: each INSERT is batch-bounded", seeds, bogus)
 	}
 	if got := h.count(`SELECT count(*) FROM supply_chain_impact_winners_dirty_log WHERE source = 'audit'`); got != bogus {
 		t.Fatalf("audit-sourced dirty rows = %d, want %d", got, bogus)

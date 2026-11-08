@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 	"testing"
@@ -310,7 +311,9 @@ func TestWinnersAuditSplitZeroCandidatesOpensNoWriterTx(t *testing.T) {
 func TestWinnersAuditSplitDeferralEndsTheTick(t *testing.T) {
 	t.Parallel()
 
-	stale := &staleScanFakeQueryer{err: staleScanFakeDeferral{}}
+	// Wrapped like production (privateFailure): matching must traverse the
+	// wrapper through the marker method alone.
+	stale := &staleScanFakeQueryer{err: fmt.Errorf("stale scan fake: query: %w", staleScanFakeDeferral{})}
 	beginner := &staleScanFakeBeginner{tx: &staleScanFakeTx{claim: true}}
 	store := SupplyChainImpactWinnersStore{DB: beginner}.WithStaleCandidates(stale)
 
@@ -349,8 +352,10 @@ func TestWinnersAuditSplitStaleErrorIsAnError(t *testing.T) {
 }
 
 // TestWinnersAuditSplitSeedsInBoundedBatches proves the ident seed crosses the
-// batch boundary in bounded INSERTs: memory is bounded by the batch, never by
-// the candidate count, and every candidate is seeded exactly once, in order.
+// batch boundary in bounded INSERTs: each INSERT's argument arrays are
+// batch-bounded (the drained slice itself is O(candidates); see
+// winnersAuditStaleSeedBatchSize), and every candidate is seeded exactly
+// once, in order.
 func TestWinnersAuditSplitSeedsInBoundedBatches(t *testing.T) {
 	t.Parallel()
 

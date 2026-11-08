@@ -98,9 +98,10 @@ const countWinnersAuditCandidatesSQL = `SELECT count(*) FROM ` + winnersAuditCan
 // selectWinnersAuditCandidatesSQL is the split-scan candidate statement of
 // #10416 slice 1: the legacy candidate body as a pure single-statement SELECT,
 // with no DDL. The legacy CREATE TEMP TABLE AS cannot ride a read store (its
-// surface has no Exec), so the stale reader runs this statement and streams
-// the differing identifiers back; the writer transaction then seeds them into
-// its identifier table in bounded batches. The recompute it diffs is the same
+// surface has no Exec), so the stale reader runs this statement and the
+// differing identifiers are drained into memory (O(candidates) idents; see
+// winnersAuditStaleSeedBatchSize), then seeded in 1000-row INSERT batches.
+// The recompute it diffs is the same
 // shipped winner select the legacy path uses, so both branches name the same
 // candidate set: legacy path parity (the stale live proof mirrors the legacy
 // one) guards the twin.
@@ -109,7 +110,7 @@ var selectWinnersAuditCandidatesSQL = `WITH winners_now AS (` + supplyChainImpac
 
 // createWinnersAuditStaleIdentsSQL builds the empty identifier table the split
 // scan seeds. The name is literal, like every sibling temp-table statement,
-// so the DDL-migration parity guard can read it; it must stay identical to
+// so it stays greppable; it must stay identical to
 // winnersKeyedIdentsTable, which the verification it feeds references. The
 // five text columns match the legacy CTAS, so every downstream statement runs
 // unchanged.
@@ -129,11 +130,16 @@ FROM unnest($1::text[], $2::text[], $3::text[], $4::text[], $5::text[])
      AS ident(package_id, repository_id, subject_digest, c0, advisory_id)
 `
 
-// winnersAuditStaleSeedBatchSize bounds one ident-seed INSERT. Memory is
-// bounded by the batch, never by the candidate count: the stale cursor
-// streams, each full batch flushes, and every candidate is seeded exactly
-// once. It is a batching bound, not a candidate cap: all batches run, so a
-// divergent table can never defer a key forever.
+// winnersAuditStaleSeedBatchSize bounds one ident-seed INSERT's argument
+// arrays. It does not bound peak memory: the stale scan drains into one
+// slice before any writer contact, so peak is O(candidates) idents — 120
+// bytes of headers plus five identifier strings each (100k candidates ≈ 12
+// MB of headers, tens of MB with contents; whole-table divergence is the
+// unbounded worst case). The drain buys the phase split: standby cursor,
+// connection, and permit are released before the writer transaction opens,
+// an empty scan never touches the writer, and no lock is held while reading
+// the standby. It is a batching bound, not a candidate cap: all batches run,
+// so a divergent table can never defer a key forever.
 const winnersAuditStaleSeedBatchSize = 1000
 
 // staleReadDeferral matches a refused stale read without importing the access
@@ -150,8 +156,9 @@ func asStaleReadDeferral(err error) bool {
 }
 
 // WithStaleCandidates routes the audit's candidate scan to stale: the
-// differing identifiers are read from stale instead of a writer temp table,
-// then seeded into the writer transaction in bounded batches for the unchanged
+// differing identifiers are drained into memory (O(candidates) idents; see
+// winnersAuditStaleSeedBatchSize) instead of a writer temp table,
+// then seeded in 1000-row INSERT batches for the unchanged
 // under-lock verification. A refused stale read defers the tick with no writer
 // contact and no fallback. Set it only on the Auditor instance: the Rebuilder,
 // KeyedRebuilder, and DirtyLogReader instances share this struct but must
@@ -238,7 +245,7 @@ func (s SupplyChainImpactWinnersStore) AuditWinners(
 
 var _ supplychaincore.SupplyChainImpactWinnersAuditor = SupplyChainImpactWinnersStore{}
 
-// winnersAuditIdent is one candidate identifier streamed from the stale
+// winnersAuditIdent is one candidate identifier read from the stale
 // candidate scan. Nulls are preserved so the seed matches the legacy
 // temp-table copy exactly.
 type winnersAuditIdent struct {
@@ -277,8 +284,8 @@ func nullStringArg(value sql.NullString) any {
 }
 
 // seedWinnersAuditStaleIdents appends every candidate identifier to the
-// verification table one bounded batch per INSERT. The stale cursor already
-// drained, so peak memory is one batch, never the candidate count.
+// verification table one bounded batch per INSERT. Only each INSERT's
+// argument arrays are batch-bounded; the slice already holds every candidate.
 func seedWinnersAuditStaleIdents(ctx context.Context, tx db.Transaction, idents []winnersAuditIdent) error {
 	for start := 0; start < len(idents); start += winnersAuditStaleSeedBatchSize {
 		end := min(start+winnersAuditStaleSeedBatchSize, len(idents))
