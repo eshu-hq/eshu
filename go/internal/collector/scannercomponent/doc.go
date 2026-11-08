@@ -9,7 +9,8 @@
 // admission half of the former in-tree scanner component package:
 // ManifestFor, AnalyzerFor, VerifySeededArtifact, VerifySatelliteSeededArtifact,
 // SatelliteSeedPins, RequiredGrants, the
-// component IDs, the manifest Version, and the artifact digest pins. The execution half (claim
+// component IDs (including `SatelliteDocumentImportID` and
+// `SatelliteMediaImportID`), the manifest Version, and the artifact digest pins. The execution half (claim
 // input, analyzers, runners, paging, seeding) is not in this tree: its
 // sources were removed from eshu in #9741, and the pinned images are built
 // and attested by eshu-hq/eshu-scanner-worker (release run 41401606694, main
