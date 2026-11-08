@@ -5,6 +5,7 @@ package core
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -73,6 +74,25 @@ func TestWriteSupplyChainImpactCompletePassClearsScopePassState(t *testing.T) {
 	}
 	if causes == nil || len(causes) != 0 {
 		t.Fatalf("scope pass-state causes = %v, want an empty non-nil set", call.Args[3])
+	}
+}
+
+// TestSupplyChainImpactScopePassStateQueryPinsFencingGuard pins the two
+// load-bearing SQL choices in the scope pass-state upsert: the fencing-token
+// guard keeps an older admitted pass from overwriting a newer pass's state
+// when passes for one scope interleave across generations, and the COALESCE
+// preserves the original partial_since across further partial passes. The
+// query text is the contract here; the hermetic tests above locate the
+// statement by const identity and would stay green if either choice were
+// dropped. (Review F1 on #10389.)
+func TestSupplyChainImpactScopePassStateQueryPinsFencingGuard(t *testing.T) {
+	t.Parallel()
+
+	if !strings.Contains(supplyChainImpactScopePassStateQuery, "fencing_token <= EXCLUDED.fencing_token") {
+		t.Fatalf("scope pass-state upsert must guard on the fencing token (<=):\n%s", supplyChainImpactScopePassStateQuery)
+	}
+	if !strings.Contains(supplyChainImpactScopePassStateQuery, "COALESCE(supply_chain_impact_scope_pass_state.partial_since") {
+		t.Fatalf("scope pass-state upsert must preserve the original partial_since:\n%s", supplyChainImpactScopePassStateQuery)
 	}
 }
 
