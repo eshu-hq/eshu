@@ -479,4 +479,7 @@ var orderedBootstrapDefinitionNamesLate = []string{
 	// impact pass state behind the day-stuck-partial status degraded
 	// reason: one CREATE TABLE, no index.
 	"supply_chain_impact_scope_pass_state",
+	// Migration 285 (#10389) pins the reviewed pass-state contract as
+	// object comments (catalog-only COMMENT ON, no table or index).
+	"supply_chain_impact_scope_pass_state_contract",
 }
