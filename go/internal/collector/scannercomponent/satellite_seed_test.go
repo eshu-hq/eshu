@@ -459,11 +459,14 @@ func seedStampedSatelliteManifest(t *testing.T, id, platform string) eshucompone
 // TestVerifySatelliteSeededArtifactDeniesTrimVariantHostPlatform proves a
 // non-canonical host-platform spelling never admits: a trim-variant entry
 // carrying a drifted image is denied both alongside a clean pinned entry
-// (duplicate/ambiguous host slot) and alone (non-canonical host slot), for
-// both satellite IDs on both platforms (#9877 arbiter ruling 2.4). The image
-// picker matches on TrimSpace while Artifact.Validate accepts padded
-// platforms, so exact-match candidate selection would silently skip the
-// padded entry and admit — this test pins the fail-closed behavior.
+// (duplicate/ambiguous host slot) and alone (non-canonical host slot), and a
+// lone padded entry carrying the pinned image is denied by the canonical
+// Platform == platform line, for both satellite IDs on both platforms (#9877
+// arbiter ruling 2.4). The image picker matches on TrimSpace while
+// Artifact.Validate accepts padded platforms, so exact-match candidate
+// selection would silently skip the padded entry and admit — the
+// padded-pinned subcase pins the fail-closed behavior of the canonical line,
+// which neither drifted-image subcase exercises.
 func TestVerifySatelliteSeededArtifactDeniesTrimVariantHostPlatform(t *testing.T) {
 	t.Parallel()
 
@@ -498,6 +501,24 @@ func TestVerifySatelliteSeededArtifactDeniesTrimVariantHostPlatform(t *testing.T
 				})
 				if err := VerifySatelliteSeededArtifact(manifest, platform); err == nil {
 					t.Fatalf("VerifySatelliteSeededArtifact(%q) error = nil, want denial for a lone trim-variant %q entry", id, platform)
+				}
+			})
+			t.Run(id+"/"+platform+"/padded-pinned", func(t *testing.T) {
+				t.Parallel()
+
+				manifest := pinnedSatelliteManifest(t, id)
+				var kept []eshucomponent.Artifact
+				for _, artifact := range manifest.Spec.Artifacts {
+					if artifact.Platform != platform {
+						kept = append(kept, artifact)
+					}
+				}
+				manifest.Spec.Artifacts = append(kept, eshucomponent.Artifact{
+					Platform: " " + platform + " ",
+					Image:    SatelliteSeedPins()[id][platform],
+				})
+				if err := VerifySatelliteSeededArtifact(manifest, platform); err == nil {
+					t.Fatalf("VerifySatelliteSeededArtifact(%q) error = nil, want denial for a lone padded %q entry carrying the pinned image", id, platform)
 				}
 			})
 		}
