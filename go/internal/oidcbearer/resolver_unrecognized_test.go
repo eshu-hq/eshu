@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 )
 
 // TestResolveScopedToken_UnrecognizedSentinel_OnlyPreMatch proves the issue
@@ -101,7 +101,7 @@ func TestResolveScopedToken_UnrecognizedSentinel_OnlyPreMatch(t *testing.T) {
 			if err == nil {
 				t.Fatal("ResolveScopedToken() err = nil, want a denial error")
 			}
-			if got := errors.Is(err, query.ErrBearerCredentialUnrecognized); got != tc.wantUnrecognized {
+			if got := errors.Is(err, auth.ErrBearerCredentialUnrecognized); got != tc.wantUnrecognized {
 				t.Fatalf("errors.Is(err, ErrBearerCredentialUnrecognized) = %v, want %v (err=%v)", got, tc.wantUnrecognized, err)
 			}
 		})

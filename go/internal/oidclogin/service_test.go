@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 )
 
 func TestServiceStartStoresHashOnlyStateAndBuildsAuthorizationRedirect(t *testing.T) {
@@ -33,7 +33,7 @@ func TestServiceStartStoresHashOnlyStateAndBuildsAuthorizationRedirect(t *testin
 	}, store, StaticGrantResolver{}, fakeConnectorFactory(t), WithNow(func() time.Time { return now }),
 		WithSecretGenerator(sequenceOIDCSecrets("state-secret", "nonce-secret")))
 
-	start, err := service.StartOIDCLogin(context.Background(), query.OIDCLoginStartRequest{
+	start, err := service.StartOIDCLogin(context.Background(), auth.OIDCLoginStartRequest{
 		ProviderConfigID: "okta-dev",
 		TenantID:         "tenant_a",
 		WorkspaceID:      "workspace_a",
@@ -121,7 +121,7 @@ func TestServiceCompleteValidatesNonceAndMapsGroupsThroughRoles(t *testing.T) {
 		return connector, nil
 	}, WithNow(func() time.Time { return now }))
 
-	complete, err := service.CompleteOIDCLogin(context.Background(), query.OIDCLoginCompleteRequest{
+	complete, err := service.CompleteOIDCLogin(context.Background(), auth.OIDCLoginCompleteRequest{
 		State: "state-secret",
 		Code:  "auth-code",
 	})
@@ -134,28 +134,28 @@ func TestServiceCompleteValidatesNonceAndMapsGroupsThroughRoles(t *testing.T) {
 	if connector.exchangedCode != "auth-code" || connector.verifiedIDToken != "id-token" {
 		t.Fatalf("connector exchange/verify = %q/%q, want code/id-token", connector.exchangedCode, connector.verifiedIDToken)
 	}
-	auth := complete.Auth
-	if auth.Mode != query.AuthModeScoped ||
-		auth.TenantID != "tenant_a" ||
-		auth.WorkspaceID != "workspace_a" ||
-		auth.SubjectClass != "external_oidc_user" ||
-		auth.SubjectIDHash != SHA256Hash("okta-dev:external-subject") {
-		t.Fatalf("auth = %#v, want scoped OIDC subject", auth)
+	authCtx := complete.Auth
+	if authCtx.Mode != auth.AuthModeScoped ||
+		authCtx.TenantID != "tenant_a" ||
+		authCtx.WorkspaceID != "workspace_a" ||
+		authCtx.SubjectClass != "external_oidc_user" ||
+		authCtx.SubjectIDHash != SHA256Hash("okta-dev:external-subject") {
+		t.Fatalf("auth = %#v, want scoped OIDC subject", authCtx)
 	}
 	// #5038: the static resolver's role grant sets a (now-ignored)
 	// PolicyRevisionHash of "sha256:policy" above; auth.PolicyRevisionHash
 	// must stay empty so the browser-session create defaults it to the live
 	// workspace hash instead of trusting the operator-supplied value.
-	if auth.PolicyRevisionHash != "" {
-		t.Fatalf("auth.PolicyRevisionHash = %q, want empty (server-resolved, not operator-supplied)", auth.PolicyRevisionHash)
+	if authCtx.PolicyRevisionHash != "" {
+		t.Fatalf("auth.PolicyRevisionHash = %q, want empty (server-resolved, not operator-supplied)", authCtx.PolicyRevisionHash)
 	}
-	if got := auth.RoleIDs; len(got) != 1 || got[0] != "developer" {
+	if got := authCtx.RoleIDs; len(got) != 1 || got[0] != "developer" {
 		t.Fatalf("RoleIDs = %#v, want [developer]", got)
 	}
-	if got := auth.AllowedScopeIDs; len(got) != 1 || got[0] != "scope_a" {
+	if got := authCtx.AllowedScopeIDs; len(got) != 1 || got[0] != "scope_a" {
 		t.Fatalf("AllowedScopeIDs = %#v, want [scope_a]", got)
 	}
-	if got := auth.AllowedRepositoryIDs; len(got) != 1 || got[0] != "repo_a" {
+	if got := authCtx.AllowedRepositoryIDs; len(got) != 1 || got[0] != "repo_a" {
 		t.Fatalf("AllowedRepositoryIDs = %#v, want [repo_a]", got)
 	}
 	if complete.ReturnToPath != "/console" {
@@ -191,7 +191,7 @@ func TestServiceCompleteDeniesNonceMismatchAndUnmappedGroups(t *testing.T) {
 				Nonce:   "different",
 				Groups:  []string{"Eshu Developers"},
 			},
-			wantErr: query.ErrOIDCLoginDenied,
+			wantErr: auth.ErrOIDCLoginDenied,
 		},
 		{
 			name: "unmapped groups",
@@ -200,7 +200,7 @@ func TestServiceCompleteDeniesNonceMismatchAndUnmappedGroups(t *testing.T) {
 				Nonce:   "nonce-secret",
 				Groups:  []string{"Unknown"},
 			},
-			wantErr: query.ErrOIDCLoginDenied,
+			wantErr: auth.ErrOIDCLoginDenied,
 		},
 	}
 
@@ -242,7 +242,7 @@ func TestServiceCompleteDeniesNonceMismatchAndUnmappedGroups(t *testing.T) {
 				return &fakeConnector{claims: tt.claims}, nil
 			}, WithNow(func() time.Time { return now }))
 
-			_, err := service.CompleteOIDCLogin(context.Background(), query.OIDCLoginCompleteRequest{
+			_, err := service.CompleteOIDCLogin(context.Background(), auth.OIDCLoginCompleteRequest{
 				State: "state-secret",
 				Code:  "auth-code",
 			})
@@ -292,12 +292,12 @@ func TestServiceCompleteDeniesEmptyGroupsBeforeGrantResolution(t *testing.T) {
 		}}, nil
 	}, WithNow(func() time.Time { return now }))
 
-	_, err := service.CompleteOIDCLogin(context.Background(), query.OIDCLoginCompleteRequest{
+	_, err := service.CompleteOIDCLogin(context.Background(), auth.OIDCLoginCompleteRequest{
 		State: "state-secret",
 		Code:  "auth-code",
 	})
-	if !errors.Is(err, query.ErrOIDCLoginDenied) {
-		t.Fatalf("CompleteOIDCLogin() error = %v, want %v", err, query.ErrOIDCLoginDenied)
+	if !errors.Is(err, auth.ErrOIDCLoginDenied) {
+		t.Fatalf("CompleteOIDCLogin() error = %v, want %v", err, auth.ErrOIDCLoginDenied)
 	}
 	if resolver.called {
 		t.Fatal("grant resolver was called for empty provider groups; want fail-closed denial before storage")
@@ -353,7 +353,7 @@ func TestServiceCompleteStaticGrantsDoNotEnforcePermissionCatalog(t *testing.T) 
 		return connector, nil
 	}, WithNow(func() time.Time { return now }))
 
-	complete, err := service.CompleteOIDCLogin(context.Background(), query.OIDCLoginCompleteRequest{
+	complete, err := service.CompleteOIDCLogin(context.Background(), auth.OIDCLoginCompleteRequest{
 		State: "state-secret",
 		Code:  "auth-code",
 	})
@@ -426,7 +426,7 @@ func TestServiceCompleteHonorsResolverDeclaredCatalogEnforcement(t *testing.T) {
 		}}, nil
 	}, WithNow(func() time.Time { return now }))
 
-	complete, err := service.CompleteOIDCLogin(context.Background(), query.OIDCLoginCompleteRequest{
+	complete, err := service.CompleteOIDCLogin(context.Background(), auth.OIDCLoginCompleteRequest{
 		State: "state-secret",
 		Code:  "auth-code",
 	})

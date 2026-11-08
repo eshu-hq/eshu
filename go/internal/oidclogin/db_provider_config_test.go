@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/secretcrypto"
 )
 
@@ -149,7 +149,7 @@ func TestServiceFallsBackToDBProviderWhenNotInEnvConfig(t *testing.T) {
 		WithSecretGenerator(sequenceOIDCSecrets("state-secret", "nonce-secret")),
 		WithDBProviderResolver(resolver))
 
-	start, err := service.StartOIDCLogin(context.Background(), query.OIDCLoginStartRequest{
+	start, err := service.StartOIDCLogin(context.Background(), auth.OIDCLoginStartRequest{
 		ProviderConfigID: "db-provider-1",
 		TenantID:         "tenant_a",
 		WorkspaceID:      "workspace_a",
@@ -181,7 +181,7 @@ func TestServiceFallsBackToDBProviderWhenNotInEnvConfig(t *testing.T) {
 	}, func(context.Context, ProviderConfig) (Connector, error) { return connector, nil },
 		WithNow(func() time.Time { return now }), WithDBProviderResolver(resolver))
 
-	complete, err := service2.CompleteOIDCLogin(context.Background(), query.OIDCLoginCompleteRequest{
+	complete, err := service2.CompleteOIDCLogin(context.Background(), auth.OIDCLoginCompleteRequest{
 		State: "state-secret", Code: "auth-code",
 	})
 	if err != nil {
@@ -218,7 +218,7 @@ func TestServicePrefersEnvProviderOverDBResolver(t *testing.T) {
 		WithSecretGenerator(sequenceOIDCSecrets("state-secret", "nonce-secret")),
 		WithDBProviderResolver(resolver))
 
-	if _, err := service.StartOIDCLogin(context.Background(), query.OIDCLoginStartRequest{
+	if _, err := service.StartOIDCLogin(context.Background(), auth.OIDCLoginStartRequest{
 		ProviderConfigID: "shared-id", TenantID: "tenant_a", WorkspaceID: "workspace_a",
 	}); err != nil {
 		t.Fatalf("StartOIDCLogin() error = %v", err)
@@ -242,17 +242,17 @@ func TestServicePropagatesDBResolverInvalidRequestInsteadOf503(t *testing.T) {
 	store := &fakeStateStore{}
 
 	t.Run("invalid request passes through", func(t *testing.T) {
-		resolver := &fakeDBProviderResolver{err: query.ErrOIDCLoginInvalidRequest}
+		resolver := &fakeDBProviderResolver{err: auth.ErrOIDCLoginInvalidRequest}
 		service := NewService(Config{StateTTL: 10 * time.Minute}, store, StaticGrantResolver{}, fakeConnectorFactory(t),
 			WithNow(func() time.Time { return now }), WithDBProviderResolver(resolver))
 
-		_, err := service.StartOIDCLogin(context.Background(), query.OIDCLoginStartRequest{
+		_, err := service.StartOIDCLogin(context.Background(), auth.OIDCLoginStartRequest{
 			ProviderConfigID: "db-provider-1", TenantID: "tenant_a",
 		})
-		if !errors.Is(err, query.ErrOIDCLoginInvalidRequest) {
-			t.Fatalf("StartOIDCLogin() error = %v, want errors.Is(err, query.ErrOIDCLoginInvalidRequest)", err)
+		if !errors.Is(err, auth.ErrOIDCLoginInvalidRequest) {
+			t.Fatalf("StartOIDCLogin() error = %v, want errors.Is(err, auth.ErrOIDCLoginInvalidRequest)", err)
 		}
-		if errors.Is(err, query.ErrOIDCLoginUnavailable) {
+		if errors.Is(err, auth.ErrOIDCLoginUnavailable) {
 			t.Fatalf("StartOIDCLogin() error = %v, want it NOT mapped to ErrOIDCLoginUnavailable", err)
 		}
 	})
@@ -262,11 +262,11 @@ func TestServicePropagatesDBResolverInvalidRequestInsteadOf503(t *testing.T) {
 		service := NewService(Config{StateTTL: 10 * time.Minute}, store, StaticGrantResolver{}, fakeConnectorFactory(t),
 			WithNow(func() time.Time { return now }), WithDBProviderResolver(resolver))
 
-		_, err := service.StartOIDCLogin(context.Background(), query.OIDCLoginStartRequest{
+		_, err := service.StartOIDCLogin(context.Background(), auth.OIDCLoginStartRequest{
 			ProviderConfigID: "db-provider-1", TenantID: "tenant_a",
 		})
-		if !errors.Is(err, query.ErrOIDCLoginUnavailable) {
-			t.Fatalf("StartOIDCLogin() error = %v, want errors.Is(err, query.ErrOIDCLoginUnavailable)", err)
+		if !errors.Is(err, auth.ErrOIDCLoginUnavailable) {
+			t.Fatalf("StartOIDCLogin() error = %v, want errors.Is(err, auth.ErrOIDCLoginUnavailable)", err)
 		}
 	})
 }
