@@ -90,13 +90,17 @@ def _profile(log: str) -> tuple[tuple[str, ...], str]:
 
 
 def _parse_shard(log: str, number: int, total: int,
-                 excused: frozenset[str] = frozenset()) -> tuple[
+                 excused: frozenset[str] = frozenset(),
+                 excused_packages: frozenset[str] = frozenset()) -> tuple[
         list[str], list[tuple[str, str, float]], tuple[tuple[str, ...], str],
         list[frozenset[str]]]:
     """Return ordered tests, classified row residuals, and the runner profile.
 
     Names in excused skipped this shard by workflow excuse: the terminal
     summary still counts them, so they must be absent from the printed rows.
+    A 0/0 package row parses only for a package in excused_packages, the
+    packages the excuse fully covers in this shard; any other 0/0 row is an
+    invalid package row, with or without an excuse in play.
     """
     profile = _profile(log)
     previous: dt.datetime | None = None
@@ -126,7 +130,7 @@ def _parse_shard(log: str, number: int, total: int,
             if summary:
                 raise ValueError("source has rows after terminal summary")
             package, passed, expected = match.group(2), int(match.group(3)), int(match.group(4))
-            if passed == expected == 0 and excused:
+            if passed == expected == 0 and package in excused_packages:
                 if block:
                     raise ValueError("source has invalid package PASS row")
                 previous = _time(match.group(1))
@@ -403,7 +407,13 @@ def fit_with_provenance(sources: list[Path], root: Path) -> tuple[
         for number, log in sorted(logs.items()):
             shard_excused = provenance.shard_excused_runs(expected_rows[number], excuse)
             names = frozenset(run.split("|", 1)[1] for run in shard_excused)
-            tests, rows, (profile, version), row_members = _parse_shard(log, number, len(logs), names)
+            packages = frozenset(
+                package for package in {run.split("|", 1)[0] for row in expected_rows[number]
+                                        for run in row}
+                if all(run in shard_excused for row in expected_rows[number] for run in row
+                       if run.split("|", 1)[0] == package))
+            tests, rows, (profile, version), row_members = _parse_shard(
+                log, number, len(logs), names, packages)
             stripped = [row - shard_excused for row in expected_rows[number]]
             if row_members != [row for row in stripped if row]:
                 raise ValueError(f"source shard {number} row selected test set differs from source weights")
