@@ -60,6 +60,13 @@ type workAdmission struct {
 	// authorizedReplanScopes above. Nil when nothing was inserted,
 	// including the no-work path.
 	insertedReplanScopes map[string]struct{}
+	// insertedScopes holds the inserted scope ids of one admission pass
+	// (eshu-hq/eshu#10417): the post-guard, post-insert set the refresh
+	// and publication progress recorders intersect their planned scopes
+	// with, so a guard- or insert-dropped scope stays due instead of
+	// pacing out. Nil when nothing was inserted, including the no-work
+	// path and count-only backends.
+	insertedScopes map[string]struct{}
 }
 
 // ownedSlotSelector returns the selector that turns on progress-ordered slot

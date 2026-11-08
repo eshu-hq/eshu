@@ -370,17 +370,20 @@ func (s Service) scheduleVulnerabilityActivationDerivedScopes(
 		return nil
 	}
 	s.recordActivationDerivedScopes(ctx, instance, items)
-	enqueued, err := s.createWorkflowWorkIfNoOpenTargets(ctx, instance, run, items)
+	admitted, err := s.createWorkflowWork(ctx, instance, run, items, nil)
 	if err != nil {
 		return fmt.Errorf("create vulnerability intelligence derived scoped work for %q: %w", instance.InstanceID, err)
 	}
-	// Record the admitted findings chunks as last-planned after admission,
+	// Record the inserted findings chunks as last-planned after admission,
 	// never inside the shared admission transaction: a crash between the
-	// two only refetches once, and the next due tick repairs it. The
+	// two only refetches once, and the next due tick repairs it. Only an
+	// inserted chunk paces (eshu-hq/eshu#10417): a chunk the open-target
+	// guard or the insert dropped stays due, and an empty inserted set —
+	// the all-denied path or a count-only backend — records nothing. The
 	// recorded scopes pace the next plan to one fetch per publication
 	// window (eshu-hq/eshu#9876 Decision 5).
 	if derivation.DeriveFromFindings.Enabled {
-		if err := s.recordVulnerabilityTargetRefreshPlanned(ctx, instance.InstanceID, vulnerabilityFindingsPlannedScopeIDs(items), observedAt); err != nil {
+		if err := s.recordVulnerabilityTargetRefreshPlanned(ctx, instance.InstanceID, filterInsertedScopeIDs(vulnerabilityFindingsPlannedScopeIDs(items), admitted), observedAt); err != nil {
 			return fmt.Errorf("record vulnerability intelligence findings refresh progress for %q: %w", instance.InstanceID, err)
 		}
 	}
@@ -392,7 +395,7 @@ func (s Service) scheduleVulnerabilityActivationDerivedScopes(
 			"plan_key", planKey,
 			"run_id", run.RunID,
 			"planned_work_items", len(items),
-			"enqueued_work_items", enqueued,
+			"enqueued_work_items", admitted.inserted,
 			"owned_package_candidates", len(ownedPage.Targets),
 			"installed_evidence_candidates", len(osTargets)+len(sbomTargets),
 		)

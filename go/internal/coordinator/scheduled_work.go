@@ -200,9 +200,16 @@ func (s Service) createWorkflowWork(
 	// the authorized set (eshu-hq/eshu#10149): a scope the open-target
 	// guard or the insert dropped stays pending instead of committing as
 	// drained. The (int, error) wrapper below keeps returning
-	// admitted.inserted, so the satellite callers are untouched.
+	// admitted.inserted, so the satellite callers are untouched. The
+	// refresh and publication progress recorders join the same way
+	// (eshu-hq/eshu#10417): only an inserted scope paces.
+	var insertedScopes map[string]struct{}
 	var insertedReplanScopes map[string]struct{}
 	for _, scopeID := range admission.InsertedScopeIDs {
+		if insertedScopes == nil {
+			insertedScopes = make(map[string]struct{})
+		}
+		insertedScopes[scopeID] = struct{}{}
 		if !strings.Contains(scopeID, "/_replan/") {
 			continue
 		}
@@ -211,7 +218,47 @@ func (s Service) createWorkflowWork(
 		}
 		insertedReplanScopes[scopeID] = struct{}{}
 	}
-	return workAdmission{inserted: admission.InsertedWorkItems, advance: result, authorizedReplanScopes: authorizedReplanScopes, insertedReplanScopes: insertedReplanScopes}, nil
+	return workAdmission{inserted: admission.InsertedWorkItems, advance: result, authorizedReplanScopes: authorizedReplanScopes, insertedReplanScopes: insertedReplanScopes, insertedScopes: insertedScopes}, nil
+}
+
+// filterInsertedScopeIDs returns the planned scope ids that survived
+// admission, in planned order (eshu-hq/eshu#10417). A scope the open-target
+// guard or the insert dropped is absent from the admitted set and stays due.
+// An empty admitted set — the no-work path or a count-only backend —
+// records nothing, never the planned set: recording planned reintroduces
+// the stall this filter exists to close.
+func filterInsertedScopeIDs(planned []string, admitted workAdmission) []string {
+	if len(planned) == 0 || len(admitted.insertedScopes) == 0 {
+		return nil
+	}
+	inserted := make([]string, 0, len(planned))
+	for _, scopeID := range planned {
+		if _, ok := admitted.insertedScopes[scopeID]; ok {
+			inserted = append(inserted, scopeID)
+		}
+	}
+	return inserted
+}
+
+// withReplacedNVDAnchor appends the window-replaced NVD anchor to the
+// recorded scopes once its replacement window survives admission
+// (eshu-hq/eshu#10417 P1): admission inserts the window id, never the
+// anchor id, so the inserted intersection alone would leave the anchor due
+// every tick. A blank anchor or window, an unadmitted window, or an
+// already-recorded anchor records nothing extra.
+func withReplacedNVDAnchor(recorded []string, admitted workAdmission, anchor, window string) []string {
+	if strings.TrimSpace(anchor) == "" || strings.TrimSpace(window) == "" || len(admitted.insertedScopes) == 0 {
+		return recorded
+	}
+	if _, ok := admitted.insertedScopes[strings.TrimSpace(window)]; !ok {
+		return recorded
+	}
+	for _, scopeID := range recorded {
+		if strings.TrimSpace(scopeID) == strings.TrimSpace(anchor) {
+			return recorded
+		}
+	}
+	return append(recorded, strings.TrimSpace(anchor))
 }
 
 // logScanIntervalOverrides records, once at startup before the first
