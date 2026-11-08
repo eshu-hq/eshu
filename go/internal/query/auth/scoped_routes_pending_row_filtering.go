@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query //nolint:dirgate // #6818 move 4b: root auth surface (aliases, forwarders, route policies, handler wiring) stays in package query; moving it into auth/ strands root handler callers and turns this rename into a root-surface relocation, which is a separate follow-up.
+package auth
 
 import (
 	"net/http"
 )
 
-// pendingRowFilteringRoutes is the #5167 Group B ledger: the closed,
+// PendingRowFilteringRoutes is the #5167 Group B ledger: the closed,
 // hand-maintained set of every HTTP API route that is MCP-reachable today
 // but has no AllowedRepositoryIDs/AllowedScopeIDs grant filtering anywhere in
 // its handler, so it cannot be safely allowlisted yet -- doing so as-is would
@@ -15,7 +15,7 @@ import (
 // read. This is the "known gap, tracked, not yet safe to allowlist" third
 // state IsPendingRowFilteringRoute exists for, alongside the scoped-token
 // allowlist (scopedHTTPRouteSupportsTenantFilter) and the shared-key-only
-// ledger (sharedKeyOnlyRoutes): every route in this set was verified via
+// ledger (SharedKeyOnlyRoutes): every route in this set was verified via
 // `rg AllowedRepositoryIDs|AllowedScopeIDs|querycontract.RepositoryAccessFilterFromContext`
 // returning zero hits in its handler as of #5167's W1 gate landing.
 //
@@ -71,11 +71,11 @@ import (
 // ReadLiveActivity(ctx, limit, allScopes=false, allowedRepositoryIDs,
 // allowedScopeIDs) returns zero rows on an empty grant without querying and
 // redacts source_key/source_display/lease_owner per row.
-var pendingRowFilteringRoutes = map[string]struct{}{}
+var PendingRowFilteringRoutes = map[string]struct{}{}
 
 // IsPendingRowFilteringRoute reports whether r targets a #5167 Group B route:
 // MCP-reachable, known to lack tenant-grant filtering, and tracked in the
-// closed pendingRowFilteringRoutes ledger as a family-workstream follow-up
+// closed PendingRowFilteringRoutes ledger as a family-workstream follow-up
 // rather than a silent gap. It is exported for the same cross-package reason
 // as ScopedHTTPRouteSupportsTenantFilter and IsSharedKeyOnlyRoute: the
 // MCP-reachability exhaustiveness gate lives in go/internal/mcp, which
@@ -86,6 +86,6 @@ var pendingRowFilteringRoutes = map[string]struct{}{}
 // (scopedRelationshipEvidenceRoute, auth_scoped_routes_cloud.go) and no
 // longer needs the path-parameter matcher this function used to delegate to.
 func IsPendingRowFilteringRoute(r *http.Request) bool {
-	_, ok := pendingRowFilteringRoutes[r.Method+" "+r.URL.Path]
+	_, ok := PendingRowFilteringRoutes[r.Method+" "+r.URL.Path]
 	return ok
 }

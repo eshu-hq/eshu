@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query //nolint:dirgate // #6818 move 4b: root auth surface (aliases, forwarders, route policies, handler wiring) stays in package query; moving it into auth/ strands root handler callers and turns this rename into a root-surface relocation, which is a separate follow-up.
+package auth
 
 import (
 	"net/http"
@@ -43,7 +43,7 @@ func scopedIngesterStatusRoute(r *http.Request) bool {
 // delta reads whose rows can be bound to the caller's grant in SQL:
 // GET /api/v0/freshness/changed-since, GET /api/v0/freshness/generations and
 // GET /api/v0/freshness/services/changed-since. All three were #5167 Group B
-// entries in pendingRowFilteringRoutes until their handlers gained the #5137
+// entries in PendingRowFilteringRoutes until their handlers gained the #5137
 // pattern. They bind the caller's grant in the shipped SQL rather than in the
 // handler:
 //
@@ -80,11 +80,11 @@ func scopedIngesterStatusRoute(r *http.Request) bool {
 // scopedTokenAdvertisedRoutes, and both all-scope caller shapes now read that
 // class through their own denial function:
 //
-//   - An all-scope BROWSER SESSION goes through browserSessionRouteDenialReason,
+//   - An all-scope BROWSER SESSION goes through BrowserSessionRouteDenialReason,
 //     which auth.go reaches under the `auth.Mode == AuthModeBrowserSession`
 //     branch, so a hosted fail-closed BrowserSessionRoutePolicy refuses it
 //     (#6450).
-//   - An all-scope BEARER goes through scopedBearerRouteDenialReason, under
+//   - An all-scope BEARER goes through ScopedBearerRouteDenialReason, under
 //     the scoped-resolver branch, and is refused by the same policy (#6450
 //     residual item 1). Both minters produce this shape: an OIDC bearer
 //     resolved with an admin group grant carries AllScopes onto its
@@ -110,7 +110,7 @@ func scopedFreshnessDeltaRoute(r *http.Request) bool {
 
 // scopedIndexStatusRoute allows scoped tokens to reach the two index-status
 // routes, GET /api/v0/index-status and GET /api/v0/status/index, which share
-// getIndexStatus. It was a #5167 Group B entry in pendingRowFilteringRoutes
+// getIndexStatus. It was a #5167 Group B entry in PendingRowFilteringRoutes
 // until the handler stopped serving a scoped caller the deployment-wide
 // report. A scoped caller now receives only a repository_count bound to the
 // grant inside the Cypher (querycontract.RepositoryAccessFilter.GraphWhereClause
@@ -124,4 +124,30 @@ func scopedFreshnessDeltaRoute(r *http.Request) bool {
 func scopedIndexStatusRoute(r *http.Request) bool {
 	return r.Method == http.MethodGet &&
 		(r.URL.Path == "/api/v0/index-status" || r.URL.Path == "/api/v0/status/index")
+}
+
+// scopedOperatorControlPlaneRoute reports whether the request targets the
+// operator read model. The handler redacts raw correlation IDs and
+// instance-level labels for scoped tokens, so the route is tenant-filter safe.
+func scopedOperatorControlPlaneRoute(r *http.Request) bool {
+	return r.Method == http.MethodGet && r.URL.Path == "/api/v0/status/operator-control-plane"
+}
+
+// scopedFreshnessCausalityRoute reports whether the request targets the
+// freshness causality read model. The handler redacts raw scope/generation
+// identifiers in transitions for scoped tokens, so the route is tenant-filter
+// safe.
+func scopedFreshnessCausalityRoute(r *http.Request) bool {
+	return r.Method == http.MethodGet && r.URL.Path == "/api/v0/status/freshness-causality"
+}
+
+// scopedOperationsRoute reports whether the request targets the live
+// operations board. The handler restricts live_activity rows to the caller's
+// granted repositories/ingestion scopes (returning zero rows without
+// querying when a scoped caller holds no grants, #5137 cold-review P1-1) and
+// redacts repo identity (source_key, source_display) and worker identity
+// (lease_owner) on every row it does return; collector detail collapses to
+// aggregate counts. All three together make the route tenant-filter safe.
+func scopedOperationsRoute(r *http.Request) bool {
+	return r.Method == http.MethodGet && r.URL.Path == "/api/v0/status/operations"
 }

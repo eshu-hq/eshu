@@ -26,14 +26,6 @@ const operatorControlPlaneStatusReadFailedMessage = "operator control plane stat
 // error.capability.
 const operatorControlPlaneStatusCapability = "operations.operator_control_plane_status"
 
-// scopedOperatorControlPlaneRoute reports whether the request targets the
-// operator read model. The handler redacts raw correlation IDs and
-// instance-level labels for scoped tokens, so the route is tenant-filter safe.
-func scopedOperatorControlPlaneRoute(r *http.Request) bool {
-	return r.Method == http.MethodGet && r.URL.Path == "/api/v0/status/operator-control-plane"
-}
-
-// operatorControlPlaneDomainLimit caps the reducer-domain rows the operator
 // read model projects. It is set above the bounded reducer-domain catalog
 // (~52 domains) so a dead-lettered domain with low outstanding work is never
 // dropped by the default top-N backlog cap; surfacing every dead letter is the

@@ -29,6 +29,7 @@ already authenticated, plus the wire shapes those handlers exchange.
 | Audit actor classification | `audit_actor.go` | exported type alias and function forwarder |
 | External-provider login contracts | `login_contracts.go` (D13, #9669) | exported type aliases and one function forwarder; root keeps the HTTP handlers, error-to-status writers, and audit emitters |
 | MFA recovery-code issuance | `mfa_recovery.go` (D13, #9669) | constant aliases; the setup wizard delegates generation to `GenerateMFARecoveryCodes` |
+| Group C route ledgers | `scoped_routes*.go`, `browser_session_route_policy.go`, `route_denial_signal.go` (D13 row-2 leaf 2b, #9669) | `BrowserSessionRoutePolicy` alias plus same-named function/var/const forwarders in root (`route_policy_forwarders.go`); root keeps the middleware constructors, the advertised-ledger/class taxonomy, and the audit emitters |
 
 `unauthorizedResponse` and `writePermissionDeniedEnvelope` did NOT move
 here -- see [doc.go](doc.go) for why, and `querycontract.WriteUnauthorized` /
@@ -57,7 +58,20 @@ request/response shapes, sentinels, and refresh windows),
 `ErrBearerCredentialUnrecognized`, `ScopedTokenResolver`,
 `BrowserSessionResolver`, and the MFA recovery-code contract
 (`MFARecoveryContractsVersion`, `MFARecoveryCodeCount`,
-`MFARecoveryCodeBytes`, `GenerateMFARecoveryCodes`).
+`MFARecoveryCodeBytes`, `GenerateMFARecoveryCodes`). The D13 row-2 leaf-2b
+surface: `SharedKeyOnlyRoutes`, `PendingRowFilteringRoutes`,
+`HttpOnlySharedKeyOnlyRoutes`, `IsSharedKeyOnlyRoute`,
+`IsPendingRowFilteringRoute`, `ScopedHTTPRouteSupportsTenantFilter`,
+`SharedKeyOnlyRouteSurfaces`, `PendingRowFilteringRouteSurfaces`,
+`BrowserSessionRoutePolicy`, `BrowserSessionRouteDenialReason`,
+`ScopedBearerRouteDenialReason`, `ScopedRouteNeedsNoCallerGrant`,
+`ScopedRouteNotEnabledReason`, `ScopedRouteAllScopeGrantRequiredReason`,
+`WithScopedRouteDenialSignal`, `MarkScopedRouteDenied`, and the test-pinned
+family matchers (`ScopedAuthAdminReadRoute`,
+`ScopedAuthAdminMutationRoute`, `ScopedAuthProfileReadRoute`,
+`ScopedCollectorExtractionReadinessRoute`, `ScopedImpactCompareRoute`,
+`ScopedProviderConfigReadRoute`, `ScopedProviderConfigMutationRoute`,
+`ScopedServiceIntelligenceReportRoute`).
 See [doc.go](doc.go).
 
 ## Dependencies

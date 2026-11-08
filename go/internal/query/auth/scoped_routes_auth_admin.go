@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query //nolint:dirgate // #6818 move 4b: root auth surface (aliases, forwarders, route policies, handler wiring) stays in package query; moving it into auth/ strands root handler callers and turns this rename into a root-surface relocation, which is a separate follow-up.
+package auth
 
 import (
 	"net/http"
@@ -27,12 +27,12 @@ func scopedLocalIdentityAPITokenRoute(r *http.Request) bool {
 	return action == "revoke" || action == "rotate"
 }
 
-// scopedAuthProfileReadRoute reports whether the request targets one of the
+// ScopedAuthProfileReadRoute reports whether the request targets one of the
 // caller's own identity-profile read endpoints. These GETs derive the subject
 // strictly from AuthContext and return only the caller's own profile, sessions,
 // or generated API token metadata (never another subject's data and never any
 // secret), so they are safe for browser-session and scoped-token callers.
-func scopedAuthProfileReadRoute(r *http.Request) bool {
+func ScopedAuthProfileReadRoute(r *http.Request) bool {
 	if r.Method != http.MethodGet {
 		return false
 	}
@@ -46,7 +46,7 @@ func scopedAuthProfileReadRoute(r *http.Request) bool {
 	}
 }
 
-// scopedAuthAdminReadRoute reports whether the request targets one of the
+// ScopedAuthAdminReadRoute reports whether the request targets one of the
 // tenant-admin identity read endpoints. These GETs derive the tenant/workspace
 // strictly from AuthContext and return only metadata within the caller's own
 // tenant (never another tenant's data and never any secret). The handler
@@ -63,12 +63,12 @@ func scopedAuthProfileReadRoute(r *http.Request) bool {
 // them here allows browser-session tenant admins to reach the handler; the
 // handler's auditScope gate enforces the correct scoping.
 //
-// The provider-config routes (#4966) are matched by scopedProviderConfigReadRoute
+// The provider-config routes (#4966) are matched by ScopedProviderConfigReadRoute
 // rather than a literal case here because they carry a {provider_config_id}
 // path parameter and a "/revisions" sub-resource (issue #5004 follow-up: this
 // whole family was missing from the allowlist, the same gap sign-in-policy
 // had).
-func scopedAuthAdminReadRoute(r *http.Request) bool {
+func ScopedAuthAdminReadRoute(r *http.Request) bool {
 	if r.Method != http.MethodGet {
 		return false
 	}
@@ -84,10 +84,10 @@ func scopedAuthAdminReadRoute(r *http.Request) bool {
 		"/api/v0/auth/admin/sign-in-policy":
 		return true
 	}
-	return scopedProviderConfigReadRoute(r.URL.Path)
+	return ScopedProviderConfigReadRoute(r.URL.Path)
 }
 
-// scopedAuthAdminMutationRoute reports whether the request targets one of the
+// ScopedAuthAdminMutationRoute reports whether the request targets one of the
 // tenant-admin identity mutation endpoints (#3703 PR-2). These unsafe-method
 // (POST/PATCH/DELETE) routes derive the tenant/workspace strictly from AuthContext and
 // write only within the caller's own tenant. The handler additionally requires
@@ -105,11 +105,11 @@ func scopedAuthAdminReadRoute(r *http.Request) bool {
 // and are still gated by the all-scope admin requirement in the handler.
 //
 // The provider-config POST routes (#4966) are matched by
-// scopedProviderConfigMutationRoute rather than a literal case here because
+// ScopedProviderConfigMutationRoute rather than a literal case here because
 // they carry a {provider_config_id} path parameter and the
 // /revert, /enable, /disable, /test-connection sub-resource actions (issue
 // #5004 follow-up).
-func scopedAuthAdminMutationRoute(r *http.Request) bool {
+func ScopedAuthAdminMutationRoute(r *http.Request) bool {
 	switch r.Method {
 	case http.MethodPost:
 		switch r.URL.Path {
@@ -121,7 +121,7 @@ func scopedAuthAdminMutationRoute(r *http.Request) bool {
 		if scopedInvitationRevokeRoute(r.URL.Path) {
 			return true
 		}
-		return scopedProviderConfigMutationRoute(r.URL.Path)
+		return ScopedProviderConfigMutationRoute(r.URL.Path)
 	case http.MethodPatch:
 		return r.URL.Path == "/api/v0/auth/admin/sign-in-policy"
 	case http.MethodDelete:
@@ -155,12 +155,12 @@ func scopedIdPGroupMappingDeleteRoute(path string) bool {
 }
 
 // providerConfigsListPath is the admin provider-config collection path both
-// scopedProviderConfigReadRoute and scopedProviderConfigMutationRoute anchor
+// ScopedProviderConfigReadRoute and ScopedProviderConfigMutationRoute anchor
 // on: the bare path is the list (GET) / create (POST) route, and every other
 // matched route is a "/{provider_config_id}[/action]" path under it.
 const providerConfigsListPath = "/api/v0/auth/admin/provider-configs"
 
-// scopedProviderConfigReadRoute matches the admin provider-config GET routes:
+// ScopedProviderConfigReadRoute matches the admin provider-config GET routes:
 // the list (GET providerConfigsListPath), a single provider config
 // (GET .../{provider_config_id}), and its revision history
 // (GET .../{provider_config_id}/revisions). Uses the same
@@ -168,7 +168,7 @@ const providerConfigsListPath = "/api/v0/auth/admin/provider-configs"
 // extended with strings.Cut to also recognize the one nested "/revisions"
 // sub-resource without a naive HasPrefix that would let any deeper path
 // through.
-func scopedProviderConfigReadRoute(path string) bool {
+func ScopedProviderConfigReadRoute(path string) bool {
 	if path == providerConfigsListPath {
 		return true
 	}
@@ -187,14 +187,14 @@ func scopedProviderConfigReadRoute(path string) bool {
 	return sub == "revisions"
 }
 
-// scopedProviderConfigMutationRoute matches the admin provider-config POST
+// ScopedProviderConfigMutationRoute matches the admin provider-config POST
 // routes: create (POST providerConfigsListPath), update
 // (POST .../{provider_config_id}), and the revert/enable/disable/
 // test-connection sub-resource actions
 // (POST .../{provider_config_id}/{action}). Same prefix-then-segment approach
-// as scopedProviderConfigReadRoute; the action segment is matched against the
+// as ScopedProviderConfigReadRoute; the action segment is matched against the
 // closed set of implemented actions rather than accepted as a wildcard.
-func scopedProviderConfigMutationRoute(path string) bool {
+func ScopedProviderConfigMutationRoute(path string) bool {
 	if path == providerConfigsListPath {
 		return true
 	}
@@ -241,7 +241,7 @@ func scopedBrowserSessionAuthRoute(r *http.Request) bool {
 // profile-page enrollment before the handler runs.
 //
 // Both scopedHTTPRouteSupportsTenantFilter (auth_scoped_routes.go) and
-// scopedRouteNeedsNoCallerGrant (auth_browser_session_route_policy.go) call
+// ScopedRouteNeedsNoCallerGrant (auth_browser_session_route_policy.go) call
 // this, so the allowlist and the all-scope admission split can never disagree
 // about which paths count as enrollment.
 func scopedTOTPEnrollmentRoute(r *http.Request) bool {

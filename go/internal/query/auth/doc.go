@@ -54,4 +54,15 @@
 // (mfa_recovery.go). Root keeps aliases and one forwarder so in-tree router
 // callers compile unchanged; the HTTP handlers, error-to-status writers,
 // and audit emitters stay in root until the removal PR relocates them.
+//
+// D13 row-2 leaf 2b moved the Group C auth ledgers here as well: the
+// shared-key-only and pending-row-filtering ledgers, the scoped-token
+// allowlist decision and its MCP surfaces, the browser-session/all-scope
+// route policy and its denial reasons, and the route-denial signal
+// (scoped_routes*.go, browser_session_route_policy.go,
+// route_denial_signal.go). Root keeps same-named forwarders (plus the
+// BrowserSessionRoutePolicy alias) so the middleware, the root tests, and
+// the MCP exhaustiveness gate read the same values with no duplicated
+// ledger; the audit emitters and middleware constructors stay in root with
+// the rest of the handler wiring.
 package auth

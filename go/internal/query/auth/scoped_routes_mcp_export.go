@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query //nolint:dirgate // #6818 move 4b: root auth surface (aliases, forwarders, route policies, handler wiring) stays in package query; moving it into auth/ strands root handler callers and turns this rename into a root-surface relocation, which is a separate follow-up.
+package auth
 
 import "net/http"
 
@@ -19,23 +19,23 @@ func ScopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 	return scopedHTTPRouteSupportsTenantFilter(r)
 }
 
-// httpOnlySharedKeyOnlyRoutes records shared-key/all-scope routes that are
+// HttpOnlySharedKeyOnlyRoutes records shared-key/all-scope routes that are
 // deliberately absent from the read-only MCP tool surface. Keeping this
 // classification separate means a new shared-key-only route still fails the
 // MCP staleness gate until its transport ownership is explicit.
-var httpOnlySharedKeyOnlyRoutes = map[string]struct{}{
+var HttpOnlySharedKeyOnlyRoutes = map[string]struct{}{
 	"POST /api/v0/supply-chain/impact/suppressions": {},
 }
 
 // SharedKeyOnlyRouteSurfaces returns the MCP-reachable "METHOD /path" entries
-// in sharedKeyOnlyRoutes (auth_scoped_routes_shared_key_only.go), for the mcp
+// in SharedKeyOnlyRoutes (auth_scoped_routes_shared_key_only.go), for the mcp
 // package's exhaustiveness gate to staleness-check against the routes it
 // actually dispatches to. HTTP-only entries remain in the authorization ledger
 // but are omitted here through the explicit classification above.
 func SharedKeyOnlyRouteSurfaces() []string {
-	surfaces := make([]string, 0, len(sharedKeyOnlyRoutes))
-	for surface := range sharedKeyOnlyRoutes {
-		if _, httpOnly := httpOnlySharedKeyOnlyRoutes[surface]; httpOnly {
+	surfaces := make([]string, 0, len(SharedKeyOnlyRoutes))
+	for surface := range SharedKeyOnlyRoutes {
+		if _, httpOnly := HttpOnlySharedKeyOnlyRoutes[surface]; httpOnly {
 			continue
 		}
 		surfaces = append(surfaces, surface)
@@ -44,13 +44,13 @@ func SharedKeyOnlyRouteSurfaces() []string {
 }
 
 // PendingRowFilteringRouteSurfaces returns every "METHOD /path" surface name
-// in the literal pendingRowFilteringRoutes ledger
+// in the literal PendingRowFilteringRoutes ledger
 // (auth_scoped_routes_pending_row_filtering.go), for the mcp package's
 // exhaustiveness gate to staleness-check against the routes it actually
 // dispatches to.
 func PendingRowFilteringRouteSurfaces() []string {
-	surfaces := make([]string, 0, len(pendingRowFilteringRoutes))
-	for surface := range pendingRowFilteringRoutes {
+	surfaces := make([]string, 0, len(PendingRowFilteringRoutes))
+	for surface := range PendingRowFilteringRoutes {
 		surfaces = append(surfaces, surface)
 	}
 	return surfaces

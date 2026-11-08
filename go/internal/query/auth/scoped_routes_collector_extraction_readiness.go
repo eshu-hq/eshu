@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query //nolint:dirgate // #6818 move 4b: root auth surface (aliases, forwarders, route policies, handler wiring) stays in package query; moving it into auth/ strands root handler callers and turns this rename into a root-surface relocation, which is a separate follow-up.
+package auth
 
 import (
 	"net/http"
 	"strings"
 )
 
-// scopedCollectorExtractionReadinessRoute reports whether the request targets a
+// ScopedCollectorExtractionReadinessRoute reports whether the request targets a
 // collector extraction readiness read. These routes serve advisory static
 // extraction-policy classification computed from documented repository
 // evidence: the payload is identical for every caller and carries no
@@ -16,7 +16,7 @@ import (
 // tenant-filter, and the route is safe for scoped tokens the same way the
 // global runtime-status readbacks are. It stays GET-only and matches the list
 // route plus the single bounded `{family}` drilldown segment.
-func scopedCollectorExtractionReadinessRoute(r *http.Request) bool {
+func ScopedCollectorExtractionReadinessRoute(r *http.Request) bool {
 	if r.Method != http.MethodGet {
 		return false
 	}

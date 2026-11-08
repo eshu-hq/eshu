@@ -58,17 +58,6 @@ const (
 	operationsLiveActivityReadFailedMessage = "operations live activity read failed"
 )
 
-// scopedOperationsRoute reports whether the request targets the live
-// operations board. The handler restricts live_activity rows to the caller's
-// granted repositories/ingestion scopes (returning zero rows without
-// querying when a scoped caller holds no grants, #5137 cold-review P1-1) and
-// redacts repo identity (source_key, source_display) and worker identity
-// (lease_owner) on every row it does return; collector detail collapses to
-// aggregate counts. All three together make the route tenant-filter safe.
-func scopedOperationsRoute(r *http.Request) bool {
-	return r.Method == http.MethodGet && r.URL.Path == "/api/v0/status/operations"
-}
-
 // getOperations returns the live operations board read model: health,
 // collector runtimes (with heartbeat), stage summaries, domain backlogs, and
 // queue pressure -- all projected from the same status snapshot the rest of

@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query //nolint:dirgate // #6818 move 4b: root auth surface (aliases, forwarders, route policies, handler wiring) stays in package query; moving it into auth/ strands root handler callers and turns this rename into a root-surface relocation, which is a separate follow-up.
+package auth
 
 import "net/http"
 
-// sharedKeyOnlyRoutes is the #5167 Group C ledger: the structured,
+// SharedKeyOnlyRoutes is the #5167 Group C ledger: the structured,
 // hand-maintained set of every HTTP API route that is MCP-reachable but can
 // never be generically tenant-filtered, so it is explicitly excluded from
 // scopedHTTPRouteSupportsTenantFilter (auth_scoped_routes.go) rather than
@@ -33,7 +33,7 @@ import "net/http"
 // exported, request-shaped accessor
 // TestEveryMCPReachableRouteIsScopedOrAnnotated (go/internal/mcp) checks
 // directly, since raw dispatched requests never carry OpenAPI path templates.
-var sharedKeyOnlyRoutes = map[string]struct{}{
+var SharedKeyOnlyRoutes = map[string]struct{}{
 	"POST /api/v0/code/cypher":                      {},
 	"POST /api/v0/code/visualize":                   {},
 	"POST /api/v0/supply-chain/impact/suppressions": {},
@@ -53,6 +53,6 @@ var sharedKeyOnlyRoutes = map[string]struct{}{
 // non-POST shared-key route as unclassified and trip the exhaustiveness gate,
 // so it is intentionally absent.
 func IsSharedKeyOnlyRoute(r *http.Request) bool {
-	_, ok := sharedKeyOnlyRoutes[r.Method+" "+r.URL.Path]
+	_, ok := SharedKeyOnlyRoutes[r.Method+" "+r.URL.Path]
 	return ok
 }

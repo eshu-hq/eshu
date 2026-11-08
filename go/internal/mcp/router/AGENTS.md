@@ -17,7 +17,7 @@
   and never apply schema defaults; the root's byte-identity test fails
   otherwise.
 - The credential filter may refuse only what the API auth middleware always
-  refuses. Reuse the `query` route ledgers; never copy their entries.
+  refuses. Reuse the `query/auth` route ledgers; never copy their entries.
 - Keep metric labels bounded: `tool` is a registered name or `unregistered`.
 - Never import `internal/mcp` (the root). The root injects a `Dispatcher`;
   `TestRouterDoesNotImportMCPRoot` fails on an import.

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query //nolint:dirgate // #6818 move 4b: root auth surface (aliases, forwarders, route policies, handler wiring) stays in package query; moving it into auth/ strands root handler callers and turns this rename into a root-surface relocation, which is a separate follow-up.
+package auth
 
 import (
 	"net/http"
@@ -65,11 +65,11 @@ func scopedServiceInvestigationRoute(path string) bool {
 	return selector != "" && !strings.Contains(selector, "/")
 }
 
-// scopedServiceIntelligenceReportRoute matches the service intelligence report
+// ScopedServiceIntelligenceReportRoute matches the service intelligence report
 // route. The report composes the service-story dossier through the same scoped
 // access filter, so it qualifies for scoped-token tenant filtering exactly like
 // the service-story route.
-func scopedServiceIntelligenceReportRoute(path string) bool {
+func ScopedServiceIntelligenceReportRoute(path string) bool {
 	const prefix = "/api/v0/services/"
 	const suffix = "/intelligence-report"
 	if !strings.HasPrefix(path, prefix) {

@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query //nolint:dirgate // #6818 move 4b: root auth surface (aliases, forwarders, route policies, handler wiring) stays in package query; moving it into auth/ strands root handler callers and turns this rename into a root-surface relocation, which is a separate follow-up.
+package auth
 
 import "net/http"
 
-// scopedImpactCompareRoute reports whether the request targets one of the
+// ScopedImpactCompareRoute reports whether the request targets one of the
 // #5167 W3 impact/* and compare/* routes that now bind every returned row to
 // the caller's grant (see impact_access_filter.go for the shared
 // deny-by-default/empty-grant-short-circuit helpers each handler uses):
@@ -49,7 +49,7 @@ import "net/http"
 // raw row count; and every scoped response discloses the withheld sections
 // (scoped: true, withheld_sections, and for exposure the withheld sink
 // classes in coverage.unresolved_reason).
-func scopedImpactCompareRoute(r *http.Request) bool {
+func ScopedImpactCompareRoute(r *http.Request) bool {
 	if r.Method != http.MethodPost {
 		return false
 	}
