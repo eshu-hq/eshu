@@ -229,13 +229,13 @@ import (
 // GHSA rolling-window cursor table; 284 went to #10389's scope-pass-state
 // file and 285 to its contract comments, so this lane takes the next free
 // slot).
-const goldenBootstrapDefinitionsDigest = "70edc0646c33997614bcb10f702caf8ad5a8ce878acb6dc935aa66f512efebc7"
+const goldenBootstrapDefinitionsDigest = "2cbff8ff8d4a51fd438b512a51d2f726fcca730e5ee6336c1495737e159c2753"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or
 // silently dropping files) fails loudly even in the unlikely case of a hash
 // collision.
-const goldenBootstrapDefinitionsCount = 311
+const goldenBootstrapDefinitionsCount = 312
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
 	defs := BootstrapDefinitions()
