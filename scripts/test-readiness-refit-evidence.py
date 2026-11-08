@@ -77,6 +77,58 @@ class RunHeadShaCases(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "head_sha"):
             driver.run_head_sha(run_dir)
 
+    def test_rejects_run_json_without_head_sha(self) -> None:
+        """A run.json without head_sha fails closed naming the run, not KeyError."""
+        run_dir = _write_run(self.root, [_job("c" * 40)], {"conclusion": "success"})
+        with self.assertRaisesRegex(ValueError, run_dir.name):
+            driver.run_head_sha(run_dir)
+
+    def test_rejects_run_json_list_payload(self) -> None:
+        """A non-dict run.json fails closed naming the run, not TypeError."""
+        run_dir = self.root / "42420000001"
+        run_dir.mkdir()
+        (run_dir / "jobs.json").write_text(json.dumps({"jobs": [_job("c" * 40)]}))
+        (run_dir / "run.json").write_text("[1, 2]")
+        with self.assertRaisesRegex(ValueError, run_dir.name):
+            driver.run_head_sha(run_dir)
+
+    def test_rejects_empty_head_sha(self) -> None:
+        """An empty head_sha is malformed, not a usable SHA."""
+        run_dir = _write_run(self.root, [_job("c" * 40)], {"head_sha": ""})
+        with self.assertRaisesRegex(ValueError, run_dir.name):
+            driver.run_head_sha(run_dir)
+
+    def test_rejects_run_json_malformed_text(self) -> None:
+        """Unparseable run.json fails closed naming the run."""
+        run_dir = _write_run(self.root, [_job("c" * 40)], {"head_sha": "a" * 40})
+        (run_dir / "run.json").write_text("{nope")
+        with self.assertRaisesRegex(ValueError, run_dir.name):
+            driver.run_head_sha(run_dir)
+
+    def test_rejects_jobs_list_payload(self) -> None:
+        """A non-dict jobs.json fails closed naming the run, not TypeError."""
+        run_dir = self.root / "42420000001"
+        run_dir.mkdir()
+        (run_dir / "jobs.json").write_text(json.dumps([_job("c" * 40)]))
+        with self.assertRaisesRegex(ValueError, run_dir.name):
+            driver.run_head_sha(run_dir)
+
+    def test_rejects_non_dict_job_entry(self) -> None:
+        """A non-dict jobs.json entry fails closed naming the run."""
+        run_dir = self.root / "42420000001"
+        run_dir.mkdir()
+        (run_dir / "jobs.json").write_text(
+            json.dumps({"jobs": [_job("c" * 40), "not-a-job"]}))
+        with self.assertRaisesRegex(ValueError, run_dir.name):
+            driver.run_head_sha(run_dir)
+
+    def test_rejects_missing_jobs_json(self) -> None:
+        """A run with neither metadata file fails closed naming the run."""
+        run_dir = self.root / "42420000001"
+        run_dir.mkdir()
+        with self.assertRaisesRegex(ValueError, run_dir.name):
+            driver.run_head_sha(run_dir)
+
 
 class PoolcheckContractCases(unittest.TestCase):
     """poolcheck refuses runs without run.json instead of crashing."""

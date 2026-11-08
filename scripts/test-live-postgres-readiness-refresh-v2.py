@@ -19,6 +19,7 @@ import live_postgres_readiness_weights_refresh as cli_refresh  # noqa: E402
 from live_postgres_readiness_weights_history_cases import SourceHistoryTest  # noqa: E402,F401
 from live_postgres_readiness_weights_pooled_cases import PooledPricingTest  # noqa: E402,F401
 from live_postgres_readiness_weights_inventory_cases import InventoryPoolingTest  # noqa: E402,F401
+from live_postgres_readiness_weights_excuse_cases import ExcuseCases  # noqa: E402,F401
 from live_postgres_readiness_weights_refresh_fixture import (  # noqa: E402
     OTHER_SHA, PLAN, SHA, shard_log as _log, write_sample as _sample)
 
@@ -451,49 +452,6 @@ class RefreshV2Cases(unittest.TestCase):
         with mock.patch.object(refresh.provenance, "source_inventory", return_value=PLAN[:-1]):
             with self.assertRaisesRegex(ValueError, "inventory|coverage"):
                 self.fit()
-
-    def _excuse_test_three(self, sources, name="TestThree"):
-        """Drop TestThree's shard3 row, keep its summary count, name the excuse."""
-        for source in sources:
-            for log in source.glob("shard*.log"):
-                log.write_text(log.read_text().replace("--report readiness-shard-report.json", "--report readiness-shard-report.json\n2026-10-26T00:00:00Z   LIVE_READINESS_EXTRA_SKIP: " + name))
-            shard = source / "shard3.log"
-            shard.write_text(shard.read_text().replace("2026-10-26T00:00:09Z TestThree: PASS elapsed=1.0s\n", "").replace(
-                "./b 1/1 PASS", "./b 0/0 PASS"))
-
-    def test_accepts_excused_skip_and_prices_it_from_history(self) -> None:
-        """An excused skip parses; its price comes from the runs that ran it."""
-        self._excuse_test_three(self.sources[:1])
-        self.assertEqual(self.fit()["test_seconds"]["./b|TestThree"], 1.0)
-
-    def test_uniform_pool_defaults_unsampled_excused_test(self) -> None:
-        """A newest-inventory test with no samples defaults instead of failing."""
-        pool = refresh.pool_rules.PoolProvenance()
-        pool.add("100", ["./a|TestOne", "./a|TestTwo"], "cold")
-        pool.price_tests({"./a|TestOne": [1.0, 1.0, 1.0]}, lambda samples, run: round(statistics.mean(samples), 1), 4, ["./a|TestTwo"])
-        self.assertEqual(pool.defaulted, {"./a|TestTwo": 0})
-
-    def test_rejects_unexcused_missing_and_fail_rows(self) -> None:
-        """A missing row without excuse, or a FAIL row, still fails the log."""
-        path = self.sources[0] / "shard3.log"
-        path.write_text(path.read_text().replace("TestThree: PASS", "TestThree: FAIL"))
-        with self.assertRaises(ValueError):
-            self.fit()
-        path.write_text(path.read_text().replace("2026-10-26T00:00:09Z TestThree: FAIL elapsed=1.0s\n", "").replace("2026-10-26T00:00:09Z live-postgres-readiness: ./b 1/1 PASS\n", ""))
-        with self.assertRaisesRegex(ValueError, "does not cover all rows"):
-            self.fit()
-
-    def test_rejects_unknown_excuse_name(self) -> None:
-        """An excuse naming a test outside the plan fails closed."""
-        self._excuse_test_three(self.sources[:1], name="TestNope")
-        with self.assertRaisesRegex(ValueError, "unknown test"):
-            self.fit()
-
-    def test_rejects_printed_row_for_excused_proof(self) -> None:
-        """An excuse contradicting a printed PASS row fails closed."""
-        log = _log(3, [("b", "TestThree", 8), ("c", "TestOne", 5)], 100)
-        with self.assertRaisesRegex(ValueError, "excused"):
-            refresh._parse_shard(log, 3, 4, frozenset(["TestThree"]))
 
 
 if __name__ == "__main__":
