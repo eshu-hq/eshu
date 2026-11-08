@@ -172,6 +172,7 @@ func ExtractCVEListInnerZip(wrapperPath, destPath string) error {
 		return fmt.Errorf("vulnsource: open inner baseline member: %w", err)
 	}
 	defer func() { _ = src.Close() }()
+	// #nosec G304 -- destPath is the operator-configured mirror staging path, never remote input.
 	out, err := os.OpenFile(destPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
 	if err != nil {
 		return fmt.Errorf("vulnsource: stage inner baseline: %w", err)
@@ -279,6 +280,7 @@ func WriteCVEListMirrorCursor(storeDir string, cur CVEListMirrorCursor) error {
 // no cursor was ever written (fresh mirror: seed the baseline, then store
 // the newest observed fetchTime).
 func ReadCVEListMirrorCursor(storeDir string) (cur CVEListMirrorCursor, found bool, err error) {
+	// #nosec G304 -- storeDir is the operator-configured mirror directory joined with a constant cursor filename, never remote input.
 	raw, err := os.ReadFile(filepath.Join(storeDir, cveListBaselineCursorFile))
 	if err != nil {
 		if os.IsNotExist(err) {

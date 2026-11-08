@@ -223,6 +223,10 @@
     "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
     "tests": ["TestMutualFanOutHasNoDeadlockLive", "TestWriterReportsChangesAgainstThePreviousGenerationLive"]
   },
+  "go/internal/storage/postgres/supply_chain_impact_cve_shard_writer_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": ["TestSupplyChainImpactCVEListFullShardWriterLive"]
+  },
   "go/internal/storage/postgres/supply_chain_impact_fencing_live_test.go": {
     "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
     "tests": ["TestSupplyChainImpactEmptyFresherPassStillFencesOlderPassLive", "TestSupplyChainImpactFencingTokenIssuerIssuesStrictlyIncreasingValuesLive", "TestSupplyChainImpactRetractsLegacyZeroRowsAndStampsTokenLive", "TestSupplyChainImpactSeedAdvancesAnUncalledSequenceEqualToTheWatermarkLive", "TestSupplyChainImpactStalePassResumingAfterReclaimCannotRetractFresherSetLive", "TestSupplyChainImpactUpsertGuardRefusesAStaleReviveLive"]

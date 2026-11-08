@@ -372,9 +372,9 @@ tests:
     runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_cve_shard_writer_live_test.go
     tag: ~
-    class: postgres_ci
-    reason: "#10354: 5.2 full-shard writer proof (real writer at 334-CVE volume, idempotent replay, retraction, upsert EXPLAIN); docs/internal/evidence/10354-cve-baseline-delta-tail.md; enrolled in the live-postgres-readiness runner. Local run about 5s on postgres:18; wall time is logged, not gated"
-    runner: live-postgres-readiness
+    class: dedicated_ci
+    reason: "#10354: 5.2 full-shard writer proof (real writer at 334-CVE volume, idempotent replay, retraction, upsert EXPLAIN); docs/internal/evidence/10354-cve-baseline-delta-tail.md; reducer-contention runs the named proof with the disposable pair and the skip-is-failure switch (guard TestSupplyChainImpactLiveProofsRunInTheReducerContentionGate). Local run about 5s on postgres:18; wall time is logged, not gated"
+    runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_fencing_live_test.go
     tag: ~
     class: dedicated_ci

@@ -195,8 +195,8 @@ need not search for why it waits.
 Second arbiter ruling (arbiter-eshu, read-only, goal-01a1b869): no Neo4j
 write path for vulnerability facts exists in-repo (verified zero
 vulnerability-projection Cypher; projection is reducer-side Postgres via
-`BuildSupplyChainImpactFindings` at
-go/internal/reducer/supplychain/core/impact.go:375 plus
+`BuildSupplyChainImpactFindings` in
+`go/internal/reducer/supplychain/core/impact.go` plus
 `PostgresSupplyChainImpactWriter`). The "Neo4j-backed projection PROFILE"
 wording in #10354 criterion 1 is therefore void; criterion 1 is re-scoped
 to build-layer wall-clock over the 1,000-fact shard plus EXPLAIN

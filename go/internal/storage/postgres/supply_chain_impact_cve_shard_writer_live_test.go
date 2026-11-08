@@ -15,7 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
-// TestCVEListFullShardWriterLive drives the real Postgres writer at
+// TestSupplyChainImpactCVEListFullShardWriterLive drives the real Postgres writer at
 // full-shard volume for eshu-hq/eshu#10354 (Phase 5 5.2, criterion 1
 // writer layer): 334 cve_list CVEs (≈1,000 fact rows) through
 // WriteSupplyChainImpactFindings on a disposable database. It records
@@ -26,7 +26,7 @@ import (
 // hand-copied). The retraction statement text is unexported, so its plan
 // is covered by execution (non-zero retracted count) rather than EXPLAIN;
 // the evidence note records that boundary explicitly.
-func TestCVEListFullShardWriterLive(t *testing.T) {
+func TestSupplyChainImpactCVEListFullShardWriterLive(t *testing.T) {
 	ctx, db := fanOutLiveDB(t)
 	fanOutSeedScope(t, ctx, db, "cve-shard", "g2", "g1")
 	writer := supplychaincore.PostgresSupplyChainImpactWriter{
