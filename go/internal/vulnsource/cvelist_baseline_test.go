@@ -157,6 +157,17 @@ func TestCVEListMirrorCursorAdvanceAndGap(t *testing.T) {
 	if cur.FetchTime != "2026-11-07T23:23:16.258Z" {
 		t.Fatal("Advance() mutated the receiver; cursors are values")
 	}
+	// A stale batch must never move the cursor backwards: advancing to an
+	// older fetchTime keeps the cursor unchanged (monotonic advance).
+	stale := cur.Advance("2026-11-07T23:15:00.000Z")
+	if stale.FetchTime != "2026-11-07T23:23:16.258Z" {
+		t.Fatalf("Advance(stale) fetchTime = %q, want the cursor unchanged", stale.FetchTime)
+	}
+	// An unparseable new fetchTime keeps the cursor unchanged.
+	garbage := cur.Advance("not-a-time")
+	if garbage.FetchTime != "2026-11-07T23:23:16.258Z" {
+		t.Fatalf("Advance(garbage) fetchTime = %q, want the cursor unchanged", garbage.FetchTime)
+	}
 	// A tail read that never reached the cursor (log rolled past it) must
 	// refuse to advance: the caller re-seeds from a fresh baseline.
 	if !cur.NeedsReseed(false) {
