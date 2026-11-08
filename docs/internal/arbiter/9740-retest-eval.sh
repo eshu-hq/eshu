@@ -98,24 +98,30 @@ case "$MODE" in
     python3 - <<'EOF'
 import json
 
-def series(path):
-    # Sum across EVERY returned series per timestamp. These counters carry
-    # third labels (fanout cause / execution status), so reading r[0] alone
-    # would silently drop most of the rate and corrupt the 0.5 threshold.
+def series(path, how="sum"):
+    # Counters carry third labels (fanout cause / execution status) and must
+    # be SUMMED across every returned series per timestamp; reading r[0]
+    # alone would silently drop most of the rate and corrupt the 0.5
+    # threshold. The oldest-age gauge carries a service_name label and must
+    # take the MAX instead: summing gauges across services is meaningless
+    # and opposite trends cancel into a flat line that hides real rises.
     from collections import defaultdict
     d = json.load(open(path))
     assert d["status"] == "success", d
     acc = defaultdict(float)
     for s in d["data"]["result"]:
         for t, v in s["values"]:
-            acc[t] += float(v)
+            if how == "max":
+                acc[t] = max(acc[t], float(v))
+            else:
+                acc[t] += float(v)
     return sorted(acc.items())
 
 flag = series("/tmp/retest-2a-flag.json")
 exc = dict(series("/tmp/retest-2a-exec.json"))
 opn = dict(series("/tmp/retest-2a-open.json"))
 nop = dict(series("/tmp/retest-2a-noop.json"))
-age = series("/tmp/retest-2a-age.json")
+age = series("/tmp/retest-2a-age.json", how="max")
 
 # 30-min straight rise first: 7 consecutive strictly increasing 5m age
 # samples. The ruling fires iff some t has ratio>=0.5 AND a rise window
