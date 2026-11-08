@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 )
 
 // supplyChainImpactAggregateCapability is the query capability whose truth
@@ -33,14 +33,14 @@ type SupplyChainEvidenceSource interface {
 // it reads the reducer-owned supply-chain impact inventory aggregate scoped to
 // the resolved workload id.
 type DurableSupplyChainEvidenceSource struct {
-	store  query.SupplyChainImpactAggregateStore
+	store  impact.AggregateStore
 	logger *slog.Logger
 }
 
 // NewDurableSupplyChainEvidenceSource constructs the durable supply-chain source
 // over a supply-chain impact aggregate store. A nil logger is tolerated.
 func NewDurableSupplyChainEvidenceSource(
-	store query.SupplyChainImpactAggregateStore,
+	store impact.AggregateStore,
 	logger *slog.Logger,
 ) DurableSupplyChainEvidenceSource {
 	return DurableSupplyChainEvidenceSource{store: store, logger: logger}
@@ -56,15 +56,15 @@ func (s DurableSupplyChainEvidenceSource) SupplyChainInventoryForWorkload(
 	if s.store == nil {
 		return nil, nil
 	}
-	filter := query.SupplyChainImpactAggregateFilter{
+	filter := impact.AggregateFilter{
 		WorkloadID:       workloadID,
-		DetectionProfile: query.SupplyChainImpactProfilePrecise,
+		DetectionProfile: impact.ProfilePrecise,
 	}
-	limit := query.SupplyChainImpactAggregateMaxLimit
+	limit := impact.AggregateMaxLimit
 	rows, err := s.store.SupplyChainImpactInventory(
 		ctx,
 		filter,
-		query.SupplyChainImpactInventoryByImpactStatus,
+		impact.InventoryByStatus,
 		limit+1,
 		0,
 	)
@@ -91,11 +91,11 @@ func (s DurableSupplyChainEvidenceSource) SupplyChainInventoryForWorkload(
 		"count":             count,
 		"limit":             limit,
 		"offset":            0,
-		"group_by":          string(query.SupplyChainImpactInventoryByImpactStatus),
-		"detection_profile": query.SupplyChainImpactProfilePrecise,
+		"group_by":          string(impact.InventoryByStatus),
+		"detection_profile": impact.ProfilePrecise,
 		"truncated":         truncated,
 		"next_offset":       nil,
-		"scope":             map[string]string{"workload_id": workloadID, "profile": query.SupplyChainImpactProfilePrecise},
+		"scope":             map[string]string{"workload_id": workloadID, "profile": impact.ProfilePrecise},
 	}, nil
 }
 

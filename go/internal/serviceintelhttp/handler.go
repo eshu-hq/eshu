@@ -6,7 +6,9 @@ package serviceintelhttp
 import (
 	"net/http"
 
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/entity"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/service"
 	"github.com/eshu-hq/eshu/go/internal/serviceintel"
 )
 
@@ -18,7 +20,7 @@ import (
 // service-story route.
 type ReportHandler struct {
 	// Entities builds the underlying service-story dossier and truth.
-	Entities *query.EntityHandler
+	Entities *entity.Handler
 	// Incidents is the optional durable incident evidence source. When nil the
 	// incidents_support section stays unsupported with its fallback next call;
 	// when wired the handler appends a sourced incidents section. The source owns
@@ -49,22 +51,22 @@ func (h *ReportHandler) Mount(mux *http.ServeMux) {
 // keeps every section visible rather than hiding the unsourced ones.
 func (h *ReportHandler) getServiceIntelligenceReport(w http.ResponseWriter, r *http.Request) {
 	if h.Entities == nil {
-		query.WriteError(w, http.StatusServiceUnavailable, "service intelligence report handler not configured")
+		querycontract.WriteError(w, http.StatusServiceUnavailable, "service intelligence report handler not configured")
 		return
 	}
 
-	serviceName := query.PathParam(r, "service_name")
-	dossier, truth, status, errEnv := h.Entities.BuildServiceStoryEnvelope(r.Context(), query.ServiceWorkloadSelector{
+	serviceName := querycontract.PathParam(r, "service_name")
+	dossier, truth, status, errEnv := h.Entities.BuildServiceStoryEnvelope(r.Context(), service.WorkloadSelector{
 		ServiceName: serviceName,
-		ServiceID:   query.QueryParam(r, "service_id"),
-		Repository:  query.QueryParam(r, "repo"),
-		Environment: query.QueryParam(r, "environment"),
+		ServiceID:   querycontract.QueryParam(r, "service_id"),
+		Repository:  querycontract.QueryParam(r, "repo"),
+		Environment: querycontract.QueryParam(r, "environment"),
 	}, "service_intelligence_report")
 	if errEnv != nil {
-		query.WriteErrorEnvelope(w, r, status, errEnv)
+		querycontract.WriteErrorEnvelope(w, r, status, errEnv)
 		return
 	}
 
 	report := serviceintel.Compose(buildReportInput(r.Context(), dossier, truth, h.Incidents, h.SupplyChain))
-	query.WriteSuccess(w, r, http.StatusOK, report, report.Truth)
+	querycontract.WriteSuccess(w, r, http.StatusOK, report, report.Truth)
 }

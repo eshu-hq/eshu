@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // This file holds the full-egress canary. The older canary in
@@ -109,11 +109,12 @@ type egressCase struct {
 }
 
 // composedAmbiguousMessage mirrors the sentence
-// query/service_workload_resolution.go:39 builds for an ambiguous selector. The
+// entity/service_workload_resolution.go:36 builds for an ambiguous selector. The
 // prose is not what is under test — the SELECTOR being interpolated into it is,
 // and that the production code really does interpolate it is pinned on the
 // producing side by
-// query.TestServiceStoryAmbiguousEnvelopeCarriesSelectorInMessage. If that test
+// entity.TestServiceStoryAmbiguousEnvelopeCarriesSelectorInMessage
+// (go/internal/query/entity/service_workload_resolution_test.go). If that test
 // goes red, this constant is describing something the server no longer sends and
 // this file's error cases stop meaning anything.
 func composedAmbiguousMessage(selector string) string {
@@ -131,11 +132,11 @@ func composedAmbiguousMessage(selector string) string {
 // Message to a fixed sentence carrying no sentinel, which made every assertion
 // about Message structurally incapable of going red — the leak this file exists
 // to catch shipped underneath a green run of this very test.
-func (tc egressCase) ambiguousErrorEnvelope() *query.ErrorEnvelope {
+func (tc egressCase) ambiguousErrorEnvelope() *querycontract.ErrorEnvelope {
 	if tc.errorSelector == "" && tc.errorCorrelationID == "" {
 		return nil
 	}
-	envelope := &query.ErrorEnvelope{
+	envelope := &querycontract.ErrorEnvelope{
 		Code:          "ambiguous",
 		Capability:    "platform_impact.context_overview",
 		CorrelationID: tc.errorCorrelationID,
@@ -312,9 +313,9 @@ func (tc egressCase) captureInput() CaptureInput {
 		Target:  tc.target,
 		Method:  "GET",
 		Params:  tc.params,
-		Envelope: query.ResponseEnvelope{
+		Envelope: querycontract.ResponseEnvelope{
 			Data:  map[string]any{"owner": "platform-team"},
-			Truth: &query.TruthEnvelope{Level: query.TruthLevelExact, Basis: query.TruthBasisAuthoritativeGraph},
+			Truth: &querycontract.TruthEnvelope{Level: querycontract.TruthLevelExact, Basis: querycontract.TruthBasisAuthoritativeGraph},
 		},
 		ReporterNote: "expected the owning team, got an empty list",
 	}

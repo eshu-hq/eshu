@@ -8,7 +8,8 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/answernarration"
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/answer"
 )
 
 func TestDefaultSuiteCoversMajorAnswerFamilies(t *testing.T) {
@@ -312,15 +313,15 @@ func validNarrationComparison() *NarrationComparison {
 			NextCalls:       []string{"build_evidence_citation_packet"},
 		},
 		ValidatorInput: &answernarration.Input{
-			Packet: query.AnswerPacket{
-				TruthClass:           query.AnswerTruthDeterministic,
+			Packet: answer.AnswerPacket{
+				TruthClass:           querycontract.AnswerTruthDeterministic,
 				Summary:              "useful redacted answer for service_story",
 				Supported:            true,
 				CitationRef:          "repo:demo",
 				RecommendedNextCalls: []map[string]any{{"tool": "build_evidence_citation_packet"}},
 			},
 			Response: answernarration.Narration{
-				TruthClass: query.AnswerTruthDeterministic,
+				TruthClass: querycontract.AnswerTruthDeterministic,
 				Supported:  true,
 				Sentences: []answernarration.Sentence{
 					{

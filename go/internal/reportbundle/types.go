@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // SchemaVersion is the stable schema identifier for wrong-answer report
@@ -89,10 +89,10 @@ type CapturedQuery struct {
 // error envelope, observed truncation, and the redacted response data plus its
 // replay-equality digest.
 type CapturedResponse struct {
-	// Truth is the query.TruthEnvelope returned by the query, stored
+	// Truth is the querycontract.TruthEnvelope returned by the query, stored
 	// verbatim (contract.go:97-105) — never summarized or re-derived.
-	Truth *query.TruthEnvelope `json:"truth"`
-	Error *query.ErrorEnvelope `json:"error,omitempty"`
+	Truth *querycontract.TruthEnvelope `json:"truth"`
+	Error *querycontract.ErrorEnvelope `json:"error,omitempty"`
 	// Truncated is the observed read-model truncation flag found in the
 	// captured data (for example AnswerPacket.Truncated); it is not part of
 	// the envelope contract itself.

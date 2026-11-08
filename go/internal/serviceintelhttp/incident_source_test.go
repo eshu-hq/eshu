@@ -10,8 +10,14 @@ import (
 	"log/slog"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/servicecatalog"
+
+	// Side effect: registers the incident.context.read capability row the
+	// report's incidents_support truth is built against. The query-root import
+	// this drain removes used to provide that registration transitively; the
+	// row's single home stays the incident family's own init.
+	_ "github.com/eshu-hq/eshu/go/internal/query/incident"
 	"github.com/eshu-hq/eshu/go/internal/serviceintel"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
@@ -40,8 +46,8 @@ func incidentTestDossier() map[string]any {
 	}
 }
 
-func storyTruth() *query.TruthEnvelope {
-	return &query.TruthEnvelope{Level: query.TruthLevelDerived, Profile: query.ProfileProduction}
+func storyTruth() *querycontract.TruthEnvelope {
+	return &querycontract.TruthEnvelope{Level: querycontract.TruthLevelDerived, Profile: querycontract.ProfileProduction}
 }
 
 func incidentSectionInput(t *testing.T, in serviceintel.ReportInput) (serviceintel.SectionInput, bool) {

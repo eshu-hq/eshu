@@ -10,8 +10,15 @@ import (
 	"log/slog"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 	"github.com/eshu-hq/eshu/go/internal/serviceintel"
+
+	// Side effect: registers the supply_chain.impact_findings.aggregate
+	// capability row the report's supply_chain truth is built against. The
+	// query-root import this drain removes used to provide that registration
+	// transitively; the row's single home stays the contract registry's init.
+	_ "github.com/eshu-hq/eshu/go/internal/query/contract"
 )
 
 // fakeSupplyChainSource records the workload id it was asked about and returns
@@ -107,40 +114,40 @@ func TestBuildReportInputBlankWorkloadDoesNotQuerySupplyChain(t *testing.T) {
 }
 
 type fakeSupplyChainAggregateStore struct {
-	rows          []query.SupplyChainImpactInventoryRow
+	rows          []impact.InventoryRow
 	err           error
-	gotFilter     query.SupplyChainImpactAggregateFilter
-	gotDimension  query.SupplyChainImpactInventoryDimension
+	gotFilter     impact.AggregateFilter
+	gotDimension  impact.InventoryDimension
 	gotLimit      int
 	gotOffset     int
 	inventoryCall int
 }
 
-func (f *fakeSupplyChainAggregateStore) CountSupplyChainImpactFindings(context.Context, query.SupplyChainImpactAggregateFilter) (query.SupplyChainImpactAggregateCount, error) {
-	return query.SupplyChainImpactAggregateCount{}, nil
+func (f *fakeSupplyChainAggregateStore) CountSupplyChainImpactFindings(context.Context, impact.AggregateFilter) (impact.AggregateCount, error) {
+	return impact.AggregateCount{}, nil
 }
 
 func (f *fakeSupplyChainAggregateStore) SupplyChainImpactInventory(
 	_ context.Context,
-	filter query.SupplyChainImpactAggregateFilter,
-	dimension query.SupplyChainImpactInventoryDimension,
+	filter impact.AggregateFilter,
+	dimension impact.InventoryDimension,
 	limit int,
 	offset int,
-) ([]query.SupplyChainImpactInventoryRow, error) {
+) ([]impact.InventoryRow, error) {
 	f.inventoryCall++
 	f.gotFilter = filter
 	f.gotDimension = dimension
 	f.gotLimit = limit
 	f.gotOffset = offset
-	return append([]query.SupplyChainImpactInventoryRow(nil), f.rows...), f.err
+	return append([]impact.InventoryRow(nil), f.rows...), f.err
 }
 
 func TestDurableSupplyChainEvidenceSourceLoadsBoundedWorkloadInventory(t *testing.T) {
 	t.Parallel()
 
-	store := &fakeSupplyChainAggregateStore{rows: []query.SupplyChainImpactInventoryRow{
-		{Dimension: query.SupplyChainImpactInventoryByImpactStatus, Value: "affected_exact", Count: 2},
-		{Dimension: query.SupplyChainImpactInventoryByImpactStatus, Value: "possibly_affected", Count: 3},
+	store := &fakeSupplyChainAggregateStore{rows: []impact.InventoryRow{
+		{Dimension: impact.InventoryByStatus, Value: "affected_exact", Count: 2},
+		{Dimension: impact.InventoryByStatus, Value: "possibly_affected", Count: 3},
 	}}
 	source := NewDurableSupplyChainEvidenceSource(store, nil)
 
@@ -151,22 +158,22 @@ func TestDurableSupplyChainEvidenceSourceLoadsBoundedWorkloadInventory(t *testin
 	if got := store.gotFilter.WorkloadID; got != "workload:checkout" {
 		t.Fatalf("filter WorkloadID = %q, want workload:checkout", got)
 	}
-	if got := store.gotFilter.DetectionProfile; got != query.SupplyChainImpactProfilePrecise {
+	if got := store.gotFilter.DetectionProfile; got != impact.ProfilePrecise {
 		t.Fatalf("filter DetectionProfile = %q, want precise", got)
 	}
-	if got := store.gotDimension; got != query.SupplyChainImpactInventoryByImpactStatus {
+	if got := store.gotDimension; got != impact.InventoryByStatus {
 		t.Fatalf("dimension = %q, want impact_status", got)
 	}
-	if got, want := store.gotLimit, query.SupplyChainImpactAggregateMaxLimit+1; got != want {
+	if got, want := store.gotLimit, impact.AggregateMaxLimit+1; got != want {
 		t.Fatalf("limit = %d, want %d", got, want)
 	}
 	if store.gotOffset != 0 {
 		t.Fatalf("offset = %d, want 0", store.gotOffset)
 	}
-	if got := query.IntVal(inventory, "count"); got != 5 {
+	if got := querycontract.IntVal(inventory, "count"); got != 5 {
 		t.Fatalf("inventory count = %d, want sum of bucket counts 5", got)
 	}
-	if got := query.StringVal(inventory, "detection_profile"); got != query.SupplyChainImpactProfilePrecise {
+	if got := querycontract.StringVal(inventory, "detection_profile"); got != impact.ProfilePrecise {
 		t.Fatalf("detection_profile = %q, want precise", got)
 	}
 }

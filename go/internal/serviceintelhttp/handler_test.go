@@ -10,7 +10,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/entity"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // emptyGraph resolves no workloads, so every selector is a not-found.
@@ -29,7 +30,7 @@ func reportResponse(t *testing.T, h *ReportHandler, service string) *httptest.Re
 	mux := http.NewServeMux()
 	h.Mount(mux)
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/services/"+service+"/intelligence-report", nil)
-	req.Header.Set("Accept", query.EnvelopeMIMEType)
+	req.Header.Set("Accept", querycontract.EnvelopeMIMEType)
 	req.SetPathValue("service_name", service)
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
@@ -46,16 +47,16 @@ func TestReportHandlerNilEntitiesIsUnavailable(t *testing.T) {
 
 func TestReportHandlerMissingServiceReturnsNotFound(t *testing.T) {
 	t.Parallel()
-	h := &ReportHandler{Entities: &query.EntityHandler{Neo4j: emptyGraph{}, Profile: query.ProfileProduction}}
+	h := &ReportHandler{Entities: &entity.Handler{Neo4j: emptyGraph{}, Profile: querycontract.ProfileProduction}}
 	rec := reportResponse(t, h, "missing")
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("status = %d, want 404; body=%s", rec.Code, rec.Body.String())
 	}
-	var envelope query.ResponseEnvelope
+	var envelope querycontract.ResponseEnvelope
 	if err := json.Unmarshal(rec.Body.Bytes(), &envelope); err != nil {
 		t.Fatalf("decode envelope: %v", err)
 	}
-	if envelope.Error == nil || envelope.Error.Code != query.ErrorCodeNotFound {
+	if envelope.Error == nil || envelope.Error.Code != querycontract.ErrorCodeNotFound {
 		t.Fatalf("error = %#v, want not_found", envelope.Error)
 	}
 }
@@ -63,16 +64,16 @@ func TestReportHandlerMissingServiceReturnsNotFound(t *testing.T) {
 func TestReportHandlerUnsupportedCapability(t *testing.T) {
 	t.Parallel()
 	// Local lightweight does not support platform context truth.
-	h := &ReportHandler{Entities: &query.EntityHandler{Neo4j: emptyGraph{}, Profile: query.ProfileLocalLightweight}}
+	h := &ReportHandler{Entities: &entity.Handler{Neo4j: emptyGraph{}, Profile: querycontract.ProfileLocalLightweight}}
 	rec := reportResponse(t, h, "checkout")
 	if rec.Code != http.StatusNotImplemented {
 		t.Fatalf("status = %d, want 501; body=%s", rec.Code, rec.Body.String())
 	}
-	var envelope query.ResponseEnvelope
+	var envelope querycontract.ResponseEnvelope
 	if err := json.Unmarshal(rec.Body.Bytes(), &envelope); err != nil {
 		t.Fatalf("decode envelope: %v", err)
 	}
-	if envelope.Error == nil || envelope.Error.Code != query.ErrorCodeUnsupportedCapability {
+	if envelope.Error == nil || envelope.Error.Code != querycontract.ErrorCodeUnsupportedCapability {
 		t.Fatalf("error = %#v, want unsupported_capability", envelope.Error)
 	}
 }

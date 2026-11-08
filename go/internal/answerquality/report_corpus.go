@@ -4,8 +4,8 @@
 package answerquality
 
 import (
-	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/query/evidence"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/serviceintel"
 )
 
@@ -38,7 +38,7 @@ func ReportCorpus() []ReportFixture {
 	mutateSection(&confidentUnsupported, serviceintel.SectionSupplyChain, func(s *serviceintel.ReportSection) {
 		s.Status = serviceintel.StatusUnsupported
 		s.Answer.Supported = false
-		s.Answer.TruthClass = query.AnswerTruthUnsupported
+		s.Answer.TruthClass = querycontract.AnswerTruthUnsupported
 		s.Answer.UnsupportedReasons = []string{"supply-chain lane unavailable"}
 		s.Answer.Summary = "supply chain is clean" // dishonest: confident on an unsupported section
 	})
@@ -63,7 +63,7 @@ func ReportCorpus() []ReportFixture {
 	mutateSection(&missingLimitations, serviceintel.SectionSupplyChain, func(s *serviceintel.ReportSection) {
 		s.Status = serviceintel.StatusUnsupported
 		s.Answer.Supported = false
-		s.Answer.TruthClass = query.AnswerTruthUnsupported
+		s.Answer.TruthClass = querycontract.AnswerTruthUnsupported
 		s.Answer.Summary = ""
 		s.Answer.Limitations = nil
 		s.Answer.UnsupportedReasons = nil // hides why it is incomplete
@@ -85,7 +85,7 @@ func ReportCorpus() []ReportFixture {
 	})
 
 	truthUpgrade := honestCompleteReport()
-	truthUpgrade.TruthClass = query.AnswerTruthCodeHint // does not match the deterministic identity anchor
+	truthUpgrade.TruthClass = querycontract.AnswerTruthCodeHint // does not match the deterministic identity anchor
 	fixtures = append(fixtures, ReportFixture{
 		Name:          "truth_class_upgrade",
 		Report:        truthUpgrade,
@@ -141,8 +141,8 @@ func ReportCorpus() []ReportFixture {
 	mutateSection(&upgradedSupportedTruth, serviceintel.SectionSupplyChain, func(s *serviceintel.ReportSection) {
 		// Content-index truth serialized as deterministic: an upgrade vs the
 		// section's own envelope that the criterion must catch.
-		s.Answer.Truth = &query.TruthEnvelope{Level: query.TruthLevelDerived, Basis: query.TruthBasisContentIndex}
-		s.Answer.TruthClass = query.AnswerTruthDeterministic
+		s.Answer.Truth = &querycontract.TruthEnvelope{Level: querycontract.TruthLevelDerived, Basis: querycontract.TruthBasisContentIndex}
+		s.Answer.TruthClass = querycontract.AnswerTruthDeterministic
 	})
 	fixtures = append(fixtures, ReportFixture{
 		Name:          "supported_section_truth_upgrade",
@@ -182,13 +182,13 @@ func honestStaleReport() serviceintel.Report {
 	sections := completeSectionInputs()
 	for i := range sections {
 		if sections[i].Kind == serviceintel.SectionDeploymentConfig {
-			sections[i].Truth = &query.TruthEnvelope{
-				Level: query.TruthLevelExact,
-				Basis: query.TruthBasisAuthoritativeGraph,
-				Freshness: query.TruthFreshness{
-					State: query.FreshnessStale,
-					Cause: query.FreshnessCauseReducerBacklog,
-					NextCheck: &query.FreshnessNextCheck{
+			sections[i].Truth = &querycontract.TruthEnvelope{
+				Level: querycontract.TruthLevelExact,
+				Basis: querycontract.TruthBasisAuthoritativeGraph,
+				Freshness: querycontract.TruthFreshness{
+					State: querycontract.FreshnessStale,
+					Cause: querycontract.FreshnessCauseReducerBacklog,
+					NextCheck: &querycontract.FreshnessNextCheck{
 						Tool:   "get_reducer_status",
 						Reason: "check reducer backlog drain",
 					},
@@ -217,10 +217,10 @@ func completeSectionInputs() []serviceintel.SectionInput {
 		inputs = append(inputs, serviceintel.SectionInput{
 			Kind:    kind,
 			Summary: "evidence-backed " + string(kind),
-			Truth: &query.TruthEnvelope{
-				Level:     query.TruthLevelExact,
-				Basis:     query.TruthBasisAuthoritativeGraph,
-				Freshness: query.TruthFreshness{State: query.FreshnessFresh},
+			Truth: &querycontract.TruthEnvelope{
+				Level:     querycontract.TruthLevelExact,
+				Basis:     querycontract.TruthBasisAuthoritativeGraph,
+				Freshness: querycontract.TruthFreshness{State: querycontract.FreshnessFresh},
 			},
 			Evidence: []evidence.EvidenceCitationHandle{
 				{Kind: "source", RepoID: "repo:checkout", RelativePath: string(kind) + ".go"},
