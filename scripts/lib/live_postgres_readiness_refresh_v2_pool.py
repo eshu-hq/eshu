@@ -21,6 +21,7 @@ things.
 from __future__ import annotations
 
 from collections import Counter
+from collections.abc import Collection
 from dataclasses import dataclass, field
 import json
 from pathlib import Path
@@ -146,7 +147,7 @@ class PoolProvenance:
         return len({tuple(plan) for plan in self.plans.values()}) > 1
 
     def price_tests(self, values: dict[str, list[float]], price: Callable[[list[float], str], float],
-                    min_samples: int) -> dict[str, float]:
+                    min_samples: int, defaultable: Collection[str] = ()) -> dict[str, float]:
         """Price the newest inventory's tests from the runs that contain them.
 
         Args:
@@ -154,6 +155,8 @@ class PoolProvenance:
             price: Prices one test's samples under the pool's rule.
             min_samples: Samples a test needs in a mixed pool; also the
                 smallest mixed pool accepted.
+            defaultable: Newest-inventory tests allowed to default when no run
+                sampled them; every other gap still fails closed.
 
         Raises:
             ValueError: A mixed pool is smaller than min_samples runs, or the
@@ -163,8 +166,11 @@ class PoolProvenance:
         self.min_samples = min_samples
         if not self.mixed:
             tests = {run: price(samples, run) for run, samples in sorted(values.items())}
-            if set(tests) != set(newest):
+            missing = set(newest) - set(tests)
+            if missing - set(defaultable) or set(tests) - set(newest):
                 raise ValueError("source test prices differ from canonical inventory")
+            for run in sorted(missing & set(defaultable)):
+                self.defaulted[run] = 0
             return tests
         if len(self.plans) < min_samples:
             raise ValueError(f"source inventories differ in a {len(self.plans)}-run pool; "

@@ -89,10 +89,15 @@ def _profile(log: str) -> tuple[tuple[str, ...], str]:
     return tuple(profile), image.group(2)
 
 
-def _parse_shard(log: str, number: int, total: int) -> tuple[
+def _parse_shard(log: str, number: int, total: int,
+                 excused: frozenset[str] = frozenset()) -> tuple[
         list[str], list[tuple[str, str, float]], tuple[tuple[str, ...], str],
         list[frozenset[str]]]:
-    """Return ordered tests, classified row residuals, and the runner profile."""
+    """Return ordered tests, classified row residuals, and the runner profile.
+
+    Names in excused skipped this shard by workflow excuse: the terminal
+    summary still counts them, so they must be absent from the printed rows.
+    """
     profile = _profile(log)
     previous: dt.datetime | None = None
     block: list[tuple[str, float]] = []
@@ -111,6 +116,8 @@ def _parse_shard(log: str, number: int, total: int) -> tuple[
         if match := TEST_RE.fullmatch(line):
             if summary:
                 raise ValueError("source has tests after terminal summary")
+            if match.group(2) in excused:
+                raise ValueError("source excused proof printed a passing row")
             seconds = float(match.group(3))
             if not 0 <= seconds < 100000:
                 raise ValueError("source has invalid test elapsed")
@@ -119,6 +126,11 @@ def _parse_shard(log: str, number: int, total: int) -> tuple[
             if summary:
                 raise ValueError("source has rows after terminal summary")
             package, passed, expected = match.group(2), int(match.group(3)), int(match.group(4))
+            if passed == expected == 0 and excused:
+                if block:
+                    raise ValueError("source has invalid package PASS row")
+                previous = _time(match.group(1))
+                continue
             if not weights.PACKAGE_RE.fullmatch(package) or not block or passed != expected or passed != len(block):
                 raise ValueError("source has invalid package PASS row")
             now = _time(match.group(1))
@@ -139,10 +151,14 @@ def _parse_shard(log: str, number: int, total: int) -> tuple[
             previous, block = now, []
         elif match := SUMMARY_RE.fullmatch(line):
             if ((int(match.group(1)), int(match.group(2))) != (number, total)
-                    or int(match.group(3)) != len(observed)
-                    or int(match.group(4)) != len(observed) or block):
+                    or int(match.group(3)) != len(observed) + len(excused)
+                    or int(match.group(4)) != len(observed) + len(excused) or block):
                 raise ValueError("source terminal summary does not cover all rows")
             summary = True
+        elif provenance.EXCUSE_RE.fullmatch(line):
+            continue
+        elif "LIVE_READINESS_EXTRA_SKIP:" in line or "extra skip excuse:" in line:
+            raise ValueError("source has malformed skip excuse")
         elif ("live-postgres-readiness:" in line and "live-postgres-readiness: suite_elapsed=" not in line) or re.search(r"\bTest[A-Za-z0-9_]+: (?:FAIL|SKIP)\b", line):
             raise ValueError("source has unsupported failed or skipped proof row")
     if previous is None or not summary or block or not rows:
@@ -366,6 +382,7 @@ def fit_with_provenance(sources: list[Path], root: Path) -> tuple[
         raise ValueError("v2 fit needs at least three complete main runs; "
                          "a pair cannot set the prices (#9470)")
     source_runs: list[str] = []
+    excuses_by_run: dict[str, frozenset[str]] = {}
     image_versions: dict[str, dict[int, str]] = {}
     pool = pool_rules.PoolProvenance()
     expected_profile: tuple[str, ...] | None = None
@@ -378,22 +395,29 @@ def fit_with_provenance(sources: list[Path], root: Path) -> tuple[
         if run_id in source_runs:
             raise ValueError("v2 source run IDs must be distinct")
         pool.add(run_id, plan, *pool_rules.cache_era(source, run_id, logs))
+        excuse = provenance.run_excuse(logs, run_id, plan)
+        excuses_by_run[run_id] = excuse
         observed: list[str] = []
+        excused_all: list[str] = []
         row_packages: list[str] = []
         for number, log in sorted(logs.items()):
-            tests, rows, (profile, version), row_members = _parse_shard(log, number, len(logs))
-            if row_members != expected_rows[number]:
+            shard_excused = provenance.shard_excused_runs(expected_rows[number], excuse)
+            names = frozenset(run.split("|", 1)[1] for run in shard_excused)
+            tests, rows, (profile, version), row_members = _parse_shard(log, number, len(logs), names)
+            stripped = [row - shard_excused for row in expected_rows[number]]
+            if row_members != [row for row in stripped if row]:
                 raise ValueError(f"source shard {number} row selected test set differs from source weights")
             if expected_profile is not None and profile != expected_profile:
                 raise ValueError("source image name, Go, or Postgres profile differs")
             expected_profile = profile
             image_versions.setdefault(run_id, {})[number] = version
             observed.extend(tests)
+            excused_all.extend(shard_excused)
             for package, kind, residual in rows:
                 row_packages.append(package)
                 categories[package][kind].append(residual)
             _collect_test_values(log, tests, test_values)
-        if Counter(observed) != Counter(plan):
+        if Counter(observed) + Counter(excused_all) != Counter(plan):
             raise ValueError("source PASS rows differ from source-SHA canonical inventory or coverage")
         package_order = list(dict.fromkeys(run.split("|", 1)[0] for run in plan))
         positions = {package: index for index, package in enumerate(package_order)}
@@ -403,6 +427,9 @@ def fit_with_provenance(sources: list[Path], root: Path) -> tuple[
         fixed.extend(overhead)
     first: dict[str, float] = {}
     repeat: dict[str, float] = {}
+    newest = pool.newest
+    defaultable = [run for run in pool.plans[newest] if not test_values.get(run)
+                   and all(run.split("|", 1)[1] in excuses_by_run[source_id] for source_id in source_runs)]
     rule = pricing_rule(source_runs)
     cold, cold_components = fit_cold(categories)
     for package, kinds in categories.items():
@@ -421,7 +448,7 @@ def fit_with_provenance(sources: list[Path], root: Path) -> tuple[
     if not repeat:
         raise ValueError("no measured repeat row category")
     tests = pool.price_tests(test_values, lambda values, run: _price_tenth(values, run, rule),
-                             QUANTILE_MIN_POOL)
+                             QUANTILE_MIN_POOL, defaultable)
     document: dict[str, object] = {
         "schema_version": 2, "source_runs": source_runs, "shard_count": v2.SHARD_COUNT,
         "fixed_job_seconds": _mean_tenth(fixed, "fixed job overhead"),

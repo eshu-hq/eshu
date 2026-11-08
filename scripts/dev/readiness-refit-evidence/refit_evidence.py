@@ -86,12 +86,31 @@ def measured_seconds(log: str) -> dict[str, float]:
     return seen
 
 
+def shard_excuses(run_dir: Path, count: int) -> dict[int, frozenset[str]]:
+    """Map each shard to the workflow-excused test names its rows may omit.
+
+    Attribution needs the run's own-SHA plan from this checkout, so runs
+    whose commit is absent here fail closed instead of parsing blind.
+    """
+    root = Path(__file__).resolve().parents[3]
+    run_id = run_dir.name
+    sha = json.loads((run_dir / "run.json").read_text())["head_sha"]
+    logs = {number: (run_dir / f"shard{number}.log").read_text() for number in range(1, count + 1)}
+    plan = r2.provenance.source_inventory(root, sha)
+    expected = r2.provenance.source_rows(root, sha, plan, count)
+    excuse = r2.provenance.run_excuse(logs, run_id, plan)
+    return {number: frozenset(run.split("|", 1)[1]
+            for run in r2.provenance.shard_excused_runs(expected[number], excuse))
+            for number in range(1, count + 1)}
+
+
 def run_plan(run_dir: Path, count: int) -> Plan:
     """Returns the tests the run executed, in order, and its shard bounds."""
     plan, bounds = [], [0]
+    excuses = shard_excuses(run_dir, count)
     for number in range(1, count + 1):
         tests, _, _, _ = r2._parse_shard(  # pylint: disable=protected-access
-            (run_dir / f"shard{number}.log").read_text(), number, count)
+            (run_dir / f"shard{number}.log").read_text(), number, count, excuses[number])
         plan.extend(tests)
         bounds.append(len(plan))
     return plan, bounds
@@ -122,9 +141,10 @@ def cmd_poolcheck(args: argparse.Namespace) -> int:
         tests: list[str] = []
         versions: set[str] = set()
         run_profiles: set[tuple[str, ...]] = set()
+        excuses = shard_excuses(run_dir, count)
         for number in range(1, count + 1):
             found, _, (profile, version), _ = r2._parse_shard(  # pylint: disable=protected-access
-                (run_dir / f"shard{number}.log").read_text(), number, count)
+                (run_dir / f"shard{number}.log").read_text(), number, count, excuses[number])
             tests.extend(found)
             versions.add(version)
             run_profiles.add(profile)
@@ -182,9 +202,10 @@ def cmd_shards(args: argparse.Namespace) -> int:
         jobs = shard_jobs(run_dir)
         count = len(jobs)
         plan, bounds, measured, rows_per = [], [0], [], []
+        excuses = shard_excuses(run_dir, count)
         for number in range(1, count + 1):
             log = (run_dir / f"shard{number}.log").read_text()
-            tests, rows, _, _ = r2._parse_shard(log, number, count)  # pylint: disable=protected-access
+            tests, rows, _, _ = r2._parse_shard(log, number, count, excuses[number])  # pylint: disable=protected-access
             plan.extend(tests)
             bounds.append(len(plan))
             rows_per.append(len(rows))
@@ -208,9 +229,10 @@ def cmd_tail(args: argparse.Namespace) -> int:
     ratios, worst, residuals = [], [], []
     for run_dir in args.runs:
         count = len(list(run_dir.glob("shard[0-9].log")))
+        excuses = shard_excuses(run_dir, count)
         for number in range(1, count + 1):
             log = (run_dir / f"shard{number}.log").read_text(encoding="utf-8")
-            _, rows, _, members = r2._parse_shard(log, number, count)  # pylint: disable=protected-access
+            _, rows, _, members = r2._parse_shard(log, number, count, excuses[number])  # pylint: disable=protected-access
             residuals.extend(residual for _, kind, residual in rows if kind == "repeat")
             measured = measured_seconds(log)
             for row in members:
