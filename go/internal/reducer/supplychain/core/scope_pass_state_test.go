@@ -99,6 +99,44 @@ func TestSupplyChainImpactScopePassStateQueryPinsFencingGuard(t *testing.T) {
 	}
 }
 
+// TestWriteSupplyChainImpactScopedCompletePreservesScopePassState proves the
+// #10426 P2 fix: a scoped complete pass re-derives only its stamped CVE
+// subset, so it must not clear full-scope stuck state it never recomputed —
+// it issues no pass-state upsert. A scoped partial still records below:
+// truncation means the scope is partial whatever the scope mode.
+func TestWriteSupplyChainImpactScopedCompletePreservesScopePassState(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 11, 8, 12, 0, 0, 0, time.UTC)
+
+	inserts := &testutil.FakeExecer{}
+	beginner := newFakeImpactBeginner(inserts)
+	complete := retractTestWrite()
+	complete.PartialEvidence = false
+	complete.ScopedCVEIDs = []string{"CVE-2026-1"}
+
+	if _, err := runSupplyChainImpactTx(context.Background(), beginner, complete, nil, nil, ProtectedScanImpactPublicationSet{}, false, now); err != nil {
+		t.Fatalf("runSupplyChainImpactTx() error = %v", err)
+	}
+	if call := findExecCallByQuery(beginner.state.all, supplyChainImpactScopePassStateQuery); call != nil {
+		t.Fatalf("scoped complete pass must not write scope pass state, got %+v", call)
+	}
+
+	partial := retractTestWrite()
+	partial.PartialEvidence = true
+	partial.PartialCauses = []string{"evidence_budget"}
+	partial.ScopedCVEIDs = []string{"CVE-2026-1"}
+
+	inserts = &testutil.FakeExecer{}
+	beginner = newFakeImpactBeginner(inserts)
+	if _, err := runSupplyChainImpactTx(context.Background(), beginner, partial, nil, nil, ProtectedScanImpactPublicationSet{}, false, now); err != nil {
+		t.Fatalf("runSupplyChainImpactTx() error = %v", err)
+	}
+	if call := findExecCallByQuery(beginner.state.all, supplyChainImpactScopePassStateQuery); call == nil {
+		t.Fatalf("scoped partial pass must record scope pass state in %d statements", len(beginner.state.all))
+	}
+}
+
 func findExecCallByQuery(calls []testutil.ExecCall, query string) *testutil.ExecCall {
 	for i := range calls {
 		if calls[i].Query == query {

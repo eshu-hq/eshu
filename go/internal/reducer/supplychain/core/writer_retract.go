@@ -144,10 +144,11 @@ func commitSupplyChainImpactRows(
 	}
 	// Record the scope's durable per-scope pass state in the same
 	// transaction (#10389): a partial pass marks the scope stuck with its
-	// causes, a complete pass clears it. It runs on the admitted path only,
-	// so a superseded pass never overwrites a newer pass's state, and it
-	// fails the pass when the state cannot be recorded: state that disagrees
-	// with the committed rows is worse than a retried pass.
+	// causes, a full complete pass clears it, and a scoped complete leaves
+	// the state untouched because it re-derives only its stamped subset
+	// (#9779). It runs on the admitted path only, and it fails the pass
+	// when the state cannot be recorded: state that disagrees with the
+	// committed rows is worse than a retried pass.
 	if err := recordSupplyChainImpactScopePassState(ctx, tx, write, now); err != nil {
 		return supplyChainImpactTxOutcome{}, err
 	}

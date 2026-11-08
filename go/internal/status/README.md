@@ -295,8 +295,9 @@ scope, the stuck age, and the cause, e.g.
 The cause values are the identity-affecting truncation causes
 (`active_expansion_rounds`, `evidence_budget`, `manifest_refused`). The
 source of truth is the durable per-scope pass state the reducer write
-transaction maintains, not the process-local headroom gauges; a later
-complete pass clears it. The drilldown rides the text surface as
+transaction maintains, not the process-local headroom gauges; a later full
+complete pass clears it, while a scoped complete (stamped subset only)
+leaves the state untouched. The drilldown rides the text surface as
 `Supply-chain stuck partial scopes:` lines and the JSON surface as
 `supply_chain_stuck_partials[]` (`scope_id`, `causes`, `partial_since`).
 

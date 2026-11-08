@@ -72,8 +72,9 @@ func supplyChainImpactFixtureFindings() []supplychaincore.SupplyChainImpactFindi
 // WriteSupplyChainImpactFindings now calls the shared
 // reducerBatchInsertVersionedFacts bounded chunked bulk insert (issue #5317)
 // instead of one ExecContext per finding, so two findings fit one chunk and
-// this scenario asserts exactly five write observations (lock, admission,
-// insert, winners dirty-key capture, retraction; #6831, #7142, #9805). The
+// this scenario asserts exactly six write observations (lock, admission,
+// insert, winners dirty-key capture, retraction, scope pass-state upsert;
+// #6831, #7142, #9805, #10389). The
 // companion N+1
 // negative control below (TestCostBudget_SupplyChainImpact_N1_ExceedsBudget)
 // proves the budget still catches a per-finding regression.

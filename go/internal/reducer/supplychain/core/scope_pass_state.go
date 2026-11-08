@@ -14,10 +14,13 @@ import (
 // state (migration 284) behind the #10389 status degraded reason. One row
 // per scope: a partial pass marks it stuck with its identity-affecting
 // causes and stamps partial_since when the scope was not already stuck,
-// preserving the original stuck time across further partial passes; a
-// complete pass clears the stuck columns. The fencing-token guard is the
-// admission's <= rule, so an older admitted pass never overwrites a newer
-// pass's state when passes for one scope interleave across generations.
+// preserving the original stuck time across further partial passes; a full
+// complete pass clears the stuck columns, while a scoped complete leaves
+// the state untouched because it re-derives only its stamped CVE subset
+// (#9779). The fencing-token guard is the admission's <= rule, ordering
+// passes by token; it does not fence across generations, so a
+// stale-generation pass admitted later draws a higher token and can still
+// overwrite current state (#10422).
 // $4 is the TEXT[] cause set, empty for a complete pass, encoded the same
 // way as the retraction's keep set; it never reaches a metric label, so the
 // closed cause set needs no folding here. The $5 cast is load-bearing: CASE
@@ -53,6 +56,14 @@ func recordSupplyChainImpactScopePassState(
 	write SupplyChainImpactWrite,
 	now time.Time,
 ) error {
+	// A scoped complete pass re-derives only its stamped CVE subset (#9779),
+	// so it must not clear full-scope stuck state it never recomputed: only
+	// a full complete pass lifts the degraded reason, and a scoped complete
+	// leaves the state untouched. Scoped partial passes still record below:
+	// truncation means the scope is partial whatever the scope mode.
+	if !write.PartialEvidence && len(write.ScopedCVEIDs) > 0 {
+		return nil
+	}
 	// Never record a NULL cause set: the column is NOT NULL and a nil slice
 	// would encode as NULL, failing every complete pass. An empty set
 	// encodes as '{}', the same shape the retraction's empty keep set uses.

@@ -16,12 +16,14 @@ One row per scope in `supply_chain_impact_scope_pass_state` (migration
 284), written in the impact write transaction beside the finding upsert
 and the #7142 admission: a partial pass marks the scope stuck with its
 identity-affecting causes and stamps `partial_since` when the scope was
-not already stuck; a complete pass clears it; the fencing-token guard
-(same `<=` rule as the admission) keeps an older admitted pass from
-overwriting a newer pass's state. The status snapshot serves stuck rows
-live; health reports `degraded` with one reason per scope partial for 24
-hours or more, naming the scope, the stuck age, and the cause. A later
-complete pass clears the row.
+not already stuck; a full complete pass clears it, while a scoped complete
+leaves the state untouched because it re-derives only its stamped CVE
+subset (#9779); the fencing-token guard (same `<=` rule as the admission)
+orders passes by token, but a stale-generation pass admitted later draws a
+higher token and can still overwrite current state (#10422). The status
+snapshot serves stuck rows live; health reports `degraded` with one reason
+per scope partial for 24 hours or more, naming the scope, the stuck age,
+and the cause. A later full complete pass clears the row.
 
 ## Not in this slice
 
