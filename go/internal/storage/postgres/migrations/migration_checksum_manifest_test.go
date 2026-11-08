@@ -361,7 +361,7 @@ var migrationShippedChecksums = map[string]string{
 	// #10037: per-stream GHSA rolling-window cursor table (migration 286;
 	// 284 went to the #10389 stuck-partial scope-pass-state file and 285 to
 	// its contract comments, so this lane takes the next free slot).
-	"286_vulnerability_ghsa_window_cursors.sql":       "d98f2bac99702585acd8c5ba08b52cf80ac9f6f0299fc394e59e6fd42ab1ad04",
+	"286_vulnerability_ghsa_window_cursors.sql": "d98f2bac99702585acd8c5ba08b52cf80ac9f6f0299fc394e59e6fd42ab1ad04",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition
