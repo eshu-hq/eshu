@@ -342,6 +342,7 @@ func (h SupplyChainImpactHandler) impactWrite(
 		// A scoped evidence load re-derives the stamp only, so the writer
 		// publishes and retracts inside the stamp (#9779).
 		ScopedCVEIDs:   scopedWriteCVEIDs(loaded),
+		PartialCauses:  loaded.truncation.causes(),
 		ScopeFactKinds: loaded.scopeFactKinds,
 		FencingToken:   fencingToken,
 		Recovery:       fanOutOwed(intent) && len(fanOutRemaining(intent)) == 0,

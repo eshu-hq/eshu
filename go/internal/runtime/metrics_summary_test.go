@@ -87,7 +87,11 @@ func scrapeStore(queryer *fake.ExecQueryer, readerOn bool) postgres.StatusStore 
 // keyed row read (two models, so two of each); both selections drop the fact_records aggregate and the three
 // registry collector statements, which the scrape never renders. The
 // terminal-failure read (#8803) runs only when an enabled collector instance
-// exists; this empty store has none, so it adds no statement here.
+// exists; this empty store has none, so it adds no statement here. The
+// terminal-failure read (#8803) runs only when an enabled collector instance
+// exists; this empty store has none, so it adds no statement here. The
+// stuck-partial scope read (#10389) runs on every selection, reader on or
+// off, because no stored-summary model owns it.
 func TestStatusMetricsStatementInventory(t *testing.T) {
 	t.Parallel()
 	count := func(selection statuspkg.SnapshotSelection, readerOn bool) scrapeInventory {
@@ -102,13 +106,13 @@ func TestStatusMetricsStatementInventory(t *testing.T) {
 	off := count(metricsSnapshotSelection(), false)
 	on := count(metricsSnapshotSelection(), true)
 
-	if want := (scrapeInventory{total: 25, activeWork: 1, factRecords: 1, coordinator: 8}); before != want {
+	if want := (scrapeInventory{total: 26, activeWork: 1, factRecords: 1, coordinator: 8}); before != want {
 		t.Fatalf("before = %+v, want %+v", before, want)
 	}
-	if want := (scrapeInventory{total: 21, activeWork: 1, coordinator: 8}); off != want {
+	if want := (scrapeInventory{total: 22, activeWork: 1, coordinator: 8}); off != want {
 		t.Fatalf("reader off = %+v, want %+v", off, want)
 	}
-	if want := (scrapeInventory{total: 16, clock: 2, modelRow: 2}); on != want {
+	if want := (scrapeInventory{total: 17, clock: 2, modelRow: 2}); on != want {
 		t.Fatalf("reader on = %+v, want %+v", on, want)
 	}
 }

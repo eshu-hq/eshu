@@ -38,6 +38,7 @@ var statusSnapshotFullReads = []string{
 	"repository_selection",
 	"scope_counts",
 	"semantic_extraction",
+	"supply_chain_stuck_partials",
 	"terraform_state",
 	"vulnerability_sources",
 }

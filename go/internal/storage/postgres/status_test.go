@@ -84,6 +84,13 @@ func TestStatusStoreReadRawSnapshot(t *testing.T) {
 					{int64(2), int64(1), int64(3), 180.0},
 				},
 			},
+			{
+				// The stuck-partial scope read rides the standard snapshot
+				// after the collector generation dead letters (#10389).
+				rows: [][]any{
+					{"scope-stuck", []string{"evidence_budget"}, time.Date(2026, 4, 11, 15, 0, 0, 0, time.UTC)},
+				},
+			},
 		},
 	}
 
@@ -201,15 +208,22 @@ func TestStatusStoreReadRawSnapshot(t *testing.T) {
 	if got.Coordinator != nil {
 		t.Fatalf("ReadRawSnapshot().Coordinator = %#v, want nil", got.Coordinator)
 	}
+	if len(got.SupplyChainStuckPartials) != 1 || got.SupplyChainStuckPartials[0].ScopeID != "scope-stuck" {
+		t.Fatalf("ReadRawSnapshot().SupplyChainStuckPartials = %+v, want the stuck scope surfaced", got.SupplyChainStuckPartials)
+	}
+	if len(got.SupplyChainStuckPartials[0].Causes) != 1 || got.SupplyChainStuckPartials[0].Causes[0] != "evidence_budget" {
+		t.Fatalf("ReadRawSnapshot().SupplyChainStuckPartials[0].Causes = %v, want the stuck cause", got.SupplyChainStuckPartials[0].Causes)
+	}
 
-	// 27 round trips: the five active-work reads are one statement (#6794),
-	// the infra read model state is one more (#6793), and the repository
-	// selection counts read is one more (#8454). The #8803 terminal-failure
+	// 28 round trips: the five active-work reads are one statement (#6794),
+	// the infra read model state is one more (#6793), the repository
+	// selection counts read is one more (#8454), and the stuck-partial scope
+	// read is one more (#10389). The #8803 terminal-failure
 	// read adds one more only when an enabled collector instance exists; this
 	// fixture has none (TestReadCoordinatorSnapshotIncludesTerminalFailures
 	// pins the read when one does).
-	if len(queryer.queries) != 27 {
-		t.Fatalf("QueryContext() call count = %d, want 27", len(queryer.queries))
+	if len(queryer.queries) != 28 {
+		t.Fatalf("QueryContext() call count = %d, want 28", len(queryer.queries))
 	}
 	for _, want := range []string{
 		"FROM ingestion_scopes",
@@ -231,6 +245,7 @@ func TestStatusStoreReadRawSnapshot(t *testing.T) {
 		"JOIN collector_evidence_summary AS summary",
 		"workflow_instances AS MATERIALIZED (",
 		"FROM collector_generation_dead_letters",
+		"FROM supply_chain_impact_scope_pass_state",
 		"FROM semantic_extraction_jobs",
 	} {
 		joined := strings.Join(queryer.queries, "\n")

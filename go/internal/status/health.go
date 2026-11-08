@@ -6,6 +6,7 @@ package status
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/status/collector"
 	"github.com/eshu-hq/eshu/go/internal/status/shared"
@@ -18,6 +19,8 @@ func evaluateHealth(
 	producerActivity ProducerActivitySnapshot,
 	coordinator *CoordinatorSnapshot,
 	collectorGenerationDeadLetters collector.GenerationDeadLetterSnapshot,
+	stuckPartials []SupplyChainStuckPartialScope,
+	asOf time.Time,
 	opts Options,
 ) HealthSummary {
 	if queueSnapshot.OverdueClaims > 0 {
@@ -77,8 +80,9 @@ func evaluateHealth(
 	collectorGenerationDeadLetters = collector.CloneGenerationDeadLetterSnapshot(collectorGenerationDeadLetters)
 	unresolvedCollectorGenerations := collectorGenerationDeadLetters.DeadLetter +
 		collectorGenerationDeadLetters.ReplayRequested
+	stuckPartialReasons := stuckPartialDegradedReasons(stuckPartials, asOf)
 	if queueSnapshot.DeadLetter > 0 || queueSnapshot.Failed > 0 || generationTotals["failed"] > 0 || coordinatorDegraded(coordinator) ||
-		unresolvedCollectorGenerations > 0 {
+		unresolvedCollectorGenerations > 0 || len(stuckPartialReasons) > 0 {
 		reasons := make([]string, 0, 6)
 		if queueSnapshot.DeadLetter > 0 {
 			reasons = append(reasons, fmt.Sprintf("%d work items are dead-lettered", queueSnapshot.DeadLetter))
@@ -109,6 +113,7 @@ func evaluateHealth(
 			}
 		}
 		reasons = append(reasons, coordinatorDegradedReasons(coordinator)...)
+		reasons = append(reasons, stuckPartialReasons...)
 		return HealthSummary{
 			State:   healthDegraded,
 			Reasons: reasons,

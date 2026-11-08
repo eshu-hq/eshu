@@ -222,6 +222,17 @@ happened before normal projector work items existed. It includes
 rows. It does not include fact payloads, repository names, local paths,
 credential handles, or provider response bodies.
 
+`supply_chain_stuck_partials` lists scopes whose last recorded supply-chain
+impact pass ended partial, so the scope keeps serving stale findings. Each
+row carries `scope_id`, the identity-affecting `causes`
+(`active_expansion_rounds`, `evidence_budget`, `manifest_refused`), and
+`partial_since`, when the scope first became continuously partial. A scope
+partial for 24 hours or more degrades status health with one reason per
+scope naming the scope, the stuck age, and the cause; a later complete pass
+clears the row. The state is durable per-scope pass state maintained by the
+reducer write transaction, not the process-local headroom gauges. It does
+not include finding payloads, repository names, or credential handles.
+
 `coordinator.collector_backpressure` reports bounded claim-aware collector
 pressure by collector kind, collector instance, and source system. It includes
 pending, claimed, retrying, terminal, expired, active-claim, overdue-claim, and

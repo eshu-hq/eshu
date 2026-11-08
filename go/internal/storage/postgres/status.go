@@ -97,6 +97,27 @@ func NewInstrumentedStatusStore(queryer db.Queryer, instruments *telemetry.Instr
 	return store
 }
 
+// readDegradedDrilldown reads the two small degraded-state drilldown
+// sections back to back: collector generation dead letters and the
+// supply-chain stuck partial scopes (#10389). Both are bounded aggregate
+// reads the degraded health branch consumes.
+func (s StatusStore) readDegradedDrilldown(
+	ctx context.Context,
+	asOf time.Time,
+) (collector.GenerationDeadLetterSnapshot, []statuspkg.SupplyChainStuckPartialScope, error) {
+	q, done := s.read(ctx, statusReadCollectorGenerationDeadLetters)
+	deadLetters, err := readCollectorGenerationDeadLetterSnapshot(ctx, q, asOf)
+	if err = done(err); err != nil {
+		return collector.GenerationDeadLetterSnapshot{}, nil, err
+	}
+	q, done = s.read(ctx, statusReadSupplyChainStuckPartials)
+	stuckPartials, err := readSupplyChainStuckPartialScopes(ctx, q)
+	if err = done(err); err != nil {
+		return collector.GenerationDeadLetterSnapshot{}, nil, err
+	}
+	return deadLetters, stuckPartials, nil
+}
+
 // ReadRawSnapshot returns the raw aggregate snapshot needed by the operator
 // status surface.
 func (s StatusStore) ReadRawSnapshot(ctx context.Context, asOf time.Time) (statuspkg.RawSnapshot, error) {
@@ -179,9 +200,8 @@ func (s StatusStore) ReadStatusSnapshotFiltered(
 	if err = done(err); err != nil {
 		return statuspkg.RawSnapshot{}, err
 	}
-	q, done = s.read(ctx, statusReadCollectorGenerationDeadLetters)
-	collectorGenerationDeadLetters, err := readCollectorGenerationDeadLetterSnapshot(ctx, q, asOf.UTC())
-	if err = done(err); err != nil {
+	collectorGenerationDeadLetters, stuckPartials, err := s.readDegradedDrilldown(ctx, asOf.UTC())
+	if err != nil {
 		return statuspkg.RawSnapshot{}, err
 	}
 	coordinatorSnapshot, coordinatorSource, err := s.readCoordinator(ctx, asOf.UTC(), selection)
@@ -254,6 +274,7 @@ func (s StatusStore) ReadStatusSnapshotFiltered(
 		Queue:                          activeWork.Queue,
 		LatestQueueFailure:             activeWork.LatestFailure,
 		CollectorGenerationDeadLetters: collectorGenerationDeadLetters,
+		SupplyChainStuckPartials:       stuckPartials,
 		Coordinator:                    coordinatorSnapshot,
 		RegistryCollectors:             registryCollectors,
 		AWSCloudScans:                  awsCloudScans,

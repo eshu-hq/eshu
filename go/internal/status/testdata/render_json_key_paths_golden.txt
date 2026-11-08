@@ -309,6 +309,9 @@ stages.retrying
 stages.running
 stages.stage
 stages.succeeded
+supply_chain_stuck_partials.causes
+supply_chain_stuck_partials.partial_since
+supply_chain_stuck_partials.scope_id
 terraform_state.last_serials.backend_kind
 terraform_state.last_serials.generation_id
 terraform_state.last_serials.lineage

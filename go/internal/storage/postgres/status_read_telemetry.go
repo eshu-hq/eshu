@@ -37,6 +37,7 @@ const (
 	statusReadActiveWorkSummaryModel         = "active_work_summary_model"
 	statusReadProducerActivity               = "producer_activity"
 	statusReadCollectorGenerationDeadLetters = "collector_generation_dead_letters"
+	statusReadSupplyChainStuckPartials       = "supply_chain_stuck_partials"
 	statusReadCoordinator                    = "coordinator"
 	statusReadCoordinatorModel               = "coordinator_model"
 	statusReadRegistryCollectors             = "registry_collectors"

@@ -220,13 +220,16 @@ import (
 // single-expression extended-statistics object on (payload->>'cve_id')
 // holding the CVE key probes on their partial index; CREATE STATISTICS plus
 // ANALYZE, no index).
-const goldenBootstrapDefinitionsDigest = "fc1417a3d5bfaa8d6acec45f2670ffd831efe4f6529fa4a01d449e326bf7b011"
+// #10389 adds 284_supply_chain_impact_scope_pass_state.sql (the durable
+// per-scope supply-chain impact pass state behind the day-stuck-partial
+// status degraded reason; one CREATE TABLE, no index).
+const goldenBootstrapDefinitionsDigest = "98915e27f728f547c1e8c9fcb3f2e5842879e3aa4898c4d077097ea52cf4f2b0"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or
 // silently dropping files) fails loudly even in the unlikely case of a hash
 // collision.
-const goldenBootstrapDefinitionsCount = 309
+const goldenBootstrapDefinitionsCount = 310
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
 	defs := BootstrapDefinitions()

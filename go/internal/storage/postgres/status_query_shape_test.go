@@ -128,8 +128,9 @@ func TestReadStatusSnapshotEvaluatesActiveWorkOnce(t *testing.T) {
 	// 25 before #6793 added the one infra read model state read, 26 before
 	// #8454 added the one repository selection counts read. The #8803
 	// terminal-failure read runs only when an enabled collector instance
-	// exists, and this fixture has none, so it stays at 27.
-	if got, want := len(queryer.queries), 27; got != want {
+	// exists, and this fixture has none. #10389 adds the one stuck-partial
+	// scope read over the scope-sized pass-state table, bringing it to 28.
+	if got, want := len(queryer.queries), 28; got != want {
 		t.Fatalf("status snapshot issued %d queries, want %d", got, want)
 	}
 }

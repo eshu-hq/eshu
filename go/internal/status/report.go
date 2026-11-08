@@ -45,6 +45,11 @@ type RawSnapshot struct {
 	// before normal projector/reducer queue rows existed.
 	CollectorGenerationDeadLetters collector.GenerationDeadLetterSnapshot
 	CollectorFactEvidence          []collector.FactEvidence
+	// SupplyChainStuckPartials carries the durable per-scope pass state
+	// behind the #10389 degraded reason: one entry per scope whose last
+	// recorded supply-chain impact pass ended partial. Empty when no scope
+	// is stuck partial or the reader did not surface the section.
+	SupplyChainStuckPartials []SupplyChainStuckPartialScope
 	// RepositorySelection counts the live repository selection observations
 	// by state and, for not_listed rows, by upstream probe classification
 	// (#8454). Empty when the reader did not surface selection evidence.
@@ -271,8 +276,12 @@ type Report struct {
 	AnswerNarration                AnswerNarrationStatus
 	CollectorGenerationDeadLetters collector.GenerationDeadLetterSnapshot
 	CollectorFactEvidence          []collector.FactEvidence
-	AWSCloudScansTruncated         bool
-	AWSCloudScanLimit              int
+	// SupplyChainStuckPartials projects RawSnapshot.SupplyChainStuckPartials
+	// unchanged: the drilldown behind the degraded reason, empty when no
+	// scope is stuck partial.
+	SupplyChainStuckPartials []SupplyChainStuckPartialScope
+	AWSCloudScansTruncated   bool
+	AWSCloudScanLimit        int
 	// DomainBacklogsTruncated reports that more non-empty materialization
 	// domains existed than DomainBacklogsLimit, so DomainBacklogs holds only
 	// the top DomainBacklogsLimit rows by outstanding work (topDomainBacklogs,

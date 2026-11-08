@@ -48,6 +48,10 @@
 // before projector work existed, so operators can separate source-level replay
 // requests from normal queue replay; unresolved dead-letter and replay-request
 // rows keep health degraded until a later successful source commit clears them.
+// SupplyChainStuckPartialScope rows report scopes whose last recorded
+// supply-chain impact pass ended partial; a scope partial for 24 hours or
+// more keeps health degraded with a reason naming the scope and the cause
+// until a later complete pass clears it.
 // semantic.ExtractionStatus reports optional LLM-assisted extraction liveness as
 // unavailable when no provider is configured; when provider profiles are
 // configured, it carries redacted profile state and source-policy gates without

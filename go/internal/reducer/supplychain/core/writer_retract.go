@@ -142,6 +142,15 @@ func commitSupplyChainImpactRows(
 			fencingToken: write.FencingToken,
 		}
 	}
+	// Record the scope's durable per-scope pass state in the same
+	// transaction (#10389): a partial pass marks the scope stuck with its
+	// causes, a complete pass clears it. It runs on the admitted path only,
+	// so a superseded pass never overwrites a newer pass's state, and it
+	// fails the pass when the state cannot be recorded: state that disagrees
+	// with the committed rows is worse than a retried pass.
+	if err := recordSupplyChainImpactScopePassState(ctx, tx, write, now); err != nil {
+		return supplyChainImpactTxOutcome{}, err
+	}
 	// Read what the pass is about to overwrite, after the lock (no concurrent
 	// pass of this conflict domain can change it) and before the upsert, so the
 	// change set compares the new rows with the rows they replace (#9695).
@@ -417,6 +426,63 @@ ON CONFLICT (scope_id, generation_id) DO UPDATE SET
     updated_at    = EXCLUDED.updated_at
 WHERE supply_chain_impact_write_admission.fencing_token <= EXCLUDED.fencing_token
 `
+
+// supplyChainImpactScopePassStateQuery maintains the durable per-scope pass
+// state (migration 284) behind the #10389 status degraded reason. One row
+// per scope: a partial pass marks it stuck with its identity-affecting
+// causes and stamps partial_since when the scope was not already stuck,
+// preserving the original stuck time across further partial passes; a
+// complete pass clears the stuck columns. The fencing-token guard is the
+// admission's <= rule, so an older admitted pass never overwrites a newer
+// pass's state when passes for one scope interleave across generations.
+// $4 is the TEXT[] cause set, empty for a complete pass, encoded the same
+// way as the retraction's keep set; it never reaches a metric label, so the
+// closed cause set needs no folding here.
+const supplyChainImpactScopePassStateQuery = `
+INSERT INTO supply_chain_impact_scope_pass_state (
+    scope_id, fencing_token, partial_evidence, partial_causes, partial_since, last_pass_at, updated_at
+) VALUES (
+    $1, $2, $3, $4,
+    CASE WHEN $3 THEN $5 ELSE NULL END,
+    $5, $5
+)
+ON CONFLICT (scope_id) DO UPDATE SET
+    fencing_token    = EXCLUDED.fencing_token,
+    partial_evidence = EXCLUDED.partial_evidence,
+    partial_causes   = EXCLUDED.partial_causes,
+    partial_since    = CASE WHEN EXCLUDED.partial_evidence
+                            THEN COALESCE(supply_chain_impact_scope_pass_state.partial_since, EXCLUDED.partial_since)
+                            ELSE NULL END,
+    last_pass_at     = EXCLUDED.last_pass_at,
+    updated_at       = EXCLUDED.updated_at
+WHERE supply_chain_impact_scope_pass_state.fencing_token <= EXCLUDED.fencing_token
+`
+
+// recordSupplyChainImpactScopePassState upserts one admitted pass's durable
+// per-scope pass state. It runs inside the write transaction, after the
+// fencing admission, so the state and the rows it describes commit or roll
+// back together.
+func recordSupplyChainImpactScopePassState(
+	ctx context.Context,
+	tx SupplyChainImpactTx,
+	write SupplyChainImpactWrite,
+	now time.Time,
+) error {
+	// Never record a NULL cause set: the column is NOT NULL and a nil slice
+	// would encode as NULL, failing every complete pass. An empty set
+	// encodes as '{}', the same shape the retraction's empty keep set uses.
+	causes := write.PartialCauses
+	if causes == nil {
+		causes = []string{}
+	}
+	if _, err := tx.ExecContext(
+		ctx, supplyChainImpactScopePassStateQuery,
+		write.ScopeID, write.FencingToken, write.PartialEvidence, causes, now.UTC(),
+	); err != nil {
+		return fmt.Errorf("record supply chain impact scope pass state: %w", err)
+	}
+	return nil
+}
 
 // supplyChainImpactWriteSupersededError marks an admission rejection as
 // retryable so the durable queue re-runs the intent instead of a stalled

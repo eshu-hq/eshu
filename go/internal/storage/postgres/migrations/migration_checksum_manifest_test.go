@@ -356,6 +356,7 @@ var migrationShippedChecksums = map[string]string{
 	// (payload->>'cve_id') holding the CVE key probes on their partial
 	// index (migration 283).
 	"283_fact_records_vulnerability_cve_id_stats.sql": "2d580fee981b0e73669decbe3e3a69b47866cd66a4259de2183ca7246f799a6c",
+	"284_supply_chain_impact_scope_pass_state.sql":    "bd448553b0588e4190ecc0902f2b1028c97ebc3f4472a673de73417b006b2fec",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition

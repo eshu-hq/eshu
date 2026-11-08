@@ -263,6 +263,18 @@ func maxRawSnapshot() RawSnapshot {
 			ReplayAttempts:      6,
 			OldestDeadLetterAge: fixtureDuration(1200),
 		},
+		SupplyChainStuckPartials: []SupplyChainStuckPartialScope{
+			{
+				ScopeID:      "scope-fixture-stuck-a",
+				Causes:       []string{"evidence_budget"},
+				PartialSince: fixtureTime(-1500),
+			},
+			{
+				ScopeID:      "scope-fixture-stuck-b",
+				Causes:       []string{"active_expansion_rounds", "manifest_refused"},
+				PartialSince: fixtureTime(-3000),
+			},
+		},
 		CollectorFactEvidence: []collector.FactEvidence{
 			{
 				InstanceID:       "documentation-collector-1",
