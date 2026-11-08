@@ -114,7 +114,7 @@
 
 - **Envelope MIME type constant** — `EnvelopeMIMEType` is written as the
   resource MIME type in `renderToolResult`. Do not replace with a string literal;
-  the constant is the public contract between this package and `internal/query`.
+  the constant is the public contract between this package and `internal/query/querycontract`.
 
 - **Authorization passthrough** — `dispatchTool` forwards the `Authorization`
   header from the original MCP request to the internal handler. If the handler
@@ -290,7 +290,7 @@
   error}` JSON by hand. If a tool needs a non-standard response shape, consult
   `internal/query` and add the handler there.
 
-- **Using string literals for MIME types** — always use `query.EnvelopeMIMEType`.
+- **Using string literals for MIME types** — always use `querycontract.EnvelopeMIMEType`.
 
 - **Skipping the dispatch route test** — this is the main
   guard against orphaned tool definitions. Do not remove or disable it.

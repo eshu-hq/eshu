@@ -7,7 +7,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/answer"
 )
 
 // Text summaries are a convenience layer for human readers only. The structured
@@ -29,7 +30,7 @@ const maxLimitationLength = 120
 // an envelope-backed tool response. It reads only from the already-parsed
 // envelope (no new queries) and never mutates the structured content. Tools
 // without a specific summarizer fall back to the generic envelope summary.
-func summarizeToolText(toolName string, envelope *query.ResponseEnvelope) string {
+func summarizeToolText(toolName string, envelope *querycontract.ResponseEnvelope) string {
 	if envelope == nil {
 		return "Eshu query completed."
 	}
@@ -100,7 +101,7 @@ func summarizePlainToolText(toolName string, value any) string {
 // summarizeEnvelopeError renders an error envelope as truth, surfacing the
 // machine-readable code alongside the human message so partial/failed responses
 // never collapse into generic success text.
-func summarizeEnvelopeError(errEnv *query.ErrorEnvelope) string {
+func summarizeEnvelopeError(errEnv *querycontract.ErrorEnvelope) string {
 	message := strings.TrimSpace(errEnv.Message)
 	code := strings.TrimSpace(string(errEnv.Code))
 	switch {
@@ -120,7 +121,7 @@ func summarizeEnvelopeError(errEnv *query.ErrorEnvelope) string {
 // summary leads with how much to trust the result and WHY it lags. Returns ""
 // when no truth is present. The cause and detail are convenience text only; the
 // structured envelope freshness object remains canonical.
-func summarizeTruthPrefix(truth *query.TruthEnvelope) string {
+func summarizeTruthPrefix(truth *querycontract.TruthEnvelope) string {
 	if truth == nil {
 		return ""
 	}
@@ -129,7 +130,7 @@ func summarizeTruthPrefix(truth *query.TruthEnvelope) string {
 	switch {
 	case level != "" && state != "":
 		prefix := fmt.Sprintf("%s/%s", level, state)
-		if state != string(query.FreshnessFresh) {
+		if state != string(querycontract.FreshnessFresh) {
 			if note := freshnessNote(truth.Freshness); note != "" {
 				prefix += " (" + clampField(note) + ")"
 			}
@@ -148,7 +149,7 @@ func summarizeTruthPrefix(truth *query.TruthEnvelope) string {
 // the proven cause when present (it is the most actionable signal), otherwise
 // the bounded detail. It reads only the already-parsed freshness and never
 // mutates structured content.
-func freshnessNote(freshness query.TruthFreshness) string {
+func freshnessNote(freshness querycontract.TruthFreshness) string {
 	cause := strings.TrimSpace(string(freshness.Cause))
 	detail := strings.TrimSpace(freshness.Detail)
 	switch {
@@ -206,7 +207,7 @@ func clampField(s string) string {
 // summarizeEnvelope is the generic, tool-agnostic envelope fallback used when no
 // tool-specific summarizer matches. It surfaces an error message or a result
 // count, defaulting to a neutral completion message.
-func summarizeEnvelope(envelope *query.ResponseEnvelope) string {
+func summarizeEnvelope(envelope *querycontract.ResponseEnvelope) string {
 	if envelope == nil {
 		return "Eshu query completed."
 	}
@@ -246,7 +247,7 @@ func summarizeVisualizationPacket(data map[string]any) string {
 	if packet == nil {
 		return ""
 	}
-	view := strings.TrimSpace(query.StringVal(packet, "view"))
+	view := strings.TrimSpace(querycontract.StringVal(packet, "view"))
 	nodes := mcpSliceLen(packet, "nodes")
 	edges := mcpSliceLen(packet, "edges")
 	supported, _ := packet["supported"].(bool)
@@ -316,7 +317,7 @@ func mcpAnswerMetadata(data map[string]any) map[string]any {
 	switch metadata := data["answer_metadata"].(type) {
 	case map[string]any:
 		return metadata
-	case query.AnswerMetadata:
+	case answer.AnswerMetadata:
 		return map[string]any{
 			"schema_version":         metadata.SchemaVersion,
 			"evidence_handles":       metadata.EvidenceHandles,
@@ -333,7 +334,7 @@ func mcpAnswerMetadata(data map[string]any) map[string]any {
 }
 
 func mcpMetadataTruncated(metadata map[string]any) bool {
-	return query.BoolVal(metadata, "truncated")
+	return querycontract.BoolVal(metadata, "truncated")
 }
 
 func mcpMetadataRowsLen(metadata map[string]any, key string) int {
@@ -347,7 +348,7 @@ func mcpFirstMetadataReason(metadata map[string]any, key string) (string, int) {
 	rows := mcpMetadataRows(metadata, key)
 	for _, row := range rows {
 		for _, reasonKey := range []string{"reason", "kind", "slot"} {
-			if reason := query.StringVal(row, reasonKey); reason != "" {
+			if reason := querycontract.StringVal(row, reasonKey); reason != "" {
 				return reason, len(rows)
 			}
 		}
@@ -399,13 +400,13 @@ func mcpFirstStringInSlice(m map[string]any, sliceKey, field string) string {
 			return ""
 		}
 		if row, ok := typed[0].(map[string]any); ok {
-			return query.StringVal(row, field)
+			return querycontract.StringVal(row, field)
 		}
 	case []map[string]any:
 		if len(typed) == 0 {
 			return ""
 		}
-		return query.StringVal(typed[0], field)
+		return querycontract.StringVal(typed[0], field)
 	}
 	return ""
 }
