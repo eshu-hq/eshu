@@ -38,9 +38,9 @@ const supplyChainImpactCostIntentID = "intent-supply-chain-impact-cost"
 // chunk and cost one insert round-trip. #6831 wraps that insert in a
 // transaction with a conflict-domain lock before it and a superseded-finding
 // retraction after it (and #7142 adds a fencing-token admission step), so one pass costs
-// exactly five statements: lock, admission, insert, winners dirty-key capture
+// exactly six statements: lock, admission, insert, winners dirty-key capture
 // (#9805: one set-based INSERT per pass that changed a finding, not per
-// finding), retraction. #9695 adds one
+// finding), retraction, scope pass-state upsert (#10389). #9695 adds one
 // read inside that transaction (the stored-row read behind the change set); it
 // is a read observation, so it is outside this write budget.
 func supplyChainImpactFixtureFindings() []supplychaincore.SupplyChainImpactFinding {
