@@ -58,6 +58,7 @@ workflows:
   - scripts/lib/live_postgres_readiness_refresh_v2_provenance.py
   - scripts/lib/live_postgres_readiness_refresh_v2_pool.py
   - scripts/test-live-postgres-readiness-refresh-v2.py
+  - scripts/test-readiness-refit-evidence.py
   - scripts/lib/live_postgres_readiness_calibration*.py
   - scripts/test-live-postgres-readiness-calibration.py
   - specs/live-postgres-readiness-calibration.v1.json
