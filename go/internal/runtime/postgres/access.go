@@ -30,7 +30,11 @@ const (
 	StageReaderBorrow     Stage = "reader_borrow"
 	StageReaderIdentity   Stage = "reader_identity"
 	StageReaderReplay     Stage = "reader_replay"
-	StageBusinessQuery    Stage = "business_query"
+	// StageReaderStaleness times the standby's own replay-age probe on the
+	// unfenced stale path. Unlike the replay fence it takes no writer
+	// checkpoint; a deferral is recorded by family on the stale counter.
+	StageReaderStaleness Stage = "reader_staleness"
+	StageBusinessQuery   Stage = "business_query"
 	// StageTransactionControl times control SQL inside a guarded read
 	// transaction, such as the status snapshot's SET LOCAL jit = off. It is
 	// not a business query and never enters the per-request stage timings.
@@ -73,12 +77,18 @@ type ContextObserver interface {
 // Writer is exposed for authorization, audit, and mutation paths; business
 // reads use Reader, which does not expose its underlying sql.DB.
 type Access struct {
-	writer               *sql.DB
-	reader               *sql.DB
-	readerHasFallbacks   bool
-	samePrimary          bool
-	replayTimeout        time.Duration
-	pingTimeout          time.Duration
+	writer             *sql.DB
+	reader             *sql.DB
+	readerHasFallbacks bool
+	samePrimary        bool
+	replayTimeout      time.Duration
+	pingTimeout        time.Duration
+	// readRouting selects the reader routing mode. Off keeps every read on
+	// the writer-backed path and StaleReader defers.
+	readRouting ReadRouting
+	// staleReplayBudget caps the standby replay age the stale reader
+	// serves; zero means DefaultStaleReplayBudget.
+	staleReplayBudget    time.Duration
 	observer             Observer
 	lineage              *writerLineage
 	snapshotSetGate      chan struct{}
@@ -196,7 +206,11 @@ func Open(ctx context.Context, cfg Config, observer Observer) (*Access, error) {
 		reader.SetConnMaxLifetime(cfg.ConnMaxLifetime)
 		reader.SetConnMaxIdleTime(cfg.ConnMaxIdleTime)
 	}
-	access := &Access{writer: writer, reader: reader, readerMembers: members, readerInventoryCount: len(cfg.ReadMembers), readerHasFallbacks: len(readCfg.Fallbacks) > 0, samePrimary: cfg.SamePrimary, replayTimeout: cfg.ReplayTimeout, pingTimeout: cfg.PingTimeout, observer: observer, lineage: lineage, snapshotSetGate: make(chan struct{}, 1), snapshotExport: exportQualification, logger: cfg.Logger}
+	budget := cfg.StaleReplayBudget
+	if budget <= 0 {
+		budget = DefaultStaleReplayBudget
+	}
+	access := &Access{writer: writer, reader: reader, readerMembers: members, readerInventoryCount: len(cfg.ReadMembers), readerHasFallbacks: len(readCfg.Fallbacks) > 0, samePrimary: cfg.SamePrimary, replayTimeout: cfg.ReplayTimeout, pingTimeout: cfg.PingTimeout, readRouting: cfg.ReadRouting, staleReplayBudget: budget, observer: observer, lineage: lineage, snapshotSetGate: make(chan struct{}, 1), snapshotExport: exportQualification, logger: cfg.Logger}
 	if access.logger == nil {
 		access.logger = slog.Default()
 	}
@@ -367,7 +381,8 @@ func readerOutcome(err error) Outcome {
 // requestReaderStage maps the four guarded-reader stages to the per-request
 // accumulator's closed set. The writer checkpoint stage has no accumulator
 // slot: it runs before the reader fence and is not reader time. The
-// transaction control stage has none either: it is not a business query.
+// transaction control and staleness stages have none either: neither is a
+// business query.
 func requestReaderStage(stage Stage) (db.ReaderStage, bool) {
 	switch stage {
 	case StageReaderBorrow:

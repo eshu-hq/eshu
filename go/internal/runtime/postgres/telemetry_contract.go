@@ -24,6 +24,10 @@ const (
 	// no reader target was qualified, by closed reason (no_declaration or
 	// undeclared_build).
 	MetricReaderSnapshotExportDenials = "eshu_dp_postgres_reader_snapshot_export_denials_total"
+	// MetricReaderStaleDeferrals counts unfenced stale reads refused because
+	// the standby was past the replay budget, not a standby, or the routing
+	// mode is off, by closed family (audits today).
+	MetricReaderStaleDeferrals = "eshu_dp_postgres_reader_stale_deferrals_total"
 )
 
 const (
@@ -33,6 +37,7 @@ const (
 	readerAttributeState         = "state"
 	readerAttributeMemberOrdinal = "member_ordinal"
 	readerAttributeReason        = "reason"
+	readerAttributeFamily        = "family"
 	readerUnknown                = "unknown"
 	readerAccessSpanName         = "postgres.reader_access"
 	readerQueryStartEventName    = "postgres.reader_query_start"

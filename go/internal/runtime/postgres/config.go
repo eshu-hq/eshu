@@ -48,7 +48,15 @@ type Config struct {
 	ConnMaxIdleTime        time.Duration
 	PingTimeout            time.Duration
 	ReplayTimeout          time.Duration
-	ExpectedSystemID       string
+	// ReadRouting selects the reader routing mode named by
+	// ESHU_POSTGRES_READ_ROUTING. The zero value disables the stale path,
+	// matching off.
+	ReadRouting ReadRouting
+	// StaleReplayBudget caps the standby replay age the stale reader
+	// serves. Zero means DefaultStaleReplayBudget; per-family overrides
+	// land in a later slice.
+	StaleReplayBudget time.Duration
+	ExpectedSystemID  string
 	// SnapshotExportBuilds declares PostgreSQL reader builds an operator has
 	// qualified for shared-snapshot export below the compiled version floor
 	// (#7957). Empty means deny-by-default: only a reader at or above the
@@ -115,6 +123,14 @@ func LoadConfig(getenv func(string) string) (Config, error) {
 	}
 	if readTopology == "standby" && read == writer {
 		return Config{}, fmt.Errorf("ESHU_POSTGRES_READ_TOPOLOGY=standby requires a distinct reader DSN")
+	}
+	routing := ReadRoutingOff
+	switch value := strings.TrimSpace(getenv("ESHU_POSTGRES_READ_ROUTING")); value {
+	case "", "off":
+	case "stale-audits":
+		routing = ReadRoutingStaleAudits
+	default:
+		return Config{}, fmt.Errorf("ESHU_POSTGRES_READ_ROUTING must be off or stale-audits")
 	}
 	requiredRoleBoundary := strings.TrimSpace(getenv("ESHU_POSTGRES_ROLE_BOUNDARY_REQUIRED"))
 	if requiredRoleBoundary != "" && requiredRoleBoundary != "true" {
@@ -190,6 +206,7 @@ func LoadConfig(getenv func(string) string) (Config, error) {
 	return Config{
 		WriterDSN: writer, ReadDSN: read, ReadMembers: members, SamePrimary: samePrimary,
 		ExplicitReaderTopology: readTopology != "",
+		ReadRouting:            routing,
 		WriterMaxOpenConns:     writeOpen, ReadMaxOpenConns: readOpen,
 		WriterMaxIdleConns: base.MaxIdleConns - readIdle, ReadMaxIdleConns: readIdle,
 		ConnMaxLifetime: base.ConnMaxLifetime, ConnMaxIdleTime: base.ConnMaxIdleTime,

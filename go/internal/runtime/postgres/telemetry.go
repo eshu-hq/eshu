@@ -21,6 +21,7 @@ type otelObserver struct {
 	duration        metric.Float64Histogram
 	memberAttempts  metric.Int64Counter
 	snapshotDenials metric.Int64Counter
+	staleDeferrals  metric.Int64Counter
 	tracer          trace.Tracer
 }
 
@@ -54,7 +55,12 @@ func NewObserver(meter metric.Meter, tracer trace.Tracer) (Observer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("register PostgreSQL reader snapshot export denials: %w", err)
 	}
-	return &otelObserver{duration: duration, memberAttempts: memberAttempts, snapshotDenials: snapshotDenials, tracer: tracer}, nil
+	staleDeferrals, err := meter.Int64Counter(MetricReaderStaleDeferrals,
+		metric.WithDescription("Unfenced stale reads refused because the standby was past the replay budget, by closed family"))
+	if err != nil {
+		return nil, fmt.Errorf("register PostgreSQL reader stale deferrals: %w", err)
+	}
+	return &otelObserver{duration: duration, memberAttempts: memberAttempts, snapshotDenials: snapshotDenials, staleDeferrals: staleDeferrals, tracer: tracer}, nil
 }
 
 // ObserveSnapshotExportDenial counts one refused snapshot set (#7957) under a
@@ -69,6 +75,15 @@ func (o *otelObserver) ObserveSnapshotExportDenial(ctx context.Context, reason s
 		reason = readerUnknown
 	}
 	o.snapshotDenials.Add(ctx, 1, metric.WithAttributes(attribute.String(readerAttributeReason, reason)))
+}
+
+// ObserveStaleDeferral counts one refused stale read under its closed
+// family. It never puts an age, endpoint, or driver error in labels.
+func (o *otelObserver) ObserveStaleDeferral(ctx context.Context, family StaleFamily) {
+	if o == nil {
+		return
+	}
+	o.staleDeferrals.Add(ctx, 1, metric.WithAttributes(attribute.String(readerAttributeFamily, closedStaleFamily(family))))
 }
 
 // ObserveMemberAttempt records a closed outcome under the member's original
@@ -155,11 +170,20 @@ func closedReaderRole(role string) string {
 
 func closedReaderStage(stage Stage) string {
 	switch stage {
-	case StageWriterCheckpoint, StageReaderBorrow, StageReaderIdentity, StageReaderReplay, StageBusinessQuery, StageTransactionControl:
+	case StageWriterCheckpoint, StageReaderBorrow, StageReaderIdentity, StageReaderReplay, StageReaderStaleness, StageBusinessQuery, StageTransactionControl:
 		return string(stage)
 	default:
 		return readerUnknown
 	}
+}
+
+// closedStaleFamily collapses the stale family to its closed label set so a
+// future family cannot become a metric cardinality leak.
+func closedStaleFamily(family StaleFamily) string {
+	if family == StaleFamilyAudits {
+		return string(family)
+	}
+	return readerUnknown
 }
 
 func closedReaderOutcome(outcome Outcome) string {
