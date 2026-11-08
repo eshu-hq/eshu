@@ -5,6 +5,7 @@ package workflow
 
 import (
 	"context"
+	"fmt"
 	"time"
 )
 
@@ -113,11 +114,14 @@ type claimPlaneWireReapedClaim struct {
 	FailureMessage string `json:"failure_message,omitempty"`
 }
 
-func wireReapedClaimToClaim(wire claimPlaneWireReapedClaim) Claim {
-	claim := wireClaimToClaim(wire.claimPlaneWireClaim)
+func wireReapedClaimToClaim(wire claimPlaneWireReapedClaim) (Claim, error) {
+	claim, err := wireClaimToClaim(wire.claimPlaneWireClaim)
+	if err != nil {
+		return Claim{}, err
+	}
 	claim.FailureClass = wire.FailureClass
 	claim.FailureMessage = wire.FailureMessage
-	return claim
+	return claim, nil
 }
 
 // CreateRun admits one durable workflow run through the server. Admission
@@ -225,7 +229,11 @@ func (c *ClaimPlaneClient) ReapExpiredClaims(
 	}
 	claims := make([]Claim, 0, len(response.Claims))
 	for _, wire := range response.Claims {
-		claims = append(claims, wireReapedClaimToClaim(wire))
+		claim, err := wireReapedClaimToClaim(wire)
+		if err != nil {
+			return nil, fmt.Errorf("claim-plane ReapExpiredClaims: %w", err)
+		}
+		claims = append(claims, claim)
 	}
 	return claims, nil
 }
