@@ -110,6 +110,37 @@ func TestCVEListDeltaTailRejectsErrorEntries(t *testing.T) {
 	}
 }
 
+func TestCVEListDeltaTailBatchCapBoundsDecode(t *testing.T) {
+	t.Parallel()
+
+	// The cap bounds one poll's decode: exactly maxBatches entries succeed,
+	// the (maxBatches+1)th fails the whole read before it is decoded.
+	one := `{"fetchTime": "2026-11-07T23:29:09.281Z", "numberOfChanges": 0, "new": [], "updated": [], "error": []}`
+	two := `{"fetchTime": "2026-11-07T23:23:16.258Z", "numberOfChanges": 0, "new": [], "updated": [], "error": []}`
+	three := `{"fetchTime": "2026-11-07T23:15:00.000Z", "numberOfChanges": 0, "new": [], "updated": [], "error": []}`
+	if batches, _, err := ParseCVEListDeltaTail(strings.NewReader("["+one+","+two+"]"), "", 2); err != nil || len(batches) != 2 {
+		t.Fatalf("ParseCVEListDeltaTail() = %d batches, err = %v, want 2 batches within the cap", len(batches), err)
+	}
+	if _, _, err := ParseCVEListDeltaTail(strings.NewReader("["+one+","+two+","+three+"]"), "", 2); err == nil {
+		t.Fatal("ParseCVEListDeltaTail() err = nil, want cap failure past maxBatches")
+	}
+}
+
+func TestCVEListDeltaTailRejectsTrailingBytes(t *testing.T) {
+	t.Parallel()
+
+	// Bytes after the top-level array are part of the fetched window and
+	// fail the read like any other malformed input; trailing whitespace
+	// stays accepted.
+	one := `{"fetchTime": "2026-11-07T23:29:09.281Z", "numberOfChanges": 0, "new": [], "updated": [], "error": []}`
+	if _, _, err := ParseCVEListDeltaTail(strings.NewReader("["+one+"] TRAILING"), "", 0); err == nil {
+		t.Fatal("ParseCVEListDeltaTail() err = nil, want trailing-bytes failure")
+	}
+	if _, _, err := ParseCVEListDeltaTail(strings.NewReader("["+one+"]  \n"), "", 0); err != nil {
+		t.Fatalf("ParseCVEListDeltaTail() err = %v, want trailing whitespace accepted", err)
+	}
+}
+
 func TestCVEListTailDirtyShardsDeriveFromGithubLinks(t *testing.T) {
 	t.Parallel()
 

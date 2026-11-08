@@ -85,6 +85,11 @@ func ParseCVEListDeltaTail(r io.Reader, cursorFetchTime string, maxBatches int) 
 		return nil, false, fmt.Errorf("vulnsource: delta tail top level is not an array")
 	}
 	for dec.More() {
+		// Bound the decode work itself: refuse the (maxBatches+1)th entry
+		// before decoding it, so one poll never decodes past its budget.
+		if len(batches) >= maxBatches {
+			return nil, false, fmt.Errorf("vulnsource: delta tail exceeds %d batches without reaching the cursor", maxBatches)
+		}
 		var wire cveListDeltaWireBatch
 		if err := dec.Decode(&wire); err != nil {
 			return nil, false, fmt.Errorf("vulnsource: delta tail batch decode: %w", err)
@@ -111,9 +116,17 @@ func ParseCVEListDeltaTail(r io.Reader, cursorFetchTime string, maxBatches int) 
 			batch.Updated = append(batch.Updated, CVEListDeltaRef{ID: ref.CVEID, GithubLink: ref.GithubLink})
 		}
 		batches = append(batches, batch)
-		if len(batches) > maxBatches {
-			return nil, false, fmt.Errorf("vulnsource: delta tail exceeds %d batches without reaching the cursor", maxBatches)
-		}
+	}
+	// The array must close here: bytes after the top level are part of the
+	// fetched window and fail the read like any other malformed input.
+	// Trailing whitespace is fine (Token skips it before reporting EOF).
+	if tok, err := dec.Token(); err != nil {
+		return nil, false, fmt.Errorf("vulnsource: delta tail closing delimiter: %w", err)
+	} else if delim, ok := tok.(json.Delim); !ok || delim != ']' {
+		return nil, false, fmt.Errorf("vulnsource: delta tail top level is not closed")
+	}
+	if _, err := dec.Token(); err != io.EOF {
+		return nil, false, fmt.Errorf("vulnsource: delta tail carries trailing bytes after the array")
 	}
 	if cursorFetchTime == "" {
 		return batches, true, nil
