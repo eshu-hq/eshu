@@ -396,7 +396,7 @@ type SupplyChainRuntimeEnvironmentEvidenceProbe = packet.RuntimeEnvironmentEvide
 
 // KubernetesRuntimeWorkloadRef is one current, authorized Kubernetes workload
 // observed running a finding's exact subject digest. See
-// impact.KubernetesRuntimeWorkloadRef.
+// packet.KubernetesRuntimeWorkloadRef.
 type KubernetesRuntimeWorkloadRef = packet.KubernetesRuntimeWorkloadRef
 
 // KubernetesRuntimeProbeMetadata describes the bounded, page-weighted
