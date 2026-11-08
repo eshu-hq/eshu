@@ -85,3 +85,21 @@ own; per-claim status rows and the real fact count land on the host's
 
 - `go/internal/collector/extensionhost/README.md`
 - `go/internal/collector/sbom/document/README.md`
+
+## Performance Evidence: dropping the summary status row (#8877)
+
+- Baseline: `origin/main` build (`03ea8b5294`), recorded v1alpha1 request
+  (13-fact lodash document). After: this branch. Same box, same input,
+  3 runs each, rebuilt binaries.
+- No-Regression Evidence: wall time 0.013s baseline vs 0.016s after for
+  3 runs (noise floor; per-run delta is sub-millisecond). Output bytes
+  18055 baseline vs 17972 after (-83, exactly the removed row). Facts
+  byte-identical modulo `observed_at`; claim echo identical.
+- Why safe: the change deletes one struct field from one constructor. No
+  loop, lock, I/O, retry, or batching change; the single marshal per run
+  is untouched.
+- No-Observability-Change: no span, metric, log line, or telemetry
+  surface added or removed — the dropped `Statuses` row is a
+  result-contract field, not an observability signal. Commit outcomes
+  already surface through the claim-plane commit result; this leaf emits
+  no telemetry of its own.
