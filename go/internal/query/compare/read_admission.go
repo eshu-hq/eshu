@@ -15,7 +15,8 @@ import (
 // /api/v0/compare/environments). Canonical reads persist through
 // explicit core-owned admission contracts: eshu-api keeps the HTTP
 // shape and calls this versioned port, which the core-owned graph
-// and content stores satisfy. A breaking change to the read shape
+// and content stores satisfy jointly, composed by the consumer. A
+// breaking change to the read shape
 // fails the frozen method-set test until that list is deliberately
 // updated; bump this version alongside (manually — the bump is
 // convention, the frozen list is the enforcement) so dest consumers
@@ -81,10 +82,14 @@ type CompareReadAdmission interface {
 }
 
 // The mirror assertion keeps the Compare-scoped re-declaration
-// honest: any one-sided signature drift on either shared port fails
-// compilation here. It pins no shared port — the assertion names the
-// combination only as the shape this pin mirrors, and no other
-// family may cite this pin as coverage.
+// honest, and it works in one direction only: removal, rename, or
+// re-signing of any of the 4 mirrored methods on either shared port
+// fails compilation here. Shared-port addition deliberately does not
+// widen this pin — a new shared-port method is adopted only by
+// deliberate re-declaration plus a frozen-list update. It pins no
+// shared port — the assertion names the combination only as the
+// shape this pin mirrors, and no other family may cite this pin as
+// coverage.
 var _ CompareReadAdmission = interface {
 	querycontract.GraphQuery
 	service.EvidenceReader

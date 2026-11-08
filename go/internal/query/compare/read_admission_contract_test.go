@@ -36,6 +36,18 @@ var frozenCompareReadAdmission = []string{
 	"RunSingle func(context.Context, string, map[string]interface {}) (map[string]interface {}, error)",
 }
 
+// compareReadAdmissionWitness proves CompareReadAdmission is
+// satisfiable: the core-owned graph and content stores satisfy it
+// jointly, composed by the consumer — no single store carries all
+// four methods. It composes the package's existing fakes rather than
+// inventing a new satisfier.
+type compareReadAdmissionWitness struct {
+	fakeCompareGraphReader
+	fakeCompareEvidenceReader
+}
+
+var _ CompareReadAdmission = compareReadAdmissionWitness{}
+
 // compareReadAdmissionMethodSet reflects the live
 // CompareReadAdmission method set into sorted "name signature"
 // strings for comparison with the frozen list.
@@ -52,10 +64,12 @@ func compareReadAdmissionMethodSet(t *testing.T) []string {
 }
 
 // TestCompareReadAdmissionContractIsVersioned pins the #9669 Gap 04
-// admission-contract version for the Compare POST read. The version
-// value plus the frozen method set below are the enforcement: a
-// breaking change to the admission shape fails this test until the
-// version bumps in the same diff.
+// admission-contract version for the Compare POST read. The frozen
+// method set below is the enforcement: an added, removed, renamed,
+// or re-signed method fails this test until the frozen list is
+// deliberately updated. Bump CompareReadAdmissionContractVersion
+// alongside (manually — the bump is convention, the frozen list is
+// the enforcement) so dest consumers can pin the shape.
 func TestCompareReadAdmissionContractIsVersioned(t *testing.T) {
 	t.Parallel()
 
