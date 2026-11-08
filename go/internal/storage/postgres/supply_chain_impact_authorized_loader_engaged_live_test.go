@@ -81,6 +81,10 @@ func TestAuthorizedLoaderEngagedFoldPublishesFoldedEvidenceLive(t *testing.T) {
 	for _, s := range []string{
 		`GRANT CONNECT ON DATABASE "` + dbName + `" TO "` + roleName + `"`,
 		`GRANT SELECT, INSERT, UPDATE ON supply_chain_impact_write_admission TO "` + roleName + `"`,
+		// The impact writer records per-scope pass state in the same
+		// transaction (#10389): an ordinary base table, so a DBA pregrant
+		// like the admission table above.
+		`GRANT SELECT, INSERT, UPDATE ON supply_chain_impact_scope_pass_state TO "` + roleName + `"`,
 		`GRANT SELECT, INSERT, UPDATE ON fact_records TO "` + roleName + `"`,
 		`GRANT SELECT ON scope_generations TO "` + roleName + `"`,
 		// The impact writer names the winners it changed in the same transaction

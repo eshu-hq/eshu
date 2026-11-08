@@ -153,7 +153,7 @@ func BuildReport(raw RawSnapshot, opts Options) Report {
 
 	return Report{
 		AsOf:                           raw.AsOf,
-		Health:                         evaluateHealth(queueSnapshot, generationTotals, domainBacklogs, producerActivity, coordinator, raw.CollectorGenerationDeadLetters, opts),
+		Health:                         evaluateHealth(queueSnapshot, generationTotals, domainBacklogs, producerActivity, coordinator, raw.CollectorGenerationDeadLetters, raw.SupplyChainStuckPartials, raw.AsOf, opts),
 		FlowSummaries:                  flowSummaries,
 		Queue:                          queueSnapshot,
 		RetryPolicies:                  cloneRetryPolicies(raw.RetryPolicies),
@@ -182,6 +182,7 @@ func BuildReport(raw RawSnapshot, opts Options) Report {
 		CoordinatorSource:              raw.CoordinatorSource,
 		CollectorGenerationDeadLetters: collector.CloneGenerationDeadLetterSnapshot(raw.CollectorGenerationDeadLetters),
 		CollectorFactEvidence:          collector.CloneFactEvidence(raw.CollectorFactEvidence),
+		SupplyChainStuckPartials:       cloneStuckPartialScopes(raw.SupplyChainStuckPartials),
 		AWSCloudScansTruncated:         raw.AWSCloudScansTruncated,
 		AWSCloudScanLimit:              raw.AWSCloudScanLimit,
 		TerraformState: tfstate.Report{
@@ -288,6 +289,7 @@ func RenderText(report Report) string {
 	lines = append(lines, collector.RenderVulnerabilitySourceLines(report.VulnerabilitySources)...)
 	lines = append(lines, semantic.RenderExtractionLine(report.SemanticExtraction))
 	lines = append(lines, collector.RenderGenerationDeadLetterLine(report.CollectorGenerationDeadLetters))
+	lines = append(lines, renderStuckPartialLines(report.SupplyChainStuckPartials)...)
 	if report.AWSCloudScansTruncated {
 		lines = append(lines, fmt.Sprintf("AWS cloud scans truncated: limit=%d", report.AWSCloudScanLimit))
 	}

@@ -1021,6 +1021,23 @@
     "oldest_dead_letter_age": "20m0s",
     "oldest_dead_letter_age_seconds": 1200
   },
+  "supply_chain_stuck_partials": [
+    {
+      "scope_id": "scope-fixture-stuck-a",
+      "causes": [
+        "evidence_budget"
+      ],
+      "partial_since": "2026-03-03T04:06:07Z"
+    },
+    {
+      "scope_id": "scope-fixture-stuck-b",
+      "causes": [
+        "active_expansion_rounds",
+        "manifest_refused"
+      ],
+      "partial_since": "2026-03-02T03:06:07Z"
+    }
+  ],
   "aws_cloud_scans_truncated": true,
   "aws_cloud_scan_limit": 2,
   "scope_activity": {

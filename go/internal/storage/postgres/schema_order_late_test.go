@@ -475,4 +475,8 @@ var orderedBootstrapDefinitionNamesLate = []string{
 	// statistics object on (payload->>'cve_id') holding the CVE key
 	// probes on their partial index (CREATE STATISTICS plus ANALYZE).
 	"fact_records_vulnerability_cve_id_stats",
+	// Migration 284 (#10389) adds the durable per-scope supply-chain
+	// impact pass state behind the day-stuck-partial status degraded
+	// reason: one CREATE TABLE, no index.
+	"supply_chain_impact_scope_pass_state",
 }

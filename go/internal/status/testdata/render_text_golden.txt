@@ -53,6 +53,9 @@ Vulnerability sources:
   ghsa scope=scope-fixture-b freshness=stale terminal=failed results=9 warnings=1 ecosystem=npm error_class=timeout next_retry_at=2026-03-04T06:06:07Z
 Semantic extraction: state=available reason=provider_configured code_hints=enabled documentation_observations=enabled deterministic_paths=unaffected provider_profiles=2 profile=profile-fixture-a provider=embedding credential_source=vault credential_configured=true state=configured source_policy=true sources=code_hints,documentation; profile=profile-fixture-b provider=completion credential_source=environment credential_configured=true state=healthy source_policy=true sources=documentation semantic_queue_total=50 semantic_queue_pending=10 semantic_queue_retrying=4 semantic_queue_dead_letter=2 semantic_budget_exhausted=1 semantic_estimated_input_tokens=100000 semantic_actual_input_tokens=95000 semantic_estimated_cost_micros=500000 semantic_actual_cost_micros=470000 semantic_audit_actor_classes=collector=25 operator=5
 Collector generation dead letters: dead_letter=4 replay_requested=2 replay_attempts=6 oldest=20m0s
+Supply-chain stuck partial scopes:
+  scope-fixture-stuck-a causes=evidence_budget partial_since=2026-03-03T04:06:07Z
+  scope-fixture-stuck-b causes=active_expansion_rounds,manifest_refused partial_since=2026-03-02T03:06:07Z
 AWS cloud scans truncated: limit=2
 Flow:
   collector source=live progress=scopes active=11 pending=4 backlog=generations active=9 pending=3

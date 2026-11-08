@@ -117,6 +117,10 @@ func openProtectedPublishProof(t *testing.T) *protectedPublishProof {
 		// any DEFINER body. Base-table privileges are a DBA pregrant outside
 		// the migration set (243a); the proof grants them explicitly.
 		`GRANT SELECT, INSERT, UPDATE ON supply_chain_impact_write_admission TO "` + roleName + `"`,
+		// The impact writer records per-scope pass state in the same
+		// transaction (#10389): an ordinary base table, so a DBA pregrant
+		// like the admission table above.
+		`GRANT SELECT, INSERT, UPDATE ON supply_chain_impact_scope_pass_state TO "` + roleName + `"`,
 		`GRANT SELECT, INSERT, UPDATE ON fact_records TO "` + roleName + `"`,
 		// The change set behind the holder fan-out (#9695) reads scope_generations
 		// inside the write transaction to find the previous generation. The

@@ -46,9 +46,10 @@ func TestWriteSupplyChainImpactDerivedRequiresProtectedPublication(t *testing.T)
 
 // TestWriteSupplyChainImpactFindingsLocksUpsertsThenRetracts pins the #6831
 // and #7142 statement order inside the one transaction: conflict-domain lock
-// first, then the fencing admission, then the read of the rows about to be
-// overwritten (#9695), then the batched upsert, then the
-// retraction keyed to exactly the fact ids just written, then one commit.
+// first, then the fencing admission, then the per-scope pass-state upsert
+// (#10389), then the read of the rows about to be overwritten (#9695), then
+// the batched upsert, then the retraction keyed to exactly the fact ids just
+// written, then one commit.
 func TestWriteSupplyChainImpactFindingsLocksUpsertsThenRetracts(t *testing.T) {
 	t.Parallel()
 
@@ -62,8 +63,8 @@ func TestWriteSupplyChainImpactFindingsLocksUpsertsThenRetracts(t *testing.T) {
 		t.Fatalf("WriteSupplyChainImpactFindings() error = %v", err)
 	}
 	all := beginner.state.all
-	if got, want := len(all), 5; got != want {
-		t.Fatalf("statements = %d, want %d (lock, admit, stored read, upsert, retract)", got, want)
+	if got, want := len(all), 6; got != want {
+		t.Fatalf("statements = %d, want %d (lock, admit, pass state, stored read, upsert, retract)", got, want)
 	}
 	if all[0].Query != lockSupplyChainImpactConflictDomainQuery {
 		t.Fatalf("statement 0 = %q, want the conflict-domain lock", all[0].Query)
@@ -74,15 +75,18 @@ func TestWriteSupplyChainImpactFindingsLocksUpsertsThenRetracts(t *testing.T) {
 	if all[1].Query != supplyChainImpactAdmissionQuery {
 		t.Fatalf("statement 1 = %q, want the fencing admission", all[1].Query)
 	}
-	if all[2].Query != listStoredSupplyChainImpactFindingsQuery {
-		t.Fatalf("statement 2 = %q, want the stored-row read", all[2].Query)
+	if all[2].Query != supplyChainImpactScopePassStateQuery {
+		t.Fatalf("statement 2 = %q, want the per-scope pass-state upsert", all[2].Query)
 	}
-	if all[3].Query != factwrite.BatchInsertVersionedQuery {
-		t.Fatalf("statement 3 = %q, want the batched upsert", all[3].Query)
+	if all[3].Query != listStoredSupplyChainImpactFindingsQuery {
+		t.Fatalf("statement 3 = %q, want the stored-row read", all[3].Query)
 	}
-	retract := all[4]
+	if all[4].Query != factwrite.BatchInsertVersionedQuery {
+		t.Fatalf("statement 4 = %q, want the batched upsert", all[4].Query)
+	}
+	retract := all[5]
 	if retract.Query != retractSupersededSupplyChainImpactFindingsQuery {
-		t.Fatalf("statement 4 = %q, want the retraction", retract.Query)
+		t.Fatalf("statement 5 = %q, want the retraction", retract.Query)
 	}
 	wantArgs := []any{supplyChainImpactFactKind, write.ScopeID, write.GenerationID}
 	for i, want := range wantArgs {
@@ -122,10 +126,11 @@ func TestWriteSupplyChainImpactFindingsEmptyPassRetractsAll(t *testing.T) {
 		t.Fatalf("WriteSupplyChainImpactFindings() error = %v", err)
 	}
 	control := beginner.state.control.Execs
-	if len(control) != 3 || control[2].Query != retractSupersededSupplyChainImpactFindingsQuery {
-		t.Fatalf("control statements = %#v, want lock, admission, retraction", control)
+	if len(control) != 4 || control[2].Query != supplyChainImpactScopePassStateQuery ||
+		control[3].Query != retractSupersededSupplyChainImpactFindingsQuery {
+		t.Fatalf("control statements = %#v, want lock, admission, pass state, retraction", control)
 	}
-	if keep := control[2].Args[3].([]string); len(keep) != 0 {
+	if keep := control[3].Args[3].([]string); len(keep) != 0 {
 		t.Fatalf("keep set = %q, want empty", keep)
 	}
 }
@@ -161,6 +166,7 @@ func TestWriteSupplyChainImpactFindingsRollsBackOnFailure(t *testing.T) {
 	for _, failOn := range []string{
 		lockSupplyChainImpactConflictDomainQuery,
 		supplyChainImpactAdmissionQuery,
+		supplyChainImpactScopePassStateQuery,
 		factwrite.BatchInsertVersionedQuery,
 		retractSupersededSupplyChainImpactFindingsQuery,
 	} {

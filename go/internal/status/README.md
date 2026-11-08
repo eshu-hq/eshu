@@ -282,15 +282,31 @@ states (in priority order):
 | State | Condition |
 | --- | --- |
 | `stalled` | Overdue claims, or outstanding backlog with no in-flight work past `StallAfter` |
-| `degraded` | Dead-letter items, unresolved collector generation dead letters or replay requests, failed items, failed generations, or recent workflow-coordinator failures present. Coordinator failures use `RecentFailures` (a bounded window) when known so aged all-time failures no longer keep the state degraded; absent a window, cumulative coordinator counts apply |
+| `degraded` | Dead-letter items, unresolved collector generation dead letters or replay requests, failed items, failed generations, recent workflow-coordinator failures, or a supply-chain impact scope stuck partial for 24 h or more present. Coordinator failures use `RecentFailures` (a bounded window) when known so aged all-time failures no longer keep the state degraded; absent a window, cumulative coordinator counts apply |
 | `progressing` | Work queued, in flight, pending generation work, or outstanding shared projection intents with active partition leases or still below `StallAfter` |
 | `healthy` | No outstanding queue backlog or shared projection backlog |
+
+A scope whose last recorded supply-chain impact pass ended partial keeps its
+stale findings (#10389). While it stays partial for less than
+`SupplyChainStuckPartialDegradedAfter` (24 h) it converges silently; at or
+past it health reports `degraded` with one reason per stuck scope naming the
+scope, the stuck age, and the cause, e.g.
+`supply-chain impact scope "scope-1" partial for 26h4m12s (evidence_budget); findings are stale`.
+The cause values are the identity-affecting truncation causes
+(`active_expansion_rounds`, `evidence_budget`, `manifest_refused`). The
+source of truth is the durable per-scope pass state the reducer write
+transaction maintains, not the process-local headroom gauges; a later full
+complete pass clears it, while a scoped complete (stamped subset only)
+leaves the state untouched. The drilldown rides the text surface as
+`Supply-chain stuck partial scopes:` lines and the JSON surface as
+`supply_chain_stuck_partials[]` (`scope_id`, `causes`, `partial_since`).
 
 ### Rendering and serving
 
 - `RenderText(report)` — compact multi-line text for CLI and plain-text admin
   endpoints; includes health, queue, retry policies, collector generation
-  dead-letter state, scope activity, generation history, stage summaries,
+  dead-letter state, supply-chain stuck partial scopes, scope activity,
+  generation history, stage summaries,
   domain backlogs, queue blockages, coordinator state, collector backpressure,
   derived collector runtime classification, collector promotion proofs for
   present collectors, registry collector state, AWS cloud scan state, AWS

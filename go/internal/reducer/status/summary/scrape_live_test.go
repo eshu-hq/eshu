@@ -229,14 +229,14 @@ func TestScrapeStatementInventoryOnAnEmptyStoreLive(t *testing.T) {
 	onTotal, onActive, onCoordinator := inventory(scrapeSelection(), true)
 	t.Logf("statements per scrape on an empty store: before=%d (active-work %d, coordinator %d), reader off=%d (%d, %d), reader on=%d (%d, %d)",
 		beforeTotal, beforeActive, beforeCoordinator, offTotal, offActive, offCoordinator, onTotal, onActive, onCoordinator)
-	if beforeTotal != 25 || beforeActive != 1 || beforeCoordinator != 8 {
-		t.Fatalf("before = %d statements, %d active-work, %d coordinator; want 25, 1 and 8", beforeTotal, beforeActive, beforeCoordinator)
+	if beforeTotal != 26 || beforeActive != 1 || beforeCoordinator != 8 {
+		t.Fatalf("before = %d statements, %d active-work, %d coordinator; want 26, 1 and 8", beforeTotal, beforeActive, beforeCoordinator)
 	}
-	if offTotal != 21 || offActive != 1 || offCoordinator != 8 {
-		t.Fatalf("reader off = %d statements, %d active-work, %d coordinator; want 21, 1 and 8", offTotal, offActive, offCoordinator)
+	if offTotal != 22 || offActive != 1 || offCoordinator != 8 {
+		t.Fatalf("reader off = %d statements, %d active-work, %d coordinator; want 22, 1 and 8", offTotal, offActive, offCoordinator)
 	}
-	if onTotal != 16 || onActive != 0 || onCoordinator != 0 {
-		t.Fatalf("reader on = %d statements, %d active-work, %d coordinator; want 16 (the active-work and the eight coordinator statements are replaced by a clock and a row read for each of the two models), 0 and 0",
+	if onTotal != 17 || onActive != 0 || onCoordinator != 0 {
+		t.Fatalf("reader on = %d statements, %d active-work, %d coordinator; want 17 (the active-work and the eight coordinator statements are replaced by a clock and a row read for each of the two models), 0 and 0",
 			onTotal, onActive, onCoordinator)
 	}
 }

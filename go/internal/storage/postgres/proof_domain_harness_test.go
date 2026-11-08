@@ -234,6 +234,11 @@ func (database *proofDomainDB) QueryContext(_ context.Context, query string, arg
 		return newProofRows(nil), nil
 	case query == registryMetadataTargetStatusQuery:
 		return newProofRows(nil), nil
+	case query == supplyChainImpactStuckPartialStatusQuery:
+		// The #10389 stuck-partial status read: the proof domain never
+		// records a partial pass, so no scope is stuck and the snapshot
+		// resolves over zero rows.
+		return newProofRows(nil), nil
 	case query == listActiveRepositoryFactsQuery:
 		// Supersession-only active read: visible iff the fact's generation is
 		// the scope's active generation and that generation is active. No

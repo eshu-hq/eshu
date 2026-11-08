@@ -49,6 +49,12 @@ type SupplyChainImpactWrite struct {
 	// tail does not set it, so a scope larger than one page still converges
 	// (#7154).
 	PartialEvidence bool
+	// PartialCauses is the identity-affecting cause set that made this pass
+	// partial (supplyChainImpactTruncation.causes), empty for a complete
+	// pass. The writer records it on the durable per-scope pass state
+	// (#10389) so the status degraded reason can name the cause; it never
+	// reaches a metric label.
+	PartialCauses []string
 	// FencingToken is the database-issued ordering value this pass was stamped
 	// with at evidence-read time (#7142). The writer admits the write only when
 	// no fresher pass was admitted for the (scope, generation), stamps every

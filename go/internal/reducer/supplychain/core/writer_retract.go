@@ -142,6 +142,16 @@ func commitSupplyChainImpactRows(
 			fencingToken: write.FencingToken,
 		}
 	}
+	// Record the scope's durable per-scope pass state in the same
+	// transaction (#10389): a partial pass marks the scope stuck with its
+	// causes, a full complete pass clears it, and a scoped complete leaves
+	// the state untouched because it re-derives only its stamped subset
+	// (#9779). It runs on the admitted path only, and it fails the pass
+	// when the state cannot be recorded: state that disagrees with the
+	// committed rows is worse than a retried pass.
+	if err := recordSupplyChainImpactScopePassState(ctx, tx, write, now); err != nil {
+		return supplyChainImpactTxOutcome{}, err
+	}
 	// Read what the pass is about to overwrite, after the lock (no concurrent
 	// pass of this conflict domain can change it) and before the upsert, so the
 	// change set compares the new rows with the rows they replace (#9695).

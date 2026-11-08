@@ -44,6 +44,7 @@ func RenderJSON(report Report) ([]byte, error) {
 		AnswerNarration                answerNarrationJSON                 `json:"answer_narration"`
 		ActiveWorkSource               *ActiveWorkSourceJSON               `json:"active_work_source,omitempty"`
 		CollectorGenerationDeadLetters collector.GenerationDeadLetterJSON  `json:"collector_generation_dead_letters"`
+		SupplyChainStuckPartials       []supplyChainStuckPartialJSON       `json:"supply_chain_stuck_partials,omitempty"`
 		AWSCloudScansTruncated         bool                                `json:"aws_cloud_scans_truncated,omitempty"`
 		AWSCloudScanLimit              int                                 `json:"aws_cloud_scan_limit,omitempty"`
 		ScopeActivity                  scopeActivityJSON                   `json:"scope_activity"`
@@ -84,6 +85,7 @@ func RenderJSON(report Report) ([]byte, error) {
 		AnswerNarration:                answerNarrationStatusJSON(report.AnswerNarration),
 		ActiveWorkSource:               report.ActiveWorkSource.JSON(),
 		CollectorGenerationDeadLetters: collector.GenerationDeadLetterJSONFrom(report.CollectorGenerationDeadLetters),
+		SupplyChainStuckPartials:       supplyChainStuckPartialsJSON(report.SupplyChainStuckPartials),
 		AWSCloudScansTruncated:         report.AWSCloudScansTruncated,
 		AWSCloudScanLimit:              awsCloudScanLimitJSON(report),
 		ScopeActivity:                  scopeActivityJSONFromReport(report.ScopeActivity),
