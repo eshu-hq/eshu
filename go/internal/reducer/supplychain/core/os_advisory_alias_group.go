@@ -302,10 +302,9 @@ func groupOSAdvisoriesByAlias(index *supplyChainImpactIndex, config supplyChainA
 			}
 			sets.union(anchor, internal[id])
 		}
+		// No deny check here: aliasRecordDenied above already skipped every
+		// record naming a listed id, so no listed id reaches this union.
 		for _, alias := range record.aliases {
-			if _, denied := config.deny[alias]; denied {
-				continue
-			}
 			sets.union(anchor, intern(alias))
 		}
 	}
@@ -371,13 +370,39 @@ func (h SupplyChainImpactHandler) emitAliasAdvisoryGroups(ctx context.Context, s
 }
 
 // aliasRecordDenied reports whether a deny-listed id names the record: its
-// advisory id or any of its CVE ids.
+// advisory id, any of its CVE ids, or any of its aliases. A record naming a
+// listed id drops entirely, so an alias edge to a listed id denies the
+// record that carries it and never reaches the union below.
 func aliasRecordDenied(record aliasGroupRecord, config supplyChainAliasGroupConfig) bool {
 	if _, ok := config.deny[record.advisoryID]; ok {
 		return true
 	}
 	for _, id := range record.cveIDs {
 		if _, ok := config.deny[id]; ok {
+			return true
+		}
+	}
+	for _, alias := range record.aliases {
+		if _, ok := config.deny[alias]; ok {
+			return true
+		}
+	}
+	return false
+}
+
+// aliasObservationDenied reports whether a recordless native observation
+// (empty AdvisoryID, so aliasGroupRecords built no record for it) names a
+// deny-listed id itself: its CVE id or any of its aliases. The deny sweep
+// keeps recordless observations by default and consults this for the ones
+// it must still drop.
+func aliasObservationDenied(cve supplychainmodel.ImpactCVE, config supplyChainAliasGroupConfig) bool {
+	if cve.CVEID != "" {
+		if _, denied := config.deny[cve.CVEID]; denied {
+			return true
+		}
+	}
+	for _, alias := range cve.Aliases {
+		if _, denied := config.deny[alias]; denied {
 			return true
 		}
 	}

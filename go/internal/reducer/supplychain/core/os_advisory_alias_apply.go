@@ -44,13 +44,12 @@ func applyAliasGroups(
 	for i := range records {
 		byAdvisory[records[i].advisoryID] = i
 	}
-	denied := func(advisoryID string) bool {
-		i, ok := byAdvisory[advisoryID]
-		return ok && aliasRecordDenied(records[i], config)
-	}
 	// A denied record and everything keyed to it leaves the index: the
-	// record contributes no observation, package, product, or edge. The
-	// lists ship empty, so a pass with no denials keeps the index as is.
+	// record contributes no observation, package, product, or edge. A
+	// recordless observation (empty AdvisoryID, so aliasGroupRecords built
+	// no record for it) keeps its place unless it names a listed id
+	// itself, so deny never sweeps recordless evidence outright. The lists
+	// ship empty, so a pass with no denials keeps the index as is.
 	if len(config.deny) > 0 {
 		kept := make([]supplychainmodel.ImpactCVE, 0, len(index.cves))
 		for _, cve := range index.cves {
@@ -58,7 +57,11 @@ func applyAliasGroups(
 				kept = append(kept, cve)
 				continue
 			}
-			if _, ok := byAdvisory[cve.AdvisoryID]; !ok || denied(cve.AdvisoryID) {
+			if idx, ok := byAdvisory[cve.AdvisoryID]; ok {
+				if aliasRecordDenied(records[idx], config) {
+					continue
+				}
+			} else if aliasObservationDenied(cve, config) {
 				continue
 			}
 			kept = append(kept, cve)
@@ -172,7 +175,9 @@ func aliasComponentOutcome(
 }
 
 // dropAliasDeniedEvidence removes the packages and products a denied record
-// named: a deny-listed record contributes nothing to any finding.
+// named: a deny-listed record contributes nothing to any finding. Packages
+// drop by advisory id; products, which carry none, drop by key, except keys
+// a kept record still names.
 func dropAliasDeniedEvidence(
 	index *supplyChainImpactIndex,
 	records []aliasGroupRecord,
@@ -201,9 +206,31 @@ func dropAliasDeniedEvidence(
 		}
 		index.affectedPackages[key] = kept
 	}
-	for key, products := range index.affectedProducts {
-		_ = key
-		_ = products
+	// Products carry no advisory id, so they drop by key: a key every
+	// record naming it has denied loses its products. A key a kept record
+	// still names keeps them — the finding under that key is the kept
+	// record's, and clearing shared evidence would delete live findings.
+	deniedKeys := make(map[string]struct{})
+	keptKeys := make(map[string]struct{})
+	for i := range records {
+		keys := keptKeys
+		if aliasRecordDenied(records[i], config) {
+			keys = deniedKeys
+		}
+		if records[i].advisoryID != "" {
+			keys[records[i].advisoryID] = struct{}{}
+		}
+		for _, key := range records[i].cveIDs {
+			if key != "" {
+				keys[key] = struct{}{}
+			}
+		}
+	}
+	for key := range deniedKeys {
+		if _, kept := keptKeys[key]; kept {
+			continue
+		}
+		delete(index.affectedProducts, key)
 	}
 }
 
