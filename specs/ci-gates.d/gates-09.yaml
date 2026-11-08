@@ -170,6 +170,7 @@ gates:
       - "scripts/lib/live_postgres_readiness_refresh_v2_provenance.py"
       - "scripts/lib/live_postgres_readiness_refresh_v2_pool.py"
       - "scripts/test-live-postgres-readiness-refresh-v2.py"
+      - "scripts/test-readiness-refit-evidence.py"
       - "scripts/lib/live_postgres_readiness_calibration*.py"
       - "scripts/test-live-postgres-readiness-calibration.py"
       - "specs/live-postgres-readiness-calibration.v1.json"
@@ -221,6 +222,7 @@ gates:
       - "scripts/lib/live_postgres_readiness_refresh_v2_provenance.py"
       - "scripts/lib/live_postgres_readiness_refresh_v2_pool.py"
       - "scripts/test-live-postgres-readiness-refresh-v2.py"
+      - "scripts/test-readiness-refit-evidence.py"
       - "scripts/lib/live_postgres_readiness_calibration*.py"
       - "scripts/test-live-postgres-readiness-calibration.py"
       - "specs/live-postgres-readiness-calibration.v1.json"
@@ -230,7 +232,7 @@ gates:
       - "scripts/test-live-postgres-readiness-shards.py"
     local:
       command: "bash scripts/test-run-live-postgres-readiness-tests.sh"
-      test_command: "bash scripts/test-run-live-postgres-readiness-selftest-seeds.sh && python3 scripts/test-live-postgres-readiness-helper.py && python3 scripts/test-live-postgres-readiness-shards.py && python3 scripts/test-live-postgres-readiness-refresh-v2.py && python3 scripts/test-live-postgres-readiness-calibration.py && bash scripts/ci/test-live-postgres-readiness-job-summary.sh"
+      test_command: "bash scripts/test-run-live-postgres-readiness-selftest-seeds.sh && python3 scripts/test-live-postgres-readiness-helper.py && python3 scripts/test-live-postgres-readiness-shards.py && python3 scripts/test-live-postgres-readiness-refresh-v2.py && python3 scripts/test-readiness-refit-evidence.py && python3 scripts/test-live-postgres-readiness-calibration.py && bash scripts/ci/test-live-postgres-readiness-job-summary.sh"
       pre_push: floor
     ci:
       workflow: live-postgres-readiness.yml

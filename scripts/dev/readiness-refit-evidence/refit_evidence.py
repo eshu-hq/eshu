@@ -179,7 +179,12 @@ def cmd_poolcheck(args: argparse.Namespace) -> int:
     profiles: set[tuple[str, ...]] = set()
     ok = True
     for run_dir in args.runs:
-        run = json.loads((run_dir / "run.json").read_text())
+        run_file = run_dir / "run.json"
+        if not run_file.exists():
+            raise ValueError(f"{run_dir.name}: poolcheck requires run.json for run-level "
+                             "metadata (conclusion/event/branch); score/shards/tail use the "
+                             "jobs.json fallback")
+        run = json.loads(run_file.read_text())
         jobs = list(shard_jobs(run_dir).values())
         count = len(jobs)
         green = (run["conclusion"] == "success" and run["event"] == "push"

@@ -78,6 +78,23 @@ class RunHeadShaCases(unittest.TestCase):
             driver.run_head_sha(run_dir)
 
 
+class PoolcheckContractCases(unittest.TestCase):
+    """poolcheck refuses runs without run.json instead of crashing."""
+
+    def setUp(self) -> None:
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+
+    def test_rejects_run_without_run_json(self) -> None:
+        """A run dir without run.json fails closed with a named reason."""
+        from argparse import Namespace
+        run_dir = self.root / "42420000001"
+        run_dir.mkdir()
+        with self.assertRaisesRegex(ValueError, "requires run.json"):
+            driver.cmd_poolcheck(Namespace(runs=[run_dir]))
+
+
 class OldLibCompatCases(unittest.TestCase):
     """The driver evaluates refresher commits that predate excuse support."""
 
