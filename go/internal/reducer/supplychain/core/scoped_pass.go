@@ -9,46 +9,11 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
-	"github.com/eshu-hq/eshu/go/internal/packageidentity"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	"github.com/eshu-hq/eshu/go/internal/reducer/packages/correlation"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
-
-// ScopedFindingPackage is one (CVE, package) identity a scope's active
-// finding rows carry for a stamped CVE (#9779). The scoped pass seeds its
-// evidence filters from these rows instead of from everything the scope
-// holds, so the manifest name list and the cross-scope evidence filter
-// follow the stamped change.
-type ScopedFindingPackage struct {
-	CVEID       string
-	PackageID   string
-	PURL        string
-	PackageName string
-	Ecosystem   string
-}
-
-// scopedFindingPackageSource loads the finding-row package seeds of one
-// (scope, generation) for stamped CVEs. The handler asserts it at runtime;
-// a loader without it runs the pass full, so test doubles and legacy seams
-// never scope by accident.
-type scopedFindingPackageSource interface {
-	ListScopedSupplyChainImpactFindingPackages(ctx context.Context, scopeID, generationID string, cveIDs []string) ([]ScopedFindingPackage, error)
-}
-
-// scopedSupplyChainImpactScope is what one re-derivation may load: the
-// stamped CVEs plus the package, advisory, and upstream identities those
-// CVEs reach through the scope's own advisories and finding rows.
-type scopedSupplyChainImpactScope struct {
-	cves        []string
-	packages    map[string]struct{}
-	purls       map[string]struct{}
-	names       map[string]struct{}
-	ecosystems  map[string]struct{}
-	advisoryIDs map[string]struct{}
-	upstream    map[string]struct{}
-}
 
 // scopedPassCVEIDs decides whether this pass re-derives a scoped set (#9779).
 // Only a one-hop pass whose stamp names a bounded CVE set qualifies: the
@@ -65,149 +30,6 @@ func scopedPassCVEIDs(intent reducercontract.Intent) []string {
 	out := append([]string(nil), stamp...)
 	sort.Strings(out)
 	return out
-}
-
-// seedScopedSupplyChainImpactScope collects the identities a scoped pass may
-// load: the stamped CVEs, the packages those CVEs reach (the scope's own
-// stamped advisories plus the finding rows that made this scope a holder),
-// and the advisory and upstream keys of the stamped advisories. It reports
-// false when there is nothing to scope by — no finding rows and no local
-// stamped advisory — so the pass runs full instead of loading an empty set.
-func seedScopedSupplyChainImpactScope(
-	scopeEnvelopes []facts.Envelope,
-	findingPackages []ScopedFindingPackage,
-	stamp []string,
-) (*scopedSupplyChainImpactScope, bool) {
-	stampSet := make(map[string]struct{}, len(stamp))
-	for _, id := range stamp {
-		stampSet[id] = struct{}{}
-	}
-	scope := &scopedSupplyChainImpactScope{
-		cves:        append([]string(nil), stamp...),
-		packages:    map[string]struct{}{},
-		purls:       map[string]struct{}{},
-		names:       map[string]struct{}{},
-		ecosystems:  map[string]struct{}{},
-		advisoryIDs: map[string]struct{}{},
-		upstream:    map[string]struct{}{},
-	}
-	for _, envelope := range scopeEnvelopes {
-		switch envelope.FactKind {
-		case chain.VulnerabilityCVEFactKind,
-			chain.VulnerabilityAffectedPackageFactKind,
-			chain.VulnerabilityAffectedProductFactKind:
-			if !inStampSet(stampSet, supplyChainCVEID(envelope.Payload)) {
-				continue
-			}
-			seedScopedAdvisoryPackage(scope, envelope)
-			if id := payloadcore.PayloadStr(envelope.Payload, "advisory_id"); id != "" {
-				scope.advisoryIDs[id] = struct{}{}
-			}
-			for _, key := range appendUpstreamCVEKeys(nil, envelope.Payload) {
-				scope.upstream[key] = struct{}{}
-			}
-		case chain.VulnerabilityEPSSScoreFactKind,
-			chain.VulnerabilityKnownExploitedFactKind:
-			if !inStampSet(stampSet, supplyChainCVEID(envelope.Payload)) {
-				continue
-			}
-		case chain.VulnerabilitySuppressionFactKind:
-			scopeMap := payloadcore.PayloadMap(envelope.Payload, "scope")
-			if scopeMap == nil {
-				continue
-			}
-			if _, ok := stampSet[payloadcore.PayloadStr(scopeMap, "cve_id")]; !ok {
-				continue
-			}
-			if id := payloadcore.PayloadStr(scopeMap, "package_id"); id != "" {
-				scope.packages[id] = struct{}{}
-			}
-		case facts.SecurityAlertRepositoryAlertFactKind:
-			hit := false
-			for _, id := range payloadcore.PayloadStrings(envelope.Payload, "cve_id", "cve_ids") {
-				if _, ok := stampSet[id]; ok {
-					hit = true
-					break
-				}
-			}
-			if !hit {
-				continue
-			}
-			seedScopedAdvisoryPackage(scope, envelope)
-		}
-	}
-	for _, row := range findingPackages {
-		if _, ok := stampSet[row.CVEID]; !ok {
-			continue
-		}
-		if id := canonicalSupplyChainAffectedPackageID(row.PackageID, row.PURL); id != "" {
-			scope.packages[id] = struct{}{}
-		}
-		if row.PURL != "" {
-			scope.purls[row.PURL] = struct{}{}
-		}
-		eco := string(packageidentity.NormalizeEcosystem(packageidentity.Ecosystem(row.Ecosystem)))
-		if eco != "" {
-			scope.ecosystems[eco] = struct{}{}
-		}
-		for _, name := range scopedFindingPackageNameCandidates(row, eco) {
-			scope.names[name] = struct{}{}
-		}
-	}
-	if len(scope.packages) == 0 && len(scope.advisoryIDs) == 0 {
-		return nil, false
-	}
-	return scope, true
-}
-
-// seedScopedAdvisoryPackage folds one stamped advisory envelope's package
-// identities into the scope, using the same canonicalization and name
-// candidates the manifest filter derivation uses, so the seeded names match
-// the names the full derivation would emit for the same envelopes.
-func seedScopedAdvisoryPackage(scope *scopedSupplyChainImpactScope, envelope facts.Envelope) {
-	switch envelope.FactKind {
-	case chain.VulnerabilityAffectedPackageFactKind:
-		pkg, ok := supplyChainImpactManifestDependencyPackage(envelope)
-		if !ok {
-			return
-		}
-		if id := canonicalSupplyChainAffectedPackageID(pkg.PackageID, pkg.PURL); id != "" {
-			scope.packages[id] = struct{}{}
-		}
-		if pkg.PURL != "" {
-			scope.purls[pkg.PURL] = struct{}{}
-		}
-		if id := payloadcore.PayloadStr(envelope.Payload, "advisory_id"); id != "" {
-			scope.advisoryIDs[id] = struct{}{}
-		}
-		eco := string(packageidentity.NormalizeEcosystem(packageidentity.Ecosystem(pkg.Ecosystem)))
-		if eco != "" {
-			scope.ecosystems[eco] = struct{}{}
-		}
-		for _, name := range supplyChainAffectedPackageNameCandidates(pkg) {
-			for _, candidate := range correlation.PackageConsumptionNameCandidates(packageidentity.Ecosystem(eco), name) {
-				scope.names[candidate] = struct{}{}
-			}
-		}
-	case facts.SecurityAlertRepositoryAlertFactKind:
-		if id := payloadcore.PayloadStr(envelope.Payload, "package_id"); id != "" {
-			scope.packages[id] = struct{}{}
-		}
-	}
-}
-
-// scopedFindingPackageNameCandidates mirrors the manifest name pipeline for
-// a finding row: the row's own name plus the purl and package-id spellings,
-// each folded per ecosystem the way the filter derivation folds them.
-func scopedFindingPackageNameCandidates(row ScopedFindingPackage, ecosystem string) []string {
-	var out []string
-	for _, name := range []string{row.PackageName, packageNameFromPURL(row.PURL), packageNameFromPackageID(row.PackageID)} {
-		if name == "" {
-			continue
-		}
-		out = append(out, correlation.PackageConsumptionNameCandidates(packageidentity.Ecosystem(ecosystem), name)...)
-	}
-	return payloadcore.UniqueSortedStrings(out)
 }
 
 // scopedSupplyChainImpactFilter derives the cross-scope evidence filter for
@@ -273,19 +95,12 @@ func (h SupplyChainImpactHandler) scopeSupplyChainImpactPass(
 	return scope
 }
 
-// inStampSet reports whether an id is in the stamp. It keeps the seeding
-// switch readable and gives the linter a named predicate instead of a blank
-// map probe.
-func inStampSet(set map[string]struct{}, id string) bool {
-	_, ok := set[id]
-	return ok
-}
-
 // scopeSupplyChainImpactEnvelopes selects the envelopes a scoped pass derives
-// its evidence filters from: stamped advisories and signals, envelopes naming
-// a seeded package, manifest content for seeded names, and envelopes with no
-// CVE or package linkage, which cannot be attributed to a change and stay.
-// Everything else belongs to findings this pass does not re-derive.
+// its evidence filters from: stamped advisories and signals, advisories an
+// upstream key joins to the stamp, envelopes naming a seeded package,
+// manifest content for seeded names, and envelopes with no CVE or package
+// linkage, which cannot be attributed to a change and stay. Everything else
+// belongs to findings this pass does not re-derive.
 func scopeSupplyChainImpactEnvelopes(envelopes []facts.Envelope, scope *scopedSupplyChainImpactScope) []facts.Envelope {
 	stampSet := make(map[string]struct{}, len(scope.cves))
 	for _, id := range scope.cves {
@@ -307,8 +122,8 @@ func scopedEnvelopeIncluded(envelope facts.Envelope, scope *scopedSupplyChainImp
 	case chain.VulnerabilityCVEFactKind,
 		chain.VulnerabilityAffectedPackageFactKind,
 		chain.VulnerabilityAffectedProductFactKind:
-		_, ok := stampSet[supplyChainCVEID(envelope.Payload)]
-		return ok
+		return stampReachesAdvisory(envelope.Payload, stampSet) ||
+			scopedAdvisoryLinked(scope, envelope.Payload)
 	case chain.VulnerabilityGoCallReachabilityFactKind:
 		_, ok := stampSet[payloadcore.PayloadStr(envelope.Payload, "osv_id")]
 		return ok
