@@ -45,7 +45,7 @@ fact (`distro=debian-11`), and 2 installed rows (Debian 11 + 12) on
 darwin/arm64 (Apple M5 Max), Go 1.27.3, `-benchtime 1s -count 3`:
 
 - base `c1cb309c1d`: 26185/26082/26206 ns/op, 45521–45522 B/op, 396 allocs/op
-- after `9ca5de3d`: 25820/26024/26173 ns/op, 45589–45591 B/op, 400 allocs/op
+- after `bcbc8673`: 25820/26024/26173 ns/op, 45589–45591 B/op, 400 allocs/op
 
 Ranges overlap; bytes differ by 68 B/op (+0.15%) and allocs by +4/op on a
 400-alloc build. The extra work is bounded: one `osAdvisoryReleaseResult`
