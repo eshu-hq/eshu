@@ -286,6 +286,15 @@ type Instruments struct {
 	// distinguish "the pipeline is draining slowly" from "this run can
 	// never converge on its own."
 	WorkflowRunTerminalDeadLetterBlocks metric.Int64Counter
+	// WorkflowRunUnknownTriggerSkips counts workflow runs skipped by
+	// ReconcileWorkflowRuns because their trigger kind falls outside the
+	// closed workflow.TriggerKind set (#10369). Unlabeled by design: the
+	// trigger value comes from durable storage and is unbounded, so it
+	// must never become a label value (the run_id and trigger text ride
+	// on the WARN log instead). A nonzero rate means poison rows are
+	// present: the pass keeps completing healthy runs, but an operator
+	// should repair or remove the offending workflow_runs rows.
+	WorkflowRunUnknownTriggerSkips metric.Int64Counter
 	// WorkflowClaimQuotaExceeded counts claims that found eligible work but
 	// granted nothing because the per-component generation quota blocked
 	// them (#8471). Labeled by collector_kind and quota_kind (closed
@@ -3516,6 +3525,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register WorkflowRunTerminalDeadLetterBlocks counter: %w", err)
+	}
+
+	inst.WorkflowRunUnknownTriggerSkips, err = meter.Int64Counter(
+		"eshu_dp_workflow_run_unknown_trigger_skips_total",
+		metric.WithDescription("Total workflow runs skipped by run reconciliation because their trigger kind is outside the closed trigger set, unlabeled (#10369)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register WorkflowRunUnknownTriggerSkips counter: %w", err)
 	}
 
 	inst.WorkflowClaimQuotaExceeded, err = meter.Int64Counter(
