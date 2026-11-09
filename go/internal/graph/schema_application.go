@@ -86,14 +86,30 @@ const (
 	// mint a second node beside every canonical one. It must stop before
 	// writing, not write a graph an operator then has to repair.
 	//
+	// On top of that stack rides the #10411 advisory_group_id constraint
+	// (see graphSchemaNeo4jPreAdvisoryGroupFingerprint below).
+	//
 	// The previous values (graphSchemaNeo4jPreModuleImportKeyFingerprint in
 	// schema_predecessors.go) were the #6102 (name, lang) cutover plus the
 	// additive index bumps after it: #6541 directory_repo_id, #6793
 	// tf_module/tf_output evidence_source, the Neo4j-only #7057 uid indexes,
 	// the #7095/#7097 constraint retirements, #7675, and the Neo4j-only #7245
 	// infra_search_key_ft index.
-	graphSchemaNeo4jFingerprint    = "efee7a92098bc5435682a862b05f111ee71516be1ff8dcef5144640ef0113dde"
-	graphSchemaNornicDBFingerprint = "62293e2a1184853135857279221186fee30e489005295e5aeacfb20e7cc7c7e9"
+	graphSchemaNeo4jFingerprint    = "dbdb3f94defd391d7a4f313c3e43d30305a4a72de89c6e9434cc13391da14237"
+	graphSchemaNornicDBFingerprint = "162380e5bb9887b3b9c596ca0a677e18d8d98d48fde08f2c83b926f139cd4551"
+
+	// graphSchemaNeo4jPreAdvisoryGroupFingerprint and its NornicDB peer are
+	// the schema fingerprints immediately before the #10411 advisory_group_id
+	// constraint. The constraint backs a new reducer domain
+	// (advisory_group_projection), so per the rule in
+	// graphSchemaCompatibleFingerprints the new fingerprint lists no
+	// compatible predecessors: a writer on the previous release knows
+	// nothing of the AdvisoryGroup family and must stop at the fence
+	// rather than write beside it. The predecessor's own compatible entry
+	// (the #9558 pre-SSMHost tip) is preserved under its own key in
+	// schema_predecessors.go, unreachable from the current lookup.
+	graphSchemaNeo4jPreAdvisoryGroupFingerprint    = "efee7a92098bc5435682a862b05f111ee71516be1ff8dcef5144640ef0113dde"
+	graphSchemaNornicDBPreAdvisoryGroupFingerprint = "62293e2a1184853135857279221186fee30e489005295e5aeacfb20e7cc7c7e9"
 
 	// graphSchemaNeo4jPreSSMHostFingerprint and its NornicDB peer are the
 	// schema fingerprints immediately before the #9558 SSMHostApplication /

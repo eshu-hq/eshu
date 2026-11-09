@@ -39,9 +39,11 @@ func TestModuleImportKeyConstraintLandsOnBothBackends(t *testing.T) {
 // TestModuleImportKeyIsAWriteIdentityCutover proves the #8168 identity change
 // fences every pre-cutover writer. Those writers MERGE Module on (name, lang)
 // and never set import_key, so they would mint a second node. The immediate
-// predecessor stays safe under the additive uid-constraint bumps since the
-// cutover (DockerfileInstall, then the #9558 SSM host observation labels,
-// neither of which its writers emit) and remains compatible.
+// predecessor stayed compatible through the additive uid-constraint bumps
+// after the cutover (DockerfileInstall, then the #9558 SSM host observation
+// labels); the #10411 AdvisoryGroup constraint backs a new reducer domain,
+// so the current fingerprint now lists no compatible predecessors at all
+// and every earlier writer — pre-cutover included — stops at the fence.
 func TestModuleImportKeyIsAWriteIdentityCutover(t *testing.T) {
 	t.Parallel()
 
@@ -67,8 +69,8 @@ func TestModuleImportKeyIsAWriteIdentityCutover(t *testing.T) {
 		if app.Fingerprint == tc.preCutover {
 			t.Fatalf("%s fingerprint did not move for the import_key cutover", backend)
 		}
-		if !slices.Equal(app.CompatibleFingerprints, []string{tc.postCutover}) {
-			t.Fatalf("%s CompatibleFingerprints = %v, want only immediate post-cutover predecessor %s", backend, app.CompatibleFingerprints, tc.postCutover)
+		if len(app.CompatibleFingerprints) != 0 {
+			t.Fatalf("%s CompatibleFingerprints = %v, want none: the #10411 domain-coupled bump fences every predecessor, post-cutover %s included", backend, app.CompatibleFingerprints, tc.postCutover)
 		}
 		for _, unsafe := range graphSchemaCompatibleFingerprints[backend][tc.preCutover] {
 			if slices.Contains(app.CompatibleFingerprints, unsafe) {

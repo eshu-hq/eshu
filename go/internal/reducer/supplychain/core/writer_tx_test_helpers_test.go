@@ -59,6 +59,7 @@ type fakeStoredFinding struct {
 	stableKey    string
 	digest       string
 	cveID        string
+	advisoryID   string
 	fencingToken int64
 }
 
@@ -131,13 +132,22 @@ func (t fakeImpactTx) QueryContext(_ context.Context, query string, args ...any)
 	case listStoredSupplyChainImpactFindingsQuery:
 		rows := make([][]any, 0, len(t.state.stored))
 		for _, row := range t.state.stored {
-			rows = append(rows, []any{row.factID, row.generationID, row.stableKey, row.digest, row.cveID, row.fencingToken})
+			rows = append(rows, []any{row.factID, row.generationID, row.stableKey, row.digest, row.cveID, row.advisoryID, row.fencingToken})
 		}
 		return &fakeImpactRows{rows: rows}, nil
 	case listSupplyChainImpactCVEIDsQuery:
 		rows := make([][]any, 0, len(t.state.cveRows))
 		for _, id := range t.state.cveRows {
 			rows = append(rows, []any{id})
+		}
+		return &fakeImpactRows{rows: rows}, nil
+	case listSupplyChainImpactGroupIDsQuery:
+		rows := make([][]any, 0, len(t.state.stored)+len(t.state.cveRows))
+		for _, row := range t.state.stored {
+			rows = append(rows, []any{row.cveID, row.advisoryID})
+		}
+		for _, id := range t.state.cveRows {
+			rows = append(rows, []any{id, ""})
 		}
 		return &fakeImpactRows{rows: rows}, nil
 	case selectSuppressionCandidatesQuery:

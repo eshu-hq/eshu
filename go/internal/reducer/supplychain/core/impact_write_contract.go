@@ -99,6 +99,16 @@ type SupplyChainImpactWriteResult struct {
 	// still fans these out: a stamped first pass of an operator generation
 	// would otherwise admit without fanning out.
 	SuppressionCVEIDs []string
+	// TouchedGroupIDs are the advisory-group ids (#10411), sorted and
+	// de-duplicated, of every finding row this pass changed: each changed
+	// or retracted row keyed by its CVE id, or by its advisory id when it
+	// names no CVE, plus the group a rewritten row left, plus the CVEs the
+	// pass's changed suppressions name, plus — for a recovery write —
+	// every group the scope's rows name. The handler enqueues one
+	// advisory_group_projection intent per id after the commit. It is an
+	// additive companion to ChangedCVEIDs: the CVE-keyed sets and the
+	// holder fan-out do not read it.
+	TouchedGroupIDs []string
 	// suppressionDiff is the pass's suppression diff report for the
 	// handler's signals: action, baseline, counts, and duration.
 	suppressionDiff suppressionDiffReport

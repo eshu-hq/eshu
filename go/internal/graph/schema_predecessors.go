@@ -115,7 +115,10 @@ const (
 
 var graphSchemaCompatibleFingerprints = map[SchemaBackend]map[string][]string{
 	SchemaBackendNeo4j: {
-		graphSchemaNeo4jFingerprint: {graphSchemaNeo4jPreSSMHostFingerprint},
+		// #10411: the current fingerprint backs a new reducer domain, so it
+		// deliberately has no entry here (no compatible predecessors). The
+		// pre-AdvisoryGroup tip keeps its own historical entry below.
+		graphSchemaNeo4jPreAdvisoryGroupFingerprint: {graphSchemaNeo4jPreSSMHostFingerprint},
 		graphSchemaNeo4jPreModuleImportKeyFingerprint: {
 			graphSchemaNeo4jPreInfraSearchKeyIndexesFingerprint,
 			graphSchemaNeo4jPreFulltextModernFormFingerprint,
@@ -145,7 +148,7 @@ var graphSchemaCompatibleFingerprints = map[SchemaBackend]map[string][]string{
 		},
 	},
 	SchemaBackendNornicDB: {
-		graphSchemaNornicDBFingerprint: {graphSchemaNornicDBPreSSMHostFingerprint},
+		graphSchemaNornicDBPreAdvisoryGroupFingerprint: {graphSchemaNornicDBPreSSMHostFingerprint},
 		graphSchemaNornicDBPreModuleImportKeyFingerprint: {
 			graphSchemaNornicDBPreRetiredNarrowConstraintsFingerprint,
 			graphSchemaNornicDBPreInfraEvidenceSourceIndexFingerprint,

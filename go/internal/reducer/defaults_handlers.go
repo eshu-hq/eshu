@@ -6,6 +6,7 @@ package reducer
 import (
 	"log/slog"
 
+	advisorygroup "github.com/eshu-hq/eshu/go/internal/reducer/advisory/group"
 	"github.com/eshu-hq/eshu/go/internal/reducer/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/function/summary"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
@@ -243,6 +244,13 @@ type SupplyChainSecurityHandlers struct {
 	// fails when the registration drops it.
 	SupplyChainImpactFanOut supplychaincore.SupplyChainImpactFanOut
 
+	// SupplyChainImpactGroupProjectionEnqueuer admits one
+	// advisory_group_projection intent per advisory group a
+	// supply_chain_impact pass touched (#10411). Optional at registration:
+	// nil leaves the AdvisoryGroup graph family to converge on the next
+	// touch or backfill; production wiring sets it beside the fan-out.
+	SupplyChainImpactGroupProjectionEnqueuer supplychaincore.SupplyChainAdvisoryGroupProjectionEnqueuer
+
 	// SecurityAlertReconciliationWriter persists provider alert comparison
 	// state without promoting provider alerts into impact truth.
 	SecurityAlertReconciliationWriter securityalert.SecurityAlertReconciliationWriter
@@ -364,6 +372,19 @@ type CodeEvidenceHandlers struct {
 	// (#8816). The domain is always registered, so cmd/reducer must wire it;
 	// a nil writer fails every runtime_declaration_projection intent loudly.
 	RuntimeDeclarationWriter declaration.Writer
+
+	// AdvisoryGroupWinnersReader reads the supply-chain impact canonical
+	// winners an advisory_group_projection intent reconciles, plus the
+	// watermark those winners were rebuilt at (#10411). The domain is
+	// always registered, so cmd/reducer must wire it; a nil reader fails
+	// every advisory_group_projection intent loudly.
+	AdvisoryGroupWinnersReader advisorygroup.WinnersReader
+
+	// AdvisoryGroupWriter reconciles AdvisoryGroup nodes and their
+	// AFFECTED_BY edges from qualifying canonical winners (#10411). Wired
+	// beside AdvisoryGroupWinnersReader, with the same always-registered
+	// requirement.
+	AdvisoryGroupWriter advisorygroup.Writer
 
 	// CodeInterprocEvidenceLoader loads the raw code_interproc_evidence fact
 	// envelopes; the handler decodes + quarantines them (Contract System v1

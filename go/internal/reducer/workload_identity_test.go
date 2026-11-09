@@ -246,6 +246,7 @@ func TestNewDefaultRegistryRegistersImplementedDomainsOnly(t *testing.T) {
 	// wire TerraformBackendResolver/DriftEvidenceLoader/DriftLogger, so the
 	// additive append in implementedDefaultDomainDefinitions does not add it.
 	if got, want := registry.SortedDomains(), []reducercontract.Domain{
+		DomainAdvisoryGroupProjection,
 		DomainCloudAssetResolution,
 		DomainCodeCallMaterialization,
 		DomainCodeownersOwnership,
