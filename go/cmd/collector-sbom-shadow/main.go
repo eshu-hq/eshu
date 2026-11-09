@@ -109,9 +109,9 @@ func parseFencingToken(raw string) (int64, error) {
 // completeResult builds the window's only emission: the host claim echoed
 // verbatim with state complete, no status rows, and the generation ID taken
 // from the incoming claim as host validation requires. The single-call
-// commit lane records no statuses, so even a complete summary row would turn
-// every commit away at the lane door; the count stays derivable from the
-// facts. Echoing the request protocol version keeps the result on the
+// commit lane records no statuses; complete-class markers are admitted and
+// dropped, so the emitter keeps emitting zero statuses as the preferred
+// shape and the count stays derivable from the facts. Echoing the request protocol version keeps the result on the
 // contract the host asked with.
 func completeResult(request extensionhost.Request, envelopes []facts.Envelope, observedAt time.Time) sdkcollector.Result {
 	protocol := request.ProtocolVersion
