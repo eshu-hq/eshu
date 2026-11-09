@@ -69,7 +69,7 @@ func (h SupplyChainImpactHandler) loadSupplyChainImpactEvidence(
 		envelopes = appendUniqueSupplyChainImpactFacts(envelopes, h.authorizedStaticAdvisories...)
 	}
 
-	scoped, filterEnvelopes := h.scopedSupplyChainImpactFilterEnvelopes(ctx, intent, envelopes)
+	scoped, filterEnvelopes, scopedFallback := h.scopedSupplyChainImpactFilterEnvelopes(ctx, intent, envelopes)
 
 	phaseStarted = time.Now()
 	repositories, err := h.loadActiveSupplyChainImpactRepositoryFacts(ctx, envelopes)
@@ -209,6 +209,7 @@ func (h SupplyChainImpactHandler) loadSupplyChainImpactEvidence(
 		floorArmed:                      floorArmed,
 		crossScopeProducerDelta:         producerDelta,
 		scoped:                          scoped,
+		scopedFallbackOutOfStamp:        scopedFallback,
 	}, timing, nil
 }
 
