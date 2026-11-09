@@ -78,6 +78,13 @@ func (a StagedAuditor) AuditWinners(ctx context.Context) (supplychaincore.Supply
 	if err != nil {
 		return none, err
 	}
+	if audit.Skipped {
+		// The lock claim lost: no verification ran, so there is no
+		// verify to observe and no completion to log. The maintainer
+		// reports the skip to OTEL; recording discards here would
+		// skew the discard rate with work that never happened.
+		return audit, nil
+	}
 	// Candidates the writer-side verification drops as clean are discards,
 	// not misses: they prove the superset diff erred toward safety.
 	discarded := int64(len(idents)) - audit.Repairs

@@ -240,11 +240,15 @@ type fakeWriterResult struct{ repairs int64 }
 func (r fakeWriterResult) LastInsertId() (int64, error) { return 0, nil }
 func (r fakeWriterResult) RowsAffected() (int64, error) { return r.repairs, nil }
 
-// fakeWriterTx answers the verify tail: claim succeeds, queue reports.
-type fakeWriterTx struct{ repairs int64 }
+// fakeWriterTx answers the verify tail: claim succeeds when claim is set,
+// queue reports repairs.
+type fakeWriterTx struct {
+	repairs int64
+	claim   bool
+}
 
 func (tx *fakeWriterTx) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
-	return &stagedScriptRows{rows: [][]any{{true}}}, nil
+	return &stagedScriptRows{rows: [][]any{{tx.claim}}}, nil
 }
 
 func (tx *fakeWriterTx) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
@@ -268,7 +272,7 @@ func TestStagedAuditVerifyPathRecordsDiscards(t *testing.T) {
 	var logs bytes.Buffer
 	auditor := StagedAuditor{
 		Fleet:     fleet,
-		Store:     postgres.SupplyChainImpactWinnersStore{DB: &fakeWriterBeginner{tx: &fakeWriterTx{repairs: 2}}},
+		Store:     postgres.SupplyChainImpactWinnersStore{DB: &fakeWriterBeginner{tx: &fakeWriterTx{repairs: 2, claim: true}}},
 		Telemetry: telemetry,
 		Logger:    slog.New(slog.NewTextHandler(&logs, nil)),
 	}
@@ -287,5 +291,30 @@ func TestStagedAuditVerifyPathRecordsDiscards(t *testing.T) {
 	}
 	if line := logs.String(); !strings.Contains(line, "staged winners audit tick") || !strings.Contains(line, "discards=1") {
 		t.Fatalf("completed-tick log line must carry discards=1, got %q", line)
+	}
+}
+
+func TestStagedAuditSkippedVerifyRecordsNoVerify(t *testing.T) {
+	fleet := &stagedScriptFleet{}
+	telemetry := pgaccess.NewStagedAuditTelemetry()
+	var logs bytes.Buffer
+	auditor := StagedAuditor{
+		Fleet:     fleet,
+		Store:     postgres.SupplyChainImpactWinnersStore{DB: &fakeWriterBeginner{tx: &fakeWriterTx{}}},
+		Telemetry: telemetry,
+		Logger:    slog.New(slog.NewTextHandler(&logs, nil)),
+	}
+	audit, err := auditor.AuditWinners(context.Background())
+	if err != nil {
+		t.Fatalf("AuditWinners: %v", err)
+	}
+	if !audit.Skipped {
+		t.Fatal("lost lock claim must report Skipped")
+	}
+	if got := telemetry.DiscardRate(); got != 0 {
+		t.Fatalf("discard rate = %v, want 0 (no verify ran)", got)
+	}
+	if line := logs.String(); strings.Contains(line, "staged winners audit tick") {
+		t.Fatalf("skipped pass must not log a completion tick, got %q", line)
 	}
 }
