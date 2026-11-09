@@ -46,10 +46,10 @@ func TestWriteSupplyChainImpactDerivedRequiresProtectedPublication(t *testing.T)
 
 // TestWriteSupplyChainImpactFindingsLocksUpsertsThenRetracts pins the #6831
 // and #7142 statement order inside the one transaction: conflict-domain lock
-// first, then the fencing admission, then the per-scope pass-state upsert
-// (#10389), then the read of the rows about to be overwritten (#9695), then
-// the batched upsert, then the retraction keyed to exactly the fact ids just
-// written, then one commit.
+// first, then the fencing admission, then the read of the rows about to be
+// overwritten (#9695), then the batched upsert, then the retraction keyed to
+// exactly the fact ids just written, then the per-scope pass-state fence
+// (#10422, last so it decides on the freshest snapshot), then one commit.
 func TestWriteSupplyChainImpactFindingsLocksUpsertsThenRetracts(t *testing.T) {
 	t.Parallel()
 
