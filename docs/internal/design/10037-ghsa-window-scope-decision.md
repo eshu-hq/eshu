@@ -373,12 +373,12 @@ Maps to the #10037 criteria:
 
 - [x] A committed design doc decides scope granularity, the retraction rule, and what
       an incomplete successor may supersede (this record, sections 1, 3, 4).
-- [ ] `rg -n 'SourceGHSA' go/internal/vulnsource/scope.go` matches, a window scope
-      parses, and a real GHSA claim writes one stream source-state row (S2, S3).
-- [ ] A refused commit reads `partial` with `last_success_at` unchanged (S2).
+- [x] `rg -n 'SourceGHSA' go/internal/vulnsource/scope.go` matches, a window scope
+      parses, and a real GHSA claim writes one stream source-state row (S2, S3; #10444, `source_state_ghsa_window_test.go`).
+- [x] A refused commit reads `partial` with `last_success_at` unchanged (S2; #10130, `commit_disposition.go`).
 - [ ] `ghsaNextLink` returns malformed for `rel='next'`; the snapshot is not complete
       and no facts publish (S4).
-- [ ] The GHSA and OSV same-advisory proof test passes in the reducer (S1).
+- [x] The GHSA and OSV same-advisory proof test passes in the reducer (S1; `newest_copy_10042_test.go`).
 - [ ] `rg -n 'not activatable' README.md` is empty in the satellite, with no such note
       in core docs (S7).
 

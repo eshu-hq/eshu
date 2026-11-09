@@ -28,6 +28,11 @@ func TestSourceForScopeIDMapsEveryScopeAuthority(t *testing.T) {
 		{scopeID: "vuln-intel://ghsa/reviewed", want: SourceGHSA, wantOK: true},
 		{scopeID: "vuln-intel://ghsa/malware", want: SourceGHSA, wantOK: true},
 		{scopeID: "vuln-intel://ghsa/reviewed?modified=1", want: SourceGHSA, wantOK: true},
+		// Coordinator-minted per-window scopes map to the same stream
+		// source (#10037): one scope per cursor window, write-once.
+		{scopeID: "vuln-intel://ghsa/reviewed/_window/1761955200000000-1761962400000000", want: SourceGHSA, wantOK: true},
+		{scopeID: "vuln-intel://ghsa/malware/_window/1761955200000000-1761962400000000", want: SourceGHSA, wantOK: true},
+		{scopeID: "  vuln-intel://ghsa/reviewed/_window/1761955200000000-1761962400000000  ", want: SourceGHSA, wantOK: true},
 		{scopeID: "vuln-intel://cve_list/cve", want: SourceCVEList, wantOK: true},
 		{scopeID: "vuln-intel://cve_list/cve?owned=1", want: SourceCVEList, wantOK: true},
 		{scopeID: "  vuln-intel://cisa/kev  ", want: SourceCISAKEV, wantOK: true},
@@ -45,6 +50,17 @@ func TestSourceForScopeIDMapsEveryScopeAuthority(t *testing.T) {
 		{scopeID: "vuln-intel://ghsa/malware/"},
 		{scopeID: "vuln-intel://ghsa/reviewedx"},
 		{scopeID: "vuln-intel://ghsa/Reviewed"},
+		// Malformed window look-alikes invent no source token (#10037):
+		// the window arm admits only the strict per-window grammar.
+		{scopeID: "vuln-intel://ghsa/reviewed/_window/abc-def"},
+		{scopeID: "vuln-intel://ghsa/reviewed/_window/1761962400000000-1761955200000000"},
+		{scopeID: "vuln-intel://ghsa/reviewed/_window/1761955200000000-1761955200000000"},
+		{scopeID: "vuln-intel://ghsa/reviewed/_window/0-1761962400000000"},
+		{scopeID: "vuln-intel://ghsa/reviewed/_window/1761955200000000"},
+		{scopeID: "vuln-intel://ghsa/reviewed/_window/1761955200000000-1761962400000000/extra"},
+		{scopeID: "vuln-intel://ghsa/reviewed/_window/1761955200000000-1761962400000000?modified=1"},
+		{scopeID: "vuln-intel://ghsa/unreviewed/_window/1761955200000000-1761962400000000"},
+		{scopeID: "vuln-intel://ghsa/Reviewed/_window/1761955200000000-1761962400000000"},
 		{scopeID: "vuln-intel://ghsa"},
 		{scopeID: "vuln-intel://ghsa/"},
 		{scopeID: "vuln-intel://"},
