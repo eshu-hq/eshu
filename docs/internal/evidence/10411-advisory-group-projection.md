@@ -137,16 +137,18 @@ No-Regression Evidence: the extraction runs per matched winner row over
 the existing `f.fact_id = w.winner_fact_id` PK join (`fact_id` is the
 `fact_records` PRIMARY KEY, migrations/003_fact_records.sql), so there
 is no scan-shape change, no new predicate or index, and no filter/index
-need (members are read per row, never filtered). No EXPLAIN run: this
-sandbox has no live PG (`ESHU_POSTGRES_TEST_DSN` unset) and the plan
-cannot change — same join, same row set, same `ORDER BY`; only the
-projected expression differs. Live proof runs where a PG exists:
-`TestAdvisoryGroupWinnersQualifyingLive` (seed converted to the
-provenance shape, plus absent/NULL-provenance rows asserting nil members
-without error) and the seeded parity proof. Hermetic proof:
-`TestAdvisoryGroupWinnersReadProvenanceMembers` (RED on the old
-extraction, GREEN after) and
-`TestAdvisoryGroupWinnersNilMembersWithoutProvenance`.
+need (members are read per row, never filtered). No EXPLAIN run: the
+plan cannot change — same join, same row set, same `ORDER BY`; only the
+projected expression differs, so a plan comparison has nothing to
+distinguish. Live proof (run at the drive branch head, Postgres 18 +
+Neo4j): `TestAdvisoryGroupWinnersQualifyingLive` PASS with the seed in
+the provenance shape (including absent/NULL-provenance rows asserting nil
+members without error) and FAIL with the old expression
+(`members = []`); `TestAdvisoryGroupParityLive` and
+`TestAdvisoryGroupQueueDrainLive` PASS. Hermetic proof:
+`TestAdvisoryGroupWinnersReadProvenanceMembers` (exact-expression guard
+plus encoder-shape and `BuildGroup` union fold; RED at the guard before
+the fix) and `TestAdvisoryGroupWinnersNilMembersWithoutProvenance`.
 
 No-Observability-Change: the fix adds no spans, metrics, or logs and
 touches none of the eight `eshu_dp_advisory_group_projection_*`
