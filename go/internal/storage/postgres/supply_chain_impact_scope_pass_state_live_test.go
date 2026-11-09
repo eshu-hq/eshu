@@ -136,13 +136,11 @@ func TestStaleGenerationPassPreservesScopePassStateLive(t *testing.T) {
 		t.Fatalf("stale replay recorded=%v partial=%v causes=%v, want the gen-2 clear row untouched", recorded, partial, causes)
 	}
 
-	// Absent lineage cannot touch the row: a generation with no
-	// scope_generations row fails the findings foreign key before it ever
-	// reaches the record step, so the gen-2 clear row survives and no skip
-	// is reported. (Inside the statement, an absent write-generation row
-	// would fail open to the token guard by NULL semantics; the FK makes
-	// that path unreachable through the writer, which is the stronger
-	// guarantee this case pins.)
+	// Absent lineage cannot touch the row: for a generation with no
+	// scope_generations row the record step executes fence-open, then the
+	// later findings insert fails its scope_generations foreign key and the
+	// transaction rolls the record back. The gen-2 clear row survives, no
+	// skip is reported, and the write returns the error.
 	unknown := fenceWrite("intent:fence:genx-partial", scope, fanOutGen(scope, "gen-x"), keep)
 	unknown.PartialEvidence = true
 	unknown.PartialCauses = []string{"evidence_budget"}
