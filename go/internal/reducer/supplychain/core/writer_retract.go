@@ -74,6 +74,10 @@ type supplyChainImpactTxOutcome struct {
 	recoveryCVEs    []string
 	suppressionCVEs []string
 	suppression     suppressionDiffReport
+	// passStateSkipped reports the generation fence held (#10422): the
+	// pass's generation was stale, so the per-scope pass-state row was
+	// left untouched.
+	passStateSkipped bool
 }
 
 // commitSupplyChainImpactRows runs one pass's statements inside tx and returns
@@ -148,8 +152,11 @@ func commitSupplyChainImpactRows(
 	// the state untouched because it re-derives only its stamped subset
 	// (#9779). It runs on the admitted path only, and it fails the pass
 	// when the state cannot be recorded: state that disagrees with the
-	// committed rows is worse than a retried pass.
-	if err := recordSupplyChainImpactScopePassState(ctx, tx, write, now); err != nil {
+	// committed rows is worse than a retried pass. A stale generation's
+	// pass records nothing (#10422); the skip rides the outcome to a
+	// handler signal so operators can see it.
+	passStateSkipped, err := recordSupplyChainImpactScopePassState(ctx, tx, write, now)
+	if err != nil {
 		return supplyChainImpactTxOutcome{}, err
 	}
 	// Read what the pass is about to overwrite, after the lock (no concurrent
@@ -190,10 +197,11 @@ func commitSupplyChainImpactRows(
 	derived := derivedCVEIDs(meta, stored, write.GenerationID, write.FencingToken, !write.PartialEvidence, write.ScopedCVEIDs)
 	derived = unionSortedStrings(derived, supp.cveIDs)
 	outcome := supplyChainImpactTxOutcome{
-		changedCVEs:     rowChanged,
-		derivedCVEs:     derived,
-		suppressionCVEs: supp.cveIDs,
-		suppression:     supp,
+		changedCVEs:      rowChanged,
+		derivedCVEs:      derived,
+		suppressionCVEs:  supp.cveIDs,
+		suppression:      supp,
+		passStateSkipped: passStateSkipped,
 	}
 	if write.Owed != nil && len(outcome.changedCVEs) > 0 {
 		if err := write.Owed.RecordFanOutOwed(ctx, tx); err != nil {

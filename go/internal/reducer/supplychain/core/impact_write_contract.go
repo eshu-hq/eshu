@@ -119,6 +119,11 @@ type SupplyChainImpactWriteResult struct {
 	// ScopedCVEIDs echoes the write's scope: the stamped CVEs this
 	// re-derivation covered, or empty for a full pass (#9779).
 	ScopedCVEIDs []string
+	// PassStateSkipped reports the generation fence held (#10422): the
+	// pass's generation was stale against a lifecycle-newer reader-visible
+	// generation, so the per-scope pass-state row was left untouched. The
+	// pass itself still committed under its own generation.
+	PassStateSkipped bool
 }
 
 // SupplyChainImpactWriter persists reducer-owned impact findings.
