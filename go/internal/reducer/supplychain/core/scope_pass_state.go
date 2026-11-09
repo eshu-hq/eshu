@@ -24,10 +24,16 @@ import (
 // the write, on both the insert and the update path, when a lifecycle-newer
 // (ingested_at, generation_id) retained generation is reader-visible
 // (activated and active or superseded, the suppression baseline's predicate).
-// The fence decides once per statement (materialized CTE), so both paths see
-// the same committed activations under the writer's READ COMMITTED
-// transaction. A write whose own generation row is absent fails open to the
-// token guard, preserving the pre-fence behavior where lineage is missing.
+// The fence decides once per statement (materialized CTE), so the decision
+// and both write paths see the same committed activations under the writer's
+// READ COMMITTED transaction. The statement returns the fence decision
+// alongside the write outcome: callers signal on the decision, never on the
+// affected-row count, because the token guard can also leave the row
+// untouched for a pass that is not stale. A write whose own generation row
+// is absent fails open to the token guard, preserving the pre-fence behavior
+// where lineage is missing. Through the writer that path is unreachable
+// first: the findings foreign key requires the generation row before the
+// record step runs.
 // $4 is the TEXT[] cause set, empty for a complete pass, encoded the same
 // way as the retraction's keep set; it never reaches a metric label, so the
 // closed cause set needs no folding here. The $5 cast is load-bearing: CASE
@@ -46,25 +52,29 @@ WITH stale AS MATERIALIZED (
               SELECT w.ingested_at, w.generation_id FROM scope_generations AS w
               WHERE w.scope_id = $1 AND w.generation_id = $6)
     ) AS fenced
+),
+up AS (
+    INSERT INTO supply_chain_impact_scope_pass_state (
+        scope_id, fencing_token, partial_evidence, partial_causes, partial_since, last_pass_at, updated_at
+    )
+    SELECT $1, $2, $3, $4,
+        CASE WHEN $3 THEN $5::timestamptz ELSE NULL END,
+        $5, $5
+    WHERE (SELECT NOT fenced FROM stale)
+    ON CONFLICT (scope_id) DO UPDATE SET
+        fencing_token    = EXCLUDED.fencing_token,
+        partial_evidence = EXCLUDED.partial_evidence,
+        partial_causes   = EXCLUDED.partial_causes,
+        partial_since    = CASE WHEN EXCLUDED.partial_evidence
+                                THEN COALESCE(supply_chain_impact_scope_pass_state.partial_since, EXCLUDED.partial_since)
+                                ELSE NULL END,
+        last_pass_at     = EXCLUDED.last_pass_at,
+        updated_at       = EXCLUDED.updated_at
+    WHERE supply_chain_impact_scope_pass_state.fencing_token <= EXCLUDED.fencing_token
+      AND (SELECT NOT fenced FROM stale)
+    RETURNING 1
 )
-INSERT INTO supply_chain_impact_scope_pass_state (
-    scope_id, fencing_token, partial_evidence, partial_causes, partial_since, last_pass_at, updated_at
-)
-SELECT $1, $2, $3, $4,
-    CASE WHEN $3 THEN $5::timestamptz ELSE NULL END,
-    $5, $5
-WHERE (SELECT NOT fenced FROM stale)
-ON CONFLICT (scope_id) DO UPDATE SET
-    fencing_token    = EXCLUDED.fencing_token,
-    partial_evidence = EXCLUDED.partial_evidence,
-    partial_causes   = EXCLUDED.partial_causes,
-    partial_since    = CASE WHEN EXCLUDED.partial_evidence
-                            THEN COALESCE(supply_chain_impact_scope_pass_state.partial_since, EXCLUDED.partial_since)
-                            ELSE NULL END,
-    last_pass_at     = EXCLUDED.last_pass_at,
-    updated_at       = EXCLUDED.updated_at
-WHERE supply_chain_impact_scope_pass_state.fencing_token <= EXCLUDED.fencing_token
-  AND (SELECT NOT fenced FROM stale)
+SELECT (SELECT fenced FROM stale) AS fenced, (SELECT count(*) FROM up) AS recorded
 `
 
 // recordSupplyChainImpactScopePassState upserts one admitted pass's durable
@@ -96,16 +106,24 @@ func recordSupplyChainImpactScopePassState(
 	if causes == nil {
 		causes = []string{}
 	}
-	res, err := tx.ExecContext(
+	rows, err := tx.QueryContext(
 		ctx, supplyChainImpactScopePassStateQuery,
 		write.ScopeID, write.FencingToken, write.PartialEvidence, causes, now.UTC(), write.GenerationID,
 	)
 	if err != nil {
 		return false, fmt.Errorf("record supply chain impact scope pass state: %w", err)
 	}
-	affected, err := res.RowsAffected()
-	if err != nil {
-		return false, fmt.Errorf("record supply chain impact scope pass state rows affected: %w", err)
+	defer rows.Close()
+	if !rows.Next() {
+		return false, fmt.Errorf("record supply chain impact scope pass state: no fence decision row")
 	}
-	return affected == 0, nil
+	var fenced bool
+	var recorded int64
+	if err := rows.Scan(&fenced, &recorded); err != nil {
+		return false, fmt.Errorf("record supply chain impact scope pass state decision: %w", err)
+	}
+	if err := rows.Err(); err != nil {
+		return false, fmt.Errorf("record supply chain impact scope pass state rows: %w", err)
+	}
+	return fenced, nil
 }

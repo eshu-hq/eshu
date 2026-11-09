@@ -44,6 +44,11 @@ type fakeImpactTxState struct {
 	candidates []suppressionGeneration
 	diffPairs  map[[2]string][]suppressionDiffRow
 	wholeGen   []suppressionDiffRow
+	// passStateFenced feeds the scope pass-state fence decision read and
+	// passStateRecorded its write-outcome column (#10422). Zero values
+	// report fence open, preserving every existing test's behavior.
+	passStateFenced   bool
+	passStateRecorded int64
 }
 
 // fakeStoredFinding is one ACTIVE fact_records row the changed-row read returns;
@@ -156,6 +161,8 @@ func (t fakeImpactTx) QueryContext(_ context.Context, query string, args ...any)
 		return &fakeImpactRows{rows: suppressionDiffFakeRows(t.state.wholeGen)}, nil
 	case setSuppressionDiffStatementTimeoutQuery:
 		return &fakeImpactRows{}, nil
+	case supplyChainImpactScopePassStateQuery:
+		return &fakeImpactRows{rows: [][]any{{t.state.passStateFenced, t.state.passStateRecorded}}}, nil
 	}
 	return nil, errors.New("unexpected query " + query)
 }

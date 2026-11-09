@@ -105,9 +105,14 @@ func TestStaleGenerationPassPreservesScopePassStateLive(t *testing.T) {
 	advanceFenceScope(t, ctx, db, scope, gen1, gen2, time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC))
 
 	// The newer generation records and clears: the fence must let the
-	// lifecycle-newest generation through.
-	if _, err := writer.WriteSupplyChainImpactFindings(ctx, fenceWrite("intent:fence:gen2-complete", scope, gen2, keep)); err != nil {
+	// lifecycle-newest generation through, and the result must not report
+	// a skip.
+	gen2Res, err := writer.WriteSupplyChainImpactFindings(ctx, fenceWrite("intent:fence:gen2-complete", scope, gen2, keep))
+	if err != nil {
 		t.Fatalf("gen-2 complete write: %v", err)
+	}
+	if gen2Res.PassStateSkipped {
+		t.Fatalf("gen-2 complete PassStateSkipped=true, want false (lifecycle-newest records)")
 	}
 	if recorded, partial, _, _ := fencePassState(t, ctx, db, scope); !recorded || partial {
 		t.Fatalf("gen-2 complete recorded=%v partial=%v, want recorded clear", recorded, partial)
@@ -115,14 +120,36 @@ func TestStaleGenerationPassPreservesScopePassStateLive(t *testing.T) {
 
 	// The stale generation replays late with a HIGHER fencing token. The
 	// token guard passes (monotonic per pass), admission passes (per
-	// scope+generation), but the row must stay clear.
+	// scope+generation), but the row must stay clear and the result must
+	// report the fence skip.
 	replay := fenceWrite("intent:fence:gen1-replay", scope, gen1, keep)
 	replay.PartialEvidence = true
 	replay.PartialCauses = []string{"evidence_budget"}
-	if _, err := writer.WriteSupplyChainImpactFindings(ctx, replay); err != nil {
+	replayRes, err := writer.WriteSupplyChainImpactFindings(ctx, replay)
+	if err != nil {
 		t.Fatalf("stale gen-1 replay write: %v", err)
+	}
+	if !replayRes.PassStateSkipped {
+		t.Fatalf("stale gen-1 replay PassStateSkipped=false, want true (fence held)")
 	}
 	if recorded, partial, causes, _ := fencePassState(t, ctx, db, scope); !recorded || partial {
 		t.Fatalf("stale replay recorded=%v partial=%v causes=%v, want the gen-2 clear row untouched", recorded, partial, causes)
+	}
+
+	// Absent lineage cannot touch the row: a generation with no
+	// scope_generations row fails the findings foreign key before it ever
+	// reaches the record step, so the gen-2 clear row survives and no skip
+	// is reported. (Inside the statement, an absent write-generation row
+	// would fail open to the token guard by NULL semantics; the FK makes
+	// that path unreachable through the writer, which is the stronger
+	// guarantee this case pins.)
+	unknown := fenceWrite("intent:fence:genx-partial", scope, fanOutGen(scope, "gen-x"), keep)
+	unknown.PartialEvidence = true
+	unknown.PartialCauses = []string{"evidence_budget"}
+	if _, err := writer.WriteSupplyChainImpactFindings(ctx, unknown); err == nil {
+		t.Fatalf("unknown-generation write succeeded, want the findings foreign key to reject it")
+	}
+	if recorded, partial, causes, _ := fencePassState(t, ctx, db, scope); !recorded || partial {
+		t.Fatalf("unknown-generation recorded=%v partial=%v causes=%v, want the gen-2 clear row untouched", recorded, partial, causes)
 	}
 }

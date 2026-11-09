@@ -10,14 +10,19 @@ READ COMMITTED transaction. Missing lineage fails open to the token guard.
 ## No-Regression Evidence:
 
 - Baseline: every admitted pass records (token guard only).
-- After: passes whose generation is lifecycle-newest (or tied, or lineage
-  absent) record exactly as before; only a pass with a strictly newer
+- After: passes whose generation is lifecycle-newest (the order is total,
+  so same-generation is the only tie, already excluded; lineage absent
+  fails open) record exactly as before; only a pass with a strictly newer
   reader-visible generation skips. No schema change, no new migration, no
   new index: the EXISTS probe rides the existing
   `scope_generations_scope_idx` prefix (`scope_id` equality) over a
   per-scope generation history.
 - Backend/version: disposable PostgreSQL 18.6 (pg-10422), schema migrated to
   the lane head (312 migrations).
+- Absent lineage: a write for a generation with no scope_generations row
+  fails the findings foreign key before the record step, so the row is
+  untouched and no skip is reported (pinned live); inside the statement an
+  absent row would fail open to the token guard by NULL semantics.
 - Input shape: synthetic fence proof (one scope, gen-1 superseded, gen-2
   active with a later ingested_at, strict fencing tokens mirroring the
   production sequence).
