@@ -10,6 +10,7 @@ TABLE = {
         "go/internal/query/advisory_catalog_ghsa_newest_copy_live_test.go": (
             "TestSupplyChainAdvisoryCatalogServesNewestGHSACopyLive",
             "TestSupplyChainAdvisoryCatalogKeepsSupersededPackagesForPackagelessWinnerLive",
+            "TestSupplyChainAdvisoryCatalogKeepsPackageOnlyScopePackagesLive",
         ),
         "go/internal/query/cloud_resource_legacy_keys_postgres_live_test.go": (
             "TestCloudResourceListSuppressesHistoricalAppSyncKeysLive",
