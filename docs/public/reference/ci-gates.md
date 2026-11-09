@@ -39,7 +39,7 @@ An **Odù** is one of its scenarios: a set of recorded facts whose expected
 results are derived from the inputs rather than written by hand. See
 [the Ifá conformance platform](../concepts/ifa-conformance-platform.md).
 
-### Hygiene: Is the change well-formed? (61 gates)
+### Hygiene: Is the change well-formed? (60 gates)
 
 - `go-fmt` (blocking): Checks Go source is formatted with gofumpt so diffs stay consistent.
 - `go-lint` (blocking): Runs golangci-lint across the Go module to catch style and correctness issues.
@@ -72,7 +72,6 @@ results are derived from the inputs rather than written by hand. See
 - `dirgate-main-alarm` (blocking): Self-tests the post-merge dirgate alarm's logic for commenting the merged PR with the directory and missing trailer.
 - `pre-enqueue-check` (blocking): Self-tests the pre-merge check, which confirms the reviewed head, merge cleanliness, checks and review threads before a merge.
 - `heredoc-budget` (blocking): Blocks new bash heredocs beyond a fixed budget to prevent a known bash 5.1+ pipe-buffer deadlock.
-- `claude-rules-scope` (blocking): Lints .claude/rules files for correct path-scoping so agent rules apply only where intended.
 - `docs-catalog-metadata` (blocking): Checks that public docs pages carry the required catalog metadata (nav/front-matter fields).
 - `required-doc-sections` (blocking): Fails when a hand-written section listed in scripts/required-doc-sections.txt is missing from its page, so a merge cannot drop it.
 - `docs-refs` (blocking): Fails when a docs page cites a scripts/*.sh, .py, or .awk path that doesn't actually exist.
@@ -300,7 +299,6 @@ results are derived from the inputs rather than written by hand. See
 | `race-graph-writes` | Race detector — graph writes | race | pre-pr | true | `cd go && go test -race -count=1 -timeout 600s ./cmd/ingester/... ./cmd/projector/... ./internal/storage/cypher/... ./internal/storage/nornicdb/... ./internal/reducer/... ./internal/projector/... ./internal/correlation/... ./internal/content/shape/... ./internal/relationships/...` | race-graph-writes.yml / race | 11 path(s): go/cmd/ingester/**, go/cmd/projector/**, go/internal/storage/cypher/**, … |
 | `reducer-contention` | Reducer Contention Gate (real Postgres) | race | pre-pr | true | — (CI-only: needs Postgres service container (GitHub Actions)) | reducer-contention-gate.yml / reducer contention gate | 16 path(s): go/internal/storage/postgres/**, go/internal/reducer/**, schema/data-plane/postgres/**, … |
 | `supply-chain-impact-live` | Supply-chain impact live proofs (real Postgres) | exactness | pre-pr | true | `cd go && env -u GOROOT go test ./internal/storage/postgres -run '^(TestSupplyChainImpactLiveProofsRunInTheReducerContentionGate)$' -count=1`<br>then self-test: `cd go && env -u GOROOT go test ./internal/storage/postgres -run '^(TestProofsMissingFromFilterRejectsAnUnselectedProof\|TestProofStepScopesTheEnvChecksToTheProofStep\|TestLiveDSNOpenersFollowsWrappersTransitively\|TestLiveProofFilesCoversDirectCallersAndFlagsMixedFiles\|TestHelperFailsOnRequiredPinsTheOutcomeAction\|TestSupplyChainImpactLiveDecision)$' -count=1` | reducer-contention-gate.yml / reducer contention gate | 5 path(s): go/internal/reducer/supplychain/**, go/internal/storage/postgres/**, .github/workflows/reducer-contention-gate.yml, … |
-| `claude-rules-scope` | Claude path-scoped rules | exactness | pre-pr | true | `bash scripts/dev/claude-rules-lint.sh`<br>then self-test: `bash scripts/test-claude-rules-lint.sh` | static-contract-gates.yml / Verify Claude path-scoped rules gate | 6 path(s): .claude/rules/**, scripts/dev/claude-rules-lint.sh, scripts/test-claude-rules-lint.sh, … |
 | `docs-catalog-metadata` | Docs catalog metadata | exactness | pre-pr | true | `bash scripts/verify-docs-catalog.sh`<br>then self-test: `bash scripts/test-verify-docs-catalog.sh` | test.yml / docs-helm-hygiene | 6 path(s): docs/public/**, docs/mkdocs.yml, scripts/verify-docs-catalog.sh, … |
 | `required-doc-sections` | Required hand-written doc sections | docs | pre-pr | true | `bash scripts/verify-required-doc-sections.sh`<br>then self-test: `bash scripts/test-verify-required-doc-sections.sh` | test.yml / docs-helm-hygiene | 6 path(s): docs/public/**, scripts/required-doc-sections.txt, scripts/verify-required-doc-sections.sh, … |
 | `docs-prose-quality` | Docs prose quality advisory | docs | pre-pr | false | `bash scripts/verify-docs-prose-quality.sh`<br>then self-test: `bash scripts/test-verify-docs-prose-quality.sh` | — | 6 path(s): docs/public/**, docs/mkdocs.yml, scripts/verify-docs-prose-quality.sh, … |

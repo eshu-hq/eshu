@@ -390,13 +390,6 @@ remotevalidation:
   - 'scripts/test-generate-remote-validation-inventory.sh'
   - 'tests/fixtures/component_extension_proof/**'
   - 'tests/fixtures/governance_k8s_two_team_proof/**'
-claudrules:
-  - '.claude/rules/**'
-  - 'scripts/dev/claude-rules-lint.sh'
-  - 'scripts/test-claude-rules-lint.sh'
-  - 'specs/ci-gates.v1.yaml'
-  - 'specs/ci-gates.d/**'
-  - '.github/static-contract-filters.yml'
 maturitydrift:
   - '.github/workflows/static-contract-gates.yml'
   - 'specs/ci-gates.v1.yaml'

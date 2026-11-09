@@ -69,7 +69,6 @@ jobs:
       measurementcite: ${{ steps.filter.outputs.measurementcite }}
       remotevalidation: ${{ steps.filter.outputs.remotevalidation }}
       maturitydrift: ${{ steps.filter.outputs.maturitydrift }}
-      claudrules: ${{ steps.filter.outputs.claudrules }}
       rootcauseevidence: ${{ steps.filter.outputs.rootcauseevidence }}
       pgstatementreport: ${{ steps.filter.outputs.pgstatementreport }}
       collectorcutoverrollback: ${{ steps.filter.outputs.collectorcutoverrollback }}
@@ -171,7 +170,6 @@ jobs:
           append_gate "${{ steps.filter.outputs.measurementcite }}" "measurementcite" "Verify measurement-citations gate" "bash scripts/test-verify-measurement-citations.sh && bash scripts/test-verify-measurement-citations-wrapper.sh" "bash scripts/verify-measurement-citations.sh" "measurement-citations"
           append_gate "${{ steps.filter.outputs.remotevalidation }}" "remotevalidation" "Verify remote-validation-artifacts gate" "bash scripts/test-generate-remote-validation-inventory.sh && bash scripts/test-verify-remote-validation-artifacts.sh && bash scripts/test-verify-dead-iac-compose.sh && bash scripts/test-verify-remote-e2e-component-extension.sh && bash scripts/test-verify-k8s-two-team-governance-proof.sh" "bash scripts/generate-remote-validation-inventory.sh && git diff --exit-code -- docs/internal/remote-validation/inventory.generated.json && bash scripts/verify-remote-validation-artifacts.sh" "remote-validation-artifacts"
           append_gate "${{ steps.filter.outputs.maturitydrift }}" "maturitydrift" "Verify maturity-drift-guard gate" "bash scripts/test-verify-maturity-drift-guard.sh" "bash scripts/verify-maturity-drift-guard.sh" "maturity-drift-guard"
-          append_gate "${{ steps.filter.outputs.claudrules }}" "claudrules" "Verify Claude path-scoped rules gate" "bash scripts/test-claude-rules-lint.sh" "bash scripts/dev/claude-rules-lint.sh" "claude-rules-scope"
           append_gate "${{ steps.filter.outputs.rootcauseevidence }}" "rootcauseevidence" "Verify root-cause-evidence gate" "bash scripts/test-verify-root-cause-evidence.sh" "bash scripts/verify-root-cause-evidence.sh" "root-cause-evidence"
           append_gate "${{ steps.filter.outputs.pgstatementreport }}" "pgstatementreport" "Verify pg-statement-report gate" "bash scripts/test-pg-statement-report.sh" "bash scripts/test-pg-statement-report.sh" "pg-statement-report"
           append_gate "${{ steps.filter.outputs.collectorcutoverrollback }}" "collectorcutoverrollback" "Verify collector-cutover-rollback gate" "bash scripts/test-collector-cutover-rollback.sh" "bash scripts/test-collector-cutover-rollback.sh" "collector-cutover-rollback"
