@@ -20,14 +20,15 @@ package advisory
 // evidence_sql.go. The winners CTE is spliced into each WITH chain ahead of
 // its first use.
 
-// advisoryGHSARFC3339Pattern is a family-local copy of the impact reader's
+// AdvisoryGHSARFC3339Pattern is a family-local copy of the impact reader's
 // readinessRFC3339Pattern (readiness_postgres_query_targets.go): the strict
 // RFC 3339 shape the collector's time.Parse(time.RFC3339) accepts. It must
 // stay behavior-identical to its root source; a value without a zone would
 // resolve in the session TimeZone, and hour 24 or second 60 parse in
 // Postgres but not in Go, so each is malformed here. Calendar validity is
-// left to pg_input_is_valid.
-const advisoryGHSARFC3339Pattern = `^[0-9]{4}-[0-9]{2}-[0-9]{2}T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](\.[0-9]+)?(Z|[+-]([01][0-9]|2[0-3]):[0-5][0-9])$`
+// left to pg_input_is_valid. Exported only for the parity guard in the
+// impact package's rfc3339_parity_test.go: do not import it elsewhere.
+const AdvisoryGHSARFC3339Pattern = `^[0-9]{4}-[0-9]{2}-[0-9]{2}T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](\.[0-9]+)?(Z|[+-]([01][0-9]|2[0-3]):[0-5][0-9])$`
 
 // advisoryGHSACopyNormSQL names one advisory record's copy stream the way
 // the reducer keys it: the payload source is matched separately, and the id
@@ -41,7 +42,7 @@ const advisoryGHSACopyNormSQL = `UPPER(TRIM(COALESCE(NULLIF(TRIM(fact.payload->>
 // parseable modified_at wins, and an empty or unparseable timestamp ranks
 // oldest (NULLS LAST at election), so a copy that never stated its recency
 // never beats one that did.
-const advisoryGHSACopyModifiedSQL = `CASE WHEN NULLIF(TRIM(fact.payload->>'modified_at'), '') ~ '` + advisoryGHSARFC3339Pattern + `' AND pg_input_is_valid(TRIM(fact.payload->>'modified_at'), 'timestamp with time zone') THEN (TRIM(fact.payload->>'modified_at'))::timestamptz ELSE NULL END`
+const advisoryGHSACopyModifiedSQL = `CASE WHEN NULLIF(TRIM(fact.payload->>'modified_at'), '') ~ '` + AdvisoryGHSARFC3339Pattern + `' AND pg_input_is_valid(TRIM(fact.payload->>'modified_at'), 'timestamp with time zone') THEN (TRIM(fact.payload->>'modified_at'))::timestamptz ELSE NULL END`
 
 // advisoryGHSACopyRetractedSQL is the closed retraction classifier the
 // reducer's advisoryRetractionCode applies: a rejected or withdrawn status
@@ -101,9 +102,12 @@ const advisoryGHSANewestCopyCTE = `ghsa_newest_copy AS (
 // copy: a GHSA vulnerability.cve or vulnerability.affected_package fact goes
 // unless its scope and generation won the election for its advisory. A
 // package fact stays when its advisory names no CVE record (an unmatched
-// live observation the reduction must not hide) and when the winning copy
-// names no package of its own (the record's package evidence lives only in
-// the superseded copy's scope).
+// live observation the reduction must not hide), when its own scope and
+// generation hold no same-key live CVE fact (the reducer's !present[key][own]
+// keep in newestCopyAdvisoryInputs, keyed by exact payload source and
+// advisory id, e.g. a scope whose CVE copy was tombstoned), and when the
+// winning copy names no package of its own (the record's package evidence
+// lives only in the superseded copy's scope).
 const advisoryGHSACopyKeepPredicate = `(
         fact.fact_kind NOT IN ('vulnerability.cve', 'vulnerability.affected_package')
         OR LOWER(TRIM(fact.payload->>'source')) IS DISTINCT FROM 'ghsa'
@@ -122,5 +126,15 @@ const advisoryGHSACopyKeepPredicate = `(
                 SELECT 1 FROM ghsa_newest_copy AS w
                 WHERE w.advisory_norm = ` + advisoryGHSACopyNormSQL + `
                   AND NOT w.winner_has_package
+            ))
+        OR (fact.fact_kind = 'vulnerability.affected_package'
+            AND NOT EXISTS (
+                SELECT 1 FROM fact_records AS own_cve
+                WHERE own_cve.fact_kind = 'vulnerability.cve'
+                  AND own_cve.is_tombstone = FALSE
+                  AND own_cve.scope_id = fact.scope_id
+                  AND own_cve.generation_id = fact.generation_id
+                  AND (own_cve.payload->>'source') = (fact.payload->>'source')
+                  AND (own_cve.payload->>'advisory_id') = (fact.payload->>'advisory_id')
             ))
     )`
