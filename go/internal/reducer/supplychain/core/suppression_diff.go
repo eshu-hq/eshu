@@ -136,6 +136,49 @@ func unionSuppressionFanOutCVEIDs(changed []string, rows []suppressionDiffRow) [
 	return unionSortedStrings(changed, changedSuppressionCVEIDs(rows))
 }
 
+// expandSuppressionCVEIDsThroughMembers widens suppression-named CVE ids
+// through the advisory groups the pass's findings carry (#10408): a
+// suppression re-scoping a grouped CVE must reach the holders of every
+// member, not only the named id. Ids no group names pass through, blanks
+// drop, and the output is sorted and de-duplicated.
+func expandSuppressionCVEIDsThroughMembers(ids []string, rows []changedRow, stored []storedFinding) []string {
+	set := make(map[string]struct{}, len(ids))
+	for _, id := range ids {
+		if id = strings.TrimSpace(id); id != "" {
+			set[id] = struct{}{}
+		}
+	}
+	if len(set) == 0 {
+		return nil
+	}
+	addGroup := func(members []string) {
+		hit := false
+		for _, member := range members {
+			if id := strings.TrimSpace(member); id != "" {
+				if _, ok := set[id]; ok {
+					hit = true
+					break
+				}
+			}
+		}
+		if !hit {
+			return
+		}
+		for _, member := range members {
+			if id := strings.TrimSpace(member); id != "" {
+				set[id] = struct{}{}
+			}
+		}
+	}
+	for _, row := range rows {
+		addGroup(row.members)
+	}
+	for _, row := range stored {
+		addGroup(row.members)
+	}
+	return sortedSetKeys(set)
+}
+
 // selectSuppressionDiffBaseline picks the generation the current one diffs
 // against. The plain previous generation is wrong here: a generation activated
 // and then superseded before its reducer item ran never fans out, so its change
