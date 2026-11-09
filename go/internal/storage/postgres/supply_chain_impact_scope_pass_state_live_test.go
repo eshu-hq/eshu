@@ -137,15 +137,19 @@ func TestStaleGenerationPassPreservesScopePassStateLive(t *testing.T) {
 	}
 
 	// Absent lineage cannot touch the row: for a generation with no
-	// scope_generations row the record step executes fence-open, then the
-	// later findings insert fails its scope_generations foreign key and the
-	// transaction rolls the record back. The gen-2 clear row survives, no
-	// skip is reported, and the write returns the error.
+	// scope_generations row the bulk findings insert fails its
+	// scope_generations foreign key first and the transaction aborts before
+	// the record step (which runs last) ever executes. The gen-2 clear row
+	// survives, no skip is reported, and the write returns the error.
 	unknown := fenceWrite("intent:fence:genx-partial", scope, fanOutGen(scope, "gen-x"), keep)
 	unknown.PartialEvidence = true
 	unknown.PartialCauses = []string{"evidence_budget"}
-	if _, err := writer.WriteSupplyChainImpactFindings(ctx, unknown); err == nil {
+	unknownRes, err := writer.WriteSupplyChainImpactFindings(ctx, unknown)
+	if err == nil {
 		t.Fatalf("unknown-generation write succeeded, want the findings foreign key to reject it")
+	}
+	if unknownRes.PassStateSkipped {
+		t.Fatalf("unknown-generation PassStateSkipped=true, want false (the record step never ran)")
 	}
 	if recorded, partial, causes, _ := fencePassState(t, ctx, db, scope); !recorded || partial {
 		t.Fatalf("unknown-generation recorded=%v partial=%v causes=%v, want the gen-2 clear row untouched", recorded, partial, causes)

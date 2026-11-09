@@ -31,10 +31,11 @@ import (
 // affected-row count, because the token guard can also leave the row
 // untouched for a pass that is not stale. A write whose own generation row
 // is absent fails open to the token guard, preserving the pre-fence behavior
-// where lineage is missing. Through the writer the record step still
-// executes fence-open for such a write; the later findings insert then fails
-// its scope_generations foreign key and the transaction rolls the record
-// back, so the row stays untouched and the write returns the error.
+// where lineage is missing. Through the writer the record step runs last,
+// after the bulk findings insert, so for such a write the insert fails its
+// scope_generations foreign key first and the transaction aborts before the
+// record step ever executes: the row stays untouched, no skip is reported,
+// and the write returns the error.
 // $4 is the TEXT[] cause set, empty for a complete pass, encoded the same
 // way as the retraction's keep set; it never reaches a metric label, so the
 // closed cause set needs no folding here. The $5 cast is load-bearing: CASE

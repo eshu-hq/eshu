@@ -20,9 +20,10 @@ READ COMMITTED transaction. Missing lineage fails open to the token guard.
 - Backend/version: disposable PostgreSQL 18.6 (pg-10422), schema migrated to
   the lane head (312 migrations).
 - Absent lineage: a write for a generation with no scope_generations row
-  executes the record step fence-open, then the later findings insert fails
-  its scope_generations foreign key and the transaction rolls the record
-  back, so the row is untouched and no skip is reported (pinned live);
+  fails its bulk findings insert on the scope_generations foreign key first
+  and the transaction aborts before the record step (which runs last) ever
+  executes, so the row is untouched and no skip is reported (pinned live,
+  including a PassStateSkipped==false assertion);
   inside the statement an absent row fails open to the token guard by NULL
   semantics.
 - Input shape: synthetic fence proof (one scope, gen-1 superseded, gen-2
