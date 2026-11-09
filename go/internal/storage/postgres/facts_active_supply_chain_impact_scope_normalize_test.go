@@ -62,6 +62,7 @@ func TestListActiveSupplyChainImpactFactsBindsNormalizedSuppressionScopeSiblings
 		SubjectDigests: []string{"SHA256:ABCDEF"},
 		RepositoryIDs:  []string{"Repo://Acme/Api"},
 		AdvisoryIDs:    []string{" GHSA-Demo-1111-2222 "},
+		AliasIDs:       []string{" CVE-2026-0402 "},
 	}); err != nil {
 		t.Fatalf("ListActiveSupplyChainImpactFacts() error = %v, want nil", err)
 	}
@@ -76,7 +77,9 @@ func TestListActiveSupplyChainImpactFactsBindsNormalizedSuppressionScopeSiblings
 		factimpact.LowerSubjectDigests: {"sha256:abcdef"},
 		factimpact.LowerRepositoryIDs:  {"repo://acme/api"},
 		factimpact.LowerAdvisoryIDs:    {"ghsa-demo-1111-2222"},
+		factimpact.LowerAliasIDs:       {"cve-2026-0402"},
 		factimpact.PackageIDs:          {"PKG:NPM/Left-Pad"},
+		factimpact.AliasIDs:            {"CVE-2026-0402"},
 	} {
 		if got := boundList(t, calls[0], param); !slices.Equal(got, want) {
 			t.Fatalf("param %d bound %v, want %v", param, got, want)

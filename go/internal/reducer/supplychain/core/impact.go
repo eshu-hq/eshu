@@ -335,6 +335,12 @@ func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent reducercont
 	if writeResult.suppressionDiff.decided() {
 		writeResult.suppressionDiff.mergeSubSignals(subSignals)
 	}
+	// The re-key carry tally rides the same sub-signals: what a merge or
+	// split carried through member anchors, and what a split orphaned, so
+	// the wave's suppression coverage is visible per pass (#10408).
+	carry := countSuppressionCarry(suppressions, findings, writeResult.TouchedGroupIDs, h.evaluationNow())
+	subSignals[suppressionCarriedViaMemberSubSignal] = float64(carry.carried)
+	subSignals[suppressionOrphanedBySplitSubSignal] = float64(carry.orphaned)
 	h.recordBuildStats(ctx, buildStats, subSignals)
 	subDurations := supplyChainImpactSubDurations(timing)
 	loaded.activeEvidence.mergeInto(subSignals, subDurations)
