@@ -9,6 +9,7 @@ TABLE = {
     "./internal/query": {
         "go/internal/query/advisory_catalog_ghsa_newest_copy_live_test.go": (
             "TestSupplyChainAdvisoryCatalogServesNewestGHSACopyLive",
+            "TestSupplyChainAdvisoryCatalogKeepsSupersededPackagesForPackagelessWinnerLive",
         ),
         "go/internal/query/cloud_resource_legacy_keys_postgres_live_test.go": (
             "TestCloudResourceListSuppressesHistoricalAppSyncKeysLive",
