@@ -42,9 +42,14 @@ READ COMMITTED transaction. Missing lineage fails open to the token guard.
   `TestSupplyChainImpactLiveProofsRunInTheReducerContentionGate` GREEN.
 - Why safe: the fence is a single-statement predicate inside the existing
   upsert; it adds no lock, lease, claim, worker, queue, migration, or
-  transaction scope. A concurrent activation committing before the statement
-  is seen (READ COMMITTED, one decision per statement); one committing
-  after is ordered after, and the newer generation's own pass overwrites.
+  transaction scope. The record runs last, just before commit, so it
+  decides on the freshest READ COMMITTED snapshot: a newer generation
+  that commits while this pass's bulk writes run is seen and the stale
+  write skipped, instead of committing over the newer clear. Residual: a
+  commit landing between the record statement and this transaction's
+  commit (a window with no bulk work in it) can still interleave; the
+  token guard additionally blocks a late committer whose token is lower
+  than the row's.
 
 ## Observability Evidence:
 
