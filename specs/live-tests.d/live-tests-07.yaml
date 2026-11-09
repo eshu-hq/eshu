@@ -560,3 +560,13 @@ tests:
     class: verified_scheduled
     reason: "Verified daily PostgreSQL ACK and completion proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
     runner: postgres-scheduled
+  - file: go/internal/storage/postgres/supply_chain_impact_winners_keyed_rekey_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#10408 L4: reducer-contention enrolled TestSupplyChainImpactWinnersResweepRekeyTombstoneDeadKeyConvergesLive and TestSupplyChainImpactWinnersResweepRekeySupersessionDeadKeyConvergesLive in the -run filter of .github/workflows/reducer-contention-gate.yml; local run against disposable PostgreSQL 18.6 passed (0.10s each); one keyed tick deletes the dead winner, drains the log, and matches a fresh recompute with zero audit repairs on both the tombstone and supersession routes"
+    runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_rekey_overlap_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#10408 L4: reducer-contention enrolled TestRekeyTwoHolderScopesRekeySameComponentLive in the -run filter of .github/workflows/reducer-contention-gate.yml; local run against disposable PostgreSQL 18.6 passed (0.99s); two holder scopes re-key the same component in overlapping passes with identical keys, no uniqueness or fencing errors, and both replays converging with no manual rerun"
+    runner: reducer-contention
