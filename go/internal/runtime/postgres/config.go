@@ -129,8 +129,10 @@ func LoadConfig(getenv func(string) string) (Config, error) {
 	case "", "off":
 	case "stale-audits":
 		routing = ReadRoutingStaleAudits
+	case "staged-audits":
+		routing = ReadRoutingStagedAudits
 	default:
-		return Config{}, fmt.Errorf("ESHU_POSTGRES_READ_ROUTING must be off or stale-audits")
+		return Config{}, fmt.Errorf("ESHU_POSTGRES_READ_ROUTING must be off, stale-audits, or staged-audits")
 	}
 	requiredRoleBoundary := strings.TrimSpace(getenv("ESHU_POSTGRES_ROLE_BOUNDARY_REQUIRED"))
 	if requiredRoleBoundary != "" && requiredRoleBoundary != "true" {
