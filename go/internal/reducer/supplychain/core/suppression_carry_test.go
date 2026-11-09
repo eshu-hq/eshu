@@ -50,7 +50,7 @@ func TestCountSuppressionCarryViaMemberAnchor(t *testing.T) {
 		carryFinding("CVE-2026-0401", []string{"CVE-2026-0401", "CVE-2026-0402"}, hidingDecision("suppression-member")),
 		carryFinding("CVE-2026-0401", []string{"CVE-2026-0401", "CVE-2026-0402"}, hidingDecision("suppression-canonical")),
 	}
-	got := countSuppressionCarry([]vulnerabilitySuppression{member, canonical}, findings, []string{"CVE-2026-0401", "CVE-2026-0402"}, now)
+	got := countSuppressionCarry([]vulnerabilitySuppression{member, canonical}, findings, []string{"CVE-2026-0401", "CVE-2026-0402"}, nil, now)
 	if got.carried != 1 {
 		t.Fatalf("carried = %d, want 1 (only the member-anchor hide counts)", got.carried)
 	}
@@ -87,7 +87,7 @@ func TestCountSuppressionOrphanedBySplit(t *testing.T) {
 		}),
 	}
 	touched := []string{"CVE-2026-0300", "GHSA-0300-aaaa", "GHSA-0402-cccc", "CVE-2026-0301"}
-	got := countSuppressionCarry(suppressions, findings, touched, now)
+	got := countSuppressionCarry(suppressions, findings, touched, nil, now)
 	if got.orphaned != 1 {
 		t.Fatalf("orphaned = %d, want 1 (only the live uncited suppression naming a touched dead id)", got.orphaned)
 	}
@@ -108,8 +108,33 @@ func TestCountSuppressionOrphanedNeedsRekey(t *testing.T) {
 	findings := []SupplyChainImpactFinding{
 		carryFinding("CVE-2026-0300", []string{"CVE-2026-0300"}, SupplyChainSuppressionDecision{State: SupplyChainSuppressionStateActive}),
 	}
-	got := countSuppressionCarry(suppressions, findings, nil, now)
+	got := countSuppressionCarry(suppressions, findings, nil, nil, now)
 	if got.orphaned != 0 {
 		t.Fatalf("orphaned = %d, want 0 (no group change, no split orphan)", got.orphaned)
+	}
+}
+
+// TestCountSuppressionOrphanedViaChangedMember pins the F1 in-play
+// extension: a live suppression naming a non-group member id that no
+// touched group names still orphans when the re-key unioned that member
+// into the changed set, and stays silent when it did not.
+func TestCountSuppressionOrphanedViaChangedMember(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
+	authored := time.Date(2026, 10, 31, 12, 0, 0, 0, time.UTC)
+	suppressions := []vulnerabilitySuppression{carrySuppression("suppression-orphan", "", "GHSA-0402-mmmm", authored)}
+	findings := []SupplyChainImpactFinding{
+		carryFinding("CVE-2026-0300", []string{"CVE-2026-0300"}, SupplyChainSuppressionDecision{State: SupplyChainSuppressionStateActive}),
+	}
+	touched := []string{"CVE-2026-0300"}
+	changed := []string{"CVE-2026-0300", "GHSA-0402-mmmm"}
+	got := countSuppressionCarry(suppressions, findings, touched, changed, now)
+	if got.orphaned != 1 {
+		t.Fatalf("orphaned = %d, want 1 (member id in play via the changed union, cited nowhere)", got.orphaned)
+	}
+	quiet := countSuppressionCarry(suppressions, findings, touched, nil, now)
+	if quiet.orphaned != 0 {
+		t.Fatalf("orphaned = %d, want 0 (member id in no in-play set)", quiet.orphaned)
 	}
 }

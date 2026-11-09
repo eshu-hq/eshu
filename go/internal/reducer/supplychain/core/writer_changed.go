@@ -371,6 +371,18 @@ func touchedGroupIDs(rows []changedRow, stored []storedFinding, generationID str
 		add(row.cveID, row.advisoryID)
 		if ok {
 			add(base.cveID, base.advisoryID)
+			// Identity changed (D2, #10408): the row replaced a stored
+			// row under a different group id or member set, so the old
+			// and new member ids ride along as candidate prior groups.
+			// A holder or projection keyed by a departed member still
+			// re-derives; over-enqueue is a no-op reconcile. A digest
+			// change with the same group and members (e.g. an
+			// EPSS-only refresh) names nothing new.
+			if coalescedFindingGroupID(row.cveID, row.advisoryID) != coalescedFindingGroupID(base.cveID, base.advisoryID) ||
+				!memberSetsEqual(row.members, base.members) {
+				addMemberIDs(touched, "", row.members)
+				addMemberIDs(touched, "", base.members)
+			}
 		}
 	}
 	if retract {
@@ -477,44 +489,10 @@ func sortedSetKeys(set map[string]struct{}) []string {
 	return out
 }
 
-// parseAdvisoryGroupMembers decodes the advisory-group member set the
-// stored-finding and recovery selects project from
-// payload.provenance.advisory_group_members (#10408). A missing, null, or
-// empty array reads as nil. Malformed JSON fails the pass so a corrupt row
-// can never silently narrow the fan-out.
-func parseAdvisoryGroupMembers(raw string) ([]string, error) {
-	trimmed := strings.TrimSpace(raw)
-	if trimmed == "" || trimmed == "[]" || trimmed == "null" {
-		return nil, nil
-	}
-	var members []string
-	if err := json.Unmarshal([]byte(trimmed), &members); err != nil {
-		return nil, fmt.Errorf("decode advisory group members: %w", err)
-	}
-	out := make([]string, 0, len(members))
-	for _, member := range members {
-		if member = strings.TrimSpace(member); member != "" {
-			out = append(out, member)
-		}
-	}
-	return out, nil
-}
-
-// addMemberIDs contributes a row's group id and advisory-group member ids to
-// a set (#10408), blanks dropped. A member-less row falls back to its
-// singleton id, so ungrouped findings keep per-record keys.
-func addMemberIDs(set map[string]struct{}, cveID string, members []string) {
-	if id := strings.TrimSpace(cveID); id != "" {
-		set[id] = struct{}{}
-	}
-	for _, member := range members {
-		if id := strings.TrimSpace(member); id != "" {
-			set[id] = struct{}{}
-		}
-	}
-}
-
-// touchedGroupIDs is defined once above (#10411): the pass's changed
-// advisory-group ids keyed by coalesced CVE/advisory id. Member ids for
-// holder lookup ride changedCVEIDs and the recovery set via addMemberIDs
-// (#10408), never the touched set, so the projection contract stays exact.
+// Member-set helpers live in writer_group_members.go: parseAdvisoryGroupMembers,
+// addMemberIDs, and memberSetsEqual (#10408). The touched set stays keyed by
+// coalesced group id per the #10411 contract the graph projection consumes
+// verbatim; member ids ride changedCVEIDs and the recovery set, and rows
+// that replaced a stored row under a different group id or member set
+// additionally contribute old and new member ids as candidate prior groups
+// (D2, see touchedGroupIDs above).

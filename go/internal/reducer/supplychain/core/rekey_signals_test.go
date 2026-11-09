@@ -5,6 +5,7 @@ package core
 
 import (
 	"context"
+	"reflect"
 	"testing"
 
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
@@ -14,114 +15,241 @@ import (
 )
 
 // This file pins the L7 re-key operator signal (#10408, criterion 3.3): the
-// handler classifies every pass that touched an advisory group into one
-// closed outcome (merge, split, member_only, retire_only), counts it, and
-// stays silent when the touched set is empty. The classifier cases mirror
-// the L1 writer shapes (writer_rekey_test.go): a merge retires dead keys
-// while survivors commit, a split drops coverage without retirements, a
-// member-only refresh rewrites the same keys, and a retire-only pass writes
-// nothing.
+// writer reports the pass's genuine group-identity change
+// (reportRekeyIdentity) and the handler counts one outcome per pass that
+// changed identity (merge, split, member_only, retire_only), staying silent
+// on ordinary passes. The classifier cases mirror the L1 writer shapes
+// (writer_rekey_test.go): a merge retires dead keys while survivors commit,
+// a split drops coverage without retirements, a member-only refresh rewrites
+// the same keys, and a retire-only pass writes nothing. Production-shape
+// silence cases (EPSS-only refresh, admission, bootstrap, same-key rewrite)
+// prove the counter never fires on commit shape alone (F1).
 
 func TestClassifyRekeyOutcome(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name      string
-		touched   []string
-		written   int
-		retracted int
-		orphaned  int
-		want      RekeyOutcome
-		wantCount bool
+		name     string
+		rep      RekeyReport
+		orphaned int
+		want     RekeyOutcome
+		wantBool bool
 	}{
 		{
-			name:      "no group change stays silent",
-			touched:   nil,
-			written:   3,
-			retracted: 0,
-			orphaned:  0,
-			want:      "",
-			wantCount: false,
+			name:     "silent report stays silent",
+			rep:      RekeyReport{},
+			orphaned: 0,
+			want:     "",
+			wantBool: false,
 		},
 		{
-			name:      "empty touched set stays silent",
-			touched:   []string{},
-			written:   0,
-			retracted: 0,
-			orphaned:  0,
-			want:      "",
-			wantCount: false,
+			name:     "silent report with orphaned coverage is a split",
+			rep:      RekeyReport{},
+			orphaned: 1,
+			want:     RekeyOutcomeSplit,
+			wantBool: true,
 		},
 		{
-			name:      "retire-only writes nothing",
-			touched:   []string{"CVE-2026-0604"},
-			written:   0,
-			retracted: 2,
-			orphaned:  0,
-			want:      RekeyOutcomeRetireOnly,
-			wantCount: true,
+			name:     "retire-only writes nothing",
+			rep:      RekeyReport{Outcome: RekeyOutcomeRetireOnly, Groups: []string{"CVE-2026-0604"}, Tombstoned: 2, Count: true},
+			orphaned: 0,
+			want:     RekeyOutcomeRetireOnly,
+			wantBool: true,
 		},
 		{
-			name:      "retire-only keeps dropped coverage visible",
-			touched:   []string{"CVE-2026-0604"},
-			written:   0,
-			retracted: 1,
-			orphaned:  1,
-			want:      RekeyOutcomeRetireOnly,
-			wantCount: true,
+			name:     "retire-only keeps dropped coverage visible",
+			rep:      RekeyReport{Outcome: RekeyOutcomeRetireOnly, Groups: []string{"CVE-2026-0604"}, Tombstoned: 2, Count: true},
+			orphaned: 1,
+			want:     RekeyOutcomeRetireOnly,
+			wantBool: true,
 		},
 		{
-			name:      "merge retires dead keys while survivors commit",
-			touched:   []string{"CVE-2026-0601", "CVE-2026-0602"},
-			written:   1,
-			retracted: 1,
-			orphaned:  0,
-			want:      RekeyOutcomeMerge,
-			wantCount: true,
+			name:     "merge retires dead keys while survivors commit",
+			rep:      RekeyReport{Outcome: RekeyOutcomeMerge, Groups: []string{"CVE-2026-0601", "CVE-2026-0602"}, Findings: 1, Tombstoned: 1, Count: true},
+			orphaned: 0,
+			want:     RekeyOutcomeMerge,
+			wantBool: true,
 		},
 		{
-			name:      "dropped coverage wins over the merge shape",
-			touched:   []string{"CVE-2026-0601", "CVE-2026-0602"},
-			written:   1,
-			retracted: 1,
-			orphaned:  1,
-			want:      RekeyOutcomeSplit,
-			wantCount: true,
+			name:     "dropped coverage wins over the merge shape",
+			rep:      RekeyReport{Outcome: RekeyOutcomeMerge, Groups: []string{"CVE-2026-0601", "CVE-2026-0602"}, Findings: 1, Tombstoned: 1, Count: true},
+			orphaned: 1,
+			want:     RekeyOutcomeSplit,
+			wantBool: true,
 		},
 		{
-			name:      "split drops coverage without retirements",
-			touched:   []string{"CVE-2026-0301", "CVE-2026-0302"},
-			written:   2,
-			retracted: 0,
-			orphaned:  1,
-			want:      RekeyOutcomeSplit,
-			wantCount: true,
+			name:     "split drops coverage without retirements",
+			rep:      RekeyReport{Outcome: RekeyOutcomeSplit, Groups: []string{"CVE-2026-0301", "CVE-2026-0302"}, Findings: 2, Count: true},
+			orphaned: 1,
+			want:     RekeyOutcomeSplit,
+			wantBool: true,
 		},
 		{
-			name:      "member-only rewrites the same keys",
-			touched:   []string{"CVE-2026-0501", "CVE-2026-0502", "CVE-2026-0503"},
-			written:   1,
-			retracted: 0,
-			orphaned:  0,
-			want:      RekeyOutcomeMemberOnly,
-			wantCount: true,
+			name:     "member-only rewrites the same keys",
+			rep:      RekeyReport{Outcome: RekeyOutcomeMemberOnly, Groups: []string{"CVE-2026-0501"}, Findings: 1, Count: true},
+			orphaned: 0,
+			want:     RekeyOutcomeMemberOnly,
+			wantBool: true,
 		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got, count := classifyRekeyOutcome(tc.touched, tc.written, tc.retracted, tc.orphaned)
-			if got != tc.want || count != tc.wantCount {
-				t.Fatalf("classifyRekeyOutcome(%v, written=%d, retracted=%d, orphaned=%d) = (%q, %v), want (%q, %v)",
-					tc.touched, tc.written, tc.retracted, tc.orphaned, got, count, tc.want, tc.wantCount)
+			got, count := classifyRekeyOutcome(tc.rep, tc.orphaned)
+			if got != tc.want || count != tc.wantBool {
+				t.Fatalf("classifyRekeyOutcome(%+v, orphaned=%d) = (%q, %v), want (%q, %v)",
+					tc.rep, tc.orphaned, got, count, tc.want, tc.wantBool)
 			}
 		})
 	}
 }
 
-// TestEmitRekeyCountsOutcome proves the counter fires with the right outcome
-// on a re-key pass and stays silent on a no-group-change pass, through the
-// real Instruments registry (not a copy of its shape).
+// TestReportRekeyIdentityProductionShapes pins the F1 production-shape
+// contract end to end: ordinary passes report no identity change however
+// many rows they wrote or retracted, while genuine re-keys report the
+// right outcome with magnitudes limited to the identity-changed subset.
+func TestReportRekeyIdentityProductionShapes(t *testing.T) {
+	t.Parallel()
+
+	mkRow := func(factID, key, digest, cve string, members ...string) changedRow {
+		return changedRow{factID: factID, stableKey: key, digest: digest, cveID: cve, members: members}
+	}
+	mkStored := func(factID, gen, key, digest, cve string, members ...string) storedFinding {
+		return storedFinding{factID: factID, generationID: gen, stableKey: key, digest: digest, cveID: cve, fencingToken: 5, members: members}
+	}
+
+	tests := []struct {
+		name       string
+		rows       []changedRow
+		stored     []storedFinding
+		gen        string
+		retract    bool
+		want       RekeyOutcome
+		wantCount  bool
+		wantGroups []string
+	}{
+		{
+			name: "EPSS-only refresh stays silent",
+			rows: []changedRow{
+				mkRow("new-a", "k-a", "d-new", "CVE-2026-0601", "CVE-2026-0601"),
+			},
+			stored: []storedFinding{
+				mkStored("old-a", "gen-old", "k-a", "d-old", "CVE-2026-0601", "CVE-2026-0601"),
+			},
+			gen: "gen-new", retract: true,
+			want: "", wantCount: false,
+		},
+		{
+			name: "new admission stays silent",
+			rows: []changedRow{
+				mkRow("new-a", "k-a", "d-new", "CVE-2026-0601", "CVE-2026-0601"),
+				mkRow("new-b", "k-b", "d-new", "CVE-2026-0900", "CVE-2026-0900"),
+			},
+			stored: []storedFinding{
+				mkStored("old-a", "gen-old", "k-a", "d-new", "CVE-2026-0601", "CVE-2026-0601"),
+			},
+			gen: "gen-new", retract: true,
+			want: "", wantCount: false,
+		},
+		{
+			name: "bootstrap first pass stays silent",
+			rows: []changedRow{
+				mkRow("new-a", "k-a", "d-new", "CVE-2026-0601", "CVE-2026-0601"),
+			},
+			stored: nil,
+			gen:    "gen-1", retract: true,
+			want: "", wantCount: false,
+		},
+		{
+			name: "generation rollover rewrite stays silent",
+			rows: []changedRow{
+				mkRow("new-a", "k-a", "d-same", "CVE-2026-0601", "CVE-2026-0601"),
+			},
+			stored: []storedFinding{
+				mkStored("old-a", "gen-old", "k-a", "d-same", "CVE-2026-0601", "CVE-2026-0601"),
+			},
+			gen: "gen-new", retract: true,
+			want: "", wantCount: false,
+		},
+		{
+			name: "member-only refresh counts member_only",
+			rows: []changedRow{
+				mkRow("new-a", "k-a", "d-new", "CVE-2026-0601", "CVE-2026-0601", "CVE-2026-0603"),
+			},
+			stored: []storedFinding{
+				mkStored("old-a", "gen-old", "k-a", "d-old", "CVE-2026-0601", "CVE-2026-0601", "CVE-2026-0602"),
+			},
+			gen: "gen-new", retract: true,
+			want: RekeyOutcomeMemberOnly, wantCount: true,
+			wantGroups: []string{"CVE-2026-0601"},
+		},
+		{
+			name: "two-group merge counts merge",
+			rows: []changedRow{
+				mkRow("new-a", "k-a", "d-new", "CVE-2026-0601", "CVE-2026-0601", "CVE-2026-0602"),
+			},
+			stored: []storedFinding{
+				mkStored("old-a", "gen-old", "k-a", "d-old", "CVE-2026-0601", "CVE-2026-0601"),
+				mkStored("dead-b", "gen-old", "k-b", "d-old", "CVE-2026-0602", "CVE-2026-0602"),
+			},
+			gen: "gen-new", retract: true,
+			want: RekeyOutcomeMerge, wantCount: true,
+			wantGroups: []string{"CVE-2026-0601", "CVE-2026-0602"},
+		},
+		{
+			name: "alias-removal split counts split",
+			rows: []changedRow{
+				mkRow("new-a", "k-a", "d-new", "CVE-2026-0601", "CVE-2026-0601"),
+				mkRow("new-h", "k-h", "d-new", "CVE-2026-0602", "CVE-2026-0602"),
+			},
+			stored: []storedFinding{
+				mkStored("old-a", "gen-old", "k-a", "d-old", "CVE-2026-0601", "CVE-2026-0601", "CVE-2026-0602"),
+			},
+			gen: "gen-new", retract: true,
+			want: RekeyOutcomeSplit, wantCount: true,
+			wantGroups: []string{"CVE-2026-0601", "CVE-2026-0602"},
+		},
+		{
+			name: "withdrawal with no survivors counts retire_only",
+			rows: nil,
+			stored: []storedFinding{
+				mkStored("dead-b", "gen-old", "k-b", "d-old", "CVE-2026-0602", "CVE-2026-0602"),
+			},
+			gen: "gen-new", retract: true,
+			want: RekeyOutcomeRetireOnly, wantCount: true,
+			wantGroups: []string{"CVE-2026-0602"},
+		},
+		{
+			name: "partial pass that drops a group reports no retirement",
+			rows: []changedRow{
+				mkRow("new-a", "k-a", "d-same", "CVE-2026-0601", "CVE-2026-0601"),
+			},
+			stored: []storedFinding{
+				mkStored("old-a", "gen-old", "k-a", "d-same", "CVE-2026-0601", "CVE-2026-0601"),
+				mkStored("old-b", "gen-old", "k-b", "d-old", "CVE-2026-0602", "CVE-2026-0602"),
+			},
+			gen: "gen-new", retract: false,
+			want: "", wantCount: false,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got := reportRekeyIdentity(tc.rows, tc.stored, tc.gen, 7, tc.retract)
+			if got.Outcome != tc.want || got.Count != tc.wantCount {
+				t.Fatalf("reportRekeyIdentity() = (%q, count=%v), want (%q, count=%v)",
+					got.Outcome, got.Count, tc.want, tc.wantCount)
+			}
+			if tc.wantCount && !reflect.DeepEqual(got.Groups, tc.wantGroups) {
+				t.Fatalf("reportRekeyIdentity().Groups = %v, want %v", got.Groups, tc.wantGroups)
+			}
+			if !tc.wantCount && (len(got.Groups) != 0 || got.Findings != 0 || got.Tombstoned != 0) {
+				t.Fatalf("silent report carries magnitudes: %+v", got)
+			}
+		})
+	}
+}
+
 func TestEmitRekeyCountsOutcome(t *testing.T) {
 	t.Parallel()
 
@@ -135,9 +263,15 @@ func TestEmitRekeyCountsOutcome(t *testing.T) {
 
 	subSignals := map[string]float64{}
 	h.emitRekey(ctx, SupplyChainImpactWriteResult{
-		FactsWritten:    1,
-		FactsRetracted:  1,
-		TouchedGroupIDs: []string{"CVE-2026-0601", "CVE-2026-0602"},
+		FactsWritten:   1,
+		FactsRetracted: 1,
+		Rekey: RekeyReport{
+			Outcome:    RekeyOutcomeMerge,
+			Groups:     []string{"CVE-2026-0601", "CVE-2026-0602"},
+			Findings:   1,
+			Tombstoned: 1,
+			Count:      true,
+		},
 	}, suppressionCarryTally{carried: 1}, subSignals)
 
 	counts := rekeyCounts(t, reader)
@@ -157,7 +291,9 @@ func TestEmitRekeyCountsOutcome(t *testing.T) {
 		t.Fatalf("sub-signal %q = %v, want 1", rekeyRowsTombstonedSubSignal, got)
 	}
 
-	// A no-group-change pass counts nothing and reports zero magnitudes.
+	// A no-identity-change pass counts nothing and reports zero magnitudes,
+	// however many rows it wrote: the counter reads the writer's genuine
+	// subset, never commit shape (F1).
 	silent := map[string]float64{}
 	h.emitRekey(ctx, SupplyChainImpactWriteResult{
 		FactsWritten:   4,
@@ -191,9 +327,14 @@ func TestEmitRekeyCountsSplitOrphan(t *testing.T) {
 	h := SupplyChainImpactHandler{Instruments: inst}
 
 	h.emitRekey(ctx, SupplyChainImpactWriteResult{
-		FactsWritten:    2,
-		FactsRetracted:  0,
-		TouchedGroupIDs: []string{"CVE-2026-0301", "CVE-2026-0302"},
+		FactsWritten:   2,
+		FactsRetracted: 0,
+		Rekey: RekeyReport{
+			Outcome:  RekeyOutcomeSplit,
+			Groups:   []string{"CVE-2026-0301", "CVE-2026-0302"},
+			Findings: 2,
+			Count:    true,
+		},
 	}, suppressionCarryTally{orphaned: 1}, map[string]float64{})
 
 	if got := rekeyCounts(t, reader)[string(RekeyOutcomeSplit)]; got != 1 {

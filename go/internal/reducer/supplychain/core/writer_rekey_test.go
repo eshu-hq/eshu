@@ -14,13 +14,15 @@ import (
 
 // This file pins the L1 writer-core contract for re-keying on advisory group
 // merge/split by re-derivation (issue #10408, criterion 3.3): the writer
-// names the touched advisory-group set (old plus new group ids, sorted and
-// de-duplicated, per the merged #10411 contract the graph projection
-// consumes) and unions member ids into the changed and recovery CVE sets
-// that feed the holder fan-out. The re-key itself happens upstream by
-// re-derivation (alias grouping lands the AdvisoryGroupMembers sets); these
-// tests hold the writer boundary only: what the commit reports and persists,
-// never the grouping decision.
+// names the touched advisory-group set (coalesced old plus new group ids,
+// sorted and de-duplicated, per the merged #10411 contract the graph
+// projection consumes; rows that replaced a stored row under a different
+// group id or member set additionally contribute the old and new member ids
+// as candidate prior groups, D2), and unions member ids into the changed
+// and recovery CVE sets that feed the holder fan-out. The re-key itself
+// happens upstream by re-derivation (alias grouping lands the
+// AdvisoryGroupMembers sets); these tests hold the writer boundary only:
+// what the commit reports and persists, never the grouping decision.
 
 const rekeyTestScope = "vuln-intel://osv/npm/rekey-example"
 
@@ -412,7 +414,7 @@ func TestTouchedGroupIDsRekeyContract(t *testing.T) {
 				stored("old-a", "gen-old", "k-a", "d-old", "CVE-2026-0601", "CVE-2026-0601", "CVE-2026-0602"),
 			},
 			gen: "gen-new", retract: true,
-			want: []string{"CVE-2026-0601"},
+			want: []string{"CVE-2026-0601", "CVE-2026-0602", "CVE-2026-0603"},
 		},
 		{
 			name: "retire-only emits the old id",
@@ -439,10 +441,10 @@ func TestTouchedGroupIDsRekeyContract(t *testing.T) {
 				stored("old-b", "gen-old", "k-b", "d-old", "CVE-2026-0602", "CVE-2026-0602"),
 			},
 			gen: "gen-new", retract: true,
-			want: []string{"CVE-2026-0602"},
+			want: []string{"CVE-2026-0601", "CVE-2026-0602"},
 		},
 		{
-			name: "dead id present although the committer held no dead-id rows",
+			name: "retracted dead row names its group although the committer wrote nothing new",
 			rows: []changedRow{row("same-a", "k-a", "d-same", "CVE-2026-0601", "CVE-2026-0601")},
 			stored: []storedFinding{
 				stored("same-a", "gen", "k-a", "d-same", "CVE-2026-0601", "CVE-2026-0601"),
@@ -450,6 +452,15 @@ func TestTouchedGroupIDsRekeyContract(t *testing.T) {
 			},
 			gen: "gen", retract: true,
 			want: []string{"CVE-2026-0602"},
+		},
+		{
+			name: "dead id derived from new rows' members although no stored row names it",
+			rows: []changedRow{row("new-a", "k-a", "d-new", "CVE-2026-0601", "CVE-2026-0601", "CVE-2026-0602")},
+			stored: []storedFinding{
+				stored("old-a", "gen-old", "k-a", "d-old", "CVE-2026-0601", "CVE-2026-0601"),
+			},
+			gen: "gen-new", retract: true,
+			want: []string{"CVE-2026-0601", "CVE-2026-0602"},
 		},
 		{
 			name: "partial evidence stays upsert-only",

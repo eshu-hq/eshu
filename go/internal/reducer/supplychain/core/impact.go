@@ -338,7 +338,7 @@ func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent reducercont
 	// The re-key carry tally rides the same sub-signals: what a merge or
 	// split carried through member anchors, and what a split orphaned, so
 	// the wave's suppression coverage is visible per pass (#10408).
-	carry := countSuppressionCarry(suppressions, findings, writeResult.TouchedGroupIDs, h.evaluationNow())
+	carry := countSuppressionCarry(suppressions, findings, writeResult.TouchedGroupIDs, writeResult.ChangedCVEIDs, h.evaluationNow())
 	subSignals[suppressionCarriedViaMemberSubSignal] = float64(carry.carried)
 	subSignals[suppressionOrphanedBySplitSubSignal] = float64(carry.orphaned)
 	// The re-key wave's closed outcome and magnitudes ride the same pass:

@@ -27,20 +27,18 @@ const (
 	// committed: two groups collapsed into a survivor (L1 late-alias
 	// merge). Retirements are present, so the wave retired identity.
 	RekeyOutcomeMerge RekeyOutcome = "merge"
-	// RekeyOutcomeSplit means the pass dropped suppression coverage a
-	// touched group named: the orphaned-by-split tally is nonzero (L1
-	// alias-removal and withdrawal splits). This beats the merge shape
-	// when both hold, because dropped coverage needs a deliberate
-	// re-issue while a collapse converges on its own.
+	// RekeyOutcomeSplit means a fragment landed on a fresh group key whose
+	// members were all already stored (L1 alias-removal split), or the
+	// pass dropped suppression coverage (the orphaned-by-split tally is
+	// nonzero). This beats the merge shape when both hold, because
+	// dropped coverage needs a deliberate re-issue while a collapse
+	// converges on its own.
 	RekeyOutcomeSplit RekeyOutcome = "split"
-	// RekeyOutcomeMemberOnly means the pass rewrote keys without retiring
-	// any and dropped no coverage (L1 member-only refresh: the same key
-	// with refreshed members). Suppression-free splits and first-seen
-	// groups share this commit shape at the handler — the writer's
-	// row-level old/new key join is not visible past the commit — so the
-	// outcome guarantees what did not happen (no retirements, no dropped
-	// coverage), which is what the rollout's alias-churn measurement
-	// reads.
+	// RekeyOutcomeMemberOnly means the pass rewrote the same group key with
+	// different members and retired nothing (L1 member-only refresh). It
+	// fires only on a genuine same-group member change: the writer compares
+	// each row against its replaced stored row, so first-seen groups and
+	// ordinary rewrites stay silent.
 	RekeyOutcomeMemberOnly RekeyOutcome = "member_only"
 	// RekeyOutcomeRetireOnly means the pass wrote nothing and only retired
 	// rows (L1 retire-only: a group the new generation no longer derives).
@@ -50,9 +48,10 @@ const (
 // Re-key result sub-signals: per-pass magnitudes on the reducer success
 // line (log fields sub_signal_<name>), following the fanout_* sub-signals.
 const (
-	// rekeyGroupsTouchedSubSignal counts the touched advisory group set:
-	// every new row's group id plus its member ids, plus every replaced
-	// or retracted stored row's group id plus its member ids.
+	// rekeyGroupsTouchedSubSignal counts the genuine identity-change groups:
+	// every changed row's coalesced group id, plus the old and new member
+	// ids of rows that replaced a stored row under a different group id or
+	// member set, plus retired groups with no successor.
 	rekeyGroupsTouchedSubSignal = "rekey_groups_touched"
 	// rekeyFindingsRekeyedSubSignal counts the findings the pass derived
 	// under the post-change grouping: the commit's new keys.
@@ -62,26 +61,28 @@ const (
 	rekeyRowsTombstonedSubSignal = "rekey_rows_tombstoned"
 )
 
-// classifyRekeyOutcome maps one pass's commit shape to its closed re-key
-// outcome. An empty touched set is not a re-key pass and stays silent
-// (false): a byte-identical rewrite touches nothing. A pass that wrote
-// nothing only retired. A pass that dropped suppression coverage is a
-// split, whatever else it did. A pass that retired keys while committing
-// new ones is a merge. Everything else rewrote keys in place.
-func classifyRekeyOutcome(touched []string, written, retracted, orphaned int) (RekeyOutcome, bool) {
-	if len(touched) == 0 {
+// classifyRekeyOutcome maps one pass's genuine identity-change report to its
+// counted outcome. The writer reports identity change (reportRekeyIdentity),
+// never commit shape: an ordinary pass with the same groups and members —
+// an EPSS-only refresh, a new admission, a generation rollover, a same-key
+// rewrite — reports Count false and stays silent (false) however many rows
+// it wrote or retracted. A pass that wrote nothing only retired. A pass
+// that dropped suppression coverage is a split, whatever else it did,
+// because dropped coverage needs a deliberate re-issue.
+func classifyRekeyOutcome(rep RekeyReport, orphaned int) (RekeyOutcome, bool) {
+	if !rep.Count {
+		if orphaned > 0 {
+			return RekeyOutcomeSplit, true
+		}
 		return "", false
 	}
-	if written == 0 {
+	if rep.Outcome == RekeyOutcomeRetireOnly {
 		return RekeyOutcomeRetireOnly, true
 	}
 	if orphaned > 0 {
 		return RekeyOutcomeSplit, true
 	}
-	if retracted > 0 {
-		return RekeyOutcomeMerge, true
-	}
-	return RekeyOutcomeMemberOnly, true
+	return rep.Outcome, true
 }
 
 // emitRekey records one pass's re-key outcome and its suppression carry
@@ -89,15 +90,15 @@ func classifyRekeyOutcome(touched []string, written, retracted, orphaned int) (R
 // runs at the pass dispatcher, next to the suppression carry tally, and
 // follows the emitFanOut pattern: one counter add per re-key pass with the
 // closed outcome label, conditional adds for the carried/orphaned
-// magnitudes, magnitudes as result sub-signals. A pass that touched no
-// group counts nothing and reports zero magnitudes. Bounded labels only:
-// the outcome is the closed four-set; no group, CVE, or advisory id ever
-// reaches a metric attribute.
+// magnitudes, magnitudes as result sub-signals. A pass with no genuine
+// group-identity change counts nothing and reports zero magnitudes. Bounded
+// labels only: the outcome is the closed four-set; no group, CVE, or
+// advisory id ever reaches a metric attribute.
 func (h SupplyChainImpactHandler) emitRekey(ctx context.Context, writeResult SupplyChainImpactWriteResult, carry suppressionCarryTally, subSignals map[string]float64) {
-	outcome, count := classifyRekeyOutcome(writeResult.TouchedGroupIDs, writeResult.FactsWritten, writeResult.FactsRetracted, carry.orphaned)
-	subSignals[rekeyGroupsTouchedSubSignal] = float64(len(writeResult.TouchedGroupIDs))
-	subSignals[rekeyFindingsRekeyedSubSignal] = float64(writeResult.FactsWritten)
-	subSignals[rekeyRowsTombstonedSubSignal] = float64(writeResult.FactsRetracted)
+	outcome, count := classifyRekeyOutcome(writeResult.Rekey, carry.orphaned)
+	subSignals[rekeyGroupsTouchedSubSignal] = float64(len(writeResult.Rekey.Groups))
+	subSignals[rekeyFindingsRekeyedSubSignal] = float64(writeResult.Rekey.Findings)
+	subSignals[rekeyRowsTombstonedSubSignal] = float64(writeResult.Rekey.Tombstoned)
 	if !count {
 		return
 	}

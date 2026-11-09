@@ -173,3 +173,143 @@ func TestRekeyCarryConflictingSuppressionsResolveLive(t *testing.T) {
 		t.Fatalf("merged finding suppression = %q, want %q (precedence, not arbitration)", got, carryConflictSB)
 	}
 }
+
+// seedCarryMemberPair seeds the suppression-carry member world (#10408,
+// criterion 5b): like seedCarryMergePair, but the survivor record also
+// carries the GHSA-0401-bbbb alias, which is never a deciding id in this
+// world (the deciding records are the CVE survivor and the CVE dead id).
+// The operator suppression names that GHSA member id, so every hide must
+// come through the alias/member arm — the deciding-id arm can never match
+// it.
+func (c *rekeyProof) seedCarryMemberPair() {
+	c.t.Helper()
+	fanOutSeedScope(c.t, c.ctx, c.db, rekeyCommitter, "g1")
+	fanOutSeedScope(c.t, c.ctx, c.db, rekeyHolder, "g1")
+	c.upsert(
+		c.envelope(rekeyCommitter, "g1", "fact:10408:cve", chain.VulnerabilityCVEFactKind, map[string]any{
+			"advisory_id": rekeySurvivor, "cve_id": rekeySurvivor, "source": "ghsa", "cvss_score": 7.5, "aliases": []string{rekeySurvivor, rekeyMember},
+		}),
+		c.envelope(rekeyCommitter, "g1", "fact:10408:dead", chain.VulnerabilityCVEFactKind, map[string]any{
+			"advisory_id": rekeyDead, "cve_id": rekeyDead, "source": "nvd", "cvss_score": 5.0, "aliases": []string{rekeyDead},
+		}),
+		c.affectedPackage(rekeyCommitter, "g1", "fact:10408:pkg", rekeySurvivor, rekeyPackageA),
+		c.affectedPackage(rekeyCommitter, "g1", "fact:10408:dpkg", rekeyDead, rekeyPackageB),
+		c.consumption(rekeyCommitter, "g1", "fact:10408:cons", rekeyPackageA, "repository:r_10408_c"),
+		c.consumption(rekeyCommitter, "g1", "fact:10408:dcons", rekeyPackageB, "repository:r_10408_c"),
+		c.envelope(rekeyHolder, "g1", "fact:10408:hdead", chain.VulnerabilityCVEFactKind, map[string]any{
+			"advisory_id": rekeyDead, "cve_id": rekeyDead, "source": "nvd", "cvss_score": 5.0, "aliases": []string{rekeyDead},
+		}),
+		c.affectedPackage(rekeyHolder, "g1", "fact:10408:hdpkg", rekeyDead, rekeyPackageB),
+		c.consumption(rekeyHolder, "g1", "fact:10408:hdcons", rekeyPackageB, "repository:r_10408_h"),
+	)
+	fanOutSeedItem(c.t, c.ctx, c.db, rekeyCommitter, "g1")
+	fanOutSeedItem(c.t, c.ctx, c.db, rekeyHolder, "g1")
+}
+
+// rescanWithdrawDeadRecordKeepMember mirrors rescanWithdrawDeadRecord but
+// retains the GHSA member alias on the survivor: after withdrawal the dead
+// id and the member id both survive only as aliases, so the member-anchored
+// suppression must load through the alias arm alone.
+func (c *rekeyProof) rescanWithdrawDeadRecordKeepMember() {
+	c.t.Helper()
+	c.copyGeneration(rekeyCommitter, "g1", "g2")
+	if _, err := c.db.ExecContext(c.ctx, `
+DELETE FROM fact_records WHERE scope_id = $1 AND generation_id = $2 AND fact_id IN ('fact:10408:dead:g2', 'fact:10408:dpkg:g2')`, rekeyCommitter, fanOutGen(rekeyCommitter, "g2")); err != nil {
+		c.t.Fatalf("withdraw dead record: %v", err)
+	}
+	aliases, err := json.Marshal([]string{rekeySurvivor, rekeyDead, rekeyMember})
+	if err != nil {
+		c.t.Fatalf("marshal aliases: %v", err)
+	}
+	if _, err := c.db.ExecContext(c.ctx, `
+UPDATE fact_records SET payload = jsonb_set(payload, '{aliases}', $3::jsonb)
+WHERE scope_id = $1 AND generation_id = $2 AND fact_id = 'fact:10408:cve:g2'`, rekeyCommitter, fanOutGen(rekeyCommitter, "g2"), string(aliases)); err != nil {
+		c.t.Fatalf("retain member alias on survivor: %v", err)
+	}
+}
+
+// TestRekeyCarryMemberSuppressionLive is the criterion-5b proof: the operator
+// suppression names the GHSA member id, which is never a deciding id.
+// Pre-merge the survivor hides through member-set match (pinned to the
+// member-anchored suppression id) while the dead singleton stays active, so
+// the anchor cannot blanket-hide. After the committer withdraws the dead
+// record the merged finding stays hidden through the alias arm, on the
+// committer and on the fanned-out holder, with the suppression fact itself
+// byte-unchanged (carry by re-evaluation, never by rewriting the
+// suppression).
+func TestRekeyCarryMemberSuppressionLive(t *testing.T) {
+	c := newRekeyProof(t)
+	c.seedCarryMemberPair()
+	c.seedRekeyOperator(rekeyMember)
+	c.drain()
+	t.Logf("pre-merge findings: %v", c.findingKeys())
+	before := c.suppressionPayloads()
+	if len(before) == 0 {
+		t.Fatalf("no suppression facts seeded in the operator scope")
+	}
+	if got := c.suppressionStates(rekeyCommitter)[rekeySurvivor]; got == "" || got == "active" || got == "expired" {
+		t.Fatalf("pre-merge survivor state = %q, want it hidden by the member suppression", got)
+	}
+	if got := c.suppressionIDs(rekeyCommitter)[rekeySurvivor]; got != "suppression-10408" {
+		t.Fatalf("pre-merge survivor suppression = %q, want suppression-10408 (member-arm match, not deciding-id match)", got)
+	}
+	if got := c.suppressionStates(rekeyCommitter)[rekeyDead]; got != "active" {
+		t.Fatalf("pre-merge dead finding state = %q, want active (the member anchor must not blanket-hide)", got)
+	}
+
+	c.rescanWithdrawDeadRecordKeepMember()
+	c.rerun(rekeyCommitter)
+	c.handled = nil
+	c.drain()
+	t.Logf("post-merge findings: %v", c.findingKeys())
+	t.Logf("post-merge handled: %v", c.handled)
+	if got := c.keysByScope(rekeyCommitter); len(got) != 1 || got[0] != rekeySurvivor {
+		t.Fatalf("committer keys = %v, want the survivor group [%s]", got, rekeySurvivor)
+	}
+	if got := c.suppressionStates(rekeyCommitter)[rekeySurvivor]; got == "" || got == "active" || got == "expired" {
+		t.Fatalf("merged committer finding state = %q, want it hidden by the carried member suppression", got)
+	}
+	if got := c.suppressionIDs(rekeyCommitter)[rekeySurvivor]; got != "suppression-10408" {
+		t.Fatalf("merged committer suppression = %q, want suppression-10408 (member-arm carry)", got)
+	}
+	if c.handledCount(rekeyHolder) == 0 {
+		t.Fatalf("holder never reopened after the merge (handled %v)", c.handled)
+	}
+	if got := c.keysByScope(rekeyHolder); len(got) != 1 || got[0] != rekeySurvivor {
+		t.Fatalf("holder keys = %v, want the survivor group [%s]", got, rekeySurvivor)
+	}
+	if got := c.suppressionStates(rekeyHolder)[rekeySurvivor]; got == "" || got == "active" || got == "expired" {
+		t.Fatalf("merged holder finding state = %q, want it hidden by the carried member suppression", got)
+	}
+	// Drive the holder to withdrawal as well: no scope holds a record
+	// naming the dead id or the member id anymore, only the survivor's
+	// aliases reference them. Both scopes must re-derive suppressed through
+	// the alias arm alone.
+	c.rescanWithdrawHolderDeadRecord()
+	c.rerun(rekeyHolder)
+	c.rerun(rekeyCommitter)
+	c.handled = nil
+	c.drain()
+	t.Logf("post-withdrawal findings: %v", c.findingKeys())
+	if got := c.keysByScope(rekeyCommitter); len(got) != 1 || got[0] != rekeySurvivor {
+		t.Fatalf("committer keys = %v, want the survivor group [%s]", got, rekeySurvivor)
+	}
+	if got := c.suppressionStates(rekeyCommitter)[rekeySurvivor]; got == "" || got == "active" || got == "expired" {
+		t.Fatalf("withdrawn committer finding state = %q, want it hidden by the carried member suppression", got)
+	}
+	if got := c.keysByScope(rekeyHolder); len(got) != 1 || got[0] != rekeySurvivor {
+		t.Fatalf("holder keys = %v, want the survivor group [%s]", got, rekeySurvivor)
+	}
+	if got := c.suppressionStates(rekeyHolder)[rekeySurvivor]; got == "" || got == "active" || got == "expired" {
+		t.Fatalf("withdrawn holder finding state = %q, want it hidden by the carried member suppression", got)
+	}
+	after := c.suppressionPayloads()
+	if len(after) != len(before) {
+		t.Fatalf("suppression facts = %d after the merge, want %d (carry must not rewrite suppressions)", len(after), len(before))
+	}
+	for i := range before {
+		if before[i] != after[i] {
+			t.Fatalf("suppression fact %d changed bytes across the merge:\nbefore: %s\nafter:  %s", i, before[i], after[i])
+		}
+	}
+}

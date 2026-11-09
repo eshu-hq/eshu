@@ -129,6 +129,7 @@ func (w PostgresSupplyChainImpactWriter) WriteSupplyChainImpactFindings(
 		EvidenceComplete:  !write.PartialEvidence,
 		RecoveryCVEIDs:    outcome.recoveryCVEs,
 		SuppressionCVEIDs: outcome.suppressionCVEs,
+		Rekey:             outcome.rekey,
 		suppressionDiff:   outcome.suppression,
 		PassStateSkipped:  outcome.passStateSkipped,
 		EvidenceSummary: fmt.Sprintf(

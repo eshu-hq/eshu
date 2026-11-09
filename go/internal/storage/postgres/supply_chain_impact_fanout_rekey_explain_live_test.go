@@ -113,7 +113,7 @@ CROSS JOIN generate_series(1, 30000) g`, facts.ReducerSupplyChainImpactFindingFa
 	// Each btree arm on the shipped constant at a single id: the planner
 	// must serve it from its own partial index. The cve arm rides migration
 	// 283's table-wide expression statistics; the advisory arm rides
-	// migration 289's (the same pattern). The member-set GIN arm is proven
+	// migration 290's (the same pattern). The member-set GIN arm is proven
 	// behaviorally above; its selection stays scale-dependent.
 	for _, tc := range []struct {
 		name  string

@@ -72,6 +72,7 @@ type supplyChainImpactTxOutcome struct {
 	changedCVEs     []string
 	derivedCVEs     []string
 	recoveryCVEs    []string
+	rekey           RekeyReport
 	suppressionCVEs []string
 	// touchedGroups are the coalesced advisory-group ids (#10411) the
 	// pass's changed rows, changed suppressions, and (on recovery) every
@@ -205,6 +206,11 @@ func commitSupplyChainImpactRows(
 		touchedGroups:   touchedGroups,
 		suppression:     supp,
 	}
+	// The genuine identity-change subset rides alongside the touched set so
+	// the D6 counter fires only on real re-keys, never on commit shape
+	// (#10408 F1): ordinary EPSS-only refreshes, admissions, rollovers, and
+	// same-key rewrites report Count false.
+	outcome.rekey = reportRekeyIdentity(meta, stored, write.GenerationID, write.FencingToken, !write.PartialEvidence)
 	// The owed marker also covers the advisory-group enqueue (#10411): a
 	// pass whose only changes are CVE-less (group keys live in advisory_id)
 	// has empty changedCVEs but still owes its touched groups a

@@ -90,18 +90,23 @@ func memberAnchorCarry(finding SupplyChainImpactFinding, scope vulnerabilitySupp
 }
 
 // countSuppressionCarry tallies one pass's carried and orphaned suppression
-// coverage over the loaded suppressions, the evaluated new findings, and the
-// writer's touched group set. Carried counts every hiding decision reached
-// through a non-canonical member anchor, on any pass. Orphaned counts only on
-// a pass that changed group identity (a non-empty touched set): a loaded,
-// unexpired suppression naming a touched id that no new finding cites
-// anymore. The touched gate keeps ordinary coverage loss off the split
-// signal: on a no-group-change pass an uncited suppression is not a split
-// orphan.
+// coverage over the loaded suppressions, the evaluated new findings, the
+// writer's touched group set, and the member-expanded changed set. Carried
+// counts every hiding decision reached through a non-canonical member
+// anchor, on any pass. Orphaned counts only on a pass that changed group
+// identity (a non-empty touched or changed set): a loaded, unexpired
+// suppression naming an in-play id that no new finding cites anymore. The
+// in-play set is the touched set plus the member-expanded changed set
+// (#10408 F1): a suppression naming a non-group member id that the re-key
+// unioned into ChangedCVEIDs was in play even though no touched group names
+// it, so dropping it still orphans coverage. The gate keeps ordinary
+// coverage loss off the split signal: on a no-change pass an uncited
+// suppression is not a split orphan.
 func countSuppressionCarry(
 	suppressions []vulnerabilitySuppression,
 	findings []SupplyChainImpactFinding,
 	touchedGroupIDs []string,
+	changedIDs []string,
 	now time.Time,
 ) suppressionCarryTally {
 	var tally suppressionCarryTally
@@ -125,7 +130,7 @@ func countSuppressionCarry(
 			tally.carried++
 		}
 	}
-	if len(touchedGroupIDs) == 0 {
+	if len(touchedGroupIDs) == 0 && len(changedIDs) == 0 {
 		return tally
 	}
 	newIDs := make(map[string]struct{})
@@ -140,8 +145,13 @@ func countSuppressionCarry(
 		addFolded(finding.CVEID, finding.AdvisoryID)
 		addFolded(finding.AdvisoryGroupMembers...)
 	}
-	touched := make(map[string]struct{}, len(touchedGroupIDs))
+	touched := make(map[string]struct{}, len(touchedGroupIDs)+len(changedIDs))
 	for _, id := range touchedGroupIDs {
+		if trimmed := strings.TrimSpace(id); trimmed != "" {
+			touched[strings.ToLower(trimmed)] = struct{}{}
+		}
+	}
+	for _, id := range changedIDs {
 		if trimmed := strings.TrimSpace(id); trimmed != "" {
 			touched[strings.ToLower(trimmed)] = struct{}{}
 		}

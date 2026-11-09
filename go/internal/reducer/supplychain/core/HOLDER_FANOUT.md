@@ -272,7 +272,7 @@ Re-key (L2, #10408): the genuine pass fans out
 `union(ChangedCVEIDs, TouchedGroupIDs)` plus the owed-retry union with
 `Recovery`, and the holder read is a 3-arm OR over `cve_id`, `advisory_id`,
 and group `members` so late-alias advisory-keyed holders reopen. Migrations
-287/288 add the advisory btree and member GIN partial indexes; 289 adds the
+288/289 add the advisory btree and member GIN partial indexes; 290 adds the
 advisory extended-statistics object. Chunk 200 and the 256 holder cap are
 unchanged: still one holder-lookup statement per chunk, no new locks, claims,
 leases, or queue behavior.
@@ -325,13 +325,18 @@ No-Regression Evidence (#10408 L2): EXPLAIN ANALYZE on disposable PostgreSQL
 single-id CVE and advisory probes both run a BitmapOr over all three arms
 (`fact_records_supply_chain_impact_lookup_idx`,
 `..._advisory_lookup_idx`, `..._group_members_idx`) in 2.8-2.9ms; the
-200-id chunk-bound probe runs a Parallel Seq Scan in 44.1ms. Baseline
-pre-L2 was the single `cve_id = ANY(...)` arm plus the in-flight/owed
-union, which never reopened advisory-keyed holders (the R-adv probe fails
-pre-L2 and passes post-L2). The widened predicate adds rows only where the
-advisory or member arm matches, which is the intended re-key coverage; the
-statement shape, chunk bound, and cap are identical, so per-chunk cost is
-bounded by the same single scan.
+200-id chunk-bound probe runs a Parallel Seq Scan in 44.1ms. These are
+bounds on the 90k-row synthetic distribution in
+`TestRekeyHolderLookupUsesAllThreeArmsLive`, not a production latency
+claim: single-id and few-id advisory probes serve from the advisory
+partial index, while a full 200-id chunk scans — by design, since the
+chunk must touch every arm's rows. Baseline pre-L2 was the single
+`cve_id = ANY(...)` arm plus the in-flight/owed union, which never
+reopened advisory-keyed holders (the R-adv probe fails pre-L2 and passes
+post-L2). The widened predicate adds rows only where the advisory or
+member arm matches, which is the intended re-key coverage; the statement
+shape, chunk bound, and cap are identical, so per-chunk cost is bounded
+by the same single scan.
 
 No-Observability-Change (#10408 L2): no new metrics, spans, logs, or status
 fields; the reopened-scope count still surfaces on the existing reducer
@@ -356,10 +361,12 @@ against disposable PostgreSQL 18.6: `TestRekeyTwoHolderScopesRekeySameComponentL
 1.32s at HEAD, both keyed-path convergence tests 0.10s each
 (`specs/live-tests.d/live-tests-07.yaml` reasons).
 
-No-Observability-Change (#10408 L7): the re-key signal adds exactly one
-in-memory counter add per touched-group pass plus two conditional
-suppression-magnitude adds (zero on a pass with no carry or orphan); no new
-spans, log lines, queue stages, locks, claims, leases, or status fields.
-Magnitudes ride result sub-signals — log fields on the existing reducer
-success line, following the `fanout_*` pattern — and the outcome rides the
-new counter's closed label, never a group, CVE, or advisory id.
+Observability Evidence (#10408 L7): the re-key signal is operator-visible
+by design — `TestEmitRekeyCountsOutcome` proves one
+`eshu_dp_supply_chain_impact_rekey_total` add per genuine identity-change
+pass (closed outcome label) with zero adds on ordinary passes, plus
+conditional carried/orphaned adds (zero on a pass with no carry or orphan);
+no new spans, log lines, queue stages, locks, claims, leases, or status
+fields. Magnitudes ride result sub-signals — log fields on the existing
+reducer success line, following the `fanout_*` pattern — and the outcome
+rides the new counter's closed label, never a group, CVE, or advisory id.

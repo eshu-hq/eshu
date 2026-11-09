@@ -53,15 +53,18 @@
 // updated, deleted and unchanged counts (#9774); the writer replaces a (scope,
 // generation)'s finding set in one locked transaction and tombstones the
 // findings a pass no longer derives, #6831; on an advisory group merge or
-// split the writer also reports the touched group set — every new row's
-// group id plus its member ids, plus every replaced or retracted stored
-// row's group id plus its member ids; a pass that rewrote nothing reports
+// split the writer also reports the touched group set — every changed or
+// retracted row's coalesced group id, plus the old and new member ids of
+// rows that replaced a stored row under a different group id or member
+// set (candidate prior groups, D2); member ids for holder lookup ride the
+// changed and recovery CVE unions. A pass that rewrote nothing reports
 // none — and the pass dispatcher counts one
 // eshu_dp_supply_chain_impact_rekey_total point with the closed outcome:
 // merge (old keys retired while new keys committed), split (the pass
 // dropped suppression coverage), member_only (keys rewritten in place), or
 // retire_only (rows retired, nothing derived), staying silent when the
-// touched set is empty, #10408. Suppression carry and orphan magnitudes
+// pass changed no group identity (however many rows it wrote or retracted),
+// #10408. Suppression carry and orphan magnitudes
 // ride eshu_dp_supply_chain_impact_suppression_carried_via_member_total
 // and eshu_dp_supply_chain_impact_suppression_orphaned_by_split_total
 // under the same outcome label, and per-pass magnitudes ride the
