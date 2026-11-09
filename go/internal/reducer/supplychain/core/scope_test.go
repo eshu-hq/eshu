@@ -433,3 +433,48 @@ func TestBuildVulnerabilitySuppressionsOmittedEnvironmentWorkloadServiceScope(t 
 		t.Fatalf("Scope = %#v, want environment/workload_id/service_id empty when omitted from the payload", scope)
 	}
 }
+
+// TestEvaluateSupplyChainSuppressionMatchesNonCanonicalGroupMember is the
+// #10453 finding 1 failing regression: after alias grouping, a suppression
+// naming a non-canonical member id (CVE-2 or GHSA-y of the group) must still
+// hide the grouped finding keyed by the canonical group id CVE-1. A finding
+// outside the group must stay visible under the same scope.
+func TestEvaluateSupplyChainSuppressionMatchesNonCanonicalGroupMember(t *testing.T) {
+	t.Parallel()
+
+	grouped := SupplyChainImpactFinding{
+		CVEID:                "CVE-1",
+		AdvisoryID:           "GHSA-x",
+		AdvisoryGroupMembers: []string{"CVE-1", "CVE-2", "GHSA-x", "GHSA-y"},
+	}
+	now := time.Date(2026, 5, 24, 0, 0, 0, 0, time.UTC)
+	authored := time.Date(2026, 5, 10, 0, 0, 0, 0, time.UTC)
+	for _, scope := range []vulnerabilitySuppressionScope{
+		{CVEID: "CVE-2"},
+		{AdvisoryID: "GHSA-y"},
+	} {
+		suppression := vulnerabilitySuppression{
+			SuppressionID: "suppression-group-member",
+			Source:        chain.VulnerabilitySuppressionSourcePolicy,
+			Justification: chain.VulnerabilitySuppressionJustificationNotAffected,
+			AuthoredAt:    authored,
+			Scope:         scope,
+		}
+		decision := EvaluateSupplyChainSuppression(grouped, []vulnerabilitySuppression{suppression}, now)
+		if decision.State != SupplyChainSuppressionStateNotAffected {
+			t.Fatalf("State = %q, want %q for scope %#v naming a non-canonical group member", decision.State, SupplyChainSuppressionStateNotAffected, scope)
+		}
+	}
+
+	outsider := SupplyChainImpactFinding{CVEID: "CVE-9", AdvisoryID: "GHSA-z"}
+	outsiderSuppression := vulnerabilitySuppression{
+		SuppressionID: "suppression-group-member",
+		Source:        chain.VulnerabilitySuppressionSourcePolicy,
+		Justification: chain.VulnerabilitySuppressionJustificationNotAffected,
+		AuthoredAt:    authored,
+		Scope:         vulnerabilitySuppressionScope{CVEID: "CVE-2"},
+	}
+	if decision := EvaluateSupplyChainSuppression(outsider, []vulnerabilitySuppression{outsiderSuppression}, now); decision.State != SupplyChainSuppressionStateActive {
+		t.Fatalf("State = %q, want %q for a finding outside the group", decision.State, SupplyChainSuppressionStateActive)
+	}
+}

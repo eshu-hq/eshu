@@ -34,7 +34,7 @@ func classifySupplyChainImpactProduct(
 		finding.Confidence = "derived_product"
 		finding.RuntimeReachability = "image_sbom"
 		finding.CanonicalWrites = 1
-		finalizeSupplyChainImpactFinding(&finding, index, imagePathMissing)
+		finalizeSupplyChainImpactFinding(&finding, index, imagePathMissing, aliasGroupMissingEvidence(finding.CVEID, index))
 		return finding
 	}
 	finding.ObservedVersion = versionFromCPE23Criteria(product.Criteria)
@@ -42,7 +42,7 @@ func classifySupplyChainImpactProduct(
 	finding.Confidence = "weak_product"
 	finding.RuntimeReachability = "unknown"
 	finding.CanonicalWrites = 1
-	finalizeSupplyChainImpactFinding(&finding, index, imagePathMissing)
+	finalizeSupplyChainImpactFinding(&finding, index, imagePathMissing, aliasGroupMissingEvidence(finding.CVEID, index))
 	return finding
 }
 
@@ -67,7 +67,35 @@ func baseSupplyChainImpactProductFinding(
 		EvidenceFactIDs:     []string{cve.FactID, product.FactID},
 	}
 	applyRiskSignals(&finding, index.riskSignals[cve.CVEID])
+	applyAliasGroupOutcome(&finding, index)
 	return finding
+}
+
+// applyAliasGroupOutcome carries the alias-connected grouping pass outcome
+// onto a finding: the sorted member-id set and enrichment provenance on
+// grouped keys. Ungrouped keys read no entry and keep per-record keys with
+// no marker. Quarantine markers ride finalizeSupplyChainImpactFinding's
+// extras (see aliasGroupMissingEvidence): finalize recomputes MissingEvidence
+// from scratch, so a marker set here would not survive.
+func applyAliasGroupOutcome(finding *SupplyChainImpactFinding, index supplyChainImpactIndex) {
+	group, ok := index.aliasGroups[finding.CVEID]
+	if !ok || !group.grouped {
+		return
+	}
+	finding.AdvisoryGroupMembers = append([]string(nil), group.members...)
+	finding.AdvisoryGroupEPSSSource = group.epssSource
+	finding.AdvisoryGroupKEVSource = group.kevSource
+}
+
+// aliasGroupMissingEvidence returns the quarantine marker for the finding's
+// group key as a finalizeSupplyChainImpactFinding extra, or nil. A fallback
+// finding keeps its per-record key with the marker instead of a
+// partial-component group id (#10407).
+func aliasGroupMissingEvidence(cveID string, index supplyChainImpactIndex) []string {
+	if group, ok := index.aliasGroups[cveID]; ok && group.missingEvidence != "" {
+		return []string{group.missingEvidence}
+	}
+	return nil
 }
 
 func baseSupplyChainImpactFinding(
@@ -118,6 +146,7 @@ func baseSupplyChainImpactFinding(
 	}
 	finding.AdvisoryRetraction = index.retractionFor(cves.cveID, retractionSources)
 	applyRiskSignals(&finding, index.riskSignals[cves.cveID])
+	applyAliasGroupOutcome(&finding, index)
 	return finding
 }
 

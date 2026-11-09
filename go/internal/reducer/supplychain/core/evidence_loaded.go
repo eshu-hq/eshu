@@ -12,9 +12,14 @@ import (
 // (loadSupplyChainImpactEvidence) while Handle stays focused on
 // classification, suppression, and the write/emit tail.
 type supplyChainImpactLoadedEvidence struct {
-	envelopes    []facts.Envelope
-	asAuthorized *AuthorizedSupplyChainImpactLoad
-	scopeFacts   int
+	envelopes []facts.Envelope
+	// aliasGroupConfig carries the handler's advisory-group operator lists
+	// plus the truncated-load kill switch into finding construction: a pass
+	// whose evidence load stopped short (rounds or budget truncation) must
+	// not group-key findings off a partial alias graph (#10407).
+	aliasGroupConfig supplyChainAliasGroupConfig
+	asAuthorized     *AuthorizedSupplyChainImpactLoad
+	scopeFacts       int
 	// scopeFactKinds are the fact kinds of the intent's own generation (the
 	// first load, before any cross-scope expansion). The holder fan-out
 	// classifies its cause from them (#9878): they name what this pass's

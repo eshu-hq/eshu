@@ -79,6 +79,15 @@ type supplyChainImpactIndex struct {
 	// osUpstream holds what the OS advisory grouping pass counted and did
 	// (#9914); see groupOSAdvisoriesByUpstream.
 	osUpstream osUpstreamGrouping
+	// aliasGroups holds the per-key outcome of the alias-connected grouping
+	// pass (#10407): grouped entries under the group id (members plus
+	// enrichment provenance), quarantine entries under each fallback key
+	// (marker, no members). Finding constructors read it by their
+	// (group) CVE key.
+	aliasGroups map[string]supplyChainAliasGroup
+	// aliasStats counts the grouping pass outcome for telemetry; see
+	// groupOSAdvisoriesByAlias.
+	aliasStats supplyChainAliasGroupStats
 	// osRepresentativeOutcomes receives one count per OS-shaped package group
 	// this index classifies (#9990). Nil records nothing. It has one owner
 	// goroutine, the pass that builds the findings.
@@ -299,25 +308,25 @@ func classifySupplyChainImpactPackage(
 		(!hasComponentPath || consumptionProvesObservedVersion(finding.Ecosystem, finding.ObservedVersion, consumption)) {
 		applySupplyChainVersionDecision(&finding, versionDecision)
 		reachabilityMissing := applyPackageSupplyChainReachability(&finding, consumption, pkgs, index)
-		finalizeSupplyChainImpactFinding(&finding, index, versionDecision.MissingEvidence, imagePathMissing, consumptionMissing, reachabilityMissing, reconciliationMissing)
+		finalizeSupplyChainImpactFinding(&finding, index, versionDecision.MissingEvidence, imagePathMissing, consumptionMissing, reachabilityMissing, reconciliationMissing, aliasGroupMissingEvidence(finding.CVEID, index))
 		return finding
 	}
 	if versionDecision.Status == SupplyChainImpactNotAffectedKnownFixed {
 		applySupplyChainVersionDecision(&finding, versionDecision)
 		reachabilityMissing := applyPackageSupplyChainReachability(&finding, consumption, pkgs, index)
-		finalizeSupplyChainImpactFinding(&finding, index, versionDecision.MissingEvidence, imagePathMissing, consumptionMissing, reachabilityMissing, reconciliationMissing)
+		finalizeSupplyChainImpactFinding(&finding, index, versionDecision.MissingEvidence, imagePathMissing, consumptionMissing, reachabilityMissing, reconciliationMissing, aliasGroupMissingEvidence(finding.CVEID, index))
 		return finding
 	}
 	if versionDecision.FailClosed && !hasComponentPath {
 		applySupplyChainVersionDecision(&finding, versionDecision)
 		reachabilityMissing := applyPackageSupplyChainReachability(&finding, consumption, pkgs, index)
-		finalizeSupplyChainImpactFinding(&finding, index, versionDecision.MissingEvidence, imagePathMissing, consumptionMissing, reachabilityMissing, reconciliationMissing)
+		finalizeSupplyChainImpactFinding(&finding, index, versionDecision.MissingEvidence, imagePathMissing, consumptionMissing, reachabilityMissing, reconciliationMissing, aliasGroupMissingEvidence(finding.CVEID, index))
 		return finding
 	}
 	if hasOSPackage && osPackageSettlesFinding(versionDecision, hasComponentPath) {
 		applySupplyChainVersionDecision(&finding, versionDecision)
 		finding.RuntimeReachability = "image_os_package"
-		finalizeSupplyChainImpactFinding(&finding, index, versionDecision.MissingEvidence, imagePathMissing, reconciliationMissing)
+		finalizeSupplyChainImpactFinding(&finding, index, versionDecision.MissingEvidence, imagePathMissing, reconciliationMissing, aliasGroupMissingEvidence(finding.CVEID, index))
 		return finding
 	}
 	if hasComponentPath {
@@ -329,7 +338,7 @@ func classifySupplyChainImpactPackage(
 		finding.MatchReason = versionDecision.Reason
 		finding.RuntimeReachability = "image_sbom"
 		finding.CanonicalWrites = 1
-		finalizeSupplyChainImpactFinding(&finding, index, versionDecision.MissingEvidence, consumptionMissing, reconciliationMissing)
+		finalizeSupplyChainImpactFinding(&finding, index, versionDecision.MissingEvidence, consumptionMissing, reconciliationMissing, aliasGroupMissingEvidence(finding.CVEID, index))
 		return finding
 	}
 	finding.Status = SupplyChainImpactPossiblyAffected
@@ -338,7 +347,7 @@ func classifySupplyChainImpactPackage(
 	finding.RuntimeReachability = "unknown"
 	finding.CanonicalWrites = 1
 	reachabilityMissing := applyPackageSupplyChainReachability(&finding, consumption, pkgs, index)
-	finalizeSupplyChainImpactFinding(&finding, index, versionDecision.MissingEvidence, imagePathMissing, consumptionMissing, reachabilityMissing, reconciliationMissing)
+	finalizeSupplyChainImpactFinding(&finding, index, versionDecision.MissingEvidence, imagePathMissing, consumptionMissing, reachabilityMissing, reconciliationMissing, aliasGroupMissingEvidence(finding.CVEID, index))
 	return finding
 }
 

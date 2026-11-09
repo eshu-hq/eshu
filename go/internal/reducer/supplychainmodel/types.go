@@ -48,6 +48,12 @@ type ImpactCVE struct {
 	// distro record cannot name, score, or lift the retraction of an NVD product
 	// finding (#9914).
 	UpstreamCopy bool
+	// Aliases lists the advisory ids the source says name this same advisory,
+	// trimmed, blank-free, de-duplicated, and sorted. Empty unless the source
+	// stated aliases. It is the symmetric identity edge the advisory-group
+	// pass unions over (#10407); it never selects CVEID and is never an
+	// upstream or related edge.
+	Aliases []string
 }
 
 // AffectedPackage is the reducer's internal projection of one

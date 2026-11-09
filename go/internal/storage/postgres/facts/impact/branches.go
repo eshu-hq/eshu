@@ -171,6 +171,18 @@ func probeBranches() []Branch {
 		withMaxListLength(
 			keyProbe(BranchVulnerabilityUpstreamCVEID, IndexVulnerabilityCVEV2, "cve_id", UpstreamCVEIDs, KindEPSSScore, KindKnownExploited),
 			MaxCVEIDsPerStatement),
+		// The alias arm loads the identity facts (cve_id, advisory_id,
+		// status, edges) of every id a loaded record's aliases list names,
+		// so the until-stable loop closes the load over the full alias
+		// graph (#10407). Both probes reuse the 120-id chunk bound and the
+		// indexes the #9994 measurement proved for the same probe shape;
+		// no new index and no new probe shape ship here.
+		withMaxListLength(
+			keyProbe("vulnerability_alias_cve_id", IndexVulnerabilityCVEV2, "cve_id", AliasIDs, KindCVE),
+			MaxCVEIDsPerStatement),
+		withMaxListLength(
+			keyProbe("vulnerability_alias_advisory_id", IndexVulnerabilityAdvisoryV2, "advisory_id", AliasIDs, KindCVE),
+			MaxCVEIDsPerStatement),
 		keyProbe("vulnerability_advisory_id", IndexVulnerabilityAdvisoryV2, "advisory_id", AdvisoryIDs, vulnerability...),
 		keyProbe("affected_package_package_id", IndexAffectedPackagePackageID, "package_id", PackageIDs, KindAffectedPackage),
 		keyProbe("affected_package_purl", IndexAffectedPackagePURL, "purl", PURLs, KindAffectedPackage),

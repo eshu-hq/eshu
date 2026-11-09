@@ -223,7 +223,12 @@ func (loaded supplyChainImpactLoadedEvidence) loadedEnvelopeCount() int {
 func buildAuthorizedSupplyChainImpactFindings(
 	loaded supplyChainImpactLoadedEvidence,
 ) ([]SupplyChainImpactFinding, []factdecode.QuarantinedFact, supplyChainImpactBuildStats, error) {
-	staticFindings, quarantined, stats, err := buildSupplyChainImpactFindingsAndExclusions(loaded.envelopes)
+	// A truncated load may hold a partial alias graph: the grouping pass
+	// stays disabled so no finding is keyed off a component a later, fuller
+	// pass would rename (#10407 D2).
+	config := loaded.aliasGroupConfig
+	config.disabled = loaded.truncation.partial()
+	staticFindings, quarantined, stats, err := buildSupplyChainImpactFindingsAndExclusions(loaded.envelopes, config)
 	if err != nil || loaded.asAuthorized == nil {
 		return staticFindings, quarantined, stats, err
 	}
