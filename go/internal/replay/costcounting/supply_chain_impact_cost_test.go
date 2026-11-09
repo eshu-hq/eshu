@@ -38,11 +38,12 @@ const supplyChainImpactCostIntentID = "intent-supply-chain-impact-cost"
 // chunk and cost one insert round-trip. #6831 wraps that insert in a
 // transaction with a conflict-domain lock before it and a superseded-finding
 // retraction after it (and #7142 adds a fencing-token admission step), so one pass costs
-// exactly six statements: lock, admission, insert, winners dirty-key capture
+// exactly five write statements: lock, admission, insert, winners dirty-key capture
 // (#9805: one set-based INSERT per pass that changed a finding, not per
-// finding), retraction, scope pass-state upsert (#10389). #9695 adds one
-// read inside that transaction (the stored-row read behind the change set); it
-// is a read observation, so it is outside this write budget.
+// finding), retraction. The scope pass-state upsert (#10389) is now the
+// fence-decision query (#10422), and #9695 adds one read inside that
+// transaction (the stored-row read behind the change set); both are read
+// observations, so they are outside this write budget.
 func supplyChainImpactFixtureFindings() []supplychaincore.SupplyChainImpactFinding {
 	row := func(id string) supplychaincore.SupplyChainImpactFinding {
 		return supplychaincore.SupplyChainImpactFinding{
@@ -72,9 +73,10 @@ func supplyChainImpactFixtureFindings() []supplychaincore.SupplyChainImpactFindi
 // WriteSupplyChainImpactFindings now calls the shared
 // reducerBatchInsertVersionedFacts bounded chunked bulk insert (issue #5317)
 // instead of one ExecContext per finding, so two findings fit one chunk and
-// this scenario asserts exactly six write observations (lock, admission,
-// insert, winners dirty-key capture, retraction, scope pass-state upsert;
-// #6831, #7142, #9805, #10389). The
+// this scenario asserts exactly five write observations (lock, admission,
+// insert, winners dirty-key capture, retraction;
+// #6831, #7142, #9805). The scope pass-state fence decision (#10422) and the
+// stored-row read (#9695) are read observations outside this write budget. The
 // companion N+1
 // negative control below (TestCostBudget_SupplyChainImpact_N1_ExceedsBudget)
 // proves the budget still catches a per-finding regression.
