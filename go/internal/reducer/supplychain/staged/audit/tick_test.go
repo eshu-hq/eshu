@@ -224,13 +224,17 @@ func (f *conflictPointFleet) RunOnMember(ctx context.Context, member string, fn 
 
 func TestStagedAuditResolveConflictDefersWithoutWriter(t *testing.T) {
 	fleet := &conflictPointFleet{reader: &conflictPointReader{}}
-	auditor := StagedAuditor{Fleet: fleet}
+	telemetry := pgaccess.NewStagedAuditTelemetry()
+	auditor := StagedAuditor{Fleet: fleet, Telemetry: telemetry}
 	audit, err := auditor.AuditWinners(context.Background())
 	if err != nil {
 		t.Fatalf("resolve-phase conflict must defer, not error: %v", err)
 	}
 	if !audit.Deferred {
 		t.Fatal("resolve-phase conflict must report Deferred")
+	}
+	if got := telemetry.Deferrals(pgaccess.StagedAuditDeferConflictExhausted); got != 1 {
+		t.Fatalf("conflict-exhausted deferrals = %d, want 1", got)
 	}
 }
 

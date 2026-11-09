@@ -206,7 +206,6 @@ func (c *StagedCompactor) AddSourceBatch(rows []StagedCandidateRow) error {
 				PriorityScore:       batchWinner.PriorityScore,
 				HasPayloadFindingID: batchWinner.HasPayloadFindingID,
 			}, incumbent) {
-				batchWinner.SourceCount = incumbent.SourceCount + counts[key]
 				c.source[key] = batchWinner
 			} else {
 				incumbent.SourceCount += counts[key]

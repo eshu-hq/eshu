@@ -5,6 +5,7 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"testing"
 
@@ -111,8 +112,41 @@ func TestResolveCandidateIdentsC0Fallback(t *testing.T) {
 	if idents[0].C0.String != "ADV-9" {
 		t.Fatalf("c0 = %q, want advisory fallback", idents[0].C0.String)
 	}
-	if idents[1].C0.Valid {
-		t.Fatalf("c0 valid with no cve or advisory: %+v", idents[1])
+	if !idents[1].C0.Valid || idents[1].C0.String != "" {
+		t.Fatalf("empty c0 must seed Valid '': %+v", idents[1])
+	}
+}
+
+func TestResolveCandidateIdentsEmptyComponentsSeedEmpty(t *testing.T) {
+	stored := map[string]StoredWinner{
+		// The routine production shape: CVE-only key, empty repository,
+		// digest, and advisory. The keyed verification joins identifiers
+		// with `=`, and the winner selects normalize empties to '', so
+		// every component must seed Valid '' — never SQL NULL, which `=`
+		// never matches.
+		"kc": {CanonicalKey: "kc", PackageID: "pkg-c", CVEID: "CVE-9"},
+	}
+	idents, _, err := ResolveCandidateIdents(
+		context.Background(), &stagedIdentQueryer{byFactID: map[string][]string{}},
+		[]string{"kc"}, map[string]StagedWinner{}, map[string]StagedOverride{}, stored,
+	)
+	if err != nil {
+		t.Fatalf("resolve: %v", err)
+	}
+	if len(idents) != 1 {
+		t.Fatalf("idents = %d, want 1", len(idents))
+	}
+	got := idents[0]
+	for name, field := range map[string]sql.NullString{
+		"package": got.PackageID, "repository": got.RepositoryID,
+		"digest": got.SubjectDigest, "c0": got.C0, "advisory": got.AdvisoryID,
+	} {
+		if !field.Valid {
+			t.Fatalf("%s seeds NULL, want Valid '': %+v", name, got)
+		}
+	}
+	if got.RepositoryID.String != "" || got.SubjectDigest.String != "" || got.AdvisoryID.String != "" {
+		t.Fatalf("empty components must seed '': %+v", got)
 	}
 }
 

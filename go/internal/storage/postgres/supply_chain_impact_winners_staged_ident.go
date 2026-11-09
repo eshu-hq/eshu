@@ -115,10 +115,13 @@ func fetchWinnerFactIdent(ctx context.Context, reader db.Queryer, factID string)
 	}, true, nil
 }
 
+// stagedNullString builds a seeded identifier component. It is always Valid,
+// even for empty input: the winner selects normalize empty components to the
+// empty string (never NULL), and the keyed verification joins identifiers
+// with =/IN, which never match NULL. Seeding an invalid NullString here would
+// make genuinely stale keys verify against zero facts and report repairs=0
+// disguised as a healthy discard.
 func stagedNullString(value string) sql.NullString {
-	if value == "" {
-		return sql.NullString{}
-	}
 	return sql.NullString{String: value, Valid: true}
 }
 

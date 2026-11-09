@@ -180,6 +180,13 @@ func (a StagedAuditor) runReadPhase(ctx context.Context, telemetry *pgaccess.Sta
 		return err
 	})
 	if classified := pgaccess.ClassifyStagedAuditAbort(resolveErr); classified != nil {
+		// The runner never saw this abort: ident resolution runs after
+		// RunTick recorded its completed tick, so the deferral counter
+		// must be observed here or the closed reason taxonomy undercounts.
+		var deferred *pgaccess.StagedAuditDeferredError
+		if errors.As(classified, &deferred) {
+			telemetry.ObserveDeferral(deferred.Reason)
+		}
 		return nil, 0, time.Since(started), empty, classified
 	}
 	telemetry.ObserveUnresolvable(unresolvable)
