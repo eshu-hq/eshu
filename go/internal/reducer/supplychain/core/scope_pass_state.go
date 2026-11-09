@@ -114,7 +114,7 @@ func recordSupplyChainImpactScopePassState(
 	if err != nil {
 		return false, fmt.Errorf("record supply chain impact scope pass state: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	if !rows.Next() {
 		return false, fmt.Errorf("record supply chain impact scope pass state: no fence decision row")
 	}
