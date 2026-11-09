@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	advisorygroup "github.com/eshu-hq/eshu/go/internal/reducer/advisory/group"
+	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
 
 func TestReconcileAdvisoryGroupEmptyDeletesNodeOnly(t *testing.T) {
@@ -25,7 +26,7 @@ func TestReconcileAdvisoryGroupEmptyDeletesNodeOnly(t *testing.T) {
 	if len(exec.calls) != 1 {
 		t.Fatalf("calls = %d, want 1 (delete only)", len(exec.calls))
 	}
-	if !strings.Contains(exec.calls[0].Cypher, "DETACH DELETE") || !strings.Contains(exec.calls[0].Cypher, "AdvisoryGroup {id:") {
+	if !strings.Contains(exec.calls[0].Cypher, "DELETE g") || !strings.Contains(exec.calls[0].Cypher, "AdvisoryGroup {id:") || !strings.Contains(exec.calls[0].Cypher, "AFFECTED_BY") {
 		t.Fatalf("delete cypher not anchored by group id: %s", exec.calls[0].Cypher)
 	}
 }
@@ -90,5 +91,56 @@ func TestReconcileAdvisoryGroupRequiresExecutorAndID(t *testing.T) {
 	w = NewAdvisoryGroupWriter(&recordingExecutor{}, 500)
 	if _, err := w.ReconcileAdvisoryGroup(context.Background(), advisorygroup.Group{}); err == nil {
 		t.Fatal("want error for blank group id")
+	}
+}
+
+// advisoryCountingExecutor reports fixed Bolt counters per statement
+// template, once per Execute, as the production Bolt seam does when a
+// statement commits.
+type advisoryCountingExecutor struct {
+	counters map[string]sourcecypher.WriteCounters
+}
+
+func (e *advisoryCountingExecutor) Execute(ctx context.Context, stmt sourcecypher.Statement) error {
+	sourcecypher.ReportWriteCounts(ctx, stmt.Cypher, stmt.Parameters, e.counters[stmt.Cypher])
+	return nil
+}
+
+// TestReconcileAdvisoryGroupWriteStats pins the counter accounting the
+// handler's telemetry and the EPSS-isolation assertion read: stats sum the
+// per-statement Bolt counters across the reconcile's statements.
+func TestReconcileAdvisoryGroupWriteStats(t *testing.T) {
+	t.Parallel()
+	exec := &advisoryCountingExecutor{
+		counters: map[string]sourcecypher.WriteCounters{
+			AdvisoryGroupUpsertCypher:           {NodesCreated: 1, RelationshipsCreated: 2, PropertiesSet: 7},
+			AdvisoryGroupStaleEdgeRetractCypher: {RelationshipsDeleted: 1},
+			AdvisoryGroupDeleteEdgelessCypher:   {},
+			AdvisoryGroupEmptyRetractCypher:     {NodesDeleted: 1, RelationshipsDeleted: 2},
+		},
+	}
+	w := NewAdvisoryGroupWriter(exec, 500)
+	stats, err := w.ReconcileAdvisoryGroup(context.Background(), advisorygroup.Group{
+		ID:     "CVE-1",
+		CVEIDs: []string{"CVE-1"},
+		Edges: []advisorygroup.Edge{
+			{RepositoryID: "repo-1", PackageID: "pkg:npm/a", Ecosystem: "npm", PURL: "pkg:npm/a@1"},
+			{RepositoryID: "repo-2", PackageID: "pkg:npm/a", Ecosystem: "npm", PURL: "pkg:npm/a@1"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("ReconcileAdvisoryGroup: %v", err)
+	}
+	want := advisorygroup.WriteStats{NodesCreated: 1, EdgesCreated: 2, EdgesDeleted: 1, PropertiesSet: 7}
+	if stats != want {
+		t.Fatalf("stats = %+v, want %+v", stats, want)
+	}
+	stats, err = w.ReconcileAdvisoryGroup(context.Background(), advisorygroup.Group{ID: "CVE-1"})
+	if err != nil {
+		t.Fatalf("empty ReconcileAdvisoryGroup: %v", err)
+	}
+	want = advisorygroup.WriteStats{NodesDeleted: 1, EdgesDeleted: 2}
+	if stats != want {
+		t.Fatalf("empty stats = %+v, want %+v", stats, want)
 	}
 }

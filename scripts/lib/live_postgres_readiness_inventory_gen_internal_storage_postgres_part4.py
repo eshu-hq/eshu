@@ -172,6 +172,9 @@ TABLE = {
         "go/internal/storage/postgres/successor_guard_recheck_plan_live_test.go": (
             "TestGuardRecheckReadPlansLive",
         ),
+        "go/internal/storage/postgres/supply_chain_impact_advisory_group_winners_live_test.go": (
+            "TestAdvisoryGroupWinnersQualifyingLive",
+        ),
         "go/internal/storage/postgres/supply_chain_impact_authorized_loader_engaged_live_test.go": (
             "TestAuthorizedLoaderEngagedFoldPublishesFoldedEvidenceLive",
         ),

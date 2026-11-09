@@ -3,6 +3,10 @@
 
 package postgres
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #10411 disposable PostgreSQL proof that the advisory-group winners reader returns members plus purl from the winner fact for qualifying rows and excludes every non-qualifying row (status, effective suppression, expiry, repository, derived scope, scan association, other group); seeded rows carry a unique prefix with cleanup on both paths; wall time is logged, not gated
+//eshu:readiness:env ESHU_POSTGRES_TEST_DSN
+
 import (
 	"context"
 	"database/sql"
@@ -43,6 +47,9 @@ func TestAdvisoryGroupWinnersQualifyingLive(t *testing.T) {
 		t.Fatalf("open postgres: %v", err)
 	}
 	t.Cleanup(func() { _ = db.Close() })
+	if err := ApplyBootstrap(ctx, SQLDB{DB: db}); err != nil {
+		t.Fatalf("apply bootstrap schema: %v", err)
+	}
 
 	seedAdvisoryGroupWinnersLive(t, ctx, db)
 	t.Cleanup(func() {

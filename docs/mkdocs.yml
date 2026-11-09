@@ -337,6 +337,7 @@ nav:
       - Cypher Performance: reference/cypher-performance.md
       - Scoped Grant Predicates: reference/cypher-scoped-grant-predicates.md
       - Runtime Declaration Graph Writes: reference/cypher-runtime-declarations.md
+      - Advisory Group Graph Writes: reference/cypher-advisory-groups.md
     - Parity Closure Matrix: reference/parity-closure-matrix.md
     - Relationship Mapping: reference/relationship-mapping.md
     - Relationship Evidence And Resolution: reference/relationship-mapping-evidence.md

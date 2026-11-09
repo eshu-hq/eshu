@@ -653,3 +653,19 @@ coverage:
     proof_gate: ifa-fault-injection
 
 waivers:
+  # advisory_group (#10411): registered at birth with waivers, the honest
+  # state this manifest documents for a family without its four coverage
+  # conditions. Its input is a Postgres winners read model, not collector
+  # facts, so the Odù design is #6228-shaped work tracked by #10466. Until
+  # then the family is proven by writer/handler unit tests, the winners
+  # reader live tests, and the Neo4j live readback + seeded parity proof.
+  - surface: "materialized_edges:advisory_group"
+    proof_gate: ifa-determinism
+    issue: "#6228"
+    waived: "2026-11-09"
+    reason: "No cataloged Odù, vacuity guard, or expected-edge fixture yet for the winners-fed advisory_group family; the Odù input design is tracked in #10466 under the #6228 lift."
+  - surface: "materialized_edges:advisory_group"
+    proof_gate: ifa-fault-injection
+    issue: "#6228"
+    waived: "2026-11-09"
+    reason: "No live fault-injection matrix drives the advisory_group family yet; wiring it is tracked in #10466 under the #6228 lift, with the determinism matrix."

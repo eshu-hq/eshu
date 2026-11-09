@@ -159,6 +159,11 @@ var directMaterializedEdgeFamilyByPort = map[string]string{
 	// RuntimeDeclaration, reaped by DETACH DELETE of the owned nodes.
 	"WriteRuntimeDeclarations": "runtime_declaration",
 
+	// Advisory groups (#10411): Repository-[:AFFECTED_BY]->AdvisoryGroup,
+	// reconciled per group from canonical winners; stale edges retract by
+	// keep-list and an edgeless group node is deleted.
+	"ReconcileAdvisoryGroup": "advisory_group",
+
 	// The six ports whose names do not carry their family. Each is a real
 	// production write site, not a dead port; each MERGEs the relationship
 	// named beside it.

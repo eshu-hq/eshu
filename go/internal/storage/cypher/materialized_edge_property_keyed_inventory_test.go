@@ -87,6 +87,7 @@ func TestPropertyKeyedRelationshipMergesMatchKnownAllowList(t *testing.T) {
 	t.Parallel()
 
 	want := map[string]int{
+		"AFFECTED_BY":        1, // edge/writer/advisory_group.go -- registered (advisory_group row), package_id is the edge identity.
 		"DECLARES_CODEOWNER": 1, // canonical/node/codeowners_edges.go -- gated, covered above.
 		"PINS_SUBMODULE":     1, // canonical/node/submodule_edges.go -- gated, covered above.
 		"TAINT_FLOWS_TO":     1, // code_interproc_evidence.go -- outside the registry scope.

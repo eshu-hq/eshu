@@ -4,6 +4,7 @@
 package core
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
 )
@@ -122,6 +123,54 @@ func TestTouchedGroupIDs(t *testing.T) {
 				t.Fatalf("touchedGroupIDs = %v, want %v", got, test.want)
 			}
 		})
+	}
+}
+
+// BenchmarkTouchedGroupIDs measures the additive per-pass cost the
+// touched-group set adds next to changedCVEIDs over the same rows: one
+// extra linear pass with map inserts, no I/O.
+func BenchmarkTouchedGroupIDs(b *testing.B) {
+	const n = 1000
+	rows := make([]changedRow, 0, n)
+	stored := make([]storedFinding, 0, n)
+	for i := range n {
+		id := fmt.Sprintf("%04d", i)
+		rows = append(rows, changedRow{
+			factID: "f" + id, stableKey: "k" + id, digest: "d-new",
+			cveID: "CVE-2026-0001", advisoryID: "GHSA-a",
+		})
+		stored = append(stored, storedFinding{
+			factID: "f" + id, generationID: "gen", stableKey: "k" + id, digest: "d-old",
+			cveID: "CVE-2026-0001", advisoryID: "GHSA-a",
+		})
+	}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for range b.N {
+		_ = touchedGroupIDs(rows, stored, "gen", 7, true)
+	}
+}
+
+// BenchmarkChangedCVEIDsBaseline is the pre-#10411 change-set cost over
+// the same shape, so the touched-group overhead reads against the work
+// the writer already paid every pass.
+func BenchmarkChangedCVEIDsBaseline(b *testing.B) {
+	const n = 1000
+	rows := make([]changedRow, 0, n)
+	stored := make([]storedFinding, 0, n)
+	for i := range n {
+		id := fmt.Sprintf("%04d", i)
+		rows = append(rows, changedRow{
+			factID: "f" + id, stableKey: "k" + id, digest: "d-new", cveID: "CVE-2026-0001",
+		})
+		stored = append(stored, storedFinding{
+			factID: "f" + id, generationID: "gen", stableKey: "k" + id, digest: "d-old", cveID: "CVE-2026-0001",
+		})
+	}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for range b.N {
+		_ = changedCVEIDs(rows, stored, "gen", 7, true)
 	}
 }
 

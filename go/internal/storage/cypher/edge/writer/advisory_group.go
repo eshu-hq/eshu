@@ -72,10 +72,17 @@ WHERE degree = 0
 DELETE g`
 
 // AdvisoryGroupEmptyRetractCypher removes the group node and its edges when
-// a reconcile carries no membership. DETACH DELETE takes the edges with the
-// node. No other writer MERGEs the AdvisoryGroup label, so deleting the node
-// cannot strand another family's edges.
-const AdvisoryGroupEmptyRetractCypher = `MATCH (g:AdvisoryGroup {id: $id}) DETACH DELETE g`
+// a reconcile carries no membership. It deletes the AFFECTED_BY edges
+// first, then the node, naming the type it reaps so the materialized-edge
+// retract registry can pin the family against this template (#6228
+// retract-registry contract). No other writer MERGEs the AdvisoryGroup
+// label, so deleting the node cannot strand another family's edges; the
+// OPTIONAL MATCH keeps an already-edgeless node on the same path.
+const AdvisoryGroupEmptyRetractCypher = `MATCH (g:AdvisoryGroup {id: $id})
+OPTIONAL MATCH (g)<-[e:AFFECTED_BY]-()
+DELETE e
+WITH DISTINCT g
+DELETE g`
 
 // AdvisoryGroupWriter reconciles advisory-group membership: one
 // AdvisoryGroup node plus its Repository-[:AFFECTED_BY]-> edges per group.

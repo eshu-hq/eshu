@@ -296,7 +296,7 @@ builders:
           count: 3
           operation: sourcecypher.OperationCanonicalRetract
           variants:
-            - template: 'MATCH (g:AdvisoryGroup {id: $id}) DETACH DELETE g'
+            - template: 'MATCH (g:AdvisoryGroup {id: $id}) OPTIONAL MATCH (g)<-[e:AFFECTED_BY]-() DELETE e WITH DISTINCT g DELETE g'
             - template: 'MATCH (g:AdvisoryGroup {id: $id})<-[e:AFFECTED_BY]-(r:Repository) WHERE NOT ANY(k IN $keep WHERE k.repository_id = r.id AND k.package_id = e.package_id) DELETE e'
             - template: 'MATCH (g:AdvisoryGroup {id: $id}) OPTIONAL MATCH (g)<-[e:AFFECTED_BY]-() WITH g, count(e) AS degree WHERE degree = 0 DELETE g'
           source_sha256: dd441e7f8fdbaef01ba956b89e80e88e8c4c8bd3fcd8e2e22c983dc124dfe54e
