@@ -14,6 +14,11 @@ Trackers created under this ruling on 2026-11-09:
 - S6/S7 (DEFER-owner, recovery trigger in issue): eshu-hq/eshu#10465
   (Part of #9959)
 
+Record-keeping note 2026-11-09 (coordinator, not the ruling): the `:52` line
+suffix on the `readiness_source_age.go` citation in Decision 3 was replaced
+with a symbol anchor to satisfy the doc-citations gate (the S5 change itself
+shifts that line). No ruling meaning changed.
+
 ## Ruling (verbatim)
 
 RULING: Do NOT close #10037 unconditionally — CLOSE only after S4/S5/S6/S7 are transferred to named trackers below; until then #10037 stays OPEN and GHSA stays off and not activatable.
@@ -91,7 +96,9 @@ I do not write that file. See Decision 1.
    readiness rolling leg, `fetchConfirmedSources`, read-model newest copy.
    On origin/main, `fetchConfirmedSources` is `{"osv","nvd","glad"}` with no
    `ghsa` in
-   [readiness_source_age.go](/home/ubuntu/personal-repos/eshu/go/internal/query/querycontract/packet/readiness_source_age.go:52).
+   [readiness_source_age.go](/home/ubuntu/personal-repos/eshu/go/internal/query/querycontract/packet/readiness_source_age.go)
+   (`fetchConfirmedSources`; line number omitted per the doc-citations gate —
+   the branch this file rides adds `ghsa` to that map and shifts lines).
    No `readiness_postgres_query_ghsa_window.go` exists on origin/main.
    Only F1 target admission exists, via `readiness_ghsa_target_live_test.go`.
    Therefore "no eshu-repo action possible" is false.
