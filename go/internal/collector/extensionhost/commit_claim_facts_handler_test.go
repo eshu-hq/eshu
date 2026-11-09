@@ -102,7 +102,8 @@ func commitHandlerPlanned(now time.Time) (workItem workflow.WorkItem, mutation w
 }
 
 // commitHandlerResult returns one complete single-call result echoing the
-// planned epoch with no statuses: the only shape the commit lane records.
+// planned epoch with no statuses: the status-free shape the commit lane
+// records alongside complete-class markers.
 func commitHandlerResult(workItem workflow.WorkItem, resultFacts ...sdkcollector.Fact) sdkcollector.Result {
 	result := baseResult(workItem, sdkcollector.ResultComplete)
 	result.Facts = resultFacts
@@ -390,8 +391,10 @@ func TestCommitHandlerRejectsTrailingEnvelopeData(t *testing.T) {
 }
 
 // TestCommitHandlerRejectsStatuses proves the single-call lane disposition:
-// a result carrying statuses the lane cannot record is terminal-invalid
-// before the fence probe, exactly like the in-tree path.
+// a result carrying signaling statuses the lane cannot record is
+// terminal-invalid before the fence probe, exactly like the in-tree path.
+// A complete-class marker without the partial flag commits instead: it
+// carries no signal the lane would drop.
 func TestCommitHandlerRejectsStatuses(t *testing.T) {
 	t.Parallel()
 
@@ -399,7 +402,7 @@ func TestCommitHandlerRejectsStatuses(t *testing.T) {
 	workItem, mutation := commitHandlerPlanned(bundle.now)
 	result := baseResult(workItem, sdkcollector.ResultComplete)
 	result.Facts = []sdkcollector.Fact{testSDKFact(workItem)}
-	result.Statuses = []sdkcollector.Status{{Class: sdkcollector.StatusComplete, FactCount: len(result.Facts)}}
+	result.Statuses = []sdkcollector.Status{{Class: sdkcollector.StatusWarning, WarningCount: 1}}
 	recorder := commitHandlerPost(t, bundle.handler, commitHandlerBody(t, mutation, result))
 
 	if recorder.Code != http.StatusBadRequest {

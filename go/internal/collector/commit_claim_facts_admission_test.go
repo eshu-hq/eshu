@@ -128,8 +128,8 @@ func injectPageEnvelope(raw string) (string, bool) {
 }
 
 // TestCommitClaimFactsRejectsStatuses pins the explicit status disposition:
-// the lane records no statuses, so a status-bearing result fails closed
-// instead of committing facts while its signals are silently dropped.
+// the lane records no statuses, so a signaling status fails closed instead
+// of committing facts while its signals are silently dropped.
 func TestCommitClaimFactsRejectsStatuses(t *testing.T) {
 	t.Parallel()
 
