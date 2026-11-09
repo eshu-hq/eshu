@@ -358,6 +358,10 @@ var migrationShippedChecksums = map[string]string{
 	"283_fact_records_vulnerability_cve_id_stats.sql":       "2d580fee981b0e73669decbe3e3a69b47866cd66a4259de2183ca7246f799a6c",
 	"284_supply_chain_impact_scope_pass_state.sql":          "bd448553b0588e4190ecc0902f2b1028c97ebc3f4472a673de73417b006b2fec",
 	"285_supply_chain_impact_scope_pass_state_contract.sql": "79b5cbf491b091ab0d7d1a471a757e1177d036dfd6347ac5dcdfee66928ccce4",
+	// #10037: per-stream GHSA rolling-window cursor table (migration 286;
+	// 284 went to the #10389 stuck-partial scope-pass-state file and 285 to
+	// its contract comments, so this lane takes the next free slot).
+	"286_vulnerability_ghsa_window_cursors.sql": "d98f2bac99702585acd8c5ba08b52cf80ac9f6f0299fc394e59e6fd42ab1ad04",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition

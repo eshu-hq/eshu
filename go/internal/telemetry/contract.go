@@ -76,6 +76,10 @@ const (
 	MetricDimensionEdgeType   = "edge_type"
 	MetricDimensionWritePhase = "write_phase"
 	MetricDimensionOutcome    = "outcome"
+	// MetricDimensionAdvisoryType labels the GHSA rolling-window signals
+	// (#10037) with the closed advisory type: reviewed or malware.
+	// Producers must never use raw scope ids or window bounds here.
+	MetricDimensionAdvisoryType = "advisory_type"
 	// MetricDimensionPhase labels the delta-baseline fence counter (#7319)
 	// with the closed phase that decided: preflight or ack. The
 	// package-consumption scope-rebuild counter (#7663) uses it for its

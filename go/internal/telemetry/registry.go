@@ -34,6 +34,7 @@ var metricDimensionKeys = []string{
 	MetricDimensionEdgeType,
 	MetricDimensionWritePhase,
 	MetricDimensionOutcome,
+	MetricDimensionAdvisoryType,
 	MetricDimensionGuardrail,
 	MetricDimensionPolicyID,
 	MetricDimensionEvidenceClass,

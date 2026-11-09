@@ -114,6 +114,12 @@ func buildClaimedService(
 	if err != nil {
 		return collector.ClaimedService{}, err
 	}
+	commitPolicy, err := claimCommitPolicy(
+		config.CollectorKind, config.Instance.InstanceID, instruments, logger,
+	)
+	if err != nil {
+		return collector.ClaimedService{}, err
+	}
 	// The CoreOnlyReason lift is reserved for the designed enabled path:
 	// the flag is on, the holder is pinned to the verified manifest, and
 	// the routes below (core run reads, fenced committer, cutover grant
@@ -200,6 +206,10 @@ func buildClaimedService(
 		// outcomes for the vulnerability_intelligence kind only (#9420); it
 		// is nil for every other kind.
 		ClaimOutcomeRecorder: outcomeRecorder,
+		// ClaimCommitPolicy arms the GHSA window cursor writer and
+		// write-once for the vulnerability_intelligence kind only
+		// (#10037); it is nil for every other kind.
+		ClaimCommitPolicy: commitPolicy,
 	})
 	if err != nil {
 		return collector.ClaimedService{}, err

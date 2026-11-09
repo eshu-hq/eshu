@@ -158,7 +158,7 @@ require (
 	github.com/crewjam/saml v0.5.1
 	github.com/dekobon/tree-sitter-groovy v0.2.2
 	github.com/eshu-hq/eshu-sdk/collector v0.2.0-rc.4
-	github.com/eshu-hq/eshu-sdk/factschema v0.1.0-rc.18
+	github.com/eshu-hq/eshu-sdk/factschema v0.1.0-rc.19
 	github.com/eshu-hq/eshu-workflow v0.2.0
 	github.com/fergusstrange/embedded-postgres v1.34.0
 	github.com/golang-jwt/jwt/v5 v5.3.1

@@ -1,0 +1,42 @@
+[
+  {
+    "name": "bootstrap_reviewed",
+    "advisory_type": "reviewed",
+    "cursor_set": false,
+    "cursor_unix_us": 0,
+    "now_unix_us": 1794139200000000,
+    "want_scope": "vuln-intel://ghsa/reviewed/_window/1791547200000000-1791633600000000",
+    "want_start_unix_us": 1791547200000000,
+    "want_end_unix_us": 1791633600000000
+  },
+  {
+    "name": "steady_malware",
+    "advisory_type": "malware",
+    "cursor_set": true,
+    "cursor_unix_us": 1794128400000000,
+    "now_unix_us": 1794139200000000,
+    "want_scope": "vuln-intel://ghsa/malware/_window/1794128400000000-1794138300000000",
+    "want_start_unix_us": 1794128400000000,
+    "want_end_unix_us": 1794138300000000
+  },
+  {
+    "name": "catchup_chunk_reviewed",
+    "advisory_type": "reviewed",
+    "cursor_set": true,
+    "cursor_unix_us": 1793275200000000,
+    "now_unix_us": 1794139200000000,
+    "want_scope": "vuln-intel://ghsa/reviewed/_window/1793275200000000-1793361600000000",
+    "want_start_unix_us": 1793275200000000,
+    "want_end_unix_us": 1793361600000000
+  },
+  {
+    "name": "hold_inside_settle",
+    "advisory_type": "reviewed",
+    "cursor_set": true,
+    "cursor_unix_us": 1794138600000000,
+    "now_unix_us": 1794139200000000,
+    "want_scope": "",
+    "want_start_unix_us": 0,
+    "want_end_unix_us": 0
+  }
+]

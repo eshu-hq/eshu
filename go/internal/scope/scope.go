@@ -223,6 +223,16 @@ type ScopeGeneration struct {
 	// is never persisted to scope_generations, and travels only in memory
 	// from the collector to the commit that evaluates it.
 	TrustedDeletion bool
+	// WriteOnce marks a generation of a write-once scope (#10037): the
+	// first committed generation is final, and the successor guard
+	// refuses any later generation while a pending or active prior
+	// exists, ahead of every other arm including TrustedDeletion. Like
+	// TrustedDeletion it is never persisted to scope_generations and
+	// travels only in memory from the collector host to the commit that
+	// evaluates it. Rolling-window scopes set it so an incomplete window
+	// can never replace a committed one; what it left out is fetched
+	// under the next scope instead.
+	WriteOnce bool
 	// DeltaUnionBaseGenerationID names the base full generation a delta's
 	// projection input was overlaid on by the #7797 delta-base union. The
 	// projector sets it from the same fact load that built the overlay,

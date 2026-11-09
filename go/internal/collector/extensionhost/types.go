@@ -169,6 +169,12 @@ type Config struct {
 	// it only for collector kinds with host-owned source state; nil costs one
 	// nil check per claim.
 	ClaimOutcomeRecorder ClaimOutcomeRecorder
+	// ClaimCommitPolicy, when set, decides commit-transaction state for
+	// collected generations it owns (#10037): a state writer and
+	// write-once. The host sets it only for kinds with host-owned cursor
+	// state; nil costs one nil check per claim, and a GHSA window claim
+	// then fails retryable unarmed rather than committing cursorless.
+	ClaimCommitPolicy ClaimCommitPolicy
 }
 
 // Source implements collector.ClaimedSource for collector SDK extensions.
@@ -204,6 +210,8 @@ type Source struct {
 	derivedTargetResolver DerivedTargetResolver
 	// outcomeRecorder receives claim outcomes; nil disables the seam.
 	outcomeRecorder ClaimOutcomeRecorder
+	// commitPolicy decides commit-transaction state; nil disables the seam.
+	commitPolicy ClaimCommitPolicy
 	// pendingOutcomes holds completed outcomes until the commit hook fires.
 	pendingOutcomes *pendingClaimOutcomes
 }

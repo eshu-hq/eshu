@@ -124,6 +124,11 @@ var kindFailureClasses = map[string][]string{
 var extensionHostFailureClasses = []string{
 	"invalid_claim", "invalid_result", "launch_failure", "source_state_record",
 	"status_record",
+	// GHSA window commit-policy refusals (#10037): every one fails the
+	// claim retryable and commits nothing, so the cursor cannot pass
+	// unstored facts.
+	"ghsa_window_no_progress", "ghsa_window_unarmed", "ghsa_window_held",
+	"ghsa_covered_through_out_of_range", "ghsa_cache_replay",
 }
 
 // firstPartyKinds is every collector kind the platform ships, derived from the

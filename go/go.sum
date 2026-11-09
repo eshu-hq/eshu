@@ -471,6 +471,8 @@ github.com/eshu-hq/eshu-sdk/factschema v0.1.0-rc.17.0.20261106050329-33c470370a4
 github.com/eshu-hq/eshu-sdk/factschema v0.1.0-rc.17.0.20261106050329-33c470370a4c/go.mod h1:GysO1GSvcUYSSl7ydDx34MYRSw4yI2DgADT0twajVXY=
 github.com/eshu-hq/eshu-sdk/factschema v0.1.0-rc.18 h1:RRoYb7+52kaHt2ErQ6e0NEIDBX0nLbnBhXMQgLX75PA=
 github.com/eshu-hq/eshu-sdk/factschema v0.1.0-rc.18/go.mod h1:GysO1GSvcUYSSl7ydDx34MYRSw4yI2DgADT0twajVXY=
+github.com/eshu-hq/eshu-sdk/factschema v0.1.0-rc.19 h1:XCr3s4ASd1RK2/mSvbEr2qbuTqnnVgEzbUTr6Oxba58=
+github.com/eshu-hq/eshu-sdk/factschema v0.1.0-rc.19/go.mod h1:GysO1GSvcUYSSl7ydDx34MYRSw4yI2DgADT0twajVXY=
 github.com/eshu-hq/eshu-workflow v0.2.0 h1:ZBzeMONwvGc5gns2sa13J9Z0I7GuH1BDsMSGj8/hvZU=
 github.com/eshu-hq/eshu-workflow v0.2.0/go.mod h1:75giclkExwlfslZf9p1nLK/5TnC+WHkN5jMoxJBohg0=
 github.com/eshu-hq/saml v0.5.1-eshu.1 h1:51xC1JYE+V7kkZHcfv3TgFFAWMZ2jEsSR83qPgVrRMM=
