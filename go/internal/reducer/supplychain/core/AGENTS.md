@@ -97,8 +97,9 @@ changing anything here.
   bootstrap, rollover, or same-key rewrite counts nothing — and counted
   once per pass at the dispatcher. Never put a group, CVE, or advisory id
   in a metric attribute; magnitudes ride the `rekey_*` result sub-signals.
-  A pass with no identity change stays silent: do not default it to
-  `member_only`.
+  A pass with no identity change stays silent — unless it dropped
+  suppression coverage, which reports `split`: do not default a silent
+  pass to `member_only`.
 - `FileReachabilityFold` (#9781, #9860) replaces parser `file` envelopes with
   in-memory digest envelopes. It runs the same per-file bodies as the JS/TS and
   Python builders (`addFile`, `addPythonReachabilityFile`), so a new key a

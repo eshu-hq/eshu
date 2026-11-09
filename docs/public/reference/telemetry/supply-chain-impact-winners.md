@@ -116,7 +116,8 @@ is the same — queue latency plus one holder pass per holder scope plus one
 resweep tick — and the wave is separable on
 `eshu_dp_supply_chain_impact_rekey_total{outcome}` (`merge`, `split`,
 `member_only`, `retire_only`; only a genuine identity change counts — a pass
-that re-derives identical groups counts nothing, so the steady state is
+that re-derives identical groups counts nothing unless it dropped
+suppression coverage, which reports `split`, so the steady state is
 silence). A `split` rate with a rising
 `eshu_dp_supply_chain_impact_suppression_orphaned_by_split_total` means a
 split dropped suppression coverage the operator must re-issue; a `merge`

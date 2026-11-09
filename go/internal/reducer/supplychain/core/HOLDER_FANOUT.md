@@ -302,10 +302,12 @@ no uniqueness or fencing errors, and both replays converging with no manual
 rerun (`TestRekeyTwoHolderScopesRekeySameComponentLive`, 1.32s at HEAD).
 
 Re-key outcome (L7, #10408): the pass dispatcher counts one
-`eshu_dp_supply_chain_impact_rekey_total` point per pass that touched a
-group, with the closed outcome (`merge`, `split`, `member_only`,
-`retire_only`; `rekey_signals.go`). A pass that touched nothing counts
-nothing, so the steady state is silence. Suppression carry and orphan
+`eshu_dp_supply_chain_impact_rekey_total` point per pass whose writer
+commit changed a group's identity, with the closed outcome (`merge`,
+`split`, `member_only`, `retire_only`; `rekey_signals.go`). A pass that
+re-derives identical groups counts nothing — unless it dropped suppression
+coverage, which reports `split` — so the steady state is silence.
+Suppression carry and orphan
 magnitudes ride
 `eshu_dp_supply_chain_impact_suppression_carried_via_member_total` and
 `eshu_dp_supply_chain_impact_suppression_orphaned_by_split_total` under the
