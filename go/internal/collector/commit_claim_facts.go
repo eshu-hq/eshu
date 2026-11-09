@@ -199,10 +199,10 @@ func decodeCommitClaimResult(raw []byte) (sdkcollector.Result, error) {
 
 // checkCommitClaimIdentity proves the result belongs to the fenced epoch and
 // fits the single-call lane: an allowlisted non-paged protocol version, no
-// page envelope, a complete state with no statuses (the lane records none,
-// so a signaling result must take the full claim path), and the echoed work
-// item, generation, fencing token, and component identity matching the
-// planned target exactly — never scraped from the echo.
+// page envelope, a complete state carrying only non-signaling statuses (the
+// lane records none, so a signaling result must take the full claim path),
+// and the echoed work item, generation, fencing token, and component
+// identity matching the planned target exactly — never scraped from the echo.
 func checkCommitClaimIdentity(req CommitClaimFactsRequest, result sdkcollector.Result) error {
 	if _, ok := commitClaimSingleCallVersions[strings.TrimSpace(result.ProtocolVersion)]; !ok {
 		return fmt.Errorf(
@@ -216,8 +216,8 @@ func checkCommitClaimIdentity(req CommitClaimFactsRequest, result sdkcollector.R
 	if result.State != sdkcollector.ResultComplete {
 		return fmt.Errorf("commit claim facts: result state %q is not complete", result.State)
 	}
-	if len(result.Statuses) > 0 {
-		return fmt.Errorf("commit claim facts: result carries %d statuses the lane cannot record", len(result.Statuses))
+	if signaling := countSignalingStatuses(result.Statuses); signaling > 0 {
+		return fmt.Errorf("commit claim facts: result carries %d statuses the lane cannot record", signaling)
 	}
 	if strings.TrimSpace(result.Claim.WorkItemID) != strings.TrimSpace(req.Mutation.WorkItemID) {
 		return errors.New("commit claim facts: result work item does not match the fenced epoch")
@@ -236,6 +236,21 @@ func checkCommitClaimIdentity(req CommitClaimFactsRequest, result sdkcollector.R
 		return errors.New("commit claim facts: result component does not match the caller")
 	}
 	return nil
+}
+
+// countSignalingStatuses counts the statuses that carry claim-path signals:
+// any status whose class is not complete, or that marks partial progress. A
+// complete-class status without the partial flag is the success marker
+// satellites append on every complete result; it restates the complete state
+// and carries no signal the lane would drop by not recording it.
+func countSignalingStatuses(statuses []sdkcollector.Status) int {
+	signaling := 0
+	for _, status := range statuses {
+		if status.Class != sdkcollector.StatusComplete || status.Partial {
+			signaling++
+		}
+	}
+	return signaling
 }
 
 // mapCommitClaimEnvelopes converts SDK facts to commit envelopes through the

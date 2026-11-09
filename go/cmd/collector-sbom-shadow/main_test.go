@@ -103,8 +103,9 @@ func TestServeReturnsCompleteWithPinnedFacts(t *testing.T) {
 	assertPayload(t, lodash.Payload, "version", "4.17.21")
 	assertPayload(t, lodash.Payload, "package_id", "npm://registry.npmjs.org/lodash")
 	// The single-call commit lane records no statuses, so the emitter
-	// carries none: a complete summary row would turn every commit away
-	// at the lane door. The count stays derivable from the facts.
+	// carries none: complete-class markers are admitted and dropped, and
+	// zero statuses stay the preferred shape. The count stays derivable
+	// from the facts.
 	if len(result.Statuses) != 0 {
 		t.Fatalf("statuses = %d, want none (commit lane records none)", len(result.Statuses))
 	}
