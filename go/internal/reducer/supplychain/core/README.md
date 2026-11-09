@@ -384,6 +384,8 @@ decides per finding.
 - **Operator signal.** `eshu_dp_supply_chain_suppression_decisions_total` with
   `outcome=advisory_retracted`, the `suppression_advisory_retracted=` field
   of the evidence summary, and the `advisory_retracted_findings` sub-signal.
+- **Re-key wave.** A late alias merges two groups and a withdrawal or a
+  removed alias splits one; each change re-keys the affected findings and carries operator suppressions across it (#10408, contract in `doc.go`, wave mechanics and freshness bound in `HOLDER_FANOUT.md`).
 
 No-Regression Evidence (#10401): the tie rank reads lifecycle only through the closed `advisoryRetractionCode` (no new status list, no `ObservedAt`/`WithdrawnAt`/generation key). `TestNewestCopyDivergentTieLiveBeatsRetracted10401` (4 variants x 4 tie shapes x all load orders) fails pre-fix and passes post-fix with the live copy's fields; the retracted-vs-retracted guard and all #10042 controls stay green. `BenchmarkBuildFindingsMultiSourceGroups` shows no regression (live 12.55–13.01 pre vs 12.38–16.20 post ms/op with one 16.20 sample reading as shared-host noise against the 12.38–13.34 repeat band; identical allocs).
 
@@ -401,8 +403,9 @@ the directory name.
 | File | Covers |
 | --- | --- |
 | `impact.go` | `SupplyChainImpactHandler`, finding pipeline |
-| `fanout.go` | the holder fan-out: port, stamp, one-hop rule, disjoint clear, continuation, retryable failure class; `scoped_pass.go` holds the #9779 scoped evidence scope; `manifest_trigger.go` and `manifest_change.go` hold the #9874 manifest marker branch |
-| `writer_changed.go` | the content digest and the changed-row and recovery reads |
+| `fanout.go` | the holder fan-out: port, stamp, one-hop rule, disjoint clear, continuation, retryable failure class; `scoped_pass.go` holds the #9779 scoped evidence scope; `manifest_trigger.go` and `manifest_change.go` hold the #9874 manifest marker branch; the holder read is a 3-arm OR over `cve_id`, `advisory_id`, and group `members` so late-alias advisory-keyed holders reopen (#10408) |
+| `writer_changed.go` | the content digest and the changed-row and recovery reads, plus the touched advisory-group set (new rows plus replaced/retracted stored rows, group ids plus member ids, #10408) |
+| `suppression_carry.go`, `rekey_signals.go` | the re-key tally and operator signal (#10408 L3/L7): the carry/orphan tally over loaded suppressions and findings, then the closed outcome classifier (`merge`, `split`, `member_only`, `retire_only`), the per-pass counter, and the magnitude sub-signals; silent on a no-group-change pass |
 | `finding.go` | `SupplyChainImpactFinding` (carries the `Suppression` field: impact + suppression are one unit) |
 | `writer.go` | `PostgresSupplyChainImpactWriter`, batched versioned inserts |
 | `writer_retract.go` | Replace-set transaction (#6831): per-(scope, generation) advisory lock, upsert, tombstone of superseded findings |

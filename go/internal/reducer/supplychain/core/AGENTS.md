@@ -90,6 +90,13 @@ changing anything here.
   `Instruments.SupplyChainImpactHeadroom` after an admitted write only. Keep it
   after the write and on `truncation.causes()`, the same set that decides
   `PartialEvidence`, so the gauge never disagrees with retraction. The ratio reads `budgetEnvelopes` (`budget.used`), never `expansionEnvelopes`: the protected-scan path adds uncharged derived facts to that one.
+- The re-key outcome (`rekey_signals.go`, #10408) is a closed four-set
+  (`merge`, `split`, `member_only`, `retire_only`) classified from the
+  writer commit's shape only — touched-set emptiness, derived-row and
+  tombstone counts, the orphan tally — and counted once per pass at the
+  dispatcher. Never put a group, CVE, or advisory id in a metric attribute;
+  magnitudes ride the `rekey_*` result sub-signals. A no-group-change pass
+  stays silent: do not default it to `member_only`.
 - `FileReachabilityFold` (#9781, #9860) replaces parser `file` envelopes with
   in-memory digest envelopes. It runs the same per-file bodies as the JS/TS and
   Python builders (`addFile`, `addPythonReachabilityFile`), so a new key a

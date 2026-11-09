@@ -277,6 +277,49 @@ advisory extended-statistics object. Chunk 200 and the 256 holder cap are
 unchanged: still one holder-lookup statement per chunk, no new locks, claims,
 leases, or queue behavior.
 
+Suppression carry (L3, #10408): a merge or split retires the dead record
+while the survivor's aliases still name the dead id, so the suppression
+load matches an extra alias-member arm over the in-pass alias ids
+(`facts/impact/arms.go`, `aliasSuppressionArms`). The arms widen the
+suppression-kind predicate only — `TestAliasListReachesOnlyTheSuppressionStatement`
+pins that no non-suppression branch binds the alias list, so the load reads
+zero extra NVD or product rows. The pass tally (`suppression_carry.go`)
+counts coverage the wave carried through a non-key member anchor and
+coverage a split orphaned; expired, scope-mismatched, and retracted
+citations stay visible and out of both tallies by design, and the tallies
+are pure counts over the already-loaded suppressions and findings (no new
+reads). The tallies ride the result sub-signals
+`suppression_carried_via_member` and `suppression_orphaned_by_split`.
+
+Keyed-path convergence (L4, #10408): the winners keyed tick deletes the
+dead winner key and drains the dirty log on both the tombstone and the
+supersession routes, matching a fresh recompute with zero audit repairs
+(`TestSupplyChainImpactWinnersResweepRekeyTombstoneDeadKeyConvergesLive`
+and `...RekeySupersessionDeadKeyConvergesLive`, 0.10s each at HEAD against
+disposable PostgreSQL 18.6). Two holder scopes re-keying the same component
+in overlapping passes converge onto the survivor group with identical keys,
+no uniqueness or fencing errors, and both replays converging with no manual
+rerun (`TestRekeyTwoHolderScopesRekeySameComponentLive`, 1.32s at HEAD).
+
+Re-key outcome (L7, #10408): the pass dispatcher counts one
+`eshu_dp_supply_chain_impact_rekey_total` point per pass that touched a
+group, with the closed outcome (`merge`, `split`, `member_only`,
+`retire_only`; `rekey_signals.go`). A pass that touched nothing counts
+nothing, so the steady state is silence. Suppression carry and orphan
+magnitudes ride
+`eshu_dp_supply_chain_impact_suppression_carried_via_member_total` and
+`eshu_dp_supply_chain_impact_suppression_orphaned_by_split_total` under the
+same outcome label, and per-pass magnitudes ride the result sub-signals
+`rekey_groups_touched`, `rekey_findings_rekeyed`, and
+`rekey_rows_tombstoned`. Read the rate by outcome as the rollout's first
+measurement of alias-churn: a `split` rate means dropped coverage the
+operator must re-issue, a `merge` rate converges on its own.
+
+Re-key freshness bound: queue latency plus one holder pass per holder scope
+that holds a touched copy plus one 30-second winners resweep tick — the
+same bound as the enrichment wave above. Until the drain finishes, a holder
+can still serve the pre-merge copy and the winners can still rank it first.
+
 No-Regression Evidence (#10408 L2): EXPLAIN ANALYZE on disposable PostgreSQL
 18.6 with 90k finding rows (`TestRekeyHolderLookupUsesAllThreeArmsLive`):
 single-id CVE and advisory probes both run a BitmapOr over all three arms
@@ -293,3 +336,28 @@ bounded by the same single scan.
 No-Observability-Change (#10408 L2): no new metrics, spans, logs, or status
 fields; the reopened-scope count still surfaces on the existing reducer
 success line.
+
+No-Regression Evidence (#10408 L3): the suppression alias arms widen the
+suppression-kind predicate only — `TestAliasListReachesOnlyTheSuppressionStatement`
+fails if any non-suppression branch binds the alias list — so the wider load
+reads zero extra NVD or product rows; the carry tallies count the
+already-loaded suppressions and findings in memory (no new reads, no new
+statements). `TestSuppressionStatementReadsTheAliasMembers` pins the arm
+itself.
+
+No-Regression Evidence (#10408 L4): `TestRekeyPassOverheadIsMeasured` (200
+rounds, 4 rows, all changed, in-memory writer-core only, no Postgres round
+trip) reports ordinary median 118.8us vs re-key median 120.3us, delta +1.3%,
+against the fail-closed gate of twice the ordinary median: the member union
+is a bounded in-memory cost. Overlap and keyed-tick behavior hold live
+against disposable PostgreSQL 18.6: `TestRekeyTwoHolderScopesRekeySameComponentLive`
+1.32s at HEAD, both keyed-path convergence tests 0.10s each
+(`specs/live-tests.d/live-tests-07.yaml` reasons).
+
+No-Observability-Change (#10408 L7): the re-key signal adds exactly one
+in-memory counter add per touched-group pass plus two conditional
+suppression-magnitude adds (zero on a pass with no carry or orphan); no new
+spans, log lines, queue stages, locks, claims, leases, or status fields.
+Magnitudes ride result sub-signals — log fields on the existing reducer
+success line, following the `fanout_*` pattern — and the outcome rides the
+new counter's closed label, never a group, CVE, or advisory id.
