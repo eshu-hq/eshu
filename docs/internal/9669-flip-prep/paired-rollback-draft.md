@@ -11,6 +11,11 @@ supported version, replay from the last committed generation, verify exact
 truth. At no point may two producers hold authority for the same scope and
 generation.
 
+Refresh at eshu `origin/main` `75bc84bd` (satellites: `eshu-api`
+`origin/main` `90a5a98`, `eshu-mcp` `origin/main` `a7c6ee6c`; chart at
+`eshu-deploy` `origin/main` `360e0505`). The shapes below are unchanged —
+no rollback has been executed under this plan.
+
 A fresh arbiter review is required before any real flip, and therefore
 before any real rollback.
 
@@ -92,7 +97,9 @@ flip record. Pin holder: named by the owner before the lane closes
 No rollback has been executed under this plan. When one is, append: date,
 trigger, shape used, exact commands with exit codes, restored digests,
 parity re-proof output, and owner acceptance. The #8873 rollback-path proof
-(pre-cutover, read-only) is the pattern to follow, not a substitute.
+(pre-cutover, read-only) is the pattern to follow, not a substitute. The
+11-07 flip-window evidence does not carry forward here either — a rollback
+re-proves against the refresh pins above, never against that window.
 
 ## Open questions (D11 arbiter conditions in parentheses)
 
