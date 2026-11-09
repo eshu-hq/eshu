@@ -410,6 +410,11 @@ tests:
     class: dedicated_ci
     reason: "#10415: every named Go test in the file passes under reducer-contention (the enrolled names are in scripts/lib/reducer_contention_inventory.json; verified locally 2/2, 4.69s + 0.14s, disposable PostgreSQL 18.6); docs/internal/evidence/10415-fullpass-fallback.md"
     runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_scope_pass_state_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#10422: every named Go test in the file passes under reducer-contention (the enrolled names are in scripts/lib/reducer_contention_inventory.json; verified locally 1/1, 4.70s, disposable PostgreSQL 18.6); docs/internal/evidence/10422-stale-generation-fence.md"
+    runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_manifest_alert_live_test.go
     tag: ~
     class: dedicated_ci

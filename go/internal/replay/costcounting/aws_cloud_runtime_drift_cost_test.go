@@ -6,7 +6,9 @@ package costcounting_test
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -122,7 +124,10 @@ const awsCloudRuntimeDriftFixtureFencingToken int64 = 1
 // records each ExecContext call. QueryContext is never exercised by
 // PostgresAWSCloudRuntimeDriftWriter (it only writes). The supply_chain_impact
 // writer reads the rows it is about to overwrite inside its transaction
-// (#9695), so QueryContext returns an empty cursor, not nil rows.
+// (#9695), so QueryContext returns an empty cursor, not nil rows, except for
+// the scope pass-state fence statement (#10422), which decides from its
+// returned row: the fence anchor answers fence-open (not fenced, recorded)
+// so the cost scenario exercises the record path.
 type postgresExecCountingQueryer struct {
 	execCalls atomic.Int64
 }
@@ -132,7 +137,10 @@ func (q *postgresExecCountingQueryer) ExecContext(_ context.Context, _ string, _
 	return postgresFakeResult{}, nil
 }
 
-func (q *postgresExecCountingQueryer) QueryContext(_ context.Context, _ string, _ ...any) (db.Rows, error) {
+func (q *postgresExecCountingQueryer) QueryContext(_ context.Context, query string, _ ...any) (db.Rows, error) {
+	if strings.Contains(query, "WITH stale AS MATERIALIZED") {
+		return &postgresFenceOpenRows{}, nil
+	}
 	return postgresEmptyRows{}, nil
 }
 
@@ -143,6 +151,40 @@ func (postgresEmptyRows) Next() bool        { return false }
 func (postgresEmptyRows) Scan(...any) error { return nil }
 func (postgresEmptyRows) Err() error        { return nil }
 func (postgresEmptyRows) Close() error      { return nil }
+
+// postgresFenceOpenRows answers the #10422 generation-fence statement with
+// its fence-open decision row: fenced=false, recorded=1.
+type postgresFenceOpenRows struct {
+	done bool
+}
+
+func (r *postgresFenceOpenRows) Next() bool {
+	if r.done {
+		return false
+	}
+	r.done = true
+	return true
+}
+
+func (r *postgresFenceOpenRows) Scan(dest ...any) error {
+	if len(dest) != 2 {
+		return fmt.Errorf("fence decision row wants (fenced, recorded), got %d destinations", len(dest))
+	}
+	fenced, ok := dest[0].(*bool)
+	if !ok {
+		return fmt.Errorf("fence decision fenced destination is %T, want *bool", dest[0])
+	}
+	recorded, ok := dest[1].(*int64)
+	if !ok {
+		return fmt.Errorf("fence decision recorded destination is %T, want *int64", dest[1])
+	}
+	*fenced = false
+	*recorded = 1
+	return nil
+}
+
+func (r *postgresFenceOpenRows) Err() error   { return nil }
+func (r *postgresFenceOpenRows) Close() error { return nil }
 
 func (q *postgresExecCountingQueryer) count() int64 { return q.execCalls.Load() }
 

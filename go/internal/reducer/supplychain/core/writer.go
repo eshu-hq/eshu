@@ -129,6 +129,7 @@ func (w PostgresSupplyChainImpactWriter) WriteSupplyChainImpactFindings(
 		RecoveryCVEIDs:    outcome.recoveryCVEs,
 		SuppressionCVEIDs: outcome.suppressionCVEs,
 		suppressionDiff:   outcome.suppression,
+		PassStateSkipped:  outcome.passStateSkipped,
 		EvidenceSummary: fmt.Sprintf(
 			"wrote supply chain impact findings=%d canonical_writes=%d retracted=%d",
 			len(write.Findings), canonicalWrites, retracted,

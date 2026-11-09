@@ -74,6 +74,10 @@ type supplyChainImpactTxOutcome struct {
 	recoveryCVEs    []string
 	suppressionCVEs []string
 	suppression     suppressionDiffReport
+	// passStateSkipped reports the generation fence held (#10422): the
+	// pass's generation was stale, so the per-scope pass-state row was
+	// left untouched.
+	passStateSkipped bool
 }
 
 // commitSupplyChainImpactRows runs one pass's statements inside tx and returns
@@ -141,16 +145,6 @@ func commitSupplyChainImpactRows(
 			generationID: write.GenerationID,
 			fencingToken: write.FencingToken,
 		}
-	}
-	// Record the scope's durable per-scope pass state in the same
-	// transaction (#10389): a partial pass marks the scope stuck with its
-	// causes, a full complete pass clears it, and a scoped complete leaves
-	// the state untouched because it re-derives only its stamped subset
-	// (#9779). It runs on the admitted path only, and it fails the pass
-	// when the state cannot be recorded: state that disagrees with the
-	// committed rows is worse than a retried pass.
-	if err := recordSupplyChainImpactScopePassState(ctx, tx, write, now); err != nil {
-		return supplyChainImpactTxOutcome{}, err
 	}
 	// Read what the pass is about to overwrite, after the lock (no concurrent
 	// pass of this conflict domain can change it) and before the upsert, so the
@@ -220,6 +214,24 @@ func commitSupplyChainImpactRows(
 		if err != nil {
 			return supplyChainImpactTxOutcome{}, err
 		}
+	}
+	// Record the scope's durable per-scope pass state last (#10389): a
+	// partial pass marks the scope stuck with its causes, a full complete
+	// pass clears it, and a scoped complete leaves the state untouched
+	// because it re-derives only its stamped subset (#9779). It runs on the
+	// admitted path only, and it fails the pass when the state cannot be
+	// recorded: state that disagrees with the committed rows is worse than
+	// a retried pass. A stale generation's pass records nothing (#10422);
+	// the skip rides the outcome to a handler signal so operators can see
+	// it. Late placement is load-bearing: the fence decides on the
+	// freshest READ COMMITTED snapshot, so a newer generation that commits
+	// while this pass's bulk writes run is seen and the stale write
+	// skipped, instead of committing over the newer clear. Only a commit
+	// landing between this statement and the commit below can still
+	// interleave, and no bulk work runs in that window.
+	outcome.passStateSkipped, err = recordSupplyChainImpactScopePassState(ctx, tx, write, now)
+	if err != nil {
+		return supplyChainImpactTxOutcome{}, err
 	}
 	return outcome, nil
 }

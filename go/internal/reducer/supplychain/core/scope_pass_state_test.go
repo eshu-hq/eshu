@@ -137,6 +137,74 @@ func TestWriteSupplyChainImpactScopedCompletePreservesScopePassState(t *testing.
 	}
 }
 
+// TestSupplyChainImpactScopePassStateQueryPinsGenerationFence pins the
+// #10422 fence clauses in the scope pass-state upsert: both the insert and
+// the update path skip when a lifecycle-newer reader-visible generation
+// exists, the fence decides once per statement, and the write's generation
+// rides along as a bound parameter. Like the F1 guard test above, the query
+// text is the contract; the live proof in the storage package proves the
+// behavior against real SQL.
+func TestSupplyChainImpactScopePassStateQueryPinsGenerationFence(t *testing.T) {
+	t.Parallel()
+
+	for _, want := range []string{
+		"WITH stale AS MATERIALIZED",
+		"FROM scope_generations AS newer",
+		"newer.generation_id <> $6",
+		"newer.activated_at IS NOT NULL",
+		"newer.status IN ('active', 'superseded')",
+		"(newer.ingested_at, newer.generation_id) > (",
+		"WHERE (SELECT NOT fenced FROM stale)",
+		"AND (SELECT NOT fenced FROM stale)",
+		"RETURNING 1",
+		"SELECT (SELECT fenced FROM stale) AS fenced, (SELECT count(*) FROM up) AS recorded",
+	} {
+		if !strings.Contains(supplyChainImpactScopePassStateQuery, want) {
+			t.Fatalf("scope pass-state upsert must pin the generation fence clause %q:\n%s", want, supplyChainImpactScopePassStateQuery)
+		}
+	}
+}
+
+// TestRecordScopePassStateSignalsFenceSkipNotTokenGuard proves the #10422
+// review fix: the skip signal follows the fence decision the statement
+// returns, never the affected-row count. A token-guard no-op (fence open,
+// nothing written) must not report a fence skip it never took.
+func TestRecordScopePassStateSignalsFenceSkipNotTokenGuard(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 11, 8, 12, 0, 0, 0, time.UTC)
+	for _, tc := range []struct {
+		name     string
+		fenced   bool
+		recorded int64
+		wantSkip bool
+	}{
+		{"fence holds, nothing written", true, 0, true},
+		{"token guard no-op, fence open", false, 0, false},
+		{"fence open, row written", false, 1, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			inserts := &testutil.FakeExecer{}
+			beginner := newFakeImpactBeginner(inserts)
+			beginner.state.passStateFenced = tc.fenced
+			beginner.state.passStateRecorded = tc.recorded
+			write := retractTestWrite()
+			write.PartialEvidence = true
+			write.PartialCauses = []string{"evidence_budget"}
+
+			outcome, err := runSupplyChainImpactTx(context.Background(), beginner, write, nil, nil, ProtectedScanImpactPublicationSet{}, false, now)
+			if err != nil {
+				t.Fatalf("runSupplyChainImpactTx() error = %v", err)
+			}
+			if got := outcome.passStateSkipped; got != tc.wantSkip {
+				t.Fatalf("passStateSkipped = %v, want %v (fenced=%v recorded=%d)", got, tc.wantSkip, tc.fenced, tc.recorded)
+			}
+		})
+	}
+}
+
 func findExecCallByQuery(calls []testutil.ExecCall, query string) *testutil.ExecCall {
 	for i := range calls {
 		if calls[i].Query == query {
