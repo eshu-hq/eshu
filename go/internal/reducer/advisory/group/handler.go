@@ -127,6 +127,7 @@ func (h Handler) Handle(ctx context.Context, intent reducercontract.Intent) (red
 	var totals WriteStats
 	winnerRows, oversized := 0, 0
 	for _, groupID := range groupIDs {
+		reconcileStarted := time.Now()
 		rows, err := h.Winners.QualifyingAdvisoryGroupWinners(ctx, groupID)
 		if err != nil {
 			return reducercontract.Result{}, fmt.Errorf("read qualifying advisory group winners: %w", err)
@@ -138,7 +139,6 @@ func (h Handler) Handle(ctx context.Context, intent reducercontract.Intent) (red
 			h.Instruments.RecordAdvisoryGroupMemberUnionOversized(ctx, domain)
 		}
 
-		reconcileStarted := time.Now()
 		stats, err := h.Writer.ReconcileAdvisoryGroup(ctx, group)
 		h.Instruments.RecordAdvisoryGroupReconcileDuration(ctx, domain, time.Since(reconcileStarted).Seconds())
 		if err != nil {
@@ -148,6 +148,9 @@ func (h Handler) Handle(ctx context.Context, intent reducercontract.Intent) (red
 		outcome := telemetry.AdvisoryGroupProjectionOutcomeProjected
 		if len(group.Edges) == 0 {
 			outcome = telemetry.AdvisoryGroupProjectionOutcomeDeleted
+			if len(rows) > 0 {
+				outcome = telemetry.AdvisoryGroupProjectionOutcomeEdgelessWithWinners
+			}
 		}
 		h.Instruments.RecordAdvisoryGroupReconciled(ctx, domain, outcome, stats.EdgesCreated, stats.EdgesDeleted, stats.NodesDeleted)
 		totals.NodesCreated += stats.NodesCreated

@@ -44,6 +44,11 @@ tests:
     class: scheduled
     reason: "#10411 seeded bidirectional parity proof: production handler over the production winners reader and AdvisoryGroupWriter, graph (repository_id, package_id) pairs equal Postgres qualifying pairs in both directions across a CVE-keyed and an advisory-keyed group with excluded rows seeded; needs BOTH a disposable PostgreSQL (ESHU_POSTGRES_TEST_DSN) and Neo4j (ESHU_NEO4J_URI), which no single CI job provides today, so it runs in the scheduled live lane / on demand; local both-backend run took 0.34 s package wall"
     backends: neo4j
+  - file: go/internal/reducer/advisory/group/drain_live_test.go
+    tag: live_nornicdb_answer_truth
+    class: scheduled
+    reason: "#10411 criterion-9 queue-drain proof: production AdvisoryGroupProjectionEnqueuer into the production reducer queue, production claim (conflict-key partition), handler, ack until the queue drains empty, graph readback matches the qualifying winners; needs BOTH a disposable PostgreSQL (ESHU_POSTGRES_TEST_DSN) and Neo4j (ESHU_NEO4J_URI), which no single CI job provides today, so it runs in the scheduled live lane / on demand; local both-backend run took 0.18 s package wall"
+    backends: neo4j
   - file: go/internal/storage/cypher/edge/writer/runtime_declaration_live_test.go
     tag: live_nornicdb_answer_truth
     class: ci

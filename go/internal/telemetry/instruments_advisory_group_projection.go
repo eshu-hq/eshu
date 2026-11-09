@@ -26,6 +26,12 @@ const (
 	// AdvisoryGroupProjectionOutcomeFailed is a group whose reconcile
 	// returned an error.
 	AdvisoryGroupProjectionOutcomeFailed = "failed"
+	// AdvisoryGroupProjectionOutcomeEdgelessWithWinners is a group whose
+	// qualifying winners exist but resolve to no edge (every winner's
+	// repository is absent from the graph), so the anchor was deleted even
+	// though qualifying winner rows were read. A steady rate here points at
+	// repository-materialization gaps, not advisory churn.
+	AdvisoryGroupProjectionOutcomeEdgelessWithWinners = "edgeless_with_winners"
 )
 
 var (

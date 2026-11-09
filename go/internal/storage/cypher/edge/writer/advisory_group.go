@@ -37,12 +37,14 @@ const (
 const AdvisoryGroupUpsertCypher = `UNWIND $rows AS row
 MATCH (r:Repository {id: row.repository_id})
 MERGE (g:AdvisoryGroup {id: $id})
-SET g.cve_ids = $cve_ids,
-    g.advisory_ids = $advisory_ids,
-    g.member_count = $member_count
+FOREACH (_ IN CASE WHEN coalesce(g.cve_ids, []) <> $cve_ids OR coalesce(g.advisory_ids, []) <> $advisory_ids OR coalesce(g.member_count, -1) <> $member_count THEN [1] ELSE [] END |
+  SET g.cve_ids = $cve_ids,
+      g.advisory_ids = $advisory_ids,
+      g.member_count = $member_count)
 MERGE (r)-[e:AFFECTED_BY {package_id: row.package_id}]->(g)
-SET e.ecosystem = row.ecosystem,
-    e.purl = row.purl`
+FOREACH (_ IN CASE WHEN coalesce(e.ecosystem, '') <> row.ecosystem OR coalesce(e.purl, '') <> row.purl THEN [1] ELSE [] END |
+  SET e.ecosystem = row.ecosystem,
+      e.purl = row.purl)`
 
 // AdvisoryGroupStaleEdgeRetractCypher deletes the group's AFFECTED_BY edges
 // outside the current membership. It seeks the group by its unique id, so it

@@ -24,7 +24,9 @@ the graph writer and winners reader carry their own live proofs.
   so a group touched twice in one generation re-projects. Groups per
   pass are bounded by distinct changed CVEs/advisories, a set the
   fan-out already enumerates.
-- The projection handler reads one group's qualifying winners (indexed
+- The projection handler reads one group's qualifying winners (the
+  coalesced group-key predicate served by migration 287's
+  `supply_chain_impact_winners_group_key_idx` expression index over the
   winners columns, `ORDER BY repository_id, package_id`) and one
   watermark row per intent, then reconciles. Claims partition by entity
   key in the queue conflict fence, so disjoint groups drain in parallel
@@ -84,5 +86,39 @@ coverage row in `docs/public/observability/telemetry-coverage-reducer-domains.md
 - Known limits: suppression expiry is evaluated at winners-read time,
   so a suppression that expires by wall clock un-hides winners with no
   write event; affected groups converge on their next touch or the
-  backfill, not at expiry. A group whose intent dead-letters in a
-  generation stays stale until the next generation or backfill.
+  the enqueue retry, not at expiry. A group whose intent dead-letters in a
+  generation stays stale until the next touch of that group; a failed
+  enqueue fails the supply pass for retry, and the fan-out owed marker
+  (which covers touched groups, not only changed CVEs) makes the owed
+  rerun re-enqueue the scope's recovery groups.
+
+Reader index proof (#10411, postgres:18-alpine shim, 220,000 seeded winner
+rows in the reader's exact group-key shape). Before the index the planner
+picked a Parallel Seq Scan (16.494 ms, 73,320 rows removed by filter per
+worker); after `CREATE INDEX ... ((CASE WHEN btrim(cve_id) <> '' THEN
+cve_id ELSE advisory_id END))` the same query is an Index Scan using the
+group-key index (0.102 ms for a CVE key, 0.032 ms for an advisory-id key,
+Buffers shared hit 40/6). The full production query adds the
+suppression/scope heap filters and the fact join over only the group's
+matched rows.
+
+Criterion 9 completion (#10411). Built-binary queue drain: the production
+reducer binary (built from this branch) refused to start graph writers
+until the bootstrap-data-plane binary applied the graph schema marker
+(the schema-fence ordering is enforced at boot, not assumed). After
+bootstrap, with `ESHU_REDUCER_CLAIM_DOMAINS=advisory_group_projection`
+against the same shims, the binary claimed the seeded intent, logged
+`advisory group projection completed ... nodes_created=1 edges_created=1`,
+`reducer execution succeeded` in 0.125 s, the queue row read
+`succeeded` with attempt_count 1, and the graph readback returned
+`test-agp-bin-repo | pkg:npm/bin`. The committed
+`TestAdvisoryGroupQueueDrainLive` covers the same enqueue → claim →
+handle → ack drain through the production queue in-process.
+1x/10x read scaling (PROFILE, pinned neo4j): a 100-edge group reads at
+DbHits 204 / 2 ms and a 1,000-edge group at DbHits 2004 / 10 ms —
+linear in group degree from the unique-seek anchor; a paginated read
+(SKIP 500 LIMIT 100) of the 1,000-edge group costs DbHits 3104 / 16 ms.
+Concurrency: `TestBoltAdvisoryGroupParallelConvergence` (-race) races
+disjoint groups plus duplicate same-group reconciles to the same final
+graph with no duplicated edges; `TestAdvisoryGroupConflictPartition`
+pins same-group/one-key across scopes.

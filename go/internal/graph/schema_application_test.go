@@ -48,11 +48,11 @@ func TestSchemaApplicationsDeclareCompatibilityDecision(t *testing.T) {
 			// The additive #5385 T4 endpoint_repo_id index rides on top of
 			// the cutover DDL without changing write identity; the cutover's
 			// refusal dominates, so no predecessor is listed here either.
-			// The #9558 SSM host uid constraints were likewise additive and
-			// kept the immediate predecessor compatible under the previous
-			// tip; the #10411 advisory_group_id constraint backs a new
-			// reducer domain, so the current tip lists no predecessor.
-			compatible: []string{},
+			// The #9558 SSM host uid constraints were likewise additive.
+			// The #10411 advisory_group_id constraint backs a new reducer
+			// domain and touches no existing label, so the pre-AdvisoryGroup
+			// tip is the current tip's single compatible predecessor.
+			compatible: []string{graphSchemaNeo4jPreAdvisoryGroupFingerprint},
 		},
 		{
 			name:        "nornicdb",
@@ -61,9 +61,9 @@ func TestSchemaApplicationsDeclareCompatibilityDecision(t *testing.T) {
 			// No predecessor, for the same #8168 import_key cutover (the
 			// #5385 T4 endpoint_repo_id index rides on top without changing
 			// write identity, and the cutover's refusal dominates here too).
-			// The #10411 advisory_group_id constraint backs a new reducer
-			// domain, so the current tip lists no predecessor here either.
-			compatible: []string{},
+			// The #10411 advisory_group_id constraint is additive here
+			// too: the pre-AdvisoryGroup tip stays compatible.
+			compatible: []string{graphSchemaNornicDBPreAdvisoryGroupFingerprint},
 		},
 	}
 

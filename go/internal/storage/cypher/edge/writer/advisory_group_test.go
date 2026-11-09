@@ -53,7 +53,7 @@ func TestReconcileAdvisoryGroupUpsertRetractCleanup(t *testing.T) {
 		t.Fatalf("calls = %d, want 4", len(exec.calls))
 	}
 	upsert := exec.calls[0].Cypher
-	for _, want := range []string{"MATCH (r:Repository {id: row.repository_id})", "MERGE (g:AdvisoryGroup {id: $id})", "AFFECTED_BY {package_id: row.package_id}", "g.member_count"} {
+	for _, want := range []string{"MATCH (r:Repository {id: row.repository_id})", "MERGE (g:AdvisoryGroup {id: $id})", "AFFECTED_BY {package_id: row.package_id}", "g.member_count", "FOREACH", "coalesce(g.cve_ids, []) <> $cve_ids", "coalesce(e.ecosystem, '') <> row.ecosystem"} {
 		if !strings.Contains(upsert, want) {
 			t.Errorf("upsert missing %q:\n%s", want, upsert)
 		}

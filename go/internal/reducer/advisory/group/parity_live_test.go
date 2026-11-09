@@ -18,6 +18,7 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 
+	"github.com/eshu-hq/eshu/go/internal/graph"
 	advisorygroup "github.com/eshu-hq/eshu/go/internal/reducer/advisory/group"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
@@ -93,10 +94,22 @@ func TestAdvisoryGroupParityLive(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = driver.Close(ctx) })
 	exec := parityBoltExecutor{driver: driver}
-	for _, stmt := range []string{
-		"CREATE CONSTRAINT repository_id IF NOT EXISTS FOR (r:Repository) REQUIRE r.id IS UNIQUE",
-		"CREATE CONSTRAINT advisory_group_id IF NOT EXISTS FOR (g:AdvisoryGroup) REQUIRE g.id IS UNIQUE",
-	} {
+	// Apply only the production constraint statements for the two labels
+	// this proof touches, so the test never drifts from the shipped DDL.
+	schemaStmts, err := graph.SchemaStatementsForBackend(graph.SchemaBackendNeo4j)
+	if err != nil {
+		t.Fatalf("production schema statements: %v", err)
+	}
+	var ddl []string
+	for _, stmt := range schemaStmts {
+		if strings.Contains(stmt, "(r:Repository)") || strings.Contains(stmt, "(g:AdvisoryGroup)") {
+			ddl = append(ddl, stmt)
+		}
+	}
+	if len(ddl) == 0 {
+		t.Fatal("production DDL for Repository/AdvisoryGroup is empty: constraint statements moved")
+	}
+	for _, stmt := range ddl {
 		if err := exec.Execute(ctx, sourcecypher.Statement{Cypher: stmt, Parameters: map[string]any{}}); err != nil {
 			t.Fatalf("apply DDL %q: %v", stmt, err)
 		}

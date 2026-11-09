@@ -86,8 +86,10 @@ const (
 	// mint a second node beside every canonical one. It must stop before
 	// writing, not write a graph an operator then has to repair.
 	//
-	// On top of that stack rides the #10411 advisory_group_id constraint
-	// (see graphSchemaNeo4jPreAdvisoryGroupFingerprint below).
+	// On top of that stack rides the #10411 advisory_group_id constraint,
+	// additive in the #8816/#9558 shape: it backs a new reducer domain and
+	// touches no existing label, so its immediate predecessor stays
+	// compatible (see graphSchemaNeo4jPreAdvisoryGroupFingerprint below).
 	//
 	// The previous values (graphSchemaNeo4jPreModuleImportKeyFingerprint in
 	// schema_predecessors.go) were the #6102 (name, lang) cutover plus the
@@ -100,14 +102,13 @@ const (
 
 	// graphSchemaNeo4jPreAdvisoryGroupFingerprint and its NornicDB peer are
 	// the schema fingerprints immediately before the #10411 advisory_group_id
-	// constraint. The constraint backs a new reducer domain
-	// (advisory_group_projection), so per the rule in
-	// graphSchemaCompatibleFingerprints the new fingerprint lists no
-	// compatible predecessors: a writer on the previous release knows
-	// nothing of the AdvisoryGroup family and must stop at the fence
-	// rather than write beside it. The predecessor's own compatible entry
-	// (the #9558 pre-SSMHost tip) is preserved under its own key in
-	// schema_predecessors.go, unreachable from the current lookup.
+	// constraint. The bump is additive, like #8816 and #9558: a writer on
+	// the predecessor release emits no AdvisoryGroup nodes, so the new
+	// constraint never applies to it, and no existing MERGE or MATCH
+	// identity changes. The predecessor therefore stays the single
+	// compatible predecessor of the current fingerprint, and its own
+	// compatible entry (the #9558 pre-SSMHost tip) is preserved under its
+	// own key in schema_predecessors.go.
 	graphSchemaNeo4jPreAdvisoryGroupFingerprint    = "efee7a92098bc5435682a862b05f111ee71516be1ff8dcef5144640ef0113dde"
 	graphSchemaNornicDBPreAdvisoryGroupFingerprint = "62293e2a1184853135857279221186fee30e489005295e5aeacfb20e7cc7c7e9"
 

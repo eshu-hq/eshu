@@ -229,13 +229,16 @@ import (
 // GHSA rolling-window cursor table; 284 went to #10389's scope-pass-state
 // file and 285 to its contract comments, so this lane takes the next free
 // slot).
-const goldenBootstrapDefinitionsDigest = "2cbff8ff8d4a51fd438b512a51d2f726fcca730e5ee6336c1495737e159c2753"
+// #10411 adds 287_supply_chain_impact_winners_group_key.sql (the expression
+// index serving the advisory-group qualifying-winners read's coalesced
+// group-key predicate; one CREATE INDEX, no table).
+const goldenBootstrapDefinitionsDigest = "71282610b6f0ef132a6cf3e8dace883b3413f2c4b29627b6d704507cad963d75"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or
 // silently dropping files) fails loudly even in the unlikely case of a hash
 // collision.
-const goldenBootstrapDefinitionsCount = 312
+const goldenBootstrapDefinitionsCount = 313
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
 	defs := BootstrapDefinitions()

@@ -205,7 +205,11 @@ func commitSupplyChainImpactRows(
 		touchedGroups:   touchedGroups,
 		suppression:     supp,
 	}
-	if write.Owed != nil && len(outcome.changedCVEs) > 0 {
+	// The owed marker also covers the advisory-group enqueue (#10411): a
+	// pass whose only changes are CVE-less (group keys live in advisory_id)
+	// has empty changedCVEs but still owes its touched groups a
+	// projection, so the crash-recovery rerun must re-drive it too.
+	if write.Owed != nil && (len(outcome.changedCVEs) > 0 || len(outcome.touchedGroups) > 0) {
 		if err := write.Owed.RecordFanOutOwed(ctx, tx); err != nil {
 			return supplyChainImpactTxOutcome{}, fmt.Errorf("record supply chain impact fan-out owed: %w", err)
 		}

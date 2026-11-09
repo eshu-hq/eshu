@@ -146,8 +146,7 @@ type SupplyChainImpactHandler struct {
 	FanOut SupplyChainImpactFanOut
 	// GroupProjectionEnqueuer admits one advisory_group_projection intent
 	// per advisory group this pass touched (#10411), after the commit and
-	// the fan-out. Optional: nil leaves the AdvisoryGroup graph family to
-	// converge on the next touch or a backfill.
+	// the fan-out. Optional in tests: nil enqueues no projections.
 	GroupProjectionEnqueuer SupplyChainAdvisoryGroupProjectionEnqueuer
 	// Tracer wraps the fan-out in one span. Optional.
 	Tracer trace.Tracer
@@ -269,9 +268,11 @@ func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent reducercont
 		return reducercontract.Result{}, err
 	}
 	// The AdvisoryGroup projection reconciles from committed winners, in
-	// its own domain, never inside this per-scope pass (#10411). Best
-	// effort by design; see enqueueAdvisoryGroupProjections.
-	h.enqueueAdvisoryGroupProjections(ctx, intent, writeResult)
+	// its own domain, never inside this per-scope pass (#10411). A failed
+	// enqueue fails the pass for retry, like the fan-out.
+	if err := h.enqueueAdvisoryGroupProjections(ctx, intent, writeResult); err != nil {
+		return reducercontract.Result{}, err
+	}
 
 	phaseStarted = time.Now()
 	h.emitCounters(ctx, counts, suppressionCounts, remediationCounts)

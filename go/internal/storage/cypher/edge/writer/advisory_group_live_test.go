@@ -9,11 +9,15 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
+	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
+
 	"github.com/eshu-hq/eshu/go/internal/graph"
 	advisorygroup "github.com/eshu-hq/eshu/go/internal/reducer/advisory/group"
+	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
 
 // The live proofs below drive the production AdvisoryGroupWriter against
@@ -153,5 +157,134 @@ func TestBoltAdvisoryGroupReconcileIsIdempotentAndRetracts(t *testing.T) {
 	}
 	if pairs4, _ := advisoryGroupPairs(t, runner, groupID); pairs4 != "" {
 		t.Fatalf("after empty reconcile pairs = %q, want no node", pairs4)
+	}
+}
+
+// countingBoltExecutor runs statements on the live runner's driver and
+// publishes Bolt summary counters the way the production seam does, so
+// WriteStats assertions observe real backend counters.
+type countingBoltExecutor struct {
+	runner *boltRetractTestRunner
+}
+
+func (e countingBoltExecutor) Execute(ctx context.Context, stmt sourcecypher.Statement) error {
+	session := e.runner.driver.NewSession(ctx, neo4jdriver.SessionConfig{AccessMode: neo4jdriver.AccessModeWrite, DatabaseName: e.runner.databaseName})
+	defer func() { _ = session.Close(ctx) }()
+	params := map[string]any{}
+	for k, v := range stmt.Parameters {
+		params[k] = v
+	}
+	result, err := session.Run(ctx, stmt.Cypher, params)
+	if err != nil {
+		return err
+	}
+	summary, err := result.Consume(ctx)
+	if err != nil {
+		return err
+	}
+	c := summary.Counters()
+	sourcecypher.ReportWriteCounts(ctx, stmt.Cypher, stmt.Parameters, sourcecypher.WriteCounters{
+		NodesCreated:         int64(c.NodesCreated()),
+		NodesDeleted:         int64(c.NodesDeleted()),
+		RelationshipsCreated: int64(c.RelationshipsCreated()),
+		RelationshipsDeleted: int64(c.RelationshipsDeleted()),
+		PropertiesSet:        int64(c.PropertiesSet()),
+	})
+	return nil
+}
+
+// TestBoltAdvisoryGroupReplaySetsNoProperties pins criterion 11 on a real
+// backend: reconciling the already-current desired state again creates
+// nothing and sets zero properties (the upsert's conditional SETs skip
+// unchanged values instead of rewriting them every replay).
+func TestBoltAdvisoryGroupReplaySetsNoProperties(t *testing.T) {
+	runner, _ := openAdvisoryGroupLive(t)
+	w := NewAdvisoryGroupWriter(countingBoltExecutor{runner: runner}, 0)
+	ctx := context.Background()
+	suffix := fmt.Sprintf("10411-noop-%d", time.Now().UnixNano())
+	repo := "repository:" + suffix
+	groupID := "CVE-10411-" + suffix
+	advisoryGroupLiveCleanup(t, runner, []string{groupID}, []string{repo})
+	advisoryGroupLiveSeedRepos(t, runner, repo)
+
+	group := advisorygroup.Group{
+		ID:          groupID,
+		CVEIDs:      []string{groupID},
+		AdvisoryIDs: []string{"GHSA-10411-noop"},
+		Edges: []advisorygroup.Edge{
+			{RepositoryID: repo, PackageID: "pkg:npm/a", Ecosystem: "npm", PURL: "pkg:npm/a@1"},
+		},
+	}
+	first, err := w.ReconcileAdvisoryGroup(ctx, group)
+	if err != nil {
+		t.Fatalf("first reconcile: %v", err)
+	}
+	if first.PropertiesSet == 0 || first.NodesCreated != 1 || first.EdgesCreated != 1 {
+		t.Fatalf("first reconcile stats = %+v, want node+edge created with properties set", first)
+	}
+	second, err := w.ReconcileAdvisoryGroup(ctx, group)
+	if err != nil {
+		t.Fatalf("replay reconcile: %v", err)
+	}
+	if second != (advisorygroup.WriteStats{}) {
+		t.Fatalf("replay stats = %+v, want all zero: a no-op reconcile must not churn properties", second)
+	}
+}
+
+// TestBoltAdvisoryGroupParallelConvergence proves criterion 7's second half
+// (#10411): disjoint groups reconciled in parallel and duplicate same-group
+// reconciles racing on the group's one conflict key all converge to the same
+// graph state with no constraint errors and no duplicated edges.
+func TestBoltAdvisoryGroupParallelConvergence(t *testing.T) {
+	runner, w := openAdvisoryGroupLive(t)
+	ctx := context.Background()
+	suffix := fmt.Sprintf("10411-par-%d", time.Now().UnixNano())
+	repo := "repository:" + suffix
+	advisoryGroupLiveSeedRepos(t, runner, repo)
+
+	groups := make([]advisorygroup.Group, 0, 5)
+	ids := make([]string, 0, 5)
+	for i := range 5 {
+		id := fmt.Sprintf("CVE-10411-PAR%d-%s", i, suffix)
+		ids = append(ids, id)
+		groups = append(groups, advisorygroup.Group{
+			ID:          id,
+			CVEIDs:      []string{id},
+			AdvisoryIDs: []string{fmt.Sprintf("GHSA-10411-par-%d", i)},
+			Edges: []advisorygroup.Edge{
+				{RepositoryID: repo, PackageID: fmt.Sprintf("pkg:npm/par%d", i), Ecosystem: "npm", PURL: fmt.Sprintf("pkg:npm/par%d@1", i)},
+			},
+		})
+	}
+	advisoryGroupLiveCleanup(t, runner, ids, []string{repo})
+
+	var wg sync.WaitGroup
+	errs := make(chan error, 15)
+	for i, group := range groups {
+		n := 1
+		if i < 2 {
+			n = 2
+		}
+		for range n {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				if _, err := w.ReconcileAdvisoryGroup(ctx, group); err != nil {
+					errs <- err
+				}
+			}()
+		}
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		t.Fatalf("parallel reconcile: %v", err)
+	}
+	for i, id := range ids {
+		pairs, _ := advisoryGroupPairs(t, runner, id)
+		want := fmt.Sprintf("[%s|pkg:npm/par%d|npm|pkg:npm/par%d@1]", repo, i, i)
+		if pairs != want {
+			t.Fatalf("group %s pairs = %q, want %q (no duplicates, no loss)", id, pairs, want)
+		}
 	}
 }
