@@ -215,6 +215,31 @@ else
   no "edit_file passes once the skill is loaded"
 fi
 rm -f "/tmp/claude-skill-loaded-${sid12}-golang-engineering"
+
+# ── D2. one canonical id per nudge arm: seeded RED/GREEN ─────────────────────
+#
+# The storage/postgres arm once named both `eshu-postgres-rigor` and the kit's
+# bare `postgres-rigor`. Canon is the eshu-* id only: the kit skill resolves
+# kit-internal doc paths and predates the repo's review-bar additions, so the
+# arm names exactly one id. Seeded: the unloaded state is planted by removing
+# the marker up front, so RED cannot pass on ambient session state.
+pg_governed="${repo_root}/go/internal/storage/postgres/canonical-id-probe-$$.go"
+rm -f "/tmp/claude-skill-loaded-${sid12}-eshu-postgres-rigor"
+pg_out="$(printf '%s' "$(muse_pretool write_file '{"path":"'"${pg_governed}"'","content":"x"}')" | bash "${MH}/skill-nudge.sh" 2>&1)"
+pg_rc="$?"
+[[ "${pg_rc}" == "2" ]] && ok "storage/postgres edit is refused without the canonical skill (RED)" || no "storage/postgres edit is refused without the canonical skill (RED, rc=${pg_rc})"
+if rg -q 'not loaded in this context: eshu-postgres-rigor$' <<<"${pg_out}"; then
+  ok "refusal names exactly one canonical id"
+else
+  no "refusal names exactly one canonical id"
+fi
+touch "/tmp/claude-skill-loaded-${sid12}-eshu-postgres-rigor"
+if printf '%s' "$(muse_pretool write_file '{"path":"'"${pg_governed}"'","content":"x"}')" | bash "${MH}/skill-nudge.sh" >/dev/null 2>&1; then
+  ok "storage/postgres edit passes once the canonical skill is loaded (GREEN)"
+else
+  no "storage/postgres edit passes once the canonical skill is loaded (GREEN)"
+fi
+rm -f "/tmp/claude-skill-loaded-${sid12}-eshu-postgres-rigor"
 if printf '%s' "$(muse_pretool write_file '{"path":"'"${work}"'/notes.txt","content":"x"}')" | bash "${MH}/skill-nudge.sh" >/dev/null 2>&1; then
   ok "edits outside an Eshu checkout pass untouched"
 else

@@ -68,15 +68,13 @@ docs/site/
 
 # Repo-local tooling and scratch files. .claude/* (not .claude/) so git still
 # descends into the directory and the negations below can re-include the
-# project-level hook, settings, rule, agent, and skill shipped with the repo.
+# project-level hook, settings, agent, and skill shipped with the repo.
 .claude/*
 !.claude/settings.json
 !.claude/hooks/
 !.claude/hooks/**
 !.claude/skills/
 !.claude/skills/**
-!.claude/rules/
-!.claude/rules/**
 !.claude/agents/
 !.claude/agents/**
 .worktrees/

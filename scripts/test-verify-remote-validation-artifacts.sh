@@ -326,7 +326,7 @@ case11_registry_gate="$(
 	sed -n '/^  - id: remote-validation-artifacts$/,/^  - id:/p' "${case11_registry}"
 )"
 case11_workflow_filter="$(
-	sed -n '/^[[:space:]]*remotevalidation:$/,/^[[:space:]]*claudrules:$/p' "${repo_root}/.github/static-contract-filters.yml" | sed 's/^/            /'
+	sed -n '/^[[:space:]]*remotevalidation:$/,/^[[:space:]]*maturitydrift:$/p' "${repo_root}/.github/static-contract-filters.yml" | sed 's/^/            /'
 )"
 case11_workflow_gate="$(
 	rg --fixed-strings 'append_gate "${{ steps.filter.outputs.remotevalidation }}"' "${case11_workflow}"
