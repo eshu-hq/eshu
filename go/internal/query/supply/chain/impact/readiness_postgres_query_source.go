@@ -331,6 +331,8 @@ vulnerability_source_state_candidates AS (
     SELECT * FROM derived_vulnerability_source_state_candidates
     UNION ALL
     SELECT * FROM nvd_rolling_window_state_candidates
+    UNION ALL
+    SELECT * FROM ghsa_rolling_window_state_candidates
 ),
 vulnerability_source_state AS (
     SELECT
@@ -342,7 +344,7 @@ vulnerability_source_state AS (
         -- it. Its planner reasons still surface here as osv:skipped:<reason>
         -- so the envelope can name the terminal verdict without package names.
         COALESCE(ARRAY_REMOVE(ARRAY_AGG(DISTINCT CASE
-            WHEN coverage_missing THEN 'nvd:committed_snapshot_missing'
+            WHEN coverage_missing THEN source || ':committed_snapshot_missing'
             WHEN freshness_state IN ('pending', 'stale', 'rate_limited', 'failed', 'partial')
                 THEN source || ':' || freshness_state
             ELSE NULL END), NULL), '{}'::text[])

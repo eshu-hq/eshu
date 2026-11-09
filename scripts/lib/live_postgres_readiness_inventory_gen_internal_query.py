@@ -7,6 +7,9 @@ Do not edit by hand; regenerate with
 
 TABLE = {
     "./internal/query": {
+        "go/internal/query/advisory_catalog_ghsa_newest_copy_live_test.go": (
+            "TestSupplyChainAdvisoryCatalogServesNewestGHSACopyLive",
+        ),
         "go/internal/query/cloud_resource_legacy_keys_postgres_live_test.go": (
             "TestCloudResourceListSuppressesHistoricalAppSyncKeysLive",
         ),
@@ -109,6 +112,9 @@ TABLE = {
         ),
         "go/internal/query/readiness_ghsa_target_live_test.go": (
             "TestSupplyChainImpactReadinessGHSATargetKeepsUnrelatedCVEReadLive",
+        ),
+        "go/internal/query/readiness_ghsa_window_live_test.go": (
+            "TestSupplyChainImpactReadinessGHSAWindowFreshnessLive",
         ),
         "go/internal/query/readiness_known_cve_coverage_live_test.go": (
             "TestSupplyChainImpactReadinessKnownCVECoverageLive",

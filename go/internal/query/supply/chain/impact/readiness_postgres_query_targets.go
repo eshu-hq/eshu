@@ -41,10 +41,14 @@ const (
 // collector's strings.EqualFold selection and the producer's descriptor.
 //
 // A ghsa target (#9959) is a well-formed source the workflow validator admits,
-// so the malformed check accepts it. It is never a readiness candidate: it
-// carries no CVE selector and no ecosystem, and its records carry no CVE key,
-// so neither the CVE arm nor the osv/glad ecosystem arm selects it. Its state
-// rows stay out of fetchConfirmedSources for the same reason.
+// so the malformed check accepts it. A static ghsa target is never a
+// readiness candidate: it carries no CVE selector and no ecosystem, and its
+// records carry no CVE key, so neither the CVE arm nor the osv/glad ecosystem
+// arm selects it. GHSA rolling windows are candidates through the GHSA
+// rolling leg instead (readiness_postgres_query_ghsa_window.go, #10464): the
+// planned window scopes come from the latest run's requested_scope_set, and
+// their stream-keyed state rows confirm the advisory family through
+// fetchConfirmedSources.
 //
 // A cve_list target (#9880) is a well-formed source the workflow validator
 // admits for explicit owned CVE ids, and a CVE-selected one is a readiness
@@ -217,7 +221,7 @@ target_vulnerability_source_scopes AS (
     FROM configured_vulnerability_source_targets
     GROUP BY collector_instance_id, scope_id, source, ecosystem
 ),
-` + readinessDerivedSourceStateCTE + readinessNVDWindowScopesCTE + `
+` + readinessDerivedSourceStateCTE + readinessGHSARollingWindowScopesCTE + readinessNVDWindowScopesCTE + `
 target_vulnerability_source_overflow AS (
     SELECT EXISTS (
         SELECT 1 FROM (
@@ -226,6 +230,8 @@ target_vulnerability_source_overflow AS (
             SELECT collector_instance_id FROM derived_vulnerability_source_aggregates
             UNION ALL
             SELECT collector_instance_id FROM nvd_rolling_window_scopes
+            UNION ALL
+            SELECT collector_instance_id FROM ghsa_rolling_window_scopes
         ) AS relevant
         OFFSET 200 LIMIT 1
     ) AS overflow

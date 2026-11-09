@@ -3,9 +3,15 @@
 
 package packet
 
-import "slices"
+import "strings"
 
 const missingCommittedNVDSnapshotReason = "nvd:committed_snapshot_missing"
+
+// missingCommittedSnapshotSuffix matches every rolling-window coverage gap,
+// per source: nvd:committed_snapshot_missing and, since eshu-hq/eshu#10464,
+// ghsa:committed_snapshot_missing. A committed coverage gap stays incomplete
+// even when a CVE advisory fact exists, for every rolling source alike.
+const missingCommittedSnapshotSuffix = ":committed_snapshot_missing"
 
 func classifyReadinessState(
 	findings []FindingResult,
@@ -133,7 +139,12 @@ func classifyMissingEvidence(
 }
 
 func committedNVDCoverageMissing(snapshot ReadinessSnapshot) bool {
-	return slices.Contains(snapshot.IncompleteReasons, missingCommittedNVDSnapshotReason)
+	for _, reason := range snapshot.IncompleteReasons {
+		if reason == missingCommittedNVDSnapshotReason || strings.HasSuffix(reason, missingCommittedSnapshotSuffix) {
+			return true
+		}
+	}
+	return false
 }
 
 func isReadyState(state ReadinessState) bool {
