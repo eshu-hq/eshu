@@ -67,6 +67,7 @@ type canonicalGraphWriters struct {
 	incidentRoutingEvidence         *edgewriter.IncidentRoutingEvidenceWriter
 	codeTaintEvidence               *edgewriter.CodeTaintEvidenceWriter
 	runtimeDeclaration              *edgewriter.RuntimeDeclarationWriter
+	advisoryGroup                   *edgewriter.AdvisoryGroupWriter
 	codeInterprocEvidence           *edgewriter.CodeInterprocEvidenceWriter
 	iamCanAssumeEdge                *iam.IAMCanAssumeEdgeWriter
 	s3LogsToEdge                    *s3.S3LogsToEdgeWriter
@@ -160,6 +161,7 @@ func newCanonicalGraphWriters(exec sourcecypher.Executor, reader sourcecypher.Po
 		incidentRoutingEvidence:         edgewriter.NewIncidentRoutingEvidenceWriter(exec, batchSize),
 		codeTaintEvidence:               edgewriter.NewCodeTaintEvidenceWriter(exec, batchSize),
 		runtimeDeclaration:              edgewriter.NewRuntimeDeclarationWriter(exec, batchSize),
+		advisoryGroup:                   edgewriter.NewAdvisoryGroupWriter(exec, batchSize),
 		codeInterprocEvidence:           edgewriter.NewCodeInterprocEvidenceWriter(exec, batchSize),
 		iamCanAssumeEdge:                iam.NewIAMCanAssumeEdgeWriter(exec, batchSize),
 		s3LogsToEdge:                    s3.NewS3LogsToEdgeWriter(exec, batchSize),

@@ -115,7 +115,11 @@ const (
 
 var graphSchemaCompatibleFingerprints = map[SchemaBackend]map[string][]string{
 	SchemaBackendNeo4j: {
-		graphSchemaNeo4jFingerprint: {graphSchemaNeo4jPreSSMHostFingerprint},
+		// #10411: additive domain-coupled constraint; the pre-AdvisoryGroup
+		// tip is the current fingerprint's single compatible predecessor,
+		// and keeps its own historical entry below.
+		graphSchemaNeo4jFingerprint:                 {graphSchemaNeo4jPreAdvisoryGroupFingerprint},
+		graphSchemaNeo4jPreAdvisoryGroupFingerprint: {graphSchemaNeo4jPreSSMHostFingerprint},
 		graphSchemaNeo4jPreModuleImportKeyFingerprint: {
 			graphSchemaNeo4jPreInfraSearchKeyIndexesFingerprint,
 			graphSchemaNeo4jPreFulltextModernFormFingerprint,
@@ -145,7 +149,8 @@ var graphSchemaCompatibleFingerprints = map[SchemaBackend]map[string][]string{
 		},
 	},
 	SchemaBackendNornicDB: {
-		graphSchemaNornicDBFingerprint: {graphSchemaNornicDBPreSSMHostFingerprint},
+		graphSchemaNornicDBFingerprint:                 {graphSchemaNornicDBPreAdvisoryGroupFingerprint},
+		graphSchemaNornicDBPreAdvisoryGroupFingerprint: {graphSchemaNornicDBPreSSMHostFingerprint},
 		graphSchemaNornicDBPreModuleImportKeyFingerprint: {
 			graphSchemaNornicDBPreRetiredNarrowConstraintsFingerprint,
 			graphSchemaNornicDBPreInfraEvidenceSourceIndexFingerprint,

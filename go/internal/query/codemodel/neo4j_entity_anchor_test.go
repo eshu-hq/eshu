@@ -168,7 +168,7 @@ func TestNeo4jEntityIDAnchorShape(t *testing.T) {
 		"MATCH (e:AnalyticsModel|",
 		"|Variable {uid: $entity_id})",
 		"MATCH (e:DocumentationSection|Rationale {uid: $entity_id})",
-		"MATCH (e:CloudAction|Endpoint|EvidenceArtifact|Platform|Repository|Workload|WorkloadInstance {id: $entity_id})",
+		"MATCH (e:AdvisoryGroup|CloudAction|Endpoint|EvidenceArtifact|Platform|Repository|Workload|WorkloadInstance {id: $entity_id})",
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("Neo4jEntityIDAnchor() missing %q:\n%s", want, got)

@@ -10,6 +10,7 @@ import (
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	advisorygroup "github.com/eshu-hq/eshu/go/internal/reducer/advisory/group"
 	"github.com/eshu-hq/eshu/go/internal/reducer/awscloud"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
@@ -88,6 +89,13 @@ var nonCountingReducerRetryFailureClasses = []string{
 	// truth. TestReducerQueueFailDefersSupplyChainImpactWriteSupersededPast
 	// AttemptBudget is the regression.
 	supplychaincore.SupplyChainImpactWriteSupersededFailureClass,
+	// #10411: an advisory_group_projection intent deferred until the
+	// canonical winners watermark passes its enqueue time. The winners
+	// maintainer rebuilds on a 30 s cadence, so the wait is a routine race,
+	// not a defect in the intent; past the handler's 30-minute bound the
+	// wait reclassifies to the counting stale class and dead-letters
+	// visibly instead of hiding behind this exemption.
+	advisorygroup.WinnersWatermarkNotReadyFailureClass,
 	// #6887: the cloud-resource retract's admission-drain fence. The live-check
 	// refuses to prove death while another scope's active-generation
 	// cloud_inventory_admission item is nonterminal; under continuous

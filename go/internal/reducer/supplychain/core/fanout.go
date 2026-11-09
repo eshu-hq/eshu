@@ -310,10 +310,13 @@ func (h SupplyChainImpactHandler) fanOutHolders(
 	}
 	if len(cveIDs) == 0 && len(remaining) == 0 {
 		result := fanOutResult{cause: cause}
-		if stamped || owed {
+		if stamped || owed || len(write.ChangedCVEIDs) > 0 || len(write.TouchedGroupIDs) > 0 {
 			// Nothing is owed after all; consume the stamp so a later reopen by
 			// another path is judged fresh, and drop a marker with nothing behind it.
-			state.ClearOwed = owed
+			// This attempt's own commit set the marker for a changed CVE or a
+			// touched advisory group (#10411), one-hop included; the group
+			// enqueue already ran before this fan-out, so clearing is safe.
+			state.ClearOwed = owed || len(write.ChangedCVEIDs) > 0 || len(write.TouchedGroupIDs) > 0
 			if clear, err := h.clearReplayFlag(ctx, intent, write, stampCVEs, state.ExpectedOrigin); err != nil {
 				return fanOutResult{cause: cause}, err
 			} else {
@@ -397,7 +400,10 @@ func (h SupplyChainImpactHandler) fanOutHolders(
 	// the debt across claims and the last drain clears both.
 	// This attempt's own commit set the marker inside its transaction, after the
 	// claim snapshot the intent carries, so a changed commit clears it too.
-	markerSet := !oneHop && len(write.ChangedCVEIDs) > 0
+	// The writer records the marker for a touched advisory group as well as
+	// a changed CVE (#10411), on genuine and one-hop passes alike, so the
+	// clear condition mirrors the set condition exactly.
+	markerSet := len(write.ChangedCVEIDs) > 0 || len(write.TouchedGroupIDs) > 0
 	state.ClearOwed = (owed || markerSet) && len(rest) == 0
 	if len(rest) == 0 && len(remaining) == 0 {
 		// No continuation debt rides to the next claim, so a pass that proved
@@ -476,11 +482,15 @@ func fanOutOriginOf(intent reducercontract.Intent) map[string]any {
 	return stamp
 }
 
-// owedRecorder returns the recorder the writer runs inside its transaction, or
-// nil when there is no port or this pass is the one-hop re-derivation, which fans
-// out nothing and so owes nothing.
+// owedRecorder returns the recorder the writer runs inside its transaction,
+// or nil when there is no port. A one-hop re-derivation records too: it fans
+// out nothing of its own rewrite, but since #10411 it owes the advisory-group
+// enqueue that runs after the commit, and the marker is the only durable
+// record that the commit happened if the enqueue (or the process) fails
+// first. The fan-out's clear conditions mirror the writer's set condition,
+// so a completed one-hop pass leaves no marker behind.
 func (h SupplyChainImpactHandler) owedRecorder(intent reducercontract.Intent) FanOutOwedRecorder {
-	if h.FanOut == nil || fanOutOneHop(intent) {
+	if h.FanOut == nil {
 		return nil
 	}
 	return h.FanOut.OwedRecorder(intent)

@@ -20,9 +20,11 @@ const (
 	reducerConflictDomainPlatformGraph     = "platform_graph"
 	reducerConflictDomainResourceScope     = "resource_scope"
 	reducerConflictDomainCloudResourceNode = "cloud_resource_node"
+	reducerConflictDomainAdvisoryGroup     = "advisory_group"
 
 	reducerConflictKeyPrefixResourceScope     = "resource-scope:v1:"
 	reducerConflictKeyPrefixCloudResourceNode = "cloud-resource-node:v1:"
+	reducerConflictKeyPrefixAdvisoryGroup     = "advisory-group:v1:"
 
 	// reducerConflictKeyPrefixPlatformGraph is the versioned prefix for all
 	// platform_graph conflict keys. The key is hashed over a partition token plus
@@ -171,6 +173,19 @@ func reducerConflictDomainKey(intent runtime.ReducerIntent) (string, string) {
 		return reducerConflictDomainResourceScope, reducerResourceScopeConflictKey(scopeKey)
 	}
 	switch intent.Domain {
+	case reducer.DomainAdvisoryGroupProjection:
+		// #10411: the projection reconciles one AdvisoryGroup node and its
+		// AFFECTED_BY edges per intent, keyed by the group id in the entity
+		// key. Partition by that key: the same group never reconciles
+		// concurrently from two scopes (which could interleave an older
+		// winners read over a newer one), while disjoint groups — including
+		// many groups touched by one scope pass — drain in parallel instead
+		// of serializing on the scope key. A blank entity key falls back to
+		// the scope key rather than one global key for every group.
+		if entityKey := strings.TrimSpace(intent.EntityKey); entityKey != "" {
+			return reducerConflictDomainAdvisoryGroup, reducerHashedConflictKey(reducerConflictKeyPrefixAdvisoryGroup, entityKey)
+		}
+		return reducerConflictDomainAdvisoryGroup, reducerHashedConflictKey(reducerConflictKeyPrefixAdvisoryGroup, scopeKey)
 	case reducer.DomainCodeCallMaterialization,
 		reducer.DomainSemanticEntityMaterialization,
 		reducer.DomainSQLRelationshipMaterialization,

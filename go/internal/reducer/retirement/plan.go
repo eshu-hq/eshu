@@ -87,6 +87,7 @@ var retirementDomainPlans = map[reducercontract.Domain]RetireDomainPlan{
 	reducercontract.DomainCodeInterprocEvidence:                    {Class: RetireDomainRemovedByNodeRetract, Reason: "TAINT_FLOWS_TO edges run only between Function nodes; G5 DETACH DELETE removes them with the endpoints"},
 	reducercontract.DomainCodeValueFlowRefresh:                     {Class: RetireDomainRemovedByNodeRetract, Reason: "global dataflow edges run only between code-entity nodes (Function, Variable); G5 DETACH DELETE removes them with the endpoints"},
 	reducercontract.DomainWorkloadCloudRelationshipMaterialization: {Class: RetireDomainRemovedByNodeRetract, Reason: "USES edges run only from WorkloadInstances; G5w DETACH DELETE removes them with the instances (writer never fabricates endpoints)"},
+	reducercontract.DomainAdvisoryGroupProjection:                  {Class: RetireDomainRemovedByNodeRetract, Reason: "AFFECTED_BY edges run from Repository nodes to group-keyed AdvisoryGroup anchors (#10411); G5 DETACH DELETE of the Repository removes the retired repo's edges, and the cross-repo AdvisoryGroup node itself is reconciled by advisory_group_projection against the winners read model (deleted when no winner qualifies), never by repo retirement"},
 	// No repo-keyed graph state. Cloud and infra nodes are keyed by cloud
 	// or cluster identity and shared cross-scope; findings, decisions, and
 	// index rows live in Postgres under the purge and census.

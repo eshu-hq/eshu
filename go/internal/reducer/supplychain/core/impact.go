@@ -144,6 +144,10 @@ type SupplyChainImpactHandler struct {
 	// FanOut reopens the scopes that hold stale copies of the CVEs this pass
 	// changed (#9695). Optional: nil keeps the pre-fan-out behavior.
 	FanOut SupplyChainImpactFanOut
+	// GroupProjectionEnqueuer admits one advisory_group_projection intent
+	// per advisory group this pass touched (#10411), after the commit and
+	// before the fan-out. Optional in tests: nil enqueues no projections.
+	GroupProjectionEnqueuer SupplyChainAdvisoryGroupProjectionEnqueuer
 	// Tracer wraps the fan-out in one span. Optional.
 	Tracer trace.Tracer
 }
@@ -256,6 +260,18 @@ func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent reducercont
 	}
 	timing.writeFindingsDuration = time.Since(phaseStarted)
 
+	// The AdvisoryGroup projection reconciles from committed winners, in
+	// its own domain, never inside this per-scope pass (#10411). It runs
+	// BEFORE the holder fan-out on purpose: the fan-out clears the owed
+	// marker this attempt's writer transaction recorded, and a failed
+	// enqueue must abort the pass while that marker still stands, so the
+	// retry is an owed rerun whose writer re-derives the scope's recovery
+	// groups and enqueues them. Enqueueing after the clear would lose the
+	// touch on failure: the retry would not be owed, and the digest-equal
+	// rewrite reports no touched groups.
+	if err := h.enqueueAdvisoryGroupProjections(ctx, intent, writeResult); err != nil {
+		return reducercontract.Result{}, err
+	}
 	// After the writer commit and before the queue acknowledgement (Handle
 	// returns first): reopen the scopes that hold stale copies of what this pass
 	// changed. A failed read or reopen fails the pass so the queue retries it.

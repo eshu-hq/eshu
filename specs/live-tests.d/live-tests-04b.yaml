@@ -34,6 +34,21 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/cypher/edge/writer/advisory_group_live_test.go
+    tag: live_nornicdb_answer_truth
+    class: ci
+    reason: "#10411 seeded Neo4j proof of the production AdvisoryGroupWriter reconcile: thin node plus exact AFFECTED_BY pairs by direct Cypher readback, idempotent replay under the advisory_group_id unique constraint, single-pair stale retract, absent-Repository edges write nothing, empty reconcile deletes the node (run-unique repository and group ids, cleanup on pass and fail); Neo4j-only because Neo4j is the supported backend; local -race run on neo4j:2026-community took 1.35 s package wall"
+    backends: neo4j
+  - file: go/internal/reducer/advisory/group/parity_live_test.go
+    tag: live_nornicdb_answer_truth
+    class: scheduled
+    reason: "#10411 seeded bidirectional parity proof: production handler over the production winners reader and AdvisoryGroupWriter, graph (repository_id, package_id) pairs equal Postgres qualifying pairs in both directions across a CVE-keyed and an advisory-keyed group with excluded rows seeded; needs BOTH a disposable PostgreSQL (ESHU_POSTGRES_TEST_DSN) and Neo4j (ESHU_NEO4J_URI), which no single CI job provides today, so it runs in the scheduled live lane / on demand; local both-backend run took 0.34 s package wall"
+    backends: neo4j
+  - file: go/internal/reducer/advisory/group/drain_live_test.go
+    tag: live_nornicdb_answer_truth
+    class: scheduled
+    reason: "#10411 criterion-9 queue-drain proof: production AdvisoryGroupProjectionEnqueuer into the production reducer queue, production claim (conflict-key partition), handler, ack until the queue drains empty, graph readback matches the qualifying winners; needs BOTH a disposable PostgreSQL (ESHU_POSTGRES_TEST_DSN) and Neo4j (ESHU_NEO4J_URI), which no single CI job provides today, so it runs in the scheduled live lane / on demand; local both-backend run took 0.18 s package wall"
+    backends: neo4j
   - file: go/internal/storage/cypher/edge/writer/runtime_declaration_live_test.go
     tag: live_nornicdb_answer_truth
     class: ci

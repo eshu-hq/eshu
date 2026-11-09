@@ -12,6 +12,12 @@ type EdgeType string
 func (e EdgeType) String() string { return string(e) }
 
 const (
+	// AffectedBy is the "AFFECTED_BY" graph relationship type (a Repository
+	// to the AdvisoryGroup anchor whose qualifying winners cover one of its
+	// packages, issue #10411). The edge is existence-only with package_id as
+	// its identity property; the reducer advisory_group_projection domain
+	// owns every write and retract.
+	AffectedBy EdgeType = "AFFECTED_BY"
 	// Aliases is the "ALIASES" graph relationship type.
 	Aliases EdgeType = "ALIASES"
 	// AllowsEgress is the "ALLOWS_EGRESS" graph relationship type.
@@ -270,7 +276,7 @@ const (
 // registered lists every edge type known to the registry. Order is not
 // significant; All returns a defensive copy.
 var registered = []EdgeType{
-	AWSLambdaFunctionUsesImage,
+	AffectedBy, AWSLambdaFunctionUsesImage,
 	Aliases, AllowsEgress, AllowsIngress, AtlantisDependsOn, BuiltFrom, Calls,
 	CanAssume, CanEscalateTo, CanPerform, Contains,
 	CorrelatesDeployableUnit, DeclaresCodeowner, DeclaresDependency, DeclaresRuntime, Defines, DefinesJob, DependsOn,

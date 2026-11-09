@@ -290,6 +290,17 @@ builders:
             - template: MATCH (source:CloudResource)-[rel]->() WHERE source.uid IN $source_uids AND rel.scope_id IN $scope_ids AND rel.evidence_source = $evidence_source DELETE rel
           source_sha256: 89b8f653ebd5ab627f96eb6aed8d661519d8d715ebf98b5ca03798415554eaff
           exempt: B-7 differential captures contain zero executions of this retract builder on either backend (pair1+pair2 neo4j+nornicdb); retract path is pinned by leaf unit tests, not the corpus replay
+    - file: internal/storage/cypher/edge/writer/advisory_group.go
+      builders:
+        - symbol: (*AdvisoryGroupWriter).ReconcileAdvisoryGroup
+          count: 3
+          operation: sourcecypher.OperationCanonicalRetract
+          variants:
+            - template: 'MATCH (g:AdvisoryGroup {id: $id}) OPTIONAL MATCH (g)<-[e:AFFECTED_BY]-() DELETE e WITH DISTINCT g DELETE g'
+            - template: 'MATCH (g:AdvisoryGroup {id: $id})<-[e:AFFECTED_BY]-(r:Repository) WHERE NOT ANY(k IN $keep WHERE k.repository_id = r.id AND k.package_id = e.package_id) DELETE e'
+            - template: 'MATCH (g:AdvisoryGroup {id: $id}) OPTIONAL MATCH (g)<-[e:AFFECTED_BY]-() WITH g, count(e) AS degree WHERE degree = 0 DELETE g'
+          source_sha256: dd441e7f8fdbaef01ba956b89e80e88e8c4c8bd3fcd8e2e22c983dc124dfe54e
+          exempt: the B-7 golden corpus carries no supply-chain advisory winners, so no advisory_group_projection intent fires and the differential captures hold zero executions on either backend; the reconcile shapes are pinned by the leaf unit tests and the Neo4j PROFILE/live readback evidence in go/internal/reducer/advisory/group (issue #10411)
     - file: internal/storage/cypher/edge/writer/code_interproc_evidence.go
       builders:
         - symbol: (*CodeInterprocEvidenceWriter).RetractCodeInterprocEvidence

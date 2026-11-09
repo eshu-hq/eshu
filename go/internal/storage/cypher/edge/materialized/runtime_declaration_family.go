@@ -21,6 +21,30 @@ import edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/write
 // edge MERGE carries no property map, so the family has no identity
 // properties beyond its two endpoints.
 func init() {
+	// advisory_group (#10411) shares this init because the port census
+	// keys scanned symbols by name: a second init in this package would
+	// collide with this one. The family writes one relationship type,
+	// AFFECTED_BY, from a Repository to an AdvisoryGroup node only this
+	// writer MERGEs, keyed by the edge's package_id identity property.
+	// Its stale retract anchors on the group node and complements a
+	// $keep pair list; the held variants delete an edgeless group and,
+	// for a group with no qualifying winners, delete the node with its
+	// edges in the same shape. No evidence_source, scope, or generation
+	// stamps exist on node or edge, so no retract scopes by them: the
+	// group id anchor is the scope.
+	singleTypeMaterializedEdgeFamilies["advisory_group"] = materializedEdgeFamily{
+		EdgeTypes: map[string]string{
+			"AFFECTED_BY": "repository-to-advisory-group edge (AdvisoryGroupWriter in edge/writer/advisory_group.go)",
+		},
+		RetractCypher: edgewriter.AdvisoryGroupStaleEdgeRetractCypher,
+		RetractVariants: []string{
+			edgewriter.AdvisoryGroupDeleteEdgelessCypher,
+			edgewriter.AdvisoryGroupEmptyRetractCypher,
+		},
+		IdentityCypher:     edgewriter.AdvisoryGroupUpsertCypher,
+		IdentityProperties: []string{"package_id"},
+	}
+
 	singleTypeMaterializedEdgeFamilies["runtime_declaration"] = materializedEdgeFamily{
 		EdgeTypes: map[string]string{
 			"DECLARES_RUNTIME": "repository-to-declaration edge (RuntimeDeclarationWriter in edge/writer/runtime_declaration.go)",

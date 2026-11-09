@@ -1292,6 +1292,21 @@ type Instruments struct {
 	// phase of one keyed winners tick, labeled phase (#9975). It is registered by
 	// registerSupplyChainImpactWinnersKeyedInstruments.
 	SupplyChainImpactWinnersTickPhaseDuration metric.Float64Histogram
+	// The advisory-group graph projection signals of #10411, registered by
+	// registerAdvisoryGroupProjectionInstruments: groups reconciled by
+	// outcome, AFFECTED_BY edges created and retracted, AdvisoryGroup
+	// nodes deleted, oversized member unions, projection enqueue failures,
+	// reconcile duration, and enqueue-to-completion lag. Labels are domain
+	// and a closed outcome only; no group, CVE, repository, or package id
+	// ever reaches a label.
+	AdvisoryGroupProjectionGroups               metric.Int64Counter
+	AdvisoryGroupProjectionEdgesUpserted        metric.Int64Counter
+	AdvisoryGroupProjectionEdgesRetracted       metric.Int64Counter
+	AdvisoryGroupProjectionNodesDeleted         metric.Int64Counter
+	AdvisoryGroupProjectionMemberUnionOversized metric.Int64Counter
+	AdvisoryGroupProjectionEnqueueFailures      metric.Int64Counter
+	AdvisoryGroupProjectionReconcileDuration    metric.Float64Histogram
+	AdvisoryGroupProjectionLag                  metric.Float64Histogram
 	// SupplyChainRemediationDecisions counts reducer-owned advisory-only
 	// safe-upgrade decisions per supply-chain impact finding (issue #595).
 	// Labels: domain (supply_chain_impact), outcome (confidence label
@@ -6783,6 +6798,9 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, err
 	}
 	if err := registerSupplyChainImpactWinnersKeyedInstruments(meter, inst); err != nil {
+		return nil, err
+	}
+	if err := registerAdvisoryGroupProjectionInstruments(meter, inst); err != nil {
 		return nil, err
 	}
 	if err := registerProducerActivationInstruments(meter, inst); err != nil {

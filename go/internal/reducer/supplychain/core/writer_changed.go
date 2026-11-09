@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strings"
 
 	reducerderivedv1 "github.com/eshu-hq/eshu-sdk/factschema/reducerderived/v1"
 )
@@ -66,6 +67,9 @@ type changedRow struct {
 	stableKey string
 	digest    string
 	cveID     string
+	// advisoryID is the row's advisory id, carried so touchedGroupIDs can
+	// name CVE-less groups (#10411). It never joins the CVE-keyed sets.
+	advisoryID string
 	// ident names the row's canonical key for the winners dirty log (#9805).
 	ident WinnersDirtyIdentifier
 }
@@ -101,6 +105,7 @@ SELECT fact_id,
        stable_fact_key,
        COALESCE(payload #>> '{provenance,content_digest}', ''),
        COALESCE(payload ->> 'cve_id', ''),
+       COALESCE(payload ->> 'advisory_id', ''),
        fencing_token
 FROM fact_records
 WHERE fact_kind = '` + supplyChainImpactFactKind + `'
@@ -128,6 +133,9 @@ type storedFinding struct {
 	stableKey    string
 	digest       string
 	cveID        string
+	// advisoryID is the stored row's advisory id, read so a retracted
+	// CVE-less row still names the advisory group it touched (#10411).
+	advisoryID   string
 	fencingToken int64
 }
 
@@ -147,7 +155,7 @@ func readStoredSupplyChainImpactFindings(
 	var stored []storedFinding
 	for rows.Next() {
 		var row storedFinding
-		if err := rows.Scan(&row.factID, &row.generationID, &row.stableKey, &row.digest, &row.cveID, &row.fencingToken); err != nil {
+		if err := rows.Scan(&row.factID, &row.generationID, &row.stableKey, &row.digest, &row.cveID, &row.advisoryID, &row.fencingToken); err != nil {
 			return nil, fmt.Errorf("scan stored supply chain impact finding: %w", err)
 		}
 		stored = append(stored, row)
@@ -286,6 +294,83 @@ func derivedCVEIDs(rows []changedRow, stored []storedFinding, generationID strin
 	return sortedSetKeys(derived)
 }
 
+// coalescedFindingGroupID returns the advisory-group id (#10411) a finding
+// row belongs to: its CVE id when it names one, else its advisory id, each
+// trimmed. An empty result names no group.
+func coalescedFindingGroupID(cveID string, advisoryID string) string {
+	if id := strings.TrimSpace(cveID); id != "" {
+		return id
+	}
+	return strings.TrimSpace(advisoryID)
+}
+
+// touchedGroupIDs returns the sorted advisory-group ids a pass changed
+// (#10411), keyed by coalescedFindingGroupID so CVE-less groups are named
+// by their advisory id. The change judgement mirrors changedCVEIDs exactly
+// — new, revived, or content-different rows plus the stored rows the
+// retraction tombstones — with one addition: a changed row that replaces a
+// stored row of a different group touches the old group too, because the
+// graph projection must also reconcile the group the row left. The
+// CVE-keyed sets are untouched by this function.
+func touchedGroupIDs(rows []changedRow, stored []storedFinding, generationID string, fencingToken int64, retract bool) []string {
+	own := map[string]storedFinding{}
+	prior := map[string]storedFinding{}
+	for _, row := range stored {
+		if row.generationID == generationID {
+			own[row.factID] = row
+		} else {
+			prior[row.stableKey] = row
+		}
+	}
+	rerun := len(own) > 0
+	touched := map[string]struct{}{}
+	add := func(cveID string, advisoryID string) {
+		if id := coalescedFindingGroupID(cveID, advisoryID); id != "" {
+			touched[id] = struct{}{}
+		}
+	}
+	keepIDs := make(map[string]struct{}, len(rows))
+	keepKeys := make(map[string]struct{}, len(rows))
+	for _, row := range rows {
+		keepIDs[row.factID] = struct{}{}
+		keepKeys[row.stableKey] = struct{}{}
+		var (
+			base storedFinding
+			ok   bool
+		)
+		if rerun {
+			base, ok = own[row.factID]
+		} else {
+			base, ok = prior[row.stableKey]
+		}
+		if ok && base.digest != "" && base.digest == row.digest {
+			continue
+		}
+		add(row.cveID, row.advisoryID)
+		if ok {
+			add(base.cveID, base.advisoryID)
+		}
+	}
+	if retract {
+		if rerun {
+			for factID, row := range own {
+				if _, kept := keepIDs[factID]; kept || row.fencingToken > fencingToken {
+					continue
+				}
+				add(row.cveID, row.advisoryID)
+			}
+		} else {
+			for key, row := range prior {
+				if _, kept := keepKeys[key]; kept {
+					continue
+				}
+				add(row.cveID, row.advisoryID)
+			}
+		}
+	}
+	return sortedSetKeys(touched)
+}
+
 // readSupplyChainImpactCVEIDs returns every CVE id the (scope, generation)'s
 // finding rows name, sorted.
 func readSupplyChainImpactCVEIDs(ctx context.Context, tx SupplyChainImpactTx, scopeID, generationID string) ([]string, error) {
@@ -306,6 +391,46 @@ func readSupplyChainImpactCVEIDs(ctx context.Context, tx SupplyChainImpactTx, sc
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("iterate supply chain impact recovery cve ids: %w", err)
+	}
+	return sortedSetKeys(ids), nil
+}
+
+// listSupplyChainImpactGroupIDsQuery lists the (cve_id, advisory_id) pair
+// of every finding row of the generation being written and of the previous
+// generation, tombstoned rows included. It is the recovery companion of
+// listSupplyChainImpactCVEIDsQuery for the advisory-group projection
+// (#10411): a retry whose fan-out died with the previous attempt owes a
+// projection for every group the scope's rows name, including CVE-less
+// groups the CVE-only recovery read cannot name. Arguments: $1 scope id,
+// $2 generation id.
+const listSupplyChainImpactGroupIDsQuery = `
+SELECT DISTINCT COALESCE(payload ->> 'cve_id', ''), COALESCE(payload ->> 'advisory_id', '')
+FROM fact_records
+WHERE fact_kind = '` + supplyChainImpactFactKind + `'
+  AND scope_id = $1
+  AND generation_id IN ($2, ` + priorGenerationSupplyChainImpactSQL + `)
+`
+
+// readSupplyChainImpactGroupIDs returns every coalesced advisory-group id
+// the (scope, generation)'s finding rows name, sorted.
+func readSupplyChainImpactGroupIDs(ctx context.Context, tx SupplyChainImpactTx, scopeID, generationID string) ([]string, error) {
+	rows, err := tx.QueryContext(ctx, listSupplyChainImpactGroupIDsQuery, scopeID, generationID)
+	if err != nil {
+		return nil, fmt.Errorf("read supply chain impact recovery group ids: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	ids := map[string]struct{}{}
+	for rows.Next() {
+		var cveID, advisoryID string
+		if err := rows.Scan(&cveID, &advisoryID); err != nil {
+			return nil, fmt.Errorf("scan supply chain impact recovery group id: %w", err)
+		}
+		if id := coalescedFindingGroupID(cveID, advisoryID); id != "" {
+			ids[id] = struct{}{}
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate supply chain impact recovery group ids: %w", err)
 	}
 	return sortedSetKeys(ids), nil
 }

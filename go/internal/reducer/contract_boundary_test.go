@@ -66,6 +66,7 @@ func TestRegistrableReducerDomainsCharacterization(t *testing.T) {
 	t.Parallel()
 
 	want := []reducercontract.Domain{
+		DomainAdvisoryGroupProjection,
 		DomainAWSCloudImageMaterialization,
 		DomainAWSCloudRuntimeDrift,
 		DomainAWSRelationshipMaterialization,
@@ -169,6 +170,7 @@ func TestDefaultDomainDefinitionOrderCharacterization(t *testing.T) {
 		DomainCodeownersOwnership,
 		DomainSubmodulePin,
 		DomainRuntimeDeclarationProjection,
+		DomainAdvisoryGroupProjection,
 	}
 
 	definitions := DefaultDomainDefinitions()
@@ -185,6 +187,7 @@ func TestAllDomainsUnionCharacterization(t *testing.T) {
 	t.Parallel()
 
 	want := []reducercontract.Domain{
+		DomainAdvisoryGroupProjection,
 		DomainAWSCloudImageMaterialization,
 		DomainAWSCloudRuntimeDrift,
 		DomainAWSRelationshipMaterialization,

@@ -39,7 +39,7 @@ var neo4jContextAnchor = buildNeo4jEntityContextAnchor()
 //     not match), exactly as entityContextAnchors does;
 //   - an id branch over every other label with a schema id uniqueness
 //     constraint (graph.IDUniquenessConstrainedLabels: Repository, Workload,
-//     WorkloadInstance, CloudAction, Endpoint, EvidenceArtifact, Platform).
+//     WorkloadInstance, AdvisoryGroup, CloudAction, Endpoint, EvidenceArtifact, Platform).
 //
 // Issue #7212 widened both sets from EntityContextAnchorLabels to every
 // constrained label in the schema (117 uid and 7 id labels when it landed):

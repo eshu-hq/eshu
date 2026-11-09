@@ -451,8 +451,8 @@ var neo4jEntityUIDAnchorLabels = []string{
 // indexed id branch for them. TestNeo4jEntityIDAnchorLabelsMatchSchema pins
 // this list to the schema.
 var neo4jEntityIDAnchorLabels = []string{
-	"CloudAction", "Endpoint", "EvidenceArtifact", "Platform", "Repository",
-	"Workload", "WorkloadInstance",
+	"AdvisoryGroup", "CloudAction", "Endpoint", "EvidenceArtifact", "Platform",
+	"Repository", "Workload", "WorkloadInstance",
 }
 
 // neo4jEntityUIDIndexAnchorLabels is every label MERGEd on uid that carries a

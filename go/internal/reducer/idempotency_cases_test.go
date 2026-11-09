@@ -154,6 +154,7 @@ func idempotencyReplayCases() []idempotencyReplayCase {
 		codeownersOwnershipReplayCase(),
 		submodulePinReplayCase(),
 		runtimeDeclarationReplayCase(),
+		advisoryGroupReplayCase(),
 		codeValueFlowRefreshReplayCase(),
 	}
 }

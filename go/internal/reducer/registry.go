@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"sort"
 
+	advisorygroup "github.com/eshu-hq/eshu/go/internal/reducer/advisory/group"
 	"github.com/eshu-hq/eshu/go/internal/reducer/runtime/declaration"
 
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
@@ -311,5 +312,6 @@ func DefaultDomainDefinitions() []DomainDefinition {
 			},
 		},
 		declaration.Definition(),
+		advisorygroup.Definition(),
 	}
 }

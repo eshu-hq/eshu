@@ -450,3 +450,28 @@ func TestOwedMarkerIsRecordedInsideTheWriteTransaction(t *testing.T) {
 		t.Fatalf("commits=%d rollbacks=%d, want a rolled-back write", beginner3.state.commits, beginner3.state.rollbacks)
 	}
 }
+
+// TestOwedMarkerCoversTouchedGroupsWithoutChangedCVEs pins the CVE-less
+// advisory path: a commit that changes no CVE set but touches an advisory
+// group (empty CVEID, advisory-id key) still records the fan-out owed marker,
+// so the owed rerun re-enqueues the group's projection (#10411 P2).
+func TestOwedMarkerCoversTouchedGroupsWithoutChangedCVEs(t *testing.T) {
+	t.Parallel()
+
+	finding := changedTestFinding("")
+	finding.AdvisoryID = "GHSA-cve-less-0001"
+	write := changedTestWrite(finding)
+	recorder := &fakeOwedRecorder{}
+	write.Owed = recorder
+	writer, _ := changedTestWriter()
+	result, err := writer.WriteSupplyChainImpactFindings(context.Background(), write)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if recorder.calls != 1 {
+		t.Fatalf("recorder calls = %d, want 1 for a group-touching commit with no changed CVEs", recorder.calls)
+	}
+	if len(result.TouchedGroupIDs) != 1 || result.TouchedGroupIDs[0] != "GHSA-cve-less-0001" {
+		t.Fatalf("TouchedGroupIDs = %v, want [GHSA-cve-less-0001]", result.TouchedGroupIDs)
+	}
+}

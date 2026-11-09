@@ -4,6 +4,7 @@
 package reducer
 
 import (
+	advisorygroup "github.com/eshu-hq/eshu/go/internal/reducer/advisory/group"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudasset"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/materialization"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/owners"
@@ -167,6 +168,12 @@ func implementedDefaultDomainDefinitions(handlers DefaultHandlers) []DomainDefin
 				Writer:               handlers.RuntimeDeclarationWriter,
 				PriorGenerationCheck: handlers.PriorGenerationCheck,
 				Instruments:          handlers.Instruments,
+			}
+		case DomainAdvisoryGroupProjection:
+			def.Handler = advisorygroup.Handler{
+				Winners:     handlers.AdvisoryGroupWinnersReader,
+				Writer:      handlers.AdvisoryGroupWriter,
+				Instruments: handlers.Instruments,
 			}
 		}
 		definitions = append(definitions, def)

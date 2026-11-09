@@ -13,6 +13,10 @@ import (
 type Domain string
 
 const (
+	// DomainAdvisoryGroupProjection projects qualifying supply-chain impact
+	// canonical winners into AdvisoryGroup anchor nodes linked from their
+	// Repository by AFFECTED_BY, one intent per advisory group (#10411).
+	DomainAdvisoryGroupProjection Domain = "advisory_group_projection"
 	// DomainAWSCloudImageMaterialization owns AWS image relationship materialization.
 	DomainAWSCloudImageMaterialization Domain = "aws_cloud_image_materialization"
 	// DomainAWSCloudRuntimeDrift owns AWS runtime drift correlation.
@@ -235,6 +239,7 @@ func ProjectionDomains() []Domain {
 const RationaleEvidenceSource = "reducer/rationale"
 
 var knownDomains = map[Domain]struct{}{
+	DomainAdvisoryGroupProjection:                  {},
 	DomainWorkloadIdentity:                         {},
 	DomainDeployableUnitCorrelation:                {},
 	DomainCloudAssetResolution:                     {},

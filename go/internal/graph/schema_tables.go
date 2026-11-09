@@ -128,6 +128,11 @@ var schemaConstraints = []string{
 	"CREATE CONSTRAINT workload_instance_id IF NOT EXISTS FOR (i:WorkloadInstance) REQUIRE i.id IS UNIQUE",
 	"CREATE CONSTRAINT endpoint_id IF NOT EXISTS FOR (e:Endpoint) REQUIRE e.id IS UNIQUE",
 
+	// Advisory group identity — the thin anchor for alias-connected advisory
+	// groups projected from canonical winners (#10411). Keyed by the 3.2 group
+	// id so the reconcile MERGE is a unique seek, never an AdvisoryGroup scan.
+	"CREATE CONSTRAINT advisory_group_id IF NOT EXISTS FOR (g:AdvisoryGroup) REQUIRE g.id IS UNIQUE",
+
 	// Cloud action identity — the closed-catalog action a Function invokes via an
 	// AWS SDK call (#2723). Keyed by id so the inline INVOKES_CLOUD_ACTION MERGE
 	// is an O(1) lookup rather than a CloudAction label scan per row.
