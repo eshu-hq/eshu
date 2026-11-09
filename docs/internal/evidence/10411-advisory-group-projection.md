@@ -18,10 +18,12 @@ the graph writer and winners reader carry their own live proofs.
   `DerivedCVEIDs`, and the holder fan-out are byte-identical: the
   existing writer, fan-out, suppression, and scoped-pass suites pass
   unchanged.
-- After the commit and fan-out, the handler admits one queue row per
-  touched group (batched insert, 500 rows per statement via the existing
-  `ReducerQueue.Enqueue`), plus one `ReopenSucceeded` update per group
-  so a group touched twice in one generation re-projects. Groups per
+- After the commit and before the holder fan-out, the handler admits
+  one queue row per touched group (batched insert, 500 rows per
+  statement via the existing `ReducerQueue.Enqueue`), plus one
+  `RetouchWorkItem` update per group so a group touched twice in one
+  generation re-projects (succeeded rows reopen, pending rows advance
+  their cycle start, claimed rows carry the replay bit). Groups per
   pass are bounded by distinct changed CVEs/advisories, a set the
   fan-out already enumerates.
 - The projection handler reads one group's qualifying winners (the
@@ -91,7 +93,8 @@ coverage row in `docs/public/observability/telemetry-coverage-reducer-domains.md
   so a suppression that expires by wall clock un-hides winners with no
   write event; affected groups converge on their next touch, not at
   expiry. A group whose intent dead-letters in a
-  generation stays stale until the next touch of that group; a failed
+  generation stays stale until the next generation (a same-generation
+  re-touch cannot revive a dead-lettered row); a failed
   enqueue fails the supply pass for retry, and the fan-out owed marker
   (which covers touched groups, not only changed CVEs) makes the owed
   rerun re-enqueue the scope's recovery groups.

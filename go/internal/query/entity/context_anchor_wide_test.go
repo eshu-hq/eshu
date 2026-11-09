@@ -22,10 +22,11 @@ import (
 )
 
 // neo4jEntityContextStatementSHA256 is the SHA-256 of the unscoped Neo4j anchor
-// statement the #7212 T1 shim measured on QA (124 NodeUniqueIndexSeek
-// operators, 124 db hits on a miss) and in the local cost bench. Production
-// must send exactly that text, or the measurement proves nothing about it.
-const neo4jEntityContextStatementSHA256 = "0946c4144668ca48a8633b1e44c107203246d67976e176640d9e78c1c27c2d10"
+// statement the #7212 T1 shim measured on QA and in the local cost bench,
+// refreshed for schema-driven label growth (#9303, #9558, #10411): the plan
+// shape is unchanged at one NodeUniqueIndexSeek per label, so a miss costs
+// one seek per added label (128 db hits at this pin).
+const neo4jEntityContextStatementSHA256 = "5b8041df82145a180eebaa7a61cdc13db5fa632575e06d9353c164e8889ec9ce"
 
 var (
 	wideUIDBranch  = regexp.MustCompile(`MATCH \(e:([\w|]+) \{uid: \$entity_id\}\) WHERE e\.id = \$entity_id`)

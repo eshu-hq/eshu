@@ -45,9 +45,12 @@ func TestOwedMarkerIsRecordedOnlyWhenTheCommitChangedSomething(t *testing.T) {
 	}
 }
 
-// TestOneHopPassRecordsNoMarker keeps the one-hop re-derivation from owing a
-// fan-out it will not run.
-func TestOneHopPassRecordsNoMarker(t *testing.T) {
+// TestOneHopPassRecordsAndClearsItsMarker pins the #10411 one-hop contract:
+// a one-hop re-derivation records the owed marker inside its writer
+// transaction (it owes the post-commit advisory-group enqueue even though
+// it fans out nothing of its own rewrite), and the completed pass clears
+// it, so no spurious recovery rides to the next claim.
+func TestOneHopPassRecordsAndClearsItsMarker(t *testing.T) {
 	t.Parallel()
 
 	port := &stubFanOut{payload: fanOutStampPayload()}
@@ -55,8 +58,11 @@ func TestOneHopPassRecordsNoMarker(t *testing.T) {
 	if _, err := fanOutHandler(port, writer, nil).Handle(context.Background(), fanOutIntent(1, port.payload)); err != nil {
 		t.Fatal(err)
 	}
-	if writer.writes[0].Owed != nil || port.owedRecorded != 0 {
-		t.Fatal("the one-hop pass asked the writer to record an owed marker")
+	if writer.writes[0].Owed == nil || port.owedRecorded != 1 {
+		t.Fatalf("owed recorder=%v recorded=%d, want the one-hop commit to record the marker", writer.writes[0].Owed != nil, port.owedRecorded)
+	}
+	if _, has := port.payload[PayloadKeyFanOutOwed]; has {
+		t.Fatal("the completed one-hop pass left its owed marker set")
 	}
 }
 

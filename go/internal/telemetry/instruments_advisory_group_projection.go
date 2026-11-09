@@ -50,7 +50,7 @@ var (
 // package id.
 //
 //   - eshu_dp_advisory_group_projection_groups_total{domain,outcome}: groups
-//     reconciled, by outcome (projected, deleted, failed).
+//     reconciled, by outcome (projected, deleted, edgeless_with_winners, failed).
 //   - eshu_dp_advisory_group_projection_edges_upserted_total{domain}:
 //     AFFECTED_BY edges the reconcile created.
 //   - eshu_dp_advisory_group_projection_edges_retracted_total{domain}:
@@ -75,7 +75,7 @@ func registerAdvisoryGroupProjectionInstruments(meter metric.Meter, inst *Instru
 	var err error
 	if inst.AdvisoryGroupProjectionGroups, err = meter.Int64Counter(
 		"eshu_dp_advisory_group_projection_groups_total",
-		metric.WithDescription("Advisory groups the advisory_group_projection reducer reconciled into the graph, by outcome (projected, deleted, failed). Deleted means no canonical winner qualified, so the AdvisoryGroup node and its AFFECTED_BY edges were retracted."),
+		metric.WithDescription("Advisory groups the advisory_group_projection reducer reconciled into the graph, by outcome (projected, deleted, edgeless_with_winners, failed). Deleted means no canonical winner qualified, so the AdvisoryGroup node and its AFFECTED_BY edges were retracted."),
 	); err != nil {
 		return fmt.Errorf("register AdvisoryGroupProjectionGroups counter: %w", err)
 	}

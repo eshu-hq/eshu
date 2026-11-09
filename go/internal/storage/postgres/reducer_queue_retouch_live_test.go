@@ -72,6 +72,7 @@ func TestReducerQueueRetouchLive(t *testing.T) {
 	})
 
 	queue := NewReducerQueue(SQLDB{DB: db}, "retouch-proof-"+suffix, time.Minute)
+	queue.MaxAttempts = 10
 	queue.ClaimDomains = []reducercontract.Domain{reducercontract.DomainAdvisoryGroupProjection}
 	intent := runtime.ReducerIntent{
 		ScopeID:      scope,
@@ -130,4 +131,36 @@ func TestReducerQueueRetouchLive(t *testing.T) {
 	if status != "pending" || replay {
 		t.Fatalf("after ACK: status=%s replay=%v, want pending with the bit consumed for one rerun", status, replay)
 	}
+
+	// Fail path: claim again, retouch the claimed row, then Fail it. The
+	// trigger only clears the replay bit on the way to retrying, so the
+	// cycle start must already have advanced at retouch time or the retry
+	// reconciles against the stale pre-retouch bound.
+	reclaimed, ok, err := queue.Claim(ctx)
+	if err != nil || !ok {
+		t.Fatalf("reclaim: ok=%v err=%v", ok, err)
+	}
+	beforeFail := time.Now().UTC()
+	if ok, err := queue.RetouchWorkItem(ctx, workItemID); err != nil || !ok {
+		t.Fatalf("retouch reclaimed: ok=%v err=%v", ok, err)
+	}
+	if err := queue.Fail(ctx, reclaimed, errRetouchProof); err != nil {
+		t.Fatalf("fail: %v", err)
+	}
+	status, reopenedAt, _ = readRow()
+	if status != "retrying" {
+		t.Fatalf("after Fail: status=%s, want retrying", status)
+	}
+	if !reopenedAt.Valid || reopenedAt.Time.Before(beforeFail.Add(-time.Second)) {
+		t.Fatalf("after Fail: reopened_at=%v, want at or after the retouch so the retry bound covers the second touch", reopenedAt)
+	}
 }
+
+// retouchProofError is the retryable failure the retouch live proof
+// fails a claim with, so Fail takes the retrying path under test.
+type retouchProofError struct{}
+
+func (retouchProofError) Error() string   { return "retouch proof failure" }
+func (retouchProofError) Retryable() bool { return true }
+
+var errRetouchProof error = retouchProofError{}

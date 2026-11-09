@@ -146,7 +146,7 @@ type SupplyChainImpactHandler struct {
 	FanOut SupplyChainImpactFanOut
 	// GroupProjectionEnqueuer admits one advisory_group_projection intent
 	// per advisory group this pass touched (#10411), after the commit and
-	// the fan-out. Optional in tests: nil enqueues no projections.
+	// before the fan-out. Optional in tests: nil enqueues no projections.
 	GroupProjectionEnqueuer SupplyChainAdvisoryGroupProjectionEnqueuer
 	// Tracer wraps the fan-out in one span. Optional.
 	Tracer trace.Tracer

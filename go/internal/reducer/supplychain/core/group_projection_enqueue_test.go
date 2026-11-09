@@ -132,3 +132,30 @@ func TestCVELessGroupTouchClearsItsOwnOwedMarker(t *testing.T) {
 		t.Fatal("owed marker left set after a CVE-less group-touching pass: the next claim would run a spurious recovery")
 	}
 }
+
+// TestOneHopGroupEnqueueFailureKeepsOwedMarkerForRetry is the one-hop
+// variant of the composed #10411 regression: a stamped one-hop pass whose
+// group enqueue fails must leave its owed marker standing (the writer now
+// records it on one-hop attempts too), so the retry owes the recovery
+// groups instead of acking past the touch.
+func TestOneHopGroupEnqueueFailureKeepsOwedMarkerForRetry(t *testing.T) {
+	t.Parallel()
+
+	port := &stubFanOut{holders: []string{"holder-a"}, payload: fanOutStampPayload()}
+	writer := &changeWriter{result: SupplyChainImpactWriteResult{
+		ChangedCVEIDs:   []string{"CVE-2026-9001"},
+		TouchedGroupIDs: []string{"CVE-2026-9001"},
+	}}
+	handler := fanOutHandler(port, writer, nil)
+	handler.GroupProjectionEnqueuer = &recordingGroupEnqueuer{err: errors.New("queue unavailable")}
+
+	if _, err := handler.Handle(context.Background(), fanOutIntent(1, port.payload)); err == nil {
+		t.Fatal("Handle() error = nil, want the enqueue failure to fail the one-hop pass")
+	}
+	if _, has := port.payload[PayloadKeyFanOutOwed]; !has {
+		t.Fatal("one-hop owed marker missing after the failed enqueue: the retry would not re-enqueue the group")
+	}
+	if len(port.stateCalls) != 0 {
+		t.Fatalf("fan-out state updated %d times before the enqueue failure, want 0 (enqueue runs first)", len(port.stateCalls))
+	}
+}

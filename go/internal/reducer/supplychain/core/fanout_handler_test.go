@@ -120,8 +120,11 @@ func TestStampedIntentDoesNotFanOutAgainAndConsumesItsStamp(t *testing.T) {
 	if len(port.findCalls) != 0 || len(port.reopened) != 0 {
 		t.Fatalf("find=%d reopened=%d, want none for a stamped pass", len(port.findCalls), len(port.reopened))
 	}
-	if !reflect.DeepEqual(port.stateCalls, []FanOutState{{ConsumeOrigin: true, ExpectedOrigin: map[string]any{"scope": "src"}}}) {
-		t.Fatalf("state calls = %+v, want one consume-the-stamp update", port.stateCalls)
+	// Since #10411 the one-hop commit also records (and this completed pass
+	// clears) the owed marker in the same update: it owes the group enqueue
+	// that ran before this fan-out.
+	if !reflect.DeepEqual(port.stateCalls, []FanOutState{{ConsumeOrigin: true, ExpectedOrigin: map[string]any{"scope": "src"}, ClearOwed: true}}) {
+		t.Fatalf("state calls = %+v, want one consume-the-stamp update that also clears the one-hop marker", port.stateCalls)
 	}
 }
 

@@ -255,7 +255,8 @@ func buildReducerSupplyChainSecurityHandlers(
 		// copies of what it changed. Wired beside the writer; the registration test
 		// fails when either side of this line is dropped.
 		SupplyChainImpactFanOut: supplyChainImpactFanOutFor(database),
-		// #10411: after the fan-out, a committed pass admits one
+		// #10411: after the commit and before the fan-out (so a failed
+		// enqueue aborts while the owed marker stands), a pass admits one
 		// advisory_group_projection intent per advisory group it touched.
 		// The enqueuer rides the same reducer queue the service claims
 		// from, under the service's lease owner.

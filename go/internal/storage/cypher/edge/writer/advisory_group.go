@@ -104,7 +104,7 @@ func NewAdvisoryGroupWriter(executor sourcecypher.Executor, batchSize int) *Advi
 
 // ReconcileAdvisoryGroup writes group's membership: upsert batches for every
 // edge, then one group-anchored retract of edges outside the group. An empty
-// edge list issues only the group DETACH DELETE. The reconcile is idempotent:
+// edge list issues only the group edge-delete then node-delete. The reconcile is idempotent:
 // replaying the same group writes the same node and edges.
 //
 // WriteStats sums the driver result summaries of every statement executed,

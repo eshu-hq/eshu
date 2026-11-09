@@ -16,9 +16,11 @@ import (
 // status but advances reopened_at, which is what the claim read derives
 // CycleStartedAt from, so freshness gates anchored on the cycle start
 // (the advisory-group winners watermark) wait for the later commit, not
-// the first enqueue; claimed or running work keeps its lease and carries
-// the durable replay bit so the ACK trigger returns it to pending for a
-// rerun (the trigger itself stamps reopened_at, advancing the cycle).
+// the first enqueue; claimed or running work keeps its lease, advances
+// reopened_at in place (so a Fail to retrying -- whose trigger only
+// clears the replay bit -- still retries against the later bound), and
+// carries the durable replay bit so an ACK-success returns it to pending
+// for a rerun instead of succeeding.
 const retouchReducerWorkItemQuery = `
 UPDATE fact_work_items
 SET status = CASE
@@ -42,13 +44,10 @@ SET status = CASE
     visible_at = CASE WHEN status = 'succeeded' THEN $1 ELSE visible_at END,
     next_attempt_at = CASE WHEN status = 'succeeded' THEN NULL ELSE next_attempt_at END,
     updated_at = $1,
-    reopened_at = CASE
-        WHEN status IN ('succeeded', 'pending', 'retrying') THEN $1
-        ELSE reopened_at
-    END,
+    reopened_at = $1,
     cross_scope_replay_required = CASE
         WHEN status IN ('claimed', 'running') THEN TRUE
-        ELSE cross_scope_replay_required
+        ELSE FALSE
     END,
     failure_class = CASE WHEN status = 'succeeded' THEN NULL ELSE failure_class END,
     failure_message = CASE WHEN status = 'succeeded' THEN NULL ELSE failure_message END,
