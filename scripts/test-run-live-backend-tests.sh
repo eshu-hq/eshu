@@ -225,8 +225,8 @@ EOF
 # the CI-class list-route proof; Neo4j-only like the #8816 rows)
 # (#10110: +1 neo4j ledger row for cmd/reducer semantic_canonical_owner_live_test.go,
 # the canonical-ownership regression; Neo4j-only by ledger pin)
-# (#10411: +1 neo4j ledger row for reducer/advisory/group drain_live_test.go,
-# the queue-drain proof; Neo4j-only like its parity sibling)
+# (#10411: +1 neo4j ledger row for storage/cypher/edge/writer/advisory_group_live_test.go,
+# the writer reconcile proof; Neo4j-only by ledger pin)
 mapfile -t plan < <(ESHU_LIVE_RUNNER_SELFTEST=plan bash "${script}" --backend both)
 [[ "${#plan[@]}" == "91" ]] || fail "planned runs ${#plan[@]}, want 91 (34 nornicdb + 57 neo4j)"
 mapfile -t plan_nornicdb < <(ESHU_LIVE_RUNNER_SELFTEST=plan bash "${script}" --backend nornicdb)
