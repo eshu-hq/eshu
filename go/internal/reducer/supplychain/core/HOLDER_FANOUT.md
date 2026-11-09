@@ -347,7 +347,7 @@ itself.
 
 No-Regression Evidence (#10408 L4): `TestRekeyPassOverheadIsMeasured` (200
 rounds, 4 rows, all changed, in-memory writer-core only, no Postgres round
-trip) reports ordinary median 118.8us vs re-key median 120.3us, delta +1.3%,
+trip) reports ordinary median 119.2us vs re-key median 121.0us, delta +1.5%,
 against the fail-closed gate of twice the ordinary median: the member union
 is a bounded in-memory cost. Overlap and keyed-tick behavior hold live
 against disposable PostgreSQL 18.6: `TestRekeyTwoHolderScopesRekeySameComponentLive`
