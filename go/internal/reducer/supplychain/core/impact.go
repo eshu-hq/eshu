@@ -343,7 +343,7 @@ func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent reducercont
 	subSignals[suppressionOrphanedBySplitSubSignal] = float64(carry.orphaned)
 	// The re-key wave's closed outcome and magnitudes ride the same pass:
 	// one counter add with the outcome label, magnitudes as sub-signals
-	// (#10408 D6, rekey_signals.go). Silent on a no-group-change pass.
+	// (#10408 D6, rekey_signals.go). Silent on a pass with no identity change.
 	h.emitRekey(ctx, writeResult, carry, subSignals)
 	h.recordBuildStats(ctx, buildStats, subSignals)
 	subDurations := supplyChainImpactSubDurations(timing)

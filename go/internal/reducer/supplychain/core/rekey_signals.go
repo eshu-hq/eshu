@@ -12,12 +12,14 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
-// The re-key operator signal (#10408, criterion 3.3, D6): the outcome of one
-// pass that touched an advisory group, counted by
-// eshu_dp_supply_chain_impact_rekey_total. The classifier sees only the
-// writer commit's shape — the touched group set, the derived-row and
-// tombstone counts, and the suppression carry tally — never group, CVE, or
-// advisory ids, so the outcome label stays a closed set of four.
+// The re-key operator signal (#10408, criterion 3.3, D6): the genuine
+// identity-change outcome of one pass, counted by
+// eshu_dp_supply_chain_impact_rekey_total. reportRekeyIdentity compares each
+// derived row against the stored row it replaced on the coalesced group plus
+// member set, so an EPSS refresh, admission-only, bootstrap, rollover, or
+// same-key rewrite stays silent; only a merge, split, member-only, or
+// retire-only change counts. The report carries no group, CVE, or advisory
+// ids, so the outcome label stays a closed set of four.
 
 // RekeyOutcome is one closed re-key shape a pass can report.
 type RekeyOutcome string

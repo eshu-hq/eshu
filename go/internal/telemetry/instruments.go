@@ -1224,18 +1224,19 @@ type Instruments struct {
 	// holder read, reopen, or own-item state update, each of which fails the
 	// pass so the queue retries it.
 	SupplyChainImpactFanOut metric.Int64Counter
-	// SupplyChainImpactRekeyTotal counts supply-chain impact passes that
-	// touched an advisory group, by their closed re-key outcome (#10408):
-	// merge (old group keys retired while new keys committed), split (the
-	// pass dropped suppression coverage a touched group named),
-	// member_only (keys rewritten in place, membership refreshed), or
-	// retire_only (rows retired, nothing derived). Labels: domain
-	// (supply_chain_impact) and outcome. A pass that touched no group
-	// counts nothing, so the steady state is silence, not a member_only
-	// floor. Read the rate by outcome as the rollout's first measurement
-	// of alias-churn; a split rate needs a deliberate suppression
-	// re-issue, a merge converges on its own. Emitted from the pass
-	// dispatcher in supplychain core's rekey_signals.go.
+	// SupplyChainImpactRekeyTotal counts supply-chain impact passes whose
+	// writer commit changed a group's identity, by their closed re-key
+	// outcome (#10408): merge (old group keys retired while new keys
+	// committed), split (the pass dropped suppression coverage a group
+	// named), member_only (keys rewritten in place, membership refreshed),
+	// or retire_only (rows retired, nothing derived). Labels: domain
+	// (supply_chain_impact) and outcome. A pass that re-derives identical
+	// groups (an EPSS refresh, admission-only, bootstrap, rollover, or
+	// same-key rewrite) counts nothing, so the steady state is silence,
+	// not a member_only floor. Read the rate by outcome as the rollout's
+	// first measurement of alias-churn; a split rate needs a deliberate
+	// suppression re-issue, a merge converges on its own. Emitted from the
+	// pass dispatcher in supplychain core's rekey_signals.go.
 	SupplyChainImpactRekeyTotal metric.Int64Counter
 	// SupplyChainImpactSuppressionCarriedViaMember counts suppression
 	// coverage a re-key wave carried through a member anchor that is not

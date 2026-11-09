@@ -12,9 +12,13 @@ import (
 // Advisory-group member-set helpers (#10408): the alias-connected component
 // a finding's record belongs to, read from
 // payload.provenance.advisory_group_members and unioned into the changed and
-// recovery CVE sets that feed the holder fan-out. The touched set itself
-// stays coalesced group ids only (#10411 contract, consumed verbatim by the
-// graph projection); member ids never enter it.
+// recovery CVE sets that feed the holder fan-out. The touched set stays
+// keyed by coalesced group id per the #10411 contract the graph projection
+// consumes verbatim; rows that replaced a stored row under a different group
+// id or member set additionally contribute old and new member ids as
+// candidate prior groups (D2, see touchedGroupIDs in writer_changed.go).
+// Member ids are valid group keys, so the extra candidates only over-enqueue
+// holder reconciles that converge as no-ops.
 
 // parseAdvisoryGroupMembers decodes the advisory-group member set the
 // stored-finding and recovery selects project from
