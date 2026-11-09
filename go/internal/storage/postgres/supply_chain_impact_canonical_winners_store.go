@@ -57,47 +57,76 @@ WITH active_facts AS NOT MATERIALIZED (
       AND generation.status = 'active'
 )`
 
-// supplyChainImpactWinnerBodySQL is the select after the active_facts CTE. It
-// starts with the comma that joins it to a preceding WITH clause.
-var supplyChainImpactWinnerBodySQL = `,
-source_candidates AS (
-    SELECT
-        fact.fact_id,
-        fact.scope_id,
-        fact.payload,
-        CONCAT_WS('|',
-            COALESCE(NULLIF(fact.payload->>'cve_id', ''), NULLIF(fact.payload->>'advisory_id', ''), ''),
-            COALESCE(fact.payload->>'advisory_id', ''),
-            COALESCE(fact.payload->>'package_id', ''),
-            COALESCE(fact.payload->>'purl', ''),
-            COALESCE(fact.payload->>'product_criteria', ''),
-            COALESCE(fact.payload->>'match_criteria_id', ''),
-            COALESCE(fact.payload->>'observed_version', ''),
-            COALESCE(fact.payload->>'requested_range', ''),
-            COALESCE(fact.payload->>'impact_status', ''),
-            COALESCE(fact.payload->>'repository_id', ''),
-            COALESCE(fact.payload->>'subject_digest', '')
-        ) AS canonical_key,
-        COALESCE(
-            NULLIF(fact.payload->>'finding_id', ''),
-            CONCAT_WS('|',
-                COALESCE(NULLIF(fact.payload->>'cve_id', ''), NULLIF(fact.payload->>'advisory_id', ''), ''),
-                COALESCE(fact.payload->>'advisory_id', ''),
-                COALESCE(fact.payload->>'package_id', ''),
-                COALESCE(fact.payload->>'purl', ''),
-                COALESCE(fact.payload->>'product_criteria', ''),
-                COALESCE(fact.payload->>'match_criteria_id', ''),
-                COALESCE(fact.payload->>'observed_version', ''),
-                COALESCE(fact.payload->>'requested_range', ''),
-                COALESCE(fact.payload->>'impact_status', ''),
-                COALESCE(fact.payload->>'repository_id', ''),
-                COALESCE(fact.payload->>'subject_digest', '')
-            )
-        ) AS finding_id,
-        COALESCE(NULLIF(fact.payload->>'priority_score', '')::int, 0) AS priority_score,
-        CASE WHEN NULLIF(fact.payload->>'finding_id', '') IS NULL THEN 0 ELSE 1 END AS has_payload_finding_id,
-        COALESCE(NULLIF(fact.payload->>'suppression_state', ''), 'active') AS suppression_state
-    FROM active_facts AS fact
+// supplyChainImpactOperatorScopeID is the scope whose facts carry the
+// authoritative operator suppression overrides. Source evidence remains the
+// filtering authority; this scope only overlays suppression state.
+const supplyChainImpactOperatorScopeID = "operator:vulnerability_suppressions"
+
+// supplyChainImpactCanonicalKeyArgs renders the CONCAT_WS argument list that
+// derives canonical_key from a payload expression, one line per argument,
+// each led by indent. The staged scan batch shares it with both shipped
+// candidate CTEs, so a batch key cannot drift from the winner select.
+func supplyChainImpactCanonicalKeyArgs(payload, indent string) string {
+	return indent + `COALESCE(NULLIF(` + payload + `->>'cve_id', ''), NULLIF(` + payload + `->>'advisory_id', ''), ''),` + "\n" +
+		indent + `COALESCE(` + payload + `->>'advisory_id', ''),` + "\n" +
+		indent + `COALESCE(` + payload + `->>'package_id', ''),` + "\n" +
+		indent + `COALESCE(` + payload + `->>'purl', ''),` + "\n" +
+		indent + `COALESCE(` + payload + `->>'product_criteria', ''),` + "\n" +
+		indent + `COALESCE(` + payload + `->>'match_criteria_id', ''),` + "\n" +
+		indent + `COALESCE(` + payload + `->>'observed_version', ''),` + "\n" +
+		indent + `COALESCE(` + payload + `->>'requested_range', ''),` + "\n" +
+		indent + `COALESCE(` + payload + `->>'impact_status', ''),` + "\n" +
+		indent + `COALESCE(` + payload + `->>'repository_id', ''),` + "\n" +
+		indent + `COALESCE(` + payload + `->>'subject_digest', '')`
+}
+
+// supplyChainImpactCanonicalKeyConcat renders the canonical_key CONCAT_WS
+// over a payload expression, with its argument lines led by argIndent and
+// the closing parenthesis at closeIndent.
+func supplyChainImpactCanonicalKeyConcat(payload, argIndent, closeIndent string) string {
+	return `CONCAT_WS('|',` + "\n" +
+		supplyChainImpactCanonicalKeyArgs(payload, argIndent) + "\n" +
+		closeIndent + `)`
+}
+
+// supplyChainImpactFindingIDCoalesce renders the finding_id fallback over a
+// payload expression: the payload finding_id when present, else the
+// canonical key.
+func supplyChainImpactFindingIDCoalesce(payload string) string {
+	return `COALESCE(` + "\n" +
+		`            NULLIF(` + payload + `->>'finding_id', ''),` + "\n" +
+		`            ` + supplyChainImpactCanonicalKeyConcat(payload, "                ", "            ") + "\n" +
+		`        )`
+}
+
+// supplyChainImpactPriorityScoreExpr renders the priority_score default over
+// a payload expression.
+func supplyChainImpactPriorityScoreExpr(payload string) string {
+	return `COALESCE(NULLIF(` + payload + `->>'priority_score', '')::int, 0)`
+}
+
+// supplyChainImpactHasPayloadFindingIDExpr renders the tiebreak flag over a
+// payload expression: 1 when the payload carried its own finding_id.
+func supplyChainImpactHasPayloadFindingIDExpr(payload string) string {
+	return `CASE WHEN NULLIF(` + payload + `->>'finding_id', '') IS NULL THEN 0 ELSE 1 END`
+}
+
+// supplyChainImpactSuppressionStateExpr renders the suppression_state default
+// over a payload expression.
+func supplyChainImpactSuppressionStateExpr(payload string) string {
+	return `COALESCE(NULLIF(` + payload + `->>'suppression_state', ''), 'active')`
+}
+
+// supplyChainImpactOperatorSuppressionPredicate keeps only operator rows that
+// carry a non-active suppression decision.
+const supplyChainImpactOperatorSuppressionPredicate = `COALESCE(NULLIF(fact.payload->>'suppression_state', ''), 'active') <> 'active'`
+
+// supplyChainImpactSourceCandidateEligibilitySQL is the FROM/JOIN/WHERE tail
+// of source_candidates: operator-scope exclusion, derived-image exclusion,
+// and the classification filter, verbatim from candidate.sql. The staged
+// scan batch reuses it unchanged, so eligibility cannot drift between the
+// single-statement scan and the per-pair batches.
+const supplyChainImpactSourceCandidateEligibilitySQL = `FROM active_facts AS fact
     LEFT JOIN scanner_image_result_fact_classifications AS finding_class
       ON finding_class.finding_fact_id = fact.fact_id
     LEFT JOIN scanner_image_result_fact_associations AS finding_association
@@ -106,7 +135,22 @@ source_candidates AS (
       AND finding_association.finding_fact_id IS NULL
       AND fact.scope_id NOT LIKE 'image://derived/%'
       AND (finding_class.finding_fact_id IS NULL
-           OR (finding_class.source_class = 'static' AND finding_class.lifecycle = 'active'))
+           OR (finding_class.source_class = 'static' AND finding_class.lifecycle = 'active'))`
+
+// supplyChainImpactWinnerBodySQL is the select after the active_facts CTE. It
+// starts with the comma that joins it to a preceding WITH clause.
+var supplyChainImpactWinnerBodySQL = `,
+source_candidates AS (
+    SELECT
+        fact.fact_id,
+        fact.scope_id,
+        fact.payload,
+        ` + supplyChainImpactCanonicalKeyConcat("fact.payload", "            ", "        ") + ` AS canonical_key,
+        ` + supplyChainImpactFindingIDCoalesce("fact.payload") + ` AS finding_id,
+        ` + supplyChainImpactPriorityScoreExpr("fact.payload") + ` AS priority_score,
+        ` + supplyChainImpactHasPayloadFindingIDExpr("fact.payload") + ` AS has_payload_finding_id,
+        ` + supplyChainImpactSuppressionStateExpr("fact.payload") + ` AS suppression_state
+    ` + supplyChainImpactSourceCandidateEligibilitySQL + `
 ),
 source_ranked AS (
     SELECT source.*,
@@ -125,25 +169,13 @@ operator_candidates AS (
     SELECT
         fact.fact_id,
         fact.payload,
-        CONCAT_WS('|',
-            COALESCE(NULLIF(fact.payload->>'cve_id', ''), NULLIF(fact.payload->>'advisory_id', ''), ''),
-            COALESCE(fact.payload->>'advisory_id', ''),
-            COALESCE(fact.payload->>'package_id', ''),
-            COALESCE(fact.payload->>'purl', ''),
-            COALESCE(fact.payload->>'product_criteria', ''),
-            COALESCE(fact.payload->>'match_criteria_id', ''),
-            COALESCE(fact.payload->>'observed_version', ''),
-            COALESCE(fact.payload->>'requested_range', ''),
-            COALESCE(fact.payload->>'impact_status', ''),
-            COALESCE(fact.payload->>'repository_id', ''),
-            COALESCE(fact.payload->>'subject_digest', '')
-        ) AS canonical_key,
-        COALESCE(NULLIF(fact.payload->>'suppression_state', ''), 'active') AS suppression_state,
-        COALESCE(NULLIF(fact.payload->>'priority_score', '')::int, 0) AS priority_score,
-        CASE WHEN NULLIF(fact.payload->>'finding_id', '') IS NULL THEN 0 ELSE 1 END AS has_payload_finding_id
+        ` + supplyChainImpactCanonicalKeyConcat("fact.payload", "            ", "        ") + ` AS canonical_key,
+        ` + supplyChainImpactSuppressionStateExpr("fact.payload") + ` AS suppression_state,
+        ` + supplyChainImpactPriorityScoreExpr("fact.payload") + ` AS priority_score,
+        ` + supplyChainImpactHasPayloadFindingIDExpr("fact.payload") + ` AS has_payload_finding_id
     FROM active_facts AS fact
     WHERE fact.scope_id = 'operator:vulnerability_suppressions'
-      AND COALESCE(NULLIF(fact.payload->>'suppression_state', ''), 'active') <> 'active'
+      AND ` + supplyChainImpactOperatorSuppressionPredicate + `
 ),
 operator_overrides AS (
     SELECT DISTINCT ON (canonical_key) *
