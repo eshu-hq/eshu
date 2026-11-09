@@ -22,6 +22,8 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // Staged-audit fail-closed bounds (#10451). A batch is one scope batch in its
@@ -171,12 +173,14 @@ type StagedAuditBatchResult struct {
 
 // StagedAuditTickPlan is the tick's read shape. Census, FetchBatch, and
 // FetchStoredWinners run on the pinned reader member, each in its own short
-// transaction. Verify is the writer-side check; the runner calls it only
-// after every read succeeds, so an aborted tick never contacts the writer.
+// transaction; each callback receives the borrowed member connection for its
+// statement and must not retain it. Verify is the writer-side check; the
+// runner calls it only after every read succeeds, so an aborted tick never
+// contacts the writer.
 type StagedAuditTickPlan struct {
-	Census             func(ctx context.Context) ([]StagedAuditCensusItem, error)
-	FetchBatch         func(ctx context.Context, item StagedAuditCensusItem) (StagedAuditBatchResult, error)
-	FetchStoredWinners func(ctx context.Context) (int, error)
+	Census             func(ctx context.Context, reader db.Queryer) ([]StagedAuditCensusItem, error)
+	FetchBatch         func(ctx context.Context, reader db.Queryer, item StagedAuditCensusItem) (StagedAuditBatchResult, error)
+	FetchStoredWinners func(ctx context.Context, reader db.Queryer) (int, error)
 	Verify             func(ctx context.Context) (discarded int64, err error)
 }
 
@@ -205,7 +209,7 @@ func (r StagedAuditTickResult) String() string {
 // hold one cross-batch transaction or cursor that pins a standby snapshot.
 type StagedAuditFleet interface {
 	PinMember(ctx context.Context) (string, error)
-	RunOnMember(ctx context.Context, member string, fn func(ctx context.Context) error) error
+	RunOnMember(ctx context.Context, member string, fn func(ctx context.Context, reader db.Queryer) error) error
 	ReplayLag(ctx context.Context, member string) (time.Duration, error)
 }
 
@@ -254,9 +258,9 @@ func (r *StagedAuditRunner) RunTick(ctx context.Context, plan StagedAuditTickPla
 		return none, r.abort(member, StagedAuditDeferBatchAbort, fmt.Errorf("read staged audit replay lag: %w", err))
 	}
 	var scopes []StagedAuditCensusItem
-	if err := r.fleet.RunOnMember(ctx, member, func(stmtCtx context.Context) error {
+	if err := r.fleet.RunOnMember(ctx, member, func(stmtCtx context.Context, reader db.Queryer) error {
 		var censusErr error
-		scopes, censusErr = plan.Census(stmtCtx)
+		scopes, censusErr = plan.Census(stmtCtx, reader)
 		return censusErr
 	}); err != nil {
 		return none, r.abort(member, classifyStagedAuditAbort(err), fmt.Errorf("census staged audit scopes: %w", err))
@@ -266,9 +270,9 @@ func (r *StagedAuditRunner) RunTick(ctx context.Context, plan StagedAuditTickPla
 		batchCtx, cancel := context.WithTimeout(ctx, r.batchLimit)
 		batchStarted := time.Now()
 		var batch StagedAuditBatchResult
-		batchErr := r.fleet.RunOnMember(batchCtx, member, func(stmtCtx context.Context) error {
+		batchErr := r.fleet.RunOnMember(batchCtx, member, func(stmtCtx context.Context, reader db.Queryer) error {
 			var fetchErr error
-			batch, fetchErr = plan.FetchBatch(stmtCtx, item)
+			batch, fetchErr = plan.FetchBatch(stmtCtx, reader, item)
 			return fetchErr
 		})
 		batchElapsed := time.Since(batchStarted)
@@ -292,9 +296,9 @@ func (r *StagedAuditRunner) RunTick(ctx context.Context, plan StagedAuditTickPla
 			return none, r.abort(member, StagedAuditDeferBudget, &StagedAuditOverBudgetError{What: "distinct keys", Got: result.DistinctKeys, Limit: StagedAuditMaxDistinctKeys})
 		}
 	}
-	if err := r.fleet.RunOnMember(ctx, member, func(stmtCtx context.Context) error {
+	if err := r.fleet.RunOnMember(ctx, member, func(stmtCtx context.Context, reader db.Queryer) error {
 		var fetchErr error
-		result.StoredWinners, fetchErr = plan.FetchStoredWinners(stmtCtx)
+		result.StoredWinners, fetchErr = plan.FetchStoredWinners(stmtCtx, reader)
 		return fetchErr
 	}); err != nil {
 		return none, r.abort(member, classifyStagedAuditAbort(err), fmt.Errorf("fetch staged audit stored winners: %w", err))

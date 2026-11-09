@@ -86,3 +86,37 @@ func TestOpenWinnersStaleAccessAttemptsOpenWhenEnabled(t *testing.T) {
 		t.Fatalf("stale-audits open error = %v, want the Open bootstrap dial failure proving Open was reached", err)
 	}
 }
+
+func TestOpenWinnersStaleAccessAdmitsStagedMode(t *testing.T) {
+	t.Parallel()
+
+	// staged-audits opens the same stale access as stale-audits: the mode
+	// selects the staged read phase, not a different connection.
+	getenv := func(key string) string {
+		switch key {
+		case "ESHU_POSTGRES_READ_ROUTING":
+			return "staged-audits"
+		case "ESHU_POSTGRES_DSN":
+			return "postgresql://127.0.0.1:1/eshu?connect_timeout=2"
+		}
+		return ""
+	}
+	meter := noopmetric.NewMeterProvider().Meter("winners-stale-wiring")
+	tracer := nooptrace.NewTracerProvider().Tracer("winners-stale-wiring")
+	access, _, err := openWinnersStaleAccessIfEnabled(context.Background(), getenv, meter, tracer, nil)
+	if err == nil {
+		t.Fatal("staged-audits with a closed-port DSN: error = nil, want the open to fail")
+	}
+	if access != nil {
+		t.Fatal("staged-audits with a closed-port DSN: opened an access despite the error")
+	}
+	if !winnersStagedAuditRouting(staleWiringGetenv("staged-audits")) {
+		t.Fatal("staged-audits must select the staged read phase")
+	}
+	if winnersStagedAuditRouting(staleWiringGetenv("stale-audits")) {
+		t.Fatal("stale-audits must keep the split read phase")
+	}
+	if winnersStagedAuditRouting(staleWiringGetenv("off")) {
+		t.Fatal("off must not select the staged read phase")
+	}
+}

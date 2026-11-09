@@ -14,6 +14,8 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	stagedaudit "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/staged/audit"
+	pgaccess "github.com/eshu-hq/eshu/go/internal/runtime/postgres"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -88,8 +90,18 @@ func buildObservedReducerService(
 		// The maintainer field is a shared pointer, so this survives the
 		// service copies below.
 		if maintainer := serviceRunner.SupplyChainImpactWinnersMaintainer; maintainer != nil {
-			maintainer.Auditor = postgres.NewSupplyChainImpactWinnersStore(instrumentedDB).
-				WithStaleCandidates(staleAccess.StaleReader())
+			if winnersStagedAuditRouting(getenv) {
+				// staged-audits runs the staged standby scan: per-scope
+				// batches on one pinned member, compacted client-side.
+				maintainer.Auditor = stagedaudit.StagedAuditor{
+					Fleet:  pgaccess.NewStagedAuditAccessFleet(staleAccess),
+					Store:  postgres.NewSupplyChainImpactWinnersStore(instrumentedDB),
+					Logger: logger,
+				}
+			} else {
+				maintainer.Auditor = postgres.NewSupplyChainImpactWinnersStore(instrumentedDB).
+					WithStaleCandidates(staleAccess.StaleReader())
+			}
 		}
 	}
 	serviceRunner, err = withStatusSummaryWriter(serviceRunner, getenv, instrumentedDB, tracer, instruments, logger)

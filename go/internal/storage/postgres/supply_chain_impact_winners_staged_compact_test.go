@@ -26,6 +26,33 @@ func stagedCompactRow(factID, key, findingID string, priority int, hasPayload bo
 	}
 }
 
+// TestCompactStagedAddBatchRoutesByScope proves the tick loop never names
+// the operator scope: operator rows land in the override map, all other
+// scopes in the source winners.
+func TestCompactStagedAddBatchRoutesByScope(t *testing.T) {
+	compactor := NewStagedCompactor(20000, 1000000, 250000)
+	if err := compactor.AddBatch("image://repo/scope", []StagedCandidateRow{
+		stagedCompactRow("f1", "k1", "", 0, false, "active"),
+	}); err != nil {
+		t.Fatalf("AddBatch source: %v", err)
+	}
+	if err := compactor.AddBatch("operator:vulnerability_suppressions", []StagedCandidateRow{
+		stagedCompactRow("f2", "k1", "", 0, false, "suppressed"),
+	}); err != nil {
+		t.Fatalf("AddBatch operator: %v", err)
+	}
+	if _, ok := compactor.SourceWinners()["k1"]; !ok {
+		t.Fatal("source scope row missing from source winners")
+	}
+	override, ok := compactor.Overrides()["k1"]
+	if !ok {
+		t.Fatal("operator scope row missing from overrides")
+	}
+	if override.SuppressionState != "suppressed" {
+		t.Fatalf("override suppression = %q, want suppressed", override.SuppressionState)
+	}
+}
+
 // stagedCompactStored builds a stored winner carrying the compared narrow
 // fields; wide payload columns default empty and are pinned by winner fact.
 func stagedCompactStored(key, winnerFactID, findingID string, priority, sources int, suppression string) StoredWinner {

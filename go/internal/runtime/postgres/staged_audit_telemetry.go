@@ -38,6 +38,7 @@ type StagedAuditTelemetry struct {
 	lastLagEnd       time.Duration
 	verifies         int64
 	discards         int64
+	unresolvable     int64
 }
 
 // NewStagedAuditTelemetry builds an empty telemetry recorder.
@@ -87,6 +88,29 @@ func (t *StagedAuditTelemetry) ObserveVerify(discarded int64) {
 	defer t.mu.Unlock()
 	t.verifies++
 	t.discards += discarded
+}
+
+// ObserveUnresolvable counts candidate keys whose identifier could not be
+// resolved because their fact vanished mid-pass. The writer verification
+// re-derives winners from facts, so a key with no facts cannot produce a
+// repair; the count keeps the skip visible instead of silent.
+func (t *StagedAuditTelemetry) ObserveUnresolvable(n int) {
+	if t == nil {
+		return
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.unresolvable += int64(n)
+}
+
+// Unresolvable reports keys skipped for vanished facts across all ticks.
+func (t *StagedAuditTelemetry) Unresolvable() int64 {
+	if t == nil {
+		return 0
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.unresolvable
 }
 
 // Deferrals reports deferred ticks for one closed reason.

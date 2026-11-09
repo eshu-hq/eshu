@@ -28,19 +28,11 @@ import (
 // constants at integration). An over-budget batch aborts with a typed error
 // and is dropped whole: the compactor never truncates.
 
-// StagedCandidateRow is one narrow candidate row fed to the compactor. Its
-// shape is identical to lane A's StagedRow; lane A owns that type on its
-// branch, so this branch carries its own struct and the integration unifies
-// them with a type alias. The coordinator routes operator-suppressions rows
-// to AddOverrideBatch and every other scope's rows to AddSourceBatch.
-type StagedCandidateRow struct {
-	FactID              string
-	CanonicalKey        string
-	FindingID           string
-	PriorityScore       int
-	HasPayloadFindingID bool
-	SuppressionState    string
-}
+// StagedCandidateRow is one narrow candidate row fed to the compactor. It is
+// an alias for lane A's StagedRow: one type crosses the batch-to-compaction
+// seam. The tick routes operator-suppressions rows to AddOverrideBatch and
+// every other scope's rows to AddSourceBatch.
+type StagedCandidateRow = StagedRow
 
 // StagedWinner is the compacted source winner of one canonical key: the
 // winning row's fields plus the additive source count across batches.
@@ -297,6 +289,16 @@ func newStagedKeys(source map[string]StagedWinner, overrides map[string]StagedOv
 		n++
 	}
 	return n
+}
+
+// AddBatch folds one batch into the side its scope selects: the
+// operator-suppressions scope feeds the override map, every other scope feeds
+// the source winners. The tick loop never names the operator scope itself.
+func (c *StagedCompactor) AddBatch(scope string, rows []StagedCandidateRow) error {
+	if scope == supplyChainImpactOperatorScopeID {
+		return c.AddOverrideBatch(rows)
+	}
+	return c.AddSourceBatch(rows)
 }
 
 // SourceWinners returns the compacted per-key source winners.

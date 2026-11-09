@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // fakeStagedAuditFleet pins one member and records every per-batch borrow, so
@@ -42,7 +44,7 @@ func (f *fakeStagedAuditFleet) ReplayLag(context.Context, string) (time.Duration
 	return f.lag, nil
 }
 
-func (f *fakeStagedAuditFleet) RunOnMember(ctx context.Context, member string, fn func(context.Context) error) error {
+func (f *fakeStagedAuditFleet) RunOnMember(ctx context.Context, member string, fn func(context.Context, db.Queryer) error) error {
 	f.mu.Lock()
 	f.borrows = append(f.borrows, member)
 	call := len(f.borrows)
@@ -64,7 +66,7 @@ func (f *fakeStagedAuditFleet) RunOnMember(ctx context.Context, member string, f
 			return ctx.Err()
 		}
 	}
-	return fn(ctx)
+	return fn(ctx, nil)
 }
 
 func (f *fakeStagedAuditFleet) usedMembers() []string {
@@ -79,13 +81,13 @@ func newLaneCFleet() *fakeStagedAuditFleet {
 
 func okLaneCPlan(factsPerBatch int) StagedAuditTickPlan {
 	return StagedAuditTickPlan{
-		Census: func(context.Context) ([]StagedAuditCensusItem, error) {
+		Census: func(context.Context, db.Queryer) ([]StagedAuditCensusItem, error) {
 			return []StagedAuditCensusItem{{ScopeID: "s1", GenerationID: "g1"}, {ScopeID: "s2", GenerationID: "g1"}}, nil
 		},
-		FetchBatch: func(context.Context, StagedAuditCensusItem) (StagedAuditBatchResult, error) {
+		FetchBatch: func(context.Context, db.Queryer, StagedAuditCensusItem) (StagedAuditBatchResult, error) {
 			return StagedAuditBatchResult{Facts: factsPerBatch, DistinctKeys: factsPerBatch}, nil
 		},
-		FetchStoredWinners: func(context.Context) (int, error) { return 10, nil },
+		FetchStoredWinners: func(context.Context, db.Queryer) (int, error) { return 10, nil },
 	}
 }
 
@@ -176,7 +178,7 @@ func TestStagedAuditBatchAbortTouchesNoWriter(t *testing.T) {
 	boom := errors.New("connection reset by peer")
 	verified := false
 	plan := okLaneCPlan(100)
-	plan.FetchBatch = func(context.Context, StagedAuditCensusItem) (StagedAuditBatchResult, error) {
+	plan.FetchBatch = func(context.Context, db.Queryer, StagedAuditCensusItem) (StagedAuditBatchResult, error) {
 		return StagedAuditBatchResult{}, boom
 	}
 	plan.Verify = func(context.Context) (int64, error) {
@@ -247,7 +249,7 @@ func TestStagedAuditHungBatchFailsInsideBudget(t *testing.T) {
 	telemetry := NewStagedAuditTelemetry()
 	runner := NewStagedAuditRunner(fleet, telemetry, StagedAuditRunnerOptions{BatchTimeout: 150 * time.Millisecond})
 	plan := okLaneCPlan(100)
-	plan.Census = func(context.Context) ([]StagedAuditCensusItem, error) {
+	plan.Census = func(context.Context, db.Queryer) ([]StagedAuditCensusItem, error) {
 		return []StagedAuditCensusItem{{ScopeID: "s1", GenerationID: "g1"}}, nil
 	}
 	started := time.Now()
@@ -306,5 +308,14 @@ func TestStagedAuditTelemetryServes3AM(t *testing.T) {
 	}
 	if !strings.Contains(result.String(), "read-0") {
 		t.Fatal("tick result must carry member identity")
+	}
+}
+
+func TestStagedAuditTelemetryCountsUnresolvable(t *testing.T) {
+	telemetry := NewStagedAuditTelemetry()
+	telemetry.ObserveUnresolvable(2)
+	telemetry.ObserveUnresolvable(1)
+	if got := telemetry.Unresolvable(); got != 3 {
+		t.Fatalf("unresolvable = %d, want 3", got)
 	}
 }

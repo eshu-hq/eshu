@@ -24,6 +24,11 @@ type ReadRouting string
 const (
 	ReadRoutingOff         ReadRouting = "off"
 	ReadRoutingStaleAudits ReadRouting = "stale-audits"
+	// ReadRoutingStagedAudits admits the staged standby scan (#10451): the
+	// same standby fleet serves per-scope batches instead of the
+	// single-statement split scan, for corpora whose full fetch outlives the
+	// recovery-conflict window.
+	ReadRoutingStagedAudits ReadRouting = "staged-audits"
 )
 
 // StaleFamily names the query family a stale read serves. The budget stays a
