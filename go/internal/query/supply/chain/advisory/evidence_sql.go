@@ -44,7 +44,7 @@ scope_active_generations AS MATERIALIZED (
      AND generation.generation_id = scope.active_generation_id
     WHERE generation.status = 'active'
 ),
-repo_probe AS MATERIALIZED (
+` + advisoryGHSANewestCopyCTE + `repo_probe AS MATERIALIZED (
     SELECT fact.fact_id,
         fact.payload,
         fact.scope_id,
@@ -290,6 +290,8 @@ seed_candidates AS MATERIALIZED (
 seed AS (
     SELECT fact.fact_id, fact.scope_id, fact.generation_id, fact.fact_kind, fact.source_confidence, fact.observed_at, fact.payload
     FROM seed_candidates AS fact
+    -- Newest GHSA copy (#10464): superseded window copies leave the group.
+    WHERE ` + advisoryGHSACopyKeepPredicate + `
     ORDER BY COALESCE(
         NULLIF(fact.payload->>'cve_id', ''),
         NULLIF(fact.payload->>'advisory_id', ''),
@@ -479,6 +481,8 @@ matched_candidates AS MATERIALIZED (
 matched_facts AS (
     SELECT fact.fact_id, fact.fact_kind, fact.source_confidence, fact.observed_at, fact.schema_version, fact.payload
     FROM matched_candidates AS fact
+    -- Newest GHSA copy (#10464): superseded window copies leave the group.
+    WHERE ` + advisoryGHSACopyKeepPredicate + `
     ORDER BY COALESCE(
         NULLIF(fact.payload->>'cve_id', ''),
         NULLIF(fact.payload->>'advisory_id', ''),

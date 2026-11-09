@@ -369,7 +369,7 @@ GHSA stays not activatable until each holds, with evidence in the S7 PR:
 
 ## Acceptance criteria
 
-Maps to the #10037 criteria:
+Maps to the #10037 criteria; remainder per the 2026-11-09 arbiter ruling (`docs/internal/arbiter/10037-remainder-ruling-2026-11-09.md`): S4 satellite#75, S5 (readiness rolling leg, `fetchConfirmedSources`, read-model newest copy) #10464, S6/S7 #10465 — activation waits on those trackers, not only on #10037 landing.
 
 - [x] A committed design doc decides scope granularity, the retraction rule, and what
       an incomplete successor may supersede (this record, sections 1, 3, 4).

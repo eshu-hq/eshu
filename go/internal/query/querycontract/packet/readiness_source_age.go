@@ -50,7 +50,7 @@ func AgeSourceSnapshots(snapshots []SourceSnapshot, cutoff time.Time) []SourceSn
 // active facts keep the observed_at of the last real change and fact age alone
 // would call a fetched, current source stale after the freshness window.
 var fetchConfirmedSources = map[string][]string{
-	EvidenceFamilyVulnerabilityAdvisory:       {"osv", "nvd", "glad"},
+	EvidenceFamilyVulnerabilityAdvisory:       {"osv", "nvd", "glad", "ghsa"},
 	EvidenceFamilyVulnerabilityExploitability: {"cisa_kev", "first_epss"},
 }
 

@@ -41,8 +41,7 @@ package advisory
 // stay eligible) and the legs feed one GROUP BY, leaving a single
 // O(active vulnerability facts) aggregate pass with no nested-loop blowup.
 // Output is byte-identical to the previous shape.
-const ListCatalogQuery = `
-WITH vuln_facts AS (
+const ListCatalogQuery = `WITH ` + advisoryGHSANewestCopyCTE + `vuln_facts AS (
     SELECT
         UPPER(TRIM(COALESCE(
             NULLIF(TRIM(fact.payload->>'cve_id'), ''),
@@ -73,6 +72,9 @@ WITH vuln_facts AS (
     WHERE fact.fact_kind = 'vulnerability.cve'
       AND fact.is_tombstone = FALSE
       AND generation.status = 'active'
+      -- Newest GHSA copy (#10464): an older window copy's facts leave the
+      -- group whole, so only the winning copy aggregates.
+      AND ` + advisoryGHSACopyKeepPredicate + `
     UNION ALL
     SELECT
         UPPER(TRIM(COALESCE(
@@ -104,6 +106,9 @@ WITH vuln_facts AS (
     WHERE fact.fact_kind = 'vulnerability.affected_package'
       AND fact.is_tombstone = FALSE
       AND generation.status = 'active'
+      -- Newest GHSA copy (#10464): packages follow the winning copy, with
+      -- the winner-packageless fallback inside the predicate.
+      AND ` + advisoryGHSACopyKeepPredicate + `
     UNION ALL
     SELECT
         UPPER(TRIM(COALESCE(
