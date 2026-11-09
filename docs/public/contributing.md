@@ -19,3 +19,21 @@ For parser-specific contribution rules (adding language or IaC support), see [Co
 For the developer guide covering the Go parser architecture, fixture-backed
 contract pages, compose verification, and runtime boundaries, see
 [DEVELOPING.md](https://github.com/eshu-hq/eshu/blob/main/DEVELOPING.md).
+
+For how to run and write tests, see
+[TESTING.md](https://github.com/eshu-hq/eshu/blob/main/TESTING.md).
+
+## Ways to contribute
+
+- **Fix or extend the core** — start from
+  [CONTRIBUTING.md](https://github.com/eshu-hq/eshu/blob/main/CONTRIBUTING.md)
+  and [DEVELOPING.md](https://github.com/eshu-hq/eshu/blob/main/DEVELOPING.md).
+- **Add language or IaC support** — see
+  [Contributing Language Support](contributing-language-support.md).
+- **Add a collector** — see the
+  [Collector Authoring guide](guides/collector-authoring.md).
+- **Build an extension** — start at [Extend Eshu](extend/index.md).
+- **Improve these docs** — follow the
+  [Documentation style guide](documentation-style-guide.md).
+- **Propose a hard-to-reverse change** — record it using the format in
+  [Decisions](decisions/index.md).

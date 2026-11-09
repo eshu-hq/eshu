@@ -26,22 +26,20 @@ Status: you run Eshu yourself, on your laptop or as a shared team service. See
   <img src="https://img.shields.io/badge/helm-OCI-0F1689?style=flat-square&logo=helm&logoColor=white" alt="Helm OCI Chart">
 </p>
 
-Eshu indexes source code, dependencies, container images, infrastructure,
-deployment config, runtime topology, external collector facts, and documentation
-into one queryable graph. A graph here means linked records you can walk: a
-function links to its callers, a service links to what deploys it, and each link
-keeps the evidence that supports it. You and your assistants query that graph
-instead of re-deriving the answer from five repositories, three dashboards, a
-Helm chart, and a Terraform module.
+Eshu indexes source code, dependencies, container images, infrastructure, deployment
+config, runtime topology, external collector facts, and documentation into one queryable
+graph. A graph here means linked records you can walk: a function links to its callers, a
+service links to what deploys it, and each link keeps the evidence that supports it. You
+and your assistants query that graph instead of re-deriving the answer from five
+repositories, three dashboards, a Helm chart, and a Terraform module.
 
-A common first job is **supply-chain traceability**: follow one vulnerable
-dependency through the container images that ship it, the workloads that run
-them, and the source and Terraform that own them, with evidence at each step.
+A common first job is **supply-chain traceability**: follow one vulnerable dependency
+through the images that ship it, the workloads that run them, and the source and Terraform
+that own them, with evidence at each step.
 
 Use Eshu to ask:
 
-- "Which deployed images contain this vulnerable package, and what source and
-  Terraform own them?"
+- "Which deployed images contain this vulnerable package, and what source and Terraform own them?"
 - "Who calls this function across all indexed repos?"
 - "What deploys this service to production?"
 - "Which workloads share this database, queue, or secret?"
@@ -50,19 +48,17 @@ Use Eshu to ask:
 
 ## When To Use Eshu, And When Not To
 
-Use Eshu when you need linked answers across code, infrastructure, and runtime,
-and you need to see the evidence behind each link. It fits teams that can run a
-self-hosted service (software you operate yourself) or a local stack.
+Use Eshu when you need linked answers across code, infrastructure, and runtime, and you
+need to see the evidence behind each link. It fits teams that can run a self-hosted
+service (software you operate yourself) or a local stack.
 
-Do not use Eshu as a plain text search tool, a log store, or a metrics database.
-It does not replace your code search, logging, or monitoring systems. It reads
-from sources like those and links what it finds. If you only need to search one
-repository's text, your editor or code host is simpler.
+Don't use Eshu as a plain text search tool, a log store, or a metrics database. It
+doesn't replace your code search, logging, or monitoring. It reads from sources like
+those and links what it finds. If you only need one repo's text, your editor is simpler.
 
 ## What Eshu Can Do
 
-These map to the capability families reported by the `get_capability_catalog`
-MCP tool and the public tool families in
+These map to the capability families in the `get_capability_catalog` MCP tool and the
 [MCP Reference](docs/public/reference/mcp-reference.md).
 
 | Capability area | What you get |
@@ -97,9 +93,8 @@ The Go code coverage badge links to an advisory package report. It is one signal
 
 ## Quickstart
 
-Follow [First successful run](docs/public/getting-started/first-successful-run.md)
-for the full guide. It takes you to one indexed repository and one useful answer.
-In short, for a local build from this checkout:
+Start with [First successful run](docs/public/getting-started/first-successful-run.md). It
+gets you to one indexed repo and one useful answer. To build from this checkout, run:
 
 ```bash
 ./scripts/install-local-binaries.sh
@@ -107,31 +102,23 @@ export PATH="$(go env GOPATH)/bin:$PATH"
 eshu mcp setup --platform codex
 ```
 
-Apply the printed client config, open your target repository as the client
-workspace, and restart the client. Success check: ask the client to list the
-indexed repositories for the current workspace and confirm your repository
-appears. For the full container stack with the HTTP API, use the Compose path in
-the table above instead. A healthy process alone is not success; the index must
-be ready and a bounded query must return.
+Paste in the client config it prints, open your repo as the workspace, and restart your
+client. Then ask it to list the indexed repositories. If yours shows up, you're in. Want
+the full stack with the HTTP API? Take the Compose path above. A healthy process alone
+doesn't mean you're done. The index needs to be ready and a query needs to come back.
 
 ## How It Works
 
-Data in: repositories, deployment and infrastructure files, container and
-package data, runtime signals, and facts from external collectors (small
-programs that observe one source system). Parsers and collectors emit versioned
-facts (dated, numbered records) instead of writing the graph directly. Facts are
-stored in Postgres and queued. The reducer, also called the resolution engine,
-claims that work, links evidence across sources, and writes the graph. The API,
-MCP server (Model Context Protocol, the tool interface AI assistants use), and
-CLI then read the same linked data. Read
-[How Eshu works](docs/public/concepts/how-it-works.md) for the full pipeline and
-[Architecture](docs/public/architecture.md) for runtime ownership.
+Here's the short version. Parsers and collectors read your repos, infra files, images,
+packages, and runtime signals. They emit versioned facts into Postgres instead of writing
+the graph directly. The reducer claims that queued work, links the evidence, and writes
+the graph. You read it back through the API, the MCP server, or the CLI. See
+[How Eshu works](docs/public/concepts/how-it-works.md) and [Architecture](docs/public/architecture.md).
 
 ## How The Repositories Fit Together
 
-Eshu is split across repositories in the `eshu-hq` organization. This repository
-(`eshu`) holds the core. Satellites hold the extracted API, clients, workers, and
-collectors. You run the whole system with the deploy assets in `eshu-deploy`.
+Eshu is split across repositories in the `eshu-hq` organization. This repo holds the core.
+Satellites hold the API, clients, workers, and collectors. You run it all from `eshu-deploy`.
 
 ```mermaid
 flowchart LR
@@ -159,109 +146,78 @@ In words: sources feed intake, which stores versioned facts in Postgres; the red
 
 ### Repository Map
 
-Eshu spans 31 repositories: this core, the extracted API, CLI, and MCP
-server, shared libraries (`eshu-sdk`, `eshu-agent-kit`), runtime workers
-(ingester, workflow, webhook, extension host, scanner worker), deployment
-assets (`eshu-deploy`), and 19 collectors. Each collector reads one
-outside system — cloud accounts, registries, trackers, observability
-tools — and emits source facts only; the reducer owns linked truth.
-
-The full list, one plain sentence per repository and grouped by family,
-lives in [REPOSITORIES.md](REPOSITORIES.md). Start there when you need to
-find which repository owns a piece of the system. See
-[Collector And Reducer Readiness](docs/public/reference/collector-reducer-readiness.md)
-before you enable a collector family.
+Eshu spans 31 repositories: this core, the API, CLI, and MCP server, shared libraries,
+runtime workers, deployment assets, and 19 collectors. Each collector reads one outside
+system and emits facts. The reducer owns the linked truth. You'll find every repo in
+[REPOSITORIES.md](REPOSITORIES.md), one friendly line each. Check
+[Collector And Reducer Readiness](docs/public/reference/collector-reducer-readiness.md) first.
 
 ## Interfaces
 
-- **CLI:** local setup, indexing, analysis, and operator commands.
-- **MCP:** assistant-facing tools for Codex, Claude, Cursor, VS Code, and other
-  MCP clients.
-- **HTTP API:** automation and platform integration.
-- **Helm:** split-service Kubernetes deployment for shared team use.
+You've got four ways in. Pick the one that fits your hands.
+
+| You want | Go here |
+| --- | --- |
+| Local setup, indexing, and operator commands | [CLI Reference](docs/public/reference/cli-reference.md) |
+| An assistant that answers with evidence | [Connect MCP](docs/public/mcp/index.md) |
+| Automation and platform integration | [HTTP API](docs/public/reference/http-api.md) |
+| A shared team service on Kubernetes | [Kubernetes deployment](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/kubernetes/index.md) |
 
 ## Configuration
 
-Use `eshu config` for local CLI defaults and environment variables for service
-settings. The full catalog is the
-[Environment Variable Reference](docs/public/reference/env-registry.md) and
-[Configuration](docs/public/reference/configuration.md). Start with these:
-
-| Name | Required | Default | Meaning |
-| --- | --- | --- | --- |
-| `ESHU_API_KEY` | For API-backed CLI use | None | Bearer token (secret key) for the HTTP API and MCP service. Keep it in your environment, not in a config file you commit. |
-| `ESHU_SERVICE_URL` | For a hosted service | None | Base HTTPS address of a running Eshu service. |
-| `ESHU_FILESYSTEM_HOST_ROOT` | For Compose indexing | None | Host folder that holds the repositories to index. Use an absolute path. |
-| `ESHU_REPOSITORY_RULES_JSON` | For Compose indexing | None | Which repositories to index, as JSON rules. |
-| `ESHU_COLLECTOR_INSTANCES_JSON` | To enable collectors | None; collectors stay off | Turns on external collectors. You also need provider credentials. Without it, supply-chain list tools return empty pages. |
-| `ESHU_HOME` | No | `~/.eshu` | Folder for the local CLI `.env` file that `eshu config` reads and writes. |
-
-Run `eshu config validate` to check your environment. Do not commit API keys or
-other secrets.
+Use `eshu config` for local defaults. Services take environment variables. You'll touch
+`ESHU_API_KEY`, `ESHU_SERVICE_URL`, `ESHU_FILESYSTEM_HOST_ROOT`, `ESHU_REPOSITORY_RULES_JSON`,
+`ESHU_COLLECTOR_INSTANCES_JSON`, and `ESHU_HOME` most often. Collectors stay off until you
+enable them and add credentials. Defaults live in [Configuration](docs/public/reference/configuration.md)
+and the [Environment Variable Reference](docs/public/reference/env-registry.md). Run
+`eshu config validate` to check your setup. Keep secrets out of Git.
 
 ## Deploy Or Run It
 
-Pick one path from [Pick Your First Path](#pick-your-first-path): local binaries
-from this checkout, the full Compose stack, a hosted service someone runs for
-you, or Kubernetes for a shared team service. Deployment assets live in
-[eshu-deploy](https://github.com/eshu-hq/eshu-deploy). Start with its
-[Docker Compose guide](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/run-locally/docker-compose.md)
-or [Kubernetes deployment](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/kubernetes/index.md).
-For which runtime owns which job, see
-[Service Runtimes](docs/public/deployment/service-runtimes.md).
+Pick a path above and follow its guide. The assets live in [eshu-deploy](https://github.com/eshu-hq/eshu-deploy),
+with a Compose guide for your laptop and a Kubernetes guide for a shared service. Under the
+hood, Eshu needs Postgres for facts and queues, plus a graph backend your deployment picks.
+Collectors only watch. They never write to your systems, and only the reducer writes linked
+truth. Leave a collector off and Eshu won't touch that system at all. See
+[Service Runtimes](docs/public/deployment/service-runtimes.md) for runtime ownership.
 
-### Eshu Dependencies
-
-| This core needs | It talks to | It never touches |
-| --- | --- | --- |
-| Postgres for facts, queues, status, and content | The configured graph backend (deployment-dependent) | Your source systems in write mode; collectors observe and emit facts |
-| A graph backend your deployment selects | API, MCP, and CLI read surfaces over the same stored data | Canonical graph writes from collectors; only the reducer writes linked truth |
-| Optional collectors with their own credentials | Registries, cloud, and work systems you configure | Collectors you did not enable; they stay off by default |
-
-## Operations And Troubleshooting
-
-Check health first, then check whether indexing finished; a live process does not prove the index is complete. Use [Operate Eshu](docs/public/operate/index.md) for health, freshness, and troubleshooting. If answers look stale, confirm the index is ready and the reducer queue has drained.
+Once it's running, check health first. Then check whether indexing actually finished. A live
+process doesn't prove the index is complete. If answers look stale, confirm the index is
+ready and the reducer queue has drained. Start at [Operate Eshu](docs/public/operate/index.md).
 
 ## Development
 
-Build and test from the Go module root. The Go version is pinned in `go/go.mod`.
-
-```bash
-go version
-cd go && go test ./cmd/eshu -count=1
-```
-
-Useful checks from the repo root `Makefile`: `make help` (list targets),
-`make pre-push` (fast local checks before a push), `make pre-pr` (fuller local
-checks before a pull request), and `make prove` (credential-free conformance
-checks). See [DEVELOPING.md](DEVELOPING.md), [TESTING.md](TESTING.md), and the
-[Local Testing Runbook](docs/public/reference/local-testing.md) for the right
-check for your change.
+Build and test from the Go module root. The Go version is pinned in `go/go.mod`. Try
+`cd go && go test ./cmd/eshu -count=1` first. From the repo root, `make help` lists targets,
+`make pre-push` runs the fast checks, `make pre-pr` runs the fuller set, and `make prove`
+needs no credentials. [DEVELOPING.md](DEVELOPING.md) and the [Local Testing Runbook](docs/public/reference/local-testing.md)
+will point you at the right check.
 
 ## Documentation
 
-If you only read three pages first, read these:
+New here? Read [First Successful Run](docs/public/getting-started/first-successful-run.md), then
+[Start Here](docs/public/start-here.md), then [Connect MCP](docs/public/mcp/index.md). Then follow your job.
 
-1. [First Successful Run](docs/public/getting-started/first-successful-run.md)
-2. [Start Here](docs/public/start-here.md)
-3. [Connect MCP](docs/public/mcp/index.md)
+The docs live in eight buckets. Here's where each one really lives:
 
-The full documentation is organized by job:
+- **Getting started** — [First Successful Run](docs/public/getting-started/first-successful-run.md) and the rest of [getting-started/](docs/public/getting-started/), plus [Run locally](docs/public/run-locally/index.md).
+- **Guides** — [All Guides](docs/public/guides/index.md): task-focused walkthroughs once Eshu is running.
+- **Concepts** — [Understand Eshu](docs/public/understand/index.md) and [How Eshu works](docs/public/concepts/how-it-works.md): the system model in plain words.
+- **Reference** — [Reference](docs/public/reference/index.md): commands, settings, APIs, and contracts to look up.
+- **Architecture** — [Architecture](docs/public/architecture.md): runtime boundaries and who owns what.
+- **Diagrams** — [docs/diagrams/](docs/diagrams/): the standalone Mermaid sources. Most pages also carry their own inline diagrams.
+- **Decisions** — [Decisions](docs/public/decisions/index.md): how choices are recorded and where the records live.
+- **Contributing** — [Contributing](docs/public/contributing.md) and the root [CONTRIBUTING.md](CONTRIBUTING.md): how to help, from first patch to PR.
 
-- [Use Eshu](docs/public/use/index.md): index repositories and ask code or
-  infrastructure questions.
-- [Deploy Eshu](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/kubernetes/index.md): install the shared
-  service with Helm or follow the EKS runbook.
-- [Operate Eshu](docs/public/operate/index.md): health checks, telemetry, and
-  troubleshooting.
-- [Understand Eshu](docs/public/understand/index.md): architecture, graph model,
-  and runtime modes.
-- [Extend Eshu](docs/public/extend/index.md): collectors, components, language
-  support, and plugin contracts.
-- [Code with agents](docs/public/guides/coding-with-agents.md): repo rules,
-  required proof, and the safe workflow for AI-assisted changes.
-- [Reference](docs/public/reference/cli-reference.md): CLI, API, MCP,
-  configuration, telemetry, and backend details.
+| Your job | Start here |
+| --- | --- |
+| Index repos and ask questions | [Use Eshu](docs/public/use/index.md) |
+| Run a shared service | [Deploy Eshu](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/kubernetes/index.md) |
+| Keep it healthy | [Operate Eshu](docs/public/operate/index.md) |
+| Learn how it fits together | [Understand Eshu](docs/public/understand/index.md) |
+| Add collectors or language support | [Extend Eshu](docs/public/extend/index.md) |
+| Change Eshu with an AI agent | [Code with agents](docs/public/guides/coding-with-agents.md) |
+| Look up commands and settings | [CLI Reference](docs/public/reference/cli-reference.md) |
 
 ## Maturity At A Glance
 
@@ -274,17 +230,11 @@ The full documentation is organized by job:
 | Graph backend | Deployment-dependent; your deployment selects it. See [Architecture](docs/public/architecture.md). |
 | Optional collectors | Varies by collector; see [Collector And Reducer Readiness](docs/public/reference/collector-reducer-readiness.md) |
 
-## Repository Surfaces
-
-| Path | Purpose |
-| --- | --- |
-| [go/](go/) | Go module for the CLI, API, MCP server, ingester, reducer, collectors, storage, parser, and query code. |
-| [helm/eshu/](https://github.com/eshu-hq/eshu-deploy/tree/main/helm/eshu) | Public split-service Helm chart (eshu-deploy repo). |
-| [observability/](https://github.com/eshu-hq/eshu-deploy/tree/main/observability) | Prometheus alert rules and local OpenTelemetry Collector config (eshu-deploy repo). |
-| [apps/console/](apps/console/) | Private read-only product console for Eshu graph data. |
-| [docs/public/](docs/public/) | MkDocs source for the public documentation site. |
-
 ## Project
+
+Most code lives in [go/](go/). The console lives in [apps/console/](apps/console/), and these
+docs start in [docs/public/](docs/public/). The [Helm chart](https://github.com/eshu-hq/eshu-deploy/tree/main/helm/eshu)
+and [observability assets](https://github.com/eshu-hq/eshu-deploy/tree/main/observability) live in eshu-deploy.
 
 - [Contributing](CONTRIBUTING.md)
 - [Security policy](SECURITY.md)
