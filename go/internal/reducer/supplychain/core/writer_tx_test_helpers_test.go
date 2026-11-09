@@ -124,6 +124,9 @@ func (t fakeImpactTx) QueryContext(_ context.Context, query string, args ...any)
 	if t.state.queryErr != nil {
 		return nil, t.state.queryErr
 	}
+	if t.state.failOn != "" && query == t.state.failOn {
+		return nil, errFakeImpactStatement
+	}
 	switch query {
 	case listStoredSupplyChainImpactFindingsQuery:
 		rows := make([][]any, 0, len(t.state.stored))
@@ -162,6 +165,10 @@ func (t fakeImpactTx) QueryContext(_ context.Context, query string, args ...any)
 	case setSuppressionDiffStatementTimeoutQuery:
 		return &fakeImpactRows{}, nil
 	case supplyChainImpactScopePassStateQuery:
+		// The pass-state upsert is a control statement (not a batched fact
+		// insert), so it lands on control like the lock, admission, and
+		// retraction, keeping the statement-stream assertions whole.
+		t.state.control.Execs = append(t.state.control.Execs, testutil.ExecCall{Query: query, Args: args})
 		return &fakeImpactRows{rows: [][]any{{t.state.passStateFenced, t.state.passStateRecorded}}}, nil
 	}
 	return nil, errors.New("unexpected query " + query)
