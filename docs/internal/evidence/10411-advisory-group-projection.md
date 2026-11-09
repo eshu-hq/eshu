@@ -109,6 +109,51 @@ Buffers shared hit 40/6). The full production query adds the
 suppression/scope heap filters and the fact join over only the group's
 matched rows.
 
+## #10475: winners reader provenance alignment (read-only fix)
+
+Classification (eshu-postgres-rigor): wrong SQL extraction path. The
+winners reader selected `f.payload->'advisory_group_members'` (top level)
+while the production impact writer carries members only under the
+provenance map (`supplyChainImpactProvenancePayload`, provenance.go),
+alongside `advisory_sources` and `advisory_retraction`. Every persisted
+finding fact therefore read NULL members; counts looked right only
+because `BuildGroup` folds each row's own CVE/advisory ids beside
+`Members`. Not a plan, index, queue, or lease issue: no predicate, join,
+row set, or ordering changes. Rejected: a dual-read
+`COALESCE(top-level, provenance)` (dead code defending a test seed — no
+production writer emits the top-level key) and any writer or schema
+change. The fix is one select-list expression:
+`f.payload #> '{provenance,advisory_group_members}'` (jsonb `#>`
+preserves the array bytes the row scan decodes; `#>>` returns text and
+is wrong here).
+
+Heal semantics: already-projected AdvisoryGroup nodes keep their
+truncated member unions until their group is next touched: the
+disposition is heal-on-next-touch through the existing post-commit
+TouchedGroupIDs enqueue, with no deploy-time backfill, so the graph is
+not fixed at deploy.
+
+No-Regression Evidence: the extraction runs per matched winner row over
+the existing `f.fact_id = w.winner_fact_id` PK join (`fact_id` is the
+`fact_records` PRIMARY KEY, migrations/003_fact_records.sql), so there
+is no scan-shape change, no new predicate or index, and no filter/index
+need (members are read per row, never filtered). No EXPLAIN run: the
+plan cannot change — same join, same row set, same `ORDER BY`; only the
+projected expression differs, so a plan comparison has nothing to
+distinguish. Live proof (run at the drive branch head, Postgres 18 +
+Neo4j): `TestAdvisoryGroupWinnersQualifyingLive` PASS with the seed in
+the provenance shape (including absent/NULL-provenance rows asserting nil
+members without error) and FAIL with the old expression
+(`members = []`); `TestAdvisoryGroupParityLive` and
+`TestAdvisoryGroupQueueDrainLive` PASS. Hermetic proof:
+`TestAdvisoryGroupWinnersReadProvenanceMembers` (exact-expression guard
+plus encoder-shape and `BuildGroup` union fold; RED at the guard before
+the fix) and `TestAdvisoryGroupWinnersNilMembersWithoutProvenance`.
+
+No-Observability-Change: the fix adds no spans, metrics, or logs and
+touches none of the eight `eshu_dp_advisory_group_projection_*`
+instruments; operator signals are unchanged.
+
 Criterion 9 completion (#10411). Built-binary queue drain: the production
 reducer binary (built from this branch) refused to start graph writers
 until the bootstrap-data-plane binary applied the graph schema marker

@@ -69,7 +69,9 @@ func advisoryGroupWinnerEffectiveStateSQL() string {
 // one advisory group. The group matches on winners columns only (CVE when the
 // row names one, else the advisory id), so the read never scans facts by CVE.
 // Members and purl come only from the winner fact payload via winner_fact_id
-// (fact_records.fact_id, the same join key the winners list read uses), and
+// (fact_records.fact_id, the same join key the winners list read uses):
+// members at the provenance.advisory_group_members path the impact writer
+// emits (#10475; jsonb #> preserves the array bytes the scan decodes), and
 // the protected-scan exclusion is the always-on subset of the static-winner
 // predicate (finding_authority_sql.go:62-72): no scan association and no
 // derived image scope. The classification EXISTS arm of that predicate is TRUE
@@ -80,7 +82,7 @@ var advisoryGroupWinnersQuery = `SELECT w.repository_id,
        COALESCE(f.payload->>'purl', ''),
        w.cve_id,
        w.advisory_id,
-       f.payload->'advisory_group_members'
+       f.payload #> '{provenance,advisory_group_members}'
 FROM supply_chain_impact_canonical_winners AS w
 LEFT JOIN fact_records AS f
   ON f.fact_id = w.winner_fact_id

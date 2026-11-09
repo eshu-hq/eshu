@@ -232,7 +232,7 @@ func seedParityWinners(t *testing.T, ctx context.Context, db *sql.DB, groupA, gr
 		  ON CONFLICT (generation_id) DO NOTHING`, []any{p + "gen", p + "scope"}},
 		{`INSERT INTO fact_records (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, source_system, source_fact_key, observed_at, ingested_at, payload)
 		  VALUES ($1, $2, $3, 'reducer_supply_chain_impact_finding', $1, 'synthetic', $1, NOW(), NOW(), $4::jsonb)
-		  ON CONFLICT (fact_id) DO NOTHING`, []any{p + "fact-a", p + "scope", p + "gen", fmt.Sprintf(`{"purl": "pkg:npm/parity-a@1", "advisory_group_members": [%q, "GHSA-parity-m"]}`, groupA)}},
+		  ON CONFLICT (fact_id) DO NOTHING`, []any{p + "fact-a", p + "scope", p + "gen", fmt.Sprintf(`{"purl": "pkg:npm/parity-a@1", "provenance": {"advisory_group_members": [%q, "GHSA-parity-m"]}}`, groupA)}},
 		{`INSERT INTO supply_chain_impact_winners_materialization (singleton, materialized_at) VALUES (1, NOW())
 		  ON CONFLICT (singleton) DO UPDATE SET materialized_at = NOW()`, nil},
 	}
