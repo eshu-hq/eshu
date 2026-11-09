@@ -6,90 +6,90 @@ writer. Split means part moves and part stays, as noted. `W*` means
 writer or checkpoint-bounded fenced reader only — never a bare replica.
 Family numbers match the arbiter ruling on
 [eshu-hq/eshu#10416](https://github.com/eshu-hq/eshu/issues/10416). All
-paths below are under `go/`; line numbers are entry points, not the
-whole body. The superseded census draft is
+paths below are under `go/`; anchors name the file and symbol, never a
+line number, so they survive edits. The superseded census draft is
 [10416-reader-family-registry-draft](10416-reader-family-registry-draft.md).
 
 ## Safe to move (R)
 
 | # | Family | Key files |
 |---|--------|-----------|
-| 2 | Facts filtered paging (query handlers only) | `internal/storage/postgres/facts_filtered.go:164,202,256,305` |
-| 24 | Content reads (files, entities) | `internal/query/content_reader.go:33,39`, `internal/query/content_reader_entity.go:32` |
-| 27 | Status snapshots and ledger reads, behind a writer checkpoint | `internal/storage/postgres/status.go:67`, `internal/runtime/postgres/status_reader.go:40` |
-| 43 | IaC inventory read port | `internal/query/iac/inventory_postgres.go:22` |
+| 2 | Facts filtered paging (query handlers only) | `go/internal/storage/postgres/facts_filtered.go` (`ListFactsByKind` variants) |
+| 24 | Content reads (files, entities) | `go/internal/query/content_reader.go` (`NewContentReader`), `go/internal/query/content_reader_entity.go` (`GetEntityContent`) |
+| 27 | Status snapshots and ledger reads, behind a writer checkpoint | `go/internal/storage/postgres/status.go` (`NewStatusStore`), `go/internal/runtime/postgres/status_reader.go` (`NewSnapshotStatusReader`) |
+| 43 | IaC inventory read port | `go/internal/query/iac/inventory_postgres.go` (`PostgresIaCInventoryStore`) |
 
 ## Split (S) — only the named half moves
 
 | # | Family | Moves | Stays |
 |---|--------|-------|-------|
-| 1 | Facts core | None (dropped permanently) | All loads — handler-side and in-cycle — feed just-written generation projection where read-your-writes is structural (`internal/storage/postgres/facts.go:246,258`) |
-| 16 | Readiness and observer gauges | Queue-depth and fence-count gauges (`internal/storage/postgres/queue_observer.go:237`, `internal/storage/postgres/corpus_fence_observer.go:101`) | Reads embedded in reducer claim SQL, and any gauge that ever gates scheduling |
+| 1 | Facts core | None (dropped permanently) | All loads — handler-side and in-cycle — feed just-written generation projection where read-your-writes is structural (`go/internal/storage/postgres/facts.go`: `LoadFacts`, `LoadProjectionFacts`) |
+| 16 | Readiness and observer gauges | Queue-depth and fence-count gauges (`go/internal/storage/postgres/queue_observer.go`: `QueueDepths`, `go/internal/storage/postgres/corpus_fence_observer.go`: `CorpusFenceCounts`) | Reads embedded in reducer claim SQL, and any gauge that ever gates scheduling |
 | 28 | Changed-since | Query reads | Journal writes inside ack transactions |
-| 32 | Search-vector index build | Pending-scope discovery (`internal/storage/postgres/eshu_search_vector_pending.go:114`) | Fenced batch commits (`internal/storage/postgres/eshu_search_vector_fenced_batch.go:81`), revalidated on the writer |
+| 32 | Search-vector index build | Pending-scope discovery (`go/internal/storage/postgres/eshu_search_vector_pending.go`: `ListPendingSearchVectorScopes`) | Fenced batch commits (`go/internal/storage/postgres/eshu_search_vector_fenced_batch.go`: `upsertEshuSearchVectorMetadataBatchFenced`), revalidated on the writer |
 | 33 | Search documents | Query reads | Projection writes and scope-fence decisions |
 | 36 | Alerts | Reads and unread cursors | Retirement garbage collection |
-| 42 | Governance audit | `List` / `Summary` reads | `Append` writes (`internal/storage/postgres/governance/audit/store.go:184`) |
+| 42 | Governance audit | `List` / `Summary` reads | `Append` writes (`go/internal/storage/postgres/governance/audit/store.go`: `Append`) |
 
 ## Writer-only (W) — never move
 
 Claims, leases, fences, and pins:
-`internal/storage/postgres/projector_queue_claim_sql.go:14-52`,
-`internal/storage/postgres/projector_queue_claim_pool_sql.go:19,171,203`,
-`internal/storage/postgres/reducer_queue_claim_query.go:85,103`,
-`internal/storage/postgres/workflow_control_sql.go:89,125`,
-`internal/storage/postgres/workflow_claim_pacing.go:74`,
-`internal/storage/postgres/control_scanner_claim_guard_sql.go:10`,
-`internal/storage/postgres/control_scanner_heartbeat.go:25`,
-`internal/storage/postgres/ingestion_claim_fence.go:53,79,105`, and
-`internal/storage/postgres/coordination/coordination.go:18`. These run
+`go/internal/storage/postgres/projector_queue_claim_sql.go` (scope-claim fence and `claimProjectorWorkQuery`),
+`go/internal/storage/postgres/projector_queue_claim_pool_sql.go` (`claimProjectorWorkPoolSQL`),
+`go/internal/storage/postgres/reducer_queue_claim_query.go` (`claimReducerWorkQuery`),
+`go/internal/storage/postgres/workflow_control_sql.go` (`heartbeatWorkflowClaimQuery`),
+`go/internal/storage/postgres/workflow_claim_pacing.go` (`CheckClaimPacing`),
+`go/internal/storage/postgres/control_scanner_claim_guard_sql.go` (`scannerDerivedClaimAuthority`),
+`go/internal/storage/postgres/control_scanner_heartbeat.go` (`heartbeatDerivedScannerClaim`),
+`go/internal/storage/postgres/ingestion_claim_fence.go` (`ClaimPlaneFence`), and
+`go/internal/storage/postgres/coordination/coordination.go` (`Locker`). These run
 inside writer transactions or row locks; a lagging copy could approve a
 stale epoch.
 
 Ack, heartbeat, fail, and retry: projector ack with its delta-baseline
-fence read (`internal/storage/postgres/projector_queue_ack.go:29,92`,
-`internal/storage/postgres/projector_queue_delta_baseline.go:302`),
+fence read (`go/internal/storage/postgres/projector_queue_ack.go`: `Ack`,
+`go/internal/storage/postgres/projector_queue_delta_baseline.go`: `checkAckDeltaBaseline`),
 reducer ack and replay
-(`internal/storage/postgres/reducer_queue_ack.go:22,311`), batch paths
-(`internal/storage/postgres/reducer_queue_batch.go:17,75,357`), redrive
+(`go/internal/storage/postgres/reducer_queue_ack.go`: `ackReducerWorkQuery`), batch paths
+(`go/internal/storage/postgres/reducer_queue_batch.go`: `ClaimBatch`), redrive
 and drift hooks
-(`internal/storage/postgres/projector_queue_ack.go:345`,
-`internal/storage/postgres/projector_queue_config_state_drift_trigger_hook.go:128`),
+(`go/internal/storage/postgres/projector_queue_ack.go`: `runCrossplaneRedriveHook`,
+`go/internal/storage/postgres/projector_queue_config_state_drift_trigger_hook.go`: `runConfigStateDriftTriggerHook`),
 dead-letter and replay handling
-(`internal/query/admin/store/replay.go:26`,
-`internal/recovery/replay.go:323,325,370`), and phase-repair queueing
-(`internal/storage/postgres/graph_projection_phase_repair_queue.go:132,151,190`).
+(`go/internal/query/admin/store/replay.go`: `ReplayFailedWorkItems`,
+`go/internal/recovery/replay.go`: `ReplayStore`, `ReplayFailed`), and phase-repair queueing
+(`go/internal/storage/postgres/graph_projection_phase_repair_queue.go`: `Enqueue`, `ListDue`, `Delete`).
 
 Commits and projections: ingestion commits
-(`internal/storage/postgres/ingestion.go:86,119,132`), fact upserts
-(`internal/storage/postgres/facts.go:239`), content upsert, delete, and
-reap (`internal/storage/postgres/content_writer.go:44`,
-`internal/storage/postgres/content_writer_delete_batch.go:48,91,134,165`,
-`internal/storage/postgres/content_writer_reap.go:196,244`,
-`internal/storage/postgres/content_writer_sql.go:126,233`), retention
+(`go/internal/storage/postgres/ingestion.go`: `NewIngestionStore`, `CommitScopeGeneration`, `CommitClaimedScopeGeneration`), fact upserts
+(`go/internal/storage/postgres/facts.go`: `UpsertFacts`), content upsert, delete, and
+reap (`go/internal/storage/postgres/content_writer.go`: `NewContentWriter`,
+`go/internal/storage/postgres/content_writer_delete_batch.go` (entity/file/reference chunk deleters),
+`go/internal/storage/postgres/content_writer_reap.go`: `reapStaleContentEntities`,
+`go/internal/storage/postgres/content_writer_sql.go`: `deleteContentFileQuery`, fingerprint-band consts), retention
 prunes
-(`internal/storage/postgres/generation_retention_sql.go:163,269,414`),
+(`go/internal/storage/postgres/generation_retention_sql.go`: `generationRetentionCandidateQuery`, shared-intent and scope-generation delete consts),
 retirement purges
-(`internal/storage/postgres/repository_retirements_purge_sql.go:49`),
+(`go/internal/storage/postgres/repository_retirements_purge_sql.go`: purge const block),
 winners rebuilds
-(`internal/storage/postgres/supply_chain_impact_winners_keyed_sql.go:40,214`),
+(`go/internal/storage/postgres/supply_chain_impact_winners_keyed_sql.go`: `consumeWinnersDirtyLogSQL`),
 image
 identity, consumption keys, shared intents, schema and bootstrap locks,
 and the supply-chain impact transaction
-(`internal/reducer/supplychain/core/writer_retract.go:39`).
+(`go/internal/reducer/supplychain/core/writer_retract.go`: `runSupplyChainImpactTx`).
 
 Reads that decide *what* happens: delta-guard counts feeding refusal
-(`internal/storage/postgres/facts.go:202,223`), ingestion baselines and
+(`go/internal/storage/postgres/facts.go`: `countGuardFacts`, `countGuardFactsGeneration`), ingestion baselines and
 unchanged-skip, the uncovered-writers probe feeding full-versus-delta
 choice
-(`internal/storage/postgres/generation_projected_commit.go:468`),
+(`go/internal/storage/postgres/generation_projected_commit.go`: `UncoveredProjectionWriters`),
 scanner discovery and liveness reads feeding advance and admission
-(`internal/storage/postgres/control_scanner_discovery.go:221`,
-`internal/storage/postgres/cloud_resource_liveness.go:33,47`), and
+(`go/internal/storage/postgres/control_scanner_discovery.go`: `ListAuthorizedRunningImageObservationsPage`,
+`go/internal/storage/postgres/cloud_resource_liveness.go`: `undrainedCloudAdmissionWhere`), and
 content reads inside writer transactions.
 
 Auth (W*, checkpoint-bounded only):
-`internal/scopedtoken/identity.go:98`, identity subjects and tokens,
+`go/internal/scopedtoken/identity.go` (`ResolveScopedToken`), identity subjects and tokens,
 browser sessions, and OAuth flows. A stale replica changes allow into
 deny or revives a revoked token.
 
