@@ -66,6 +66,39 @@ func seedGHSACatalogCopy(t *testing.T, ctx context.Context, db *sql.DB, now time
 	}
 }
 
+// seedGHSACatalogCopyCVEOnly stores one GHSA advisory copy's CVE fact with
+// no affected_package fact in its own write-once window scope.
+func seedGHSACatalogCopyCVEOnly(t *testing.T, ctx context.Context, db *sql.DB, now time.Time, scope, generation, factPrefix, cveID, advisoryID, modifiedAt string, score float64) {
+	t.Helper()
+	if _, err := db.ExecContext(ctx, `INSERT INTO ingestion_scopes
+        (scope_id, scope_kind, source_system, source_key, collector_kind, partition_key, observed_at, ingested_at, status, active_generation_id)
+        VALUES ($1, 'vulnerability_intelligence', 'vulnerability_intelligence', $1,
+                'vulnerability_intelligence', $1, $2, $2, 'active', $3)`,
+		scope, now, generation); err != nil {
+		t.Fatalf("seed GHSA catalog scope %s: %v", scope, err)
+	}
+	if _, err := db.ExecContext(ctx, `INSERT INTO scope_generations
+        (scope_id, generation_id, trigger_kind, observed_at, ingested_at, status)
+        VALUES ($1, $2, 'schedule', $3, $3, 'active')`, scope, generation, now); err != nil {
+		t.Fatalf("seed GHSA catalog generation %s: %v", scope, err)
+	}
+	cvePayload, err := json.Marshal(map[string]any{
+		"cve_id": cveID, "advisory_id": advisoryID, "ghsa_id": advisoryID,
+		"source": "ghsa", "modified_at": modifiedAt, "severity_label": "MEDIUM", "cvss_score": score,
+	})
+	if err != nil {
+		t.Fatalf("marshal GHSA catalog cve payload: %v", err)
+	}
+	if _, err := db.ExecContext(ctx, `INSERT INTO fact_records
+        (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, source_system,
+         source_fact_key, observed_at, ingested_at, is_tombstone, payload)
+        VALUES ($1, $2, $3, 'vulnerability.cve', $1, 'vulnerability_intelligence',
+                $1, $4, $4, FALSE, $5)`,
+		factPrefix+"-cve", scope, generation, now, cvePayload); err != nil {
+		t.Fatalf("seed GHSA catalog cve fact: %v", err)
+	}
+}
+
 // TestSupplyChainAdvisoryCatalogServesNewestGHSACopyLive is the #10464
 // read-model cell: the catalog serves the newest GHSA copy per window, so an
 // older window copy's severity and packages stop shadowing the record its
@@ -97,5 +130,37 @@ func TestSupplyChainAdvisoryCatalogServesNewestGHSACopyLive(t *testing.T) {
 	}
 	if !slices.Equal(row.Sources, []string{"ghsa"}) {
 		t.Fatalf("Sources = %v, want [ghsa]", row.Sources)
+	}
+}
+
+// TestSupplyChainAdvisoryCatalogKeepsSupersededPackagesForPackagelessWinnerLive
+// is the #10464 packageless-winner cell: when the winning copy names no
+// package of its own, the record's package evidence lives only in the
+// superseded copy's scope, so the catalog still reads it instead of dropping
+// the advisory's packages.
+func TestSupplyChainAdvisoryCatalogKeepsSupersededPackagesForPackagelessWinnerLive(t *testing.T) {
+	ctx, db, now := readinessScopeLiveDatabase(t)
+	const cveID = "CVE-2026-9402"
+	const advisoryID = "GHSA-pppp-qqqq-rrrr"
+	seedGHSACatalogCopy(t, ctx, db, now,
+		"vuln-intel://ghsa/reviewed/_window/1767225600000000-1767312000000000", "generation:ghsa-w1",
+		"older", cveID, advisoryID, "2026-10-01T00:00:00Z", 9.8, "pkg:old/lib")
+	seedGHSACatalogCopyCVEOnly(t, ctx, db, now,
+		"vuln-intel://ghsa/reviewed/_window/1767312000000000-1767398400000000", "generation:ghsa-w2",
+		"newer", cveID, advisoryID, "2026-11-01T00:00:00Z", 5.0)
+
+	page, err := advisory.NewPostgresCatalogStore(db).ListAdvisoryCatalog(ctx, advisory.CatalogFilter{Query: advisoryID, Limit: 10})
+	if err != nil {
+		t.Fatalf("ListAdvisoryCatalog(): %v", err)
+	}
+	if len(page.Rows) != 1 {
+		t.Fatalf("catalog rows = %d, want 1 for one advisory in two windows", len(page.Rows))
+	}
+	row := page.Rows[0]
+	if row.CVSSScore != 5.0 {
+		t.Fatalf("CVSSScore = %v, want the packageless winner's 5.0, not the older copy's 9.8", row.CVSSScore)
+	}
+	if !slices.Equal(row.PackageIDs, []string{"pkg:old/lib"}) {
+		t.Fatalf("PackageIDs = %v, want the superseded copy's package: the winner names none", row.PackageIDs)
 	}
 }
