@@ -10,9 +10,7 @@ gates:
     triggers:
       - "go/**"
       - ".agents/**"
-      - ".claude/skills/**"
       - ".claude/agents/**"
-      - ".codex/skills/**"
       - ".codex/agents/**"
       - ".codex/config.toml"
       - ".codex/hooks.json"
@@ -109,9 +107,7 @@ gates:
       - "specs/ci-gates.d/**"
     self_test_triggers:
       - ".agents/**"
-      - ".claude/skills/**"
       - ".claude/agents/**"
-      - ".codex/skills/**"
       - ".codex/agents/**"
       - ".codex/config.toml"
       - ".codex/hooks.json"

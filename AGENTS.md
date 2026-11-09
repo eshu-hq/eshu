@@ -282,8 +282,10 @@ Read the doc that matches the change, not every doc for every change:
 
 ## Skill Routing
 
-Project skills in `.agents/skills/` are the source of truth. `.claude/skills/`
-and `.codex/skills/` link to them. Select the smallest set that covers the task.
+Project skills in `.agents/skills/` are the source of truth. The harness
+trees (`.claude/skills/`, `.codex/skills/`) are not stored here: after
+checkout, run the `eshu-agent-kit` installer (`install.sh --repo --aliases`)
+to regenerate them, then select the smallest set that covers the task.
 Use the available names and descriptions to find skills. Read a skill once when
 it applies, and load its references only for the workflow you selected. Do not
 reload an unchanged skill for each edit or status message.

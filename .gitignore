@@ -68,15 +68,19 @@ docs/site/
 
 # Repo-local tooling and scratch files. .claude/* (not .claude/) so git still
 # descends into the directory and the negations below can re-include the
-# project-level hook, settings, agent, and skill shipped with the repo.
+# project-level hook, settings, and agent files shipped with the repo.
+# Harness skill trees (.claude/skills/, .codex/skills/) are NOT shipped:
+# the eshu-agent-kit installer regenerates them locally, so they stay ignored.
 .claude/*
 !.claude/settings.json
 !.claude/hooks/
 !.claude/hooks/**
-!.claude/skills/
-!.claude/skills/**
 !.claude/agents/
 !.claude/agents/**
+.claude/skills/
+.claude/skills/**
+.codex/skills/
+.codex/skills/**
 .worktrees/
 node_modules/
 dist/
