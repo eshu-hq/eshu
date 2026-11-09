@@ -13,7 +13,7 @@ no recorded pin. Newer tags MUST NOT be substituted without that reviewed
 update):
 
 - `github.com/eshu-hq/eshu-sdk/collector v0.2.0-rc.4`
-- `github.com/eshu-hq/eshu-sdk/factschema v0.1.0-rc.18`
+- `github.com/eshu-hq/eshu-sdk/factschema v0.1.0-rc.19`
 
 Pin history: proxy-verified 2026-10-24 at collector/factschema
 `v0.1.0-rc.1`; in-tree moved to standalone modules at collector `rc.3` +
@@ -61,7 +61,9 @@ plus validator, JSON schema, and goldens, and to factschema `v0.1.0-rc.18`
 (eshu-hq/eshu#9876; both tags at `947f8449`, zips
 `h1:sEINyRomi8ME7WdrhrW4fSWX2vn6GmIw1oEOmNT2PYY=` /
 `h1:RRoYb7+52kaHt2ErQ6e0NEIDBX0nLbnBhXMQgLX75PA=`, proxy-verified 2026-11-08
-via `go get`).
+via `go get`), and to factschema `v0.1.0-rc.19` (eshu-hq/eshu#10037; tag at
+`5537eb6`, zip `h1:XCr3s4ASd1RK2/mSvbEr2qbuTqnnVgEzbUTr6Oxba58=`,
+proxy-verified 2026-11-09 via `go mod download`).
 The extracted port
 (`eshu-collector-sbom-attestation` main, observed 2026-10-27) still builds
 at collector/factschema `v0.1.0-rc.2` — that drift is open until the port
