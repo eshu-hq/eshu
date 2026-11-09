@@ -51,6 +51,7 @@ nav:
     - Prove a Change: tutorials/prove-a-change.md
   - How-to Guides:
     - Overview: use/index.md
+    - All Guides: guides/index.md
     - Index Repositories: use/index-repositories.md
     - Ask Code Questions: use/code-questions.md
     - Connect MCP:
@@ -498,6 +499,7 @@ nav:
       - Reference PagerDuty Extension: extend/reference-pagerduty-extension.md
       - Language Support: contributing-language-support.md
     - Roadmap: roadmap.md
+    - Decisions: decisions/index.md
     - Contributing: contributing.md
     - Documentation Style Guide: documentation-style-guide.md
     - Code With Agents: guides/coding-with-agents.md
