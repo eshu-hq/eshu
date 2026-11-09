@@ -225,12 +225,14 @@ EOF
 # the CI-class list-route proof; Neo4j-only like the #8816 rows)
 # (#10110: +1 neo4j ledger row for cmd/reducer semantic_canonical_owner_live_test.go,
 # the canonical-ownership regression; Neo4j-only by ledger pin)
+# (#10411: +1 neo4j ledger row for reducer/advisory/group drain_live_test.go,
+# the queue-drain proof; Neo4j-only like its parity sibling)
 mapfile -t plan < <(ESHU_LIVE_RUNNER_SELFTEST=plan bash "${script}" --backend both)
-[[ "${#plan[@]}" == "90" ]] || fail "planned runs ${#plan[@]}, want 90 (34 nornicdb + 56 neo4j)"
+[[ "${#plan[@]}" == "91" ]] || fail "planned runs ${#plan[@]}, want 91 (34 nornicdb + 57 neo4j)"
 mapfile -t plan_nornicdb < <(ESHU_LIVE_RUNNER_SELFTEST=plan bash "${script}" --backend nornicdb)
 [[ "${#plan_nornicdb[@]}" == "34" ]] || fail "nornicdb planned runs ${#plan_nornicdb[@]}, want 34"
 mapfile -t plan_neo4j < <(ESHU_LIVE_RUNNER_SELFTEST=plan bash "${script}" --backend neo4j)
-[[ "${#plan_neo4j[@]}" == "56" ]] || fail "neo4j planned runs ${#plan_neo4j[@]}, want 56"
+[[ "${#plan_neo4j[@]}" == "57" ]] || fail "neo4j planned runs ${#plan_neo4j[@]}, want 57"
 printf '%s\n' "${plan_neo4j[@]}" | rg -q '^neo4j\|[^|]*\|.*repository_context_workload_count_neo4j_live_test' ||
 	fail "materialized workload-count regression missing from neo4j plan"
 assert_workload_count_neo4j_only() {
