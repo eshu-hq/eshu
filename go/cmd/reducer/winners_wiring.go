@@ -24,17 +24,25 @@ const supplyChainImpactWinnersAuditIntervalEnv = "ESHU_SUPPLY_CHAIN_IMPACT_WINNE
 const defaultSupplyChainImpactWinnersAuditInterval = 10 * time.Minute
 
 // supplyChainImpactWinnersReadRoutingEnv is the reader routing mode the stale
-// audit scan honors. Only stale-audits admits it; anything else keeps the
-// writer-backed audit.
+// audit scan honors. stale-audits admits the split scan, staged-audits the
+// staged scan; anything else keeps the writer-backed audit.
 const supplyChainImpactWinnersReadRoutingEnv = "ESHU_POSTGRES_READ_ROUTING"
 
+// winnersStagedAuditRouting reports whether routing selects the staged
+// standby scan (#10451) instead of the split scan. The access gate already
+// rejects bogus modes, so this only distinguishes the two admitted ones.
+func winnersStagedAuditRouting(getenv func(string) string) bool {
+	return strings.TrimSpace(getenv(supplyChainImpactWinnersReadRoutingEnv)) == string(pgaccess.ReadRoutingStagedAudits)
+}
+
 // openWinnersStaleAccessIfEnabled opens the Postgres access for the
-// winners-audit split scan (#10416 slice 1) when routing admits stale audits.
-// Default off (unset or "off") returns nil without touching the database, so
-// the Auditor stays writer-backed exactly as before. Any other value fails
-// startup: an unknown mode must never silently run as off. The access serves
-// only the audit's candidate scan through StaleReader; every write and every
-// other read keeps the reducer's own writer pool.
+// winners-audit stale scans when routing admits stale audits: the split scan
+// (#10416 slice 1) or the staged scan (#10451). Default off (unset or "off")
+// returns nil without touching the database, so the Auditor stays
+// writer-backed exactly as before. Any other value fails startup: an unknown
+// mode must never silently run as off. The access serves only the audit's
+// candidate scan; every write and every other read keeps the reducer's own
+// writer pool.
 func openWinnersStaleAccessIfEnabled(
 	ctx context.Context,
 	getenv func(string) string,
@@ -46,9 +54,9 @@ func openWinnersStaleAccessIfEnabled(
 	switch raw := strings.TrimSpace(getenv(supplyChainImpactWinnersReadRoutingEnv)); raw {
 	case "", string(pgaccess.ReadRoutingOff):
 		return nil, noop, nil
-	case string(pgaccess.ReadRoutingStaleAudits):
+	case string(pgaccess.ReadRoutingStaleAudits), string(pgaccess.ReadRoutingStagedAudits):
 	default:
-		return nil, nil, fmt.Errorf("supply chain impact winners stale access: ESHU_POSTGRES_READ_ROUTING must be off or stale-audits, got %q", raw)
+		return nil, nil, fmt.Errorf("supply chain impact winners stale access: ESHU_POSTGRES_READ_ROUTING must be off, stale-audits, or staged-audits, got %q", raw)
 	}
 	poolCfg, err := pgaccess.LoadConfig(getenv)
 	if err != nil {

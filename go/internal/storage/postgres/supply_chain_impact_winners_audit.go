@@ -245,25 +245,26 @@ func (s SupplyChainImpactWinnersStore) AuditWinners(
 
 var _ supplychaincore.SupplyChainImpactWinnersAuditor = SupplyChainImpactWinnersStore{}
 
-// winnersAuditIdent is one candidate identifier read from the stale
-// candidate scan. Nulls are preserved so the seed matches the legacy
-// temp-table copy exactly.
-type winnersAuditIdent struct {
-	packageID     sql.NullString
-	repositoryID  sql.NullString
-	subjectDigest sql.NullString
-	c0            sql.NullString
-	advisoryID    sql.NullString
+// WinnersAuditIdent is one candidate identifier for the under-lock keyed
+// verification. Nulls are preserved so the seed matches the legacy
+// temp-table copy exactly. The staged standby scan (#10451) resolves the
+// same identifiers from compacted winners instead of the candidate cursor.
+type WinnersAuditIdent struct {
+	PackageID     sql.NullString
+	RepositoryID  sql.NullString
+	SubjectDigest sql.NullString
+	C0            sql.NullString
+	AdvisoryID    sql.NullString
 }
 
 // scanWinnersAuditIdents drains the stale candidate cursor. Like its row-count
 // sibling it closes the cursor and reports a cursor failure as a read error.
-func scanWinnersAuditIdents(rows db.Rows) ([]winnersAuditIdent, error) {
+func scanWinnersAuditIdents(rows db.Rows) ([]WinnersAuditIdent, error) {
 	defer func() { _ = rows.Close() }()
-	var out []winnersAuditIdent
+	var out []WinnersAuditIdent
 	for rows.Next() {
-		var ident winnersAuditIdent
-		if err := rows.Scan(&ident.packageID, &ident.repositoryID, &ident.subjectDigest, &ident.c0, &ident.advisoryID); err != nil {
+		var ident WinnersAuditIdent
+		if err := rows.Scan(&ident.PackageID, &ident.RepositoryID, &ident.SubjectDigest, &ident.C0, &ident.AdvisoryID); err != nil {
 			return nil, fmt.Errorf("scan supply chain impact winners audit candidates: %w", err)
 		}
 		out = append(out, ident)
@@ -286,7 +287,7 @@ func nullStringArg(value sql.NullString) any {
 // seedWinnersAuditStaleIdents appends every candidate identifier to the
 // verification table one bounded batch per INSERT. Only each INSERT's
 // argument arrays are batch-bounded; the slice already holds every candidate.
-func seedWinnersAuditStaleIdents(ctx context.Context, tx db.Transaction, idents []winnersAuditIdent) error {
+func seedWinnersAuditStaleIdents(ctx context.Context, tx db.Transaction, idents []WinnersAuditIdent) error {
 	for start := 0; start < len(idents); start += winnersAuditStaleSeedBatchSize {
 		end := min(start+winnersAuditStaleSeedBatchSize, len(idents))
 		batch := idents[start:end]
@@ -296,11 +297,11 @@ func seedWinnersAuditStaleIdents(ctx context.Context, tx db.Transaction, idents 
 		c0s := make([]any, 0, len(batch))
 		advisoryIDs := make([]any, 0, len(batch))
 		for _, ident := range batch {
-			packageIDs = append(packageIDs, nullStringArg(ident.packageID))
-			repositoryIDs = append(repositoryIDs, nullStringArg(ident.repositoryID))
-			subjectDigests = append(subjectDigests, nullStringArg(ident.subjectDigest))
-			c0s = append(c0s, nullStringArg(ident.c0))
-			advisoryIDs = append(advisoryIDs, nullStringArg(ident.advisoryID))
+			packageIDs = append(packageIDs, nullStringArg(ident.PackageID))
+			repositoryIDs = append(repositoryIDs, nullStringArg(ident.RepositoryID))
+			subjectDigests = append(subjectDigests, nullStringArg(ident.SubjectDigest))
+			c0s = append(c0s, nullStringArg(ident.C0))
+			advisoryIDs = append(advisoryIDs, nullStringArg(ident.AdvisoryID))
 		}
 		if _, err := tx.ExecContext(ctx, seedWinnersAuditStaleIdentsSQL,
 			packageIDs, repositoryIDs, subjectDigests, c0s, advisoryIDs); err != nil {
@@ -337,53 +338,5 @@ func (s SupplyChainImpactWinnersStore) auditWinnersSplit(
 	if len(idents) == 0 {
 		return supplychaincore.SupplyChainImpactWinnersAudit{ReadDuration: read}, nil
 	}
-	beginner, ok := s.DB.(db.Beginner)
-	if !ok {
-		return none, fmt.Errorf("supply chain impact winners database must support transactions")
-	}
-	tx, err := beginner.Begin(ctx)
-	if err != nil {
-		return none, fmt.Errorf("begin supply chain impact winners audit: %w", err)
-	}
-	defer func() { _ = tx.Rollback() }()
-
-	// The seed lands before the lock claim so the single-flight resweep lock
-	// is held only for the verification, not for the batched round trips. A
-	// lost claim rolls the seeded temp tables back with the transaction.
-	if _, err := tx.ExecContext(ctx, createWinnersAuditStaleIdentsSQL); err != nil {
-		return none, fmt.Errorf("verify supply chain impact winners audit candidates: %w", err)
-	}
-	if err := seedWinnersAuditStaleIdents(ctx, tx, idents); err != nil {
-		return none, err
-	}
-	if _, err := tx.ExecContext(ctx, analyzeWinnersKeyedIdentsSQL); err != nil {
-		return none, fmt.Errorf("verify supply chain impact winners audit candidates: %w", err)
-	}
-	claimed, err := claimSupplyChainImpactWinnersResweep(ctx, tx)
-	if err != nil {
-		return none, err
-	}
-	if !claimed {
-		return supplychaincore.SupplyChainImpactWinnersAudit{Skipped: true, ReadDuration: read}, nil
-	}
-	for _, stmt := range []string{
-		buildWinnersKeyedActiveFactsSQL, addWinnersKeyedOperatorFactsSQL, analyzeWinnersKeyedActiveFactsSQL,
-		createWinnersAuditStaleSQL, createWinnersAuditPendingSQL,
-	} {
-		if _, err := tx.ExecContext(ctx, stmt); err != nil {
-			return none, fmt.Errorf("verify supply chain impact winners audit candidates: %w", err)
-		}
-	}
-	queued, err := tx.ExecContext(ctx, queueWinnersAuditRepairsSQL)
-	if err != nil {
-		return none, fmt.Errorf("queue supply chain impact winners audit repairs: %w", err)
-	}
-	repairs, err := queued.RowsAffected()
-	if err != nil {
-		return none, fmt.Errorf("read supply chain impact winners audit repairs: %w", err)
-	}
-	if err := tx.Commit(); err != nil {
-		return none, fmt.Errorf("commit supply chain impact winners audit: %w", err)
-	}
-	return supplychaincore.SupplyChainImpactWinnersAudit{Repairs: repairs, ReadDuration: read}, nil
+	return s.VerifyStagedCandidates(ctx, idents, read)
 }
