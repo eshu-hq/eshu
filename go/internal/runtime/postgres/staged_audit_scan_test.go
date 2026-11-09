@@ -319,3 +319,26 @@ func TestStagedAuditTelemetryCountsUnresolvable(t *testing.T) {
 		t.Fatalf("unresolvable = %d, want 3", got)
 	}
 }
+
+func TestClassifyStagedAuditAbortMapsReadErrors(t *testing.T) {
+	conflict := &pgconn.PgError{Code: "40001", Message: "canceling statement due to conflict with recovery"}
+	deferred := ClassifyStagedAuditAbort(conflict)
+	tickErr, ok := deferred.(*StagedAuditDeferredError)
+	if !ok {
+		t.Fatalf("conflict classified as %T, want *StagedAuditDeferredError", deferred)
+	}
+	if tickErr.Reason != StagedAuditDeferConflictExhausted {
+		t.Fatalf("conflict reason = %q, want conflict-exhausted", tickErr.Reason)
+	}
+	plain := ClassifyStagedAuditAbort(errors.New("connection reset"))
+	tickErr, ok = plain.(*StagedAuditDeferredError)
+	if !ok {
+		t.Fatalf("plain error classified as %T, want *StagedAuditDeferredError", plain)
+	}
+	if tickErr.Reason != StagedAuditDeferBatchAbort {
+		t.Fatalf("plain reason = %q, want batch-abort", tickErr.Reason)
+	}
+	if ClassifyStagedAuditAbort(nil) != nil {
+		t.Fatal("nil must stay nil, never a deferral")
+	}
+}

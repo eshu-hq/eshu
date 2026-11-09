@@ -92,11 +92,16 @@ func buildObservedReducerService(
 		if maintainer := serviceRunner.SupplyChainImpactWinnersMaintainer; maintainer != nil {
 			if winnersStagedAuditRouting(getenv) {
 				// staged-audits runs the staged standby scan: per-scope
-				// batches on one pinned member, compacted client-side.
+				// batches on one pinned member, compacted client-side. The
+				// telemetry instance is shared across ticks so deferral
+				// splits, gauges, and the verify discard rate accumulate
+				// instead of recording into a per-tick recorder.
+				stagedTelemetry := pgaccess.NewStagedAuditTelemetry()
 				maintainer.Auditor = stagedaudit.StagedAuditor{
-					Fleet:  pgaccess.NewStagedAuditAccessFleet(staleAccess),
-					Store:  postgres.NewSupplyChainImpactWinnersStore(instrumentedDB),
-					Logger: logger,
+					Fleet:     pgaccess.NewStagedAuditAccessFleet(staleAccess),
+					Store:     postgres.NewSupplyChainImpactWinnersStore(instrumentedDB),
+					Telemetry: stagedTelemetry,
+					Logger:    logger,
 				}
 			} else {
 				maintainer.Auditor = postgres.NewSupplyChainImpactWinnersStore(instrumentedDB).

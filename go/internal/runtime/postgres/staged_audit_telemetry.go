@@ -8,19 +8,6 @@ import (
 	"time"
 )
 
-// Staged audit operator metric names. Dimensions stay closed: deferrals carry
-// only the reason, ticks carry only counts, and member identity travels in
-// the tick record, never as a metric label.
-const (
-	MetricStagedAuditDeferralsTotal   = "eshu_dp_staged_audit_deferrals_total"
-	MetricStagedAuditBatchCount       = "eshu_dp_staged_audit_batch_count"
-	MetricStagedAuditMaxBatchDuration = "eshu_dp_staged_audit_max_batch_duration_seconds"
-	MetricStagedAuditStagedFacts      = "eshu_dp_staged_audit_staged_facts"
-	MetricStagedAuditDistinctKeys     = "eshu_dp_staged_audit_distinct_keys"
-	MetricStagedAuditVerifyDiscards   = "eshu_dp_staged_audit_verify_discards_total"
-	StagedAuditTelemetryReasonLabel   = "reason"
-)
-
 // StagedAuditTelemetry is the in-memory operator surface for the staged audit
 // tick: a deferral counter split by closed reason, the last tick's batch
 // count, max batch duration, and staged gauges, the member identity with

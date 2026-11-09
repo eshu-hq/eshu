@@ -44,10 +44,15 @@ is the fake member-pinned fleet (no live standby needed); row counts are the
 (`supply_chain_impact_winners_audit.go`) is byte-intact: `git status` shows
 only the three new lane-C files.
 
-No-Observability-Change: lane C adds no OTEL instrument, span, log line,
-route, worker, lease, or runtime knob. Telemetry lives in the in-memory
-`StagedAuditTelemetry` recorder the tick runner owns; the six
-`eshu_dp_staged_audit_*` metric names are constants for the future
-registration, never emitted. Operators diagnose the path through the tick
-result (member, batches, staged counts, replay lag) and the deferral reason
-on the returned `*StagedAuditDeferredError`.
+Operator surface: lane C adds no OTEL instrument, span, route, worker,
+lease, or runtime knob. The 3am surface is twofold: the shared in-memory
+`StagedAuditTelemetry` recorder (deferrals split by closed reason, last-tick
+gauges, member with replay lag, verify discard rate) and one structured log
+line per tick (`staged winners audit tick` with batches, staged facts,
+distinct keys, candidates, unresolvable, repairs, discards, member, read
+seconds; `staged winners audit deferred` with reason on deferral). The
+previously reserved `eshu_dp_staged_audit_*` metric-name constants were
+removed as write-only; a future Prometheus registration can re-add names
+alongside the emission code. Operators diagnose the path through the tick
+log line and the deferral reason on the returned
+`*StagedAuditDeferredError`.

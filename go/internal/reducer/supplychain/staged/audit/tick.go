@@ -33,8 +33,9 @@ type StagedAuditor struct {
 	Fleet pgaccess.StagedAuditFleet
 	// Store runs the writer-side verification. Required.
 	Store postgres.SupplyChainImpactWinnersStore
-	// Telemetry records deferrals, ticks, and unresolvable keys. Nil records
-	// into a private recorder the tick discards.
+	// Telemetry is the shared recorder deferrals, ticks, unresolvable keys,
+	// and verify discards accumulate into. Nil uses a per-tick private
+	// recorder; production wiring always shares one instance across ticks.
 	Telemetry *pgaccess.StagedAuditTelemetry
 	// BatchTimeout bounds one batch statement. Zero selects the production
 	// default.
@@ -51,7 +52,14 @@ var _ supplychaincore.SupplyChainImpactWinnersAuditor = StagedAuditor{}
 // returns without touching the writer either.
 func (a StagedAuditor) AuditWinners(ctx context.Context) (supplychaincore.SupplyChainImpactWinnersAudit, error) {
 	var none supplychaincore.SupplyChainImpactWinnersAudit
-	idents, unresolvable, read, result, err := a.runReadPhase(ctx)
+	// One instance for the whole tick: the runner's deferral and gauge
+	// observations and the verify discard count below must accumulate in
+	// the same recorder, never in two per-tick privates.
+	telemetry := a.Telemetry
+	if telemetry == nil {
+		telemetry = pgaccess.NewStagedAuditTelemetry()
+	}
+	idents, unresolvable, read, result, err := a.runReadPhase(ctx, telemetry)
 	if err != nil {
 		var deferred *pgaccess.StagedAuditDeferredError
 		if errors.As(err, &deferred) {
@@ -70,11 +78,16 @@ func (a StagedAuditor) AuditWinners(ctx context.Context) (supplychaincore.Supply
 	if err != nil {
 		return none, err
 	}
+	// Candidates the writer-side verification drops as clean are discards,
+	// not misses: they prove the superset diff erred toward safety.
+	discarded := int64(len(idents)) - audit.Repairs
+	telemetry.ObserveVerify(discarded)
 	if a.Logger != nil {
 		a.Logger.InfoContext(ctx, "staged winners audit tick",
 			slog.Int("batches", result.Batches), slog.Int("staged_facts", result.StagedFacts),
 			slog.Int("distinct_keys", result.DistinctKeys), slog.Int("candidates", len(idents)),
 			slog.Int("unresolvable", unresolvable), slog.Int64("repairs", audit.Repairs),
+			slog.Int64("discards", discarded),
 			slog.String("member", result.MemberID), slog.Float64("read_seconds", read.Seconds()))
 	}
 	return audit, nil
@@ -83,11 +96,12 @@ func (a StagedAuditor) AuditWinners(ctx context.Context) (supplychaincore.Supply
 // runReadPhase streams every scope batch on the tick's pinned member into the
 // compactor, diffs against the stored winners fetched on the same member,
 // and resolves the candidate keys to verification identifiers with one
-// point lookup per new key. The writer is never contacted here.
-func (a StagedAuditor) runReadPhase(ctx context.Context) ([]postgres.WinnersAuditIdent, int, time.Duration, pgaccess.StagedAuditTickResult, error) {
+// point lookup per new key. The writer is never contacted here. The caller
+// supplies the tick's telemetry instance so runner observations accumulate
+// in it; nil takes a private recorder.
+func (a StagedAuditor) runReadPhase(ctx context.Context, telemetry *pgaccess.StagedAuditTelemetry) ([]postgres.WinnersAuditIdent, int, time.Duration, pgaccess.StagedAuditTickResult, error) {
 	started := time.Now()
 	var empty pgaccess.StagedAuditTickResult
-	telemetry := a.Telemetry
 	if telemetry == nil {
 		telemetry = pgaccess.NewStagedAuditTelemetry()
 	}
@@ -142,15 +156,24 @@ func (a StagedAuditor) runReadPhase(ctx context.Context) ([]postgres.WinnersAudi
 		return nil, 0, time.Since(started), empty, err
 	}
 	keys := postgres.DiffCandidates(compactor.SourceWinners(), compactor.Overrides(), stored)
+	// Ident resolution is still read phase: point lookups for new keys run on
+	// the tick member, bounded like a batch, and any failure — including a
+	// standby conflict mid-loop — defers under the single abort policy.
+	resolveTimeout := a.BatchTimeout
+	if resolveTimeout <= 0 {
+		resolveTimeout = pgaccess.DefaultStagedAuditBatchTimeout
+	}
+	resolveCtx, cancel := context.WithTimeout(ctx, resolveTimeout)
+	defer cancel()
 	var idents []postgres.WinnersAuditIdent
 	unresolvable := 0
-	resolveErr := a.Fleet.RunOnMember(ctx, result.MemberID, func(stmtCtx context.Context, reader db.Queryer) error {
+	resolveErr := a.Fleet.RunOnMember(resolveCtx, result.MemberID, func(stmtCtx context.Context, reader db.Queryer) error {
 		var err error
 		idents, unresolvable, err = postgres.ResolveCandidateIdents(stmtCtx, reader, keys, compactor.SourceWinners(), compactor.Overrides(), stored)
 		return err
 	})
-	if resolveErr != nil {
-		return nil, 0, time.Since(started), empty, resolveErr
+	if classified := pgaccess.ClassifyStagedAuditAbort(resolveErr); classified != nil {
+		return nil, 0, time.Since(started), empty, classified
 	}
 	telemetry.ObserveUnresolvable(unresolvable)
 	return idents, unresolvable, time.Since(started), result, nil

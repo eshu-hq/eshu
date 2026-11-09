@@ -320,6 +320,16 @@ func (r *StagedAuditRunner) RunTick(ctx context.Context, plan StagedAuditTickPla
 	return result, nil
 }
 
+// ClassifyStagedAuditAbort maps a staged read-phase error raised outside the
+// runner (post-tick ident resolution) to the same typed deferral the runner
+// returns, under the same single policy. A nil error stays nil.
+func ClassifyStagedAuditAbort(err error) error {
+	if err == nil {
+		return nil
+	}
+	return &StagedAuditDeferredError{Reason: classifyStagedAuditAbort(err), Err: err}
+}
+
 // classifyStagedAuditAbort maps a statement failure to its deferral reason.
 // Recovery conflicts exhaust the tick; everything else from a read statement
 // (transport loss, timeouts, rejections) aborts the batch.
