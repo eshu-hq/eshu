@@ -14,7 +14,8 @@
 # leg second) — but left A's window active at phase end, and #7862 proved
 # that leaks downstream: B-7c query truth runs ~1min later and pins
 # (A, expired), so an active A fails it findings-empty. The end-clean fix
-# arms A late on a 200s window, then waits A out and asserts the expired
+# arms A late on a 300s window (#10473: widened from 200s after a ~276s
+# worst drain observation overran it), then waits A out and asserts the expired
 # readback under A, so the phase always ends at the exact B-7c pins.
 # These cases simulate drain regimes against the CURRENT libs with a fake
 # clock and a findings API that mirrors the real semantics: the reducer
@@ -23,7 +24,9 @@
 # flipped by expires_at, and identical-body retry is blind to expiry.
 # Covered: the 2s normal regime (matching the 12/12 ~2.1s CI drains), the
 # observed single-62s stall, a triple-62s extreme (still inside the window),
-# and a beyond-ceiling stall that must red honestly at the hidden assert
+# the #10473 worst observation (~276s across the three post-arm drains —
+# red under the old 200s window, green under 300s), and a beyond-ceiling
+# stall that must red honestly at the hidden assert
 # with the stall diagnostic. Every pass case ends with a B-7c mirror (+60s,
 # full (A, expired) pins). A future reorder, a leg that stops ending clean,
 # or a lost stall diagnostic turns CI red here instead of flaking B-7.
@@ -323,7 +326,7 @@ fi
 			return 1
 		}
 	fi
-	# B is a live 20s window, A a 200s window; the final expired readback
+	# B is a live 20s window, A a 300s window; the final expired readback
 	# pins (A, expired) — the persisted winner with state flipped.
 	local b_window a_window expired_id expired_state b_expires b_authored a_expires a_authored
 	b_expires="$(suppression_seq_epoch_from_rfc3339 "$(jq -r '.expires_at' "${log_dir}/suppression-expiry-request.json")")"
@@ -338,8 +341,8 @@ fi
 		printf 'case %s: B window %s, want 20\n' "${case_name}" "${b_window}" >&2
 		return 1
 	}
-	((a_window == 200)) || {
-		printf 'case %s: A window %s, want 200\n' "${case_name}" "${a_window}" >&2
+	((a_window == 300)) || {
+		printf 'case %s: A window %s, want 300\n' "${case_name}" "${a_window}" >&2
 		return 1
 	}
 	[[ "${expired_id}" == "golden-CVE-2026-00010" && "${expired_state}" == "expired" ]] || {
@@ -386,14 +389,23 @@ suppression_seq_run_case "single-stall-62s" "2 2 2 62" "ignored" "pass" ||
 	fail "#7740 sequencing: single 62s stall must pass with its stall line"
 
 # Case 3: the extreme. Every drain stalls 62s at once; the hidden asserts
-# land at ~186s, still inside the 200s window.
+# land at ~186s, still inside the 300s window.
 suppression_seq_run_case "triple-stall-62s" "62 62 62 62" "any" "pass" ||
 	fail "#7740 sequencing: triple 62s stall must still pass"
 
-# Case 4: beyond the ceiling. A 200s ignored drain consumes the window, so
-# the proof must die exactly at the hidden assert with the ignored-drain
-# stall diagnostic — an honest red, not a silent wrong answer.
-suppression_seq_run_case "beyond-ceiling-200s" "2 2 2 200" "ignored" "red-hidden" ||
-	fail "#7740 sequencing: 200s stall must red honestly at hidden"
+# Case 4: the #10473 worst observation. The three post-arm drains total
+# ~276s (92s each): honest-red under the old 200s window (proven by the
+# pre-widening run, which died exactly at the hidden assert), green under
+# the widened 300s window. All three post-arm drains stall, so any stall
+# line satisfies the diagnostic check.
+suppression_seq_run_case "worst-observation-276s" "2 92 92 92" "any" "pass" ||
+	fail "#10473 sequencing: 276s stall must pass under a 300s window"
+
+# Case 5: beyond the ceiling. A 300s ignored drain consumes the 300s window
+# (304s elapsed from arm), so the proof must die exactly at the hidden
+# assert with the ignored-drain stall diagnostic — an honest red, not a
+# silent wrong answer.
+suppression_seq_run_case "beyond-ceiling-300s" "2 2 2 300" "ignored" "red-hidden" ||
+	fail "#10473 sequencing: 300s stall must red honestly at hidden"
 
 suppression_sequencing_cases_completed=1
