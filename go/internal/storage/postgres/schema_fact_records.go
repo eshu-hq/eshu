@@ -3,7 +3,7 @@
 
 package postgres
 
-const factRecordSchemaSQL = factRecordBaseSchemaSQL + documentationFactRecordReadIndexesSQL + factRecordReadIndexesSQL + terraformBackendsFactRecordReadIndexesSQL + terraformBackendsOuterLegFactRecordReadIndexesSQL + crossplaneXRDFactRecordReadIndexesSQL + vulnerabilityFactRecordReadIndexesSQL + incidentFactRecordReadIndexesSQL + incidentRuntimeFactRecordReadIndexesSQL + incidentWorkItemFactRecordReadIndexesSQL + codeFlowFactRecordReadIndexesSQL + containerImageIdentityCutoverSchemaSQL
+const factRecordSchemaSQL = factRecordBaseSchemaSQL + documentationFactRecordReadIndexesSQL + factRecordReadIndexesSQL + terraformBackendsFactRecordReadIndexesSQL + terraformBackendsOuterLegFactRecordReadIndexesSQL + crossplaneXRDFactRecordReadIndexesSQL + vulnerabilityFactRecordReadIndexesSQL + incidentFactRecordReadIndexesSQL + incidentRuntimeFactRecordReadIndexesSQL + incidentWorkItemFactRecordReadIndexesSQL + codeFlowFactRecordReadIndexesSQL + containerImageIdentityCutoverSchemaSQL + supplyChainImpactFactRecordReadIndexesSQL
 
 const factRecordBaseSchemaSQL = `
 CREATE TABLE IF NOT EXISTS fact_records (

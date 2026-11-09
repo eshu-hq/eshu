@@ -232,13 +232,18 @@ import (
 // #10411 adds 287_supply_chain_impact_winners_group_key.sql (the expression
 // index serving the advisory-group qualifying-winners read's coalesced
 // group-key predicate; one CREATE INDEX, no table).
-const goldenBootstrapDefinitionsDigest = "71282610b6f0ef132a6cf3e8dace883b3413f2c4b29627b6d704507cad963d75"
+// #10408 adds 288_fact_records_supply_chain_impact_advisory_lookup_idx.sql
+// (the advisory arm of the holder fan-out lookup),
+// 289_fact_records_supply_chain_impact_group_members_idx.sql (the
+// member-set arm), and 290_fact_records_supply_chain_impact_advisory_id_stats.sql
+// (extended statistics holding the advisory arm on its index).
+const goldenBootstrapDefinitionsDigest = "977e567c9a36deb5529a16b8be74514ffc42c2e9681b6a16671a121a8172790a"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or
 // silently dropping files) fails loudly even in the unlikely case of a hash
 // collision.
-const goldenBootstrapDefinitionsCount = 313
+const goldenBootstrapDefinitionsCount = 316
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
 	defs := BootstrapDefinitions()

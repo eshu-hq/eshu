@@ -1224,6 +1224,35 @@ type Instruments struct {
 	// holder read, reopen, or own-item state update, each of which fails the
 	// pass so the queue retries it.
 	SupplyChainImpactFanOut metric.Int64Counter
+	// SupplyChainImpactRekeyTotal counts supply-chain impact passes whose
+	// writer commit changed a group's identity, by their closed re-key
+	// outcome (#10408): merge (old group keys retired while new keys
+	// committed), split (the pass dropped suppression coverage a group
+	// named), member_only (keys rewritten in place, membership refreshed),
+	// or retire_only (rows retired, nothing derived). Labels: domain
+	// (supply_chain_impact) and outcome. A pass that re-derives identical
+	// groups (an EPSS refresh, admission-only, bootstrap, rollover, or
+	// same-key rewrite) counts nothing, so the steady state is silence,
+	// not a member_only floor. Read the rate by outcome as the rollout's
+	// first measurement of alias-churn; a split rate needs a deliberate
+	// suppression re-issue, a merge converges on its own. Emitted from the
+	// pass dispatcher in supplychain core's rekey_signals.go.
+	SupplyChainImpactRekeyTotal metric.Int64Counter
+	// SupplyChainImpactSuppressionCarriedViaMember counts suppression
+	// coverage a re-key wave carried through a member anchor that is not
+	// the finding's group key (#10408 L3, promoted to an instrument in
+	// L7). Labels: domain (supply_chain_impact) and the re-key outcome of
+	// the carrying pass. The same pass also reports the tally on the
+	// suppression_carried_via_member result sub-signal.
+	SupplyChainImpactSuppressionCarriedViaMember metric.Int64Counter
+	// SupplyChainImpactSuppressionOrphanedBySplit counts loaded, unexpired
+	// suppressions naming a re-key-touched id that no new finding cites
+	// anymore (#10408 L3, promoted to an instrument in L7). Labels:
+	// domain (supply_chain_impact) and the re-key outcome of the
+	// orphaning pass. A nonzero rate is the operator's re-issue list. The
+	// same pass also reports the tally on the suppression_orphaned_by_split
+	// result sub-signal.
+	SupplyChainImpactSuppressionOrphanedBySplit metric.Int64Counter
 	// SupplyChainImpactPassTotal counts supply-chain impact findings passes
 	// by how they ran (#9779). Labels: domain (supply_chain_impact) and
 	// mode (full, scoped, scoped_fallback_sentinel,
@@ -5119,6 +5148,30 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register SupplyChainImpactFanOut counter: %w", err)
+	}
+
+	inst.SupplyChainImpactRekeyTotal, err = meter.Int64Counter(
+		"eshu_dp_supply_chain_impact_rekey_total",
+		metric.WithDescription("Total supply-chain impact passes that touched an advisory group, by reducer domain and closed re-key outcome (merge, split, member_only, retire_only; #10408)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register SupplyChainImpactRekeyTotal counter: %w", err)
+	}
+
+	inst.SupplyChainImpactSuppressionCarriedViaMember, err = meter.Int64Counter(
+		"eshu_dp_supply_chain_impact_suppression_carried_via_member_total",
+		metric.WithDescription("Total suppression coverage a supply-chain impact re-key wave carried through a member anchor, by reducer domain and re-key outcome (#10408)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register SupplyChainImpactSuppressionCarriedViaMember counter: %w", err)
+	}
+
+	inst.SupplyChainImpactSuppressionOrphanedBySplit, err = meter.Int64Counter(
+		"eshu_dp_supply_chain_impact_suppression_orphaned_by_split_total",
+		metric.WithDescription("Total suppressions a supply-chain impact re-key wave orphaned, by reducer domain and re-key outcome (#10408)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register SupplyChainImpactSuppressionOrphanedBySplit counter: %w", err)
 	}
 
 	inst.SupplyChainImpactPassTotal, err = meter.Int64Counter(

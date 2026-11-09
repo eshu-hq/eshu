@@ -235,6 +235,7 @@ func supplyChainImpactParamValues(filter supplychaincore.SupplyChainImpactFactFi
 		factimpact.SuppressionLimit:    maxSupplyChainImpactActiveEvidenceRowsPerCall + 1,
 		factimpact.UpstreamCVEIDs:      filter.UpstreamCVEIDs,
 		factimpact.AliasIDs:            filter.AliasIDs,
+		factimpact.LowerAliasIDs:       lowerCleanedStringFilterValues(filter.AliasIDs),
 	}
 }
 

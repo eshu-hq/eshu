@@ -267,3 +267,106 @@ the reopened count on `sub_signal_manifest_trigger_repository_holders`.
 behavior. A clean pass never touches the repository-keyed read.
 Evidence: `docs/internal/evidence/9874-lockfile-retrigger.md`,
 `docs/internal/evidence/10059-repository-reopen.md`.
+
+Re-key (L2, #10408): the genuine pass fans out
+`union(ChangedCVEIDs, TouchedGroupIDs)` plus the owed-retry union with
+`Recovery`, and the holder read is a 3-arm OR over `cve_id`, `advisory_id`,
+and group `members` so late-alias advisory-keyed holders reopen. Migrations
+288/289 add the advisory btree and member GIN partial indexes; 290 adds the
+advisory extended-statistics object. Chunk 200 and the 256 holder cap are
+unchanged: still one holder-lookup statement per chunk, no new locks, claims,
+leases, or queue behavior.
+
+Suppression carry (L3, #10408): a merge or split retires the dead record
+while the survivor's aliases still name the dead id, so the suppression
+load matches an extra alias-member arm over the in-pass alias ids
+(`facts/impact/arms.go`, `aliasSuppressionArms`). The arms widen the
+suppression-kind predicate only — `TestAliasListReachesOnlyTheSuppressionStatement`
+pins that no non-suppression branch binds the alias list, so the load reads
+zero extra NVD or product rows. The pass tally (`suppression_carry.go`)
+counts coverage the wave carried through a non-key member anchor and
+coverage a split orphaned; expired, scope-mismatched, and retracted
+citations stay visible and out of both tallies by design, and the tallies
+are pure counts over the already-loaded suppressions and findings (no new
+reads). The tallies ride the result sub-signals
+`suppression_carried_via_member` and `suppression_orphaned_by_split`.
+
+Keyed-path convergence (L4, #10408): the winners keyed tick deletes the
+dead winner key and drains the dirty log on both the tombstone and the
+supersession routes, matching a fresh recompute with zero audit repairs
+(`TestSupplyChainImpactWinnersResweepRekeyTombstoneDeadKeyConvergesLive`
+and `...RekeySupersessionDeadKeyConvergesLive`, 0.10s each at HEAD against
+disposable PostgreSQL 18.6). Two holder scopes re-keying the same component
+in overlapping passes converge onto the survivor group with identical keys,
+no uniqueness or fencing errors, and both replays converging with no manual
+rerun (`TestRekeyTwoHolderScopesRekeySameComponentLive`, 1.32s at HEAD).
+
+Re-key outcome (L7, #10408): the pass dispatcher counts one
+`eshu_dp_supply_chain_impact_rekey_total` point per pass that touched a
+group, with the closed outcome (`merge`, `split`, `member_only`,
+`retire_only`; `rekey_signals.go`). A pass that touched nothing counts
+nothing, so the steady state is silence. Suppression carry and orphan
+magnitudes ride
+`eshu_dp_supply_chain_impact_suppression_carried_via_member_total` and
+`eshu_dp_supply_chain_impact_suppression_orphaned_by_split_total` under the
+same outcome label, and per-pass magnitudes ride the result sub-signals
+`rekey_groups_touched`, `rekey_findings_rekeyed`, and
+`rekey_rows_tombstoned`. Read the rate by outcome as the rollout's first
+measurement of alias-churn: a `split` rate means dropped coverage the
+operator must re-issue, a `merge` rate converges on its own.
+
+Re-key freshness bound: queue latency plus one holder pass per holder scope
+that holds a touched copy plus one 30-second winners resweep tick — the
+same bound as the enrichment wave above. Until the drain finishes, a holder
+can still serve the pre-merge copy and the winners can still rank it first.
+
+No-Regression Evidence (#10408 L2): EXPLAIN ANALYZE on disposable PostgreSQL
+18.6 with 90k finding rows (`TestRekeyHolderLookupUsesAllThreeArmsLive`):
+single-id CVE and advisory probes both run a BitmapOr over all three arms
+(`fact_records_supply_chain_impact_lookup_idx`,
+`..._advisory_lookup_idx`, `..._group_members_idx`) in 2.8-2.9ms; the
+200-id chunk-bound probe runs a Parallel Seq Scan in 44.1ms. These are
+bounds on the 90k-row synthetic distribution in
+`TestRekeyHolderLookupUsesAllThreeArmsLive`, not a production latency
+claim: single-id and few-id advisory probes serve from the advisory
+partial index, while a full 200-id chunk scans — by design, since the
+chunk must touch every arm's rows. Baseline pre-L2 was the single
+`cve_id = ANY(...)` arm plus the in-flight/owed union, which never
+reopened advisory-keyed holders (the R-adv probe fails pre-L2 and passes
+post-L2). The widened predicate adds rows only where the advisory or
+member arm matches, which is the intended re-key coverage; the statement
+shape, chunk bound, and cap are identical, so per-chunk cost is bounded
+by the same single scan.
+
+No-Observability-Change (#10408 L2): no new metrics, spans, logs, or status
+fields; the reopened-scope count still surfaces on the existing reducer
+success line.
+
+No-Regression Evidence (#10408 L3): the suppression alias arms widen the
+suppression-kind predicate only — `TestAliasListReachesOnlyTheSuppressionStatement`
+fails if any non-suppression branch binds the alias list — so the wider load
+reads zero extra NVD or product rows; the carry tallies count the
+already-loaded suppressions and findings in memory (no new reads, no new
+statements). `TestSuppressionStatementReadsTheAliasMembers` pins the arm
+itself.
+
+No-Regression Evidence (#10408 L4): `TestRekeyPassOverheadIsMeasured` (200
+rounds, 4 rows, all changed, in-memory writer-core only, no Postgres round
+trip) reports ordinary medians 118.0-119.2us vs re-key 119.3-121.0us
+(delta +1.1% to +1.5% across repeated runs at HEAD: shared-host noise on
+~120us medians),
+against the fail-closed gate of twice the ordinary median: the member union
+is a bounded in-memory cost. Overlap and keyed-tick behavior hold live
+against disposable PostgreSQL 18.6: `TestRekeyTwoHolderScopesRekeySameComponentLive`
+1.32s at HEAD, both keyed-path convergence tests 0.10s each
+(`specs/live-tests.d/live-tests-07.yaml` reasons).
+
+Observability Evidence (#10408 L7): the re-key signal is operator-visible
+by design — `TestEmitRekeyCountsOutcome` proves one
+`eshu_dp_supply_chain_impact_rekey_total` add per genuine identity-change
+pass (closed outcome label) with zero adds on ordinary passes, plus
+conditional carried/orphaned adds (zero on a pass with no carry or orphan);
+no new spans, log lines, queue stages, locks, claims, leases, or status
+fields. Magnitudes ride result sub-signals — log fields on the existing
+reducer success line, following the `fanout_*` pattern — and the outcome
+rides the new counter's closed label, never a group, CVE, or advisory id.

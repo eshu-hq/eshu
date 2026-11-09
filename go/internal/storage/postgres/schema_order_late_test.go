@@ -488,4 +488,14 @@ var orderedBootstrapDefinitionNamesLate = []string{
 	// Migration 287 (#10411) adds the coalesced group-key expression
 	// index serving the advisory-group qualifying-winners read.
 	"supply_chain_impact_winners_group_key",
+	// Migration 288 (#10408) adds the advisory arm of the holder fan-out
+	// lookup: a partial btree on (payload->>'advisory_id').
+	"fact_records_supply_chain_impact_advisory_lookup_idx",
+	// Migration 289 (#10408) adds the member-set arm of the holder fan-out
+	// lookup: a partial GIN on payload #> '{provenance,advisory_group_members}'.
+	"fact_records_supply_chain_impact_group_members_idx",
+	// Migration 290 (#10408) adds the single-expression extended
+	// statistics object on (payload->>'advisory_id') holding the advisory
+	// arm on its partial index (CREATE STATISTICS plus ANALYZE).
+	"fact_records_supply_chain_impact_advisory_id_stats",
 }

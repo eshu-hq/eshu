@@ -107,6 +107,25 @@ generation's repository (#10059), counted on
 `sub_signal_manifest_trigger_repository_holders`, so the stale finding is
 re-derived without waiting for the package's advisory scope to rerun.
 
+An advisory group merge or split converges the same way (#10408): the
+committing pass re-keys its findings under the new grouping, the touched
+groups reopen every scope holding a copy through the widened holder lookup,
+and the next resweep tick reflects the converged copies. Until that drain
+finishes, a holder can still serve the pre-merge copy. The freshness bound
+is the same — queue latency plus one holder pass per holder scope plus one
+resweep tick — and the wave is separable on
+`eshu_dp_supply_chain_impact_rekey_total{outcome}` (`merge`, `split`,
+`member_only`, `retire_only`; only a genuine identity change counts — a pass
+that re-derives identical groups counts nothing, so the steady state is
+silence). A `split` rate with a rising
+`eshu_dp_supply_chain_impact_suppression_orphaned_by_split_total` means a
+split dropped suppression coverage the operator must re-issue; a `merge`
+rate with only
+`eshu_dp_supply_chain_impact_suppression_carried_via_member_total`
+converges on its own. Per-pass magnitudes ride the reducer success line as
+`sub_signal_rekey_groups_touched`, `sub_signal_rekey_findings_rekeyed`,
+and `sub_signal_rekey_rows_tombstoned`.
+
 ## Signals
 
 | Signal | Type | Labels | What it tells you |

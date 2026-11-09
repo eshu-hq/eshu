@@ -109,6 +109,12 @@ type SupplyChainImpactWriteResult struct {
 	// additive companion to ChangedCVEIDs: the CVE-keyed sets and the
 	// holder fan-out do not read it.
 	TouchedGroupIDs []string
+	// Rekey is the pass's genuine group-identity change (#10408 D6): the
+	// closed outcome and magnitudes limited to rows whose coalesced group
+	// id or member set differs from the replaced stored row plus group
+	// retirements with no successor. The D6 counter consumes only this;
+	// TouchedGroupIDs above stays the projection-facing set.
+	Rekey RekeyReport
 	// suppressionDiff is the pass's suppression diff report for the
 	// handler's signals: action, baseline, counts, and duration.
 	suppressionDiff suppressionDiffReport

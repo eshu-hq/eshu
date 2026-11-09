@@ -64,14 +64,15 @@ func runSupplyChainImpactTx(
 }
 
 // supplyChainImpactTxOutcome is what one committed pass reports: how many rows
-// it retracted, which CVEs its rows changed, and, for a recovery write, every
-// CVE the scope's rows name. suppressionCVEs are the CVEs the pass's changed
-// suppressions name (#10019); suppression is the diff report behind them.
+// it retracted, which CVEs its rows changed, which groups it touched (#10408),
+// and, for a recovery write, every CVE the scope's rows name. suppressionCVEs
+// are the changed suppressions' CVEs (#10019); suppression is the diff report.
 type supplyChainImpactTxOutcome struct {
 	retracted       int
 	changedCVEs     []string
 	derivedCVEs     []string
 	recoveryCVEs    []string
+	rekey           RekeyReport
 	suppressionCVEs []string
 	// touchedGroups are the coalesced advisory-group ids (#10411) the
 	// pass's changed rows, changed suppressions, and (on recovery) every
@@ -178,8 +179,9 @@ func commitSupplyChainImpactRows(
 		}
 	}
 	rowChanged := changedCVEIDs(meta, stored, write.GenerationID, write.FencingToken, !write.PartialEvidence)
-	if len(supp.cveIDs) > 0 {
-		rowChanged = unionSortedStrings(rowChanged, supp.cveIDs)
+	suppMembers := expandSuppressionCVEIDsThroughMembers(supp.cveIDs, meta, stored)
+	if len(suppMembers) > 0 {
+		rowChanged = unionSortedStrings(rowChanged, suppMembers)
 	}
 	// The touched-group set (#10411) is computed from the same meta and
 	// stored rows with the same change judgement, keyed coalesced so
@@ -196,8 +198,7 @@ func commitSupplyChainImpactRows(
 	// wrote plus every row its retraction tombstones. The suppression diff
 	// joins the union because a suppression-only change rewrites rows the
 	// meta below already carries; naming its ids twice is harmless.
-	derived := derivedCVEIDs(meta, stored, write.GenerationID, write.FencingToken, !write.PartialEvidence, write.ScopedCVEIDs)
-	derived = unionSortedStrings(derived, supp.cveIDs)
+	derived := unionSortedStrings(derivedCVEIDs(meta, stored, write.GenerationID, write.FencingToken, !write.PartialEvidence, write.ScopedCVEIDs), suppMembers)
 	outcome := supplyChainImpactTxOutcome{
 		changedCVEs:     rowChanged,
 		derivedCVEs:     derived,
@@ -205,6 +206,11 @@ func commitSupplyChainImpactRows(
 		touchedGroups:   touchedGroups,
 		suppression:     supp,
 	}
+	// The genuine identity-change subset rides alongside the touched set so
+	// the D6 counter fires only on real re-keys, never on commit shape
+	// (#10408 F1): ordinary EPSS-only refreshes, admissions, rollovers, and
+	// same-key rewrites report Count false.
+	outcome.rekey = reportRekeyIdentity(meta, stored, write.GenerationID, write.FencingToken, !write.PartialEvidence)
 	// The owed marker also covers the advisory-group enqueue (#10411): a
 	// pass whose only changes are CVE-less (group keys live in advisory_id)
 	// has empty changedCVEs but still owes its touched groups a
