@@ -445,6 +445,16 @@ func aliasGroupRecords(cves []supplychainmodel.ImpactCVE, config supplyChainAlia
 		if _, ok := config.allow[cve.CVEID]; ok {
 			records[idx].allowed = true
 		}
+		// An allow-listed alias exempts the record from the record cap
+		// like any other listed member id: the pass config promises the
+		// exemption "when any member id is listed", and aliases are member
+		// ids once unioned.
+		for _, alias := range cve.Aliases {
+			if _, ok := config.allow[alias]; ok {
+				records[idx].allowed = true
+				break
+			}
+		}
 	}
 	return records
 }

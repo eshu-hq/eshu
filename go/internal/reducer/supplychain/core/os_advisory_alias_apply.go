@@ -143,7 +143,11 @@ func applyAliasGroups(
 // aliasComponentOutcome classifies one component: grouped with its group id,
 // quarantined with a cause, or ungrouped. A component groups when it holds
 // more than one record or a record aliases an id outside its own id set
-// (an absent alias target still names the same advisory).
+// (an absent alias target still names the same advisory). A withdrawn
+// singleton never groups on its own aliases: they contributed no edges
+// (groupOSAdvisoriesByAlias unions around withdrawn records), so it stays
+// ungrouped unless another record joined its root, which would have made it
+// a multi-record component above.
 func aliasComponentOutcome(
 	records []aliasGroupRecord,
 	members []int,
@@ -160,6 +164,9 @@ func aliasComponentOutcome(
 	}
 	if len(members) > 1 {
 		return true, aliasGroupResultGrouped
+	}
+	if records[members[0]].withdrawn {
+		return false, aliasGroupResultUngrouped
 	}
 	first := records[members[0]]
 	own := map[string]struct{}{first.advisoryID: {}}

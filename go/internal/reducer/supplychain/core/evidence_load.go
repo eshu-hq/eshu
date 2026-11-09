@@ -181,10 +181,9 @@ func (h SupplyChainImpactHandler) loadSupplyChainImpactEvidence(
 	// retracts nothing (#10109).
 	truncation.manifestRefused = manifestRefused
 
-	config := supplyChainImpactAliasGroupConfig(h)
 	return supplyChainImpactLoadedEvidence{
 		envelopes:                       envelopes,
-		aliasGroupConfig:                config,
+		aliasGroupConfig:                supplyChainImpactAliasGroupConfig(h),
 		scopeFacts:                      scopeFacts,
 		scopeFactKinds:                  scopeFactKinds,
 		repositoryFacts:                 repositoryFacts,

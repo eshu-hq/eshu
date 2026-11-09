@@ -18,6 +18,9 @@ const (
 	scimPURL     = "pkg:npm/axios"
 	scimCVE      = "CVE-2026-1000"
 	scimAdvisory = "GHSA-aaaa-bbbb-cccc"
+	// scimAlias is an alias id the matrix CVE record names, so the
+	// all-inputs filter drives the alias branches (#10407).
+	scimAlias    = "GHSA-2026-m1"
 	scimCriteria = "cpe:2.3:a:axios:axios:*:*:*:*:*:node.js:*:*"
 	scimDocument = "sbom-document-1"
 	scimImage    = "registry.example/team/api:prod"
@@ -37,6 +40,7 @@ func supplyChainImpactMatrixAllFilter() supplychaincore.SupplyChainImpactFactFil
 	return supplychaincore.SupplyChainImpactFactFilter{
 		PackageIDs: []string{scimPackage}, PURLs: []string{scimPURL},
 		CVEIDs: []string{scimCVE}, UpstreamCVEIDs: []string{scimCVE}, AdvisoryIDs: []string{scimAdvisory},
+		AliasIDs:       []string{scimAlias},
 		SubjectDigests: []string{scimDigest}, ProductCriteria: []string{scimCriteria},
 		DocumentIDs: []string{scimDocument}, RepositoryIDs: scimRepositories,
 		FileRepositoryIDs: scimRepositories, ImageRefs: []string{scimImage},
@@ -85,7 +89,7 @@ func seedSupplyChainImpactMatrix(t *testing.T, ctx context.Context, database *sq
 	fact("m:ap:two-keys", "osv:m", "gen:osv:m", "vulnerability.affected_package", j("package_id", q(scimPackage), "purl", q(scimPURL)))
 	fact("m:ap:cve", "osv:m", "gen:osv:m", "vulnerability.affected_package", j("cve_id", q(scimCVE)))
 	fact("m:ap:adv", "osv:m", "gen:osv:m", "vulnerability.affected_package", j("advisory_id", q(scimAdvisory)))
-	fact("m:cve:1", "osv:m", "gen:osv:m", "vulnerability.cve", j("cve_id", q(scimCVE), "advisory_id", q(scimAdvisory)))
+	fact("m:cve:1", "osv:m", "gen:osv:m", "vulnerability.cve", j("cve_id", q(scimCVE), "advisory_id", q(scimAdvisory), "aliases", `["`+scimAlias+`"]`))
 	fact("m:cve:foreign-package", "osv:m", "gen:osv:m", "vulnerability.cve", j("cve_id", q("CVE-2026-9999"), "package_id", q(scimPackage)))
 	fact("m:prod:criteria", "osv:m", "gen:osv:m", "vulnerability.affected_product", j("cve_id", q("CVE-2026-8888"), "criteria", q(scimCriteria)))
 	fact("m:prod:cve", "osv:m", "gen:osv:m", "vulnerability.affected_product", j("cve_id", q(scimCVE), "criteria", q("cpe:other")))

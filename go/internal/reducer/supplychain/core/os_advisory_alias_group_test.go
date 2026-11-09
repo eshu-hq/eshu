@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
+	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
 )
 
 const aliasGroupTestPackageID = "npm://registry.npmjs.org/parse-server"
@@ -400,5 +401,76 @@ func TestAliasGroupingLowestIDUsesByteOrder(t *testing.T) {
 	}
 	if got := lowestAdvisoryGroupID([]string{"GHSA-zzzz", "GHSA-aaaa"}); got != "GHSA-aaaa" {
 		t.Fatalf("lowestAdvisoryGroupID = %q, want the lowest advisory id GHSA-aaaa", got)
+	}
+}
+
+// TestAliasWithdrawnSingletonWithOutsideAliasStaysUngrouped is the #10453
+// finding 2 failing regression: a withdrawn singleton's own aliases
+// contributed no edges (groupOSAdvisoriesByAlias unions around withdrawn
+// records), so an outside alias must not classify it grouped. The record
+// keeps its per-record key with no members and no grouped counter increment.
+func TestAliasWithdrawnSingletonWithOutsideAliasStaysUngrouped(t *testing.T) {
+	t.Parallel()
+
+	index := &supplyChainImpactIndex{
+		cves: []supplychainmodel.ImpactCVE{
+			{
+				FactID:      "withdrawn-cve",
+				CVEID:       "CVE-2026-0777",
+				AdvisoryID:  "GHSA-2026-w9",
+				Aliases:     []string{"GHSA-2026-w9", "CVE-2026-9999"},
+				WithdrawnAt: "2026-06-01T00:00:00Z",
+			},
+		},
+	}
+
+	groupOSAdvisoriesByAlias(index, supplyChainAliasGroupConfig{})
+
+	if len(index.cves) != 1 || index.cves[0].CVEID != "CVE-2026-0777" {
+		t.Fatalf("index.cves = %#v, want the withdrawn singleton keyed by its per-record CVE-2026-0777", index.cves)
+	}
+	if len(index.aliasGroups) != 0 {
+		t.Fatalf("aliasGroups = %#v, want no grouped entry (and no members) for a withdrawn singleton", index.aliasGroups)
+	}
+	if got := index.aliasStats.cells[supplyChainAliasGroupKey{result: aliasGroupResultGrouped}]; got != 0 {
+		t.Fatalf("grouped counter = %d, want 0 for a withdrawn singleton", got)
+	}
+	if got := index.aliasStats.cells[supplyChainAliasGroupKey{result: aliasGroupResultUngrouped}]; got != 1 {
+		t.Fatalf("ungrouped counter = %d, want 1 for a withdrawn singleton", got)
+	}
+}
+
+// TestAliasAllowByAliasExemptsRecordCap is the #10453 finding 3 failing
+// regression: the allow list exempts a record from the record cap when any
+// member id is listed, so a listed alias must lift the quarantine like a
+// listed advisory or CVE id does.
+func TestAliasAllowByAliasExemptsRecordCap(t *testing.T) {
+	t.Parallel()
+
+	aliases := []string{"GHSA-2026-r1", "CVE-2026-1001", "CVE-2026-1002", "CVE-2026-1003", "CVE-2026-1004", "CVE-2026-1005"}
+	index := &supplyChainImpactIndex{
+		cves: []supplychainmodel.ImpactCVE{
+			{
+				FactID:     "big-cve",
+				CVEID:      "GHSA-2026-r1",
+				AdvisoryID: "GHSA-2026-r1",
+				Aliases:    aliases,
+			},
+		},
+	}
+	config := supplyChainAliasGroupConfigFromLists([]string{"CVE-2026-1003"}, nil)
+
+	groupOSAdvisoriesByAlias(index, config)
+
+	if got := index.aliasStats.cells[supplyChainAliasGroupKey{result: aliasGroupResultRecordCap}]; got != 0 {
+		t.Fatalf("record-cap counter = %d, want 0 for an allow-by-alias record", got)
+	}
+	for key, group := range index.aliasGroups {
+		if group.missingEvidence == supplyChainMissingAdvisoryGroupRecordCap {
+			t.Fatalf("aliasGroups[%q] carries the record-cap marker, want none for an allow-by-alias record", key)
+		}
+	}
+	if got := index.aliasStats.cells[supplyChainAliasGroupKey{result: aliasGroupResultGrouped}]; got != 1 {
+		t.Fatalf("grouped counter = %d, want 1: the exempt record still groups over its alias edges", got)
 	}
 }

@@ -21,10 +21,10 @@ func suppressionAdjacent(finding SupplyChainImpactFinding, s vulnerabilitySuppre
 	if !suppressionScopeHasDiscoverableAnchor(s.Scope) {
 		return true
 	}
-	if s.Scope.CVEID != "" && strings.EqualFold(s.Scope.CVEID, finding.CVEID) {
+	if s.Scope.CVEID != "" && (scopeAnchorMatches(s.Scope.CVEID, finding.CVEID) || scopeGroupMemberMatches(s.Scope.CVEID, finding.AdvisoryGroupMembers)) {
 		return true
 	}
-	if s.Scope.AdvisoryID != "" && strings.EqualFold(s.Scope.AdvisoryID, finding.AdvisoryID) {
+	if s.Scope.AdvisoryID != "" && (scopeAnchorMatches(s.Scope.AdvisoryID, finding.AdvisoryID) || scopeGroupMemberMatches(s.Scope.AdvisoryID, finding.AdvisoryGroupMembers)) {
 		return true
 	}
 	if s.Scope.PackageID != "" && packageAnchorEqual(s.Scope.PackageID, finding.PackageID) {
@@ -53,10 +53,16 @@ func suppressionScopeMatchesFinding(finding SupplyChainImpactFinding, s vulnerab
 	if !suppressionScopeHasDiscoverableAnchor(s.Scope) {
 		return false
 	}
-	if !scopeAnchorMatches(s.Scope.CVEID, finding.CVEID) {
+	// A scoped id matches through the finding's canonical key or any id of
+	// its alias-connected advisory group (#10407): grouping merges the
+	// member identities, so a suppression naming a non-canonical member id
+	// still names the grouped finding. Either scope field consults the full
+	// member set because the canonical/member kind split no longer holds
+	// after the merge.
+	if s.Scope.CVEID != "" && !scopeAnchorMatches(s.Scope.CVEID, finding.CVEID) && !scopeGroupMemberMatches(s.Scope.CVEID, finding.AdvisoryGroupMembers) {
 		return false
 	}
-	if !scopeAnchorMatches(s.Scope.AdvisoryID, finding.AdvisoryID) {
+	if s.Scope.AdvisoryID != "" && !scopeAnchorMatches(s.Scope.AdvisoryID, finding.AdvisoryID) && !scopeGroupMemberMatches(s.Scope.AdvisoryID, finding.AdvisoryGroupMembers) {
 		return false
 	}
 	if !scopePackageAnchorMatches(s.Scope.PackageID, finding.PackageID) {
@@ -238,6 +244,24 @@ func scopeAnchorMatches(scoped, observed string) bool {
 		return true
 	}
 	return strings.EqualFold(scoped, strings.TrimSpace(observed))
+}
+
+// scopeGroupMemberMatches reports whether a scoped identity value names any
+// id of the finding's alias-connected advisory group (#10407). An empty
+// scoped value is not a member match (callers treat it as a wildcard
+// separately); an empty member set matches nothing, so ungrouped findings
+// keep today's canonical-key behavior exactly.
+func scopeGroupMemberMatches(scoped string, members []string) bool {
+	scoped = strings.TrimSpace(scoped)
+	if scoped == "" {
+		return false
+	}
+	for _, member := range members {
+		if strings.EqualFold(scoped, strings.TrimSpace(member)) {
+			return true
+		}
+	}
+	return false
 }
 
 // scopePackageAnchorMatches is scopeAnchorMatches for a package_id or purl
