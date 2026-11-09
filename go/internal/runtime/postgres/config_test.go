@@ -35,6 +35,41 @@ func TestLoadConfigSplitsOneBudget(t *testing.T) {
 	}
 }
 
+func TestLoadConfigAdmitsStagedAuditsRouting(t *testing.T) {
+	base := map[string]string{
+		"ESHU_POSTGRES_DSN":           "postgres://writer/db",
+		"ESHU_POSTGRES_READ_DSN":      "postgres://reader/db",
+		"ESHU_POSTGRES_READ_TOPOLOGY": "standby",
+	}
+	for mode, want := range map[string]ReadRouting{
+		"":              ReadRoutingOff,
+		"off":           ReadRoutingOff,
+		"stale-audits":  ReadRoutingStaleAudits,
+		"staged-audits": ReadRoutingStagedAudits,
+	} {
+		env := map[string]string{}
+		for k, v := range base {
+			env[k] = v
+		}
+		env["ESHU_POSTGRES_READ_ROUTING"] = mode
+		cfg, err := LoadConfig(func(key string) string { return env[key] })
+		if err != nil {
+			t.Fatalf("routing %q rejected: %v", mode, err)
+		}
+		if cfg.ReadRouting != want {
+			t.Fatalf("routing %q = %q, want %q", mode, cfg.ReadRouting, want)
+		}
+	}
+	env := map[string]string{}
+	for k, v := range base {
+		env[k] = v
+	}
+	env["ESHU_POSTGRES_READ_ROUTING"] = "bogus-mode"
+	if _, err := LoadConfig(func(key string) string { return env[key] }); err == nil {
+		t.Fatal("bogus routing accepted, want rejection")
+	}
+}
+
 func TestLoadConfigFleetKeepsFourIdleConnectionsPerMember(t *testing.T) {
 	const members = `[{"id":"a","host":"reader-a","port":5432},{"id":"b","host":"reader-b","port":5432}]`
 	const threeMembers = `[{"id":"a","host":"reader-a","port":5432},{"id":"b","host":"reader-b","port":5432},{"id":"c","host":"reader-c","port":5432}]`
