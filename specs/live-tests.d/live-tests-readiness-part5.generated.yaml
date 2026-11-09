@@ -364,6 +364,11 @@ tests:
     class: postgres_ci
     reason: "#7597 own gate bounded by its deployment_mapping producer through the real ReducerQueue claim/Fail SQL and the production Postgres lookups: a dead-lettered producer dead-letters the deployable-unit and workload consumers within MaxAttempts in the counting producer-terminal class, a producer retrying on backward evidence keeps them non-counting with attempt_count frozen; isolated schema per subtest, about 6 s locally; enrolled in the live-postgres-readiness runner"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/reducer_queue_retouch_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10411 disposable PostgreSQL proof that a same-generation retouch advances a pending row's cycle start and marks a claimed row for replay so its ACK returns it to pending instead of succeeding against pre-commit state; seeded rows carry a unique prefix with cleanup on both paths; wall time is logged, not gated"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/reducer_queue_security_alert_impact_wait_concurrent_live_test.go
     tag: ~
     class: postgres_ci

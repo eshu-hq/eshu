@@ -15,10 +15,10 @@ import (
 )
 
 type fakeAdvisoryGroupIntentQueue struct {
-	enqueued []runtime.ReducerIntent
-	reopened []string
-	enqErr   error
-	reErr    error
+	enqueued  []runtime.ReducerIntent
+	retouched []string
+	enqErr    error
+	reErr     error
 }
 
 func (f *fakeAdvisoryGroupIntentQueue) Enqueue(_ context.Context, intents []runtime.ReducerIntent) (runtime.IntentResult, error) {
@@ -29,11 +29,11 @@ func (f *fakeAdvisoryGroupIntentQueue) Enqueue(_ context.Context, intents []runt
 	return runtime.IntentResult{Count: len(intents)}, nil
 }
 
-func (f *fakeAdvisoryGroupIntentQueue) ReopenSucceeded(_ context.Context, workItemID string) (bool, error) {
+func (f *fakeAdvisoryGroupIntentQueue) RetouchWorkItem(_ context.Context, workItemID string) (bool, error) {
 	if f.reErr != nil {
 		return false, f.reErr
 	}
-	f.reopened = append(f.reopened, workItemID)
+	f.retouched = append(f.retouched, workItemID)
 	return true, nil
 }
 
@@ -80,14 +80,14 @@ func TestAdvisoryGroupProjectionEnqueuerBuildsOneIntentPerGroup(t *testing.T) {
 	if first.Reason == "" {
 		t.Fatal("reason must name the cause, it becomes the claimed intent's Cause")
 	}
-	// Every enqueued intent is also reopened, so a group projected earlier
+	// Every enqueued intent is also retouched, so a group projected earlier
 	// in this generation (succeeded row, same work item id) re-runs.
-	wantReopened := []string{
+	wantRetouched := []string{
 		reducerWorkItemID(queue.enqueued[0]),
 		reducerWorkItemID(queue.enqueued[1]),
 	}
-	if !reflect.DeepEqual(queue.reopened, wantReopened) {
-		t.Fatalf("reopened = %v, want %v", queue.reopened, wantReopened)
+	if !reflect.DeepEqual(queue.retouched, wantRetouched) {
+		t.Fatalf("retouched = %v, want %v", queue.retouched, wantRetouched)
 	}
 }
 
@@ -110,7 +110,7 @@ func TestAdvisoryGroupProjectionEnqueuerEmptyAndErrors(t *testing.T) {
 	if err := enqueuer.EnqueueAdvisoryGroupProjections(ctx, advisoryGroupOriginIntent(), []string{"CVE-1"}); !errors.Is(err, boom) {
 		t.Fatalf("enqueue error = %v, want wrapped boom", err)
 	}
-	if len(queue.reopened) != 0 {
+	if len(queue.retouched) != 0 {
 		t.Fatal("reopen ran after a failed enqueue")
 	}
 

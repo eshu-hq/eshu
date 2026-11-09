@@ -310,10 +310,13 @@ func (h SupplyChainImpactHandler) fanOutHolders(
 	}
 	if len(cveIDs) == 0 && len(remaining) == 0 {
 		result := fanOutResult{cause: cause}
-		if stamped || owed {
+		if stamped || owed || (!oneHop && len(write.TouchedGroupIDs) > 0) {
 			// Nothing is owed after all; consume the stamp so a later reopen by
 			// another path is judged fresh, and drop a marker with nothing behind it.
-			state.ClearOwed = owed
+			// This attempt's own commit set the marker for a touched advisory
+			// group even when no CVE changed (#10411); the group enqueue
+			// already ran before this fan-out, so clearing is safe.
+			state.ClearOwed = owed || (!oneHop && len(write.TouchedGroupIDs) > 0)
 			if clear, err := h.clearReplayFlag(ctx, intent, write, stampCVEs, state.ExpectedOrigin); err != nil {
 				return fanOutResult{cause: cause}, err
 			} else {
@@ -397,7 +400,10 @@ func (h SupplyChainImpactHandler) fanOutHolders(
 	// the debt across claims and the last drain clears both.
 	// This attempt's own commit set the marker inside its transaction, after the
 	// claim snapshot the intent carries, so a changed commit clears it too.
-	markerSet := !oneHop && len(write.ChangedCVEIDs) > 0
+	// The writer records the marker for a touched advisory group as well as
+	// a changed CVE (#10411), so the clear condition mirrors the set
+	// condition: a CVE-less group touch must clear its own marker too.
+	markerSet := !oneHop && (len(write.ChangedCVEIDs) > 0 || len(write.TouchedGroupIDs) > 0)
 	state.ClearOwed = (owed || markerSet) && len(rest) == 0
 	if len(rest) == 0 && len(remaining) == 0 {
 		// No continuation debt rides to the next claim, so a pass that proved

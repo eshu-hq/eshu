@@ -485,4 +485,7 @@ var orderedBootstrapDefinitionNamesLate = []string{
 	// Migration 286 (#10037) adds the per-stream GHSA rolling-window
 	// cursor table the extension host advances in the commit transaction.
 	"vulnerability_ghsa_window_cursors",
+	// Migration 287 (#10411) adds the coalesced group-key expression
+	// index serving the advisory-group qualifying-winners read.
+	"supply_chain_impact_winners_group_key",
 }

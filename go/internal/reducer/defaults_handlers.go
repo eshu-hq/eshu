@@ -247,8 +247,8 @@ type SupplyChainSecurityHandlers struct {
 	// SupplyChainImpactGroupProjectionEnqueuer admits one
 	// advisory_group_projection intent per advisory group a
 	// supply_chain_impact pass touched (#10411). Optional at registration:
-	// nil leaves supply_chain_impact unregistered beside the writer;
-	// production wiring sets it beside the fan-out.
+	// nil skips the projection enqueue; production wiring sets it beside
+	// the fan-out, and the wiring test pins that.
 	SupplyChainImpactGroupProjectionEnqueuer supplychaincore.SupplyChainAdvisoryGroupProjectionEnqueuer
 
 	// SecurityAlertReconciliationWriter persists provider alert comparison

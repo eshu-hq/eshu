@@ -14,7 +14,7 @@ import (
 )
 
 // The #10411 registration seams. Both ports are nil-tolerant by design (a
-// nil group-projection enqueuer means "converge on next touch", and the
+// nil group-projection enqueuer silently skips the enqueue, and the
 // advisory-group handler errors loudly only when an intent actually
 // claims), so a dropped wire would keep every logic test green while the
 // AdvisoryGroup graph family silently never projects. These tests

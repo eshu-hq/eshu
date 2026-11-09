@@ -39,6 +39,9 @@ TABLE = {
             "TestOwnGateProducerDeadLetteredConsumerDeadLettersLive",
             "TestOwnGateProducerRetryingConsumerKeepsDeferringLive",
         ),
+        "go/internal/storage/postgres/reducer_queue_retouch_live_test.go": (
+            "TestReducerQueueRetouchLive",
+        ),
         "go/internal/storage/postgres/reducer_queue_security_alert_impact_wait_concurrent_live_test.go": (
             "TestReducerContentionGateSecurityAlertReconciliationImpactFenceUnderContention",
         ),

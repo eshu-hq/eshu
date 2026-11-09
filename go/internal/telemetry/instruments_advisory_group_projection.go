@@ -27,10 +27,11 @@ const (
 	// returned an error.
 	AdvisoryGroupProjectionOutcomeFailed = "failed"
 	// AdvisoryGroupProjectionOutcomeEdgelessWithWinners is a group whose
-	// qualifying winners exist but resolve to no edge (every winner's
-	// repository is absent from the graph), so the anchor was deleted even
-	// though qualifying winner rows were read. A steady rate here points at
-	// repository-materialization gaps, not advisory churn.
+	// qualifying winners exist but resolve to no (repository, package)
+	// pair — in practice winners with an empty package id, since the
+	// reader already drops empty repositories — so the anchor was deleted
+	// even though qualifying winner rows were read. A steady rate here
+	// points at package-less winner rows upstream, not advisory churn.
 	AdvisoryGroupProjectionOutcomeEdgelessWithWinners = "edgeless_with_winners"
 )
 
@@ -61,9 +62,9 @@ var (
 //     grouping produced an unusually wide group.
 //   - eshu_dp_advisory_group_projection_enqueue_failures_total{domain}:
 //     supply_chain_impact passes whose post-commit group-projection enqueue
-//     failed. The pass still acks (the graph is a cache over the winners
-//     read model), so this counter is how an operator sees that
-//     convergence now waits on the next touch or backfill.
+//     failed. The pass fails retryable while its owed marker still stands,
+//     so the queue reruns it as an owed recovery; this counter is how an
+//     operator sees enqueue trouble that delays group convergence.
 //   - eshu_dp_advisory_group_projection_reconcile_duration_seconds{domain}:
 //     wall time of one group's graph reconcile.
 //   - eshu_dp_advisory_group_projection_lag_seconds{domain}: enqueue to
@@ -104,7 +105,7 @@ func registerAdvisoryGroupProjectionInstruments(meter metric.Meter, inst *Instru
 	}
 	if inst.AdvisoryGroupProjectionEnqueueFailures, err = meter.Int64Counter(
 		"eshu_dp_advisory_group_projection_enqueue_failures_total",
-		metric.WithDescription("supply_chain_impact passes whose post-commit advisory-group projection enqueue failed. The pass still acknowledges because the graph is a cache over the winners read model; a non-zero rate means some groups converge only on their next touch or the backfill."),
+		metric.WithDescription("supply_chain_impact passes whose post-commit advisory-group projection enqueue failed. The pass fails retryable before its owed marker clears, so the owed rerun re-enqueues the scope recovery groups; a non-zero rate means enqueue trouble is delaying group convergence."),
 	); err != nil {
 		return fmt.Errorf("register AdvisoryGroupProjectionEnqueueFailures counter: %w", err)
 	}

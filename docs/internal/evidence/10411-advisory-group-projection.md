@@ -80,13 +80,17 @@ coverage row in `docs/public/observability/telemetry-coverage-reducer-domains.md
   case.
 - Concurrency: per-group conflict partitioning plus the writer's
   per-group reconcile keep disjoint groups parallel; the enqueue runs
-  post-commit with no locks held, and its failure is counted without
-  failing the pass ack because the graph family is a cache over the
-  winners read model.
+  post-commit with no locks held and BEFORE the holder fan-out, so a
+  failure aborts the pass while the writer-tx owed marker still stands
+  and the retry re-enqueues the scope's recovery groups (composed
+  regression TestGroupEnqueueFailureKeepsOwedMarkerForRetry). A
+  same-generation re-touch retouches the existing work item: pending
+  rows advance their cycle start, claimed rows carry the replay bit so
+  the ACK reruns them (TestReducerQueueRetouchLive).
 - Known limits: suppression expiry is evaluated at winners-read time,
   so a suppression that expires by wall clock un-hides winners with no
-  write event; affected groups converge on their next touch or the
-  the enqueue retry, not at expiry. A group whose intent dead-letters in a
+  write event; affected groups converge on their next touch, not at
+  expiry. A group whose intent dead-letters in a
   generation stays stale until the next touch of that group; a failed
   enqueue fails the supply pass for retry, and the fan-out owed marker
   (which covers touched groups, not only changed CVEs) makes the owed

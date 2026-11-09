@@ -11,7 +11,12 @@ import (
 	"testing"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
+
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 type fakeWinnersReader struct {
@@ -340,5 +345,63 @@ func TestAdvisoryGroupDefinitionIsValid(t *testing.T) {
 	}
 	if definition.TruthContract.CanonicalKind != "advisory_group" {
 		t.Fatalf("canonical kind = %q", definition.TruthContract.CanonicalKind)
+	}
+}
+
+// TestAdvisoryGroupHandlerPackageLessWinnersReportEdgeless pins the
+// edgeless_with_winners outcome semantics (#10411): winners that qualify
+// but resolve to no (repository, package) pair — an empty package id —
+// delete the anchor and report edgeless_with_winners, distinct from the
+// plain deleted outcome of an empty winner set.
+func TestAdvisoryGroupHandlerPackageLessWinnersReportEdgeless(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	reader := sdkmetric.NewManualReader()
+	inst, err := telemetry.NewInstruments(sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader)).Meter("test"))
+	if err != nil {
+		t.Fatalf("NewInstruments: %v", err)
+	}
+	winners := &fakeWinnersReader{
+		watermark: handlerTestEnqueuedAt,
+		rowsByGroup: map[string][]WinnerRow{
+			"CVE-2026-packageless": {
+				{RepositoryID: "repository:acme/api", PackageID: "", Ecosystem: "npm", CVEID: "CVE-2026-packageless"},
+			},
+		},
+	}
+	writer := &fakeWriter{stats: WriteStats{NodesDeleted: 1}}
+	handler := Handler{Winners: winners, Writer: writer, Instruments: inst}
+	if _, err := handler.Handle(ctx, advisoryGroupIntent(EntityKey("CVE-2026-packageless"))); err != nil {
+		t.Fatalf("Handle: %v", err)
+	}
+	if len(writer.groups) != 1 || len(writer.groups[0].Edges) != 0 {
+		t.Fatalf("groups = %+v, want one edgeless group", writer.groups)
+	}
+
+	var metrics metricdata.ResourceMetrics
+	if err := reader.Collect(ctx, &metrics); err != nil {
+		t.Fatalf("collect: %v", err)
+	}
+	found := false
+	for _, scope := range metrics.ScopeMetrics {
+		for _, m := range scope.Metrics {
+			if m.Name != "eshu_dp_advisory_group_projection_groups_total" {
+				continue
+			}
+			sum, ok := m.Data.(metricdata.Sum[int64])
+			if !ok {
+				continue
+			}
+			for _, point := range sum.DataPoints {
+				if outcome, ok := point.Attributes.Value(attribute.Key("outcome")); ok &&
+					outcome.AsString() == telemetry.AdvisoryGroupProjectionOutcomeEdgelessWithWinners && point.Value == 1 {
+					found = true
+				}
+			}
+		}
+	}
+	if !found {
+		t.Fatal("no groups_total sample with outcome=edgeless_with_winners: the package-less winner was mislabeled")
 	}
 }

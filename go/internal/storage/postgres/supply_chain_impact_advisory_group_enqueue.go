@@ -26,7 +26,7 @@ const advisoryGroupProjectionCause = "supply_chain_impact_winners_touch"
 // in this generation.
 type advisoryGroupIntentQueue interface {
 	Enqueue(ctx context.Context, intents []runtime.ReducerIntent) (runtime.IntentResult, error)
-	ReopenSucceeded(ctx context.Context, workItemID string) (bool, error)
+	RetouchWorkItem(ctx context.Context, workItemID string) (bool, error)
 }
 
 // AdvisoryGroupProjectionEnqueuer admits one advisory_group_projection
@@ -56,18 +56,19 @@ func NewAdvisoryGroupProjectionEnqueuer(queue ReducerQueue) AdvisoryGroupProject
 }
 
 // EnqueueAdvisoryGroupProjections enqueues one projection intent per
-// distinct non-blank group id, then reopens each intent's row in case it
-// already succeeded in this generation. The reopen is load-bearing: the
-// enqueue insert is ON CONFLICT (work_item_id) DO NOTHING, and the work
-// item id is a function of (scope, generation, domain, entity key), so a
-// group first projected and then touched again in the same generation —
-// a fan-out reopened one-hop pass re-deriving its stamp, say — would
-// otherwise keep its first projection until the next generation.
-// ReopenSucceeded only transitions succeeded rows, so pending or
-// in-flight work is undisturbed; its reopened_at also becomes the row's
-// cycle start, which is what the handler's winners watermark bound
-// compares against, so a reopened projection still waits for winners
-// that cover the later touch.
+// distinct non-blank group id, then retouches each intent's row. The
+// retouch is load-bearing: the enqueue insert is ON CONFLICT
+// (work_item_id) DO NOTHING, and the work item id is a function of
+// (scope, generation, domain, entity key), so a group touched twice in
+// the same generation — a fan-out reopened one-hop pass re-deriving its
+// stamp, say — collides with its own first intent instead of admitting
+// a second one. RetouchWorkItem covers every live state of that row: a
+// succeeded row reopens, a pending or retrying row advances its cycle
+// start (reopened_at, which the claim read derives CycleStartedAt from)
+// so the handler's winners watermark bound waits for winners covering
+// the later touch, and a claimed or running row is marked for replay so
+// its ACK returns it to pending for a rerun instead of succeeding
+// against pre-commit winners.
 func (e AdvisoryGroupProjectionEnqueuer) EnqueueAdvisoryGroupProjections(
 	ctx context.Context,
 	origin reducercontract.Intent,
@@ -104,8 +105,8 @@ func (e AdvisoryGroupProjectionEnqueuer) EnqueueAdvisoryGroupProjections(
 		return fmt.Errorf("enqueue advisory group projections: %w", err)
 	}
 	for _, intent := range intents {
-		if _, err := e.queue.ReopenSucceeded(ctx, reducerWorkItemID(intent)); err != nil {
-			return fmt.Errorf("reopen succeeded advisory group projection: %w", err)
+		if _, err := e.queue.RetouchWorkItem(ctx, reducerWorkItemID(intent)); err != nil {
+			return fmt.Errorf("retouch advisory group projection: %w", err)
 		}
 	}
 	return nil

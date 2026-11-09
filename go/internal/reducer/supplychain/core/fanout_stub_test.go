@@ -179,7 +179,9 @@ func (w *changeWriter) WriteSupplyChainImpactFindings(ctx context.Context, write
 	if w.err != nil {
 		return SupplyChainImpactWriteResult{}, w.err
 	}
-	if write.Owed != nil && len(w.result.ChangedCVEIDs) > 0 {
+	// Mirror the production writer: the marker is recorded when the commit
+	// changed a CVE or touched an advisory group (#10411).
+	if write.Owed != nil && (len(w.result.ChangedCVEIDs) > 0 || len(w.result.TouchedGroupIDs) > 0) {
 		if err := write.Owed.RecordFanOutOwed(ctx, nil); err != nil {
 			return SupplyChainImpactWriteResult{}, err
 		}
