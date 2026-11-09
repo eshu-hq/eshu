@@ -31,16 +31,23 @@ const supplyChainImpactFanOutReadTimeout = 10 * time.Second
 // read transaction, so a pooled connection never carries it away.
 const setSupplyChainImpactFanOutReadTimeoutQuery = `SELECT set_config('statement_timeout', $1, true)`
 
-// findSupplyChainImpactHoldersQuery returns the scopes that hold an active
-// finding row for any of the given CVE ids, other than the asking scope. It
-// reads the writer's own output through fact_records_supply_chain_impact_lookup_idx
-// (leading expression payload->>'cve_id', partial on the fact kind and
-// is_tombstone = FALSE), so the fact kind is a literal here: a bound parameter
-// would not prove the partial-index predicate under a generic plan. Joining the
-// scope's active generation drops rows left behind by superseded generations.
-// The operator suppression scope is a holder like any other: its copies are
-// ordinary finding rows that carry cve_id.
-const findSupplyChainImpactHoldersQuery = `
+// FindSupplyChainImpactHoldersQuery returns the scopes that hold an active
+// finding row matching any of the given lookup ids, other than the asking
+// scope. A row matches on its cve_id, its advisory_id, or its stored
+// advisory-group member set (#10408): a re-key retires group and member ids
+// no replacement row names, and holders keyed by those ids — a dropped
+// member's fallback singleton, an advisory-keyed GHSA-only row, a holder
+// whose deciding record names the fragment — are reachable only through the
+// second and third arms. Each arm reads the writer's own output through its
+// own partial index (fact_records_supply_chain_impact_lookup_idx,
+// _advisory_lookup_idx, and _group_members_idx, all partial on the fact kind
+// and is_tombstone = FALSE), so the fact kind is a literal here: a bound
+// parameter would not prove the partial-index predicates under a generic
+// plan. Joining the scope's active generation drops rows left behind by
+// superseded generations. The operator suppression scope is a holder like any
+// other: its copies are ordinary finding rows that carry cve_id. Exported for
+// plan-shape proofs: EXPLAIN tests concatenate it instead of hand-copying it.
+const FindSupplyChainImpactHoldersQuery = `
 SELECT DISTINCT finding.scope_id
 FROM fact_records AS finding
 JOIN ingestion_scopes AS scope
@@ -48,7 +55,9 @@ JOIN ingestion_scopes AS scope
  AND scope.active_generation_id = finding.generation_id
 WHERE finding.fact_kind = '` + facts.ReducerSupplyChainImpactFindingFactKind + `'
   AND finding.is_tombstone = FALSE
-  AND finding.payload->>'cve_id' = ANY($1::text[])
+  AND (finding.payload->>'cve_id' = ANY($1::text[])
+       OR finding.payload->>'advisory_id' = ANY($1::text[])
+       OR finding.payload #> '{provenance,advisory_group_members}' ?| $1::text[])
   AND finding.scope_id <> $2
 ORDER BY finding.scope_id
 `
@@ -179,18 +188,18 @@ func (s SupplyChainImpactFanOutStore) now() time.Time {
 }
 
 // FindHolderScopes returns the scopes other than ownScopeID that hold an active
-// finding row for any of cveIDs, sorted. It runs as one read-only transaction
-// under a statement timeout and fails with
-// supplychaincore.ErrFanOutReadTimeout when the timeout fires.
+// finding row matching any of lookupIDs (CVE, advisory, or member ids),
+// sorted. It runs as one read-only transaction under a statement timeout and
+// fails with supplychaincore.ErrFanOutReadTimeout when the timeout fires.
 func (s SupplyChainImpactFanOutStore) FindHolderScopes(
 	ctx context.Context,
 	ownScopeID string,
-	cveIDs []string,
+	lookupIDs []string,
 ) ([]string, error) {
-	if len(cveIDs) == 0 {
+	if len(lookupIDs) == 0 {
 		return nil, nil
 	}
-	return s.readScopeIDs(ctx, findSupplyChainImpactHoldersQuery, cveIDs, ownScopeID)
+	return s.readScopeIDs(ctx, FindSupplyChainImpactHoldersQuery, lookupIDs, ownScopeID)
 }
 
 // readScopeIDs runs one scope-id query as a short read-only transaction under the

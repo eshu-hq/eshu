@@ -35,10 +35,13 @@ type FanOutOrigin struct {
 	SourceScopeID      string
 	SourceGenerationID string
 	SourceIntentID     string
-	// CVEIDs are the sorted, de-duplicated, capped CVE ids the committing
-	// pass changed (#9740). Empty on stamps written before the set existed
+	// CVEIDs are the sorted, de-duplicated, capped lookup ids the committing
+	// pass fanned out for (#9740, #10408): member-expanded changed ids plus
+	// the touched group set. Empty on stamps written before the set existed
 	// and on enqueued first passes, which always run full. Above
-	// FanOutOriginCVEIDCap the stamp carries only FanOutStampSentinel.
+	// FanOutOriginCVEIDCap the stamp carries only FanOutStampSentinel. The
+	// field and wire key keep their CVE names for rolling-upgrade
+	// compatibility; the set has carried advisory and member ids since #10408.
 	CVEIDs []string
 }
 

@@ -267,3 +267,29 @@ the reopened count on `sub_signal_manifest_trigger_repository_holders`.
 behavior. A clean pass never touches the repository-keyed read.
 Evidence: `docs/internal/evidence/9874-lockfile-retrigger.md`,
 `docs/internal/evidence/10059-repository-reopen.md`.
+
+Re-key (L2, #10408): the genuine pass fans out
+`union(ChangedCVEIDs, TouchedGroupIDs)` plus the owed-retry union with
+`Recovery`, and the holder read is a 3-arm OR over `cve_id`, `advisory_id`,
+and group `members` so late-alias advisory-keyed holders reopen. Migrations
+287/288 add the advisory btree and member GIN partial indexes; 289 adds the
+advisory extended-statistics object. Chunk 200 and the 256 holder cap are
+unchanged: still one holder-lookup statement per chunk, no new locks, claims,
+leases, or queue behavior.
+
+No-Regression Evidence (#10408 L2): EXPLAIN ANALYZE on disposable PostgreSQL
+18.6 with 90k finding rows (`TestRekeyHolderLookupUsesAllThreeArmsLive`):
+single-id CVE and advisory probes both run a BitmapOr over all three arms
+(`fact_records_supply_chain_impact_lookup_idx`,
+`..._advisory_lookup_idx`, `..._group_members_idx`) in 2.8-2.9ms; the
+200-id chunk-bound probe runs a Parallel Seq Scan in 44.1ms. Baseline
+pre-L2 was the single `cve_id = ANY(...)` arm plus the in-flight/owed
+union, which never reopened advisory-keyed holders (the R-adv probe fails
+pre-L2 and passes post-L2). The widened predicate adds rows only where the
+advisory or member arm matches, which is the intended re-key coverage; the
+statement shape, chunk bound, and cap are identical, so per-chunk cost is
+bounded by the same single scan.
+
+No-Observability-Change (#10408 L2): no new metrics, spans, logs, or status
+fields; the reopened-scope count still surfaces on the existing reducer
+success line.

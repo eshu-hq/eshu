@@ -320,8 +320,8 @@ type afterFirstReadFanOut struct {
 	once sync.Once
 }
 
-func (f *afterFirstReadFanOut) FindHolderScopes(ctx context.Context, own string, cves []string) ([]string, error) {
-	scopes, err := f.SupplyChainImpactFanOut.FindHolderScopes(ctx, own, cves)
+func (f *afterFirstReadFanOut) FindHolderScopes(ctx context.Context, own string, lookupIDs []string) ([]string, error) {
+	scopes, err := f.SupplyChainImpactFanOut.FindHolderScopes(ctx, own, lookupIDs)
 	f.once.Do(f.hook)
 	return scopes, err
 }

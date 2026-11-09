@@ -363,6 +363,11 @@ var migrationShippedChecksums = map[string]string{
 	// its contract comments, so this lane takes the next free slot).
 	"286_vulnerability_ghsa_window_cursors.sql":     "d98f2bac99702585acd8c5ba08b52cf80ac9f6f0299fc394e59e6fd42ab1ad04",
 	"287_supply_chain_impact_winners_group_key.sql": "30c69ca79a27cedfeeacaefa003a54cec2f0bf5d2631eda9e79578bd88b93936",
+	// #10408: advisory and member-set arms of the holder fan-out lookup
+	// (migrations 288-289) plus advisory-arm statistics (migration 290).
+	"288_fact_records_supply_chain_impact_advisory_lookup_idx.sql": "8a73de804e3aa3be547d2365b7990d155994ca52bdfbf878e4d4b49fe940dbdd",
+	"289_fact_records_supply_chain_impact_group_members_idx.sql":   "7fbde6adde73256852ecdbc539ee6e4c6f13f4b83b39967e09f3a58d999528ab",
+	"290_fact_records_supply_chain_impact_advisory_id_stats.sql":   "d76663a5155ba8a6e996d7361114de61d5550ceb7924665525aad12598f49e1d",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition
