@@ -81,5 +81,5 @@
   "go/internal/storage/postgres/supply_chain_impact_fanout_stamp_live_test.go": {"package": "github.com/eshu-hq/eshu/go/internal/storage/postgres", "tests": ["TestClearReplayFlagLive", "TestEnqueueMissingHolderStampsNoCVEIDsLive", "TestReopenHolderStampsSortedCVEIDsLive"]},
   "go/internal/storage/postgres/supply_chain_impact_scoped_packages_live_test.go": {"package": "github.com/eshu-hq/eshu/go/internal/storage/postgres", "tests": ["TestListScopedFindingPackagesLive"]},
   "go/internal/storage/postgres/supply_chain_impact_scoped_write_live_test.go": {"package": "github.com/eshu-hq/eshu/go/internal/storage/postgres", "tests": ["TestScopedWriteMatchesFullWriteLive"]},
-  "go/internal/storage/postgres/supply_chain_impact_scope_pass_state_live_test.go": {"package": "github.com/eshu-hq/eshu/go/internal/storage/postgres", "tests": ["TestStaleGenerationPassPreservesScopePassStateLive"]}
+  "go/internal/storage/postgres/supply_chain_impact_scope_pass_state_live_test.go": {"package": "github.com/eshu-hq/eshu/go/internal/storage/postgres", "tests": ["TestStaleGenerationPassOverlapsNewerCommitLive", "TestStaleGenerationPassPreservesScopePassStateLive"]}
 }
