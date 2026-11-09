@@ -6,6 +6,9 @@ package postgres_test
 import (
 	"context"
 	"database/sql"
+	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -153,5 +156,193 @@ func TestStaleGenerationPassPreservesScopePassStateLive(t *testing.T) {
 	}
 	if recorded, partial, causes, _ := fencePassState(t, ctx, db, scope); !recorded || partial {
 		t.Fatalf("unknown-generation recorded=%v partial=%v causes=%v, want the gen-2 clear row untouched", recorded, partial, causes)
+	}
+}
+
+// fenceOverlapGate is the deterministic rendezvous for the stale-commit-last
+// overlap proof (#10460). The stale pass runs through fenceOverlapBeginner,
+// which closes bulkDone after the pass's first fact_records Exec (its bulk
+// findings insert, still uncommitted) and parks the pass-state record
+// statement on release. The test advances the lifecycle and commits the newer
+// generation between those two points, so the stale record statement
+// deterministically executes after the newer commit while the stale bulk is
+// still in flight. A record step moved back ahead of the bulk writes runs
+// before bulkDone with no newer generation visible and records instead of
+// rendezvousing, so the proof goes red on that mutation.
+type fenceOverlapGate struct {
+	bulkDone    chan struct{}
+	release     chan struct{}
+	bulkOnce    sync.Once
+	releaseOnce sync.Once
+}
+
+func newFenceOverlapGate() *fenceOverlapGate {
+	return &fenceOverlapGate{bulkDone: make(chan struct{}), release: make(chan struct{})}
+}
+
+func (g *fenceOverlapGate) markBulkDone() { g.bulkOnce.Do(func() { close(g.bulkDone) }) }
+
+func (g *fenceOverlapGate) open() { g.releaseOnce.Do(func() { close(g.release) }) }
+
+// fenceOverlapBeginner routes one pass's transaction through fenceOverlapTx so
+// the test can park that pass mid-flight. Only the stale pass's writer uses
+// it; the newer generation commits through the plain beginner.
+type fenceOverlapBeginner struct {
+	inner supplychaincore.SupplyChainImpactBeginner
+	gate  *fenceOverlapGate
+}
+
+func (b fenceOverlapBeginner) BeginSupplyChainImpactTx(ctx context.Context) (supplychaincore.SupplyChainImpactTx, error) {
+	tx, err := b.inner.BeginSupplyChainImpactTx(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &fenceOverlapTx{tx: tx, gate: b.gate}, nil
+}
+
+// fenceOverlapTx forwards the whole transaction surface and only changes two
+// statement kinds: the first fact_records Exec marks the bulk landed, and the
+// post-bulk pass-state record waits for the test's release. Forwarding (not
+// embedding) keeps the optional winners surface answering: the assertions
+// below would otherwise run a pass that captures nothing, unlike production.
+type fenceOverlapTx struct {
+	tx       supplychaincore.SupplyChainImpactTx
+	gate     *fenceOverlapGate
+	bulkSeen atomic.Bool
+}
+
+func (t *fenceOverlapTx) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
+	res, err := t.tx.ExecContext(ctx, query, args...)
+	if err == nil && strings.Contains(query, "fact_records") {
+		t.bulkSeen.Store(true)
+		t.gate.markBulkDone()
+	}
+	return res, err
+}
+
+func (t *fenceOverlapTx) QueryContext(ctx context.Context, query string, args ...any) (supplychaincore.SupplyChainImpactRows, error) {
+	if strings.Contains(query, "supply_chain_impact_scope_pass_state") && t.bulkSeen.Load() {
+		select {
+		case <-t.gate.release:
+		case <-ctx.Done():
+		}
+	}
+	return t.tx.QueryContext(ctx, query, args...)
+}
+
+func (t *fenceOverlapTx) Commit() error { return t.tx.Commit() }
+
+func (t *fenceOverlapTx) Rollback() error { return t.tx.Rollback() }
+
+// CaptureWinnersDirtyFacts forwards the optional winners surface so the
+// parked pass captures exactly what the plain transaction would.
+func (t *fenceOverlapTx) CaptureWinnersDirtyFacts(ctx context.Context, identifiers []supplychaincore.WinnersDirtyIdentifier) (int64, error) {
+	if capturer, ok := t.tx.(supplychaincore.SupplyChainImpactWinnersCapturer); ok {
+		return capturer.CaptureWinnersDirtyFacts(ctx, identifiers)
+	}
+	return 0, nil
+}
+
+// RecordWinnersCapture forwards the winners accounting the same way.
+func (t *fenceOverlapTx) RecordWinnersCapture(ctx context.Context, source string, rows int64) {
+	if capturer, ok := t.tx.(supplychaincore.SupplyChainImpactWinnersCapturer); ok {
+		capturer.RecordWinnersCapture(ctx, source, rows)
+	}
+}
+
+// TestStaleGenerationPassOverlapsNewerCommitLive proves the stale-commit-last
+// interleave for the generation fence (#10460) against real Postgres: a stale
+// generation's pass has its bulk findings insert in flight (uncommitted) while
+// the lifecycle advances and the newer generation's pass records and commits;
+// the stale pass then records last, sees the newer generation, skips its
+// per-scope pass-state write, and still commits its own per-generation
+// findings. Same-scope, different-generation passes take different
+// conflict-domain locks and never wait on each other, so without the
+// record-last order the newer commit would land mid-stale-pass unseen.
+func TestStaleGenerationPassOverlapsNewerCommitLive(t *testing.T) {
+	ctx, db := fanOutLiveDB(t)
+	scope := "fence-overlap-scope"
+	fanOutSeedScope(t, ctx, db, scope, "gen-1")
+	gen1 := fanOutGen(scope, "gen-1")
+	gen2 := fanOutGen(scope, "gen-2")
+	keep := fallbackFinding("CVE-2026-9101", "pkg:npm/a@1")
+
+	newWriter := func(beginner supplychaincore.SupplyChainImpactBeginner) supplychaincore.PostgresSupplyChainImpactWriter {
+		return supplychaincore.PostgresSupplyChainImpactWriter{
+			DB:  beginner,
+			Now: func() time.Time { return replaceSetLiveNow },
+		}
+	}
+	plain := newWriter(postgres.SupplyChainImpactBeginner{Beginner: postgres.SQLDB{DB: db}})
+	gate := newFenceOverlapGate()
+	staleWriter := newWriter(fenceOverlapBeginner{
+		inner: postgres.SupplyChainImpactBeginner{Beginner: postgres.SQLDB{DB: db}},
+		gate:  gate,
+	})
+
+	// The current generation marks the scope partial: no newer generation
+	// exists yet, so the record lands.
+	first := fenceWrite("intent:fence-overlap:gen1-partial", scope, gen1, keep)
+	first.PartialEvidence = true
+	first.PartialCauses = []string{"evidence_budget"}
+	if _, err := plain.WriteSupplyChainImpactFindings(ctx, first); err != nil {
+		t.Fatalf("gen-1 partial write: %v", err)
+	}
+	if recorded, partial, _, _ := fencePassState(t, ctx, db, scope); !recorded || !partial {
+		t.Fatalf("gen-1 partial recorded=%v partial=%v, want recorded partial (no newer generation yet)", recorded, partial)
+	}
+
+	// The stale replay runs concurrently: its bulk findings insert lands
+	// (uncommitted) and its pass-state record parks on the gate. The result
+	// rides a channel because Failf/Goexit stays on the test goroutine.
+	type staleOutcome struct {
+		res supplychaincore.SupplyChainImpactWriteResult
+		err error
+	}
+	staleDone := make(chan staleOutcome, 1)
+	go func() {
+		replay := fenceWrite("intent:fence-overlap:gen1-replay", scope, gen1, keep)
+		replay.PartialEvidence = true
+		replay.PartialCauses = []string{"evidence_budget"}
+		res, err := staleWriter.WriteSupplyChainImpactFindings(ctx, replay)
+		staleDone <- staleOutcome{res: res, err: err}
+	}()
+
+	// Wait for the stale bulk to land, then advance the lifecycle and commit
+	// the newer generation while it is still in flight. The release is the
+	// newer commit for the stale record statement: it cannot execute first.
+	select {
+	case <-gate.bulkDone:
+	case <-time.After(2 * time.Minute):
+		t.Fatalf("stale gen-1 bulk write did not land: the overlap never formed")
+	}
+	defer gate.open()
+	advanceFenceScope(t, ctx, db, scope, gen1, gen2, time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC))
+	if _, err := plain.WriteSupplyChainImpactFindings(ctx, fenceWrite("intent:fence-overlap:gen2-complete", scope, gen2, keep)); err != nil {
+		t.Fatalf("gen-2 complete write: %v", err)
+	}
+	gate.open()
+
+	var stale staleOutcome
+	select {
+	case stale = <-staleDone:
+	case <-time.After(2 * time.Minute):
+		t.Fatalf("stale gen-1 pass did not commit after the newer commit")
+	}
+	if stale.err != nil {
+		t.Fatalf("stale gen-1 pass: %v", stale.err)
+	}
+	if !stale.res.PassStateSkipped {
+		t.Fatalf("stale gen-1 PassStateSkipped=false, want true (its record ran after the newer commit)")
+	}
+	if recorded, partial, causes, _ := fencePassState(t, ctx, db, scope); !recorded || partial {
+		t.Fatalf("overlap recorded=%v partial=%v causes=%v, want the gen-2 clear row untouched", recorded, partial, causes)
+	}
+	var staleRows int
+	if err := db.QueryRowContext(ctx, `SELECT count(*) FROM fact_records WHERE scope_id = $1 AND generation_id = $2 AND is_tombstone = FALSE`, scope, gen1).Scan(&staleRows); err != nil {
+		t.Fatalf("count stale findings: %v", err)
+	}
+	if staleRows == 0 {
+		t.Fatalf("stale gen-1 findings missing: the overlapped pass must still commit its own generation")
 	}
 }
