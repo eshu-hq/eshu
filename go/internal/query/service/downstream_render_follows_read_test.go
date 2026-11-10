@@ -11,7 +11,7 @@ import (
 )
 
 // TestDownstreamRenderFollowsExplicitReadLimit is the follow-up regression
-// for eshu#10477 (live QA evidence on api-node-boats): with an explicit
+// for eshu#10477 (live QA evidence on a 52-consumer service): with an explicit
 // downstream_read_limit=100 the enrichment reads 52 consumer repositories,
 // but the story rendered only serviceStoryItemLimit (50), leaving 2 read
 // rows unreachable with no cursor. The render cap must follow the
