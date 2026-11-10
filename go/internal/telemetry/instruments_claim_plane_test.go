@@ -13,10 +13,11 @@ import (
 )
 
 // TestClaimPlaneInstrumentsRegisterAndEmit pins the #8875 claim-plane client
-// and claim-store selection instruments: NewInstruments registers all three,
-// the duration histogram carries second-scale boundaries ending at the 10 s
-// client timeout, and the labels use only the existing operation, outcome,
-// and backend_kind dimensions.
+// and claim-store selection instruments plus the #10532 unclaimed-retirement
+// counter: NewInstruments registers all four, the duration histogram carries
+// second-scale boundaries ending at the 10 s client timeout, and the labels
+// use only the existing operation, outcome, backend_kind, collector_kind,
+// and collector_instance_id dimensions — never a scope id.
 func TestClaimPlaneInstrumentsRegisterAndEmit(t *testing.T) {
 	t.Parallel()
 	reader := sdkmetric.NewManualReader()
@@ -26,7 +27,8 @@ func TestClaimPlaneInstrumentsRegisterAndEmit(t *testing.T) {
 	}
 	if instruments.WorkflowClaimPlaneRequests == nil ||
 		instruments.WorkflowClaimPlaneRequestDuration == nil ||
-		instruments.WorkflowControlStoreSelections == nil {
+		instruments.WorkflowControlStoreSelections == nil ||
+		instruments.WorkflowUnclaimedRetired == nil {
 		t.Fatal("claim-plane instruments not registered")
 	}
 	ctx := context.Background()
@@ -34,6 +36,8 @@ func TestClaimPlaneInstrumentsRegisterAndEmit(t *testing.T) {
 	instruments.WorkflowClaimPlaneRequests.Add(ctx, 1, requestAttrs)
 	instruments.WorkflowClaimPlaneRequestDuration.Record(ctx, 0.02, requestAttrs)
 	instruments.WorkflowControlStoreSelections.Add(ctx, 1, metric.WithAttributes(AttrBackendKind("claim_plane")))
+	instruments.WorkflowUnclaimedRetired.Add(ctx, 2, metric.WithAttributes(
+		AttrCollectorKind("sbom_attestation"), AttrCollectorInstanceID("sbom-gone")))
 
 	var collected metricdata.ResourceMetrics
 	if err := reader.Collect(ctx, &collected); err != nil {
@@ -49,9 +53,19 @@ func TestClaimPlaneInstrumentsRegisterAndEmit(t *testing.T) {
 		"eshu_dp_workflow_claim_plane_requests_total",
 		"eshu_dp_workflow_claim_plane_request_duration_seconds",
 		"eshu_dp_workflow_control_store_selections_total",
+		"eshu_dp_workflow_unclaimed_retired_total",
 	} {
 		if _, ok := seen[name]; !ok {
 			t.Fatalf("metric %s not emitted; saw %v", name, claimPlaneMetricNames(seen))
+		}
+	}
+	retired, ok := seen["eshu_dp_workflow_unclaimed_retired_total"].(metricdata.Sum[int64])
+	if !ok || len(retired.DataPoints) != 1 || retired.DataPoints[0].Value != 2 {
+		t.Fatalf("unclaimed retired sum = %#v, want one data point with value 2", seen["eshu_dp_workflow_unclaimed_retired_total"])
+	}
+	for _, attr := range retired.DataPoints[0].Attributes.ToSlice() {
+		if string(attr.Key) == "scope_id" {
+			t.Fatalf("unclaimed retired labels carry scope_id %q: scope ids must never be metric labels", attr.Value.AsString())
 		}
 	}
 	histogram, ok := seen["eshu_dp_workflow_claim_plane_request_duration_seconds"].(metricdata.Histogram[float64])

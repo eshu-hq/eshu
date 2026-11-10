@@ -3390,6 +3390,15 @@ type Instruments struct {
 	// selected at startup by backend_kind (#8875). Registered by
 	// registerClaimPlaneInstruments.
 	WorkflowControlStoreSelections metric.Int64Counter
+	// WorkflowUnclaimedRetired counts workflow work items the sanctioned
+	// never-claimed retirement moved to failed_terminal, by collector kind
+	// and collector instance (the operator-supplied pair the request names,
+	// never row-derived scope ids), with the retired count as the value
+	// (#10532). It increments once per successful retirement call, including
+	// zero-count calls. A rare operator action over a bounded instance set,
+	// so the instance label is safe here unlike on the hot claim path.
+	// Registered by registerClaimPlaneInstruments.
+	WorkflowUnclaimedRetired metric.Int64Counter
 	// SecurityAlertTruncatedReads counts #8805 provider security-alert reads
 	// that hit max_pages, by provider and endpoint operation
 	// (list_repo_alerts, list_org_alerts).
