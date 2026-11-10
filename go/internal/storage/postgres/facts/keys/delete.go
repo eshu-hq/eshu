@@ -69,12 +69,13 @@ func statements(table string) Delete {
 // generation and stable key) and every key writer copies the fact's scope and
 // generation, so this removes exactly the rows the per-fact foreign key
 // cascade would. A key filed under another scope or generation than its fact
-// breaks that premise, and two checks report it: OrphanCensusSQL counts it as
+// breaks that premise, and OrphanCensusSQL reports it: it counts the key as
 // an orphan, because it matches no fact on (fact_id, scope_id,
-// generation_id), and for the two package tables the retention pre-count,
-// which joins keys to facts by fact_id, then differs from this delete's
-// counts, which the retention runner logs as a WARN. The statements are
-// idempotent: a retried transaction deletes nothing twice.
+// generation_id). Since #10512 the retention pre-count reads this same
+// (scope_id, generation_id) envelope, so it charges orphan and misfiled
+// keys to the batch that deletes them and no longer differs from this
+// delete's counts on their account. The statements are idempotent: a
+// retried transaction deletes nothing twice.
 func DeleteGenerations(
 	ctx context.Context,
 	exec db.Executor,

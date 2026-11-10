@@ -369,6 +369,8 @@ var migrationShippedChecksums = map[string]string{
 	"289_fact_records_supply_chain_impact_group_members_idx.sql":   "7fbde6adde73256852ecdbc539ee6e4c6f13f4b83b39967e09f3a58d999528ab",
 	"290_fact_records_supply_chain_impact_advisory_id_stats.sql":   "d76663a5155ba8a6e996d7361114de61d5550ceb7924665525aad12598f49e1d",
 	"291_fact_records_supply_chain_impact_winners_keyed_idx.sql":   "ac7f5a00ea7099e47ea55b6414a61ccee58ace8eb0d293841c1090bc89bf2454",
+	// #10512: the generation index backing the retention intents probes.
+	"292_shared_projection_intents_generation_idx.sql": "9a23375077009f8b661dee0cd706b6984e3b946fe02cf04826020afdad758f12",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition

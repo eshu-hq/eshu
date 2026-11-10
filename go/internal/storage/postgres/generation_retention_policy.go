@@ -158,7 +158,8 @@ type GenerationRetentionResult struct {
 	LedgerRowsCounted map[string]int64
 	// FactKeyRowsPruned and FactKeyRowsCounted are the whole-generation key
 	// sidecar delete's rows and the batch's pre-count of them, by table
-	// (#7420). They differ only when keys were written or orphaned between.
+	// (#7420; #10512: same (scope_id, generation_id) envelope, orphans
+	// included). They differ only when keys were written between them.
 	FactKeyRowsPruned  map[string]int64
 	FactKeyRowsCounted map[string]int64
 	// RowsOverLimit is the batch's counted rows minus BatchRowLimit when the
