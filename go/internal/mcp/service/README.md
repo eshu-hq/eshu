@@ -24,8 +24,8 @@ metadata, and response shaping.
 ## Exported surface
 
 - `CatalogTools` returns `list_service_catalog_correlations`.
-- `ContextTools` returns `get_service_context`, `get_service_story`, and
-  `investigate_service`, in that order.
+- `ContextTools` returns `get_service_context`, `get_service_story`,
+  `list_service_api_endpoints`, and `investigate_service`, in that order.
 - `IntelligenceTools` returns `get_service_intelligence_report`.
 
 See `doc.go` for the godoc contract.

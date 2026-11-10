@@ -113,6 +113,9 @@ func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 	if r.Method == http.MethodGet && scopedServiceContextRoute(r.URL.Path) {
 		return true
 	}
+	if r.Method == http.MethodGet && scopedServiceAPIEndpointsRoute(r.URL.Path) {
+		return true
+	}
 	if r.Method == http.MethodGet && scopedServiceInvestigationRoute(r.URL.Path) {
 		return true
 	}

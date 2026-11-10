@@ -193,6 +193,7 @@ the `querycontract.CoreReadContractsVersion` port set.
 | `GET /api/v0/semantic/code-hints` | SemanticEvidence | paths/search/semantic_evidence.go | read | reader (ReadStore/graph/content, no durable writes) | newRouter |
 | `GET /api/v0/semantic/documentation-observations` | SemanticEvidence | paths/search/semantic_evidence.go | read | reader (ReadStore/graph/content, no durable writes) | newRouter |
 | `GET /api/v0/service-catalog/correlations` | ServiceCatalog | paths/service/catalog.go | read | reader (ReadStore/graph/content, no durable writes) | newRouter |
+| `GET /api/v0/services/{service_name}/api-surface/endpoints` | Entities | paths/search/entities.go | read | reader (ReadStore/graph/content, no durable writes) | newRouter |
 | `GET /api/v0/services/{service_name}/context` | Entities | paths/search/entities.go | read | reader (ReadStore/graph/content, no durable writes) | newRouter |
 | `GET /api/v0/services/{service_name}/intelligence-report` | ServiceIntelHTTP | paths/service/intelligence_report.go | read | reader (ReadStore/graph/content, no durable writes) | wireAPI |
 | `GET /api/v0/services/{service_name}/story` | Entities | paths/search/entities.go | read | reader (ReadStore/graph/content, no durable writes) | newRouter |

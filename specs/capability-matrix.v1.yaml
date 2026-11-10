@@ -313,7 +313,7 @@ capabilities:
     # repository, service, and workload story/summary/dossier/report/investigation
     # narrative tools are bounded readbacks of the same authoritative context, so
     # they are declared surfaces of this capability rather than separate rows.
-    tools: [get_repo_context, get_service_context, get_ecosystem_overview, get_repo_story, get_repo_summary, get_service_story, get_service_intelligence_report, get_workload_context, get_workload_story, investigate_service]
+    tools: [get_repo_context, get_service_context, get_ecosystem_overview, get_repo_story, get_repo_summary, get_service_story, list_service_api_endpoints, get_service_intelligence_report, get_workload_context, get_workload_story, investigate_service]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-context-overview}], notes: requires full platform context truth}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 4000, max_scope_size: indexed_workspace, verification: [{go_test: ./internal/query}], notes: authoritative local repository, service, workload, and ecosystem context plus bounded repo/service/workload story, summary, dossier, intelligence-report, and investigation readbacks over the same context truth}

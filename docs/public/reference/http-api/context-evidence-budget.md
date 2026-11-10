@@ -95,9 +95,17 @@ The flags the table names:
   `deployment_artifacts_anchor_file_list_truncated_at_5000`.
 - `dependents_truncated`, `consumer_repositories_truncated`, and
   `provisioning_source_chains_truncated` come from the bounded downstream read
-  (`result_limits.downstream_read_limit`). `consumer_repositories_truncated`
+  (`result_limits.downstream_read_limit`, 25 by default, raisable per call to
+  100 with `downstream_read_limit`; the effective bound is echoed on the
+  context and the coverage). `consumer_repositories_truncated`
   is also set when the service evidence file read hit
-  `result_limits.evidence_file_read_limit`.
+  `result_limits.evidence_file_read_limit`. When any of these families is
+  truncated, `coverage_summary.reason` names each one with the bound that
+  fired (`<family> truncated at <bound>=<value>`, semicolon-joined); when
+  nothing is truncated the legacy sentence is unchanged.
+- The dossier `api_surface` stays a 50-row preview; page the full ordered set
+  through `GET /api/v0/services/{service_name}/api-surface/endpoints`
+  (`result_limits.endpoint_list_tool` / `endpoint_list_path` point there).
 - A read of 50 rows with no flag of its own is the `cloud_resources` read, the
   runtime instance read, and the framework route read (50 files): their totals
   cannot say more exist. The framework route read has no flag for the 50-file

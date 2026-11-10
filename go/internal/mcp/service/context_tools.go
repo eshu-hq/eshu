@@ -5,8 +5,8 @@ package servicetools //nolint:dirgate // Root owns service tool registration agg
 
 import "github.com/eshu-hq/eshu/go/internal/mcp/contract/tool"
 
-// ContextTools returns the service context, story, and investigation
-// registrations in their canonical local order.
+// ContextTools returns the service context, story, endpoint list, and
+// investigation registrations in their canonical local order.
 func ContextTools() []toolcontract.ToolDefinition {
 	return []toolcontract.ToolDefinition{
 		{
@@ -22,6 +22,10 @@ func ContextTools() []toolcontract.ToolDefinition {
 					"environment": map[string]any{
 						"type":        "string",
 						"description": "Optional environment context",
+					},
+					"downstream_read_limit": map[string]any{
+						"type":        "integer",
+						"description": "Indirect-evidence row bound for the dependents and consumer_repositories reads. Defaults to 25 when absent; clamps into (0, 100], and the effective bound is echoed on result_limits.downstream_read_limit and the investigation coverage. Raise it (at most 100) to recover a truncated fan-out in one re-call instead of paging.",
 					},
 					"evidence_detail": map[string]any{
 						"type":        "string",
@@ -66,6 +70,10 @@ func ContextTools() []toolcontract.ToolDefinition {
 						"type":        "string",
 						"description": "Optional environment context",
 					},
+					"downstream_read_limit": map[string]any{
+						"type":        "integer",
+						"description": "Indirect-evidence row bound for the dependents and consumer_repositories reads. Defaults to 25 when absent; clamps into (0, 100], and the effective bound is echoed on result_limits.downstream_read_limit and the investigation coverage. Raise it (at most 100) to recover a truncated fan-out in one re-call instead of paging.",
+					},
 					"evidence_detail": map[string]any{
 						"type":        "string",
 						"enum":        []string{"full", "handles"},
@@ -74,6 +82,7 @@ func ContextTools() []toolcontract.ToolDefinition {
 				},
 			},
 		},
+		listServiceAPIEndpointsTool(),
 		{
 			Name:        "investigate_service",
 			Description: "Plan a service investigation across related repositories, deployment sources, indexed docs, and evidence drilldowns. Select the service with service_id or service_name; service_id wins. repo separates only services that live in different repositories. When the answer is ambiguous, call again with service_id set to a candidate's next_selector value; a candidate with legacy_id true is a leftover, not the live workload; choose a scoped candidate.",
@@ -112,6 +121,62 @@ func ContextTools() []toolcontract.ToolDefinition {
 						"type":        "string",
 						"description": "Optional user question to preserve in the investigation packet",
 					},
+				},
+			},
+		},
+	}
+}
+
+// listServiceAPIEndpointsTool builds the dedicated API-surface endpoint list
+// registration (#10477). It lives in its own constructor because the
+// ContextTools literal would otherwise exceed the funlen budget; the
+// registration order and serialized shape are unchanged.
+func listServiceAPIEndpointsTool() toolcontract.ToolDefinition {
+	return toolcontract.ToolDefinition{
+		Name:        "list_service_api_endpoints",
+		Description: "Page a service's API surface endpoints in path, endpoint_id order. Select the service with one of service_id, workload_id, or service_name; the first one given wins in that order. repo separates only services that live in different repositories. Returns the endpoints page with endpoint_count (the true total), detail_truncated, and next_offset (absent when the page is complete); repeat with offset set to next_offset until it is absent. The story and context dossiers keep only a 50-row api_surface preview and point here.",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"service_id": map[string]any{
+					"type":        "string",
+					"description": "Exact service identifier: a full scoped id (workload:repository:<repo_id>:<name>) or a workload:<name> handle, as listed in the candidates of an ambiguous answer. Selects one service on its own and wins over workload_id and service_name",
+				},
+				"workload_id": map[string]any{
+					"type":        "string",
+					"description": "Service workload identifier, or a service name passed through the workload_id field",
+				},
+				"service_name": map[string]any{
+					"type":        "string",
+					"description": "Optional service name selector when the caller starts from repository-scoped service story context",
+				},
+				"repo": map[string]any{
+					"type":        "string",
+					"description": "Optional repository selector used with service_name. It separates only services in different repositories; use service_id for the rest",
+				},
+				"repository_id": map[string]any{
+					"type":        "string",
+					"description": "Optional repository selector alias used with service_name. It separates only services in different repositories; use service_id for the rest",
+				},
+				"repo_id": map[string]any{
+					"type":        "string",
+					"description": "Optional repository selector alias used with service_name. It separates only services in different repositories; use service_id for the rest",
+				},
+				"environment": map[string]any{
+					"type":        "string",
+					"description": "Optional environment context",
+				},
+				"limit": map[string]any{
+					"type":        "integer",
+					"description": "Endpoints per page. Defaults to 50 when absent; clamps into (0, 100].",
+					"default":     50,
+					"minimum":     1,
+				},
+				"offset": map[string]any{
+					"type":        "integer",
+					"description": "Rows to skip, in path, endpoint_id order. Defaults to 0 when absent; repeat the call with offset set to the previous page's next_offset until next_offset is absent.",
+					"default":     0,
+					"minimum":     0,
 				},
 			},
 		},

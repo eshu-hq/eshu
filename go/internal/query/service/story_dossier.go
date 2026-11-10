@@ -320,6 +320,11 @@ func buildServiceResultLimitsWithContext(buildCtx serviceStoryBuildContext) map[
 	upstreamTruncated := querycontract.BoolVal(workloadContext, "dependents_truncated") ||
 		querycontract.BoolVal(workloadContext, "consumer_repositories_truncated") ||
 		querycontract.BoolVal(workloadContext, "provisioning_source_chains_truncated")
+	effectiveDownstreamLimit := querycontract.BoundedTraceEnrichmentLimit(0)
+	if bound := querycontract.IntVal(workloadContext, "downstream_read_limit"); bound > 0 {
+		effectiveDownstreamLimit = querycontract.BoundedDownstreamReadLimit(bound)
+	}
+	serviceName := querycontract.SafeStr(workloadContext, "name")
 	return map[string]any{
 		"limit": serviceStoryItemLimit,
 		// #5720 round-7 P2-5: `limit` is the 50-row serviceStoryItemLimit that
@@ -334,7 +339,10 @@ func buildServiceResultLimitsWithContext(buildCtx serviceStoryBuildContext) map[
 		// from that function rather than restating the constant keeps the two
 		// from drifting. A future route that both passes a non-zero MaxDepth
 		// and renders this block would have to thread its own bound here.
-		"downstream_read_limit": querycontract.BoundedTraceEnrichmentLimit(0),
+		// #10477: a route that names an explicit downstream_read_limit threads
+		// it through enrichment onto the workload context, and this block
+		// echoes that effective bound instead of the default.
+		"downstream_read_limit": effectiveDownstreamLimit,
 		// PR #5933 review fix (Codex): downstream_read_limit alone implied
 		// truncated: true always means "more than 25 downstream rows
 		// existed". That is true for dependents_truncated/
@@ -355,7 +363,12 @@ func buildServiceResultLimitsWithContext(buildCtx serviceStoryBuildContext) map[
 		"truncated":                endpointCount > serviceStoryItemLimit || upstreamCount > serviceStoryItemLimit || dependentCount > serviceStoryItemLimit || contentConsumerCount > serviceStoryItemLimit || infrastructureTruncated || upstreamTruncated,
 		"drilldown_basis":          "resolved_id",
 		"relationship_tool":        "get_relationship_evidence",
-		"service_context_path":     "/api/v0/services/" + querycontract.SafeStr(workloadContext, "name") + "/context",
+		"service_context_path":     "/api/v0/services/" + serviceName + "/context",
+		// #10477: the dossier api_surface stays a 50-row preview; the full
+		// ordered endpoint set pages through this drilldown instead of a
+		// dossier-level offset that would re-run the whole enrichment.
+		"endpoint_list_tool": "list_service_api_endpoints",
+		"endpoint_list_path": "/api/v0/services/" + serviceName + "/api-surface/endpoints",
 	}
 }
 

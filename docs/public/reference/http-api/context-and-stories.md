@@ -14,6 +14,7 @@ page lists it. When this page and `GET /api/v0/openapi.json` disagree, the spec 
 | --- | --- |
 | Entity resolution | `POST /api/v0/entities/resolve` |
 | Context | `GET /api/v0/entities/{entity_id}/context`, `GET /api/v0/workloads/{workload_id}/context`, `GET /api/v0/services/{service_name}/context`, `GET /api/v0/repositories/{repo_id}/context` |
+| Service API surface endpoints | `GET /api/v0/services/{service_name}/api-surface/endpoints` ([Story routes](story-routes.md#service-api-surface-endpoints)) |
 | Incident context | `GET /api/v0/incidents/{incident_id}/context` |
 | Work-item evidence | `GET /api/v0/work-items/evidence` |
 | Catalog | `GET /api/v0/catalog` |
@@ -65,6 +66,14 @@ A deployment-artifact candidate bound (#7951) appends `deployment_artifacts_cand
 request budget ran out), `deployment_artifacts_related_file_list_truncated_at_5000` (a related repository has more than 5,000
 files) or `deployment_artifacts_anchor_file_list_truncated_at_5000` (the service repository has more than 5,000 files). Each
 makes the deployment evidence a lower bound and sets `result_limits.truncated`.
+A truncated downstream fan-out appends the matching token as well --
+`dependents_truncated`, `consumer_repositories_truncated`, or
+`provisioning_source_chains_truncated` -- so the context promotes through
+`partial_reasons` the same signal the story reads from its flags; both
+surfaces agree without reconciliation. The service story and context also
+accept `downstream_read_limit` (default 25, clamps into (0, 100], echoed on
+`result_limits.downstream_read_limit`); non-numeric or negative values return
+400.
 
 Entity context may include semantic narrative fields when normalized semantic
 metadata exists: `semantic_summary`, `semantic_profile`, and `story`.

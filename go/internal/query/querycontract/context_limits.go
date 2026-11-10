@@ -89,27 +89,22 @@ func ContextPartialReasons(ctx map[string]any, extra ...string) []string {
 // or back at the workload context route.
 func WorkloadContextResultLimits(ctx map[string]any, workloadID, surface string) map[string]any {
 	instances := MapSliceValue(ctx, "instances")
-	dependents := MapSliceValue(ctx, "dependents")
-	consumers := MapSliceValue(ctx, "consumer_repositories")
 	instanceTotal := len(instances)
-	dependentTotal := len(dependents)
-	consumerTotal := len(consumers)
 
 	// Cap each fan-out slice in place so the payload honors the stated limit;
 	// truncated then reflects an actual cut rather than claiming truncation
 	// while still returning every row.
 	cappedInstances, instTrunc := CapMapRows(instances, ContextStoryItemLimit)
-	cappedDependents, depTrunc := CapMapRows(dependents, ContextStoryItemLimit)
-	cappedConsumers, conTrunc := CapMapRows(consumers, ContextStoryItemLimit)
 	if instanceTotal > 0 {
 		ctx["instances"] = cappedInstances
 	}
-	if dependentTotal > 0 {
-		ctx["dependents"] = cappedDependents
-	}
-	if consumerTotal > 0 {
-		ctx["consumer_repositories"] = cappedConsumers
-	}
+	// Dependents and consumer_repositories cut through the limitation-naming
+	// path (#10477): a cut past the render cap names the same family token
+	// the enrichment writes when the upstream bound fires, so the story
+	// (which reads the flags) and the context (which promotes the tokens via
+	// ContextPartialReasons) agree on either kind of cut.
+	dependentTotal, depTrunc := capContextRows(ctx, "dependents", "dependents_truncated")
+	consumerTotal, conTrunc := capContextRows(ctx, "consumer_repositories", "consumer_repositories_truncated")
 	// hostnames, entrypoints, and network_paths (one row per entrypoint) are
 	// capped in place here, after every consumer of the full lists has run
 	// (network paths, trace paths, hostname labels, and the overview counts
@@ -183,8 +178,17 @@ func WorkloadContextResultLimits(ctx map[string]any, workloadID, surface string)
 	if surface == "story" {
 		drilldownTool = "get_workload_context"
 	}
+	// Echo the indirect-evidence row bound the enrichment ran under (#10477):
+	// the threaded downstream_read_limit when a route named one, else the
+	// legacy default. The story result limits and the investigation coverage
+	// echo the same value from the same context key.
+	downstreamLimit := DefaultIndirectEvidenceSearchLimit
+	if bound := IntVal(ctx, "downstream_read_limit"); bound > 0 {
+		downstreamLimit = BoundedDownstreamReadLimit(bound)
+	}
 	return map[string]any{
 		"limit":                      ContextStoryItemLimit,
+		"downstream_read_limit":      downstreamLimit,
 		"ordering":                   "deterministic",
 		"instance_count":             instanceTotal,
 		"dependent_count":            dependentTotal,

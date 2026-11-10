@@ -7861,6 +7861,10 @@
         {
           "tool": "investigate_service",
           "kind": "mcp"
+        },
+        {
+          "tool": "list_service_api_endpoints",
+          "kind": "mcp"
         }
       ],
       "profiles": {

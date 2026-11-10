@@ -13,6 +13,7 @@ Deployment-specific topology and cloud-resource rules live in
 | Repository story | `GET /api/v0/repositories/{repo_id}/story` |
 | Workload story | `GET /api/v0/workloads/{workload_id}/story` |
 | Service story | `GET /api/v0/services/{service_name}/story` |
+| Service API surface endpoints | `GET /api/v0/services/{service_name}/api-surface/endpoints` |
 | Intelligence report | `GET /api/v0/services/{service_name}/intelligence-report` |
 | Service investigation | `GET /api/v0/investigations/services/{service_name}` |
 
@@ -45,6 +46,37 @@ Service story takes these query parameters:
 - `repo` for repository-scoped disambiguation
 - `environment` for environment-scoped disambiguation
 - `evidence_detail`, `full` (HTTP default) or `handles` (MCP default); see [Context Evidence Budget](context-evidence-budget.md)
+- `downstream_read_limit`, the indirect-evidence row bound for the
+  dependents and consumer_repositories reads. Absent means the default 25; a
+  value above 100 clamps to 100, and the effective bound is echoed on
+  `result_limits.downstream_read_limit` and the investigation coverage.
+  Non-numeric or negative values return 400. Raise it (at most 100) to
+  recover a truncated fan-out in one re-call instead of paging.
+
+A truncated `consumer_repositories` set names the bound that fired in
+`coverage_summary.reason` (`dependents`, `consumer_repositories`,
+`provisioning_source_chains`, and `api_surface` each get a
+`<family> truncated at <bound>=<value>` clause), and the same truncation
+sets the matching `dependents_truncated`,
+`consumer_repositories_truncated`, or `provisioning_source_chains_truncated`
+limitation token, so the story (which reads the flags) and the context
+(which promotes the tokens to `partial_reasons`) agree by construction.
+
+## Service API surface endpoints
+
+The story and context dossiers keep only a 50-row `api_surface` preview.
+`GET /api/v0/services/{service_name}/api-surface/endpoints` pages the full
+ordered endpoint set with the story selector parity (`service_id`,
+`workload_id`, or `service_name`, plus `repo` and `environment`; ambiguous
+selectors answer 409 like the story). `limit` defaults to 50 and clamps to
+100, `offset` defaults to 0; non-positive `limit` or negative/non-numeric
+paging values return 400. Pages arrive in `path, endpoint_id` order with
+`endpoint_count` (the true count-query total), `detail_truncated`, and
+`next_offset` (absent when the page is complete); repeat with `offset` set
+to `next_offset` until it is absent. An empty set answers 200 with
+`endpoint_count: 0`, not 404. `result_limits.endpoint_list_tool` and
+`result_limits.endpoint_list_path` on the dossier point here, and the MCP
+`list_service_api_endpoints` tool dispatches to this route.
 
 A name that matches several workloads returns HTTP 409 with `error.code=ambiguous`, `data=null`, and
 candidates that each carry a `next_selector` (the `service_id` to pass next). It never picks the first match; `repo` separates only services in different repositories. A candidate marked `legacy_id: true` is a leftover name-only workload from the identity change; see [Service story ambiguity](selector-and-read-failures.md#service-story-ambiguity-8797).

@@ -46,6 +46,10 @@ func (h *Handler) GetServiceContext(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	downstreamReadLimit, ok := readDownstreamReadLimit(w, r)
+	if !ok {
+		return
+	}
 
 	ctx, err := h.fetchServiceWorkloadContext(r.Context(), serviceName, "service_context")
 	if err != nil {
@@ -68,6 +72,7 @@ func (h *Handler) GetServiceContext(w http.ResponseWriter, r *http.Request) {
 		Logger:                    h.Logger,
 		Instruments:               h.Instruments,
 		Operation:                 "service_context",
+		DownstreamReadLimit:       downstreamReadLimit,
 	}); err != nil {
 		if querycontract.WriteGraphReadError(w, r, err, "platform_impact.context_overview") {
 			return

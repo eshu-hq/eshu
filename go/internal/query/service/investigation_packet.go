@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/repository"
 )
 
 // This file hosts the pure service-investigation packet builders behind the
@@ -352,6 +353,15 @@ func serviceInvestigationCoverage(
 		querycontract.BoolVal(workloadContext, "consumer_repositories_truncated") ||
 		querycontract.BoolVal(workloadContext, "provisioning_source_chains_truncated")
 	repositoriesTruncated := serviceInvestigationRepositoriesTruncated(repositories)
+	downstreamLimit := effectiveDownstreamReadLimit(workloadContext)
+	// #10477: when any family is truncated the reason names each truncated
+	// family with the bound that fired, so a caller knows which bound to
+	// raise instead of guessing from a generic sentence. When nothing
+	// truncated the legacy sentences above stay byte-identical.
+	if clauses := serviceCoverageTruncationClauses(workloadContext, repositoriesTruncated, downstreamLimit); len(clauses) > 0 {
+		state = "partial"
+		reason = strings.Join(clauses, "; ")
+	}
 	return map[string]any{
 		"state":  state,
 		"reason": reason,
@@ -365,7 +375,7 @@ func serviceInvestigationCoverage(
 		"repositories_with_evidence_count": len(withEvidence),
 		"evidence_family_count":            len(evidenceFamilies),
 		"result_limit":                     serviceStoryItemLimit,
-		"downstream_read_limit":            querycontract.BoundedTraceEnrichmentLimit(0),
+		"downstream_read_limit":            downstreamLimit,
 		// PR #5933 review fix (Codex, story_dossier.go:308 sibling):
 		// consumer_repositories_truncated (folded into upstreamTruncated
 		// above) can fire purely because the service repository's own
@@ -377,6 +387,77 @@ func serviceInvestigationCoverage(
 		"evidence_file_read_limit": serviceEvidenceFileLimit,
 		"truncated":                repositoriesTruncated || upstreamTruncated,
 	}
+}
+
+// effectiveDownstreamReadLimit reports the indirect-evidence row bound the
+// enrichment actually ran under: the threaded downstream_read_limit when a
+// route named one, else the legacy MaxDepth-derived default (#10477).
+func effectiveDownstreamReadLimit(workloadContext map[string]any) int {
+	if bound := querycontract.IntVal(workloadContext, "downstream_read_limit"); bound > 0 {
+		return querycontract.BoundedDownstreamReadLimit(bound)
+	}
+	return querycontract.BoundedTraceEnrichmentLimit(0)
+}
+
+// serviceCoverageTruncationClauses names each truncated family with the bound
+// that fired, in coverage_summary.reason format (#10477). Family names reuse
+// the existing list names and bound names reuse the existing response field
+// names. Attribution reads the per-bound signals the enrichment writes
+// beside the merged consumer flag (consumer_repositories_downstream_truncated
+// vs consumer_repositories_evidence_file_truncated), never the merged bool:
+// the evidence-file bound can fire while the downstream read is clean. A
+// merged consumer flag with no recorded source (older enrichment path or a
+// hand-built fixture) names the downstream bound, the tighter of the two.
+func serviceCoverageTruncationClauses(workloadContext map[string]any, repositoriesTruncated bool, downstreamLimit int) []string {
+	clauses := []string{}
+	downstreamBound := fmt.Sprintf("downstream_read_limit=%d", downstreamLimit)
+	if querycontract.BoolVal(workloadContext, "dependents_truncated") {
+		clauses = append(clauses, "dependents truncated at "+downstreamBound)
+	}
+	if querycontract.BoolVal(workloadContext, "consumer_repositories_truncated") {
+		bounds := []string{}
+		if querycontract.BoolVal(workloadContext, "consumer_repositories_downstream_truncated") {
+			bounds = append(bounds, downstreamBound)
+		}
+		if querycontract.BoolVal(workloadContext, "consumer_repositories_evidence_file_truncated") {
+			bounds = append(bounds, fmt.Sprintf("evidence_file_read_limit=%d", serviceEvidenceFileLimit))
+		}
+		if len(bounds) == 0 {
+			bounds = append(bounds, downstreamBound)
+		}
+		clauses = append(clauses, "consumer_repositories truncated at "+strings.Join(bounds, ", "))
+	}
+	if querycontract.BoolVal(workloadContext, "provisioning_source_chains_truncated") {
+		clauses = append(clauses, "provisioning_source_chains truncated at "+downstreamBound)
+	}
+	if apiSurfaceTruncated(workloadContext) {
+		clauses = append(clauses, fmt.Sprintf("api_surface truncated at detail_limit=%d", apiSurfaceDetailLimit(workloadContext)))
+	}
+	if repositoriesTruncated {
+		clauses = append(clauses, fmt.Sprintf("repositories_considered truncated at result_limit=%d", serviceStoryItemLimit))
+	}
+	return clauses
+}
+
+// apiSurfaceTruncated reports whether the service API surface read carries
+// more endpoints than the bounded detail, either flagged by the read itself
+// or implied by a count past the dossier preview cap.
+func apiSurfaceTruncated(workloadContext map[string]any) bool {
+	surface := querycontract.MapValue(workloadContext, "api_surface")
+	if len(surface) == 0 {
+		return false
+	}
+	return querycontract.BoolVal(surface, "detail_truncated") ||
+		querycontract.IntVal(surface, "endpoint_count") > serviceStoryItemLimit
+}
+
+// apiSurfaceDetailLimit reports the bound the endpoint detail read ran under:
+// the read's own detail_limit when present, else the repository endpoint cap.
+func apiSurfaceDetailLimit(workloadContext map[string]any) int {
+	if limit := querycontract.IntVal(querycontract.MapValue(workloadContext, "api_surface"), "detail_limit"); limit > 0 {
+		return limit
+	}
+	return repository.APISurfaceEndpointLimit
 }
 
 func serviceInvestigationRepositoriesTruncated(repositories []map[string]any) bool {

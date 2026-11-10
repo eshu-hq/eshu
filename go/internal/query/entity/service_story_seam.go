@@ -66,6 +66,7 @@ func (h *Handler) BuildServiceStoryEnvelope(
 		Logger:                    h.Logger,
 		Instruments:               h.Instruments,
 		Operation:                 operation,
+		DownstreamReadLimit:       selector.DownstreamReadLimit,
 	}); err != nil {
 		if status, errEnv, ok := querycontract.GraphReadErrorEnvelope(err, "platform_impact.context_overview"); ok {
 			return nil, nil, status, errEnv

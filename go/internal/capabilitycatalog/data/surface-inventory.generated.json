@@ -548,6 +548,11 @@
     },
     {
       "category": "api_route",
+      "name": "GET /api/v0/services/{service_name}/api-surface/endpoints",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
       "name": "GET /api/v0/services/{service_name}/context",
       "readiness": "implemented"
     },
@@ -3542,6 +3547,11 @@
     {
       "category": "mcp_tool",
       "name": "list_semantic_documentation_observations",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "list_service_api_endpoints",
       "readiness": "implemented"
     },
     {
