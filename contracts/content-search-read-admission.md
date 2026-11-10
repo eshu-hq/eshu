@@ -30,14 +30,16 @@ list, no ledger/summary/snapshot surface:
 | 10 | `SearchPHPConfigEntities(context.Context, []string, string, *querycontract.PHPConfigCursor, int) ([]querycontract.EntityContent, error)` | go/internal/query/content_reader_php_config.go | `POST /api/v0/content/php-config/search` |
 
 Transport: `NewContentSearchReadAdmissionWithReadStore(db.ReadStore,
-time.Duration, *slog.Logger)` delegates to the existing
-`NewContentReaderWithReadStore` and applies `WithUnscopedSearch` with
-the production budget the same way `cmd/api` wiring does — no parallel
-wiring, no second place for the guarded handle or the bounded walk to
-be misconfigured. A constructor that drops the budget fails the
-wire-shapes budget test. The fail-closed proof plus the full
-wire-object byte mirror against `*ContentReader` covers the satellite
-path end to end. Concrete-double-only proof is rejected.
+time.Duration, *slog.Logger, *telemetry.Instruments)` delegates to the
+existing `NewContentReaderWithReadStore` and applies `WithInstruments`
+plus `WithUnscopedSearch` with the production budget the same way
+`cmd/api` wiring does — no parallel wiring, no second place for the
+guarded handle, the bounded walk, or operator metrics to be
+misconfigured. A constructor that drops the budget fails the
+wire-shapes budget test, and one that drops the instruments fails the
+instruments assertion in the same test. The fail-closed proof plus the
+full wire-object byte mirror against `*ContentReader` covers the
+satellite path end to end. Concrete-double-only proof is rejected.
 
 Enforcement (all in go/internal/query):
 
@@ -58,8 +60,8 @@ Enforcement (all in go/internal/query):
   corpus-wide, install, and PHP shapes, plus found/empty edges and
   unscoped budget-validation parity), and the constructor budget proof
   (`TestContentSearchReadAdmissionConstructorReproducesProductionBudget`
-  — dynamic type `*ContentReader` with the passed budget and logger
-  applied).
+  — dynamic type `*ContentReader` with the passed budget, logger, and
+  instruments applied).
 - `content_search_read_admission_routes_test.go` — shared-double
   handler tests for all four routes through the real mux
   (paged-seam, bounded-walk, single-repo-fallback, and corpus-wide
@@ -123,6 +125,7 @@ a seam-free double so the recorded branch is the fallback one.
 
 Build the satisfier with
 `query.NewContentSearchReadAdmissionWithReadStore(reader, budget,
-logger)` where `reader` is the request-scoped `db.ReadStore` and
-`(budget, logger)` are the unscoped-search budget and logger the
-wiring resolves once at startup (`unscoped.BudgetFromEnv`).
+logger, instruments)` where `reader` is the request-scoped
+`db.ReadStore` and `(budget, logger, instruments)` are the
+unscoped-search budget, logger, and instruments the wiring resolves
+once at startup (`unscoped.BudgetFromEnv` for the budget).

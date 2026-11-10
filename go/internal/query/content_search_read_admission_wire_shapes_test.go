@@ -13,6 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // contentSearchMirrorStores builds the two satisfiers under comparison
@@ -25,7 +26,7 @@ func contentSearchMirrorStores(t *testing.T, queued []contentReaderQueryResult) 
 	if store == nil {
 		t.Fatal("NewSQLReadStore() = nil, want a guarded ReadStore over the canned rows")
 	}
-	return NewContentReaderWithReadStore(store), NewContentSearchReadAdmissionWithReadStore(store, 0, nil)
+	return NewContentReaderWithReadStore(store), NewContentSearchReadAdmissionWithReadStore(store, 0, nil, nil)
 }
 
 var contentSearchFileRowColumns = []string{
@@ -94,7 +95,7 @@ func TestContentSearchReadAdmissionWireShapesAreSatelliteConsumable(t *testing.T
 	var _ ContentSearchReadAdmission = NewContentReaderWithReadStore(errContentPointWireShapeReadStore{err: errContentPointWireShapeProbe})
 
 	admission := NewContentSearchReadAdmissionWithReadStore(
-		errContentPointWireShapeReadStore{err: errContentPointWireShapeProbe}, 0, nil,
+		errContentPointWireShapeReadStore{err: errContentPointWireShapeProbe}, 0, nil, nil,
 	)
 	if admission == nil {
 		t.Fatal("NewContentSearchReadAdmissionWithReadStore() = nil, want a ContentSearchReadAdmission bound to the guarded reader")
@@ -320,10 +321,11 @@ func TestContentSearchReadAdmissionWireShapesAreSatelliteConsumable(t *testing.T
 // proves the constructor half of the W4 transport: the admission holds
 // the production *ContentReader wiring (the dynamic type is the
 // production reader, so no parallel construction path exists) and the
-// unscoped budget and logger the satellite passes reach the bounded
-// walk unchanged. A constructor that delegates to
+// unscoped budget, logger, and instruments the satellite passes reach
+// the bounded walk unchanged. A constructor that delegates to
 // NewContentReaderWithReadStore without applying WithUnscopedSearch
-// leaves the zero budget here and fails.
+// leaves the zero budget here and fails, and one that skips
+// WithInstruments leaves nil instruments here and fails.
 func TestContentSearchReadAdmissionConstructorReproducesProductionBudget(t *testing.T) {
 	t.Parallel()
 
@@ -333,7 +335,8 @@ func TestContentSearchReadAdmissionConstructorReproducesProductionBudget(t *test
 	}
 	budget := 750 * time.Millisecond
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	admission := NewContentSearchReadAdmissionWithReadStore(store, budget, logger)
+	instruments := &telemetry.Instruments{}
+	admission := NewContentSearchReadAdmissionWithReadStore(store, budget, logger, instruments)
 
 	cr, ok := admission.(*ContentReader)
 	if !ok {
@@ -344,5 +347,8 @@ func TestContentSearchReadAdmissionConstructorReproducesProductionBudget(t *test
 	}
 	if cr.unscoped.logger != logger {
 		t.Error("unscoped logger was not applied: the constructor must apply WithUnscopedSearch with the production logger")
+	}
+	if cr.instruments != instruments {
+		t.Error("instruments were not applied: the constructor must apply WithInstruments the way cmd/api wiring does, or the satellite path loses operator metrics")
 	}
 }
