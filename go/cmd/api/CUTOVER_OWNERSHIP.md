@@ -71,7 +71,7 @@ the `querycontract.CoreReadContractsVersion` port set.
 | AdminTerminalFailure | terminal-failure ack store + replay ledger | ack + ledger via admission contracts |
 | AdminIdentityMutations | identity stores (roles, IdP mappings) | via admission contract (AdminIdentityAdmission v0) |
 | AdminProviderConfigMutations | provider-config stores | via admission contracts (ProviderConfigMutationAdmission v0 + ProviderConfigReadAdmission v0) |
-| SignInPolicyMutations | sign-in-policy store | via admission contract |
+| SignInPolicyMutations | sign-in-policy store | via admission contract (SignInPolicyAdmission v0) |
 | LocalIdentity | identity/session/token stores | session issuance via admission contract |
 | BrowserSessions | browser-session store | session lifecycle via admission contract |
 | Setup | bootstrap stores | first-run flow via admission contract (SetupAdmission v0) |
