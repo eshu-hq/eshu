@@ -81,11 +81,11 @@ RUN cd go \
 # checkout and starts the binary at its old path with satellite flags
 # (-addr/-core-base-url).
 # COPY the digest-pinned satellite release binary under its old path so the
-# stack keeps serving the same contract. 0.2.8 is digest
-# sha256:fb370fd3ff8ef8cf19804bf2d1535cfd06d4ef275a165766611b3e658b9cc489
-# (ghcr.io/eshu-hq/eshu-mcp tags 0.2.8/0.2/0/latest). Like the mocks below, this
+# stack keeps serving the same contract. 0.2.12 is digest
+# sha256:91c10960c0588aee6385ee1d741264995d2f063d7cb4732c72e0fb8b4f36231c
+# (ghcr.io/eshu-hq/eshu-mcp tags 0.2.12/0.2/0/latest). Like the mocks below, this
 # stage MUST stay before "Production stage".
-FROM ghcr.io/eshu-hq/eshu-mcp:0.2.8@sha256:fb370fd3ff8ef8cf19804bf2d1535cfd06d4ef275a165766611b3e658b9cc489 AS mcp-satellite
+FROM ghcr.io/eshu-hq/eshu-mcp:0.2.12@sha256:91c10960c0588aee6385ee1d741264995d2f063d7cb4732c72e0fb8b4f36231c AS mcp-satellite
 
 # mock-oidc-idp: E2E-only synthetic OIDC IdP (issue #4971), built and shipped
 # as its own image, never as part of the product image below. A no-auth,
