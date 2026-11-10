@@ -4,8 +4,9 @@ Issue eshu-hq/eshu#9876. The in-tree coordinator plans bounded FIRST EPSS
 targets from the distinct CVE ids on active canonical winners; the collector
 resolves them at claim time through the run's `requested_scope_set`.
 
-Runtime paths touched: one `SELECT DISTINCT cve_id ... WHERE
-suppression_state = 'active'` read per schedule tick in
+Runtime paths touched: one `SELECT DISTINCT cve_id ... WHERE <effective
+suppression state> NOT IN <hidden>` read per schedule tick (matching
+`listActiveFindingCVEIDsQuery` since #9805) in
 `scheduleVulnerabilityIntelligenceWork`, a pure-CPU pack over the returned
 ids, one extra transport dispatch per EPSS scope claim, and per-plan
 counter/log/span writes.
@@ -46,10 +47,20 @@ carry a `vulnerability.epss_score` fact:
 ```sql
 WITH cve_findings AS (
     SELECT DISTINCT cve_id
-    FROM supply_chain_impact_canonical_winners
-    WHERE suppression_state = 'active'
-      AND cve_id <> ''
-      AND cve_id ~* '^CVE-[0-9]{4}-[0-9]{4,}$'
+    FROM supply_chain_impact_canonical_winners AS w
+    -- Effective-state denominator, matching listActiveFindingCVEIDsQuery
+    -- since #9805 reader #10: a hidden state past suppression_expires_at
+    -- reads 'expired' and stays visible.
+    WHERE (CASE
+      WHEN w.suppression_state NOT IN ('not_affected','accepted_risk','false_positive','ignored','advisory_retracted')
+        OR w.suppression_expires_at IS NULL
+      THEN w.suppression_state
+      WHEN w.suppression_expires_at <= NOW()
+      THEN 'expired'
+      ELSE w.suppression_state
+    END) NOT IN ('not_affected','accepted_risk','false_positive','ignored','advisory_retracted')
+      AND w.cve_id <> ''
+      AND w.cve_id ~* '^CVE-[0-9]{4}-[0-9]{4,}$'
 ),
 epss AS (
     SELECT DISTINCT payload->>'cve_id' AS cve_id
@@ -145,3 +156,17 @@ flip, no `ScopeQuery` stuffing, no SPDX invention.
   non-sharded claims; the enabled path adds two bounded reads per plan
   tick plus pacing that caps fetches at one full finding-set pass per
   FIRST publication day (Decision 5).
+
+## Addendum: read predicate now expiry-aware (2026-11-10, #9805 reader #10)
+
+The `WHERE suppression_state = 'active'` read this note originally
+described (in the runtime-paths summary and in the post-deploy QA query's
+denominator; both spots now carry the effective-state form) is superseded:
+`listActiveFindingCVEIDsQuery` now selects effectively visible winners —
+read-time effective suppression state `NOT IN` the hidden set, with a
+hidden state whose `suppression_expires_at` has passed reading `expired`.
+The stored-state read kept an expired suppression's CVE out of derivation
+forever while the findings reads reported the row visible. Proof and
+before/after numbers live in the census addendum of
+`9805-suppression-expiry-and-tick-shim-20261110.md`; rerun the QA coverage
+query with the effective-state denominator.

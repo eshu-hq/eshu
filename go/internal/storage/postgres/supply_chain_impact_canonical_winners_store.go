@@ -412,21 +412,24 @@ type PostgresSupplyChainImpactFencingTokenIssuer struct {
 }
 
 // listActiveFindingCVEIDsQuery returns the distinct non-blank CVE ids on
-// active canonical winners. Active means suppression_state 'active'; anything
-// else is an operator-suppressed finding and carries no EPSS enrichment.
-// The query returns every distinct id including GHSA and other schemes: the
-// coordinator normalizes CVE shape and counts exclusions, so the exclusion
-// evidence stays observable instead of vanishing in the store.
-const listActiveFindingCVEIDsQuery = `
-SELECT DISTINCT cve_id
-    FROM supply_chain_impact_canonical_winners
-    WHERE suppression_state = 'active'
-      AND cve_id <> ''
-    ORDER BY cve_id
+// effectively visible canonical winners. Visibility is the read-time
+// effective suppression state shared with the advisory-group reader
+// (#9805 reader #10): a hidden state whose suppression_expires_at
+// (TIMESTAMPTZ) has passed reads 'expired' and its CVE reaches EPSS
+// derivation, matching the findings reads, while a non-expired hidden
+// state stays excluded. The query returns every distinct id including
+// GHSA and other schemes: the coordinator normalizes CVE shape and
+// counts exclusions, so the exclusion evidence stays observable.
+var listActiveFindingCVEIDsQuery = `
+SELECT DISTINCT w.cve_id
+    FROM supply_chain_impact_canonical_winners AS w
+    WHERE ` + advisoryGroupWinnerEffectiveStateSQL() + ` NOT IN (` + advisoryGroupWinnerHiddenStatesSQL() + `)
+      AND w.cve_id <> ''
+    ORDER BY w.cve_id
 `
 
-// ListActiveFindingCVEIDs returns the distinct non-blank CVE ids on active
-// canonical winners, in sorted order (eshu-hq/eshu#9876). It feeds the
+// ListActiveFindingCVEIDs returns the distinct non-blank CVE ids on
+// effectively visible canonical winners, in sorted order (#9876). It feeds the
 // findings-derived EPSS derivation, which keeps CVE-shaped ids and counts
 // the rest as exclusions.
 func (s FactStore) ListActiveFindingCVEIDs(ctx context.Context) ([]string, error) {
