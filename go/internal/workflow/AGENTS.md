@@ -76,8 +76,9 @@
   rolling wiring has landed in core (`derive_ghsa_rolling_windows`,
   strictly decoded like the NVD section) and satellite v0.1.10 dispatches
   `ghsa`, but activation still waits on the S6 tokened-run evidence
-  (#10465), and a boundless anchor stays satellite-refused until the
-  satellite mirror (eshu-collector-vulnerability-intelligence#83) ships.
+  (#10465). The satellite mirror (#83/#85) shipped in satellite 0.1.12;
+  a boundless anchor works end to end only where satellite >= 0.1.12 is
+  pinned (QA repin pending under #10465).
   Readiness reads accept a `ghsa` target as well-formed.
   `reconcile_public_advisories_v1` refuses
   a `ghsa` target, so passing this validator never produces a registration. Do

@@ -95,9 +95,9 @@ configuration.
   path at v0.1.10; rolling window scopes resolve against the configured
   anchor). Core admits a `ghsa` target only as a rolling anchor under
   `derive_ghsa_rolling_windows` and refuses it otherwise
-  (`validateVulnerabilityGHSATarget`, #10516); a boundless anchor stays
-  satellite-refused until the satellite mirror
-  (eshu-collector-vulnerability-intelligence#83) ships. GHSA is not
+  (`validateVulnerabilityGHSATarget`, #10516); a boundless anchor works
+  end to end only where satellite >= 0.1.12 is pinned (the mirror
+  #83/#85 shipped in 0.1.12; QA repin pending under #10465). GHSA is not
   activatable for production truth until the #10465 S6 evidence lands.
 
 ## GHSA and OSV copies of one advisory
