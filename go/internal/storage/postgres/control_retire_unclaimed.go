@@ -14,6 +14,7 @@ import (
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -53,10 +54,13 @@ const retireUnclaimedOperatorNoteLimit = 500
 // ErrWorkflowRetireUnknownInstance and a still-enabled, non-deactivated
 // pair fails closed with ErrWorkflowRetireInstanceActive. Only a known,
 // deconfigured instance proceeds. The gate and the retire are autocommit
-// statements, mirroring the admin skip: a reactivation landing between
-// them is benign, because the per-row lock plus predicate recheck gives
-// every row exactly one winner (a concurrent claim takes the row, the
-// retire skips it, or vice versa).
+// statements, mirroring the admin skip, and the retire statement rechecks
+// the deconfiguration in the same snapshot as its row locks: a
+// reactivation that commits between the gate and the retire retires
+// nothing (the operator retries into a 409) instead of retiring rows
+// under a live collector. A concurrent claim and the retire give every
+// row exactly one winner through the per-row lock plus predicate recheck
+// (a concurrent claim takes the row, the retire skips it, or vice versa).
 //
 // The retire locks candidates newest first, then locks the still-eligible
 // rows in work_item_id COLLATE "C" order under SKIP LOCKED and rechecks
@@ -94,7 +98,6 @@ func (s *WorkflowControlStore) RetireUnclaimedWorkItems(
 		return nil, fmt.Errorf("%w: %s/%s", ErrWorkflowRetireInstanceActive, collectorKind, instanceID)
 	}
 
-	now := time.Now().UTC()
 	message := fmt.Sprintf(
 		"retired by operator: never-claimed pending item for deconfigured instance %s/%s",
 		collectorKind,
@@ -103,12 +106,34 @@ func (s *WorkflowControlStore) RetireUnclaimedWorkItems(
 	if note := strings.TrimSpace(reason); note != "" {
 		message += ": " + truncateRetireUnclaimedNote(note)
 	}
-	rows, err := s.database.QueryContext(
+	retired, err := s.retireUnclaimedEligible(ctx, s.database, collectorKind, instanceID, message)
+	if err != nil {
+		return nil, err
+	}
+
+	s.recordUnclaimedRetired(ctx, collectorKind, instanceID, len(retired))
+	return retired, nil
+}
+
+// retireUnclaimedEligible runs the retire statement on queryer and returns
+// what it transitioned. Queryer is the store's database on the admin path;
+// tests pass a transaction or the database directly to prove the statement's
+// own rechecks (deconfiguration, eligibility) without racing the gate. The
+// statement's NOT EXISTS recheck shares its snapshot with the row locks, so
+// a reactivation that commits after the gate probe still retires nothing.
+func (s *WorkflowControlStore) retireUnclaimedEligible(
+	ctx context.Context,
+	queryer db.Queryer,
+	collectorKind string,
+	instanceID string,
+	message string,
+) ([]RetiredUnclaimedItem, error) {
+	rows, err := queryer.QueryContext(
 		ctx,
 		retireUnclaimedWorkflowWorkItemsQuery,
 		collectorKind,
 		instanceID,
-		now,
+		time.Now().UTC(),
 		workflow.FailureClassOperatorRetiredUnclaimed,
 		message,
 		workflow.FailureOperationOperatorRetire,
@@ -129,8 +154,6 @@ func (s *WorkflowControlStore) RetireUnclaimedWorkItems(
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("retire unclaimed workflow work items: %w", err)
 	}
-
-	s.recordUnclaimedRetired(ctx, collectorKind, instanceID, len(retired))
 	return retired, nil
 }
 
@@ -165,17 +188,21 @@ func (s *WorkflowControlStore) probeRetireUnclaimedInstance(
 // recordUnclaimedRetired emits the operator signal for one sanctioned
 // retirement: a counter increment by the retired count labeled with the
 // operator-supplied collector kind and instance, plus a structured log line
-// carrying the same three values. Scope ids stay out of the metric labels
-// and the log; the retired rows carry them for the operator. A nil
-// Instruments (binaries without a wired meter provider) skips the counter
-// and keeps the log, exactly like the quota throttle path.
+// carrying the same three values. A call that retired nothing logs without
+// touching the counter. Scope ids stay out of the metric labels and the
+// log; the retired rows carry them for the operator. A nil Instruments
+// (binaries without a wired meter provider) skips the counter and keeps
+// the log, exactly like the quota throttle path.
 func (s *WorkflowControlStore) recordUnclaimedRetired(
 	ctx context.Context,
 	collectorKind string,
 	instanceID string,
 	count int,
 ) {
-	if s.Instruments != nil && s.Instruments.WorkflowUnclaimedRetired != nil {
+	// A zero-count call retired nothing, so it logs without touching the
+	// counter: a Sum data point with value 0 would claim work moved that
+	// never moved.
+	if count > 0 && s.Instruments != nil && s.Instruments.WorkflowUnclaimedRetired != nil {
 		s.Instruments.WorkflowUnclaimedRetired.Add(ctx, int64(count), metric.WithAttributes(
 			telemetry.AttrCollectorKind(collectorKind),
 			telemetry.AttrCollectorInstanceID(instanceID),
@@ -189,10 +216,13 @@ func (s *WorkflowControlStore) recordUnclaimedRetired(
 }
 
 // truncateRetireUnclaimedNote clamps the operator note folded into retired
-// rows' failure message to retireUnclaimedOperatorNoteLimit characters.
+// rows' failure message to retireUnclaimedOperatorNoteLimit runes. The cut
+// runs on the rune slice so a multi-byte rune is never split: a byte cut
+// would fold invalid UTF-8 into every retired row's failure message.
 func truncateRetireUnclaimedNote(note string) string {
-	if len(note) <= retireUnclaimedOperatorNoteLimit {
+	runes := []rune(note)
+	if len(runes) <= retireUnclaimedOperatorNoteLimit {
 		return note
 	}
-	return note[:retireUnclaimedOperatorNoteLimit]
+	return string(runes[:retireUnclaimedOperatorNoteLimit])
 }

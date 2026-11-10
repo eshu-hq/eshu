@@ -66,15 +66,17 @@ func (h *Handler) retireUnclaimedWorkflowItems(w http.ResponseWriter, r *http.Re
 		return
 	}
 
+	authCtx, _ := auth.AuthContextFromContext(r.Context())
+	correlationID := audit.SafeCorrelationID(audit.CorrelationID(r))
 	items, err := h.Store.RetireUnclaimedWorkflowItems(r.Context(), kind, instanceID, strings.TrimSpace(req.OperatorNote))
 	if err != nil {
 		if errors.Is(err, ErrRetireUnclaimedUnknownInstance) {
+			h.recordRecoveryAction(r.Context(), governanceaudit.DecisionDenied, "retire_unclaimed_refused_unknown_instance", authCtx, correlationID)
 			querycontract.WriteError(w, http.StatusNotFound, err.Error())
 			return
 		}
 		if errors.Is(err, ErrRetireUnclaimedInstanceActive) {
-			authCtx, _ := auth.AuthContextFromContext(r.Context())
-			h.recordRecoveryAction(r.Context(), governanceaudit.DecisionDenied, "retire_unclaimed_refused_instance_active", authCtx, audit.SafeCorrelationID(audit.CorrelationID(r)))
+			h.recordRecoveryAction(r.Context(), governanceaudit.DecisionDenied, "retire_unclaimed_refused_instance_active", authCtx, correlationID)
 			querycontract.WriteError(w, http.StatusConflict, err.Error())
 			return
 		}
@@ -85,6 +87,7 @@ func (h *Handler) retireUnclaimedWorkflowItems(w http.ResponseWriter, r *http.Re
 		return
 	}
 
+	h.recordRecoveryAction(r.Context(), governanceaudit.DecisionAllowed, "retire_unclaimed_accepted", authCtx, correlationID)
 	rows := make([]map[string]any, 0, len(items))
 	for _, item := range items {
 		rows = append(rows, map[string]any{

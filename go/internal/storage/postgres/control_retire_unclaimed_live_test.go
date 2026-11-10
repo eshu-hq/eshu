@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -274,21 +275,31 @@ func TestRetireUnclaimedLiveClaimRace(t *testing.T) {
 	}
 
 	start := make(chan struct{})
+	// drained closes exactly once, on every retirer exit: the deferred
+	// close below releases the claimants on success and on the retirer
+	// error path alike, so a failed retire cannot strand the WaitGroup.
 	drained := make(chan struct{})
 	var wg sync.WaitGroup
 	errs := make(chan error, 64)
 	var retired retiredCounter
+	// inflight counts ClaimNextEligible statements currently executing.
+	// Claim statements are synchronous: once a statement returns its row
+	// lock is released or committed, so an empty retire pass with no
+	// statement in flight means no row is undecided.
+	var inflight atomic.Int64
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
+		defer close(drained)
 		<-start
 		// Loop until nothing is left so claims in flight win rows
 		// between retire statements; every row still gets exactly one
-		// winner. Two consecutive empty passes confirm quiescence: a
-		// claim mid-flight during the first pass has committed by the
-		// second, and claim statements are synchronous, so nothing
-		// undecided remains once the claimants observe the drain.
-		emptyPasses := 0
+		// winner. Quiescence is deterministic, not two timed empty
+		// passes: an empty retire pass with no claim statement in
+		// flight means no pending row exists (a row a claimant has not
+		// started would have been retired by that pass), and the
+		// confirmation pass closes the gap where a claimant started
+		// between the empty pass and the counter check.
 		for {
 			items, err := store.RetireUnclaimedWorkItems(ctx, retireUnclaimedLiveKind, instance, "race")
 			if err != nil {
@@ -296,14 +307,18 @@ func TestRetireUnclaimedLiveClaimRace(t *testing.T) {
 				return
 			}
 			retired.add(len(items))
-			if len(items) == 0 {
-				emptyPasses++
-				if emptyPasses >= 2 {
-					close(drained)
-					return
-				}
-			} else {
-				emptyPasses = 0
+			if len(items) != 0 || inflight.Load() != 0 {
+				time.Sleep(time.Millisecond)
+				continue
+			}
+			confirm, err := store.RetireUnclaimedWorkItems(ctx, retireUnclaimedLiveKind, instance, "race")
+			if err != nil {
+				errs <- fmt.Errorf("retire confirm: %w", err)
+				return
+			}
+			retired.add(len(confirm))
+			if len(confirm) == 0 && inflight.Load() == 0 {
+				return
 			}
 			time.Sleep(time.Millisecond)
 		}
@@ -323,6 +338,7 @@ func TestRetireUnclaimedLiveClaimRace(t *testing.T) {
 					return
 				default:
 				}
+				inflight.Add(1)
 				_, _, ok, err := store.ClaimNextEligible(ctx, workflow.ClaimSelector{
 					CollectorKind:       retireUnclaimedLiveKind,
 					CollectorInstanceID: instance,
@@ -330,6 +346,7 @@ func TestRetireUnclaimedLiveClaimRace(t *testing.T) {
 					ClaimID:             fmt.Sprintf("race-claim-%d-%d", worker, time.Now().UTC().UnixNano()),
 					RotationSalt:        "retire-race-salt",
 				}, time.Now().UTC(), workflow.DefaultClaimLeaseTTL())
+				inflight.Add(-1)
 				if err != nil {
 					if isRetireRaceDeadlock(err) {
 						errs <- fmt.Errorf("claim: deadlock: %w", err)
@@ -346,7 +363,20 @@ func TestRetireUnclaimedLiveClaimRace(t *testing.T) {
 		}(c)
 	}
 	close(start)
-	wg.Wait()
+	// The wait is bounded: monotone row drain (rows leave pending only via
+	// claim or retire, and the lease TTL outlives the test) guarantees the
+	// retirer reaches quiescence, so a hang here is a product defect, not
+	// a slow host.
+	waitDone := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(waitDone)
+	}()
+	select {
+	case <-waitDone:
+	case <-time.After(60 * time.Second):
+		t.Fatal("claim-versus-retire race did not settle within 60s")
+	}
 	close(errs)
 	for err := range errs {
 		t.Fatalf("race error: %v", err)
@@ -690,6 +720,52 @@ INSERT INTO workflow_work_items (
 		}
 		if len(page.Items) != 0 {
 			t.Fatalf("ListTerminalFailures(%s) = %+v, want empty", id, page.Items)
+		}
+	}
+}
+
+// TestRetireUnclaimedLiveRecheckAfterReactivation proves the retire statement
+// rechecks the deconfiguration atomically: the gate passes on a deconfigured
+// instance, the instance reactivates before the retire step runs, and the
+// retire step must then retire nothing — the rows stay pending for the live
+// collector instead of being retired under it (eshu-hq/eshu#10532 F2).
+func TestRetireUnclaimedLiveRecheckAfterReactivation(t *testing.T) {
+	database, store := openWorkflowControlIntegrationStore(t)
+	ctx := context.Background()
+	instance := retireUnclaimedLiveInstance(t)
+	seedRetireUnclaimedInstance(t, ctx, database, instance, false)
+	runID := "retire-reactivate-run"
+	seedRetireUnclaimedRun(t, ctx, database, runID, "collection_active")
+	seedRetireUnclaimedItem(t, ctx, database, "retire-reactivate-w1", runID, instance, "retire-reactivate-scope-1")
+	seedRetireUnclaimedItem(t, ctx, database, "retire-reactivate-w2", runID, instance, "retire-reactivate-scope-2")
+
+	known, active, err := store.probeRetireUnclaimedInstance(ctx, string(retireUnclaimedLiveKind), instance)
+	if err != nil {
+		t.Fatalf("probe error = %v, want nil", err)
+	}
+	if !known || active {
+		t.Fatalf("probe = known %t active %t, want known true active false", known, active)
+	}
+
+	// The reactivation lands between the gate probe and the retire step.
+	now := time.Now().UTC()
+	if _, err := database.ExecContext(ctx, `
+UPDATE collector_instances SET enabled = TRUE, deactivated_at = NULL, updated_at = $3
+WHERE instance_id = $1 AND collector_kind = $2`, instance, string(retireUnclaimedLiveKind), now); err != nil {
+		t.Fatalf("reactivate instance: %v", err)
+	}
+
+	retired, err := store.retireUnclaimedEligible(ctx, SQLDB{DB: database}, string(retireUnclaimedLiveKind), instance, "race-note")
+	if err != nil {
+		t.Fatalf("retireUnclaimedEligible() error = %v, want nil", err)
+	}
+	if len(retired) != 0 {
+		t.Fatalf("retire after reactivation retired %d items, want 0 (reactivation must win)", len(retired))
+	}
+	for _, id := range []string{"retire-reactivate-w1", "retire-reactivate-w2"} {
+		status, _, _, _ := retireUnclaimedItemStatus(t, ctx, database, id)
+		if status != "pending" {
+			t.Fatalf("%s status = %q, want pending (reactivated instance keeps its rows)", id, status)
 		}
 	}
 }

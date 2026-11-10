@@ -12,6 +12,10 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/admin"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
+
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 )
 
 // retireUnclaimedQueryer scripts the two statements the delegation runs:
@@ -25,6 +29,14 @@ type retireUnclaimedQueryer struct {
 }
 
 func (f *retireUnclaimedQueryer) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
+	// Route the retire statement first: it carries its own deconfiguration
+	// recheck against collector_instances (eshu-hq/eshu#10532 F2), so a
+	// "collector_instances" substring match alone would misroute it to
+	// the gate.
+	if strings.Contains(query, "failed_terminal") {
+		f.retireArgs = append([]any(nil), args...)
+		return &retirePairRows{pairs: f.retired}, nil
+	}
 	if strings.Contains(query, "FROM collector_instances") {
 		return &retireBoolRows{known: f.gateKnown, active: f.gateActive}, nil
 	}
@@ -141,5 +153,66 @@ func TestRetireUnclaimedWorkflowItemsMapsGateRefusals(t *testing.T) {
 	active := &postgresStore{database: &retireUnclaimedQueryer{gateKnown: true, gateActive: true}}
 	if _, err := active.RetireUnclaimedWorkflowItems(context.Background(), "sbom_attestation", "live", ""); !errors.Is(err, admin.ErrRetireUnclaimedInstanceActive) {
 		t.Errorf("active instance error = %v, want ErrRetireUnclaimedInstanceActive", err)
+	}
+}
+
+// TestRetireUnclaimedWorkflowItemsEmitsCounter proves the admin path carries
+// instruments into the owning store: a successful retire through the admin
+// store emits one Sum data point with the call's retired count labeled by
+// kind and instance, never a scope id (eshu-hq/eshu#10532 F1).
+func TestRetireUnclaimedWorkflowItemsEmitsCounter(t *testing.T) {
+	t.Parallel()
+
+	reader := sdkmetric.NewManualReader()
+	instruments, err := telemetry.NewInstruments(
+		sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader)).Meter("test"))
+	if err != nil {
+		t.Fatalf("NewInstruments() error = %v, want nil", err)
+	}
+	database := &retireUnclaimedQueryer{
+		gateKnown: true,
+		retired:   [][2]string{{"w-1", "scope-1"}, {"w-2", "scope-2"}},
+	}
+	s := (&postgresStore{database: database}).WithInstruments(instruments)
+
+	items, err := s.RetireUnclaimedWorkflowItems(context.Background(), "sbom_attestation", "sbom-gone", "note")
+	if err != nil {
+		t.Fatalf("RetireUnclaimedWorkflowItems() error = %v, want nil", err)
+	}
+	if len(items) != 2 {
+		t.Fatalf("items = %+v, want 2 retired rows", items)
+	}
+
+	var collected metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &collected); err != nil {
+		t.Fatalf("Collect() error = %v, want nil", err)
+	}
+	found := false
+	for _, scopeMetrics := range collected.ScopeMetrics {
+		for _, m := range scopeMetrics.Metrics {
+			if m.Name != "eshu_dp_workflow_unclaimed_retired_total" {
+				continue
+			}
+			found = true
+			sum, ok := m.Data.(metricdata.Sum[int64])
+			if !ok || len(sum.DataPoints) != 1 || sum.DataPoints[0].Value != 2 {
+				t.Fatalf("retired metric = %#v, want one data point with value 2", m.Data)
+			}
+			for _, attr := range sum.DataPoints[0].Attributes.ToSlice() {
+				if string(attr.Key) == "scope_id" {
+					t.Fatalf("retired labels carry scope_id: scope ids must never be metric labels")
+				}
+			}
+			attrs := map[string]string{}
+			for _, attr := range sum.DataPoints[0].Attributes.ToSlice() {
+				attrs[string(attr.Key)] = attr.Value.AsString()
+			}
+			if attrs["collector_kind"] != "sbom_attestation" || attrs["collector_instance_id"] != "sbom-gone" {
+				t.Fatalf("retired labels = %v, want the request's kind and instance", attrs)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("eshu_dp_workflow_unclaimed_retired_total not emitted through the admin store")
 	}
 }

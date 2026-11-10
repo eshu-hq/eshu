@@ -14,6 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/admin/provider/config"
 	"github.com/eshu-hq/eshu/go/internal/query/admin/retirement"
 	"github.com/eshu-hq/eshu/go/internal/query/admin/store"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // admin_alias.go is the root alias shim for the admin handler family
@@ -140,11 +141,14 @@ type RecoveryService = admin.RecoveryService
 // routes. Its home is admin/. See #6060.
 type ReindexRequester = admin.ReindexRequester
 
-// NewPostgresAdminStore constructs an AdminStore backed by Postgres. Its
-// home is admin/store/; this forwarder keeps the cmd/api and cmd/mcp-server
-// wiring calling query.NewPostgresAdminStore unchanged. See #6060.
-func NewPostgresAdminStore(db *sql.DB) AdminStore {
-	return store.NewStore(db)
+// NewPostgresAdminStore constructs an AdminStore backed by Postgres and wires
+// the shared meter-provider instruments onto it, so the retire-unclaimed
+// counter (eshu-hq/eshu#10532) emits on the API path. Its home is
+// admin/store/; this forwarder keeps the cmd/api and cmd/mcp-server wiring
+// calling query.NewPostgresAdminStore unchanged. See #6060. Nil instruments
+// keeps the store uninstrumented.
+func NewPostgresAdminStore(db *sql.DB, instruments *telemetry.Instruments) AdminStore {
+	return store.NewStoreWithInstruments(db, instruments)
 }
 
 // AdminIdentityReadHandler serves tenant-scoped admin read endpoints. Its

@@ -3394,9 +3394,11 @@ type Instruments struct {
 	// never-claimed retirement moved to failed_terminal, by collector kind
 	// and collector instance (the operator-supplied pair the request names,
 	// never row-derived scope ids), with the retired count as the value
-	// (#10532). It increments once per successful retirement call, including
-	// zero-count calls. A rare operator action over a bounded instance set,
-	// so the instance label is safe here unlike on the hot claim path.
+	// (#10532). It increments once per successful retirement call that
+	// retired at least one row; a call that retired nothing logs without
+	// emitting, so every exported data point names work that actually
+	// moved. A rare operator action over a bounded instance set, so the
+	// instance label is safe here unlike on the hot claim path.
 	// Registered by registerClaimPlaneInstruments.
 	WorkflowUnclaimedRetired metric.Int64Counter
 	// SecurityAlertTruncatedReads counts #8805 provider security-alert reads

@@ -28,6 +28,23 @@ EXISTS (
 ) AS active
 `
 
+// retireUnclaimedActiveRecheckSQL rechecks the deconfiguration inside the
+// retire statement. The gate probe runs first and fails fast on unknown or
+// still-configured instances, but a reactivation landing between the gate
+// and the retire must not retire rows under a live collector. The NOT
+// EXISTS shares the statement snapshot with the row locks, so the retire
+// either runs while the instance is still deconfigured (proceeds) or after
+// the reactivation committed (retires nothing; the operator retries into a
+// 409). $1 is the collector kind, $2 the instance id.
+const retireUnclaimedActiveRecheckSQL = `AND NOT EXISTS (
+      SELECT 1
+      FROM collector_instances AS inst
+      WHERE inst.instance_id = $2
+        AND inst.collector_kind = $1
+        AND inst.enabled
+        AND inst.deactivated_at IS NULL
+    )`
+
 // retireUnclaimedWorkflowWorkItemsQuery moves at most 100 never-claimed
 // pending rows of one deconfigured collector instance to failed_terminal
 // with the operator-retired failure class (eshu-hq/eshu#10532). The shape
@@ -36,7 +53,9 @@ EXISTS (
 // rows that are still eligible in work_item_id COLLATE "C" order under
 // SKIP LOCKED; the UPDATE rechecks every predicate on the locked row and
 // returns what it transitioned, so the response count means "retired by
-// this call" and a repeated call retires the residue or nothing.
+// this call" and a repeated call retires the residue or nothing. Both the
+// lock and the update recheck the deconfiguration, so a reactivation that
+// commits between the gate probe and this statement retires nothing.
 //
 // Lock order (#8261 pattern): the locked step takes row locks in
 // work_item_id COLLATE "C" order, the same order every ordered locker of
@@ -68,6 +87,7 @@ WITH selected AS (
       AND work.status = 'pending'
       AND work.attempt_count = 0
       AND work.current_claim_id IS NULL
+    ` + retireUnclaimedActiveRecheckSQL + `
     ORDER BY work.work_item_id COLLATE "C"
     FOR NO KEY UPDATE OF work SKIP LOCKED
 ), updated AS (
@@ -87,6 +107,7 @@ WITH selected AS (
       AND work.status = 'pending'
       AND work.attempt_count = 0
       AND work.current_claim_id IS NULL
+    ` + retireUnclaimedActiveRecheckSQL + `
     RETURNING
         work.work_item_id,
         work.scope_id

@@ -25,7 +25,9 @@ func (s *postgresStore) RetireUnclaimedWorkflowItems(
 	ctx context.Context,
 	kind, instanceID, note string,
 ) ([]admin.RetiredUnclaimedItem, error) {
-	retired, err := pgstatus.NewWorkflowControlStore(s.database).RetireUnclaimedWorkItems(
+	control := pgstatus.NewWorkflowControlStore(s.database)
+	control.Instruments = s.instruments
+	retired, err := control.RetireUnclaimedWorkItems(
 		ctx, scope.CollectorKind(kind), instanceID, note,
 	)
 	if err != nil {

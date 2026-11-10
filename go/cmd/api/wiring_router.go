@@ -329,7 +329,7 @@ func newRouterWithSemanticEmbeddingWithReadStore(
 			Profile: queryProfile,
 		},
 		Admin: &query.AdminHandler{
-			Store:       query.NewPostgresAdminStore(writer),
+			Store:       query.NewPostgresAdminStore(writer, instruments),
 			ReadStore:   adminstore.NewReadStore(reader),
 			Audit:       adminRecoveryAuditAppender(governanceAudit),
 			Instruments: instruments,
@@ -385,7 +385,7 @@ func newRouterWithSemanticEmbeddingWithReadStore(
 	// status reader.
 	router.AdminTerminalFailure = newTerminalFailureHandler(
 		pgstatus.NewTerminalFailureAckStore(pgstatus.SQLDB{DB: writer}, pgstatus.SQLDB{DB: writer}),
-		query.NewPostgresAdminStore(writer),
+		query.NewPostgresAdminStore(writer, instruments),
 		adminRecoveryAuditAppender(governanceAudit),
 		instruments,
 	)

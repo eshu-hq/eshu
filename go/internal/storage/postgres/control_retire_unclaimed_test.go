@@ -8,9 +8,14 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
+
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 )
 
 // TestRetireUnclaimedWorkItemsRefusesUnknownInstance fails closed when no
@@ -119,6 +124,12 @@ func TestRetireUnclaimedWorkItemsLocksSelectedRowsInWorkItemOrder(t *testing.T) 
 		`FOR NO KEY UPDATE`,
 		`SKIP LOCKED`,
 		`failed_terminal`,
+		// The in-statement deconfiguration recheck (eshu-hq/eshu#10532
+		// F2): a reactivation that commits between the gate probe and
+		// this statement must retire nothing.
+		`NOT EXISTS`,
+		`collector_instances`,
+		`deactivated_at IS NULL`,
 	} {
 		if !strings.Contains(retireSQL, want) {
 			t.Errorf("retire SQL missing %q", want)
@@ -162,5 +173,107 @@ func TestRetireUnclaimedWorkItemsEmptyIsIdempotent(t *testing.T) {
 	}
 	if len(retired) != 0 {
 		t.Fatalf("retired = %+v, want empty", retired)
+	}
+}
+
+// TestTruncateRetireUnclaimedNoteKeepsRunesIntact proves the operator note
+// clamp never splits a multi-byte rune: a 600-rune note of 2-byte runes
+// clamps to exactly 500 runes of valid UTF-8, not 500 bytes of mojibake
+// (eshu-hq/eshu#10532 F5).
+func TestTruncateRetireUnclaimedNoteKeepsRunesIntact(t *testing.T) {
+	t.Parallel()
+
+	note := strings.Repeat("é", 600)
+	got := truncateRetireUnclaimedNote(note)
+	if !utf8.ValidString(got) {
+		t.Fatalf("truncated note is not valid UTF-8: %q", got[len(got)-8:])
+	}
+	if n := utf8.RuneCountInString(got); n != retireUnclaimedOperatorNoteLimit {
+		t.Fatalf("truncated note holds %d runes, want %d", n, retireUnclaimedOperatorNoteLimit)
+	}
+}
+
+// TestRecordUnclaimedRetiredSkipsCounterOnZeroCount proves a zero-count
+// retirement logs without touching the counter: a Sum data point with value
+// 0 would claim work moved that never moved (eshu-hq/eshu#10532 F6).
+func TestRecordUnclaimedRetiredSkipsCounterOnZeroCount(t *testing.T) {
+	t.Parallel()
+
+	reader := sdkmetric.NewManualReader()
+	instruments, err := telemetry.NewInstruments(
+		sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader)).Meter("test"))
+	if err != nil {
+		t.Fatalf("NewInstruments() error = %v, want nil", err)
+	}
+	store := NewWorkflowControlStore(&fakeExecQueryer{})
+	store.Instruments = instruments
+
+	store.recordUnclaimedRetired(context.Background(), "sbom_attestation", "sbom-gone", 0)
+
+	var collected metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &collected); err != nil {
+		t.Fatalf("Collect() error = %v, want nil", err)
+	}
+	for _, scopeMetrics := range collected.ScopeMetrics {
+		for _, m := range scopeMetrics.Metrics {
+			if m.Name == "eshu_dp_workflow_unclaimed_retired_total" {
+				t.Fatalf("zero-count retire emitted %s; want no data point", m.Name)
+			}
+		}
+	}
+}
+
+// TestRecordUnclaimedRetiredEmitsCountAndLabels proves the positive path the
+// zero-count skip must not break: a count of 2 emits one Sum data point with
+// value 2 labeled by kind and instance, never a scope id
+// (eshu-hq/eshu#10532 F1/F6).
+func TestRecordUnclaimedRetiredEmitsCountAndLabels(t *testing.T) {
+	t.Parallel()
+
+	reader := sdkmetric.NewManualReader()
+	instruments, err := telemetry.NewInstruments(
+		sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader)).Meter("test"))
+	if err != nil {
+		t.Fatalf("NewInstruments() error = %v, want nil", err)
+	}
+	store := NewWorkflowControlStore(&fakeExecQueryer{})
+	store.Instruments = instruments
+
+	store.recordUnclaimedRetired(context.Background(), "sbom_attestation", "sbom-gone", 2)
+
+	var collected metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &collected); err != nil {
+		t.Fatalf("Collect() error = %v, want nil", err)
+	}
+	var sum metricdata.Sum[int64]
+	found := false
+	for _, scopeMetrics := range collected.ScopeMetrics {
+		for _, m := range scopeMetrics.Metrics {
+			if m.Name != "eshu_dp_workflow_unclaimed_retired_total" {
+				continue
+			}
+			found = true
+			var ok bool
+			sum, ok = m.Data.(metricdata.Sum[int64])
+			if !ok {
+				t.Fatalf("retired metric data = %T, want Sum[int64]", m.Data)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("eshu_dp_workflow_unclaimed_retired_total not emitted for count 2; saw nothing")
+	}
+	if len(sum.DataPoints) != 1 || sum.DataPoints[0].Value != 2 {
+		t.Fatalf("retired sum = %+v, want one data point with value 2", sum.DataPoints)
+	}
+	attrs := map[string]string{}
+	for _, attr := range sum.DataPoints[0].Attributes.ToSlice() {
+		attrs[string(attr.Key)] = attr.Value.AsString()
+	}
+	if attrs["collector_kind"] != "sbom_attestation" || attrs["collector_instance_id"] != "sbom-gone" {
+		t.Fatalf("retired labels = %v, want collector_kind and collector_instance_id", attrs)
+	}
+	if _, ok := attrs["scope_id"]; ok {
+		t.Fatalf("retired labels carry scope_id: scope ids must never be metric labels")
 	}
 }

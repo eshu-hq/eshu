@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
@@ -122,5 +123,67 @@ func TestAdminHandler_RetireUnclaimedWorkflowItems_StoreFailure(t *testing.T) {
 
 	if w.Code != http.StatusInternalServerError {
 		t.Fatalf("status = %d, want %d; body: %s", w.Code, http.StatusInternalServerError, w.Body.String())
+	}
+}
+
+// TestAdminHandler_RetireUnclaimedWorkflowItems_EmitsAllowedAudit pins the
+// allow-path audit: a successful retire records one DecisionAllowed
+// retire_unclaimed_accepted event, mirroring the skip's accept audit
+// (eshu-hq/eshu#10532 F4).
+func TestAdminHandler_RetireUnclaimedWorkflowItems_EmitsAllowedAudit(t *testing.T) {
+	audit := &testutil.FakeGovernanceAuditAppender{}
+	store := &stubAdminStore{
+		retiredUnclaimed: []RetiredUnclaimedItem{
+			{WorkItemID: "w-1", ScopeID: "scope-1"},
+		},
+	}
+	h := &Handler{Store: store, Audit: audit}
+
+	w := postJSON(newAdminMux(h), "/api/v0/admin/workflow-retire-unclaimed", map[string]any{
+		"collector_kind":        "sbom_attestation",
+		"collector_instance_id": "sbom-gone",
+	})
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body: %s", w.Code, http.StatusOK, w.Body.String())
+	}
+	if len(audit.Events) != 1 {
+		t.Fatalf("audit events = %+v, want exactly one allowed event", audit.Events)
+	}
+	got := audit.Events[0]
+	if got.ReasonCode != "retire_unclaimed_accepted" {
+		t.Errorf("reason = %q, want retire_unclaimed_accepted", got.ReasonCode)
+	}
+	if got.Decision != governanceaudit.DecisionAllowed {
+		t.Errorf("decision = %q, want %q", got.Decision, governanceaudit.DecisionAllowed)
+	}
+}
+
+// TestAdminHandler_RetireUnclaimedWorkflowItems_UnknownInstanceAuditsDeny
+// pins the 404-path audit: an unknown instance records one DecisionDenied
+// retire_unclaimed_refused_unknown_instance event, mirroring the reopen's
+// unknown-scope refusal (eshu-hq/eshu#10532 F4).
+func TestAdminHandler_RetireUnclaimedWorkflowItems_UnknownInstanceAuditsDeny(t *testing.T) {
+	audit := &testutil.FakeGovernanceAuditAppender{}
+	store := &stubAdminStore{retireUnclaimedErr: ErrRetireUnclaimedUnknownInstance}
+	h := &Handler{Store: store, Audit: audit}
+
+	w := postJSON(newAdminMux(h), "/api/v0/admin/workflow-retire-unclaimed", map[string]any{
+		"collector_kind":        "sbom_attestation",
+		"collector_instance_id": "never-existed",
+	})
+
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want %d; body: %s", w.Code, http.StatusNotFound, w.Body.String())
+	}
+	if len(audit.Events) != 1 {
+		t.Fatalf("audit events = %+v, want exactly one deny event", audit.Events)
+	}
+	got := audit.Events[0]
+	if got.ReasonCode != "retire_unclaimed_refused_unknown_instance" {
+		t.Errorf("reason = %q, want retire_unclaimed_refused_unknown_instance", got.ReasonCode)
+	}
+	if got.Decision != governanceaudit.DecisionDenied {
+		t.Errorf("decision = %q, want %q", got.Decision, governanceaudit.DecisionDenied)
 	}
 }

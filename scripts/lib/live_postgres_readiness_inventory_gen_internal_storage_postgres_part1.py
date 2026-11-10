@@ -208,6 +208,7 @@ TABLE = {
             "TestRetireUnclaimedLiveReconcileClosesRun",
             "TestRetireUnclaimedLiveGuardRelease",
             "TestRetireUnclaimedLiveReadsUnaffected",
+            "TestRetireUnclaimedLiveRecheckAfterReactivation",
         ),
         "go/internal/storage/postgres/control_scanner_admission_atomicity_live_test.go": (
             "TestScannerAdmissionRejectsConflictingDuplicateSourceLive",
