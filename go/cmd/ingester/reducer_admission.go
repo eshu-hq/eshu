@@ -58,6 +58,15 @@ const admissionGraphWriteTimeoutFailureClass = "graph_write_timeout"
 type reducerAdmissionConfig struct {
 	HighWaterMark int64
 	PollInterval  time.Duration
+	// MaxWait bounds one Enqueue admission wait (total time deferred across
+	// all poll iterations). Zero disables the timeout and keeps the legacy
+	// unbounded wait. Timeout ownership: the waiting worker goroutine enforces
+	// it on the ambient clock inside Enqueue — no new goroutine, no shared
+	// state, no lock-order change. The projector heartbeat keeps renewing the
+	// claim while waiting; on timeout Enqueue returns
+	// ErrReducerAdmissionTimeout and processWork fails the item through the
+	// existing attempt-fenced Fail path.
+	MaxWait time.Duration
 	// RetryingHighWaterMark defers the producer once retrying-state reducer
 	// depth reaches this value. Zero disables the graph-write-pressure gate.
 	RetryingHighWaterMark int64
@@ -191,6 +200,7 @@ func loadReducerAdmissionConfig(getenv func(string) string) (reducerAdmissionCon
 	config := reducerAdmissionConfig{
 		HighWaterMark:         defaultReducerAdmissionHighWaterMark,
 		PollInterval:          defaultReducerAdmissionPoll,
+		MaxWait:               defaultReducerAdmissionMaxWait,
 		RetryingHighWaterMark: defaultReducerAdmissionRetryingHighWaterMark,
 		RetryingLowWaterMark:  defaultReducerAdmissionRetryingLowWaterMark,
 	}
@@ -211,17 +221,28 @@ func loadReducerAdmissionConfig(getenv func(string) string) (reducerAdmissionCon
 	}
 
 	rawPollInterval := strings.TrimSpace(getenv(reducerAdmissionPollIntervalEnv))
-	if rawPollInterval == "" {
-		return config, nil
+	if rawPollInterval != "" {
+		pollInterval, err := time.ParseDuration(rawPollInterval)
+		if err != nil {
+			return reducerAdmissionConfig{}, fmt.Errorf("parse %s: %w", reducerAdmissionPollIntervalEnv, err)
+		}
+		if pollInterval <= 0 {
+			return reducerAdmissionConfig{}, fmt.Errorf("%s must be greater than zero", reducerAdmissionPollIntervalEnv)
+		}
+		config.PollInterval = pollInterval
 	}
-	pollInterval, err := time.ParseDuration(rawPollInterval)
-	if err != nil {
-		return reducerAdmissionConfig{}, fmt.Errorf("parse %s: %w", reducerAdmissionPollIntervalEnv, err)
+
+	rawMaxWait := strings.TrimSpace(getenv(reducerAdmissionMaxWaitEnv))
+	if rawMaxWait != "" {
+		maxWait, err := time.ParseDuration(rawMaxWait)
+		if err != nil {
+			return reducerAdmissionConfig{}, fmt.Errorf("parse %s: %w", reducerAdmissionMaxWaitEnv, err)
+		}
+		if maxWait < 0 {
+			return reducerAdmissionConfig{}, fmt.Errorf("%s must be zero or greater", reducerAdmissionMaxWaitEnv)
+		}
+		config.MaxWait = maxWait
 	}
-	if pollInterval <= 0 {
-		return reducerAdmissionConfig{}, fmt.Errorf("%s must be greater than zero", reducerAdmissionPollIntervalEnv)
-	}
-	config.PollInterval = pollInterval
 
 	return config, nil
 }
@@ -300,6 +321,12 @@ func (w reducerAdmissionWriter) Enqueue(
 		return runtime.IntentResult{}, errors.New("reducer admission depth reader is required")
 	}
 
+	// waitStart bounds the total admission wait across all deferral iterations.
+	// The timeout is checked only after a deferral decision, so a depth that
+	// has fallen below the marks still admits immediately no matter how long
+	// earlier iterations waited — and the inner Enqueue is never started
+	// before the check, so a timeout cannot orphan graph writes.
+	waitStart := time.Now()
 	for {
 		reason, failureClass, depth, err := w.admissionDecision(ctx)
 		if err != nil {
@@ -309,6 +336,9 @@ func (w reducerAdmissionWriter) Enqueue(
 			return w.inner.Enqueue(ctx, intents)
 		}
 		w.recordDeferral(ctx, reason, failureClass, depth, len(intents))
+		if timeoutErr := w.admissionTimeoutExceeded(ctx, waitStart, reason, depth, len(intents)); timeoutErr != nil {
+			return runtime.IntentResult{}, timeoutErr
+		}
 		if err := w.wait(ctx); err != nil {
 			return runtime.IntentResult{}, err
 		}

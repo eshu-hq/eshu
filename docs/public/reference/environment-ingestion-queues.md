@@ -92,6 +92,7 @@ held time for large repositories.
 | `ESHU_PROJECTOR_WORKERS` | `min(NumCPU, 8)`; NornicDB local-authoritative uses `NumCPU` | ingester projector | Source-local projector worker count. |
 | `ESHU_REDUCER_ADMISSION_HIGH_WATER_MARK` | `10000`; set `0` to disable | ingester projector | Defers source-local reducer intent enqueues while outstanding reducer queue depth is at or above this threshold. |
 | `ESHU_REDUCER_ADMISSION_POLL_INTERVAL` | `1s` | ingester projector | Queue-depth recheck interval while reducer admission is deferring. Must be greater than zero when set. |
+| `ESHU_REDUCER_ADMISSION_MAX_WAIT` | `5m`; set `0` to disable | ingester projector | Claim-scoped bound on one reducer admission wait. On expiry the enqueue fails (attempt++) so another worker can pick the item up instead of parking under renewing heartbeats (#10485). |
 | `ESHU_LARGE_GEN_THRESHOLD` | `10000` facts | ingester projector | Fact-count threshold for large-generation semaphore. |
 | `ESHU_LARGE_GEN_MAX_CONCURRENT` | default `2`; local-authoritative `4` | ingester projector | Concurrent large source-local generations. |
 | `ESHU_PROJECTOR_MAX_ATTEMPTS` | `3` | ingester/projector retry policy | Max projector attempts before terminal failure. |
