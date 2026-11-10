@@ -430,6 +430,7 @@ telemetry, Postgres, or graph setup begins.
 | ESHU_REDUCER_ADMISSION_RETRYING_HIGH_WATER_MARK | 500; set 0 to disable | Graph-write backpressure: defers reducer intent enqueues once the count of reducer rows retrying with `failure_class=graph_write_timeout` reaches this value. Scoped to the graph-write-timeout class so readiness-not-ready retry backlogs (`secrets_iam_endpoint_not_ready` and other `*_n` classes) never false-throttle admission |
 | ESHU_REDUCER_ADMISSION_RETRYING_LOW_WATER_MARK | 100 | Hysteresis floor; admission resumes only after the graph-write-timeout retrying depth falls below this value. Must be less than the retrying high-water mark |
 | ESHU_REDUCER_ADMISSION_POLL_INTERVAL | 1s | Reducer queue depth recheck interval while admission is deferring |
+| ESHU_REDUCER_ADMISSION_MAX_WAIT | 5m; set 0 to disable | Claim-scoped bound on one reducer admission wait. On expiry the enqueue fails (attempt++) so another worker can pick the item up instead of parking under renewing heartbeats (#10485) |
 | ESHU_LARGE_GEN_THRESHOLD | 10000 | Fact-count threshold for large-generation semaphore |
 | ESHU_LARGE_GEN_MAX_CONCURRENT | 2 | Max concurrent large-generation projections |
 | ESHU_CANONICAL_WRITE_TIMEOUT | 30s (NornicDB); 300s (Neo4j) | Graph write timeout. Neo4j falls back to the 300s default when unset or invalid (#7471); only an explicit non-positive duration leaves writes unbounded. |
