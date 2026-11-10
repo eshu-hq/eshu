@@ -19,6 +19,12 @@ import (
 // decode fails closed as invalid instead of silent success. Blank stays
 // valid for oldest servers that omit fields, and open enums such as
 // CollectorKind never pass through wireEnum.
+//
+// The pacing signal is the one advisory exception (#10377): it is only
+// a reason label on an already-quantified directive, so wirePacingSignal
+// widens an unknown value to the protective global default with the
+// directive preserved and counted, instead of erroring. Do not "fix"
+// it back to a hard error: that would starve claims on upgrade skew.
 
 // claimPlaneWireItem mirrors the protocol work-item JSON. Durations travel
 // as integer nanoseconds.
@@ -86,6 +92,27 @@ func wireEnum[E interface {
 		return fmt.Errorf("invalid %s %q: %w", kind, string(value), err)
 	}
 	return nil
+}
+
+// wirePacingSignal validates one decoded pacing signal at the protocol
+// boundary (#10377). Blank and known values pass through untouched. A
+// non-blank unknown value is a newer major speaking, but the pacing
+// signal is only a reason label on an already-quantified directive, so
+// the client widens it to the protective global default with the domain
+// cleared instead of erroring: a hard decode error here would starve
+// claims on the ClaimNext path until every client upgrades. The remap
+// flag lets the caller count the event under a bounded outcome; the raw
+// value is returned alongside so the ClaimNext path can keep it
+// diagnosable without ever becoming a metric label.
+func wirePacingSignal(raw string) (signal ClaimPacingSignal, remapped bool, unknown string) {
+	if raw == "" {
+		return "", false, ""
+	}
+	signal = ClaimPacingSignal(raw)
+	if wireEnum("claim pacing signal", signal) == nil {
+		return signal, false, ""
+	}
+	return ClaimPacingSignalGlobal, true, raw
 }
 
 func wireItemToWorkItem(wire claimPlaneWireItem) (WorkItem, error) {
