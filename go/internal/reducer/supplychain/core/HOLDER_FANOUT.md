@@ -317,6 +317,19 @@ same outcome label, and per-pass magnitudes ride the result sub-signals
 measurement of alias-churn: a `split` rate means dropped coverage the
 operator must re-issue, a `merge` rate converges on its own.
 
+No-Regression Evidence (#10482): the Go half of this change is comment-only
+— every added and removed Go line is a `//` comment (`git diff
+--unified=0 origin/main...HEAD -- '*.go'` shows no other lines), so no
+counter, label, emission, control flow, lock, batch size, or query text
+changes. `go test ./internal/reducer/supplychain/core/
+./internal/telemetry/ -count=1` passes at the fix head, and `go vet` plus
+`gofmt -l` on both packages are clean.
+
+No-Observability-Change: the re-key path stays covered by the existing
+`eshu_dp_supply_chain_impact_rekey_total` (plus carried/orphaned counters
+and the `rekey_*` result sub-signals); this change adds no metric and
+alters no emission.
+
 Re-key freshness bound: queue latency plus one holder pass per holder scope
 that holds a touched copy plus one 30-second winners resweep tick — the
 same bound as the enrichment wave above. Until the drain finishes, a holder
