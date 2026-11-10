@@ -113,7 +113,7 @@
 # registry contract for the six families below that could not register in
 # their old shape. Recorded in
 # docs/internal/design/6228-materialized-edge-retract-registry-contract.md,
-# which is the pointer every reason below carries.
+# which is the pointer every waiver reason carried.
 # TestMaterializedEdgeFamilyRegistryMatchesItsRetract now dispatches on
 # RetractKind: a `[rel:A|B]` alternation for relAlternation families, a
 # MATCH/DETACH DELETE shape plus derived types for evidenceNodeDetach
@@ -145,11 +145,12 @@
 # an open vocabulary. observability_coverage (5 closed AWS_COVERS_* types) and
 # security_group_sg_rule (ALLOWS_INGRESS|ALLOWS_EGRESS) are closed and screened
 # per row in code today; their old "open" claim was false.
-# Registering edge types is scaffolding, not coverage: every family below
-# still lacks its Odù, expected-edge-set fixture, and live matrices, which is
-# why every family below still carries waiver rows. Converting a waiver to a
-# coverage row and flipping its roster flag belongs to that family's own leaf,
-# never to this scaffolding change.
+# Registering edge types is scaffolding, not coverage: at that scaffolding
+# change every family below still lacked its Odù, expected-edge-set fixture,
+# and live matrices, which is why each then carried waiver rows. Converting
+# a waiver to a coverage row and flipping its roster flag belonged to that
+# family's own leaf, never to the scaffolding change; each conversion has
+# since landed, which is why the ledger below carries coverage rows only.
 #
 # WHERE THE FAMILY LIST COMES FROM. Not from this file, and not from any port's
 # name. reducer.DirectMaterializedEdgeFamilies() is the source, and

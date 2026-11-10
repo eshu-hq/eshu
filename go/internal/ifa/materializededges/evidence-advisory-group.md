@@ -47,7 +47,7 @@ invokes production code at its ports — the winners store's full
 resweep (the maintainer's rebuild) and the production enqueuer over
 the real reducer queue — mirroring the workload_dependency
 maintenance-pass precedent of invoking a production pass between
-drains. The seeded parity proof (`TestParityLive`) keeps its narrower
+drains. The seeded parity proof (`TestAdvisoryGroupParityLive`) keeps its narrower
 direct-drive role unchanged; this Odù is the durable end-to-end proof
 above it.
 
