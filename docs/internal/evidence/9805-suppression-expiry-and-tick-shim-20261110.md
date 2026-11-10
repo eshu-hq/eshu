@@ -17,15 +17,16 @@ Disproof, from source and by test:
   verbatim from payloads and has no time predicate:
   `supplyChainImpactWinnerBodySQL` in
   `go/internal/storage/postgres/supply_chain_impact_canonical_winners_store.go`
-  (state at line 208, expiry at lines 209-219), the operator predicate at
-  line 122, and no `NOW()` anywhere in the select, rebuild, or keyed apply
+  (the `suppression_state` / `suppression_expires_at` projections and
+  `supplyChainImpactOperatorSuppressionPredicate` in the same file), and
+  no `NOW()` anywhere in the select, rebuild, or keyed apply
   SQL. A fresh recompute after an expiry therefore produces byte-identical
   rows, so there is nothing for a tick to repair.
 - Readers derive the effective (expired) state at read time from the stored
   pair: `supplyChainImpactEffectiveDecisionStateSQL` over the winners table
-  in `go/internal/query/supply/chain/impact/findings_queries.go:164-168`,
-  and `advisoryGroupWinnerEffectiveStateSQL` in
-  `go/internal/storage/postgres/supply_chain_impact_advisory_group_winners.go:56-66`.
+  in `go/internal/query/supply/chain/impact/findings_queries.go`, and
+  `advisoryGroupWinnerEffectiveStateSQL` in
+  `go/internal/storage/postgres/supply_chain_impact_advisory_group_winners.go`.
 
 Proof: subtest `time-driven suppression expiry passes with no fact write`
 in `supply_chain_impact_winners_keyed_parity_live_test.go`. It seeds an
@@ -45,7 +46,7 @@ over budget below.
 Method: one `BEGIN READ ONLY` session on the QA environment's primary
 Postgres pod, `statement_timeout=30s`, count-only mirror of the lateral probe
 in `buildWinnersKeyedActiveFactsSQL`
-(`supply_chain_impact_winners_keyed_sql.go:115-146`), triples taken from
+(`supply_chain_impact_winners_keyed_sql.go`), triples taken from
 the winners table so the probe is the session's first `fact_records`
 touch. Script: `/tmp/9805-shim.sql` on the agent host; exits 0.
 
