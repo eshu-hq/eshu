@@ -55,9 +55,10 @@ jobs:
     if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'corpus-gate') }}
     name: corpus-gate (${{ matrix.graph_backend }})
     runs-on: ubuntu-24.04
-    # #10505: measured success runs reach 29.7m (p50 ~25m) across the 40 most
-    # recent PR heads, so the old 30m cap cancelled healthy runs. 45m aligns
-    # the cap to that distribution; see docs/internal/evidence/10505-golden-corpus-job-cap.md.
+    # #10505: measured success runs reach 28.4m here (captures reach 29.7m,
+    # p50 ~25m) across recent PR heads, so the old 30m cap cancelled healthy
+    # runs. 45m aligns the cap to that distribution; see
+    # docs/internal/evidence/10505-golden-corpus-job-cap.md.
     timeout-minutes: 45
     strategy:
       fail-fast: false
@@ -137,8 +138,8 @@ jobs:
     if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'differential-capture') }}
     name: differential capture (pair ${{ matrix.pair }}, ${{ matrix.graph_backend }})
     runs-on: ubuntu-24.04
-    # #10505: same measured distribution as corpus-gate (success max 29.7m);
-    # see docs/internal/evidence/10505-golden-corpus-job-cap.md.
+    # #10505: same measured distribution as corpus-gate (capture success
+    # max 29.7m); see docs/internal/evidence/10505-golden-corpus-job-cap.md.
     timeout-minutes: 45
     strategy:
       fail-fast: false
