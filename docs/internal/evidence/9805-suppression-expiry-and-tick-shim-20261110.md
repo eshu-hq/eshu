@@ -169,3 +169,44 @@ derivation input moves to an expiry-aware read) is coordinator scope and is
 NOT in this change.
 
 Counts: 6 SAFE (read-time), 3 NEUTRAL (no expiry consumption), 1 BREAKS.
+
+## Census addendum: reader #10 fixed, claim final (2026-11-10)
+
+Refs #9805. `listActiveFindingCVEIDsQuery` now derives the effective
+suppression state at read time, reusing reader #3's typed-column predicate
+(`advisoryGroupWinnerEffectiveStateSQL` plus the hidden-state list derived
+from `supplychaincore.SupplyChainSuppressionHiddenStates`): the winners
+column is `TIMESTAMPTZ NULL`, so the `pg_input_is_valid` text guard readers
+#1/#2 need has no equivalent here — a typed column cannot hold invalid text.
+A hidden state whose `suppression_expires_at <= NOW()` reads `expired` and
+its CVE reaches EPSS derivation; a non-expired hidden state stays excluded;
+visibility is effective-state `NOT IN` hidden, exactly as readers #1-#3
+decide it. Row #10 is therefore SAFE (read-time) and the census closes at
+7 SAFE, 3 NEUTRAL, 0 BREAKS: the time-invariance claim is final for every
+EPSS-involving reader. The shape test that pinned the raw equality now pins
+the effective-state predicate and carries the same bare-equality guard as
+the advisory-group test; the live seed's non-vocabulary `suppressed` state
+became a real non-expired `accepted_risk`.
+
+RED (before the fix, disposable Postgres on `eshu_test`):
+`TestListActiveFindingCVEIDsLive` seeding `accepted_risk` with
+`suppression_expires_at` one hour past failed with
+`missing "CVE-2024-8888" in ["CVE-2024-0001" "CVE-2024-0002" "GHSA-..."]`.
+GREEN (after): `TestListActiveFindingCVEIDsLive` and
+`TestListActiveFindingCVEIDsQueryShape` pass; the winners parity proof
+`TestSupplyChainImpactWinnersResweepKeyedMatchesRecomputeAcrossChangeClassesLive`
+(8.94s, includes the time-driven expiry subtest over this store file's
+select) and `TestAdvisoryGroupWinnersQualifyingLive` pass; `go vet` on the
+package exits 0.
+
+No-Regression Evidence: `EXPLAIN (ANALYZE, BUFFERS)` at QA winners volume
+(71,023 synthetic rows, warm cache, disposable database, deleted after):
+both predicates plan Seq Scan -> HashAggregate -> Sort with identical
+buffers (1244 shared hit); old 24.6ms, new 30.8ms once per schedule tick,
+the delta being the per-row CASE plus the correctly-included expired rows
+(63,920 kept vs 56,818). No index, DDL, batch, or concurrency change.
+
+No-Observability-Change: no new metric, span, log, or knob. The read stays
+on the existing instrumented Postgres query path and the per-plan EPSS
+counters in the coordinator; expired CVEs now simply appear in the
+`epss_distinct_cves` count they were always meant to feed.

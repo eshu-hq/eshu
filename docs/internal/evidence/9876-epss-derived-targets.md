@@ -145,3 +145,16 @@ flip, no `ScopeQuery` stuffing, no SPDX invention.
   non-sharded claims; the enabled path adds two bounded reads per plan
   tick plus pacing that caps fetches at one full finding-set pass per
   FIRST publication day (Decision 5).
+
+## Addendum: read predicate now expiry-aware (2026-11-10, #9805 reader #10)
+
+The `WHERE suppression_state = 'active'` read quoted above (and the same
+predicate in the post-deploy QA query's denominator) is superseded:
+`listActiveFindingCVEIDsQuery` now selects effectively visible winners —
+read-time effective suppression state `NOT IN` the hidden set, with a
+hidden state whose `suppression_expires_at` has passed reading `expired`.
+The stored-state read kept an expired suppression's CVE out of derivation
+forever while the findings reads reported the row visible. Proof and
+before/after numbers live in the census addendum of
+`9805-suppression-expiry-and-tick-shim-20261110.md`; rerun the QA coverage
+query with the effective-state denominator.
