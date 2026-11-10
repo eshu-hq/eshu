@@ -167,11 +167,18 @@ func (c *Client) ClaimNext(
 	if err := decodeStrict(body, &resp); err != nil {
 		return workflowv1.ClaimedWorkItem{}, false, c.callErrorText(workflowv1.OpClaimNext, "invalid", err.Error())
 	}
+	if !resp.Issued {
+		// Widen an unknown pacing signal before the satellite Validate
+		// rejects it (#10377 doctrine): the backoff directive survives,
+		// the raw value stays in the bounded detail text.
+		_, unknown := remapUnknownPacingSignal(&resp.Deferral)
+		if err := resp.Validate(); err != nil {
+			return workflowv1.ClaimedWorkItem{}, false, c.callErrorText(workflowv1.OpClaimNext, "invalid", err.Error())
+		}
+		return workflowv1.ClaimedWorkItem{}, false, c.deferralError(resp.Deferral, unknown)
+	}
 	if err := resp.Validate(); err != nil {
 		return workflowv1.ClaimedWorkItem{}, false, c.callErrorText(workflowv1.OpClaimNext, "invalid", err.Error())
-	}
-	if !resp.Issued {
-		return workflowv1.ClaimedWorkItem{}, false, c.deferralError(resp.Deferral)
 	}
 	if err := checkGrantSelector(selector, resp.Grant); err != nil {
 		return workflowv1.ClaimedWorkItem{}, false, c.callErrorText(workflowv1.OpClaimNext, "invalid", err.Error())
