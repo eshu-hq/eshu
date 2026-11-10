@@ -2,7 +2,7 @@
 
 Issue #9975 (parent #9805) tracks the keyed winners tick breaching its bars
 (keyed p95 at most 15 s, peak watermark age at most 60 s) after migration 279
-fixed the dead-version half. This note records the two shims that selected the
+fixed the dead-version half. This note records the three shims that selected the
 fix, what the fix is, and what remains unproven until it rolls.
 
 ## Classification
@@ -94,8 +94,9 @@ QA timings come from the phase histograms after the carrying roll.
   partial index over the finding rows only (about 1.13M rows, an estimated
   0.6 GB on QA against 98 GB of existing `fact_records` indexes), maintained by
   finding writes and cleaned by the same autovacuum cadence migration 279 set.
-  The old package-lookup index stays: other triple probes use it, and dropping
-  it is a separate, measured decision.
+  The old package-lookup index stays as the rollback fallback for the shipped
+  probe; no in-repo finding-kind probe still needs it, and dropping it is a
+  separate, measured decision.
 - `buildWinnersKeyedActiveFactsSQL` probes once per identifier with all five
   equalities inside the lateral, still inside a MATERIALIZED CTE, still joined
   to the active scope/generation afterwards. The identifier table holds
