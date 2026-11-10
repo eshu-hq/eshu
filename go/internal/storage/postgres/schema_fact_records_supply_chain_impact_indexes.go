@@ -30,4 +30,25 @@ CREATE INDEX IF NOT EXISTS fact_records_supply_chain_impact_group_members_idx
     ON fact_records USING GIN ((payload #> '{provenance,advisory_group_members}'))
     WHERE fact_kind = 'reducer_supply_chain_impact_finding'
       AND is_tombstone = FALSE;
+
+-- #9975: the keyed winners resweep probe. The package triple plus the
+-- coalesced c0 (cve_id, else advisory_id) and advisory_id expressions the
+-- probe matches per dirty identifier, so all five equalities are index
+-- conditions and the heap fetches only kept facts instead of every candidate
+-- of a touched triple. fact_id and generation_id ride along like the sibling
+-- impact indexes. Migration 291 builds it concurrently on existing
+-- deployments; the expressions must stay byte-identical to the probe in
+-- supply_chain_impact_winners_keyed_sql.go or the planner cannot use it.
+CREATE INDEX IF NOT EXISTS fact_records_supply_chain_impact_winners_keyed_idx
+    ON fact_records (
+        (payload->>'package_id'),
+        (payload->>'repository_id'),
+        (payload->>'subject_digest'),
+        (COALESCE(NULLIF(payload->>'cve_id', ''), NULLIF(payload->>'advisory_id', ''), '')),
+        (COALESCE(payload->>'advisory_id', '')),
+        fact_id ASC,
+        generation_id
+    )
+    WHERE fact_kind = 'reducer_supply_chain_impact_finding'
+      AND is_tombstone = FALSE;
 `

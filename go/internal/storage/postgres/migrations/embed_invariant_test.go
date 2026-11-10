@@ -236,14 +236,16 @@ import (
 // (the advisory arm of the holder fan-out lookup),
 // 289_fact_records_supply_chain_impact_group_members_idx.sql (the
 // member-set arm), and 290_fact_records_supply_chain_impact_advisory_id_stats.sql
-// (extended statistics holding the advisory arm on its index).
-const goldenBootstrapDefinitionsDigest = "977e567c9a36deb5529a16b8be74514ffc42c2e9681b6a16671a121a8172790a"
+// (extended statistics holding the advisory arm on its index). #9975 adds
+// 291_fact_records_supply_chain_impact_winners_keyed_idx.sql (the keyed
+// winners resweep probe index: package triple plus coalesced c0/advisory).
+const goldenBootstrapDefinitionsDigest = "a93e2502f9155051d1c974986831ca608493c00afc0eb80ad57baaa92ad15990"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or
 // silently dropping files) fails loudly even in the unlikely case of a hash
 // collision.
-const goldenBootstrapDefinitionsCount = 316
+const goldenBootstrapDefinitionsCount = 317
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
 	defs := BootstrapDefinitions()

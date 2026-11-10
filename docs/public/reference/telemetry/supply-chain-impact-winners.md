@@ -190,7 +190,15 @@ No label carries a canonical key, scope, repository, or CVE.
   is slow, not the work. The phases of one tick add up to nearly its
   `resweep_duration_seconds` sample, and the histogram does not tie a sample to
   one tick, so match a slow tick to its phase by the time of the jump in the
-  bucket counts.
+  bucket counts. The `build_active_facts` probe cost model is one index descent
+  on `fact_records_supply_chain_impact_winners_keyed_idx` plus the kept facts'
+  heap rows per dirty identifier (about 13 kept facts per identifier on the QA
+  corpus), so a slow `build_active_facts` at ordinary identifier counts means
+  the probe lost its index (check the plan) or the kept set itself grew, not
+  that untouched triples are being fetched. Any peak-watermark verdict reads
+  the peak as the maximum over the window of the per-instant `min()` across
+  instances, never one instance's maximum: a starting or dying instance's
+  first-stamp lag is not reader staleness.
 - Then read the dirty log. `dirty_log_depth` should return to near zero after
   each keyed tick, and `dirty_log_oldest_age_seconds` bounds how far a winner
   can lag its facts. If either keeps climbing, no instance is running keyed
