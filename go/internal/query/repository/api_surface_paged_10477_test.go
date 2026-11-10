@@ -39,8 +39,11 @@ func pagedEndpointReader(t *testing.T, rows []map[string]any) querycontract.Grap
 			case strings.Contains(cypher, "count(endpoint) AS endpoint_count"):
 				return []map[string]any{{"endpoint_count": len(rows)}}, nil
 			case strings.Contains(cypher, "endpoint.id AS endpoint_id"):
-				if !strings.Contains(cypher, "OFFSET $offset") && !strings.Contains(cypher, "SKIP $offset") {
-					t.Errorf("endpoint detail query carries no offset clause:\n%s", cypher)
+				if strings.Contains(cypher, "OFFSET $offset") {
+					t.Errorf("endpoint detail query uses OFFSET, which is not valid Cypher; use SKIP $offset:\n%s", cypher)
+				}
+				if !strings.Contains(cypher, "SKIP $offset") {
+					t.Errorf("endpoint detail query carries no SKIP offset clause:\n%s", cypher)
 				}
 				limit, _ := params["limit"].(int)
 				offset, _ := params["offset"].(int)

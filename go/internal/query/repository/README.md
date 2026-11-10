@@ -244,8 +244,9 @@ paged variant), the new variant adds a bounded `SKIP`/`LIMIT` page to the same
 ordered read, and per-page rows stay within the handler clamp. The `OFFSET`
 form first written here failed live against the pinned backend (B-7
 `mcp:list_service_api_endpoints` 500 on an unparsable page query); the
-`SKIP` form matches the live-tested repository-list shape; the B-7 re-run
-on this head is the pending live proof for the fixed shape. Focused proof:
+`SKIP` form matches the live-tested repository-list shape; the B-7 run
+at the fix head passed (`PASS: B-7 golden corpus gate green`, 757 pass,
+0 required-fail, `mcp:list_service_api_endpoints` green). Focused proof:
 `TestQueryRepoAPISurfacePagedHonorsLimitOffset` pages a
 60-endpoint fixture 25/25/10 with `endpoint_count == 60` and no `next_offset`
 on the last page; the service, entity, and root handler paging tests cover
