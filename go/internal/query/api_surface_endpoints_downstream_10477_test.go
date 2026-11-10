@@ -192,6 +192,34 @@ func TestGetServiceAPISurfaceEndpointsEmptyPage(t *testing.T) {
 	}
 }
 
+// TestGetServiceAPISurfaceEndpointsDefaults pins the documented page
+// contract: an unparameterized call returns the 50-row default page in the
+// documented order with the true total.
+func TestGetServiceAPISurfaceEndpointsDefaults(t *testing.T) {
+	t.Parallel()
+
+	reader := pagingServiceReader(t, pagingEndpointRows(60), 0)
+	code, body := servePagingService(t, reader, "/api/v0/services/service-edge-api/api-surface/endpoints")
+	if code != http.StatusOK {
+		t.Fatalf("GET endpoints default: status = %d, want 200 (body %v)", code, body)
+	}
+	data := pagingEnvelopeData(t, "endpoints", body)
+	if total := querycontract.IntVal(data, "endpoint_count"); total != 60 {
+		t.Fatalf("endpoint_count = %d, want 60", total)
+	}
+	if got := len(querycontract.MapSliceValue(data, "endpoints")); got != 50 {
+		t.Fatalf("default page = %d rows, want the documented default 50", got)
+	}
+	if next, present := data["next_offset"]; !present || next == nil {
+		t.Fatal("next_offset absent on the default page, want 50 (rows remain)")
+	} else if offset, _ := next.(float64); offset != 50 {
+		t.Fatalf("next_offset = %v, want 50", next)
+	}
+	if ordering := querycontract.StringVal(data, "ordering"); ordering != "path, endpoint_id" {
+		t.Fatalf("ordering = %q, want the documented path, endpoint_id order", ordering)
+	}
+}
+
 // TestGetServiceAPISurfaceEndpointsRejectsBadPaging pins the 400s for the
 // new route's limit/offset parameters.
 func TestGetServiceAPISurfaceEndpointsRejectsBadPaging(t *testing.T) {
