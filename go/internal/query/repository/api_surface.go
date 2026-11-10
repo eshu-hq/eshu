@@ -63,8 +63,9 @@ func QueryRepoAPISurface(ctx context.Context, reader querycontract.GraphQuery, p
 
 // QueryRepoAPISurfacePaged reads one API endpoint page for a repository at
 // the Cypher read (#10477): the same count query reports the true total while
-// the detail read carries LIMIT $limit OFFSET $offset beside ORDER BY path,
-// endpoint_id, so page N never re-reads or Go-slices an earlier page. The
+// the detail read carries SKIP $offset LIMIT $limit beside ORDER BY path,
+// endpoint_id (the repository-list pagination shape proven on the pinned
+// backend), so page N never re-reads or Go-slices an earlier page. The
 // unpaged QueryRepoAPISurface above keeps its own query text byte-identical
 // (cassette and snapshot stability); this variant shares only the row mapping.
 // A non-positive limit falls back to the endpoint cap and a negative offset
@@ -104,7 +105,8 @@ func QueryRepoAPISurfacePaged(ctx context.Context, reader querycontract.GraphQue
 		       endpoint.workload_id AS workload_id,
 		       endpoint.workload_name AS workload_name
 		ORDER BY path, endpoint_id
-		LIMIT $limit OFFSET $offset
+		SKIP $offset
+		LIMIT $limit
 	`, detailParams)
 	if err != nil {
 		return nil, fmt.Errorf("query repository API surface endpoint page: %w", err)
