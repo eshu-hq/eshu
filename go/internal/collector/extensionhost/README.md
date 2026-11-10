@@ -42,7 +42,7 @@ Host-minted GitHub App tokens (#9182 lane A, wire shape per arbiter):
 `Config.TokenProvider`, when set, mints one installation token per opted-in claim
 host-side into the per-claim request config under `host_github_app_token` as
 `{token, scope_id}`; a static `targets` entry with `auth_mode: host_minted` for the claimed
-scope mints, as does any claim carrying a host-resolved derived target; the App private key
+scope mints (a GHSA window claim inherits its anchor's opt-in, #10533), as does any claim carrying a host-resolved derived target; the App private key
 never crosses the stdio boundary. Other claims keep the static path with the provider never
 consulted. A mint denial
 fails the claim terminal (`auth_denied`) before the satellite launches; a transient
@@ -60,8 +60,8 @@ so config cannot forge a commit or a remote. The generation the claim commits ca
 the target's commit in `SourceCommitSHA` (#10055), so the coordinator's commit-skew
 fence can compare it without reading fact payloads. Other scopes stay unstamped.
 
-Installation selection for derived scopes (#10027): an exact scope match in
-`AppTokenProviderConfig.Installations` wins and reads nothing. Otherwise
+Installation selection (#10027, #10533): an exact scope match in
+`AppTokenProviderConfig.Installations` wins and reads nothing; a GHSA window then tries its anchor. Otherwise
 `InstallationKey` resolves the claim to `github-owner:<host>/<owner>` from the same
 validated entry. Only Go reachability scopes resolve a key, so an owner key cannot
 serve another claim. The host is part of the key because the token goes to the
