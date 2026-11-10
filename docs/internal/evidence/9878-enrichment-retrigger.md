@@ -26,9 +26,17 @@ be added (with readiness-floor treatment if added). It exists:
   correlation). Enrichment is collector facts, not a reducer domain, so no
   catalog entry or readiness-floor change applies. Plan section 4.2's
   catalog edge is for advisory-group re-keying (Phase 3), not for this item.
-- The digest skip was already wired and proven
-  (`freshness_skip_9878_test.go`): unchanged KEV/EPSS input creates no
-  generation, hence no re-trigger wave.
+- The digest skip was already wired and proven: unchanged KEV/EPSS input
+  creates no generation, hence no re-trigger wave. After #9999 removed the
+  in-tree collector, that proof lives in the satellite
+  (`eshu-collector-vulnerability-intelligence`, `freshness.go` and
+  `freshness_test.go`, golden-matched to the deleted in-tree digest) plus
+  the core generic skip decision
+  (`go/internal/storage/postgres/ingestion_backfill_seam.go`,
+  `TestDecideUnchangedGenerationCells`). Composition accepted by the
+  closure ruling,
+  `docs/internal/arbiter/9878-closure-waivers-ruling-2026-11-10.md`
+  section 4.
 
 Root-Cause Evidence: the masking state in the live regression below — after
 the lowered EPSS generation commits and before any holder re-runs, the
@@ -150,8 +158,11 @@ per-pass overhead (see above). p95 series NOT_CHECKED (open residual).
   the digest) and lands on identical scores.
 - A scope that acknowledged before the in-flight read with no finding row
   for the CVE is not a holder (documented in `HOLDER_FANOUT.md`).
-- Final #9878 acceptance still needs the fixture re-run after #9693 (1.2
-  severity) lands and the seeded-CVE QA check; both are outside this diff.
+- Final #9878 acceptance, originally left outside that diff, closed on
+  2026-11-10: fixture re-run green after #9693, the four `9878Live` tests
+  re-run green on the closure tree, and the QA direct-CVE equality check
+  observed on the deployed binary. See "Closure proof (2026-11-10)" below
+  and `docs/internal/arbiter/9878-closure-waivers-ruling-2026-11-10.md`.
 - p95 no-regression proof still open: resweep p95 and list/aggregate p95
   before/after on the built binary (this note's 1x figures are single
   samples only; see above).
@@ -172,3 +183,27 @@ go test ./internal/storage/postgres/ -run 'TestSupplyChainImpactWinnersResweepSc
 Environment: GOTOOLCHAIN=go1.26.10 (go/go.mod), GOROOT unset, PostgreSQL
 18.6 local disposable databases, shared host (load average 37–58 during
 timing runs; timing figures carry that noise).
+
+## Closure proof (2026-11-10)
+
+Recorded for the #9878 closure under
+`docs/internal/arbiter/9878-closure-waivers-ruling-2026-11-10.md`.
+Performance claim, exactly as bounded there: no-regression by construction
+plus allocation parity on the touched path. No p95 no-regression is
+claimed; the `NOT_CHECKED` p95 lines above stay as written.
+
+- Fixture re-run after #9693: `go test ./internal/reducer/supplychain/core/
+  -run TestKEVEPSSRescore -count=1 -v` on `7e5e91712b` — 3/3 PASS.
+- Live quartet re-run on the closure tree (ruling section 5):
+  `go test ./internal/storage/postgres/ -run '9878Live' -count=1 -v` with
+  `ESHU_REQUIRE_SUPPLY_CHAIN_IMPACT_PROOF=1` and a disposable PostgreSQL 18
+  database — exit 0, 4/4 PASS (lowered-EPSS convergence 5.17s, new-KEV
+  reach 0.64s, commit-during-holder-pass 0.61s, identical rescan 0.57s).
+- QA readback on the deployed binary (`sha-33075aeb`, an ancestor of this
+  tree): KEV scope fresh with 1773 catalog CVEs; 1,150,517 active finding
+  rows; findings whose CVE is in KEV = 2622 = flagged, 0 mismatches in
+  either direction; canonical winners 71,024 with flagged = 113 =
+  CVE-in-KEV. Real row: CVE-2022-22965 on spring-beans, tier `kev`.
+- Alias leg: `DEFER: #10508 docs/internal/arbiter/9878-closure-waivers-ruling-2026-11-10.md`
+  (section 3 — the alias unit pin lands under alias-grouping ownership and
+  does not block this closure).
