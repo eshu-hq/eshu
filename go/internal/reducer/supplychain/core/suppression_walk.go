@@ -39,17 +39,18 @@ type suppressionWalkPlan struct {
 }
 
 // suppressionWalkResult is what a walk hands the writer. CVEIDs is the sorted
-// union of every step's changed CVE ids. DiffRows counts rows read across all
-// steps and Statements counts the steps run. NoCVEScopeRows counts distinct
-// changed suppressions that named no CVE in any step, since the fan-out cannot
-// reach their holders by id. WalkTruncated repeats the plan's count so the span,
+// union of every step's changed identity ids (CVE and advisory ids, #10409
+// D4; the holder read matches either). DiffRows counts rows read across all
+// steps and Statements counts the steps run. NoIdentityScopeRows counts
+// distinct changed suppressions that named no identity id in any step, since
+// the fan-out cannot reach their holders by id. WalkTruncated repeats the plan's count so the span,
 // the log line and the counter read it from one place.
 type suppressionWalkResult struct {
-	CVEIDs         []string
-	DiffRows       int
-	NoCVEScopeRows int
-	Statements     int
-	WalkTruncated  int
+	CVEIDs              []string
+	DiffRows            int
+	NoIdentityScopeRows int
+	Statements          int
+	WalkTruncated       int
 }
 
 // planSuppressionWalk lists the diff statements a pass on currentID runs. A
@@ -137,19 +138,20 @@ func walkSuppressionDiff(plan suppressionWalkPlan, read func(priorID, currentID 
 		result.DiffRows += len(rows)
 		all = append(all, rows...)
 	}
-	result.CVEIDs = changedSuppressionCVEIDs(all)
-	result.NoCVEScopeRows = countDistinctSuppressionsWithoutCVEScope(all)
+	result.CVEIDs = changedSuppressionIDs(all)
+	result.NoIdentityScopeRows = countDistinctSuppressionsWithoutIdentityScope(all)
 	return result, nil
 }
 
-// countDistinctSuppressionsWithoutCVEScope counts the suppressions that never
-// named a CVE in any row of the walk. A suppression that named one in another
-// step reached its holders through that id and is not counted.
-func countDistinctSuppressionsWithoutCVEScope(rows []suppressionDiffRow) int {
+// countDistinctSuppressionsWithoutIdentityScope counts the suppressions that
+// never named a CVE or advisory id in any row of the walk. A suppression that
+// named one in another step reached its holders through that id and is not
+// counted.
+func countDistinctSuppressionsWithoutIdentityScope(rows []suppressionDiffRow) int {
 	scoped := map[string]struct{}{}
 	unscoped := map[string]struct{}{}
 	for _, row := range rows {
-		if countSuppressionsWithoutCVEScope([]suppressionDiffRow{row}) == 1 {
+		if countSuppressionsWithoutIdentityScope([]suppressionDiffRow{row}) == 1 {
 			unscoped[row.SuppressionID] = struct{}{}
 		} else {
 			scoped[row.SuppressionID] = struct{}{}

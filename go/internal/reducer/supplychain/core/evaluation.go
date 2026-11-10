@@ -181,7 +181,27 @@ type SupplyChainSuppressionDecision struct {
 	EvidenceRef    string
 	VEXDocumentID  string
 	VEXStatementID string
+	// MatchedID is the finding-side identity the winning suppression named
+	// (#10409 D1): a group member id, or the finding's cve_id/advisory_id on
+	// a direct naming. MatchedField is the scope field that supplied it
+	// ("cve_id" or "advisory_id") and MatchedVia tells a direct naming from
+	// a group-member (alias) match. All three are empty when no identity
+	// field named the finding, so an operator can audit why a GHSA-named
+	// VEX hid a CVE-keyed finding.
+	MatchedID    string
+	MatchedField string
+	MatchedVia   string
 }
+
+// Bounded MatchedVia values on SupplyChainSuppressionDecision.
+const (
+	// SuppressionMatchedViaDirect means the scope named the finding's own
+	// cve_id or advisory_id.
+	SuppressionMatchedViaDirect = "direct"
+	// SuppressionMatchedViaGroupMember means the scope named a non-canonical
+	// member of the finding's advisory group.
+	SuppressionMatchedViaGroupMember = "group_member"
+)
 
 // EvaluateSupplyChainSuppression returns the suppression decision for one
 // finding. Selection is deterministic:
@@ -237,18 +257,46 @@ func EvaluateSupplyChainSuppression(
 	}
 
 	if activeMatch != nil {
-		return decisionFromActiveOperatorSuppression(*activeMatch)
+		return withMatchedIdentity(finding, *activeMatch, decisionFromActiveOperatorSuppression(*activeMatch))
 	}
 	if providerMatch != nil {
-		return decisionFromProviderSuppression(*providerMatch)
+		return withMatchedIdentity(finding, *providerMatch, decisionFromProviderSuppression(*providerMatch))
 	}
 	if expiredMatch != nil {
-		return decisionFromExpiredSuppression(*expiredMatch)
+		return withMatchedIdentity(finding, *expiredMatch, decisionFromExpiredSuppression(*expiredMatch))
 	}
 	if scopeMismatch != nil {
-		return decisionFromScopeMismatch(finding, *scopeMismatch)
+		return withMatchedIdentity(finding, *scopeMismatch, decisionFromScopeMismatch(finding, *scopeMismatch))
 	}
 	return SupplyChainSuppressionDecision{State: SupplyChainSuppressionStateActive}
+}
+
+// withMatchedIdentity stamps the decision with which identity the winning
+// suppression named and through which scope field (#10409 D1). The cve_id
+// field is consulted first so the provenance is deterministic when both
+// fields name the finding. A suppression adjacent only through a
+// non-identity anchor leaves the fields empty.
+func withMatchedIdentity(finding SupplyChainImpactFinding, s vulnerabilitySuppression, decision SupplyChainSuppressionDecision) SupplyChainSuppressionDecision {
+	for _, candidate := range []struct {
+		field string
+		value string
+	}{
+		{field: "cve_id", value: s.Scope.CVEID},
+		{field: "advisory_id", value: s.Scope.AdvisoryID},
+	} {
+		matched, viaGroup, ok := findingMatchableID(candidate.value, finding)
+		if !ok {
+			continue
+		}
+		decision.MatchedID = matched
+		decision.MatchedField = candidate.field
+		decision.MatchedVia = SuppressionMatchedViaDirect
+		if viaGroup {
+			decision.MatchedVia = SuppressionMatchedViaGroupMember
+		}
+		return decision
+	}
+	return decision
 }
 
 // preferredSuppression returns the candidate that the former stable sort

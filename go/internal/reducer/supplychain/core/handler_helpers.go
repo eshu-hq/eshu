@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -309,6 +310,7 @@ func (h SupplyChainImpactHandler) loadSupplyChainImpactPeerIdentityFacts(
 
 func (h SupplyChainImpactHandler) emitCounters(
 	ctx context.Context,
+	findings []SupplyChainImpactFinding,
 	counts map[SupplyChainImpactStatus]int,
 	suppressionCounts map[SupplyChainSuppressionState]int,
 	remediationCounts map[supplyChainRemediationKey]int,
@@ -345,6 +347,17 @@ func (h SupplyChainImpactHandler) emitCounters(
 				telemetry.AttrDomain(string(reducercontract.DomainSupplyChainImpact)),
 				telemetry.AttrOutcome(key.confidence),
 				telemetry.AttrReason(key.reason),
+			))
+		}
+	}
+	// How winning suppressions named their findings (#10409 D1): direct
+	// cve/advisory naming vs advisory-group member (alias) naming.
+	if h.Instruments.SupplyChainImpactSuppressionIdentityMatched != nil {
+		for key, count := range supplyChainSuppressionMatchedCounts(findings) {
+			h.Instruments.SupplyChainImpactSuppressionIdentityMatched.Add(ctx, int64(count), metric.WithAttributes(
+				telemetry.AttrDomain(string(reducercontract.DomainSupplyChainImpact)),
+				attribute.String("matched_field", key.field),
+				attribute.String("matched_via", key.via),
 			))
 		}
 	}

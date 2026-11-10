@@ -167,6 +167,9 @@ func decodeSupplyChainSuppressionDecision(payload map[string]any) *packet.Suppre
 		EvidenceRef:    querycontract.StringVal(raw, "evidence_ref"),
 		VEXDocumentID:  querycontract.StringVal(raw, "vex_document_id"),
 		VEXStatementID: querycontract.StringVal(raw, "vex_statement_id"),
+		MatchedID:      querycontract.StringVal(raw, "matched_id"),
+		MatchedField:   querycontract.StringVal(raw, "matched_field"),
+		MatchedVia:     querycontract.StringVal(raw, "matched_via"),
 	}
 	if row.State == "" {
 		row.State = querycontract.StringVal(payload, "suppression_state")

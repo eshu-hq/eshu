@@ -9,6 +9,26 @@ recent shipped work grouped by feature area.
 
 ## Unreleased
 
+### A VEX statement naming one alias now suppresses the whole advisory group
+
+- **Suppressions match through the advisory-group member set**
+  ([#10409](https://github.com/eshu-hq/eshu/issues/10409)). Each scope
+  `cve_id`/`advisory_id` is tested against the grouped finding's member ids
+  plus its own `cve_id`/`advisory_id`, conjunctive per field, so a GHSA id
+  carried in `cve_id` (or a CVE in `advisory_id`) still names the group;
+  `upstream`/`related` ids never widen matching. Decisions record
+  `matched_id`, `matched_field`, and `matched_via` (`direct` or
+  `group_member`) on the suppression block. Suppression diff rows carry
+  advisory ids on both sides, so advisory-scoped changes reopen holders.
+  The unreachable-scope counter now counts only suppressions naming
+  neither id and is renamed to
+  `eshu_dp_supply_chain_impact_suppression_no_identity_scope_total`;
+  `eshu_dp_supply_chain_impact_suppression_identity_matched_total` meters
+  direct vs group-member matches. A per-pass candidate index replaces the
+  findings-times-suppressions scan (44.7 ms to 1.30 ms on the
+  spread-identity benchmark). See
+  [alias-suppression evidence](docs/internal/evidence/10409-alias-suppression.md).
+
 ### A capped CVE holder fan-out no longer strands its remaining holders
 
 - **A fan-out continuation superseded by a newer generation still drains**

@@ -281,7 +281,7 @@ func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent reducercont
 	}
 
 	phaseStarted = time.Now()
-	h.emitCounters(ctx, counts, suppressionCounts, remediationCounts)
+	h.emitCounters(ctx, findings, counts, suppressionCounts, remediationCounts)
 	h.emitSeverityDecisions(ctx, findings)
 	h.emitRetraction(ctx, intent, writeResult.FactsRetracted)
 	h.emitEvidenceTruncation(ctx, intent, loaded, len(findings))
@@ -406,11 +406,14 @@ func (h SupplyChainImpactHandler) impactWrite(
 // suppression authority is loaded yet, so it evaluates against no
 // suppressions rather than a static scope rule.
 func applySupplyChainImpactSuppressions(findings []SupplyChainImpactFinding, suppressions []vulnerabilitySuppression, now time.Time) {
+	// One index for the pass (#10409 D2): each finding evaluates only the
+	// suppressions that can be adjacent to it.
+	index := newSuppressionIndex(suppressions)
 	for i := range findings {
 		if findings[i].ScanTargetID != "" {
 			findings[i].Suppression = EvaluateSupplyChainSuppression(findings[i], nil, now)
 			continue
 		}
-		findings[i].Suppression = EvaluateSupplyChainSuppression(findings[i], suppressions, now)
+		findings[i].Suppression = EvaluateSupplyChainSuppression(findings[i], index.candidates(findings[i]), now)
 	}
 }

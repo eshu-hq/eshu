@@ -65,7 +65,10 @@
 // retire_only (rows retired, nothing derived), staying silent when the
 // pass changed no group identity (however many rows it wrote or retracted)
 // — unless it dropped suppression coverage, which reports split —
-// #10408. Suppression carry and orphan magnitudes
+// #10408. Suppression identity matching consults the finding's whole
+// matchable set (group members plus its own cve/advisory ids) per scope
+// field, and decisions record which id and field matched (#10409).
+// Suppression carry and orphan magnitudes
 // ride eshu_dp_supply_chain_impact_suppression_carried_via_member_total
 // and eshu_dp_supply_chain_impact_suppression_orphaned_by_split_total
 // under the same outcome label, and per-pass magnitudes ride the

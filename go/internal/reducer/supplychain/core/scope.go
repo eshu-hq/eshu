@@ -4,6 +4,7 @@
 package core
 
 import (
+	"sort"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/packageidentity"
@@ -21,10 +22,10 @@ func suppressionAdjacent(finding SupplyChainImpactFinding, s vulnerabilitySuppre
 	if !suppressionScopeHasDiscoverableAnchor(s.Scope) {
 		return true
 	}
-	if s.Scope.CVEID != "" && (scopeAnchorMatches(s.Scope.CVEID, finding.CVEID) || scopeGroupMemberMatches(s.Scope.CVEID, finding.AdvisoryGroupMembers)) {
+	if _, _, ok := findingMatchableID(s.Scope.CVEID, finding); ok {
 		return true
 	}
-	if s.Scope.AdvisoryID != "" && (scopeAnchorMatches(s.Scope.AdvisoryID, finding.AdvisoryID) || scopeGroupMemberMatches(s.Scope.AdvisoryID, finding.AdvisoryGroupMembers)) {
+	if _, _, ok := findingMatchableID(s.Scope.AdvisoryID, finding); ok {
 		return true
 	}
 	if s.Scope.PackageID != "" && packageAnchorEqual(s.Scope.PackageID, finding.PackageID) {
@@ -53,17 +54,21 @@ func suppressionScopeMatchesFinding(finding SupplyChainImpactFinding, s vulnerab
 	if !suppressionScopeHasDiscoverableAnchor(s.Scope) {
 		return false
 	}
-	// A scoped id matches through the finding's canonical key or any id of
-	// its alias-connected advisory group (#10407): grouping merges the
-	// member identities, so a suppression naming a non-canonical member id
-	// still names the grouped finding. Either scope field consults the full
-	// member set because the canonical/member kind split no longer holds
-	// after the merge.
-	if s.Scope.CVEID != "" && !scopeAnchorMatches(s.Scope.CVEID, finding.CVEID) && !scopeGroupMemberMatches(s.Scope.CVEID, finding.AdvisoryGroupMembers) {
-		return false
+	// A scoped id matches through the finding's matchable set (#10409 D1):
+	// advisory-group member ids plus cve_id and advisory_id. Either scope
+	// field consults the whole set because the canonical/member kind split
+	// no longer holds after grouping (#10407), and VEX producers do not
+	// agree on which field a non-CVE id belongs in. Both fields stay
+	// conjunctive: every populated identity field must name this finding.
+	if s.Scope.CVEID != "" {
+		if _, _, ok := findingMatchableID(s.Scope.CVEID, finding); !ok {
+			return false
+		}
 	}
-	if s.Scope.AdvisoryID != "" && !scopeAnchorMatches(s.Scope.AdvisoryID, finding.AdvisoryID) && !scopeGroupMemberMatches(s.Scope.AdvisoryID, finding.AdvisoryGroupMembers) {
-		return false
+	if s.Scope.AdvisoryID != "" {
+		if _, _, ok := findingMatchableID(s.Scope.AdvisoryID, finding); !ok {
+			return false
+		}
 	}
 	if !scopePackageAnchorMatches(s.Scope.PackageID, finding.PackageID) {
 		return false
@@ -246,22 +251,32 @@ func scopeAnchorMatches(scoped, observed string) bool {
 	return strings.EqualFold(scoped, strings.TrimSpace(observed))
 }
 
-// scopeGroupMemberMatches reports whether a scoped identity value names any
-// id of the finding's alias-connected advisory group (#10407). An empty
-// scoped value is not a member match (callers treat it as a wildcard
-// separately); an empty member set matches nothing, so ungrouped findings
-// keep today's canonical-key behavior exactly.
-func scopeGroupMemberMatches(scoped string, members []string) bool {
+// findingMatchableID reports whether a scoped identity value names the
+// finding through its matchable set (#10409 D1): advisory-group member ids
+// plus the finding's cve_id and advisory_id. On a match it returns the
+// finding-side id that matched and whether the match came through the group
+// member set rather than a direct cve_id/advisory_id naming, so the decision
+// can record audit provenance. An empty scoped value never matches (callers
+// treat it as a wildcard separately); an ungrouped finding's set is exactly
+// {cve_id, advisory_id}, so fallback findings never match through a partial
+// component. Upstream and related ids never enter the set.
+func findingMatchableID(scoped string, finding SupplyChainImpactFinding) (matched string, viaGroup bool, ok bool) {
 	scoped = strings.TrimSpace(scoped)
 	if scoped == "" {
-		return false
+		return "", false, false
 	}
-	for _, member := range members {
-		if strings.EqualFold(scoped, strings.TrimSpace(member)) {
-			return true
+	if id := strings.TrimSpace(finding.CVEID); id != "" && strings.EqualFold(scoped, id) {
+		return id, false, true
+	}
+	if id := strings.TrimSpace(finding.AdvisoryID); id != "" && strings.EqualFold(scoped, id) {
+		return id, false, true
+	}
+	for _, member := range finding.AdvisoryGroupMembers {
+		if id := strings.TrimSpace(member); id != "" && strings.EqualFold(scoped, id) {
+			return id, true, true
 		}
 	}
-	return false
+	return "", false, false
 }
 
 // scopePackageAnchorMatches is scopeAnchorMatches for a package_id or purl
@@ -305,6 +320,129 @@ func evidencePathContainsAll(observed []string, required []string) bool {
 		}
 	}
 	return true
+}
+
+// suppressionIndex is the per-pass candidate index (#10409 D2). It maps
+// case-folded discoverable anchor values to the suppressions naming them, so
+// a finding evaluates only suppressions that can be adjacent to it instead
+// of rescanning every suppression: cost is O(S + F·M) lookups for F findings
+// with at most M matchable ids. The index is a pure prefilter —
+// EvaluateSupplyChainSuppression still rechecks adjacency and scope on every
+// candidate — so it must yield a SUPERSET of the suppressions
+// suppressionAdjacent would accept. Suppressions whose anchors cannot be
+// keyed exactly (no discoverable anchor, a whitespace-only anchor, or a
+// non-ASCII anchor value where EqualFold admits folds a map key cannot
+// reproduce, e.g. the Kelvin sign) ride the always list and are candidates
+// for every finding, exactly as the full scan treated them. A finding with
+// a whitespace-only or non-ASCII anchor or member id likewise falls back
+// to the full set.
+type suppressionIndex struct {
+	all        []vulnerabilitySuppression
+	byIdentity map[string][]int
+	byPackage  map[string][]int
+	byPURL     map[string][]int
+	byRepo     map[string][]int
+	byDigest   map[string][]int
+	always     []int
+}
+
+// suppressionFoldKey folds an identity or anchor value for index lookup.
+// CVE/advisory ids are ASCII by specification and repository/digest anchors
+// are compared with EqualFold; for ASCII values ToUpper equality is exactly
+// EqualFold equality. Non-ASCII values never reach the maps (see
+// suppressionIndex).
+func suppressionFoldKey(value string) string {
+	return strings.ToUpper(strings.TrimSpace(value))
+}
+
+func suppressionASCIIFoldable(value string) bool {
+	for _, r := range value {
+		if r > 127 {
+			return false
+		}
+	}
+	return true
+}
+
+func newSuppressionIndex(suppressions []vulnerabilitySuppression) suppressionIndex {
+	index := suppressionIndex{
+		all:        suppressions,
+		byIdentity: make(map[string][]int, len(suppressions)),
+		byPackage:  make(map[string][]int),
+		byPURL:     make(map[string][]int),
+		byRepo:     make(map[string][]int),
+		byDigest:   make(map[string][]int),
+	}
+	add := func(m map[string][]int, key string, i int) {
+		if key != "" {
+			m[key] = append(m[key], i)
+		}
+	}
+	for i := range suppressions {
+		scope := suppressions[i].Scope
+		anchors := []string{scope.CVEID, scope.AdvisoryID, scope.PackageID, scope.PURL, scope.RepositoryID, scope.SubjectDigest}
+		foldable := suppressionScopeHasDiscoverableAnchor(scope)
+		for _, anchor := range anchors {
+			// A whitespace-only anchor adjacent-matches an equally padded
+			// finding anchor in the full scan (untrimmed comparisons) but
+			// keys to nothing here, so it rides the always list too.
+			if anchor != "" && (strings.TrimSpace(anchor) == "" || !suppressionASCIIFoldable(anchor)) {
+				foldable = false
+			}
+		}
+		if !foldable {
+			index.always = append(index.always, i)
+			continue
+		}
+		add(index.byIdentity, suppressionFoldKey(scope.CVEID), i)
+		add(index.byIdentity, suppressionFoldKey(scope.AdvisoryID), i)
+		add(index.byPackage, packageidentity.LowerASCII(strings.TrimSpace(scope.PackageID)), i)
+		add(index.byPURL, packageidentity.LowerASCII(strings.TrimSpace(scope.PURL)), i)
+		add(index.byRepo, suppressionFoldKey(scope.RepositoryID), i)
+		add(index.byDigest, suppressionFoldKey(scope.SubjectDigest), i)
+	}
+	return index
+}
+
+// candidates returns every suppression that can be adjacent to finding, in
+// the original input order so selection ties break exactly as the full scan.
+func (index suppressionIndex) candidates(finding SupplyChainImpactFinding) []vulnerabilitySuppression {
+	if len(index.all) == 0 {
+		return nil
+	}
+	identityIDs := make([]string, 0, len(finding.AdvisoryGroupMembers)+2)
+	identityIDs = append(identityIDs, finding.CVEID, finding.AdvisoryID)
+	identityIDs = append(identityIDs, finding.AdvisoryGroupMembers...)
+	probe := append(append([]string{}, identityIDs...), finding.PackageID, finding.PURL, finding.RepositoryID, finding.SubjectDigest)
+	for _, value := range probe {
+		if value != "" && (strings.TrimSpace(value) == "" || !suppressionASCIIFoldable(value)) {
+			return index.all
+		}
+	}
+	seen := make(map[int]struct{}, 16)
+	pick := make([]int, 0, 16)
+	take := func(idxs []int) {
+		for _, idx := range idxs {
+			if _, ok := seen[idx]; !ok {
+				seen[idx] = struct{}{}
+				pick = append(pick, idx)
+			}
+		}
+	}
+	for _, id := range identityIDs {
+		take(index.byIdentity[suppressionFoldKey(id)])
+	}
+	take(index.byPackage[packageidentity.LowerASCII(strings.TrimSpace(finding.PackageID))])
+	take(index.byPURL[packageidentity.LowerASCII(strings.TrimSpace(finding.PURL))])
+	take(index.byRepo[suppressionFoldKey(finding.RepositoryID)])
+	take(index.byDigest[suppressionFoldKey(finding.SubjectDigest)])
+	take(index.always)
+	sort.Ints(pick)
+	out := make([]vulnerabilitySuppression, 0, len(pick))
+	for _, idx := range pick {
+		out = append(out, index.all[idx])
+	}
+	return out
 }
 
 // suppressionScopeHasDiscoverableAnchor reports whether storage can discover

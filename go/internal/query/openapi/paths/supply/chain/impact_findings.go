@@ -112,7 +112,10 @@ const impactFindings = `
                               "reason": {"type": "string"},
                               "evidence_ref": {"type": "string", "description": "Pointer to the originating evidence (fact ID, VEX URL, provider alert)."},
                               "vex_document_id": {"type": "string"},
-                              "vex_statement_id": {"type": "string"}
+                              "vex_statement_id": {"type": "string"},
+                              "matched_id": {"type": "string", "description": "Finding-side identity the winning suppression named: an advisory-group member id, or the finding's own cve_id/advisory_id."},
+                              "matched_field": {"type": "string", "enum": ["cve_id", "advisory_id"], "description": "Suppression scope field that supplied matched_id."},
+                              "matched_via": {"type": "string", "enum": ["direct", "group_member"], "description": "direct when the scope named the finding's own ids; group_member when it named a non-canonical alias-group member."}
                             },
                             "required": ["state"]
                           },
