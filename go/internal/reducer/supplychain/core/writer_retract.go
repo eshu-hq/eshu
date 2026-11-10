@@ -189,7 +189,7 @@ func commitSupplyChainImpactRows(
 	// way they join changedCVEs: a changed suppression names CVEs, and a
 	// group keyed by CVE is exactly that id. A suppression that scopes no
 	// CVE names no group here either — the same blind spot
-	// countSuppressionsWithoutCVEScope reports for the holder fan-out.
+	// countSuppressionsWithoutIdentityScope reports for the holder fan-out.
 	touchedGroups := touchedGroupIDs(meta, stored, write.GenerationID, write.FencingToken, !write.PartialEvidence)
 	if len(supp.cveIDs) > 0 {
 		touchedGroups = unionSortedStrings(touchedGroups, supp.cveIDs)

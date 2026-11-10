@@ -1284,11 +1284,11 @@ type Instruments struct {
 	// baseline. Net-zero changes inside the unwalked span stay on the
 	// holders' cadence.
 	SupplyChainSuppressionWalkTruncatedTotal metric.Int64Counter
-	// SupplyChainSuppressionNoCVEScopeTotal adds the distinct changed
+	// SupplyChainSuppressionNoIdentityScopeTotal adds the distinct changed
 	// suppressions that name no CVE on either side of the diff. Label: domain
 	// only. The holder fan-out cannot reach those suppressions by id, so the
 	// count is what waits on each holder's own next pass.
-	SupplyChainSuppressionNoCVEScopeTotal metric.Int64Counter
+	SupplyChainSuppressionNoIdentityScopeTotal metric.Int64Counter
 	// SupplyChainImpactWinnersResweepDuration records the wall time of one
 	// committed supply-chain impact winners resweep statement (#9774). It is
 	// registered by registerSupplyChainImpactWinnersInstruments.
@@ -5210,12 +5210,12 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, fmt.Errorf("register SupplyChainSuppressionWalkTruncatedTotal counter: %w", err)
 	}
 
-	inst.SupplyChainSuppressionNoCVEScopeTotal, err = meter.Int64Counter(
-		"eshu_dp_supply_chain_impact_suppression_no_cve_scope_total",
+	inst.SupplyChainSuppressionNoIdentityScopeTotal, err = meter.Int64Counter(
+		"eshu_dp_supply_chain_impact_suppression_no_identity_scope_total",
 		metric.WithDescription("Total distinct changed suppressions naming no CVE on either side of the supply-chain impact suppression diff, by reducer domain (#10019)"),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("register SupplyChainSuppressionNoCVEScopeTotal counter: %w", err)
+		return nil, fmt.Errorf("register SupplyChainSuppressionNoIdentityScopeTotal counter: %w", err)
 	}
 
 	inst.SupplyChainRemediationDecisions, err = meter.Int64Counter(

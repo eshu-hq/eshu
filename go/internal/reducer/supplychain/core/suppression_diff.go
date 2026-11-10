@@ -18,11 +18,15 @@ import (
 
 // suppressionDiffRow is one row of the generation-diff statement: a suppression
 // whose payload differs between the current generation and the baseline. An id
-// is empty when that side has no such suppression or its scope names no CVE.
+// is empty when that side has no such suppression or its scope names no such
+// id. Advisory ids ride beside CVE ids (#10409 D4) so an advisory-scoped
+// change reaches its holders instead of reopening nobody.
 type suppressionDiffRow struct {
-	SuppressionID string
-	CurrentCVEID  string
-	PriorCVEID    string
+	SuppressionID     string
+	CurrentCVEID      string
+	PriorCVEID        string
+	CurrentAdvisoryID string
+	PriorAdvisoryID   string
 }
 
 // suppressionGeneration is one retained generation of a suppression scope, as
@@ -95,12 +99,14 @@ type suppressionDiffPass struct {
 	Recovery            bool
 }
 
-// changedSuppressionCVEIDs returns the sorted CVE ids a set of changed
+// changedSuppressionIDs returns the sorted identity ids a set of changed
 // suppressions names, on both sides of each change: a re-scope has to reach the
-// holders of the old id as well as the new one. Ids are trimmed as the fact
-// decoder trims them. Matching a suppression to a finding folds case, but the
-// holder read compares exactly, so a lower-case id also yields its upper form.
-func changedSuppressionCVEIDs(rows []suppressionDiffRow) []string {
+// holders of the old id as well as the new one. The set unions CVE and
+// advisory ids (#10409 D4); the holder read matches either column or group
+// membership. Ids are trimmed as the fact decoder trims them. Matching a
+// suppression to a finding folds case, but the holder read compares exactly,
+// so a lower-case id also yields its upper form.
+func changedSuppressionIDs(rows []suppressionDiffRow) []string {
 	set := make(map[string]struct{}, len(rows))
 	add := func(raw string) {
 		id := strings.TrimSpace(raw)
@@ -113,17 +119,21 @@ func changedSuppressionCVEIDs(rows []suppressionDiffRow) []string {
 	for _, row := range rows {
 		add(row.CurrentCVEID)
 		add(row.PriorCVEID)
+		add(row.CurrentAdvisoryID)
+		add(row.PriorAdvisoryID)
 	}
 	return sortedSetKeys(set)
 }
 
-// countSuppressionsWithoutCVEScope counts changed suppressions that name no CVE
-// on either side. The fan-out cannot reach their holders by CVE id, so this count
-// is the operator's signal for what waits on each holder's own next pass.
-func countSuppressionsWithoutCVEScope(rows []suppressionDiffRow) int {
+// countSuppressionsWithoutIdentityScope counts changed suppressions that name
+// neither a CVE nor an advisory id on either side (#10409 D4). The fan-out
+// cannot reach their holders by identity id, so this count is the operator's
+// signal for what waits on each holder's own next pass.
+func countSuppressionsWithoutIdentityScope(rows []suppressionDiffRow) int {
 	count := 0
 	for _, row := range rows {
-		if strings.TrimSpace(row.CurrentCVEID) == "" && strings.TrimSpace(row.PriorCVEID) == "" {
+		if strings.TrimSpace(row.CurrentCVEID) == "" && strings.TrimSpace(row.PriorCVEID) == "" &&
+			strings.TrimSpace(row.CurrentAdvisoryID) == "" && strings.TrimSpace(row.PriorAdvisoryID) == "" {
 			count++
 		}
 	}
@@ -133,7 +143,7 @@ func countSuppressionsWithoutCVEScope(rows []suppressionDiffRow) int {
 // unionSuppressionFanOutCVEIDs is the pass's fan-out set: the CVEs whose finding
 // rows it changed plus the CVEs its changed suppressions name.
 func unionSuppressionFanOutCVEIDs(changed []string, rows []suppressionDiffRow) []string {
-	return unionSortedStrings(changed, changedSuppressionCVEIDs(rows))
+	return unionSortedStrings(changed, changedSuppressionIDs(rows))
 }
 
 // expandSuppressionCVEIDsThroughMembers widens suppression-named CVE ids

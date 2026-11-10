@@ -126,10 +126,10 @@ newest admitted generation whose owed marker is cleared, so a newer
 generation that activates before the continuation drains covers the owed
 range again instead of trusting it. Signals: `…_suppression_diff_total`
 (`outcome`, `baseline`), `…_diff_duration_seconds`,
-`…_walk_truncated_total`, `…_no_cve_scope_total`, the
+`…_walk_truncated_total`, `…_no_identity_scope_total`, the
 `supply_chain_impact.suppression_diff` span, the result sub-signals
 `suppression_diff_rows`, `suppression_diff_cve_ids`, and
-`suppression_diff_no_cve_scope`, and the `supply chain impact suppression
+`suppression_diff_no_identity_scope`, and the `supply chain impact suppression
 diff` log line. Design: `docs/internal/design/10019-suppression-fanout.md`.
 
 ## Enrichment refresh (#9878)

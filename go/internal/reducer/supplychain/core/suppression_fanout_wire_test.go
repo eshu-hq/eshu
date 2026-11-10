@@ -255,8 +255,8 @@ func TestSuppressionDiffNoneBaselineNamesEverySuppression(t *testing.T) {
 	if !reflect.DeepEqual(result.ChangedCVEIDs, []string{"CVE-2023-38039"}) {
 		t.Fatalf("ChangedCVEIDs = %v, want only the CVE-scoped suppression", result.ChangedCVEIDs)
 	}
-	if result.suppressionDiff.noCVEScope != 1 {
-		t.Fatalf("no-CVE count = %d, want 1", result.suppressionDiff.noCVEScope)
+	if result.suppressionDiff.noIdentityScope != 1 {
+		t.Fatalf("no-CVE count = %d, want 1", result.suppressionDiff.noIdentityScope)
 	}
 	if result.suppressionDiff.statements != 1 {
 		t.Fatalf("statements = %d, want 1", result.suppressionDiff.statements)

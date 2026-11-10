@@ -71,9 +71,9 @@ func TestChangedSuppressionCVEIDs(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got := changedSuppressionCVEIDs(tc.rows)
+			got := changedSuppressionIDs(tc.rows)
 			if !reflect.DeepEqual(got, tc.want) {
-				t.Fatalf("changedSuppressionCVEIDs() = %#v, want %#v", got, tc.want)
+				t.Fatalf("changedSuppressionIDs() = %#v, want %#v", got, tc.want)
 			}
 		})
 	}
@@ -88,8 +88,8 @@ func TestCountSuppressionsWithoutCVEScope(t *testing.T) {
 		{SuppressionID: "named", CurrentCVEID: "CVE-2026-1"},
 		{SuppressionID: "dropped-its-id", PriorCVEID: "CVE-2026-2"},
 	}
-	if got, want := countSuppressionsWithoutCVEScope(rows), 2; got != want {
-		t.Fatalf("countSuppressionsWithoutCVEScope() = %d, want %d", got, want)
+	if got, want := countSuppressionsWithoutIdentityScope(rows), 2; got != want {
+		t.Fatalf("countSuppressionsWithoutIdentityScope() = %d, want %d", got, want)
 	}
 }
 

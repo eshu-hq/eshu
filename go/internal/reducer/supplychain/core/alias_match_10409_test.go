@@ -100,6 +100,33 @@ func TestAliasMatchDecisionRecordsMatchedMember(t *testing.T) {
 	}
 }
 
+// TestChangedSuppressionIDsIncludeAdvisoryBothSides is ruling D4's
+// failing-first case: an advisory-id-only suppression change must enter the
+// changed-id set on both sides, and must not count as unreachable.
+func TestChangedSuppressionIDsIncludeAdvisoryBothSides(t *testing.T) {
+	t.Parallel()
+	rows := []suppressionDiffRow{
+		{SuppressionID: "adv-only", CurrentAdvisoryID: "GHSA-new", PriorAdvisoryID: "GHSA-old"},
+		{SuppressionID: "cve-only", CurrentCVEID: "CVE-2026-1"},
+		{SuppressionID: "neither"},
+	}
+	got := changedSuppressionIDs(rows)
+	for _, want := range []string{"GHSA-new", "GHSA-old", "CVE-2026-1"} {
+		found := false
+		for _, id := range got {
+			if id == want {
+				found = true
+			}
+		}
+		if !found {
+			t.Fatalf("changedSuppressionIDs() = %#v, missing %q", got, want)
+		}
+	}
+	if n := countSuppressionsWithoutIdentityScope(rows); n != 1 {
+		t.Fatalf("countSuppressionsWithoutIdentityScope() = %d, want 1 (only the row naming neither id)", n)
+	}
+}
+
 // TestAliasMatchScopeMismatchReasonOmitsMatchedIdentity proves ruling D1's
 // adjacency clause: an alias-adjacent suppression narrowed by package reports
 // scope_mismatch, and the reason must not claim the matched identity differs.

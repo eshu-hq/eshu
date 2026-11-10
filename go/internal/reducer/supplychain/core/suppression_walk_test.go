@@ -337,8 +337,8 @@ func TestWalkSuppressionDiffCountsAndErrors(t *testing.T) {
 		candidates, _ := walkChain(3)
 		result := runWalk(t, history, candidates, "c", 8)
 		// pkg: added in b, removed in c (two rows, one suppression). pkg2: added in c.
-		if result.NoCVEScopeRows != 2 {
-			t.Fatalf("NoCVEScopeRows = %d, want 2 distinct suppressions", result.NoCVEScopeRows)
+		if result.NoIdentityScopeRows != 2 {
+			t.Fatalf("NoIdentityScopeRows = %d, want 2 distinct suppressions", result.NoIdentityScopeRows)
 		}
 		if want := []string{"CVE-2026-1"}; !reflect.DeepEqual(result.CVEIDs, want) {
 			t.Fatalf("CVEIDs = %#v, want %#v", result.CVEIDs, want)
@@ -366,8 +366,8 @@ func TestWalkSuppressionDiffCountsAndErrors(t *testing.T) {
 		if err != nil {
 			t.Fatalf("walkSuppressionDiff() error = %v", err)
 		}
-		if result.NoCVEScopeRows != 1 {
-			t.Fatalf("NoCVEScopeRows = %d, want 1: only y never named a CVE", result.NoCVEScopeRows)
+		if result.NoIdentityScopeRows != 1 {
+			t.Fatalf("NoIdentityScopeRows = %d, want 1: only y never named a CVE", result.NoIdentityScopeRows)
 		}
 	})
 

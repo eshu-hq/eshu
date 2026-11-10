@@ -152,7 +152,7 @@
 // outcome, and baseline kind), SupplyChainSuppressionDiffDuration
 // (eshu_dp_supply_chain_impact_suppression_diff_duration_seconds),
 // SupplyChainSuppressionWalkTruncatedTotal, and
-// SupplyChainSuppressionNoCVEScopeTotal, so an operator can see whether a
+// SupplyChainSuppressionNoIdentityScopeTotal, so an operator can see whether a
 // suppression-only pass named its CVEs and from what baseline. The same
 // reducer registers SupplyChainRemediationDecisions
 // (eshu_dp_supply_chain_remediation_decisions_total), labeled by reducer
