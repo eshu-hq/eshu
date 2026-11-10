@@ -6,8 +6,8 @@
 // that returns a cataloged CatalogOdu. The fixtures moved here from
 // go/internal/ifa when that package reached its directory file cap (#6594
 // P1); keeping family fixtures in their own package restores the ratchet
-// and leaves room for the remaining waived families to land beside their
-// siblings instead of beside unrelated files.
+// and let the then-waived families land beside their siblings instead of
+// beside unrelated files. The last waived family landed with #10466.
 //
 // # What lives here and what does not
 //

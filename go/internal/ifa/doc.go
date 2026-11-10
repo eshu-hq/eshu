@@ -64,6 +64,7 @@
 // Family Odùs live one file per cataloged family in the familyodu
 // subpackage (#6594 P1): every #5991-#6003 and #6228 family adds one beside
 // its siblings so the catalog reads as a roster, keeping this core package
-// under the directory file cap. The remaining waived #6228 families will
-// each add one more beside their siblings in familyodu.
+// under the directory file cap. The last waived #6228 family added its
+// fixture beside its siblings in familyodu (#10466); no waived families
+// remain.
 package ifa

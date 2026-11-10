@@ -8,8 +8,8 @@ that package reached its directory file cap.
 One file per materialized-edge family (`*_family_odu.go`) beside its guard,
 each exporting a constructor that returns a cataloged `CatalogOdu`, plus the
 shared envelope types (`types.go`), wire-kind literals (`fixturekinds.go`),
-and cassette loader (`cassette_envelopes.go`). The remaining waived #6228
-families land here beside their siblings.
+and cassette loader (`cassette_envelopes.go`). The waived #6228 families
+landed here beside their siblings; the last one arrived with #10466.
 
 ## Ownership boundary
 

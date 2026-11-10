@@ -16,7 +16,11 @@ the real winners maintainer rebuild, enqueued through the production
 handler, `BuildGroup`, and graph writer. The claim covers the full
 member union on the AdvisoryGroup node, including members no row
 carries as its own CVE/advisory id — the assertion that would have
-caught #10475.
+caught #10475. One fixture value is synthetic by construction: each
+finding's `subject_digest` is `sha256(purl)`, since a fixture package
+has no real artifact digest; it never reaches the graph, dying at the
+winners canonical key where the distinct purls already partition the
+rows.
 
 Admission channel, recorded as a deviation for review: the arbiter
 ruling pictured finding facts "admitted as facts" ahead of the
