@@ -13,13 +13,14 @@ Deployment-specific topology and cloud-resource rules live in
 | Repository story | `GET /api/v0/repositories/{repo_id}/story` |
 | Workload story | `GET /api/v0/workloads/{workload_id}/story` |
 | Service story | `GET /api/v0/services/{service_name}/story` |
+| Service API surface endpoints | `GET /api/v0/services/{service_name}/api-surface/endpoints` |
 | Intelligence report | `GET /api/v0/services/{service_name}/intelligence-report` |
 | Service investigation | `GET /api/v0/investigations/services/{service_name}` |
 
 ## Intelligence report
 
-The intelligence-report route composes the service
-story into an operator-ready [service intelligence report](../service-intelligence-report.md)
+The intelligence-report route composes the service story
+into an operator-ready [service intelligence report](../service-intelligence-report.md)
 (schema `service_intelligence_report.v1`): identity, code-to-runtime trace,
 deployment/configuration, supply-chain, and incident/support sections, each
 preserving the source truth label and evidence handles, plus deterministic
@@ -29,15 +30,13 @@ suggested investigations. It runs no LLM path. The live route sources
 `unsupported` with its fallback next call when its evidence is empty or the load
 fails. It accepts the same `service_id`, `repo`, and `environment` selectors as
 the service story route and returns the same capability (501), not-found (404),
-and ambiguity (409) contracts. The MCP tool
-`get_service_intelligence_report` dispatches to this route, so API and MCP
-return the same report.
+and ambiguity (409) contracts. The MCP tool `get_service_intelligence_report`
+dispatches to this route, so API and MCP return the same report.
 
 ## Story response details
 
-Story routes return structured narrative first and drilldown handles second.
-They are the right entry point for onboarding, support, service explanation,
-and documentation generation prompts.
+Story routes return structured narrative first and drilldown handles second. They are
+the right entry point for onboarding, support, service explanation, and documentation generation prompts.
 
 Service story takes these query parameters:
 
@@ -45,6 +44,11 @@ Service story takes these query parameters:
 - `repo` for repository-scoped disambiguation
 - `environment` for environment-scoped disambiguation
 - `evidence_detail`, `full` (HTTP default) or `handles` (MCP default); see [Context Evidence Budget](context-evidence-budget.md)
+- `downstream_read_limit` for the dependents and consumer_repositories reads; see [Context Evidence Budget](context-evidence-budget.md)
+
+The dossiers keep only a 50-row `api_surface` preview; page the full ordered set through the
+endpoint route above (`limit` default 50 max 100, `offset` default 0, `next_offset` absent when
+complete) and the MCP `list_service_api_endpoints` tool. See [Context Evidence Budget](context-evidence-budget.md).
 
 A name that matches several workloads returns HTTP 409 with `error.code=ambiguous`, `data=null`, and
 candidates that each carry a `next_selector` (the `service_id` to pass next). It never picks the first match; `repo` separates only services in different repositories. A candidate marked `legacy_id: true` is a leftover name-only workload from the identity change; see [Service story ambiguity](selector-and-read-failures.md#service-story-ambiguity-8797).
@@ -80,8 +84,7 @@ existed. This is a user-visible correction: stories now report the real
 `coverage.source_only_count` and `target_link_not_modeled` for those facts.
 The count is an exact statement-snapshot aggregate over facts in the active
 generation of each scope (superseded generations, tombstoned facts, and other
-fact kinds never count). Migration 122 adds a partial index over exactly that
-predicate so the count is index-only.
+fact kinds never count). Migration 122 adds a partial index over exactly that predicate so the count is index-only.
 
 Performance Evidence: on a disposable postgres:18.6 fixture of 900,000
 `fact_records` rows (100 scopes, three generations each, one active; about
@@ -129,8 +132,7 @@ PagerDuty service fact carries a durable link to the selected repository, or to 
 object contains bounded `evidence`, `evidence_count`, `work_item_count`,
 `incident_routing_count`, `ambiguous_evidence`, `ambiguous_count`, `coverage`,
 `missing_evidence`, `limit`, and `source`. Global collector rows are not target
-truth by themselves: title text, service names, summaries, and generic mentions
-never attach support evidence.
+truth by themselves: title text, service names, summaries, and generic mentions never attach support evidence.
 
 Three durable links reach a target. A `work_item.external_link` fact carries
 `linked_repository_id`, which the Jira collector sets only for a confidently typed
@@ -145,8 +147,7 @@ decision on an active generation whose `repository_id` is the target (#7463). A
 links through the `work_item.external_link` of the same Jira issue: same
 `scope_id` and active generation, a non-blank `provider_work_item_id` on both
 sides, and a link whose `linked_repository_id` is the target (#7464). The key is
-the issue id, never `work_item_key`; an issue linked to two repositories counts
-in both stories.
+the issue id, never `work_item_key`; an issue linked to two repositories counts in both stories.
 
 - **Repository story:** the active, non-tombstoned `work_item.external_link`
   facts whose `linked_repository_id` equals the repository id, plus the correlated
@@ -194,9 +195,8 @@ writer emits, so `target_support` was empty on real data.
 
 The service story's `support_target_evidence` stage event and the repository
 story's `target_support` stage event log `target_support_incident_routing_count`,
-`target_support_ambiguous_count` and
-`target_support_missing_reason`, so an operator can see why a story shows no
-support; the service event also logs `repository_workload_count`,
+`target_support_ambiguous_count` and `target_support_missing_reason`, so an operator can see why
+a story shows no support; the service event also logs `repository_workload_count`,
 `repository_defines_target`, and `repository_defines_error` when the graph read
 failed.
 

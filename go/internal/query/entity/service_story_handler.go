@@ -26,12 +26,17 @@ func (h *Handler) GetServiceStory(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	downstreamReadLimit, ok := readDownstreamReadLimit(w, r)
+	if !ok {
+		return
+	}
 	serviceName := querycontract.PathParam(r, "service_name")
 	data, truth, status, errEnv := h.BuildServiceStoryEnvelope(r.Context(), service.WorkloadSelector{
-		ServiceName: serviceName,
-		ServiceID:   querycontract.QueryParam(r, "service_id"),
-		Repository:  querycontract.QueryParam(r, "repo"),
-		Environment: querycontract.QueryParam(r, "environment"),
+		ServiceName:         serviceName,
+		ServiceID:           querycontract.QueryParam(r, "service_id"),
+		Repository:          querycontract.QueryParam(r, "repo"),
+		Environment:         querycontract.QueryParam(r, "environment"),
+		DownstreamReadLimit: downstreamReadLimit,
 	}, "service_story")
 	if errEnv != nil {
 		querycontract.WriteErrorEnvelope(w, r, status, errEnv)

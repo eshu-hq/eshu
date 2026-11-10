@@ -21,7 +21,7 @@ func TestReadOnlyToolsKeepsServiceRegistrationPositions(t *testing.T) {
 	}
 	wantContext := servicetools.ContextTools()
 	rootContext := contextTools()
-	if got, want := len(rootContext), 7; got != want {
+	if got, want := len(rootContext), 8; got != want {
 		t.Fatalf("root context tool count = %d, want %d", got, want)
 	}
 	if got := rootContext[4:]; !reflect.DeepEqual(got, wantContext) {
@@ -33,7 +33,7 @@ func TestReadOnlyToolsKeepsServiceRegistrationPositions(t *testing.T) {
 	}
 
 	tools := ReadOnlyTools()
-	if got, want := len(tools), 171; got != want {
+	if got, want := len(tools), 172; got != want {
 		t.Fatalf("ReadOnlyTools count = %d, want %d", got, want)
 	}
 	assertServiceRegistrationRange(t, tools, 78, []string{
@@ -45,6 +45,7 @@ func TestReadOnlyToolsKeepsServiceRegistrationPositions(t *testing.T) {
 		"get_workload_story",
 		"get_service_context",
 		"get_service_story",
+		"list_service_api_endpoints",
 		"investigate_service",
 		"get_service_intelligence_report",
 		"get_file_content",
@@ -52,14 +53,14 @@ func TestReadOnlyToolsKeepsServiceRegistrationPositions(t *testing.T) {
 	if got := tools[79:80]; !reflect.DeepEqual(got, wantCatalog) {
 		t.Fatal("ReadOnlyTools catalog definition drifted from service.CatalogTools")
 	}
-	if got := tools[115:118]; !reflect.DeepEqual(got, wantContext) {
+	if got := tools[115:119]; !reflect.DeepEqual(got, wantContext) {
 		t.Fatal("ReadOnlyTools context definitions drifted from service.ContextTools")
 	}
-	if got := tools[118:119]; !reflect.DeepEqual(got, wantIntelligence) {
+	if got := tools[119:120]; !reflect.DeepEqual(got, wantIntelligence) {
 		t.Fatal("ReadOnlyTools intelligence definition drifted from service.IntelligenceTools")
 	}
 
-	const wantHash = "f4667d26e3990c4a2a9cb337aa0099bc217b90a9840676845bd554d9678ffd5a"
+	const wantHash = "4a656254cb2c5960a33c4b263f0c1ae95982ef79b97f62e5dc9324ed48e31942"
 	hash := sha256.New()
 	for _, tool := range tools {
 		_, _ = fmt.Fprintf(hash, "%d:%s\n", len(tool.Name), tool.Name)

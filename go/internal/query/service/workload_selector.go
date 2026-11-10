@@ -19,4 +19,11 @@ type WorkloadSelector struct {
 	Repository string
 	// Environment narrows resolution to a specific environment.
 	Environment string
+	// DownstreamReadLimit names the indirect-evidence row bound directly
+	// (#10477). Zero keeps the legacy MaxDepth-derived default; a positive
+	// value replaces it via querycontract.BoundedDownstreamReadLimit and is
+	// echoed on the workload context so the result limits and the
+	// investigation coverage report the effective bound. It does not take
+	// part in workload resolution.
+	DownstreamReadLimit int
 }

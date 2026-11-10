@@ -42,6 +42,25 @@ const DefaultIndirectEvidenceSearchLimit = 25
 // DefaultIndirectEvidenceSearchLimit.
 const MaxIndirectEvidenceSearchLimit = 100
 
+// BoundedDownstreamReadLimit converts a caller-supplied downstream_read_limit
+// into a bounded indirect-evidence search limit (#10477). It lives beside
+// BoundedTraceEnrichmentLimit because the service-story enrichment, the
+// service investigation packet, and the deployment-trace readers share the
+// same (0, MaxIndirectEvidenceSearchLimit] contract: an unset or
+// non-positive bound returns the shared default so existing callers see no
+// behavior change, and an over-max bound clamps to the ceiling instead of
+// repricing every shared read. Unlike BoundedTraceEnrichmentLimit there is no
+// maxDepth*10 scaling -- the caller names the row bound directly.
+func BoundedDownstreamReadLimit(limit int) int {
+	if limit <= 0 {
+		return DefaultIndirectEvidenceSearchLimit
+	}
+	if limit > MaxIndirectEvidenceSearchLimit {
+		return MaxIndirectEvidenceSearchLimit
+	}
+	return limit
+}
+
 // BoundedTraceEnrichmentLimit converts a caller-supplied max_depth into a
 // bounded indirect-evidence search limit. It lives here (not in a handler
 // family) because the service-story enrichment, the service investigation

@@ -25,6 +25,7 @@ func TestToolsPreserveServiceRegistrationContract(t *testing.T) {
 	requireServiceToolNames(t, "context", contextTools, []string{
 		"get_service_context",
 		"get_service_story",
+		"list_service_api_endpoints",
 		"investigate_service",
 	})
 	requireServiceToolNames(t, "intelligence", intelligenceTools, []string{
@@ -33,10 +34,10 @@ func TestToolsPreserveServiceRegistrationContract(t *testing.T) {
 
 	tools := combinedServiceTools()
 	encoded := marshalServiceDefinitions(t, tools)
-	if got, want := len(encoded), 10008; got != want {
+	if got, want := len(encoded), 12992; got != want {
 		t.Fatalf("serialized service definitions length = %d, want %d", got, want)
 	}
-	const wantDefinitionsHash = "99d6cc32e6618efb0da2bfe76470d8b76f7cbd14d1d6ffee4cc9ed2d4b36aa40"
+	const wantDefinitionsHash = "7ea887015382fd815e03fd3a7859932323432190522bb11b43206a01e217375c"
 	if got := fmt.Sprintf("%x", sha256.Sum256(encoded)); got != wantDefinitionsHash {
 		t.Fatalf("service definitions hash = %s, want %s", got, wantDefinitionsHash)
 	}

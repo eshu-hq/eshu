@@ -25,6 +25,7 @@ func repoServiceToolIntents() map[string]toolIntent {
 		"get_repository_language_inventory": intents("language breakdown", "language buckets across index", "files per language", "language inventory of ecosystem"),
 		// service-workload
 		"get_service_story":               canonicalIntents("explain this service", "service dossier", "service story", "service api surface and dependencies", "who consumes this service", "onboard to service"),
+		"list_service_api_endpoints":      intents("list service api endpoints", "all endpoints of a service", "full service api surface", "page service endpoints"),
 		"investigate_service":             intents("plan a service investigation", "investigate service across repos", "service docs and deployment sources", "service evidence drilldown"),
 		"get_service_intelligence_report": intents("service intelligence report", "code to runtime trace for service", "service supply chain and incidents", "one call service report"),
 		"get_service_context":             intents("service context by workload id", "service workload selector context", "context for service name"),

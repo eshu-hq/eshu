@@ -6,6 +6,7 @@ package servicecontexttools
 import (
 	"fmt"
 	"net/url"
+	"strconv"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
@@ -13,9 +14,10 @@ import (
 )
 
 // Route selects the internal HTTP request for a service-context tool
-// without executing it. It reports handled only for the four tools this
+// without executing it. It reports handled only for the five tools this
 // package owns: get_service_context, get_service_story,
-// get_service_intelligence_report, and investigate_service. Family
+// list_service_api_endpoints, get_service_intelligence_report, and
+// investigate_service. Family
 // membership is an explicit name switch, never a prefix match. Unlike the
 // sibling route-selector packages (deadcode, codequality, entityresolution,
 // codeintel, iacmanagement), get_service_context and get_service_story
@@ -30,6 +32,9 @@ func Route(toolName string, args routecontract.Arguments) (routecontract.Request
 		return request, true, err
 	case "get_service_story":
 		request, err := serviceSelectorRoute(args, "get_service_story", "story")
+		return request, true, err
+	case "list_service_api_endpoints":
+		request, err := serviceAPIEndpointsRoute(args)
 		return request, true, err
 	case "get_service_intelligence_report":
 		request, err := serviceIntelligenceReportRoute(args)
@@ -94,6 +99,12 @@ func serviceSelectorRoute(args routecontract.Arguments, toolName string, suffix 
 	if env := args.String("environment"); env != "" {
 		q["environment"] = env
 	}
+	// #10477: the explicit downstream bound travels as the HTTP query
+	// parameter of the same name; absent stays absent so the handler keeps
+	// its default, and the handler clamps and echoes the effective bound.
+	if _, present := args["downstream_read_limit"]; present {
+		q["downstream_read_limit"] = strconv.Itoa(args.IntOr("downstream_read_limit", 0))
+	}
 	if suffix == "context" {
 		// #7129: the MCP default is handles so a populated service fits the
 		// response budget; the HTTP default stays full. An explicit value wins,
@@ -121,6 +132,39 @@ func serviceSelectorRoute(args routecontract.Arguments, toolName string, suffix 
 	return routecontract.Request{
 		Method: "GET",
 		Path:   "/api/v0/services/" + url.PathEscape(normalizeQualifiedIdentifier(selector)) + "/" + suffix,
+		Query:  q,
+	}, nil
+}
+
+// serviceAPIEndpointsRoute resolves list_service_api_endpoints to GET
+// /api/v0/services/{selector}/api-surface/endpoints with the get_service_story
+// selector parity (service_id, workload_id, or service_name, plus optional
+// repo and environment) and page parameters. limit/offset travel only when the
+// caller names them so the handler owns defaults, clamping, and 400s.
+func serviceAPIEndpointsRoute(args routecontract.Arguments) (routecontract.Request, error) {
+	selector := firstSelector(args, "service_id", "workload_id", "service_name")
+	if selector == "" {
+		return routecontract.Request{}, fmt.Errorf("list_service_api_endpoints requires service_id, workload_id, or service_name")
+	}
+	q := map[string]string{}
+	if env := args.String("environment"); env != "" {
+		q["environment"] = env
+	}
+	if serviceID := canonicalWorkloadIdentifier(selector); serviceID != "" {
+		q["service_id"] = serviceID
+	}
+	if repo := serviceStoryRepositorySelector(args); repo != "" {
+		q["repo"] = repo
+	}
+	if _, present := args["limit"]; present {
+		q["limit"] = strconv.Itoa(args.IntOr("limit", 0))
+	}
+	if _, present := args["offset"]; present {
+		q["offset"] = strconv.Itoa(args.IntOr("offset", 0))
+	}
+	return routecontract.Request{
+		Method: "GET",
+		Path:   "/api/v0/services/" + url.PathEscape(normalizeQualifiedIdentifier(selector)) + "/api-surface/endpoints",
 		Query:  q,
 	}, nil
 }

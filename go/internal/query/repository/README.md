@@ -224,6 +224,43 @@ as `repository_query.stage_*` with `stage=dependency_cluster_edges`
 `truncated`, `error`, `edge_scan_skipped` and `edge_transfer_capped`; only the
 list route adds `cluster_count`.
 
+## API surface endpoint paging (#10477)
+
+`QueryRepoAPISurfacePaged` pages the endpoint set at the Cypher read for the
+dedicated list route: the same count query reports the true total while the
+detail read carries `SKIP $offset LIMIT $limit` beside the existing
+`ORDER BY path, endpoint_id`, so page N never re-reads or Go-slices an
+earlier page. The `SKIP`/`LIMIT` order is the repository-list pagination
+shape proven on the pinned Neo4j backend (see `handler.go`); `OFFSET` is not
+used. The unpaged `QueryRepoAPISurface` keeps its query text
+byte-identical (cassette and snapshot stability); the paged variant shares
+only the row mapping. The handler clamps pages into `[1, 100]` (default 50);
+an empty set -- or an offset past the end -- answers 200 with the true
+total, not 404.
+
+No-Regression Evidence (#10477): the default path is unchanged (the unpaged
+query text is untouched; `git diff` on `api_surface.go` shows only the added
+paged variant), the new variant adds a bounded `SKIP`/`LIMIT` page to the same
+ordered read, and per-page rows stay within the handler clamp. The `OFFSET`
+form first written here failed live against the pinned backend (B-7
+`mcp:list_service_api_endpoints` 500 on an unparsable page query); the
+`SKIP` form matches the live-tested repository-list shape; the B-7 run
+at the fix head passed (`PASS: B-7 golden corpus gate green`, 757 pass,
+0 required-fail, `mcp:list_service_api_endpoints` green). Focused proof:
+`TestQueryRepoAPISurfacePagedHonorsLimitOffset` pages a
+60-endpoint fixture 25/25/10 with `endpoint_count == 60` and no `next_offset`
+on the last page; the service, entity, and root handler paging tests cover
+the list tool, the 400s, and the story/context agreement; the full
+`repository`, `service`, `query`, `entity`, `querycontract`, `deployment`,
+`mcp`, `queryplan`, and `cmd/api` suites are green. No live `EXPLAIN` was
+run (plan shape is the proven one); the count/total pinning in the focused
+tests plus the B-7 live pass is the regression cover.
+
+No-Observability-Change (#10477): the paged handler is a read-only query-path
+handler with no new stage, worker, queue, or write; the existing handler
+spans and the `eshu_dp_api_request_duration_seconds` /
+`eshu_dp_api_request_errors_total` signals cover the route.
+
 ## Dependencies
 
 The package imports the Go standard library, `querycontract` (types, ports,

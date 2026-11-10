@@ -92,6 +92,7 @@
     "get_service_context/default": "allowlisted",
     "get_service_intelligence_report/default": "allowlisted",
     "get_service_story/default": "allowlisted",
+    "list_service_api_endpoints/default": "allowlisted",
     "get_supply_chain_impact_inventory/default": "allowlisted",
     "get_surface_inventory/default": "allowlisted",
     "get_vulnerability_scanner_read_contract/default": "allowlisted",
