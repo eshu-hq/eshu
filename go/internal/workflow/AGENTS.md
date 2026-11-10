@@ -67,13 +67,19 @@
   that origin with one trailing slash (exact match, no other host, port, path,
   userinfo, query, fragment, case, or padding). The struct carries no
   credential field: the collector reads the GitHub token from its environment
-  (#9959). Core admits a ghsa target for configuration parity only, so the core
-  and collector pair can be tested. It is off by default and not activatable for
-  production truth until eshu-hq/eshu#10037 lands: do not add a `ghsa` target to a
-  production coordinator configuration. Readiness reads accept a `ghsa` target
-  as well-formed, but the in-tree collector (`vulnruntime`) still refuses a
-  `ghsa` source when its service builds the claimed source, so an instance
-  that carries a `ghsa` target does not start.
+  (#9959). Core admits a ghsa target only as a rolling anchor under
+  `derive_ghsa_rolling_windows` and refuses it otherwise (#10516): a target
+  present with the section off is a validation failure by design, so roll
+  back by removing the targets or disabling the instance. The section is
+  off by default and GHSA is not activatable for production truth: do not
+  add a `ghsa` target to a production coordinator configuration. The #10037
+  rolling wiring has landed in core (`derive_ghsa_rolling_windows`,
+  strictly decoded like the NVD section) and satellite v0.1.10 dispatches
+  `ghsa`, but activation still waits on the S6 tokened-run evidence
+  (#10465). The satellite mirror (#83/#85) shipped in satellite 0.1.12;
+  a boundless anchor works end to end only where satellite >= 0.1.12 is
+  pinned (QA repin pending under #10465).
+  Readiness reads accept a `ghsa` target as well-formed.
   `reconcile_public_advisories_v1` refuses
   a `ghsa` target, so passing this validator never produces a registration. Do
   not add a `ghsa` arm to that function (`vulnsource/README.md` has the hold).

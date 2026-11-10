@@ -69,12 +69,14 @@ own.
 
 ## GHSA is held
 
-Core admits a `ghsa` target for configuration parity only, so the core and
-collector pair can be tested. It is off by default: nothing plans a `ghsa` claim
-unless an operator configures a `ghsa` target. It is not activatable for
-production truth until
-[eshu-hq/eshu#10037](https://github.com/eshu-hq/eshu/issues/10037) lands. Do not
-add a `ghsa` target to a production coordinator configuration.
+Core admits a `ghsa` target only as a rolling anchor under
+`derive_ghsa_rolling_windows` and refuses it otherwise (#10516), so a static
+GHSA claim is unreachable by configuration. The section is off by default:
+nothing plans a `ghsa` claim unless an operator configures a `ghsa` target
+with the section enabled. GHSA is not activatable for production truth
+until the [eshu-hq/eshu#10465](https://github.com/eshu-hq/eshu/issues/10465)
+S6 evidence lands. Do not add a `ghsa` target to a production coordinator
+configuration.
 
 - The direct GHSA source is excluded from the protected scanner read:
   `reconcile_public_advisories_v1` refuses a `ghsa` target with
@@ -89,10 +91,14 @@ add a `ghsa` target to a production coordinator configuration.
   readiness query's source list names it, so a configured target does not make
   readiness reads return `readiness_unavailable`.
 - The extracted satellite (`eshu-hq/eshu-collector-vulnerability-intelligence`)
-  refuses a `ghsa` source in its collect dispatch, so an instance that
-  carries a `ghsa` target does not start. Core admits a `ghsa` target for
-  configuration parity only (see `validateVulnerabilityGHSATarget`); it is
-  not activatable for production truth until `eshu-hq/eshu#10037` lands.
+  dispatches the `ghsa` source (supported-source switch and GHSA collect
+  path at v0.1.10; rolling window scopes resolve against the configured
+  anchor). Core admits a `ghsa` target only as a rolling anchor under
+  `derive_ghsa_rolling_windows` and refuses it otherwise
+  (`validateVulnerabilityGHSATarget`, #10516); a boundless anchor works
+  end to end only where satellite >= 0.1.12 is pinned (the mirror
+  #83/#85 shipped in 0.1.12; QA repin pending under #10465). GHSA is not
+  activatable for production truth until the #10465 S6 evidence lands.
 
 ## GHSA and OSV copies of one advisory
 
@@ -162,7 +168,10 @@ no network, database, or workflow mutation. The measured verdict lives in
 No-Regression Evidence: baseline `origin/main` at `2d477a517d`; after this
 change at the branch HEAD. GHSA remains not activatable: no configuration
 section mints a GHSA window scope, so every production claim today takes
-the unchanged path. The added hot-path work per non-GHSA claim is one
+the unchanged path. (Superseded in part by the `derive_ghsa_rolling_windows`
+wiring, #9959/#10516: the section now exists and mints window scopes when
+enabled, stays off by default, and GHSA remains not activatable pending
+#10465.) The added hot-path work per non-GHSA claim is one
 `strings.Contains` infix check in `IsGHSAWindowScope` plus one map-free
 policy nil check in the extension host; the successor guard gains one
 boolean arm evaluated before the existing arms with no new query (the
