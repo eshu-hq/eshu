@@ -111,6 +111,7 @@ IFA_FAMILY_PINS_NAMES=(
 	s3_external_principal_grant
 	assumes_iam_role
 	uses_service_account
+	advisory_group
 )
 
 ifa_family_registry_pins_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/ifa_family_registry_pins"

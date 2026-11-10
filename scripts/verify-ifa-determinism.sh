@@ -119,7 +119,7 @@ source "${repo_root}/scripts/lib/ifa_sql_delta_live.sh"
 source "${repo_root}/scripts/lib/ifa_code_call_live.sh"
 source "${repo_root}/scripts/lib/ifa_documentation_live.sh"
 source "${repo_root}/scripts/lib/ifa_deployable_unit_live.sh"
-source "${repo_root}/scripts/lib/ifa_deployable_unit_live_diagnostics.sh"; source "${repo_root}/scripts/lib/ifa_deployable_unit_live_converge.sh"; source "${repo_root}/scripts/lib/ifa_repo_dependency_live.sh"; source "${repo_root}/scripts/lib/ifa_workload_dependency_live.sh"
+source "${repo_root}/scripts/lib/ifa_deployable_unit_live_diagnostics.sh"; source "${repo_root}/scripts/lib/ifa_deployable_unit_live_converge.sh"; source "${repo_root}/scripts/lib/ifa_repo_dependency_live.sh"; source "${repo_root}/scripts/lib/ifa_workload_dependency_live.sh"; source "${repo_root}/scripts/lib/ifa_advisory_group_live.sh"
 source "${repo_root}/scripts/lib/ifa_rationale_live.sh"
 # shellcheck source=scripts/lib/ifa_codeowners_live.sh
 source "${repo_root}/scripts/lib/ifa_codeowners_live.sh"; source "${repo_root}/scripts/lib/ifa_submodule_pin_live.sh"
@@ -296,9 +296,8 @@ for n in "${worker_counts[@]}"; do
 	log "N=${n}: apply Postgres + graph schema (eshu-bootstrap-data-plane)"
 	"${bin_dir}/eshu-bootstrap-data-plane" >"${log_dir}/bootstrap-data-plane-n${n}.log" 2>&1 \
 		|| { tail -40 "${log_dir}/bootstrap-data-plane-n${n}.log"; die "N=${n}: bootstrap-data-plane failed"; }
-	ifa_workload_dependency_live_run_matrix_cell \
-		"${bin_dir}" "${workload_dependency_cassette}" "${workload_dependency_expected_edges}" "${workload_dependency_repo_expected_edges}" "${n}" "${log_dir}" "${GATE_DRAIN_TIMEOUT}" \
-		|| die "workload_dependency: N=${n} matrix cell failed"
+	ifa_workload_dependency_live_run_matrix_cell "${bin_dir}" "${workload_dependency_cassette}" "${workload_dependency_expected_edges}" "${workload_dependency_repo_expected_edges}" "${n}" "${log_dir}" "${GATE_DRAIN_TIMEOUT}" || die "workload_dependency: N=${n} matrix cell failed"
+	ifa_advisory_group_live_run_matrix_cell "${bin_dir}" "${advisory_group_cassette}" "${advisory_group_expected_edges}" "${n}" "${log_dir}" "${GATE_DRAIN_TIMEOUT}" || die "advisory_group: N=${n} matrix cell failed"
 
 	log "N=${n}: drive demo-org GCP cassette through eshu-ifa drive -workers ${n}"
 	if ! "${bin_dir}/eshu-ifa" drive -cassette "${cassette}" -workers "${n}" \
@@ -420,8 +419,7 @@ for n in "${worker_counts[@]}"; do
 		"${ESHU_POSTGRES_DSN}" "${compose_file}" \
 		"${ifa_rationale_delta_generation_id}" "${ifa_rationale_delta_expected_tuple}" \
 		|| die "N=${n}: rationale generation-2 durable lifecycle assertion failed"
-	ifa_workload_dependency_live_assert "${bin_dir}" "${workload_dependency_expected_edges}" \
-		|| die "N=${n}: workload_dependency exact set changed before canonical output"
+	ifa_workload_dependency_live_assert "${bin_dir}" "${workload_dependency_expected_edges}" && ifa_advisory_group_live_assert "${bin_dir}" "${advisory_group_expected_edges}" && ifa_advisory_group_live_assert_node_union "${bin_dir}" "post-delta" || die "N=${n}: workload_dependency or advisory_group exact set changed before canonical output"
 	# #6228: re-assert every DIRECT family's exact set post-gen-2 (one shared die holds the 500-line cap).
 	ifa_kubernetes_namespace_environment_assert "post-delta N=${n}" "${bin_dir}" "${kubernetes_namespace_environment_expected_edges}" && \
 	ifa_iam_instance_profile_role_assert "post-delta N=${n}" "${bin_dir}" "${iam_instance_profile_role_expected_edges}" && \

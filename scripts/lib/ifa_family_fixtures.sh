@@ -318,7 +318,7 @@ code_taint_evidence_expected_edges="${repo_root}/go/internal/ifa/testdata/codeta
 # materializes zero edges. The single git scope owns its generation and
 # carries repo_id in scope metadata.
 runtime_declaration_cassette="${repo_root}/testdata/cassettes/runtimedeclaration/ifa-runtime-declaration-family.json"
-runtime_declaration_expected_edges="${repo_root}/go/internal/ifa/testdata/runtimedeclaration/ifa-runtime-declaration-family-expected-edges.json"
+runtime_declaration_expected_edges="${repo_root}/go/internal/ifa/testdata/runtimedeclaration/ifa-runtime-declaration-family-expected-edges.json"  # advisory_group (#10466) globals: sibling sourced at file end (line cap)
 # incident_routing_evidence (#6228 incident_routing_evidence live leaf): a
 # projection of the compiled IncidentRoutingEvidenceFamilyOdu by construction
 # (TestDirectFamilyCassettesMatchTheirCompiledOdu holds it to that) -- one
@@ -457,7 +457,7 @@ ifa_family_fixtures_require() {
 	[[ -f "${code_interproc_evidence_cassette}" ]] || { echo "${gate}: code-interproc-evidence cassette not found: ${code_interproc_evidence_cassette}" >&2; exit 1; }
 	[[ -f "${code_interproc_evidence_expected_edges}" ]] || { echo "${gate}: code-interproc-evidence expected-edge set not found: ${code_interproc_evidence_expected_edges}" >&2; exit 1; }
 	[[ -f "${code_taint_evidence_cassette}" ]] || { echo "${gate}: code-taint-evidence cassette not found: ${code_taint_evidence_cassette}" >&2; exit 1; }
-	[[ -f "${code_taint_evidence_expected_edges}" ]] || { echo "${gate}: code-taint-evidence expected-edge set not found: ${code_taint_evidence_expected_edges}" >&2; exit 1; }
+	[[ -f "${code_taint_evidence_expected_edges}" ]] || { echo "${gate}: code-taint-evidence expected-edge set not found: ${code_taint_evidence_expected_edges}" >&2; exit 1; }; ifa_family_fixtures_advisory_group_require "${gate}"
 	[[ -f "${runtime_declaration_cassette}" ]] || { echo "${gate}: runtime-declaration cassette not found: ${runtime_declaration_cassette}" >&2; exit 1; }
 	[[ -f "${runtime_declaration_expected_edges}" ]] || { echo "${gate}: runtime-declaration expected-edge set not found: ${runtime_declaration_expected_edges}" >&2; exit 1; }
 	[[ -f "${incident_routing_evidence_cassette}" ]] || { echo "${gate}: incident-routing-evidence cassette not found: ${incident_routing_evidence_cassette}" >&2; exit 1; }
@@ -496,4 +496,4 @@ ifa_family_fixtures_require() {
 	# so its stamp stays 'git' for the same reason as built_from's above.
 	derived_from_scope_system="$(jq -r '.scopes[0].source_system' "${derived_from_cassette}")"
 	[[ "${derived_from_scope_system}" == "git" ]] || { echo "${gate}: derived-from cassette scope source_system is ${derived_from_scope_system:-missing}, want git" >&2; exit 1; }
-}
+}; source "$(dirname "${BASH_SOURCE[0]}")/ifa_family_fixtures_advisory_group.sh"  # advisory_group sibling (see its header)
