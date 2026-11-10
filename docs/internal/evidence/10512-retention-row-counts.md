@@ -43,10 +43,15 @@ shape on every run. Arbiter ruling budgets: locked recount at most
 | Package manifest leg, direct `(scope_id, generation_id)` join, custom plan | — | 80 ms |
 | Package manifest leg, direct join, generic plan | — | 48 ms |
 
-The direct legs bring the locked recount inside the 2.0 s warm budget;
-the intents leg and DELETE become one btree probe per candidate once
-migration 292 lands, so their cost follows the batch, not the table.
-The entities probe needed no fix (arbiter ruling).
+That is arm-level proof only: each slow arm's before cost (56.9 s
+intents without the index, 5.7 s manifest fact-join) against its after
+cost (48–80 ms direct legs; one btree probe per candidate for the
+intents leg and DELETE once migration 292 lands, with executed DELETE
+buffers tracking the batch in the live guard), so cost follows the
+batch, not the table. This record holds no after-measurement of the
+whole locked recount on the fitted subset; the 2.0 s warm budget's
+closing proof is the post-roll QA locked-recount check, NOT_CHECKED
+until it runs. The entities probe needed no fix (arbiter ruling).
 
 ## Exactness
 
@@ -77,12 +82,15 @@ covers all three seeded REDs and the post-restore GREEN.
 ## Performance Evidence:
 
 Performance claim: the retention locked recount and intents DELETE cost
-now track the candidate batch instead of table size; locked recount at
-most 2.0 s warm (fitted subset), `ScopeLockHold` at most 5 s. Proof:
-the QA shim table above, plus the live plan guard
-`TestGenerationRetentionRowCountPlansStayOnGenerationIndexesLive`
+now track the candidate batch instead of table size. The arbiter
+budgets (locked recount at most 2.0 s warm on the fitted subset,
+`ScopeLockHold` at most 5 s) are not closed by this record: proof here
+is arm-level — the before/after QA shim table above, plus the live plan
+guard `TestGenerationRetentionRowCountPlansStayOnGenerationIndexesLive`
 (custom and forced-generic plans, seeded drop-index REDs, executed
-DELETE buffers tracking the batch). No Cypher, graph-write, queue, or
+DELETE buffers tracking the batch). The budgets' closing proof is the
+post-roll QA locked-recount check, NOT_CHECKED until it runs. No
+Cypher, graph-write, queue, or
 lease path is touched. Intents writes gain one small btree entry per
 insert; concurrency behavior is unchanged (no lock, claim, or batching
 change), and no telemetry changes: the existing retention span, the

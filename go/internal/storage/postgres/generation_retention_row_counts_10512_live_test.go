@@ -10,7 +10,6 @@ package postgres
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -19,56 +18,6 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
 )
-
-// retentionGuarded10512Tables are the tables whose retention access must
-// stay an index probe whose cost follows the batch (#10512): the intents
-// table behind migration 292 and the two package key sidecars behind
-// migrations 182 and 183.
-var retentionGuarded10512Tables = map[string]string{
-	"shared_projection_intents":         "shared_projection_intents_generation_idx",
-	"package_manifest_consumption_keys": "package_manifest_consumption_keys_partition_idx",
-	"package_registry_identity_keys":    "package_registry_identity_keys_partition_idx",
-}
-
-// retentionGuardedPlanViolations walks an EXPLAIN (FORMAT JSON) plan and
-// reports each sequential scan of a guarded table and each required index
-// the plan never probes.
-func retentionGuardedPlanViolations(t *testing.T, plan []byte, required []string) []string {
-	t.Helper()
-	var root []struct {
-		Plan map[string]any `json:"Plan"`
-	}
-	if err := json.Unmarshal(plan, &root); err != nil || len(root) != 1 {
-		t.Fatalf("decode plan: %v", err)
-	}
-	var violations []string
-	used := map[string]bool{}
-	var walk func(node map[string]any)
-	walk = func(node map[string]any) {
-		nodeType, _ := node["Node Type"].(string)
-		relation, _ := node["Relation Name"].(string)
-		index, _ := node["Index Name"].(string)
-		if index != "" {
-			used[index] = true
-		}
-		if _, guarded := retentionGuarded10512Tables[relation]; guarded && nodeType == "Seq Scan" {
-			violations = append(violations, "Seq Scan on "+relation)
-		}
-		children, _ := node["Plans"].([]any)
-		for _, child := range children {
-			if childNode, ok := child.(map[string]any); ok {
-				walk(childNode)
-			}
-		}
-	}
-	walk(root[0].Plan)
-	for _, index := range required {
-		if !used[index] {
-			violations = append(violations, "never probes "+index)
-		}
-	}
-	return violations
-}
 
 // seedRetention10512Intents writes batchPerGen intents on each batch
 // generation and otherPerGen on each remaining plan generation, half of
@@ -264,8 +213,9 @@ func TestGenerationRetentionRowCountPlansStayOnGenerationIndexesLive(t *testing.
 			if err := conn.QueryRowContext(ctx, "EXPLAIN (FORMAT JSON) "+generationRetentionRowCountsQuery, candidates).Scan(&plan); err != nil {
 				t.Fatalf("explain without %s: %v", index, err)
 			}
-			if violations := retentionGuardedPlanViolations(t, plan, rowCountsRequired); len(violations) == 0 {
-				t.Fatalf("plan guard accepted a row count with no %s:\n%s", index, plan)
+			violations := retentionGuardedPlanViolations(t, plan, rowCountsRequired)
+			if joined := strings.Join(violations, "; "); !strings.Contains(joined, "never probes "+index) {
+				t.Fatalf("plan guard accepted a row count with no %s (violations: %s):\n%s", index, joined, plan)
 			}
 		})
 	}

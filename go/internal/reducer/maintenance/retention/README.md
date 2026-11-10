@@ -68,10 +68,11 @@ Never `internal/reducer`.
   its pre-count; WARN `generation retention fact key delete differs from
   its pre-count` (`fact_key_rows_pruned`, `fact_key_rows_counted`) when the
   #7420 whole-generation key sidecar delete removes a different number of
-  rows than the batch counted, usually orphan keys (run
-  `factkeys.OrphanCensusSQL`); `generation retention search index orphan
-  sweep completed` (pairs_scanned, orphan_generations, rows_swept, batches
-  committed, unswept_generations) and ERROR `generation retention search
+  rows than the batch counted — keys written between the pre-count and
+  the delete (#10512 counts orphans too; `factkeys.OrphanCensusSQL` shows
+  any); `generation retention search index orphan sweep completed`
+  (pairs_scanned, orphan_generations, rows_swept, batches committed,
+  unswept_generations) and ERROR `generation retention search
   index orphan sweep failed`; `generation retention search index superseded
   sweep completed` (candidates, rows_swept, batches, unswept_generations),
   per-batch `generation retention search index superseded batch committed`
