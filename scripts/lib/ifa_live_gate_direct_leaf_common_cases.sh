@@ -107,6 +107,16 @@ ifa_live_gate_common_seams+=(
 	'go/internal/ifa/testdata/runtimedeclaration/**|go/internal/ifa/testdata/runtimedeclaration/ifa-runtime-declaration-family-expected-edges.json'
 	'scripts/lib/ifa_fault_injection_runtime_declaration_cells.sh|scripts/lib/ifa_fault_injection_runtime_declaration_cells.sh'
 )
+# advisory_group (#10466): writer, cassette, expected-edge set, and cells
+# are new common seams beside the siblings; the Odù stays in the
+# determinism-only table (the fault cells drive the committed cassette
+# JSON, never the Odù source).
+ifa_live_gate_common_seams+=(
+	'go/internal/storage/cypher/edge/writer/advisory_group.go|go/internal/storage/cypher/edge/writer/advisory_group.go'
+	'testdata/cassettes/advisorygroup/**|testdata/cassettes/advisorygroup/ifa-advisory-group-family.json'
+	'go/internal/ifa/testdata/advisorygroup/**|go/internal/ifa/testdata/advisorygroup/ifa-advisory-group-family-expected-edges.json'
+	'scripts/lib/ifa_fault_injection_advisory_group_cells.sh|scripts/lib/ifa_fault_injection_advisory_group_cells.sh'
+)
 # security_group_sg_rule + security_group_rule_endpoint (#6228 secgroup-pair
 # live leaf): writer, ONE shared cassette, TWO expected-edge sets, and TWO
 # cell files are new common seams beside the siblings; the Odù stays in the

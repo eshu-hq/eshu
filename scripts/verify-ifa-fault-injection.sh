@@ -484,6 +484,10 @@ ifa_fault_shard_run cell_failgraphwrite_runtime_declaration
 ifa_fault_shard_run cell_baseline_uses_service_account
 ifa_fault_shard_run cell_kill_uses_service_account
 ifa_fault_shard_run cell_failgraphwrite_uses_service_account
+# advisory_group (#10466): twenty-ninth direct family in this gate's order, baseline first.
+ifa_fault_shard_run cell_baseline_advisory_group
+ifa_fault_shard_run cell_killworker_advisory_group
+ifa_fault_shard_run cell_failgraphwrite_advisory_group
 
 log "PASS: fault-injection matrix green (project ${FAULT_COMPOSE_PROJECT}, postgres:${ESHU_POSTGRES_PORT}, neo4j-bolt:${NEO4J_BOLT_PORT})"
 for cell in "${!digests[@]}"; do

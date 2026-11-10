@@ -171,4 +171,48 @@ workload_call_uses_current_workers "${workload_matrix_call}" \
 mutated_workload_call="${workload_matrix_call//'"${n}"'/'"1"'}"
 ! workload_call_uses_current_workers "${mutated_workload_call}" \
 	|| fail "fixed-worker workload call mutation escaped the current-worker guard"
+
+# advisory_group (#10466) is winners-fed: the cassette admits a
+# committed impact pass's output facts, so each N cell must drain (repo
+# nodes land, zero edges), run the production winners rebuild and
+# enqueuer, drain again, and only then exact-assert. The absent check
+# before the enqueue is the non-vacuity half: without it an enqueue
+# that never fired would still compare equal digests of an empty
+# family in every cell.
+require_fixture "advisory-group cassette path" "testdata/cassettes/advisorygroup/ifa-advisory-group-family.json"
+require_fixture "advisory-group expected-edge set path" "go/internal/ifa/testdata/advisorygroup/ifa-advisory-group-family-expected-edges.json"
+require_fixture "advisory-group cassette existence guard" "advisory-group cassette not found"
+require_fixture "advisory-group expected-edge existence guard" "advisory-group expected-edge set not found"
+advisory_group_live_lib="${repo_root}/scripts/lib/ifa_advisory_group_live.sh"
+[[ -f "${advisory_group_live_lib}" ]] || fail "missing advisory_group live helper"
+for advisory_needle in 'ifa_advisory_group_live_run_matrix_cell()' \
+	'eshu-ifa" drive -cassette "${drive_cassette}" -workers "${workers}"' \
+	'ifa_advisory_group_live_drain pre' 'ifa_advisory_group_live_assert_absent' \
+	'eshu-ifa" enqueue-advisory-groups' 'ifa_advisory_group_live_drain post' \
+	'ifa_advisory_group_live_assert_node_union' '-domain advisory_group -expected "${expected_edges}"'; do
+	rg --fixed-strings --quiet -- "${advisory_needle}" "${advisory_group_live_lib}" \
+		|| fail "advisory_group live helper missing ${advisory_needle}"
+done
+advisory_matrix_body="$(awk '/^ifa_advisory_group_live_run_matrix_cell\(\)/,/^}/' "${advisory_group_live_lib}")"
+advisory_pre_line="$(printf '%s\n' "${advisory_matrix_body}" | rg -n --fixed-strings -- 'ifa_advisory_group_live_drain pre' | cut -d: -f1 || true)"
+advisory_absent_line="$(printf '%s\n' "${advisory_matrix_body}" | rg -n --fixed-strings -- 'ifa_advisory_group_live_assert_absent "${bin_dir}" pre-enqueue' | cut -d: -f1 || true)"
+advisory_enqueue_line="$(printf '%s\n' "${advisory_matrix_body}" | rg -n --fixed-strings -- 'ifa_advisory_group_live_enqueue "${bin_dir}" "${cassette}"' | cut -d: -f1 || true)"
+advisory_post_line="$(printf '%s\n' "${advisory_matrix_body}" | rg -n --fixed-strings -- 'ifa_advisory_group_live_drain post' | cut -d: -f1 || true)"
+advisory_assert_line="$(printf '%s\n' "${advisory_matrix_body}" | rg -n --fixed-strings -- 'ifa_advisory_group_live_assert "${bin_dir}" "${expected_edges}"' | cut -d: -f1 || true)"
+advisory_union_line="$(printf '%s\n' "${advisory_matrix_body}" | rg -n --fixed-strings -- 'ifa_advisory_group_live_assert_node_union "${bin_dir}" post-enqueue' | cut -d: -f1 || true)"
+advisory_order_lines="${advisory_pre_line} ${advisory_absent_line} ${advisory_enqueue_line} ${advisory_post_line} ${advisory_assert_line} ${advisory_union_line}"
+[[ "${advisory_order_lines}" =~ ^[0-9]+\ [0-9]+\ [0-9]+\ [0-9]+\ [0-9]+\ [0-9]+$ \
+	&& "${advisory_pre_line}" -lt "${advisory_absent_line}" \
+	&& "${advisory_absent_line}" -lt "${advisory_enqueue_line}" \
+	&& "${advisory_enqueue_line}" -lt "${advisory_post_line}" \
+	&& "${advisory_post_line}" -lt "${advisory_assert_line}" \
+	&& "${advisory_assert_line}" -lt "${advisory_union_line}" ]] \
+	|| fail "advisory_group matrix lifecycle must stay pre drain -> absent -> enqueue -> post drain -> exact assertion -> node union; got lines ${advisory_order_lines}"
+advisory_matrix_line="$(_ifa_det_unique_code_match_line 'ifa_advisory_group_live_run_matrix_cell' "${script}")" \
+	|| fail "advisory_group matrix call must have exactly one executable anchor"
+[[ "${advisory_matrix_line}" =~ ^[0-9]+$ && "${n_loop_for_line}" -lt "${advisory_matrix_line}" && "${advisory_matrix_line}" -lt "${graph_dump_line}" ]] \
+	|| fail "advisory_group matrix cell must run inside every N loop before canonical graph output"
+advisory_matrix_call="$(awk -v start="${advisory_matrix_line}" 'NR >= start {print} /advisory_group: N=.*matrix cell failed/{exit}' "${script}")"
+printf '%s\n' "${advisory_matrix_call}" | rg --quiet --fixed-strings -- '"${n}"' \
+	|| fail "advisory_group matrix cell must receive the current worker count"
 }

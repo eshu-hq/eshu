@@ -38,7 +38,7 @@
 # fails in blocking mode. Waivers are per (surface, proof_gate), never per
 # family: waiving the fault gate does not grant credit to the baseline gate.
 #
-# ALL BUT TWENTY-NINE FAMILIES BELOW ARE WAIVED, AND THAT IS THE HONEST STATE. A
+# NO FAMILY BELOW IS WAIVED, AND THAT IS THE HONEST STATE. A
 # coverage row here has to satisfy all four of the sibling manifest's
 # conditions: a cataloged Odù, a vacuity guard registered in
 # MaterializedEdgeOduResolver, a hand-derived expected-edge-set fixture naming
@@ -48,7 +48,7 @@
 # mistake commit 42e188ba1 made for documentation_edges and had to withdraw; it
 # is not repeated here.
 #
-# TWENTY-NINE OF THEM NOW HAVE ALL FOUR. kubernetes_namespace_environment,
+# THIRTY OF THEM NOW HAVE ALL FOUR -- EVERY FAMILY BELOW. kubernetes_namespace_environment,
 # iam_instance_profile_role, iam_can_assume, iam_can_perform,
 # ec2_uses_profile, s3_logs_to, iam_escalation, authenticates_vault_role,
 # uses_vault_policy, grants_secret_read, built_from,
@@ -60,7 +60,7 @@
 # security_group_rule_endpoint, s3_external_principal_grant,
 # workload_cloud_relationship, kubernetes_correlation,
 # assumes_iam_role,
-# and uses_service_account
+# uses_service_account, and advisory_group
 # each carry a cataloged Odù, a registered
 # edge-type set, a vacuity guard dispatched from MaterializedEdgeOduResolver,
 # a hand-derived expected-edge-set fixture their guard reproduces exactly,
@@ -83,14 +83,15 @@
 # for security_group_rule_endpoint, the s3_external_principal_grant
 # live leaf for s3_external_principal_grant, the #6228 fault trios
 # for kubernetes_correlation and workload_cloud_relationship, the
-# assumes_iam_role live leaf for assumes_iam_role, and the
-# uses_service_account live leaf for uses_service_account -- live
+# assumes_iam_role live leaf for assumes_iam_role, the
+# uses_service_account live leaf for uses_service_account, and the
+# advisory_group live leaf (#10466) for advisory_group -- live
 # ifa-determinism AND
 # ifa-fault-injection
 # matrices driving the family
-# and asserting its exact edge set. Their coverage rows below say so. Every
-# other family below still lacks the fourth condition, which is why every
-# other family below still carries waiver rows instead.
+# and asserting its exact edge set. Their coverage rows below say so. No
+# family below carries a waiver row any more: advisory_group, the last
+# waived family, retired its waivers with #10466.
 #
 # Which families those are is asserted in code, not only here.
 # guardedDirectMaterializedEdgeFamilies
@@ -102,19 +103,17 @@
 # matrices, convert its rows here from waivers to coverage, and flip its roster
 # flag there -- all in the same change.
 #
-# The remaining two do NOT yet resolve through
-# MaterializedEdgeDomainEdgeTypes -- their relationship types are not registered
-# beside their writers in go/internal/storage/cypher, so
-# `eshu-ifa assert-edges -domain <family>` would error before any fixture is
-# consulted. Registering them is part of the remaining #6228 work, which is why
-# TestEveryWaivedFamilyIsRegistered holds the #5543 umbrella roster to the
-# resolve check but not these. The waiver reasons below say so per family.
+# The last two families that did not resolve through
+# MaterializedEdgeDomainEdgeTypes have since registered beside their writers
+# in go/internal/storage/cypher and converted to coverage, so every family
+# below now resolves and no waiver rows remain. The historical registration
+# contract is the SPLIT VERDICT record below.
 #
 # SPLIT VERDICT D (arbiter ruling, issue #6228 comment 2026-10-17) decided the
 # registry contract for the six families below that could not register in
 # their old shape. Recorded in
 # docs/internal/design/6228-materialized-edge-retract-registry-contract.md,
-# which is the pointer every reason below carries.
+# which is the pointer every waiver reason carried.
 # TestMaterializedEdgeFamilyRegistryMatchesItsRetract now dispatches on
 # RetractKind: a `[rel:A|B]` alternation for relAlternation families, a
 # MATCH/DETACH DELETE shape plus derived types for evidenceNodeDetach
@@ -129,8 +128,8 @@
 # with them — until #8359 gave it a dedicated [rel:CONTAINS] edge retract
 # scoped by evidence_source and endpoint labels (registered; the #8359
 # arbiter verdict (a) further settled its cell design — shared N={1,2,4}
-# cell, fixture-repo-scoped exact set, registry row 22 — so it stays waived
-# pending the first live drive, not pending a decision).
+# cell, fixture-repo-scoped exact set, registry row 22 — so it stayed waived
+# only until its first live drive, which has since landed its coverage rows).
 # cloud_resource was UNCOVERED by design as the sole genuinely open family:
 # the #8358 route-2 predicate-scoped assert-edges scan, Odu, expected-edge-set
 # fixture, predicate registration, and live-matrix wiring had landed, but no
@@ -146,11 +145,12 @@
 # an open vocabulary. observability_coverage (5 closed AWS_COVERS_* types) and
 # security_group_sg_rule (ALLOWS_INGRESS|ALLOWS_EGRESS) are closed and screened
 # per row in code today; their old "open" claim was false.
-# Registering edge types is scaffolding, not coverage: every family below
-# still lacks its Odù, expected-edge-set fixture, and live matrices, which is
-# why every family below still carries waiver rows. Converting a waiver to a
-# coverage row and flipping its roster flag belongs to that family's own leaf,
-# never to this scaffolding change.
+# Registering edge types is scaffolding, not coverage: at that scaffolding
+# change every family below still lacked its Odù, expected-edge-set fixture,
+# and live matrices, which is why each then carried waiver rows. Converting
+# a waiver to a coverage row and flipping its roster flag belonged to that
+# family's own leaf, never to the scaffolding change; each conversion has
+# since landed, which is why the ledger below carries coverage rows only.
 #
 # WHERE THE FAMILY LIST COMES FROM. Not from this file, and not from any port's
 # name. reducer.DirectMaterializedEdgeFamilies() is the source, and
@@ -652,20 +652,31 @@ coverage:
     ref: "odu:ifa-uses-service-account-family"
     proof_gate: ifa-fault-injection
 
-waivers:
-  # advisory_group (#10411): registered at birth with waivers, the honest
-  # state this manifest documents for a family without its four coverage
-  # conditions. Its input is a Postgres winners read model, not collector
-  # facts, so the Odù design is #6228-shaped work tracked by #10466. Until
-  # then the family is proven by writer/handler unit tests, the winners
-  # reader live tests, and the Neo4j live readback + seeded parity proof.
+  # advisory_group: winners-fed projection proven from finding-fact
+  # admission downstream (#10466). The Odù admits
+  # reducer_supply_chain_impact_finding facts in the production writer's
+  # payload shape (members under provenance); the live cells run the
+  # real winners maintainer rebuild and the production
+  # AdvisoryGroupProjectionEnqueuer between drains, then the real queue
+  # and handler. The claim covers winner selection, the qualifying
+  # filter, BuildGroup's collapse, the two-edge AFFECTED_BY exact set,
+  # and the full member union on the AdvisoryGroup node (CVE/advisory
+  # split, including members no row carries as its own id). It claims
+  # nothing about the impact pass's TouchedGroupIDs fan-out: the group
+  # ids handed to the enqueuer are explicit, exactly as a committed
+  # pass hands them over. The repository-less, known-fixed, and
+  # tombstoned findings produce nothing.
   - surface: "materialized_edges:advisory_group"
+    scenario: odu
+    scenario_type: baseline
+    ref: "odu:ifa-advisory-group-family"
     proof_gate: ifa-determinism
-    issue: "#6228"
-    waived: "2026-11-09"
-    reason: "No cataloged Odù, vacuity guard, or expected-edge fixture yet for the winners-fed advisory_group family; the Odù input design is tracked in #10466 under the #6228 lift."
   - surface: "materialized_edges:advisory_group"
+    scenario: odu
+    scenario_type: fault
+    ref: "odu:ifa-advisory-group-family"
     proof_gate: ifa-fault-injection
-    issue: "#6228"
-    waived: "2026-11-09"
-    reason: "No live fault-injection matrix drives the advisory_group family yet; wiring it is tracked in #10466 under the #6228 lift, with the determinism matrix."
+
+# Empty since #10466 retired the last family's waivers: every family
+# above carries its two coverage rows.
+waivers: []

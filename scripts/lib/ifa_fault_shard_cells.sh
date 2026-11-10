@@ -276,6 +276,11 @@ IFA_FAULT_ALL_CELLS=(
 	cell_baseline_uses_service_account
 	cell_kill_uses_service_account
 	cell_failgraphwrite_uses_service_account
+	# advisory_group (#10466): family-scoped baseline plus its two
+	# recovery cells (atomic group below).
+	cell_baseline_advisory_group
+	cell_killworker_advisory_group
+	cell_failgraphwrite_advisory_group
 )
 
 # Co-location constraints -- see "INPUT DATA VS. PARTITION ALGORITHM" above.
@@ -324,6 +329,7 @@ IFA_FAULT_ATOMIC_GROUPS=(
 	"cell_baseline_publishes cell_killworker_publishes cell_failgraphwrite_publishes"
 	"cell_baseline_runtime_declaration cell_killworker_runtime_declaration cell_failgraphwrite_runtime_declaration"
 	"cell_baseline_uses_service_account cell_kill_uses_service_account cell_failgraphwrite_uses_service_account"
+	"cell_baseline_advisory_group cell_killworker_advisory_group cell_failgraphwrite_advisory_group"
 	"cell_baseline_security_group_sg_rule cell_killworker_security_group_sg_rule cell_failgraphwrite_security_group_sg_rule"
 	"cell_baseline_security_group_rule_endpoint cell_killworker_security_group_rule_endpoint cell_failgraphwrite_security_group_rule_endpoint"
 	"cell_baseline_s3_external_principal_grant cell_killworker_s3_external_principal_grant cell_failgraphwrite_s3_external_principal_grant"

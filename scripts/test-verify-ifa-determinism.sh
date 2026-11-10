@@ -30,7 +30,7 @@ shell_exec_lib="${repo_root}/scripts/lib/ifa_shell_exec_live.sh"
 symbol_runtime_lib="${repo_root}/scripts/lib/ifa_symbol_runtime_live.sh"
 direct_family_lib="${repo_root}/scripts/lib/ifa_direct_family_live.sh"; direct_family_cloud_lib="${repo_root}/scripts/lib/ifa_direct_family_live_cloud_resource.sh"; direct_family_built_from_lib="${repo_root}/scripts/lib/ifa_direct_family_live_built_from.sh"; direct_family_crc_image_lib="${repo_root}/scripts/lib/ifa_direct_family_live_cloud_resource_container_image.sh"; direct_family_xplane_lib="${repo_root}/scripts/lib/ifa_direct_family_live_crossplane_satisfied_by.sh"; direct_family_derived_from_lib="${repo_root}/scripts/lib/ifa_direct_family_live_derived_from.sh"; direct_family_obscov_lib="${repo_root}/scripts/lib/ifa_direct_family_live_observability_coverage.sh"; direct_family_ciproc_lib="${repo_root}/scripts/lib/ifa_direct_family_live_code_interproc_evidence.sh"; direct_family_ctaint_lib="${repo_root}/scripts/lib/ifa_direct_family_live_code_taint_evidence.sh"; direct_family_incident_lib="${repo_root}/scripts/lib/ifa_direct_family_live_incident_routing_evidence.sh"; direct_family_pub_lib="${repo_root}/scripts/lib/ifa_direct_family_live_publishes.sh"; direct_family_rdecl_lib="${repo_root}/scripts/lib/ifa_direct_family_live_runtime_declaration.sh"; direct_family_secgroup_lib="${repo_root}/scripts/lib/ifa_direct_family_live_security_group_reachability.sh"; direct_family_s3grant_lib="${repo_root}/scripts/lib/ifa_direct_family_live_s3_external_principal_grant.sh"  # packed for the 500-line cap
 vault_family_lib="${repo_root}/scripts/lib/ifa_vault_family_live.sh"
-fixtures_lib="${repo_root}/scripts/lib/ifa_family_fixtures.sh"
+fixtures_lib="${repo_root}/scripts/lib/ifa_family_fixtures.sh"; fixtures_advisory_lib="${repo_root}/scripts/lib/ifa_family_fixtures_advisory_group.sh"  # advisory_group split (#10466)
 require_helpers_lib="${repo_root}/scripts/lib/test-ifa-determinism-require-helpers.sh"
 family_cases_lib="${repo_root}/scripts/lib/test-ifa-determinism-family-cases.sh"
 maintenance_family_cases_lib="${repo_root}/scripts/lib/test-ifa-determinism-maintenance-family-cases.sh"; post_delta_cases_lib="${repo_root}/scripts/lib/test-ifa-determinism-post-delta-cases.sh"; direct_leaf_cases_lib="${repo_root}/scripts/lib/test-ifa-determinism-direct-leaf-cases.sh"  # packed for the 500-line cap
@@ -222,10 +222,9 @@ require_line() {
 	[[ "$(_ifa_det_count_code_lines_exact "${needle}" "${script}")" -ge 1 ]] \
 		|| fail "missing ${label}, or it survives only inside a comment or heredoc: ${needle}"
 }
-require_fixture() {
+require_fixture() {  # fixtures span ifa_family_fixtures.sh + its advisory_group sibling (#10466)
 	local label="$1" needle="$2"
-	[[ "$(_ifa_det_count_code_matches "${needle}" "${fixtures_lib}")" -ge 1 ]] \
-		|| fail "missing ${label} (fixtures lib): ${needle}, or it survives only inside a comment"
+	[[ "$(_ifa_det_count_code_matches "${needle}" "${fixtures_lib}")" -ge 1 || "$(_ifa_det_count_code_matches "${needle}" "${fixtures_advisory_lib}")" -ge 1 ]] || fail "missing ${label} (fixtures lib): ${needle}, or it survives only inside a comment"
 }
 # Per-family require_*_lib() helpers (require_lib, require_lifecycle_lib,
 # require_delta_lib, require_code_call_lib, require_documentation_lib,
