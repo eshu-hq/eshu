@@ -6,6 +6,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -51,6 +52,13 @@ func TestReducerAdmissionTimeoutReleasesWaitWithoutInnerEnqueue(t *testing.T) {
 	// goes terminal and the census stops turning over.
 	if !failure.IsRetryable(err) {
 		t.Fatalf("Enqueue() error IsRetryable = false, want true so Fail retries the item")
+	}
+	// Pin the production chain: runtime/projection.go wraps the writer error
+	// with "enqueue reducer intents: %w" before failWork, and IsRetryable
+	// must survive that wrap or the item goes terminal instead of retrying.
+	wrapped := fmt.Errorf("enqueue reducer intents: %w", err)
+	if !failure.IsRetryable(wrapped) {
+		t.Fatalf("wrapped Enqueue() error IsRetryable = false, want true through the production %%w wrap")
 	}
 	if writer.calls != 0 {
 		t.Fatalf("inner enqueue count = %d, want 0 (no completion, no graph write)", writer.calls)
