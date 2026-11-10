@@ -255,6 +255,24 @@ func checkActivationHost(config activation.Config, want scope.CollectorKind) err
 	return nil
 }
 
+// refuseActivationHostMismatch logs one host-mismatch refusal and returns it
+// wrapped for the caller. Both the enabled-derivation check and the
+// standing static gate refuse through it, so the operator signal and the
+// error text stay one shape.
+func (s Service) refuseActivationHostMismatch(instance workflow.CollectorInstance, hostErr activationHostMismatchError) error {
+	if s.Logger != nil {
+		s.Logger.Error(
+			"workflow coordinator refused derived scopes for component activation",
+			"collector_kind", instance.CollectorKind,
+			"collector_instance_id", instance.InstanceID,
+			"host_source_system", hostErr.SourceSystem,
+			"host_scope_kind", hostErr.ScopeKind,
+			"reason", "host_scope_kind_or_source_system_mismatch",
+		)
+	}
+	return fmt.Errorf("plan vulnerability intelligence derived scopes for %q: %w", instance.InstanceID, hostErr)
+}
+
 func (s Service) scheduleVulnerabilityActivationDerivedScopes(
 	ctx context.Context,
 	observedAt time.Time,
@@ -268,17 +286,7 @@ func (s Service) scheduleVulnerabilityActivationDerivedScopes(
 	switch {
 	case err == nil:
 	case errors.As(err, &hostErr):
-		if s.Logger != nil {
-			s.Logger.Error(
-				"workflow coordinator refused derived scopes for component activation",
-				"collector_kind", instance.CollectorKind,
-				"collector_instance_id", instance.InstanceID,
-				"host_source_system", hostErr.SourceSystem,
-				"host_scope_kind", hostErr.ScopeKind,
-				"reason", "host_scope_kind_or_source_system_mismatch",
-			)
-		}
-		return fmt.Errorf("plan vulnerability intelligence derived scopes for %q: %w", instance.InstanceID, err)
+		return s.refuseActivationHostMismatch(instance, hostErr)
 	default:
 		if errors.As(err, &listErr) && s.Logger != nil {
 			s.Logger.Error(
@@ -293,10 +301,33 @@ func (s Service) scheduleVulnerabilityActivationDerivedScopes(
 		return fmt.Errorf("load vulnerability intelligence derived targets for %q: %w", instance.InstanceID, err)
 	}
 	if !derivation.Enabled() {
-		return nil
+		// A derive-disabled activation can still carry standing static
+		// targets the planner mints beside the derived scopes (#9880):
+		// plan when one would mint, read nothing and return otherwise.
+		// The evidence readers below all gate on their own section, so a
+		// disabled derivation still reads nothing on this path.
+		hostScopeID := ""
+		if config.Host != nil {
+			hostScopeID = config.Host.Scope.ID
+		}
+		standing, standingErr := vulnerability.ActivationHasStandingStaticTargets(string(config.ComponentConfig), hostScopeID)
+		if standingErr != nil {
+			return fmt.Errorf("load vulnerability intelligence derived targets for %q: %w", instance.InstanceID, standingErr)
+		}
+		if !standing {
+			return nil
+		}
+		// Static scopes are stamped with the host's labels like derived
+		// scopes, so the host rule of an enabled derivation applies here.
+		if hostErr := checkActivationHost(config, scope.CollectorVulnerabilityIntelligence); hostErr != nil {
+			var mismatch activationHostMismatchError
+			_ = errors.As(hostErr, &mismatch)
+			return s.refuseActivationHostMismatch(instance, mismatch)
+		}
 	}
-	// checkActivationDerivation refuses an enabled derivation without a
-	// vulnerability_intelligence host, so Host is set here.
+	// An enabled derivation (checkActivationDerivation) or the standing
+	// static gate above refuses a host that is not
+	// vulnerability_intelligence, so Host is set here.
 	sourceSystem, hostScopeID := config.Host.SourceSystem, config.Host.Scope.ID
 	ownedPage, err := s.vulnerabilityOwnedTargets(ctx, derivation.DeriveFromOwnedPackages, observedAt, interval, workflow.OwnedTargetSlotSelector{})
 	if err != nil {
