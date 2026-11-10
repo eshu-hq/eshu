@@ -461,15 +461,15 @@ if rg --quiet --fixed-strings -- 'drain-advisory-domains="code_calls"' "${script
 fi
 
 # Wires the two remaining B-10 cassette collectors; aws-cloud, terraform-state,
-# vault-live, azure-cloud, gcp-cloud, and kubernetes-live ride the pagerduty replay aliases.
+# vault-live, azure-cloud, gcp-cloud, kubernetes-live, and sbom-attestation ride the pagerduty replay aliases.
 for collector in collector-oci-registry collector-package-registry; do
 	require "collector ${collector}" "${collector}"
 done
-require "prometheus/mimir cassette collector" \
-	"collector-prometheus-mimir:prometheusmimir"
+require "prometheus/mimir cassette collector" "collector-prometheus-mimir:prometheusmimir"
 require "azure cassette replay alias" "azure-cassette-replay:collector-pagerduty:azurecloud"
 require "gcp cassette replay alias" "gcp-cassette-replay:collector-pagerduty:gcpcloud"
 require "kubernetes-live cassette replay alias" "kubernetes-live-cassette-replay:collector-pagerduty:kuberneteslive"
+require "sbom-attestation cassette replay alias" "sbom-attestation-cassette-replay:collector-pagerduty:sbomattestation"
 
 # The B-13 (#3859) drain gate lives in the gate binary; the orchestrator must run
 # the drains phase against the snapshot whose shared_projection_intents bound is
