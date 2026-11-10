@@ -284,7 +284,12 @@ because schedulers stop at the first error. One predicate enforces it:
   that function; do not fork them per caller. The hook reads targets
   through the same `vulnerabilityOwnedTargets` and
   `vulnerabilityInstalledEvidenceTargets` helpers as the in-tree path, which
-  take the decoded derive section. Do not add a second scheduler that selects
+  take the decoded derive section. The hook also plans a derive-disabled
+  activation whose block carries a standing static target
+  (`vulnerability.ActivationHasStandingStaticTargets`, #9880), reusing
+  `checkActivationHost` for its host rule and the same host-mismatch refusal;
+  the evidence readers stay gated on their own sections, so that path reads
+  nothing. Do not add a second scheduler that selects
   activations: it would bypass egress and break the partition above.
 
 ## Common changes and how to scope them
