@@ -18,6 +18,22 @@ member union on the AdvisoryGroup node, including members no row
 carries as its own CVE/advisory id — the assertion that would have
 caught #10475.
 
+Admission channel, recorded as a deviation for review: the arbiter
+ruling pictured finding facts "admitted as facts" ahead of the
+rebuild. Cassette ingestion of finding facts was proven impossible
+live on this branch — a finding payload carries
+reducer_domain=supply_chain_impact, so the projector's generic
+per-fact builder enqueues a fresh impact pass over any re-projected
+generation holding them, and that pass retracts them as superseded
+(findings_retracted=5, winners=0 in the first live determinism run).
+Production findings never enter through ingestion; the pass writer
+upserts them into an already projected generation. The verb
+therefore admits the cassette's finding facts through that same
+writer fact-store statement (factwrite.BatchInsertVersionedFacts,
+fact ids via cassette.DeriveFactID), after the drive has admitted
+the collector facts and created the scope generation. Every other
+step is unchanged from the ruling.
+
 The claim says nothing about the supply_chain_impact pass's
 `TouchedGroupIDs` fan-out. The group ids handed to the enqueuer are
 explicit, exactly as a committed pass hands them over; deriving them

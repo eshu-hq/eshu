@@ -1,20 +1,36 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
-# advisory_group is a winners-fed live family (#10466). Its cassette
-# admits a committed supply_chain_impact pass's OUTPUT facts
-# (reducer_supply_chain_impact_finding, members under provenance)
-# directly, so the first drain only projects the Repository nodes the
-# AdvisoryGroup writer MATCHes and materializes zero AFFECTED_BY edges.
-# The mid-drive step then runs the production winners rebuild and the
-# production AdvisoryGroupProjectionEnqueuer at their ports
-# (eshu-ifa enqueue-advisory-groups) — never an invented marker fact —
-# and the second drain claims, handles, and acks the real
+# advisory_group is a winners-fed live family (#10466). The drive
+# admits the cassette's collector facts (repositories, the CVE
+# evidence record) with the finding facts HELD BACK: a finding payload
+# carries reducer_domain=supply_chain_impact, so ingesting them would
+# make the projector enqueue a fresh impact pass that retracts them
+# as superseded before any winners rebuild could see them (proven
+# live on this branch). Production findings never enter through
+# ingestion — the pass writer upserts them into an already projected
+# generation — so the mid-drive step admits them through that same
+# writer fact-store port, then runs the production winners rebuild
+# and AdvisoryGroupProjectionEnqueuer (eshu-ifa
+# enqueue-advisory-groups) — never an invented marker fact — and the
+# second drain claims, handles, and acks the real
 # advisory_group_projection intent. The absent-then-exact pair is the
-# non-vacuity proof that the enqueue step is load-bearing.
+# non-vacuity proof that the mid-drive step is load-bearing.
 
 ifa_advisory_group_live_drive() {
-	local bin_dir="$1" cassette="$2" workers="$3"
-	"${bin_dir}/eshu-ifa" drive -cassette "${cassette}" -workers "${workers}"
+	local bin_dir="$1" cassette="$2" workers="$3" drive_cassette rc=0
+	command -v jq >/dev/null 2>&1 || {
+		printf 'advisory_group drive: jq is required to hold finding facts back from ingestion\n' >&2
+		return 1
+	}
+	drive_cassette="$(mktemp)" || return 1
+	if ! jq 'del(.scopes[].facts[] | select(.fact_kind == "reducer_supply_chain_impact_finding"))' \
+		"${cassette}" >"${drive_cassette}"; then
+		rm -f "${drive_cassette}"
+		return 1
+	fi
+	"${bin_dir}/eshu-ifa" drive -cassette "${drive_cassette}" -workers "${workers}" || rc=$?
+	rm -f "${drive_cassette}"
+	return "${rc}"
 }
 
 ifa_advisory_group_live_drain() {
@@ -62,14 +78,17 @@ ifa_advisory_group_live_assert_absent() {
 	printf '%s: confirmed zero AFFECTED_BY edges before the advisory-group enqueue\n' "${label}"
 }
 
-# The mid-drive step, at production ports only: winners rebuild, then
-# AdvisoryGroupProjectionEnqueuer, then a second rebuild so the
-# watermark covers the enqueue. The group/scope/generation literals are
-# the fixture's own identities, spelled out so a drifted cassette reds
-# here instead of enqueueing for a group nothing rebuilt winners for.
+# The mid-drive step, at production ports only: admit the cassette's
+# finding facts through the writer fact-store statement, winners
+# rebuild, then AdvisoryGroupProjectionEnqueuer, then a second rebuild
+# so the watermark covers the enqueue. The group/scope/generation
+# literals are the fixture's own identities, spelled out so a drifted
+# cassette reds here instead of enqueueing for a group nothing rebuilt
+# winners for.
 ifa_advisory_group_live_enqueue() {
-	local bin_dir="$1"
+	local bin_dir="$1" cassette="$2"
 	"${bin_dir}/eshu-ifa" enqueue-advisory-groups \
+		-cassette "${cassette}" \
 		-group CVE-2026-10466 \
 		-scope osv:eshu-fixture-advisory-findings \
 		-generation gen-ifa-advisory-group-family-findings-1 \
@@ -117,7 +136,7 @@ ifa_advisory_group_live_run_matrix_cell() {
 	ifa_advisory_group_live_drive "${bin_dir}" "${cassette}" "${workers}" || return 1
 	ifa_advisory_group_live_drain pre "${bin_dir}" "${log_dir}" "${timeout}" || return 1
 	ifa_advisory_group_live_assert_absent "${bin_dir}" pre-enqueue || return 1
-	ifa_advisory_group_live_enqueue "${bin_dir}" || return 1
+	ifa_advisory_group_live_enqueue "${bin_dir}" "${cassette}" || return 1
 	ifa_advisory_group_live_drain post "${bin_dir}" "${log_dir}" "${timeout}" || return 1
 	ifa_advisory_group_live_assert "${bin_dir}" "${expected_edges}" || return 1
 	ifa_advisory_group_live_assert_node_union "${bin_dir}" post-enqueue || return 1

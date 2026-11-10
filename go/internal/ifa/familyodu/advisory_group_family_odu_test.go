@@ -10,8 +10,9 @@ import (
 )
 
 // TestAdvisoryGroupFamilyOduShape pins the fixture's load-bearing shape:
-// two repository facts in their own git scopes, six finding facts in the
-// one findings scope, every stable key distinct, and every finding
+// two repository facts in their own git scopes, one vulnerability.cve
+// evidence fact and six finding facts in the one findings scope, every
+// stable key distinct, and every finding
 // carrying its alias-group members under provenance — never at the
 // payload top level, the shape no production writer emits whose seeded
 // use masked #10475.
@@ -19,11 +20,11 @@ func TestAdvisoryGroupFamilyOduShape(t *testing.T) {
 	t.Parallel()
 
 	odu := AdvisoryGroupFamilyOdu().Odu
-	if got, want := len(odu.Facts), 8; got != want {
-		t.Fatalf("advisory_group Odù carries %d facts, want %d (2 repositories + 6 findings)", got, want)
+	if got, want := len(odu.Facts), 9; got != want {
+		t.Fatalf("advisory_group Odù carries %d facts, want %d (2 repositories + 1 evidence + 6 findings)", got, want)
 	}
 	seen := make(map[string]struct{}, len(odu.Facts))
-	repos, findings := 0, 0
+	repos, findings, evidence := 0, 0, 0
 	for _, env := range odu.Facts {
 		if _, dup := seen[env.StableFactKey]; dup {
 			t.Fatalf("duplicate stable_fact_key %q", env.StableFactKey)
@@ -32,6 +33,11 @@ func TestAdvisoryGroupFamilyOduShape(t *testing.T) {
 		switch env.FactKind {
 		case "repository":
 			repos++
+		case "vulnerability.cve":
+			evidence++
+			if env.ScopeID != advisoryGroupFamilyFindingScopeID {
+				t.Fatalf("evidence fact %q is outside the findings scope", env.StableFactKey)
+			}
 		case facts.ReducerSupplyChainImpactFindingFactKind:
 			findings++
 			if env.ScopeID != advisoryGroupFamilyFindingScopeID || env.GenerationID != advisoryGroupFamilyFindingGenerationID {
@@ -55,8 +61,8 @@ func TestAdvisoryGroupFamilyOduShape(t *testing.T) {
 			t.Fatalf("unexpected fact kind %q in the advisory_group Odù", env.FactKind)
 		}
 	}
-	if repos != 2 || findings != 6 {
-		t.Fatalf("Odù carries %d repository and %d finding facts, want 2 and 6", repos, findings)
+	if repos != 2 || findings != 6 || evidence != 1 {
+		t.Fatalf("Odù carries %d repository, %d finding, and %d evidence facts, want 2, 6, and 1", repos, findings, evidence)
 	}
 }
 

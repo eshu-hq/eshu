@@ -17,6 +17,7 @@ func TestParseEnqueueAdvisoryGroupsFlags(t *testing.T) {
 	t.Parallel()
 
 	ok, err := parseEnqueueAdvisoryGroupsFlags([]string{
+		"-cassette", "testdata/cassettes/advisorygroup/ifa-advisory-group-family.json",
 		"-group", "CVE-2026-10466", "-group", "GHSA-10466-aaaa-bbbb",
 		"-scope", "osv:eshu-fixture-advisory-findings",
 		"-generation", "gen-ifa-advisory-group-family-findings-1",
@@ -34,12 +35,13 @@ func TestParseEnqueueAdvisoryGroupsFlags(t *testing.T) {
 		args []string
 		want string
 	}{
-		{name: "no group", args: []string{"-scope", "s", "-generation", "g", "-source-system", "osv"}, want: "at least one -group is required"},
-		{name: "blank group", args: []string{"-group", "  ", "-scope", "s", "-generation", "g", "-source-system", "osv"}, want: "must not be blank"},
-		{name: "no scope", args: []string{"-group", "CVE-1", "-generation", "g", "-source-system", "osv"}, want: "-scope is required"},
-		{name: "no generation", args: []string{"-group", "CVE-1", "-scope", "s", "-source-system", "osv"}, want: "-generation is required"},
-		{name: "no source system", args: []string{"-group", "CVE-1", "-scope", "s", "-generation", "g"}, want: "-source-system is required"},
-		{name: "positional", args: []string{"-group", "CVE-1", "-scope", "s", "-generation", "g", "-source-system", "osv", "extra"}, want: "positional arguments are not accepted"},
+		{name: "no cassette", args: []string{"-group", "CVE-1", "-scope", "s", "-generation", "g", "-source-system", "osv"}, want: "-cassette is required"},
+		{name: "no group", args: []string{"-cassette", "c.json", "-scope", "s", "-generation", "g", "-source-system", "osv"}, want: "at least one -group is required"},
+		{name: "blank group", args: []string{"-cassette", "c.json", "-group", "  ", "-scope", "s", "-generation", "g", "-source-system", "osv"}, want: "must not be blank"},
+		{name: "no scope", args: []string{"-cassette", "c.json", "-group", "CVE-1", "-generation", "g", "-source-system", "osv"}, want: "-scope is required"},
+		{name: "no generation", args: []string{"-cassette", "c.json", "-group", "CVE-1", "-scope", "s", "-source-system", "osv"}, want: "-generation is required"},
+		{name: "no source system", args: []string{"-cassette", "c.json", "-group", "CVE-1", "-scope", "s", "-generation", "g"}, want: "-source-system is required"},
+		{name: "positional", args: []string{"-cassette", "c.json", "-group", "CVE-1", "-scope", "s", "-generation", "g", "-source-system", "osv", "extra"}, want: "positional arguments are not accepted"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

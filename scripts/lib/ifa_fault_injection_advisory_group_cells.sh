@@ -110,7 +110,7 @@ cell_baseline_advisory_group() {
 	run_drain_gate baselineadvisorypre
 	ifa_advisory_group_live_assert_absent "${bin_dir}" baselineadvisory-pre-enqueue \
 		|| die "baseline-advisory-group: AFFECTED_BY edges exist before the advisory-group enqueue; the drive must not mint them"
-	ifa_advisory_group_live_enqueue "${bin_dir}" \
+	ifa_advisory_group_live_enqueue "${bin_dir}" "${advisory_group_cassette}" \
 		|| die "baseline-advisory-group: winners rebuild + advisory-group enqueue failed"
 	run_drain_gate baselineadvisory
 	assert_no_dead_letters baselineadvisory
@@ -146,7 +146,7 @@ cell_killworker_advisory_group() {
 	# prove nothing about mid-handler recovery.
 	ifa_det_stop_join_untrack_bg_pid "${reducer_pid}" TERM \
 		|| die "kill-worker-after-claim-advisory-group: could not stop the pre-drain reducer"
-	ifa_advisory_group_live_enqueue "${bin_dir}" \
+	ifa_advisory_group_live_enqueue "${bin_dir}" "${advisory_group_cassette}" \
 		|| die "kill-worker-after-claim-advisory-group: winners rebuild + advisory-group enqueue failed"
 	ifa_advisory_group_start_fact_records_lock "killworkeradvisory" lock_holder_pid \
 		|| die "kill-worker-after-claim-advisory-group: could not acquire the deterministic fact_records read blocker"
@@ -203,7 +203,7 @@ cell_failgraphwrite_advisory_group() {
 	ifa_det_start_bg "${log_dir}" "reducer-failgraphwriteadvisory" reducer_pid \
 		env "ESHU_IFA_FAULT_SCRIPT=${fault_once_script}" "${tagged_bin_dir}/eshu-reducer"
 	run_drain_gate failgraphwriteadvisorypre
-	ifa_advisory_group_live_enqueue "${bin_dir}" \
+	ifa_advisory_group_live_enqueue "${bin_dir}" "${advisory_group_cassette}" \
 		|| die "fail-graph-write-once-then-succeed-advisory-group: winners rebuild + advisory-group enqueue failed"
 	run_drain_gate failgraphwriteadvisory
 	assert_no_dead_letters failgraphwriteadvisory

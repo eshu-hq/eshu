@@ -5,13 +5,17 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/facts"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite"
+	"github.com/eshu-hq/eshu/go/internal/replay/cassette"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
@@ -33,6 +37,7 @@ func (f *advisoryGroupListFlag) Set(value string) error {
 // enqueueAdvisoryGroupsOptions holds the parsed inputs for one
 // "ifa enqueue-advisory-groups" run.
 type enqueueAdvisoryGroupsOptions struct {
+	cassettePath string
 	groups       []string
 	scopeID      string
 	generationID string
@@ -45,6 +50,7 @@ func parseEnqueueAdvisoryGroupsFlags(args []string, stderr io.Writer) (enqueueAd
 	fs.SetOutput(stderr)
 	var o enqueueAdvisoryGroupsOptions
 	var groups advisoryGroupListFlag
+	fs.StringVar(&o.cassettePath, "cassette", "", "family cassette whose reducer_supply_chain_impact_finding facts are admitted through the writer fact-store port")
 	fs.Var(&groups, "group", "advisory group id to enqueue a projection for (repeatable, at least one required)")
 	fs.StringVar(&o.scopeID, "scope", "", "origin scope id the projection intents ride (the findings scope)")
 	fs.StringVar(&o.generationID, "generation", "", "origin generation id the projection intents ride")
@@ -57,9 +63,13 @@ func parseEnqueueAdvisoryGroupsFlags(args []string, stderr io.Writer) (enqueueAd
 		return enqueueAdvisoryGroupsOptions{}, fmt.Errorf("ifa enqueue-advisory-groups: positional arguments are not accepted")
 	}
 	o.groups = groups
+	o.cassettePath = strings.TrimSpace(o.cassettePath)
 	o.scopeID = strings.TrimSpace(o.scopeID)
 	o.generationID = strings.TrimSpace(o.generationID)
 	o.sourceSystem = strings.TrimSpace(o.sourceSystem)
+	if o.cassettePath == "" {
+		return enqueueAdvisoryGroupsOptions{}, fmt.Errorf("ifa enqueue-advisory-groups: -cassette is required; the finding facts are admitted from the committed family cassette, never retyped into flags")
+	}
 	if len(o.groups) == 0 {
 		return enqueueAdvisoryGroupsOptions{}, fmt.Errorf("ifa enqueue-advisory-groups: at least one -group is required; enqueueing nothing would let the cell pass vacuously")
 	}
@@ -71,6 +81,71 @@ func parseEnqueueAdvisoryGroupsFlags(args []string, stderr io.Writer) (enqueueAd
 		}
 	}
 	return o, nil
+}
+
+// admitCassetteFindings upserts the cassette's
+// reducer_supply_chain_impact_finding facts for the origin scope and
+// generation through factwrite.BatchInsertVersionedFacts — the
+// statement every governed reducer writer uses, and the only way
+// finding facts enter fact_records in production. Cassette ingestion
+// cannot admit them: a finding payload carries
+// reducer_domain=supply_chain_impact, so re-projecting a generation
+// that holds them makes the projector's generic per-fact builder
+// enqueue a fresh impact pass that retracts them as superseded
+// (proven live on this branch: findings_retracted=5, winners=0). The
+// rows carry the very fact ids cassette replay would have minted
+// (cassette.DeriveFactID) and the payload bytes the committed
+// cassette carries, re-marshaled from its decoded map.
+func admitCassetteFindings(ctx context.Context, execer factwrite.Execer, o enqueueAdvisoryGroupsOptions) (int, error) {
+	file, err := cassette.LoadFile(o.cassettePath)
+	if err != nil {
+		return 0, fmt.Errorf("load cassette: %w", err)
+	}
+	now := time.Now().UTC()
+	rows := []factwrite.VersionedRow{}
+	for _, scopeEntry := range file.Scopes {
+		if scopeEntry.ScopeID != o.scopeID || scopeEntry.GenerationID != o.generationID {
+			continue
+		}
+		for _, fact := range scopeEntry.Facts {
+			if fact.FactKind != facts.ReducerSupplyChainImpactFindingFactKind {
+				continue
+			}
+			payloadJSON, err := json.Marshal(fact.Payload)
+			if err != nil {
+				return 0, fmt.Errorf("marshal finding payload %q: %w", fact.StableFactKey, err)
+			}
+			intentID, _ := fact.Payload["intent_id"].(string)
+			collectorKind := fact.CollectorKind
+			if collectorKind == "" {
+				collectorKind = scopeEntry.CollectorKind
+			}
+			rows = append(rows, factwrite.VersionedRow{
+				FactID:           cassette.DeriveFactID(scopeEntry.ScopeID, scopeEntry.GenerationID, fact.StableFactKey),
+				ScopeID:          scopeEntry.ScopeID,
+				GenerationID:     scopeEntry.GenerationID,
+				FactKind:         fact.FactKind,
+				StableFactKey:    fact.StableFactKey,
+				SchemaVersion:    fact.SchemaVersion,
+				CollectorKind:    collectorKind,
+				SourceConfidence: fact.SourceConfidence,
+				SourceSystem:     o.sourceSystem,
+				SourceFactKey:    intentID,
+				ObservedAt:       now,
+				IngestedAt:       now,
+				IsTombstone:      fact.IsTombstone,
+				Payload:          string(payloadJSON),
+				FencingToken:     fact.FencingToken,
+			})
+		}
+	}
+	if len(rows) == 0 {
+		return 0, fmt.Errorf("cassette %s carries no %s facts for scope %q generation %q; admitting nothing would let the cell pass vacuously", o.cassettePath, facts.ReducerSupplyChainImpactFindingFactKind, o.scopeID, o.generationID)
+	}
+	if err := factwrite.BatchInsertVersionedFacts(ctx, execer, rows); err != nil {
+		return 0, fmt.Errorf("admit finding facts: %w", err)
+	}
+	return len(rows), nil
 }
 
 // rebuildWinnersOnce runs one full winners resweep — the rebuild the
@@ -106,16 +181,18 @@ func rebuildWinnersOnce(ctx context.Context, store postgres.SupplyChainImpactWin
 // Production admits an advisory_group_projection intent only from a
 // committed supply_chain_impact pass, through
 // AdvisoryGroupProjectionEnqueuer, and the handler then waits for the
-// winners maintainer's watermark to pass the enqueue. A cassette drive
-// admits the pass's OUTPUT facts (reducer_supply_chain_impact_finding)
-// directly, so no pass runs and nothing enqueues. This verb performs
-// the two production steps the drive leaves undone, at their production
-// ports — the winners maintainer's full rebuild over the admitted
-// finding facts, then the production enqueuer over the real reducer
-// queue, then a second rebuild so the watermark covers the enqueue the
-// handler defers on. It invents no fact kind and no queue shape: the
-// drain that follows claims, handles, and acks through the real
-// projector/reducer binaries exactly as production does.
+// winners maintainer's watermark to pass the enqueue. The cassette
+// drive admits the collector facts (repositories, evidence) but holds
+// the pass's OUTPUT facts back (see admitCassetteFindings for why
+// ingestion cannot carry them). This verb performs the production
+// steps the drive leaves undone, at their production ports — admit
+// the finding facts through the writer fact-store statement, run the
+// winners maintainer's full rebuild over them, enqueue through the
+// production enqueuer over the real reducer queue, then rebuild again
+// so the watermark covers the enqueue the handler defers on. It
+// invents no fact kind and no queue shape: the drain that follows
+// claims, handles, and acks through the real projector/reducer
+// binaries exactly as production does.
 //
 // The group ids are explicit flags, mirroring the enqueuer's own
 // contract (a pass hands it TouchedGroupIDs). Deriving them here would
@@ -132,6 +209,12 @@ func runEnqueueAdvisoryGroupsCommand(ctx context.Context, args []string, stdout,
 		return fmt.Errorf("ifa enqueue-advisory-groups: open postgres: %w", err)
 	}
 	defer func() { _ = db.Close() }()
+
+	admitted, err := admitCassetteFindings(ctx, db, o)
+	if err != nil {
+		return fmt.Errorf("ifa enqueue-advisory-groups: %w", err)
+	}
+	_, _ = fmt.Fprintf(stdout, "admitted %d finding fact(s) from cassette through the writer fact-store port\n", admitted)
 
 	store := postgres.NewSupplyChainImpactWinnersStore(postgres.SQLDB{DB: db})
 	inserted, updated, deleted, unchanged, err := rebuildWinnersOnce(ctx, store)

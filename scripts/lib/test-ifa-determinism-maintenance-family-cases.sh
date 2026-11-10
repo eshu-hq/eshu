@@ -186,7 +186,7 @@ require_fixture "advisory-group expected-edge existence guard" "advisory-group e
 advisory_group_live_lib="${repo_root}/scripts/lib/ifa_advisory_group_live.sh"
 [[ -f "${advisory_group_live_lib}" ]] || fail "missing advisory_group live helper"
 for advisory_needle in 'ifa_advisory_group_live_run_matrix_cell()' \
-	'eshu-ifa" drive -cassette "${cassette}" -workers "${workers}"' \
+	'eshu-ifa" drive -cassette "${drive_cassette}" -workers "${workers}"' \
 	'ifa_advisory_group_live_drain pre' 'ifa_advisory_group_live_assert_absent' \
 	'eshu-ifa" enqueue-advisory-groups' 'ifa_advisory_group_live_drain post' \
 	'ifa_advisory_group_live_assert_node_union' '-domain advisory_group -expected "${expected_edges}"'; do
@@ -196,7 +196,7 @@ done
 advisory_matrix_body="$(awk '/^ifa_advisory_group_live_run_matrix_cell\(\)/,/^}/' "${advisory_group_live_lib}")"
 advisory_pre_line="$(printf '%s\n' "${advisory_matrix_body}" | rg -n --fixed-strings -- 'ifa_advisory_group_live_drain pre' | cut -d: -f1 || true)"
 advisory_absent_line="$(printf '%s\n' "${advisory_matrix_body}" | rg -n --fixed-strings -- 'ifa_advisory_group_live_assert_absent "${bin_dir}" pre-enqueue' | cut -d: -f1 || true)"
-advisory_enqueue_line="$(printf '%s\n' "${advisory_matrix_body}" | rg -n --fixed-strings -- 'ifa_advisory_group_live_enqueue "${bin_dir}"' | cut -d: -f1 || true)"
+advisory_enqueue_line="$(printf '%s\n' "${advisory_matrix_body}" | rg -n --fixed-strings -- 'ifa_advisory_group_live_enqueue "${bin_dir}" "${cassette}"' | cut -d: -f1 || true)"
 advisory_post_line="$(printf '%s\n' "${advisory_matrix_body}" | rg -n --fixed-strings -- 'ifa_advisory_group_live_drain post' | cut -d: -f1 || true)"
 advisory_assert_line="$(printf '%s\n' "${advisory_matrix_body}" | rg -n --fixed-strings -- 'ifa_advisory_group_live_assert "${bin_dir}" "${expected_edges}"' | cut -d: -f1 || true)"
 advisory_union_line="$(printf '%s\n' "${advisory_matrix_body}" | rg -n --fixed-strings -- 'ifa_advisory_group_live_assert_node_union "${bin_dir}" post-enqueue' | cut -d: -f1 || true)"
