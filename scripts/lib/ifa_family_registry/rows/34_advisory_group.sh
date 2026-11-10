@@ -51,11 +51,12 @@ IFA_FAMILY_EXPECTED_VAR[advisory_group]="advisory_group_expected_edges"
 # retract's MATCH in the same file. AFFECTED_BY is the only type this
 # writer can emit (static token, no vocabulary substitution).
 IFA_FAMILY_ANCHOR[advisory_group]="MERGE (r)-[e:AFFECTED_BY {package_id: row.package_id}]->(g)"
-# none UNTIL the fault trio lands with this row's family: cell_kind
-# records dispatch reality, and no fault cell dispatches this family
-# yet. The trio's own change flips this to custom in the same commit
-# that wires the dispatch.
-IFA_FAMILY_CELL_KIND[advisory_group]="none"
+# custom: hand-written trio in
+# scripts/lib/ifa_fault_injection_advisory_group_cells.sh, dispatched
+# by name. Custom rather than generic because every cell must run the
+# production winners rebuild + enqueuer between two drains, a
+# sequencing the generic table_lock path cannot express.
+IFA_FAMILY_CELL_KIND[advisory_group]="custom"
 
 # Not a shared_intent_lock family, so no retry baseline is required.
 # Declared empty rather than omitted -- see rows/12 for why an absent

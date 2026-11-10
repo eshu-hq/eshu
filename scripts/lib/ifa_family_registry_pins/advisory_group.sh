@@ -38,6 +38,7 @@ IFA_FAMILY_PIN_ANCHOR="MERGE (r)-[e:AFFECTED_BY {package_id: row.package_id}]->(
 # because the shared cell offers no seam between drains to run the
 # production winners rebuild and enqueuer.
 IFA_FAMILY_PIN_SHARED_CELL=0
-# cell_kind: none until the fault trio lands; the trio's change flips
-# this and the registry row to custom together with the dispatch.
-IFA_FAMILY_PIN_CELL_KIND="none"
+# cell_kind: derived from the gate's call sites -- the custom trio in
+# scripts/lib/ifa_fault_injection_advisory_group_cells.sh, dispatched
+# by name (#10466).
+IFA_FAMILY_PIN_CELL_KIND="custom"
