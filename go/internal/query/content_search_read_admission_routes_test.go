@@ -155,6 +155,35 @@ func contentSearchServe(t *testing.T, store querycontract.ContentStore, method, 
 	return rec
 }
 
+// cloneFileFixture returns a per-subtest copy of the file rows: production
+// handlers scrub row fields in place, so parallel subtests must not share
+// one backing array.
+func cloneFileFixture(src []querycontract.FileContent) []querycontract.FileContent {
+	return slices.Clone(src)
+}
+
+// cloneEntityFixture returns a per-subtest copy of the entity rows, including
+// the Metadata map and PagePosition pointer: production handlers scrub row
+// fields in place, so parallel subtests must not share one backing array.
+func cloneEntityFixture(src []querycontract.EntityContent) []querycontract.EntityContent {
+	out := make([]querycontract.EntityContent, len(src))
+	for i, e := range src {
+		out[i] = e
+		if e.Metadata != nil {
+			md := make(map[string]any, len(e.Metadata))
+			for k, v := range e.Metadata {
+				md[k] = v
+			}
+			out[i].Metadata = md
+		}
+		if e.PagePosition != nil {
+			p := *e.PagePosition
+			out[i].PagePosition = &p
+		}
+	}
+	return out
+}
+
 // TestContentSearchReadAdmissionRoutesServeSearches proves the four
 // pinned routes serve their reads through the pin-satisfying double:
 // each route answers HTTP 200 through the real mux and records exactly
@@ -179,7 +208,7 @@ func TestContentSearchReadAdmissionRoutesServeSearches(t *testing.T) {
 
 	t.Run("files/search scoped admits through the paged seam", func(t *testing.T) {
 		t.Parallel()
-		store := &contentSearchPinDouble{files: fileFixture}
+		store := &contentSearchPinDouble{files: cloneFileFixture(fileFixture)}
 		rec := contentSearchServe(t, store, http.MethodPost, "/api/v0/content/files/search",
 			`{"repo_id":"repo-1","query":"package","limit":10}`)
 		if rec.Code != http.StatusOK {
@@ -195,7 +224,7 @@ func TestContentSearchReadAdmissionRoutesServeSearches(t *testing.T) {
 
 	t.Run("files/search scoped falls back to the single-repo read", func(t *testing.T) {
 		t.Parallel()
-		store := &contentSearchFallbackDouble{files: fileFixture}
+		store := &contentSearchFallbackDouble{files: cloneFileFixture(fileFixture)}
 		rec := contentSearchServe(t, store, http.MethodPost, "/api/v0/content/files/search",
 			`{"repo_id":"repo-1","query":"package","limit":10}`)
 		if rec.Code != http.StatusOK {
@@ -208,7 +237,7 @@ func TestContentSearchReadAdmissionRoutesServeSearches(t *testing.T) {
 
 	t.Run("files/search unscoped admits through the bounded walk", func(t *testing.T) {
 		t.Parallel()
-		store := &contentSearchPinDouble{files: fileFixture}
+		store := &contentSearchPinDouble{files: cloneFileFixture(fileFixture)}
 		rec := contentSearchServe(t, store, http.MethodPost, "/api/v0/content/files/search",
 			`{"query":"package","limit":10}`)
 		if rec.Code != http.StatusOK {
@@ -221,7 +250,7 @@ func TestContentSearchReadAdmissionRoutesServeSearches(t *testing.T) {
 
 	t.Run("files/search unscoped falls back to the corpus-wide read", func(t *testing.T) {
 		t.Parallel()
-		store := &contentSearchFallbackDouble{files: fileFixture}
+		store := &contentSearchFallbackDouble{files: cloneFileFixture(fileFixture)}
 		rec := contentSearchServe(t, store, http.MethodPost, "/api/v0/content/files/search",
 			`{"query":"package","limit":10}`)
 		if rec.Code != http.StatusOK {
@@ -234,7 +263,7 @@ func TestContentSearchReadAdmissionRoutesServeSearches(t *testing.T) {
 
 	t.Run("entities/search scoped admits through the paged seam", func(t *testing.T) {
 		t.Parallel()
-		store := &contentSearchPinDouble{entities: entityFixture}
+		store := &contentSearchPinDouble{entities: cloneEntityFixture(entityFixture)}
 		rec := contentSearchServe(t, store, http.MethodPost, "/api/v0/content/entities/search",
 			`{"repo_id":"repo-1","query":"render","limit":10}`)
 		if rec.Code != http.StatusOK {
@@ -250,7 +279,7 @@ func TestContentSearchReadAdmissionRoutesServeSearches(t *testing.T) {
 
 	t.Run("entities/search scoped falls back to the single-repo read", func(t *testing.T) {
 		t.Parallel()
-		store := &contentSearchFallbackDouble{entities: entityFixture}
+		store := &contentSearchFallbackDouble{entities: cloneEntityFixture(entityFixture)}
 		rec := contentSearchServe(t, store, http.MethodPost, "/api/v0/content/entities/search",
 			`{"repo_id":"repo-1","query":"render","limit":10}`)
 		if rec.Code != http.StatusOK {
@@ -263,7 +292,7 @@ func TestContentSearchReadAdmissionRoutesServeSearches(t *testing.T) {
 
 	t.Run("entities/search unscoped admits through the bounded walk", func(t *testing.T) {
 		t.Parallel()
-		store := &contentSearchPinDouble{entities: entityFixture}
+		store := &contentSearchPinDouble{entities: cloneEntityFixture(entityFixture)}
 		rec := contentSearchServe(t, store, http.MethodPost, "/api/v0/content/entities/search",
 			`{"query":"render","limit":10}`)
 		if rec.Code != http.StatusOK {
@@ -276,7 +305,7 @@ func TestContentSearchReadAdmissionRoutesServeSearches(t *testing.T) {
 
 	t.Run("entities/search unscoped falls back to the corpus-wide read", func(t *testing.T) {
 		t.Parallel()
-		store := &contentSearchFallbackDouble{entities: entityFixture}
+		store := &contentSearchFallbackDouble{entities: cloneEntityFixture(entityFixture)}
 		rec := contentSearchServe(t, store, http.MethodPost, "/api/v0/content/entities/search",
 			`{"query":"render","limit":10}`)
 		if rec.Code != http.StatusOK {
@@ -311,7 +340,7 @@ func TestContentSearchReadAdmissionRoutesServeSearches(t *testing.T) {
 
 	t.Run("php-config/search admits through the PHP page", func(t *testing.T) {
 		t.Parallel()
-		store := &contentSearchPinDouble{entities: entityFixture}
+		store := &contentSearchPinDouble{entities: cloneEntityFixture(entityFixture)}
 		rec := contentSearchServe(t, store, http.MethodPost, "/api/v0/content/php-config/search",
 			`{"directive":"display_errors"}`)
 		if rec.Code != http.StatusOK {
