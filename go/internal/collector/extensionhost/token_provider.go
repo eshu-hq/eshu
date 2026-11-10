@@ -16,7 +16,8 @@ import (
 
 // HostMintedGitHubTokenKey is the stdio Request.Config key carrying a
 // host-minted GitHub App installation token for one claim. The host sets it
-// per claim when Config.TokenProvider is configured; the satellite spends it
+// per claim when Config.TokenProvider is configured and the claimed target
+// opts in via auth_mode host_minted; the satellite spends it
 // as its Bearer [REDACTED] never reads the App private key. Static activation
 // config must not define this key when a provider is set: NewSource rejects
 // that combination fail-closed. Without a provider the key is never set and
@@ -27,6 +28,45 @@ import (
 // added later without a breaking change. The satellite must reject a missing
 // key, an empty token, or a scope_id mismatch terminal.
 const HostMintedGitHubTokenKey = "host_github_app_token" // #nosec G101 -- names the stdio config key, not a credential value; no secret material here
+
+// HostMintedAuthMode is the per-target auth_mode value that opts one claim
+// into host-minted tokens (eshu-hq/eshu#10483, candidate (a)): only the
+// activation config's targets entry whose scope_id equals the claimed scope
+// and whose auth_mode is exactly this value mints. Every other claim keeps
+// the static path and the provider is never consulted, so a non-opted-in
+// claim spends nothing on GitHub.
+const HostMintedAuthMode = "host_minted"
+
+// hostMintOptedIn reports whether the claimed scope opts into host-minted
+// tokens: the activation config's targets list holds an entry whose scope_id
+// equals scopeID and whose auth_mode is exactly HostMintedAuthMode. Any other
+// shape (no targets list, no entry for the scope, a different auth_mode, or a
+// non-map entry) returns false, keeping the claim on the static path. The
+// first entry matching the scope decides, so the predicate reads in list
+// order and never mints on an ambiguous later duplicate.
+func hostMintOptedIn(config map[string]any, scopeID string) bool {
+	raw, ok := config["targets"]
+	if !ok {
+		return false
+	}
+	entries, ok := raw.([]any)
+	if !ok {
+		return false
+	}
+	for _, entry := range entries {
+		target, ok := entry.(map[string]any)
+		if !ok {
+			continue
+		}
+		scope, _ := target["scope_id"].(string)
+		if scope != scopeID {
+			continue
+		}
+		mode, _ := target["auth_mode"].(string)
+		return mode == HostMintedAuthMode
+	}
+	return false
+}
 
 // TokenProvider mints one GitHub App installation token for a claimed work
 // item. The host owns the App credentials: implementations close over the App

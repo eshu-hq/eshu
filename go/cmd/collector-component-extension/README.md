@@ -101,7 +101,9 @@ time: a future extension-reported `ObservedAt` is clamped and counted on
 - The worker mints one host-owned GitHub App installation token per claim only
   when `ESHU_GITHUB_APP_ID`, `ESHU_GITHUB_APP_PRIVATE_KEY`, and
   `ESHU_GITHUB_APP_INSTALLATIONS` (a JSON object mapping scope IDs to
-  installation IDs) are all set; otherwise the static config path applies.
+  installation IDs) are all set AND the claimed target opts in via
+  `auth_mode: host_minted` on its `targets` entry (#10483); otherwise the
+  static config path applies with the provider never consulted.
   A derived Go reachability scope cannot be listed ahead of time, so it selects
   its installation through a `github-owner:<host>/<owner>` key, resolved from the
   remote in its run row. The host is part of the key because the token goes to
