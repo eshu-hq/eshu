@@ -237,32 +237,28 @@ func checkActivationDerivation(kind scope.CollectorKind, config activation.Confi
 	if err != nil {
 		return vulnerability.ActivationDerivation{}, err
 	}
-	if !derivation.Enabled() {
-		// A derive-disabled activation can still mint standing static
-		// targets at reconcile (#9880), stamped with the host's labels
-		// like derived scopes. Mirror the reconcile gate here so a
-		// host-mismatched, duplicate-static, or undecodable block fails
-		// LoadConfig before any durable write, exactly as an enabled
-		// derivation's host refusal does, instead of passing startup
-		// and crash-failing the first reconcile.
-		hostScopeID := ""
-		if config.Host != nil {
-			hostScopeID = config.Host.Scope.ID
-		}
-		standing, standingErr := vulnerability.ActivationHasStandingStaticTargets(string(config.ComponentConfig), hostScopeID)
-		if standingErr != nil {
-			return vulnerability.ActivationDerivation{}, standingErr
-		}
-		if !standing {
-			return vulnerability.ActivationDerivation{}, nil
-		}
-		if err := checkActivationHost(config, scope.CollectorVulnerabilityIntelligence); err != nil {
-			return vulnerability.ActivationDerivation{}, err
-		}
+	// Standing static targets mint on both derivation branches at
+	// reconcile (#9880), stamped with the host's labels like derived
+	// scopes. Validate them here, above the enabled split, so a
+	// duplicate-static or undecodable block fails LoadConfig before any
+	// durable write instead of passing startup and crash-failing every
+	// reconcile tick in the planner.
+	hostScopeID := ""
+	if config.Host != nil {
+		hostScopeID = config.Host.Scope.ID
+	}
+	standing, standingErr := vulnerability.ActivationHasStandingStaticTargets(string(config.ComponentConfig), hostScopeID)
+	if standingErr != nil {
+		return vulnerability.ActivationDerivation{}, standingErr
+	}
+	if !derivation.Enabled() && !standing {
 		return vulnerability.ActivationDerivation{}, nil
 	}
 	if err := checkActivationHost(config, scope.CollectorVulnerabilityIntelligence); err != nil {
 		return vulnerability.ActivationDerivation{}, err
+	}
+	if !derivation.Enabled() {
+		return vulnerability.ActivationDerivation{}, nil
 	}
 	return derivation, nil
 }

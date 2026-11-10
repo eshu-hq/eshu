@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/component"
+	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
@@ -185,6 +186,74 @@ func TestLoadConfigAcceptsStandingStaticBlockWithMatchingHost(t *testing.T) {
 	}
 	if got, want := len(cfg.CollectorInstances), 1; got != want {
 		t.Fatalf("collector instances = %d, want %d", got, want)
+	}
+}
+
+// enabledStandingDuplicateBlock enables owned-package derivation beside
+// two standing cve_list targets sharing one scope_id.
+const enabledStandingDuplicateBlock = `  derive_from_owned_packages:
+    enabled: true
+    sources: [osv]
+    ecosystems: [npm]
+  targets:
+    - source: cve_list
+      scope_id: vuln-intel://cve_list/cve
+      cve_ids: [CVE-2026-9101]
+    - source: cve_list
+      scope_id: vuln-intel://cve_list/cve
+      cve_ids: [CVE-2026-9102]
+`
+
+// enabledStandingUndecodableBlock enables derivation beside a targets value
+// that does not decode as the configuration shape at all.
+const enabledStandingUndecodableBlock = `  derive_from_owned_packages:
+    enabled: true
+    sources: [osv]
+    ecosystems: [npm]
+  targets: "foo"
+`
+
+// TestLoadConfigRefusesEnabledStandingStaticDefects pins F2b: standing
+// statics mint on the enabled branch too, so duplicate or undecodable
+// statics beside an enabled derivation fail LoadConfig, not every
+// reconcile tick in the planner.
+func TestLoadConfigRefusesEnabledStandingStaticDefects(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct{ name, block, want string }{
+		{"duplicate statics", enabledStandingDuplicateBlock, "duplicate vulnerability intelligence target scope_id"},
+		{"undecodable targets", enabledStandingUndecodableBlock, "decode vulnerability intelligence activation targets"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			_, err := loadConfigWithActivation(t, testVulnerabilityKind,
+				vulnerabilityActivationFileYAML(testVulnerabilityKind, testVulnerabilityKind, tc.block))
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("LoadConfig() error = %v, want refusal mentioning %q", err, tc.want)
+			}
+			if !strings.Contains(err.Error(), `"vuln-intel-activation"`) {
+				t.Fatalf("LoadConfig() error = %v, want the instance id", err)
+			}
+		})
+	}
+}
+
+// TestCheckActivationDocumentDerivationStandingStaticGate pins the same
+// standing-static startup rule on the static desired-instance path
+// (ESHU_COLLECTOR_INSTANCES_JSON via Config.Validate), which the registry
+// LoadConfig tests above do not exercise.
+func TestCheckActivationDocumentDerivationStandingStaticGate(t *testing.T) {
+	t.Parallel()
+
+	configuration := testVulnerabilityActivationConfiguration(
+		`{"targets":[`+
+			`{"source":"cve_list","scope_id":"vuln-intel://cve_list/cve","cve_ids":["CVE-2026-9101"]},`+
+			`{"source":"cve_list","scope_id":"vuln-intel://cve_list/cve","cve_ids":["CVE-2026-9102"]}`+
+			`]}`,
+		testVulnerabilityKind, testVulnerabilityKind)
+	err := checkActivationDocumentDerivation(scope.CollectorVulnerabilityIntelligence, configuration)
+	if err == nil || !strings.Contains(err.Error(), "duplicate vulnerability intelligence target scope_id") {
+		t.Fatalf("checkActivationDocumentDerivation() error = %v, want the duplicate scope refusal", err)
 	}
 }
 
