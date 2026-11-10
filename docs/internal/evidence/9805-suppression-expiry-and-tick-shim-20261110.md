@@ -92,3 +92,80 @@ above are the before-measurement for the chunking fix.
 
 No-Observability-Change: no new metric, span, log, or knob. The tick
 phase histogram (`build_active_facts`) remains the operator signal.
+
+## EPSS-reader suppression-expiry census (2026-11-10, follow-up)
+
+Refs #9805. Criterion-sweep item: census every production reader that
+consumes suppression expiry state in a way involving EPSS, and every reader
+of the suppression `expires_at`-style state on the winners/reader path.
+Method: `rg` over `go/` for `suppression_expires_at`,
+`suppression_state = 'active'`, `expires_at`, and
+`FROM supply_chain_impact_canonical_winners`, reading the actual code of
+every hit — counts alone are not evidence. `git grep` corroboration:
+`suppression_expires_at` in production Go appears only in the readers and
+writer/rebuild/compact sites listed below; raw
+`suppression_state = 'active'` in production Go has exactly one hit (the
+EPSS CVE-ids query). Test files are excluded from the census.
+
+### Verdict: claim NOT final
+
+The winners-select time-invariance proof stands for the findings surface,
+but one EPSS-involving reader breaks it: `listActiveFindingCVEIDsQuery`
+filters the stored `suppression_state` with no clock, so a suppression
+whose `expires_at` passes with no fact write keeps its CVE out of EPSS
+derivation while the findings reads report the same row as
+`expired`/visible. A recompute cannot heal it (byte-identical rows, proven
+above), so no tick ever rewrites the row. No fix is implemented here; the
+failing-test sketch below is the blocker evidence.
+
+### Per-reader table
+
+| # | Reader (file:symbol) | What it reads | Clock | Class |
+| --- | --- | --- | --- | --- |
+| 1 | `go/internal/query/supply/chain/impact/findings_queries.go:supplyChainImpactEffectiveDecisionStateSQL` (3 use sites in `ListFindingsFromWinnersQuery`) | `w.suppression_state` + `w.suppression_expires_at` (text) | `$24::timestamptz` read clock + `pg_input_is_valid` guard | SAFE (read-time) |
+| 2 | `go/internal/query/supply/chain/impact/grouped_inventory_sql.go:groupedInventoryEffectiveStateSQL` | `w.suppression_state` + `w.suppression_expires_at` (text) | `$20::timestamptz` read clock | SAFE (read-time) |
+| 3 | `go/internal/storage/postgres/supply_chain_impact_advisory_group_winners.go:advisoryGroupWinnerEffectiveStateSQL` | `w.suppression_state` + typed `w.suppression_expires_at` | `NOW()` | SAFE (read-time) |
+| 4 | `go/internal/query/supply/chain/impact/suppression_split_sql.go:supplyChainImpactSplitCanonicalWinnerCTEs`, `findings_split_queries.go`, `aggregates_queries.go` (fact-path read-time dedup/counts) | operator `payload #>> '{suppression,expires_at}'` | `$NN::timestamptz` read clock | SAFE (read-time) |
+| 5 | `go/internal/query/supply/chain/impact/explain_postgres.go` (via split CTEs) | operator `payload #>> '{suppression,expires_at}'` | `$13::timestamptz` read clock | SAFE (read-time) |
+| 6 | `go/internal/query/supply/chain/impact/findings_decode.go:decodeSupplyChainSuppressionDecision` | already-overlaid effective state in the page payload | none (downstream of #1/#4) | SAFE (downstream) |
+| 7 | Winner select `supplyChainImpactWinnerBodySQL` (`go/internal/storage/postgres/supply_chain_impact_canonical_winners_store.go:142-226`) | stores `suppression_state`/`suppression_expires_at` verbatim | none (`NOW()` absent) | NEUTRAL (writer; proof premise) |
+| 8 | Staged scan/compact (`supply_chain_impact_winners_staged_scan.go`, `supply_chain_impact_winners_staged_compact.go:stagedStoredWinnersSQL`), rebuild (`supply_chain_impact_canonical_winners_rebuild.go`), audit diff (`supply_chain_impact_winners_audit.go`), keyed apply (`supply_chain_impact_winners_keyed_sql.go`) | full stored row / narrow candidate columns | none (content equality only) | NEUTRAL (no expiry consumption) |
+| 9 | `grouped_inventory_sql.go:groupedInventoryHiddenRepositoriesSQL` | grant + static-winner predicate only | none | NEUTRAL (no suppression read) |
+| 10 | `go/internal/storage/postgres/supply_chain_impact_canonical_winners_store.go:listActiveFindingCVEIDsQuery` (`WHERE suppression_state = 'active'`) | stored `suppression_state` only | NONE | BREAKS (stored-state reliance) |
+
+Reader #10's chain, all read: `FactStore.ListActiveFindingCVEIDs`
+(store file `:432`) implements `FindingCVEIDReader`
+(`go/internal/coordinator/installed_advisory_target_readers.go:33-35`),
+called at `go/internal/coordinator/vulnerability_intelligence_service.go:338`,
+feeding `deriveEPSSFindingTargets`
+(`go/internal/coordinator/vulnerability/epss_finding_derivation.go:73-77`),
+which normalizes, dedupes, and chunks CVE ids with no suppression re-check.
+Staleness direction: after expiry with no fact write the stored row keeps a
+hidden state (e.g. `accepted_risk`) with past `suppression_expires_at`;
+readers #1-#3 report `expired`/visible, but reader #10 keeps excluding the
+CVE from EPSS derivation indefinitely. The advisory-group reader carries an
+explicit guard test against the raw-equality pattern
+(`supply_chain_impact_advisory_group_winners_test.go:64-65`); no such guard
+covers the CVE-ids query — only a shape test pinning the raw equality
+(`supply_chain_impact_finding_cves_test.go:20-25`).
+
+Out of scope (different `expires_at`, verified by reading):
+`finding_static_advisory_sql.go:approval.expires_at` is static-authority
+approval freshness, not suppression expiry. The reducer evaluator
+(`go/internal/reducer/supplychain/core/evaluation.go`) decides expiry at
+fact-evaluation (writer side), not a reader.
+
+### Failing-test sketch (not implemented; blocker evidence)
+
+Live test sketch against `ESHU_POSTGRES_TEST_DSN`, extending
+`TestListActiveFindingCVEIDsLive`
+(`supply_chain_impact_finding_cves_live_test.go`): seed a winners row with
+`suppression_state='accepted_risk'` and
+`suppression_expires_at = NOW() - interval '1 hour'`, then assert the CVE
+IS returned (effective state `expired` is visible, matching readers #1-#3).
+Current code omits it, so the sketch goes RED. The fix (reader #10 derives
+expiry at read time, e.g. an effective-state predicate like #1-#3, or the
+derivation input moves to an expiry-aware read) is coordinator scope and is
+NOT in this change.
+
+Counts: 6 SAFE (read-time), 3 NEUTRAL (no expiry consumption), 1 BREAKS.
