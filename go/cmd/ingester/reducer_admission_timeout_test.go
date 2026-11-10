@@ -7,12 +7,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/projector/failure"
 	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	queuestore "github.com/eshu-hq/eshu/go/internal/storage/postgres/queue"
 )
 
 // TestReducerAdmissionTimeoutReleasesWaitWithoutInnerEnqueue proves the #10485
@@ -62,6 +64,72 @@ func TestReducerAdmissionTimeoutReleasesWaitWithoutInnerEnqueue(t *testing.T) {
 	}
 	if writer.calls != 0 {
 		t.Fatalf("inner enqueue count = %d, want 0 (no completion, no graph write)", writer.calls)
+	}
+}
+
+// TestReducerAdmissionTimeoutDeadLettersAsAdmissionTimeout proves the #10502
+// contract: a reducer admission wait timeout that exhausts the projector
+// attempt budget must dead-letter under its own admission_timeout class, not
+// the projection_bug default. The cause is backpressure (depth held above the
+// mark past the claim-scoped bound), never broken projection code, so the
+// durable row and the triage detail must both name it. The test drives the
+// production path end to end: the real Enqueue timeout error, the production
+// "enqueue reducer intents: %w" wrap from runtime/projection.go, and the live
+// dead-letter triage the projector queue Fail path runs.
+func TestReducerAdmissionTimeoutDeadLettersAsAdmissionTimeout(t *testing.T) {
+	t.Parallel()
+
+	reader := &fakeReducerAdmissionDepthReader{
+		depths: []map[string]map[string]int64{{"reducer": {"pending": 10}}},
+	}
+	admission := reducerAdmissionWriter{
+		inner:       &recordingReducerIntentWriter{},
+		depthReader: reader,
+		config: reducerAdmissionConfig{
+			HighWaterMark: 10,
+			PollInterval:  time.Millisecond,
+			MaxWait:       30 * time.Millisecond,
+		},
+		sleep: func(context.Context, time.Duration) error {
+			return nil
+		},
+	}
+
+	_, err := admission.Enqueue(context.Background(), []runtime.ReducerIntent{
+		{Domain: reducer.DomainWorkloadIdentity},
+	})
+	if !errors.Is(err, ErrReducerAdmissionTimeout) {
+		t.Fatalf("Enqueue() error = %v, want %v", err, ErrReducerAdmissionTimeout)
+	}
+	// Production wrap chain: runtime/projection.go wraps the writer error
+	// before failWork, and ProjectorQueue.Fail derives retryability from the
+	// wrapped error.
+	wrapped := fmt.Errorf("enqueue reducer intents: %w", err)
+	retryable := failure.IsRetryable(wrapped)
+	if !retryable {
+		t.Fatalf("wrapped Enqueue() error IsRetryable = false, want true so the item retries to exhaustion")
+	}
+
+	class, _, details := queuestore.DeadLetterTriageMetadata(wrapped, "project_work_item", retryable)
+	if class != "admission_timeout" {
+		t.Fatalf("dead-letter failure_class = %q, want admission_timeout (backpressure, not a projection bug)", class)
+	}
+	if !strings.Contains(details, "class=admission_timeout") {
+		t.Fatalf("dead-letter details = %q, want the triage class=admission_timeout", details)
+	}
+	if strings.Contains(details, "projection_bug") {
+		t.Fatalf("dead-letter details = %q, must not label a backpressure death projection_bug", details)
+	}
+
+	// The live retryable-exhausted bucket still describes the death: the item
+	// retried to the budget and gave up. Only the misleading default class
+	// inside the detail changes.
+	record := failure.TriageFailure(wrapped, "project_work_item", true, true)
+	if record.FailureClass != string(failure.TriageClassRetryExhausted) {
+		t.Fatalf("triage class = %q, want %q", record.FailureClass, failure.TriageClassRetryExhausted)
+	}
+	if !strings.Contains(record.Details, "class=admission_timeout") {
+		t.Fatalf("triage details = %q, want class=admission_timeout", record.Details)
 	}
 }
 

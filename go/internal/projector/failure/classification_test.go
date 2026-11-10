@@ -123,6 +123,37 @@ func TestClassifyUnknownErrorAsProjectionBug(t *testing.T) {
 	}
 }
 
+// admissionTimeoutStub stands in for a producer backpressure admission wait
+// timeout (for example the ingester's reducer admission timeout, #10502)
+// without importing the producer package: the failure package is a leaf.
+type admissionTimeoutStub struct{ timeout bool }
+
+func (e admissionTimeoutStub) Error() string            { return "reducer admission wait timed out" }
+func (e admissionTimeoutStub) IsAdmissionTimeout() bool { return e.timeout }
+
+// TestClassifyAdmissionTimeoutError proves a backpressure admission wait
+// timeout classifies as admission_timeout (retryable), not the
+// projection_bug default, and that the classification survives the
+// production %w wrap. A stub that implements the contract but reports false
+// must still fall through to the default, proving the bool is honored.
+func TestClassifyAdmissionTimeoutError(t *testing.T) {
+	t.Parallel()
+
+	wrapped := fmt.Errorf("enqueue reducer intents: %w", admissionTimeoutStub{timeout: true})
+	result := ClassifyFailure(wrapped, "project_work_item")
+	if result.FailureClass != FailureClassAdmissionTimeout {
+		t.Errorf("class = %q, want %q", result.FailureClass, FailureClassAdmissionTimeout)
+	}
+	if result.RetryDisposition != RetryDispositionRetryable {
+		t.Errorf("disposition = %q, want %q", result.RetryDisposition, RetryDispositionRetryable)
+	}
+
+	negative := ClassifyFailure(admissionTimeoutStub{timeout: false}, "project_work_item")
+	if negative.FailureClass != FailureClassProjectionBug {
+		t.Errorf("class = %q, want %q for a non-timeout reporter", negative.FailureClass, FailureClassProjectionBug)
+	}
+}
+
 func TestClassifyUnwrapsStageError(t *testing.T) {
 	t.Parallel()
 

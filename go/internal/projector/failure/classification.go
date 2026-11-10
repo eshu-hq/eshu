@@ -27,6 +27,13 @@ const (
 	FailureClassResourceExhausted     FailureClass = "resource_exhausted"
 	FailureClassTimeout               FailureClass = "timeout"
 	FailureClassUnknown               FailureClass = "unknown"
+	// FailureClassAdmissionTimeout marks a backpressure admission-control
+	// wait timeout: an enqueue that waited for queue depth to fall below
+	// the admission marks past its wait bound and failed the work item
+	// for retry instead of parking the claim (#10502). It is a durable
+	// failure_class value (a metric-contract change, not a local edit),
+	// replayable without force like any other exhausted transient.
+	FailureClassAdmissionTimeout FailureClass = "admission_timeout"
 )
 
 // RetryDisposition is the operator-facing retry guidance for one failed work
@@ -102,6 +109,22 @@ func NewResourceExhaustedError(msg string) *ResourceExhaustedError {
 	return &ResourceExhaustedError{Message: msg}
 }
 
+// AdmissionTimeoutError is implemented by backpressure admission-control
+// wait timeouts: an enqueue that waited for queue depth to fall below the
+// admission marks past its wait bound and failed the work item for retry
+// instead of parking the claim (for example the ingester's reducer admission
+// wait timeout, #10502). ClassifyFailure maps it to
+// FailureClassAdmissionTimeout so the triage detail names backpressure
+// instead of the projection_bug default.
+//
+// The interface is deliberately narrow, not a generic Timeout() bool match:
+// a generic timeout shape would also catch dependency timeouts (for example
+// an HTTP client deadline) that must stay dependency_unavailable.
+type AdmissionTimeoutError interface {
+	error
+	IsAdmissionTimeout() bool
+}
+
 // ClassifyFailure maps one projection error into durable failure metadata.
 func ClassifyFailure(err error, failureStage string) FailureClassification {
 	resolvedStage, underlying := unwrapStageError(err, failureStage)
@@ -162,6 +185,21 @@ func ClassifyFailure(err error, failureStage string) FailureClassification {
 			FailureClass:     FailureClassResourceExhausted,
 			FailureCode:      failureCode(underlying),
 			RetryDisposition: RetryDispositionManualReview,
+		}
+	}
+
+	// Backpressure admission wait timeouts retried to the budget and gave
+	// up. They are retryable by construction (the error opts into bounded
+	// retry), so the disposition stays retryable; the class only names the
+	// cause honestly instead of the projection_bug default (#10502).
+	var admissionErr AdmissionTimeoutError
+	if errors.As(underlying, &admissionErr) && admissionErr.IsAdmissionTimeout() {
+		return FailureClassification{
+			FailureStage:     resolvedStage,
+			ErrorClass:       errorClassName(underlying),
+			FailureClass:     FailureClassAdmissionTimeout,
+			FailureCode:      failureCode(underlying),
+			RetryDisposition: RetryDispositionRetryable,
 		}
 	}
 
