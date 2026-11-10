@@ -135,6 +135,59 @@ func TestLoadConfigRefusesActivationDeriveBlockWithHostScopeKindMismatch(t *test
 	}
 }
 
+// standingStaticBlock carries no derive section: only standing targets, a
+// cisa_kev host target and one cve_list target the activation planner mints
+// beside the derived scopes (#9880).
+const standingStaticBlock = `  targets:
+    - source: cisa_kev
+      scope_id: vuln-intel://cisa/kev
+    - source: cve_list
+      scope_id: vuln-intel://cve_list/cve
+      cve_ids: [CVE-2026-9101]
+`
+
+// TestLoadConfigRefusesStandingStaticBlockWithHostScopeKindMismatch mirrors
+// the reconcile standing-static gate at startup (#9880 F2): a derive-disabled
+// activation carrying standing static targets whose host scope kind or
+// source system is not vulnerability_intelligence fails LoadConfig, not the
+// first reconcile.
+func TestLoadConfigRefusesStandingStaticBlockWithHostScopeKindMismatch(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct{ name, source, kind string }{
+		{"scope kind", testVulnerabilityKind, "repository"},
+		{"source system", "osv", testVulnerabilityKind},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			_, err := loadConfigWithActivation(t, testVulnerabilityKind,
+				vulnerabilityActivationFileYAML(tc.source, tc.kind, standingStaticBlock))
+			if err == nil || !strings.Contains(err.Error(), `must both be "vulnerability_intelligence"`) {
+				t.Fatalf("LoadConfig() error = %v, want host scope kind/source system refusal", err)
+			}
+			if !strings.Contains(err.Error(), `"vuln-intel-activation"`) {
+				t.Fatalf("LoadConfig() error = %v, want the instance id", err)
+			}
+		})
+	}
+}
+
+// TestLoadConfigAcceptsStandingStaticBlockWithMatchingHost is the GREEN
+// control: the same derive-disabled standing block starts up when the host
+// labels match.
+func TestLoadConfigAcceptsStandingStaticBlockWithMatchingHost(t *testing.T) {
+	t.Parallel()
+
+	cfg, err := loadConfigWithActivation(t, testVulnerabilityKind,
+		vulnerabilityActivationFileYAML(testVulnerabilityKind, testVulnerabilityKind, standingStaticBlock))
+	if err != nil {
+		t.Fatalf("LoadConfig() error = %v, want nil", err)
+	}
+	if got, want := len(cfg.CollectorInstances), 1; got != want {
+		t.Fatalf("collector instances = %d, want %d", got, want)
+	}
+}
+
 // TestLoadConfigLeavesOtherKindsDeriveBlockUnvalidated proves the startup
 // check runs only for the kind that carries the block: a scorecard activation
 // with the same bad block starts up and stores no component_config.
