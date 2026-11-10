@@ -124,7 +124,7 @@ func admitCassetteFindings(ctx context.Context, execer factwrite.Execer, o enque
 				FactID:           cassette.DeriveFactID(scopeEntry.ScopeID, scopeEntry.GenerationID, fact.StableFactKey),
 				ScopeID:          scopeEntry.ScopeID,
 				GenerationID:     scopeEntry.GenerationID,
-				FactKind:         fact.FactKind,
+				FactKind:         facts.ReducerSupplyChainImpactFindingFactKind,
 				StableFactKey:    fact.StableFactKey,
 				SchemaVersion:    fact.SchemaVersion,
 				CollectorKind:    collectorKind,

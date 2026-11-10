@@ -4,6 +4,8 @@
 package familyodu
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 
 	"github.com/eshu-hq/eshu-sdk/factschema"
@@ -177,6 +179,7 @@ func advisoryGroupFamilyFindingPayload(finding advisoryGroupFamilyFinding) map[s
 		PackageName:     finding.PackageName,
 		PURL:            finding.PURL,
 		ObservedVersion: finding.ObservedVersion,
+		SubjectDigest:   advisoryGroupFamilySubjectDigest(finding.PURL),
 		MatchReason:     "exact_version_match",
 		ImpactStatus:    finding.ImpactStatus,
 		Confidence:      "high",
@@ -207,6 +210,17 @@ func advisoryGroupFamilyFindingPayload(finding advisoryGroupFamilyFinding) map[s
 			AdvisoryGroupFamilyOduName, finding.Key, err))
 	}
 	return payload
+}
+
+// advisoryGroupFamilySubjectDigest derives the finding's subject
+// digest deterministically from its package URL. The schema requires
+// the field and the cassette digest guard requires it well-formed; a
+// fixture package has no real artifact digest, so the sha256 of its
+// purl is the honest synthetic stand-in — stable across regenerations
+// and distinct per subject.
+func advisoryGroupFamilySubjectDigest(purl string) string {
+	sum := sha256.Sum256([]byte(purl))
+	return "sha256:" + hex.EncodeToString(sum[:])
 }
 
 // advisoryGroupFamilyScopeAnchorFact builds the findings scope's one

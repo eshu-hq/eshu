@@ -158,7 +158,7 @@
               "observed_resource"
             ],
             "source_system": "osv",
-            "subject_digest": "",
+            "subject_digest": "sha256:b3b83394cae9fbdeed7e769cd044637f0d4b47b446beb56398c5687f014a5897",
             "vulnerable_range": "",
             "workload_ids": []
           }
@@ -229,7 +229,7 @@
               "observed_resource"
             ],
             "source_system": "osv",
-            "subject_digest": "",
+            "subject_digest": "sha256:4fabcec934d71344fdb9d571eed469a69ee3d087e07c9182bf734611b60eb0be",
             "vulnerable_range": "",
             "workload_ids": []
           }
@@ -300,7 +300,7 @@
               "observed_resource"
             ],
             "source_system": "osv",
-            "subject_digest": "",
+            "subject_digest": "sha256:0afe00342d889d713741e8dd8fe126c2e101596adb7a55798c033693535f2854",
             "vulnerable_range": "",
             "workload_ids": []
           }
@@ -371,7 +371,7 @@
               "observed_resource"
             ],
             "source_system": "osv",
-            "subject_digest": "",
+            "subject_digest": "sha256:2df0531bd3f72e4a8e2e28ddd0f28e04a2d0f6fcc312c5e7f3e622896ac9cbb3",
             "vulnerable_range": "",
             "workload_ids": []
           }
@@ -442,7 +442,7 @@
               "observed_resource"
             ],
             "source_system": "osv",
-            "subject_digest": "",
+            "subject_digest": "sha256:83ea35692cace5a07a702d45f717c14e7775574cdd42753d5555062a50afeef1",
             "vulnerable_range": "",
             "workload_ids": []
           }
@@ -514,7 +514,7 @@
               "observed_resource"
             ],
             "source_system": "osv",
-            "subject_digest": "",
+            "subject_digest": "sha256:a8b40aa3012c6975e4d6d56c6990fd4201e80b6c9242a5cb4c2831fe0ceb52da",
             "vulnerable_range": "",
             "workload_ids": []
           }
