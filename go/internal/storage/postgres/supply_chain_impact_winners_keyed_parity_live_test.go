@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math/rand"
 	"testing"
+	"time"
 
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -123,6 +124,49 @@ func TestSupplyChainImpactWinnersResweepKeyedMatchesRecomputeAcrossChangeClasses
 		})
 		h.keyed()
 		h.assertParity("operator override removed")
+	})
+	t.Run("time-driven suppression expiry passes with no fact write", func(t *testing.T) {
+		// #9805 criterion 4, time-driven class: a suppression whose
+		// expires_at passes while nothing writes. No capture path can see
+		// it, so the keyed table must already equal a fresh recompute
+		// after the moment passes: the winner select stores the decision
+		// and its expiry verbatim, and readers derive the effective
+		// (expired) state at read time. If the select ever becomes
+		// time-dependent, this subtest goes red instead of the table
+		// silently going stale between audit passes.
+		var dbNow time.Time
+		if err := h.db.QueryRowContext(h.ctx, `SELECT now()`).Scan(&dbNow); err != nil {
+			t.Fatalf("read database now: %v", err)
+		}
+		expiresAt := dbNow.Add(3 * time.Second).UTC()
+		h.seedOperator("op-g4", "op-g3", map[string]map[string]any{
+			"op-expiring": {
+				"cve_id": "CVE-2026-0002", "package_id": "pkg:npm/a", "impact_status": "affected_exact",
+				"observed_version": "1.0.0", "repository_id": "repo-9805", "suppression_state": "accepted_risk",
+				"suppression": map[string]any{"expires_at": expiresAt.Format(time.RFC3339)},
+			},
+			"op-noise": {"cve_id": "CVE-2026-0999", "suppression_state": "accepted_risk", "repository_id": "repo-9805"},
+		})
+		h.keyed()
+		h.assertParity("expiring operator override")
+		// Let the expiry pass with no write of any kind.
+		if wait := time.Until(expiresAt) + 500*time.Millisecond; wait > 0 {
+			time.Sleep(wait)
+		}
+		if depth := h.dirtyDepth(); depth != 0 {
+			t.Fatalf("dirty log depth after expiry passed = %d, want 0 (expiry writes nothing)", depth)
+		}
+		got := h.keyed()
+		if got.Inserted != 0 || got.Updated != 0 || got.Deleted != 0 || got.Identifiers != 0 {
+			t.Fatalf("keyed tick after suppression expiry = %+v, want zero identifiers and zero writes", got)
+		}
+		h.assertParity("suppression expiry passed")
+		if n := h.count(`
+SELECT count(*) FROM supply_chain_impact_canonical_winners
+WHERE cve_id = 'CVE-2026-0002' AND suppression_state = 'accepted_risk'
+  AND suppression_expires_at <= now()`); n == 0 {
+			t.Fatalf("stored winner for CVE-2026-0002 lost its past suppression_expires_at; readers can no longer derive the expired state")
+		}
 	})
 	t.Run("a scope with no changes writes nothing", func(t *testing.T) {
 		got := h.keyed()
