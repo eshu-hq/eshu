@@ -1232,7 +1232,8 @@ type Instruments struct {
 	// or retire_only (rows retired, nothing derived). Labels: domain
 	// (supply_chain_impact) and outcome. A pass that re-derives identical
 	// groups (an EPSS refresh, admission-only, bootstrap, rollover, or
-	// same-key rewrite) counts nothing, so the steady state is silence,
+	// same-key rewrite) counts nothing — unless it dropped suppression
+	// coverage, which reports split — so the steady state is silence,
 	// not a member_only floor. Read the rate by outcome as the rollout's
 	// first measurement of alias-churn; a split rate needs a deliberate
 	// suppression re-issue, a merge converges on its own. Emitted from the

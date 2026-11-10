@@ -302,10 +302,12 @@ no uniqueness or fencing errors, and both replays converging with no manual
 rerun (`TestRekeyTwoHolderScopesRekeySameComponentLive`, 1.32s at HEAD).
 
 Re-key outcome (L7, #10408): the pass dispatcher counts one
-`eshu_dp_supply_chain_impact_rekey_total` point per pass that touched a
-group, with the closed outcome (`merge`, `split`, `member_only`,
-`retire_only`; `rekey_signals.go`). A pass that touched nothing counts
-nothing, so the steady state is silence. Suppression carry and orphan
+`eshu_dp_supply_chain_impact_rekey_total` point per pass whose writer
+commit changed a group's identity, with the closed outcome (`merge`,
+`split`, `member_only`, `retire_only`; `rekey_signals.go`). A pass that
+re-derives identical groups counts nothing — unless it dropped suppression
+coverage, which reports `split` — so the steady state is silence.
+Suppression carry and orphan
 magnitudes ride
 `eshu_dp_supply_chain_impact_suppression_carried_via_member_total` and
 `eshu_dp_supply_chain_impact_suppression_orphaned_by_split_total` under the
@@ -314,6 +316,19 @@ same outcome label, and per-pass magnitudes ride the result sub-signals
 `rekey_rows_tombstoned`. Read the rate by outcome as the rollout's first
 measurement of alias-churn: a `split` rate means dropped coverage the
 operator must re-issue, a `merge` rate converges on its own.
+
+No-Regression Evidence (#10482): the Go half of this change is comment-only
+— every added and removed Go line is a `//` comment (`git diff
+--unified=0 origin/main...HEAD -- '*.go'` shows no other lines), so no
+counter, label, emission, control flow, lock, batch size, or query text
+changes. `go test ./internal/reducer/supplychain/core/
+./internal/telemetry/ -count=1` passes at the fix head, and `go vet` plus
+`gofmt -l` on both packages are clean.
+
+No-Observability-Change: the re-key path stays covered by the existing
+`eshu_dp_supply_chain_impact_rekey_total` (plus carried/orphaned counters
+and the `rekey_*` result sub-signals); this change adds no metric and
+alters no emission.
 
 Re-key freshness bound: queue latency plus one holder pass per holder scope
 that holds a touched copy plus one 30-second winners resweep tick — the

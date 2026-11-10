@@ -18,8 +18,9 @@ import (
 // derived row against the stored row it replaced on the coalesced group plus
 // member set, so an EPSS refresh, admission-only, bootstrap, rollover, or
 // same-key rewrite stays silent; only a merge, split, member-only, or
-// retire-only change counts. The report carries no group, CVE, or advisory
-// ids, so the outcome label stays a closed set of four.
+// retire-only change counts — a pass with no identity change that dropped
+// suppression coverage reports split. The report carries no group, CVE, or
+// advisory ids, so the outcome label stays a closed set of four.
 
 // RekeyOutcome is one closed re-key shape a pass can report.
 type RekeyOutcome string
@@ -93,7 +94,9 @@ func classifyRekeyOutcome(rep RekeyReport, orphaned int) (RekeyOutcome, bool) {
 // follows the emitFanOut pattern: one counter add per re-key pass with the
 // closed outcome label, conditional adds for the carried/orphaned
 // magnitudes, magnitudes as result sub-signals. A pass with no genuine
-// group-identity change counts nothing and reports zero magnitudes. Bounded
+// group-identity change counts nothing and reports zero magnitudes,
+// unless it dropped suppression coverage (split plus the orphan
+// magnitude). Bounded
 // labels only: the outcome is the closed four-set; no group, CVE, or
 // advisory id ever reaches a metric attribute.
 func (h SupplyChainImpactHandler) emitRekey(ctx context.Context, writeResult SupplyChainImpactWriteResult, carry suppressionCarryTally, subSignals map[string]float64) {
