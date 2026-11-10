@@ -4,7 +4,7 @@
 package postgres
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #7127 PR-3b deterministic cost gate: one backend, journal off and on over 4 rounds of 200 Acks; statements per Ack equal, WAL records per Ack at most +6 and relation blocks at most +40 from pg_stat_get_backend_wal and pg_stat_get_backend_io (pg_stat_statements also gated when preloaded), with a seeded RED that writes three extra rows; disposable database from ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN (env Skip); PostgreSQL 18 required; about 10 s locally; enrolled in the live-postgres-readiness runner; wall ratio logged with mean and SD, never gated
+//eshu:readiness:reason #7127 PR-3b deterministic cost gate: one backend, journal off and on over 4 rounds of 200 Acks; statements per Ack equal, WAL records per Ack at most +6 and relation blocks at most +40 from pg_stat_get_backend_wal and pg_stat_get_backend_io (pg_stat_statements also gated when preloaded), with a seeded RED that writes three extra rows; disposable database from ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN (env Skip); PostgreSQL 18 required; about 10 s locally; enrolled in the live-postgres-readiness runner; wall ratio logged with mean and SD, never gated; planner state pinned by VACUUM ANALYZE with autovacuum off, counter snapshots settled after force-flush, block bound on the median paired round delta
 //eshu:readiness:env ESHU_AWS_DRIFT_ARN_PROOF_DISPOSABLE ESHU_AWS_DRIFT_ARN_PROOF_DSN ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE ESHU_DEFERRED_PARTITION_PROOF_DSN ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN ESHU_REDUCER_FAIRNESS_PROOF_DSN
 
 import (
@@ -103,6 +103,7 @@ func TestProjectorAckJournalCost(t *testing.T) {
 	for s := range ajCostScopes {
 		ajSeedScope(t, reader, fmt.Sprintf("k%03d", s))
 	}
+	ajPinPlannerState(t, reader)
 	flush := func() {
 		if _, err := ackPool.ExecContext(ctx, `SELECT pg_stat_force_next_flush()`); err != nil {
 			t.Fatalf("flush: %v", err)
@@ -122,8 +123,7 @@ func TestProjectorAckJournalCost(t *testing.T) {
 		if pss {
 			ajExec(t, reader, `SELECT pg_stat_statements_reset()`)
 		}
-		flush()
-		c0 := ajBackendCounters(t, reader, pid)
+		c0 := ajBackendCountersSettled(t, reader, pid, flush)
 		started := time.Now()
 		for s := range scopes {
 			scopeID := fmt.Sprintf("k%03d", s)
@@ -132,8 +132,7 @@ func TestProjectorAckJournalCost(t *testing.T) {
 			}
 		}
 		wall := time.Since(started)
-		flush()
-		c1 := ajBackendCounters(t, reader, pid)
+		c1 := ajBackendCountersSettled(t, reader, pid, flush)
 		n := float64(scopes)
 		sample := ajCostSample{
 			client:           float64(len(recorder.statements())) / n,
@@ -213,6 +212,11 @@ func TestProjectorAckJournalCost(t *testing.T) {
 			mean(on, field[name])-mean(off, field[name]))
 	}
 	t.Logf("wall ratio on/off per round %v: mean %.3f SD %.3f (reported, not gated)", ratios, ratioMean, ratioSD)
+	paired := make([]float64, 0, len(on))
+	for i := range on {
+		paired = append(paired, on[i].backendBlocks-off[i].backendBlocks)
+	}
+	t.Logf("backend block delta per paired round %v (bound %.0f on the median)", paired, ajCostMaxExtraBlocks)
 
 	if violations := ajCostViolations(off, on, pss); len(violations) > 0 {
 		t.Fatalf("cost gate: %v", violations)
@@ -236,6 +240,8 @@ func TestProjectorAckJournalCost(t *testing.T) {
 }
 
 // ajCostViolations is the gate's verdict on per-Ack means, on against off.
+// Block bounds judge the median paired delta (see ajPairedMedianDelta);
+// WAL and statement bounds keep the mean difference.
 func ajCostViolations(off, on []ajCostSample, pss bool) []string {
 	mean := func(samples []ajCostSample, field func(ajCostSample) float64) float64 {
 		var sum float64
@@ -253,25 +259,33 @@ func ajCostViolations(off, on []ajCostSample, pss bool) []string {
 		}
 	}
 	type bound struct {
-		name  string
-		field func(ajCostSample) float64
-		max   float64
+		name   string
+		field  func(ajCostSample) float64
+		max    float64
+		paired bool
 	}
 	bounds := []bound{
-		{"backend WAL records", func(s ajCostSample) float64 { return s.backendWAL }, ajCostMaxExtraWAL},
-		{"backend relation blocks", func(s ajCostSample) float64 { return s.backendBlocks }, ajCostMaxExtraBlocks},
+		{"backend WAL records", func(s ajCostSample) float64 { return s.backendWAL }, ajCostMaxExtraWAL, false},
+		{"backend relation blocks", func(s ajCostSample) float64 { return s.backendBlocks }, ajCostMaxExtraBlocks, true},
 	}
 	if pss {
 		if a, b := mean(off, func(s ajCostSample) float64 { return s.pssCalls }), mean(on, func(s ajCostSample) float64 { return s.pssCalls }); a != b {
 			violations = append(violations, fmt.Sprintf("pg_stat_statements calls per Ack off=%.2f on=%.2f", a, b))
 		}
 		bounds = append(bounds,
-			bound{"pg_stat_statements WAL records", func(s ajCostSample) float64 { return s.pssWAL }, ajCostMaxExtraWAL},
-			bound{"pg_stat_statements buffer blocks", func(s ajCostSample) float64 { return s.pssBlocks }, ajCostMaxExtraBlocks})
+			bound{"pg_stat_statements WAL records", func(s ajCostSample) float64 { return s.pssWAL }, ajCostMaxExtraWAL, false},
+			bound{"pg_stat_statements buffer blocks", func(s ajCostSample) float64 { return s.pssBlocks }, ajCostMaxExtraBlocks, true})
 	}
 	for _, b := range bounds {
-		if extra := mean(on, b.field) - mean(off, b.field); extra > b.max {
-			violations = append(violations, fmt.Sprintf("%s per Ack grew by %.2f, bound %.0f", b.name, extra, b.max))
+		extra := mean(on, b.field) - mean(off, b.field)
+		how := ""
+		if b.paired {
+			if median, ok := ajPairedMedianDelta(off, on, b.field); ok {
+				extra, how = median, " (median paired delta)"
+			}
+		}
+		if extra > b.max {
+			violations = append(violations, fmt.Sprintf("%s per Ack grew by %.2f%s, bound %.0f", b.name, extra, how, b.max))
 		}
 	}
 	return violations
