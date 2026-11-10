@@ -3,6 +3,10 @@
 
 package postgres
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #10532 sanctioned never-claimed retirement proofs on real PostgreSQL: terminal outcome, idempotency, gate refusals, claim-versus-retire race with exactly-once and no deadlock, held-row SKIP LOCKED, run-reconcile close, guard release, and status-registry/failure-read containment; isolated disposable databases, under 4 minutes locally
+//eshu:readiness:env ESHU_POSTGRES_DISPOSABLE ESHU_POSTGRES_DSN
+
 import (
 	"context"
 	"database/sql"
