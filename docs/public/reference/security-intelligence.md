@@ -288,10 +288,11 @@ service.
 
 ## Hosted SBOM And Attestation Runtime
 
-The hosted `eshu-collector-sbom-attestation` runtime is for existing SBOMs and
+SBOM and attestation collection runs from the extracted satellite
+(`eshu-hq/eshu-collector-sbom-attestation`). It is for existing SBOMs and
 attestations. It does not generate SBOMs and it does not make the OCI registry
 collector parse referrer payloads. The OCI registry collector may discover
-image and referrer identity; the SBOM-attestation runtime fetches configured
+image and referrer identity; the SBOM-attestation satellite fetches configured
 document URLs or OCI referrer blobs, parses CycloneDX, SPDX, and in-toto
 documents, and emits typed source facts.
 

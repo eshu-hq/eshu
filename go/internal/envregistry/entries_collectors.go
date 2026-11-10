@@ -60,9 +60,6 @@ var collectorEntries = func() []Entry {
 	add(collectorFrameworkEntries("collector-security-alerts",
 		"ESHU_SECURITY_ALERT_COLLECTOR_INSTANCE_ID", "ESHU_SECURITY_ALERT_COLLECTOR_OWNER_ID",
 		"ESHU_SECURITY_ALERT_POLL_INTERVAL", "", "ESHU_SECURITY_ALERT_CLAIM_LEASE_TTL", "ESHU_SECURITY_ALERT_HEARTBEAT_INTERVAL")...)
-	add(collectorFrameworkEntries("collector-sbom-attestation",
-		"ESHU_SBOM_ATTESTATION_COLLECTOR_INSTANCE_ID", "ESHU_SBOM_ATTESTATION_COLLECTOR_OWNER_ID",
-		"ESHU_SBOM_ATTESTATION_POLL_INTERVAL", "", "ESHU_SBOM_ATTESTATION_CLAIM_LEASE_TTL", "ESHU_SBOM_ATTESTATION_HEARTBEAT_INTERVAL")...)
 	// Package-registry and OCI-registry collectors (poll/lease/heartbeat without infix).
 	add(collectorFrameworkEntries("collector-package-registry",
 		"ESHU_PACKAGE_REGISTRY_COLLECTOR_INSTANCE_ID", "ESHU_PACKAGE_REGISTRY_COLLECTOR_OWNER_ID",

@@ -37,7 +37,6 @@ workflow-coordinator
 collector-terraform-state
 collector-oci-registry
 collector-package-registry
-collector-sbom-attestation
 collector-security-alerts
 collector-vulnerability-intelligence
 collector-aws-cloud

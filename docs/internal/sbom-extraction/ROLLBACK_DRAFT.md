@@ -1,5 +1,10 @@
 # Rollback DRAFT (`#8865`, `#4047` cutover)
 
+> Relocated from `go/internal/collector/sbom/` under eshu-hq/eshu#10450: the
+> in-tree emission path is removed (the fleet scope is served by the extracted
+> satellite `eshu-hq/eshu-collector-sbom-attestation`). This file is the
+> historical draft record, not current guidance.
+
 **DRAFT — rehearsal plan, not an executed runbook.** Authority for a source
 scope and generation must rest with exactly one producer at a time.
 

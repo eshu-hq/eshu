@@ -1,5 +1,10 @@
 # Producer Grant — ISSUED (`#8865`, `#6709`)
 
+> Relocated from `go/internal/collector/sbom/` under eshu-hq/eshu#10450: the
+> in-tree emission path is removed (the fleet scope is served by the extracted
+> satellite `eshu-hq/eshu-collector-sbom-attestation`). This file is the
+> historical issuance record, not current guidance.
+
 **ISSUED — stored and enforced.** Records the first-party delegation for the
 extracted `sbom_attestation` producer with the exact kind/version/scope
 binding review approved before cutover. Core retains fact admission,

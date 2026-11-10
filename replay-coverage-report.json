@@ -3,10 +3,10 @@
   "blocking": true,
   "totals": {
     "total": 457,
-    "covered": 448,
+    "covered": 447,
     "uncovered": 0,
     "unresolved": 0,
-    "exempt": 9,
+    "exempt": 10,
     "proof_off": 0,
     "percent_satisfied": 100
   },
@@ -114,10 +114,10 @@
     {
       "registry": "surface_inventory",
       "total": 22,
-      "covered": 16,
+      "covered": 15,
       "uncovered": 0,
       "unresolved": 0,
-      "exempt": 6,
+      "exempt": 7,
       "proof_off": 0,
       "percent_satisfied": 100
     }
@@ -166,10 +166,10 @@
     {
       "scenario_type": "fault",
       "total": 11,
-      "covered": 7,
+      "covered": 6,
       "uncovered": 0,
       "unresolved": 0,
-      "exempt": 4,
+      "exempt": 5,
       "proof_off": 0,
       "percent_satisfied": 100
     },
@@ -4654,11 +4654,8 @@
       "registry": "surface_inventory",
       "key": "collector:sbom_attestation",
       "scenario_type": "fault",
-      "status": "covered",
-      "scenario": "go_test",
-      "ref": "go/internal/replay/inputtape/fault_collectors_test.go",
-      "proof_gate": "go-test-race",
-      "detail": "artifact present: go/internal/replay/inputtape/fault_collectors_test.go"
+      "status": "exempt",
+      "detail": "Satellite-owned collection boundary: collection runs from eshu-hq/eshu-collector-sbom-attestation while the coordinator still plans sbom attestation claims and the reducer/query surfaces still serve the fact kinds. No in-tree SBOM attestation client remains to drive an injected-timeout fault against, so the fault axis has nothing in-tree to bound."
     },
     {
       "registry": "surface_inventory",

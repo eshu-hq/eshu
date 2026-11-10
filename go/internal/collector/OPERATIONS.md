@@ -475,3 +475,21 @@ Both metrics are surfaced on the existing metrics port (no new endpoint).
   fail_retryable, fail_terminal) under race detection
   (`go test -race ./internal/collector -run 'ClaimedService|Service|Collector|Metric|Outcome|Released'`):
   81 tests passed, 0 races detected.
+
+## Evidence
+
+- No-Regression Evidence (#10450): the in-tree SBOM attestation emission
+  path (`go/cmd/collector-sbom-attestation`,
+  `go/cmd/collector-sbom-shadow`, `go/internal/collector/sbom/`) is
+  deleted; no surviving hot-path code changes behavior. Collection runs
+  from the extracted satellite while the coordinator still plans claims
+  and the reducer/query surfaces still serve the fact kinds. Proof at the
+  removal head: `go build ./...`, `go vet ./...`, and the focused suites
+  for every touched and downstream package pass; capability-inventory,
+  fact-kind-registry, and env-registry regenerations are byte-clean; the
+  telemetry-coverage, doc-citations, payload-usage-manifest,
+  factschema-diff, and contracttest gates pass.
+- No-Observability-Change (#10450): the deletion emits no metric, span,
+  or log of its own. Satellite emissions stay covered by the existing
+  extension-host claim signals; the three collector-SBOM coverage rows
+  that named deleted files were removed with them.

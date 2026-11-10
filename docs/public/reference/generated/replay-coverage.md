@@ -20,8 +20,8 @@ Every non-exempt required surface maps to a committed scenario and the named pro
 | Reducer drain (crash) | 1 | 1 | 100.00% | 0 | 0 | 0 |
 | Retractable edge types (delta) | 65 | 65 | 100.00% | 0 | 0 | 0 |
 | Retractable node types (delta) | 103 | 103 | 100.00% | 0 | 0 | 1 |
-| Collectors | 22 | 22 | 100.00% | 0 | 0 | 6 |
-| **Total** | **457** | **457** | **100.00%** | **0** | **0** | **9** |
+| Collectors | 22 | 22 | 100.00% | 0 | 0 | 7 |
+| **Total** | **457** | **457** | **100.00%** | **0** | **0** | **10** |
 
 ## Coverage by scenario type
 
@@ -31,7 +31,7 @@ Every non-exempt required surface maps to a committed scenario and the named pro
 | cost | 31 | 31 | 100.00% | 0 | 0 | 1 |
 | crash | 2 | 2 | 100.00% | 0 | 0 | 0 |
 | delta_tombstone | 169 | 169 | 100.00% | 0 | 0 | 1 |
-| fault | 11 | 11 | 100.00% | 0 | 0 | 4 |
+| fault | 11 | 11 | 100.00% | 0 | 0 | 5 |
 | ordering | 3 | 3 | 100.00% | 0 | 0 | 0 |
 
 ## Language parser coverage
@@ -498,7 +498,7 @@ None. Every non-exempt required surface has a replay scenario; exemptions carry 
 | `collector:prometheus_mimir` | baseline | cassette | golden-corpus-gate-neo4j | `testdata/cassettes/prometheusmimir/supply-chain-demo.json` |
 | `collector:prometheus_mimir` | fault | go_test | go-test-race | `go/internal/replay/inputtape/fault_collectors_test.go` |
 | `collector:sbom_attestation` | baseline | cassette | golden-corpus-gate-neo4j | `testdata/cassettes/sbomattestation/supply-chain-demo.json` |
-| `collector:sbom_attestation` | fault | go_test | go-test-race | `go/internal/replay/inputtape/fault_collectors_test.go` |
+| `collector:sbom_attestation` | fault | exempt | — | Satellite-owned collection boundary: collection runs from eshu-hq/eshu-collector-sbom-attestation while the coordinator still plans sbom attestation claims and the reducer/query surfaces still serve the fact kinds. No in-tree SBOM attestation client remains to drive an injected-timeout fault against, so the fault axis has nothing in-tree to bound. |
 | `collector:scanner_worker` | baseline | exempt | — | Internal hosted worker with no external upstream. scanner-worker consumes coordinator work items (image refs, rootfs, SBOM targets) and emits analysis facts; it has no credentialed source to record, so a cassette of the supply-chain-demo kind does not apply. |
 | `collector:scanner_worker` | fault | exempt | — | Internal hosted worker with no external upstream. scanner-worker consumes coordinator work items (image refs, rootfs, SBOM targets) and emits analysis facts; it has no credentialed source to record, so a cassette of the supply-chain-demo kind does not apply. |
 | `collector:security_alert` | baseline | cassette | golden-corpus-gate-neo4j | `testdata/cassettes/securityalerts/supply-chain-demo.json` |

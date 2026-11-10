@@ -193,7 +193,7 @@ at `origin/main` (`dc65b4d597`) before this manifest.
   scope, not yet performed). Deployment target and credential wiring beyond
   the QA-overlay pointer above are NOT_CHECKED; no cluster access was
   attempted.
-- Sibling PREP-ONLY pattern: `go/internal/collector/sbom/EXTRACTION_PREP.md`
+- Sibling PREP-ONLY pattern: `docs/internal/sbom-extraction/EXTRACTION_PREP.md`
   (`#8865`, gated by `#4047`) and the `webhook-listener` census lane
   (`#8876`, open PR). No peer claim on this leaf was found (dest repo holds a
   single initial commit; open-PR search shows no competing `#8879` branch).

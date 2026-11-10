@@ -133,15 +133,22 @@ surfaces:
   - category: collector
     name: sbom_attestation
     readiness: implemented
-    owner: internal/collector/sbom/document
+    owner: internal/coordinator/sbom
     proof: reference/collector-reducer-readiness.md#promotion-proof
     docs: [reference/collector-reducer-readiness.md]
+    notes: >-
+      The in-tree producer (go/cmd/collector-sbom-attestation,
+      go/cmd/collector-sbom-shadow, go/internal/collector/sbom) was removed
+      after the satellite cutover (eshu-hq/eshu#10450); collection runs from
+      eshu-hq/eshu-collector-sbom-attestation through the extension host while
+      the coordinator still plans sbom attestation claims and the
+      reducer/query surfaces still serve the fact kinds.
     collector_contract:
       fact_kinds: [attestation.signature_verification, attestation.slsa_provenance, attestation.statement, sbom.component, sbom.dependency_relationship, sbom.document, sbom.external_reference, sbom.warning]
       projection_surfaces: [sbom_attestation_attachment, supply_chain_impact]
       read_surfaces: [GET /api/v0/supply-chain/sbom-attestations/attachments, GET /api/v0/supply-chain/sbom-attestations/attachments/count, GET /api/v0/supply-chain/sbom-attestations/attachments/inventory, list_sbom_attestation_attachments, count_sbom_attestation_attachments, get_sbom_attestation_attachment_inventory]
-      proof_gates: [cd go && go test ./cmd/collector-sbom-attestation ./internal/collector/sbom/document ./internal/reducer ./internal/query ./internal/mcp -count=1]
-      fixture_refs: [go/internal/collector/sbom/document/testdata, docs/public/reference/security-intelligence.md#sbom-and-attestation-collection]
+      proof_gates: [cd go && go test ./internal/coordinator/sbom/... ./internal/reducer ./internal/query ./internal/mcp -count=1]
+      fixture_refs: [docs/public/reference/collector-reducer-readiness.md#implemented-collector-lanes]
       truth_profile: provider_gated
   - category: collector
     name: vulnerability_intelligence

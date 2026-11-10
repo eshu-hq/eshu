@@ -22,9 +22,8 @@ kinds:
     - sbom.warning
 producers:
     - id: collector-sbom-attestation
-      repository: eshu-hq/eshu
-      path: go/internal/collector/sbom
-      planned_repository: eshu-hq/eshu-collector-sbom-attestation
+      repository: eshu-hq/eshu-collector-sbom-attestation
+      path: .
       authority_mode: core_issued_grant
       kinds:
         - attestation.signature_verification
