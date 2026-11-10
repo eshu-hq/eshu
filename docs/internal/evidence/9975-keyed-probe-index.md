@@ -46,6 +46,29 @@ fact-id hash sum all match). The no-index rewrite cuts about 37%, under the
 evaluate the cve/advisory payload expressions, because no index carries them.
 That made a new index admissible under the ruling.
 
+Dense counter-case (coordinator, 2026-11-10, same read-only QA method): 510
+distinct identifiers covering every winner of the 10 triples with most
+winners. Fetched equals kept at 17,716 rows (ratio 1.00, payload bytes
+identical at 74,540,470), so a dense tick gains nothing from the filter —
+and the per-identifier lateral without the new index is far worse there
+(5,903,338 buffer hits against 20,200 for the per-triple probe, warm),
+because each identifier re-scans its triple's index range. The index is
+therefore load-bearing for both shapes, and this fix alone does not bound a
+dense tick; the arbiter's bounded-chunk fallback stays the named next step
+if the post-roll re-read still fails.
+
+The arbiter ruling this note cites (2026-11-10, recorded on #9975) decides:
+keep the 60 s watermark bar and 15 s p95 bar; read peak watermark as the
+maximum over the window of the per-instant `min()` across instances (never
+any-pod max); ship the probe rewrite alone only if it cuts
+`build_active_facts` time by at least 50% with an equal row set, else a new
+index is admissible with its write cost stated; acceptance needs the 1 h
+re-read plus a second high-volume read (defined here as a window with at
+least 100 keyed ticks and `keys_sum` at least 50,000, comparable to the
+2026-11-10 current-pod 52,183 keys over 341 ticks), no keyed tick over
+30 s in that window, and both the `min()` and any-pod watermark series
+reported.
+
 ## Shim 3: index theory on a disposable database
 
 The same probe shapes on a throwaway local PostgreSQL 18 (43,000 synthetic
