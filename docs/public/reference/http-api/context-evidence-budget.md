@@ -98,6 +98,9 @@ The flags the table names:
   (`result_limits.downstream_read_limit`, 25 by default, raisable per call to
   100 with `downstream_read_limit`; the effective bound is echoed on the
   context and the coverage). Non-numeric or negative values return 400.
+  The rendered downstream lists follow the effective read: with an explicit
+  request above the 50-row preview the lists ship up to the read bound, and
+  `result_limits.downstream_render_limit` reports the applied render cap.
   `consumer_repositories_truncated`
   is also set when the service evidence file read hit
   `result_limits.evidence_file_read_limit`. When any of these families is

@@ -61,6 +61,21 @@ func BoundedDownstreamReadLimit(limit int) int {
 	return limit
 }
 
+// EffectiveDownstreamRenderLimit reports the row cap the downstream lists
+// (dependents, consumer_repositories) actually render under: the effective
+// read bound when a route named an explicit downstream_read_limit above the
+// preview cap, else the preview cap itself. Reads never return more rows
+// than the bound, so rendering at max(preview, bound) discards nothing;
+// with no explicit request the bound sits at the shared default (25), which
+// is below every preview cap, and behavior is byte-identical (#10535
+// follow-up to #10477).
+func EffectiveDownstreamRenderLimit(ctx map[string]any, previewCap int) int {
+	if bound := IntVal(ctx, "downstream_read_limit"); bound > previewCap {
+		return BoundedDownstreamReadLimit(bound)
+	}
+	return previewCap
+}
+
 // BoundedTraceEnrichmentLimit converts a caller-supplied max_depth into a
 // bounded indirect-evidence search limit. It lives here (not in a handler
 // family) because the service-story enrichment, the service investigation

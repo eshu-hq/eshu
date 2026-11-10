@@ -401,7 +401,10 @@ service context, and workload context/story, and `coverage_summary.truncated`
 on the service investigation route. Both blocks also
 report `downstream_read_limit`, the bound that actually fires on the
 downstream lists (25 by default). Read it rather than `result_limits.limit` or
-`coverage_summary.result_limit`, which report the 50-row rendering cap.
+`coverage_summary.result_limit`, which report the 50-row rendering cap. The
+rendered downstream lists follow an explicit read above that preview: with
+`downstream_read_limit` over 50 the lists ship up to the read bound, and
+`result_limits.downstream_render_limit` reports the applied render cap.
 
 `downstream_read_limit` is not the only bound behind `truncated`, though.
 `dependents_truncated` and `provisioning_source_chains_truncated` reflect the

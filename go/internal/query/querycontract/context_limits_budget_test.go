@@ -401,3 +401,56 @@ func TestWorkloadContextResultLimitsEntrypointCandidateCutLeavesSourceRowsAlone(
 		t.Fatalf("source slice was mutated: len=%d last=%q", len(source), SafeStr(source[len(source)-1], "candidate"))
 	}
 }
+
+// TestWorkloadContextResultLimitsRenderFollowsExplicitRead proves the
+// downstream lists on the context route render under the effective read
+// bound: 52 consumers read at downstream_read_limit=100 all ship, while an
+// unrequested read keeps the 50-row preview (#10535 follow-up to #10477).
+func TestWorkloadContextResultLimitsRenderFollowsExplicitRead(t *testing.T) {
+	t.Parallel()
+
+	consumers := func(n int) []map[string]any {
+		rows := make([]map[string]any, 0, n)
+		for i := 0; i < n; i++ {
+			rows = append(rows, map[string]any{"repo_id": fmt.Sprintf("repository:consumer-%03d", i)})
+		}
+		return rows
+	}
+
+	t.Run("explicit read renders every row", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := map[string]any{
+			"consumer_repositories": consumers(52),
+			"downstream_read_limit": 100,
+		}
+		limits := WorkloadContextResultLimits(ctx, "workload:svc", "context")
+
+		if got := len(MapSliceValue(ctx, "consumer_repositories")); got != 52 {
+			t.Fatalf("len(consumer_repositories) = %d, want 52 (render follows the explicit 100-row read)", got)
+		}
+		if got := IntVal(limits, "downstream_render_limit"); got != 100 {
+			t.Fatalf("result_limits.downstream_render_limit = %d, want 100", got)
+		}
+		if BoolVal(limits, "truncated") {
+			t.Fatal("result_limits.truncated = true, want false (52 rows fit the requested read)")
+		}
+		if reasons := ContextPartialReasons(ctx); len(reasons) != 0 {
+			t.Fatalf("partial_reasons = %#v, want none (nothing cut)", reasons)
+		}
+	})
+
+	t.Run("no explicit read keeps the preview", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := map[string]any{"consumer_repositories": consumers(52)}
+		limits := WorkloadContextResultLimits(ctx, "workload:svc", "context")
+
+		if got := len(MapSliceValue(ctx, "consumer_repositories")); got != 50 {
+			t.Fatalf("len(consumer_repositories) = %d, want the 50-row preview", got)
+		}
+		if got := IntVal(limits, "downstream_render_limit"); got != 50 {
+			t.Fatalf("result_limits.downstream_render_limit = %d, want 50", got)
+		}
+	})
+}
