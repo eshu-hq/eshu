@@ -133,7 +133,6 @@ collector_specs=(
 	"collector-grafana:grafana"
 	"collector-security-alerts:securityalerts"
 	"collector-pagerduty:pagerduty"
-	"collector-sbom-attestation:sbomattestation"
 )
 # name:command:cassette-directory aliases let a generic cassette-capable binary
 # replay a source that has no dedicated command without reusing its process log.
@@ -148,6 +147,7 @@ cassette_replay_alias_specs=(
 	"gcp-cassette-replay:collector-pagerduty:gcpcloud"
 	"kubernetes-live-cassette-replay:collector-pagerduty:kuberneteslive"
 	"vulnerability-intelligence-cassette-replay:collector-pagerduty:vulnerabilityintelligence"
+	"sbom-attestation-cassette-replay:collector-pagerduty:sbomattestation"
 )
 cassette_recording="supply-chain-demo.json"
 
