@@ -9,6 +9,19 @@ recent shipped work grouped by feature area.
 
 ## Unreleased
 
+### The Ack journal cost gate no longer reads environment drift as journal cost
+
+- **Deterministic Ack journal cost measurement**
+  ([#10500](https://github.com/eshu-hq/eshu/issues/10500)).
+   now pins planner state before measuring
+  (VACUUM ANALYZE with autovacuum off on the Ack-path tables), settles
+  backend counter snapshots after force-flush, and judges block bounds
+  on the median per-round paired delta with per-round deltas logged. A CI
+  attempt read +45 blocks against the 40 bound where local runs read +11
+  with identical WAL and statement counts; per-round deltas oscillate
+  with batch order, which the old mean-of-means aggregation let poison
+  the verdict. Bounds and the seeded-RED check are unchanged in strength.
+
 ### A VEX statement naming one alias now suppresses the whole advisory group
 
 - **Suppressions match through the advisory-group member set**
