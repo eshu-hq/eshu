@@ -91,8 +91,9 @@ Performance Evidence: the first two items add one live subtest and this
 note; no runtime SQL, index, batch, or concurrency change. The QA numbers
 above are the before-measurement for the chunking fix. The census
 addendum's reader-#10 fix changes one read predicate to the effective-state
-form its siblings already run; same index, same row set for non-expired
-rows, no new scan shape.
+form its siblings already run; same plan shape, and the row set grows by
+the correctly-included expired rows (63,920 kept vs 56,818 in the
+addendum's own EXPLAIN), no new scan shape.
 
 No-Observability-Change: no new metric, span, log, or knob. The tick
 phase histogram (`build_active_facts`) remains the operator signal.
@@ -112,6 +113,11 @@ writer/rebuild/compact sites listed below; raw
 EPSS CVE-ids query). Test files are excluded from the census.
 
 ### Verdict: claim NOT final
+
+Superseded by the census addendum below (reader #10 fixed in this same
+stack; claim final). This section and the per-reader table describe the
+pre-fix state at census time, including the old stored-state predicate;
+do not run acceptance queries copied from here against the shipped code.
 
 The winners-select time-invariance proof stands for the findings surface,
 but one EPSS-involving reader breaks it: `listActiveFindingCVEIDsQuery`
