@@ -132,26 +132,27 @@ failing-test sketch below is the blocker evidence.
 | 4 | `go/internal/query/supply/chain/impact/suppression_split_sql.go:supplyChainImpactSplitCanonicalWinnerCTEs`, `findings_split_queries.go`, `aggregates_queries.go` (fact-path read-time dedup/counts) | operator `payload #>> '{suppression,expires_at}'` | `$NN::timestamptz` read clock | SAFE (read-time) |
 | 5 | `go/internal/query/supply/chain/impact/explain_postgres.go` (via split CTEs) | operator `payload #>> '{suppression,expires_at}'` | `$13::timestamptz` read clock | SAFE (read-time) |
 | 6 | `go/internal/query/supply/chain/impact/findings_decode.go:decodeSupplyChainSuppressionDecision` | already-overlaid effective state in the page payload | none (downstream of #1/#4) | SAFE (downstream) |
-| 7 | Winner select `supplyChainImpactWinnerBodySQL` (`go/internal/storage/postgres/supply_chain_impact_canonical_winners_store.go:142-226`) | stores `suppression_state`/`suppression_expires_at` verbatim | none (`NOW()` absent) | NEUTRAL (writer; proof premise) |
+| 7 | Winner select `supplyChainImpactWinnerBodySQL` (`go/internal/storage/postgres/supply_chain_impact_canonical_winners_store.go`, symbol `supplyChainImpactWinnerBodySQL`) | stores `suppression_state`/`suppression_expires_at` verbatim | none (`NOW()` absent) | NEUTRAL (writer; proof premise) |
 | 8 | Staged scan/compact (`supply_chain_impact_winners_staged_scan.go`, `supply_chain_impact_winners_staged_compact.go:stagedStoredWinnersSQL`), rebuild (`supply_chain_impact_canonical_winners_rebuild.go`), audit diff (`supply_chain_impact_winners_audit.go`), keyed apply (`supply_chain_impact_winners_keyed_sql.go`) | full stored row / narrow candidate columns | none (content equality only) | NEUTRAL (no expiry consumption) |
 | 9 | `grouped_inventory_sql.go:groupedInventoryHiddenRepositoriesSQL` | grant + static-winner predicate only | none | NEUTRAL (no suppression read) |
 | 10 | `go/internal/storage/postgres/supply_chain_impact_canonical_winners_store.go:listActiveFindingCVEIDsQuery` (`WHERE suppression_state = 'active'`) | stored `suppression_state` only | NONE | BREAKS (stored-state reliance) |
 
 Reader #10's chain, all read: `FactStore.ListActiveFindingCVEIDs`
-(store file `:435`) implements `FindingCVEIDReader`
-(`go/internal/coordinator/installed_advisory_target_readers.go:33-35`),
-called at `go/internal/coordinator/vulnerability_intelligence_service.go:350`,
-feeding `deriveEPSSFindingTargets`
-(`go/internal/coordinator/vulnerability/epss_finding_derivation.go:73-77`),
+implements `FindingCVEIDReader`
+(`go/internal/coordinator/installed_advisory_target_readers.go`, interface
+`FindingCVEIDReader`), called from the vulnerability intelligence service
+(`go/internal/coordinator/vulnerability_intelligence_service.go`, the
+`ListActiveFindingCVEIDs` call site), feeding `deriveEPSSFindingTargets`
+(`go/internal/coordinator/vulnerability/epss_finding_derivation.go`),
 which normalizes, dedupes, and chunks CVE ids with no suppression re-check.
 Staleness direction: after expiry with no fact write the stored row keeps a
 hidden state (e.g. `accepted_risk`) with past `suppression_expires_at`;
 readers #1-#3 report `expired`/visible, but reader #10 keeps excluding the
 CVE from EPSS derivation indefinitely. The advisory-group reader carries an
 explicit guard test against the raw-equality pattern
-(`supply_chain_impact_advisory_group_winners_test.go:64-65`); no such guard
+(in `supply_chain_impact_advisory_group_winners_test.go`); no such guard
 covers the CVE-ids query — only a shape test pinning the raw equality
-(`supply_chain_impact_finding_cves_test.go:20-25`).
+(in `supply_chain_impact_finding_cves_test.go`).
 
 Out of scope (different `expires_at`, verified by reading):
 `finding_static_advisory_sql.go:approval.expires_at` is static-authority
