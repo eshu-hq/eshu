@@ -62,9 +62,14 @@ Measured facts and their sources:
    stale-copy window is bounded by re-trigger drain plus one 30s resweep
    tick; document that bound as the freshness contract.
 2. Digest skip first: verify, and if missing wire, the `FreshnessHint` skip
-   (`go/internal/collector/vulnerabilityintelligence/vulnruntime/freshness.go`)
    so an unchanged KEV catalog or EPSS answer creates no generation and no
    re-trigger wave. This step is outside PR #9941's file list: not frozen.
+   Since #9999 removed the in-tree collector, the hint lives in the
+   satellite (`eshu-collector-vulnerability-intelligence`, `freshness.go`)
+   and the generic skip decision in core
+   (`go/internal/storage/postgres/ingestion_backfill_seam.go`); see the
+   closure ruling, `docs/internal/arbiter/9878-closure-waivers-ruling-2026-11-10.md`
+   section 4.
 3. Duplicate copies accepted as bounded storage in 2.3: copies per finding
    bounded by matching enrichment scopes (about 5 EPSS target scopes at
    today's 447 QA finding CVEs). No write-side dedup in this item.
@@ -97,7 +102,8 @@ Bad:
 
 ## Implementation plan
 
-Affected paths: `vulnruntime/freshness.go` skip wiring (verify first);
+Affected paths: satellite `freshness.go` hint plus core
+`ingestion_backfill_seam.go` skip wiring (verify first);
 CVE-to-owning-scope re-trigger edge (verify whether a `dependencyCatalog`
 edge of the plan section 4.2 kind exists, else add with readiness-floor
 treatment) on top of the merged keyed resweep. Patterns to follow: one
@@ -109,21 +115,32 @@ to winner reflection (or name the existing signals that cover all three).
 
 ## Acceptance criteria
 
-- [ ] Regression extending the #9878 fixture: two scopes, EPSS lowered with
+- [x] Regression extending the #9878 fixture: two scopes, EPSS lowered with
   newer `score_date`; winner is the older higher copy before, both copies
   and the winner carry the lowered score after. Same pair for a new KEV
-  listing reaching a pre-existing finding.
-- [ ] Digest RED/GREEN pair: unchanged KEV input skips (no generation, no
-  re-trigger); drift commits.
-- [ ] Concurrency proof on the re-trigger path with
+  listing reaching a pre-existing finding. (Four `9878Live` tests, re-run
+  green 2026-11-10; see the evidence note.)
+- [x] Digest RED/GREEN pair: unchanged KEV input skips (no generation, no
+  re-trigger); drift commits. Proven by composition after #9999: satellite
+  freshness-hint tests plus core `TestDecideUnchangedGenerationCells`
+  (closure ruling section 4).
+- [x] Concurrency proof on the re-trigger path with
   `concurrency-deadlock-rigor`: idempotent duplicates, no lost generation.
+  (`TestEnrichmentCommittedDuringHolderPassStillConverges9878Live`.)
 - [ ] No-regression measurement on the built binary: resweep p95 and
   list/aggregate p95 at the largest available corpus, before and after.
-- [ ] Operator telemetry for re-trigger cause, digest skip, convergence lag,
-  or named existing coverage.
-- [ ] QA: KEV-flagged findings equal findings whose CVE or alias is in KEV,
-  seeded CVE as proof.
-- [ ] Fixture re-run green after #9693 lands.
+  Re-scoped by the closure ruling section 2: the landed diff touches
+  neither surface, so proof is no-regression by construction plus
+  allocation parity on the touched path; the p95 series stays
+  `NOT_CHECKED`, owned by the `read-api-latency-gate` CI workflow.
+- [x] Operator telemetry for re-trigger cause, digest skip, convergence lag,
+  or named existing coverage. (`cause` label on
+  `eshu_dp_supply_chain_impact_fanout_total`.)
+- [x] QA: KEV-flagged findings equal findings whose CVE is in KEV
+  (direct-CVE, narrowed by closure ruling section 3; alias leg tracked in
+  #10508). 2026-11-10: findings 2622 = flagged 2622, winners 113 = 113.
+- [x] Fixture re-run green after #9693 lands. (3/3 PASS on `7e5e91712b`,
+  2026-11-10.)
 
 ## Decisions for the arbiter
 
