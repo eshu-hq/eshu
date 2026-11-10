@@ -5,7 +5,9 @@
 
 Refs eshu-hq/eshu#9669, eshu-hq/eshu#10491. Status: preparation only — no cutover has
 occurred, no behavior changes, no in-tree code moves. Census day 2026-11-10:
-core `e3c33de093` / satellite `0b56895`.
+core `e3c33de093` / satellite `0b56895`. Re-verified unchanged at core
+`290076840d` (checker PASS with identical 279/125/17/27/110 counts, relay=106
+w7w=4) after the lane rebase; no row changed.
 
 ## Method (exact commands, run in the worktree root)
 
