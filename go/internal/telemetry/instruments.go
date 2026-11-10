@@ -1246,6 +1246,13 @@ type Instruments struct {
 	// the carrying pass. The same pass also reports the tally on the
 	// suppression_carried_via_member result sub-signal.
 	SupplyChainImpactSuppressionCarriedViaMember metric.Int64Counter
+	// SupplyChainImpactSuppressionIdentityMatched counts suppression
+	// decisions whose winning suppression named the finding through an
+	// identity field (#10409 D1). Labels: domain (supply_chain_impact),
+	// matched_field (cve_id or advisory_id), and matched_via (direct for
+	// the finding's own ids, group_member for an alias-group member). The
+	// group_member rate is the operator's alias-match volume signal.
+	SupplyChainImpactSuppressionIdentityMatched metric.Int64Counter
 	// SupplyChainImpactSuppressionOrphanedBySplit counts loaded, unexpired
 	// suppressions naming a re-key-touched id that no new finding cites
 	// anymore (#10408 L3, promoted to an instrument in L7). Labels:
@@ -5165,6 +5172,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register SupplyChainImpactSuppressionCarriedViaMember counter: %w", err)
+	}
+
+	inst.SupplyChainImpactSuppressionIdentityMatched, err = meter.Int64Counter(
+		"eshu_dp_supply_chain_impact_suppression_identity_matched_total",
+		metric.WithDescription("Total supply-chain suppression decisions by the identity field and route (direct or advisory-group member) through which the winning suppression named the finding (#10409)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register SupplyChainImpactSuppressionIdentityMatched counter: %w", err)
 	}
 
 	inst.SupplyChainImpactSuppressionOrphanedBySplit, err = meter.Int64Counter(

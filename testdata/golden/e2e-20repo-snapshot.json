@@ -5607,6 +5607,9 @@
           "findings[].version_resolution_tier": "runtime_confirmed",
           "findings[].suppression.suppression_id": "golden-CVE-2026-00010",
           "findings[].suppression.state": "expired",
+          "findings[].suppression.matched_id": "CVE-2026-00010",
+          "findings[].suppression.matched_field": "cve_id",
+          "findings[].suppression.matched_via": "direct",
           "findings[].provenance.selected_epss_score_date": "2026-06-24",
           "findings[].epss_probability": "0.87345",
           "findings[].epss_percentile": "0.99012"
@@ -9225,7 +9228,10 @@
           "findings[].repository_id": "repository:r_217415d9",
           "findings[].runtime_context.workload_ids[]": "workload:repository:r_217415d9",
           "findings[].suppression.suppression_id": "golden-CVE-2026-00010",
-          "findings[].suppression.state": "expired"
+          "findings[].suppression.state": "expired",
+          "findings[].suppression.matched_id": "CVE-2026-00010",
+          "findings[].suppression.matched_field": "cve_id",
+          "findings[].suppression.matched_via": "direct"
         },
         "minimum_results": 1,
         "results_field": "findings"
