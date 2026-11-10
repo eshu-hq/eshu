@@ -219,3 +219,62 @@ func TestSuppressionIndexMatchesFullScan(t *testing.T) {
 		}
 	}
 }
+
+// TestAliasMatchDSACounts pins ruling D1's upstream clause at bulletin
+// scale: 20 findings filed under one DSA advisory id by distinct upstream
+// CVEs (upstream ids never merge findings). A CVE-scoped suppression hides
+// exactly the one finding whose cve_id it names; a DSA-scoped suppression
+// hides all 20.
+func TestAliasMatchDSACounts(t *testing.T) {
+	t.Parallel()
+	findings := make([]SupplyChainImpactFinding, 0, 20)
+	for i := 0; i < 20; i++ {
+		findings = append(findings, SupplyChainImpactFinding{
+			CVEID:      fmt.Sprintf("CVE-2026-%04d", i),
+			AdvisoryID: "DSA-9999-1",
+		})
+	}
+	hidden := func(scope vulnerabilitySuppressionScope) int {
+		s := aliasMatchSuppression(scope)
+		n := 0
+		for _, f := range findings {
+			if EvaluateSupplyChainSuppression(f, []vulnerabilitySuppression{s}, aliasMatchNow).State == SupplyChainSuppressionStateNotAffected {
+				n++
+			}
+		}
+		return n
+	}
+	if got := hidden(vulnerabilitySuppressionScope{CVEID: "CVE-2026-0007"}); got != 1 {
+		t.Fatalf("CVE-scoped hidden = %d, want exactly 1 of the DSA's 20 findings", got)
+	}
+	if got := hidden(vulnerabilitySuppressionScope{AdvisoryID: "DSA-9999-1"}); got != 20 {
+		t.Fatalf("DSA-scoped hidden = %d, want all 20 findings", got)
+	}
+}
+
+// TestAliasMatchNonMemberIDNeverMatches covers the negative space: an id
+// reachable only outside the alias component (an upstream or related id the
+// finding does not carry as cve_id, advisory_id, or member) never matches,
+// and a fallback finding with no member set matches exact ids only.
+func TestAliasMatchNonMemberIDNeverMatches(t *testing.T) {
+	t.Parallel()
+	grouped := SupplyChainImpactFinding{
+		CVEID:                "CVE-1",
+		AdvisoryID:           "GHSA-x",
+		AdvisoryGroupMembers: []string{"CVE-1", "GHSA-x"},
+	}
+	for _, scope := range []vulnerabilitySuppressionScope{
+		{CVEID: "CVE-UPSTREAM-ONLY"},
+		{AdvisoryID: "GHSA-related-only"},
+	} {
+		s := aliasMatchSuppression(scope)
+		if got := EvaluateSupplyChainSuppression(grouped, []vulnerabilitySuppression{s}, aliasMatchNow).State; got != SupplyChainSuppressionStateActive {
+			t.Fatalf("scope %#v: State = %q, want active (non-member ids never widen matching)", scope, got)
+		}
+	}
+	fallback := SupplyChainImpactFinding{CVEID: "CVE-1", AdvisoryID: "GHSA-x"}
+	s := aliasMatchSuppression(vulnerabilitySuppressionScope{CVEID: "GHSA-unloaded-alias"})
+	if got := EvaluateSupplyChainSuppression(fallback, []vulnerabilitySuppression{s}, aliasMatchNow).State; got != SupplyChainSuppressionStateActive {
+		t.Fatalf("fallback finding: State = %q, want active (exact-only matching, no partial component)", got)
+	}
+}
