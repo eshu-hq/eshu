@@ -234,6 +234,11 @@ tests:
     class: postgres_ci
     reason: "#7903 disposable PostgreSQL 18 proof that the targeted re-lock drops a candidate that flips to uncovered-writer coverage after selection and counts it as skipped while still pruning a covered bystander, enrolled in the live-postgres-readiness runner; bridges the family ESHU_GENERATION_RETENTION_PROOF_DSN onto ESHU_POSTGRES_TEST_DSN as the hard-ceiling proof does. local run passed in 1.31s wall with the full 188-migration setup on postgres:18 on 2026-10-11"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/generation_retention_row_counts_10512_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10512 disposable PostgreSQL proof that the reshaped retention row-count arms and the intents DELETE stay on their generation indexes (custom and forced-generic plans, seeded drop-index REDs, executed buffers tracking the batch), that the direct package-key counts equal the old fact-join counts on clean keys and diverge exactly by planted orphans, and that a missing, INVALID or partial-only intents generation index refuses the cycle; bridges ESHU_GENERATION_RETENTION_PROOF_DSN onto ESHU_POSTGRES_TEST_DSN."
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/generation_retention_samesha_live_test.go
     tag: ~
     class: postgres_ci

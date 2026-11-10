@@ -74,7 +74,7 @@ covers all three seeded REDs and the post-restore GREEN.
   `(generation_id)` btree serves both retention statements at one small
   entry per intent insert. The partial index stays.
 
-## Performance Evidence
+## Performance Evidence:
 
 Performance claim: the retention locked recount and intents DELETE cost
 now track the candidate batch instead of table size; locked recount at
@@ -88,3 +88,10 @@ insert; concurrency behavior is unchanged (no lock, claim, or batching
 change), and no telemetry changes: the existing retention span, the
 `fact_key_count_diverged` WARN, and `ErrGenerationRetentionKeyIndexUnavailable`
 already cover the touched surface.
+
+No-Observability-Change: this change adds no metric, span, log key, or
+status field. The branch diff adds no telemetry emission line (only
+comment updates around the existing WARN); operators keep diagnosing
+this path through the existing retention span, the
+`fact_key_count_diverged` WARN, and
+`ErrGenerationRetentionKeyIndexUnavailable`.

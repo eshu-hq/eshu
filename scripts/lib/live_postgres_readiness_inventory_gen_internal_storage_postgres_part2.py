@@ -105,6 +105,11 @@ TABLE = {
         "go/internal/storage/postgres/generation_retention_relock_uncovered_live_test.go": (
             "TestGenerationRetentionRelockDropsNewlyUncoveredWriterLive",
         ),
+        "go/internal/storage/postgres/generation_retention_row_counts_10512_live_test.go": (
+            "TestGenerationRetentionRowCountPlansStayOnGenerationIndexesLive",
+            "TestGenerationRetentionPackageKeyCountsMatchFactJoinOnCleanKeysLive",
+            "TestGenerationRetentionRefusesWithoutValidIntentsGenerationIndexLive",
+        ),
         "go/internal/storage/postgres/generation_retention_samesha_live_test.go": (
             "TestGenerationRetentionSameSHALockstepLive",
             "TestGenerationRetentionSameSHAPrunesOldestKeepsNewestLive",
