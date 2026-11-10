@@ -321,6 +321,21 @@ func (s Service) scheduleVulnerabilityActivationDerivedScopes(
 		}
 		return fmt.Errorf("load vulnerability intelligence derived targets for %q: %w", instance.InstanceID, err)
 	}
+	// An NVD window anchor mints nothing while rolling windows are
+	// disabled — neither a window nor a standing static (unlike the
+	// in-tree planner's static claim). Name the drop instead of letting
+	// the activation read as a silent success.
+	if !derivation.DeriveNVDWindows.Enabled && s.Logger != nil {
+		for _, anchorScope := range vulnerability.ActivationNVDWindowAnchorScopes(string(config.ComponentConfig)) {
+			s.Logger.Warn(
+				"workflow coordinator skipped NVD window anchor while rolling windows are disabled",
+				"collector_kind", instance.CollectorKind,
+				"collector_instance_id", instance.InstanceID,
+				"scope_id", anchorScope,
+				"reason", "nvd_anchor_rolling_disabled",
+			)
+		}
+	}
 	if !derivation.Enabled() {
 		// A derive-disabled activation can still carry standing static
 		// targets the planner mints beside the derived scopes (#9880):

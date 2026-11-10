@@ -4,6 +4,9 @@
 package coordinator
 
 import (
+	"bytes"
+	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
@@ -59,5 +62,39 @@ func TestServiceRunPlansStandingCVEListScopeForDeriveDisabledActivation(t *testi
 	}
 	if got := len(reader.requests); got != 0 {
 		t.Fatalf("owned target reads = %d, want 0 for a disabled derivation", got)
+	}
+}
+
+// TestServiceRunWarnsDroppedNVDAnchorWhileRollingDisabled pins the
+// operator signal for the silent-drop review finding: an anchor-only
+// activation with rolling windows disabled plans only the host scope, and
+// the dropped anchor is named in a warning instead of reading as a
+// silent success.
+func TestServiceRunWarnsDroppedNVDAnchorWhileRollingDisabled(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.October, 27, 22, 15, 0, 0, time.UTC)
+	instance := testVulnerabilityActivationInstance(now, testVulnerabilityActivationConfiguration(
+		`{"targets":[`+
+			`{"source":"cisa_kev","scope_id":"vuln-intel://cisa/kev"},`+
+			`{"source":"nvd","scope_id":"vuln-intel://nvd/cve","modified_start":"2026-01-01T00:00:00Z","modified_end":"2026-01-08T00:00:00Z"}`+
+			`]}`,
+		string(scope.CollectorVulnerabilityIntelligence),
+		string(scope.CollectorVulnerabilityIntelligence),
+	))
+	store := &fakeStore{instances: []workflow.CollectorInstance{instance}}
+	reader := &fakeOwnedPackageTargetReader{}
+	service := testVulnerabilityActivationService(t, now, instance, store, reader, `{"mode":"broad"}`)
+	var logs bytes.Buffer
+	service.Logger = slog.New(slog.NewJSONHandler(&logs, nil))
+
+	if err := runCancelledReconcile(t, service); err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+	if got, want := len(store.enqueuedItems), 1; got != want {
+		t.Fatalf("enqueued items = %d, want %d (host KEV scope only)", got, want)
+	}
+	if got := logs.String(); !strings.Contains(got, "nvd_anchor_rolling_disabled") || !strings.Contains(got, "vuln-intel://nvd/cve") {
+		t.Fatalf("logs = %q, want the dropped-anchor warning naming the scope", got)
 	}
 }
