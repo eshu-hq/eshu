@@ -20,7 +20,9 @@ import (
 // bound where local runs read +11.
 func ajPinPlannerState(t *testing.T, reader *sql.DB) {
 	t.Helper()
-	for _, table := range []string{"ingestion_scopes", "scope_generations", "fact_work_items", "changed_since_activations"} {
+	// Iterate the fixture table set itself so the pin cannot drift from
+	// the tables Ack actually writes (activation obligation rows included).
+	for _, table := range ajFixtureTables {
 		ajExec(t, reader, fmt.Sprintf(`ALTER TABLE %s SET (autovacuum_enabled = false)`, table))
 	}
 	ajExec(t, reader, `VACUUM ANALYZE`)
@@ -70,4 +72,45 @@ func ajPairedMedianDelta(off, on []ajCostSample, field func(ajCostSample) float6
 		return deltas[mid], true
 	}
 	return (deltas[mid-1] + deltas[mid]) / 2, true
+}
+
+// TestAJCostViolationsMedianPairing pins the block bound's aggregation
+// without a live database: the median paired delta tolerates one
+// contaminated round, a uniform regression still trips, and the n=1
+// seeded-RED shape keeps the old single-delta strength.
+func TestAJCostViolationsMedianPairing(t *testing.T) {
+	t.Parallel()
+	sample := func(blocks float64) ajCostSample {
+		return ajCostSample{client: ajCostStatementsOnAck, backendBlocks: blocks}
+	}
+	pairs := func(deltas ...float64) (off, on []ajCostSample) {
+		for _, d := range deltas {
+			off = append(off, sample(100))
+			on = append(on, sample(100+d))
+		}
+		return off, on
+	}
+	for name, tc := range map[string]struct {
+		deltas []float64
+		trips  bool
+	}{
+		"uniform regression trips":  {[]float64{50, 50, 50, 50}, true},
+		"planted single pair trips": {[]float64{284}, true},
+		"order oscillation passes":  {[]float64{46, -20, 42, -19}, false},
+		"one spiked round passes":   {[]float64{11, 11, 11, 200}, false},
+		"at the bound passes":       {[]float64{40, 40, 40, 40}, false},
+		"just over the bound trips": {[]float64{41, 41, 41, 41}, true},
+	} {
+		off, on := pairs(tc.deltas...)
+		got := ajCostViolations(off, on, false)
+		if trips := len(got) > 0; trips != tc.trips {
+			t.Errorf("%s: violations=%v, want trips=%v", name, got, tc.trips)
+		}
+	}
+	// Length mismatch falls back to the mean difference, never a silent pass.
+	off := []ajCostSample{sample(100)}
+	on := []ajCostSample{sample(150), sample(150)}
+	if got := ajCostViolations(off, on, false); len(got) == 0 {
+		t.Errorf("mismatched lengths: violations empty, want mean fallback to trip")
+	}
 }

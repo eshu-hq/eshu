@@ -20,7 +20,7 @@ recent shipped work grouped by feature area.
   attempt read +45 blocks against the 40 bound where local runs read +11
   with identical WAL and statement counts; per-round deltas oscillate
   with batch order, which the old mean-of-means aggregation let poison
-  the verdict. Bounds and the seeded-RED check are unchanged in strength.
+  the verdict. Bound values and the seeded-RED check are unchanged; block aggregation is deliberately more tolerant of a single drifted round.
 
 ### A VEX statement naming one alias now suppresses the whole advisory group
 
