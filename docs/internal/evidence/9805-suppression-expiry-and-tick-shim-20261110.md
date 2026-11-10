@@ -2,9 +2,10 @@
 
 Refs #9805. Two arbiter-ordered items: the unconditional time-driven
 suppression-expiry test (criterion 4), and the prove-theory-first shim for
-the slow `build_active_facts` ticks on QA (criterion 5). No production code
-changed: the expiry theory was disproven by test, and the shim verdict gates
-the tick fix design.
+the slow `build_active_facts` ticks on QA (criterion 5). The first two items
+changed no production code: the expiry theory was disproven by test, and the
+shim verdict gates the tick fix design. The census addendum below found one
+reader that did need a production fix, landed in this same stack.
 
 ## Suppression expiry: no resweep fix needed (theory disproven)
 
@@ -86,9 +87,12 @@ NOT_CHECKED: per-tick Prometheus correlation of phase seconds vs keys
 host CPU throttling; QA re-measurement over a >=3h window (needs the
 chunking fix on a rolled build first).
 
-Performance Evidence: this change adds one live subtest and this note;
-no runtime SQL, index, batch, or concurrency change. The QA numbers
-above are the before-measurement for the chunking fix.
+Performance Evidence: the first two items add one live subtest and this
+note; no runtime SQL, index, batch, or concurrency change. The QA numbers
+above are the before-measurement for the chunking fix. The census
+addendum's reader-#10 fix changes one read predicate to the effective-state
+form its siblings already run; same index, same row set for non-expired
+rows, no new scan shape.
 
 No-Observability-Change: no new metric, span, log, or knob. The tick
 phase histogram (`build_active_facts`) remains the operator signal.
@@ -134,9 +138,9 @@ failing-test sketch below is the blocker evidence.
 | 10 | `go/internal/storage/postgres/supply_chain_impact_canonical_winners_store.go:listActiveFindingCVEIDsQuery` (`WHERE suppression_state = 'active'`) | stored `suppression_state` only | NONE | BREAKS (stored-state reliance) |
 
 Reader #10's chain, all read: `FactStore.ListActiveFindingCVEIDs`
-(store file `:432`) implements `FindingCVEIDReader`
+(store file `:435`) implements `FindingCVEIDReader`
 (`go/internal/coordinator/installed_advisory_target_readers.go:33-35`),
-called at `go/internal/coordinator/vulnerability_intelligence_service.go:338`,
+called at `go/internal/coordinator/vulnerability_intelligence_service.go:350`,
 feeding `deriveEPSSFindingTargets`
 (`go/internal/coordinator/vulnerability/epss_finding_derivation.go:73-77`),
 which normalizes, dedupes, and chunks CVE ids with no suppression re-check.
@@ -168,7 +172,7 @@ expiry at read time, e.g. an effective-state predicate like #1-#3, or the
 derivation input moves to an expiry-aware read) is coordinator scope and is
 NOT in this change.
 
-Counts: 6 SAFE (read-time), 3 NEUTRAL (no expiry consumption), 1 BREAKS.
+Counts: 6 SAFE (5 read-time, 1 downstream of them), 3 NEUTRAL (no expiry consumption), 1 BREAKS.
 
 ## Census addendum: reader #10 fixed, claim final (2026-11-10)
 
