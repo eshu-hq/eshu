@@ -112,12 +112,65 @@ WHERE generation.generation_id = $2`
 	}
 }
 
+// seedRetention10512FillerGenerations adds 200 generations outside the
+// batch (4 scopes x 50), each with facts, one manifest and one registry
+// key per fact, and intents. Without them the 12 batch generations are
+// half the fixture's generations and a quarter of its intents, so the
+// planner legitimately prefers a hash join over a sequential scan even
+// though the production statements probe an index: the measured
+// production batch is 100 generations over a far larger generation
+// population (docs/internal/evidence/10512-retention-row-counts.md).
+// With the filler the batch is 12 of 224 generations and each guarded
+// table holds roughly 50k rows, so the generation indexes win on cost
+// under cold, analyzed and forced-generic plans alike, with no planner
+// settings forced.
+func seedRetention10512FillerGenerations(t *testing.T, ctx context.Context, database *sql.DB) {
+	t.Helper()
+	const (
+		fillerScopes      = 4
+		fillerGenerations = 50
+		fillerFacts       = 250
+	)
+	statements := []string{
+		`INSERT INTO ingestion_scopes (scope_id, scope_kind, source_system, source_key, collector_kind, partition_key, observed_at, ingested_at, status)
+SELECT 'plan-fill-scope-' || s, 'repository', 'git', 'plan-fill-' || s, 'git', 'plan-fill-' || s, now(), now(), 'active'
+FROM generate_series(1, $1::int) AS s`,
+		`INSERT INTO scope_generations (generation_id, scope_id, trigger_kind, observed_at, ingested_at, status, superseded_at)
+SELECT 'plan-fill-scope-' || s || '-gen-' || g, 'plan-fill-scope-' || s, 'snapshot', now(), now(), 'superseded', now()
+FROM generate_series(1, $1::int) AS s CROSS JOIN generate_series(1, $2::int) AS g`,
+		`INSERT INTO fact_records (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, source_system, source_fact_key, observed_at, ingested_at, payload)
+SELECT md5(generation.generation_id || '-fill-' || n), generation.scope_id, generation.generation_id, 'content_entity',
+    'k-' || n, 'git', 'k-' || n, now(), now(), '{}'::jsonb
+FROM scope_generations AS generation CROSS JOIN generate_series(1, $1::int) AS n
+WHERE generation.scope_id LIKE 'plan-fill-scope-%'`,
+		`INSERT INTO package_manifest_consumption_keys (fact_id, scope_id, generation_id, repository_id, ecosystem, package_name)
+SELECT fact_id, scope_id, generation_id, 'repo-plan-fill', 'npm', 'pkg-' || (hashtext(fact_id) & 255)
+FROM fact_records WHERE scope_id LIKE 'plan-fill-scope-%'`,
+		`INSERT INTO package_registry_identity_keys (fact_id, scope_id, generation_id, ecosystem, package_name, package_id)
+SELECT fact_id, scope_id, generation_id, 'npm', 'pkg-' || (hashtext(fact_id) & 255), 'pid-' || fact_id
+FROM fact_records WHERE scope_id LIKE 'plan-fill-scope-%'`,
+		`INSERT INTO shared_projection_intents (intent_id, projection_domain, partition_key, scope_id,
+    acceptance_unit_id, repository_id, source_run_id, generation_id, payload, created_at, completed_at)
+SELECT generation.generation_id || '-fill-intent-' || n, 'domain', 'p', generation.scope_id,
+    'unit', 'repo', 'run', generation.generation_id, '{}'::jsonb, now(),
+    CASE WHEN n % 2 = 0 THEN now() END
+FROM scope_generations AS generation CROSS JOIN generate_series(1, $1::int) AS n
+WHERE generation.scope_id LIKE 'plan-fill-scope-%'`,
+	}
+	args := [][]any{{fillerScopes}, {fillerScopes, fillerGenerations}, {fillerFacts}, nil, nil, {fillerFacts}}
+	for i, statement := range statements {
+		if _, err := database.ExecContext(ctx, statement, args[i]...); err != nil {
+			t.Fatalf("seed filler generations step %d: %v", i, err)
+		}
+	}
+}
+
 // TestGenerationRetentionRowCountPlansStayOnGenerationIndexesLive fails when
 // the full row-count query or the intents DELETE reads a guarded table by a
 // path whose cost grows with the table, under custom and forced-generic
 // plans. Seeded drop-index REDs prove the guard sees a lost probe, and the
 // executed intents DELETE must touch buffers that track the batch while
-// three times its rows sit outside the batch.
+// the filler generations hold far more rows outside the batch.
 func TestGenerationRetentionRowCountPlansStayOnGenerationIndexesLive(t *testing.T) {
 	bridgeRetentionFamilyDSN(t)
 	database, ctx := openGenerationRetentionMigratedSchema(t)
@@ -127,6 +180,7 @@ func TestGenerationRetentionRowCountPlansStayOnGenerationIndexesLive(t *testing.
 		}
 	}
 	seedFactKeyPlanCorpus(t, ctx, database)
+	seedRetention10512FillerGenerations(t, ctx, database)
 	var candidates []string
 	for s := 1; s <= factKeyPlanScopes; s++ {
 		for g := 1; g <= 2; g++ {
@@ -135,6 +189,18 @@ func TestGenerationRetentionRowCountPlansStayOnGenerationIndexesLive(t *testing.
 	}
 	const batchPerGen = 25
 	seedRetention10512Intents(t, ctx, database, candidates, batchPerGen, 3*batchPerGen)
+	// Plain VACUUM, never ANALYZE, before the cold checks: the cold
+	// condition under test is missing column statistics, but a table old
+	// enough to hold superseded generations has been vacuumed, so its
+	// visibility map is set. Without it the planner charges the intents
+	// arm's index-only probe a heap fetch per estimated row at the
+	// default 0.5% selectivity and a hash join over a sequential scan
+	// legitimately wins at any fixture scale, cold-stats or not.
+	for _, table := range []string{"shared_projection_intents", "package_manifest_consumption_keys", "package_registry_identity_keys"} {
+		if _, err := database.ExecContext(ctx, "VACUUM "+table); err != nil {
+			t.Fatalf("vacuum %s: %v", table, err)
+		}
+	}
 
 	rowCountsRequired := []string{
 		"shared_projection_intents_generation_idx",
