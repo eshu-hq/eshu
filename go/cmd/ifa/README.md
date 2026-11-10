@@ -115,6 +115,17 @@ session.
   id. Only the fixture's own positive anchor is seeded; negative and
   ambiguous anchors get no nodes. This is explicit gate setup, not a reducer or
   deployment command.
+- `ifa enqueue-advisory-groups -group ID [-group ID...] -scope SCOPE
+  -generation GENERATION -source-system SYSTEM` - performs the mid-drive
+  step of the advisory_group live cells (#10466). A cassette drive admits
+  a committed impact pass's output facts directly, so no pass runs to
+  rebuild the winners read model or enqueue the projection. This verb
+  runs the production winners rebuild over the admitted finding facts,
+  enqueues one advisory_group_projection intent per group through the
+  production enqueuer over the real reducer queue, then rebuilds again
+  so the watermark covers the enqueue. Group ids are explicit flags,
+  mirroring the enqueuer's own contract. This is explicit gate setup,
+  not a reducer or deployment command.
 
 #### Platform prerequisite performance and observability (#5999)
 
