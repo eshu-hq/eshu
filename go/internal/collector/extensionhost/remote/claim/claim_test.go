@@ -193,6 +193,43 @@ func TestClaimNextHonorsAPacedDeferral(t *testing.T) {
 	}
 }
 
+// TestClaimNextWidensAnUnknownPacingSignal is the remote-path half of
+// the #10377 doctrine: a non-blank unknown signal widens to the
+// protective global default with the backoff preserved, instead of
+// failing the claim as invalid on upgrade skew.
+func TestClaimNextWidensAnUnknownPacingSignal(t *testing.T) {
+	t.Parallel()
+	fake := newFakeWorkflow(t)
+	raw, _ := json.Marshal(workflowv1.ClaimNextResponse{
+		Issued: false,
+		Deferral: workflowv1.ClaimPacingDeferral{
+			Signal:     "FUTURE_99_XYZ",
+			Domain:     "test-source/test-instance",
+			RetryAfter: 2 * time.Second,
+		},
+	})
+	fake.okJSON(workflowv1.OpClaimNext, string(raw))
+
+	client, err := NewClient(testConfig(fake.server.URL))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, found, err := client.ClaimNext(context.Background(), validSelector(), time.Now().UTC(), time.Minute)
+	if found {
+		t.Fatal("found = true on a paced grant, want no claim issued")
+	}
+	var paced *PacedError
+	if !errors.As(err, &paced) {
+		t.Fatalf("err = %v (%T), want *PacedError, not an invalid failure", err, err)
+	}
+	if paced.Deferral.Signal != workflowv1.ClaimPacingSignalGlobal || paced.Deferral.Domain != "" {
+		t.Fatalf("deferral = %+v, want signal=global domain cleared", paced.Deferral)
+	}
+	if paced.RetryAfterDelay() != 2*time.Second {
+		t.Fatalf("retry-after = %s, want 2s", paced.RetryAfterDelay())
+	}
+}
+
 func TestClaimNextMapsNotFoundToNoWork(t *testing.T) {
 	t.Parallel()
 	fake := newFakeWorkflow(t)

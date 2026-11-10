@@ -26,7 +26,11 @@ import (
 // Unknown fields stay lenient, but an unknown value for a CLOSED enum is a
 // newer major speaking: the client must fail closed as invalid, never as a
 // fence rejection and never as silent success (version-matrix same-major
-// rule). Open enums such as CollectorKind stay open on decode.
+// rule). Open enums such as CollectorKind stay open on decode. The pacing
+// signal is the one advisory exception (#10377, arbiter ruling): a tolerant
+// reader widens it to the protective global default with a conservative
+// directive and a bounded count, because a hard error there would starve
+// claims on upgrade skew.
 
 func compatGrantMux(t *testing.T, body map[string]any) *httptest.Server {
 	t.Helper()
@@ -307,4 +311,97 @@ func TestClaimPlaneClientNewestServerOpenKindStaysOpen(t *testing.T) {
 	if len(report.Progress) != 1 || string(report.Progress[0].CollectorKind) != "future-kind-xyz" {
 		t.Fatalf("progress = %+v, want the future kind carried through", report.Progress)
 	}
+}
+
+// TestClaimPlaneClientNewestServerUnknownPacingSignal is the advisory
+// exception to the fail-closed enum rule (#10377, arbiter ruling): an
+// unknown pacing signal still validates as invalid at the boundary, but
+// the client remaps it to the protective global default with the
+// directive preserved and counted, instead of erroring and starving
+// claims on upgrade skew.
+func TestClaimPlaneClientNewestServerUnknownPacingSignal(t *testing.T) {
+	newRecorder := func() (*[]ClaimPlaneOutcome, ClaimPlaneObserver) {
+		var outcomes []ClaimPlaneOutcome
+		return &outcomes, func(_ context.Context, _ string, outcome ClaimPlaneOutcome, _ time.Duration) {
+			outcomes = append(outcomes, outcome)
+		}
+	}
+	requireUnknownOutcome := func(t *testing.T, what string, outcomes *[]ClaimPlaneOutcome) {
+		t.Helper()
+		if len(*outcomes) != 1 || (*outcomes)[0] != ClaimPlaneOutcomePacingSignalUnknown {
+			t.Fatalf("%s outcomes = %v, want exactly one pacing_signal_unknown", what, *outcomes)
+		}
+	}
+
+	t.Run("claim_next_remaps", func(t *testing.T) {
+		server := compatGrantMux(t, map[string]any{
+			"issued": false,
+			"deferral": map[string]any{
+				"signal": "FUTURE_99_XYZ", "domain": "x/y",
+				"retry_after_ns": int64(5 * time.Second), "stuck": true,
+			},
+		})
+		defer server.Close()
+		client := NewClaimPlaneClient(server.URL, server.Client())
+		outcomes, observe := newRecorder()
+		client.Observe = observe
+
+		_, _, issued, err := client.ClaimNextEligible(context.Background(), testSelector(), time.Now().UTC(), time.Minute)
+		if issued {
+			t.Fatalf("unknown signal issued a grant")
+		}
+		var deferral *ClaimPacingDeferral
+		if !errors.As(err, &deferral) {
+			t.Fatalf("unknown signal err = %v (%T), want *ClaimPacingDeferral", err, err)
+		}
+		if errors.Is(err, ErrClaimRejected) {
+			t.Fatalf("unknown signal = %v, must not read as a fence rejection", err)
+		}
+		if deferral.Signal != ClaimPacingSignalGlobal || deferral.Domain != "" {
+			t.Fatalf("unknown signal deferral = %+v, want signal=global domain cleared", deferral)
+		}
+		if deferral.RetryAfterDelay() != 5*time.Second || !deferral.Stuck {
+			t.Fatalf("unknown signal deferral = %+v, want retry_after=5s stuck=true", deferral)
+		}
+		requireUnknownOutcome(t, "claim_next", outcomes)
+	})
+
+	t.Run("check_pacing_paced", func(t *testing.T) {
+		server := compatGrantMux(t, map[string]any{
+			"paced": true, "signal": "FUTURE_99_XYZ",
+			"retry_after_ns": int64(3 * time.Second),
+		})
+		defer server.Close()
+		client := NewClaimPlaneClient(server.URL, server.Client())
+		outcomes, observe := newRecorder()
+		client.Observe = observe
+
+		decision, err := client.CheckClaimPacing(context.Background(), testSelector(), ClaimPacingConfig{}, time.Now().UTC())
+		if err != nil {
+			t.Fatalf("unknown paced signal err = %v, want success with remap", err)
+		}
+		if !decision.Paced || decision.Signal != ClaimPacingSignalGlobal || decision.RetryAfter != 3*time.Second {
+			t.Fatalf("unknown paced decision = %+v, want paced global 3s", decision)
+		}
+		requireUnknownOutcome(t, "check_pacing", outcomes)
+	})
+
+	t.Run("check_pacing_unpaced", func(t *testing.T) {
+		server := compatGrantMux(t, map[string]any{
+			"paced": false, "signal": "FUTURE_99_XYZ",
+		})
+		defer server.Close()
+		client := NewClaimPlaneClient(server.URL, server.Client())
+		outcomes, observe := newRecorder()
+		client.Observe = observe
+
+		decision, err := client.CheckClaimPacing(context.Background(), testSelector(), ClaimPacingConfig{}, time.Now().UTC())
+		if err != nil {
+			t.Fatalf("unknown unpaced signal err = %v, want success", err)
+		}
+		if decision.Paced || decision.Signal != "" {
+			t.Fatalf("unknown unpaced decision = %+v, want unpaced with signal dropped", decision)
+		}
+		requireUnknownOutcome(t, "check_pacing_unpaced", outcomes)
+	})
 }

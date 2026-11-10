@@ -83,6 +83,30 @@ func (c *ClaimPlaneClient) post(
 	return err
 }
 
+// postClassified posts like post, but classify may replace the outcome
+// before the single Observe call. Classification runs only on a decoded
+// success and may inspect and adjust the decoded response; returning ""
+// keeps the round-trip outcome. Exactly one observation is still
+// reported per request.
+func (c *ClaimPlaneClient) postClassified(
+	ctx context.Context,
+	operation, path string,
+	body, out any,
+	classify func() ClaimPlaneOutcome,
+) error {
+	started := time.Now()
+	outcome, err := c.roundTrip(ctx, operation, path, body, out)
+	if err == nil {
+		if adjusted := classify(); adjusted != "" {
+			outcome = adjusted
+		}
+	}
+	if c.Observe != nil {
+		c.Observe(ctx, operation, outcome, time.Since(started))
+	}
+	return err
+}
+
 // roundTrip performs one protocol request and classifies its outcome.
 func (c *ClaimPlaneClient) roundTrip(
 	ctx context.Context,
@@ -240,7 +264,8 @@ func (c *ClaimPlaneClient) ClaimNextEligible(
 			Stuck      bool   `json:"stuck,omitempty"`
 		} `json:"deferral,omitempty"`
 	}
-	err := c.post(ctx, "ClaimNext", "/workflow.v1/ClaimNext", map[string]any{
+	unknownSignal := ""
+	err := c.postClassified(ctx, "ClaimNext", "/workflow.v1/ClaimNext", map[string]any{
 		"selector": map[string]any{
 			"collector_kind":        string(selector.CollectorKind),
 			"collector_instance_id": selector.CollectorInstanceID,
@@ -250,7 +275,19 @@ func (c *ClaimPlaneClient) ClaimNextEligible(
 		},
 		"observed_at":  now.UTC(),
 		"lease_ttl_ns": int64(leaseDuration),
-	}, &response)
+	}, &response, func() ClaimPlaneOutcome {
+		if response.Issued {
+			return ""
+		}
+		signal, remapped, unknown := wirePacingSignal(response.Deferral.Signal)
+		if !remapped {
+			return ""
+		}
+		response.Deferral.Signal = string(signal)
+		response.Deferral.Domain = ""
+		unknownSignal = unknown
+		return ClaimPlaneOutcomePacingSignalUnknown
+	})
 	if err != nil {
 		var planeErr *claimPlaneError
 		if errors.As(err, &planeErr) && planeErr.code == "not_found" {
@@ -270,10 +307,11 @@ func (c *ClaimPlaneClient) ClaimNextEligible(
 		return item, claim, true, nil
 	}
 	return WorkItem{}, Claim{}, false, &ClaimPacingDeferral{
-		Signal:     ClaimPacingSignal(response.Deferral.Signal),
-		Domain:     response.Deferral.Domain,
-		RetryAfter: time.Duration(response.Deferral.RetryAfter),
-		Stuck:      response.Deferral.Stuck,
+		Signal:        ClaimPacingSignal(response.Deferral.Signal),
+		Domain:        response.Deferral.Domain,
+		RetryAfter:    time.Duration(response.Deferral.RetryAfter),
+		Stuck:         response.Deferral.Stuck,
+		unknownSignal: unknownSignal,
 	}
 }
 
@@ -336,11 +374,26 @@ func (c *ClaimPlaneClient) CheckClaimPacing(
 		RetryAfter int64  `json:"retry_after_ns,omitempty"`
 		Stuck      bool   `json:"stuck,omitempty"`
 	}
-	err := c.post(ctx, "CheckClaimPacing", "/workflow.v1/CheckClaimPacing", map[string]any{
+	err := c.postClassified(ctx, "CheckClaimPacing", "/workflow.v1/CheckClaimPacing", map[string]any{
 		"collector_kind":        string(selector.CollectorKind),
 		"collector_instance_id": selector.CollectorInstanceID,
 		"observed_at":           now.UTC(),
-	}, &decision)
+	}, &decision, func() ClaimPlaneOutcome {
+		signal, remapped, _ := wirePacingSignal(decision.Signal)
+		if !remapped {
+			return ""
+		}
+		if !decision.Paced {
+			// A signal without a directive carries no pacing: drop it
+			// so no reader ever sees signal-without-paced, but still
+			// count the remap.
+			decision.Signal = ""
+			return ClaimPlaneOutcomePacingSignalUnknown
+		}
+		decision.Signal = string(signal)
+		decision.Domain = ""
+		return ClaimPlaneOutcomePacingSignalUnknown
+	})
 	if err != nil {
 		return ClaimPacingDecision{}, err
 	}
