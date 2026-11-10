@@ -316,6 +316,14 @@ func (s Service) scheduleVulnerabilityActivationDerivedScopes(
 	if err != nil {
 		return fmt.Errorf("load vulnerability intelligence NVD window cursor for %q: %w", instance.InstanceID, err)
 	}
+	// The rolling GHSA window derivation reads the stored per-type cursors
+	// through the same probe as the in-tree path (eshu-hq/eshu#10517). A
+	// disabled derivation reads nothing; an enabled one without a reader
+	// fails loudly instead of silently planning every window from zero.
+	ghsaCursors, err := s.vulnerabilityGHSAWindowCursors(ctx, derivation.DeriveGHSAWindows, instance.InstanceID)
+	if err != nil {
+		return fmt.Errorf("load vulnerability intelligence GHSA window cursors for %q: %w", instance.InstanceID, err)
+	}
 	// Findings-derived EPSS reads the active finding CVE ids and the
 	// findings publication progress only when the section is enabled: a
 	// disabled derivation reads nothing and plans no first_epss targets.
@@ -342,6 +350,7 @@ func (s Service) scheduleVulnerabilityActivationDerivedScopes(
 		ComponentConfig:          string(config.ComponentConfig),
 		NVDWindowCursorUnixMicro: nvdCursor,
 		NVDWindowCursorSet:       nvdCursorSet,
+		GHSAWindowCursors:        ghsaCursors,
 		OwnedPackageTargets:      ownedPage.Targets,
 		OwnedPackageWindow:       ownedPage.Window,
 		OSPackageTargets:         osTargets,
