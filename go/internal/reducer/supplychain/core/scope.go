@@ -265,15 +265,15 @@ func findingMatchableID(scoped string, finding SupplyChainImpactFinding) (matche
 	if scoped == "" {
 		return "", false, false
 	}
-	if strings.EqualFold(scoped, strings.TrimSpace(finding.CVEID)) && strings.TrimSpace(finding.CVEID) != "" {
-		return finding.CVEID, false, true
+	if id := strings.TrimSpace(finding.CVEID); id != "" && strings.EqualFold(scoped, id) {
+		return id, false, true
 	}
-	if strings.EqualFold(scoped, strings.TrimSpace(finding.AdvisoryID)) && strings.TrimSpace(finding.AdvisoryID) != "" {
-		return finding.AdvisoryID, false, true
+	if id := strings.TrimSpace(finding.AdvisoryID); id != "" && strings.EqualFold(scoped, id) {
+		return id, false, true
 	}
 	for _, member := range finding.AdvisoryGroupMembers {
-		if strings.EqualFold(scoped, strings.TrimSpace(member)) {
-			return member, true, true
+		if id := strings.TrimSpace(member); id != "" && strings.EqualFold(scoped, id) {
+			return id, true, true
 		}
 	}
 	return "", false, false
@@ -330,11 +330,12 @@ func evidencePathContainsAll(observed []string, required []string) bool {
 // EvaluateSupplyChainSuppression still rechecks adjacency and scope on every
 // candidate — so it must yield a SUPERSET of the suppressions
 // suppressionAdjacent would accept. Suppressions whose anchors cannot be
-// keyed exactly (no discoverable anchor, or a non-ASCII anchor value where
-// EqualFold admits folds a map key cannot reproduce, e.g. the Kelvin sign)
-// ride the always list and are candidates for every finding, exactly as the
-// full scan treated them. A finding with a non-ASCII anchor or member id
-// likewise falls back to the full set.
+// keyed exactly (no discoverable anchor, a whitespace-only anchor, or a
+// non-ASCII anchor value where EqualFold admits folds a map key cannot
+// reproduce, e.g. the Kelvin sign) ride the always list and are candidates
+// for every finding, exactly as the full scan treated them. A finding with
+// a whitespace-only or non-ASCII anchor or member id likewise falls back
+// to the full set.
 type suppressionIndex struct {
 	all        []vulnerabilitySuppression
 	byIdentity map[string][]int
@@ -382,7 +383,10 @@ func newSuppressionIndex(suppressions []vulnerabilitySuppression) suppressionInd
 		anchors := []string{scope.CVEID, scope.AdvisoryID, scope.PackageID, scope.PURL, scope.RepositoryID, scope.SubjectDigest}
 		foldable := suppressionScopeHasDiscoverableAnchor(scope)
 		for _, anchor := range anchors {
-			if strings.TrimSpace(anchor) != "" && !suppressionASCIIFoldable(anchor) {
+			// A whitespace-only anchor adjacent-matches an equally padded
+			// finding anchor in the full scan (untrimmed comparisons) but
+			// keys to nothing here, so it rides the always list too.
+			if anchor != "" && (strings.TrimSpace(anchor) == "" || !suppressionASCIIFoldable(anchor)) {
 				foldable = false
 			}
 		}
@@ -411,7 +415,7 @@ func (index suppressionIndex) candidates(finding SupplyChainImpactFinding) []vul
 	identityIDs = append(identityIDs, finding.AdvisoryGroupMembers...)
 	probe := append(append([]string{}, identityIDs...), finding.PackageID, finding.PURL, finding.RepositoryID, finding.SubjectDigest)
 	for _, value := range probe {
-		if strings.TrimSpace(value) != "" && !suppressionASCIIFoldable(value) {
+		if value != "" && (strings.TrimSpace(value) == "" || !suppressionASCIIFoldable(value)) {
 			return index.all
 		}
 	}

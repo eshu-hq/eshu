@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite"
@@ -91,6 +92,9 @@ func (r *fakeImpactRows) Next() bool   { r.at++; return r.at <= len(r.rows) }
 func (r *fakeImpactRows) Err() error   { return nil }
 func (r *fakeImpactRows) Close() error { return nil }
 func (r *fakeImpactRows) Scan(dest ...any) error {
+	if len(dest) != len(r.rows[r.at-1]) {
+		return fmt.Errorf("fakeImpactRows: scan %d destinations for %d values", len(dest), len(r.rows[r.at-1]))
+	}
 	for i, value := range r.rows[r.at-1] {
 		switch d := dest[i].(type) {
 		case *string:
@@ -206,11 +210,12 @@ func (t fakeImpactTx) Commit() error   { t.state.commits++; return nil }
 func (t fakeImpactTx) Rollback() error { t.state.rollbacks++; return nil }
 
 // suppressionDiffFakeRows renders diff rows as the pair and whole-generation
-// reads return them: suppression id, current CVE id, prior CVE id.
+// reads return them: suppression id, current CVE id, prior CVE id, current
+// advisory id, prior advisory id.
 func suppressionDiffFakeRows(rows []suppressionDiffRow) [][]any {
 	out := make([][]any, 0, len(rows))
 	for _, row := range rows {
-		out = append(out, []any{row.SuppressionID, row.CurrentCVEID, row.PriorCVEID})
+		out = append(out, []any{row.SuppressionID, row.CurrentCVEID, row.PriorCVEID, row.CurrentAdvisoryID, row.PriorAdvisoryID})
 	}
 	return out
 }

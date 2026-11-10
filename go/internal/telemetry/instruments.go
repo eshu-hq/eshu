@@ -1246,9 +1246,11 @@ type Instruments struct {
 	// the carrying pass. The same pass also reports the tally on the
 	// suppression_carried_via_member result sub-signal.
 	SupplyChainImpactSuppressionCarriedViaMember metric.Int64Counter
-	// SupplyChainImpactSuppressionIdentityMatched counts suppression
-	// decisions whose winning suppression named the finding through an
-	// identity field (#10409 D1). Labels: domain (supply_chain_impact),
+	// SupplyChainImpactSuppressionIdentityMatched counts scope-matched
+	// suppression decisions by the identity field and route through which
+	// the winning suppression named the finding (#10409 D1). Scope-mismatch
+	// decisions are excluded: their identity named the finding but the
+	// scope as a whole did not match. Labels: domain (supply_chain_impact),
 	// matched_field (cve_id or advisory_id), and matched_via (direct for
 	// the finding's own ids, group_member for an alias-group member). The
 	// group_member rate is the operator's alias-match volume signal.
@@ -1292,7 +1294,8 @@ type Instruments struct {
 	// holders' cadence.
 	SupplyChainSuppressionWalkTruncatedTotal metric.Int64Counter
 	// SupplyChainSuppressionNoIdentityScopeTotal adds the distinct changed
-	// suppressions that name no CVE on either side of the diff. Label: domain
+	// suppressions that name neither a CVE nor an advisory id on either side
+	// of the diff (#10409). Label: domain
 	// only. The holder fan-out cannot reach those suppressions by id, so the
 	// count is what waits on each holder's own next pass.
 	SupplyChainSuppressionNoIdentityScopeTotal metric.Int64Counter
@@ -5227,7 +5230,7 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 
 	inst.SupplyChainSuppressionNoIdentityScopeTotal, err = meter.Int64Counter(
 		"eshu_dp_supply_chain_impact_suppression_no_identity_scope_total",
-		metric.WithDescription("Total distinct changed suppressions naming no CVE on either side of the supply-chain impact suppression diff, by reducer domain (#10019)"),
+		metric.WithDescription("Total distinct changed suppressions naming neither a CVE nor an advisory id on either side of the supply-chain impact suppression diff, by reducer domain (#10019, #10409)"),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register SupplyChainSuppressionNoIdentityScopeTotal counter: %w", err)

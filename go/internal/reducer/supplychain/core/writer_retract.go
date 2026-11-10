@@ -186,9 +186,10 @@ func commitSupplyChainImpactRows(
 	// The touched-group set (#10411) is computed from the same meta and
 	// stored rows with the same change judgement, keyed coalesced so
 	// CVE-less rows name their advisory group. Suppression ids join it the
-	// way they join changedCVEs: a changed suppression names CVEs, and a
-	// group keyed by CVE is exactly that id. A suppression that scopes no
-	// CVE names no group here either — the same blind spot
+	// way they join changedCVEs: a changed suppression names CVE and
+	// advisory ids (#10409), and a group keyed by either id is named by
+	// exactly that id. A suppression that scopes neither id names no group
+	// here either — the same blind spot
 	// countSuppressionsWithoutIdentityScope reports for the holder fan-out.
 	touchedGroups := touchedGroupIDs(meta, stored, write.GenerationID, write.FencingToken, !write.PartialEvidence)
 	if len(supp.cveIDs) > 0 {

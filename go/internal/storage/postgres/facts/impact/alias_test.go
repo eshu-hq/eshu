@@ -25,7 +25,7 @@ func suppressionPlaceholder(branch Branch, param Param) string {
 // regression: a suppression naming a dead (merged-away) id must load during
 // the re-key pass. Alias members discovered in-pass (AliasIDs) have to pull a
 // dead-id suppression the same way the CVE/advisory arms pull live-id ones,
-// or the evaluator change behind scopeGroupMemberMatches never sees it and
+// or the evaluator change behind findingMatchableID never sees it and
 // the merged finding stays visible. The statement must run when the alias
 // list is the only input.
 func TestSuppressionStatementReadsTheAliasMembers(t *testing.T) {

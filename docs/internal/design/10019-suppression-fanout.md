@@ -355,10 +355,12 @@ wiring lets the diff's ids through regardless of the stamp, proved by the one-ho
 
 ## Known limits
 
-1. **A scope with no `cve_id`.** A suppression scoped only by package, PURL, repository,
-   or subject digest has no id to fan out by, and an advisory-only scope reaches its
-   record on the operator pass per the #9914 note. Those wait for the holder's own pass.
-   `countSuppressionsWithoutIdentityScope` feeds the no-CVE counter in [Telemetry](#telemetry) so this is visible.
+1. **A scope with no identity id.** A suppression scoped only by package, PURL,
+   repository, or subject digest has no id to fan out by and waits for the holder's
+   own pass. (An advisory-only scope fanned out by nobody when this design landed;
+   #10409 D4 put advisory ids on the diff rows, so it now reaches its holders.)
+   `countSuppressionsWithoutIdentityScope` feeds the no-identity counter in
+   [Telemetry](#telemetry) so this is visible.
 2. **Changes that cancel out inside the unwalked span.** The walk closes them up to the
    cap. Past it, a change that cancels out inside the endpoint diff stays on the holders'
    own cadence. The residual is wider than net-zero: CVE-1 to CVE-2 to CVE-3 inside the
@@ -417,7 +419,7 @@ sub-signals below, plus the coverage row.
 | `eshu_dp_supply_chain_impact_suppression_diff_duration_seconds` | Histogram | Is the walk getting slow |
 | `walk_truncated`, `statements` on the result, span and log line | Count of unwalked generations; statements run | Did a long chain exceed the cap, and how much is only endpoint-diffed |
 | `eshu_dp_supply_chain_impact_suppression_walk_truncated_total` | Counter, adds `walk_truncated` once per pass that is above zero; label `baseline` | Alertable truncation: how often the cap leaves a span endpoint-only |
-| `eshu_dp_supply_chain_impact_suppression_no_identity_scope_total` | Counter, adds the distinct no-CVE count per pass; no labels | How many changed suppressions the fan-out cannot reach (limit 1) |
+| `eshu_dp_supply_chain_impact_suppression_no_identity_scope_total` | Counter, adds the distinct no-identity count (neither CVE nor advisory id, #10409) per pass; no labels | How many changed suppressions the fan-out cannot reach (limit 1) |
 | Existing `eshu_dp_supply_chain_impact_fanout_total`, `cause=suppression` | Counter | Did holders actually reopen |
 | `supply_chain_impact.suppression_diff` span | `diff_rows`, `changed_cve_ids`, `no_identity_scope_rows`, baseline kind, duration | One pass end to end, under the pass's trace |
 | Sub-signals on the result | `suppression_diff_rows`, `_cve_ids`, `_no_identity_scope` | Queue-side view beside `fanout_*` |

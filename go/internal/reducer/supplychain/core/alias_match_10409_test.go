@@ -163,8 +163,9 @@ func TestSuppressionIndexMatchesFullScan(t *testing.T) {
 	t.Parallel()
 	rng := rand.New(rand.NewPCG(10409, 42))
 	ids := []string{"CVE-2026-1", "CVE-2026-2", "GHSA-a", "GHSA-b", "DSA-1", "cve-2026-1", " GHSA-a ", "CVE-2026-9", "pkg:npm/Kelvin"}
-	pkgs := []string{"pkg:npm/one", "pkg:npm/two", "PKG:NPM/ONE", ""}
-	repos := []string{"repo://acme/api", "repo://acme/web", ""}
+	pkgs := []string{"pkg:npm/one", "pkg:npm/two", "PKG:NPM/ONE", " "}
+	purls := []string{"pkg:npm/one", "pkg:maven/x", " ", ""}
+	repos := []string{"repo://acme/api", "repo://acme/web", " "}
 	pick := func(xs []string) string { return xs[rng.IntN(len(xs))] }
 
 	findings := make([]SupplyChainImpactFinding, 0, 60)
@@ -173,6 +174,7 @@ func TestSuppressionIndexMatchesFullScan(t *testing.T) {
 			CVEID:         pick(ids[:6]),
 			AdvisoryID:    pick(ids[:6]),
 			PackageID:     pick(pkgs),
+			PURL:          pick(purls),
 			RepositoryID:  pick(repos),
 			SubjectDigest: fmt.Sprintf("sha256:d%d", rng.IntN(4)),
 		}
@@ -195,12 +197,14 @@ func TestSuppressionIndexMatchesFullScan(t *testing.T) {
 				CVEID:         pick(append(ids, "")),
 				AdvisoryID:    pick(append(ids, "", "")),
 				PackageID:     pick(pkgs),
+				PURL:          pick(purls),
 				RepositoryID:  pick(repos),
 				SubjectDigest: pick([]string{"", "sha256:d1", "SHA256:D2"}),
 			},
 		}
 		if rng.IntN(4) == 0 {
 			s.ExpiresAt = aliasMatchAuthored
+			s.ExpiresAtPresent = true
 		}
 		suppressions = append(suppressions, s)
 	}
@@ -276,5 +280,30 @@ func TestAliasMatchNonMemberIDNeverMatches(t *testing.T) {
 	s := aliasMatchSuppression(vulnerabilitySuppressionScope{CVEID: "GHSA-unloaded-alias"})
 	if got := EvaluateSupplyChainSuppression(fallback, []vulnerabilitySuppression{s}, aliasMatchNow).State; got != SupplyChainSuppressionStateActive {
 		t.Fatalf("fallback finding: State = %q, want active (exact-only matching, no partial component)", got)
+	}
+}
+
+// TestSuppressionMatchedCountsExcludeScopeMismatch pins the counter
+// semantics: only scope-matched decisions count. A scope_mismatch winner
+// keeps matched provenance on the persisted decision for audit but must not
+// inflate the alias-match volume signal.
+func TestSuppressionMatchedCountsExcludeScopeMismatch(t *testing.T) {
+	t.Parallel()
+	mk := func(state SupplyChainSuppressionState, field, via string) SupplyChainImpactFinding {
+		return SupplyChainImpactFinding{Suppression: SupplyChainSuppressionDecision{State: state, MatchedID: "GHSA-y", MatchedField: field, MatchedVia: via}}
+	}
+	findings := []SupplyChainImpactFinding{
+		mk(SupplyChainSuppressionStateNotAffected, "cve_id", SuppressionMatchedViaGroupMember),
+		mk(SupplyChainSuppressionStateExpired, "cve_id", SuppressionMatchedViaGroupMember),
+		mk(SupplyChainSuppressionStateScopeMismatch, "cve_id", SuppressionMatchedViaGroupMember),
+		mk(SupplyChainSuppressionStateAcceptedRisk, "advisory_id", SuppressionMatchedViaDirect),
+		{Suppression: SupplyChainSuppressionDecision{State: SupplyChainSuppressionStateActive}},
+	}
+	counts := supplyChainSuppressionMatchedCounts(findings)
+	if got := counts[suppressionMatchedKey{field: "cve_id", via: SuppressionMatchedViaGroupMember}]; got != 2 {
+		t.Fatalf("group_member count = %d, want 2 (scope_mismatch excluded)", got)
+	}
+	if got := counts[suppressionMatchedKey{field: "advisory_id", via: SuppressionMatchedViaDirect}]; got != 1 {
+		t.Fatalf("direct count = %d, want 1", got)
 	}
 }

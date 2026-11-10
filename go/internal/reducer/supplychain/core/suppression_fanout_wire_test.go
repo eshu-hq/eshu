@@ -429,3 +429,37 @@ func TestSuppressionDiffRetryAfterCrashFansOutTheRecoverySet(t *testing.T) {
 		t.Fatalf("holder read CVEs = %v, want the recovery CVE", port.findCalls)
 	}
 }
+
+// TestSuppressionDiffAdvisoryOnlyChangeReopensHolders is ruling 2(g)/D4 at
+// the wire: an advisory-id-only suppression change (unreachable before
+// #10409) lands in the changed-id set on both sides and does not count as
+// no-identity-scope.
+func TestSuppressionDiffAdvisoryOnlyChangeReopensHolders(t *testing.T) {
+	t.Parallel()
+
+	beginner, state := wireBeginner()
+	state.candidates = []suppressionGeneration{wireGen("gen-a", 1, true, false), wireGen("gen-b", 2, false, false)}
+	state.diffPairs = map[[2]string][]suppressionDiffRow{
+		{"gen-a", "gen-b"}: {{SuppressionID: "sup-adv", CurrentAdvisoryID: "GHSA-new-1", PriorAdvisoryID: "GHSA-old-1"}},
+	}
+	write := wireWrite()
+	var owed stubOwedRecorder
+	write.Owed = owed.recorder()
+	write.Findings = nil
+
+	result, err := (PostgresSupplyChainImpactWriter{DB: beginner}).WriteSupplyChainImpactFindings(context.Background(), write)
+	if err != nil {
+		t.Fatalf("WriteSupplyChainImpactFindings() error = %v", err)
+	}
+	// The changed-id set carries each id plus its uppercase twin because the
+	// holder read compares exactly.
+	if !reflect.DeepEqual(result.SuppressionCVEIDs, []string{"GHSA-NEW-1", "GHSA-OLD-1", "GHSA-new-1", "GHSA-old-1"}) {
+		t.Fatalf("SuppressionCVEIDs = %v, want both advisory ids (plus upper twins)", result.SuppressionCVEIDs)
+	}
+	if result.suppressionDiff.noIdentityScope != 0 {
+		t.Fatalf("noIdentityScope = %d, want 0 for an advisory-scoped change", result.suppressionDiff.noIdentityScope)
+	}
+	if owed.calls != 1 {
+		t.Fatalf("owed recordings = %d, want 1", owed.calls)
+	}
+}
