@@ -25,10 +25,11 @@ live-verified state below are recorded here.
 - Resolution engine: `ESHU_POSTGRES_READ_ROUTING=staged-audits`,
   1/1 available.
 - Isolated plane: the name-filtered census (`kubectl get
-  deploy,job,cronjob -n eshu -o name | rg -c isolated`) returns 0 in
-  namespace `eshu`. That proves zero isolated-named objects, not zero
-  objects by any name; the removal itself is the file deletion in IaC
-  PR #641 with the application Synced after.
+  deploy,job,cronjob -n eshu -o name | rg isolated`) finds no
+  isolated-named objects in namespace `eshu` (empty match). That
+  proves zero isolated-named objects, not zero objects by any name;
+  the removal itself is the file deletion in IaC PR #641 with the
+  application Synced after.
 
 ## Known non-blocking flag
 
