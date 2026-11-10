@@ -69,11 +69,12 @@
   credential field: the collector reads the GitHub token from its environment
   (#9959). Core admits a ghsa target for configuration parity only, so the core
   and collector pair can be tested. It is off by default and not activatable for
-  production truth until eshu-hq/eshu#10037 lands: do not add a `ghsa` target to a
-  production coordinator configuration. Readiness reads accept a `ghsa` target
-  as well-formed, but the in-tree collector (`vulnruntime`) still refuses a
-  `ghsa` source when its service builds the claimed source, so an instance
-  that carries a `ghsa` target does not start.
+  production truth: do not add a `ghsa` target to a production coordinator
+  configuration. The #10037 rolling wiring has landed in core
+  (`derive_ghsa_rolling_windows`, strictly decoded like the NVD section) and
+  satellite v0.1.10 dispatches `ghsa`, but activation still waits on the S6
+  tokened-run evidence (#10465). Readiness reads accept a `ghsa` target as
+  well-formed.
   `reconcile_public_advisories_v1` refuses
   a `ghsa` target, so passing this validator never produces a registration. Do
   not add a `ghsa` arm to that function (`vulnsource/README.md` has the hold).

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/coordinator/schedule"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/vulnerability"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
@@ -259,6 +260,17 @@ func withReplacedNVDAnchor(recorded []string, admitted workAdmission, anchor, wi
 		}
 	}
 	return append(recorded, strings.TrimSpace(anchor))
+}
+
+// withReplacedGHSAAnchors is withReplacedNVDAnchor for the per-type GHSA
+// anchors (#10037): each anchor whose replacement window survived
+// admission joins the recorded scopes, so the anchor paces on its window's
+// fetch instead of staying due every tick.
+func withReplacedGHSAAnchors(recorded []string, admitted workAdmission, replacements []vulnerability.GHSAWindowReplacement) []string {
+	for _, replacement := range replacements {
+		recorded = withReplacedNVDAnchor(recorded, admitted, replacement.AnchorScopeID, replacement.WindowScopeID)
+	}
+	return recorded
 }
 
 // logScanIntervalOverrides records, once at startup before the first
