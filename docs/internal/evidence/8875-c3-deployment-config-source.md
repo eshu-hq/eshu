@@ -27,8 +27,11 @@ live-verified state below are recorded here.
   and `PLANE_DECLARATION_9376.md`); the pin moved to `10c4bcbe…`
   before the 2026-11-07 leg. Both green contention legs bind exactly
   the serving digest (`ESHU_CONTENTION_DIGEST_UNDER_TEST=sha256:10c4bcbe…`
-  in the 11-07 live and 11-09 isolated reports), so the proofs cover
-  this image. Per the staleness rule below, any new pin re-opens this.
+  in `docs/internal/evidence/9727-contention-legs/satellite-live-seed1-w3-20261107T174813Z.json`
+  sha256 `bea8a49e…3c909` and `…/satellite-live-seed1-w3-20261109T235630Z.json`
+  sha256 `111895f7…b2ac97`, each with its `.txt` summary beside it), so
+  the proofs cover this image. Per the staleness rule below, any new
+  pin re-opens this.
 - Resolution engine: `ESHU_POSTGRES_READ_ROUTING=staged-audits`,
   1/1 available.
 - Isolated plane: the name-filtered census (`kubectl get
