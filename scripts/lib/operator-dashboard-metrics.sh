@@ -88,6 +88,13 @@ PACING_DEPTH_PENDING='eshu_dp_workflow_claim_pacing_depth_pending'
 # workload or endpoint removal, kept off COLLECTOR_RECONCILIATION_DRIFT.
 WORKLOAD_REPOSITORY_EDGE_RETRACTIONS='eshu_dp_workload_repository_edge_retractions_total'
 
+# Claim-plane client (#8875 C8): collector round-trip latency by
+# operation, request rate by outcome (including pacing_signal_unknown
+# remaps), and the commit-fence pin-slack health signal.
+CLAIM_PLANE_REQUEST_DURATION_BUCKET='eshu_dp_workflow_claim_plane_request_duration_seconds_bucket'
+CLAIM_PLANE_REQUESTS_TOTAL='eshu_dp_workflow_claim_plane_requests_total'
+INGESTION_COMMIT_PIN_SLACK_BUCKET='eshu_dp_ingestion_commit_pin_slack_seconds_bucket'
+
 # Terraform backend ownership read sensor (#8875): the canonical backends
 # reader and its filtered sibling sharing the migration-273 hot arm. The
 # histogram count and sum give calls and seconds for week-over-week
@@ -116,4 +123,5 @@ COLLECTOR_BACKPRESSURE COLLECTOR_RETRIES COLLECTOR_DEAD_LETTER \
 WORKLOAD_REPOSITORY_EDGE_RETRACTIONS FAIR_CLAIM_TOTAL FAIRNESS_KEY_DEPTH \
 FAIRNESS_KEY_COUNT PACING_ENGAGED_TOTAL PACING_ACTIVE PACING_STUCK_TOTAL \
 PACING_DELAY PACING_DEPTH_PENDING TERRAFORM_BACKEND_CANONICAL_READ_BUCKET \
-TERRAFORM_BACKEND_CANONICAL_READ_COUNT"
+TERRAFORM_BACKEND_CANONICAL_READ_COUNT CLAIM_PLANE_REQUEST_DURATION_BUCKET \
+CLAIM_PLANE_REQUESTS_TOTAL INGESTION_COMMIT_PIN_SLACK_BUCKET"
