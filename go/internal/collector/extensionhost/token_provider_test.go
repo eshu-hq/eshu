@@ -63,7 +63,7 @@ func TestHostMintedTokenInjectedPerClaim(t *testing.T) {
 	}
 	item := testWorkItem()
 	runner := &recordingRunner{result: completeResult(item, testSDKFact(item))}
-	source := mustNewSourceWithProvider(t, runner, &recordingStatusRecorder{}, provider, nil)
+	source := mustNewSourceWithProvider(t, runner, &recordingStatusRecorder{}, provider, hostMintTargetsConfig(item.ScopeID, HostMintedAuthMode))
 
 	for i := 0; i < 2; i++ {
 		if _, _, err := source.NextClaimed(context.Background(), item); err != nil {
@@ -128,7 +128,7 @@ func TestHostMintDenialFailsTerminalBounded(t *testing.T) {
 			item := testWorkItem()
 			runner := &recordingRunner{result: completeResult(item, testSDKFact(item))}
 			recorder := &recordingResultRecorder{}
-			source := mustNewSourceWithProvider(t, runner, recorder, provider, nil)
+			source := mustNewSourceWithProvider(t, runner, recorder, provider, hostMintTargetsConfig(item.ScopeID, HostMintedAuthMode))
 
 			_, ok, err := source.NextClaimed(context.Background(), item)
 			if err == nil {
@@ -169,7 +169,7 @@ func TestHostMintRetryableStaysRetryable(t *testing.T) {
 	item := testWorkItem()
 	runner := &recordingRunner{result: completeResult(item, testSDKFact(item))}
 	recorder := &recordingResultRecorder{}
-	source := mustNewSourceWithProvider(t, runner, recorder, provider, nil)
+	source := mustNewSourceWithProvider(t, runner, recorder, provider, hostMintTargetsConfig(item.ScopeID, HostMintedAuthMode))
 
 	_, ok, err := source.NextClaimed(context.Background(), item)
 	if err == nil {
@@ -201,7 +201,7 @@ func TestHostMintEmptyTokenFailsTerminal(t *testing.T) {
 	}
 	item := testWorkItem()
 	runner := &recordingRunner{result: completeResult(item, testSDKFact(item))}
-	source := mustNewSourceWithProvider(t, runner, &recordingStatusRecorder{}, provider, nil)
+	source := mustNewSourceWithProvider(t, runner, &recordingStatusRecorder{}, provider, hostMintTargetsConfig(item.ScopeID, HostMintedAuthMode))
 
 	_, _, err := source.NextClaimed(context.Background(), item)
 	if err == nil {
