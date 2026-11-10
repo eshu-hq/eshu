@@ -13,7 +13,7 @@ recent shipped work grouped by feature area.
 
 - **Deterministic Ack journal cost measurement**
   ([#10500](https://github.com/eshu-hq/eshu/issues/10500)).
-   now pins planner state before measuring
+  `TestProjectorAckJournalCost` now pins planner state before measuring
   (VACUUM ANALYZE with autovacuum off on the Ack-path tables), settles
   backend counter snapshots after force-flush, and judges block bounds
   on the median per-round paired delta with per-round deltas logged. A CI
