@@ -85,5 +85,8 @@ NOT_CHECKED).
 - No performance claim; no legal clearance beyond the owner's 2026-11-05
   decision (counsel items open/non-blocking, named in the ruling).
 
-NOT_CHECKED: none remaining for this closure — items 1–8 above are each
-evidenced from the deployed system in this session.
+NOT_CHECKED: per-claim pacing (1 req/s) — counts show one 4-request fetch
+set in the bucket with no duplicates, retries, or over-budget volume, but
+inter-request pacing was not instrumented, so Decision 4 item 8 is satisfied
+on counts and bounded volume, not on measured pacing. Everything else in
+items 1–8 is evidenced from the deployed system in this session.
