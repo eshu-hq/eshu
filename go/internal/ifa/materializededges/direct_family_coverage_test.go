@@ -245,7 +245,7 @@ var guardedDirectMaterializedEdgeFamilies = []guardedDirectFamily{
 		Family:     advisoryGroupFamily,
 		OduName:    ifa.AdvisoryGroupFamilyOduName,
 		EdgeTypes:  []string{"AFFECTED_BY"},
-		LiveProven: false,
+		LiveProven: true,
 	},
 }
 

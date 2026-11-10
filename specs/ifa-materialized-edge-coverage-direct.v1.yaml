@@ -38,7 +38,7 @@
 # fails in blocking mode. Waivers are per (surface, proof_gate), never per
 # family: waiving the fault gate does not grant credit to the baseline gate.
 #
-# ALL BUT TWENTY-NINE FAMILIES BELOW ARE WAIVED, AND THAT IS THE HONEST STATE. A
+# NO FAMILY BELOW IS WAIVED, AND THAT IS THE HONEST STATE. A
 # coverage row here has to satisfy all four of the sibling manifest's
 # conditions: a cataloged Odù, a vacuity guard registered in
 # MaterializedEdgeOduResolver, a hand-derived expected-edge-set fixture naming
@@ -48,7 +48,7 @@
 # mistake commit 42e188ba1 made for documentation_edges and had to withdraw; it
 # is not repeated here.
 #
-# TWENTY-NINE OF THEM NOW HAVE ALL FOUR. kubernetes_namespace_environment,
+# THIRTY OF THEM NOW HAVE ALL FOUR -- EVERY FAMILY BELOW. kubernetes_namespace_environment,
 # iam_instance_profile_role, iam_can_assume, iam_can_perform,
 # ec2_uses_profile, s3_logs_to, iam_escalation, authenticates_vault_role,
 # uses_vault_policy, grants_secret_read, built_from,
@@ -60,7 +60,7 @@
 # security_group_rule_endpoint, s3_external_principal_grant,
 # workload_cloud_relationship, kubernetes_correlation,
 # assumes_iam_role,
-# and uses_service_account
+# uses_service_account, and advisory_group
 # each carry a cataloged Odù, a registered
 # edge-type set, a vacuity guard dispatched from MaterializedEdgeOduResolver,
 # a hand-derived expected-edge-set fixture their guard reproduces exactly,
@@ -83,14 +83,15 @@
 # for security_group_rule_endpoint, the s3_external_principal_grant
 # live leaf for s3_external_principal_grant, the #6228 fault trios
 # for kubernetes_correlation and workload_cloud_relationship, the
-# assumes_iam_role live leaf for assumes_iam_role, and the
-# uses_service_account live leaf for uses_service_account -- live
+# assumes_iam_role live leaf for assumes_iam_role, the
+# uses_service_account live leaf for uses_service_account, and the
+# advisory_group live leaf (#10466) for advisory_group -- live
 # ifa-determinism AND
 # ifa-fault-injection
 # matrices driving the family
-# and asserting its exact edge set. Their coverage rows below say so. Every
-# other family below still lacks the fourth condition, which is why every
-# other family below still carries waiver rows instead.
+# and asserting its exact edge set. Their coverage rows below say so. No
+# family below carries a waiver row any more: advisory_group, the last
+# waived family, retired its waivers with #10466.
 #
 # Which families those are is asserted in code, not only here.
 # guardedDirectMaterializedEdgeFamilies
@@ -652,20 +653,31 @@ coverage:
     ref: "odu:ifa-uses-service-account-family"
     proof_gate: ifa-fault-injection
 
-waivers:
-  # advisory_group (#10411): registered at birth with waivers, the honest
-  # state this manifest documents for a family without its four coverage
-  # conditions. Its input is a Postgres winners read model, not collector
-  # facts, so the Odù design is #6228-shaped work tracked by #10466. Until
-  # then the family is proven by writer/handler unit tests, the winners
-  # reader live tests, and the Neo4j live readback + seeded parity proof.
+  # advisory_group: winners-fed projection proven from finding-fact
+  # admission downstream (#10466). The Odù admits
+  # reducer_supply_chain_impact_finding facts in the production writer's
+  # payload shape (members under provenance); the live cells run the
+  # real winners maintainer rebuild and the production
+  # AdvisoryGroupProjectionEnqueuer between drains, then the real queue
+  # and handler. The claim covers winner selection, the qualifying
+  # filter, BuildGroup's collapse, the two-edge AFFECTED_BY exact set,
+  # and the full member union on the AdvisoryGroup node (CVE/advisory
+  # split, including members no row carries as its own id). It claims
+  # nothing about the impact pass's TouchedGroupIDs fan-out: the group
+  # ids handed to the enqueuer are explicit, exactly as a committed
+  # pass hands them over. The repository-less, known-fixed, and
+  # tombstoned findings produce nothing.
   - surface: "materialized_edges:advisory_group"
+    scenario: odu
+    scenario_type: baseline
+    ref: "odu:ifa-advisory-group-family"
     proof_gate: ifa-determinism
-    issue: "#6228"
-    waived: "2026-11-09"
-    reason: "No cataloged Odù, vacuity guard, or expected-edge fixture yet for the winners-fed advisory_group family; the Odù input design is tracked in #10466 under the #6228 lift."
   - surface: "materialized_edges:advisory_group"
+    scenario: odu
+    scenario_type: fault
+    ref: "odu:ifa-advisory-group-family"
     proof_gate: ifa-fault-injection
-    issue: "#6228"
-    waived: "2026-11-09"
-    reason: "No live fault-injection matrix drives the advisory_group family yet; wiring it is tracked in #10466 under the #6228 lift, with the determinism matrix."
+
+# Empty since #10466 retired the last family's waivers: every family
+# above carries its two coverage rows.
+waivers: []
