@@ -21,9 +21,9 @@ request count per operation is identical (one request, one observation —
   including after a clean rebase onto current `origin/main`.
 - Backend/version: unit (no live backend); wire shapes unchanged —
   the remap consumes the already-decoded string, so the satellite
-  contract and all existing known-signal fixtures take byte-identical
-  paths (proven: every pre-existing pacing/compat test passes
-  unmodified).
+  contract and all existing known-signal fixtures take observably
+  identical paths (proven: every pre-existing pacing/compat test passes
+  unmodified with response untouched and outcome unchanged).
 - Input shape: stubbed unknown signals (`FUTURE_99_XYZ`) on both
   operations plus paced/unpaced/blank edges; blank inputs behave
   exactly as before on each path.
