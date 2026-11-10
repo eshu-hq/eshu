@@ -31,13 +31,19 @@ const (
 // an in-flight inner Enqueue (graph writes) is never orphaned by it.
 var ErrReducerAdmissionTimeout = errors.New("reducer admission wait timed out")
 
+// reducerAdmissionTimeoutFailureClass is the durable failure_class a
+// dead-lettered admission wait timeout carries (#10502). The dead-letter
+// path honors an error's own class, so the row names backpressure instead of
+// the projection_bug default. The retry path is unchanged:
+// ProjectorQueue.Fail hardcodes projection_retryable for every retried item,
+// so no SQL status or class semantics change before the budget is spent.
+const reducerAdmissionTimeoutFailureClass = "admission_timeout"
+
 // reducerAdmissionTimeoutError is the concrete Enqueue timeout failure. It
 // unwraps to ErrReducerAdmissionTimeout for errors.Is matching and reports
 // Retryable so ProjectorQueue.Fail releases the claim for another attempt
 // instead of marking the generation terminal (failure.IsRetryable is the
-// Fail retry gate). It deliberately carries no FailureClass: the retry path
-// records the existing projection_retryable class, so no SQL status or class
-// semantics change.
+// Fail retry gate).
 type reducerAdmissionTimeoutError struct {
 	waited  time.Duration
 	maxWait time.Duration
@@ -55,6 +61,21 @@ func (e reducerAdmissionTimeoutError) Unwrap() error {
 }
 
 func (reducerAdmissionTimeoutError) Retryable() bool {
+	return true
+}
+
+// FailureClass reports the dead-letter class for this backpressure timeout.
+// The queue keeps a self-classifying error's own class on the dead-letter
+// row, so an admission timeout that exhausts the attempt budget lands as
+// admission_timeout instead of retry_exhausted-with-projection_bug-detail.
+func (reducerAdmissionTimeoutError) FailureClass() string {
+	return reducerAdmissionTimeoutFailureClass
+}
+
+// IsAdmissionTimeout opts this error into the failure.AdmissionTimeoutError
+// contract so ClassifyFailure maps it to the admission_timeout class instead
+// of the projection_bug default (#10502).
+func (reducerAdmissionTimeoutError) IsAdmissionTimeout() bool {
 	return true
 }
 
