@@ -261,6 +261,21 @@ func withReplacedNVDAnchor(recorded []string, admitted workAdmission, anchor, wi
 	return append(recorded, strings.TrimSpace(anchor))
 }
 
+// withReplacedWindowAnchors appends each window-replaced anchor to the
+// recorded scopes once its replacement window survives admission
+// (eshu-hq/eshu#10517): anchors and windows are parallel slices, so
+// anchor[i] is replaced by window[i]. A ragged tail — more anchors than
+// windows — records nothing extra, never a mismatched pair.
+func withReplacedWindowAnchors(recorded []string, admitted workAdmission, anchors, windows []string) []string {
+	for i, anchor := range anchors {
+		if i >= len(windows) {
+			break
+		}
+		recorded = withReplacedNVDAnchor(recorded, admitted, anchor, windows[i])
+	}
+	return recorded
+}
+
 // logScanIntervalOverrides records, once at startup before the first
 // reconcile, every enabled, claim-enabled, non-bootstrap desired collector
 // instance whose configuration sets scan_interval, with the global reconcile

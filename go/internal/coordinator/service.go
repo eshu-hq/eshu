@@ -147,6 +147,9 @@ type Service struct {
 	// NVDWindowCursorReader loads the stored NVD rolling cursor for the
 	// rolling NVD window derivation (eshu-hq/eshu#9971).
 	NVDWindowCursorReader NVDWindowCursorReader
+	// GHSAWindowCursorReader loads the stored per-type GHSA rolling cursors
+	// for the rolling GHSA window derivation (eshu-hq/eshu#10517).
+	GHSAWindowCursorReader GHSAWindowCursorReader
 	// TargetRefreshProgressStore persists the per-target plan times one
 	// vulnerability-intelligence instance paces its configured targets
 	// from (eshu-hq/eshu#9879). It is required only when a target sets
