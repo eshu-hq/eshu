@@ -4,8 +4,9 @@ Issue eshu-hq/eshu#9876. The in-tree coordinator plans bounded FIRST EPSS
 targets from the distinct CVE ids on active canonical winners; the collector
 resolves them at claim time through the run's `requested_scope_set`.
 
-Runtime paths touched: one `SELECT DISTINCT cve_id ... WHERE
-suppression_state = 'active'` read per schedule tick in
+Runtime paths touched: one `SELECT DISTINCT cve_id ... WHERE <effective
+suppression state> NOT IN <hidden>` read per schedule tick (matching
+`listActiveFindingCVEIDsQuery` since #9805) in
 `scheduleVulnerabilityIntelligenceWork`, a pure-CPU pack over the returned
 ids, one extra transport dispatch per EPSS scope claim, and per-plan
 counter/log/span writes.
@@ -158,8 +159,9 @@ flip, no `ScopeQuery` stuffing, no SPDX invention.
 
 ## Addendum: read predicate now expiry-aware (2026-11-10, #9805 reader #10)
 
-The `WHERE suppression_state = 'active'` read quoted above (and the same
-predicate in the post-deploy QA query's denominator) is superseded:
+The `WHERE suppression_state = 'active'` read this note originally
+described (in the runtime-paths summary and in the post-deploy QA query's
+denominator; both spots now carry the effective-state form) is superseded:
 `listActiveFindingCVEIDsQuery` now selects effectively visible winners —
 read-time effective suppression state `NOT IN` the hidden set, with a
 hidden state whose `suppression_expires_at` has passed reading `expired`.
