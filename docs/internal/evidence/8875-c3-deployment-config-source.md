@@ -18,10 +18,17 @@ live-verified state below are recorded here.
 ## Live-verified state (2026-11-10, read-only cluster reads, exit 0)
 
 - QA GitOps application: Synced.
-- Satellite image:
-  `ghcr.io/eshu-hq/eshu-workflow@sha256:10c4bcbe659a3044961abc05199b6677202123bb1848c6ffc60660f3f748a96c`
-  (full digest, re-verifiable per digest; unchanged, contention proofs
-  stay bound).
+- Satellite image (reproducible read: `kubectl get deploy
+  eshu-workflow-coordinator-satellite -n eshu -o
+  jsonpath='{.spec.template.spec.containers[0].image}'`):
+  `ghcr.io/eshu-hq/eshu-workflow@sha256:10c4bcbe659a3044961abc05199b6677202123bb1848c6ffc60660f3f748a96c`.
+  Digest lineage: the 2026-11-04/05 baseline served `sha256:e1b564af…`
+  (tag `v0.1.1`; recorded in `go/internal/workflow/parity/README.md`
+  and `PLANE_DECLARATION_9376.md`); the pin moved to `10c4bcbe…`
+  before the 2026-11-07 leg. Both green contention legs bind exactly
+  the serving digest (`ESHU_CONTENTION_DIGEST_UNDER_TEST=sha256:10c4bcbe…`
+  in the 11-07 live and 11-09 isolated reports), so the proofs cover
+  this image. Per the staleness rule below, any new pin re-opens this.
 - Resolution engine: `ESHU_POSTGRES_READ_ROUTING=staged-audits`,
   1/1 available.
 - Isolated plane: the name-filtered census (`kubectl get
