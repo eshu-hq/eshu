@@ -20,7 +20,7 @@ import (
 // the five columns every candidate fact of that key shares: the package triple
 // (package id, repository id, subject digest), the key's first component C0
 // (CVE id, else advisory id, else empty) and the advisory id. They are the
-// fields the keyed probe of the existing package-lookup index matches.
+// fields the keyed probe of the keyed winners index matches.
 type WinnersDirtyIdentifier struct {
 	PackageID     string
 	RepositoryID  string

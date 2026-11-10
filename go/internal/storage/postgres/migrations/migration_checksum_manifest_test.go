@@ -368,6 +368,7 @@ var migrationShippedChecksums = map[string]string{
 	"288_fact_records_supply_chain_impact_advisory_lookup_idx.sql": "8a73de804e3aa3be547d2365b7990d155994ca52bdfbf878e4d4b49fe940dbdd",
 	"289_fact_records_supply_chain_impact_group_members_idx.sql":   "7fbde6adde73256852ecdbc539ee6e4c6f13f4b83b39967e09f3a58d999528ab",
 	"290_fact_records_supply_chain_impact_advisory_id_stats.sql":   "d76663a5155ba8a6e996d7361114de61d5550ceb7924665525aad12598f49e1d",
+	"291_fact_records_supply_chain_impact_winners_keyed_idx.sql":   "ac7f5a00ea7099e47ea55b6414a61ccee58ace8eb0d293841c1090bc89bf2454",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition
