@@ -349,47 +349,6 @@ func supplyChainImpactSuppressionState(decision SupplyChainSuppressionDecision) 
 	return decision.State
 }
 
-func supplyChainImpactSuppressionPayload(decision SupplyChainSuppressionDecision) map[string]any {
-	state := supplyChainImpactSuppressionState(decision)
-	out := map[string]any{
-		"state": string(state),
-	}
-	if decision.SuppressionID != "" {
-		out["suppression_id"] = decision.SuppressionID
-	}
-	if decision.Source != "" {
-		out["source"] = decision.Source
-	}
-	if decision.Justification != "" {
-		out["justification"] = decision.Justification
-	}
-	if decision.Author != "" {
-		out["author"] = decision.Author
-	}
-	if !decision.AuthoredAt.IsZero() {
-		out["authored_at"] = decision.AuthoredAt.UTC().Format(time.RFC3339)
-	}
-	if !decision.ExpiresAt.IsZero() {
-		out["expires_at"] = decision.ExpiresAt.UTC().Format(time.RFC3339)
-	}
-	if decision.Reason != "" {
-		out["reason"] = decision.Reason
-	}
-	if decision.EvidenceRef != "" {
-		out["evidence_ref"] = decision.EvidenceRef
-	}
-	if decision.VEXDocumentID != "" {
-		out["vex_document_id"] = decision.VEXDocumentID
-	}
-	if decision.VEXStatementID != "" {
-		out["vex_statement_id"] = decision.VEXStatementID
-	}
-	// Always return the payload so the reducer publishes a deterministic
-	// "active" decision when no suppression matched; this lets the API
-	// filter by suppression_state without nullable-payload guards.
-	return out
-}
-
 func serializeFixedVersionBranches(values []FixedVersionBranch) []map[string]any {
 	if len(values) == 0 {
 		return nil

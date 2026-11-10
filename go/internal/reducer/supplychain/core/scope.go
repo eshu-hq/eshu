@@ -21,10 +21,10 @@ func suppressionAdjacent(finding SupplyChainImpactFinding, s vulnerabilitySuppre
 	if !suppressionScopeHasDiscoverableAnchor(s.Scope) {
 		return true
 	}
-	if s.Scope.CVEID != "" && (scopeAnchorMatches(s.Scope.CVEID, finding.CVEID) || scopeGroupMemberMatches(s.Scope.CVEID, finding.AdvisoryGroupMembers)) {
+	if _, _, ok := findingMatchableID(s.Scope.CVEID, finding); ok {
 		return true
 	}
-	if s.Scope.AdvisoryID != "" && (scopeAnchorMatches(s.Scope.AdvisoryID, finding.AdvisoryID) || scopeGroupMemberMatches(s.Scope.AdvisoryID, finding.AdvisoryGroupMembers)) {
+	if _, _, ok := findingMatchableID(s.Scope.AdvisoryID, finding); ok {
 		return true
 	}
 	if s.Scope.PackageID != "" && packageAnchorEqual(s.Scope.PackageID, finding.PackageID) {
@@ -53,17 +53,21 @@ func suppressionScopeMatchesFinding(finding SupplyChainImpactFinding, s vulnerab
 	if !suppressionScopeHasDiscoverableAnchor(s.Scope) {
 		return false
 	}
-	// A scoped id matches through the finding's canonical key or any id of
-	// its alias-connected advisory group (#10407): grouping merges the
-	// member identities, so a suppression naming a non-canonical member id
-	// still names the grouped finding. Either scope field consults the full
-	// member set because the canonical/member kind split no longer holds
-	// after the merge.
-	if s.Scope.CVEID != "" && !scopeAnchorMatches(s.Scope.CVEID, finding.CVEID) && !scopeGroupMemberMatches(s.Scope.CVEID, finding.AdvisoryGroupMembers) {
-		return false
+	// A scoped id matches through the finding's matchable set (#10409 D1):
+	// advisory-group member ids plus cve_id and advisory_id. Either scope
+	// field consults the whole set because the canonical/member kind split
+	// no longer holds after grouping (#10407), and VEX producers do not
+	// agree on which field a non-CVE id belongs in. Both fields stay
+	// conjunctive: every populated identity field must name this finding.
+	if s.Scope.CVEID != "" {
+		if _, _, ok := findingMatchableID(s.Scope.CVEID, finding); !ok {
+			return false
+		}
 	}
-	if s.Scope.AdvisoryID != "" && !scopeAnchorMatches(s.Scope.AdvisoryID, finding.AdvisoryID) && !scopeGroupMemberMatches(s.Scope.AdvisoryID, finding.AdvisoryGroupMembers) {
-		return false
+	if s.Scope.AdvisoryID != "" {
+		if _, _, ok := findingMatchableID(s.Scope.AdvisoryID, finding); !ok {
+			return false
+		}
 	}
 	if !scopePackageAnchorMatches(s.Scope.PackageID, finding.PackageID) {
 		return false
@@ -246,22 +250,32 @@ func scopeAnchorMatches(scoped, observed string) bool {
 	return strings.EqualFold(scoped, strings.TrimSpace(observed))
 }
 
-// scopeGroupMemberMatches reports whether a scoped identity value names any
-// id of the finding's alias-connected advisory group (#10407). An empty
-// scoped value is not a member match (callers treat it as a wildcard
-// separately); an empty member set matches nothing, so ungrouped findings
-// keep today's canonical-key behavior exactly.
-func scopeGroupMemberMatches(scoped string, members []string) bool {
+// findingMatchableID reports whether a scoped identity value names the
+// finding through its matchable set (#10409 D1): advisory-group member ids
+// plus the finding's cve_id and advisory_id. On a match it returns the
+// finding-side id that matched and whether the match came through the group
+// member set rather than a direct cve_id/advisory_id naming, so the decision
+// can record audit provenance. An empty scoped value never matches (callers
+// treat it as a wildcard separately); an ungrouped finding's set is exactly
+// {cve_id, advisory_id}, so fallback findings never match through a partial
+// component. Upstream and related ids never enter the set.
+func findingMatchableID(scoped string, finding SupplyChainImpactFinding) (matched string, viaGroup bool, ok bool) {
 	scoped = strings.TrimSpace(scoped)
 	if scoped == "" {
-		return false
+		return "", false, false
 	}
-	for _, member := range members {
+	if strings.EqualFold(scoped, strings.TrimSpace(finding.CVEID)) && strings.TrimSpace(finding.CVEID) != "" {
+		return finding.CVEID, false, true
+	}
+	if strings.EqualFold(scoped, strings.TrimSpace(finding.AdvisoryID)) && strings.TrimSpace(finding.AdvisoryID) != "" {
+		return finding.AdvisoryID, false, true
+	}
+	for _, member := range finding.AdvisoryGroupMembers {
 		if strings.EqualFold(scoped, strings.TrimSpace(member)) {
-			return true
+			return member, true, true
 		}
 	}
-	return false
+	return "", false, false
 }
 
 // scopePackageAnchorMatches is scopeAnchorMatches for a package_id or purl
