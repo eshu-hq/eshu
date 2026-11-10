@@ -103,13 +103,11 @@
 # matrices, convert its rows here from waivers to coverage, and flip its roster
 # flag there -- all in the same change.
 #
-# The remaining two do NOT yet resolve through
-# MaterializedEdgeDomainEdgeTypes -- their relationship types are not registered
-# beside their writers in go/internal/storage/cypher, so
-# `eshu-ifa assert-edges -domain <family>` would error before any fixture is
-# consulted. Registering them is part of the remaining #6228 work, which is why
-# TestEveryWaivedFamilyIsRegistered holds the #5543 umbrella roster to the
-# resolve check but not these. The waiver reasons below say so per family.
+# The last two families that did not resolve through
+# MaterializedEdgeDomainEdgeTypes have since registered beside their writers
+# in go/internal/storage/cypher and converted to coverage, so every family
+# below now resolves and no waiver rows remain. The historical registration
+# contract is the SPLIT VERDICT record below.
 #
 # SPLIT VERDICT D (arbiter ruling, issue #6228 comment 2026-10-17) decided the
 # registry contract for the six families below that could not register in
@@ -130,8 +128,8 @@
 # with them — until #8359 gave it a dedicated [rel:CONTAINS] edge retract
 # scoped by evidence_source and endpoint labels (registered; the #8359
 # arbiter verdict (a) further settled its cell design — shared N={1,2,4}
-# cell, fixture-repo-scoped exact set, registry row 22 — so it stays waived
-# pending the first live drive, not pending a decision).
+# cell, fixture-repo-scoped exact set, registry row 22 — so it stayed waived
+# only until its first live drive, which has since landed its coverage rows).
 # cloud_resource was UNCOVERED by design as the sole genuinely open family:
 # the #8358 route-2 predicate-scoped assert-edges scan, Odu, expected-edge-set
 # fixture, predicate registration, and live-matrix wiring had landed, but no
