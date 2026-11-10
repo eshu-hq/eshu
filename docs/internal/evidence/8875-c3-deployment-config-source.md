@@ -22,8 +22,8 @@ live-verified state below are recorded here.
   (unchanged; contention proofs stay bound).
 - Resolution engine: `ESHU_POSTGRES_READ_ROUTING=staged-audits`,
   1/1 available.
-- Isolated plane: zero Deploy/Job/CronJob objects in the application
-  namespace.
+- Isolated plane: zero Deploy/Job/CronJob objects in namespace `eshu`
+  (the application namespace).
 
 ## Known non-blocking flag
 
