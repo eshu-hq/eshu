@@ -109,23 +109,33 @@ type supplyChainImpactWinnersDirtyLog struct {
 //   - eshu_dp_supply_chain_impact_winners_keys_per_sweep: canonical keys a keyed
 //     tick recomputed. A value near the cap is the signal before a tick falls
 //     back to the full rebuild.
+//
 //   - eshu_dp_supply_chain_impact_winners_identifiers_consumed_total: dirty-log
 //     identifier rows a keyed tick consumed.
+//
 //   - eshu_dp_supply_chain_impact_winners_capture_rows_total{source}: dirty-log
 //     rows appended to the log, by capture source. The impact writer counts
 //     fact_upsert and fact_retract once their transaction commits; the maintainer counts
 //     activation, operator and scanner (database triggers cannot emit a metric)
 //     when it consumes them. A source that goes flat while the others move is a
 //     capture path that stopped.
+//
 //   - eshu_dp_supply_chain_impact_winners_backstop_repairs_total: stale keys the
 //     full-recompute audit queued. Non-zero means a change class left no
 //     capture row; steady state is zero.
+//
 //   - eshu_dp_supply_chain_impact_winners_audit_skipped_total: audits that
 //     could not take the resweep lock, so verified nothing (#9957). A streak
 //     means the backstop is not running.
+//
 //   - eshu_dp_supply_chain_impact_winners_dirty_log_depth and
 //     ..._dirty_log_oldest_age_seconds: the dirty log's backlog and how long its
 //     oldest row has waited, sampled every tick.
+//
+//   - eshu_dp_supply_chain_impact_winners_chunked_ticks_total: keyed ticks
+//     that stopped at the chunk bound with dirty rows still queued and so
+//     stamped no watermark. Rising with a falling depth is a healthy drain.
+//
 //   - eshu_dp_supply_chain_impact_winners_tick_phase_duration_seconds{phase}:
 //     wall time of each phase of one keyed tick, so a slow tick reads as a slow
 //     read (build_idents, build_active_facts), a slow write (apply, commit), or
@@ -164,6 +174,12 @@ func registerSupplyChainImpactWinnersKeyedInstruments(meter metric.Meter, inst *
 		metric.WithDescription("Supply-chain impact winners audits that found stale-key candidates but could not take the resweep lock, so verified nothing and queued nothing. The audit is the backstop for a change that left no dirty-log row; a streak of skips means the backstop is not running."),
 	); err != nil {
 		return fmt.Errorf("register SupplyChainImpactWinnersAuditSkipped counter: %w", err)
+	}
+	if inst.SupplyChainImpactWinnersChunkedTicks, err = meter.Int64Counter(
+		"eshu_dp_supply_chain_impact_winners_chunked_ticks_total",
+		metric.WithDescription("Keyed supply-chain impact winners ticks that stopped at the chunk bound (distinct package triples or candidate rows per transaction) with dirty-log rows still queued, so committed their chunk without stamping the watermark. A rising counter with a falling dirty-log depth is a backlog draining in bounded ticks; a rising counter with a flat or climbing depth means arrivals outpace the bound."),
+	); err != nil {
+		return fmt.Errorf("register SupplyChainImpactWinnersChunkedTicks counter: %w", err)
 	}
 	if inst.SupplyChainImpactWinnersTickPhaseDuration, err = meter.Float64Histogram(
 		"eshu_dp_supply_chain_impact_winners_tick_phase_duration_seconds",

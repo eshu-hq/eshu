@@ -15,39 +15,50 @@ import "strings"
 // Names of the transaction-scoped temp tables a keyed tick and an audit build.
 // Every one is created ON COMMIT DROP inside the transaction that uses it.
 const (
-	winnersKeyedConsumedTable    = "winners_keyed_consumed"
-	winnersKeyedIdentsTable      = "winners_keyed_idents"
-	winnersKeyedActiveFactsTable = "winners_keyed_active_facts"
-	winnersAuditCandidatesTable  = "winners_audit_candidates"
-	winnersAuditStaleTable       = "winners_audit_stale"
-	winnersAuditPendingTable     = "winners_audit_pending"
+	winnersKeyedConsumedTable     = "winners_keyed_consumed"
+	winnersKeyedIdentsTable       = "winners_keyed_idents"
+	winnersKeyedScopeIdentsTable  = "winners_keyed_scope_idents"
+	winnersKeyedChunkTriplesTable = "winners_keyed_chunk_triples"
+	winnersKeyedActiveFactsTable  = "winners_keyed_active_facts"
+	winnersAuditCandidatesTable   = "winners_audit_candidates"
+	winnersAuditStaleTable        = "winners_audit_stale"
+	winnersAuditPendingTable      = "winners_audit_pending"
 )
 
-// createWinnersKeyedConsumedSQL and consumeWinnersDirtyLogSQL consume the dirty
-// log: DELETE ... RETURNING moves exactly the rows visible to this statement
-// into a temp table, so a row committed after the statement's snapshot stays in
-// the log for the next tick, and a rollback returns every consumed row. The
-// DELETE takes no lock a writer's INSERT waits on.
+// createWinnersKeyedConsumedSQL and admitWinnersKeyedWindowSQL admit one
+// bounded candidate window of the dirty log (#9805 chunked consume): the
+// oldest $1 rows by seq are copied into a temp table under the resweep's
+// single-flight lock, so no other tick can admit the same rows. Admission
+// copies instead of deleting: which rows the chunk actually applies is known
+// only after the identifier expansion and the triple/row bounds, so the
+// DELETE (deleteWinnersKeyedAppliedDirtySQL, in the apply phase) removes
+// exactly the applied rows by seq and every other row stays queued. A row
+// committed after admission has a higher seq, is never in the window, and
+// stays for the next tick; a rollback changes nothing.
 const createWinnersKeyedConsumedSQL = `
 CREATE TEMP TABLE winners_keyed_consumed (
-    kind text, source text, package_id text, repository_id text, subject_digest text,
+    seq bigint, kind text, source text, package_id text, repository_id text, subject_digest text,
     c0 text, advisory_id text, scope_id text, generation_id text
 ) ON COMMIT DROP
 `
 
-const consumeWinnersDirtyLogSQL = `
-WITH consumed AS (
-    DELETE FROM supply_chain_impact_winners_dirty_log
-    RETURNING kind, source, package_id, repository_id, subject_digest, c0, advisory_id, scope_id, generation_id
-)
+const admitWinnersKeyedWindowSQL = `
 INSERT INTO ` + winnersKeyedConsumedTable + `
-SELECT kind, source, package_id, repository_id, subject_digest, c0, advisory_id, scope_id, generation_id
-FROM consumed
+SELECT seq, kind, source, package_id, repository_id, subject_digest, c0, advisory_id, scope_id, generation_id
+FROM supply_chain_impact_winners_dirty_log
+ORDER BY seq
+LIMIT $1
 `
 
-// countWinnersKeyedConsumedSQL counts the consumed rows by capture source.
+// countWinnersKeyedConsumedSQL counts the admitted window's rows.
 const countWinnersKeyedConsumedSQL = `
-SELECT source, count(*) FROM ` + winnersKeyedConsumedTable + ` GROUP BY source
+SELECT count(*) FROM ` + winnersKeyedConsumedTable + `
+`
+
+// countWinnersKeyedRemainingSQL counts the dirty log's depth inside the tick
+// transaction, after the applied rows were deleted: the watermark decision.
+const countWinnersKeyedRemainingSQL = `
+SELECT count(*) FROM supply_chain_impact_winners_dirty_log
 `
 
 // winnersIdentExprs renders the five identifier columns of a fact row, with the
@@ -75,15 +86,34 @@ WHERE fact.fact_kind = 'reducer_supply_chain_impact_finding'
   AND fact.is_tombstone = FALSE`
 }
 
+// buildWinnersKeyedScopeIdentsSQL expands the admitted scope rows to the
+// identifiers of their generations, keeping the (scope, generation) each
+// identifier came from. Chunked consume needs the provenance: a scope row
+// only leaves the log once every triple of its expansion was applied, or
+// once its unapplied remainder was converted to fact rows.
+var buildWinnersKeyedScopeIdentsSQL = `
+CREATE TEMP TABLE winners_keyed_scope_idents ON COMMIT DROP AS
+SELECT pending.scope_id, pending.generation_id, ` + winnersIdentExprs("fact") + `
+FROM (SELECT DISTINCT scope_id, generation_id FROM ` + winnersKeyedConsumedTable + ` WHERE kind = 'scope') AS pending
+JOIN fact_records AS fact
+  ON fact.scope_id = pending.scope_id
+ AND fact.generation_id = pending.generation_id
+WHERE fact.fact_kind = 'reducer_supply_chain_impact_finding'
+  AND fact.is_tombstone = FALSE`
+
 // buildWinnersKeyedIdentsSQL builds the distinct identifier set of a keyed tick
 // from its consumed fact rows and the expansion of its consumed scope rows.
+// In the keyed tick the scope arm reads the provenance-carrying scope
+// identifier table the statement above built; the audit seeds the identifier
+// table itself and never runs this statement.
 var buildWinnersKeyedIdentsSQL = `
 CREATE TEMP TABLE winners_keyed_idents ON COMMIT DROP AS
 SELECT package_id, repository_id, subject_digest, c0, advisory_id
 FROM ` + winnersKeyedConsumedTable + `
 WHERE kind = 'fact'
 UNION
-` + winnersScopeExpansionSelect(winnersKeyedConsumedTable)
+SELECT package_id, repository_id, subject_digest, c0, advisory_id
+FROM ` + winnersKeyedScopeIdentsTable
 
 // analyzeWinnersKeyedIdentsSQL gives the planner the real identifier count, so
 // it probes the keyed winners index once per identifier instead of choosing a
@@ -195,8 +225,34 @@ const winnersStoredIdentMatch = `(w.package_id, w.repository_id, w.subject_diges
 // shape and the same row comparison, restricted to the identifier set. $1 is the
 // new watermark. It returns inserted, updated, deleted, unchanged, the keys
 // recomputed (winners now produced plus winners deleted), and the previous
-// watermark.
-var applyWinnersKeyedSQL = `
+// watermark. applyWinnersKeyedNoStampSQL is the same statement without the
+// stamp, for a bounded chunk that leaves dirty rows queued: the winners it
+// writes are real, but the table is not yet current as of $1, so the
+// watermark must not move. Both share the CTE body; only the tail differs.
+var applyWinnersKeyedSQL = applyWinnersKeyedBodySQL + `
+INSERT INTO supply_chain_impact_winners_materialization (singleton, materialized_at)
+VALUES (1, $1)
+ON CONFLICT (singleton) DO UPDATE SET materialized_at = EXCLUDED.materialized_at
+RETURNING
+    (SELECT count(*) FROM changed WHERE is_new),
+    (SELECT count(*) FROM changed WHERE NOT is_new),
+    (SELECT count(*) FROM deleted),
+    (SELECT count(*) FROM winners_now) - (SELECT count(*) FROM changed),
+    (SELECT count(*) FROM winners_now) + (SELECT count(*) FROM deleted),
+    (SELECT materialized_at FROM supply_chain_impact_winners_materialization WHERE singleton = 1)
+`
+
+var applyWinnersKeyedNoStampSQL = applyWinnersKeyedBodySQL + `
+SELECT
+    (SELECT count(*) FROM changed WHERE is_new),
+    (SELECT count(*) FROM changed WHERE NOT is_new),
+    (SELECT count(*) FROM deleted),
+    (SELECT count(*) FROM winners_now) - (SELECT count(*) FROM changed),
+    (SELECT count(*) FROM winners_now) + (SELECT count(*) FROM deleted),
+    (SELECT materialized_at FROM supply_chain_impact_winners_materialization WHERE singleton = 1)
+`
+
+var applyWinnersKeyedBodySQL = `
 WITH winners_now AS (` + winnersKeyedSelectSQL + `),
 changed AS MATERIALIZED (
     SELECT n.*, (w.canonical_key IS NULL) AS is_new
@@ -222,16 +278,6 @@ deleted AS (
       AND NOT EXISTS (SELECT 1 FROM winners_now AS n WHERE n.canonical_key = w.canonical_key)
     RETURNING 1
 )
-INSERT INTO supply_chain_impact_winners_materialization (singleton, materialized_at)
-VALUES (1, $1)
-ON CONFLICT (singleton) DO UPDATE SET materialized_at = EXCLUDED.materialized_at
-RETURNING
-    (SELECT count(*) FROM changed WHERE is_new),
-    (SELECT count(*) FROM changed WHERE NOT is_new),
-    (SELECT count(*) FROM deleted),
-    (SELECT count(*) FROM winners_now) - (SELECT count(*) FROM changed),
-    (SELECT count(*) FROM winners_now) + (SELECT count(*) FROM deleted),
-    (SELECT materialized_at FROM supply_chain_impact_winners_materialization WHERE singleton = 1)
 `
 
 // stampWinnersWatermarkSQL stamps the watermark for a tick that consumed

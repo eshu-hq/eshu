@@ -1335,6 +1335,10 @@ type Instruments struct {
 	// phase of one keyed winners tick, labeled phase (#9975). It is registered by
 	// registerSupplyChainImpactWinnersKeyedInstruments.
 	SupplyChainImpactWinnersTickPhaseDuration metric.Float64Histogram
+	// SupplyChainImpactWinnersChunkedTicks counts keyed ticks that stopped at
+	// the chunk bound with dirty rows still queued, so stamped no watermark
+	// (#9805 chunked consume). Steady state is zero outside a backlog drain.
+	SupplyChainImpactWinnersChunkedTicks metric.Int64Counter
 	// The advisory-group graph projection signals of #10411, registered by
 	// registerAdvisoryGroupProjectionInstruments: groups reconciled by
 	// outcome, AFFECTED_BY edges created and retracted, AdvisoryGroup

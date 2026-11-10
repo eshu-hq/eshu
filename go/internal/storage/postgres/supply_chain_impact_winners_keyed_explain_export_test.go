@@ -24,10 +24,10 @@ func ExplainWinnersKeyedForTest(ctx context.Context, database *sql.DB, materiali
 	if claimed, err := claimSupplyChainImpactWinnersResweep(ctx, tx); err != nil || !claimed {
 		return "", "", fmt.Errorf("claim resweep lock for explain: claimed=%v err=%v", claimed, err)
 	}
-	if _, err := consumeWinnersDirtyLog(ctx, tx); err != nil {
+	if _, err := admitWinnersDirtyWindow(ctx, tx, defaultWinnersChunkMaxDirtyRows); err != nil {
 		return "", "", err
 	}
-	for _, stmt := range []string{buildWinnersKeyedIdentsSQL, analyzeWinnersKeyedIdentsSQL} {
+	for _, stmt := range []string{buildWinnersKeyedScopeIdentsSQL, buildWinnersKeyedIdentsSQL, analyzeWinnersKeyedIdentsSQL} {
 		if _, err := tx.ExecContext(ctx, stmt); err != nil {
 			return "", "", fmt.Errorf("build identifiers for explain: %w", err)
 		}
