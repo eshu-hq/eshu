@@ -39,17 +39,20 @@ package postgres
 // then the evidence (decision_id) prefix. Both probes stay index-only and
 // the cost follows the batch, measured with EXPLAIN ANALYZE before landing.
 //
-// The five #7784 arms count the remaining cascade grandchildren. The two
-// package keys tables carry no (scope_id, generation_id) prefix index (only
-// the ecosystem-first lookup), so their legs count through the generation's
-// facts: fact_records_scope_generation_idx, then the keys PRIMARY KEY
-// (fact_id, ...) prefix. The probe sits in a correlated scalar subquery,
-// not a fourth LEFT JOIN: as a join the planner reorders the leg under a
-// generic plan into a scope-wide fact bitmap plus a generation join filter,
-// whose cost grows with the scope instead of the batch. The subquery keeps
-// the (scope_id, generation_id) probe in every plan the guard checks.
-// relationship_reference_candidate_keys has the scope prefix, so its leg
-// joins scope_generations directly. content_file_secret_lines hangs off
+// The five #7784 arms count the remaining cascade grandchildren. Since
+// #7420 the two package keys tables carry (scope_id, generation_id,
+// fact_id) partition indexes (migrations 182 and 183, deployed), so since
+// #10512 their legs join scope_generations directly on (scope_id,
+// generation_id) like relationship_reference_candidate_keys: exactly the
+// factkeys generation-delete envelope (WHERE scope_id = $1 AND
+// generation_id = $2), so the count charges every row the delete removes,
+// orphan keys with no fact included. The earlier fact-join scalar
+// subqueries probed the keys PRIMARY KEY once per fact of the generation
+// (1.15M probes, 5.7 s for the manifest arm over a 100-generation QA
+// batch) and under-counted orphans the delete still removed; the direct
+// legs measured 80 ms custom and 48 ms generic on the same batch
+// (docs/internal/evidence/10512-retention-row-counts.md).
+// content_file_secret_lines hangs off
 // content_files, whose doomed keys already live in doomed_files: a secret
 // row dies exactly when its key is doomed, so that arm joins doomed_files
 // straight onto the secret PRIMARY KEY prefix. All five stay index-backed
@@ -404,27 +407,23 @@ LEFT JOIN reducer_input_invalid_facts AS row
  AND row.generation_id = candidate.generation_id
 GROUP BY candidate.generation_id
 UNION ALL
-SELECT candidate.generation_id, 'package_manifest_consumption_keys' AS table_name,
-  (SELECT COUNT(keys.fact_id)
-   FROM fact_records AS fact
-   JOIN package_manifest_consumption_keys AS keys
-     ON keys.fact_id = fact.fact_id
-   WHERE fact.scope_id = generation.scope_id
-     AND fact.generation_id = candidate.generation_id) AS row_count
+SELECT candidate.generation_id, 'package_manifest_consumption_keys' AS table_name, COUNT(keys.fact_id) AS row_count
 FROM generation_retention_row_counts AS candidate
 LEFT JOIN scope_generations AS generation
   ON generation.generation_id = candidate.generation_id
+LEFT JOIN package_manifest_consumption_keys AS keys
+  ON keys.scope_id = generation.scope_id
+ AND keys.generation_id = candidate.generation_id
+GROUP BY candidate.generation_id
 UNION ALL
-SELECT candidate.generation_id, 'package_registry_identity_keys' AS table_name,
-  (SELECT COUNT(keys.fact_id)
-   FROM fact_records AS fact
-   JOIN package_registry_identity_keys AS keys
-     ON keys.fact_id = fact.fact_id
-   WHERE fact.scope_id = generation.scope_id
-     AND fact.generation_id = candidate.generation_id) AS row_count
+SELECT candidate.generation_id, 'package_registry_identity_keys' AS table_name, COUNT(keys.fact_id) AS row_count
 FROM generation_retention_row_counts AS candidate
 LEFT JOIN scope_generations AS generation
   ON generation.generation_id = candidate.generation_id
+LEFT JOIN package_registry_identity_keys AS keys
+  ON keys.scope_id = generation.scope_id
+ AND keys.generation_id = candidate.generation_id
+GROUP BY candidate.generation_id
 UNION ALL
 SELECT candidate.generation_id, 'relationship_reference_candidate_keys' AS table_name, COUNT(keys.fact_id) AS row_count
 FROM generation_retention_row_counts AS candidate

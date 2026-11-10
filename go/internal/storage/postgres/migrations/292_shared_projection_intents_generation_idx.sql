@@ -1,0 +1,33 @@
+-- SPDX-License-Identifier: MIT
+-- Copyright (c) 2025-2026 eshu-hq
+
+-- Back the generation-only retention probes on
+-- shared_projection_intents (#10512).
+-- Evidence: docs/internal/evidence/10512-retention-row-counts.md.
+--
+-- WHAT GOES WRONG TODAY. The generation retention row-count arm and the
+-- intents DELETE both match shared_projection_intents on generation_id
+-- alone, and no index leads with that column: the partial pending index
+-- (migration 108) covers only completed_at IS NULL rows, so a pruned
+-- generation's completed intents are invisible to it. Both statements
+-- plan as a sequential scan of the whole table while the retention batch
+-- is being counted and pruned: measured on QA (11.5M intents) the
+-- isolated count arm took 56.9 s and 2.0M buffers for a 100-generation
+-- batch, and the DELETE plans as the same scan.
+--
+-- THE INDEX. (generation_id) makes both the count leg and the DELETE a
+-- btree probe per candidate, with cost following the batch instead of
+-- the table. The key is generation_id alone on purpose: the count leg
+-- needs only that column and the DELETE must visit the heap row anyway,
+-- so INCLUDE columns would only bloat the index. Write cost is one
+-- small btree entry per intent insert. The migration 108 partial index
+-- stays: it serves the pending-intent claim path, a different predicate.
+--
+-- CONCURRENTLY so bootstrap never blocks the reducer's intent writes;
+-- IF NOT EXISTS so every later bootstrap over an install that has it is
+-- a no-op. The lone statement in this file so the migration coordinator
+-- can run it outside a transaction
+-- (coordination.IsSoleConcurrentIndexStatement). A new file per issue
+-- #7002: never edit an applied migration.
+CREATE INDEX CONCURRENTLY IF NOT EXISTS shared_projection_intents_generation_idx
+    ON shared_projection_intents (generation_id);

@@ -80,10 +80,19 @@ func TestGenerationRetentionRowCountsAreGenerationAware(t *testing.T) {
 		// #9376: the claim-plane commit fence rows, generation-keyed.
 		"SELECT candidate.generation_id, 'generation_commit_fences'",
 		"LEFT JOIN generation_commit_fences AS row\n  ON row.generation_id = candidate.generation_id",
+		// #10512: both package key arms count directly on
+		// (scope_id, generation_id), the delete envelope, with no
+		// fact-join scalar subquery.
+		"LEFT JOIN package_manifest_consumption_keys AS keys\n  ON keys.scope_id = generation.scope_id\n AND keys.generation_id = candidate.generation_id",
+		"LEFT JOIN package_registry_identity_keys AS keys\n  ON keys.scope_id = generation.scope_id\n AND keys.generation_id = candidate.generation_id",
 	} {
 		if !strings.Contains(generationRetentionRowCountsQuery, want) {
 			t.Fatalf("row-count query missing %q:\n%s", want, generationRetentionRowCountsQuery)
 		}
+	}
+	if strings.Contains(generationRetentionRowCountsQuery, "JOIN package_manifest_consumption_keys AS keys\n     ON keys.fact_id = fact.fact_id") ||
+		strings.Contains(generationRetentionRowCountsQuery, "JOIN package_registry_identity_keys AS keys\n     ON keys.fact_id = fact.fact_id") {
+		t.Fatalf("row-count query still counts package keys through facts:\n%s", generationRetentionRowCountsQuery)
 	}
 }
 

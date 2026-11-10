@@ -90,8 +90,9 @@ type Result struct {
 	// FactKeyRowsPruned is the rows the whole-generation key sidecar delete
 	// removed (#7420), by table; RowsPruned also counts any chunk page's
 	// keys. FactKeyRowsCounted is the batch's pre-count of the same tables.
-	// They differ when keys were written or orphaned between the count and
-	// the delete; the runner logs a WARN with both.
+	// Since #10512 the pre-count reads the delete's (scope_id,
+	// generation_id) envelope, so they differ only when keys were written
+	// between the count and the delete; the runner logs a WARN with both.
 	FactKeyRowsPruned  map[string]int64
 	FactKeyRowsCounted map[string]int64
 	// RowsOverLimit is how far a batch of one generation exceeded
@@ -343,8 +344,8 @@ func (r *Runner) recordResult(ctx context.Context, result Result) {
 		)
 	}
 	if !maps.Equal(result.FactKeyRowsPruned, result.FactKeyRowsCounted) {
-		// Keys were written or orphaned between the pre-count and the key
-		// sidecar delete (#7420). Every key of the pruned generations went
+		// Keys were written between the pre-count and the key sidecar
+		// delete (#7420, #10512). Every key of the pruned generations went
 		// either way; the census (factkeys.OrphanCensusSQL) shows any orphans.
 		r.Logger.WarnContext(
 			ctx,

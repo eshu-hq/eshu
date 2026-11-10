@@ -239,13 +239,17 @@ import (
 // (extended statistics holding the advisory arm on its index). #9975 adds
 // 291_fact_records_supply_chain_impact_winners_keyed_idx.sql (the keyed
 // winners resweep probe index: package triple plus coalesced c0/advisory).
-const goldenBootstrapDefinitionsDigest = "a93e2502f9155051d1c974986831ca608493c00afc0eb80ad57baaa92ad15990"
+// #10512 adds 292_shared_projection_intents_generation_idx.sql (the
+// generation index backing the retention row-count arm and intents
+// DELETE; one CREATE INDEX CONCURRENTLY). 291 went to #9975's winners
+// keyed index, which finished first, so this lane takes 292.
+const goldenBootstrapDefinitionsDigest = "cfa69472a917cf026ce9f60cdd295160ae0bb477eb43ca90e7fd2809c58d7f1c"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or
 // silently dropping files) fails loudly even in the unlikely case of a hash
 // collision.
-const goldenBootstrapDefinitionsCount = 317
+const goldenBootstrapDefinitionsCount = 318
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
 	defs := BootstrapDefinitions()
