@@ -18,12 +18,17 @@ live-verified state below are recorded here.
 ## Live-verified state (2026-11-10, read-only cluster reads, exit 0)
 
 - QA GitOps application: Synced.
-- Satellite image: `ghcr.io/eshu-hq/eshu-workflow@sha256:10c4bcbe…f748a96c`
-  (unchanged; contention proofs stay bound).
+- Satellite image:
+  `ghcr.io/eshu-hq/eshu-workflow@sha256:10c4bcbe659a3044961abc05199b6677202123bb1848c6ffc60660f3f748a96c`
+  (full digest, re-verifiable per digest; unchanged, contention proofs
+  stay bound).
 - Resolution engine: `ESHU_POSTGRES_READ_ROUTING=staged-audits`,
   1/1 available.
-- Isolated plane: zero Deploy/Job/CronJob objects in namespace `eshu`
-  (the application namespace).
+- Isolated plane: the name-filtered census (`kubectl get
+  deploy,job,cronjob -n eshu -o name | rg -c isolated`) returns 0 in
+  namespace `eshu`. That proves zero isolated-named objects, not zero
+  objects by any name; the removal itself is the file deletion in IaC
+  PR #641 with the application Synced after.
 
 ## Known non-blocking flag
 
