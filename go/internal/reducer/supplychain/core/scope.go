@@ -4,6 +4,7 @@
 package core
 
 import (
+	"sort"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/packageidentity"
@@ -319,6 +320,125 @@ func evidencePathContainsAll(observed []string, required []string) bool {
 		}
 	}
 	return true
+}
+
+// suppressionIndex is the per-pass candidate index (#10409 D2). It maps
+// case-folded discoverable anchor values to the suppressions naming them, so
+// a finding evaluates only suppressions that can be adjacent to it instead
+// of rescanning every suppression: cost is O(S + F·M) lookups for F findings
+// with at most M matchable ids. The index is a pure prefilter —
+// EvaluateSupplyChainSuppression still rechecks adjacency and scope on every
+// candidate — so it must yield a SUPERSET of the suppressions
+// suppressionAdjacent would accept. Suppressions whose anchors cannot be
+// keyed exactly (no discoverable anchor, or a non-ASCII anchor value where
+// EqualFold admits folds a map key cannot reproduce, e.g. the Kelvin sign)
+// ride the always list and are candidates for every finding, exactly as the
+// full scan treated them. A finding with a non-ASCII anchor or member id
+// likewise falls back to the full set.
+type suppressionIndex struct {
+	all        []vulnerabilitySuppression
+	byIdentity map[string][]int
+	byPackage  map[string][]int
+	byPURL     map[string][]int
+	byRepo     map[string][]int
+	byDigest   map[string][]int
+	always     []int
+}
+
+// suppressionFoldKey folds an identity or anchor value for index lookup.
+// CVE/advisory ids are ASCII by specification and repository/digest anchors
+// are compared with EqualFold; for ASCII values ToUpper equality is exactly
+// EqualFold equality. Non-ASCII values never reach the maps (see
+// suppressionIndex).
+func suppressionFoldKey(value string) string {
+	return strings.ToUpper(strings.TrimSpace(value))
+}
+
+func suppressionASCIIFoldable(value string) bool {
+	for _, r := range value {
+		if r > 127 {
+			return false
+		}
+	}
+	return true
+}
+
+func newSuppressionIndex(suppressions []vulnerabilitySuppression) suppressionIndex {
+	index := suppressionIndex{
+		all:        suppressions,
+		byIdentity: make(map[string][]int, len(suppressions)),
+		byPackage:  make(map[string][]int),
+		byPURL:     make(map[string][]int),
+		byRepo:     make(map[string][]int),
+		byDigest:   make(map[string][]int),
+	}
+	add := func(m map[string][]int, key string, i int) {
+		if key != "" {
+			m[key] = append(m[key], i)
+		}
+	}
+	for i := range suppressions {
+		scope := suppressions[i].Scope
+		anchors := []string{scope.CVEID, scope.AdvisoryID, scope.PackageID, scope.PURL, scope.RepositoryID, scope.SubjectDigest}
+		foldable := suppressionScopeHasDiscoverableAnchor(scope)
+		for _, anchor := range anchors {
+			if strings.TrimSpace(anchor) != "" && !suppressionASCIIFoldable(anchor) {
+				foldable = false
+			}
+		}
+		if !foldable {
+			index.always = append(index.always, i)
+			continue
+		}
+		add(index.byIdentity, suppressionFoldKey(scope.CVEID), i)
+		add(index.byIdentity, suppressionFoldKey(scope.AdvisoryID), i)
+		add(index.byPackage, packageidentity.LowerASCII(strings.TrimSpace(scope.PackageID)), i)
+		add(index.byPURL, packageidentity.LowerASCII(strings.TrimSpace(scope.PURL)), i)
+		add(index.byRepo, suppressionFoldKey(scope.RepositoryID), i)
+		add(index.byDigest, suppressionFoldKey(scope.SubjectDigest), i)
+	}
+	return index
+}
+
+// candidates returns every suppression that can be adjacent to finding, in
+// the original input order so selection ties break exactly as the full scan.
+func (index suppressionIndex) candidates(finding SupplyChainImpactFinding) []vulnerabilitySuppression {
+	if len(index.all) == 0 {
+		return nil
+	}
+	identityIDs := make([]string, 0, len(finding.AdvisoryGroupMembers)+2)
+	identityIDs = append(identityIDs, finding.CVEID, finding.AdvisoryID)
+	identityIDs = append(identityIDs, finding.AdvisoryGroupMembers...)
+	probe := append(append([]string{}, identityIDs...), finding.PackageID, finding.PURL, finding.RepositoryID, finding.SubjectDigest)
+	for _, value := range probe {
+		if strings.TrimSpace(value) != "" && !suppressionASCIIFoldable(value) {
+			return index.all
+		}
+	}
+	seen := make(map[int]struct{}, 16)
+	pick := make([]int, 0, 16)
+	take := func(idxs []int) {
+		for _, idx := range idxs {
+			if _, ok := seen[idx]; !ok {
+				seen[idx] = struct{}{}
+				pick = append(pick, idx)
+			}
+		}
+	}
+	for _, id := range identityIDs {
+		take(index.byIdentity[suppressionFoldKey(id)])
+	}
+	take(index.byPackage[packageidentity.LowerASCII(strings.TrimSpace(finding.PackageID))])
+	take(index.byPURL[packageidentity.LowerASCII(strings.TrimSpace(finding.PURL))])
+	take(index.byRepo[suppressionFoldKey(finding.RepositoryID)])
+	take(index.byDigest[suppressionFoldKey(finding.SubjectDigest)])
+	take(index.always)
+	sort.Ints(pick)
+	out := make([]vulnerabilitySuppression, 0, len(pick))
+	for _, idx := range pick {
+		out = append(out, index.all[idx])
+	}
+	return out
 }
 
 // suppressionScopeHasDiscoverableAnchor reports whether storage can discover

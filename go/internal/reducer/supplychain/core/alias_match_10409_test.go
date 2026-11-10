@@ -4,6 +4,8 @@
 package core
 
 import (
+	"fmt"
+	"math/rand/v2"
 	"strings"
 	"testing"
 	"time"
@@ -148,5 +150,72 @@ func TestAliasMatchScopeMismatchReasonOmitsMatchedIdentity(t *testing.T) {
 	}
 	if !strings.Contains(decision.Reason, "package_id=") {
 		t.Fatalf("Reason = %q: must report the narrowing package mismatch", decision.Reason)
+	}
+}
+
+// TestSuppressionIndexMatchesFullScan is the D2 differential: the per-pass
+// index is a pure prefilter, so applying suppressions through it must yield
+// byte-identical decisions to the full scan over a seeded mixed corpus
+// (grouped and ungrouped findings; identity, package, repo, digest, and
+// anchorless scopes; expired and provider candidates; case and whitespace
+// variants; one non-ASCII lookalike that must ride the fallback).
+func TestSuppressionIndexMatchesFullScan(t *testing.T) {
+	t.Parallel()
+	rng := rand.New(rand.NewPCG(10409, 42))
+	ids := []string{"CVE-2026-1", "CVE-2026-2", "GHSA-a", "GHSA-b", "DSA-1", "cve-2026-1", " GHSA-a ", "CVE-2026-9", "pkg:npm/Kelvin"}
+	pkgs := []string{"pkg:npm/one", "pkg:npm/two", "PKG:NPM/ONE", ""}
+	repos := []string{"repo://acme/api", "repo://acme/web", ""}
+	pick := func(xs []string) string { return xs[rng.IntN(len(xs))] }
+
+	findings := make([]SupplyChainImpactFinding, 0, 60)
+	for i := 0; i < 60; i++ {
+		f := SupplyChainImpactFinding{
+			CVEID:         pick(ids[:6]),
+			AdvisoryID:    pick(ids[:6]),
+			PackageID:     pick(pkgs),
+			RepositoryID:  pick(repos),
+			SubjectDigest: fmt.Sprintf("sha256:d%d", rng.IntN(4)),
+		}
+		if rng.IntN(2) == 0 {
+			f.AdvisoryGroupMembers = []string{"CVE-2026-1", "CVE-2026-2", "GHSA-a", "GHSA-b"}
+		}
+		findings = append(findings, f)
+	}
+	findings = append(findings, SupplyChainImpactFinding{CVEID: "CVE-2026-1", PackageID: "pkg:npm/kelvin"})
+
+	suppressions := make([]vulnerabilitySuppression, 0, 120)
+	sources := []string{chain.VulnerabilitySuppressionSourceVEX, chain.VulnerabilitySuppressionSourcePolicy, chain.VulnerabilitySuppressionSourceProviderDismissal}
+	for i := 0; i < 120; i++ {
+		s := vulnerabilitySuppression{
+			SuppressionID: fmt.Sprintf("s-%03d", i),
+			Source:        sources[rng.IntN(len(sources))],
+			Justification: chain.VulnerabilitySuppressionJustificationNotAffected,
+			AuthoredAt:    aliasMatchAuthored.Add(time.Duration(rng.IntN(72)) * time.Hour),
+			Scope: vulnerabilitySuppressionScope{
+				CVEID:         pick(append(ids, "")),
+				AdvisoryID:    pick(append(ids, "", "")),
+				PackageID:     pick(pkgs),
+				RepositoryID:  pick(repos),
+				SubjectDigest: pick([]string{"", "sha256:d1", "SHA256:D2"}),
+			},
+		}
+		if rng.IntN(4) == 0 {
+			s.ExpiresAt = aliasMatchAuthored
+		}
+		suppressions = append(suppressions, s)
+	}
+	// Anchorless and Kelvin-lookalike package scopes exercise the fallback.
+	suppressions = append(suppressions,
+		vulnerabilitySuppression{SuppressionID: "anchorless", Source: chain.VulnerabilitySuppressionSourcePolicy, Justification: chain.VulnerabilitySuppressionJustificationIgnored, AuthoredAt: aliasMatchAuthored},
+		vulnerabilitySuppression{SuppressionID: "kelvin", Source: chain.VulnerabilitySuppressionSourcePolicy, Justification: chain.VulnerabilitySuppressionJustificationFalsePositive, AuthoredAt: aliasMatchAuthored, Scope: vulnerabilitySuppressionScope{PackageID: "pkg:npm/Kelvin"}},
+	)
+
+	indexed := append([]SupplyChainImpactFinding(nil), findings...)
+	applySupplyChainImpactSuppressions(indexed, suppressions, aliasMatchNow)
+	for i, finding := range findings {
+		want := EvaluateSupplyChainSuppression(finding, suppressions, aliasMatchNow)
+		if indexed[i].Suppression != want {
+			t.Fatalf("finding %d (%#v): indexed decision %#v != full-scan %#v", i, finding, indexed[i].Suppression, want)
+		}
 	}
 }

@@ -150,3 +150,44 @@ func BenchmarkEvaluateSupplyChainSuppression_AtCandidateCap(b *testing.B) {
 		EvaluateSupplyChainSuppression(finding, suppressions, now)
 	}
 }
+
+// BenchmarkApplySupplyChainImpactSuppressions_SpreadIdentities measures one
+// whole pass at the candidate cap with spread identities (#10409 D2): 200
+// grouped findings and 2,000 CVE-scoped suppressions whose ids name roughly
+// ten per finding, so adjacency is sparse. Before the per-pass index this is
+// 200 full 2,000-candidate scans.
+func BenchmarkApplySupplyChainImpactSuppressions_SpreadIdentities(b *testing.B) {
+	const findingCount, suppressionCount = 200, 2000
+	findings := make([]SupplyChainImpactFinding, 0, findingCount)
+	for i := 0; i < findingCount; i++ {
+		findings = append(findings, SupplyChainImpactFinding{
+			CVEID:      fmt.Sprintf("CVE-2026-%05d", i),
+			AdvisoryID: fmt.Sprintf("GHSA-bench-%d", i),
+			AdvisoryGroupMembers: []string{
+				fmt.Sprintf("CVE-2026-%05d", i),
+				fmt.Sprintf("GHSA-bench-%d", i),
+				fmt.Sprintf("GHSA-bench-alt-%d", i),
+			},
+			PackageID: fmt.Sprintf("pkg:npm/bench-%d", i),
+		})
+	}
+	suppressions := make([]vulnerabilitySuppression, 0, suppressionCount)
+	for i := 0; i < suppressionCount; i++ {
+		suppressions = append(suppressions, vulnerabilitySuppression{
+			SuppressionID: fmt.Sprintf("suppression-%d", i),
+			Source:        chain.VulnerabilitySuppressionSourceVEX,
+			Justification: chain.VulnerabilitySuppressionJustificationNotAffected,
+			AuthoredAt:    time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC),
+			Scope: vulnerabilitySuppressionScope{
+				CVEID: fmt.Sprintf("GHSA-bench-alt-%d", i%findingCount),
+			},
+		})
+	}
+	now := time.Date(2026, 5, 24, 0, 0, 0, 0, time.UTC)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		applySupplyChainImpactSuppressions(findings, suppressions, now)
+	}
+}
