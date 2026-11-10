@@ -72,18 +72,4 @@
 // The vulnerability-intelligence host uses it to write
 // vulnerability_source_states; an attempt-row write error fails the claim
 // retryable with FailureClassSourceStateRecord.
-//
-// No-Regression Evidence (#10533): the anchor fallback adds one strict
-// url.Parse only on the already-missing opt-in path (exact match still
-// decides first), plus one map lookup on installation miss. Baseline
-// 290076840d vs branch head, same-machine `go test
-// ./internal/collector/extensionhost/ -count=3` (linux/amd64, local,
-// full package suite including the 7-case mint table): 1.734s vs 1.753s,
-// inside run-to-run variance. No SQL, lock, retry, or queue-shape change;
-// terminal dispositions (auth_denied pre-launch, static-path passthrough)
-// are pinned by table tests, not timing.
-//
-// No-Observability-Change (#10533): the fallback adds no metrics, spans,
-// or log lines; mint/deny outcomes ride the existing ClaimOutcome and
-// failure-class paths unchanged.
 package extensionhost
