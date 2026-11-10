@@ -6,6 +6,7 @@ package service
 import (
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
@@ -358,9 +359,12 @@ func serviceInvestigationCoverage(
 	// family with the bound that fired, so a caller knows which bound to
 	// raise instead of guessing from a generic sentence. When nothing
 	// truncated the legacy sentences above stay byte-identical.
-	if clauses := serviceCoverageTruncationClauses(workloadContext, repositoriesTruncated, downstreamLimit); len(clauses) > 0 {
+	if first, rest := serviceCoverageTruncationClauses(workloadContext, repositoriesTruncated, downstreamLimit); first != "" {
 		state = "partial"
-		reason = strings.Join(clauses, "; ")
+		reason = first
+		if len(rest) > 0 {
+			reason += "; " + strings.Join(rest, "; ")
+		}
 	}
 	return map[string]any{
 		"state":  state,
@@ -408,35 +412,56 @@ func effectiveDownstreamReadLimit(workloadContext map[string]any) int {
 // the evidence-file bound can fire while the downstream read is clean. A
 // merged consumer flag with no recorded source (older enrichment path or a
 // hand-built fixture) names the downstream bound, the tighter of the two.
-func serviceCoverageTruncationClauses(workloadContext map[string]any, repositoriesTruncated bool, downstreamLimit int) []string {
-	clauses := []string{}
-	downstreamBound := fmt.Sprintf("downstream_read_limit=%d", downstreamLimit)
-	if querycontract.BoolVal(workloadContext, "dependents_truncated") {
-		clauses = append(clauses, "dependents truncated at "+downstreamBound)
+// emitCoverageClause records one truncation clause: the first lands in first
+// so a single-cause read pays for no slice, later ones append to rest in
+// firing order. The story alloc budget pins this path (#10477).
+func emitCoverageClause(first *string, rest *[]string, clause string) {
+	if *first == "" {
+		*first = clause
+		return
 	}
-	if querycontract.BoolVal(workloadContext, "consumer_repositories_truncated") {
-		bounds := []string{}
+	*rest = append(*rest, clause)
+}
+
+func serviceCoverageTruncationClauses(workloadContext map[string]any, repositoriesTruncated bool, downstreamLimit int) (string, []string) {
+	dependentsTruncated := querycontract.BoolVal(workloadContext, "dependents_truncated")
+	consumersTruncated := querycontract.BoolVal(workloadContext, "consumer_repositories_truncated")
+	chainsTruncated := querycontract.BoolVal(workloadContext, "provisioning_source_chains_truncated")
+	// Format the bound strings only when a clause needs them: the story
+	// alloc budget pins this path, and an untruncated read must not pay
+	// for formatting (#10477).
+	var downstreamBound string
+	if dependentsTruncated || consumersTruncated || chainsTruncated {
+		downstreamBound = "downstream_read_limit=" + strconv.Itoa(downstreamLimit)
+	}
+	var first string
+	var rest []string
+	if dependentsTruncated {
+		emitCoverageClause(&first, &rest, "dependents truncated at "+downstreamBound)
+	}
+	if consumersTruncated {
+		var bounds []string
 		if querycontract.BoolVal(workloadContext, "consumer_repositories_downstream_truncated") {
 			bounds = append(bounds, downstreamBound)
 		}
 		if querycontract.BoolVal(workloadContext, "consumer_repositories_evidence_file_truncated") {
-			bounds = append(bounds, fmt.Sprintf("evidence_file_read_limit=%d", serviceEvidenceFileLimit))
+			bounds = append(bounds, "evidence_file_read_limit="+strconv.Itoa(serviceEvidenceFileLimit))
 		}
 		if len(bounds) == 0 {
 			bounds = append(bounds, downstreamBound)
 		}
-		clauses = append(clauses, "consumer_repositories truncated at "+strings.Join(bounds, ", "))
+		emitCoverageClause(&first, &rest, "consumer_repositories truncated at "+strings.Join(bounds, ", "))
 	}
-	if querycontract.BoolVal(workloadContext, "provisioning_source_chains_truncated") {
-		clauses = append(clauses, "provisioning_source_chains truncated at "+downstreamBound)
+	if chainsTruncated {
+		emitCoverageClause(&first, &rest, "provisioning_source_chains truncated at "+downstreamBound)
 	}
 	if apiSurfaceTruncated(workloadContext) {
-		clauses = append(clauses, fmt.Sprintf("api_surface truncated at detail_limit=%d", apiSurfaceDetailLimit(workloadContext)))
+		emitCoverageClause(&first, &rest, "api_surface truncated at detail_limit="+strconv.Itoa(apiSurfaceDetailLimit(workloadContext)))
 	}
 	if repositoriesTruncated {
-		clauses = append(clauses, fmt.Sprintf("repositories_considered truncated at result_limit=%d", serviceStoryItemLimit))
+		emitCoverageClause(&first, &rest, "repositories_considered truncated at result_limit="+strconv.Itoa(serviceStoryItemLimit))
 	}
-	return clauses
+	return first, rest
 }
 
 // apiSurfaceTruncated reports whether the service API surface read carries
