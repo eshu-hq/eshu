@@ -9,6 +9,17 @@ recent shipped work grouped by feature area.
 
 ## Unreleased
 
+### Golden corpus gate jobs get a budget that fits their measured runtime
+
+- **Corpus gate job cap aligned to measured durations**
+  ([#10505](https://github.com/eshu-hq/eshu/issues/10505)). Successful
+  `corpus-gate` and differential-capture runs reach 29.7 minutes against
+  the old 30-minute job cap, so healthy runs were cancelled at the cap in
+  about a third of attempts. Both jobs now use `timeout-minutes: 45`;
+  measurement and rationale are in
+  `docs/internal/evidence/10505-golden-corpus-job-cap.md`. No gate
+  assertion or snapshot tolerance changes.
+
 ### The Ack journal cost gate no longer reads environment drift as journal cost
 
 - **Deterministic Ack journal cost measurement**
