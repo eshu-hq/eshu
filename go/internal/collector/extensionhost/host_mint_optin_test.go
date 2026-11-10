@@ -361,6 +361,48 @@ func TestHostMintOptedInPredicate(t *testing.T) {
 	}
 }
 
+// TestHostMintForgedStaticDerivedKeySkipsProvider proves the source.go gate
+// hardening (eshu-hq/eshu#10483): a Source with a token provider set but NO
+// derived target resolver must stay on the static path even when static config
+// forges the host_derived_target key. NewSource rejects that key only when a
+// resolver is set, so the gate must also require the resolver before treating
+// key presence as a host-resolved derived claim.
+func TestHostMintForgedStaticDerivedKeySkipsProvider(t *testing.T) {
+	t.Parallel()
+
+	calls := 0
+	provider := func(context.Context, workflow.WorkItem) (string, error) {
+		calls++
+		return "must-not-mint", nil
+	}
+	item := testWorkItem()
+	static := map[string]any{
+		"fixture": "scorecard",
+		"targets": []any{map[string]any{"scope_id": item.ScopeID}},
+		HostDerivedTargetKey: map[string]any{
+			"scope_id":          item.ScopeID,
+			"repository_id":     "repository:r_forged",
+			"source_commit_sha": "forged-commit",
+			"clone_url":         "https://github.com/eshu-hq/forged",
+		},
+	}
+	runner := &recordingRunner{result: completeResult(item, testSDKFact(item))}
+	source := mustNewSourceWithProvider(t, runner, &recordingStatusRecorder{}, provider, static)
+
+	if _, _, err := source.NextClaimed(context.Background(), item); err != nil {
+		t.Fatalf("NextClaimed() error = %v, want nil", err)
+	}
+	if calls != 0 {
+		t.Fatalf("provider calls = %d, want 0 for a forged static derived key with no resolver", calls)
+	}
+	if len(runner.requests) != 1 {
+		t.Fatalf("runner requests = %d, want 1", len(runner.requests))
+	}
+	if _, present := runner.requests[0].Config[HostMintedGitHubTokenKey]; present {
+		t.Fatalf("request config carries %q for a forged static derived key with no resolver", HostMintedGitHubTokenKey)
+	}
+}
+
 // BenchmarkHostMintOptedIn measures the per-claim gate predicate cost for the
 // #10483 evidence note: one short targets scan, first scope match decides.
 func BenchmarkHostMintOptedIn(b *testing.B) {

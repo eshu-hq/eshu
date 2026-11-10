@@ -47,7 +47,8 @@
 // token per opted-in claim and injects it into the request config under
 // HostMintedGitHubTokenKey; only the minted token crosses the extension
 // boundary, never the App private key. Only a claim whose targets entry
-// carries auth_mode host_minted mints (eshu-hq/eshu#10483); any other claim
+// carries auth_mode host_minted mints (eshu-hq/eshu#10483), as does a claim
+// carrying a host-resolved derived target; any other claim
 // keeps the static path with the provider never consulted. A mint denial
 // fails the claim terminal with a bounded auth_denied failure before the
 // runner launches, while a transient mint fault stays retryable.

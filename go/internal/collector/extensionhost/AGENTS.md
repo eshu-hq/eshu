@@ -35,10 +35,11 @@ extensions. Follow the root `AGENTS.md`, `docs/internal/agent-guide.md`, and
   clamped to `MaxRetryAfterDelay`; keep the clamp in seconds before the
   multiply so no value overflows `time.Duration`.
 - `Config.TokenProvider` mints once per opted-in claim (targets entry with
-  `auth_mode: host_minted` for the claimed scope) and only the minted token
+  `auth_mode: host_minted` for the claimed scope, or a claim carrying a
+  host-resolved derived target) and only the minted token
   reaches `Request.Config` under `HostMintedGitHubTokenKey`; static config
-  must not define that key (`NewSource` rejects it). Non-opted-in claims
-  never consult the provider. Provider errors stay
+  must not define that key (`NewSource` rejects it). A static claim without
+  the opt-in never consults the provider. Provider errors stay
   bounded: only `github/app` faults keep their chain, everything else maps to
   a terminal `auth_denied` denial, and no token, key, or credential may appear
   in any error, record, or telemetry value.

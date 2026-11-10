@@ -164,7 +164,7 @@ func (s *Source) nextClaimed(
 		}
 	}
 	_, derived := request.Config[HostDerivedTargetKey]
-	if s.tokenProvider != nil && (hostMintOptedIn(request.Config, item.ScopeID) || derived) {
+	if s.tokenProvider != nil && (hostMintOptedIn(request.Config, item.ScopeID) || (s.derivedTargetResolver != nil && derived)) {
 		// Mint before launch for a static target that opts in via
 		// auth_mode host_minted (eshu-hq/eshu#10483), and for any claim
 		// carrying a host-resolved derived target: static config can not
