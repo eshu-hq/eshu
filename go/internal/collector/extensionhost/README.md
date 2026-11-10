@@ -41,9 +41,10 @@ remain owned by `collector.ClaimedService` and its claim-aware committer.
 Host-minted GitHub App tokens (#9182 lane A, wire shape per arbiter):
 `Config.TokenProvider`, when set, mints one installation token per opted-in claim
 host-side into the per-claim request config under `host_github_app_token` as
-`{token, scope_id}`; only a `targets` entry with `auth_mode: host_minted` for the
-claimed scope mints, and the App private key never crosses the stdio boundary.
-Other claims keep the static path with the provider never consulted. A mint denial
+`{token, scope_id}`; a static `targets` entry with `auth_mode: host_minted` for the claimed
+scope mints, as does any claim carrying a host-resolved derived target; the App private key
+never crosses the stdio boundary. Other claims keep the static path with the provider never
+consulted. A mint denial
 fails the claim terminal (`auth_denied`) before the satellite launches; a transient
 mint fault stays retryable, and with no provider
 the config passes through byte-identically (the `token_env` escape hatch).

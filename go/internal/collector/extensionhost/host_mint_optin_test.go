@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	sdkcollector "github.com/eshu-hq/eshu-sdk/collector"
+	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
@@ -143,6 +144,131 @@ func TestHostMintOptedInUnmappedFailsTerminal(t *testing.T) {
 	}
 }
 
+// mustNewSourceWithProviderAndResolver builds a Source with both a token
+// provider and a derived target resolver, for the derived-claim mint path.
+func mustNewSourceWithProviderAndResolver(
+	t *testing.T,
+	runner Runner,
+	recorder StatusRecorder,
+	provider TokenProvider,
+	resolver DerivedTargetResolver,
+	config map[string]any,
+) *Source {
+	t.Helper()
+	if config == nil {
+		config = map[string]any{"fixture": "scorecard"}
+	}
+	source, err := NewSource(Config{
+		Manifest:              testManifest(),
+		CollectorInstanceID:   "scorecard-instance",
+		ScopeKind:             scope.KindRepository,
+		ConfigHandle:          "cfg-scorecard",
+		Config:                config,
+		Runner:                runner,
+		StatusRecorder:        recorder,
+		Clock:                 testObservedAt,
+		TokenProvider:         provider,
+		DerivedTargetResolver: resolver,
+	})
+	if err != nil {
+		t.Fatalf("NewSource() error = %v, want nil", err)
+	}
+	return source
+}
+
+// staticDerivedResolver returns a fixed derived target for any claim, so the
+// request config carries a host-resolved derived target with no static
+// auth_mode opt-in.
+func staticDerivedResolver(_ context.Context, item workflow.WorkItem) (map[string]any, error) {
+	return map[string]any{
+		"scope_id":          item.ScopeID,
+		"repository_id":     "repository:r_1a2b3c4d",
+		"source_commit_sha": testGoCommit,
+		"clone_url":         "https://github.com/eshu-hq/widgets",
+	}, nil
+}
+
+// TestHostMintDerivedClaimConsultsProvider proves the derived-claim exception
+// to the opt-in gate: a claim carrying a host-resolved derived target consults
+// the provider even with no static auth_mode opt-in, and the minted token
+// reaches the satellite alongside the derived target.
+func TestHostMintDerivedClaimConsultsProvider(t *testing.T) {
+	t.Parallel()
+
+	calls := 0
+	provider := func(context.Context, workflow.WorkItem) (string, error) {
+		calls++
+		return "host-token-derived", nil
+	}
+	item := testWorkItem()
+	runner := &recordingRunner{result: completeResult(item, testSDKFact(item))}
+	source := mustNewSourceWithProviderAndResolver(t, runner, &recordingStatusRecorder{}, provider,
+		staticDerivedResolver, map[string]any{"fixture": "scorecard"})
+
+	if _, _, err := source.NextClaimed(context.Background(), item); err != nil {
+		t.Fatalf("NextClaimed() error = %v, want nil", err)
+	}
+	if calls != 1 {
+		t.Fatalf("provider calls = %d, want 1 for the derived claim", calls)
+	}
+	if len(runner.requests) != 1 {
+		t.Fatalf("runner requests = %d, want 1", len(runner.requests))
+	}
+	got, ok := runner.requests[0].Config[HostMintedGitHubTokenKey].(map[string]any)
+	if !ok {
+		t.Fatalf("config[%q] = %v, want object {token, scope_id}", HostMintedGitHubTokenKey, runner.requests[0].Config[HostMintedGitHubTokenKey])
+	}
+	if got["token"] != "host-token-derived" {
+		t.Fatalf("config[%q].token = %v, want minted token", HostMintedGitHubTokenKey, got["token"])
+	}
+	if got["scope_id"] != item.ScopeID {
+		t.Fatalf("config[%q].scope_id = %v, want %q", HostMintedGitHubTokenKey, got["scope_id"], item.ScopeID)
+	}
+	if _, ok := runner.requests[0].Config[HostDerivedTargetKey].(map[string]any); !ok {
+		t.Fatalf("config lacks %q, want the derived target kept", HostDerivedTargetKey)
+	}
+}
+
+// TestHostMintDerivedUnmappedFailsTerminal proves an unmapped derived pair
+// fails the claim terminal auth_denied without ever starting the satellite,
+// restoring the pre-gate behavior on the derived path.
+func TestHostMintDerivedUnmappedFailsTerminal(t *testing.T) {
+	t.Parallel()
+
+	provider, err := NewAppTokenProvider(AppTokenProviderConfig{
+		AppID:         "42",
+		PrivateKey:    "unusable-in-this-test",
+		Installations: map[string]string{"some-other-scope": "777"},
+	})
+	if err != nil {
+		t.Fatalf("NewAppTokenProvider() error = %v, want nil", err)
+	}
+	item := testWorkItem()
+	runner := &recordingRunner{result: completeResult(item, testSDKFact(item))}
+	recorder := &recordingResultRecorder{}
+	source := mustNewSourceWithProviderAndResolver(t, runner, recorder, provider,
+		staticDerivedResolver, map[string]any{"fixture": "scorecard"})
+
+	_, ok, err := source.NextClaimed(context.Background(), item)
+	if err == nil {
+		t.Fatal("NextClaimed() error = nil, want terminal mint denial")
+	}
+	if ok {
+		t.Fatal("NextClaimed() ok = true, want false on unmapped derived scope")
+	}
+	assertFailure(t, err, "auth_denied", true)
+	if len(runner.requests) != 0 {
+		t.Fatalf("runner requests = %d, want 0 (satellite never launched)", len(runner.requests))
+	}
+	if len(recorder.results) != 1 {
+		t.Fatalf("result records = %d, want exactly 1", len(recorder.results))
+	}
+	record := recorder.results[0]
+	if record.Origin != ResultOriginHost || record.State != sdkcollector.ResultTerminal {
+		t.Fatalf("result record = %+v, want host terminal verdict", record)
+	}
+}
+
 // TestHostMintOptedInPredicate pins the opt-in predicate's table: only an
 // entry whose scope_id equals the claimed scope AND whose auth_mode is exactly
 // host_minted opts in. Every other shape stays on the static path.
@@ -198,6 +324,22 @@ func TestHostMintOptedInPredicate(t *testing.T) {
 			config: map[string]any{"targets": []any{
 				"repo-eshu",
 				map[string]any{"scope_id": scopeID, "auth_mode": HostMintedAuthMode},
+			}},
+			want: true,
+		},
+		{
+			name: "duplicate scope first non-opted-in wins",
+			config: map[string]any{"targets": []any{
+				map[string]any{"scope_id": scopeID},
+				map[string]any{"scope_id": scopeID, "auth_mode": HostMintedAuthMode},
+			}},
+			want: false,
+		},
+		{
+			name: "duplicate scope first opted-in wins",
+			config: map[string]any{"targets": []any{
+				map[string]any{"scope_id": scopeID, "auth_mode": HostMintedAuthMode},
+				map[string]any{"scope_id": scopeID},
 			}},
 			want: true,
 		},
