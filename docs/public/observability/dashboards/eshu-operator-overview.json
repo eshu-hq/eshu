@@ -827,6 +827,89 @@
         "overrides": []
       },
       "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}}
+    },
+    {
+      "id": 35,
+      "type": "row",
+      "title": "Claim Plane Client (#8875 C8)",
+      "collapsed": false,
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 112},
+      "panels": []
+    },
+    {
+      "id": 36,
+      "type": "timeseries",
+      "title": "Claim-Plane Request Duration p50 / p99 by Operation",
+      "description": "Per-operation claim-plane round-trip latency percentiles over a 5-minute window. Client buckets run 0.005-10 s; the 10 s client timeout lands in the last finite bucket. Sustained p99 growth without saturation is a regression.",
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 113},
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "expr": "histogram_quantile(0.50, sum by (le, operation) (rate(eshu_dp_workflow_claim_plane_request_duration_seconds_bucket[5m])))",
+          "legendFormat": "p50 {{operation}}",
+          "refId": "A"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "expr": "histogram_quantile(0.99, sum by (le, operation) (rate(eshu_dp_workflow_claim_plane_request_duration_seconds_bucket[5m])))",
+          "legendFormat": "p99 {{operation}}",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {"unit": "s", "custom": {"drawStyle": "line", "lineWidth": 1, "fillOpacity": 5}},
+        "overrides": []
+      },
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}}
+    },
+    {
+      "id": 37,
+      "type": "timeseries",
+      "title": "Claim-Plane Requests by Outcome",
+      "description": "Per-second claim-plane request rate by outcome. outcome=pacing_signal_unknown counts boundary remaps (#10377); a sustained invalid or server_error rate is an alarm.",
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "gridPos": {"h": 8, "w": 8, "x": 8, "y": 113},
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "expr": "sum by (outcome) (rate(eshu_dp_workflow_claim_plane_requests_total[5m]))",
+          "legendFormat": "{{outcome}}/s",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {"unit": "ops", "custom": {"drawStyle": "line", "lineWidth": 1, "fillOpacity": 10}},
+        "overrides": []
+      },
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}}
+    },
+    {
+      "id": 38,
+      "type": "timeseries",
+      "title": "Commit Pin Slack",
+      "description": "Claim-plane pin deadline minus the clock at the pre-COMMIT check (#9376). Samples below the 5 s margin precede a deadline refusal; healthy steady state holds tens of seconds of slack.",
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "gridPos": {"h": 8, "w": 8, "x": 16, "y": 113},
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(eshu_dp_ingestion_commit_pin_slack_seconds_bucket[5m])))",
+          "legendFormat": "p50 slack",
+          "refId": "A"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(eshu_dp_ingestion_commit_pin_slack_seconds_bucket[5m])))",
+          "legendFormat": "p99 slack",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {"unit": "s", "custom": {"drawStyle": "line", "lineWidth": 1, "fillOpacity": 5}},
+        "overrides": []
+      },
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}}
     }
   ],
   "refresh": "30s",
