@@ -140,13 +140,14 @@ func countSuppressionsWithoutIdentityScope(rows []suppressionDiffRow) int {
 	return count
 }
 
-// unionSuppressionFanOutCVEIDs is the pass's fan-out set: the CVEs whose finding
-// rows it changed plus the CVEs its changed suppressions name.
+// unionSuppressionFanOutCVEIDs is the pass's fan-out set: the identity ids
+// whose finding rows it changed plus the identity ids its changed
+// suppressions name (CVE and advisory ids; the holder read matches either).
 func unionSuppressionFanOutCVEIDs(changed []string, rows []suppressionDiffRow) []string {
 	return unionSortedStrings(changed, changedSuppressionIDs(rows))
 }
 
-// expandSuppressionCVEIDsThroughMembers widens suppression-named CVE ids
+// expandSuppressionCVEIDsThroughMembers widens suppression-named identity ids
 // through the advisory groups the pass's findings carry (#10408): a
 // suppression re-scoping a grouped CVE must reach the holders of every
 // member, not only the named id. Ids no group names pass through, blanks

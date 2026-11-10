@@ -20,11 +20,12 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
-// The suppression fan-out wiring (#10019): a cve_id-scoped operator
+// The suppression fan-out wiring (#10019): an identity-scoped operator
 // suppression changes no finding row on the operator pass, so ChangedCVEIDs
 // is empty and no holder reopens. The writer diffs the pass's suppression
 // facts against the newest admitted older generation with a cleared owed
-// marker and unions the changed suppressions' CVE ids into the fan-out set,
+// marker and unions the changed suppressions' identity ids (CVE and
+// advisory ids since #10409) into the fan-out set,
 // before the owed marker is recorded. The pure decisions live in
 // suppression_diff.go and suppression_walk.go; this file owns the reads,
 // the statement bound, and the report the handler emits.

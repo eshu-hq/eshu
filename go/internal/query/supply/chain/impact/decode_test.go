@@ -155,6 +155,20 @@ func TestDecodeSupplyChainSuppressionDecision(t *testing.T) {
 	if nested == nil || nested.State != "active" || nested.Author != "bot" {
 		t.Errorf("nested suppression lost: %+v", nested)
 	}
+	// Matched-member provenance (#10409) must survive decode hermetically;
+	// the golden live gate alone must not guard these fields.
+	matched := decodeSupplyChainSuppressionDecision(map[string]any{
+		"suppression": map[string]any{
+			"state": "not_affected", "matched_id": "GHSA-y",
+			"matched_field": "cve_id", "matched_via": "group_member",
+		},
+	})
+	if matched == nil || matched.MatchedID != "GHSA-y" || matched.MatchedField != "cve_id" || matched.MatchedVia != "group_member" {
+		t.Errorf("matched provenance lost: %+v", matched)
+	}
+	if nested != nil && (nested.MatchedID != "" || nested.MatchedField != "" || nested.MatchedVia != "") {
+		t.Errorf("unmatched decision gained provenance: %+v", nested)
+	}
 	flat := decodeSupplyChainSuppressionDecision(map[string]any{"suppression_state": "expired"})
 	if flat == nil || flat.State != "expired" {
 		t.Errorf("flat suppression lost: %+v", flat)
