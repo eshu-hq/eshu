@@ -80,19 +80,15 @@
       "trigger_kind": "snapshot",
       "facts": [
         {
-          "fact_kind": "vulnerability.cve",
-          "stable_fact_key": "vulnerability_cve:ifa-advisory-group:GHSA-10466-aaaa-bbbb",
+          "fact_kind": "vulnerability.source_snapshot",
+          "stable_fact_key": "vulnerability_source_snapshot:ifa-advisory-group:npm",
           "schema_version": "1.0.0",
           "collector_kind": "osv",
           "fencing_token": 1,
           "source_confidence": "reported",
           "payload": {
-            "advisory_id": "GHSA-10466-aaaa-bbbb",
-            "aliases": [
-              "CVE-2026-10466",
-              "CVE-2026-10467"
-            ],
-            "cve_id": "CVE-2026-10466",
+            "complete": true,
+            "ecosystem": "npm",
             "source": "osv"
           }
         },

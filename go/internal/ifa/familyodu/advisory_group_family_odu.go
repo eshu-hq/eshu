@@ -40,10 +40,11 @@ const (
 	// writer upserts reducer_supply_chain_impact_finding facts under the
 	// pass's own scope and generation, with the alias-group members under
 	// payload.provenance.advisory_group_members (#10475). The scope also
-	// carries one vulnerability.cve evidence fact: production passes run
-	// on evidence scopes, and the live drive needs this scope and
-	// generation to exist before the findings are admitted through the
-	// writer's fact-store port (see AdvisoryGroupFamilyOdu).
+	// carries one vulnerability.source_snapshot anchor fact so the live
+	// drive creates this scope and generation before the findings are
+	// admitted through the writer's fact-store port (see
+	// advisoryGroupFamilyScopeAnchorFact for why it is not a
+	// vulnerability.cve record).
 	advisoryGroupFamilyFindingScopeID      = "osv:eshu-fixture-advisory-findings"
 	advisoryGroupFamilyFindingGenerationID = "gen-ifa-advisory-group-family-findings-1"
 	advisoryGroupFamilyFindingIntentID     = "intent-ifa-advisory-group-family-1"
@@ -208,29 +209,33 @@ func advisoryGroupFamilyFindingPayload(finding advisoryGroupFamilyFinding) map[s
 	return payload
 }
 
-// advisoryGroupFamilyEvidenceFact builds the findings scope's one
-// vulnerability.cve evidence record through the production OSV
-// encoder: the identity record a pass on this scope would have
-// evaluated. It carries no affected-package facts, so a pass over
-// this scope derives no findings of its own.
-func advisoryGroupFamilyEvidenceFact() facts.Envelope {
-	cveID := advisoryGroupFamilyGroupID
-	source := advisoryGroupFamilyOSVCollector
-	payload, err := factschema.EncodeVulnerabilityCVE(vulnerabilityv1.CVE{
-		AdvisoryID: advisoryGroupFamilyAdvisoryID,
-		CVEID:      &cveID,
-		Source:     &source,
-		Aliases:    []string{advisoryGroupFamilyGroupID, advisoryGroupFamilyAliasCVEID},
+// advisoryGroupFamilyScopeAnchorFact builds the findings scope's one
+// vulnerability.source_snapshot record through the production OSV
+// encoder: the collection-boundary fact a real OSV generation carries.
+// It anchors the scope generation for the live drive. It is
+// deliberately NOT a vulnerability.cve record: that kind is a
+// supply_chain_impact pass candidate, and a pass over this scope —
+// whenever cross-scope readiness let it claim — would retract the
+// admitted findings as superseded and delete the projected group
+// (proven live on this branch). The snapshot kind triggers no pass,
+// and holder fan-out is package-keyed to changed manifest packages,
+// which this fixture's packages never are in another family's view.
+func advisoryGroupFamilyScopeAnchorFact() facts.Envelope {
+	ecosystem := "npm"
+	payload, err := factschema.EncodeVulnerabilitySourceSnapshot(vulnerabilityv1.SourceSnapshot{
+		Source:    advisoryGroupFamilyOSVCollector,
+		Complete:  true,
+		Ecosystem: &ecosystem,
 	})
 	if err != nil {
-		panic(fmt.Sprintf("familyodu: catalog_seed %s: encode vulnerability.cve payload: %v",
+		panic(fmt.Sprintf("familyodu: catalog_seed %s: encode vulnerability.source_snapshot payload: %v",
 			AdvisoryGroupFamilyOduName, err))
 	}
 	return facts.Envelope{
 		ScopeID:          advisoryGroupFamilyFindingScopeID,
 		GenerationID:     advisoryGroupFamilyFindingGenerationID,
-		FactKind:         supplychainfacts.VulnerabilityCVEFactKind,
-		StableFactKey:    "vulnerability_cve:ifa-advisory-group:" + advisoryGroupFamilyAdvisoryID,
+		FactKind:         supplychainfacts.VulnerabilitySourceSnapshotFactKind,
+		StableFactKey:    "vulnerability_source_snapshot:ifa-advisory-group:npm",
 		SchemaVersion:    advisoryGroupFamilySchemaVersion,
 		CollectorKind:    advisoryGroupFamilyOSVCollector,
 		SourceConfidence: facts.SourceConfidenceReported,
@@ -240,7 +245,7 @@ func advisoryGroupFamilyEvidenceFact() facts.Envelope {
 
 // AdvisoryGroupFamilyOdu builds the cataloged Odù for the advisory_group
 // direct-materialization family: two repository facts (one per git
-// scope), one vulnerability.cve evidence fact, and six
+// scope), one vulnerability.source_snapshot anchor fact, and six
 // reducer_supply_chain_impact_finding facts in one
 // vulnerability-intelligence scope, encoded through the production
 // writer's factschema encoder. It panics on an encode failure: that
@@ -257,7 +262,7 @@ func AdvisoryGroupFamilyOdu() CatalogOdu {
 			advisoryGroupFamilyRepoBScopeID, advisoryGroupFamilyRepoBGenerationID,
 			advisoryGroupFamilyRepoBID, "advisory-lib",
 			advisoryGroupFamilyRepoBLocalPath, advisoryGroupFamilyRepoBSourceRunID),
-		advisoryGroupFamilyEvidenceFact(),
+		advisoryGroupFamilyScopeAnchorFact(),
 	)
 	for _, finding := range advisoryGroupFamilyFindings {
 		out = append(out, facts.Envelope{
@@ -274,7 +279,7 @@ func AdvisoryGroupFamilyOdu() CatalogOdu {
 	}
 	return CatalogOdu{
 		Odu: Odu{Name: AdvisoryGroupFamilyOduName, Facts: out},
-		Detail: "nine facts for the direct-materialization advisory_group family: two repositories, one vulnerability.cve evidence record, and six supply-chain impact findings in one CVE-keyed alias group — " +
+		Detail: "nine facts for the direct-materialization advisory_group family: two repositories, one vulnerability.source_snapshot anchor record, and six supply-chain impact findings in one CVE-keyed alias group — " +
 			"two conflicting winners for the app repository collapse onto one AFFECTED_BY edge and the lib repository contributes the second, " +
 			"while the repository-less, known-fixed, and tombstoned findings produce nothing; every finding carries the four-member alias union under provenance",
 	}
