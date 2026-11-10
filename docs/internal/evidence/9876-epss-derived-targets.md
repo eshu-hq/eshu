@@ -46,10 +46,20 @@ carry a `vulnerability.epss_score` fact:
 ```sql
 WITH cve_findings AS (
     SELECT DISTINCT cve_id
-    FROM supply_chain_impact_canonical_winners
-    WHERE suppression_state = 'active'
-      AND cve_id <> ''
-      AND cve_id ~* '^CVE-[0-9]{4}-[0-9]{4,}$'
+    FROM supply_chain_impact_canonical_winners AS w
+    -- Effective-state denominator, matching listActiveFindingCVEIDsQuery
+    -- since #9805 reader #10: a hidden state past suppression_expires_at
+    -- reads 'expired' and stays visible.
+    WHERE (CASE
+      WHEN w.suppression_state NOT IN ('not_affected','accepted_risk','false_positive','ignored','advisory_retracted')
+        OR w.suppression_expires_at IS NULL
+      THEN w.suppression_state
+      WHEN w.suppression_expires_at <= NOW()
+      THEN 'expired'
+      ELSE w.suppression_state
+    END) NOT IN ('not_affected','accepted_risk','false_positive','ignored','advisory_retracted')
+      AND w.cve_id <> ''
+      AND w.cve_id ~* '^CVE-[0-9]{4}-[0-9]{4,}$'
 ),
 epss AS (
     SELECT DISTINCT payload->>'cve_id' AS cve_id
