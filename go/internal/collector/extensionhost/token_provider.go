@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/sdk"
 	"github.com/eshu-hq/eshu/go/internal/github/app"
+	"github.com/eshu-hq/eshu/go/internal/vulnsource"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
@@ -44,6 +45,12 @@ const HostMintedAuthMode = "host_minted"
 // non-map entry) returns false, keeping the claim on the static path. The
 // first entry matching the scope decides, so the predicate reads in list
 // order and never mints on an ambiguous later duplicate.
+//
+// A coordinator-minted GHSA window scope with no exact entry inherits its
+// anchor's verdict (eshu-hq/eshu#10533): when no entry names the window scope
+// itself and vulnsource.GHSAStreamScopeID resolves an anchor, the same
+// first-match rule runs against the anchor scope id. A configured window entry
+// still decides first, and a parser-rejected lookalike inherits nothing.
 func hostMintOptedIn(config map[string]any, scopeID string) bool {
 	raw, ok := config["targets"]
 	if !ok {
@@ -60,6 +67,22 @@ func hostMintOptedIn(config map[string]any, scopeID string) bool {
 		}
 		scope, _ := target["scope_id"].(string)
 		if scope != scopeID {
+			continue
+		}
+		mode, _ := target["auth_mode"].(string)
+		return mode == HostMintedAuthMode
+	}
+	anchor, ok := vulnsource.GHSAStreamScopeID(scopeID)
+	if !ok {
+		return false
+	}
+	for _, entry := range entries {
+		target, ok := entry.(map[string]any)
+		if !ok {
+			continue
+		}
+		scope, _ := target["scope_id"].(string)
+		if scope != anchor {
 			continue
 		}
 		mode, _ := target["auth_mode"].(string)
@@ -97,20 +120,23 @@ type AppTokenProviderConfig struct {
 	AppID         string
 	PrivateKey    string
 	Installations map[string]string
-	// InstallationKey is consulted only after an exact scope match misses. Nil
-	// keeps the exact-match table as the whole rule.
+	// InstallationKey is consulted only after an exact scope match and the
+	// GHSA window-anchor fallback both miss. Nil keeps the exact-match plus
+	// anchor table as the whole rule.
 	InstallationKey InstallationKeyResolver
 	BaseURL         string
 	HTTPClient      *http.Client
 }
 
 // NewAppTokenProvider builds the production TokenProvider: per claim it
-// selects the installation for the claimed scope ID, or for the key
+// selects the installation for the claimed scope ID, for the anchor of a
+// coordinator-minted GHSA window scope (eshu-hq/eshu#10533), or for the key
 // InstallationKey resolves for a derived scope, and mints one short-lived
 // installation token with app.MintInstallationToken. An unknown scope fails
 // closed with a bounded *app.ConfigError (terminal auth_denied downstream);
 // the App key stays host-side and only the minted token crosses to the
-// satellite.
+// satellite. The minted token keeps the claimed WINDOW scope id: the anchor
+// only selects the installation.
 func NewAppTokenProvider(cfg AppTokenProviderConfig) (TokenProvider, error) {
 	appID := strings.TrimSpace(cfg.AppID)
 	privateKey := strings.TrimSpace(cfg.PrivateKey)
@@ -130,7 +156,13 @@ func NewAppTokenProvider(cfg AppTokenProviderConfig) (TokenProvider, error) {
 		installations[reservedOwnerKey(scopeID)] = installationID
 	}
 	return func(ctx context.Context, item workflow.WorkItem) (string, error) {
-		installationID, ok := installations[strings.TrimSpace(item.ScopeID)]
+		scopeID := strings.TrimSpace(item.ScopeID)
+		installationID, ok := installations[scopeID]
+		if !ok {
+			if anchor, anchorOK := vulnsource.GHSAStreamScopeID(scopeID); anchorOK {
+				installationID, ok = installations[anchor]
+			}
+		}
 		if !ok && cfg.InstallationKey != nil {
 			key, err := cfg.InstallationKey(ctx, item)
 			if err != nil {

@@ -49,9 +49,12 @@
 // boundary, never the App private key. Only a claim whose targets entry
 // carries auth_mode host_minted mints (eshu-hq/eshu#10483), as does a claim
 // carrying a host-resolved derived target; any other claim
-// keeps the static path with the provider never consulted. A mint denial
-// fails the claim terminal with a bounded auth_denied failure before the
-// runner launches, while a transient mint fault stays retryable.
+// keeps the static path with the provider never consulted. A coordinator-minted
+// GHSA window scope inherits its anchor's opt-in and installation when it has
+// no exact entry of its own (eshu-hq/eshu#10533), resolved only via the strict
+// GHSA window parser; the injected token still stamps the WINDOW scope id.
+// A mint denial fails the claim terminal with a bounded auth_denied failure
+// before the runner launches, while a transient mint fault stays retryable.
 //
 // When Config.DerivedTargetResolver is set, the host adds a derived scope's
 // target to the per-claim config under HostDerivedTargetKey. A Go reachability

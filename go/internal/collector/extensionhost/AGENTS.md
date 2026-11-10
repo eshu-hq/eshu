@@ -38,8 +38,10 @@ extensions. Follow the root `AGENTS.md`, `docs/internal/agent-guide.md`, and
   `auth_mode: host_minted` for the claimed scope, or a claim carrying a
   host-resolved derived target) and only the minted token
   reaches `Request.Config` under `HostMintedGitHubTokenKey`; static config
-  must not define that key (`NewSource` rejects it). A static claim without
-  the opt-in never consults the provider. Provider errors stay
+  must not define that key (`NewSource` rejects it). A GHSA window claim with
+  no exact entry inherits its anchor's opt-in and installation (#10533) via
+  the strict window parser only; the token still stamps the window scope.
+  A static claim without the opt-in never consults the provider. Provider errors stay
   bounded: only `github/app` faults keep their chain, everything else maps to
   a terminal `auth_denied` denial, and no token, key, or credential may appear
   in any error, record, or telemetry value.
