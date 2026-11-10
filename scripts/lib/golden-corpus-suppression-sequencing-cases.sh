@@ -27,7 +27,9 @@
 # the #10473 worst observation (~276s across the three post-arm drains —
 # red under the old 200s window, green under 300s), and a beyond-ceiling
 # stall that must red honestly at the hidden assert
-# with the stall diagnostic. Every pass case ends with a B-7c mirror (+60s,
+# with the stall diagnostic. Every stalled drain also asserts its persisted
+# worker-log tails plus the bounded job-log copy (#10474); every fast drain
+# asserts no tail file. Every pass case ends with a B-7c mirror (+60s,
 # full (A, expired) pins). A future reorder, a leg that stops ending clean,
 # or a lost stall diagnostic turns CI red here instead of flaking B-7.
 #
@@ -88,8 +90,12 @@ suppression_seq_run_case() (
 	python3() {
 		printf '%s.0\n' "$(cat "${epoch_file}")"
 	}
+	# Live start_bg truncating-redirects worker output to
+	# ${log_dir}/<name>.log; mirror that with stub content so the
+	# stall-tail persist loop has files to act on (#10474).
 	start_bg() {
 		printf -v "$2" '%s' "99999999"
+		printf 'stub-worker %s\nstub-line-a\nstub-line-b\n' "$1" >"${log_dir}/$1.log" 2>/dev/null || true
 	}
 	die() {
 		printf 'sim-die: %s\n' "$*" >&2
@@ -275,6 +281,38 @@ fi
 
 	local leg_out="" leg_status=0
 	leg_out="$(golden_suppression_verify_producer_truth 2>&1)" || leg_status=$?
+	# #10474: a stalled drain must persist both worker log tails next to
+	# the worker logs AND print a bounded copy to the job log with a
+	# greppable marker, so slow-but-passing evidence survives the
+	# ephemeral work dir. Fast drains must persist nothing. Applies on
+	# both outcomes: the persist/print runs inside the drain, before any
+	# later hidden-assert death. Durations map to
+	# scope_setup/malformed/ignored_expiry/ignored in call order.
+	local -a stall_states=("scope_setup" "malformed" "ignored_expiry" "ignored")
+	local di dur worker stall_file
+	for di in 0 1 2 3; do
+		dur="${dur_list[${di}]}"
+		for worker in reducer projector; do
+			stall_file="${log_dir}/${worker}-suppression-${stall_states[${di}]}.stall-tail.log"
+			if ((dur > 10)); then
+				[[ -f "${stall_file}" ]] || {
+					printf 'case %s: want stall-tail file %s\n' "${case_name}" "${stall_file}" >&2
+					return 1
+				}
+				grep -q "stub-worker ${worker}-suppression-${stall_states[${di}]}" "${stall_file}" || {
+					printf 'case %s: stall-tail %s must carry the worker log tail\n' "${case_name}" "${stall_file}" >&2
+					return 1
+				}
+				printf '%s\n' "${leg_out}" | grep -q "suppression_stall_tail drain_state=${stall_states[${di}]} file=${worker}-suppression-${stall_states[${di}]}.stall-tail.log" || {
+					printf 'case %s: want the %s %s suppression_stall_tail marker in the job log\n' "${case_name}" "${stall_states[${di}]}" "${worker}" >&2
+					return 1
+				}
+			elif [[ -f "${stall_file}" ]]; then
+				printf 'case %s: fast drain must not persist %s\n' "${case_name}" "${stall_file}" >&2
+				return 1
+			fi
+		done
+	done
 	# Beyond-ceiling stalls must die exactly at the hidden assert (status
 	# 42 is the sim die), with the ignored-drain stall diagnostic. Any
 	# other death — or a pass — fails the case.
