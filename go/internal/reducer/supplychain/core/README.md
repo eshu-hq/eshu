@@ -385,7 +385,7 @@ decides per finding.
   `outcome=advisory_retracted`, the `suppression_advisory_retracted=` field
   of the evidence summary, and the `advisory_retracted_findings` sub-signal.
 - **Re-key wave.** A late alias merges two groups and a withdrawal or a
-  removed alias splits one; each change re-keys the affected findings and carries operator suppressions across it (#10408, contract in `doc.go`, wave mechanics and freshness bound in `HOLDER_FANOUT.md`).
+  removed alias splits one; each change re-keys the affected findings and carries operator suppressions across it (#10408, contract in `doc.go`, wave mechanics and freshness bound in `HOLDER_FANOUT.md`). Suppressions match through the whole group member set (#10409; rule in `AGENTS.md`, evidence in `docs/internal/evidence/10409-alias-suppression.md`).
 
 No-Regression Evidence (#10401): the tie rank reads lifecycle only through the closed `advisoryRetractionCode` (no new status list, no `ObservedAt`/`WithdrawnAt`/generation key). `TestNewestCopyDivergentTieLiveBeatsRetracted10401` (4 variants x 4 tie shapes x all load orders) fails pre-fix and passes post-fix with the live copy's fields; the retracted-vs-retracted guard and all #10042 controls stay green. `BenchmarkBuildFindingsMultiSourceGroups` shows no regression (live 12.55–13.01 pre vs 12.38–16.20 post ms/op with one 16.20 sample reading as shared-host noise against the 12.38–13.34 repeat band; identical allocs).
 
