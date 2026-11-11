@@ -332,4 +332,54 @@ const Entities = `
         }
       }
     },
+    "/api/v0/services/{service_name}/downstream-consumers": {
+      "get": {
+        "tags": ["entities"],
+        "summary": "List service downstream consumers",
+        "description": "Returns one page of a service's downstream consumer repositories in (repository, repo_id) order. The selector matches get_service_story (service_id, workload_id, or service_name, plus repo and environment; an ambiguous selector answers 409). The story and context dossier cap downstream lists at the effective read bound; page the full set here with after_repository/after_repo_id set to the previous page's next_cursor until next_cursor is absent. Counts are lower bounds, never totals: use next_cursor presence, not a total, to decide whether to continue.",
+        "operationId": "listServiceDownstreamConsumers",
+        "x-scoped-token-support": true,
+        "parameters": [
+          {"$ref": "#/components/parameters/ServiceName"},
+          {"name": "service_id", "in": "query", "description": "Exact workload or service identifier. When supplied, the route resolves this id before service-name candidates.", "schema": {"type": "string"}},
+          {"name": "repo", "in": "query", "description": "Repository selector that separates only services in different repositories; two same-named services in one repository stay ambiguous and need service_id. Accepts canonical repository id, repository name, slug, path, or remote URL.", "schema": {"type": "string"}},
+          {"name": "environment", "in": "query", "description": "Runtime environment selector used to disambiguate duplicate service names by workload instance environment.", "schema": {"type": "string"}},
+          {"name": "limit", "in": "query", "required": false, "schema": {"type": "integer", "minimum": 1, "maximum": 100, "default": 50}, "description": "Consumers per page. Defaults to 50 when absent and clamps to 100; non-positive or non-numeric values return 400 invalid_argument."},
+          {"name": "after_repository", "in": "query", "required": false, "schema": {"type": "string"}, "description": "Cursor: repository of the last row of the previous page. Must be provided together with after_repo_id; absent starts at the first row."},
+          {"name": "after_repo_id", "in": "query", "required": false, "schema": {"type": "string"}, "description": "Cursor: repo_id of the last row of the previous page. Must be provided together with after_repository."}
+        ],
+        "responses": {
+          "403": {"$ref": "#/components/responses/Forbidden"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
+          "200": {
+            "description": "One page of service downstream consumers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "service_name": {"type": "string"},
+                    "consumers": {"type": "array", "items": {"type": "object"}},
+                    "truncated": {"type": "boolean", "description": "True when more rows exist past this page or a read bound fired."},
+                    "next_cursor": {"type": "object", "description": "Absent when the page is terminal; pass after_repository/after_repo_id from it for the next page.", "nullable": true},
+                    "consumer_truncation_sources": {"type": "object", "description": "Which read bound fired: candidates, evidence_files, hostnames, searches, merge_cap."},
+                    "searched_hostnames": {"type": "array", "items": {"type": "string"}, "description": "Hostname list actually searched."},
+                    "effective_read_bound": {"type": "integer", "description": "Internal read bound the page was recomputed under."},
+                    "lower_bound": {"type": "boolean", "description": "Always true: the set is bounded, never a census."},
+                    "ordering": {"type": "string", "description": "Deterministic page order: repository, repo_id."},
+                    "page_size": {"type": "integer"},
+                    "ceiling_reached": {"type": "boolean", "description": "Present and true only when the merged set was trimmed at the internal read ceiling."}
+                  }
+                }
+              }
+            }
+          },
+          "400": {"$ref": "#/components/responses/BadRequest"},
+          "409": {"$ref": "#/components/responses/Conflict"},
+          "404": {"$ref": "#/components/responses/NotFound"},
+          "500": {"$ref": "#/components/responses/InternalError"}
+        }
+      }
+    },
 `

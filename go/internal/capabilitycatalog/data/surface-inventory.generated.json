@@ -558,6 +558,11 @@
     },
     {
       "category": "api_route",
+      "name": "GET /api/v0/services/{service_name}/downstream-consumers",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
       "name": "GET /api/v0/services/{service_name}/intelligence-report",
       "readiness": "implemented"
     },
@@ -3547,6 +3552,11 @@
     {
       "category": "mcp_tool",
       "name": "list_service_catalog_correlations",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "list_service_downstream_consumers",
       "readiness": "implemented"
     },
     {

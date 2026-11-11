@@ -83,6 +83,7 @@ func ContextTools() []toolcontract.ToolDefinition {
 			},
 		},
 		listServiceAPIEndpointsTool(),
+		listServiceDownstreamConsumersTool(),
 		{
 			Name:        "investigate_service",
 			Description: "Plan a service investigation across related repositories, deployment sources, indexed docs, and evidence drilldowns. Select the service with service_id or service_name; service_id wins. repo separates only services that live in different repositories. When the answer is ambiguous, call again with service_id set to a candidate's next_selector value; a candidate with legacy_id true is a leftover, not the live workload; choose a scoped candidate.",
@@ -177,6 +178,64 @@ func listServiceAPIEndpointsTool() toolcontract.ToolDefinition {
 					"description": "Rows to skip, in path, endpoint_id order. Defaults to 0 when absent; repeat the call with offset set to the previous page's next_offset until next_offset is absent.",
 					"default":     0,
 					"minimum":     0,
+				},
+			},
+		},
+	}
+}
+
+// listServiceDownstreamConsumersTool defines the dedicated paged downstream
+// consumer list (#10535 follow-up to #10477). It lives in its own constructor
+// for the same funlen reason as listServiceAPIEndpointsTool; the registration
+// order and serialized shape are unchanged.
+func listServiceDownstreamConsumersTool() toolcontract.ToolDefinition {
+	return toolcontract.ToolDefinition{
+		Name:        "list_service_downstream_consumers",
+		Description: "Page a service's downstream consumer repositories in (repository, repo_id) order. Select the service with one of service_id, workload_id, or service_name; the first one given wins in that order. repo separates only services that live in different repositories. Returns the page with truncated, next_cursor (absent when the page is terminal), consumer_truncation_sources naming which read bound fired, searched_hostnames, and effective_read_bound. Repeat with after_repository/after_repo_id set to the previous page's next_cursor until next_cursor is absent. Counts are lower bounds, never totals.",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"service_id": map[string]any{
+					"type":        "string",
+					"description": "Exact service identifier: a full scoped id (workload:repository:<repo_id>:<name>) or a workload:<name> handle, as listed in the candidates of an ambiguous answer. Selects one service on its own and wins over workload_id and service_name",
+				},
+				"workload_id": map[string]any{
+					"type":        "string",
+					"description": "Service workload identifier, or a service name passed through the workload_id field",
+				},
+				"service_name": map[string]any{
+					"type":        "string",
+					"description": "Optional service name selector when the caller starts from repository-scoped service story context",
+				},
+				"repo": map[string]any{
+					"type":        "string",
+					"description": "Optional repository selector used with service_name. It separates only services in different repositories; use service_id for the rest",
+				},
+				"repository_id": map[string]any{
+					"type":        "string",
+					"description": "Optional repository selector alias used with service_name. It separates only services in different repositories; use service_id for the rest",
+				},
+				"repo_id": map[string]any{
+					"type":        "string",
+					"description": "Optional repository selector alias used with service_name. It separates only services in different repositories; use service_id for the rest",
+				},
+				"environment": map[string]any{
+					"type":        "string",
+					"description": "Optional environment context",
+				},
+				"limit": map[string]any{
+					"type":        "integer",
+					"description": "Consumers per page. Defaults to 50 when absent; clamps into (0, 100].",
+					"default":     50,
+					"minimum":     1,
+				},
+				"after_repository": map[string]any{
+					"type":        "string",
+					"description": "Cursor: repository of the last row served on the previous page. Must be provided together with after_repo_id; repeat the call with both set from next_cursor until next_cursor is absent.",
+				},
+				"after_repo_id": map[string]any{
+					"type":        "string",
+					"description": "Cursor: repo_id of the last row served on the previous page. Must be provided together with after_repository.",
 				},
 			},
 		},

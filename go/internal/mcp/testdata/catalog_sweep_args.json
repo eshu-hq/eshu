@@ -785,6 +785,21 @@
         "acceptReason": "workload_id sweep-seed-missing is not a seeded workload"
       }
     ],
+    "list_service_downstream_consumers": [
+      {
+        "label": "default",
+        "arguments": {
+          "workload_id": "sweep-seed-missing"
+        },
+        "accept": [
+          "ok",
+          "not_found",
+          "scope_not_found",
+          "service_not_found"
+        ],
+        "acceptReason": "workload_id sweep-seed-missing is not a seeded workload"
+      }
+    ],
     "get_service_intelligence_report": [
       {
         "label": "default",

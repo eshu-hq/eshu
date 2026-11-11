@@ -80,7 +80,7 @@ var toolFamilyTable = []toolFamily{
 	},
 	{
 		"service-workload",
-		[]string{"get_service_story", "investigate_service", "get_service_intelligence_report", "get_service_context", "list_service_api_endpoints", "get_workload_context", "get_workload_story"},
+		[]string{"get_service_story", "investigate_service", "get_service_intelligence_report", "get_service_context", "list_service_api_endpoints", "list_service_downstream_consumers", "get_workload_context", "get_workload_story"},
 		"the one-call service dossier covers identity, API surface, deployment lanes, dependencies, and consumers",
 	},
 	{

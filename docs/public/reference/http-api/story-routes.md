@@ -14,6 +14,7 @@ Deployment-specific topology and cloud-resource rules live in
 | Workload story | `GET /api/v0/workloads/{workload_id}/story` |
 | Service story | `GET /api/v0/services/{service_name}/story` |
 | Service API surface endpoints | `GET /api/v0/services/{service_name}/api-surface/endpoints` |
+| Service downstream consumers | `GET /api/v0/services/{service_name}/downstream-consumers` |
 | Intelligence report | `GET /api/v0/services/{service_name}/intelligence-report` |
 | Service investigation | `GET /api/v0/investigations/services/{service_name}` |
 
@@ -46,9 +47,7 @@ Service story takes these query parameters:
 - `evidence_detail`, `full` (HTTP default) or `handles` (MCP default); see [Context Evidence Budget](context-evidence-budget.md)
 - `downstream_read_limit` for the dependents and consumer_repositories reads; see [Context Evidence Budget](context-evidence-budget.md)
 
-The dossiers keep only a 50-row `api_surface` preview; page the full ordered set through the
-endpoint route above (`limit` default 50 max 100, `offset` default 0, `next_offset` absent when
-complete) and the MCP `list_service_api_endpoints` tool. See [Context Evidence Budget](context-evidence-budget.md).
+The dossiers keep only a 50-row `api_surface` preview; page the full ordered set through the endpoint route above (`limit` default 50 max 100, `offset` default 0, `next_offset` absent when complete) and the MCP `list_service_api_endpoints` tool. Downstream lists render to the read bound; page the full keyset-ordered set through the downstream-consumers route (`limit` default 50 max 100, `after_repository`+`after_repo_id` cursor, absent `next_cursor` ends the walk) and the MCP `list_service_downstream_consumers` tool. See [Context Evidence Budget](context-evidence-budget.md).
 
 A name that matches several workloads returns HTTP 409 with `error.code=ambiguous`, `data=null`, and
 candidates that each carry a `next_selector` (the `service_id` to pass next). It never picks the first match; `repo` separates only services in different repositories. A candidate marked `legacy_id: true` is a leftover name-only workload from the identity change; see [Service story ambiguity](selector-and-read-failures.md#service-story-ambiguity-8797).
