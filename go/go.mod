@@ -1,6 +1,6 @@
 module github.com/eshu-hq/eshu/go
 
-go 1.26.11
+go 1.26.10
 
 require (
 	github.com/UserNobody14/tree-sitter-dart v0.0.0-20260520003023-a9bdfa3db2fb

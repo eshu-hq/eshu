@@ -90,6 +90,7 @@ Known limit, reading `unknown` rather than leaking text:
 | `collect_failure` | every kind | A non-retryable collect error carried no class. |
 | `commit_failure` | every kind | A non-retryable commit error carried no class. |
 | `expired_lease_budget_exhausted` | every kind | The expired-lease reaper dead-lettered the work item after the attempt budget ran out without a returned failure verdict (#10113). |
+| `operator_retired_unclaimed` | every kind | The sanctioned never-claimed retirement moved the pending work item to terminal for a deconfigured collector instance (#10532). |
 | `permission_hidden` | `jira` | Jira refused the credential (401 or 403) or hid the data behind a permission. |
 | `deleted` | `jira` | The Jira resource was not found (404). |
 | `archived` | `jira` | The Jira resource is gone or archived (410). |
