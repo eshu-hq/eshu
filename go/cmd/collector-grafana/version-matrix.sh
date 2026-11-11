@@ -37,7 +37,7 @@ check() {
 }
 
 echo "== in-tree contract versions (locked) =="
-check "go toolchain (go.mod)" "$(rg -o '^go [0-9.]+' "$ROOT/go.mod" | head -n 1)" "go 1.26.10"
+check "go toolchain (go.mod)" "$(rg -o '^go [0-9.]+' "$ROOT/go.mod" | head -n 1)" "go 1.26.11"
 check "fact schema version (V1 const)" \
   "$(rg -o 'ObservabilitySchemaVersionV1 = "[0-9.]+"' "$ROOT/internal/facts/observability.go" | head -n 1)" 'ObservabilitySchemaVersionV1 = "1.0.0"'
 check "emitted grafana kind count (PREP)" \

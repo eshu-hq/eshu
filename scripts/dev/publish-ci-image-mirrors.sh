@@ -6,7 +6,7 @@ set -euo pipefail
 readonly alpine_digest='sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873'
 readonly bookworm_digest='sha256:afc7e2d441324c0388fa80c3d24f733b4194a4eb7f47dd8ee2b08eb1a24a647c'
 readonly neo4j_digest='sha256:eabfbb042bdaca2fd5e1950db1329b22c794eee80f0eacc4e7a729d44b2e863f'
-readonly golang_digest='sha256:9ce231b28998b32e116927c61aa5c406183061d4f3f2d61b292c88e7f6bdf7ca'
+readonly golang_digest='sha256:ae52b5bc6ed045a9ed26ab03dc19327a802a9cc9aa8b27ed57f5c6b60579b0bb'
 readonly crane_bin="${CRANE_BIN:-crane}"
 
 if [[ "$#" -ne 1 ]]; then
@@ -96,7 +96,7 @@ if [[ "$1" == publish ]]; then
     "mirror.gcr.io/library/neo4j:2026-community@${neo4j_digest}" \
     "ghcr.io/eshu-hq/ci-neo4j-community@${neo4j_digest}" "${neo4j_digest}"
   publish_one golang \
-    "mirror.gcr.io/library/golang:1.26.10-alpine@${golang_digest}" \
+    "mirror.gcr.io/library/golang:1.26.11-alpine@${golang_digest}" \
     "ghcr.io/eshu-hq/ci-mirror-golang@${golang_digest}" "${golang_digest}"
   printf 'New GHCR packages may be private. Verify all four are public, then run verify-public before changing consumers.\n'
   exit 0
