@@ -13,4 +13,8 @@ var orderedBootstrapDefinitionNamesLatest = []string{
 	// Migration 293 (#10544) drops the triple-only package-lookup index
 	// whose rows=1 cost tie kept the planner off the 291 keyed index.
 	"drop_fact_records_supply_chain_impact_package_lookup_idx",
+	// Migration 294 (#10525) adds the generation index backing the
+	// retention work-items count arm and pre-delete lock. 293 went to
+	// #10544, which rolled first, so this lane takes 294.
+	"fact_work_items_generation_idx",
 }

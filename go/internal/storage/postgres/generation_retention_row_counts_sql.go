@@ -68,6 +68,17 @@ package postgres
 // btree the leg and the DELETE both probe; measured with EXPLAIN ANALYZE
 // before landing like the arms above.
 //
+// The fact_work_items arm is generation-only for the same envelope
+// reason (#10525): the scope_generations delete cascades to work rows on
+// generation_id alone, so the count charges exactly the cascaded rows,
+// a hypothetical scope-mismatched row included. Migration 294 backs the
+// probe with a (generation_id) btree the pre-delete work-item lock
+// shares; without it both statements read the whole table (QA shim:
+// 158 ms and 33,976 buffers generic for a 100-generation batch, against
+// 1.3 ms and 316 buffers behind the index;
+// docs/internal/evidence/10525-retention-planning-count.md). The store
+// refuses the cycle while that index is unusable, like migration 292.
+//
 // The #8300 arm counts deployable_unit_reopen_fingerprints (#8283), a
 // cascade grandchild through fact_work_items: fingerprint rows hang off
 // work items by work_item_id, so the arm joins through the work item's

@@ -81,6 +81,9 @@ func TestRetentionKeyIndexCheckCoversFactKeyPartitionIndexes(t *testing.T) {
 		"index_state.indisvalid",
 		// #10512: the intents generation index arm, exact shape.
 		"shared_projection_intents_generation_idx",
+		// #10525: the work-items generation index arm (migration 294).
+		"fact_work_items_generation_idx",
+		"fact_work_items",
 		"ARRAY['generation_id']",
 		"index_state.indpred IS NULL",
 	} {

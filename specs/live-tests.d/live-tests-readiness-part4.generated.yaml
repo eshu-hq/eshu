@@ -244,6 +244,11 @@ tests:
     class: postgres_ci
     reason: "#10512 disposable PostgreSQL proof that the reshaped retention row-count arms and the intents DELETE stay on their generation indexes (custom and forced-generic plans, seeded drop-index REDs, executed buffers tracking the batch), that the direct package-key counts equal the old fact-join counts on clean keys and diverge exactly by planted orphans, and that a missing, INVALID or partial-only intents generation index refuses the cycle; bridges ESHU_GENERATION_RETENTION_PROOF_DSN onto ESHU_POSTGRES_TEST_DSN."
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/generation_retention_row_counts_10525_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10525 disposable PostgreSQL proof that the retention row-count fact_work_items arm and the pre-delete work-item lock stay on the migration 294 generation index (custom and forced-generic plans, seeded drop-index REDs, executed lock buffers tracking the batch), that the arm counts exactly the scope_generations cascade envelope including a planted scope-mismatched row, that a missing, INVALID or partial-only index refuses the cycle, and that a foreign FOR UPDATE hold on a retained work row neither blocks the cycle nor loses its row; bridges ESHU_GENERATION_RETENTION_PROOF_DSN onto ESHU_POSTGRES_TEST_DSN."
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/generation_retention_samesha_live_test.go
     tag: ~
     class: postgres_ci
