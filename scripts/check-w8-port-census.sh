@@ -6,6 +6,9 @@
 # Usage (run in the worktree root):
 #   bash scripts/check-w8-port-census.sh            # gate with defaults/env
 #   bash scripts/check-w8-port-census.sh --derive   # print exports recomputed live
+# Manual gate by explicit decision (owner, #10557 P2 thread): this checker is
+# NOT wired into any CI job or the pre-push floor, so it guards only when run
+# by hand. Census edits must run it before push; that is documented, not automatic.
 # Env overrides (defaults = reconciled census counts, changed only by wave moves):
 #   W8_EXPECT_ROWS, W8_EXPECT_DONE, W8_EXPECT_FAMILY, W8_EXPECT_TIERC,
 #   W8_EXPECT_TOMIGRATE.
@@ -51,9 +54,10 @@ if ! diff <(printf '%s\n' "$cutover_routes") <(printf '%s\n' "$census_routes") >
   echo "FAIL route set mismatch:"; cat /tmp/w8-census-diff.txt; exit 1
 fi
 
-# every table row: 7 columns, no empty C1..C5
-bad=$(rg --count '^\| `[^`]+` \| [^|]* \| [^|]*\| *\|' "$CENSUS" || true)
-[ -z "$bad" ] || { echo "FAIL empty cells in $bad rows"; exit 1; }
+# every table row: 7 pipe columns, route + family + C1..C5 all non-blank.
+# (A single-position pattern hid hollowed family/C1/C3/C4 cells; check all.)
+bad=$(awk -F'|' '/^\| `/ { if (NF!=9) { print NR": NF="NF; next } for (i=2;i<=8;i++) if ($i ~ /^[[:space:]]*$/) { print NR": empty col "i; break } }' "$CENSUS")
+[ -z "$bad" ] || { echo "FAIL empty cells:"; printf '%s\n' "$bad"; exit 1; }
 
 # C5 bucket heads restricted to the known set (suffix tags allowed after + or ()
 n_c5bad=$(rg -o '\| (landed-Done|landed-family[^|]*|tierC-G4[^|]*|w7w-recorded[^|]*|relay-leg[^|]*) \|$' "$CENSUS" | wc -l)
