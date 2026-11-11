@@ -25,8 +25,9 @@ var extensionFailureClassPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,95
 
 // commonFailureClasses is every failure class persisted on a terminal work
 // item whatever the collector kind. It holds the five provider classes the
-// shared SDK writes, the four the claim runner writes itself, and the one the
-// expired-lease reaper writes. The literals are pinned here, not imported, so
+// shared SDK writes, the four the claim runner writes itself, the one the
+// expired-lease reaper writes, and the one the never-claimed retirement
+// writes. The literals are pinned here, not imported, so
 // the status leaf stays free of collector runtime packages. Sources:
 //
 //   - auth_denied, not_found, rate_limited, terminal, retryable: the SDK
