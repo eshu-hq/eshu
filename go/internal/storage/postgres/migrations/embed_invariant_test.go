@@ -246,13 +246,17 @@ import (
 // 293_drop_fact_records_supply_chain_impact_package_lookup_idx.sql (one
 // DROP INDEX CONCURRENTLY retiring the triple-only index whose rows=1 cost
 // tie kept the planner off the 291 keyed index).
-const goldenBootstrapDefinitionsDigest = "3375f1c1c5d5f17a1bfdb7769d308d1731a6aabdca1926e1b95db758abe35a95"
+// #10525 adds 294_fact_work_items_generation_idx.sql (the generation
+// index backing the retention work-items count arm and pre-delete lock;
+// one CREATE INDEX CONCURRENTLY). 293 went to #10544's package-lookup
+// retirement, which rolled first, so this lane takes 294.
+const goldenBootstrapDefinitionsDigest = "9fd92cf514c98e0c54f8062feda7b49d8cf1c7006debee8bd991636d1adc30c8"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or
 // silently dropping files) fails loudly even in the unlikely case of a hash
 // collision.
-const goldenBootstrapDefinitionsCount = 319
+const goldenBootstrapDefinitionsCount = 320
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
 	defs := BootstrapDefinitions()

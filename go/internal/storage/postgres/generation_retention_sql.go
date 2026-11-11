@@ -419,11 +419,13 @@ WHERE generation_id = ANY($1::text[])
 // index that is not a valid, ready, non-unique two-column btree over the
 // expected key expressions with the retention statements' partial predicate,
 // plus each unusable key sidecar partition index (#7420, factkeys), plus the
-// shared_projection_intents generation index (#10512, migration 292) the
-// intents count arm and DELETE probe: without it both scan the table.
-// It reads only pg_catalog, so it takes no lock on fact_records. to_regclass
-// resolves both names through the session's search_path, as the retention
-// statements do.
+// single-column generation indexes the generation-only probes rely on: the
+// intents index (#10512, migration 292) behind the intents count arm and
+// DELETE, and the work-items index (#10525, migration 294) behind the
+// fact_work_items count arm and pre-delete lock. Without either, its
+// statements scan the whole table. It reads only pg_catalog, so it takes no
+// lock on fact_records. to_regclass resolves names through the session's
+// search_path, as the retention statements do.
 const generationRetentionKeyIndexesQuery = `
 WITH generation_retention_key_indexes(index_name, key_column, fact_kind) AS (
     VALUES
@@ -451,14 +453,18 @@ WHERE NOT EXISTS (
           = format('((fact_kind = %L::text) AND (is_tombstone = false))', expected.fact_kind)
 )
 UNION ALL
-SELECT 'shared_projection_intents_generation_idx'
+SELECT expected.index_name
+FROM (VALUES
+    ('shared_projection_intents_generation_idx', 'shared_projection_intents'),
+    ('fact_work_items_generation_idx', 'fact_work_items')
+) AS expected(index_name, table_name)
 WHERE NOT EXISTS (
     SELECT 1
     FROM pg_index AS index_state
     JOIN pg_class AS index_relation ON index_relation.oid = index_state.indexrelid
     JOIN pg_am AS access_method ON access_method.oid = index_relation.relam
-    WHERE index_state.indexrelid = to_regclass('shared_projection_intents_generation_idx')
-      AND index_state.indrelid = to_regclass('shared_projection_intents')
+    WHERE index_state.indexrelid = to_regclass(expected.index_name)
+      AND index_state.indrelid = to_regclass(expected.table_name)
       AND access_method.amname = 'btree'
       AND index_state.indisvalid
       AND index_state.indisready

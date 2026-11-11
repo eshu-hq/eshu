@@ -110,6 +110,12 @@ TABLE = {
             "TestGenerationRetentionPackageKeyCountsMatchFactJoinOnCleanKeysLive",
             "TestGenerationRetentionRefusesWithoutValidIntentsGenerationIndexLive",
         ),
+        "go/internal/storage/postgres/generation_retention_row_counts_10525_live_test.go": (
+            "TestGenerationRetentionWorkItemsPlansStayOnGenerationIndexLive",
+            "TestGenerationRetentionWorkCountsMatchCascadeEnvelopeLive",
+            "TestGenerationRetentionRefusesWithoutValidWorkItemsGenerationIndexLive",
+            "TestGenerationRetentionWorkIndexCycleIgnoresHeldForeignWorkLockLive",
+        ),
         "go/internal/storage/postgres/generation_retention_samesha_live_test.go": (
             "TestGenerationRetentionSameSHALockstepLive",
             "TestGenerationRetentionSameSHAPrunesOldestKeepsNewestLive",

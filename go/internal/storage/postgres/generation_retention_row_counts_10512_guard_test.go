@@ -25,9 +25,15 @@ var retentionGuarded10512Tables = map[string]string{
 // with generation_id alone, so that binding is the whole probe; the two
 // package key partition indexes lead with (scope_id, generation_id), and a
 // probe bound on only one of them reads every generation of a scope or
-// skip-scans every scope. Mirrors factKeyPlanViolations.
+// skip-scans every scope. Mirrors factKeyPlanViolations. #10525 adds the
+// fact_work_items generation index (migration 294) to the condition map
+// only, not to retentionGuarded10512Tables: its statements always pass it
+// as a required index, so a sequential scan already reports as "never
+// probes", and small fixtures that legitimately seq-scan the near-empty
+// work table in other statements stay unguarded.
 var retentionGuarded10512IndexConditions = map[string][]string{
 	"shared_projection_intents_generation_idx":        {"generation_id ="},
+	"fact_work_items_generation_idx":                  {"generation_id ="},
 	"package_manifest_consumption_keys_partition_idx": {"scope_id =", "generation_id ="},
 	"package_registry_identity_keys_partition_idx":    {"scope_id =", "generation_id ="},
 }
@@ -137,6 +143,18 @@ func TestRetentionGuardedPlanViolationsRejectUnboundProbes10512(t *testing.T) {
 			name:      "bound partition probe",
 			plan:      retentionGuardedPlanFixture10512("Index Only Scan", "package_manifest_consumption_keys", "package_manifest_consumption_keys_partition_idx", "((scope_id = generation.scope_id) AND (generation_id = candidate.generation_id))"),
 			required:  []string{"package_manifest_consumption_keys_partition_idx"},
+			wantClean: true,
+		},
+		{
+			// #10525: same seeded pair for the work-items generation index.
+			name:     "cond-less work items index-only scan",
+			plan:     retentionGuardedPlanFixture10512("Index Only Scan", "fact_work_items", "fact_work_items_generation_idx", ""),
+			required: []string{"fact_work_items_generation_idx"},
+		},
+		{
+			name:      "bound work items probe",
+			plan:      retentionGuardedPlanFixture10512("Index Only Scan", "fact_work_items", "fact_work_items_generation_idx", "(generation_id = candidate.generation_id)"),
+			required:  []string{"fact_work_items_generation_idx"},
 			wantClean: true,
 		},
 	} {

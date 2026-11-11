@@ -373,6 +373,9 @@ var migrationShippedChecksums = map[string]string{
 	"292_shared_projection_intents_generation_idx.sql": "9a23375077009f8b661dee0cd706b6984e3b946fe02cf04826020afdad758f12",
 	// #10544: retire the triple-only package-lookup index (migration 293).
 	"293_drop_fact_records_supply_chain_impact_package_lookup_idx.sql": "e148e7c9305e9539fd2201c710d04945ca5d71ee5cf511bbab9af36e3e8c0972",
+	// #10525: the generation index backing the retention work probes
+	// (migration 294; 293 went to #10544, which rolled first).
+	"294_fact_work_items_generation_idx.sql": "2ba56e7a4dec8240a10dff5dd06b3bda6871ec51463cc03526b875fbae1b89f6",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition

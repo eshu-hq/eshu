@@ -74,8 +74,9 @@ ON CONFLICT (event_id) DO NOTHING
 // ErrGenerationRetentionKeyIndexUnavailable reports that a retention cycle was
 // refused because fact_records_content_entity_key_idx or
 // fact_records_file_key_idx (migrations 146 and 147), a key sidecar
-// partition index (#7420: migrations 058, 182, 183), or the intents
-// generation index (#10512: migration 292) is missing, invalid, or
+// partition index (#7420: migrations 058, 182, 183), the intents
+// generation index (#10512: migration 292), or the work-items generation
+// index (#10525: migration 294) is missing, invalid, or
 // not the expected shape. The retention statements probe those indexes per
 // candidate; without them each probe scans its table while the batch holds
 // its scope locks (the #6809 cliff), so the store refuses rather than run that
