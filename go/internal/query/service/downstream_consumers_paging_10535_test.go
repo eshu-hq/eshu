@@ -51,6 +51,25 @@ func emptyGraphReader() graph.FakeGraphReader {
 	}
 }
 
+// TestListServiceDownstreamConsumersSearchedHostnamesNeverNull pins the
+// OpenAPI contract: searched_hostnames is a non-nullable array, so a service
+// with no hostnames must disclose an empty list, not null.
+func TestListServiceDownstreamConsumersSearchedHostnamesNeverNull(t *testing.T) {
+	t.Parallel()
+
+	page, err := ListServiceDownstreamConsumers(
+		context.Background(), emptyGraphReader(), listTestContentStore{total: 0},
+		"repository:svc", "svc",
+		listTestAccess(), nil, 50,
+	)
+	if err != nil {
+		t.Fatalf("ListServiceDownstreamConsumers() error = %v, want nil", err)
+	}
+	if page.SearchedHostnames == nil {
+		t.Fatal("SearchedHostnames = nil, want empty non-nil slice per the OpenAPI array contract")
+	}
+}
+
 // TestPerSearchExactFullPageIsNotTruncated is the #10535 follow-up to #10477:
 // searchConsumerEvidenceAnyRepo reports truncated when a per-search content
 // read returns exactly the caller's limit, even though nothing was dropped.

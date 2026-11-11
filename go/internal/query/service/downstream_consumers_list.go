@@ -123,6 +123,11 @@ func ListServiceDownstreamConsumers(
 	}
 	hostnames := serviceEvidenceHostnames(evidence)
 	searchedHostnames, _ := deployment.TrimmedSearchHostnames(hostnames, serviceName, bound)
+	if searchedHostnames == nil {
+		// The OpenAPI contract declares searched_hostnames as a
+		// non-nullable array; disclose an empty list, not null.
+		searchedHostnames = []string{}
+	}
 
 	candidates, candidatesTruncated, err := deployment.QueryProvisioningRepositoryCandidatesCapped(ctx, graph, serviceRepoID, bound, bound)
 	if err != nil {
