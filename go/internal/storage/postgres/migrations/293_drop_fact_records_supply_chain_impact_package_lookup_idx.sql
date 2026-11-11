@@ -1,0 +1,38 @@
+-- SPDX-License-Identifier: MIT
+-- Copyright (c) 2025-2026 eshu-hq
+
+-- #10544: retire fact_records_supply_chain_impact_package_lookup_idx.
+--
+-- Migration 291 built fact_records_supply_chain_impact_winners_keyed_idx
+-- for the keyed winners resweep probe (buildWinnersKeyedActiveFactsSQL):
+-- the same package triple, plus the coalesced c0 and advisory_id
+-- expressions, so all five probe equalities are index conditions. Post-roll
+-- QA still planned the probe on this triple-only index: the planner
+-- estimates rows=1 for a correlated triple through either index (Gate B
+-- fixture forced costs: 8.46 through this index vs 8.45 through the 291
+-- index, at an actual 50 rows per triple), so the heap-fetch waste the 291
+-- index exists to remove is invisible to costing. Extended statistics did
+-- not flip the plan (mimic-extended disproof on #10544). The arbiter ruling
+-- on #10544 therefore retires this index; the probe SQL is unchanged.
+--
+-- Census behind the retirement (docs/internal/evidence/
+-- 10544-retire-package-lookup-idx.md): the probe is the only shipped
+-- statement that binds the whole triple by equality, and the 291 index
+-- leads with the same three expressions, so every triple-prefix use keeps
+-- an index of the same shape. Finding-kind filters on generation_id always
+-- pair it with scope_id (the active-scan index), repository-only reads use
+-- the repository-lookup index, and no shipped statement orders by fact_id
+-- behind a triple equality -- the one ordering only this index could
+-- provide. Dropping it also removes one partial-index write per finding
+-- insert (622 MB on QA).
+--
+-- CONCURRENTLY so the drop never blocks finding writers on a populated
+-- deployment. IF EXISTS so a fresh database (which runs 003, then 291,
+-- then this file over an empty fact_records) and any install that already
+-- lost the index converge to the same state. The lone statement in this
+-- file so the migration coordinator can run it outside a transaction
+-- (coordination.IsSoleConcurrentIndexStatement). The Go bootstrap fragment
+-- in schema_fact_records.go is removed in the same change; 003 stays
+-- byte-identical per #7002, so an untracked replay rebuilds this index in
+-- 003 and drops it again here (recorded in replayRebuiltIndexNames).
+DROP INDEX CONCURRENTLY IF EXISTS fact_records_supply_chain_impact_package_lookup_idx;

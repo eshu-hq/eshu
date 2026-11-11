@@ -59,6 +59,28 @@ func TestSupplyChainImpactWinnersResweepRetentionDeleteChangesNoWinnerLive(t *te
 // fact_records.
 func TestSupplyChainImpactWinnersResweepKeyedProbePlanLive(t *testing.T) {
 	h := newKeyedHarness(t, "#9805 keyed plan proof")
+	// #10544 retirement parity: a fully bootstrapped database must carry the
+	// 291 keyed index and must not carry the retired triple-only
+	// package-lookup index, whose planner cost ties the 291 index at rows=1
+	// (see docs/internal/evidence/10544-retire-package-lookup-idx.md). The
+	// seeded-violation arm plants the retired index and requires the same
+	// census to see it, so an absence assertion that could not detect the
+	// index would fail here instead of passing vacuously.
+	const retiredIndex = "fact_records_supply_chain_impact_package_lookup_idx"
+	if keyedIndexExists(t, h, retiredIndex) {
+		t.Fatalf("retired index %s is present after bootstrap; migration 293 must drop it", retiredIndex)
+	}
+	if !keyedIndexExists(t, h, "fact_records_supply_chain_impact_winners_keyed_idx") {
+		t.Fatal("the 291 keyed winners index is missing after bootstrap")
+	}
+	h.exec(`CREATE INDEX ` + retiredIndex + ` ON fact_records ((payload->>'package_id'), (payload->>'repository_id'), (payload->>'subject_digest'), fact_id ASC, generation_id) WHERE fact_kind = 'reducer_supply_chain_impact_finding' AND is_tombstone = FALSE`)
+	if !keyedIndexExists(t, h, retiredIndex) {
+		t.Fatal("seeded violation undetected: the index census does not see a planted " + retiredIndex)
+	}
+	h.exec(`DROP INDEX ` + retiredIndex)
+	if keyedIndexExists(t, h, retiredIndex) {
+		t.Fatalf("seeded index %s survived its drop; the plan assertions below would run against the wrong schema", retiredIndex)
+	}
 	h.seedScope("vuln-intel://9805/plan", "vuln-intel://9805/plan/g1")
 	h.exec(`
 INSERT INTO fact_records (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, schema_version,
@@ -153,6 +175,22 @@ FROM generate_series(1, 3000) AS g`)
 			t.Errorf("%s: the probe is not a materialized CTE node:\n%s", state, analyzed)
 		}
 	}
+}
+
+// keyedIndexExists reports whether the named index exists in the harness
+// database's current schema. It is the census both arms of the #10544
+// retirement parity check in the plan proof above run: the clean arm
+// requires the retired index absent, the seeded arm requires a planted one
+// present.
+func keyedIndexExists(t *testing.T, h *keyedHarness, indexName string) bool {
+	t.Helper()
+	var exists bool
+	if err := h.db.QueryRowContext(h.ctx,
+		`SELECT EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname = current_schema() AND indexname = $1)`,
+		indexName).Scan(&exists); err != nil {
+		t.Fatalf("index census for %s: %v", indexName, err)
+	}
+	return exists
 }
 
 // keyedIndexScanStats returns the "Actual Loops" and the total rows returned

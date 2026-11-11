@@ -242,14 +242,17 @@ import (
 // #10512 adds 292_shared_projection_intents_generation_idx.sql (the
 // generation index backing the retention row-count arm and intents
 // DELETE; one CREATE INDEX CONCURRENTLY). 291 went to #9975's winners
-// keyed index, which finished first, so this lane takes 292.
-const goldenBootstrapDefinitionsDigest = "cfa69472a917cf026ce9f60cdd295160ae0bb477eb43ca90e7fd2809c58d7f1c"
+// keyed index, which finished first, so this lane takes 292. #10544 adds
+// 293_drop_fact_records_supply_chain_impact_package_lookup_idx.sql (one
+// DROP INDEX CONCURRENTLY retiring the triple-only index whose rows=1 cost
+// tie kept the planner off the 291 keyed index).
+const goldenBootstrapDefinitionsDigest = "3375f1c1c5d5f17a1bfdb7769d308d1731a6aabdca1926e1b95db758abe35a95"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or
 // silently dropping files) fails loudly even in the unlikely case of a hash
 // collision.
-const goldenBootstrapDefinitionsCount = 318
+const goldenBootstrapDefinitionsCount = 319
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
 	defs := BootstrapDefinitions()

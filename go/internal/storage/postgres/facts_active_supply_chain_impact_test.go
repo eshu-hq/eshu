@@ -243,7 +243,9 @@ func TestBootstrapDefinitionsIncludeSupplyChainImpactFactIndexes(t *testing.T) {
 	for _, want := range []string{
 		"fact_records_supply_chain_impact_lookup_idx",
 		"fact_records_supply_chain_impact_status_lookup_idx",
-		"fact_records_supply_chain_impact_package_lookup_idx",
+		// fact_records_supply_chain_impact_package_lookup_idx is retired by
+		// migration 293 (#10544); TestSupplyChainImpactPackageLookupIndexRetired
+		// pins the drop. 003 still carries its historical create (#7002).
 		"fact_records_supply_chain_impact_priority_lookup_idx",
 		"fact_records_supply_chain_impact_repository_lookup_idx",
 		"fact_records_vulnerability_affected_package_lookup_idx",

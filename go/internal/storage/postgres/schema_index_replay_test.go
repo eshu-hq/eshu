@@ -37,8 +37,8 @@ var (
 )
 
 // replayRebuiltIndexNames are the index names a full untracked replay both
-// drops and recreates, wasting a build on an existing database. It is empty, and
-// an entry is a record of a known defect rather than a licence to add another:
+// drops and recreates, wasting a build on an existing database. It holds
+// one entry, and an entry is a record of a known defect rather than a licence:
 // the assertion below requires the violating set to equal this list exactly, so
 // a new offender fails the test and cannot be waved through without adding a
 // name here and inviting the review that costs.
@@ -53,7 +53,20 @@ var (
 // 059/068 and 101/102 shape instead -- the surviving predicate is created under
 // a new name and the legacy name only ever dropped, which
 // TestIdentityEpochIndexIsCreatedOnceAndNeverDropped pins.
-var replayRebuiltIndexNames []string
+//
+// fact_records_supply_chain_impact_package_lookup_idx (#10544): migration
+// 003 creates the name and is shipped and immutable (#7002 pins its
+// checksum, and the ledger rejects a changed checksum on every tracked
+// install), so the create cannot leave the tree the way the 059/068 and
+// 101/102 creates did. Migration 293 drops it concurrently and the Go
+// bootstrap fragment no longer creates it, so every tracked install
+// converges once and stays converged; the cost recorded here falls only on
+// a full untracked replay over an existing database, which rebuilds the
+// index in 003 and drops it again in 293. The replacement (migration 291)
+// already lives under a new name, so no rename can remove the pair.
+var replayRebuiltIndexNames = []string{
+	"fact_records_supply_chain_impact_package_lookup_idx",
+}
 
 // replayGuardedRedefinition records an index name a later migration redefines
 // IN PLACE because an immutable earlier migration still creates the name. The
