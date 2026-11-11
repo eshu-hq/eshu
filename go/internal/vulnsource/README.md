@@ -67,16 +67,19 @@ two together.
 These functions do no I/O and hold no state, so they add no telemetry of their
 own.
 
-## GHSA is held
+## GHSA rolling activation
 
 Core admits a `ghsa` target only as a rolling anchor under
 `derive_ghsa_rolling_windows` and refuses it otherwise (#10516), so a static
 GHSA claim is unreachable by configuration. The section is off by default:
 nothing plans a `ghsa` claim unless an operator configures a `ghsa` target
-with the section enabled. GHSA is not activatable for production truth
-until the [eshu-hq/eshu#10465](https://github.com/eshu-hq/eshu/issues/10465)
-S6 evidence lands. Do not add a `ghsa` target to a production coordinator
-configuration.
+with the section enabled. GHSA rolling is activatable for production truth
+via `derive_ghsa_rolling_windows` with a host-minted token since the S6
+1-hour tokened QA run went green
+([eshu-hq/eshu#10465](https://github.com/eshu-hq/eshu/issues/10465),
+[S6 record](https://github.com/eshu-hq/eshu/issues/10465#issuecomment-6789735481)).
+A production coordinator configuration must enable the section on any `ghsa`
+target.
 
 - The direct GHSA source is excluded from the protected scanner read:
   `reconcile_public_advisories_v1` refuses a `ghsa` target with
@@ -97,8 +100,10 @@ configuration.
   `derive_ghsa_rolling_windows` and refuses it otherwise
   (`validateVulnerabilityGHSATarget`, #10516); a boundless anchor works
   end to end only where satellite >= 0.1.12 is pinned (the mirror
-  #83/#85 shipped in 0.1.12; QA repin pending under #10465). GHSA is not
-  activatable for production truth until the #10465 S6 evidence lands.
+  #83/#85 shipped in 0.1.12, live in the green S6 1-hour tokened QA run
+  under #10465). GHSA rolling is activatable for production truth via
+  `derive_ghsa_rolling_windows` with a host-minted token
+  ([S6 record](https://github.com/eshu-hq/eshu/issues/10465#issuecomment-6789735481)).
 
 ## GHSA and OSV copies of one advisory
 
@@ -166,12 +171,16 @@ no network, database, or workflow mutation. The measured verdict lives in
 ## GHSA rolling windows: performance and observability evidence (#10037)
 
 No-Regression Evidence: baseline `origin/main` at `2d477a517d`; after this
-change at the branch HEAD. GHSA remains not activatable: no configuration
-section mints a GHSA window scope, so every production claim today takes
-the unchanged path. (Superseded in part by the `derive_ghsa_rolling_windows`
-wiring, #9959/#10516: the section now exists and mints window scopes when
-enabled, stays off by default, and GHSA remains not activatable pending
-#10465.) The added hot-path work per non-GHSA claim is one
+change at the branch HEAD. At measurement time GHSA was not activatable: no
+configuration section minted a GHSA window scope, so every production claim
+then took the unchanged path. (Superseded in part by the
+`derive_ghsa_rolling_windows` wiring, #9959/#10516: the section now exists
+and mints window scopes when enabled and stays off by default. Superseded in
+full by the green S6 1-hour tokened QA run under #10465
+([S6 record](https://github.com/eshu-hq/eshu/issues/10465#issuecomment-6789735481)):
+GHSA rolling is activatable for production truth via
+`derive_ghsa_rolling_windows` with a host-minted token. The measurements
+below still describe the non-GHSA hot path.) The added hot-path work per non-GHSA claim is one
 `strings.Contains` infix check in `IsGHSAWindowScope` plus one map-free
 policy nil check in the extension host; the successor guard gains one
 boolean arm evaluated before the existing arms with no new query (the
@@ -182,10 +191,10 @@ packages (Go toolchain on this host, no database): `extensionhost`
 0.659s, `coordinator/vulnerability` 0.029s, `vulnsource` under 0.01s for
 the grammar and golden-vector tests, and the storage guard fake-harness
 cells including the racing-recheck cell pass in the
-`internal/storage/postgres` suite. Terminal queue and row counts are
-unchanged because no window scope can be planned yet; the cursor table
-adds at most two rows per collector instance (one per advisory type)
-when activation later lands. Live-DSN cursor cells
+`internal/storage/postgres` suite. Terminal queue and row counts were
+unchanged because no window scope was planned in the measured configuration;
+the cursor table adds at most two rows per collector instance (one per
+advisory type) now that rolling activation has landed. Live-DSN cursor cells
 (`TestGHSAWindowCursorCompareAndAdvanceLive`) are enrolled in the
 live-postgres-readiness runner and were NOT_CHECKED locally (no
 `ESHU_POSTGRES_DSN` in this environment); they prove overlapping
