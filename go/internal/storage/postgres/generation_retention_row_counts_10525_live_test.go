@@ -67,7 +67,9 @@ func executeRetentionLockAnalyzed(t *testing.T, ctx context.Context, database *s
 // TestGenerationRetentionWorkItemsPlansStayOnGenerationIndexLive fails
 // when the full row-count query or the pre-delete work-item lock reads
 // fact_work_items by a path whose cost grows with the table, under
-// custom and forced-generic plans (#10525, migration 294). Seeded
+// custom and forced-generic plans (#10525, migration 294). The row-count
+// statement accesses fact_work_items twice, so every access must be a
+// bound generation probe, not only one of them. Seeded
 // drop-index REDs prove the guard sees a lost probe, and the executed
 // lock must touch buffers that track the batch while the filler
 // generations hold far more rows outside the batch.
@@ -110,7 +112,13 @@ func TestGenerationRetentionWorkItemsPlansStayOnGenerationIndexLive(t *testing.T
 		t.Helper()
 		for _, statement := range statements {
 			plan := explain(statement.sql)
-			if violations := retentionGuardedPlanViolations(t, plan, statement.required); len(violations) > 0 {
+			// Per-access accounting for fact_work_items (#10525): the
+			// row-count statement accesses it twice, so one bound probe
+			// must not cover a scanning second access.
+			violations := append(
+				retentionGuardedPlanViolations(t, plan, statement.required),
+				retentionWorkItemsPlanViolations10525(t, plan)...)
+			if len(violations) > 0 {
 				t.Errorf("%s %s plan leaves its generation index: %s\n%s", condition, statement.name, strings.Join(violations, "; "), plan)
 			}
 		}
@@ -158,7 +166,9 @@ func TestGenerationRetentionWorkItemsPlansStayOnGenerationIndexLive(t *testing.T
 			if err := conn.QueryRowContext(ctx, "EXPLAIN (FORMAT JSON) "+statement.sql, candidates).Scan(&plan); err != nil {
 				t.Fatalf("explain without %s: %v", index, err)
 			}
-			violations := retentionGuardedPlanViolations(t, plan, statement.required)
+			violations := append(
+				retentionGuardedPlanViolations(t, plan, statement.required),
+				retentionWorkItemsPlanViolations10525(t, plan)...)
 			if joined := strings.Join(violations, "; "); !strings.Contains(joined, "never probes "+index) {
 				t.Fatalf("plan guard accepted %s with no %s (violations: %s):\n%s", statement.name, index, joined, plan)
 			}
