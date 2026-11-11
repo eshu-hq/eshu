@@ -70,20 +70,23 @@ func TestSecretsIAMReadAdmissionWireShapesAreSatelliteConsumable(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	if _, err := admission.ListSecretsIAMIdentityTrustChains(ctx, IAMIdentityTrustChainFilter{ScopeID: "scope-1", Limit: 10}); err == nil {
-		t.Error("ListSecretsIAMIdentityTrustChains over an unavailable reader = nil error, want a fail-closed error")
+	// Each read must fail with the guarded reader's own probe error (not
+	// merely any non-nil error): that pins the satellite path to the
+	// guarded ReadStore instead of an error from another cause.
+	if _, err := admission.ListSecretsIAMIdentityTrustChains(ctx, IAMIdentityTrustChainFilter{ScopeID: "scope-1", Limit: 10}); !errors.Is(err, errSecretsIAMWireShapeProbe) {
+		t.Errorf("ListSecretsIAMIdentityTrustChains over an unavailable reader = %v, want the guarded reader's probe error", err)
 	}
-	if _, err := admission.ListSecretsIAMPrivilegePostureObservations(ctx, IAMPrivilegePostureObservationFilter{ScopeID: "scope-1", Limit: 10}); err == nil {
-		t.Error("ListSecretsIAMPrivilegePostureObservations over an unavailable reader = nil error, want a fail-closed error")
+	if _, err := admission.ListSecretsIAMPrivilegePostureObservations(ctx, IAMPrivilegePostureObservationFilter{ScopeID: "scope-1", Limit: 10}); !errors.Is(err, errSecretsIAMWireShapeProbe) {
+		t.Errorf("ListSecretsIAMPrivilegePostureObservations over an unavailable reader = %v, want the guarded reader's probe error", err)
 	}
-	if _, err := admission.ListSecretsIAMSecretAccessPaths(ctx, IAMSecretAccessPathFilter{ScopeID: "scope-1", Limit: 10}); err == nil {
-		t.Error("ListSecretsIAMSecretAccessPaths over an unavailable reader = nil error, want a fail-closed error")
+	if _, err := admission.ListSecretsIAMSecretAccessPaths(ctx, IAMSecretAccessPathFilter{ScopeID: "scope-1", Limit: 10}); !errors.Is(err, errSecretsIAMWireShapeProbe) {
+		t.Errorf("ListSecretsIAMSecretAccessPaths over an unavailable reader = %v, want the guarded reader's probe error", err)
 	}
-	if _, err := admission.ListSecretsIAMPostureGaps(ctx, IAMPostureGapFilter{ScopeID: "scope-1", Limit: 10}); err == nil {
-		t.Error("ListSecretsIAMPostureGaps over an unavailable reader = nil error, want a fail-closed error")
+	if _, err := admission.ListSecretsIAMPostureGaps(ctx, IAMPostureGapFilter{ScopeID: "scope-1", Limit: 10}); !errors.Is(err, errSecretsIAMWireShapeProbe) {
+		t.Errorf("ListSecretsIAMPostureGaps over an unavailable reader = %v, want the guarded reader's probe error", err)
 	}
-	if _, err := admission.SummarizeSecretsIAMPosture(ctx, "scope-1"); err == nil {
-		t.Error("SummarizeSecretsIAMPosture over an unavailable reader = nil error, want a fail-closed error")
+	if _, err := admission.SummarizeSecretsIAMPosture(ctx, "scope-1"); !errors.Is(err, errSecretsIAMWireShapeProbe) {
+		t.Errorf("SummarizeSecretsIAMPosture over an unavailable reader = %v, want the guarded reader's probe error", err)
 	}
 }
 
