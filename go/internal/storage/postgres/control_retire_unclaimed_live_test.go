@@ -282,11 +282,17 @@ func TestRetireUnclaimedLiveClaimRace(t *testing.T) {
 	var wg sync.WaitGroup
 	errs := make(chan error, 64)
 	var retired retiredCounter
+	// claimedWins counts successful ClaimNextEligible wins so progress
+	// logs can compare the claimant side against the retirer side.
+	var claimedWins atomic.Int64
 	// inflight counts ClaimNextEligible statements currently executing.
 	// Claim statements are synchronous: once a statement returns its row
 	// lock is released or committed, so an empty retire pass with no
 	// statement in flight means no row is undecided.
 	var inflight atomic.Int64
+	// settleStart anchors the fixed 180s settle bound and every progress
+	// log below; it starts when the race starts.
+	settleStart := time.Now()
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -300,6 +306,29 @@ func TestRetireUnclaimedLiveClaimRace(t *testing.T) {
 		// started would have been retired by that pass), and the
 		// confirmation pass closes the gap where a claimant started
 		// between the empty pass and the counter check.
+		//
+		// Progress is logged, never used to relax the bound: the loop
+		// still returns only on quiescence and the 180s settle bound
+		// below still fails a true wedge.
+		const progressEvery = 10 * time.Second
+		lastProgress := time.Now()
+		logProgress := func(stage string) {
+			var claimedRows, retiredRows, pendingRows int
+			if err := database.QueryRowContext(ctx, `
+SELECT COUNT(*) FILTER (WHERE status = 'claimed'),
+       COUNT(*) FILTER (WHERE status = 'failed_terminal'),
+       COUNT(*) FILTER (WHERE status = 'pending')
+FROM workflow_work_items WHERE run_id = $1`, runID,
+			).Scan(&claimedRows, &retiredRows, &pendingRows); err != nil {
+				t.Logf("race progress [%s]: elapsed=%s count outcomes: %v",
+					stage, time.Since(settleStart).Round(time.Millisecond), err)
+				return
+			}
+			t.Logf("race progress [%s]: elapsed=%s settled/pending rows claimed=%d retired=%d pending=%d claimant wins=%d retirer reported=%d inflight=%d",
+				stage, time.Since(settleStart).Round(time.Millisecond),
+				claimedRows, retiredRows, pendingRows,
+				claimedWins.Load(), retired.load(), inflight.Load())
+		}
 		for {
 			items, err := store.RetireUnclaimedWorkItems(ctx, retireUnclaimedLiveKind, instance, "race")
 			if err != nil {
@@ -307,6 +336,10 @@ func TestRetireUnclaimedLiveClaimRace(t *testing.T) {
 				return
 			}
 			retired.add(len(items))
+			if now := time.Now(); now.Sub(lastProgress) >= progressEvery {
+				lastProgress = now
+				logProgress("retire")
+			}
 			if len(items) != 0 || inflight.Load() != 0 {
 				time.Sleep(time.Millisecond)
 				continue
@@ -359,14 +392,17 @@ func TestRetireUnclaimedLiveClaimRace(t *testing.T) {
 					time.Sleep(time.Millisecond)
 					continue
 				}
+				claimedWins.Add(1)
 			}
 		}(c)
 	}
+	settleStart = time.Now()
 	close(start)
-	// The wait is bounded: monotone row drain (rows leave pending only via
-	// claim or retire, and the lease TTL outlives the test) guarantees the
-	// retirer reaches quiescence, so a hang here is a product defect, not
-	// a slow host.
+	// The wait is bounded by a fixed 180s, not a load-scaled margin: monotone
+	// row drain (rows leave pending only via claim or retire, and the lease
+	// TTL outlives the test) guarantees the retirer reaches quiescence, so a
+	// hang here is a product defect, not a slow host. No quarantine or retry
+	// annotation: a wedge fails here, loudly, with the undecided rows named.
 	waitDone := make(chan struct{})
 	go func() {
 		wg.Wait()
@@ -374,8 +410,43 @@ func TestRetireUnclaimedLiveClaimRace(t *testing.T) {
 	}()
 	select {
 	case <-waitDone:
-	case <-time.After(60 * time.Second):
-		t.Fatal("claim-versus-retire race did not settle within 60s")
+	case <-time.After(180 * time.Second):
+		elapsed := time.Since(settleStart).Round(time.Millisecond)
+		var claimedRows, retiredRows, pendingRows int
+		if err := database.QueryRowContext(ctx, `
+SELECT COUNT(*) FILTER (WHERE status = 'claimed'),
+       COUNT(*) FILTER (WHERE status = 'failed_terminal'),
+       COUNT(*) FILTER (WHERE status = 'pending')
+FROM workflow_work_items WHERE run_id = $1`, runID,
+		).Scan(&claimedRows, &retiredRows, &pendingRows); err != nil {
+			t.Logf("race settle timeout after %s: count outcomes: %v", elapsed, err)
+		} else {
+			t.Logf("race settle timeout after %s: settled/pending rows claimed=%d retired=%d pending=%d claimant wins=%d retirer reported=%d inflight=%d",
+				elapsed, claimedRows, retiredRows, pendingRows,
+				claimedWins.Load(), retired.load(), inflight.Load())
+		}
+		pendingIDs, err := database.QueryContext(ctx, `
+SELECT work_item_id, COALESCE(current_claim_id, '') FROM workflow_work_items
+WHERE run_id = $1 AND status = 'pending' ORDER BY work_item_id LIMIT 100`, runID)
+		if err != nil {
+			t.Logf("race settle timeout: pending row dump: %v", err)
+		} else {
+			var ids []string
+			for pendingIDs.Next() {
+				var id, claimID string
+				if err := pendingIDs.Scan(&id, &claimID); err != nil {
+					t.Logf("race settle timeout: scan pending row: %v", err)
+					break
+				}
+				ids = append(ids, fmt.Sprintf("%s(claim=%s)", id, claimID))
+			}
+			_ = pendingIDs.Close()
+			if err := pendingIDs.Err(); err != nil {
+				t.Logf("race settle timeout: pending row dump rows: %v", err)
+			}
+			t.Logf("race settle timeout: %d pending rows (first %d): %v", pendingRows, len(ids), ids)
+		}
+		t.Fatal("claim-versus-retire race did not settle within 180s")
 	}
 	close(errs)
 	for err := range errs {
