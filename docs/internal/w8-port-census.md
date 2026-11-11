@@ -5,21 +5,23 @@
 
 Refs eshu-hq/eshu#9669, eshu-hq/eshu#10491. Status: preparation only — no cutover has
 occurred, no behavior changes, no in-tree code moves. Census day 2026-11-10:
-core `e3c33de093` / satellite `0b56895`. Re-verified unchanged at core
-`290076840d` (checker PASS with identical 279/125/17/27/110 counts, relay=106
-w7w=4) after the lane rebase; no row changed.
+core `e3c33de093` / satellite `0b56895` (provenance; row set proven
+byte-identical at the ruling base). Re-verified unchanged at ruling base core
+`f23e83111b` (origin/main at branch time; checker PASS with identical 279/125/17/27/110
+counts, relay=106 w7w=4); no row changed.
 
 ## Method (exact commands, run in the worktree root)
 
 ```bash
 rg -c '^\| `' go/cmd/api/CUTOVER_OWNERSHIP.md            # 279 live rows
-python3 /tmp/gen-w8-census.py                             # regenerate this file
+python3 scripts/gen-w8-port-census.py [--tracker FILE]    # regenerate this file
 bash scripts/check-w8-port-census.sh                      # drift gate (row parity)
 ```
 
 Route set is read from [CUTOVER_OWNERSHIP.md](../../go/cmd/api/CUTOVER_OWNERSHIP.md);
-box states are read from the #10491 body. Mount attribution resolves each route
-literal (`"METHOD path"`) against non-test Go sources and cites the defining
+box states default to the live #10491 body (`gh issue view 10491`); pass --tracker
+with a saved snapshot file for a reproducible/offline run. Mount attribution resolves
+each route literal (`"METHOD path"`) against non-test Go sources and cites the defining
 `Mount`/`*Routes` site; ports are the handler struct's store/port fields.
 
 ## Pin inventory (all constants verified present at census SHA)
@@ -60,13 +62,14 @@ literal (`"METHOD path"`) against non-test Go sources and cites the defining
   read-held (read computation; writer handle held for recovery/audit/suppression, no
   HTTP-path durable writes) | mut(core-store) | mux.
 - C5: wave bucket per the selection rule below. No residue bucket: every row carries
-  one of landed-Done, landed-family, tierC-G4, w7w-inflight, relay-leg.
+  one of landed-Done, landed-family, tierC-G4, w7w-recorded, relay-leg.
 
 ## C5 selection rule + W8-44 status
 
 landed-Done = #10491 Done box; landed-family = family box + sat citation; tierC-G4 =
-tier-C box (G4 re-verify before any Done move); w7w-inflight = the 4 W7-writer rows
-(record-in-flight until eshu-hq/eshu#10531 merges, boxes stay unchecked); relay-leg =
+tier-C box (G4 re-verify before any Done move); w7w-recorded = the 4 W7-writer rows
+(core record merged via eshu-hq/eshu#10531, satellite consumption pending, boxes stay
+unchecked per the W7-writers ruling); relay-leg =
 everything else (Path-B catch-all, no carve-outs) with pin-approved tags where the
 arbiter pin-minting batch approved a pin (SecretsIAM, Status, ContentSearch, CodeSearch,
 CodeFlow W6a). W8-44 membership is NOT assigned here: the 44-route selection rule and
@@ -75,6 +78,10 @@ to this lane. Two unconfirmed shape observations for the coordinator (not claims
 H1 Entities(8)+Content(7)+Code(27)+SemanticEvidence(2)=44 (includes 3 landed Content rows);
 H2 Code(27)+Impact(13)+Language/Incident/Dependencies/CodeownersOwnership(1 each)=44
 (all open). The arbiter's actual 44 may differ; no row is tagged W8 in this artifact.
+
+Disposition (w7w-recorded): core record merged via eshu-hq/eshu#10531; satellite
+consumption pending. The 4 tracker boxes stay UNCHECKED until satellite termination
+lands, per the W7-writers ruling — this label rename changes no box.
 
 ## Verification
 
@@ -242,7 +249,7 @@ registrations); every row carries a non-empty C1–C5 and a known C5 bucket.
 | `GET /api/v0/workloads/{workload_id}/context` | Entities | Mount q/entity/handler.go:61 (Handler.Mount); ports:Neo4j(GraphQuery),Content(ContentStore),CICDRunCorrelations(CICDRunCorrelationStore),ContainerImageIdentities(supplychain.ContainerImageIdentityStore),SBOMAttachments(supplychain.SBOMAttestationAttachmentStore),Profile(QueryProfile),ContentRelationships(ContentRelationshipBuilder); candidate | blanket | relay-leg via newRouter | read | relay-leg |
 | `GET /api/v0/workloads/{workload_id}/story` | Entities | Mount q/entity/handler.go:61 (Handler.Mount); ports:Neo4j(GraphQuery),Content(ContentStore),CICDRunCorrelations(CICDRunCorrelationStore),ContainerImageIdentities(supplychain.ContainerImageIdentityStore),SBOMAttachments(supplychain.SBOMAttestationAttachmentStore),Profile(QueryProfile),ContentRelationships(ContentRelationshipBuilder); candidate | blanket | relay-leg via newRouter | read | relay-leg |
 | `GET /health` | APIRouter | APIRouter.Mount q/handler.go:147; Serve funcs q/handler.go:460-470; ports:-; no-port | n/a | mux-direct via newRouter | mux | relay-leg(mux-direct,no-wave) |
-| `PATCH /api/v0/auth/admin/sign-in-policy` | SignInPolicyMutations | Mount q/sign_in_policy_mutations.go:43 (SignInPolicyMutationHandler.Mount); ports:Store(SignInPolicyMutationStore); writer | writer:SignInPolicyAdmission v0 | w7w-record-inflight via wireAPI | mut(core-store) | w7w-inflight(#10531-open) |
+| `PATCH /api/v0/auth/admin/sign-in-policy` | SignInPolicyMutations | Mount q/sign_in_policy_mutations.go:43 (SignInPolicyMutationHandler.Mount); ports:Store(SignInPolicyMutationStore); writer | writer:SignInPolicyAdmission v0 | w7w-record-inflight via wireAPI | mut(core-store) | w7w-recorded(#10531-merged, satellite-pending) |
 | `PATCH /api/v0/auth/browser-session/context` | BrowserSessions | Mount q/browser_session_handler.go:93 (BrowserSessionHandler.Mount); ports:Store(BrowserSessionStore),SignInPolicy(SignInPolicyReadStore); writer | writer:BrowserSessionAdmission v0 | tierC-dispatch via newRouter | mut(core-store) | tierC-G4(re-verify) |
 | `POST /api/v0/admin/backfill` | Admin | Mount q/admin/handler.go:368 (Handler.Mount); ports:ReindexProgress(ReindexProgressReader),Store(Store),ReadStore(ReadStore); writer | writer:generic(core-owned) | tierC-dispatch via newRouter | mut(core-store) | tierC-G4(re-verify) |
 | `POST /api/v0/admin/changed-since/poisoned-links/query` | Admin | Mount q/admin/changedsincepoisonedlinks.go:84 (ChangedSincePoisonedLinksHandler.Mount); ports:Store(ReadStore); writer | writer:generic(core-owned) | native-Done via newRouter | read-held(no-HTTP-path-writes) | landed-Done |
@@ -291,9 +298,9 @@ registrations); every row carries a non-empty C1–C5 and a known C5 bucket.
 | `POST /api/v0/auth/local/users/{user_id}/mfa-reset` | LocalIdentity | Mount q/local/handler.go:50 (IdentityHandler.Mount); ports:Sessions(session.BrowserSessionStore),SignInPolicy(auth.SignInPolicyReadStore); writer | writer:LocalIdentityAdmission v0 | tierC-dispatch via newRouter | mut(core-store) | tierC-G4(re-verify) |
 | `POST /api/v0/auth/local/users/{user_id}/password` | LocalIdentity | Mount q/local/handler.go:50 (IdentityHandler.Mount); ports:Sessions(session.BrowserSessionStore),SignInPolicy(auth.SignInPolicyReadStore); writer | writer:LocalIdentityAdmission v0 | tierC-dispatch via newRouter | mut(core-store) | tierC-G4(re-verify) |
 | `POST /api/v0/auth/saml/providers/{provider_id}/acs` | SAML | Mount q/saml_handler.go:136 (SAMLHandler.Mount); ports:Store(SAMLStore),Sessions(BrowserSessionStore),RequestBuilder(SAMLAuthnRequestBuilder),SignInPolicy(SignInPolicyReadStore); writer | writer:SAMLLoginAdmission v0 | native-family via wireAPI | mut(core-store) | landed-family(sat#91) |
-| `POST /api/v0/auth/setup/admin` | Setup | Mount q/setup_handler.go:70 (SetupHandler.Mount); ports:Store(SetupStore),Sessions(BrowserSessionStore); writer | writer:SetupAdmission v0 | w7w-record-inflight via wireAPI | mut(core-store) | w7w-inflight(#10531-open) |
-| `POST /api/v0/auth/setup/claim` | Setup | Mount q/setup_handler.go:70 (SetupHandler.Mount); ports:Store(SetupStore),Sessions(BrowserSessionStore); writer | writer:SetupAdmission v0 | w7w-record-inflight via wireAPI | mut(core-store) | w7w-inflight(#10531-open) |
-| `POST /api/v0/auth/setup/mfa` | Setup | Mount q/setup_handler.go:70 (SetupHandler.Mount); ports:Store(SetupStore),Sessions(BrowserSessionStore); writer | writer:SetupAdmission v0 | w7w-record-inflight via wireAPI | mut(core-store) | w7w-inflight(#10531-open) |
+| `POST /api/v0/auth/setup/admin` | Setup | Mount q/setup_handler.go:70 (SetupHandler.Mount); ports:Store(SetupStore),Sessions(BrowserSessionStore); writer | writer:SetupAdmission v0 | w7w-record-inflight via wireAPI | mut(core-store) | w7w-recorded(#10531-merged, satellite-pending) |
+| `POST /api/v0/auth/setup/claim` | Setup | Mount q/setup_handler.go:70 (SetupHandler.Mount); ports:Store(SetupStore),Sessions(BrowserSessionStore); writer | writer:SetupAdmission v0 | w7w-record-inflight via wireAPI | mut(core-store) | w7w-recorded(#10531-merged, satellite-pending) |
+| `POST /api/v0/auth/setup/mfa` | Setup | Mount q/setup_handler.go:70 (SetupHandler.Mount); ports:Store(SetupStore),Sessions(BrowserSessionStore); writer | writer:SetupAdmission v0 | w7w-record-inflight via wireAPI | mut(core-store) | w7w-recorded(#10531-merged, satellite-pending) |
 | `POST /api/v0/aws/runtime-drift/findings` | IaC | Mount q/iac/handler.go:53 (Handler.Mount); ports:Content(ContentStore),Reachability(ReachabilityStore),Management(ManagementStore),Inventory(InventoryStore),Graph(GraphQuery),Profile(QueryProfile); pinned | dedicated:IaCReadAdmission | relay-leg via newRouter | read-POST(query-shaped) | relay-leg |
 | `POST /api/v0/cloud/runtime-drift/findings` | CloudRuntimeDrift | Mount q/cloud_runtime_drift.go:194 (CloudRuntimeDriftHandler.Mount); ports:Store(MultiCloudRuntimeDriftStore),Profile(QueryProfile); candidate | blanket | relay-leg via newRouter | read-POST(query-shaped) | relay-leg |
 | `POST /api/v0/code/bundles` | Code | Mount q/codequery/handler.go:51 (CodeHandler.Mount); ports:Neo4j(GraphQuery),Content(ContentStore),CodeFlow(CodeFlowStore),Profile(QueryProfile),ContentRelationships(ContentRelationshipBuilder); candidate | blanket | relay-leg via newRouter | read-POST(query-shaped) | relay-leg+pin-approved:CodeSearch |
