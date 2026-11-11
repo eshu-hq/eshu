@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // ContentSearchReadAdmissionContractVersion versions the #9669 W4
@@ -123,22 +124,24 @@ var _ ContentSearchReadAdmission = (*ContentReader)(nil)
 // admission satisfier over a guarded read-only query port, so the
 // satellite consumes the pin without a direct table or queue handle:
 // pass the request-scoped db.ReadStore the same way the API wiring
-// does, plus the unscoped-search work budget and logger the wiring
-// resolves once at startup (unscoped.BudgetFromEnv). It serves exactly
-// the ten pinned search reads over nothing wider than the guarded
-// ReadStore the satellite holds.
+// does, plus the unscoped-search work budget, logger, and instruments
+// the wiring resolves once at startup (unscoped.BudgetFromEnv for the
+// budget). It serves exactly the ten pinned search reads over nothing
+// wider than the guarded ReadStore the satellite holds.
 //
 // The constructor delegates to the existing
 // NewContentReaderWithReadStore deliberately instead of minting
-// parallel wiring, and applies WithUnscopedSearch with the production
-// budget the same way cmd/api wiring does: the transport proof
-// (fail-closed over a guarded ReadStore plus the full wire-object byte
-// comparison against *ContentReader in the wire-shapes test) covers the
-// satellite path end to end, and a second construction path — or a
-// constructor that drops the budget — would be a second place for the
-// guarded handle or the bounded walk to be misconfigured. A constructor
+// parallel wiring, and applies WithInstruments plus WithUnscopedSearch
+// with the production budget the same way cmd/api wiring does: the
+// transport proof (fail-closed over a guarded ReadStore plus the full
+// wire-object byte comparison against *ContentReader in the
+// wire-shapes test) covers the satellite path end to end, and a second
+// construction path — or a constructor that drops the budget or the
+// instruments — would be a second place for the guarded handle, the
+// bounded walk, or operator metrics to be misconfigured. A constructor
 // that stops applying WithUnscopedSearch fails the wire-shapes budget
-// test.
-func NewContentSearchReadAdmissionWithReadStore(readStore db.ReadStore, budget time.Duration, logger *slog.Logger) ContentSearchReadAdmission {
-	return NewContentReaderWithReadStore(readStore).WithUnscopedSearch(budget, logger)
+// test, and one that stops applying WithInstruments fails the
+// instruments assertion in the same test.
+func NewContentSearchReadAdmissionWithReadStore(readStore db.ReadStore, budget time.Duration, logger *slog.Logger, instruments *telemetry.Instruments) ContentSearchReadAdmission {
+	return NewContentReaderWithReadStore(readStore).WithInstruments(instruments).WithUnscopedSearch(budget, logger)
 }
