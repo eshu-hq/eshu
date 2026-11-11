@@ -29,6 +29,11 @@ tests:
     class: postgres_ci
     reason: "#9871 claim-plan proof on real PostgreSQL: the fair-claim candidate on a freshly bulk-loaded never-analyzed workflow_work_items table, then after ANALYZE; enrolled in the live-postgres-readiness runner"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/control_retire_unclaimed_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10532 sanctioned never-claimed retirement proofs on real PostgreSQL: terminal outcome, idempotency, gate refusals, claim-versus-retire race with exactly-once and no deadlock, held-row SKIP LOCKED, run-reconcile close, guard release, and status-registry/failure-read containment; isolated disposable databases, under 4 minutes locally"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/control_scanner_admission_atomicity_live_test.go
     tag: ~
     class: postgres_ci

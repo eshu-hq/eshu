@@ -252,6 +252,7 @@ the `querycontract.CoreReadContractsVersion` port set.
 | `POST /api/v0/admin/repository-retirements` | AdminRetirement | paths/status/repository_retirement.go | mutation | writer: retirement marker/fencer/purger stores | newRouter |
 | `POST /api/v0/admin/skip` | Admin | paths/status/admin.go | mutation | writer: Postgres recovery/reindex/dead-letter/queue stores | newRouter |
 | `POST /api/v0/admin/work-items/query` | Admin | paths/status/admin.go | read | writer: Postgres recovery/reindex/dead-letter/queue stores | newRouter |
+| `POST /api/v0/admin/workflow-retire-unclaimed` | Admin | paths/status/workflow_retire_unclaimed.go | mutation | writer: Postgres workflow control store | newRouter |
 | `POST /api/v0/answer-quality/score` | CLISupport | paths/cli/score.go | read | none (pure function of the request body; no store reads or writes) | wireAPI |
 | `POST /api/v0/ask` | Ask | paths/search/ask.go | read | reader (ReadStore/graph/content, no durable writes) | wireAPI |
 | `POST /api/v0/auth/admin/idp-group-mappings` | AdminIdentityMutations | paths/auth/admin_reads.go | mutation | writer: identity stores (roles, IdP mappings) | newRouter |

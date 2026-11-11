@@ -199,6 +199,17 @@ TABLE = {
             "TestWorkflowClaimFirstClaimAfterBulkAdmission",
             "TestWorkflowClaimFirstClaimAfterBulkAdmissionOntoStatlessTable",
         ),
+        "go/internal/storage/postgres/control_retire_unclaimed_live_test.go": (
+            "TestRetireUnclaimedLiveHappyPath",
+            "TestRetireUnclaimedLiveIdempotent",
+            "TestRetireUnclaimedLiveGateRefusals",
+            "TestRetireUnclaimedLiveClaimRace",
+            "TestRetireUnclaimedLiveHeldRow",
+            "TestRetireUnclaimedLiveReconcileClosesRun",
+            "TestRetireUnclaimedLiveGuardRelease",
+            "TestRetireUnclaimedLiveReadsUnaffected",
+            "TestRetireUnclaimedLiveRecheckAfterReactivation",
+        ),
         "go/internal/storage/postgres/control_scanner_admission_atomicity_live_test.go": (
             "TestScannerAdmissionRejectsConflictingDuplicateSourceLive",
         ),

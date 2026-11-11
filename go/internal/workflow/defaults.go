@@ -38,6 +38,23 @@ const (
 // package) because the writer is the storage reaper, not a collector runner.
 const FailureClassExpiredLeaseBudgetExhausted = "expired_lease_budget_exhausted"
 
+// FailureClassOperatorRetiredUnclaimed labels workflow work items the
+// sanctioned never-claimed retirement path moved to failed_terminal:
+// pending rows with attempt_count 0 and no claim for a deconfigured
+// collector instance (eshu-hq/eshu#10532). It lives in the workflow package
+// because the writer is the storage layer on an operator action, not a
+// collector runner. Failure-reporting reads attribute it like any other
+// terminal class; status reads bind only enabled, non-deactivated instances,
+// so a retired row of a deconfigured instance never surfaces as a serving
+// failure.
+const FailureClassOperatorRetiredUnclaimed = "operator_retired_unclaimed"
+
+// FailureOperationOperatorRetire is the bounded claim-stage token recorded
+// on rows the sanctioned never-claimed retirement path retires
+// (eshu-hq/eshu#10532). It carries only the operation, never provider or
+// row text, so failure-reporting selects stay safe to expose.
+const FailureOperationOperatorRetire = "operator_retire"
+
 func DefaultClaimLeaseTTL() time.Duration {
 	return defaultClaimLeaseTTL
 }

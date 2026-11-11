@@ -48,22 +48,26 @@ func (s *stubReindexRequester) RequestReindex(_ context.Context, ingester string
 }
 
 type stubAdminStore struct {
-	workItems        []WorkItem
-	workItemsErr     error
-	deadLetterRows   []DeadLetterWorkItem
-	deadLetterFilter DeadLetterListFilter
-	deadLetterCalls  int
-	deadLettered     []WorkItem
-	deadLetterErr    error
-	skipped          []WorkItem
-	skipErr          error
-	replayed         []WorkItem
-	replayErr        error
-	replayFilter     ReplayWorkItemFilter
-	unsafeTargets    []UnsafeReplayTarget
-	unsafeTargetsErr error
-	unsafeFilter     UnsafeReplayTargetFilter
-	unsafeCalls      int
+	workItems               []WorkItem
+	workItemsErr            error
+	deadLetterRows          []DeadLetterWorkItem
+	deadLetterFilter        DeadLetterListFilter
+	deadLetterCalls         int
+	deadLettered            []WorkItem
+	deadLetterErr           error
+	skipped                 []WorkItem
+	skipErr                 error
+	retiredUnclaimed        []RetiredUnclaimedItem
+	retireUnclaimedErr      error
+	retireUnclaimedKind     string
+	retireUnclaimedInstance string
+	replayed                []WorkItem
+	replayErr               error
+	replayFilter            ReplayWorkItemFilter
+	unsafeTargets           []UnsafeReplayTarget
+	unsafeTargetsErr        error
+	unsafeFilter            UnsafeReplayTargetFilter
+	unsafeCalls             int
 
 	supersededTargets []SupersededReplayTarget
 	supersededErr     error
@@ -124,6 +128,12 @@ func (s *stubAdminStore) DeadLetterWorkItems(_ context.Context, _ DeadLetterFilt
 
 func (s *stubAdminStore) SkipRepositoryWorkItems(_ context.Context, _ string, _ string) ([]WorkItem, error) {
 	return s.skipped, s.skipErr
+}
+
+func (s *stubAdminStore) RetireUnclaimedWorkflowItems(_ context.Context, kind, instanceID, _ string) ([]RetiredUnclaimedItem, error) {
+	s.retireUnclaimedKind = kind
+	s.retireUnclaimedInstance = instanceID
+	return s.retiredUnclaimed, s.retireUnclaimedErr
 }
 
 func (s *stubAdminStore) ReplayFailedWorkItems(_ context.Context, f ReplayWorkItemFilter) ([]WorkItem, error) {

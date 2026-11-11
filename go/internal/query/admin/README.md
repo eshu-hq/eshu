@@ -2,7 +2,8 @@
 
 The admin HTTP surface for operators: recovery, work-item inspection,
 dead-lettering and dead-letter reads, replay with idempotency, backfill,
-replay events, projection decisions, and input-invalid facts.
+replay events, projection decisions, input-invalid facts, and sanctioned
+never-claimed workflow retirement for deconfigured instances.
 
 Layout:
 
@@ -10,6 +11,12 @@ Layout:
   `deadletters.go`, `inputinvalid.go`, `safety.go` — the `Handler` type,
   its routes, the `Store` port, the shared row/filter models, and the
   replay-safety set.
+- `retire_unclaimed.go` — `POST /api/v0/admin/workflow-retire-unclaimed`.
+  Mirrors the skip: the `Store` port's `RetireUnclaimedWorkflowItems`
+  moves at most 100 never-claimed pending workflow work items of one
+  deconfigured (kind, instance) pair to failed_terminal with the
+  operator-retired class; unknown instances 404 and still-configured
+  instances 409 with a deny audit event (#10532).
 - `reindex.go` — `POST /api/v0/admin/reindex`. With `scope=workspace` (the
   default) it records the fleet reindex watermark through `ReindexRequester`
   and returns it as `requested_at` (#7620). It accepts only

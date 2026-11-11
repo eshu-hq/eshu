@@ -42,5 +42,11 @@ func registerClaimPlaneInstruments(meter metric.Meter, inst *Instruments) error 
 	); err != nil {
 		return fmt.Errorf("register WorkflowControlStoreSelections counter: %w", err)
 	}
+	if inst.WorkflowUnclaimedRetired, err = meter.Int64Counter(
+		"eshu_dp_workflow_unclaimed_retired_total",
+		metric.WithDescription("Workflow work items the sanctioned never-claimed retirement moved to failed_terminal by collector kind and instance; one increment per call with a nonzero retired count, by that count — zero-count calls tick nothing (#10532)"),
+	); err != nil {
+		return fmt.Errorf("register WorkflowUnclaimedRetired counter: %w", err)
+	}
 	return nil
 }

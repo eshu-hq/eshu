@@ -199,6 +199,7 @@ var cutoverPersistenceVocabulary = map[string]bool{
 	"reader (StatusReader/ReadStore; writer handle held for governance audit reads)": true,
 	"writer: identity/session/token stores":                                          true,
 	"writer: Postgres recovery/reindex/dead-letter/queue stores":                     true,
+	"writer: Postgres workflow control store":                                        true,
 	"writer: login-state/session stores":                                             true,
 	"writer: provider-config stores":                                                 true,
 	"writer: identity stores (roles, IdP mappings)":                                  true,

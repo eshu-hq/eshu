@@ -68,6 +68,12 @@ type Store interface {
 	ReadStore
 	DeadLetterWorkItems(ctx context.Context, f DeadLetterFilter) ([]WorkItem, error)
 	SkipRepositoryWorkItems(ctx context.Context, repoID string, note string) ([]WorkItem, error)
+	// RetireUnclaimedWorkflowItems retires never-claimed pending workflow
+	// work items for one deconfigured collector instance
+	// (POST /api/v0/admin/workflow-retire-unclaimed, eshu-hq/eshu#10532).
+	// It returns only the rows this call transitioned, in work_item_id
+	// order; an empty result is a safe no-op.
+	RetireUnclaimedWorkflowItems(ctx context.Context, kind, instanceID, note string) ([]RetiredUnclaimedItem, error)
 	ReplayFailedWorkItems(ctx context.Context, f ReplayWorkItemFilter) ([]WorkItem, error)
 	UnsafeReplayTargets(ctx context.Context, f UnsafeReplayTargetFilter) ([]UnsafeReplayTarget, error)
 	SupersededReplayTargets(ctx context.Context, f UnsafeReplayTargetFilter) ([]SupersededReplayTarget, error)
@@ -382,6 +388,7 @@ func (h *Handler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v0/admin/decisions/query", h.listDecisions)
 	mux.HandleFunc("POST /api/v0/admin/dead-letter", h.deadLetter)
 	mux.HandleFunc("POST /api/v0/admin/skip", h.skip)
+	mux.HandleFunc("POST /api/v0/admin/workflow-retire-unclaimed", h.retireUnclaimedWorkflowItems)
 	mux.HandleFunc("POST /api/v0/admin/replay", h.replay)
 	mux.HandleFunc("POST /api/v0/admin/reopen", h.reopen)
 	mux.HandleFunc("POST /api/v0/admin/backfill", h.backfill)
