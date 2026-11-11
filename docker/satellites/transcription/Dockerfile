@@ -106,7 +106,7 @@ LABEL eshu.satellite="transcription" eshu.satellite.engine="whisper.cpp" eshu.sa
 # package must be a named floor, linked or not: an unnamed unlinked
 # package would install unhashed and defeat the digest gate.
 RUN apk add --no-cache "libstdc++>=14.2.0-r4" "libgcc>=14.2.0-r4" "musl>=1.2.5-r12" \
-        "libssl3>=3.3.7-r2" "libcrypto3>=3.3.7-r2" "zlib>=1.3.2-r1" \
+        "libssl3>=3.3.7-r2" "libcrypto3>=3.3.7-r2" "zlib>=1.4-r0" \
     && mkdir -p /opt/whisper/bin /opt/whisper/models /data
 ARG EXPECT_ENGINE_VERSION
 COPY --from=whisper /out/whisper-cli /opt/whisper/bin/whisper-cli
