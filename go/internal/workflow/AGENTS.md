@@ -71,14 +71,17 @@
   `derive_ghsa_rolling_windows` and refuses it otherwise (#10516): a target
   present with the section off is a validation failure by design, so roll
   back by removing the targets or disabling the instance. The section is
-  off by default and GHSA is not activatable for production truth: do not
-  add a `ghsa` target to a production coordinator configuration. The #10037
+  off by default; GHSA rolling is activatable for production truth via
+  `derive_ghsa_rolling_windows` with a host-minted token since the S6
+  1-hour tokened QA run went green (owner-accepted shortened soak; see amended activation criteria in the window-scope decision)
+  ([S6 record](https://github.com/eshu-hq/eshu/issues/10465#issuecomment-6788316515)):
+  a production coordinator configuration must enable the section on any
+  `ghsa` target. The #10037
   rolling wiring has landed in core (`derive_ghsa_rolling_windows`,
   strictly decoded like the NVD section) and satellite v0.1.10 dispatches
-  `ghsa`, but activation still waits on the S6 tokened-run evidence
-  (#10465). The satellite mirror (#83/#85) shipped in satellite 0.1.12;
+  `ghsa`. The satellite mirror (#83/#85) shipped in satellite 0.1.12;
   a boundless anchor works end to end only where satellite >= 0.1.12 is
-  pinned (QA repin pending under #10465).
+  pinned (live in the S6 run).
   Readiness reads accept a `ghsa` target as well-formed.
   `reconcile_public_advisories_v1` refuses
   a `ghsa` target, so passing this validator never produces a registration. Do
