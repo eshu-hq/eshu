@@ -101,8 +101,8 @@ target.
   (`validateVulnerabilityGHSATarget`, #10516); a boundless anchor works
   end to end only where satellite >= 0.1.12 is pinned (the mirror
   #83/#85 shipped in 0.1.12, live in the green S6 1-hour tokened QA run
-  under #10465). GHSA rolling is activatable for production truth via
-  `derive_ghsa_rolling_windows` with a host-minted token
+  under #10465 (owner-accepted shortened soak; see amended activation criteria in the window-scope decision)). GHSA rolling is activatable for production truth via
+  `derive_ghsa_rolling_windows` with a host-minted token on the 1-hour S6 evidence
   ([S6 record](https://github.com/eshu-hq/eshu/issues/10465#issuecomment-6788316515)).
 
 ## GHSA and OSV copies of one advisory
@@ -177,9 +177,9 @@ then took the unchanged path. (Superseded in part by the
 `derive_ghsa_rolling_windows` wiring, #9959/#10516: the section now exists
 and mints window scopes when enabled and stays off by default. Superseded in
 full by the green S6 1-hour tokened QA run under #10465
-([S6 record](https://github.com/eshu-hq/eshu/issues/10465#issuecomment-6788316515)):
+([S6 record](https://github.com/eshu-hq/eshu/issues/10465#issuecomment-6788316515), owner-accepted shortened soak; see amended activation criteria in the window-scope decision):
 GHSA rolling is activatable for production truth via
-`derive_ghsa_rolling_windows` with a host-minted token. The measurements
+`derive_ghsa_rolling_windows` with a host-minted token on the 1-hour S6 evidence. The measurements
 below still describe the non-GHSA hot path.) The added hot-path work per non-GHSA claim is one
 `strings.Contains` infix check in `IsGHSAWindowScope` plus one map-free
 policy nil check in the extension host; the successor guard gains one
