@@ -269,7 +269,7 @@ def c1_c5(r):
         _, _, f, struct, mname, ln = mi
         fields = struct_fields(f, struct)
         ports = ",".join(fields) if fields else "none-declared"
-        c1m = f"Mount {short(f)}:{ln} ({struct}.{mname})"
+        c1m = f"Mount {short(f)} ({struct}.{mname})"
         if r["channel"] == "mutation" or "writer:" in r["persist"]:
             cls = "writer"
         elif r["family"] in PIN or route in CONTENT_POINT:
@@ -427,7 +427,7 @@ each route literal (`"METHOD path"`) against non-test Go sources and cites the d
 
 ## Column rules
 
-- C1: handler `Mount` file:line + receiver, every store/port struct field, class
+- C1: handler `Mount` file + receiver (symbol-anchored, no line numbers), every store/port struct field, class
   in {{pinned (pure-reader + merged versioned read pin), candidate (pure-reader,
   no pin), writer (channel=mutation or writer-held persistence), no-port (mux-level)}}.
 - C2: blanket (generic reader ports) | dedicated:\\<pin> | writer:\\<admission|generic> | n/a.
