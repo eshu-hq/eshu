@@ -425,7 +425,7 @@ func supportedTrustedAdvisorySourceClass(source string) bool {
 		return true
 	}
 	switch source {
-	case "nvd", "ghsa", "glad", "osv", "pysec", "osv-go", "rustsec", "osv-malicious", "cisa_kev", "first_epss":
+	case "nvd", "ghsa", "glad", "osv", "pysec", "osv-go", "rustsec", "osv-malicious", "cisa_kev", "first_epss", "cve_list":
 		return true
 	default:
 		return false
