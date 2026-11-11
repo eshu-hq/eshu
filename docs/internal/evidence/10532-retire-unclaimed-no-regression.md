@@ -24,7 +24,8 @@ The change adds no hot-path work:
   `work_item_id COLLATE "C"` order under `SKIP LOCKED`, so a concurrent
   claim never blocks behind the retire and vice versa.
 - Live proof on the same backend (isolated disposable databases, full 318
-  migration bootstrap per test): 13 retire tests green, including a 4
+  migration bootstrap per test): 27 retire tests green (9 live + 8 storage
+  hermetic + 3 admin-store + 7 admin-handler), including a 4
   claimant + looping retirer race over 12 rows (both sides won rows,
   every row exactly one winner, zero `40P01` across all runs) and a
   held-row `SKIP LOCKED` proof. Suite wall times of 5-13 s per test are
@@ -39,7 +40,8 @@ The change adds no hot-path work:
 
 - `eshu_dp_workflow_unclaimed_retired_total` (by `collector_kind`,
   `collector_instance_id`, value = retired count, incremented once per
-  successful call including zero-count calls), registered in
+  successful call with a nonzero retired count — zero-count calls tick
+  nothing), registered in
   `registerClaimPlaneInstruments` and pinned by
   `TestClaimPlaneInstrumentsRegisterAndEmit`, including the assertion that
   no `scope_id` label is emitted.
