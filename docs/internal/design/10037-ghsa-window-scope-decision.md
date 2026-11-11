@@ -358,10 +358,8 @@ GHSA stays not activatable until each holds, with evidence in the S7 PR:
 - [ ] The 10-then-6 disjoint run leaves all 16 advisories active, none superseded.
 - [ ] A forced output-budget stop commits a prefix, and the next window starts at the
       cut with no record lost.
-- [ ] 72-hour tokened run in the QA environment for both types: cursor lag under `refresh_interval`
-      plus 1h, no `no_progress`, request budget under the 2,500 per hour ceiling, and
-      no secret in any surface.
-- [ ] Malware volume measured over that run, replacing the sample below.
+- [ ] 1-hour tokened run in the QA environment for both types (owner order 2026-11-11 on #10465 supersedes the original 72-hour duration; recorded risk: lag stability, request-budget headroom, no_progress, malware volume, and late-record settle are proven only within the 1-hour window, not over 72h): no_progress none, no secret in any surface, cursors advance each tick — evidence [#10465 S6 record](https://github.com/eshu-hq/eshu/issues/10465#issuecomment-6788316515).
+- [ ] Malware volume and late records: reported from the 1-hour run only; any 72h-volume/settle claim is NOT_CHECKED and tracked as activation follow-up on #10465, not implied by S7.
 - [ ] Late records measured: none older than the cursor by more than the settle.
       Otherwise raise the settle.
 - [ ] Catalog and key probe re-measured on the built binary against the QA environment's real

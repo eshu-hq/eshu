@@ -75,9 +75,9 @@ GHSA claim is unreachable by configuration. The section is off by default:
 nothing plans a `ghsa` claim unless an operator configures a `ghsa` target
 with the section enabled. GHSA rolling is activatable for production truth
 via `derive_ghsa_rolling_windows` with a host-minted token since the S6
-1-hour tokened QA run went green
+1-hour tokened QA run went green (owner-accepted shortened soak; see amended activation criteria in the window-scope decision)
 ([eshu-hq/eshu#10465](https://github.com/eshu-hq/eshu/issues/10465),
-[S6 record](https://github.com/eshu-hq/eshu/issues/10465#issuecomment-6789735481)).
+[S6 record](https://github.com/eshu-hq/eshu/issues/10465#issuecomment-6788316515)).
 A production coordinator configuration must enable the section on any `ghsa`
 target.
 
@@ -103,7 +103,7 @@ target.
   #83/#85 shipped in 0.1.12, live in the green S6 1-hour tokened QA run
   under #10465). GHSA rolling is activatable for production truth via
   `derive_ghsa_rolling_windows` with a host-minted token
-  ([S6 record](https://github.com/eshu-hq/eshu/issues/10465#issuecomment-6789735481)).
+  ([S6 record](https://github.com/eshu-hq/eshu/issues/10465#issuecomment-6788316515)).
 
 ## GHSA and OSV copies of one advisory
 
@@ -177,7 +177,7 @@ then took the unchanged path. (Superseded in part by the
 `derive_ghsa_rolling_windows` wiring, #9959/#10516: the section now exists
 and mints window scopes when enabled and stays off by default. Superseded in
 full by the green S6 1-hour tokened QA run under #10465
-([S6 record](https://github.com/eshu-hq/eshu/issues/10465#issuecomment-6789735481)):
+([S6 record](https://github.com/eshu-hq/eshu/issues/10465#issuecomment-6788316515)):
 GHSA rolling is activatable for production truth via
 `derive_ghsa_rolling_windows` with a host-minted token. The measurements
 below still describe the non-GHSA hot path.) The added hot-path work per non-GHSA claim is one

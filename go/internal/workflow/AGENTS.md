@@ -73,8 +73,8 @@
   back by removing the targets or disabling the instance. The section is
   off by default; GHSA rolling is activatable for production truth via
   `derive_ghsa_rolling_windows` with a host-minted token since the S6
-  1-hour tokened QA run went green
-  ([S6 record](https://github.com/eshu-hq/eshu/issues/10465#issuecomment-6789735481)):
+  1-hour tokened QA run went green (owner-accepted shortened soak; see amended activation criteria in the window-scope decision)
+  ([S6 record](https://github.com/eshu-hq/eshu/issues/10465#issuecomment-6788316515)):
   a production coordinator configuration must enable the section on any
   `ghsa` target. The #10037
   rolling wiring has landed in core (`derive_ghsa_rolling_windows`,
