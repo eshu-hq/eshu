@@ -60,7 +60,7 @@ digest.
 | Stage | Image | Pinned digest |
 |-------|-------|---------------|
 | xx helper | `tonistiigi/xx:1.5.0` | `sha256:0c6a569797744e45955f39d4f7538ac344bfb7ebf0a54006a0a4297b153ccf0f` |
-| builder | `golang:1.26.9-alpine` | `sha256:cdfd4fe2da6b225d8b40c6b7a105736e548e83ff56d5d8f9394446eeb5eb84e0` |
+| builder | `golang:1.26.11-alpine` | `sha256:ae52b5bc6ed045a9ed26ab03dc19327a802a9cc9aa8b27ed57f5c6b60579b0bb` |
 | production | `alpine:3.21` | `sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d` |
 
 No CI job checks these digests, and none checks that this table still matches
