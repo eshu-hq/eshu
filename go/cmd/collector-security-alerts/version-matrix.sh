@@ -38,7 +38,7 @@ check() {
 }
 
 echo "== in-tree contract versions (locked) =="
-check "go toolchain (go.mod)" "$(rg -o '^go [0-9.]+' "$ROOT/go.mod" | head -n 1)" "go 1.26.10"
+check "go toolchain (go.mod)" "$(rg -o '^go [0-9.]+' "$ROOT/go.mod" | head -n 1)" "go 1.26.11"
 check "fact schema version (V1 const)" \
   "$(rg -o 'SecurityAlertSchemaVersionV1 = "[0-9.]+"' "$ROOT/internal/facts/security_alert.go" | head -n 1)" 'SecurityAlertSchemaVersionV1 = "1.0.0"'
 check "emitted security-alert kind count (PREP)" \
