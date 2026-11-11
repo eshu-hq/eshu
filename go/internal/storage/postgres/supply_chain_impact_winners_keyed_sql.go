@@ -108,7 +108,11 @@ const analyzeWinnersKeyedIdentsSQL = `ANALYZE ` + winnersKeyedIdentsTable
 // build_active_facts at 68% of tick time with p95 17.1s). Moving the c0 and
 // advisory comparisons inside the lateral without the index cut that probe by
 // only about 37% (the heap still fetched every candidate), which is why the
-// expressions are in the index. The probe sits in a MATERIALIZED CTE so a join
+// expressions are in the index. Migration 293 (#10544) drops that
+// package-lookup index: at rows=1 the planner costed the two indexes
+// within 0.01 on a correlated triple and kept choosing the triple-only
+// one on QA, so the keyed index above is now the only triple-leading
+// index. This statement is unchanged. The probe sits in a MATERIALIZED CTE so a join
 // order picked from default statistics on ingestion_scopes cannot put it
 // inside a scope loop; a measured run with that plan took 28 million buffer
 // hits for a 2,000-row result. OFFSET 0 keeps the lateral subquery from being

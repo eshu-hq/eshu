@@ -10,4 +10,7 @@ var orderedBootstrapDefinitionNamesLatest = []string{
 	// Migration 292 (#10512) adds the generation index backing the
 	// retention row-count arm and intents DELETE.
 	"shared_projection_intents_generation_idx",
+	// Migration 293 (#10544) drops the triple-only package-lookup index
+	// whose rows=1 cost tie kept the planner off the 291 keyed index.
+	"drop_fact_records_supply_chain_impact_package_lookup_idx",
 }
