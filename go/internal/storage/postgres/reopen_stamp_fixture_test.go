@@ -6,6 +6,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"math"
 	"testing"
 	"time"
@@ -98,33 +99,99 @@ FROM fact_work_items WHERE work_item_id = $2`, asOf, id).Scan(&got.status, &got.
 	return got
 }
 
+// reopenStampNullTime renders a nullable timestamp as %v plus nanos, so a
+// stamp mismatch names the exact values on both sides.
+func reopenStampNullTime(nt sql.NullTime) string {
+	if !nt.Valid {
+		return "<NULL>"
+	}
+	return fmt.Sprintf("%v (%d nanos)", nt.Time.UTC(), nt.Time.UnixNano())
+}
+
+// migrationReceipt summarizes the bootstrap migration ledger behind the
+// fixture database, so a stamp failure names the schema it ran against:
+// cause class "migration" (a reworded or reordered migration) is told apart
+// from "truncation" and "fixture reuse" by this receipt.
+func (f reopenStampFixture) migrationReceipt(t *testing.T) string {
+	t.Helper()
+	var count int
+	var maxPath sql.NullString
+	if err := f.db.QueryRowContext(f.ctx,
+		`SELECT count(*), max(path) FROM eshu_schema_migrations`).Scan(&count, &maxPath); err != nil {
+		return fmt.Sprintf("unreadable: %v", err)
+	}
+	return fmt.Sprintf("applied=%d maxPath=%q", count, maxPath.String)
+}
+
+// rowTimestamps renders the row's status and created/updated/reopened stamps
+// with nanos, so a stamp or age mismatch shows the full row timeline.
+func (f reopenStampFixture) rowTimestamps(id string) string {
+	var status string
+	var created, updated, reopened sql.NullTime
+	if err := f.db.QueryRowContext(f.ctx, `SELECT status, created_at, updated_at, reopened_at
+FROM fact_work_items WHERE work_item_id = $1`, id).Scan(&status, &created, &updated, &reopened); err != nil {
+		return fmt.Sprintf("row %s unreadable: %v", id, err)
+	}
+	return fmt.Sprintf("row %s status=%q created=%s updated=%s reopened=%s",
+		id, status, reopenStampNullTime(created), reopenStampNullTime(updated), reopenStampNullTime(reopened))
+}
+
+// testContext is the shared diagnostic bundle every reopen-stamp failure
+// carries: the subtest name (which writer and which reuse shape) plus the
+// migration receipt.
+func (f reopenStampFixture) testContext(t *testing.T) string {
+	t.Helper()
+	return fmt.Sprintf("subtest=%q migration={%s}", t.Name(), f.migrationReceipt(t))
+}
+
+// failureContext adds the row timeline to the shared bundle.
+func (f reopenStampFixture) failureContext(t *testing.T, id string) string {
+	t.Helper()
+	return fmt.Sprintf("%s %s", f.testContext(t), f.rowTimestamps(id))
+}
+
 // assertReopenedAt requires the row to be pending, stamped at stamp, and to
 // report its age from stamp rather than from its 100-hour-old creation.
+// Semantics are exact equality (no approximation): only the failure output
+// is richer, naming expected vs actual with nanos, the full row timeline,
+// the migration receipt, and the subtest.
 func (f reopenStampFixture) assertReopenedAt(t *testing.T, id string, stamp time.Time) {
 	t.Helper()
 	got := f.state(t, id, stamp)
+	bundle := fmt.Sprintf("%s state=%+v", f.failureContext(t, id), got)
 	if got.status != "pending" {
-		t.Fatalf("%s status = %q, want pending", id, got.status)
+		t.Fatalf("reopen stamp %s: status = %q, want %q\n%s",
+			id, got.status, "pending", bundle)
 	}
 	if !got.reopenedAt.Valid || !got.reopenedAt.Time.Equal(stamp) {
-		t.Fatalf("%s reopened_at = %v (valid=%v), want %v: a terminal row moved back to pending must stamp reopened_at",
-			id, got.reopenedAt.Time, got.reopenedAt.Valid, stamp)
+		t.Fatalf("reopen stamp %s: reopened_at = %s, want %v (%d nanos): a terminal row moved back to pending must stamp reopened_at\n%s",
+			id, reopenStampNullTime(got.reopenedAt), stamp.UTC(), stamp.UnixNano(), bundle)
 	}
+	age := time.Duration(got.ageSeconds * float64(time.Second))
 	if math.Abs(got.ageSeconds) > 0.001 {
-		t.Fatalf("%s backlog age at the reopen = %vs, want 0 (it still ages from created_at %v)", id, got.ageSeconds, f.old)
+		t.Fatalf("reopen stamp %s: backlog age at the reopen = %vs (%v, %d nanos), want 0 (it still ages from created_at %v, %d nanos)\n%s",
+			id, got.ageSeconds, age, age.Nanoseconds(), f.old.UTC(), f.old.UnixNano(), bundle)
 	}
+	t.Logf("reopen stamp %s: reopened_at=%v (%d nanos) age=%v (%d nanos) %s",
+		id, got.reopenedAt.Time.UTC(), got.reopenedAt.Time.UnixNano(), age, age.Nanoseconds(), f.testContext(t))
 }
 
 // assertReopenKept requires the row to keep the reopen evidence it had before
 // the writer ran: a re-driven claimed or running row was already outstanding,
-// so stamping it would understate its age and hide a stall.
+// so stamping it would understate its age and hide a stall. Semantics are
+// exact equality (no approximation); only the failure output is richer.
 func (f reopenStampFixture) assertReopenKept(t *testing.T, id string, want *time.Time) {
 	t.Helper()
 	got := f.state(t, id, f.old)
+	bundle := fmt.Sprintf("%s state=%+v", f.failureContext(t, id), got)
 	switch {
 	case want == nil && got.reopenedAt.Valid:
-		t.Fatalf("%s reopened_at = %v, want NULL: the row was already outstanding", id, got.reopenedAt.Time)
+		t.Fatalf("reopen stamp %s: reopened_at = %s, want NULL: the row was already outstanding\n%s",
+			id, reopenStampNullTime(got.reopenedAt), bundle)
 	case want != nil && (!got.reopenedAt.Valid || !got.reopenedAt.Time.Equal(*want)):
-		t.Fatalf("%s reopened_at = %v (valid=%v), want the earlier %v", id, got.reopenedAt.Time, got.reopenedAt.Valid, *want)
+		t.Fatalf("reopen stamp %s: reopened_at = %s, want the earlier %v (%d nanos)\n%s",
+			id, reopenStampNullTime(got.reopenedAt), want.UTC(), want.UnixNano(), bundle)
+	default:
+		t.Logf("reopen stamp %s: kept reopened_at=%s %s", id, reopenStampNullTime(got.reopenedAt), f.testContext(t))
 	}
 }

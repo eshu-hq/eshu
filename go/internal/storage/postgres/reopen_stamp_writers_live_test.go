@@ -8,13 +8,115 @@ package postgres
 //eshu:readiness:env ESHU_POSTGRES_DSN
 
 import (
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/recovery"
+	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/poison"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/rebuild/reset"
 )
+
+// assertReopenBacklogAge requires backlog's OldestAge to equal want exactly:
+// exact-equality semantics are kept (no approximation), and both sides are
+// logged as %v plus nanos alongside the full backlog struct (%+v), the
+// migration receipt, the subtest name, and the involved row timelines.
+func assertReopenBacklogAge(t *testing.T, f reopenStampFixture, backlog statuspkg.DomainBacklog, all []statuspkg.DomainBacklog, rowIDs []string, want time.Duration, why string) {
+	t.Helper()
+	if backlog.OldestAge == want {
+		t.Logf("reopen stamp backlog: domain=%q oldest=%v (%d nanos) == want %v (%d nanos) %s | %s",
+			backlog.Domain, backlog.OldestAge, backlog.OldestAge.Nanoseconds(),
+			want, want.Nanoseconds(), why, f.testContext(t))
+		return
+	}
+	rows := make([]string, 0, len(rowIDs))
+	for _, id := range rowIDs {
+		rows = append(rows, f.rowTimestamps(id))
+	}
+	t.Fatalf("reopen stamp backlog: domain=%q oldest=%v (%d nanos), want %v (%d nanos) %s\n%s\nbacklog=%+v allBacklogs=%+v\n%s",
+		backlog.Domain, backlog.OldestAge, backlog.OldestAge.Nanoseconds(),
+		want, want.Nanoseconds(), why, f.testContext(t), backlog, all, strings.Join(rows, "\n"))
+}
+
+// assertReopenBacklogUnder requires backlog's OldestAge to stay at or under
+// bound (kept as a bound, not equality), with the same diagnostic bundle.
+func assertReopenBacklogUnder(t *testing.T, f reopenStampFixture, backlog statuspkg.DomainBacklog, all []statuspkg.DomainBacklog, rowIDs []string, bound time.Duration, why string) {
+	t.Helper()
+	if backlog.OldestAge <= bound {
+		t.Logf("reopen stamp backlog: domain=%q oldest=%v (%d nanos) <= bound %v (%d nanos) %s | %s",
+			backlog.Domain, backlog.OldestAge, backlog.OldestAge.Nanoseconds(),
+			bound, bound.Nanoseconds(), why, f.testContext(t))
+		return
+	}
+	rows := make([]string, 0, len(rowIDs))
+	for _, id := range rowIDs {
+		rows = append(rows, f.rowTimestamps(id))
+	}
+	t.Fatalf("reopen stamp backlog: domain=%q oldest=%v (%d nanos) exceeds bound %v (%d nanos) %s\n%s\nbacklog=%+v allBacklogs=%+v\n%s",
+		backlog.Domain, backlog.OldestAge, backlog.OldestAge.Nanoseconds(),
+		bound, bound.Nanoseconds(), why, f.testContext(t), backlog, all, strings.Join(rows, "\n"))
+}
+
+// assertReopenUntouched requires the over-bound row to keep its terminal
+// status with no stamp, logging the full state on mismatch.
+func assertReopenUntouched(t *testing.T, f reopenStampFixture, id string, got reopenStampState, wantStatus string) {
+	t.Helper()
+	if got.status == wantStatus && !got.reopenedAt.Valid {
+		t.Logf("reopen stamp untouched: %s still %q with no stamp | %s", id, got.status, f.testContext(t))
+		return
+	}
+	t.Fatalf("reopen stamp untouched: %s status=%q reopened_at=%s, want %q with no stamp beyond the drain bound\n%s state=%+v",
+		id, got.status, reopenStampNullTime(got.reopenedAt), wantStatus, f.failureContext(t, id), got)
+}
+
+// assertReopenMatched requires the re-projection to match and reopen,
+// logging both flags with the row timeline on mismatch.
+func assertReopenMatched(t *testing.T, f reopenStampFixture, scopeID, rowID string, matched, reopened bool) {
+	t.Helper()
+	if matched && reopened {
+		t.Logf("reopen stamp reproject: %s matched and reopened | %s", scopeID, f.testContext(t))
+		return
+	}
+	t.Fatalf("reopen stamp reproject: %s matched=%v reopened=%v, want both true\n%s",
+		scopeID, matched, reopened, f.failureContext(t, rowID))
+}
+
+// assertReopenRecoveredAtLeast requires at least want recoveries, logging the
+// count against the row timeline on mismatch.
+func assertReopenRecoveredAtLeast(t *testing.T, f reopenStampFixture, rowID string, got, want int, what string) {
+	t.Helper()
+	if got >= want {
+		t.Logf("reopen stamp recovered: %s %d >= %d %s | %s", what, got, want, rowID, f.testContext(t))
+		return
+	}
+	t.Fatalf("reopen stamp recovered: %s recovered %d rows, want at least %d (%s)\n%s",
+		what, got, want, rowID, f.failureContext(t, rowID))
+}
+
+// assertReopenHealOutcome requires the zombie-heal outcome to equal want
+// exactly, logging both sides with the row timeline on mismatch.
+func assertReopenHealOutcome(t *testing.T, f reopenStampFixture, scopeID, rowID, got, want string) {
+	t.Helper()
+	if got == want {
+		t.Logf("reopen stamp heal: %s outcome=%q | %s", scopeID, got, f.testContext(t))
+		return
+	}
+	t.Fatalf("reopen stamp heal: %s outcome = %q, want %q\n%s",
+		scopeID, got, want, f.failureContext(t, rowID))
+}
+
+// assertReopenSharedIntents requires exactly want shared intents reopened,
+// logging the count with the row timeline on mismatch.
+func assertReopenSharedIntents(t *testing.T, f reopenStampFixture, rowID string, got, want int) {
+	t.Helper()
+	if got == want {
+		t.Logf("reopen stamp shared intents: reopened=%d | %s", got, f.testContext(t))
+		return
+	}
+	t.Fatalf("reopen stamp shared intents: SharedIntentsReopened = %d, want %d\n%s",
+		got, want, f.failureContext(t, rowID))
+}
 
 // TestTerminalReopenWritersStampReopenedAtLive is the #9320 per-writer proof:
 // every writer that moves a finished (succeeded, failed, dead_letter) fact
@@ -43,7 +145,7 @@ func TestTerminalReopenWritersStampReopenedAtLive(t *testing.T) {
 		store := NewRecoveryStore(SQLDB{DB: database})
 		for _, stage := range []recovery.Stage{recovery.StageReducer, recovery.StageProjector} {
 			if _, err := store.ReplayFailedWorkItems(ctx, recovery.ReplayFilter{Stage: stage, ScopeIDs: []string{"s-replay"}}, now); err != nil {
-				t.Fatalf("ReplayFailedWorkItems(%s) error = %v", stage, err)
+				t.Fatalf("ReplayFailedWorkItems(%s) error = %v\n%s", stage, err, f.testContext(t))
 			}
 		}
 		for _, id := range []string{"r-dead", "r-failed", "projector_s-replay_g-replay"} {
@@ -53,11 +155,13 @@ func TestTerminalReopenWritersStampReopenedAtLive(t *testing.T) {
 		// the replay, not 100 hours.
 		backlogs, err := listDomainBacklogs(ctx, SQLDB{DB: database}, now.Add(time.Minute))
 		if err != nil {
-			t.Fatalf("listDomainBacklogs() error = %v", err)
+			t.Fatalf("listDomainBacklogs() error = %v\n%s", err, f.testContext(t))
 		}
 		for _, backlog := range backlogs {
-			if backlog.Domain == "d-replay" && backlog.OldestAge != time.Minute {
-				t.Fatalf("d-replay oldest age = %v, want %v since the replay", backlog.OldestAge, time.Minute)
+			if backlog.Domain == "d-replay" {
+				assertReopenBacklogAge(t, f, backlog, backlogs,
+					[]string{"r-dead", "r-failed", "projector_s-replay_g-replay"},
+					time.Minute, "since the replay")
 			}
 		}
 	})
@@ -68,12 +172,10 @@ func TestTerminalReopenWritersStampReopenedAtLive(t *testing.T) {
 		f.row(t, reopenStampRow{id: "r-drain-b", scopeID: "s-drain", generationID: "g-drain", stage: "reducer", domain: "d-drain", status: "dead_letter"})
 		store := NewRecoveryStore(SQLDB{DB: database})
 		if _, err := store.ReplayFailedWorkItems(ctx, recovery.ReplayFilter{Stage: recovery.StageReducer, ScopeIDs: []string{"s-drain"}, Limit: 1}, now); err != nil {
-			t.Fatalf("bounded ReplayFailedWorkItems() error = %v", err)
+			t.Fatalf("bounded ReplayFailedWorkItems() error = %v\n%s", err, f.testContext(t))
 		}
 		f.assertReopenedAt(t, "r-drain-a", now)
-		if got := f.state(t, "r-drain-b", now); got.status != "dead_letter" || got.reopenedAt.Valid {
-			t.Fatalf("r-drain-b = %+v, want untouched dead_letter beyond the drain bound", got)
-		}
+		assertReopenUntouched(t, f, "r-drain-b", f.state(t, "r-drain-b", now), "dead_letter")
 	})
 
 	t.Run("poison sweep", func(t *testing.T) {
@@ -81,11 +183,9 @@ func TestTerminalReopenWritersStampReopenedAtLive(t *testing.T) {
 		f.row(t, reopenStampRow{id: "r-poison", scopeID: "s-poison", generationID: "g-poison", stage: "reducer", domain: "d-poison", status: "dead_letter"})
 		result, err := poison.NewStore(SQLDB{DB: database}).RecoverDeadLetters(ctx, poison.Policy{MaxRecoverAttempts: 3, BatchLimit: 100}, now)
 		if err != nil {
-			t.Fatalf("RecoverDeadLetters() error = %v", err)
+			t.Fatalf("RecoverDeadLetters() error = %v\n%s", err, f.testContext(t))
 		}
-		if result.Recovered == 0 {
-			t.Fatal("RecoverDeadLetters() recovered 0 rows, want the seeded poison row")
-		}
+		assertReopenRecoveredAtLeast(t, f, "r-poison", result.Recovered, 1, "RecoverDeadLetters() for the seeded poison row")
 		f.assertReopenedAt(t, "r-poison", now)
 	})
 
@@ -108,11 +208,9 @@ func TestTerminalReopenWritersStampReopenedAtLive(t *testing.T) {
 			var matched, reopened bool
 			if err := database.QueryRowContext(ctx, reprojectActiveGenerationQuery,
 				now, c.scopeID, generationID, "hint", "commit", "test", "").Scan(&matched, &reopened); err != nil {
-				t.Fatalf("reprojectActiveGenerationQuery(%s) error = %v", c.scopeID, err)
+				t.Fatalf("reprojectActiveGenerationQuery(%s) error = %v\n%s", c.scopeID, err, f.testContext(t))
 			}
-			if !matched || !reopened {
-				t.Fatalf("%s matched=%v reopened=%v, want both", c.scopeID, matched, reopened)
-			}
+			assertReopenMatched(t, f, c.scopeID, id, matched, reopened)
 			if c.claimUntil != nil {
 				f.assertReopenKept(t, id, &earlier)
 				continue
@@ -143,11 +241,9 @@ VALUES ($1, 'wedged_domain', 'p', $2, $2, $2, 'run', $3, '{}'::jsonb, $4)`, "i-"
 			ActivationDeadline: time.Hour, MaxRecoverAttempts: 3, BatchLimit: 10, ProgressWindow: 10 * time.Minute,
 		}, now)
 		if err != nil {
-			t.Fatalf("RecoverWedgedGenerations() error = %v", err)
+			t.Fatalf("RecoverWedgedGenerations() error = %v\n%s", err, f.testContext(t))
 		}
-		if result.Recovered < 2 {
-			t.Fatalf("RecoverWedgedGenerations() recovered %d, want both wedged generations", result.Recovered)
-		}
+		assertReopenRecoveredAtLeast(t, f, "projector_s-wedged-done_g-s-wedged-done", result.Recovered, 2, "RecoverWedgedGenerations() for both wedged generations")
 		f.assertReopenedAt(t, "projector_s-wedged-done_g-s-wedged-done", now)
 		f.assertReopenKept(t, "projector_s-wedged-expired_g-s-wedged-expired", nil)
 	})
@@ -172,11 +268,9 @@ VALUES ($1, $2, 'snapshot', $3, $3, 'superseded', $3, '{}'::jsonb)`, refused, c.
 			})
 			got, err := ProjectorQueue{database: SQLDB{DB: database}}.healZombieActiveGeneration(ctx, c.scopeID, refused, now)
 			if err != nil {
-				t.Fatalf("healZombieActiveGeneration(%s) error = %v", c.scopeID, err)
+				t.Fatalf("healZombieActiveGeneration(%s) error = %v\n%s", c.scopeID, err, f.testContext(t))
 			}
-			if got.outcome != zombieHealOutcomeHealed {
-				t.Fatalf("%s heal outcome = %q, want %q", c.scopeID, got.outcome, zombieHealOutcomeHealed)
-			}
+			assertReopenHealOutcome(t, f, c.scopeID, id, got.outcome, zombieHealOutcomeHealed)
 			if c.claimUntil != nil {
 				f.assertReopenKept(t, id, &earlier)
 				continue
@@ -205,26 +299,24 @@ VALUES ('i-refinalize', 'refinalize_domain', 'p', 's-refinalize', 's-refinalize'
 
 		tx, err := SQLDB{DB: database}.Begin(ctx)
 		if err != nil {
-			t.Fatalf("begin refinalize: %v", err)
+			t.Fatalf("begin refinalize: %v\n%s", err, f.testContext(t))
 		}
 		var generations reset.Generations
 		generations.Append("s-refinalize", "g-refinalize")
 		generations.Append("s-refinalize-live", "g-refinalize-live")
 		if _, err := reset.EnqueueProjectorWork(ctx, resetQueryer{Transaction: tx}, generations, now); err != nil {
 			_ = tx.Rollback()
-			t.Fatalf("EnqueueProjectorWork() error = %v", err)
+			t.Fatalf("EnqueueProjectorWork() error = %v\n%s", err, f.testContext(t))
 		}
 		counts, err := reset.ApplyPreRetirement(ctx, tx, generations)
 		if err != nil {
 			_ = tx.Rollback()
-			t.Fatalf("ApplyPreRetirement() error = %v", err)
+			t.Fatalf("ApplyPreRetirement() error = %v\n%s", err, f.testContext(t))
 		}
 		if err := tx.Commit(); err != nil {
-			t.Fatalf("commit refinalize: %v", err)
+			t.Fatalf("commit refinalize: %v\n%s", err, f.testContext(t))
 		}
-		if counts.SharedIntentsReopened != 1 {
-			t.Fatalf("SharedIntentsReopened = %d, want 1", counts.SharedIntentsReopened)
-		}
+		assertReopenSharedIntents(t, f, "refinalize_s-refinalize_g-refinalize", counts.SharedIntentsReopened, 1)
 		f.assertReopenedAt(t, "refinalize_s-refinalize_g-refinalize", now)
 		f.assertReopenKept(t, "refinalize_s-refinalize-live_g-refinalize-live", &earlier)
 
@@ -233,11 +325,11 @@ VALUES ('i-refinalize', 'refinalize_domain', 'p', 's-refinalize', 's-refinalize'
 		// age against it.
 		var dbNow time.Time
 		if err := database.QueryRowContext(ctx, `SELECT now()`).Scan(&dbNow); err != nil {
-			t.Fatalf("read database clock: %v", err)
+			t.Fatalf("read database clock: %v\n%s", err, f.testContext(t))
 		}
 		backlogs, err := listDomainBacklogs(ctx, SQLDB{DB: database}, dbNow)
 		if err != nil {
-			t.Fatalf("listDomainBacklogs() error = %v", err)
+			t.Fatalf("listDomainBacklogs() error = %v\n%s", err, f.testContext(t))
 		}
 		found := false
 		for _, backlog := range backlogs {
@@ -245,12 +337,13 @@ VALUES ('i-refinalize', 'refinalize_domain', 'p', 's-refinalize', 's-refinalize'
 				continue
 			}
 			found = true
-			if backlog.OldestAge > time.Minute {
-				t.Fatalf("refinalize_domain oldest age = %v, want under a minute since the reopen (created 100 hours ago)", backlog.OldestAge)
-			}
+			assertReopenBacklogUnder(t, f, backlog, backlogs,
+				[]string{"refinalize_s-refinalize_g-refinalize"},
+				time.Minute, "since the reopen (created 100 hours ago)")
 		}
 		if !found {
-			t.Fatal("refinalize_domain missing from the shared-projection backlog after the reopen")
+			t.Fatalf("refinalize_domain missing from the shared-projection backlog after the reopen\n%s\nbacklogs=%+v",
+				f.testContext(t), backlogs)
 		}
 	})
 }
