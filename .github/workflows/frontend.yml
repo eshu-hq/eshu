@@ -60,6 +60,10 @@ jobs:
     name: Console (apps/console)
     timeout-minutes: 20
     runs-on: ubuntu-24.04
+    env:
+      # D3: browsers install and run from a workspace-local dir so the
+      # cache below restores them without a second apt-get.
+      PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/.playwright-browsers
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
@@ -86,8 +90,29 @@ jobs:
         run: npm run console:test
       - name: Build console
         run: npm run console:build
-      - name: Install Playwright browsers
-        run: npx playwright install chromium --with-deps
+      # D3: OS-deps install retries transient apt/install-deps DNS flakes
+      # (5-attempt backoff). The browser install below drops --with-deps so
+      # it never re-runs apt, restores from cache when warm, and proceeds
+      # idempotently whenever the deps are already present in the run.
+      - name: Install Playwright OS dependencies (retry apt DNS flakes)
+        run: |
+          for i in 1 2 3 4 5; do sudo apt-get update && sudo npx playwright install-deps chromium && break; sleep $((i*15)); [ $i -eq 5 ] && exit 1; done
+      - name: Restore Playwright browser cache
+        id: playwright-browsers
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ github.workspace }}/.playwright-browsers
+          key: playwright-chromium-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            playwright-chromium-${{ runner.os }}-
+      - name: Install Playwright browsers (cached; no second apt-get)
+        run: npx playwright install chromium
+      - name: Save Playwright browser cache
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.playwright-browsers.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ github.workspace }}/.playwright-browsers
+          key: ${{ steps.playwright-browsers.outputs.cache-primary-key }}
       - name: Run per-page e2e (mocked)
         run: npm run console:e2e:mock
   auth-sso-e2e:
@@ -95,6 +120,10 @@ jobs:
     name: SSO auth E2E (browser, fresh stack)
     timeout-minutes: 30
     runs-on: ubuntu-24.04
+    env:
+      # D3: browsers install and run from a workspace-local dir so the
+      # cache below restores them without a second apt-get.
+      PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/.playwright-browsers
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
@@ -123,8 +152,29 @@ jobs:
         run: bash scripts/test-auth-e2e-cli.sh
       - name: Pre-warm Go modules
         run: scripts/ci/go-mod-download-retry.sh
-      - name: Install Playwright browsers
-        run: npx playwright install chromium --with-deps
+      # D3: OS-deps install retries transient apt/install-deps DNS flakes
+      # (5-attempt backoff). The browser install below drops --with-deps so
+      # it never re-runs apt, restores from cache when warm, and proceeds
+      # idempotently whenever the deps are already present in the run.
+      - name: Install Playwright OS dependencies (retry apt DNS flakes)
+        run: |
+          for i in 1 2 3 4 5; do sudo apt-get update && sudo npx playwright install-deps chromium && break; sleep $((i*15)); [ $i -eq 5 ] && exit 1; done
+      - name: Restore Playwright browser cache
+        id: playwright-browsers
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ github.workspace }}/.playwright-browsers
+          key: playwright-chromium-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            playwright-chromium-${{ runner.os }}-
+      - name: Install Playwright browsers (cached; no second apt-get)
+        run: npx playwright install chromium
+      - name: Save Playwright browser cache
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.playwright-browsers.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ github.workspace }}/.playwright-browsers
+          key: ${{ steps.playwright-browsers.outputs.cache-primary-key }}
       # The auth E2E stack moved to eshu-deploy under #8871. The job
       # checks that repo out at the pinned extraction commit.
       - name: Check out eshu-deploy at the pinned extraction commit
@@ -149,6 +199,10 @@ jobs:
     name: MCP-identity auth E2E (browser + scripted OAuth, fresh stack)
     timeout-minutes: 30
     runs-on: ubuntu-24.04
+    env:
+      # D3: browsers install and run from a workspace-local dir so the
+      # cache below restores them without a second apt-get.
+      PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/.playwright-browsers
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
@@ -169,8 +223,29 @@ jobs:
           cache-dependency-path: package-lock.json
       - name: Install dependencies (clean, lockfile-pinned)
         run: npm ci
-      - name: Install Playwright browsers
-        run: npx playwright install chromium --with-deps
+      # D3: OS-deps install retries transient apt/install-deps DNS flakes
+      # (5-attempt backoff). The browser install below drops --with-deps so
+      # it never re-runs apt, restores from cache when warm, and proceeds
+      # idempotently whenever the deps are already present in the run.
+      - name: Install Playwright OS dependencies (retry apt DNS flakes)
+        run: |
+          for i in 1 2 3 4 5; do sudo apt-get update && sudo npx playwright install-deps chromium && break; sleep $((i*15)); [ $i -eq 5 ] && exit 1; done
+      - name: Restore Playwright browser cache
+        id: playwright-browsers
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ github.workspace }}/.playwright-browsers
+          key: playwright-chromium-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            playwright-chromium-${{ runner.os }}-
+      - name: Install Playwright browsers (cached; no second apt-get)
+        run: npx playwright install chromium
+      - name: Save Playwright browser cache
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.playwright-browsers.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ github.workspace }}/.playwright-browsers
+          key: ${{ steps.playwright-browsers.outputs.cache-primary-key }}
       - name: Pre-warm Go modules
         run: scripts/ci/go-mod-download-retry.sh
       # The auth E2E stack moved to eshu-deploy under #8871. The job
@@ -203,6 +278,10 @@ jobs:
     name: Console a11y audit (axe-core)
     timeout-minutes: 60
     runs-on: ubuntu-24.04
+    env:
+      # D3: browsers install and run from a workspace-local dir so the
+      # cache below restores them without a second apt-get.
+      PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/.playwright-browsers
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
@@ -214,8 +293,29 @@ jobs:
           cache-dependency-path: package-lock.json
       - name: Install dependencies (clean, lockfile-pinned)
         run: npm ci
-      - name: Install Playwright browsers
-        run: npx playwright install chromium --with-deps
+      # D3: OS-deps install retries transient apt/install-deps DNS flakes
+      # (5-attempt backoff). The browser install below drops --with-deps so
+      # it never re-runs apt, restores from cache when warm, and proceeds
+      # idempotently whenever the deps are already present in the run.
+      - name: Install Playwright OS dependencies (retry apt DNS flakes)
+        run: |
+          for i in 1 2 3 4 5; do sudo apt-get update && sudo npx playwright install-deps chromium && break; sleep $((i*15)); [ $i -eq 5 ] && exit 1; done
+      - name: Restore Playwright browser cache
+        id: playwright-browsers
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ github.workspace }}/.playwright-browsers
+          key: playwright-chromium-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            playwright-chromium-${{ runner.os }}-
+      - name: Install Playwright browsers (cached; no second apt-get)
+        run: npx playwright install chromium
+      - name: Save Playwright browser cache
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.playwright-browsers.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ github.workspace }}/.playwright-browsers
+          key: ${{ steps.playwright-browsers.outputs.cache-primary-key }}
       - name: Run a11y audit gate (critical + serious fail)
         run: npm run console:a11y
   lint:
