@@ -82,8 +82,10 @@ jobs:
           fi
           go build -trimpath -ldflags="-s -w -X github.com/eshu-hq/eshu/go/internal/buildinfo.Version=${VERSION}" -o ../dist/${{ matrix.artifact_name }} ./cmd/eshu
 
+      # D2: retry wrapper hardens the upload against the transient
+      # artifact-service HTML-response flake; see retry-upload-artifact.
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: ./.github/actions/retry-upload-artifact
         with:
           name: ${{ matrix.artifact_name }}
           path: dist/${{ matrix.artifact_name }}
@@ -96,9 +98,27 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Download all artifacts
+        if: ${{ always() }}
         uses: actions/download-artifact@v4
         with:
           path: artifacts
+
+      # D2 missing-artifact fallback: a release must never publish with a
+      # binary missing. Both matrix legs must have uploaded (needs: build),
+      # so a gap here fails the job loudly instead of shipping a partial
+      # release or going green with NOT_CHECKED unacted on.
+      - name: Guard release binaries present (missing-artifact fallback)
+        if: ${{ always() }}
+        run: |
+          set -euo pipefail
+          missing=0
+          for bin in artifacts/eshu-linux-x86_64/eshu-linux-x86_64 artifacts/eshu-macos-arm64/eshu-macos-arm64; do
+            if [ ! -f "${bin}" ]; then
+              printf '::error::release: missing expected binary %s; refusing to publish a partial release\n' "${bin}" >&2
+              missing=1
+            fi
+          done
+          [ "${missing}" -eq 0 ]
 
       - name: Create Release
         uses: softprops/action-gh-release@v3

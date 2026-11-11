@@ -78,9 +78,13 @@ jobs:
         env:
           RCOV_REPORT_OUT: replay-coverage-report.json
         run: bash scripts/verify-replay-coverage-gate.sh --blocking
+      # D2: retry wrapper hardens the upload against the transient
+      # artifact-service HTML-response flake; see retry-upload-artifact.
+      # The report is a terminal regression artifact with no in-repo
+      # downstream consumer, so no always()/fallback step applies here.
       - name: Upload coverage report
         if: ${{ always() }}
-        uses: actions/upload-artifact@v4
+        uses: ./.github/actions/retry-upload-artifact
         with:
           name: replay-coverage-report
           path: replay-coverage-report.json

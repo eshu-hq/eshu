@@ -158,9 +158,11 @@ jobs:
           ESHU_DEPLOY_CHECKOUT: ${{ github.workspace }}/eshu-deploy
         run: bash scripts/run-live-backend-tests.sh --shard "${{ matrix.shard }}/4" --results live-backend-result.json
 
+      # D2: retry wrapper hardens the upload against the transient
+      # artifact-service HTML-response flake; see retry-upload-artifact.
       - name: Upload exact-source shard coverage
         if: ${{ always() }}
-        uses: actions/upload-artifact@v4
+        uses: ./.github/actions/retry-upload-artifact
         with:
           name: live-backend-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.shard }}
           path: live-backend-result.json
@@ -189,10 +191,25 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Download run coverage
+        if: ${{ always() }}
         uses: actions/download-artifact@v4
         with:
           pattern: live-backend-${{ github.run_id }}-*
           path: live-backend-reports
+
+      # D2 missing-artifact fallback: the shard result files cannot be
+      # rebuilt in this job (they were produced on other runners), so an
+      # empty download warns loudly, records NOT_CHECKED, and fails the
+      # job instead of letting the verify step go green on zero inputs.
+      - name: Guard run coverage present (missing-artifact fallback)
+        if: ${{ always() }}
+        run: |
+          set -euo pipefail
+          if compgen -G 'live-backend-reports/*/live-backend-result.json' > /dev/null; then
+            exit 0
+          fi
+          printf '::warning::live-backend: no shard coverage artifacts downloaded; coverage NOT_CHECKED, failing closed\n' >&2
+          exit 1
 
       - name: Verify complete live-backend coverage
         run: |
