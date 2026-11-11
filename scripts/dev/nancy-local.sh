@@ -22,23 +22,26 @@
 # Exit status: nancy is declared ADVISORY (specs/ci-gates.v1.yaml,
 # security-scan.yml -- see #5791/#5804), the same shape as
 # scripts/dev/trivy-fs-local.sh's precedent for a security scanner that
-# cannot always run locally (that script also prints guidance and exits 0
-# when trivy itself is unavailable, deferring to CI, rather than failing a
-# gate no local environment can satisfy). This script exits non-zero ONLY
-# for:
-#   (a) a `go list` failure (a real build problem in THIS repo), or
-#   (b) a genuine vulnerability finding reported by nancy.
-# A hard nancy error (auth, network, or bad input) exits 0 with a clear,
-# non-silent diagnostic instead, because neither this repo's CI nor local dev
-# has OSS_INDEX_USERNAME/OSS_INDEX_TOKEN configured (#5804): Sonatype's OSS
-# Index currently rejects every anonymous request with 401 Unauthorized
-# (verified directly against the API, no nancy involved), so an unconditional
-# non-zero exit here would make this advisory gate permanently red for every
-# contributor, for a reason outside their control, with no local action able
-# to fix it. CI's identical, unpiped `nancy sleuth --no-color` has never
-# scanned anything either (it silently audits 0 dependencies and reports
-# success) -- this script is strictly more honest than that baseline, not
-# less.
+# cannot always run locally. This script exits 0 ONLY for:
+#   (a) a genuinely clean scan ("no vulnerable dependencies found"), or
+#   (b) an OSS Index 401 Unauthorized rejection (D6, PR #10561): Sonatype's
+#       OSS Index currently rejects every anonymous request with 401
+#       (verified directly against the API, no nancy involved), and neither
+#       this repo's CI nor local dev has OSS_INDEX_USERNAME/OSS_INDEX_TOKEN
+#       configured (#5804), so an unconditional non-zero exit here would
+#       make this advisory gate permanently red for every contributor, for
+#       a reason outside their control, with no local action able to fix
+#       it. The 401 exits as skip-with-ticket: a `::warning::` annotation
+#       plus the #5804 reference, neutral, no merge block.
+# This script exits NON-ZERO for everything else:
+#   (a) a `go list` failure (a real build problem in THIS repo),
+#   (b) a genuine vulnerability finding reported by nancy, or
+#   (c) any other hard nancy error (non-401 transport/auth failure, bad
+#       input): without a real scan there is no clean bill to report, so
+#       the wrapper fails closed instead of deferring. CI's identical,
+#       unpiped `nancy sleuth --no-color` has never scanned anything either
+#       (it silently audits 0 dependencies and reports success) -- this
+#       script is strictly more honest than that baseline, not less.
 #
 # Case (a) vs (b) vs a hard nancy error are told apart by nancy's own output:
 # verified against nancy v1.2.0 (`internal/cmd/sleuth.go:64-73`), a genuine
@@ -46,7 +49,8 @@
 # `os.Exit(errExit.ExitCode)` directly, bypassing cobra's error-printing path
 # entirely -- only a transport/auth/input failure (panic -> recovered ->
 # returned error -> cobra's default RunE error handling) produces output
-# whose first line starts with "Error:". Re-verify this discriminator against
+# whose first line starts with "Error:". A 401 is matched before that
+# check and skips with a ticket reference (D6, PR #10561). Re-verify this discriminator against
 # the installed nancy version on any nancy bump; a future release changing
 # its error output shape (e.g. structured JSON, or a cobra upgrade that
 # prepends a banner) could invalidate it.
@@ -73,11 +77,20 @@ if "${bin}" sleuth --no-color <"${deps_json}" >"${out}" 2>&1; then
 	exit 0
 fi
 
-if head -n1 "${out}" | rg -q '^Error:'; then
-	note "could not complete a real OSS Index scan (transport/auth failure, not a vulnerability finding) -- deferring non-fatally (nancy is advisory, see #5804):"
-	head -n2 "${out}" >&2
-	note "full diagnostic in ${out}; CI's nancy job has the same limitation today (#5804)."
+# D6 (PR #10561): only a 401 skips. The annotation goes to stdout
+# because GitHub reads workflow commands from stdout, not stderr.
+if rg -q '401 Unauthorized' "${out}"; then
+	printf '::warning::nancy-local: OSS Index returned 401 Unauthorized (anonymous quota/auth failure, not a vulnerability finding); skipping scan, see #5804\n'
+	note "OSS Index returned 401 Unauthorized (anonymous quota/auth failure, not a vulnerability finding) -- skipping scan, see #5804"
+	note "full diagnostic in ${out}"
 	exit 0
+fi
+
+if head -n1 "${out}" | rg -q '^Error:'; then
+	note "could not complete a real OSS Index scan (transport/auth failure, not the ticketed 401 skip -- failing closed, see #5804):"
+	head -n2 "${out}" >&2
+	note "full diagnostic in ${out}"
+	die "nancy scan incomplete (see output above)"
 fi
 
 cat "${out}" >&2
