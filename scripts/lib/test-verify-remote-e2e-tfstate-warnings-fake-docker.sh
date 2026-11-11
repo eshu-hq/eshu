@@ -36,7 +36,7 @@ case "${subcommand}" in
       printf '%s\n' \
         eshu mcp-server ingester projector resolution-engine workflow-coordinator \
         collector-terraform-state collector-oci-registry collector-package-registry \
-        collector-sbom-attestation collector-security-alerts \
+        collector-security-alerts \
         collector-vulnerability-intelligence collector-aws-cloud scanner-worker
       exit 0
     fi

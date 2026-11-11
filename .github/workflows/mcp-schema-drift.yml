@@ -202,7 +202,6 @@ jobs:
               - 'go/internal/cli/hookpreflight/AGENTS.md'
               - 'go/internal/cli/hookpreflight/README.md'
               - 'go/internal/collector/README.md'
-              - 'go/internal/collector/sbom/SHIM_MAP.md'
               - 'go/internal/content/artifacts/README.md'
               - 'go/internal/deploy/testdata/8871-eshu-deploy-census.md'
               - 'go/internal/deploy/testdata/8871-eshu-deploy-contract.md'

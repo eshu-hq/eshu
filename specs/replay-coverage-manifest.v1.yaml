@@ -395,10 +395,12 @@ coverage:
   # replay framework's existing R-11/R-13/R-14/R-16/R-17 proof artifacts; the
   # coverage gate verifies they are wired, while the named proof gates execute
   # the scenarios.
-  # C-14 (#4367) fault backfill: the 11 in-tree HTTP-polling collector
+  # C-14 (#4367) fault backfill: the 6 in-tree HTTP-polling collector
   # boundaries each get a genuine timeout-fault proof (the vulnerability
-  # intelligence boundary moved to its satellite in eshu-hq/eshu#9999, which
-  # owns its client fault behavior). Each row maps to a go-test-race case in
+  # intelligence boundary moved to its satellite in eshu-hq/eshu#9999, and
+  # the SBOM attestation boundary moved to its satellite in
+  # eshu-hq/eshu#10450, each of which owns its client fault behavior).
+  # Each row maps to a go-test-race case in
   # go/internal/replay/inputtape/fault_collectors_test.go that drives the REAL
   # collector with inputtape.ErrFaultTimeout (the exact value the Replayer serves
   # for a FaultKindTimeout interaction) injected at its HTTP boundary through a
@@ -416,7 +418,6 @@ coverage:
   - {surface: collector:security_alert, scenario: go_test, scenario_type: fault, ref: go/internal/replay/inputtape/fault_collectors_test.go, proof_gate: go-test-race}
   - {surface: collector:oci_registry, scenario: go_test, scenario_type: fault, ref: go/internal/replay/inputtape/fault_collectors_test.go, proof_gate: go-test-race}
   - {surface: collector:package_registry, scenario: go_test, scenario_type: fault, ref: go/internal/replay/inputtape/fault_collectors_test.go, proof_gate: go-test-race}
-  - {surface: collector:sbom_attestation, scenario: go_test, scenario_type: fault, ref: go/internal/replay/inputtape/fault_collectors_test.go, proof_gate: go-test-race}
   - {surface: capability:platform_impact.relationships_catalog, scenario: go_test, scenario_type: ordering, ref: go/internal/replay/schedulereplay/scenario_test.go, proof_gate: go-test-race}
   - {surface: capability:platform_impact.relationships_catalog, scenario: go_test, scenario_type: crash, ref: go/internal/replay/crashreplay/scenario_test.go, proof_gate: go-test-race}
   # C-14 (#4367) projection-ordering backfill: the two shared-conflict-key

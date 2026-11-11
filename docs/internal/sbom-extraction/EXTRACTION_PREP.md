@@ -1,5 +1,10 @@
 # SBOM Attestation Collector — Extraction Prep Census (`#8865`)
 
+> Relocated from `go/internal/collector/sbom/` under eshu-hq/eshu#10450: the
+> in-tree emission path is removed (the fleet scope is served by the extracted
+> satellite `eshu-hq/eshu-collector-sbom-attestation`). This file is the
+> historical prep record, not current guidance.
+
 Status: **PREP ONLY**. No code moves, no repo creation, no deploy, no in-tree
 removal. This manifest records the current in-tree truth so the cutover gate
 (`#4047`) can compare in-tree and external outputs on identical inputs.
@@ -276,7 +281,7 @@ public SDK surface is owned by
 | --- | --- |
 | Named owners, production target, configuration source | **Partial** — owner-confirmed on the issue; QA worker and claims observed read-only from this machine 2026-10-28 (deploy `1/1`, §6); configuration source is the QA activation in `iac-eks-eshu` (`instanceId: sbom-att-cx-…`, full identifiers in `iac-eks-eshu#401`) |
 | Census, kinds, consumers, state, protocols, artifacts, stage | **Met in PREP** by this document; artifacts/stage updated with the 2026-10-28 observation (§6) |
-| Source parity on representative + hostile inputs | **Met in-tree side** by `runtime/source_parity_8865_test.go` + `runtime/testdata/8865-parity-sbom-attestation.json` (AC3) |
+| Source parity on representative + hostile inputs | **Met in-tree side** by `runtime/source_parity_8865_test.go` + its parity fixture (both removed with the in-tree runtime under eshu-hq/eshu#10450) (AC3) |
 | Extracted-path admitted facts, projection, graph, API, MCP truth | **Partial (admission + read-surface agreement)** — completed fixture-scope claims with 210 facts observed 2026-10-28 (§6); HTTP API (`/attachments`, `/count`) and MCP (`list_sbom_attestation_attachments`) agree with `fact_records` (§6); reducer projection beyond the attachment row and canonical graph agreement `NOT_CHECKED`; `#4047` gate still required |
 | Retry, duplicates, ordering, cancellation, revoked authority, stale claims, partial/ambiguous failures | **Open** — duplicates + malformed + grant-free delta pinned in-tree; targetless-scope fail-closed terminals observed live (`invalid_config`, no facts); revocation/staleness need the extracted path |
 | Bounded resources, no regression, health/readiness/freshness/telemetry | **Open** — in-tree no-regression evidence recorded in `runtime/README.md` and `document/README.md`; first-target fact freshness observed 2026-10-28 (§6); extracted-path proof outstanding |
@@ -299,9 +304,9 @@ public SDK surface is owned by
    [PRODUCER_GRANT_DRAFT](PRODUCER_GRANT_DRAFT.md).
 3. Collector repository from the `#6710` template with the compatibility
    harness matrix (newest collector × oldest core and reverse).
-4. Parity proof on representative + hostile inputs via the fixture pack in
-   `runtime/testdata/8865-parity-sbom-attestation.json` and
-   `runtime/source_parity_8865_test.go` (AC3, in-tree side).
+4. Parity proof on representative + hostile inputs via the parity fixture
+   pack and `runtime/source_parity_8865_test.go` (AC3, in-tree side; both
+   removed with the in-tree runtime under eshu-hq/eshu#10450).
 5. Producer authority single-holder enforcement and rehearsed rollback
    ([ROLLBACK_DRAFT](ROLLBACK_DRAFT.md)).
 6. Internal→public shim map agreed ([SHIM_MAP](SHIM_MAP.md)).

@@ -73,7 +73,7 @@ func TestOCI8861ParityTruncationIsInBand(t *testing.T) {
 // TestOCI8861ParityRetryableTransportSkipsTarget pins the retryable split:
 // a transient transport failure skips the target without exiting the
 // collector, and a 503 does the same. Both map to SDK Result retryable at
-// extraction (SHIM_MAP.md).
+// extraction (docs/internal/sbom-extraction/SHIM_MAP.md).
 func TestOCI8861ParityRetryableTransportSkipsTarget(t *testing.T) {
 	t.Parallel()
 

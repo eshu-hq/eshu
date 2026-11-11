@@ -105,7 +105,7 @@ func TestBuildSBOMAttestationAttachmentDecisionsSLSAProvenanceDuplicateStatement
 
 // attestationSLSAProvenanceFactWithMaterials extends attestationSLSAProvenanceFact
 // with the #5456 materials/config_source fields, using the same raw wire-shape
-// keys the SBOM runtime collector emits (go/internal/collector/sbom/runtime/attestation.go).
+// keys the SBOM attestation collector emits (extracted to eshu-hq/eshu-collector-sbom-attestation under #10450).
 func attestationSLSAProvenanceFactWithMaterials(
 	factID string,
 	statementID string,

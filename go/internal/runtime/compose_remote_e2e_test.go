@@ -101,7 +101,6 @@ func TestRemoteE2EComposeUsesProductionCanonicalWriteTimeout(t *testing.T) {
 		"collector-terraform-state",
 		"collector-oci-registry",
 		"collector-package-registry",
-		"collector-sbom-attestation",
 		"collector-security-alerts",
 		"collector-vulnerability-intelligence",
 		"collector-aws-cloud",
@@ -131,7 +130,6 @@ func TestRemoteE2EComposeRunsProjectorForHostedCollectorSourceLocalWork(t *testi
 		"collector-terraform-state",
 		"collector-oci-registry",
 		"collector-package-registry",
-		"collector-sbom-attestation",
 		"collector-security-alerts",
 		"collector-vulnerability-intelligence",
 		"collector-aws-cloud",
@@ -172,7 +170,6 @@ func TestRemoteE2EComposeRestartsRuntimeServicesAfterTransientStoreStartup(t *te
 		"collector-terraform-state",
 		"collector-oci-registry",
 		"collector-package-registry",
-		"collector-sbom-attestation",
 		"collector-vulnerability-intelligence",
 		"collector-aws-cloud",
 		"scanner-worker",
@@ -212,7 +209,6 @@ func TestRemoteE2EWorkerPprofOverlayBindsWorkersToHostLoopback(t *testing.T) {
 		"collector-vulnerability-intelligence": "19670",
 		"projector":                            "19669",
 		"scanner-worker":                       "19671",
-		"collector-sbom-attestation":           "19672",
 		"collector-security-alerts":            "19673",
 	} {
 		service := requireComposeService(t, doc, serviceName)
@@ -233,7 +229,6 @@ func TestHostedWorkerCommandsStartPprofServer(t *testing.T) {
 		"go/cmd/collector-git/main.go",
 		"go/cmd/collector-oci-registry/main.go",
 		"go/cmd/collector-package-registry/main.go",
-		"go/cmd/collector-sbom-attestation/main.go",
 		"go/cmd/collector-security-alerts/main.go",
 		"go/cmd/collector-component-extension/main.go",
 		"go/cmd/projector/main.go",
@@ -299,79 +294,6 @@ func TestRemoteE2EComposeIncludesSecurityAlertCollector(t *testing.T) {
 			t.Fatalf(".env.remote-e2e.example missing %q", want)
 		}
 	}
-}
-
-func TestRemoteE2EComposeIncludesSBOMAttestationCollector(t *testing.T) {
-	t.Parallel()
-
-	doc := readComposeDocument(t, "docker-compose.remote-e2e.yaml")
-	service := requireComposeService(t, doc, "collector-sbom-attestation")
-	if fmt.Sprint(service.Command) != "[/usr/local/bin/eshu-collector-sbom-attestation]" {
-		t.Fatalf("collector command = %#v, want eshu-collector-sbom-attestation", service.Command)
-	}
-	assertComposeEnv(t, service, "ESHU_SBOM_ATTESTATION_COLLECTOR_INSTANCE_ID", "remote-e2e-sbom-attestation")
-	assertComposeEnv(t, service, "ESHU_SBOM_ATTESTATION_COLLECTOR_OWNER_ID", "remote-e2e-sbom-attestation-worker")
-	assertComposeEnv(t, service, "ESHU_SBOM_ATTESTATION_POLL_INTERVAL", "${ESHU_SBOM_ATTESTATION_POLL_INTERVAL:-2s}")
-	assertComposePortContains(t, service, "${ESHU_COLLECTOR_SBOM_ATTESTATION_METRICS_PORT:-19478}:9464")
-	assertComposeDependency(t, service, "projector")
-	assertComposeDependency(t, service, "workflow-coordinator")
-
-	compose := readRemoteE2EComposeSource(t)
-	for _, want := range []string{
-		`"instance_id": "remote-e2e-sbom-attestation"`,
-		`"collector_kind": "sbom_attestation"`,
-		`"source_type": "configured_source"`,
-		`"artifact_kind": "sbom"`,
-		`"document_format": "cyclonedx"`,
-		`"subject_digest": "${ESHU_SBOM_ATTESTATION_E2E_SUBJECT_DIGEST:-sha256:1111111111111111111111111111111111111111111111111111111111111111}"`,
-	} {
-		if !strings.Contains(compose, want) {
-			t.Fatalf("docker-compose.remote-e2e.yaml missing SBOM attestation collector term %q", want)
-		}
-	}
-
-	exampleEnv := readRepositoryFile(t, deployCheckoutRoot(t), ".env.remote-e2e.example")
-	for _, want := range []string{
-		"ESHU_SBOM_ATTESTATION_E2E_SUBJECT_DIGEST=sha256:1111111111111111111111111111111111111111111111111111111111111111",
-		"ESHU_SBOM_ATTESTATION_DOCUMENT_URL=http://sbom-attestation-fixture:8080/cyclonedx_image_subject.json",
-	} {
-		if !strings.Contains(exampleEnv, want) {
-			t.Fatalf(".env.remote-e2e.example missing %q", want)
-		}
-	}
-}
-
-func TestRemoteE2EComposeSBOMFixtureUsesPortableHTTPServer(t *testing.T) {
-	t.Parallel()
-
-	doc := readComposeDocument(t, "docker-compose.remote-e2e.yaml")
-	service := requireComposeService(t, doc, "sbom-attestation-fixture")
-	if service.Image != "python:3.13-alpine" {
-		t.Fatalf("sbom-attestation-fixture image = %q, want python:3.13-alpine", service.Image)
-	}
-
-	command := fmt.Sprint(service.Command)
-	for _, want := range []string{"python", "http.server", "8080", "/fixtures"} {
-		if !strings.Contains(command, want) {
-			t.Fatalf("sbom-attestation-fixture command missing %q in %s", want, command)
-		}
-	}
-	for _, forbidden := range []string{"httpd", "wget"} {
-		if strings.Contains(command, forbidden) {
-			t.Fatalf("sbom-attestation-fixture command must not depend on %q: %s", forbidden, command)
-		}
-	}
-
-	healthcheck := fmt.Sprint(service.Healthcheck["test"])
-	for _, want := range []string{"CMD", "python", "urllib.request", "cyclonedx_image_subject.json"} {
-		if !strings.Contains(healthcheck, want) {
-			t.Fatalf("sbom-attestation-fixture healthcheck missing %q in %s", want, healthcheck)
-		}
-	}
-	if strings.Contains(healthcheck, "wget") || strings.Contains(healthcheck, "httpd") {
-		t.Fatalf("sbom-attestation-fixture healthcheck depends on unavailable applets: %s", healthcheck)
-	}
-	assertComposeVolumeContains(t, service, "./go/internal/collector/sbom/document/testdata:/fixtures:ro")
 }
 
 func TestRemoteE2EComposeIncludesVulnerabilityIntelligenceCollector(t *testing.T) {

@@ -1,5 +1,10 @@
 # Internal → Public Shim Map (`#8865`, analysis artifact)
 
+> Relocated from `go/internal/collector/sbom/` under eshu-hq/eshu#10450: the
+> in-tree emission path is removed (the fleet scope is served by the extracted
+> satellite `eshu-hq/eshu-collector-sbom-attestation`). This file is the
+> historical design record, not current guidance.
+
 This is a **design map, not an implementation**. It records how each in-tree
 seam becomes a public SDK exchange at extraction, so the `#6710` template
 repository and the `#4047` parity gate share one interpretation. Nothing here

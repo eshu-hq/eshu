@@ -75,28 +75,45 @@ func TestDockerfileCopiesCollectorSDKBeforeModuleDownload(t *testing.T) {
 	}
 }
 
-func TestSBOMAttestationCollectorBinaryIsBuiltInstalledAndDocumented(t *testing.T) {
+// TestSBOMAttestationCollectorRunsFromSatelliteNotInTreeBinaries proves the
+// SBOM attestation collector no longer ships as an in-tree binary: its
+// emission path was removed in #10450 (the fleet scope is served by
+// eshu-hq/eshu-collector-sbom-attestation), so no in-tree Dockerfile build,
+// installer line, cmd entry, or framework env-var registration may remain.
+// The coordinator still plans sbom attestation claims and the
+// reducer/query surfaces still serve the fact kinds. The deploy-side chart
+// template cleanup lives in the deploy repo and is not asserted here.
+func TestSBOMAttestationCollectorRunsFromSatelliteNotInTreeBinaries(t *testing.T) {
 	t.Parallel()
 
-	for file, want := range map[string]string{
-		"Dockerfile":                        "-o /go-bin/eshu-collector-sbom-attestation ./cmd/collector-sbom-attestation",
-		"scripts/install-local-binaries.sh": "go build -trimpath -ldflags=\"$LDFLAGS\" -o \"$INSTALL_DIR/eshu-collector-sbom-attestation\" ./cmd/collector-sbom-attestation",
-		"go/cmd/README.md":                  "`eshu-collector-sbom-attestation`",
-		"docs/public/deployment/service-runtimes-collectors.md":        "SBOM Attestation Collector",
+	for file, forbidden := range map[string]string{
+		"Dockerfile":                                                   "./cmd/collector-sbom-attestation",
+		"scripts/install-local-binaries.sh":                            "./cmd/collector-sbom-attestation",
+		"go/cmd/README.md":                                             "`eshu-collector-sbom-attestation`",
+		"go/internal/envregistry/entries_collectors.go":                `"collector-sbom-attestation"`,
+		"go/internal/envregistry/pages.go":                             `"collector-sbom-attestation"`,
 		"docs/public/reference/environment-collectors-supply-chain.md": "ESHU_SBOM_ATTESTATION_COLLECTOR_INSTANCE_ID",
 	} {
 		content := readRepositoryFile(t, "../../..", file)
-		if !strings.Contains(content, want) {
-			t.Fatalf("%s missing %q", file, want)
+		if strings.Contains(content, forbidden) {
+			t.Fatalf("%s still references in-tree %q, want satellite-only execution", file, forbidden)
 		}
 	}
-	for file, want := range map[string]string{
-		"helm/eshu/templates/deployment-sbom-attestation-collector.yaml": "/usr/local/bin/eshu-collector-sbom-attestation",
+	for _, binary := range []string{
+		"eshu-collector-sbom-shadow",
 	} {
-		content := readRepositoryFile(t, deployCheckoutRoot(t), file)
-		if !strings.Contains(content, want) {
-			t.Fatalf("%s missing %q", file, want)
+		for _, file := range []string{"Dockerfile", "scripts/install-local-binaries.sh"} {
+			content := readRepositoryFile(t, "../../..", file)
+			if strings.Contains(content, binary) {
+				t.Fatalf("%s still builds in-tree %q, want satellite-only execution", file, binary)
+			}
 		}
+	}
+	// The service-runtimes lockstep entry stays read: the runtime table
+	// still carries SBOM attestation as a satellite runtime.
+	runtimes := readRepositoryFile(t, "../../..", "docs/public/deployment/service-runtimes-collectors.md")
+	if !strings.Contains(runtimes, "SBOM Attestation Collector (satellite)") {
+		t.Fatal("service-runtimes-collectors.md lost the SBOM Attestation Collector (satellite) row")
 	}
 }
 

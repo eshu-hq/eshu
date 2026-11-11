@@ -20,7 +20,7 @@
 //
 // Claim-driven collection is deferred for this collector (no ClaimedService
 // wiring in go/cmd/collector-kubernetes-live); the claim seam is mapped, not
-// pinned, in SHIM_MAP.md.
+// pinned, in docs/internal/sbom-extraction/SHIM_MAP.md.
 package kuberneteslive
 
 import (

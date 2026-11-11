@@ -1,20 +1,20 @@
 # Supply-chain Collector Environment
 
-This page covers SBOM, security-alert, and CI/CD run collector configuration.
+This page covers security-alert and CI/CD run collector configuration, plus the
+SBOM attestation target contract below.
 
 ## SBOM Attestation Collector
 
-The SBOM attestation collector is claim-only. It selects an enabled
-`sbom_attestation` instance from `ESHU_COLLECTOR_INSTANCES_JSON`. Collector
-configuration defines explicit `targets` with `source_type=configured_source`
-for HTTP(S) document URLs or `source_type=oci_referrer` for registry referrer
-documents. Supported document formats are CycloneDX, SPDX, and in-toto
-statements.
+SBOM and attestation collection runs from the extracted satellite
+(`eshu-hq/eshu-collector-sbom-attestation`). Collector configuration defines
+explicit `targets` with `source_type=configured_source` for HTTP(S) document
+URLs or `source_type=oci_referrer` for registry referrer documents. Supported
+document formats are CycloneDX, SPDX, and in-toto statements.
 
 `oci_referrer` targets set `provider`, `registry`, `repository`,
 `subject_digest`, and `referrer_digest`. Static-credential providers read
 secrets from the `username_env`, `password_env`, and `bearer_token_env`
-variables. A `provider=ecr` target needs no static credentials: the collector
+variables. A `provider=ecr` target needs no static credentials: the satellite
 mints short-lived OCI Distribution basic-auth from the AWS
 `GetAuthorizationToken` exchange using the AWS default credential chain, the
 same auth path the OCI registry collector uses. Optional target fields `region`
@@ -22,19 +22,16 @@ and `aws_profile` select the AWS config, and `registry_host` overrides the
 registry host when it differs from `registry`. Decoded ECR tokens are used only
 as request credentials and are never logged.
 
-Collectors emit typed source facts only. Reducer-owned
+Satellites emit typed source facts only. Reducer-owned
 `reducer_sbom_attestation_attachment` facts decide whether a document subject
 is attached, mismatched, unverified, parse-only, unknown, ambiguous, or
 unparseable. Signature verification status remains separate from subject
 attachment status.
 
-| Variable | Default | Read by | Purpose |
-| --- | --- | --- | --- |
-| `ESHU_SBOM_ATTESTATION_COLLECTOR_INSTANCE_ID` | required when more than one enabled SBOM-attestation instance exists | collector-sbom-attestation | Selects the claim-capable `sbom_attestation` instance. |
-| `ESHU_SBOM_ATTESTATION_POLL_INTERVAL` | `1s` | collector-sbom-attestation | Delay between empty workflow-claim polls. |
-| `ESHU_SBOM_ATTESTATION_CLAIM_LEASE_TTL` | `60s` | collector-sbom-attestation | Lease TTL used when claiming and refreshing work. |
-| `ESHU_SBOM_ATTESTATION_HEARTBEAT_INTERVAL` | `20s` | collector-sbom-attestation | Heartbeat interval for active workflow claims. Must be less than the claim lease TTL. |
-| `ESHU_SBOM_ATTESTATION_COLLECTOR_OWNER_ID` | host/process-derived | collector-sbom-attestation | Owner label written into workflow claim rows. |
+The `collector-sbom-attestation` binary that read `ESHU_SBOM_ATTESTATION_*`
+claim-loop variables is deleted (eshu-hq/eshu#10450); satellite claims are
+driven through `ESHU_COLLECTOR_INSTANCES_JSON` like every other collector, so
+the prefixed variables are gone with the binary.
 
 ## Security Alert Collector
 
