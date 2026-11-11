@@ -113,4 +113,35 @@ func TestPerSearchExactFullPageIsNotTruncated(t *testing.T) {
 			t.Fatalf("len(consumers) = %d, want %d (trimmed to the bound)", got, want)
 		}
 	})
+
+	t.Run("unindexed fallback keeps the legacy cap under a widened read", func(t *testing.T) {
+		t.Parallel()
+
+		// The substring fallback has no index to seek with: at a widened
+		// internal bound it would scan and sort hundreds of rows, measured
+		// in seconds on QA-scale content, so it keeps the legacy 100-row
+		// cap while the +1 probe still reports honestly.
+		const widened = 500
+		consumers, truncated, err := deployment.LoadConsumerRepositoryEnrichmentFromCandidates(
+			context.Background(),
+			emptyGraphReader(),
+			exactCountConsumerSearchContentStore{pattern: "exact-svc", count: 150},
+			"repository:exact-svc",
+			"exact-svc",
+			nil,
+			widened,
+			nil,
+			false,
+			false,
+		)
+		if err != nil {
+			t.Fatalf("LoadConsumerRepositoryEnrichmentFromCandidates() error = %v, want nil", err)
+		}
+		if got, want := len(consumers), 100; got != want {
+			t.Fatalf("len(consumers) = %d, want %d (fallback capped at the legacy bound, one repo per row)", got, want)
+		}
+		if !truncated {
+			t.Fatal("truncated = false, want true (the fallback read more rows than it shipped)")
+		}
+	})
 }

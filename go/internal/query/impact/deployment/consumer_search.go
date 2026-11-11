@@ -116,27 +116,34 @@ type contentReferenceSearchStore interface {
 // it fetches one row past the caller's limit and reports whether more rows
 // exist, so an exactly-full page no longer reads as truncated (#10535
 // follow-up to #10477; mirrors the provisioning-candidate limit+1 probe).
-// The returned rows are always trimmed to the caller's limit.
+// The returned rows are always trimmed to the caller's limit. Indexed
+// reference scans take the full widened bound; the unindexed substring
+// fallback keeps the legacy 100-row bound, because a full-table trigram scan
+// at the widened bound measured seconds on QA-scale content while the
+// indexed path stays in single milliseconds.
 func runConsumerEvidenceSearch(
 	ctx context.Context,
 	content querycontract.ContentStore,
 	search consumerEvidenceSearch,
 	limit int,
 ) (rows []querycontract.FileContent, probeFull bool, err error) {
-	fetchLimit := limit + 1
-	fetch := func(fetch func(limit int) ([]querycontract.FileContent, error)) (rows []querycontract.FileContent, full bool, err error) {
-		got, err := fetch(fetchLimit)
+	fetch := func(fetch func(limit int) ([]querycontract.FileContent, error), cap int) (rows []querycontract.FileContent, full bool, err error) {
+		got, err := fetch(cap + 1)
 		if err != nil {
 			return nil, false, err
 		}
-		if len(got) > limit {
-			return got[:limit], true, nil
+		if len(got) > cap {
+			return got[:cap], true, nil
 		}
 		return got, false, nil
 	}
+	fallbackLimit := limit
+	if fallbackLimit > querycontract.MaxIndirectEvidenceSearchLimit {
+		fallbackLimit = querycontract.MaxIndirectEvidenceSearchLimit
+	}
 	if search.evidenceKind == "repository_reference" && search.exactCase {
 		if indexed, ok := content.(contentReferenceSearchStore); ok {
-			rows, available, err := indexed.SearchFileReferenceAnyRepo(ctx, "service_name", search.matchedValue, fetchLimit)
+			rows, available, err := indexed.SearchFileReferenceAnyRepo(ctx, "service_name", search.matchedValue, limit+1)
 			if err != nil {
 				return nil, false, fmt.Errorf("search indexed consumer evidence for service name %q: %w", search.matchedValue, err)
 			}
@@ -150,7 +157,7 @@ func runConsumerEvidenceSearch(
 	}
 	if search.evidenceKind == "hostname_reference" {
 		if indexed, ok := content.(contentReferenceSearchStore); ok {
-			rows, available, err := indexed.SearchFileReferenceAnyRepo(ctx, "hostname", search.matchedValue, fetchLimit)
+			rows, available, err := indexed.SearchFileReferenceAnyRepo(ctx, "hostname", search.matchedValue, limit+1)
 			if err != nil {
 				return nil, false, fmt.Errorf("search indexed consumer evidence for hostname %q: %w", search.matchedValue, err)
 			}
@@ -165,7 +172,7 @@ func runConsumerEvidenceSearch(
 	if search.exactCase {
 		rows, full, err := fetch(func(n int) ([]querycontract.FileContent, error) {
 			return content.SearchFileContentAnyRepoExactCase(ctx, search.matchedValue, n)
-		})
+		}, fallbackLimit)
 		if err != nil {
 			return nil, false, fmt.Errorf("search consumer evidence for hostname %q: %w", search.matchedValue, err)
 		}
@@ -173,7 +180,7 @@ func runConsumerEvidenceSearch(
 	}
 	rows, full, ferr := fetch(func(n int) ([]querycontract.FileContent, error) {
 		return content.SearchFileContentAnyRepo(ctx, search.matchedValue, n)
-	})
+	}, fallbackLimit)
 	if ferr != nil {
 		return nil, false, fmt.Errorf("search consumer evidence for service name: %w", ferr)
 	}

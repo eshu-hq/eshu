@@ -52,13 +52,15 @@ type ConsumerListPage struct {
 	LowerBound bool
 }
 
-// selectConsumerPage drops every row at or below the cursor, then cuts one
-// page plus a probe row so the caller can tell a full page from a terminal
-// one without a second read.
+// selectConsumerPage drops every row at or below the cursor and returns one
+// page. When more rows remain than fit the page, the returned next cursor
+// names the page's last row; the caller re-runs the recomputed read and
+// drops through that cursor for the following page. An empty remainder is a
+// terminal page with no cursor, and the page slice is always non-nil.
 func selectConsumerPage(sorted []map[string]any, after *ConsumerListCursor, pageSize int) (page []map[string]any, nextCursor *ConsumerListCursor, hasNext bool) {
 	rest := sorted
 	if after != nil {
-		rest = nil
+		rest = make([]map[string]any, 0, len(sorted))
 		for _, row := range sorted {
 			repo, id := querycontract.StringVal(row, "repository"), querycontract.StringVal(row, "repo_id")
 			if repo < after.Repository || (repo == after.Repository && id <= after.RepoID) {
@@ -73,6 +75,9 @@ func selectConsumerPage(sorted []map[string]any, after *ConsumerListCursor, page
 			Repository: querycontract.StringVal(last, "repository"),
 			RepoID:     querycontract.StringVal(last, "repo_id"),
 		}, true
+	}
+	if rest == nil {
+		return []map[string]any{}, nil, false
 	}
 	return rest, nil, false
 }
