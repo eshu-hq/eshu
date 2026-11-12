@@ -273,14 +273,13 @@ func (s GenerationRetentionStore) selectPrunableCandidates(
 		return nil, nil, nil, chunkTarget, nil
 	}
 
-	phaseStart = time.Now()
-	_, eventRowCounts, _, err := s.countRows(ctx, tx, retentionScopeIDs(countable), retentionGenerationIDs(countable))
-	result.PhaseDurations[GenerationRetentionPhaseCountRows] += time.Since(phaseStart)
-	if err != nil {
-		return nil, nil, nil, nil, err
-	}
-	selected, rowCounts, selectedEventRowCounts, err := s.recheckRetentionBatch(
-		ctx, tx, countable, eventRowCounts, policy.BatchRowLimit, result)
+	// The planning count is a batch-choosing heuristic (arbiter verdict A,
+	// #10525 PR-2): it counts a bounded oldest-first window and extends it
+	// only while the fit leaves room, so the count cost follows the fitted
+	// batch instead of every countable candidate. The re-check on the final
+	// window and the re-lock's mandatory recount stay the prune authorities.
+	selected, rowCounts, selectedEventRowCounts, err := s.progressivePlanningCount(
+		ctx, tx, countable, ownFacts, policy.BatchRowLimit, result)
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}

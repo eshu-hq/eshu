@@ -6,6 +6,7 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
@@ -79,4 +80,79 @@ func queryChunkPruneCounts(
 		return fmt.Errorf("generation retention: scan chunk prune counts: %w", err)
 	}
 	return rows.Err()
+}
+
+// Progressive counting window (#10525 PR-2): bounded oldest-first batch
+// sizing for retention, next to the chunk-target diversion for counts above.
+
+// progressivePlanningWindowOwnFactsCap bounds the initial planning-count
+// window (#10525 PR-2): the maximal oldest-first prefix whose cumulative
+// prescreen own-facts stay within one default batch budget. Own facts are a
+// subset of the rows outside the ledger and every count arm is non-negative,
+// so the prefix estimates at most one batch; the extension loop below still
+// admits a batch the estimate undershoots.
+const progressivePlanningWindowOwnFactsCap = int64(defaultGenerationRetentionRowLimit)
+
+// progressivePlanningWindow returns the end offset of the initial counting
+// window over countable (oldest first): the maximal prefix whose cumulative
+// prescreen own-facts stay within the cap, always at least one generation so
+// an over-budget head still makes progress. Generations missing from ownFacts
+// count as zero, as in prescreenOwnFacts.
+func progressivePlanningWindow(countable []generationRetentionCandidate, ownFacts map[string]int64) int {
+	if len(countable) == 0 {
+		return 0
+	}
+	end := 1
+	var cumulative int64
+	for i, candidate := range countable {
+		cumulative += ownFacts[candidate.generationID]
+		if cumulative > progressivePlanningWindowOwnFactsCap {
+			return max(i, 1)
+		}
+		end = i + 1
+	}
+	return end
+}
+
+// progressivePlanningCount plans the batch with a bounded window of counts
+// (#10525 PR-2, arbiter verdict A): the planning count is a batch-choosing
+// heuristic, and the re-check on the final window plus the re-lock's
+// mandatory recount stay the prune authorities.
+//
+// It counts the initial window, then doubles it (capped at the countable
+// set) and recounts the whole prefix, discarding the narrower counts: key
+// attribution changes with the counted set, so a narrower count must never
+// be reused for a wider window. It extends while the fit selects nothing
+// with candidates left (liveness: an over-limit head never stalls the tail)
+// or while nothing is skipped with the total under the limit (room left),
+// and stops on a skip, on the limit, or on exhaustion. Every window count
+// runs unlocked, where selectPrunableCandidates calls this; ScopeLockHold
+// still spans only the re-lock onward.
+//
+// The intermediate fits are heuristic only and never tally: only the final
+// recheckRetentionBatch, unchanged, tallies the final window's skips.
+func (s GenerationRetentionStore) progressivePlanningCount(
+	ctx context.Context,
+	tx db.Transaction,
+	countable []generationRetentionCandidate,
+	ownFacts map[string]int64,
+	rowLimit int,
+	result *GenerationRetentionResult,
+) ([]generationRetentionCandidate, map[string]int64, map[string]map[string]int64, error) {
+	end := progressivePlanningWindow(countable, ownFacts)
+	for {
+		window := countable[:end]
+		phaseStart := time.Now()
+		_, eventRowCounts, _, err := s.countRows(ctx, tx, retentionScopeIDs(window), retentionGenerationIDs(window))
+		result.PhaseDurations[GenerationRetentionPhaseCountRows] += time.Since(phaseStart)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		selected, selectedRows, _, skipped := selectCandidatesWithinRowLimit(window, eventRowCounts, rowLimit)
+		if end >= len(countable) || (len(selected) > 0 &&
+			(len(skipped) > 0 || generationRetentionRowsTotal(selectedRows) >= int64(rowLimit))) {
+			return s.recheckRetentionBatch(ctx, tx, window, eventRowCounts, rowLimit, result)
+		}
+		end = min(end*2, len(countable))
+	}
 }
