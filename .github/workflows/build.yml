@@ -98,7 +98,6 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Download all artifacts
-        if: ${{ always() }}
         uses: actions/download-artifact@v4
         with:
           path: artifacts

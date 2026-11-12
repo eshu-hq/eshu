@@ -10,7 +10,7 @@ import sys
 from reducer_contention_events import canonical_keys, verify_events, without_cgo_env
 
 WORKFLOW = Path(".github/workflows/delta-union-scheduled.yml")
-WORKFLOW_SHA256 = "33a31c9f30a5bd98fb3fda29deb23709cc27aa6c948a2ce80e4024e31698d585"
+WORKFLOW_SHA256 = "039add02cad8539b7fbd349634fd26e93f888559f9cf7b8bc32c03c1ffdf87e8"
 SOURCE = Path("go/cmd/projector/delta_union_live_test.go")
 PACKAGE = "github.com/eshu-hq/eshu/go/cmd/projector"
 TESTS = (
@@ -93,7 +93,7 @@ def verify(root: Path, workflow: str | None = None) -> None:
         "      - name: Upload delta union events\n",
         "            ${{ runner.temp }}/delta-union.jsonl\n",
         "            ${{ runner.temp }}/delta-union-meta.txt\n",
-        "        uses: actions/upload-artifact@v4\n",
+        "        uses: ./.github/actions/retry-upload-artifact\n",
         "          if-no-files-found: error\n",
     )
     if any(item not in jobs for item in required):
