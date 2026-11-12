@@ -10,6 +10,21 @@ import subprocess
 import sys
 from pathlib import Path
 
+LIB = Path(__file__).resolve().parent / "lib"
+sys.path.insert(0, str(LIB))
+
+from w8_port_census_data import (  # noqa: E402
+    CODE_FLOW,
+    CODE_SEARCH,
+    CONTENT_POINT,
+    PIN,
+    PIN_APPROVED_UNMINTED,
+    STATUS_PIN,
+    WRITER_ADM,
+    WRITER_FAM_ADM,
+    short,
+)
+
 
 def find_root():
     """Locate the worktree root without hard-coded absolute paths."""
@@ -31,7 +46,7 @@ OUT = ROOT / "docs" / "internal" / "w8-port-census.md"
 # (origin/main at branch time). To re-base: update it, regenerate, run the checker.
 CENSUS_DAY_CORE = "e3c33de093"
 CENSUS_DAY_SAT = "0b56895"
-REVERIFIED_CORE = "f23e83111b"  # origin/main at branch time (#9669 S3 ruling base)
+REVERIFIED_CORE = "e504e328a7"  # origin/main at branch time (census-regen ruling base)
 
 W7W_LABEL = "w7w-recorded(#10531-merged, satellite-pending)"
 
@@ -71,7 +86,7 @@ def parse_cutover():
                 "mounted": m.group(7).strip(),
             })
     print(f"CUTOVER rows: {len(rows)}", file=sys.stderr)
-    assert len(rows) == 279, len(rows)
+    assert len(rows) == 281, len(rows)
     return rows
 
 
@@ -99,7 +114,7 @@ def parse_tracker(body):
             else:
                 state[route] = ("open", "")
     print(f"tracker states: {len(state)}", file=sys.stderr)
-    assert len(state) == 279, len(state)
+    assert len(state) == 281, len(state)
     return state
 
 
@@ -203,58 +218,10 @@ def struct_fields(path, struct):
     return fields
 
 
-# ---------- 4. classification data (all constants verified at census SHA) ----------
-PIN = {  # family -> (pin const, file:line, scope note)
-    "Freshness": ("FreshnessReadAdmission v0", "q/freshness/read_admission.go:26", "all 3"),
-    "AdminIdentityReads": ("AdminIdentityReadAdmission v0 + GovernanceAuditReadAdmission v0", "go/internal/query/admin/identity/read_admission.go:16", "family"),
-    "AdminProviderConfigReads": ("ProviderConfigReadAdmission v0", "go/internal/query/admin/provider/config/admission.go:37", "family"),
-    "SignInPolicyReads": ("SignInPolicyReadAdmission v0", "q/auth/read_admission.go:21", "family"),
-    "Compare": ("CompareReadAdmission v0", "q/compare/read_admission.go:24", "POST"),
-    "IaC": ("IaCReadAdmission v0", "q/iac/read_admission.go:24", "all 11"),
-    "Metrics": ("MetricsReadAdmission v0", "q/metrics/read_admission.go:20", "timeseries"),
-    "TerraformConfigStateDrift": ("TerraformDriftReadAdmission v0", "go/internal/query/terraform/drift/read_admission.go:20", "findings POST"),
-    "SemanticSearch": ("SemanticSearchReadAdmission v0 (record-only)", "go/internal/query/semanticsearch/read_admission.go:20", "search POST"),
-}
-CONTENT_POINT = {"POST /api/v0/content/entities/read", "POST /api/v0/content/files/lines",
-                 "POST /api/v0/content/files/read"}
-WRITER_FAM_ADM = {  # family-level writer admission (constants verified at census SHA)
-    "GitHubLogin": "GitHubLoginAdmission v0", "OIDCLogin": "OIDCLoginAdmission v0",
-    "SAML": "SAMLLoginAdmission v0", "BrowserSessions": "BrowserSessionAdmission v0",
-    "LocalIdentity": "LocalIdentityAdmission v0", "SessionList": "SessionResolverAdmission v0",
-    "Profile": "SessionResolverAdmission v0", "Setup": "SetupAdmission v0",
-    "SignInPolicyMutations": "SignInPolicyAdmission v0",
-    "AdminTerminalFailure": "TerminalFailureAdmission v0", "AdminRetirement": "RetirementAdmission v0",
-}
-WRITER_ADM = {  # exact-route writer admission (certain mappings only)
-    "POST /api/v0/admin/replay": "RecoveryAdmission+ReplayLedgerAdmission v0",
-    "POST /api/v0/admin/reopen": "RecoveryAdmission+ReplayLedgerAdmission v0",
-    "POST /api/v0/admin/refinalize": "RecoveryAdmission+ReplayLedgerAdmission v0",
-    "POST /api/v0/admin/recover-generations": "RecoveryAdmission+ReplayLedgerAdmission v0",
-    "POST /api/v0/supply-chain/impact/suppressions": "SuppressionAdmission v0",
-    "GET /api/v0/auth/local/api-tokens": "APITokenAdmission v0", "POST /api/v0/auth/local/api-tokens": "APITokenAdmission v0",
-    "POST /api/v0/auth/local/api-tokens/{token_id}/revoke": "APITokenAdmission v0",
-    "POST /api/v0/auth/local/api-tokens/{token_id}/rotate": "APITokenAdmission v0",
-    "DELETE /api/v0/auth/admin/idp-group-mappings/{mapping_ref}": "AdminIdentityAdmission v0",
-}
-PIN_APPROVED_UNMINTED = {  # arbiter pin-minting batch: approved, not yet minted
-    "SecretsIAM": "SecretsIAMReadAdmission v0 (approved, unminted)",
-    "Status": "StatusReadAdmission v0 (answer-narration) + 2 narrow mints (approved, unminted)",
-    "Content": "ContentSearch incl dockerfile+php (approved, unminted)",
-    "Code": "CodeSearch (approved, unminted); CodeFlowReadAdmission v0 1-method for flow 4 (W6a rescoped, unminted)",
-    "SemanticEvidence": "none (SemanticSearch record-only covers search, not evidence)",
-}
-
-SHORT = {"go/internal/query/": "q/", "go/cmd/api/": "cmd/", "go/internal/runtime/": "rt/"}
-
-
-def short(p):
-    """Shorten a repo path for table display."""
-    for k, v in SHORT.items():
-        if p.startswith(k):
-            return v + p[len(k):]
-    return p
-
-
+# ---------- 4. classification data lives in lib/w8_port_census_data.py ----------
+# (pin/writer tables, route sets, short(); all pin constants verified at
+# REVERIFIED_CORE). Code is deliberately NOT a family PIN there: Code coverage
+# is route-level via CODE_SEARCH / CODE_FLOW, mirroring CONTENT_POINT.
 def c1_c5(r):
     """Compute route, mount citation, ports, and class for a CUTOVER row."""
     route = r["method"] + " " + r["path"]
@@ -272,7 +239,7 @@ def c1_c5(r):
         c1m = f"Mount {short(f)} ({struct}.{mname})"
         if r["channel"] == "mutation" or "writer:" in r["persist"]:
             cls = "writer"
-        elif r["family"] in PIN or route in CONTENT_POINT:
+        elif r["family"] in PIN or route in CONTENT_POINT or route in CODE_SEARCH or route in CODE_FLOW:
             cls = "pinned"
         else:
             cls = "candidate"
@@ -289,6 +256,12 @@ def c2(r, route, cls):
     if cls == "pinned":
         if route in CONTENT_POINT:
             return "dedicated:ContentPointReadAdmission"
+        if route in CODE_SEARCH:
+            return "dedicated:CodeSearchReadAdmission"
+        if route in CODE_FLOW:
+            return "dedicated:CodeFlowReadAdmission"
+        if route in STATUS_PIN:
+            return "dedicated:" + STATUS_PIN[route]
         return "dedicated:" + PIN[r["family"]][0].split(" v0")[0]
     return "blanket"
 
@@ -341,6 +314,8 @@ def c5(bucket, cite, r, route):
 def build_rows(rows, state):
     """Join CUTOVER rows with tracker states into table rows."""
     assert state.get(NEW_ROUTE) == ("open", ""), state.get(NEW_ROUTE)
+    cutover_routes = {r["method"] + " " + r["path"] for r in rows}
+    assert set(state) == cutover_routes, (set(state) ^ cutover_routes)
     trows = []
     classes = {}
     buckets = {}
@@ -354,7 +329,7 @@ def build_rows(rows, state):
         trows.append((route, r["family"], c1m, ports, cls, c2v, c3v, c4v, c5v))
     print(f"classes: {classes}", file=sys.stderr)
     print(f"buckets: {buckets}", file=sys.stderr)
-    assert sum(classes.values()) == 279
+    assert sum(classes.values()) == 281
     assert classes.get("no-port", 0) == 4, classes
     # C5 full coverage: every row assigned, no residue bucket
     allowed = ("landed-Done", "landed-family", "tierC-G4", "w7w-recorded", "relay-leg")
@@ -382,9 +357,12 @@ def render(trows):
 Refs eshu-hq/eshu#9669, eshu-hq/eshu#10491. Status: preparation only — no cutover has
 occurred, no behavior changes, no in-tree code moves. Census day 2026-11-10:
 core `{CENSUS_DAY_CORE}` / satellite `{CENSUS_DAY_SAT}` (provenance; row set proven
-byte-identical at the ruling base). Re-verified unchanged at ruling base core
-`{REVERIFIED_CORE}` (origin/main at branch time; checker PASS with identical {counts}
-counts, relay={relay} w7w={w7w}); no row changed.
+byte-identical at the S3 ruling base). Re-based at core `{REVERIFIED_CORE}`
+(origin/main at branch time; checker PASS with identical {counts}
+counts, relay={relay} w7w={w7w}): +2 rows since the S3 base, named below —
+`GET /api/v0/services/{{service_name}}/downstream-consumers` (Entities read,
+eshu#10562) and `POST /api/v0/admin/workflow-retire-unclaimed` (Admin writer,
+eshu#10553).
 
 ## Method (exact commands, run in the worktree root)
 
@@ -400,19 +378,31 @@ with a saved snapshot file for a reproducible/offline run. Mount attribution res
 each route literal (`"METHOD path"`) against non-test Go sources and cites the defining
 `Mount`/`*Routes` site; ports are the handler struct's store/port fields.
 
-## Pin inventory (all constants verified present at census SHA)
+## Pin inventory (all constants verified present at REVERIFIED_CORE above)
 
 - Freshness 3: FreshnessReadAdmission v0 (`q/freshness/read_admission.go:26`, pin eshu#10494).
 - Content point-read 3: ContentPointReadAdmission v0 (`q/content_read_admission.go:23`,
-  pin eshu#10504); the 4 Content searches ride no pin (ContentSearch approved, unminted).
+  pin eshu#10504); the 4 Content searches ride ContentSearchReadAdmission v0
+  (`q/content_search_read_admission.go:103`, pin eshu#10540).
 - AdminIdentityReads 8: AdminIdentityReadAdmission v0 + GovernanceAuditReadAdmission v0.
 - AdminProviderConfigReads 3: ProviderConfigReadAdmission v0.
 - SignInPolicyReads 2: SignInPolicyReadAdmission v0 (pin eshu#10515).
 - Compare 1: CompareReadAdmission v0 (pin eshu#10425).
-- IaC 11: IaCReadAdmission v0 (covers all 11 per its docstring).
+- IaC 11: IaCReadAdmission v0, 8 methods — pin-sufficient for 9 rows; partial on
+  `GET /iac/resources` (SearchActive not adopted) and `POST /iac/dead` (Content fallback).
 - Metrics 1: MetricsReadAdmission v0 (pin eshu#10440).
 - TerraformConfigStateDrift 1: TerraformDriftReadAdmission v0.
 - SemanticSearch 1: SemanticSearchReadAdmission v0 (record-only).
+- SecretsIAM 5: SecretsIAMReadAdmission v0 (`q/secrets/read_admission.go:66`,
+  pin eshu#10537); posture-summary S3 grant leg explicitly OUT.
+- Status 3: StatusGovernanceReadAdmission v0 (`q/status_governance_read_admission.go:73`,
+  Summary only) + StatusHostedReadinessReadAdmission v0 (Run+RunSingle) +
+  pre-existing StatusReadAdmission v0 (`go/internal/status/read_admission.go:16`,
+  answer-narration/snapshot legs, pin eshu#10538).
+- Code search 2: CodeSearchReadAdmission v0 (`q/code_search_read_admission.go:106`,
+  pin eshu#10540; remaining 21 Code rows unpinned).
+- Code flow 4: CodeFlowReadAdmission v0 (`q/codequery/code_flow_read_admission.go:79`,
+  pin eshu#10552 W6a).
 - Writer admissions (certain mappings): replay/reopen/refinalize/recover-generations via
   RecoveryAdmission+ReplayLedgerAdmission v0; suppressions row via SuppressionAdmission v0;
   AdminIdentityMutations via AdminIdentityAdmission v0; AdminProviderConfigMutations via
@@ -421,7 +411,7 @@ each route literal (`"METHOD path"`) against non-test Go sources and cites the d
   BrowserSessions via BrowserSessionAdmission v0; LocalIdentity via LocalIdentityAdmission v0
   (APITokenAdmission v0 for token legs); SessionList/Profile via SessionResolverAdmission v0;
   terminal-failure ack via TerminalFailureAdmission v0; retirement via RetirementAdmission v0
-  (all constants verified at census SHA: q/session_admission.go,
+  (all constants verified at REVERIFIED_CORE: q/session_admission.go,
   q/sign_in_policy_types.go:63, q/setup_types.go:27).
   All other writer rows ride generic core-owned stores (admission TBD by wave).
 
@@ -446,14 +436,12 @@ landed-Done = #10491 Done box; landed-family = family box + sat citation; tierC-
 tier-C box (G4 re-verify before any Done move); w7w-recorded = the 4 W7-writer rows
 (core record merged via eshu-hq/eshu#10531, satellite consumption pending, boxes stay
 unchecked per the W7-writers ruling); relay-leg =
-everything else (Path-B catch-all, no carve-outs) with pin-approved tags where the
-arbiter pin-minting batch approved a pin (SecretsIAM, Status, ContentSearch, CodeSearch,
-CodeFlow W6a). W8-44 membership is NOT assigned here: the 44-route selection rule and
-the S1-S6 sequence live in the parent pinmint-arbiter-batch report, which was not handed
-to this lane. Two unconfirmed shape observations for the coordinator (not claims):
-H1 Entities(8)+Content(7)+Code(27)+SemanticEvidence(2)=44 (includes 3 landed Content rows);
-H2 Code(27)+Impact(13)+Language/Incident/Dependencies/CodeownersOwnership(1 each)=44
-(all open). The arbiter's actual 44 may differ; no row is tagged W8 in this artifact.
+everything else (Path-B catch-all, no carve-outs). Pins that exist for still-open
+rows show as C2 dedicated:<pin> with C5 relay-leg (pin exists, satellite termination
+pending); rows without a covering pin show C2 blanket. W8-44 membership is NOT assigned
+here: the 44-route selection rule was withdrawn by the W8 S3 ruling (no row is tagged
+W8 in this artifact). H1 as a 44-shape is dead: Entities(9)+Content(7)+Code(27)+
+SemanticEvidence(2)=45 (includes 3 landed Content rows).
 
 Disposition (w7w-recorded): core record merged via eshu-hq/eshu#10531; satellite
 consumption pending. The 4 tracker boxes stay UNCHECKED until satellite termination
