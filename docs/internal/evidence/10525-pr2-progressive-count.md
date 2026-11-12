@@ -27,6 +27,8 @@ under the 30.5s planning budget.
 Selected rows 28075 of 1360890. Generation-owned arms 204/204 exact vs
 full-100; content arms 0 exceedances.
 
+Provenance note: the PR problem statement cites a 34.6s warm full-batch run of the verbatim Gate-3 full-batch query (oldest 100 superseded generations, 83 scopes) with work_mem=64MB and force_generic_plan as warm plain EXECUTE, measured 2026-11-12 on the same PG 18.3 QA primary after migration 294 (ledger 2026-11-12 13:59:36Z); it differs from the 48.6s probe wall above only by live-QA load at measurement time, and both exceed every bar, so no decision changes.
+
 Why safe: the planning count only chooses the batch; correctness rests on
 the two unchanged recounts (recheck of the final window, re-lock before
 admission). Arbiter Verdict A admits the theory-gate bars
