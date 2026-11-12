@@ -68,6 +68,9 @@ TABLE = {
             "TestReducerContentionGateActiveCodeCallSymbolLoaderSkipsFixturePackageManifests",
             "TestFixtureDirPatternAgreesBetweenPostgresAndGo",
         ),
+        "go/internal/storage/postgres/advisory_groups_synthetic_seed_live_test.go": (
+            "TestAdvisoryGroupsSyntheticSeedLive",
+        ),
         "go/internal/storage/postgres/alert_fanout_cursor_live_test.go": (
             "TestSecurityAlertFanoutCursorLive",
         ),

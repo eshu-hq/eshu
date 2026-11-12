@@ -16,7 +16,7 @@ func (l *ledgerDB) journalRows(t *testing.T) []string {
 	t.Helper()
 	return l.queryStrings(t, `
 SELECT scope_id || '|' || generation_id || '|' || COALESCE(prior_generation_id, '<null>') || '|' || source
-FROM changed_since_activations WHERE scope_id NOT LIKE 'eshu:%' ORDER BY activation_seq`)
+FROM changed_since_activations WHERE scope_id NOT LIKE 'eshu:%' AND scope_id <> 'synthetic:advisory-groups' ORDER BY activation_seq`)
 }
 
 func TestJournalSweeperJournalsActiveGenerationsWithUnknownPrior(t *testing.T) {
@@ -34,12 +34,18 @@ func TestJournalSweeperJournalsActiveGenerationsWithUnknownPrior(t *testing.T) {
 		t.Fatalf("Journal: %v", err)
 	}
 	// The bootstrap seeds the eshu:global scope with an active generation;
-	// it is journaled like any other scope.
-	if result.SweeperRows != 2 || result.BackfillRows != 0 {
-		t.Fatalf("Journal = %+v, want two sweeper rows (a1, eshu:global) and no backfill", result)
+	// it is journaled like any other scope. Migration 295 seeds the
+	// synthetic:advisory-groups scope the same way (#10566).
+	if result.SweeperRows != 3 || result.BackfillRows != 0 {
+		t.Fatalf("Journal = %+v, want three sweeper rows (a1, eshu:global, synthetic:advisory-groups) and no backfill", result)
 	}
 	if got := strings.Join(l.journalRows(t), ","); got != "a|a1|<null>|sweeper" {
 		t.Fatalf("journal = %s", got)
+	}
+	if got := l.queryStrings(t, `
+SELECT scope_id || '|' || generation_id || '|' || COALESCE(prior_generation_id, '<null>') || '|' || source
+FROM changed_since_activations WHERE scope_id = 'synthetic:advisory-groups' ORDER BY activation_seq`); strings.Join(got, ",") != "synthetic:advisory-groups|synthetic:advisory-groups:genesis|<null>|sweeper" {
+		t.Fatalf("synthetic activation = %v, want exactly one sweeper row with NULL prior", got)
 	}
 	again, err := store.Journal(l.ctx, 0)
 	if err != nil || again.SweeperRows != 0 {
@@ -77,7 +83,9 @@ func TestJournalBackfillWalksRetainedChainInOrder(t *testing.T) {
 	if got := l.journalRows(t); strings.Join(got, ",") != strings.Join(want, ",") {
 		t.Fatalf("journal = %v, want %v", got, want)
 	}
-	if result.BackfillScopes != 1 || result.BackfillRows != 3 || result.SweeperRows != 2 {
+	// Sweeper rows: ambiguous|m2 plus the seeded eshu:global and
+	// synthetic:advisory-groups geneses (#10566).
+	if result.BackfillScopes != 1 || result.BackfillRows != 3 || result.SweeperRows != 3 {
 		t.Fatalf("Journal = %+v", result)
 	}
 }

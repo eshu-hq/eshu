@@ -249,14 +249,16 @@ import (
 // #10525 adds 294_fact_work_items_generation_idx.sql (the generation
 // index backing the retention work-items count arm and pre-delete lock;
 // one CREATE INDEX CONCURRENTLY). 293 went to #10544's package-lookup
-// retirement, which rolled first, so this lane takes 294.
-const goldenBootstrapDefinitionsDigest = "9fd92cf514c98e0c54f8062feda7b49d8cf1c7006debee8bd991636d1adc30c8"
+// retirement, which rolled first, so this lane takes 294. #10566 adds
+// 295_advisory_groups_synthetic_scope.sql (the synthetic advisory-groups
+// scope seed for coalesced advisory-group projection rows).
+const goldenBootstrapDefinitionsDigest = "fdff96dd0daffbf6e71418a29043f84b63021382271a4876ee1a9bc0600a874f"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or
 // silently dropping files) fails loudly even in the unlikely case of a hash
 // collision.
-const goldenBootstrapDefinitionsCount = 320
+const goldenBootstrapDefinitionsCount = 321
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
 	defs := BootstrapDefinitions()

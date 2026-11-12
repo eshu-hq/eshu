@@ -17,4 +17,7 @@ var orderedBootstrapDefinitionNamesLatest = []string{
 	// retention work-items count arm and pre-delete lock. 293 went to
 	// #10544, which rolled first, so this lane takes 294.
 	"fact_work_items_generation_idx",
+	// Migration 295 (#10566) seeds the synthetic advisory-groups
+	// scope/generation anchor the coalesced projection rows re-home to.
+	"advisory_groups_synthetic_scope",
 }

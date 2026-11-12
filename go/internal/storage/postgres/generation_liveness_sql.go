@@ -159,6 +159,10 @@ WITH wedged AS (
         ) AS progressed_domains
     ) AS liveness_progress
     WHERE generation.status = 'active'
+      -- #10566 defense in depth: the synthetic advisory-groups slot scope
+      -- is perpetually old and active, which is normal for it, not a
+      -- wedge, so the sweep never considers it.
+      AND scope.scope_kind <> 'synthetic'
       AND generation.activated_at IS NOT NULL
       AND generation.activated_at < $1
       AND scope.active_generation_id = generation.generation_id

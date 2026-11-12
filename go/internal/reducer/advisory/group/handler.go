@@ -160,7 +160,7 @@ func (h Handler) Handle(ctx context.Context, intent reducercontract.Intent) (red
 		totals.PropertiesSet += stats.PropertiesSet
 	}
 
-	h.Instruments.RecordAdvisoryGroupLag(ctx, domain, h.now().Sub(intent.EnqueuedAt).Seconds())
+	h.Instruments.RecordAdvisoryGroupLag(ctx, domain, h.now().Sub(winnersBoundStart(intent)).Seconds())
 
 	slog.InfoContext(
 		ctx, "advisory group projection completed",
@@ -208,6 +208,20 @@ func (h Handler) now() time.Time {
 	return time.Now()
 }
 
+// winnersBoundStart returns the moment the winners watermark must cover:
+// the later of the enqueue and cycle-start timestamps. They are equal for
+// a fresh row, and a reopened or retouched row must wait for winners that
+// cover the pass that moved the bound, not the original enqueue. A zero
+// cycle start falls back to the enqueue, so hand-built intents without a
+// claim read keep today's behavior. The lag signal measures from this same
+// bound (#10566), so the metric and the deferral can never disagree.
+func winnersBoundStart(intent reducercontract.Intent) time.Time {
+	if intent.CycleStartedAt.After(intent.EnqueuedAt) {
+		return intent.CycleStartedAt
+	}
+	return intent.EnqueuedAt
+}
+
 // awaitWinnersWatermark defers the intent until the canonical winners
 // were rebuilt at or after the moment this repair cycle was enqueued. The
 // bound is the later of the enqueue and cycle-start timestamps: they are
@@ -218,10 +232,7 @@ func (h Handler) awaitWinnersWatermark(ctx context.Context, intent reducercontra
 	if err != nil {
 		return fmt.Errorf("read advisory group winners watermark: %w", err)
 	}
-	required := intent.EnqueuedAt
-	if intent.CycleStartedAt.After(required) {
-		required = intent.CycleStartedAt
-	}
+	required := winnersBoundStart(intent)
 	if !watermark.Before(required) {
 		return nil
 	}
