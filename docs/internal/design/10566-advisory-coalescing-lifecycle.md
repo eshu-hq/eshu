@@ -76,12 +76,26 @@ Each group maps to exactly one `work_item_id`; touches insert or
 retouch that single row, which cycles
 pending to claimed to succeeded and back to pending on retouch.
 Succeeded rows are not garbage to collect: they are the per-group
-slot, reused by the next touch. Failed and dead-letter rows are
-likewise one slot per group, retouched (reopened) by the next touch
-rather than duplicated. No sweeper, TTL, or terminal-row prune is
-needed because no per-touch residue exists. The A-2 proof pins this:
-N touches across M scopes and generations leave exactly one row per
-group, and success/terminal turnover never grows the set.
+slot, reused by the next touch. No sweeper, TTL, or terminal-row
+prune is needed because no per-touch residue exists. The A-2 proof
+pins this: N touches across M scopes and generations leave exactly
+one row per group, and success turnover never grows the set.
+
+Terminal slots need a touch-path extension before implementation.
+The current `RetouchWorkItem` set covers only
+pending, claimed, running, retrying, and succeeded: a touch landing
+on a failed or dead-letter slot hits `ON CONFLICT DO NOTHING` plus a
+no-match retouch, and the touch is silently dropped (proven live,
+see Proof status). The implementation must therefore reopen
+failed and dead-letter slots on a new touch: status back to
+pending, attempt count reset, failure evidence cleared, and
+`reopened_at` advanced to the touch. This preserves today's
+one-run-per-touch semantics at the same cost (a poison group touched
+every pass retries every pass, exactly as its fresh rows do today);
+the reset is principled because the new touch is new evidence, not
+the same poison. Without this, a single dead-letter wedges its
+group until an operator replays it, which is strictly worse than
+today. The A-2 checklist test for this is specified in Proof status.
 
 ## Watermark preservation (I10)
 
@@ -94,6 +108,15 @@ serialize in Postgres; the last committer carries the latest
 timestamp, so the bound is at least the maximum touch time. The
 fan-out ordering (enqueue before the holder debt clears, fail the
 pass while the owed marker stands) is untouched.
+
+Accepted absorption: a touch landing on a retrying row does not
+expedite it. Retouch keeps the row's `visible_at` (only a succeeded
+reopen resets it), so the touch waits for the scheduled retry
+instead of minting an immediately claimable row as today. Nothing is
+lost: the touch still advances `reopened_at`, so the retry's bound
+covers it (A-3 proof), at the cost of up to one retry-backoff delay.
+Expediting would mean resetting backoff on every duplicate touch,
+which reintroduces the hot-group busy loop coalescing removes.
 
 ## Race safety (A-1 proof sketch)
 
@@ -159,12 +182,58 @@ they affect no key, predicate, or handler read.
    audit finds a consumer that requires advisory rows to ride real
    scopes, that finding returns here before any implementation.
 
+## Proof status (2026-11-12, lane A)
+
+Proven live on a scratch PostgreSQL 18 database through the shipped
+queue API with synthetic slot values (throwaway probe, deleted after
+its run; every check below is pinned durably afterwards):
+
+- A-1: 16 concurrent enqueue-plus-retouch touches of one group from
+  distinct owners converge to one row admitted exactly once, and two
+  concurrent claimers yield exactly one live lease on that row.
+- A-2: after advancing a real scope, the claim-time sweep supersedes
+  its stale advisory row while the synthetic row on the
+  always-active genesis is never superseded; 25 groups touched three
+  times each leave exactly 25 rows; the shipped retention-candidate
+  selection names the aged real superseded generation and never the
+  active genesis.
+- A-3: fail-after-touch with a retryable cause, a second touch, and
+  a reclaim hit the same slot with `CycleStartedAt` at or after the
+  second touch, then succeed on the single row.
+- Terminal-slot gap (design change recorded above): a fatal fail
+  dead-letters the slot, and a later touch inserts zero rows with a
+  no-match retouch while the slot stays dead-letter. This is the
+  required touch-path reopen, not a passing behavior.
+- Guard confirmation: rows on a hand-superseded genesis are swept,
+  so the liveness/retention `scope_kind='synthetic'` exclusions stay
+  required defense-in-depth even though no current path supersedes
+  the genesis.
+
+Durable pins (all green on current code, all valid after the
+implementation except where noted):
+
+- `reducer_queue_advisory_coalescing_live_test.go`:
+  `TestAdvisoryCoalescingLifecycleLive` (A-1 storm and lease, A-2
+  sweep sparing plus real retention-candidate selection plus cap,
+  A-3 retry and bound).
+- `reducer_queue_advisory_coalescing_test.go`: slot-identity
+  convergence, retouch-advances-bound and claim-derives-cycle-start
+  derivation guards, sweep active-generation guard and retention
+  superseded-only guard.
+- Still to write at implementation time (needs the terminal
+  reopen): touch-after-dead_letter (and after failed) re-runs the
+  slot with attempt count reset, failure evidence cleared, and the
+  bound at or after the new touch; a poison group touched every pass
+  costs one run per touch and never wedges its neighbors.
+
 ## Implementation checklist (later PR, not this lane)
 
 - Bootstrap migration for the synthetic scope and genesis
   generation, with reserved-id collision handling.
 - Enqueuer change plus origin payload fields; `ifa
   enqueue-advisory-groups` takes the same path.
+- Touch-path terminal reopen (failed and dead-letter slots reopen
+  on a new touch) with the test specified above.
 - Liveness and retention synthetic-scope exclusions with tests.
 - A-1/A-2/A-3 tests listed above, plus the existing handler and
   enqueue suites.
