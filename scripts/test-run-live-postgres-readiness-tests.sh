@@ -254,22 +254,12 @@ out="$(run_runner)" && fail "failures in two packages passed"
 [[ "${out}" == *"${first_proof}: FAIL"* && "${out}" == *"${last_proof}: SKIP"* ]] ||
   fail "an earlier package failure hid a later package failure: ${out}"
 
-# A failing test prints the TAIL of its output stream: a long test's early
-# progress lines must not crowd out the assertion (#7814).
-write_events
-sed -i.bak "/\"Test\":\"${first_proof}\"/d" "$(events_of "${first_pkg}")"
-{
-  printf '{"Action":"run","Test":"%s"}\n' "${first_proof}"
-  for i in $(seq 0 19); do
-    printf '{"Action":"output","Test":"%s","Output":"early line %d\\n"}\n' "${first_proof}" "${i}"
-  done
-  printf '{"Action":"output","Test":"%s","Output":"--- FAIL: %s (40.38s)\\n"}\n' "${first_proof}" "${first_proof}"
-  printf '{"Action":"output","Test":"%s","Output":"    seeded_test.go:99: SEEDED-FAILURE-MARKER\\n"}\n' "${first_proof}"
-  printf '{"Action":"fail","Test":"%s","Elapsed":40.38}\n' "${first_proof}"
-} >>"$(events_of "${first_pkg}")"
-out="$(run_runner)" && fail "tailed failure passed"
-[[ "${out}" == *"SEEDED-FAILURE-MARKER"* ]] || fail "failure tail not printed: ${out}"
-[[ "${out}" != *"early line 0"* ]] || fail "early noise crowded out the failure: ${out}"
+# Failure-tail seeds live in a sourced chunk to keep this mirror under the
+# 500-line cap; the sentinel catches a gutted or early-returning chunk.
+# shellcheck source=lib/test-run-live-postgres-readiness-tail-cases.sh
+source "${repo_root}/scripts/lib/test-run-live-postgres-readiness-tail-cases.sh"
+[[ "${tail_cases_completed:-0}" -eq 1 ]] ||
+  fail "test-run-live-postgres-readiness-tail-cases.sh did not run to completion"
 
 # Missing required env fails before package execution; Neo4j may degrade.
 while read -r var; do

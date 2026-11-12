@@ -69,7 +69,8 @@ var readinessWorkflowMutations = []struct {
 	{"missing coverage verify", "python3 scripts/lib/live_postgres_readiness_shards.py verify", "true"},
 	{"missing shard download", "actions/download-artifact@v4", "actions/download-artifact@v3"},
 	{"missing shard upload", "          path: readiness-shard-report.json", "          path: readiness-shard-report.json.missing"},
-	{"debug upload without failure gate", "      - name: Upload failed-package event streams\n        if: ${{ failure() }}", "      - name: Upload failed-package event streams\n        if: ${{ always() }}"},
+	{"debug upload without non-cancelled gate", "      - name: Upload failed-package event streams\n        if: ${{ !cancelled() }}", "      - name: Upload failed-package event streams\n        if: ${{ always() }}"},
+	{"debug upload with stale failure gate", "      - name: Upload failed-package event streams\n        if: ${{ !cancelled() }}", "      - name: Upload failed-package event streams\n        if: ${{ failure() }}"},
 	{"debug upload wrong path", "path: .readiness-debug/", "path: .other-debug/"},
 	{"debug upload wrong name", "name: readiness-debug-${{ github.run_id }}", "name: readiness-shard-${{ github.run_id }}"},
 }

@@ -242,18 +242,25 @@ func checkReadinessSplit(workflow []byte, gate Gate, prPaths []string) string {
 	}
 	uploaded := false
 	for _, step := range shards.Steps {
-		if step.Uses != "actions/upload-artifact@v4" {
+		// Every shard-leg upload rides the retry wrapper (#10586): a bare
+		// upload-artifact step is a real regression, not an alternative.
+		if step.Uses == "actions/upload-artifact@v4" {
+			return "shard legs must route uploads through retry-upload-artifact"
+		}
+		if step.Uses != "./.github/actions/retry-upload-artifact" {
 			continue
 		}
-		// Failure-only death-point evidence uploads (#8662) ride alongside
-		// the report attestation without weakening it: the report step
-		// below still fails the leg when the report is absent. The
-		// carve-out names the exact diagnostic shape (path, name, gate)
-		// so a future failure-gated report attestation cannot silently
-		// escape the shape check.
+		// Death-point evidence uploads (#8662) ride alongside the report
+		// attestation without weakening it: the report step below still
+		// fails the leg when the report is absent. The carve-out names the
+		// exact diagnostic shape (path, name, gate) so a future
+		// failure-gated report attestation cannot silently escape the
+		// shape check. The bundle is gated on !cancelled() (#10586): a
+		// green run no-ops through if-no-files-found ignore, and a
+		// cancelled job never attempts upload.
 		if step.With["path"] == ".readiness-debug/" &&
 			strings.Contains(step.With["name"], "readiness-debug-") &&
-			strings.Contains(step.If, "failure()") {
+			strings.Contains(step.If, "!cancelled()") {
 			continue
 		}
 		if step.With["path"] != "readiness-shard-report.json" ||

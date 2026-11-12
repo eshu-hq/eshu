@@ -200,15 +200,17 @@ jobs:
       - name: Require non-empty capture before upload
         run: bash scripts/lib/stage-differential-capture.sh check-leg "${{ runner.temp }}/diff-capture/pair${{ matrix.pair }}/${{ matrix.graph_backend }}"
 
+      # D2: retry wrapper hardens the upload against the transient
+      # artifact-service HTML-response flake; see retry-upload-artifact.
       - name: Upload capture recording
-        uses: actions/upload-artifact@v4
+        uses: ./.github/actions/retry-upload-artifact
         with:
           name: differential-capture-${{ github.run_id }}-pair${{ matrix.pair }}-${{ matrix.graph_backend }}
           path: ${{ runner.temp }}/diff-capture/pair${{ matrix.pair }}/${{ matrix.graph_backend }}/
           if-no-files-found: error
           # run_id is stable across attempts: a full re-run re-uploads the
           # same names, and v4 409s without overwrite (#9702).
-          overwrite: true
+          overwrite: 'true'
 
       - name: Dump service logs on failure
         if: ${{ failure() }}
@@ -308,12 +310,17 @@ jobs:
             echo "The \`differential-capture\` artifacts hold the recordings."
           } >> "$GITHUB_STEP_SUMMARY"
 
+      # D2: the ONE debug bundle for this workflow, hardened by the retry
+      # wrapper. The failure scope stays: a plain !cancelled() would
+      # re-upload the staged capture on every green run, duplicating the
+      # per-leg artifacts, so the gate keeps its failure condition behind a
+      # non-cancelled guard (a cancelled job never attempts upload).
       - name: Upload capture recordings on failure
-        if: ${{ failure() || steps.compare.outcome == 'failure' }}
-        uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() && (failure() || steps.compare.outcome == 'failure') }}
+        uses: ./.github/actions/retry-upload-artifact
         with:
           name: differential-joined-capture-${{ github.run_id }}
           path: ${{ runner.temp }}/diff-capture
           if-no-files-found: warn
           # Same stable-name reasoning as the per-leg upload above (#9702).
-          overwrite: true
+          overwrite: 'true'
