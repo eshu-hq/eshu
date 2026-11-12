@@ -243,7 +243,8 @@ EXPLAIN output for both spellings before the edit.
 
 No-Regression Evidence: paired `TestClaimBatchGatePrecomputeStaleHeavyExplain`
 -count=3 per side on the same disposable postgres:18-alpine fixture
-(1,200 stale rows, no manual ANALYZE): full claim before 124.601 /
+(1,200 stale rows, no manual ANALYZE; before side at branch head
+950cac8812, after side with this fix): full claim before 124.601 /
 124.574 / 124.165 ms (lock tail +4.2–4.7 ms over candidate), after
 124.231 / 124.469 / 124.501 ms (tail +4.4–4.5 ms) — overlapping ranges,
 within noise; SubPlan parity held (full 15 == candidate 15, base
