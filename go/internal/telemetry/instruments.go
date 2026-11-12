@@ -2770,6 +2770,13 @@ type Instruments struct {
 	BatchClaimRepresentatives metric.Int64Histogram
 	BatchClaimDrops           metric.Int64Counter
 
+	// ReservedSlotClaims counts #10581 reserved search-doc slot outcomes
+	// per batch claim, by closed outcome (reserved_used, fallback). One
+	// count per non-empty batch: the reserved slot engages at most once
+	// per claim (k = 1), so the series shows the mechanism engaging
+	// without a per-row label.
+	ReservedSlotClaims metric.Int64Counter
+
 	// Neo4j batch write metrics
 	Neo4jBatchSize        metric.Float64Histogram
 	Neo4jBatchesExecuted  metric.Int64Counter
@@ -7364,6 +7371,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	if err != nil {
 		return nil, fmt.Errorf("register BatchClaimDrops counter: %w", err)
 	}
+	inst.ReservedSlotClaims, err = meter.Int64Counter(
+		"eshu_dp_reducer_batch_claim_reserved_slot_total",
+		metric.WithDescription("Reducer batch-claim reserved search-doc slot outcomes per claim, by closed outcome "+
+			"(reserved_used, fallback) (#10581). No repository label"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register ReservedSlotClaims counter: %w", err)
+	}
 
 	neo4jBatchBuckets := []float64{1, 10, 50, 100, 250, 500, 1000}
 	inst.Neo4jBatchSize, err = meter.Float64Histogram(
@@ -9041,6 +9056,31 @@ const (
 	// time (EvalPlanQual recheck or SKIP LOCKED race).
 	BatchClaimDropLockLost = "lock_lost"
 )
+
+// Closed outcome values of eshu_dp_reducer_batch_claim_reserved_slot_total
+// (#10581). A non-empty batch claim lands under exactly one outcome: the
+// reserved search-doc slot engaged (the batch admitted at least one
+// eshu_search_document row) or it fell back (the batch admitted none —
+// either no search-doc row was ready or the queue held none). Empty batches
+// record nothing.
+const (
+	// ReservedSlotOutcomeUsed is a batch that admitted at least one
+	// eshu_search_document row through the #10568 reserved slot.
+	ReservedSlotOutcomeUsed = "reserved_used"
+	// ReservedSlotOutcomeFallback is a non-empty batch that admitted no
+	// eshu_search_document row: the reserved slot fell back to the rest
+	// arm (no ready search-doc row or none in the queue).
+	ReservedSlotOutcomeFallback = "fallback"
+)
+
+// ReservedSlotClaimOutcomes returns a copy of the closed reserved-slot
+// outcome set.
+func ReservedSlotClaimOutcomes() []string {
+	return []string{
+		ReservedSlotOutcomeUsed,
+		ReservedSlotOutcomeFallback,
+	}
+}
 
 // BatchClaimDropReasons returns a copy of the closed batch-claim drop reason
 // set, in fence order.

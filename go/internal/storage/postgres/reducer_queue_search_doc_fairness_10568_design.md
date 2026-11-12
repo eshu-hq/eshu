@@ -80,16 +80,20 @@ advisory pressure.
 
 ## Observability for the new path
 
-This section is NOT implemented by this change. It records the telemetry a
-follow-up should add; the implemented change ships no new instrument.
+Implemented by #10581 (this lane's sibling; this note's mechanism ships the
+slot, #10581 ships the split). The deferred per-claim split is now explicit:
 
-- Wanted (not shipped): per-claim telemetry from #10565 (candidates in,
-  representatives after fence, drops by reason) gaining the reserved-slot
-  split — search-doc slots used vs fallback-to-advisory counts per batch,
-  so an operator can see the mechanism engaging and confirm fallback when
-  the search-doc backlog is empty. Deferred to #10581, category "genuine
-  missing coverage" (see the GREEN evidence note below).
-- What an operator can already read: `ReducerExecutions` and
+- Shipped by #10581: `eshu_dp_reducer_batch_claim_reserved_slot_total`, an
+  `Int64Counter` recorded once per non-empty batch claim by closed
+  `outcome` (`reserved_used` when the batch admits at least one
+  `eshu_search_document` row, `fallback` when it admits none; empty
+  batches record nothing). Emission lives in
+  `emitReservedSlotClaim` (`reducer_queue_batch.go`), which reads only the
+  admitted intents — the claim statement is untouched. Bounded
+  cardinality by construction: one instrument, one label, two values, one
+  count per batch. No domain label was invented on the claim
+  duration/batch-size instruments.
+- What an operator could already read (unchanged): `ReducerExecutions` and
   `ReducerQueueWaitDuration` are recorded per domain
   (`recordReducerResult`), so search-doc executions resuming and its queue
   wait draining show the mechanism's effect per domain. The queue-observer
@@ -97,9 +101,12 @@ follow-up should add; the implemented change ships no new instrument.
   they cannot isolate search-doc age; `QueueClaimDuration` and
   `BatchClaimSize` likewise carry no domain label, so neither can show a
   per-domain drain rate.
-- The deferred slot split must not invent domain labels on the claim
-  duration/batch-size instruments without a cardinality decision; #10581
-  owns that choice.
+- Combined read: the reserved-slot counter shows the mechanism engaging
+  per batch (`reserved_used` vs `fallback`), while the per-domain
+  execution/queue-wait signals show the outcome effect (search-doc
+  executions resuming, queue wait draining). Proof that both move with the
+  mechanism is in #10581 (hermetic on/off/fallback/empty-batch contract
+  tests plus the live on/off fixture proof).
 
 ## Cleanup disposition: 39 orphaned `building` projection-state rows (#10567)
 
@@ -257,3 +264,19 @@ No-Observability-Change: the spelling restore adds no instrument,
 label, span, log, worker, lease, or batch knob; claim admission and
 ordering are unchanged, so the per-domain signals named above remain
 the acceptance read.
+
+Observability Evidence (#10581, implemented 2026-11-12 on this lane):
+`eshu_dp_reducer_batch_claim_reserved_slot_total` by closed `outcome`
+(`reserved_used`, `fallback`) is registered in
+`go/internal/telemetry/instruments.go`, recorded once per non-empty batch
+in `emitReservedSlotClaim` (`reducer_queue_batch.go`), and covered by a
+telemetry-coverage registry row. Hermetic contract tests prove each
+outcome and the empty-batch skip
+(`TestClaimBatchEmitsReservedUsedWhenSearchDocClaimed`,
+`TestClaimBatchEmitsFallbackWhenNoSearchDocClaimed`,
+`TestClaimBatchSkipsReservedSlotOnEmptyBatch`); the live fixture proof
+(`TestClaimBatchReservedSlotMovesLive`, postgres:18-alpine, 40-row
+advisory backlog + 4 older search-doc rows, batch 4) records
+`reserved_used` x4 while a search-doc row is ready and `fallback` on the
+post-drain batches. The claim statement is untouched, so the S2
+lock-tail and EvalPlanQual evidence above stands unchanged.
