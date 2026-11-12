@@ -12,7 +12,7 @@ name: Required Gates
 on:
   workflow_dispatch:
   schedule:
-    - cron: "17 */6 *"
+    - cron: "17 */6 * * *"
 
 concurrency:
   # Single-flight the audit; schedule ticks are 6h apart and dispatch is

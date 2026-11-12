@@ -27,7 +27,6 @@ filesystems; a real read of a correctly spelled docs-set path remains guarded.
 | `globtrigger.go` | `trackedPaths` + `checkGlobTriggerResolves`, called from `Validate` — a glob trigger must select at least one tracked path, or it can never select its gate ([#6159](https://github.com/eshu-hq/eshu/issues/6159)) |
 | `drift.go` | `DriftCheck` — `.pre-commit-config.yaml` / `.github/workflows` lockstep ([#4220](https://github.com/eshu-hq/eshu/issues/4220)), plus `ci.job` check-name resolution ([#5010](https://github.com/eshu-hq/eshu/issues/5010)) |
 | `requiredworkflow.go` | trusted required-status publisher validation: trigger, source workflow, permissions, checkout, and status command |
-| `required_workflow_postmerge_test.go` | executes the publisher shell steps against recorded PR API responses and status writes, including late merged PRs |
 | `requiredworkflow_concurrency.go` | serialized per-head publisher concurrency contract |
 | `requiredworkflow_triggers.go` | trusted workflow trigger and source-workflow validation |
 | `scriptworkflow.go` | `checkVerifyScriptWorkflowMatch`, called from `DriftCheck` — a gate whose `verify-*.sh` is executed by exactly one workflow must declare that workflow ([#5748](https://github.com/eshu-hq/eshu/issues/5748)) |

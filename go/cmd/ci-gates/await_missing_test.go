@@ -123,7 +123,7 @@ func TestAwaitMissingCheckFromACancelledRunReportsCancelled(t *testing.T) {
 	}
 }
 
-// TestAwaitMissingCheckFromACancelledRunResolvesOnTheFirstPoll// TestAwaitMissingCheckFromACancelledRunResolvesOnTheFirstPoll is the
+// TestAwaitMissingCheckFromACancelledRunResolvesOnTheFirstPoll is the
 // termination proof, and it is why the answer is a verdict rather than a
 // longer wait. The re-await design was rejected earlier in this PR precisely
 // because polling a terminal state cannot terminate: the check run does not
