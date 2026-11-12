@@ -198,6 +198,53 @@ func TestClaimBatchFunnelQueryReusesShippedChain(t *testing.T) {
 	}
 }
 
+// TestClaimBatchFunnelQueryIsReadOnly is the F1 hermetic guard for #10565:
+// the funnel census must replay the sweep membership without executing it.
+// A data-modifying CTE runs on every claim even when nothing reads it, so
+// any data-modifying statement in this text reintroduces the second sweep
+// lock pass F1 removes. The final assertion keeps the guard non-vacuous:
+// the shipped claim still carries its sweep UPDATE, so a guard that cannot
+// see one proves nothing.
+func TestClaimBatchFunnelQueryIsReadOnly(t *testing.T) {
+	t.Parallel()
+
+	// Statement shapes, not bare words: the shared sweep sources carry
+	// comments that name the claim's UPDATE (e.g. "the UPDATE probes it"),
+	// and comments never execute. A reintroduced sweep would reappear as
+	// a statement with a target and lock clause, which no comment matches.
+	for _, banned := range []string{
+		"UPDATE fact_work_items",
+		"DELETE FROM",
+		"INSERT INTO",
+		"FOR NO KEY UPDATE",
+		"FOR UPDATE OF",
+		"SKIP LOCKED",
+	} {
+		if strings.Contains(reducerClaimBatchFunnelQuery, banned) {
+			t.Fatalf("funnel counts query contains data-modifying %q: it must stay a pure SELECT census", banned)
+		}
+	}
+	for _, want := range []string{
+		"superseded_stale_reducer_locked AS (",
+		"superseded_crossplane_newest_carrier AS MATERIALIZED (",
+		"superseded_stale_reducer_generations AS (",
+		supersedeInactiveReducerLockedColumnsSQL,
+		supersedeInactiveReducerCarrierArmSQL,
+		supersededCrossplaneNewestCarrierCTE,
+		supersedeInactiveReducerUpdateRowFiltersSQL,
+	} {
+		if !strings.Contains(reducerClaimBatchFunnelQuery, want) {
+			t.Fatalf("funnel counts query missing read-only sweep piece %q: the exclusion set must derive from the shared sweep sources", want)
+		}
+	}
+	if strings.Contains(reducerClaimBatchFunnelQuery, "UPDATE fact_work_items AS stale") {
+		t.Fatal("funnel counts query contains the sweep UPDATE: it must use the read-only generations SELECT")
+	}
+	if !strings.Contains(claimReducerWorkBatchQuery, "UPDATE fact_work_items AS stale") {
+		t.Fatal("shipped claim lost its sweep UPDATE: the read-only guard above is vacuous without a mutating reference")
+	}
+}
+
 // TestClaimBatchFunnelSkippedWithoutInstruments pins the nil contract: a
 // queue without instruments issues no funnel query, so ClaimBatch keeps
 // working on wiring that never observes it.
