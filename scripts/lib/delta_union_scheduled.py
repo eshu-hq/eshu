@@ -10,7 +10,7 @@ import sys
 from reducer_contention_events import canonical_keys, verify_events, without_cgo_env
 
 WORKFLOW = Path(".github/workflows/delta-union-scheduled.yml")
-WORKFLOW_SHA256 = "039add02cad8539b7fbd349634fd26e93f888559f9cf7b8bc32c03c1ffdf87e8"
+WORKFLOW_SHA256 = "ff73b88e82532c3a236d98366306eb7056c7b1d7de2b648388b6db2fb70fa453"
 SOURCE = Path("go/cmd/projector/delta_union_live_test.go")
 PACKAGE = "github.com/eshu-hq/eshu/go/cmd/projector"
 TESTS = (
@@ -159,6 +159,10 @@ def verify(root: Path, workflow: str | None = None) -> None:
             f"          go test ./cmd/projector -run '{SELECTOR}' -json -race -count=1 -p 4 -timeout 12m | tee \"${{RUNNER_TEMP}}/delta-union.jsonl\"\n"
             '          python3 ../scripts/lib/delta_union_scheduled.py --events "${RUNNER_TEMP}/delta-union.jsonl"\n'
             '          printf \'proof_wall_seconds=%s\\n\' "$((SECONDS-started))" >> "${RUNNER_TEMP}/delta-union-meta.txt"\n'
+            "      # D2: retry wrapper hardens the upload against the transient\n"
+            "      # artifact-service HTML-response flake; see retry-upload-artifact.\n"
+            "      # The events are a terminal proof artifact with no in-repo\n"
+            "      # downstream consumer, so no always()/fallback step applies here.\n"
         ),
     }
     for name, expected in expected_runs.items():
