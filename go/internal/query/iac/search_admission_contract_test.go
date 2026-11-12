@@ -104,6 +104,34 @@ func TestIaCInventorySearchAdmissionWitnessComposesPostgresStore(t *testing.T) {
 
 // TestIaCInventorySearchAdmissionWitnessRejectsUnknownKind proves unknown
 // kinds never reach the store: the seam rejects them first.
+// TestIaCInventorySearchMapsAllFields pins the exported-to-internal field
+// mapping: every field of IaCInventorySearch must land on the same InventorySearch
+// field (a Type/Provider swap must fail here, not pass silently).
+func TestIaCInventorySearchMapsAllFields(t *testing.T) {
+	t.Parallel()
+
+	in := IaCInventorySearch{
+		Kind:       IaCInventorySearchKindModule,
+		Query:      "q-logging",
+		Type:       "t-aws_s3_bucket",
+		Provider:   "p-aws",
+		Module:     "m-vpc",
+		Repository: "r-infra",
+		AfterName:  "n-tail",
+		AfterID:    "i-9",
+		Limit:      41,
+	}
+	got, ok := in.toInventorySearch()
+	if !ok {
+		t.Fatalf("toInventorySearch rejected a closed-set kind")
+	}
+	if got.Kind != resourceKindModule || got.Query != "q-logging" || got.Type != "t-aws_s3_bucket" ||
+		got.Provider != "p-aws" || got.Module != "m-vpc" || got.Repository != "r-infra" ||
+		got.AfterName != "n-tail" || got.AfterID != "i-9" || got.Limit != 41 {
+		t.Fatalf("toInventorySearch = %#v, want field-for-field mapping of %#v", got, in)
+	}
+}
+
 func TestIaCInventorySearchAdmissionWitnessRejectsUnknownKind(t *testing.T) {
 	t.Parallel()
 
