@@ -64,8 +64,10 @@ performance claim in the PR body stays net-of-funnel `NOT_CHECKED` until the
 QA-lane sustained window (issue boxes 7-8) measures it. Since F1 the funnel
 replays the candidate chain with a read-only sweep derivation instead of the
 claim's mutating sweep, so the shipped per-claim total is claim-chain plus
-funnel-chain replay — the service-side `QueueClaimDuration` now includes the
-funnel statement, which boxes 7-8 must know.
+funnel-chain replay — when the funnel is enabled, the service-side
+`QueueClaimDuration` includes the funnel statement, which boxes 7-8 must
+know. With the default-off gate the funnel never runs and the duration is
+unchanged.
 
 Observability Evidence: `eshu_dp_reducer_batch_claim_candidates`,
 `eshu_dp_reducer_batch_claim_representatives`, and

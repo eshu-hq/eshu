@@ -118,6 +118,10 @@ func TestClaimBatchFunnelReconcilesLive(t *testing.T) {
 				ExpectedSourceLocalProjectors:    2,
 				SemanticEntityClaimLimit:         3,
 				Instruments:                      instruments,
+				// The funnel ships default-off (#10565 ACCEPT-(b)); the proof
+				// must opt in explicitly or capture returns early and the
+				// histograms stay empty.
+				FunnelTelemetryEnabled: true,
 			}
 			intents, err := queue.ClaimBatch(ctx, tc.limit)
 			if err != nil {
