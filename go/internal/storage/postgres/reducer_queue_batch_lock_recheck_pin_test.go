@@ -30,6 +30,7 @@ func TestClaimBatchLockRecheckPredicatesPinnedByCount(t *testing.T) {
 		"JOIN LATERAL (",
 		"FOR UPDATE OF lock_target SKIP LOCKED",
 		"WHERE lock_target.stage = 'reducer'",
+		"AND lock_target.work_item_id = ordered_candidate.work_item_id",
 		"AND lock_target.status IN ('pending', 'retrying', 'claimed', 'running')",
 		"AND (lock_target.claim_until IS NULL OR lock_target.claim_until <= $1)",
 		"AND (lock_target.visible_at IS NULL OR lock_target.visible_at <= $1 OR (lock_target.status = 'pending' AND lock_target.visible_at <= clock_timestamp()))",

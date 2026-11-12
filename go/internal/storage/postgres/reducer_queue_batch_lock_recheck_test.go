@@ -78,13 +78,17 @@ FOR UPDATE OF lock_target`, table)
 	fixedLock := fmt.Sprintf(`
 WITH candidate AS (SELECT 'r1'::text AS work_item_id)
 SELECT lock_target.work_item_id
-FROM %s AS lock_target
-JOIN candidate ON candidate.work_item_id = lock_target.work_item_id
-WHERE lock_target.stage = 'reducer'
-  AND lock_target.status IN ('pending', 'retrying', 'claimed', 'running')
-  AND (lock_target.claim_until IS NULL OR lock_target.claim_until <= now())
-  AND (lock_target.visible_at IS NULL OR lock_target.visible_at <= now())
-FOR UPDATE OF lock_target`, table)
+FROM (SELECT candidate.* FROM candidate OFFSET 0) AS ordered_candidate
+JOIN LATERAL (
+  SELECT lock_target.work_item_id
+  FROM %s AS lock_target
+  WHERE lock_target.stage = 'reducer'
+    AND lock_target.work_item_id = ordered_candidate.work_item_id
+    AND lock_target.status IN ('pending', 'retrying', 'claimed', 'running')
+    AND (lock_target.claim_until IS NULL OR lock_target.claim_until <= now())
+    AND (lock_target.visible_at IS NULL OR lock_target.visible_at <= now() OR (lock_target.status = 'pending' AND lock_target.visible_at <= clock_timestamp()))
+  FOR UPDATE OF lock_target
+) AS lock_target ON true`, table)
 
 	if locked := runLockRecheckCase(t, ctx, db, table, buggyLock); !equalStrings(locked, []string{"r1"}) {
 		t.Fatalf("id-join-only lock did not reproduce the lease-theft window: locked=%v, want [r1]", locked)

@@ -163,13 +163,15 @@ the advisory drain rate, and the lock tail adds no per-row gates.
   shape, as does the #3624 rank-once 0/0 differential.
 - Plan shape (paired, identical fixture, no manual ANALYZE anywhere):
   `TestClaimBatchGatePrecomputeStaleHeavyExplain` -count=3 per side on
-  postgres:18-alpine, candidate SELECT steady at 123.1-123.7 ms on every
-  side. Full claim: base (origin/main archive) 124.832 / 125.003 /
-  124.988 ms (lock tail ~1.3 ms over candidate); first split-arm shape
+  postgres:18-alpine, candidate SELECT steady at 119.96-120.83 ms on
+  both sides. Full claim: base (origin/main archive) 122.405 / 122.490 /
+  122.650 ms (lock tail ~1.9 ms over candidate); first split-arm shape
   161.189 / 160.889 / 161.208 ms (tail ~37.5 ms — two references forced
   candidate materialization and stale statistics flipped both arms to an
   outer scan over all 1,350 lock_target rows); implemented LATERAL shape
-  121.973 / 121.831 / 122.503 ms (tail within noise of base). Full-claim
+  124.782-125.379 ms across two runs (tail ~4.8 ms: a consistent
+  +2.3-2.9 ms over base at ~0.2 ms within-side spread — the bounded
+  second-arm cost, far under the 10% stop threshold). Full-claim
   SubPlans (15) == candidate SubPlans (15) with 0 in the base section on
   the implemented shape — the `LIMIT ($8 - ...)` scalar subquery plans as
   an InitPlan and the LEFT JOIN anti-join adds no per-row SubPlan; the
@@ -188,9 +190,10 @@ the advisory drain rate, and the lock tail adds no per-row gates.
 - Why safe: both arms carry the identical `lock_target` EvalPlanQual
   row-self recheck, pinned by exact count (each predicate exactly twice,
   `TestClaimBatchLockRecheckPredicatesPinnedByCount`; mutation-checked)
-  and proven live through the LATERAL lock by
-  `TestClaimBatchLockRecheckDropsConcurrentlyClaimedRow` (lease
-  theft/duplicate work dropped); SKIP LOCKED never blocks, so the second
+  and proven live through the shipped LATERAL lock shape by the
+  lateral-shape case of `TestClaimBatchLockRecheckDropsConcurrentlyClaimedRow`
+  (id-join-only still steals; lease theft/duplicate work dropped); SKIP
+  LOCKED never blocks, so the second
   locking arm adds no deadlock edge; conflict domains stay disjoint
   (scope vs advisory_group); the funnel census composes the untouched
   candidate chain, so admission accounting is unchanged.
