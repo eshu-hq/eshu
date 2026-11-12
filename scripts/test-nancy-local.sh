@@ -201,4 +201,14 @@ run_case "go-list-failure-blocks-distinctly" \
 	"should not run" 0 \
 	1 "'go list -json -deps ./...' failed"
 
-printf 'PASS: nancy-local.sh distinguishes empty-stdin, 401 skip, non-401 transport failure, clean scan, real finding, and go-list failure\n'
+# --- Case 7 (F-C, PR #10561): a genuine finding that merely mentions the
+# string "401 Unauthorized" (no `Error:` first line) must BLOCK, never skip.
+# The skip requires the transport-error shape first.
+run_case "genuine-finding-mentioning-401-blocks" \
+	'{"ImportPath":"example.com/foo"}' "" 0 \
+	"pkg:golang/example.com/bad@v1.0.0
+  CVE-2024-00000  Advisory text mentions 401 Unauthorized as an example code
+Vulnerable Dependencies: 1" 3 \
+	1 "vulnerable dependencies found"
+
+printf 'PASS: nancy-local.sh distinguishes empty-stdin, 401 skip, non-401 transport failure, clean scan, real finding, 401-mentioning finding, and go-list failure\n'
