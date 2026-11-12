@@ -21,7 +21,7 @@ After (window-6 prefix): per-generation own-facts 5984 / 5716 / 4844 /
 1157 / 5086 / 1148, cumulative 23935; rank 7 own = 163304 blows past the
 100000 cap, so the window stops at 6. Window-6 count 883.552ms warm plus
 selected-only recount 1152.971ms warm = 2036.6ms exec (walls
-893.8 + 1360.5 = 2254.5ms). That is ~6x under the ~<=6s bar and ~5x
+893.8 + 1360.5 = 2254.3ms). That is 2.95x under the ~<=6s bar and 14.98x
 under the 30.5s planning budget.
 
 Selected rows 28075 of 1360890. Generation-owned arms 204/204 exact vs
