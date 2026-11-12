@@ -116,6 +116,14 @@ func TestRecoveryStoreReplayFailedWorkItemsBoundedDrainPlacesPredicateAfterLimit
 	if !strings.Contains(query, "LIMIT $2") {
 		t.Fatalf("bounded drain query missing LIMIT $2:\n%s", query)
 	}
+	// #10573: the bounded selection must evaluate exactly once independent of
+	// plan shape. A plain IN-subquery lets the planner pull the LIMITed
+	// locking subquery into an unmaterialized nested-loop semi join that
+	// re-executes per outer row, so the MATERIALIZED candidates CTE is part
+	// of the contract.
+	if !strings.Contains(query, "candidates AS MATERIALIZED") {
+		t.Fatalf("bounded drain query must select through a MATERIALIZED candidates CTE (#10573):\n%s", query)
+	}
 	if !strings.Contains(query, "FOR UPDATE SKIP LOCKED") {
 		t.Fatalf("bounded drain query missing FOR UPDATE SKIP LOCKED (concurrent drains would fight):\n%s", query)
 	}

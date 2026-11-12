@@ -437,10 +437,9 @@ ORDER BY replayed.work_item_id
 
 // replayFailedWorkItemsBoundedTemplate is the limited replay variant for the
 // dead-letter backlog drain (#3560, #3652 P3). It mutates at most $2 terminal
-// rows by selecting their primary keys in a bounded subquery first, so a
-// Limit=100 drain against thousands of retry_exhausted rows replays exactly 100
-// rows instead of resetting every matching row to pending and recreating the
-// write surge the drain exists to avoid.
+// rows through a bounded candidates CTE, so a Limit=100 drain against
+// thousands of retry_exhausted rows replays exactly 100 instead of resetting
+// every matching row to pending and recreating the write surge the drain avoids.
 //
 // FOR UPDATE SKIP LOCKED locks only the chosen rows and skips rows another
 // concurrent drain already holds, so two drains never fight over the same rows
@@ -448,13 +447,27 @@ ORDER BY replayed.work_item_id
 // serialization point. ORDER BY work_item_id makes the selected set
 // deterministic across calls so repeated bounded drains make forward progress.
 //
-// The first %s is the shared replay predicate and the second is the skipped
-// CTE body, exactly as in replayFailedWorkItemsTemplate. $1 is the replay
-// timestamp, which also stamps reopened_at as in the unbounded replay; $2 is
-// the row limit; the predicate placeholders start at $3.
+// Candidates is MATERIALIZED so the bounded selection evaluates EXACTLY ONCE
+// independent of plan shape (#10573): a plain IN-subquery lets the planner
+// re-execute the LIMITed locking SELECT per outer row, each pass seeing the
+// command's own prior updates (Limit loops=3; a Limit:1 drain replayed 2 rows).
+// One evaluation (loops=1) keeps the ORDER BY and SKIP LOCKED semantics; the
+// outer UPDATE rechecks terminal status and probes candidates by primary key,
+// mirroring the unbounded template.
+//
+// The first %s is the shared replay predicate, the second the skipped CTE body
+// (exactly as in replayFailedWorkItemsTemplate). $1 is the replay timestamp
+// (also the reopened_at stamp); $2 is the row limit; placeholders start at $3.
 const replayFailedWorkItemsBoundedTemplate = `
 WITH skipped AS (
     %[2]s
+), candidates AS MATERIALIZED (
+    SELECT work_item_id FROM fact_work_items
+    WHERE status IN ('dead_letter', 'failed')
+      %[1]s
+    ORDER BY work_item_id
+    LIMIT $2
+    FOR UPDATE SKIP LOCKED
 ), replayed AS (
     UPDATE fact_work_items
     SET status = 'pending',
@@ -476,14 +489,8 @@ WITH skipped AS (
         failure_details = NULL,
         updated_at = $1,
         reopened_at = $1
-    WHERE work_item_id IN (
-        SELECT work_item_id FROM fact_work_items
-        WHERE status IN ('dead_letter', 'failed')
-          %[1]s
-        ORDER BY work_item_id
-        LIMIT $2
-        FOR UPDATE SKIP LOCKED
-    )
+    WHERE work_item_id = ANY(ARRAY(SELECT work_item_id FROM candidates))
+      AND status IN ('dead_letter', 'failed')
     RETURNING work_item_id
 )
 SELECT replayed.work_item_id, skipped.n

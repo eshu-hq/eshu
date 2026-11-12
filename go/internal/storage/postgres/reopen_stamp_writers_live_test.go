@@ -67,8 +67,17 @@ func TestTerminalReopenWritersStampReopenedAtLive(t *testing.T) {
 		f.row(t, reopenStampRow{id: "r-drain-a", scopeID: "s-drain", generationID: "g-drain", stage: "reducer", domain: "d-drain", status: "dead_letter"})
 		f.row(t, reopenStampRow{id: "r-drain-b", scopeID: "s-drain", generationID: "g-drain", stage: "reducer", domain: "d-drain", status: "dead_letter"})
 		store := NewRecoveryStore(SQLDB{DB: database})
-		if _, err := store.ReplayFailedWorkItems(ctx, recovery.ReplayFilter{Stage: recovery.StageReducer, ScopeIDs: []string{"s-drain"}, Limit: 1}, now); err != nil {
+		result, err := store.ReplayFailedWorkItems(ctx, recovery.ReplayFilter{Stage: recovery.StageReducer, ScopeIDs: []string{"s-drain"}, Limit: 1}, now)
+		if err != nil {
 			t.Fatalf("bounded ReplayFailedWorkItems() error = %v", err)
+		}
+		// #10573: two terminal rows are outstanding with Limit 1, so exactly
+		// one row replays (Replayed == Limit) and the other stays terminal.
+		if result.Replayed != 1 {
+			t.Fatalf("bounded ReplayFailedWorkItems() Replayed = %d, want 1 (Limit 1 over 2 rows)", result.Replayed)
+		}
+		if len(result.WorkItemIDs) != 1 || result.WorkItemIDs[0] != "r-drain-a" {
+			t.Fatalf("bounded ReplayFailedWorkItems() WorkItemIDs = %v, want [r-drain-a]", result.WorkItemIDs)
 		}
 		f.assertReopenedAt(t, "r-drain-a", now)
 		if got := f.state(t, "r-drain-b", now); got.status != "dead_letter" || got.reopenedAt.Valid {
