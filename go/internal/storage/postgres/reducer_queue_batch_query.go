@@ -86,10 +86,11 @@ reducer_domain_inflight AS MATERIALIZED (
       AND claim_until > $1
     GROUP BY domain
 ),
--- base: every shared gate (readiness, projector drain, semantic caps)
--- evaluated exactly once per candidate row. Every predicate mirrors the
--- outer WHERE clauses these gates used to duplicate at each correlated call
--- site (fair_peer, fair_same, source_head).
+` + reducerClaimBatchGatePrecomputeCTEs() + `,
+-- base: every shared gate (readiness, projector drain, semantic caps) read
+-- through JOINs from the precomputed gate CTEs above (#10565 step 1), which
+-- evaluate each gate once per claim. The per-row correlated SubPlans they
+-- replace used to re-run once per candidate row.
 base AS MATERIALIZED (
     SELECT
         fact_work_items.work_item_id,
@@ -103,64 +104,23 @@ base AS MATERIALIZED (
         COALESCE(NULLIF(BTRIM(fact_work_items.payload->>'source_system'), ''), 'unknown') AS reducer_source_system,
         CASE WHEN fact_work_items.domain = 'eshu_search_document' THEN 1 ELSE 0 END AS is_search_doc,
         CASE WHEN fact_work_items.status IN ('claimed', 'running') THEN 0 ELSE 1 END AS claimed_running_first,
-        ` + reducerClaimReadinessGateSQL("fact_work_items", "readiness_req", "readiness_phase") + ` AS readiness_ok,
-        ($5 = false OR NOT EXISTS (
-            SELECT 1
-            FROM fact_work_items AS projector_work
-            WHERE projector_work.stage = 'projector'
-              AND projector_work.scope_id = fact_work_items.scope_id
-              AND projector_work.status IN ('pending', 'retrying', 'claimed', 'running')
-        )) AS projector_ok,
-        (
-            ($5 = false OR fact_work_items.domain <> 'semantic_entity_materialization' OR NOT EXISTS (
-                SELECT 1
-                FROM fact_work_items AS projector_any
-                WHERE projector_any.stage = 'projector'
-                  AND projector_any.domain = 'source_local'
-                  AND projector_any.status IN ('pending', 'retrying', 'claimed', 'running')
-            ))
-            AND ($5 = false OR fact_work_items.domain <> 'semantic_entity_materialization' OR $6 <= 0 OR (
-                SELECT count(*)
-                FROM fact_work_items AS projector_done
-                WHERE projector_done.stage = 'projector'
-                  AND projector_done.domain = 'source_local'
-                  AND projector_done.status = 'succeeded'
-            ) >= $6)
-            AND ($5 = false OR fact_work_items.domain <> 'semantic_entity_materialization' OR $7 <= 0 OR (
-                SELECT count(*)
-                FROM fact_work_items AS semantic_inflight
-                WHERE semantic_inflight.stage = 'reducer'
-                  AND semantic_inflight.domain = 'semantic_entity_materialization'
-                  AND semantic_inflight.work_item_id <> fact_work_items.work_item_id
-                  AND semantic_inflight.status IN ('claimed', 'running')
-                  AND semantic_inflight.claim_until > $1
-            ) < $7)
-            AND ($5 = false OR fact_work_items.domain <> 'semantic_entity_materialization' OR $7 <= 0 OR (
-                SELECT count(*)
-                FROM fact_work_items AS semantic_next
-                WHERE semantic_next.stage = 'reducer'
-                  AND semantic_next.domain = 'semantic_entity_materialization'
-                  AND semantic_next.status IN ('pending', 'retrying', 'claimed', 'running')
-                  -- #6828: stamp-clock visibility, like the base candidate filter below.
-                  AND (semantic_next.visible_at IS NULL OR semantic_next.visible_at <= $1 OR (semantic_next.status = 'pending' AND semantic_next.visible_at <= clock_timestamp()))
-                  AND (semantic_next.claim_until IS NULL OR semantic_next.claim_until <= $1)
-                  AND (
-                      semantic_next.updated_at < fact_work_items.updated_at
-                      OR (
-                          semantic_next.updated_at = fact_work_items.updated_at
-                          AND semantic_next.work_item_id <= fact_work_items.work_item_id
-                      )
-                  )
-            ) <= $7 - (
-                SELECT count(*)
-                FROM fact_work_items AS semantic_inflight2
-                WHERE semantic_inflight2.stage = 'reducer'
-                  AND semantic_inflight2.domain = 'semantic_entity_materialization'
-                  AND semantic_inflight2.status IN ('claimed', 'running')
-                  AND semantic_inflight2.claim_until > $1
-            ))
-        ) AS semantic_ok
+        (readiness_missing.work_item_id IS NULL) AS readiness_ok,
+        ($5 = false OR projector_live_scopes.scope_id IS NULL) AS projector_ok,
+        CASE WHEN fact_work_items.domain <> 'semantic_entity_materialization' THEN true
+        ELSE (
+            ($5 = false OR NOT semantic_scalars.proj_any_live)
+            AND ($5 = false OR $6 <= 0 OR semantic_scalars.proj_done >= $6)
+            AND ($5 = false OR $7 <= 0 OR semantic_scalars.sem_inflight < $7)
+            AND ($5 = false OR $7 <= 0 OR COALESCE(semantic_ranked.sem_rank, 0) <= $7 - semantic_scalars.sem_inflight)
+        ) END AS semantic_ok
     FROM fact_work_items
+    CROSS JOIN semantic_scalars
+    LEFT JOIN projector_live_scopes
+      ON projector_live_scopes.scope_id = fact_work_items.scope_id
+    LEFT JOIN readiness_missing
+      ON readiness_missing.work_item_id = fact_work_items.work_item_id
+    LEFT JOIN semantic_ranked
+      ON semantic_ranked.work_item_id = fact_work_items.work_item_id
     WHERE stage = 'reducer'
       AND status IN ('pending', 'retrying', 'claimed', 'running')
       AND NOT EXISTS (

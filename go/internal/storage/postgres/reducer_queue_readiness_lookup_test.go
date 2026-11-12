@@ -29,13 +29,16 @@ func queryHasScopePrefixReadinessRequirement(query, domain, keyspace, phase, pre
 // queryHasPayloadReadinessLookup(query, "same", "same_readiness_req",
 // "same_readiness_phase") used to verify for the batch claim query's "same"
 // conflict-key representative — that the representative is readiness-gated —
-// re-expressed for the rank-once window rewrite (#3624 Track 2). Readiness
-// used to be re-evaluated by a second, independent
-// reducerClaimReadinessGateSQL("same", "same_readiness_req",
-// "same_readiness_phase") call inside the per-row "same" representative
-// picker subquery; the rewrite computes readiness exactly once per row as
-// base.readiness_ok (using the single reducerClaimReadinessGateSQL call this
-// helper also checks via queryHasPayloadReadinessLookup). The downstream
+// re-expressed for the rank-once window rewrite (#3624 Track 2) and the
+// precomputed-gate rewrite (#10565 step 1). Readiness used to be re-evaluated
+// by a second, independent reducerClaimReadinessGateSQL("same",
+// "same_readiness_req", "same_readiness_phase") call inside the per-row
+// "same" representative picker subquery; the rank-once rewrite computed
+// readiness exactly once per row as base.readiness_ok, and #10565 step 1
+// computes it exactly once per claim as the readiness_missing set (using the
+// single reducerClaimReadinessGateSQL-derived predicate this helper checks
+// via queryHasPayloadReadinessLookup, with the CTE's own work alias). Base
+// reads it as (readiness_missing.work_item_id IS NULL). The downstream
 // representative CTEs (reps_ranked, reps) derive from `FROM base WHERE
 // readiness_ok`, and the conflict-key representative is the reps.same_rn = 1
 // row — there is no separate `same` CTE (the rank-once rewrite removed it), so

@@ -194,9 +194,13 @@ func TestClaimBatchFencesSameConflictCandidates(t *testing.T) {
 		// #6828: the lock recheck matches the base filter's stamp-clock
 		// visibility; a Go-only recheck would reintroduce the skew flake.
 		"AND (lock_target.visible_at IS NULL OR lock_target.visible_at <= $1 OR (lock_target.status = 'pending' AND lock_target.visible_at <= clock_timestamp()))",
-		// #6828 (F4): the semantic-next gate uses the same stamp-clock
-		// visibility, or a skewed reopen would vanish from the batch.
-		"AND (semantic_next.visible_at IS NULL OR semantic_next.visible_at <= $1 OR (semantic_next.status = 'pending' AND semantic_next.visible_at <= clock_timestamp()))",
+		// #6828 (F4): the precomputed semantic_ranked CTE uses the same
+		// stamp-clock visibility as the base filter, or a skewed reopen
+		// would vanish from the batch (#10565 step 1 keeps the filter
+		// text identical, only evaluated once per claim).
+		"semantic_ranked AS MATERIALIZED (",
+		"row_number() OVER (ORDER BY updated_at ASC, work_item_id ASC) AS sem_rank",
+		"COALESCE(semantic_ranked.sem_rank, 0) <= $7 - semantic_scalars.sem_inflight",
 	} {
 		if !strings.Contains(query, want) {
 			t.Fatalf("batch claim query missing %q:\n%s", want, query)
@@ -300,11 +304,16 @@ func TestClaimBatchCanWaitForProjectorDrain(t *testing.T) {
 	}
 
 	query := db.queries[0].query
+	// #10565 step 1: the projector drain gate is precomputed once per
+	// claim as the projector_live_scopes set and read through a LEFT
+	// JOIN, instead of a per-row NOT EXISTS correlated subquery.
 	for _, want := range []string{
-		"$5 = false OR NOT EXISTS",
-		"projector_work.stage = 'projector'",
-		"projector_work.scope_id = fact_work_items.scope_id",
-		"projector_work.status IN ('pending', 'retrying', 'claimed', 'running')",
+		"projector_live_scopes AS MATERIALIZED (",
+		"($5 = false OR projector_live_scopes.scope_id IS NULL) AS projector_ok",
+		"SELECT DISTINCT scope_id",
+		"LEFT JOIN projector_live_scopes",
+		"projector_live_scopes.scope_id = fact_work_items.scope_id",
+		"AND status IN ('pending', 'retrying', 'claimed', 'running')",
 	} {
 		if !strings.Contains(query, want) {
 			t.Fatalf("batch claim query missing projector drain predicate %q:\n%s", want, query)
@@ -341,22 +350,21 @@ func TestClaimBatchGatesSemanticEntitiesOnGlobalProjectorDrain(t *testing.T) {
 	}
 
 	query := db.queries[0].query
+	// #10565 step 1: the semantic gates are precomputed once per claim as
+	// the semantic_scalars row and the semantic_ranked window, instead of
+	// per-row correlated count subqueries.
 	for _, want := range []string{
 		"domain <> 'semantic_entity_materialization'",
-		"projector_any.stage = 'projector'",
-		"projector_any.domain = 'source_local'",
-		"projector_any.status IN ('pending', 'retrying', 'claimed', 'running')",
-		"projector_done.domain = 'source_local'",
-		"projector_done.status = 'succeeded'",
-		">= $6",
-		"semantic_inflight.domain = 'semantic_entity_materialization'",
-		"semantic_inflight.status IN ('claimed', 'running')",
-		"semantic_inflight.claim_until > $1",
-		"< $7",
-		"semantic_next.domain = 'semantic_entity_materialization'",
-		"semantic_next.updated_at < fact_work_items.updated_at",
-		"semantic_next.work_item_id <= fact_work_items.work_item_id",
-		"<= $7 - (",
+		"semantic_scalars AS MATERIALIZED (",
+		"AS proj_any_live",
+		"($5 = false OR NOT semantic_scalars.proj_any_live)",
+		"AS proj_done",
+		"semantic_scalars.proj_done >= $6",
+		"AS sem_inflight",
+		"semantic_scalars.sem_inflight < $7",
+		"semantic_ranked AS MATERIALIZED (",
+		"row_number() OVER (ORDER BY updated_at ASC, work_item_id ASC) AS sem_rank",
+		"COALESCE(semantic_ranked.sem_rank, 0) <= $7 - semantic_scalars.sem_inflight",
 	} {
 		if !strings.Contains(query, want) {
 			t.Fatalf("batch claim query missing semantic global projector gate %q:\n%s", want, query)
@@ -459,10 +467,13 @@ func TestClaimBatchGatesAWSRelationshipsOnCanonicalCloudResourceReadiness(t *tes
 	) {
 		t.Fatalf("batch claim query missing AWS relationship readiness requirement:\n%s", query)
 	}
-	if !queryHasPayloadReadinessLookup(query, "fact_work_items", "readiness_req", "readiness_phase") {
+	// #10565 step 1: the readiness gate lives in the precomputed
+	// readiness_missing set (work alias "w"), read by base as
+	// (readiness_missing.work_item_id IS NULL).
+	if !queryHasPayloadReadinessLookup(query, "w", "readiness_req", "readiness_phase") {
 		t.Fatalf("batch claim query missing AWS relationship payload readiness lookup:\n%s", query)
 	}
-	if !queryHasRankOnceRepresentativeReadinessGate(query, "fact_work_items", "readiness_req", "readiness_phase") {
+	if !queryHasRankOnceRepresentativeReadinessGate(query, "w", "readiness_req", "readiness_phase") {
 		t.Fatalf("batch claim query missing AWS relationship representative readiness lookup:\n%s", query)
 	}
 }

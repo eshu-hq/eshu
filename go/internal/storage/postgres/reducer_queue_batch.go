@@ -62,6 +62,13 @@ func (q ReducerQueue) ClaimBatch(ctx context.Context, limit int) ([]reducercontr
 		}
 		return nil, fmt.Errorf("batch claim reducer work: %w", err)
 	}
+	// #10565 claim telemetry: every admitted batch lands on the shared
+	// batch-size histogram, so claim admission stays observable on the
+	// same boundaries the before/after comparison uses. Nil-safe: callers
+	// that do not wire instruments keep working.
+	if q.Instruments != nil && q.Instruments.BatchClaimSize != nil {
+		q.Instruments.BatchClaimSize.Record(ctx, int64(len(intents)))
+	}
 
 	return intents, nil
 }
