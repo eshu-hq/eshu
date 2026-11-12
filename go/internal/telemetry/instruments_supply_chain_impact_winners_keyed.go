@@ -177,7 +177,7 @@ func registerSupplyChainImpactWinnersKeyedInstruments(meter metric.Meter, inst *
 	}
 	if inst.SupplyChainImpactWinnersChunkedTicks, err = meter.Int64Counter(
 		"eshu_dp_supply_chain_impact_winners_chunked_ticks_total",
-		metric.WithDescription("Keyed supply-chain impact winners ticks that stopped at the chunk bound (distinct package triples or candidate rows per transaction) with dirty-log rows still queued, so committed their chunk without stamping the watermark. A rising counter with a falling dirty-log depth is a backlog draining in bounded ticks; a rising counter with a flat or climbing depth means arrivals outpace the bound."),
+		metric.WithDescription("Keyed supply-chain impact winners ticks that stopped at the identifier chunk bound (post-expansion identifiers per transaction) with dirty-log rows still queued, so committed their chunk without stamping the watermark. A rising counter with a falling dirty-log depth is a backlog draining in bounded ticks; a rising counter with a flat or climbing depth means arrivals outpace the bound."),
 	); err != nil {
 		return fmt.Errorf("register SupplyChainImpactWinnersChunkedTicks counter: %w", err)
 	}

@@ -11,9 +11,8 @@ import (
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 )
 
-// Chunked-consume proofs for #9805 CODE-NEEDED-1 (arbiter ruling, #9975 shim):
-// one keyed transaction must bound the distinct (package_id, repository_id,
-// subject_digest) triples it probes and the candidate fact rows it fetches, a
+// Chunked-consume proofs for #9805 (arbiter ruling: chunk-build-sufficient).
+// One keyed transaction bounds the post-expansion identifiers it probes: a
 // bounded pass must leave the rest of the dirty log queued and must not stamp
 // the watermark, and the drained table must equal a fresh full recompute.
 
@@ -76,23 +75,27 @@ func TestSupplyChainImpactWinnersKeyedChunkedConsumeLive(t *testing.T) {
 	}
 	before := chunkedWatermark(h)
 
-	// Rewrite every finding with a new priority: 12 triples go dirty at once,
-	// the QA shape (a backlog far past one bounded transaction).
+	// Rewrite every finding with a new priority: 12 triples of 2 keys go
+	// dirty at once (24 post-expansion identifiers), a backlog far past one
+	// bounded transaction.
 	h.write("vuln-intel://9805-chunked/s1", "vuln-intel://9805-chunked/s1/g1", chunkedFindings("chunk", 12, 2, 1000)...)
 	if depth := h.dirtyDepth(); depth == 0 {
 		t.Fatal("rewrite left the dirty log empty")
 	}
 
-	h.store.ChunkMaxTriples = 5
+	h.store.ChunkMaxIdentifiers = 10
 	first := chunkedTick(h)
 	if !first.Bounded {
-		t.Fatalf("first tick over 12 dirty triples with a 5-triple bound = %+v, want Bounded", first)
+		t.Fatalf("first tick over 24 dirty identifiers with a 10-identifier bound = %+v, want Bounded", first)
 	}
-	if first.Triples > 5 || first.Triples == 0 {
-		t.Errorf("first tick probed %d triples, want 1..5", first.Triples)
+	if first.ChunkIdentifiers != 10 {
+		t.Errorf("first tick probed %d identifiers, want exactly the 10-identifier chunk", first.ChunkIdentifiers)
+	}
+	if first.ChunkKeptRows < 10 {
+		t.Errorf("first tick kept %d facts for 10 identifiers, want at least one kept fact per identifier", first.ChunkKeptRows)
 	}
 	if first.Keys > 10 {
-		t.Errorf("first tick recomputed %d keys, want at most the 10 keys of 5 triples", first.Keys)
+		t.Errorf("first tick recomputed %d keys, want at most the keys of the 10-identifier chunk", first.Keys)
 	}
 	if depth := h.dirtyDepth(); depth == 0 {
 		t.Error("bounded tick drained the dirty log: the bound did not bound the transaction")
@@ -117,47 +120,44 @@ func TestSupplyChainImpactWinnersKeyedChunkedConsumeLive(t *testing.T) {
 	h.assertParity("chunked drain")
 }
 
-// TestSupplyChainImpactWinnersKeyedChunkedRowBudgetLive pins the candidate-row
-// side of the bound: a hot triple fetches its whole candidate set per dirty
-// key, so bounding triples alone cannot bound the heap fetches of a tick whose
-// triples are hot. A row budget below one hot triple still completes that
-// triple (progress) and stops before the next.
-func TestSupplyChainImpactWinnersKeyedChunkedRowBudgetLive(t *testing.T) {
-	h := newKeyedHarness(t, "#9805 chunked row-budget proof")
-	// Four hot triples, 20 keys each, in one scope: one triple's candidate
-	// fetch is its 20 findings.
+// TestSupplyChainImpactWinnersKeyedChunkedSingleIdentLive pins the progress
+// half of the identifier bound: a bound of one still completes that one
+// identifier per tick, so even an all-hot backlog drains instead of stalling.
+func TestSupplyChainImpactWinnersKeyedChunkedSingleIdentLive(t *testing.T) {
+	h := newKeyedHarness(t, "#9805 chunked single-identifier proof")
+	// Four triples, 5 keys each: 20 post-expansion identifiers in one scope.
 	h.seedScope("vuln-intel://9805-chunked/hot", "vuln-intel://9805-chunked/hot/g1")
-	h.write("vuln-intel://9805-chunked/hot", "vuln-intel://9805-chunked/hot/g1", chunkedFindings("hot", 4, 20, 0)...)
+	h.write("vuln-intel://9805-chunked/hot", "vuln-intel://9805-chunked/hot/g1", chunkedFindings("hot", 4, 5, 0)...)
 	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_log`)
 	if _, err := h.store.ResweepWinners(h.ctx, h.tick()); err != nil {
 		t.Fatalf("initial full resweep: %v", err)
 	}
 	before := chunkedWatermark(h)
-	h.write("vuln-intel://9805-chunked/hot", "vuln-intel://9805-chunked/hot/g1", chunkedFindings("hot", 4, 20, 1000)...)
+	h.write("vuln-intel://9805-chunked/hot", "vuln-intel://9805-chunked/hot/g1", chunkedFindings("hot", 4, 5, 1000)...)
 
-	h.store.ChunkMaxTriples = 100
-	h.store.ChunkMaxCandidateRows = 10
+	h.store.ChunkMaxIdentifiers = 1
 	first := chunkedTick(h)
 	if !first.Bounded {
-		t.Fatalf("row-budget tick = %+v, want Bounded", first)
+		t.Fatalf("single-identifier tick = %+v, want Bounded", first)
 	}
-	if first.Triples != 1 {
-		t.Errorf("row-budget tick probed %d triples, want exactly the one triple that crosses the budget", first.Triples)
-	}
-	if first.CandidateRows < 20 {
-		t.Errorf("row-budget tick fetched %d candidate rows, want the whole first hot triple (20)", first.CandidateRows)
+	if first.ChunkIdentifiers != 1 {
+		t.Errorf("single-identifier tick probed %d identifiers, want exactly the one the bound admits", first.ChunkIdentifiers)
 	}
 	if got := chunkedWatermark(h); !got.Equal(before) {
-		t.Errorf("row-budget tick stamped the watermark: before %v, after %v", before, got)
+		t.Errorf("single-identifier tick stamped the watermark: before %v, after %v", before, got)
 	}
-	chunkedDrain(h)
-	h.assertParity("row-budget drain")
+	ticks := chunkedDrain(h)
+	if len(ticks) == 0 {
+		t.Fatal("drain ran no further ticks after the single-identifier first tick")
+	}
+	h.assertParity("single-identifier drain")
 }
 
 // TestSupplyChainImpactWinnersKeyedChunkedScopeSplitLive pins the truncation
-// order a candidate cap alone misses: one scope dirty row expands to every
-// triple of a generation. A bounded tick must apply a prefix of that expansion
-// and keep the rest queued (as fact rows), never drop it with the scope row.
+// order a dirty-row cap alone misses: one scope dirty row expands to every
+// identifier of a generation. A bounded tick must apply a prefix of that
+// expansion and keep the rest queued (as fact rows), never drop it with the
+// scope row.
 func TestSupplyChainImpactWinnersKeyedChunkedScopeSplitLive(t *testing.T) {
 	h := newKeyedHarness(t, "#9805 chunked scope-split proof")
 	scope := "vuln-intel://9805-chunked/act"
@@ -177,13 +177,13 @@ func TestSupplyChainImpactWinnersKeyedChunkedScopeSplitLive(t *testing.T) {
 		t.Fatal("activation left the dirty log empty")
 	}
 
-	h.store.ChunkMaxTriples = 3
+	h.store.ChunkMaxIdentifiers = 3
 	first := chunkedTick(h)
 	if !first.Bounded {
 		t.Fatalf("scope-split tick = %+v, want Bounded", first)
 	}
-	if first.Triples > 3 {
-		t.Errorf("scope-split tick probed %d triples, want at most 3", first.Triples)
+	if first.ChunkIdentifiers > 3 {
+		t.Errorf("scope-split tick probed %d identifiers, want at most 3", first.ChunkIdentifiers)
 	}
 	if depth := h.dirtyDepth(); depth == 0 {
 		t.Error("bounded scope tick drained the log: the unapplied part of the scope expansion was lost")

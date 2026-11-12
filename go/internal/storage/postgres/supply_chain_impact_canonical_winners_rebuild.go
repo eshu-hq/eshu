@@ -160,15 +160,13 @@ type SupplyChainImpactWinnersStore struct {
 	// the same transaction. Zero means the defaults, 50,000 and 0.5.
 	MaxIdentifiers int
 	MaxKeyFraction float64
-	// ChunkMaxDirtyRows, ChunkMaxTriples and ChunkMaxCandidateRows bound one
-	// keyed transaction (#9805 chunked consume): the dirty-log rows admitted
-	// as candidates, the distinct (package_id, repository_id, subject_digest)
-	// triples probed, and the candidate fact rows those probes may fetch
-	// before the tick commits its chunk and leaves the rest queued. Zero
-	// means the defaults in supply_chain_impact_winners_keyed_chunk.go.
-	ChunkMaxDirtyRows     int
-	ChunkMaxTriples       int
-	ChunkMaxCandidateRows int
+	// ChunkMaxDirtyRows and ChunkMaxIdentifiers bound one keyed transaction
+	// (#9805 chunked consume): the dirty-log rows admitted as candidates and
+	// the post-expansion identifiers probed before the tick commits its chunk
+	// and leaves the rest queued. Zero means the defaults in
+	// supply_chain_impact_winners_keyed_chunk.go.
+	ChunkMaxDirtyRows   int
+	ChunkMaxIdentifiers int
 	// Instruments records the wall time of each phase of a keyed tick (#9975).
 	// Nil records nothing and changes no statement.
 	Instruments *telemetry.Instruments

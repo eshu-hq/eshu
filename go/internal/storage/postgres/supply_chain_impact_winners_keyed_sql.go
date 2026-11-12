@@ -15,14 +15,14 @@ import "strings"
 // Names of the transaction-scoped temp tables a keyed tick and an audit build.
 // Every one is created ON COMMIT DROP inside the transaction that uses it.
 const (
-	winnersKeyedConsumedTable     = "winners_keyed_consumed"
-	winnersKeyedIdentsTable       = "winners_keyed_idents"
-	winnersKeyedScopeIdentsTable  = "winners_keyed_scope_idents"
-	winnersKeyedChunkTriplesTable = "winners_keyed_chunk_triples"
-	winnersKeyedActiveFactsTable  = "winners_keyed_active_facts"
-	winnersAuditCandidatesTable   = "winners_audit_candidates"
-	winnersAuditStaleTable        = "winners_audit_stale"
-	winnersAuditPendingTable      = "winners_audit_pending"
+	winnersKeyedConsumedTable    = "winners_keyed_consumed"
+	winnersKeyedIdentsTable      = "winners_keyed_idents"
+	winnersKeyedScopeIdentsTable = "winners_keyed_scope_idents"
+	winnersKeyedChunkIdentsTable = "winners_keyed_chunk_idents"
+	winnersKeyedActiveFactsTable = "winners_keyed_active_facts"
+	winnersAuditCandidatesTable  = "winners_audit_candidates"
+	winnersAuditStaleTable       = "winners_audit_stale"
+	winnersAuditPendingTable     = "winners_audit_pending"
 )
 
 // createWinnersKeyedConsumedSQL and admitWinnersKeyedWindowSQL admit one
@@ -72,6 +72,19 @@ func winnersIdentExprs(prefix string) string {
        COALESCE(` + payload + `->>'advisory_id', '')`
 }
 
+// winnersIdentExprsAs renders the same five identifier columns with the
+// identifier-table column names, for a CREATE TABLE AS SELECT: five bare
+// COALESCE expressions would all take the column name "coalesce" and fail
+// with SQLSTATE 42701 (duplicate column name).
+func winnersIdentExprsAs(prefix string) string {
+	payload := prefix + ".payload"
+	return `COALESCE(` + payload + `->>'package_id', '') AS package_id,
+       COALESCE(` + payload + `->>'repository_id', '') AS repository_id,
+       COALESCE(` + payload + `->>'subject_digest', '') AS subject_digest,
+       COALESCE(NULLIF(` + payload + `->>'cve_id', ''), NULLIF(` + payload + `->>'advisory_id', ''), '') AS c0,
+       COALESCE(` + payload + `->>'advisory_id', '') AS advisory_id`
+}
+
 // winnersScopeExpansionSelect expands the scope rows of table into the
 // identifiers of the findings those (scope, generation) pairs hold, through the
 // active-scan index. A scope row names a generation whose membership in the
@@ -93,7 +106,7 @@ WHERE fact.fact_kind = 'reducer_supply_chain_impact_finding'
 // once its unapplied remainder was converted to fact rows.
 var buildWinnersKeyedScopeIdentsSQL = `
 CREATE TEMP TABLE winners_keyed_scope_idents ON COMMIT DROP AS
-SELECT pending.scope_id, pending.generation_id, ` + winnersIdentExprs("fact") + `
+SELECT pending.scope_id, pending.generation_id, ` + winnersIdentExprsAs("fact") + `
 FROM (SELECT DISTINCT scope_id, generation_id FROM ` + winnersKeyedConsumedTable + ` WHERE kind = 'scope') AS pending
 JOIN fact_records AS fact
   ON fact.scope_id = pending.scope_id

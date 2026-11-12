@@ -98,18 +98,18 @@ type SupplyChainImpactWinnersResweep struct {
 	// consumes them. fact_upsert and fact_retract are counted by their writers
 	// once the writer's transaction commits, and audit by the audit, so none of them is here.
 	TriggerCaptured WinnersTriggerCaptured
-	// Bounded is true when a keyed tick stopped at the chunk bound (distinct
-	// package triples or candidate rows per transaction, #9805) with dirty-log
+	// Bounded is true when a keyed tick stopped at the chunk bound
+	// (post-expansion identifiers per transaction, #9805) with dirty-log
 	// rows still queued. A bounded tick commits the chunk it recomputed but
 	// stamps no watermark: the table is not yet current as of the tick, and
 	// the maintainer must not refresh the watermark gauge for it. Remaining
-	// is the dirty-log depth the tick left; Triples the distinct package
-	// triples it probed and CandidateRows the candidate fact rows those
-	// probes fetched. All four are zero on the full path.
-	Bounded       bool
-	Remaining     int64
-	Triples       int64
-	CandidateRows int64
+	// is the dirty-log depth the tick left; ChunkIdentifiers the
+	// post-expansion identifiers this tick probed and ChunkKeptRows the kept
+	// facts the probe built for them. All four are zero on the full path.
+	Bounded          bool
+	Remaining        int64
+	ChunkIdentifiers int64
+	ChunkKeptRows    int64
 }
 
 // WinnersTriggerCaptured is the dirty-log rows one keyed tick consumed, by the
@@ -341,8 +341,8 @@ func (m SupplyChainImpactWinnersMaintainer) emitResweep(
 		attribute.Int64("unchanged", r.Unchanged),
 		attribute.Bool("bounded", r.Bounded),
 		attribute.Int64("remaining", r.Remaining),
-		attribute.Int64("triples", r.Triples),
-		attribute.Int64("candidate_rows", r.CandidateRows),
+		attribute.Int64("chunk_identifiers", r.ChunkIdentifiers),
+		attribute.Int64("chunk_kept_rows", r.ChunkKeptRows),
 	)
 	// watermarkAge is -1 when the table had never been swept: there was no
 	// watermark to age.
@@ -389,7 +389,7 @@ func (m SupplyChainImpactWinnersMaintainer) emitResweep(
 		slog.Float64("previous_watermark_age_seconds", watermarkAge),
 		slog.Bool("bounded", r.Bounded),
 		slog.Int64("remaining", r.Remaining),
-		slog.Int64("triples", r.Triples),
-		slog.Int64("candidate_rows", r.CandidateRows),
+		slog.Int64("chunk_identifiers", r.ChunkIdentifiers),
+		slog.Int64("chunk_kept_rows", r.ChunkKeptRows),
 	)
 }

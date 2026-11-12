@@ -102,10 +102,10 @@ func (tx *phaseFakeTx) QueryContext(_ context.Context, query string, _ ...any) (
 		return &phaseFakeRows{row: []any{tx.claimed}}, nil
 	case countWinnersKeyedConsumedSQL:
 		return &phaseFakeRows{row: []any{tx.consumed}}, nil
-	case selectWinnersKeyedChunkTriplesSQL:
-		return &phaseFakeRows{row: []any{"pkg:npm/fake", "repo-fake", ""}}, nil
-	case insertWinnersKeyedTripleFactsSQL:
-		return &phaseFakeRows{row: []any{int64(1), int64(1)}}, nil
+	case selectWinnersKeyedChunkIdentsSQL:
+		return &phaseFakeRows{row: []any{"pkg:npm/fake", "repo-fake", "", "CVE-2026-1", ""}}, nil
+	case countWinnersKeyedActiveFactsSQL:
+		return &phaseFakeRows{row: []any{int64(1)}}, nil
 	case deleteWinnersKeyedAppliedDirtySQL, deleteWinnersKeyedAllDirtySQL:
 		return &phaseFakeRows{row: []any{telemetry.SupplyChainImpactWinnersSourceActivation, tx.consumed}}, nil
 	case countWinnersKeyedRemainingSQL:

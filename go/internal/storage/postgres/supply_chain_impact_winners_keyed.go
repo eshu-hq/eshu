@@ -30,10 +30,9 @@ const (
 //
 // The transaction is chunk-bounded (#9805 chunked consume): it admits the
 // oldest ChunkMaxDirtyRows dirty rows as candidates, probes at most
-// ChunkMaxTriples distinct package triples and at most
-// ChunkMaxCandidateRows fetched candidate rows, then deletes exactly the
-// dirty rows it applied — claim and consume stay atomic per chunk, and a
-// rollback changes nothing. A bounded pass leaves the rest queued, reports
+// ChunkMaxIdentifiers post-expansion identifiers through the 291 five-tuple
+// probe, then deletes exactly the dirty rows it applied — claim and consume
+// stay atomic per chunk, and a rollback changes nothing. A bounded pass leaves the rest queued, reports
 // Bounded with the remaining depth, and stamps no watermark; the watermark
 // moves only on a pass after which the dirty log is empty. Passes run one
 // per maintainer tick, so a backlog drains as short spaced ticks, never as
@@ -181,9 +180,20 @@ func (s SupplyChainImpactWinnersStore) runKeyedOrFull(
 		return true, nil
 	}
 	var chunk winnersChunkOutcome
+	var kept int64
 	if err := s.timePhase(ctx, telemetry.SupplyChainImpactWinnersPhaseBuildActiveFacts, func() error {
 		var err error
 		if chunk, err = buildWinnersKeyedChunk(ctx, tx, bounds); err != nil {
+			return err
+		}
+		// The probe is the shipped per-identifier build over the 291
+		// five-tuple keyed index, restricted to the chunk by the
+		// identifier table above: no per-triple statements, no second
+		// probe path.
+		if _, err := tx.ExecContext(ctx, buildWinnersKeyedActiveFactsSQL); err != nil {
+			return fmt.Errorf("build supply chain impact winners keyed active facts: %w", err)
+		}
+		if kept, err = countWinnersKeyedKeptFacts(ctx, tx); err != nil {
 			return err
 		}
 		for _, stmt := range []string{addWinnersKeyedOperatorFactsSQL, analyzeWinnersKeyedActiveFactsSQL} {
@@ -195,8 +205,8 @@ func (s SupplyChainImpactWinnersStore) runKeyedOrFull(
 	}); err != nil {
 		return false, err
 	}
-	result.Triples = chunk.triples
-	result.CandidateRows = chunk.candidateRows
+	result.ChunkIdentifiers = chunk.identifiers
+	result.ChunkKeptRows = kept
 	return false, s.timePhase(ctx, telemetry.SupplyChainImpactWinnersPhaseApply, func() error {
 		tally, remaining, err := settleWinnersKeyedDirtyLog(ctx, tx, false)
 		if err != nil {
