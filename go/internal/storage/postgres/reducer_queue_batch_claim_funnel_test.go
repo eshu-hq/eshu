@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -24,15 +25,35 @@ import (
 type funnelBatchClaimDB struct {
 	claimRows [][]any
 	counts    []int64
+	// seen classifies every query the fake answers (shared by value copy
+	// through the database interface). nil in tests that do not assert
+	// query traffic.
+	seen *funnelQueriesSeen
+}
+
+type funnelQueriesSeen struct {
+	funnel atomic.Int64
+	claim  atomic.Int64
+	other  atomic.Int64
 }
 
 func (f funnelBatchClaimDB) QueryContext(_ context.Context, query string, _ ...any) (db.Rows, error) {
 	if strings.Contains(query, "batch_claim_funnel_counts") {
+		if f.seen != nil {
+			f.seen.funnel.Add(1)
+		}
 		row := make([]any, len(f.counts))
 		for i, c := range f.counts {
 			row[i] = c
 		}
 		return &fakeRows{rows: [][]any{row}}, nil
+	}
+	if f.seen != nil {
+		if strings.Contains(query, "fact_work_items AS lock_target") {
+			f.seen.claim.Add(1)
+		} else {
+			f.seen.other.Add(1)
+		}
 	}
 	return &fakeRows{rows: f.claimRows}, nil
 }
@@ -231,12 +252,14 @@ func TestClaimBatchFunnelQueryReusesShippedChain(t *testing.T) {
 func TestClaimBatchFunnelQueryIsReadOnly(t *testing.T) {
 	t.Parallel()
 
-	// Statement shapes, not bare words: the shared sweep sources carry
-	// comments that name the claim's UPDATE (e.g. "the UPDATE probes it"),
-	// and comments never execute. A reintroduced sweep would reappear as
-	// a statement with a target and lock clause, which no comment matches.
+	// Generic statement shapes over comment-stripped text: the shared
+	// sweep sources carry comments that name the claim's UPDATE (e.g.
+	// "the UPDATE probes it"), and comments never execute, so the scan
+	// strips them first. An UPDATE against any table then fails, not
+	// just one against fact_work_items.
+	stripped := stripSQLComments(reducerClaimBatchFunnelQuery)
 	for _, banned := range []string{
-		"UPDATE fact_work_items",
+		"UPDATE",
 		"DELETE FROM",
 		"INSERT INTO",
 		"FOR NO KEY UPDATE",
@@ -246,7 +269,7 @@ func TestClaimBatchFunnelQueryIsReadOnly(t *testing.T) {
 		"FOR KEY SHARE",
 		"SKIP LOCKED",
 	} {
-		if strings.Contains(reducerClaimBatchFunnelQuery, banned) {
+		if strings.Contains(stripped, banned) {
 			t.Fatalf("funnel counts query contains data-modifying %q: it must stay a pure SELECT census", banned)
 		}
 	}
@@ -275,18 +298,29 @@ func TestClaimBatchFunnelQueryIsReadOnly(t *testing.T) {
 
 // TestClaimBatchFunnelSkippedWithoutInstruments pins the nil contract: a
 // queue without instruments issues no funnel query, so ClaimBatch keeps
-// working on wiring that never observes it.
+// working on wiring that never observes it. The query counters prove the
+// skip ran (a claim query issued, zero funnel queries, nothing else).
 func TestClaimBatchFunnelSkippedWithoutInstruments(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, time.November, 12, 12, 0, 0, 0, time.UTC)
+	seen := &funnelQueriesSeen{}
 	queue := ReducerQueue{
-		database:      funnelBatchClaimDB{counts: []int64{5, 1, 1, 1, 1, 1, 0}},
+		database:      funnelBatchClaimDB{counts: []int64{5, 1, 1, 1, 1, 1, 0}, seen: seen},
 		LeaseOwner:    "batch-claim-funnel-skipped",
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return now },
 	}
 	if _, err := queue.ClaimBatch(context.Background(), 8); err != nil {
 		t.Fatalf("ClaimBatch: %v", err)
+	}
+	if got := seen.funnel.Load(); got != 0 {
+		t.Fatalf("nil-instruments claim issued %d funnel queries, want 0", got)
+	}
+	if got := seen.claim.Load(); got == 0 {
+		t.Fatal("nil-instruments claim issued no claim query: the skip assertion is vacuous without one")
+	}
+	if got := seen.other.Load(); got != 0 {
+		t.Fatalf("nil-instruments claim issued %d unexpected non-claim queries", got)
 	}
 }
