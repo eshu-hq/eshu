@@ -30,7 +30,7 @@ const (
 // oldest $1 rows by seq are copied into a temp table under the resweep's
 // single-flight lock, so no other tick can admit the same rows. Admission
 // copies instead of deleting: which rows the chunk actually applies is known
-// only after the identifier expansion and the triple/row bounds, so the
+// only after the identifier expansion and the identifier chunk bound, so the
 // DELETE (deleteWinnersKeyedAppliedDirtySQL, in the apply phase) removes
 // exactly the applied rows by seq and every other row stays queued. A row
 // committed after admission has a higher seq, is never in the window, and
@@ -102,7 +102,7 @@ WHERE fact.fact_kind = 'reducer_supply_chain_impact_finding'
 // buildWinnersKeyedScopeIdentsSQL expands the admitted scope rows to the
 // identifiers of their generations, keeping the (scope, generation) each
 // identifier came from. Chunked consume needs the provenance: a scope row
-// only leaves the log once every triple of its expansion was applied, or
+// only leaves the log once every identifier of its expansion was applied, or
 // once its unapplied remainder was converted to fact rows.
 var buildWinnersKeyedScopeIdentsSQL = `
 CREATE TEMP TABLE winners_keyed_scope_idents ON COMMIT DROP AS

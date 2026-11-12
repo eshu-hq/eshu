@@ -137,11 +137,11 @@ func (s SupplyChainImpactWinnersStore) runKeyedOrFull(
 ) (fellBack bool, err error) {
 	// The identifier set is built, and the cap checked, in this order on purpose:
 	// the cap counts distinct identifiers, which exist only after the scope rows
-	// are expanded. A backlog of scope rows (bootstrap seeding, a reducer outage)
-	// therefore materializes every impact identifier of those generations in the
-	// temp table once before the tick falls back to the full rebuild. The cost
-	// is bounded by the fact set, paid once per backlog, and read through the
-	// active-scan index.
+	// are expanded. The expansion covers only the admitted dirty-row window,
+	// so a backlog of scope rows (bootstrap seeding, a reducer outage) drains
+	// over successive ticks instead of materializing every impact identifier of
+	// those generations at once; each tick's expansion is bounded by the window
+	// and read through the active-scan index.
 	var over bool
 	if err := s.timePhase(ctx, telemetry.SupplyChainImpactWinnersPhaseBuildIdents, func() error {
 		for _, stmt := range []string{buildWinnersKeyedScopeIdentsSQL, buildWinnersKeyedIdentsSQL, analyzeWinnersKeyedIdentsSQL} {

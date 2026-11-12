@@ -64,7 +64,7 @@ func chunkedFindings(prefix string, triples, keys, bump int) []supplychaincore.S
 	return findings
 }
 
-func TestSupplyChainImpactWinnersKeyedChunkedConsumeLive(t *testing.T) {
+func TestSupplyChainImpactWinnersResweepKeyedChunkedConsumeLive(t *testing.T) {
 	h := newKeyedHarness(t, "#9805 chunked consume proof")
 	h.seedScope("vuln-intel://9805-chunked/s1", "vuln-intel://9805-chunked/s1/g1")
 
@@ -123,7 +123,7 @@ func TestSupplyChainImpactWinnersKeyedChunkedConsumeLive(t *testing.T) {
 // TestSupplyChainImpactWinnersKeyedChunkedSingleIdentLive pins the progress
 // half of the identifier bound: a bound of one still completes that one
 // identifier per tick, so even an all-hot backlog drains instead of stalling.
-func TestSupplyChainImpactWinnersKeyedChunkedSingleIdentLive(t *testing.T) {
+func TestSupplyChainImpactWinnersResweepKeyedChunkedSingleIdentLive(t *testing.T) {
 	h := newKeyedHarness(t, "#9805 chunked single-identifier proof")
 	// Four triples, 5 keys each: 20 post-expansion identifiers in one scope.
 	h.seedScope("vuln-intel://9805-chunked/hot", "vuln-intel://9805-chunked/hot/g1")
@@ -153,12 +153,119 @@ func TestSupplyChainImpactWinnersKeyedChunkedSingleIdentLive(t *testing.T) {
 	h.assertParity("single-identifier drain")
 }
 
-// TestSupplyChainImpactWinnersKeyedChunkedScopeSplitLive pins the truncation
+// TestSupplyChainImpactWinnersResweepKeyedChunkedAdmissionTruncateLive pins the
+// dirty-row window bound: with more dirty rows queued than ChunkMaxDirtyRows
+// admits, the tick applies the admitted window and reports Bounded through the
+// remaining depth alone, without truncating the identifier chunk.
+func TestSupplyChainImpactWinnersResweepKeyedChunkedAdmissionTruncateLive(t *testing.T) {
+	h := newKeyedHarness(t, "#9805 chunked admission-window proof")
+	// Eight findings, one key each: eight post-expansion identifiers in one
+	// scope, each with its own fact dirty row.
+	h.seedScope("vuln-intel://9805-chunked/adm", "vuln-intel://9805-chunked/adm/g1")
+	h.write("vuln-intel://9805-chunked/adm", "vuln-intel://9805-chunked/adm/g1", chunkedFindings("adm", 8, 1, 0)...)
+	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_log`)
+	if _, err := h.store.ResweepWinners(h.ctx, h.tick()); err != nil {
+		t.Fatalf("initial full resweep: %v", err)
+	}
+	before := chunkedWatermark(h)
+	h.write("vuln-intel://9805-chunked/adm", "vuln-intel://9805-chunked/adm/g1", chunkedFindings("adm", 8, 1, 1000)...)
+	if depth := h.dirtyDepth(); depth != 8 {
+		t.Fatalf("rewrite queued %d dirty rows, want the 8 fact rows", depth)
+	}
+
+	h.store.ChunkMaxDirtyRows = 3
+	h.store.ChunkMaxIdentifiers = 1000
+	first := chunkedTick(h)
+	if !first.Bounded {
+		t.Fatalf("admission-truncated tick = %+v, want Bounded", first)
+	}
+	if first.ChunkIdentifiers != 3 {
+		t.Errorf("admission-truncated tick probed %d identifiers, want the 3 admitted", first.ChunkIdentifiers)
+	}
+	if first.Remaining != 5 {
+		t.Errorf("admission-truncated tick left %d rows queued, want the 5 unadmitted", first.Remaining)
+	}
+	if depth := h.dirtyDepth(); depth != 5 {
+		t.Errorf("dirty log depth after the admitted window applied = %d, want 5", depth)
+	}
+	if got := chunkedWatermark(h); !got.Equal(before) {
+		t.Errorf("bounded tick stamped the watermark: before %v, after %v", before, got)
+	}
+	chunkedDrain(h)
+	_ = chunkedTick(h)
+	if got := chunkedWatermark(h); !got.After(before) {
+		t.Errorf("watermark after drain = %v, want after %v", got, before)
+	}
+	h.assertParity("admission-window drain")
+}
+
+// TestSupplyChainImpactWinnersResweepKeyedChunkedZeroAppliedScopeLive pins the
+// scope row a chunk skips entirely: when every identifier of a scope row's
+// expansion sorts after the chunk prefix, the tick applies none of them, so
+// the scope row stays queued (no remainder to convert, nothing to delete) and
+// the next ticks resume from it instead of re-expanding the generation.
+func TestSupplyChainImpactWinnersResweepKeyedChunkedZeroAppliedScopeLive(t *testing.T) {
+	h := newKeyedHarness(t, "#9805 chunked zero-applied scope proof")
+	scope := "vuln-intel://9805-chunked/mix"
+	h.seedScope(scope, scope+"/g1")
+	h.write(scope, scope+"/g1", chunkedFindings("aaa", 4, 1, 0)...)
+	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_log`)
+	if _, err := h.store.ResweepWinners(h.ctx, h.tick()); err != nil {
+		t.Fatalf("initial full resweep: %v", err)
+	}
+	before := chunkedWatermark(h)
+
+	h.addGeneration(scope, scope+"/g2", "pending")
+	h.write(scope, scope+"/g2", chunkedFindings("zzz", 4, 1, 0)...)
+	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_log WHERE kind = 'fact'`)
+	h.activate(scope, scope+"/g1", scope+"/g2")
+	// Four fact rows for the rewritten aaa findings sort before every zzz
+	// identifier of the scope row's expansion.
+	h.write(scope, scope+"/g1", chunkedFindings("aaa", 4, 1, 1000)...)
+	// The activation queued one scope row per generation side (old and new),
+	// plus the four fact rows for the rewritten aaa findings.
+	if depth := h.dirtyDepth(); depth != 6 {
+		t.Fatalf("queued %d dirty rows, want 4 fact rows plus 2 scope rows", depth)
+	}
+
+	h.store.ChunkMaxIdentifiers = 4
+	first := chunkedTick(h)
+	if !first.Bounded {
+		t.Fatalf("zero-applied-scope tick = %+v, want Bounded", first)
+	}
+	if first.ChunkIdentifiers != 4 {
+		t.Errorf("zero-applied-scope tick probed %d identifiers, want the 4 aaa identifiers", first.ChunkIdentifiers)
+	}
+	// The g1 scope row's expansion (the aaa identifiers) was fully applied,
+	// so it leaves with the fact rows; the g2 scope row's expansion (the zzz
+	// identifiers, all sorting after the chunk prefix) saw zero applied
+	// identifiers, so it stays queued instead of being dropped or converted.
+	if n := h.count(`SELECT count(*) FROM supply_chain_impact_winners_dirty_log WHERE kind = 'scope'`); n != 1 {
+		t.Errorf("%d scope rows still queued, want the one whose expansion the chunk skipped", n)
+	}
+	if n := h.count(`SELECT count(*) FROM supply_chain_impact_winners_dirty_log WHERE kind = 'scope' AND generation_id = $1`, scope+"/g2"); n != 1 {
+		t.Errorf("%d g2 scope rows still queued, want the unapplied one", n)
+	}
+	if depth := h.dirtyDepth(); depth != 1 {
+		t.Errorf("dirty log depth after the fact prefix applied = %d, want only the g2 scope row", depth)
+	}
+	if got := chunkedWatermark(h); !got.Equal(before) {
+		t.Errorf("zero-applied-scope tick stamped the watermark: before %v, after %v", before, got)
+	}
+	chunkedDrain(h)
+	_ = chunkedTick(h)
+	if got := chunkedWatermark(h); !got.After(before) {
+		t.Errorf("watermark after drain = %v, want after %v", got, before)
+	}
+	h.assertParity("zero-applied-scope drain")
+}
+
+// TestSupplyChainImpactWinnersResweepKeyedChunkedScopeSplitLive pins the truncation
 // order a dirty-row cap alone misses: one scope dirty row expands to every
 // identifier of a generation. A bounded tick must apply a prefix of that
 // expansion and keep the rest queued (as fact rows), never drop it with the
 // scope row.
-func TestSupplyChainImpactWinnersKeyedChunkedScopeSplitLive(t *testing.T) {
+func TestSupplyChainImpactWinnersResweepKeyedChunkedScopeSplitLive(t *testing.T) {
 	h := newKeyedHarness(t, "#9805 chunked scope-split proof")
 	scope := "vuln-intel://9805-chunked/act"
 	h.seedScope(scope, scope+"/g1")

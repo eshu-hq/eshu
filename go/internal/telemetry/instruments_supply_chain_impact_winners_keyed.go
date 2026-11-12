@@ -61,8 +61,10 @@ const (
 	// SupplyChainImpactWinnersPhaseClaim is the transaction begin and the
 	// resweep try-lock. It is the only phase of a tick that lost the lock.
 	SupplyChainImpactWinnersPhaseClaim = "claim"
-	// SupplyChainImpactWinnersPhaseConsume is the dirty-log DELETE ... RETURNING
-	// into the consumed temp table and its tally by capture source.
+	// SupplyChainImpactWinnersPhaseConsume admits the oldest dirty-log window
+	// into the consumed temp table (#9805 chunked consume). The per-source
+	// tally and the delete of the applied rows run under the apply phase, once
+	// the chunk bound has decided which admitted rows the tick applies.
 	SupplyChainImpactWinnersPhaseConsume = "consume"
 	// SupplyChainImpactWinnersPhaseBuildIdents is the identifier set built from
 	// the consumed rows, its ANALYZE, and the cap check on it.
@@ -71,8 +73,10 @@ const (
 	// temp table (the probe into fact_records), the operator facts added to it,
 	// and its ANALYZE.
 	SupplyChainImpactWinnersPhaseBuildActiveFacts = "build_active_facts"
-	// SupplyChainImpactWinnersPhaseApply is the winner select and the row
-	// writes of one keyed apply statement.
+	// SupplyChainImpactWinnersPhaseApply deletes exactly the admitted dirty
+	// rows this chunk applied (tallying them by capture source), converts a
+	// partially applied scope row's remainder to fact rows, and runs the
+	// winner select and the row writes of one keyed apply statement.
 	SupplyChainImpactWinnersPhaseApply = "apply"
 	// SupplyChainImpactWinnersPhaseFullRebuild is the whole-table rebuild a tick
 	// ran in place of the keyed build and apply because it went over the cap.
