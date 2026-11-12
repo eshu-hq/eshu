@@ -69,7 +69,7 @@ Observability Evidence: `eshu_dp_reducer_batch_claim_candidates`,
 `eshu_dp_reducer_batch_claim_representatives`, and
 `eshu_dp_reducer_batch_claim_drops_total{reason}` are registered in
 `go/internal/telemetry/instruments.go`, emitted from
-`ReducerQueue.recordClaimBatchFunnel`, and covered by the
+`ReducerQueue.captureClaimBatchFunnel`/`emitClaimBatchFunnel`, and covered by the
 `telemetry-coverage-reducer-core.md` batch-claim row and the
 `batch-claim-funnel-count` bucket row. `TestClaimBatchRecordsFunnelTelemetry`
 pins the seven closed reasons and funnel reconciliation hermetically;

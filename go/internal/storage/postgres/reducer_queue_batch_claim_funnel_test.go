@@ -241,6 +241,9 @@ func TestClaimBatchFunnelQueryIsReadOnly(t *testing.T) {
 		"INSERT INTO",
 		"FOR NO KEY UPDATE",
 		"FOR UPDATE OF",
+		"FOR UPDATE",
+		"FOR SHARE",
+		"FOR KEY SHARE",
 		"SKIP LOCKED",
 	} {
 		if strings.Contains(reducerClaimBatchFunnelQuery, banned) {

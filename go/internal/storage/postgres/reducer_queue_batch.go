@@ -72,7 +72,8 @@ func (q ReducerQueue) ClaimBatch(ctx context.Context, limit int) ([]reducercontr
 	// (runBatchConcurrent records it once per ClaimBatch with
 	// queue=reducer, including the early-return conflict path): recording
 	// it here too would double-count every production claim (F4).
-	// claim admitted (candidates in, representatives after the fence, drops
+	// The census describes the claim admitted (candidates in,
+	// representatives after the fence, drops
 	// by reason). Best-effort and lock-free; a rolled-back claim returns
 	// above and drops its census with it.
 	q.emitClaimBatchFunnel(ctx, funnel, funnelOK, len(intents), limit)

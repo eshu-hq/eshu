@@ -40,7 +40,7 @@ import "strings"
 // counts every live semantic lease. The two agree iff `base` excludes
 // live-leased rows, which its
 // (claim_until IS NULL OR claim_until <= $1) filter does: a base row can
-// never be a member of the inflight count. TestBatchClaimBaseExcludesLiveLeases
+// never be a member of the inflight count. TestClaimBatchBaseExcludesLiveLeases
 // pins that filter so a future change fails loudly instead of silently
 // breaking equivalence.
 func reducerClaimProjectorLiveScopesCTE() string {
