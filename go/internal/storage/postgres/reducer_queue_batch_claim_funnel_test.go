@@ -1,0 +1,217 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package postgres
+
+import (
+	"context"
+	"database/sql"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
+)
+
+// funnelBatchClaimDB answers the batch claim with an empty queue and the
+// funnel counts query with one fixed counts row, so the funnel recording is
+// observable without a live database.
+type funnelBatchClaimDB struct {
+	counts []int64
+}
+
+func (f funnelBatchClaimDB) QueryContext(_ context.Context, query string, _ ...any) (db.Rows, error) {
+	if strings.Contains(query, "batch_claim_funnel_counts") {
+		row := make([]any, len(f.counts))
+		for i, c := range f.counts {
+			row[i] = c
+		}
+		return &fakeRows{rows: [][]any{row}}, nil
+	}
+	return &fakeRows{}, nil
+}
+
+func (f funnelBatchClaimDB) ExecContext(context.Context, string, ...any) (sql.Result, error) {
+	return nil, nil
+}
+
+// TestClaimBatchRecordsFunnelTelemetry is the #10565 box-6 gate: every batch
+// claim records candidates in, representatives after the fence, and drops by
+// closed reason. The crafted funnel row reconciles exactly: every candidate
+// is admitted or dropped under exactly one reason.
+func TestClaimBatchRecordsFunnelTelemetry(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	reader := sdkmetric.NewManualReader()
+	instruments, err := telemetry.NewInstruments(
+		sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader)).Meter("batch-claim-funnel-proof"))
+	if err != nil {
+		t.Fatalf("NewInstruments: %v", err)
+	}
+
+	now := time.Date(2026, time.November, 12, 12, 0, 0, 0, time.UTC)
+	queue := ReducerQueue{
+		database: funnelBatchClaimDB{counts: []int64{
+			16, // candidates in (base rows)
+			2,  // not_ready
+			1,  // not_representative
+			1,  // projector_drain
+			1,  // semantic_cap
+			11, // pre_fence (representatives before the live-lease fence)
+			10, // representatives after fence
+		}},
+		LeaseOwner:    "batch-claim-funnel-proof",
+		LeaseDuration: time.Minute,
+		Now:           func() time.Time { return now },
+		Instruments:   instruments,
+	}
+	intents, err := queue.ClaimBatch(ctx, 8)
+	if err != nil {
+		t.Fatalf("ClaimBatch: %v", err)
+	}
+	if len(intents) != 0 {
+		t.Fatalf("ClaimBatch on an empty queue = %d intents, want 0", len(intents))
+	}
+
+	var collected metricdata.ResourceMetrics
+	if err := reader.Collect(ctx, &collected); err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	histogramSum := func(suffix string) (int64, bool) {
+		for _, scope := range collected.ScopeMetrics {
+			for _, metric := range scope.Metrics {
+				histogram, ok := metric.Data.(metricdata.Histogram[int64])
+				if !ok || len(metric.Name) < len(suffix) ||
+					metric.Name[len(metric.Name)-len(suffix):] != suffix {
+					continue
+				}
+				if len(histogram.DataPoints) != 1 {
+					t.Fatalf("%s data points = %d, want 1", suffix, len(histogram.DataPoints))
+				}
+				return int64(histogram.DataPoints[0].Sum), true
+			}
+		}
+		return 0, false
+	}
+	if sum, ok := histogramSum("reducer_batch_claim_candidates"); !ok || sum != 16 {
+		t.Fatalf("candidates histogram = (%d, %v), want (16, true)", sum, ok)
+	}
+	if sum, ok := histogramSum("reducer_batch_claim_representatives"); !ok || sum != 10 {
+		t.Fatalf("representatives histogram = (%d, %v), want (10, true)", sum, ok)
+	}
+
+	drops := map[string]int64{}
+	for _, scope := range collected.ScopeMetrics {
+		for _, metric := range scope.Metrics {
+			sum, ok := metric.Data.(metricdata.Sum[int64])
+			if !ok {
+				continue
+			}
+			const suffix = "reducer_batch_claim_drops_total"
+			if len(metric.Name) < len(suffix) ||
+				metric.Name[len(metric.Name)-len(suffix):] != suffix {
+				continue
+			}
+			for _, point := range sum.DataPoints {
+				value, ok := point.Attributes.Value("reason")
+				if !ok {
+					t.Fatalf("drops point without a reason attribute: %+v", point.Attributes)
+				}
+				drops[value.AsString()] = int64(point.Value)
+			}
+		}
+	}
+	// limit 8, admitted 0: over_limit = 10-8, lock_lost = 8-0.
+	wantDrops := map[string]int64{
+		"not_ready":          2,
+		"not_representative": 1,
+		"projector_drain":    1,
+		"semantic_cap":       1,
+		"live_lease_fence":   1,
+		"over_limit":         2,
+		"lock_lost":          8,
+	}
+	if len(drops) != len(wantDrops) {
+		t.Fatalf("drop reasons = %v, want %d closed reasons", drops, len(wantDrops))
+	}
+	accounted := int64(0)
+	for reason, want := range wantDrops {
+		got, ok := drops[reason]
+		if !ok {
+			t.Fatalf("drop reason %q missing from %v", reason, drops)
+		}
+		if got != want {
+			t.Fatalf("drop reason %q = %d, want %d", reason, got, want)
+		}
+		accounted += got
+	}
+	if accounted != 16 {
+		t.Fatalf("drops account for %d candidates, want 16 (the funnel must reconcile)", accounted)
+	}
+}
+
+// TestClaimBatchFunnelQueryReusesShippedChain pins the box-6 single-source
+// contract: the funnel counts query composes the candidate chain and the
+// precomputed gate CTEs from the same Go sources as the shipped claim, so a
+// future gate edit lands in both. A hand-copied funnel that drifts from
+// admission fails here instead of silently misattributing drops.
+func TestClaimBatchFunnelQueryReusesShippedChain(t *testing.T) {
+	t.Parallel()
+
+	chain := reducerClaimBatchCandidateChainCTEs()
+	if !strings.Contains(claimReducerWorkBatchQuery, chain) {
+		t.Fatal("shipped batch claim does not contain reducerClaimBatchCandidateChainCTEs() verbatim: " +
+			"the funnel chain must generate from the same Go source as the claim")
+	}
+	for _, half := range []string{
+		reducerClaimBatchUpstreamCTEs(),
+		reducerClaimBatchRepresentativeCTEs(),
+	} {
+		if !strings.Contains(claimReducerWorkBatchQuery, half) {
+			t.Fatal("shipped batch claim does not contain a chain half verbatim: " +
+				"the funlen split must rejoin without changing the claim text")
+		}
+		if !strings.Contains(reducerClaimBatchFunnelQuery, half) {
+			t.Fatal("funnel counts query does not contain a chain half verbatim")
+		}
+	}
+	if !strings.Contains(chain, reducerClaimBatchGatePrecomputeCTEs()) {
+		t.Fatal("funnel chain does not contain reducerClaimBatchGatePrecomputeCTEs() verbatim")
+	}
+	if !strings.Contains(reducerClaimBatchFunnelQuery, chain) {
+		t.Fatal("funnel counts query does not contain the candidate chain verbatim")
+	}
+	for _, cte := range []string{
+		"base AS MATERIALIZED (",
+		"reps_ranked AS MATERIALIZED (",
+		"reps AS MATERIALIZED (",
+		"source_heads AS MATERIALIZED (",
+		"candidate AS (",
+	} {
+		if !strings.Contains(chain, cte) {
+			t.Fatalf("funnel chain missing %q: the funnel must count the stages the claim admits", cte)
+		}
+	}
+}
+
+// TestClaimBatchFunnelSkippedWithoutInstruments pins the nil contract: a
+// queue without instruments issues no funnel query, so ClaimBatch keeps
+// working on wiring that never observes it.
+func TestClaimBatchFunnelSkippedWithoutInstruments(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.November, 12, 12, 0, 0, 0, time.UTC)
+	queue := ReducerQueue{
+		database:      funnelBatchClaimDB{counts: []int64{5, 1, 1, 1, 1, 1, 0}},
+		LeaseOwner:    "batch-claim-funnel-skipped",
+		LeaseDuration: time.Minute,
+		Now:           func() time.Time { return now },
+	}
+	if _, err := queue.ClaimBatch(context.Background(), 8); err != nil {
+		t.Fatalf("ClaimBatch: %v", err)
+	}
+}

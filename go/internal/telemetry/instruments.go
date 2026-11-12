@@ -2757,6 +2757,14 @@ type Instruments struct {
 	// Reducer batch claim metric
 	BatchClaimSize metric.Int64Histogram
 
+	// Reducer batch-claim funnel metrics (#10565 box 6): candidates in,
+	// representatives after the fence, and drops by closed reason. The
+	// funnel reconciles per claim: candidates = admitted + over_limit +
+	// lock_lost + the five stage drops.
+	BatchClaimCandidates      metric.Int64Histogram
+	BatchClaimRepresentatives metric.Int64Histogram
+	BatchClaimDrops           metric.Int64Counter
+
 	// Neo4j batch write metrics
 	Neo4jBatchSize        metric.Float64Histogram
 	Neo4jBatchesExecuted  metric.Int64Counter
@@ -7321,6 +7329,37 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, fmt.Errorf("register BatchClaimSize histogram: %w", err)
 	}
 
+	// batchClaimFunnelBuckets bounds the per-claim funnel histograms. A live
+	// backlog holds thousands of candidates while a quiet queue holds none,
+	// so the set spans the batch-claim-count range up past the 12,327-row
+	// ceiling that parked the projector workers (#10480).
+	batchClaimFunnelBuckets := []float64{1, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384}
+	inst.BatchClaimCandidates, err = meter.Int64Histogram(
+		"eshu_dp_reducer_batch_claim_candidates",
+		metric.WithDescription("Reducer batch-claim candidate rows entering the admission funnel per claim (#10565)"),
+		metric.WithExplicitBucketBoundaries(batchClaimFunnelBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register BatchClaimCandidates histogram: %w", err)
+	}
+	inst.BatchClaimRepresentatives, err = meter.Int64Histogram(
+		"eshu_dp_reducer_batch_claim_representatives",
+		metric.WithDescription("Reducer batch-claim conflict-key representatives admitted past the fence per claim (#10565)"),
+		metric.WithExplicitBucketBoundaries(batchClaimFunnelBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register BatchClaimRepresentatives histogram: %w", err)
+	}
+	inst.BatchClaimDrops, err = meter.Int64Counter(
+		"eshu_dp_reducer_batch_claim_drops_total",
+		metric.WithDescription("Reducer batch-claim candidates dropped between the funnel stages, by closed reason "+
+			"(not_ready, not_representative, projector_drain, semantic_cap, live_lease_fence, over_limit, lock_lost) (#10565). "+
+			"No repository label"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register BatchClaimDrops counter: %w", err)
+	}
+
 	neo4jBatchBuckets := []float64{1, 10, 50, 100, 250, 500, 1000}
 	inst.Neo4jBatchSize, err = meter.Float64Histogram(
 		"eshu_dp_neo4j_batch_size",
@@ -8968,6 +9007,48 @@ func AttrResult(v string) attribute.KeyValue {
 // AttrReason returns a reason attribute for metric recording.
 func AttrReason(v string) attribute.KeyValue {
 	return attribute.String(MetricDimensionReason, v)
+}
+
+// Closed reason values of eshu_dp_reducer_batch_claim_drops_total (#10565
+// box 6). A candidate leaves the funnel under exactly one reason, in fence
+// order: the readiness gate, the conflict-key representative fence, the
+// projector-drain and semantic admission gates, the live-lease fence, the
+// batch-limit trim, and the lock-time race.
+const (
+	// BatchClaimDropNotReady is a candidate failing the readiness gate.
+	BatchClaimDropNotReady = "not_ready"
+	// BatchClaimDropNotRepresentative is a ready candidate shadowed by its
+	// conflict key's representative (same_rn != 1).
+	BatchClaimDropNotRepresentative = "not_representative"
+	// BatchClaimDropProjectorDrain is a representative gated on projector
+	// drain for its scope.
+	BatchClaimDropProjectorDrain = "projector_drain"
+	// BatchClaimDropSemanticCap is a representative gated on a semantic
+	// admission cap.
+	BatchClaimDropSemanticCap = "semantic_cap"
+	// BatchClaimDropLiveLeaseFence is a representative fenced by a live
+	// claimed/running holder on its conflict key.
+	BatchClaimDropLiveLeaseFence = "live_lease_fence"
+	// BatchClaimDropOverLimit is a representative ordered past the batch
+	// limit.
+	BatchClaimDropOverLimit = "over_limit"
+	// BatchClaimDropLockLost is a within-limit representative lost at lock
+	// time (EvalPlanQual recheck or SKIP LOCKED race).
+	BatchClaimDropLockLost = "lock_lost"
+)
+
+// BatchClaimDropReasons returns a copy of the closed batch-claim drop reason
+// set, in fence order.
+func BatchClaimDropReasons() []string {
+	return []string{
+		BatchClaimDropNotReady,
+		BatchClaimDropNotRepresentative,
+		BatchClaimDropProjectorDrain,
+		BatchClaimDropSemanticCap,
+		BatchClaimDropLiveLeaseFence,
+		BatchClaimDropOverLimit,
+		BatchClaimDropLockLost,
+	}
 }
 
 // AttrBranch returns a branch attribute for the supply-chain impact

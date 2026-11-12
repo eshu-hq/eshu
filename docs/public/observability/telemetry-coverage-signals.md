@@ -149,6 +149,7 @@ Each documented bucket set maps a short name to the exact boundary values in `go
 | gcp-freshness-fanout-scope-count | 1, 2, 4, 8, 16, 32, 64 |
 | large-repo-semaphore-seconds | 0, 0.1, 0.5, 1, 5, 10, 30, 60, 120, 300 |
 | batch-claim-count | 1, 4, 8, 16, 32, 64, 128 |
+| batch-claim-funnel-count | 1, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384 |
 | neo4j-batch-count | 1, 10, 50, 100, 250, 500, 1000 |
 | shared-edge-statement-count | 1, 2, 4, 8, 16, 32, 64, 128 |
 | cross-repo-resolution-seconds | 0.01, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30 |

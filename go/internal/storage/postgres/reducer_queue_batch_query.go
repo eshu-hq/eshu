@@ -58,10 +58,13 @@ package postgres
 // Performance Evidence and Observability Evidence for this change are
 // recorded in README.md under "Reducer claim rank-once window rewrite
 // (#3624)".
-var claimReducerWorkBatchQuery = `
-WITH ` + reducerClaimReadinessRequirementsCTE() + `,
-` + supersedeInactiveReducerGenerationsCTE + `,
-reducer_source_inflight AS MATERIALIZED (
+// reducerClaimBatchUpstreamCTEs renders the batch-claim CTEs from
+// reducer_source_inflight through base: the inflight tallies, the
+// precomputed gate CTEs, and the gated candidate rows. Split from the
+// representative CTEs only to respect the repository function-length cap;
+// the chain wrapper below rejoins them verbatim.
+func reducerClaimBatchUpstreamCTEs() string {
+	return `reducer_source_inflight AS MATERIALIZED (
     SELECT
         COALESCE(NULLIF(BTRIM(payload->>'source_system'), ''), 'unknown') AS reducer_source_system,
         count(*) AS reducer_source_inflight_count
@@ -135,8 +138,16 @@ base AS MATERIALIZED (
       AND (visible_at IS NULL OR visible_at <= $1 OR (status = 'pending' AND visible_at <= clock_timestamp()))
       AND (claim_until IS NULL OR claim_until <= $1)
       AND ($2::text[] IS NULL OR domain = ANY($2::text[]))
-),
--- reps_ranked / reps: representative and fairness windows computed once over
+)`
+}
+
+// reducerClaimBatchRepresentativeCTEs renders the batch-claim CTEs from
+// reps_ranked through candidate: the representative and fairness windows and
+// the fenced representative set. Split from the upstream CTEs only to respect
+// the repository function-length cap; the chain wrapper below rejoins them
+// verbatim.
+func reducerClaimBatchRepresentativeCTEs() string {
+	return `-- reps_ranked / reps: representative and fairness windows computed once over
 -- the whole readiness-gated candidate set, replacing the correlated
 -- "same"/"fair_same"/"fair_peer" subqueries that used to re-derive this per
 -- row. Two CTE levels are required: Postgres forbids nesting a window
@@ -223,7 +234,24 @@ candidate AS (
             AND inflight.status IN ('claimed', 'running')
             AND inflight.claim_until > $1
       )
-),
+)`
+}
+
+// reducerClaimBatchCandidateChainCTEs renders every batch-claim CTE from
+// reducer_source_inflight through candidate as one verbatim chain. The claim
+// (claimReducerWorkBatchQuery) and the funnel counts query
+// (reducerClaimBatchFunnelQuery) compose it from this single source, so the
+// funnel counts the same membership the claim admits: a future gate edit
+// lands in both or the verbatim-substring guards fail loudly instead of
+// silently diverging funnel attribution from admission.
+func reducerClaimBatchCandidateChainCTEs() string {
+	return reducerClaimBatchUpstreamCTEs() + ",\n" + reducerClaimBatchRepresentativeCTEs()
+}
+
+var claimReducerWorkBatchQuery = `
+WITH ` + reducerClaimReadinessRequirementsCTE() + `,
+` + supersedeInactiveReducerGenerationsCTE + `,
+` + reducerClaimBatchCandidateChainCTEs() + `,
 locked AS (
     SELECT candidate.*
     FROM fact_work_items AS lock_target

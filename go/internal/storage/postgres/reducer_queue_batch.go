@@ -69,6 +69,10 @@ func (q ReducerQueue) ClaimBatch(ctx context.Context, limit int) ([]reducercontr
 	if q.Instruments != nil && q.Instruments.BatchClaimSize != nil {
 		q.Instruments.BatchClaimSize.Record(ctx, int64(len(intents)))
 	}
+	// #10565 box 6: funnel census for this claim (candidates in,
+	// representatives after the fence, drops by reason). Best-effort and
+	// lock-free; the claimed set above is already fixed.
+	q.recordClaimBatchFunnel(ctx, now, len(intents), limit)
 
 	return intents, nil
 }

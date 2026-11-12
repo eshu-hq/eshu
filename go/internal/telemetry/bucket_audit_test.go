@@ -164,6 +164,8 @@ func bucketAuditTable() []bucketAuditEntry {
 		{MetricName: "eshu_dp_generation_retention_batch_size", Buckets: []float64{1, 2, 4, 8, 16, 32, 64, 100}},
 		{MetricName: "eshu_dp_generation_fact_count", Buckets: []float64{10, 50, 100, 500, 1000, 5000, 10000, 50000, 100000, 300000}},
 		{MetricName: "eshu_dp_reducer_batch_claim_size", Buckets: []float64{1, 4, 8, 16, 32, 64, 128}},
+		{MetricName: "eshu_dp_reducer_batch_claim_candidates", Buckets: []float64{1, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384}},
+		{MetricName: "eshu_dp_reducer_batch_claim_representatives", Buckets: []float64{1, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384}},
 		{MetricName: "eshu_dp_neo4j_batch_size", Buckets: []float64{1, 10, 50, 100, 250, 500, 1000}},
 		{MetricName: "eshu_dp_shared_edge_write_group_statement_count", Buckets: []float64{1, 2, 4, 8, 16, 32, 64, 128}},
 		{MetricName: "eshu_dp_deferred_backfill_partition_workers", Buckets: []float64{1, 2, 4, 8, 16, 32}},
