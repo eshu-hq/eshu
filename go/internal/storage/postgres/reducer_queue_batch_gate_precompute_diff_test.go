@@ -27,7 +27,12 @@ import (
 //   - projector drain fence ($5): a scope with live projector work.
 //   - semantic caps ($6/$7): pending semantic rows under a live-inflight cap,
 //     with the live leases expiring between the two clock positions (so the
-//     late clock also covers the empty semantic-inflight set).
+//     late clock also covers the empty semantic-inflight set). The live
+//     projector is not source_local, so proj_any_live stays false and the
+//     done-count, inflight, and rank clauses decide rows: projN=3 refuses on
+//     the done count, semCap=2 refuses on the inflight count at clockA, and
+//     the rank cap splits the equal-updated_at tie pair (tie-a admitted,
+//     tie-b refused at the rank-3 boundary).
 //   - readiness gate: a readiness-gated domain row with its phase committed
 //     (claimable) and one without (blocked).
 //   - conflict fence + expired holder: an expired-holder key shared with an
@@ -84,8 +89,12 @@ func TestClaimBatchGatePrecomputeMatchesPreChangeCandidateSetAndOrder(t *testing
 		{"clockB", clockB},
 	} {
 		for _, drain := range []bool{false, true} {
-			for _, projN := range []int{0, 2} {
-				for _, semCap := range []int{0, 3} {
+			// projN 3 exceeds the two succeeded source_local projectors so
+			// the done-count clause refuses; semCap 2 equals the two clockA
+			// live leases so the inflight clause refuses at clockA but passes
+			// at clockB. 0 keeps the bypass arm in the matrix.
+			for _, projN := range []int{0, 2, 3} {
+				for _, semCap := range []int{0, 2, 3} {
 					cells = append(cells, cell{
 						name:   fmt.Sprintf("%s/drain=%v/proj=%d/sem=%d", tc.name, drain, projN, semCap),
 						clock:  tc.clock,
@@ -143,6 +152,108 @@ func TestClaimBatchGatePrecomputeMatchesPreChangeCandidateSetAndOrder(t *testing
 		t.Fatal("fixture produced zero candidates in every matrix cell; the differential is vacuous")
 	}
 	t.Logf("gate-precompute differential green in %d cells (%d non-empty)", len(cells), nonEmpty)
+
+	// F2 nonvacuity: the semantic scalars and rank must actually decide.
+	// At clockB the inflight set is empty, so with drain on, projN=2, and
+	// semCap=3 the rank cap admits exactly ranks 1-3: gate-sem-00,
+	// gate-sem-01, and gate-sem-tie-a. gate-sem-tie-b shares updated_at with
+	// tie-a, so its refusal proves the (updated_at, work_item_id) tiebreak
+	// decided, not just the rank magnitude. Each earlier clause gets its
+	// own refusing cell below.
+	deciding := []struct {
+		name       string
+		clock      time.Time
+		projN      int
+		semCap     int
+		wantSem    []string
+		refusedSem []string
+	}{
+		{
+			name:       "rank-cap-splits-tie",
+			clock:      clockB,
+			projN:      2,
+			semCap:     3,
+			wantSem:    []string{"gate-sem-00", "gate-sem-01", "gate-sem-tie-a"},
+			refusedSem: []string{"gate-sem-tie-b", "gate-sem-02", "gate-sem-03"},
+		},
+		{
+			// clockA holds two live inflight leases: rank <= 3-2 admits
+			// only rank 1.
+			name:       "inflight-shrinks-rank-window",
+			clock:      clockA,
+			projN:      2,
+			semCap:     3,
+			wantSem:    []string{"gate-sem-00"},
+			refusedSem: []string{"gate-sem-01", "gate-sem-tie-a"},
+		},
+		{
+			// semCap 2 equals the two clockA live leases: the inflight
+			// clause refuses every semantic row.
+			name:       "inflight-cap-refuses",
+			clock:      clockA,
+			projN:      2,
+			semCap:     2,
+			refusedSem: []string{"gate-sem-00", "gate-sem-tie-a"},
+		},
+		{
+			// projN 3 exceeds the two succeeded source_local projectors:
+			// the done-count clause refuses every semantic row.
+			name:       "done-count-refuses",
+			clock:      clockB,
+			projN:      3,
+			semCap:     3,
+			refusedSem: []string{"gate-sem-00", "gate-sem-tie-a"},
+		},
+	}
+	for _, d := range deciding {
+		t.Run(d.name, func(t *testing.T) {
+			args := []any{
+				d.clock,                // $1 p_now
+				nil,                    // $2 domain filter
+				"n/a",                  // $3 lease owner (unused by read-only candidate select)
+				d.clock.Add(time.Hour), // $4 claim_until (unused by read-only candidate select)
+				true,                   // $5 require projector drain
+				d.projN,                // $6 expected source-local projectors
+				d.semCap,               // $7 semantic entity claim limit
+				1000,                   // $8 batch limit (covers the whole fixture)
+			}
+			newIDs := queryCandidateWorkItemIDs(t, ctx, db, newQuery, args)
+			got := map[string]bool{}
+			for _, id := range newIDs {
+				if strings.HasPrefix(id, "gate-sem-") {
+					got[id] = true
+				}
+			}
+			for _, want := range d.wantSem {
+				if !got[want] {
+					t.Errorf("deciding cell %s admits semantic %v, want %s admitted", d.name, newIDs, want)
+				}
+			}
+			for _, refused := range d.refusedSem {
+				if got[refused] {
+					t.Errorf("deciding cell %s admits semantic %s, want it refused", d.name, refused)
+				}
+			}
+			if len(got) != len(d.wantSem) {
+				t.Errorf("deciding cell %s admits %d semantic rows %v, want %d %v",
+					d.name, len(got), sortedSetKeys(got), len(d.wantSem), d.wantSem)
+			}
+		})
+	}
+}
+
+// keys returns the sorted keys of a set map for stable failure output.
+func sortedSetKeys(set map[string]bool) []string {
+	out := make([]string, 0, len(set))
+	for k := range set {
+		out = append(out, k)
+	}
+	for i := 1; i < len(out); i++ {
+		for j := i; j > 0 && out[j] < out[j-1]; j-- {
+			out[j], out[j-1] = out[j-1], out[j]
+		}
+	}
+	return out
 }
 
 // seedGatePrecomputeFixture seeds one disposable database with a row for
@@ -185,11 +296,15 @@ func seedGatePrecomputeFixture(t *testing.T, ctx context.Context, db *sql.DB, no
 	mustExecGateArgs(t, ctx, db, `UPDATE fact_work_items SET status='claimed', lease_owner='gate-holder', claim_until=$1 WHERE work_item_id='gate-holder'`, now.Add(3*time.Hour))
 
 	// Projector-fenced scope: live projector work on scope-gate-proj fences
-	// that scope's reducer rows while $5 is on.
+	// that scope's reducer rows while $5 is on. The domain is deliberately
+	// not source_local (#10565 F2): projector_live_scopes is domain-agnostic
+	// so the fence still bites, but semantic_scalars.proj_any_live stays
+	// false so the semantic done-count, inflight, and rank clauses decide
+	// rows instead of clause 1 short-circuiting every semantic cell.
 	mustExecGateArgs(t, ctx, db, `INSERT INTO fact_work_items (
 	    work_item_id, scope_id, generation_id, stage, domain, conflict_domain,
 	    conflict_key, status, attempt_count, payload, created_at, updated_at
-	) VALUES ('gate-projector-live', 'scope-gate-proj', 'gen-proj', 'projector', 'source_local', 'scope',
+	) VALUES ('gate-projector-live', 'scope-gate-proj', 'gen-proj', 'projector', 'code_call_materialization', 'scope',
 	    'scope-gate-proj', 'pending', 0,
 	    jsonb_build_object('entity_key', 'gate-projector-live'), $1, $1)`, now)
 	for i := 0; i < 2; i++ {
@@ -218,12 +333,27 @@ func seedGatePrecomputeFixture(t *testing.T, ctx context.Context, db *sql.DB, no
 			updatedAt: now.Add(time.Duration(20+i) * time.Minute),
 		})
 	}
+	// Tie pair (#10565 F2): equal updated_at between gate-sem-01 and
+	// gate-sem-02, so the (updated_at, work_item_id) tiebreak decides which
+	// of the two the rank cap admits. Distinct conflict keys keep both
+	// representatives; the rank threshold splits them.
+	for _, id := range []string{"gate-sem-tie-a", "gate-sem-tie-b"} {
+		insert(reducerFairnessWorkItem{
+			workItemID: id, scopeID: "scope-gate-diff", generationID: "gen-fair",
+			domain: "semantic_entity_materialization", conflictDomain: reducerConflictDomainScope, conflictKey: id + "-key",
+			updatedAt: now.Add(21*time.Minute + 30*time.Second),
+		})
+	}
 	for i := 0; i < 2; i++ {
 		id := fmt.Sprintf("gate-sem-live-%02d", i)
 		insert(reducerFairnessWorkItem{
 			workItemID: id, scopeID: "scope-gate-diff", generationID: "gen-fair",
 			domain: "semantic_entity_materialization", conflictDomain: reducerConflictDomainScope, conflictKey: fmt.Sprintf("gate-sem-live-key-%02d", i),
-			updatedAt: now.Add(-2 * time.Hour),
+			// Latest updated_at on purpose (#10565 F2): at clockB these
+			// reclaimed rows rejoin the ranked set, and ranking them last
+			// keeps the rank window on the pending rows so the tie-pair
+			// boundary below stays exact.
+			updatedAt: now.Add(30*time.Minute + time.Duration(i)*time.Second),
 		})
 		mustExecGateArgs(t, ctx, db, `UPDATE fact_work_items SET status='claimed', lease_owner='gate-sem', claim_until=$2 WHERE work_item_id=$1`, id, now.Add(3*time.Hour))
 	}
