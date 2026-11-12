@@ -56,6 +56,13 @@ permissions:
 env:
   CGO_CFLAGS: "-O2 -g -std=gnu17"
 
+# Container jobs run steps with sh by default; the inline scripts below
+# need bash (set -o pipefail). The runner default is already bash, so this
+# is a no-op outside containers.
+defaults:
+  run:
+    shell: bash
+
 jobs:
   sdk-go-collector:
     if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'sdk-go-collector') }}
