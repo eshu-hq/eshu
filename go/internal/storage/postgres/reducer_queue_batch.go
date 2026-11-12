@@ -10,6 +10,8 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	"go.opentelemetry.io/otel/metric"
 )
 
 // ClaimBatch claims up to limit reducer work items in a single Postgres
@@ -77,8 +79,37 @@ func (q ReducerQueue) ClaimBatch(ctx context.Context, limit int) ([]reducercontr
 	// by reason). Best-effort and lock-free; a rolled-back claim returns
 	// above and drops its census with it.
 	q.emitClaimBatchFunnel(ctx, funnel, funnelOK, len(intents), limit)
+	// #10581: one reserved-slot outcome per non-empty batch, so an
+	// operator can see the #10568 slot engaging (reserved_used) versus
+	// falling back to the rest arm (fallback) without a per-row label.
+	q.emitReservedSlotClaim(ctx, intents)
 
 	return intents, nil
+}
+
+// emitReservedSlotClaim records one #10581 reserved-slot outcome for the
+// batch ClaimBatch just admitted: reserved_used when the batch carries at
+// least one eshu_search_document row, fallback when a non-empty batch
+// carries none. Empty batches record nothing, so idle polls never inflate
+// the fallback series. The claim statement is untouched: this only reads
+// the admitted intents, so ordering, fencing, and lease behavior are
+// unchanged with or without instruments wired.
+func (q ReducerQueue) emitReservedSlotClaim(ctx context.Context, intents []reducercontract.Intent) {
+	if len(intents) == 0 {
+		return
+	}
+	inst := q.Instruments
+	if inst == nil || inst.ReservedSlotClaims == nil {
+		return
+	}
+	outcome := telemetry.ReservedSlotOutcomeFallback
+	for _, intent := range intents {
+		if intent.Domain == reducercontract.DomainEshuSearchDocument {
+			outcome = telemetry.ReservedSlotOutcomeUsed
+			break
+		}
+	}
+	inst.ReservedSlotClaims.Add(ctx, 1, metric.WithAttributes(telemetry.AttrOutcome(outcome)))
 }
 
 // AckBatch acknowledges multiple claimed reducer work items. Target-domain
