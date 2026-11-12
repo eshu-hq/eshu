@@ -62,31 +62,33 @@ jobs:
     name: "SDK Go: collector"
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    # Go 1.26.11 and ripgrep come from the pinned image (GOTOOLCHAIN=local
+    # fails a go.mod toolchain bump until the image is rebuilt). No setup-go
+    # or apt install: the pin provably covers them. The recipe additionally
+    # bakes a go/ module seed, but this pin predates that layer, so seed
+    # lines below describe the recipe, not this image; the retry script is
+    # the live download path. Follow-up: rebuild the ci-tools image, then
+    # repin the 5 container sites (sdk-go.yml x3,
+    # verify-ci-gate-registry.yml x2) + ledger digest + test hardcode +
+    # inventories.
+    container: ghcr.io/eshu-hq/ci-tools@sha256:9a1d81d6f17544e0ec12d77c3fdda1b2e6f0f0d125dcc88f03a0ab9ba1212b0d
+    env:
+      GOTOOLCHAIN: local
+      GOCACHE: /tmp/eshu-ci/go-build
+      GOMODCACHE: /tmp/eshu-ci/go-mod
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
 
-      - name: Set up Go
-        uses: actions/setup-go@v6
-        with:
-          go-version-file: sdk/go/collector/go.mod
-          cache-dependency-path: sdk/go/collector/go.mod
-          # cache: false: setup-go would store the build cache a second time
-          # in the 10 GB store (#9462, #9648). Pre-warm below downloads the modules.
-          cache: false
-
-      - name: Install ripgrep
-        run: scripts/ci/install-apt-packages.sh ripgrep
-        env:
-          GH_TOKEN: ${{ github.token }}
-
-      # Pre-warm Go modules with retries so a dropped proxy stream fails
-      # HERE, named for what it is, instead of surfacing as a build failure
-      # that never compiled anything (#6615 follow-up to #6075). This module
-      # is outside go/ (its own go.mod, own dependency graph), so it warms
-      # sdk/go/collector specifically -- warming go/ would not touch this
-      # module's cache.
+      # The recipe's seed covers the go/ app module only, not this module
+      # (its own go.mod, own dependency graph) — and this pin predates the
+      # seed layer, so the retry script is the live download path, not a
+      # fallback: download with retries so a dropped proxy stream fails HERE,
+      # named for what it is, instead of surfacing as a build failure that
+      # never compiled anything (#6615 follow-up to #6075). Shared
+      # dependencies resolve from the seed without the network once the
+      # repin noted above lands.
       - name: Pre-warm Go modules
         run: scripts/ci/go-mod-download-retry.sh sdk/go/collector
 
@@ -130,31 +132,23 @@ jobs:
     name: "SDK Go: apicontract"
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    # Go 1.26.11 and ripgrep come from the pinned image: no setup-go or
+    # apt install (see sdk-go-collector). The recipe's module seed is not
+    # in this pin yet — see the follow-up pointer in sdk-go-collector; the
+    # retry script below is the live download path until that repin.
+    container: ghcr.io/eshu-hq/ci-tools@sha256:9a1d81d6f17544e0ec12d77c3fdda1b2e6f0f0d125dcc88f03a0ab9ba1212b0d
+    env:
+      GOTOOLCHAIN: local
+      GOCACHE: /tmp/eshu-ci/go-build
+      GOMODCACHE: /tmp/eshu-ci/go-mod
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
 
-      - name: Set up Go
-        uses: actions/setup-go@v6
-        with:
-          go-version-file: sdk/go/apicontract/go.mod
-          cache-dependency-path: sdk/go/apicontract/go.mod
-          # cache: false: setup-go would store the build cache a second time
-          # in the 10 GB store (#9462, #9648). Pre-warm below downloads the modules.
-          cache: false
-
-      - name: Install ripgrep
-        run: scripts/ci/install-apt-packages.sh ripgrep
-        env:
-          GH_TOKEN: ${{ github.token }}
-
-      # Pre-warm Go modules with retries so a dropped proxy stream fails
-      # HERE, named for what it is, instead of surfacing as a build failure
-      # that never compiled anything (#6615 follow-up to #6075). This module
-      # is outside go/ (its own go.mod, own dependency graph), so it warms
-      # sdk/go/apicontract specifically -- warming go/ would not touch this
-      # module's cache.
+      # The recipe's seed covers the go/ app module only, not this module;
+      # this pin predates the seed layer, so the retry script is the live
+      # download path here, not a fallback (see sdk-go-collector).
       - name: Pre-warm Go modules
         run: scripts/ci/go-mod-download-retry.sh sdk/go/apicontract
 
@@ -198,31 +192,23 @@ jobs:
     name: "SDK Go: factschema"
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    # Go 1.26.11 and ripgrep come from the pinned image: no setup-go or
+    # apt install (see sdk-go-collector). The recipe's module seed is not
+    # in this pin yet — see the follow-up pointer in sdk-go-collector; the
+    # retry script below is the live download path until that repin.
+    container: ghcr.io/eshu-hq/ci-tools@sha256:9a1d81d6f17544e0ec12d77c3fdda1b2e6f0f0d125dcc88f03a0ab9ba1212b0d
+    env:
+      GOTOOLCHAIN: local
+      GOCACHE: /tmp/eshu-ci/go-build
+      GOMODCACHE: /tmp/eshu-ci/go-mod
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
 
-      - name: Set up Go
-        uses: actions/setup-go@v6
-        with:
-          go-version-file: sdk/go/factschema/go.mod
-          cache-dependency-path: sdk/go/factschema/go.sum
-          # cache: false: setup-go would store the build cache a second time
-          # in the 10 GB store (#9462, #9648). Pre-warm below downloads the modules.
-          cache: false
-
-      - name: Install ripgrep
-        run: scripts/ci/install-apt-packages.sh ripgrep
-        env:
-          GH_TOKEN: ${{ github.token }}
-
-      # Pre-warm Go modules with retries so a dropped proxy stream fails
-      # HERE, named for what it is, instead of surfacing as a build failure
-      # that never compiled anything (#6615 follow-up to #6075). This module
-      # is outside go/ (its own go.mod, own dependency graph), so it warms
-      # sdk/go/factschema specifically -- warming go/ would not touch this
-      # module's cache.
+      # The recipe's seed covers the go/ app module only, not this module;
+      # this pin predates the seed layer, so the retry script is the live
+      # download path here, not a fallback (see sdk-go-collector).
       - name: Pre-warm Go modules
         run: scripts/ci/go-mod-download-retry.sh sdk/go/factschema
 

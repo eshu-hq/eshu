@@ -16,12 +16,26 @@ package versions disappear; this is preferable to silently switching tools.
 The image records transitive package versions through `dpkg-query` at proof or
 publication time, because Ubuntu security repository dependencies can advance.
 
+The build stages `go/go.mod` and `go/go.sum` into the context so the image can
+warm its module seed (`/opt/ci-go-mod`) with `go mod download` plus install
+pinned `govulncheck` (v1.9.0) and `gosec` (v2.27.1) binaries from source. Only
+those two manifests enter the context; the provenance copies stay at
+`/usr/local/share/ci-tools/seed-go.{mod,sum}`. There is no `sdk/go.mod` (the
+SDK modules are `sdk/go/collector`, `sdk/go/apicontract`, and
+`sdk/go/factschema`, each with its own graph), so the seed covers the `go/`
+app module only. The image default `GOPROXY` reads the seed first and falls
+through to the module proxy, so a lane whose `go.sum` the seed covers builds
+with no network; anything newer resolves from the proxy as before.
+`GOTOOLCHAIN=local` in the consuming jobs fails a `go.mod` toolchain bump
+until this image is rebuilt and repinned.
+
 ```bash
-empty_context="$(mktemp -d)"
+stage="$(mktemp -d)"
+cp go/go.mod go/go.sum "${stage}/"
 docker buildx build --platform linux/amd64 \
   --build-arg BASE_IMAGE='ghcr.io/eshu-hq/ci-mirror-ubuntu@sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55' \
-  -f scripts/ci/tools.Dockerfile -t eshu-ci-tools:candidate --load "${empty_context}"
-rmdir "${empty_context}"
+  -f scripts/ci/tools.Dockerfile -t eshu-ci-tools:candidate --load "${stage}"
+rm -rf "${stage}"
 bash scripts/ci/test-tools-image.sh eshu-ci-tools:candidate
 docker run --rm --platform linux/amd64 eshu-ci-tools:candidate \
   cat /usr/local/share/ci-tools/packages.tsv
@@ -54,6 +68,12 @@ Minimum supported yq is 4.44.3 (#8397): the oldest release the gate scripts'
 The Docker CLI 29.1.3 static tar and Compose 2.40.3 plugin are also
 checksum-pinned for each architecture in the Dockerfile. Only the CLI binary
 is extracted from Docker's tar; the image has no daemon or container runtime.
+`govulncheck` v1.9.0 (newest verified 2026-11-12; baked for a future lane
+conversion — security-scan.yml still runs unpinned `@latest`) and `gosec`
+v2.27.1 (the pin security-scan.yml already runs) are version-pinned and
+built from source with `GOTOOLCHAIN=local`, so one pin covers both
+architectures; the module zip hash is verified against
+the checksum database at install time and recorded in `downloads.tsv`.
 
 | Download | Versioned source and license |
 | --- | --- |
@@ -62,11 +82,13 @@ is extracted from Docker's tar; the image has no daemon or container runtime.
 | yq | [v4.54.1 source](https://github.com/mikefarah/yq/tree/v4.54.1), [MIT license](https://github.com/mikefarah/yq/blob/v4.54.1/LICENSE) |
 | Docker CLI | [v29.1.3 source](https://github.com/docker/cli/tree/v29.1.3), [Apache-2.0 license](https://github.com/docker/cli/blob/v29.1.3/LICENSE) |
 | Docker Compose | [v2.40.3 source](https://github.com/docker/compose/tree/v2.40.3), [Apache-2.0 license](https://github.com/docker/compose/blob/v2.40.3/LICENSE) |
+| govulncheck | [v1.9.0 source](https://github.com/golang/vuln/tree/v1.9.0), [BSD-3-Clause license](https://github.com/golang/vuln/blob/v1.9.0/LICENSE) |
+| gosec | [v2.27.1 source](https://github.com/securego/gosec/tree/v2.27.1), [Apache-2.0 license](https://github.com/securego/gosec/blob/v2.27.1/LICENSE.txt) |
 
 The Ubuntu package versions are in `tools.Dockerfile`; apt verifies signed repository
 metadata and `.deb` checksums. The image does not start a Docker daemon.
 `/usr/local/share/ci-tools/packages.tsv` and `downloads.tsv` are the package
 and checksum inventory embedded in each build. Ubuntu package copyright files
 remain under `/usr/share/doc/*/copyright`. Go carries its LICENSE in
-`/usr/local/go`, and the four other downloaded binaries have checksum-verified
+`/usr/local/go`, and the six other downloaded binaries have checksum-verified
 license copies in `/usr/local/share/licenses/ci-tools`.
