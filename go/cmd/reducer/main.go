@@ -233,7 +233,10 @@ func buildReducerService(
 			"domains", reducerDomainStrings(claimDomains),
 		)
 	}
-	workQueue := configureReducerQueue(database, retryCfg, claimDomains, projectorDrainGate, getenv, graphBackend, clk, instruments, logger)
+	workQueue, err := configureReducerQueue(database, retryCfg, claimDomains, projectorDrainGate, getenv, graphBackend, clk, instruments, logger)
+	if err != nil {
+		return reducer.Service{}, err
+	}
 
 	executor, err := reducer.NewDefaultRuntime(reducer.DefaultHandlers{
 		DeployableUnitCorrelationHandler: reducer.DeployableUnitCorrelationHandler{

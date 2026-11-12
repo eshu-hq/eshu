@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package postgres //nolint:filelength // 504 lines (base 498): the #10565 funnel gate column and its scan wiring stay next to the claim statement they describe.
 
 import (
 	"context"
@@ -175,6 +175,12 @@ type ReducerQueue struct {
 	// (eshu_dp_reducer_retry_surge_total, #4450). Nil is safe (no-op) so
 	// existing callers that do not wire it keep working.
 	Instruments *telemetry.Instruments
+	// FunnelTelemetryEnabled runs the batch-claim funnel census query per
+	// claim (#10565 box 6). Zero value is off, so every other construction
+	// site keeps the proven gate-only claim shape until the QA-lane delta
+	// proof clears the flip threshold; the reducer wires it from
+	// ESHU_REDUCER_BATCH_CLAIM_FUNNEL_ENABLED.
+	FunnelTelemetryEnabled bool
 	// Logger receives the #8169 service catalog re-trigger log line written
 	// when a workload_materialization ACK reopens or flags a catalog row. Nil
 	// falls back to slog.Default().

@@ -78,7 +78,14 @@ func TestReducerQueueClaimBatchBypassesSemanticGlobalCapWhenDisabled(t *testing.
 	if got, want := db.queries[0].args[6], 0; got != want {
 		t.Fatalf("semantic claim limit arg = %v, want %v", got, want)
 	}
-	if !strings.Contains(db.queries[0].query, "domain <> 'semantic_entity_materialization' OR $7 <= 0 OR (") {
-		t.Fatalf("batch claim query does not bypass semantic cap when disabled:\n%s", db.queries[0].query)
+	// #10565 step 1: the semantic cap bypass survives as the $7 <= 0 arms
+	// of the precomputed scalar/rank checks (no per-row count subquery).
+	for _, want := range []string{
+		"OR $7 <= 0 OR semantic_scalars.sem_inflight < $7",
+		"OR $7 <= 0 OR COALESCE(semantic_ranked.sem_rank, 0)",
+	} {
+		if !strings.Contains(db.queries[0].query, want) {
+			t.Fatalf("batch claim query does not bypass semantic cap when disabled (%q):\n%s", want, db.queries[0].query)
+		}
 	}
 }

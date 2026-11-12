@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package main
+package main //nolint:filelength // 519 lines (base 498): reducer env/flag loading for the claim path; the #10565 funnel flag loader stays next to the flags it describes.
 
 import (
 	"context"
@@ -30,6 +30,7 @@ const (
 	reducerMaxAttemptsEnv                   = "ESHU_REDUCER_MAX_ATTEMPTS"
 	reducerWorkersEnv                       = "ESHU_REDUCER_WORKERS"
 	reducerBatchClaimEnv                    = "ESHU_REDUCER_BATCH_CLAIM_SIZE"
+	reducerBatchClaimFunnelEnabledEnv       = "ESHU_REDUCER_BATCH_CLAIM_FUNNEL_ENABLED"
 	reducerClaimDomainEnv                   = "ESHU_REDUCER_CLAIM_DOMAIN"
 	reducerClaimDomainsEnv                  = "ESHU_REDUCER_CLAIM_DOMAINS"
 	queryProfileEnv                         = "ESHU_QUERY_PROFILE"
@@ -238,6 +239,26 @@ func loadReducerSemanticEntityClaimLimit(
 		}
 	}
 	return 0
+}
+
+// loadReducerBatchClaimFunnelEnabled reads
+// ESHU_REDUCER_BATCH_CLAIM_FUNNEL_ENABLED (default false). The funnel census
+// replays the claim chain per claim, so it stays off until its QA-lane delta
+// proof clears the flip threshold (#10565). A value that does not parse
+// stops startup with an error naming the variable.
+func loadReducerBatchClaimFunnelEnabled(getenv func(string) string) (bool, error) {
+	if getenv == nil {
+		getenv = func(string) string { return "" }
+	}
+	raw := strings.TrimSpace(getenv(reducerBatchClaimFunnelEnabledEnv))
+	if raw == "" {
+		return false, nil
+	}
+	enabled, err := strconv.ParseBool(raw)
+	if err != nil {
+		return false, fmt.Errorf("%s=%q: want a strconv.ParseBool value (true/false, 1/0, t/f spellings)", reducerBatchClaimFunnelEnabledEnv, raw)
+	}
+	return enabled, nil
 }
 
 func loadReducerProjectorDrainGate(

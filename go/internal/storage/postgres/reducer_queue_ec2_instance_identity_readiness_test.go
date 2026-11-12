@@ -106,7 +106,10 @@ func TestReducerQueueBatchClaimQueryGatesEC2InstanceIdentityOnInstanceNodeReadin
 	) {
 		t.Fatalf("batch claim query missing EC2 instance identity readiness requirement:\n%s", claimReducerWorkBatchQuery)
 	}
-	if !queryHasRankOnceRepresentativeReadinessGate(claimReducerWorkBatchQuery, "fact_work_items", "readiness_req", "readiness_phase") {
+	// #10565 step 1: the readiness gate lives in the precomputed
+	// readiness_missing set (work alias "w"), read by base as
+	// (readiness_missing.work_item_id IS NULL).
+	if !queryHasRankOnceRepresentativeReadinessGate(claimReducerWorkBatchQuery, "w", "readiness_req", "readiness_phase") {
 		t.Fatalf("batch claim query missing EC2 instance identity representative readiness lookup:\n%s", claimReducerWorkBatchQuery)
 	}
 }
