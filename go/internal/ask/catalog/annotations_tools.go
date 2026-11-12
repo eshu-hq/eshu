@@ -100,6 +100,7 @@ func askToolAnnotations() map[string]Annotation {
 		"get_service_intelligence_report":                 {Backend: BackendBoth, Cost: CostHigh},
 		"get_service_story":                               {Backend: BackendBoth, Cost: CostModerate},
 		"list_service_api_endpoints":                      {Backend: BackendBoth, Cost: CostModerate},
+		"list_service_downstream_consumers":               {Backend: BackendBoth, Cost: CostModerate},
 		"get_supply_chain_impact_inventory":               {Backend: BackendPostgres, Cost: CostModerate},
 		"get_surface_inventory":                           {Backend: BackendEmbedded, Cost: CostLow},
 		"get_vulnerability_scanner_read_contract":         {Backend: BackendEmbedded, Cost: CostLow},

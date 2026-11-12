@@ -223,6 +223,7 @@ var censusToolSchemaSnapshot = []censusToolSchema{
 	{Name: "get_service_context", Properties: []string{"downstream_read_limit", "environment", "evidence_detail", "workload_id"}, Required: []string{"workload_id"}},
 	{Name: "get_service_story", Properties: []string{"downstream_read_limit", "environment", "evidence_detail", "repo", "repo_id", "repository_id", "service_id", "service_name", "workload_id"}, Required: []string{}},
 	{Name: "list_service_api_endpoints", Properties: []string{"environment", "limit", "offset", "repo", "repo_id", "repository_id", "service_id", "service_name", "workload_id"}, Required: []string{}},
+	{Name: "list_service_downstream_consumers", Properties: []string{"after_repo_id", "after_repository", "environment", "limit", "repo", "repo_id", "repository_id", "service_id", "service_name", "workload_id"}, Required: []string{}},
 	{Name: "investigate_service", Properties: []string{"environment", "intent", "question", "repo", "repo_id", "repository_id", "service_id", "service_name"}, Required: []string{}},
 	{Name: "get_service_intelligence_report", Properties: []string{"environment", "repo", "repo_id", "repository_id", "service_id", "service_name", "workload_id"}, Required: []string{}},
 	{Name: "get_file_content", Properties: []string{"relative_path", "repo_id"}, Required: []string{"relative_path", "repo_id"}},

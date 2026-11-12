@@ -25,7 +25,8 @@ metadata, and response shaping.
 
 - `CatalogTools` returns `list_service_catalog_correlations`.
 - `ContextTools` returns `get_service_context`, `get_service_story`,
-  `list_service_api_endpoints`, and `investigate_service`, in that order.
+  `list_service_api_endpoints`, `list_service_downstream_consumers`, and
+  `investigate_service`, in that order.
 - `IntelligenceTools` returns `get_service_intelligence_report`.
 
 See `doc.go` for the godoc contract.

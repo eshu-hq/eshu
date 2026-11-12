@@ -127,6 +127,7 @@ The flags the table names:
   count-query total), `detail_truncated`, and `next_offset` (absent when the
   page is complete); repeat with `offset` set to `next_offset` until it is
   absent. An empty set answers 200 with `endpoint_count: 0`, not 404.
+- The dossier downstream lists render up to the effective read (`result_limits.downstream_render_limit`); page the full keyset-ordered set through `GET /api/v0/services/{service_name}/downstream-consumers` (`result_limits.consumer_list_tool` / `consumer_list_path` point there, and the MCP `list_service_downstream_consumers` tool dispatches to it). The selector matches the service story; `limit` defaults to 50 and clamps to 100, `after_repository`/`after_repo_id` carry the previous page's `next_cursor` (absent starts at the first row, a missing half is 400), and an empty page is a terminal 200, not 404. Pages arrive in `repository, repo_id` order with `truncated`, `consumer_truncation_sources`, `searched_hostnames`, `effective_read_bound`, and `lower_bound: true` (no total exists to report; `next_cursor` absent means done).
 - A read of 50 rows with no flag of its own is the `cloud_resources` read, the
   runtime instance read, and the framework route read (50 files): their totals
   cannot say more exist. The framework route read has no flag for the 50-file
