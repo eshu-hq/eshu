@@ -22,12 +22,15 @@ import (
 //   - the OLD candidate plan still evaluates per-row SubPlans on this
 //     fixture (non-vacuous: the shape the rewrite removes is present), and
 //   - the NEW candidate and FULL-claim plans evaluate zero SubPlans, while
-//     the full-claim Update node still sweeps the stale volume.
+//     the full-claim Update node still sweeps the stale volume, and
+//   - the FUNNEL plan evaluates zero Update/LockRows nodes (F1: the census
+//     replays the sweep read-only instead of re-running its UPDATE).
 //
 // Every EXPLAIN ANALYZE runs inside a transaction that rolls back, so the
 // sweep UPDATE the plans execute never commits and every side observes the
 // identical fixture state. Timings and buffer counts are logged as evidence,
-// not asserted as gates (single-sample wall time is not a proof).
+// not asserted as gates (single-sample wall time is not a proof, and neither
+// fixture is production scale: see the production-scale caveat below).
 //
 // Skipped unless a DSN is provided, like the other claim proofs.
 func TestClaimBatchGatePrecomputeStaleHeavyExplain(t *testing.T) {
@@ -105,6 +108,28 @@ func TestClaimBatchGatePrecomputeStaleHeavyExplain(t *testing.T) {
 	}
 	swept := fullClaimUpdateRows(t, fullPlan)
 	t.Logf("full-claim Update node actual rows (sweep + claims): %d (seeded stale: %d)", swept, staleRows)
+
+	// F1/F6 funnel-vs-claim pair on the same stale-heavy fixture: the
+	// funnel census must show no data-modifying or locking node, and its
+	// execution time is logged next to the full claim's so the evidence
+	// note can record both. Neither fixture is production scale — the
+	// numbers below size the funnel against the claim on identical state,
+	// they do not predict production cost (net-of-funnel production scale
+	// stays NOT_CHECKED until the QA-lane sustained window).
+	funnelArgs := []any{clock, nil, "n/a", clock.Add(time.Hour), true, 0, 0}
+	funnelPlan := explainAnalyzeRollback(t, ctx, db, reducerClaimBatchFunnelQuery, funnelArgs)
+	joinedFunnel := strings.Join(funnelPlan, "\n")
+	for _, banned := range []string{"Update on", "LockRows"} {
+		if strings.Contains(joinedFunnel, banned) {
+			t.Fatalf("funnel plan contains %q on the stale-heavy fixture; the census must stay read-only:\n%s",
+				banned, joinedFunnel)
+		}
+	}
+	t.Logf("funnel-vs-claim: funnel execution time %s, full-claim execution time %s (stale-heavy fixture, %d stale rows; not production scale)",
+		planExecutionTime(funnelPlan), planExecutionTime(fullPlan), staleRows)
+	t.Logf("funnel-vs-claim buffers: funnel=[%s] full-claim=[%s]",
+		strings.Join(planBufferLines(funnelPlan), " / "),
+		strings.Join(planBufferLines(fullPlan), " / "))
 	if swept < staleRows {
 		t.Fatalf("full-claim Update node swept %d rows, want at least the %d seeded stale rows; "+
 			"the sweep volume this proof must cover is missing", swept, staleRows)

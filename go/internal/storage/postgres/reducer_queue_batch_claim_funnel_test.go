@@ -250,7 +250,9 @@ func TestClaimBatchFunnelQueryIsReadOnly(t *testing.T) {
 	for _, want := range []string{
 		"superseded_stale_reducer_locked AS (",
 		"superseded_crossplane_newest_carrier AS MATERIALIZED (",
-		"superseded_stale_reducer_generations AS (",
+		// MATERIALIZED is load-bearing (see the marker's comment): without
+		// it the planner inlines the sweep under base's NOT EXISTS.
+		"superseded_stale_reducer_generations AS MATERIALIZED (",
 		supersedeInactiveReducerLockedColumnsSQL,
 		supersedeInactiveReducerCarrierArmSQL,
 		supersededCrossplaneNewestCarrierCTE,

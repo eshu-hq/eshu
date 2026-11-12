@@ -39,7 +39,21 @@ func reducerClaimFunnelSweepCTEs() string {
 ` + supersedeInactiveReducerCarrierArmSQL + `
 ),
 ` + supersededCrossplaneNewestCarrierCTE + `
-superseded_stale_reducer_generations AS (
+` + reducerClaimFunnelGenerationsCTE()
+}
+
+// reducerClaimFunnelGenerationsCTE renders the read-only stand-in for the
+// sweep's terminal UPDATE...RETURNING: the same row-filter membership as a
+// SELECT over the locked set.
+//
+// AS MATERIALIZED is load-bearing: without it the planner inlines this
+// SELECT under base's NOT EXISTS and replays the sweep per candidate row
+// (measured 614 ms / 1.8 M buffer hits vs the claim's 114 ms on the
+// stale-heavy fixture). The claim's UPDATE...RETURNING form is inherently
+// evaluated once; this marker gives the read-only stand-in the same
+// evaluate-once shape.
+func reducerClaimFunnelGenerationsCTE() string {
+	return `superseded_stale_reducer_generations AS MATERIALIZED (
     SELECT stale.work_item_id
     FROM superseded_stale_reducer_locked AS stale,
          ingestion_scopes AS scope

@@ -18,7 +18,11 @@ import (
 // live leases on one conflict key and must never deliver one work item
 // twice. It runs the shipped batch claim (with the precomputed gates), so a
 // gate rewrite that broke the representative fence or the locked-CTE
-// EvalPlanQual recheck would surface here as a duplicate lease or id.
+// EvalPlanQual recheck would surface here as a duplicate lease or id. The
+// backlog seeds 64 distinct conflict keys, so same-key contention under
+// concurrency rides the byte-identical downstream plus the C-1 membership
+// proof — this storm proves no double delivery or double lease, not a
+// shared-key contention race.
 func TestClaimBatchGatePrecomputeStorm(t *testing.T) {
 	dsn := reducerDomainFairnessDSN()
 	if dsn == "" {

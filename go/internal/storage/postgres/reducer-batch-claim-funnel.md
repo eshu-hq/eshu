@@ -4,11 +4,18 @@ This companion note keeps the package README focused while preserving the
 funnel design, evidence, and operator contract for the batch-claim admission
 telemetry future claim changes must respect.
 
-`ClaimBatch` (`reducer_queue_batch.go`) recorded only the admitted batch size
-(`eshu_dp_reducer_batch_claim_size`). The issue requires the full admission
+The service layer (`runBatchConcurrent` in `go/internal/reducer/service_batch.go`)
+records the admitted batch size (`eshu_dp_reducer_batch_claim_size`) once per
+`ClaimBatch` with `queue="reducer"`, including the early-return conflict
+path. The storage claim records no size histogram: production wires the same
+`*Instruments` into both layers (`go/cmd/reducer/main_helpers.go` and
+`go/cmd/reducer/main.go`), so a second recording in the storage claim would
+double-count every production claim — `TestClaimBatchDoesNotRecordBatchClaimSize`
+pins the storage silence and `TestServiceBatchClaimRecordsSingleBatchClaimSize`
+pins the single service emission. The issue requires the full admission
 funnel — candidates in, representatives after the fence, and drops by reason —
 as the operator signal for the claim-admission ceiling work. Every claim now
-runs one extra lock-free counts query (`reducerClaimBatchFunnelQuery`,
+runs one extra read-only counts query (`reducerClaimBatchFunnelQuery`,
 `reducer_queue_batch_claim_funnel.go`) and records
 `eshu_dp_reducer_batch_claim_candidates` and
 `eshu_dp_reducer_batch_claim_representatives` (per-claim histograms,
@@ -22,7 +29,10 @@ claimer storm, where a concurrent claim can land between the two statements).
 The counts derive from the same Go sources as the shipped claim: the funnel
 composes `reducerClaimBatchCandidateChainCTEs()` (everything from
 `reducer_source_inflight` through `candidate`) verbatim, so a future gate edit
-lands in both or the substring guards fail. The live-lease fence derives as
+lands in both or the substring guards fail. The sweep exclusion derives from
+the same shared sweep sources (locked columns, carrier arm, carrier CTE, row
+filters) rendered as SELECT-only stand-ins — `TestClaimBatchFunnelQueryIsReadOnly`
+pins both the sharing and the no-mutation contract. The live-lease fence derives as
 pre-fence minus representatives (the candidate CTE's only additional filter);
 the limit trim and lock-time loss derive in Go (`over_limit` past the batch
 limit, `lock_lost` as the within-limit shortfall against the admitted batch).
@@ -33,20 +43,27 @@ carries a tautological `$3`/`$4` WHERE clause: Postgres rejects parameters
 whose type it cannot infer (42P18) and an unreferenced placeholder has no
 type.
 
-No-Regression Evidence: the shipped claim text is byte-identical — the chain
-moved into `reducerClaimBatchUpstreamCTEs()` /
-`reducerClaimBatchRepresentativeCTEs()` (split only for the repository
-funlen cap; the wrapper rejoins them) with no other change, verified by
-diffing the moved region against HEAD plus the
+No-Regression Evidence: the shipped claim text is byte-identical across the
+split commit against its parent — the chain moved into
+`reducerClaimBatchUpstreamCTEs()` / `reducerClaimBatchRepresentativeCTEs()`
+(split only for the repository funlen cap; the wrapper rejoins them) with no
+other change, verified by diffing the moved region against HEAD plus the
 `TestClaimBatchFunnelQueryReusesShippedChain` verbatim guards, and by the
 live C-1 candidate differential and C-3 storm staying green. The added cost is
-one counts-only SELECT per claim (no payload fetch, no locking, no row
-update), measured at ~0.85ms execution / ~3.0ms planning against ~1.5ms /
-~2.6ms for the claim itself on the 21-row gate-precompute fixture
-(disposable PostgreSQL 18.6 via `EXPLAIN (ANALYZE, BUFFERS)`): about half a
-claim on a tiny backlog where fixed planning dominates. Both scale with the
-same base scan and the funnel never takes locks. Production-scale
-before/after belongs to the QA-lane sustained window (issue boxes 7-8).
+one read-only counts SELECT per claim (no payload fetch, no locking, no row
+update — `TestClaimBatchFunnelQueryIsReadOnly` pins the no-mutation
+contract). Funnel-vs-claim cost on the stale-heavy fixture (1,200 stale rows, disposable PostgreSQL 18.6,
+`EXPLAIN (ANALYZE, BUFFERS)`, rollback tx): funnel 94.4 ms / ~12.9 k buffer
+hits with zero `Update`/`LockRows` nodes vs full claim 113.9 ms (see the
+`funnel-vs-claim` log line in `TestClaimBatchGatePrecomputeStaleHeavyExplain`).
+Neither
+that fixture nor the gate-precompute fixture is production scale, so every
+performance claim in the PR body stays net-of-funnel `NOT_CHECKED` until the
+QA-lane sustained window (issue boxes 7-8) measures it. Since F1 the funnel
+replays the candidate chain with a read-only sweep derivation instead of the
+claim's mutating sweep, so the shipped per-claim total is claim-chain plus
+funnel-chain replay — the service-side `QueueClaimDuration` now includes the
+funnel statement, which boxes 7-8 must know.
 
 Observability Evidence: `eshu_dp_reducer_batch_claim_candidates`,
 `eshu_dp_reducer_batch_claim_representatives`, and
@@ -57,4 +74,7 @@ Observability Evidence: `eshu_dp_reducer_batch_claim_candidates`,
 `batch-claim-funnel-count` bucket row. `TestClaimBatchRecordsFunnelTelemetry`
 pins the seven closed reasons and funnel reconciliation hermetically;
 `TestClaimBatchFunnelReconcilesLive` proves reconciliation on the seeded
-fixture (candidates=14, admitted=2, representatives=6, drops summing to 12).
+fixture with exact per-reason values: limited (candidates=22, admitted=2,
+representatives=13, not_ready=1, not_representative=1, projector_drain=2,
+semantic_cap=5, over_limit=11) and unlimited (admitted=13, the full
+representative set including the holder of the shadowed holder-key).
