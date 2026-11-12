@@ -127,13 +127,16 @@ func recordSemanticSearchDegraded(ctx context.Context, queryType, reason string)
 }
 
 // annotateSemanticSearchDegraded records the degraded signal (span attributes plus
-// the counter) for a completed retrieval. It always stamps the retrieval_state and
-// degraded flag on the span so an operator can see the served mode of every
-// request, and increments the counter only when the request was actually degraded.
-func annotateSemanticSearchDegraded(ctx context.Context, span trace.Span, mode searchbench.Mode, retrievalState string) {
+// the counter) for a completed retrieval. It always stamps the retrieval_state,
+// corpus_state, and degraded flag on the span so an operator can see the served
+// mode and corpus condition of every request, and increments the counter only
+// when the request was actually degraded. An empty corpus is not a degradation,
+// so corpus_state never feeds the counter.
+func annotateSemanticSearchDegraded(ctx context.Context, span trace.Span, mode searchbench.Mode, retrievalState string, corpusState string) {
 	degraded, queryType, reason := semanticSearchDegradation(mode, retrievalState)
 	span.SetAttributes(
 		attribute.String("search.retrieval_state", retrievalState),
+		attribute.String("search.corpus_state", corpusState),
 		attribute.Bool("search.degraded", degraded),
 	)
 	if !degraded {

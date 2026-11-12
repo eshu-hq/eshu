@@ -108,6 +108,12 @@ func emptySemanticSearchResponse(req searchretrieval.Request) semanticSearchResp
 		CorpusLimit:    0,
 		Truncated:      false,
 		RetrievalState: defaultSemanticSearchRetrievalState(req.Mode),
-		Facets:         semanticSearchFacets{Languages: map[string]int{}},
+		// Both early paths (no grant at all, no resolved scope) answer
+		// before any corpus is read, so the resolved corpus holds no
+		// documents. Deriving from zero keeps the field consistent with
+		// the retrieval path, and every caller without a grant gets the
+		// identical shape, so the field is never an oracle.
+		CorpusState: semanticSearchCorpusState(0, false, 0),
+		Facets:      semanticSearchFacets{Languages: map[string]int{}},
 	}
 }

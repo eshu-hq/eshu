@@ -136,6 +136,28 @@ type semanticSearchResponse struct {
 	CorpusLimit              int                    `json:"corpus_limit"`
 	CorpusMayBeTruncated     bool                   `json:"corpus_may_be_truncated"`
 	RetrievalState           string                 `json:"retrieval_state"`
+	// CorpusState names the corpus condition in words so a caller need not
+	// decode the indexed_document_count/results/corpus_may_be_truncated
+	// triple. Closed enum: "empty" (the corpus holds no documents — the
+	// user-facing meaning of "not indexed"), "truncated" (a corpus exists
+	// but the bounded read may not cover all of it), "populated"
+	// (otherwise). "results": [] with "populated" means the corpus was
+	// searched and nothing matched; with "empty" it means there was
+	// nothing to search, so retrying with different words is pointless.
+	// Empty wins over truncated: a zero-document corpus has nothing to
+	// truncate. Served results beside a zero count never report empty
+	// (populated), keeping the wire self-consistent when a store
+	// under-reports its count.
+	//
+	// The count is the one the serving backend reported in
+	// indexed_document_count: the persisted index reports the whole-scope
+	// count before source-kind/language filters, while local-hybrid
+	// backends report the size of the filter-narrowed corpus they
+	// searched. Without filters empty always means the in-scope corpus
+	// holds no documents; with filters on a hybrid-served request it can
+	// also mean the filters excluded every document. RetrievalState is
+	// untouched: it stays a mode state, never a corpus state.
+	CorpusState string `json:"corpus_state"`
 	// Facets carries per-dimension aggregate counts computed over the
 	// post-filter result set. The block is always present (never omitted) so
 	// callers can rely on the shape unconditionally.
@@ -344,13 +366,14 @@ func (h *SemanticSearchHandler) search(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	annotateSemanticSearchDegraded(r.Context(), span, req.Mode, indexResult.RetrievalState)
+	response := semanticSearchResponseFromRetrieval(req, retrieval, indexResult, body.Rerank)
+	annotateSemanticSearchDegraded(r.Context(), span, req.Mode, indexResult.RetrievalState, response.CorpusState)
 
 	querycontract.WriteSuccess(
 		w,
 		r,
 		http.StatusOK,
-		semanticSearchResponseFromRetrieval(req, retrieval, indexResult, body.Rerank),
+		response,
 		h.truthWithSearchVectorFreshness(r, req.Mode),
 	)
 }

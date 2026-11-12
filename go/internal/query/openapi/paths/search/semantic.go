@@ -67,6 +67,7 @@ const Semantic = `
                     "corpus_limit": {"type": "integer"},
                     "corpus_may_be_truncated": {"type": "boolean"},
                     "retrieval_state": {"type": "string", "enum": ["keyword_only", "semantic_unavailable", "hybrid_degraded", "semantic_active", "hybrid_active", "policy_denied", "index_unready"]},
+                    "corpus_state": {"type": "string", "enum": ["empty", "truncated", "populated"], "description": "Corpus condition in words: empty means the corpus holds no documents (nothing to search, retrying with different words is pointless); truncated means a corpus exists but the bounded read may not cover all of it; populated means the corpus was searched and results carry what matched, if anything. results: [] with populated means searched, nothing matched; with empty means nothing to search."},
                     "facets": {
                       "type": "object",
                       "description": "Per-dimension aggregate counts derived from the post-filter result set. Always present. Computed over the documents returned by the bounded index query — no second scan.",

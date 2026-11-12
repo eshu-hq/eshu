@@ -9,7 +9,7 @@ import "github.com/eshu-hq/eshu/go/internal/mcp/contract/tool"
 func SearchTools() []toolcontract.ToolDefinition {
 	return []toolcontract.ToolDefinition{{
 		Name:        "search_semantic_context",
-		Description: "Search curated Eshu context for a repository with explicit scope, limit, timeout, truth, and truncation metadata.",
+		Description: "Search curated Eshu context for a repository with explicit scope, limit, timeout, truth, and truncation metadata. The response reports corpus_state in words: results: [] with corpus_state populated means the corpus was searched and nothing matched (a real answer); with corpus_state empty means there is nothing to search, so retrying with different words is pointless.",
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
