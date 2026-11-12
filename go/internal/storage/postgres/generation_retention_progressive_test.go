@@ -313,6 +313,83 @@ func TestGenerationRetentionProgressiveWindowOfOneExhausts(t *testing.T) {
 	}
 }
 
+// TestGenerationRetentionProgressiveWindowStopsOnDeferredSkip pins the PR-2
+// stop-on-skip branch (#10525 F1): the 4x40k prescreen admits the [g1 g2]
+// window, but the planning count (g1=60k, g2=50k) defers g2 past the 100k
+// row limit, so the loop stops instead of doubling to a wider recount. The
+// only row-count queries are the planning count plus the [g1] re-check and
+// re-lock recounts; g2 is tallied exactly once and g3/g4 are never counted
+// or tallied, and only g1 prunes.
+//
+// RED on the mutant that drops the `len(skipped) > 0` disjunct: the 60k
+// selected total sits under the limit, so the loop doubles to [g1 g2 g3 g4]
+// and the follow-up count is the wider recount, not [g1].
+func TestGenerationRetentionProgressiveWindowStopsOnDeferredSkip(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 11, 12, 10, 0, 0, 0, time.UTC)
+	counts := [][]any{
+		{"g1", "fact_records", int64(60000)},
+		{"g2", "fact_records", int64(50000)},
+		{"g3", "fact_records", int64(1000)},
+		{"g4", "fact_records", int64(1000)},
+	}
+	database := &generationRetentionFakeDB{
+		candidateRows: progressiveCountGenerations(now, "scope-s", "g1", "g2", "g3", "g4"),
+		prescreenRows: [][]any{
+			{"g1", int64(40000)},
+			{"g2", int64(40000)},
+			{"g3", int64(40000)},
+			{"g4", int64(40000)},
+		},
+		countRows:   counts,
+		recountRows: counts,
+		execResults: generationRetentionExecResults(1, 0, 0, 0, 0, 0, 0, 1),
+	}
+	store := NewGenerationRetentionStore(database)
+	store.Now = func() time.Time { return now }
+
+	result, err := store.PruneSupersededGenerations(context.Background(), ledgerRetentionPolicy(100000))
+	if err != nil {
+		t.Fatalf("PruneSupersededGenerations() error = %v", err)
+	}
+	if database.prescreenCalls != 1 {
+		t.Fatalf("pre-screen calls = %d, want 1 (the window reuses the single pre-screen, never re-runs it)", database.prescreenCalls)
+	}
+	// g1 (60k) admits, g2 (60k+50k over the limit) defers: the stop-on-skip
+	// branch settles the [g1 g2] window, and the re-check plus the re-lock
+	// recount the [g1] survivor. No wider recount ever runs.
+	want := [][]string{{"g1", "g2"}, {"g1"}, {"g1"}}
+	if ids := progressiveCountIDs(database); !slices.EqualFunc(ids, want, slices.Equal[[]string]) {
+		t.Fatalf("row-count query ids = %v, want %v (planning count, re-check recount, re-lock recount)", ids, want)
+	}
+	// g2's deferred skip tallies exactly once; g3 and g4 sit outside the
+	// settled window, so nothing tallies them.
+	if got := result.Skipped["row_limit"]; got != 1 {
+		t.Fatalf("Skipped[row_limit] = %d, want 1 (g2 deferred once by the final re-check)", got)
+	}
+	var tallied int
+	for _, n := range result.Skipped {
+		tallied += n
+	}
+	if tallied != 1 {
+		t.Fatalf("total skipped = %d, want 1 (g3 and g4 are never tallied)", tallied)
+	}
+	if result.GenerationsPruned != 1 {
+		t.Fatalf("GenerationsPruned = %d, want 1 (g1)", result.GenerationsPruned)
+	}
+	if got := result.RowsPruned["fact_records"]; got != 60000 {
+		t.Fatalf("RowsPruned[fact_records] = %d, want 60000", got)
+	}
+	for _, exec := range database.execs {
+		if strings.Contains(exec.query, "DELETE FROM scope_generations") {
+			if ids, _ := exec.args[0].([]string); !slices.Equal(ids, []string{"g1"}) {
+				t.Fatalf("generation delete ids = %v, want [g1]", ids)
+			}
+		}
+	}
+}
+
 // TestGenerationRetentionChunkTargetStaysOutsideWindowCounts pins that the
 // PR-2 window never swallows the #7981 chunk target: the over-limit
 // generation stays out of every row-count query's ids while it drains its
