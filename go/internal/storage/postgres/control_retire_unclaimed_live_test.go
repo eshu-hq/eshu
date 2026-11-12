@@ -235,6 +235,27 @@ func TestRetireUnclaimedLiveGateRefusals(t *testing.T) {
 	}
 }
 
+// raceRowsSettled reports whether every raced row has left pending through
+// claim or retire. Rows leave pending only through those two paths and the
+// claim lease TTL outlives the test, so the observation is conclusive: a
+// claim still executing when the count runs can only return empty, because
+// no pending row remains for it to win. A wedged row stays pending and keeps
+// the retirer looping until the settle bound fails loudly with the undecided
+// rows named.
+func raceRowsSettled(ctx context.Context, t *testing.T, database *sql.DB, runID string, raced int) bool {
+	t.Helper()
+	var claimedRows, retiredRows, pendingRows int
+	if err := database.QueryRowContext(ctx, `
+SELECT COUNT(*) FILTER (WHERE status = 'claimed'),
+       COUNT(*) FILTER (WHERE status = 'failed_terminal'),
+       COUNT(*) FILTER (WHERE status = 'pending')
+FROM workflow_work_items WHERE run_id = $1`, runID,
+	).Scan(&claimedRows, &retiredRows, &pendingRows); err != nil {
+		t.Fatalf("race settlement count: %v", err)
+	}
+	return claimedRows+retiredRows == raced && pendingRows == 0
+}
+
 // TestRetireUnclaimedLiveClaimRace proves claim-versus-retire never both
 // win and never deadlock: barrier-synchronized claimants and one retirer
 // race over the same rows, and every row ends claimed exactly once or
@@ -339,6 +360,17 @@ FROM workflow_work_items WHERE run_id = $1`, runID,
 			if now := time.Now(); now.Sub(lastProgress) >= progressEvery {
 				lastProgress = now
 				logProgress("retire")
+			}
+			// Deterministic exit on DB truth: rows leave pending only via
+			// claim or retire and the lease TTL outlives the test, so a
+			// settled count observation is conclusive and any claim still
+			// in flight can only return empty. The inflight-based
+			// rendezvous below stays as a fast path, but it cannot be the
+			// only exit: under statement-latency inflation at least one
+			// claim is always in flight, so two consecutive passes never
+			// both observe zero and the race spins past settlement (#10580).
+			if len(items) == 0 && raceRowsSettled(ctx, t, database, runID, racedRows) {
+				return
 			}
 			if len(items) != 0 || inflight.Load() != 0 {
 				time.Sleep(time.Millisecond)
