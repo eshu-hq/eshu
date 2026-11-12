@@ -244,6 +244,24 @@ implementation except where noted):
 - Rollout metrics: advisory backlog row count and oldest claimable
   age falling faster than new touches, two stable reads.
 
+## Per-scope reader audit (implementation, 2026-11-12)
+
+Every surface that reads advisory rows by scope was checked live on the
+implementation branch. No advisory consumer filters or joins on the
+origin scope: the domain's production readers are the enqueuer
+(`supply_chain_impact_advisory_group_enqueue.go`), the conflict-key
+partitioner (`reducer_queue_conflict.go`), and the handler
+(`advisory/group/handler.go`), all keyed by group id.
+
+| Surface | Finding | Disposition |
+|---|---|---|
+| Claim `RelatedScope` derivation (`reducer_queue_helpers.go`: `RelatedScopeIDs: []string{scopeID}`) | After re-homing the related scope is the synthetic slot scope. The advisory handler reads `EntityKeys` only and never consults `RelatedScopeIDs` (no use in `handler.go`); no other consumer keys advisory rows by related scope. | No code change. Origin rides the payload (`origin_scope_id`, `origin_generation_id`) for drill-down. |
+| Status summary grouping (`status_active_work_summary.go`: `GROUP BY scope_id, generation_id, stage, status`) | Advisory backlog rows now attribute to `synthetic:advisory-groups` instead of the first toucher. | No code change: accepted by the scope-attributed-status decision above (today's attribution was already arbitrary). |
+| Telemetry dimensions (`instruments_advisory_group_projection.go`) | Signals carry `{domain}` / `{domain,outcome}` only; no scope label, so re-homing moves nothing. The lag signal measured from `EnqueuedAt` alone, understating the wait the handler actually defers on (`max(EnqueuedAt, CycleStartedAt)`). | Code change: `winnersBoundStart` in `handler.go` shares one bound between the watermark deferral and `RecordAdvisoryGroupLag`; `TestAdvisoryGroupHandlerLagStartsAtCycleBound` pins 60s-from-bound vs 660s-from-enqueue. No new signals. |
+| Admin-status surfaces (`status_hosted_readiness.go`) | The stall gate reads global queue `Outstanding`/`OldestOutstandingAge` plus per-domain backlogs keyed by domain (no scope). Advisory contributes by domain exactly as before. | No code change. |
+| Freshness / `changed_since` (`query/freshness/`, `changed_since_*.go`) | Read `fact_records` and generation hints only; no `fact_work_items` participation (no advisory reference in those sources). | Verified, no change. |
+| Status age (`status_queries.go` domain backlogs; `status_blockage.go` blockages) | Oldest outstanding age is `MIN(COALESCE(reopened_at, created_at))`; blockage age is `MIN(available_at)` with `available_at = COALESCE(visible_at, created_at)`. Retouch advances `reopened_at` on every touch and reopen sets `visible_at` to the touch, so a hot group's age reflects its least-recently-touched outstanding slot, never a pinned first enqueue. | No code change; ages stay honest under coalescing. |
+
 ## Evidence
 
 - Handler scope-blind except logging:

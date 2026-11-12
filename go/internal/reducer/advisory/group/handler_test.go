@@ -353,6 +353,63 @@ func TestAdvisoryGroupDefinitionIsValid(t *testing.T) {
 // but resolve to no (repository, package) pair — an empty package id —
 // delete the anchor and report edgeless_with_winners, distinct from the
 // plain deleted outcome of an empty winner set.
+// TestAdvisoryGroupHandlerLagStartsAtCycleBound pins the #10566 lag
+// disposition: a coalesced touch advances the winners-watermark bound to
+// max(EnqueuedAt, CycleStartedAt), and the lag signal must measure from
+// that same bound. Measuring from EnqueuedAt alone would understate the
+// true wait whenever a retouch moved the bound after the first enqueue.
+func TestAdvisoryGroupHandlerLagStartsAtCycleBound(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	reader := sdkmetric.NewManualReader()
+	inst, err := telemetry.NewInstruments(sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader)).Meter("test"))
+	if err != nil {
+		t.Fatalf("NewInstruments: %v", err)
+	}
+	cycleStart := handlerTestEnqueuedAt.Add(10 * time.Minute)
+	winners := &fakeWinnersReader{watermark: cycleStart}
+	writer := &fakeWriter{}
+	intent := advisoryGroupIntent(EntityKey("CVE-2026-lag"))
+	intent.CycleStartedAt = cycleStart
+	handler := Handler{
+		Winners:     winners,
+		Writer:      writer,
+		Instruments: inst,
+		Now:         func() time.Time { return cycleStart.Add(time.Minute) },
+	}
+	if _, err := handler.Handle(ctx, intent); err != nil {
+		t.Fatalf("Handle: %v", err)
+	}
+
+	var metrics metricdata.ResourceMetrics
+	if err := reader.Collect(ctx, &metrics); err != nil {
+		t.Fatalf("collect: %v", err)
+	}
+	for _, scope := range metrics.ScopeMetrics {
+		for _, m := range scope.Metrics {
+			if m.Name != "eshu_dp_advisory_group_projection_lag_seconds" {
+				continue
+			}
+			hist, ok := m.Data.(metricdata.Histogram[float64])
+			if !ok {
+				continue
+			}
+			for _, point := range hist.DataPoints {
+				if point.Count != 1 {
+					continue
+				}
+				// From the cycle bound: 60s. From the enqueue: 660s.
+				if point.Sum < 59 || point.Sum > 61 {
+					t.Fatalf("lag sum = %v, want ~60s from max(EnqueuedAt, CycleStartedAt), not 660s from EnqueuedAt", point.Sum)
+				}
+				return
+			}
+		}
+	}
+	t.Fatal("no lag_seconds sample: the handler did not record projection lag")
+}
+
 func TestAdvisoryGroupHandlerPackageLessWinnersReportEdgeless(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()

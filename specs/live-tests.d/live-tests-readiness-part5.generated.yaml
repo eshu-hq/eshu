@@ -344,6 +344,11 @@ tests:
     class: postgres_ci
     reason: "#9545 reducer lease-expiry startup-window proof: the immediate pre-heartbeat extends the 150 ms startup claim before the executor enters, so a concurrent reclaim sweep never sees an expired claim_until while the worker holds the intent; a rejected pre-heartbeat fails as executor-never-entered rather than a lease lost mid-execution; disposable PostgreSQL databases through postgresproof with the production claim token; enrolled in the live-postgres-readiness runner; TestReducerServiceClosesLeaseExpiryStartupWindowAgainstPostgres 4.77s on local PostgreSQL 18.6 on 2026-10-30"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/reducer_queue_advisory_coalescing_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10566 disposable PostgreSQL proof for the advisory-coalescing re-homing design: a concurrent enqueue+retouch storm over one synthetic-slot group converges to one row with one insert and one live lease (A-1), the claim-time supersede sweep retires real stale rows while never touching the synthetic active-generation row and N touches over M groups leave M rows with the synthetic genesis absent from the real retention-candidate selection (A-2), and fail-after-touch then retry reclaims the same slot with the winners-watermark bound covering the second touch (A-3); seeded rows carry a unique prefix with cleanup on both paths; wall time is logged, not gated"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/reducer_queue_batch_ack_reclaim_live_test.go
     tag: ~
     class: postgres_ci

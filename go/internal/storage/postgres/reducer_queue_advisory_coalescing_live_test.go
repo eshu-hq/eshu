@@ -10,6 +10,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -64,19 +65,32 @@ func coalescing10566Intent(scope, gen, group string) runtime.ReducerIntent {
 
 // coalescing10566Touch models one origin pass touching a group under the
 // re-homed design: same synthetic scope/generation identity, enqueue plus
-// retouch, no production enqueuer change.
-func coalescing10566Touch(t *testing.T, ctx context.Context, q ReducerQueue, scope, gen, group string) (int, bool) {
-	t.Helper()
+// retouch, no production enqueuer change. It reports errors instead of
+// failing the test so storm goroutines can carry them back to the main
+// goroutine over a channel (calling t.Fatalf off the main goroutine is
+// illegal and can abort the run).
+func coalescing10566Touch(ctx context.Context, q ReducerQueue, scope, gen, group string) (int, bool, error) {
 	intent := coalescing10566Intent(scope, gen, group)
 	res, err := q.Enqueue(ctx, []runtime.ReducerIntent{intent})
 	if err != nil {
-		t.Fatalf("touch enqueue %s: %v", group, err)
+		return 0, false, fmt.Errorf("touch enqueue %s: %w", group, err)
 	}
 	ok, err := q.RetouchWorkItem(ctx, reducerWorkItemID(intent))
 	if err != nil {
-		t.Fatalf("touch retouch %s: %v", group, err)
+		return 0, false, fmt.Errorf("touch retouch %s: %w", group, err)
 	}
-	return res.Count, ok
+	return res.Count, ok, nil
+}
+
+// mustCoalescing10566Touch is the main-goroutine touch: it fails the test
+// on error, keeping the linear scenarios readable.
+func mustCoalescing10566Touch(t *testing.T, ctx context.Context, q ReducerQueue, scope, gen, group string) (int, bool) {
+	t.Helper()
+	n, ok, err := coalescing10566Touch(ctx, q, scope, gen, group)
+	if err != nil {
+		t.Fatalf("touch %s: %v", group, err)
+	}
+	return n, ok
 }
 
 func coalescing10566Status(t *testing.T, ctx context.Context, db *sql.DB, id string) string {
@@ -167,16 +181,25 @@ func TestAdvisoryCoalescingLifecycleLive(t *testing.T) {
 	g1id := reducerWorkItemID(coalescing10566Intent(synth, genesis, g1))
 	const stormN = 16
 	var insertedTotal atomic.Int64
+	touchErrs := make(chan error, stormN)
 	var wg sync.WaitGroup
 	for i := 0; i < stormN; i++ {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			n, _ := coalescing10566Touch(t, ctx, mkQueue(fmt.Sprintf("storm-%s-%d", suffix, i)), synth, genesis, g1)
+			n, _, err := coalescing10566Touch(ctx, mkQueue(fmt.Sprintf("storm-%s-%d", suffix, i)), synth, genesis, g1)
+			if err != nil {
+				touchErrs <- fmt.Errorf("storm touch %d: %w", i, err)
+				return
+			}
 			insertedTotal.Add(int64(n))
 		}(i)
 	}
 	wg.Wait()
+	close(touchErrs)
+	for err := range touchErrs {
+		t.Fatalf("A-1 storm: %v", err)
+	}
 	var g1count int
 	if err := db.QueryRowContext(ctx, `SELECT count(*) FROM fact_work_items WHERE work_item_id=$1`, g1id).Scan(&g1count); err != nil {
 		t.Fatalf("count storm row: %v", err)
@@ -216,10 +239,10 @@ func TestAdvisoryCoalescingLifecycleLive(t *testing.T) {
 	// sweep while the synthetic row on the always-active genesis survives.
 	g2synth := "GHSA-COALESCE-HOMED"
 	g2synthID := reducerWorkItemID(coalescing10566Intent(synth, genesis, g2synth))
-	coalescing10566Touch(t, ctx, enq, synth, genesis, g2synth)
+	mustCoalescing10566Touch(t, ctx, enq, synth, genesis, g2synth)
 	g2 := "GHSA-COALESCE-STALE"
 	g2realID := reducerWorkItemID(coalescing10566Intent(realScope, realGen1, g2))
-	coalescing10566Touch(t, ctx, enq, realScope, realGen1, g2)
+	mustCoalescing10566Touch(t, ctx, enq, realScope, realGen1, g2)
 	if _, err := db.ExecContext(ctx, `UPDATE scope_generations SET status='superseded', superseded_at=NOW() - INTERVAL '2 hours' WHERE generation_id=$1`, realGen1); err != nil {
 		t.Fatalf("retire gen1: %v", err)
 	}
@@ -271,7 +294,7 @@ func TestAdvisoryCoalescingLifecycleLive(t *testing.T) {
 	// A-2 cap: repeated touches over many groups leave one row per group.
 	for i := 0; i < 25; i++ {
 		for k := 0; k < 3; k++ {
-			coalescing10566Touch(t, ctx, enq, synth, genesis, fmt.Sprintf("GHSA-COALESCE-CAP-%02d", i))
+			mustCoalescing10566Touch(t, ctx, enq, synth, genesis, fmt.Sprintf("GHSA-COALESCE-CAP-%02d", i))
 		}
 	}
 	var n int
@@ -287,7 +310,7 @@ func TestAdvisoryCoalescingLifecycleLive(t *testing.T) {
 	// watermark bound covering the second touch, then succeeds.
 	g3 := "GHSA-COALESCE-RETRY"
 	g3id := reducerWorkItemID(coalescing10566Intent(synth, genesis, g3))
-	coalescing10566Touch(t, ctx, enq, synth, genesis, g3)
+	mustCoalescing10566Touch(t, ctx, enq, synth, genesis, g3)
 	w := mkQueue("worker-" + suffix)
 	first, ok, err := w.Claim(ctx)
 	if err != nil || !ok || first.IntentID != g3id {
@@ -298,7 +321,7 @@ func TestAdvisoryCoalescingLifecycleLive(t *testing.T) {
 	}
 	time.Sleep(50 * time.Millisecond)
 	t2 := time.Now().UTC()
-	coalescing10566Touch(t, ctx, enq, synth, genesis, g3)
+	mustCoalescing10566Touch(t, ctx, enq, synth, genesis, g3)
 	var second reducercontract.Intent
 	deadline := time.Now().Add(20 * time.Second)
 	for {
@@ -326,5 +349,226 @@ func TestAdvisoryCoalescingLifecycleLive(t *testing.T) {
 	}
 	if s := coalescing10566Status(t, ctx, db, g3id); s != "succeeded" {
 		t.Fatalf("A-3 g3 = %s, want succeeded", s)
+	}
+}
+
+type coalescing10566ReopenedRow struct {
+	status         string
+	attemptCount   int
+	failureClass   sql.NullString
+	failureMessage sql.NullString
+	failureDetails sql.NullString
+	visibleAt      sql.NullTime
+	nextAttemptAt  sql.NullTime
+	reopenedAt     sql.NullTime
+}
+
+func coalescing10566ReadRow(t *testing.T, ctx context.Context, db *sql.DB, id string) coalescing10566ReopenedRow {
+	t.Helper()
+	var row coalescing10566ReopenedRow
+	if err := db.QueryRowContext(ctx, `
+SELECT status, attempt_count, failure_class, failure_message, failure_details,
+       visible_at, next_attempt_at, reopened_at
+FROM fact_work_items WHERE work_item_id = $1
+`, id).Scan(
+		&row.status, &row.attemptCount, &row.failureClass, &row.failureMessage,
+		&row.failureDetails, &row.visibleAt, &row.nextAttemptAt, &row.reopenedAt,
+	); err != nil {
+		t.Fatalf("read reopened row %s: %v", id, err)
+	}
+	return row
+}
+
+// assertCoalescing10566ReopenedShape pins the terminal-reopen contract: a
+// touch on a failed or dead-letter slot restores exactly the succeeded-arm
+// shape (pending, zeroed attempts, cleared failure evidence, visible now,
+// no scheduled retry, bound advanced to the touch) so the slot is promptly
+// claimable again.
+func assertCoalescing10566ReopenedShape(t *testing.T, row coalescing10566ReopenedRow, id, arm string, touch time.Time) {
+	t.Helper()
+	if row.status != "pending" {
+		t.Fatalf("%s %s: status = %q, want pending", arm, id, row.status)
+	}
+	if row.attemptCount != 0 {
+		t.Fatalf("%s %s: attempt_count = %d, want 0", arm, id, row.attemptCount)
+	}
+	if row.failureClass.Valid || row.failureMessage.Valid || row.failureDetails.Valid {
+		t.Fatalf("%s %s: failure evidence survives the reopen (class=%v)", arm, id, row.failureClass)
+	}
+	if row.nextAttemptAt.Valid {
+		t.Fatalf("%s %s: next_attempt_at = %v, want NULL (succeeded-arm parity)", arm, id, row.nextAttemptAt.Time)
+	}
+	if !row.visibleAt.Valid {
+		t.Fatalf("%s %s: visible_at is NULL, want the touch time (succeeded-arm parity)", arm, id)
+	}
+	if row.visibleAt.Time.Before(touch.Add(-5*time.Second)) || row.visibleAt.Time.After(time.Now().Add(5*time.Second)) {
+		t.Fatalf("%s %s: visible_at = %v, want near the %v touch", arm, id, row.visibleAt.Time, touch)
+	}
+	if !row.reopenedAt.Valid || row.reopenedAt.Time.Before(touch.Add(-5*time.Second)) {
+		t.Fatalf("%s %s: reopened_at = %v, want at or after the %v touch", arm, id, row.reopenedAt.Time, touch)
+	}
+}
+
+// TestAdvisoryCoalescingTerminalReopenLive proves the #10566 touch-path
+// extension: a touch landing on a terminal slot reopens it instead of
+// being silently dropped. It covers the dead-letter arm through the real
+// Fail path, the failed arm through a directly-seeded failed row (no
+// reducer path produces failed today; the retouch set covers it by
+// contract), and a poison group touched every pass: each touch yields
+// exactly one run and never wedges its neighbors.
+func TestAdvisoryCoalescingTerminalReopenLive(t *testing.T) {
+	dsn := strings.TrimSpace(os.Getenv("ESHU_POSTGRES_TEST_DSN"))
+	if dsn == "" {
+		t.Skip("set ESHU_POSTGRES_TEST_DSN to run the advisory coalescing terminal-reopen proof")
+	}
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Minute)
+	defer cancel()
+
+	db, err := sql.Open("pgx", dsn)
+	if err != nil {
+		t.Fatalf("open postgres: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	if err := ApplyBootstrap(ctx, SQLDB{DB: db}); err != nil {
+		t.Fatalf("apply bootstrap: %v", err)
+	}
+
+	suffix := fmt.Sprintf("%d", time.Now().UnixNano())
+	synth := "coalesce-10566-reopen-synth-" + suffix
+	genesis := synth + "-genesis"
+	t.Cleanup(func() {
+		cctx, ccancel := context.WithTimeout(context.Background(), 60*time.Second)
+		defer ccancel()
+		for _, q := range []string{
+			`DELETE FROM fact_work_items WHERE scope_id LIKE 'coalesce-10566-reopen-%'`,
+			`DELETE FROM scope_generations WHERE scope_id LIKE 'coalesce-10566-reopen-%'`,
+			`DELETE FROM ingestion_scopes WHERE scope_id LIKE 'coalesce-10566-reopen-%'`,
+		} {
+			if _, err := db.ExecContext(cctx, q); err != nil {
+				t.Errorf("cleanup %s: %v", q, err)
+			}
+		}
+	})
+
+	coalescing10566SeedScope(t, ctx, db, synth, "synthetic")
+	coalescing10566SeedGeneration(t, ctx, db, genesis, synth, "active")
+	mkQueue := func(owner string) ReducerQueue {
+		q := NewReducerQueue(SQLDB{DB: db}, owner, time.Minute)
+		q.MaxAttempts = 10
+		q.RetryDelay = 100 * time.Millisecond
+		q.ClaimDomains = []reducercontract.Domain{reducercontract.DomainAdvisoryGroupProjection}
+		return q
+	}
+	enq := mkQueue("reopen-enq-" + suffix)
+	worker := mkQueue("reopen-worker-" + suffix)
+
+	// Succeeded-arm reference: the shape a terminal reopen must match.
+	ref := "GHSA-COALESCE-REOPEN-REF"
+	refID := reducerWorkItemID(coalescing10566Intent(synth, genesis, ref))
+	mustCoalescing10566Touch(t, ctx, enq, synth, genesis, ref)
+	first, ok, err := worker.Claim(ctx)
+	if err != nil || !ok || first.IntentID != refID {
+		t.Fatalf("reference claim: %v %v", ok, err)
+	}
+	if err := worker.Ack(ctx, first, reducercontract.Result{}); err != nil {
+		t.Fatalf("reference ack: %v", err)
+	}
+	refTouch := time.Now().UTC()
+	mustCoalescing10566Touch(t, ctx, enq, synth, genesis, ref)
+	refRow := coalescing10566ReadRow(t, ctx, db, refID)
+	assertCoalescing10566ReopenedShape(t, refRow, refID, "succeeded-arm", refTouch)
+	// Settle the reference row so later arms claim exactly their own slot.
+	refAgain, ok, err := worker.Claim(ctx)
+	if err != nil || !ok || refAgain.IntentID != refID {
+		t.Fatalf("reference settle claim: %v %v", ok, err)
+	}
+	if err := worker.Ack(ctx, refAgain, reducercontract.Result{}); err != nil {
+		t.Fatalf("reference settle ack: %v", err)
+	}
+
+	// Dead-letter arm through the real Fail path.
+	gDL := "GHSA-COALESCE-REOPEN-DL"
+	gDLID := reducerWorkItemID(coalescing10566Intent(synth, genesis, gDL))
+	mustCoalescing10566Touch(t, ctx, enq, synth, genesis, gDL)
+	claimed, ok, err := worker.Claim(ctx)
+	if err != nil || !ok || claimed.IntentID != gDLID {
+		t.Fatalf("dead-letter setup claim: %v %v", ok, err)
+	}
+	if err := worker.Fail(ctx, claimed, errors.New("coalescing proof terminal failure")); err != nil {
+		t.Fatalf("dead-letter setup fail: %v", err)
+	}
+	if s := coalescing10566Status(t, ctx, db, gDLID); s != "dead_letter" {
+		t.Fatalf("dead-letter setup status = %s, want dead_letter", s)
+	}
+	dlTouch := time.Now().UTC()
+	if _, ok, err := coalescing10566Touch(ctx, enq, synth, genesis, gDL); err != nil || !ok {
+		t.Fatalf("touch on dead_letter: ok=%v err=%v, want a matched reopen (the touch was dropped before #10566)", ok, err)
+	}
+	assertCoalescing10566ReopenedShape(t, coalescing10566ReadRow(t, ctx, db, gDLID), gDLID, "dead-letter-arm", dlTouch)
+	// Prompt claim-after-reopen: the slot is claimable on the next claim
+	// with no backoff wait, carrying the same id and a bound covering the
+	// new touch.
+	reopened, ok, err := worker.Claim(ctx)
+	if err != nil || !ok || reopened.IntentID != gDLID {
+		t.Fatalf("dead-letter reclaim: %v %v, want a prompt claim of the same slot", ok, err)
+	}
+	if reopened.CycleStartedAt.Before(dlTouch.Add(-5 * time.Second)) {
+		t.Fatalf("dead-letter bound %v before the %v touch", reopened.CycleStartedAt, dlTouch)
+	}
+	if err := worker.Ack(ctx, reopened, reducercontract.Result{}); err != nil {
+		t.Fatalf("dead-letter reopen ack: %v", err)
+	}
+
+	// Failed arm through a directly-seeded failed row.
+	gF := "GHSA-COALESCE-REOPEN-F"
+	gFID := reducerWorkItemID(coalescing10566Intent(synth, genesis, gF))
+	mustCoalescing10566Touch(t, ctx, enq, synth, genesis, gF)
+	if _, err := db.ExecContext(ctx, `UPDATE fact_work_items SET status='failed', failure_class='reducer_failed', failure_message='seeded', updated_at=NOW() WHERE work_item_id=$1`, gFID); err != nil {
+		t.Fatalf("seed failed row: %v", err)
+	}
+	fTouch := time.Now().UTC()
+	if _, ok, err := coalescing10566Touch(ctx, enq, synth, genesis, gF); err != nil || !ok {
+		t.Fatalf("touch on failed: ok=%v err=%v, want a matched reopen", ok, err)
+	}
+	assertCoalescing10566ReopenedShape(t, coalescing10566ReadRow(t, ctx, db, gFID), gFID, "failed-arm", fTouch)
+	reopenedF, ok, err := worker.Claim(ctx)
+	if err != nil || !ok || reopenedF.IntentID != gFID {
+		t.Fatalf("failed reclaim: %v %v, want a prompt claim of the same slot", ok, err)
+	}
+	if err := worker.Ack(ctx, reopenedF, reducercontract.Result{}); err != nil {
+		t.Fatalf("failed reopen ack: %v", err)
+	}
+
+	// Poison group: every touch yields exactly one run and never wedges a
+	// neighbor. Fail the dead-letter group terminally again, touch, and
+	// prove one claimable run follows while the neighbor drains alongside.
+	mustCoalescing10566Touch(t, ctx, enq, synth, genesis, gDL)
+	poison, ok, err := worker.Claim(ctx)
+	if err != nil || !ok || poison.IntentID != gDLID {
+		t.Fatalf("poison claim: %v %v", ok, err)
+	}
+	if err := worker.Fail(ctx, poison, errors.New("coalescing proof poison")); err != nil {
+		t.Fatalf("poison fail: %v", err)
+	}
+	neighbor := "GHSA-COALESCE-REOPEN-NEIGHBOR"
+	neighborID := reducerWorkItemID(coalescing10566Intent(synth, genesis, neighbor))
+	mustCoalescing10566Touch(t, ctx, enq, synth, genesis, gDL)
+	mustCoalescing10566Touch(t, ctx, enq, synth, genesis, neighbor)
+	runs := map[string]int{}
+	for i := 0; i < 3; i++ {
+		intent, ok, err := worker.Claim(ctx)
+		if err != nil {
+			t.Fatalf("poison drain claim %d: %v", i, err)
+		}
+		if !ok {
+			break
+		}
+		runs[intent.IntentID]++
+		if err := worker.Ack(ctx, intent, reducercontract.Result{}); err != nil {
+			t.Fatalf("poison drain ack %d: %v", i, err)
+		}
+	}
+	if runs[gDLID] != 1 || runs[neighborID] != 1 {
+		t.Fatalf("poison runs = %v, want exactly one run each for the poison group and its neighbor", runs)
 	}
 }

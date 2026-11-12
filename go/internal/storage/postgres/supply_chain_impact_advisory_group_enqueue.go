@@ -21,6 +21,29 @@ import (
 // reason would make the durable cause an unbounded string family.
 const advisoryGroupProjectionCause = "supply_chain_impact_winners_touch"
 
+// AdvisoryGroupsSyntheticScope and AdvisoryGroupsSyntheticGenesis are the
+// reserved re-homing slot for advisory_group_projection rows (#10566,
+// seeded by migration 295). Every touch of a group rides this slot instead
+// of the origin pass's scope/generation, so the domain holds one live row
+// per group and the backlog caps at the group count. The claim-time
+// supersede sweep never fires on these rows by its existing
+// active-generation guard, and retention never considers the always-active
+// genesis.
+const (
+	AdvisoryGroupsSyntheticScope   = "synthetic:advisory-groups"
+	AdvisoryGroupsSyntheticGenesis = "synthetic:advisory-groups:genesis"
+)
+
+// Advisory group payload keys. group_id names the projected group;
+// origin_scope_id and origin_generation_id record the touching pass for
+// drill-down only: they affect no work item id, conflict key, predicate,
+// or handler read.
+const (
+	advisoryGroupPayloadGroupID     = "group_id"
+	advisoryGroupPayloadOriginScope = "origin_scope_id"
+	advisoryGroupPayloadOriginGen   = "origin_generation_id"
+)
+
 // advisoryGroupIntentQueue is the reducer-queue surface the projection
 // enqueuer needs: admit new work, and reopen work that already finished
 // in this generation.
@@ -35,12 +58,15 @@ type advisoryGroupIntentQueue interface {
 // SupplyChainAdvisoryGroupProjectionEnqueuer port, beside the fan-out
 // store whose post-commit call shape it mirrors.
 //
-// Each intent rides the origin pass's scope and generation with the
-// group as its single entity key, so the claim path materializes exactly
-// the contract intent the advisory group handler reads: EntityKeys =
+// Each intent rides the synthetic re-homing slot (#10566) with the group
+// as its single entity key, so the claim path materializes exactly the
+// contract intent the advisory group handler reads: EntityKeys =
 // ["advisory_group:<id>"], Cause = advisoryGroupProjectionCause, and the
-// origin source system mirrored. The related scope is the origin scope,
-// which the claim read derives from the work item's own scope.
+// origin source system mirrored. The related scope is the synthetic slot
+// scope, which the claim read derives from the work item's own scope; the
+// origin pass rides the payload for drill-down only. The work item id is
+// a pure function of the group, so the existing ON CONFLICT DO NOTHING
+// plus RetouchWorkItem is the race-free coalescing primitive.
 //
 // reducerConflictDomainKey partitions these intents by entity key, so
 // disjoint groups claim concurrently while the same group never
@@ -58,17 +84,17 @@ func NewAdvisoryGroupProjectionEnqueuer(queue ReducerQueue) AdvisoryGroupProject
 // EnqueueAdvisoryGroupProjections enqueues one projection intent per
 // distinct non-blank group id, then retouches each intent's row. The
 // retouch is load-bearing: the enqueue insert is ON CONFLICT
-// (work_item_id) DO NOTHING, and the work item id is a function of
-// (scope, generation, domain, entity key), so a group touched twice in
-// the same generation — a fan-out reopened one-hop pass re-deriving its
-// stamp, say — collides with its own first intent instead of admitting
-// a second one. RetouchWorkItem covers every live state of that row: a
-// succeeded row reopens, a pending or retrying row advances its cycle
-// start (reopened_at, which the claim read derives CycleStartedAt from)
-// so the handler's winners watermark bound waits for winners covering
-// the later touch, and a claimed or running row is marked for replay so
-// its ACK returns it to pending for a rerun instead of succeeding
-// against pre-commit winners.
+// (work_item_id) DO NOTHING, and the work item id is a pure function of
+// the group (synthetic slot, domain, entity key), so a group touched
+// twice — from any scope or generation — collides with its own first
+// intent instead of admitting a second one. RetouchWorkItem covers every
+// live state of that row: a succeeded, failed, or dead-letter row reopens
+// (a new touch is new evidence, not the same poison), a pending or
+// retrying row advances its cycle start (reopened_at, which the claim
+// read derives CycleStartedAt from) so the handler's winners watermark
+// bound waits for winners covering the later touch, and a claimed or
+// running row is marked for replay so its ACK returns it to pending for a
+// rerun instead of succeeding against pre-commit winners.
 func (e AdvisoryGroupProjectionEnqueuer) EnqueueAdvisoryGroupProjections(
 	ctx context.Context,
 	origin reducercontract.Intent,
@@ -89,13 +115,17 @@ func (e AdvisoryGroupProjectionEnqueuer) EnqueueAdvisoryGroupProjections(
 		}
 		seen[groupID] = struct{}{}
 		intents = append(intents, runtime.ReducerIntent{
-			ScopeID:      origin.ScopeID,
-			GenerationID: origin.GenerationID,
+			ScopeID:      AdvisoryGroupsSyntheticScope,
+			GenerationID: AdvisoryGroupsSyntheticGenesis,
 			Domain:       reducercontract.DomainAdvisoryGroupProjection,
 			EntityKey:    advisorygroup.EntityKey(groupID),
 			Reason:       advisoryGroupProjectionCause,
 			SourceSystem: origin.SourceSystem,
-			Payload:      map[string]any{"group_id": groupID},
+			Payload: map[string]any{
+				advisoryGroupPayloadGroupID:     groupID,
+				advisoryGroupPayloadOriginScope: origin.ScopeID,
+				advisoryGroupPayloadOriginGen:   origin.GenerationID,
+			},
 		})
 	}
 	if len(intents) == 0 {

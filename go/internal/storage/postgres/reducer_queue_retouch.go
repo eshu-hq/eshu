@@ -21,14 +21,25 @@ import (
 // clears the replay bit -- still retries against the later bound), and
 // carries the durable replay bit so an ACK-success returns it to pending
 // for a rerun instead of succeeding.
+//
+// Terminal work (#10566) reopens with the succeeded shape: a touch landing
+// on a failed or dead-letter slot is new evidence, not the same poison, so
+// the slot returns to pending with zeroed attempts, cleared failure
+// evidence, visible_at advanced to the touch (promptly claimable, exactly
+// like a succeeded reopen), no scheduled retry, and the bound advanced to
+// the touch. Without this the touch is silently dropped and a single
+// dead-letter wedges its group until an operator replays it. The only
+// production caller is the advisory-group projection enqueuer, whose slots
+// cycle pending to claimed to succeeded and back to pending on retouch;
+// the widened set only admits rows that previously saw a no-match retouch.
 const retouchReducerWorkItemQuery = `
 UPDATE fact_work_items
 SET status = CASE
-        WHEN status = 'succeeded' THEN 'pending'
+        WHEN status IN ('succeeded', 'failed', 'dead_letter') THEN 'pending'
         ELSE status
     END,
     attempt_count = CASE
-        WHEN status = 'succeeded' THEN 0
+        WHEN status IN ('succeeded', 'failed', 'dead_letter') THEN 0
         ELSE attempt_count
     END,
     container_image_identity_v2_authorized_status = CASE
@@ -39,28 +50,29 @@ SET status = CASE
         WHEN status = 'succeeded' AND container_image_identity_v3_required THEN 'pending'
         ELSE container_image_identity_v3_authorized_status
     END,
-    lease_owner = CASE WHEN status = 'succeeded' THEN NULL ELSE lease_owner END,
-    claim_until = CASE WHEN status = 'succeeded' THEN NULL ELSE claim_until END,
-    visible_at = CASE WHEN status = 'succeeded' THEN $1 ELSE visible_at END,
-    next_attempt_at = CASE WHEN status = 'succeeded' THEN NULL ELSE next_attempt_at END,
+    lease_owner = CASE WHEN status IN ('succeeded', 'failed', 'dead_letter') THEN NULL ELSE lease_owner END,
+    claim_until = CASE WHEN status IN ('succeeded', 'failed', 'dead_letter') THEN NULL ELSE claim_until END,
+    visible_at = CASE WHEN status IN ('succeeded', 'failed', 'dead_letter') THEN $1 ELSE visible_at END,
+    next_attempt_at = CASE WHEN status IN ('succeeded', 'failed', 'dead_letter') THEN NULL ELSE next_attempt_at END,
     updated_at = $1,
     reopened_at = $1,
     cross_scope_replay_required = CASE
         WHEN status IN ('claimed', 'running') THEN TRUE
         ELSE FALSE
     END,
-    failure_class = CASE WHEN status = 'succeeded' THEN NULL ELSE failure_class END,
-    failure_message = CASE WHEN status = 'succeeded' THEN NULL ELSE failure_message END,
-    failure_details = CASE WHEN status = 'succeeded' THEN NULL ELSE failure_details END
+    failure_class = CASE WHEN status IN ('succeeded', 'failed', 'dead_letter') THEN NULL ELSE failure_class END,
+    failure_message = CASE WHEN status IN ('succeeded', 'failed', 'dead_letter') THEN NULL ELSE failure_message END,
+    failure_details = CASE WHEN status IN ('succeeded', 'failed', 'dead_letter') THEN NULL ELSE failure_details END
 WHERE work_item_id = $2
   AND stage = 'reducer'
-  AND status IN ('pending', 'claimed', 'running', 'retrying', 'succeeded')
+  AND status IN ('pending', 'claimed', 'running', 'retrying', 'succeeded', 'failed', 'dead_letter')
 `
 
 // RetouchWorkItem records a re-touch of one reducer work item: a
-// succeeded row reopens, a pending or retrying row advances its cycle
-// start, and a claimed or running row is marked for replay after its
-// ACK. The returned boolean reports whether a live row matched.
+// succeeded, failed, or dead-letter row reopens to pending with the
+// succeeded shape, a pending or retrying row advances its cycle start,
+// and a claimed or running row is marked for replay after its ACK. The
+// returned boolean reports whether a live row matched.
 func (q ReducerQueue) RetouchWorkItem(
 	ctx context.Context,
 	workItemID string,

@@ -52,8 +52,8 @@ func parseEnqueueAdvisoryGroupsFlags(args []string, stderr io.Writer) (enqueueAd
 	var groups advisoryGroupListFlag
 	fs.StringVar(&o.cassettePath, "cassette", "", "family cassette whose reducer_supply_chain_impact_finding facts are admitted through the writer fact-store port")
 	fs.Var(&groups, "group", "advisory group id to enqueue a projection for (repeatable, at least one required)")
-	fs.StringVar(&o.scopeID, "scope", "", "origin scope id the projection intents ride (the findings scope)")
-	fs.StringVar(&o.generationID, "generation", "", "origin generation id the projection intents ride")
+	fs.StringVar(&o.scopeID, "scope", "", "origin scope id recorded on the projection intents (the findings scope); intents ride the synthetic advisory slot")
+	fs.StringVar(&o.generationID, "generation", "", "origin generation id recorded on the projection intents; intents ride the synthetic advisory slot")
 	fs.StringVar(&o.sourceSystem, "source-system", "", "origin source system mirrored onto the projection intents")
 	fs.StringVar(&o.postgresDSN, "postgres-dsn", "", "Postgres DSN (default: ESHU_POSTGRES_DSN/ESHU_FACT_STORE_DSN/ESHU_CONTENT_STORE_DSN)")
 	if err := fs.Parse(args); err != nil {
@@ -77,7 +77,7 @@ func parseEnqueueAdvisoryGroupsFlags(args []string, stderr io.Writer) (enqueueAd
 		{"scope", o.scopeID}, {"generation", o.generationID}, {"source-system", o.sourceSystem},
 	} {
 		if required.value == "" {
-			return enqueueAdvisoryGroupsOptions{}, fmt.Errorf("ifa enqueue-advisory-groups: -%s is required; the enqueuer rides the origin intent's scope, generation, and source system exactly as a committed impact pass would", required.name)
+			return enqueueAdvisoryGroupsOptions{}, fmt.Errorf("ifa enqueue-advisory-groups: -%s is required; the enqueuer mirrors the origin intent's source system and records its scope and generation as payload origin exactly as a committed impact pass would", required.name)
 		}
 	}
 	return o, nil

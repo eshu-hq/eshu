@@ -127,7 +127,8 @@ eligible AS MATERIALIZED (
       ON last_full.scope_id = ranked.scope_id
     LEFT JOIN delta_base AS base
       ON base.scope_id = ranked.scope_id
-    WHERE ranked.generation_id IS DISTINCT FROM scope.active_generation_id
+    -- #10566: the synthetic slot scope is never a prune candidate, so a hand-superseded genesis fails safe.
+    WHERE ranked.generation_id IS DISTINCT FROM scope.active_generation_id AND scope.scope_kind <> 'synthetic'
       AND ((ranked.superseded_at < $1 AND (ranked.superseded_rank > $2 OR (
              ranked.source_commit_sha <> ''
              AND EXISTS (

@@ -25,6 +25,10 @@ TABLE = {
         "go/internal/storage/postgres/reducer_heartbeat_startup_window_live_test.go": (
             "TestReducerServiceClosesLeaseExpiryStartupWindowAgainstPostgres",
         ),
+        "go/internal/storage/postgres/reducer_queue_advisory_coalescing_live_test.go": (
+            "TestAdvisoryCoalescingLifecycleLive",
+            "TestAdvisoryCoalescingTerminalReopenLive",
+        ),
         "go/internal/storage/postgres/reducer_queue_batch_ack_reclaim_live_test.go": (
             "TestReducerQueueAckBatchFencesSupersededClaimLive",
             "TestReducerQueueExpiryInterleaveLive",

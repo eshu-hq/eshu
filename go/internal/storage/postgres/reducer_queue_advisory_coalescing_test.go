@@ -94,7 +94,7 @@ func TestAdvisoryCoalescingRetouchAdvancesEveryLiveTouch(t *testing.T) {
 		t.Fatalf("retouch no longer advances reopened_at unconditionally; the coalesced watermark bound stalls")
 	}
 	live := rowFilterStatusSet(t, "retouch", retouchReducerWorkItemQuery)
-	for _, s := range []string{"pending", "retrying", "succeeded"} {
+	for _, s := range []string{"pending", "retrying", "succeeded", "failed", "dead_letter"} {
 		if !live[s] {
 			t.Fatalf("retouch dropped %q from its live set; a coalesced touch in that state stops advancing the bound", s)
 		}
@@ -126,5 +126,15 @@ func TestAdvisoryCoalescingSweepAndRetentionGuards(t *testing.T) {
 	}
 	if !strings.Contains(generationRetentionCandidateQuery, "generation.status = 'superseded'") {
 		t.Fatalf("retention no longer gates on superseded generations; the always-active genesis is not safe by construction")
+	}
+	// Defense in depth (#10566): even if the genesis generation were marked
+	// superseded by hand, the retention and liveness sweeps exclude the
+	// synthetic slot scope. Pinned on the qualified predicate, not a bare
+	// column mention (eligible also selects scope_kind as a column).
+	if !strings.Contains(generationRetentionCandidateQuery, "scope.scope_kind <> 'synthetic'") {
+		t.Fatalf("retention lost its synthetic-scope exclusion; a hand-superseded genesis becomes a prune candidate")
+	}
+	if !strings.Contains(recoverWedgedActiveGenerationsQuery, "scope.scope_kind <> 'synthetic'") {
+		t.Fatalf("liveness lost its synthetic-scope exclusion; the perpetually old-and-active genesis reads as wedged")
 	}
 }

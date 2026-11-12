@@ -65,8 +65,11 @@ func TestAdvisoryGroupProjectionEnqueuerBuildsOneIntentPerGroup(t *testing.T) {
 	if first.Domain != reducercontract.DomainAdvisoryGroupProjection {
 		t.Fatalf("domain = %q", first.Domain)
 	}
-	if first.ScopeID != "scope:vuln" || first.GenerationID != "gen:vuln" {
-		t.Fatalf("scope/generation = %q/%q, want the origin intent's", first.ScopeID, first.GenerationID)
+	// Re-homed (#10566): every touch rides the synthetic slot, never the
+	// origin pass's scope/generation, so one live row per group caps the
+	// backlog at the group count.
+	if first.ScopeID != AdvisoryGroupsSyntheticScope || first.GenerationID != AdvisoryGroupsSyntheticGenesis {
+		t.Fatalf("scope/generation = %q/%q, want the synthetic slot %q/%q", first.ScopeID, first.GenerationID, AdvisoryGroupsSyntheticScope, AdvisoryGroupsSyntheticGenesis)
 	}
 	if first.SourceSystem != "vulnerability_intelligence" {
 		t.Fatalf("source system = %q, want the origin's mirrored", first.SourceSystem)
@@ -76,6 +79,14 @@ func TestAdvisoryGroupProjectionEnqueuerBuildsOneIntentPerGroup(t *testing.T) {
 	}
 	if got := first.Payload["group_id"]; got != "CVE-2026-0001" {
 		t.Fatalf("payload group_id = %v", got)
+	}
+	// Drill-down only: the origin rides the payload and affects no key,
+	// predicate, or handler read.
+	if got := first.Payload["origin_scope_id"]; got != "scope:vuln" {
+		t.Fatalf("payload origin_scope_id = %v, want scope:vuln", got)
+	}
+	if got := first.Payload["origin_generation_id"]; got != "gen:vuln" {
+		t.Fatalf("payload origin_generation_id = %v, want gen:vuln", got)
 	}
 	if first.Reason == "" {
 		t.Fatal("reason must name the cause, it becomes the claimed intent's Cause")
@@ -88,6 +99,23 @@ func TestAdvisoryGroupProjectionEnqueuerBuildsOneIntentPerGroup(t *testing.T) {
 	}
 	if !reflect.DeepEqual(queue.retouched, wantRetouched) {
 		t.Fatalf("retouched = %v, want %v", queue.retouched, wantRetouched)
+	}
+	// The slot is a pure function of the group: the same group touched
+	// from a disjoint origin collides with this intent instead of
+	// admitting a second row.
+	other := advisoryGroupOriginIntent()
+	other.ScopeID = "scope:other"
+	other.GenerationID = "gen:other"
+	shadow := &fakeAdvisoryGroupIntentQueue{}
+	shadowEnqueuer := AdvisoryGroupProjectionEnqueuer{queue: shadow}
+	if err := shadowEnqueuer.EnqueueAdvisoryGroupProjections(context.Background(), other, []string{"CVE-2026-0001"}); err != nil {
+		t.Fatalf("shadow enqueue: %v", err)
+	}
+	if len(shadow.enqueued) != 1 {
+		t.Fatalf("shadow enqueued %d intents, want 1", len(shadow.enqueued))
+	}
+	if reducerWorkItemID(shadow.enqueued[0]) != reducerWorkItemID(queue.enqueued[0]) {
+		t.Fatalf("origin-scoped touch diverges: %q vs %q", reducerWorkItemID(shadow.enqueued[0]), reducerWorkItemID(queue.enqueued[0]))
 	}
 }
 
