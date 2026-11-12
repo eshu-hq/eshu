@@ -65,9 +65,9 @@ func TestJournalSweeperSkipsAGenerationRetentionHoldsAndJournalsItNextPass(t *te
 		t.Fatalf("journal %q names the held generation", rows)
 	}
 	// eshu:global is journaled too, so the pass wrote the two scopes above
-	// plus it.
-	if first.SweeperRows != 3 {
-		t.Fatalf("first pass = %+v, want three sweeper rows (free, gone, eshu:global)", first)
+	// plus it, plus the seeded synthetic:advisory-groups genesis (#10566).
+	if first.SweeperRows != 4 {
+		t.Fatalf("first pass = %+v, want four sweeper rows (free, gone, eshu:global, synthetic:advisory-groups)", first)
 	}
 
 	if err := holder.Rollback(); err != nil {
