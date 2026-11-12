@@ -1,7 +1,9 @@
 # Advisory coalescing lifecycle design (10566-A)
 
-Status: DESIGN, not implemented. No production change lands until an
-independent re-review accepts this design (issue boxes 6-7 stay unchecked).
+Status: ACCEPTED design, implemented on branch drive/10566-a-lifecycle.
+The independent re-review accepted the synthetic re-homing design
+(issue boxes 6-7 checked on that verdict); box 7 live rollout
+(backlog falling, two stable reads) stays open post-merge.
 
 ## Problem
 
@@ -169,6 +171,9 @@ stable and self-describing in status views. For drill-down, the
 enqueuer stamps the origin scope and generation into the payload as
 informational fields (`origin_scope_id`, `origin_generation_id`);
 they affect no key, predicate, or handler read.
+`ON CONFLICT DO NOTHING` plus a payload-free retouch means only the
+first touch ever stamps `origin_*`; later touches advance the bound
+without rewriting origin.
 
 ## Arbiter questions
 
@@ -220,13 +225,13 @@ implementation except where noted):
   convergence, retouch-advances-bound and claim-derives-cycle-start
   derivation guards, sweep active-generation guard and retention
   superseded-only guard.
-- Still to write at implementation time (needs the terminal
-  reopen): touch-after-dead_letter (and after failed) re-runs the
+- Written with the implementation (terminal reopen shipped):
+  touch-after-dead_letter (and after failed) re-runs the
   slot with attempt count reset, failure evidence cleared, and the
   bound at or after the new touch; a poison group touched every pass
   costs one run per touch and never wedges its neighbors.
 
-## Implementation checklist (later PR, not this lane)
+## Implementation checklist (done on branch drive/10566-a-lifecycle)
 
 - Bootstrap migration for the synthetic scope and genesis
   generation, with reserved-id collision handling.
