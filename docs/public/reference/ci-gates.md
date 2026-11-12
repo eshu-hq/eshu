@@ -15,10 +15,10 @@ hosted infrastructure a laptop does not have); a row marked as an alias
 shares its check with the gate its reason names, under a different git hook
 stage.
 
-Blocking is an enforcement contract, not descriptive metadata. The trusted
-default-branch `required-gates-complete` publisher selects every matching
-blocking row, waits for its exact workflow/check identity on the pull request
-head, and fails closed on a failed, neutral, missing, or timed-out check.
+Blocking is an enforcement contract, not descriptive metadata. The branch
+ruleset requires the `go-core-complete` and `go-race-complete` umbrellas
+on the pull request head (the `required-gates-complete` fan-in publisher
+was removed, so there is no aggregate rollup to wait on).
 A check that never produced a verdict fails closed too, but is reported as
 `error` rather than as a gate failure: a cancelled check, a stale one, one
 GitHub marked skipped because the run that owned it was cancelled, and one
