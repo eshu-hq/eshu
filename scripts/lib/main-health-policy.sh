@@ -3,22 +3,38 @@
 # Copyright (c) 2025-2026 eshu-hq
 #
 # main-health-policy.sh -- the gh-free helpers of scripts/ci/main-health.sh:
-# policy derivation from the repo's own files (required workflows, their
-# workflow_run files, registry gate blocking-ness, the ruleset workflow) and
-# the text sanitisers for log lines. Split out to keep the watcher under the
-# repo's 500-line file cap. It makes no GitHub call; the watcher's mirror
-# (scripts/lib/test-main-health-workflow.sh) fails if one appears here.
+# policy derivation from the repo's own files (required workflows from the
+# watcher's wake list, their workflow_run files, the sentinel from the
+# registry's required-status workflow, registry gate blocking-ness, the
+# ruleset workflow) and the text sanitisers for log lines. Split out to keep
+# the watcher under the repo's 500-line file cap. It makes no GitHub call;
+# the watcher's mirror (scripts/lib/test-main-health-workflow.sh) fails if
+# one appears here.
 #
-# Sourced by scripts/ci/main-health.sh; expects repo_root, aggregator_yml and
+# Sourced by scripts/ci/main-health.sh; expects repo_root, watcher_yml and
 # registry_yml to be set.
 
 # required_workflows prints the display names of every workflow whose verdict
-# on main counts, one per line.
+# on main counts, one per line: the watcher's own wake list. The wake list is
+# the judged list (`workflow_run` cannot take a computed list), and the static
+# mirror fails when the workflow file drifts from this derivation.
 required_workflows() {
-	{
-		yq '.on.workflow_run.workflows[]' "${aggregator_yml}"
-		yq '.required_status_checks[] | select(.aggregates_blocking_gates == true) | .source_workflow' "${registry_yml}"
-	} | awk 'NF && $0 != "null"' | sort -u
+	yq '.on.workflow_run.workflows[]' "${watcher_yml}" | awk 'NF && $0 != "null"' | sort -u
+}
+
+# sentinel_workflow prints the display name of the sentinel workflow that
+# anchors the source-has-a-verdict pending check: the registry's
+# required-status workflow file (specs/ci-gates.v1.yaml
+# required_status_checks[].workflow, the Go umbrellas' workflow) resolved
+# through that file's own `.name`. Prints nothing when underivable; the
+# watcher fails closed on that.
+sentinel_workflow() {
+	local wf f
+	wf="$(yq '.required_status_checks[] | select(.workflow != null) | .workflow' "${registry_yml}" | head -1)"
+	[[ -n "${wf:-}" && "${wf}" != "null" ]] || return 0
+	f="${repo_root}/.github/workflows/${wf}"
+	[[ -f "${f}" ]] || return 0
+	yq '.name' "${f}" | awk 'NF && $0 != "null"'
 }
 
 # workflow_run_files prints the file name of every required workflow whose
@@ -47,10 +63,19 @@ blocking_gates() {
 		"checks": (.ci.check_names // []), "blocking": (.blocking != false)}]' "${registry_yml}"
 }
 
-# ruleset_workflow_file prints the workflow file that owns the scheduled
-# ruleset verification: the aggregating status check's workflow.
+# ruleset_workflow_file prints the file name of the workflow that owns the
+# scheduled ruleset verification: the workflow whose jobs contain
+# verify-live-ruleset.
 ruleset_workflow_file() {
-	yq '.required_status_checks[] | select(.aggregates_blocking_gates == true) | .workflow' "${registry_yml}" | head -1
+	local f
+	for f in "${repo_root}"/.github/workflows/*.yml "${repo_root}"/.github/workflows/*.yaml; do
+		[[ -f "${f}" ]] || continue
+		if [[ "$(yq '.jobs // {} | has("verify-live-ruleset")' "${f}")" == "true" ]]; then
+			basename "${f}"
+			return 0
+		fi
+	done
+	return 0
 }
 
 # clean makes untrusted log text safe to embed in an issue: control characters

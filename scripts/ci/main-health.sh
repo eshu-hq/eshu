@@ -56,11 +56,9 @@
 #           green)
 #           -> leave the issue alone, status error
 #
-# The required workflows are not listed here. They are derived from the two
-# files the repo already drift-checks against each other: the workflows that
-# `.github/workflows/required-gates.yml` aggregates (its workflow_run trigger)
-# plus the registry's aggregating status source workflow
-# (specs/ci-gates.v1.yaml required_status_checks[].source_workflow).
+# The required workflows are not listed here: they are the watcher's own wake
+# list, the sentinel is the registry's required-status workflow file resolved
+# through its `.name`, and the ruleset workflow owns verify-live-ruleset.
 #
 # Environment:
 #   GITHUB_REPOSITORY       owner/name (required)
@@ -90,7 +88,7 @@ branch="${MAIN_HEALTH_BRANCH:-main}"
 dry_run="${MAIN_HEALTH_DRY_RUN:-false}"
 label="main-health"
 status_context="main-health"
-aggregator_yml="${repo_root}/.github/workflows/required-gates.yml"
+watcher_yml="${repo_root}/.github/workflows/main-health.yml"
 registry_view_dir="$(mktemp -d)"
 registry_yml="${registry_view_dir}/ci-gates.v1.yaml"
 trap 'rm -rf "${registry_view_dir}"' EXIT
@@ -191,7 +189,13 @@ short="${tip:0:10}"
 
 required="$(required_workflows)"
 n_required="$(printf '%s\n' "${required}" | awk 'NF' | wc -l | tr -d ' ')"
-source_workflow="$(yq '.required_status_checks[] | select(.aggregates_blocking_gates == true) | .source_workflow' "${registry_yml}" | head -1)"
+source_workflow="$(sentinel_workflow)"
+ruleset_file="$(ruleset_workflow_file)"
+# Fail closed on policy drift: judging against an empty set would call a red
+# main green, so each empty derivation exits non-zero with a named error first.
+[[ -n "${required//[[:space:]]/}" ]] || { echo "main-health: FAIL-CLOSED: no required workflows derived from ${watcher_yml}" >&2; exit 3; }
+[[ -n "${source_workflow//[[:space:]]/}" ]] || { echo "main-health: FAIL-CLOSED: no sentinel workflow derived from ${registry_yml}" >&2; exit 3; }
+[[ -n "${ruleset_file//[[:space:]]/}" ]] || { echo "main-health: FAIL-CLOSED: no workflow owns the verify-live-ruleset job under ${repo_root}/.github/workflows" >&2; exit 3; }
 
 # --- classify each required workflow's latest run on the tip ----------------
 # Run JSON is never passed through argv (jq --arg/--argjson): only values
@@ -261,7 +265,6 @@ verdicts="$(jq -c --argjson req "${req_json}" '
 	      url: ($w.url // null), verdict: ($w.verdict // "absent")}]' <<<"${events}")"
 
 # --- scheduled ruleset verification (verify-live-ruleset) -------------------
-ruleset_file="$(ruleset_workflow_file)"
 # One request for one bounded page: never paginate this probe, since --paginate
 # would walk every scheduled run in history (4 a day). The verdict is the
 # NEWEST completed run in that page by created_at, not row 0: the listing has

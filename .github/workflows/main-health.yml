@@ -15,10 +15,10 @@ name: Main Health
 # runs the default-branch version, it checks out only the default branch, and
 # it never executes pull-request code. The logic and its decisions live in
 # scripts/ci/main-health.sh, exercised hermetically by
-# scripts/test-main-health.sh. The workflow_run list below must equal the
-# workflows the script judges (`main-health.sh --print-required`: the
-# aggregator's list plus the registry's source workflow); that test enforces
-# it. `Required Gates` itself is deliberately NOT a trigger: every one of its
+# scripts/test-main-health.sh. The workflow_run list below IS the judged
+# list: the script derives the required workflows from it
+# (`main-health.sh --print-required`), and that test fails when the two
+# differ. `Required Gates` itself is deliberately NOT a trigger: every one of its
 # publisher runs, PR and merge-queue ones included, reports head_branch main
 # (about 18 a minute measured), so it would flood this workflow. Its scheduled
 # ruleset verification (cron 17 */6) is read on every evaluation, and this

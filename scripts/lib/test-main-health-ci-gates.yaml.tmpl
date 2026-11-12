@@ -3,12 +3,13 @@ required_status_checks:
   - context: go-core-complete
     workflow: test.yml
     job: go-core-complete
+    integration_id: 15368
     aggregates_blocking_gates: false
-  - context: required-gates-complete
-    workflow: required-gates.yml
-    job: aggregate
-    source_workflow: Build Test
-    aggregates_blocking_gates: true
+  - context: go-race-complete
+    workflow: test.yml
+    job: go-race-complete
+    integration_id: 15368
+    aggregates_blocking_gates: false
 # Blocking-ness is read from here (N2): a failed job counts toward red only
 # when a blocking gate claims it, or when no gate claims it at all.
 gates:
