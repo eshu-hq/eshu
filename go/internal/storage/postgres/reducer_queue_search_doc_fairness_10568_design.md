@@ -1,9 +1,9 @@
 # #10568 design: reserved claim slots for `eshu_search_document`
 
-Status: RED reproduction + mechanism design. No production edits to
-`reducer_queue_batch_query.go` in this lane: #10565 owns that file until it
-merges, then this design is implemented rebased. Sequencing verified
-2026-11-12 (`gh issue view 10565 --json state` = OPEN).
+Status: implemented (#10565 merged; this lane carries the production edit
+to `reducer_queue_batch_query.go`). GREEN evidence at the end of this note
+is the current record; the design sections above it describe the decision
+as made.
 
 ## Problem (re-verified against code, not only the issue text)
 
@@ -51,14 +51,17 @@ advisory pressure.
   (ORDER BY + LIMIT + FOR UPDATE OF lock_target SKIP LOCKED) -> `claimed`
   (single UPDATE ... FROM locked). Entrypoint: `ReducerQueue.ClaimBatch`.
 - Shared state: `fact_work_items` rows (per-row lease columns), no new table,
-  no new lock target. The reservation is a second ordered arm inside the same
-  `locked` CTE selecting from the same `candidate` set, UNION ALL with the
-  existing arm, with the two arms' LIMITs summing to $8.
+  no new lock target. The reservation is a second locking arm
+  (`locked_search_doc_reserved`) beside `locked_rest`, both selecting from
+  the same `candidate` set and UNION ALL into `locked`, with the two arms'
+  LIMITs summing to $8. Each arm lock-probes its ordered candidates through
+  a per-candidate LATERAL primary-key lookup, so the candidate side is
+  always the outer loop regardless of planner statistics.
 - Conflict domains: `scope` (search-doc) vs `advisory_group` (advisory
   backlog) are disjoint key spaces, so a reserved search-doc claim and an
   advisory claim never fence the same conflict key and never serialize on the
-  same representative. No new deadlock edge: still one statement, one lock
-  acquisition order (candidate id order into `lock_target`), same
+  same representative. No new deadlock edge: still one statement, locks
+  taken in each arm's claim order against `lock_target`, same
   SKIP LOCKED non-blocking behavior.
 - Transaction scope: unchanged (one statement, Read Committed). Retry scope:
   unchanged (claim fencing, lease expiry, dead-letter paths untouched).
@@ -77,17 +80,26 @@ advisory pressure.
 
 ## Observability for the new path
 
-- Per-claim telemetry from #10565 (candidates in, representatives after fence,
-  drops by reason) gains the reserved-slot split: search-doc slots used vs
-  fallback-to-advisory counts per batch, so an operator can see the mechanism
-  engaging and confirm fallback when the search-doc backlog is empty.
-- Oldest search-doc age and pending count already flow through the existing
-  queue-observer oldest-age aggregates (`CycleStartedAt` per #9292); the
-  acceptance read is oldest-age draining under a live-like backlog while the
-  advisory drain rate (claims/s per #10565 claim-duration/batch-size signals)
-  does not regress beyond the 1/16 structural bound.
-- No new metric label cardinality: domain is already a label dimension on the
-  claim path; the slot split reuses it.
+This section is NOT implemented by this change. It records the telemetry a
+follow-up should add; the implemented change ships no new instrument.
+
+- Wanted (not shipped): per-claim telemetry from #10565 (candidates in,
+  representatives after fence, drops by reason) gaining the reserved-slot
+  split — search-doc slots used vs fallback-to-advisory counts per batch,
+  so an operator can see the mechanism engaging and confirm fallback when
+  the search-doc backlog is empty. Deferred to #10581, category "genuine
+  missing coverage" (see the GREEN evidence note below).
+- What an operator can already read: `ReducerExecutions` and
+  `ReducerQueueWaitDuration` are recorded per domain
+  (`recordReducerResult`), so search-doc executions resuming and its queue
+  wait draining show the mechanism's effect per domain. The queue-observer
+  oldest-age aggregates group by stage and source system, not by domain, so
+  they cannot isolate search-doc age; `QueueClaimDuration` and
+  `BatchClaimSize` likewise carry no domain label, so neither can show a
+  per-domain drain rate.
+- The deferred slot split must not invent domain labels on the claim
+  duration/batch-size instruments without a cardinality decision; #10581
+  owns that choice.
 
 ## Cleanup disposition: 39 orphaned `building` projection-state rows (#10567)
 
@@ -107,31 +119,24 @@ and keep it positive.
 
 ## Implementation sketch (post-#10565 rebase)
 
-1. Rebase onto merged #10565; keep its C-step-1 gate CTEs byte-identical.
-2. Split `locked` into `locked_reserved` (oldest ready search-doc candidate,
-   LIMIT 1... via `LEAST`-style split of $8, or a window partition take-1)
-   plus `locked_rest` (current ORDER BY, LIMIT $8 - taken), UNION ALL.
-   Apply the identical `lock_target` EvalPlanQual recheck predicates on both
-   arms. Fallback: when the reserved arm is empty, `locked_rest` takes the
-   full $8.
-3. Turn `TestClaimBatchReservesSearchDocClaimSlots` green; keep
-   `TestClaimBatchOrdersSearchDocumentCatchupAfterGraphTruth` truthful about
-   the new shape (it asserts the old ORDER BY string and must be updated as
-   part of the behavior change, not weakened).
-4. Run the live fixture (`TestClaimBatchSearchDocStarvationLiveReproduction`)
-   with a DSN: RED before the fix, green after; then the 8-claimer storm and
-   the replay-matrix proofs, then the oldest-age/advisory-rate reads.
+Superseded by the GREEN evidence below. As implemented: `locked` is split
+into `locked_search_doc_reserved` (oldest ready search-doc candidate,
+LIMIT 1) plus `locked_rest` (current ORDER BY, LIMIT $8 - taken), UNION
+ALL, with the identical `lock_target` EvalPlanQual recheck predicates on
+both arms; when the reserved arm is empty, `locked_rest` takes the full
+$8. Each arm locks through a per-candidate LATERAL primary-key probe so
+stale planner statistics cannot flip the join order (measured in the
+GREEN evidence).
 
-## GREEN evidence (implemented 2026-11-12, rebased onto 029798f125)
+## GREEN evidence (implemented 2026-11-12, base 1b434b4d7c)
 
 No-Regression Evidence: reserved slot drains search-doc without regressing
 the advisory drain rate, and the lock tail adds no per-row gates.
 
-- Baseline: branch rebased onto origin/main 029798f125 (merged C leaf
-  #10572). RED re-derived on that base before the fix: `ClaimBatch()`
-  claimed 8 items, none for `eshu_search_document` behind a 24-row
-  advisory backlog (batch 8), and 0/4 search-doc rows in 6 rounds of 4
-  behind a 40-row backlog.
+- Baseline: `git merge-base HEAD origin/main` = 1b434b4d7c. RED re-derived
+  on that base before the fix: `ClaimBatch()` claimed 8 items, none for
+  `eshu_search_document` behind a 24-row advisory backlog (batch 8), and
+  0/4 search-doc rows in 6 rounds of 4 behind a 40-row backlog.
 - Backend: postgres:18-alpine disposable databases (template-clone per
   test, pgx), lane-owned container; input shapes mirror the 2026-11-12
   live census at small scale (search-doc rows seeded older, -72 h).
@@ -156,33 +161,56 @@ the advisory drain rate, and the lock tail adds no per-row gates.
   search-doc rows. Storm, duplicate-delivery, empty-queue, dead-letter
   replay, and EvalPlanQual lock-recheck proofs all pass against the new
   shape, as does the #3624 rank-once 0/0 differential.
-- Plan shape: `TestClaimBatchGatePrecomputeStaleHeavyExplain` on the
-  1200-stale-row fixture holds full-claim SubPlans (15) == candidate
-  SubPlans (15) with 0 in the base section — the `LIMIT ($8 - ...)`
-  scalar subquery plans as an InitPlan and the LEFT JOIN anti-join adds
-  no per-row SubPlan. After-only timings on that fixture (not production
-  scale): full claim 161.165 ms, funnel census 98.145 ms; the funnel
-  plan carries no Update/LockRows nodes. Production-scale net-of-funnel
-  cost stays NOT_CHECKED here (no live backend); it rides on the
-  structural argument: the rest arm scans the identical candidate set
-  with byte-identical ORDER BY, the reserved arm sorts at most the ready
-  priority-1 subset, and the statement still locks at most $8 rows.
+- Plan shape (paired, identical fixture, no manual ANALYZE anywhere):
+  `TestClaimBatchGatePrecomputeStaleHeavyExplain` -count=3 per side on
+  postgres:18-alpine, candidate SELECT steady at 123.1-123.7 ms on every
+  side. Full claim: base (origin/main archive) 124.832 / 125.003 /
+  124.988 ms (lock tail ~1.3 ms over candidate); first split-arm shape
+  161.189 / 160.889 / 161.208 ms (tail ~37.5 ms — two references forced
+  candidate materialization and stale statistics flipped both arms to an
+  outer scan over all 1,350 lock_target rows); implemented LATERAL shape
+  121.973 / 121.831 / 122.503 ms (tail within noise of base). Full-claim
+  SubPlans (15) == candidate SubPlans (15) with 0 in the base section on
+  the implemented shape — the `LIMIT ($8 - ...)` scalar subquery plans as
+  an InitPlan and the LEFT JOIN anti-join adds no per-row SubPlan; the
+  funnel plan carries no Update/LockRows nodes. Implemented plan excerpt:
+  both arms are `Limit -> Nested Loop` over a Sort of `CTE Scan on
+  candidate` with the inner side `LockRows -> Index Scan on
+  fact_work_items lock_target` at loops=8 (= LIMIT, so locks stop once
+  the arm fills) — lock_target is never the outer scan. Rejected shape,
+  measured: a single locked arm floating the oldest priority-1 row via a
+  window rank over candidate ran 196.456-196.652 ms (the window CTE
+  inlined to the inner side of the lock join and re-evaluated per
+  lock_target row, loops=1350). Production-scale cost stays NOT_CHECKED
+  here (no live backend); it rides on the structural argument: both arms
+  probe the identical candidate set by primary key with byte-identical
+  ORDER BY keys, and the statement still locks at most $8 rows.
 - Why safe: both arms carry the identical `lock_target` EvalPlanQual
-  row-self recheck (lease theft/duplicate work dropped in either arm);
-  SKIP LOCKED never blocks, so the second locking arm adds no deadlock
-  edge; conflict domains stay disjoint (scope vs advisory_group); the
-  funnel census composes the untouched candidate chain, so admission
-  accounting is unchanged.
+  row-self recheck, pinned by exact count (each predicate exactly twice,
+  `TestClaimBatchLockRecheckPredicatesPinnedByCount`; mutation-checked)
+  and proven live through the LATERAL lock by
+  `TestClaimBatchLockRecheckDropsConcurrentlyClaimedRow` (lease
+  theft/duplicate work dropped); SKIP LOCKED never blocks, so the second
+  locking arm adds no deadlock edge; conflict domains stay disjoint
+  (scope vs advisory_group); the funnel census composes the untouched
+  candidate chain, so admission accounting is unchanged.
 - NOT re-proven in this lane (no live backend): the #10567 truth-sample
   agreement re-run and the 39 orphaned `building` projection-state rows
   stay deferred to the implementation PR live read, per the Cleanup
   disposition above.
 
 No-Observability-Change: this diff adds no instruments and no metric
-label cardinality. The acceptance reads ride existing signals: oldest
-search-doc age via the queue-observer oldest-age aggregates, advisory
-drain rate via the claim-duration/batch-size signals from #10565. The
-per-claim reserved-slot split telemetry sketched in the Observability
-section above is NOT in this change; it is follow-up work for the
-implementation PR, which is also where the oldest-age/advisory-rate live
-reads land.
+label cardinality, and it does not implement the Observability section
+above. The existing per-domain outcome signals are the acceptance read:
+`ReducerExecutions` and `ReducerQueueWaitDuration` (both recorded with
+the domain attribute in `recordReducerResult`) show search-doc executions
+resuming and its queue wait draining once the reserved slot engages. The
+queue-observer oldest-age aggregates group by stage and source system,
+not domain, and `QueueClaimDuration` / `BatchClaimSize` carry no domain
+label, so none of those can attribute age or drain rate to
+`eshu_search_document` and this note does not claim them. The per-claim
+reserved-slot split telemetry is deferred to #10581 ("Per-domain
+execution telemetry for the search-doc reserved claim slot"), category:
+genuine missing coverage. Owner agreement for that deferral:
+PENDING-COORDINATOR — quote the owner's agreement in the PR beside the
+#10581 link before merge.

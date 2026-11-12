@@ -28,8 +28,8 @@ import (
 // LIMIT 1 (at most one priority-1 row) and the rest arm's
 // LIMIT ($8 - reserved take) (the remainder of the batch, falling back to
 // the full $8). Both are bounded — the statement still locks at most $8
-// rows per poll — and the rest arm still scans the same candidate set the
-// shim measured; the reserved arm additionally sorts at most the ready
+// rows per poll — and both arms lock-probe the same candidate set the shim
+// measured; the reserved arm additionally sorts at most the ready
 // priority-1 subset. An unbounded LIMIT anywhere still fails this guard.
 func TestClaimBatchQueryStaysBatchBounded(t *testing.T) {
 	t.Parallel()
@@ -58,7 +58,7 @@ func TestClaimBatchQueryStaysBatchBounded(t *testing.T) {
 	uncommented := regexp.MustCompile(`(?m)--.*$`).ReplaceAllString(query, "")
 	for _, want := range []string{
 		// Reserved arm: at most one priority-1 row per batch.
-		"ORDER BY candidate.updated_at ASC, candidate.work_item_id ASC\n    LIMIT 1",
+		"ORDER BY ordered_candidate.updated_at ASC, ordered_candidate.work_item_id ASC\n    LIMIT 1",
 		// Rest arm: the remainder of the caller's batch, full $8 when empty.
 		"LIMIT ($8 - (SELECT COUNT(*) FROM locked_search_doc_reserved))",
 	} {

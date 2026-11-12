@@ -265,7 +265,7 @@ func TestClaimBatchOrdersSearchDocumentCatchupAfterGraphTruth(t *testing.T) {
 			t.Fatalf("same-conflict representative window missing search-document deprioritization order %q:\n%s", want, query)
 		}
 	}
-	if !strings.Contains(query, "ORDER BY reducer_domain_priority ASC, reducer_source_inflight_count ASC, reducer_source_fair_rank ASC, reducer_domain_fair_rank ASC, reducer_domain_inflight_count ASC, updated_at ASC, work_item_id ASC") {
+	if !strings.Contains(query, "ORDER BY candidate.reducer_domain_priority ASC, candidate.reducer_source_inflight_count ASC, candidate.reducer_source_fair_rank ASC, candidate.reducer_domain_fair_rank ASC, candidate.reducer_domain_inflight_count ASC, candidate.updated_at ASC, candidate.work_item_id ASC") {
 		t.Fatalf("batch claim query missing domain-priority and fairness ordering:\n%s", query)
 	}
 	// #10568 reserved search-doc slot: the claim carries a bounded
@@ -280,10 +280,10 @@ func TestClaimBatchOrdersSearchDocumentCatchupAfterGraphTruth(t *testing.T) {
 	for _, want := range []string{
 		"search_doc_reserved",
 		"locked_search_doc_reserved AS",
-		"AND candidate.reducer_domain_priority = 1",
+		"WHERE candidate.reducer_domain_priority = 1",
 		"ORDER BY candidate.updated_at ASC, candidate.work_item_id ASC",
 		"locked_rest AS",
-		"AND search_doc_taken.work_item_id IS NULL",
+		"WHERE search_doc_taken.work_item_id IS NULL",
 		"LIMIT ($8 - (SELECT COUNT(*) FROM locked_search_doc_reserved))",
 		"SELECT * FROM locked_search_doc_reserved",
 	} {

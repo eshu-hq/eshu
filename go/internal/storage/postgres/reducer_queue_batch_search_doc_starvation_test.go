@@ -13,8 +13,9 @@ import (
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
-// TestClaimBatchSearchDocumentStarvesBehindAdvisoryBacklog is the #10568 RED
-// reproduction: the batch claim's strict domain-priority ordering starves
+// TestClaimBatchSearchDocumentStarvesBehindAdvisoryBacklog is the #10568
+// regression proof (RED before the reserved slot landed, GREEN since): the
+// batch claim's strict domain-priority ordering alone would starve
 // eshu_search_document (the only priority-1 domain) behind the priority-0
 // advisory backlog.
 //
@@ -26,12 +27,6 @@ import (
 // ReducerQueue.ClaimBatch path (the shipped claimReducerWorkBatchQuery,
 // including its LIMIT $8), so no ordering simulation stands between the
 // fixture and the verdict: zero claimed search-doc rows is the starvation.
-//
-// This test FAILS until the claim gains reserved slots or priority aging for
-// eshu_search_document. It shares its file with #10565 (C-step-1 keeps the
-// ordering byte-identical), so the GREEN implementation lands rebased after
-// #10565 merges; this lane makes no production edits to
-// reducer_queue_batch_query.go until then.
 func TestClaimBatchSearchDocumentStarvesBehindAdvisoryBacklog(t *testing.T) {
 	dsn := reducerDomainFairnessDSN()
 	if dsn == "" {
@@ -53,14 +48,15 @@ func TestClaimBatchSearchDocumentStarvesBehindAdvisoryBacklog(t *testing.T) {
 	seedReducerFairnessScope(t, ctx, db, "scope-search-starve", now)
 
 	// Priority-0 advisory backlog, larger than the batch: every row in its own
-	// conflict group so the representative fence never collapses them.
+	// advisory-group conflict group (the live domain for this family), so the
+	// representative fence never collapses them.
 	for i := 0; i < busyCount; i++ {
 		insertReducerFairnessWorkItem(t, ctx, db, reducerFairnessWorkItem{
 			workItemID:     fmt.Sprintf("advisory-%03d", i),
 			scopeID:        "scope-search-starve",
 			generationID:   "gen-fair",
 			domain:         string(busyDomain),
-			conflictDomain: reducerConflictDomainScope,
+			conflictDomain: reducerConflictDomainAdvisoryGroup,
 			conflictKey:    fmt.Sprintf("advisory-key-%03d", i),
 			updatedAt:      now.Add(time.Duration(i) * time.Second),
 		})
@@ -124,8 +120,8 @@ func TestClaimBatchSearchDocumentStarvesBehindAdvisoryBacklog(t *testing.T) {
 // closes at $8 rows while a priority-1 row can always take one slot.
 //
 // If a later merge restructures this query, this pin fails loudly and the
-// starvation fixture is re-verified against the new shape — the RED test must
-// never silently validate a stale ordering.
+// starvation fixture is re-verified against the new shape — the regression
+// test must never silently validate a stale ordering.
 func TestClaimBatchSearchDocumentStarvationMechanismPinnedToShippedQuery(t *testing.T) {
 	t.Parallel()
 
@@ -136,7 +132,7 @@ func TestClaimBatchSearchDocumentStarvationMechanismPinnedToShippedQuery(t *test
 		t.Fatalf("batch claim query lost the domain-priority CASE %q", priorityCASE)
 	}
 
-	const priorityOrderLead = "ORDER BY reducer_domain_priority ASC"
+	const priorityOrderLead = "ORDER BY candidate.reducer_domain_priority ASC"
 	if !strings.Contains(query, priorityOrderLead) {
 		t.Fatalf("batch claim query no longer leads its claim ORDER BY with %q", priorityOrderLead)
 	}
@@ -145,7 +141,7 @@ func TestClaimBatchSearchDocumentStarvationMechanismPinnedToShippedQuery(t *test
 	// at a single LIMIT $8: the reserved arm takes at most one priority-1
 	// row and the rest arm fills LIMIT minus that take.
 	for _, want := range []string{
-		"ORDER BY candidate.updated_at ASC, candidate.work_item_id ASC\n    LIMIT 1",
+		"ORDER BY ordered_candidate.updated_at ASC, ordered_candidate.work_item_id ASC\n    LIMIT 1",
 		"LIMIT ($8 - (SELECT COUNT(*) FROM locked_search_doc_reserved))",
 	} {
 		if !strings.Contains(query, want) {

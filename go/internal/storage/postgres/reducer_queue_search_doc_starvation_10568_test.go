@@ -48,13 +48,12 @@ func TestClaimBatchSearchDocConflictDomainIsDisjointFromAdvisory(t *testing.T) {
 	}
 }
 
-// TestClaimBatchReservesSearchDocClaimSlots is the TDD RED test for #10568:
-// the batch claim must carry a reserved-slot (or equivalent priority-aging)
-// mechanism so eshu_search_document rows are claimable while a priority-0
-// backlog deeper than the batch LIMIT exists. It fails against the current
-// strict `reducer_domain_priority ASC` ordering and passes once the
-// implementation lands (rebased after #10565 merges; this lane makes no
-// production edits to reducer_queue_batch_query.go until then).
+// TestClaimBatchReservesSearchDocClaimSlots is the hermetic marker pin for
+// #10568 (RED before the reserved slot landed, GREEN since): the batch claim
+// must carry a reserved-slot mechanism so eshu_search_document rows are
+// claimable while a priority-0 backlog deeper than the batch LIMIT exists.
+// The mechanism's shape is pinned beside this marker by the query-shape
+// tests; this pin only keeps the marker itself from vanishing silently.
 func TestClaimBatchReservesSearchDocClaimSlots(t *testing.T) {
 	t.Parallel()
 
@@ -66,10 +65,11 @@ func TestClaimBatchReservesSearchDocClaimSlots(t *testing.T) {
 	}
 }
 
-// TestClaimBatchSearchDocStarvationLiveReproduction is the live-fixture RED
-// proof for #10568 acceptance criterion 1: priority-1 search-doc rows go
-// unclaimed while a priority-0 advisory backlog deeper than the batch LIMIT
-// exists. Fixture mirrors the 2026-11-12 live census at small scale (40
+// TestClaimBatchSearchDocStarvationLiveReproduction is the live-fixture
+// regression proof for #10568 acceptance criterion 1 (RED before the
+// reserved slot): priority-1 search-doc rows must drain while a priority-0
+// advisory backlog deeper than the batch LIMIT exists. Fixture mirrors the
+// 2026-11-12 live census at small scale (40
 // advisory rows vs 19.4k live; 4 search-doc rows vs 660 live, oldest ~72h).
 // All rows share one scope (one active generation: ingestion_scopes carries
 // UNIQUE(active_generation_id), so a scope per row cannot seed). Search-doc

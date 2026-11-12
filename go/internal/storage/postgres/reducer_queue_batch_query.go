@@ -263,70 +263,106 @@ locked_search_doc_reserved AS MATERIALIZED (
     -- (zero idle capacity loss). Advisory impact is bounded structurally: at
     -- most 1 batch slot per claim whenever a search-doc row is ready, 0
     -- otherwise, regardless of advisory backlog depth or worker count.
-    -- This arm locks via the same lock_target join with identical EvalPlanQual
-    -- row-self lease/visibility/status recheck predicates as locked_rest, so a
-    -- row another worker claimed between our snapshot and this lock is dropped
-    -- in either arm. SKIP LOCKED never blocks, so the second locking arm adds
-    -- no deadlock edge: workers still never wait on each other.
+    -- This arm locks via the same lock_target predicates with identical
+    -- EvalPlanQual row-self lease/visibility/status recheck as locked_rest,
+    -- so a row another worker claimed between our snapshot and this lock is
+    -- dropped in either arm. SKIP LOCKED never blocks, so the second locking
+    -- arm adds no deadlock edge: workers still never wait on each other.
     -- MATERIALIZED: the rest arm anti-joins this output, so it must be
     -- evaluated once with its locks taken once, not inlined per reference.
-    SELECT candidate.*
-    FROM fact_work_items AS lock_target
-    JOIN candidate ON candidate.work_item_id = lock_target.work_item_id
-    WHERE lock_target.stage = 'reducer'
-      AND lock_target.status IN ('pending', 'retrying', 'claimed', 'running')
-      AND (lock_target.claim_until IS NULL OR lock_target.claim_until <= $1)
-      -- #6828: stamp-clock visibility, matching the base candidate filter
-      -- above; a Go-only recheck here would reintroduce the skew flake by
-      -- dropping trigger-reopened rows the base filter admitted.
-      AND (lock_target.visible_at IS NULL OR lock_target.visible_at <= $1 OR (lock_target.status = 'pending' AND lock_target.visible_at <= clock_timestamp()))
-      AND candidate.reducer_domain_priority = 1
-    ORDER BY candidate.updated_at ASC, candidate.work_item_id ASC
+    -- The lock is a per-candidate LATERAL primary-key probe, not a join the
+    -- planner can reorder: referencing candidate from two arms materializes
+    -- it, and with stale statistics a plain join flips to an outer scan over
+    -- every lock_target row with the candidate re-scanned per row (measured
+    -- +37 ms of lock tail on the stale-heavy fixture, unbounded at
+    -- production table size). LATERAL fixes the candidate side as the outer
+    -- loop whatever the statistics say. The ordered subquery (OFFSET 0
+    -- keeps its order as the outer loop's path) lets LIMIT stop pulling
+    -- candidates once the arm fills, so rows are lock-probed in claim order
+    -- and SKIP LOCKED passes over a concurrently locked candidate to the
+    -- next one exactly as the plain join did.
+    SELECT ordered_candidate.*
+    FROM (
+        SELECT candidate.*
+        FROM candidate
+        WHERE candidate.reducer_domain_priority = 1
+        ORDER BY candidate.updated_at ASC, candidate.work_item_id ASC
+        OFFSET 0
+    ) AS ordered_candidate
+    JOIN LATERAL (
+        SELECT lock_target.work_item_id
+        FROM fact_work_items AS lock_target
+        WHERE lock_target.stage = 'reducer'
+          AND lock_target.work_item_id = ordered_candidate.work_item_id
+          AND lock_target.status IN ('pending', 'retrying', 'claimed', 'running')
+          AND (lock_target.claim_until IS NULL OR lock_target.claim_until <= $1)
+          -- #6828: stamp-clock visibility, matching the base candidate filter
+          -- above; a Go-only recheck here would reintroduce the skew flake by
+          -- dropping trigger-reopened rows the base filter admitted.
+          AND (lock_target.visible_at IS NULL OR lock_target.visible_at <= $1 OR (lock_target.status = 'pending' AND lock_target.visible_at <= clock_timestamp()))
+        FOR UPDATE OF lock_target SKIP LOCKED
+    ) AS lock_target ON true
+    ORDER BY ordered_candidate.updated_at ASC, ordered_candidate.work_item_id ASC
     LIMIT 1
-    FOR UPDATE OF lock_target SKIP LOCKED
 ),
 locked_rest AS (
-    SELECT candidate.*
-    FROM fact_work_items AS lock_target
-    JOIN candidate ON candidate.work_item_id = lock_target.work_item_id
-    -- Anti-join the reserved row so it is never claimed twice in one batch.
-    -- A LEFT JOIN ... IS NULL keeps the lock/claim tail free of per-row
-    -- SubPlan gates (NOT EXISTS would add one); the join is on this
-    -- statement's own reserved output, so no concurrent-write hazard.
-    LEFT JOIN locked_search_doc_reserved AS search_doc_taken
-      ON search_doc_taken.work_item_id = candidate.work_item_id
-    -- Re-apply the row-self lease/visibility/status predicates on the ACTUAL
-    -- locked row. candidate is evaluated from the statement snapshot, but under
-    -- Read Committed the FOR UPDATE row lock re-fetches the latest committed
-    -- version of lock_target and re-runs THIS CTE's quals against it (EvalPlanQual
-    -- recheck). Without these predicates the only qual is the id join to the
-    -- snapshot candidate set, so a row another worker claimed and committed
-    -- between our snapshot and this lock still matches and its fresh lease would
-    -- be overwritten (lease theft / duplicate work). Re-checking status and
-    -- claim_until/visible_at here drops such a row exactly as the pre-rewrite
-    -- query did when FOR UPDATE SKIP LOCKED sat directly on the predicate-bearing
-    -- candidate SELECT. These are a strict subset of base's WHERE, so in the
-    -- uncontended case (lock_target == the snapshot row) they are a no-op and the
-    -- claimed candidate set is unchanged.
-    WHERE lock_target.stage = 'reducer'
-      AND lock_target.status IN ('pending', 'retrying', 'claimed', 'running')
-      AND (lock_target.claim_until IS NULL OR lock_target.claim_until <= $1)
-      -- #6828: stamp-clock visibility, matching the base candidate filter
-      -- above; a Go-only recheck here would reintroduce the skew flake by
-      -- dropping trigger-reopened rows the base filter admitted.
-      AND (lock_target.visible_at IS NULL OR lock_target.visible_at <= $1 OR (lock_target.status = 'pending' AND lock_target.visible_at <= clock_timestamp()))
-      AND search_doc_taken.work_item_id IS NULL
-    -- #8024: reducer_domain_inflight_count ASC sits after the fairness ranks
-    -- and before the updated_at tie-break, so a ready row of a domain with no
-    -- inflight work takes a slot ahead of an older same-source backlog without
-    -- disturbing the #3385 cross-domain interleave (which ties at 0 = 0 when
-    -- neither domain holds leases).
-    ORDER BY reducer_domain_priority ASC, reducer_source_inflight_count ASC, reducer_source_fair_rank ASC, reducer_domain_fair_rank ASC, reducer_domain_inflight_count ASC, updated_at ASC, work_item_id ASC
+    -- Same per-candidate LATERAL lock as the reserved arm (see its comment):
+    -- the candidate side stays the outer loop and lock_target is probed by
+    -- primary key, so stale statistics cannot flip this arm into an outer
+    -- scan over fact_work_items.
+    SELECT ordered_candidate.*
+    FROM (
+        SELECT candidate.*
+        FROM candidate
+        -- Anti-join the reserved row so it is never claimed twice in one
+        -- batch. A LEFT JOIN ... IS NULL keeps the lock/claim tail free of
+        -- per-row SubPlan gates (NOT EXISTS would add one); the join is on
+        -- this statement's own reserved output, so no concurrent-write
+        -- hazard.
+        LEFT JOIN locked_search_doc_reserved AS search_doc_taken
+          ON search_doc_taken.work_item_id = candidate.work_item_id
+        WHERE search_doc_taken.work_item_id IS NULL
+        -- #8024: reducer_domain_inflight_count ASC sits after the fairness
+        -- ranks and before the updated_at tie-break, so a ready row of a
+        -- domain with no inflight work takes a slot ahead of an older
+        -- same-source backlog without disturbing the #3385 cross-domain
+        -- interleave (which ties at 0 = 0 when neither domain holds leases).
+        ORDER BY candidate.reducer_domain_priority ASC, candidate.reducer_source_inflight_count ASC, candidate.reducer_source_fair_rank ASC, candidate.reducer_domain_fair_rank ASC, candidate.reducer_domain_inflight_count ASC, candidate.updated_at ASC, candidate.work_item_id ASC
+        OFFSET 0
+    ) AS ordered_candidate
+    JOIN LATERAL (
+        SELECT lock_target.work_item_id
+        FROM fact_work_items AS lock_target
+        -- Re-apply the row-self lease/visibility/status predicates on the
+        -- ACTUAL locked row. candidate is evaluated from the statement
+        -- snapshot, but under Read Committed the FOR UPDATE row lock
+        -- re-fetches the latest committed version of lock_target and re-runs
+        -- THIS locking level's quals against it (EvalPlanQual recheck).
+        -- Without these predicates the only qual is the id join to the
+        -- snapshot candidate set, so a row another worker claimed and
+        -- committed between our snapshot and this lock still matches and its
+        -- fresh lease would be overwritten (lease theft / duplicate work).
+        -- Re-checking status and claim_until/visible_at here drops such a
+        -- row exactly as the pre-rewrite query did when FOR UPDATE SKIP
+        -- LOCKED sat directly on the predicate-bearing candidate SELECT.
+        -- These are a strict subset of base's WHERE, so in the uncontended
+        -- case (lock_target == the snapshot row) they are a no-op and the
+        -- claimed candidate set is unchanged.
+        WHERE lock_target.stage = 'reducer'
+          AND lock_target.work_item_id = ordered_candidate.work_item_id
+          AND lock_target.status IN ('pending', 'retrying', 'claimed', 'running')
+          AND (lock_target.claim_until IS NULL OR lock_target.claim_until <= $1)
+          -- #6828: stamp-clock visibility, matching the base candidate filter
+          -- above; a Go-only recheck here would reintroduce the skew flake by
+          -- dropping trigger-reopened rows the base filter admitted.
+          AND (lock_target.visible_at IS NULL OR lock_target.visible_at <= $1 OR (lock_target.status = 'pending' AND lock_target.visible_at <= clock_timestamp()))
+        FOR UPDATE OF lock_target SKIP LOCKED
+    ) AS lock_target ON true
+    ORDER BY ordered_candidate.reducer_domain_priority ASC, ordered_candidate.reducer_source_inflight_count ASC, ordered_candidate.reducer_source_fair_rank ASC, ordered_candidate.reducer_domain_fair_rank ASC, ordered_candidate.reducer_domain_inflight_count ASC, ordered_candidate.updated_at ASC, ordered_candidate.work_item_id ASC
     -- The reserved arm took COUNT(*) rows (0 or 1); the rest arm fills what
     -- remains of the batch. The scalar subquery plans as an InitPlan, not a
     -- per-row SubPlan, and falls back to the full $8 when nothing reserved.
     LIMIT ($8 - (SELECT COUNT(*) FROM locked_search_doc_reserved))
-    FOR UPDATE OF lock_target SKIP LOCKED
 ),
 locked AS (
     SELECT * FROM locked_search_doc_reserved
