@@ -167,6 +167,13 @@ func TrimmedSearchHostnames(hostnames []string, serviceName string, limit int) (
 //     QueryProvisioningRepositoryCandidates -- not a narrowing of reachable
 //     consumers at all. Such a row carries nothing a caller could render or
 //     address, so dropping it loses nothing.
+//   - the pre-merge grant filter on the content-evidence side (#10560): for
+//     a scoped caller every content row whose repo_id falls outside the
+//     grant is dropped before it can merge into consumersByRepo. An
+//     authorization narrowing, not a cardinality bound, so it sets no
+//     truncation flag -- an emptied-by-filter set with a fired bound keeps
+//     that bound's own disclosure, and an emptied set with no fired bound
+//     is an honest empty answer, not a truncated one.
 //
 // ConsumerEnrichmentTruncation names which cardinality bound fired while
 // merging consumer repositories, so callers can attribute a truncated
@@ -266,7 +273,18 @@ func LoadConsumerRepositoryEnrichmentWithSources(
 		if searchTruncated {
 			sources.Searches = true
 		}
+		// #10560: content-search rows name arbitrary repositories, while the
+		// candidates above arrived grant-filtered from the story/context
+		// caller. Bind the content side to the caller's grant here, pre-merge
+		// (same predicate the paged list tool applies post-merge), so an
+		// out-of-grant content-only repository never enters the set -- and
+		// never displaces a granted row under the merged-list cap below.
+		// Deny-by-default when scoped; unscoped callers are unaffected.
+		access := querycontract.RepositoryAccessFilterFromContext(ctx)
 		for repoID, evidence := range contentEvidence {
+			if !ImpactRepoIDAllowed(repoID, access) {
+				continue
+			}
 			entry, ok := consumersByRepo[repoID]
 			if !ok {
 				entry = map[string]any{
