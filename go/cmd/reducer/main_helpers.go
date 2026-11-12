@@ -72,7 +72,7 @@ func configureReducerQueue(
 	clk clock.Clock,
 	instruments *telemetry.Instruments,
 	logger *slog.Logger,
-) postgres.ReducerQueue {
+) (postgres.ReducerQueue, error) {
 	workQueue := postgres.NewReducerQueue(database, reducerWorkQueueLeaseOwner, reducerClaimLeaseDuration)
 	// Injected clock for lease TTL / claim visibility / retry timing (#4121);
 	// clock.System().Now() == time.Now() in production, swappable for replay.
@@ -85,6 +85,17 @@ func configureReducerQueue(
 	workQueue.MaxRetryDelay = retryCfg.MaxRetryDelay
 	workQueue.JitterFraction = retryCfg.JitterFraction
 	workQueue.Instruments = instruments
+	funnelEnabled, err := loadReducerBatchClaimFunnelEnabled(getenv)
+	if err != nil {
+		return postgres.ReducerQueue{}, err
+	}
+	workQueue.FunnelTelemetryEnabled = funnelEnabled
+	if logger != nil {
+		logger.Info(
+			"batch-claim funnel census configured",
+			"funnel_telemetry_enabled", funnelEnabled,
+		)
+	}
 	workQueue.Logger = logger
 	workQueue.ClaimDomains = claimDomains
 	workQueue.RequireProjectorDrainBeforeClaim = projectorDrainGate
@@ -102,7 +113,7 @@ func configureReducerQueue(
 			"semantic_entity_claim_limit", workQueue.SemanticEntityClaimLimit,
 		)
 	}
-	return workQueue
+	return workQueue, nil
 }
 
 // configureGraphProjectionRepairQueue builds the readiness repair queue with the

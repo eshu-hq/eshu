@@ -133,6 +133,9 @@ func (q ReducerQueue) captureClaimBatchFunnel(ctx context.Context, now time.Time
 	if inst == nil {
 		return empty, false
 	}
+	if !q.FunnelTelemetryEnabled {
+		return empty, false
+	}
 	if inst.BatchClaimCandidates == nil && inst.BatchClaimRepresentatives == nil && inst.BatchClaimDrops == nil {
 		return empty, false
 	}

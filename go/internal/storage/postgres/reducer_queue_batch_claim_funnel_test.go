@@ -107,10 +107,11 @@ func TestClaimBatchRecordsFunnelTelemetry(t *testing.T) {
 				10, // representatives after fence
 			},
 		},
-		LeaseOwner:    "batch-claim-funnel-proof",
-		LeaseDuration: time.Minute,
-		Now:           func() time.Time { return now },
-		Instruments:   instruments,
+		LeaseOwner:             "batch-claim-funnel-proof",
+		LeaseDuration:          time.Minute,
+		Now:                    func() time.Time { return now },
+		Instruments:            instruments,
+		FunnelTelemetryEnabled: true,
 	}
 	intents, err := queue.ClaimBatch(ctx, 8)
 	if err != nil {
@@ -195,6 +196,47 @@ func TestClaimBatchRecordsFunnelTelemetry(t *testing.T) {
 	}
 	if admitted+accounted != 16 {
 		t.Fatalf("admitted %d + drops %d = %d, want candidates 16 (pre-claim membership must reconcile exactly)", admitted, accounted, admitted+accounted)
+	}
+}
+
+// TestClaimBatchFunnelDisabledByDefault proves the arbiter ACCEPT-(b) gate:
+// a queue with instruments wired but the flag off issues zero funnel
+// queries, so the shipped default keeps the proven gate-only claim shape.
+func TestClaimBatchFunnelDisabledByDefault(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	reader := sdkmetric.NewManualReader()
+	instruments, err := telemetry.NewInstruments(
+		sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader)).Meter("batch-claim-funnel-off"))
+	if err != nil {
+		t.Fatalf("NewInstruments: %v", err)
+	}
+
+	now := time.Date(2026, time.November, 12, 12, 0, 0, 0, time.UTC)
+	seen := &funnelQueriesSeen{}
+	queue := ReducerQueue{
+		database: funnelBatchClaimDB{
+			claimRows: [][]any{
+				funnelClaimRow("funnel-off-1", now),
+			},
+			counts: []int64{5, 1, 1, 1, 1, 1, 0},
+			seen:   seen,
+		},
+		LeaseOwner:    "batch-claim-funnel-off",
+		LeaseDuration: time.Minute,
+		Now:           func() time.Time { return now },
+		Instruments:   instruments,
+		// FunnelTelemetryEnabled intentionally unset: default off.
+	}
+	if _, err := queue.ClaimBatch(ctx, 8); err != nil {
+		t.Fatalf("ClaimBatch: %v", err)
+	}
+	if got := seen.funnel.Load(); got != 0 {
+		t.Fatalf("flag-off claim issued %d funnel queries, want 0", got)
+	}
+	if got := seen.claim.Load(); got == 0 {
+		t.Fatal("flag-off claim issued no claim query: the gate assertion is vacuous without one")
 	}
 }
 

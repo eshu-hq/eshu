@@ -20,7 +20,7 @@ import (
 func TestIdentityCacheWaitBoundIsOneHeartbeatOfTheQueueLease(t *testing.T) {
 	t.Parallel()
 
-	queue := configureReducerQueue(
+	queue, err := configureReducerQueue(
 		nil,
 		runtimecfg.RetryPolicyConfig{},
 		nil,
@@ -31,6 +31,9 @@ func TestIdentityCacheWaitBoundIsOneHeartbeatOfTheQueueLease(t *testing.T) {
 		nil,
 		nil,
 	)
+	if err != nil {
+		t.Fatalf("configureReducerQueue: %v", err)
+	}
 	if got, want := queue.LeaseDuration/2, reducerHeartbeatInterval; got != want {
 		t.Fatalf("queue lease / 2 = %v, want reducerHeartbeatInterval %v: the cache bound and the service heartbeat must derive from the queue's own lease", got, want)
 	}

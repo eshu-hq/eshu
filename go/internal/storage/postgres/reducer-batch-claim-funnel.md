@@ -14,8 +14,10 @@ double-count every production claim — `TestClaimBatchDoesNotRecordBatchClaimSi
 pins the storage silence and `TestServiceBatchClaimRecordsSingleBatchClaimSize`
 pins the single service emission. The issue requires the full admission
 funnel — candidates in, representatives after the fence, and drops by reason —
-as the operator signal for the claim-admission ceiling work. Every claim now
-runs one extra read-only counts query (`reducerClaimBatchFunnelQuery`,
+as the operator signal for the claim-admission ceiling work. With
+`ESHU_REDUCER_BATCH_CLAIM_FUNNEL_ENABLED=true` (default false per arbiter
+ruling ACCEPT-(b), #10565), a claim runs one extra read-only counts query
+(`reducerClaimBatchFunnelQuery`,
 `reducer_queue_batch_claim_funnel.go`) and records
 `eshu_dp_reducer_batch_claim_candidates` and
 `eshu_dp_reducer_batch_claim_representatives` (per-claim histograms,
