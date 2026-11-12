@@ -252,7 +252,7 @@ import (
 // retirement, which rolled first, so this lane takes 294. #10566 adds
 // 295_advisory_groups_synthetic_scope.sql (the synthetic advisory-groups
 // scope seed for coalesced advisory-group projection rows).
-const goldenBootstrapDefinitionsDigest = "4e2c59c85398f4829f640b8cf46b8f796616f31654e0ff85edafd4b198d3ccfb"
+const goldenBootstrapDefinitionsDigest = "fdff96dd0daffbf6e71418a29043f84b63021382271a4876ee1a9bc0600a874f"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or

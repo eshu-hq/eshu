@@ -16,7 +16,7 @@
 -- touch of each group through the existing enqueue/retouch path, so the
 -- domain row count stays bounded by the group count with no sweeper.
 --
--- Reserved-id handling is fail-safe, never overwrite. All three inserts
+-- Reserved-id handling is fail-safe, never overwrite. Both inserts
 -- are ON CONFLICT DO NOTHING: this directory has no applied-migration
 -- ledger, so every file replays on every bootstrap and the seed must
 -- converge once and no-op after it. A colliding scope id keeps its

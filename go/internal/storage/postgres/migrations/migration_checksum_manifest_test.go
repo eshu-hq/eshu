@@ -377,7 +377,7 @@ var migrationShippedChecksums = map[string]string{
 	// (migration 294; 293 went to #10544, which rolled first).
 	"294_fact_work_items_generation_idx.sql": "2ba56e7a4dec8240a10dff5dd06b3bda6871ec51463cc03526b875fbae1b89f6",
 	// #10566: the synthetic advisory-groups scope seed (migration 295).
-	"295_advisory_groups_synthetic_scope.sql": "f24a1950cbea3e15210bbcc5c83ed7e21474c1e1fa903058d449e8bced1748e5",
+	"295_advisory_groups_synthetic_scope.sql": "f6f85c0171747797b524e0257d72581083f14b347779e7c8f49bbf8e4c073b72",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition
