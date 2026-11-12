@@ -403,7 +403,7 @@ the directory name.
 | File | Covers |
 | --- | --- |
 | `impact.go` | `SupplyChainImpactHandler`, finding pipeline |
-| `fanout.go` | the holder fan-out: port, stamp, one-hop rule, disjoint clear, continuation, retryable failure class; `scoped_pass.go` holds the #9779 scoped evidence scope; `manifest_trigger.go` and `manifest_change.go` hold the #9874 manifest marker branch; the holder read is a 3-arm OR over `cve_id`, `advisory_id`, and group `members` so late-alias advisory-keyed holders reopen (#10408) |
+| `fanout.go` | the holder fan-out: port, stamp, one-hop rule, disjoint clear, continuation, retryable failure class; `scoped_pass.go` holds the #9779 scoped evidence scope; `manifest_trigger.go` and `manifest_change.go` hold the #9874 manifest marker branch; the holder read is an H3 MATERIALIZED pair-union over `cve_id`, `advisory_id`, and group `members` (#10564) so late-alias advisory-keyed holders reopen (#10408) |
 | `writer_changed.go` | the content digest and the changed-row and recovery reads (member ids unioned into the changed and recovery CVE sets), plus the touched advisory-group set (coalesced group ids plus member-derived priors for identity-changed rows, #10408 D2) and the genuine identity-change report (#10408 D6) |
 | `suppression_carry.go`, `rekey_signals.go` | the re-key tally and operator signal (#10408 L3/L7): the carry/orphan tally over loaded suppressions and findings, then the closed outcome classifier (`merge`, `split`, `member_only`, `retire_only`) over the writer's genuine identity-change report, the per-pass counter, and the magnitude sub-signals; silent on a no-identity-change pass |
 | `finding.go` | `SupplyChainImpactFinding` (carries the `Suppression` field: impact + suppression are one unit) |

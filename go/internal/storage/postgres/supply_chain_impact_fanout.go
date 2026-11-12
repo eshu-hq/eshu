@@ -38,28 +38,48 @@ const setSupplyChainImpactFanOutReadTimeoutQuery = `SELECT set_config('statement
 // no replacement row names, and holders keyed by those ids — a dropped
 // member's fallback singleton, an advisory-keyed GHSA-only row, a holder
 // whose deciding record names the fragment — are reachable only through the
-// second and third arms. Each arm reads the writer's own output through its
-// own partial index (fact_records_supply_chain_impact_lookup_idx,
+// second and third arms. The three arms UNION (scope_id, generation_id)
+// pairs inside one MATERIALIZED candidate set (#10564 H3) instead of ORing
+// in one WHERE clause: the OR shape let the planner pick a scope nested loop
+// and never touched the advisory and group-members indexes, while
+// materialization puts the members arm on its GIN bitmap and deduplicates
+// pairs before the heap-heavy join. One join of the pair set against the
+// scope's active generation then drops rows left behind by superseded
+// generations. Each arm reads the writer's own output through its own
+// partial index (fact_records_supply_chain_impact_lookup_idx,
 // _advisory_lookup_idx, and _group_members_idx, all partial on the fact kind
-// and is_tombstone = FALSE), so the fact kind is a literal here: a bound
-// parameter would not prove the partial-index predicates under a generic
-// plan. Joining the scope's active generation drops rows left behind by
-// superseded generations. The operator suppression scope is a holder like any
-// other: its copies are ordinary finding rows that carry cve_id. Exported for
+// and is_tombstone = FALSE), so the fact kind is a literal in every arm: a
+// bound parameter would not prove the partial-index predicates under a
+// generic plan. The operator suppression scope is a holder like any other:
+// its copies are ordinary finding rows that carry cve_id. Exported for
 // plan-shape proofs: EXPLAIN tests concatenate it instead of hand-copying it.
 const FindSupplyChainImpactHoldersQuery = `
-SELECT DISTINCT finding.scope_id
-FROM fact_records AS finding
+WITH candidates AS MATERIALIZED (
+    SELECT finding.scope_id, finding.generation_id
+    FROM fact_records AS finding
+    WHERE finding.fact_kind = '` + facts.ReducerSupplyChainImpactFindingFactKind + `'
+      AND finding.is_tombstone = FALSE
+      AND finding.payload->>'cve_id' = ANY($1::text[])
+    UNION
+    SELECT finding.scope_id, finding.generation_id
+    FROM fact_records AS finding
+    WHERE finding.fact_kind = '` + facts.ReducerSupplyChainImpactFindingFactKind + `'
+      AND finding.is_tombstone = FALSE
+      AND finding.payload->>'advisory_id' = ANY($1::text[])
+    UNION
+    SELECT finding.scope_id, finding.generation_id
+    FROM fact_records AS finding
+    WHERE finding.fact_kind = '` + facts.ReducerSupplyChainImpactFindingFactKind + `'
+      AND finding.is_tombstone = FALSE
+      AND finding.payload #> '{provenance,advisory_group_members}' ?| $1::text[]
+)
+SELECT DISTINCT candidates.scope_id
+FROM candidates
 JOIN ingestion_scopes AS scope
-  ON scope.scope_id = finding.scope_id
- AND scope.active_generation_id = finding.generation_id
-WHERE finding.fact_kind = '` + facts.ReducerSupplyChainImpactFindingFactKind + `'
-  AND finding.is_tombstone = FALSE
-  AND (finding.payload->>'cve_id' = ANY($1::text[])
-       OR finding.payload->>'advisory_id' = ANY($1::text[])
-       OR finding.payload #> '{provenance,advisory_group_members}' ?| $1::text[])
-  AND finding.scope_id <> $2
-ORDER BY finding.scope_id
+  ON scope.scope_id = candidates.scope_id
+ AND scope.active_generation_id = candidates.generation_id
+WHERE candidates.scope_id <> $2
+ORDER BY candidates.scope_id
 `
 
 // reopenSupplyChainImpactHolderQuery reopens one holder's supply_chain_impact
