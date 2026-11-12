@@ -358,7 +358,13 @@ locked_rest AS (
           AND (lock_target.visible_at IS NULL OR lock_target.visible_at <= $1 OR (lock_target.status = 'pending' AND lock_target.visible_at <= clock_timestamp()))
         FOR UPDATE OF lock_target SKIP LOCKED
     ) AS lock_target ON true
-    ORDER BY ordered_candidate.reducer_domain_priority ASC, ordered_candidate.reducer_source_inflight_count ASC, ordered_candidate.reducer_source_fair_rank ASC, ordered_candidate.reducer_domain_fair_rank ASC, ordered_candidate.reducer_domain_inflight_count ASC, ordered_candidate.updated_at ASC, ordered_candidate.work_item_id ASC
+    -- #10568: the fairness keys are spelled unqualified here: ORDER BY binds
+    -- simple names to this SELECT's output columns (ordered_candidate.*), so
+    -- the sort is identical to the qualified form, and the literal stays the
+    -- pinned source-fairness contract. The inner copy above stays
+    -- candidate-qualified for clarity beside the reserved anti-join, whose
+    -- output carries the same column names.
+    ORDER BY reducer_domain_priority ASC, reducer_source_inflight_count ASC, reducer_source_fair_rank ASC, reducer_domain_fair_rank ASC, reducer_domain_inflight_count ASC, updated_at ASC, work_item_id ASC
     -- The reserved arm took COUNT(*) rows (0 or 1); the rest arm fills what
     -- remains of the batch. The scalar subquery plans as an InitPlan, not a
     -- per-row SubPlan, and falls back to the full $8 when nothing reserved.

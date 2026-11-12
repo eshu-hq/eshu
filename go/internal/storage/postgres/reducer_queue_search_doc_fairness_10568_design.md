@@ -217,3 +217,42 @@ execution telemetry for the search-doc reserved claim slot"), category:
 genuine missing coverage. Owner agreement for that deferral:
 PENDING-COORDINATOR — quote the owner's agreement in the PR beside the
 #10581 link before merge.
+
+## Addendum: source-fairness ORDER BY spelling restore (2026-11-12)
+
+`TestReducerQueueBatchClaimOrdersBySourceFairnessWithinDomain` failed on
+the LATERAL tail: the reshaped claim no longer contained the pinned
+fragment `ORDER BY reducer_domain_priority ASC,
+reducer_source_inflight_count ASC, reducer_source_fair_rank ASC,
+reducer_domain_fair_rank ASC, reducer_domain_inflight_count ASC,
+updated_at ASC, work_item_id ASC`. Root cause: relocated, not dropped —
+commit `6c60a2eaef` kept that literal in `locked_rest`, and the
+stats-robust reshape (`d250093f38`) moved the identical seven keys into
+the ordered-candidate subquery (`candidate.`-qualified, kept qualified
+beside the reserved anti-join, which outputs the same column names) and
+the outer locking select (`ordered_candidate.`-qualified). The reserved
+arm's age-only order over the priority-1 subset predates the reshape
+and is the §Decision contract. Fix: spell the outer `locked_rest`
+ORDER BY unqualified — ORDER BY binds simple names to the SELECT's
+output columns (`ordered_candidate.*`), so the sort keys, plan, probe
+order, LIMIT admission, and EvalPlanQual recheck quals are unchanged,
+and the literal again matches the read-only differential tail
+(`readOnlyCandidateTail`) verbatim. A toy two-level shim on
+postgres:18-alpine confirmed identical admitted rows and byte-identical
+EXPLAIN output for both spellings before the edit.
+
+No-Regression Evidence: paired `TestClaimBatchGatePrecomputeStaleHeavyExplain`
+-count=3 per side on the same disposable postgres:18-alpine fixture
+(1,200 stale rows, no manual ANALYZE): full claim before 124.601 /
+124.574 / 124.165 ms (lock tail +4.2–4.7 ms over candidate), after
+124.231 / 124.469 / 124.501 ms (tail +4.4–4.5 ms) — overlapping ranges,
+within noise; SubPlan parity held (full 15 == candidate 15, base
+section 0 on both sides). Fairness test, reserved-slot starvation and
+concurrent-claimer proofs, the #3624 rank-once 0/0 differential, and
+the EvalPlanQual lock-recheck proof all pass against the edited query.
+Production-scale cost stays NOT_CHECKED, as above.
+
+No-Observability-Change: the spelling restore adds no instrument,
+label, span, log, worker, lease, or batch knob; claim admission and
+ordering are unchanged, so the per-domain signals named above remain
+the acceptance read.
