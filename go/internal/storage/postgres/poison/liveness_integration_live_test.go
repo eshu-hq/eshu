@@ -54,15 +54,16 @@ func TestPoisonLivenessIntegration(t *testing.T) {
 		// of the 3 poison scopes because they have no ACTIVE generation at all
 		// (their newest generation status is 'failed', not 'active').
 		//
-		// The proof schema is the production bootstrap, which seeds one
-		// perpetually-active background generation outside the fixture: the
-		// eshu:global genesis singleton (migration 115, activated_at NULL,
-		// hence the fresh bucket). The expected buckets are therefore the
-		// fixture's one healed active generation (aging: activated an hour
-		// ago) plus that singleton (fresh), and zero stuck. Any poison
-		// scope surfacing in the gauge would push one of these buckets
-		// above its expected value, so the exact-bucket assertion pins
-		// their absence.
+		// The proof schema is the production bootstrap, which seeds two
+		// perpetually-active background generations outside the fixture:
+		// the eshu:global genesis singleton (migration 115) and the
+		// synthetic:advisory-groups genesis (migration 295), both with
+		// activated_at NULL, hence the fresh bucket. The expected buckets
+		// are therefore the fixture's one healed active generation (aging:
+		// activated an hour ago) plus those singletons (fresh), and zero
+		// stuck. Any poison scope surfacing in the gauge would push one of
+		// these buckets above its expected value, so the exact-bucket
+		// assertion pins their absence.
 		livenessStore := postgres.NewGenerationLivenessStore(postgres.SQLDB{DB: db})
 		activeCounts, err := livenessStore.CountActiveGenerationsByAge(ctx, postgres.GenerationLivenessPolicy{
 			ActivationDeadline: 30 * time.Minute,
@@ -70,10 +71,10 @@ func TestPoisonLivenessIntegration(t *testing.T) {
 		if err != nil {
 			t.Fatalf("CountActiveGenerationsByAge() error = %v", err)
 		}
-		for bucket, want := range map[string]int64{"fresh": 1, "aging": 1, "stuck": 0, "draining": 0} {
+		for bucket, want := range map[string]int64{"fresh": 2, "aging": 1, "stuck": 0, "draining": 0} {
 			if got := activeCounts[bucket]; got != want {
 				t.Fatalf(
-					"existing gauge bucket %q = %d, want %d (fresh: the 115 global-genesis singleton; aging: "+
+					"existing gauge bucket %q = %d, want %d (fresh: the 115 global-genesis and 295 advisory-groups singletons; aging: "+
 						"scope-healed-decoy's newer active generation; the 3 poison scopes and the superseded-decoy "+
 						"generation must NOT surface in any bucket)",
 					bucket, got, want,

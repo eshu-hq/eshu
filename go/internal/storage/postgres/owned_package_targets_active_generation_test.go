@@ -148,16 +148,38 @@ func assertOwnedPackageReadFollowsActiveGenerations(ctx context.Context, t *test
 	}
 
 	args := []any{filter, int64(slotLiveTargetLimit + 1), int64(0), slotLiveTargetLimit}
-	if rows := ownedPackageFactScanRows(ctx, t, db, history, args); rows <= active {
-		t.Fatalf("all-history plan read %d fact rows, want more than the %d active rows; the fixture does not discriminate", rows, active)
+	// Fixture validity, independent of plan shape: the history generations
+	// really hold superseded facts, so the comparison below can
+	// discriminate. A previous revision inferred this from the all-history
+	// plan's scan count exceeding the active inventory, but that count
+	// follows the planner, not the data: one more active scope+generation
+	// with no facts (the migration-295 synthetic seed) flips the plan from
+	// fact-driven to scope-driven, and the unpredicated statement then reads
+	// exactly the pointed set (#10566).
+	var historyFacts int64
+	if err := db.QueryRowContext(ctx, `SELECT count(*) FROM fact_records
+WHERE scope_id = 'scope-hist' AND generation_id <> 'gen-hist-12'`).Scan(&historyFacts); err != nil {
+		t.Fatalf("count history facts: %v", err)
+	}
+	if historyFacts == 0 {
+		t.Fatal("history fixture holds no superseded facts; the comparison cannot discriminate")
+	}
+	historyRows := ownedPackageFactScanRows(ctx, t, db, history, args)
+	shippedRows := ownedPackageFactScanRows(ctx, t, db, shipped, args)
+	if historyRows < shippedRows {
+		t.Fatalf("all-history plan read %d fact rows, fewer than the shipped plan's %d: removing the predicate must not shrink the read",
+			historyRows, shippedRows)
 	}
 	// The predicate admits every generation a scope points at; scope-mismatch
-	// points at a non-active generation, so its 10 rows are read and then
-	// dropped by the status join. Superseded and pending rows are never read.
+	// points at a non-active generation. Under a fact-driven plan its 10 rows
+	// are read and then dropped by the status join; under a scope-driven plan
+	// the active-generation drive skips them before the read. Either way the
+	// read never exceeds the pointed set. Superseded and pending rows are
+	// never read.
 	pointed := active + 10
-	if rows := ownedPackageFactScanRows(ctx, t, db, shipped, args); rows > pointed {
+	if shippedRows > pointed {
 		t.Fatalf("shipped plan read %d fact rows, want at most the %d rows of pointed-at generations: the read follows generation history",
-			rows, pointed)
+			shippedRows, pointed)
 	}
 }
 
