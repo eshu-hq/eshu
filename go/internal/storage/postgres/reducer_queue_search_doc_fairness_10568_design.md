@@ -121,3 +121,68 @@ and keep it positive.
 4. Run the live fixture (`TestClaimBatchSearchDocStarvationLiveReproduction`)
    with a DSN: RED before the fix, green after; then the 8-claimer storm and
    the replay-matrix proofs, then the oldest-age/advisory-rate reads.
+
+## GREEN evidence (implemented 2026-11-12, rebased onto 029798f125)
+
+No-Regression Evidence: reserved slot drains search-doc without regressing
+the advisory drain rate, and the lock tail adds no per-row gates.
+
+- Baseline: branch rebased onto origin/main 029798f125 (merged C leaf
+  #10572). RED re-derived on that base before the fix: `ClaimBatch()`
+  claimed 8 items, none for `eshu_search_document` behind a 24-row
+  advisory backlog (batch 8), and 0/4 search-doc rows in 6 rounds of 4
+  behind a 40-row backlog.
+- Backend: postgres:18-alpine disposable databases (template-clone per
+  test, pgx), lane-owned container; input shapes mirror the 2026-11-12
+  live census at small scale (search-doc rows seeded older, -72 h).
+- After, same fixtures: `TestClaimBatchSearchDocumentStarvesBehindAdvisoryBacklog`
+  PASS (search-doc claimed in the batch); `TestClaimBatchSearchDocStarvationLiveReproduction`
+  PASS with 4/4 search-doc rows drained in 4 rounds, every round a full
+  batch of 4 (terminal: 16 rows claimed — 4 search-doc + 12 advisory —
+  in the 4 rounds run, 28 advisory rows still pending — the backlog never
+  drains within the proof, so the fixture keeps proving ordering).
+  Advisory slots while search-doc rows are ready: 3 of 4 per batch;
+  after the 4 search-doc rows drain the rest arm takes the full batch.
+  The structural bound holds regardless of backlog depth: at most 1
+  slot per batch (1/16 = 6.25% at the default limit 16), 0 when no
+  search-doc row is ready (fallback to full $8, covered by the empty
+  and fallback assertions in the pin tests).
+- Concurrency: new `TestClaimBatchSearchDocSlotHoldsUnderConcurrentClaimers`
+  (4 single-connection claimers x batch 2 against 24 advisory + 4
+  search-doc rows) takes 8 distinct rows with no duplicates, every batch
+  full, at least one search-doc row engaged, and at most one search-doc
+  row per batch (k = 1 holds per claim under contention). Sensitivity:
+  mutating the reserved arm filter to priority 0 fails the test with 0
+  search-doc rows. Storm, duplicate-delivery, empty-queue, dead-letter
+  replay, and EvalPlanQual lock-recheck proofs all pass against the new
+  shape, as does the #3624 rank-once 0/0 differential.
+- Plan shape: `TestClaimBatchGatePrecomputeStaleHeavyExplain` on the
+  1200-stale-row fixture holds full-claim SubPlans (15) == candidate
+  SubPlans (15) with 0 in the base section — the `LIMIT ($8 - ...)`
+  scalar subquery plans as an InitPlan and the LEFT JOIN anti-join adds
+  no per-row SubPlan. After-only timings on that fixture (not production
+  scale): full claim 161.165 ms, funnel census 98.145 ms; the funnel
+  plan carries no Update/LockRows nodes. Production-scale net-of-funnel
+  cost stays NOT_CHECKED here (no live backend); it rides on the
+  structural argument: the rest arm scans the identical candidate set
+  with byte-identical ORDER BY, the reserved arm sorts at most the ready
+  priority-1 subset, and the statement still locks at most $8 rows.
+- Why safe: both arms carry the identical `lock_target` EvalPlanQual
+  row-self recheck (lease theft/duplicate work dropped in either arm);
+  SKIP LOCKED never blocks, so the second locking arm adds no deadlock
+  edge; conflict domains stay disjoint (scope vs advisory_group); the
+  funnel census composes the untouched candidate chain, so admission
+  accounting is unchanged.
+- NOT re-proven in this lane (no live backend): the #10567 truth-sample
+  agreement re-run and the 39 orphaned `building` projection-state rows
+  stay deferred to the implementation PR live read, per the Cleanup
+  disposition above.
+
+No-Observability-Change: this diff adds no instruments and no metric
+label cardinality. The acceptance reads ride existing signals: oldest
+search-doc age via the queue-observer oldest-age aggregates, advisory
+drain rate via the claim-duration/batch-size signals from #10565. The
+per-claim reserved-slot split telemetry sketched in the Observability
+section above is NOT in this change; it is follow-up work for the
+implementation PR, which is also where the oldest-age/advisory-rate live
+reads land.
