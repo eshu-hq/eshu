@@ -13,6 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // The holder fan-out (#9695, item 1.5b) closes the convergence gap a source
@@ -25,8 +26,15 @@ import (
 // re-derives its copy from current evidence, so the answer converges without a
 // precedence rule in the winners query.
 const (
-	// fanOutCVEChunk bounds one holder-read statement to this many CVE ids.
+	// fanOutCVEChunk bounds the CVE ids one origin stamp carries, through
+	// FanOutOriginCVEIDCap. It no longer sizes holder-read statements.
 	fanOutCVEChunk = 200
+	// fanOutHolderReadChunk bounds one holder-read statement to this many
+	// lookup ids (#10564 H). The H3 shape measured 1.34 s warm at 20 ids,
+	// so 25 keeps every statement well under the 10 s guard; the handler
+	// still reads every lookup id in sequential statements, so the total
+	// work and concurrency are unchanged.
+	fanOutHolderReadChunk = 25
 	// fanOutHolderCap bounds how many holders one claim reopens. The remainder
 	// is carried on the committing item and drained by its next claims.
 	fanOutHolderCap = 256
@@ -319,7 +327,7 @@ func (h SupplyChainImpactHandler) fanOutHolders(
 	if len(lookupIDs) > 0 {
 		inFlight, err := h.FanOut.FindInFlightScopes(ctx, intent.ScopeID)
 		if err != nil {
-			h.countFanOut(ctx, cause, readFailureOutcome(err), 1)
+			h.countFanOutRead(ctx, cause, err, telemetry.FanOutReadSiteInFlight)
 			span.RecordError(err)
 			return fanOutResult{cause: cause}, fanOutError{fmt.Errorf("find in-flight supply chain impact scopes: %w", err)}
 		}
@@ -327,10 +335,10 @@ func (h SupplyChainImpactHandler) fanOutHolders(
 			holders[id] = struct{}{}
 		}
 	}
-	for _, chunk := range chunkStrings(lookupIDs, fanOutCVEChunk) {
+	for _, chunk := range chunkStrings(lookupIDs, fanOutHolderReadChunk) {
 		found, err := h.FanOut.FindHolderScopes(ctx, intent.ScopeID, chunk)
 		if err != nil {
-			h.countFanOut(ctx, cause, readFailureOutcome(err), 1)
+			h.countFanOutRead(ctx, cause, err, telemetry.FanOutReadSiteHolders)
 			span.RecordError(err)
 			return fanOutResult{cause: cause}, fanOutError{fmt.Errorf("find supply chain impact holders: %w", err)}
 		}

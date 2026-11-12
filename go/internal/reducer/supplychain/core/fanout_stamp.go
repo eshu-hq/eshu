@@ -25,9 +25,10 @@ const FanOutStampCVEKey = "cves"
 const FanOutStampSentinel = "*"
 
 // FanOutOriginCVEIDCap bounds the CVE ids one stamp carries, so a widely
-// shared CVE does not bloat every reopened item's payload. It matches the
-// holder-read chunk size, so one capped stamp still names at most one read
-// chunk's worth of CVEs.
+// shared CVE does not bloat every reopened item's payload. It is deliberately
+// wider than one holder-read statement (fanOutHolderReadChunk): the stamp
+// names the whole change the pass fanned out, and the handler re-chunks it
+// into bounded statements on the next drain.
 const FanOutOriginCVEIDCap = fanOutCVEChunk
 
 // FanOutOrigin names the pass that caused a reopen.
