@@ -91,6 +91,12 @@ btree entries plus WAL, on top of the existing finding index family.
 
 No metric, span, log, status row, or queue consumer added or altered.
 
+## Evidence markers
+
+No-Regression Evidence (#10564): H3 vs frozen-H0 differential returns identical ordered sets with bidirectional EXCEPT 0/0 under custom and generic plans plus the production pgx path (TestHolderH3DiffSetsLive).
+
+Observability Evidence (#10564): failed holder fan-out reads emit the closed site label (holders, in_flight, manifest_generation, package, repository) on eshu_dp_supply_chain_impact_fanout_total; the telemetry coverage verifier agrees.
+
 ## Re-trigger
 
 The re-trigger condition: reopen H-3 when H-1 shows per-statement p95
