@@ -5169,7 +5169,7 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 
 	inst.SupplyChainImpactFanOut, err = meter.Int64Counter(
 		"eshu_dp_supply_chain_impact_fanout_total",
-		metric.WithDescription("Total one-hop holder fan-out outcomes after a supply-chain impact write, by reducer domain, outcome, and cause (the committing generation's evidence family: epss, kev, advisory, suppression, package_evidence, mixed, other)"),
+		metric.WithDescription("Total one-hop holder fan-out outcomes after a supply-chain impact write, by reducer domain, outcome, and cause (the committing generation's evidence family: epss, kev, advisory, suppression, package_evidence, mixed, other); read outcomes (read_error, read_timeout) also carry the site dimension naming the failed read (#10564)"),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register SupplyChainImpactFanOut counter: %w", err)
