@@ -256,7 +256,7 @@ func loadReducerBatchClaimFunnelEnabled(getenv func(string) string) (bool, error
 	}
 	enabled, err := strconv.ParseBool(raw)
 	if err != nil {
-		return false, fmt.Errorf("%s=%q: want true or false", reducerBatchClaimFunnelEnabledEnv, raw)
+		return false, fmt.Errorf("%s=%q: want a strconv.ParseBool value (true/false, 1/0, t/f spellings)", reducerBatchClaimFunnelEnabledEnv, raw)
 	}
 	return enabled, nil
 }
