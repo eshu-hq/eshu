@@ -26,8 +26,13 @@ import (
 // still counted here), which is the documented census approximation, not a
 // second lock pass: there is no SKIP LOCKED wait and no lock to contend.
 func reducerClaimFunnelSweepCTEs() string {
+	// NOTE: the locked list carries stale.stage on top of the shared
+	// columns: the claim's UPDATE rechecks stage against its own target
+	// row, but this SELECT form needs the column to apply the shared row
+	// filters verbatim. The claim's sweep text is untouched.
 	return `superseded_stale_reducer_locked AS (
-    ` + supersedeInactiveReducerLockedColumnsSQL + `
+    ` + supersedeInactiveReducerLockedColumnsSQL + `,
+           stale.stage
     FROM fact_work_items AS stale,
          ` + supersedeInactiveReducerGenerationsJoin + `
     WHERE (` + supersedeInactiveReducerGenerationsPredicate + `)
@@ -60,10 +65,12 @@ superseded_stale_reducer_generations AS (
 // never feeds the admission CTEs, so the claimed set and order are
 // untouched (the C-step-1 byte-identical downstream rule stands).
 //
-// Counts are a second snapshot after the claim commits: exact in the
-// uncontended case, approximate under a claimer storm where a concurrent
-// claim lands between the two statements. Drops sum with the admitted batch
-// to the candidate count when nothing races.
+// The census runs BEFORE the claim statement on the same clock, so the
+// counts describe the claim that just ran (pre-claim membership): exact in
+// the uncontended case, approximate under a claimer storm where a
+// concurrent claim lands between the two statements. The admitted batch
+// plus the closed-reason drops sum to the candidate count when nothing
+// races. A rolled-back claim emits nothing: the census is dropped with it.
 var reducerClaimBatchFunnelQuery = `
 -- batch_claim_funnel_counts (#10565 box 6): candidates in, representatives
 -- after the fence, and the ordered stage counts drops derive from.
@@ -98,19 +105,22 @@ type batchClaimFunnelCounts struct {
 	representatives   int64
 }
 
-// recordClaimBatchFunnel runs the funnel census for a completed batch claim
-// and records candidates in, representatives after the fence, and drops by
-// closed reason. now is the claim's clock, admitted the claimed batch size,
-// and limit the normalized batch limit. Telemetry is best-effort: a funnel
-// failure records nothing and never fails the claim it observes. Queues
-// without instruments skip the funnel query entirely.
-func (q ReducerQueue) recordClaimBatchFunnel(ctx context.Context, now time.Time, admitted, limit int) {
+// captureClaimBatchFunnel runs the funnel census for an upcoming batch claim
+// and returns the pre-claim stage counts. now is the claim's clock. The
+// query is read-only (TestClaimBatchFunnelQueryIsReadOnly), so capturing
+// before the claim takes no locks and changes nothing; it only observes.
+// Telemetry is best-effort: a capture failure reports false and the claim
+// skips the funnel without failing. Queues without instruments skip the
+// funnel query entirely. ok is false when the census must not be emitted
+// (no instruments, capture failure): emitClaimBatchFunnel drops it.
+func (q ReducerQueue) captureClaimBatchFunnel(ctx context.Context, now time.Time) (batchClaimFunnelCounts, bool) {
+	var empty batchClaimFunnelCounts
 	inst := q.Instruments
 	if inst == nil {
-		return
+		return empty, false
 	}
 	if inst.BatchClaimCandidates == nil && inst.BatchClaimRepresentatives == nil && inst.BatchClaimDrops == nil {
-		return
+		return empty, false
 	}
 	rows, err := q.database.QueryContext(
 		ctx,
@@ -124,12 +134,12 @@ func (q ReducerQueue) recordClaimBatchFunnel(ctx context.Context, now time.Time,
 		q.semanticEntityClaimLimit(),
 	)
 	if err != nil {
-		return
+		return empty, false
 	}
 	defer func() { _ = rows.Close() }()
 	var funnel batchClaimFunnelCounts
 	if !rows.Next() {
-		return
+		return empty, false
 	}
 	if err := rows.Scan(
 		&funnel.candidates,
@@ -140,12 +150,29 @@ func (q ReducerQueue) recordClaimBatchFunnel(ctx context.Context, now time.Time,
 		&funnel.preFence,
 		&funnel.representatives,
 	); err != nil {
-		return
+		return empty, false
 	}
 	if err := rows.Err(); err != nil {
+		return empty, false
+	}
+	return funnel, true
+}
+
+// emitClaimBatchFunnel records a captured pre-claim census against the batch
+// the claim that followed it admitted. admitted is the claimed batch size
+// and limit the normalized batch limit. The counts describe the claim that
+// just ran (pre-claim membership), so the admitted batch plus the
+// closed-reason drops reconcile exactly to the candidate count when nothing
+// races between the two statements; a concurrent claim landing between them
+// is the documented approximation. ok false drops the census.
+func (q ReducerQueue) emitClaimBatchFunnel(ctx context.Context, funnel batchClaimFunnelCounts, ok bool, admitted, limit int) {
+	if !ok {
 		return
 	}
-
+	inst := q.Instruments
+	if inst == nil {
+		return
+	}
 	// live_lease_fence is the only candidate filter the counts query does
 	// not name: representatives are the pre-fence set minus the fenced rows.
 	fence := max(funnel.preFence-funnel.representatives, 0)

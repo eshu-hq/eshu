@@ -23,6 +23,11 @@ func (q ReducerQueue) ClaimBatch(ctx context.Context, limit int) ([]reducercontr
 	}
 
 	now := q.now()
+	// #10565 box 6 (F3): capture the funnel census BEFORE the claim commits
+	// so the counts describe pre-claim membership — the claim that just
+	// ran — instead of the post-claim residual its own leases would fence
+	// out. Read-only (no locks), best-effort, skipped without instruments.
+	funnel, funnelOK := q.captureClaimBatchFunnel(ctx, now)
 	rows, err := q.database.QueryContext(
 		ctx,
 		claimReducerWorkBatchQuery,
@@ -69,10 +74,11 @@ func (q ReducerQueue) ClaimBatch(ctx context.Context, limit int) ([]reducercontr
 	if q.Instruments != nil && q.Instruments.BatchClaimSize != nil {
 		q.Instruments.BatchClaimSize.Record(ctx, int64(len(intents)))
 	}
-	// #10565 box 6: funnel census for this claim (candidates in,
-	// representatives after the fence, drops by reason). Best-effort and
-	// lock-free; the claimed set above is already fixed.
-	q.recordClaimBatchFunnel(ctx, now, len(intents), limit)
+	// #10565 box 6: emit the pre-claim funnel census against the batch this
+	// claim admitted (candidates in, representatives after the fence, drops
+	// by reason). Best-effort and lock-free; a rolled-back claim returns
+	// above and drops its census with it.
+	q.emitClaimBatchFunnel(ctx, funnel, funnelOK, len(intents), limit)
 
 	return intents, nil
 }

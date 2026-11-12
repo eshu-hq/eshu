@@ -16,11 +16,14 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 )
 
-// funnelBatchClaimDB answers the batch claim with an empty queue and the
+// funnelBatchClaimDB answers the batch claim with fixed claim rows and the
 // funnel counts query with one fixed counts row, so the funnel recording is
-// observable without a live database.
+// observable without a live database. The counts row must describe the same
+// pre-claim membership the fake claim rows admit from: a canned row behind
+// zero claim rows is an impossible production pairing (F3).
 type funnelBatchClaimDB struct {
-	counts []int64
+	claimRows [][]any
+	counts    []int64
 }
 
 func (f funnelBatchClaimDB) QueryContext(_ context.Context, query string, _ ...any) (db.Rows, error) {
@@ -31,7 +34,17 @@ func (f funnelBatchClaimDB) QueryContext(_ context.Context, query string, _ ...a
 		}
 		return &fakeRows{rows: [][]any{row}}, nil
 	}
-	return &fakeRows{}, nil
+	return &fakeRows{rows: f.claimRows}, nil
+}
+
+// funnelClaimRow renders one batch-claim intent row for the funnel hermetic
+// fake: the eleven columns scanReducerIntent reads.
+func funnelClaimRow(id string, now time.Time) []any {
+	return []any{
+		id, "scope-funnel", "gen-funnel", "code_call_materialization",
+		int64(1), int64(0), now, now, now, now,
+		[]byte(`{"entity_key":"` + id + `","reason":"funnel-proof","fact_id":"f1","source_system":"git"}`),
+	}
 }
 
 func (f funnelBatchClaimDB) ExecContext(context.Context, string, ...any) (sql.Result, error) {
@@ -55,15 +68,24 @@ func TestClaimBatchRecordsFunnelTelemetry(t *testing.T) {
 
 	now := time.Date(2026, time.November, 12, 12, 0, 0, 0, time.UTC)
 	queue := ReducerQueue{
-		database: funnelBatchClaimDB{counts: []int64{
-			16, // candidates in (base rows)
-			2,  // not_ready
-			1,  // not_representative
-			1,  // projector_drain
-			1,  // semantic_cap
-			11, // pre_fence (representatives before the live-lease fence)
-			10, // representatives after fence
-		}},
+		database: funnelBatchClaimDB{
+			// F3: the fake claim admits two rows from the membership the
+			// counts row describes (admitted > 0 consistent with the fake
+			// claim rows — the pre-claim pairing production always has).
+			claimRows: [][]any{
+				funnelClaimRow("funnel-item-1", now),
+				funnelClaimRow("funnel-item-2", now),
+			},
+			counts: []int64{
+				16, // candidates in (base rows)
+				2,  // not_ready
+				1,  // not_representative
+				1,  // projector_drain
+				1,  // semantic_cap
+				11, // pre_fence (representatives before the live-lease fence)
+				10, // representatives after fence
+			},
+		},
 		LeaseOwner:    "batch-claim-funnel-proof",
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return now },
@@ -73,8 +95,8 @@ func TestClaimBatchRecordsFunnelTelemetry(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ClaimBatch: %v", err)
 	}
-	if len(intents) != 0 {
-		t.Fatalf("ClaimBatch on an empty queue = %d intents, want 0", len(intents))
+	if len(intents) != 2 {
+		t.Fatalf("ClaimBatch on the funnel fake queue = %d intents, want 2", len(intents))
 	}
 
 	var collected metricdata.ResourceMetrics
@@ -125,7 +147,8 @@ func TestClaimBatchRecordsFunnelTelemetry(t *testing.T) {
 			}
 		}
 	}
-	// limit 8, admitted 0: over_limit = 10-8, lock_lost = 8-0.
+	// limit 8, admitted 2: over_limit = 10-8, lock_lost = min(10,8)-2.
+	admitted := int64(len(intents))
 	wantDrops := map[string]int64{
 		"not_ready":          2,
 		"not_representative": 1,
@@ -133,7 +156,7 @@ func TestClaimBatchRecordsFunnelTelemetry(t *testing.T) {
 		"semantic_cap":       1,
 		"live_lease_fence":   1,
 		"over_limit":         2,
-		"lock_lost":          8,
+		"lock_lost":          6,
 	}
 	if len(drops) != len(wantDrops) {
 		t.Fatalf("drop reasons = %v, want %d closed reasons", drops, len(wantDrops))
@@ -149,8 +172,8 @@ func TestClaimBatchRecordsFunnelTelemetry(t *testing.T) {
 		}
 		accounted += got
 	}
-	if accounted != 16 {
-		t.Fatalf("drops account for %d candidates, want 16 (the funnel must reconcile)", accounted)
+	if admitted+accounted != 16 {
+		t.Fatalf("admitted %d + drops %d = %d, want candidates 16 (pre-claim membership must reconcile exactly)", admitted, accounted, admitted+accounted)
 	}
 }
 
