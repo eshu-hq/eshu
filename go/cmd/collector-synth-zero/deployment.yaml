@@ -74,7 +74,7 @@ spec:
             - name: ESHU_COMPONENT_COLLECTOR_POLL_INTERVAL
               value: 60s
             - name: ESHU_COMPONENT_COLLECTOR_CLAIM_LEASE_TTL
-              value: 600s
+              value: 60s
             - name: ESHU_COMPONENT_COLLECTOR_HEARTBEAT_INTERVAL
               value: 20s
             # The 4 cutover env vars: holder pin must equal manifest.yaml
