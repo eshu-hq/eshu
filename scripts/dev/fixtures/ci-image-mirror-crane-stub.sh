@@ -20,9 +20,9 @@ case "${command_name}" in
         [[ -f "${CRANE_STATE}/neo4j" ]] || exit 1
         digest='sha256:eabfbb042bdaca2fd5e1950db1329b22c794eee80f0eacc4e7a729d44b2e863f'
         ;;
-      *ci-mirror-golang@sha256:9ce231b28998b32e116927c61aa5c406183061d4f3f2d61b292c88e7f6bdf7ca)
+      *ci-mirror-golang@sha256:ae52b5bc6ed045a9ed26ab03dc19327a802a9cc9aa8b27ed57f5c6b60579b0bb)
         [[ -f "${CRANE_STATE}/golang" ]] || exit 1
-        digest='sha256:9ce231b28998b32e116927c61aa5c406183061d4f3f2d61b292c88e7f6bdf7ca'
+        digest='sha256:ae52b5bc6ed045a9ed26ab03dc19327a802a9cc9aa8b27ed57f5c6b60579b0bb'
         ;;
       *postgres:18-alpine@*)
         digest='sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873'
@@ -33,8 +33,8 @@ case "${command_name}" in
       *neo4j:2026-community@*)
         digest='sha256:eabfbb042bdaca2fd5e1950db1329b22c794eee80f0eacc4e7a729d44b2e863f'
         ;;
-      *golang:1.26.10-alpine@*)
-        digest='sha256:9ce231b28998b32e116927c61aa5c406183061d4f3f2d61b292c88e7f6bdf7ca'
+      *golang:1.26.11-alpine@*)
+        digest='sha256:ae52b5bc6ed045a9ed26ab03dc19327a802a9cc9aa8b27ed57f5c6b60579b0bb'
         ;;
       *) exit 2 ;;
     esac
@@ -52,7 +52,7 @@ case "${command_name}" in
       *ci-postgres-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873) name=alpine ;;
       *ci-postgres-bookworm@sha256:afc7e2d441324c0388fa80c3d24f733b4194a4eb7f47dd8ee2b08eb1a24a647c) name=bookworm ;;
       *ci-neo4j-community@sha256:eabfbb042bdaca2fd5e1950db1329b22c794eee80f0eacc4e7a729d44b2e863f) name=neo4j ;;
-      *ci-mirror-golang@sha256:9ce231b28998b32e116927c61aa5c406183061d4f3f2d61b292c88e7f6bdf7ca) name=golang ;;
+      *ci-mirror-golang@sha256:ae52b5bc6ed045a9ed26ab03dc19327a802a9cc9aa8b27ed57f5c6b60579b0bb) name=golang ;;
       *) exit 4 ;;
     esac
     [[ ! -f "${CRANE_STATE}/${name}" ]] || exit 1

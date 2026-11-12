@@ -25,7 +25,7 @@
 # see docker/satellites/README.md.
 
 ARG ESHU_ALPINE_IMAGE=alpine:3.21@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d
-ARG ESHU_GO_IMAGE=golang:1.26.10-alpine@sha256:9ce231b28998b32e116927c61aa5c406183061d4f3f2d61b292c88e7f6bdf7ca
+ARG ESHU_GO_IMAGE=golang:1.26.11-alpine@sha256:ae52b5bc6ed045a9ed26ab03dc19327a802a9cc9aa8b27ed57f5c6b60579b0bb
 
 # go-caller: statically linked eshu-collector-document-import. The caller
 # transitively needs CGO (tree-sitter parser bindings), so this builds with

@@ -49,7 +49,7 @@ no newer release than v1.9.9, so there is no upstream fix to take.
   `-std` is given ([Clang User's Manual](https://clang.llvm.org/docs/UsersManual.html)),
   so the flag leaves a clang compile unchanged. No macOS runner was available
   to prove this locally; the hosted macOS legs are the proof.
-- **Not touched.** The `Dockerfile` builds in the `golang:1.26.10-alpine`
+- **Not touched.** The `Dockerfile` builds in the `golang:1.26.11-alpine`
   builder stage (musl libc) with `xx-go`, which sets `CC=clang`, and
   `scripts/ci/tools.Dockerfile` is Ubuntu 24.04 (glibc 2.39, GCC 13). Neither
   combination reproduces the failure.
