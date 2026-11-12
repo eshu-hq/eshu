@@ -194,18 +194,50 @@ func TestClaimBatchFencesSameConflictCandidates(t *testing.T) {
 		// #6828: the lock recheck matches the base filter's stamp-clock
 		// visibility; a Go-only recheck would reintroduce the skew flake.
 		"AND (lock_target.visible_at IS NULL OR lock_target.visible_at <= $1 OR (lock_target.status = 'pending' AND lock_target.visible_at <= clock_timestamp()))",
-		// #6828 (F4): the precomputed semantic_ranked CTE uses the same
-		// stamp-clock visibility as the base filter, or a skewed reopen
-		// would vanish from the batch (#10565 step 1 keeps the filter
-		// text identical, only evaluated once per claim).
-		"semantic_ranked AS MATERIALIZED (",
-		"row_number() OVER (ORDER BY updated_at ASC, work_item_id ASC) AS sem_rank",
+		// #10565 step 1 keeps the semantic-gate filter text identical,
+		// only evaluated once per claim; the rank comparison below is
+		// pinned by the deciding C-1 cells, not by a string.
 		"COALESCE(semantic_ranked.sem_rank, 0) <= $7 - semantic_scalars.sem_inflight",
 	} {
 		if !strings.Contains(query, want) {
 			t.Fatalf("batch claim query missing %q:\n%s", want, query)
 		}
 	}
+	// #6828 (F4, F5): the precomputed semantic_ranked CTE carries the same
+	// stamp-clock visibility as the base filter, or a skewed reopen would
+	// vanish from the batch. Pinned scoped to the CTE body: the visibility
+	// text legitimately appears in base and semantic_ranked (and in
+	// lock_target-aliased form in locked), so a whole-query contains proves
+	// nothing about which CTE carries it.
+	rankedBody := cteBody(query, "semantic_ranked AS MATERIALIZED (", "readiness_missing AS MATERIALIZED")
+	for _, want := range []string{
+		"row_number() OVER (ORDER BY updated_at ASC, work_item_id ASC) AS sem_rank",
+		"(status = 'pending' AND visible_at <= clock_timestamp())",
+		"(claim_until IS NULL OR claim_until <= $1)",
+	} {
+		if !strings.Contains(rankedBody, want) {
+			t.Fatalf("semantic_ranked CTE body missing stamp-clock visibility %q:\n%s", want, rankedBody)
+		}
+	}
+	if got := strings.Count(query, "(status = 'pending' AND visible_at <= clock_timestamp())"); got != 2 {
+		t.Fatalf("stamp-clock visibility appears %d times, want 2 (base and semantic_ranked; locked carries the lock_target-aliased form)", got)
+	}
+}
+
+// cteBody slices the body of the CTE that starts at startMarker from the
+// shipped query, ending before endMarker. It scopes a pin to one CTE when
+// the pinned text legitimately appears in several.
+func cteBody(query, startMarker, endMarker string) string {
+	start := strings.Index(query, startMarker)
+	if start < 0 {
+		return ""
+	}
+	rest := query[start:]
+	end := strings.Index(rest, endMarker)
+	if end < 0 {
+		return rest
+	}
+	return rest[:end]
 }
 
 func TestClaimBatchOrdersSearchDocumentCatchupAfterGraphTruth(t *testing.T) {
@@ -310,13 +342,23 @@ func TestClaimBatchCanWaitForProjectorDrain(t *testing.T) {
 	for _, want := range []string{
 		"projector_live_scopes AS MATERIALIZED (",
 		"($5 = false OR projector_live_scopes.scope_id IS NULL) AS projector_ok",
-		"SELECT DISTINCT scope_id",
 		"LEFT JOIN projector_live_scopes",
 		"projector_live_scopes.scope_id = fact_work_items.scope_id",
-		"AND status IN ('pending', 'retrying', 'claimed', 'running')",
 	} {
 		if !strings.Contains(query, want) {
 			t.Fatalf("batch claim query missing projector drain predicate %q:\n%s", want, query)
+		}
+	}
+	// F5: the drain CTE must probe the projector stage — pinned scoped to
+	// the CTE body, since a bare status string matches many places.
+	scopesBody := cteBody(query, "projector_live_scopes AS MATERIALIZED (", "semantic_scalars AS MATERIALIZED")
+	for _, want := range []string{
+		"stage = 'projector'",
+		"status IN ('pending', 'retrying', 'claimed', 'running')",
+		"SELECT DISTINCT scope_id",
+	} {
+		if !strings.Contains(scopesBody, want) {
+			t.Fatalf("projector_live_scopes CTE body missing drain probe %q:\n%s", want, scopesBody)
 		}
 	}
 	if got, want := db.queries[0].args[4], true; got != want {
