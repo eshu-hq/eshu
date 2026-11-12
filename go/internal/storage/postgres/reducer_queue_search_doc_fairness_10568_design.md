@@ -280,3 +280,16 @@ advisory backlog + 4 older search-doc rows, batch 4) records
 `reserved_used` x4 while a search-doc row is ready and `fallback` on the
 post-drain batches. The claim statement is untouched, so the S2
 lock-tail and EvalPlanQual evidence above stands unchanged.
+
+No-Regression Evidence (#10581, 2026-11-12, this lane): paired runs of
+`TestClaimBatchSearchDocStarvationLiveReproduction` plus
+`TestClaimBatchReservesSearchDocClaimSlots` on the same fixture and
+backend — baseline `bc150cc0c6` 4.027s (live proof 3.91s) vs lane
+`0617039cf7` 4.024s (live proof 3.90s), postgres:18.6 disposable
+container, 40-row advisory backlog + 4 older search-doc rows with the
+#10568 reserved slot engaged: identical within noise. Expected: the
+lane touches no claim SQL (statement byte-identical to S2), adding per
+non-empty batch only one in-memory scan of the admitted intents
+(bounded by LIMIT, early exit) plus one
+`eshu_dp_reducer_batch_claim_reserved_slot_total` count. Production-scale
+cost stays NOT_CHECKED, as in S2.
