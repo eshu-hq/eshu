@@ -24,8 +24,9 @@ runs:
   steps:
     # D2 artifact-upload hardening (PR #10561): every upload-artifact step in
     # the build / live-backend / replay-coverage / delta-union /
-    # verify-contracts / live-postgres-readiness / golden-corpus surfaces
-    # calls this wrapper instead of actions/upload-artifact directly.
+    # live-postgres-readiness / golden-corpus surfaces calls this wrapper
+    # instead of actions/upload-artifact directly. (verify-contracts carries
+    # its own inline 3-attempt retry in ci-verify-contracts/action.yml.)
     # The retry loop below exists for ONE
     # signature only: the transient artifact-service HTML-response flake
     # (`Unexpected token '<'`, the service answering the blob API with an
