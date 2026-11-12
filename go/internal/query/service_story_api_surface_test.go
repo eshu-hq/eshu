@@ -135,9 +135,11 @@ func TestBuildServiceStoryResponseNormalizesAPISurfaceOnce(t *testing.T) {
 
 	// GitHub Actions runs this package under the race detector. The source-backed
 	// evidence graph now carries both the workload and its source repository;
-	// 705 retains a narrow race-instrumented margin around the measured 697-698
+	// 712 retains a narrow race-instrumented margin around the measured 707-708
 	// allocations while still catching repeated API-surface normalization.
-	const maxAllocsPerResponse = 705
+	// The +1 probe row is intrinsic (#10535 evidence note: 721->722 with
+	// inlining disabled); the rest is race-build inlining noise.
+	const maxAllocsPerResponse = 712
 	if allocs > maxAllocsPerResponse {
 		t.Fatalf("allocs per service story response = %.0f, want <= %d", allocs, maxAllocsPerResponse)
 	}

@@ -317,3 +317,25 @@ exemptions:
       vulnerability-intelligence client remains to drive an
       injected-timeout fault against, so the fault axis has nothing
       in-tree to bound.
+
+  # eshu-hq/eshu#10450: the SBOM attestation collection boundary moved to
+  # the eshu-hq/eshu-collector-sbom-attestation satellite. The in-tree
+  # producer (go/cmd/collector-sbom-attestation,
+  # go/cmd/collector-sbom-shadow, go/internal/collector/sbom) and its
+  # injected-timeout fault case are deleted, and the coordinator
+  # (go/internal/coordinator/sbom) plans work without resolving
+  # credentials or contacting the sources, so no in-tree network boundary
+  # remains for a fault scenario to bound. Baseline replay still covers
+  # the surface (testdata/cassettes/sbomattestation/supply-chain-demo.json);
+  # fault proof for the collection boundary belongs to the satellite
+  # repository. Remove this exemption only if an in-tree SBOM attestation
+  # collection boundary returns.
+  - surface: collector:sbom_attestation
+    scenario_type: fault
+    reason: >-
+      Satellite-owned collection boundary: collection runs from
+      eshu-hq/eshu-collector-sbom-attestation while the coordinator
+      still plans sbom attestation claims and the reducer/query surfaces
+      still serve the fact kinds. No in-tree SBOM attestation client
+      remains to drive an injected-timeout fault against, so the fault
+      axis has nothing in-tree to bound.

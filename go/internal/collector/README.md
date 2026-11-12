@@ -278,10 +278,6 @@ evidence (No-Regression and No-Observability-Change) for this section lives in
   `package_registry` collector family
 - `ociregistry` subpackage — OCI registry identity, provider adapters,
   runtime scan orchestration, and reported-confidence container image facts
-- `sbom/runtime` subpackage — claim-aware hosted SBOM and attestation runtime
-  that fetches configured documents or OCI referrer artifact blobs, delegates
-  SBOM parsing to `sbom/document`, and emits in-toto attestation facts without
-  making reducer attachment truth decisions
 - `sdk` subpackage — first-party shared helpers for bounded HTTP execution,
   safe provider failures, retry-after parsing, and common status classification
 - `pagerduty` subpackage — PagerDuty incident, lifecycle, related change-event,

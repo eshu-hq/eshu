@@ -87,6 +87,7 @@ const (
 	runtimeDeclarationFamilyCassettePath             = "testdata/cassettes/runtimedeclaration/ifa-runtime-declaration-family.json"
 	securityGroupReachabilityFamilyCassettePath      = "testdata/cassettes/securitygroup/ifa-security-group-reachability-family.json"
 	s3ExternalPrincipalGrantFamilyCassettePath       = "testdata/cassettes/s3grant/ifa-s3-external-principal-grant-family.json"
+	advisoryGroupFamilyCassettePath                  = "testdata/cassettes/advisorygroup/ifa-advisory-group-family.json"
 )
 
 // KubernetesNamespaceEnvironmentFamilyCassetteFullPath joins repoRoot onto the
@@ -540,6 +541,45 @@ func RuntimeDeclarationFamilyCassetteFullPath(repoRoot string) string {
 // load plus the generic per-fact intent the marker carries.
 func LoadRuntimeDeclarationFamilyOdu(cassettePath string) (familyodu.Odu, error) {
 	return loadDirectFamilyOdu(cassettePath, RuntimeDeclarationFamilyOduName)
+}
+
+// AdvisoryGroupFamilyCassetteFullPath joins repoRoot onto the committed
+// advisory_group family cassette path.
+func AdvisoryGroupFamilyCassetteFullPath(repoRoot string) string {
+	return filepath.Join(repoRoot, advisoryGroupFamilyCassettePath)
+}
+
+// LoadAdvisoryGroupFamilyOdu reads the committed cassette and projects
+// it onto the fact envelopes the guard consumes.
+//
+// Like LoadCloudResourceFamilyOdu it REQUIRES exactly three scopes —
+// the two git repository scopes whose repository facts become the
+// Repository nodes the writer MATCHes, plus the one findings scope
+// holding the reducer_supply_chain_impact_finding facts the winners
+// maintainer rebuilds winners from — because the family's input is a
+// cross-scope read model, not one scope's facts (#10466). The scope is
+// carried on every projected envelope, so which scope produced an edge
+// stays unambiguous. The strict decode and fail-closed emptiness rules
+// are the shared ones.
+func LoadAdvisoryGroupFamilyOdu(cassettePath string) (familyodu.Odu, error) {
+	parsed, err := parseDirectFamilyCassette(cassettePath, AdvisoryGroupFamilyOduName)
+	if err != nil {
+		return familyodu.Odu{}, err
+	}
+	if len(parsed.Scopes) != 3 {
+		return familyodu.Odu{}, fmt.Errorf(
+			"ifa: %s cassette %s declares %d scopes, want exactly 3 (two repository scopes plus the findings scope); a missing scope would silently drop one side of the winners join from the proof",
+			AdvisoryGroupFamilyOduName, cassettePath, len(parsed.Scopes),
+		)
+	}
+	var envelopes []facts.Envelope
+	for _, scope := range parsed.Scopes {
+		if len(scope.Facts) == 0 {
+			return familyodu.Odu{}, fmt.Errorf("ifa: %s cassette %s scope %q carries no facts; an empty scope makes its side of the assertion vacuous", AdvisoryGroupFamilyOduName, cassettePath, scope.ScopeID)
+		}
+		envelopes = append(envelopes, projectDirectFamilyScopeFacts(scope)...)
+	}
+	return familyodu.Odu{Name: AdvisoryGroupFamilyOduName, Facts: envelopes}, nil
 }
 
 // SecurityGroupReachabilityFamilyCassetteFullPath joins repoRoot onto the

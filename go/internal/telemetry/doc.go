@@ -133,7 +133,10 @@
 // The supply-chain reducer registers SupplyChainImpactFanOut
 // (eshu_dp_supply_chain_impact_fanout_total), labeled by reducer domain,
 // outcome, and cause (epss, kev, advisory, suppression, package_evidence,
-// mixed, other — the committing generation's evidence family, #9878),
+// mixed, other — the committing generation's evidence family, #9878); the
+// read outcomes (read_error, read_timeout) also carry site (holders,
+// in_flight, manifest_generation, package, repository — the read that
+// failed, #10564),
 // so an operator can see whether a source retraction reached the scopes
 // that hold stale copies (reopened, replay_flagged, pending_noop, enqueued,
 // deferred) and whether a pass fanned out only because a retry showed an earlier
@@ -152,7 +155,7 @@
 // outcome, and baseline kind), SupplyChainSuppressionDiffDuration
 // (eshu_dp_supply_chain_impact_suppression_diff_duration_seconds),
 // SupplyChainSuppressionWalkTruncatedTotal, and
-// SupplyChainSuppressionNoCVEScopeTotal, so an operator can see whether a
+// SupplyChainSuppressionNoIdentityScopeTotal, so an operator can see whether a
 // suppression-only pass named its CVEs and from what baseline. The same
 // reducer registers SupplyChainRemediationDecisions
 // (eshu_dp_supply_chain_remediation_decisions_total), labeled by reducer

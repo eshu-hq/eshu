@@ -146,9 +146,9 @@
     {
       "id": "golang",
       "env": "ESHU_GO_IMAGE",
-      "source": "docker.io/library/golang:1.26.10-alpine",
+      "source": "docker.io/library/golang:1.26.11-alpine",
       "destination": "ghcr.io/eshu-hq/ci-mirror-golang",
-      "digest": "sha256:9ce231b28998b32e116927c61aa5c406183061d4f3f2d61b292c88e7f6bdf7ca",
+      "digest": "sha256:ae52b5bc6ed045a9ed26ab03dc19327a802a9cc9aa8b27ed57f5c6b60579b0bb",
       "runtime_sources": [],
       "platforms": [
         "linux/amd64",
@@ -160,7 +160,7 @@
         "linux/s390x"
       ],
       "source_records": [
-        "https://go.dev/dl/#go1.26.10",
+        "https://go.dev/dl/#go1.26.11",
         "https://gitlab.alpinelinux.org/alpine/aports"
       ],
       "notice_policy": "Preserve upstream layers and all included license and copyright notices.",
@@ -259,8 +259,8 @@
   ],
   "tools": {
     "destination": "ghcr.io/eshu-hq/ci-tools",
-    "digest": "sha256:2cd4305390057560cd876df8c3350e296b7df0b4b11a3d04e3a7d904d169a776",
-    "recipe_sha256": "e5aa965cb418783a1827123d9bb01bed9ec8f644547feb0944f9186fed7cec6a",
+    "digest": "sha256:9a1d81d6f17544e0ec12d77c3fdda1b2e6f0f0d125dcc88f03a0ab9ba1212b0d",
+    "recipe_sha256": "36f3ad63e370bbcafd212c6c56c2e23516dae5fcf366c402067fea2c26759fa6",
     "platforms": ["linux/amd64", "linux/arm64"],
     "inventories": {
       "linux/amd64": {

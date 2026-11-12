@@ -209,7 +209,7 @@ func TestHostMintRetryableClampedToCap(t *testing.T) {
 	item := testWorkItem()
 	runner := &recordingRunner{result: completeResult(item, testSDKFact(item))}
 	recorder := &recordingResultRecorder{}
-	source := mustNewSourceWithProvider(t, runner, recorder, provider, nil)
+	source := mustNewSourceWithProvider(t, runner, recorder, provider, hostMintTargetsConfig(item.ScopeID, HostMintedAuthMode))
 
 	_, ok, err := source.NextClaimed(context.Background(), item)
 	if err == nil {
@@ -335,7 +335,7 @@ func TestHostMintedTokenEndToEndThroughRealSatellite(t *testing.T) {
 		Args:    []string{"-test.run=TestHostMintedTokenEndToEndThroughRealSatellite"},
 		Env:     []string{"ESHU_EXTENSIONHOST_HOST_MINT_E2E=satellite"},
 	}
-	source := mustNewSourceWithProvider(t, runner, &recordingStatusRecorder{}, provider, nil)
+	source := mustNewSourceWithProvider(t, runner, &recordingStatusRecorder{}, provider, hostMintTargetsConfig(item.ScopeID, HostMintedAuthMode))
 
 	collected, ok, err := source.NextClaimed(context.Background(), item)
 	if err != nil {

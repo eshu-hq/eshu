@@ -25,9 +25,10 @@ const FanOutStampCVEKey = "cves"
 const FanOutStampSentinel = "*"
 
 // FanOutOriginCVEIDCap bounds the CVE ids one stamp carries, so a widely
-// shared CVE does not bloat every reopened item's payload. It matches the
-// holder-read chunk size, so one capped stamp still names at most one read
-// chunk's worth of CVEs.
+// shared CVE does not bloat every reopened item's payload. It is deliberately
+// wider than one holder-read statement (fanOutHolderReadChunk): the stamp
+// names the whole change the pass fanned out, and the handler re-chunks it
+// into bounded statements on the next drain.
 const FanOutOriginCVEIDCap = fanOutCVEChunk
 
 // FanOutOrigin names the pass that caused a reopen.
@@ -35,10 +36,13 @@ type FanOutOrigin struct {
 	SourceScopeID      string
 	SourceGenerationID string
 	SourceIntentID     string
-	// CVEIDs are the sorted, de-duplicated, capped CVE ids the committing
-	// pass changed (#9740). Empty on stamps written before the set existed
+	// CVEIDs are the sorted, de-duplicated, capped lookup ids the committing
+	// pass fanned out for (#9740, #10408): member-expanded changed ids plus
+	// the touched group set. Empty on stamps written before the set existed
 	// and on enqueued first passes, which always run full. Above
-	// FanOutOriginCVEIDCap the stamp carries only FanOutStampSentinel.
+	// FanOutOriginCVEIDCap the stamp carries only FanOutStampSentinel. The
+	// field and wire key keep their CVE names for rolling-upgrade
+	// compatibility; the set has carried advisory and member ids since #10408.
 	CVEIDs []string
 }
 

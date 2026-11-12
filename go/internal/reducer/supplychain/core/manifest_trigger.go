@@ -14,6 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // The manifest-dependency trigger (#9874, arbiter ruling Option B). The
@@ -205,7 +206,7 @@ func (h SupplyChainImpactHandler) runManifestTrigger(ctx context.Context, intent
 	if len(remaining) == 0 {
 		generation, err := reader.ReadManifestDependencyGeneration(ctx, intent.ScopeID, intent.GenerationID)
 		if err != nil {
-			h.countFanOut(ctx, fanOutCauseManifestDependency, readFailureOutcome(err), 1)
+			h.countFanOutRead(ctx, fanOutCauseManifestDependency, err, telemetry.FanOutReadSiteManifestGeneration)
 			return reducercontract.Result{}, fanOutError{fmt.Errorf("read manifest dependency generation: %w", err)}
 		}
 		switch generation.Activation {
@@ -249,12 +250,12 @@ func (h SupplyChainImpactHandler) runManifestTrigger(ctx context.Context, intent
 		// #10105 fix): see FindInFlightNonMarkerScopes.
 		inFlight, err := reader.FindInFlightNonMarkerScopes(ctx, intent.ScopeID)
 		if err != nil {
-			h.countFanOut(ctx, fanOutCauseManifestDependency, readFailureOutcome(err), 1)
+			h.countFanOutRead(ctx, fanOutCauseManifestDependency, err, telemetry.FanOutReadSiteInFlight)
 			return reducercontract.Result{}, fanOutError{fmt.Errorf("find in-flight supply chain impact scopes: %w", err)}
 		}
 		candidates, err := h.FanOut.FindPackageHolderCandidates(ctx, intent.ScopeID, PackageHolderQuery{Ecosystems: change.ecosystems(), RepositoryIDs: change.repositoryIDs()})
 		if err != nil {
-			h.countFanOut(ctx, fanOutCauseManifestDependency, readFailureOutcome(err), 1)
+			h.countFanOutRead(ctx, fanOutCauseManifestDependency, err, telemetry.FanOutReadSitePackage)
 			return reducercontract.Result{}, fanOutError{fmt.Errorf("find supply chain impact package holders: %w", err)}
 		}
 		holders = unionSortedStrings(matchPackageHolders(intent.ScopeID, candidates, change.keys), withoutScope(inFlight, intent.ScopeID))
@@ -270,7 +271,7 @@ func (h SupplyChainImpactHandler) runManifestTrigger(ctx context.Context, intent
 				var err error
 				repositoryHolders, err = h.FanOut.FindRepositoryFindingHolders(ctx, intent.ScopeID, repositories)
 				if err != nil {
-					h.countFanOut(ctx, fanOutCauseManifestDependency, readFailureOutcome(err), 1)
+					h.countFanOutRead(ctx, fanOutCauseManifestDependency, err, telemetry.FanOutReadSiteRepository)
 					return reducercontract.Result{}, fanOutError{fmt.Errorf("find supply chain impact repository holders: %w", err)}
 				}
 			}

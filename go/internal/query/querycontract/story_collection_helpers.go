@@ -42,6 +42,40 @@ const DefaultIndirectEvidenceSearchLimit = 25
 // DefaultIndirectEvidenceSearchLimit.
 const MaxIndirectEvidenceSearchLimit = 100
 
+// BoundedDownstreamReadLimit converts a caller-supplied downstream_read_limit
+// into a bounded indirect-evidence search limit (#10477). It lives beside
+// BoundedTraceEnrichmentLimit because the service-story enrichment, the
+// service investigation packet, and the deployment-trace readers share the
+// same (0, MaxIndirectEvidenceSearchLimit] contract: an unset or
+// non-positive bound returns the shared default so existing callers see no
+// behavior change, and an over-max bound clamps to the ceiling instead of
+// repricing every shared read. Unlike BoundedTraceEnrichmentLimit there is no
+// maxDepth*10 scaling -- the caller names the row bound directly.
+func BoundedDownstreamReadLimit(limit int) int {
+	if limit <= 0 {
+		return DefaultIndirectEvidenceSearchLimit
+	}
+	if limit > MaxIndirectEvidenceSearchLimit {
+		return MaxIndirectEvidenceSearchLimit
+	}
+	return limit
+}
+
+// EffectiveDownstreamRenderLimit reports the row cap the downstream lists
+// (dependents, consumer_repositories) actually render under: the effective
+// read bound when a route named an explicit downstream_read_limit above the
+// preview cap, else the preview cap itself. Reads never return more rows
+// than the bound, so rendering at max(preview, bound) discards nothing;
+// with no explicit request the bound sits at the shared default (25), which
+// is below every preview cap, and behavior is byte-identical (#10535
+// follow-up to #10477).
+func EffectiveDownstreamRenderLimit(ctx map[string]any, previewCap int) int {
+	if bound := IntVal(ctx, "downstream_read_limit"); bound > previewCap {
+		return BoundedDownstreamReadLimit(bound)
+	}
+	return previewCap
+}
+
 // BoundedTraceEnrichmentLimit converts a caller-supplied max_depth into a
 // bounded indirect-evidence search limit. It lives here (not in a handler
 // family) because the service-story enrichment, the service investigation

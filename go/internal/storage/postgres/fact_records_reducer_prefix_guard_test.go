@@ -170,7 +170,7 @@ func loadFactwriteImporters(t *testing.T, overlay map[string][]byte) []*packages
 	}
 	for _, pkg := range loaded {
 		if len(pkg.Errors) > 0 {
-			t.Fatalf("load %s: %v (run with the go.mod toolchain, GOTOOLCHAIN=go1.26.10)", pkg.PkgPath, pkg.Errors[0])
+			t.Fatalf("load %s: %v (run with the go.mod toolchain, GOTOOLCHAIN=go1.26.11)", pkg.PkgPath, pkg.Errors[0])
 		}
 	}
 	return loaded

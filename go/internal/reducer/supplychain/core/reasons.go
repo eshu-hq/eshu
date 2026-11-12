@@ -6,6 +6,7 @@ package core
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
@@ -42,11 +43,18 @@ func suppressionScopeMismatchReason(finding SupplyChainImpactFinding, s vulnerab
 		)
 	}
 	var diffs []string
-	if s.Scope.CVEID != "" && !strings.EqualFold(s.Scope.CVEID, finding.CVEID) {
-		diffs = append(diffs, fmt.Sprintf("cve_id=%q vs finding %q", s.Scope.CVEID, finding.CVEID))
+	// Identity diffs consult the matchable set (#10409 D1): an id that named
+	// the finding through a group member or the cross-field union matched,
+	// so reporting it as a mismatch would mislead the operator.
+	if s.Scope.CVEID != "" {
+		if _, _, ok := findingMatchableID(s.Scope.CVEID, finding); !ok {
+			diffs = append(diffs, fmt.Sprintf("cve_id=%q vs finding %q", s.Scope.CVEID, finding.CVEID))
+		}
 	}
-	if s.Scope.AdvisoryID != "" && !strings.EqualFold(s.Scope.AdvisoryID, finding.AdvisoryID) {
-		diffs = append(diffs, fmt.Sprintf("advisory_id=%q vs finding %q", s.Scope.AdvisoryID, finding.AdvisoryID))
+	if s.Scope.AdvisoryID != "" {
+		if _, _, ok := findingMatchableID(s.Scope.AdvisoryID, finding); !ok {
+			diffs = append(diffs, fmt.Sprintf("advisory_id=%q vs finding %q", s.Scope.AdvisoryID, finding.AdvisoryID))
+		}
 	}
 	if s.Scope.PackageID != "" && !packageAnchorEqual(s.Scope.PackageID, finding.PackageID) {
 		diffs = append(diffs, fmt.Sprintf("package_id=%q vs finding %q", s.Scope.PackageID, finding.PackageID))
@@ -132,4 +140,54 @@ func suppressionAmbiguousCombinationDiff(finding SupplyChainImpactFinding, scope
 		"deployment context unverifiable, not necessarily a value mismatch: %s, so this scope cannot be applied to the whole canonical finding and fails closed (#5466)",
 		strings.Join(ambiguous, ", "),
 	)
+}
+
+func supplyChainImpactSuppressionPayload(decision SupplyChainSuppressionDecision) map[string]any {
+	state := supplyChainImpactSuppressionState(decision)
+	out := map[string]any{
+		"state": string(state),
+	}
+	if decision.SuppressionID != "" {
+		out["suppression_id"] = decision.SuppressionID
+	}
+	if decision.Source != "" {
+		out["source"] = decision.Source
+	}
+	if decision.Justification != "" {
+		out["justification"] = decision.Justification
+	}
+	if decision.Author != "" {
+		out["author"] = decision.Author
+	}
+	if !decision.AuthoredAt.IsZero() {
+		out["authored_at"] = decision.AuthoredAt.UTC().Format(time.RFC3339)
+	}
+	if !decision.ExpiresAt.IsZero() {
+		out["expires_at"] = decision.ExpiresAt.UTC().Format(time.RFC3339)
+	}
+	if decision.Reason != "" {
+		out["reason"] = decision.Reason
+	}
+	if decision.EvidenceRef != "" {
+		out["evidence_ref"] = decision.EvidenceRef
+	}
+	if decision.VEXDocumentID != "" {
+		out["vex_document_id"] = decision.VEXDocumentID
+	}
+	if decision.VEXStatementID != "" {
+		out["vex_statement_id"] = decision.VEXStatementID
+	}
+	if decision.MatchedID != "" {
+		out["matched_id"] = decision.MatchedID
+	}
+	if decision.MatchedField != "" {
+		out["matched_field"] = decision.MatchedField
+	}
+	if decision.MatchedVia != "" {
+		out["matched_via"] = decision.MatchedVia
+	}
+	// Always return the payload so the reducer publishes a deterministic
+	// "active" decision when no suppression matched; this lets the API
+	// filter by suppression_state without nullable-payload guards.
+	return out
 }

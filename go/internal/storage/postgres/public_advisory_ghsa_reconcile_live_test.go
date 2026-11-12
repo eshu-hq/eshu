@@ -134,9 +134,15 @@ func TestPublicAdvisoryReconcileThroughStoreRefusesGHSAConfigLive(t *testing.T) 
 	mustGrantScannerProofPrivileges(t, database, ctx, principals.worker, "runtime-writer")
 	mustSeedScannerProofPolicy(t, database, ctx, principals)
 
+	// The ghsa target is a rolling anchor since #10516: the workflow
+	// validator refuses it without derive_ghsa_rolling_windows.enabled
+	// and requires refresh_interval on the anchor.
+	ghsaTarget := publicAdvisoryProofGHSATarget("reviewed", "vuln-intel://ghsa/reviewed")
+	ghsaTarget["refresh_interval"] = "1h"
 	configuration, err := json.Marshal(map[string]any{
-		"targets":                 []any{publicAdvisoryProofGHSATarget("reviewed", "vuln-intel://ghsa/reviewed")},
-		"public_advisory_targets": []any{map[string]any{"scope_id": "vuln-intel://ghsa/reviewed", "max_age_seconds": 3600}},
+		"targets":                     []any{ghsaTarget},
+		"derive_ghsa_rolling_windows": map[string]any{"enabled": true},
+		"public_advisory_targets":     []any{map[string]any{"scope_id": "vuln-intel://ghsa/reviewed", "max_age_seconds": 3600}},
 	})
 	if err != nil {
 		t.Fatal(err)

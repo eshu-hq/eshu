@@ -24,7 +24,7 @@ func registerClaimPlaneInstruments(meter metric.Meter, inst *Instruments) error 
 	var err error
 	if inst.WorkflowClaimPlaneRequests, err = meter.Int64Counter(
 		"eshu_dp_workflow_claim_plane_requests_total",
-		metric.WithDescription("Collector requests to the workflow claim plane by protocol operation and outcome (ok, rejected, not_found, paced, invalid, server_error, timeout, canceled, transport_error, decode_error, request_error) (#8875)"),
+		metric.WithDescription("Collector requests to the workflow claim plane by protocol operation and outcome (ok, rejected, not_found, paced, pacing_signal_unknown, invalid, server_error, timeout, canceled, transport_error, decode_error, request_error) (#8875)"),
 	); err != nil {
 		return fmt.Errorf("register WorkflowClaimPlaneRequests counter: %w", err)
 	}
@@ -41,6 +41,12 @@ func registerClaimPlaneInstruments(meter metric.Meter, inst *Instruments) error 
 		metric.WithDescription("Workflow claim store a collector selected at startup by backend_kind (postgres, claim_plane); one increment per process start (#8875)"),
 	); err != nil {
 		return fmt.Errorf("register WorkflowControlStoreSelections counter: %w", err)
+	}
+	if inst.WorkflowUnclaimedRetired, err = meter.Int64Counter(
+		"eshu_dp_workflow_unclaimed_retired_total",
+		metric.WithDescription("Workflow work items the sanctioned never-claimed retirement moved to failed_terminal by collector kind and instance; one increment per call with a nonzero retired count, by that count — zero-count calls tick nothing (#10532)"),
+	); err != nil {
+		return fmt.Errorf("register WorkflowUnclaimedRetired counter: %w", err)
 	}
 	return nil
 }

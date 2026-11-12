@@ -7,8 +7,8 @@ import "strings"
 
 // SQL of the keyed resweep and the audit of the #3389 canonical winners read
 // model (#9805). The keyed path consumes the dirty log under the resweep's
-// single-flight lock, builds a keyed active_facts from the existing
-// package-lookup index, and runs the shipped winner select body over it, so a
+// single-flight lock, builds a keyed active_facts through the keyed winners
+// index (migration 291), and runs the shipped winner select body over it, so a
 // tick costs the size of what changed instead of the size of the table. See
 // docs/internal/evidence/9805-winners-keyed-resweep.md.
 
@@ -86,56 +86,62 @@ UNION
 ` + winnersScopeExpansionSelect(winnersKeyedConsumedTable)
 
 // analyzeWinnersKeyedIdentsSQL gives the planner the real identifier count, so
-// it probes the package-lookup index once per identifier instead of choosing a
+// it probes the keyed winners index once per identifier instead of choosing a
 // scan from a default estimate.
 const analyzeWinnersKeyedIdentsSQL = `ANALYZE ` + winnersKeyedIdentsTable
 
 // buildWinnersKeyedActiveFactsSQL builds the keyed active_facts: the active
 // findings of exactly the identifiers in the identifier table.
 //
-// The probe runs once per DISTINCT (package_id, repository_id, subject_digest)
-// triple, not once per identifier, because the package-lookup index
-// (fact_records_supply_chain_impact_package_lookup_idx) is keyed on those three
-// payload columns only: every identifier of a triple fetches the whole triple,
-// and the c0 and advisory comparisons can only filter after the heap fetch. On a
-// hot triple of about 5,000 candidates, fifty dirty keys fetched and discarded
-// about 250,000 rows. The probe sits in a MATERIALIZED CTE so the planner cannot
-// join the triples back to the identifiers and run the lateral once per
-// identifier again, and so a join order picked from default statistics on
-// ingestion_scopes cannot put the probe inside a scope loop. A measured run
-// with that plan took 28 million buffer hits for a 2,000-row result. OFFSET 0 keeps the
-// lateral subquery from being flattened into a scan. The identifier join then
-// keeps the facts whose c0 and advisory_id name a dirty key. The writer
-// serializes package_id, repository_id and subject_digest on every finding, so
-// the equality probe cannot miss a row on a NULL key.
+// The probe runs once per identifier against the keyed winners index
+// (fact_records_supply_chain_impact_winners_keyed_idx, migration 291), whose
+// key is the package triple plus the coalesced c0 and advisory expressions
+// below, so all five equalities are index conditions and the heap fetches only
+// the facts a dirty key keeps (about 13 kept facts per identifier on QA). The
+// identifier table holds distinct five-tuples (it is built with UNION), and a
+// fact carries exactly one c0 and advisory_id, so no fact can match two
+// identifiers and the probe cannot duplicate a row. The previous per-triple
+// probe used the package-lookup index, keyed on the triple only: it fetched
+// every candidate of a touched triple as wide fact.* rows and discarded most
+// after the heap fetch (measured on QA, #9975: 15,888 fetched rows carrying
+// 160 MB of payload for 2,720 kept on a 200-identifier sparse tick, and
+// build_active_facts at 68% of tick time with p95 17.1s). Moving the c0 and
+// advisory comparisons inside the lateral without the index cut that probe by
+// only about 37% (the heap still fetched every candidate), which is why the
+// expressions are in the index. Migration 293 (#10544) drops that
+// package-lookup index: at rows=1 the planner costed the two indexes
+// within 0.01 on a correlated triple and kept choosing the triple-only
+// one on QA, so the keyed index above is now the only triple-leading
+// index. This statement is unchanged. The probe sits in a MATERIALIZED CTE so a join
+// order picked from default statistics on ingestion_scopes cannot put it
+// inside a scope loop; a measured run with that plan took 28 million buffer
+// hits for a 2,000-row result. OFFSET 0 keeps the lateral subquery from being
+// flattened into a scan. The writer serializes package_id, repository_id and
+// subject_digest on every finding, so the equality probe cannot miss a row on
+// a NULL key.
 //
-// The remaining floor is one fetch of each touched triple's candidates, held in
-// the CTE's tuplestore (it spills to a temp file past work_mem): about 5,000
-// rows for one dirty key on a hot triple.
+// The remaining floor is one index descent plus the kept facts' heap rows per
+// identifier, held in the CTE's tuplestore.
 const buildWinnersKeyedActiveFactsSQL = `
 CREATE TEMP TABLE winners_keyed_active_facts ON COMMIT DROP AS
-WITH triple_facts AS MATERIALIZED (
+WITH ident_facts AS MATERIALIZED (
     SELECT fact.*
-    FROM (SELECT DISTINCT package_id, repository_id, subject_digest FROM ` + winnersKeyedIdentsTable + `) AS triple
+    FROM ` + winnersKeyedIdentsTable + ` AS ident
     CROSS JOIN LATERAL (
         SELECT f.*
         FROM fact_records AS f
-        WHERE (f.payload->>'package_id') = triple.package_id
-          AND (f.payload->>'repository_id') = triple.repository_id
-          AND (f.payload->>'subject_digest') = triple.subject_digest
+        WHERE (f.payload->>'package_id') = ident.package_id
+          AND (f.payload->>'repository_id') = ident.repository_id
+          AND (f.payload->>'subject_digest') = ident.subject_digest
+          AND COALESCE(NULLIF(f.payload->>'cve_id', ''), NULLIF(f.payload->>'advisory_id', ''), '') = ident.c0
+          AND COALESCE(f.payload->>'advisory_id', '') = ident.advisory_id
           AND f.fact_kind = 'reducer_supply_chain_impact_finding'
           AND f.is_tombstone = FALSE
         OFFSET 0
     ) AS fact
 )
 SELECT fact.*
-FROM triple_facts AS fact
-JOIN ` + winnersKeyedIdentsTable + ` AS ident
-  ON ident.package_id = (fact.payload->>'package_id')
- AND ident.repository_id = (fact.payload->>'repository_id')
- AND ident.subject_digest = (fact.payload->>'subject_digest')
- AND ident.c0 = COALESCE(NULLIF(fact.payload->>'cve_id', ''), NULLIF(fact.payload->>'advisory_id', ''), '')
- AND ident.advisory_id = COALESCE(fact.payload->>'advisory_id', '')
+FROM ident_facts AS fact
 JOIN ingestion_scopes AS scope
   ON scope.scope_id = fact.scope_id
  AND scope.active_generation_id = fact.generation_id

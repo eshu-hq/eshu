@@ -9,7 +9,7 @@ var WinnerSelectSQLForTest = supplyChainImpactWinnerSelectSQL
 
 // WinnersKeyedActiveFactsSQLForTest exposes the statement that builds the keyed
 // active_facts temp table from the analyzed identifier temp table, so a plan
-// test can assert the once-per-triple probe.
+// test can assert the once-per-identifier probe on the keyed winners index.
 const WinnersKeyedActiveFactsSQLForTest = buildWinnersKeyedActiveFactsSQL
 
 // WinnersKeyedActiveFactsTableForTest names the temp table that statement

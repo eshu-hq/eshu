@@ -406,7 +406,7 @@ An Alpine row in the installed-evidence list is queried by release (eshu-hq/eshu
 records per release (`Alpine:v3.18`) and returns nothing for the bare `Alpine` name. The coordinator reads
 `major.minor` from the row's `distro_version` (`3.18.4` becomes `v3.18`) and puts it on the derived scope id
 as `release=v3.18`, so one package in two releases is two scopes. Only the vulnerability-intelligence satellite
-reads that parameter and queries `Alpine:v3.18`; the in-tree collector ignores it and still queries bare `Alpine`.
+reads that parameter and queries `Alpine:v3.18`.
 A row with no readable release (blank, `edge`, a bare major) is not queried and is counted as
 `derived_target_missing_release` skip evidence, reported like any other planner skip reason. Debian, Ubuntu,
 Rocky, and Alma keep their bare names and scope ids.

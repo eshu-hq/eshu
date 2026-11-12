@@ -83,6 +83,7 @@ var catalogSeed = []familyodu.CatalogOdu{
 	familyodu.CodeInterprocEvidenceFamilyOdu(),
 	familyodu.IncidentRoutingEvidenceFamilyOdu(),
 	familyodu.RuntimeDeclarationFamilyOdu(),
+	familyodu.AdvisoryGroupFamilyOdu(),
 }
 
 // awsFamilySchemaBackedKinds are the representative aws_* fact kinds

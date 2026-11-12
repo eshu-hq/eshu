@@ -5,7 +5,6 @@ package core
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sort"
 
@@ -14,6 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // The holder fan-out (#9695, item 1.5b) closes the convergence gap a source
@@ -26,8 +26,15 @@ import (
 // re-derives its copy from current evidence, so the answer converges without a
 // precedence rule in the winners query.
 const (
-	// fanOutCVEChunk bounds one holder-read statement to this many CVE ids.
+	// fanOutCVEChunk bounds the CVE ids one origin stamp carries, through
+	// FanOutOriginCVEIDCap. It no longer sizes holder-read statements.
 	fanOutCVEChunk = 200
+	// fanOutHolderReadChunk bounds one holder-read statement to this many
+	// lookup ids (#10564 H). The H3 shape measured 1.34 s warm at 20 ids,
+	// so 25 keeps every statement well under the 10 s guard; the handler
+	// still reads every lookup id in sequential statements, so the total
+	// work and concurrency are unchanged.
+	fanOutHolderReadChunk = 25
 	// fanOutHolderCap bounds how many holders one claim reopens. The remainder
 	// is carried on the committing item and drained by its next claims.
 	fanOutHolderCap = 256
@@ -134,37 +141,6 @@ func fanOutCause(kinds []string) string {
 	return fanOutCauseMixed
 }
 
-// ErrFanOutReadTimeout marks a holder read that exceeded its bounded statement
-// timeout. The pass fails with it so the queue retries; the counter reports it
-// as read_timeout rather than read_error.
-var ErrFanOutReadTimeout = errors.New("supply chain impact holder read timed out")
-
-// SupplyChainImpactFanOutFailureClass classifies a pass that failed in its holder
-// fan-out. It is a counting class on purpose: the queue retries the pass up to
-// its attempt budget and then dead-letters it, which is loud and replayable,
-// whereas a non-counting class would retry a persistent failure forever.
-const SupplyChainImpactFanOutFailureClass = "supply_chain_impact_fanout_failed"
-
-// RetryableFanOutError marks err retryable and self-classified like the
-// handler's own fan-out failures. The store returns it for a lost lease inside the
-// writer's transaction, where a plain error would reach the queue as terminal.
-func RetryableFanOutError(err error) error { return fanOutError{err} }
-
-// fanOutError marks a fan-out failure as retryable and self-classified. The
-// queue dead-letters any error that does not report Retryable() == true, so
-// without this a single transient holder-read timeout, after the writer already
-// committed, would dead-letter the pass instead of retrying it.
-type fanOutError struct{ err error }
-
-func (e fanOutError) Error() string { return e.err.Error() }
-func (e fanOutError) Unwrap() error { return e.err }
-
-// Retryable reports that the queue should retry the whole pass.
-func (fanOutError) Retryable() bool { return true }
-
-// FailureClass names the durable failure class for the retrying row.
-func (fanOutError) FailureClass() string { return SupplyChainImpactFanOutFailureClass }
-
 // FanOutOwedRecorder records, inside the writer's transaction, that the commit
 // owes a fan-out. Recording it in the same transaction as the rows makes "an
 // attempt committed" and "the rows are there" one fact: a crash cannot leave one
@@ -196,9 +172,12 @@ type FanOutState struct {
 // decision of whether and whom to fan out to.
 type SupplyChainImpactFanOut interface {
 	// FindHolderScopes returns the scopes, other than ownScopeID, that hold an
-	// active finding row for any of the CVE ids. It is one bounded statement per
-	// call and fails with ErrFanOutReadTimeout when it exceeds its timeout.
-	FindHolderScopes(ctx context.Context, ownScopeID string, cveIDs []string) ([]string, error)
+	// active finding row matching any of the lookup ids: a CVE id, an advisory
+	// id, or an advisory-group member id (#10408). A holder row matches on its
+	// cve_id, its advisory_id, or its stored advisory-group member set. It is
+	// one bounded statement per call and fails with ErrFanOutReadTimeout when
+	// it exceeds its timeout.
+	FindHolderScopes(ctx context.Context, ownScopeID string, lookupIDs []string) ([]string, error)
 	// ReopenHolder reopens the holder's supply_chain_impact item at the scope's
 	// current active generation, stamping origin, or enqueues one when that
 	// generation has none.
@@ -280,35 +259,38 @@ func (h SupplyChainImpactHandler) fanOutHolders(
 	// at claim time. A stamp without the key predates the set, and a corrupt
 	// one parses as no set: both fail closed to a full pass and a rerun.
 	stampCVEs := fanOutStampCVEIDs(intent)
-	var cveIDs []string
+	var lookupIDs []string
 	recoveryOnly := false
 	if !oneHop {
 		// A continuation drain does not add the pass's own changes: they were
-		// fanned out by the claim that wrote them.
-		cveIDs = write.ChangedCVEIDs
+		// fanned out by the claim that wrote them. The touched group set joins
+		// the member-expanded changed set (#10408): a merge or split retires
+		// group ids and member ids no replacement row names, and only the
+		// touched set still names them, so the holders of those rows reopen.
+		lookupIDs = unionSortedStrings(write.ChangedCVEIDs, write.TouchedGroupIDs)
 		if owed && len(remaining) == 0 && len(write.RecoveryCVEIDs) > 0 {
 			// An earlier attempt committed and died before it finished the
 			// fan-out, so this rerun's own rewrite shows no change. Fan out for
 			// every CVE the scope names.
 			recoveryOnly = len(write.ChangedCVEIDs) == 0
-			cveIDs = unionSortedStrings(cveIDs, write.RecoveryCVEIDs)
+			lookupIDs = unionSortedStrings(lookupIDs, write.RecoveryCVEIDs)
 		}
 	} else {
 		// A one-hop re-derivation fans out nothing of its own rewrite, but
 		// the suppression diff's ids pass through regardless of the stamp:
 		// a stamped first pass of an operator generation would otherwise
 		// admit without fanning out (#10019).
-		cveIDs = write.SuppressionCVEIDs
+		lookupIDs = write.SuppressionCVEIDs
 	}
 	// The stamp the reopened holders carry names what this pass fanned out
 	// plus the change that caused this pass, so a continuation drain keeps
 	// scoping the original change instead of widening to a full pass.
-	stampOut := CapFanOutStampCVEIDs(unionSortedStrings(cveIDs, stampCVEs))
+	stampOut := CapFanOutStampCVEIDs(unionSortedStrings(lookupIDs, stampCVEs))
 	state := FanOutState{ConsumeOrigin: stamped}
 	if stamped {
 		state.ExpectedOrigin = fanOutOriginOf(intent)
 	}
-	if len(cveIDs) == 0 && len(remaining) == 0 {
+	if len(lookupIDs) == 0 && len(remaining) == 0 {
 		result := fanOutResult{cause: cause}
 		if stamped || owed || len(write.ChangedCVEIDs) > 0 || len(write.TouchedGroupIDs) > 0 {
 			// Nothing is owed after all; consume the stamp so a later reopen by
@@ -342,10 +324,10 @@ func (h SupplyChainImpactHandler) fanOutHolders(
 	// at the first read that commits and acknowledges before the second is missed
 	// by both. A pass claimed after the in-flight read loads its evidence after the
 	// source's facts became visible, so it needs no flag.
-	if len(cveIDs) > 0 {
+	if len(lookupIDs) > 0 {
 		inFlight, err := h.FanOut.FindInFlightScopes(ctx, intent.ScopeID)
 		if err != nil {
-			h.countFanOut(ctx, cause, readFailureOutcome(err), 1)
+			h.countFanOutRead(ctx, cause, err, telemetry.FanOutReadSiteInFlight)
 			span.RecordError(err)
 			return fanOutResult{cause: cause}, fanOutError{fmt.Errorf("find in-flight supply chain impact scopes: %w", err)}
 		}
@@ -353,10 +335,10 @@ func (h SupplyChainImpactHandler) fanOutHolders(
 			holders[id] = struct{}{}
 		}
 	}
-	for _, chunk := range chunkStrings(cveIDs, fanOutCVEChunk) {
+	for _, chunk := range chunkStrings(lookupIDs, fanOutHolderReadChunk) {
 		found, err := h.FanOut.FindHolderScopes(ctx, intent.ScopeID, chunk)
 		if err != nil {
-			h.countFanOut(ctx, cause, readFailureOutcome(err), 1)
+			h.countFanOutRead(ctx, cause, err, telemetry.FanOutReadSiteHolders)
 			span.RecordError(err)
 			return fanOutResult{cause: cause}, fanOutError{fmt.Errorf("find supply chain impact holders: %w", err)}
 		}

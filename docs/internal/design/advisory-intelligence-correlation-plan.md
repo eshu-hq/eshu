@@ -153,10 +153,17 @@ The proposal follows osv.dev:
    and `findings_queries.go`. Both move together, with a parity test.
 4. **Group changes.** A late alias merges two groups, and a withdrawal or a
    removed alias splits one. Each change re-keys the affected findings and
-   carries operator suppressions across the change. Re-keying needs:
-   - a `dependencyCatalog` edge so the producing domain re-triggers
-     `supply_chain_impact` across scopes;
-   - a readiness-floor entry.
+   carries operator suppressions across the change. Re-keying needs no
+   `dependencyCatalog` edge and no new readiness producer (drive-10408
+   ruling, #10408): the re-key happens inside the producing scope's own
+   `supply_chain_impact` pass by re-derivation — findings key on the group
+   id the alias grouping computed — and the committing pass's touched-group
+   set reopens every holder scope through the existing holder fan-out
+   (`HOLDER_FANOUT.md` in supplychain core). The existing producer-readiness
+   floor gates every pass in the wave, committing and reopened alike. The
+   evidence-completeness retirement floor is unchanged: a partial-evidence
+   pass upserts but retracts nothing (#6831), so a truncated load can never
+   tombstone a group the full pass would keep.
 
 Graph projection of the groups is a separate decision (Phase 3, item 3.6).
 Findings stay in Postgres either way.

@@ -1,0 +1,20 @@
+contention satellite leg (live), seed 1, W=3 (1x), verdict CLEAN
+  created 100000 items (full size true), 205050 ops in 1802.7s (30m3s) = 113.7 ops/s
+  claim (issued) client p50 20.54ms p99 64.51ms max 377.47ms over 101474; server: NOT_AVAILABLE: claim-plane v0.1.1 (8311ed6) internal/telemetry registers only workflow_claim_grants_total, workflow_claim_mutations_total, workflow_commit_pins_total, workflow_claim_reaps_total, workflow_claim_degraded_total (counters) and workflow_queue_depth (gauge); no latency histogram exists
+  reclaim: 210 abandoned, 210 reaped, p50 4972ms p99 14303ms max 14477ms (bound 23000ms)
+  residue: synthetic 0, non-synthetic deltas [], core CHECKED
+  advisory_admission     NOT_APPLICABLE parity backend has no guarded admission
+  drain_to_zero          PASS           drained=true, 0 non-terminal, 0 quota-held
+  exactly_once           PASS           100000 items acked terminal; tracker and 1 s sampler found no dual live claim or double terminal
+  fencing_monotonicity   PASS           client happens-before order plus database token check (item token >= every claim token, no duplicate)
+  no_overshoot           NOT_APPLICABLE no quota budget enforced on this leg (claim plane without --quotas, or quota_budget NOT_APPLICABLE)
+  no_unexpected_outcomes PASS           anomalies map[]
+  pin                    PASS           pins map[pin=ok:424 pin_outlive=ok:80 pin_zombie=ok:106]; stale pins are judged in stale_fence_rejection
+  reclaim                PASS           210/210 abandoned leases reaped; late 0, pin violated 0, bound 23000ms
+  replay_idempotence     PASS           309 replays after an injected timeout, 0 not acked
+  residue                PASS           synthetic 0, non-synthetic deltas [], core CHECKED
+  single_holder_heartbeat PASS           87 heartbeats acked on live leases, 0 lost
+  stale_fence_rejection  PASS           210 stale writes fired, 210 rejected (by op: map[armed:210 code=rejected:210 complete=rejected:206 fail_terminal=rejected:4 fired:210])
+  starvation_bound       PASS           max claim wait 377.5ms (bound 4m30s); 0 backlog scopes unclaimed in the window
+  zero_deadlocks         PASS           40P01 errors 0; lock wait bound 250ms (peak NOT_AVAILABLE)
+  zero_loss              PASS           created 100000; sampled created <= rows at every tick

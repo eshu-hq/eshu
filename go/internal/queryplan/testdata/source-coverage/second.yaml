@@ -280,6 +280,7 @@ source_coverage:
   - file: repository/api_surface.go
     calls:
       - {symbol: "QueryRepoAPISurface", count: 2, non_hot: {class: keyed_support, source_sha256: 7a74a2e06b427d9948fc33b031ddaadc7ab6a11aade866feb343a5b68058f0fb, key_bound: single_key, max_results: 50}}
+      - {symbol: "QueryRepoAPISurfacePaged", count: 2, non_hot: {class: keyed_support, source_sha256: d74df02060196231518d4376ed6dd7aac291c9662f6144d3b925e0760bcdf1ea, key_bound: single_key, max_results: 100}}
   - file: repositoryartifacts/repository_config_artifacts_loader.go
     calls:
       - {symbol: "QueryRelatedRepositoryArtifactSources", count: 1, non_hot: {class: keyed_support, source_sha256: 6ed7eb6b51b0d9e22b953f9e386f78567b92689747c156a5fee47d9de05e0ea0, key_bound: single_key, max_results: 501}}

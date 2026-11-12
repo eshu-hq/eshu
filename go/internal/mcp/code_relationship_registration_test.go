@@ -32,14 +32,14 @@ func TestCodeRelationshipDefinitionsKeepProductionPositions(t *testing.T) {
 	}
 
 	tools := ReadOnlyTools()
-	if got, want := len(tools), 171; got != want {
+	if got, want := len(tools), 173; got != want {
 		t.Fatalf("len(ReadOnlyTools()) = %d, want %d", got, want)
 	}
 	if got := tools[relationshipStart : relationshipStart+len(wantRelationships)]; !reflect.DeepEqual(got, wantRelationships) {
 		t.Fatal("ReadOnlyTools relationship definitions drifted from relationships.CodeTools")
 	}
 
-	const wantOrderHash = "f4667d26e3990c4a2a9cb337aa0099bc217b90a9840676845bd554d9678ffd5a"
+	const wantOrderHash = "fc51bf7aff5cb84dbdd685ce65a7e8fbe28729fa37625e4e5b9dc0a50009b1f2"
 	hash := sha256.New()
 	for _, tool := range tools {
 		_, _ = fmt.Fprintf(hash, "%d:%s\n", len(tool.Name), tool.Name)

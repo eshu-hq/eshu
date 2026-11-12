@@ -548,7 +548,17 @@
     },
     {
       "category": "api_route",
+      "name": "GET /api/v0/services/{service_name}/api-surface/endpoints",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
       "name": "GET /api/v0/services/{service_name}/context",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/services/{service_name}/downstream-consumers",
       "readiness": "implemented"
     },
     {
@@ -834,6 +844,11 @@
     {
       "category": "api_route",
       "name": "POST /api/v0/admin/work-items/query",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "POST /api/v0/admin/workflow-retire-unclaimed",
       "readiness": "implemented"
     },
     {
@@ -2009,11 +2024,12 @@
       "category": "collector",
       "name": "sbom_attestation",
       "readiness": "implemented",
-      "owner": "internal/collector/sbom/document",
+      "owner": "internal/coordinator/sbom",
       "proof": "reference/collector-reducer-readiness.md#promotion-proof",
       "docs": [
         "reference/collector-reducer-readiness.md"
       ],
+      "notes": "The in-tree producer (go/cmd/collector-sbom-attestation, go/cmd/collector-sbom-shadow, go/internal/collector/sbom) was removed after the satellite cutover (eshu-hq/eshu#10450); collection runs from eshu-hq/eshu-collector-sbom-attestation through the extension host while the coordinator still plans sbom attestation claims and the reducer/query surfaces still serve the fact kinds.",
       "collector_contract": {
         "fact_kinds": [
           "attestation.signature_verification",
@@ -2038,11 +2054,10 @@
           "list_sbom_attestation_attachments"
         ],
         "proof_gates": [
-          "cd go \u0026\u0026 go test ./cmd/collector-sbom-attestation ./internal/collector/sbom/document ./internal/reducer ./internal/query ./internal/mcp -count=1"
+          "cd go \u0026\u0026 go test ./internal/coordinator/sbom/... ./internal/reducer ./internal/query ./internal/mcp -count=1"
         ],
         "fixture_refs": [
-          "docs/public/reference/security-intelligence.md#sbom-and-attestation-collection",
-          "go/internal/collector/sbom/document/testdata"
+          "docs/public/reference/collector-reducer-readiness.md#implemented-collector-lanes"
         ],
         "truth_profile": "provider_gated"
       }
@@ -2418,16 +2433,6 @@
     {
       "category": "command",
       "name": "collector-prometheus-mimir",
-      "readiness": "implemented"
-    },
-    {
-      "category": "command",
-      "name": "collector-sbom-attestation",
-      "readiness": "implemented"
-    },
-    {
-      "category": "command",
-      "name": "collector-sbom-shadow",
       "readiness": "implemented"
     },
     {
@@ -3546,7 +3551,17 @@
     },
     {
       "category": "mcp_tool",
+      "name": "list_service_api_endpoints",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
       "name": "list_service_catalog_correlations",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "list_service_downstream_consumers",
       "readiness": "implemented"
     },
     {

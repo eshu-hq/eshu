@@ -14,6 +14,7 @@ page lists it. When this page and `GET /api/v0/openapi.json` disagree, the spec 
 | --- | --- |
 | Entity resolution | `POST /api/v0/entities/resolve` |
 | Context | `GET /api/v0/entities/{entity_id}/context`, `GET /api/v0/workloads/{workload_id}/context`, `GET /api/v0/services/{service_name}/context`, `GET /api/v0/repositories/{repo_id}/context` |
+| Service API surface endpoints | `GET /api/v0/services/{service_name}/api-surface/endpoints` ([Context Evidence Budget](context-evidence-budget.md)) |
 | Incident context | `GET /api/v0/incidents/{incident_id}/context` |
 | Work-item evidence | `GET /api/v0/work-items/evidence` |
 | Catalog | `GET /api/v0/catalog` |
@@ -44,8 +45,7 @@ Context routes are canonical-ID oriented:
 - entity context requires `entity_id`
 - workload context requires `workload_id`
 - repository context requires `repo_id`
-- service context is an alias over workload context and adds
-  `requested_as=service`
+- service context is an alias over workload context and adds `requested_as=service`
 
 Repository context `workload_count` counts distinct materialized `Workload` nodes linked by `DEFINES`, never read-model
 workload names (repository context does not load them); a graph read failure returns an error, not an inferred count.
@@ -65,6 +65,8 @@ A deployment-artifact candidate bound (#7951) appends `deployment_artifacts_cand
 request budget ran out), `deployment_artifacts_related_file_list_truncated_at_5000` (a related repository has more than 5,000
 files) or `deployment_artifacts_anchor_file_list_truncated_at_5000` (the service repository has more than 5,000 files). Each
 makes the deployment evidence a lower bound and sets `result_limits.truncated`.
+A truncated downstream fan-out appends the matching token, so both surfaces agree; the story and
+context accept `downstream_read_limit` (default 25, max 100). See [Context Evidence Budget](context-evidence-budget.md).
 
 Entity context may include semantic narrative fields when normalized semantic
 metadata exists: `semantic_summary`, `semantic_profile`, and `story`.
@@ -151,8 +153,7 @@ span attribute, or deployment knob.
 
 ## Incident Context
 
-The incident context route returns a bounded incident
-packet from collected source facts. `provider` defaults to `pagerduty`;
+The incident context route returns a bounded incident packet from collected source facts. `provider` defaults to `pagerduty`;
 `scope_id` disambiguates duplicate provider incident IDs; `service_id`,
 `since`, and `until` bound fallback change candidates.
 
@@ -166,8 +167,7 @@ omitted.
 Routing slots preserve source class. `intended_routing` comes from
 Terraform-source `PagerDutyDeclaration` content rows. `applied_routing` comes
 from active Terraform-state `incident_routing.applied_pagerduty_resource`
-facts. `live_routing` comes from optional live
-`incident_routing.observed_pagerduty_service` facts or scoped
+facts. `live_routing` comes from optional live `incident_routing.observed_pagerduty_service` facts or scoped
 `incident_routing.coverage_warning` gaps such as permission-hidden provider
 state. These slots explain whether the incident service is declared, applied,
 or currently visible in PagerDuty; they do not prove root cause, service
@@ -401,7 +401,7 @@ service context, and workload context/story, and `coverage_summary.truncated`
 on the service investigation route. Both blocks also
 report `downstream_read_limit`, the bound that actually fires on the
 downstream lists (25 by default). Read it rather than `result_limits.limit` or
-`coverage_summary.result_limit`, which report the 50-row rendering cap.
+`coverage_summary.result_limit`, which report the 50-row rendering cap; with an explicit read above that preview the lists ship up to the read bound (`downstream_render_limit` reports the applied cap).
 
 `downstream_read_limit` is not the only bound behind `truncated`, though.
 `dependents_truncated` and `provisioning_source_chains_truncated` reflect the

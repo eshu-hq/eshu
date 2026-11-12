@@ -378,6 +378,14 @@ type SuppressionDecisionRow struct {
 	EvidenceRef    string `json:"evidence_ref,omitempty"`
 	VEXDocumentID  string `json:"vex_document_id,omitempty"`
 	VEXStatementID string `json:"vex_statement_id,omitempty"`
+	// MatchedID is the finding-side identity the winning suppression named
+	// (#10409): an advisory-group member id, or the finding's own cve or
+	// advisory id. MatchedField is the scope field that supplied it and
+	// MatchedVia is "direct" or "group_member". Empty when no identity
+	// field named the finding.
+	MatchedID    string `json:"matched_id,omitempty"`
+	MatchedField string `json:"matched_field,omitempty"`
+	MatchedVia   string `json:"matched_via,omitempty"`
 }
 
 // Provenance preserves per-source advisory provenance for one

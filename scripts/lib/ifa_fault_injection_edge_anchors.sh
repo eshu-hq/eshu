@@ -240,6 +240,14 @@ code_taint_evidence_edge_operation_match="MERGE (f)-[rel:HAS_TAINT_EVIDENCE]->(e
 # MERGE in the same template and name the wrong half of the statement the
 # cell asserts.
 runtime_declaration_edge_operation_match="MERGE (repo)-[rel:DECLARES_RUNTIME]->(d)"
+# The AFFECTED_BY MERGE anchor cell_failgraphwrite_advisory_group (#10466)
+# targets: go/internal/storage/cypher/edge/writer/advisory_group.go emits
+# MERGE (r)-[e:AFFECTED_BY {package_id: row.package_id}]->(g) with the
+# package_id identity map on the MERGE itself, so the anchor carries the
+# FULL form that matches executed statement text. A PREFIX form stopping
+# at the type would also match the stale-edge retract's MATCH in the
+# same file, which is not the write the cell asserts.
+advisory_group_edge_operation_match="MERGE (r)-[e:AFFECTED_BY {package_id: row.package_id}]->(g)"
 # The HAS_*_ROUTING MERGE anchor cell_failgraphwrite_incident_routing_evidence
 # (#6228 incident_routing_evidence live leaf) targets:
 # go/internal/storage/cypher/edge/writer/incident_routing_evidence.go:73 emits

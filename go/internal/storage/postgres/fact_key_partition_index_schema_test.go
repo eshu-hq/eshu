@@ -79,6 +79,13 @@ func TestRetentionKeyIndexCheckCoversFactKeyPartitionIndexes(t *testing.T) {
 		"('package_registry_identity_keys_partition_idx', 'package_registry_identity_keys')",
 		"ARRAY['scope_id', 'generation_id', 'fact_id']",
 		"index_state.indisvalid",
+		// #10512: the intents generation index arm, exact shape.
+		"shared_projection_intents_generation_idx",
+		// #10525: the work-items generation index arm (migration 294).
+		"fact_work_items_generation_idx",
+		"fact_work_items",
+		"ARRAY['generation_id']",
+		"index_state.indpred IS NULL",
 	} {
 		if !strings.Contains(generationRetentionKeyIndexesQuery, want) {
 			t.Errorf("key index check is missing %q", want)

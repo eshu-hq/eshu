@@ -24,12 +24,14 @@ func repoServiceToolIntents() map[string]toolIntent {
 		"count_repositories_by_language":    intents("how many repos use language", "count of go repositories", "number of python repositories", "language repo count"),
 		"get_repository_language_inventory": intents("language breakdown", "language buckets across index", "files per language", "language inventory of ecosystem"),
 		// service-workload
-		"get_service_story":               canonicalIntents("explain this service", "service dossier", "service story", "service api surface and dependencies", "who consumes this service", "onboard to service"),
-		"investigate_service":             intents("plan a service investigation", "investigate service across repos", "service docs and deployment sources", "service evidence drilldown"),
-		"get_service_intelligence_report": intents("service intelligence report", "code to runtime trace for service", "service supply chain and incidents", "one call service report"),
-		"get_service_context":             intents("service context by workload id", "service workload selector context", "context for service name"),
-		"get_workload_context":            intents("workload context", "environment specific workload context", "logical workload context", "workload by canonical id"),
-		"get_workload_story":              intents("workload story", "explain this workload", "structured workload narrative", "what does workload run"),
+		"get_service_story":                 canonicalIntents("explain this service", "service dossier", "service story", "service api surface and dependencies", "who consumes this service", "onboard to service"),
+		"list_service_api_endpoints":        intents("list service api endpoints", "all endpoints of a service", "full service api surface", "page service endpoints"),
+		"list_service_downstream_consumers": intents("list service consumers", "all consumers of a service", "full downstream consumer set", "page service consumers"),
+		"investigate_service":               intents("plan a service investigation", "investigate service across repos", "service docs and deployment sources", "service evidence drilldown"),
+		"get_service_intelligence_report":   intents("service intelligence report", "code to runtime trace for service", "service supply chain and incidents", "one call service report"),
+		"get_service_context":               intents("service context by workload id", "service workload selector context", "context for service name"),
+		"get_workload_context":              intents("workload context", "environment specific workload context", "logical workload context", "workload by canonical id"),
+		"get_workload_story":                intents("workload story", "explain this workload", "structured workload narrative", "what does workload run"),
 		// entity (not in a family)
 		"get_entity_context": intents("context for entity id", "entity neighborhood", "details of canonical entity", "relationships of entity"),
 		// change-impact

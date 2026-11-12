@@ -355,11 +355,11 @@ type flakyFindFanOut struct {
 	failed atomic.Bool
 }
 
-func (f *flakyFindFanOut) FindHolderScopes(ctx context.Context, own string, cves []string) ([]string, error) {
+func (f *flakyFindFanOut) FindHolderScopes(ctx context.Context, own string, lookupIDs []string) ([]string, error) {
 	if f.failed.CompareAndSwap(false, true) {
 		return nil, supplychaincore.ErrFanOutReadTimeout
 	}
-	return f.SupplyChainImpactFanOut.FindHolderScopes(ctx, own, cves)
+	return f.SupplyChainImpactFanOut.FindHolderScopes(ctx, own, lookupIDs)
 }
 
 // TestFailedHolderReadRetriesTheWholePassAndStillConvergesLive is the at-least-once

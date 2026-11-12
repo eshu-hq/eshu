@@ -98,28 +98,9 @@ func TestContractEncodeAdoptionRatchet(t *testing.T) {
 			path:  "repo/git/tfstate_candidate.go",
 			calls: []string{"EncodeTerraformStateCandidate"},
 		},
-		{
-			path: "sbom/document/cyclonedx_fixture.go",
-			calls: []string{
-				"EncodeSBOMDocument",
-			},
-		},
-		{
-			path: "sbom/document/envelope.go",
-			calls: []string{
-				"EncodeSBOMDependencyRelationship",
-				"EncodeSBOMExternalReference",
-				"EncodeSBOMWarning",
-			},
-		},
-		{
-			path: "sbom/runtime/attestation.go",
-			calls: []string{
-				"EncodeAttestationSignatureVerification",
-				"EncodeAttestationStatement",
-				"EncodeSBOMWarning",
-			},
-		},
+		// The SBOM attestation emitter moved to the extracted satellite
+		// (eshu-hq/eshu#10450), which owns its encoder adoption; no
+		// sbom/document or sbom/runtime adoption target remains in-tree.
 		{
 			path: "cicdrun/github_actions_fixture.go",
 			calls: []string{

@@ -302,12 +302,16 @@ func TestSuppressionMutationFanOutIsBoundedByChangedCVEs(t *testing.T) {
 }
 
 // TestHolderReadIsChunkedByCVE proves a wide change set is read in bounded
-// statements and the holders are de-duplicated across chunks.
+// 25-id statements (#10564 H) and the holders are de-duplicated across
+// chunks. Each statement stays near the N=20 H3 shape the shim measured at
+// 1.34 s warm, well under the 10 s guard; the total ids read and the
+// sequential statements are unchanged, so this is statement sizing, not a
+// worker serialization.
 func TestHolderReadIsChunkedByCVE(t *testing.T) {
 	t.Parallel()
 
-	ids := make([]string, 0, 2*fanOutCVEChunk+1)
-	for i := 0; i < 2*fanOutCVEChunk+1; i++ {
+	ids := make([]string, 0, 2*fanOutHolderReadChunk+1)
+	for i := 0; i < 2*fanOutHolderReadChunk+1; i++ {
 		ids = append(ids, fmt.Sprintf("CVE-2026-%05d", i))
 	}
 	port := &stubFanOut{holders: []string{"holder-a", "holder-b"}}
@@ -319,8 +323,8 @@ func TestHolderReadIsChunkedByCVE(t *testing.T) {
 		t.Fatalf("holder read statements = %d, want 3 chunks", len(port.findCalls))
 	}
 	for i, call := range port.findCalls {
-		if len(call) > fanOutCVEChunk {
-			t.Fatalf("chunk %d carries %d ids, want at most %d", i, len(call), fanOutCVEChunk)
+		if len(call) > fanOutHolderReadChunk {
+			t.Fatalf("chunk %d carries %d ids, want at most %d", i, len(call), fanOutHolderReadChunk)
 		}
 	}
 	if !reflect.DeepEqual(port.reopened, []string{"holder-a", "holder-b"}) {

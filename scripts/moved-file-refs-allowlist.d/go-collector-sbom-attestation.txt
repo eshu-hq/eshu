@@ -1,0 +1,20 @@
+# #10450 in-tree sbom-attestation deletion: dated records that name the
+# deleted tree as it stood when each note was written. Repointing would
+# falsify the record. Live pointers (proof-matrix SBOM row, 4786 matrix
+# sbom_attestation + W1f cells) are reworded in-tree instead; this fragment
+# covers only the historical inventory citations below.
+# The satellite eshu-hq/eshu-collector-sbom-attestation is the only collector
+# for this family; there is no in-tree successor path for these citations.
+
+# REMOVAL_PREP.md is a dated importer census for #8875 (Verified at
+# 8ec6d11ddf, re-verified at 5e427b908d and 15caae83c5): it inventories the
+# tree as it stood at those SHAs, including the sbom importers this deletion
+# removes. Updating the census is a recount, not a repoint.
+go/cmd/workflow-coordinator/REMOVAL_PREP.md:go/cmd/collector-sbom-attestation/config.go
+go/cmd/workflow-coordinator/REMOVAL_PREP.md:go/cmd/collector-sbom-attestation/service.go
+go/cmd/workflow-coordinator/REMOVAL_PREP.md:go/internal/collector/sbom/runtime/attestation.go
+go/cmd/workflow-coordinator/REMOVAL_PREP.md:go/internal/collector/sbom/runtime/attestation_slsa.go
+go/cmd/workflow-coordinator/REMOVAL_PREP.md:go/internal/collector/sbom/runtime/source.go
+# SHIM_MAP.md is the relocated #10450 extraction record: its targetJSON cell
+# cites the in-tree config the map was drawn against.
+docs/internal/sbom-extraction/SHIM_MAP.md:go/cmd/collector-sbom-attestation/config.go

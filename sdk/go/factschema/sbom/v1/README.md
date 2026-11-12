@@ -79,17 +79,17 @@ document/statement — this is the accuracy fix this package exists to add.
 
 Unlike `awsv1.Resource`/`gcpv1.Resource`, no struct here carries an untyped
 `Attributes` map. Every sbom/attestation fact kind has one fixed field set
-across both collector paths (`go/internal/collector/sbom/document`,
-`go/internal/collector/sbom/runtime`) — none is a polymorphic multi-shape
-envelope, so a flat struct with named fields covers the full payload.
+across both collector paths (document parsing and attestation runtime in the
+extracted satellite `eshu-hq/eshu-collector-sbom-attestation`) — none is a
+polymorphic multi-shape envelope, so a flat struct with named fields covers
+the full payload.
 
 ## Every kind is wired
 
 All eight fact kinds in this package now have both a collector emitter and a
 reducer decode/consume path — `DependencyRelationship` and `ExternalReference`
 were wired in #5370, and `SLSAProvenance` (the last typed-but-deferred kind)
-in #5371: the SBOM runtime collector
-(`go/internal/collector/sbom/runtime/attestation.go`) emits it for a statement
+in #5371: the satellite's attestation runtime emits it for a statement
 whose `predicateType` matches the closed SLSA provenance URI set, and
 `go/internal/reducer/sbom_attestation_attachment_index.go` decodes and joins
 it by `StatementID` onto that statement's attachment decision.

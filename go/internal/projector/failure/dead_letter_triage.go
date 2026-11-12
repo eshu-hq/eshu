@@ -130,6 +130,13 @@ func reconcileTriage(
 		triageClass = TriageClassResourceExhausted
 	case FailureClassTimeout:
 		triageClass = TriageClassTimeout
+	case FailureClassAdmissionTimeout:
+		// An admission wait timeout is retryable by construction, so the
+		// authority never lands here for one; if it ever does, degrade to
+		// the generic timeout bucket rather than the projection_bug
+		// poison bucket (#10502). This branch must not mint a new durable
+		// triage value from unreachable code.
+		triageClass = TriageClassTimeout
 	default:
 		triageClass = TriageClassProjectionBug
 	}

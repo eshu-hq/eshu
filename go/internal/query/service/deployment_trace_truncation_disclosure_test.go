@@ -444,9 +444,11 @@ func TestLoadConsumerRepositoryEnrichmentDisclosesUpstreamHostnameAndSearchBound
 		const limit = 3
 		// Every matched row lands in one repository, so the merged consumer
 		// set is two entries -- far under limit -- and only the search's own
-		// row cap can be reporting truncation.
-		rows := make([]querycontract.FileContent, 0, limit)
-		for index := range limit {
+		// row cap can be reporting truncation. The fixture returns limit+1
+		// rows: exactly limit rows is a complete page under the +1 probe,
+		// so only a row past the bound proves the backend held more.
+		rows := make([]querycontract.FileContent, 0, limit+1)
+		for index := range limit + 1 {
 			rows = append(rows, querycontract.FileContent{
 				RepoID:       "repository:search-consumer",
 				RelativePath: fmt.Sprintf("deploy/values-%02d.yaml", index),
@@ -466,7 +468,7 @@ func TestLoadConsumerRepositoryEnrichmentDisclosesUpstreamHostnameAndSearchBound
 			t.Fatalf("len(consumers) = %d, want under the limit of %d so only the per-search cap can set the flag", got, want)
 		}
 		if !truncated {
-			t.Fatalf("truncated = false, want true (the service-name search returned %d rows at its own cap of %d)", len(rows), limit)
+			t.Fatalf("truncated = false, want true (the service-name search returned %d rows past its cap of %d)", len(rows), limit)
 		}
 	})
 

@@ -19,6 +19,31 @@ func supplyChainImpactCounts(findings []SupplyChainImpactFinding) map[SupplyChai
 	return counts
 }
 
+// suppressionMatchedKey is the bounded (matched_field, matched_via) label
+// pair of the identity-matched counter (#10409 D1).
+type suppressionMatchedKey struct {
+	field string
+	via   string
+}
+
+// supplyChainSuppressionMatchedCounts tallies decisions whose winning
+// suppression scope-matched the finding through an identity field, by field
+// and route. A scope_mismatch decision is not counted: its identity field
+// named the finding but the scope as a whole did not match, so counting it
+// would overstate match volume. Its persisted matched provenance stays for
+// audit; only the counter excludes it.
+func supplyChainSuppressionMatchedCounts(findings []SupplyChainImpactFinding) map[suppressionMatchedKey]int {
+	counts := make(map[suppressionMatchedKey]int, 4)
+	for _, finding := range findings {
+		d := finding.Suppression
+		if d.MatchedField == "" || d.MatchedVia == "" || d.State == SupplyChainSuppressionStateScopeMismatch {
+			continue
+		}
+		counts[suppressionMatchedKey{field: d.MatchedField, via: d.MatchedVia}]++
+	}
+	return counts
+}
+
 func supplyChainSuppressionCounts(findings []SupplyChainImpactFinding) map[SupplyChainSuppressionState]int {
 	counts := make(map[SupplyChainSuppressionState]int, len(SupplyChainSuppressionStates()))
 	for _, finding := range findings {

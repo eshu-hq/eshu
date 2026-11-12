@@ -22,7 +22,7 @@ source_coverage:
       - {symbol: "LoadMaterializedServiceCloudResourceDependencies", count: 1, source_sha256: 1c540da4d0717011561f3a2251c7c4646e15c8358db5dc250bb286e3d17dc85c, entry_ids: [QP-SVC-CLOUD-DEPS]}
   - file: impact/deployment/enrichment.go
     calls:
-      - {symbol: "QueryProvisioningRepositoryCandidates", count: 1, non_hot: {class: keyed_support, source_sha256: 04fe31e5ded3fa10bf241df57165eb744896a77da3d5c8a6215c099560c0b76c, key_bound: single_key, max_results: 101}}
+      - {symbol: "queryProvisioningRepositoryCandidates", count: 1, non_hot: {class: keyed_support, source_sha256: faa15991ce059d80815bed95267ac7d745deb68850f53600cc2fef829a33c482, key_bound: single_key, max_results: 101}}
   - file: cloud_resource_owner_backfill.go
     calls:
       - symbol: "(CloudResourceOwnerBackfiller).Backfill"

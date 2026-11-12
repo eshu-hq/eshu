@@ -189,6 +189,7 @@ const Entities = `
         "x-scoped-token-support": true,
         "parameters": [
           {"$ref": "#/components/parameters/ServiceName"},
+          {"name": "downstream_read_limit", "in": "query", "required": false, "schema": {"type": "integer", "minimum": 0, "maximum": 100}, "description": "Indirect-evidence row bound for the dependents and consumer_repositories reads. Absent means the default 25; a value above 100 clamps to 100, and the effective bound is echoed on result_limits.downstream_read_limit and the investigation coverage. Non-numeric or negative values return 400 invalid_argument."},
           {"name": "evidence_detail", "in": "query", "required": false, "schema": {"type": "string", "enum": ["full", "handles"], "default": "full"}, "description": "How deployment_evidence.artifacts and api_surface.endpoints rows are shaped. full (the HTTP default when absent) returns every row in full. handles projects artifact rows to id, relationship_type and resolved_id, endpoint rows to id, path and methods, drops deployment_evidence.evidence_index and the values built from repository content (deployment_artifacts, shared_config_paths, delivery_paths, delivery_family_paths, delivery_family_story, delivery_workflows, topology_story, relationship_overview), keeps every count, and names each reduced family with its total in truth.omissions. The MCP get_workload_context and get_service_context tools default to handles. Unknown values return 400 invalid_argument."}
         ],
         "responses": {
@@ -219,6 +220,7 @@ const Entities = `
         "x-scoped-token-support": true,
         "parameters": [
           {"$ref": "#/components/parameters/ServiceName"},
+          {"name": "downstream_read_limit", "in": "query", "required": false, "schema": {"type": "integer", "minimum": 0, "maximum": 100}, "description": "Indirect-evidence row bound for the dependents and consumer_repositories reads. Absent means the default 25; a value above 100 clamps to 100, and the effective bound is echoed on result_limits.downstream_read_limit and the investigation coverage. Non-numeric or negative values return 400 invalid_argument."},
           {"name": "service_id", "in": "query", "description": "Exact workload or service id selector. When supplied, the route resolves this id before service-name candidates.", "schema": {"type": "string"}},
           {"name": "repo", "in": "query", "description": "Repository selector that separates only services in different repositories; two same-named services in one repository stay ambiguous and need service_id. Accepts canonical repository id, repository name, slug, path, or remote URL.", "schema": {"type": "string"}},
           {"name": "environment", "in": "query", "description": "Runtime environment selector used to disambiguate duplicate service names by workload instance environment.", "schema": {"type": "string"}},
@@ -251,7 +253,7 @@ const Entities = `
                     "result_limits": {"type": "object", "description": "Bounds of the dossier lists. truncated is true when a rendered list was capped, an upstream read was truncated, the infrastructure read landed past its bound, or a deployment-artifact bound named in limitations bit."},
                     "investigation": {"type": "object"},
                     "deployment_overview": {"type": "object"},
-                    "limitations": {"type": "array", "description": "Explicit reasons the service evidence is partial, present only when one applies. deployment_artifacts_candidates_budget_reached means the request budget of 12,000 config-artifact candidates beyond the per-repository floor of 50 ran out, so the deployment_evidence config rows of at least one related repository are a lower bound; deployment_artifacts_related_file_list_truncated_at_5000 means a related repository has more than 5,000 files, so its candidates past the window are unknown; deployment_artifacts_anchor_file_list_truncated_at_5000 means the service repository itself has more than 5,000 files, so the deployment evidence read from its file list is a lower bound. Each folds into result_limits.truncated and answer_metadata.truncated.", "items": {"type": "string"}},
+                    "limitations": {"type": "array", "description": "Explicit reasons the service evidence is partial, present only when one applies. deployment_artifacts_candidates_budget_reached means the request budget of 12,000 config-artifact candidates beyond the per-repository floor of 50 ran out, so the deployment_evidence config rows of at least one related repository are a lower bound; deployment_artifacts_related_file_list_truncated_at_5000 means a related repository has more than 5,000 files, so its candidates past the window are unknown; deployment_artifacts_anchor_file_list_truncated_at_5000 means the service repository itself has more than 5,000 files, so the deployment evidence read from its file list is a lower bound; dependents_truncated, consumer_repositories_truncated and provisioning_source_chains_truncated mean the upstream indirect-evidence read feeding that list hit the downstream_read_limit bound. Each folds into result_limits.truncated and answer_metadata.truncated.", "items": {"type": "string"}},
                     "hostnames": {"type": "array", "items": {"type": "object"}},
                     "entrypoint_candidates": {"type": "array", "description": "Dotted hostname-shaped candidates kept as non-entrypoint supporting evidence when rejected as config keys or field paths, or when ambiguous without stronger hostname evidence.", "items": {"type": "object"}},
                     "entrypoints": {"type": "array", "items": {"type": "object"}},
@@ -272,6 +274,102 @@ const Entities = `
                     "support_overview": {"type": "object"},
                     "answer_metadata": {"type": "object", "description": "Normalized additive answer metadata with schema_version, evidence_handles, missing_evidence, limitations, truncated, coverage, partial_reasons, and recommended_next_calls."},
                     "evidence_boundaries": ` + schema.EvidenceBoundaries + `
+                  }
+                }
+              }
+            }
+          },
+          "400": {"$ref": "#/components/responses/BadRequest"},
+          "409": {"$ref": "#/components/responses/Conflict"},
+          "404": {"$ref": "#/components/responses/NotFound"},
+          "500": {"$ref": "#/components/responses/InternalError"}
+        }
+      }
+    },
+    "/api/v0/services/{service_name}/api-surface/endpoints": {
+      "get": {
+        "tags": ["entities"],
+        "summary": "List service API surface endpoints",
+        "description": "Returns one page of a service's API surface endpoints in path, endpoint_id order. The selector matches get_service_story (service_id, workload_id, or service_name, plus repo and environment; an ambiguous selector answers 409). The story and context dossiers keep only a 50-row api_surface preview and point here; repeat with offset set to next_offset until next_offset is absent.",
+        "operationId": "listServiceAPIEndpoints",
+        "x-scoped-token-support": true,
+        "parameters": [
+          {"$ref": "#/components/parameters/ServiceName"},
+          {"name": "service_id", "in": "query", "description": "Exact workload or service id selector. When supplied, the route resolves this id before service-name candidates.", "schema": {"type": "string"}},
+          {"name": "repo", "in": "query", "description": "Repository selector that separates only services in different repositories; two same-named services in one repository stay ambiguous and need service_id. Accepts canonical repository id, repository name, slug, path, or remote URL.", "schema": {"type": "string"}},
+          {"name": "environment", "in": "query", "description": "Runtime environment selector used to disambiguate duplicate service names by workload instance environment.", "schema": {"type": "string"}},
+          {"name": "limit", "in": "query", "required": false, "schema": {"type": "integer", "minimum": 1, "maximum": 100, "default": 50}, "description": "Endpoints per page. Defaults to 50 when absent and clamps to 100; non-positive or non-numeric values return 400 invalid_argument."},
+          {"name": "offset", "in": "query", "required": false, "schema": {"type": "integer", "minimum": 0, "default": 0}, "description": "Rows to skip, in path, endpoint_id order. Defaults to 0; repeat with offset set to the previous page's next_offset until next_offset is absent."}
+        ],
+        "responses": {
+          "403": {"$ref": "#/components/responses/Forbidden"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
+          "200": {
+            "description": "One page of service API surface endpoints",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "service_name": {"type": "string"},
+                    "endpoint_count": {"type": "integer", "description": "True total from the count query, not the page size."},
+                    "endpoints": {"type": "array", "items": {"type": "object"}},
+                    "detail_limit": {"type": "integer", "description": "Page size the detail read ran under."},
+                    "detail_truncated": {"type": "boolean", "description": "True when rows remain past this page."},
+                    "offset": {"type": "integer"},
+                    "next_offset": {"type": "integer", "description": "Absent when the page is complete; pass as offset for the next page.", "nullable": true},
+                    "ordering": {"type": "string", "description": "Deterministic page order: path, endpoint_id."}
+                  }
+                }
+              }
+            }
+          },
+          "400": {"$ref": "#/components/responses/BadRequest"},
+          "409": {"$ref": "#/components/responses/Conflict"},
+          "404": {"$ref": "#/components/responses/NotFound"},
+          "500": {"$ref": "#/components/responses/InternalError"}
+        }
+      }
+    },
+    "/api/v0/services/{service_name}/downstream-consumers": {
+      "get": {
+        "tags": ["entities"],
+        "summary": "List service downstream consumers",
+        "description": "Returns one page of a service's downstream consumer repositories in (repository, repo_id) order. The selector matches get_service_story (service_id, workload_id, or service_name, plus repo and environment; an ambiguous selector answers 409). The story and context dossier cap downstream lists at the effective read bound; page the full set here with after_repository/after_repo_id set to the previous page's next_cursor until next_cursor is absent. Counts are lower bounds, never totals: use next_cursor presence, not a total, to decide whether to continue.",
+        "operationId": "listServiceDownstreamConsumers",
+        "x-scoped-token-support": true,
+        "parameters": [
+          {"$ref": "#/components/parameters/ServiceName"},
+          {"name": "service_id", "in": "query", "description": "Exact workload or service identifier. When supplied, the route resolves this id before service-name candidates.", "schema": {"type": "string"}},
+          {"name": "repo", "in": "query", "description": "Repository selector that separates only services in different repositories; two same-named services in one repository stay ambiguous and need service_id. Accepts canonical repository id, repository name, slug, path, or remote URL.", "schema": {"type": "string"}},
+          {"name": "environment", "in": "query", "description": "Runtime environment selector used to disambiguate duplicate service names by workload instance environment.", "schema": {"type": "string"}},
+          {"name": "limit", "in": "query", "required": false, "schema": {"type": "integer", "minimum": 1, "maximum": 100, "default": 50}, "description": "Consumers per page. Defaults to 50 when absent and clamps to 100; non-positive or non-numeric values return 400 invalid_argument."},
+          {"name": "after_repository", "in": "query", "required": false, "schema": {"type": "string"}, "description": "Cursor: repository of the last row of the previous page. Must be provided together with after_repo_id; absent starts at the first row."},
+          {"name": "after_repo_id", "in": "query", "required": false, "schema": {"type": "string"}, "description": "Cursor: repo_id of the last row of the previous page. Must be provided together with after_repository."}
+        ],
+        "responses": {
+          "403": {"$ref": "#/components/responses/Forbidden"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
+          "200": {
+            "description": "One page of service downstream consumers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "service_name": {"type": "string"},
+                    "consumers": {"type": "array", "items": {"type": "object"}},
+                    "truncated": {"type": "boolean", "description": "True when more rows exist past this page or a read bound fired."},
+                    "next_cursor": {"type": "object", "description": "Absent when the page is terminal; pass after_repository/after_repo_id from it for the next page.", "nullable": true},
+                    "consumer_truncation_sources": {"type": "object", "description": "Which read bound fired: candidates, evidence_files, hostnames, searches, merge_cap."},
+                    "searched_hostnames": {"type": "array", "items": {"type": "string"}, "description": "Hostname list actually searched."},
+                    "effective_read_bound": {"type": "integer", "description": "Internal read bound the page was recomputed under."},
+                    "lower_bound": {"type": "boolean", "description": "Always true: the set is bounded, never a census."},
+                    "ordering": {"type": "string", "description": "Deterministic page order: repository, repo_id."},
+                    "page_size": {"type": "integer"},
+                    "ceiling_reached": {"type": "boolean", "description": "Present and true only when the merged set was trimmed at the internal read ceiling."}
                   }
                 }
               }

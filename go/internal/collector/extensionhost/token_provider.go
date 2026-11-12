@@ -11,12 +11,14 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/sdk"
 	"github.com/eshu-hq/eshu/go/internal/github/app"
+	"github.com/eshu-hq/eshu/go/internal/vulnsource"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
 // HostMintedGitHubTokenKey is the stdio Request.Config key carrying a
 // host-minted GitHub App installation token for one claim. The host sets it
-// per claim when Config.TokenProvider is configured; the satellite spends it
+// per claim when Config.TokenProvider is configured and the claimed target
+// opts in via auth_mode host_minted; the satellite spends it
 // as its Bearer [REDACTED] never reads the App private key. Static activation
 // config must not define this key when a provider is set: NewSource rejects
 // that combination fail-closed. Without a provider the key is never set and
@@ -27,6 +29,67 @@ import (
 // added later without a breaking change. The satellite must reject a missing
 // key, an empty token, or a scope_id mismatch terminal.
 const HostMintedGitHubTokenKey = "host_github_app_token" // #nosec G101 -- names the stdio config key, not a credential value; no secret material here
+
+// HostMintedAuthMode is the per-target auth_mode value that opts one claim
+// into host-minted tokens (eshu-hq/eshu#10483, candidate (a)): only the
+// activation config's targets entry whose scope_id equals the claimed scope
+// and whose auth_mode is exactly this value mints. Every other claim keeps
+// the static path and the provider is never consulted, so a non-opted-in
+// claim spends nothing on GitHub.
+const HostMintedAuthMode = "host_minted"
+
+// hostMintOptedIn reports whether the claimed scope opts into host-minted
+// tokens: the activation config's targets list holds an entry whose scope_id
+// equals scopeID and whose auth_mode is exactly HostMintedAuthMode. Any other
+// shape (no targets list, no entry for the scope, a different auth_mode, or a
+// non-map entry) returns false, keeping the claim on the static path. The
+// first entry matching the scope decides, so the predicate reads in list
+// order and never mints on an ambiguous later duplicate.
+//
+// A coordinator-minted GHSA window scope with no exact entry inherits its
+// anchor's verdict (eshu-hq/eshu#10533): when no entry names the window scope
+// itself and vulnsource.GHSAStreamScopeID resolves an anchor, the same
+// first-match rule runs against the anchor scope id. A configured window entry
+// still decides first, and a parser-rejected lookalike inherits nothing.
+func hostMintOptedIn(config map[string]any, scopeID string) bool {
+	raw, ok := config["targets"]
+	if !ok {
+		return false
+	}
+	entries, ok := raw.([]any)
+	if !ok {
+		return false
+	}
+	for _, entry := range entries {
+		target, ok := entry.(map[string]any)
+		if !ok {
+			continue
+		}
+		scope, _ := target["scope_id"].(string)
+		if scope != scopeID {
+			continue
+		}
+		mode, _ := target["auth_mode"].(string)
+		return mode == HostMintedAuthMode
+	}
+	anchor, ok := vulnsource.GHSAStreamScopeID(scopeID)
+	if !ok {
+		return false
+	}
+	for _, entry := range entries {
+		target, ok := entry.(map[string]any)
+		if !ok {
+			continue
+		}
+		scope, _ := target["scope_id"].(string)
+		if scope != anchor {
+			continue
+		}
+		mode, _ := target["auth_mode"].(string)
+		return mode == HostMintedAuthMode
+	}
+	return false
+}
 
 // TokenProvider mints one GitHub App installation token for a claimed work
 // item. The host owns the App credentials: implementations close over the App
@@ -57,20 +120,23 @@ type AppTokenProviderConfig struct {
 	AppID         string
 	PrivateKey    string
 	Installations map[string]string
-	// InstallationKey is consulted only after an exact scope match misses. Nil
-	// keeps the exact-match table as the whole rule.
+	// InstallationKey is consulted only after an exact scope match and the
+	// GHSA window-anchor fallback both miss. Nil keeps the exact-match plus
+	// anchor table as the whole rule.
 	InstallationKey InstallationKeyResolver
 	BaseURL         string
 	HTTPClient      *http.Client
 }
 
 // NewAppTokenProvider builds the production TokenProvider: per claim it
-// selects the installation for the claimed scope ID, or for the key
+// selects the installation for the claimed scope ID, for the anchor of a
+// coordinator-minted GHSA window scope (eshu-hq/eshu#10533), or for the key
 // InstallationKey resolves for a derived scope, and mints one short-lived
 // installation token with app.MintInstallationToken. An unknown scope fails
 // closed with a bounded *app.ConfigError (terminal auth_denied downstream);
 // the App key stays host-side and only the minted token crosses to the
-// satellite.
+// satellite. The minted token keeps the claimed WINDOW scope id: the anchor
+// only selects the installation.
 func NewAppTokenProvider(cfg AppTokenProviderConfig) (TokenProvider, error) {
 	appID := strings.TrimSpace(cfg.AppID)
 	privateKey := strings.TrimSpace(cfg.PrivateKey)
@@ -90,7 +156,13 @@ func NewAppTokenProvider(cfg AppTokenProviderConfig) (TokenProvider, error) {
 		installations[reservedOwnerKey(scopeID)] = installationID
 	}
 	return func(ctx context.Context, item workflow.WorkItem) (string, error) {
-		installationID, ok := installations[strings.TrimSpace(item.ScopeID)]
+		scopeID := strings.TrimSpace(item.ScopeID)
+		installationID, ok := installations[scopeID]
+		if !ok {
+			if anchor, anchorOK := vulnsource.GHSAStreamScopeID(scopeID); anchorOK {
+				installationID, ok = installations[anchor]
+			}
+		}
 		if !ok && cfg.InstallationKey != nil {
 			key, err := cfg.InstallationKey(ctx, item)
 			if err != nil {

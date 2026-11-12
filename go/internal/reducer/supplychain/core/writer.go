@@ -90,7 +90,7 @@ func (w PostgresSupplyChainImpactWriter) WriteSupplyChainImpactFindings(
 			return SupplyChainImpactWriteResult{}, fmt.Errorf("marshal supply chain impact payload: %w", err)
 		}
 		factID := supplyChainImpactFactID(write, finding)
-		meta = append(meta, changedRow{factID: factID, stableKey: supplyChainImpactStableFactKey(write, finding), digest: digest, cveID: finding.CVEID, advisoryID: finding.AdvisoryID, ident: dirtyIdentifierOf(typed)})
+		meta = append(meta, changedRow{factID: factID, stableKey: supplyChainImpactStableFactKey(write, finding), digest: digest, cveID: finding.CVEID, advisoryID: finding.AdvisoryID, members: finding.AdvisoryGroupMembers, ident: dirtyIdentifierOf(typed)})
 		rows = append(rows, factwrite.VersionedRow{
 			FactID:           factID,
 			ScopeID:          write.ScopeID,
@@ -124,11 +124,12 @@ func (w PostgresSupplyChainImpactWriter) WriteSupplyChainImpactFindings(
 		FactsRetracted:    retracted,
 		ChangedCVEIDs:     outcome.changedCVEs,
 		DerivedCVEIDs:     outcome.derivedCVEs,
+		TouchedGroupIDs:   outcome.touchedGroups,
 		ScopedCVEIDs:      write.ScopedCVEIDs,
 		EvidenceComplete:  !write.PartialEvidence,
 		RecoveryCVEIDs:    outcome.recoveryCVEs,
 		SuppressionCVEIDs: outcome.suppressionCVEs,
-		TouchedGroupIDs:   outcome.touchedGroups,
+		Rekey:             outcome.rekey,
 		suppressionDiff:   outcome.suppression,
 		PassStateSkipped:  outcome.passStateSkipped,
 		EvidenceSummary: fmt.Sprintf(
@@ -346,47 +347,6 @@ func supplyChainImpactSuppressionState(decision SupplyChainSuppressionDecision) 
 		return SupplyChainSuppressionStateActive
 	}
 	return decision.State
-}
-
-func supplyChainImpactSuppressionPayload(decision SupplyChainSuppressionDecision) map[string]any {
-	state := supplyChainImpactSuppressionState(decision)
-	out := map[string]any{
-		"state": string(state),
-	}
-	if decision.SuppressionID != "" {
-		out["suppression_id"] = decision.SuppressionID
-	}
-	if decision.Source != "" {
-		out["source"] = decision.Source
-	}
-	if decision.Justification != "" {
-		out["justification"] = decision.Justification
-	}
-	if decision.Author != "" {
-		out["author"] = decision.Author
-	}
-	if !decision.AuthoredAt.IsZero() {
-		out["authored_at"] = decision.AuthoredAt.UTC().Format(time.RFC3339)
-	}
-	if !decision.ExpiresAt.IsZero() {
-		out["expires_at"] = decision.ExpiresAt.UTC().Format(time.RFC3339)
-	}
-	if decision.Reason != "" {
-		out["reason"] = decision.Reason
-	}
-	if decision.EvidenceRef != "" {
-		out["evidence_ref"] = decision.EvidenceRef
-	}
-	if decision.VEXDocumentID != "" {
-		out["vex_document_id"] = decision.VEXDocumentID
-	}
-	if decision.VEXStatementID != "" {
-		out["vex_statement_id"] = decision.VEXStatementID
-	}
-	// Always return the payload so the reducer publishes a deterministic
-	// "active" decision when no suppression matched; this lets the API
-	// filter by suppression_state without nullable-payload guards.
-	return out
 }
 
 func serializeFixedVersionBranches(values []FixedVersionBranch) []map[string]any {

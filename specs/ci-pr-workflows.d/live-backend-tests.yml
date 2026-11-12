@@ -112,7 +112,6 @@ workflows:
   - go/internal/cli/hookpreflight/AGENTS.md
   - go/internal/cli/hookpreflight/README.md
   - go/internal/collector/README.md
-  - go/internal/collector/sbom/SHIM_MAP.md
   - go/internal/content/artifacts/README.md
   - go/internal/deploy/testdata/8871-eshu-deploy-census.md
   - go/internal/deploy/testdata/8871-eshu-deploy-contract.md
@@ -126,6 +125,7 @@ workflows:
   - go/internal/reducer/testdata/5998-rationale-relative-path.md
   - go/internal/runtime/README.md
   - go/internal/runtime/testdata/8894-component-extension-activations.md
+  - go/internal/storage/postgres/evidence-holder-covering-index-h3.md
   - go/internal/workflow/parity/contention/README.md
   jobs:
   - live-backend

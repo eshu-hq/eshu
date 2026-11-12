@@ -125,10 +125,13 @@ type Config struct {
 	StatusRecorder      StatusRecorder
 	Clock               func() time.Time
 	// TokenProvider, when set, mints one GitHub App installation token per
-	// claim and injects it into the request config under
-	// HostMintedGitHubTokenKey. The App private key stays host-side: only
-	// the minted token crosses the stdio boundary. Nil preserves the
-	// static config byte-identically (the token_env escape hatch).
+	// opted-in claim and injects it into the request config under
+	// HostMintedGitHubTokenKey: a claim mints when its targets entry
+	// carries auth_mode host_minted, or when it carries a host-resolved
+	// derived target (eshu-hq/eshu#10483). The App private key stays
+	// host-side: only the minted token crosses the stdio boundary. Nil,
+	// or a static claim without the opt-in, preserves the static config
+	// byte-identically (the token_env escape hatch).
 	TokenProvider TokenProvider
 	// Grants carries core-issued producer authorizations consulted when
 	// the manifest declares core-owned fact kinds. Nil grants deny: a

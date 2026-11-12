@@ -20,7 +20,7 @@ byte-equivalence comes from the same base pins, apk floors, pin-gate,
 and static caller build flags.
 
 Base pins: `alpine:3.21@sha256:48b0309c…` and
-`golang:1.26.10-alpine@sha256:9ce231b2…` (identical to the satellite
+`golang:1.26.11-alpine@sha256:ae52b5bc…` (identical to the satellite
 Dockerfile). Engine pins per arch from
 `specs/satellite-pins/ocr.{amd64,arm64}.json` (binary, 22-library set,
 model, version `5.5.0` — all asserted by the in-image gates).

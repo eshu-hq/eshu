@@ -58,7 +58,6 @@ main() {
     go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-collector-git" ./cmd/collector-git
     go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-collector-component-extension" ./cmd/collector-component-extension
     go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-collector-package-registry" ./cmd/collector-package-registry
-    go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-collector-sbom-attestation" ./cmd/collector-sbom-attestation
     go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-collector-cicd-run" ./cmd/collector-cicd-run
     go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-collector-pagerduty" ./cmd/collector-pagerduty
     go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-collector-grafana" ./cmd/collector-grafana
@@ -73,7 +72,7 @@ main() {
     # satellite release under that name. Same tag pin as the gates
     # (scripts/lib/golden-corpus-host-helpers.sh); override with ESHU_MCP_REF
     # only to measure another satellite release.
-    : "${ESHU_MCP_REF:=v0.2.8}"
+    : "${ESHU_MCP_REF:=v0.2.14}"
     MCP_SRC_DIR="$(mktemp -d)"
     git clone --depth 1 --branch "$ESHU_MCP_REF" https://github.com/eshu-hq/eshu-mcp.git "$MCP_SRC_DIR"
     echo "eshu-mcp $ESHU_MCP_REF resolved to $(git -C "$MCP_SRC_DIR" rev-parse HEAD)"

@@ -201,16 +201,25 @@ type ClaimPacingDeferral struct {
 	// again. It is always positive on a deferral the dispatcher returns.
 	RetryAfter time.Duration
 	Stuck      bool
+	// unknownSignal carries the wire value a boundary remap widened to
+	// the protective default (#10377). Empty on every non-remapped
+	// deferral. It renders in the operator log line only, never in a
+	// metric label.
+	unknownSignal string
 }
 
 // Error describes the paced grant for operator logs.
 func (e ClaimPacingDeferral) Error() string {
-	if e.Stuck {
-		return fmt.Sprintf("claim pacing engaged on %s depth (domain %q): grant delayed %s, engagement stuck past its bound",
-			e.Signal, e.Domain, e.RetryAfter)
+	remapped := ""
+	if e.unknownSignal != "" {
+		remapped = fmt.Sprintf(", unknown wire signal %q widened to global", e.unknownSignal)
 	}
-	return fmt.Sprintf("claim pacing engaged on %s depth (domain %q): grant delayed %s",
-		e.Signal, e.Domain, e.RetryAfter)
+	if e.Stuck {
+		return fmt.Sprintf("claim pacing engaged on %s depth (domain %q): grant delayed %s, engagement stuck past its bound%s",
+			e.Signal, e.Domain, e.RetryAfter, remapped)
+	}
+	return fmt.Sprintf("claim pacing engaged on %s depth (domain %q): grant delayed %s%s",
+		e.Signal, e.Domain, e.RetryAfter, remapped)
 }
 
 // RetryAfterDelay exposes the grant delay on the existing retry-after path.

@@ -133,6 +133,27 @@ func TestTriageFailureConsistencyWithRetryable(t *testing.T) {
 	}
 }
 
+// TestTriageFailureAdmissionTimeoutTerminalDegradesToTimeout proves the
+// defense-in-depth terminal mapping for an admission wait timeout (#10502).
+// The error is retryable by construction so the live path never lands here;
+// if the authority ever marked one terminal, triage must degrade it to the
+// generic timeout bucket, never the projection_bug poison bucket, with a
+// disposition consistent with a non-retryable cause.
+func TestTriageFailureAdmissionTimeoutTerminalDegradesToTimeout(t *testing.T) {
+	t.Parallel()
+
+	record := TriageFailure(admissionTimeoutStub{timeout: true}, "project_work_item", false, false)
+	if record.FailureClass != string(TriageClassTimeout) {
+		t.Fatalf("FailureClass = %q, want %q", record.FailureClass, TriageClassTimeout)
+	}
+	if !triageRecordHas(record.Details, "disposition=non_retryable") {
+		t.Fatalf("details = %q, want disposition=non_retryable", record.Details)
+	}
+	if !triageRecordHas(record.Details, "class=admission_timeout") {
+		t.Fatalf("details = %q, want the classification preserved as class=admission_timeout", record.Details)
+	}
+}
+
 // TestTriageFailureContextCanceledTimeout proves a context-cancellation cause
 // that the authority marked retryable but exhausted lands in the retry_exhausted
 // bucket while preserving the timeout failure code for diagnosis.

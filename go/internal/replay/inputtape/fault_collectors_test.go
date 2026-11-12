@@ -48,7 +48,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/pagerduty"
 	"github.com/eshu-hq/eshu/go/internal/collector/registry/oci/distribution"
 	packageruntime "github.com/eshu-hq/eshu/go/internal/collector/registry/package/runtime"
-	"github.com/eshu-hq/eshu/go/internal/collector/sbom/runtime"
 	"github.com/eshu-hq/eshu/go/internal/collector/securityalerts"
 	"github.com/eshu-hq/eshu/go/internal/replay/inputtape"
 	"gopkg.in/yaml.v3"
@@ -193,18 +192,10 @@ func collectorFaultCases() []collectorFaultCase {
 				return err
 			},
 		},
-		{
-			surface: "collector:sbom_attestation",
-			collect: func() error {
-				provider := runtime.HTTPProvider{HTTPClient: timeoutFaultClient()}
-				_, err := provider.FetchDocument(context.Background(), runtime.TargetConfig{
-					ScopeID:     "sbom:instance:prod",
-					SourceType:  runtime.SourceTypeConfigured,
-					DocumentURL: "https://attestations.invalid/sbom.json",
-				})
-				return err
-			},
-		},
+		// The SBOM attestation boundary moved to the extracted
+		// satellite (eshu-hq/eshu#10450): core owns no document HTTP
+		// client to fault-probe anymore, so this table carries no sbom
+		// case. The satellite owns its client fault behavior.
 	}
 }
 

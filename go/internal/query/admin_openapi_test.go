@@ -41,6 +41,7 @@ func TestOpenAPISpecAdminPathsMatchMountedContract(t *testing.T) {
 		"/api/v0/admin/dead-letters/query",
 		"/api/v0/admin/dead-letter",
 		"/api/v0/admin/skip",
+		"/api/v0/admin/workflow-retire-unclaimed",
 		"/api/v0/admin/replay",
 		"/api/v0/admin/reopen",
 		"/api/v0/admin/backfill",
@@ -89,6 +90,10 @@ func (s *specAdminStore) DeadLetterWorkItems(_ context.Context, _ admin.DeadLett
 }
 
 func (s *specAdminStore) SkipRepositoryWorkItems(_ context.Context, _ string, _ string) ([]admin.WorkItem, error) {
+	return nil, nil
+}
+
+func (s *specAdminStore) RetireUnclaimedWorkflowItems(_ context.Context, _, _, _ string) ([]admin.RetiredUnclaimedItem, error) {
 	return nil, nil
 }
 

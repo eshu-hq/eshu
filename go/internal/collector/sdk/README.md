@@ -277,8 +277,8 @@ failure classes stay local.
 
 No-Regression Evidence (#2381): `go test ./internal/collector/sdk
 ./internal/collector/registry/oci/distribution
-./internal/collector/registry/oci/runtime ./internal/collector/sbom/runtime
-./cmd/collector-oci-registry ./cmd/collector-sbom-attestation -count=1` covers
+./internal/collector/registry/oci/runtime
+./cmd/collector-oci-registry -count=1` covers
 SDK base URL credential rejection, default client construction, SDK HTTP error
 causes for status and transport failures, Distribution ping, tag, manifest,
 blob, referrer, and token behavior, OCI runtime warning handling, and the SBOM
@@ -290,13 +290,13 @@ counters, warning facts, status surfaces, and shared collector metrics. Metric
 labels remain bounded and do not include registry hosts, repository paths, tags,
 digests, URLs, token values, or credential material.
 
-Line-count marker (#2384): SBOM configured-document fetches now reuse the SDK
+Line-count marker (#2384, historical — sbom runtime extracted to the satellite under #10450): SBOM configured-document fetches then reused the SDK
 default HTTP client constructor, bounded `HTTPError` values, and `Retry-After`
 parsing. SBOM-owned arbitrary document body reads, auth header construction,
-OCI referrer delegation, document identity, and source URI redaction stay local
-to `internal/collector/sbom/runtime`.
+OCI referrer delegation, document identity, and source URI redaction stayed local
+to `internal/collector/sbom/runtime` until extraction.
 
-No-Regression Evidence (#2384): `go test ./internal/collector/sbom/runtime -run
+No-Regression Evidence (#2384, historical — commands below predate the #10450 extraction): `go test ./internal/collector/sbom/runtime -run
 'TestHTTPProviderConfiguredSource(StatusFailure|TransportFailure)' -count=1`
 covers bounded SDK HTTP status and transport causes, retry-after preservation,
 registry failure class/details compatibility, configured document response-body

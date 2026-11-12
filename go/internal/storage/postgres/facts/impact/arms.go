@@ -186,7 +186,7 @@ func upstreamScopeArm(b *binder) string {
 // kindDisjunction renders every arm that applies to one kind, with the kind
 // gates dropped (the statement already fixes the kind). It is exact for that
 // kind: the retired predicate restricted to the kind is this disjunction, plus
-// the upstream scope arm for suppressions.
+// the upstream scope arm and the alias-member arms for suppressions.
 func kindDisjunction(b *binder, kind string) string {
 	var parts []string
 	for _, candidate := range renderedArms() {
@@ -199,8 +199,30 @@ func kindDisjunction(b *binder, kind string) string {
 	}
 	if kind == KindSuppression {
 		parts = append(parts, upstreamScopeArm(b))
+		parts = append(parts, aliasSuppressionArms(b)...)
 	}
 	return "(\n      " + strings.Join(parts, "\n      OR ") + "\n  )"
+}
+
+// aliasSuppressionArms matches suppressions naming an alias member the pass
+// discovered in-pass (#10408). A merge or split retires the dead record while
+// the survivor's aliases still name the dead id, so no CVE/advisory arm names
+// it anymore; without these arms the dead-id suppression never loads and the
+// merged finding silently resurfaces. The top-level arms mirror the advisory
+// arm's exact match and the scope arms mirror the normalized scope arms over
+// the lowered alias twin. Like upstreamScopeArm, these are not retired arms:
+// the pre-#8880 predicate had no such list, and the guard does not read them.
+func aliasSuppressionArms(b *binder) []string {
+	aliasRef := b.list(AliasIDs)
+	lowerRef := b.list(LowerAliasIDs)
+	top := func(key string) string {
+		return "(cardinality(" + aliasRef + ") > 0 AND (fact.payload->>'" + key + "' = ANY(" + aliasRef + ")))"
+	}
+	scoped := func(key string) string {
+		return "(cardinality(" + lowerRef + ") > 0 AND lower(btrim(fact.payload->'scope'->>'" + key + "', " +
+			SuppressionScopeTrimCharactersSQL + ")) = ANY(" + lowerRef + "))"
+	}
+	return []string{top("cve_id"), top("advisory_id"), scoped("cve_id"), scoped("advisory_id")}
 }
 
 // retiredDisjunction renders the full retired predicate with its kind gates,

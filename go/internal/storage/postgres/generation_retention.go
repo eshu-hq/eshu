@@ -69,8 +69,9 @@ func NewGenerationRetentionStore(database db.ExecQueryer) GenerationRetentionSto
 // prune transaction, which admits only drained generations, and through the
 // runner's orphan sweep.
 //
-// Before it locks anything it checks that all five retention key indexes
-// (migrations 146, 147, 058, 182, 183) are valid; if any is not, it refuses
+// Before it locks anything it checks that every retention key index (the
+// #7279 pair, the #7420 sidecar partition indexes, and the generation
+// indexes of migrations 292 and 294) is valid; if any is not, it refuses
 // with ErrGenerationRetentionKeyIndexUnavailable, changing nothing (#7279).
 func (s GenerationRetentionStore) PruneSupersededGenerations(
 	ctx context.Context,

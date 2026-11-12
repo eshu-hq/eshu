@@ -95,6 +95,23 @@ func TestAdvisoryGroupWinnersQualifyingLive(t *testing.T) {
 	if _, ok := byRepo["repo-agw-mismatch"]; !ok {
 		t.Fatalf("QualifyingAdvisoryGroupWinners() must include the scope_mismatch row in %#v", got)
 	}
+	// Absent or NULL provenance still qualifies with nil members and its
+	// purl intact (#10475).
+	for repo, purl := range map[string]string{
+		"repo-agw-noprov":   "pkg:npm/pkg-agw-noprov@1.0.0",
+		"repo-agw-nullprov": "pkg:npm/pkg-agw-nullprov@1.0.0",
+	} {
+		row, ok := byRepo[repo]
+		if !ok {
+			t.Fatalf("QualifyingAdvisoryGroupWinners() must include the %s row in %#v", repo, got)
+		}
+		if row.Members != nil {
+			t.Fatalf("%s members = %q, want nil without provenance", repo, row.Members)
+		}
+		if row.PURL != purl {
+			t.Fatalf("%s purl = %q, want %q", repo, row.PURL, purl)
+		}
+	}
 	for _, excluded := range []string{
 		"repo-agw-fixed", "repo-agw-unknown", "repo-agw-hidden",
 		"repo-agw-retracted", "repo-agw-future", "repo-agw-derived",
@@ -196,9 +213,26 @@ INSERT INTO fact_records (
 ) VALUES ($1, $2, $3, 'reducer_supply_chain_impact_finding', $1,
           'synthetic', $1, NOW(), NOW(), $4::jsonb)`,
 		p+"fact-members", p+"scope", p+"gen",
-		`{"purl": "pkg:npm/pkg-agw-a@1.2.3", "advisory_group_members": ["GHSA-10411-m1", "GHSA-10411-m2"]}`,
+		`{"purl": "pkg:npm/pkg-agw-a@1.2.3", "provenance": {"advisory_group_members": ["GHSA-10411-m1", "GHSA-10411-m2"]}}`,
 	); err != nil {
 		t.Fatalf("insert winner fact: %v", err)
+	}
+	// #10475: facts with absent or NULL provenance must project nil
+	// members without error.
+	for fact, payload := range map[string]string{
+		p + "fact-noprov":   `{"purl": "pkg:npm/pkg-agw-noprov@1.0.0"}`,
+		p + "fact-nullprov": `{"purl": "pkg:npm/pkg-agw-nullprov@1.0.0", "provenance": null}`,
+	} {
+		if _, err := db.ExecContext(ctx, `
+INSERT INTO fact_records (
+  fact_id, scope_id, generation_id, fact_kind, stable_fact_key,
+  source_system, source_fact_key, observed_at, ingested_at, payload
+) VALUES ($1, $2, $3, 'reducer_supply_chain_impact_finding', $1,
+          'synthetic', $1, NOW(), NOW(), $4::jsonb)`,
+			fact, p+"scope", p+"gen", payload,
+		); err != nil {
+			t.Fatalf("insert no-provenance winner fact %q: %v", fact, err)
+		}
 	}
 
 	type winner struct {
@@ -222,6 +256,8 @@ INSERT INTO fact_records (
 		{"other", p + "missing-fact", "static-scope", "affected_exact", "repo-agw-other", "pkg-agw-other", "npm", advisoryGroupWinnersLiveOther, "GHSA-10411-O", "active", nil},
 		{"dismissed", p + "missing-fact", "static-scope", "affected_exact", "repo-agw-dismissed", "pkg-agw-dismissed", "npm", advisoryGroupWinnersLiveGroupA, "GHSA-10411-A", "provider_dismissed", nil},
 		{"mismatch", p + "missing-fact", "static-scope", "affected_exact", "repo-agw-mismatch", "pkg-agw-mismatch", "npm", advisoryGroupWinnersLiveGroupA, "GHSA-10411-A", "scope_mismatch", nil},
+		{"noprov", p + "fact-noprov", "static-scope", "affected_exact", "repo-agw-noprov", "pkg-agw-noprov", "npm", advisoryGroupWinnersLiveGroupA, "GHSA-10411-A", "active", nil},
+		{"nullprov", p + "fact-nullprov", "static-scope", "possibly_affected", "repo-agw-nullprov", "pkg-agw-nullprov", "npm", advisoryGroupWinnersLiveGroupA, "GHSA-10411-A", "active", nil},
 	}
 	for _, row := range seed {
 		if _, err := db.ExecContext(ctx, `

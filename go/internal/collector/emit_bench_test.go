@@ -60,10 +60,10 @@ func (d *drainCommitter) CommitScopeGeneration(
 // fact-level cassettes). Until that lands, per-collector fact-builder cost is
 // measured by the dedicated parse/build benchmarks where the input is already
 // credential-free and local — BenchmarkParseStream_LargeState
-// (collector/terraformstate), the SBOM document parser bench
-// (collector/sbom/document), and the git snapshot benches
+// (collector/terraformstate), and the git snapshot benches
 // (git_snapshot_delta_bench_test.go, git_selection_scale_bench_test.go) — not by
-// this service-path table.
+// this service-path table. The SBOM document parser bench left with the
+// extracted collector (eshu-hq/eshu#10450); the satellite owns its parse cost.
 func BenchmarkEmit(b *testing.B) {
 	for _, c := range emitBenchCases() {
 		c := c

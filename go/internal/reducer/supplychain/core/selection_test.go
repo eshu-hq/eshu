@@ -135,16 +135,16 @@ func evaluateSupplyChainSuppressionStableSortReference(
 	}
 
 	if picked := stableSortReferencePick(active); picked != nil {
-		return decisionFromActiveOperatorSuppression(*picked)
+		return withMatchedIdentity(finding, *picked, decisionFromActiveOperatorSuppression(*picked))
 	}
 	if picked := stableSortReferencePick(provider); picked != nil {
-		return decisionFromProviderSuppression(*picked)
+		return withMatchedIdentity(finding, *picked, decisionFromProviderSuppression(*picked))
 	}
 	if picked := stableSortReferencePick(expired); picked != nil {
-		return decisionFromExpiredSuppression(*picked)
+		return withMatchedIdentity(finding, *picked, decisionFromExpiredSuppression(*picked))
 	}
 	if picked := stableSortReferencePick(mismatched); picked != nil {
-		return decisionFromScopeMismatch(finding, *picked)
+		return withMatchedIdentity(finding, *picked, decisionFromScopeMismatch(finding, *picked))
 	}
 	return SupplyChainSuppressionDecision{State: SupplyChainSuppressionStateActive}
 }

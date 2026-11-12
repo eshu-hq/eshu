@@ -267,4 +267,7 @@ var orderedBootstrapDefinitionNamesEarly = []string{
 	"cloud_resource_retract_liveness_stats",
 }
 
-var orderedBootstrapDefinitionNames = append(orderedBootstrapDefinitionNamesEarly, orderedBootstrapDefinitionNamesLate...)
+var orderedBootstrapDefinitionNames = append(
+	append(orderedBootstrapDefinitionNamesEarly, orderedBootstrapDefinitionNamesLate...),
+	orderedBootstrapDefinitionNamesLatest...,
+)

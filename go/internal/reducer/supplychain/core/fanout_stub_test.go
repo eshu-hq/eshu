@@ -105,10 +105,10 @@ func (s *stubFanOut) OwedRecorder(reducercontract.Intent) FanOutOwedRecorder {
 	return stubOwed{port: s}
 }
 
-func (s *stubFanOut) FindHolderScopes(_ context.Context, ownScopeID string, cveIDs []string) ([]string, error) {
+func (s *stubFanOut) FindHolderScopes(_ context.Context, ownScopeID string, lookupIDs []string) ([]string, error) {
 	s.reads = append(s.reads, "rows")
 	s.findOwn = append(s.findOwn, ownScopeID)
-	s.findCalls = append(s.findCalls, append([]string(nil), cveIDs...))
+	s.findCalls = append(s.findCalls, append([]string(nil), lookupIDs...))
 	if s.findErr != nil {
 		return nil, s.findErr
 	}

@@ -100,10 +100,10 @@ func assertNoOrphanFactKeys(t *testing.T, ctx context.Context, database *sql.DB,
 // (#7420): with the per-fact foreign keys dropped, a whole-generation prune
 // deletes every key sidecar row of the pruned generation, reports the counts
 // in RowsPruned and FactKeyRowsPruned, and keeps the active generation's
-// keys. With clean keys the batch's pre-count (FactKeyRowsCounted) equals
-// the delete, so the runner logs no WARN. A planted orphan manifest key (no
-// fact) is deleted with its generation but missed by the pre-count, which
-// joins the keys to their facts: that is the difference the runner WARNs on.
+// keys. The batch's pre-count (FactKeyRowsCounted) equals the delete, so
+// the runner logs no WARN. A planted orphan manifest key (no fact) is
+// counted too since #10512: the pre-count reads the delete's (scope_id,
+// generation_id) envelope directly instead of joining keys to their facts.
 func TestGenerationRetentionNormalPruneLeavesNoOrphanFactKeysLive(t *testing.T) {
 	bridgeRetentionFamilyDSN(t)
 	for _, plantOrphan := range []bool{false, true} {
@@ -145,10 +145,9 @@ VALUES ('keys-normal-orphan', $1, $2, 'repo-keys', 'npm', 'pkg-orphan')`, scope,
 			t.Fatalf("fixture seeded no %s rows for the pruned generation", table)
 		}
 	}
+	// #10512: the direct pre-count charges the planted orphan too, so
+	// counted equals pruned in both cases.
 	wantCounted := maps.Clone(want)
-	if plantOrphan {
-		wantCounted[factkeys.ManifestConsumptionTable]--
-	}
 
 	store := NewGenerationRetentionStore(SQLDB{DB: database})
 	store.Now = func() time.Time { return now }

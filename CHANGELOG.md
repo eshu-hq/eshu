@@ -9,6 +9,50 @@ recent shipped work grouped by feature area.
 
 ## Unreleased
 
+### Golden corpus gate jobs get a budget that fits their measured runtime
+
+- **Corpus gate job cap aligned to measured durations**
+  ([#10505](https://github.com/eshu-hq/eshu/issues/10505)). Successful
+  `corpus-gate` and differential-capture runs reach 29.7 minutes against
+  the old 30-minute job cap, so healthy runs were cancelled at the cap in
+  about a third of attempts. Both jobs now use `timeout-minutes: 45`;
+  measurement and rationale are in
+  `docs/internal/evidence/10505-golden-corpus-job-cap.md`. No gate
+  assertion or snapshot tolerance changes.
+
+### The Ack journal cost gate no longer reads environment drift as journal cost
+
+- **Deterministic Ack journal cost measurement**
+  ([#10500](https://github.com/eshu-hq/eshu/issues/10500)).
+  `TestProjectorAckJournalCost` now pins planner state before measuring
+  (VACUUM ANALYZE with autovacuum off on the Ack-path tables), settles
+  backend counter snapshots after force-flush, and judges block bounds
+  on the median per-round paired delta with per-round deltas logged. A CI
+  attempt read +45 blocks against the 40 bound where local runs read +11
+  with identical WAL and statement counts; per-round deltas oscillate
+  with batch order, which the old mean-of-means aggregation let poison
+  the verdict. Bound values and the seeded-RED check are unchanged; block aggregation is deliberately more tolerant of a single drifted round.
+
+### A VEX statement naming one alias now suppresses the whole advisory group
+
+- **Suppressions match through the advisory-group member set**
+  ([#10409](https://github.com/eshu-hq/eshu/issues/10409)). Each scope
+  `cve_id`/`advisory_id` is tested against the grouped finding's member ids
+  plus its own `cve_id`/`advisory_id`, conjunctive per field, so a GHSA id
+  carried in `cve_id` (or a CVE in `advisory_id`) still names the group;
+  `upstream`/`related` ids never widen matching. Decisions record
+  `matched_id`, `matched_field`, and `matched_via` (`direct` or
+  `group_member`) on the suppression block. Suppression diff rows carry
+  advisory ids on both sides, so advisory-scoped changes reopen holders.
+  The unreachable-scope counter now counts only suppressions naming
+  neither id and is renamed to
+  `eshu_dp_supply_chain_impact_suppression_no_identity_scope_total`;
+  `eshu_dp_supply_chain_impact_suppression_identity_matched_total` meters
+  direct vs group-member matches. A per-pass candidate index replaces the
+  findings-times-suppressions scan (44.7 ms to 1.30 ms on the
+  spread-identity benchmark). See
+  [alias-suppression evidence](docs/internal/evidence/10409-alias-suppression.md).
+
 ### A capped CVE holder fan-out no longer strands its remaining holders
 
 - **A fan-out continuation superseded by a newer generation still drains**

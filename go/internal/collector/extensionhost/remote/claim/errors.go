@@ -69,15 +69,46 @@ func (e *PacedError) Error() string {
 // RetryAfterDelay exposes the grant delay on the retry-after path.
 func (e *PacedError) RetryAfterDelay() time.Duration { return e.RetryAfter }
 
+// remapUnknownPacingSignal applies the #10377 doctrine on the remote
+// path: a non-blank unknown signal widens to the protective global
+// default with the domain cleared, preserving the backoff directive.
+// Blank passes through untouched: the satellite contract requires the
+// signal on a deferral, so blank stays under Validate exactly as
+// before. It reports whether it remapped and the raw value, so the
+// caller keeps the raw diagnosable without ever making it a label.
+//
+// Counting differs from the in-tree path by necessity: the seam
+// Observer carries grant allow/deny decisions only, so a remap merges
+// into the global-paced backoff counts downstream and stays
+// diagnosable in the bounded detail text below.
+func remapUnknownPacingSignal(deferral *workflowv1.ClaimPacingDeferral) (remapped bool, unknown string) {
+	raw := string(deferral.Signal)
+	if raw == "" {
+		return false, ""
+	}
+	if err := deferral.Signal.Validate(); err == nil {
+		return false, ""
+	}
+	deferral.Signal = workflowv1.ClaimPacingSignalGlobal
+	deferral.Domain = ""
+	return true, raw
+}
+
 // deferralError builds the issued=false paced error. The server-supplied
 // domain is scrubbed and bounded in the stored deferral, and the rendered
-// text is scrubbed then bounded once more.
-func (c *Client) deferralError(deferral workflowv1.ClaimPacingDeferral) error {
+// text is scrubbed then bounded once more. unknownSignal carries the raw
+// wire value a boundary remap widened; empty on every non-remapped
+// deferral.
+func (c *Client) deferralError(deferral workflowv1.ClaimPacingDeferral, unknownSignal string) error {
 	deferral.Domain = boundMessage(c.scrub(deferral.Domain))
+	text := deferral.Error()
+	if unknownSignal != "" {
+		text += fmt.Sprintf(", unknown wire signal %q widened to global", unknownSignal)
+	}
 	return &PacedError{
 		Deferral:   deferral,
 		RetryAfter: deferral.RetryAfter,
-		detail:     boundMessage(c.scrub(deferral.Error())),
+		detail:     boundMessage(c.scrub(text)),
 	}
 }
 

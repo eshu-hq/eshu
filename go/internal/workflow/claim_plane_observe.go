@@ -26,6 +26,11 @@ const (
 	ClaimPlaneOutcomeNotFound ClaimPlaneOutcome = "not_found"
 	// ClaimPlaneOutcomePaced is a paced envelope.
 	ClaimPlaneOutcomePaced ClaimPlaneOutcome = "paced"
+	// ClaimPlaneOutcomePacingSignalUnknown is a paced or pacing-consult
+	// response whose signal wire value failed boundary validation and was
+	// widened to the protective global default (#10377). It replaces ok
+	// for that request so remaps stay countable under a bounded outcome.
+	ClaimPlaneOutcomePacingSignalUnknown ClaimPlaneOutcome = "pacing_signal_unknown"
 	// ClaimPlaneOutcomeInvalid is an invalid or version_mismatch envelope:
 	// the request or protocol version was refused.
 	ClaimPlaneOutcomeInvalid ClaimPlaneOutcome = "invalid"

@@ -57,8 +57,8 @@ func commitLaneGeneration(now time.Time) scope.ScopeGeneration {
 }
 
 // commitLaneResult builds one complete SDK result echoing the mutation epoch:
-// every fact carries the fenced target in its source ref, the way the
-// sbom-shadow child derives refs from the claim it ran under.
+// every fact carries the fenced target in its source ref, the way a stdio
+// satellite child derives refs from the claim it ran under.
 func commitLaneResult(mutation workflow.ClaimMutation, factCount int) sdkcollector.Result {
 	resultFacts := make([]sdkcollector.Fact, 0, factCount)
 	for i := 0; i < factCount; i++ {

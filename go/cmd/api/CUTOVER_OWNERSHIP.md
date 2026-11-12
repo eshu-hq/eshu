@@ -71,7 +71,7 @@ the `querycontract.CoreReadContractsVersion` port set.
 | AdminTerminalFailure | terminal-failure ack store + replay ledger | ack + ledger via admission contracts |
 | AdminIdentityMutations | identity stores (roles, IdP mappings) | via admission contract (AdminIdentityAdmission v0) |
 | AdminProviderConfigMutations | provider-config stores | via admission contracts (ProviderConfigMutationAdmission v0 + ProviderConfigReadAdmission v0) |
-| SignInPolicyMutations | sign-in-policy store | via admission contract |
+| SignInPolicyMutations | sign-in-policy store | via admission contract (SignInPolicyAdmission v0) |
 | LocalIdentity | identity/session/token stores | session issuance via admission contract |
 | BrowserSessions | browser-session store | session lifecycle via admission contract |
 | Setup | bootstrap stores | first-run flow via admission contract (SetupAdmission v0) |
@@ -193,7 +193,9 @@ the `querycontract.CoreReadContractsVersion` port set.
 | `GET /api/v0/semantic/code-hints` | SemanticEvidence | paths/search/semantic_evidence.go | read | reader (ReadStore/graph/content, no durable writes) | newRouter |
 | `GET /api/v0/semantic/documentation-observations` | SemanticEvidence | paths/search/semantic_evidence.go | read | reader (ReadStore/graph/content, no durable writes) | newRouter |
 | `GET /api/v0/service-catalog/correlations` | ServiceCatalog | paths/service/catalog.go | read | reader (ReadStore/graph/content, no durable writes) | newRouter |
+| `GET /api/v0/services/{service_name}/api-surface/endpoints` | Entities | paths/search/entities.go | read | reader (ReadStore/graph/content, no durable writes) | newRouter |
 | `GET /api/v0/services/{service_name}/context` | Entities | paths/search/entities.go | read | reader (ReadStore/graph/content, no durable writes) | newRouter |
+| `GET /api/v0/services/{service_name}/downstream-consumers` | Entities | paths/search/entities.go | read | reader (ReadStore/graph/content, no durable writes) | newRouter |
 | `GET /api/v0/services/{service_name}/intelligence-report` | ServiceIntelHTTP | paths/service/intelligence_report.go | read | reader (ReadStore/graph/content, no durable writes) | wireAPI |
 | `GET /api/v0/services/{service_name}/story` | Entities | paths/search/entities.go | read | reader (ReadStore/graph/content, no durable writes) | newRouter |
 | `GET /api/v0/status/answer-narration` | Status | paths/status/answer_narration.go | read | reader (StatusReader/ReadStore; writer handle held for governance audit reads) | newRouter |
@@ -251,6 +253,7 @@ the `querycontract.CoreReadContractsVersion` port set.
 | `POST /api/v0/admin/repository-retirements` | AdminRetirement | paths/status/repository_retirement.go | mutation | writer: retirement marker/fencer/purger stores | newRouter |
 | `POST /api/v0/admin/skip` | Admin | paths/status/admin.go | mutation | writer: Postgres recovery/reindex/dead-letter/queue stores | newRouter |
 | `POST /api/v0/admin/work-items/query` | Admin | paths/status/admin.go | read | writer: Postgres recovery/reindex/dead-letter/queue stores | newRouter |
+| `POST /api/v0/admin/workflow-retire-unclaimed` | Admin | paths/status/workflow_retire_unclaimed.go | mutation | writer: Postgres workflow control store | newRouter |
 | `POST /api/v0/answer-quality/score` | CLISupport | paths/cli/score.go | read | none (pure function of the request body; no store reads or writes) | wireAPI |
 | `POST /api/v0/ask` | Ask | paths/search/ask.go | read | reader (ReadStore/graph/content, no durable writes) | wireAPI |
 | `POST /api/v0/auth/admin/idp-group-mappings` | AdminIdentityMutations | paths/auth/admin_reads.go | mutation | writer: identity stores (roles, IdP mappings) | newRouter |

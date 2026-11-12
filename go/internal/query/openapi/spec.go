@@ -107,6 +107,7 @@ func Spec() string {
 			status.DeltaUnionCompleteness+
 			status.ReindexProgress+
 			status.RepositoryRetirement+
+			status.WorkflowRetireUnclaimed+
 			status.CollectorTerminalFailureAcknowledgement+
 			infrastructure.Routes+
 			search.GraphEntities+

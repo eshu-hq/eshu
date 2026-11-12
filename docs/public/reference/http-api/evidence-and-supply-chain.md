@@ -1607,9 +1607,7 @@ warning), never fabricates these fields. A well-formed predicate with no
 reported `builder.id` still surfaces `slsa_provenance_predicate_type` with an
 empty `slsa_provenance_builder_id`.
 
-No-Regression Evidence: `go test ./internal/collector/sbom/runtime -run
-'TestClaimedSource.*SLSA'
--count=1` and `go test ./internal/reducer -run
+No-Regression Evidence (collector command predates the #10450 sbom-runtime extraction; reducer/query/MCP commands still run): `go test ./internal/reducer/sbomattest -run
 'TestBuildSBOMAttestationAttachmentDecisions.*SLSAProvenance'
 -count=1` and `go test ./internal/query -run
 'Test(DecodeSBOMAttestationAttachmentRowSurfacesSLSAProvenance|SupplyChainListSBOMAttestationAttachmentsSurfacesSLSAProvenanceWire)'

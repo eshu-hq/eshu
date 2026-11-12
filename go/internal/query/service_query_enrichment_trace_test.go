@@ -222,7 +222,10 @@ func TestTraceDeploymentChainBoundsCrossRepoSearchByMaxDepth(t *testing.T) {
 	if !foundAnyRepoSearch {
 		t.Fatal("did not observe any cross-repo consumer search query")
 	}
-	if got, want := searchLimit, int64(20); got != want {
-		t.Fatalf("cross-repo search limit = %d, want %d for max_depth=2", got, want)
+	// The +1 probe fetches one row past the caller's bound to distinguish
+	// "exactly at the bound" (complete) from "more rows exist" (truncated),
+	// so the SQL carries limit+1 while the disclosed bound stays 20.
+	if got, want := searchLimit, int64(20+1); got != want {
+		t.Fatalf("cross-repo search limit = %d, want %d for max_depth=2 (bound 20 plus the +1 truncation probe)", got, want)
 	}
 }

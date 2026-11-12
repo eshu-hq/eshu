@@ -20,17 +20,19 @@ func main() {
 
 // run dispatches to Ifá's subcommands. "coverage", "expectations", "drive",
 // "graph-dump", "assert-edges", "assert-gcp-project-edge-scopes", "materialize-platform-prerequisite",
-// "materialize-workload-endpoints",
+// "materialize-workload-endpoints", "enqueue-advisory-groups",
 // "mutate-cassette", "dead-letters", and "synth-cassette" are full
 // subcommands with their own flag sets (coverage.go,
 // expectations.go, drive.go, graph_dump.go, assert_edges.go,
 // assert_gcp_project_edge_scopes.go,
-// materialize_platform_prerequisite.go, mutate_cassette.go, dead_letters.go,
+// materialize_platform_prerequisite.go, enqueue_advisory_groups.go,
+// mutate_cassette.go, dead_letters.go,
 // synth_cassette.go); everything else
 // falls through to the top-level -version flag the P0 skeleton shipped,
 // preserving that contract unchanged. ctx is threaded through to "drive",
 // "graph-dump", "assert-edges", "assert-gcp-project-edge-scopes",
-// "materialize-platform-prerequisite", "materialize-workload-endpoints", and
+// "materialize-platform-prerequisite", "materialize-workload-endpoints",
+// "enqueue-advisory-groups", and
 // "dead-letters" — the subcommands that perform live I/O (Postgres or the
 // graph backend) a caller may need to cancel; "mutate-cassette",
 // "synth-cassette", and the other subcommands are pure disk-and-memory
@@ -54,6 +56,8 @@ func run(ctx context.Context, args []string, stdout io.Writer, stderr io.Writer)
 			return runMaterializePlatformPrerequisiteCommand(ctx, args[1:], stdout, stderr)
 		case "materialize-workload-endpoints":
 			return runMaterializeWorkloadEndpointsCommand(ctx, args[1:], stdout, stderr)
+		case "enqueue-advisory-groups":
+			return runEnqueueAdvisoryGroupsCommand(ctx, args[1:], stdout, stderr)
 		case "mutate-cassette":
 			return runMutateCassetteCommand(args[1:], stdout, stderr)
 		case "dead-letters":
@@ -75,7 +79,7 @@ func run(ctx context.Context, args []string, stdout io.Writer, stderr io.Writer)
 	}
 	if flags.NArg() > 0 {
 		flags.Usage()
-		return fmt.Errorf("ifa: unknown subcommand %q (want coverage, expectations, drive, graph-dump, assert-edges, assert-gcp-project-edge-scopes, materialize-platform-prerequisite, materialize-workload-endpoints, mutate-cassette, dead-letters, synth-cassette, or -version)", flags.Arg(0))
+		return fmt.Errorf("ifa: unknown subcommand %q (want coverage, expectations, drive, graph-dump, assert-edges, assert-gcp-project-edge-scopes, materialize-platform-prerequisite, materialize-workload-endpoints, enqueue-advisory-groups, mutate-cassette, dead-letters, synth-cassette, or -version)", flags.Arg(0))
 	}
 	flags.Usage()
 	return nil

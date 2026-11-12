@@ -6,7 +6,9 @@ package core
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite"
@@ -34,10 +36,13 @@ type fakeImpactTxState struct {
 	// test can make the fencing admission report a rejection (0 rows).
 	rowsAffected map[string]int64
 	// stored feeds the changed-row read inside the write transaction; cveRows
-	// feeds the recovery CVE read. A nil queryErr means the reads succeed.
-	stored   []fakeStoredFinding
-	cveRows  []string
-	queryErr error
+	// feeds the recovery CVE read, with cveMembers carrying each recovery
+	// row's advisory group member set (#10408). A nil queryErr means the
+	// reads succeed.
+	stored     []fakeStoredFinding
+	cveRows    []string
+	cveMembers map[string][]string
+	queryErr   error
 	// candidates feeds the suppression diff baseline read; diffPairs feeds
 	// one pair read, keyed by (prior, current) generation id; wholeGen feeds
 	// the no-baseline whole-generation read (#10019).
@@ -61,6 +66,20 @@ type fakeStoredFinding struct {
 	cveID        string
 	advisoryID   string
 	fencingToken int64
+	// members is the advisory-group member set the row's provenance carries
+	// (#10408). The fake renders it as the JSON text the production select
+	// projects, so the read path parses exactly what Postgres returns.
+	members []string
+}
+
+// fakeImpactMembersJSON renders a member set the way the production selects
+// project it: a JSON array, '[]' when the finding carries none.
+func fakeImpactMembersJSON(members []string) string {
+	if len(members) == 0 {
+		return "[]"
+	}
+	encoded, _ := json.Marshal(members)
+	return string(encoded)
 }
 
 // fakeImpactRows is a SupplyChainImpactRows over fixed rows of scan values.
@@ -73,6 +92,9 @@ func (r *fakeImpactRows) Next() bool   { r.at++; return r.at <= len(r.rows) }
 func (r *fakeImpactRows) Err() error   { return nil }
 func (r *fakeImpactRows) Close() error { return nil }
 func (r *fakeImpactRows) Scan(dest ...any) error {
+	if len(dest) != len(r.rows[r.at-1]) {
+		return fmt.Errorf("fakeImpactRows: scan %d destinations for %d values", len(dest), len(r.rows[r.at-1]))
+	}
 	for i, value := range r.rows[r.at-1] {
 		switch d := dest[i].(type) {
 		case *string:
@@ -132,13 +154,13 @@ func (t fakeImpactTx) QueryContext(_ context.Context, query string, args ...any)
 	case listStoredSupplyChainImpactFindingsQuery:
 		rows := make([][]any, 0, len(t.state.stored))
 		for _, row := range t.state.stored {
-			rows = append(rows, []any{row.factID, row.generationID, row.stableKey, row.digest, row.cveID, row.advisoryID, row.fencingToken})
+			rows = append(rows, []any{row.factID, row.generationID, row.stableKey, row.digest, row.cveID, row.advisoryID, row.fencingToken, fakeImpactMembersJSON(row.members)})
 		}
 		return &fakeImpactRows{rows: rows}, nil
 	case listSupplyChainImpactCVEIDsQuery:
 		rows := make([][]any, 0, len(t.state.cveRows))
 		for _, id := range t.state.cveRows {
-			rows = append(rows, []any{id})
+			rows = append(rows, []any{id, fakeImpactMembersJSON(t.state.cveMembers[id])})
 		}
 		return &fakeImpactRows{rows: rows}, nil
 	case listSupplyChainImpactGroupIDsQuery:
@@ -188,11 +210,12 @@ func (t fakeImpactTx) Commit() error   { t.state.commits++; return nil }
 func (t fakeImpactTx) Rollback() error { t.state.rollbacks++; return nil }
 
 // suppressionDiffFakeRows renders diff rows as the pair and whole-generation
-// reads return them: suppression id, current CVE id, prior CVE id.
+// reads return them: suppression id, current CVE id, prior CVE id, current
+// advisory id, prior advisory id.
 func suppressionDiffFakeRows(rows []suppressionDiffRow) [][]any {
 	out := make([][]any, 0, len(rows))
 	for _, row := range rows {
-		out = append(out, []any{row.SuppressionID, row.CurrentCVEID, row.PriorCVEID})
+		out = append(out, []any{row.SuppressionID, row.CurrentCVEID, row.PriorCVEID, row.CurrentAdvisoryID, row.PriorAdvisoryID})
 	}
 	return out
 }

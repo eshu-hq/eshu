@@ -36,6 +36,14 @@ type QueryEnrichmentOptions struct {
 	// querycontract.BoundedTraceEnrichmentLimit; it is clamped, not passed
 	// through unchecked.
 	MaxDepth int
+	// DownstreamReadLimit names the indirect-evidence row bound directly
+	// (#10477): when positive it replaces the MaxDepth-derived trace limit
+	// via querycontract.BoundedDownstreamReadLimit, and the effective bound
+	// is echoed on workloadContext["downstream_read_limit"] so the result
+	// limits and the investigation coverage report the bound that actually
+	// fired. Zero (the default) keeps the legacy MaxDepth-derived behavior
+	// so existing callers see no change.
+	DownstreamReadLimit int
 	// Logger receives per-stage timing logs (StartServiceQueryStage); a nil
 	// Logger disables that logging, it does not panic.
 	Logger *slog.Logger
@@ -144,6 +152,13 @@ func EnrichServiceQueryContextWithOptions(
 	if graph != nil {
 		hostnames := serviceEvidenceHostnames(evidence)
 		traceLimit := querycontract.BoundedTraceEnrichmentLimit(opts.MaxDepth)
+		if opts.DownstreamReadLimit > 0 {
+			traceLimit = querycontract.BoundedDownstreamReadLimit(opts.DownstreamReadLimit)
+		}
+		// Echo the effective bound so every downstream reader -- the story
+		// result limits, the workload result limits, and the investigation
+		// coverage -- names the bound its reads actually ran under (#10477).
+		workloadContext["downstream_read_limit"] = traceLimit
 		candidates := []deployment.ProvisioningRepositoryCandidate{}
 		// #5720 round-2 P1-1: deployment.QueryProvisioningRepositoryCandidates is the
 		// sole production feeder for dependents, consumer_repositories, and
@@ -214,6 +229,11 @@ func EnrichServiceQueryContextWithOptions(
 			// one; see docs/public/reference/http-api/context-and-stories.md.
 			if candidatesTruncated {
 				workloadContext["dependents_truncated"] = true
+				// Single writer (#10477): the flag and its limitation token
+				// are written together, so the story (which reads the flag)
+				// and the context (which promotes the token via
+				// ContextPartialReasons) agree by construction.
+				appendWorkloadLimitationOnce(workloadContext, "dependents_truncated")
 			}
 			timer.Done(ctx, slog.Int("row_count", len(candidates)))
 
@@ -229,7 +249,7 @@ func EnrichServiceQueryContextWithOptions(
 			// candidate slice, which this file read does not touch, so
 			// stamping them would report a bound that never applied to those
 			// lists.
-			consumers, consumersTruncated, err := deployment.LoadConsumerRepositoryEnrichmentFromCandidates(ctx, graph, content, repoID, serviceName, hostnames, traceLimit, candidates, candidatesTruncated, evidence.filesTruncated)
+			consumers, consumerSources, err := deployment.LoadConsumerRepositoryEnrichmentWithSources(ctx, graph, content, repoID, serviceName, hostnames, traceLimit, candidates, candidatesTruncated, evidence.filesTruncated)
 			timer.Done(ctx, slog.Int("row_count", len(consumers)))
 			if err != nil {
 				return fmt.Errorf("load consumer repository enrichment: %w", err)
@@ -242,8 +262,20 @@ func EnrichServiceQueryContextWithOptions(
 			// candidate slice this enrichment feeds in, so an entirely
 			// filtered-away consumer list must still disclose that the read
 			// underneath it hit its bound.
-			if consumersTruncated {
+			//
+			// The merged flag keeps its meaning (any source fired) while the
+			// per-bound sources travel beside it, so the investigation coverage
+			// can name which bound fired instead of reading the merged bool
+			// (#10477). Both keys stay sparse: present only when true.
+			if consumerSources.Any() {
 				workloadContext["consumer_repositories_truncated"] = true
+				appendWorkloadLimitationOnce(workloadContext, "consumer_repositories_truncated")
+			}
+			if consumerSources.Downstream() {
+				workloadContext["consumer_repositories_downstream_truncated"] = true
+			}
+			if consumerSources.EvidenceFiles {
+				workloadContext["consumer_repositories_evidence_file_truncated"] = true
 			}
 		}
 
@@ -261,6 +293,7 @@ func EnrichServiceQueryContextWithOptions(
 			// dependents_truncated above.
 			if candidatesTruncated {
 				workloadContext["provisioning_source_chains_truncated"] = true
+				appendWorkloadLimitationOnce(workloadContext, "provisioning_source_chains_truncated")
 			}
 		}
 		if len(querycontract.MapSliceValue(workloadContext, "cloud_resources")) == 0 {
@@ -389,4 +422,20 @@ func EnrichServiceQueryContextWithOptions(
 	timer.Done(ctx)
 
 	return nil
+}
+
+// appendWorkloadLimitationOnce appends reason to workloadContext["limitations"]
+// once, so a repeatedly truncated enrichment cannot stack the same token.
+// ContextPartialReasons promotes the slice to partial_reasons, which is how
+// the context surface learns about a bound the flags alone cannot carry to it
+// (#10477).
+func appendWorkloadLimitationOnce(workloadContext map[string]any, reason string) {
+	if reason == "" {
+		return
+	}
+	limitations := querycontract.StringSliceVal(workloadContext, "limitations")
+	if querycontract.ContainsString(limitations, reason) {
+		return
+	}
+	workloadContext["limitations"] = append(limitations, reason)
 }

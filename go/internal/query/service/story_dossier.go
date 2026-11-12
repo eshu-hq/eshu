@@ -26,6 +26,9 @@ func enrichServiceStoryDossierResponseWithContext(response map[string]any, build
 	response["downstream_consumers"] = BuildServiceDownstreamConsumers(workloadContext)
 	response["evidence_graph"] = buildServiceEvidenceGraph(workloadContext)
 	response["result_limits"] = buildServiceResultLimitsWithContext(buildCtx)
+	// The raw copies render under the same downstream-follows-read rule as
+	// the dossier block above (#10535).
+	downstreamRenderLimit := querycontract.EffectiveDownstreamRenderLimit(workloadContext, serviceStoryItemLimit)
 	rawContextLimits := map[string]any{}
 	for _, key := range []string{
 		"hostnames",
@@ -42,7 +45,7 @@ func enrichServiceStoryDossierResponseWithContext(response map[string]any, build
 		"limitations",
 	} {
 		if value, ok := workloadContext[key]; ok && value != nil {
-			bounded, limit := boundedServiceStoryRawValue(value)
+			bounded, limit := boundedServiceStoryRawValue(key, value, downstreamRenderLimit)
 			response[key] = bounded
 			if len(limit) > 0 {
 				rawContextLimits[key] = limit
@@ -258,8 +261,15 @@ func serviceUpstreamDependencyRows(workloadContext map[string]any) []map[string]
 }
 
 func BuildServiceDownstreamConsumers(workloadContext map[string]any) map[string]any {
-	dependents, graphTruncated := CapMapRows(querycontract.MapSliceValue(workloadContext, "dependents"), serviceStoryItemLimit)
-	consumers, contentTruncated := CapMapRows(querycontract.MapSliceValue(workloadContext, "consumer_repositories"), serviceStoryItemLimit)
+	// #10535 follow-up to #10477: the downstream lists render under the
+	// effective read bound when a route named an explicit
+	// downstream_read_limit above the preview cap, so an explicitly
+	// requested row is never discarded by render with no continuation.
+	// With no explicit request the bound sits at the shared default (25),
+	// below the preview cap, and this is byte-identical to the 50-row cap.
+	renderLimit := querycontract.EffectiveDownstreamRenderLimit(workloadContext, serviceStoryItemLimit)
+	dependents, graphTruncated := CapMapRows(querycontract.MapSliceValue(workloadContext, "dependents"), renderLimit)
+	consumers, contentTruncated := CapMapRows(querycontract.MapSliceValue(workloadContext, "consumer_repositories"), renderLimit)
 	// #5720 round-2 P1-1: graphTruncated/contentTruncated only fire once the
 	// row count exceeds serviceStoryItemLimit (50), but the underlying
 	// provisioning-candidate read is bounded well below that by default
@@ -320,6 +330,14 @@ func buildServiceResultLimitsWithContext(buildCtx serviceStoryBuildContext) map[
 	upstreamTruncated := querycontract.BoolVal(workloadContext, "dependents_truncated") ||
 		querycontract.BoolVal(workloadContext, "consumer_repositories_truncated") ||
 		querycontract.BoolVal(workloadContext, "provisioning_source_chains_truncated")
+	effectiveDownstreamLimit := querycontract.BoundedTraceEnrichmentLimit(0)
+	if bound := querycontract.IntVal(workloadContext, "downstream_read_limit"); bound > 0 {
+		effectiveDownstreamLimit = querycontract.BoundedDownstreamReadLimit(bound)
+	}
+	// Render follows the explicit read on the downstream lists (#10535
+	// follow-up to #10477); every other family keeps the 50-row preview.
+	downstreamRenderLimit := querycontract.EffectiveDownstreamRenderLimit(workloadContext, serviceStoryItemLimit)
+	serviceName := querycontract.SafeStr(workloadContext, "name")
 	return map[string]any{
 		"limit": serviceStoryItemLimit,
 		// #5720 round-7 P2-5: `limit` is the 50-row serviceStoryItemLimit that
@@ -334,7 +352,14 @@ func buildServiceResultLimitsWithContext(buildCtx serviceStoryBuildContext) map[
 		// from that function rather than restating the constant keeps the two
 		// from drifting. A future route that both passes a non-zero MaxDepth
 		// and renders this block would have to thread its own bound here.
-		"downstream_read_limit": querycontract.BoundedTraceEnrichmentLimit(0),
+		// #10477: a route that names an explicit downstream_read_limit threads
+		// it through enrichment onto the workload context, and this block
+		// echoes that effective bound instead of the default.
+		"downstream_read_limit": effectiveDownstreamLimit,
+		// The cap the downstream lists actually rendered under: the
+		// effective read bound when explicitly requested above the
+		// preview, else the 50-row limit above (#10535).
+		"downstream_render_limit": downstreamRenderLimit,
 		// PR #5933 review fix (Codex): downstream_read_limit alone implied
 		// truncated: true always means "more than 25 downstream rows
 		// existed". That is true for dependents_truncated/
@@ -352,10 +377,21 @@ func buildServiceResultLimitsWithContext(buildCtx serviceStoryBuildContext) map[
 		"endpoint_count":           endpointCount,
 		"upstream_count":           upstreamCount,
 		"downstream_count":         consumerCount,
-		"truncated":                endpointCount > serviceStoryItemLimit || upstreamCount > serviceStoryItemLimit || dependentCount > serviceStoryItemLimit || contentConsumerCount > serviceStoryItemLimit || infrastructureTruncated || upstreamTruncated,
+		"truncated":                endpointCount > serviceStoryItemLimit || upstreamCount > serviceStoryItemLimit || dependentCount > downstreamRenderLimit || contentConsumerCount > downstreamRenderLimit || infrastructureTruncated || upstreamTruncated,
 		"drilldown_basis":          "resolved_id",
 		"relationship_tool":        "get_relationship_evidence",
-		"service_context_path":     "/api/v0/services/" + querycontract.SafeStr(workloadContext, "name") + "/context",
+		"service_context_path":     "/api/v0/services/" + serviceName + "/context",
+		// #10477: the dossier api_surface stays a 50-row preview; the full
+		// ordered endpoint set pages through this drilldown instead of a
+		// dossier-level offset that would re-run the whole enrichment.
+		"endpoint_list_tool": "list_service_api_endpoints",
+		"endpoint_list_path": "/api/v0/services/" + serviceName + "/api-surface/endpoints",
+		// #10535: the downstream consumer lists render up to the read
+		// bound; beyond it the full keyset-ordered set pages through this
+		// drilldown instead of a dossier-level cursor that would re-run
+		// the whole enrichment.
+		"consumer_list_tool": "list_service_downstream_consumers",
+		"consumer_list_path": "/api/v0/services/" + serviceName + "/downstream-consumers",
 	}
 }
 

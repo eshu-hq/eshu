@@ -214,7 +214,7 @@ func TestNextClaimedReportsOneResultForEveryFinalState(t *testing.T) {
 			runner := &recordingRunner{result: tc.result(item), err: tc.runnerErr}
 			source := mustNewSource(t, runner, recorder)
 			if tc.provider != nil {
-				source = mustNewSourceWithProvider(t, runner, recorder, tc.provider, nil)
+				source = mustNewSourceWithProvider(t, runner, recorder, tc.provider, hostMintTargetsConfig(item.ScopeID, HostMintedAuthMode))
 			}
 			if tc.outcomeErr != nil {
 				source = mustNewSourceWithOutcomeRecorder(t, runner, recorder, &recordingOutcomeRecorder{outcomeErr: tc.outcomeErr})

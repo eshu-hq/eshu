@@ -49,6 +49,11 @@ const (
 	// cve_id and advisory_id over it, so the until-stable loop closes the
 	// load over the full alias graph (#10407).
 	AliasIDs
+	// LowerAliasIDs is the lower-cased, cleaned twin of AliasIDs the
+	// suppression scope arms compare against: scope ids are operator-typed
+	// free text while alias members keep record case, so the scope match
+	// folds case the way the Go member matcher does (#10408).
+	LowerAliasIDs
 	// paramEnd ends the block so TestEveryParamIsClassified reaches every
 	// list added above it; TestEveryParamConstantIsBelowSentinel fails if any
 	// Param reaches it.
@@ -85,6 +90,8 @@ func (p Param) LowerTwin() (Param, bool) {
 		return LowerRepositoryIDs, true
 	case AdvisoryIDs:
 		return LowerAdvisoryIDs, true
+	case AliasIDs:
+		return LowerAliasIDs, true
 	default:
 		return 0, false
 	}

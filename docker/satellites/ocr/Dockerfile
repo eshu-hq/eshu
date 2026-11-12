@@ -25,7 +25,7 @@
 # see docker/satellites/README.md.
 
 ARG ESHU_ALPINE_IMAGE=alpine:3.21@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d
-ARG ESHU_GO_IMAGE=golang:1.26.10-alpine@sha256:9ce231b28998b32e116927c61aa5c406183061d4f3f2d61b292c88e7f6bdf7ca
+ARG ESHU_GO_IMAGE=golang:1.26.11-alpine@sha256:ae52b5bc6ed045a9ed26ab03dc19327a802a9cc9aa8b27ed57f5c6b60579b0bb
 
 # go-caller: statically linked eshu-collector-document-import. The caller
 # transitively needs CGO (tree-sitter parser bindings), so this builds with
@@ -67,7 +67,7 @@ RUN apk add --no-cache \
         "libsharpyuv>=1.4.0-r0" "musl>=1.2.5-r12" "libgcc>=14.2.0-r4" \
         "libgomp>=14.2.0-r4" "libstdc++>=14.2.0-r4" "giflib>=5.2.2-r2" \
         "libjpeg-turbo>=3.0.4-r0" "libpng>=1.6.59-r0" "tiff>=4.7.2-r0" \
-        "zlib>=1.3.2-r1" "zstd-libs>=1.5.6-r2" \
+        "zlib>=1.4-r0" "zstd-libs>=1.5.6-r2" \
         "libssl3>=3.3.7-r2" "libcrypto3>=3.3.7-r2"
 COPY --from=go-caller /go-bin/eshu-collector-document-import /usr/local/bin/eshu-collector-document-import
 # Build-time digest gate over the binary, the runtime shared-object set,

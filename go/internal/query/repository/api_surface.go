@@ -5,6 +5,7 @@ package repository
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
@@ -58,6 +59,74 @@ func QueryRepoAPISurface(ctx context.Context, reader querycontract.GraphQuery, p
 		return nil, false
 	}
 	return buildGraphAPISurface(rows, endpointCount), false
+}
+
+// QueryRepoAPISurfacePaged reads one API endpoint page for a repository at
+// the Cypher read (#10477): the same count query reports the true total while
+// the detail read carries SKIP $offset LIMIT $limit beside ORDER BY path,
+// endpoint_id (the repository-list pagination shape proven on the pinned
+// backend), so page N never re-reads or Go-slices an earlier page. The
+// unpaged QueryRepoAPISurface above keeps its own query text byte-identical
+// (cassette and snapshot stability); this variant shares only the row mapping.
+// A non-positive limit falls back to the endpoint cap and a negative offset
+// to zero; callers that must answer 400 on those validate before calling.
+func QueryRepoAPISurfacePaged(ctx context.Context, reader querycontract.GraphQuery, params map[string]any, limit, offset int) (map[string]any, error) {
+	if limit <= 0 {
+		limit = repositoryAPISurfaceEndpointLimit
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	countRows, err := reader.Run(ctx, `
+		MATCH (r:Repository {id: $repo_id})-[:EXPOSES_ENDPOINT]->(endpoint:Endpoint)
+		RETURN count(endpoint) AS endpoint_count
+	`, params)
+	if err != nil {
+		return nil, fmt.Errorf("query repository API surface endpoint count: %w", err)
+	}
+	endpointCount := 0
+	if len(countRows) > 0 {
+		endpointCount = querycontract.IntVal(countRows[0], "endpoint_count")
+	}
+	detailParams := querycontract.CopyMap(params)
+	detailParams["limit"] = limit
+	detailParams["offset"] = offset
+	rows, err := reader.Run(ctx, `
+		MATCH (r:Repository {id: $repo_id})-[:EXPOSES_ENDPOINT]->(endpoint:Endpoint)
+		RETURN endpoint.id AS endpoint_id,
+		       endpoint.path AS path,
+		       endpoint.methods AS methods,
+		       endpoint.operation_ids AS operation_ids,
+		       endpoint.source_kinds AS source_kinds,
+		       endpoint.source_paths AS source_paths,
+		       endpoint.spec_versions AS spec_versions,
+		       endpoint.api_versions AS api_versions,
+		       endpoint.evidence_source AS evidence_source,
+		       endpoint.workload_id AS workload_id,
+		       endpoint.workload_name AS workload_name
+		ORDER BY path, endpoint_id
+		SKIP $offset
+		LIMIT $limit
+	`, detailParams)
+	if err != nil {
+		return nil, fmt.Errorf("query repository API surface endpoint page: %w", err)
+	}
+	// An empty result still builds the surface (endpoint_count 0, or an
+	// offset past the end) so the paging contract holds either way: the
+	// caller reads the true total off every page. Only a read error returns
+	// nil.
+	surface := buildGraphAPISurface(rows, endpointCount)
+	// The shared mapper stamps the legacy endpoint cap; a page is bounded by
+	// the caller's limit instead, and detail_truncated means rows exist past
+	// this page (not merely past the preview cap).
+	surface["detail_limit"] = limit
+	pageTruncated := offset+len(rows) < endpointCount
+	surface["detail_truncated"] = pageTruncated
+	surface["offset"] = offset
+	if pageTruncated {
+		surface["next_offset"] = offset + len(rows)
+	}
+	return surface, nil
 }
 
 // buildGraphAPISurface converts Endpoint nodes into the API surface contract.

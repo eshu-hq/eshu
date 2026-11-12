@@ -241,6 +241,12 @@ var guardedDirectMaterializedEdgeFamilies = []guardedDirectFamily{
 		EdgeTypes:  []string{"HAS_INTENDED_ROUTING", "HAS_APPLIED_ROUTING", "HAS_LIVE_ROUTING"},
 		LiveProven: true,
 	},
+	{
+		Family:     advisoryGroupFamily,
+		OduName:    ifa.AdvisoryGroupFamilyOduName,
+		EdgeTypes:  []string{"AFFECTED_BY"},
+		LiveProven: true,
+	},
 }
 
 // guardedDirectFamilyCoverageEntry builds the coverage entry a ledger row for

@@ -1,0 +1,95 @@
+name: Retry artifact upload
+description: Upload a workflow artifact with bounded retries for the transient artifact-service flake, failing closed on real errors.
+inputs:
+  name:
+    description: Artifact name, passed straight through to actions/upload-artifact.
+    required: true
+  path:
+    description: Artifact path(s), passed straight through to actions/upload-artifact. May be multiline.
+    required: true
+  if-no-files-found:
+    description: Passed straight through to actions/upload-artifact.
+    required: false
+    default: warn
+runs:
+  using: composite
+  steps:
+    # D2 artifact-upload hardening (PR #10561): every upload-artifact step in
+    # the build / live-backend / replay-coverage / delta-union /
+    # verify-contracts surfaces calls this wrapper instead of
+    # actions/upload-artifact directly. The retry loop below exists for ONE
+    # signature only: the transient artifact-service HTML-response flake
+    # (`Unexpected token '<'`, the service answering the blob API with an
+    # error page). A missing source is a REAL error, not a flake, so the
+    # guard fails fast with no retry when if-no-files-found is error; a
+    # persistent service failure exhausts all 3 attempts and the verify step
+    # fails the job. Retries never convert a real error into green.
+    - name: Guard upload sources exist (fail fast, no retry)
+      id: guard
+      if: ${{ always() }}
+      shell: bash
+      env:
+        WRAPPER_PATH: ${{ inputs.path }}
+        WRAPPER_IF_NO_FILES_FOUND: ${{ inputs.if-no-files-found }}
+      run: |
+        set -euo pipefail
+        matched=0
+        while IFS= read -r pattern || [ -n "${pattern}" ]; do
+          trimmed="$(printf '%s' "${pattern}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+          [ -z "${trimmed}" ] && continue
+          if [ -n "$(compgen -G "${trimmed}" | head -n 1)" ]; then
+            matched=1
+            break
+          fi
+        done <<< "${WRAPPER_PATH}"
+        if [ "${matched}" -eq 0 ] && [ "${WRAPPER_IF_NO_FILES_FOUND}" = "error" ]; then
+          printf '::error::retry-upload-artifact: no files match the upload path, failing fast without retry (a missing source is a real error, never retried)\n' >&2
+          exit 1
+        fi
+        printf 'retry-upload-artifact: source check done (matched=%s, if-no-files-found=%s)\n' "${matched}" "${WRAPPER_IF_NO_FILES_FOUND}"
+    - name: Upload artifact (attempt 1 of 3)
+      id: upload-attempt-1
+      if: ${{ always() && steps.guard.outcome == 'success' }}
+      continue-on-error: true
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.name }}
+        path: ${{ inputs.path }}
+        if-no-files-found: ${{ inputs.if-no-files-found }}
+    - name: Re-upload artifact on service flake (attempt 2 of 3)
+      id: upload-attempt-2
+      if: ${{ always() && steps.upload-attempt-1.outcome == 'failure' }}
+      continue-on-error: true
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.name }}
+        path: ${{ inputs.path }}
+        if-no-files-found: ${{ inputs.if-no-files-found }}
+    - name: Re-upload artifact on service flake (attempt 3 of 3)
+      id: upload-attempt-3
+      if: ${{ always() && steps.upload-attempt-2.outcome == 'failure' }}
+      continue-on-error: true
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.name }}
+        path: ${{ inputs.path }}
+        if-no-files-found: ${{ inputs.if-no-files-found }}
+    - name: Verify artifact upload (fail-closed)
+      if: ${{ always() }}
+      shell: bash
+      env:
+        ATTEMPT_1: ${{ steps.upload-attempt-1.outcome }}
+        ATTEMPT_2: ${{ steps.upload-attempt-2.outcome }}
+        ATTEMPT_3: ${{ steps.upload-attempt-3.outcome }}
+        ARTIFACT_NAME: ${{ inputs.name }}
+      run: |
+        set -euo pipefail
+        if [ "${ATTEMPT_1}" = "success" ]; then
+          exit 0
+        fi
+        if [ "${ATTEMPT_2}" = "success" ] || [ "${ATTEMPT_3}" = "success" ]; then
+          printf 'retry-upload-artifact: artifact %s uploaded on retry (attempt outcomes: %s/%s/%s)\n' "${ARTIFACT_NAME}" "${ATTEMPT_1}" "${ATTEMPT_2}" "${ATTEMPT_3}"
+          exit 0
+        fi
+        printf '::error::retry-upload-artifact: artifact %s failed all 3 upload attempts (outcomes: %s/%s/%s); failing closed\n' "${ARTIFACT_NAME}" "${ATTEMPT_1}" "${ATTEMPT_2}" "${ATTEMPT_3}" >&2
+        exit 1

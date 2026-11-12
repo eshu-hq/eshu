@@ -222,3 +222,47 @@ func TestRouteInvestigateServiceRequiresASelector(t *testing.T) {
 		t.Fatalf("Route() request = %#v, want zero request", request)
 	}
 }
+
+// TestRouteListServiceDownstreamConsumersPinsSelectorAndCursor proves the
+// paged consumer list routes to GET /api/v0/services/{name}/downstream-consumers
+// with the get_service_story selector precedence, forwards limit and the
+// after_repository/after_repo_id cursor when named, and refuses a missing
+// selector without building a request.
+func TestRouteListServiceDownstreamConsumersPinsSelectorAndCursor(t *testing.T) {
+	t.Parallel()
+
+	t.Run("service_id wins and cursor travels", func(t *testing.T) {
+		t.Parallel()
+		request, handled, err := Route("list_service_downstream_consumers", map[string]any{
+			"service_id":       "workload:repo-1:orders-api",
+			"service_name":     "orders-api",
+			"limit":            25,
+			"after_repository": "webapp",
+			"after_repo_id":    "repository:webapp",
+		})
+		if !handled || err != nil {
+			t.Fatalf("Route() = (_, %v, %v), want handled without error", handled, err)
+		}
+		want := routecontract.Request{
+			Method: "GET",
+			Path:   "/api/v0/services/workload:repo-1:orders-api/downstream-consumers",
+			Query: map[string]string{
+				"service_id":       "workload:repo-1:orders-api",
+				"limit":            "25",
+				"after_repository": "webapp",
+				"after_repo_id":    "repository:webapp",
+			},
+		}
+		if !reflect.DeepEqual(request, want) {
+			t.Fatalf("Route() = %#v, want %#v", request, want)
+		}
+	})
+
+	t.Run("missing selector is refused", func(t *testing.T) {
+		t.Parallel()
+		_, handled, err := Route("list_service_downstream_consumers", map[string]any{})
+		if !handled || err == nil {
+			t.Fatalf("Route() = (_, %v, %v), want handled with an error", handled, err)
+		}
+	})
+}

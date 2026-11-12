@@ -42,6 +42,7 @@ const (
 	poisonedLinkListTimeoutMessage     = "changed-since poisoned-links query timed out"
 	deadLetterMutationFailedMessage    = "dead-letter request failed"
 	skipFailedMessage                  = "skip request failed"
+	retireUnclaimedFailedMessage       = "retire unclaimed workflow work items request failed"
 	backfillFailedMessage              = "backfill request failed"
 	replayUnsafeCheckFailedMessage     = "replay unsafe-target check failed"
 	replaySupersededCheckFailedMessage = "replay superseded-generation check failed"

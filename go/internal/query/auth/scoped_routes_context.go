@@ -56,6 +56,38 @@ func scopedServiceContextRoute(path string) bool {
 	return scopedContextRoute(path, "/api/v0/services/")
 }
 
+// scopedServiceAPIEndpointsRoute matches the service API-surface endpoint
+// list GET /api/v0/services/{service_name}/api-surface/endpoints (#10477).
+// The handler resolves through the same grant-filtering workload selector as
+// the service story (fetchServiceWorkloadContextWithSelector) and reads only
+// the resolved repository's endpoints, so it qualifies for scoped-token
+// tenant filtering exactly like the story route.
+func scopedServiceAPIEndpointsRoute(path string) bool {
+	const prefix = "/api/v0/services/"
+	const suffix = "/api-surface/endpoints"
+	selector, ok := strings.CutSuffix(strings.TrimPrefix(path, prefix), suffix)
+	if !strings.HasPrefix(path, prefix) || !ok {
+		return false
+	}
+	return selector != "" && !strings.Contains(selector, "/")
+}
+
+// scopedServiceDownstreamConsumersRoute matches the service downstream
+// consumer list GET /api/v0/services/{service_name}/downstream-consumers
+// (#10535). The handler resolves through the same grant-filtered workload
+// selector as the service story (fetchServiceWorkloadContextWithSelector)
+// and filters the merged consumer set before paging, so it qualifies for
+// scoped-token tenant filtering exactly like the story route.
+func scopedServiceDownstreamConsumersRoute(path string) bool {
+	const prefix = "/api/v0/services/"
+	const suffix = "/downstream-consumers"
+	selector, ok := strings.CutSuffix(strings.TrimPrefix(path, prefix), suffix)
+	if !strings.HasPrefix(path, prefix) || !ok {
+		return false
+	}
+	return selector != "" && !strings.Contains(selector, "/")
+}
+
 func scopedServiceInvestigationRoute(path string) bool {
 	const prefix = "/api/v0/investigations/services/"
 	if !strings.HasPrefix(path, prefix) {

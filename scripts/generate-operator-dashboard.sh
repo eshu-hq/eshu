@@ -6,7 +6,7 @@
 # file is the committed artifact. To change a panel, metric
 # expression, or title, edit the metric registry
 # (scripts/lib/operator-dashboard-metrics.sh) or a template body
-# (scripts/lib/operator-dashboard-{head,panels-1,panels-2,tail}.json.tmpl),
+# (scripts/lib/operator-dashboard-{head,panels-1,panels-2,panels-3,tail}.json.tmpl),
 # re-run this script, and commit the regenerated output. The test
 # mirror scripts/test-generate-operator-dashboard.sh asserts that the
 # committed artifact is well-formed, matches what this script
@@ -18,7 +18,7 @@
 # docs/public/observability/telemetry-coverage.md.
 #
 # Panel provenance (originally split across scripts/lib/operator-dashboard-
-# panels-{1,2}.sh, now scripts/lib/operator-dashboard-panels-{1,2}.json.tmpl):
+# panels-{1,2}.sh, now scripts/lib/operator-dashboard-panels-{1,2,3}.json.tmpl):
 #
 # panels-1 covers panel IDs 1-13 ("Is Eshu Healthy?" + "Queue and Worker
 # Pool" + "Generation and Graph Health" rows). Variables referenced:
@@ -28,13 +28,17 @@
 # SHARED_ACCEPTANCE_ROWS, GRAPH_ORPHAN_NODES, REDUCER_INPUT_INVALID_FACTS,
 # PROJECTOR_INPUT_INVALID_FACTS.
 #
-# panels-2 covers panel IDs 14-26 ("API Request Latency and Errors" +
+# panels-2 covers panel IDs 14-34 ("API Request Latency and Errors" +
 # "Cross-Repo and Collector Pressure" rows). Variables referenced:
 # API_REQUEST_DURATION, API_REQUEST_ERRORS, CROSS_REPO_FENCED,
 # FLUX_CROSS_REPO_URL_RESOLUTION, COLLECTOR_RECONCILIATION_FULL,
 # COLLECTOR_RECONCILIATION_DRIFT, COLLECTOR_RECONCILIATION_CONVERGENCE,
 # COLLECTOR_BACKPRESSURE, COLLECTOR_RETRIES, COLLECTOR_DEAD_LETTER,
 # EDGES_BY_SOURCE_TOOL, FILES_BY_LANGUAGE.
+#
+# panels-3 covers panel IDs 35-38 (the "Claim Plane Client (#8875 C8)"
+# row). Variables referenced: CLAIM_PLANE_REQUEST_DURATION_BUCKET,
+# CLAIM_PLANE_REQUESTS_TOTAL, INGESTION_COMMIT_PIN_SLACK_BUCKET.
 #
 # HEREDOC-FREE BY DESIGN (issue #5019, reopened after #5068): bash 5.1+
 # delivers a `<<EOF` heredoc body to its reader by writing the ENTIRE body
@@ -85,10 +89,11 @@ render_template() {
 
 mkdir -p "$(dirname "$output_path")"
 
-# Sequential emission: head, panels_1, a literal comma, panels_2, tail. Each
-# piece is written with its own printf so the panel bodies (which contain
-# literal \" sequences) are never routed through the ${var//...} substitution
-# above — only render_template's own local `content` variable is substituted.
+# Sequential emission: head, panels_1, a literal comma, panels_2, a
+# literal comma, panels_3, tail. Each piece is written with its own
+# printf so the panel bodies (which contain literal \" sequences) are
+# never routed through the ${var//...} substitution above — only
+# render_template's own local `content` variable is substituted.
 # `$(<file)` strips the file's trailing newline, so the newlines below
 # reconstruct the exact byte layout of the previously heredoc-emitted file.
 {
@@ -97,6 +102,8 @@ mkdir -p "$(dirname "$output_path")"
   render_template "${lib_dir}/operator-dashboard-panels-1.json.tmpl"
   printf ',\n'
   render_template "${lib_dir}/operator-dashboard-panels-2.json.tmpl"
+  printf ',\n'
+  render_template "${lib_dir}/operator-dashboard-panels-3.json.tmpl"
   printf '\n'
   render_template "${lib_dir}/operator-dashboard-tail.json.tmpl"
   printf '\n'

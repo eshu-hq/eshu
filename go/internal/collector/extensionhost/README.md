@@ -39,12 +39,14 @@ extension. Claim mutation, stale-fence handling, retry budgets, and final commit
 remain owned by `collector.ClaimedService` and its claim-aware committer.
 
 Host-minted GitHub App tokens (#9182 lane A, wire shape per arbiter):
-`Config.TokenProvider`, when set, mints one installation token per claim
-host-side and injects it into the per-claim request config under the
-`host_github_app_token` key as an object `{token, scope_id}`; the App private
-key never crosses the stdio boundary (see `TokenProvider` for the contract).
-A mint denial fails the claim terminal with class `auth_denied` before the
-satellite launches; a transient mint fault stays retryable. With no provider
+`Config.TokenProvider`, when set, mints one installation token per opted-in claim
+host-side into the per-claim request config under `host_github_app_token` as
+`{token, scope_id}`; a static `targets` entry with `auth_mode: host_minted` for the claimed
+scope mints (a GHSA window claim inherits its anchor's opt-in, #10533), as does any claim carrying a host-resolved derived target; the App private key
+never crosses the stdio boundary. Other claims keep the static path with the provider never
+consulted. A mint denial
+fails the claim terminal (`auth_denied`) before the satellite launches; a transient
+mint fault stays retryable, and with no provider
 the config passes through byte-identically (the `token_env` escape hatch).
 
 Derived targets (#10027): `Config.DerivedTargetResolver`, when set, adds a
@@ -58,8 +60,8 @@ so config cannot forge a commit or a remote. The generation the claim commits ca
 the target's commit in `SourceCommitSHA` (#10055), so the coordinator's commit-skew
 fence can compare it without reading fact payloads. Other scopes stay unstamped.
 
-Installation selection for derived scopes (#10027): an exact scope match in
-`AppTokenProviderConfig.Installations` wins and reads nothing. Otherwise
+Installation selection (#10027, #10533): an exact scope match in
+`AppTokenProviderConfig.Installations` wins and reads nothing; a GHSA window then tries its anchor. Otherwise
 `InstallationKey` resolves the claim to `github-owner:<host>/<owner>` from the same
 validated entry. Only Go reachability scopes resolve a key, so an owner key cannot
 serve another claim. The host is part of the key because the token goes to the
@@ -346,24 +348,24 @@ claim failure classes, workflow claim rows, collector fact evidence, and
 `/admin/status` collector runtime derivation. It adds no graph writes, queue
 domains, API routes, or MCP tools.
 
-Host Token Provider No-Regression Evidence (#9182 lane A):
+Host Token Provider No-Regression Evidence (#9182 lane A, gate per #10483):
 `go test ./internal/collector/extensionhost -count=1` and the same package
-with `-race` both pass at this HEAD, covering per-claim mint injection, the
+with `-race` both pass at this HEAD, covering opted-in mint injection, the
 terminal `auth_denied` denial mapping (including an unbounded-error canary),
-retryable backoff propagation, construction-time reserved-key rejection, and
-byte-identical `token_env` passthrough with no provider. Baseline is the
-`origin/main` claim path: with no provider the change adds one nil check per
-claim and no allocations on the nil-recorder path. With a provider the mint
-runs once per claim before the satellite launches; a real claim launches a
-process or container (milliseconds), so one map insert and one bounded mint
-call are not a measurable share, and no storage backend is touched.
-
-Host Token Provider No-Observability-Change: the provider adds no metric,
-span, or log line. Mint outcomes surface only through the existing host-verdict
-`ResultRecord` (classes `auth_denied`, `retryable`, `rate_limited`,
-`server_error`, or a bounded transport class) and the existing
-`ClaimedService` failure-class path; the minted token appears in no record,
-label, or error string.
+retryable backoff propagation, construction-time reserved-key rejection,
+byte-identical `token_env` passthrough with no provider, and a never-consulted
+provider for non-opted-in claims. Baseline is the `origin/main` claim path:
+without a provider the gate adds one nil check per claim; with a provider it adds
+one short targets scan (first scope match decides) and mints only for opted-in
+claims. A real claim launches a process or container (milliseconds), so the scan
+plus one bounded mint call are not a measurable share.
+Benchmark Evidence (#10483): `go test ./internal/collector/extensionhost -run
+'^$' -bench '^BenchmarkHostMintOptedIn' -benchmem -count=6` measured the gate
+predicate at 19.78-19.81 ns/op opted-in and 21.35-23.84 ns/op non-opted-in with
+0 allocs/op on linux/arm64; both shapes cost the same single scan.
+No-Observability-Change (#10483): the gate adds no metric, span, or log line;
+outcomes surface only through the existing host-verdict `ResultRecord` and
+`ClaimedService` failure-class path, with the token in no record or error string.
 
 Number Fidelity No-Regression Evidence: `go test
 ./internal/collector/extensionhost -run

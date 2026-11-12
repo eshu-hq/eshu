@@ -89,27 +89,22 @@ func ContextPartialReasons(ctx map[string]any, extra ...string) []string {
 // or back at the workload context route.
 func WorkloadContextResultLimits(ctx map[string]any, workloadID, surface string) map[string]any {
 	instances := MapSliceValue(ctx, "instances")
-	dependents := MapSliceValue(ctx, "dependents")
-	consumers := MapSliceValue(ctx, "consumer_repositories")
 	instanceTotal := len(instances)
-	dependentTotal := len(dependents)
-	consumerTotal := len(consumers)
 
 	// Cap each fan-out slice in place so the payload honors the stated limit;
 	// truncated then reflects an actual cut rather than claiming truncation
 	// while still returning every row.
 	cappedInstances, instTrunc := CapMapRows(instances, ContextStoryItemLimit)
-	cappedDependents, depTrunc := CapMapRows(dependents, ContextStoryItemLimit)
-	cappedConsumers, conTrunc := CapMapRows(consumers, ContextStoryItemLimit)
 	if instanceTotal > 0 {
 		ctx["instances"] = cappedInstances
 	}
-	if dependentTotal > 0 {
-		ctx["dependents"] = cappedDependents
-	}
-	if consumerTotal > 0 {
-		ctx["consumer_repositories"] = cappedConsumers
-	}
+	// Dependents and consumer_repositories cut through the limitation-naming
+	// path (#10477): a cut past the render cap names the same family token
+	// the enrichment writes when the upstream bound fires, so the story
+	// (which reads the flags) and the context (which promotes the tokens via
+	// ContextPartialReasons) agree on either kind of cut.
+	dependentTotal, depTrunc := capContextRows(ctx, "dependents", "dependents_truncated")
+	consumerTotal, conTrunc := capContextRows(ctx, "consumer_repositories", "consumer_repositories_truncated")
 	// hostnames, entrypoints, and network_paths (one row per entrypoint) are
 	// capped in place here, after every consumer of the full lists has run
 	// (network paths, trace paths, hostname labels, and the overview counts
@@ -183,8 +178,22 @@ func WorkloadContextResultLimits(ctx map[string]any, workloadID, surface string)
 	if surface == "story" {
 		drilldownTool = "get_workload_context"
 	}
+	// Echo the indirect-evidence row bound the enrichment ran under (#10477):
+	// the threaded downstream_read_limit when a route named one, else the
+	// legacy default. The story result limits and the investigation coverage
+	// echo the same value from the same context key.
+	downstreamLimit := DefaultIndirectEvidenceSearchLimit
+	if bound := IntVal(ctx, "downstream_read_limit"); bound > 0 {
+		downstreamLimit = BoundedDownstreamReadLimit(bound)
+	}
 	return map[string]any{
-		"limit":                      ContextStoryItemLimit,
+		"limit":                 ContextStoryItemLimit,
+		"downstream_read_limit": downstreamLimit,
+		// The cap the downstream lists actually rendered under: the
+		// effective read bound when explicitly requested above the
+		// preview, else the 50-row limit above (#10535 follow-up to
+		// #10477). Mirrors the story result limits.
+		"downstream_render_limit":    EffectiveDownstreamRenderLimit(ctx, ContextStoryItemLimit),
 		"ordering":                   "deterministic",
 		"instance_count":             instanceTotal,
 		"dependent_count":            dependentTotal,
@@ -207,13 +216,21 @@ func WorkloadContextResultLimits(ctx map[string]any, workloadID, surface string)
 // the pre-cut total plus whether rows were dropped. On a cut it appends reason
 // to ctx["limitations"] once, so the truncation reaches partial_reasons rather
 // than only result_limits. A missing or empty list is left untouched.
+// The downstream lists (dependents, consumer_repositories) render under the
+// effective read bound when a route named an explicit downstream_read_limit
+// above the preview cap, so an explicitly requested row is never discarded
+// by render with no continuation (#10535 follow-up to #10477).
 func capContextRows(ctx map[string]any, key, reason string) (int, bool) {
 	rows := MapSliceValue(ctx, key)
 	total := len(rows)
 	if total == 0 {
 		return 0, false
 	}
-	capped, cut := CapMapRows(rows, ContextStoryItemLimit)
+	limit := ContextStoryItemLimit
+	if key == "dependents" || key == "consumer_repositories" {
+		limit = EffectiveDownstreamRenderLimit(ctx, ContextStoryItemLimit)
+	}
+	capped, cut := CapMapRows(rows, limit)
 	if !cut {
 		return total, false
 	}

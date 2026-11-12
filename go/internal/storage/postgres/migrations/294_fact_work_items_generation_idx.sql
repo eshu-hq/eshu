@@ -1,0 +1,41 @@
+-- SPDX-License-Identifier: MIT
+-- Copyright (c) 2025-2026 eshu-hq
+
+-- Back the generation-only retention probes on fact_work_items (#10525).
+-- Evidence: docs/internal/evidence/10525-retention-planning-count.md.
+--
+-- WHAT GOES WRONG TODAY. The generation retention row-count arm counts
+-- fact_work_items on generation_id alone, and the pre-delete lock
+-- (lockPrunedGenerationWorkItemsQuery, #8261) selects the same rows the
+-- same way. No index leads with generation_id: the scope-generation
+-- index leads with scope_id, so both statements read the whole table
+-- while the retention batch is being counted, re-locked, and pruned.
+-- Measured on QA (288,824 work rows, 4,733 scopes): the isolated count
+-- arm under a forced generic plan took 158 ms and 33,976 buffers for a
+-- 100-generation batch (sequential scan plus hash), and the lock
+-- statement plans a skip-scan of the scope-leading index at cost 15,245.
+--
+-- THE INDEX. (generation_id) makes the count arm one index-only probe
+-- per candidate (measured 1.3 ms, 316 buffers, 100 searches for the
+-- same QA batch) and the lock a plain index scan (cost 554), with cost
+-- following the batch instead of the table. The key is generation_id
+-- alone on purpose: the count needs only that column and the lock must
+-- visit the heap row to lock it anyway, so INCLUDE columns would only
+-- bloat the index. A scope-joined count was measured too (zero
+-- scope-mismatched rows on QA) but rejected: the generation delete
+-- cascades on generation_id alone, so a scope-joined count would
+-- under-charge BatchRowLimit for any future mismatched row, while this
+-- index keeps the count on exactly the cascade envelope. Write cost is
+-- one small btree entry per work-item insert; generation_id is
+-- immutable per row, so updates never move the entry. The
+-- scope-generation index stays: it serves the claim and status paths, a
+-- different predicate.
+--
+-- CONCURRENTLY so bootstrap never blocks reducer work-item writes;
+-- IF NOT EXISTS so every later bootstrap over an install that has it is
+-- a no-op. The lone statement in this file so the migration coordinator
+-- can run it outside a transaction
+-- (coordination.IsSoleConcurrentIndexStatement). A new file per issue
+-- #7002: never edit an applied migration.
+CREATE INDEX CONCURRENTLY IF NOT EXISTS fact_work_items_generation_idx
+    ON fact_work_items (generation_id);

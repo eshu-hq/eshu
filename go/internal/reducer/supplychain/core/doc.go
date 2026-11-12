@@ -52,7 +52,30 @@
 // that changed, skips when another resweep is in flight, and reports inserted,
 // updated, deleted and unchanged counts (#9774); the writer replaces a (scope,
 // generation)'s finding set in one locked transaction and tombstones the
-// findings a pass no longer derives, #6831; with a keyed rebuilder the
+// findings a pass no longer derives, #6831; on an advisory group merge or
+// split the writer also reports the touched group set — every changed or
+// retracted row's coalesced group id, plus the old and new member ids of
+// rows that replaced a stored row under a different group id or member
+// set (candidate prior groups, D2); member ids for holder lookup ride the
+// changed and recovery CVE unions. A pass that rewrote nothing reports
+// none — and the pass dispatcher counts one
+// eshu_dp_supply_chain_impact_rekey_total point with the closed outcome:
+// merge (old keys retired while new keys committed), split (the pass
+// dropped suppression coverage), member_only (keys rewritten in place), or
+// retire_only (rows retired, nothing derived), staying silent when the
+// pass changed no group identity (however many rows it wrote or retracted)
+// — unless it dropped suppression coverage, which reports split —
+// #10408. Suppression identity matching consults the finding's whole
+// matchable set (group members plus its own cve/advisory ids) per scope
+// field, and decisions record which id and field matched (#10409).
+// Suppression carry and orphan magnitudes
+// ride eshu_dp_supply_chain_impact_suppression_carried_via_member_total
+// and eshu_dp_supply_chain_impact_suppression_orphaned_by_split_total
+// under the same outcome label, and per-pass magnitudes ride the
+// rekey_groups_touched, rekey_findings_rekeyed, and rekey_rows_tombstoned
+// result sub-signals. Group projection stays out of scope: findings stay
+// in Postgres either way; the wave mechanics and freshness bound live in
+// HOLDER_FANOUT.md. With a keyed rebuilder the
 // maintainer runs one full resweep at startup, then keyed ticks that recompute
 // only the keys the writer, activation and scanner captures logged, plus a
 // full-recompute audit that queues any key the capture missed, #9805), and the

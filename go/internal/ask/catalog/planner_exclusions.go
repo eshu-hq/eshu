@@ -54,6 +54,7 @@ func plannerExcludedSurfaces() map[string]struct{} {
 		"POST /api/v0/admin/replay":                                                     {}, // ReplayFailed re-processes failed work items
 		"POST /api/v0/admin/repository-retirements":                                     {}, // retires repositories: tombstone mark, fence, then purge (admin mutation)
 		"POST /api/v0/admin/skip":                                                       {}, // skips queued work items
+		"POST /api/v0/admin/workflow-retire-unclaimed":                                  {}, // retires never-claimed workflow work items of a deconfigured instance (admin mutation)
 		"POST /api/v0/supply-chain/impact/suppressions":                                 {}, // creates operator-wide suppression policy evidence
 		"POST /api/v0/auth/admin/idp-group-mappings":                                    {}, // creates an IdP group->role mapping (admin mutation)
 		"POST /api/v0/auth/admin/provider-configs":                                      {}, // creates a DB-backed identity provider config (admin mutation)

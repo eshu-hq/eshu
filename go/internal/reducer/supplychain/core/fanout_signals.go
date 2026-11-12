@@ -108,6 +108,27 @@ func readFailureOutcome(err error) string {
 	return fanOutOutcomeReadError
 }
 
+// countFanOutRead counts one failed fan-out read with its read site (#10564
+// H): the counter names the read that failed, so the next regression points
+// at its statement instead of a bare read_timeout. site must be one of the
+// telemetry.FanOutReadSite* constants. Only read outcomes (read_error,
+// read_timeout) carry the site; every other outcome keeps the counter's
+// existing label set.
+func (h SupplyChainImpactHandler) countFanOutRead(ctx context.Context, cause string, err error, site string) {
+	if h.Instruments == nil || h.Instruments.SupplyChainImpactFanOut == nil {
+		return
+	}
+	if cause == "" {
+		cause = fanOutCauseOther
+	}
+	h.Instruments.SupplyChainImpactFanOut.Add(ctx, 1, metric.WithAttributes(
+		telemetry.AttrDomain(string(reducercontract.DomainSupplyChainImpact)),
+		attribute.String("outcome", readFailureOutcome(err)),
+		attribute.String("cause", cause),
+		telemetry.AttrFanOutReadSite(site),
+	))
+}
+
 // mergeSubSignals adds the fan-out counts to a result's sub-signals.
 func (r fanOutResult) mergeSubSignals(subSignals map[string]float64) {
 	subSignals["fanout_holders"] = float64(r.holders)

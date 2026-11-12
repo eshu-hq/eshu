@@ -18,6 +18,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/admin"
 	pgstatus "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/decisions"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // NewStore constructs an admin.Store backed by Postgres.
@@ -43,6 +44,29 @@ type postgresStore struct {
 	beginner  db.Beginner
 	decisions *decisionsstore.DecisionStore
 	now       func() time.Time
+	// instruments carries the shared meter-provider instruments to the
+	// owning workflow control store on the retire-unclaimed path
+	// (eshu-hq/eshu#10532). Nil skips the counter and keeps the log.
+	instruments *telemetry.Instruments
+}
+
+// WithInstruments returns the store with instruments for the retire-unclaimed
+// counter. Nil keeps the store uninstrumented.
+func (s *postgresStore) WithInstruments(instruments *telemetry.Instruments) *postgresStore {
+	s.instruments = instruments
+	return s
+}
+
+// NewStoreWithInstruments constructs an admin.Store backed by Postgres and
+// wires the shared meter-provider instruments onto it, so the
+// retire-unclaimed counter (eshu-hq/eshu#10532) emits on the API path. Nil
+// instruments keeps the store uninstrumented.
+func NewStoreWithInstruments(database *sql.DB, instruments *telemetry.Instruments) admin.Store {
+	s := NewStore(database)
+	if ps, ok := s.(*postgresStore); ok {
+		return ps.WithInstruments(instruments)
+	}
+	return s
 }
 
 // deadLetterNoteDetailsSQL and skipNoteDetailsSQL are the failure_details

@@ -15,8 +15,10 @@ import (
 )
 
 // TestListActiveFindingCVEIDsLive proves the read returns the distinct
-// non-blank ids on active winners only: suppressed rows and blank ids never
-// reach the derivation, and one id shared by two winners arrives once.
+// non-blank ids on effectively visible winners: active rows and rows whose
+// suppression has expired reach the derivation (#9805 reader #10), while
+// non-expired suppressions, never-expiring hidden states, and blank ids do
+// not. One id shared by two winners arrives once.
 func TestListActiveFindingCVEIDsLive(t *testing.T) {
 	dsn := strings.TrimSpace(os.Getenv("ESHU_POSTGRES_TEST_DSN"))
 	if dsn == "" {
@@ -29,6 +31,9 @@ func TestListActiveFindingCVEIDsLive(t *testing.T) {
 		t.Fatalf("open postgres: %v", err)
 	}
 	t.Cleanup(func() { _ = db.Close() })
+	if err := ApplyBootstrap(ctx, SQLDB{DB: db}); err != nil {
+		t.Fatalf("apply bootstrap schema: %v", err)
+	}
 
 	seedFindingCVEWinnersLive(t, ctx, db)
 	t.Cleanup(func() {
@@ -45,12 +50,12 @@ func TestListActiveFindingCVEIDsLive(t *testing.T) {
 	for _, id := range ids {
 		found[id] = true
 	}
-	for _, want := range []string{"CVE-2024-0001", "CVE-2024-0002", "GHSA-abcd-1234-efgh"} {
+	for _, want := range []string{"CVE-2024-0001", "CVE-2024-0002", "CVE-2024-8888", "GHSA-abcd-1234-efgh"} {
 		if !found[want] {
 			t.Fatalf("ListActiveFindingCVEIDs() missing %q in %q", want, ids)
 		}
 	}
-	for _, absent := range []string{"", "CVE-2024-9999"} {
+	for _, absent := range []string{"", "CVE-2024-7777", "CVE-2024-9999"} {
 		if found[absent] {
 			t.Fatalf("ListActiveFindingCVEIDs() must not return %q (suppressed or blank)", absent)
 		}
@@ -68,28 +73,35 @@ func TestListActiveFindingCVEIDsLive(t *testing.T) {
 
 func seedFindingCVEWinnersLive(t *testing.T, ctx context.Context, db *sql.DB) {
 	t.Helper()
+	past := time.Now().UTC().Add(-time.Hour)
+	future := time.Now().UTC().Add(time.Hour)
 	seed := []struct {
-		key   string
-		cve   string
-		state string
+		key     string
+		cve     string
+		state   string
+		expires *time.Time
 	}{
-		{"test-epss-live-1", "CVE-2024-0001", "active"},
-		{"test-epss-live-2", "CVE-2024-0001", "active"},
-		{"test-epss-live-3", "CVE-2024-0002", "active"},
-		{"test-epss-live-4", "GHSA-abcd-1234-efgh", "active"},
-		{"test-epss-live-5", "CVE-2024-9999", "suppressed"},
-		{"test-epss-live-6", "", "active"},
+		{"test-epss-live-1", "CVE-2024-0001", "active", nil},
+		{"test-epss-live-2", "CVE-2024-0001", "active", nil},
+		{"test-epss-live-3", "CVE-2024-0002", "active", nil},
+		{"test-epss-live-4", "GHSA-abcd-1234-efgh", "active", nil},
+		{"test-epss-live-5", "CVE-2024-9999", "accepted_risk", &future},
+		{"test-epss-live-6", "", "active", nil},
+		{"test-epss-live-7", "CVE-2024-8888", "accepted_risk", &past},
+		{"test-epss-live-8", "CVE-2024-7777", "ignored", nil},
 	}
 	for _, row := range seed {
 		if _, err := db.ExecContext(ctx, `
 INSERT INTO supply_chain_impact_canonical_winners
-    (canonical_key, winner_fact_id, finding_id, cve_id, suppression_state, materialized_at)
-    VALUES ($1, $2, $3, $4, $5, NOW())
+    (canonical_key, winner_fact_id, finding_id, cve_id, suppression_state,
+     suppression_expires_at, materialized_at)
+    VALUES ($1, $2, $3, $4, $5, $6, NOW())
     ON CONFLICT (canonical_key) DO UPDATE SET
         cve_id = EXCLUDED.cve_id,
         suppression_state = EXCLUDED.suppression_state,
+        suppression_expires_at = EXCLUDED.suppression_expires_at,
         materialized_at = EXCLUDED.materialized_at`,
-			row.key, "fact-"+row.key, "finding-"+row.key, row.cve, row.state); err != nil {
+			row.key, "fact-"+row.key, "finding-"+row.key, row.cve, row.state, row.expires); err != nil {
 			t.Fatalf("seed finding CVE winner %q: %v", row.key, err)
 		}
 	}

@@ -16,6 +16,10 @@ and runtime own those and call in here to classify what came back.
 
 - `FailureClass`, `RetryDisposition`, `FailureClassification`,
   `ClassifyFailure` — the classification vocabulary and the classifier.
+  `FailureClassAdmissionTimeout` (`admission_timeout`, #10502) names a
+  backpressure admission wait timeout that retried to the budget and gave
+  up; `AdmissionTimeoutError` is the narrow contract producers implement so
+  `ClassifyFailure` recognizes one without importing the producer.
 - `StageError`, `InputValidationError`, `ResourceExhaustedError` and their
   constructors — the error types the projection stages raise.
 - `IsRetryable`, `RetryableError` — the single-error retry question.
@@ -51,7 +55,26 @@ production caller. Retryable() stays the sole authority for whether an item is
 retried; `TriageClass` only records why it landed where it did, so the durable
 `failure_class` reads `retry_exhausted` / `input_invalid` /
 `dependency_unavailable` / `resource_exhausted` / `timeout` / `projection_bug`
-instead of the coarse `projection_failed` / `reducer_failed` fallback.
+instead of the coarse `projection_failed` / `reducer_failed` fallback. A
+backpressure admission wait timeout (#10502) dead-letters under its own
+`admission_timeout` durable class instead: the error self-classifies (the
+precedence the queue documents), while the triage detail keeps
+`triage=retry_exhausted` for the exhausted budget and now carries
+`class=admission_timeout` instead of the `projection_bug` default. It replays
+without force like any other exhausted transient; only the `manual_review`
+classes (`projection_bug`, `resource_exhausted`) need `--force`.
+
+No-Observability-Change: the new value rides the existing
+`eshu_dp_queue_dead_letters_total` counter by bounded `failure_class`
+(`admission_timeout` passes the label bound); no metric, span, or log is
+added or renamed.
+
+No-Regression Evidence (admission_timeout class, #10502): the change runs
+only on the dead-letter cold path — two `errors.As` traversals plus the
+pre-existing message format per dead-lettered item. No new query, index,
+lease, graph write, or concurrency change; the retry path, attempt budget,
+and admitted write path are byte-identical. Verified by the focused
+failure/queue suites plus the full ingester and projector packages.
 
 #3514 is resolved by wiring, not deletion: the live dead-letter path in
 `storage/postgres` (`projector_queue.go` `Fail`, `reducer_queue_helpers.go`

@@ -2,7 +2,7 @@
 
 <!-- Generated from go/internal/envregistry. Do not edit by hand; regenerate with `bash scripts/generate-env-registry-doc.sh`. -->
 
-Grafana, Prometheus/Mimir, PagerDuty, CI/CD run, security alert, SBOM, and vulnerability collectors. Jira now collects from its extracted satellite (eshu-hq/eshu-collector-jira). Tempo now collects from its extracted satellite (eshu-hq/eshu-collector-tempo). Loki now collects from its extracted satellite (eshu-hq/eshu-collector-loki). Vulnerability intelligence now collects from its extracted satellite (eshu-hq/eshu-collector-vulnerability-intelligence). This page is part of the [Environment Variable Reference](../env-registry.md), which lists every page. Run `eshu config validate` to check the current environment against the registry.
+Grafana, Prometheus/Mimir, PagerDuty, CI/CD run, security alert, and vulnerability collectors. Jira now collects from its extracted satellite (eshu-hq/eshu-collector-jira). Tempo now collects from its extracted satellite (eshu-hq/eshu-collector-tempo). Loki now collects from its extracted satellite (eshu-hq/eshu-collector-loki). Vulnerability intelligence now collects from its extracted satellite (eshu-hq/eshu-collector-vulnerability-intelligence). SBOM attestation now collects from its extracted satellite (eshu-hq/eshu-collector-sbom-attestation). This page is part of the [Environment Variable Reference](../env-registry.md), which lists every page. Run `eshu config validate` to check the current environment against the registry.
 
 ## collector-cicd-run
 
@@ -76,16 +76,6 @@ Grafana, Prometheus/Mimir, PagerDuty, CI/CD run, security alert, SBOM, and vulne
 | `ESHU_PROMETHEUS_MIMIR_COLLECTOR_INSTANCE_ID` | string | — | Instance ID selecting this collector instance from ESHU_COLLECTOR_INSTANCES_JSON. |
 | `ESHU_PROMETHEUS_MIMIR_COLLECTOR_OWNER_ID` | string | — | Lease owner identifier; defaults to the hostname. |
 | `ESHU_PROMETHEUS_MIMIR_COLLECTOR_POLL_INTERVAL` | duration | `1s` | Poll interval for discovering targets. |
-
-## collector-sbom-attestation
-
-| Variable | Type | Default | Notes |
-| --- | --- | --- | --- |
-| `ESHU_SBOM_ATTESTATION_CLAIM_LEASE_TTL` | duration | `60s` | Workflow claim lease TTL. |
-| `ESHU_SBOM_ATTESTATION_COLLECTOR_INSTANCE_ID` | string | — | Instance ID selecting this collector instance from ESHU_COLLECTOR_INSTANCES_JSON. |
-| `ESHU_SBOM_ATTESTATION_COLLECTOR_OWNER_ID` | string | — | Lease owner identifier; defaults to the hostname. |
-| `ESHU_SBOM_ATTESTATION_HEARTBEAT_INTERVAL` | duration | `20s` | Claim heartbeat interval; must be less than the lease TTL. |
-| `ESHU_SBOM_ATTESTATION_POLL_INTERVAL` | duration | `1s` | Poll interval for discovering targets. |
 
 ## collector-security-alerts
 

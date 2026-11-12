@@ -409,6 +409,7 @@ gates:
       - "testdata/cassettes/incidentrouting/**"
       - "testdata/cassettes/publishes/**"
       - "testdata/cassettes/runtimedeclaration/**"
+      - "testdata/cassettes/advisorygroup/**"
       - "testdata/cassettes/securitygroup/**"
       - "testdata/cassettes/s3grant/**"
       - "testdata/cassettes/kubernetescorrelation/**"

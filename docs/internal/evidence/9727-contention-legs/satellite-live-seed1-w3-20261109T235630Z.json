@@ -1,0 +1,7654 @@
+{
+  "leg": "satellite",
+  "target": "live",
+  "spec_fields": {
+    "ESHU_CONTENTION_AUTHORITY_DECISION": "https://github.com/eshu-hq/eshu/issues/9727#issuecomment-6684875628",
+    "ESHU_CONTENTION_BACKLOG_ITEMS": "100000",
+    "ESHU_CONTENTION_BACKLOG_SCOPES": "200",
+    "ESHU_CONTENTION_BASELINE_THROUGHPUT": "892.8/894.5-informational",
+    "ESHU_CONTENTION_DIGEST_UNDER_TEST": "sha256:10c4bcbe659a3044961abc05199b6677202123bb1848c6ffc60660f3f748a96c",
+    "ESHU_CONTENTION_HEARTBEAT_INTERVAL": "20s",
+    "ESHU_CONTENTION_IAC_ENABLE_PR": "560",
+    "ESHU_CONTENTION_IAC_REVERT_PR": "561",
+    "ESHU_CONTENTION_LEASE_TTL": "60s",
+    "ESHU_CONTENTION_LOCK_WAIT_BOUND_MS": "250",
+    "ESHU_CONTENTION_PG_MAX_CONNECTIONS": "85",
+    "ESHU_CONTENTION_PG_MAX_CPU_MILLICORES": "11500",
+    "ESHU_CONTENTION_PG_MAX_LAG_SECONDS": "30",
+    "ESHU_CONTENTION_PG_MAX_LOCK_WAITERS": "5",
+    "ESHU_CONTENTION_PG_MAX_MEMORY_MI": "63488",
+    "ESHU_CONTENTION_QUOTA_BUDGET": "NOT_APPLICABLE",
+    "ESHU_CONTENTION_REAP_INTERVAL": "20s",
+    "ESHU_CONTENTION_SEED": "1",
+    "ESHU_CONTENTION_STARVATION_BOUND_SECONDS": "270",
+    "ESHU_CONTENTION_TARGET": "live",
+    "ESHU_CONTENTION_WALL_CLOCK_CAP": "5400s",
+    "ESHU_CONTENTION_WINDOW_SECONDS": "900",
+    "ESHU_CONTENTION_WORKER_COUNTS": "3",
+    "ESHU_CONTENTION_WORKER_MULTIPLE": "1"
+  },
+  "intree_database_name": "NOT_APPLICABLE",
+  "database_name": "workflow_claims_isolated",
+  "seed": 1,
+  "workers": 3,
+  "worker_multiple": 1,
+  "spec_full_size": true,
+  "mix": {
+    "complete": 0.6,
+    "release": 0.15,
+    "fail_retryable": 0.15,
+    "fail_terminal": 0.1,
+    "heartbeat_skip": 0.05,
+    "long_hold": 0.02,
+    "pin": 0.1,
+    "pin_outlive": 0.02,
+    "zombie_pin": 0.5,
+    "replay": 0.1,
+    "quota_share": 0.1
+  },
+  "phases": {
+    "start": "2026-11-09T23:56:30.208266867Z",
+    "window_start": "2026-11-09T23:57:15.569727331Z",
+    "drain_start": "2026-11-10T00:12:15.570287705Z",
+    "work_end": "2026-11-10T00:29:51.646765402Z",
+    "end": "2026-11-10T00:30:46.145143051Z",
+    "seed_seconds": 20.464984651,
+    "stats_wait_seconds": 24.105898075,
+    "stats_ready": true,
+    "drained": true
+  },
+  "created_items": 100000,
+  "queue_depth_cap": 100000,
+  "terminal_acked_items": 100000,
+  "quota_held_items": 0,
+  "ops_total": 205053,
+  "ops_per_second": 104.8286933536189,
+  "client_latency": {
+    "claim_idle": {
+      "count": 699,
+      "p50_ms": 21.499,
+      "p99_ms": 71.621,
+      "max_ms": 90.102
+    },
+    "claim_issued": {
+      "count": 101474,
+      "p50_ms": 22.615,
+      "p99_ms": 71.688,
+      "max_ms": 666.993
+    },
+    "complete": {
+      "count": 99310,
+      "p50_ms": 4.826,
+      "p99_ms": 28.818,
+      "max_ms": 663.624
+    },
+    "complete_replay": {
+      "count": 258,
+      "p50_ms": 8.107,
+      "p99_ms": 36.49,
+      "max_ms": 64.312
+    },
+    "complete_replay_first": {
+      "count": 258,
+      "p50_ms": 1.099,
+      "p99_ms": 1.97,
+      "max_ms": 2.037
+    },
+    "enqueue": {
+      "count": 400,
+      "p50_ms": 43.668,
+      "p99_ms": 104.229,
+      "max_ms": 125.711
+    },
+    "fail_retryable": {
+      "count": 640,
+      "p50_ms": 4.262,
+      "p99_ms": 23.609,
+      "max_ms": 45.241
+    },
+    "fail_terminal": {
+      "count": 381,
+      "p50_ms": 4.312,
+      "p99_ms": 19.2,
+      "max_ms": 32.943
+    },
+    "fail_terminal_replay": {
+      "count": 51,
+      "p50_ms": 8.031,
+      "p99_ms": 32.936,
+      "max_ms": 32.936
+    },
+    "fail_terminal_replay_first": {
+      "count": 51,
+      "p50_ms": 1.098,
+      "p99_ms": 1.117,
+      "max_ms": 1.117
+    },
+    "heartbeat": {
+      "count": 87,
+      "p50_ms": 6.301,
+      "p99_ms": 41.033,
+      "max_ms": 41.033
+    },
+    "pin": {
+      "count": 424,
+      "p50_ms": 4.004,
+      "p99_ms": 11.449,
+      "max_ms": 29.393
+    },
+    "pin_outlive": {
+      "count": 80,
+      "p50_ms": 3.978,
+      "p99_ms": 32.023,
+      "max_ms": 32.023
+    },
+    "pin_zombie": {
+      "count": 106,
+      "p50_ms": 3.979,
+      "p99_ms": 8.224,
+      "max_ms": 13.231
+    },
+    "release": {
+      "count": 624,
+      "p50_ms": 4.27,
+      "p99_ms": 11.346,
+      "max_ms": 43.426
+    },
+    "stale_complete": {
+      "count": 209,
+      "p50_ms": 5.028,
+      "p99_ms": 13.757,
+      "max_ms": 20.413
+    },
+    "stale_fail_terminal": {
+      "count": 1,
+      "p50_ms": 5.81,
+      "p99_ms": 5.81,
+      "max_ms": 5.81
+    }
+  },
+  "slowest_calls": [
+    {
+      "op": "claim_issued",
+      "start": "2026-11-10T00:25:13.614044389Z",
+      "duration_ms": 666.993,
+      "code": "ok"
+    },
+    {
+      "op": "complete",
+      "start": "2026-11-10T00:25:13.617354431Z",
+      "duration_ms": 663.624,
+      "code": "ok"
+    },
+    {
+      "op": "claim_issued",
+      "start": "2026-11-10T00:25:13.596935004Z",
+      "duration_ms": 656.133,
+      "code": "ok"
+    },
+    {
+      "op": "complete",
+      "start": "2026-11-10T00:20:22.063809047Z",
+      "duration_ms": 246.314,
+      "code": "ok"
+    },
+    {
+      "op": "claim_issued",
+      "start": "2026-11-10T00:20:21.228888923Z",
+      "duration_ms": 231.25,
+      "code": "ok"
+    },
+    {
+      "op": "claim_issued",
+      "start": "2026-11-10T00:19:04.025344933Z",
+      "duration_ms": 229.079,
+      "code": "ok"
+    },
+    {
+      "op": "claim_issued",
+      "start": "2026-11-10T00:19:04.028413333Z",
+      "duration_ms": 220.379,
+      "code": "ok"
+    },
+    {
+      "op": "claim_issued",
+      "start": "2026-11-10T00:19:04.03805904Z",
+      "duration_ms": 216.225,
+      "code": "ok"
+    },
+    {
+      "op": "claim_issued",
+      "start": "2026-11-10T00:20:21.605977019Z",
+      "duration_ms": 210.136,
+      "code": "ok"
+    },
+    {
+      "op": "claim_issued",
+      "start": "2026-11-10T00:20:21.606107698Z",
+      "duration_ms": 209.997,
+      "code": "ok"
+    }
+  ],
+  "server_latency": "NOT_AVAILABLE: claim-plane v0.1.1 (8311ed6) internal/telemetry registers only workflow_claim_grants_total, workflow_claim_mutations_total, workflow_commit_pins_total, workflow_claim_reaps_total, workflow_claim_degraded_total (counters) and workflow_queue_depth (gauge); no latency histogram exists",
+  "codes": {
+    "claim_idle": {
+      "ok": 699
+    },
+    "claim_issued": {
+      "ok": 101474
+    },
+    "complete": {
+      "ok": 99310
+    },
+    "complete_replay": {
+      "ok": 258
+    },
+    "complete_replay_first": {
+      "fault": 258
+    },
+    "enqueue": {
+      "ok": 400
+    },
+    "fail_retryable": {
+      "ok": 640
+    },
+    "fail_terminal": {
+      "ok": 381
+    },
+    "fail_terminal_replay": {
+      "ok": 51
+    },
+    "fail_terminal_replay_first": {
+      "fault": 51
+    },
+    "heartbeat": {
+      "ok": 87
+    },
+    "pin": {
+      "ok": 424
+    },
+    "pin_outlive": {
+      "ok": 80
+    },
+    "pin_zombie": {
+      "ok": 106
+    },
+    "release": {
+      "ok": 624
+    },
+    "stale_complete": {
+      "rejected": 209
+    },
+    "stale_fail_terminal": {
+      "rejected": 1
+    }
+  },
+  "anomalies": {},
+  "reclaim": {
+    "abandoned": 210,
+    "reaped": 210,
+    "reap_after_expiry": {
+      "count": 210,
+      "p50_ms": 10079.502,
+      "p99_ms": 19838.063,
+      "max_ms": 19972.317
+    },
+    "bound_ms": 23000
+  },
+  "stale_writes": {
+    "armed": 210,
+    "code=rejected": 210,
+    "complete=rejected": 209,
+    "fail_terminal=rejected": 1,
+    "fired": 210
+  },
+  "advisory": {
+    "clean_rounds": 0,
+    "duplicates": null,
+    "errors": null,
+    "goroutines": 25,
+    "rounds": 0
+  },
+  "pins": {
+    "pin=ok": 424,
+    "pin_outlive=ok": 80,
+    "pin_zombie=ok": 106
+  },
+  "quota_buckets": null,
+  "unclaimed_scopes_in_window": null,
+  "non_terminal_after_drain": null,
+  "sampler": {
+    "disabled": false,
+    "errors": [
+      "fencing check: fencing check: timeout: context deadline exceeded"
+    ],
+    "interval": "1s",
+    "query_ms": {
+      "count": 1660,
+      "p50_ms": 58.982,
+      "p99_ms": 5326.376,
+      "max_ms": 9744.982
+    },
+    "samples": 1660
+  },
+  "samples": [
+    {
+      "at": "2026-11-09T23:56:31.99905615Z",
+      "items_by_status": {
+        "pending": 1750
+      },
+      "active_claims": 0,
+      "created": 1750,
+      "query_ms": 11.15
+    },
+    {
+      "at": "2026-11-09T23:56:32.999320432Z",
+      "items_by_status": {
+        "pending": 7250
+      },
+      "active_claims": 0,
+      "created": 7250,
+      "query_ms": 11.006
+    },
+    {
+      "at": "2026-11-09T23:56:33.998989348Z",
+      "items_by_status": {
+        "pending": 13500
+      },
+      "active_claims": 0,
+      "created": 13500,
+      "query_ms": 14.694
+    },
+    {
+      "at": "2026-11-09T23:56:34.999823608Z",
+      "items_by_status": {
+        "pending": 18500
+      },
+      "active_claims": 0,
+      "created": 18250,
+      "query_ms": 17.527
+    },
+    {
+      "at": "2026-11-09T23:56:35.999110304Z",
+      "items_by_status": {
+        "pending": 23500
+      },
+      "active_claims": 0,
+      "created": 23500,
+      "query_ms": 14.54
+    },
+    {
+      "at": "2026-11-09T23:56:36.999186176Z",
+      "items_by_status": {
+        "pending": 30000
+      },
+      "active_claims": 0,
+      "created": 30000,
+      "query_ms": 23.775
+    },
+    {
+      "at": "2026-11-09T23:56:37.999497713Z",
+      "items_by_status": {
+        "pending": 36000
+      },
+      "active_claims": 0,
+      "created": 36000,
+      "query_ms": 21.556
+    },
+    {
+      "at": "2026-11-09T23:56:38.999114936Z",
+      "items_by_status": {
+        "pending": 42250
+      },
+      "active_claims": 0,
+      "created": 42000,
+      "query_ms": 30.914
+    },
+    {
+      "at": "2026-11-09T23:56:39.999186342Z",
+      "items_by_status": {
+        "pending": 47000
+      },
+      "active_claims": 0,
+      "created": 47000,
+      "query_ms": 24.066
+    },
+    {
+      "at": "2026-11-09T23:56:50.999739803Z",
+      "items_by_status": {
+        "pending": 97500
+      },
+      "active_claims": 0,
+      "created": 97250,
+      "query_ms": 126.024
+    },
+    {
+      "at": "2026-11-09T23:56:52.000652722Z",
+      "items_by_status": {
+        "pending": 100000
+      },
+      "active_claims": 0,
+      "created": 100000,
+      "query_ms": 74.477
+    },
+    {
+      "at": "2026-11-09T23:56:53.000866614Z",
+      "items_by_status": {
+        "pending": 100000
+      },
+      "active_claims": 0,
+      "created": 100000,
+      "query_ms": 56.006
+    },
+    {
+      "at": "2026-11-09T23:56:54.0010725Z",
+      "items_by_status": {
+        "pending": 100000
+      },
+      "active_claims": 0,
+      "created": 100000,
+      "query_ms": 62.981
+    },
+    {
+      "at": "2026-11-09T23:56:55.001265181Z",
+      "items_by_status": {
+        "pending": 100000
+      },
+      "active_claims": 0,
+      "created": 100000,
+      "query_ms": 81.689
+    },
+    {
+      "at": "2026-11-09T23:56:56.001252071Z",
+      "items_by_status": {
+        "pending": 100000
+      },
+      "active_claims": 0,
+      "created": 100000,
+      "query_ms": 77.059
+    },
+    {
+      "at": "2026-11-09T23:56:57.001114579Z",
+      "items_by_status": {
+        "pending": 100000
+      },
+      "active_claims": 0,
+      "created": 100000,
+      "query_ms": 48.399
+    },
+    {
+      "at": "2026-11-09T23:56:58.00072123Z",
+      "items_by_status": {
+        "pending": 100000
+      },
+      "active_claims": 0,
+      "created": 100000,
+      "query_ms": 56.111
+    },
+    {
+      "at": "2026-11-09T23:56:59.001034821Z",
+      "items_by_status": {
+        "pending": 100000
+      },
+      "active_claims": 0,
+      "created": 100000,
+      "query_ms": 57.507
+    },
+    {
+      "at": "2026-11-09T23:57:00.000481806Z",
+      "items_by_status": {
+        "pending": 100000
+      },
+      "active_claims": 0,
+      "created": 100000,
+      "query_ms": 2810.835
+    },
+    {
+      "at": "2026-11-09T23:57:02.811322958Z",
+      "items_by_status": {
+        "pending": 100000
+      },
+      "active_claims": 0,
+      "created": 100000,
+      "query_ms": 46.796
+    },
+    {
+      "at": "2026-11-09T23:57:02.999910584Z",
+      "items_by_status": {
+        "pending": 100000
+      },
+      "active_claims": 0,
+      "created": 100000,
+      "query_ms": 49.388
+    },
+    {
+      "at": "2026-11-09T23:57:04.000502624Z",
+      "items_by_status": {
+        "pending": 100000
+      },
+      "active_claims": 0,
+      "created": 100000,
+      "query_ms": 63.094
+    },
+    {
+      "at": "2026-11-09T23:57:05.000806632Z",
+      "items_by_status": {
+        "pending": 100000
+      },
+      "active_claims": 0,
+      "created": 100000,
+      "query_ms": 65.854
+    },
+    {
+      "at": "2026-11-09T23:57:06.000631161Z",
+      "items_by_status": {
+        "pending": 100000
+      },
+      "active_claims": 0,
+      "created": 100000,
+      "query_ms": 49.928
+    },
+    {
+      "at": "2026-11-09T23:57:07.000283059Z",
+      "items_by_status": {
+        "pending": 100000
+      },
+      "active_claims": 0,
+      "created": 100000,
+      "query_ms": 49.637
+    },
+    {
+      "at": "2026-11-09T23:57:08.00083022Z",
+      "items_by_status": {
+        "pending": 100000
+      },
+      "active_claims": 0,
+      "created": 100000,
+      "query_ms": 58.378
+    },
+    {
+      "at": "2026-11-09T23:57:09.000320225Z",
+      "items_by_status": {
+        "pending": 100000
+      },
+      "active_claims": 0,
+      "created": 100000,
+      "query_ms": 46.619
+    },
+    {
+      "at": "2026-11-09T23:57:10.000165964Z",
+      "items_by_status": {
+        "pending": 100000
+      },
+      "active_claims": 0,
+      "created": 100000,
+      "query_ms": 44.845
+    },
+    {
+      "at": "2026-11-09T23:57:11.000497513Z",
+      "items_by_status": {
+        "pending": 100000
+      },
+      "active_claims": 0,
+      "created": 100000,
+      "query_ms": 2544.636
+    },
+    {
+      "at": "2026-11-09T23:57:13.545138134Z",
+      "items_by_status": {
+        "pending": 100000
+      },
+      "active_claims": 0,
+      "created": 100000,
+      "query_ms": 44.057
+    },
+    {
+      "at": "2026-11-09T23:57:13.999633735Z",
+      "items_by_status": {
+        "pending": 100000
+      },
+      "active_claims": 0,
+      "created": 100000,
+      "query_ms": 27.93
+    },
+    {
+      "at": "2026-11-09T23:57:15.000508546Z",
+      "items_by_status": {
+        "pending": 100000
+      },
+      "active_claims": 0,
+      "created": 100000,
+      "query_ms": 86.182
+    },
+    {
+      "at": "2026-11-09T23:57:15.999129686Z",
+      "items_by_status": {
+        "claimed": 1,
+        "completed": 15,
+        "failed_terminal": 2,
+        "pending": 99982
+      },
+      "active_claims": 3,
+      "created": 100000,
+      "query_ms": 67.858
+    },
+    {
+      "at": "2026-11-09T23:57:17.000333138Z",
+      "items_by_status": {
+        "claimed": 4,
+        "completed": 27,
+        "failed_terminal": 2,
+        "pending": 99967
+      },
+      "active_claims": 4,
+      "created": 100000,
+      "query_ms": 88.465
+    },
+    {
+      "at": "2026-11-09T23:57:18.000923928Z",
+      "items_by_status": {
+        "claimed": 4,
+        "completed": 27,
+        "failed_terminal": 2,
+        "pending": 99967
+      },
+      "active_claims": 4,
+      "created": 100000,
+      "query_ms": 90.073
+    },
+    {
+      "at": "2026-11-09T23:57:19.00125104Z",
+      "items_by_status": {
+        "claimed": 4,
+        "completed": 27,
+        "failed_terminal": 2,
+        "pending": 99967
+      },
+      "active_claims": 4,
+      "created": 100000,
+      "query_ms": 83.491
+    },
+    {
+      "at": "2026-11-09T23:57:20.000950749Z",
+      "items_by_status": {
+        "claimed": 4,
+        "completed": 27,
+        "failed_terminal": 2,
+        "pending": 99967
+      },
+      "active_claims": 4,
+      "created": 100000,
+      "query_ms": 85.265
+    },
+    {
+      "at": "2026-11-09T23:57:21.001836844Z",
+      "items_by_status": {
+        "claimed": 4,
+        "completed": 27,
+        "failed_terminal": 2,
+        "pending": 99967
+      },
+      "active_claims": 4,
+      "created": 100000,
+      "query_ms": 75.875
+    },
+    {
+      "at": "2026-11-09T23:57:22.001661319Z",
+      "items_by_status": {
+        "claimed": 4,
+        "completed": 27,
+        "failed_terminal": 2,
+        "pending": 99967
+      },
+      "active_claims": 4,
+      "created": 100000,
+      "query_ms": 2413.589
+    },
+    {
+      "at": "2026-11-09T23:57:24.415254334Z",
+      "items_by_status": {
+        "claimed": 4,
+        "completed": 27,
+        "failed_terminal": 2,
+        "pending": 99967
+      },
+      "active_claims": 4,
+      "created": 100000,
+      "query_ms": 59.011
+    },
+    {
+      "at": "2026-11-09T23:57:25.000918486Z",
+      "items_by_status": {
+        "claimed": 4,
+        "completed": 27,
+        "failed_terminal": 2,
+        "pending": 99967
+      },
+      "active_claims": 4,
+      "created": 100000,
+      "query_ms": 54.273
+    },
+    {
+      "at": "2026-11-09T23:57:26.000641565Z",
+      "items_by_status": {
+        "claimed": 4,
+        "completed": 27,
+        "failed_terminal": 2,
+        "pending": 99967
+      },
+      "active_claims": 4,
+      "created": 100000,
+      "query_ms": 97.851
+    },
+    {
+      "at": "2026-11-09T23:57:27.000919504Z",
+      "items_by_status": {
+        "claimed": 4,
+        "completed": 27,
+        "failed_terminal": 2,
+        "pending": 99967
+      },
+      "active_claims": 4,
+      "created": 100000,
+      "query_ms": 107.804
+    },
+    {
+      "at": "2026-11-09T23:57:28.001505283Z",
+      "items_by_status": {
+        "claimed": 4,
+        "completed": 27,
+        "failed_terminal": 2,
+        "pending": 99967
+      },
+      "active_claims": 4,
+      "created": 100000,
+      "query_ms": 157.167
+    },
+    {
+      "at": "2026-11-09T23:57:28.999037639Z",
+      "items_by_status": {
+        "claimed": 4,
+        "completed": 27,
+        "failed_terminal": 2,
+        "pending": 99967
+      },
+      "active_claims": 4,
+      "created": 100000,
+      "query_ms": 306.874
+    },
+    {
+      "at": "2026-11-09T23:57:30.001174912Z",
+      "items_by_status": {
+        "claimed": 4,
+        "completed": 27,
+        "failed_terminal": 2,
+        "pending": 99967
+      },
+      "active_claims": 4,
+      "created": 100000,
+      "query_ms": 118.151
+    },
+    {
+      "at": "2026-11-09T23:57:31.001000958Z",
+      "items_by_status": {
+        "claimed": 4,
+        "completed": 27,
+        "failed_terminal": 2,
+        "pending": 99967
+      },
+      "active_claims": 4,
+      "created": 100000,
+      "query_ms": 168.002
+    },
+    {
+      "at": "2026-11-09T23:57:32.000624172Z",
+      "items_by_status": {
+        "claimed": 4,
+        "completed": 27,
+        "failed_terminal": 2,
+        "pending": 99967
+      },
+      "active_claims": 4,
+      "created": 100000,
+      "query_ms": 77.379
+    },
+    {
+      "at": "2026-11-09T23:57:33.000619073Z",
+      "items_by_status": {
+        "claimed": 4,
+        "completed": 27,
+        "failed_terminal": 2,
+        "pending": 99967
+      },
+      "active_claims": 4,
+      "created": 100000,
+      "query_ms": 2825.04
+    },
+    {
+      "at": "2026-11-09T23:57:35.825663218Z",
+      "items_by_status": {
+        "claimed": 4,
+        "completed": 27,
+        "failed_terminal": 2,
+        "pending": 99967
+      },
+      "active_claims": 4,
+      "created": 100000,
+      "query_ms": 59.092
+    },
+    {
+      "at": "2026-11-09T23:57:35.99898247Z",
+      "items_by_status": {
+        "claimed": 4,
+        "completed": 27,
+        "failed_terminal": 2,
+        "pending": 99967
+      },
+      "active_claims": 4,
+      "created": 100000,
+      "query_ms": 65.707
+    },
+    {
+      "at": "2026-11-09T23:57:37.000802521Z",
+      "items_by_status": {
+        "claimed": 4,
+        "completed": 27,
+        "failed_terminal": 2,
+        "pending": 99967
+      },
+      "active_claims": 4,
+      "created": 100000,
+      "query_ms": 53.486
+    },
+    {
+      "at": "2026-11-09T23:57:37.998980736Z",
+      "items_by_status": {
+        "claimed": 4,
+        "completed": 27,
+        "failed_terminal": 2,
+        "pending": 99967
+      },
+      "active_claims": 4,
+      "created": 100000,
+      "query_ms": 55.697
+    },
+    {
+      "at": "2026-11-09T23:57:39.001416264Z",
+      "items_by_status": {
+        "claimed": 4,
+        "completed": 27,
+        "failed_terminal": 2,
+        "pending": 99967
+      },
+      "active_claims": 4,
+      "created": 100000,
+      "query_ms": 47.692
+    },
+    {
+      "at": "2026-11-09T23:57:40.001852634Z",
+      "items_by_status": {
+        "claimed": 4,
+        "completed": 27,
+        "failed_terminal": 2,
+        "pending": 99967
+      },
+      "active_claims": 4,
+      "created": 100000,
+      "query_ms": 55.34
+    },
+    {
+      "at": "2026-11-09T23:57:41.001551891Z",
+      "items_by_status": {
+        "claimed": 4,
+        "completed": 27,
+        "failed_terminal": 2,
+        "pending": 99967
+      },
+      "active_claims": 4,
+      "created": 100000,
+      "query_ms": 46.322
+    },
+    {
+      "at": "2026-11-09T23:57:42.001585987Z",
+      "items_by_status": {
+        "claimed": 4,
+        "completed": 27,
+        "failed_terminal": 2,
+        "pending": 99967
+      },
+      "active_claims": 4,
+      "created": 100000,
+      "query_ms": 49.548
+    },
+    {
+      "at": "2026-11-09T23:57:43.001365851Z",
+      "items_by_status": {
+        "claimed": 4,
+        "completed": 27,
+        "failed_terminal": 2,
+        "pending": 99967
+      },
+      "active_claims": 4,
+      "created": 100000,
+      "query_ms": 46.6
+    },
+    {
+      "at": "2026-11-09T23:57:44.001422055Z",
+      "items_by_status": {
+        "claimed": 4,
+        "completed": 27,
+        "failed_terminal": 2,
+        "pending": 99967
+      },
+      "active_claims": 4,
+      "created": 100000,
+      "query_ms": 2694.002
+    },
+    {
+      "at": "2026-11-09T23:57:46.695426841Z",
+      "items_by_status": {
+        "claimed": 4,
+        "completed": 34,
+        "failed_terminal": 2,
+        "pending": 99960
+      },
+      "active_claims": 4,
+      "created": 100000,
+      "query_ms": 72.479
+    },
+    {
+      "at": "2026-11-09T23:57:46.999671534Z",
+      "items_by_status": {
+        "claimed": 4,
+        "completed": 39,
+        "failed_terminal": 4,
+        "pending": 99953
+      },
+      "active_claims": 5,
+      "created": 100000,
+      "query_ms": 97.263
+    },
+    {
+      "at": "2026-11-09T23:57:47.999602257Z",
+      "items_by_status": {
+        "claimed": 6,
+        "completed": 61,
+        "failed_terminal": 10,
+        "pending": 99923
+      },
+      "active_claims": 6,
+      "created": 100000,
+      "query_ms": 118.31
+    },
+    {
+      "at": "2026-11-09T23:57:48.999166404Z",
+      "items_by_status": {
+        "claimed": 8,
+        "completed": 76,
+        "failed_terminal": 12,
+        "pending": 99904
+      },
+      "active_claims": 8,
+      "created": 100000,
+      "query_ms": 58.943
+    },
+    {
+      "at": "2026-11-09T23:57:49.999451209Z",
+      "items_by_status": {
+        "claimed": 7,
+        "completed": 88,
+        "failed_terminal": 13,
+        "pending": 99892
+      },
+      "active_claims": 7,
+      "created": 100000,
+      "query_ms": 58.429
+    },
+    {
+      "at": "2026-11-09T23:57:51.001079497Z",
+      "items_by_status": {
+        "claimed": 8,
+        "completed": 94,
+        "failed_terminal": 13,
+        "pending": 99885
+      },
+      "active_claims": 8,
+      "created": 100000,
+      "query_ms": 51.975
+    },
+    {
+      "at": "2026-11-09T23:57:52.000748813Z",
+      "items_by_status": {
+        "claimed": 8,
+        "completed": 94,
+        "failed_terminal": 13,
+        "pending": 99885
+      },
+      "active_claims": 8,
+      "created": 100000,
+      "query_ms": 79.073
+    },
+    {
+      "at": "2026-11-09T23:57:53.000472051Z",
+      "items_by_status": {
+        "claimed": 8,
+        "completed": 94,
+        "failed_terminal": 13,
+        "pending": 99885
+      },
+      "active_claims": 8,
+      "created": 100000,
+      "query_ms": 56.958
+    },
+    {
+      "at": "2026-11-09T23:57:54.001343944Z",
+      "items_by_status": {
+        "claimed": 8,
+        "completed": 94,
+        "failed_terminal": 13,
+        "pending": 99885
+      },
+      "active_claims": 8,
+      "created": 100000,
+      "query_ms": 56.498
+    },
+    {
+      "at": "2026-11-09T23:57:55.000842784Z",
+      "items_by_status": {
+        "claimed": 8,
+        "completed": 94,
+        "failed_terminal": 13,
+        "pending": 99885
+      },
+      "active_claims": 8,
+      "created": 100000,
+      "query_ms": 3297.786
+    },
+    {
+      "at": "2026-11-09T23:57:58.298632391Z",
+      "items_by_status": {
+        "claimed": 8,
+        "completed": 94,
+        "failed_terminal": 13,
+        "pending": 99885
+      },
+      "active_claims": 8,
+      "created": 100000,
+      "query_ms": 69.049
+    },
+    {
+      "at": "2026-11-09T23:57:59.00044427Z",
+      "items_by_status": {
+        "claimed": 8,
+        "completed": 94,
+        "failed_terminal": 13,
+        "pending": 99885
+      },
+      "active_claims": 8,
+      "created": 100000,
+      "query_ms": 67.194
+    },
+    {
+      "at": "2026-11-09T23:58:00.000322444Z",
+      "items_by_status": {
+        "claimed": 8,
+        "completed": 94,
+        "failed_terminal": 13,
+        "pending": 99885
+      },
+      "active_claims": 8,
+      "created": 100000,
+      "query_ms": 126.53
+    },
+    {
+      "at": "2026-11-09T23:58:00.999920251Z",
+      "items_by_status": {
+        "claimed": 8,
+        "completed": 94,
+        "failed_terminal": 13,
+        "pending": 99885
+      },
+      "active_claims": 8,
+      "created": 100000,
+      "query_ms": 100.813
+    },
+    {
+      "at": "2026-11-09T23:58:02.001439832Z",
+      "items_by_status": {
+        "claimed": 8,
+        "completed": 94,
+        "failed_terminal": 13,
+        "pending": 99885
+      },
+      "active_claims": 8,
+      "created": 100000,
+      "query_ms": 221.832
+    },
+    {
+      "at": "2026-11-09T23:58:03.001111066Z",
+      "items_by_status": {
+        "claimed": 8,
+        "completed": 94,
+        "failed_terminal": 13,
+        "pending": 99885
+      },
+      "active_claims": 8,
+      "created": 100000,
+      "query_ms": 93.529
+    },
+    {
+      "at": "2026-11-09T23:58:04.001323217Z",
+      "items_by_status": {
+        "claimed": 8,
+        "completed": 94,
+        "failed_terminal": 13,
+        "pending": 99885
+      },
+      "active_claims": 8,
+      "created": 100000,
+      "query_ms": 95.092
+    },
+    {
+      "at": "2026-11-09T23:58:05.000861277Z",
+      "items_by_status": {
+        "claimed": 8,
+        "completed": 94,
+        "failed_terminal": 13,
+        "pending": 99885
+      },
+      "active_claims": 8,
+      "created": 100000,
+      "query_ms": 58.836
+    },
+    {
+      "at": "2026-11-09T23:58:06.001248411Z",
+      "items_by_status": {
+        "claimed": 8,
+        "completed": 94,
+        "failed_terminal": 13,
+        "pending": 99885
+      },
+      "active_claims": 8,
+      "created": 100000,
+      "query_ms": 86.944
+    },
+    {
+      "at": "2026-11-09T23:58:06.998956255Z",
+      "items_by_status": {
+        "claimed": 8,
+        "completed": 94,
+        "failed_terminal": 13,
+        "pending": 99885
+      },
+      "active_claims": 8,
+      "created": 100000,
+      "query_ms": 2385.503
+    },
+    {
+      "at": "2026-11-09T23:58:09.384463272Z",
+      "items_by_status": {
+        "claimed": 8,
+        "completed": 94,
+        "failed_terminal": 13,
+        "pending": 99885
+      },
+      "active_claims": 8,
+      "created": 100000,
+      "query_ms": 65.677
+    },
+    {
+      "at": "2026-11-09T23:58:10.000954343Z",
+      "items_by_status": {
+        "claimed": 8,
+        "completed": 94,
+        "failed_terminal": 13,
+        "pending": 99885
+      },
+      "active_claims": 8,
+      "created": 100000,
+      "query_ms": 55.795
+    },
+    {
+      "at": "2026-11-09T23:58:11.000888825Z",
+      "items_by_status": {
+        "claimed": 8,
+        "completed": 94,
+        "failed_terminal": 13,
+        "pending": 99885
+      },
+      "active_claims": 8,
+      "created": 100000,
+      "query_ms": 53.861
+    },
+    {
+      "at": "2026-11-09T23:58:12.000979693Z",
+      "items_by_status": {
+        "claimed": 8,
+        "completed": 94,
+        "failed_terminal": 13,
+        "pending": 99885
+      },
+      "active_claims": 8,
+      "created": 100000,
+      "query_ms": 64.847
+    },
+    {
+      "at": "2026-11-09T23:58:13.0012672Z",
+      "items_by_status": {
+        "claimed": 8,
+        "completed": 94,
+        "failed_terminal": 13,
+        "pending": 99885
+      },
+      "active_claims": 8,
+      "created": 100000,
+      "query_ms": 56.913
+    },
+    {
+      "at": "2026-11-09T23:58:14.000445171Z",
+      "items_by_status": {
+        "claimed": 8,
+        "completed": 94,
+        "failed_terminal": 13,
+        "pending": 99885
+      },
+      "active_claims": 8,
+      "created": 100000,
+      "query_ms": 94.5
+    },
+    {
+      "at": "2026-11-09T23:58:15.00124786Z",
+      "items_by_status": {
+        "claimed": 8,
+        "completed": 94,
+        "failed_terminal": 13,
+        "pending": 99885
+      },
+      "active_claims": 8,
+      "created": 100000,
+      "query_ms": 70.195
+    },
+    {
+      "at": "2026-11-09T23:58:16.001078951Z",
+      "items_by_status": {
+        "claimed": 8,
+        "completed": 94,
+        "failed_terminal": 13,
+        "pending": 99885
+      },
+      "active_claims": 8,
+      "created": 100000,
+      "query_ms": 118.141
+    },
+    {
+      "at": "2026-11-09T23:58:16.999779344Z",
+      "items_by_status": {
+        "claimed": 7,
+        "completed": 110,
+        "failed_terminal": 15,
+        "pending": 99868
+      },
+      "active_claims": 7,
+      "created": 100000,
+      "query_ms": 72.077
+    },
+    {
+      "at": "2026-11-09T23:58:17.999061357Z",
+      "items_by_status": {
+        "claimed": 10,
+        "completed": 129,
+        "failed_terminal": 20,
+        "pending": 99841
+      },
+      "active_claims": 11,
+      "created": 100000,
+      "query_ms": 2201.987
+    },
+    {
+      "at": "2026-11-09T23:58:20.201051876Z",
+      "items_by_status": {
+        "claimed": 13,
+        "completed": 140,
+        "failed_terminal": 22,
+        "pending": 99825
+      },
+      "active_claims": 13,
+      "created": 100000,
+      "query_ms": 50.642
+    },
+    {
+      "at": "2026-11-09T23:58:20.999186869Z",
+      "items_by_status": {
+        "claimed": 14,
+        "completed": 164,
+        "failed_terminal": 26,
+        "pending": 99796
+      },
+      "active_claims": 14,
+      "created": 100000,
+      "query_ms": 60.671
+    },
+    {
+      "at": "2026-11-09T23:58:21.999330281Z",
+      "items_by_status": {
+        "claimed": 16,
+        "completed": 184,
+        "failed_terminal": 28,
+        "pending": 99772
+      },
+      "active_claims": 16,
+      "created": 100000,
+      "query_ms": 107.405
+    },
+    {
+      "at": "2026-11-09T23:58:22.999195626Z",
+      "items_by_status": {
+        "claimed": 16,
+        "completed": 196,
+        "failed_terminal": 28,
+        "pending": 99760
+      },
+      "active_claims": 16,
+      "created": 100000,
+      "query_ms": 49.65
+    },
+    {
+      "at": "2026-11-09T23:58:23.999462691Z",
+      "items_by_status": {
+        "claimed": 18,
+        "completed": 217,
+        "failed_terminal": 31,
+        "pending": 99734
+      },
+      "active_claims": 18,
+      "created": 100000,
+      "query_ms": 48.55
+    },
+    {
+      "at": "2026-11-09T23:58:25.000376497Z",
+      "items_by_status": {
+        "claimed": 18,
+        "completed": 221,
+        "failed_terminal": 32,
+        "pending": 99729
+      },
+      "active_claims": 18,
+      "created": 100000,
+      "query_ms": 45.181
+    },
+    {
+      "at": "2026-11-09T23:58:25.999577977Z",
+      "items_by_status": {
+        "claimed": 20,
+        "completed": 240,
+        "failed_terminal": 34,
+        "pending": 99706
+      },
+      "active_claims": 20,
+      "created": 100000,
+      "query_ms": 46.988
+    },
+    {
+      "at": "2026-11-09T23:58:27.001542043Z",
+      "items_by_status": {
+        "claimed": 20,
+        "completed": 240,
+        "failed_terminal": 34,
+        "pending": 99706
+      },
+      "active_claims": 20,
+      "created": 100000,
+      "query_ms": 56.555
+    },
+    {
+      "at": "2026-11-09T23:58:27.998942882Z",
+      "items_by_status": {
+        "claimed": 20,
+        "completed": 240,
+        "failed_terminal": 34,
+        "pending": 99706
+      },
+      "active_claims": 20,
+      "created": 100000,
+      "query_ms": 50.332
+    },
+    {
+      "at": "2026-11-09T23:58:29.001496686Z",
+      "items_by_status": {
+        "claimed": 20,
+        "completed": 240,
+        "failed_terminal": 34,
+        "pending": 99706
+      },
+      "active_claims": 20,
+      "created": 100000,
+      "query_ms": 2725.759
+    },
+    {
+      "at": "2026-11-09T23:58:31.727259786Z",
+      "items_by_status": {
+        "claimed": 20,
+        "completed": 240,
+        "failed_terminal": 34,
+        "pending": 99706
+      },
+      "active_claims": 20,
+      "created": 100000,
+      "query_ms": 91.215
+    },
+    {
+      "at": "2026-11-09T23:58:31.999386503Z",
+      "items_by_status": {
+        "claimed": 20,
+        "completed": 240,
+        "failed_terminal": 34,
+        "pending": 99706
+      },
+      "active_claims": 20,
+      "created": 100000,
+      "query_ms": 60.528
+    },
+    {
+      "at": "2026-11-09T23:58:33.00096604Z",
+      "items_by_status": {
+        "claimed": 20,
+        "completed": 240,
+        "failed_terminal": 34,
+        "pending": 99706
+      },
+      "active_claims": 20,
+      "created": 100000,
+      "query_ms": 47.528
+    },
+    {
+      "at": "2026-11-09T23:58:34.00065775Z",
+      "items_by_status": {
+        "claimed": 20,
+        "completed": 240,
+        "failed_terminal": 34,
+        "pending": 99706
+      },
+      "active_claims": 20,
+      "created": 100000,
+      "query_ms": 54.346
+    },
+    {
+      "at": "2026-11-09T23:58:35.000794827Z",
+      "items_by_status": {
+        "claimed": 20,
+        "completed": 240,
+        "failed_terminal": 34,
+        "pending": 99706
+      },
+      "active_claims": 20,
+      "created": 100000,
+      "query_ms": 54.836
+    },
+    {
+      "at": "2026-11-09T23:58:36.001210746Z",
+      "items_by_status": {
+        "claimed": 20,
+        "completed": 240,
+        "failed_terminal": 34,
+        "pending": 99706
+      },
+      "active_claims": 20,
+      "created": 100000,
+      "query_ms": 50.89
+    },
+    {
+      "at": "2026-11-09T23:58:37.001299669Z",
+      "items_by_status": {
+        "claimed": 20,
+        "completed": 240,
+        "failed_terminal": 34,
+        "pending": 99706
+      },
+      "active_claims": 20,
+      "created": 100000,
+      "query_ms": 46.465
+    },
+    {
+      "at": "2026-11-09T23:58:38.000855907Z",
+      "items_by_status": {
+        "claimed": 20,
+        "completed": 240,
+        "failed_terminal": 34,
+        "pending": 99706
+      },
+      "active_claims": 20,
+      "created": 100000,
+      "query_ms": 46.655
+    },
+    {
+      "at": "2026-11-09T23:58:39.000412476Z",
+      "items_by_status": {
+        "claimed": 20,
+        "completed": 240,
+        "failed_terminal": 34,
+        "pending": 99706
+      },
+      "active_claims": 20,
+      "created": 100000,
+      "query_ms": 49.237
+    },
+    {
+      "at": "2026-11-09T23:58:40.001458887Z",
+      "items_by_status": {
+        "claimed": 20,
+        "completed": 240,
+        "failed_terminal": 34,
+        "pending": 99706
+      },
+      "active_claims": 20,
+      "created": 100000,
+      "query_ms": 2098.839
+    },
+    {
+      "at": "2026-11-09T23:58:42.100301003Z",
+      "items_by_status": {
+        "claimed": 20,
+        "completed": 240,
+        "failed_terminal": 34,
+        "pending": 99706
+      },
+      "active_claims": 20,
+      "created": 100000,
+      "query_ms": 52.769
+    },
+    {
+      "at": "2026-11-09T23:58:42.998945344Z",
+      "items_by_status": {
+        "claimed": 20,
+        "completed": 240,
+        "failed_terminal": 34,
+        "pending": 99706
+      },
+      "active_claims": 20,
+      "created": 100000,
+      "query_ms": 49.337
+    },
+    {
+      "at": "2026-11-09T23:58:44.001058232Z",
+      "items_by_status": {
+        "claimed": 20,
+        "completed": 240,
+        "failed_terminal": 34,
+        "pending": 99706
+      },
+      "active_claims": 20,
+      "created": 100000,
+      "query_ms": 54.726
+    },
+    {
+      "at": "2026-11-09T23:58:45.001425903Z",
+      "items_by_status": {
+        "claimed": 20,
+        "completed": 240,
+        "failed_terminal": 34,
+        "pending": 99706
+      },
+      "active_claims": 20,
+      "created": 100000,
+      "query_ms": 48.69
+    },
+    {
+      "at": "2026-11-09T23:58:45.999057395Z",
+      "items_by_status": {
+        "claimed": 20,
+        "completed": 240,
+        "failed_terminal": 34,
+        "pending": 99706
+      },
+      "active_claims": 20,
+      "created": 100000,
+      "query_ms": 48.032
+    },
+    {
+      "at": "2026-11-09T23:58:47.00098197Z",
+      "items_by_status": {
+        "claimed": 20,
+        "completed": 240,
+        "failed_terminal": 34,
+        "pending": 99706
+      },
+      "active_claims": 20,
+      "created": 100000,
+      "query_ms": 43.96
+    },
+    {
+      "at": "2026-11-09T23:58:47.999000029Z",
+      "items_by_status": {
+        "claimed": 20,
+        "completed": 240,
+        "failed_terminal": 34,
+        "pending": 99706
+      },
+      "active_claims": 19,
+      "created": 100000,
+      "query_ms": 48.534
+    },
+    {
+      "at": "2026-11-09T23:58:48.999057244Z",
+      "items_by_status": {
+        "claimed": 21,
+        "completed": 267,
+        "failed_terminal": 37,
+        "pending": 99675
+      },
+      "active_claims": 21,
+      "created": 100000,
+      "query_ms": 54.995
+    },
+    {
+      "at": "2026-11-09T23:58:49.999631417Z",
+      "items_by_status": {
+        "claimed": 20,
+        "completed": 282,
+        "failed_terminal": 38,
+        "pending": 99660
+      },
+      "active_claims": 20,
+      "created": 100000,
+      "query_ms": 61.175
+    },
+    {
+      "at": "2026-11-09T23:58:51.000307835Z",
+      "items_by_status": {
+        "claimed": 23,
+        "completed": 298,
+        "failed_terminal": 40,
+        "pending": 99639
+      },
+      "active_claims": 23,
+      "created": 100000,
+      "query_ms": 2273.076
+    },
+    {
+      "at": "2026-11-09T23:58:53.273387398Z",
+      "items_by_status": {
+        "claimed": 23,
+        "completed": 298,
+        "failed_terminal": 40,
+        "pending": 99639
+      },
+      "active_claims": 23,
+      "created": 100000,
+      "query_ms": 56.693
+    },
+    {
+      "at": "2026-11-09T23:58:54.001738369Z",
+      "items_by_status": {
+        "claimed": 23,
+        "completed": 298,
+        "failed_terminal": 40,
+        "pending": 99639
+      },
+      "active_claims": 23,
+      "created": 100000,
+      "query_ms": 56.109
+    },
+    {
+      "at": "2026-11-09T23:58:55.001094335Z",
+      "items_by_status": {
+        "claimed": 23,
+        "completed": 298,
+        "failed_terminal": 40,
+        "pending": 99639
+      },
+      "active_claims": 23,
+      "created": 100000,
+      "query_ms": 64.094
+    },
+    {
+      "at": "2026-11-09T23:58:55.999665814Z",
+      "items_by_status": {
+        "claimed": 23,
+        "completed": 300,
+        "failed_terminal": 40,
+        "pending": 99637
+      },
+      "active_claims": 23,
+      "created": 100000,
+      "query_ms": 53.192
+    },
+    {
+      "at": "2026-11-09T23:58:57.001144056Z",
+      "items_by_status": {
+        "claimed": 23,
+        "completed": 300,
+        "failed_terminal": 40,
+        "pending": 99637
+      },
+      "active_claims": 23,
+      "created": 100000,
+      "query_ms": 53.852
+    },
+    {
+      "at": "2026-11-09T23:58:58.001044488Z",
+      "items_by_status": {
+        "claimed": 23,
+        "completed": 300,
+        "failed_terminal": 40,
+        "pending": 99637
+      },
+      "active_claims": 23,
+      "created": 100000,
+      "query_ms": 48.991
+    },
+    {
+      "at": "2026-11-09T23:58:59.001041773Z",
+      "items_by_status": {
+        "claimed": 23,
+        "completed": 300,
+        "failed_terminal": 40,
+        "pending": 99637
+      },
+      "active_claims": 23,
+      "created": 100000,
+      "query_ms": 51.484
+    },
+    {
+      "at": "2026-11-09T23:59:00.001632853Z",
+      "items_by_status": {
+        "claimed": 23,
+        "completed": 300,
+        "failed_terminal": 40,
+        "pending": 99637
+      },
+      "active_claims": 23,
+      "created": 100000,
+      "query_ms": 60.299
+    },
+    {
+      "at": "2026-11-09T23:59:01.001404937Z",
+      "items_by_status": {
+        "claimed": 23,
+        "completed": 300,
+        "failed_terminal": 40,
+        "pending": 99637
+      },
+      "active_claims": 23,
+      "created": 100000,
+      "query_ms": 57.169
+    },
+    {
+      "at": "2026-11-09T23:59:02.001046397Z",
+      "items_by_status": {
+        "claimed": 23,
+        "completed": 300,
+        "failed_terminal": 40,
+        "pending": 99637
+      },
+      "active_claims": 23,
+      "created": 100000,
+      "query_ms": 2517.611
+    },
+    {
+      "at": "2026-11-09T23:59:04.518662866Z",
+      "items_by_status": {
+        "claimed": 23,
+        "completed": 300,
+        "failed_terminal": 40,
+        "pending": 99637
+      },
+      "active_claims": 20,
+      "created": 100000,
+      "query_ms": 120.217
+    },
+    {
+      "at": "2026-11-09T23:59:04.999688884Z",
+      "items_by_status": {
+        "claimed": 20,
+        "completed": 300,
+        "failed_terminal": 40,
+        "pending": 99640
+      },
+      "active_claims": 20,
+      "created": 100000,
+      "query_ms": 59.151
+    },
+    {
+      "at": "2026-11-09T23:59:06.001454863Z",
+      "items_by_status": {
+        "claimed": 20,
+        "completed": 300,
+        "failed_terminal": 40,
+        "pending": 99640
+      },
+      "active_claims": 20,
+      "created": 100000,
+      "query_ms": 54.26
+    },
+    {
+      "at": "2026-11-09T23:59:07.001817208Z",
+      "items_by_status": {
+        "claimed": 20,
+        "completed": 300,
+        "failed_terminal": 40,
+        "pending": 99640
+      },
+      "active_claims": 20,
+      "created": 100000,
+      "query_ms": 91.878
+    },
+    {
+      "at": "2026-11-09T23:59:08.000939295Z",
+      "items_by_status": {
+        "claimed": 20,
+        "completed": 300,
+        "failed_terminal": 40,
+        "pending": 99640
+      },
+      "active_claims": 20,
+      "created": 100000,
+      "query_ms": 50.872
+    },
+    {
+      "at": "2026-11-09T23:59:08.999059355Z",
+      "items_by_status": {
+        "claimed": 20,
+        "completed": 300,
+        "failed_terminal": 40,
+        "pending": 99640
+      },
+      "active_claims": 20,
+      "created": 100000,
+      "query_ms": 97.752
+    },
+    {
+      "at": "2026-11-09T23:59:10.00091884Z",
+      "items_by_status": {
+        "claimed": 20,
+        "completed": 300,
+        "failed_terminal": 40,
+        "pending": 99640
+      },
+      "active_claims": 20,
+      "created": 100000,
+      "query_ms": 60.992
+    },
+    {
+      "at": "2026-11-09T23:59:11.000858807Z",
+      "items_by_status": {
+        "claimed": 20,
+        "completed": 300,
+        "failed_terminal": 40,
+        "pending": 99640
+      },
+      "active_claims": 20,
+      "created": 100000,
+      "query_ms": 79.762
+    },
+    {
+      "at": "2026-11-09T23:59:12.001213255Z",
+      "items_by_status": {
+        "claimed": 20,
+        "completed": 300,
+        "failed_terminal": 40,
+        "pending": 99640
+      },
+      "active_claims": 20,
+      "created": 100000,
+      "query_ms": 108.969
+    },
+    {
+      "at": "2026-11-09T23:59:12.998955622Z",
+      "items_by_status": {
+        "claimed": 20,
+        "completed": 300,
+        "failed_terminal": 40,
+        "pending": 99640
+      },
+      "active_claims": 20,
+      "created": 100000,
+      "query_ms": 2437.85
+    },
+    {
+      "at": "2026-11-09T23:59:15.436809088Z",
+      "items_by_status": {
+        "claimed": 20,
+        "completed": 300,
+        "failed_terminal": 40,
+        "pending": 99640
+      },
+      "active_claims": 20,
+      "created": 100000,
+      "query_ms": 59.314
+    },
+    {
+      "at": "2026-11-09T23:59:15.99960591Z",
+      "items_by_status": {
+        "claimed": 20,
+        "completed": 300,
+        "failed_terminal": 40,
+        "pending": 99640
+      },
+      "active_claims": 20,
+      "created": 100000,
+      "query_ms": 103.342
+    },
+    {
+      "at": "2026-11-09T23:59:17.001027885Z",
+      "items_by_status": {
+        "claimed": 20,
+        "completed": 300,
+        "failed_terminal": 40,
+        "pending": 99640
+      },
+      "active_claims": 20,
+      "created": 100000,
+      "query_ms": 58.603
+    },
+    {
+      "at": "2026-11-09T23:59:17.998987884Z",
+      "items_by_status": {
+        "claimed": 20,
+        "completed": 300,
+        "failed_terminal": 40,
+        "pending": 99640
+      },
+      "active_claims": 20,
+      "created": 100000,
+      "query_ms": 92.83
+    },
+    {
+      "at": "2026-11-09T23:59:18.999384928Z",
+      "items_by_status": {
+        "claimed": 19,
+        "completed": 303,
+        "failed_terminal": 41,
+        "pending": 99637
+      },
+      "active_claims": 19,
+      "created": 100000,
+      "query_ms": 54.361
+    },
+    {
+      "at": "2026-11-09T23:59:19.999987319Z",
+      "items_by_status": {
+        "claimed": 21,
+        "completed": 314,
+        "failed_terminal": 44,
+        "pending": 99621
+      },
+      "active_claims": 21,
+      "created": 100000,
+      "query_ms": 89.022
+    },
+    {
+      "at": "2026-11-09T23:59:20.999617571Z",
+      "items_by_status": {
+        "claimed": 22,
+        "completed": 322,
+        "failed_terminal": 46,
+        "pending": 99610
+      },
+      "active_claims": 22,
+      "created": 100000,
+      "query_ms": 89.987
+    },
+    {
+      "at": "2026-11-09T23:59:21.999458064Z",
+      "items_by_status": {
+        "claimed": 24,
+        "completed": 349,
+        "failed_terminal": 50,
+        "pending": 99577
+      },
+      "active_claims": 24,
+      "created": 100000,
+      "query_ms": 64.392
+    },
+    {
+      "at": "2026-11-09T23:59:22.999751453Z",
+      "items_by_status": {
+        "claimed": 25,
+        "completed": 358,
+        "failed_terminal": 51,
+        "pending": 99566
+      },
+      "active_claims": 24,
+      "created": 100000,
+      "query_ms": 64.634
+    },
+    {
+      "at": "2026-11-09T23:59:23.999535983Z",
+      "items_by_status": {
+        "claimed": 26,
+        "completed": 370,
+        "failed_terminal": 53,
+        "pending": 99551
+      },
+      "active_claims": 28,
+      "created": 100000,
+      "query_ms": 2144.099
+    },
+    {
+      "at": "2026-11-09T23:59:26.143637897Z",
+      "items_by_status": {
+        "claimed": 26,
+        "completed": 395,
+        "failed_terminal": 56,
+        "pending": 99523
+      },
+      "active_claims": 26,
+      "created": 100000,
+      "query_ms": 55.743
+    },
+    {
+      "at": "2026-11-09T23:59:27.001264313Z",
+      "items_by_status": {
+        "claimed": 27,
+        "completed": 400,
+        "failed_terminal": 57,
+        "pending": 99516
+      },
+      "active_claims": 27,
+      "created": 100000,
+      "query_ms": 67.365
+    },
+    {
+      "at": "2026-11-09T23:59:28.001603677Z",
+      "items_by_status": {
+        "claimed": 27,
+        "completed": 400,
+        "failed_terminal": 57,
+        "pending": 99516
+      },
+      "active_claims": 27,
+      "created": 100000,
+      "query_ms": 92.857
+    },
+    {
+      "at": "2026-11-09T23:59:28.998945743Z",
+      "items_by_status": {
+        "claimed": 27,
+        "completed": 400,
+        "failed_terminal": 57,
+        "pending": 99516
+      },
+      "active_claims": 27,
+      "created": 100000,
+      "query_ms": 82.891
+    },
+    {
+      "at": "2026-11-09T23:59:30.000822461Z",
+      "items_by_status": {
+        "claimed": 27,
+        "completed": 400,
+        "failed_terminal": 57,
+        "pending": 99516
+      },
+      "active_claims": 27,
+      "created": 100000,
+      "query_ms": 88.403
+    },
+    {
+      "at": "2026-11-09T23:59:31.001247051Z",
+      "items_by_status": {
+        "claimed": 27,
+        "completed": 400,
+        "failed_terminal": 57,
+        "pending": 99516
+      },
+      "active_claims": 27,
+      "created": 100000,
+      "query_ms": 79.942
+    },
+    {
+      "at": "2026-11-09T23:59:32.00071407Z",
+      "items_by_status": {
+        "claimed": 27,
+        "completed": 400,
+        "failed_terminal": 57,
+        "pending": 99516
+      },
+      "active_claims": 27,
+      "created": 100000,
+      "query_ms": 100.757
+    },
+    {
+      "at": "2026-11-09T23:59:33.000455937Z",
+      "items_by_status": {
+        "claimed": 27,
+        "completed": 400,
+        "failed_terminal": 57,
+        "pending": 99516
+      },
+      "active_claims": 27,
+      "created": 100000,
+      "query_ms": 78.598
+    },
+    {
+      "at": "2026-11-09T23:59:33.998970148Z",
+      "items_by_status": {
+        "claimed": 27,
+        "completed": 400,
+        "failed_terminal": 57,
+        "pending": 99516
+      },
+      "active_claims": 27,
+      "created": 100000,
+      "query_ms": 54.777
+    },
+    {
+      "at": "2026-11-09T23:59:35.000810576Z",
+      "items_by_status": {
+        "claimed": 27,
+        "completed": 400,
+        "failed_terminal": 57,
+        "pending": 99516
+      },
+      "active_claims": 27,
+      "created": 100000,
+      "query_ms": 2130.832
+    },
+    {
+      "at": "2026-11-09T23:59:37.131646732Z",
+      "items_by_status": {
+        "claimed": 27,
+        "completed": 400,
+        "failed_terminal": 57,
+        "pending": 99516
+      },
+      "active_claims": 27,
+      "created": 100000,
+      "query_ms": 78.643
+    },
+    {
+      "at": "2026-11-09T23:59:38.001063264Z",
+      "items_by_status": {
+        "claimed": 27,
+        "completed": 400,
+        "failed_terminal": 57,
+        "pending": 99516
+      },
+      "active_claims": 27,
+      "created": 100000,
+      "query_ms": 67.696
+    },
+    {
+      "at": "2026-11-09T23:59:39.000681454Z",
+      "items_by_status": {
+        "claimed": 27,
+        "completed": 400,
+        "failed_terminal": 57,
+        "pending": 99516
+      },
+      "active_claims": 27,
+      "created": 100000,
+      "query_ms": 47.625
+    },
+    {
+      "at": "2026-11-09T23:59:40.001399002Z",
+      "items_by_status": {
+        "claimed": 27,
+        "completed": 400,
+        "failed_terminal": 57,
+        "pending": 99516
+      },
+      "active_claims": 27,
+      "created": 100000,
+      "query_ms": 59.431
+    },
+    {
+      "at": "2026-11-09T23:59:41.001363092Z",
+      "items_by_status": {
+        "claimed": 27,
+        "completed": 400,
+        "failed_terminal": 57,
+        "pending": 99516
+      },
+      "active_claims": 27,
+      "created": 100000,
+      "query_ms": 78.754
+    },
+    {
+      "at": "2026-11-09T23:59:41.999683639Z",
+      "items_by_status": {
+        "claimed": 27,
+        "completed": 400,
+        "failed_terminal": 57,
+        "pending": 99516
+      },
+      "active_claims": 27,
+      "created": 100000,
+      "query_ms": 87.841
+    },
+    {
+      "at": "2026-11-09T23:59:43.001282983Z",
+      "items_by_status": {
+        "claimed": 27,
+        "completed": 400,
+        "failed_terminal": 57,
+        "pending": 99516
+      },
+      "active_claims": 27,
+      "created": 100000,
+      "query_ms": 90.232
+    },
+    {
+      "at": "2026-11-09T23:59:44.001449316Z",
+      "items_by_status": {
+        "claimed": 27,
+        "completed": 400,
+        "failed_terminal": 57,
+        "pending": 99516
+      },
+      "active_claims": 27,
+      "created": 100000,
+      "query_ms": 81.546
+    },
+    {
+      "at": "2026-11-09T23:59:44.999195031Z",
+      "items_by_status": {
+        "claimed": 20,
+        "completed": 400,
+        "failed_terminal": 57,
+        "pending": 99523
+      },
+      "active_claims": 20,
+      "created": 100000,
+      "query_ms": 79.614
+    },
+    {
+      "at": "2026-11-09T23:59:46.001437249Z",
+      "items_by_status": {
+        "claimed": 20,
+        "completed": 400,
+        "failed_terminal": 57,
+        "pending": 99523
+      },
+      "active_claims": 20,
+      "created": 100000,
+      "query_ms": 2386.357
+    },
+    {
+      "at": "2026-11-09T23:59:48.387798015Z",
+      "items_by_status": {
+        "claimed": 20,
+        "completed": 400,
+        "failed_terminal": 57,
+        "pending": 99523
+      },
+      "active_claims": 20,
+      "created": 100000,
+      "query_ms": 52.515
+    },
+    {
+      "at": "2026-11-09T23:59:49.001121524Z",
+      "items_by_status": {
+        "claimed": 20,
+        "completed": 400,
+        "failed_terminal": 57,
+        "pending": 99523
+      },
+      "active_claims": 20,
+      "created": 100000,
+      "query_ms": 52.696
+    },
+    {
+      "at": "2026-11-09T23:59:49.998950519Z",
+      "items_by_status": {
+        "claimed": 20,
+        "completed": 400,
+        "failed_terminal": 57,
+        "pending": 99523
+      },
+      "active_claims": 20,
+      "created": 100000,
+      "query_ms": 79.439
+    },
+    {
+      "at": "2026-11-09T23:59:51.001034057Z",
+      "items_by_status": {
+        "claimed": 20,
+        "completed": 400,
+        "failed_terminal": 57,
+        "pending": 99523
+      },
+      "active_claims": 20,
+      "created": 100000,
+      "query_ms": 55.68
+    },
+    {
+      "at": "2026-11-09T23:59:51.999346032Z",
+      "items_by_status": {
+        "claimed": 19,
+        "completed": 406,
+        "failed_terminal": 58,
+        "pending": 99517
+      },
+      "active_claims": 20,
+      "created": 100000,
+      "query_ms": 105.457
+    },
+    {
+      "at": "2026-11-09T23:59:52.999120958Z",
+      "items_by_status": {
+        "claimed": 20,
+        "completed": 424,
+        "failed_terminal": 65,
+        "pending": 99491
+      },
+      "active_claims": 20,
+      "created": 100000,
+      "query_ms": 89.396
+    },
+    {
+      "at": "2026-11-09T23:59:53.999846965Z",
+      "items_by_status": {
+        "claimed": 22,
+        "completed": 440,
+        "failed_terminal": 68,
+        "pending": 99470
+      },
+      "active_claims": 22,
+      "created": 100000,
+      "query_ms": 50.969
+    },
+    {
+      "at": "2026-11-09T23:59:54.999486019Z",
+      "items_by_status": {
+        "claimed": 21,
+        "completed": 452,
+        "failed_terminal": 68,
+        "pending": 99459
+      },
+      "active_claims": 22,
+      "created": 100000,
+      "query_ms": 49.518
+    },
+    {
+      "at": "2026-11-09T23:59:55.999107911Z",
+      "items_by_status": {
+        "claimed": 25,
+        "completed": 457,
+        "failed_terminal": 70,
+        "pending": 99448
+      },
+      "active_claims": 25,
+      "created": 100000,
+      "query_ms": 55.339
+    },
+    {
+      "at": "2026-11-09T23:59:56.999272176Z",
+      "items_by_status": {
+        "claimed": 26,
+        "completed": 482,
+        "failed_terminal": 75,
+        "pending": 99417
+      },
+      "active_claims": 26,
+      "created": 100000,
+      "query_ms": 2105.93
+    },
+    {
+      "at": "2026-11-09T23:59:59.105205385Z",
+      "items_by_status": {
+        "claimed": 31,
+        "completed": 507,
+        "failed_terminal": 79,
+        "pending": 99383
+      },
+      "active_claims": 32,
+      "created": 100000,
+      "query_ms": 54.622
+    },
+    {
+      "at": "2026-11-10T00:00:00.000910832Z",
+      "items_by_status": {
+        "claimed": 32,
+        "completed": 517,
+        "failed_terminal": 81,
+        "pending": 99370
+      },
+      "active_claims": 32,
+      "created": 100000,
+      "query_ms": 59.791
+    },
+    {
+      "at": "2026-11-10T00:00:00.999012875Z",
+      "items_by_status": {
+        "claimed": 32,
+        "completed": 517,
+        "failed_terminal": 81,
+        "pending": 99370
+      },
+      "active_claims": 32,
+      "created": 100000,
+      "query_ms": 55.085
+    },
+    {
+      "at": "2026-11-10T00:00:02.001422285Z",
+      "items_by_status": {
+        "claimed": 32,
+        "completed": 517,
+        "failed_terminal": 81,
+        "pending": 99370
+      },
+      "active_claims": 32,
+      "created": 100000,
+      "query_ms": 88.907
+    },
+    {
+      "at": "2026-11-10T00:00:03.001400174Z",
+      "items_by_status": {
+        "claimed": 32,
+        "completed": 517,
+        "failed_terminal": 81,
+        "pending": 99370
+      },
+      "active_claims": 32,
+      "created": 100000,
+      "query_ms": 78.437
+    },
+    {
+      "at": "2026-11-10T00:00:04.00148524Z",
+      "items_by_status": {
+        "claimed": 32,
+        "completed": 517,
+        "failed_terminal": 81,
+        "pending": 99370
+      },
+      "active_claims": 32,
+      "created": 100000,
+      "query_ms": 84.562
+    },
+    {
+      "at": "2026-11-10T00:00:05.001002138Z",
+      "items_by_status": {
+        "claimed": 28,
+        "completed": 517,
+        "failed_terminal": 81,
+        "pending": 99374
+      },
+      "active_claims": 28,
+      "created": 100000,
+      "query_ms": 60.204
+    },
+    {
+      "at": "2026-11-10T00:00:06.001005393Z",
+      "items_by_status": {
+        "claimed": 28,
+        "completed": 517,
+        "failed_terminal": 81,
+        "pending": 99374
+      },
+      "active_claims": 28,
+      "created": 100000,
+      "query_ms": 66.479
+    },
+    {
+      "at": "2026-11-10T00:00:07.001320364Z",
+      "items_by_status": {
+        "claimed": 28,
+        "completed": 517,
+        "failed_terminal": 81,
+        "pending": 99374
+      },
+      "active_claims": 28,
+      "created": 100000,
+      "query_ms": 49.849
+    },
+    {
+      "at": "2026-11-10T00:00:08.00100674Z",
+      "items_by_status": {
+        "claimed": 28,
+        "completed": 517,
+        "failed_terminal": 81,
+        "pending": 99374
+      },
+      "active_claims": 28,
+      "created": 100000,
+      "query_ms": 2350.931
+    },
+    {
+      "at": "2026-11-10T00:00:10.351941931Z",
+      "items_by_status": {
+        "claimed": 28,
+        "completed": 517,
+        "failed_terminal": 81,
+        "pending": 99374
+      },
+      "active_claims": 28,
+      "created": 100000,
+      "query_ms": 51.444
+    },
+    {
+      "at": "2026-11-10T00:00:11.00126115Z",
+      "items_by_status": {
+        "claimed": 28,
+        "completed": 517,
+        "failed_terminal": 81,
+        "pending": 99374
+      },
+      "active_claims": 28,
+      "created": 100000,
+      "query_ms": 47.608
+    },
+    {
+      "at": "2026-11-10T00:00:12.000826594Z",
+      "items_by_status": {
+        "claimed": 28,
+        "completed": 517,
+        "failed_terminal": 81,
+        "pending": 99374
+      },
+      "active_claims": 28,
+      "created": 100000,
+      "query_ms": 52.296
+    },
+    {
+      "at": "2026-11-10T00:00:12.998946615Z",
+      "items_by_status": {
+        "claimed": 28,
+        "completed": 517,
+        "failed_terminal": 81,
+        "pending": 99374
+      },
+      "active_claims": 28,
+      "created": 100000,
+      "query_ms": 80.885
+    },
+    {
+      "at": "2026-11-10T00:00:14.000829624Z",
+      "items_by_status": {
+        "claimed": 28,
+        "completed": 517,
+        "failed_terminal": 81,
+        "pending": 99374
+      },
+      "active_claims": 28,
+      "created": 100000,
+      "query_ms": 47.023
+    },
+    {
+      "at": "2026-11-10T00:00:15.00166568Z",
+      "items_by_status": {
+        "claimed": 28,
+        "completed": 517,
+        "failed_terminal": 81,
+        "pending": 99374
+      },
+      "active_claims": 28,
+      "created": 100000,
+      "query_ms": 58.849
+    },
+    {
+      "at": "2026-11-10T00:00:16.001255877Z",
+      "items_by_status": {
+        "claimed": 28,
+        "completed": 517,
+        "failed_terminal": 81,
+        "pending": 99374
+      },
+      "active_claims": 28,
+      "created": 100000,
+      "query_ms": 53.459
+    },
+    {
+      "at": "2026-11-10T00:00:16.99890625Z",
+      "items_by_status": {
+        "claimed": 28,
+        "completed": 517,
+        "failed_terminal": 81,
+        "pending": 99374
+      },
+      "active_claims": 28,
+      "created": 100000,
+      "query_ms": 49.22
+    },
+    {
+      "at": "2026-11-10T00:00:17.998979029Z",
+      "items_by_status": {
+        "claimed": 28,
+        "completed": 517,
+        "failed_terminal": 81,
+        "pending": 99374
+      },
+      "active_claims": 28,
+      "created": 100000,
+      "query_ms": 51.911
+    },
+    {
+      "at": "2026-11-10T00:00:18.999307428Z",
+      "items_by_status": {
+        "claimed": 28,
+        "completed": 517,
+        "failed_terminal": 81,
+        "pending": 99374
+      },
+      "active_claims": 28,
+      "created": 100000,
+      "query_ms": 2143.887
+    },
+    {
+      "at": "2026-11-10T00:00:21.143197906Z",
+      "items_by_status": {
+        "claimed": 28,
+        "completed": 517,
+        "failed_terminal": 81,
+        "pending": 99374
+      },
+      "active_claims": 28,
+      "created": 100000,
+      "query_ms": 49.309
+    },
+    {
+      "at": "2026-11-10T00:00:22.001032058Z",
+      "items_by_status": {
+        "claimed": 28,
+        "completed": 517,
+        "failed_terminal": 81,
+        "pending": 99374
+      },
+      "active_claims": 28,
+      "created": 100000,
+      "query_ms": 54.37
+    },
+    {
+      "at": "2026-11-10T00:00:23.000939173Z",
+      "items_by_status": {
+        "claimed": 28,
+        "completed": 517,
+        "failed_terminal": 81,
+        "pending": 99374
+      },
+      "active_claims": 28,
+      "created": 100000,
+      "query_ms": 53.558
+    },
+    {
+      "at": "2026-11-10T00:00:24.000950524Z",
+      "items_by_status": {
+        "claimed": 28,
+        "completed": 517,
+        "failed_terminal": 81,
+        "pending": 99374
+      },
+      "active_claims": 28,
+      "created": 100000,
+      "query_ms": 77.806
+    },
+    {
+      "at": "2026-11-10T00:00:24.999143567Z",
+      "items_by_status": {
+        "claimed": 24,
+        "completed": 530,
+        "failed_terminal": 85,
+        "pending": 99361
+      },
+      "active_claims": 24,
+      "created": 100000,
+      "query_ms": 65.399
+    },
+    {
+      "at": "2026-11-10T00:00:25.99932271Z",
+      "items_by_status": {
+        "claimed": 27,
+        "completed": 542,
+        "failed_terminal": 89,
+        "pending": 99342
+      },
+      "active_claims": 26,
+      "created": 100000,
+      "query_ms": 43.461
+    },
+    {
+      "at": "2026-11-10T00:00:26.999404515Z",
+      "items_by_status": {
+        "claimed": 28,
+        "completed": 570,
+        "failed_terminal": 96,
+        "pending": 99306
+      },
+      "active_claims": 28,
+      "created": 100000,
+      "query_ms": 55.302
+    },
+    {
+      "at": "2026-11-10T00:00:27.999588563Z",
+      "items_by_status": {
+        "claimed": 32,
+        "completed": 597,
+        "failed_terminal": 100,
+        "pending": 99271
+      },
+      "active_claims": 32,
+      "created": 100000,
+      "query_ms": 53.682
+    },
+    {
+      "at": "2026-11-10T00:00:28.999766466Z",
+      "items_by_status": {
+        "claimed": 33,
+        "completed": 609,
+        "failed_terminal": 102,
+        "pending": 99256
+      },
+      "active_claims": 33,
+      "created": 100000,
+      "query_ms": 54.2
+    },
+    {
+      "at": "2026-11-10T00:00:29.99976909Z",
+      "items_by_status": {
+        "claimed": 34,
+        "completed": 623,
+        "failed_terminal": 105,
+        "pending": 99238
+      },
+      "active_claims": 35,
+      "created": 100000,
+      "query_ms": 2125.736
+    },
+    {
+      "at": "2026-11-10T00:00:32.125508064Z",
+      "items_by_status": {
+        "claimed": 36,
+        "completed": 655,
+        "failed_terminal": 109,
+        "pending": 99200
+      },
+      "active_claims": 36,
+      "created": 100000,
+      "query_ms": 53.152
+    },
+    {
+      "at": "2026-11-10T00:00:32.99972118Z",
+      "items_by_status": {
+        "claimed": 36,
+        "completed": 668,
+        "failed_terminal": 110,
+        "pending": 99186
+      },
+      "active_claims": 36,
+      "created": 100000,
+      "query_ms": 55.793
+    },
+    {
+      "at": "2026-11-10T00:00:33.999406928Z",
+      "items_by_status": {
+        "claimed": 38,
+        "completed": 680,
+        "failed_terminal": 112,
+        "pending": 99170
+      },
+      "active_claims": 37,
+      "created": 100000,
+      "query_ms": 71.789
+    },
+    {
+      "at": "2026-11-10T00:00:34.999470561Z",
+      "items_by_status": {
+        "claimed": 37,
+        "completed": 707,
+        "failed_terminal": 117,
+        "pending": 99139
+      },
+      "active_claims": 37,
+      "created": 100000,
+      "query_ms": 80.451
+    },
+    {
+      "at": "2026-11-10T00:00:35.999901088Z",
+      "items_by_status": {
+        "claimed": 39,
+        "completed": 726,
+        "failed_terminal": 117,
+        "pending": 99118
+      },
+      "active_claims": 39,
+      "created": 100000,
+      "query_ms": 49.992
+    },
+    {
+      "at": "2026-11-10T00:00:36.998954925Z",
+      "items_by_status": {
+        "claimed": 39,
+        "completed": 726,
+        "failed_terminal": 117,
+        "pending": 99118
+      },
+      "active_claims": 39,
+      "created": 100000,
+      "query_ms": 112.291
+    },
+    {
+      "at": "2026-11-10T00:00:38.000883604Z",
+      "items_by_status": {
+        "claimed": 39,
+        "completed": 726,
+        "failed_terminal": 117,
+        "pending": 99118
+      },
+      "active_claims": 39,
+      "created": 100000,
+      "query_ms": 49.171
+    },
+    {
+      "at": "2026-11-10T00:00:39.001496052Z",
+      "items_by_status": {
+        "claimed": 39,
+        "completed": 726,
+        "failed_terminal": 117,
+        "pending": 99118
+      },
+      "active_claims": 39,
+      "created": 100000,
+      "query_ms": 51.653
+    },
+    {
+      "at": "2026-11-10T00:00:40.000832519Z",
+      "items_by_status": {
+        "claimed": 39,
+        "completed": 726,
+        "failed_terminal": 117,
+        "pending": 99118
+      },
+      "active_claims": 39,
+      "created": 100000,
+      "query_ms": 47.831
+    },
+    {
+      "at": "2026-11-10T00:00:41.001571932Z",
+      "items_by_status": {
+        "claimed": 39,
+        "completed": 726,
+        "failed_terminal": 117,
+        "pending": 99118
+      },
+      "active_claims": 39,
+      "created": 100000,
+      "query_ms": 2501.516
+    },
+    {
+      "at": "2026-11-10T00:00:43.503091606Z",
+      "items_by_status": {
+        "claimed": 39,
+        "completed": 726,
+        "failed_terminal": 117,
+        "pending": 99118
+      },
+      "active_claims": 39,
+      "created": 100000,
+      "query_ms": 54.852
+    },
+    {
+      "at": "2026-11-10T00:00:44.000260414Z",
+      "items_by_status": {
+        "claimed": 39,
+        "completed": 726,
+        "failed_terminal": 117,
+        "pending": 99118
+      },
+      "active_claims": 39,
+      "created": 100000,
+      "query_ms": 51.882
+    },
+    {
+      "at": "2026-11-10T00:00:45.000928442Z",
+      "items_by_status": {
+        "claimed": 34,
+        "completed": 726,
+        "failed_terminal": 117,
+        "pending": 99123
+      },
+      "active_claims": 34,
+      "created": 100000,
+      "query_ms": 58.178
+    },
+    {
+      "at": "2026-11-10T00:00:46.000866852Z",
+      "items_by_status": {
+        "claimed": 34,
+        "completed": 726,
+        "failed_terminal": 117,
+        "pending": 99123
+      },
+      "active_claims": 34,
+      "created": 100000,
+      "query_ms": 68.159
+    },
+    {
+      "at": "2026-11-10T00:00:47.00084646Z",
+      "items_by_status": {
+        "claimed": 34,
+        "completed": 726,
+        "failed_terminal": 117,
+        "pending": 99123
+      },
+      "active_claims": 34,
+      "created": 100000,
+      "query_ms": 85.098
+    },
+    {
+      "at": "2026-11-10T00:00:48.000922923Z",
+      "items_by_status": {
+        "claimed": 34,
+        "completed": 726,
+        "failed_terminal": 117,
+        "pending": 99123
+      },
+      "active_claims": 34,
+      "created": 100000,
+      "query_ms": 97.378
+    },
+    {
+      "at": "2026-11-10T00:00:49.001587265Z",
+      "items_by_status": {
+        "claimed": 34,
+        "completed": 726,
+        "failed_terminal": 117,
+        "pending": 99123
+      },
+      "active_claims": 34,
+      "created": 100000,
+      "query_ms": 58.858
+    },
+    {
+      "at": "2026-11-10T00:00:49.999004388Z",
+      "items_by_status": {
+        "claimed": 34,
+        "completed": 726,
+        "failed_terminal": 117,
+        "pending": 99123
+      },
+      "active_claims": 34,
+      "created": 100000,
+      "query_ms": 75.714
+    },
+    {
+      "at": "2026-11-10T00:00:51.001777578Z",
+      "items_by_status": {
+        "claimed": 34,
+        "completed": 726,
+        "failed_terminal": 117,
+        "pending": 99123
+      },
+      "active_claims": 34,
+      "created": 100000,
+      "query_ms": 88.182
+    },
+    {
+      "at": "2026-11-10T00:00:52.001056012Z",
+      "items_by_status": {
+        "claimed": 34,
+        "completed": 726,
+        "failed_terminal": 117,
+        "pending": 99123
+      },
+      "active_claims": 34,
+      "created": 100000,
+      "query_ms": 2263.566
+    },
+    {
+      "at": "2026-11-10T00:00:54.264625939Z",
+      "items_by_status": {
+        "claimed": 34,
+        "completed": 726,
+        "failed_terminal": 117,
+        "pending": 99123
+      },
+      "active_claims": 34,
+      "created": 100000,
+      "query_ms": 52.074
+    },
+    {
+      "at": "2026-11-10T00:00:55.001031659Z",
+      "items_by_status": {
+        "claimed": 34,
+        "completed": 726,
+        "failed_terminal": 117,
+        "pending": 99123
+      },
+      "active_claims": 34,
+      "created": 100000,
+      "query_ms": 60.198
+    },
+    {
+      "at": "2026-11-10T00:00:55.999811916Z",
+      "items_by_status": {
+        "claimed": 34,
+        "completed": 726,
+        "failed_terminal": 117,
+        "pending": 99123
+      },
+      "active_claims": 34,
+      "created": 100000,
+      "query_ms": 55.836
+    },
+    {
+      "at": "2026-11-10T00:00:57.001351036Z",
+      "items_by_status": {
+        "claimed": 34,
+        "completed": 726,
+        "failed_terminal": 117,
+        "pending": 99123
+      },
+      "active_claims": 34,
+      "created": 100000,
+      "query_ms": 103.066
+    },
+    {
+      "at": "2026-11-10T00:00:58.000254311Z",
+      "items_by_status": {
+        "claimed": 34,
+        "completed": 736,
+        "failed_terminal": 118,
+        "pending": 99112
+      },
+      "active_claims": 34,
+      "created": 100000,
+      "query_ms": 64.83
+    },
+    {
+      "at": "2026-11-10T00:00:59.001340617Z",
+      "items_by_status": {
+        "claimed": 34,
+        "completed": 737,
+        "failed_terminal": 118,
+        "pending": 99111
+      },
+      "active_claims": 34,
+      "created": 100000,
+      "query_ms": 101.48
+    },
+    {
+      "at": "2026-11-10T00:00:59.999619253Z",
+      "items_by_status": {
+        "claimed": 33,
+        "completed": 754,
+        "failed_terminal": 120,
+        "pending": 99093
+      },
+      "active_claims": 35,
+      "created": 100000,
+      "query_ms": 104.346
+    },
+    {
+      "at": "2026-11-10T00:01:00.99932023Z",
+      "items_by_status": {
+        "claimed": 35,
+        "completed": 773,
+        "failed_terminal": 125,
+        "pending": 99067
+      },
+      "active_claims": 35,
+      "created": 100000,
+      "query_ms": 82.156
+    },
+    {
+      "at": "2026-11-10T00:01:01.999516162Z",
+      "items_by_status": {
+        "claimed": 39,
+        "completed": 785,
+        "failed_terminal": 128,
+        "pending": 99048
+      },
+      "active_claims": 39,
+      "created": 100000,
+      "query_ms": 64.513
+    },
+    {
+      "at": "2026-11-10T00:01:03.001316458Z",
+      "items_by_status": {
+        "claimed": 39,
+        "completed": 785,
+        "failed_terminal": 128,
+        "pending": 99048
+      },
+      "active_claims": 39,
+      "created": 100000,
+      "query_ms": 2872.258
+    },
+    {
+      "at": "2026-11-10T00:01:05.873577808Z",
+      "items_by_status": {
+        "claimed": 28,
+        "completed": 789,
+        "failed_terminal": 128,
+        "pending": 99055
+      },
+      "active_claims": 28,
+      "created": 100000,
+      "query_ms": 58.852
+    },
+    {
+      "at": "2026-11-10T00:01:05.999827261Z",
+      "items_by_status": {
+        "claimed": 28,
+        "completed": 789,
+        "failed_terminal": 128,
+        "pending": 99055
+      },
+      "active_claims": 28,
+      "created": 100000,
+      "query_ms": 65.935
+    },
+    {
+      "at": "2026-11-10T00:01:06.999022988Z",
+      "items_by_status": {
+        "claimed": 28,
+        "completed": 789,
+        "failed_terminal": 128,
+        "pending": 99055
+      },
+      "active_claims": 28,
+      "created": 100000,
+      "query_ms": 59.409
+    },
+    {
+      "at": "2026-11-10T00:01:08.000689601Z",
+      "items_by_status": {
+        "claimed": 28,
+        "completed": 789,
+        "failed_terminal": 128,
+        "pending": 99055
+      },
+      "active_claims": 28,
+      "created": 100000,
+      "query_ms": 93.41
+    },
+    {
+      "at": "2026-11-10T00:01:09.001345706Z",
+      "items_by_status": {
+        "claimed": 28,
+        "completed": 789,
+        "failed_terminal": 128,
+        "pending": 99055
+      },
+      "active_claims": 28,
+      "created": 100000,
+      "query_ms": 94.744
+    },
+    {
+      "at": "2026-11-10T00:01:10.001371939Z",
+      "items_by_status": {
+        "claimed": 28,
+        "completed": 789,
+        "failed_terminal": 128,
+        "pending": 99055
+      },
+      "active_claims": 28,
+      "created": 100000,
+      "query_ms": 93.819
+    },
+    {
+      "at": "2026-11-10T00:01:11.001389563Z",
+      "items_by_status": {
+        "claimed": 28,
+        "completed": 789,
+        "failed_terminal": 128,
+        "pending": 99055
+      },
+      "active_claims": 28,
+      "created": 100000,
+      "query_ms": 47.255
+    },
+    {
+      "at": "2026-11-10T00:01:12.000641812Z",
+      "items_by_status": {
+        "claimed": 28,
+        "completed": 789,
+        "failed_terminal": 128,
+        "pending": 99055
+      },
+      "active_claims": 28,
+      "created": 100000,
+      "query_ms": 58.101
+    },
+    {
+      "at": "2026-11-10T00:01:13.001641701Z",
+      "items_by_status": {
+        "claimed": 28,
+        "completed": 789,
+        "failed_terminal": 128,
+        "pending": 99055
+      },
+      "active_claims": 28,
+      "created": 100000,
+      "query_ms": 57.708
+    },
+    {
+      "at": "2026-11-10T00:01:14.001488722Z",
+      "items_by_status": {
+        "claimed": 28,
+        "completed": 789,
+        "failed_terminal": 128,
+        "pending": 99055
+      },
+      "active_claims": 28,
+      "created": 100000,
+      "query_ms": 2648.164
+    },
+    {
+      "at": "2026-11-10T00:01:16.649656578Z",
+      "items_by_status": {
+        "claimed": 28,
+        "completed": 789,
+        "failed_terminal": 128,
+        "pending": 99055
+      },
+      "active_claims": 28,
+      "created": 100000,
+      "query_ms": 59.989
+    },
+    {
+      "at": "2026-11-10T00:01:17.000115683Z",
+      "items_by_status": {
+        "claimed": 28,
+        "completed": 789,
+        "failed_terminal": 128,
+        "pending": 99055
+      },
+      "active_claims": 28,
+      "created": 100000,
+      "query_ms": 54.128
+    },
+    {
+      "at": "2026-11-10T00:01:18.001191737Z",
+      "items_by_status": {
+        "claimed": 28,
+        "completed": 789,
+        "failed_terminal": 128,
+        "pending": 99055
+      },
+      "active_claims": 28,
+      "created": 100000,
+      "query_ms": 80.573
+    },
+    {
+      "at": "2026-11-10T00:01:19.001628001Z",
+      "items_by_status": {
+        "claimed": 28,
+        "completed": 789,
+        "failed_terminal": 128,
+        "pending": 99055
+      },
+      "active_claims": 28,
+      "created": 100000,
+      "query_ms": 109.628
+    },
+    {
+      "at": "2026-11-10T00:01:20.000897747Z",
+      "items_by_status": {
+        "claimed": 28,
+        "completed": 789,
+        "failed_terminal": 128,
+        "pending": 99055
+      },
+      "active_claims": 28,
+      "created": 100000,
+      "query_ms": 81.249
+    },
+    {
+      "at": "2026-11-10T00:01:21.001116933Z",
+      "items_by_status": {
+        "claimed": 28,
+        "completed": 789,
+        "failed_terminal": 128,
+        "pending": 99055
+      },
+      "active_claims": 28,
+      "created": 100000,
+      "query_ms": 88.936
+    },
+    {
+      "at": "2026-11-10T00:01:21.999306861Z",
+      "items_by_status": {
+        "claimed": 28,
+        "completed": 789,
+        "failed_terminal": 128,
+        "pending": 99055
+      },
+      "active_claims": 28,
+      "created": 100000,
+      "query_ms": 118.552
+    },
+    {
+      "at": "2026-11-10T00:01:23.000424243Z",
+      "items_by_status": {
+        "claimed": 28,
+        "completed": 789,
+        "failed_terminal": 128,
+        "pending": 99055
+      },
+      "active_claims": 28,
+      "created": 100000,
+      "query_ms": 138.603
+    },
+    {
+      "at": "2026-11-10T00:01:23.998968782Z",
+      "items_by_status": {
+        "claimed": 28,
+        "completed": 789,
+        "failed_terminal": 128,
+        "pending": 99055
+      },
+      "active_claims": 28,
+      "created": 100000,
+      "query_ms": 144.042
+    },
+    {
+      "at": "2026-11-10T00:01:25.000534098Z",
+      "items_by_status": {
+        "claimed": 26,
+        "completed": 789,
+        "failed_terminal": 128,
+        "pending": 99057
+      },
+      "active_claims": 26,
+      "created": 100000,
+      "query_ms": 3578.159
+    },
+    {
+      "at": "2026-11-10T00:01:28.578696189Z",
+      "items_by_status": {
+        "claimed": 26,
+        "completed": 796,
+        "failed_terminal": 128,
+        "pending": 99050
+      },
+      "active_claims": 26,
+      "created": 100000,
+      "query_ms": 72.417
+    },
+    {
+      "at": "2026-11-10T00:01:28.999971309Z",
+      "items_by_status": {
+        "claimed": 26,
+        "completed": 796,
+        "failed_terminal": 128,
+        "pending": 99050
+      },
+      "active_claims": 25,
+      "created": 100000,
+      "query_ms": 88.471
+    },
+    {
+      "at": "2026-11-10T00:01:29.998943472Z",
+      "items_by_status": {
+        "claimed": 26,
+        "completed": 805,
+        "failed_terminal": 129,
+        "pending": 99040
+      },
+      "active_claims": 26,
+      "created": 100000,
+      "query_ms": 79.494
+    },
+    {
+      "at": "2026-11-10T00:01:30.999898127Z",
+      "items_by_status": {
+        "claimed": 27,
+        "completed": 820,
+        "failed_terminal": 133,
+        "pending": 99020
+      },
+      "active_claims": 27,
+      "created": 100000,
+      "query_ms": 81.177
+    },
+    {
+      "at": "2026-11-10T00:01:31.999870049Z",
+      "items_by_status": {
+        "claimed": 28,
+        "completed": 823,
+        "failed_terminal": 134,
+        "pending": 99015
+      },
+      "active_claims": 28,
+      "created": 100000,
+      "query_ms": 98.522
+    },
+    {
+      "at": "2026-11-10T00:01:33.000148076Z",
+      "items_by_status": {
+        "claimed": 29,
+        "completed": 828,
+        "failed_terminal": 135,
+        "pending": 99008
+      },
+      "active_claims": 29,
+      "created": 100000,
+      "query_ms": 76.955
+    },
+    {
+      "at": "2026-11-10T00:01:33.998886749Z",
+      "items_by_status": {
+        "claimed": 28,
+        "completed": 833,
+        "failed_terminal": 135,
+        "pending": 99004
+      },
+      "active_claims": 28,
+      "created": 100000,
+      "query_ms": 119.038
+    },
+    {
+      "at": "2026-11-10T00:01:34.999890327Z",
+      "items_by_status": {
+        "claimed": 30,
+        "completed": 844,
+        "failed_terminal": 135,
+        "pending": 98991
+      },
+      "active_claims": 30,
+      "created": 100000,
+      "query_ms": 108.826
+    },
+    {
+      "at": "2026-11-10T00:01:35.999266503Z",
+      "items_by_status": {
+        "claimed": 30,
+        "completed": 848,
+        "failed_terminal": 135,
+        "pending": 98987
+      },
+      "active_claims": 29,
+      "created": 100000,
+      "query_ms": 83.416
+    },
+    {
+      "at": "2026-11-10T00:01:37.000102938Z",
+      "items_by_status": {
+        "claimed": 30,
+        "completed": 859,
+        "failed_terminal": 139,
+        "pending": 98972
+      },
+      "active_claims": 30,
+      "created": 100000,
+      "query_ms": 2344.137
+    },
+    {
+      "at": "2026-11-10T00:01:39.344244031Z",
+      "items_by_status": {
+        "claimed": 30,
+        "completed": 859,
+        "failed_terminal": 139,
+        "pending": 98972
+      },
+      "active_claims": 30,
+      "created": 100000,
+      "query_ms": 74.908
+    },
+    {
+      "at": "2026-11-10T00:01:40.001137556Z",
+      "items_by_status": {
+        "claimed": 30,
+        "completed": 859,
+        "failed_terminal": 139,
+        "pending": 98972
+      },
+      "active_claims": 30,
+      "created": 100000,
+      "query_ms": 60.389
+    },
+    {
+      "at": "2026-11-10T00:01:41.001223303Z",
+      "items_by_status": {
+        "claimed": 30,
+        "completed": 859,
+        "failed_terminal": 139,
+        "pending": 98972
+      },
+      "active_claims": 30,
+      "created": 100000,
+      "query_ms": 107.227
+    },
+    {
+      "at": "2026-11-10T00:01:42.001032119Z",
+      "items_by_status": {
+        "claimed": 30,
+        "completed": 859,
+        "failed_terminal": 139,
+        "pending": 98972
+      },
+      "active_claims": 30,
+      "created": 100000,
+      "query_ms": 97.556
+    },
+    {
+      "at": "2026-11-10T00:01:43.000630781Z",
+      "items_by_status": {
+        "claimed": 30,
+        "completed": 859,
+        "failed_terminal": 139,
+        "pending": 98972
+      },
+      "active_claims": 30,
+      "created": 100000,
+      "query_ms": 93.26
+    },
+    {
+      "at": "2026-11-10T00:01:44.001021613Z",
+      "items_by_status": {
+        "claimed": 30,
+        "completed": 859,
+        "failed_terminal": 139,
+        "pending": 98972
+      },
+      "active_claims": 30,
+      "created": 100000,
+      "query_ms": 108.437
+    },
+    {
+      "at": "2026-11-10T00:01:45.001072042Z",
+      "items_by_status": {
+        "claimed": 19,
+        "completed": 859,
+        "failed_terminal": 139,
+        "pending": 98983
+      },
+      "active_claims": 19,
+      "created": 100000,
+      "query_ms": 92.896
+    },
+    {
+      "at": "2026-11-10T00:01:46.001006514Z",
+      "items_by_status": {
+        "claimed": 19,
+        "completed": 859,
+        "failed_terminal": 139,
+        "pending": 98983
+      },
+      "active_claims": 19,
+      "created": 100000,
+      "query_ms": 96.48
+    },
+    {
+      "at": "2026-11-10T00:01:46.999103431Z",
+      "items_by_status": {
+        "claimed": 19,
+        "completed": 859,
+        "failed_terminal": 139,
+        "pending": 98983
+      },
+      "active_claims": 19,
+      "created": 100000,
+      "query_ms": 60.199
+    },
+    {
+      "at": "2026-11-10T00:01:48.001315564Z",
+      "items_by_status": {
+        "claimed": 19,
+        "completed": 859,
+        "failed_terminal": 139,
+        "pending": 98983
+      },
+      "active_claims": 19,
+      "created": 100000,
+      "query_ms": 2526.997
+    },
+    {
+      "at": "2026-11-10T00:01:50.528316757Z",
+      "items_by_status": {
+        "claimed": 19,
+        "completed": 859,
+        "failed_terminal": 139,
+        "pending": 98983
+      },
+      "active_claims": 19,
+      "created": 100000,
+      "query_ms": 54.286
+    },
+    {
+      "at": "2026-11-10T00:01:51.000764392Z",
+      "items_by_status": {
+        "claimed": 19,
+        "completed": 859,
+        "failed_terminal": 139,
+        "pending": 98983
+      },
+      "active_claims": 19,
+      "created": 100000,
+      "query_ms": 50.891
+    },
+    {
+      "at": "2026-11-10T00:01:51.999465536Z",
+      "items_by_status": {
+        "claimed": 19,
+        "completed": 859,
+        "failed_terminal": 139,
+        "pending": 98983
+      },
+      "active_claims": 19,
+      "created": 100000,
+      "query_ms": 116.873
+    },
+    {
+      "at": "2026-11-10T00:01:53.001100855Z",
+      "items_by_status": {
+        "claimed": 19,
+        "completed": 859,
+        "failed_terminal": 139,
+        "pending": 98983
+      },
+      "active_claims": 19,
+      "created": 100000,
+      "query_ms": 156.834
+    },
+    {
+      "at": "2026-11-10T00:01:54.000936868Z",
+      "items_by_status": {
+        "claimed": 19,
+        "completed": 859,
+        "failed_terminal": 139,
+        "pending": 98983
+      },
+      "active_claims": 19,
+      "created": 100000,
+      "query_ms": 145.776
+    },
+    {
+      "at": "2026-11-10T00:01:54.999580538Z",
+      "items_by_status": {
+        "claimed": 19,
+        "completed": 859,
+        "failed_terminal": 139,
+        "pending": 98983
+      },
+      "active_claims": 19,
+      "created": 100000,
+      "query_ms": 103.698
+    },
+    {
+      "at": "2026-11-10T00:01:56.000941556Z",
+      "items_by_status": {
+        "claimed": 19,
+        "completed": 859,
+        "failed_terminal": 139,
+        "pending": 98983
+      },
+      "active_claims": 19,
+      "created": 100000,
+      "query_ms": 100.819
+    },
+    {
+      "at": "2026-11-10T00:01:56.999643078Z",
+      "items_by_status": {
+        "claimed": 19,
+        "completed": 859,
+        "failed_terminal": 139,
+        "pending": 98983
+      },
+      "active_claims": 19,
+      "created": 100000,
+      "query_ms": 115.926
+    },
+    {
+      "at": "2026-11-10T00:01:58.001338912Z",
+      "items_by_status": {
+        "claimed": 19,
+        "completed": 859,
+        "failed_terminal": 139,
+        "pending": 98983
+      },
+      "active_claims": 19,
+      "created": 100000,
+      "query_ms": 97.638
+    },
+    {
+      "at": "2026-11-10T00:01:58.998947066Z",
+      "items_by_status": {
+        "claimed": 19,
+        "completed": 859,
+        "failed_terminal": 139,
+        "pending": 98983
+      },
+      "active_claims": 19,
+      "created": 100000,
+      "query_ms": 2561.768
+    },
+    {
+      "at": "2026-11-10T00:02:01.560719471Z",
+      "items_by_status": {
+        "claimed": 19,
+        "completed": 859,
+        "failed_terminal": 139,
+        "pending": 98983
+      },
+      "active_claims": 19,
+      "created": 100000,
+      "query_ms": 61.911
+    },
+    {
+      "at": "2026-11-10T00:02:01.999198831Z",
+      "items_by_status": {
+        "claimed": 19,
+        "completed": 860,
+        "failed_terminal": 139,
+        "pending": 98982
+      },
+      "active_claims": 18,
+      "created": 100000,
+      "query_ms": 53.646
+    },
+    {
+      "at": "2026-11-10T00:02:02.999617085Z",
+      "items_by_status": {
+        "claimed": 18,
+        "completed": 871,
+        "failed_terminal": 141,
+        "pending": 98970
+      },
+      "active_claims": 18,
+      "created": 100000,
+      "query_ms": 53.532
+    },
+    {
+      "at": "2026-11-10T00:02:03.999076944Z",
+      "items_by_status": {
+        "claimed": 20,
+        "completed": 891,
+        "failed_terminal": 144,
+        "pending": 98945
+      },
+      "active_claims": 20,
+      "created": 100000,
+      "query_ms": 130.223
+    },
+    {
+      "at": "2026-11-10T00:02:04.999060163Z",
+      "items_by_status": {
+        "claimed": 12,
+        "completed": 894,
+        "failed_terminal": 144,
+        "pending": 98950
+      },
+      "active_claims": 12,
+      "created": 100000,
+      "query_ms": 67.139
+    },
+    {
+      "at": "2026-11-10T00:02:05.999361469Z",
+      "items_by_status": {
+        "claimed": 14,
+        "completed": 912,
+        "failed_terminal": 148,
+        "pending": 98926
+      },
+      "active_claims": 14,
+      "created": 100000,
+      "query_ms": 82.439
+    },
+    {
+      "at": "2026-11-10T00:02:06.999911184Z",
+      "items_by_status": {
+        "claimed": 17,
+        "completed": 930,
+        "failed_terminal": 149,
+        "pending": 98904
+      },
+      "active_claims": 16,
+      "created": 100000,
+      "query_ms": 58.96
+    },
+    {
+      "at": "2026-11-10T00:02:07.999596556Z",
+      "items_by_status": {
+        "claimed": 18,
+        "completed": 940,
+        "failed_terminal": 151,
+        "pending": 98891
+      },
+      "active_claims": 19,
+      "created": 100000,
+      "query_ms": 78.719
+    },
+    {
+      "at": "2026-11-10T00:02:08.99897614Z",
+      "items_by_status": {
+        "claimed": 19,
+        "completed": 940,
+        "failed_terminal": 151,
+        "pending": 98890
+      },
+      "active_claims": 19,
+      "created": 100000,
+      "query_ms": 59.006
+    },
+    {
+      "at": "2026-11-10T00:02:10.001627696Z",
+      "items_by_status": {
+        "claimed": 19,
+        "completed": 940,
+        "failed_terminal": 151,
+        "pending": 98890
+      },
+      "active_claims": 19,
+      "created": 100000,
+      "query_ms": 2251.999
+    },
+    {
+      "at": "2026-11-10T00:02:12.253631407Z",
+      "items_by_status": {
+        "claimed": 19,
+        "completed": 940,
+        "failed_terminal": 151,
+        "pending": 98890
+      },
+      "active_claims": 19,
+      "created": 100000,
+      "query_ms": 51.196
+    },
+    {
+      "at": "2026-11-10T00:02:12.99893864Z",
+      "items_by_status": {
+        "claimed": 19,
+        "completed": 940,
+        "failed_terminal": 151,
+        "pending": 98890
+      },
+      "active_claims": 19,
+      "created": 100000,
+      "query_ms": 58.746
+    },
+    {
+      "at": "2026-11-10T00:02:14.000917263Z",
+      "items_by_status": {
+        "claimed": 19,
+        "completed": 940,
+        "failed_terminal": 151,
+        "pending": 98890
+      },
+      "active_claims": 19,
+      "created": 100000,
+      "query_ms": 45.625
+    },
+    {
+      "at": "2026-11-10T00:02:15.001121423Z",
+      "items_by_status": {
+        "claimed": 19,
+        "completed": 940,
+        "failed_terminal": 151,
+        "pending": 98890
+      },
+      "active_claims": 19,
+      "created": 100000,
+      "query_ms": 52.069
+    },
+    {
+      "at": "2026-11-10T00:02:15.998960428Z",
+      "items_by_status": {
+        "claimed": 19,
+        "completed": 940,
+        "failed_terminal": 151,
+        "pending": 98890
+      },
+      "active_claims": 19,
+      "created": 100000,
+      "query_ms": 50.645
+    },
+    {
+      "at": "2026-11-10T00:02:17.000737205Z",
+      "items_by_status": {
+        "claimed": 19,
+        "completed": 940,
+        "failed_terminal": 151,
+        "pending": 98890
+      },
+      "active_claims": 19,
+      "created": 100000,
+      "query_ms": 52.081
+    },
+    {
+      "at": "2026-11-10T00:02:18.000984665Z",
+      "items_by_status": {
+        "claimed": 19,
+        "completed": 940,
+        "failed_terminal": 151,
+        "pending": 98890
+      },
+      "active_claims": 19,
+      "created": 100000,
+      "query_ms": 53.99
+    },
+    {
+      "at": "2026-11-10T00:02:19.001458223Z",
+      "items_by_status": {
+        "claimed": 19,
+        "completed": 940,
+        "failed_terminal": 151,
+        "pending": 98890
+      },
+      "active_claims": 19,
+      "created": 100000,
+      "query_ms": 51.737
+    },
+    {
+      "at": "2026-11-10T00:02:20.001853279Z",
+      "items_by_status": {
+        "claimed": 19,
+        "completed": 940,
+        "failed_terminal": 151,
+        "pending": 98890
+      },
+      "active_claims": 19,
+      "created": 100000,
+      "query_ms": 52.626
+    },
+    {
+      "at": "2026-11-10T00:02:21.001066298Z",
+      "items_by_status": {
+        "claimed": 19,
+        "completed": 940,
+        "failed_terminal": 151,
+        "pending": 98890
+      },
+      "active_claims": 19,
+      "created": 100000,
+      "query_ms": 2868.829
+    },
+    {
+      "at": "2026-11-10T00:02:23.869898384Z",
+      "items_by_status": {
+        "claimed": 19,
+        "completed": 940,
+        "failed_terminal": 151,
+        "pending": 98890
+      },
+      "active_claims": 19,
+      "created": 100000,
+      "query_ms": 57.256
+    },
+    {
+      "at": "2026-11-10T00:02:23.999575693Z",
+      "items_by_status": {
+        "claimed": 19,
+        "completed": 940,
+        "failed_terminal": 151,
+        "pending": 98890
+      },
+      "active_claims": 19,
+      "created": 100000,
+      "query_ms": 57.838
+    },
+    {
+      "at": "2026-11-10T00:02:25.001628438Z",
+      "items_by_status": {
+        "claimed": 15,
+        "completed": 940,
+        "failed_terminal": 151,
+        "pending": 98894
+      },
+      "active_claims": 15,
+      "created": 100000,
+      "query_ms": 53.584
+    },
+    {
+      "at": "2026-11-10T00:02:26.000864085Z",
+      "items_by_status": {
+        "claimed": 15,
+        "completed": 940,
+        "failed_terminal": 151,
+        "pending": 98894
+      },
+      "active_claims": 15,
+      "created": 100000,
+      "query_ms": 58.589
+    },
+    {
+      "at": "2026-11-10T00:02:27.001797092Z",
+      "items_by_status": {
+        "claimed": 15,
+        "completed": 940,
+        "failed_terminal": 151,
+        "pending": 98894
+      },
+      "active_claims": 15,
+      "created": 100000,
+      "query_ms": 123.045
+    },
+    {
+      "at": "2026-11-10T00:02:27.99894601Z",
+      "items_by_status": {
+        "claimed": 15,
+        "completed": 940,
+        "failed_terminal": 151,
+        "pending": 98894
+      },
+      "active_claims": 15,
+      "created": 100000,
+      "query_ms": 51.273
+    },
+    {
+      "at": "2026-11-10T00:02:29.001013769Z",
+      "items_by_status": {
+        "claimed": 15,
+        "completed": 940,
+        "failed_terminal": 151,
+        "pending": 98894
+      },
+      "active_claims": 15,
+      "created": 100000,
+      "query_ms": 85.184
+    },
+    {
+      "at": "2026-11-10T00:02:30.001474264Z",
+      "items_by_status": {
+        "claimed": 15,
+        "completed": 940,
+        "failed_terminal": 151,
+        "pending": 98894
+      },
+      "active_claims": 15,
+      "created": 100000,
+      "query_ms": 91.504
+    },
+    {
+      "at": "2026-11-10T00:02:31.001714735Z",
+      "items_by_status": {
+        "claimed": 15,
+        "completed": 940,
+        "failed_terminal": 151,
+        "pending": 98894
+      },
+      "active_claims": 15,
+      "created": 100000,
+      "query_ms": 54.417
+    },
+    {
+      "at": "2026-11-10T00:02:32.000640856Z",
+      "items_by_status": {
+        "claimed": 15,
+        "completed": 940,
+        "failed_terminal": 151,
+        "pending": 98894
+      },
+      "active_claims": 15,
+      "created": 100000,
+      "query_ms": 2294.921
+    },
+    {
+      "at": "2026-11-10T00:02:34.295565331Z",
+      "items_by_status": {
+        "claimed": 15,
+        "completed": 946,
+        "failed_terminal": 153,
+        "pending": 98886
+      },
+      "active_claims": 15,
+      "created": 100000,
+      "query_ms": 56.819
+    },
+    {
+      "at": "2026-11-10T00:02:34.999096352Z",
+      "items_by_status": {
+        "claimed": 16,
+        "completed": 950,
+        "failed_terminal": 154,
+        "pending": 98880
+      },
+      "active_claims": 16,
+      "created": 100000,
+      "query_ms": 51.381
+    },
+    {
+      "at": "2026-11-10T00:02:36.000727444Z",
+      "items_by_status": {
+        "claimed": 17,
+        "completed": 965,
+        "failed_terminal": 157,
+        "pending": 98861
+      },
+      "active_claims": 17,
+      "created": 100000,
+      "query_ms": 52.578
+    },
+    {
+      "at": "2026-11-10T00:02:37.001216475Z",
+      "items_by_status": {
+        "claimed": 18,
+        "completed": 970,
+        "failed_terminal": 158,
+        "pending": 98854
+      },
+      "active_claims": 18,
+      "created": 100000,
+      "query_ms": 46.583
+    },
+    {
+      "at": "2026-11-10T00:02:38.001527778Z",
+      "items_by_status": {
+        "claimed": 18,
+        "completed": 970,
+        "failed_terminal": 158,
+        "pending": 98854
+      },
+      "active_claims": 17,
+      "created": 100000,
+      "query_ms": 50.609
+    },
+    {
+      "at": "2026-11-10T00:02:38.999452222Z",
+      "items_by_status": {
+        "claimed": 20,
+        "completed": 991,
+        "failed_terminal": 163,
+        "pending": 98826
+      },
+      "active_claims": 20,
+      "created": 100000,
+      "query_ms": 57.128
+    },
+    {
+      "at": "2026-11-10T00:02:39.99949216Z",
+      "items_by_status": {
+        "claimed": 22,
+        "completed": 1017,
+        "failed_terminal": 167,
+        "pending": 98794
+      },
+      "active_claims": 22,
+      "created": 100000,
+      "query_ms": 79.076
+    },
+    {
+      "at": "2026-11-10T00:02:40.999064633Z",
+      "items_by_status": {
+        "claimed": 25,
+        "completed": 1033,
+        "failed_terminal": 170,
+        "pending": 98772
+      },
+      "active_claims": 25,
+      "created": 100000,
+      "query_ms": 48.558
+    },
+    {
+      "at": "2026-11-10T00:02:42.000812479Z",
+      "items_by_status": {
+        "claimed": 25,
+        "completed": 1033,
+        "failed_terminal": 170,
+        "pending": 98772
+      },
+      "active_claims": 25,
+      "created": 100000,
+      "query_ms": 83.567
+    },
+    {
+      "at": "2026-11-10T00:02:42.998963771Z",
+      "items_by_status": {
+        "claimed": 25,
+        "completed": 1033,
+        "failed_terminal": 170,
+        "pending": 98772
+      },
+      "active_claims": 25,
+      "created": 100000,
+      "query_ms": 2278.101
+    },
+    {
+      "at": "2026-11-10T00:02:45.27706902Z",
+      "items_by_status": {
+        "claimed": 25,
+        "completed": 1033,
+        "failed_terminal": 170,
+        "pending": 98772
+      },
+      "active_claims": 25,
+      "created": 100000,
+      "query_ms": 58.473
+    },
+    {
+      "at": "2026-11-10T00:02:46.001327064Z",
+      "items_by_status": {
+        "claimed": 25,
+        "completed": 1033,
+        "failed_terminal": 170,
+        "pending": 98772
+      },
+      "active_claims": 25,
+      "created": 100000,
+      "query_ms": 94.383
+    },
+    {
+      "at": "2026-11-10T00:02:47.000881584Z",
+      "items_by_status": {
+        "claimed": 25,
+        "completed": 1033,
+        "failed_terminal": 170,
+        "pending": 98772
+      },
+      "active_claims": 25,
+      "created": 100000,
+      "query_ms": 47.748
+    },
+    {
+      "at": "2026-11-10T00:02:48.001095657Z",
+      "items_by_status": {
+        "claimed": 25,
+        "completed": 1033,
+        "failed_terminal": 170,
+        "pending": 98772
+      },
+      "active_claims": 25,
+      "created": 100000,
+      "query_ms": 53.606
+    },
+    {
+      "at": "2026-11-10T00:02:49.001012773Z",
+      "items_by_status": {
+        "claimed": 25,
+        "completed": 1033,
+        "failed_terminal": 170,
+        "pending": 98772
+      },
+      "active_claims": 25,
+      "created": 100000,
+      "query_ms": 84.771
+    },
+    {
+      "at": "2026-11-10T00:02:50.001085936Z",
+      "items_by_status": {
+        "claimed": 25,
+        "completed": 1033,
+        "failed_terminal": 170,
+        "pending": 98772
+      },
+      "active_claims": 25,
+      "created": 100000,
+      "query_ms": 85.191
+    },
+    {
+      "at": "2026-11-10T00:02:51.001560828Z",
+      "items_by_status": {
+        "claimed": 25,
+        "completed": 1033,
+        "failed_terminal": 170,
+        "pending": 98772
+      },
+      "active_claims": 25,
+      "created": 100000,
+      "query_ms": 71.181
+    },
+    {
+      "at": "2026-11-10T00:02:52.001530137Z",
+      "items_by_status": {
+        "claimed": 25,
+        "completed": 1033,
+        "failed_terminal": 170,
+        "pending": 98772
+      },
+      "active_claims": 25,
+      "created": 100000,
+      "query_ms": 91.582
+    },
+    {
+      "at": "2026-11-10T00:02:53.001001617Z",
+      "items_by_status": {
+        "claimed": 25,
+        "completed": 1033,
+        "failed_terminal": 170,
+        "pending": 98772
+      },
+      "active_claims": 25,
+      "created": 100000,
+      "query_ms": 96.566
+    },
+    {
+      "at": "2026-11-10T00:02:54.00147796Z",
+      "items_by_status": {
+        "claimed": 25,
+        "completed": 1033,
+        "failed_terminal": 170,
+        "pending": 98772
+      },
+      "active_claims": 25,
+      "created": 100000,
+      "query_ms": 2156.995
+    },
+    {
+      "at": "2026-11-10T00:02:56.158477085Z",
+      "items_by_status": {
+        "claimed": 25,
+        "completed": 1033,
+        "failed_terminal": 170,
+        "pending": 98772
+      },
+      "active_claims": 25,
+      "created": 100000,
+      "query_ms": 45.043
+    },
+    {
+      "at": "2026-11-10T00:02:57.000918909Z",
+      "items_by_status": {
+        "claimed": 25,
+        "completed": 1033,
+        "failed_terminal": 170,
+        "pending": 98772
+      },
+      "active_claims": 25,
+      "created": 100000,
+      "query_ms": 48.624
+    },
+    {
+      "at": "2026-11-10T00:02:58.000918778Z",
+      "items_by_status": {
+        "claimed": 25,
+        "completed": 1033,
+        "failed_terminal": 170,
+        "pending": 98772
+      },
+      "active_claims": 25,
+      "created": 100000,
+      "query_ms": 51.091
+    },
+    {
+      "at": "2026-11-10T00:02:59.001421977Z",
+      "items_by_status": {
+        "claimed": 25,
+        "completed": 1033,
+        "failed_terminal": 170,
+        "pending": 98772
+      },
+      "active_claims": 25,
+      "created": 100000,
+      "query_ms": 55.667
+    },
+    {
+      "at": "2026-11-10T00:03:00.001476332Z",
+      "items_by_status": {
+        "claimed": 25,
+        "completed": 1033,
+        "failed_terminal": 170,
+        "pending": 98772
+      },
+      "active_claims": 25,
+      "created": 100000,
+      "query_ms": 51.666
+    },
+    {
+      "at": "2026-11-10T00:03:00.999916648Z",
+      "items_by_status": {
+        "claimed": 25,
+        "completed": 1033,
+        "failed_terminal": 170,
+        "pending": 98772
+      },
+      "active_claims": 25,
+      "created": 100000,
+      "query_ms": 95.443
+    },
+    {
+      "at": "2026-11-10T00:03:02.001692635Z",
+      "items_by_status": {
+        "claimed": 25,
+        "completed": 1033,
+        "failed_terminal": 170,
+        "pending": 98772
+      },
+      "active_claims": 25,
+      "created": 100000,
+      "query_ms": 50.592
+    },
+    {
+      "at": "2026-11-10T00:03:02.998942506Z",
+      "items_by_status": {
+        "claimed": 25,
+        "completed": 1033,
+        "failed_terminal": 170,
+        "pending": 98772
+      },
+      "active_claims": 25,
+      "created": 100000,
+      "query_ms": 61.411
+    },
+    {
+      "at": "2026-11-10T00:03:04.001529147Z",
+      "items_by_status": {
+        "claimed": 25,
+        "completed": 1033,
+        "failed_terminal": 170,
+        "pending": 98772
+      },
+      "active_claims": 25,
+      "created": 100000,
+      "query_ms": 66.526
+    },
+    {
+      "at": "2026-11-10T00:03:05.000682435Z",
+      "items_by_status": {
+        "claimed": 20,
+        "completed": 1033,
+        "failed_terminal": 170,
+        "pending": 98777
+      },
+      "active_claims": 20,
+      "created": 100000,
+      "query_ms": 2270.555
+    },
+    {
+      "at": "2026-11-10T00:03:07.271240366Z",
+      "items_by_status": {
+        "claimed": 21,
+        "completed": 1060,
+        "failed_terminal": 177,
+        "pending": 98742
+      },
+      "active_claims": 22,
+      "created": 100000,
+      "query_ms": 30.213
+    },
+    {
+      "at": "2026-11-10T00:03:07.999644283Z",
+      "items_by_status": {
+        "claimed": 22,
+        "completed": 1075,
+        "failed_terminal": 179,
+        "pending": 98724
+      },
+      "active_claims": 22,
+      "created": 100000,
+      "query_ms": 29.289
+    },
+    {
+      "at": "2026-11-10T00:03:08.999701352Z",
+      "items_by_status": {
+        "claimed": 24,
+        "completed": 1090,
+        "failed_terminal": 181,
+        "pending": 98705
+      },
+      "active_claims": 24,
+      "created": 100000,
+      "query_ms": 60.029
+    },
+    {
+      "at": "2026-11-10T00:03:09.998945561Z",
+      "items_by_status": {
+        "claimed": 24,
+        "completed": 1090,
+        "failed_terminal": 181,
+        "pending": 98705
+      },
+      "active_claims": 24,
+      "created": 100000,
+      "query_ms": 64.224
+    },
+    {
+      "at": "2026-11-10T00:03:10.998993757Z",
+      "items_by_status": {
+        "claimed": 24,
+        "completed": 1090,
+        "failed_terminal": 181,
+        "pending": 98705
+      },
+      "active_claims": 23,
+      "created": 100000,
+      "query_ms": 29.389
+    },
+    {
+      "at": "2026-11-10T00:03:12.001681485Z",
+      "items_by_status": {
+        "claimed": 26,
+        "completed": 1097,
+        "failed_terminal": 183,
+        "pending": 98694
+      },
+      "active_claims": 26,
+      "created": 100000,
+      "query_ms": 49.285
+    },
+    {
+      "at": "2026-11-10T00:03:13.001147354Z",
+      "items_by_status": {
+        "claimed": 26,
+        "completed": 1097,
+        "failed_terminal": 183,
+        "pending": 98694
+      },
+      "active_claims": 26,
+      "created": 100000,
+      "query_ms": 62.937
+    },
+    {
+      "at": "2026-11-10T00:03:14.001493711Z",
+      "items_by_status": {
+        "claimed": 26,
+        "completed": 1097,
+        "failed_terminal": 183,
+        "pending": 98694
+      },
+      "active_claims": 26,
+      "created": 100000,
+      "query_ms": 63.174
+    },
+    {
+      "at": "2026-11-10T00:03:15.001461483Z",
+      "items_by_status": {
+        "claimed": 26,
+        "completed": 1097,
+        "failed_terminal": 183,
+        "pending": 98694
+      },
+      "active_claims": 26,
+      "created": 100000,
+      "query_ms": 43.875
+    },
+    {
+      "at": "2026-11-10T00:03:16.001625028Z",
+      "items_by_status": {
+        "claimed": 26,
+        "completed": 1097,
+        "failed_terminal": 183,
+        "pending": 98694
+      },
+      "active_claims": 26,
+      "created": 100000,
+      "query_ms": 2395.022
+    },
+    {
+      "at": "2026-11-10T00:03:18.396651293Z",
+      "items_by_status": {
+        "claimed": 26,
+        "completed": 1097,
+        "failed_terminal": 183,
+        "pending": 98694
+      },
+      "active_claims": 26,
+      "created": 100000,
+      "query_ms": 49.516
+    },
+    {
+      "at": "2026-11-10T00:03:19.00086295Z",
+      "items_by_status": {
+        "claimed": 26,
+        "completed": 1097,
+        "failed_terminal": 183,
+        "pending": 98694
+      },
+      "active_claims": 26,
+      "created": 100000,
+      "query_ms": 29.806
+    },
+    {
+      "at": "2026-11-10T00:03:20.0008181Z",
+      "items_by_status": {
+        "claimed": 26,
+        "completed": 1097,
+        "failed_terminal": 183,
+        "pending": 98694
+      },
+      "active_claims": 26,
+      "created": 100000,
+      "query_ms": 29.677
+    },
+    {
+      "at": "2026-11-10T00:03:20.998942259Z",
+      "items_by_status": {
+        "claimed": 26,
+        "completed": 1097,
+        "failed_terminal": 183,
+        "pending": 98694
+      },
+      "active_claims": 26,
+      "created": 100000,
+      "query_ms": 48.537
+    },
+    {
+      "at": "2026-11-10T00:03:21.998945615Z",
+      "items_by_status": {
+        "claimed": 26,
+        "completed": 1097,
+        "failed_terminal": 183,
+        "pending": 98694
+      },
+      "active_claims": 26,
+      "created": 100000,
+      "query_ms": 32.025
+    },
+    {
+      "at": "2026-11-10T00:03:23.001093146Z",
+      "items_by_status": {
+        "claimed": 26,
+        "completed": 1097,
+        "failed_terminal": 183,
+        "pending": 98694
+      },
+      "active_claims": 26,
+      "created": 100000,
+      "query_ms": 41.532
+    },
+    {
+      "at": "2026-11-10T00:03:24.001024764Z",
+      "items_by_status": {
+        "claimed": 26,
+        "completed": 1097,
+        "failed_terminal": 183,
+        "pending": 98694
+      },
+      "active_claims": 26,
+      "created": 100000,
+      "query_ms": 29.169
+    },
+    {
+      "at": "2026-11-10T00:03:25.001114211Z",
+      "items_by_status": {
+        "claimed": 22,
+        "completed": 1097,
+        "failed_terminal": 183,
+        "pending": 98698
+      },
+      "active_claims": 22,
+      "created": 100000,
+      "query_ms": 29.693
+    },
+    {
+      "at": "2026-11-10T00:03:26.000969394Z",
+      "items_by_status": {
+        "claimed": 22,
+        "completed": 1097,
+        "failed_terminal": 183,
+        "pending": 98698
+      },
+      "active_claims": 22,
+      "created": 100000,
+      "query_ms": 66.691
+    },
+    {
+      "at": "2026-11-10T00:03:27.001402953Z",
+      "items_by_status": {
+        "claimed": 22,
+        "completed": 1097,
+        "failed_terminal": 183,
+        "pending": 98698
+      },
+      "active_claims": 22,
+      "created": 100000,
+      "query_ms": 2175.476
+    },
+    {
+      "at": "2026-11-10T00:03:29.176884162Z",
+      "items_by_status": {
+        "claimed": 22,
+        "completed": 1097,
+        "failed_terminal": 183,
+        "pending": 98698
+      },
+      "active_claims": 22,
+      "created": 100000,
+      "query_ms": 29.488
+    },
+    {
+      "at": "2026-11-10T00:03:30.000997553Z",
+      "items_by_status": {
+        "claimed": 22,
+        "completed": 1097,
+        "failed_terminal": 183,
+        "pending": 98698
+      },
+      "active_claims": 22,
+      "created": 100000,
+      "query_ms": 30.565
+    },
+    {
+      "at": "2026-11-10T00:03:31.000983556Z",
+      "items_by_status": {
+        "claimed": 22,
+        "completed": 1097,
+        "failed_terminal": 183,
+        "pending": 98698
+      },
+      "active_claims": 22,
+      "created": 100000,
+      "query_ms": 29.439
+    },
+    {
+      "at": "2026-11-10T00:03:32.001437704Z",
+      "items_by_status": {
+        "claimed": 22,
+        "completed": 1097,
+        "failed_terminal": 183,
+        "pending": 98698
+      },
+      "active_claims": 22,
+      "created": 100000,
+      "query_ms": 48.272
+    },
+    {
+      "at": "2026-11-10T00:03:33.001197636Z",
+      "items_by_status": {
+        "claimed": 22,
+        "completed": 1097,
+        "failed_terminal": 183,
+        "pending": 98698
+      },
+      "active_claims": 22,
+      "created": 100000,
+      "query_ms": 44.779
+    },
+    {
+      "at": "2026-11-10T00:03:34.000868544Z",
+      "items_by_status": {
+        "claimed": 22,
+        "completed": 1097,
+        "failed_terminal": 183,
+        "pending": 98698
+      },
+      "active_claims": 22,
+      "created": 100000,
+      "query_ms": 34.531
+    },
+    {
+      "at": "2026-11-10T00:03:35.000381651Z",
+      "items_by_status": {
+        "claimed": 22,
+        "completed": 1097,
+        "failed_terminal": 183,
+        "pending": 98698
+      },
+      "active_claims": 22,
+      "created": 100000,
+      "query_ms": 47.515
+    },
+    {
+      "at": "2026-11-10T00:03:35.998943371Z",
+      "items_by_status": {
+        "claimed": 22,
+        "completed": 1097,
+        "failed_terminal": 183,
+        "pending": 98698
+      },
+      "active_claims": 22,
+      "created": 100000,
+      "query_ms": 29.135
+    },
+    {
+      "at": "2026-11-10T00:03:37.001836902Z",
+      "items_by_status": {
+        "claimed": 22,
+        "completed": 1097,
+        "failed_terminal": 183,
+        "pending": 98698
+      },
+      "active_claims": 22,
+      "created": 100000,
+      "query_ms": 46.981
+    },
+    {
+      "at": "2026-11-10T00:03:37.999157804Z",
+      "items_by_status": {
+        "claimed": 21,
+        "completed": 1099,
+        "failed_terminal": 183,
+        "pending": 98697
+      },
+      "active_claims": 22,
+      "created": 100000,
+      "query_ms": 2079.632
+    },
+    {
+      "at": "2026-11-10T00:03:40.078794295Z",
+      "items_by_status": {
+        "claimed": 22,
+        "completed": 1104,
+        "failed_terminal": 187,
+        "pending": 98687
+      },
+      "active_claims": 22,
+      "created": 100000,
+      "query_ms": 28.997
+    },
+    {
+      "at": "2026-11-10T00:03:41.001223305Z",
+      "items_by_status": {
+        "claimed": 22,
+        "completed": 1104,
+        "failed_terminal": 187,
+        "pending": 98687
+      },
+      "active_claims": 22,
+      "created": 100000,
+      "query_ms": 29.82
+    },
+    {
+      "at": "2026-11-10T00:03:41.999275444Z",
+      "items_by_status": {
+        "claimed": 25,
+        "completed": 1111,
+        "failed_terminal": 190,
+        "pending": 98674
+      },
+      "active_claims": 25,
+      "created": 100000,
+      "query_ms": 49.12
+    },
+    {
+      "at": "2026-11-10T00:03:42.999666515Z",
+      "items_by_status": {
+        "claimed": 25,
+        "completed": 1117,
+        "failed_terminal": 192,
+        "pending": 98666
+      },
+      "active_claims": 25,
+      "created": 100000,
+      "query_ms": 29.248
+    },
+    {
+      "at": "2026-11-10T00:03:44.001107695Z",
+      "items_by_status": {
+        "claimed": 25,
+        "completed": 1117,
+        "failed_terminal": 192,
+        "pending": 98666
+      },
+      "active_claims": 25,
+      "created": 100000,
+      "query_ms": 30.609
+    },
+    {
+      "at": "2026-11-10T00:03:45.001210554Z",
+      "items_by_status": {
+        "claimed": 19,
+        "completed": 1117,
+        "failed_terminal": 192,
+        "pending": 98672
+      },
+      "active_claims": 19,
+      "created": 100000,
+      "query_ms": 29.064
+    },
+    {
+      "at": "2026-11-10T00:03:46.001401821Z",
+      "items_by_status": {
+        "claimed": 19,
+        "completed": 1117,
+        "failed_terminal": 192,
+        "pending": 98672
+      },
+      "active_claims": 19,
+      "created": 100000,
+      "query_ms": 32.284
+    },
+    {
+      "at": "2026-11-10T00:03:46.998948016Z",
+      "items_by_status": {
+        "claimed": 19,
+        "completed": 1117,
+        "failed_terminal": 192,
+        "pending": 98672
+      },
+      "active_claims": 19,
+      "created": 100000,
+      "query_ms": 44.995
+    },
+    {
+      "at": "2026-11-10T00:03:48.001506823Z",
+      "items_by_status": {
+        "claimed": 19,
+        "completed": 1117,
+        "failed_terminal": 192,
+        "pending": 98672
+      },
+      "active_claims": 19,
+      "created": 100000,
+      "query_ms": 49.143
+    },
+    {
+      "at": "2026-11-10T00:03:49.000828553Z",
+      "items_by_status": {
+        "claimed": 19,
+        "completed": 1117,
+        "failed_terminal": 192,
+        "pending": 98672
+      },
+      "active_claims": 19,
+      "created": 100000,
+      "query_ms": 2348.979
+    },
+    {
+      "at": "2026-11-10T00:03:51.349812565Z",
+      "items_by_status": {
+        "claimed": 19,
+        "completed": 1117,
+        "failed_terminal": 192,
+        "pending": 98672
+      },
+      "active_claims": 19,
+      "created": 100000,
+      "query_ms": 46.005
+    },
+    {
+      "at": "2026-11-10T00:03:52.001085495Z",
+      "items_by_status": {
+        "claimed": 19,
+        "completed": 1117,
+        "failed_terminal": 192,
+        "pending": 98672
+      },
+      "active_claims": 19,
+      "created": 100000,
+      "query_ms": 48.682
+    },
+    {
+      "at": "2026-11-10T00:03:53.001583663Z",
+      "items_by_status": {
+        "claimed": 19,
+        "completed": 1117,
+        "failed_terminal": 192,
+        "pending": 98672
+      },
+      "active_claims": 19,
+      "created": 100000,
+      "query_ms": 30.2
+    },
+    {
+      "at": "2026-11-10T00:03:54.001544232Z",
+      "items_by_status": {
+        "claimed": 19,
+        "completed": 1117,
+        "failed_terminal": 192,
+        "pending": 98672
+      },
+      "active_claims": 19,
+      "created": 100000,
+      "query_ms": 29.255
+    },
+    {
+      "at": "2026-11-10T00:03:55.001585565Z",
+      "items_by_status": {
+        "claimed": 19,
+        "completed": 1117,
+        "failed_terminal": 192,
+        "pending": 98672
+      },
+      "active_claims": 19,
+      "created": 100000,
+      "query_ms": 47.858
+    },
+    {
+      "at": "2026-11-10T00:03:56.001368317Z",
+      "items_by_status": {
+        "claimed": 19,
+        "completed": 1117,
+        "failed_terminal": 192,
+        "pending": 98672
+      },
+      "active_claims": 19,
+      "created": 100000,
+      "query_ms": 46.811
+    },
+    {
+      "at": "2026-11-10T00:03:57.001715834Z",
+      "items_by_status": {
+        "claimed": 19,
+        "completed": 1117,
+        "failed_terminal": 192,
+        "pending": 98672
+      },
+      "active_claims": 19,
+      "created": 100000,
+      "query_ms": 47.188
+    },
+    {
+      "at": "2026-11-10T00:03:58.001587249Z",
+      "items_by_status": {
+        "claimed": 19,
+        "completed": 1117,
+        "failed_terminal": 192,
+        "pending": 98672
+      },
+      "active_claims": 19,
+      "created": 100000,
+      "query_ms": 66.542
+    },
+    {
+      "at": "2026-11-10T00:03:58.999186449Z",
+      "items_by_status": {
+        "claimed": 19,
+        "completed": 1117,
+        "failed_terminal": 192,
+        "pending": 98672
+      },
+      "active_claims": 19,
+      "created": 100000,
+      "query_ms": 62.888
+    },
+    {
+      "at": "2026-11-10T00:04:00.00140083Z",
+      "items_by_status": {
+        "claimed": 19,
+        "completed": 1117,
+        "failed_terminal": 192,
+        "pending": 98672
+      },
+      "active_claims": 19,
+      "created": 100000,
+      "query_ms": 2662.279
+    },
+    {
+      "at": "2026-11-10T00:04:02.663686239Z",
+      "items_by_status": {
+        "claimed": 19,
+        "completed": 1117,
+        "failed_terminal": 192,
+        "pending": 98672
+      },
+      "active_claims": 19,
+      "created": 100000,
+      "query_ms": 37.439
+    },
+    {
+      "at": "2026-11-10T00:04:02.999813322Z",
+      "items_by_status": {
+        "claimed": 19,
+        "completed": 1117,
+        "failed_terminal": 192,
+        "pending": 98672
+      },
+      "active_claims": 19,
+      "created": 100000,
+      "query_ms": 48.743
+    },
+    {
+      "at": "2026-11-10T00:04:03.998937451Z",
+      "items_by_status": {
+        "claimed": 19,
+        "completed": 1117,
+        "failed_terminal": 192,
+        "pending": 98672
+      },
+      "active_claims": 19,
+      "created": 100000,
+      "query_ms": 49.808
+    },
+    {
+      "at": "2026-11-10T00:04:04.998936615Z",
+      "items_by_status": {
+        "claimed": 12,
+        "completed": 1117,
+        "failed_terminal": 192,
+        "pending": 98679
+      },
+      "active_claims": 12,
+      "created": 100000,
+      "query_ms": 112.029
+    },
+    {
+      "at": "2026-11-10T00:04:06.000729452Z",
+      "items_by_status": {
+        "claimed": 12,
+        "completed": 1117,
+        "failed_terminal": 192,
+        "pending": 98679
+      },
+      "active_claims": 12,
+      "created": 100000,
+      "query_ms": 52.486
+    },
+    {
+      "at": "2026-11-10T00:04:07.000862911Z",
+      "items_by_status": {
+        "claimed": 12,
+        "completed": 1117,
+        "failed_terminal": 192,
+        "pending": 98679
+      },
+      "active_claims": 12,
+      "created": 100000,
+      "query_ms": 66.871
+    },
+    {
+      "at": "2026-11-10T00:04:08.000689371Z",
+      "items_by_status": {
+        "claimed": 12,
+        "completed": 1117,
+        "failed_terminal": 192,
+        "pending": 98679
+      },
+      "active_claims": 12,
+      "created": 100000,
+      "query_ms": 61.526
+    },
+    {
+      "at": "2026-11-10T00:04:08.999488246Z",
+      "items_by_status": {
+        "claimed": 11,
+        "completed": 1128,
+        "failed_terminal": 192,
+        "pending": 98669
+      },
+      "active_claims": 13,
+      "created": 100000,
+      "query_ms": 45.526
+    },
+    {
+      "at": "2026-11-10T00:04:09.999780557Z",
+      "items_by_status": {
+        "claimed": 15,
+        "completed": 1155,
+        "failed_terminal": 195,
+        "pending": 98635
+      },
+      "active_claims": 16,
+      "created": 100000,
+      "query_ms": 64.852
+    },
+    {
+      "at": "2026-11-10T00:04:10.999504027Z",
+      "items_by_status": {
+        "claimed": 15,
+        "completed": 1192,
+        "failed_terminal": 200,
+        "pending": 98593
+      },
+      "active_claims": 15,
+      "created": 100000,
+      "query_ms": 2348.302
+    },
+    {
+      "at": "2026-11-10T00:04:13.34780965Z",
+      "items_by_status": {
+        "claimed": 19,
+        "completed": 1247,
+        "failed_terminal": 211,
+        "pending": 98523
+      },
+      "active_claims": 18,
+      "created": 100000,
+      "query_ms": 40.638
+    },
+    {
+      "at": "2026-11-10T00:04:13.999326787Z",
+      "items_by_status": {
+        "claimed": 22,
+        "completed": 1283,
+        "failed_terminal": 217,
+        "pending": 98478
+      },
+      "active_claims": 24,
+      "created": 100000,
+      "query_ms": 49.077
+    },
+    {
+      "at": "2026-11-10T00:04:15.000088046Z",
+      "items_by_status": {
+        "claimed": 29,
+        "completed": 1304,
+        "failed_terminal": 224,
+        "pending": 98443
+      },
+      "active_claims": 29,
+      "created": 100000,
+      "query_ms": 48.435
+    },
+    {
+      "at": "2026-11-10T00:04:15.999691274Z",
+      "items_by_status": {
+        "claimed": 29,
+        "completed": 1325,
+        "failed_terminal": 226,
+        "pending": 98420
+      },
+      "active_claims": 29,
+      "created": 100000,
+      "query_ms": 49.193
+    },
+    {
+      "at": "2026-11-10T00:04:16.999360267Z",
+      "items_by_status": {
+        "claimed": 30,
+        "completed": 1337,
+        "failed_terminal": 228,
+        "pending": 98405
+      },
+      "active_claims": 31,
+      "created": 100000,
+      "query_ms": 43.059
+    },
+    {
+      "at": "2026-11-10T00:04:18.001172662Z",
+      "items_by_status": {
+        "claimed": 32,
+        "completed": 1343,
+        "failed_terminal": 230,
+        "pending": 98395
+      },
+      "active_claims": 32,
+      "created": 100000,
+      "query_ms": 42.009
+    },
+    {
+      "at": "2026-11-10T00:04:19.000478767Z",
+      "items_by_status": {
+        "claimed": 32,
+        "completed": 1343,
+        "failed_terminal": 230,
+        "pending": 98395
+      },
+      "active_claims": 32,
+      "created": 100000,
+      "query_ms": 67.938
+    },
+    {
+      "at": "2026-11-10T00:04:20.001233302Z",
+      "items_by_status": {
+        "claimed": 32,
+        "completed": 1343,
+        "failed_terminal": 230,
+        "pending": 98395
+      },
+      "active_claims": 32,
+      "created": 100000,
+      "query_ms": 43.323
+    },
+    {
+      "at": "2026-11-10T00:04:21.001643855Z",
+      "items_by_status": {
+        "claimed": 32,
+        "completed": 1343,
+        "failed_terminal": 230,
+        "pending": 98395
+      },
+      "active_claims": 32,
+      "created": 100000,
+      "query_ms": 45.544
+    },
+    {
+      "at": "2026-11-10T00:04:22.001211365Z",
+      "items_by_status": {
+        "claimed": 32,
+        "completed": 1343,
+        "failed_terminal": 230,
+        "pending": 98395
+      },
+      "active_claims": 32,
+      "created": 100000,
+      "query_ms": 2417.759
+    },
+    {
+      "at": "2026-11-10T00:04:24.418974819Z",
+      "items_by_status": {
+        "claimed": 32,
+        "completed": 1343,
+        "failed_terminal": 230,
+        "pending": 98395
+      },
+      "active_claims": 32,
+      "created": 100000,
+      "query_ms": 43.452
+    },
+    {
+      "at": "2026-11-10T00:04:25.001138583Z",
+      "items_by_status": {
+        "claimed": 28,
+        "completed": 1343,
+        "failed_terminal": 230,
+        "pending": 98399
+      },
+      "active_claims": 28,
+      "created": 100000,
+      "query_ms": 29.889
+    },
+    {
+      "at": "2026-11-10T00:04:26.00155257Z",
+      "items_by_status": {
+        "claimed": 28,
+        "completed": 1343,
+        "failed_terminal": 230,
+        "pending": 98399
+      },
+      "active_claims": 28,
+      "created": 100000,
+      "query_ms": 45.292
+    },
+    {
+      "at": "2026-11-10T00:04:27.001012849Z",
+      "items_by_status": {
+        "claimed": 28,
+        "completed": 1343,
+        "failed_terminal": 230,
+        "pending": 98399
+      },
+      "active_claims": 28,
+      "created": 100000,
+      "query_ms": 47.459
+    },
+    {
+      "at": "2026-11-10T00:04:28.001465004Z",
+      "items_by_status": {
+        "claimed": 28,
+        "completed": 1343,
+        "failed_terminal": 230,
+        "pending": 98399
+      },
+      "active_claims": 28,
+      "created": 100000,
+      "query_ms": 42.587
+    },
+    {
+      "at": "2026-11-10T00:04:29.001650693Z",
+      "items_by_status": {
+        "claimed": 28,
+        "completed": 1343,
+        "failed_terminal": 230,
+        "pending": 98399
+      },
+      "active_claims": 28,
+      "created": 100000,
+      "query_ms": 49.128
+    },
+    {
+      "at": "2026-11-10T00:04:30.001427988Z",
+      "items_by_status": {
+        "claimed": 28,
+        "completed": 1343,
+        "failed_terminal": 230,
+        "pending": 98399
+      },
+      "active_claims": 28,
+      "created": 100000,
+      "query_ms": 49.545
+    },
+    {
+      "at": "2026-11-10T00:04:31.001356525Z",
+      "items_by_status": {
+        "claimed": 28,
+        "completed": 1343,
+        "failed_terminal": 230,
+        "pending": 98399
+      },
+      "active_claims": 28,
+      "created": 100000,
+      "query_ms": 69.298
+    },
+    {
+      "at": "2026-11-10T00:04:32.000922367Z",
+      "items_by_status": {
+        "claimed": 28,
+        "completed": 1343,
+        "failed_terminal": 230,
+        "pending": 98399
+      },
+      "active_claims": 28,
+      "created": 100000,
+      "query_ms": 64.264
+    },
+    {
+      "at": "2026-11-10T00:04:33.001552685Z",
+      "items_by_status": {
+        "claimed": 28,
+        "completed": 1343,
+        "failed_terminal": 230,
+        "pending": 98399
+      },
+      "active_claims": 28,
+      "created": 100000,
+      "query_ms": 2374.934
+    },
+    {
+      "at": "2026-11-10T00:04:35.37649089Z",
+      "items_by_status": {
+        "claimed": 28,
+        "completed": 1343,
+        "failed_terminal": 230,
+        "pending": 98399
+      },
+      "active_claims": 28,
+      "created": 100000,
+      "query_ms": 31.709
+    },
+    {
+      "at": "2026-11-10T00:04:36.000807414Z",
+      "items_by_status": {
+        "claimed": 28,
+        "completed": 1343,
+        "failed_terminal": 230,
+        "pending": 98399
+      },
+      "active_claims": 28,
+      "created": 100000,
+      "query_ms": 31.054
+    },
+    {
+      "at": "2026-11-10T00:04:37.000932415Z",
+      "items_by_status": {
+        "claimed": 28,
+        "completed": 1343,
+        "failed_terminal": 230,
+        "pending": 98399
+      },
+      "active_claims": 28,
+      "created": 100000,
+      "query_ms": 46.497
+    },
+    {
+      "at": "2026-11-10T00:04:38.000950254Z",
+      "items_by_status": {
+        "claimed": 28,
+        "completed": 1343,
+        "failed_terminal": 230,
+        "pending": 98399
+      },
+      "active_claims": 28,
+      "created": 100000,
+      "query_ms": 92.299
+    },
+    {
+      "at": "2026-11-10T00:04:39.001493572Z",
+      "items_by_status": {
+        "claimed": 28,
+        "completed": 1343,
+        "failed_terminal": 230,
+        "pending": 98399
+      },
+      "active_claims": 28,
+      "created": 100000,
+      "query_ms": 66.883
+    },
+    {
+      "at": "2026-11-10T00:04:39.998945031Z",
+      "items_by_status": {
+        "claimed": 28,
+        "completed": 1343,
+        "failed_terminal": 230,
+        "pending": 98399
+      },
+      "active_claims": 28,
+      "created": 100000,
+      "query_ms": 43.794
+    },
+    {
+      "at": "2026-11-10T00:04:41.000988385Z",
+      "items_by_status": {
+        "claimed": 28,
+        "completed": 1343,
+        "failed_terminal": 230,
+        "pending": 98399
+      },
+      "active_claims": 28,
+      "created": 100000,
+      "query_ms": 60.678
+    },
+    {
+      "at": "2026-11-10T00:04:42.001060801Z",
+      "items_by_status": {
+        "claimed": 28,
+        "completed": 1343,
+        "failed_terminal": 230,
+        "pending": 98399
+      },
+      "active_claims": 28,
+      "created": 100000,
+      "query_ms": 66.171
+    },
+    {
+      "at": "2026-11-10T00:04:43.000876432Z",
+      "items_by_status": {
+        "claimed": 28,
+        "completed": 1343,
+        "failed_terminal": 230,
+        "pending": 98399
+      },
+      "active_claims": 28,
+      "created": 100000,
+      "query_ms": 111.718
+    },
+    {
+      "at": "2026-11-10T00:04:44.000959228Z",
+      "items_by_status": {
+        "claimed": 28,
+        "completed": 1343,
+        "failed_terminal": 230,
+        "pending": 98399
+      },
+      "active_claims": 28,
+      "created": 100000,
+      "query_ms": 2627.403
+    },
+    {
+      "at": "2026-11-10T00:04:46.628365727Z",
+      "items_by_status": {
+        "claimed": 24,
+        "completed": 1352,
+        "failed_terminal": 233,
+        "pending": 98391
+      },
+      "active_claims": 24,
+      "created": 100000,
+      "query_ms": 49.802
+    },
+    {
+      "at": "2026-11-10T00:04:46.999900245Z",
+      "items_by_status": {
+        "claimed": 24,
+        "completed": 1352,
+        "failed_terminal": 233,
+        "pending": 98391
+      },
+      "active_claims": 24,
+      "created": 100000,
+      "query_ms": 49.882
+    },
+    {
+      "at": "2026-11-10T00:04:48.000741294Z",
+      "items_by_status": {
+        "claimed": 24,
+        "completed": 1352,
+        "failed_terminal": 233,
+        "pending": 98391
+      },
+      "active_claims": 24,
+      "created": 100000,
+      "query_ms": 49.415
+    },
+    {
+      "at": "2026-11-10T00:04:49.001522585Z",
+      "items_by_status": {
+        "claimed": 24,
+        "completed": 1352,
+        "failed_terminal": 233,
+        "pending": 98391
+      },
+      "active_claims": 24,
+      "created": 100000,
+      "query_ms": 44.606
+    },
+    {
+      "at": "2026-11-10T00:04:50.001062634Z",
+      "items_by_status": {
+        "claimed": 24,
+        "completed": 1352,
+        "failed_terminal": 233,
+        "pending": 98391
+      },
+      "active_claims": 24,
+      "created": 100000,
+      "query_ms": 42.387
+    },
+    {
+      "at": "2026-11-10T00:04:51.001435346Z",
+      "items_by_status": {
+        "claimed": 24,
+        "completed": 1352,
+        "failed_terminal": 233,
+        "pending": 98391
+      },
+      "active_claims": 24,
+      "created": 100000,
+      "query_ms": 66.395
+    },
+    {
+      "at": "2026-11-10T00:04:52.001150198Z",
+      "items_by_status": {
+        "claimed": 24,
+        "completed": 1352,
+        "failed_terminal": 233,
+        "pending": 98391
+      },
+      "active_claims": 24,
+      "created": 100000,
+      "query_ms": 65.671
+    },
+    {
+      "at": "2026-11-10T00:04:52.998943907Z",
+      "items_by_status": {
+        "claimed": 24,
+        "completed": 1352,
+        "failed_terminal": 233,
+        "pending": 98391
+      },
+      "active_claims": 24,
+      "created": 100000,
+      "query_ms": 49.261
+    },
+    {
+      "at": "2026-11-10T00:04:54.001691235Z",
+      "items_by_status": {
+        "claimed": 24,
+        "completed": 1352,
+        "failed_terminal": 233,
+        "pending": 98391
+      },
+      "active_claims": 24,
+      "created": 100000,
+      "query_ms": 50.572
+    },
+    {
+      "at": "2026-11-10T00:04:55.001102043Z",
+      "items_by_status": {
+        "claimed": 24,
+        "completed": 1352,
+        "failed_terminal": 233,
+        "pending": 98391
+      },
+      "active_claims": 24,
+      "created": 100000,
+      "query_ms": 2603.666
+    },
+    {
+      "at": "2026-11-10T00:04:57.604771457Z",
+      "items_by_status": {
+        "claimed": 24,
+        "completed": 1352,
+        "failed_terminal": 233,
+        "pending": 98391
+      },
+      "active_claims": 24,
+      "created": 100000,
+      "query_ms": 31.225
+    },
+    {
+      "at": "2026-11-10T00:04:57.999928605Z",
+      "items_by_status": {
+        "claimed": 24,
+        "completed": 1352,
+        "failed_terminal": 233,
+        "pending": 98391
+      },
+      "active_claims": 24,
+      "created": 100000,
+      "query_ms": 48.294
+    },
+    {
+      "at": "2026-11-10T00:04:59.001471005Z",
+      "items_by_status": {
+        "claimed": 24,
+        "completed": 1352,
+        "failed_terminal": 233,
+        "pending": 98391
+      },
+      "active_claims": 24,
+      "created": 100000,
+      "query_ms": 48.233
+    },
+    {
+      "at": "2026-11-10T00:04:59.999012519Z",
+      "items_by_status": {
+        "claimed": 24,
+        "completed": 1352,
+        "failed_terminal": 233,
+        "pending": 98391
+      },
+      "active_claims": 24,
+      "created": 100000,
+      "query_ms": 65.75
+    },
+    {
+      "at": "2026-11-10T00:05:01.001262087Z",
+      "items_by_status": {
+        "claimed": 24,
+        "completed": 1352,
+        "failed_terminal": 233,
+        "pending": 98391
+      },
+      "active_claims": 24,
+      "created": 100000,
+      "query_ms": 30.797
+    },
+    {
+      "at": "2026-11-10T00:05:02.001022716Z",
+      "items_by_status": {
+        "claimed": 24,
+        "completed": 1352,
+        "failed_terminal": 233,
+        "pending": 98391
+      },
+      "active_claims": 24,
+      "created": 100000,
+      "query_ms": 66.649
+    },
+    {
+      "at": "2026-11-10T00:05:03.00100158Z",
+      "items_by_status": {
+        "claimed": 24,
+        "completed": 1352,
+        "failed_terminal": 233,
+        "pending": 98391
+      },
+      "active_claims": 24,
+      "created": 100000,
+      "query_ms": 29.937
+    },
+    {
+      "at": "2026-11-10T00:05:04.00108067Z",
+      "items_by_status": {
+        "claimed": 24,
+        "completed": 1352,
+        "failed_terminal": 233,
+        "pending": 98391
+      },
+      "active_claims": 24,
+      "created": 100000,
+      "query_ms": 65.768
+    },
+    {
+      "at": "2026-11-10T00:05:04.999699416Z",
+      "items_by_status": {
+        "claimed": 24,
+        "completed": 1352,
+        "failed_terminal": 233,
+        "pending": 98391
+      },
+      "active_claims": 24,
+      "created": 100000,
+      "query_ms": 43.35
+    },
+    {
+      "at": "2026-11-10T00:05:05.998955379Z",
+      "items_by_status": {
+        "claimed": 24,
+        "completed": 1352,
+        "failed_terminal": 233,
+        "pending": 98391
+      },
+      "active_claims": 24,
+      "created": 100000,
+      "query_ms": 2371.859
+    },
+    {
+      "at": "2026-11-10T00:05:08.370818347Z",
+      "items_by_status": {
+        "claimed": 24,
+        "completed": 1352,
+        "failed_terminal": 233,
+        "pending": 98391
+      },
+      "active_claims": 24,
+      "created": 100000,
+      "query_ms": 45.146
+    },
+    {
+      "at": "2026-11-10T00:05:09.0008866Z",
+      "items_by_status": {
+        "claimed": 24,
+        "completed": 1352,
+        "failed_terminal": 233,
+        "pending": 98391
+      },
+      "active_claims": 24,
+      "created": 100000,
+      "query_ms": 49.177
+    },
+    {
+      "at": "2026-11-10T00:05:10.001415737Z",
+      "items_by_status": {
+        "claimed": 24,
+        "completed": 1352,
+        "failed_terminal": 233,
+        "pending": 98391
+      },
+      "active_claims": 24,
+      "created": 100000,
+      "query_ms": 45.416
+    },
+    {
+      "at": "2026-11-10T00:05:11.001313675Z",
+      "items_by_status": {
+        "claimed": 24,
+        "completed": 1352,
+        "failed_terminal": 233,
+        "pending": 98391
+      },
+      "active_claims": 24,
+      "created": 100000,
+      "query_ms": 62.995
+    },
+    {
+      "at": "2026-11-10T00:05:12.000736169Z",
+      "items_by_status": {
+        "claimed": 24,
+        "completed": 1352,
+        "failed_terminal": 233,
+        "pending": 98391
+      },
+      "active_claims": 24,
+      "created": 100000,
+      "query_ms": 50.113
+    },
+    {
+      "at": "2026-11-10T00:05:12.998946917Z",
+      "items_by_status": {
+        "claimed": 24,
+        "completed": 1352,
+        "failed_terminal": 233,
+        "pending": 98391
+      },
+      "active_claims": 24,
+      "created": 100000,
+      "query_ms": 67.047
+    },
+    {
+      "at": "2026-11-10T00:05:14.001310392Z",
+      "items_by_status": {
+        "claimed": 24,
+        "completed": 1352,
+        "failed_terminal": 233,
+        "pending": 98391
+      },
+      "active_claims": 24,
+      "created": 100000,
+      "query_ms": 40.067
+    },
+    {
+      "at": "2026-11-10T00:05:14.999396546Z",
+      "items_by_status": {
+        "claimed": 23,
+        "completed": 1371,
+        "failed_terminal": 234,
+        "pending": 98372
+      },
+      "active_claims": 23,
+      "created": 100000,
+      "query_ms": 60.532
+    },
+    {
+      "at": "2026-11-10T00:05:15.999092997Z",
+      "items_by_status": {
+        "claimed": 24,
+        "completed": 1383,
+        "failed_terminal": 237,
+        "pending": 98356
+      },
+      "active_claims": 24,
+      "created": 100000,
+      "query_ms": 45.018
+    },
+    {
+      "at": "2026-11-10T00:05:17.001189262Z",
+      "items_by_status": {
+        "claimed": 24,
+        "completed": 1383,
+        "failed_terminal": 237,
+        "pending": 98356
+      },
+      "active_claims": 24,
+      "created": 100000,
+      "query_ms": 2660.093
+    },
+    {
+      "at": "2026-11-10T00:05:19.661286066Z",
+      "items_by_status": {
+        "claimed": 25,
+        "completed": 1392,
+        "failed_terminal": 237,
+        "pending": 98346
+      },
+      "active_claims": 25,
+      "created": 100000,
+      "query_ms": 96.353
+    },
+    {
+      "at": "2026-11-10T00:05:19.999858305Z",
+      "items_by_status": {
+        "claimed": 25,
+        "completed": 1392,
+        "failed_terminal": 237,
+        "pending": 98346
+      },
+      "active_claims": 25,
+      "created": 100000,
+      "query_ms": 50.406
+    },
+    {
+      "at": "2026-11-10T00:05:21.001792699Z",
+      "items_by_status": {
+        "claimed": 25,
+        "completed": 1392,
+        "failed_terminal": 237,
+        "pending": 98346
+      },
+      "active_claims": 25,
+      "created": 100000,
+      "query_ms": 30.157
+    },
+    {
+      "at": "2026-11-10T00:05:21.998965824Z",
+      "items_by_status": {
+        "claimed": 25,
+        "completed": 1392,
+        "failed_terminal": 237,
+        "pending": 98346
+      },
+      "active_claims": 25,
+      "created": 100000,
+      "query_ms": 68.768
+    },
+    {
+      "at": "2026-11-10T00:05:23.000855515Z",
+      "items_by_status": {
+        "claimed": 25,
+        "completed": 1392,
+        "failed_terminal": 237,
+        "pending": 98346
+      },
+      "active_claims": 25,
+      "created": 100000,
+      "query_ms": 60.697
+    },
+    {
+      "at": "2026-11-10T00:05:24.000961941Z",
+      "items_by_status": {
+        "claimed": 25,
+        "completed": 1392,
+        "failed_terminal": 237,
+        "pending": 98346
+      },
+      "active_claims": 25,
+      "created": 100000,
+      "query_ms": 53.058
+    },
+    {
+      "at": "2026-11-10T00:05:25.001127178Z",
+      "items_by_status": {
+        "claimed": 15,
+        "completed": 1392,
+        "failed_terminal": 237,
+        "pending": 98356
+      },
+      "active_claims": 15,
+      "created": 100000,
+      "query_ms": 60.344
+    },
+    {
+      "at": "2026-11-10T00:05:26.001428545Z",
+      "items_by_status": {
+        "claimed": 15,
+        "completed": 1392,
+        "failed_terminal": 237,
+        "pending": 98356
+      },
+      "active_claims": 15,
+      "created": 100000,
+      "query_ms": 45.524
+    },
+    {
+      "at": "2026-11-10T00:05:27.001406256Z",
+      "items_by_status": {
+        "claimed": 15,
+        "completed": 1392,
+        "failed_terminal": 237,
+        "pending": 98356
+      },
+      "active_claims": 15,
+      "created": 100000,
+      "query_ms": 53.658
+    },
+    {
+      "at": "2026-11-10T00:05:28.001197609Z",
+      "items_by_status": {
+        "claimed": 15,
+        "completed": 1392,
+        "failed_terminal": 237,
+        "pending": 98356
+      },
+      "active_claims": 15,
+      "created": 100000,
+      "query_ms": 2289.684
+    },
+    {
+      "at": "2026-11-10T00:05:30.290885509Z",
+      "items_by_status": {
+        "claimed": 15,
+        "completed": 1392,
+        "failed_terminal": 237,
+        "pending": 98356
+      },
+      "active_claims": 15,
+      "created": 100000,
+      "query_ms": 30.578
+    },
+    {
+      "at": "2026-11-10T00:05:31.000956045Z",
+      "items_by_status": {
+        "claimed": 15,
+        "completed": 1392,
+        "failed_terminal": 237,
+        "pending": 98356
+      },
+      "active_claims": 15,
+      "created": 100000,
+      "query_ms": 50.073
+    },
+    {
+      "at": "2026-11-10T00:05:32.001440169Z",
+      "items_by_status": {
+        "claimed": 15,
+        "completed": 1392,
+        "failed_terminal": 237,
+        "pending": 98356
+      },
+      "active_claims": 15,
+      "created": 100000,
+      "query_ms": 29.784
+    },
+    {
+      "at": "2026-11-10T00:05:33.00098006Z",
+      "items_by_status": {
+        "claimed": 15,
+        "completed": 1392,
+        "failed_terminal": 237,
+        "pending": 98356
+      },
+      "active_claims": 15,
+      "created": 100000,
+      "query_ms": 44.106
+    },
+    {
+      "at": "2026-11-10T00:05:34.001005902Z",
+      "items_by_status": {
+        "claimed": 15,
+        "completed": 1392,
+        "failed_terminal": 237,
+        "pending": 98356
+      },
+      "active_claims": 15,
+      "created": 100000,
+      "query_ms": 58.335
+    },
+    {
+      "at": "2026-11-10T00:05:35.000624553Z",
+      "items_by_status": {
+        "claimed": 15,
+        "completed": 1392,
+        "failed_terminal": 237,
+        "pending": 98356
+      },
+      "active_claims": 15,
+      "created": 100000,
+      "query_ms": 67.105
+    },
+    {
+      "at": "2026-11-10T00:05:36.001160351Z",
+      "items_by_status": {
+        "claimed": 15,
+        "completed": 1392,
+        "failed_terminal": 237,
+        "pending": 98356
+      },
+      "active_claims": 15,
+      "created": 100000,
+      "query_ms": 65.818
+    },
+    {
+      "at": "2026-11-10T00:05:36.998952647Z",
+      "items_by_status": {
+        "claimed": 15,
+        "completed": 1392,
+        "failed_terminal": 237,
+        "pending": 98356
+      },
+      "active_claims": 15,
+      "created": 100000,
+      "query_ms": 66.73
+    },
+    {
+      "at": "2026-11-10T00:05:38.000278856Z",
+      "items_by_status": {
+        "claimed": 15,
+        "completed": 1392,
+        "failed_terminal": 237,
+        "pending": 98356
+      },
+      "active_claims": 15,
+      "created": 100000,
+      "query_ms": 44.202
+    },
+    {
+      "at": "2026-11-10T00:05:39.00153742Z",
+      "items_by_status": {
+        "claimed": 15,
+        "completed": 1392,
+        "failed_terminal": 237,
+        "pending": 98356
+      },
+      "active_claims": 15,
+      "created": 100000,
+      "query_ms": 2140.301
+    },
+    {
+      "at": "2026-11-10T00:05:41.141842258Z",
+      "items_by_status": {
+        "claimed": 15,
+        "completed": 1392,
+        "failed_terminal": 237,
+        "pending": 98356
+      },
+      "active_claims": 15,
+      "created": 100000,
+      "query_ms": 30.085
+    },
+    {
+      "at": "2026-11-10T00:05:42.001817637Z",
+      "items_by_status": {
+        "claimed": 15,
+        "completed": 1392,
+        "failed_terminal": 237,
+        "pending": 98356
+      },
+      "active_claims": 15,
+      "created": 100000,
+      "query_ms": 44.668
+    },
+    {
+      "at": "2026-11-10T00:05:43.001378551Z",
+      "items_by_status": {
+        "claimed": 15,
+        "completed": 1392,
+        "failed_terminal": 237,
+        "pending": 98356
+      },
+      "active_claims": 15,
+      "created": 100000,
+      "query_ms": 98.536
+    },
+    {
+      "at": "2026-11-10T00:05:43.999048818Z",
+      "items_by_status": {
+        "claimed": 15,
+        "completed": 1392,
+        "failed_terminal": 237,
+        "pending": 98356
+      },
+      "active_claims": 15,
+      "created": 100000,
+      "query_ms": 37.667
+    },
+    {
+      "at": "2026-11-10T00:05:45.000922108Z",
+      "items_by_status": {
+        "claimed": 5,
+        "completed": 1392,
+        "failed_terminal": 237,
+        "pending": 98366
+      },
+      "active_claims": 5,
+      "created": 100000,
+      "query_ms": 69.714
+    },
+    {
+      "at": "2026-11-10T00:05:45.999259984Z",
+      "items_by_status": {
+        "claimed": 7,
+        "completed": 1409,
+        "failed_terminal": 243,
+        "pending": 98341
+      },
+      "active_claims": 7,
+      "created": 100000,
+      "query_ms": 74.096
+    },
+    {
+      "at": "2026-11-10T00:05:46.998885517Z",
+      "items_by_status": {
+        "claimed": 6,
+        "completed": 1419,
+        "failed_terminal": 245,
+        "pending": 98330
+      },
+      "active_claims": 6,
+      "created": 100000,
+      "query_ms": 43.912
+    },
+    {
+      "at": "2026-11-10T00:05:47.999889601Z",
+      "items_by_status": {
+        "claimed": 9,
+        "completed": 1432,
+        "failed_terminal": 246,
+        "pending": 98313
+      },
+      "active_claims": 8,
+      "created": 100000,
+      "query_ms": 108.549
+    },
+    {
+      "at": "2026-11-10T00:05:48.999865233Z",
+      "items_by_status": {
+        "claimed": 8,
+        "completed": 1442,
+        "failed_terminal": 248,
+        "pending": 98302
+      },
+      "active_claims": 8,
+      "created": 100000,
+      "query_ms": 66.879
+    },
+    {
+      "at": "2026-11-10T00:05:50.000834064Z",
+      "items_by_status": {
+        "claimed": 9,
+        "completed": 1451,
+        "failed_terminal": 249,
+        "pending": 98291
+      },
+      "active_claims": 9,
+      "created": 100000,
+      "query_ms": 2657.192
+    },
+    {
+      "at": "2026-11-10T00:05:52.658028983Z",
+      "items_by_status": {
+        "claimed": 9,
+        "completed": 1451,
+        "failed_terminal": 249,
+        "pending": 98291
+      },
+      "active_claims": 9,
+      "created": 100000,
+      "query_ms": 149.812
+    },
+    {
+      "at": "2026-11-10T00:05:52.999809776Z",
+      "items_by_status": {
+        "claimed": 9,
+        "completed": 1451,
+        "failed_terminal": 249,
+        "pending": 98291
+      },
+      "active_claims": 9,
+      "created": 100000,
+      "query_ms": 117.431
+    },
+    {
+      "at": "2026-11-10T00:05:54.001074054Z",
+      "items_by_status": {
+        "claimed": 9,
+        "completed": 1451,
+        "failed_terminal": 249,
+        "pending": 98291
+      },
+      "active_claims": 9,
+      "created": 100000,
+      "query_ms": 44.581
+    },
+    {
+      "at": "2026-11-10T00:05:55.000650228Z",
+      "items_by_status": {
+        "claimed": 9,
+        "completed": 1451,
+        "failed_terminal": 249,
+        "pending": 98291
+      },
+      "active_claims": 9,
+      "created": 100000,
+      "query_ms": 43.51
+    },
+    {
+      "at": "2026-11-10T00:05:56.001382889Z",
+      "items_by_status": {
+        "claimed": 9,
+        "completed": 1451,
+        "failed_terminal": 249,
+        "pending": 98291
+      },
+      "active_claims": 9,
+      "created": 100000,
+      "query_ms": 44.184
+    },
+    {
+      "at": "2026-11-10T00:05:56.9989497Z",
+      "items_by_status": {
+        "claimed": 9,
+        "completed": 1451,
+        "failed_terminal": 249,
+        "pending": 98291
+      },
+      "active_claims": 9,
+      "created": 100000,
+      "query_ms": 69.003
+    },
+    {
+      "at": "2026-11-10T00:05:58.001244308Z",
+      "items_by_status": {
+        "claimed": 9,
+        "completed": 1451,
+        "failed_terminal": 249,
+        "pending": 98291
+      },
+      "active_claims": 9,
+      "created": 100000,
+      "query_ms": 69.585
+    },
+    {
+      "at": "2026-11-10T00:05:59.000731699Z",
+      "items_by_status": {
+        "claimed": 9,
+        "completed": 1451,
+        "failed_terminal": 249,
+        "pending": 98291
+      },
+      "active_claims": 9,
+      "created": 100000,
+      "query_ms": 56.731
+    },
+    {
+      "at": "2026-11-10T00:06:00.001629906Z",
+      "items_by_status": {
+        "claimed": 9,
+        "completed": 1451,
+        "failed_terminal": 249,
+        "pending": 98291
+      },
+      "active_claims": 9,
+      "created": 100000,
+      "query_ms": 65.473
+    },
+    {
+      "at": "2026-11-10T00:06:01.001427727Z",
+      "items_by_status": {
+        "claimed": 9,
+        "completed": 1451,
+        "failed_terminal": 249,
+        "pending": 98291
+      },
+      "active_claims": 9,
+      "created": 100000,
+      "query_ms": 2314.278
+    },
+    {
+      "at": "2026-11-10T00:06:03.3157144Z",
+      "items_by_status": {
+        "claimed": 9,
+        "completed": 1451,
+        "failed_terminal": 249,
+        "pending": 98291
+      },
+      "active_claims": 9,
+      "created": 100000,
+      "query_ms": 49.224
+    },
+    {
+      "at": "2026-11-10T00:06:03.999000491Z",
+      "items_by_status": {
+        "claimed": 9,
+        "completed": 1451,
+        "failed_terminal": 249,
+        "pending": 98291
+      },
+      "active_claims": 9,
+      "created": 100000,
+      "query_ms": 50.028
+    },
+    {
+      "at": "2026-11-10T00:06:05.00100636Z",
+      "items_by_status": {
+        "claimed": 8,
+        "completed": 1451,
+        "failed_terminal": 249,
+        "pending": 98292
+      },
+      "active_claims": 8,
+      "created": 100000,
+      "query_ms": 50.286
+    },
+    {
+      "at": "2026-11-10T00:06:05.999297277Z",
+      "items_by_status": {
+        "claimed": 8,
+        "completed": 1451,
+        "failed_terminal": 249,
+        "pending": 98292
+      },
+      "active_claims": 8,
+      "created": 100000,
+      "query_ms": 29.742
+    },
+    {
+      "at": "2026-11-10T00:06:07.001364936Z",
+      "items_by_status": {
+        "claimed": 8,
+        "completed": 1451,
+        "failed_terminal": 249,
+        "pending": 98292
+      },
+      "active_claims": 8,
+      "created": 100000,
+      "query_ms": 44.789
+    },
+    {
+      "at": "2026-11-10T00:06:08.000818463Z",
+      "items_by_status": {
+        "claimed": 8,
+        "completed": 1451,
+        "failed_terminal": 249,
+        "pending": 98292
+      },
+      "active_claims": 8,
+      "created": 100000,
+      "query_ms": 53.65
+    },
+    {
+      "at": "2026-11-10T00:06:09.001731742Z",
+      "items_by_status": {
+        "claimed": 8,
+        "completed": 1451,
+        "failed_terminal": 249,
+        "pending": 98292
+      },
+      "active_claims": 8,
+      "created": 100000,
+      "query_ms": 52.273
+    },
+    {
+      "at": "2026-11-10T00:06:10.001492644Z",
+      "items_by_status": {
+        "claimed": 8,
+        "completed": 1451,
+        "failed_terminal": 249,
+        "pending": 98292
+      },
+      "active_claims": 8,
+      "created": 100000,
+      "query_ms": 44.425
+    },
+    {
+      "at": "2026-11-10T00:06:10.998949027Z",
+      "items_by_status": {
+        "claimed": 8,
+        "completed": 1451,
+        "failed_terminal": 249,
+        "pending": 98292
+      },
+      "active_claims": 8,
+      "created": 100000,
+      "query_ms": 64.985
+    },
+    {
+      "at": "2026-11-10T00:06:12.001526384Z",
+      "items_by_status": {
+        "claimed": 8,
+        "completed": 1451,
+        "failed_terminal": 249,
+        "pending": 98292
+      },
+      "active_claims": 8,
+      "created": 100000,
+      "query_ms": 2294.078
+    },
+    {
+      "at": "2026-11-10T00:06:14.295608586Z",
+      "items_by_status": {
+        "claimed": 8,
+        "completed": 1451,
+        "failed_terminal": 249,
+        "pending": 98292
+      },
+      "active_claims": 8,
+      "created": 100000,
+      "query_ms": 46.832
+    },
+    {
+      "at": "2026-11-10T00:06:15.001819348Z",
+      "items_by_status": {
+        "claimed": 8,
+        "completed": 1451,
+        "failed_terminal": 249,
+        "pending": 98292
+      },
+      "active_claims": 8,
+      "created": 100000,
+      "query_ms": 32.176
+    },
+    {
+      "at": "2026-11-10T00:06:15.999206296Z",
+      "items_by_status": {
+        "claimed": 7,
+        "completed": 1452,
+        "failed_terminal": 249,
+        "pending": 98292
+      },
+      "active_claims": 8,
+      "created": 100000,
+      "query_ms": 86.467
+    },
+    {
+      "at": "2026-11-10T00:06:16.99992418Z",
+      "items_by_status": {
+        "claimed": 11,
+        "completed": 1464,
+        "failed_terminal": 253,
+        "pending": 98272
+      },
+      "active_claims": 11,
+      "created": 100000,
+      "query_ms": 64.618
+    },
+    {
+      "at": "2026-11-10T00:06:17.999785012Z",
+      "items_by_status": {
+        "claimed": 12,
+        "completed": 1502,
+        "failed_terminal": 258,
+        "pending": 98228
+      },
+      "active_claims": 12,
+      "created": 100000,
+      "query_ms": 61.715
+    },
+    {
+      "at": "2026-11-10T00:06:18.999261194Z",
+      "items_by_status": {
+        "claimed": 14,
+        "completed": 1513,
+        "failed_terminal": 261,
+        "pending": 98212
+      },
+      "active_claims": 14,
+      "created": 100000,
+      "query_ms": 62.827
+    },
+    {
+      "at": "2026-11-10T00:06:19.999662887Z",
+      "items_by_status": {
+        "claimed": 17,
+        "completed": 1527,
+        "failed_terminal": 264,
+        "pending": 98192
+      },
+      "active_claims": 17,
+      "created": 100000,
+      "query_ms": 29.915
+    },
+    {
+      "at": "2026-11-10T00:06:21.001098209Z",
+      "items_by_status": {
+        "claimed": 17,
+        "completed": 1527,
+        "failed_terminal": 264,
+        "pending": 98192
+      },
+      "active_claims": 17,
+      "created": 100000,
+      "query_ms": 65.124
+    },
+    {
+      "at": "2026-11-10T00:06:22.001497893Z",
+      "items_by_status": {
+        "claimed": 17,
+        "completed": 1527,
+        "failed_terminal": 264,
+        "pending": 98192
+      },
+      "active_claims": 17,
+      "created": 100000,
+      "query_ms": 61.946
+    },
+    {
+      "at": "2026-11-10T00:06:23.001534741Z",
+      "items_by_status": {
+        "claimed": 17,
+        "completed": 1527,
+        "failed_terminal": 264,
+        "pending": 98192
+      },
+      "active_claims": 17,
+      "created": 100000,
+      "query_ms": 2301.94
+    },
+    {
+      "at": "2026-11-10T00:06:25.303479779Z",
+      "items_by_status": {
+        "claimed": 17,
+        "completed": 1527,
+        "failed_terminal": 264,
+        "pending": 98192
+      },
+      "active_claims": 17,
+      "created": 100000,
+      "query_ms": 30.128
+    },
+    {
+      "at": "2026-11-10T00:06:26.000845648Z",
+      "items_by_status": {
+        "claimed": 17,
+        "completed": 1527,
+        "failed_terminal": 264,
+        "pending": 98192
+      },
+      "active_claims": 17,
+      "created": 100000,
+      "query_ms": 31.217
+    },
+    {
+      "at": "2026-11-10T00:06:27.00116365Z",
+      "items_by_status": {
+        "claimed": 17,
+        "completed": 1527,
+        "failed_terminal": 264,
+        "pending": 98192
+      },
+      "active_claims": 17,
+      "created": 100000,
+      "query_ms": 48.952
+    },
+    {
+      "at": "2026-11-10T00:06:28.000762473Z",
+      "items_by_status": {
+        "claimed": 17,
+        "completed": 1527,
+        "failed_terminal": 264,
+        "pending": 98192
+      },
+      "active_claims": 17,
+      "created": 100000,
+      "query_ms": 52.728
+    },
+    {
+      "at": "2026-11-10T00:06:29.001100166Z",
+      "items_by_status": {
+        "claimed": 17,
+        "completed": 1527,
+        "failed_terminal": 264,
+        "pending": 98192
+      },
+      "active_claims": 17,
+      "created": 100000,
+      "query_ms": 49.91
+    },
+    {
+      "at": "2026-11-10T00:06:29.998954823Z",
+      "items_by_status": {
+        "claimed": 17,
+        "completed": 1527,
+        "failed_terminal": 264,
+        "pending": 98192
+      },
+      "active_claims": 17,
+      "created": 100000,
+      "query_ms": 52.876
+    },
+    {
+      "at": "2026-11-10T00:06:31.001713063Z",
+      "items_by_status": {
+        "claimed": 17,
+        "completed": 1527,
+        "failed_terminal": 264,
+        "pending": 98192
+      },
+      "active_claims": 17,
+      "created": 100000,
+      "query_ms": 63.146
+    },
+    {
+      "at": "2026-11-10T00:06:31.998971637Z",
+      "items_by_status": {
+        "claimed": 17,
+        "completed": 1527,
+        "failed_terminal": 264,
+        "pending": 98192
+      },
+      "active_claims": 17,
+      "created": 100000,
+      "query_ms": 43.342
+    },
+    {
+      "at": "2026-11-10T00:06:33.001756884Z",
+      "items_by_status": {
+        "claimed": 17,
+        "completed": 1527,
+        "failed_terminal": 264,
+        "pending": 98192
+      },
+      "active_claims": 17,
+      "created": 100000,
+      "query_ms": 62.514
+    },
+    {
+      "at": "2026-11-10T00:06:34.000979418Z",
+      "items_by_status": {
+        "claimed": 17,
+        "completed": 1527,
+        "failed_terminal": 264,
+        "pending": 98192
+      },
+      "active_claims": 17,
+      "created": 100000,
+      "query_ms": 2373.286
+    },
+    {
+      "at": "2026-11-10T00:06:36.374268877Z",
+      "items_by_status": {
+        "claimed": 17,
+        "completed": 1527,
+        "failed_terminal": 264,
+        "pending": 98192
+      },
+      "active_claims": 17,
+      "created": 100000,
+      "query_ms": 35.29
+    },
+    {
+      "at": "2026-11-10T00:06:37.001606833Z",
+      "items_by_status": {
+        "claimed": 17,
+        "completed": 1527,
+        "failed_terminal": 264,
+        "pending": 98192
+      },
+      "active_claims": 17,
+      "created": 100000,
+      "query_ms": 31.013
+    },
+    {
+      "at": "2026-11-10T00:06:38.001445829Z",
+      "items_by_status": {
+        "claimed": 17,
+        "completed": 1527,
+        "failed_terminal": 264,
+        "pending": 98192
+      },
+      "active_claims": 17,
+      "created": 100000,
+      "query_ms": 47.999
+    },
+    {
+      "at": "2026-11-10T00:06:38.998943604Z",
+      "items_by_status": {
+        "claimed": 17,
+        "completed": 1527,
+        "failed_terminal": 264,
+        "pending": 98192
+      },
+      "active_claims": 17,
+      "created": 100000,
+      "query_ms": 47.384
+    },
+    {
+      "at": "2026-11-10T00:06:39.999927494Z",
+      "items_by_status": {
+        "claimed": 17,
+        "completed": 1527,
+        "failed_terminal": 264,
+        "pending": 98192
+      },
+      "active_claims": 17,
+      "created": 100000,
+      "query_ms": 46.311
+    },
+    {
+      "at": "2026-11-10T00:06:41.000641154Z",
+      "items_by_status": {
+        "claimed": 17,
+        "completed": 1527,
+        "failed_terminal": 264,
+        "pending": 98192
+      },
+      "active_claims": 17,
+      "created": 100000,
+      "query_ms": 31.134
+    },
+    {
+      "at": "2026-11-10T00:06:42.000848958Z",
+      "items_by_status": {
+        "claimed": 17,
+        "completed": 1527,
+        "failed_terminal": 264,
+        "pending": 98192
+      },
+      "active_claims": 17,
+      "created": 100000,
+      "query_ms": 43.153
+    },
+    {
+      "at": "2026-11-10T00:06:43.000774021Z",
+      "items_by_status": {
+        "claimed": 17,
+        "completed": 1527,
+        "failed_terminal": 264,
+        "pending": 98192
+      },
+      "active_claims": 17,
+      "created": 100000,
+      "query_ms": 49.916
+    },
+    {
+      "at": "2026-11-10T00:06:44.00156086Z",
+      "items_by_status": {
+        "claimed": 17,
+        "completed": 1527,
+        "failed_terminal": 264,
+        "pending": 98192
+      },
+      "active_claims": 17,
+      "created": 100000,
+      "query_ms": 67.133
+    },
+    {
+      "at": "2026-11-10T00:06:45.001334719Z",
+      "items_by_status": {
+        "claimed": 16,
+        "completed": 1527,
+        "failed_terminal": 264,
+        "pending": 98193
+      },
+      "active_claims": 16,
+      "created": 100000,
+      "query_ms": 2390.854
+    },
+    {
+      "at": "2026-11-10T00:06:47.392193975Z",
+      "items_by_status": {
+        "claimed": 16,
+        "completed": 1527,
+        "failed_terminal": 264,
+        "pending": 98193
+      },
+      "active_claims": 16,
+      "created": 100000,
+      "query_ms": 48.685
+    },
+    {
+      "at": "2026-11-10T00:06:48.000678357Z",
+      "items_by_status": {
+        "claimed": 16,
+        "completed": 1527,
+        "failed_terminal": 264,
+        "pending": 98193
+      },
+      "active_claims": 16,
+      "created": 100000,
+      "query_ms": 50.457
+    },
+    {
+      "at": "2026-11-10T00:06:49.000664599Z",
+      "items_by_status": {
+        "claimed": 17,
+        "completed": 1535,
+        "failed_terminal": 265,
+        "pending": 98183
+      },
+      "active_claims": 17,
+      "created": 100000,
+      "query_ms": 31.826
+    },
+    {
+      "at": "2026-11-10T00:06:49.999626703Z",
+      "items_by_status": {
+        "claimed": 16,
+        "completed": 1539,
+        "failed_terminal": 265,
+        "pending": 98180
+      },
+      "active_claims": 16,
+      "created": 100000,
+      "query_ms": 40.804
+    },
+    {
+      "at": "2026-11-10T00:06:50.999085152Z",
+      "items_by_status": {
+        "claimed": 18,
+        "completed": 1581,
+        "failed_terminal": 271,
+        "pending": 98130
+      },
+      "active_claims": 18,
+      "created": 100000,
+      "query_ms": 48.36
+    },
+    {
+      "at": "2026-11-10T00:06:51.999481236Z",
+      "items_by_status": {
+        "claimed": 22,
+        "completed": 1605,
+        "failed_terminal": 274,
+        "pending": 98099
+      },
+      "active_claims": 22,
+      "created": 100000,
+      "query_ms": 29.41
+    },
+    {
+      "at": "2026-11-10T00:06:53.000016932Z",
+      "items_by_status": {
+        "claimed": 24,
+        "completed": 1620,
+        "failed_terminal": 277,
+        "pending": 98079
+      },
+      "active_claims": 24,
+      "created": 100000,
+      "query_ms": 34.104
+    },
+    {
+      "at": "2026-11-10T00:06:53.999495439Z",
+      "items_by_status": {
+        "claimed": 24,
+        "completed": 1628,
+        "failed_terminal": 277,
+        "pending": 98071
+      },
+      "active_claims": 24,
+      "created": 100000,
+      "query_ms": 41.704
+    },
+    {
+      "at": "2026-11-10T00:06:54.999016006Z",
+      "items_by_status": {
+        "claimed": 24,
+        "completed": 1646,
+        "failed_terminal": 281,
+        "pending": 98049
+      },
+      "active_claims": 24,
+      "created": 100000,
+      "query_ms": 45.719
+    },
+    {
+      "at": "2026-11-10T00:06:56.000187661Z",
+      "items_by_status": {
+        "claimed": 25,
+        "completed": 1667,
+        "failed_terminal": 284,
+        "pending": 98024
+      },
+      "active_claims": 25,
+      "created": 100000,
+      "query_ms": 2312.536
+    },
+    {
+      "at": "2026-11-10T00:06:58.3127276Z",
+      "items_by_status": {
+        "claimed": 26,
+        "completed": 1680,
+        "failed_terminal": 292,
+        "pending": 98002
+      },
+      "active_claims": 26,
+      "created": 100000,
+      "query_ms": 48.771
+    },
+    {
+      "at": "2026-11-10T00:06:59.001107599Z",
+      "items_by_status": {
+        "claimed": 26,
+        "completed": 1680,
+        "failed_terminal": 292,
+        "pending": 98002
+      },
+      "active_claims": 26,
+      "created": 100000,
+      "query_ms": 31.619
+    },
+    {
+      "at": "2026-11-10T00:06:59.998947515Z",
+      "items_by_status": {
+        "claimed": 26,
+        "completed": 1680,
+        "failed_terminal": 292,
+        "pending": 98002
+      },
+      "active_claims": 26,
+      "created": 100000,
+      "query_ms": 44.149
+    },
+    {
+      "at": "2026-11-10T00:07:01.001281596Z",
+      "items_by_status": {
+        "claimed": 26,
+        "completed": 1680,
+        "failed_terminal": 292,
+        "pending": 98002
+      },
+      "active_claims": 26,
+      "created": 100000,
+      "query_ms": 32.284
+    },
+    {
+      "at": "2026-11-10T00:07:02.00117755Z",
+      "items_by_status": {
+        "claimed": 26,
+        "completed": 1680,
+        "failed_terminal": 292,
+        "pending": 98002
+      },
+      "active_claims": 26,
+      "created": 100000,
+      "query_ms": 49.844
+    },
+    {
+      "at": "2026-11-10T00:07:03.001249598Z",
+      "items_by_status": {
+        "claimed": 26,
+        "completed": 1680,
+        "failed_terminal": 292,
+        "pending": 98002
+      },
+      "active_claims": 26,
+      "created": 100000,
+      "query_ms": 31.931
+    },
+    {
+      "at": "2026-11-10T00:07:04.001402454Z",
+      "items_by_status": {
+        "claimed": 26,
+        "completed": 1680,
+        "failed_terminal": 292,
+        "pending": 98002
+      },
+      "active_claims": 26,
+      "created": 100000,
+      "query_ms": 64.766
+    },
+    {
+      "at": "2026-11-10T00:07:05.001213566Z",
+      "items_by_status": {
+        "claimed": 23,
+        "completed": 1680,
+        "failed_terminal": 292,
+        "pending": 98005
+      },
+      "active_claims": 23,
+      "created": 100000,
+      "query_ms": 51.123
+    },
+    {
+      "at": "2026-11-10T00:07:06.001760316Z",
+      "items_by_status": {
+        "claimed": 23,
+        "completed": 1680,
+        "failed_terminal": 292,
+        "pending": 98005
+      },
+      "active_claims": 23,
+      "created": 100000,
+      "query_ms": 43.262
+    },
+    {
+      "at": "2026-11-10T00:07:07.001405385Z",
+      "items_by_status": {
+        "claimed": 23,
+        "completed": 1680,
+        "failed_terminal": 292,
+        "pending": 98005
+      },
+      "active_claims": 23,
+      "created": 100000,
+      "query_ms": 2565.279
+    },
+    {
+      "at": "2026-11-10T00:07:09.566688281Z",
+      "items_by_status": {
+        "claimed": 23,
+        "completed": 1680,
+        "failed_terminal": 292,
+        "pending": 98005
+      },
+      "active_claims": 23,
+      "created": 100000,
+      "query_ms": 62.149
+    },
+    {
+      "at": "2026-11-10T00:07:09.99980727Z",
+      "items_by_status": {
+        "claimed": 23,
+        "completed": 1680,
+        "failed_terminal": 292,
+        "pending": 98005
+      },
+      "active_claims": 23,
+      "created": 100000,
+      "query_ms": 50.186
+    },
+    {
+      "at": "2026-11-10T00:07:11.000511273Z",
+      "items_by_status": {
+        "claimed": 23,
+        "completed": 1680,
+        "failed_terminal": 292,
+        "pending": 98005
+      },
+      "active_claims": 23,
+      "created": 100000,
+      "query_ms": 66.049
+    },
+    {
+      "at": "2026-11-10T00:07:12.001117801Z",
+      "items_by_status": {
+        "claimed": 23,
+        "completed": 1680,
+        "failed_terminal": 292,
+        "pending": 98005
+      },
+      "active_claims": 23,
+      "created": 100000,
+      "query_ms": 86.736
+    },
+    {
+      "at": "2026-11-10T00:07:13.001196789Z",
+      "items_by_status": {
+        "claimed": 23,
+        "completed": 1680,
+        "failed_terminal": 292,
+        "pending": 98005
+      },
+      "active_claims": 23,
+      "created": 100000,
+      "query_ms": 51.506
+    },
+    {
+      "at": "2026-11-10T00:07:14.000769492Z",
+      "items_by_status": {
+        "claimed": 23,
+        "completed": 1680,
+        "failed_terminal": 292,
+        "pending": 98005
+      },
+      "active_claims": 23,
+      "created": 100000,
+      "query_ms": 66.463
+    },
+    {
+      "at": "2026-11-10T00:07:14.998966292Z",
+      "items_by_status": {
+        "claimed": 23,
+        "completed": 1680,
+        "failed_terminal": 292,
+        "pending": 98005
+      },
+      "active_claims": 23,
+      "created": 100000,
+      "query_ms": 116.527
+    },
+    {
+      "at": "2026-11-10T00:07:16.000941681Z",
+      "items_by_status": {
+        "claimed": 23,
+        "completed": 1680,
+        "failed_terminal": 292,
+        "pending": 98005
+      },
+      "active_claims": 23,
+      "created": 100000,
+      "query_ms": 106.401
+    },
+    {
+      "at": "2026-11-10T00:07:16.999086588Z",
+      "items_by_status": {
+        "claimed": 23,
+        "completed": 1680,
+        "failed_terminal": 292,
+        "pending": 98005
+      },
+      "active_claims": 23,
+      "created": 100000,
+      "query_ms": 66.987
+    },
+    {
+      "at": "2026-11-10T00:07:18.000702794Z",
+      "items_by_status": {
+        "claimed": 23,
+        "completed": 1680,
+        "failed_terminal": 292,
+        "pending": 98005
+      },
+      "active_claims": 23,
+      "created": 100000,
+      "query_ms": 2245.885
+    },
+    {
+      "at": "2026-11-10T00:07:20.246590601Z",
+      "items_by_status": {
+        "claimed": 24,
+        "completed": 1703,
+        "failed_terminal": 295,
+        "pending": 97978
+      },
+      "active_claims": 24,
+      "created": 100000,
+      "query_ms": 46.939
+    },
+    {
+      "at": "2026-11-10T00:07:20.999550707Z",
+      "items_by_status": {
+        "claimed": 24,
+        "completed": 1711,
+        "failed_terminal": 298,
+        "pending": 97967
+      },
+      "active_claims": 23,
+      "created": 100000,
+      "query_ms": 46.789
+    },
+    {
+      "at": "2026-11-10T00:07:21.99934991Z",
+      "items_by_status": {
+        "claimed": 25,
+        "completed": 1731,
+        "failed_terminal": 305,
+        "pending": 97939
+      },
+      "active_claims": 25,
+      "created": 100000,
+      "query_ms": 59.645
+    },
+    {
+      "at": "2026-11-10T00:07:23.000852381Z",
+      "items_by_status": {
+        "claimed": 26,
+        "completed": 1731,
+        "failed_terminal": 306,
+        "pending": 97937
+      },
+      "active_claims": 26,
+      "created": 100000,
+      "query_ms": 106.694
+    },
+    {
+      "at": "2026-11-10T00:07:24.000770856Z",
+      "items_by_status": {
+        "claimed": 26,
+        "completed": 1731,
+        "failed_terminal": 306,
+        "pending": 97937
+      },
+      "active_claims": 26,
+      "created": 100000,
+      "query_ms": 41.281
+    },
+    {
+      "at": "2026-11-10T00:07:25.001696223Z",
+      "items_by_status": {
+        "claimed": 21,
+        "completed": 1731,
+        "failed_terminal": 306,
+        "pending": 97942
+      },
+      "active_claims": 21,
+      "created": 100000,
+      "query_ms": 73.504
+    },
+    {
+      "at": "2026-11-10T00:07:25.99896953Z",
+      "items_by_status": {
+        "claimed": 21,
+        "completed": 1731,
+        "failed_terminal": 306,
+        "pending": 97942
+      },
+      "active_claims": 21,
+      "created": 100000,
+      "query_ms": 63.243
+    },
+    {
+      "at": "2026-11-10T00:07:26.999463457Z",
+      "items_by_status": {
+        "claimed": 20,
+        "completed": 1733,
+        "failed_terminal": 307,
+        "pending": 97940
+      },
+      "active_claims": 20,
+      "created": 100000,
+      "query_ms": 142.405
+    },
+    {
+      "at": "2026-11-10T00:07:28.000726855Z",
+      "items_by_status": {
+        "claimed": 21,
+        "completed": 1741,
+        "failed_terminal": 307,
+        "pending": 97931
+      },
+      "active_claims": 21,
+      "created": 100000,
+      "query_ms": 65.491
+    },
+    {
+      "at": "2026-11-10T00:07:29.00136845Z",
+      "items_by_status": {
+        "claimed": 21,
+        "completed": 1741,
+        "failed_terminal": 307,
+        "pending": 97931
+      },
+      "active_claims": 21,
+      "created": 100000,
+      "query_ms": 3516.411
+    },
+    {
+      "at": "2026-11-10T00:07:32.51778402Z",
+      "items_by_status": {
+        "claimed": 21,
+        "completed": 1741,
+        "failed_terminal": 307,
+        "pending": 97931
+      },
+      "active_claims": 21,
+      "created": 100000,
+      "query_ms": 57.388
+    },
+    {
+      "at": "2026-11-10T00:07:33.000303898Z",
+      "items_by_status": {
+        "claimed": 21,
+        "completed": 1741,
+        "failed_terminal": 307,
+        "pending": 97931
+      },
+      "active_claims": 21,
+      "created": 100000,
+      "query_ms": 49.333
+    },
+    {
+      "at": "2026-11-10T00:07:34.001026216Z",
+      "items_by_status": {
+        "claimed": 21,
+        "completed": 1741,
+        "failed_terminal": 307,
+        "pending": 97931
+      },
+      "active_claims": 21,
+      "created": 100000,
+      "query_ms": 123.175
+    },
+    {
+      "at": "2026-11-10T00:07:35.001175764Z",
+      "items_by_status": {
+        "claimed": 21,
+        "completed": 1741,
+        "failed_terminal": 307,
+        "pending": 97931
+      },
+      "active_claims": 21,
+      "created": 100000,
+      "query_ms": 132.846
+    },
+    {
+      "at": "2026-11-10T00:07:36.001305125Z",
+      "items_by_status": {
+        "claimed": 21,
+        "completed": 1741,
+        "failed_terminal": 307,
+        "pending": 97931
+      },
+      "active_claims": 21,
+      "created": 100000,
+      "query_ms": 50.33
+    },
+    {
+      "at": "2026-11-10T00:07:37.001207564Z",
+      "items_by_status": {
+        "claimed": 21,
+        "completed": 1741,
+        "failed_terminal": 307,
+        "pending": 97931
+      },
+      "active_claims": 21,
+      "created": 100000,
+      "query_ms": 66.66
+    },
+    {
+      "at": "2026-11-10T00:07:38.0006563Z",
+      "items_by_status": {
+        "claimed": 21,
+        "completed": 1741,
+        "failed_terminal": 307,
+        "pending": 97931
+      },
+      "active_claims": 21,
+      "created": 100000,
+      "query_ms": 86.087
+    },
+    {
+      "at": "2026-11-10T00:07:39.001102458Z",
+      "items_by_status": {
+        "claimed": 21,
+        "completed": 1741,
+        "failed_terminal": 307,
+        "pending": 97931
+      },
+      "active_claims": 21,
+      "created": 100000,
+      "query_ms": 71.482
+    },
+    {
+      "at": "2026-11-10T00:07:40.001597259Z",
+      "items_by_status": {
+        "claimed": 21,
+        "completed": 1741,
+        "failed_terminal": 307,
+        "pending": 97931
+      },
+      "active_claims": 21,
+      "created": 100000,
+      "query_ms": 67.163
+    },
+    {
+      "at": "2026-11-10T00:07:40.99894069Z",
+      "items_by_status": {
+        "claimed": 21,
+        "completed": 1741,
+        "failed_terminal": 307,
+        "pending": 97931
+      },
+      "active_claims": 21,
+      "created": 100000,
+      "query_ms": 3029.697
+    },
+    {
+      "at": "2026-11-10T00:07:44.028641004Z",
+      "items_by_status": {
+        "claimed": 21,
+        "completed": 1741,
+        "failed_terminal": 307,
+        "pending": 97931
+      },
+      "active_claims": 21,
+      "created": 100000,
+      "query_ms": 46.039
+    }
+  ],
+  "pg_headroom": {
+    "source": "postgres-exporter:http://127.0.0.1:19187/metrics",
+    "limits": {
+      "max_connections": 85,
+      "max_replication_lag_seconds": 30,
+      "max_cpu_millicores_operator_enforced": 11500,
+      "max_memory_mi_operator_enforced": 63488,
+      "max_lock_waiters": 5
+    },
+    "baseline": {
+      "connections": 65,
+      "lock_waiters": 0,
+      "max_lock_wait_ms": -1,
+      "deadlocks_total": 2,
+      "replication_lag_seconds": 0
+    },
+    "peak": {
+      "connections": 79,
+      "lock_waiters": 0,
+      "max_lock_wait_ms": -1,
+      "deadlocks_total": 2,
+      "replication_lag_seconds": 0
+    },
+    "cpu_memory": "NOT_AVAILABLE from this source; the live leg enforces CPU and memory through the abort file"
+  },
+  "baseline_census": {
+    "prefixed": {},
+    "other": {
+      "collector_instances|true": 1,
+      "workflow_claims|completed": 58,
+      "workflow_claims|expired": 6,
+      "workflow_claims|failed_retryable": 3123548,
+      "workflow_claims|failed_terminal": 29,
+      "workflow_runs|complete": 90,
+      "workflow_work_items|completed": 58,
+      "workflow_work_items|failed_terminal": 29
+    }
+  },
+  "final_census": {
+    "prefixed": {},
+    "other": {
+      "collector_instances|true": 1,
+      "workflow_claims|completed": 58,
+      "workflow_claims|expired": 6,
+      "workflow_claims|failed_retryable": 3123548,
+      "workflow_claims|failed_terminal": 29,
+      "workflow_runs|complete": 90,
+      "workflow_work_items|completed": 58,
+      "workflow_work_items|failed_terminal": 29
+    }
+  },
+  "deleted_rows": {
+    "component_quota_windows": 0,
+    "workflow_claims": 101474,
+    "workflow_run_completeness": 0,
+    "workflow_run_progress": 0,
+    "workflow_runs": 200,
+    "workflow_work_items": 100000
+  },
+  "cleanup_budget": "15m0s",
+  "residue": {
+    "first_zero_synthetic_rows": 0,
+    "second_zero_non_synthetic_deltas": null,
+    "third_zero_core": {
+      "status": "CHECKED",
+      "checked": true,
+      "rows": 0
+    }
+  },
+  "not_applicable": {
+    "step5_quota": "no quota budget enforced on this leg (claim plane without --quotas, or quota_budget NOT_APPLICABLE)",
+    "step6_advisory": "parity backend has no guarded admission"
+  },
+  "spec_readings": [
+    {
+      "id": "workers",
+      "spec": "§5 step 1, line 145",
+      "quote": "ClaimNextEligible from W claimers (W = 1x, then 2x worker_counts)",
+      "reading": "W = worker_counts x worker_multiple; each worker is one claim loop with its own owner id holding one claim at a time, the production shape of one claim loop per collector Deployment."
+    },
+    {
+      "id": "quota_held",
+      "spec": "§5 step 5, line 153; §6 no overshoot, line 188",
+      "quote": "at least one synthetic scope is held at its budget ... grants per budget bucket never exceed quota_budget",
+      "reading": "The quota kind gets an at-budget scope with budget+extra items and a below-budget scope with budget-1 items. no_overshoot passes when no (kind, scope, hour) bucket is above budget and at least one bucket reached it. Items still held above budget at the end are reported as quota_held_items and excluded from drain_to_zero; a new hour bucket may drain them legitimately."
+    },
+    {
+      "id": "pin",
+      "spec": "§5 step 7, lines 158-160",
+      "quote": "some are pinned and then outlive the commit deadline; some are pinned after reclaim (stale)",
+      "reading": "A seeded share pins before completing; a short pin whose deadline passes while the lease lives must still complete; half of the abandoned claims are pinned past their lease and the reaper must wait for the pin; stale pins rotate into the step-9 writes and must be fence-rejected."
+    },
+    {
+      "id": "replay",
+      "spec": "§5 step 8, line 161",
+      "quote": "a seeded share of terminal calls is replayed once after an injected timeout",
+      "reading": "Terminal means CompleteClaim and FailClaimTerminal. The first call gets a 1 ms deadline, then one replay on a fresh deadline must ack. Release and FailClaimRetryable are not replayed: after another worker re-claims the item, rejection is correct and belongs to step 9."
+    },
+    {
+      "id": "stale_writers",
+      "spec": "§5 step 9, line 163",
+      "quote": "a seeded share of workers keeps writing with an old fencing token after their claim was reaped and re-claimed",
+      "reading": "An abandoned claim's worker writes once (heartbeat, complete, fail_terminal, or pin) after the client has seen the item re-granted at a higher token. Success aborts; any code other than the fence rejection fails the criterion."
+    },
+    {
+      "id": "reclaim",
+      "spec": "§6 reclaim, line 181",
+      "quote": "every expired lease is reclaimed within lease_ttl + reap_interval + one reap pass",
+      "reading": "Measured per abandoned claim as finished_at of the expired claim row minus the later of lease_expires_at and the commit pin, against reap_interval + the longest measured reap pass + 1 s + clock skew (lease_ttl is already inside lease_expires_at). The 5 s requeue delay applies after the reap and is not in the bound."
+    },
+    {
+      "id": "starvation",
+      "spec": "§6 starvation bound, line 186",
+      "quote": "no eligible item waits longer than starvation_bound_seconds; no scope goes unclaimed while below budget",
+      "reading": "The longest ClaimNextEligible call (issued or idle) must stay under the bound, and every backlog scope must get a grant inside the window. Enqueue-to-first-claim wait over a 100,000-item backlog is minutes by construction and is not judged."
+    },
+    {
+      "id": "drain",
+      "spec": "§6 drain to zero, line 195",
+      "quote": "stop issuing work, let reap and replay finish, confirm zero nonterminal synthetic items and zero live synthetic claims",
+      "reading": "After the window the chaos mix stops; workers keep claiming and completing the remaining backlog until every non-quota-held item is terminal, no claim is live, and every armed stale writer has fired."
+    },
+    {
+      "id": "planner_statistics",
+      "spec": "§2 backlog_items, line 84",
+      "quote": "peak nonterminal workflow_work_items depth from production history",
+      "reading": "Production tables carry planner statistics, a freshly seeded one does not. After seeding the harness waits read-only (bounded, default 5m) for autovacuum to analyze workflow_work_items; stats_ready=false records a window run on cold statistics."
+    },
+    {
+      "id": "isolation_probe",
+      "spec": "§4, lines 125-126 and 135-136",
+      "quote": "collector instance: synth-8875-rehearsal-leg-1 on an enumerated synthetic instance with an existing claim-capable kind ... The lane proves this first with a dry claim that must return idle while real work exists.",
+      "reading": "The harness claims only on synth-8875-rehearsal-leg-1, which keeps the synthetic prefix but sits outside the census instance family (synth-8875-rehearsal-instance-%), so the baseline ignores the satellite's declaration row for it and no harness item names it before the seed. The dry claim on it returns idle by construction: on live it shows only that no item names this instance yet, not that the selector excludes real work. The report marks the probe VACUOUS on both targets; the arbiter rules on the instance at the live-run review."
+    },
+    {
+      "id": "zero_loss",
+      "spec": "§6 zero loss, line 193",
+      "quote": "created count = terminal count + live count at every sample",
+      "reading": "Each sample counts synthetic item rows, which are terminal plus non-terminal by construction, and requires rows \u003e= created. Rows may briefly exceed created because an admitted advisory round commits before its count is added. After the run, every client-acked terminal item must be terminal in the database."
+    },
+    {
+      "id": "lock_waiters",
+      "spec": "§2 pg_headroom, line 89",
+      "quote": "satellite database CPU, connection count, and replication-lag limits",
+      "reading": "The live ceiling on lock waiters counts core's database only (ESHU_CONTENTION_PG_LOCK_DATABASE=eshu). A local in-tree advisory round queues up to 24 sessions on pg_advisory_xact_lock by design, so the local ceiling sits above the advisory goroutines plus W."
+    }
+  ],
+  "isolation_probe": {
+    "status": "VACUOUS",
+    "detail": "dry claim idle on synth-8875-rehearsal-leg-1, which is not an enumerated live instance (synth-8875-tfstate, synth-8875-pkgreg) and names no harness item before the seed; the satellite declares it from its own instances file. It shows no work is claimable on this instance yet, not that real work is excluded."
+  },
+  "criteria": {
+    "advisory_admission": {
+      "status": "NOT_APPLICABLE",
+      "detail": "parity backend has no guarded admission"
+    },
+    "drain_to_zero": {
+      "status": "PASS",
+      "detail": "drained=true, 0 non-terminal, 0 quota-held"
+    },
+    "exactly_once": {
+      "status": "PASS",
+      "detail": "100000 items acked terminal; tracker and 1 s sampler found no dual live claim or double terminal"
+    },
+    "fencing_monotonicity": {
+      "status": "PASS",
+      "detail": "client happens-before order plus database token check (item token \u003e= every claim token, no duplicate)"
+    },
+    "no_overshoot": {
+      "status": "NOT_APPLICABLE",
+      "detail": "no quota budget enforced on this leg (claim plane without --quotas, or quota_budget NOT_APPLICABLE)"
+    },
+    "no_unexpected_outcomes": {
+      "status": "PASS",
+      "detail": "anomalies map[]"
+    },
+    "pin": {
+      "status": "PASS",
+      "detail": "pins map[pin=ok:424 pin_outlive=ok:80 pin_zombie=ok:106]; stale pins are judged in stale_fence_rejection"
+    },
+    "reclaim": {
+      "status": "PASS",
+      "detail": "210/210 abandoned leases reaped; late 0, pin violated 0, bound 23000ms"
+    },
+    "replay_idempotence": {
+      "status": "PASS",
+      "detail": "309 replays after an injected timeout, 0 not acked"
+    },
+    "residue": {
+      "status": "PASS",
+      "detail": "synthetic 0, non-synthetic deltas [], core CHECKED"
+    },
+    "single_holder_heartbeat": {
+      "status": "PASS",
+      "detail": "87 heartbeats acked on live leases, 0 lost"
+    },
+    "stale_fence_rejection": {
+      "status": "PASS",
+      "detail": "210 stale writes fired, 210 rejected (by op: map[armed:210 code=rejected:210 complete=rejected:209 fail_terminal=rejected:1 fired:210])"
+    },
+    "starvation_bound": {
+      "status": "PASS",
+      "detail": "max claim wait 667.0ms (bound 4m30s); 0 backlog scopes unclaimed in the window"
+    },
+    "zero_deadlocks": {
+      "status": "PASS",
+      "detail": "40P01 errors 0; lock wait bound 250ms (peak NOT_AVAILABLE)"
+    },
+    "zero_loss": {
+      "status": "PASS",
+      "detail": "created 100000; sampled created \u003c= rows at every tick"
+    }
+  },
+  "verdict": "CLEAN"
+}

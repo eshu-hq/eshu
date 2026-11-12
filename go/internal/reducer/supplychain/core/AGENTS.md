@@ -90,6 +90,27 @@ changing anything here.
   `Instruments.SupplyChainImpactHeadroom` after an admitted write only. Keep it
   after the write and on `truncation.causes()`, the same set that decides
   `PartialEvidence`, so the gauge never disagrees with retraction. The ratio reads `budgetEnvelopes` (`budget.used`), never `expansionEnvelopes`: the protected-scan path adds uncharged derived facts to that one.
+- The re-key outcome (`rekey_signals.go`, #10408) is a closed four-set
+  (`merge`, `split`, `member_only`, `retire_only`) reporting a genuine
+  identity change only — `reportRekeyIdentity` compares each derived row
+  against the stored row it replaced, so an EPSS refresh, admission-only,
+  bootstrap, rollover, or same-key rewrite counts nothing — and counted
+  once per pass at the dispatcher. Never put a group, CVE, or advisory id
+  in a metric attribute; magnitudes ride the `rekey_*` result sub-signals.
+  A pass with no identity change stays silent — unless it dropped
+  suppression coverage, which reports `split`: do not default a silent
+  pass to `member_only`.
+- Suppression identity matching (#10409) tests each populated scope
+  `cve_id`/`advisory_id` against the finding's matchable set (group member
+  ids plus its own `cve_id`/`advisory_id`) via `findingMatchableID`,
+  conjunctive per field; never widen through `upstream`/`related`, and
+  never match a fallback finding through a partial component. Keep the
+  per-pass `suppressionIndex` a pure prefilter (superset of adjacency,
+  input order preserved, non-ASCII or anchorless scopes on the full-scan
+  fallback) — `TestSuppressionIndexMatchesFullScan` is the parity proof.
+  Decisions carry `matched_id`/`matched_field`/`matched_via`; diff rows
+  carry advisory ids on both sides, and the no-identity-scope counter
+  counts only suppressions naming neither id.
 - `FileReachabilityFold` (#9781, #9860) replaces parser `file` envelopes with
   in-memory digest envelopes. It runs the same per-file bodies as the JS/TS and
   Python builders (`addFile`, `addPythonReachabilityFile`), so a new key a

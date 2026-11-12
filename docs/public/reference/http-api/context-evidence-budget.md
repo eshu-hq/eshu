@@ -95,9 +95,39 @@ The flags the table names:
   `deployment_artifacts_anchor_file_list_truncated_at_5000`.
 - `dependents_truncated`, `consumer_repositories_truncated`, and
   `provisioning_source_chains_truncated` come from the bounded downstream read
-  (`result_limits.downstream_read_limit`). `consumer_repositories_truncated`
+  (`result_limits.downstream_read_limit`, 25 by default, raisable per call to
+  100 with `downstream_read_limit`; the effective bound is echoed on the
+  context and the coverage). Non-numeric or negative values return 400.
+  The rendered downstream lists follow the effective read: with an explicit
+  request above the 50-row preview the lists ship up to the read bound, and
+  `result_limits.downstream_render_limit` reports the applied render cap.
+  `consumer_repositories_truncated`
   is also set when the service evidence file read hit
-  `result_limits.evidence_file_read_limit`.
+  `result_limits.evidence_file_read_limit`. When any of these families is
+  truncated, `coverage_summary.reason` names each one with the bound that
+  fired (`<family> truncated at <bound>=<value>`, semicolon-joined, one clause
+  per truncated family: `dependents`, `consumer_repositories`,
+  `provisioning_source_chains`, and `api_surface`); when nothing is truncated
+  the legacy sentence is unchanged. Attribution reads the per-bound signals,
+  never the merged `consumer_repositories_truncated` bool: the evidence-file
+  bound names `evidence_file_read_limit`, the downstream search names
+  `downstream_read_limit`, and both are named when both fired. The enrichment
+  writes each flag together with the same-named `limitations` token, so the
+  story (which reads the flags) and the context (which promotes the tokens to
+  `partial_reasons`) agree by construction.
+- The dossier `api_surface` stays a 50-row preview; page the full ordered set
+  through `GET /api/v0/services/{service_name}/api-surface/endpoints`
+  (`result_limits.endpoint_list_tool` / `endpoint_list_path` point there, and
+  the MCP `list_service_api_endpoints` tool dispatches to it). The selector
+  matches the service story (`service_id`, `workload_id`, or `service_name`,
+  plus `repo` and `environment`; ambiguous selectors answer 409 like the
+  story). `limit` defaults to 50 and clamps to 100, `offset` defaults to 0;
+  non-positive `limit` or negative/non-numeric paging values return 400. Pages
+  arrive in `path, endpoint_id` order with `endpoint_count` (the true
+  count-query total), `detail_truncated`, and `next_offset` (absent when the
+  page is complete); repeat with `offset` set to `next_offset` until it is
+  absent. An empty set answers 200 with `endpoint_count: 0`, not 404.
+- The dossier downstream lists render up to the effective read (`result_limits.downstream_render_limit`); page the full keyset-ordered set through `GET /api/v0/services/{service_name}/downstream-consumers` (`result_limits.consumer_list_tool` / `consumer_list_path` point there, and the MCP `list_service_downstream_consumers` tool dispatches to it). The selector matches the service story; `limit` defaults to 50 and clamps to 100, `after_repository`/`after_repo_id` carry the previous page's `next_cursor` (absent starts at the first row, a missing half is 400), and an empty page is a terminal 200, not 404. Pages arrive in `repository, repo_id` order with `truncated`, `consumer_truncation_sources`, `searched_hostnames`, `effective_read_bound`, and `lower_bound: true` (no total exists to report; `next_cursor` absent means done).
 - A read of 50 rows with no flag of its own is the `cloud_resources` read, the
   runtime instance read, and the framework route read (50 files): their totals
   cannot say more exist. The framework route read has no flag for the 50-file

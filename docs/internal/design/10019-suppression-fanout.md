@@ -222,7 +222,7 @@ WHERE cur.payload IS DISTINCT FROM prior.payload;
   also skips any pass whose own facts hold no suppression, so those scopes never run
   the statement.
 
-`changedSuppressionCVEIDs` turns the rows into the id list, trimmed like the decoder.
+`changedSuppressionIDs` turns the rows into the id list, trimmed like the decoder.
 `suppressionAdjacent` matches with `EqualFold`, but the holder read
 (`findSupplyChainImpactHoldersQuery`) compares exactly, so a lower-case id also yields
 its upper form. Otherwise `cve-2026-1` would suppress a finding on the holder's own
@@ -355,10 +355,12 @@ wiring lets the diff's ids through regardless of the stamp, proved by the one-ho
 
 ## Known limits
 
-1. **A scope with no `cve_id`.** A suppression scoped only by package, PURL, repository,
-   or subject digest has no id to fan out by, and an advisory-only scope reaches its
-   record on the operator pass per the #9914 note. Those wait for the holder's own pass.
-   `countSuppressionsWithoutCVEScope` feeds the no-CVE counter in [Telemetry](#telemetry) so this is visible.
+1. **A scope with no identity id.** A suppression scoped only by package, PURL,
+   repository, or subject digest has no id to fan out by and waits for the holder's
+   own pass. (An advisory-only scope fanned out by nobody when this design landed;
+   #10409 D4 put advisory ids on the diff rows, so it now reaches its holders.)
+   `countSuppressionsWithoutIdentityScope` feeds the no-identity counter in
+   [Telemetry](#telemetry) so this is visible.
 2. **Changes that cancel out inside the unwalked span.** The walk closes them up to the
    cap. Past it, a change that cancels out inside the endpoint diff stays on the holders'
    own cadence. The residual is wider than net-zero: CVE-1 to CVE-2 to CVE-3 inside the
@@ -417,10 +419,10 @@ sub-signals below, plus the coverage row.
 | `eshu_dp_supply_chain_impact_suppression_diff_duration_seconds` | Histogram | Is the walk getting slow |
 | `walk_truncated`, `statements` on the result, span and log line | Count of unwalked generations; statements run | Did a long chain exceed the cap, and how much is only endpoint-diffed |
 | `eshu_dp_supply_chain_impact_suppression_walk_truncated_total` | Counter, adds `walk_truncated` once per pass that is above zero; label `baseline` | Alertable truncation: how often the cap leaves a span endpoint-only |
-| `eshu_dp_supply_chain_impact_suppression_no_cve_scope_total` | Counter, adds the distinct no-CVE count per pass; no labels | How many changed suppressions the fan-out cannot reach (limit 1) |
+| `eshu_dp_supply_chain_impact_suppression_no_identity_scope_total` | Counter, adds the distinct no-identity count (neither CVE nor advisory id, #10409) per pass; no labels | How many changed suppressions the fan-out cannot reach (limit 1) |
 | Existing `eshu_dp_supply_chain_impact_fanout_total`, `cause=suppression` | Counter | Did holders actually reopen |
-| `supply_chain_impact.suppression_diff` span | `diff_rows`, `changed_cve_ids`, `no_cve_scope_rows`, baseline kind, duration | One pass end to end, under the pass's trace |
-| Sub-signals on the result | `suppression_diff_rows`, `_cve_ids`, `_no_cve_scope` | Queue-side view beside `fanout_*` |
+| `supply_chain_impact.suppression_diff` span | `diff_rows`, `changed_cve_ids`, `no_identity_scope_rows`, baseline kind, duration | One pass end to end, under the pass's trace |
+| Sub-signals on the result | `suppression_diff_rows`, `_cve_ids`, `_no_identity_scope` | Queue-side view beside `fanout_*` |
 | One structured log line per diff | `scope_id`, `generation_id`, baseline id and kind, counts, action, duration, no CVE ids beyond a capped sample | Which generation and what it named |
 
 Reading them:
@@ -432,7 +434,7 @@ Reading them:
   net-zero changes inside the unwalked span wait on the holders' cadence.
 - `baseline=oldest_retained` or a repeated `none`: admission history is gone, so expect
   a wide fan-out.
-- `ran` with `changed_cve_ids=0` and `no_cve_scope_rows>0`: the operator used a scope the
+- `ran` with `changed_cve_ids=0` and `no_identity_scope_rows>0`: the operator used a scope the
   fan-out cannot reach. The answer is limit 1.
 - `ran` with ids and `fanout_total{cause=suppression}` flat: every holder was already queued
   or none exists; the existing outcome labels split these.

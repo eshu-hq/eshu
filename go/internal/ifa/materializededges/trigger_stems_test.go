@@ -223,6 +223,11 @@ var materializedEdgeFamilyTriggerStems = map[string]string{
 	// (scripts/lib/ifa_fault_injection_uses_service_account_cells.sh),
 	// the fault cases file, and the Odù the triggers name.
 	"uses_service_account": "uses_service_account",
+	// advisory_group joins them with the #10466 advisory_group Odù
+	// lift: same stem shape, read off the fault cells file
+	// (scripts/lib/ifa_fault_injection_advisory_group_cells.sh),
+	// the fault cases file, and the Odù the triggers name.
+	"advisory_group": "advisory_group",
 }
 
 // triggerMatchesFamilyStem reports whether trigger is one of the family's own

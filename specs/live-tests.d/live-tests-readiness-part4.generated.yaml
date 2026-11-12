@@ -29,6 +29,11 @@ tests:
     class: postgres_ci
     reason: "#9871 claim-plan proof on real PostgreSQL: the fair-claim candidate on a freshly bulk-loaded never-analyzed workflow_work_items table, then after ANALYZE; enrolled in the live-postgres-readiness runner"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/control_retire_unclaimed_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10532 sanctioned never-claimed retirement proofs on real PostgreSQL: terminal outcome, idempotency, gate refusals, claim-versus-retire race with exactly-once and no deadlock, held-row SKIP LOCKED, run-reconcile close, guard release, and status-registry/failure-read containment; isolated disposable databases, under 4 minutes locally"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/control_scanner_admission_atomicity_live_test.go
     tag: ~
     class: postgres_ci
@@ -233,6 +238,16 @@ tests:
     tag: ~
     class: postgres_ci
     reason: "#7903 disposable PostgreSQL 18 proof that the targeted re-lock drops a candidate that flips to uncovered-writer coverage after selection and counts it as skipped while still pruning a covered bystander, enrolled in the live-postgres-readiness runner; bridges the family ESHU_GENERATION_RETENTION_PROOF_DSN onto ESHU_POSTGRES_TEST_DSN as the hard-ceiling proof does. local run passed in 1.31s wall with the full 188-migration setup on postgres:18 on 2026-10-11"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/generation_retention_row_counts_10512_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10512 disposable PostgreSQL proof that the reshaped retention row-count arms and the intents DELETE stay on their generation indexes (custom and forced-generic plans, seeded drop-index REDs, executed buffers tracking the batch), that the direct package-key counts equal the old fact-join counts on clean keys and diverge exactly by planted orphans, and that a missing, INVALID or partial-only intents generation index refuses the cycle; bridges ESHU_GENERATION_RETENTION_PROOF_DSN onto ESHU_POSTGRES_TEST_DSN."
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/generation_retention_row_counts_10525_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10525 disposable PostgreSQL proof that the retention row-count fact_work_items arm and the pre-delete work-item lock stay on the migration 294 generation index (custom and forced-generic plans, seeded drop-index REDs, executed lock buffers tracking the batch), that the arm counts exactly the scope_generations cascade envelope including a planted scope-mismatched row, that a missing, INVALID or partial-only index refuses the cycle, and that a foreign FOR UPDATE hold on a retained work row neither blocks the cycle nor loses its row; bridges ESHU_GENERATION_RETENTION_PROOF_DSN onto ESHU_POSTGRES_TEST_DSN."
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/generation_retention_samesha_live_test.go
     tag: ~

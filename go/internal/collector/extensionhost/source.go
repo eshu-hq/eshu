@@ -163,9 +163,15 @@ func (s *Source) nextClaimed(
 			cause: err,
 		}
 	}
-	if s.tokenProvider != nil {
-		// Mint before launch: a denial fails the claim terminal without
-		// ever starting the satellite, and the key never leaves the host.
+	_, derived := request.Config[HostDerivedTargetKey]
+	if s.tokenProvider != nil && (hostMintOptedIn(request.Config, item.ScopeID) || (s.derivedTargetResolver != nil && derived)) {
+		// Mint before launch for a static target that opts in via
+		// auth_mode host_minted (eshu-hq/eshu#10483), and for any claim
+		// carrying a host-resolved derived target: static config can not
+		// forge that key, so its presence is the resolver's doing. A
+		// denial fails the claim terminal without ever starting the
+		// satellite, and the key never leaves the host. Any other claim
+		// keeps the static path with the provider never consulted.
 		token, err := s.mintHostToken(ctx, item)
 		if err != nil {
 			return collector.CollectedGeneration{}, false, sdkcollector.Result{}, ResultOriginHost, err

@@ -49,12 +49,38 @@ func TestSupplyChainImpactWinnersResweepRetentionDeleteChangesNoWinnerLive(t *te
 }
 
 // TestSupplyChainImpactWinnersResweepKeyedProbePlanLive asserts the plan shape the
-// ruling requires at scale: after the identifier temp table is analyzed, the
-// active_facts build probes the existing package-lookup index once per DISTINCT
-// triple (not once per identifier: a hot triple's fifty dirty keys must not
-// fetch its whole fact set fifty times) and never scans fact_records.
+// #9975 ruling requires at scale: after the identifier temp table is analyzed,
+// the active_facts build probes the keyed winners index (the package triple
+// plus the coalesced c0 and advisory expressions) once per identifier, so the
+// heap fetches only the facts a dirty key keeps. The earlier per-triple probe
+// fetched every candidate of a touched triple as wide rows and discarded most
+// after the heap fetch: on QA that was 15,888 fetched rows (160 MB of payload)
+// for 2,720 kept on a 200-identifier sparse tick. The probe never scans
+// fact_records.
 func TestSupplyChainImpactWinnersResweepKeyedProbePlanLive(t *testing.T) {
 	h := newKeyedHarness(t, "#9805 keyed plan proof")
+	// #10544 retirement parity: a fully bootstrapped database must carry the
+	// 291 keyed index and must not carry the retired triple-only
+	// package-lookup index, whose planner cost ties the 291 index at rows=1
+	// (see docs/internal/evidence/10544-retire-package-lookup-idx.md). The
+	// seeded-violation arm plants the retired index and requires the same
+	// census to see it, so an absence assertion that could not detect the
+	// index would fail here instead of passing vacuously.
+	const retiredIndex = "fact_records_supply_chain_impact_package_lookup_idx"
+	if keyedIndexExists(t, h, retiredIndex) {
+		t.Fatalf("retired index %s is present after bootstrap; migration 293 must drop it", retiredIndex)
+	}
+	if !keyedIndexExists(t, h, "fact_records_supply_chain_impact_winners_keyed_idx") {
+		t.Fatal("the 291 keyed winners index is missing after bootstrap")
+	}
+	h.exec(`CREATE INDEX ` + retiredIndex + ` ON fact_records ((payload->>'package_id'), (payload->>'repository_id'), (payload->>'subject_digest'), fact_id ASC, generation_id) WHERE fact_kind = 'reducer_supply_chain_impact_finding' AND is_tombstone = FALSE`)
+	if !keyedIndexExists(t, h, retiredIndex) {
+		t.Fatal("seeded violation undetected: the index census does not see a planted " + retiredIndex)
+	}
+	h.exec(`DROP INDEX ` + retiredIndex)
+	if keyedIndexExists(t, h, retiredIndex) {
+		t.Fatalf("seeded index %s survived its drop; the plan assertions below would run against the wrong schema", retiredIndex)
+	}
 	h.seedScope("vuln-intel://9805/plan", "vuln-intel://9805/plan/g1")
 	h.exec(`
 INSERT INTO fact_records (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, schema_version,
@@ -99,16 +125,18 @@ FROM generate_series(1, 3000) AS g`)
 	if err := json.Unmarshal(planJSON, &parsed); err != nil {
 		t.Fatalf("plan is not JSON: %v", err)
 	}
-	if !strings.Contains(plan, "fact_records_supply_chain_impact_package_lookup_idx") {
-		t.Errorf("the keyed probe does not use the package-lookup index:\n%s", plan)
+	if !strings.Contains(plan, "fact_records_supply_chain_impact_winners_keyed_idx") {
+		t.Errorf("the keyed probe does not use the keyed winners index:\n%s", plan)
 	}
 	if regexp.MustCompile(`"Node Type":\s*"Seq Scan"[^}]*"Relation Name":\s*"fact_records"`).MatchString(plan) {
 		t.Errorf("the keyed probe seq-scans fact_records:\n%s", plan)
 	}
 
-	// 21 distinct triples (20 ordinary, one hot) carry 50 identifiers. The lookup
-	// index must be searched once per triple, so the hot triple's 3,000 candidates
-	// are fetched once, not thirty times. The plan must hold in both statistics
+	// 21 distinct triples (20 ordinary, one hot) carry 50 identifiers. The keyed
+	// index must be searched once per identifier with the c0 and advisory
+	// expressions as index conditions, so the hot triple's 3,000 candidates are
+	// not heap-fetched at all: the scan returns the 50 kept facts, one per
+	// identifier, not 3,050 candidates. The plan must hold in both statistics
 	// states that mattered: the scope tables as the isolated schema leaves them
 	// (default estimates, which flipped the per-identifier form into a scope loop
 	// with 100 searches), and after ANALYZE of the scope tables. The probe sits in
@@ -133,39 +161,60 @@ FROM generate_series(1, 3000) AS g`)
 		if err := json.Unmarshal(analyzed, &analyzedPlan); err != nil {
 			t.Fatalf("%s: analyzed plan is not JSON: %v", state, err)
 		}
-		loops, found := lookupIndexLoops(analyzedPlan)
+		loops, rows, found := keyedIndexScanStats(analyzedPlan)
 		if !found {
-			t.Fatalf("%s: the analyzed plan has no scan of the package-lookup index:\n%s", state, analyzed)
+			t.Fatalf("%s: the analyzed plan has no scan of the keyed winners index:\n%s", state, analyzed)
 		}
-		if loops != 21 {
-			t.Errorf("%s: the package-lookup index was searched %v times, want 21 (once per distinct triple, not once per identifier):\n%s", state, loops, analyzed)
+		if loops != 50 {
+			t.Errorf("%s: the keyed winners index was searched %v times, want 50 (once per identifier):\n%s", state, loops, analyzed)
 		}
-		if !strings.Contains(string(analyzed), `"Subplan Name": "CTE triple_facts"`) {
+		if rows != 50 {
+			t.Errorf("%s: the keyed winners index scan returned %v rows, want 50 kept facts (one per identifier, not the hot triple's 3,000 candidates):\n%s", state, rows, analyzed)
+		}
+		if !strings.Contains(string(analyzed), `"Subplan Name": "CTE ident_facts"`) {
 			t.Errorf("%s: the probe is not a materialized CTE node:\n%s", state, analyzed)
 		}
 	}
 }
 
-// lookupIndexLoops returns the "Actual Loops" of the first scan of the
-// package-lookup index in an EXPLAIN (ANALYZE, FORMAT JSON) document.
-func lookupIndexLoops(node any) (float64, bool) {
+// keyedIndexExists reports whether the named index exists in the harness
+// database's current schema. It is the census both arms of the #10544
+// retirement parity check in the plan proof above run: the clean arm
+// requires the retired index absent, the seeded arm requires a planted one
+// present.
+func keyedIndexExists(t *testing.T, h *keyedHarness, indexName string) bool {
+	t.Helper()
+	var exists bool
+	if err := h.db.QueryRowContext(h.ctx,
+		`SELECT EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname = current_schema() AND indexname = $1)`,
+		indexName).Scan(&exists); err != nil {
+		t.Fatalf("index census for %s: %v", indexName, err)
+	}
+	return exists
+}
+
+// keyedIndexScanStats returns the "Actual Loops" and the total rows returned
+// ("Actual Rows" is per loop) of the first scan of the keyed winners index in
+// an EXPLAIN (ANALYZE, FORMAT JSON) document.
+func keyedIndexScanStats(node any) (loops, rows float64, found bool) {
 	switch v := node.(type) {
 	case []any:
 		for _, item := range v {
-			if loops, ok := lookupIndexLoops(item); ok {
-				return loops, true
+			if loops, rows, ok := keyedIndexScanStats(item); ok {
+				return loops, rows, true
 			}
 		}
 	case map[string]any:
-		if name, _ := v["Index Name"].(string); name == "fact_records_supply_chain_impact_package_lookup_idx" {
+		if name, _ := v["Index Name"].(string); name == "fact_records_supply_chain_impact_winners_keyed_idx" {
 			loops, _ := v["Actual Loops"].(float64)
-			return loops, true
+			perLoop, _ := v["Actual Rows"].(float64)
+			return loops, loops * perLoop, true
 		}
 		for _, child := range v {
-			if loops, ok := lookupIndexLoops(child); ok {
-				return loops, true
+			if loops, rows, ok := keyedIndexScanStats(child); ok {
+				return loops, rows, true
 			}
 		}
 	}
-	return 0, false
+	return 0, 0, false
 }

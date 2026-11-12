@@ -232,13 +232,31 @@ import (
 // #10411 adds 287_supply_chain_impact_winners_group_key.sql (the expression
 // index serving the advisory-group qualifying-winners read's coalesced
 // group-key predicate; one CREATE INDEX, no table).
-const goldenBootstrapDefinitionsDigest = "71282610b6f0ef132a6cf3e8dace883b3413f2c4b29627b6d704507cad963d75"
+// #10408 adds 288_fact_records_supply_chain_impact_advisory_lookup_idx.sql
+// (the advisory arm of the holder fan-out lookup),
+// 289_fact_records_supply_chain_impact_group_members_idx.sql (the
+// member-set arm), and 290_fact_records_supply_chain_impact_advisory_id_stats.sql
+// (extended statistics holding the advisory arm on its index). #9975 adds
+// 291_fact_records_supply_chain_impact_winners_keyed_idx.sql (the keyed
+// winners resweep probe index: package triple plus coalesced c0/advisory).
+// #10512 adds 292_shared_projection_intents_generation_idx.sql (the
+// generation index backing the retention row-count arm and intents
+// DELETE; one CREATE INDEX CONCURRENTLY). 291 went to #9975's winners
+// keyed index, which finished first, so this lane takes 292. #10544 adds
+// 293_drop_fact_records_supply_chain_impact_package_lookup_idx.sql (one
+// DROP INDEX CONCURRENTLY retiring the triple-only index whose rows=1 cost
+// tie kept the planner off the 291 keyed index).
+// #10525 adds 294_fact_work_items_generation_idx.sql (the generation
+// index backing the retention work-items count arm and pre-delete lock;
+// one CREATE INDEX CONCURRENTLY). 293 went to #10544's package-lookup
+// retirement, which rolled first, so this lane takes 294.
+const goldenBootstrapDefinitionsDigest = "9fd92cf514c98e0c54f8062feda7b49d8cf1c7006debee8bd991636d1adc30c8"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or
 // silently dropping files) fails loudly even in the unlikely case of a hash
 // collision.
-const goldenBootstrapDefinitionsCount = 313
+const goldenBootstrapDefinitionsCount = 320
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
 	defs := BootstrapDefinitions()

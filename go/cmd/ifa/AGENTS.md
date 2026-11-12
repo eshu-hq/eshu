@@ -110,6 +110,16 @@
   connection targets the same way. Keep these two narrow fixture setups as
   the only write-capable graph verbs in this command; a third needs its own
   gate-mirror pin before it lands.
+- `ifa enqueue-advisory-groups` (#10466) is the one write-capable
+  Postgres verb: it validates all flags before opening the database,
+  admits the cassette's held-back finding facts through the production
+  writer fact-store port (never cassette ingestion, which retracts
+  them), runs the production winners rebuild, enqueues through the
+  production `AdvisoryGroupProjectionEnqueuer`, and rebuilds again so
+  the watermark covers the enqueue. It writes no graph state and
+  invents no fact kind; keep it that way — a verb that hand-seeds
+  winners rows or mints a marker fact would void the advisory_group
+  coverage claim.
 - `ifa assert-edges` is the non-vacuity check the P2 digest cannot make: it
   MUST fail on a family that materialized zero edges (an empty family passes a
   digest comparison vacuously). Its `edgeTypes` filter is registry-derived via

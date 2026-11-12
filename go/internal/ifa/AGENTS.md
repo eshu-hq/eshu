@@ -132,8 +132,8 @@
   than guessed. kubernetes_namespace_environment and iam_instance_profile_role
   were that case -- both stayed waived while carrying stems ahead of their
   coverage rows, until #6309 wired both live matrices and converted their
-  waivers to coverage rows. workload_cloud_relationship is the remaining
-  waived direct family. Do not remove a stem
+  waivers to coverage rows. No direct family remains waived: advisory_group
+  was the last and converted its waivers with #10466. Do not remove a stem
   for being ahead of its coverage row without first checking whether the
   family's determinism triggers exist; see the doc comment on
   directFamilyTriggerStems in

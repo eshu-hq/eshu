@@ -1,0 +1,30 @@
+{
+  "odu": "odu:ifa-advisory-group-family",
+  "note": "Hand-derived from the advisory_group production chain (#10466): the winners maintainer rebuild (supplyChainImpactWinnerSelectSQL over active reducer_supply_chain_impact_finding facts) dedups to one winner per canonical key; the winners reader (advisoryGroupWinnersQuery) keeps qualifying statuses (affected_exact/affected_derived/possibly_affected), drops hidden suppression states and empty repository_id, and reads members from payload provenance.advisory_group_members via the winner_fact_id join (#10475); BuildGroup unions members plus each row's own CVE/advisory ids, splits CVE vs advisory class, and collapses edges to one per (repository, package) keeping the lowest byte-order (ecosystem, purl); AdvisoryGroupUpsertCypher MATCHes the Repository, MERGEs the AdvisoryGroup on id, and MERGEs (r)-[e:AFFECTED_BY {package_id}]->(g) SETting ecosystem and purl. Exactly two edges: the app repository's two conflicting advisory-left winners (@1.0.0 affected_exact, @0.9.0 affected_derived) collapse onto the @0.9.0 edge, and the lib repository's advisory-right winner is the second. The repository-less finding (reader-dropped), the not_affected_known_fixed finding (outside the qualifying set), and the tombstoned finding (outside the winner select's active set) add nothing. The AdvisoryGroup node (id CVE-2026-10466) carries cve_ids [CVE-2026-10466, CVE-2026-10467] and advisory_ids [GHSA-10466-aaaa-bbbb, GHSA-10466-cccc-dddd]: CVE-2026-10467 and GHSA-10466-cccc-dddd arrive only through provenance members, so a members-less read cannot reproduce this set.",
+  "edges": [
+    {
+      "relationship_type": "AFFECTED_BY",
+      "source_entity_id": "repository:eshu-fixture-advisory-app",
+      "target_entity_id": "CVE-2026-10466",
+      "identity": {
+        "package_id": "pkg:npm/advisory-left"
+      },
+      "properties": {
+        "ecosystem": "npm",
+        "purl": "pkg:npm/advisory-left@0.9.0"
+      }
+    },
+    {
+      "relationship_type": "AFFECTED_BY",
+      "source_entity_id": "repository:eshu-fixture-advisory-lib",
+      "target_entity_id": "CVE-2026-10466",
+      "identity": {
+        "package_id": "pkg:npm/advisory-right"
+      },
+      "properties": {
+        "ecosystem": "npm",
+        "purl": "pkg:npm/advisory-right@2.0.0"
+      }
+    }
+  ]
+}

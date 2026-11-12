@@ -36,13 +36,13 @@ remain independent from Eshu internals.
 - **No struct here carries an Attributes pass-through.** Unlike
   `awsv1.Resource`/`gcpv1.Resource`, no sbom/attestation kind is a
   polymorphic multi-shape envelope — each kind has one fixed field set on
-  both collector paths (`go/internal/collector/sbom/document`,
-  `go/internal/collector/sbom/runtime`). Do not add one without discussing
-  scope first.
+  both collector paths (document parsing and attestation runtime in the
+  extracted satellite `eshu-hq/eshu-collector-sbom-attestation`). Do not
+  add one without discussing scope first.
 - **`Warning` has ZERO required fields on purpose.** Two distinct collector
   paths emit `sbom.warning` with two distinct, mutually-exclusive identity
-  keys: the SBOM document collector always sets `document_id` and never
-  `statement_id`; the attestation runtime collector always sets
+  keys: the satellite's document path always sets `document_id` and never
+  `statement_id`; the satellite's attestation path always sets
   `statement_id` and never `document_id`. Neither key can be required
   without dead-lettering half of this kind's real traffic. Do not make either
   field required without re-verifying both collector paths still hold this
@@ -55,9 +55,9 @@ remain independent from Eshu internals.
     `SLSAProvenance.StatementID` — the reducer's join key back to an
     attestation statement.
 - **Every kind is wired.** `DependencyRelationship` and `ExternalReference`
-  were wired to the reducer in #5370; `SLSAProvenance` in #5371 (SBOM runtime
-  collector emitter in `go/internal/collector/sbom/runtime/attestation.go`,
-  reducer decode/join in `sbom_attestation_attachment_index.go`). Do not add
+  were wired to the reducer in #5370; `SLSAProvenance` in #5371 (satellite
+  attestation runtime emitter, reducer decode/join in
+  `sbom_attestation_attachment_index.go`). Do not add
   speculative optional fields beyond what an emitter actually produces.
 - This package defines eight fact kinds. Adding a ninth kind or a `v2` major
   is follow-on work, not a casual edit.

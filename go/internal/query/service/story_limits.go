@@ -9,11 +9,15 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
-func boundedServiceStoryRawValue(value any) (any, map[string]any) {
+func boundedServiceStoryRawValue(key string, value any, downstreamRenderLimit int) (any, map[string]any) {
 	switch typed := value.(type) {
 	case []map[string]any:
-		capped, truncated := CapMapRows(typed, serviceStoryItemLimit)
-		return capped, serviceStoryRawLimit(len(typed), truncated)
+		limit := serviceStoryItemLimit
+		if key == "dependents" || key == "consumer_repositories" {
+			limit = downstreamRenderLimit
+		}
+		capped, truncated := CapMapRows(typed, limit)
+		return capped, serviceStoryRawLimit(len(typed), truncated, limit)
 	case map[string]any:
 		return boundedServiceStoryRawMap(typed)
 	default:
@@ -31,7 +35,7 @@ func boundedServiceStoryRawMap(input map[string]any) (map[string]any, map[string
 		}
 		capped, truncated := CapMapRows(rows, serviceStoryItemLimit)
 		out[key] = capped
-		limits[key] = serviceStoryRawLimit(len(rows), truncated)
+		limits[key] = serviceStoryRawLimit(len(rows), truncated, serviceStoryItemLimit)
 	}
 	if len(limits) > 0 {
 		out["raw_limits"] = limits
@@ -39,10 +43,10 @@ func boundedServiceStoryRawMap(input map[string]any) (map[string]any, map[string
 	return out, limits
 }
 
-func serviceStoryRawLimit(count int, truncated bool) map[string]any {
+func serviceStoryRawLimit(count int, truncated bool, limit int) map[string]any {
 	return map[string]any{
 		"count":     count,
-		"limit":     serviceStoryItemLimit,
+		"limit":     limit,
 		"truncated": truncated,
 	}
 }

@@ -20,11 +20,12 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
-// The suppression fan-out wiring (#10019): a cve_id-scoped operator
+// The suppression fan-out wiring (#10019): an identity-scoped operator
 // suppression changes no finding row on the operator pass, so ChangedCVEIDs
 // is empty and no holder reopens. The writer diffs the pass's suppression
 // facts against the newest admitted older generation with a cleared owed
-// marker and unions the changed suppressions' CVE ids into the fan-out set,
+// marker and unions the changed suppressions' identity ids (CVE and
+// advisory ids since #10409) into the fan-out set,
 // before the owed marker is recorded. The pure decisions live in
 // suppression_diff.go and suppression_walk.go; this file owns the reads,
 // the statement bound, and the report the handler emits.
@@ -83,7 +84,9 @@ WHERE g.scope_id = $1
 const selectSuppressionDiffPairQuery = `
 SELECT COALESCE(cur.stable_fact_key, prior.stable_fact_key) AS stable_fact_key,
        COALESCE(cur.payload #>> '{scope,cve_id}', '') AS current_cve_id,
-       COALESCE(prior.payload #>> '{scope,cve_id}', '') AS prior_cve_id
+       COALESCE(prior.payload #>> '{scope,cve_id}', '') AS prior_cve_id,
+       COALESCE(cur.payload #>> '{scope,advisory_id}', '') AS current_advisory_id,
+       COALESCE(prior.payload #>> '{scope,advisory_id}', '') AS prior_advisory_id
 FROM (SELECT stable_fact_key, payload FROM fact_records
       WHERE fact_kind = '` + chain.VulnerabilitySuppressionFactKind + `' AND is_tombstone = FALSE
         AND scope_id = $1 AND generation_id = $2) AS cur
@@ -99,7 +102,9 @@ WHERE cur.payload IS DISTINCT FROM prior.payload
 const selectSuppressionWholeGenerationQuery = `
 SELECT stable_fact_key,
        COALESCE(payload #>> '{scope,cve_id}', '') AS current_cve_id,
-       '' AS prior_cve_id
+       '' AS prior_cve_id,
+       COALESCE(payload #>> '{scope,advisory_id}', '') AS current_advisory_id,
+       '' AS prior_advisory_id
 FROM fact_records
 WHERE fact_kind = '` + chain.VulnerabilitySuppressionFactKind + `' AND is_tombstone = FALSE
   AND scope_id = $1 AND generation_id = $2
@@ -110,14 +115,14 @@ WHERE fact_kind = '` + chain.VulnerabilitySuppressionFactKind + `' AND is_tombst
 // Baseline a suppressionBaseline kind (or suppressionBaselineNone when the
 // pass never chose one); both are bounded telemetry labels.
 type suppressionDiffReport struct {
-	action        suppressionDiffAction
-	baseline      string
-	cveIDs        []string
-	rows          int
-	statements    int
-	noCVEScope    int
-	walkTruncated int
-	duration      time.Duration
+	action          suppressionDiffAction
+	baseline        string
+	cveIDs          []string
+	rows            int
+	statements      int
+	noIdentityScope int
+	walkTruncated   int
+	duration        time.Duration
 }
 
 // decided reports whether the pass reached a diff decision (as opposed to a
@@ -165,7 +170,7 @@ func scanSuppressionDiffRows(rows SupplyChainImpactRows) ([]suppressionDiffRow, 
 	var out []suppressionDiffRow
 	for rows.Next() {
 		var row suppressionDiffRow
-		if err := rows.Scan(&row.SuppressionID, &row.CurrentCVEID, &row.PriorCVEID); err != nil {
+		if err := rows.Scan(&row.SuppressionID, &row.CurrentCVEID, &row.PriorCVEID, &row.CurrentAdvisoryID, &row.PriorAdvisoryID); err != nil {
 			return nil, fmt.Errorf("scan suppression diff row: %w", err)
 		}
 		out = append(out, row)
@@ -266,8 +271,8 @@ func runSuppressionDiff(
 		}
 		rep.statements = 1
 		rep.rows = len(all)
-		rep.cveIDs = changedSuppressionCVEIDs(all)
-		rep.noCVEScope = countDistinctSuppressionsWithoutCVEScope(all)
+		rep.cveIDs = changedSuppressionIDs(all)
+		rep.noIdentityScope = countDistinctSuppressionsWithoutIdentityScope(all)
 	} else {
 		plan := planSuppressionWalk(generationID, baseline, candidates, suppressionWalkMaxPairs)
 		result, err := walkSuppressionDiff(plan, read)
@@ -278,7 +283,7 @@ func runSuppressionDiff(
 		rep.cveIDs = result.CVEIDs
 		rep.rows = result.DiffRows
 		rep.statements = result.Statements
-		rep.noCVEScope = result.NoCVEScopeRows
+		rep.noIdentityScope = result.NoIdentityScopeRows
 		rep.walkTruncated = result.WalkTruncated
 	}
 	// The bound must not leak onto the row writes that follow. A rollback
@@ -320,7 +325,7 @@ func finishSuppressionDiffSpan(span trace.Span, rep suppressionDiffReport) {
 			attribute.String("baseline", rep.baseline),
 			attribute.Int("diff_rows", rep.rows),
 			attribute.Int("changed_cve_ids", len(rep.cveIDs)),
-			attribute.Int("no_cve_scope_rows", rep.noCVEScope),
+			attribute.Int("no_identity_scope_rows", rep.noIdentityScope),
 			attribute.Int("walk_truncated", rep.walkTruncated),
 			attribute.Int("statements", rep.statements),
 			attribute.Float64("duration_seconds", rep.duration.Seconds()),
@@ -383,8 +388,8 @@ func (h SupplyChainImpactHandler) emitSuppressionDiff(ctx context.Context, inten
 			attribute.String("baseline", rep.baseline),
 		))
 	}
-	if rep.noCVEScope > 0 && h.Instruments != nil && h.Instruments.SupplyChainSuppressionNoCVEScopeTotal != nil {
-		h.Instruments.SupplyChainSuppressionNoCVEScopeTotal.Add(ctx, int64(rep.noCVEScope), metric.WithAttributes(
+	if rep.noIdentityScope > 0 && h.Instruments != nil && h.Instruments.SupplyChainSuppressionNoIdentityScopeTotal != nil {
+		h.Instruments.SupplyChainSuppressionNoIdentityScopeTotal.Add(ctx, int64(rep.noIdentityScope), metric.WithAttributes(
 			telemetry.AttrDomain(string(reducercontract.DomainSupplyChainImpact)),
 		))
 	}
@@ -400,7 +405,7 @@ func (h SupplyChainImpactHandler) emitSuppressionDiff(ctx context.Context, inten
 		slog.String("baseline", rep.baseline),
 		slog.Int("diff_rows", rep.rows),
 		slog.Int("changed_cve_ids", len(rep.cveIDs)),
-		slog.Int("no_cve_scope_rows", rep.noCVEScope),
+		slog.Int("no_identity_scope_rows", rep.noIdentityScope),
 		slog.Int("walk_truncated", rep.walkTruncated),
 		slog.Int("statements", rep.statements),
 		slog.String("duration", rep.duration.String()),
@@ -429,7 +434,7 @@ func (h SupplyChainImpactHandler) countSuppressionDiffFailClosed(ctx context.Con
 func (r suppressionDiffReport) mergeSubSignals(subSignals map[string]float64) {
 	subSignals["suppression_diff_rows"] = float64(r.rows)
 	subSignals["suppression_diff_cve_ids"] = float64(len(r.cveIDs))
-	subSignals["suppression_diff_no_cve_scope"] = float64(r.noCVEScope)
+	subSignals["suppression_diff_no_identity_scope"] = float64(r.noIdentityScope)
 }
 
 // writeFindingsWithSuppressionDiff runs the writer under the suppression-diff
