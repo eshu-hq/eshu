@@ -18,12 +18,13 @@ import "context"
 // the enforcement) so dest consumers can pin the shape.
 const RetireUnclaimedAdmissionContractVersion = "v0"
 
-// RetireUnclaimedAdmission is the versioned admission-contract port the API
-// handler depends on instead of a direct store handle. It narrows Store to
-// the single mutation the workflow-retire-unclaimed endpoint admits
-// through, so the boundary is identity-verified by the frozen contract test
-// rather than a parallel hand-maintained shape; it will back the eshu-api
-// extraction handoff for this operation.
+// RetireUnclaimedAdmission is the versioned admission-contract port for the
+// single mutation the workflow-retire-unclaimed endpoint admits through. It
+// narrows Store to that mutation so the API handler can depend on it instead
+// of a direct store handle; the seam is unwired today (no production code
+// references this interface yet), so the boundary is identity-verified by the
+// frozen contract test rather than a parallel hand-maintained shape, and it
+// will back the eshu-api extraction handoff for this operation.
 //
 // Satellite consumer: Wave-1 record-then-terminate on
 // POST /api/v0/admin/workflow-retire-unclaimed, per the arbiter ruling on
@@ -41,8 +42,12 @@ const RetireUnclaimedAdmissionContractVersion = "v0"
 //     pending, attempt_count 0, and no current claim move to
 //     failed_terminal with the operator-retired failure class. The
 //     response count includes only rows this call transitioned, in
-//     work_item_id order, at most 100 per call; an empty result is a safe
-//     no-op. The core-owned Postgres store satisfies it.
+//     work_item_id order; an empty result is a safe no-op. The ≤100/call
+//     bound is enforced by the storage query
+//     (control_retire_unclaimed_sql.go LIMIT 100) and recorded here, not
+//     frozen by this pin's tests: a bound change updates this doc and the
+//     satellite record without a pin bump. The core-owned Postgres store
+//     satisfies it.
 //
 // Wire freeze (method-set freeze alone is insufficient here because
 // sentinel text reaches the wire through WriteError err.Error()):
