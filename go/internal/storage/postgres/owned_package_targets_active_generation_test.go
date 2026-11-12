@@ -109,8 +109,10 @@ FROM (
 // assertOwnedPackageReadFollowsActiveGenerations seeds generation history on
 // top of the slot fixture and proves the #9426 contract on a real Postgres:
 // the shipped statement returns exactly the rows of the all-history statement
-// for every slot, and its fact_records scan reads no more rows than the active
-// inventory while the all-history statement reads the history too.
+// for every slot. Scan-cost validity is plan-dependent: under a scope-driven
+// plan the unpredicated statement reads only the pointed set, so it comes
+// from the direct superseded-fact count below plus the hermetic predicate
+// pin instead, and the shipped scan stays bounded by the pointed set.
 func assertOwnedPackageReadFollowsActiveGenerations(ctx context.Context, t *testing.T, db *sql.DB, activeBefore int64) {
 	t.Helper()
 	if _, err := db.ExecContext(ctx, historyLiveFixture()); err != nil {

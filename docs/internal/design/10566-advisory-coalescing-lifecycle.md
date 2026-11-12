@@ -361,7 +361,7 @@ the touch, per the audit above.
 - `superseded` is terminal and unreplayable (only `succeeded`
   reopens): sweep comment in `reducer_generation_filter_sql.go`,
   `reducer_queue_replay_test.go`.
-- Census andBlocked verdict: issue text and
+- Census and Blocked verdict: issue text and
   `~/eshu-findings/03-design-corrected-flow.md` section 4 plus
   `~/eshu-findings/06-review-disposition.md` (A-1..A-3); census
   figures are prior measured evidence, not re-verified here.

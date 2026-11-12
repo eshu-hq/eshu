@@ -18,10 +18,11 @@ import (
 // depends on, DERIVED from the shipped constants. A failure means the
 // primitive changed and the design needs a re-review, not a test update.
 //
-// Deliberately NOT pinned here: the exact live-state set RetouchWorkItem
-// covers. The design amendment extends that set to reopen failed and
-// dead-letter slots on a new touch; pinning today's set would contradict
-// that change. The throwaway live probe proved the current exclusion.
+// The live-state set RetouchWorkItem covers is pinned below, including the
+// design amendment: failed and dead-letter slots reopen to pending on a new
+// touch (proven live by TestAdvisoryCoalescingTerminalReopenLive). A failure
+// means the primitive changed and the design needs a re-review, not a test
+// update.
 
 func advisory10566Intent(scope, gen, group string) runtime.ReducerIntent {
 	return runtime.ReducerIntent{
