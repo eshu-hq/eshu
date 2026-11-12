@@ -2,7 +2,7 @@
 # W8 census drift gate: the port census must match CUTOVER_OWNERSHIP row
 # for row (route set equality), carry non-empty C1-C5 on every row, assign every
 # row a known C5 bucket (no residue bucket), and hit the reconciled counts
-# (defaults: 279 = 142 (125 Done + 17 family-native) + 27 tier-C + 110 to-migrate).
+# (defaults: 281 = 142 (125 Done + 17 family-native) + 27 tier-C + 112 to-migrate).
 # Usage (run in the worktree root):
 #   bash scripts/check-w8-port-census.sh            # gate with defaults/env
 #   bash scripts/check-w8-port-census.sh --derive   # print exports recomputed live
@@ -22,11 +22,11 @@ set -euo pipefail
 CUTOVER="go/cmd/api/CUTOVER_OWNERSHIP.md"
 CENSUS="docs/internal/w8-port-census.md"
 
-EXPECT_ROWS="${W8_EXPECT_ROWS:-279}"
+EXPECT_ROWS="${W8_EXPECT_ROWS:-281}"
 EXPECT_DONE="${W8_EXPECT_DONE:-125}"
 EXPECT_FAMILY="${W8_EXPECT_FAMILY:-17}"
 EXPECT_TIERC="${W8_EXPECT_TIERC:-27}"
-EXPECT_TOMIGRATE="${W8_EXPECT_TOMIGRATE:-110}"
+EXPECT_TOMIGRATE="${W8_EXPECT_TOMIGRATE:-112}"
 
 cutover_routes=$(rg -o '^\| `(GET|POST|PATCH|PUT|DELETE) [^`]+`' "$CUTOVER" | sort)
 census_routes=$(rg -o '^\| `(GET|POST|PATCH|PUT|DELETE) [^`]+`' "$CENSUS" | sort)
