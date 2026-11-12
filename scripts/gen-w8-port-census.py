@@ -395,11 +395,13 @@ each route literal (`"METHOD path"`) against non-test Go sources and cites the d
 - SemanticSearch 1: SemanticSearchReadAdmission v0 (record-only).
 - SecretsIAM 5: SecretsIAMReadAdmission v0 (`q/secrets/read_admission.go:66`,
   pin eshu#10537); posture-summary S3 grant leg explicitly OUT.
-- Status 3: StatusGovernanceReadAdmission v0 (`q/status_governance_read_admission.go:73`,
+- Status 3 open (+15 Done): StatusGovernanceReadAdmission v0 (`q/status_governance_read_admission.go:73`,
   Summary only) + StatusHostedReadinessReadAdmission v0 (Run+RunSingle) +
   pre-existing StatusReadAdmission v0 (StatusReadAdmissionContractVersion in
-  `go/internal/status/read_admission.go`, answer-narration/snapshot legs,
-  pin eshu#10538).
+  `go/internal/status/read_admission.go`, answer-narration/snapshot legs +
+  12 Done aggregate reads, pin eshu#10538) + StatusExtraReadAdmission v0
+  (`q/status_extra_read_admission.go:94`, operations live-activity +
+  index-status/status-index retirement legs, pin eshu#10405).
 - Code search 2: CodeSearchReadAdmission v0 (`q/code_search_read_admission.go:106`,
   pin eshu#10540; remaining 21 Code rows unpinned).
 - Code flow 4: CodeFlowReadAdmission v0 (`q/codequery/code_flow_read_admission.go:79`,
