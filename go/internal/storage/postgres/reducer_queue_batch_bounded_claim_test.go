@@ -18,11 +18,19 @@ import (
 // ~36 ms over a 4k backlog with fully disjoint SKIP LOCKED row sets: cost
 // scales with the candidate set the statement scans before LIMIT. That bound
 // only holds while the claim stays batch-bounded — dropping the LIMIT (or
-// adding a second, unbounded one) turns every idle poll into a
+// adding an unbounded one) turns every idle poll into a
 // full-candidate scan. This test issues the production ClaimBatch path
-// against the query fake and pins exactly one LIMIT clause, bound to the
-// caller's batch size ($8), so a future edit cannot silently unbind the poll
-// cost from the batch.
+// against the query fake and pins the batch bound to the caller's batch size
+// ($8), so a future edit cannot silently unbind the poll cost from the batch.
+//
+// Since #10568 the bound is split across the two lock arms, so the live
+// query carries exactly two LIMIT clauses: the reserved arm's constant
+// LIMIT 1 (at most one priority-1 row) and the rest arm's
+// LIMIT ($8 - reserved take) (the remainder of the batch, falling back to
+// the full $8). Both are bounded — the statement still locks at most $8
+// rows per poll — and the rest arm still scans the same candidate set the
+// shim measured; the reserved arm additionally sorts at most the ready
+// priority-1 subset. An unbounded LIMIT anywhere still fails this guard.
 func TestClaimBatchQueryStaysBatchBounded(t *testing.T) {
 	t.Parallel()
 
@@ -44,15 +52,22 @@ func TestClaimBatchQueryStaysBatchBounded(t *testing.T) {
 	}
 
 	query := db.queries[0].query
-	if !strings.Contains(query, "LIMIT $8") {
-		t.Fatalf("batch claim query lost its batch bound (LIMIT $8):\n%s", query)
-	}
 	// The query embeds -- explanations that name historical shapes (e.g.
-	// "ORDER BY ... LIMIT 1"), so strip line comments before counting: only
+	// "ORDER BY ... LIMIT 1"), so strip line comments before pinning: only
 	// live clauses may satisfy or break the bound.
 	uncommented := regexp.MustCompile(`(?m)--.*$`).ReplaceAllString(query, "")
-	if limits := regexp.MustCompile(`(?i)\bLIMIT\b`).FindAllString(uncommented, -1); len(limits) != 1 {
-		t.Fatalf("batch claim query has %d LIMIT clauses, want exactly 1 (LIMIT $8):\n%s", len(limits), query)
+	for _, want := range []string{
+		// Reserved arm: at most one priority-1 row per batch.
+		"ORDER BY candidate.updated_at ASC, candidate.work_item_id ASC\n    LIMIT 1",
+		// Rest arm: the remainder of the caller's batch, full $8 when empty.
+		"LIMIT ($8 - (SELECT COUNT(*) FROM locked_search_doc_reserved))",
+	} {
+		if !strings.Contains(uncommented, want) {
+			t.Fatalf("batch claim query lost its split batch bound %q:\n%s", want, query)
+		}
+	}
+	if limits := regexp.MustCompile(`(?i)\bLIMIT\b`).FindAllString(uncommented, -1); len(limits) != 2 {
+		t.Fatalf("batch claim query has %d LIMIT clauses, want exactly 2 (reserved LIMIT 1 + rest LIMIT ($8 - reserved)):\n%s", len(limits), query)
 	}
 	if got, want := db.queries[0].args[7], 5; got != want {
 		t.Fatalf("batch claim $8 = %v, want %v (the caller limit must reach the bound)", got, want)

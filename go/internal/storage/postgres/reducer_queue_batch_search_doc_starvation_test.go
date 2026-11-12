@@ -117,12 +117,13 @@ func TestClaimBatchSearchDocumentStarvesBehindAdvisoryBacklog(t *testing.T) {
 // hermetic companion to the live starvation proof above: it pins the exact
 // shipped ordering fragments that bury priority-1 rows, so the fixture's
 // faithfulness to claimReducerWorkBatchQuery is asserted without a database.
-// The priority CASE (reducer_queue_batch_query.go ~line 239) maps
-// eshu_search_document to 1 and everything else to 0; the locked CTE's ORDER
-// BY (~line 296) sorts that key first; LIMIT $8 (~line 297) closes the batch
-// before any priority-1 row is reached while a priority-0 backlog remains.
+// The priority CASE maps eshu_search_document to 1 and everything else to 0;
+// the locked_rest arm's ORDER BY sorts that key first. Since #10568 the batch
+// bound is split across the reserved-slot arms (the reserved arm takes LIMIT
+// 1, the rest arm takes LIMIT $8 minus the reserved take), so a batch still
+// closes at $8 rows while a priority-1 row can always take one slot.
 //
-// If #10565's merge restructures this query, this pin fails loudly and the
+// If a later merge restructures this query, this pin fails loudly and the
 // starvation fixture is re-verified against the new shape — the RED test must
 // never silently validate a stale ordering.
 func TestClaimBatchSearchDocumentStarvationMechanismPinnedToShippedQuery(t *testing.T) {
@@ -140,7 +141,15 @@ func TestClaimBatchSearchDocumentStarvationMechanismPinnedToShippedQuery(t *test
 		t.Fatalf("batch claim query no longer leads its claim ORDER BY with %q", priorityOrderLead)
 	}
 
-	if !strings.Contains(query, "LIMIT $8") {
-		t.Fatalf("batch claim query lost its batch bound (LIMIT $8)")
+	// Since #10568 the batch closes at $8 rows across the two lock arms, not
+	// at a single LIMIT $8: the reserved arm takes at most one priority-1
+	// row and the rest arm fills LIMIT minus that take.
+	for _, want := range []string{
+		"ORDER BY candidate.updated_at ASC, candidate.work_item_id ASC\n    LIMIT 1",
+		"LIMIT ($8 - (SELECT COUNT(*) FROM locked_search_doc_reserved))",
+	} {
+		if !strings.Contains(query, want) {
+			t.Fatalf("batch claim query lost its split batch bound %q", want)
+		}
 	}
 }

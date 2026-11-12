@@ -252,10 +252,49 @@ var claimReducerWorkBatchQuery = `
 WITH ` + reducerClaimReadinessRequirementsCTE() + `,
 ` + supersedeInactiveReducerGenerationsCTE + `,
 ` + reducerClaimBatchCandidateChainCTEs() + `,
-locked AS (
+locked_search_doc_reserved AS MATERIALIZED (
+    -- #10568 search_doc_reserved: one reserved claim slot per batch for the
+    -- oldest ready eshu_search_document candidate. The claim orders by
+    -- reducer_domain_priority ASC first and eshu_search_document is the only
+    -- priority-1 domain, so any priority-0 backlog deeper than the batch LIMIT
+    -- starves it outright. The reserved arm takes at most one row (k = 1); the
+    -- rest arm below fills the remaining LIMIT - 1 slots with the unchanged
+    -- ordering, and takes the full LIMIT when no search-doc candidate is ready
+    -- (zero idle capacity loss). Advisory impact is bounded structurally: at
+    -- most 1 batch slot per claim whenever a search-doc row is ready, 0
+    -- otherwise, regardless of advisory backlog depth or worker count.
+    -- This arm locks via the same lock_target join with identical EvalPlanQual
+    -- row-self lease/visibility/status recheck predicates as locked_rest, so a
+    -- row another worker claimed between our snapshot and this lock is dropped
+    -- in either arm. SKIP LOCKED never blocks, so the second locking arm adds
+    -- no deadlock edge: workers still never wait on each other.
+    -- MATERIALIZED: the rest arm anti-joins this output, so it must be
+    -- evaluated once with its locks taken once, not inlined per reference.
     SELECT candidate.*
     FROM fact_work_items AS lock_target
     JOIN candidate ON candidate.work_item_id = lock_target.work_item_id
+    WHERE lock_target.stage = 'reducer'
+      AND lock_target.status IN ('pending', 'retrying', 'claimed', 'running')
+      AND (lock_target.claim_until IS NULL OR lock_target.claim_until <= $1)
+      -- #6828: stamp-clock visibility, matching the base candidate filter
+      -- above; a Go-only recheck here would reintroduce the skew flake by
+      -- dropping trigger-reopened rows the base filter admitted.
+      AND (lock_target.visible_at IS NULL OR lock_target.visible_at <= $1 OR (lock_target.status = 'pending' AND lock_target.visible_at <= clock_timestamp()))
+      AND candidate.reducer_domain_priority = 1
+    ORDER BY candidate.updated_at ASC, candidate.work_item_id ASC
+    LIMIT 1
+    FOR UPDATE OF lock_target SKIP LOCKED
+),
+locked_rest AS (
+    SELECT candidate.*
+    FROM fact_work_items AS lock_target
+    JOIN candidate ON candidate.work_item_id = lock_target.work_item_id
+    -- Anti-join the reserved row so it is never claimed twice in one batch.
+    -- A LEFT JOIN ... IS NULL keeps the lock/claim tail free of per-row
+    -- SubPlan gates (NOT EXISTS would add one); the join is on this
+    -- statement's own reserved output, so no concurrent-write hazard.
+    LEFT JOIN locked_search_doc_reserved AS search_doc_taken
+      ON search_doc_taken.work_item_id = candidate.work_item_id
     -- Re-apply the row-self lease/visibility/status predicates on the ACTUAL
     -- locked row. candidate is evaluated from the statement snapshot, but under
     -- Read Committed the FOR UPDATE row lock re-fetches the latest committed
@@ -276,14 +315,23 @@ locked AS (
       -- above; a Go-only recheck here would reintroduce the skew flake by
       -- dropping trigger-reopened rows the base filter admitted.
       AND (lock_target.visible_at IS NULL OR lock_target.visible_at <= $1 OR (lock_target.status = 'pending' AND lock_target.visible_at <= clock_timestamp()))
+      AND search_doc_taken.work_item_id IS NULL
     -- #8024: reducer_domain_inflight_count ASC sits after the fairness ranks
     -- and before the updated_at tie-break, so a ready row of a domain with no
     -- inflight work takes a slot ahead of an older same-source backlog without
     -- disturbing the #3385 cross-domain interleave (which ties at 0 = 0 when
     -- neither domain holds leases).
     ORDER BY reducer_domain_priority ASC, reducer_source_inflight_count ASC, reducer_source_fair_rank ASC, reducer_domain_fair_rank ASC, reducer_domain_inflight_count ASC, updated_at ASC, work_item_id ASC
-    LIMIT $8
+    -- The reserved arm took COUNT(*) rows (0 or 1); the rest arm fills what
+    -- remains of the batch. The scalar subquery plans as an InitPlan, not a
+    -- per-row SubPlan, and falls back to the full $8 when nothing reserved.
+    LIMIT ($8 - (SELECT COUNT(*) FROM locked_search_doc_reserved))
     FOR UPDATE OF lock_target SKIP LOCKED
+),
+locked AS (
+    SELECT * FROM locked_search_doc_reserved
+    UNION ALL
+    SELECT * FROM locked_rest
 ),
 claimed AS (
     UPDATE fact_work_items AS work
