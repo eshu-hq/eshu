@@ -154,6 +154,12 @@ func TestSupplyChainImpactWinnersResweepKeyedCapFallsBackToFullLive(t *testing.T
 // readings the gauges are fed from.
 func TestSupplyChainImpactWinnersResweepDirtyLogStatsLive(t *testing.T) {
 	h := newKeyedHarness(t, "#9805 dirty log stats proof")
+	// Bootstrap seeds carry capture-trigger rows with them: migration 295
+	// inserts the synthetic advisory-groups scope with its active pointer,
+	// which fires the winners activation-capture trigger, so a template
+	// clone is not guaranteed to open with an empty log. Drain to a known
+	// state first; the readings below prove content, not freshness.
+	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_log`)
 	empty, err := h.store.DirtyLogStats(h.ctx)
 	if err != nil || empty != (supplychaincore.SupplyChainImpactWinnersDirtyStats{}) {
 		t.Fatalf("empty log stats = %+v, %v; want zeroes", empty, err)
