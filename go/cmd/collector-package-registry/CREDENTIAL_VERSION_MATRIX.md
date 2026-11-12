@@ -31,7 +31,7 @@
 | Producer (extracted) | NOT_CHECKED | NOT_CHECKED | destination repo absent |
 | Fact schemas (all 9 kinds) | `1.0.0` | `1.0.0` | `chain` constants + parity tests |
 | Metadata byte limit | 20MiB | 20MiB | `TestExtractionPrepMetadataByteLimit` |
-| Go toolchain | `go 1.26.10` (go.mod) | Homebrew Go used locally | `go test` run |
+| Go toolchain | `go 1.26.11` (go.mod) | Homebrew Go used locally | `go test` run |
 
 Oldest/newest core-vs-component pairs for production (AC7) stay NOT_CHECKED
 until the owner-designated QA EKS deployment configuration is wired and the

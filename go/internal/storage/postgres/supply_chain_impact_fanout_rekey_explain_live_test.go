@@ -13,8 +13,8 @@ import (
 )
 
 // TestRekeyHolderLookupUsesAllThreeArmsLive is the criterion-9 proof for the
-// widened holder lookup (#10408). At the 200-id chunk bound, with 90k finding
-// rows on the table, the production query returns every scope holding a row
+// widened holder lookup (#10408). At a 200-id lookup, with 90k finding rows
+// on the table, the production query returns every scope holding a row
 // that matches on any arm. Three arm-isolating id sets prove each arm fires
 // through the shipped interface: CVE ids only reachable through cve_id,
 // GHSA ids only reachable through advisory_id (no member set names them),
@@ -76,14 +76,15 @@ CROSS JOIN generate_series(1, 30000) g`, facts.ReducerSupplyChainImpactFindingFa
 		}
 	}
 
-	// The full 200-id chunk bound through the shipped constant: every arm
-	// fires at once.
+	// The full 200-id lookup through the shipped constant: every arm
+	// fires at once. (The handler chunks wider lookups into 25-id
+	// statements, #10564 H; the store runs one statement per call.)
 	ids := append(append(append([]string{}, cveIDs...), advisoryIDs...), memberIDs...)
 	for i := 1; i <= 100; i++ {
 		ids = append(ids, fmt.Sprintf("NOPE-0401-%04d", i))
 	}
 	if len(ids) != 200 {
-		t.Fatalf("lookup set has %d ids, want the 200-id chunk bound", len(ids))
+		t.Fatalf("lookup set has %d ids, want the 200-id lookup", len(ids))
 	}
 	got, err := store.FindHolderScopes(ctx, "scope:10408:bulk-a", ids)
 	if err != nil {

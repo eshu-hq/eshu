@@ -317,8 +317,11 @@ func TestLoadConsumerRepositoryEnrichmentWithoutTraceLimitUsesBoundedDefaultSear
 			t.Fatalf("hostname query for %q = %q, want case-sensitive LIKE", term, query)
 		}
 		gotSearchTerms = append(gotSearchTerms, term)
-		if got, want := numericDriverValue(t, recorder.args[i][1]), int64(25); got != want {
-			t.Fatalf("search limit = %d, want %d for default any-repo search", got, want)
+		// The +1 probe fetches one row past the caller's bound so an
+		// exactly-full page no longer reads as truncated; the disclosed
+		// bound stays the default 25.
+		if got, want := numericDriverValue(t, recorder.args[i][1]), int64(25+1); got != want {
+			t.Fatalf("search limit = %d, want %d for default any-repo search (bound 25 plus the +1 truncation probe)", got, want)
 		}
 	}
 

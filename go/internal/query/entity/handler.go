@@ -66,6 +66,7 @@ func (h *Handler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v0/services/{service_name}/context", h.GetServiceContext)
 	mux.HandleFunc("GET /api/v0/services/{service_name}/story", h.GetServiceStory)
 	mux.HandleFunc("GET /api/v0/services/{service_name}/api-surface/endpoints", h.GetServiceAPISurfaceEndpoints)
+	mux.HandleFunc("GET /api/v0/services/{service_name}/downstream-consumers", h.GetServiceDownstreamConsumers)
 	mux.HandleFunc("GET /api/v0/investigations/services/{service_name}", h.InvestigateService)
 }
 

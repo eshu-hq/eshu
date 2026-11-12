@@ -10,6 +10,32 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
+// TrimmedSearchHostnames returns the bounded hostname list a consumer search
+// actually runs: normalized, affinity-filtered, and capped at the caller's
+// limit. It factors the trimming LoadConsumerRepositoryEnrichmentWithSources
+// applies internally so the paged consumer list can disclose exactly which
+// hostnames were searched (#10535).
+//
+// Source 3. BoundedIndirectEvidenceHostnamesForService above has already
+// capped trimmedHostnames at IndirectEvidenceHostnameLimit (4) and
+// querycontract.BoundedTraceEnrichmentLimit never returns below 10, so no
+// production caller can reach the len(trimmed) > limit branch below: only
+// limit in {1,2,3} does, which today means the test-only wrappers. The
+// #5720 round-9 P2-1 mutant that deleted its `truncated = true` survived the
+// whole suite for exactly that reason: it is exercised here rather than
+// removed, because it is what would fire first if either constant moved.
+func TrimmedSearchHostnames(hostnames []string, serviceName string, limit int) ([]string, bool) {
+	trimmed := normalizedIndirectEvidenceHostnames(hostnames)
+	if limit <= 0 {
+		return trimmed, false
+	}
+	trimmed, truncated := BoundedIndirectEvidenceHostnamesForService(trimmed, serviceName)
+	if len(trimmed) > limit {
+		return trimmed[:limit], true
+	}
+	return trimmed, truncated
+}
+
 // LoadConsumerRepositoryEnrichmentFromCandidates merges graph-derived
 // provisioning candidates with content-evidence consumer matches into the
 // consumer_repositories field. Pinned by the service enrichment production
@@ -209,26 +235,9 @@ func LoadConsumerRepositoryEnrichmentWithSources(
 ) (consumers []map[string]any, sources ConsumerEnrichmentTruncation, err error) {
 	sources.Candidates = candidatesTruncated
 	sources.EvidenceFiles = evidenceFilesTruncated
-	trimmedHostnames := normalizedIndirectEvidenceHostnames(hostnames)
-	if limit > 0 {
-		var hostnamesTruncated bool
-		trimmedHostnames, hostnamesTruncated = BoundedIndirectEvidenceHostnamesForService(trimmedHostnames, serviceName)
-		if hostnamesTruncated {
-			sources.Hostnames = true
-		}
-		// Source 3. BoundedIndirectEvidenceHostnamesForService above has
-		// already capped trimmedHostnames at IndirectEvidenceHostnameLimit (4)
-		// and querycontract.BoundedTraceEnrichmentLimit never returns below
-		// 10, so no production caller can reach this branch -- only limit in
-		// {1,2,3} does, which today means the test-only wrappers. The #5720
-		// round-9 P2-1 mutant that deleted this `truncated = true` survived
-		// the whole suite for exactly that reason; it is exercised now rather
-		// than removed, because it is what would fire first if either
-		// constant moved.
-		if len(trimmedHostnames) > limit {
-			trimmedHostnames = trimmedHostnames[:limit]
-			sources.Hostnames = true
-		}
+	trimmedHostnames, hostnamesTruncated := TrimmedSearchHostnames(hostnames, serviceName, limit)
+	if hostnamesTruncated {
+		sources.Hostnames = true
 	}
 
 	consumersByRepo := make(map[string]map[string]any, len(candidates))

@@ -21,7 +21,7 @@ func TestReadOnlyToolsKeepsServiceRegistrationPositions(t *testing.T) {
 	}
 	wantContext := servicetools.ContextTools()
 	rootContext := contextTools()
-	if got, want := len(rootContext), 8; got != want {
+	if got, want := len(rootContext), 9; got != want {
 		t.Fatalf("root context tool count = %d, want %d", got, want)
 	}
 	if got := rootContext[4:]; !reflect.DeepEqual(got, wantContext) {
@@ -33,7 +33,7 @@ func TestReadOnlyToolsKeepsServiceRegistrationPositions(t *testing.T) {
 	}
 
 	tools := ReadOnlyTools()
-	if got, want := len(tools), 172; got != want {
+	if got, want := len(tools), 173; got != want {
 		t.Fatalf("ReadOnlyTools count = %d, want %d", got, want)
 	}
 	assertServiceRegistrationRange(t, tools, 78, []string{
@@ -46,6 +46,7 @@ func TestReadOnlyToolsKeepsServiceRegistrationPositions(t *testing.T) {
 		"get_service_context",
 		"get_service_story",
 		"list_service_api_endpoints",
+		"list_service_downstream_consumers",
 		"investigate_service",
 		"get_service_intelligence_report",
 		"get_file_content",
@@ -53,14 +54,14 @@ func TestReadOnlyToolsKeepsServiceRegistrationPositions(t *testing.T) {
 	if got := tools[79:80]; !reflect.DeepEqual(got, wantCatalog) {
 		t.Fatal("ReadOnlyTools catalog definition drifted from service.CatalogTools")
 	}
-	if got := tools[115:119]; !reflect.DeepEqual(got, wantContext) {
+	if got := tools[115:120]; !reflect.DeepEqual(got, wantContext) {
 		t.Fatal("ReadOnlyTools context definitions drifted from service.ContextTools")
 	}
-	if got := tools[119:120]; !reflect.DeepEqual(got, wantIntelligence) {
+	if got := tools[120:121]; !reflect.DeepEqual(got, wantIntelligence) {
 		t.Fatal("ReadOnlyTools intelligence definition drifted from service.IntelligenceTools")
 	}
 
-	const wantHash = "4a656254cb2c5960a33c4b263f0c1ae95982ef79b97f62e5dc9324ed48e31942"
+	const wantHash = "fc51bf7aff5cb84dbdd685ce65a7e8fbe28729fa37625e4e5b9dc0a50009b1f2"
 	hash := sha256.New()
 	for _, tool := range tools {
 		_, _ = fmt.Fprintf(hash, "%d:%s\n", len(tool.Name), tool.Name)

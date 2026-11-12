@@ -11,20 +11,24 @@
 # fake `go` and `nancy` binaries prepended to PATH, and asserts actual exit
 # codes and diagnostic text for each scenario nancy-local.sh must tell apart.
 #
-# Cases:
+# Cases (D6, PR #10561: only a 401 skips; everything else fails closed):
 #   1. `go list` succeeds but yields zero dependencies -> nancy sees
 #      genuinely empty stdin and reports its real "StdIn is invalid or
-#      empty" error -> deferred non-fatally (advisory, exit 0).
-#   2. `go list` succeeds, nancy hits an OSS Index transport/auth failure
-#      ("Error:" prefix, e.g. 401 Unauthorized) -> deferred non-fatally
-#      (advisory, exit 0).
-#   3. `go list` succeeds, nancy performs a real scan and finds nothing ->
+#      empty" error -> BLOCKS (exit 1): an empty input is not a clean
+#      scan and not the ticketed 401 skip.
+#   2. `go list` succeeds, nancy hits OSS Index 401 Unauthorized ->
+#      skip-with-ticket: exit 0 with a `::warning::` annotation
+#      referencing #5804 (neutral, no merge block).
+#   3. `go list` succeeds, nancy hits a NON-401 transport/auth failure
+#      (e.g. 500) -> BLOCKS (exit 1), fail-closed: without a real scan
+#      there is no clean bill to report.
+#   4. `go list` succeeds, nancy performs a real scan and finds nothing ->
 #      exit 0, "no vulnerable dependencies found".
-#   4. `go list` succeeds, nancy finds a genuine vulnerability (nonzero exit,
+#   5. `go list` succeeds, nancy finds a genuine vulnerability (nonzero exit,
 #      output does NOT start with "Error:") -> the gate still BLOCKS (exit
 #      1), because nancy being advisory in the CI-gate registry must not be
 #      confused with silently accepting a real finding.
-#   5. (bonus, beyond the four required cases) `go list` itself fails (a
+#   6. (bonus, beyond the required cases) `go list` itself fails (a
 #      broken module/build) -> the gate BLOCKS (exit 1) with a `go list`
 #      specific diagnostic, never mislabeled as "vulnerable dependencies
 #      found" — this exact conflation was a self-review catch on PR #5806.
@@ -105,10 +109,13 @@ SCRIPT
 
 # run_case wires up a scratch cache dir + fake go/nancy pair, runs
 # nancy-local.sh for real, and asserts its exit code and that its combined
-# output contains the expected needle.
+# output contains the expected needle(s): want_needle2 is optional and,
+# when non-empty, must also appear (the 401 skip asserts both the
+# `::warning::` annotation and the #5804 ticket reference).
 run_case() {
 	local name="$1" go_stdout="$2" go_stderr="$3" go_exit="$4" \
-		nancy_stdout="$5" nancy_exit="$6" want_exit="$7" want_needle="$8"
+		nancy_stdout="$5" nancy_exit="$6" want_exit="$7" want_needle="$8" \
+		want_needle2="${9:-}"
 
 	local case_dir="${tmp_root}/${name}"
 	mkdir -p "${case_dir}/bin" "${case_dir}/gopkg" "${case_dir}/cache"
@@ -133,31 +140,49 @@ ${out}"
 			;;
 	esac
 
+	if [ -n "${want_needle2}" ]; then
+		case "${out}" in
+			*"${want_needle2}"*) ;;
+			*)
+				fail "${name}: output missing expected second needle '${want_needle2}'. output:
+${out}"
+				;;
+		esac
+	fi
+
 	printf 'PASS: %s\n' "${name}"
 }
 
 # --- Case 1: go list ok, empty dependency graph -> nancy's real "StdIn is
-# invalid or empty" -> deferred non-fatally.
-run_case "empty-stdin-defers-non-fatally" \
+# invalid or empty" -> BLOCKS (fail-closed: not a clean scan, not a 401).
+run_case "empty-stdin-fails-closed" \
 	"" "" 0 \
 	"Error: StdIn is invalid or empty. Did you forget to pipe 'go list' to nancy?" 1 \
-	0 "deferring non-fatally"
+	1 "could not complete a real OSS Index scan"
 
-# --- Case 2: go list ok, nancy hits a transport/auth failure -> deferred
-# non-fatally, never reported as a vulnerability finding.
-run_case "transport-auth-failure-defers-non-fatally" \
+# --- Case 2: go list ok, nancy hits OSS Index 401 Unauthorized ->
+# skip-with-ticket: exit 0 with a `::warning::` annotation referencing
+# #5804, never reported as a vulnerability finding.
+run_case "unauthorized-401-skips-with-ticket" \
 	'{"ImportPath":"example.com/foo"}' "" 0 \
 	"Error: An error occurred: [401 Unauthorized] error accessing OSS Index" 1 \
-	0 "deferring non-fatally"
+	0 "::warning::" "#5804"
 
-# --- Case 3: go list ok, nancy performs a real scan and finds nothing.
+# --- Case 3: go list ok, nancy hits a NON-401 transport/auth failure ->
+# BLOCKS (fail-closed), never converted to a skip.
+run_case "non-401-transport-failure-blocks" \
+	'{"ImportPath":"example.com/foo"}' "" 0 \
+	"Error: An error occurred: [500 Internal Server Error] error accessing OSS Index" 1 \
+	1 "could not complete a real OSS Index scan"
+
+# --- Case 4: go list ok, nancy performs a real scan and finds nothing.
 run_case "clean-scan-passes" \
 	'{"ImportPath":"example.com/foo"}' "" 0 \
 	"Audited Dependencies: 42
 Vulnerable Dependencies: 0" 0 \
 	0 "no vulnerable dependencies found"
 
-# --- Case 4: go list ok, nancy finds a genuine vulnerability (no "Error:"
+# --- Case 5: go list ok, nancy finds a genuine vulnerability (no "Error:"
 # prefix) -> the gate still blocks, regardless of nancy's advisory
 # classification in the CI-gate registry.
 run_case "genuine-finding-still-blocks" \
@@ -167,7 +192,7 @@ run_case "genuine-finding-still-blocks" \
 Vulnerable Dependencies: 1" 3 \
 	1 "vulnerable dependencies found"
 
-# --- Case 5 (bonus): go list itself fails -> the gate blocks with a
+# --- Case 6 (bonus): go list itself fails -> the gate blocks with a
 # go-list-specific message, never "vulnerable dependencies found" (this
 # conflation was caught in self-review on PR #5806: a pipeline-only success
 # check cannot distinguish a build failure from a real finding).
@@ -176,4 +201,14 @@ run_case "go-list-failure-blocks-distinctly" \
 	"should not run" 0 \
 	1 "'go list -json -deps ./...' failed"
 
-printf 'PASS: nancy-local.sh distinguishes empty-stdin, transport/auth failure, clean scan, real finding, and go-list failure\n'
+# --- Case 7 (F-C, PR #10561): a genuine finding that merely mentions the
+# string "401 Unauthorized" (no `Error:` first line) must BLOCK, never skip.
+# The skip requires the transport-error shape first.
+run_case "genuine-finding-mentioning-401-blocks" \
+	'{"ImportPath":"example.com/foo"}' "" 0 \
+	"pkg:golang/example.com/bad@v1.0.0
+  CVE-2024-00000  Advisory text mentions 401 Unauthorized as an example code
+Vulnerable Dependencies: 1" 3 \
+	1 "vulnerable dependencies found"
+
+printf 'PASS: nancy-local.sh distinguishes empty-stdin, 401 skip, non-401 transport failure, clean scan, real finding, 401-mentioning finding, and go-list failure\n'

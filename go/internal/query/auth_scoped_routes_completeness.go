@@ -190,6 +190,7 @@ var scopedTokenAdvertisedRoutes = map[string]scopedRouteClass{
 	"GET /api/v0/service-catalog/correlations":                                      scopedRouteGrantBound,
 	"GET /api/v0/services/{service_name}/api-surface/endpoints":                     scopedRouteGrantBound,
 	"GET /api/v0/services/{service_name}/context":                                   scopedRouteGrantBound,
+	"GET /api/v0/services/{service_name}/downstream-consumers":                      scopedRouteGrantBound,
 	"GET /api/v0/services/{service_name}/intelligence-report":                       scopedRouteGrantBound,
 	"GET /api/v0/services/{service_name}/story":                                     scopedRouteGrantBound,
 	"GET /api/v0/status/answer-narration":                                           scopedRouteDeploymentScoped,

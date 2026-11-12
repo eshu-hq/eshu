@@ -1216,7 +1216,10 @@ type Instruments struct {
 	// epss, kev, advisory, suppression, package_evidence, mixed, other — the
 	// evidence family of the committing pass's own generation; enrichment
 	// generations are single-source, so epss and kev name an enrichment
-	// re-trigger exactly). reopened, replay_flagged, pending_noop and
+	// re-trigger exactly). The read outcomes (read_error, read_timeout) also
+	// carry site (#10564: holders, in_flight, manifest_generation, package,
+	// repository), naming the read that failed. reopened, replay_flagged,
+	// pending_noop and
 	// enqueued count holder scopes; crash_recovery counts a pass that fanned out
 	// only because its attempt count showed an earlier attempt may have died
 	// before the fan-out; deferred counts holders carried to a later claim;
@@ -5166,7 +5169,7 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 
 	inst.SupplyChainImpactFanOut, err = meter.Int64Counter(
 		"eshu_dp_supply_chain_impact_fanout_total",
-		metric.WithDescription("Total one-hop holder fan-out outcomes after a supply-chain impact write, by reducer domain, outcome, and cause (the committing generation's evidence family: epss, kev, advisory, suppression, package_evidence, mixed, other)"),
+		metric.WithDescription("Total one-hop holder fan-out outcomes after a supply-chain impact write, by reducer domain, outcome, and cause (the committing generation's evidence family: epss, kev, advisory, suppression, package_evidence, mixed, other); read outcomes (read_error, read_timeout) also carry the site dimension naming the failed read (#10564)"),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register SupplyChainImpactFanOut counter: %w", err)

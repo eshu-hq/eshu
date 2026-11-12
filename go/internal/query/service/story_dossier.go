@@ -386,6 +386,12 @@ func buildServiceResultLimitsWithContext(buildCtx serviceStoryBuildContext) map[
 		// dossier-level offset that would re-run the whole enrichment.
 		"endpoint_list_tool": "list_service_api_endpoints",
 		"endpoint_list_path": "/api/v0/services/" + serviceName + "/api-surface/endpoints",
+		// #10535: the downstream consumer lists render up to the read
+		// bound; beyond it the full keyset-ordered set pages through this
+		// drilldown instead of a dossier-level cursor that would re-run
+		// the whole enrichment.
+		"consumer_list_tool": "list_service_downstream_consumers",
+		"consumer_list_path": "/api/v0/services/" + serviceName + "/downstream-consumers",
 	}
 }
 

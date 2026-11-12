@@ -320,6 +320,11 @@ tests:
     class: dedicated_ci
     reason: "dev-1-5: reducer-contention verified 1/1 named Go test passes with -json -race (summed test elapsed 11.44s); docs/internal/evidence/7533-contention-live-proof.md"
     runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_fanout_h3_diff_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#10564: reducer-contention enrolled TestHolderH3DiffSetsLive + TestHolderH3StatementP95Live in the -run filter of .github/workflows/reducer-contention-gate.yml; local run against disposable PostgreSQL 18.6 passed (H3 vs frozen H0 sets identical under custom and generic plans, statement p95 ~8.5ms)"
+    runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_fanout_inflight_live_test.go
     tag: ~
     class: dedicated_ci

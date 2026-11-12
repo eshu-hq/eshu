@@ -30,6 +30,7 @@ const (
 	serviceStoryCICDEvidenceFailedMessage        = "service story ci/cd evidence load failed"
 	serviceStorySupplyChainFailedMessage         = "service story supply chain evidence enrichment failed"
 	serviceAPISurfaceEndpointsQueryFailedMessage = "service API surface endpoints query failed"
+	serviceDownstreamConsumersQueryFailedMessage = "service downstream consumers query failed"
 )
 
 // Fixed response messages for the entity resolve, entity context, and

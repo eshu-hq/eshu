@@ -6550,6 +6550,25 @@
           "workload_id": "workload:api-svc"
         }
       },
+      "list_service_downstream_consumers": {
+        "description": "MCP tool coverage shape for list_service_downstream_consumers; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "truth_class": "deterministic",
+        "required_response_fields": [
+          "consumers",
+          "truncated",
+          "effective_read_bound",
+          "lower_bound",
+          "ordering",
+          "page_size",
+          "service_name"
+        ],
+        "minimum_results": 0,
+        "maximum_results": 100,
+        "results_field": "consumers",
+        "arguments": {
+          "workload_id": "workload:api-svc"
+        }
+      },
       "investigate_service": {
         "description": "MCP tool coverage shape for investigate_service; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
         "required_response_fields": [

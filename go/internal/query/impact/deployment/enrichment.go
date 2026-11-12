@@ -40,11 +40,45 @@ import (
 // repositories. Probing limit+1 rows and reporting whether the backend
 // actually returned more than limit makes truncation observable
 // independent of any downstream count-vs-limit comparison.
+// MaxConsumerScanBound is the widened internal read ceiling for the paged
+// consumer list (#10535): the keyset pager recomputes the merged set per
+// page, and the bound must cover the deepest page served. Measured legs at
+// the ceiling on QA-scale backends: candidate Cypher ~130ms, indexed content
+// search ~2ms; the substring fallback is excluded from the widened bound
+// (measured ~5s at 500 rows) and keeps the legacy limit with its own
+// truncation signal.
+const MaxConsumerScanBound = 500
+
 func QueryProvisioningRepositoryCandidates(
 	ctx context.Context,
 	graph querycontract.GraphQuery,
 	serviceRepoID string,
 	limit int,
+) ([]ProvisioningRepositoryCandidate, bool, error) {
+	return queryProvisioningRepositoryCandidates(ctx, graph, serviceRepoID, limit, querycontract.MaxIndirectEvidenceSearchLimit)
+}
+
+// QueryProvisioningRepositoryCandidatesCapped is QueryProvisioningRepositoryCandidates
+// with an explicit structural ceiling for the paged consumer list (#10535):
+// same query, same limit+1 probe, same trim-and-report semantics, but the
+// cap is the caller's ceiling (MaxConsumerScanBound) instead of the shared
+// 100-row default. No Cypher text changes.
+func QueryProvisioningRepositoryCandidatesCapped(
+	ctx context.Context,
+	graph querycontract.GraphQuery,
+	serviceRepoID string,
+	limit int,
+	ceiling int,
+) ([]ProvisioningRepositoryCandidate, bool, error) {
+	return queryProvisioningRepositoryCandidates(ctx, graph, serviceRepoID, limit, ceiling)
+}
+
+func queryProvisioningRepositoryCandidates(
+	ctx context.Context,
+	graph querycontract.GraphQuery,
+	serviceRepoID string,
+	limit int,
+	ceiling int,
 ) ([]ProvisioningRepositoryCandidate, bool, error) {
 	if graph == nil || strings.TrimSpace(serviceRepoID) == "" {
 		return nil, false, nil
@@ -54,11 +88,11 @@ func QueryProvisioningRepositoryCandidates(
 	// (cloud_resource_candidates.go): a caller-supplied limit of 0 or less
 	// (or above the package cap) no longer disables the bound. This makes
 	// the row count -- and therefore the deduplicated candidate count -- a
-	// real, structurally guaranteed maximum of MaxIndirectEvidenceSearchLimit
-	// regardless of caller behavior, which the query-source-coverage
-	// keyed_support disposition below cites as max_results.
-	if limit <= 0 || limit > querycontract.MaxIndirectEvidenceSearchLimit {
-		limit = querycontract.MaxIndirectEvidenceSearchLimit
+	// real, structurally guaranteed maximum of the ceiling regardless of
+	// caller behavior, which the query-source-coverage keyed_support
+	// disposition below cites as max_results.
+	if limit <= 0 || limit > ceiling {
+		limit = ceiling
 	}
 	// #5720 round-2 P1-1: probe one row past the caller's limit, mirroring
 	// the LoadUncorrelatedCloudResourceCandidatesBounded precedent

@@ -122,9 +122,13 @@ jobs:
           go test ./cmd/projector -run '^(TestDeltaUnionProjectsFullTreeFromEmptyLive|TestDeltaUnionBaseMissingRefusesWithoutPartialLive)$' -json -race -count=1 -p 4 -timeout 12m | tee "${RUNNER_TEMP}/delta-union.jsonl"
           python3 ../scripts/lib/delta_union_scheduled.py --events "${RUNNER_TEMP}/delta-union.jsonl"
           printf 'proof_wall_seconds=%s\n' "$((SECONDS-started))" >> "${RUNNER_TEMP}/delta-union-meta.txt"
+      # D2: retry wrapper hardens the upload against the transient
+      # artifact-service HTML-response flake; see retry-upload-artifact.
+      # The events are a terminal proof artifact with no in-repo
+      # downstream consumer, so no always()/fallback step applies here.
       - name: Upload delta union events
         if: ${{ always() }}
-        uses: actions/upload-artifact@v4
+        uses: ./.github/actions/retry-upload-artifact
         with:
           name: delta-union-events
           path: |

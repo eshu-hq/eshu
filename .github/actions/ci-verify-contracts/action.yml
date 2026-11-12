@@ -58,13 +58,68 @@ runs:
         scripts/test-verify-query-methodology.sh
         scripts/test-verify-query-plan-regression.sh
         scripts/verify-query-plan-regression.sh
-    - name: Archive query methodology evidence
+    # D2: inline 3-attempt retry for the transient artifact-service
+    # HTML-response flake (`Unexpected token '<'`). A nested local-action
+    # call is unsupported by the ci-gate registry validator, so this site
+    # inlines the retry-upload-artifact shape instead of using it: fail
+    # fast on missing sources (a real error, never retried), retry only
+    # service failures, fail closed when all attempts fail. The evidence
+    # is a terminal artifact with no in-repo downstream consumer.
+    - name: Guard query methodology evidence exists (fail fast, no retry)
+      id: qm-evidence-guard
       if: ${{ always() && inputs.mode != 'smoke' }}
+      shell: bash
+      run: |
+        set -euo pipefail
+        if [ -z "$(compgen -G '.proof-artifacts/query-methodology/*.json' | head -n 1)" ]; then
+          printf '::error::verify-contracts: no query methodology evidence to archive, failing fast without retry\n' >&2
+          exit 1
+        fi
+    - name: Archive query methodology evidence (attempt 1 of 3)
+      id: qm-evidence-upload-1
+      if: ${{ always() && inputs.mode != 'smoke' && steps.qm-evidence-guard.outcome == 'success' }}
+      continue-on-error: true
       uses: actions/upload-artifact@v4
       with:
         name: query-methodology-${{ github.sha }}
         path: .proof-artifacts/query-methodology/*.json
         if-no-files-found: error
+    - name: Re-archive query methodology evidence (attempt 2 of 3)
+      id: qm-evidence-upload-2
+      if: ${{ always() && inputs.mode != 'smoke' && steps.qm-evidence-upload-1.outcome == 'failure' }}
+      continue-on-error: true
+      uses: actions/upload-artifact@v4
+      with:
+        name: query-methodology-${{ github.sha }}
+        path: .proof-artifacts/query-methodology/*.json
+        if-no-files-found: error
+    - name: Re-archive query methodology evidence (attempt 3 of 3)
+      id: qm-evidence-upload-3
+      if: ${{ always() && inputs.mode != 'smoke' && steps.qm-evidence-upload-2.outcome == 'failure' }}
+      continue-on-error: true
+      uses: actions/upload-artifact@v4
+      with:
+        name: query-methodology-${{ github.sha }}
+        path: .proof-artifacts/query-methodology/*.json
+        if-no-files-found: error
+    - name: Verify query methodology evidence archived (fail-closed)
+      if: ${{ always() && inputs.mode != 'smoke' }}
+      shell: bash
+      env:
+        ATTEMPT_1: ${{ steps.qm-evidence-upload-1.outcome }}
+        ATTEMPT_2: ${{ steps.qm-evidence-upload-2.outcome }}
+        ATTEMPT_3: ${{ steps.qm-evidence-upload-3.outcome }}
+      run: |
+        set -euo pipefail
+        if [ "${ATTEMPT_1}" = "success" ]; then
+          exit 0
+        fi
+        if [ "${ATTEMPT_2}" = "success" ] || [ "${ATTEMPT_3}" = "success" ]; then
+          printf 'verify-contracts: query methodology evidence archived on retry (outcomes: %s/%s/%s)\n' "${ATTEMPT_1}" "${ATTEMPT_2}" "${ATTEMPT_3}"
+          exit 0
+        fi
+        printf '::error::verify-contracts: evidence archive failed all 3 attempts (outcomes: %s/%s/%s); failing closed\n' "${ATTEMPT_1}" "${ATTEMPT_2}" "${ATTEMPT_3}" >&2
+        exit 1
     - name: Verify scale corpus suite
       if: ${{ inputs.mode != 'smoke' }}
       shell: bash

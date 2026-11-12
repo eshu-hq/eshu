@@ -437,16 +437,21 @@ ORDER BY replayed.work_item_id
 
 // replayFailedWorkItemsBoundedTemplate is the limited replay variant for the
 // dead-letter backlog drain (#3560, #3652 P3). It mutates at most $2 terminal
-// rows by selecting their primary keys in a bounded subquery first, so a
+// rows by selecting their primary keys in a bounded candidate set first, so a
 // Limit=100 drain against thousands of retry_exhausted rows replays exactly 100
 // rows instead of resetting every matching row to pending and recreating the
 // write surge the drain exists to avoid.
 //
+// The candidate set is a MATERIALIZED CTE so the bounded select evaluates
+// exactly once: inlined into the UPDATE's IN list, the planner may re-execute
+// it per outer row, and each execution locks the next still-terminal row,
+// replaying past the Limit (measured 2 rows under Limit=1). ORDER BY keeps
+// forward progress deterministic; SKIP LOCKED keeps concurrent drains safe.
+//
 // FOR UPDATE SKIP LOCKED locks only the chosen rows and skips rows another
 // concurrent drain already holds, so two drains never fight over the same rows
 // and the bound stays a true cap under concurrent execution rather than a
-// serialization point. ORDER BY work_item_id makes the selected set
-// deterministic across calls so repeated bounded drains make forward progress.
+// serialization point.
 //
 // The first %s is the shared replay predicate and the second is the skipped
 // CTE body, exactly as in replayFailedWorkItemsTemplate. $1 is the replay
@@ -455,6 +460,13 @@ ORDER BY replayed.work_item_id
 const replayFailedWorkItemsBoundedTemplate = `
 WITH skipped AS (
     %[2]s
+), candidates AS MATERIALIZED (
+    SELECT work_item_id FROM fact_work_items
+    WHERE status IN ('dead_letter', 'failed')
+      %[1]s
+    ORDER BY work_item_id
+    LIMIT $2
+    FOR UPDATE SKIP LOCKED
 ), replayed AS (
     UPDATE fact_work_items
     SET status = 'pending',
@@ -476,14 +488,7 @@ WITH skipped AS (
         failure_details = NULL,
         updated_at = $1,
         reopened_at = $1
-    WHERE work_item_id IN (
-        SELECT work_item_id FROM fact_work_items
-        WHERE status IN ('dead_letter', 'failed')
-          %[1]s
-        ORDER BY work_item_id
-        LIMIT $2
-        FOR UPDATE SKIP LOCKED
-    )
+    WHERE work_item_id IN (SELECT work_item_id FROM candidates)
     RETURNING work_item_id
 )
 SELECT replayed.work_item_id, skipped.n
