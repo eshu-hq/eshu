@@ -104,10 +104,10 @@ func coalescing10566Status(t *testing.T, ctx context.Context, db *sql.DB, id str
 
 // TestAdvisoryCoalescingLifecycleLive proves the #10566 A-1/A-2/A-3 sketches
 // against real PostgreSQL using synthetic slot VALUES only. It takes no
-// position on the still-open terminal-slot question (a touch landing on a
-// failed or dead-letter slot is dropped by the current retouch set; the
-// design amendment records the required reopen): every scenario below starts
-// from a live slot and stays inside the live set.
+// position on terminal slots (touches landing on failed or dead-letter slots
+// are covered by TestAdvisoryCoalescingTerminalReopenLive, which proves the
+// reopen): every scenario below starts from a live slot and stays inside the
+// live set.
 func TestAdvisoryCoalescingLifecycleLive(t *testing.T) {
 	dsn := strings.TrimSpace(os.Getenv("ESHU_POSTGRES_TEST_DSN"))
 	if dsn == "" {

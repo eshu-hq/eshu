@@ -190,11 +190,17 @@ WHERE scope_id IN ('git:catchup-a', 'git:catchup-c')`); err != nil {
 		}
 		cursor = page.NextCursor
 	}
-	// Five active scopes (the bootstrap seeds eshu:global, which has no
-	// repository fact) in pages of two; the short third page ends the walk.
-	if len(pages) != 3 || pages[0].Scanned != 2 || pages[1].Scanned != 2 || pages[2].Scanned != 1 ||
-		pages[0].Inserted != 1 || pages[1].Inserted != 1 || pages[2].Inserted != 0 {
-		t.Fatalf("catch-up pages = %+v, want 2+2+1 scopes inserting 1+1+0 obligations", pages)
+	// Six active scopes: the bootstrap seeds eshu:global (migration 115) and
+	// synthetic:advisory-groups (migration 295), neither of which carries a
+	// repository fact, so both scan without inserting. Pages of two give
+	// 2+2+2 inserting 1+1+0; the synthetic seed sorts last by scope_id, so
+	// it lands on the third page with git:catchup-file-only. Six is an exact
+	// multiple of the page size, so the full third page still carries a
+	// cursor and the walk ends on a fourth, empty page.
+	if len(pages) != 4 || pages[0].Scanned != 2 || pages[1].Scanned != 2 || pages[2].Scanned != 2 ||
+		pages[0].Inserted != 1 || pages[1].Inserted != 1 || pages[2].Inserted != 0 ||
+		pages[3].Scanned != 0 || pages[3].Inserted != 0 || pages[3].NextCursor != "" {
+		t.Fatalf("catch-up pages = %+v, want 2+2+2 scopes inserting 1+1+0 obligations plus an empty terminal page", pages)
 	}
 	rows, err := database.QueryContext(ctx, `SELECT scope_id, generation_id, work_item_id, state
 FROM activation_obligations ORDER BY scope_id`)
@@ -217,8 +223,8 @@ FROM activation_obligations ORDER BY scope_id`)
 		t.Fatalf("catch-up obligations = %v, want %v", got, want)
 	}
 	again, err := obligations.CatchUp(ctx, "", 10)
-	if err != nil || again.Inserted != 0 || again.Scanned != 5 || again.NextCursor != "" {
-		t.Fatalf("repeated catch-up = %+v err=%v, want 5 scanned, 0 inserted, end cursor", again, err)
+	if err != nil || again.Inserted != 0 || again.Scanned != 6 || again.NextCursor != "" {
+		t.Fatalf("repeated catch-up = %+v err=%v, want 6 scanned, 0 inserted, end cursor", again, err)
 	}
 }
 
