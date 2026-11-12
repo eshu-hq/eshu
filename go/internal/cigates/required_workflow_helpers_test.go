@@ -59,9 +59,6 @@ func writeWorkflowFile(t *testing.T, root, body string) string {
 	return path
 }
 
-// repositoryRequiredGatesWorkflow returns the committed required-gates
-// workflow path.
-func repositoryRequiredGatesWorkflow(t *testing.T) string {
-	t.Helper()
-	return filepath.Join(repositoryRoot(t), ".github", "workflows", "required-gates.yml")
-}
+// repositoryRequiredGatesWorkflow was removed with the publisher tests:
+// #10584 deleted the required-gates.yml workflow_run fan-in and the
+// aggregate job, so no test reads the repository publisher anymore.

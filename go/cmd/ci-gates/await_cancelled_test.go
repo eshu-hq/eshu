@@ -6,72 +6,23 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/eshu-hq/eshu/go/internal/cigates"
 )
 
 // Why this file exists (#6189).
 //
-// A CANCELLED dependency gate was classified as a FAILED gate, so the
-// aggregate published `state=failure` with description "A required gate
-// failed" when no gate failed. Cancellations happen for reasons unrelated to
-// a pull request's content, so a PR that catches one goes red regardless of
-// whether anything is wrong with it -- which trains people to read a red
-// `required-gates-complete` as noise, and that is the expensive part.
+// A CANCELLED dependency gate was classified as a FAILED gate. Cancellations
+// happen for reasons unrelated to a pull request's content, so a PR that
+// catches one goes red regardless of whether anything is wrong with it.
 //
-// These tests assert the PUBLISHED STATE AND DESCRIPTION, not just the
-// process exit code. The exit code is only half the contract: the other half
-// is the `case "${AGGREGATE_CODE}"` mapping in
-// .github/workflows/required-gates.yml, and an exit-code-only test would pass
-// while the workflow still published "A required gate failed" -- an
-// expected-fail passing for the wrong reason.
-
-// publishedRequiredStatus runs the real publisher from
-// .github/workflows/required-gates.yml for one exit code and returns the
-// (state, description) it actually posted, plus whether it posted at all.
-//
-// It delegates to cigates.EvaluatePublisher rather than carrying its own copy
-// of the machinery. That is deliberate. This helper used to slice the step's
-// shell out of the YAML with its own substring markers, and round 4 of the
-// #6218 review defeated exactly that: both this helper and the registry gate
-// anchored on the FIRST `gh api -X POST`, so one comment line carrying that
-// text moved both anchors above an injected `state=success`, and both stayed
-// green while the publisher posted `success` for a genuinely failed gate.
-// Running the whole step under bash with `gh` intercepted leaves no region to
-// slice and no anchor to move -- and one mechanism serving both callers
-// rather than two that can be defeated separately.
-//
-// What this binds is the exit code the Go classifier PRODUCES to the status
-// the workflow POSTS, which is the half neither side can check alone. What
-// the harness itself does and does not cover is documented on
-// cigates.EvaluatePublisher.
-func publishedRequiredStatus(t *testing.T, code int) (state, description string, published bool) {
-	t.Helper()
-
-	workflow := filepath.Join(repoRoot(t), ".github", "workflows", "required-gates.yml")
-	run, err := cigates.TerminalPublisherRun(workflow)
-	if err != nil {
-		t.Fatalf("locate the terminal publisher in %s: %v", workflow, err)
-	}
-	observed, err := cigates.EvaluatePublisher(run, code)
-	if err != nil {
-		t.Fatalf("run the terminal publisher for exit code %d: %v", code, err)
-	}
-	switch len(observed.Publishes) {
-	case 0:
-		return "", "", false
-	case 1:
-		return observed.Publishes[0].State, observed.Publishes[0].Description, true
-	default:
-		t.Fatalf("publisher posted %d statuses for exit code %d; exactly one or none is the contract",
-			len(observed.Publishes), code)
-		return "", "", false
-	}
-}
+// These tests used to assert the PUBLISHED STATE AND DESCRIPTION by running
+// the terminal publisher step from .github/workflows/required-gates.yml.
+// #10584 deleted that workflow's fan-in and aggregate job, so the publisher
+// half is gone; what remains is the classifier half, pinned here by exit
+// code. The published-status contract for any future publisher stays pinned
+// by the cigates fixture tests.
 
 // cancelledTranscriptChecks reproduces the eleven-gate rollup from the #6189
 // report: every selected blocking gate CANCELLED, none FAILURE.
@@ -120,10 +71,10 @@ func rollupJSON(t *testing.T, checks []checkRollup) []byte {
 	return raw
 }
 
-// TestAwaitAllCancelledDependenciesDoNotPublishFailure is the #6189 defect.
-// Eleven cancelled dependencies, zero failures, and the aggregate posted
-// "A required gate failed" on the head SHA.
-func TestAwaitAllCancelledDependenciesDoNotPublishFailure(t *testing.T) {
+// TestAwaitAllCancelledDependenciesDoNotClassifyFailure is the #6189 defect.
+// Eleven cancelled dependencies, zero failures: the aggregate must report
+// cancellation (exit 13), never a gate failure and never a pass.
+func TestAwaitAllCancelledDependenciesDoNotClassifyFailure(t *testing.T) {
 	t.Parallel()
 
 	required, checks := cancelledTranscriptChecks()
@@ -136,26 +87,19 @@ func TestAwaitAllCancelledDependenciesDoNotPublishFailure(t *testing.T) {
 		t.Fatal("cancelled dependencies must not be reported as a clean pass")
 	}
 	code := classifyAwaitOutcome(err).exitCode()
-	state, description, published := publishedRequiredStatus(t, code)
-	if !published {
-		t.Fatalf("exit code %d publishes nothing; a cancelled dependency must stay visible, not leave the status pending forever", code)
+	if code == awaitExitGateFailed {
+		t.Fatalf("cancelled dependencies classified exit %d; no gate failed", code)
 	}
-	if state == "failure" {
-		t.Fatalf("cancelled dependencies published state=%q description=%q (exit %d); no gate failed", state, description, code)
-	}
-	if state != "error" {
-		t.Fatalf("cancelled dependencies published state=%q description=%q (exit %d); want error", state, description, code)
-	}
-	if !strings.Contains(strings.ToLower(description), "cancel") {
-		t.Fatalf("published description %q does not tell the operator a gate was cancelled", description)
+	if code != awaitExitGateCancelled {
+		t.Fatalf("cancelled dependencies classified exit %d; want %d", code, awaitExitGateCancelled)
 	}
 }
 
-// TestAwaitCancelledPlusGenuineFailureStillPublishesFailure is the guard that
+// TestAwaitCancelledPlusGenuineFailureStillClassifiesFailure is the guard that
 // matters more than the fix: turning real gate failures green would be far
 // worse than the bug being fixed. A rollup carrying both cancellations and one
-// genuine FAILURE must still publish `failure`.
-func TestAwaitCancelledPlusGenuineFailureStillPublishesFailure(t *testing.T) {
+// genuine FAILURE must still classify as a gate failure.
+func TestAwaitCancelledPlusGenuineFailureStillClassifiesFailure(t *testing.T) {
 	t.Parallel()
 
 	required, checks := cancelledTranscriptChecks()
@@ -183,10 +127,8 @@ func TestAwaitCancelledPlusGenuineFailureStillPublishesFailure(t *testing.T) {
 	if !strings.Contains(err.Error(), "go-core") {
 		t.Errorf("failure message must name the gate that actually failed, got %q", err.Error())
 	}
-	code := classifyAwaitOutcome(err).exitCode()
-	state, description, published := publishedRequiredStatus(t, code)
-	if !published || state != "failure" {
-		t.Fatalf("a real gate failure alongside cancellations published state=%q description=%q published=%v; want failure", state, description, published)
+	if code := classifyAwaitOutcome(err).exitCode(); code != awaitExitGateFailed {
+		t.Fatalf("a real gate failure alongside cancellations classified exit %d; want %d", code, awaitExitGateFailed)
 	}
 }
 

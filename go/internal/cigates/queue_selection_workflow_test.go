@@ -6,10 +6,8 @@ package cigates
 import (
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"testing"
-	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -110,56 +108,6 @@ func TestManualMirrorConditionRejectsWeakenedGuards(t *testing.T) {
 	}
 }
 
-// TestPublisherBudgetCoversPayload pins the required-gates await timeout
-// against the longest static job budget in the tree: with no merge queue the
-// publisher still waits out the slowest payload lane before publishing.
-func TestPublisherBudgetCoversPayload(t *testing.T) {
-	root := repositoryRoot(t)
-	files, err := filepath.Glob(filepath.Join(root, ".github/workflows/*.yml"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	maximumPayload := 0
-	for _, file := range files {
-		if filepath.Base(file) == "required-gates.yml" {
-			continue // The publisher cannot cover its own timeout.
-		}
-		raw, err := os.ReadFile(file)
-		if err != nil {
-			t.Fatal(err)
-		}
-		var workflow struct {
-			Jobs map[string]struct {
-				Timeout string `yaml:"timeout-minutes"`
-			} `yaml:"jobs"`
-		}
-		if err := yaml.Unmarshal(raw, &workflow); err != nil {
-			t.Fatal(err)
-		}
-		for _, job := range workflow.Jobs {
-			minutes, err := time.ParseDuration(job.Timeout + "m")
-			if err != nil {
-				continue // Dynamic static-matrix budgets remain independently tested.
-			}
-			if int(minutes.Minutes()) > maximumPayload {
-				maximumPayload = int(minutes.Minutes())
-			}
-		}
-	}
-	path := filepath.Join(root, ".github/workflows/required-gates.yml")
-	raw, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	match := regexp.MustCompile(`--timeout ([0-9]+m)`).FindSubmatch(raw)
-	if len(match) != 2 {
-		t.Fatal("publisher has no bounded await timeout")
-	}
-	budget, err := time.ParseDuration(string(match[1]))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if budget.Minutes() < float64(maximumPayload+5) {
-		t.Fatalf("publisher await %s cannot cover %dm payload + 5m publication margin", budget, maximumPayload)
-	}
-}
+// TestPublisherBudgetCoversPayload was removed with the publisher: #10584
+// deleted the required-gates.yml workflow_run fan-in and the aggregate job,
+// so there is no publisher await timeout to cover the payload budget.

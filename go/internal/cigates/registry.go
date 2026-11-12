@@ -137,13 +137,15 @@ type RequiredStatusCheck struct {
 	// IntegrationID pins the GitHub App allowed to report Context.
 	IntegrationID int64
 	// AggregatesBlockingGates marks the required context that waits for every
-	// path-selected gate whose Blocking field is true.
+	// path-selected gate whose Blocking field is true. It is optional: a
+	// manifest with no aggregator enforces its ruleset-required contexts
+	// directly, and at most one aggregator may be declared.
 	AggregatesBlockingGates bool
 	// RulesetRequired reports whether the live GitHub ruleset lists Context as
 	// a required status check. Load defaults it to true when the registry omits
-	// ruleset_required. A false entry (the Main Health aggregate publisher)
-	// stays in the manifest for the publisher contract but is excluded from the
-	// live-ruleset comparison (ci-gates contexts --ruleset-only).
+	// ruleset_required. A false entry stays in the manifest for the publisher
+	// contract but is excluded from the live-ruleset comparison
+	// (ci-gates contexts --ruleset-only).
 	RulesetRequired bool
 }
 

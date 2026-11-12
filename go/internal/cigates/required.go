@@ -98,8 +98,10 @@ func gateMatchesAnyPath(gate Gate, changed []string) bool {
 // ValidateRequiredStatusChecks verifies the repository-owned required-context
 // manifest and the structural reachability of every blocking registry gate.
 // An absent manifest remains valid for small third-party or hermetic registries;
-// once a manifest is declared, exactly one context must aggregate blockers and
-// at least one context must be required by the live ruleset (ruleset_required).
+// once a manifest is declared, at most one context may aggregate blockers (a
+// manifest with no aggregator enforces its ruleset-required contexts directly)
+// and at least one context must be required by the live ruleset
+// (ruleset_required).
 func (r *Registry) ValidateRequiredStatusChecks() []error {
 	if len(r.RequiredStatusChecks) == 0 {
 		return nil
@@ -154,9 +156,9 @@ func (r *Registry) ValidateRequiredStatusChecks() []error {
 			))
 		}
 	}
-	if aggregators != 1 {
+	if aggregators > 1 {
 		errs = append(errs, fmt.Errorf(
-			"required_status_checks must contain exactly one aggregates_blocking_gates entry; got %d",
+			"required_status_checks must contain at most one aggregates_blocking_gates entry; got %d",
 			aggregators,
 		))
 	}

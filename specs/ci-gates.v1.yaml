@@ -8,10 +8,12 @@
 version: v1
 
 # Repository-owned manifest of the required contexts. The live main ruleset
-# requires only the two Go umbrellas (ruleset_required defaults to true);
-# required-gates-complete is the trusted default-branch status publisher that
-# aggregates every path-selected blocking gate below and feeds Main Health. It is
-# ruleset_required: false, so the live-ruleset verifier skips it (#9089).
+# requires only the two Go umbrellas (ruleset_required defaults to true),
+# which the ruleset reads directly: there is no aggregate publisher since
+# #10584 deleted the required-gates.yml workflow_run fan-in (the aggregate
+# job had been disabled since #9805). At most one aggregates_blocking_gates
+# entry may be declared; with none present, validation skips the trusted
+# publisher checks.
 required_status_checks:
   - context: go-core-complete
     workflow: test.yml
@@ -23,13 +25,6 @@ required_status_checks:
     job: go-race-complete
     integration_id: 15368
     aggregates_blocking_gates: false
-  - context: required-gates-complete
-    workflow: required-gates.yml
-    job: aggregate
-    source_workflow: Build Test
-    integration_id: 15368
-    aggregates_blocking_gates: true
-    ruleset_required: false
 
 gate_fragments:
   - ci-gates.d/gates-01.yaml
@@ -103,6 +98,8 @@ hygiene_hooks:
 # release, scheduled-refresh, on-demand, or bot workflows). Each must exist on
 # disk; the drift check fails on a stale entry or an unregistered workflow.
 non_gate_workflows:
+  - file: required-gates.yml
+    reason: "scheduled/manual live-ruleset audit (verify-live-ruleset); the workflow_run fan-in and aggregate publisher were deleted in #10584, never a PR gate"
   - file: live-postgres-readiness-calibration.yml
     reason: "manual six-shard calibration for #9100; evidence only, never a PR or main-push acceptance gate"
   - file: main-health.yml

@@ -49,19 +49,13 @@ func TestAwaitSkipWaitsWhileTheReplacementRunIsInFlight(t *testing.T) {
 		t.Fatal("a gate whose replacement run has not concluded has not passed")
 	}
 	code := classifyAwaitOutcome(err).exitCode()
-	state, description, published := publishedRequiredStatus(t, code)
 	if code == awaitExitGateFailed {
-		t.Fatalf("a skipped gate whose replacement run is still executing published state=%q description=%q (exit %d); "+
-			"no gate failed -- the replacement's checks have not landed in the rollup yet",
-			state, description, code)
+		t.Fatalf("a skipped gate whose replacement run is still executing classified exit %d; "+
+			"no gate failed -- the replacement's checks have not landed in the rollup yet", code)
 	}
 	if code != awaitExitStillRunning {
-		t.Fatalf("exit %d (state=%q description=%q); an in-flight replacement run is still running, so the aggregate must keep waiting: "+
-			"the run's own completion re-triggers this workflow with a rollup that can be decided",
-			code, state, description)
-	}
-	if published {
-		t.Fatalf("exit %d published state=%q; gates that have not finished must not publish a terminal status", code, state)
+		t.Fatalf("exit %d; an in-flight replacement run is still running, so the aggregate must keep waiting: "+
+			"the run's own completion re-triggers this workflow with a rollup that can be decided", code)
 	}
 }
 
@@ -85,10 +79,7 @@ func TestAwaitSkipStillFailsClosedWhenNoRunIsKnown(t *testing.T) {
 	if err == nil {
 		t.Fatal("a skipped gate with no known owning run must not be reported as a clean pass")
 	}
-	code := classifyAwaitOutcome(err).exitCode()
-	state, description, published := publishedRequiredStatus(t, code)
-	if !published || state != "failure" {
-		t.Fatalf("an unknown owning run published state=%q description=%q published=%v; want failure (fail closed)",
-			state, description, published)
+	if code := classifyAwaitOutcome(err).exitCode(); code != awaitExitGateFailed {
+		t.Fatalf("an unknown owning run classified exit %d; want %d (fail closed)", code, awaitExitGateFailed)
 	}
 }

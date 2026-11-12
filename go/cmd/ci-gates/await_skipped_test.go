@@ -25,10 +25,12 @@ import (
 //     excluded it", and the second MUST keep failing closed. Telling them apart
 //     needs the owning workflow run's conclusion.
 //
-// TestAwaitGenuineSkipStillPublishesFailure is the load-bearing test in this
+// TestAwaitGenuineSkipStillClassifiesFailure is the load-bearing test in this
 // file. It is deliberately first, and it was written and watched pass BEFORE
 // the change it guards, so it characterizes behaviour that must not move
-// rather than describing behaviour that was just written.
+// rather than describing behaviour that was just written. The publisher that
+// used to post these verdicts is deleted (#10584); what remains is the
+// classifier half, pinned here by exit code.
 
 // headSHAFixture is the head the await loop is told to evaluate. Any non-empty
 // value works: the stub runners key off the subcommand, not the SHA.
@@ -103,7 +105,7 @@ func skippedGateFixture() ([]resolvedRequiredGate, []checkRollup) {
 	return required, checks
 }
 
-// TestAwaitGenuineSkipStillPublishesFailure is the contract four documents
+// TestAwaitGenuineSkipStillClassifiesFailure is the contract four documents
 // state and this change must not break: a selected gate GitHub reports as
 // `skipped`, in a workflow run that was NOT cancelled, still fails the
 // aggregate.
@@ -112,7 +114,7 @@ func skippedGateFixture() ([]resolvedRequiredGate, []checkRollup) {
 // is a real discrepancy between the registry and the workflow's own `if:`
 // conditions. Waving it through would put a silent hole in the one status that
 // guards the merge -- far worse than the overclaim being fixed here.
-func TestAwaitGenuineSkipStillPublishesFailure(t *testing.T) {
+func TestAwaitGenuineSkipStillClassifiesFailure(t *testing.T) {
 	t.Parallel()
 
 	required, checks := skippedGateFixture()
@@ -129,25 +131,20 @@ func TestAwaitGenuineSkipStillPublishesFailure(t *testing.T) {
 	if err == nil {
 		t.Fatal("a selected gate that never ran must not be reported as a clean pass")
 	}
-	code := classifyAwaitOutcome(err).exitCode()
-	state, description, published := publishedRequiredStatus(t, code)
-	if !published {
-		t.Fatalf("exit code %d publishes nothing; a genuine skip must stay visible", code)
-	}
-	if state != "failure" {
-		t.Fatalf("a genuine skip published state=%q description=%q (exit %d); want failure -- "+
-			"a skip that is not a cancellation artifact must keep failing closed", state, description, code)
+	if code := classifyAwaitOutcome(err).exitCode(); code != awaitExitGateFailed {
+		t.Fatalf("a genuine skip classified exit %d; want %d -- "+
+			"a skip that is not a cancellation artifact must keep failing closed", code, awaitExitGateFailed)
 	}
 	if !strings.Contains(err.Error(), "docs-helm-hygiene") {
 		t.Errorf("failure message must name the gate that did not run, got %q", err.Error())
 	}
 }
 
-// TestAwaitSkipCausedByCancelledRunDoesNotPublishFailure is the other half of
+// TestAwaitSkipCausedByCancelledRunDoesNotClassifyFailure is the other half of
 // the same fixture: identical check rollup, and only the owning run's
 // conclusion differs. GitHub marks a job `skipped` when a `needs:` dependency
 // is cancelled, so this is the #6189 overclaim wearing a different costume.
-func TestAwaitSkipCausedByCancelledRunDoesNotPublishFailure(t *testing.T) {
+func TestAwaitSkipCausedByCancelledRunDoesNotClassifyFailure(t *testing.T) {
 	t.Parallel()
 
 	required, checks := skippedGateFixture()
@@ -163,16 +160,11 @@ func TestAwaitSkipCausedByCancelledRunDoesNotPublishFailure(t *testing.T) {
 		t.Fatal("a gate that never ran must not be reported as a clean pass")
 	}
 	code := classifyAwaitOutcome(err).exitCode()
-	state, description, published := publishedRequiredStatus(t, code)
-	if !published {
-		t.Fatalf("exit code %d publishes nothing; the cancellation must stay visible", code)
+	if code == awaitExitGateFailed {
+		t.Fatalf("a job skipped by its run's cancellation classified exit %d; no gate failed", code)
 	}
-	if state == "failure" {
-		t.Fatalf("a job skipped by its run's cancellation published state=%q description=%q (exit %d); no gate failed",
-			state, description, code)
-	}
-	if state != "error" {
-		t.Fatalf("skipped-by-cancellation published state=%q (exit %d); want error", state, code)
+	if code != awaitExitGateCancelled {
+		t.Fatalf("skipped-by-cancellation classified exit %d; want %d", code, awaitExitGateCancelled)
 	}
 	if runner.runsCalls == 0 {
 		t.Fatal("the skipped gate must have been resolved against the owning run's conclusion")
@@ -220,11 +212,8 @@ func TestAwaitSkippedRunLookupFailureFailsClosed(t *testing.T) {
 	if err == nil {
 		t.Fatal("a failed run lookup must not turn a skipped gate into a pass")
 	}
-	code := classifyAwaitOutcome(err).exitCode()
-	state, description, published := publishedRequiredStatus(t, code)
-	if !published || state != "failure" {
-		t.Fatalf("a failed run lookup published state=%q description=%q published=%v; want failure (fail closed)",
-			state, description, published)
+	if code := classifyAwaitOutcome(err).exitCode(); code != awaitExitGateFailed {
+		t.Fatalf("a failed run lookup classified exit %d; want %d (fail closed)", code, awaitExitGateFailed)
 	}
 }
 
@@ -252,16 +241,15 @@ func TestAwaitDoesNotReadRunConclusionsWithoutASkippedCheck(t *testing.T) {
 	}
 }
 
-// TestAwaitStaleGateDoesNotStrandTheStatus is the STALE half, and it fixes a
+// TestAwaitStaleGateReportsCancelled is the STALE half, and it fixes a
 // different defect than the skipped half does.
 //
 // gh sends STALE through its bucket switch's default arm, so it arrives
-// bucketed "pending" (cli/cli v2.97.0 pkg/cmd/pr/checks/aggregate.go). Before
-// this change the aggregate therefore treated a permanently-stale check as
-// still running: it waited out the full timeout, exited 11, and the publisher
-// wrote NOTHING -- leaving required-gates-complete on the pending status the
-// first step posted, with no red check anywhere for an operator to act on.
-func TestAwaitStaleGateDoesNotStrandTheStatus(t *testing.T) {
+// bucketed "pending" (cli/cli v2.97.0 pkg/cmd/pr/checks/aggregate.go). The
+// aggregate must not wait out the full timeout on a permanently-stale check:
+// it reports cancellation. The publisher that used to post these verdicts is
+// deleted (#10584); what remains is the classifier half, pinned here.
+func TestAwaitStaleGateReportsCancelled(t *testing.T) {
 	t.Parallel()
 
 	required := []resolvedRequiredGate{{
@@ -285,13 +273,8 @@ func TestAwaitStaleGateDoesNotStrandTheStatus(t *testing.T) {
 	if err == nil {
 		t.Fatal("a stale gate never produced a verdict and must not pass")
 	}
-	code := classifyAwaitOutcome(err).exitCode()
-	state, description, published := publishedRequiredStatus(t, code)
-	if !published {
-		t.Fatalf("exit code %d publishes nothing; a stale gate would strand the status on pending with no red check", code)
-	}
-	if state != "error" {
-		t.Fatalf("stale gate published state=%q description=%q (exit %d); want error", state, description, code)
+	if code := classifyAwaitOutcome(err).exitCode(); code != awaitExitGateCancelled {
+		t.Fatalf("stale gate classified exit %d; want %d", code, awaitExitGateCancelled)
 	}
 	if runner.runsCalls != 0 {
 		t.Errorf("STALE is self-describing and must not cost a run lookup, got %d", runner.runsCalls)

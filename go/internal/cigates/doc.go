@@ -42,8 +42,9 @@
 // cap): over-selection fails closed in the safe direction. The top-level
 // required status manifest names the repository's required contexts, marks the
 // ones the live GitHub ruleset requires (RulesetRequired, default true), and
-// names exactly one trusted aggregate publisher, which the ruleset need not
-// require. Matrix jobs use explicit concrete check names.
+// names at most one trusted aggregate publisher, which the ruleset need not
+// require. A manifest with no publisher enforces its ruleset-required contexts
+// directly. Matrix jobs use explicit concrete check names.
 //
 // # Validation
 //

@@ -59,11 +59,12 @@ Every gate also declares a `layer` and a `purpose` ([#7337](https://github.com/e
 The top-level `required_status_checks` manifest names the contexts the
 repository publishes and mirrors the ones the effective `main` ruleset requires.
 Each entry carries `ruleset_required` (default `true` when omitted). The live
-ruleset requires only the two Go umbrellas; the aggregate publisher is
-`ruleset_required: false`, so `ci-gates contexts --ruleset-only` leaves it out
-of the live-ruleset comparison (#9089). Validation requires at least one
-`ruleset_required: true` entry. Exactly one entry sets
-`aggregates_blocking_gates: true` and names its trusted `source_workflow`.
+ruleset requires only the two Go umbrellas, read directly with no aggregate
+publisher since #10584 deleted the required-gates.yml workflow_run fan-in
+(the aggregate job had been disabled since #9805). Validation requires at
+least one `ruleset_required: true` entry. At most one entry may set
+`aggregates_blocking_gates: true`, naming its trusted `source_workflow`;
+with none present the publisher checks are skipped.
 Matrix jobs declare their concrete API-visible check names in `ci.check_names`;
 the aggregate never relies on a prefix match. `main` has no merge queue since
 2026-10-16 (#8288, #9367), so no workflow carries a `merge_group` trigger and
