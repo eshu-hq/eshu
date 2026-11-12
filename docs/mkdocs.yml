@@ -354,6 +354,7 @@ nav:
       - Secret-Line Finalizer Signals: reference/telemetry/secret-lines.md
       - Content File Upsert Outcomes: reference/telemetry/content-file-upserts.md
       - Unscoped Content Search Signals: reference/telemetry/unscoped-file-search.md
+      - Scoped Content Search Signals: reference/telemetry/scoped-content-search.md
       - SAML Verifier Panic Signal: reference/telemetry/saml-verifier-panics.md
       - Deferred Backfill Block Timing: reference/telemetry/deferred-backfill-blocks.md
       - Generation Outcome Telemetry: reference/telemetry/generation-outcomes.md

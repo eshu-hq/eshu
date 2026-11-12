@@ -3146,6 +3146,21 @@ type Instruments struct {
 	// distribution shows how large that effect is on the deployed corpus.
 	ContentSearchUnscopedOverrun metric.Float64Histogram
 
+	// ContentSearchScoped counts scoped file- and entity-content searches by
+	// operation (search_file_content_page, search_file_content_in_repos,
+	// search_entity_content_page, search_entity_content_in_repos), scope
+	// class (single, multi), pattern class (trigram, no_trigram, short,
+	// wildcard), and outcome (ok, error, context_deadline,
+	// context_canceled). None of the labels carries the search pattern, a
+	// repo id, or any caller string. A rising context_deadline share past the
+	// #10606 threshold (1% over 7 days at >=1000 calls, or p95 >= 10 s) is
+	// the evidence that unlocks a query/timeout investigation.
+	ContentSearchScoped metric.Int64Counter
+
+	// ContentSearchScopedDuration records the SQL wall time of one scoped
+	// content search, in seconds, with the same labels as ContentSearchScoped.
+	ContentSearchScopedDuration metric.Float64Histogram
+
 	// WorkflowClaimRunDuration records the wall time of one claimed-service
 	// processing cycle (ClaimedService.processClaimed) in seconds, labeled by
 	// collector_kind, source_system, and outcome. It is the per-collector
@@ -7929,6 +7944,27 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, fmt.Errorf("register ContentSearchUnscopedOverrun histogram: %w", err)
 	}
 
+	// Buckets span 10 ms to 30 s so the approach to the 30 s dispatch
+	// deadline stays visible (#10606).
+	scopedSearchBuckets := []float64{0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30}
+	inst.ContentSearchScoped, err = meter.Int64Counter(
+		"eshu_dp_content_search_scoped_total",
+		metric.WithDescription("Scoped file- and entity-content searches by operation, scope class (single, multi), pattern class (trigram, no_trigram, short, wildcard), and outcome (ok, error, context_deadline, context_canceled)."),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register ContentSearchScoped counter: %w", err)
+	}
+
+	inst.ContentSearchScopedDuration, err = meter.Float64Histogram(
+		"eshu_dp_content_search_scoped_duration_seconds",
+		metric.WithDescription("SQL wall time of one scoped file- or entity-content search, by operation, scope class, pattern class, and outcome."),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(scopedSearchBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register ContentSearchScopedDuration histogram: %w", err)
+	}
+
 	// Per-collector claimed-service run duration: wide enough for sub-second
 	// lightweight collectors and 30-minute heavyweight git snapshots, with fine
 	// resolution at the low end so fast no-op cycles are visible.
@@ -9196,6 +9232,19 @@ func AttrFailureClass(v string) attribute.KeyValue {
 // AttrOperation returns an operation attribute for metric recording.
 func AttrOperation(v string) attribute.KeyValue {
 	return attribute.String(MetricDimensionOperation, v)
+}
+
+// AttrScopeClass returns a scope_class attribute for scoped content-search
+// recording. v must be "single" or "multi", never a repo id.
+func AttrScopeClass(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionScopeClass, v)
+}
+
+// AttrPatternClass returns a pattern_class attribute for scoped
+// content-search recording. v must be one of the closed pattern classes
+// (trigram, no_trigram, short, wildcard), never the pattern text.
+func AttrPatternClass(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionPatternClass, v)
 }
 
 // AttrGate returns a gate attribute for graph-write backpressure metric

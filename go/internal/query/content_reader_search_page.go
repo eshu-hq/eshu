@@ -10,13 +10,16 @@ import (
 	"log/slog"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/eshu-hq/eshu/go/internal/query/codequery"
 	"github.com/eshu-hq/eshu/go/internal/query/codetopicparallel"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/search/unscoped"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -230,7 +233,7 @@ func (cr *ContentReader) searchFileContentPage(
 	limit int,
 	offset int,
 ) ([]FileContent, error) {
-	return cr.searchFileContentScoped(ctx, "search_file_content_page", fileContentSingleScopeWhere(1, 2), []any{repoID, pattern}, limit, offset)
+	return cr.searchFileContentScoped(ctx, "search_file_content_page", pattern, fileContentSingleScopeWhere(1, 2), []any{repoID, pattern}, limit, offset)
 }
 
 // searchFileContentInRepos searches an explicit repository set with one SQL query.
@@ -241,7 +244,112 @@ func (cr *ContentReader) searchFileContentInRepos(
 	limit int,
 	offset int,
 ) ([]FileContent, error) {
-	return cr.searchFileContentScoped(ctx, "search_file_content_in_repos", fileContentMultiScopeWhere(1, 2), []any{strings.Join(repoIDs, "\x1f"), pattern}, limit, offset)
+	return cr.searchFileContentScoped(ctx, "search_file_content_in_repos", pattern, fileContentMultiScopeWhere(1, 2), []any{strings.Join(repoIDs, "\x1f"), pattern}, limit, offset)
+}
+
+// Scoped-search outcome labels. The context error decides deadline/cancel
+// first so client aborts never inflate the deadline rate the #10606
+// threshold reads; any other error is error; nil is ok.
+const (
+	scopedSearchOutcomeOK              = "ok"
+	scopedSearchOutcomeError           = "error"
+	scopedSearchOutcomeContextDeadline = "context_deadline"
+	scopedSearchOutcomeContextCanceled = "context_canceled"
+)
+
+// scopedSearchOutcome classifies one finished scoped search from the context
+// error and the returned error. ctx.Err() wins over err on purpose: a query
+// the deadline (or the caller) ended must read as a deadline (or cancel),
+// not as a generic error.
+func scopedSearchOutcome(ctx context.Context, err error) string {
+	switch ctx.Err() {
+	case context.DeadlineExceeded:
+		return scopedSearchOutcomeContextDeadline
+	case context.Canceled:
+		return scopedSearchOutcomeContextCanceled
+	}
+	if err != nil {
+		return scopedSearchOutcomeError
+	}
+	return scopedSearchOutcomeOK
+}
+
+// scopedSearchScopeClass maps the scoped operation to its closed scope class.
+// Both _page operations read one repository, both _in_repos operations read
+// a set; the operation strings are the fixed literals the four wrappers
+// pass, so the suffix rule cannot drift onto another route.
+func scopedSearchScopeClass(operation string) string {
+	if strings.HasSuffix(operation, "_in_repos") {
+		return "multi"
+	}
+	return "single"
+}
+
+// scopedSearchPatternClass maps the raw pattern to its closed class for the
+// scoped-search labels. Order matters: short (<3 runes) first, then wildcard
+// (%, _, \ — meaningful until fix 05b lands, when the class empties by
+// construction), then the walk's trigram classification shared with the
+// unscoped path, else trigram. The label carries the class only, never the
+// pattern text.
+func scopedSearchPatternClass(pattern string) string {
+	if utf8.RuneCountInString(pattern) < 3 {
+		return "short"
+	}
+	if strings.ContainsAny(pattern, "%_\\") {
+		return "wildcard"
+	}
+	if !unscoped.PatternHasTrigram(pattern) {
+		return "no_trigram"
+	}
+	return "trigram"
+}
+
+// recordScopedSearch emits the operator signals for one finished scoped
+// search at its chokepoint exit (#10606): the scoped counter and duration
+// histogram (labels operation, scope_class, pattern_class, outcome — never
+// the pattern text or a repo id), the scoped span attributes, and one WARN
+// log on context_deadline only. Nil instruments skip the metrics; telemetry
+// failure never fails a search.
+func recordScopedSearch(
+	ctx context.Context,
+	inst *telemetry.Instruments,
+	span trace.Span,
+	operation, scopeClass, patternClass string,
+	start time.Time,
+	rows int,
+	err error,
+	limit, offset int,
+) {
+	outcome := scopedSearchOutcome(ctx, err)
+	elapsed := time.Since(start)
+	if span != nil {
+		span.SetAttributes(
+			attribute.String("search.scope", "scoped"),
+			attribute.String("search.pattern_class", patternClass),
+			attribute.Int("search.rows_returned", rows),
+		)
+	}
+	if inst != nil {
+		// One attribute set shared by both instruments, the same shape as
+		// the unscoped recorder beside it.
+		attrs := metric.WithAttributes(
+			telemetry.AttrOperation(operation),
+			telemetry.AttrScopeClass(scopeClass),
+			telemetry.AttrPatternClass(patternClass),
+			telemetry.AttrOutcome(outcome),
+		)
+		inst.ContentSearchScoped.Add(ctx, 1, attrs)
+		inst.ContentSearchScopedDuration.Record(ctx, elapsed.Seconds(), attrs)
+	}
+	if outcome == scopedSearchOutcomeContextDeadline {
+		slog.Default().LogAttrs(ctx, slog.LevelWarn, "scoped_search_context_deadline",
+			slog.String("operation", operation),
+			slog.String("pattern_class", patternClass),
+			slog.Int64("elapsed_ms", elapsed.Milliseconds()),
+			slog.Int("limit", limit),
+			slog.Int("offset", offset),
+		)
+	}
 }
 
 // searchFileContentScoped executes a bounded file-content query using a fixed
@@ -249,11 +357,14 @@ func (cr *ContentReader) searchFileContentInRepos(
 func (cr *ContentReader) searchFileContentScoped(
 	ctx context.Context,
 	operation string,
+	pattern string,
 	where string,
 	args []any,
 	limit int,
 	offset int,
-) ([]FileContent, error) {
+) (results []FileContent, err error) {
+	start := time.Now()
+	patternClass := scopedSearchPatternClass(pattern)
 	ctx, span := cr.tracer.Start(
 		ctx, "postgres.query",
 		trace.WithAttributes(
@@ -263,6 +374,9 @@ func (cr *ContentReader) searchFileContentScoped(
 		),
 	)
 	defer span.End()
+	defer func() {
+		recordScopedSearch(ctx, cr.instruments, span, operation, scopedSearchScopeClass(operation), patternClass, start, len(results), err, limit, offset)
+	}()
 
 	limitArg := len(args) + 1
 	offsetArg := len(args) + 2
@@ -278,7 +392,6 @@ func (cr *ContentReader) searchFileContentScoped(
 	}
 	defer func() { _ = rows.Close() }()
 
-	var results []FileContent
 	for rows.Next() {
 		var file FileContent
 		if err := rows.Scan(&file.RepoID, &file.RelativePath, &file.CommitSHA, &file.Content, &file.ContentHash, &file.LineCount, &file.Language, &file.ArtifactType); err != nil {

@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"go.opentelemetry.io/otel/attribute"
@@ -21,7 +22,7 @@ func (cr *ContentReader) searchEntityContentPage(
 	limit int,
 	offset int,
 ) ([]EntityContent, error) {
-	return cr.searchEntityContentScoped(ctx, "search_entity_content_page", "repo_id = $1 AND source_cache ILIKE '%' || $2 || '%'", []any{repoID, pattern}, limit, offset, true)
+	return cr.searchEntityContentScoped(ctx, "search_entity_content_page", pattern, "repo_id = $1 AND source_cache ILIKE '%' || $2 || '%'", []any{repoID, pattern}, limit, offset, true)
 }
 
 // searchEntityContentInRepos searches cached snippets for an explicit repository set.
@@ -32,7 +33,7 @@ func (cr *ContentReader) searchEntityContentInRepos(
 	limit int,
 	offset int,
 ) ([]EntityContent, error) {
-	return cr.searchEntityContentScoped(ctx, "search_entity_content_in_repos", "repo_id = ANY(string_to_array($1, E'\\x1f')) AND source_cache ILIKE '%' || $2 || '%'", []any{strings.Join(repoIDs, "\x1f"), pattern}, limit, offset, false)
+	return cr.searchEntityContentScoped(ctx, "search_entity_content_in_repos", pattern, "repo_id = ANY(string_to_array($1, E'\\x1f')) AND source_cache ILIKE '%' || $2 || '%'", []any{strings.Join(repoIDs, "\x1f"), pattern}, limit, offset, false)
 }
 
 // searchEntityContentScoped executes a bounded entity-content query using a
@@ -40,12 +41,15 @@ func (cr *ContentReader) searchEntityContentInRepos(
 func (cr *ContentReader) searchEntityContentScoped(
 	ctx context.Context,
 	operation string,
+	pattern string,
 	where string,
 	args []any,
 	limit int,
 	offset int,
 	unprepared bool,
-) ([]EntityContent, error) {
+) (results []EntityContent, err error) {
+	start := time.Now()
+	patternClass := scopedSearchPatternClass(pattern)
 	ctx, span := cr.tracer.Start(
 		ctx, "postgres.query",
 		trace.WithAttributes(
@@ -55,6 +59,9 @@ func (cr *ContentReader) searchEntityContentScoped(
 		),
 	)
 	defer span.End()
+	defer func() {
+		recordScopedSearch(ctx, cr.instruments, span, operation, scopedSearchScopeClass(operation), patternClass, start, len(results), err, limit, offset)
+	}()
 
 	limitArg := len(args) + 1
 	offsetArg := len(args) + 2
@@ -84,7 +91,6 @@ func (cr *ContentReader) searchEntityContentScoped(
 	}
 	defer func() { _ = rows.Close() }()
 
-	var results []EntityContent
 	for rows.Next() {
 		var entity EntityContent
 		var rawMetadata []byte

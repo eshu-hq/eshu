@@ -5,6 +5,13 @@ package unscoped
 
 import "unicode"
 
+// PatternHasTrigram reports whether pg_trgm can extract at least one trigram
+// from the ILIKE pattern a caller binds. It is the exported alias of the
+// walk's classification below, so scoped-search telemetry (#10606) reuses the
+// same definition instead of forking a second one. See patternHasTrigram for
+// the conservative-break contract.
+func PatternHasTrigram(pattern string) bool { return patternHasTrigram(pattern) }
+
 // patternHasTrigram reports whether pg_trgm can extract at least one
 // trigram from the ILIKE pattern the walk binds: the pattern must contain a
 // run of at least three alphanumeric characters. Wildcards (%, _), the
