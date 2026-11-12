@@ -262,6 +262,60 @@ partitioner (`reducer_queue_conflict.go`), and the handler
 | Freshness / `changed_since` (`query/freshness/`, `changed_since_*.go`) | Read `fact_records` and generation hints only; no `fact_work_items` participation (no advisory reference in those sources). | Verified, no change. |
 | Status age (`status_queries.go` domain backlogs; `status_blockage.go` blockages) | Oldest outstanding age is `MIN(COALESCE(reopened_at, created_at))`; blockage age is `MIN(available_at)` with `available_at = COALESCE(visible_at, created_at)`. Retouch advances `reopened_at` on every touch and reopen sets `visible_at` to the touch, so a hot group's age reflects its least-recently-touched outstanding slot, never a pinned first enqueue. | No code change; ages stay honest under coalescing. |
 
+## No-Regression Evidence (advisory coalescing 2026-11-12):
+
+No hot-path statement changes shape. The claim query
+(`reducer_queue_claim_query.go`, `reducer_queue_batch_query.go`) and the
+supersede predicate (`reducer_generation_filter_sql.go`) are
+byte-identical (no diff); each touch still costs one enqueue INSERT plus
+one retouch UPDATE; the handler issues no new queries. The retention and
+liveness sweeps gain one `scope.scope_kind <> 'synthetic'` AND each, a
+no-op for every pre-existing scope (no synthetic rows existed before
+migration 295) that only fences the new slot scope.
+`TestGenerationRetentionCandidatePlanLive` stays green, pinning the
+candidate plan shape.
+
+Backend: PostgreSQL 18.6 on the local scratch database, synthetic slot
+values (isolated schemas for the seed proof, the shared scratch schema
+for the storm and reopen proofs). Baseline: live census 20,629 rows over
+2,377 conflict keys (prior measured evidence from the issue, not
+re-verified here). Wall times below are proof runtimes on tiny fixtures,
+not throughput claims; the performance claim is bounded row counts plus
+statement-count parity.
+
+After (this commit, all green):
+
+- 16 concurrent touches of one group converge to 1 row admitted once,
+  with 1 live lease under 2 concurrent claimers
+  (`TestAdvisoryCoalescingLifecycleLive`).
+- 75 touches over 25 groups leave exactly 27 rows, and the shipped
+  retention selection names the aged real generation and never the
+  active genesis (same test).
+- Fail-after-touch then retry reclaims the same slot with
+  `CycleStartedAt` covering the second touch (same test).
+- Dead-letter and failed slots reopen to the succeeded shape (pending,
+  attempt 0, no failure evidence, `visible_at` at the touch,
+  `next_attempt_at` NULL) and reclaim promptly on the same slot; a
+  poison group costs one run per touch
+  (`TestAdvisoryCoalescingTerminalReopenLive`).
+- Migration 295 seeds the anchor with 0 work items and replays to
+  convergence (`TestAdvisoryGroupsSyntheticSeedLive`).
+
+Why safe: the per-domain row count is bounded by the group count by
+construction (one `work_item_id` per group); success turnover reuses the
+slot, terminal turnover reopens it; no sweeper, TTL, or new index.
+
+## Observability Evidence (advisory coalescing 2026-11-12):
+
+No new signals: `telemetry-coverage` passes unchanged. The lag signal
+keeps its instrument and buckets; only its start moves from `EnqueuedAt`
+to `max(EnqueuedAt, CycleStartedAt)` via `winnersBoundStart`, pinned by
+`TestAdvisoryGroupHandlerLagStartsAtCycleBound` (60s from the bound vs
+660s from the enqueue). Operator reads:
+`eshu_dp_advisory_group_projection_lag_seconds` now tracks the true
+watermark wait; domain backlog oldest age and blockage age keep riding
+the touch, per the audit above.
+
 ## Evidence
 
 - Handler scope-blind except logging:
