@@ -77,7 +77,7 @@ CROSS JOIN generate_series(1, 30000) g`, facts.ReducerSupplyChainImpactFindingFa
 	}
 
 	// The full 200-id lookup through the shipped constant: every arm
-	// fires at once. (The handler chunks wider lookups into 25-id
+	// fires at once. (The handler chunks wider lookups into 5-id
 	// statements, #10564 H; the store runs one statement per call.)
 	ids := append(append(append([]string{}, cveIDs...), advisoryIDs...), memberIDs...)
 	for i := 1; i <= 100; i++ {

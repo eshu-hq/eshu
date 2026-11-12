@@ -302,11 +302,12 @@ func TestSuppressionMutationFanOutIsBoundedByChangedCVEs(t *testing.T) {
 }
 
 // TestHolderReadIsChunkedByCVE proves a wide change set is read in bounded
-// 25-id statements (#10564 H) and the holders are de-duplicated across
-// chunks. Each statement stays near the N=20 H3 shape the shim measured at
-// 1.34 s warm, well under the 10 s guard; the total ids read and the
-// sequential statements are unchanged, so this is statement sizing, not a
-// worker serialization.
+// 5-id statements (#10564 H) and the holders are de-duplicated across
+// chunks. Fixture scale measured 1.34 s warm at 20 ids, but production hot
+// scopes match ~138k finding rows per 25-id chunk and breached the 10 s
+// guard; the hottest 5 ids measured 810.8 ms, so 5-id statements keep >=6x
+// guard headroom. The total ids read and the sequential statements are
+// unchanged, so this is statement sizing, not a worker serialization.
 func TestHolderReadIsChunkedByCVE(t *testing.T) {
 	t.Parallel()
 

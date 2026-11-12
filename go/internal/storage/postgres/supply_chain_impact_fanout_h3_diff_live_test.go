@@ -81,7 +81,7 @@ func h3diffBulkMemberIDs() []string {
 
 // h3diffCombinedIDs is a 40-id fixture set: 15 CVE-flavored, 15
 // advisory-flavored and 10 member-flavored bulk ids, inside the 25-50-id
-// design band and above the shipped 25-id chunk, so the proof is
+// design band and above the shipped 5-id chunk, so the proof is
 // conservative per statement.
 func h3diffCombinedIDs() []string {
 	out := append(append(append([]string{}, h3diffBulkCVEIDs()...), h3diffBulkAdvisoryIDs()...), h3diffBulkMemberIDs()...)
@@ -415,7 +415,7 @@ FROM pg_prepared_statements WHERE statement LIKE '%FROM candidates%'`).Scan(&ent
 }
 
 // TestHolderH3StatementP95Live measures checklist H-1/H-2 at a 40-id
-// fixture set (above the shipped 25-id chunk) on the disposable fixture:
+// fixture set (above the shipped 5-id chunk) on the disposable fixture:
 // 24 alternating cold
 // (DISCARD PLANS) and warm runs per statement, interleaved across H3 and H0
 // so host drift cannot favor one side. Buffer evidence lives in
