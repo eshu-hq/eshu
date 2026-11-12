@@ -26,12 +26,13 @@ func (stubBatchClaimDB) ExecContext(context.Context, string, ...any) (sql.Result
 	return nil, nil
 }
 
-// TestClaimBatchRecordsBatchClaimSize is the #10565 claim-telemetry gate:
-// every batch claim records the admitted batch size on the shared
-// BatchClaimSize histogram, so claim admission stays observable on the same
-// metric boundaries the before/after comparison uses. It fails until
-// ClaimBatch records.
-func TestClaimBatchRecordsBatchClaimSize(t *testing.T) {
+// TestClaimBatchDoesNotRecordBatchClaimSize is the #10565 F4 storage-side
+// gate: BatchClaimSize is a service-layer emission (runBatchConcurrent
+// records it once per ClaimBatch with queue=reducer, including the
+// early-return conflict path), so the storage claim must not record it —
+// a second recording here would double-count every production claim. It
+// fails if ClaimBatch emits the histogram.
+func TestClaimBatchDoesNotRecordBatchClaimSize(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -49,6 +50,11 @@ func TestClaimBatchRecordsBatchClaimSize(t *testing.T) {
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return now },
 		Instruments:   instruments,
+	}
+	// Non-vacuous: the histogram this test watches must exist, or its
+	// absence would pass for the wrong reason.
+	if instruments.BatchClaimSize == nil {
+		t.Fatal("BatchClaimSize histogram is not registered")
 	}
 	intents, err := queue.ClaimBatch(ctx, 8)
 	if err != nil {
@@ -72,16 +78,8 @@ func TestClaimBatchRecordsBatchClaimSize(t *testing.T) {
 				metric.Name[len(metric.Name)-len("batch_claim_size"):] != "batch_claim_size" {
 				continue
 			}
-			if len(histogram.DataPoints) != 1 {
-				t.Fatalf("BatchClaimSize data points = %d, want 1", len(histogram.DataPoints))
-			}
-			point := histogram.DataPoints[0]
-			if point.Count != 1 || point.Sum != 0 {
-				t.Fatalf("BatchClaimSize point = {Count:%d Sum:%d}, want {Count:1 Sum:0}",
-					point.Count, point.Sum)
-			}
-			return
+			t.Fatalf("storage ClaimBatch recorded BatchClaimSize (Count=%d): the service layer owns that emission (F4)",
+				histogram.DataPoints[0].Count)
 		}
 	}
-	t.Fatal("BatchClaimSize histogram recorded nothing for the claim")
 }
