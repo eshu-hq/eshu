@@ -77,9 +77,12 @@ if "${bin}" sleuth --no-color <"${deps_json}" >"${out}" 2>&1; then
 	exit 0
 fi
 
-# D6 (PR #10561): only a 401 skips. The annotation goes to stdout
-# because GitHub reads workflow commands from stdout, not stderr.
-if rg -q '401 Unauthorized' "${out}"; then
+# D6 (PR #10561): only a 401 skips, and only in nancy's transport-error
+# shape (first line starts with `Error:`). A genuine finding that merely
+# mentions the string "401 Unauthorized" must NOT skip -- it falls through
+# to the vulnerable-dependencies failure below. The annotation goes to
+# stdout because GitHub reads workflow commands from stdout, not stderr.
+if head -n1 "${out}" | rg -q '^Error:' && rg -q '401 Unauthorized' "${out}"; then
 	printf '::warning::nancy-local: OSS Index returned 401 Unauthorized (anonymous quota/auth failure, not a vulnerability finding); skipping scan, see #5804\n'
 	note "OSS Index returned 401 Unauthorized (anonymous quota/auth failure, not a vulnerability finding) -- skipping scan, see #5804"
 	note "full diagnostic in ${out}"
