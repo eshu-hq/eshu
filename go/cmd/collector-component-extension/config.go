@@ -144,7 +144,7 @@ func loadRuntimeConfigObserved(getenv func(string) string, observer component.Gr
 	if err != nil {
 		return runtimeConfig{}, err
 	}
-	claimLeaseTTL, err := envDuration(getenv, envCollectorClaimLeaseTTL, workflow.DefaultClaimLeaseTTL())
+	claimLeaseTTL, err := envDuration(getenv, envCollectorClaimLeaseTTL, defaultComponentClaimLeaseTTL)
 	if err != nil {
 		return runtimeConfig{}, err
 	}

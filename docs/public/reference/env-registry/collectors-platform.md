@@ -40,7 +40,7 @@ The ingester's git collector, the component package manager, and the component-e
 
 | Variable | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `ESHU_COMPONENT_COLLECTOR_CLAIM_LEASE_TTL` | duration | `60s` | Workflow claim lease TTL. |
+| `ESHU_COMPONENT_COLLECTOR_CLAIM_LEASE_TTL` | duration | `600s` | Workflow claim lease TTL. |
 | `ESHU_COMPONENT_COLLECTOR_HEARTBEAT_INTERVAL` | duration | `20s` | Claim heartbeat interval; must be less than the lease TTL. |
 | `ESHU_COMPONENT_COLLECTOR_INSTANCE_ID` | string | — | Instance ID for the component-extension collector. |
 | `ESHU_COMPONENT_COLLECTOR_OWNER_ID` | string | — | Lease owner identifier; defaults to the hostname. |
