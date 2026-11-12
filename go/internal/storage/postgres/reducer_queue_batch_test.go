@@ -265,8 +265,31 @@ func TestClaimBatchOrdersSearchDocumentCatchupAfterGraphTruth(t *testing.T) {
 			t.Fatalf("same-conflict representative window missing search-document deprioritization order %q:\n%s", want, query)
 		}
 	}
-	if !strings.Contains(query, "ORDER BY reducer_domain_priority ASC, reducer_source_inflight_count ASC, reducer_source_fair_rank ASC, reducer_domain_fair_rank ASC, reducer_domain_inflight_count ASC, updated_at ASC, work_item_id ASC") {
+	if !strings.Contains(query, "ORDER BY candidate.reducer_domain_priority ASC, candidate.reducer_source_inflight_count ASC, candidate.reducer_source_fair_rank ASC, candidate.reducer_domain_fair_rank ASC, candidate.reducer_domain_inflight_count ASC, candidate.updated_at ASC, candidate.work_item_id ASC") {
 		t.Fatalf("batch claim query missing domain-priority and fairness ordering:\n%s", query)
+	}
+	// #10568 reserved search-doc slot: the claim carries a bounded
+	// priority-1 bypass (one row per batch) in front of the ordering above,
+	// because that ordering alone starves eshu_search_document behind any
+	// priority-0 backlog deeper than the batch LIMIT. The pins below assert
+	// the mechanism shape, not just the marker: the reserved arm filters to
+	// priority-1 candidates and takes the oldest, the rest arm keeps the
+	// pinned ordering byte-identical and fills LIMIT minus the reserved
+	// take (falling back to the full LIMIT when nothing reserved), and the
+	// two arms union without duplicating the reserved row.
+	for _, want := range []string{
+		"search_doc_reserved",
+		"locked_search_doc_reserved AS",
+		"WHERE candidate.reducer_domain_priority = 1",
+		"ORDER BY candidate.updated_at ASC, candidate.work_item_id ASC",
+		"locked_rest AS",
+		"WHERE search_doc_taken.work_item_id IS NULL",
+		"LIMIT ($8 - (SELECT COUNT(*) FROM locked_search_doc_reserved))",
+		"SELECT * FROM locked_search_doc_reserved",
+	} {
+		if !strings.Contains(query, want) {
+			t.Fatalf("batch claim query missing reserved search-doc slot fragment %q:\n%s", want, query)
+		}
 	}
 	// The per-domain fairness rank (#3385) must round-robin ready domains so a
 	// high-volume older backlog cannot starve a newer, lower-volume domain.

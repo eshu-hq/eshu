@@ -9,17 +9,22 @@ import (
 )
 
 // candidateLockedBoundary is the byte sequence in claimReducerWorkBatchQuery
-// that closes the read-only `candidate` CTE and opens the data-modifying
-// `locked` CTE (FOR UPDATE OF ... SKIP LOCKED). deriveReadOnlyCandidateSelect
+// that closes the read-only `candidate` CTE and opens the data-modifying lock
+// tail: since #10568 that tail starts with the reserved-slot arm
+// `locked_search_doc_reserved` (FOR UPDATE OF ... SKIP LOCKED), followed by
+// `locked_rest` and the `locked` UNION. deriveReadOnlyCandidateSelect
 // truncates the shipped query here.
-const candidateLockedBoundary = "),\nlocked AS ("
+const candidateLockedBoundary = "),\nlocked_search_doc_reserved AS"
 
-// readOnlyCandidateTail replaces the shipped query's `locked`/`claimed`
+// readOnlyCandidateTail replaces the shipped query's lock/claim
 // data-modifying tail with a side-effect-free SELECT over the `candidate` CTE.
-// It reproduces the `locked` CTE's deterministic ORDER BY and LIMIT $8 verbatim
-// (so the projected candidate set and its order match exactly what the real
-// claim would lock) and still consumes $3/$4 — which belong only to the omitted
-// `claimed` UPDATE — so the parameter list is identical to the live query.
+// It reproduces the `locked_rest` arm's deterministic ORDER BY and LIMIT $8
+// verbatim (so the projected candidate set and its order match what the real
+// claim locks in its rest arm; since #10568 the live claim additionally
+// prepends at most one reserved search-doc row ahead of this order, which
+// also displaces the last row this order would have taken at LIMIT $8) and
+// still consumes $3/$4 — which belong only to the omitted `claimed` UPDATE —
+// so the parameter list is identical to the live query.
 const readOnlyCandidateTail = `
 SELECT work_item_id
 FROM candidate
