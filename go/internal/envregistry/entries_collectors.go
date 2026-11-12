@@ -116,7 +116,11 @@ var collectorEntries = func() []Entry {
 		Entry{Name: "ESHU_COMPONENT_COLLECTOR_INSTANCE_ID", Type: VarString, Subsystem: "collector-component-extension", Description: "Instance ID for the component-extension collector."},
 		Entry{Name: "ESHU_COMPONENT_COLLECTOR_OWNER_ID", Type: VarString, Subsystem: "collector-component-extension", Description: "Lease owner identifier; defaults to the hostname."},
 		Entry{Name: "ESHU_COMPONENT_COLLECTOR_POLL_INTERVAL", Type: VarDuration, Default: "1s", Subsystem: "collector-component-extension", Description: "Poll interval for discovering component activations."},
-		Entry{Name: "ESHU_COMPONENT_COLLECTOR_CLAIM_LEASE_TTL", Type: VarDuration, Default: "60s", Subsystem: "collector-component-extension", Description: "Workflow claim lease TTL."},
+		// The extracted worker's own fallback is 600s, not the 60s workflow
+		// default above: satellites run paced multi-minute walks and the
+		// ruled NVD envelope must cover the >=546s measured walk floor
+		// (eshu-hq/eshu#10446).
+		Entry{Name: "ESHU_COMPONENT_COLLECTOR_CLAIM_LEASE_TTL", Type: VarDuration, Default: "600s", Subsystem: "collector-component-extension", Description: "Extracted-worker claim lease TTL; must exceed the longest paced satellite walk."},
 		Entry{Name: "ESHU_COMPONENT_COLLECTOR_HEARTBEAT_INTERVAL", Type: VarDuration, Default: "20s", Subsystem: "collector-component-extension", Description: "Claim heartbeat interval; must be less than the lease TTL."},
 		Entry{Name: "ESHU_COMPONENT_COLLECTOR_SCOPE_KIND", Type: VarString, Subsystem: "collector-component-extension", Description: "Scope kind for component activations (e.g. organization, team)."},
 		Entry{Name: "ESHU_EXTENSIONHOST_CUTOVER_ENABLED", Type: VarBool, Default: "false", Subsystem: "collector-component-extension", Description: "Default-off gate for the extension-host enabled flow (eshu-hq/eshu#8877). Unset or blank keeps the in-tree claim path; a set value must be a Go boolean spelling (strconv.ParseBool) or startup fails naming this variable. When true, the worker also requires ESHU_WORKFLOW_CLAIM_PLANE_URL and the producer pin below, routes claims through the claim-plane client, commits through the plane commit fence, keeps slot-scope run reads on core Postgres by explicit carve-out, and re-reads live grants through the cutover gate under the pinned holder identity."},

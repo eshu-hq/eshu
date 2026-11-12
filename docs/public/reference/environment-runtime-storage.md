@@ -54,7 +54,7 @@ posture.
 | `ESHU_COMPONENT_COLLECTOR_INSTANCE_ID` | unset | component extension collector | Optional selector when more than one trusted claim-capable component activation exists. |
 | `ESHU_COMPONENT_COLLECTOR_OWNER_ID` | `HOSTNAME`, then `collector-component-extension` | component extension collector | Claim owner label for the process-backed component extension worker. |
 | `ESHU_COMPONENT_COLLECTOR_POLL_INTERVAL` | `1s` | component extension collector | Idle poll interval between claim attempts. |
-| `ESHU_COMPONENT_COLLECTOR_CLAIM_LEASE_TTL` | workflow default | component extension collector | Lease TTL for claimed component work items. |
+| `ESHU_COMPONENT_COLLECTOR_CLAIM_LEASE_TTL` | `600s` | component extension collector | Lease TTL for claimed component work items. |
 | `ESHU_COMPONENT_COLLECTOR_HEARTBEAT_INTERVAL` | workflow default | component extension collector | Heartbeat interval for claimed component work items; must be less than the lease TTL. |
 | `ESHU_COMPONENT_COLLECTOR_SCOPE_KIND` | `component` | component extension collector | Fallback SDK claim scope kind used when the activation config has no `host.scope.kind`. |
 
