@@ -17,6 +17,8 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -155,6 +157,7 @@ type keyedMetrics struct {
 	keys           uint64
 	keySum         int64
 	identifiers    int64
+	chunked        int64
 	captureBySrc   map[string]int64
 	repairs        int64
 	auditSkipped   int64
@@ -193,6 +196,8 @@ func collectKeyedMetrics(t *testing.T, reader *sdkmetric.ManualReader) keyedMetr
 					switch m.Name {
 					case "eshu_dp_supply_chain_impact_winners_identifiers_consumed_total":
 						out.identifiers += dp.Value
+					case "eshu_dp_supply_chain_impact_winners_chunked_ticks_total":
+						out.chunked += dp.Value
 					case "eshu_dp_supply_chain_impact_winners_backstop_repairs_total":
 						out.repairs += dp.Value
 					case "eshu_dp_supply_chain_impact_winners_audit_skipped_total":
@@ -408,6 +413,124 @@ func TestWinnersMaintainerSkippedAuditDoesNotCountAsResweepSkip(t *testing.T) {
 			if mt.Name == "eshu_dp_supply_chain_impact_winners_resweep_skipped_total" {
 				t.Errorf("resweep_skipped_total recorded for a skipped audit: %+v", mt.Data)
 			}
+		}
+	}
+}
+
+// TestWinnersMaintainerCountsABoundedTick pins the chunked-ticks counter: a
+// keyed tick that stopped at the chunk bound counts one, alongside the other
+// keyed signals, while an unbounded keyed tick counts none.
+func TestWinnersMaintainerCountsABoundedTick(t *testing.T) {
+	t.Parallel()
+
+	boundedResult := SupplyChainImpactWinnersResweep{
+		Path: telemetry.SupplyChainImpactWinnersPathKeyed, Identifiers: 10, Keys: 12,
+		Bounded: true, Remaining: 7, ChunkIdentifiers: 10, ChunkKeptRows: 130,
+	}
+	inst, reader := winnersSignalsHarness(t)
+	rebuilder := &fakeKeyedRebuilder{result: boundedResult}
+	m := SupplyChainImpactWinnersMaintainer{
+		Rebuilder: rebuilder, KeyedRebuilder: rebuilder, LeaseManager: &fakeWinnersLeaseManager{claim: true},
+		Instruments: inst,
+	}
+	if _, err := m.runKeyedTick(context.Background()); err != nil {
+		t.Fatalf("runKeyedTick() error = %v", err)
+	}
+	got := collectKeyedMetrics(t, reader)
+	if got.chunked != 1 {
+		t.Errorf("chunked_ticks_total = %d, want 1 for a bounded tick", got.chunked)
+	}
+	if got.identifiers != 10 || got.keys != 1 || got.keySum != 12 {
+		t.Errorf("identifiers = %d keys samples = %d sum = %d, want 10, 1 and 12: a bounded tick still counts its keyed signals", got.identifiers, got.keys, got.keySum)
+	}
+
+	inst, reader = winnersSignalsHarness(t)
+	rebuilder = &fakeKeyedRebuilder{result: SupplyChainImpactWinnersResweep{
+		Path: telemetry.SupplyChainImpactWinnersPathKeyed, Identifiers: 10, Keys: 12,
+	}}
+	m = SupplyChainImpactWinnersMaintainer{
+		Rebuilder: rebuilder, KeyedRebuilder: rebuilder, LeaseManager: &fakeWinnersLeaseManager{claim: true},
+		Instruments: inst,
+	}
+	if _, err := m.runKeyedTick(context.Background()); err != nil {
+		t.Fatalf("runKeyedTick() error = %v", err)
+	}
+	if got := collectKeyedMetrics(t, reader); got.chunked != 0 {
+		t.Errorf("chunked_ticks_total = %d, want 0 for an unbounded tick", got.chunked)
+	}
+}
+
+// TestWinnersMaintainerBoundedTickSkipsTheWatermarkGauge pins that a bounded
+// tick stamps no watermark: the gauge keeps aging the last real stamp, and the
+// next unbounded tick refreshes it.
+func TestWinnersMaintainerBoundedTickSkipsTheWatermarkGauge(t *testing.T) {
+	t.Parallel()
+
+	inst, reader := winnersSignalsHarness(t)
+	m := SupplyChainImpactWinnersMaintainer{
+		Rebuilder: &fakeKeyedRebuilder{}, KeyedRebuilder: &fakeKeyedRebuilder{result: SupplyChainImpactWinnersResweep{
+			Path: telemetry.SupplyChainImpactWinnersPathKeyed, Bounded: true, Remaining: 7,
+		}}, LeaseManager: &fakeWinnersLeaseManager{claim: true},
+		Instruments: inst,
+	}
+	if _, err := m.runKeyedTick(context.Background()); err != nil {
+		t.Fatalf("runKeyedTick() error = %v", err)
+	}
+	if _, _, ages := winnersMetrics(t, reader); len(ages) != 0 {
+		t.Errorf("watermark age samples = %v, want none after a bounded tick that stamped nothing", ages)
+	}
+}
+
+// TestWinnersMaintainerBoundedTickSpanAndLogFields pins the bounded fields on
+// the resweep span and the commit log line: bounded, remaining, and the chunk
+// volume the tick probed and kept.
+func TestWinnersMaintainerBoundedTickSpanAndLogFields(t *testing.T) {
+	t.Parallel()
+
+	inst, _ := winnersSignalsHarness(t)
+	var logs bytes.Buffer
+	spans := tracetest.NewSpanRecorder()
+	rebuilder := &fakeKeyedRebuilder{result: SupplyChainImpactWinnersResweep{
+		Path: telemetry.SupplyChainImpactWinnersPathKeyed, Identifiers: 10, Keys: 12,
+		Bounded: true, Remaining: 7, ChunkIdentifiers: 10, ChunkKeptRows: 130,
+	}}
+	m := SupplyChainImpactWinnersMaintainer{
+		Rebuilder: rebuilder, KeyedRebuilder: rebuilder, LeaseManager: &fakeWinnersLeaseManager{claim: true},
+		Instruments: inst,
+		Tracer:      sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(spans)).Tracer("test"),
+		Logger:      slog.New(slog.NewJSONHandler(&logs, nil)),
+	}
+	if _, err := m.runKeyedTick(context.Background()); err != nil {
+		t.Fatalf("runKeyedTick() error = %v", err)
+	}
+
+	ended := spans.Ended()
+	if len(ended) != 1 {
+		t.Fatalf("spans = %d, want one bounded resweep span", len(ended))
+	}
+	var bounded bool
+	attrs := map[string]int64{}
+	for _, kv := range ended[0].Attributes() {
+		if string(kv.Key) == "bounded" {
+			bounded = kv.Value.AsBool()
+			continue
+		}
+		attrs[string(kv.Key)] = kv.Value.AsInt64()
+	}
+	if !bounded {
+		t.Errorf("span attributes = %v, want bounded=true", ended[0].Attributes())
+	}
+	for key, want := range map[string]int64{"remaining": 7, "chunk_identifiers": 10, "chunk_kept_rows": 130} {
+		if attrs[key] != want {
+			t.Errorf("span attribute %s = %d, want %d (all: %v)", key, attrs[key], want, attrs)
+		}
+	}
+	line := logs.String()
+	for _, want := range []string{
+		`"bounded":true`, `"remaining":7`, `"chunk_identifiers":10`, `"chunk_kept_rows":130`,
+	} {
+		if !strings.Contains(line, want) {
+			t.Errorf("log line %q is missing %s", line, want)
 		}
 	}
 }

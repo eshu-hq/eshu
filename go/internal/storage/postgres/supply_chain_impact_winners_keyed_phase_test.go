@@ -101,17 +101,22 @@ func (tx *phaseFakeTx) QueryContext(_ context.Context, query string, _ ...any) (
 	case tryClaimSupplyChainImpactWinnersResweepSQL:
 		return &phaseFakeRows{row: []any{tx.claimed}}, nil
 	case countWinnersKeyedConsumedSQL:
-		if tx.consumed == 0 {
-			return &phaseFakeRows{}, nil
-		}
+		return &phaseFakeRows{row: []any{tx.consumed}}, nil
+	case selectWinnersKeyedChunkIdentsSQL:
+		return &phaseFakeRows{row: []any{"pkg:npm/fake", "repo-fake", "", "CVE-2026-1", ""}}, nil
+	case countWinnersKeyedActiveFactsSQL:
+		return &phaseFakeRows{row: []any{int64(1)}}, nil
+	case deleteWinnersKeyedAppliedDirtySQL, deleteWinnersKeyedAllDirtySQL:
 		return &phaseFakeRows{row: []any{telemetry.SupplyChainImpactWinnersSourceActivation, tx.consumed}}, nil
+	case countWinnersKeyedRemainingSQL:
+		return &phaseFakeRows{row: []any{int64(0)}}, nil
 	case countWinnersKeyedIdentsSQL:
 		return &phaseFakeRows{row: []any{tx.identifier}}, nil
 	case winnersKeyedStoredEstimateSQL:
 		return &phaseFakeRows{row: []any{tx.stored}}, nil
 	case stampWinnersWatermarkSQL:
 		return &phaseFakeRows{row: []any{int64(0)}}, nil
-	case applyWinnersKeyedSQL:
+	case applyWinnersKeyedSQL, applyWinnersKeyedNoStampSQL:
 		return &phaseFakeRows{row: []any{int64(1), int64(0), int64(0), int64(0), int64(1), int64(0)}}, nil
 	case rebuildSupplyChainImpactWinnersSQL:
 		return &phaseFakeRows{row: []any{int64(1), int64(0), int64(0), int64(0), int64(0)}}, nil
@@ -260,7 +265,7 @@ func TestResweepWinnersKeyedRecordsTheTimeOfAFailedPhase(t *testing.T) {
 		idle, overCap bool
 	}{
 		{"claim", tryClaimSupplyChainImpactWinnersResweepSQL, "claim", []string{"claim"}, false, false},
-		{"consume", consumeWinnersDirtyLogSQL, "consume", []string{"claim", "consume"}, false, false},
+		{"consume", admitWinnersKeyedWindowSQL, "consume", []string{"claim", "consume"}, false, false},
 		{"build_idents", buildWinnersKeyedIdentsSQL, "build_idents", []string{"claim", "consume", "build_idents"}, false, false},
 		{"build_active_facts", addWinnersKeyedOperatorFactsSQL, "build_active_facts", []string{"claim", "consume", "build_idents", "build_active_facts"}, false, false},
 		{"apply", applyWinnersKeyedSQL, "apply", []string{"claim", "consume", "build_idents", "build_active_facts", "apply"}, false, false},

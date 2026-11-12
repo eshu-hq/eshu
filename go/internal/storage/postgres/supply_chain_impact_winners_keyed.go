@@ -26,14 +26,20 @@ const (
 // ResweepWinnersKeyed consumes the dirty log and recomputes only the canonical
 // keys it names, in one transaction under the same single-flight lock as the
 // full resweep. It writes a row version only for a winner that is new or
-// changed, deletes stored winners of the keys that are no longer produced, and
-// stamps the watermark.
+// changed and deletes stored winners of the keys that are no longer produced.
 //
-// The consume is DELETE ... RETURNING into a temp table after the lock is held,
-// so a change committed after that statement's snapshot stays in the log for the
-// next tick and a rollback returns every consumed row. When the consumed
-// identifiers exceed MaxIdentifiers, or MaxKeyFraction of the stored winners,
-// the same transaction runs the full rebuild instead and reports Path "full".
+// The transaction is chunk-bounded (#9805 chunked consume): it admits the
+// oldest ChunkMaxDirtyRows dirty rows as candidates, probes at most
+// ChunkMaxIdentifiers post-expansion identifiers through the 291 five-tuple
+// probe, then deletes exactly the dirty rows it applied — claim and consume
+// stay atomic per chunk, and a rollback changes nothing. A bounded pass leaves the rest queued, reports
+// Bounded with the remaining depth, and stamps no watermark; the watermark
+// moves only on a pass after which the dirty log is empty. Passes run one
+// per maintainer tick, so a backlog drains as short spaced ticks, never as
+// one long transaction. When the admitted window's identifiers exceed
+// MaxIdentifiers, or MaxKeyFraction of the stored winners, the same
+// transaction deletes every queued row, runs the full rebuild instead, and
+// reports Path "full".
 //
 // When another resweep is in flight it consumes nothing and returns Skipped.
 func (s SupplyChainImpactWinnersStore) ResweepWinnersKeyed(
@@ -71,23 +77,33 @@ func (s SupplyChainImpactWinnersStore) ResweepWinnersKeyed(
 	if !claimed {
 		return supplychaincore.SupplyChainImpactWinnersResweep{Skipped: true}, nil
 	}
-	var captured winnersCaptureTally
+	bounds := s.chunkBounds()
+	var admitted int64
 	if err := s.timePhase(ctx, telemetry.SupplyChainImpactWinnersPhaseConsume, func() error {
 		var err error
-		captured, err = consumeWinnersDirtyLog(ctx, tx)
+		admitted, err = admitWinnersDirtyWindow(ctx, tx, bounds.dirtyRows)
 		return err
 	}); err != nil {
 		return none, err
 	}
-	consumed := captured.total()
 	result := supplychaincore.SupplyChainImpactWinnersResweep{
-		Path:            telemetry.SupplyChainImpactWinnersPathKeyed,
-		Identifiers:     consumed,
-		TriggerCaptured: captured.triggerSources(),
+		Path: telemetry.SupplyChainImpactWinnersPathKeyed,
 	}
-	switch consumed {
+	switch admitted {
 	case 0:
 		if err := s.timePhase(ctx, telemetry.SupplyChainImpactWinnersPhaseStamp, func() error {
+			// The window was empty at admission; stamp only if the log is
+			// still empty now, so an idle tick never stamps over rows that
+			// landed while it ran.
+			remaining, err := scanWinnersInt64(ctx, tx, countWinnersKeyedRemainingSQL, "count remaining dirty rows")
+			if err != nil {
+				return err
+			}
+			result.Remaining = remaining
+			if remaining > 0 {
+				result.Bounded = true
+				return nil
+			}
 			previous, err := stampWinnersWatermark(ctx, tx, materializedAt)
 			result.PreviousWatermark = previous
 			return err
@@ -95,7 +111,7 @@ func (s SupplyChainImpactWinnersStore) ResweepWinnersKeyed(
 			return none, err
 		}
 	default:
-		fallback, err := s.runKeyedOrFull(ctx, tx, materializedAt, &result)
+		fallback, err := s.runKeyedOrFull(ctx, tx, materializedAt, bounds, &result)
 		if err != nil {
 			return none, err
 		}
@@ -109,25 +125,26 @@ func (s SupplyChainImpactWinnersStore) ResweepWinnersKeyed(
 	return result, nil
 }
 
-// runKeyedOrFull expands the consumed rows to identifiers, applies the cap, and
-// runs either the keyed apply or the full rebuild. It reports whether it fell
-// back to the full rebuild.
+// runKeyedOrFull expands the admitted window to identifiers, applies the cap,
+// and runs either the bounded keyed apply or the full rebuild. It reports
+// whether it fell back to the full rebuild.
 func (s SupplyChainImpactWinnersStore) runKeyedOrFull(
 	ctx context.Context,
 	tx db.Transaction,
 	materializedAt any,
+	bounds winnersChunkBounds,
 	result *supplychaincore.SupplyChainImpactWinnersResweep,
 ) (fellBack bool, err error) {
 	// The identifier set is built, and the cap checked, in this order on purpose:
 	// the cap counts distinct identifiers, which exist only after the scope rows
-	// are expanded. A backlog of scope rows (bootstrap seeding, a reducer outage)
-	// therefore materializes every impact identifier of those generations in the
-	// temp table once before the tick falls back to the full rebuild. The cost
-	// is bounded by the fact set, paid once per backlog, and read through the
-	// active-scan index.
+	// are expanded. The expansion covers only the admitted dirty-row window,
+	// so a backlog of scope rows (bootstrap seeding, a reducer outage) drains
+	// over successive ticks instead of materializing every impact identifier of
+	// those generations at once; each tick's expansion is bounded by the window
+	// and read through the active-scan index.
 	var over bool
 	if err := s.timePhase(ctx, telemetry.SupplyChainImpactWinnersPhaseBuildIdents, func() error {
-		for _, stmt := range []string{buildWinnersKeyedIdentsSQL, analyzeWinnersKeyedIdentsSQL} {
+		for _, stmt := range []string{buildWinnersKeyedScopeIdentsSQL, buildWinnersKeyedIdentsSQL, analyzeWinnersKeyedIdentsSQL} {
 			if _, err := tx.ExecContext(ctx, stmt); err != nil {
 				return fmt.Errorf("build supply chain impact winners keyed identifiers: %w", err)
 			}
@@ -143,6 +160,13 @@ func (s SupplyChainImpactWinnersStore) runKeyedOrFull(
 	}
 	if over {
 		if err := s.timePhase(ctx, telemetry.SupplyChainImpactWinnersPhaseFullRebuild, func() error {
+			tally, remaining, err := settleWinnersKeyedDirtyLog(ctx, tx, true)
+			if err != nil {
+				return err
+			}
+			result.Identifiers = tally.total()
+			result.TriggerCaptured = tally.triggerSources()
+			result.Remaining = remaining
 			full, err := runSupplyChainImpactWinnersRebuild(ctx, tx, materializedAt)
 			if err != nil {
 				return err
@@ -155,8 +179,24 @@ func (s SupplyChainImpactWinnersStore) runKeyedOrFull(
 		}
 		return true, nil
 	}
+	var chunk winnersChunkOutcome
+	var kept int64
 	if err := s.timePhase(ctx, telemetry.SupplyChainImpactWinnersPhaseBuildActiveFacts, func() error {
-		for _, stmt := range []string{buildWinnersKeyedActiveFactsSQL, addWinnersKeyedOperatorFactsSQL, analyzeWinnersKeyedActiveFactsSQL} {
+		var err error
+		if chunk, err = buildWinnersKeyedChunk(ctx, tx, bounds); err != nil {
+			return err
+		}
+		// The probe is the shipped per-identifier build over the 291
+		// five-tuple keyed index, restricted to the chunk by the
+		// identifier table above: no per-triple statements, no second
+		// probe path.
+		if _, err := tx.ExecContext(ctx, buildWinnersKeyedActiveFactsSQL); err != nil {
+			return fmt.Errorf("build supply chain impact winners keyed active facts: %w", err)
+		}
+		if kept, err = countWinnersKeyedKeptFacts(ctx, tx); err != nil {
+			return err
+		}
+		for _, stmt := range []string{addWinnersKeyedOperatorFactsSQL, analyzeWinnersKeyedActiveFactsSQL} {
 			if _, err := tx.ExecContext(ctx, stmt); err != nil {
 				return fmt.Errorf("build supply chain impact winners keyed active facts: %w", err)
 			}
@@ -165,7 +205,21 @@ func (s SupplyChainImpactWinnersStore) runKeyedOrFull(
 	}); err != nil {
 		return false, err
 	}
+	result.ChunkIdentifiers = chunk.identifiers
+	result.ChunkKeptRows = kept
 	return false, s.timePhase(ctx, telemetry.SupplyChainImpactWinnersPhaseApply, func() error {
+		tally, remaining, err := settleWinnersKeyedDirtyLog(ctx, tx, false)
+		if err != nil {
+			return err
+		}
+		result.Identifiers = tally.total()
+		result.TriggerCaptured = tally.triggerSources()
+		result.Remaining = remaining
+		// The watermark moves only when this pass applied everything: the
+		// chunk was not truncated and the log is empty after the applied
+		// rows were deleted (rows that land after this count are newer than
+		// the tick's stamp and wait for the next tick, as before).
+		result.Bounded = chunk.truncated || remaining > 0
 		return applyWinnersKeyed(ctx, tx, materializedAt, result)
 	})
 }
@@ -179,7 +233,11 @@ func applyWinnersKeyed(
 	materializedAt any,
 	result *supplychaincore.SupplyChainImpactWinnersResweep,
 ) error {
-	rows, err := tx.QueryContext(ctx, applyWinnersKeyedSQL, materializedAt)
+	applySQL := applyWinnersKeyedSQL
+	if result.Bounded {
+		applySQL = applyWinnersKeyedNoStampSQL
+	}
+	rows, err := tx.QueryContext(ctx, applySQL, materializedAt)
 	if err != nil {
 		return fmt.Errorf("apply supply chain impact winners keyed resweep: %w", err)
 	}
@@ -262,32 +320,17 @@ func (t winnersCaptureTally) triggerSources() supplychaincore.WinnersTriggerCapt
 	}
 }
 
-// consumeWinnersDirtyLog moves every visible dirty-log row into the consumed
-// temp table and tallies it by capture source.
-func consumeWinnersDirtyLog(ctx context.Context, tx db.Transaction) (winnersCaptureTally, error) {
-	for _, stmt := range []string{createWinnersKeyedConsumedSQL, consumeWinnersDirtyLogSQL} {
-		if _, err := tx.ExecContext(ctx, stmt); err != nil {
-			return nil, fmt.Errorf("consume supply chain impact winners dirty log: %w", err)
-		}
+// admitWinnersDirtyWindow copies the oldest limit dirty-log rows into the
+// consumed temp table and returns how many it admitted. The rows stay in the
+// log until settleWinnersKeyedDirtyLog deletes the applied ones.
+func admitWinnersDirtyWindow(ctx context.Context, tx db.Transaction, limit int64) (int64, error) {
+	if _, err := tx.ExecContext(ctx, createWinnersKeyedConsumedSQL); err != nil {
+		return 0, fmt.Errorf("admit supply chain impact winners dirty window: %w", err)
 	}
-	rows, err := tx.QueryContext(ctx, countWinnersKeyedConsumedSQL)
-	if err != nil {
-		return nil, fmt.Errorf("count consumed supply chain impact winners dirty rows: %w", err)
+	if _, err := tx.ExecContext(ctx, admitWinnersKeyedWindowSQL, limit); err != nil {
+		return 0, fmt.Errorf("admit supply chain impact winners dirty window: %w", err)
 	}
-	defer func() { _ = rows.Close() }()
-	tally := winnersCaptureTally{}
-	for rows.Next() {
-		var source string
-		var n int64
-		if err := rows.Scan(&source, &n); err != nil {
-			return nil, fmt.Errorf("scan consumed supply chain impact winners dirty rows: %w", err)
-		}
-		tally[source] += n
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("count consumed supply chain impact winners dirty rows: %w", err)
-	}
-	return tally, nil
+	return scanWinnersInt64(ctx, tx, countWinnersKeyedConsumedSQL, "count admitted dirty rows")
 }
 
 // stampWinnersWatermark stamps the watermark for a tick that consumed nothing

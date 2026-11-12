@@ -14,6 +14,7 @@ import (
 
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // The scale proof knob. Unset or "smoke" runs a corpus of two percent of 1x, so
@@ -157,8 +158,32 @@ func TestSupplyChainImpactWinnersResweepScaleProofLive(t *testing.T) {
 		}
 	}
 
+	// The churn exceeds one bounded transaction, so the keyed proof drains
+	// it in bounded ticks (#9805 chunked consume) and times the drain: the
+	// watermark moves only on the pass that empties the log.
 	keyedStart := time.Now()
-	keyed := h.keyed()
+	var keyed supplychaincore.SupplyChainImpactWinnersResweep
+	keyed.Path = telemetry.SupplyChainImpactWinnersPathKeyed
+	var keyedTicks int
+	for h.dirtyDepth() > 0 {
+		r, err := h.store.ResweepWinnersKeyed(h.ctx, h.tick())
+		if err != nil || r.Skipped {
+			t.Fatalf("keyed drain tick = %+v, %v", r, err)
+		}
+		if r.Path != telemetry.SupplyChainImpactWinnersPathKeyed {
+			t.Fatalf("keyed drain fell back to path %q (result %+v): the cap sent it to the full rebuild", r.Path, r)
+		}
+		keyed.Identifiers += r.Identifiers
+		keyed.Keys += r.Keys
+		keyed.Inserted += r.Inserted
+		keyed.Updated += r.Updated
+		keyed.Deleted += r.Deleted
+		keyed.Unchanged += r.Unchanged
+		keyedTicks++
+		if keyedTicks > 200 {
+			t.Fatalf("keyed drain exceeded 200 ticks with depth %d", h.dirtyDepth())
+		}
+	}
 	keyedElapsed := time.Since(keyedStart)
 	snapshot := winnersLiveRead(t, h.ctx, h.db)
 
@@ -190,8 +215,8 @@ func TestSupplyChainImpactWinnersResweepScaleProofLive(t *testing.T) {
 		fmt.Sprintf("scale=%s findings=%d scopes=%d keys=%d winners=%d host_load1_before=%s host_load1_after=%s",
 			corpus.label, corpus.findings, corpus.scopes, corpus.keys, winners, loadBefore, hostLoad()),
 		fmt.Sprintf("corpus_load=%s initial_full=%s churn_write=%s churned_scopes=%d dirty_rows=%d", loadElapsed, initialFull, churnElapsed, churnScopes, pending),
-		fmt.Sprintf("keyed_tick=%s path=%s identifiers=%d keys=%d updated=%d unchanged=%d",
-			keyedElapsed, keyed.Path, keyed.Identifiers, keyed.Keys, keyed.Updated, keyed.Unchanged),
+		fmt.Sprintf("keyed_drain=%s ticks=%d path=%s identifiers=%d keys=%d updated=%d unchanged=%d",
+			keyedElapsed, keyedTicks, keyed.Path, keyed.Identifiers, keyed.Keys, keyed.Updated, keyed.Unchanged),
 		fmt.Sprintf("full_resweep_same_state=%s ratio_full_over_keyed=%.1fx", fullElapsed, ratio),
 		fmt.Sprintf("per_winner_full=%.1fus per_identifier_keyed=%.1fus",
 			float64(fullElapsed.Microseconds())/float64(max(winners, 1)), float64(keyedElapsed.Microseconds())/float64(max(int(keyed.Identifiers), 1))),

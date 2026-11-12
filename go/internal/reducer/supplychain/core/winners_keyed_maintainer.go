@@ -218,4 +218,7 @@ func (m SupplyChainImpactWinnersMaintainer) recordKeyedSignals(ctx context.Conte
 	if in.SupplyChainImpactWinnersIdentifiersConsumed != nil && r.Identifiers > 0 {
 		in.SupplyChainImpactWinnersIdentifiersConsumed.Add(ctx, r.Identifiers)
 	}
+	if r.Bounded && in.SupplyChainImpactWinnersChunkedTicks != nil {
+		in.SupplyChainImpactWinnersChunkedTicks.Add(ctx, 1)
+	}
 }

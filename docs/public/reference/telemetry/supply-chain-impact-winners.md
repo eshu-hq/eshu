@@ -14,10 +14,11 @@ recompute every winner from the active facts; an ordinary keyed tick recomputes
 only the keys in the dirty log (see "Keyed resweeps and the audit"). Whichever
 keys a resweep recomputes, it writes only the rows that are new or changed,
 deletes rows that are no longer winners, and
-stamps the read watermark. A winner row that did not change is not locked,
+stamps the read watermark, except a chunk-bounded keyed tick (#9805), which
+commits its chunk with dirty rows still queued and stamps nothing. A winner row that did not change is not locked,
 versioned, or written to the write-ahead log. Freshness comes from the
-singleton watermark, which every committed resweep stamps, so a resweep that
-wrote nothing still tells readers the model is current.
+singleton watermark, which every committed resweep stamps except a bounded
+one, so a resweep that wrote nothing still tells readers the model is current.
 
 Only one resweep runs at a time across all reducer instances. The lease is not
 renewed during a resweep, so its 60 second TTL can lapse under a long statement
@@ -48,6 +49,15 @@ not the size of the table. A tick that consumed nothing only stamps the
 watermark. A tick whose consumed keys pass a cap (50,000 identifiers, or half
 of the stored winners) runs the full rebuild in the same transaction instead,
 and records its sample under `path="full"`.
+
+One keyed tick is chunk-bounded (#9805): it admits the oldest 5,000 dirty-log
+rows as candidates, probes at most 200 post-expansion identifiers, then deletes
+exactly the rows it applied. A tick that stopped at the bound leaves the rest
+queued, stamps no watermark, and counts
+`eshu_dp_supply_chain_impact_winners_chunked_ticks_total`, so a backlog drains
+as short spaced ticks, never one long transaction. The span and the commit log
+line carry `bounded`, `remaining`, `chunk_identifiers` and `chunk_kept_rows`
+for the chunk the tick probed and kept.
 
 An audit runs beside the keyed ticks every
 `ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_AUDIT_INTERVAL` (default 10 minutes; `0`
@@ -132,9 +142,10 @@ and `sub_signal_rekey_rows_tombstoned`.
 | Signal | Type | Labels | What it tells you |
 | --- | --- | --- | --- |
 | `eshu_dp_supply_chain_impact_winners_resweep_duration_seconds` | histogram | `path` | Wall time of one committed resweep statement. `path` is `full` (startup, or a keyed tick the cap sent to the full rebuild), `keyed` or `audit` (the full-recompute read). The full recompute is O(findings); a keyed tick follows the changed keys. A failed or skipped resweep records no sample. |
-| `eshu_dp_supply_chain_impact_winners_tick_phase_duration_seconds` | histogram | `phase` | Wall time of each phase of one keyed tick (#9975), so a slow `keyed` duration reads as a slow read or a slow write. `phase` is `claim` (transaction begin and the resweep try-lock), `consume` (the dirty-log `DELETE ... RETURNING` and its tally), `build_idents` (the identifier set, its `ANALYZE` and the cap check), `build_active_facts` (the keyed active-facts temp table, which is the probe into `fact_records`, plus the operator facts and its `ANALYZE`), `apply` (the winner select and row writes), `full_rebuild` (the whole-table rebuild a tick ran instead of `build_active_facts` and `apply` because it went over the cap), `stamp` (the watermark stamp of a tick that consumed nothing) and `commit`. A tick records one sample per phase it ran, so a quiet tick records `claim`, `consume`, `stamp` and `commit`, and a tick that lost the lock records only `claim`. A phase whose statement failed still records the time it spent, which `resweep_duration_seconds` does not. Buckets are the resweep buckets (0.05 to 300 s), so a phase under 50 ms reads as the first bucket. |
+| `eshu_dp_supply_chain_impact_winners_tick_phase_duration_seconds` | histogram | `phase` | Wall time of each phase of one keyed tick (#9975), so a slow `keyed` duration reads as a slow read or a slow write. `phase` is `claim` (transaction begin and the resweep try-lock), `consume` (admitting the oldest dirty-log window into the consumed temp table), `build_idents` (the identifier set, its `ANALYZE` and the cap check), `build_active_facts` (the identifier chunk, the keyed active-facts temp table, which is the probe into `fact_records`, plus the operator facts and its `ANALYZE`), `apply` (deleting exactly the admitted rows the chunk applied with their per-source tally, plus the winner select and row writes), `full_rebuild` (the whole-table rebuild a tick ran instead of `build_active_facts` and `apply` because it went over the cap), `stamp` (the watermark stamp of a tick that consumed nothing) and `commit`. A tick records one sample per phase it ran, so a quiet tick records `claim`, `consume`, `stamp` and `commit`, and a tick that lost the lock records only `claim`. A phase whose statement failed still records the time it spent, which `resweep_duration_seconds` does not. Buckets are the resweep buckets (0.05 to 300 s), so a phase under 50 ms reads as the first bucket. |
 | `eshu_dp_supply_chain_impact_winners_keys_per_sweep` | histogram | none | Canonical keys one keyed tick recomputed. A value near the cap is the warning before a tick falls back to the full rebuild. |
 | `eshu_dp_supply_chain_impact_winners_identifiers_consumed_total` | counter | none | Dirty-log rows keyed ticks consumed. |
+| `eshu_dp_supply_chain_impact_winners_chunked_ticks_total` | counter | none | Keyed ticks that stopped at the identifier chunk bound with dirty rows still queued, so committed their chunk without stamping the watermark. A rising counter with a falling dirty-log depth is a backlog draining in bounded ticks; a rising counter with a flat or climbing depth means arrivals outpace the bound. |
 | `eshu_dp_supply_chain_impact_winners_capture_rows_total` | counter | `source` | Dirty-log rows appended, by capture source: `fact_upsert`, `fact_retract`, `activation`, `operator`, `scanner` or `audit`. The impact writer counts `fact_upsert` and `fact_retract` from the capturing statements' row counts, but only after its transaction commits: a rolled-back attempt, or a commit that fails, adds nothing, so those two sources match the log rows that exist, apart from a commit whose outcome is unknown (a connection lost after the server applied it), which leaves its rows uncounted. Database triggers write `activation`, `operator` and `scanner` rows and cannot emit a metric, so the maintainer counts those when its keyed tick consumes them. `audit` is counted when the audit queues a repair. A source that goes flat while its writes continue is a capture path that stopped. The scope-delete trigger writes its rows as `activation` (or `operator` for the suppression scope), the same sources as a pointer move, so a stopped delete capture does not show as a flat source: the `fact` rows it writes are the only difference. |
 | `eshu_dp_supply_chain_impact_winners_backstop_repairs_total` | counter | none | Stale keys the audit found and queued. Steady state is zero. Any rate means some change left no dirty-log row. |
 | `eshu_dp_supply_chain_impact_winners_audit_skipped_total` | counter | none | Audits that found candidate stale keys but could not take the resweep lock, so verified nothing and queued nothing. A skipped audit is the backstop missing a run, not a failure. Alert on a streak: no `path="audit"` sample in `eshu_dp_supply_chain_impact_winners_resweep_duration_seconds` while this counter rises, for example `sum(increase(eshu_dp_supply_chain_impact_winners_audit_skipped_total[1h])) >= 3` at the default 10 minute interval, means the audit keeps losing the lock and has not verified its candidates for a while. Sum across reducer pods, because the audit lease can move between them. One skip is expected and harmless. `increase()` does not count the first increment of a series that did not exist yet. An audit that read no candidates returns early and neither skips nor counts here. |
@@ -214,6 +225,13 @@ No label carries a canonical key, scope, repository, or CVE.
   tick passed the cap and fell back. Read `keys_per_sweep` to see how many keys
   it held, and check what wrote that many changes at once (for example a mass
   re-ingest or a retirement purge).
+- A rising `eshu_dp_supply_chain_impact_winners_chunked_ticks_total` with a
+  falling `dirty_log_depth` is a backlog draining in bounded ticks: healthy. A
+  rising chunked-ticks counter with a flat or climbing depth means arrivals
+  outpace the 200-identifier bound; admit fewer changes per tick or raise the
+  bound, do not chase a faster tick. A bounded tick stamps no watermark, so the
+  watermark age keeps climbing until the drain finishes; while the depth falls,
+  that climb is the drain, not a stall.
 - During a mixed-version rollout, an older reducer pod does not capture the
   impact writer's own changes (`fact_upsert`, `fact_retract`), while the
   database triggers still capture pointer, delete and scanner changes. A winner
