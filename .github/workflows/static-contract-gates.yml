@@ -203,7 +203,7 @@ jobs:
     timeout-minutes: ${{ matrix.timeout }}
     runs-on: ubuntu-24.04
     defaults: {run: {shell: bash}}
-    container: ghcr.io/eshu-hq/ci-tools@sha256:9a1d81d6f17544e0ec12d77c3fdda1b2e6f0f0d125dcc88f03a0ab9ba1212b0d
+    container: ghcr.io/eshu-hq/ci-tools@sha256:5bd016995aa47cb5c292b99e2354b235fc5f5883882f14fadf31535579beda50
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.changes.outputs.matrix) }}

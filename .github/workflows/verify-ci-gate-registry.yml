@@ -45,13 +45,10 @@ jobs:
     # Go 1.26.11 and ripgrep come from the pinned image (GOTOOLCHAIN=local
     # fails a go.mod toolchain bump until the image is rebuilt): no setup-go
     # or apt install. The recipe additionally bakes the go/ module seed,
-    # but this pin predates that layer, so the offline probe below is
-    # expected to miss and the retry script is the live path — recipe plus
-    # fallback, not image-provided. Follow-up: rebuild the ci-tools image,
-    # then repin the 5 container sites (sdk-go.yml x3,
-    # verify-ci-gate-registry.yml x2) + ledger digest + test hardcode +
-    # inventories.
-    container: ghcr.io/eshu-hq/ci-tools@sha256:9a1d81d6f17544e0ec12d77c3fdda1b2e6f0f0d125dcc88f03a0ab9ba1212b0d
+    # and this pin carries that layer, so the offline probe below is
+    # expected to pass; the retry script stays as the fallback path.
+    # Repinned with the seed index for #10594.
+    container: ghcr.io/eshu-hq/ci-tools@sha256:5bd016995aa47cb5c292b99e2354b235fc5f5883882f14fadf31535579beda50
     env:
       GOTOOLCHAIN: local
       GOCACHE: /tmp/eshu-ci/go-build
@@ -61,8 +58,7 @@ jobs:
         uses: actions/checkout@v5
 
       # The recipe's seed covers the go/ module, so the probe below proves
-      # the cache with no network once the repin noted above lands. Until
-      # then (this pin predates the seed; any later go.sum drift) the
+      # the cache with no network. On any later go.sum drift the
       # fallback downloads with retries so a dropped proxy stream fails
       # THERE, named for what it is, instead of surfacing as a
       # registry-drift failure that never compiled anything (#6615
@@ -103,9 +99,9 @@ jobs:
     timeout-minutes: 15
     runs-on: ubuntu-24.04
     needs: [test-verify]
-    # Same tooling as test-verify above (pinned image + retry-script live
-    # path until the seed repin noted there): no setup-go or apt install.
-    container: ghcr.io/eshu-hq/ci-tools@sha256:9a1d81d6f17544e0ec12d77c3fdda1b2e6f0f0d125dcc88f03a0ab9ba1212b0d
+    # Same tooling as test-verify above (seeded image; retry script stays
+    # fallback for go.sum drift): no setup-go or apt install.
+    container: ghcr.io/eshu-hq/ci-tools@sha256:5bd016995aa47cb5c292b99e2354b235fc5f5883882f14fadf31535579beda50
     env:
       GOTOOLCHAIN: local
       GOCACHE: /tmp/eshu-ci/go-build
@@ -114,8 +110,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
 
-      # Same seed probe + retry-script live path as test-verify above (the
-      # probe misses until the repin; the retry script carries downloads).
+      # Same seed probe + retry-script fallback as test-verify above (the
+      # probe is expected to pass; the retry script carries downloads on
+      # a seed miss).
       - name: Probe baked module seed (offline)
         id: seed
         continue-on-error: true
