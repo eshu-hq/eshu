@@ -40,10 +40,15 @@ lane (its probe count is bounded by rows scanned to the first match).
 - Fixture: 12,401-row backlog (6,000 two-row keys + 200 live-held keys),
   `ANALYZE`d (production autovacuum keeps stats on this hot table).
 
-## Performance Evidence
+## Performance Evidence:
 
 Paired same-fixture, same-binary-lineage before/after (only the query
-constant differs; two identically seeded disposable databases):
+constant differs; two identically seeded disposable databases).
+Baseline: pre-change shipped `claimReducerWorkBatchQuery` at base commit
+`8a65cd0369`. Backend: PostgreSQL 18.6 (local Ubuntu cluster, Go pgx
+stdlib). Input shape: 12,401-row backlog (6,000 two-row keys + 200
+live-held keys), `ANALYZE`d, batch limit 8. Terminal counts: 160 rows
+admitted per 20-round replay on both sides:
 
 - Derived-candidate `EXPLAIN (ANALYZE, BUFFERS)` x3 in rollback:
   BEFORE 94.634 / 94.348 / 94.968 ms with 6200 per-row probes on
@@ -87,7 +92,7 @@ coordinator's live gate.
   `FROM fact_work_items AS inflight`; chain/funnel verbatim-source
   guards still green (single-claim query untouched by construction).
 
-## Observability Evidence
+## Observability Evidence:
 
 No new signals. The before/after is carried by the existing per-batch
 `QueueClaimDuration` histogram (`go/internal/reducer/service_batch.go`)
