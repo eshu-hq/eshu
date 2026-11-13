@@ -36,8 +36,8 @@ class ScheduledRunnerTest(unittest.TestCase):
     def test_ack_family_integration_requires_ack_stream(self) -> None:
         """The combined enrollment keeps ACK in the hosted proof bundle."""
         inventory = MODULE.load_inventory()
-        self.assertEqual(len(inventory), 142)
-        self.assertEqual(sum(len(row["tests"]) for row in inventory.values()), 295)
+        self.assertEqual(len(inventory), 143)
+        self.assertEqual(sum(len(row["tests"]) for row in inventory.values()), 297)
         self.assertIn("ack_family", MODULE.PACKAGES)
         self.assertEqual(
             sum(row["group"] == "ack_family" for row in inventory.values()), 22
@@ -46,8 +46,8 @@ class ScheduledRunnerTest(unittest.TestCase):
 
     def test_committed_inventory_and_workflow(self) -> None:
         inventory = MODULE.load_inventory()
-        self.assertEqual(len(inventory), 142)
-        self.assertEqual(sum(len(row["tests"]) for row in inventory.values()), 295)
+        self.assertEqual(len(inventory), 143)
+        self.assertEqual(sum(len(row["tests"]) for row in inventory.values()), 297)
         self.assertNotIn(
             "go/internal/query/code_topic_parallel_guarded_live_test.go", inventory
         )
@@ -57,7 +57,7 @@ class ScheduledRunnerTest(unittest.TestCase):
             ("reachability", 1, 6),
             ("secret_lines", 10, 30),
             ("crossplane", 5, 9),
-            ("infra_inventory", 19, 32),
+            ("infra_inventory", 20, 34),
             ("disposable_gate", 1, 1),
             ("disposable_query", 9, 9),
             ("disposable_storage", 5, 8),
