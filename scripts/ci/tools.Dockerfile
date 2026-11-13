@@ -25,6 +25,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 ARG GO_VERSION=1.26.11
+ARG GOVULNCHECK_VERSION=v1.9.0
+ARG GOVULNCHECK_HASH=h1:12VaqnI9kJfqwRoPptxoqsUhQtdfrSbdksT7X/KY/sc=
+ARG GOVULNCHECK_LICENSE_SHA256=911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad
+ARG GOSEC_VERSION=v2.27.1
+ARG GOSEC_HASH=h1:bg4lZnpCCpC8e5l0K+ADF5gG91jmT2LQgOcOflwBfJI=
+ARG GOSEC_LICENSE_SHA256=2be0a81f30d2b73cb3b5182b969175245042158735fcc8af133929212c772e78
 ARG RIPGREP_VERSION=15.2.0
 # Minimum supported yq is 4.44.3 (#8397): the oldest release the gate scripts'
 # strenv(TAB) rows are proven on (4.44.3/4.49.2/4.54.1). CI runs the pin below.
@@ -89,6 +95,62 @@ RUN set -eux; \
       "${GO_VERSION}" "${go_sha}" "${YQ_VERSION}" "${yq_sha}" \
       "${RIPGREP_VERSION}" "${rg_sha}" "${DOCKER_VERSION}" "${docker_sha}" \
       "${COMPOSE_VERSION}" "${compose_sha}" > /usr/local/share/ci-tools/downloads.tsv
+
+# Warm Go module cache plus pinned scanner binaries. Unlike the tarball
+# downloads above, `go install` builds from source, so one version pin covers
+# both architectures with no per-arch SHA; the module zip is verified against
+# the checksum database at install time and the h1 hashes recorded below are
+# inventory, matching the downloads.tsv convention.
+#
+# The build context must supply the go.mod/go.sum the seed covers (see
+# tools.README.md for the staging recipe). They are manifests, not Eshu
+# source: only provenance copies stay in the image, so operators can tell
+# which go.sum the seed was built from. sdk/go.mod does not exist (the SDK
+# modules live at sdk/go/collector, sdk/go/apicontract, and
+# sdk/go/factschema, each with its own dependency graph), so the seed covers
+# the go/ app module only; lanes for other modules keep their retry-script
+# fallback. GOTOOLCHAIN=local fails the build if a go.mod ever moves past
+# the baked Go instead of silently fetching a newer toolchain.
+#
+# Scanner versions. govulncheck v1.9.0 is the newest release verified to
+# install and run (2026-11-12: installs clean, `-version` reports the pin,
+# `-mode query` still emits protocol_version v1.x, which
+# scripts/ci/govulncheck-replace-recheck.sh requires). Pinning it here bakes
+# the pin for a future lane conversion: security-scan.yml still installs
+# govulncheck@latest (untouched), so a scanner release can still change that
+# lane's results until the conversion. gosec stays at v2.27.1, the pin
+# security-scan.yml already runs: eshu-security-scan-gates records >= v2.27.1
+# as the Go 1.26 SSA-recovery floor, and matching the consuming lane's pin is
+# what will make the baked binary provably cover that lane once converted.
+COPY go.mod go.sum /tmp/modsrc/
+ENV GOMODCACHE=/opt/ci-go-mod \
+    GOPROXY=file:///opt/ci-go-mod/cache/download,https://proxy.golang.org,direct
+RUN set -eux; \
+    mkdir -p "${GOMODCACHE}"; \
+    cd /tmp/modsrc; \
+    install -m 0644 go.mod /usr/local/share/ci-tools/seed-go.mod; \
+    install -m 0644 go.sum /usr/local/share/ci-tools/seed-go.sum; \
+    GOTOOLCHAIN=local go mod download; \
+    GOBIN=/usr/local/bin GOTOOLCHAIN=local go install "golang.org/x/vuln/cmd/govulncheck@${GOVULNCHECK_VERSION}"; \
+    GOBIN=/usr/local/bin GOTOOLCHAIN=local go install "github.com/securego/gosec/v2/cmd/gosec@${GOSEC_VERSION}"; \
+    test "$(cat "${GOMODCACHE}/cache/download/golang.org/x/vuln/@v/${GOVULNCHECK_VERSION}.ziphash")" = "${GOVULNCHECK_HASH}"; \
+    test "$(cat "${GOMODCACHE}/cache/download/github.com/securego/gosec/v2/@v/${GOSEC_VERSION}.ziphash")" = "${GOSEC_HASH}"; \
+    vuln_mod="${GOMODCACHE}/golang.org/x/vuln@${GOVULNCHECK_VERSION}"; \
+    gosec_mod="${GOMODCACHE}/github.com/securego/gosec/v2@${GOSEC_VERSION}"; \
+    echo "${GOVULNCHECK_LICENSE_SHA256}  ${vuln_mod}/LICENSE" | sha256sum -c -; \
+    install -m 0644 "${vuln_mod}/LICENSE" /usr/local/share/licenses/ci-tools/govulncheck.LICENSE; \
+    echo "${GOSEC_LICENSE_SHA256}  ${gosec_mod}/LICENSE.txt" | sha256sum -c -; \
+    install -m 0644 "${gosec_mod}/LICENSE.txt" /usr/local/share/licenses/ci-tools/gosec.LICENSE; \
+    printf 'govulncheck\t%s\t%s\ngosec\t%s\t%s\n' \
+      "${GOVULNCHECK_VERSION}" "${GOVULNCHECK_HASH}" \
+      "${GOSEC_VERSION}" "${GOSEC_HASH}" >> /usr/local/share/ci-tools/downloads.tsv; \
+    chmod -R a+rX "${GOMODCACHE}"; \
+    rm -rf /tmp/modsrc
+
+# GOPROXY above resolves modules from the baked seed first: a lane whose
+# go.sum the seed covers compiles with no network, and anything newer falls
+# through to the proxy. GOMODCACHE stays overridable per job; the static gate
+# keeps pointing it at /tmp/eshu-ci.
 
 # The digest plus package inventory is captured by the publishing workflow.
 # The image contains tooling only; source is mounted by Actions at execution.

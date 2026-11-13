@@ -56,11 +56,29 @@ docker run --rm --platform "${platform}" \
     docker compose version
     test -s /usr/local/share/ci-tools/packages.tsv
     test -s /usr/local/share/ci-tools/downloads.tsv
-    for license in /usr/local/go/LICENSE /usr/local/share/licenses/ci-tools/{ripgrep,yq,docker-cli,docker-compose}.LICENSE; do
+    for license in /usr/local/go/LICENSE /usr/local/share/licenses/ci-tools/{ripgrep,yq,docker-cli,docker-compose,govulncheck,gosec}.LICENSE; do
       test -s "${license}"
     done
     mkdir -p "${GOCACHE}" "${GOMODCACHE}"
     test -w "${GOCACHE}" && test -w "${GOMODCACHE}"
+    # Baked module seed and scanner pins. The image carries a warm module
+    # cache built from the go.mod/go.sum that were current at build time
+    # (provenance copies under /usr/local/share/ci-tools), plus pinned
+    # govulncheck and gosec binaries. A go.sum bump after the image build
+    # fails the offline verify below until the image is rebuilt, instead of
+    # surfacing later as a confusing compile error.
+    test -s /usr/local/share/ci-tools/seed-go.sum
+    test -d /opt/ci-go-mod/cache/download
+    (
+      cd /workspace/go
+      GOPROXY=off GOMODCACHE=/opt/ci-go-mod GOFLAGS=-mod=readonly go mod verify
+      GOPROXY=off GOMODCACHE=/opt/ci-go-mod GOFLAGS=-mod=readonly go build ./internal/content/shape
+    )
+    command -v govulncheck
+    command -v gosec
+    govulncheck -version 2>/dev/null | rg -q '^Scanner: govulncheck@v1\.9\.0$'
+    rg -q '^govulncheck[[:blank:]]v1[.]9[.]0[[:blank:]]' /usr/local/share/ci-tools/downloads.tsv
+    rg -q '^gosec[[:blank:]]v2[.]27[.]1[[:blank:]]' /usr/local/share/ci-tools/downloads.tsv
     cd go
     go test ./internal/content/shape -run TestContentEntityBucketsMatchCollectorTwin -count=1
     go test -race ./internal/ifa/saturation/ -run "^Test" -count=1

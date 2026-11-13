@@ -22,6 +22,37 @@ def workflow() -> dict[str, object]:
     return json.loads(rendered)
 
 
+# Workflows that joined the tools image after static-contract-gates.yml.
+# The ledger repin checklist is: these 5 container sites + ledger digest +
+# test hardcode + per-platform inventories.
+NEW_PIN_WORKFLOWS = (
+    "sdk-go.yml",
+    "verify-ci-gate-registry.yml",
+)
+
+NEW_PIN_JOBS = {
+    "sdk-go.yml#sdk-go-collector",
+    "sdk-go.yml#sdk-go-apicontract",
+    "sdk-go.yml#sdk-go-factschema",
+    "verify-ci-gate-registry.yml#test-verify",
+    "verify-ci-gate-registry.yml#verify",
+}
+
+
+def new_pin_containers() -> dict[str, str]:
+    """Map workflow#job to its container pin for the repinned workflows."""
+    out = {}
+    for name in NEW_PIN_WORKFLOWS:
+        path = ROOT / ".github/workflows" / name
+        doc = json.loads(
+            subprocess.check_output(["yq", "-o=json", ".", str(path)], text=True)
+        )
+        for job, spec in doc["jobs"].items():
+            if "container" in spec:
+                out[f"{name}#{job}"] = spec["container"]
+    return out
+
+
 class ToolsWorkflowTest(unittest.TestCase):
     """Pin tools and preserve blocking gate selection semantics."""
 
@@ -45,6 +76,16 @@ class ToolsWorkflowTest(unittest.TestCase):
             gate["container"],
             tools["destination"] + "@" + tools["digest"],
         )
+
+    def test_new_container_pins_match_ledger(self) -> None:
+        """The sdk-go/verify repin sites track the ledger tools pin."""
+        ledger = json.loads(LEDGER.read_text(encoding="utf-8"))
+        tools = ledger["tools"]
+        pin = tools["destination"] + "@" + tools["digest"]
+        containers = new_pin_containers()
+        self.assertEqual(set(containers), NEW_PIN_JOBS)
+        for key, container in containers.items():
+            self.assertEqual(container, pin, key)
 
     def test_selected_jobs_get_tools_and_idle_jobs_do_not(self) -> None:
         """The container expression must select only jobs that run tests."""
