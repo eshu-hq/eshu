@@ -302,7 +302,7 @@ exit 0):
 
 | Proof | Result |
 |---|---|
-| F1 chunk cycle raced with a Write, 20 rounds | RED on the RED commit (20 deadlocks), now 0 deadlocks, exactly 3 bumps per round |
+| F1 chunk cycle raced with a Write, 20 rounds | RED on the RED commit (20 deadlocks), now 0 deadlocks, 5 bumps per round (2 write + 1 prune + 2 predrain, #10020 drain-then-admit) |
 | F1 SQL two-statement transaction vs an autocommit DELETE, 10 rounds | RED on the RED commit, now 0 deadlocks, 2 bumps per round |
 | Arm 6 churn | full 10, delta 2, reap 4, bulk 1, prune 1 per repository; a seeded per-row fence fails the counts |
 | Arm 7 cases 1a and 1b, 20 rounds each, a held middle version row forcing overlap | 0 deadlocks, exact bumps; a seeded row-level fence deadlocks |

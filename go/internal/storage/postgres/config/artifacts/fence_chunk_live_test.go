@@ -63,7 +63,9 @@ WHERE datname = current_database() AND wait_event_type = 'Lock'
 // generation (80 file facts, BatchRowLimit 50, so the pass drains one 50-fact
 // page) and a normal superseded generation of another scope on the same
 // repository (10 file facts), plus one planted reference row on a normal key
-// that the test holds to park retention between its two content DELETEs.
+// that the test holds to park retention at its single in-transaction
+// content_files DELETE (the 80-fact over-limit target pre-drains in 2
+// committed batches before Begin).
 func chunkRoundFixture(ctx context.Context, t *testing.T, db *sql.DB, round int) (repo, holdPath string) {
 	t.Helper()
 	repo = fmt.Sprintf("repo-chunk-%02d", round)
