@@ -386,10 +386,10 @@ fields. Magnitudes ride result sub-signals — log fields on the existing
 reducer success line, following the `fanout_*` pattern — and the outcome
 rides the new counter's closed label, never a group, CVE, or advisory id.
 
-No-Regression Evidence (#10564 chunk 25 to 5, committed measurements in
+No-Regression Evidence: #10564 chunk 25 to 5; committed measurements in
 `docs/internal/evidence/10564-chunk5-production.md` with raw EXPLAIN in
-`10564-chunk5-explain-25id.txt` / `10564-chunk5-explain-5id.txt`):
-production hot scopes match
+`10564-chunk5-explain-25id.txt` / `10564-chunk5-explain-5id.txt`.
+Production hot scopes match
 about 138k finding rows per 25-id chunk (6.44 s cold, 72% I/O read over a
 193 GB heap with 4 GB shared buffers) and breached the 10 s guard three
 times post-deploy; the hottest 5 ids measured 810.8 ms, so 5-id statements
