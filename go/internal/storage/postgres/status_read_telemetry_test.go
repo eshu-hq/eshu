@@ -256,6 +256,48 @@ func statusReadOutcomes(t *testing.T, reader *sdkmetric.ManualReader) map[string
 	return outcomes
 }
 
+// TestRecordReadSetsPerLegSpanDuration guards the #10601 recurrence signal:
+// every status snapshot read records its own duration on the active
+// postgres.status_snapshot span, so a slow leg attributes instantly in traces
+// without waiting for the metric scrape. The attribute key is
+// status.snapshot.read.<label> in seconds; the label set stays the closed
+// read-label set so cardinality is bounded.
+func TestRecordReadSetsPerLegSpanDuration(t *testing.T) {
+	t.Parallel()
+
+	recorder := tracetest.NewSpanRecorder()
+	tracer := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder)).Tracer("test")
+	ctx, span := tracer.Start(context.Background(), "postgres.status_snapshot")
+	store := NewStatusStore(&fakeQueryer{})
+	q, done := store.read(ctx, statusReadCollectorFactEvidence)
+	if _, err := q.QueryContext(ctx, collectorFactEvidenceQuery); err != nil {
+		t.Fatalf("QueryContext() error = %v", err)
+	}
+	if err := done(nil); err != nil {
+		t.Fatalf("done() error = %v", err)
+	}
+	span.End()
+
+	spans := recorder.Ended()
+	if len(spans) != 1 {
+		t.Fatalf("ended spans = %d, want 1", len(spans))
+	}
+	var seconds float64
+	found := false
+	for _, attr := range spans[0].Attributes() {
+		if string(attr.Key) == "status.snapshot.read.collector_fact_evidence" {
+			seconds = attr.Value.AsFloat64()
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("snapshot span attributes = %v, want status.snapshot.read.collector_fact_evidence", spans[0].Attributes())
+	}
+	if seconds < 0 {
+		t.Fatalf("leg duration seconds = %v, want >= 0", seconds)
+	}
+}
+
 func TestSkippedTerraformStatusReadEmitsNoTerraformPhase(t *testing.T) {
 	t.Parallel()
 	reader := sdkmetric.NewManualReader()

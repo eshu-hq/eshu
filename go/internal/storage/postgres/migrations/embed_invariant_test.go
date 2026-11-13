@@ -251,14 +251,16 @@ import (
 // one CREATE INDEX CONCURRENTLY). 293 went to #10544's package-lookup
 // retirement, which rolled first, so this lane takes 294. #10566 adds
 // 295_advisory_groups_synthetic_scope.sql (the synthetic advisory-groups
-// scope seed for coalesced advisory-group projection rows).
-const goldenBootstrapDefinitionsDigest = "fdff96dd0daffbf6e71418a29043f84b63021382271a4876ee1a9bc0600a874f"
+// scope seed for coalesced advisory-group projection rows); #10601
+// (reopened) adds 296_collector_evidence_summary_instance_id.sql (the
+// resweep-maintained collector-instance identity column).
+const goldenBootstrapDefinitionsDigest = "f50b78fa82d95cf2e08d71b6976a635e263dd0668ec5b7f74b7696cd5051f1a1"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or
 // silently dropping files) fails loudly even in the unlikely case of a hash
 // collision.
-const goldenBootstrapDefinitionsCount = 321
+const goldenBootstrapDefinitionsCount = 322
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
 	defs := BootstrapDefinitions()

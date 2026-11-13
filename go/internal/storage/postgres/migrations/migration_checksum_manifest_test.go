@@ -378,6 +378,9 @@ var migrationShippedChecksums = map[string]string{
 	"294_fact_work_items_generation_idx.sql": "2ba56e7a4dec8240a10dff5dd06b3bda6871ec51463cc03526b875fbae1b89f6",
 	// #10566: the synthetic advisory-groups scope seed (migration 295).
 	"295_advisory_groups_synthetic_scope.sql": "f6f85c0171747797b524e0257d72581083f14b347779e7c8f49bbf8e4c073b72",
+	// #10601 (reopened): the resweep-maintained collector-instance identity
+	// column on the collector evidence summary (migration 296).
+	"296_collector_evidence_summary_instance_id.sql": "c73898391b889bf378000a241cbf1aa8f692eb521f898586dc5a80a578600e88",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition

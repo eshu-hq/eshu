@@ -206,3 +206,33 @@ same fields, exact `observation_count`. No `http-api.md` / `openapi*.go` change.
 - resweep duration measurement on the live stack
 - IP-free (eshu repo is PUBLIC)
 ```
+
+## Addendum: #10601 (reopened) moves the instance identity into the resweep
+
+The first #10601 fix kept a per-scope `LEFT JOIN LATERAL ... LIMIT 1` over
+`workflow_work_items` in the snapshot read (one indexed probe per active
+scope). At 6139 active scopes that leg still cost ~4.1s cold / ~1.1s warm —
+79% of the snapshot budget — so the leg moved into the resweep too,
+following this same precedent:
+
+- Migration 296 adds `collector_evidence_summary.collector_instance_id`
+  (`TEXT NOT NULL DEFAULT ''`). The grain primary key is unchanged; the
+  instance is a non-key attribute, so an instance change on an unchanged
+  scope upserts in place. The `''` default keeps the read shape-identical
+  from the migration forward; the startup backfill plus the 60s cadence
+  reconciles every row within one cadence.
+- The resweep's `computed` CTE gains the same DISTINCT ON leg (newest
+  non-blank instance by `updated_at DESC, work_item_id ASC`) as a second
+  per-scope `LEFT JOIN LATERAL`, normalized with the same
+  `COALESCE(NULLIF(BTRIM(...)), '')` expression the read used.
+- The snapshot read groups by `summary.collector_instance_id` and references
+  no `workflow_work_items` and no `fact_records`.
+
+The staleness-verdict margin is unchanged: the summary still stores the real
+fact timestamps (not materialization time), so only recency can lag by one
+cadence — instance attribution included — and the 1440x margin still holds.
+The generation lag guard (`active_scopes` join) behaves exactly as before.
+Proof: the differential
+`TestCollectorFactEvidenceSummaryReadMatchesLateralLive` (resweep-then-read
+vs derived lateral oracle, empty diff) and the fixture before/after in
+`go/internal/storage/postgres/evidence-10601-leg1-summary-read.md`.
