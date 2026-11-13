@@ -1,4 +1,4 @@
-# Evidence — #10630 step-2 claim-latency cut (live-lease fence precompute)
+# Evidence — #10630 step-2 live-lease fence precompute (equivalence refactor with measured buffer-read cut; latency relief projected, live-gated)
 
 ## What changed
 
@@ -63,18 +63,21 @@ admitted per 20-round replay on both sides:
   p95 79.924 ms, 160 admitted, 106.38 items/s; AFTER p50 147.633 ms /
   p95 167.896 ms, 160 admitted, 54.82 items/s.
 
-The hotter-fixture AFTER number is a cache artifact, not a production
-regression: the BEFORE cost is buffer-bound (6,200 random heap probes —
-microseconds hot, ~0.5 ms cold each per probe B: 95%+ of the 2.6–2.8 s
-live claim), while the AFTER cost is CPU-bound (one 200-row index scan
-plus ~1.2 M in-memory comparisons, ~130 ms measured, zero buffer
-dependence). The shared `base`/reps/lock/claim cost cancels in the
-comparison, so the production projection is: fence term 2.5 s → ≤ 0.3 s
-at the measured live-key scale (linear in representatives × live keys;
-safe for any plausible live set — the cliff needs >10 k simultaneous
-live leases, impossible under 8 workers × 1-minute leases), full claim
-2.6–2.8 s → ~0.4–0.6 s. Sustained-window live proof stays with the
-coordinator's live gate.
+Paired buffer touches fall 32,551 → 19,966 on the same fixture — the
+measured win. Paired latency does NOT favor AFTER on cache-resident
+data: timed ClaimBatch BEFORE p50 74.5 ms vs AFTER 147.6 ms (hot), and a
+cold paired run (fresh container per side, restart between seed and run,
+DISCARD PLANS, 3 rounds) gives BEFORE ~111 ms vs AFTER ~229 ms. The
+BEFORE cost is buffer-bound (6,200 random heap probes — microseconds hot,
+~0.5 ms cold each per probe B: 95%+ of the 2.6–2.8 s live claim), while
+the AFTER cost is CPU-bound (one 200-row index scan plus ~1.2 M
+in-memory comparisons, zero buffer dependence). On production-cold heaps
+the buffer term dominates, so latency relief is projected, not proven
+here: fence term 2.5 s → ≤ 0.3 s at the measured live-key scale (linear
+in representatives × live keys). Paired live p50/p95 plus items/s with
+two stable reads is the merge gate for the latency claim, owned by
+#10630 acceptance; this change ships as an equivalence refactor with a
+measured buffer-read cut.
 
 ## Correctness Evidence
 
