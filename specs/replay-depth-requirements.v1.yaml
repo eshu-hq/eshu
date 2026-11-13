@@ -339,3 +339,72 @@ exemptions:
       still serve the fact kinds. No in-tree SBOM attestation client
       remains to drive an injected-timeout fault against, so the fault
       axis has nothing in-tree to bound.
+
+  # eshu-hq/eshu#10620: the OCI registry collection boundary moved to the
+  # eshu-hq/eshu-collector-oci-registry satellite. The in-tree producer
+  # (go/cmd/collector-oci-registry,
+  # go/internal/collector/registry/oci) and its injected-timeout fault
+  # case are deleted, and the coordinator
+  # (go/internal/coordinator/oci/registry) plans work without resolving
+  # credentials or contacting the registries, so no in-tree network
+  # boundary remains for a fault scenario to bound. Baseline replay still
+  # covers the surface
+  # (testdata/cassettes/ociregistry/supply-chain-demo.json); fault proof
+  # for the collection boundary belongs to the satellite repository.
+  # Remove this exemption only if an in-tree OCI registry collection
+  # boundary returns.
+  - surface: collector:oci_registry
+    scenario_type: fault
+    reason: >-
+      Satellite-owned collection boundary: collection runs from
+      eshu-hq/eshu-collector-oci-registry while the coordinator still
+      plans OCI registry claims and the reducer/query surfaces still
+      serve the fact kinds. No in-tree OCI registry client remains to
+      drive an injected-timeout fault against, so the fault axis has
+      nothing in-tree to bound.
+
+  # eshu-hq/eshu#10620: the package-registry collection boundary moved to
+  # the eshu-hq/eshu-collector-package-registry satellite. The in-tree
+  # producer (go/cmd/collector-package-registry,
+  # go/internal/collector/registry/package) and its injected-timeout
+  # fault case are deleted, and the coordinator
+  # (go/internal/coordinator/registry/package) plans work without
+  # resolving credentials or contacting the registries, so no in-tree
+  # network boundary remains for a fault scenario to bound. Baseline
+  # replay still covers the surface
+  # (testdata/cassettes/packageregistry/supply-chain-demo.json); fault
+  # proof for the collection boundary belongs to the satellite
+  # repository. Remove this exemption only if an in-tree package-registry
+  # collection boundary returns.
+  - surface: collector:package_registry
+    scenario_type: fault
+    reason: >-
+      Satellite-owned collection boundary: collection runs from
+      eshu-hq/eshu-collector-package-registry while the coordinator still
+      plans package-registry claims and the reducer/query surfaces still
+      serve the fact kinds. No in-tree package-registry client remains to
+      drive an injected-timeout fault against, so the fault axis has
+      nothing in-tree to bound.
+
+  # eshu-hq/eshu#10620: the security-alert collection boundary moved to
+  # the eshu-hq/eshu-collector-security-alerts satellite. The in-tree
+  # producer (go/cmd/collector-security-alerts,
+  # go/internal/collector/securityalerts) and its injected-timeout fault
+  # case are deleted, and the coordinator
+  # (go/internal/coordinator/security/alert) plans work without resolving
+  # credentials or contacting the provider, so no in-tree network
+  # boundary remains for a fault scenario to bound. Baseline replay still
+  # covers the surface
+  # (testdata/cassettes/securityalerts/supply-chain-demo.json); fault
+  # proof for the collection boundary belongs to the satellite
+  # repository. Remove this exemption only if an in-tree security-alert
+  # collection boundary returns.
+  - surface: collector:security_alert
+    scenario_type: fault
+    reason: >-
+      Satellite-owned collection boundary: collection runs from
+      eshu-hq/eshu-collector-security-alerts while the coordinator still
+      plans security-alert claims and the reducer/query surfaces still
+      serve the fact kinds. No in-tree security-alert client remains to
+      drive an injected-timeout fault against, so the fault axis has
+      nothing in-tree to bound.

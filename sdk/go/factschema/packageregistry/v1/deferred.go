@@ -36,7 +36,7 @@ package v1
 // "package_registry.source_hint" fact kind (Contract System v1 §3.1).
 //
 // A source hint is provenance-only evidence of a package's declared source
-// repository, homepage, or SCM URL (go/internal/collector/registry/package/source_hint.go
+// repository, homepage, or SCM URL (satellite eshu-hq/eshu-collector-package-registry
 // NewSourceHintEnvelope). The emitter fails closed on a blank package identity,
 // hint_kind, and the raw-or-normalized URL (at least one of raw_url/
 // normalized_url must be non-blank), so package_id and hint_kind are REQUIRED;
@@ -98,7 +98,7 @@ type SourceHint struct {
 // "package_registry.package_artifact" fact kind (Contract System v1 §3.1).
 //
 // An artifact fact records one published binary/source artifact for a package
-// version (go/internal/collector/registry/package/artifact.go
+// version (satellite eshu-hq/eshu-collector-package-registry
 // NewPackageArtifactEnvelope). The emitter fails closed on a blank
 // artifact_key (after deriving package/version identity), so package_id,
 // version_id, and artifact_key are REQUIRED: package_id and version_id are the
@@ -165,7 +165,7 @@ type PackageArtifact struct {
 // "package_registry.vulnerability_hint" fact kind (Contract System v1 §3.1).
 //
 // A vulnerability hint is registry-reported advisory metadata for a package or
-// version (go/internal/collector/registry/package/vulnerability_hint.go
+// version (satellite eshu-hq/eshu-collector-package-registry
 // NewVulnerabilityHintEnvelope). The emitter fails closed on a blank
 // package identity, advisory_id, and advisory_source, so package_id,
 // AdvisoryID, and AdvisorySource are REQUIRED. PackageID's SQL-loader

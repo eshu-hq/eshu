@@ -1,0 +1,47 @@
+# #10620 in-tree OCI-registry, package-registry, and security-alerts
+# deletion: dated records that name the deleted trees as they stood when each
+# note was written. Repointing would falsify the record. Live pointers
+# (coordinator planners, unread store, query reads, SDK decode comments,
+# telemetry rows, live-test manifests, and the surface inventory) are
+# repointed in-tree instead; this fragment covers only the historical
+# inventory, measurement, and decision citations below. The satellites
+# eshu-hq/eshu-collector-oci-registry,
+# eshu-hq/eshu-collector-package-registry, and
+# eshu-hq/eshu-collector-security-alerts are the only collectors for these
+# families; there is no in-tree successor path for these historical
+# citations.
+
+# REMOVAL_PREP.md is a dated importer census for #8875 (Verified at
+# 8ec6d11ddf, re-verified at 5e427b908d and 15caae83c5): it inventories the
+# tree as it stood at those SHAs, including the collector importers this
+# deletion removes. Updating the census is a recount, not a repoint.
+go/cmd/workflow-coordinator/REMOVAL_PREP.md:go/cmd/collector-oci-registry/config.go
+go/cmd/workflow-coordinator/REMOVAL_PREP.md:go/cmd/collector-oci-registry/service.go
+go/cmd/workflow-coordinator/REMOVAL_PREP.md:go/cmd/collector-package-registry/config.go
+go/cmd/workflow-coordinator/REMOVAL_PREP.md:go/cmd/collector-package-registry/service.go
+go/cmd/workflow-coordinator/REMOVAL_PREP.md:go/cmd/collector-security-alerts/config.go
+go/cmd/workflow-coordinator/REMOVAL_PREP.md:go/cmd/collector-security-alerts/service.go
+go/cmd/workflow-coordinator/REMOVAL_PREP.md:go/internal/collector/registry/oci/runtime/claimed_source.go
+go/cmd/workflow-coordinator/REMOVAL_PREP.md:go/internal/collector/registry/package/runtime/source.go
+go/cmd/workflow-coordinator/REMOVAL_PREP.md:go/internal/collector/registry/package/runtime/source_missing_evidence.go
+go/cmd/workflow-coordinator/REMOVAL_PREP.md:go/internal/collector/registry/package/runtime/source_warnings.go
+go/cmd/workflow-coordinator/REMOVAL_PREP.md:go/internal/collector/securityalerts/alertruntime/envelopes.go
+go/cmd/workflow-coordinator/REMOVAL_PREP.md:go/internal/collector/securityalerts/alertruntime/retire.go
+go/cmd/workflow-coordinator/REMOVAL_PREP.md:go/internal/collector/securityalerts/alertruntime/source.go
+# 6695 is a dated move record (base origin/main at effc33a4a0) naming the
+# collector config path as it stood at move time.
+docs/internal/evidence/6695-document-registry-package-move.md:go/cmd/collector-oci-registry/config.go
+# 4786 contract matrix cells name the emitters and helpers at their
+# pre-extraction in-tree paths. There is no in-tree successor path to
+# repoint at -- the emitters now live in the satellites -- so the cells stay
+# as the pre-extraction contract record (same precedent as the
+# vulnerability rows already allowlisted).
+docs/internal/design/4786-contract-integration-matrix.md:go/internal/collector/registry/oci/runtime/source.go
+docs/internal/design/4786-contract-integration-matrix.md:go/internal/collector/registry/oci/warning.go
+docs/internal/design/4786-contract-integration-matrix.md:go/internal/collector/registry/package/envelope.go
+docs/internal/design/4786-contract-integration-matrix.md:go/internal/collector/registry/package/warning.go
+docs/internal/design/4786-contract-integration-matrix.md:go/internal/collector/securityalerts/envelope.go
+# The AWS relationship edge materialization design records the OCI
+# normalization path as it stood when the Lambda join was designed.
+# Supersede rather than edit.
+docs/internal/aws-relationship-edge-materialization-design.md:go/internal/collector/registry/oci/identity.go

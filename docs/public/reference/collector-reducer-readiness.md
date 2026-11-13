@@ -179,11 +179,11 @@ rendered page and bind each collector to its inventory lane.
 
 <!-- collector-state: name=git lane=implemented -->
 <!-- collector-state: name=documentation lane=partial -->
-<!-- collector-state: name=oci_registry lane=partial -->
+<!-- collector-state: name=oci_registry lane=implemented -->
 <!-- collector-state: name=terraform_state lane=partial -->
 <!-- collector-state: name=aws lane=partial -->
 <!-- collector-state: name=webhook lane=partial -->
-<!-- collector-state: name=package_registry lane=partial -->
+<!-- collector-state: name=package_registry lane=implemented -->
 <!-- collector-state: name=sbom_attestation lane=implemented -->
 <!-- collector-state: name=vulnerability_intelligence lane=implemented -->
 <!-- collector-state: name=security_alert lane=partial -->
