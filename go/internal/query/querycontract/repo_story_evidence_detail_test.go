@@ -118,8 +118,14 @@ func repoStoryDetailBody() map[string]any {
 					"linked_entities": []any{map[string]any{"entity_type": "repository"}},
 					"evidence":        map[string]any{"body": "a very long evidence body that must not ship under handles"},
 				}},
-				"finding_count": 1, "related_facts": []map[string]any{},
-				"related_fact_count": 0,
+				"finding_count": 1,
+				"related_facts": []map[string]any{{
+					"fact_id": "fact:runbook-1", "fact_kind": "documentation_fact",
+					"scope_id": "scope:docs", "generation_id": "gen-9",
+					"source_system": "documentation", "observed_at": "2026-01-01T00:00:00Z",
+					"payload": map[string]any{"body": "a very long related-fact payload that must not ship under handles"},
+				}},
+				"related_fact_count": 1,
 				"coverage":           map[string]any{"target_fact_count": 1},
 			},
 		},
@@ -131,8 +137,15 @@ func repoStoryDetailBody() map[string]any {
 					"fact_kind": "pagerduty_service", "scope_id": "scope:1",
 					"payload": map[string]any{"summary": "a long payload body that must not ship under handles"},
 				}},
-				"evidence_count": 1, "ambiguous_evidence": []map[string]any{},
-				"ambiguous_count": 0,
+				"evidence_count": 1,
+				"ambiguous_evidence": []map[string]any{{
+					"link_basis": "incident_routing.pagerduty_service", "fact_id": "fact:ambiguous-1",
+					"fact_kind": "pagerduty_service", "scope_id": "scope:1",
+					"generation_id": "gen-9", "source_system": "incidents",
+					"observed_at": "2026-01-01T00:00:00Z",
+					"payload":     map[string]any{"summary": "a long ambiguous payload body that must not ship under handles"},
+				}},
+				"ambiguous_count": 1,
 				"coverage":        map[string]any{"target_fact_count": 1},
 			},
 		},
@@ -332,6 +345,58 @@ func TestApplyRepoStoryEvidenceDetailHandlesMarksEveryCut(t *testing.T) {
 	drilldown := MapValue(body, "evidence_detail_drilldown")
 	if StringVal(drilldown, "artifact_key") != "resolved_id" {
 		t.Fatalf("evidence_detail_drilldown = %#v, want artifact_key resolved_id", drilldown)
+	}
+}
+
+// TestApplyRepoStoryEvidenceDetailHandlesProjectsRelatedFactsAndAmbiguousEvidence
+// proves the two newest projected families ship populated identity rows with
+// their omission totals: one related-fact row and one ambiguous-evidence row
+// keep their identity keys, keep their lengths, drop their payloads, and
+// record omission sections with the held-row totals.
+func TestApplyRepoStoryEvidenceDetailHandlesProjectsRelatedFactsAndAmbiguousEvidence(t *testing.T) {
+	t.Parallel()
+
+	body := repoStoryDetailBody()
+	omissions := ApplyRepoStoryEvidenceDetail(body, ContextEvidenceDetailHandles)
+	bySection := map[string]TruthOmission{}
+	for _, omission := range omissions {
+		bySection[omission.Section] = omission
+	}
+
+	docs := MapValue(MapValue(body, "documentation_overview"), "target_documentation")
+	facts := MapSliceValue(docs, "related_facts")
+	if len(facts) != 1 {
+		t.Fatalf("related_facts = %d rows, want the populated row kept at the same length", len(facts))
+	}
+	if _, has := facts[0]["payload"]; has {
+		t.Fatalf("related_fact row = %#v, want identity keys only", facts[0])
+	}
+	if StringVal(facts[0], "fact_id") != "fact:runbook-1" {
+		t.Fatalf("related_fact row = %#v, want fact_id kept as the identity key", facts[0])
+	}
+	if got, ok := bySection["documentation_overview.target_documentation.related_facts"]; !ok || got.Detail != ContextEvidenceDetailHandles || got.Total != 1 {
+		t.Fatalf("omission related_facts = %#v (present %v), want detail handles and total 1", got, ok)
+	}
+	if IntVal(docs, "related_fact_count") != 1 {
+		t.Fatal("related_fact_count changed; counts must reflect the full rows")
+	}
+
+	support := MapValue(MapValue(body, "support_overview"), "target_support")
+	ambiguous := MapSliceValue(support, "ambiguous_evidence")
+	if len(ambiguous) != 1 {
+		t.Fatalf("ambiguous_evidence = %d rows, want the populated row kept at the same length", len(ambiguous))
+	}
+	if _, has := ambiguous[0]["payload"]; has {
+		t.Fatalf("ambiguous row = %#v, want identity keys only", ambiguous[0])
+	}
+	if StringVal(ambiguous[0], "fact_id") != "fact:ambiguous-1" {
+		t.Fatalf("ambiguous row = %#v, want fact_id kept as the identity key", ambiguous[0])
+	}
+	if got, ok := bySection["support_overview.target_support.ambiguous_evidence"]; !ok || got.Detail != ContextEvidenceDetailHandles || got.Total != 1 {
+		t.Fatalf("omission ambiguous_evidence = %#v (present %v), want detail handles and total 1", got, ok)
+	}
+	if IntVal(support, "ambiguous_count") != 1 {
+		t.Fatal("ambiguous_count changed; counts must reflect the full rows")
 	}
 }
 
