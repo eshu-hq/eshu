@@ -106,6 +106,23 @@ cannot serve the count read, the route returns `backend_unavailable` with HTTP
 503; if the shared graph-read deadline expires, it returns `backend_timeout`
 with HTTP 504. Both responses use the canonical error envelope.
 
+The route also accepts an optional `name` filter and an optional `projection`
+(#10603):
+
+- `name` is a case-insensitive substring matched against the repository
+  `name` or `repo_slug` before count and page, composing with the caller's
+  access filter on both the graph and content paths. Empty or
+  whitespace-only means absent. Longer than 200 characters answers HTTP 400.
+  With `name` present, `total` counts the filtered set, so omit `name` for
+  the full inventory count.
+- `projection` is `full` (the default on this route) or `compact`.
+  `compact` rows carry exactly `id`, `name`, `repo_slug`, and `index_state`,
+  skip group and selection annotation, and never emit the
+  `repository_group_evidence_missing` reason. The response echoes the served
+  mode in `projection`. A `limit=500` page fits the byte budget under
+  `compact`; under `full` it remains over budget by design. Any other value
+  answers HTTP 400.
+
 Each repository row also carries additive grouping evidence so the Console can
 render repository groups without repository-name rules:
 

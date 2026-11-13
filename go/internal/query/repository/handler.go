@@ -4,10 +4,8 @@
 package repository
 
 import (
-	"context"
 	"fmt"
 	"log/slog"
-	"math"
 	"net/http"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/evidence"
@@ -80,69 +78,6 @@ func (h *Handler) profile() querycontract.QueryProfile {
 	return querycontract.NormalizeQueryProfile(string(h.Profile))
 }
 
-// repositoryCountCypher is the bounded COUNT query used to populate the total
-// field on the repository list response independently of the page size. It runs
-// in a few milliseconds on production-scale graphs because it uses the same
-// Repository node scan that the backing store optimises for label counts.
-const repositoryCountCypher = `MATCH (r:Repository) RETURN count(r) AS total`
-
-// isRepositoryCountCypher reports whether a Cypher string is the bounded count
-// query emitted by queryRepositoryTotal. Test fakes use this to dispatch the
-// count response separately from the page response.
-func isRepositoryCountCypher(cypher string) bool {
-	return cypher == repositoryCountCypher
-}
-
-// queryRepositoryTotal runs a bounded COUNT query and returns the true number
-// of Repository nodes visible to the caller. A failed or malformed count is an
-// error rather than an exact zero because zero is a valid, materially different
-// inventory result.
-func queryRepositoryTotal(ctx context.Context, graph querycontract.GraphQuery, access querycontract.RepositoryAccessFilter) (int, error) {
-	var cypher string
-	var params map[string]any
-	if access.Scoped() {
-		cypher = fmt.Sprintf(
-			`MATCH (r:Repository) %s RETURN count(r) AS total`,
-			access.GraphWhereClause("r"),
-		)
-		params = access.GraphParams(nil)
-	} else {
-		cypher = repositoryCountCypher
-	}
-	row, err := graph.RunSingle(ctx, cypher, params)
-	if err != nil {
-		return 0, fmt.Errorf("repository total: %w", err)
-	}
-	if row == nil {
-		return 0, fmt.Errorf("repository total: count query returned no row")
-	}
-	raw, ok := row["total"]
-	if !ok || raw == nil {
-		return 0, fmt.Errorf("repository total: count query omitted total")
-	}
-	var total int
-	switch value := raw.(type) {
-	case int:
-		total = value
-	case int64:
-		if value > int64(math.MaxInt) {
-			return 0, fmt.Errorf("repository total: count query total exceeds platform integer range")
-		}
-		total = int(value)
-	case float64:
-		if value != math.Trunc(value) || value > float64(math.MaxInt) {
-			return 0, fmt.Errorf("repository total: count query returned non-integer total")
-		}
-		total = int(value)
-	default:
-		return 0, fmt.Errorf("repository total: count query returned unsupported total type %T", raw)
-	}
-	if total < 0 {
-		return 0, fmt.Errorf("repository total: count query returned negative total")
-	}
-	return total, nil
-}
-
 // listRepositories returns a bounded page of indexed repositories. It also
 // serves the inventory (empty-selector) form of get_repository_stats, so the
 // response carries an additive result_limits drilldown block, an explicit
@@ -150,9 +85,15 @@ func queryRepositoryTotal(ctx context.Context, graph querycontract.GraphQuery, a
 // count independent of page size.
 func (h *Handler) listRepositories(w http.ResponseWriter, r *http.Request) {
 	page := readmodel.ListPageFromRequest(r)
+	// The filter guards answer 400 before any read, on every path below.
+	name, projection, ok := parseRepositoryListFilter(w, r)
+	if !ok {
+		return
+	}
+	compact := projection == repositoryListProjectionCompact
 	access := querycontract.RepositoryAccessFilterFromContext(r.Context())
 	if h == nil {
-		querycontract.WriteSuccess(w, r, http.StatusOK, repositoryInventoryResponse([]map[string]any{}, page, false, 0), nil)
+		querycontract.WriteSuccess(w, r, http.StatusOK, repositoryInventoryResponseWithProjection([]map[string]any{}, page, false, 0, projection), nil)
 		return
 	}
 	if h.Neo4j == nil {
@@ -162,27 +103,34 @@ func (h *Handler) listRepositories(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		repos = access.FilterRepositoryMaps(repos)
-		// Capture total before paging so it reflects the full filtered set.
+		repos = filterRepositoryMapsByName(repos, name)
+		// Capture total before paging so it reflects the filtered set.
 		total := len(repos)
 		repos, truncated := readmodel.PageRepositoryMaps(repos, page)
 		var stage listAnnotationStage
-		repos, stage, err = annotateListPageWithSelectionAndRetirement(r.Context(), h.Selections, h.Retirements, repos)
+		if compact {
+			repos, stage, err = annotateListPageCompact(r.Context(), h.Retirements, repos)
+		} else {
+			repos, stage, err = annotateListPageWithSelectionAndRetirement(r.Context(), h.Selections, h.Retirements, repos)
+		}
 		if err != nil {
 			writeReadFailure(w, r, err, "platform_impact.context_overview", stage.failureMessage())
 			return
 		}
-		querycontract.WriteSuccess(w, r, http.StatusOK, repositoryInventoryResponse(repos, page, truncated, total), querycontract.BuildTruthEnvelope(h.profile(), "platform_impact.context_overview", querycontract.TruthBasisContentIndex, "resolved from bounded repository content catalog"))
+		querycontract.WriteSuccess(w, r, http.StatusOK, repositoryInventoryResponseWithProjection(repos, page, truncated, total, projection), querycontract.BuildTruthEnvelope(h.profile(), "platform_impact.context_overview", querycontract.TruthBasisContentIndex, "resolved from bounded repository content catalog"))
 		return
 	}
 	if access.Empty() {
-		querycontract.WriteSuccess(w, r, http.StatusOK, repositoryInventoryResponse([]map[string]any{}, page, false, 0), querycontract.BuildTruthEnvelope(h.profile(), "platform_impact.context_overview", querycontract.TruthBasisAuthoritativeGraph, "resolved from bounded repository graph catalog"))
+		querycontract.WriteSuccess(w, r, http.StatusOK, repositoryInventoryResponseWithProjection([]map[string]any{}, page, false, 0, projection), querycontract.BuildTruthEnvelope(h.profile(), "platform_impact.context_overview", querycontract.TruthBasisAuthoritativeGraph, "resolved from bounded repository graph catalog"))
 		return
 	}
 
 	// Run the total COUNT and the page query. The COUNT is a cheap label scan
 	// that resolves in a few milliseconds; it does not need to be parallelised
-	// with the page query on any graph backend at production scale.
-	total, err := queryRepositoryTotal(r.Context(), h.Neo4j, access)
+	// with the page query on any graph backend at production scale. With a
+	// name filter both carry the same predicate, so total stays exact for
+	// the filtered set.
+	total, err := queryRepositoryTotal(r.Context(), h.Neo4j, access, name)
 	if err != nil {
 		writeReadFailure(w, r, err, "platform_impact.context_overview", repositoryListCountFailedMessage)
 		return
@@ -199,9 +147,9 @@ func (h *Handler) listRepositories(w http.ResponseWriter, r *http.Request) {
 		ORDER BY r.name, r.id
 		SKIP $offset
 		LIMIT $limit
-	`, access.GraphWhereClause("r"), repository.RepoProjection("r"))
+	`, repositoryListWhereClause(access, name), repository.RepoProjection("r"))
 
-	rows, err := h.Neo4j.Run(r.Context(), cypher, access.GraphParams(map[string]any{"offset": page.Offset, "limit": page.Limit + 1}))
+	rows, err := h.Neo4j.Run(r.Context(), cypher, repositoryListGraphParams(access, page, name))
 	if err != nil {
 		writeReadFailure(w, r, err, "platform_impact.context_overview", repositoryListPageFailedMessage)
 		return
@@ -231,17 +179,27 @@ func (h *Handler) listRepositories(w http.ResponseWriter, r *http.Request) {
 			"is_dependency":   isDependency,
 			"evidence_source": querycontract.StringVal(row, "evidence_source"),
 		}
-		repos = append(repos, decorateRepositoryGroupEvidenceWithClusters(repo, evidence.Clusters))
+		// Compact rows ship no group fields, so the decoration is skipped
+		// for the compact projection (the group-missing partial reason,
+		// which reads those fields, cannot occur there).
+		if !compact {
+			repo = decorateRepositoryGroupEvidenceWithClusters(repo, evidence.Clusters)
+		}
+		repos = append(repos, repo)
 	}
 
 	var stage listAnnotationStage
-	repos, stage, err = annotateListPageWithSelectionAndRetirement(r.Context(), h.Selections, h.Retirements, repos)
+	if compact {
+		repos, stage, err = annotateListPageCompact(r.Context(), h.Retirements, repos)
+	} else {
+		repos, stage, err = annotateListPageWithSelectionAndRetirement(r.Context(), h.Selections, h.Retirements, repos)
+	}
 	if err != nil {
 		writeReadFailure(w, r, err, "platform_impact.context_overview", stage.failureMessage())
 		return
 	}
 
-	querycontract.WriteSuccess(w, r, http.StatusOK, repositoryInventoryResponse(repos, page, truncated, total, evidence.ExtraPartialReasons...), querycontract.BuildTruthEnvelope(h.profile(), "platform_impact.context_overview", querycontract.TruthBasisAuthoritativeGraph, "resolved from bounded repository graph catalog"))
+	querycontract.WriteSuccess(w, r, http.StatusOK, repositoryInventoryResponseWithProjection(repos, page, truncated, total, projection, evidence.ExtraPartialReasons...), querycontract.BuildTruthEnvelope(h.profile(), "platform_impact.context_overview", querycontract.TruthBasisAuthoritativeGraph, "resolved from bounded repository graph catalog"))
 }
 
 func (h *Handler) GetRepositoryStory(w http.ResponseWriter, r *http.Request) {

@@ -267,14 +267,16 @@ source_coverage:
         count: 1
         non_hot:
           class: label_inventory
-          source_sha256: bf36028c6b02122c6f97d613aaab6b2aa2f0881ee11bb424123dad7e43b5df77
+          source_sha256: 8876318c4c7dcf48bfd1587bc36beaeb015d97533de0296df8f10998b733706e
           label: "Repository"
           max_results: 501
+  - file: repository/list_filter.go
+    calls:
       - symbol: "queryRepositoryTotal"
         count: 1
         non_hot:
           class: label_inventory
-          source_sha256: 295e84094eb3810f73b17cd8e8d8146e0fb40e2eb489147644ecb203bc96958c
+          source_sha256: 92cc0924d6b71e217679f478ecb823689a735470b831ff0e9c2ee7c857efadbb
           label: "Repository"
           max_results: 1
   - file: repository/api_surface.go

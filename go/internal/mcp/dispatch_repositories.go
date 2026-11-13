@@ -6,6 +6,7 @@ package mcp
 import (
 	"fmt"
 	"net/url"
+	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
 	runtimedeclarationtools "github.com/eshu-hq/eshu/go/internal/mcp/runtime/declaration"
@@ -84,7 +85,20 @@ func repositoryRoute(toolName string, args map[string]any) (*routecontract.Reque
 	}
 	switch toolName {
 	case "list_indexed_repositories":
-		return &routecontract.Request{Method: "GET", Path: "/api/v0/repositories", Query: paginationQuery(args, 100)}, true, nil
+		query := paginationQuery(args, 100)
+		// The name filter composes with the grant on the handler; an empty
+		// or whitespace-only value means absent and is not forwarded.
+		if name := strings.TrimSpace(str(args, "name")); name != "" {
+			query["name"] = name
+		}
+		// Compact is the MCP default when the argument is absent; an
+		// explicit value wins, and the handler rejects an unknown one.
+		projection := str(args, "projection")
+		if projection == "" {
+			projection = "compact"
+		}
+		query["projection"] = projection
+		return &routecontract.Request{Method: "GET", Path: "/api/v0/repositories", Query: query}, true, nil
 	case "count_repositories_by_language":
 		return &routecontract.Request{Method: "GET", Path: "/api/v0/repositories/by-language", Query: map[string]string{
 			"language": str(args, "language"),

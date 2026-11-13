@@ -137,7 +137,7 @@ var censusToolSchemaSnapshot = []censusToolSchema{
 	{Name: "execute_cypher_query", Properties: []string{"cypher_query", "limit"}, Required: []string{"cypher_query"}},
 	{Name: "visualize_graph_query", Properties: []string{"cypher_query", "limit"}, Required: []string{"cypher_query"}},
 	{Name: "search_registry_bundles", Properties: []string{"ecosystem", "limit", "query", "unique_only"}, Required: []string{}},
-	{Name: "list_indexed_repositories", Properties: []string{"limit", "offset"}, Required: []string{}},
+	{Name: "list_indexed_repositories", Properties: []string{"limit", "name", "offset", "projection"}, Required: []string{}},
 	{Name: "get_repository_stats", Properties: []string{"repo_id"}, Required: []string{}},
 	{Name: "execute_language_query", Properties: []string{"entity_type", "language", "limit", "query", "repo_id"}, Required: []string{"entity_type", "language"}},
 	{Name: "find_function_call_chain", Properties: []string{"cross_repo", "end", "end_entity_id", "end_repo_id", "max_depth", "repo_id", "start", "start_entity_id", "start_repo_id"}, Required: []string{}},

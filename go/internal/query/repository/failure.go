@@ -28,6 +28,12 @@ const (
 	// repositoryListRetirementFailedMessage covers the #7766 retirement
 	// annotation read, under the same never-silently-missing contract.
 	repositoryListRetirementFailedMessage = "repository list retirement annotation failed"
+	// repositoryListNameFailedMessage covers the #10603 name filter bound:
+	// over-long input fails closed instead of scanning unbounded text.
+	repositoryListNameFailedMessage = "repository list name must be at most 200 characters"
+	// repositoryListProjectionFailedMessage covers the #10603 closed
+	// projection enum: anything but full|compact fails closed.
+	repositoryListProjectionFailedMessage = "repository list projection must be compact or full"
 
 	catalogContentRepositoriesFailedMessage = "catalog content repository read failed"
 	catalogRepositoriesFailedMessage        = "catalog repository query failed"
