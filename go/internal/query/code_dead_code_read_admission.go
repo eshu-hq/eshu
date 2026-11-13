@@ -32,8 +32,9 @@ const CodeDeadCodeReadAdmissionContractVersion = "v0"
 // dead-code legs admit through — the graph run behind the SQL-routine
 // EXECUTES probes, the candidate/incoming/downgrade reads behind the
 // investigation and scan, the entity hydration reads, the coverage and
-// index-freshness reads, and the three cross-repo consumer-evidence
-// reads — so the boundary is held honest by the compile-time witness
+// index-freshness reads, the three cross-repo consumer-evidence reads,
+// and the boundary-evidence read — so the boundary is held honest by
+// the compile-time witness
 // assertion below plus the frozen method-set contract test; it will back
 // the eshu-api extraction handoff for this family. The seam is read-only
 // on purpose: every declared method is a bounded read and the port
