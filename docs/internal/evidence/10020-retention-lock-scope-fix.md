@@ -10,10 +10,10 @@ Implements the STOP ruling's fix path
 ## Pre-edit gate (answered before any edit)
 
 1. **Entry point**: `GenerationRetentionStore.PruneSupersededGenerations`
-   (`go/internal/storage/postgres/generation_retention.go:77`), via
+   (`go/internal/storage/postgres/generation_retention.go`), via
    `postgresGenerationRetentionPruner.PruneSupersededGenerations`
-   (`go/cmd/reducer/generation_retention_wiring.go:205`) ←
-   `Runner.RunOnce` (`go/internal/reducer/maintenance/retention/runner.go:223`).
+   (`go/cmd/reducer/generation_retention_wiring.go`) ←
+   `Runner.Run` (`go/internal/reducer/maintenance/retention/runner.go`).
    All four read before editing.
 2. **Phase ordering**: search-index pre-delete (committed, pre-Begin) →
    chunk predrain (new, committed, pre-Begin) → Begin → work_mem →
