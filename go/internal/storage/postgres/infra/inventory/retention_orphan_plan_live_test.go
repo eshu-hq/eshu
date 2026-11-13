@@ -112,7 +112,7 @@ func explainProductionOrphanDelete(t *testing.T, ctx context.Context, sqlDB *sql
 // plan: the first cost=0.00..<total> pair belongs to the root node.
 func planTotalCost(t *testing.T, plan string) float64 {
 	t.Helper()
-	m := regexp.MustCompile(`cost=0\.00\.([0-9.]+)`).FindStringSubmatch(plan)
+	m := regexp.MustCompile(`cost=0\.00\.\.([0-9.]+)`).FindStringSubmatch(plan)
 	if m == nil {
 		t.Fatalf("no top-level total cost in plan:\n%s", plan)
 	}
