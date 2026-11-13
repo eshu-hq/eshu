@@ -294,8 +294,9 @@ func scopedSearchScopeClass(operation string) string {
 
 // scopedSearchPatternClass maps the raw pattern to its closed class for the
 // scoped-search labels. Order matters: short (<3 runes) first, then wildcard
-// (%, _, \ — meaningful until fix 05b lands, when the class empties by
-// construction), then the walk's trigram classification shared with the
+// (%, _, \ — retained as a tracer class now that binds are escaped: a hit
+// here matches literally), then the walk's trigram classification shared with
+// the
 // unscoped path, else trigram. The label carries the class only, never the
 // pattern text.
 func scopedSearchPatternClass(pattern string) string {
