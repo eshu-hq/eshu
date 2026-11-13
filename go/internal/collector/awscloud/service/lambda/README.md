@@ -77,9 +77,10 @@ API call counters, throttle counters, and pagination spans.
     (`go/internal/reducer/awscloud/aws_cloud_image_join.go`'s
     `containerImageNodeUIDFromDigestRef`). That function lowercases the
     registry, repository, and digest before computing the target uid, matching
-    the OCI registry collector's own normalization
-    (`internal/collector/registry/oci/identity.go` `NormalizeRepositoryIdentity`/
-    `normalizeDigest`) for the ECR-hosted references this domain actually
+    the OCI registry normalization
+    (`internal/oci/registry/identity.go` `NormalizeRepositoryIdentity`; digest
+    rules moved to the extracted satellite with #10620) for the ECR-hosted
+    references this domain actually
     processes — Lambda container images are exclusively ECR-hosted, so the
     registry value is always a bare hostname, the shape `normalizeRegistry`
     fully lowercases (it preserves case only for an embedded path segment

@@ -168,7 +168,6 @@ nav:
         - Runtime and storage: reference/env-registry/runtime-and-storage.md
         - Reducer and projection: reference/env-registry/reducer-and-projection.md
         - Ingester and collector framework: reference/env-registry/collectors-platform.md
-        - Infrastructure and registry collectors: reference/env-registry/collectors-infrastructure.md
         - Observability, delivery, and security collectors: reference/env-registry/collectors-signals.md
       - Runtime And Storage Environment: reference/environment-runtime-storage.md
       - Postgres Tuning: reference/postgres-tuning.md

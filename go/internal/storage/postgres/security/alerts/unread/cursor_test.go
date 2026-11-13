@@ -10,7 +10,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/securityalerts"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
@@ -63,7 +62,7 @@ func text(v string) *string { return &v }
 func TestCursorReaderReturnsTheNewestGenerationCursor(t *testing.T) {
 	queryer := &cursorQueryer{rows: &cursorRows{values: []cursorRow{{next: text("acme/next"), lap: text("acme/last")}}}}
 	got, err := NewCursorReader(queryer).FanoutCursor(context.Background(), "scope-1")
-	if want := (securityalerts.FanoutCursor{NextRepository: "acme/next", LapRepository: "acme/last"}); err != nil || got != want {
+	if want := (FanoutCursor{NextRepository: "acme/next", LapRepository: "acme/last"}); err != nil || got != want {
 		t.Fatalf("FanoutCursor() = %+v, %v; want %+v", got, err, want)
 	}
 	// The newest pending-or-active generation, with the ordering
@@ -96,7 +95,7 @@ func TestCursorReaderStartsAtTheTopWhenNothingIsStored(t *testing.T) {
 	for name, rows := range cases {
 		t.Run(name, func(t *testing.T) {
 			got, err := NewCursorReader(&cursorQueryer{rows: rows}).FanoutCursor(context.Background(), "scope-1")
-			if err != nil || got != (securityalerts.FanoutCursor{}) {
+			if err != nil || got != (FanoutCursor{}) {
 				t.Fatalf("FanoutCursor() = %+v, %v; want the top, no lap, and no error", got, err)
 			}
 		})

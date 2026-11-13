@@ -11,8 +11,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/eshu-hq/eshu/go/internal/collector/securityalerts"
 )
 
 type recordedExec struct {
@@ -34,14 +32,14 @@ func (r *recordingExecutor) ExecContext(_ context.Context, query string, args ..
 	return nil, nil
 }
 
-func sampleState() securityalerts.TargetReadState {
-	return securityalerts.TargetReadState{
+func sampleState() TargetReadState {
+	return TargetReadState{
 		GenerationID:      "gen-1",
 		ScopeID:           "security-alert:github:org/acme",
 		OrgReadTruncated:  true,
 		RepositoriesTotal: 4,
 		ObservedAt:        time.Date(2026, 10, 24, 1, 2, 3, 0, time.UTC),
-		Unread: []securityalerts.UnreadRepository{
+		Unread: []UnreadRepository{
 			{Repository: "acme/zeta", Reason: "org_repository_fanout_cap_reached"},
 			{Repository: "acme/alpha", Reason: "org_repository_read_rate_limited"},
 			{Repository: "acme/alpha", Reason: "org_repository_read_rate_limited"},
@@ -97,12 +95,12 @@ func TestWriterSkipsChildInsertWhenNothingIsUnread(t *testing.T) {
 }
 
 func TestWriterRejectsIncompleteState(t *testing.T) {
-	cases := map[string]func(*securityalerts.TargetReadState){
-		"missing generation": func(s *securityalerts.TargetReadState) { s.GenerationID = " " },
-		"missing scope":      func(s *securityalerts.TargetReadState) { s.ScopeID = "" },
-		"missing repository": func(s *securityalerts.TargetReadState) { s.Unread[0].Repository = "" },
-		"missing reason":     func(s *securityalerts.TargetReadState) { s.Unread[0].Reason = "" },
-		"negative total":     func(s *securityalerts.TargetReadState) { s.RepositoriesTotal = -1 },
+	cases := map[string]func(*TargetReadState){
+		"missing generation": func(s *TargetReadState) { s.GenerationID = " " },
+		"missing scope":      func(s *TargetReadState) { s.ScopeID = "" },
+		"missing repository": func(s *TargetReadState) { s.Unread[0].Repository = "" },
+		"missing reason":     func(s *TargetReadState) { s.Unread[0].Reason = "" },
+		"negative total":     func(s *TargetReadState) { s.RepositoriesTotal = -1 },
 	}
 	for name, mutate := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -133,7 +131,7 @@ func TestWriterWrapsStatementFailureWithoutRepositoryNames(t *testing.T) {
 
 func TestWriterStoresRepositorySlugsLowercaseLikeTheReadProbe(t *testing.T) {
 	state := sampleState()
-	state.Unread = []securityalerts.UnreadRepository{
+	state.Unread = []UnreadRepository{
 		{Repository: " Acme/Zeta ", Reason: "org_repository_fanout_cap_reached"},
 		{Repository: "ACME/alpha", Reason: "org_repository_read_rate_limited"},
 		{Repository: "acme/Alpha", Reason: "org_repository_read_rate_limited"},
@@ -157,7 +155,7 @@ func TestWriterStoresRepositorySlugsLowercaseLikeTheReadProbe(t *testing.T) {
 
 func TestWriterRejectsCaseTwinsWithConflictingReasons(t *testing.T) {
 	state := sampleState()
-	state.Unread = []securityalerts.UnreadRepository{
+	state.Unread = []UnreadRepository{
 		{Repository: "Acme/Alpha", Reason: "org_repository_read_rate_limited"},
 		{Repository: "acme/alpha", Reason: "org_repository_fanout_cap_reached"},
 	}

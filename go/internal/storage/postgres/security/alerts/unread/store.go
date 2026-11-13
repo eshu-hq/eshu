@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
-	"github.com/eshu-hq/eshu/go/internal/collector/securityalerts"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 )
 
@@ -57,13 +56,13 @@ FROM unnest($2::text[], $3::text[]) AS unread(repository, reason)`
 // transaction of its generation. The state is validated when the writer runs,
 // so an invalid state rolls the generation back instead of committing a row
 // the read path cannot trust. Errors never carry repository names.
-func Writer(state securityalerts.TargetReadState) collector.GenerationStateWriter {
+func Writer(state TargetReadState) collector.GenerationStateWriter {
 	return func(ctx context.Context, exec collector.CommitExecutor) error {
 		return write(ctx, exec, state)
 	}
 }
 
-func write(ctx context.Context, exec collector.CommitExecutor, state securityalerts.TargetReadState) error {
+func write(ctx context.Context, exec collector.CommitExecutor, state TargetReadState) error {
 	generationID := strings.TrimSpace(state.GenerationID)
 	scopeID := strings.TrimSpace(state.ScopeID)
 	switch {
@@ -105,8 +104,8 @@ func write(ctx context.Context, exec collector.CommitExecutor, state securityale
 // way the read probe does, drops exact repeats, and sorts by repository so
 // every writer of one generation inserts in one order. Two different reasons
 // for one repository, including a case twin, are a collector bug, not a merge.
-func normalizeUnread(unread []securityalerts.UnreadRepository) ([]securityalerts.UnreadRepository, error) {
-	out := make([]securityalerts.UnreadRepository, 0, len(unread))
+func normalizeUnread(unread []UnreadRepository) ([]UnreadRepository, error) {
+	out := make([]UnreadRepository, 0, len(unread))
 	for _, row := range unread {
 		row.Repository = strings.ToLower(strings.TrimSpace(row.Repository))
 		row.Reason = strings.TrimSpace(row.Reason)
@@ -115,10 +114,10 @@ func normalizeUnread(unread []securityalerts.UnreadRepository) ([]securityalerts
 		}
 		out = append(out, row)
 	}
-	slices.SortFunc(out, func(a, b securityalerts.UnreadRepository) int {
+	slices.SortFunc(out, func(a, b UnreadRepository) int {
 		return strings.Compare(a.Repository, b.Repository)
 	})
-	out = slices.CompactFunc(out, func(a, b securityalerts.UnreadRepository) bool {
+	out = slices.CompactFunc(out, func(a, b UnreadRepository) bool {
 		return a.Repository == b.Repository && a.Reason == b.Reason
 	})
 	for i := 1; i < len(out); i++ {
@@ -131,7 +130,7 @@ func normalizeUnread(unread []securityalerts.UnreadRepository) ([]securityalerts
 
 // distinctReasons returns the sorted distinct reasons of unread, never nil, so
 // the column stores an empty array instead of NULL.
-func distinctReasons(unread []securityalerts.UnreadRepository) array.StringArray {
+func distinctReasons(unread []UnreadRepository) array.StringArray {
 	reasons := make(array.StringArray, 0, 4)
 	for _, row := range unread {
 		reasons = append(reasons, row.Reason)

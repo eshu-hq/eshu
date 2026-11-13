@@ -244,8 +244,13 @@ func TestBoundedFailureClassesMatchTheCollectorWriters(t *testing.T) {
 	registry := declared(t, "collector", namePrefix("RegistryFailure"), nil)
 	check(scope.CollectorOCIRegistry, registry)
 	check(scope.CollectorSBOMAttestation, registry)
+	// The package-registry writer lives in the extracted satellite
+	// (eshu-hq/eshu-collector-package-registry), so no in-tree writer
+	// declares its classes anymore. The status leaf's package-registry
+	// classes stay pinned here against the satellite's wire vocabulary
+	// (registry classes plus registry_metadata_too_large).
 	check(scope.CollectorPackageRegistry, append(slices.Clone(registry),
-		declared(t, "collector/registry/package/runtime", namePrefix("failureClass"), nil)...))
+		"registry_metadata_too_large"))
 	check(scope.CollectorVulnerabilityIntelligence, declared(t, "vulnsource", namePrefix("ErrorClass"), nil))
 	check(scope.CollectorScannerWorker, declared(t, "collector/scannercomponent", typedAs("FailureClass"), nil))
 

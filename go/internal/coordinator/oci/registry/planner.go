@@ -11,16 +11,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/registry/oci"
-	"github.com/eshu-hq/eshu/go/internal/collector/registry/oci/acr"
-	"github.com/eshu-hq/eshu/go/internal/collector/registry/oci/dockerhub"
-	"github.com/eshu-hq/eshu/go/internal/collector/registry/oci/ecr"
-	"github.com/eshu-hq/eshu/go/internal/collector/registry/oci/gar"
-	"github.com/eshu-hq/eshu/go/internal/collector/registry/oci/ghcr"
-	"github.com/eshu-hq/eshu/go/internal/collector/registry/oci/harbor"
-	"github.com/eshu-hq/eshu/go/internal/collector/registry/oci/jfrog"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/contract"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	ociregistry "github.com/eshu-hq/eshu/go/internal/oci/registry"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -246,63 +239,63 @@ func ociRegistryWorkItem(
 	return item, nil
 }
 
-func ociRegistryTargetIdentity(target ociRegistryTargetConfiguration) (oci.NormalizedRepositoryIdentity, error) {
-	var identity oci.RepositoryIdentity
+func ociRegistryTargetIdentity(target ociRegistryTargetConfiguration) (ociregistry.NormalizedRepositoryIdentity, error) {
+	var identity ociregistry.RepositoryIdentity
 	var err error
-	provider := oci.Provider(strings.TrimSpace(target.Provider))
+	provider := ociregistry.Provider(strings.TrimSpace(target.Provider))
 	switch provider {
-	case oci.ProviderDockerHub:
-		repository, repositoryErr := dockerhub.RepositoryName(target.Repository)
+	case ociregistry.ProviderDockerHub:
+		repository, repositoryErr := ociregistry.DockerHubRepositoryName(target.Repository)
 		if repositoryErr != nil {
-			return oci.NormalizedRepositoryIdentity{}, repositoryErr
+			return ociregistry.NormalizedRepositoryIdentity{}, repositoryErr
 		}
 		registry := strings.Trim(strings.TrimSpace(target.Registry), "/")
 		if registry == "" {
-			registry = dockerhub.RegistryHost
+			registry = ociregistry.DockerHubRegistryHost
 		}
-		identity = oci.RepositoryIdentity{
-			Provider:   oci.ProviderDockerHub,
+		identity = ociregistry.RepositoryIdentity{
+			Provider:   ociregistry.ProviderDockerHub,
 			Registry:   registry,
 			Repository: repository,
 		}
-	case oci.ProviderGHCR:
-		repository, repositoryErr := ghcr.RepositoryName(target.Repository)
+	case ociregistry.ProviderGHCR:
+		repository, repositoryErr := ociregistry.GHCRRepositoryName(target.Repository)
 		if repositoryErr != nil {
-			return oci.NormalizedRepositoryIdentity{}, repositoryErr
+			return ociregistry.NormalizedRepositoryIdentity{}, repositoryErr
 		}
 		registry := strings.Trim(strings.TrimSpace(target.Registry), "/")
 		if registry == "" {
-			registry = ghcr.RegistryHost
+			registry = ociregistry.GHCRRegistryHost
 		}
-		identity = oci.RepositoryIdentity{
-			Provider:   oci.ProviderGHCR,
+		identity = ociregistry.RepositoryIdentity{
+			Provider:   ociregistry.ProviderGHCR,
 			Registry:   registry,
 			Repository: repository,
 		}
-	case oci.ProviderJFrog:
-		identity, err = jfrog.RepositoryIdentity(target.BaseURL, target.RepositoryKey, target.Repository)
-	case oci.ProviderECR:
+	case ociregistry.ProviderJFrog:
+		identity, err = ociregistry.JFrogRepositoryIdentity(target.BaseURL, target.RepositoryKey, target.Repository)
+	case ociregistry.ProviderECR:
 		registry := firstNonBlank(target.RegistryHost, target.Registry)
 		if registry == "" {
-			registry, err = ecr.PrivateRegistryHost(target.RegistryID, target.Region)
+			registry, err = ociregistry.ECRPrivateRegistryHost(target.RegistryID, target.Region)
 			if err != nil {
-				return oci.NormalizedRepositoryIdentity{}, err
+				return ociregistry.NormalizedRepositoryIdentity{}, err
 			}
 		}
-		identity = ecr.RepositoryIdentity(registry, target.Repository)
-	case oci.ProviderHarbor:
-		identity, err = harbor.RepositoryIdentity(target.BaseURL, target.Repository)
-	case oci.ProviderGoogleArtifactRegistry:
-		identity, err = gar.RepositoryIdentity(firstNonBlank(target.RegistryHost, target.Registry), target.Repository)
-	case oci.ProviderAzureContainerRegistry:
-		identity, err = acr.RepositoryIdentity(firstNonBlank(target.RegistryHost, target.Registry), target.Repository)
+		identity = ociregistry.ECRRepositoryIdentity(registry, target.Repository)
+	case ociregistry.ProviderHarbor:
+		identity, err = ociregistry.HarborRepositoryIdentity(target.BaseURL, target.Repository)
+	case ociregistry.ProviderGoogleArtifactRegistry:
+		identity, err = ociregistry.GARRepositoryIdentity(firstNonBlank(target.RegistryHost, target.Registry), target.Repository)
+	case ociregistry.ProviderAzureContainerRegistry:
+		identity, err = ociregistry.ACRRepositoryIdentity(firstNonBlank(target.RegistryHost, target.Registry), target.Repository)
 	default:
-		return oci.NormalizedRepositoryIdentity{}, fmt.Errorf("unsupported OCI registry provider %q", target.Provider)
+		return ociregistry.NormalizedRepositoryIdentity{}, fmt.Errorf("unsupported OCI registry provider %q", target.Provider)
 	}
 	if err != nil {
-		return oci.NormalizedRepositoryIdentity{}, err
+		return ociregistry.NormalizedRepositoryIdentity{}, err
 	}
-	return oci.NormalizeRepositoryIdentity(identity)
+	return ociregistry.NormalizeRepositoryIdentity(identity)
 }
 
 // firstNonBlank is a package-local copy of a tiny string helper. The parent

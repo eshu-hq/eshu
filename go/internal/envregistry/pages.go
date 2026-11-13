@@ -81,20 +81,17 @@ var pageLayout = []pageSpec{
 		Summary:    "The ingester's git collector, the component package manager, and the component-extension collector.",
 		Subsystems: []string{"collector", "collector-component-extension", "component"},
 	},
-	{
-		Slug: "collectors-infrastructure", Title: "Infrastructure and registry collectors",
-		Summary: "Cloud, Kubernetes, OCI registry, and package registry collectors. AWS cloud and Terraform state now collect from their extracted satellites (eshu-hq/eshu-collector-aws-cloud, eshu-hq/eshu-collector-terraform-state). Vault now collects from its extracted satellite (eshu-hq/eshu-collector-vault-live). Azure now collects from its extracted satellite (eshu-hq/eshu-collector-azure-cloud). GCP Cloud now collects from its extracted satellite (eshu-hq/eshu-collector-gcp-cloud). Kubernetes live now collects from its extracted satellite (eshu-hq/eshu-collector-kubernetes-live).",
-		Subsystems: []string{
-			"collector-oci-registry", "collector-package-registry",
-		},
-	},
+	// The infrastructure and registry collectors page went away with
+	// eshu-hq/eshu#10620: OCI registry and package registry were its only
+	// subsystems with in-tree variables, and both moved to their extracted
+	// satellites. Cloud and Kubernetes collectors never had entries here;
+	// their satellites read their own activation config.
 	{
 		Slug: "collectors-signals", Title: "Observability, delivery, and security collectors",
-		Summary: "Grafana, Prometheus/Mimir, CI/CD run, security alert, and vulnerability collectors. Jira now collects from its extracted satellite (eshu-hq/eshu-collector-jira). Tempo now collects from its extracted satellite (eshu-hq/eshu-collector-tempo). Loki now collects from its extracted satellite (eshu-hq/eshu-collector-loki). Vulnerability intelligence now collects from its extracted satellite (eshu-hq/eshu-collector-vulnerability-intelligence). SBOM attestation now collects from its extracted satellite (eshu-hq/eshu-collector-sbom-attestation). PagerDuty now collects from its extracted satellite (eshu-hq/eshu-collector-pagerduty).",
+		Summary: "Grafana, Prometheus/Mimir, CI/CD run, security alert, and vulnerability collectors. Jira now collects from its extracted satellite (eshu-hq/eshu-collector-jira). Tempo now collects from its extracted satellite (eshu-hq/eshu-collector-tempo). Loki now collects from its extracted satellite (eshu-hq/eshu-collector-loki). Vulnerability intelligence now collects from its extracted satellite (eshu-hq/eshu-collector-vulnerability-intelligence). SBOM attestation now collects from its extracted satellite (eshu-hq/eshu-collector-sbom-attestation). PagerDuty now collects from its extracted satellite (eshu-hq/eshu-collector-pagerduty). Security alert now collects from its extracted satellite (eshu-hq/eshu-collector-security-alerts).",
 		Subsystems: []string{
 			"collector-cicd-run", "collector-document-import", "collector-grafana", "collector-media-import",
 			"collector-prometheus-mimir",
-			"collector-security-alerts",
 		},
 	},
 }

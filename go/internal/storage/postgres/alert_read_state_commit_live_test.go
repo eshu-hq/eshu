@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/securityalerts"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/security/alerts/unread"
 )
 
 func readStateProofCommitPersistsReadStateWithGeneration(t *testing.T) {
@@ -22,8 +22,8 @@ func readStateProofCommitPersistsReadStateWithGeneration(t *testing.T) {
 	mutation := readStateClaimFor(t, ctx, database, "gen-1")
 
 	state := readStateUnreadState(5,
-		securityalerts.UnreadRepository{Repository: "acme/b", Reason: "org_repository_read_rate_limited"},
-		securityalerts.UnreadRepository{Repository: "acme/a", Reason: "org_repository_fanout_cap_reached"},
+		unread.UnreadRepository{Repository: "acme/b", Reason: "org_repository_read_rate_limited"},
+		unread.UnreadRepository{Repository: "acme/a", Reason: "org_repository_fanout_cap_reached"},
 	)
 	if err := readStateCommitGeneration(ctx, store, mutation, "gen-1", "hint-1", state); err != nil {
 		t.Fatalf("commit: %v", err)
@@ -57,9 +57,9 @@ func readStateProofReplayOfPendingGenerationReplacesUnreadRepositories(t *testin
 	mutation := readStateClaimFor(t, ctx, database, "gen-1")
 
 	first := readStateUnreadState(4,
-		securityalerts.UnreadRepository{Repository: "acme/a", Reason: "org_repository_read_failed"},
-		securityalerts.UnreadRepository{Repository: "acme/b", Reason: "org_repository_read_failed"},
-		securityalerts.UnreadRepository{Repository: "acme/c", Reason: "org_repository_read_failed"},
+		unread.UnreadRepository{Repository: "acme/a", Reason: "org_repository_read_failed"},
+		unread.UnreadRepository{Repository: "acme/b", Reason: "org_repository_read_failed"},
+		unread.UnreadRepository{Repository: "acme/c", Reason: "org_repository_read_failed"},
 	)
 	if err := readStateCommitGeneration(ctx, store, mutation, "gen-1", "hint-a", first); err != nil {
 		t.Fatalf("first commit: %v", err)
@@ -67,7 +67,7 @@ func readStateProofReplayOfPendingGenerationReplacesUnreadRepositories(t *testin
 	// The same generation id commits again with a different freshness hint, as
 	// a retried claim whose read changed does. The second set replaces the
 	// first: nothing from the first set may survive.
-	second := readStateUnreadState(4, securityalerts.UnreadRepository{Repository: "acme/d", Reason: "org_repository_read_rate_limited"})
+	second := readStateUnreadState(4, unread.UnreadRepository{Repository: "acme/d", Reason: "org_repository_read_rate_limited"})
 	if err := readStateCommitGeneration(ctx, store, mutation, "gen-1", "hint-b", second); err != nil {
 		t.Fatalf("replay commit: %v", err)
 	}
@@ -92,7 +92,7 @@ func readStateProofFailedStateWriteRollsBackTheGeneration(t *testing.T) {
 
 	// An unread repository without a reason fails validation inside the commit
 	// transaction, after the generation row was written.
-	bad := readStateUnreadState(2, securityalerts.UnreadRepository{Repository: "acme/a"})
+	bad := readStateUnreadState(2, unread.UnreadRepository{Repository: "acme/a"})
 	if err := readStateCommitGeneration(ctx, store, mutation, "gen-1", "hint-1", bad); err == nil {
 		t.Fatal("commit error = nil, want the state validation error")
 	} else if !strings.Contains(err.Error(), "needs a repository and a reason") {
@@ -111,8 +111,8 @@ func readStateProofGenerationRetentionRemovesReadStateWithItsGeneration(t *testi
 	for _, id := range []string{"gen-1", "gen-2", "gen-3"} {
 		mutation := readStateClaimFor(t, ctx, database, id)
 		state := readStateUnreadState(3,
-			securityalerts.UnreadRepository{Repository: "acme/a", Reason: "org_repository_read_failed"},
-			securityalerts.UnreadRepository{Repository: "acme/b", Reason: "org_repository_read_failed"},
+			unread.UnreadRepository{Repository: "acme/a", Reason: "org_repository_read_failed"},
+			unread.UnreadRepository{Repository: "acme/b", Reason: "org_repository_read_failed"},
 		)
 		if err := readStateCommitGeneration(ctx, store, mutation, id, "hint-"+id, state); err != nil {
 			t.Fatalf("commit %s: %v", id, err)

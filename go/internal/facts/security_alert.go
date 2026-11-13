@@ -61,6 +61,6 @@ var SecurityAlertFamilyDeclaration = contract.Declare(contract.Family{
 		{Kind: "security_alert.repository_alert", PayloadSchema: "sdk/go/factschema/schema/security_alert.repository_alert.v1.schema.json"},
 	},
 	Producers: []contract.Producer{
-		{ID: "collector-security-alerts", Repository: "eshu-hq/eshu", Path: "go/internal/collector/securityalert", PlannedRepository: "eshu-hq/eshu-collector-security-alerts", AuthorityMode: "core_issued_grant", Kinds: []string{"security_alert.repository_alert"}},
+		{ID: "collector-security-alerts", Repository: "eshu-hq/eshu-collector-security-alerts", Path: ".", PlannedRepository: "", AuthorityMode: "core_issued_grant", Kinds: []string{"security_alert.repository_alert"}},
 	},
 })

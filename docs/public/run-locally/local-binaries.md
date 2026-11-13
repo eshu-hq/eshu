@@ -60,8 +60,8 @@ The script installs:
 - indexing and runtime binaries: `eshu-bootstrap-index`, `eshu-ingester`,
   `eshu-reducer`, `eshu-projector`
 - collector and control-plane binaries: `eshu-workflow-coordinator`,
-  `eshu-collector-git`, `eshu-collector-package-registry`,
-  `eshu-webhook-intake` (provider edge ships with the satellite `eshu-hq/eshu-webhook`; SBOM attestation ships with the satellite `eshu-hq/eshu-collector-sbom-attestation`; PagerDuty ships with the satellite `eshu-hq/eshu-collector-pagerduty`)
+  `eshu-collector-git`,
+  `eshu-webhook-intake` (provider edge ships with the satellite `eshu-hq/eshu-webhook`; SBOM attestation ships with the satellite `eshu-hq/eshu-collector-sbom-attestation`; PagerDuty ships with the satellite `eshu-hq/eshu-collector-pagerduty`; OCI registry ships with the satellite `eshu-hq/eshu-collector-oci-registry`; package registry ships with the satellite `eshu-hq/eshu-collector-package-registry`; security alerts ship with the satellite `eshu-hq/eshu-collector-security-alerts`)
 - operator helpers: `eshu-bootstrap-data-plane`, `eshu-admin-status`
 
 Set `ESHU_VERSION=<version>` before running the script when you want the

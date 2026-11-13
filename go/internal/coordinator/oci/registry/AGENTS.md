@@ -38,10 +38,10 @@ Scheduling order, the plan-key clock, tenant/egress filtering, durable
 admission, retries, and telemetry changes belong in the parent
 (`oci_registry_service.go`).
 
-Adding a new OCI registry provider: add the adapter under
-`internal/collector/registry/oci/<provider>`, add a `case` in
-`ociRegistryTargetIdentity`, and add coverage in `planner_test.go` mirroring
-`TestOCIRegistryWorkPlannerNormalizesProviderEndpointFields`.
+Adding a new OCI registry provider: add a `*RepositoryIdentity` constructor
+(plus any pure endpoint parsing it needs) in `internal/oci/registry`, add a
+`case` in `ociRegistryTargetIdentity`, and add coverage in `planner_test.go`
+mirroring `TestOCIRegistryWorkPlannerNormalizesProviderEndpointFields`.
 
 ## Failure modes
 

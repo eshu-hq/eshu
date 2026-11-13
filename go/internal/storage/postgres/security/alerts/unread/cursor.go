@@ -8,7 +8,6 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/securityalerts"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
@@ -58,22 +57,22 @@ func NewCursorReader(queryer db.Queryer) *CursorReader {
 // one that carried no cursor). A query failure is returned, never answered with
 // the top: starting at the top on an error would silently restore the bug the
 // cursor fixes.
-func (r *CursorReader) FanoutCursor(ctx context.Context, scopeID string) (securityalerts.FanoutCursor, error) {
+func (r *CursorReader) FanoutCursor(ctx context.Context, scopeID string) (FanoutCursor, error) {
 	rows, err := r.queryer.QueryContext(ctx, FanoutCursorQuery, scopeID)
 	if err != nil {
-		return securityalerts.FanoutCursor{}, fmt.Errorf("read security alert fan-out cursor: %w", err)
+		return FanoutCursor{}, fmt.Errorf("read security alert fan-out cursor: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
-	var cursor securityalerts.FanoutCursor
+	var cursor FanoutCursor
 	if rows.Next() {
 		var next, lap sql.NullString
 		if err := rows.Scan(&next, &lap); err != nil {
-			return securityalerts.FanoutCursor{}, fmt.Errorf("scan security alert fan-out cursor: %w", err)
+			return FanoutCursor{}, fmt.Errorf("scan security alert fan-out cursor: %w", err)
 		}
-		cursor = securityalerts.FanoutCursor{NextRepository: next.String, LapRepository: lap.String}
+		cursor = FanoutCursor{NextRepository: next.String, LapRepository: lap.String}
 	}
 	if err := rows.Err(); err != nil {
-		return securityalerts.FanoutCursor{}, fmt.Errorf("read security alert fan-out cursor rows: %w", err)
+		return FanoutCursor{}, fmt.Errorf("read security alert fan-out cursor rows: %w", err)
 	}
 	return cursor, nil
 }

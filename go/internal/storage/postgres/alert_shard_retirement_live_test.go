@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/securityalerts/alertruntime"
+	"github.com/eshu-hq/eshu/go/internal/scope/org/shard"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/security/alerts/retirement"
@@ -46,7 +46,7 @@ func shardRetirementProofActivatesAnEmptyGenerationAndEmptiesReads(t *testing.T)
 
 	// Control: without the attestation the #7926 guard refuses the empty
 	// successor and keeps the content generation active.
-	refused := shardLiveGeneration{scopeID: shardID, parentScopeID: shardLiveBaseScopeID, generationID: "gen-r0", hint: alertruntime.RetirementFreshnessHint}
+	refused := shardLiveGeneration{scopeID: shardID, parentScopeID: shardLiveBaseScopeID, generationID: "gen-r0", hint: shard.RetirementFreshnessHint}
 	if err := shardLiveCommit(t, ctx, database, store, refused); err != nil {
 		t.Fatalf("refused commit returned %v, want the guard's silent refusal", err)
 	}
@@ -56,7 +56,7 @@ func shardRetirementProofActivatesAnEmptyGenerationAndEmptiesReads(t *testing.T)
 
 	retire := shardLiveGeneration{
 		scopeID: shardID, parentScopeID: shardLiveBaseScopeID, generationID: "gen-r1",
-		hint: alertruntime.RetirementFreshnessHint, trustedDeletion: true,
+		hint: shard.RetirementFreshnessHint, trustedDeletion: true,
 	}
 	start := time.Now()
 	if err := shardLiveCommit(t, ctx, database, store, retire); err != nil {

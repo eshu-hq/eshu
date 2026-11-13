@@ -64,7 +64,7 @@ var commonFailureClasses = []string{
 
 // registryFailureClasses are the bounded classes collector.RegistryFailure
 // carries (collector/failure.go). The OCI registry, package registry, and SBOM
-// attestation collectors all build their errors from it. The rate-limited,
+// attestation satellites build their errors from it. The rate-limited,
 // retryable, and canceled classes reach a terminal row when the attempt
 // budget runs out on the cause or the claim is canceled.
 var registryFailureClasses = []string{
@@ -88,8 +88,8 @@ var registryFailureClasses = []string{
 //     (collector/awscloud/awsruntime/scan_status.go).
 //   - oci_registry, sbom_attestation: registryFailureClasses.
 //   - package_registry: registryFailureClasses plus
-//     registry_metadata_too_large (collector/registry/package/runtime/
-//     http_provider.go).
+//     registry_metadata_too_large (the extracted package-registry
+//     satellite's metadata-provider vocabulary, #10620).
 //   - vulnerability_intelligence: non_retryable, the terminal sourceFailure
 //     class (ErrorClassNonRetryable in the extracted satellite
 //     eshu-hq/eshu-collector-vulnerability-intelligence, recorded through

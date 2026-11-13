@@ -23,6 +23,9 @@ truth; reducers admit user-facing truth.
   facts.
 - `Normalize` applies ecosystem-specific normalization and returns a stable
   package ID plus PURL/BOMRef fields.
+- `Visibility` carries the source-reported visibility (`unknown`, `public`,
+  `private`) that travels with package identity on derived targets and
+  observations.
 - `NormalizeEcosystem` maps package-manager aliases such as `python`,
   `typescript`, `golang`, `packagist`, `ruby`, `crates.io`, Pub aliases such as
   `pub.dev` and `dart`, and distro package managers, plus SwiftPM aliases such

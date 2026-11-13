@@ -44,9 +44,6 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/observability/grafana"
 	"github.com/eshu-hq/eshu/go/internal/collector/observability/prometheus"
-	"github.com/eshu-hq/eshu/go/internal/collector/registry/oci/distribution"
-	packageruntime "github.com/eshu-hq/eshu/go/internal/collector/registry/package/runtime"
-	"github.com/eshu-hq/eshu/go/internal/collector/securityalerts"
 	"github.com/eshu-hq/eshu/go/internal/replay/inputtape"
 	"gopkg.in/yaml.v3"
 )
@@ -130,48 +127,15 @@ func collectorFaultCases() []collectorFaultCase {
 		// (eshu-hq/eshu-collector-pagerduty, cutover #8863): core owns no
 		// PagerDuty HTTP client to fault-probe anymore, so this table
 		// carries no pagerduty case.
-		{
-			surface: "collector:security_alert",
-			collect: func() error {
-				client := securityalerts.NewGitHubDependabotClient(securityalerts.GitHubDependabotClientConfig{
-					BaseURL:              "https://api.github.invalid",
-					Token:                "github-token",
-					AllowedRepositories:  []string{"octo-org/checkout"},
-					RepositoryAlertLimit: 25,
-					HTTPClient:           timeoutFaultClient(),
-				})
-				_, err := client.ListRepositoryAlerts(context.Background(), "octo-org/checkout")
-				return err
-			},
-		},
+		// The security-alert, OCI-registry, and package-registry boundaries
+		// moved to the extracted satellites with eshu-hq/eshu#10620: core
+		// owns no provider HTTP client to fault-probe anymore, so this
+		// table carries no case for them. Each satellite owns its client
+		// fault behavior.
 		// The vulnerability intelligence boundary moved to the extracted
 		// satellite (eshu-hq/eshu#9999): core owns no OSV HTTP client to
 		// fault-probe anymore, so this table carries no vuln case. The
 		// satellite owns its client fault behavior.
-		{
-			surface: "collector:oci_registry",
-			collect: func() error {
-				client, err := distribution.NewClient(distribution.ClientConfig{
-					BaseURL:     "https://registry.invalid",
-					BearerToken: "registry-token",
-					Client:      timeoutFaultClient(),
-				})
-				if err != nil {
-					return err
-				}
-				return client.Ping(context.Background())
-			},
-		},
-		{
-			surface: "collector:package_registry",
-			collect: func() error {
-				provider := packageruntime.HTTPMetadataProvider{Client: timeoutFaultClient()}
-				_, err := provider.FetchMetadata(context.Background(), packageruntime.TargetConfig{
-					MetadataURL: "https://packages.invalid/metadata.json",
-				})
-				return err
-			},
-		},
 		// The SBOM attestation boundary moved to the extracted
 		// satellite (eshu-hq/eshu#10450): core owns no document HTTP
 		// client to fault-probe anymore, so this table carries no sbom

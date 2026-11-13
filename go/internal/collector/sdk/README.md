@@ -345,9 +345,10 @@ intentional owner-boundary files:
   Scanner workers own analyzer process limits, source-fact allowlists, and
   claim fencing rather than provider HTTP calls; execution lives in the
   satellite.
-- `go/internal/collector/securityalerts/alertruntime/failure.go` remains a
-  Dependabot/GitHub runtime wrapper for rate-limit metadata. Generic HTTP status
-  class decisions delegate to `sdk.ClassifyProviderFailure`.
+- The Dependabot/GitHub runtime wrapper for rate-limit metadata moved to the
+  extracted satellite (eshu-hq/eshu-collector-security-alerts) with #10620.
+  Generic HTTP status class decisions still delegate to
+  `sdk.ClassifyProviderFailure` through the satellite's copy.
 - Confluence source-level backoff state for retryable provider statuses now lives
   in the extracted satellite (`eshu-hq/eshu-collector-confluence`, #8855).
   SDK helpers still own base URL validation, bounded HTTP errors, default

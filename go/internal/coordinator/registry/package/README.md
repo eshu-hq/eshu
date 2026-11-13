@@ -56,8 +56,10 @@ See `doc.go` for the godoc contract.
   limits, and skip-evidence helpers.
 - `internal/coordinator/planner/contract` for the shared plan-key grammar.
 - `internal/facts` for stable generation identities.
-- `internal/collector/registry/package` and `internal/packageidentity` for
-  ecosystem normalization and package-identity construction.
+- `internal/packageidentity` for ecosystem normalization and
+  package-identity construction (the collector-side identity package moved to
+  the extracted satellite with #10620; this planner only needs the shared
+  normalization).
 - `internal/scope` and `internal/workflow` for collector, scope, and durable
   workflow contracts.
 

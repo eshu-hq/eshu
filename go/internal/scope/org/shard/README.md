@@ -17,9 +17,9 @@ they agree on the shard ids and on which shard holds which repository.
 
 This package owns the partition and the shard id format. It does not plan
 work (`internal/coordinator/security/alert`), read providers or commit
-generations (`internal/collector/securityalerts/alertruntime`), retire scopes
-(the planner plans retirement, the collector answers it), or classify read
-answers (`internal/query/supply/chain`).
+generations (the extracted satellite `eshu-hq/eshu-collector-security-alerts`,
+#10620), retire scopes (the planner plans retirement, the satellite answers
+it), or classify read answers (`internal/query/supply/chain`).
 
 | Rule | Definition |
 |---|---|

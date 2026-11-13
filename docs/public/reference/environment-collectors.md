@@ -128,16 +128,13 @@ files or docs.
 
 ## OCI Registry Collector
 
-The OCI collector supports direct targets and claim-aware mode.
-
-| Variable | Default | Read by | Purpose |
-| --- | --- | --- | --- |
-| `ESHU_OCI_REGISTRY_COLLECTOR_INSTANCE_ID` | required for direct mode; required when multiple enabled OCI claim instances exist | collector-oci-registry | Names or selects the OCI collector instance. |
-| `ESHU_OCI_REGISTRY_TARGETS_JSON` | unset | collector-oci-registry direct mode | JSON array of provider targets for direct registry polling. |
-| `ESHU_OCI_REGISTRY_POLL_INTERVAL` | `5m` in direct mode; `1s` in claim-aware mode | collector-oci-registry | Delay between direct scans or empty workflow-claim polls. |
-| `ESHU_OCI_REGISTRY_CLAIM_LEASE_TTL` | `60s` | collector-oci-registry claim-aware mode | Lease TTL used when claiming and refreshing OCI registry work. |
-| `ESHU_OCI_REGISTRY_HEARTBEAT_INTERVAL` | `20s` | collector-oci-registry claim-aware mode | Heartbeat interval for active workflow claims. |
-| `ESHU_OCI_REGISTRY_COLLECTOR_OWNER_ID` | host/process-derived | collector-oci-registry claim-aware mode | Owner label written into workflow claim rows. |
+OCI registry collection runs from the extracted satellite
+(`eshu-hq/eshu-collector-oci-registry`, #10620). The in-tree
+`eshu-collector-oci-registry` binary that read the `ESHU_OCI_REGISTRY_*`
+variables is deleted, so the prefixed variables are gone with the binary;
+satellite claims are driven through `ESHU_COLLECTOR_INSTANCES_JSON` like
+every other collector. The target and transport contract below is the
+satellite activation contract.
 
 OCI target JSON may reference JFrog, ECR, Docker Hub, GHCR, Harbor, Google
 Artifact Registry, or Azure Container Registry. Credential fields name
@@ -163,6 +160,13 @@ falling back to system trust.
 
 ## Package Registry Collector
 
+Package-registry collection runs from the extracted satellite
+(`eshu-hq/eshu-collector-package-registry`, #10620). The in-tree
+`eshu-collector-package-registry` binary that read the
+`ESHU_PACKAGE_REGISTRY_*` variables is deleted, so the prefixed variables
+are gone with the binary; satellite claims are driven through
+`ESHU_COLLECTOR_INSTANCES_JSON` like every other collector.
+
 The package-registry collector is claim-only. It selects an enabled
 `package_registry` instance from `ESHU_COLLECTOR_INSTANCES_JSON`.
 Collector configuration may define explicit `targets` or enable
@@ -179,13 +183,8 @@ registry version and dependency edge for heavily reused packages. Explicit
 package-registry targets can still request higher version limits for targeted
 registry metadata exploration.
 
-| Variable | Default | Read by | Purpose |
-| --- | --- | --- | --- |
-| `ESHU_PACKAGE_REGISTRY_COLLECTOR_INSTANCE_ID` | required when more than one enabled package-registry instance exists | collector-package-registry | Selects the claim-capable `package_registry` instance. |
-| `ESHU_PACKAGE_REGISTRY_POLL_INTERVAL` | `1s` | collector-package-registry | Delay between empty workflow-claim polls. |
-| `ESHU_PACKAGE_REGISTRY_CLAIM_LEASE_TTL` | `60s` | collector-package-registry | Lease TTL used when claiming and refreshing work. |
-| `ESHU_PACKAGE_REGISTRY_HEARTBEAT_INTERVAL` | `20s` | collector-package-registry | Heartbeat interval for active workflow claims. |
-| `ESHU_PACKAGE_REGISTRY_COLLECTOR_OWNER_ID` | host/process-derived | collector-package-registry | Owner label written into workflow claim rows. |
+The framework variables the in-tree binary read (`ESHU_PACKAGE_REGISTRY_*`
+poll, lease, heartbeat, instance, and owner variables) are gone with it.
 
 ## Supply-chain collectors
 

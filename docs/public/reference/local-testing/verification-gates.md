@@ -85,14 +85,17 @@ go test ./internal/collector/awscloud/awsruntime \
   -run 'TestClaimedSourceRecordsEmissionCounters|TestClaimedSourceRecordsScanStatusWithAPICallStats' \
   -count=1 -v
 
-go test ./internal/collector/registry/oci/runtime \
-  -run 'TestSourceNextEmitsCollectedGenerationForRegistryTarget|TestClaimedSourceNextClaimedScansMatchingTargetWithClaimGeneration' \
-  -count=1 -v
+go test ./internal/oci/registry ./internal/coordinator/oci/registry -count=1 -v
 
-go test ./internal/collector/registry/package/runtime \
-  -run 'TestClaimedSourceParsesMetadataIntoPackageRegistryFacts|TestClaimedSourceTruncatesMetadataOverVersionLimit|TestClaimedSourceSanitizesSourceURIBeforeFactEmission' \
-  -count=1 -v
+go test ./internal/packageidentity ./internal/coordinator/registry/package -count=1 -v
 ```
+
+The OCI-registry, package-registry, and security-alerts collectors moved to
+their extracted satellites with eshu-hq/eshu#10620, so the in-tree
+`go test` smokes above cover the surviving core proof: shared identity
+normalization plus the coordinator planners that resolve targets into it.
+Provider emission, client fault behavior, and live provider smokes belong to
+the satellites.
 
 Terraform-state parser trend and large-state proof:
 

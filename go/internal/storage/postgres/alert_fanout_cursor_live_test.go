@@ -14,12 +14,11 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/securityalerts"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/security/alerts/unread"
 )
 
-func fanoutCursorState(start, next string) securityalerts.TargetReadState {
+func fanoutCursorState(start, next string) unread.TargetReadState {
 	state := readStateUnreadState(150)
 	state.FanoutStartRepository, state.FanoutNextRepository = start, next
 	return state
@@ -27,13 +26,13 @@ func fanoutCursorState(start, next string) securityalerts.TargetReadState {
 
 // fanoutLapState is a read state that closed a lap at lap: the next claim
 // starts at the top.
-func fanoutLapState(start, lap string) securityalerts.TargetReadState {
+func fanoutLapState(start, lap string) unread.TargetReadState {
 	state := fanoutCursorState(start, "")
 	state.FanoutLapRepository = lap
 	return state
 }
 
-func fanoutCursorOf(t *testing.T, ctx context.Context, database *sql.DB) securityalerts.FanoutCursor {
+func fanoutCursorOf(t *testing.T, ctx context.Context, database *sql.DB) unread.FanoutCursor {
 	t.Helper()
 	cursor, err := unread.NewCursorReader(postgres.SQLDB{DB: database}).FanoutCursor(ctx, readStateLiveScopeID)
 	if err != nil {
@@ -45,7 +44,7 @@ func fanoutCursorOf(t *testing.T, ctx context.Context, database *sql.DB) securit
 func fanoutProofCommitsAndReadsTheCursor(t *testing.T) {
 	database, ctx := readStateIsolatedLiveDB(t)
 	store := postgres.NewIngestionStore(postgres.SQLDB{DB: database})
-	if got := fanoutCursorOf(t, ctx, database); got != (securityalerts.FanoutCursor{}) {
+	if got := fanoutCursorOf(t, ctx, database); got != (unread.FanoutCursor{}) {
 		t.Fatalf("cursor of a scope with no generation = %+v, want the top", got)
 	}
 	if err := readStateCommitGeneration(ctx, store, readStateClaimFor(t, ctx, database, "gen-1"), "gen-1", "hint-1",
@@ -71,7 +70,7 @@ func fanoutProofCommitsAndReadsTheCursor(t *testing.T) {
 		fanoutLapState("acme/repo-050", "acme/repo-149")); err != nil {
 		t.Fatalf("commit gen-3: %v", err)
 	}
-	if got, want := fanoutCursorOf(t, ctx, database), (securityalerts.FanoutCursor{LapRepository: "acme/repo-149"}); got != want {
+	if got, want := fanoutCursorOf(t, ctx, database), (unread.FanoutCursor{LapRepository: "acme/repo-149"}); got != want {
 		t.Fatalf("cursor after a lap closed = %+v, want %+v", got, want)
 	}
 	var start, next sql.NullString
@@ -100,7 +99,7 @@ INSERT INTO scope_generations (generation_id, scope_id, trigger_kind, freshness_
 VALUES ('gen-legacy', $1, 'snapshot', 'hint-legacy', 'pending', now(), now() + interval '1 minute')`, readStateLiveScopeID); err != nil {
 		t.Fatalf("seed legacy generation: %v", err)
 	}
-	if got := fanoutCursorOf(t, ctx, database); got != (securityalerts.FanoutCursor{}) {
+	if got := fanoutCursorOf(t, ctx, database); got != (unread.FanoutCursor{}) {
 		t.Fatalf("cursor with a newer generation that has no read state = %+v, want the top", got)
 	}
 }
@@ -117,7 +116,7 @@ func fanoutProofRollbackLeavesTheCursorUnchanged(t *testing.T) {
 	// whole transaction rolls back, and a surviving gen-2 generation row would
 	// make the reader return "" instead of gen-1's cursor.
 	bad := fanoutCursorState("acme/repo-100", "acme/repo-050")
-	bad.Unread = []securityalerts.UnreadRepository{{Repository: "acme/a"}}
+	bad.Unread = []unread.UnreadRepository{{Repository: "acme/a"}}
 	if err := readStateCommitGeneration(ctx, store, readStateClaimFor(t, ctx, database, "gen-2"), "gen-2", "hint-2", bad); err == nil ||
 		!strings.Contains(err.Error(), "needs a repository and a reason") {
 		t.Fatalf("commit gen-2 error = %v, want the state validation error", err)
