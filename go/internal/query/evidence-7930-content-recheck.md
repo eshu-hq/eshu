@@ -77,6 +77,27 @@ custom and generic are the same Seq Scan and generic holds no BitmapAnd, so
 there is nothing to steer toward (investigation only, no change). S3/M2 red
 cells sit outside (B) scope and stay residual for a later rung.
 
+## Probe (A) retirement under #10607 (arbiter probe-A disposition)
+
+Probe (A), the per-repo UNION ALL of single-scope legs, is dropped entirely
+as obsolete under the snippet shape; the shipped ANY stands with no re-pin
+and no restricted probe. The pre-snippet no-benefit KILL above stands
+(M1 probe hit=270/heap=72/removed=0 and M3 probe hit=180/heap=48/removed=0 at
+8-22x shipped buffers; M2 probe hit=225/heap=75/removed=900 NO-GAIN). The
+snippet-era KILL measured unbounded-leg artifact plus targetlist snippets,
+not UNION ALL work (M1 generic, M3 both regimes: UNION ALL legs evaluate all
+matches before the outer Sort, 1025-1538 buffers vs ANY 67-134).
+Removed: `TestUnionAllProbeWorkAndEquivalenceLive`,
+`TestUnionAllProbeDerivationGuard`,
+`TestUnionAllProbePoisonLegKeepsBindPositions` and helpers
+`unionAllProbeQuery`/`unionAllProbeQueryFrom`/`unionAllProbeArgs`,
+`dedupeScopedRepos`, `probeMultiCells`; kept probe (B)
+(`TestRareEmptySingleScopeBitmapInvestigationLive`) plus `planHasNode`;
+file renamed to `content_reader_search_scoped_bitmap_probe_live_test.go`;
+readiness reason now probe (B) only; inventory regenerated. Per-arm
+snippet-era numbers ride in `/tmp/10607/results.json` (preserved at
+`~/eshu-findings/05a-shim-artifacts/`).
+
 ## Observability Evidence: no serving change
 
 No-Observability-Change: no table, index, queue, worker, route, metric,

@@ -60,10 +60,7 @@ TABLE = {
         "go/internal/query/content_reader_search_like_escape_live_test.go": (
             "TestLikeEscapeDifferentialLive",
         ),
-        "go/internal/query/content_reader_search_scoped_union_probe_live_test.go": (
-            "TestUnionAllProbeDerivationGuard",
-            "TestUnionAllProbePoisonLegKeepsBindPositions",
-            "TestUnionAllProbeWorkAndEquivalenceLive",
+        "go/internal/query/content_reader_search_scoped_bitmap_probe_live_test.go": (
             "TestRareEmptySingleScopeBitmapInvestigationLive",
         ),
         "go/internal/query/content_reader_search_scoped_workbound_live_test.go": (
