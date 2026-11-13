@@ -216,7 +216,9 @@ func TestSemanticSearchHandlerScopedEmptyGrantReportsEmptyCorpusState(t *testing
 }
 
 func TestSemanticSearchHandlerCorpusStateSpanAttribute(t *testing.T) {
-	t.Parallel()
+	// No t.Parallel: this test swaps the package-level semanticSearchTracer,
+	// which parallel tests read in startQueryHandlerSpan. A parallel swap
+	// races with those readers (race detector, pre-push floor).
 
 	recorder := tracetest.NewSpanRecorder()
 	provider := trace.NewTracerProvider(trace.WithSpanProcessor(recorder))
