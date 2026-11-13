@@ -64,3 +64,7 @@ not statement-bound. Query text, 10 s guard, timeout classification, and
 read-site telemetry are untouched; rollback is a one-constant revert.
 H-3 covering index stays deferred per the arbiter ruling (build only if
 post-chunk p95 exceeds 5 s or the tail reaches the guard).
+
+No-Observability-Change: no new instruments, spans, log lines, labels,
+queue stages, locks, claims, leases, or status fields; per-chunk read-site
+timeout telemetry and fanout outcome sub-signals reused unchanged.
