@@ -11,7 +11,7 @@ No-Regression Evidence: `TestRepoStoryEvidenceDetailAtCapHandlesFitsBudget`
 signals, 200 wide relationships, 100 deployment plus 100 content artifacts,
 every capped family at its documented cap) marshals 4,049,011 bytes `full` vs
 188,422 bytes `handles` against the 262,144-byte (256 KiB) dispatch budget —
-73,722 bytes (~28%) of headroom — green on 5/5 runs. `go test
+73,722 bytes (~28%) of headroom — green on 5/5 runs (ledger:10605-story-handles-atcap). `go test
 ./internal/query/querycontract ./internal/query/repository -count=1` green;
 MCP `TestDispatchToolRepoStory*` plus
 `TestOpenAPIRepoStoryEvidenceDetailNamesFamilies` green. Backend is a pure
