@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -155,6 +156,18 @@ func (cr *ContentReader) enrichFileSnippetsWithTimeout(ctx context.Context, patt
 	)
 	if runErr != nil && !timedOut {
 		span.RecordError(runErr)
+		// Operator-visible signal: the span alone does not page anyone at
+		// 3 AM, and omission here is silent by contract. The pattern never
+		// enters the log line, only counts and the error itself.
+		logger := cr.unscoped.logger
+		if logger == nil {
+			logger = slog.Default()
+		}
+		logger.WarnContext(ctx, "search snippet enrichment degraded to omission",
+			slog.Int("snippet_rows", len(files)),
+			slog.Int("snippet_enriched", enriched),
+			slog.String("error", runErr.Error()),
+		)
 	}
 }
 
