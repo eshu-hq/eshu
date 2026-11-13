@@ -8,9 +8,11 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/mcp/contract/tool"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 func TestToolsPreserveEcosystemRegistrationContract(t *testing.T) {
@@ -48,10 +50,10 @@ func TestToolsPreserveEcosystemRegistrationContract(t *testing.T) {
 	}
 
 	encoded := marshalEcosystemDefinitions(t, tools)
-	if got, want := len(encoded), 22378; got != want {
+	if got, want := len(encoded), 23246; got != want {
 		t.Fatalf("serialized ecosystem definitions length = %d, want %d", got, want)
 	}
-	const wantDefinitionsHash = "4f37b9536b0171e92a9ddaa332a6ed39242817ac576dc260e52821eda7fd9319"
+	const wantDefinitionsHash = "f55511d556187f54a46f45efd7a8df762451edd908f4503252a57f39333e63d3"
 	if got := fmt.Sprintf("%x", sha256.Sum256(encoded)); got != wantDefinitionsHash {
 		t.Fatalf("ecosystem definitions hash = %s, want %s", got, wantDefinitionsHash)
 	}
@@ -193,4 +195,43 @@ func marshalEcosystemDefinition(t *testing.T, tool toolcontract.ToolDefinition) 
 		t.Fatalf("marshal ecosystem definition: %v", err)
 	}
 	return encoded
+}
+
+// TestRepoStoryEvidenceDetailDescriptionNamesFamilies proves the get_repo_story
+// evidence_detail description names every row family handles projects (#10605).
+// Ranging over querycontract.RepoStoryHandleListFamilies means a family added
+// to the list cannot ship undescribed on the MCP surface; keep the list in
+// step with the families the shaper projects.
+func TestRepoStoryEvidenceDetailDescriptionNamesFamilies(t *testing.T) {
+	t.Parallel()
+
+	tools := Tools()
+	var story *toolcontract.ToolDefinition
+	for i := range tools {
+		if tools[i].Name == "get_repo_story" {
+			story = &tools[i]
+			break
+		}
+	}
+	if story == nil {
+		t.Fatal("get_repo_story not registered, want the story tool present")
+	}
+	schema, ok := story.InputSchema.(map[string]any)
+	if !ok {
+		t.Fatalf("get_repo_story schema type = %T, want map[string]any", story.InputSchema)
+	}
+	properties, ok := schema["properties"].(map[string]any)
+	if !ok {
+		t.Fatalf("get_repo_story properties type = %T, want map[string]any", schema["properties"])
+	}
+	detail, ok := properties["evidence_detail"].(map[string]any)
+	if !ok {
+		t.Fatalf("get_repo_story evidence_detail type = %T, want map[string]any", properties["evidence_detail"])
+	}
+	description, _ := detail["description"].(string)
+	for _, family := range querycontract.RepoStoryHandleListFamilies() {
+		if !strings.Contains(description, family) {
+			t.Fatalf("get_repo_story evidence_detail description missing handles family %q", family)
+		}
+	}
 }

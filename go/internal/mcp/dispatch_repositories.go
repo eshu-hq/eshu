@@ -126,7 +126,14 @@ func repositoryRoute(toolName string, args map[string]any) (*routecontract.Reque
 	case "list_service_catalog_correlations":
 		return serviceCatalogCorrelationsRoute(args), true, nil
 	case "get_repo_story":
-		return &routecontract.Request{Method: "GET", Path: "/api/v0/repositories/" + url.PathEscape(str(args, "repo_id")) + "/story"}, true, nil
+		q := map[string]string{"evidence_detail": "handles"}
+		// #10605: handles keeps a populated repo story inside the response
+		// budget; an explicit value wins, and the handler rejects an unknown
+		// one.
+		if detail := str(args, "evidence_detail"); detail != "" {
+			q["evidence_detail"] = detail
+		}
+		return &routecontract.Request{Method: "GET", Path: "/api/v0/repositories/" + url.PathEscape(str(args, "repo_id")) + "/story", Query: q}, true, nil
 	case "get_repo_summary":
 		selector, err := repositorySummarySelector(args)
 		if err != nil {

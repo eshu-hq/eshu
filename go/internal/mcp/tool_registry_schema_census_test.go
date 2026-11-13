@@ -165,7 +165,7 @@ var censusToolSchemaSnapshot = []censusToolSchema{
 	{Name: "plan_developer_change", Properties: []string{"base_ref", "changed_paths", "changes", "developer_intent", "environment", "head_ref", "limit", "max_depth", "module_id", "offset", "repo_id", "resource_id", "service_name", "target", "target_type", "topic", "workload_id"}, Required: []string{}},
 	{Name: "list_package_registry_packages", Properties: []string{"ecosystem", "limit", "name", "package_id"}, Required: []string{"limit"}},
 	{Name: "list_package_registry_versions", Properties: []string{"limit", "package_id"}, Required: []string{"limit", "package_id"}},
-	{Name: "get_repo_story", Properties: []string{"repo_id"}, Required: []string{"repo_id"}},
+	{Name: "get_repo_story", Properties: []string{"evidence_detail", "repo_id"}, Required: []string{"repo_id"}},
 	{Name: "get_repository_coverage", Properties: []string{"repo_id"}, Required: []string{"repo_id"}},
 	{Name: "trace_resource_to_code", Properties: []string{"environment", "limit", "max_depth", "start"}, Required: []string{"start"}},
 	{Name: "explain_dependency_path", Properties: []string{"environment", "source", "target"}, Required: []string{"source", "target"}},

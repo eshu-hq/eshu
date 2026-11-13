@@ -131,6 +131,7 @@ nav:
         - Secrets/IAM: reference/http-api/secrets-iam.md
         - Context And Stories: reference/http-api/context-and-stories.md
         - Story Routes: reference/http-api/story-routes.md
+        - Story Read Cost: reference/http-api/story-read-cost.md
         - CLI Support Endpoints: reference/http-api/cli-support-endpoints.md
         - Deployment Trace And Influence: reference/http-api/deployment-trace-and-influence.md
         - Catalog And Workload Selection: reference/http-api/catalog-workload-selection.md

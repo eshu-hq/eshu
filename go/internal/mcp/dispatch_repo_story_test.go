@@ -56,6 +56,53 @@ func TestDispatchToolRepoStoryReturnsStructuredEnvelopeData(t *testing.T) {
 	}
 }
 
+// TestDispatchToolRepoStoryDefaultsEvidenceDetailToHandles proves the MCP
+// route builder forwards evidence_detail=handles when the caller names no
+// value, and forwards an explicit full verbatim (#10605). The in-tree core
+// handler records the effective mode on the body, so the envelope pins the
+// forwarding end to end.
+func TestDispatchToolRepoStoryDefaultsEvidenceDetailToHandles(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name string
+		args map[string]any
+		want string
+	}{
+		{"absent means handles", map[string]any{"repo_id": "repo-story"}, "handles"},
+		{"explicit full wins", map[string]any{"repo_id": "repo-story", "evidence_detail": "full"}, "full"},
+		{"explicit handles stays", map[string]any{"repo_id": "repo-story", "evidence_detail": "handles"}, "handles"},
+	} {
+		mux := http.NewServeMux()
+		handler := &query.RepositoryHandler{
+			Neo4j: repoStoryGraphReader{t: t, repoID: "repo-story"},
+		}
+		handler.Mount(mux)
+
+		result, err := dispatchTool(
+			context.Background(),
+			mux,
+			"get_repo_story",
+			tc.args,
+			"",
+			slog.New(slog.NewTextHandler(io.Discard, nil)),
+		)
+		if err != nil {
+			t.Fatalf("%s: dispatchTool() error = %v, want nil", tc.name, err)
+		}
+		if result.Envelope == nil {
+			t.Fatalf("%s: dispatchTool() envelope is nil, want structured repo story envelope", tc.name)
+		}
+		data, ok := result.Envelope.Data.(map[string]any)
+		if !ok {
+			t.Fatalf("%s: envelope data type = %T, want map[string]any", tc.name, result.Envelope.Data)
+		}
+		if got := query.StringVal(data, "evidence_detail"); got != tc.want {
+			t.Fatalf("%s: evidence_detail = %q, want %q", tc.name, got, tc.want)
+		}
+	}
+}
+
 func TestDispatchToolRepositoryStatsReturnsStructuredEnvelopeData(t *testing.T) {
 	t.Parallel()
 
