@@ -78,9 +78,13 @@ type generationRetentionFakeDB struct {
 	// every call answers chunkPageRows.
 	chunkPageScripts [][][]any
 	chunkPageCalls   int
-	execResults      []sql.Result
-	queries          []fakeQueryCall
-	execs            []fakeExecCall
+	// chunkDeleteFactsErr, when set, fails the next over-limit chunk fact
+	// delete with that error (single-shot: cleared on use), so a test can
+	// prove a lock_timeout mid-drain stops the drain instead of the pass.
+	chunkDeleteFactsErr error
+	execResults         []sql.Result
+	queries             []fakeQueryCall
+	execs               []fakeExecCall
 	// statements records every statement in the order the transaction issued
 	// it, reads and writes together, including the transaction-local setting
 	// statement that execs and execResults deliberately skip so the positional
@@ -442,6 +446,11 @@ func (tx *generationRetentionFakeTx) ExecContext(_ context.Context, query string
 		if strings.HasPrefix(query, prefix) {
 			return fakeResult{}, nil
 		}
+	}
+	if strings.Contains(query, "retention: over-limit chunk fact delete") && tx.database.chunkDeleteFactsErr != nil {
+		err := tx.database.chunkDeleteFactsErr
+		tx.database.chunkDeleteFactsErr = nil
+		return nil, err
 	}
 	if strings.HasPrefix(query, factkeys.DeleteMarker) {
 		tx.database.factKeyExecs = append(tx.database.factKeyExecs, fakeExecCall{query: query, args: args})

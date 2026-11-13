@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/coordination"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	factkeys "github.com/eshu-hq/eshu/go/internal/storage/postgres/facts/keys"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/infra/inventory"
@@ -61,6 +62,11 @@ const (
 	chunkPredrainStopBusy       chunkPredrainStopReason = "advisory_lock_busy"
 	chunkPredrainStopRowBusy    chunkPredrainStopReason = "row_lock_busy"
 	chunkPredrainStopIneligible chunkPredrainStopReason = "ineligible"
+	// chunkPredrainStopLockTimeout is a lock wait that outlasted the
+	// batch's lock_timeout (SQLSTATE 55P03): the timed-out statement
+	// applied nothing and the batch transaction rolls back, so the
+	// generation stays undrained and the next pass retries it.
+	chunkPredrainStopLockTimeout chunkPredrainStopReason = "lock_timeout"
 )
 
 // chunkPredrainBatchResult is one committed (or refused) predrain batch.
@@ -125,6 +131,11 @@ func (s GenerationRetentionStore) predrainChunkedTarget(
 // advisory try-lock, the eligibility re-check with the row lock, one
 // bounded page delete with its content prunes, and the commit. A busy lock
 // or an ineligible generation rolls the batch back with nothing applied.
+// A lock wait that outlasts the batch's SET LOCAL lock_timeout (SQLSTATE
+// 55P03, e.g. a repo advisory lock or a page delete queued behind a writer)
+// is a graceful stop with the same shape: the timed-out statement applied
+// nothing and the rollback leaves the generation undrained for the next
+// pass, so it must not fail the pass.
 func (s GenerationRetentionStore) predrainChunkBatch(
 	ctx context.Context,
 	beginner db.Beginner,
@@ -132,12 +143,18 @@ func (s GenerationRetentionStore) predrainChunkBatch(
 	policy GenerationRetentionPolicy,
 	target generationRetentionCandidate,
 	chunkRows int,
-) (chunkPredrainBatchResult, error) {
+) (result chunkPredrainBatchResult, err error) {
 	start := time.Now()
 	finish := func(result chunkPredrainBatchResult) chunkPredrainBatchResult {
 		result.elapsed = time.Since(start)
 		return result
 	}
+	defer func() {
+		if err != nil && coordination.IsLockNotAvailable(err) {
+			result = finish(chunkPredrainBatchResult{stopped: chunkPredrainStopLockTimeout})
+			err = nil
+		}
+	}()
 	tx, err := beginner.Begin(ctx)
 	if err != nil {
 		return chunkPredrainBatchResult{}, fmt.Errorf("generation retention: begin chunk predrain batch: %w", err)

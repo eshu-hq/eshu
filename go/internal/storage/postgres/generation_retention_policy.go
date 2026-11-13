@@ -277,9 +277,13 @@ const (
 	GenerationRetentionPhaseSweepSearchIndex = "sweep_search_index"
 
 	// GenerationRetentionPhasePredrainChunk is the chunk pre-delete's
-	// committed batches, which run before the prune transaction opens
-	// (#10020). It sits beside the closed GenerationRetentionPhase* set
-	// with the search index pre-delete phases above.
+	// candidate read plus its committed batches, which run before the prune
+	// transaction opens (#10020). The read stays out of count_rows so Gate 3
+	// keeps measuring exactly the prune's own unlocked planning; when no
+	// batch commits the phase is absent (one bounded read, observable via
+	// its pg_stat_statements marker). It sits beside the closed
+	// GenerationRetentionPhase* set with the search index pre-delete phases
+	// above.
 	GenerationRetentionPhasePredrainChunk = "predrain_chunk"
 
 	searchIndexUndrainedSkippedReason = "search_index_undrained"

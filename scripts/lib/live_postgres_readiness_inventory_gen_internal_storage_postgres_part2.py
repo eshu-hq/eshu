@@ -54,12 +54,13 @@ TABLE = {
             "TestGenerationRetentionKeepsCumulativeDeltaBaseLive",
         ),
         "go/internal/storage/postgres/generation_retention_chunk_insert_wait_live_test.go": (
-            "TestGenerationRetentionChunkConcurrentInsertWaitsLive",
+            "TestGenerationRetentionChunkPredrainConcurrentInsertLive",
         ),
         "go/internal/storage/postgres/generation_retention_chunk_live_test.go": (
             "TestGenerationRetentionChunkedDrainLive",
             "TestGenerationRetentionChunkStatementsRollBackLive",
             "TestGenerationRetentionChunkLockMissDropsSilentlyLive",
+            "TestGenerationRetentionChunkPredrainEligibilityFlipStopsLive",
         ),
         "go/internal/storage/postgres/generation_retention_credential_payloads_live_test.go": (
             "TestGenerationRetentionPrunesCredentialCopiesByDefaultLive",

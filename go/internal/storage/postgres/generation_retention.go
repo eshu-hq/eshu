@@ -188,10 +188,10 @@ func (s GenerationRetentionStore) PruneSupersededGenerations(
 // selectPrunableCandidates plans one pass unlocked and returns the counted
 // normal batch plus, since #7981, at most one over-limit chunk target: the
 // oldest candidate whose own facts exceed BatchRowLimit. The chunk target
-// drains one bounded page per cycle under the narrow lock instead of
-// skipping forever; the other over-limit candidates wait silently for a
-// later cycle, when they are re-selected and re-checked like any crash
-// resume. The #7981 witness retains the newest copy per same-identity group
+// never drains under the narrow lock: the #10020 predrain already drained
+// it in committed pre-Begin batches, so a still-over-limit target is
+// excluded for this pass and waits silently for a later cycle, when it is
+// re-selected and re-checked like any crash resume. The #7981 witness retains the newest copy per same-identity group
 // in the planned batch before counting, so unlocked planning never assembles
 // a batch that removes every copy at once.
 func (s GenerationRetentionStore) selectPrunableCandidates(
@@ -243,9 +243,9 @@ func (s GenerationRetentionStore) selectPrunableCandidates(
 		return nil, nil, nil, nil, fmt.Errorf("generation retention: rollback to savepoint: %w", err)
 	}
 	// #7334 fix 2: generations over the limit on own facts alone can never
-	// join a batch; since #7981 the oldest one drains a bounded chunk per
-	// cycle instead of skipping forever, without ever entering the
-	// heavyweight row count.
+	// join a batch; since #10020 the oldest one is diverted as the chunk
+	// target for the pre-Begin predrain instead of skipping forever, without
+	// ever entering the heavyweight row count.
 	phaseStart = time.Now()
 	ownFacts, err := s.prescreenOwnFacts(ctx, tx, candidates)
 	result.PhaseDurations[GenerationRetentionPhaseCountRows] += time.Since(phaseStart)

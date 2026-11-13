@@ -25,9 +25,10 @@ import (
 // same lock the search pre-delete batches and the prune's admission take —
 // sets a lock_timeout below deadlock_timeout, and runs one statement that
 // re-checks eligibility and locks the generation row FOR NO KEY UPDATE ...
-// SKIP LOCKED in its own snapshot. A busy lock, a missed row lock, or an
-// ineligible generation ends that generation's drain with no row deleted;
-// the next pass retries it. Rows deleted by earlier committed batches stay
+// SKIP LOCKED in its own snapshot. A busy lock, a missed row lock, an
+// ineligible generation, or a lock wait that outlasts the batch's
+// lock_timeout (SQLSTATE 55P03) ends that generation's drain with no row
+// deleted; the next pass retries it. Rows deleted by earlier committed batches stay
 // deleted, and the generation row is never touched, so a crash resumes on
 // the still-superseded row with no progress table: the drain is idempotent.
 
@@ -104,13 +105,23 @@ func (s GenerationRetentionStore) predrainChunkedGenerations(
 	if err := checkGenerationRetentionKeyIndexes(ctx, s.database); err != nil {
 		return nil, err
 	}
+	// The candidate read runs every pass, even with zero over-limit
+	// generations, and stays out of count_rows so Gate 3 keeps measuring
+	// exactly the prune's own unlocked planning: the read is predrain work,
+	// so its time folds into the predrain_chunk phase below. When no batch
+	// commits, finish reports no predrain_chunk phase — the read was then
+	// one bounded SELECT, told apart in pg_stat_statements by its marker,
+	// the same exclusion the #7427 search pre-delete read already uses.
+	readStart := time.Now()
 	candidates, err := s.readChunkPredrainCandidates(ctx, beginner, now, policy)
 	if err != nil {
 		return nil, err
 	}
+	readElapsed := time.Since(readStart)
 	predrain := &generationRetentionChunkPredrain{
-		chunks:  make(map[string]generationRetentionChunk),
-		touched: make(map[string]bool),
+		chunks:   make(map[string]generationRetentionChunk),
+		touched:  make(map[string]bool),
+		duration: readElapsed,
 	}
 	chunkRows := generationRetentionChunkRows(policy)
 	budget := &generationRetentionChunkBudget{

@@ -198,7 +198,7 @@ log + `eshu_dp_generation_retention_chunk_predelete_batches` histogram
 `TestGenerationRetentionRunnerRecordsChunkPredeleteBatches`; verifier
 `scripts/verify-telemetry-coverage.sh` passes).
 
-## Performance Evidence
+## Performance Evidence:
 
 - Conflict domain: retention prune transaction vs concurrent fact inserts
   into the pruned scopes; orphan-delete plan on `infra_resource_entities`.
@@ -210,11 +210,28 @@ log + `eshu_dp_generation_retention_chunk_predelete_batches` histogram
 - Metrics/spans/logs: `locked_recount` + `predrain_chunk` phases,
   `ScopeLockHold`, `ChunkPredeleteBatches` histogram + cycle log field,
   per-generation predrain left-for-later log, row_limit_chunked skips.
+- Planning attribution (F3): `predrain_chunk` folds the predrain candidate
+  read plus the committed batches; `count_rows` stays exactly the prune
+  transaction's own unlocked planning, so Gate 3's planning bar (≤6.1 s)
+  is comparable across passes with and without over-limit generations.
+  With zero committed batches no `predrain_chunk` phase is reported (one
+  bounded read, told apart in pg_stat_statements by
+  `-- retention: chunk predrain candidate read`, same exclusion as the
+  #7427 search pre-delete read). Fake proof:
+  `TestGenerationRetentionChunkPredrainDrainsToFitAndPrunesWhole` pins the
+  phase present with work; `TestGenerationRetentionChunkPredrainBusyLockDefers`
+  and `...LockTimeoutStopsAndDefers` pin it absent with no committed batch.
+- Lock give-way (F5): a batch lock wait outlasting the 500 ms
+  `lock_timeout` (SQLSTATE 55P03) stops that generation's drain with
+  `lock_timeout` instead of failing the pass; the generation stays
+  undrained and the next pass retries it. Fake proof:
+  `TestGenerationRetentionChunkPredrainLockTimeoutStopsAndDefers`
+  (RED→GREEN: pre-fix the 55P03 propagated as a pass error).
 - No live-QA timing claim is made here: Gate 3 re-earn on flip-scale
   batches (≥3 live cycles, during-hold pg_stat_activity, KEV re-measure,
   steady-state sweeps) remains open and is coordinator-owned.
 
-## Observability Evidence
+## Observability Evidence:
 
 - New phases `locked_recount`, `predrain_chunk`; retired
   `prune_chunked_facts` (documented in both telemetry refs).

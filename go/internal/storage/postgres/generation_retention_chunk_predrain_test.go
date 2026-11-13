@@ -8,6 +8,8 @@ import (
 	"database/sql"
 	"testing"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // chunkPredrainPage builds one fixture page of n metric facts: no file or
@@ -273,5 +275,48 @@ func TestGenerationRetentionChunkPredrainEventCountsAndFinish(t *testing.T) {
 	}
 	if got := result.Skipped[generationRetentionChunkedProgressSkippedReason]; got != 1 {
 		t.Fatalf("Skipped[row_limit_chunked] = %d, want 1 (only the generation left behind)", got)
+	}
+}
+
+// TestGenerationRetentionChunkPredrainLockTimeoutStopsAndDefers proves a
+// lock_timeout (SQLSTATE 55P03) inside a predrain batch is a graceful stop,
+// not a pass failure: the timed-out statement applied nothing, so the batch
+// transaction rolls back, the generation stays undrained for this pass, the
+// exclusion tallies the deferral skip, and the next pass retries it.
+func TestGenerationRetentionChunkPredrainLockTimeoutStopsAndDefers(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 6, 12, 10, 0, 0, 0, time.UTC)
+	database := &generationRetentionFakeDB{
+		candidateRows: [][]any{
+			{"scope-a", "generation-huge", "repository", now.Add(-12 * 24 * time.Hour), now.Add(-13 * 24 * time.Hour), false},
+		},
+		prescreenRows: [][]any{{"generation-huge", int64(250)}},
+		chunkPageScripts: [][][]any{
+			chunkPredrainPage("huge-fact-a", 100),
+		},
+		chunkDeleteFactsErr: &pgconn.PgError{Code: "55P03", Message: "canceling statement due to lock timeout"},
+	}
+	store := NewGenerationRetentionStore(database)
+	store.Now = func() time.Time { return now }
+
+	result, err := store.PruneSupersededGenerations(context.Background(), chunkPredrainPolicy())
+	if err != nil {
+		t.Fatalf("PruneSupersededGenerations() error = %v, want nil (a lock_timeout stops the drain, not the pass)", err)
+	}
+	if result.GenerationsPruned != 0 {
+		t.Fatalf("GenerationsPruned = %d, want 0 (the timed-out batch rolled back, nothing was drained)", result.GenerationsPruned)
+	}
+	if len(result.RowsPruned) != 0 {
+		t.Fatalf("RowsPruned = %v, want none (no batch committed)", result.RowsPruned)
+	}
+	if got := result.Skipped[generationRetentionChunkedProgressSkippedReason]; got != 1 {
+		t.Fatalf("Skipped[row_limit_chunked] = %d, want 1 (the undrained target waits for the next pass)", got)
+	}
+	if got := result.ChunkPredeleteBatches; got != 0 {
+		t.Fatalf("ChunkPredeleteBatches = %d, want 0 (the timed-out batch rolls back uncounted)", got)
+	}
+	if _, ok := result.PhaseDurations[GenerationRetentionPhasePredrainChunk]; ok {
+		t.Fatal("PhaseDurations has predrain_chunk with no committed batch")
 	}
 }

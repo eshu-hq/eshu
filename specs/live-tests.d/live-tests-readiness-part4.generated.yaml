@@ -177,12 +177,12 @@ tests:
   - file: go/internal/storage/postgres/generation_retention_chunk_insert_wait_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#8206 disposable PostgreSQL 18 proof that five fact inserts started after the chunked re-lock holds the over-limit chunk target all wait on its row locks (counted in pg_stat_activity), then commit after the one bounded page drains, enrolled in the live-postgres-readiness runner; bridges the family ESHU_GENERATION_RETENTION_PROOF_DSN onto ESHU_POSTGRES_TEST_DSN as the hard-ceiling proof does. local run passed 50 of 50 with -count=50 on postgres:18.6 on 2026-10-16"
+    reason: "#10020 disposable PostgreSQL 18 proof that five fact inserts started while a chunk predrain batch holds the over-limit generation's row lock all commit instead of deadlocking or being lost: the batch's FOR NO KEY UPDATE does not conflict with a concurrent fact insert's foreign-key check, and the exact final counts prove the inserts landed in no drained page and the generation still converges to a whole prune; bridges the family ESHU_GENERATION_RETENTION_PROOF_DSN onto ESHU_POSTGRES_TEST_DSN as the hard-ceiling proof does. Replaces the #8206 under-lock chunk wait proof, whose under-lock page drain no longer exists."
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/generation_retention_chunk_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#7981 disposable PostgreSQL 18 proof that an over-limit generation drains one bounded fact chunk per cycle and prunes whole once the remainder fits with no orphan rows, that the chunk statements roll back atomically, and that a lock-held chunk target drops silently (the concurrent-insert proof moved to generation_retention_chunk_insert_wait_live_test.go in #8206), enrolled in the live-postgres-readiness runner; bridges the family ESHU_GENERATION_RETENTION_PROOF_DSN onto ESHU_POSTGRES_TEST_DSN as the hard-ceiling proof does. local run passed all 4 tests (3 remain here after #8206) in 9.38s wall with the migrated-schema setup on postgres:16 on 2026-10-14"
+    reason: "#10020 disposable PostgreSQL 18 proof that an over-limit generation drains bounded pages in committed pre-delete batches before the prune transaction opens and prunes whole once the remainder fits with no orphan rows, that the chunk statements roll back atomically, that a lock-held chunk target defers with a skip (the concurrent-insert proof lives in generation_retention_chunk_insert_wait_live_test.go), and that a mid-drain eligibility flip stops the drain and resumes on the next pass, enrolled in the live-postgres-readiness runner; bridges the family ESHU_GENERATION_RETENTION_PROOF_DSN onto ESHU_POSTGRES_TEST_DSN as the hard-ceiling proof does."
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/generation_retention_credential_payloads_live_test.go
     tag: ~
