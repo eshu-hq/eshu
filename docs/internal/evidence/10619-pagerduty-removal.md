@@ -91,7 +91,7 @@ instrument home instead of the deleted package.
   go paths, no dangling references (dated design/census records for the
   pre-extraction paths exempted in
   `scripts/moved-file-refs-allowlist.d/go-collector-pagerduty.txt`).
-- `bash scripts/verify-doc-citations.sh`: 294 test, 340 fixture, 254 raw
+- `bash scripts/verify-doc-citations.sh`: 294 test, 341 fixture, 254 raw
   line citations tracked, clean.
 - Docs build (`mkdocs build --strict`): clean after the nav entry removal.
 

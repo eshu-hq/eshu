@@ -460,16 +460,16 @@ if rg --quiet --fixed-strings -- 'drain-advisory-domains="code_calls"' "${script
 	fail "code_calls must no longer be quarantined as an advisory drain domain (#3865 fixed)"
 fi
 
-# Wires the two remaining B-10 cassette collectors; aws-cloud, terraform-state,
-# vault-live, azure-cloud, gcp-cloud, kubernetes-live, and sbom-attestation ride the pagerduty replay aliases.
+# All other B-10 cassettes ride the cicd-run replay aliases (pagerduty binary removed).
 for collector in collector-oci-registry collector-package-registry; do
 	require "collector ${collector}" "${collector}"
 done
 require "prometheus/mimir cassette collector" "collector-prometheus-mimir:prometheusmimir"
-require "azure cassette replay alias" "azure-cassette-replay:collector-pagerduty:azurecloud"
-require "gcp cassette replay alias" "gcp-cassette-replay:collector-pagerduty:gcpcloud"
-require "kubernetes-live cassette replay alias" "kubernetes-live-cassette-replay:collector-pagerduty:kuberneteslive"
-require "sbom-attestation cassette replay alias" "sbom-attestation-cassette-replay:collector-pagerduty:sbomattestation"
+require "pagerduty cassette replay alias" "pagerduty-cassette-replay:collector-cicd-run:pagerduty"
+require "azure cassette replay alias" "azure-cassette-replay:collector-cicd-run:azurecloud"
+require "gcp cassette replay alias" "gcp-cassette-replay:collector-cicd-run:gcpcloud"
+require "kubernetes-live cassette replay alias" "kubernetes-live-cassette-replay:collector-cicd-run:kuberneteslive"
+require "sbom-attestation cassette replay alias" "sbom-attestation-cassette-replay:collector-cicd-run:sbomattestation"
 
 # The B-13 (#3859) drain gate lives in the gate binary; the orchestrator must run
 # the drains phase against the snapshot whose shared_projection_intents bound is

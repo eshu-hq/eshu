@@ -122,10 +122,12 @@ func TestPagerDutyCollectorIsSatelliteOwned(t *testing.T) {
 
 	// #10619: the in-tree command, source package, and image build are gone
 	// after the satellite cutover (#8863). Nothing in-tree may build, name,
-	// or document the monolith binary. The deploy-chart half of the old
-	// assertion is dropped with it: the overlay still charts the live
-	// component-extension activation, and disabling any stale in-tree chart
-	// surface is overlay work tracked from #10619, not an in-tree pin.
+	// or document the monolith binary. The deploy-chart half is pinned
+	// through the satellite activation fixture: the grant-kinds boundary
+	// test carries the pagerduty satellite activation, and it must keep
+	// naming the satellite component (never the monolith binary). The base
+	// chart template still names the retired monolith command, so no
+	// absence assertion runs against the pinned deploy checkout here.
 	for _, binary := range []string{
 		"eshu-collector-pagerduty",
 	} {
@@ -135,6 +137,15 @@ func TestPagerDutyCollectorIsSatelliteOwned(t *testing.T) {
 				t.Fatalf("%s still references in-tree %q, want satellite-only execution", file, binary)
 			}
 		}
+	}
+	if !strings.Contains(pagerDutyActivationValues, "componentId: dev.example.collector.pagerduty") {
+		t.Fatal("satellite activation fixture lost the pagerduty satellite component")
+	}
+	if !strings.Contains(pagerDutyActivationValues, activationPagerDutyDigest) {
+		t.Fatal("satellite activation fixture lost the pagerduty satellite digest pin")
+	}
+	if strings.Contains(pagerDutyActivationValues, "eshu-collector-pagerduty") {
+		t.Fatal("satellite activation fixture names the retired monolith binary, want satellite-only execution")
 	}
 	// The service-runtimes lockstep entry stays read: the runtime table
 	// still carries PagerDuty as a satellite runtime.
