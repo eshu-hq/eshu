@@ -1,0 +1,168 @@
+===== REPLICA =====
+BEGIN
+SET
+         q
+-------------------
+ F1_chunk5_analyze
+(1 row)
+
+                                                                                                                                     QUERY PLAN
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Unique (actual rows=148.00 loops=1)
+   Buffers: shared hit=42844 read=12703 dirtied=139
+   I/O Timings: shared read=445.074
+   CTE candidates
+     ->  HashAggregate (actual rows=180.00 loops=1)
+           Group Key: finding.scope_id, finding.generation_id
+           Batches: 1  Memory Usage: 1305kB
+           Buffers: shared hit=37740 read=12702 dirtied=139
+           I/O Timings: shared read=445.036
+           ->  Append (actual rows=34595.00 loops=1)
+                 Buffers: shared hit=36010 read=12572 dirtied=139
+                 I/O Timings: shared read=391.889
+                 ->  Index Scan using fact_records_supply_chain_impact_lookup_idx on fact_records finding (actual rows=31996.00 loops=1)
+                       Index Cond: ((payload ->> 'cve_id'::text) = ANY ('{CVE-2015-8861,CVE-2016-10540,CVE-2017-1000048,CVE-2019-19919,CVE-2019-20920}'::text[]))
+                       Index Searches: 5
+                       Buffers: shared hit=23343 read=10378 dirtied=123
+                       I/O Timings: shared read=377.210
+                 ->  Index Scan using fact_records_supply_chain_impact_advisory_lookup_idx on fact_records finding_1 (actual rows=0.00 loops=1)
+                       Index Cond: ((payload ->> 'advisory_id'::text) = ANY ('{CVE-2015-8861,CVE-2016-10540,CVE-2017-1000048,CVE-2019-19919,CVE-2019-20920}'::text[]))
+                       Index Searches: 1
+                       Buffers: shared read=5
+                       I/O Timings: shared read=0.041
+                 ->  Bitmap Heap Scan on fact_records finding_2 (actual rows=2599.00 loops=1)
+                       Recheck Cond: (((payload #> '{provenance,advisory_group_members}'::text[]) ?| '{CVE-2015-8861,CVE-2016-10540,CVE-2017-1000048,CVE-2019-19919,CVE-2019-20920}'::text[]) AND (fact_kind = 'reducer_supply_chain_impact_finding'::text) AND (NOT is_tombstone))
+                       Heap Blocks: exact=759
+                       Buffers: shared hit=12667 read=2189 dirtied=16
+                       I/O Timings: shared read=14.639
+                       ->  Bitmap Index Scan on fact_records_supply_chain_impact_group_members_idx (actual rows=2772.00 loops=1)
+                             Index Cond: ((payload #> '{provenance,advisory_group_members}'::text[]) ?| '{CVE-2015-8861,CVE-2016-10540,CVE-2017-1000048,CVE-2019-19919,CVE-2019-20920}'::text[])
+                             Index Searches: 1
+                             Buffers: shared hit=9 read=77
+                             I/O Timings: shared read=0.512
+   ->  Sort (actual rows=148.00 loops=1)
+         Sort Key: candidates.scope_id
+         Sort Method: quicksort  Memory: 25kB
+         Buffers: shared hit=42844 read=12703 dirtied=139
+         I/O Timings: shared read=445.074
+         ->  Hash Join (actual rows=148.00 loops=1)
+               Hash Cond: ((candidates.scope_id = scope.scope_id) AND (candidates.generation_id = scope.active_generation_id))
+               Buffers: shared hit=42806 read=12703 dirtied=139
+               I/O Timings: shared read=445.074
+               ->  CTE Scan on candidates (actual rows=150.00 loops=1)
+                     Filter: (scope_id <> 'security-alert:github:REDACTED/REDACTED'::text)
+                     Rows Removed by Filter: 30
+                     Storage: Memory  Maximum Storage: 171kB
+                     Buffers: shared hit=37740 read=12702 dirtied=139
+                     I/O Timings: shared read=445.036
+               ->  Hash (actual rows=5376.00 loops=1)
+                     Buckets: 8192  Batches: 1  Memory Usage: 2084kB
+                     Buffers: shared hit=4675 read=1
+                     I/O Timings: shared read=0.038
+                     ->  Seq Scan on ingestion_scopes scope (actual rows=5779.00 loops=1)
+                           Buffers: shared hit=937
+ Planning:
+   Buffers: shared hit=3543 read=156
+   I/O Timings: shared read=1.909
+ Planning Time: 26.512 ms
+ Execution Time: 810.796 ms
+(58 rows)
+
+ROLLBACK
+BEGIN
+SET
+SET
+            q
+--------------------------
+ F2_chunk25_bitmap_forced
+(1 row)
+
+                                                                                                                                                                                                                                                                                         QUERY PLAN
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Unique (actual rows=414.00 loops=1)
+   Buffers: shared hit=58672 read=47236 dirtied=143
+   I/O Timings: shared read=1184.586
+   CTE candidates
+     ->  HashAggregate (actual rows=451.00 loops=1)
+           Group Key: finding.scope_id, finding.generation_id
+           Batches: 1  Memory Usage: 1561kB
+           Buffers: shared hit=52943 read=47236 dirtied=143
+           I/O Timings: shared read=1184.586
+           ->  Append (actual rows=137987.00 loops=1)
+                 Buffers: shared hit=45246 read=46743 dirtied=143
+                 I/O Timings: shared read=1115.661
+                 ->  Bitmap Heap Scan on fact_records finding (actual rows=129289.00 loops=1)
+                       Recheck Cond: (((payload ->> 'cve_id'::text) = ANY ('{CVE-2015-8861,CVE-2016-10540,CVE-2017-1000048,CVE-2019-19919,CVE-2019-20920,CVE-2019-25225,CVE-2020-13822,CVE-2020-28498,CVE-2020-7660,CVE-2021-23368,CVE-2021-23369,CVE-2021-23382,CVE-2021-23383,CVE-2021-26539,CVE-2021-26540,CVE-2021-26920,CVE-2021-32640,CVE-2022-0155,CVE-2022-0536,CVE-2022-21670,CVE-2022-24999,CVE-2022-25887,CVE-2022-3517,CVE-2023-26159,CVE-2023-30533}'::text[])) AND (fact_kind = 'reducer_supply_chain_impact_finding'::text) AND (NOT is_tombstone))
+                       Heap Blocks: exact=36560
+                       Buffers: shared hit=4031 read=38809 dirtied=132
+                       I/O Timings: shared read=1068.042
+                       ->  Bitmap Index Scan on fact_records_supply_chain_impact_lookup_idx (actual rows=130159.00 loops=1)
+                             Index Cond: ((payload ->> 'cve_id'::text) = ANY ('{CVE-2015-8861,CVE-2016-10540,CVE-2017-1000048,CVE-2019-19919,CVE-2019-20920,CVE-2019-25225,CVE-2020-13822,CVE-2020-28498,CVE-2020-7660,CVE-2021-23368,CVE-2021-23369,CVE-2021-23382,CVE-2021-23383,CVE-2021-26539,CVE-2021-26540,CVE-2021-26920,CVE-2021-32640,CVE-2022-0155,CVE-2022-0536,CVE-2022-21670,CVE-2022-24999,CVE-2022-25887,CVE-2022-3517,CVE-2023-26159,CVE-2023-30533}'::text[]))
+                             Index Searches: 19
+                             Buffers: shared hit=751 read=5529
+                             I/O Timings: shared read=1036.211
+                 ->  Bitmap Heap Scan on fact_records finding_1 (actual rows=0.00 loops=1)
+                       Recheck Cond: (((payload ->> 'advisory_id'::text) = ANY ('{CVE-2015-8861,CVE-2016-10540,CVE-2017-1000048,CVE-2019-19919,CVE-2019-20920,CVE-2019-25225,CVE-2020-13822,CVE-2020-28498,CVE-2020-7660,CVE-2021-23368,CVE-2021-23369,CVE-2021-23382,CVE-2021-23383,CVE-2021-26539,CVE-2021-26540,CVE-2021-26920,CVE-2021-32640,CVE-2022-0155,CVE-2022-0536,CVE-2022-21670,CVE-2022-24999,CVE-2022-25887,CVE-2022-3517,CVE-2023-26159,CVE-2023-30533}'::text[])) AND (fact_kind = 'reducer_supply_chain_impact_finding'::text) AND (NOT is_tombstone))
+                       Buffers: shared hit=3 read=7
+                       I/O Timings: shared read=0.059
+                       ->  Bitmap Index Scan on fact_records_supply_chain_impact_advisory_lookup_idx (actual rows=0.00 loops=1)
+                             Index Cond: ((payload ->> 'advisory_id'::text) = ANY ('{CVE-2015-8861,CVE-2016-10540,CVE-2017-1000048,CVE-2019-19919,CVE-2019-20920,CVE-2019-25225,CVE-2020-13822,CVE-2020-28498,CVE-2020-7660,CVE-2021-23368,CVE-2021-23369,CVE-2021-23382,CVE-2021-23383,CVE-2021-26539,CVE-2021-26540,CVE-2021-26920,CVE-2021-32640,CVE-2022-0155,CVE-2022-0536,CVE-2022-21670,CVE-2022-24999,CVE-2022-25887,CVE-2022-3517,CVE-2023-26159,CVE-2023-30533}'::text[]))
+                             Index Searches: 2
+                             Buffers: shared hit=3 read=7
+                             I/O Timings: shared read=0.059
+                 ->  Bitmap Heap Scan on fact_records finding_2 (actual rows=8698.00 loops=1)
+                       Recheck Cond: (((payload #> '{provenance,advisory_group_members}'::text[]) ?| '{CVE-2015-8861,CVE-2016-10540,CVE-2017-1000048,CVE-2019-19919,CVE-2019-20920,CVE-2019-25225,CVE-2020-13822,CVE-2020-28498,CVE-2020-7660,CVE-2021-23368,CVE-2021-23369,CVE-2021-23382,CVE-2021-23383,CVE-2021-26539,CVE-2021-26540,CVE-2021-26920,CVE-2021-32640,CVE-2022-0155,CVE-2022-0536,CVE-2022-21670,CVE-2022-24999,CVE-2022-25887,CVE-2022-3517,CVE-2023-26159,CVE-2023-30533}'::text[]) AND (fact_kind = 'reducer_supply_chain_impact_finding'::text) AND (NOT is_tombstone))
+                       Heap Blocks: exact=2619
+                       Buffers: shared hit=41212 read=7927 dirtied=11
+                       I/O Timings: shared read=47.560
+                       ->  Bitmap Index Scan on fact_records_supply_chain_impact_group_members_idx (actual rows=9446.00 loops=1)
+                             Index Cond: ((payload #> '{provenance,advisory_group_members}'::text[]) ?| '{CVE-2015-8861,CVE-2016-10540,CVE-2017-1000048,CVE-2019-19919,CVE-2019-20920,CVE-2019-25225,CVE-2020-13822,CVE-2020-28498,CVE-2020-7660,CVE-2021-23368,CVE-2021-23369,CVE-2021-23382,CVE-2021-23383,CVE-2021-26539,CVE-2021-26540,CVE-2021-26920,CVE-2021-32640,CVE-2022-0155,CVE-2022-0536,CVE-2022-21670,CVE-2022-24999,CVE-2022-25887,CVE-2022-3517,CVE-2023-26159,CVE-2023-30533}'::text[])
+                             Index Searches: 1
+                             Buffers: shared hit=44 read=86
+                             I/O Timings: shared read=0.644
+   ->  Sort (actual rows=414.00 loops=1)
+         Sort Key: candidates.scope_id
+         Sort Method: quicksort  Memory: 25kB
+         Buffers: shared hit=58672 read=47236 dirtied=143
+         I/O Timings: shared read=1184.586
+         ->  Hash Join (actual rows=414.00 loops=1)
+               Hash Cond: ((candidates.scope_id = scope.scope_id) AND (candidates.generation_id = scope.active_generation_id))
+               Buffers: shared hit=58467 read=47236 dirtied=143
+               I/O Timings: shared read=1184.586
+               ->  CTE Scan on candidates (actual rows=419.00 loops=1)
+                     Filter: (scope_id <> 'security-alert:github:REDACTED/REDACTED'::text)
+                     Rows Removed by Filter: 32
+                     Storage: Memory  Maximum Storage: 415kB
+                     Buffers: shared hit=52943 read=47236 dirtied=143
+                     I/O Timings: shared read=1184.586
+               ->  Hash (actual rows=5376.00 loops=1)
+                     Buckets: 8192  Batches: 1  Memory Usage: 2084kB
+                     Buffers: shared hit=4651
+                     ->  Seq Scan on ingestion_scopes scope (actual rows=5779.00 loops=1)
+                           Buffers: shared hit=937
+ Planning:
+   Buffers: shared hit=83 read=1
+   I/O Timings: shared read=0.014
+ Planning Time: 9.018 ms
+ Execution Time: 2750.617 ms
+(66 rows)
+
+ROLLBACK
+BEGIN
+SET
+        q         |                      stxname
+------------------+----------------------------------------------------
+ F3_stats_objects | fact_records_cloud_retract_admission_uid_stats
+ F3_stats_objects | fact_records_vulnerability_cve_id_stats
+ F3_stats_objects | fact_records_supply_chain_impact_advisory_id_stats
+(3 rows)
+
+         q         |         name         | setting | unit
+-------------------+----------------------+---------+------
+ F4_shared_buffers | effective_cache_size | 2359296 | 8kB
+ F4_shared_buffers | random_page_cost     | 1.1     |
+ F4_shared_buffers | shared_buffers       | 524288  | 8kB
+ F4_shared_buffers | work_mem             | 65536   | kB
+(4 rows)
+
+ROLLBACK
