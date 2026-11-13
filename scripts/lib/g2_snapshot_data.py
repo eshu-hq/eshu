@@ -13,6 +13,11 @@ GENERATOR_NAME = "gen-g2-served-snapshot.py"
 # the removal base (278/279/281 are all stale); this module grows by family.
 INVENTORY_SCOPE = "content-search"
 
+# Core side of the base pair: the tree the snapshot was derived from.
+# A generation record, not ambient HEAD (no committed file can name its
+# own commit). On re-base, update this const, regenerate, run the checker.
+CORE_SHA = "895eff3cd33ed6dca44445bb73aca932f8b53c5f"
+
 # Satellite base pair side, verified 2026-11-13 via local git objects only:
 # the 3 point reads are router-mounted and spec-fragmented at this SHA,
 # the 4 searches have no spec fragment under openapi/paths/search/.

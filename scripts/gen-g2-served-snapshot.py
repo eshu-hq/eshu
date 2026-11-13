@@ -23,6 +23,7 @@ sys.path.insert(0, str(LIB))
 
 from g2_snapshot_data import (  # noqa: E402
     CLASSES,
+    CORE_SHA,
     CUTOVER,
     FRAGMENT_FILE,
     GENERATOR_NAME,
@@ -80,7 +81,30 @@ def parse_args(argv):
     ap.add_argument("--satellite-repo", default=os.environ.get("G2_SATELLITE_REPO", ""),
                     help="path to a satellite (eshu-api) git checkout holding "
                          "SATELLITE_SHA objects (read-only; never fetched)")
+    ap.add_argument("--core-sha", default=None,
+                    help="override the CORE_SHA generation record (re-base only; "
+                         "without it the source files must be clean)")
     return ap.parse_args(argv)
+
+
+SOURCE_FILES = (CUTOVER, MOUNT_FILE, FRAGMENT_FILE, SEARCH_PIN_FILE, POINT_PIN_FILE)
+
+
+def verify_clean_or_pinned(core_sha):
+    """Fail closed when the derivation inputs differ from the recorded base.
+
+    Without an explicit --core-sha, every in-tree source file must be
+    clean, so the recorded CORE_SHA truthfully describes the inputs.
+    """
+    if core_sha is not None:
+        sh(["git", "cat-file", "-e", core_sha + "^{commit}"])
+        return core_sha
+    dirty = sh(["git", "status", "--porcelain", "--", *SOURCE_FILES]).strip()
+    if dirty:
+        raise SystemExit("source files dirty; commit them or re-base with "
+                         "an explicit --core-sha:\n" + dirty)
+    sh(["git", "cat-file", "-e", CORE_SHA + "^{commit}"])
+    return CORE_SHA
 
 
 def verify_satellite(repo):
@@ -169,6 +193,8 @@ def render(core_sha, sat_frag_sha, sat_listing_sha, intree_frag_sha):
     lines.append("```bash")
     lines.append("python3 scripts/gen-g2-served-snapshot.py --satellite-repo PATH")
     lines.append("bash scripts/check-g2-served-snapshot.sh")
+    lines.append("# re-base: pass --core-sha NEWBASE and update CORE_SHA in")
+    lines.append("# scripts/lib/g2_snapshot_data.py in the same change")
     lines.append("```")
     lines.append("")
     lines.append("The satellite repo is read-only input: the generator runs "
@@ -249,7 +275,7 @@ def main(argv=None):
     args = parse_args(argv if argv is not None else sys.argv[1:])
     sat_frag_sha, sat_listing_sha = verify_satellite(args.satellite_repo)
     intree_frag_sha = verify_intree()
-    core_sha = sh(["git", "rev-parse", "HEAD"]).strip()
+    core_sha = verify_clean_or_pinned(args.core_sha)
     Path(args.out).write_text(render(core_sha, sat_frag_sha,
                                      sat_listing_sha, intree_frag_sha))
     print(f"wrote {args.out}", file=sys.stderr)

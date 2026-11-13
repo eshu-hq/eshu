@@ -19,6 +19,8 @@ Regenerate (run in the worktree root):
 ```bash
 python3 scripts/gen-g2-served-snapshot.py --satellite-repo PATH
 bash scripts/check-g2-served-snapshot.sh
+# re-base: pass --core-sha NEWBASE and update CORE_SHA in
+# scripts/lib/g2_snapshot_data.py in the same change
 ```
 
 The satellite repo is read-only input: the generator runs only `rev-parse --verify`, `show`, and `ls-tree` against the pinned SHA and never fetches, pulls, or clones. At 943c1eee3897 the satellite serves the 3 point reads natively (`openapi/paths/search/content_point_reads.go`) and carries no content-search fragment under `openapi/paths/search/`; the 4 searches stay core-relay until the satellite W4 termination lands.
