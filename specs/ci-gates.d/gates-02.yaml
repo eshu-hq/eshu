@@ -546,15 +546,18 @@ gates:
       - "scripts/test-main-health.sh"
       - "scripts/lib/test-main-health-*"
       # The mirror asserts the watcher workflow's trigger list equals the
-      # aggregator's, its least-privilege permissions and action pinning, so
-      # an edit to either workflow must select it.
+      # workflows the script judges (its own wake list), its
+      # least-privilege permissions and action pinning, so an edit to either
+      # workflow must select it.
       - ".github/workflows/main-health.yml"
       - ".github/workflows/required-gates.yml"
       # The mirror asserts Security Scan's run-name stamp, which the
       # watcher parses to judge only scans of main's image at the tip.
       - ".github/workflows/security-scan.yml"
-      # The required-workflow list is derived from this file's
-      # required_status_checks; a registry edit can change the derivation.
+      # The sentinel display name is derived from this file's
+      # required_status_checks workflow through that workflow file's .name;
+      # a registry edit can change the derivation.
+      - ".github/workflows/test.yml"
       - "specs/ci-gates.v1.yaml"
       - "specs/ci-gates.d/**"
       # The mirror's wiring assertion reads verify-ci-gate-registry.yml.

@@ -15,7 +15,7 @@ whichever workflow woke it up) and publishes a `main-health` commit status:
 | Verdict | Condition | Issue | Status |
 | --- | --- | --- | --- |
 | red | a required workflow's latest run on the tip failed in a blocking job, or the newest completed scheduled `Required Gates` ruleset verification (in a page of 10, by `created_at`, and no older than 12h) did not succeed | open or update the single `main is red @<sha>` issue; comment on it when the set of blocking reds changes | `failure` |
-| green | every required workflow that ran on the tip succeeded or failed only in advisory jobs, none is running, the aggregator's source workflow has a verdict, and the ruleset verification is fresh and passing | close the open issue | `success`, naming any advisory failure |
+| green | every required workflow that ran on the tip succeeded or failed only in advisory jobs, none is running, the sentinel workflow has a verdict, and the ruleset verification is fresh and passing | close the open issue | `success`, naming any advisory failure |
 | pending | a required workflow is still running, or the source workflow has not registered yet | unchanged | `pending` |
 | unknown | a required run was cancelled and never re-run, a run listing came back truncated, or the ruleset verification is missing, has no `created_at`, or is older than 12h | unchanged | `error` |
 
@@ -160,15 +160,21 @@ open, update, duplicate-close, close, and status paths.
 
 ## Where the required workflows come from
 
-Nothing is listed in the script. The required workflows are the workflows
-`.github/workflows/required-gates.yml` aggregates (its `workflow_run` trigger)
-plus the `source_workflow` of the registry's aggregating status check in
-`specs/ci-gates.v1.yaml`. The registry drift check already verifies that
-aggregator list against the blocking gates. `workflow_run` cannot take a
-computed list, so the watcher workflow repeats the names. The mirror below
-fails when that list differs from the list the script judges
-(`scripts/ci/main-health.sh --print-required`), or when it names the
-aggregator itself.
+Nothing is listed in the script. The required workflows are the watcher's own
+wake list: `.github/workflows/main-health.yml` `on.workflow_run.workflows`,
+read by `required_workflows` in `scripts/lib/main-health-policy.sh`.
+`workflow_run` cannot take a computed list, so the watcher workflow repeats
+the names, and the wake list is the judged list. The mirror below fails when
+that list differs from the list the script judges
+(`scripts/ci/main-health.sh --print-required`), when a judged name is not a
+real workflow file's `.name`, or when it names `Required Gates` itself. The
+sentinel is the registry's required-status workflow file
+(`specs/ci-gates.v1.yaml` `required_status_checks[].workflow`, the Go
+umbrellas' workflow) resolved through that file's `.name` (`Build Test`); it
+anchors only the source-has-a-verdict pending check. The ruleset workflow is
+the file whose jobs contain `verify-live-ruleset`. An empty derivation of any
+of the three exits the watcher non-zero before any issue or status write, so
+a red `main` is never judged against an empty set.
 
 ## Prove it locally
 

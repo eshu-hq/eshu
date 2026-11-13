@@ -240,13 +240,13 @@ check "verdict is sanitised (no raw @user mention)" "$(called '@some-user' && ec
 #     the REAL repo it is non-empty and includes the registry's source workflow.
 listed="$(MAIN_HEALTH_REPO_ROOT="${repo_root}" "${target}" --print-required)"
 check "real repo: derived required list is non-empty" "$([ -n "${listed}" ] && echo 0 || echo 1)"
-check "real repo: derived list includes the aggregator's source workflow" "$(printf '%s\n' "${listed}" | rg -qx 'Build Test' && echo 0 || echo 1)"
-expected_n="$(yq '.on.workflow_run.workflows | length' "${repo_root}/.github/workflows/required-gates.yml")"
-check "real repo: derived list covers every workflow the aggregator listens to" "$([ "$(printf '%s\n' "${listed}" | wc -l | tr -d ' ')" -ge "${expected_n}" ] && echo 0 || echo 1)"
+check "real repo: derived list names the sentinel Build Test" "$(printf '%s\n' "${listed}" | rg -qx 'Build Test' && echo 0 || echo 1)"
+expected_n="$(yq '.on.workflow_run.workflows | length' "${repo_root}/.github/workflows/main-health.yml")"
+check "real repo: derived list covers the watcher's wake list" "$([ "$(printf '%s\n' "${listed}" | wc -l | tr -d ' ')" -eq "${expected_n}" ] && echo 0 || echo 1)"
 # #8354: the workflow_run file list must not depend on the installed yq's
 # string-escape handling (yq < 4.49 kept a "\t" literal, emptied the list, and
 # the watcher then never read Security Scan's workflow_run image scan).
-wr_files="$(repo_root="${repo_root}" aggregator_yml="${repo_root}/.github/workflows/required-gates.yml" \
+wr_files="$(repo_root="${repo_root}" watcher_yml="${repo_root}/.github/workflows/main-health.yml" \
 	registry_yml="${repo_root}/specs/ci-gates.v1.yaml" \
 	bash -c '. "${repo_root}/scripts/lib/main-health-policy.sh"; workflow_run_files' 2>/dev/null || true)"
 check "real repo: workflow_run files include security-scan.yml" "$(printf '%s\n' "${wr_files}" | rg -qx 'security-scan.yml' && echo 0 || echo 1)"
@@ -482,6 +482,13 @@ check "P3: summary counts the derived required list exactly" "$(ok out_has ' req
 # 27. #7111: a run listing larger than one argv string is still judged.
 # shellcheck source=scripts/lib/test-main-health-argmax.sh
 . "${repo_root}/scripts/lib/test-main-health-argmax.sh"
+# 28. fail-closed: an empty derivation exits non-zero before any write.
+new_case empty-derivation "${TIP}"
+seed_empty_policy
+policy_root="${empty_policy_root}" run_watcher
+policy_root="${work}/policy"
+check "fail-closed: empty derivation exits non-zero with a named error and no write" "$([ "${last_rc}" -ne 0 ] && rg -q 'FAIL-CLOSED.*required' "${case_dir}/err.txt" && not_called "${ANY_WRITE}" && echo 0 || echo 1)"
+
 # shellcheck source=scripts/lib/test-main-health-ruleset.sh
 . "${repo_root}/scripts/lib/test-main-health-ruleset.sh"
 

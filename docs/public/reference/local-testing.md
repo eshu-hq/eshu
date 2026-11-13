@@ -53,10 +53,11 @@ the whole-module `go test ./... -race`, CI the authoritative full gate.
 
 **Where Ifá/Odù protection lives:** neither `make pre-push` nor a bare
 `make pre-pr` runs a live Ifá/Odù cell (Docker/Neo4j/Postgres-only, CI or
-explicit local request). CI's `required-gates-complete` aggregate collects
-every Ifá/Odù gate plus every other `blocking: true` row the changed paths
-select. It is disabled as a required check for now; a red gate under it is
-still a finding to fix or link before merge ([merge rule](https://github.com/eshu-hq/eshu/blob/main/docs/internal/agent-git-hygiene.md#when-a-pr-may-merge)).
+explicit local request). Ifá/Odù gates run as path-selected CI lanes; the
+`required-gates-complete` fan-in aggregate was removed in #10584, so the
+branch ruleset's `go-core-complete` and `go-race-complete` umbrellas are the
+merge gate. A red blocking gate is still a finding to fix or link before
+merge ([merge rule](https://github.com/eshu-hq/eshu/blob/main/docs/internal/agent-git-hygiene.md#when-a-pr-may-merge)).
 
 ### Local and hosted ownership
 
@@ -269,49 +270,16 @@ to select workflows and gates on the exact head:
   readiness lane (`live-postgres-readiness.yml`, `blocking: false` in the
   registry) is also path-selected and cuts its five shards by predicted seconds
   ([readiness shards](local-testing/live-postgres-readiness-shards.md)).
-- **Trusted blocking-gate aggregate:** the manifest also declares
-  `required-gates-complete`. A `workflow_run` publisher executes the policy from
-  the default branch, never checks out pull-request code, and evaluates the
-  exact pull-request head. It maps changed paths to every registry row marked
-  `blocking: true`, then waits for the exact workflow/check names declared by
-  those rows. A selected failed, neutral, or timed-out check makes the
-  aggregate fail. A selected check that never produced a verdict does not: that
-  is infrastructure state, not a gate result, so the aggregate publishes
-  `error` with a description naming the re-run rather than claiming a gate
-  failed ([#6189](https://github.com/eshu-hq/eshu/issues/6189)). `error` still
-  blocks the merge — the ruleset requires `success` — so nothing is waved
-  through; the status just stops asserting an outcome that never happened.
-  Four shapes qualify: a **cancelled** check, a **stale** one GitHub
-  orphaned, one GitHub marked **skipped because the workflow run that
-  owned the job was cancelled**, and one **missing entirely because that run
-  was cancelled before the job was created** — no check run exists, so nothing
-  will ever report it. A check missing for any other reason keeps the
-  aggregate waiting rather than resolving, because a gate the registry
-  selected whose job simply never ran is a real disagreement, not
-  infrastructure noise. The skipped shape is why the aggregate reads run
-  conclusions (`actions: read`): GitHub reports the same `SKIPPED` conclusion
-  whether a dependency was cancelled or the job's own `if:` excluded it, and
-  **a gate skipped for its own reasons still fails the aggregate** — the
-  registry selected it for these paths, so a skip the workflow chose is a real
-  disagreement about whether it should have run. If the run conclusions cannot
-  be read, a skipped gate stays a failure. While a re-run of the cancelled
-  workflow is still executing, its conclusion is neither cancelled nor a
-  verdict, so the aggregate keeps waiting rather than publishing either answer;
-  the re-run's own completion re-triggers it. A cancellation alongside a
-  still-running gate keeps waiting, so a gate that goes genuinely red is still
-  reported as `failure`. Per-head concurrency
-  keeps one aggregate running and retains only the latest pending run without
-  cancelling the active status writer. An aggregate that starts posts pending
-  before checkout or setup, then reaches a real terminal result; the retained
-  run posts pending again before it recomputes. A manual cancellation after
-  that first step leaves pending instead of inventing a failure. GitHub cannot
-  execute repository code after cancellation before runner allocation, and
-  commit statuses have no atomic generation fence, so this workflow does not
-  claim protection across that operator/API boundary.
-  This closes the gap where a blocking registry row could be visible locally
-  yet absent from GitHub's two Go umbrellas.
-- **Trust boundary:** the aggregate policy, selector, and status publisher come
-  from the default branch and cannot be rewritten by the pull request they
+- **Retired blocking-gate aggregate:** the manifest used to declare
+  `required-gates-complete`, fanned in by a `workflow_run` publisher from the
+  default branch. The publisher was deleted in
+  [#10584](https://github.com/eshu-hq/eshu/issues/10584): the per-event fan-in
+  was noise and the branch ruleset never required the aggregate. Enforcement
+  now rests on the `go-core-complete` and `go-race-complete` umbrellas named
+  above; a red blocking registry row is still a finding to fix or link before
+  merge.
+- **Trust boundary:** the required checks come from the branch ruleset and
+  cannot be rewritten by the pull request they
   evaluate. The selected leaf checks remain ordinary pull-request CI: their
   workflow and test code are reviewable changes in the repository. Enforcement
   therefore assumes branch-protected review and does not claim to resist a
@@ -319,8 +287,8 @@ to select workflows and gates on the exact head:
   change. That stronger adversarial boundary requires organization-level
   immutable required workflows or an external GitHub App.
 - **Ruleset drift:** rollout retains `go-core-complete` and
-  `go-race-complete`, then adds `required-gates-complete` only after its trusted
-  publisher is present on the default branch. The scheduled/manual live
+  `go-race-complete`; the `required-gates-complete` fan-in was retired in
+  #10584 and is not re-added. The scheduled/manual live
   verifier checks that the named owning ruleset is active and scoped to the
   default branch, proves that ruleset itself owns the exact context and
   integration-ID manifest, then makes the same comparison against GitHub's

@@ -257,9 +257,8 @@ func TestAwaitNewestFailureStillFailsWithRunID(t *testing.T) {
 	if want := itoa(newestRunID); !strings.Contains(err.Error(), want) {
 		t.Fatalf("failure message %q does not name the judged workflow run id %s", err.Error(), want)
 	}
-	code := classifyAwaitOutcome(err).exitCode()
-	if state, _, published := publishedRequiredStatus(t, code); !published || state != "failure" {
-		t.Fatalf("a genuine newest-run failure published state=%q published=%v; want failure", state, published)
+	if code := classifyAwaitOutcome(err).exitCode(); code != awaitExitGateFailed {
+		t.Fatalf("a genuine newest-run failure classified exit %d; want %d", code, awaitExitGateFailed)
 	}
 }
 
@@ -318,9 +317,8 @@ func TestAwaitSupersededFailureWithNewestCancelledReportsCancelled(t *testing.T)
 	if !errors.Is(err, errGateCancelled) {
 		t.Fatalf("err = %v; the newest run was cancelled before producing the job, which is infrastructure state, not a gate result", err)
 	}
-	code := classifyAwaitOutcome(err).exitCode()
-	if state, _, published := publishedRequiredStatus(t, code); !published || state != "error" {
-		t.Fatalf("a cancelled newest run published state=%q published=%v; want error, which blocks the merge without claiming a gate failed", state, published)
+	if code := classifyAwaitOutcome(err).exitCode(); code != awaitExitGateCancelled {
+		t.Fatalf("a cancelled newest run classified exit %d; want %d", code, awaitExitGateCancelled)
 	}
 }
 
@@ -352,9 +350,8 @@ func TestAwaitSupersededFailureWithNewestConcludedWithoutJobFailsClosed(t *testi
 	if want := "MISSING (newest run concluded without it)"; !strings.Contains(err.Error(), want) {
 		t.Fatalf("failure message %q does not carry %q; the operator must see that the newest run never produced the job", err.Error(), want)
 	}
-	code := classifyAwaitOutcome(err).exitCode()
-	if state, _, published := publishedRequiredStatus(t, code); !published || state != "failure" {
-		t.Fatalf("a newest run that concluded without the job published state=%q published=%v; want failure", state, published)
+	if code := classifyAwaitOutcome(err).exitCode(); code != awaitExitGateFailed {
+		t.Fatalf("a newest run that concluded without the job classified exit %d; want %d", code, awaitExitGateFailed)
 	}
 }
 

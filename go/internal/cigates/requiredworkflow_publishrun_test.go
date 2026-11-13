@@ -181,19 +181,7 @@ jobs:
 	}
 }
 
-// TestTerminalPublisherRunFindsTheRealPublisher is the positive control for
-// the selection above, run against the workflow this repository ships.
-func TestTerminalPublisherRunFindsTheRealPublisher(t *testing.T) {
-	t.Parallel()
-
-	run, err := TerminalPublisherRun(repositoryRequiredGatesWorkflow(t))
-	if err != nil {
-		t.Fatalf("locate the repository's terminal publisher: %v", err)
-	}
-	if !strings.Contains(run, "AGGREGATE_CODE") {
-		t.Fatalf("the located step does not branch on AGGREGATE_CODE; the wrong step was selected:\n%s", run)
-	}
-	if strings.Contains(run, "state=pending") {
-		t.Fatalf("the located step is the pending publisher, not the terminal one:\n%s", run)
-	}
-}
+// The repository no longer ships a publisher workflow: #10584 deleted the
+// required-gates.yml workflow_run fan-in and the aggregate job. Selection
+// against the repository file has no subject; the fixture test above keeps
+// pinning the ambiguous-workflow boundary.

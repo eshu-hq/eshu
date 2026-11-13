@@ -30,8 +30,8 @@ NEXT="bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 # --- fixture repo root: the source of truth the script must derive from ------
 policy_root="${work}/policy"
 mkdir -p "${policy_root}/.github/workflows" "${policy_root}/specs"
-cat >"${policy_root}/.github/workflows/required-gates.yml" <<'YAML'
-name: Required Gates
+cat >"${policy_root}/.github/workflows/main-health.yml" <<'YAML'
+name: Main Health
 on:
   workflow_run:
     workflows:
@@ -39,7 +39,18 @@ on:
       - Static Contract Gates
       - Frontend
       - Security Scan
-    types: [in_progress, completed]
+    types: [completed]
+YAML
+cat >"${policy_root}/.github/workflows/required-gates.yml" <<'YAML'
+name: Required Gates
+on:
+  schedule:
+    - cron: "17 */6 * * *"
+jobs:
+  verify-live-ruleset:
+    runs-on: ubuntu-24.04
+    steps:
+      - run: echo audit
 YAML
 cat >"${policy_root}/.github/workflows/test.yml" <<'YAML'
 name: Build Test
@@ -193,6 +204,19 @@ called() { [ "$(count_calls "$1")" -gt 0 ]; }
 not_called() { [ "$(count_calls "$1")" -eq 0 ]; }
 out_has() { rg -q -- "$1" "${case_dir}/out.txt"; }
 ok() { "$@" && echo 0 || echo 1; }
+
+# seed_empty_policy builds an otherwise-valid policy tree whose watcher wake
+# list is empty, isolating the fail-closed required-set guard: the registry
+# copy still resolves a sentinel and the required-gates.yml copy still owns
+# the verify-live-ruleset job, so only the required derivation is empty.
+# Sets empty_policy_root; the caller points MAIN_HEALTH_REPO_ROOT at it.
+seed_empty_policy() {
+	empty_policy_root="${work}/empty-policy"
+	mkdir -p "${empty_policy_root}/.github/workflows" "${empty_policy_root}/specs"
+	printf 'name: Main Health\non:\n  workflow_run:\n    workflows: []\n    types: [completed]\n' >"${empty_policy_root}/.github/workflows/main-health.yml"
+	cp "${policy_root}/.github/workflows/required-gates.yml" "${policy_root}/.github/workflows/test.yml" "${empty_policy_root}/.github/workflows/"
+	cp "${policy_root}/specs/ci-gates.v1.yaml" "${empty_policy_root}/specs/ci-gates.v1.yaml"
+}
 
 ISSUES_POST='^api -X POST repos/eshu-hq/eshu/issues( |$)'
 ISSUE_PATCH='^api -X PATCH repos/eshu-hq/eshu/issues/[0-9]+'

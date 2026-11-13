@@ -92,18 +92,16 @@ func TestAwaitGenuinelyMissingCheckNeverPasses(t *testing.T) {
 				t.Fatalf("exit %d; a check missing for any reason other than a cancelled owning run must keep "+
 					"the aggregate waiting (exit %d), never resolve", code, awaitExitStillRunning)
 			}
-			if state, description, published := publishedRequiredStatus(t, code); published || state == "success" {
-				t.Fatalf("exit %d published state=%q description=%q; nothing may publish success here",
-					code, state, description)
-			}
 		})
 	}
 }
 
-// TestAwaitMissingCheckFromACancelledRunDoesNotStrandTheStatus is the defect.
-// The run that owned the job was cancelled before the job was created, so the
-// check run does not exist and never will. Waiting for it cannot terminate.
-func TestAwaitMissingCheckFromACancelledRunDoesNotStrandTheStatus(t *testing.T) {
+// TestAwaitMissingCheckFromACancelledRunReportsCancelled is the defect. The
+// run that owned the job was cancelled before the job was created, so the
+// check run does not exist and will never exist. Waiting for it cannot
+// terminate. The publisher that used to turn this into a posted `error` is
+// deleted (#10584); what remains is the classifier half, pinned here.
+func TestAwaitMissingCheckFromACancelledRunReportsCancelled(t *testing.T) {
 	t.Parallel()
 
 	required, checks := missingGateFixture()
@@ -122,26 +120,6 @@ func TestAwaitMissingCheckFromACancelledRunDoesNotStrandTheStatus(t *testing.T) 
 	if code != awaitExitGateCancelled {
 		t.Fatalf("exit %d, want %d; a job whose run was cancelled before the job existed is the same "+
 			"cancellation as a CANCELLED check, and must reach the same terminal answer", code, awaitExitGateCancelled)
-	}
-	state, description, published := publishedRequiredStatus(t, code)
-	if !published {
-		t.Fatal("exit code published nothing; the status would stay pending forever, which is the defect")
-	}
-	if state != "error" {
-		t.Fatalf("published state=%q description=%q; want error -- it blocks the merge and names the re-run",
-			state, description)
-	}
-	// Non-empty, not a required phrase. publishedDescriptionErrors asserts
-	// description DISTINCTNESS for exactly this reason, and its own comment
-	// records that an earlier draft requiring the word "cancel" turned ordinary
-	// rewording into a red. Re-pinning the phrase here would contradict that
-	// contract from the other side: rewording the 13-arm description would keep
-	// ./internal/cigates green while this package went red. What matters is that
-	// something distinguishes this outcome -- a cancelled gate and a broken
-	// aggregation both publish state=error, so the description is the only thing
-	// separating them for an operator.
-	if description == "" {
-		t.Fatalf("exit %d published state=error with no description; a cancelled gate and a broken aggregation both publish error, so an empty description leaves an operator nothing to act on", code)
 	}
 }
 

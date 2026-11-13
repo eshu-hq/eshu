@@ -16,7 +16,7 @@ type contextOutput struct {
 	Context       string `json:"context"`
 	IntegrationID int64  `json:"integration_id"`
 	// RulesetRequired is false for manifest entries the live ruleset does not
-	// require, such as the Main Health aggregate publisher.
+	// require, such as a non-required aggregate publisher.
 	RulesetRequired bool `json:"ruleset_required"`
 }
 

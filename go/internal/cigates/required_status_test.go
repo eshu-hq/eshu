@@ -12,7 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/cigates"
 )
 
-func TestValidateRequiredStatusChecks_RequiresBlockingAggregator(t *testing.T) {
+func TestValidateRequiredStatusChecks_ZeroAggregatorsStillRequiresRulesetEntry(t *testing.T) {
 	t.Parallel()
 
 	reg := &cigates.Registry{
@@ -31,10 +31,15 @@ func TestValidateRequiredStatusChecks_RequiresBlockingAggregator(t *testing.T) {
 
 	errs := reg.ValidateRequiredStatusChecks()
 	if len(errs) == 0 {
-		t.Fatal("expected missing blocking-gate aggregator to fail validation")
+		t.Fatal("expected a manifest with no ruleset_required entry to fail validation")
 	}
-	if !strings.Contains(errs[0].Error(), "aggregates_blocking_gates") {
-		t.Fatalf("error %q should explain the missing aggregator", errs[0])
+	for _, err := range errs {
+		if strings.Contains(err.Error(), "aggregates_blocking_gates") {
+			t.Fatalf("zero aggregators must not error once the fan-in is deleted: %v", errs)
+		}
+	}
+	if !strings.Contains(errs[0].Error(), "ruleset_required") {
+		t.Fatalf("error %q should name ruleset_required", errs[0])
 	}
 }
 
@@ -184,5 +189,66 @@ func TestValidateRequiredStatusChecks_RequiresAtLeastOneRulesetRequiredEntry(t *
 	}
 	if !strings.Contains(errs[0].Error(), "ruleset_required") {
 		t.Fatalf("error %q should name ruleset_required", errs[0])
+	}
+}
+
+func TestValidateRequiredStatusChecks_AllowsZeroAggregators(t *testing.T) {
+	t.Parallel()
+
+	reg := &cigates.Registry{
+		Gates: []cigates.Gate{{
+			ID:       "contract",
+			Blocking: true,
+			CI:       cigates.CI{Workflow: "test.yml", Job: "contract"},
+		}},
+		RequiredStatusChecks: []cigates.RequiredStatusCheck{{
+			Context:         "go-core-complete",
+			Workflow:        "test.yml",
+			Job:             "go-core-complete",
+			IntegrationID:   15368,
+			RulesetRequired: true,
+		}},
+	}
+
+	if errs := reg.ValidateRequiredStatusChecks(); len(errs) != 0 {
+		t.Fatalf("zero-aggregator manifest must validate clean: %v", errs)
+	}
+}
+
+func TestValidateRequiredStatusChecks_RejectsTwoAggregators(t *testing.T) {
+	t.Parallel()
+
+	reg := &cigates.Registry{
+		Gates: []cigates.Gate{{
+			ID:       "contract",
+			Blocking: true,
+			CI:       cigates.CI{Workflow: "test.yml", Job: "contract"},
+		}},
+		RequiredStatusChecks: []cigates.RequiredStatusCheck{
+			{
+				Context:                 "required-gates-complete",
+				Workflow:                "required-gates.yml",
+				Job:                     "aggregate",
+				SourceWorkflow:          "Build Test",
+				IntegrationID:           15368,
+				AggregatesBlockingGates: true,
+			},
+			{
+				Context:                 "second-aggregate",
+				Workflow:                "required-gates.yml",
+				Job:                     "aggregate",
+				SourceWorkflow:          "Build Test",
+				IntegrationID:           15368,
+				AggregatesBlockingGates: true,
+			},
+		},
+	}
+
+	errs := reg.ValidateRequiredStatusChecks()
+	if len(errs) == 0 {
+		t.Fatal("expected two blocking-gate aggregators to fail validation")
+	}
+	if !strings.Contains(errs[0].Error(), "aggregates_blocking_gates") {
+		t.Fatalf("error %q should explain the duplicate aggregator", errs[0])
 	}
 }

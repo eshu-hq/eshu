@@ -15,10 +15,10 @@ hosted infrastructure a laptop does not have); a row marked as an alias
 shares its check with the gate its reason names, under a different git hook
 stage.
 
-Blocking is an enforcement contract, not descriptive metadata. The trusted
-default-branch `required-gates-complete` publisher selects every matching
-blocking row, waits for its exact workflow/check identity on the pull request
-head, and fails closed on a failed, neutral, missing, or timed-out check.
+Blocking is an enforcement contract, not descriptive metadata. The branch
+ruleset requires the `go-core-complete` and `go-race-complete` umbrellas
+on the pull request head (the `required-gates-complete` fan-in publisher
+was removed, so there is no aggregate rollup to wait on).
 A check that never produced a verdict fails closed too, but is reported as
 `error` rather than as a gate failure: a cancelled check, a stale one, one
 GitHub marked skipped because the run that owned it was cancelled, and one
@@ -259,7 +259,7 @@ results are derived from the inputs rather than written by hand. See
 | `ci-install-apt-packages` | CI apt/ripgrep installer test mirror | hygiene | pre-pr | true | `bash scripts/test-ci-install-apt-packages.sh` | test.yml / go-core | 7 path(s): scripts/ci/install-apt-packages.sh, scripts/test-ci-install-apt-packages.sh, scripts/lib/test-ci-install-apt-packages-fixtures.sh, … |
 | `ci-go-mod-download-retry` | CI Go module pre-warm retry-script test mirror | hygiene | pre-pr | true | `bash scripts/test-ci-go-mod-download-retry.sh` | test.yml / go-core | 5 path(s): scripts/ci/go-mod-download-retry.sh, scripts/test-ci-go-mod-download-retry.sh, .github/workflows/test.yml, … |
 | `ci-go-install-retry` | CI Go tool install retry-script test mirror | hygiene | pre-pr | true | `bash scripts/test-ci-go-install-retry.sh` | test.yml / go-core | 7 path(s): scripts/ci/go-install-retry.sh, scripts/test-ci-go-install-retry.sh, scripts/lib/test-ci-go-install-retry-fake-go.sh, … |
-| `main-health-watcher` | Post-merge main-health watcher test mirror | hygiene | pre-pr | true | `bash scripts/test-main-health.sh` | verify-ci-gate-registry.yml / Verify ci-gate registry test mirror | 10 path(s): scripts/ci/main-health.sh, scripts/lib/main-health-policy.sh, scripts/test-main-health.sh, … |
+| `main-health-watcher` | Post-merge main-health watcher test mirror | hygiene | pre-pr | true | `bash scripts/test-main-health.sh` | verify-ci-gate-registry.yml / Verify ci-gate registry test mirror | 11 path(s): scripts/ci/main-health.sh, scripts/lib/main-health-policy.sh, scripts/test-main-health.sh, … |
 | `dirgate-main-alarm` | Post-merge dirgate full-sweep alarm test mirror | hygiene | pre-pr | true | `bash scripts/test-dirgate-main-alarm.sh` | verify-ci-gate-registry.yml / Verify ci-gate registry test mirror | 8 path(s): scripts/ci/dirgate-main-alarm.sh, scripts/test-dirgate-main-alarm.sh, scripts/gh-fake-dirgate-alarm.sh, … |
 | `pre-enqueue-check` | Pre-merge check test mirror | hygiene | pre-pr | true | `bash scripts/dev/test-pre-enqueue-check.sh` | verify-ci-gate-registry.yml / Verify ci-gate registry test mirror | 6 path(s): scripts/dev/pre-enqueue-check.sh, scripts/dev/test-pre-enqueue-check.sh, scripts/lib/test-pre-enqueue-check-*, … |
 | `openapi-surface` | Verify OpenAPI Surface | exactness | pre-pr | true | `bash scripts/verify-openapi.sh`<br>then self-test: `bash scripts/test-verify-openapi.sh && bash scripts/test-verify-openapi-subpackage.sh` | static-contract-gates.yml / Verify OpenAPI gate | 12 path(s): .github/static-contract-filters.yml, go/internal/query/**, go/internal/mcp/**, … |

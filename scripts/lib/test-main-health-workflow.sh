@@ -55,17 +55,22 @@ if [ ! -f "${watcher_wf}" ]; then
 fi
 
 # N1: the watcher wakes on exactly the workflows it judges (the script's own
-# derivation), and never on the aggregator. Every Required Gates publisher run
-# reports head_branch main (about 18 a minute live), so as a trigger it would
-# flood the watcher; its scheduled ruleset verification is covered by the
-# watcher's own schedule, which fires after it, and by every evaluation.
-agg_wf="${repo_root}/.github/workflows/required-gates.yml"
+# derivation from its wake list), and never on the ruleset audit workflow.
+# Every Required Gates publisher run reported head_branch main (about 18 a
+# minute live), so as a trigger it would flood the watcher; its scheduled
+# ruleset verification is covered by the watcher's own schedule, which fires
+# after it, and by every evaluation.
+ruleset_wf="${repo_root}/.github/workflows/required-gates.yml"
 want="$(MAIN_HEALTH_REPO_ROOT="${repo_root}" "${target}" --print-required | sort -u)"
 have="$(yq '.on.workflow_run.workflows[]' "${watcher_wf}" | sort -u)"
+check "N1: the judged list is non-empty" "$([ -n "${want}" ] && echo 0 || echo 1)"
 check "N1: workflow_run list == the workflows the script judges" "$([ -n "${want}" ] && [ "${want}" = "${have}" ] && echo 0 || echo 1)"
-check "N1: the aggregator itself is never a trigger" \
-	"$(printf '%s\n' "${have}" | rg -qxF -- "$(yq '.name' "${agg_wf}")" && echo 1 || echo 0)"
-agg_cron="$(yq '.on.schedule[0].cron' "${agg_wf}")"
+names="$(for f in "${repo_root}"/.github/workflows/*.yml "${repo_root}"/.github/workflows/*.yaml; do [[ -f "${f}" ]] || continue; yq '.name' "${f}"; done | sort -u)"
+check "N1: every judged name resolves to a real workflow file's .name" "$([ -z "$(printf '%s\n' "${want}" | rg -vxF -f <(printf '%s\n' "${names}"))" ] && echo 0 || echo 1)"
+check "N1: the sentinel Build Test is judged" "$(printf '%s\n' "${want}" | rg -qx 'Build Test' && echo 0 || echo 1)"
+check "N1: Required Gates itself is never a trigger" \
+	"$(printf '%s\n' "${have}" | rg -qxF -- "$(yq '.name' "${ruleset_wf}")" && echo 1 || echo 0)"
+agg_cron="$(yq '.on.schedule[0].cron' "${ruleset_wf}")"
 own_cron="$(yq '.on.schedule[0].cron' "${watcher_wf}")"
 check "N1: the watcher's schedule runs after the ruleset verifier's, same hours" \
 	"$([ "${agg_cron#* }" = "${own_cron#* }" ] && [ "${own_cron%% *}" -gt "${agg_cron%% *}" ] 2>/dev/null && echo 0 || echo 1)"

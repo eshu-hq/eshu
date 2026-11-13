@@ -393,59 +393,7 @@ func TestCheckRequiredStatusWorkflows_RejectsAStillRunningArmThatPublishes(t *te
 	requireErrorContaining(t, errs, `posts state="failure" for AGGREGATE_CODE=11`)
 }
 
-// TestCheckRequiredStatusWorkflows_AcceptsTheRepositorysOwnPublisher runs the
-// contract against the workflow this repository actually ships, not a
-// fixture. It is the reason the registry gate catches a workflow-only edit:
-// `.github/workflows/**` is one of the ci-gates-registry gate's triggers, so
-// a change to required-gates.yml selects this check even when no Go file
-// moved.
-func TestCheckRequiredStatusWorkflows_AcceptsTheRepositorysOwnPublisher(t *testing.T) {
-	t.Parallel()
-
-	run, err := TerminalPublisherRun(repositoryRequiredGatesWorkflow(t))
-	if err != nil {
-		t.Fatalf("locate the repository's terminal publisher: %v", err)
-	}
-	step := requiredWorkflowStep{Run: run}
-	check := RequiredStatusCheck{Context: "required-gates-complete"}
-	if errs := validatePublishedOutcomes(step, check); len(errs) != 0 {
-		t.Fatalf("the repository's own publisher must satisfy its published-status contract, got %v", errs)
-	}
-}
-
-// TestCheckRequiredStatusWorkflows_RepositoryPublisherExitsZeroAfterPostingVerdicts
-// is #8336: a pull-request merge-preview failure (PR #8334's registry-mirror
-// failure on refs/remotes/pull/8334/merge) was published correctly on the PR
-// head, yet the aggregate's own runs concluded failure 9 times filed under the
-// main tip (workflow_run runs always report the default-branch head, and the
-// row JSON carries no PR attribution). The verdict travels on the posted
-// status, which still blocks the PR; the run must exit zero once it has
-// published. That includes the breakdown arms: code 12 (aggregation broke)
-// and the unclassified probe both post `error` and exit 0 here, by choice.
-// The empty-AGGREGATE_CODE arm is pinned separately for pull_request in
-// TestRequiredWorkflowTerminalPostsErrorAndExitsZeroForUnclassifiedPullRequest,
-// because this harness always evaluates the merge_group event, where an empty
-// code publishes nothing and leaves the head for the next run. Only a
-// pending-step classification failure on pull_request still exits 1, pinned in
-// TestRequiredWorkflowTerminalStillErrorsPullRequestSetupFailure.
-func TestCheckRequiredStatusWorkflows_RepositoryPublisherExitsZeroAfterPostingVerdicts(t *testing.T) {
-	t.Parallel()
-
-	run, err := TerminalPublisherRun(repositoryRequiredGatesWorkflow(t))
-	if err != nil {
-		t.Fatalf("locate the repository's terminal publisher: %v", err)
-	}
-	for _, code := range []int{awaitExitPassedCode, awaitExitGateFailedCode, awaitExitBrokenCode, awaitExitGateCancelledCode, awaitExitReusedCode, awaitExitSmokePassedCode, publisherUnclassifiedProbeCode} {
-		observed, err := EvaluatePublisher(run, code)
-		if err != nil {
-			t.Fatalf("evaluate repository publisher for %d: %v", code, err)
-		}
-		if len(observed.Publishes) != 1 {
-			t.Fatalf("code %d published %d statuses, want exactly 1: %+v", code, len(observed.Publishes), observed)
-		}
-		if observed.ExitCode != 0 {
-			t.Errorf("code %d posted state=%q but exited %d; a published verdict must not fail the main-filed aggregate run",
-				code, observed.Publishes[0].State, observed.ExitCode)
-		}
-	}
-}
+// The repository no longer ships a terminal publisher: #10584 deleted the
+// required-gates.yml workflow_run fan-in and the aggregate job, so there is
+// no repository publisher step to exit-zero here. The fixture tests above keep
+// pinning the published-status contract for any future publisher.
