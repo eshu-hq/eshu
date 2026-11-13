@@ -186,6 +186,16 @@ const (
 	MetricDimensionDecision  = "decision"
 	MetricDimensionStatus    = "status"
 	MetricDimensionOperation = "operation"
+	// MetricDimensionScopeClass labels scoped content-search metrics with the
+	// scope shape that ran: "single" (one repository) or "multi" (a set).
+	// Derived from the operation, never from repo ids.
+	MetricDimensionScopeClass = "scope_class"
+	// MetricDimensionPatternClass labels scoped content-search metrics with
+	// the pattern shape that ran: "trigram", "no_trigram", "short", or
+	// "wildcard". Derived from the raw pattern by
+	// query.scopedSearchPatternClass; the label carries the class only, never
+	// the pattern text.
+	MetricDimensionPatternClass = "pattern_class"
 	// MetricDimensionGate labels graph-write backpressure metrics with the
 	// permit-pool class a write drew from: "canonical" (canonical,
 	// handler-edge, shared-projection, secrets/IAM, orphan-sweep, and

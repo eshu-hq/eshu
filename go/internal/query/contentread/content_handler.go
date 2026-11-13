@@ -361,6 +361,12 @@ func (h *ContentHandler) normalizeContentSearchRequest(ctx context.Context, req 
 }
 
 func (h *ContentHandler) searchFilesByScope(ctx context.Context, req contentSearchRequest) ([]querycontract.FileContent, bool, error) {
+	// The whole body is the request's Postgres phase: every store call
+	// below reads the content store, and the paging trim is in-handler
+	// shaping of those rows. Mirrors searchEntitiesByScope so the file route
+	// carries the same ObservePG clock.
+	pgStart := time.Now()
+	defer func() { querycontract.ObservePG(ctx, time.Since(pgStart)) }()
 	if querycontract.RepositoryAccessFilterFromContext(ctx).Empty() {
 		return []querycontract.FileContent{}, false, nil
 	}

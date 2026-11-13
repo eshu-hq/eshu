@@ -168,3 +168,4 @@ Each documented bucket set maps a short name to the exact boundary values in `go
 | ingestion-commit-pin-slack-seconds | 0, 1, 2.5, 5, 10, 20, 30, 40, 50, 60, 120 |
 | advisory-group-member-count | 2, 3, 5, 8, 13, 21, 32 |
 | advisory-group-compute-seconds | 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5 |
+| scoped-search-seconds | 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30 |
