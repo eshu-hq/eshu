@@ -197,9 +197,10 @@ resource fits, the server drops `structuredContent` and returns the resource
 only; `structured` needs no such fallback because its single copy already is
 the whole result.
 
-The default stays `dual` because a client that reads the embedded resource (or
-the text summary) instead of `structuredContent` sees strictly less under
-`structured`. Flipping any platform default needs the per-client transcript
+The default stays `dual` because a client that reads the embedded resource
+instead of `structuredContent` sees strictly less under `structured` (text
+summaries are identical across shapes). Flipping any platform default needs
+the per-client transcript
 matrix recorded in [#10610](https://github.com/eshu-hq/eshu/issues/10610).
 Budget metrics carry a shape label, so adoption and per-shape over-budget rates
 are observable without new instrumentation.
