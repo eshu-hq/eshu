@@ -27,12 +27,17 @@ import "strings"
 //   - readiness_missing: work items failing the readiness gate, computed
 //     with the gate's own predicate text (outer NOT EXISTS flipped to
 //     EXISTS). Equivalence to the shipped gate is De Morgan exact.
+//   - live_fence_keys (#10630 step 2): the DISTINCT live-lease
+//     (conflict_domain, COALESCE(conflict_key, scope_id)) key set,
+//     computed once per claim. `candidate` anti-joins it instead of
+//     re-probing fact_work_items once per representative (the #4137 fence
+//     was the remaining per-row correlated scan after step 1).
 //
-// Everything downstream of `base` (reps_ranked onward) is byte-identical,
-// so the fairness contract (#3385 interleave, #8024 idle-domain boost,
-// search-doc last) and the EvalPlanQual `locked` recheck (invariant I5)
-// are untouched. Step 2 (representatives-first, sweep precompute) is
-// explicitly out of scope and not bundled here.
+// Everything downstream of the fence (lock tail, claimed UPDATE) is
+// byte-identical, so the fairness contract (#3385 interleave, #8024
+// idle-domain boost, search-doc last) and the EvalPlanQual `locked`
+// recheck (invariant I5) are untouched. Sweep precompute stays deferred
+// (see the funnel/claim split in reducer_queue_batch_claim_funnel.go).
 //
 // Self-exclusion dependency (C-4): the first semantic inflight check in the
 // shipped query excludes the candidate row itself
@@ -129,6 +134,42 @@ func reducerClaimReadinessMissingPredicateSQL() string {
 		panic("reducerClaimReadinessMissingPredicateSQL: shipped readiness gate no longer starts with NOT EXISTS; update the flip")
 	}
 	return flipped
+}
+
+// reducerClaimLiveFenceKeysCTE renders the once-per-claim live-lease
+// conflict-key fence set (#10630 step 2). `candidate` anti-joins this set
+// instead of running the #4137 correlated NOT EXISTS probe (one
+// fact_work_items index probe per representative, ~5.2k/claim and 95%+ of
+// claim time on the live backlog per probe B) for every representative
+// row.
+//
+// Equivalence to the shipped fence is exact, not approximate:
+//
+//   - The predicate arms move verbatim (stage, status, claim_until) into
+//     the set; the candidate anti-join keeps the shipped key comparison
+//     (conflict_domain plus COALESCE(conflict_key, scope_id)) unchanged.
+//   - The shipped self-exclusion (inflight.work_item_id <> ...) is vacuous
+//     over this set: `base` pre-filters to claim_until IS NULL OR <= $1,
+//     so no candidate-join row can ever satisfy the set's claim_until >
+//     $1 arm and count itself live. This is the same self-exclusion
+//     argument as the semantic scalars (see TestClaimBatchBaseExcludesLiveLeases,
+//     which pins the filter this relies on).
+//   - Set and anti-join evaluate in one statement on one snapshot, exactly
+//     like the correlated probe they replace; the lock-time race stays
+//     owned by the untouched locked-CTE EvalPlanQual recheck (I5).
+//
+// AS MATERIALIZED is load-bearing: without it the planner inlines the set
+// under the anti-join and replays the live-lease scan per candidate row —
+// the exact per-row shape this removes (see the funnel
+// reducerClaimFunnelGenerationsCTE precedent).
+func reducerClaimLiveFenceKeysCTE() string {
+	return `live_fence_keys AS MATERIALIZED (
+    SELECT DISTINCT conflict_domain, COALESCE(conflict_key, scope_id) AS ckey
+    FROM fact_work_items
+    WHERE stage = 'reducer'
+      AND status IN ('claimed', 'running')
+      AND claim_until > $1
+)`
 }
 
 // reducerClaimBatchGatePrecomputeCTEs joins the four precompute CTEs in WITH

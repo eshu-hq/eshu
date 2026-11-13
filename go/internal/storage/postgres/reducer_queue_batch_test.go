@@ -152,12 +152,17 @@ func TestClaimBatchFencesSameConflictCandidates(t *testing.T) {
 
 	query := db.queries[0].query
 	for _, want := range []string{
+		// The #4137 live-lease fence reads the once-per-claim
+		// live_fence_keys set (#10630 step 2) instead of re-probing
+		// fact_work_items once per representative (the per-row
+		// correlated NOT EXISTS below is the removed shape; the
+		// single-claim query keeps it — see
+		// TestReducerQueueClaimAndBatchFenceOnConflictKey).
+		"live_fence_keys AS MATERIALIZED (",
 		"NOT EXISTS (",
-		"inflight.conflict_domain = fact_work_items.conflict_domain",
-		"COALESCE(inflight.conflict_key, inflight.scope_id) = COALESCE(fact_work_items.conflict_key, fact_work_items.scope_id)",
-		"inflight.work_item_id <> fact_work_items.work_item_id",
-		"inflight.status IN ('claimed', 'running')",
-		"inflight.claim_until > $1",
+		"FROM live_fence_keys",
+		"live_fence_keys.conflict_domain = fact_work_items.conflict_domain",
+		"live_fence_keys.ckey = COALESCE(fact_work_items.conflict_key, fact_work_items.scope_id)",
 		// The pre-rewrite query selected the one representative per conflict key
 		// with a correlated per-candidate-row subquery
 		// (work_item_id = (SELECT same.work_item_id ... ORDER BY ... LIMIT 1)),
@@ -201,6 +206,22 @@ func TestClaimBatchFencesSameConflictCandidates(t *testing.T) {
 	} {
 		if !strings.Contains(query, want) {
 			t.Fatalf("batch claim query missing %q:\n%s", want, query)
+		}
+	}
+	// #10630 step 2: the live-lease predicate arms (stage, live status,
+	// live lease) live in the live_fence_keys CTE body, not in the
+	// candidate fence. Pinned scoped to the CTE body: the status text
+	// legitimately appears in base and the in-flight tallies, so a
+	// whole-query contains proves nothing about which CTE carries the
+	// live set.
+	fenceBody := cteBody(query, "live_fence_keys AS MATERIALIZED (", "reps_ranked AS MATERIALIZED (")
+	for _, want := range []string{
+		"WHERE stage = 'reducer'",
+		"AND status IN ('claimed', 'running')",
+		"AND claim_until > $1",
+	} {
+		if !strings.Contains(fenceBody, want) {
+			t.Fatalf("live_fence_keys CTE body missing live predicate %q:\n%s", want, fenceBody)
 		}
 	}
 	// #6828 (F4, F5): the precomputed semantic_ranked CTE carries the same

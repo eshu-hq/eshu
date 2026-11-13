@@ -66,9 +66,19 @@ func TestReducerQueueClaimAndBatchFenceOnConflictKey(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, time.June, 17, 21, 0, 0, 0, time.UTC)
+	// The single-claim query keeps the correlated per-row fence probe
+	// (out of scope for #10630 step 2).
 	conflictFencePredicates := []string{
 		"inflight.conflict_domain = fact_work_items.conflict_domain",
 		"COALESCE(inflight.conflict_key, inflight.scope_id) = COALESCE(fact_work_items.conflict_key, fact_work_items.scope_id)",
+	}
+	// The batch claim reads the same key comparison from the
+	// once-per-claim live_fence_keys set (#10630 step 2).
+	batchFencePredicates := []string{
+		"live_fence_keys AS MATERIALIZED (",
+		"FROM live_fence_keys",
+		"live_fence_keys.conflict_domain = fact_work_items.conflict_domain",
+		"live_fence_keys.ckey = COALESCE(fact_work_items.conflict_key, fact_work_items.scope_id)",
 	}
 
 	claimDB := &fakeExecQueryer{queryResponses: []queueFakeRows{{rows: nil}}}
@@ -99,9 +109,9 @@ func TestReducerQueueClaimAndBatchFenceOnConflictKey(t *testing.T) {
 		t.Fatalf("ClaimBatch() error = %v", err)
 	}
 	batchQuery := batchDB.queries[0].query
-	for _, want := range conflictFencePredicates {
+	for _, want := range batchFencePredicates {
 		if !strings.Contains(batchQuery, want) {
-			t.Fatalf("batch claim query missing conflict fence %q:\n%s", want, batchQuery)
+			t.Fatalf("batch claim query missing precomputed conflict fence %q:\n%s", want, batchQuery)
 		}
 	}
 }
