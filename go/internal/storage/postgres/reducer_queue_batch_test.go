@@ -216,6 +216,7 @@ func TestClaimBatchFencesSameConflictCandidates(t *testing.T) {
 	// live set.
 	fenceBody := cteBody(query, "live_fence_keys AS MATERIALIZED (", "reps_ranked AS MATERIALIZED (")
 	for _, want := range []string{
+		"SELECT DISTINCT conflict_domain, COALESCE(conflict_key, scope_id) AS ckey",
 		"WHERE stage = 'reducer'",
 		"AND status IN ('claimed', 'running')",
 		"AND claim_until > $1",
