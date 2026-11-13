@@ -43,3 +43,36 @@ func TestBootstrapDefinitionsIncludeCollectorEvidenceSummary(t *testing.T) {
 		}
 	}
 }
+
+// TestBootstrapDefinitionsIncludeCollectorEvidenceInstanceColumn pins the
+// #10601 leg1 summary-read migration 296: the resweep-maintained
+// collector_instance_id column is NOT NULL with the empty-string sentinel
+// default, so
+// pre-resweep rows and scopes with no non-blank work item keep the read
+// shape-identical. The grain primary key is unchanged: an instance change on
+// an unchanged scope upserts in place.
+func TestBootstrapDefinitionsIncludeCollectorEvidenceInstanceColumn(t *testing.T) {
+	t.Parallel()
+
+	var def Definition
+	for _, d := range BootstrapDefinitions() {
+		if d.Name == "collector_evidence_summary_instance_id" {
+			def = d
+			break
+		}
+	}
+	if def.Name == "" {
+		t.Fatal("collector_evidence_summary_instance_id definition missing")
+	}
+	if def.Path != "go/internal/storage/postgres/migrations/296_collector_evidence_summary_instance_id.sql" {
+		t.Fatalf("unexpected Path %q", def.Path)
+	}
+	for _, want := range []string{
+		"ALTER TABLE collector_evidence_summary",
+		"ADD COLUMN IF NOT EXISTS collector_instance_id TEXT NOT NULL DEFAULT ''",
+	} {
+		if !strings.Contains(def.SQL, want) {
+			t.Fatalf("collector evidence instance schema SQL missing %q:\n%s", want, def.SQL)
+		}
+	}
+}

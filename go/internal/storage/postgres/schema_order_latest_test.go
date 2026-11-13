@@ -20,4 +20,7 @@ var orderedBootstrapDefinitionNamesLatest = []string{
 	// Migration 295 (#10566) seeds the synthetic advisory-groups
 	// scope/generation anchor the coalesced projection rows re-home to.
 	"advisory_groups_synthetic_scope",
+	// Migration 296 (#10601 reopened) adds the resweep-maintained
+	// collector-instance identity column on collector_evidence_summary.
+	"collector_evidence_summary_instance_id",
 }

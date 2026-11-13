@@ -81,38 +81,43 @@ func TestDomainBacklogQueryReadsOnlyPendingSharedProjectionIntents(t *testing.T)
 	}
 }
 
-// TestCollectorFactEvidenceQueryLooksUpScopedInstancePerScope guards issue
-// #10601, which supersedes the #6794 materialization below for this query.
+// TestCollectorFactEvidenceQuerySummaryReadShape guards the #10601 leg1
+// summary read (reopened), which supersedes the #6794 materialization and the
+// first #10601 lateral lookup below for this query.
 // #6794 materialized the workflow_instances DISTINCT ON because an inlined
 // DISTINCT ON subquery was re-executed once per summary row (about 1.9s under
 // load at the time). At 5376 active scopes the materialized CTE itself became
 // the bottleneck: the outer aggregate re-scanned all 4567 CTE rows for every
 // one of the 9730 summary rows (44M join-filter comparisons, 13.8s per
-// snapshot against the 5s snapshot budget). The instance leg is now one
-// indexed lateral lookup per active scope (LEFT JOIN LATERAL ... LIMIT 1
-// over workflow_work_items in DISTINCT ON key and order), placed before the
-// summary fanout: 3.5s cold / 1.1s warm on QA with byte-identical rows. A
-// lateral leg hidden in its own CTE is rejected: the planner inlines the
-// single-reference CTE and re-scans active_scopes per outer row (22+ min).
-func TestCollectorFactEvidenceQueryLooksUpScopedInstancePerScope(t *testing.T) {
+// snapshot against the 5s snapshot budget). The per-scope lateral lookup that
+// replaced it still cost 4.1s cold / 1.1s warm at 6139 active scopes, so the
+// #10601 leg1 summary read (reopened) moved the instance leg into the reducer
+// resweep (summary.collector_instance_id): the snapshot is a pure summary
+// read with byte-identical rows. A lateral leg hidden in its own CTE stays
+// rejected: the planner inlines the single-reference CTE and re-scans
+// active_scopes per outer row (22+ min).
+func TestCollectorFactEvidenceQuerySummaryReadShape(t *testing.T) {
 	t.Parallel()
 
 	for _, want := range []string{
-		"LEFT JOIN LATERAL (",
-		"FROM workflow_work_items AS workflow_item",
-		"LIMIT 1",
+		"JOIN collector_evidence_summary AS summary",
+		"summary.collector_instance_id",
+		"GROUP BY summary.collector_kind, summary.collector_instance_id, summary.evidence_source",
 	} {
 		if !strings.Contains(collectorFactEvidenceQuery, want) {
-			t.Fatalf("collectorFactEvidenceQuery missing inline lateral instance lookup %q:\n%s", want, collectorFactEvidenceQuery)
+			t.Fatalf("collectorFactEvidenceQuery missing summary-read marker %q:\n%s", want, collectorFactEvidenceQuery)
 		}
 	}
 	for _, forbidden := range []string{
+		"LEFT JOIN LATERAL (",
+		"FROM workflow_work_items AS workflow_item",
 		"workflow_instances AS MATERIALIZED (",
 		"DISTINCT ON (",
 		"scoped_instance AS (",
+		"fact_records",
 	} {
 		if strings.Contains(collectorFactEvidenceQuery, forbidden) {
-			t.Fatalf("collectorFactEvidenceQuery must not contain %q (the #10601 join fanout):\n%s", forbidden, collectorFactEvidenceQuery)
+			t.Fatalf("collectorFactEvidenceQuery must not contain %q (the snapshot must not probe per-scope state):\n%s", forbidden, collectorFactEvidenceQuery)
 		}
 	}
 }

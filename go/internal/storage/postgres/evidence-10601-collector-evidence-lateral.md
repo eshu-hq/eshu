@@ -1,5 +1,9 @@
 # Evidence: #10601 collector-evidence lateral lookup — issue eshu-hq/eshu#10601
 
+> Superseded by the #10601 (reopened) leg1 summary read:
+> `evidence-10601-leg1-summary-read.md`. The lateral leg below moved into the
+> reducer resweep; this note stays as the history of the intermediate fix.
+
 ## Symptom
 
 `GET /admin/status` (`?format=text` and `?format=json`) returned 500 on QA

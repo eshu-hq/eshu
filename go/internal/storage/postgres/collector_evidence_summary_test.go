@@ -142,3 +142,32 @@ func TestRebuildCollectorEvidenceSQLIsAtomicUpsertDeleteStale(t *testing.T) {
 		}
 	}
 }
+
+// TestRebuildCollectorEvidenceSQLMaintainsCollectorInstance guards the #10601
+// leg1 summary read (reopened): the resweep computes the per-scope
+// collector-instance identity (the DISTINCT ON semantics the snapshot read
+// used to evaluate per request: newest non-blank instance by updated_at DESC,
+// work_item_id ASC) and stores it on summary.collector_instance_id, so the
+// snapshot read needs no workflow_work_items probe. The instance is a
+// non-key attribute of the existing grain: an instance change on an unchanged
+// scope upserts in place, and the delete-stale key is unchanged.
+func TestRebuildCollectorEvidenceSQLMaintainsCollectorInstance(t *testing.T) {
+	t.Parallel()
+
+	query := rebuildCollectorEvidenceSummarySQL
+	for _, want := range []string{
+		"LEFT JOIN LATERAL (",
+		"FROM workflow_work_items AS workflow_item",
+		"AND NULLIF(BTRIM(workflow_item.collector_instance_id), '') IS NOT NULL",
+		"ORDER BY workflow_item.updated_at DESC, workflow_item.work_item_id ASC",
+		"LIMIT 1",
+		"COALESCE(NULLIF(BTRIM(instance.collector_instance_id), ''), '') AS collector_instance_id",
+		"collector_instance_id",
+		"ON CONFLICT (scope_id, generation_id, evidence_source, source_system) DO UPDATE SET",
+		"collector_instance_id = EXCLUDED.collector_instance_id",
+	} {
+		if !strings.Contains(query, want) {
+			t.Fatalf("resweep SQL missing collector-instance marker %q:\n%s", want, query)
+		}
+	}
+}

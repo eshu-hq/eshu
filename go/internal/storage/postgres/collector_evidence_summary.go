@@ -70,6 +70,13 @@ WHERE scope.active_generation_id IS NOT NULL
 // source systems, previously NULLIF(BTRIM(...))) to the empty-string sentinel the
 // primary key requires; the read reconstructs the no-source-system case by
 // excluding empty-string source systems.
+//
+// collector_instance_id is the per-scope DISTINCT ON identity the snapshot read
+// evaluated per request before the #10601 leg1 summary read (reopened):
+// newest non-blank collector_instance_id by updated_at DESC, work_item_id ASC.
+// It is a non-key attribute of the existing grain (the empty-string sentinel
+// covers scopes with no non-blank work item), so an instance change on an
+// unchanged scope upserts in place and the delete-stale key is unchanged.
 const rebuildCollectorEvidenceSummarySQL = `
 WITH ` + activeCollectorScopesCTE + `,
 computed AS (
@@ -79,6 +86,7 @@ SELECT
     scope.generation_id,
     per_scope.evidence_source,
     per_scope.source_system,
+    COALESCE(NULLIF(BTRIM(instance.collector_instance_id), ''), '') AS collector_instance_id,
     per_scope.observation_count,
     per_scope.last_observed_at,
     per_scope.last_ingested_at
@@ -99,18 +107,31 @@ JOIN LATERAL (
       AND fact.is_tombstone = FALSE
   GROUP BY evidence_source, source_system
 ) AS per_scope ON TRUE
+LEFT JOIN LATERAL (
+  SELECT workflow_item.collector_instance_id
+  FROM workflow_work_items AS workflow_item
+  WHERE workflow_item.collector_kind = scope.collector_kind
+    AND workflow_item.scope_id = scope.scope_id
+    AND workflow_item.generation_id = scope.generation_id
+    AND NULLIF(BTRIM(workflow_item.collector_instance_id), '') IS NOT NULL
+  ORDER BY workflow_item.updated_at DESC, workflow_item.work_item_id ASC
+  LIMIT 1
+) AS instance ON TRUE
 ),
 upserted AS (
     INSERT INTO collector_evidence_summary (
         scope_id, generation_id, collector_kind, evidence_source, source_system,
+        collector_instance_id,
         observation_count, last_observed_at, last_ingested_at, materialized_at
     )
     SELECT
         scope_id, generation_id, collector_kind, evidence_source, source_system,
+        collector_instance_id,
         observation_count, last_observed_at, last_ingested_at, $1
     FROM computed
     ON CONFLICT (scope_id, generation_id, evidence_source, source_system) DO UPDATE SET
         collector_kind = EXCLUDED.collector_kind,
+        collector_instance_id = EXCLUDED.collector_instance_id,
         observation_count = EXCLUDED.observation_count,
         last_observed_at = EXCLUDED.last_observed_at,
         last_ingested_at = EXCLUDED.last_ingested_at,

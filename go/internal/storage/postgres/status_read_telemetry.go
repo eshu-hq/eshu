@@ -72,8 +72,23 @@ func (s StatusStore) read(ctx context.Context, label string) (db.Queryer, func(e
 	}
 }
 
-// recordRead adds one sample to eshu_dp_status_snapshot_read_duration_seconds.
+// statusSnapshotReadLegSecondsKey returns the postgres.status_snapshot span
+// attribute key carrying one status read's duration in seconds (#10601
+// recurrence signal: a slow leg attributes instantly in traces without
+// waiting for the metric scrape). The label stays in the closed read-label
+// set, so the key space is bounded by one key per read.
+func statusSnapshotReadLegSecondsKey(label string) string {
+	return "status.snapshot.read." + label
+}
+
+// recordRead adds one sample to eshu_dp_status_snapshot_read_duration_seconds
+// and stamps the same duration on the active postgres.status_snapshot span,
+// so every leg of the snapshot attributes in traces. The span write is safe
+// without an active span: it lands on the noop span.
 func (s StatusStore) recordRead(ctx context.Context, label string, start time.Time, failed bool) {
+	seconds := time.Since(start).Seconds()
+	trace.SpanFromContext(ctx).SetAttributes(
+		attribute.Float64(statusSnapshotReadLegSecondsKey(label), seconds))
 	if s.Instruments == nil || s.Instruments.StatusSnapshotReadDuration == nil {
 		return
 	}
@@ -81,7 +96,7 @@ func (s StatusStore) recordRead(ctx context.Context, label string, start time.Ti
 	if failed {
 		outcome = statusReadOutcomeError
 	}
-	s.Instruments.StatusSnapshotReadDuration.Record(ctx, time.Since(start).Seconds(),
+	s.Instruments.StatusSnapshotReadDuration.Record(ctx, seconds,
 		metric.WithAttributes(telemetry.AttrRead(label), telemetry.AttrOutcome(outcome)))
 }
 
