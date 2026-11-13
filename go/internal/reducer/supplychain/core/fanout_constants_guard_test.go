@@ -19,8 +19,8 @@ func TestFanOutChunkAndHolderCapsArePinned(t *testing.T) {
 	if fanOutCVEChunk != 200 {
 		t.Fatalf("fanOutCVEChunk = %d, want 200: the origin stamp carries at most one 200-id CVE chunk", fanOutCVEChunk)
 	}
-	if fanOutHolderReadChunk != 25 {
-		t.Fatalf("fanOutHolderReadChunk = %d, want 25: a holder lookup chunk carries at most 25 ids per statement", fanOutHolderReadChunk)
+	if fanOutHolderReadChunk != 5 {
+		t.Fatalf("fanOutHolderReadChunk = %d, want 5: a holder lookup chunk carries at most 5 ids per statement", fanOutHolderReadChunk)
 	}
 	if fanOutHolderCap != 256 {
 		t.Fatalf("fanOutHolderCap = %d, want 256: one claim reopens at most 256 holders and carries the rest", fanOutHolderCap)

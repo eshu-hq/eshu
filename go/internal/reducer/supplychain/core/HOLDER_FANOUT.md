@@ -34,7 +34,7 @@ more than 256 holders drains across claims.
   the typed payload without `intent_id`, `cause`, `generation_id`, and
   `evidence_fact_ids`, and includes `suppression_state`. Rows written before
   the digest existed count as changed once.
-- Holders come from one indexed read per 25 lookup ids (#10564 H3; the stamp cap stays one 200-id CVE chunk)
+- Holders come from one indexed read per 5 lookup ids (#10564 H3; the stamp cap stays one 200-id CVE chunk)
   (`fact_records_supply_chain_impact_lookup_idx`), the asking scope excluded,
   the operator scope included, plus the scopes whose item at their active
   generation is claimed or running (`fact_work_items_stage_domain_status_idx`),
@@ -385,3 +385,20 @@ no new spans, log lines, queue stages, locks, claims, leases, or status
 fields. Magnitudes ride result sub-signals — log fields on the existing
 reducer success line, following the `fanout_*` pattern — and the outcome
 rides the new counter's closed label, never a group, CVE, or advisory id.
+
+No-Regression Evidence (#10564 chunk 25 to 5): production hot scopes match
+about 138k finding rows per 25-id chunk (6.44 s cold, 72% I/O read over a
+193 GB heap with 4 GB shared buffers) and breached the 10 s guard three
+times post-deploy; the hottest 5 ids measured 810.8 ms, so 5-id statements
+keep at least 6x guard headroom. Baseline `pg_stat_statements` for the
+`candidates AS MATERIALIZED` query: 475 calls, mean 2073.8 ms, max
+9802.7 ms. Every lookup id is still read in sequential statements with
+identical dedup and the 256 holder cap, so total work, worker concurrency,
+and admitted truth are unchanged; the post-deploy bar is per-statement p95
+under 2 s, max under 5 s, and zero new 57014 across two stable reads.
+
+No-Observability-Change (#10564 chunk 25 to 5): no new instruments, spans,
+log lines, labels, queue stages, locks, claims, leases, or status fields.
+Per-chunk read-site timeout telemetry and the fanout outcome sub-signals are
+reused unchanged; the existing per-domain execution signals attribute the
+drain.
