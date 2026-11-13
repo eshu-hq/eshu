@@ -1,7 +1,9 @@
 # Unscoped entity search
 
 `POST /api/v0/content/entities/search` and the MCP tool `search_entity_content`
-answer an entity source-snippet substring search. When the request names no
+answer an entity source-snippet substring search. The pattern is matched
+literally: `%`, `_`, and `\` are ordinary characters, not wildcards or regular
+expression syntax. When the request names no
 repository (`repo_id` / `repo_ids`) and the caller's token does not restrict
 repositories, the search spans every indexed repository and runs inside a work
 budget. A search with a repository filter is unchanged.

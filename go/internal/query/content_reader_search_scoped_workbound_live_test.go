@@ -115,8 +115,9 @@ func TestScopedSearchCustomGenericEquivalenceLive(t *testing.T) {
 	files, err := reader.searchFileContentPage(ctx, scopedBigRepo, strings.ToUpper(scopedMediumToken), 10, 0)
 	assertReader("upper pattern", files, err, lower)
 
-	// A literal percent in the pattern is an ILIKE wildcard in the shipped
-	// semantics; both regimes and the reader must still agree byte for byte.
+	// A literal percent in the pattern matches literally (#10604): the
+	// pre-escaped bind keeps % from acting as an ILIKE wildcard, and both
+	// regimes and the reader must still agree byte for byte.
 	percentWant := assertOracle("percent oracle", "scope-repo-00", nil, "100%", 10, 0)
 	if len(percentWant) == 0 {
 		t.Errorf("percent edge: oracle returned no rows, fixture lost its 100%%-bearing content")

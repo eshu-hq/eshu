@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/entity"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"go.opentelemetry.io/otel/attribute"
@@ -165,8 +166,11 @@ func normalizeEntityNameSearch(search entity.EntityNameSearch) (entity.EntityNam
 	return search, false, nil
 }
 
+// escapeEntityNameLikeLiteral escapes an entity-name substring to a LIKE
+// literal. It delegates to the one shared content-search escape
+// (querycontract.EscapeLikeLiteral, #10604 fix 05b) so the two never drift.
 func escapeEntityNameLikeLiteral(value string) string {
-	return strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(value)
+	return querycontract.EscapeLikeLiteral(value)
 }
 
 func validateEntityNameMetadataFilter(key, value string) error {

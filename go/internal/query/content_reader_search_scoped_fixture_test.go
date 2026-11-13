@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
 
@@ -82,7 +83,7 @@ func scopedWorkboundCells() []scopedCell {
 		{name: "S4 rare term", repoIDs: []string{scopedBigRepo}, pattern: scopedRareToken, limit: 10, offset: 0},
 		{name: "S5 empty term without trigram", repoIDs: []string{scopedBigRepo}, pattern: scopedNoTrigram, limit: 10, offset: 0},
 		{name: "S6 unicode term", repoIDs: []string{scopedSmallRepo(0)}, pattern: scopedUnicodeToken, limit: 10, offset: 0},
-		{name: "S7 underscore wildcard", repoIDs: []string{scopedBigRepo}, pattern: scopedUnderscore, limit: 10, offset: 0},
+		{name: "S7 underscore literal", repoIDs: []string{scopedBigRepo}, pattern: scopedUnderscore, limit: 10, offset: 0},
 		{name: "M1 multi dense late grants", multi: true, repoIDs: []string{scopedSmallRepo(8), scopedSmallRepo(9), scopedSmallRepo(10)}, pattern: scopedDenseToken, limit: 10, offset: 0},
 		{name: "M2 multi empty term without trigram", multi: true, repoIDs: []string{scopedSmallRepo(8), scopedSmallRepo(9), scopedSmallRepo(10)}, pattern: scopedNoTrigram, limit: 10, offset: 0},
 		{name: "M3 multi duplicate-grant deep page", multi: true, repoIDs: []string{scopedSmallRepo(9), scopedSmallRepo(9), scopedSmallRepo(10)}, pattern: scopedDenseToken, limit: 10, offset: 10},
@@ -168,16 +169,19 @@ func openScopedWorkboundFixture(t *testing.T) (context.Context, *sql.DB) {
 // shippedScopedQuery derives the exact shipped statement for a cell from the
 // production builders (fileContentSingleScopeWhere/fileContentMultiScopeWhere
 // plus fileContentScopedQuery). No shipped SQL text is copied here: if the
-// shipped builders move, this derivation moves with them.
+// shipped builders move, this derivation moves with them. The pattern arg is
+// the pre-escaped LIKE literal (#10604), exactly as the serving reader binds
+// it, so the oracle and the reader agree on wildcard-bearing patterns.
 func shippedScopedQuery(cell scopedCell) (string, []any) {
+	bound := querycontract.EscapeLikeLiteral(cell.pattern)
 	if cell.multi {
 		where := fileContentMultiScopeWhere(1, 2)
 		return fileContentScopedQuery(where, 3, 4),
-			[]any{strings.Join(cell.repoIDs, "\x1f"), cell.pattern, int64(cell.limit), int64(cell.offset)}
+			[]any{strings.Join(cell.repoIDs, "\x1f"), bound, int64(cell.limit), int64(cell.offset)}
 	}
 	where := fileContentSingleScopeWhere(1, 2)
 	return fileContentScopedQuery(where, 3, 4),
-		[]any{cell.repoIDs[0], cell.pattern, int64(cell.limit), int64(cell.offset)}
+		[]any{cell.repoIDs[0], bound, int64(cell.limit), int64(cell.offset)}
 }
 
 // scopedPlanNode is the EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) subset the

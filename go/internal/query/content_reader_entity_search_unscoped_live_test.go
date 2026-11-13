@@ -126,7 +126,9 @@ func entityOracleOffsetSQL(t *testing.T) string {
 
 func entityOracleKeys(t *testing.T, ctx context.Context, db *sql.DB, pattern string, limit, offset int) []string {
 	t.Helper()
-	rows, err := db.QueryContext(ctx, entityOracleOffsetSQL(t), pattern, limit, offset)
+	// The oracle binds the same pre-escaped LIKE literal (#10604) the walk
+	// binds: the statement replaced by the walk is unchanged, the bind is not.
+	rows, err := db.QueryContext(ctx, entityOracleOffsetSQL(t), querycontract.EscapeLikeLiteral(pattern), limit, offset)
 	if err != nil {
 		t.Fatalf("entity oracle query: %v", err)
 	}
@@ -165,7 +167,8 @@ func entityContentKeys(entities []querycontract.EntityContent) []string {
 
 // TestSearchEntitiesUnscopedMatchesOldStatementLive proves the walk returns
 // the same ordered pages as the old single statement for every class that is
-// exact inside the budget, including ILIKE wildcards and a pattern whose case
+// exact inside the budget, including a literal-wildcard pattern (han_ler
+// matches literally now, #10604) and a pattern whose case
 // differs from the stored text, and that its More flag agrees with the old
 // look-ahead row.
 func TestSearchEntitiesUnscopedMatchesOldStatementLive(t *testing.T) {

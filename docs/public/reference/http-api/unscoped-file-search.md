@@ -1,7 +1,9 @@
 # Unscoped file search
 
 `POST /api/v0/content/files/search` and the MCP tool `search_file_content`
-answer a file-content substring search. When the request names no repository
+answer a file-content substring search. The pattern is matched literally:
+`%`, `_`, and `\` are ordinary characters, not wildcards or regular expression
+syntax. When the request names no repository
 (`repo_id` / `repo_ids`) and the caller's token does not restrict repositories,
 the search spans every indexed repository and runs inside a work budget. A
 search with a repository filter is unchanged.

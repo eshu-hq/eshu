@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
@@ -335,8 +336,12 @@ func buildFileSearchQuery(pattern string, repoID string, limit int) (string, []a
 	var args []any
 	argIdx := 1
 
+	// The pattern arg is a pre-escaped LIKE literal (#10604): the predicate
+	// has no ESCAPE clause and Postgres reads backslash as its default
+	// escape, so the escape is what keeps %, _, and \ literal here exactly
+	// as on the primary search paths.
 	filters = append(filters, fmt.Sprintf("content ILIKE $%d", argIdx))
-	args = append(args, "%"+pattern+"%")
+	args = append(args, "%"+querycontract.EscapeLikeLiteral(pattern)+"%")
 	argIdx++
 
 	if strings.TrimSpace(repoID) != "" {
@@ -371,8 +376,9 @@ func buildEntitySearchQuery(pattern string, repoID string, limit int) (string, [
 	var args []any
 	argIdx := 1
 
+	// Pre-escaped LIKE literal, as above (#10604).
 	filters = append(filters, fmt.Sprintf("source_cache ILIKE $%d", argIdx))
-	args = append(args, "%"+pattern+"%")
+	args = append(args, "%"+querycontract.EscapeLikeLiteral(pattern)+"%")
 	argIdx++
 
 	if strings.TrimSpace(repoID) != "" {

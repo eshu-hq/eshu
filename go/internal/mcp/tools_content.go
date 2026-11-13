@@ -139,7 +139,7 @@ func contentTools() []ToolDefinition {
 				"properties": map[string]any{
 					"pattern": map[string]any{
 						"type":        "string",
-						"description": "Search pattern or regular expression",
+						"description": "Case-insensitive substring to find in file content. Matched literally: `%`, `_`, and `\\` are ordinary characters, not wildcards or regular expression syntax.",
 					},
 					"repo_ids": map[string]any{
 						"type":        "array",
@@ -184,7 +184,7 @@ func contentTools() []ToolDefinition {
 				"properties": map[string]any{
 					"pattern": map[string]any{
 						"type":        "string",
-						"description": "Search pattern or regular expression",
+						"description": "Case-insensitive substring to find in entity source snippets. Matched literally: `%`, `_`, and `\\` are ordinary characters, not wildcards or regular expression syntax.",
 					},
 					"repo_ids": map[string]any{
 						"type":        "array",

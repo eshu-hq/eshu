@@ -113,7 +113,9 @@ func oracleOffsetSQL(t *testing.T) string {
 
 func oracleKeys(t *testing.T, ctx context.Context, db *sql.DB, pattern string, limit, offset int) []string {
 	t.Helper()
-	rows, err := db.QueryContext(ctx, oracleOffsetSQL(t), pattern, limit, offset)
+	// The oracle binds the same pre-escaped LIKE literal (#10604) the walk
+	// binds: the statement replaced by the walk is unchanged, the bind is not.
+	rows, err := db.QueryContext(ctx, oracleOffsetSQL(t), querycontract.EscapeLikeLiteral(pattern), limit, offset)
 	if err != nil {
 		t.Fatalf("oracle query: %v", err)
 	}
@@ -143,7 +145,8 @@ func pageKeys(files []querycontract.FileContent) []string {
 
 // TestSearchFilesUnscopedMatchesOldStatementLive proves the walk returns the
 // same ordered pages as the old single statement for every class that is exact
-// inside the budget, including ILIKE wildcards, and that its More flag agrees
+// inside the budget, including a literal-wildcard pattern (han_ler matches
+// literally now, #10604), and that its More flag agrees
 // with the old look-ahead row.
 func TestSearchFilesUnscopedMatchesOldStatementLive(t *testing.T) {
 	ctx, db := openUnscopedLiveFixture(t)
