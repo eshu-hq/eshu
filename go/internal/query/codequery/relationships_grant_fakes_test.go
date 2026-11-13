@@ -166,7 +166,7 @@ type relGrantContentBuilder struct {
 // BuildContentRelationships returns one same-repository neighbour.
 func (b *relGrantContentBuilder) BuildContentRelationships(
 	_ context.Context,
-	_ querycontract.ContentStore,
+	_ querycontract.ContentRelationshipReader,
 	entity EntityContent,
 	_ *slog.Logger,
 ) (querycontract.ContentRelationshipSet, error) {

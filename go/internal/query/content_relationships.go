@@ -87,7 +87,7 @@ type contentRelationshipSet struct {
 
 func buildContentRelationshipSet(
 	ctx context.Context,
-	reader ContentStore,
+	reader querycontract.ContentRelationshipReader,
 	entity EntityContent,
 	logger *slog.Logger,
 ) (contentRelationshipSet, error) {
@@ -114,7 +114,7 @@ func buildContentRelationshipSet(
 
 func buildOutgoingContentRelationships(
 	ctx context.Context,
-	reader ContentStore,
+	reader querycontract.ContentRelationshipReader,
 	entity EntityContent,
 	logger *slog.Logger,
 ) ([]map[string]any, contentClip, error) {
@@ -190,7 +190,7 @@ func buildOutgoingContentRelationships(
 
 func buildIncomingContentRelationships(
 	ctx context.Context,
-	reader ContentStore,
+	reader querycontract.ContentRelationshipReader,
 	entity EntityContent,
 	logger *slog.Logger,
 ) ([]map[string]any, contentClip, error) {
@@ -297,7 +297,7 @@ func buildOutgoingGitHubActionsRelationships(entity EntityContent) ([]map[string
 
 func buildOutgoingKustomizeRelationships(
 	ctx context.Context,
-	reader ContentStore,
+	reader querycontract.ContentRelationshipReader,
 	entity EntityContent,
 ) ([]map[string]any, bool, bool, error) {
 	if entity.EntityType != "KustomizeOverlay" {

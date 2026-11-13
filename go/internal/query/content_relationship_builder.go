@@ -23,7 +23,7 @@ var _ querycontract.ContentRelationshipBuilder = ContentIndexRelationshipBuilder
 // BuildContentRelationships implements querycontract.ContentRelationshipBuilder.
 func (ContentIndexRelationshipBuilder) BuildContentRelationships(
 	ctx context.Context,
-	reader querycontract.ContentStore,
+	reader querycontract.ContentRelationshipReader,
 	entity querycontract.EntityContent,
 	logger *slog.Logger,
 ) (querycontract.ContentRelationshipSet, error) {

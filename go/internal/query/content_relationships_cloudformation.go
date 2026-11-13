@@ -9,13 +9,15 @@ import (
 	"net/url"
 	"path"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 const cloudFormationRepoFileLimit = 5000
 
 func buildOutgoingCloudFormationRelationships(
 	ctx context.Context,
-	reader ContentStore,
+	reader querycontract.ContentRelationshipReader,
 	entity EntityContent,
 ) ([]map[string]any, bool, error) {
 	if entity.EntityType != "CloudFormationResource" {
@@ -45,7 +47,7 @@ func buildOutgoingCloudFormationRelationships(
 
 func resolveCloudFormationLocalTemplatePath(
 	ctx context.Context,
-	reader ContentStore,
+	reader querycontract.ContentRelationshipReader,
 	entity EntityContent,
 	templateURL string,
 ) (string, error) {

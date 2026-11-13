@@ -222,7 +222,7 @@ func (s failingCodeFlow) ListCodeFlow(context.Context, codemodel.CodeFlowFilter)
 type failingContentRelationships struct{ err error }
 
 func (s failingContentRelationships) BuildContentRelationships(
-	context.Context, querycontract.ContentStore, EntityContent, *slog.Logger,
+	context.Context, querycontract.ContentRelationshipReader, EntityContent, *slog.Logger,
 ) (querycontract.ContentRelationshipSet, error) {
 	return querycontract.ContentRelationshipSet{}, s.err
 }

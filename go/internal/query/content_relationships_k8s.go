@@ -18,7 +18,7 @@ import (
 
 func buildOutgoingK8sSelectRelationships(
 	ctx context.Context,
-	reader ContentStore,
+	reader querycontract.ContentRelationshipReader,
 	entity EntityContent,
 	logger *slog.Logger,
 ) ([]map[string]any, bool, bool, error) {
@@ -80,7 +80,7 @@ func buildOutgoingK8sSelectRelationships(
 
 func buildIncomingK8sSelectRelationships(
 	ctx context.Context,
-	reader ContentStore,
+	reader querycontract.ContentRelationshipReader,
 	entity EntityContent,
 	logger *slog.Logger,
 ) ([]map[string]any, bool, bool, error) {
@@ -153,7 +153,7 @@ func logK8sSelectMixedVintageDrop(ctx context.Context, logger *slog.Logger, serv
 // candidate list is returned, so callers still see at most
 // repositorySemanticEntityLimit rows. See #5343 review (truncation
 // disclosure) and follow-up #5367 (real pagination, not yet implemented).
-func fetchK8sResourceCandidates(ctx context.Context, reader ContentStore, repoID string) ([]EntityContent, bool, error) {
+func fetchK8sResourceCandidates(ctx context.Context, reader querycontract.ContentRelationshipReader, repoID string) ([]EntityContent, bool, error) {
 	candidates, err := reader.ListRepoEntitiesByType(ctx, repoID, "K8sResource", repositorySemanticEntityLimit+1)
 	if err != nil {
 		return nil, false, fmt.Errorf("list repo entities for k8s selects: %w", err)

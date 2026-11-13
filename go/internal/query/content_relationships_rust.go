@@ -6,6 +6,8 @@ package query
 import (
 	"context"
 	"fmt"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // buildOutgoingRustImplBlockRelationships lists the Functions an ImplBlock
@@ -19,7 +21,7 @@ import (
 // real member was returned.
 func buildOutgoingRustImplBlockRelationships(
 	ctx context.Context,
-	reader ContentStore,
+	reader querycontract.ContentRelationshipReader,
 	entity EntityContent,
 ) ([]map[string]any, bool, bool, error) {
 	if entity.EntityType != "ImplBlock" || entity.EntityName == "" {
@@ -60,7 +62,7 @@ func buildOutgoingRustImplBlockRelationships(
 
 func buildIncomingRustImplBlockRelationships(
 	ctx context.Context,
-	reader ContentStore,
+	reader querycontract.ContentRelationshipReader,
 	entity EntityContent,
 ) ([]map[string]any, bool, bool, error) {
 	implContext, ok := metadataNonEmptyString(entity.Metadata, "impl_context")
