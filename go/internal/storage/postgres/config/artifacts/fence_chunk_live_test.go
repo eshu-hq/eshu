@@ -4,7 +4,7 @@
 package artifacts_test
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #8155 ruling arb-8155-f1 2.7b: a real PruneSupersededGenerations chunk cycle (over-limit target page drained, normal batch non-empty, one repository) parked between its two content_files DELETEs and raced with ContentWriter.Write tombstoning and upserting doomed keys, 20 rounds, 0 deadlocks and exactly 3 bumps per round; plus the SQL two-statement transaction against an autocommit DELETE, 10 rounds; both deadlock on the immediate fence (RED on the commit that adds this file: 20 of 20 and round 0); enrolled in the live-postgres-readiness runner; about 23 s and 2 s on a local PostgreSQL 18.6 on 2026-10-16; wall time is logged, not gated
+//eshu:readiness:reason #8155 ruling arb-8155-f1 2.7b: a real PruneSupersededGenerations chunk cycle (over-limit target drained pre-Begin, normal batch non-empty, one repository) parked at its in-transaction content_files DELETE and raced with ContentWriter.Write tombstoning and upserting doomed keys, 20 rounds, 0 deadlocks, 2 pruned and 5 bumps per round (#10020 drain-then-admit: 2 write transactions, 1 prune commit, 2 predrain batch commits); plus the SQL two-statement transaction against an autocommit DELETE, 10 rounds; both deadlock on the immediate fence (RED on the commit that adds this file: 20 of 20 and round 0); enrolled in the live-postgres-readiness runner; about 23 s and 2 s on a local PostgreSQL 18.6 on 2026-10-16; wall time is logged, not gated
 //eshu:readiness:env ESHU_TEST_CONTENT_INDEX_POSTGRES_DISPOSABLE ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN
 
 import (
@@ -19,14 +19,17 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
-// Ruling arb-8155-f1 (review finding F1): a retention chunk cycle deletes
-// content_files twice in one transaction, first the over-limit target's page
-// (generationRetentionChunkPruneFilesQuery), then the normal batch
-// (pruneContentFilesForGenerationsQuery). A fence that bumps the version row
-// inside the first DELETE holds it until commit; a content Write that locks a
-// doomed row of the normal batch and then waits on that version row closes a
-// cycle with the second DELETE. The commit-time fence takes version rows only
-// inside COMMIT, after every content lock, so no cycle exists.
+// Ruling arb-8155-f1 (review finding F1): since #10020 a retention chunk
+// cycle drains the over-limit target's pages in committed pre-Begin batches
+// (each batch commit bumps the version once, like any content transaction)
+// and deletes the drained target together with the normal batch in one
+// in-transaction content_files DELETE
+// (pruneContentFilesForGenerationsQuery). A content Write that locks a
+// doomed row of the normal batch and then waits on the version row the
+// in-transaction DELETE stages can no longer close a cycle through a second
+// in-transaction DELETE, because there is none. The commit-time fence takes
+// version rows only inside COMMIT, after every content lock, so no cycle
+// exists.
 
 // waitLockedOrDone returns when done closes or a backend whose query holds
 // fragment, and not exclude, waits on a heavyweight lock, whichever comes
@@ -60,7 +63,9 @@ WHERE datname = current_database() AND wait_event_type = 'Lock'
 // generation (80 file facts, BatchRowLimit 50, so the pass drains one 50-fact
 // page) and a normal superseded generation of another scope on the same
 // repository (10 file facts), plus one planted reference row on a normal key
-// that the test holds to park retention between its two content DELETEs.
+// that the test holds to park retention at its single in-transaction
+// content_files DELETE (the 80-fact over-limit target pre-drains in 2
+// committed batches before Begin).
 func chunkRoundFixture(ctx context.Context, t *testing.T, db *sql.DB, round int) (repo, holdPath string) {
 	t.Helper()
 	repo = fmt.Sprintf("repo-chunk-%02d", round)
@@ -77,14 +82,17 @@ VALUES ('%s', '%s', 'zz_hold', 'x', now())`, repo, holdPath))
 }
 
 // TestVersionFenceChunkCycleRacingAWriteDoesNotDeadlockLive is ruling 2.7b(i):
-// a real PruneSupersededGenerations chunk cycle (target page drained, normal
-// batch non-empty, one repository) raced with ContentWriter.Write tombstoning
-// and upserting doomed keys of the normal batch, 20 rounds. Retention is
-// parked on a held reference row of the normal batch after its first content
-// DELETE; the Write runs; then retention resumes into its second content
-// DELETE. 0 deadlocks; the repository gains exactly 3 bumps per round (one
-// for the retention transaction, one per Write transaction: a tombstone chunk
-// and an upsert batch).
+// a real PruneSupersededGenerations chunk cycle (over-limit target drained
+// pre-Begin, normal batch non-empty, one repository) raced with
+// ContentWriter.Write tombstoning and upserting doomed keys of the normal
+// batch, 20 rounds. Retention is parked on a held reference row of the
+// normal batch at its in-transaction content DELETE; the Write runs; then
+// retention resumes through commit. 0 deadlocks; both generations prune in
+// the same pass (the drained target fits, so drain-then-admit admits it per
+// #10020) and the repository gains 5 bumps per round: one per Write
+// transaction (a tombstone chunk and an upsert batch), one for the prune
+// commit, and one per committed predrain batch (2 batches drain the 80-fact
+// target at BatchRowLimit 50).
 func TestVersionFenceChunkCycleRacingAWriteDoesNotDeadlockLive(t *testing.T) {
 	ctx, db := openDatabase(t)
 	policy := retentionPolicy()
@@ -136,11 +144,21 @@ SELECT 1 FROM content_file_references WHERE repo_id = $1 AND relative_path = $2 
 			}
 		}
 		if pruneErr == nil && writeErr == nil {
-			if got := versionOf(ctx, t, db, repo) - before; got != 3 {
-				t.Errorf("round %d: %s bumped %d times, want 3", round, repo, got)
+			// Drain-then-admit (#10020): the predrain drains the 80-fact
+			// target in 2 committed batches at BatchRowLimit 50, so the
+			// target fits at prescreen and prunes in the same pass as the
+			// normal generation. Bumps compose as 2 Write transactions +
+			// 1 prune commit + 1 per committed predrain batch, which pins
+			// that predrain batches move the version (derives must see
+			// committed predrain deletes).
+			if result.ChunkPredeleteBatches != 2 {
+				t.Errorf("round %d: predrain committed %d batches, want 2 (80-fact target at BatchRowLimit 50)", round, result.ChunkPredeleteBatches)
 			}
-			if result.GenerationsPruned != 1 {
-				t.Errorf("round %d: pruned %d generations, want the normal one only (the target is chunked)", round, result.GenerationsPruned)
+			if got, want := versionOf(ctx, t, db, repo)-before, int64(3+result.ChunkPredeleteBatches); got != want {
+				t.Errorf("round %d: %s bumped %d times, want %d (2 write + 1 prune + %d predrain)", round, repo, got, want, result.ChunkPredeleteBatches)
+			}
+			if result.GenerationsPruned != 2 {
+				t.Errorf("round %d: pruned %d generations, want 2 (drained target admitted same pass, plus the normal one)", round, result.GenerationsPruned)
 			}
 		}
 	}
