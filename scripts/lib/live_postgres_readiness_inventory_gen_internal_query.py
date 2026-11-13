@@ -57,6 +57,9 @@ TABLE = {
             "TestMatchRepositoriesByIDsLive",
             "TestMatchRepositoriesByIDsPlanLive",
         ),
+        "go/internal/query/content_reader_search_like_escape_live_test.go": (
+            "TestLikeEscapeDifferentialLive",
+        ),
         "go/internal/query/content_reader_search_scoped_union_probe_live_test.go": (
             "TestUnionAllProbeDerivationGuard",
             "TestUnionAllProbePoisonLegKeepsBindPositions",

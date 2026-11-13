@@ -144,6 +144,11 @@ tests:
     class: postgres_ci
     reason: "#8837 disposable PostgreSQL proof of the grant-to-slug catalog read: repository and scope id grants map to their catalog entries, other scope kinds are excluded, and EXPLAIN (ANALYZE, BUFFERS) over a 10,000-repository catalog at grant sizes 1, 100 and 5,000 is logged, not gated; disposable bootstrapped database per test"
     runner: live-postgres-readiness
+  - file: go/internal/query/content_reader_search_like_escape_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10604 fix 05b proof that content search matches literally: the Go substring oracle (strings.Contains on lowercased content) agrees with the reader on scoped (1+N repos) and unscoped file and entity paths for wildcard-bearing patterns"
+    runner: live-postgres-readiness
   - file: go/internal/query/content_reader_search_scoped_union_probe_live_test.go
     tag: ~
     class: postgres_ci
