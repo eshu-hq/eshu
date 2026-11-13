@@ -147,7 +147,12 @@ base AS MATERIALIZED (
 // the repository function-length cap; the chain wrapper below rejoins them
 // verbatim.
 func reducerClaimBatchRepresentativeCTEs() string {
-	return `-- reps_ranked / reps: representative and fairness windows computed once over
+	return `-- live_fence_keys: the once-per-claim live-lease conflict-key set
+-- (#10630 step 2). Declared here, ahead of its only reader ` + "`candidate`" + `,
+-- because the gate precomputes above feed ` + "`base`" + ` while this set feeds
+-- the fence below; WITH order only requires it before ` + "`candidate`" + `.
+` + reducerClaimLiveFenceKeysCTE() + `,
+-- reps_ranked / reps: representative and fairness windows computed once over
 -- the whole readiness-gated candidate set, replacing the correlated
 -- "same"/"fair_same"/"fair_peer" subqueries that used to re-derive this per
 -- row. Two CTE levels are required: Postgres forbids nesting a window
@@ -188,6 +193,8 @@ reps AS MATERIALIZED (
 -- conflict key's representative" fence directly as reps.same_rn = 1 — no
 -- separate same-representative CTE and no correlated ORDER BY ... LIMIT 1
 -- subquery, which was the #3624 O(N^2) per-candidate re-scan and is removed.
+-- The live-lease fence below it reads the once-per-claim live_fence_keys
+-- set (#10630 step 2) instead of re-probing fact_work_items per row.
 -- source_heads: unchanged in shape from the pre-rewrite query (cheap; one
 -- row_number() pass over reps), kept as its own CTE so the planner does not
 -- re-inline it into candidate.
@@ -224,15 +231,16 @@ candidate AS (
     WHERE reps.same_rn = 1
       AND reps.projector_ok
       AND reps.semantic_ok
+      -- #10630 step 2: the #4137 live-lease fence reads the once-per-claim
+      -- live_fence_keys set instead of re-probing fact_work_items once per
+      -- representative. The key comparison is the shipped one verbatim; the
+      -- shipped work_item_id self-exclusion is vacuous here because base
+      -- pre-filters to unleased rows (see reducerClaimLiveFenceKeysCTE).
       AND NOT EXISTS (
           SELECT 1
-          FROM fact_work_items AS inflight
-          WHERE inflight.stage = 'reducer'
-            AND inflight.conflict_domain = fact_work_items.conflict_domain
-            AND COALESCE(inflight.conflict_key, inflight.scope_id) = COALESCE(fact_work_items.conflict_key, fact_work_items.scope_id)
-            AND inflight.work_item_id <> fact_work_items.work_item_id
-            AND inflight.status IN ('claimed', 'running')
-            AND inflight.claim_until > $1
+          FROM live_fence_keys
+          WHERE live_fence_keys.conflict_domain = fact_work_items.conflict_domain
+            AND live_fence_keys.ckey = COALESCE(fact_work_items.conflict_key, fact_work_items.scope_id)
       )
 )`
 }
