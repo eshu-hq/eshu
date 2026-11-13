@@ -84,8 +84,14 @@ func (h *ContentHandler) searchFilesUnscoped(
 	// documents_not_searched rides on every answer: the rows no completed
 	// statement read on a partial page, zero on an exact one (#7975). A page
 	// that left any document unsearched is never exact, even without a
-	// partial marker.
+	// partial marker. documents_not_searched_state labels the integer
+	// in-band (#10611); it is omitted only when the integer is outside the
+	// documented sentinel space, which the walk never emits, so the label
+	// never lies about an unknown value.
 	body["documents_not_searched"] = page.DocumentsNotSearched
+	if state, ok := querycontract.DocumentsNotSearchedState(page.DocumentsNotSearched); ok {
+		body["documents_not_searched_state"] = state
+	}
 	if page.Partial != nil {
 		body["partial"] = page.Partial
 		truth.Level = querycontract.MinTruthLevel(truth.Level, querycontract.TruthLevelPartial)
