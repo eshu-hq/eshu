@@ -84,11 +84,13 @@ If the budget ends first, the answer is **HTTP 200**, never an error:
   silently; on an exact page it is zero. `-1` means the count statement itself
   was cancelled and the number is unknown, never zero.
 - `documents_not_searched_state` labels that integer in-band: `exact` when it
-  is `0`, `partial` when it is positive, `unknown` when it is `-1`. It is
-  always present alongside the integer on this route. Scoped file searches
-  carry neither field (a scoped search is exact by contract and never counts),
-  and neither does the entity route ([Unscoped entity search](unscoped-entity-search.md));
-  absence there means "no count was taken", never `exact`.
+  is `0`, `partial` when it is positive, `unknown` when it is `-1`. It rides
+  alongside the integer on a counted answer (the walk only emits 0, positive
+  counts, and -1). The empty-access response carries neither field. Scoped
+  file searches carry neither field (a scoped search is exact by contract
+  and never counts), and neither does the entity route
+  ([Unscoped entity search](unscoped-entity-search.md)); absence there means
+  "no count was taken", never `exact`.
 - `truth.level` is `partial`: weaker than `derived`, stronger than `fallback`.
   A page with a nonzero `documents_not_searched` is never exact.
 - `reason` is `budget_exceeded_on_large_document` when `overrun_ms` is above
