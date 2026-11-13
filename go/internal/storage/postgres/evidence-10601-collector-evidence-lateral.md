@@ -34,7 +34,7 @@ query before the summary fanout, so each active scope costs exactly one probe
 of `workflow_work_items_collector_scope_generation_updated_idx`. WHERE,
 key, ORDER BY, GROUP BY, ORDER BY, and LIMIT 200 are unchanged.
 
-## Performance Evidence
+## Performance Evidence: section query on QA
 
 `EXPLAIN (ANALYZE, BUFFERS)` of the full section query on QA, same input
 shape (5376–5385 active scopes between runs):
@@ -54,7 +54,7 @@ Steady state (~1.1s warm) plus the remaining sections (~1.2s) fits the 5s
 snapshot budget with margin; the collector-readiness route shares this read
 and heals with it.
 
-## No-Observability-Change
+## No-Observability-Change: read label and call site untouched
 
 The `statusReadCollectorFactEvidence` read label and call site
 (`StatusStore.ReadStatusSnapshotFiltered`) are untouched; no span, metric, or
