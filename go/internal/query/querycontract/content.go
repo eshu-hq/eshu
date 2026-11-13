@@ -19,6 +19,20 @@ type FileContent struct {
 	LineCount    int    `json:"line_count"`
 	Language     string `json:"language,omitempty"`
 	ArtifactType string `json:"artifact_type,omitempty"`
+	// MatchSnippet is a bounded excerpt of the raw content around the first
+	// case-insensitive match: at most 120 characters, at most 40 before the
+	// match, clipped at value boundaries. It is an excerpt by contract and
+	// may start or end mid-token; callers needing context call
+	// get_file_lines. Present only on rows produced by the two file-search
+	// paths; every other FileContent producer leaves it empty (omitted on
+	// the wire). Content stays "" on search rows: the field never carries
+	// the snippet.
+	MatchSnippet string `json:"match_snippet,omitempty"`
+	// MatchLine is the 1-based line of the first match. It is exact or
+	// absent, never approximate: rows whose match starts past 1M characters
+	// (line derivation would scan the whole prefix) and rows whose match
+	// anchor is missing omit it.
+	MatchLine int `json:"match_line,omitempty"`
 	// SearchBackend is set to "hybrid" only on rows reordered by the bounded
 	// in-request BM25+vector re-rank; it is empty (and omitted on the wire) when
 	// the lexical content-index order was served, so the lexical truth basis

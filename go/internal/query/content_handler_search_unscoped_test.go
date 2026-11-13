@@ -24,11 +24,12 @@ func TestContentHandlerSearchFilesOmitsRemovedMatchesAlias(t *testing.T) {
 			columns: []string{
 				"repo_id", "relative_path", "commit_sha", "content",
 				"content_hash", "line_count", "language", "artifact_type",
+				"match_snippet", "match_line",
 			},
 			rows: [][]driver.Value{
 				{
 					"repo-1", "src/app.ts", "", "",
-					"hash-1", int64(24), "typescript", "source",
+					"hash-1", int64(24), "typescript", "source", "renderApp excerpt", int64(3),
 				},
 			},
 		},

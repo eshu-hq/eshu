@@ -50,7 +50,22 @@ type unscopedSnapshotTx struct {
 
 func (tx *unscopedSnapshotTx) Commit() error   { return nil }
 func (tx *unscopedSnapshotTx) Rollback() error { return nil }
-func (tx *unscopedSnapshotTx) QueryRowContext(context.Context, string, ...any) db.Row {
+func (tx *unscopedSnapshotTx) QueryRowContext(_ context.Context, query string, _ ...any) db.Row {
+	return &scriptedRow{query: query}
+}
+
+// scriptedRow answers single-row reads: set_config reports the applied value;
+// anything else scans zero values.
+type scriptedRow struct {
+	query string
+}
+
+func (r *scriptedRow) Scan(dest ...any) error {
+	for _, d := range dest {
+		if s, ok := d.(*string); ok {
+			*s = "1000ms"
+		}
+	}
 	return nil
 }
 
@@ -59,6 +74,11 @@ func (tx *unscopedSnapshotTx) QueryContext(_ context.Context, query string, args
 	tx.log = append(tx.log, strings.SplitN(q, "\n", 2)[0])
 	tx.args = append(tx.args, args)
 	switch {
+	case strings.Contains(q, "content_hash) IN ("):
+		// Shape-B snippet re-read: the scripted store proves the reader
+		// wiring, not SQL, so enrichment degrades to omission here; the
+		// live tests prove the statement itself.
+		return &scriptedRows{pos: -1}, nil
 	case strings.Contains(q, "eshu_require_content_substring_indexes_ready"):
 		if tx.readyErr != nil {
 			return nil, tx.readyErr

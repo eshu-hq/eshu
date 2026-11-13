@@ -60,15 +60,27 @@ TABLE = {
         "go/internal/query/content_reader_search_like_escape_live_test.go": (
             "TestLikeEscapeDifferentialLive",
         ),
-        "go/internal/query/content_reader_search_scoped_union_probe_live_test.go": (
-            "TestUnionAllProbeDerivationGuard",
-            "TestUnionAllProbePoisonLegKeepsBindPositions",
-            "TestUnionAllProbeWorkAndEquivalenceLive",
+        "go/internal/query/content_reader_search_scoped_bitmap_probe_live_test.go": (
             "TestRareEmptySingleScopeBitmapInvestigationLive",
         ),
         "go/internal/query/content_reader_search_scoped_workbound_live_test.go": (
             "TestScopedSearchShippedDerivationGuard",
             "TestScopedSearchCustomGenericEquivalenceLive",
+        ),
+        "go/internal/query/content_reader_search_snippet_live_test.go": (
+            "TestScopedSnippetMatchesOracle",
+            "TestScopedSnippetFoldRowsExact",
+            "TestScopedSnippetPosZeroOmitsWithoutError",
+            "TestScopedSnippetLineFallbackBoundary",
+            "TestScopedSnippetFoldLengthMatchesDeployedCollation",
+            "TestScopedSearchSnippetPlanShape",
+        ),
+        "go/internal/query/content_reader_search_snippet_shapeb_live_test.go": (
+            "TestSnippetReReadEnrichesExactHits",
+            "TestSnippetReReadOmitsStaleKeys",
+            "TestSnippetReReadTimeoutKeepsRows",
+            "TestScopedSnippetMultiOutlierLimit200Within2s",
+            "TestUnscopedSnippetEndToEnd",
         ),
         "go/internal/query/content_reader_search_unscoped_live_test.go": (
             "TestSearchFilesUnscopedMatchesOldStatementLive",

@@ -6,6 +6,7 @@ package query
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"errors"
 	"log/slog"
 	"testing"
@@ -283,6 +284,18 @@ func (r *scopedSearchFakeRows) Scan(dest ...any) error {
 			*d = row[i].(int)
 		case *[]byte:
 			*d = row[i].([]byte)
+		case *sql.NullString:
+			if row[i] == nil {
+				*d = sql.NullString{}
+			} else {
+				*d = sql.NullString{String: row[i].(string), Valid: true}
+			}
+		case *sql.NullInt64:
+			if row[i] == nil {
+				*d = sql.NullInt64{}
+			} else {
+				*d = sql.NullInt64{Int64: row[i].(int64), Valid: true}
+			}
 		default:
 			return errors.New("fake row cannot scan destination")
 		}
@@ -329,7 +342,7 @@ func TestSearchFileContentScopedRecordsOKThroughChokepoint(t *testing.T) {
 		t.Fatalf("NewInstruments() error = %v", err)
 	}
 	cr := NewContentReaderWithReadStore(&scopedSearchFakeStore{
-		rows: [][]any{{"repo-a", "a/b.go", "sha", "needle here", "hash", 10, "go", ""}},
+		rows: [][]any{{"repo-a", "a/b.go", "sha", "needle here", "hash", 10, "go", "", "needle here", int64(1)}},
 	}).WithInstruments(inst)
 
 	results, err := cr.searchFileContentScoped(context.Background(), "search_file_content_page", "needle", fileContentSingleScopeWhere(1, 2), []any{"repo-a", "needle"}, 10, 0)
@@ -339,36 +352,56 @@ func TestSearchFileContentScopedRecordsOKThroughChokepoint(t *testing.T) {
 	if len(results) != 1 || results[0].Content != "needle here" {
 		t.Fatalf("searchFileContentScoped() = %+v, want the canned row", results)
 	}
+	// The snippet columns scan through the same chokepoint: exact fields,
+	// never approximate, and Content stays the handle empty string.
+	if results[0].MatchSnippet != "needle here" || results[0].MatchLine != 1 {
+		t.Fatalf("searchFileContentScoped() snippet = (%q,%d), want the canned snippet and line 1",
+			results[0].MatchSnippet, results[0].MatchLine)
+	}
 	var collected metricdata.ResourceMetrics
 	if err := reader.Collect(context.Background(), &collected); err != nil {
 		t.Fatalf("Collect() error = %v", err)
 	}
 	found := false
+	histogramSamples := 0
 	for _, scope := range collected.ScopeMetrics {
 		for _, m := range scope.Metrics {
-			if m.Name != "eshu_dp_content_search_scoped_total" {
-				continue
-			}
-			sum, ok := m.Data.(metricdata.Sum[int64])
-			if !ok {
-				t.Fatalf("scoped counter is %T, want Sum[int64]", m.Data)
-			}
-			for _, dp := range sum.DataPoints {
-				if dp.Value != 1 {
-					t.Errorf("scoped counter datapoint = %d, want 1", dp.Value)
+			switch m.Name {
+			case "eshu_dp_content_search_scoped_total":
+				sum, ok := m.Data.(metricdata.Sum[int64])
+				if !ok {
+					t.Fatalf("scoped counter is %T, want Sum[int64]", m.Data)
 				}
-				if v, ok := dp.Attributes.Value("outcome"); !ok || v.AsString() != "ok" {
-					t.Errorf("outcome label = %v, want ok", dp.Attributes)
+				for _, dp := range sum.DataPoints {
+					if dp.Value != 1 {
+						t.Errorf("scoped counter datapoint = %d, want 1", dp.Value)
+					}
+					if v, ok := dp.Attributes.Value("outcome"); !ok || v.AsString() != "ok" {
+						t.Errorf("outcome label = %v, want ok", dp.Attributes)
+					}
+					if v, ok := dp.Attributes.Value("pattern_class"); !ok || v.AsString() != "trigram" {
+						t.Errorf("pattern_class label = %v, want trigram", dp.Attributes)
+					}
+					found = true
 				}
-				if v, ok := dp.Attributes.Value("pattern_class"); !ok || v.AsString() != "trigram" {
-					t.Errorf("pattern_class label = %v, want trigram", dp.Attributes)
+			case "eshu_dp_content_search_scoped_duration_seconds":
+				histogram, ok := m.Data.(metricdata.Histogram[float64])
+				if !ok {
+					t.Fatalf("scoped duration is %T, want Histogram[float64]", m.Data)
 				}
-				found = true
+				for _, dp := range histogram.DataPoints {
+					histogramSamples += int(dp.Count)
+				}
 			}
 		}
 	}
 	if !found {
 		t.Error("eshu_dp_content_search_scoped_total has no datapoint after one ok call")
+	}
+	// The fix-04 duration histogram is the in-production snippet watch: one
+	// snippet search must leave exactly one duration sample behind.
+	if histogramSamples != 1 {
+		t.Errorf("scoped duration histogram samples = %d, want 1 (the fix-04 watch signal)", histogramSamples)
 	}
 }
 

@@ -149,15 +149,25 @@ tests:
     class: postgres_ci
     reason: "#10604 fix 05b proof that content search matches literally: the Go substring oracle (strings.Contains on lowercased content) agrees with the reader on scoped (1+N repos) and unscoped file and entity paths for wildcard-bearing patterns"
     runner: live-postgres-readiness
-  - file: go/internal/query/content_reader_search_scoped_union_probe_live_test.go
+  - file: go/internal/query/content_reader_search_scoped_bitmap_probe_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#7930 disposable PostgreSQL 18 proof of the per-repo UNION ALL probe (work and row equivalence against the shipped multi cells in both regimes) and the rare/empty single-scope BitmapAnd investigation; one local PostgreSQL 18 run took about 6 s"
+    reason: "#7930 disposable PostgreSQL 18 proof of the rare/empty single-scope BitmapAnd investigation (probe B; probe A retired under #10607 per the arbiter probe-A disposition); one local PostgreSQL 18 run took about 6 s"
     runner: live-postgres-readiness
   - file: go/internal/query/content_reader_search_scoped_workbound_live_test.go
     tag: ~
     class: postgres_ci
     reason: "#7930 disposable PostgreSQL 18 proof of the scoped file search custom-generic-reader equivalence oracle plus the shipped-WHERE derivation guard; one local PostgreSQL 18 run took about 6 s"
+    runner: live-postgres-readiness
+  - file: go/internal/query/content_reader_search_snippet_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "05a scoped snippet+line proof: exact snippet/line vs an independent oracle on a fixture corpus with edge rows (offset-1, EOF, CRLF, rune boundary, İ/Σ/ß folds, escaped wildcards), pos=0 omission, the 1M line fallback, fold-length parity with the deployed collation, and the shipped plan shape; one local PostgreSQL 18 run took about 30 s"
+    runner: live-postgres-readiness
+  - file: go/internal/query/content_reader_search_snippet_shapeb_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "05a shape-B proof: keyed snippet re-read enriches walk hits (exact snippet+line vs the oracle), tolerates purged and content-changed keys by omitting fields, keeps every row when its own statement timeout trips, and the full unscoped path ships snippets on complete pages; multi-outlier limit-200 scoped page stays within 2 s"
     runner: live-postgres-readiness
   - file: go/internal/query/content_reader_search_unscoped_live_test.go
     tag: ~
