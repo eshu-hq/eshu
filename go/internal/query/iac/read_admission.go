@@ -73,9 +73,10 @@ const IaCReadAdmissionContractVersion = "v0"
 //     this handler.
 //   - GraphQuery.RunSingle is deliberately excluded: the resource
 //     list hydrates its bounded inventory page through Run only.
-//     The v0 ContentStore leg (the dead-route content fallback)
-//     rides the frozen CoreReadContractsVersion v0, so no pin
-//     here. MetricsReadAdmission does not apply: non-test iac
+//     The dead-route content-fallback leg (ListRepositories,
+//     MatchRepositories, ListRepoFiles, GetFileContent) rides the
+//     IaCDeadContentAdmission v0 supplement beside this pin, never
+//     inside it. MetricsReadAdmission does not apply: non-test iac
 //     touches no TimeSeries source.
 //   - No suppression leg exists on these routes; the suppressions
 //     mutation row stays the Decision 2 tier-C survivor via
