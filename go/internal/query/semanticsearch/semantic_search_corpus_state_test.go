@@ -139,6 +139,39 @@ func TestSemanticSearchHandlerFilteredToZeroReportsPopulatedState(t *testing.T) 
 	}
 }
 
+func TestSemanticSearchHandlerTruncatedCorpusReportsTruncatedState(t *testing.T) {
+	t.Parallel()
+
+	// The bounded corpus read may not cover the whole corpus, so the
+	// production call-site mapping must surface truncated on the wire.
+	// This pins the served body value end to end: swapping the call-site
+	// args or hardcoding mayTruncate=false must fail this test.
+	index := &fakeSemanticSearchIndexStore{
+		result: SemanticSearchIndexResult{IndexedDocumentCount: 5, CorpusMayBeTruncated: true},
+	}
+	handler := &SemanticSearchHandler{Index: index, Profile: querycontract.ProfileProduction}
+
+	rec := httptest.NewRecorder()
+	handler.search(rec, testutil.SemanticSearchHTTPRequest(t, map[string]any{
+		"repo_id":    "repo-payments",
+		"query":      "payment runbook",
+		"mode":       "keyword",
+		"limit":      5,
+		"timeout_ms": 250,
+	}))
+
+	if got, want := rec.Code, 200; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
+	}
+	data := semanticSearchEnvelopeData(t, rec)
+	if got, want := data["corpus_state"], "truncated"; got != want {
+		t.Fatalf("corpus_state = %#v, want %#v", got, want)
+	}
+	if results := data["results"].([]any); len(results) != 0 {
+		t.Fatalf("len(results) = %d, want 0", len(results))
+	}
+}
+
 func TestSemanticSearchHandlerZeroCountWithResultsReportsPopulated(t *testing.T) {
 	t.Parallel()
 
