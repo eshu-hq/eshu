@@ -225,12 +225,25 @@ func codebaseTools() []ToolDefinition {
 		},
 		{
 			Name:        "list_indexed_repositories",
-			Description: "List a bounded page of indexed repositories. For an exact indexed-repository count, use the authoritative total field, which is independent of page size; count is only the number of rows in the current page. Cite list_indexed_repositories.total as the evidence source.",
+			Description: "List a bounded page of indexed repositories. For an exact indexed-repository count, use the authoritative total field, which is independent of page size; count is only the number of rows in the current page. Omit the name filter for the full inventory count: with name present total counts the filtered set. This tool is discovery (finding candidates from a partial name), not resolution: first hit is not identity, drill down with get_repository_stats. Full rows are for small limits; request compact (the default) for large pages such as limit=500. Cite list_indexed_repositories.total as the evidence source.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
 					"limit":  map[string]any{"type": "integer", "description": "Maximum repositories to return", "default": 100, "minimum": 1, "maximum": 500},
 					"offset": map[string]any{"type": "integer", "description": "Zero-based result offset for paging", "default": 0, "minimum": 0, "maximum": 10000},
+					"name": map[string]any{
+						"type":        "string",
+						"description": "Optional case-insensitive substring filter matched against the repository name or repo slug before count and page. Empty or whitespace-only means absent. At most 200 characters; longer input answers an error.",
+					},
+					// No "default" is advertised on purpose. The MCP default
+					// is compact when the argument is absent and the HTTP
+					// default is full, which one JSON-Schema default cannot
+					// say (#10603; same precedent as evidence_detail, #7174).
+					"projection": map[string]any{
+						"type":        "string",
+						"enum":        []string{"full", "compact"},
+						"description": "Row shape. Compact returns identity rows only (id, name, repo_slug, index_state) and fits large pages; it is the default for this tool. Full returns every row in full and can exceed the response budget on a large page.",
+					},
 				},
 				"required": []string{},
 			},

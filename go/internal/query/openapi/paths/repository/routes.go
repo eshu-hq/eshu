@@ -40,12 +40,14 @@ const Routes = `
       "get": {
         "tags": ["repositories"],
         "summary": "List repositories",
-        "description": "Returns a bounded page of indexed repositories. This route also serves the inventory (empty-selector) form of get_repository_stats, so the response carries an additive result_limits drilldown block and an explicit partial_reasons slot alongside the existing truncated paging field.",
+        "description": "Returns a bounded page of indexed repositories. This route also serves the inventory (empty-selector) form of get_repository_stats, so the response carries an additive result_limits drilldown block and an explicit partial_reasons slot alongside the existing truncated paging field. The optional name filter is a case-insensitive substring matched against the repository name or repo slug before count and page; with name present total counts the filtered set. The optional projection selects the row shape: full (the default here) returns every row, compact returns identity rows only (id, name, repo_slug, index_state) for large pages.",
         "operationId": "listRepositories",
         "x-scoped-token-support": true,
         "parameters": [
           {"name": "limit", "in": "query", "schema": {"type": "integer", "default": 100, "minimum": 1, "maximum": 500}},
-          {"name": "offset", "in": "query", "schema": {"type": "integer", "default": 0, "minimum": 0, "maximum": 10000}}
+          {"name": "offset", "in": "query", "schema": {"type": "integer", "default": 0, "minimum": 0, "maximum": 10000}},
+          {"name": "name", "in": "query", "schema": {"type": "string", "maxLength": 200}, "description": "Optional case-insensitive substring filter matched against repository name or repo slug. Empty or whitespace-only means absent."},
+          {"name": "projection", "in": "query", "schema": {"type": "string", "enum": ["full", "compact"], "default": "full"}, "description": "Row shape. Compact returns identity rows only (id, name, repo_slug, index_state). Defaults to full on this route."}
         ],
         "responses": {
           "200": {
@@ -60,10 +62,11 @@ const Routes = `
                       "items": {"$ref": "#/components/schemas/Repository"}
                     },
                     "count": {"type": "integer", "description": "Number of repositories returned in this page."},
-                    "total": {"type": "integer", "description": "True total repository count independent of page size. Use this field — not count — to display the overall repository count on dashboards and sidebars."},
+                    "total": {"type": "integer", "description": "True total repository count independent of page size. Use this field — not count — to display the overall repository count on dashboards and sidebars. With the name filter present, counts the filtered set: omit name for the full inventory count."},
                     "limit": {"type": "integer"},
                     "offset": {"type": "integer"},
                     "truncated": {"type": "boolean"},
+                    "projection": {"type": "string", "enum": ["full", "compact"], "description": "Row shape served for this page: full rows or compact identity rows."},
                     "result_limits": {"type": "object", "description": "Additive drilldown block for the inventory form of get_repository_stats: bounded page limit/offset, deterministic ordering, repository count, truncation flag, and the get_repository_stats drilldown plus inventory context path.", "additionalProperties": true},
                     "partial_reasons": {"type": "array", "description": "Explicit reasons the response is partial. repository_inventory_truncated means more repositories exist beyond this page (mirrors truncated above). repository_group_evidence_missing means at least one returned repository has no source-backed grouping evidence. dependency_marker_evidence_incomplete means the bounded DEPENDS_ON edge read backing each repository's is_dependency field (and its dependency-cluster grouping) failed or was truncated for this request; is_dependency may be under-reported (false where evidence was actually true) on affected rows, and this reason is independent of truncated -- it never means more repositories exist beyond the page. Always present (possibly empty) so the envelope shape is stable.", "items": {"type": "string"}}
                   }
@@ -71,6 +74,7 @@ const Routes = `
               }
             }
           },
+          "400": {"$ref": "#/components/responses/BadRequest"},
           "403": {"$ref": "#/components/responses/Forbidden"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"},
           "504": {"$ref": "#/components/responses/GatewayTimeout"},

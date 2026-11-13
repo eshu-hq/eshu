@@ -116,6 +116,24 @@ func TestCodebaseListIndexedRepositoriesSchema(t *testing.T) {
 	if _, ok := properties["offset"]; !ok {
 		t.Fatalf("list_indexed_repositories schema missing offset")
 	}
+	nameProp, _ := properties["name"].(map[string]any)
+	if nameProp == nil {
+		t.Fatalf("list_indexed_repositories schema missing name")
+	}
+	if desc, _ := nameProp["description"].(string); desc == "" || !strings.Contains(desc, "200 characters") {
+		t.Fatalf("list_indexed_repositories name description = %q, want the 200-character bound documented", desc)
+	}
+	projectionProp, _ := properties["projection"].(map[string]any)
+	if projectionProp == nil {
+		t.Fatalf("list_indexed_repositories schema missing projection")
+	}
+	enum, _ := projectionProp["enum"].([]string)
+	if len(enum) != 2 || enum[0] != "full" || enum[1] != "compact" {
+		t.Fatalf("list_indexed_repositories projection enum = %#v, want [full compact]", projectionProp["enum"])
+	}
+	if _, advertised := projectionProp["default"]; advertised {
+		t.Fatalf("list_indexed_repositories projection advertises a default: one default cannot express the MCP/HTTP split")
+	}
 }
 
 func TestCodebaseResolveRouteFindCode(t *testing.T) {

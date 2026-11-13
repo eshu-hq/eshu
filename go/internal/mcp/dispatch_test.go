@@ -68,6 +68,55 @@ func TestResolveRouteMapsListIndexedRepositoriesToBoundedQuery(t *testing.T) {
 	}
 }
 
+func TestResolveRouteListIndexedRepositoriesDefaultsCompactProjection(t *testing.T) {
+	t.Parallel()
+
+	route, err := resolveRoute("list_indexed_repositories", map[string]any{
+		"limit":  float64(25),
+		"offset": float64(50),
+	})
+	if err != nil {
+		t.Fatalf("resolveRoute() error = %v, want nil", err)
+	}
+	if got, want := route.Query["projection"], "compact"; got != want {
+		t.Fatalf("route.Query[projection] = %#v, want %#v (MCP default)", got, want)
+	}
+	if _, exists := route.Query["name"]; exists {
+		t.Fatalf("route.Query has name = %#v, want absent when no filter", route.Query["name"])
+	}
+}
+
+func TestResolveRouteListIndexedRepositoriesForwardsNameAndProjection(t *testing.T) {
+	t.Parallel()
+
+	route, err := resolveRoute("list_indexed_repositories", map[string]any{
+		"name":       "alpha",
+		"projection": "full",
+	})
+	if err != nil {
+		t.Fatalf("resolveRoute() error = %v, want nil", err)
+	}
+	if got, want := route.Query["name"], "alpha"; got != want {
+		t.Fatalf("route.Query[name] = %#v, want %#v", got, want)
+	}
+	if got, want := route.Query["projection"], "full"; got != want {
+		t.Fatalf("route.Query[projection] = %#v, want %#v", got, want)
+	}
+
+	blank, err := resolveRoute("list_indexed_repositories", map[string]any{
+		"name": "   ",
+	})
+	if err != nil {
+		t.Fatalf("resolveRoute() blank-name error = %v, want nil", err)
+	}
+	if _, exists := blank.Query["name"]; exists {
+		t.Fatalf("blank.Query has name = %#v, want absent for whitespace-only input", blank.Query["name"])
+	}
+	if got, want := blank.Query["projection"], "compact"; got != want {
+		t.Fatalf("blank.Query[projection] = %#v, want %#v", got, want)
+	}
+}
+
 func TestResolveRouteMapsRepositoryLanguageToolsToBoundedQueries(t *testing.T) {
 	t.Parallel()
 
