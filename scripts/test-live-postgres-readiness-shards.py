@@ -64,13 +64,36 @@ class ShardContractTest(unittest.TestCase):
         marker = "\n      - name: Upload failed-package event streams\n"
         self.assertEqual(owner.count(marker), 1)
         step = owner.split(marker, 1)[1].split("\n      - name:", 1)[0]
-        self.assertIn("        uses: actions/upload-artifact@v4\n", step)
-        self.assertRegex(step, r"(?m)^        if: .*failure\(\)")
+        self.assertIn("        uses: ./.github/actions/retry-upload-artifact\n", step)
+        wrapper = (SCRIPT.parents[2] / ".github/actions/retry-upload-artifact/action.yml").read_text(
+            encoding="utf-8")
+        uses = re.findall(r"(?m)^      uses: (\S+)\n", wrapper)
+        self.assertEqual(
+            uses,
+            ["actions/upload-artifact@v4"] * 3,
+            "every retry attempt must pin upload-artifact@v4",
+        )
+        self.assertEqual(
+            len(re.findall(r"(?m)^        path: \$\{\{ inputs\.path \}\}\n", wrapper)),
+            3,
+            "every retry attempt must forward the upload path",
+        )
+        self.assertEqual(
+            len(
+                re.findall(
+                    r"(?m)^        include-hidden-files: \$\{\{ inputs\.include-hidden-files \}\}\n",
+                    wrapper,
+                )
+            ),
+            3,
+            "every retry attempt must forward include-hidden-files",
+        )
+        self.assertRegex(step, r"(?m)^        if: .*(failure\(\)|!cancelled\(\))")
         with_block = step.split("\n        with:\n", 1)[1]
         with_block = re.split(r"\n        \S", with_block, maxsplit=1)[0]
         inputs = dict(re.findall(r"(?m)^          ([a-z-]+): ([^\n]+)$", with_block))
         self.assertEqual(inputs.get("path"), ".readiness-debug/")
-        self.assertEqual(inputs.get("include-hidden-files"), "true")
+        self.assertIn(inputs.get("include-hidden-files"), ("true", "'true'"))
 
     @classmethod
     def setUpClass(cls) -> None:
