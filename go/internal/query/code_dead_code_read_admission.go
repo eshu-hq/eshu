@@ -15,7 +15,7 @@ import (
 
 // CodeDeadCodeReadAdmissionContractVersion versions the #9669
 // admission-contract shape for the dead-code content-fallback reads: the
-// graph run plus the twelve content reads the dead-code investigation,
+// graph run plus the thirteen content reads the dead-code investigation,
 // scan, and cross-repo consumer-evidence legs reach. Canonical reads
 // persist through explicit core-owned admission contracts: eshu-api keeps
 // the HTTP shape and calls this versioned port, which the core-owned
@@ -28,7 +28,7 @@ const CodeDeadCodeReadAdmissionContractVersion = "v0"
 
 // CodeDeadCodeReadAdmission is the versioned admission-contract port the
 // API handler will depend on instead of direct GraphQuery/ContentReader
-// handles. It re-declares exactly the thirteen dead-code reads the
+// handles. It re-declares exactly the fourteen dead-code reads the
 // dead-code legs admit through — the graph run behind the SQL-routine
 // EXECUTES probes, the candidate/incoming/downgrade reads behind the
 // investigation and scan, the entity hydration reads, the coverage and
@@ -63,12 +63,13 @@ const CodeDeadCodeReadAdmissionContractVersion = "v0"
 //   - The cross-repo legs admit their consumer evidence, coverage, and
 //     root-path reads through CrossRepoDeadCodeConsumerEvidence,
 //     CrossRepoDeadCodeConsumerCoverage, and
-//     CrossRepoDeadCodeConsumerRootPaths.
+//     CrossRepoDeadCodeConsumerRootPaths, as well as the boundary-evidence
+//     read through RepositoryRelationshipReadModel.
 //
 // RunSingle is OUT by construction: the dead-code lane never issues a
 // single-row graph read.
 //
-// Narrow by construction, recorded not silently assumed: the thirteen
+// Narrow by construction, recorded not silently assumed: the fourteen
 // methods re-declare the GraphQuery/ContentReader signatures in this
 // dead-code-scoped shape instead of embedding the shared ports or
 // aliasing the stores, so no other family can cite this pin — a blanket
@@ -115,6 +116,7 @@ type CodeDeadCodeReadAdmission interface {
 	RepositoryContextCoverage(ctx context.Context, repoID string) (RepositoryContentCoverage, error)
 	RepositoryFilesLastIndexedAt(ctx context.Context, repoID string) (time.Time, error)
 	RepositoryCoverage(ctx context.Context, repoID string) (RepositoryContentCoverage, error)
+	RepositoryRelationshipReadModel(ctx context.Context, repoID string) (RepositoryRelationshipReadModel, error)
 	CrossRepoDeadCodeConsumerEvidence(ctx context.Context, producerRepoID string, entityIDs []string, reads code.CrossRepoDeadCodeConsumerReads) (map[string][]deadcode.CrossRepoDeadCodeEvidence, code.CrossRepoDeadCodeHiddenConsumers, error)
 	CrossRepoDeadCodeConsumerCoverage(ctx context.Context, request code.CrossRepoDeadCodeCoverageRequest) (code.CrossRepoDeadCodeCoverage, error)
 	CrossRepoDeadCodeConsumerRootPaths(ctx context.Context, rootEntityIDs []string, consumerRepoIDs []string) (map[string]string, error)
@@ -123,7 +125,7 @@ type CodeDeadCodeReadAdmission interface {
 // codeDeadCodeReadAdmissionWitness is the unexported mirror that keeps
 // the dead-code-scoped re-declaration honest: the graph half mirrors
 // GraphQuery and the content half mirrors *ContentReader, so a
-// one-sided signature drift on any of the thirteen pinned reads fails
+// one-sided signature drift on any of the fourteen pinned reads fails
 // compilation here. The assertion below proves the (GraphQuery +
 // *ContentReader) pair the handlers run against today satisfies the
 // pin; it pins no wider store surface, and no other family may cite

@@ -39,6 +39,7 @@ var frozenCodeDeadCodeReadAdmission = []string{
 	"RepositoryContextCoverage func(context.Context, string) (querycontract.RepositoryContentCoverage, error)",
 	"RepositoryCoverage func(context.Context, string) (querycontract.RepositoryContentCoverage, error)",
 	"RepositoryFilesLastIndexedAt func(context.Context, string) (time.Time, error)",
+	"RepositoryRelationshipReadModel func(context.Context, string) (repository.RepositoryRelationshipReadModel, error)",
 	"Run func(context.Context, string, map[string]interface {}) ([]map[string]interface {}, error)",
 }
 
@@ -80,7 +81,7 @@ func TestCodeDeadCodeReadAdmissionContractIsVersioned(t *testing.T) {
 }
 
 // TestCodeDeadCodeReadAdmissionWireShapesAreSealed proves the seal on
-// the pin: exactly the thirteen re-declared dead-code reads, with
+// the pin: exactly the fourteen re-declared dead-code reads, with
 // RunSingle and every search, list, file, ledger, stored-summary, or
 // snapshot surface riding along refused. The frozen method-set contract
 // test pins the exact names; this test pins the exclusions the arbiter
@@ -89,8 +90,8 @@ func TestCodeDeadCodeReadAdmissionWireShapesAreSealed(t *testing.T) {
 	t.Parallel()
 
 	rt := reflect.TypeOf((*CodeDeadCodeReadAdmission)(nil)).Elem()
-	if rt.NumMethod() != 13 {
-		t.Fatalf("CodeDeadCodeReadAdmission has %d methods, want exactly 13: the seal forbids any wider surface", rt.NumMethod())
+	if rt.NumMethod() != 14 {
+		t.Fatalf("CodeDeadCodeReadAdmission has %d methods, want exactly 14: the seal forbids any wider surface", rt.NumMethod())
 	}
 	for i := range rt.NumMethod() {
 		name := rt.Method(i).Name
@@ -108,7 +109,7 @@ func TestCodeDeadCodeReadAdmissionWireShapesAreSealed(t *testing.T) {
 }
 
 // seededCodeDeadCodeDrift is a deliberately widened copy of the pin:
-// the thirteen frozen reads plus RunSingle, which the dead-code lane
+// the fourteen frozen reads plus RunSingle, which the dead-code lane
 // keeps OUT. It never ships; it proves the frozen-set comparison below
 // can see a one-method widening.
 type seededCodeDeadCodeDrift interface {
