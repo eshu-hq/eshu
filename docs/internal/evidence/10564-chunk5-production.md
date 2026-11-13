@@ -6,8 +6,9 @@ finding on #10613: headroom figures now live here, not only in prose.
 
 ## Corpus and backend
 
-The QA environment primary Postgres, `fact_records` 404 GB total
-(193 GB heap), 140 M live rows, shared_buffers 4 GB. Shipped query: `WITH candidates AS
+The QA environment primary Postgres (sizes from pg live reads),
+`fact_records` 404 GB total (193 GB heap), 140 M live rows,
+shared_buffers 4 GB. Shipped query: `WITH candidates AS
 MATERIALIZED` in `go/internal/storage/postgres/supply_chain_impact_fanout.go`
 (three-arm pair union, single active-generation join). Guard:
 `supplyChainImpactFanOutReadTimeout = 10 s`. All probes read-only
@@ -20,10 +21,11 @@ One 25-id chunk of the failing scope's own CVEs, exact H3 text:
 137,987 candidates, 201,922 buffers (51,364 read from disk, I/O read
 4,651 ms = 72% of exec). Raw output: `10564-chunk5-explain-25id.txt`.
 
-Fleet `pg_stat_statements` for the candidates query: 475 calls, mean
+Fleet `pg_stat_statements` for the candidates query (transcribed from
+operator live reads; raw snapshot output not retained): 475 calls, mean
 2,073.8 ms, max 9,802.7 ms; later 504 calls, mean 2,127.1 ms. Three
 post-deploy holder-read 57014 timeouts (21:04Z during rollout, 21:32:57Z
-and 21:49:49Z steady state).
+and 21:49:49Z steady state, from failure-message live reads).
 
 ## After (chunk 5, production)
 
@@ -40,7 +42,8 @@ alternating cold DISCARD PLANS / warm, read-only, 12 s guard), ms:
 definition), max = 3527 ms (first, coldest run). Bar p95 < 2 s, max < 5 s:
 met.
 
-Fleet delta over 794 chunk-5-era calls: implied new-call mean ~745 ms;
+Fleet delta over 794 chunk-5-era calls (transcribed from operator live
+reads; raw snapshot output not retained): implied new-call mean ~745 ms;
 cumulative max flat at 9,843.9 ms (no new call at or above it); zero new
 57014 and zero new `supply_chain_impact_fanout_failed` dead letters across
 three snapshots (01:39Z, 01:40Z, 02:42Z). Snapshots: 614 calls mean
@@ -49,10 +52,11 @@ three snapshots (01:39Z, 01:40Z, 02:42Z). Snapshots: 614 calls mean
 ## Deployment and wave markers
 
 Chunk-5 rollout complete on all core replicas 01:33:57-58Z (eshu-0,
-resolution-engine, workflow-coordinator on image sha-3274bd4205); first
-snapshot 01:39:29Z postdates it. Wave inside window: 58 vuln-intel
-generations 01:34:33Z-02:39:31.5Z. Replay: 1,866 rows to zero, then 18
-re-replayed post-chunk-5 to zero in class.
+resolution-engine, workflow-coordinator on image sha-3274bd4205, from
+kubectl live reads); first snapshot 01:39:29Z postdates it. Wave inside
+window (scope_generations live reads): 58 vuln-intel generations
+01:34:33Z-02:39:31.5Z. Replay (admin replay API responses): 1,866 rows to
+zero, then 18 re-replayed post-chunk-5 to zero in class.
 
 ## Why the change is safe
 
