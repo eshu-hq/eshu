@@ -43,10 +43,10 @@ func TestToolsPreserveSemanticRegistrationContract(t *testing.T) {
 	if err != nil {
 		t.Fatalf("marshal semantic tools: %v", err)
 	}
-	if got, want := len(encoded), 4248; got != want {
+	if got, want := len(encoded), 4504; got != want {
 		t.Fatalf("serialized semantic tool definitions length = %d, want %d", got, want)
 	}
-	const wantDefinitionsHash = "e7d6c7763d9b2a4117d42909a6eec357b3a714360dcf2797495d88da4e697e9d"
+	const wantDefinitionsHash = "fdcd6beeb0c5f191df1de1d0d734b27bb74e252c9ea6d448305ff09728807e9b"
 	if got := fmt.Sprintf("%x", sha256.Sum256(encoded)); got != wantDefinitionsHash {
 		t.Fatalf("semantic tool definitions hash = %s, want %s", got, wantDefinitionsHash)
 	}

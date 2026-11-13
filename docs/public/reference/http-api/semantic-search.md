@@ -69,6 +69,8 @@ Results carry:
 - `rank`, `score`, and `search_method`;
 - top-level `retrieval_state` (`keyword_only`, `semantic_unavailable`,
   `hybrid_degraded`, `semantic_active`, or `hybrid_active`);
+- top-level `corpus_state` (`empty`, `truncated`, or `populated`) naming
+  the corpus condition in words — see [Corpus state](#corpus-state);
 - the shaped search document with snake-case graph handles and entity refs;
 - result graph handles for bounded follow-up calls;
 - `truth_scope`, `freshness`, `failures`, and optional low-cardinality
@@ -76,6 +78,34 @@ Results carry:
 
 Search scores and vector similarity stay derived evidence. They do not promote a
 result to canonical graph truth.
+
+## Corpus state
+
+The response always includes top-level `corpus_state`, so a caller need not
+decode the `indexed_document_count`/`results`/`corpus_may_be_truncated`
+triple:
+
+- `empty` — the corpus holds no documents (the user-facing meaning of "not
+  indexed"). `results: []` with `empty` means there is nothing to search,
+  so retrying with different words is pointless.
+- `truncated` — a corpus exists but the bounded read may not cover all of it.
+- `populated` — otherwise. `results: []` with `populated` means the corpus
+  was searched and nothing matched: a real answer, not an indexing state.
+
+`empty` wins over `truncated`: a zero-document corpus has nothing to
+truncate. Served results beside a zero count never report `empty`
+(`populated`), keeping the wire self-consistent when a store
+under-reports its count. `retrieval_state` is untouched: it stays a mode
+state, never a corpus state. An empty corpus is not lower truth — the
+answer "no documents" is exact.
+
+The count behind the field is the one the serving backend reported in
+`indexed_document_count`: the persisted index reports the whole-scope count
+before `source_kinds`/`languages` filters, while local-hybrid backends
+report the size of the filter-narrowed corpus they searched. Without
+filters `empty` always means the in-scope corpus holds no documents; with
+filters on a hybrid-served request it can also mean the filters excluded
+every document.
 
 ## Language facet
 
@@ -206,7 +236,11 @@ Observability Evidence: `telemetry.SpanQuerySemanticSearch`
 `eshu.capability` attributes. Response fields `indexed_document_count`,
 `corpus_limit`, `corpus_may_be_truncated`, `truncated`, and per-result
 `search_method` plus top-level `retrieval_state` show whether the request was
-scoped tightly enough and which retrieval path answered.
+scoped tightly enough and which retrieval path answered. Top-level
+`corpus_state` is stamped on the same span as `search.corpus_state`
+(bounded: `empty`, `truncated`, `populated`), beside
+`search.retrieval_state`; the degraded counter is untouched because an empty
+corpus is not a degradation.
 
 Observability Evidence: when persisted vector retrieval is enabled, API and MCP
 wire the vector metadata and vector value sidecar reads through Postgres

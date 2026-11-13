@@ -7085,6 +7085,7 @@
           "anchor",
           "corpus_limit",
           "corpus_may_be_truncated",
+          "corpus_state",
           "facets",
           "false_canonical_claim_count",
           "indexed_document_count",

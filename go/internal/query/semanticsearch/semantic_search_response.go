@@ -66,10 +66,33 @@ func semanticSearchResponseFromRetrieval(
 		CorpusLimit:              indexResult.CorpusLimit,
 		CorpusMayBeTruncated:     indexResult.CorpusMayBeTruncated,
 		RetrievalState:           indexResult.RetrievalState,
-		Facets:                   semanticSearchFacets{Languages: langCounts},
-		Rerank:                   rerankInfo,
-		RecommendedNextCalls:     nextCalls,
+		CorpusState: semanticSearchCorpusState(
+			indexResult.IndexedDocumentCount,
+			indexResult.CorpusMayBeTruncated,
+			len(results),
+		),
+		Facets:               semanticSearchFacets{Languages: langCounts},
+		Rerank:               rerankInfo,
+		RecommendedNextCalls: nextCalls,
 	}
+}
+
+// semanticSearchCorpusState derives the wire corpus_state from the corpus
+// bounds the store reported plus the retrieved result count. Empty wins over
+// truncated (a zero-document corpus has nothing to truncate), and served
+// results beside a zero count report populated so the wire stays
+// self-consistent when a store under-reports its count.
+func semanticSearchCorpusState(indexedDocumentCount int, corpusMayBeTruncated bool, resultCount int) string {
+	if indexedDocumentCount == 0 {
+		if resultCount > 0 {
+			return "populated"
+		}
+		return "empty"
+	}
+	if corpusMayBeTruncated {
+		return "truncated"
+	}
+	return "populated"
 }
 
 func semanticSearchDocumentFromSearchDoc(doc searchdocs.Document) semanticSearchDocument {
