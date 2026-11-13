@@ -106,7 +106,11 @@ func TestGenerationRetentionNarrowsTheLockSetForAnOverLimitBatch(t *testing.T) {
 	normal := narrowFake(now, 0)
 	normalResult := run(normal)
 	normalLabels := statementLabels(normal.statements)
+	// The chunk predrain's own unlocked read (work_mem, candidates,
+	// prescreen) leads; the prune's planning sequence after it is
+	// unchanged (#10020).
 	wantNormalHead := []string{
+		"work_mem", "candidates", "prescreen",
 		"work_mem", "key_index_check", "savepoint", "candidates",
 		"rollback_to_savepoint", "prescreen", "count", "ledger_count",
 		"targeted_lock", "count", "ledger_count",
@@ -120,14 +124,21 @@ func TestGenerationRetentionNarrowsTheLockSetForAnOverLimitBatch(t *testing.T) {
 	over := narrowFake(now, 90)
 	overResult := run(over)
 	overLabels := statementLabels(over.statements)
-	// work_mem, the #7279 key-index check, SAVEPOINT, the candidate query,
-	// the rollback, the pre-screen, one or more count pairs (the first count
-	// and the limit re-checks), then the re-lock and its recount.
+	// The chunk predrain's unlocked read (work_mem, candidates, prescreen)
+	// leads; then work_mem, the #7279 key-index check, SAVEPOINT, the
+	// candidate query, the rollback, the pre-screen, one or more count
+	// pairs (the first count and the limit re-checks), then the re-lock
+	// and its recount (#10020).
 	targetedAt := slices.Index(overLabels, "targeted_lock")
-	if targetedAt < 8 || !slices.Equal(overLabels[:6], []string{"work_mem", "key_index_check", "savepoint", "candidates", "rollback_to_savepoint", "prescreen"}) {
-		t.Fatalf("over-limit batch statements = %v, want work_mem, key_index_check, savepoint, candidates, rollback, prescreen, counts, re-lock", overLabels)
+	wantOverPrefix := []string{
+		"work_mem", "candidates", "prescreen",
+		"work_mem", "key_index_check", "savepoint", "candidates",
+		"rollback_to_savepoint", "prescreen",
 	}
-	for _, label := range overLabels[6:targetedAt] {
+	if targetedAt < len(wantOverPrefix)+2 || !slices.Equal(overLabels[:len(wantOverPrefix)], wantOverPrefix) {
+		t.Fatalf("over-limit batch statements = %v, want predrain read, work_mem, key_index_check, savepoint, candidates, rollback, prescreen, counts, re-lock", overLabels)
+	}
+	for _, label := range overLabels[len(wantOverPrefix):targetedAt] {
 		if label != "count" && label != "ledger_count" {
 			t.Fatalf("over-limit batch ran %q between its pre-screen and its re-lock: %v", label, overLabels)
 		}

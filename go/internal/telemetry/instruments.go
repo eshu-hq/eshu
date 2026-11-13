@@ -2374,6 +2374,9 @@ type Instruments struct {
 	// GenerationRetentionSearchIndexBatches is the search index pre-delete
 	// batch transactions one retention pass committed before its prune (#7427).
 	GenerationRetentionSearchIndexBatches metric.Int64Histogram
+	// GenerationRetentionChunkPredeleteBatches is the chunk pre-delete
+	// batch transactions one retention pass committed before its prune (#10020).
+	GenerationRetentionChunkPredeleteBatches metric.Int64Histogram
 	// SearchIndexOrphanGenerations and SearchIndexOrphanRowsSwept are the
 	// search index orphan census and sweep by table (#7427 PR2).
 	SearchIndexOrphanGenerations metric.Int64Gauge

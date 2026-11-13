@@ -131,6 +131,11 @@ tests:
     class: verified_scheduled
     reason: "linuxdynasty: postgres-scheduled daily/manual PostgreSQL 18.6 runner; infra inventory 32 named tests in 19 files, 109.448s process wall; -race -count=1, one run and pass each; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
     runner: postgres-scheduled
+  - file: go/internal/storage/postgres/infra/inventory/retention_orphan_plan_live_test.go
+    tag: ~
+    class: verified_scheduled
+    reason: "drive 10020: infra orphan-delete plan proof (no mirror seq scan on a 20-repo fixture) and frozen-legacy differential semantics proof; manual PostgreSQL 18.6 run, full inventory package plus focused, -count=1, pass; env Skip without ESHU_POSTGRES_DSN"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/infra/inventory/retention_lock_probe_live_test.go
     tag: ~
     class: verified_scheduled

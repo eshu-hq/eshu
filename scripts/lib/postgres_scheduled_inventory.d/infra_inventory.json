@@ -144,5 +144,13 @@
     "tests": [
       "TestRetentionLiveLockHoldAndDeriveWaitCost"
     ]
+  },
+  "go/internal/storage/postgres/infra/inventory/retention_orphan_plan_live_test.go": {
+    "group": "infra_inventory",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres/infra/inventory",
+    "tests": [
+      "TestRetentionLiveOrphanDeleteMatchesLegacySemantics",
+      "TestRetentionLiveOrphanDeletePlanUsesRepoIndex"
+    ]
   }
 }

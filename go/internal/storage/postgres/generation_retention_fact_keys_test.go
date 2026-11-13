@@ -164,7 +164,10 @@ func TestGenerationRetentionChunkDeletesPageFactKeysFirst(t *testing.T) {
 		},
 		prescreenRows: [][]any{{"generation-huge", int64(101)}, {"generation-small", int64(2)}},
 		countRows:     [][]any{{"generation-small", "fact_records", int64(2)}},
-		chunkPageRows: page,
+		// The predrain pages the full fixture page then an empty one, so
+		// the target drains exactly its scripted rows instead of running
+		// to the row cap on the fixed fixture page.
+		chunkPageScripts: [][][]any{page, {}},
 		execResults: append(
 			[]sql.Result{fakeRowsAffected{n: 100}},
 			generationRetentionExecResults(1, 0, 0, 0, 0, 0, 0, 1)...,

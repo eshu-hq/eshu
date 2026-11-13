@@ -218,6 +218,8 @@ func (p postgresGenerationRetentionPruner) PruneSupersededGenerations(
 		// runner's poll interval (#7427).
 		SearchIndexPredeleteRowCap:   policy.SearchIndexPredeleteRowCap,
 		SearchIndexPredeleteDeadline: policy.SearchIndexPredeleteDeadline,
+		ChunkPredeleteRowCap:         policy.ChunkPredeleteRowCap,
+		ChunkPredeleteDeadline:       policy.ChunkPredeleteDeadline,
 	})
 	if errors.Is(err, postgres.ErrGenerationRetentionKeyIndexUnavailable) {
 		// Carry the storage refusal into the runner's contract so it reports
@@ -229,20 +231,21 @@ func (p postgresGenerationRetentionPruner) PruneSupersededGenerations(
 		return retention.Result{}, err
 	}
 	return retention.Result{
-		GenerationsPruned:  result.GenerationsPruned,
-		RowsPruned:         result.RowsPruned,
-		Skipped:            result.Skipped,
-		OldestEligibleAge:  result.OldestEligibleAge,
-		Duration:           result.Duration,
-		PhaseDurations:     result.PhaseDurations,
-		ScopeLockHold:      result.ScopeLockHold,
-		LedgerRowsPruned:   result.LedgerRowsPruned,
-		LedgerRowsCounted:  result.LedgerRowsCounted,
-		FactKeyRowsPruned:  result.FactKeyRowsPruned,
-		FactKeyRowsCounted: result.FactKeyRowsCounted,
-		RowsOverLimit:      result.RowsOverLimit,
-		LockedScopeRows:    result.LockedScopeRows,
-		SearchIndexBatches: result.SearchIndexBatches,
+		GenerationsPruned:     result.GenerationsPruned,
+		RowsPruned:            result.RowsPruned,
+		Skipped:               result.Skipped,
+		OldestEligibleAge:     result.OldestEligibleAge,
+		Duration:              result.Duration,
+		PhaseDurations:        result.PhaseDurations,
+		ScopeLockHold:         result.ScopeLockHold,
+		LedgerRowsPruned:      result.LedgerRowsPruned,
+		LedgerRowsCounted:     result.LedgerRowsCounted,
+		FactKeyRowsPruned:     result.FactKeyRowsPruned,
+		FactKeyRowsCounted:    result.FactKeyRowsCounted,
+		RowsOverLimit:         result.RowsOverLimit,
+		LockedScopeRows:       result.LockedScopeRows,
+		SearchIndexBatches:    result.SearchIndexBatches,
+		ChunkPredeleteBatches: result.ChunkPredeleteBatches,
 	}, nil
 }
 

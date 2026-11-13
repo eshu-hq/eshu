@@ -67,7 +67,9 @@ func NewGenerationRetentionStore(database db.ExecQueryer) GenerationRetentionSto
 // eshu_search_index_terms: migration 191 dropped that key (#7427 PR3), so a
 // generation's terms go only through the pre-delete that runs before the
 // prune transaction, which admits only drained generations, and through the
-// runner's orphan sweep.
+// runner's orphan sweep. Over-limit generations drain their fact and content
+// pages the same way, in committed pre-delete batches before Begin, and the
+// narrow scope lock never covers a page (#10020).
 //
 // Before it locks anything it checks that every retention key index (the
 // #7279 pair, the #7420 sidecar partition indexes, and the generation
@@ -94,7 +96,11 @@ func (s GenerationRetentionStore) PruneSupersededGenerations(
 	if err != nil {
 		return GenerationRetentionResult{}, err
 	}
-	start := time.Now() // Duration is the prune transaction; the pre-delete has its own phases
+	chunkPredrain, err := s.predrainChunkedGenerations(ctx, beginner, now, policy) // committed batches, before Begin (#10020)
+	if err != nil {
+		return GenerationRetentionResult{}, err
+	}
+	start := time.Now() // Duration is the prune transaction; the pre-deletes have their own phases
 	tx, err := beginner.Begin(ctx)
 	if err != nil {
 		return GenerationRetentionResult{}, fmt.Errorf("generation retention: begin: %w", err)
@@ -131,20 +137,16 @@ func (s GenerationRetentionStore) PruneSupersededGenerations(
 	if candidates, chunkTarget, err = searchIndex.admit(ctx, tx, candidates, chunkTarget, &result); err != nil {
 		return GenerationRetentionResult{}, err
 	}
+	// The narrow scope lock never drains a chunk page (#10020): a
+	// still-over-limit target means the predrain did not finish it this
+	// pass, so it waits for the next pass instead of holding the lock for
+	// a page drain.
+	chunkPredrain.excludeChunkTarget(chunkTarget, &result)
 	// ScopeLockHold spans the re-lock, its recount and the prune, and is
-	// zero when the pass locks nothing. A chunk cycle holds the same narrow
-	// window for its page delete, so each cycle's hold stays bounded.
+	// zero when the pass locks nothing.
 	var narrowHoldStart time.Time
 	held := false
-	var chunk generationRetentionChunk
-	var chunked bool
-	if chunkTarget != nil {
-		narrowHoldStart = time.Now()
-		candidates, rowCounts, eventRowCounts, chunk, chunked, held, err = s.relockChunkedBatch(ctx, tx, now, policy, candidates, *chunkTarget, &result)
-		if err != nil {
-			return GenerationRetentionResult{}, err
-		}
-	} else if len(candidates) > 0 {
+	if len(candidates) > 0 {
 		narrowHoldStart = time.Now()
 		candidates, rowCounts, eventRowCounts, held, err = s.relockRetentionSelection(ctx, tx, now, policy, candidates, &result)
 		if err != nil {
@@ -152,15 +154,11 @@ func (s GenerationRetentionStore) PruneSupersededGenerations(
 		}
 	}
 	if len(candidates) > 0 {
-		if err := s.pruneCandidates(ctx, tx, candidates, rowCounts, searchIndex.eventCounts(eventRowCounts), policy, now, &result); err != nil {
+		if err := s.pruneCandidates(ctx, tx, candidates, rowCounts, chunkPredrain.eventCounts(searchIndex.eventCounts(eventRowCounts)), policy, now, &result); err != nil {
 			return GenerationRetentionResult{}, err
 		}
 	}
-	if chunked {
-		// pruneCandidates rebuilds RowsPruned from the normal batch, so
-		// the chunk's counts merge after it, never before.
-		mergeChunkProgress(&result, *chunkTarget, chunk, now)
-	}
+	chunkPredrain.finish(ctx, s.logger, &result, candidates, now)
 	searchIndex.finish(ctx, s.logger, &result, candidates)
 
 	phaseStart = time.Now()
@@ -343,12 +341,16 @@ func (s GenerationRetentionStore) selectCandidates(
 // The set is closed so it can label a metric. Since #7334 the selection,
 // pre-screen and planning counts run unlocked and only the targeted re-lock,
 // its recount and the prune run while the batch holds its ingestion_scopes
-// and scope_generations row locks; the re-lock and recount are timed under
-// the existing select_candidates and count_rows phases.
+// and scope_generations row locks; the re-lock is timed under
+// select_candidates with the selection. The unlocked planning counts stay
+// under count_rows while the recount under the lock reports under
+// locked_recount, so Gate 3 can evidence the planning and recount bars
+// separately (#10020).
 const (
 	GenerationRetentionPhaseKeyIndexCheck         = "key_index_check"
 	GenerationRetentionPhaseSelectCandidates      = "select_candidates"
 	GenerationRetentionPhaseCountRows             = "count_rows"
+	GenerationRetentionPhaseLockedRecount         = "locked_recount"
 	GenerationRetentionPhaseRecordEvents          = "record_events"
 	GenerationRetentionPhaseDeleteIntents         = "delete_shared_projection_intents"
 	GenerationRetentionPhasePruneFileReferences   = "prune_content_file_references"
@@ -359,8 +361,11 @@ const (
 	GenerationRetentionPhaseDeleteLedger          = "delete_changed_since_ledger"
 	GenerationRetentionPhaseDeleteFactKeys        = "delete_fact_keys" // #7420 key sidecars, before the generations
 	GenerationRetentionPhaseDeleteGenerations     = "delete_scope_generations"
-	GenerationRetentionPhasePruneChunkedFacts     = "prune_chunked_facts"
-	GenerationRetentionPhaseCommit                = "commit"
+	// prune_chunked_facts is retired (#10020): pages drain in committed
+	// pre-delete batches before the transaction opens, timed under
+	// predrain_chunk in generation_retention_policy.go, and never under
+	// the scope lock.
+	GenerationRetentionPhaseCommit = "commit"
 )
 
 // pruneCandidates records one retention event per candidate and then deletes

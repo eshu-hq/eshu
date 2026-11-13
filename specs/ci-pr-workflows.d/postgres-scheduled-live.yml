@@ -124,6 +124,7 @@ workflows:
   - go/internal/storage/postgres/infra/inventory/reconcile_plan_live_test.go
   - go/internal/storage/postgres/infra/inventory/retention_live_test.go
   - go/internal/storage/postgres/infra/inventory/retention_lock_probe_live_test.go
+  - go/internal/storage/postgres/infra/inventory/retention_orphan_plan_live_test.go
   - go/internal/storage/postgres/infra/inventory/testdata/**
   - go/internal/storage/postgres/migrations/**
   - go/internal/storage/postgres/migrations/001_ingestion_scopes.sql

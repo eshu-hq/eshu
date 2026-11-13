@@ -20,3 +20,7 @@ const ReconcileRepositoriesSQL = reconcileRepositoriesSQL
 // ReconcileDigestSQL exposes the per-repository digest pair so the fence race
 // proof can compare content and table under one reader snapshot.
 var ReconcileDigestSQL = reconcileDigestSQL
+
+// RetentionOrphanDeleteSQL exposes the shipped batch orphan delete so a live
+// plan proof can EXPLAIN the exact production text.
+const RetentionOrphanDeleteSQL = retentionOrphanDeleteByReposSQL

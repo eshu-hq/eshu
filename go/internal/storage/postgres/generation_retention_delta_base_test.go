@@ -306,11 +306,13 @@ func TestGenerationRetentionDeltaBaseNeverCountedAsWitnessRetained(t *testing.T)
 }
 
 // TestGenerationRetentionChunkTargetFlippedDeltaProtectedCountsOnce proves
-// the #7981 chunked re-lock honors the #7802 guard: an over-limit chunk
-// target whose scope turned delta-active after the selection is reported
+// the chunked re-lock honors the #7802 guard: an over-limit chunk target
+// whose scope turned delta-active after the selection is reported
 // delta-protected at lock time, so it is tallied once as delta_base, drains
-// no chunk, and never reaches a fact or generation delete, while the normal
-// batch beside it still prunes.
+// no chunk rows, and never reaches a fact or generation delete, while the
+// normal batch beside it still prunes. The exclusion still tallies the
+// row_limit_chunked deferral: the pass leaves an over-limit generation
+// behind, and the skip names why it waits for the next pass (#10020).
 func TestGenerationRetentionChunkTargetFlippedDeltaProtectedCountsOnce(t *testing.T) {
 	t.Parallel()
 
@@ -350,8 +352,8 @@ func TestGenerationRetentionChunkTargetFlippedDeltaProtectedCountsOnce(t *testin
 	if got := result.Skipped["delta_base"]; got != 1 {
 		t.Errorf("Skipped[delta_base] = %d, want 1 (the flipped chunk target)", got)
 	}
-	if got := result.Skipped[generationRetentionChunkedProgressSkippedReason]; got != 0 {
-		t.Errorf("Skipped[%s] = %d, want 0 (a protected target drains no chunk)",
+	if got := result.Skipped[generationRetentionChunkedProgressSkippedReason]; got != 1 {
+		t.Errorf("Skipped[%s] = %d, want 1 (the deferred over-limit target waits for the next pass)",
 			generationRetentionChunkedProgressSkippedReason, got)
 	}
 	if result.GenerationsPruned != 1 {
