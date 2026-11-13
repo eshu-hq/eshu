@@ -19,8 +19,9 @@ import (
 // transaction opens; no page ever drains under the narrow lock.
 
 // queryChunkPage reads one oldest-first #7981 over-limit fact page, a bounded
-// read sizing the batch's deletes like the counts above. The deletes run
-// under the narrow lock in generation_retention_relock.go.
+// read sizing the batch's deletes like the counts above. The page's deletes
+// run in committed #10020 predrain batches before the prune transaction
+// opens; no page ever drains under the narrow lock.
 func queryChunkPage(
 	ctx context.Context,
 	tx db.Transaction,
