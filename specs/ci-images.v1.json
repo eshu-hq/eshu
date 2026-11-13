@@ -259,23 +259,23 @@
   ],
   "tools": {
     "destination": "ghcr.io/eshu-hq/ci-tools",
-    "digest": "sha256:9a1d81d6f17544e0ec12d77c3fdda1b2e6f0f0d125dcc88f03a0ab9ba1212b0d",
+    "digest": "sha256:5bd016995aa47cb5c292b99e2354b235fc5f5883882f14fadf31535579beda50",
     "recipe_sha256": "c7cc5af8c7a09b1d124547e383b500add2c8c42c35ebe9a8d03fc076a1d55948",
     "platforms": ["linux/amd64", "linux/arm64"],
     "inventories": {
       "linux/amd64": {
-        "manifest_digest": "sha256:14be4d046bcc70b9dc7db3f0a8eba7b07e7c2d7c126b6329ff8bc15a9d842164",
+        "manifest_digest": "sha256:083906c2be8b6696f3eeb9120122010bb829bb93e5eec4c8d4fcb5e517386082",
         "apt_packages": 190,
-        "downloads": 5,
-        "packages_sha256": "89db9c0561872873d9819eb01bc1a1b33be6e3b6d7d3a409c17c10a3e7f1d4ed",
-        "downloads_sha256": "9c702a372417b755ac2fc2748c323b621252f490e9b5988033358288950560a2"
+        "downloads": 7,
+        "packages_sha256": "2d95dad3fa771bbcc6cea5bec4f4e08150166578ae39639153e1f990b791620",
+        "downloads_sha256": "e0f1c76cbdb7773414d10db29410f4c0a789cdfcd5dc5b3792b9"
       },
       "linux/arm64": {
-        "manifest_digest": "sha256:c955bbd5497ea153a7213c3378dd9e376567cdd277fbee63f85d965c03c7f31b",
+        "manifest_digest": "sha256:d5be744da0097f17dc0a221f577a1dbf3e27a6bd6bcaa928512a81524211b3b8",
         "apt_packages": 189,
-        "downloads": 5,
-        "packages_sha256": "c0aa73b6b15d8b9b04dc67ae62624414bf2e10bd661ced9a22433cc94113bc3e",
-        "downloads_sha256": "fd07abb73c067a1c54a39a863a186b750a3b5ec61357362f7942f5e6d887e4dc"
+        "downloads": 7,
+        "packages_sha256": "25502a29d946229e80546792e5edf8a154f7e2b0e2c6c934a0",
+        "downloads_sha256": "f154fdf448b7c648fad0c9e4bed959457e15ae2a22ce3369b4da006fa4d"
       }
     }
   }
