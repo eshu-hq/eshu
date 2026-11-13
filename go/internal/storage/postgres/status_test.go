@@ -243,7 +243,7 @@ func TestStatusStoreReadRawSnapshot(t *testing.T) {
 		"last_failure_class",
 		"WITH active_scopes AS (",
 		"JOIN collector_evidence_summary AS summary",
-		"workflow_instances AS MATERIALIZED (",
+		"LEFT JOIN LATERAL (",
 		"FROM collector_generation_dead_letters",
 		"FROM supply_chain_impact_scope_pass_state",
 		"FROM semantic_extraction_jobs",
