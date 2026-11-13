@@ -55,6 +55,7 @@ on:
       - 'scripts/test-run-live-postgres-readiness-tests.sh'
       - 'scripts/lib/test-run-live-postgres-readiness-seed-cases.sh'
       - 'scripts/lib/test-run-live-postgres-readiness-shards.sh'
+      - 'scripts/lib/test-run-live-postgres-readiness-tail-cases.sh'
       - 'scripts/lib/live_postgres_readiness_results.py'
       - 'scripts/lib/live_postgres_readiness_inventory*.py'
       - 'scripts/lib/live_postgres_readiness_env.sh'
@@ -428,21 +429,26 @@ jobs:
           LIVE_READINESS_EXTRA_SKIP: 'TestRetirementDerivedStatementPlansLive'
         run: bash scripts/run-live-postgres-readiness-tests.sh --shard "${{ matrix.shard }}/${{ matrix.total }}" --report readiness-shard-report.json
 
+      # D2: retry wrapper hardens the upload against the transient
+      # artifact-service HTML-response flake; see retry-upload-artifact.
       - name: Upload shard coverage report
         if: ${{ always() }}
-        uses: actions/upload-artifact@v4
+        uses: ./.github/actions/retry-upload-artifact
         with:
           name: readiness-shard-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.shard }}
           path: readiness-shard-report.json
           if-no-files-found: error
 
+      # D2: the ONE debug bundle for this workflow, hardened by the retry
+      # wrapper and gated on !cancelled(): a green run no-ops through
+      # if-no-files-found ignore, and a cancelled job never attempts upload.
       - name: Upload failed-package event streams
-        if: ${{ failure() }}
-        uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        uses: ./.github/actions/retry-upload-artifact
         with:
           name: readiness-debug-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.shard }}
           path: .readiness-debug/
-          include-hidden-files: true
+          include-hidden-files: 'true'
           if-no-files-found: ignore
 
       - name: Stop disposable physical standby

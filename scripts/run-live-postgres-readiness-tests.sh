@@ -203,7 +203,11 @@ while IFS=$'\t' read -r package pattern tests; do
       cp -- "${scratch}/stderr-${i}" "${debug_pkgdir}/stderr.txt" &&
       printf '%s %s\n' "${go_status}" "${results_status}" >"${debug_pkgdir}/exit"; then
       printf 'live-postgres-readiness: %s: event stream tail:\n' "${package}" >&2
-      tail -n 5 -- "${events}" | cut -c 1-300 >&2
+      # Twelve lines, not five: the verifier keeps a 12-line output ring per
+      # test but prints only its last 6, so an assertion buried deeper would
+      # otherwise reach the main log only inside the .readiness-debug stream
+      # below (#10586). Same 300-column cap as the go-failure stderr head.
+      tail -n 12 -- "${events}" | cut -c 1-300 >&2
       printf 'live-postgres-readiness: %s: debug events preserved in %s\n' "${package}" "${debug_pkgdir}" >&2
     else
       printf 'live-postgres-readiness: %s: WARNING: debug preservation failed, continuing\n' "${package}" >&2
