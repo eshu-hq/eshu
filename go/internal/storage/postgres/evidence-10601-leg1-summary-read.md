@@ -46,7 +46,7 @@ from the migration forward; the maintainer's startup `RunOnce` plus the 60s
 cadence reconciles every row within one cadence (the resweep upserts the
 column on conflict, so a partial first pass self-heals).
 
-## Performance Evidence
+## Performance Evidence: leg1 summary read on a seeded fixture
 
 `EXPLAIN (ANALYZE, TIMING OFF, COSTS OFF)` on a seeded fixture (2005 active
 scopes, 10,006 facts, 2,006 work items, 4,004 summary rows; local
@@ -81,7 +81,7 @@ resweep-then-read against the derived lateral oracle over blank-latest
 fallback, `updated_at` tiebreak, empty-instance, superseded-generation,
 tombstone, and blank-source-system branches (empty diff).
 
-## Observability Evidence
+## Observability Evidence: per-leg durations on the snapshot span
 
 No new metric. Every status snapshot read now stamps its duration on the
 `postgres.status_snapshot` span as `status.snapshot.read.<label>` seconds
