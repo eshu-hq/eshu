@@ -44,7 +44,9 @@ func TestGenerationRetentionRefusesCycleWithoutKeyIndexes(t *testing.T) {
 		t.Errorf("GenerationsPruned = %d, want 0 on refusal", result.GenerationsPruned)
 	}
 	for _, statement := range database.statements {
-		if strings.Contains(statement, "FOR UPDATE") || strings.Contains(statement, "DELETE") ||
+		// FOR UPDATE OF is the strong lock; the pre-deletes' weakened FOR
+		// NO KEY UPDATE reads never take it.
+		if strings.Contains(statement, "FOR UPDATE OF") || strings.Contains(statement, "DELETE") ||
 			strings.Contains(statement, "generation_retention_row_counts") {
 			t.Fatalf("refused cycle still ran %q", strings.Fields(statement)[0])
 		}
@@ -54,10 +56,13 @@ func TestGenerationRetentionRefusesCycleWithoutKeyIndexes(t *testing.T) {
 	}
 }
 
-// TestGenerationRetentionChecksKeyIndexesBeforeLocking pins the order: the
-// catalog check runs after the transaction-local work_mem setting and before the
-// candidate statement takes any scope lock. Only the selection savepoint
-// (#7127 PR-3d), which takes no lock, may sit between the two.
+// TestGenerationRetentionChecksKeyIndexesBeforeLocking pins the order: no
+// statement takes a strong (FOR UPDATE OF) scope lock before its own
+// key-index check. Each phase checks first: the search and chunk
+// pre-deletes check on the pool before their unlocked reads, and the prune
+// transaction checks after its work_mem setting and before the candidate
+// statement. Only the selection savepoint (#7127 PR-3d), which takes no
+// lock, may sit between the prune's check and its lock.
 func TestGenerationRetentionChecksKeyIndexesBeforeLocking(t *testing.T) {
 	t.Parallel()
 
@@ -68,21 +73,43 @@ func TestGenerationRetentionChecksKeyIndexesBeforeLocking(t *testing.T) {
 	if _, err := store.PruneSupersededGenerations(context.Background(), DefaultGenerationRetentionPolicy()); err != nil {
 		t.Fatalf("PruneSupersededGenerations() error = %v", err)
 	}
-	if len(database.statements) < 3 {
-		t.Fatalf("statements = %d, want the setting, the index check and the candidate lock", len(database.statements))
+	// No strong (FOR UPDATE OF) lock runs before the prune transaction's
+	// own check: the pre-deletes' reads that precede it are weakened to
+	// FOR NO KEY UPDATE.
+	checkAt := slices.IndexFunc(database.statements, func(statement string) bool {
+		return strings.Contains(statement, "generation_retention_key_indexes")
+	})
+	if checkAt < 0 {
+		t.Fatal("no key-index check ran in the prune transaction")
 	}
-	if !strings.Contains(database.statements[1], "generation_retention_key_indexes") {
-		t.Errorf("second statement = %q, want the key-index check", strings.Fields(database.statements[1])[0])
+	for i, statement := range database.statements[:checkAt] {
+		if strings.Contains(statement, "FOR UPDATE OF") {
+			t.Fatalf("strong lock at statement %d runs before the key-index check at %d", i, checkAt)
+		}
 	}
-	candidateAt := slices.IndexFunc(database.statements, func(statement string) bool {
+	// The prune's own selection follows its check with only the savepoint
+	// between them.
+	postCheck := database.statements[checkAt+1:]
+	selectionAt := slices.IndexFunc(postCheck, func(statement string) bool {
 		return strings.Contains(statement, "ranked_superseded_generations")
 	})
-	if candidateAt < 2 {
-		t.Fatalf("candidate lock at statement %d, want it after the key-index check", candidateAt)
+	if selectionAt < 0 {
+		t.Fatal("no candidate selection ran after the key-index check")
 	}
-	for _, statement := range database.statements[2:candidateAt] {
+	for _, statement := range postCheck[:selectionAt] {
 		if !strings.HasPrefix(statement, "SAVEPOINT ") {
-			t.Errorf("statement %q runs between the key-index check and the candidate lock, want only the savepoint", strings.Fields(statement)[0])
+			t.Errorf("statement %q runs between the key-index check and the candidate selection, want only the savepoint", strings.Fields(statement)[0])
 		}
+	}
+	// The pre-deletes' own checks run on the pool before any of their
+	// statements.
+	checks := 0
+	for _, statement := range database.predeleteStatements {
+		if strings.Contains(statement, "generation_retention_key_indexes") {
+			checks++
+		}
+	}
+	if checks != 2 {
+		t.Fatalf("pool key-index checks = %d, want 2 (search pre-delete and chunk predrain)", checks)
 	}
 }

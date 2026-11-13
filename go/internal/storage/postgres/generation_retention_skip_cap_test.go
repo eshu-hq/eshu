@@ -87,8 +87,8 @@ func TestGenerationRetentionStoreCandidateQueryRunsOncePerPass(t *testing.T) {
 			countQueries++
 		}
 	}
-	if got, want := candidateQueries, 1; got != want {
-		t.Fatalf("candidate query count = %d, want %d (the outer skip-search loop must be gone)", got, want)
+	if got, want := candidateQueries, 2; got != want {
+		t.Fatalf("candidate query count = %d, want %d (the chunk predrain's unlocked read plus exactly one selection: the skip-search loop must stay gone)", got, want)
 	}
 	if got, want := countQueries, 1; got != want {
 		t.Fatalf("row-count query count = %d, want %d", got, want)
@@ -176,13 +176,16 @@ func TestGenerationRetentionBatchFullKeepsTransientReason(t *testing.T) {
 	}
 }
 
-// TestGenerationRetentionChunkDrainsOverLimitAlongsideBatch is #7981: a
-// generation over the limit on own facts alone drains one bounded chunk per
-// cycle instead of skipping forever, in the same pass that prunes the normal
-// batch. generation-huge (101 own facts) never appears in a count
-// statement's ids, while generation-small (2 facts) is counted and pruned,
-// and the chunk's page, PK delete and generation delete prove the bounded
-// statement shape from the recorder.
+// TestGenerationRetentionChunkDrainsOverLimitAlongsideBatch is #7981 moved
+// before the lock (#10020): a generation over the limit on own facts alone
+// drains bounded pages in committed pre-delete batches instead of skipping
+// forever, in the same pass that prunes the normal batch. generation-huge
+// (101 own facts) never appears in a count statement's ids, while
+// generation-small (2 facts) is counted and pruned, and the chunk's page,
+// PK delete and generation delete prove the bounded statement shape from
+// the recorder. The drained target never reaches the re-lock: the pass
+// excludes it with the row_limit_chunked skip instead of draining a page
+// under the scope lock.
 func TestGenerationRetentionChunkDrainsOverLimitAlongsideBatch(t *testing.T) {
 	t.Parallel()
 
@@ -206,9 +209,13 @@ func TestGenerationRetentionChunkDrainsOverLimitAlongsideBatch(t *testing.T) {
 		countRows: [][]any{
 			{"generation-small", "fact_records", int64(2)},
 		},
-		chunkPageRows: page,
-		// The chunk's fact delete runs before the normal batch's event
-		// insert and deletes, so its result leads the script.
+		// The predrain pages a full 100-row page then an empty one, so the
+		// target drains exactly its scripted rows instead of running to
+		// the row cap on the fixed fixture page.
+		chunkPageScripts: [][][]any{page, {}},
+		// The predrain's fact delete commits before the prune transaction
+		// opens, so its result leads the script exactly as the under-lock
+		// chunk delete did.
 		execResults: append(
 			[]sql.Result{fakeRowsAffected{n: 100}},
 			generationRetentionExecResults(1, 0, 0, 0, 0, 0, 0, 1)...,
@@ -240,10 +247,10 @@ func TestGenerationRetentionChunkDrainsOverLimitAlongsideBatch(t *testing.T) {
 	// The chunk's counted rows merge after the normal batch rebuilds
 	// RowsPruned: 2 counted small facts plus the 100 drained huge facts.
 	if got := result.RowsPruned["fact_records"]; got != 102 {
-		t.Fatalf("RowsPruned[fact_records] = %d, want 102 (2 counted + 100 chunked)", got)
+		t.Fatalf("RowsPruned[fact_records] = %d, want 102 (2 counted + 100 predrained)", got)
 	}
-	if _, ok := result.PhaseDurations[GenerationRetentionPhasePruneChunkedFacts]; !ok {
-		t.Fatal("PhaseDurations has no prune_chunked_facts phase for the drained chunk")
+	if _, ok := result.PhaseDurations[GenerationRetentionPhasePredrainChunk]; !ok {
+		t.Fatal("PhaseDurations has no predrain_chunk phase for the drained chunk")
 	}
 	for _, query := range database.queries {
 		switch {
@@ -287,11 +294,12 @@ func TestGenerationRetentionChunkDrainsOverLimitAlongsideBatch(t *testing.T) {
 	}
 }
 
-// TestGenerationRetentionChunkOnlyCycleSkipsFullCount is #7981's degenerate
-// case: when the pre-screen diverts every candidate over the limit, the pass
-// runs the pre-screen once, no full row count at all, prunes no generation,
-// and drains one bounded chunk of the oldest over-limit candidate while the
-// younger one waits silently for a later cycle.
+// TestGenerationRetentionChunkOnlyCycleSkipsFullCount is the degenerate
+// case: when every candidate is over the limit, the pass runs no full row
+// count at all and prunes no generation, while the predrain makes progress
+// on every over-limit candidate oldest-first within its budget. Each drained
+// generation merges its rows with the row_limit_chunked skip at finish,
+// including ones the selection never diverts.
 func TestGenerationRetentionChunkOnlyCycleSkipsFullCount(t *testing.T) {
 	t.Parallel()
 
@@ -312,8 +320,14 @@ func TestGenerationRetentionChunkOnlyCycleSkipsFullCount(t *testing.T) {
 			{"generation-huge", int64(101)},
 			{"generation-small", int64(1000)},
 		},
-		chunkPageRows: page,
-		execResults:   []sql.Result{fakeRowsAffected{n: 100}},
+		// Both over-limit generations drain one scripted page each, then
+		// an empty page, instead of running to the row cap on the fixed
+		// fixture page.
+		chunkPageScripts: [][][]any{page, {}, page, {}},
+		execResults: []sql.Result{
+			fakeRowsAffected{n: 100},
+			fakeRowsAffected{n: 100},
+		},
 	}
 	store := NewGenerationRetentionStore(database)
 	store.Now = func() time.Time { return now }
@@ -329,14 +343,14 @@ func TestGenerationRetentionChunkOnlyCycleSkipsFullCount(t *testing.T) {
 	if err != nil {
 		t.Fatalf("PruneSupersededGenerations() error = %v", err)
 	}
-	if database.prescreenCalls != 1 {
-		t.Fatalf("pre-screen calls = %d, want 1", database.prescreenCalls)
+	if database.prescreenCalls != 2 {
+		t.Fatalf("pre-screen calls = %d, want 2 (the chunk predrain reads and pre-screens before the selection does)", database.prescreenCalls)
 	}
 	if database.countCalls != 0 {
 		t.Fatalf("row-count calls = %d, want 0 (nothing countable: every candidate is over the limit)", database.countCalls)
 	}
-	if got := result.Skipped["row_limit_chunked"]; got != 1 {
-		t.Fatalf("Skipped[row_limit_chunked] = %d, want 1 (the oldest over-limit generation drained one chunk)", got)
+	if got := result.Skipped["row_limit_chunked"]; got != 2 {
+		t.Fatalf("Skipped[row_limit_chunked] = %d, want 2 (both over-limit generations drained and deferred)", got)
 	}
 	if got := result.Skipped["row_limit_own_rows"]; got != 0 {
 		t.Fatalf("Skipped[row_limit_own_rows] = %d, want 0 (no permanent skip remains on this path)", got)
@@ -345,17 +359,17 @@ func TestGenerationRetentionChunkOnlyCycleSkipsFullCount(t *testing.T) {
 	for _, count := range result.Skipped {
 		totalSkipped += count
 	}
-	if totalSkipped != 1 {
-		t.Fatalf("skipped total = %d, want 1 (the younger over-limit generation waits silently)", totalSkipped)
+	if totalSkipped != 2 {
+		t.Fatalf("skipped total = %d, want 2 (no silent waits: every drained generation is tallied)", totalSkipped)
 	}
 	if result.GenerationsPruned != 0 {
 		t.Fatalf("GenerationsPruned = %d, want 0", result.GenerationsPruned)
 	}
-	if got := result.RowsPruned["fact_records"]; got != 100 {
-		t.Fatalf("RowsPruned[fact_records] = %d, want 100 (the drained chunk)", got)
+	if got := result.RowsPruned["fact_records"]; got != 200 {
+		t.Fatalf("RowsPruned[fact_records] = %d, want 200 (one drained page per over-limit generation)", got)
 	}
-	if len(database.execs) != 1 {
-		t.Fatalf("exec count = %d, want 1 (the chunk's fact delete only)", len(database.execs))
+	if len(database.execs) != 2 {
+		t.Fatalf("exec count = %d, want 2 (one bounded fact delete per drained generation)", len(database.execs))
 	}
 	for _, statement := range database.statements {
 		if strings.Contains(statement, "DELETE FROM scope_generations") {

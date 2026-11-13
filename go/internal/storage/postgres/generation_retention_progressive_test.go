@@ -77,8 +77,8 @@ func TestGenerationRetentionProgressiveWindowExtendsOnRoom(t *testing.T) {
 	if err != nil {
 		t.Fatalf("PruneSupersededGenerations() error = %v", err)
 	}
-	if database.prescreenCalls != 1 {
-		t.Fatalf("pre-screen calls = %d, want 1 (the window reuses the single pre-screen, never re-runs it)", database.prescreenCalls)
+	if database.prescreenCalls != 2 {
+		t.Fatalf("pre-screen calls = %d, want 2 (the chunk predrain pre-screens, then the window reuses the selection's single pre-screen)", database.prescreenCalls)
 	}
 	// 40k + 40k fits the window, the third 40k would exceed it: the first
 	// count covers g1 and g2 only, the doubled window recounts the whole
@@ -141,8 +141,8 @@ func TestGenerationRetentionProgressiveWindowExtendsWhileFitEmpty(t *testing.T) 
 	if err != nil {
 		t.Fatalf("PruneSupersededGenerations() error = %v", err)
 	}
-	if database.prescreenCalls != 1 {
-		t.Fatalf("pre-screen calls = %d, want 1", database.prescreenCalls)
+	if database.prescreenCalls != 2 {
+		t.Fatalf("pre-screen calls = %d, want 2 (predrain plus selection)", database.prescreenCalls)
 	}
 	// The first window selects nothing (both members over on their own
 	// rows); the doubled window recounts the whole prefix and admits g3
@@ -216,8 +216,8 @@ func TestGenerationRetentionProgressiveWindowStopsExactlyAtLimit(t *testing.T) {
 	if err != nil {
 		t.Fatalf("PruneSupersededGenerations() error = %v", err)
 	}
-	if database.prescreenCalls != 1 {
-		t.Fatalf("pre-screen calls = %d, want 1", database.prescreenCalls)
+	if database.prescreenCalls != 2 {
+		t.Fatalf("pre-screen calls = %d, want 2 (predrain plus selection)", database.prescreenCalls)
 	}
 	// The exact-limit window fits g1..g3 with the total exactly on the row
 	// limit, so the loop stops on the limit branch: the only row-count
@@ -285,8 +285,8 @@ func TestGenerationRetentionProgressiveWindowOfOneExhausts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("PruneSupersededGenerations() error = %v", err)
 	}
-	if database.prescreenCalls != 1 {
-		t.Fatalf("pre-screen calls = %d, want 1", database.prescreenCalls)
+	if database.prescreenCalls != 2 {
+		t.Fatalf("pre-screen calls = %d, want 2 (predrain plus selection)", database.prescreenCalls)
 	}
 	// The head alone exceeds the window cap, so the first count covers only
 	// g1; room left doubles the window twice to exhaustion, and the re-lock
@@ -353,8 +353,8 @@ func TestGenerationRetentionProgressiveWindowStopsOnDeferredSkip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("PruneSupersededGenerations() error = %v", err)
 	}
-	if database.prescreenCalls != 1 {
-		t.Fatalf("pre-screen calls = %d, want 1 (the window reuses the single pre-screen, never re-runs it)", database.prescreenCalls)
+	if database.prescreenCalls != 2 {
+		t.Fatalf("pre-screen calls = %d, want 2 (the chunk predrain pre-screens, then the window reuses the selection's single pre-screen)", database.prescreenCalls)
 	}
 	// g1 (60k) admits, g2 (60k+50k over the limit) defers: the stop-on-skip
 	// branch settles the [g1 g2] window, and the re-check plus the re-lock
@@ -418,7 +418,10 @@ func TestGenerationRetentionChunkTargetStaysOutsideWindowCounts(t *testing.T) {
 			{"g1", "fact_records", int64(2)},
 			{"g2", "fact_records", int64(2)},
 		},
-		chunkPageRows: page,
+		// The predrain pages a full 100-row page then an empty one, so the
+		// target drains exactly its scripted rows instead of running to
+		// the row cap on the fixed fixture page.
+		chunkPageScripts: [][][]any{page, {}},
 		execResults: append(
 			[]sql.Result{fakeRowsAffected{n: 100}},
 			generationRetentionExecResults(2, 0, 0, 0, 0, 0, 0, 2)...,
@@ -438,8 +441,8 @@ func TestGenerationRetentionChunkTargetStaysOutsideWindowCounts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("PruneSupersededGenerations() error = %v", err)
 	}
-	if database.prescreenCalls != 1 {
-		t.Fatalf("pre-screen calls = %d, want 1", database.prescreenCalls)
+	if database.prescreenCalls != 2 {
+		t.Fatalf("pre-screen calls = %d, want 2 (predrain plus selection)", database.prescreenCalls)
 	}
 	ids := progressiveCountIDs(database)
 	if len(ids) == 0 {

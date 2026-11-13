@@ -50,6 +50,22 @@ type generationRetentionFakeDB struct {
 	// store. Tests that need no pre-screened generation leave it unset.
 	prescreenRows  [][]any
 	prescreenCalls int
+	// prescreenScripts answers the own-fact pre-screen call i with entry i
+	// (the last entry repeats), so a test can change own facts between the
+	// predrain read and the selection; when unset every call answers
+	// prescreenRows.
+	prescreenScripts [][][]any
+	// orphanRepos answers the infra orphan repository list (one repo_id per
+	// row). When unset the fake reports one repository, so the prune's
+	// orphan delete runs exactly as before and positional exec scripts are
+	// unchanged; tests that pin the delete's scope set it explicitly.
+	orphanRepos []string
+	// predrainLockScripts answers the chunk predrain batch lock call i with
+	// entry i (the last entry repeats), so a test can flip eligibility
+	// mid-drain; when unset the fake locks the requested generations from
+	// the candidate rows exactly like the targeted re-lock.
+	predrainLockScripts [][][]any
+	predrainLockCalls   int
 	// chunkPageRows answers the over-limit chunk page (fact_id, fact_kind,
 	// is_tombstone, repo_id, relative_path, entity_id). chunkFilePrune and
 	// chunkEntityPrune answer the chunk content prunes with one count row
@@ -57,9 +73,18 @@ type generationRetentionFakeDB struct {
 	chunkPageRows    [][]any
 	chunkFilePrune   []any
 	chunkEntityPrune []any
-	execResults      []sql.Result
-	queries          []fakeQueryCall
-	execs            []fakeExecCall
+	// chunkPageScripts answers the chunk page call i with entry i (the last
+	// entry repeats), so a test can script shrinking pages; when unset
+	// every call answers chunkPageRows.
+	chunkPageScripts [][][]any
+	chunkPageCalls   int
+	// chunkDeleteFactsErr, when set, fails the next over-limit chunk fact
+	// delete with that error (single-shot: cleared on use), so a test can
+	// prove a lock_timeout mid-drain stops the drain instead of the pass.
+	chunkDeleteFactsErr error
+	execResults         []sql.Result
+	queries             []fakeQueryCall
+	execs               []fakeExecCall
 	// statements records every statement in the order the transaction issued
 	// it, reads and writes together, including the transaction-local setting
 	// statement that execs and execResults deliberately skip so the positional
@@ -164,6 +189,22 @@ func (database *generationRetentionFakeDB) QueryContext(_ context.Context, query
 	return nil, sql.ErrConnDone
 }
 
+// filterGenerationRetentionPrescreenRows answers an own-fact pre-screen
+// with only the requested generations' rows, as the real statement does.
+func filterGenerationRetentionPrescreenRows(rows [][]any, args []any) [][]any {
+	if len(args) == 0 {
+		return rows
+	}
+	ids, _ := args[0].([]string)
+	matched := make([][]any, 0, len(rows))
+	for _, row := range rows {
+		if id, _ := row[0].(string); slices.Contains(ids, id) {
+			matched = append(matched, row)
+		}
+	}
+	return matched
+}
+
 // filterGenerationRetentionExpiredRows answers the expired-generations
 // report the way the live statement does: only fixture rows strictly older
 // than the ceiling cutoff arg ($1) are returned, oldest first, capped at
@@ -236,6 +277,25 @@ func (tx *generationRetentionFakeTx) QueryContext(_ context.Context, query strin
 			rows = tx.database.recountRows
 		}
 		return &queueFakeRows{rows: generationRetentionCountFakeRows(rows, args)}, nil
+	case strings.Contains(query, "retention: chunk predrain batch lock"):
+		// The predrain batch lock carries the targeted lock's marker as
+		// the query it weakens, so this case stays first.
+		if scripts := tx.database.predrainLockScripts; len(scripts) > 0 {
+			call := min(tx.database.predrainLockCalls, len(scripts)-1)
+			tx.database.predrainLockCalls++
+			return &queueFakeRows{rows: scripts[call]}, nil
+		}
+		if len(args) < 5 {
+			return &queueFakeRows{}, nil
+		}
+		ids, _ := args[4].([]string)
+		locked := make([][]any, 0, len(ids))
+		for _, row := range tx.database.candidateRows {
+			if id, _ := row[1].(string); slices.Contains(ids, id) {
+				locked = append(locked, row)
+			}
+		}
+		return &queueFakeRows{rows: locked}, nil
 	case strings.Contains(query, "retention: targeted candidate lock"):
 		if tx.database.targetedLockMiss {
 			return &queueFakeRows{}, nil
@@ -255,6 +315,11 @@ func (tx *generationRetentionFakeTx) QueryContext(_ context.Context, query strin
 		}
 		return &queueFakeRows{rows: locked}, nil
 	case strings.Contains(query, "retention: over-limit chunk page"):
+		if scripts := tx.database.chunkPageScripts; len(scripts) > 0 {
+			call := min(tx.database.chunkPageCalls, len(scripts)-1)
+			tx.database.chunkPageCalls++
+			return &queueFakeRows{rows: scripts[call]}, nil
+		}
 		return &queueFakeRows{rows: tx.database.chunkPageRows}, nil
 	case strings.Contains(query, "retention: over-limit chunk file prune"):
 		prune := tx.database.chunkFilePrune
@@ -268,19 +333,28 @@ func (tx *generationRetentionFakeTx) QueryContext(_ context.Context, query strin
 			prune = []any{int64(0)}
 		}
 		return &queueFakeRows{rows: [][]any{prune}}, nil
+	case strings.Contains(query, "retention: orphan repository list"):
+		repos := tx.database.orphanRepos
+		if repos == nil {
+			repos = []string{"orphan-repo"}
+		}
+		rows := make([][]any, 0, len(repos))
+		for _, repo := range repos {
+			rows = append(rows, []any{repo})
+		}
+		return &queueFakeRows{rows: rows}, nil
 	case strings.Contains(query, "retention: own-fact pre-screen"):
+		if scripts := tx.database.prescreenScripts; len(scripts) > 0 {
+			call := min(tx.database.prescreenCalls, len(scripts)-1)
+			tx.database.prescreenCalls++
+			rows := filterGenerationRetentionPrescreenRows(scripts[call], args)
+			return &queueFakeRows{rows: rows}, nil
+		}
 		tx.database.prescreenCalls++
 		if len(args) == 0 {
 			return &queueFakeRows{rows: tx.database.prescreenRows}, nil
 		}
-		ids, _ := args[0].([]string)
-		matched := make([][]any, 0, len(tx.database.prescreenRows))
-		for _, row := range tx.database.prescreenRows {
-			if id, _ := row[0].(string); slices.Contains(ids, id) {
-				matched = append(matched, row)
-			}
-		}
-		return &queueFakeRows{rows: matched}, nil
+		return &queueFakeRows{rows: filterGenerationRetentionPrescreenRows(tx.database.prescreenRows, args)}, nil
 	case strings.Contains(query, "del_activations"):
 		deleted := tx.database.ledgerDeleted
 		if deleted == nil {
@@ -372,6 +446,11 @@ func (tx *generationRetentionFakeTx) ExecContext(_ context.Context, query string
 		if strings.HasPrefix(query, prefix) {
 			return fakeResult{}, nil
 		}
+	}
+	if strings.Contains(query, "retention: over-limit chunk fact delete") && tx.database.chunkDeleteFactsErr != nil {
+		err := tx.database.chunkDeleteFactsErr
+		tx.database.chunkDeleteFactsErr = nil
+		return nil, err
 	}
 	if strings.HasPrefix(query, factkeys.DeleteMarker) {
 		tx.database.factKeyExecs = append(tx.database.factKeyExecs, fakeExecCall{query: query, args: args})

@@ -21,10 +21,10 @@ import (
 )
 
 // TestGenerationRetentionPrescreenChunksOverFactGenerationsLive is #7334 fix
-// 2 through the real store, under the #7981 chunk rule: ps-over (150 own
-// facts against a limit of 100) drains one bounded 100-fact chunk and
-// survives with 50 facts, while ps-under (50 facts) is counted and pruned in
-// the same pass. The pre-screen SQL is also queried directly to pin its
+// 2 through the real store, with the #10020 pre-lock drain: ps-over (150 own
+// facts against a limit of 100) drains two bounded pages in committed
+// batches before Begin, then fits, so the same pass prunes both generations
+// whole. The pre-screen SQL is also queried directly to pin its
 // per-generation counts.
 func TestGenerationRetentionPrescreenChunksOverFactGenerationsLive(t *testing.T) {
 	// Bridge the live-postgres-readiness runner's family DSN onto the shared
@@ -79,33 +79,33 @@ func TestGenerationRetentionPrescreenChunksOverFactGenerationsLive(t *testing.T)
 		BatchGenerationLimit:     10,
 		BatchRowLimit:            100,
 		PolicyScope:              "global",
-		PolicyRevision:           "7334-prescreen-live",
+		PolicyRevision:           "10020-prescreen-predrain-live",
 	})
 	if err != nil {
 		t.Fatalf("PruneSupersededGenerations() error = %v", err)
 	}
-	if result.GenerationsPruned != 1 {
-		t.Fatalf("GenerationsPruned = %d, want 1 (ps-under only)", result.GenerationsPruned)
+	if result.GenerationsPruned != 2 {
+		t.Fatalf("GenerationsPruned = %d, want 2 (both fit after the drain)", result.GenerationsPruned)
 	}
-	if got, want := result.Skipped["row_limit_chunked"], 1; got != want {
-		t.Fatalf("Skipped[row_limit_chunked] = %d, want %d (ps-over drained one chunk)", got, want)
+	if len(result.Skipped) != 0 {
+		t.Fatalf("Skipped = %v, want none (the drained target fits and prunes whole)", result.Skipped)
 	}
-	if got := result.Skipped["row_limit_own_rows"]; got != 0 {
-		t.Fatalf("Skipped[row_limit_own_rows] = %d, want 0 (the prescreen skip is a chunk now)", got)
+	// 50 counted ps-under facts plus the 150 predrained ps-over facts.
+	if got := result.RowsPruned["fact_records"]; got != 200 {
+		t.Fatalf("RowsPruned[fact_records] = %d, want 200 (50 counted + 150 predrained)", got)
 	}
-	// 50 counted ps-under facts plus the 100 drained ps-over facts.
-	if got := result.RowsPruned["fact_records"]; got != 150 {
-		t.Fatalf("RowsPruned[fact_records] = %d, want 150 (50 counted + 100 chunked)", got)
+	if result.ChunkPredeleteBatches != 2 {
+		t.Fatalf("ChunkPredeleteBatches = %d, want 2 (100 + short 50)", result.ChunkPredeleteBatches)
 	}
 	if result.ScopeLockHold <= 0 {
-		t.Fatal("ScopeLockHold <= 0, want the chunk cycle's measured narrow hold")
+		t.Fatal("ScopeLockHold <= 0, want the final prune's measured narrow hold")
 	}
 	remaining := remainingScopeGenerations(t, ctx, database, []string{"ps-over-g0", "ps-under-g0"})
-	if len(remaining) != 1 || !remaining["ps-over-g0"] {
-		t.Fatalf("remaining generations = %v, want only ps-over-g0", remaining)
+	if len(remaining) != 0 {
+		t.Fatalf("remaining generations = %v, want none pruned whole", remaining)
 	}
-	if facts := countScopeGenerationFacts(t, ctx, database, "ps-over", "ps-over-g0"); facts != 50 {
-		t.Fatalf("ps-over facts = %d, want 50 (150 drained by one 100-fact chunk)", facts)
+	if facts := countScopeGenerationFacts(t, ctx, database, "ps-over", "ps-over-g0"); facts != 0 {
+		t.Fatalf("ps-over facts = %d, want 0 (drained, then pruned whole)", facts)
 	}
 }
 

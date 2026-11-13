@@ -31,11 +31,13 @@ const (
 	// configured cadence instead of retrying hot forever.
 	defaultGenerationRetentionSkippedRetryBaseInterval = time.Minute
 
-	// generationRetentionSearchIndexDeadlineDivisor sets the search index
-	// pre-delete's per-pass wall deadline (#7427) to a quarter of the poll
-	// interval when the policy sets none, so one pass's committed batches
-	// always end well before the next poll.
-	generationRetentionSearchIndexDeadlineDivisor = 4
+	// generationRetentionPredeleteDeadlineDivisor sets each pre-delete's
+	// per-pass wall deadline (search index, #7427; chunk, #10020) to a
+	// quarter of the poll interval when the policy sets none, so one
+	// pass's committed batches always end well before the next poll. Each
+	// pre-delete gets its own quarter, so the two together stay within
+	// half the interval.
+	generationRetentionPredeleteDeadlineDivisor = 4
 )
 
 // Policy bounds automated cleanup of superseded source
@@ -60,6 +62,13 @@ type Policy struct {
 	// (#7427, #8281 review): one cap, so lowering it for WAL or I/O pressure
 	// bounds both. Unset (0) leaves each side's 2,000,000-row default.
 	SearchIndexPredeleteRowCap int64
+	// ChunkPredeleteDeadline bounds the wall time of one pass's over-limit
+	// chunk pre-delete batches (#10020). RunOnce sets a quarter of the
+	// poll interval when it is unset.
+	ChunkPredeleteDeadline time.Duration
+	// ChunkPredeleteRowCap bounds the fact and content rows one pass's
+	// chunk pre-delete drains. Unset (0) leaves the 500,000-row default.
+	ChunkPredeleteRowCap int64
 	// SearchIndexSupersededSweepEnabled opts into the #8231 superseded
 	// sweep: index rows of still-existing superseded generations are
 	// removed while their facts stay held. Off by default; enablement stays
@@ -107,6 +116,9 @@ type Result struct {
 	// SearchIndexBatches is the search index pre-delete batch transactions
 	// the pass committed before its prune transaction opened (#7427).
 	SearchIndexBatches int
+	// ChunkPredeleteBatches is the chunk pre-delete batch transactions the
+	// pass committed before its prune transaction opened (#10020).
+	ChunkPredeleteBatches int
 }
 
 // ErrKeyIndexUnavailable marks a cycle the pruner refused
@@ -228,7 +240,10 @@ func (r *Runner) RunOnce(ctx context.Context) (Result, error) {
 
 	policy := r.Config.Policy
 	if policy.SearchIndexPredeleteDeadline <= 0 {
-		policy.SearchIndexPredeleteDeadline = r.Config.pollInterval() / generationRetentionSearchIndexDeadlineDivisor
+		policy.SearchIndexPredeleteDeadline = r.Config.pollInterval() / generationRetentionPredeleteDeadlineDivisor
+	}
+	if policy.ChunkPredeleteDeadline <= 0 {
+		policy.ChunkPredeleteDeadline = r.Config.pollInterval() / generationRetentionPredeleteDeadlineDivisor
 	}
 	result, err := r.Pruner.PruneSupersededGenerations(ctx, policy)
 	// The orphan sweep runs after the prune transaction has ended, so it
@@ -300,6 +315,9 @@ func (r *Runner) recordResult(ctx context.Context, result Result) {
 		if result.SearchIndexBatches > 0 {
 			r.Instruments.GenerationRetentionSearchIndexBatches.Record(ctx, int64(result.SearchIndexBatches))
 		}
+		if result.ChunkPredeleteBatches > 0 {
+			r.Instruments.GenerationRetentionChunkPredeleteBatches.Record(ctx, int64(result.ChunkPredeleteBatches))
+		}
 		for reason, count := range result.Skipped {
 			if count <= 0 {
 				continue
@@ -330,6 +348,8 @@ func (r *Runner) recordResult(ctx context.Context, result Result) {
 		slog.Int("locked_scope_rows", result.LockedScopeRows),
 		// Search index pre-delete batches committed before the prune (#7427).
 		slog.Int("search_index_batches", result.SearchIndexBatches),
+		// Chunk pre-delete batches committed before the prune (#10020).
+		slog.Int("chunk_predelete_batches", result.ChunkPredeleteBatches),
 		telemetry.PhaseAttr(telemetry.PhaseReduction),
 	)
 	if !maps.Equal(result.LedgerRowsPruned, result.LedgerRowsCounted) {

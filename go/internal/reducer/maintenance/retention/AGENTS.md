@@ -21,10 +21,11 @@ transitively.
   one leaf from the other.
 - The prune transaction stays bounded: scope-row locks block
   concurrent fact inserts for `ScopeLockHold` (#7279).
-- `RunOnce` gives the pruner a search index pre-delete deadline of a quarter
-  of the poll interval when the policy sets none (#7427), so one pass's
-  committed pre-delete batches end well before the next poll. Keep the
-  configured policy unchanged; copy it per pass.
+- `RunOnce` gives the pruner a search index pre-delete deadline and a chunk
+  pre-delete deadline, each a quarter of the poll interval when the policy
+  sets none (#7427, #10020), so one pass's committed pre-delete batches end
+  well before the next poll. Keep the configured policy unchanged; copy it
+  per pass.
 - `RunOnce` runs the search index orphan sweep (#7427 PR2) only after
   `PruneSupersededGenerations` returns, never inside it, so the sweep never
   holds or waits on a retention scope lock. Keep the poll-interval cadence

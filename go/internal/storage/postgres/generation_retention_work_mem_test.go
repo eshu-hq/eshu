@@ -5,6 +5,7 @@ package postgres
 
 import (
 	"context"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -43,8 +44,14 @@ func TestGenerationRetentionSetsTransactionLocalWorkMemFirst(t *testing.T) {
 	if len(database.statements) == 0 {
 		t.Fatal("the retention transaction issued no statements")
 	}
-	if got, want := database.statements[0], "SET LOCAL work_mem = '64MB'"; got != want {
-		t.Fatalf("first statement in the retention transaction = %q, want %q", got, want)
+	// The chunk predrain's unlocked read leads with its own tagged work_mem
+	// setting; the prune transaction's exact setting follows before its
+	// key-index check (#10020).
+	if got := database.statements[0]; !strings.HasPrefix(got, "SET LOCAL work_mem = '64MB'") {
+		t.Fatalf("first statement in the retention transaction = %q, want a work_mem setting", got)
+	}
+	if !slices.Contains(database.statements, generationRetentionWorkMemStatement) {
+		t.Fatal("the prune transaction never raised its own work_mem")
 	}
 	for _, statement := range database.statements[1:] {
 		if strings.HasPrefix(statement, "SET ") && !strings.HasPrefix(statement, "SET LOCAL ") {

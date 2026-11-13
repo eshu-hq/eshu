@@ -11,15 +11,17 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
-// This file holds the over-limit chunk query runners (#7981). They lived in
-// generation_retention_row_counts_sql.go until #8300 split that file over the
-// 500-line cap: the page reader sizes the batch's deletes, and the prune
-// counter scans one chunk prune into its destinations. The deletes run under
-// the narrow lock in generation_retention_relock.go.
+// This file holds the over-limit chunk query runners (#7981, #10020). They
+// lived in generation_retention_row_counts_sql.go until #8300 split that
+// file over the 500-line cap: the page reader sizes the batch's deletes,
+// and the prune counter scans one chunk prune into its destinations. The
+// deletes run in committed #10020 predrain batches before the prune
+// transaction opens; no page ever drains under the narrow lock.
 
 // queryChunkPage reads one oldest-first #7981 over-limit fact page, a bounded
-// read sizing the batch's deletes like the counts above. The deletes run
-// under the narrow lock in generation_retention_relock.go.
+// read sizing the batch's deletes like the counts above. The page's deletes
+// run in committed #10020 predrain batches before the prune transaction
+// opens; no page ever drains under the narrow lock.
 func queryChunkPage(
 	ctx context.Context,
 	tx db.Transaction,

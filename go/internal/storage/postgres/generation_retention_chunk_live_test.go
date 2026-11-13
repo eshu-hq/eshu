@@ -4,7 +4,7 @@
 package postgres
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #7981 disposable PostgreSQL 18 proof that an over-limit generation drains one bounded fact chunk per cycle and prunes whole once the remainder fits with no orphan rows, that the chunk statements roll back atomically, and that a lock-held chunk target drops silently (the concurrent-insert proof moved to generation_retention_chunk_insert_wait_live_test.go in #8206), enrolled in the live-postgres-readiness runner; bridges the family ESHU_GENERATION_RETENTION_PROOF_DSN onto ESHU_POSTGRES_TEST_DSN as the hard-ceiling proof does. local run passed all 4 tests (3 remain here after #8206) in 9.38s wall with the migrated-schema setup on postgres:16 on 2026-10-14
+//eshu:readiness:reason #10020 disposable PostgreSQL 18 proof that an over-limit generation drains bounded pages in committed pre-delete batches before the prune transaction opens and prunes whole once the remainder fits with no orphan rows, that the chunk statements roll back atomically, that a lock-held chunk target defers with a skip (the concurrent-insert proof lives in generation_retention_chunk_insert_wait_live_test.go), and that a mid-drain eligibility flip stops the drain and resumes on the next pass, enrolled in the live-postgres-readiness runner; bridges the family ESHU_GENERATION_RETENTION_PROOF_DSN onto ESHU_POSTGRES_TEST_DSN as the hard-ceiling proof does.
 //eshu:readiness:env ESHU_AWS_DRIFT_ARN_PROOF_DISPOSABLE ESHU_AWS_DRIFT_ARN_PROOF_DSN ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE ESHU_DEFERRED_PARTITION_PROOF_DSN ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN ESHU_REDUCER_FAIRNESS_PROOF_DSN
 
 import (
@@ -18,16 +18,17 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
 )
 
-// The #7981 over-limit chunk proofs drain one 2500-fact generation three
-// cycles: two bounded 1000-fact chunks, then a whole-generation prune once
-// the remainder fits BatchRowLimit. Fact ids are zero-padded so the keyset
-// page drains oldest-first deterministically; content keys shared across the
-// whole generation survive early chunks and die only when their last fact
-// goes, while chunk-1-exclusive keys die with the first chunk. Tombstone
-// facts drain as facts but never contribute content keys (the batch prune's
-// key shape), so the fixture seeds no content rows for tombstone-only keys:
-// like the batch path, the chunk path would orphan those, a pre-existing gap
-// outside this change.
+// The over-limit chunk proofs drain one 2500-fact generation in committed
+// pre-delete batches before the prune transaction opens: a budget-capped
+// cycle drains one bounded 1000-fact page, then the next cycle drains the
+// rest and prunes whole once the remainder fits BatchRowLimit. Fact ids are
+// zero-padded so the keyset page drains oldest-first deterministically;
+// content keys shared across the whole generation survive early batches and
+// die only when their last fact goes, while chunk-1-exclusive keys die with
+// the first batch. Tombstone facts drain as facts but never contribute
+// content keys (the batch prune's key shape), so the fixture seeds no
+// content rows for tombstone-only keys: like the batch path, the chunk path
+// would orphan those, a pre-existing gap outside this change.
 
 const (
 	chunkDrainScope = "chunk-drain"
@@ -151,20 +152,20 @@ func countLedgerRowsForScope(t *testing.T, ctx context.Context, database *sql.DB
 	return counts
 }
 
-// TestGenerationRetentionChunkedDrainLive drains the 2500-fact generation in
-// three cycles and proves the crash-resume shape: each chunk cycle deletes
-// exactly one bounded page, records progress, keeps the generation row, and
-// holds the scope lock for a measured (bounded) hold; the final cycle prunes
-// the remainder whole with no orphan rows in facts, content, references,
-// entities, mirror or ledger, while the neighbor's shared key survives.
+// TestGenerationRetentionChunkedDrainLive drains the 2500-fact generation
+// with bounded predrain budgets and proves the crash-resume shape: a
+// budget-capped cycle deletes exactly its committed batches, records
+// progress, keeps the generation row, and holds no scope lock at all; the
+// next cycle drains the rest and prunes the remainder whole with no orphan
+// rows in facts, content, references, entities, mirror or ledger, while the
+// neighbor's shared key survives.
 func TestGenerationRetentionChunkedDrainLive(t *testing.T) {
 	bridgeRetentionFamilyDSN(t)
 	database, ctx := openGenerationRetentionMigratedSchema(t)
 	now := time.Now().UTC()
 	seedChunkDrainFixture(t, ctx, database, now)
-	policy := chunkDrainPolicy()
 
-	prune := func() GenerationRetentionResult {
+	prune := func(policy GenerationRetentionPolicy) GenerationRetentionResult {
 		t.Helper()
 		store := NewGenerationRetentionStore(SQLDB{DB: database})
 		store.Now = func() time.Time { return now }
@@ -175,11 +176,16 @@ func TestGenerationRetentionChunkedDrainLive(t *testing.T) {
 		return result
 	}
 
-	// Cycle 1: the oldest 1000 facts go, with the 82 live exclusive keys'
-	// file rows and excl-1's two references; shared and entity keys stay.
-	first := prune()
+	// Cycle 1 runs under a tight chunk budget: the oldest 1000 facts go,
+	// with the 82 live exclusive keys' file rows and excl-1's two
+	// references; shared and entity keys stay. The generation row survives,
+	// and the pass holds no scope lock at all: every delete above committed
+	// before the prune transaction opened.
+	capped := chunkDrainPolicy()
+	capped.ChunkPredeleteRowCap = 500
+	first := prune(capped)
 	if first.GenerationsPruned != 0 {
-		t.Fatalf("cycle 1 GenerationsPruned = %d, want 0 (chunk only)", first.GenerationsPruned)
+		t.Fatalf("cycle 1 GenerationsPruned = %d, want 0 (predrain only)", first.GenerationsPruned)
 	}
 	if got := first.Skipped[generationRetentionChunkedProgressSkippedReason]; got != 1 {
 		t.Fatalf("cycle 1 Skipped[row_limit_chunked] = %d, want 1", got)
@@ -199,10 +205,9 @@ func TestGenerationRetentionChunkedDrainLive(t *testing.T) {
 	if got := first.RowsPruned["infra_resource_entities"]; got != 0 {
 		t.Fatalf("cycle 1 RowsPruned[infra_resource_entities] = %d, want 0 (no entity died)", got)
 	}
-	if first.ScopeLockHold <= 0 {
-		t.Fatal("cycle 1 ScopeLockHold <= 0, want the chunk cycle's measured narrow hold")
+	if first.ScopeLockHold != 0 {
+		t.Fatalf("cycle 1 ScopeLockHold = %v, want 0 (nothing locked: the predrain committed pre-Begin)", first.ScopeLockHold)
 	}
-	t.Logf("cycle 1 ScopeLockHold = %v for a 1000-fact chunk", first.ScopeLockHold)
 	// Timestamptz stores microseconds, so the round-tripped age carries a
 	// sub-microsecond skew over the exact 10 days.
 	if got := first.OldestEligibleAge; got < 10*24*time.Hour || got > 10*24*time.Hour+time.Second {
@@ -216,39 +221,22 @@ func TestGenerationRetentionChunkedDrainLive(t *testing.T) {
 		t.Fatal("generation row gone after cycle 1, want retained until the final prune")
 	}
 
-	// Cycle 2: the next 1000 facts go; no exclusive keys remain, so only
-	// facts move while shared and entity keys stay.
-	second := prune()
-	if second.GenerationsPruned != 0 {
-		t.Fatalf("cycle 2 GenerationsPruned = %d, want 0 (chunk only)", second.GenerationsPruned)
+	// Cycle 2 runs under the default budget: it drains the rest and prunes
+	// the remainder whole with its ledger order intact and no orphans.
+	second := prune(chunkDrainPolicy())
+	t.Logf("cycle 2 ScopeLockHold = %v for the final prune", second.ScopeLockHold)
+	if second.GenerationsPruned != 1 {
+		t.Fatalf("cycle 2 GenerationsPruned = %d, want 1 (the drained remainder)", second.GenerationsPruned)
 	}
-	if got := second.Skipped[generationRetentionChunkedProgressSkippedReason]; got != 1 {
-		t.Fatalf("cycle 2 Skipped[row_limit_chunked] = %d, want 1", got)
+	if got := second.Skipped[generationRetentionChunkedProgressSkippedReason]; got != 0 {
+		t.Fatalf("cycle 2 Skipped[row_limit_chunked] = %d, want 0 (nothing deferred)", got)
 	}
-	if got := second.RowsPruned["fact_records"]; got != 1000 {
-		t.Fatalf("cycle 2 RowsPruned[fact_records] = %d, want 1000", got)
-	}
-	if got := second.RowsPruned["content_files"]; got != 0 {
-		t.Fatalf("cycle 2 RowsPruned[content_files] = %d, want 0 (shared keys keep live facts)", got)
-	}
-	if facts := countScopeGenerationFacts(t, ctx, database, chunkDrainScope, chunkDrainGen); facts != 500 {
-		t.Fatalf("cycle 2 facts = %d, want 500", facts)
-	}
-	t.Logf("cycle 2 ScopeLockHold = %v for a 1000-fact chunk", second.ScopeLockHold)
-
-	// Cycle 3: 500 remaining facts fit the limit, so the generation prunes
-	// whole with its ledger order intact and no orphans.
-	third := prune()
-	t.Logf("cycle 3 ScopeLockHold = %v for the 500-fact final prune", third.ScopeLockHold)
-	if third.GenerationsPruned != 1 {
-		t.Fatalf("cycle 3 GenerationsPruned = %d, want 1 (the drained remainder)", third.GenerationsPruned)
-	}
-	if got := third.Skipped[generationRetentionChunkedProgressSkippedReason]; got != 0 {
-		t.Fatalf("cycle 3 Skipped[row_limit_chunked] = %d, want 0 (no chunk drained)", got)
+	if got := second.RowsPruned["fact_records"]; got != 1500 {
+		t.Fatalf("cycle 2 RowsPruned[fact_records] = %d, want 1500 (1000 + 500 predrained)", got)
 	}
 	remaining = remainingScopeGenerations(t, ctx, database, []string{chunkDrainGen})
 	if remaining[chunkDrainGen] {
-		t.Fatal("generation row survived cycle 3, want pruned with its remainder")
+		t.Fatal("generation row survived cycle 2, want pruned with its remainder")
 	}
 	if facts := countScopeGenerationFacts(t, ctx, database, chunkDrainScope, chunkDrainGen); facts != 0 {
 		t.Fatalf("final facts = %d, want 0", facts)
@@ -379,10 +367,10 @@ VALUES ('repo-rollback', 'rb.txt', 'c', 'h', 1, now())`); err != nil {
 
 // TestGenerationRetentionChunkLockMissDropsSilentlyLive is the chunk path's
 // contention proof: when another session holds the over-limit generation's
-// row, the targeted re-lock skips it with SKIP LOCKED and the pass prunes
-// nothing, counts no skip, and leaves every fact for the lock holder's own
-// progress. No deadlock is possible: the pass never waits on a row it did
-// not lock.
+// row, the selection and the predrain batch's row lock both miss it with
+// SKIP LOCKED, so the pass admits nothing, tallies no skip, and prunes
+// nothing, leaving every fact for the lock holder's own progress. No
+// deadlock is possible: the pass never waits on a row it did not lock.
 func TestGenerationRetentionChunkLockMissDropsSilentlyLive(t *testing.T) {
 	bridgeRetentionFamilyDSN(t)
 	database, ctx := openGenerationRetentionMigratedSchema(t)
@@ -416,7 +404,7 @@ FROM generate_series(1, 1500) AS n`, scopeID, generationID); err != nil {
 		BatchGenerationLimit:     10,
 		BatchRowLimit:            1000,
 		PolicyScope:              "global",
-		PolicyRevision:           "7981-chunk-miss-live",
+		PolicyRevision:           "10020-chunk-miss-live",
 	})
 	if err != nil {
 		t.Fatalf("PruneSupersededGenerations() error = %v", err)
@@ -429,5 +417,89 @@ FROM generate_series(1, 1500) AS n`, scopeID, generationID); err != nil {
 	}
 	if facts := countScopeGenerationFacts(t, ctx, database, scopeID, generationID); facts != 1500 {
 		t.Fatalf("facts after lock miss = %d, want 1500 (nothing drained)", facts)
+	}
+}
+
+// TestGenerationRetentionChunkPredrainEligibilityFlipStopsLive proves the
+// per-batch eligibility re-check on a live backend: a work item claimed for
+// the generation after the first predrain batch commits makes the second
+// batch's lock re-check fail, so the drain stops with the first batch's
+// rows kept and the generation retained; once the work item clears, the
+// next pass resumes the drain and prunes the generation whole.
+func TestGenerationRetentionChunkPredrainEligibilityFlipStopsLive(t *testing.T) {
+	bridgeRetentionFamilyDSN(t)
+	database, ctx := openGenerationRetentionMigratedSchema(t)
+	now := time.Now().UTC()
+	const scopeID, generationID = "chunk-flip", "chunk-flip-g0"
+	testfixtures.SeedScope(t, ctx, database, scopeID)
+	testfixtures.SeedSupersededGeneration(t, ctx, database, scopeID, generationID, now.Add(-10*24*time.Hour))
+	if _, err := database.ExecContext(ctx, `
+INSERT INTO fact_records (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, source_system,
+    source_fact_key, observed_at, ingested_at, payload)
+SELECT 'flip-' || n, $1, $2, 'metric', 'flipk' || n, 'git', 'flipk' || n, now(), now(), '{}'::jsonb
+FROM generate_series(1, 300) AS n`, scopeID, generationID); err != nil {
+		t.Fatalf("seed flip facts: %v", err)
+	}
+
+	policy := GenerationRetentionPolicy{
+		MinSupersededGenerations: 0,
+		MaxSupersededAge:         7 * 24 * time.Hour,
+		BatchGenerationLimit:     10,
+		BatchRowLimit:            100,
+		PolicyScope:              "global",
+		PolicyRevision:           "10020-chunk-flip-live",
+	}
+	hookCalls := 0
+	store := NewGenerationRetentionStore(SQLDB{DB: database})
+	store.Now = func() time.Time { return now }
+	store.beforeChunkPredrainPage = func() {
+		hookCalls++
+		if hookCalls != 1 {
+			return
+		}
+		if _, err := database.ExecContext(context.Background(), `
+INSERT INTO fact_work_items (work_item_id, scope_id, generation_id, stage, domain, status, created_at, updated_at)
+VALUES ('chunk-flip-w1', $1, $2, 'reducer', 'domain', 'claimed', now(), now())`, scopeID, generationID); err != nil {
+			t.Errorf("claim flip work item: %v", err)
+		}
+	}
+	result, err := store.PruneSupersededGenerations(ctx, policy)
+	if err != nil {
+		t.Fatalf("cycle 1 PruneSupersededGenerations() error = %v", err)
+	}
+	if hookCalls != 1 {
+		t.Fatalf("beforeChunkPredrainPage ran %d times, want 1 (only the first batch pages before the flip)", hookCalls)
+	}
+	if got := result.ChunkPredeleteBatches; got != 1 {
+		t.Fatalf("cycle 1 ChunkPredeleteBatches = %d, want 1 (the flipped batch rolls back)", got)
+	}
+	if got := result.RowsPruned["fact_records"]; got != 100 {
+		t.Fatalf("cycle 1 RowsPruned[fact_records] = %d, want 100 (only the first batch stays deleted)", got)
+	}
+	if result.GenerationsPruned != 0 {
+		t.Fatalf("cycle 1 GenerationsPruned = %d, want 0", result.GenerationsPruned)
+	}
+	if got := result.Skipped[generationRetentionChunkedProgressSkippedReason]; got != 1 {
+		t.Fatalf("cycle 1 Skipped[row_limit_chunked] = %d, want 1", got)
+	}
+	if facts := countScopeGenerationFacts(t, ctx, database, scopeID, generationID); facts != 200 {
+		t.Fatalf("cycle 1 facts = %d, want 200", facts)
+	}
+
+	// The claim clears: the next pass resumes the drain and prunes whole.
+	if _, err := database.ExecContext(ctx, `DELETE FROM fact_work_items WHERE work_item_id = 'chunk-flip-w1'`); err != nil {
+		t.Fatalf("clear flip work item: %v", err)
+	}
+	resumed := NewGenerationRetentionStore(SQLDB{DB: database})
+	resumed.Now = func() time.Time { return now }
+	second, err := resumed.PruneSupersededGenerations(ctx, policy)
+	if err != nil {
+		t.Fatalf("cycle 2 PruneSupersededGenerations() error = %v", err)
+	}
+	if second.GenerationsPruned != 1 {
+		t.Fatalf("cycle 2 GenerationsPruned = %d, want 1", second.GenerationsPruned)
+	}
+	if facts := countScopeGenerationFacts(t, ctx, database, scopeID, generationID); facts != 0 {
+		t.Fatalf("cycle 2 facts = %d, want 0", facts)
 	}
 }
