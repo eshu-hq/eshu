@@ -20,11 +20,13 @@ package mcp
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/content"
 )
 
 // TestEnvironmentCompareAnswerParityExact proves the present/present environment
@@ -127,6 +129,12 @@ func TestEnvironmentCompareAnswerParityUnsupported(t *testing.T) {
 // TestRepositoryInvestigationAnswerParityExact proves the repository story
 // answer (a repository/code-topic investigation) agrees across the HTTP and MCP
 // surfaces on truth and capability for the same fixture repository.
+//
+// Deliberate split premise (#10605): HTTP defaults to full while the MCP tool
+// defaults to handles, so this test anchors only the fields that must agree
+// across the split (truth, capability, freshness). The body-level split is
+// pinned field-for-field by
+// TestRepositoryInvestigationAnswerParityHandlesSplit.
 func TestRepositoryInvestigationAnswerParityExact(t *testing.T) {
 	t.Parallel()
 
@@ -146,6 +154,137 @@ func TestRepositoryInvestigationAnswerParityExact(t *testing.T) {
 		t.Fatalf("http repo story returned error envelope: %+v", httpEnv.Error)
 	}
 	requireConvenienceSummary(t, summary, mcpEnv)
+}
+
+// TestRepositoryInvestigationAnswerParityHandlesSplit pins the intended #10605
+// default split field-for-field on a populated story: the MCP default answer
+// is byte-identical to HTTP ?evidence_detail=handles on data and on truth
+// omissions, and both differ from the HTTP default (full) on the shaped
+// families. The relationships cut must be real (non-empty omissions with the
+// rows the story held), so a no-op shaper cannot pass this test.
+func TestRepositoryInvestigationAnswerParityHandlesSplit(t *testing.T) {
+	t.Parallel()
+
+	handler := mountPopulatedRepositoryHandler(t, "repo-parity")
+
+	httpFull := httpEnvelope(t, handler, http.MethodGet, "/api/v0/repositories/repo-parity/story", nil)
+	httpHandles := httpEnvelope(t, handler, http.MethodGet, "/api/v0/repositories/repo-parity/story?evidence_detail=handles", nil)
+	mcpEnv, _ := mcpEnvelope(t, handler, "get_repo_story", map[string]any{"repo_id": "repo-parity"})
+
+	if got := stringVal(mcpEnv.Data, "evidence_detail"); got != "handles" {
+		t.Fatalf("mcp evidence_detail = %q, want handles (the MCP default)", got)
+	}
+	if got := stringVal(httpHandles.Data, "evidence_detail"); got != "handles" {
+		t.Fatalf("http handles evidence_detail = %q, want handles", got)
+	}
+
+	mcpData, err := json.Marshal(mcpEnv.Data)
+	if err != nil {
+		t.Fatalf("marshal mcp data: %v", err)
+	}
+	handlesData, err := json.Marshal(httpHandles.Data)
+	if err != nil {
+		t.Fatalf("marshal http handles data: %v", err)
+	}
+	if string(mcpData) != string(handlesData) {
+		t.Fatal("mcp default data differs from http ?evidence_detail=handles data; want field-for-field agreement")
+	}
+	fullData, err := json.Marshal(httpFull.Data)
+	if err != nil {
+		t.Fatalf("marshal http full data: %v", err)
+	}
+	if string(mcpData) == string(fullData) {
+		t.Fatal("mcp default data equals http default (full) data; want the handles split to be real on a populated story")
+	}
+
+	mcpOmissions, err := json.Marshal(mcpEnv.Truth.Omissions)
+	if err != nil {
+		t.Fatalf("marshal mcp omissions: %v", err)
+	}
+	handlesOmissions, err := json.Marshal(httpHandles.Truth.Omissions)
+	if err != nil {
+		t.Fatalf("marshal http handles omissions: %v", err)
+	}
+	if string(mcpOmissions) != string(handlesOmissions) {
+		t.Fatal("mcp truth omissions differ from http handles truth omissions; want the same named cuts")
+	}
+	found := false
+	for _, omission := range mcpEnv.Truth.Omissions {
+		if omission.Section == "relationship_overview.relationships" {
+			found = true
+			if omission.Total != 2 {
+				t.Fatalf("relationships omission total = %d, want the 2 rows the story held", omission.Total)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("no relationship_overview.relationships omission; want a real cut, not an empty fixture")
+	}
+}
+
+// stringVal reads a top-level string field from envelope data without
+// importing the querycontract helpers into this package's test surface.
+func stringVal(data any, key string) string {
+	m, _ := data.(map[string]any)
+	s, _ := m[key].(string)
+	return s
+}
+
+// mountPopulatedRepositoryHandler mounts a RepositoryHandler whose fixture
+// graph carries a base repository row plus two dependency edges, so the story
+// has a relationship family for handles to cut.
+func mountPopulatedRepositoryHandler(t *testing.T, repoID string) http.Handler {
+	t.Helper()
+
+	mux := http.NewServeMux()
+	handler := &query.RepositoryHandler{
+		Neo4j:   populatedRepoReader{repoID: repoID},
+		Content: content.FakePortContentStore{},
+	}
+	handler.Mount(mux)
+	return mux
+}
+
+// populatedRepoReader is a deterministic repository-story fixture: a single
+// repository identity, bounded coverage counts, and two outgoing dependency
+// edges, mirroring the handler-level evidence_detail fixture so the handles
+// cut is real.
+type populatedRepoReader struct {
+	repoID string
+}
+
+func (r populatedRepoReader) RunSingle(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
+	if !strings.Contains(cypher, "MATCH (r:Repository {id: $repo_id})") {
+		return nil, nil
+	}
+	return map[string]any{
+		"id": r.repoID, "name": "edge-api", "path": "/repos/edge-api",
+		"local_path": "/repos/edge-api", "repo_slug": "acme/edge-api",
+		"remote_url": "https://github.com/acme/edge-api.git", "has_remote": true,
+	}, nil
+}
+
+func (r populatedRepoReader) Run(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+	switch {
+	case strings.Contains(cypher, "RETURN count(DISTINCT f) AS count"):
+		return []map[string]any{{"count": int64(3)}}, nil
+	case strings.Contains(cypher, "RETURN f.language AS language, count(DISTINCT f) AS file_count"):
+		return []map[string]any{{"language": "go", "file_count": int64(3)}}, nil
+	case strings.Contains(cypher, "DEPENDS_ON"):
+		return []map[string]any{
+			{
+				"type": "DEPLOYS_FROM", "target_name": "platform", "target_id": "repo-platform",
+				"evidence_type": "argocd_application", "resolved_id": "res-1",
+				"confidence": 0.9, "evidence_count": 3,
+			},
+			{
+				"type": "DEPENDS_ON", "target_name": "lib", "target_id": "repo-lib",
+				"evidence_type": "go_mod_require",
+			},
+		}, nil
+	default:
+		return nil, nil
+	}
 }
 
 // requireConvenienceSummary asserts the #1791 text summary is present and

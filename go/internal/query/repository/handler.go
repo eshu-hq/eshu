@@ -8,8 +8,6 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querycontract/evidence"
-
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/repository"
 	"github.com/eshu-hq/eshu/go/internal/query/repository/readmodel"
@@ -208,6 +206,11 @@ func (h *Handler) GetRepositoryStory(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) getRepositoryStory(w http.ResponseWriter, r *http.Request) {
 	if !querycontract.RequireContextOverview(w, r, h.profile(), "repository story requires authoritative platform context truth") {
+		return
+	}
+
+	evidenceDetail, ok := readRepositoryStoryEvidenceDetail(w, r)
+	if !ok {
 		return
 	}
 
@@ -426,18 +429,5 @@ func (h *Handler) getRepositoryStory(w http.ResponseWriter, r *http.Request) {
 		response["support_overview"] = supportOverview
 	}
 	enrichRepositoryStoryResponseWithEvidence(response, semanticOverview, narrativeFiles)
-	evidence.AttachEvidenceBoundaries(response, "get_repo_story")
-
-	querycontract.WriteSuccess(
-		w,
-		r,
-		http.StatusOK,
-		response,
-		querycontract.BuildTruthEnvelope(
-			h.profile(),
-			"platform_impact.context_overview",
-			querycontract.TruthBasisHybrid,
-			"resolved from bounded repository story, content coverage, and platform evidence",
-		),
-	)
+	h.writeRepositoryStoryResponse(w, r, repoID, response, evidenceDetail)
 }

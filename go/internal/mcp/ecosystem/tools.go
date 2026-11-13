@@ -276,6 +276,16 @@ func repositoryImpactTools() []toolcontract.ToolDefinition {
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
+					// No "default" is advertised on purpose. The MCP default
+					// (handles) lives in the route builder so one place owns
+					// it; a client applying an advertised default would start
+					// sending evidence_detail explicitly for callers that
+					// changed nothing.
+					"evidence_detail": map[string]any{
+						"type":        "string",
+						"enum":        []string{"full", "handles"},
+						"description": "How story row lists are shaped. handles (the default for this tool) projects relationship_overview.relationships, deployment_evidence.artifacts, deployment_artifacts, delivery_paths, delivery_workflows, target_documentation.findings, target_support.evidence, and framework_summary.frameworks to identity rows, drops the repeated relationship partition lists and the evidence_index regrouping with a pointer, keeps every count, narrative, limitation, and drilldown, and names each reduced family with its total in truth.omissions; repeat the call with full for every field of every row. full returns every row in full and can exceed the response budget on a populated repository.",
+					},
 					"repo_id": map[string]any{
 						"type":        "string",
 						"description": "Repository selector: canonical ID, name, repo slug, or indexed path",

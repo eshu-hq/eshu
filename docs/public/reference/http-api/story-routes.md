@@ -47,6 +47,13 @@ Service story takes these query parameters:
 - `evidence_detail`, `full` (HTTP default) or `handles` (MCP default); see [Context Evidence Budget](context-evidence-budget.md)
 - `downstream_read_limit` for the dependents and consumer_repositories reads; see [Context Evidence Budget](context-evidence-budget.md)
 
+Repository story takes one query parameter: `evidence_detail`, `full` (HTTP
+default) or `handles` (MCP default); see [Context Evidence Budget](context-evidence-budget.md).
+Under `handles` the bulky row families ship as identity rows and every reduced
+family is named with its total in `truth.omissions`; repeat the call with
+`full` for every field of every row. Any other value returns 400
+`invalid_argument` before any read runs.
+
 The dossiers keep only a 50-row `api_surface` preview; page the full ordered set through the endpoint route above (`limit` default 50 max 100, `offset` default 0, `next_offset` absent when complete) and the MCP `list_service_api_endpoints` tool. Downstream lists render to the read bound; page the full keyset-ordered set through the downstream-consumers route (`limit` default 50 max 100, `after_repository`+`after_repo_id` cursor, absent `next_cursor` ends the walk) and the MCP `list_service_downstream_consumers` tool. See [Context Evidence Budget](context-evidence-budget.md).
 
 A name that matches several workloads returns HTTP 409 with `error.code=ambiguous`, `data=null`, and
