@@ -305,9 +305,11 @@ func TestSuppressionMutationFanOutIsBoundedByChangedCVEs(t *testing.T) {
 // 5-id statements (#10564 H) and the holders are de-duplicated across
 // chunks. Fixture scale measured 1.34 s warm at 20 ids, but production hot
 // scopes match ~138k finding rows per 25-id chunk and breached the 10 s
-// guard; the hottest 5 ids measured 810.8 ms, so 5-id statements keep >=6x
-// guard headroom. The total ids read and the sequential statements are
-// unchanged, so this is statement sizing, not a worker serialization.
+// guard; the hottest 5 ids measured 810.8 ms. The post-deploy bar is the
+// production bar (per-statement p95 under 2 s, max under 5 s). The total
+// ids read are unchanged and the statements stay sequential, so this is
+// statement sizing, not a worker serialization (statement count grows
+// about 5x; per-statement heap work dominates).
 func TestHolderReadIsChunkedByCVE(t *testing.T) {
 	t.Parallel()
 

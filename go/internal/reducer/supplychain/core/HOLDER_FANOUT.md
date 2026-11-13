@@ -386,16 +386,22 @@ fields. Magnitudes ride result sub-signals — log fields on the existing
 reducer success line, following the `fanout_*` pattern — and the outcome
 rides the new counter's closed label, never a group, CVE, or advisory id.
 
-No-Regression Evidence (#10564 chunk 25 to 5): production hot scopes match
+No-Regression Evidence: #10564 chunk 25 to 5; committed measurements in
+`docs/internal/evidence/10564-chunk5-production.md` with raw EXPLAIN in
+`10564-chunk5-explain-25id.txt` / `10564-chunk5-explain-5id.txt`.
+Production hot scopes match
 about 138k finding rows per 25-id chunk (6.44 s cold, 72% I/O read over a
 193 GB heap with 4 GB shared buffers) and breached the 10 s guard three
 times post-deploy; the hottest 5 ids measured 810.8 ms, so 5-id statements
-keep at least 6x guard headroom. Baseline `pg_stat_statements` for the
+meet the post-deploy bar (per-statement p95 under 2 s, max under 5 s;
+committed measurements linked above). Baseline `pg_stat_statements` for the
 `candidates AS MATERIALIZED` query: 475 calls, mean 2073.8 ms, max
 9802.7 ms. Every lookup id is still read in sequential statements with
-identical dedup and the 256 holder cap, so total work, worker concurrency,
-and admitted truth are unchanged; the post-deploy bar is per-statement p95
-under 2 s, max under 5 s, and zero new 57014 across two stable reads.
+identical dedup and the 256 holder cap, so the admitted id set, worker
+concurrency, and admitted truth are unchanged; statement count grows about
+5x while per-statement heap work dominates. The post-deploy bar is
+per-statement p95 under 2 s, max under 5 s, and zero new 57014 across two
+stable reads.
 
 No-Observability-Change (#10564 chunk 25 to 5): no new instruments, spans,
 log lines, labels, queue stages, locks, claims, leases, or status fields.

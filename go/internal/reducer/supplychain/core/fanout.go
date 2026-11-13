@@ -33,10 +33,12 @@ const (
 	// lookup ids (#10564 H). Fixture scale measured 1.34 s warm at 20 ids,
 	// but production hot scopes match ~138k finding rows per 25-id chunk
 	// (6.44 s cold, 72% I/O read) and timed out at the 10 s guard; the
-	// hottest 5 ids measured 810.8 ms, so 5 keeps every statement at >=6x
-	// guard headroom. The handler still reads every lookup id in
-	// sequential statements, so the total work and concurrency are
-	// unchanged.
+	// hottest 5 ids measured 810.8 ms; the post-deploy bar is per-statement
+	// p95 under 2 s with max under 5 s (see docs/internal/evidence/
+	// 10564-chunk5-production.md). The handler still reads every lookup id
+	// in sequential statements, so the admitted id set and concurrency are
+	// unchanged; statement count grows about 5x while per-statement heap
+	// work dominates.
 	fanOutHolderReadChunk = 5
 	// fanOutHolderCap bounds how many holders one claim reopens. The remainder
 	// is carried on the committing item and drained by its next claims.

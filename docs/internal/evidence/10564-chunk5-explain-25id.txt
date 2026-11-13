@@ -1,0 +1,138 @@
+===== REPLICA =====
+BEGIN
+SET
+            q
+--------------------------
+ E0_plan_custom_literal25
+(1 row)
+
+                                                                                                                                                                                                                                                                                         QUERY PLAN
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Unique  (cost=45902.54..45902.57 rows=7 width=32)
+   CTE candidates
+     ->  HashAggregate  (cost=43391.05..43770.90 rows=37985 width=64)
+           Group Key: finding.scope_id, finding.generation_id
+           ->  Append  (cost=0.56..43201.13 rows=37985 width=64)
+                 ->  Index Scan using fact_records_supply_chain_impact_lookup_idx on fact_records finding  (cost=0.56..5446.42 rows=4640 width=126)
+                       Index Cond: ((payload ->> 'cve_id'::text) = ANY ('{CVE-2015-8861,CVE-2016-10540,CVE-2017-1000048,CVE-2019-19919,CVE-2019-20920,CVE-2019-25225,CVE-2020-13822,CVE-2020-28498,CVE-2020-7660,CVE-2021-23368,CVE-2021-23369,CVE-2021-23382,CVE-2021-23383,CVE-2021-26539,CVE-2021-26540,CVE-2021-26920,CVE-2021-32640,CVE-2022-0155,CVE-2022-0536,CVE-2022-21670,CVE-2022-24999,CVE-2022-25887,CVE-2022-3517,CVE-2023-26159,CVE-2023-30533}'::text[]))
+                 ->  Index Scan using fact_records_supply_chain_impact_advisory_lookup_idx on fact_records finding_1  (cost=0.68..3965.47 rows=3362 width=126)
+                       Index Cond: ((payload ->> 'advisory_id'::text) = ANY ('{CVE-2015-8861,CVE-2016-10540,CVE-2017-1000048,CVE-2019-19919,CVE-2019-20920,CVE-2019-25225,CVE-2020-13822,CVE-2020-28498,CVE-2020-7660,CVE-2021-23368,CVE-2021-23369,CVE-2021-23382,CVE-2021-23383,CVE-2021-26539,CVE-2021-26540,CVE-2021-26920,CVE-2021-32640,CVE-2022-0155,CVE-2022-0536,CVE-2022-21670,CVE-2022-24999,CVE-2022-25887,CVE-2022-3517,CVE-2023-26159,CVE-2023-30533}'::text[]))
+                 ->  Bitmap Heap Scan on fact_records finding_2  (cost=215.23..33599.32 rows=29983 width=126)
+                       Recheck Cond: (((payload #> '{provenance,advisory_group_members}'::text[]) ?| '{CVE-2015-8861,CVE-2016-10540,CVE-2017-1000048,CVE-2019-19919,CVE-2019-20920,CVE-2019-25225,CVE-2020-13822,CVE-2020-28498,CVE-2020-7660,CVE-2021-23368,CVE-2021-23369,CVE-2021-23382,CVE-2021-23383,CVE-2021-26539,CVE-2021-26540,CVE-2021-26920,CVE-2021-32640,CVE-2022-0155,CVE-2022-0536,CVE-2022-21670,CVE-2022-24999,CVE-2022-25887,CVE-2022-3517,CVE-2023-26159,CVE-2023-30533}'::text[]) AND (fact_kind = 'reducer_supply_chain_impact_finding'::text) AND (NOT is_tombstone))
+                       ->  Bitmap Index Scan on fact_records_supply_chain_impact_group_members_idx  (cost=0.00..207.73 rows=29983 width=0)
+                             Index Cond: ((payload #> '{provenance,advisory_group_members}'::text[]) ?| '{CVE-2015-8861,CVE-2016-10540,CVE-2017-1000048,CVE-2019-19919,CVE-2019-20920,CVE-2019-25225,CVE-2020-13822,CVE-2020-28498,CVE-2020-7660,CVE-2021-23368,CVE-2021-23369,CVE-2021-23382,CVE-2021-23383,CVE-2021-26539,CVE-2021-26540,CVE-2021-26920,CVE-2021-32640,CVE-2022-0155,CVE-2022-0536,CVE-2022-21670,CVE-2022-24999,CVE-2022-25887,CVE-2022-3517,CVE-2023-26159,CVE-2023-30533}'::text[])
+   ->  Sort  (cost=2131.63..2131.65 rows=7 width=32)
+         Sort Key: candidates.scope_id
+         ->  Hash Join  (cost=1078.45..2131.54 rows=7 width=32)
+               Hash Cond: ((candidates.scope_id = scope.scope_id) AND (candidates.generation_id = scope.active_generation_id))
+               ->  CTE Scan on candidates  (cost=0.00..854.66 rows=37795 width=64)
+                     Filter: (scope_id <> 'security-alert:github:REDACTED/REDACTED'::text)
+               ->  Hash  (cost=993.58..993.58 rows=5658 width=355)
+                     ->  Seq Scan on ingestion_scopes scope  (cost=0.00..993.58 rows=5658 width=355)
+(21 rows)
+
+ROLLBACK
+BEGIN
+SET
+              q
+-----------------------------
+ E1_analyze_custom_literal25
+(1 row)
+
+                                                                                                                                                                                                                                                                                         QUERY PLAN
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Unique (actual rows=414.00 loops=1)
+   Buffers: shared hit=150558 read=51364 dirtied=1161
+   I/O Timings: shared read=4651.245
+   CTE candidates
+     ->  HashAggregate (actual rows=451.00 loops=1)
+           Group Key: finding.scope_id, finding.generation_id
+           Batches: 1  Memory Usage: 1561kB
+           Buffers: shared hit=144805 read=51360 dirtied=1161
+           I/O Timings: shared read=4651.184
+           ->  Append (actual rows=137987.00 loops=1)
+                 Buffers: shared hit=137105 read=50845 dirtied=1161
+                 I/O Timings: shared read=4425.782
+                 ->  Index Scan using fact_records_supply_chain_impact_lookup_idx on fact_records finding (actual rows=129289.00 loops=1)
+                       Index Cond: ((payload ->> 'cve_id'::text) = ANY ('{CVE-2015-8861,CVE-2016-10540,CVE-2017-1000048,CVE-2019-19919,CVE-2019-20920,CVE-2019-25225,CVE-2020-13822,CVE-2020-28498,CVE-2020-7660,CVE-2021-23368,CVE-2021-23369,CVE-2021-23382,CVE-2021-23383,CVE-2021-26539,CVE-2021-26540,CVE-2021-26920,CVE-2021-32640,CVE-2022-0155,CVE-2022-0536,CVE-2022-21670,CVE-2022-24999,CVE-2022-25887,CVE-2022-3517,CVE-2023-26159,CVE-2023-30533}'::text[]))
+                       Index Searches: 19
+                       Buffers: shared hit=96083 read=42722 dirtied=1161
+                       I/O Timings: shared read=4299.740
+                 ->  Index Scan using fact_records_supply_chain_impact_advisory_lookup_idx on fact_records finding_1 (actual rows=0.00 loops=1)
+                       Index Cond: ((payload ->> 'advisory_id'::text) = ANY ('{CVE-2015-8861,CVE-2016-10540,CVE-2017-1000048,CVE-2019-19919,CVE-2019-20920,CVE-2019-25225,CVE-2020-13822,CVE-2020-28498,CVE-2020-7660,CVE-2021-23368,CVE-2021-23369,CVE-2021-23382,CVE-2021-23383,CVE-2021-26539,CVE-2021-26540,CVE-2021-26920,CVE-2021-32640,CVE-2022-0155,CVE-2022-0536,CVE-2022-21670,CVE-2022-24999,CVE-2022-25887,CVE-2022-3517,CVE-2023-26159,CVE-2023-30533}'::text[]))
+                       Index Searches: 2
+                       Buffers: shared hit=3 read=7
+                       I/O Timings: shared read=0.063
+                 ->  Bitmap Heap Scan on fact_records finding_2 (actual rows=8698.00 loops=1)
+                       Recheck Cond: (((payload #> '{provenance,advisory_group_members}'::text[]) ?| '{CVE-2015-8861,CVE-2016-10540,CVE-2017-1000048,CVE-2019-19919,CVE-2019-20920,CVE-2019-25225,CVE-2020-13822,CVE-2020-28498,CVE-2020-7660,CVE-2021-23368,CVE-2021-23369,CVE-2021-23382,CVE-2021-23383,CVE-2021-26539,CVE-2021-26540,CVE-2021-26920,CVE-2021-32640,CVE-2022-0155,CVE-2022-0536,CVE-2022-21670,CVE-2022-24999,CVE-2022-25887,CVE-2022-3517,CVE-2023-26159,CVE-2023-30533}'::text[]) AND (fact_kind = 'reducer_supply_chain_impact_finding'::text) AND (NOT is_tombstone))
+                       Heap Blocks: exact=2619
+                       Buffers: shared hit=41019 read=8116
+                       I/O Timings: shared read=125.979
+                       ->  Bitmap Index Scan on fact_records_supply_chain_impact_group_members_idx (actual rows=9446.00 loops=1)
+                             Index Cond: ((payload #> '{provenance,advisory_group_members}'::text[]) ?| '{CVE-2015-8861,CVE-2016-10540,CVE-2017-1000048,CVE-2019-19919,CVE-2019-20920,CVE-2019-25225,CVE-2020-13822,CVE-2020-28498,CVE-2020-7660,CVE-2021-23368,CVE-2021-23369,CVE-2021-23382,CVE-2021-23383,CVE-2021-26539,CVE-2021-26540,CVE-2021-26920,CVE-2021-32640,CVE-2022-0155,CVE-2022-0536,CVE-2022-21670,CVE-2022-24999,CVE-2022-25887,CVE-2022-3517,CVE-2023-26159,CVE-2023-30533}'::text[])
+                             Index Searches: 1
+                             Buffers: shared hit=43 read=83
+                             I/O Timings: shared read=4.607
+   ->  Sort (actual rows=414.00 loops=1)
+         Sort Key: candidates.scope_id
+         Sort Method: quicksort  Memory: 25kB
+         Buffers: shared hit=150558 read=51364 dirtied=1161
+         I/O Timings: shared read=4651.245
+         ->  Hash Join (actual rows=414.00 loops=1)
+               Hash Cond: ((candidates.scope_id = scope.scope_id) AND (candidates.generation_id = scope.active_generation_id))
+               Buffers: shared hit=150350 read=51364 dirtied=1161
+               I/O Timings: shared read=4651.245
+               ->  CTE Scan on candidates (actual rows=419.00 loops=1)
+                     Filter: (scope_id <> 'security-alert:github:REDACTED/REDACTED'::text)
+                     Rows Removed by Filter: 32
+                     Storage: Memory  Maximum Storage: 415kB
+                     Buffers: shared hit=144805 read=51360 dirtied=1161
+                     I/O Timings: shared read=4651.184
+               ->  Hash (actual rows=5376.00 loops=1)
+                     Buckets: 8192  Batches: 1  Memory Usage: 2084kB
+                     Buffers: shared hit=4675 read=1
+                     I/O Timings: shared read=0.023
+                     ->  Seq Scan on ingestion_scopes scope (actual rows=5779.00 loops=1)
+                           Buffers: shared hit=937
+ Planning:
+   Buffers: shared hit=81
+ Planning Time: 5.620 ms
+ Execution Time: 6440.574 ms
+(57 rows)
+
+ROLLBACK
+BEGIN
+SET
+SET
+          q
+----------------------
+ E2_generic_plan_only
+(1 row)
+
+PREPARE
+                                                                                          QUERY PLAN
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Unique  (cost=40982.08..40982.11 rows=6 width=32)
+   CTE candidates
+     ->  HashAggregate  (cost=38619.17..38959.64 rows=34047 width=64)
+           Group Key: finding.scope_id, finding.generation_id
+           ->  Append  (cost=0.56..38448.93 rows=34047 width=64)
+                 ->  Index Scan using fact_records_supply_chain_impact_lookup_idx on fact_records finding  (cost=0.56..2095.83 rows=1782 width=126)
+                       Index Cond: ((payload ->> 'cve_id'::text) = ANY ($1))
+                 ->  Index Scan using fact_records_supply_chain_impact_advisory_lookup_idx on fact_records finding_1  (cost=0.68..2688.26 rows=2282 width=126)
+                       Index Cond: ((payload ->> 'advisory_id'::text) = ANY ($1))
+                 ->  Bitmap Heap Scan on fact_records finding_2  (cost=110.52..33494.61 rows=29983 width=126)
+                       Recheck Cond: (((payload #> '{provenance,advisory_group_members}'::text[]) ?| $1) AND (fact_kind = 'reducer_supply_chain_impact_finding'::text) AND (NOT is_tombstone))
+                       ->  Bitmap Index Scan on fact_records_supply_chain_impact_group_members_idx  (cost=0.00..103.03 rows=29983 width=0)
+                             Index Cond: ((payload #> '{provenance,advisory_group_members}'::text[]) ?| $1)
+   ->  Sort  (cost=2022.44..2022.45 rows=6 width=32)
+         Sort Key: candidates.scope_id
+         ->  Hash Join  (cost=1078.45..2022.36 rows=6 width=32)
+               Hash Cond: ((candidates.scope_id = scope.scope_id) AND (candidates.generation_id = scope.active_generation_id))
+               ->  CTE Scan on candidates  (cost=0.00..766.06 rows=33877 width=64)
+                     Filter: (scope_id <> $2)
+               ->  Hash  (cost=993.58..993.58 rows=5658 width=355)
+                     ->  Seq Scan on ingestion_scopes scope  (cost=0.00..993.58 rows=5658 width=355)
+(21 rows)
+
+ROLLBACK
