@@ -33,8 +33,9 @@ import (
 // The active_scopes join keeps the read exact even if the summary lags one resweep
 // cadence: rows for superseded generations are filtered out, and a brand-new
 // scope not yet materialized is at most one cadence behind. The emitted rows are
-// shape- and value-identical to the previous query, so collector readiness
-// evidence is preserved exactly (see collector_evidence_summary_read_live_test.go).
+// shape- and value-identical to the previous query at resweep freshness;
+// instance attribution lags at most one cadence like the aggregates, so collector
+// readiness evidence is preserved exactly (see collector_evidence_summary_read_live_test.go).
 const collectorFactEvidenceQuery = `
 WITH ` + activeCollectorScopesCTE + `
 -- #10601 leg1 summary read (reopened): the collector-instance identity comes

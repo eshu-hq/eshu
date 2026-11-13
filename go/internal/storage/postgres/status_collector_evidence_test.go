@@ -207,8 +207,9 @@ func TestCollectorFactEvidenceQueryPreAggregatesBeforeWorkflowIdentity(t *testin
 // workflow_work_items that the first #10601 fix shipped still cost 4.1s cold /
 // 1.1s warm on QA at 6139 active scopes (one indexed probe per active scope
 // plus the 10.5k-row summary scan against the 5s snapshot budget); the
-// summary read keeps the emitted rows shape- and value-identical (see
-// collector_evidence_summary_read_live_test.go).
+// summary read keeps the emitted rows shape- and value-identical at resweep
+// freshness (instance attribution lags at most one cadence like the aggregates;
+// see collector_evidence_summary_read_live_test.go).
 func TestCollectorFactEvidenceQueryReadsInstanceFromSummary(t *testing.T) {
 	t.Parallel()
 
