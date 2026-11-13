@@ -3,7 +3,11 @@
 
 package unscoped
 
-import "github.com/jackc/pgx/v5"
+import (
+	"github.com/jackc/pgx/v5"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+)
 
 // readinessSQL is the first statement of every search: it raises SQLSTATE 55000
 // when the durable substring indexes are not ready, so the search never falls
@@ -46,8 +50,10 @@ WHERE (repo_id, relative_path) > ($1::text, $2::text)`
 
 // countUnknown reports that the not-searched count itself could not be
 // measured: the count statement was cancelled or failed, so the answer cannot
-// say zero.
-const countUnknown = int64(-1)
+// say zero. It aliases the querycontract sentinel so the value the walk
+// writes and the value the wire label derives from cannot drift apart
+// (#10611).
+const countUnknown = querycontract.DocumentsNotSearchedUnknownValue
 
 // StatementSet is the shipped text of the four bounded statements of the
 // content_files shape (files.go), exported so the live plan-shape and

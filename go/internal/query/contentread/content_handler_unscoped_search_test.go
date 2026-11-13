@@ -45,11 +45,12 @@ func (s *unscopedSearchStore) SearchFilesUnscoped(
 
 type searchEnvelope struct {
 	Data struct {
-		Results              []querycontract.FileContent  `json:"results"`
-		Count                int                          `json:"count"`
-		Truncated            bool                         `json:"truncated"`
-		Partial              *querycontract.SearchPartial `json:"partial"`
-		DocumentsNotSearched int64                        `json:"documents_not_searched"`
+		Results                   []querycontract.FileContent  `json:"results"`
+		Count                     int                          `json:"count"`
+		Truncated                 bool                         `json:"truncated"`
+		Partial                   *querycontract.SearchPartial `json:"partial"`
+		DocumentsNotSearched      int64                        `json:"documents_not_searched"`
+		DocumentsNotSearchedState string                       `json:"documents_not_searched_state"`
 	} `json:"data"`
 	Truth *querycontract.TruthEnvelope `json:"truth"`
 }
@@ -303,6 +304,89 @@ func TestSearchFilesUnscopedSurfacesDocumentsNotSearched(t *testing.T) {
 	}
 	if env.Data.DocumentsNotSearched != 0 {
 		t.Fatalf("exact data.documents_not_searched = %d, want 0", env.Data.DocumentsNotSearched)
+	}
+}
+
+// #10611: every unscoped file answer carries documents_not_searched_state,
+// derived purely from the integer: exact for 0 (including an empty exact
+// page), partial for a positive count, unknown for the -1 count-cancelled
+// sentinel whose provenance TestSearchCancelledCountReportsUnknownWithoutTouchingOverrun
+// pins in the walk. The integer assertions above stay the no-breaking-change
+// proof: this test only adds the label beside them.
+func TestSearchFilesUnscopedSurfacesDocumentsNotSearchedState(t *testing.T) {
+	t.Parallel()
+
+	partial := &querycontract.SearchPartial{
+		Reason:             querycontract.SearchPartialCandidateBudgetExceeded,
+		RowsScannedInOrder: 7700,
+		RowsMatched:        1,
+		Cursor:             querycontract.SearchCursor{RepoID: "r9", RelativePath: "z.go"},
+		BudgetMS:           800,
+		ElapsedMS:          790,
+		Hint:               querycontract.SearchPartialHint,
+	}
+	for _, tc := range []struct {
+		name        string
+		page        querycontract.FileSearchPage
+		wantInteger int64
+		wantState   string
+	}{
+		{
+			name:        "exact empty page reads exact",
+			page:        querycontract.FileSearchPage{},
+			wantInteger: 0,
+			wantState:   querycontract.DocumentsNotSearchedExact,
+		},
+		{
+			name: "partial page reads partial",
+			page: querycontract.FileSearchPage{
+				Files:                []querycontract.FileContent{{RepoID: "r1", RelativePath: "a.go"}},
+				Partial:              partial,
+				DocumentsNotSearched: 139369,
+			},
+			wantInteger: 139369,
+			wantState:   querycontract.DocumentsNotSearchedPartial,
+		},
+		{
+			name: "cancelled count reads unknown",
+			page: querycontract.FileSearchPage{
+				Files:                []querycontract.FileContent{{RepoID: "r1", RelativePath: "a.go"}},
+				Partial:              partial,
+				DocumentsNotSearched: -1,
+			},
+			wantInteger: -1,
+			wantState:   querycontract.DocumentsNotSearchedUnknown,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			store := &unscopedSearchStore{page: tc.page}
+			h := &ContentHandler{Content: store, Profile: querycontract.ProfileLocalAuthoritative}
+
+			rec, env := postFileSearch(t, h, context.Background(), `{"query":"render"}`)
+			if rec.Code != http.StatusOK {
+				t.Fatalf("status = %d, want 200; body = %s", rec.Code, rec.Body.String())
+			}
+			if env.Data.DocumentsNotSearched != tc.wantInteger {
+				t.Fatalf("data.documents_not_searched = %d, want %d", env.Data.DocumentsNotSearched, tc.wantInteger)
+			}
+			if env.Data.DocumentsNotSearchedState != tc.wantState {
+				t.Fatalf("data.documents_not_searched_state = %q, want %q", env.Data.DocumentsNotSearchedState, tc.wantState)
+			}
+			var raw map[string]any
+			if err := json.Unmarshal(rec.Body.Bytes(), &raw); err != nil {
+				t.Fatalf("decode raw envelope: %v", err)
+			}
+			data, _ := raw["data"].(map[string]any)
+			state, present := data["documents_not_searched_state"]
+			if !present {
+				t.Fatal("data.documents_not_searched_state is absent, want it always present on an unscoped file answer")
+			}
+			if state != tc.wantState {
+				t.Fatalf("raw data.documents_not_searched_state = %v, want %q", state, tc.wantState)
+			}
+		})
 	}
 }
 

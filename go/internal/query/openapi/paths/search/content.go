@@ -184,6 +184,8 @@ const Content = `
                     "limit": {"type": "integer"},
                     "offset": {"type": "integer"},
                     "truncated": {"type": "boolean", "description": "True when another matching row follows the page, and always true when partial is present."},
+                    "documents_not_searched": {"type": "integer", "description": "Documents no completed statement read on a search with no repository filter: the rows strictly after the resume cursor on a partial page, 0 on an exact page. -1 means the count statement itself was cancelled and the number is unknown, never zero."},
+                    "documents_not_searched_state": {"type": "string", "enum": ["exact", "partial", "unknown"], "description": "In-band label for documents_not_searched on a counted answer: exact when it is 0, partial when it is positive, unknown when it is -1. The empty-access response carries neither field; absent on scoped searches and on the entity route, which carry no count."},
                     "partial": {
                       "type": "object",
                       "description": "Present only when a search with no repository filter ended at its work budget before the page was proven complete. results is then an ordered prefix of the exact answer.",

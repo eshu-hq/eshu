@@ -114,6 +114,45 @@ type SearchPartial struct {
 	Hint string `json:"hint"`
 }
 
+// In-band labels for FileSearchPage.DocumentsNotSearched (#10611). The
+// integer is unchanged; the label tells a wire reader what the number means:
+// exact when every document was read or proven absent, partial when the
+// number names unread documents, unknown when the count itself was cancelled
+// and the number of unread documents is unknown, never zero.
+const (
+	// DocumentsNotSearchedExact marks a complete answer: nothing went unsearched.
+	DocumentsNotSearchedExact = "exact"
+	// DocumentsNotSearchedPartial marks a positive unread count.
+	DocumentsNotSearchedPartial = "partial"
+	// DocumentsNotSearchedUnknown marks the cancelled-count sentinel: the
+	// number of unread documents is unknown, not zero.
+	DocumentsNotSearchedUnknown = "unknown"
+)
+
+// DocumentsNotSearchedUnknownValue is the wire integer the unknown label
+// derives from. It is the single definition of the sentinel: the unscoped
+// walk aliases it, so the two cannot drift apart.
+const DocumentsNotSearchedUnknownValue = int64(-1)
+
+// DocumentsNotSearchedState derives the in-band label for a
+// FileSearchPage.DocumentsNotSearched value: unknown for the cancelled-count
+// sentinel, exact for zero, partial for a positive count. It reports false
+// for any other value — only -1 is a documented negative, so a new sentinel
+// must extend this function (and its guard test) instead of silently reading
+// as one of the closed states.
+func DocumentsNotSearchedState(notSearched int64) (string, bool) {
+	switch {
+	case notSearched == DocumentsNotSearchedUnknownValue:
+		return DocumentsNotSearchedUnknown, true
+	case notSearched == 0:
+		return DocumentsNotSearchedExact, true
+	case notSearched > 0:
+		return DocumentsNotSearchedPartial, true
+	default:
+		return "", false
+	}
+}
+
 // FileSearchPage is one page of an unscoped file-content search. Files holds
 // the page rows in repo_id, relative_path order. More reports, for a complete
 // answer, that a row exists past the page. Partial is non-nil when the budget
@@ -122,7 +161,8 @@ type SearchPartial struct {
 // rows strictly after the resume cursor on a partial page, zero on a complete
 // one (#7975). A cancelled tail may have tested some of them before the
 // server cut it short, but none contributed a row to the answer. -1 means the
-// count statement itself was cancelled and the number is unknown, never zero.
+// count statement itself was cancelled and the number is unknown, never zero;
+// DocumentsNotSearchedState labels the value in-band on the wire.
 type FileSearchPage struct {
 	Files                []FileContent
 	More                 bool
