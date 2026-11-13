@@ -84,6 +84,12 @@ the claim closes as instrumented-and-accepted; above threshold the next step
 is an EXPLAIN ANALYZE shim on the worst operation×pattern_class, never a
 timeout raise, serialization, or deadline swallowing.
 
+## Coverage blind spot
+
+The legacy non-paged fallback path (test and non-Postgres stores) bypasses
+the chokepoint and is uncounted here. Absence in these series means no
+paged-path traffic, not zero searches everywhere.
+
 ## Evidence
 
 Observability Evidence: `TestRecordScopedSearchEmitsOneCountAndOneSamplePerOutcome`
@@ -92,5 +98,5 @@ including the closed label set, the scoped span attributes, and the WARN-only-on
 log; `TestSearchFileContentScopedRecordsOKThroughChokepoint` and
 `TestSearchEntityContentScopedRecordsErrorThroughChokepoint` prove the file and entity
 chokepoints record through the production path. No-Regression Evidence: the existing
-scoped suites run green untouched and one scoped response is byte-identical before/after;
+scoped suites run green untouched and the scoped statement text, args, and scan loop are unchanged;
 recording shares one attribute set per call with the unscoped recorder beside it.

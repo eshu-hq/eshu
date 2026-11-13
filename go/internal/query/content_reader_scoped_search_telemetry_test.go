@@ -116,7 +116,6 @@ type scopedSignalHarness struct {
 func newScopedSignalHarness(t *testing.T) *scopedSignalHarness {
 	t.Helper()
 	spans := tracetest.NewSpanRecorder()
-	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(spans))
 	reader := sdkmetric.NewManualReader()
 	meterProvider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
 	inst, err := telemetry.NewInstruments(meterProvider.Meter("test"))
@@ -126,7 +125,6 @@ func newScopedSignalHarness(t *testing.T) *scopedSignalHarness {
 	logs := &bytes.Buffer{}
 	prev := slog.Default()
 	slog.SetDefault(slog.New(slog.NewJSONHandler(logs, nil)))
-	_ = provider
 	return &scopedSignalHarness{
 		reader:    reader,
 		spans:     spans,
