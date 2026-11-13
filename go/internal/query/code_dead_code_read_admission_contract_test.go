@@ -16,7 +16,8 @@ import (
 // reads: the graph run behind the SQL-routine EXECUTES probes, the
 // candidate/incoming/downgrade reads behind the investigation and scan,
 // the entity hydration reads, the coverage and index-freshness reads,
-// and the three cross-repo consumer-evidence reads. RunSingle is OUT by
+// and the three cross-repo consumer-evidence reads plus the
+// boundary-evidence read. RunSingle is OUT by
 // construction: the dead-code lane never issues a single-row graph
 // read. The entries re-declare the GraphQuery/ContentReader signatures
 // in this dead-code-scoped shape instead of embedding the shared ports,

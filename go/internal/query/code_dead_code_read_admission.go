@@ -92,8 +92,9 @@ const CodeDeadCodeReadAdmissionContractVersion = "v0"
 //   - The grant checks, the repository selector, the fixed failure
 //     messages, the rerank, and QueryProfile are handler behavior, not
 //     port shape: there is no method set to freeze.
-//   - No ledger, stored-summary, or snapshot surface exists on this
-//     family; the seal test holds that exclusion the same way.
+//   - No ledger, RepositoryReadModelSummary stored-summary, or snapshot
+//     surface is pinned here; the seal test holds those exclusions.
+//     The boundary-evidence read lives in the in-scope list above.
 //
 // There is deliberately no WithReadStore constructor on this pin: the
 // dead-code seam spans two backends (the concurrent-safe graph reader
