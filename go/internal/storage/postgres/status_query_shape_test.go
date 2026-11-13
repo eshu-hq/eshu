@@ -81,16 +81,39 @@ func TestDomainBacklogQueryReadsOnlyPendingSharedProjectionIntents(t *testing.T)
 	}
 }
 
-// TestCollectorFactEvidenceQueryMaterializesWorkflowInstances guards issue
-// #6794. Postgres estimates the active_scopes CTE at one row (hundreds on a
-// production-scale instance), so an inlined workflow_instances DISTINCT ON
-// subquery was re-executed once per summary row (thousands of loops, about
-// 1.9s under load). Materializing it evaluates the DISTINCT ON once.
-func TestCollectorFactEvidenceQueryMaterializesWorkflowInstances(t *testing.T) {
+// TestCollectorFactEvidenceQueryLooksUpScopedInstancePerScope guards issue
+// #10601, which supersedes the #6794 materialization below for this query.
+// #6794 materialized the workflow_instances DISTINCT ON because an inlined
+// DISTINCT ON subquery was re-executed once per summary row (about 1.9s under
+// load at the time). At 5376 active scopes the materialized CTE itself became
+// the bottleneck: the outer aggregate re-scanned all 4567 CTE rows for every
+// one of the 9730 summary rows (44M join-filter comparisons, 13.8s per
+// snapshot against the 5s snapshot budget). The instance leg is now one
+// indexed lateral lookup per active scope (LEFT JOIN LATERAL ... LIMIT 1
+// over workflow_work_items in DISTINCT ON key and order), placed before the
+// summary fanout: 3.5s cold / 1.1s warm on QA with byte-identical rows. A
+// lateral leg hidden in its own CTE is rejected: the planner inlines the
+// single-reference CTE and re-scans active_scopes per outer row (22+ min).
+func TestCollectorFactEvidenceQueryLooksUpScopedInstancePerScope(t *testing.T) {
 	t.Parallel()
 
-	if !strings.Contains(collectorFactEvidenceQuery, "workflow_instances AS MATERIALIZED (") {
-		t.Fatalf("collectorFactEvidenceQuery must materialize workflow_instances:\n%s", collectorFactEvidenceQuery)
+	for _, want := range []string{
+		"LEFT JOIN LATERAL (",
+		"FROM workflow_work_items AS workflow_item",
+		"LIMIT 1",
+	} {
+		if !strings.Contains(collectorFactEvidenceQuery, want) {
+			t.Fatalf("collectorFactEvidenceQuery missing inline lateral instance lookup %q:\n%s", want, collectorFactEvidenceQuery)
+		}
+	}
+	for _, forbidden := range []string{
+		"workflow_instances AS MATERIALIZED (",
+		"DISTINCT ON (",
+		"scoped_instance AS (",
+	} {
+		if strings.Contains(collectorFactEvidenceQuery, forbidden) {
+			t.Fatalf("collectorFactEvidenceQuery must not contain %q (the #10601 join fanout):\n%s", forbidden, collectorFactEvidenceQuery)
+		}
 	}
 }
 

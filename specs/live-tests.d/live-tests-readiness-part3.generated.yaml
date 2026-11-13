@@ -184,6 +184,11 @@ tests:
     class: postgres_ci
     reason: "#7592 disposable PostgreSQL 18 proof that the reachability edge loader reads the consumer scope's own edges only (a chain X -> Z.g -> P never lands in X); enrolled in the live-postgres-readiness runner. Upper-bound timing: 1.31s cold including one-time schema bootstrap, 0.09s warm, on local postgres:18"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/collector_evidence_lateral_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10601 differential proof that the lateral collector-instance lookup returns rows identical to the pre-change DISTINCT ON join over blank-latest fallback, updated_at tiebreak, empty-instance, and superseded-generation branches; one focused test passed in about 2s using an isolated schema"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/collector_terminal_failure_ack_live_test.go
     tag: ~
     class: postgres_ci

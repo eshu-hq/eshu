@@ -99,6 +99,9 @@ TABLE = {
             "TestReducerConflictBlockageNamesHolderDomain",
             "TestActiveWorkSummaryHolderLookupScansLeasesOnce",
         ),
+        "go/internal/storage/postgres/collector_evidence_lateral_live_test.go": (
+            "TestCollectorFactEvidenceLateralMatchesPreChangeJoinLive",
+        ),
         "go/internal/storage/postgres/collector_terminal_failure_ack_live_test.go": (
             "TestTerminalFailureAckStoreRefusalsLive",
             "TestTerminalFailureAckStoreRecordsAndSuppressesLive",

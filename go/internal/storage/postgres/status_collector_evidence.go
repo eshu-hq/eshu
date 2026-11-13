@@ -32,32 +32,18 @@ import (
 // shape- and value-identical to the previous query, so collector readiness
 // evidence is preserved exactly.
 const collectorFactEvidenceQuery = `
-WITH ` + activeCollectorScopesCTE + `,
--- MATERIALIZED (#6794): active_scopes is estimated at one row, so an inlined
--- DISTINCT ON here was re-executed once per summary row.
-workflow_instances AS MATERIALIZED (
-SELECT DISTINCT ON (
-    workflow_item.collector_kind,
-    workflow_item.scope_id,
-    workflow_item.generation_id
-)
-    workflow_item.collector_kind,
-    workflow_item.scope_id,
-    workflow_item.generation_id,
-    workflow_item.collector_instance_id
-FROM workflow_work_items AS workflow_item
-JOIN active_scopes AS scope
-  ON scope.collector_kind = workflow_item.collector_kind
- AND scope.scope_id = workflow_item.scope_id
- AND scope.generation_id = workflow_item.generation_id
-WHERE NULLIF(BTRIM(workflow_item.collector_instance_id), '') IS NOT NULL
-ORDER BY
-    workflow_item.collector_kind,
-    workflow_item.scope_id,
-    workflow_item.generation_id,
-    workflow_item.updated_at DESC,
-    workflow_item.work_item_id ASC
-)
+WITH ` + activeCollectorScopesCTE + `
+-- #10601: one indexed instance lookup per active scope, evaluated before the
+-- summary fanout. The previous workflow_instances AS MATERIALIZED DISTINCT ON
+-- forced the outer aggregate into a CTE-scan nested loop: every one of the
+-- 9730 summary rows re-scanned all 4567 CTE rows (44M join-filter comparisons,
+-- 13.8s per snapshot at 5376 active scopes, QA EXPLAIN ANALYZE). A lateral leg
+-- hidden in its own CTE is worse (the planner inlines the single-reference CTE
+-- and re-scans active_scopes per outer row: 22+ min on QA). The lateral join
+-- below stays in the main query so each active scope costs exactly one probe
+-- of workflow_work_items_collector_scope_generation_updated_idx with the same
+-- key and ORDER BY the DISTINCT ON used: 3.5s cold / 1.1s warm on QA with
+-- byte-identical rows (43-row diff empty).
 SELECT
     summary.collector_kind,
     COALESCE(NULLIF(BTRIM(item.collector_instance_id), ''), '') AS collector_instance_id,
@@ -71,13 +57,19 @@ SELECT
     MAX(summary.last_observed_at) AS last_observed_at,
     MAX(summary.last_ingested_at) AS updated_at
 FROM active_scopes AS scope
+LEFT JOIN LATERAL (
+  SELECT workflow_item.collector_instance_id
+  FROM workflow_work_items AS workflow_item
+  WHERE workflow_item.collector_kind = scope.collector_kind
+    AND workflow_item.scope_id = scope.scope_id
+    AND workflow_item.generation_id = scope.generation_id
+    AND NULLIF(BTRIM(workflow_item.collector_instance_id), '') IS NOT NULL
+  ORDER BY workflow_item.updated_at DESC, workflow_item.work_item_id ASC
+  LIMIT 1
+) AS item ON TRUE
 JOIN collector_evidence_summary AS summary
   ON summary.scope_id = scope.scope_id
  AND summary.generation_id = scope.generation_id
-LEFT JOIN workflow_instances AS item
-  ON item.collector_kind = scope.collector_kind
- AND item.scope_id = scope.scope_id
- AND item.generation_id = scope.generation_id
 GROUP BY summary.collector_kind, collector_instance_id, summary.evidence_source
 ORDER BY summary.collector_kind ASC, collector_instance_id ASC, summary.evidence_source ASC
 LIMIT 200
