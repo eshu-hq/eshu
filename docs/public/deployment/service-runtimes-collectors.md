@@ -68,7 +68,7 @@ freshness, and effective target, rule, log-signal, or trace-signal metadata.
 | SBOM Attestation Collector (satellite) | `sbom_attestation` | no core producer — extracted to `eshu-hq/eshu-collector-sbom-attestation`, serving the fleet scope through the component-extension worker; claims and facts flow through the claim plane | — (in-tree `eshu-collector-sbom-attestation` binary was deleted) | — (see the satellite repo) |
 | Security Alert Collector | `security_alert` | workflow claims for configured GitHub Dependabot repository-alert targets | `/usr/local/bin/eshu-collector-security-alerts` | `https://github.com/eshu-hq/eshu-deploy/blob/main/helm/eshu/templates/deployment-security-alert-collector.yaml` |
 | CI/CD Run Collector | `ci_cd_run` | workflow claims for configured GitHub Actions repository run targets | `/usr/local/bin/eshu-collector-cicd-run` | `https://github.com/eshu-hq/eshu-deploy/blob/main/helm/eshu/templates/deployment-cicd-run-collector.yaml` |
-| PagerDuty Collector | `pagerduty` | workflow claims for configured PagerDuty account or service-allowlist targets | `/usr/local/bin/eshu-collector-pagerduty` | `https://github.com/eshu-hq/eshu-deploy/blob/main/helm/eshu/templates/deployment-pagerduty-collector.yaml` |
+| PagerDuty Collector (satellite) | `pagerduty` | workflow claims for configured PagerDuty account or service-allowlist targets; serving the pagerduty scope through the component-extension worker seeded from the digest-pinned satellite image (`eshu-hq/eshu-collector-pagerduty`), not the monolith collector binary | `/usr/local/bin/eshu-collector-component-extension` | `https://github.com/eshu-hq/eshu-deploy/blob/main/helm/eshu/templates/deployment-pagerduty-collector.yaml` |
 | Grafana Collector | `grafana` | workflow claims for configured live Grafana API targets | `/usr/local/bin/eshu-collector-grafana` | `https://github.com/eshu-hq/eshu-deploy/blob/main/helm/eshu/templates/deployment-grafana-collector.yaml` |
 | Prometheus/Mimir Collector | `prometheus_mimir` | workflow claims for configured live Prometheus or Mimir API targets | `/usr/local/bin/eshu-collector-prometheus-mimir` | `https://github.com/eshu-hq/eshu-deploy/blob/main/helm/eshu/templates/deployment-prometheus-mimir-collector.yaml` |
 | Tempo Collector (satellite) | `tempo` | workflow claims for configured Tempo query-frontend metadata targets; runs on the monolith host image as a component-extension worker, seeded from the digest-pinned satellite image, not the monolith collector binary | `/usr/local/bin/eshu-collector-component-extension` | `https://github.com/eshu-hq/eshu-deploy/blob/main/helm/eshu/templates/deployment-tempo-collector.yaml` |
@@ -219,7 +219,6 @@ and failure detail:
 
 - [Terraform State Collector](../services/collector-terraform-state.md)
 - [AWS Cloud Collector](../services/collector-aws-cloud.md)
-- [PagerDuty Collector](../services/collector-pagerduty.md)
 - [Jira Evidence Contract](../reference/jira-evidence.md)
 - [Observability Evidence Contract](../reference/observability-evidence.md)
 

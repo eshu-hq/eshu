@@ -41,11 +41,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/observability/grafana"
 	"github.com/eshu-hq/eshu/go/internal/collector/observability/prometheus"
-	"github.com/eshu-hq/eshu/go/internal/collector/pagerduty"
 	"github.com/eshu-hq/eshu/go/internal/collector/registry/oci/distribution"
 	packageruntime "github.com/eshu-hq/eshu/go/internal/collector/registry/package/runtime"
 	"github.com/eshu-hq/eshu/go/internal/collector/securityalerts"
@@ -128,28 +126,10 @@ func collectorFaultCases() []collectorFaultCase {
 				return err
 			},
 		},
-		{
-			surface: "collector:pagerduty",
-			collect: func() error {
-				client, err := pagerduty.NewHTTPClient(pagerduty.HTTPClientConfig{
-					BaseURL: "https://pagerduty.invalid",
-					Token:   "pagerduty-token",
-					Client:  timeoutFaultClient(),
-				})
-				if err != nil {
-					return err
-				}
-				_, err = client.CollectIncidentEvidence(context.Background(), pagerduty.TargetConfig{
-					Provider:      "pagerduty",
-					ScopeID:       "pagerduty:account:prod",
-					AccountID:     "account-prod",
-					Token:         "pagerduty-token",
-					APIBaseURL:    "https://pagerduty.invalid",
-					IncidentLimit: 25,
-				}, pagerduty.CollectionWindow{Until: time.Now().UTC()})
-				return err
-			},
-		},
+		// The PagerDuty boundary moved to the extracted satellite
+		// (eshu-hq/eshu-collector-pagerduty, cutover #8863): core owns no
+		// PagerDuty HTTP client to fault-probe anymore, so this table
+		// carries no pagerduty case.
 		{
 			surface: "collector:security_alert",
 			collect: func() error {

@@ -41,7 +41,8 @@ const (
 	SpanAttrJiraStaleWindows             = thirdparty.SpanAttrJiraStaleWindows
 )
 
-// PagerDuty source-collection spans (from contract/thirdparty/pagerduty.go).
+// PagerDuty source-collection spans (emitted by the extracted satellite
+// eshu-hq/eshu-collector-pagerduty; the in-tree producer is removed).
 const (
 	SpanPagerDutyObserve = thirdparty.SpanPagerDutyObserve
 	SpanPagerDutyFetch   = thirdparty.SpanPagerDutyFetch

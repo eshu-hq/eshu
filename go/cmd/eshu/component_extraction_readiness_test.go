@@ -45,7 +45,7 @@ func TestExtractionReadinessListsCatalog(t *testing.T) {
 	for _, want := range []string{
 		"Collector extraction readiness (advisory",
 		"git [keep_in_tree]",
-		"pagerduty [extraction_candidate]",
+		"pagerduty [external_ready]",
 		"jira [blocked]",
 		"blockers:",
 	} {
@@ -63,14 +63,14 @@ func TestExtractionReadinessSingleFamily(t *testing.T) {
 		t.Fatalf("runComponentExtractionReadiness(pagerduty) error = %v", err)
 	}
 	got := out.String()
-	if !strings.Contains(got, "pagerduty [extraction_candidate]") {
-		t.Fatalf("single-family output = %q, want pagerduty extraction_candidate", got)
+	if !strings.Contains(got, "pagerduty [external_ready]") {
+		t.Fatalf("single-family output = %q, want pagerduty external_ready", got)
 	}
 	if strings.Contains(got, "git [keep_in_tree]") {
 		t.Fatalf("single-family output unexpectedly listed other families:\n%s", got)
 	}
-	if !strings.Contains(got, "production correlation path") {
-		t.Fatalf("single-family output missing in-tree production caveat:\n%s", got)
+	if !strings.Contains(got, "runs out of tree as its default path") {
+		t.Fatalf("single-family output missing out-of-tree default-path note:\n%s", got)
 	}
 }
 

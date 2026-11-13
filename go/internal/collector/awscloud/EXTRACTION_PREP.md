@@ -183,8 +183,9 @@ authority; see [PRODUCER_GRANT_DRAFT](PRODUCER_GRANT_DRAFT.md).
   `planner.go:43` in `coordinator/planner/aws/scheduled`
   `PlanAWSScheduledWork`; stays core-owned.
 - Entrypoint contract: **gap** — `go/internal/collector/entrypoints/collector_entrypoints.yaml`
-  covers only `collector-pagerduty` (`collector-jira` was extracted in
-  #8858); no `collector-aws-cloud` entry exists yet. Onboarding it is a
+  covers neither `collector-jira` (extracted in #8858) nor
+  `collector-pagerduty` (extracted in #8863, manifest emptied in #10619);
+  no `collector-aws-cloud` entry exists yet. Onboarding it is a
   cutover prerequisite (§8). The claim-path shim is mapped in [SHIM_MAP](SHIM_MAP.md).
 - Offline parity input: `go/cmd/collector-aws-cloud/testdata/fixture-estate.json`
   (fixture mode). No recorded parity pack exists yet for the cutover

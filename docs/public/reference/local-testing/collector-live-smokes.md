@@ -8,14 +8,14 @@ For fixture-backed collector checks, prefer
 [Verification gates](verification-gates.md). For hosted all-collector proof, use
 [Remote collector E2E](remote-collector-e2e.md).
 
-PagerDuty standalone live smokes prove the read-only provider fetch
+Standalone live smokes prove the read-only provider fetch
 and source-fact envelope path only. They do not prove hosted Compose lifecycle,
 workflow claim handoff, container health, or queue-zero. Provider errors such
 as PagerDuty `auth_denied` with the current private token are credential proof
 failures unless the same target fails with a valid token; keep that evidence
-separate from remote Compose service coverage. (The Jira and Confluence
-standalone smokes are deleted with the in-tree packages; see the Jira and
-Confluence sections.)
+separate from remote Compose service coverage. (The PagerDuty, Jira, and
+Confluence standalone smokes are deleted with the in-tree packages; see the
+PagerDuty, Jira, and Confluence sections.)
 
 ## Confluence
 
@@ -71,37 +71,20 @@ docs before enabling hosted collection.
 
 ## PagerDuty
 
-The PagerDuty smoke is read-only. It skips unless `ESHU_PAGERDUTY_LIVE=1` and a
-token is available through `ESHU_PAGERDUTY_API_TOKEN` or
-`PAGERDUTY_API_TOKEN`; `PAGERDUTY_USER_API_KEY` is accepted for local
-maintainer env files. The default run fetches at most one recent incident and up
-to two live config resources so it can still prove source facts when the
-incident window is empty.
+PagerDuty collection runs from the extracted satellite
+(`eshu-hq/eshu-collector-pagerduty`): the in-tree
+`go/internal/collector/pagerduty` package and its
+`TestLivePagerDutyIncidentOrConfigEvidence` smoke are deleted, so there is no
+in-tree `go test` smoke for PagerDuty. Keep tokens, account IDs, service
+IDs, and routing keys in local shell config only.
 
-```bash
-set -a
-source /path/to/local/private/env
-set +a
-
-export ESHU_PAGERDUTY_LIVE=1
-export ESHU_PAGERDUTY_INCIDENT_LOOKBACK="${ESHU_PAGERDUTY_INCIDENT_LOOKBACK:-24h}"
-export ESHU_PAGERDUTY_INCIDENT_LIMIT="${ESHU_PAGERDUTY_INCIDENT_LIMIT:-1}"
-export ESHU_PAGERDUTY_LOG_ENTRY_LIMIT="${ESHU_PAGERDUTY_LOG_ENTRY_LIMIT:-1}"
-export ESHU_PAGERDUTY_CHANGE_EVENT_LIMIT="${ESHU_PAGERDUTY_CHANGE_EVENT_LIMIT:-1}"
-export ESHU_PAGERDUTY_CONFIG_VALIDATION_ENABLED="${ESHU_PAGERDUTY_CONFIG_VALIDATION_ENABLED:-true}"
-export ESHU_PAGERDUTY_CONFIG_RESOURCE_LIMIT="${ESHU_PAGERDUTY_CONFIG_RESOURCE_LIMIT:-2}"
-
-cd go
-go test ./internal/collector/pagerduty \
-  -run TestLivePagerDutyIncidentOrConfigEvidence -count=1 -v
-```
-
-Use `ESHU_PAGERDUTY_ALLOWED_SERVICE_IDS` as a comma-separated allowlist when
-you need the live config proof to target a known service. Optional
-`ESHU_PAGERDUTY_SCOPE_ID`, `ESHU_PAGERDUTY_ACCOUNT_ID`,
-`ESHU_PAGERDUTY_SOURCE_URI`, and `ESHU_PAGERDUTY_API_BASE_URL` override the
-default synthetic scope and API endpoint. The smoke fails if no facts are
-visible or if the token appears in emitted envelopes.
+Run live PagerDuty proof through the satellite release image with the same
+target shape (account, credentials passed by `token_env` name reference,
+bounded incident/log/change limits, incident lookback, optional service
+allowlist, bounded config validation). The satellite's own CI and the QA
+activation cutover record (eshu-hq/eshu#8863) carry the bounded-window fetch,
+`incident.*`/`change.*` emission, and no-credential-material proof. There is
+no remaining in-tree `go test` smoke for PagerDuty.
 
 ## Grafana-Stack Observability
 

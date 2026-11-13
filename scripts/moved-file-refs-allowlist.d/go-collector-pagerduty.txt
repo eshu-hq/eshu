@@ -1,0 +1,20 @@
+# #10619 in-tree pagerduty deletion: dated records that name the
+# deleted tree as it stood when each note was written. Repointing would
+# falsify the record. The satellite eshu-hq/eshu-collector-pagerduty is the
+# only collector for this family; there is no in-tree successor path for
+# these citations.
+
+# The 4786 contract-integration matrix cells name the pagerduty observer
+# envelopes at their pre-extraction in-tree paths as the helper-map for the
+# incident rows -- the pre-extraction contract record.
+docs/internal/design/4786-contract-integration-matrix.md:go/internal/collector/pagerduty/config_envelope.go
+docs/internal/design/4786-contract-integration-matrix.md:go/internal/collector/pagerduty/envelope.go
+
+# REMOVAL_PREP.md is a dated importer census for #8875 (Verified at
+# 8ec6d11ddf, re-verified at 5e427b908d and 15caae83c5): it inventories the
+# tree as it stood at those SHAs, including the pagerduty importers this
+# deletion removes. Updating the census is a recount, not a repoint.
+go/cmd/workflow-coordinator/REMOVAL_PREP.md:go/cmd/collector-pagerduty/config.go
+go/cmd/workflow-coordinator/REMOVAL_PREP.md:go/cmd/collector-pagerduty/service.go
+go/cmd/workflow-coordinator/REMOVAL_PREP.md:go/cmd/collector-pagerduty/source_config.go
+go/cmd/workflow-coordinator/REMOVAL_PREP.md:go/internal/collector/pagerduty/source.go

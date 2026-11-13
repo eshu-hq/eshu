@@ -61,8 +61,7 @@ The script installs:
   `eshu-reducer`, `eshu-projector`
 - collector and control-plane binaries: `eshu-workflow-coordinator`,
   `eshu-collector-git`, `eshu-collector-package-registry`,
-  `eshu-collector-pagerduty`,
-  `eshu-webhook-intake` (provider edge ships with the satellite `eshu-hq/eshu-webhook`; SBOM attestation ships with the satellite `eshu-hq/eshu-collector-sbom-attestation`)
+  `eshu-webhook-intake` (provider edge ships with the satellite `eshu-hq/eshu-webhook`; SBOM attestation ships with the satellite `eshu-hq/eshu-collector-sbom-attestation`; PagerDuty ships with the satellite `eshu-hq/eshu-collector-pagerduty`)
 - operator helpers: `eshu-bootstrap-data-plane`, `eshu-admin-status`
 
 Set `ESHU_VERSION=<version>` before running the script when you want the

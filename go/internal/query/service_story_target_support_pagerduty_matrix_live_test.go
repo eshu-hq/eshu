@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/pagerduty"
 	"github.com/eshu-hq/eshu/go/internal/collector/terraformstate"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	factsincident "github.com/eshu-hq/eshu/go/internal/facts/incident"
@@ -219,14 +218,27 @@ func seedPagerDutyRoutingMatrix(ctx context.Context, t *testing.T, db *sql.DB) p
 	}
 	seedMatrixFact(ctx, t, db, "f-link-r", "s-jira", "g-jira", linkR, at.Add(-90*time.Minute), false)
 
-	// PagerDuty observed services, built by the collector writer.
+	// PagerDuty observed services, carrying the durable keys the extracted
+	// satellite's envelope writer emits for a bare service (no optional
+	// config fields). The read joins provider_object_id/service_id, and the
+	// fact-kind schema requires the contract base keys.
 	observed := func(factID, serviceID, generation string, observedAt time.Time, tombstone bool) {
 		t.Helper()
-		env, err := pagerduty.NewObservedPagerDutyServiceEnvelope(pagerduty.EnvelopeContext{
-			ScopeID: "s-pd", GenerationID: generation, CollectorInstanceID: "pd-test", ObservedAt: observedAt,
-		}, pagerduty.ConfigService{ID: serviceID, Summary: "service " + serviceID})
-		if err != nil {
-			t.Fatalf("NewObservedPagerDutyServiceEnvelope(%s) error = %v", serviceID, err)
+		env := facts.Envelope{
+			FactKind: factsincident.IncidentRoutingObservedPagerDutyServiceFactKind,
+			Payload: map[string]any{
+				"collector_instance_id": "pd-test",
+				"provider":              "pagerduty",
+				"source_class":          "observed",
+				"source_kind":           "pagerduty_api",
+				"outcome":               "observed",
+				"resource_class":        "service",
+				"provider_object_id":    serviceID,
+				"service_id":            serviceID,
+				"scope_id":              "s-pd",
+				"declared_match_state":  "not_compared",
+				"redaction_state":       "applied",
+			},
 		}
 		seedMatrixFact(ctx, t, db, factID, "s-pd", generation, env, observedAt, tombstone)
 	}

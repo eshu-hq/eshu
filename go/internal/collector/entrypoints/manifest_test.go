@@ -62,6 +62,28 @@ collectors:
 	}
 }
 
+func TestLoadManifestFileAcceptsEmptyCollectors(t *testing.T) {
+	t.Parallel()
+
+	// #10619: the last generated collector was removed after its satellite
+	// cutover, so the checked-in manifest declares zero collectors.
+	path := filepath.Join(t.TempDir(), "collector_entrypoints.yaml")
+	if err := os.WriteFile(path, []byte(`
+schema_version: 1
+collectors: []
+`), 0o644); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+
+	manifests, err := LoadManifestFile(path)
+	if err != nil {
+		t.Fatalf("LoadManifestFile() error = %v, want nil", err)
+	}
+	if len(manifests) != 0 {
+		t.Fatalf("len(manifests) = %d, want 0", len(manifests))
+	}
+}
+
 func TestLoadManifestFileRejectsDuplicateCommandDir(t *testing.T) {
 	t.Parallel()
 

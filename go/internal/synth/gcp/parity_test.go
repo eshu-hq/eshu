@@ -16,7 +16,8 @@ import (
 // cassette's shape (issue #4581 acceptance criterion: "a maintainer-run
 // parity check comparing synthetic vs recorded shape for GCP"), following
 // the operator-gated live-smoke precedent (e.g.
-// go/internal/collector/pagerduty/live_test.go's ESHU_PAGERDUTY_LIVE gate):
+// go/internal/collector/observability/grafana/live_test.go's
+// ESHU_GRAFANA_LIVE gate):
 // it is SKIPPED by default and in CI, and only runs when a maintainer sets
 // ESHU_SYNTH_GCP_PARITY=1 locally.
 //

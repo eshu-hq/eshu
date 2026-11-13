@@ -17,9 +17,8 @@ kinds:
     - incident.record
 producers:
     - id: collector-pagerduty
-      repository: eshu-hq/eshu
-      path: go/internal/collector/pagerduty
-      planned_repository: eshu-hq/eshu-collector-pagerduty
+      repository: eshu-hq/eshu-collector-pagerduty
+      path: .
       authority_mode: core_issued_grant
       kinds:
         - change.record

@@ -185,16 +185,22 @@ surfaces:
       truth_profile: provider_gated
   - category: collector
     name: pagerduty
-    readiness: implemented
-    owner: internal/collector/pagerduty
+    readiness: partial
+    owner: eshu-hq/eshu-collector-pagerduty
     proof: reference/collector-reducer-readiness.md#promotion-proof
     docs: [reference/collector-reducer-readiness.md, reference/pagerduty-evidence.md]
+    notes: >-
+      Extracted to the eshu-collector-pagerduty satellite
+      (eshu-hq/eshu-collector-pagerduty): the in-tree command, source package,
+      and image build are gone, so the implemented lane (built in-tree,
+      charted, replay-proven) is unmet. Fact kinds, reducer projection, and
+      read surfaces stay core-owned and covered.
     collector_contract:
       fact_kinds: [change.record, incident.lifecycle_event, incident.record, incident_routing.applied_alert_route, incident_routing.applied_pagerduty_resource, incident_routing.coverage_warning, incident_routing.observed_pagerduty_integration, incident_routing.observed_pagerduty_service]
       projection_surfaces: [incident_context_read_model, incident_routing_materialization]
       read_surfaces: ["GET /api/v0/incidents/{incident_id}/context", get_incident_context]
-      proof_gates: [cd go && go test ./cmd/collector-pagerduty ./internal/collector/pagerduty ./internal/reducer ./internal/query ./internal/mcp -count=1]
-      fixture_refs: [go/internal/collector/pagerduty/testdata, docs/public/reference/pagerduty-evidence.md]
+      proof_gates: [cd go && go test ./internal/reducer ./internal/query ./internal/mcp -count=1, scripts/verify-fact-kind-registry.sh]
+      fixture_refs: [testdata/cassettes/pagerduty, docs/public/reference/pagerduty-evidence.md]
       truth_profile: provider_gated
   - category: collector
     name: jira

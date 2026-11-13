@@ -73,6 +73,6 @@ var IncidentContextFamilyDeclaration = contract.Declare(contract.Family{
 		{Kind: "incident.record", PayloadSchema: "sdk/go/factschema/schema/incident.record.v1.schema.json"},
 	},
 	Producers: []contract.Producer{
-		{ID: "collector-pagerduty", Repository: "eshu-hq/eshu", Path: "go/internal/collector/pagerduty", PlannedRepository: "eshu-hq/eshu-collector-pagerduty", AuthorityMode: "core_issued_grant", Kinds: []string{"change.record", "incident.lifecycle_event", "incident.record"}},
+		{ID: "collector-pagerduty", Repository: "eshu-hq/eshu-collector-pagerduty", Path: ".", PlannedRepository: "", AuthorityMode: "core_issued_grant", Kinds: []string{"change.record", "incident.lifecycle_event", "incident.record"}},
 	},
 })

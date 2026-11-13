@@ -115,22 +115,9 @@ func TestContractEncodeAdoptionRatchet(t *testing.T) {
 			path:  "securityalerts/envelope.go",
 			calls: []string{"EncodeSecurityAlertRepositoryAlert"},
 		},
-		{
-			path: "pagerduty/envelope.go",
-			calls: []string{
-				"EncodeChangeRecord",
-				"EncodeIncidentLifecycleEvent",
-				"EncodeIncidentRecord",
-			},
-		},
-		{
-			path: "pagerduty/config_envelope.go",
-			calls: []string{
-				"EncodeIncidentRoutingCoverageWarning",
-				"EncodeIncidentRoutingObservedPagerDutyIntegration",
-				"EncodeIncidentRoutingObservedPagerDutyService",
-			},
-		},
+		// The PagerDuty emitter moved to the extracted satellite
+		// (eshu-hq/eshu-collector-pagerduty, cutover #8863), which owns its
+		// encoder adoption; no pagerduty adoption target remains in-tree.
 		{
 			path: "terraformstate/pagerduty_applied.go",
 			calls: []string{

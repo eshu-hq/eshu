@@ -117,28 +117,30 @@ func TestSBOMAttestationCollectorRunsFromSatelliteNotInTreeBinaries(t *testing.T
 	}
 }
 
-func TestPagerDutyCollectorBinaryIsBuiltInstalledAndDocumented(t *testing.T) {
+func TestPagerDutyCollectorIsSatelliteOwned(t *testing.T) {
 	t.Parallel()
 
-	for file, want := range map[string]string{
-		"Dockerfile":                        "-o /go-bin/eshu-collector-pagerduty ./cmd/collector-pagerduty",
-		"scripts/install-local-binaries.sh": "go build -trimpath -ldflags=\"$LDFLAGS\" -o \"$INSTALL_DIR/eshu-collector-pagerduty\" ./cmd/collector-pagerduty",
-		"go/cmd/README.md":                  "`eshu-collector-pagerduty`",
-		"docs/public/deployment/service-runtimes-collectors.md": "https://github.com/eshu-hq/eshu-deploy/blob/main/helm/eshu/templates/deployment-pagerduty-collector.yaml",
-		"docs/public/reference/environment-collectors.md":       "ESHU_PAGERDUTY_COLLECTOR_INSTANCE_ID",
+	// #10619: the in-tree command, source package, and image build are gone
+	// after the satellite cutover (#8863). Nothing in-tree may build, name,
+	// or document the monolith binary. The deploy-chart half of the old
+	// assertion is dropped with it: the overlay still charts the live
+	// component-extension activation, and disabling any stale in-tree chart
+	// surface is overlay work tracked from #10619, not an in-tree pin.
+	for _, binary := range []string{
+		"eshu-collector-pagerduty",
 	} {
-		content := readRepositoryFile(t, "../../..", file)
-		if !strings.Contains(content, want) {
-			t.Fatalf("%s missing %q", file, want)
+		for _, file := range []string{"Dockerfile", "scripts/install-local-binaries.sh", "go/cmd/README.md"} {
+			content := readRepositoryFile(t, "../../..", file)
+			if strings.Contains(content, binary) {
+				t.Fatalf("%s still references in-tree %q, want satellite-only execution", file, binary)
+			}
 		}
 	}
-	for file, want := range map[string]string{
-		"helm/eshu/templates/deployment-pagerduty-collector.yaml": "/usr/local/bin/eshu-collector-pagerduty",
-	} {
-		content := readRepositoryFile(t, deployCheckoutRoot(t), file)
-		if !strings.Contains(content, want) {
-			t.Fatalf("%s missing %q", file, want)
-		}
+	// The service-runtimes lockstep entry stays read: the runtime table
+	// still carries PagerDuty as a satellite runtime.
+	runtimes := readRepositoryFile(t, "../../..", "docs/public/deployment/service-runtimes-collectors.md")
+	if !strings.Contains(runtimes, "PagerDuty Collector (satellite)") {
+		t.Fatal("service-runtimes-collectors.md lost the PagerDuty Collector (satellite) row")
 	}
 }
 

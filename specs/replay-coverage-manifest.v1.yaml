@@ -62,7 +62,6 @@ coverage:
   - {surface: "collector:tempo", scenario: cassette, scenario_type: baseline, ref: "testdata/cassettes/tempo/supply-chain-demo.json", proof_gate: golden-corpus-gate-neo4j}
   - {surface: "collector:grafana", scenario: cassette, scenario_type: baseline, ref: "testdata/cassettes/grafana/supply-chain-demo.json", proof_gate: golden-corpus-gate-neo4j}
   - {surface: "collector:security_alert", scenario: cassette, scenario_type: baseline, ref: "testdata/cassettes/securityalerts/supply-chain-demo.json", proof_gate: golden-corpus-gate-neo4j}
-  - {surface: "collector:pagerduty", scenario: cassette, scenario_type: baseline, ref: "testdata/cassettes/pagerduty/supply-chain-demo.json", proof_gate: golden-corpus-gate-neo4j}
   - {surface: "collector:sbom_attestation", scenario: cassette, scenario_type: baseline, ref: "testdata/cassettes/sbomattestation/supply-chain-demo.json", proof_gate: golden-corpus-gate-neo4j}
   - {surface: "collector:vulnerability_intelligence", scenario: cassette, scenario_type: baseline, ref: "testdata/cassettes/vulnerabilityintelligence/supply-chain-demo.json", proof_gate: golden-corpus-gate-neo4j}
 
@@ -414,7 +413,6 @@ coverage:
   # binding.
   - {surface: collector:grafana, scenario: go_test, scenario_type: fault, ref: go/internal/replay/inputtape/fault_collectors_test.go, proof_gate: go-test-race}
   - {surface: collector:prometheus_mimir, scenario: go_test, scenario_type: fault, ref: go/internal/replay/inputtape/fault_collectors_test.go, proof_gate: go-test-race}
-  - {surface: collector:pagerduty, scenario: go_test, scenario_type: fault, ref: go/internal/replay/inputtape/fault_collectors_test.go, proof_gate: go-test-race}
   - {surface: collector:security_alert, scenario: go_test, scenario_type: fault, ref: go/internal/replay/inputtape/fault_collectors_test.go, proof_gate: go-test-race}
   - {surface: collector:oci_registry, scenario: go_test, scenario_type: fault, ref: go/internal/replay/inputtape/fault_collectors_test.go, proof_gate: go-test-race}
   - {surface: collector:package_registry, scenario: go_test, scenario_type: fault, ref: go/internal/replay/inputtape/fault_collectors_test.go, proof_gate: go-test-race}

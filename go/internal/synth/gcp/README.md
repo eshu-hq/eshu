@@ -165,7 +165,8 @@ ESHU_SYNTH_GCP_PARITY=1 go test ./internal/synth/gcp/... -run TestParitySyntheti
 ```
 
 This follows the same operator-gated live-smoke precedent as
-`go/internal/collector/pagerduty/live_test.go`'s `ESHU_PAGERDUTY_LIVE` gate —
+`go/internal/collector/observability/grafana/live_test.go`'s
+`ESHU_GRAFANA_LIVE` gate —
 credential-free here (no live GCP account is needed; only the maintainer's
 local checkout), but deliberately excluded from the default and CI test runs
 because it asserts against a hand-curated, versioned inventory

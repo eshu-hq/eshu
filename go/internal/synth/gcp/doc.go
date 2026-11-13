@@ -41,7 +41,7 @@
 // fact-kind and asset-type shape against the recorded GCP cassette
 // (testdata/cassettes/gcpcloud/supply-chain-demo.json). It is skipped by
 // default and in CI, following the same env-var-gated live-smoke precedent as
-// go/internal/collector/pagerduty/live_test.go.
+// go/internal/collector/observability/grafana/live_test.go.
 //
 // DefaultDemoOrgProfile formalizes the demo/conformance corpus identity scheme
 // already used by scripts/verify-golden-corpus-gate.sh: ESHU_GITHUB_ORG=acme

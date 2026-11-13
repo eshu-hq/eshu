@@ -140,12 +140,15 @@ func TestRunRejectsBadManifest(t *testing.T) {
 }
 
 func TestRunRejectsUnknownProofGate(t *testing.T) {
+	// The seeded surface must stay supported: an unsupported surface goes
+	// stale before proof-gate validation and never reaches unresolved
+	// (#10619 flipped collector:pagerduty to partial, so this uses grafana).
 	manifestBody := `version: "v1"
 coverage:
-  - surface: collector:pagerduty
+  - surface: collector:grafana
     scenario: cassette
     scenario_type: baseline
-    ref: testdata/cassettes/pagerduty/supply-chain-demo.json
+    ref: testdata/cassettes/grafana/supply-chain-demo.json
     proof_gate: stale-proof-gate
 `
 	specsDir, snapshot, manifest, reportOut := testEnv(t, manifestBody)

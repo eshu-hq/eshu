@@ -109,7 +109,6 @@ var allowedUnresolvedReads = map[string]string{
 	"go/internal/collector/gcpcloud/parse_test.go|assets_list_page2.json":                                                                 "testdata fixture via readFixture (code)",
 	"go/internal/collector/gcpcloud/parse_test.go|assets_list_relationship.json":                                                          "testdata fixture via readFixture (code)",
 	"go/internal/collector/gcpcloud/parse_test.go|search_all_resources.json":                                                              "testdata fixture via readFixture (code)",
-	"go/internal/collector/pagerduty/reference_component_test.go|complete-result.json":                                                    "examples plus testdata fixture via readReferenceFixtureResult (code)",
 	"go/internal/collector/scannercomponent/satellite_seed_test.go|manifestPath":                                                          "sibling manifest.yaml joined under a globbed seed.go directory in go/cmd (code, not docs-set)",
 	"go/internal/collector/repo/git/hardcoded_secret_golden_test.go|fixturePath":                                                          "tests/fixtures golden tree (code)",
 	"go/internal/collector/repo/git/observability_applied_facts_test.go|relativePath":                                                     "tmpdir fixture written then read back (write-then-read)",

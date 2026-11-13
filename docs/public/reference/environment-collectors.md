@@ -193,16 +193,23 @@ For SBOM, security-alert, and CI/CD run settings, see [Supply-chain Collector En
 
 ## PagerDuty Collector
 
-The PagerDuty collector is claim-only. It selects an enabled `pagerduty`
-instance from `ESHU_COLLECTOR_INSTANCES_JSON`. Provider targets must include
-`provider`, `scope_id`, `account_id`, and `token_env`. The runtime resolves the
-credential from the named environment variable and emits incident/change
+PagerDuty now collects from its extracted satellite
+(eshu-hq/eshu-collector-pagerduty); the target shape below is unchanged, but
+the `ESHU_PAGERDUTY_*` process variables are satellite-side operator inputs,
+not in-tree registry entries, so `eshu config validate` does not cover them.
+The satellite resolves credentials through its activation config
+(`token_env` name references; see the satellite repo's
+`config.example.yaml`).
+
+The PagerDuty collector is claim-only. Provider targets must include
+`provider`, `scope_id`, `account_id`, and `token_env`. The satellite resolves
+the credential from the named environment variable and emits incident/change
 source facts. When `config_validation_enabled` is true on a target, it also
 emits optional live PagerDuty service and service-integration incident-routing
 source facts plus coverage warnings.
-Optional `api_base_url` overrides must use HTTPS because the runtime sends the
-PagerDuty token to that endpoint. Optional target fields bound collection with
-`incident_lookback`, `incident_limit`, `log_entry_limit`,
+Optional `api_base_url` overrides must use HTTPS because the satellite sends
+the PagerDuty token to that endpoint. Optional target fields bound collection
+with `incident_lookback`, `incident_limit`, `log_entry_limit`,
 `change_event_limit`, `allowed_service_ids`, `config_validation_enabled`,
 `config_resource_limit`, `pagination_max_pages`, and
 `pagination_max_records`.
@@ -219,14 +226,6 @@ that hits either bound while the provider still reports `more:true` sets
 resource that was cut short; pagination that exhausts `more` naturally never
 sets `Truncated` and never emits that warning, even though it now observes
 more incidents/services/integrations than a single-page read would have.
-
-| Variable | Default | Read by | Purpose |
-| --- | --- | --- | --- |
-| `ESHU_PAGERDUTY_COLLECTOR_INSTANCE_ID` | required when more than one enabled PagerDuty instance exists | collector-pagerduty | Selects the claim-capable `pagerduty` instance. |
-| `ESHU_PAGERDUTY_POLL_INTERVAL` | `1s` | collector-pagerduty | Delay between empty workflow-claim polls. |
-| `ESHU_PAGERDUTY_CLAIM_LEASE_TTL` | `60s` | collector-pagerduty | Lease TTL used when claiming and refreshing work. |
-| `ESHU_PAGERDUTY_HEARTBEAT_INTERVAL` | `20s` | collector-pagerduty | Heartbeat interval for active workflow claims. Must be less than the claim lease TTL. |
-| `ESHU_PAGERDUTY_COLLECTOR_OWNER_ID` | host/process-derived | collector-pagerduty | Owner label written into workflow claim rows. |
 
 PagerDuty tokens must come from private environment variables referenced by
 `token_env`; do not commit token values, incident titles, service names,

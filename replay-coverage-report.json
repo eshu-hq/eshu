@@ -2,8 +2,8 @@
   "schema_version": "replay-coverage-report.v5",
   "blocking": true,
   "totals": {
-    "total": 457,
-    "covered": 447,
+    "total": 455,
+    "covered": 445,
     "uncovered": 0,
     "unresolved": 0,
     "exempt": 10,
@@ -113,8 +113,8 @@
     },
     {
       "registry": "surface_inventory",
-      "total": 22,
-      "covered": 15,
+      "total": 20,
+      "covered": 13,
       "uncovered": 0,
       "unresolved": 0,
       "exempt": 7,
@@ -125,8 +125,8 @@
   "scenario_type_summaries": [
     {
       "scenario_type": "baseline",
-      "total": 241,
-      "covered": 238,
+      "total": 240,
+      "covered": 237,
       "uncovered": 0,
       "unresolved": 0,
       "exempt": 3,
@@ -165,8 +165,8 @@
     },
     {
       "scenario_type": "fault",
-      "total": 11,
-      "covered": 6,
+      "total": 10,
+      "covered": 5,
       "uncovered": 0,
       "unresolved": 0,
       "exempt": 5,
@@ -4593,26 +4593,6 @@
     {
       "registry": "surface_inventory",
       "key": "collector:package_registry",
-      "scenario_type": "fault",
-      "status": "covered",
-      "scenario": "go_test",
-      "ref": "go/internal/replay/inputtape/fault_collectors_test.go",
-      "proof_gate": "go-test-race",
-      "detail": "artifact present: go/internal/replay/inputtape/fault_collectors_test.go"
-    },
-    {
-      "registry": "surface_inventory",
-      "key": "collector:pagerduty",
-      "scenario_type": "baseline",
-      "status": "covered",
-      "scenario": "cassette",
-      "ref": "testdata/cassettes/pagerduty/supply-chain-demo.json",
-      "proof_gate": "golden-corpus-gate-neo4j",
-      "detail": "artifact present: testdata/cassettes/pagerduty/supply-chain-demo.json"
-    },
-    {
-      "registry": "surface_inventory",
-      "key": "collector:pagerduty",
       "scenario_type": "fault",
       "status": "covered",
       "scenario": "go_test",

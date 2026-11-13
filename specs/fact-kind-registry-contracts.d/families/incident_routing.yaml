@@ -19,9 +19,8 @@ kinds:
     - incident_routing.observed_pagerduty_service
 producers:
     - id: collector-pagerduty
-      repository: eshu-hq/eshu
-      path: go/internal/collector/pagerduty
-      planned_repository: eshu-hq/eshu-collector-pagerduty
+      repository: eshu-hq/eshu-collector-pagerduty
+      path: .
       authority_mode: core_issued_grant
       kinds:
         - incident_routing.coverage_warning
