@@ -102,7 +102,9 @@ func RepoStoryHandleListFamilies() []string {
 		"delivery_paths",
 		"delivery_workflows",
 		"target_documentation.findings",
+		"documentation_overview.target_documentation.related_facts",
 		"target_support.evidence",
+		"support_overview.target_support.ambiguous_evidence",
 		"framework_summary.frameworks",
 	}
 }
@@ -127,7 +129,9 @@ func RepoStoryHandleListFamilies() []string {
 // documentation path lists ship untouched.
 //
 // It returns one truth omission per reduced list with the rows it held, and
-// sets evidence_detail_drilldown to say how to fetch the full rows. Rows are
+// sets evidence_detail_drilldown to say how to fetch the full rows, naming
+// the artifact tool and key only when a reduced family carries resolved_id.
+// Rows are
 // projected into new maps, so a map shared with a read model — including the
 // relationship overview the builder attaches in two places — is never
 // mutated. Call ValidateContextEvidenceDetail first.
@@ -140,30 +144,44 @@ func ApplyRepoStoryEvidenceDetail(data map[string]any, detail string) []TruthOmi
 		return nil
 	}
 	var omissions []TruthOmission
-	omissions = append(omissions, projectRepoStoryRelationships(data)...)
+	// resolvedHint tracks whether a reduced family carries resolved_id rows
+	// (relationships, deployment evidence): only then does the drilldown name
+	// the artifact tool and key. Every other reduced family keeps the
+	// full-rows repeat as its stated path.
+	resolvedHint := false
+	reduce := func(projected []TruthOmission, carriesResolvedID bool) {
+		if carriesResolvedID && len(projected) > 0 {
+			resolvedHint = true
+		}
+		omissions = append(omissions, projected...)
+	}
+	reduce(projectRepoStoryRelationships(data), true)
 	if infra := MapValue(data, "infrastructure_overview"); len(infra) > 0 {
-		omissions = append(omissions, projectRepoStoryRelationshipsIn(infra, "infrastructure_overview")...)
-		omissions = append(omissions, projectRepoStoryDeploymentEvidence(infra, "infrastructure_overview")...)
-		omissions = append(omissions, projectRepoStoryContentArtifacts(infra, "infrastructure_overview")...)
+		reduce(projectRepoStoryRelationshipsIn(infra, "infrastructure_overview"), true)
+		reduce(projectRepoStoryDeploymentEvidence(infra, "infrastructure_overview"), true)
+		reduce(projectRepoStoryContentArtifacts(infra, "infrastructure_overview"), false)
 	}
 	if overview := MapValue(data, "deployment_overview"); len(overview) > 0 {
-		omissions = append(omissions, projectRepoStoryContentArtifacts(overview, "deployment_overview")...)
-		omissions = append(omissions, projectRepoStoryDeliveryLists(overview)...)
+		reduce(projectRepoStoryContentArtifacts(overview, "deployment_overview"), false)
+		reduce(projectRepoStoryDeliveryLists(overview), false)
 	}
-	omissions = append(omissions, projectRepoStoryTargetDocumentation(data)...)
-	omissions = append(omissions, projectRepoStoryTargetSupport(data)...)
-	omissions = append(omissions, projectRepoStoryFrameworks(data)...)
+	reduce(projectRepoStoryTargetDocumentation(data), false)
+	reduce(projectRepoStoryTargetSupport(data), false)
+	reduce(projectRepoStoryFrameworks(data), false)
 	if len(omissions) == 0 {
 		return nil
 	}
-	data["evidence_detail_drilldown"] = map[string]any{
+	drilldown := map[string]any{
 		"full_rows": fmt.Sprintf(
 			"repeat the call with evidence_detail full for every field of every row; " +
 				"under handles each list keeps its length and drops per-row detail; " +
 				"narrow first via the repository context, stats, and coverage paths in drilldowns"),
-		"artifact_tool": "get_relationship_evidence",
-		"artifact_key":  "resolved_id",
 	}
+	if resolvedHint {
+		drilldown["artifact_tool"] = "get_relationship_evidence"
+		drilldown["artifact_key"] = "resolved_id"
+	}
+	data["evidence_detail_drilldown"] = drilldown
 	return omissions
 }
 

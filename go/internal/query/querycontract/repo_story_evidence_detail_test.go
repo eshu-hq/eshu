@@ -372,6 +372,45 @@ func TestApplyRepoStoryEvidenceDetailTolerantOfSparseAndDegraded(t *testing.T) {
 	}
 }
 
+// TestApplyRepoStoryEvidenceDetailDrilldownOmitsArtifactHintWithoutResolvedIDRows
+// proves the machine-actionable artifact hint ships only when a reduced family
+// carries resolved_id (relationships, deployment evidence, #10605). A
+// findings-only cut keeps the full-rows repeat as the stated path instead of
+// an artifact_key no reduced row carries.
+func TestApplyRepoStoryEvidenceDetailDrilldownOmitsArtifactHintWithoutResolvedIDRows(t *testing.T) {
+	t.Parallel()
+
+	body := map[string]any{
+		"repository": map[string]any{"id": "repo-edge"},
+		"documentation_overview": map[string]any{
+			"target_documentation": map[string]any{
+				"findings": []map[string]any{{
+					"finding_id": "finding:runbook", "finding_type": "runbook",
+					"source_id": "source:docs", "document_id": "doc:runbook",
+					"title":           "Runbook",
+					"linked_entities": []any{map[string]any{"entity_type": "repository"}},
+					"evidence":        map[string]any{"body": "a long body that must not ship under handles"},
+				}},
+				"finding_count": 1,
+			},
+		},
+	}
+	omissions := ApplyRepoStoryEvidenceDetail(body, ContextEvidenceDetailHandles)
+	if len(omissions) == 0 {
+		t.Fatal("omissions empty, want the findings cut recorded")
+	}
+	drilldown := MapValue(body, "evidence_detail_drilldown")
+	if StringVal(drilldown, "full_rows") == "" {
+		t.Fatalf("evidence_detail_drilldown = %#v, want the full-rows repeat path", drilldown)
+	}
+	if _, has := drilldown["artifact_tool"]; has {
+		t.Fatalf("evidence_detail_drilldown = %#v, want no artifact_tool without resolved_id rows", drilldown)
+	}
+	if _, has := drilldown["artifact_key"]; has {
+		t.Fatalf("evidence_detail_drilldown = %#v, want no artifact_key without resolved_id rows", drilldown)
+	}
+}
+
 // TestApplyRepoStoryEvidenceDetailNeverMutatesSharedRows proves the shaper
 // builds new maps: bodies assembled from shared read-model rows, including
 // the relationship overview shared between the top level and the

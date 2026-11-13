@@ -284,7 +284,7 @@ func repositoryImpactTools() []toolcontract.ToolDefinition {
 					"evidence_detail": map[string]any{
 						"type":        "string",
 						"enum":        []string{"full", "handles"},
-						"description": "How story row lists are shaped. handles (the default for this tool) projects relationship_overview.relationships, deployment_evidence.artifacts, deployment_artifacts, delivery_paths, delivery_workflows, target_documentation.findings, target_support.evidence, and framework_summary.frameworks to identity rows, drops the repeated relationship partition lists and the evidence_index regrouping with a pointer, keeps every count, narrative, limitation, and drilldown, and names each reduced family with its total in truth.omissions; repeat the call with full for every field of every row. full returns every row in full and can exceed the response budget on a populated repository.",
+						"description": "How story row lists are shaped. handles (the default for this tool) projects relationship_overview.relationships, deployment_evidence.artifacts, deployment_artifacts, delivery_paths, delivery_workflows, target_documentation.findings, documentation_overview.target_documentation.related_facts, target_support.evidence, support_overview.target_support.ambiguous_evidence, and framework_summary.frameworks to identity rows, drops the repeated relationship partition lists and the evidence_index regrouping with a pointer, keeps every count, narrative, limitation, and drilldown, and names each reduced family with its total in truth.omissions; repeat the call with full for every field of every row. full returns every row in full and can exceed the response budget on a populated repository.",
 					},
 					"repo_id": map[string]any{
 						"type":        "string",

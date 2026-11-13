@@ -50,10 +50,10 @@ func TestToolsPreserveEcosystemRegistrationContract(t *testing.T) {
 	}
 
 	encoded := marshalEcosystemDefinitions(t, tools)
-	if got, want := len(encoded), 23135; got != want {
+	if got, want := len(encoded), 23246; got != want {
 		t.Fatalf("serialized ecosystem definitions length = %d, want %d", got, want)
 	}
-	const wantDefinitionsHash = "efcad725f42912967e940153ef623012b6925a363932a05e4432e0b62d3bb59b"
+	const wantDefinitionsHash = "f55511d556187f54a46f45efd7a8df762451edd908f4503252a57f39333e63d3"
 	if got := fmt.Sprintf("%x", sha256.Sum256(encoded)); got != wantDefinitionsHash {
 		t.Fatalf("ecosystem definitions hash = %s, want %s", got, wantDefinitionsHash)
 	}
@@ -200,7 +200,8 @@ func marshalEcosystemDefinition(t *testing.T, tool toolcontract.ToolDefinition) 
 // TestRepoStoryEvidenceDetailDescriptionNamesFamilies proves the get_repo_story
 // evidence_detail description names every row family handles projects (#10605).
 // Ranging over querycontract.RepoStoryHandleListFamilies means a family added
-// to the shaper cannot ship undescribed on the MCP surface.
+// to the list cannot ship undescribed on the MCP surface; keep the list in
+// step with the families the shaper projects.
 func TestRepoStoryEvidenceDetailDescriptionNamesFamilies(t *testing.T) {
 	t.Parallel()
 

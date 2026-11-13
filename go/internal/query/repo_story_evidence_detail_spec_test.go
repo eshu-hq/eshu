@@ -14,8 +14,8 @@ import (
 // evidence_detail contract (#10605): every row family
 // ApplyRepoStoryEvidenceDetail projects is named in the OpenAPI description,
 // the MCP default is handles, and unknown values are a 400. Ranging over
-// RepoStoryHandleListFamilies means a family added to the shaper cannot ship
-// undescribed.
+// RepoStoryHandleListFamilies means a family added to the list cannot ship
+// undescribed; keep the list in step with the families the shaper projects.
 func TestOpenAPIRepoStoryEvidenceDetailNamesFamilies(t *testing.T) {
 	t.Parallel()
 
