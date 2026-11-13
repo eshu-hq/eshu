@@ -44,8 +44,10 @@ type Searcher struct {
 
 // Search runs one budgeted search. limit is the page size and offset the
 // number of matches to skip; cursor, when non-zero, starts the walk strictly
-// after that key. pattern is the raw substring (ILIKE wildcards in it keep
-// their meaning, as in every other content search).
+// after that key. pattern is the raw substring: it is matched literally
+// (%, _, and \ are ordinary characters, #10604), while trigram
+// classification and telemetry keep reading this raw form and only the SQL
+// binds see the escaped literal.
 //
 // The whole search is one REPEATABLE READ READ ONLY transaction whose first
 // statement is the substring-index readiness check; a readiness failure is

@@ -149,10 +149,10 @@ const Content = `
                     "items": {"type": "string"},
                     "description": "Optional repository selector list. Explicit multi-repo search is executed as one bounded PostgreSQL query."
                   },
-                  "query": {"type": "string"},
+                  "query": {"type": "string", "description": "Case-insensitive substring to find in file content. Matched literally: %, _, and \\ are ordinary characters, not wildcards or regular expression syntax."},
                   "pattern": {
                     "type": "string",
-                    "description": "Alias for query used by MCP content-search tools."
+                    "description": "Alias for query used by MCP content-search tools. Case-insensitive substring to find in file content. Matched literally: %, _, and \\ are ordinary characters, not wildcards or regular expression syntax."
                   },
                   "limit": {"type": "integer", "default": 50, "maximum": 200},
                   "offset": {"type": "integer", "default": 0, "minimum": 0, "maximum": 10000},
@@ -242,10 +242,10 @@ const Content = `
                     "items": {"type": "string"},
                     "description": "Optional repository selector list. Explicit multi-repo search is executed as one bounded PostgreSQL query."
                   },
-                  "query": {"type": "string"},
+                  "query": {"type": "string", "description": "Case-insensitive substring to find in entity source snippets. Matched literally: %, _, and \\ are ordinary characters, not wildcards or regular expression syntax."},
                   "pattern": {
                     "type": "string",
-                    "description": "Alias for query used by MCP content-search tools."
+                    "description": "Alias for query used by MCP content-search tools. Case-insensitive substring to find in entity source snippets. Matched literally: %, _, and \\ are ordinary characters, not wildcards or regular expression syntax."
                   },
                   "limit": {"type": "integer", "default": 50, "maximum": 200},
                   "offset": {"type": "integer", "default": 0, "minimum": 0, "maximum": 10000},

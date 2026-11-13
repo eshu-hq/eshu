@@ -229,10 +229,12 @@ func pastLargeDocument(cursor querycontract.SearchCursor) bool {
 // largeDocOracleKeys is the independent ILIKE reference: a plain ordered
 // scan, not derived from the shipped statements, so the differential below
 // proves the shipped LIKE-on-lowercase recheck folds case exactly like ILIKE.
+// It binds the same pre-escaped literal (#10604) the walk binds, so the
+// wildcard tokens compare literal matching on both sides.
 func largeDocOracleKeys(t *testing.T, ctx context.Context, db *sql.DB, pattern string) []string {
 	t.Helper()
 	rows, err := db.QueryContext(ctx, `SELECT repo_id || '/' || relative_path FROM content_files
-		WHERE content ILIKE '%' || $1 || '%' ORDER BY repo_id, relative_path`, pattern)
+		WHERE content ILIKE '%' || $1 || '%' ORDER BY repo_id, relative_path`, querycontract.EscapeLikeLiteral(pattern))
 	if err != nil {
 		t.Fatalf("oracle: %v", err)
 	}
@@ -254,9 +256,10 @@ func largeDocOracleKeys(t *testing.T, ctx context.Context, db *sql.DB, pattern s
 // TestLargeDocumentLowercaseRecheckMatchesILIKEOracleLive is the #7975
 // criterion-2 differential: the shipped LIKE-on-lowercase statements return
 // exactly the ILIKE reference's rows over a token list that covers case
-// folding (upper, mixed), ILIKE wildcards (%, _), a single character, and a
-// non-ASCII zero-match token. Any case-folding difference between lower() and
-// ILIKE on this backend fails here instead of shipping silently.
+// folding (upper, mixed), literal wildcards (%, _ match literally since
+// #10604), a single character, and a non-ASCII zero-match token. Any
+// case-folding difference between lower() and ILIKE on this backend fails
+// here instead of shipping silently.
 func TestLargeDocumentLowercaseRecheckMatchesILIKEOracleLive(t *testing.T) {
 	ctx, db := openLargeDocumentFixture(t)
 

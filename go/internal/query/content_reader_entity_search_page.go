@@ -12,9 +12,15 @@ import (
 	"github.com/jackc/pgx/v5"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // searchEntityContentPage searches one repository's cached entity snippets.
+//
+// The pattern bind is pre-escaped to a LIKE literal (#10604): the shipped
+// predicate has no ESCAPE clause and Postgres reads backslash as its default
+// escape, so this bind is what keeps %, _, and \ literal.
 func (cr *ContentReader) searchEntityContentPage(
 	ctx context.Context,
 	repoID string,
@@ -22,10 +28,13 @@ func (cr *ContentReader) searchEntityContentPage(
 	limit int,
 	offset int,
 ) ([]EntityContent, error) {
-	return cr.searchEntityContentScoped(ctx, "search_entity_content_page", pattern, "repo_id = $1 AND source_cache ILIKE '%' || $2 || '%'", []any{repoID, pattern}, limit, offset, true)
+	return cr.searchEntityContentScoped(ctx, "search_entity_content_page", pattern, "repo_id = $1 AND source_cache ILIKE '%' || $2 || '%'", []any{repoID, querycontract.EscapeLikeLiteral(pattern)}, limit, offset, true)
 }
 
 // searchEntityContentInRepos searches cached snippets for an explicit repository set.
+//
+// The pattern bind is pre-escaped to a LIKE literal (#10604); see
+// searchEntityContentPage for why the default escape is load-bearing here.
 func (cr *ContentReader) searchEntityContentInRepos(
 	ctx context.Context,
 	repoIDs []string,
@@ -33,7 +42,7 @@ func (cr *ContentReader) searchEntityContentInRepos(
 	limit int,
 	offset int,
 ) ([]EntityContent, error) {
-	return cr.searchEntityContentScoped(ctx, "search_entity_content_in_repos", pattern, "repo_id = ANY(string_to_array($1, E'\\x1f')) AND source_cache ILIKE '%' || $2 || '%'", []any{strings.Join(repoIDs, "\x1f"), pattern}, limit, offset, false)
+	return cr.searchEntityContentScoped(ctx, "search_entity_content_in_repos", pattern, "repo_id = ANY(string_to_array($1, E'\\x1f')) AND source_cache ILIKE '%' || $2 || '%'", []any{strings.Join(repoIDs, "\x1f"), querycontract.EscapeLikeLiteral(pattern)}, limit, offset, false)
 }
 
 // searchEntityContentScoped executes a bounded entity-content query using a

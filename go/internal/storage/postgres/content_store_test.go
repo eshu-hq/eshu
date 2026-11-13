@@ -554,6 +554,23 @@ func TestBuildFileSearchQueryWithoutRepoFilter(t *testing.T) {
 	}
 }
 
+// TestBuildSearchQueriesEscapeLikeWildcards pins the #10604 (fix 05b) fallback
+// binds: the legacy builders pre-escape the caller's pattern exactly like the
+// primary search paths, so %, _, and \ match literally whichever store serves
+// the request.
+func TestBuildSearchQueriesEscapeLikeWildcards(t *testing.T) {
+	t.Parallel()
+
+	_, fileArgs := buildFileSearchQuery("100%_coverage\\src", "repo-1", 25)
+	if got, want := fileArgs[0], `%100\%\_coverage\\src%`; got != want {
+		t.Fatalf("file args[0] = %q, want escaped %q", got, want)
+	}
+	_, entityArgs := buildEntitySearchQuery("han_ler%", "repo-1", 30)
+	if got, want := entityArgs[0], `%han\_ler\%%`; got != want {
+		t.Fatalf("entity args[0] = %q, want escaped %q", got, want)
+	}
+}
+
 func TestBuildEntitySearchQueryWithRepoFilter(t *testing.T) {
 	t.Parallel()
 

@@ -306,20 +306,24 @@ func (w *walk[R, K]) settleFailure(ctx context.Context, err error, queryStart ti
 	return true, nil
 }
 
+// Both statements bind the pre-escaped LIKE literal (#10604); the default
+// backslash escape is load-bearing, w.pattern stays raw for classification.
 func (w *walk[R, K]) stepStatement(size int) (string, []any) {
 	asked := int64(w.want - len(w.matches))
+	bound := querycontract.EscapeLikeLiteral(w.pattern)
 	if w.cursor.IsZero() {
-		return w.shape.stepFirst, []any{execMode, w.pattern, int64(size), asked}
+		return w.shape.stepFirst, []any{execMode, bound, int64(size), asked}
 	}
-	return w.shape.stepAfter, append([]any{execMode, w.pattern, int64(size), asked}, w.shape.keyArgs(w.cursor)...)
+	return w.shape.stepAfter, append([]any{execMode, bound, int64(size), asked}, w.shape.keyArgs(w.cursor)...)
 }
 
 func (w *walk[R, K]) tailStatement() (string, []any) {
 	asked := int64(w.want - len(w.matches))
+	bound := querycontract.EscapeLikeLiteral(w.pattern)
 	if w.cursor.IsZero() {
-		return w.shape.tailFirst, []any{execMode, w.pattern, asked}
+		return w.shape.tailFirst, []any{execMode, bound, asked}
 	}
-	return w.shape.tailAfter, append([]any{execMode, w.pattern, asked}, w.shape.keyArgs(w.cursor)...)
+	return w.shape.tailAfter, append([]any{execMode, bound, asked}, w.shape.keyArgs(w.cursor)...)
 }
 
 // setTimeout sets the transaction-local statement timeout when it differs from

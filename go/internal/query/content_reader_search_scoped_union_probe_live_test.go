@@ -13,6 +13,8 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // This file holds the two #7930 AUTHORIZED probes. Probe (A) replaces the
@@ -85,12 +87,13 @@ func unionAllProbeQueryFrom(repos []string, firstRepoArg, limitArg, offsetArg in
 	return strings.Join(legs, "\n\t\tUNION ALL ") + outer, firstRepoArg + len(deduped)
 }
 
-// unionAllProbeArgs binds one probe execution: the shared pattern, one repo
+// unionAllProbeArgs binds one probe execution: the shared pre-escaped LIKE
+// literal (#10604, exactly as the serving reader binds it), one repo
 // id per deduplicated leg, then the window.
 func unionAllProbeArgs(repos []string, pattern string, limit, offset int) []any {
 	deduped := dedupeScopedRepos(repos)
 	args := make([]any, 0, len(deduped)+3)
-	args = append(args, pattern)
+	args = append(args, querycontract.EscapeLikeLiteral(pattern))
 	for _, repo := range deduped {
 		args = append(args, repo)
 	}

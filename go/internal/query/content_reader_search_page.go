@@ -226,6 +226,10 @@ func fileContentScopedQuery(where string, limitArg, offsetArg int) string {
 }
 
 // searchFileContentPage searches one repository with deterministic pagination.
+//
+// The pattern bind is pre-escaped to a LIKE literal (#10604): the shipped
+// predicate has no ESCAPE clause and Postgres reads backslash as its default
+// escape, so this bind is what keeps %, _, and \ literal.
 func (cr *ContentReader) searchFileContentPage(
 	ctx context.Context,
 	repoID string,
@@ -233,10 +237,13 @@ func (cr *ContentReader) searchFileContentPage(
 	limit int,
 	offset int,
 ) ([]FileContent, error) {
-	return cr.searchFileContentScoped(ctx, "search_file_content_page", pattern, fileContentSingleScopeWhere(1, 2), []any{repoID, pattern}, limit, offset)
+	return cr.searchFileContentScoped(ctx, "search_file_content_page", pattern, fileContentSingleScopeWhere(1, 2), []any{repoID, querycontract.EscapeLikeLiteral(pattern)}, limit, offset)
 }
 
 // searchFileContentInRepos searches an explicit repository set with one SQL query.
+//
+// The pattern bind is pre-escaped to a LIKE literal (#10604); see
+// searchFileContentPage for why the default escape is load-bearing here.
 func (cr *ContentReader) searchFileContentInRepos(
 	ctx context.Context,
 	repoIDs []string,
@@ -244,7 +251,7 @@ func (cr *ContentReader) searchFileContentInRepos(
 	limit int,
 	offset int,
 ) ([]FileContent, error) {
-	return cr.searchFileContentScoped(ctx, "search_file_content_in_repos", pattern, fileContentMultiScopeWhere(1, 2), []any{strings.Join(repoIDs, "\x1f"), pattern}, limit, offset)
+	return cr.searchFileContentScoped(ctx, "search_file_content_in_repos", pattern, fileContentMultiScopeWhere(1, 2), []any{strings.Join(repoIDs, "\x1f"), querycontract.EscapeLikeLiteral(pattern)}, limit, offset)
 }
 
 // Scoped-search outcome labels. The context error decides deadline/cancel
