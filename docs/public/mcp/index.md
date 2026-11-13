@@ -135,6 +135,75 @@ Codex stores the environment variable name, not the token value. Make sure
 `ESHU_MCP_TOKEN` is exported in the shell or launch environment before starting
 Codex.
 
+## Result shape
+
+Every `tools/call` result arrives in one of two shapes. `dual` is the default:
+a short text summary, the complete result as an embedded resource, and the same
+data again in `structuredContent` — the payload is on the wire twice.
+`structured` sends it once: the summary plus `structuredContent`, with no
+embedded resource.
+
+Wire bytes measured on the repo fixtures, the same payload rendered through the
+production `callTool` path in each shape
+(`go/internal/mcp/result_shape_render_test.go`, same `list_indexed_repositories` payload):
+
+| Payload | `dual` | `structured` | Ratio |
+| --- | --- | --- | --- |
+| Canonical envelope | 754 B | 344 B | 0.46x |
+| Plain JSON payload | 233 B | 100 B | 0.43x |
+
+The equality behind those numbers is asserted, not assumed:
+`TestStructuredShapeSuccessSendsOneTextAndStructuredContent` proves the
+structured copy is byte-identical to the envelope the dual shape embeds, and
+`TestDualShapeIsByteForByteUnchanged` pins dual to
+`go/internal/mcp/testdata/result_shape_dual_success.json`. These are serialized wire
+bytes, not model-context token counts; the token re-measurement is still
+pending. See [MCP Result Shape](../reference/mcp-reference.md#mcp-result-shape)
+for the full contract.
+
+### Opting in
+
+- Hosted HTTP: add `?shape=structured` to `GET /sse` (the whole session) or to
+  a single `POST /mcp/message`.
+- Local stdio: set `ESHU_MCP_RESULT_SHAPE=structured` in the server entry's
+  environment.
+- Server-wide: export `ESHU_MCP_RESULT_SHAPE` for the `mcp-server` process.
+
+`eshu mcp setup --platform claude` and `--platform codex` already emit the
+`structured` choice in generated configs (URL parameter for hosted, env entry
+for stdio), with a note telling you how to revert. `cursor`, `vscode`, and
+`generic` stay on `dual`. A Claude Code or Codex setup running `dual` has a
+hand-written config or one generated before the default changed.
+
+Precedence, highest first: the per-request `?shape=` parameter, then the SSE
+session's parameter, then the process default. An unknown value is a `400`
+that names the allowed values:
+
+```json
+{"jsonrpc": "2.0", "error": {"code": -32602, "message": "unknown MCP result shape \"structred\" (want dual or structured)"}}
+```
+
+To revert, drop the parameter or set the shape back to `dual`.
+
+### What structured does not change
+
+`structured` changes no server budget. The 256 KiB response budget counts bytes
+as sent in the connection's shape: anything up to 256 KiB passes untouched
+under `structured`, including results around 128 KiB and up that `dual` would
+rewrite to a resource-only fallback. Past the budget both shapes take the same
+paths — a page for pageable tools, otherwise the `mcp_response_over_budget`
+error. Under `dual`, when the two-copy result overflows but the single embedded
+resource fits, the server drops `structuredContent` and returns the resource
+only; `structured` needs no such fallback because its single copy already is
+the whole result.
+
+The default stays `dual` because a client that reads the embedded resource (or
+the text summary) instead of `structuredContent` sees strictly less under
+`structured`. Flipping any platform default needs the per-client transcript
+matrix recorded in [#10610](https://github.com/eshu-hq/eshu/issues/10610).
+Budget metrics carry a shape label, so adoption and per-shape over-budget rates
+are observable without new instrumentation.
+
 ## Ask a first question
 
 - "Use Eshu to find this symbol and its callers."
