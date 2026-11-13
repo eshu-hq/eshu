@@ -113,6 +113,11 @@ func (cr *ContentReader) SearchFilesUnscoped(
 	if err != nil {
 		return querycontract.FileSearchPage{}, contentSubstringIndexReadError(err)
 	}
+	// Shape-B enrichment (05a amendment): the walk is unchanged (its proofs
+	// still hold byte-for-byte), then one bounded keyed re-read derives
+	// snippets for at most limit+1 hits. Best-effort: rows the re-read
+	// misses keep their zero fields and the complete/partial outcome stands.
+	cr.enrichFileSnippets(ctx, pattern, page.Files)
 	return page, nil
 }
 
@@ -206,30 +211,50 @@ func fileContentMultiScopeWhere(argIDs, argPattern int) string {
 	return fmt.Sprintf("repo_id = ANY(string_to_array($%d, E'\\x1f')) AND content ILIKE '%%' || $%d || '%%'", argIDs, argPattern)
 }
 
+// snippetMaxMatchLinePrefix bounds the line derivation: a match starting
+// past 1M characters ships its snippet but omits the line (05a amendment),
+// so one pathological file cannot eat the search budget scanning newlines.
+const snippetMaxMatchLinePrefix = 1000000
+
 // fileContentScopedQuery assembles the shipped scoped file-content statement
-// (#7930): a fixed 8-column SELECT over content_files, the caller-chosen WHERE
-// fragment, key-order pagination, and bound LIMIT/OFFSET positions. Probes and
+// (#7930, #10607): the fixed 8-column handle SELECT plus the first-match
+// snippet and line, the caller-chosen WHERE fragment, key-order pagination,
+// and bound LIMIT/OFFSET positions. The snippet anchors on the RAW pattern
+// (rawPatternArg): position() is literal, while the WHERE predicate binds
+// the escaped LIKE literal (#10604) — the two binds must not be shared.
+// pos=0 rows (predicate hit, no literal anchor) omit both fields instead of
+// erroring; matches past snippetMaxMatchLinePrefix omit the line. Probes and
 // oracles derive their SQL from this builder, never from a copied literal, so
 // a drift in the shipped text fails their prefix guards instead of testing a
-// stale statement.
-func fileContentScopedQuery(where string, limitArg, offsetArg int) string {
-	// #nosec G201 -- `where` is a compile-time fragment from fileContentSingleScopeWhere/fileContentMultiScopeWhere; limitArg/offsetArg are integers; no user data concatenated into SQL
+// stale statement. The lateral flattens into the targetlist (no plan-shape
+// change, per the 05a shim).
+func fileContentScopedQuery(where string, rawPatternArg, limitArg, offsetArg int) string {
+	// #nosec G201 -- `where` is a compile-time fragment from fileContentSingleScopeWhere/fileContentMultiScopeWhere; rawPatternArg/limitArg/offsetArg are integers; no user data concatenated into SQL
 	return fmt.Sprintf(`
 		SELECT repo_id, relative_path, coalesce(commit_sha, ''),
 		       '', content_hash, line_count, coalesce(language, ''),
-		       coalesce(artifact_type, '')
-		FROM content_files
+		       coalesce(artifact_type, ''),
+		       CASE WHEN spos.pos = 0 THEN NULL
+		            ELSE substring(content FROM greatest(spos.pos - 40, 1) FOR 120) END AS match_snippet,
+		       CASE WHEN spos.pos = 0 OR spos.pos - 1 > %d THEN NULL
+		            ELSE (1 + (length(shead.head) - length(replace(shead.head, chr(10), '')))) END AS match_line
+		FROM content_files,
+		     LATERAL (SELECT position(lower($%d) IN content_lower) AS pos) AS spos,
+		     LATERAL (SELECT substring(content_lower FROM 1 FOR greatest(spos.pos - 1, 0)) AS head) AS shead
 		WHERE %s
 		ORDER BY repo_id, relative_path
 		LIMIT $%d OFFSET $%d
-	`, where, limitArg, offsetArg)
+	`, snippetMaxMatchLinePrefix, rawPatternArg, where, limitArg, offsetArg)
 }
 
 // searchFileContentPage searches one repository with deterministic pagination.
 //
-// The pattern bind is pre-escaped to a LIKE literal (#10604): the shipped
+// The predicate bind is pre-escaped to a LIKE literal (#10604): the shipped
 // predicate has no ESCAPE clause and Postgres reads backslash as its default
-// escape, so this bind is what keeps %, _, and \ literal.
+// escape, so that bind is what keeps %, _, and \ literal. The snippet
+// position bind stays RAW: the executor appends the unescaped pattern itself,
+// because position() is already literal and escaping it would anchor the
+// excerpt on the escape characters instead of the match.
 func (cr *ContentReader) searchFileContentPage(
 	ctx context.Context,
 	repoID string,
@@ -242,8 +267,9 @@ func (cr *ContentReader) searchFileContentPage(
 
 // searchFileContentInRepos searches an explicit repository set with one SQL query.
 //
-// The pattern bind is pre-escaped to a LIKE literal (#10604); see
-// searchFileContentPage for why the default escape is load-bearing here.
+// The predicate bind is pre-escaped to a LIKE literal (#10604) while the
+// snippet position bind stays raw; see searchFileContentPage for why the two
+// binds differ. The executor appends the raw bind from its pattern argument.
 func (cr *ContentReader) searchFileContentInRepos(
 	ctx context.Context,
 	repoIDs []string,
@@ -358,61 +384,6 @@ func recordScopedSearch(
 			slog.Int("offset", offset),
 		)
 	}
-}
-
-// searchFileContentScoped executes a bounded file-content query using a fixed
-// WHERE fragment selected by the caller.
-func (cr *ContentReader) searchFileContentScoped(
-	ctx context.Context,
-	operation string,
-	pattern string,
-	where string,
-	args []any,
-	limit int,
-	offset int,
-) (results []FileContent, err error) {
-	start := time.Now()
-	patternClass := scopedSearchPatternClass(pattern)
-	ctx, span := cr.tracer.Start(
-		ctx, "postgres.query",
-		trace.WithAttributes(
-			attribute.String("db.system", "postgresql"),
-			attribute.String("db.operation", operation),
-			attribute.String("db.sql.table", "content_files"),
-		),
-	)
-	defer span.End()
-	defer func() {
-		recordScopedSearch(ctx, cr.instruments, span, operation, scopedSearchScopeClass(operation), patternClass, start, len(results), err, limit, offset)
-	}()
-
-	limitArg := len(args) + 1
-	offsetArg := len(args) + 2
-	// Assembled from fileContentScopedQuery so the serving statement cannot
-	// drift from the builder the derivation guard pins.
-	query := fileContentScopedQuery(where, limitArg, offsetArg)
-	args = append(args, limit, offset)
-	rows, err := cr.db.QueryContext(ctx, query, args...)
-	if err != nil {
-		err = contentSubstringIndexReadError(err)
-		span.RecordError(err)
-		return nil, fmt.Errorf("search paged file content: %w", err)
-	}
-	defer func() { _ = rows.Close() }()
-
-	for rows.Next() {
-		var file FileContent
-		if err := rows.Scan(&file.RepoID, &file.RelativePath, &file.CommitSHA, &file.Content, &file.ContentHash, &file.LineCount, &file.Language, &file.ArtifactType); err != nil {
-			span.RecordError(err)
-			return nil, fmt.Errorf("scan paged file search result: %w", err)
-		}
-		results = append(results, file)
-	}
-	if err := rows.Err(); err != nil {
-		span.RecordError(err)
-		return results, err
-	}
-	return results, nil
 }
 
 func codeTopicFilters(req codequery.CodeTopicInvestigationRequest) ([]string, []any, int) {

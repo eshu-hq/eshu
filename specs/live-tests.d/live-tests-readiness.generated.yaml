@@ -159,6 +159,16 @@ tests:
     class: postgres_ci
     reason: "#7930 disposable PostgreSQL 18 proof of the scoped file search custom-generic-reader equivalence oracle plus the shipped-WHERE derivation guard; one local PostgreSQL 18 run took about 6 s"
     runner: live-postgres-readiness
+  - file: go/internal/query/content_reader_search_snippet_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "05a scoped snippet+line proof: exact snippet/line vs an independent oracle on a fixture corpus with edge rows (offset-1, EOF, CRLF, rune boundary, İ/Σ/ß folds, escaped wildcards), pos=0 omission, the 1M line fallback, fold-length parity with the deployed collation, and the shipped plan shape; one local PostgreSQL 18 run took about 30 s"
+    runner: live-postgres-readiness
+  - file: go/internal/query/content_reader_search_snippet_shapeb_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "05a shape-B proof: keyed snippet re-read enriches walk hits (exact snippet+line vs the oracle), tolerates purged and content-changed keys by omitting fields, keeps every row when its own statement timeout trips, and the full unscoped path ships snippets on complete pages; multi-outlier limit-200 scoped page stays within 2 s"
+    runner: live-postgres-readiness
   - file: go/internal/query/content_reader_search_unscoped_live_test.go
     tag: ~
     class: postgres_ci

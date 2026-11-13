@@ -312,6 +312,8 @@ const components = `  "components": {
           "content_hash": {"type": "string"},
           "line_count": {"type": "integer"},
           "language": {"type": "string"},
+          "match_snippet": {"type": "string", "description": "Bounded excerpt of raw content around the first case-insensitive match (at most 120 characters, at most 40 before the match). An excerpt by contract: it may start or end mid-token. Present only on search_file_content rows; absent when the match anchor is missing or the enrichment budget was exceeded."},
+          "match_line": {"type": "integer", "description": "1-based line of the first match. Exact or absent, never approximate: omitted when the match starts past 1M characters or the anchor is missing."},
           "search_backend": {"type": "string", "enum": ["hybrid"], "description": "Set to \"hybrid\" on search_file_content rows reordered by the bounded fused BM25+vector re-rank; absent when the lexical content-index order was served."}
         }
       },

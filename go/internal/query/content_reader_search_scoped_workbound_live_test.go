@@ -33,11 +33,12 @@ func TestScopedSearchShippedDerivationGuard(t *testing.T) {
 		t.Fatalf("multi-scope WHERE lost its repository predicate: %s", multi)
 	}
 	for name, query := range map[string]string{
-		"single": fileContentScopedQuery(single, 3, 4),
-		"multi":  fileContentScopedQuery(multi, 3, 4),
+		"single": fileContentScopedQuery(single, 3, 4, 5),
+		"multi":  fileContentScopedQuery(multi, 3, 4, 5),
 	} {
 		for _, part := range []string{
-			"FROM content_files", "ORDER BY repo_id, relative_path", "LIMIT $3 OFFSET $4",
+			"FROM content_files", "ORDER BY repo_id, relative_path", "LIMIT $4 OFFSET $5",
+			"position(lower($3) IN content_lower)", "AS match_snippet", "AS match_line",
 		} {
 			if !strings.Contains(query, part) {
 				t.Errorf("%s statement lost %q:\n%s", name, part, query)
@@ -48,7 +49,7 @@ func TestScopedSearchShippedDerivationGuard(t *testing.T) {
 
 // TestScopedSearchCustomGenericEquivalenceLive is the #7930 equivalence
 // oracle: for every guard cell, the custom-plan and generic-plan executions of
-// the shipped statement return byte-identical ordered 8-field rows with bound
+// the shipped statement return byte-identical ordered 10-field rows with bound
 // prepared params, and the serving reader agrees with them. The expected rows
 // always come from the database itself (never from hand lists), and DB
 // ORDER BY is the ordering oracle. The edge matrix covers unicode, % and _

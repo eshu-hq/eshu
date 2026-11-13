@@ -32,6 +32,7 @@ func contentSearchMirrorStores(t *testing.T, queued []contentReaderQueryResult) 
 var contentSearchFileRowColumns = []string{
 	"repo_id", "relative_path", "commit_sha", "content",
 	"content_hash", "line_count", "language", "artifact_type",
+	"match_snippet", "match_line",
 }
 
 var contentSearchEntityRowColumns = []string{
@@ -42,6 +43,24 @@ var contentSearchEntityRowColumns = []string{
 func contentSearchFileRow(content string) contentReaderQueryResult {
 	return contentReaderQueryResult{
 		columns: contentSearchFileRowColumns,
+		rows: [][]driver.Value{
+			{"repo-1", "src/app.go", "abc123", content, "h-1", int64(2), "go", "", "l1", int64(1)},
+		},
+	}
+}
+
+// contentSearchLegacyFileRowColumns is the 8-column shape of the legacy
+// unpaged SearchFileContent/SearchFileContentAnyRepo SELECTs, which keep no
+// snippet fields by design (#10607: the paged search paths alone ship
+// snippets; the legacy fallback stays a handle read).
+var contentSearchLegacyFileRowColumns = []string{
+	"repo_id", "relative_path", "commit_sha", "content",
+	"content_hash", "line_count", "language", "artifact_type",
+}
+
+func contentSearchLegacyFileRow(content string) contentReaderQueryResult {
+	return contentReaderQueryResult{
+		columns: contentSearchLegacyFileRowColumns,
 		rows: [][]driver.Value{
 			{"repo-1", "src/app.go", "abc123", content, "h-1", int64(2), "go", ""},
 		},
@@ -210,7 +229,7 @@ func TestContentSearchReadAdmissionWireShapesAreSatelliteConsumable(t *testing.T
 
 	t.Run("mirror/search-file-content", func(t *testing.T) {
 		t.Parallel()
-		row := contentSearchFileRow("package app")
+		row := contentSearchLegacyFileRow("package app")
 		wantReader, got := contentSearchMirrorStores(t, []contentReaderQueryResult{row, row})
 
 		want, wantErr := wantReader.SearchFileContent(ctx, "repo-1", "package", 10)
@@ -225,7 +244,7 @@ func TestContentSearchReadAdmissionWireShapesAreSatelliteConsumable(t *testing.T
 
 	t.Run("mirror/search-file-content-any-repo", func(t *testing.T) {
 		t.Parallel()
-		row := contentSearchFileRow("package app")
+		row := contentSearchLegacyFileRow("package app")
 		wantReader, got := contentSearchMirrorStores(t, []contentReaderQueryResult{row, row})
 
 		want, wantErr := wantReader.SearchFileContentAnyRepo(ctx, "package", 10)

@@ -70,6 +70,21 @@ TABLE = {
             "TestScopedSearchShippedDerivationGuard",
             "TestScopedSearchCustomGenericEquivalenceLive",
         ),
+        "go/internal/query/content_reader_search_snippet_live_test.go": (
+            "TestScopedSnippetMatchesOracle",
+            "TestScopedSnippetFoldRowsExact",
+            "TestScopedSnippetPosZeroOmitsWithoutError",
+            "TestScopedSnippetLineFallbackBoundary",
+            "TestScopedSnippetFoldLengthMatchesDeployedCollation",
+            "TestScopedSearchSnippetPlanShape",
+        ),
+        "go/internal/query/content_reader_search_snippet_shapeb_live_test.go": (
+            "TestSnippetReReadEnrichesExactHits",
+            "TestSnippetReReadOmitsStaleKeys",
+            "TestSnippetReReadTimeoutKeepsRows",
+            "TestScopedSnippetMultiOutlierLimit200Within2s",
+            "TestUnscopedSnippetEndToEnd",
+        ),
         "go/internal/query/content_reader_search_unscoped_live_test.go": (
             "TestSearchFilesUnscopedMatchesOldStatementLive",
             "TestSearchFilesUnscopedCancelledTailResumesToExactAnswerLive",

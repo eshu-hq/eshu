@@ -47,14 +47,14 @@ func dedupeScopedRepos(repos []string) []string {
 // builders: one unbounded single-scope leg per deduplicated repository (the
 // leg body is a byte-prefix truncation of fileContentScopedQuery output at
 // the stable ORDER BY boundary, with per-leg repo bind positions sharing one
-// pattern bind), joined by UNION ALL under one outer key-order
-// LIMIT/OFFSET. It returns the statement and the bound args for one pattern,
-// one repo list, one window. No shipped SQL is copied: legs come from the
-// builders, and only the UNION ALL joints plus the outer ORDER BY/LIMIT are
-// probe-only assembly.
-func unionAllProbeQuery(repos []string, patternArg, firstRepoArg, limitArg, offsetArg int) (string, int) {
+// escaped predicate bind and one raw snippet-position bind), joined by UNION
+// ALL under one outer key-order LIMIT/OFFSET. It returns the statement and
+// the bound args for one pattern, one repo list, one window. No shipped SQL
+// is copied: legs come from the builders, and only the UNION ALL joints plus
+// the outer ORDER BY/LIMIT are probe-only assembly.
+func unionAllProbeQuery(repos []string, patternArg, rawPatternArg, firstRepoArg, limitArg, offsetArg int) (string, int) {
 	return unionAllProbeQueryFrom(repos, firstRepoArg, limitArg, offsetArg, func(repoArg int) string {
-		return fileContentScopedQuery(fileContentSingleScopeWhere(repoArg, patternArg), limitArg, offsetArg)
+		return fileContentScopedQuery(fileContentSingleScopeWhere(repoArg, patternArg), rawPatternArg, limitArg, offsetArg)
 	})
 }
 
@@ -89,14 +89,16 @@ func unionAllProbeQueryFrom(repos []string, firstRepoArg, limitArg, offsetArg in
 
 // unionAllProbeArgs binds one probe execution: the shared pre-escaped LIKE
 // literal (#10604, exactly as the serving reader binds it), one repo
-// id per deduplicated leg, then the window.
+// id per deduplicated leg, the shared RAW snippet-position bind (position is
+// literal, so it must not see the escaped form), then the window.
 func unionAllProbeArgs(repos []string, pattern string, limit, offset int) []any {
 	deduped := dedupeScopedRepos(repos)
-	args := make([]any, 0, len(deduped)+3)
+	args := make([]any, 0, len(deduped)+4)
 	args = append(args, querycontract.EscapeLikeLiteral(pattern))
 	for _, repo := range deduped {
 		args = append(args, repo)
 	}
+	args = append(args, pattern)
 	return append(args, int64(limit), int64(offset))
 }
 
@@ -112,9 +114,10 @@ func TestUnionAllProbeDerivationGuard(t *testing.T) {
 	if got := dedupeScopedRepos(repos); len(got) != 2 || got[0] != scopedSmallRepo(9) || got[1] != scopedSmallRepo(10) {
 		t.Fatalf("dedupeScopedRepos(%v) = %v, want first-seen order without duplicates", repos, got)
 	}
-	// Bind layout: $1 pattern, $2/$3 repos, $4 limit, $5 offset.
+	// Bind layout: $1 escaped predicate, $2/$3 repos, $4 raw snippet
+	// position, $5 limit, $6 offset.
 	const firstRepoArg = 2
-	query, nextArg := unionAllProbeQuery(repos, 1, firstRepoArg, 4, 5)
+	query, nextArg := unionAllProbeQuery(repos, 1, 4, firstRepoArg, 5, 6)
 	if want := firstRepoArg + len(dedupeScopedRepos(repos)); nextArg != want {
 		t.Fatalf("unionAllProbeQuery nextArg = $%d, want $%d (firstRepoArg+len(deduped))", nextArg, want)
 	}
@@ -124,10 +127,19 @@ func TestUnionAllProbeDerivationGuard(t *testing.T) {
 	if got := strings.Count(query, "content ILIKE '%' || $1 || '%'"); got != 2 {
 		t.Fatalf("probe holds %d shared content predicates, want 2 (one per leg):\n%s", got, query)
 	}
+	if got := strings.Count(query, "position(lower($4) IN content_lower)"); got != 2 {
+		t.Fatalf("probe holds %d raw snippet anchors, want 2 (one per leg, sharing the raw bind):\n%s", got, query)
+	}
+	if got := strings.Count(query, "AS match_snippet"); got != 2 {
+		t.Fatalf("probe holds %d match_snippet columns, want 2 (one per leg):\n%s", got, query)
+	}
+	if got := strings.Count(query, "AS match_line"); got != 2 {
+		t.Fatalf("probe holds %d match_line columns, want 2 (one per leg):\n%s", got, query)
+	}
 	if got := strings.Count(query, "UNION ALL"); got != 1 {
 		t.Fatalf("probe holds %d UNION ALL joints, want 1:\n%s", got, query)
 	}
-	if !strings.Contains(query, "ORDER BY repo_id, relative_path") || !strings.Contains(query, "LIMIT $4 OFFSET $5") {
+	if !strings.Contains(query, "ORDER BY repo_id, relative_path") || !strings.Contains(query, "LIMIT $5 OFFSET $6") {
 		t.Fatalf("probe lost the outer key-order window:\n%s", query)
 	}
 	if strings.Contains(query, "NOT DERIVED FROM SHIPPED TEXT") {
@@ -160,13 +172,13 @@ func TestUnionAllProbePoisonLegKeepsBindPositions(t *testing.T) {
 	repos := []string{scopedSmallRepo(9), scopedSmallRepo(10)}
 	const firstRepoArg = 2
 	calls := 0
-	query, nextArg := unionAllProbeQueryFrom(repos, firstRepoArg, 4, 5, func(repoArg int) string {
+	query, nextArg := unionAllProbeQueryFrom(repos, firstRepoArg, 5, 6, func(repoArg int) string {
 		calls++
 		if calls == 1 {
 			// Simulated builder drift: no shipped ORDER BY/LIMIT suffix.
 			return fmt.Sprintf("SELECT repo_id FROM content_files WHERE repo_id = $%d", repoArg)
 		}
-		return fileContentScopedQuery(fileContentSingleScopeWhere(repoArg, 1), 4, 5)
+		return fileContentScopedQuery(fileContentSingleScopeWhere(repoArg, 1), 4, 5, 6)
 	})
 	if !strings.Contains(query, "NOT DERIVED FROM SHIPPED TEXT") {
 		t.Fatalf("poison leg missing after a derivation miss:\n%s", query)
@@ -185,8 +197,8 @@ func TestUnionAllProbePoisonLegKeepsBindPositions(t *testing.T) {
 		t.Fatalf("leg after a poison leg recycled $2, colliding with the first leg's bind:\n%s", legs[1])
 	}
 	args := unionAllProbeArgs(repos, "pattern", 10, 0)
-	if len(args) != 5 || args[1] != scopedSmallRepo(9) || args[2] != scopedSmallRepo(10) {
-		t.Fatalf("unionAllProbeArgs = %v, want one repo per deduped leg at $2/$3", args)
+	if len(args) != 6 || args[1] != scopedSmallRepo(9) || args[2] != scopedSmallRepo(10) || args[3] != "pattern" {
+		t.Fatalf("unionAllProbeArgs = %v, want one repo per deduped leg at $2/$3 plus the raw pattern at $4", args)
 	}
 }
 
@@ -212,11 +224,12 @@ func TestUnionAllProbeWorkAndEquivalenceLive(t *testing.T) {
 	reader := NewContentReader(db)
 
 	for _, cell := range probeMultiCells() {
-		// Bind layout mirrors the derivation guard: $1 pattern, $2.. repos,
-		// then limit and offset.
-		limitArg := len(dedupeScopedRepos(cell.repoIDs)) + 2
+		// Bind layout mirrors the derivation guard: $1 escaped predicate,
+		// $2.. repos, then the raw snippet position, limit, and offset.
+		rawPatternArg := len(dedupeScopedRepos(cell.repoIDs)) + 2
+		limitArg := rawPatternArg + 1
 		offsetArg := limitArg + 1
-		probeQuery, _ := unionAllProbeQuery(cell.repoIDs, 1, 2, limitArg, offsetArg)
+		probeQuery, _ := unionAllProbeQuery(cell.repoIDs, 1, rawPatternArg, 2, limitArg, offsetArg)
 		probeArgs := unionAllProbeArgs(cell.repoIDs, cell.pattern, cell.limit, cell.offset)
 		shippedQuery, shippedArgs := shippedScopedQuery(cell)
 

@@ -28,11 +28,12 @@ func TestContentHandlerSearchFilesAcceptsPatternAndRepoIDs(t *testing.T) {
 			columns: []string{
 				"repo_id", "relative_path", "commit_sha", "content",
 				"content_hash", "line_count", "language", "artifact_type",
+				"match_snippet", "match_line",
 			},
 			rows: [][]driver.Value{
 				{
 					"repo-1", "src/app.ts", "", "",
-					"hash-1", int64(24), "typescript", "source",
+					"hash-1", int64(24), "typescript", "source", "renderApp excerpt", int64(3),
 				},
 			},
 		},
@@ -137,11 +138,12 @@ func TestContentHandlerSearchFilesBoundsExplicitMultiRepoSearch(t *testing.T) {
 			columns: []string{
 				"repo_id", "relative_path", "commit_sha", "content",
 				"content_hash", "line_count", "language", "artifact_type",
+				"match_snippet", "match_line",
 			},
 			rows: [][]driver.Value{
 				{
 					"repo-1", "src/one.ts", "", "",
-					"hash-1", int64(11), "typescript", "source",
+					"hash-1", int64(11), "typescript", "source", "renderApp excerpt", int64(3),
 				},
 			},
 		},
@@ -174,7 +176,12 @@ func TestContentHandlerSearchFilesBoundsExplicitMultiRepoSearch(t *testing.T) {
 	if got, want := recorder.args[0][1], "renderApp"; got != want {
 		t.Fatalf("first query pattern = %#v, want %#v", got, want)
 	}
-	if got, want := numericDriverValue(t, recorder.args[0][2]), int64(2); got != want {
+	// The snippet position bind rides raw beside the escaped predicate bind
+	// (#10607); "renderApp" has no metacharacters so both binds read the same.
+	if got, want := recorder.args[0][2], "renderApp"; got != want {
+		t.Fatalf("raw snippet pattern = %#v, want %#v", got, want)
+	}
+	if got, want := numericDriverValue(t, recorder.args[0][3]), int64(2); got != want {
 		t.Fatalf("first query limit = %d, want %d", got, want)
 	}
 
@@ -253,9 +260,10 @@ func TestContentHandlerSearchFilesUsesSinglePagedQueryForExplicitRepoIDs(t *test
 			columns: []string{
 				"repo_id", "relative_path", "commit_sha", "content",
 				"content_hash", "line_count", "language", "artifact_type",
+				"match_snippet", "match_line",
 			},
 			rows: [][]driver.Value{
-				{"repo-2", "src/two.ts", "", "", "hash-2", int64(14), "typescript", "source"},
+				{"repo-2", "src/two.ts", "", "", "hash-2", int64(14), "typescript", "source", "renderApp excerpt", int64(3)},
 			},
 		},
 	})
@@ -283,10 +291,13 @@ func TestContentHandlerSearchFilesUsesSinglePagedQueryForExplicitRepoIDs(t *test
 	if got, want := recorder.args[0][1], "renderApp"; got != want {
 		t.Fatalf("pattern arg = %#v, want %#v", got, want)
 	}
-	if got, want := numericDriverValue(t, recorder.args[0][2]), int64(11); got != want {
+	if got, want := recorder.args[0][2], "renderApp"; got != want {
+		t.Fatalf("raw snippet pattern = %#v, want %#v", got, want)
+	}
+	if got, want := numericDriverValue(t, recorder.args[0][3]), int64(11); got != want {
 		t.Fatalf("limit probe arg = %d, want %d", got, want)
 	}
-	if got, want := numericDriverValue(t, recorder.args[0][3]), int64(20); got != want {
+	if got, want := numericDriverValue(t, recorder.args[0][4]), int64(20); got != want {
 		t.Fatalf("offset arg = %d, want %d", got, want)
 	}
 

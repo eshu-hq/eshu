@@ -146,6 +146,14 @@ func openScopedWorkboundFixture(t *testing.T) (context.Context, *sql.DB) {
 		`UPDATE content_files SET relative_path = 'src/über-mod.go'
 			WHERE repo_id = 'scope-repo-00' AND relative_path = 'src/mod-0007.go'`,
 		`CREATE INDEX content_files_content_trgm_idx ON content_files USING gin (content gin_trgm_ops)`,
+		// Production shape per migrations 176/177: the stored lowercase
+		// copy and its trigram index. The #10607 shipped statement derives
+		// snippets from content_lower, so the work-bound guard, the
+		// equivalence oracle, and the union probe need the column to run
+		// the shipped text at all. Added after the bulk inserts; the
+		// generated values backfill and ANALYZE runs last as before.
+		`ALTER TABLE content_files ADD COLUMN content_lower text GENERATED ALWAYS AS (lower(content)) STORED`,
+		`CREATE INDEX content_files_content_lower_trgm_idx ON content_files USING gin (content_lower gin_trgm_ops)`,
 		`VACUUM ANALYZE content_files`,
 	}
 	for _, statement := range statements {
@@ -169,19 +177,20 @@ func openScopedWorkboundFixture(t *testing.T) (context.Context, *sql.DB) {
 // shippedScopedQuery derives the exact shipped statement for a cell from the
 // production builders (fileContentSingleScopeWhere/fileContentMultiScopeWhere
 // plus fileContentScopedQuery). No shipped SQL text is copied here: if the
-// shipped builders move, this derivation moves with them. The pattern arg is
-// the pre-escaped LIKE literal (#10604), exactly as the serving reader binds
-// it, so the oracle and the reader agree on wildcard-bearing patterns.
+// shipped builders move, this derivation moves with them. The predicate arg
+// is the pre-escaped LIKE literal (#10604) and the position arg is the raw
+// pattern (#10607), exactly as the serving reader binds them, so the oracle
+// and the reader agree on wildcard-bearing patterns.
 func shippedScopedQuery(cell scopedCell) (string, []any) {
 	bound := querycontract.EscapeLikeLiteral(cell.pattern)
 	if cell.multi {
 		where := fileContentMultiScopeWhere(1, 2)
-		return fileContentScopedQuery(where, 3, 4),
-			[]any{strings.Join(cell.repoIDs, "\x1f"), bound, int64(cell.limit), int64(cell.offset)}
+		return fileContentScopedQuery(where, 3, 4, 5),
+			[]any{strings.Join(cell.repoIDs, "\x1f"), bound, cell.pattern, int64(cell.limit), int64(cell.offset)}
 	}
 	where := fileContentSingleScopeWhere(1, 2)
-	return fileContentScopedQuery(where, 3, 4),
-		[]any{cell.repoIDs[0], bound, int64(cell.limit), int64(cell.offset)}
+	return fileContentScopedQuery(where, 3, 4, 5),
+		[]any{cell.repoIDs[0], bound, cell.pattern, int64(cell.limit), int64(cell.offset)}
 }
 
 // scopedPlanNode is the EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) subset the
@@ -323,18 +332,26 @@ func selectScopedRows(t *testing.T, ctx context.Context, db *sql.DB, query strin
 	return fingerprintScopedRows(t, rows)
 }
 
-// fingerprintScopedRows scans the shipped 8-column file-content SELECT into
-// deterministic per-row fingerprints preserving DB order.
+// fingerprintScopedRows scans the shipped 10-column file-content SELECT
+// (8 handle columns plus the snippet and line) into deterministic per-row
+// fingerprints preserving DB order. A NULL snippet or line fingerprints as
+// empty so omitted fields compare equal across regimes.
 func fingerprintScopedRows(t *testing.T, rows *sql.Rows) []string {
 	t.Helper()
 	var out []string
 	for rows.Next() {
 		var repo, path, sha, content, hash, language, artifact string
+		var snippet sql.NullString
+		var matchLine sql.NullInt64
 		var lines int
-		if err := rows.Scan(&repo, &path, &sha, &content, &hash, &lines, &language, &artifact); err != nil {
+		if err := rows.Scan(&repo, &path, &sha, &content, &hash, &lines, &language, &artifact, &snippet, &matchLine); err != nil {
 			t.Fatalf("scan scoped row: %v", err)
 		}
-		out = append(out, strings.Join([]string{repo, path, sha, content, hash, fmt.Sprint(lines), language, artifact}, "\x1f"))
+		line := ""
+		if matchLine.Valid {
+			line = fmt.Sprint(matchLine.Int64)
+		}
+		out = append(out, strings.Join([]string{repo, path, sha, content, hash, fmt.Sprint(lines), language, artifact, snippet.String, line}, "\x1f"))
 	}
 	if err := rows.Err(); err != nil {
 		t.Fatalf("scoped rows: %v", err)
@@ -343,13 +360,20 @@ func fingerprintScopedRows(t *testing.T, rows *sql.Rows) []string {
 }
 
 // fingerprintFileContents fingerprints reader-level FileContent values with
-// the same field order as the SQL oracle so the two can be compared directly.
+// the same field order as the SQL oracle so the two can be compared directly,
+// including the snippet fields: the custom/generic/reader equivalence now
+// covers the new columns too.
 func fingerprintFileContents(files []FileContent) []string {
 	out := make([]string, 0, len(files))
 	for _, file := range files {
+		matchLine := ""
+		if file.MatchLine != 0 {
+			matchLine = fmt.Sprint(file.MatchLine)
+		}
 		out = append(out, strings.Join([]string{
 			file.RepoID, file.RelativePath, file.CommitSHA, file.Content,
 			file.ContentHash, fmt.Sprint(file.LineCount), file.Language, file.ArtifactType,
+			file.MatchSnippet, matchLine,
 		}, "\x1f"))
 	}
 	return out
