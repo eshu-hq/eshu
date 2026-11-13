@@ -99,8 +99,8 @@ jobs:
     timeout-minutes: 15
     runs-on: ubuntu-24.04
     needs: [test-verify]
-    # Same tooling as test-verify above (pinned image + retry-script live
-    # path until the seed repin noted there): no setup-go or apt install.
+    # Same tooling as test-verify above (seeded image; retry script stays
+    # fallback for go.sum drift): no setup-go or apt install.
     container: ghcr.io/eshu-hq/ci-tools@sha256:5bd016995aa47cb5c292b99e2354b235fc5f5883882f14fadf31535579beda50
     env:
       GOTOOLCHAIN: local
@@ -110,8 +110,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
 
-      # Same seed probe + retry-script live path as test-verify above (the
-      # probe misses until the repin; the retry script carries downloads).
+      # Same seed probe + retry-script fallback as test-verify above (the
+      # probe is expected to pass; the retry script carries downloads on
+      # a seed miss).
       - name: Probe baked module seed (offline)
         id: seed
         continue-on-error: true

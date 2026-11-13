@@ -137,9 +137,8 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     # Go 1.26.11 and ripgrep come from the pinned image: no setup-go or
-    # apt install (see sdk-go-collector). The recipe's module seed is not
-    # in this pin yet — see the follow-up pointer in sdk-go-collector; the
-    # retry script below is the live download path until that repin.
+    # apt install (see sdk-go-collector). The seed covers the go/ module,
+    # not this one, so the retry script below stays the live download path.
     container: ghcr.io/eshu-hq/ci-tools@sha256:5bd016995aa47cb5c292b99e2354b235fc5f5883882f14fadf31535579beda50
     env:
       GOTOOLCHAIN: local
@@ -197,9 +196,8 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     # Go 1.26.11 and ripgrep come from the pinned image: no setup-go or
-    # apt install (see sdk-go-collector). The recipe's module seed is not
-    # in this pin yet — see the follow-up pointer in sdk-go-collector; the
-    # retry script below is the live download path until that repin.
+    # apt install (see sdk-go-collector). The seed covers the go/ module,
+    # not this one, so the retry script below stays the live download path.
     container: ghcr.io/eshu-hq/ci-tools@sha256:5bd016995aa47cb5c292b99e2354b235fc5f5883882f14fadf31535579beda50
     env:
       GOTOOLCHAIN: local
