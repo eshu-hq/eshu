@@ -150,6 +150,14 @@ func TestGenerationRetentionRowCountPlansStayOnGenerationIndexesLive(t *testing.
 			t.Fatalf("vacuum %s: %v", table, err)
 		}
 	}
+	// The cold condition assumes the VACUUM above settled the visibility
+	// map, but VACUUM cannot mark pages all-visible while a same-database
+	// snapshot from before the seeds is still open (#10593): the fraction
+	// then stays near 0 and the intents arm's index-only probe prices
+	// above a sequential scan plus hash join. Poll until
+	// relallvisible=relpages so a pinned horizon fails here with the
+	// holder attached instead of as a plan-guard flip.
+	requireGuardedTablesVisible10512(t, ctx, database, retentionGuardedVisibilityTables10512)
 
 	rowCountsRequired := []string{
 		"shared_projection_intents_generation_idx",
@@ -165,7 +173,13 @@ func TestGenerationRetentionRowCountPlansStayOnGenerationIndexesLive(t *testing.
 		for _, statement := range statements {
 			plan := explain(statement.sql)
 			if violations := retentionGuardedPlanViolations(t, plan, statement.required); len(violations) > 0 {
-				t.Errorf("%s %s plan leaves its generation index: %s\n%s", condition, statement.name, strings.Join(violations, "; "), plan)
+				visibility, err := queryGuardedTableVisibility10512(ctx, database, retentionGuardedVisibilityTables10512)
+				if err != nil {
+					t.Errorf("%s %s plan leaves its generation index: %s (pg_class query failed: %v)\n%s",
+						condition, statement.name, strings.Join(violations, "; "), err, plan)
+					continue
+				}
+				t.Errorf("%s\n%s", retentionGuardedPlanFailure10512(condition, statement.name, violations, visibility, retentionGuardedVisibilityTables10512), plan)
 			}
 		}
 	}
