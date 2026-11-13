@@ -1020,14 +1020,11 @@ linters:
         linters:
           - wrapcheck
       # Remaining collector families: tempo, prometheus,
-      # pagerduty, loki, jira, grafana, documentation export.
+      # loki, jira, grafana, documentation export.
       - path: 'internal/collector/observability/tempo/'
         linters:
           - wrapcheck
       - path: 'internal/collector/observability/prometheus/'
-        linters:
-          - wrapcheck
-      - path: 'internal/collector/pagerduty/'
         linters:
           - wrapcheck
       - path: 'internal/collector/observability/loki/'
