@@ -159,7 +159,7 @@ var censusToolSchemaSnapshot = []censusToolSchema{
 	{Name: "investigate_resource", Properties: []string{"environment", "limit", "max_depth", "query", "resource_id", "resource_type"}, Required: []string{}},
 	{Name: "analyze_infra_relationships", Properties: []string{"query_type", "target"}, Required: []string{"query_type", "target"}},
 	{Name: "get_repo_summary", Properties: []string{"repo_id", "repo_name"}, Required: []string{}},
-	{Name: "get_repo_context", Properties: []string{"repo_id"}, Required: []string{"repo_id"}},
+	{Name: "get_repo_context", Properties: []string{"evidence_detail", "repo_id"}, Required: []string{"repo_id"}},
 	{Name: "get_relationship_evidence", Properties: []string{"resolved_id"}, Required: []string{"resolved_id"}},
 	{Name: "analyze_pre_change_impact", Properties: []string{"base_ref", "changed_paths", "changes", "environment", "head_ref", "limit", "max_depth", "module_id", "offset", "repo_id", "resource_id", "service_name", "target", "target_type", "topic", "workload_id"}, Required: []string{}},
 	{Name: "plan_developer_change", Properties: []string{"base_ref", "changed_paths", "changes", "developer_intent", "environment", "head_ref", "limit", "max_depth", "module_id", "offset", "repo_id", "resource_id", "service_name", "target", "target_type", "topic", "workload_id"}, Required: []string{}},

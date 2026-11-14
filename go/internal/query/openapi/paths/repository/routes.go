@@ -254,7 +254,8 @@ const Routes = `
         "operationId": "getRepositoryContext",
         "x-scoped-token-support": true,
         "parameters": [
-          {"$ref": "#/components/parameters/RepoId"}
+          {"$ref": "#/components/parameters/RepoId"},
+          {"name": "evidence_detail", "in": "query", "required": false, "schema": {"type": "string", "enum": ["full", "handles"], "default": "full"}, "description": "How the context row lists are shaped. full (the HTTP default when absent) returns every list in full. handles projects relationships, relationship_overview.relationships, consumers, api_surface.endpoints, deployment_evidence.artifacts, deployment_artifacts, infrastructure_overview.deployment_artifacts, entry_points, and infrastructure to identity rows, drops the repeated relationship partition lists and the evidence_index regrouping with a pointer, keeps every count, and names each reduced family with its total in truth.omissions. The MCP get_repo_context tool defaults to handles. Unknown values return 400 invalid_argument."}
         ],
         "responses": {
           "403": {"$ref": "#/components/responses/Forbidden"},

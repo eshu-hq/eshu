@@ -26,6 +26,11 @@ func (h *Handler) getRepositoryContext(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	evidenceDetail, ok := readRepositoryContextEvidenceDetail(w, r)
+	if !ok {
+		return
+	}
+
 	ctx := r.Context()
 	repoID, ok := h.resolveRepositoryPathSelector(w, r, "platform_impact.context_overview")
 	if !ok {
@@ -306,5 +311,5 @@ func (h *Handler) getRepositoryContext(w http.ResponseWriter, r *http.Request) {
 
 	result["partial_reasons"] = partialReasons
 
-	querycontract.WriteSuccess(w, r, http.StatusOK, result, querycontract.BuildTruthEnvelope(h.profile(), "platform_impact.context_overview", querycontract.TruthBasisHybrid, "resolved from repository context and platform evidence"))
+	h.writeRepositoryContextResponse(w, r, repoID, result, evidenceDetail)
 }

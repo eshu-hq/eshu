@@ -48,6 +48,18 @@ correlation provenance when available: `confidence`, `confidence_basis`,
 Use `resolved_id` with `GET /api/v0/evidence/relationships/{resolved_id}` when
 a client needs the full evidence preview.
 
+`GET /api/v0/repositories/{repo_id}/context` takes `evidence_detail`, `full`
+(HTTP default) or `handles` (MCP `get_repo_context` default); see
+[Context Evidence Budget](context-evidence-budget.md). `full` is byte-identical
+to today's body. `handles` projects `relationships`,
+`relationship_overview.relationships`, `consumers`, `api_surface.endpoints`,
+`deployment_evidence.artifacts`, `deployment_artifacts`,
+`infrastructure_overview.deployment_artifacts`, `entry_points`, and
+`infrastructure` to identity rows, drops the repeated relationship partition
+lists and the `evidence_index` regrouping with a pointer, keeps every count,
+and names each reduced family with its total in `truth.omissions`. Unknown
+values return 400 `invalid_argument` before any read runs.
+
 `GET /api/v0/repositories/{repo_id}/context` and
 `GET /api/v0/repositories/{repo_id}/story` both map a bounded graph-read
 failure (`ErrGraphReadDeadline`/`ErrGraphUnavailable`) on their summary

@@ -120,7 +120,14 @@ func repositoryRoute(toolName string, args map[string]any) (*routecontract.Reque
 		}
 		return &routecontract.Request{Method: "GET", Path: "/api/v0/repositories/" + url.PathEscape(repoID) + "/stats"}, true, nil
 	case "get_repo_context":
-		return &routecontract.Request{Method: "GET", Path: "/api/v0/repositories/" + url.PathEscape(str(args, "repo_id")) + "/context"}, true, nil
+		q := map[string]string{"evidence_detail": "handles"}
+		// #10654: handles keeps a populated repo context inside the response
+		// budget; an explicit value wins, and the handler rejects an unknown
+		// one.
+		if detail := str(args, "evidence_detail"); detail != "" {
+			q["evidence_detail"] = detail
+		}
+		return &routecontract.Request{Method: "GET", Path: "/api/v0/repositories/" + url.PathEscape(str(args, "repo_id")) + "/context", Query: q}, true, nil
 	case "get_relationship_evidence":
 		return &routecontract.Request{Method: "GET", Path: "/api/v0/evidence/relationships/" + url.PathEscape(str(args, "resolved_id"))}, true, nil
 	case "list_service_catalog_correlations":
