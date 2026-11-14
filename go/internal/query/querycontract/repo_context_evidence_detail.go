@@ -3,8 +3,6 @@
 
 package querycontract
 
-import "fmt"
-
 // repoContextDependencyHandleKeys keeps a top-level relationships row (the
 // outgoing dependency list) to the same identity keys.
 var repoContextDependencyHandleKeys = []string{
@@ -214,30 +212,4 @@ func projectRepoContextTopLists(data map[string]any) []TruthOmission {
 		})
 	}
 	return omissions
-}
-
-// RepoContextEvidenceDetailText renders the family list for OpenAPI and tool
-// text. It panics on an empty family list so a family removal fails loudly
-// instead of shipping an undescribed shape.
-func RepoContextEvidenceDetailText() string {
-	families := RepoContextHandleListFamilies()
-	if len(families) == 0 {
-		panic("RepoContextHandleListFamilies must name at least one family")
-	}
-	out := ""
-	for i, f := range families {
-		if i > 0 {
-			out += ", "
-		}
-		out += f
-	}
-	return fmt.Sprintf(
-		"How the context row lists are shaped. full (the HTTP default when absent) returns every list in full. "+
-			"handles projects %s to identity rows, drops the repeated relationship partition lists and the "+
-			"evidence_index regrouping with a pointer, keeps every count, and names each reduced family with "+
-			"its total in truth.omissions; repeat the call with full for every field of every row. "+
-			"full returns every row in full and can exceed the response budget on a populated repository. "+
-			"The MCP get_repo_context tool defaults to handles. Unknown values return 400 invalid_argument.",
-		out,
-	)
 }

@@ -84,8 +84,8 @@ pointer, keeps every count, and names each reduced family with its total in
 `truth.omissions`. Shaping runs after the grant filter, so a scoped caller
 never learns hidden counts. On a synthetic at-cap fixture the full body is
 about 3.4 MB and the handles body about 151 KB, inside the 256 KiB dispatch
-budget (`TestRepoContextEvidenceDetailAtCapHandlesFitsBudget` pins both
-figures).
+budget (`TestRepoContextEvidenceDetailAtCapHandlesFitsBudget` asserts the budget
+inequality and logs both figures).
 
 ### Omission total rules
 
