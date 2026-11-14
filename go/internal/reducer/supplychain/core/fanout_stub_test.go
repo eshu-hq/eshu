@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"sync"
 	"testing"
 	"time"
 
@@ -46,6 +47,9 @@ type stubFanOut struct {
 	inFlightErr   error
 	inFlightCalls int
 	owedRecorded  int
+	// mu guards every recording append below: split holder reads run
+	// concurrently, so unguarded appends race under -race.
+	mu sync.Mutex
 	// reads records the order of the two read calls.
 	reads []string
 	// candidates, candidateErr, candidateEcosystems, and candidateQueries
@@ -65,6 +69,8 @@ type stubFanOut struct {
 }
 
 func (s *stubFanOut) FindPackageHolderCandidates(_ context.Context, _ string, query PackageHolderQuery) ([]PackageHolderCandidate, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.reads = append(s.reads, "candidates")
 	s.candidateEcosystems = append(s.candidateEcosystems, append([]string(nil), query.Ecosystems...))
 	s.candidateQueries = append(s.candidateQueries, query)
@@ -75,6 +81,8 @@ func (s *stubFanOut) FindPackageHolderCandidates(_ context.Context, _ string, qu
 }
 
 func (s *stubFanOut) FindRepositoryFindingHolders(_ context.Context, _ string, repositoryIDs []string) ([]string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.reads = append(s.reads, "repository")
 	s.repositoryReads = append(s.repositoryReads, append([]string(nil), repositoryIDs...))
 	if s.repositoryErr != nil {
@@ -88,6 +96,8 @@ func (s *stubFanOut) FindRepositoryFindingHolders(_ context.Context, _ string, r
 type stubOwed struct{ port *stubFanOut }
 
 func (r stubOwed) RecordFanOutOwed(context.Context, factwrite.Execer) error {
+	r.port.mu.Lock()
+	defer r.port.mu.Unlock()
 	r.port.owedRecorded++
 	if r.port.payload != nil {
 		r.port.payload[PayloadKeyFanOutOwed] = true
@@ -96,6 +106,8 @@ func (r stubOwed) RecordFanOutOwed(context.Context, factwrite.Execer) error {
 }
 
 func (s *stubFanOut) FindInFlightScopes(_ context.Context, _ string) ([]string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.inFlightCalls++
 	s.reads = append(s.reads, "in-flight")
 	if s.inFlightErr != nil {
@@ -109,6 +121,8 @@ func (s *stubFanOut) OwedRecorder(reducercontract.Intent) FanOutOwedRecorder {
 }
 
 func (s *stubFanOut) FindHolderScopes(_ context.Context, ownScopeID string, lookupIDs []string) ([]string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.reads = append(s.reads, "rows")
 	s.findOwn = append(s.findOwn, ownScopeID)
 	s.findCalls = append(s.findCalls, append([]string(nil), lookupIDs...))
@@ -124,6 +138,8 @@ func (s *stubFanOut) FindHolderScopes(_ context.Context, ownScopeID string, look
 // way a timed-out read fails. It always reports every requested id, like the
 // production probe's per-id LEFT JOIN.
 func (s *stubFanOut) EstimateHolderMasses(_ context.Context, lookupIDs []string) (map[string]int64, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.massCalls = append(s.massCalls, append([]string(nil), lookupIDs...))
 	if s.massErr != nil {
 		return nil, s.massErr
@@ -136,6 +152,8 @@ func (s *stubFanOut) EstimateHolderMasses(_ context.Context, lookupIDs []string)
 }
 
 func (s *stubFanOut) ReopenHolder(_ context.Context, holderScopeID string, origin FanOutOrigin) (FanOutOutcome, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if err := s.reopenErr[holderScopeID]; err != nil {
 		return "", err
 	}
@@ -148,6 +166,8 @@ func (s *stubFanOut) ReopenHolder(_ context.Context, holderScopeID string, origi
 }
 
 func (s *stubFanOut) ClearReplayFlagIfStampSeen(_ context.Context, _ reducercontract.Intent, seen map[string]any) (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.clearCalls = append(s.clearCalls, seen)
 	if s.clearErr != nil {
 		return false, s.clearErr
@@ -156,6 +176,8 @@ func (s *stubFanOut) ClearReplayFlagIfStampSeen(_ context.Context, _ reducercont
 }
 
 func (s *stubFanOut) UpdateFanOutState(_ context.Context, _ reducercontract.Intent, state FanOutState) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.stateCalls = append(s.stateCalls, state)
 	for _, call := range s.stateFailures {
 		if call == len(s.stateCalls) {

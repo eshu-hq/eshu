@@ -35,22 +35,24 @@ const (
 	fanOutHolderReadParallelism = 4
 )
 
-// holderMassEstimator is the optional mass probe behind adaptive holder-read
+// HolderMassEstimator is the optional mass probe behind adaptive holder-read
 // splitting (#10643). A port that implements it reports, per requested lookup
 // id, how many live finding rows name that id, with one entry for every
 // requested id (zero for no match). A port without it keeps the legacy shape:
 // one statement per fanOutHolderReadChunk-sized chunk. The probe runs under
 // the same 10 s guard as the holder read and fails the same way, so a blind
 // pass never proceeds on unmeasured ids.
-type holderMassEstimator interface {
+type HolderMassEstimator interface {
 	// EstimateHolderMasses returns the live finding-row count per lookup id.
 	EstimateHolderMasses(ctx context.Context, lookupIDs []string) (map[string]int64, error)
 }
 
 // fanOutSplitStats counts what adaptive splitting did for one pass: how many
-// holder-read statements ran, how many chunks split, how many ids ran alone
-// as hot, and the largest measured per-id mass. Operators read these on the
-// fan-out span, the summary log line, and the result sub-signals.
+// holder-read statements ran, how many chunks split, how many singleton
+// statements ran (hot by mass, or isolated by packing/unknown mass —
+// hotIDs overstates "hot", read it as singletons), and the largest measured
+// per-id mass. Operators read these on the fan-out span, the summary log
+// line, and the result sub-signals.
 type fanOutSplitStats struct {
 	statements  int
 	splitChunks int
@@ -117,7 +119,7 @@ func (h SupplyChainImpactHandler) readHolderScopesSplit(
 ) (map[string]struct{}, fanOutSplitStats, error) {
 	var stats fanOutSplitStats
 	statements := [][]string{chunk}
-	if est, ok := h.FanOut.(holderMassEstimator); ok {
+	if est, ok := h.FanOut.(HolderMassEstimator); ok {
 		masses, err := est.EstimateHolderMasses(ctx, chunk)
 		if err != nil {
 			h.countFanOutRead(ctx, cause, err, telemetry.FanOutReadSiteHolders)

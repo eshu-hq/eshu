@@ -26,9 +26,10 @@ per-id row mass before the holder read runs:
   per statement (`fanOutHolderReadParallelism`); the cold common case still
   runs one direct call with no goroutines.
 
-Splitting changes statement count only: the admitted id set, the total work
-(the probe adds index probes, no heap-heavy second read), and the
-per-statement timeout are unchanged. No timeout, lease, worker-count, or
+Splitting changes statement count only: the admitted id set and the
+per-statement timeout are unchanged (the probe adds one statement per chunk
+whose heap cost at production mass is unmeasured, bounded by the same guard
+with fail-closed errors). No timeout, lease, worker-count, or
 batch-size change; no DDL.
 
 ## Threshold and parallelism bound

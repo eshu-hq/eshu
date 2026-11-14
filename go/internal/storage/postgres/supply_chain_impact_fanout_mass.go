@@ -9,14 +9,17 @@ import (
 	"fmt"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 )
 
 // holderMassProbeQuery estimates, per lookup id, how many live finding rows
 // name that id, so the reducer can isolate hot ids into their own holder-read
 // statement (#10643). Each arm joins one id at a time against the same
 // partial index the shipped holder read uses (literal fact kind plus the
-// tombstone predicate prove the predicate), so the probe is index probes,
-// not a second heap-heavy read: no scope join, no DISTINCT sort. The probe
+// tombstone predicate prove the predicate), so the probe avoids the scope
+// join and DISTINCT sort of a second full read; its heap cost at production
+// mass is unmeasured but bounded by the same guard with fail-closed errors.
+// The probe
 // deliberately overestimates: it counts rows in superseded generations (no
 // active-generation join) and counts a row once per arm it matches, and an
 // id whose row matches through two ids in one chunk counts toward both. All
@@ -54,7 +57,7 @@ LEFT JOIN (
 GROUP BY ids.id
 `
 
-// EstimateHolderMasses implements the reducer's holderMassEstimator: one row
+// EstimateHolderMasses implements supplychaincore.HolderMassEstimator: one row
 // per requested lookup id with its live finding-row count, under the same
 // bounded statement timeout as the holder read. A timeout classifies as
 // supplychaincore.ErrFanOutReadTimeout exactly like the holder read, so the
@@ -118,3 +121,8 @@ func (s SupplyChainImpactFanOutStore) readIDMasses(ctx context.Context, query st
 	}
 	return masses, nil
 }
+
+// The production store always satisfies the split probe seam: a future
+// decorator that stops forwarding EstimateHolderMasses restores the timed-out
+// shape silently, so this fails the build instead (#10643 F-3).
+var _ supplychaincore.HolderMassEstimator = SupplyChainImpactFanOutStore{}

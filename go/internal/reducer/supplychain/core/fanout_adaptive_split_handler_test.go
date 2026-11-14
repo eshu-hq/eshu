@@ -194,4 +194,7 @@ func TestAdaptiveSplitRunsStatementsWithBoundedParallelism(t *testing.T) {
 	if peak > int32(fanOutHolderReadParallelism) {
 		t.Fatalf("peak concurrent holder reads = %d, over the bound %d", peak, fanOutHolderReadParallelism)
 	}
+	if peak < 2 {
+		t.Fatalf("peak concurrent holder reads = %d, want at least 2 overlapping arms (10ms probe sleeps make serialization here a real finding, not flakiness)", peak)
+	}
 }

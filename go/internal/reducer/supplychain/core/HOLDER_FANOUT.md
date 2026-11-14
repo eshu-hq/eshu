@@ -46,8 +46,9 @@ more than 256 holders drains across claims.
   (#10643): one mass-probe statement per chunk, then one holder-read statement
   per hot id alone (over 10k rows) and one per cold group (at most 5 ids and
   10k combined rows), run with up to 4 concurrent statements under the same
-  10 s guard. Splitting changes statement count only: the admitted id set, the
-  total work, and the per-statement timeout are unchanged.
+  10 s guard. Splitting changes statement count only: the admitted id set and
+  the per-statement timeout are unchanged (the per-chunk probe's heap cost
+  at production mass is unmeasured, bounded by the same guard, fail-closed).
 - One hop: only the attempt a fan-out created is one hop (attempt 1; the reopen
   and the replay both reset the count to 0). That pass re-derives its copy,
   fans out nothing of its own rewrite, and consumes the stamp — except the
