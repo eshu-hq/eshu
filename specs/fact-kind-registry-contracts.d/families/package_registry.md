@@ -11,7 +11,7 @@
 
 | Producer | Repository | Path | Planned repository | Authority | Emitted kinds |
 | --- | --- | --- | --- | --- | --- |
-| `collector-package-registry` | `eshu-hq/eshu` | `go/internal/collector/packageregistry` | `eshu-hq/eshu-collector-package-registry` | `core_issued_grant` | `package_registry.package, package_registry.package_artifact, package_registry.package_dependency, package_registry.package_version, package_registry.registry_event, package_registry.repository_hosting, package_registry.source_hint, package_registry.vulnerability_hint, package_registry.warning` |
+| `collector-package-registry` | `eshu-hq/eshu-collector-package-registry` | `.` | `` | `core_issued_grant` | `package_registry.package, package_registry.package_artifact, package_registry.package_dependency, package_registry.package_version, package_registry.registry_event, package_registry.repository_hosting, package_registry.source_hint, package_registry.vulnerability_hint, package_registry.warning` |
 
 ## Kinds
 

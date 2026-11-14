@@ -21,9 +21,8 @@ kinds:
     - oci_registry.warning
 producers:
     - id: collector-oci-registry
-      repository: eshu-hq/eshu
-      path: go/internal/collector/ociregistry
-      planned_repository: eshu-hq/eshu-collector-oci-registry
+      repository: eshu-hq/eshu-collector-oci-registry
+      path: .
       authority_mode: core_issued_grant
       kinds:
         - oci_registry.image_descriptor
