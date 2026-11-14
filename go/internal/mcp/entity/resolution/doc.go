@@ -26,9 +26,10 @@
 // non-empty. limit always travels and defaults to 10, the same value the
 // handler substitutes for a nonpositive limit before capping anything above
 // 100 at 100, so no limit value can 400. Everything else is bounded at the
-// handler: a global call without repo_id requires a supported type or a
-// canonical content-entity handle, graph-only types require repo_id, and an
-// unknown non-blank type rejects with HTTP 400.
+// handler: a global call without repo_id fans out across every kind by exact
+// name for names of at least 3 characters (type omitted); graph-only types
+// require repo_id; a canonical content-entity handle resolves directly; and
+// an unknown non-blank type rejects with HTTP 400.
 //
 // get_entity_context is the family's one GET: the entity id is path-escaped
 // into the URL and environment travels as a query parameter only when
