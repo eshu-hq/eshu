@@ -99,7 +99,7 @@ gosec used to skip its SSA analyzers (G115, G118, G405, G406, G407, G602) on
 file-pattern list over 16383 bytes into several `go list` runs and keeps only
 the first run's imports. The arm now passes every package as an explicit
 directory, never `./...`, and scans a package over the limit through a short
-`go/_g<pid>` symlink alias that it removes on exit (a crash can leave one; git
+`go/_g` symlink alias (lettered variants on collision) that it removes on exit (a crash can leave one; git
 ignores it). It also refuses a run whose scanned file count differs from the
 `go list` file count, any Go error, and a run outside the module root. CI runs
 the same whole-module arm after its SARIF upload, so findings reach the

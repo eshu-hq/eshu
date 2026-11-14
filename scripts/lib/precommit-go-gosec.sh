@@ -29,7 +29,8 @@
 # analyzers on go/internal/storage/postgres. run_gosec therefore expands every
 # pattern with `go list`, passes each package as an explicit ./<dir>/ (never
 # ./...), and routes a package over gosec_pattern_limit bytes through a short
-# symlink alias go/_g<pid> that it removes on exit. It checks that gosec scanned
+# symlink alias go/_g (or a lettered variant on collision) that it removes on
+# exit. It checks that gosec scanned
 # exactly the GoFiles and CgoFiles `go list` reports (tests are excluded by
 # design, as gosec does by default), so a short or empty scan cannot read clean.
 #
@@ -72,15 +73,17 @@ gosec_cleanup() {
 	return 0
 }
 
-# gosec_new_alias <real-dir> creates go/_g<pid> (or a lettered variant) as a
+# gosec_new_alias <real-dir> creates go/_g (or a lettered variant) as a
 # relative symlink to the package dir and sets gosec_alias_made to its name (no
 # command substitution: it must update gosec_aliases in the calling shell). The underscore keeps
-# it out of ./..., go vet and golangci-lint; the name is per process, and ln -s
-# fails on an existing name, so a concurrent run never shares or deletes ours.
+# it out of ./..., go vet and golangci-lint; the base name is fixed-length so the
+# alias byte cost is deterministic (a PID-derived base made the gate pass or fail
+# on PID digit count, eshu-hq/eshu#10665), and ln -s fails on an existing name,
+# so a concurrent run never shares or deletes ours.
 gosec_new_alias() {
-	local dir="$1" base="_g$(($$ % 10000))" cand letters=bcdefghijklmnopqrstuvwxyz n=0
+	local dir="$1" base="_g" cand letters=bcdefghijklmnopqrstuvwxyz n=0
 	cand="${base}"
-	until ln -s "${dir}" "${go_dir}/${cand}" 2>/dev/null; do
+	until ln -sn "${dir}" "${go_dir}/${cand}" 2>/dev/null; do
 		n=$((n + 1))
 		[[ ${n} -le ${#letters} ]] || gosec_fail 1 "gosec: could not create an alias under ${go_dir}"
 		cand="${base}${letters:$((n - 1)):1}"
