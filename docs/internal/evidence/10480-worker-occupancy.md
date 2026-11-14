@@ -8,7 +8,7 @@ existed. After: a mutex-guarded per-worker tracker (current intent plus
 execution start) feeds a gauge, span attributes, and a start log line on
 the existing telemetry family with one new closed worker label and no
 unbounded labels. Backend: unit tests
-with SDK readers plus focused reducer/telemetry suites (7 new tests
+with SDK readers plus focused reducer/telemetry suites (8 new tests
 green, full suites green, worker subset green with race detector; no
 touched test needs a live database). Input shape: table-driven unit
 cases including nil tracker, out-of-range indexes, and

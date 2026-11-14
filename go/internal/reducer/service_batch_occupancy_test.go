@@ -78,6 +78,74 @@ func TestBatchWorkerOccupancyReleasesWorkerAfterExecution(t *testing.T) {
 	}
 }
 
+// TestBatchWorkerOccupancyDefensiveNoOps pins the telemetry-must-never-panic
+// contract: nil receivers and out-of-range worker indexes are no-ops, and
+// out-of-range writes leave real slots untouched.
+func TestBatchWorkerOccupancyDefensiveNoOps(t *testing.T) {
+	t.Parallel()
+
+	intents := makeTestIntents(2)
+	intent := intents[0]
+	other := intents[1]
+	now := time.Now().UTC()
+
+	t.Run("nil tracker", func(t *testing.T) {
+		t.Parallel()
+		var occupancy *batchWorkerOccupancy
+		occupancy.occupy(0, intent) // must not panic
+		occupancy.release(0)        // must not panic
+		if snapshot := occupancy.snapshot(now); snapshot != nil {
+			t.Fatalf("nil tracker snapshot = %v, want nil", snapshot)
+		}
+	})
+
+	t.Run("out of range indexes", func(t *testing.T) {
+		t.Parallel()
+		for _, workerID := range []int{-100, -1, 2, 100} {
+			occupancy := newBatchWorkerOccupancy(2)
+			occupancy.occupy(workerID, intent) // must not panic
+			occupancy.release(workerID)        // must not panic
+			snapshot := occupancy.snapshot(now)
+			if len(snapshot) != 2 {
+				t.Fatalf("worker %d: snapshot workers = %d, want 2", workerID, len(snapshot))
+			}
+			for i, slot := range snapshot {
+				if slot.Busy {
+					t.Fatalf("worker %d: slot %d busy = true, want all idle", workerID, i)
+				}
+			}
+		}
+	})
+
+	t.Run("out of range writes leave occupied slots untouched", func(t *testing.T) {
+		t.Parallel()
+		occupancy := newBatchWorkerOccupancy(2)
+		occupancy.occupy(0, intent)
+		occupancy.occupy(-1, other)
+		occupancy.occupy(99, other)
+		occupancy.release(-1)
+		occupancy.release(99)
+		snapshot := occupancy.snapshot(now.Add(time.Minute))
+		if !snapshot[0].Busy || snapshot[0].IntentID != intent.IntentID {
+			t.Fatalf("slot 0 = %+v, want occupied with %q", snapshot[0], intent.IntentID)
+		}
+		if snapshot[1].Busy {
+			t.Fatal("slot 1 busy = true, want idle")
+		}
+	})
+
+	t.Run("release then read", func(t *testing.T) {
+		t.Parallel()
+		occupancy := newBatchWorkerOccupancy(1)
+		occupancy.occupy(0, intent)
+		occupancy.release(0)
+		released := occupancy.snapshot(now)
+		if released[0].Busy || released[0].ExecutionAgeSeconds != 0 {
+			t.Fatalf("released slot = %+v, want idle with zero age", released[0])
+		}
+	})
+}
+
 // blockingOccupancyExecutor parks inside Execute until released, reproducing
 // the #10480 stuck-worker shape: the claim loop parks while every worker sits
 // inside executeAndReport.
