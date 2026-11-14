@@ -95,6 +95,31 @@ site, exactly like a failed holder read today.
 - Row movement: none. No query text of the shipped holder read changed; the
   probe is a new read-only statement.
 
+## Performance Evidence (#10643)
+
+Baseline (read-only, QA primary database, PostgreSQL 18.6): the
+verbatim holder query over 5 sampled hot CVE ids (67,064 candidate rows)
+ran 9806 ms cold first run and ~560 ms warm; visibility map 95.4%. After
+(split shapes, same backend): N=5 cold 9806 ms becomes N=2 ~1159 ms
+(25,486 rows) and N=1 ~781 ms fresh id (15,455 rows); generation_id-only
+proxy ~170 ms (3.3x over warm). Fixture (disposable PostgreSQL 18.6):
+multi-id 3.6 ms, max-single 1.95 ms, probe 2.33 ms, bidirectional EXCEPT
+0/0. Threshold 10,000 rows sits ~7x under the observed 67k timeout mass;
+bound 4 drains a fully split 5-id chunk in ~2 waves. Terminal counts:
+admitted id set identical by construction (union plus downstream sort);
+no query text of the shipped holder read changed.
+
+## Observability Evidence (#10643)
+
+No new counter or label: per-chunk statements, splits, hot singletons,
+and max mass ride the existing fan-out span attributes, the summary log
+line, and the `fanout_holder_statements`, `fanout_hot_ids`, and
+`fanout_max_id_mass_rows` result sub-signals. Probe/statement failures
+count `read_error`/`read_timeout` on the existing counter with the
+`holders` site, exactly like a failed holder read today — an operator
+sees split activity, mass peaks, and failures on the surfaces they
+already watch.
+
 ## Residual risk
 
 A singleton hot id may exceed the threshold alone: splitting cannot help an
