@@ -50,10 +50,10 @@ func TestToolsPreserveEcosystemRegistrationContract(t *testing.T) {
 	}
 
 	encoded := marshalEcosystemDefinitions(t, tools)
-	if got, want := len(encoded), 23246; got != want {
+	if got, want := len(encoded), 23970; got != want {
 		t.Fatalf("serialized ecosystem definitions length = %d, want %d", got, want)
 	}
-	const wantDefinitionsHash = "f55511d556187f54a46f45efd7a8df762451edd908f4503252a57f39333e63d3"
+	const wantDefinitionsHash = "127cc7c926d81a03a300790906acc9ef4d234ee0724e40bb2b5ea9e1e2d03ffc"
 	if got := fmt.Sprintf("%x", sha256.Sum256(encoded)); got != wantDefinitionsHash {
 		t.Fatalf("ecosystem definitions hash = %s, want %s", got, wantDefinitionsHash)
 	}
@@ -232,6 +232,45 @@ func TestRepoStoryEvidenceDetailDescriptionNamesFamilies(t *testing.T) {
 	for _, family := range querycontract.RepoStoryHandleListFamilies() {
 		if !strings.Contains(description, family) {
 			t.Fatalf("get_repo_story evidence_detail description missing handles family %q", family)
+		}
+	}
+}
+
+// TestRepoContextEvidenceDetailDescriptionNamesFamilies proves the
+// get_repo_context evidence_detail description names every row family handles
+// projects (#10654). Ranging over querycontract.RepoContextHandleListFamilies
+// means a family added to the list cannot ship undescribed on the MCP
+// surface; keep the list in step with the families the shaper projects.
+func TestRepoContextEvidenceDetailDescriptionNamesFamilies(t *testing.T) {
+	t.Parallel()
+
+	tools := Tools()
+	var repoCtx *toolcontract.ToolDefinition
+	for i := range tools {
+		if tools[i].Name == "get_repo_context" {
+			repoCtx = &tools[i]
+			break
+		}
+	}
+	if repoCtx == nil {
+		t.Fatal("get_repo_context not registered, want the context tool present")
+	}
+	schema, ok := repoCtx.InputSchema.(map[string]any)
+	if !ok {
+		t.Fatalf("get_repo_context schema type = %T, want map[string]any", repoCtx.InputSchema)
+	}
+	properties, ok := schema["properties"].(map[string]any)
+	if !ok {
+		t.Fatalf("get_repo_context properties type = %T, want map[string]any", schema["properties"])
+	}
+	detail, ok := properties["evidence_detail"].(map[string]any)
+	if !ok {
+		t.Fatalf("get_repo_context evidence_detail type = %T, want map[string]any", properties["evidence_detail"])
+	}
+	description, _ := detail["description"].(string)
+	for _, family := range querycontract.RepoContextHandleListFamilies() {
+		if !strings.Contains(description, family) {
+			t.Fatalf("get_repo_context evidence_detail description missing handles family %q", family)
 		}
 	}
 }

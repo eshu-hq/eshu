@@ -70,6 +70,23 @@ returns 400 `invalid_argument` before any read runs.
 - To reach the rows under `handles`, repeat the call with `evidence_detail: full`,
   or fetch one relationship by `resolved_id` with `get_relationship_evidence`.
 
+### Repository context evidence
+
+`GET /api/v0/repositories/{repo_id}/context` takes the same `evidence_detail`
+parameter (`full` HTTP default, `handles` MCP `get_repo_context` default).
+`full` is byte-identical to the body shipped before #10654. `handles`
+projects `relationships`, `relationship_overview.relationships`, `consumers`,
+`api_surface.endpoints`, `deployment_evidence.artifacts`,
+`deployment_artifacts`, `infrastructure_overview.deployment_artifacts`,
+`entry_points`, and `infrastructure` to identity rows, drops the repeated
+relationship partition lists and the `evidence_index` regrouping with a
+pointer, keeps every count, and names each reduced family with its total in
+`truth.omissions`. Shaping runs after the grant filter, so a scoped caller
+never learns hidden counts. On a synthetic at-cap fixture the full body is
+about 3.4 MB and the handles body about 151 KB, inside the 256 KiB dispatch
+budget (`TestRepoContextEvidenceDetailAtCapHandlesFitsBudget` pins both
+figures).
+
 ### Omission total rules
 
 Every total is the story's pre-cap count and may be a lower bound: the story
