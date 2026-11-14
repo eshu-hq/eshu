@@ -367,8 +367,23 @@ func TestServiceBatchCanceledMidHandoffRecordsRemainder(t *testing.T) {
 	for _, id := range []string{intents[0].IntentID, intents[1].IntentID, intents[2].IntentID} {
 		// Count the intent_id attribute, not bare substrings: the
 		// abandonment error text repeats the in-flight id inside one line.
-		if got := strings.Count(logs.String(), `"intent_id":"`+id+`"`); got != 1 {
-			t.Fatalf("record lines for %s = %d, want exactly 1: every claimed item recorded exactly once", id, got)
+		// Executed intents now carry two lines (worker start plus outcome);
+		// the dropped remainder carries only its outcome line.
+		want := 1
+		if id != intents[2].IntentID {
+			want = 2
+			startLines := 0
+			for _, line := range strings.Split(logs.String(), "\n") {
+				if strings.Contains(line, `"msg":"reducer batch worker execution started"`) && strings.Contains(line, `"intent_id":"`+id+`"`) {
+					startLines++
+				}
+			}
+			if startLines != 1 {
+				t.Fatalf("start lines for %s = %d, want exactly 1: every executed item logs its worker start once", id, startLines)
+			}
+		}
+		if got := strings.Count(logs.String(), `"intent_id":"`+id+`"`); got != want {
+			t.Fatalf("record lines for %s = %d, want exactly %d: every claimed item recorded with its outcome line", id, got, want)
 		}
 	}
 	if strings.Contains(logs.String(), `"msg":"reducer execution succeeded"`) || !strings.Contains(logs.String(), `"status":"ack_outcome_unknown"`) {
