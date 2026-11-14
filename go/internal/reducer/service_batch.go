@@ -60,6 +60,14 @@ func (s Service) runBatchConcurrent(
 
 	batchSize := s.batchClaimSize()
 
+	// Size the occupancy tracker before workers start so every handoff can
+	// mark its execution (go-statement happens-before makes the assignment
+	// visible to the worker goroutines). Telemetry only: no claim, lock, or
+	// scheduling behavior changes.
+	if s.batchOccupancy == nil {
+		s.batchOccupancy = newBatchWorkerOccupancy(s.Workers)
+	}
+
 	type workItem struct {
 		intent reducercontract.Intent
 	}
@@ -245,7 +253,7 @@ func (s Service) runBatchConcurrent(
 					return
 				}
 
-				ackItem, needsAck, err := s.executeAndReport(ctx, wi.intent, workerID)
+				ackItem, needsAck, err := s.executeAndReportTracked(ctx, wi.intent, workerID)
 				if err != nil {
 					// Execute failures that require a Fail() call are handled
 					// inside executeAndReport. A returned error means the Fail
@@ -475,7 +483,7 @@ func (s Service) executeAndReport(ctx context.Context, intent reducercontract.In
 
 	if s.Tracer != nil {
 		var span trace.Span
-		ctx, span = s.Tracer.Start(ctx, telemetry.SpanReducerRun)
+		ctx, span = startBatchWorkerSpan(ctx, s.Tracer, intent, workerID)
 		defer span.End()
 	}
 

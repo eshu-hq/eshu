@@ -87,6 +87,7 @@ var registrationSteps = []func(){
 	registerSupplyChainImpactWinners,
 	registerIngestionClaimFence,
 	registerWorkflowClaimStats,
+	registerReducerBatchWorkerOccupancy,
 }
 
 func init() {

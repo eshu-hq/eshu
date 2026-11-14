@@ -289,7 +289,9 @@ Domain and intent helpers:
 Spans emitted:
 
 - `SpanReducerRun` — wraps each `executeWithTelemetry` call
-  (`service.go:308`).
+  (`service.go:308`); the batch path (`executeAndReport`,
+  `service_batch.go`) additionally carries `worker_id`, `intent_id`, and
+  `domain` attributes so a stuck execution shows what it runs (#10480).
 - `SpanCanonicalWrite` — wraps each `processPartitionWithTelemetry`
   call in `SharedProjectionRunner` (`shared_projection_runner.go:284`).
 
@@ -301,7 +303,13 @@ wait and claim timing (`reducer_queue_wait_duration_seconds`,
 and one bounded-outcome decision counter per correlation/materialization
 domain (package source, package-consumption edges, service catalog,
 observability coverage, incident routing, Kubernetes correlation, EC2/
-Kubernetes node materialization, AWS/multi-cloud runtime drift).
+Kubernetes node materialization, AWS/multi-cloud runtime drift). Per-worker
+occupancy of the batch-claim pool (`service_batch_occupancy.go`) reports on
+`eshu_dp_reducer_batch_worker_execution_age_seconds` (busy workers only, by
+closed `queue`, `worker`, `domain`) and the `reducer batch worker execution
+started` log line (`worker_id`, `intent_id`): when the claim loop parks with
+all workers stuck, a climbing series names the worker and domain, and the
+start log names the exact intent (#10480).
 
 Log phase attributes: `telemetry.PhaseReduction` (main loop),
 `telemetry.PhaseShared` (shared projection and repair runner).

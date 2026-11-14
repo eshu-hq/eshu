@@ -240,6 +240,13 @@ type Service struct {
 	// to place shutdown inside one worker handoff. Only same-package tests
 	// set them; production wiring never does (#8636).
 	batchWorkerTestHooks
+
+	// batchOccupancy tracks each batch-claim worker's current intent and
+	// execution start for the #10480 occupancy gauge, start log, and span
+	// attributes. Nil until InitBatchWorkerOccupancy or runBatchConcurrent
+	// sizes it; every method on a nil tracker is a no-op, so lanes that
+	// never run the batch pool observe nothing and change nothing.
+	batchOccupancy *batchWorkerOccupancy
 }
 
 // Run polls for reducer work until the context is canceled. If a

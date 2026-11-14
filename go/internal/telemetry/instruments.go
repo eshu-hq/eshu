@@ -3241,15 +3241,20 @@ type Instruments struct {
 	PipelineOverlapDuration metric.Float64Histogram
 
 	// Observable gauges for autoscaling signals
-	QueueDepth             metric.Int64ObservableGauge
-	QueueOldestAge         metric.Float64ObservableGauge
-	SourceQueueDepth       metric.Int64ObservableGauge
-	SourceQueueOldestAge   metric.Float64ObservableGauge
-	WorkerPoolActive       metric.Int64ObservableGauge
-	SharedAcceptanceRows   metric.Int64ObservableGauge
-	GraphOrphanNodes       metric.Int64ObservableGauge
-	AWSClaimConcurrency    metric.Int64ObservableGauge
-	ActiveGenerationsByAge metric.Int64ObservableGauge
+	QueueDepth           metric.Int64ObservableGauge
+	QueueOldestAge       metric.Float64ObservableGauge
+	SourceQueueDepth     metric.Int64ObservableGauge
+	SourceQueueOldestAge metric.Float64ObservableGauge
+	WorkerPoolActive     metric.Int64ObservableGauge
+	// ReducerBatchWorkerExecutionAge reports each busy reducer batch-claim
+	// worker's current execution age in seconds (#10480). Observed only for
+	// busy workers: an absent worker series means idle. Registered by
+	// RegisterReducerBatchWorkerOccupancyGauge.
+	ReducerBatchWorkerExecutionAge metric.Float64ObservableGauge
+	SharedAcceptanceRows           metric.Int64ObservableGauge
+	GraphOrphanNodes               metric.Int64ObservableGauge
+	AWSClaimConcurrency            metric.Int64ObservableGauge
+	ActiveGenerationsByAge         metric.Int64ObservableGauge
 
 	// ProjectorScopesMultipleLiveLeases reports how many scopes hold more than
 	// one unexpired projector lease (#7115). It is an invariant gauge: any

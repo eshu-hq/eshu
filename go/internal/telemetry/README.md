@@ -331,6 +331,7 @@ The histogram inventory (fields, metric names, bucket ranges, and the
 | `SourceQueueDepth` | `eshu_dp_queue_source_depth` | `queue`, `source_system`, `status` |
 | `SourceQueueOldestAge` | `eshu_dp_queue_source_oldest_age_seconds` | `queue`, `source_system` |
 | `WorkerPoolActive` | `eshu_dp_worker_pool_active` | `pool` |
+| `ReducerBatchWorkerExecutionAge` | `eshu_dp_reducer_batch_worker_execution_age_seconds` | `queue`, `worker`, `domain` (busy workers only; absent means idle) |
 | `SharedAcceptanceRows` | `eshu_dp_shared_acceptance_rows` | none |
 | `GraphOrphanNodes` | `eshu_dp_graph_orphan_nodes` | `node_label` |
 | `ActiveGenerationsByAge` | `eshu_dp_active_generations` | `age_bucket` |

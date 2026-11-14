@@ -210,6 +210,30 @@ configured `ESHU_REDUCER_WORKERS` to see saturation, and against
 `eshu_dp_queue_depth` to see whether a backlog is caused by too few active
 workers or by upstream starvation.
 
+## Reducer batch worker occupancy
+
+The reducer publishes `eshu_dp_reducer_batch_worker_execution_age_seconds`
+(labeled `queue="reducer"`, `worker="0".."N-1"`, and closed `domain`), an
+observable gauge of each busy batch-claim worker's current execution age in
+seconds (#10480). Only busy workers are observed: an absent worker series
+means that worker is idle between handoffs. The gauge is sourced from an
+in-process per-worker tracker marked around the batch execution, so reading
+it costs a mutex-guarded snapshot per scrape and never touches the claim,
+lock, or scheduling path.
+
+When every worker is stuck inside its execution, the claim loop parks and
+claim shapes freeze while the process stays healthy. Diagnose it this way:
+
+```promql
+max by (worker, domain) (eshu_dp_reducer_batch_worker_execution_age_seconds)
+```
+
+A series climbing without bound names the stuck worker and its domain. Pair
+it with the `reducer batch worker execution started` log line (`worker_id`,
+`intent_id`, `domain`), which fires once per execution before the handler
+runs, for the exact intent; the in-flight `reducer.run` span carries the same
+`worker_id`, `intent_id`, and `domain` attributes.
+
 ## Shared-acceptance read-model gauge
 
 The reducer publishes `eshu_dp_shared_acceptance_rows`, an observable gauge of
