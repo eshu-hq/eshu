@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/pagerduty"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	factsincident "github.com/eshu-hq/eshu/go/internal/facts/incident"
 	storagepostgres "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
@@ -27,8 +27,8 @@ type writerMatrixFixture struct {
 
 // TestServiceStoryTargetSupportWriterShapedMatrixLive is the #7138
 // correlation-truth matrix against Postgres. Every payload carries the
-// durable keys the writers emit (the Jira fixtures mirror the extracted
-// satellite's envelope keys), so the read is held to the keys real
+// durable keys the writers emit (the Jira and PagerDuty fixtures mirror the
+// extracted satellites' envelope keys), so the read is held to the keys real
 // collectors emit.
 //
 // Repository target: a link to R appears; a link to R2 does not; an
@@ -230,11 +230,25 @@ VALUES ('g-jira-old', 's-jira', 'snapshot', $1, $1, 'superseded', '{}'::jsonb)`,
 			"work_item_key":         "OPS-1",
 		},
 	}
-	pdService, err := pagerduty.NewObservedPagerDutyServiceEnvelope(pagerduty.EnvelopeContext{
-		ScopeID: "s-pd", GenerationID: "g-pd", CollectorInstanceID: "pd-test", ObservedAt: observed,
-	}, pagerduty.ConfigService{ID: "PSVC1", Summary: "payments"})
-	if err != nil {
-		t.Fatalf("NewObservedPagerDutyServiceEnvelope error = %v", err)
+	// f-pd-service carries the durable keys the extracted satellite's
+	// envelope writer emits for a bare service (read joins
+	// provider_object_id/service_id; schema requires the contract base
+	// keys).
+	pdService := facts.Envelope{
+		FactKind: factsincident.IncidentRoutingObservedPagerDutyServiceFactKind,
+		Payload: map[string]any{
+			"collector_instance_id": "pd-test",
+			"provider":              "pagerduty",
+			"source_class":          "observed",
+			"source_kind":           "pagerduty_api",
+			"outcome":               "observed",
+			"resource_class":        "service",
+			"provider_object_id":    "PSVC1",
+			"service_id":            "PSVC1",
+			"scope_id":              "s-pd",
+			"declared_match_state":  "not_compared",
+			"redaction_state":       "applied",
+		},
 	}
 
 	seed := func(id, scopeID, generationID string, env facts.Envelope, at time.Time, tombstone bool) {

@@ -142,7 +142,6 @@ The active collector set on this deployment is enumerated below. Disabling a col
 - grafana (enabled)
 - oci_registry (enabled)
 - package_registry (enabled)
-- pagerduty (enabled)
 - prometheus_mimir (enabled)
 - sbom_attestation (enabled)
 - scanner_worker (enabled)

@@ -30,8 +30,11 @@ func LoadManifestFile(path string) ([]Manifest, error) {
 	if set.SchemaVersion != 1 {
 		return nil, fmt.Errorf("collector entrypoint manifest schema_version = %d, want 1", set.SchemaVersion)
 	}
-	if len(set.Collectors) == 0 {
-		return nil, fmt.Errorf("collector entrypoint manifest must declare at least one collector")
+	// #10619: an empty collectors list is valid. The last generated
+	// collector was removed after its satellite cutover; the generator
+	// accepts zero manifests and -check passes vacuously.
+	if set.Collectors == nil {
+		set.Collectors = []Manifest{}
 	}
 	seenCommandDirs := map[string]struct{}{}
 	seenRuntimeNames := map[string]struct{}{}

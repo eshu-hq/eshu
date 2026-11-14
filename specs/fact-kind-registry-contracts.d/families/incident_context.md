@@ -11,7 +11,7 @@
 
 | Producer | Repository | Path | Planned repository | Authority | Emitted kinds |
 | --- | --- | --- | --- | --- | --- |
-| `collector-pagerduty` | `eshu-hq/eshu` | `go/internal/collector/pagerduty` | `eshu-hq/eshu-collector-pagerduty` | `core_issued_grant` | `change.record, incident.lifecycle_event, incident.record` |
+| `collector-pagerduty` | `eshu-hq/eshu-collector-pagerduty` | `.` | `` | `core_issued_grant` | `change.record, incident.lifecycle_event, incident.record` |
 
 ## Kinds
 

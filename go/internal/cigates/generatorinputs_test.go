@@ -245,29 +245,108 @@ func withEntrypointsGate(t *testing.T, reg *Registry, mutate func(*Gate)) *Regis
 	return nil
 }
 
-// writeManifestWithSecondCollector writes, under a temporary repo root, the
-// committed manifest plus a second collector copied from the first with a
-// different command directory. It is the future "add collector #2" edit.
-func writeManifestWithSecondCollector(t *testing.T, realRoot string) string {
+// syntheticCollectorManifest is a minimal valid entrypoint manifest with one
+// collector. The committed manifest is empty since #10619 removed the last
+// generated collector, so seeded-violation tests build their collector from
+// this fixture instead of copying a committed entry. It mirrors the shape
+// manifest_test.go accepts (test scope kind, no auth).
+const syntheticCollectorManifest = `schema_version: 1
+collectors:
+  - command_dir: go/cmd/collector-zzprobe
+    runtime_name: collector-zzprobe
+    binary_name: eshu-collector-zzprobe
+    collector_label: zzprobe collector
+    go_name: Zzprobe
+    env:
+      collector_instances: ESHU_COLLECTOR_INSTANCES_JSON
+      instance_id: ESHU_ZZPROBE_COLLECTOR_INSTANCE_ID
+      poll_interval: ESHU_ZZPROBE_POLL_INTERVAL
+      claim_lease_ttl: ESHU_ZZPROBE_CLAIM_LEASE_TTL
+      heartbeat_interval: ESHU_ZZPROBE_HEARTBEAT_INTERVAL
+      owner_id: ESHU_ZZPROBE_COLLECTOR_OWNER_ID
+      owner_id_const_name: envOwnerID
+    store_name: collector_zzprobe
+    claim_id_prefix: zzprobe-claim
+    collector_kind_expr: scope.CollectorKind("zzprobe")
+    scope_kind: test
+    auth_mode: none
+    target_list_field: targets
+    target_identity_fields: [scope_id]
+    target_auth_fields: [none]
+    source:
+      import_path: github.com/eshu-hq/eshu/go/internal/collector/zzprobe
+      package_name: zzprobe
+      config_type: zzprobe.SourceConfig
+      constructor: zzprobe.NewClaimedSource
+      config_loader: loadZzprobeSourceConfig
+      config_attacher: attachZzprobeRuntimeSignals
+      runtime_config_type: zzprobeRuntimeConfiguration
+`
+
+// writeSyntheticCollectorManifest writes the synthetic collector manifest
+// under a temporary repo root. It is the future "add collector #2" edit for
+// checks that read only the manifest.
+func writeSyntheticCollectorManifest(t *testing.T) string {
 	t.Helper()
-	data, err := os.ReadFile(filepath.Join(realRoot, collectorManifestRel))
-	if err != nil {
-		t.Fatal(err)
-	}
-	text := string(data)
-	const head = "collectors:\n"
-	idx := strings.Index(text, head)
-	if idx < 0 {
-		t.Fatal("manifest has no collectors: key")
-	}
-	second := strings.ReplaceAll(text[idx+len(head):], "collector-pagerduty", "collector-zzprobe")
-	second = strings.ReplaceAll(second, "collector_pagerduty", "collector_zzprobe")
 	tmp := t.TempDir()
 	dest := filepath.Join(tmp, collectorManifestRel)
 	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(dest, []byte(text+second), 0o600); err != nil {
+	if err := os.WriteFile(dest, []byte(syntheticCollectorManifest), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return tmp
+}
+
+// mirrorRootWithManifest mirrors realRoot into a temporary directory,
+// overriding the collector entrypoint manifest with manifest text. Ancestor
+// directories of the manifest are real directories; every other entry is a
+// symlink. Removing or writing through a top-level symlink would mutate the
+// real tree, so the whole ancestor chain stays real. It lets DriftCheck run
+// its full production path (hooks, workflows, gates) against a seeded
+// manifest without mutating the worktree.
+func mirrorRootWithManifest(t *testing.T, realRoot, manifest string) string {
+	t.Helper()
+	abs, err := filepath.Abs(realRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tmp := t.TempDir()
+	rel := filepath.FromSlash(collectorManifestRel)
+	// Real directories along the manifest's ancestor chain.
+	dir := tmp
+	for _, part := range strings.Split(filepath.Dir(rel), string(filepath.Separator)) {
+		dir = filepath.Join(dir, part)
+		if err := os.Mkdir(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mirror := func(real, shadow string, override string) {
+		entries, err := os.ReadDir(real)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, entry := range entries {
+			if entry.Name() == override {
+				continue
+			}
+			if err := os.Symlink(filepath.Join(real, entry.Name()), filepath.Join(shadow, entry.Name())); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	// Symlink siblings at each ancestor level, descending to the manifest.
+	real := abs
+	shadow := tmp
+	parts := strings.Split(filepath.Dir(rel), string(filepath.Separator))
+	for _, part := range parts {
+		mirror(real, shadow, part)
+		real = filepath.Join(real, part)
+		shadow = filepath.Join(shadow, part)
+	}
+	mirror(real, shadow, filepath.Base(rel))
+	if err := os.WriteFile(filepath.Join(shadow, filepath.Base(rel)), []byte(manifest), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	return tmp
@@ -287,8 +366,8 @@ func TestCheckGeneratorOutputCoverage_CleanTreePasses(t *testing.T) {
 // command directory no trigger covers must fail the production check, naming
 // the new collector's files and not the covered one.
 func TestCheckGeneratorOutputCoverage_SecondCollectorWithoutTriggerFails(t *testing.T) {
-	realRoot, reg := loadRealRegistry(t)
-	tmp := writeManifestWithSecondCollector(t, realRoot)
+	_, reg := loadRealRegistry(t)
+	tmp := writeSyntheticCollectorManifest(t)
 	errs := checkGeneratorOutputCoverage(tmp, reg)
 	if len(errs) != 3 {
 		t.Fatalf("checkGeneratorOutputCoverage = %v, want one error per generated file of the uncovered collector (3)", errs)
@@ -311,7 +390,7 @@ func TestCheckGeneratorOutputCoverage_SecondCollectorWithoutTriggerFails(t *test
 // registry with the gate's output triggers removed. It proves both the check
 // and its wiring into DriftCheck.
 func TestDriftCheck_SeededGeneratorOutputGapFails(t *testing.T) {
-	root, reg := loadRealRegistry(t)
+	realRoot, reg := loadRealRegistry(t)
 	seeded := withEntrypointsGate(t, reg, func(g *Gate) {
 		kept := g.Triggers[:0:0]
 		for _, trigger := range g.Triggers {
@@ -321,6 +400,7 @@ func TestDriftCheck_SeededGeneratorOutputGapFails(t *testing.T) {
 		}
 		g.Triggers = kept
 	})
+	root := mirrorRootWithManifest(t, realRoot, syntheticCollectorManifest)
 	var found []string
 	for _, err := range DriftCheck(root, seeded) {
 		if strings.Contains(err.Error(), "generated collector output") {

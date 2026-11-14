@@ -118,7 +118,7 @@ The existing adopter surface is 65 lines smaller while future collectors reuse
 the shared request and failure kernel instead of copying it.
 
 No-Regression Evidence: `go test ./internal/collector/sdk
-./internal/collector/jira ./internal/collector/pagerduty
+./internal/collector/jira
 ./internal/collector/observability/grafana ./internal/collector/observability/tempo -count=1` covers SDK
 base URL validation, retry-after parsing, bounded HTTP retries, safe HTTP
 errors, and the four adopters' existing pagination, redaction, warning,

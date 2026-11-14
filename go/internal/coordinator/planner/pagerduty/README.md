@@ -18,8 +18,9 @@ The root `internal/coordinator` package keeps service scheduling order, the
 clock and plan-key cadence, active and claims gates, collector-egress filtering,
 tenant-grant authorization, durable open-target admission, incident-freshness
 trigger transitions, retries, queue and lease behavior, and telemetry.
-`internal/collector/pagerduty` owns provider calls and fact emission after a
-worker claims the planned item.
+The extracted satellite (`eshu-hq/eshu-collector-pagerduty`, cutover #8863;
+in-tree command, source package, and image build deleted in #10619) owns
+provider calls and fact emission after a worker claims the planned item.
 
 ## Exported surface
 

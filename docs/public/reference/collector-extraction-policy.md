@@ -203,7 +203,7 @@ parity, Compose execution, redaction, and operator evidence.
 | Reference package | Complete | `examples/collector-extensions/pagerduty/manifest.yaml` |
 | Trust boundary | Complete | `go/internal/runtime` Helm contract tests and [Plugin Trust Model](plugin-trust-model.md) |
 | Claim-capable execution | Complete | `go/cmd/collector-component-extension` and `go/internal/collector/extensionhost` |
-| Fact-shape parity | Complete for the example contract | `go test ./internal/collector/pagerduty -run ReferenceComponent` |
+| Fact-shape parity | Complete for the example contract | Satellite CI plus the QA activation cutover record (eshu-hq/eshu#8863); the in-tree `ReferenceComponent` parity test is deleted with the in-tree collector (#10619) |
 | Remote Compose proof | Complete | `docs/public/run-locally/docker-compose.component-extension-pagerduty.yaml` and `scripts/verify-remote-e2e-pagerduty-component-extension.sh` |
 | Private-data proof | Complete | Remote proof redaction canary and reference component redaction test |
 | Operator evidence | Complete | `docs/internal/remote-validation/prod-component-extension-inventory.md` and `docs/internal/remote-validation/prod-component-extension-diagnostics.md`; health, readiness, metrics, logs, and status endpoints. |

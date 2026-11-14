@@ -42,8 +42,10 @@ whose wire string does not already carry it. The reducer-side
   and `TestSchemasHaveNoDrift` lock it.
 - Ground the required set in the ACTUAL collector emitter, not intuition. A
   field is required only where the emitter emits it unconditionally. The
-  emitters are `go/internal/collector/pagerduty/envelope.go` and
-  `config_envelope.go` and `go/internal/collector/terraformstate/pagerduty_applied.go`.
+  emitters are the extracted PagerDuty satellite
+  (`eshu-hq/eshu-collector-pagerduty`, cutover #8863; in-tree
+  `go/internal/collector/pagerduty` deleted in #10619)
+  and `go/internal/collector/terraformstate/pagerduty_applied.go`.
   Making a conditionally-emitted field required would dead-letter valid facts.
 - `CoverageWarning` is emitted by TWO emitters (Terraform-state and live
   PagerDuty) with different base payloads. Its required set is the INTERSECTION

@@ -38,7 +38,9 @@
 // distinct from an observed zero.
 //
 // The required set of each struct is grounded in the actual collector
-// emitters (go/internal/collector/pagerduty/envelope.go and config_envelope.go,
+// emitters (the extracted PagerDuty satellite eshu-hq/eshu-collector-pagerduty,
+// cutover #8863 with the in-tree go/internal/collector/pagerduty package
+// deleted in #10619, and
 // go/internal/collector/terraformstate/pagerduty_applied.go): a field is
 // required only where the emitter emits it unconditionally, and optional where
 // the emitter emits it conditionally (for example the applied resource's

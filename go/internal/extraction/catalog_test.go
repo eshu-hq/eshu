@@ -52,7 +52,7 @@ func TestCatalogClassifications(t *testing.T) {
 		scope.CollectorAzure:           KeepInTree,
 		scope.CollectorKubernetesLive:  KeepInTree,
 		scope.CollectorSBOMAttestation: KeepInTree,
-		scope.CollectorPagerDuty:       ExtractionCandidate,
+		scope.CollectorPagerDuty:       ExternalReady,
 		scope.CollectorJira:            Blocked,
 		scope.CollectorGrafana:         Blocked,
 	}
@@ -66,27 +66,28 @@ func TestCatalogClassifications(t *testing.T) {
 		}
 	}
 
-	// The catalog must exercise the keep-in-tree, extraction-candidate, and
-	// blocked classifications against real collector families. external_ready is
-	// deliberately absent: no collector runs out of tree as its default yet.
-	if counts[KeepInTree] == 0 || counts[ExtractionCandidate] == 0 || counts[Blocked] == 0 {
-		t.Fatalf("catalog classification coverage = %+v, want keep_in_tree, extraction_candidate, and blocked all present", counts)
+	// The catalog must exercise the keep-in-tree, blocked, and external-ready
+	// classifications against real collector families. PagerDuty is the first
+	// and only external_ready family (#8863 cutover, #10619 in-tree removal);
+	// no family is an extraction candidate right now.
+	if counts[KeepInTree] == 0 || counts[Blocked] == 0 || counts[ExternalReady] == 0 {
+		t.Fatalf("catalog classification coverage = %+v, want keep_in_tree, blocked, and external_ready all present", counts)
 	}
-	if counts[ExternalReady] != 0 {
-		t.Errorf("catalog has %d external_ready entries, want 0 until a family actually runs out of tree", counts[ExternalReady])
+	if counts[ExternalReady] != 1 {
+		t.Errorf("catalog has %d external_ready entries, want exactly 1 (pagerduty)", counts[ExternalReady])
 	}
 }
 
-func TestCatalogPagerDutyStaysCandidateNotExternal(t *testing.T) {
-	// Guard against over-claiming: the boundary proof is complete, but PagerDuty
-	// still runs in tree for production correlation, so it must classify as an
-	// extraction candidate, never external_ready.
+func TestCatalogPagerDutyIsExternalReady(t *testing.T) {
+	// PagerDuty runs out of tree as its default path since the #8863
+	// satellite cutover, and #10619 removed the in-tree command, source
+	// package, and image build, so it must classify as external_ready.
 	got, ok := Lookup(scope.CollectorPagerDuty)
 	if !ok {
 		t.Fatal("Lookup(pagerduty) not found in catalog")
 	}
-	if got.Classification != ExtractionCandidate {
-		t.Fatalf("PagerDuty classification = %q, want extraction_candidate", got.Classification)
+	if got.Classification != ExternalReady {
+		t.Fatalf("PagerDuty classification = %q, want external_ready", got.Classification)
 	}
 	for _, criterion := range got.Criteria {
 		if criterion.State != Met {

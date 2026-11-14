@@ -1937,13 +1937,14 @@
     {
       "category": "collector",
       "name": "pagerduty",
-      "readiness": "implemented",
-      "owner": "internal/collector/pagerduty",
+      "readiness": "partial",
+      "owner": "eshu-hq/eshu-collector-pagerduty",
       "proof": "reference/collector-reducer-readiness.md#promotion-proof",
       "docs": [
         "reference/collector-reducer-readiness.md",
         "reference/pagerduty-evidence.md"
       ],
+      "notes": "Extracted to the eshu-collector-pagerduty satellite (eshu-hq/eshu-collector-pagerduty): the in-tree command, source package, and image build are gone, so the implemented lane (built in-tree, charted, replay-proven) is unmet. Fact kinds, reducer projection, and read surfaces stay core-owned and covered.",
       "collector_contract": {
         "fact_kinds": [
           "change.record",
@@ -1964,11 +1965,12 @@
           "get_incident_context"
         ],
         "proof_gates": [
-          "cd go \u0026\u0026 go test ./cmd/collector-pagerduty ./internal/collector/pagerduty ./internal/reducer ./internal/query ./internal/mcp -count=1"
+          "cd go \u0026\u0026 go test ./internal/reducer ./internal/query ./internal/mcp -count=1",
+          "scripts/verify-fact-kind-registry.sh"
         ],
         "fixture_refs": [
           "docs/public/reference/pagerduty-evidence.md",
-          "go/internal/collector/pagerduty/testdata"
+          "testdata/cassettes/pagerduty"
         ],
         "truth_profile": "provider_gated"
       }
@@ -2423,11 +2425,6 @@
     {
       "category": "command",
       "name": "collector-package-registry",
-      "readiness": "implemented"
-    },
-    {
-      "category": "command",
-      "name": "collector-pagerduty",
       "readiness": "implemented"
     },
     {

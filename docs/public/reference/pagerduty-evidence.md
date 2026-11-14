@@ -240,12 +240,13 @@ result matches the in-tree PagerDuty fact contract for synthetic fixtures. The
 proof establishes the extraction mechanics; it does not change reducer
 materialization. The reference component emits namespaced example facts
 (`dev.eshu.examples.pagerduty.*`) that are committed as source evidence only —
-the incident-routing reducer, graph writer, and API/MCP readback continue to
-consume the in-tree collector's `incident_routing.*` and `incident.record`
-kinds, so the in-tree collector remains the production correlation path. That
-proof is tracked by `go test
-./internal/collector/pagerduty -run ReferenceComponent`, the Helm
-component-extension contract tests in `go/internal/runtime`, and
+the incident-routing reducer, graph writer, and API/MCP readback consume the
+satellite's `incident_routing.*` and `incident.record` kinds since the #8863
+cutover removed the in-tree collector as the production correlation path
+(#10619 deleted the in-tree command, source package, and image build). That
+proof is tracked by the satellite's own CI, the QA activation cutover record
+(eshu-hq/eshu#8863), the Helm component-extension contract tests in
+`go/internal/runtime`, and
 `scripts/verify-remote-e2e-pagerduty-component-extension.sh`. See
 [Collector Repository Migration Policy](collector-extraction-policy.md) for the
 stage-by-stage status table.
@@ -286,7 +287,8 @@ drift fails the proof instead of relying on recorded counts alone. Focused
 proof: `go test ./internal/runtime -run
 TestHelmPagerDutyCollectorDeployment -count=1` from `${ESHU_DEPLOY_CHECKOUT}/go`
 (the Helm contract test moved to eshu-deploy under #8871),
-`go test ./internal/collector/pagerduty -run ReferenceComponent -count=1`,
+satellite CI for the fact-shape parity the deleted in-tree `ReferenceComponent`
+test used to prove (#10619),
 `go test ./...` from `examples/collector-extensions/pagerduty`,
 `docker compose -p pd-ce-proof -f "${ESHU_DEPLOY_CHECKOUT}/compose/docker-compose.yaml" -f
 "${ESHU_DEPLOY_CHECKOUT}/compose/fragments/docker-compose.component-extension-pagerduty.yaml"

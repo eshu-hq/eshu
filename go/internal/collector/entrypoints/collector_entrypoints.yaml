@@ -1,37 +1,5 @@
 schema_version: 1
-collectors:
-  - command_dir: go/cmd/collector-pagerduty
-    runtime_name: collector-pagerduty
-    binary_name: eshu-collector-pagerduty
-    collector_label: pagerduty collector
-    go_name: PagerDuty
-    env:
-      collector_instances: ESHU_COLLECTOR_INSTANCES_JSON
-      instance_id: ESHU_PAGERDUTY_COLLECTOR_INSTANCE_ID
-      poll_interval: ESHU_PAGERDUTY_POLL_INTERVAL
-      claim_lease_ttl: ESHU_PAGERDUTY_CLAIM_LEASE_TTL
-      heartbeat_interval: ESHU_PAGERDUTY_HEARTBEAT_INTERVAL
-      owner_id: ESHU_PAGERDUTY_COLLECTOR_OWNER_ID
-      owner_id_const_name: envOwnerID
-    store_name: collector_pagerduty
-    claim_id_prefix: pagerduty-claim
-    collector_kind_expr: scope.CollectorPagerDuty
-    max_attempts_expr: workflow.DefaultClaimMaxAttempts()
-    scope_kind: incident
-    auth_mode: token_env
-    target_list_field: targets
-    target_identity_fields:
-      - provider
-      - scope_id
-      - account_id
-      - allowed_service_ids
-    target_auth_fields:
-      - token_env
-    source:
-      import_path: github.com/eshu-hq/eshu/go/internal/collector/pagerduty
-      package_name: pagerduty
-      config_type: pagerduty.SourceConfig
-      constructor: pagerduty.NewClaimedSource
-      config_loader: loadPagerDutySourceConfig
-      config_attacher: attachPagerDutyRuntimeSignals
-      runtime_config_type: pagerDutyRuntimeConfiguration
+# #10619: the last manifest collector (collector-pagerduty) was removed after
+# its satellite cutover. The generator accepts an empty list; re-add entries
+# here if a future collector uses generated entrypoints.
+collectors: []

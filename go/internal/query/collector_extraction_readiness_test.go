@@ -78,8 +78,8 @@ func TestCollectorExtractionReadinessListReturnsCatalog(t *testing.T) {
 		}
 		if family.Family == "pagerduty" {
 			sawPagerDuty = true
-			if family.Classification != "extraction_candidate" {
-				t.Errorf("pagerduty classification = %q, want extraction_candidate", family.Classification)
+			if family.Classification != "external_ready" {
+				t.Errorf("pagerduty classification = %q, want external_ready", family.Classification)
 			}
 		}
 	}
@@ -136,8 +136,8 @@ func TestCollectorExtractionReadinessFamilyDrilldown(t *testing.T) {
 	if err := json.Unmarshal(env.Data, &data); err != nil {
 		t.Fatalf("decode data: %v", err)
 	}
-	if data.Family.Family != "pagerduty" || data.Family.Classification != "extraction_candidate" {
-		t.Fatalf("family = %+v, want pagerduty extraction_candidate", data.Family)
+	if data.Family.Family != "pagerduty" || data.Family.Classification != "external_ready" {
+		t.Fatalf("family = %+v, want pagerduty external_ready", data.Family)
 	}
 	if len(data.Family.Criteria) != 8 {
 		t.Fatalf("criteria = %d, want 8", len(data.Family.Criteria))

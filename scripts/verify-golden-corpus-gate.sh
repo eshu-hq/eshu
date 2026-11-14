@@ -132,22 +132,23 @@ collector_specs=(
 	"collector-prometheus-mimir:prometheusmimir"
 	"collector-grafana:grafana"
 	"collector-security-alerts:securityalerts"
-	"collector-pagerduty:pagerduty"
 )
 # name:command:cassette-directory aliases let a generic cassette-capable binary
 # replay a source that has no dedicated command without reusing its process log.
+# Vehicle is collector-cicd-run (stays in-tree; pagerduty binary removed).
 cassette_replay_alias_specs=(
 	"semantic-extraction-cassette:collector-prometheus-mimir:semanticextraction"
-	"jira-cassette-replay:collector-pagerduty:jira"
-	"tempo-cassette-replay:collector-pagerduty:tempo"
-	"aws-cassette-replay:collector-pagerduty:awscloud"
-	"terraform-state-cassette-replay:collector-pagerduty:terraformstate"
-	"vault-cassette-replay:collector-pagerduty:vaultlive"
-	"azure-cassette-replay:collector-pagerduty:azurecloud"
-	"gcp-cassette-replay:collector-pagerduty:gcpcloud"
-	"kubernetes-live-cassette-replay:collector-pagerduty:kuberneteslive"
-	"vulnerability-intelligence-cassette-replay:collector-pagerduty:vulnerabilityintelligence"
-	"sbom-attestation-cassette-replay:collector-pagerduty:sbomattestation"
+	"pagerduty-cassette-replay:collector-cicd-run:pagerduty"
+	"jira-cassette-replay:collector-cicd-run:jira"
+	"tempo-cassette-replay:collector-cicd-run:tempo"
+	"aws-cassette-replay:collector-cicd-run:awscloud"
+	"terraform-state-cassette-replay:collector-cicd-run:terraformstate"
+	"vault-cassette-replay:collector-cicd-run:vaultlive"
+	"azure-cassette-replay:collector-cicd-run:azurecloud"
+	"gcp-cassette-replay:collector-cicd-run:gcpcloud"
+	"kubernetes-live-cassette-replay:collector-cicd-run:kuberneteslive"
+	"vulnerability-intelligence-cassette-replay:collector-cicd-run:vulnerabilityintelligence"
+	"sbom-attestation-cassette-replay:collector-cicd-run:sbomattestation"
 )
 cassette_recording="supply-chain-demo.json"
 

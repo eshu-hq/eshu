@@ -44,12 +44,12 @@ runs fixture conformance, and validates the draft community index:
 scripts/verify-pagerduty-marketplace-readiness.sh
 ```
 
-From the repository root, the in-tree parity test compares the reference
-component output with the core PagerDuty fact contract:
-
-```bash
-cd go && go test ./internal/collector/pagerduty -run ReferenceComponent -count=1
-```
+The reference component output matches the core PagerDuty fact contract;
+since the #8863 satellite cutover that parity is proven by the satellite's
+own CI and the QA activation cutover record (the in-tree `ReferenceComponent`
+parity test is deleted with the in-tree collector, #10619). Core holds the
+contract instead: `scripts/verify-fact-kind-registry.sh` plus
+`go test ./internal/reducer ./internal/query ./internal/mcp -count=1`.
 
 ## Remote Compose Proof Harness
 
