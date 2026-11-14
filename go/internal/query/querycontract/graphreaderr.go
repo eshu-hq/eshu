@@ -63,6 +63,24 @@ const SnapshotExportUnqualifiedReason = "snapshot_export_unqualified"
 // no clock to derive it.
 const BackendUnavailableRetryAfterSeconds = db.ReaderRetryAfterSeconds
 
+// ReaderRetryableEnvelope answers a snapshot read that outran its own
+// bounded budget without ever reaching the fence mapper, e.g. a status
+// snapshot whose reader budget expired mid-read (#10658). It carries the
+// same verdict as the fenced reader timeout (backend_unavailable with the
+// ErrReaderRetryable face, a retry_after_seconds hint, and the retryable
+// marker so WriteErrorEnvelope sets Retry-After itself) without going
+// through the fence classifier. The caller supplies the capability of the
+// route that serves it.
+func ReaderRetryableEnvelope(capability string) *ErrorEnvelope {
+	return &ErrorEnvelope{
+		Code:       ErrorCodeBackendUnavailable,
+		Message:    ErrReaderRetryable.Error(),
+		Capability: capability,
+		Details:    map[string]any{"retry_after_seconds": BackendUnavailableRetryAfterSeconds},
+		retryable:  true,
+	}
+}
+
 // ClassifyBoundedGraphReadError maps a graph-read error onto
 // ErrGraphReadDeadline when the read ran out of time, so the caller answers the
 // stable 504 backend_timeout contract through WriteGraphReadError instead of a

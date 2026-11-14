@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil/failure"
@@ -161,6 +162,37 @@ func TestHostedReadinessSnapshotBudgetTimeoutAnswersRetryable503(t *testing.T) {
 			t.Errorf("detail = %q, want %q; body = %s", body.Detail, querycontract.ErrReaderRetryable.Error(), rec.Body.String())
 		}
 	})
+}
+
+// TestHostedReadinessParentDeadlineIsNotReaderRetryable pins the P2 fix: a
+// bare context.DeadlineExceeded arriving on an already-expired request
+// context is a dead client wait, not a transient reader condition, so it must
+// answer the non-retryable 500 envelope (no Retry-After, no reader-retryable
+// code) instead of the retryable 503.
+func TestHostedReadinessParentDeadlineIsNotReaderRetryable(t *testing.T) {
+	t.Parallel()
+
+	timeout := fmt.Errorf("read status snapshot: %w", context.DeadlineExceeded)
+	expired, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
+	defer cancel()
+	<-expired.Done()
+
+	mux := http.NewServeMux()
+	(&StatusHandler{StatusReader: fakeStatusReader{err: timeout}, LiveActivity: &fakeLiveActivityReader{}}).Mount(mux)
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/status/hosted-readiness", nil).WithContext(expired)
+	req.Header.Set("Accept", querycontract.EnvelopeMIMEType)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500; body = %s", rec.Code, rec.Body.String())
+	}
+	if got := rec.Header().Get("Retry-After"); got != "" {
+		t.Errorf("expired-request 500 carries Retry-After %q; body = %s", got, rec.Body.String())
+	}
+	errEnv := decodeHostedReadinessErrorEnvelope(t, rec)
+	if errEnv.Code != querycontract.ErrorCodeInternalError {
+		t.Errorf("error.code = %q, want %q; body = %s", errEnv.Code, querycontract.ErrorCodeInternalError, rec.Body.String())
+	}
 }
 
 // TestHostedReadinessReadFailureLogsFaultOnly is the #10658 regression for
