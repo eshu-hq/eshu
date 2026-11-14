@@ -67,6 +67,12 @@ func TestApplyRepoContextEvidenceDetailHandlesMarksEveryCut(t *testing.T) {
 	if _, ok := body["evidence_detail_drilldown"]; !ok {
 		t.Error("handles body missing evidence_detail_drilldown")
 	}
+	ev, ok := body["deployment_evidence"].(map[string]any)
+	if !ok {
+		t.Error("handles body missing deployment_evidence map")
+	} else if _, ok := ev["evidence_index"]; ok {
+		t.Error("handles body keeps deployment_evidence.evidence_index; handles must drop the regrouping")
+	}
 }
 
 // TestApplyRepoContextEvidenceDetailUnknownIsInvalid proves unknown values
@@ -148,11 +154,31 @@ func repoContextSizeWideRow(identity map[string]any, dropped int) map[string]any
 	return row
 }
 
+// repoContextEvidenceIndexBucket builds one production-shaped evidence_index
+// bucket with per-artifact id lists, mirroring finalizeDeploymentEvidenceIndex.
+func repoContextEvidenceIndexBucket(prefix string, n int) map[string]any {
+	resolved := make([]string, 0, n)
+	generations := make([]string, 0, n)
+	for i := range n {
+		suffix := string(rune('a'+i%26)) + string(rune('0'+(i/26)%10))
+		resolved = append(resolved, prefix+"-res-"+suffix)
+		generations = append(generations, prefix+"-gen-"+suffix)
+	}
+	return map[string]any{
+		"artifact_count":    n,
+		"resolved_ids":      resolved,
+		"generation_ids":    generations,
+		"evidence_kinds":    []string{"helm_release"},
+		"artifact_families": []string{prefix},
+	}
+}
+
 // repoContextSizeBody builds an at-cap repository context: 200 wide
 // relationship rows with partition repeats, 100 wide dependency rows, 200
-// consumers, 100 wide API endpoints, 100 wide deployment evidence artifacts,
-// 100 wide content artifacts in production map shape (50 controller plus 50
-// runtime rows), 100 entry points, and 200 infrastructure rows.
+// consumers, 100 wide API endpoints, 100 wide deployment evidence artifacts
+// with a production-shaped evidence_index regrouping, 100 wide content
+// artifacts in production map shape (50 controller plus 50 runtime rows),
+// 100 entry points, and 200 infrastructure rows.
 func repoContextSizeBody() map[string]any {
 	relationships := make([]map[string]any, 0, 200)
 	for range 200 {
@@ -250,7 +276,21 @@ func repoContextSizeBody() map[string]any {
 		},
 		"deployment_evidence": map[string]any{
 			"artifact_count": 100, "artifacts": evidenceArtifacts,
-			"evidence_index": map[string]any{"by_family": map[string]any{"helm": 100}},
+			"evidence_index": map[string]any{
+				"lookup_basis": "resolved_id",
+				"relationship_types": map[string]any{
+					"depends_on": repoContextEvidenceIndexBucket("dep", 60),
+					"consumes":   repoContextEvidenceIndexBucket("con", 40),
+				},
+				"artifact_families": map[string]any{
+					"helm":      repoContextEvidenceIndexBucket("helm", 50),
+					"terraform": repoContextEvidenceIndexBucket("tf", 50),
+				},
+				"evidence_kinds": map[string]any{
+					"sbom":       repoContextEvidenceIndexBucket("sbom", 70),
+					"provenance": repoContextEvidenceIndexBucket("prov", 30),
+				},
+			},
 		},
 		"deployment_artifacts": contentArtifacts,
 		"infrastructure_overview": map[string]any{
