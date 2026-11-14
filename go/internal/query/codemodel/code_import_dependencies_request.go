@@ -79,7 +79,7 @@ func (r ImportDependencyRequest) Validate() error {
 		return fmt.Errorf("offset must be <= 10000")
 	}
 	if !r.hasScopeFilter() {
-		return fmt.Errorf("one of repo_id, source_file, target_file, source_module, or target_module is required")
+		return fmt.Errorf("one of repo_id, source_file, target_file, source_module, target_module, or target_module_prefix is required")
 	}
 	if strings.TrimSpace(r.TargetFile) != "" && r.EffectiveQueryType() != "file_import_cycles" && r.EffectiveQueryType() != "cross_module_calls" {
 		return fmt.Errorf("target_file is supported only for file_import_cycles and cross_module_calls")
