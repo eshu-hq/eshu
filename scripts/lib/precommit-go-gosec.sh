@@ -29,7 +29,8 @@
 # analyzers on go/internal/storage/postgres. run_gosec therefore expands every
 # pattern with `go list`, passes each package as an explicit ./<dir>/ (never
 # ./...), and routes a package over gosec_pattern_limit bytes through a short
-# symlink alias go/_g<pid> that it removes on exit. It checks that gosec scanned
+# symlink alias go/_g (or a lettered variant on collision) that it removes on
+# exit. It checks that gosec scanned
 # exactly the GoFiles and CgoFiles `go list` reports (tests are excluded by
 # design, as gosec does by default), so a short or empty scan cannot read clean.
 #
@@ -82,7 +83,7 @@ gosec_cleanup() {
 gosec_new_alias() {
 	local dir="$1" base="_g" cand letters=bcdefghijklmnopqrstuvwxyz n=0
 	cand="${base}"
-	until ln -s "${dir}" "${go_dir}/${cand}" 2>/dev/null; do
+	until ln -sn "${dir}" "${go_dir}/${cand}" 2>/dev/null; do
 		n=$((n + 1))
 		[[ ${n} -le ${#letters} ]] || gosec_fail 1 "gosec: could not create an alias under ${go_dir}"
 		cand="${base}${letters:$((n - 1)):1}"
