@@ -337,9 +337,9 @@ VALUES ('repo-rollback', 'rb.txt', 'c', 'h', 1, now())`); err != nil {
 	if err != nil {
 		t.Fatalf("chunk file prune: %v", err)
 	}
-	var refs, files int64
+	var refs, files, secrets int64
 	for pruneRows.Next() {
-		if err := pruneRows.Scan(&refs, &files); err != nil {
+		if err := pruneRows.Scan(&refs, &files, &secrets); err != nil {
 			_ = pruneRows.Close()
 			t.Fatalf("scan chunk prune counts: %v", err)
 		}
@@ -350,6 +350,9 @@ VALUES ('repo-rollback', 'rb.txt', 'c', 'h', 1, now())`); err != nil {
 	}
 	if files != 1 {
 		t.Fatalf("chunk pruned files = %d, want 1 (rb.txt died with its page)", files)
+	}
+	if secrets != 0 {
+		t.Fatalf("chunk pruned secret lines = %d, want 0 (no secret lines seeded for rb.txt)", secrets)
 	}
 	if err := tx.Rollback(); err != nil {
 		t.Fatalf("rollback: %v", err)

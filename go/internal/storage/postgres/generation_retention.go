@@ -67,9 +67,12 @@ func NewGenerationRetentionStore(database db.ExecQueryer) GenerationRetentionSto
 // eshu_search_index_terms: migration 191 dropped that key (#7427 PR3), so a
 // generation's terms go only through the pre-delete that runs before the
 // prune transaction, which admits only drained generations, and through the
-// runner's orphan sweep. Over-limit generations drain their fact and content
-// pages the same way, in committed pre-delete batches before Begin, and the
-// narrow scope lock never covers a page (#10020).
+// runner's orphan sweep. Every other eligible generation drains its fact and
+// content pages the same way, in committed pre-delete batches before Begin,
+// and the narrow scope lock never covers a drained page (#10020). A
+// generation admitted on the status-quo path after a busy or timed-out
+// first batch keeps its full volume, bounded by BatchRowLimit through the
+// packer like any normal batch.
 //
 // Before it locks anything it checks that every retention key index (the
 // #7279 pair, the #7420 sidecar partition indexes, and the generation
@@ -99,6 +102,9 @@ func (s GenerationRetentionStore) PruneSupersededGenerations(
 	chunkPredrain, err := s.predrainChunkedGenerations(ctx, beginner, now, policy) // committed batches, before Begin (#10020)
 	if err != nil {
 		return GenerationRetentionResult{}, err
+	}
+	if s.beforePruneTransaction != nil {
+		s.beforePruneTransaction()
 	}
 	start := time.Now() // Duration is the prune transaction; the pre-deletes have their own phases
 	tx, err := beginner.Begin(ctx)
@@ -142,6 +148,11 @@ func (s GenerationRetentionStore) PruneSupersededGenerations(
 	// pass, so it waits for the next pass instead of holding the lock for
 	// a page drain.
 	chunkPredrain.excludeChunkTarget(chunkTarget, &result)
+	// The narrow scope lock never covers fact volume either: a touched-but-
+	// unfinished generation, and a drain-list tail starved of its first
+	// batch, wait for the next pass like an unfinished chunk target.
+	// Anything else is admitted.
+	candidates = chunkPredrain.excludeUndrainedCandidates(candidates, &result)
 	// ScopeLockHold spans the re-lock, its recount and the prune, and is
 	// zero when the pass locks nothing.
 	var narrowHoldStart time.Time
@@ -154,7 +165,7 @@ func (s GenerationRetentionStore) PruneSupersededGenerations(
 		}
 	}
 	if len(candidates) > 0 {
-		if err := s.pruneCandidates(ctx, tx, candidates, rowCounts, chunkPredrain.eventCounts(searchIndex.eventCounts(eventRowCounts)), policy, now, &result); err != nil {
+		if err := s.pruneCandidates(ctx, tx, candidates, rowCounts, chunkPredrain.eventCounts(searchIndex.eventCounts(eventRowCounts)), policy, now, chunkPredrain, &result); err != nil {
 			return GenerationRetentionResult{}, err
 		}
 	}
@@ -378,6 +389,7 @@ func (s GenerationRetentionStore) pruneCandidates(
 	eventRowCounts map[string]map[string]int64,
 	policy GenerationRetentionPolicy,
 	now time.Time,
+	predrain *generationRetentionChunkPredrain,
 	result *GenerationRetentionResult,
 ) error {
 	result.OldestEligibleAge = oldestEligibleAge(now, candidates)
@@ -385,8 +397,17 @@ func (s GenerationRetentionStore) pruneCandidates(
 	for tableName, count := range rowCounts {
 		result.RowsPruned[tableName] = count
 	}
-	if total := generationRetentionRowsTotal(rowCounts); len(candidates) == 1 && total > int64(policy.BatchRowLimit) {
-		result.RowsOverLimit = total - int64(policy.BatchRowLimit) // a batch of one, admitted alone
+	if total := generationRetentionRowsTotal(rowCounts); len(candidates) == 1 {
+		// The recount runs after the predrain deleted the generation's
+		// facts, so the carry adds back the predrain read's own-fact count
+		// for a generation that was not over the limit on its own facts:
+		// recount-plus-carry equals the pre-drain total absent concurrent
+		// ledger writes between the read and the recount, and the signal
+		// still reports ledger-driven overage only (arb-7127-3d-b).
+		overBy := total - int64(policy.BatchRowLimit) + predrain.overLimitCarry(candidates[0].generationID)
+		if overBy > 0 {
+			result.RowsOverLimit = overBy // a batch of one, admitted alone
+		}
 	}
 	result.LockedScopeRows = len(slices.Compact(slices.Sorted(slices.Values(retentionScopeIDs(candidates)))))
 

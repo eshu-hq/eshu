@@ -231,21 +231,22 @@ func (p postgresGenerationRetentionPruner) PruneSupersededGenerations(
 		return retention.Result{}, err
 	}
 	return retention.Result{
-		GenerationsPruned:     result.GenerationsPruned,
-		RowsPruned:            result.RowsPruned,
-		Skipped:               result.Skipped,
-		OldestEligibleAge:     result.OldestEligibleAge,
-		Duration:              result.Duration,
-		PhaseDurations:        result.PhaseDurations,
-		ScopeLockHold:         result.ScopeLockHold,
-		LedgerRowsPruned:      result.LedgerRowsPruned,
-		LedgerRowsCounted:     result.LedgerRowsCounted,
-		FactKeyRowsPruned:     result.FactKeyRowsPruned,
-		FactKeyRowsCounted:    result.FactKeyRowsCounted,
-		RowsOverLimit:         result.RowsOverLimit,
-		LockedScopeRows:       result.LockedScopeRows,
-		SearchIndexBatches:    result.SearchIndexBatches,
-		ChunkPredeleteBatches: result.ChunkPredeleteBatches,
+		GenerationsPruned:              result.GenerationsPruned,
+		RowsPruned:                     result.RowsPruned,
+		Skipped:                        result.Skipped,
+		OldestEligibleAge:              result.OldestEligibleAge,
+		Duration:                       result.Duration,
+		PhaseDurations:                 result.PhaseDurations,
+		ScopeLockHold:                  result.ScopeLockHold,
+		LedgerRowsPruned:               result.LedgerRowsPruned,
+		LedgerRowsCounted:              result.LedgerRowsCounted,
+		FactKeyRowsPruned:              result.FactKeyRowsPruned,
+		FactKeyRowsCounted:             result.FactKeyRowsCounted,
+		RowsOverLimit:                  result.RowsOverLimit,
+		LockedScopeRows:                result.LockedScopeRows,
+		SearchIndexBatches:             result.SearchIndexBatches,
+		ChunkPredeleteBatches:          result.ChunkPredeleteBatches,
+		PredrainedOverLimitGenerations: result.PredrainedOverLimitGenerations,
 	}, nil
 }
 

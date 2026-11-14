@@ -70,6 +70,14 @@ func registerGenerationRetentionPhaseInstruments(meter metric.Meter, inst *Instr
 	); err != nil {
 		return fmt.Errorf("register GenerationRetentionChunkPredeleteBatches histogram: %w", err)
 	}
+	if inst.GenerationRetentionPredrainedOverLimitGenerations, err = meter.Int64Histogram(
+		"eshu_dp_generation_retention_predrained_over_limit_generations",
+		metric.WithDescription("Drain members that exceeded the row limit on own facts at the predrain read, per generation retention pass"),
+		metric.WithUnit("{generation}"),
+		metric.WithExplicitBucketBoundaries(generationRetentionSearchIndexBatchBuckets...),
+	); err != nil {
+		return fmt.Errorf("register GenerationRetentionPredrainedOverLimitGenerations histogram: %w", err)
+	}
 	if inst.SearchIndexOrphanGenerations, err = meter.Int64Gauge(
 		"eshu_dp_search_index_orphan_generations",
 		metric.WithDescription("Search index (scope_id, generation_id) pairs whose scope_generations row is gone, by table, at the last orphan census"),

@@ -451,6 +451,7 @@ func mergeChunkProgress(
 	result.RowsPruned["content_file_references"] += chunk.referencesPruned
 	result.RowsPruned["content_entities"] += chunk.entitiesPruned
 	result.RowsPruned["infra_resource_entities"] += chunk.mirrorPruned
+	result.RowsPruned["content_file_secret_lines"] += chunk.secretLinesPruned
 	for table, rows := range chunk.factKeysPruned {
 		result.RowsPruned[table] += rows // #7420 key sidecars
 	}

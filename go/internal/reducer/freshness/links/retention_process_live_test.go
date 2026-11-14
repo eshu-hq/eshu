@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -51,7 +52,9 @@ func changeEvery(scope int) int {
 
 type retentionRaceTotals struct {
 	Linked, Breaks, PrunedBeforeLink, GenerationLocked, LockTimeouts, Rebases, Batches, GenerationsPruned, OverLimitBatches int
-	Deadlocks, Updates                                                                                                      int
+	Deadlocks, Updates, HeavyLinks                                                                                          int
+	LedgerRowsPruned, LedgerLinkDeltasPruned                                                                                int64
+	MaxLinkDeltas                                                                                                           int64
 	MaxBatchMillis, MaxRetryMillis                                                                                          int64
 }
 
@@ -62,6 +65,7 @@ type outcomeCounter struct {
 	mu                                                            sync.Mutex
 	prunedBeforeLink, genLocked, lockTimeouts, rebases, deadlocks int
 	maxRetry                                                      time.Duration
+	maxDeltas, heavyLinks                                         int64
 }
 
 func (c *outcomeCounter) LinkNext(ctx context.Context, scopeID string) (store.LinkResult, error) {
@@ -88,7 +92,27 @@ func (c *outcomeCounter) LinkNext(ctx context.Context, scopeID string) (store.Li
 	if result.Break == store.BreakPriorPruned {
 		c.rebases++
 	}
+	if err == nil && result.Break == "" {
+		c.maxDeltas = max(c.maxDeltas, result.DeltaRows)
+		// A heavy link on a heavy scope: its ~2,000 rewrite deltas are the
+		// over-limit ledger volume PB5 is about (light links carry ~117).
+		// Scope heaviness comes from changeEvery, the same single source
+		// the seed shapes fixtures by. Most land on g2, which stays active:
+		// retention usually prunes a heavy g0/g1 before its rewrite link
+		// lands, so the prunable subset is timing-dependent and counted
+		// nowhere.
+		if result.DeltaRows >= 1000 && heavyRaceScope(result.ScopeID) {
+			c.heavyLinks++
+		}
+	}
 	return result, err
+}
+
+// heavyRaceScope reports whether a race scopeID is one of the every-third
+// rewrite scopes.
+func heavyRaceScope(scopeID string) bool {
+	idx, err := strconv.Atoi(strings.TrimPrefix(scopeID, "prace-"))
+	return err == nil && changeEvery(idx) == 1
 }
 
 func runRetentionRaceChild(t *testing.T, role, dsn string) {
@@ -124,11 +148,16 @@ func runRetentionRaceChild(t *testing.T, role, dsn string) {
 			}
 		}
 		totals.PrunedBeforeLink, totals.GenerationLocked, totals.Rebases = counter.prunedBeforeLink, counter.genLocked, counter.rebases
+		totals.HeavyLinks, totals.MaxLinkDeltas = int(counter.heavyLinks), counter.maxDeltas
 		totals.LockTimeouts, totals.Deadlocks, totals.MaxRetryMillis = counter.lockTimeouts, counter.deadlocks, counter.maxRetry.Milliseconds()
 	case "retention":
 		retention := postgres.NewGenerationRetentionStore(db)
-		// 2,000 facts per generation fit the limit alone; a link over the
-		// limit makes its generation a batch of one (arb-7127-3d-b).
+		// 2,000 facts per generation fit the limit alone. Under batch
+		// predrain (#10020) the packer counts post-drain rows, so a
+		// drainable generation packs with its neighbors; a batch reports
+		// over the limit only when the ledger alone overflows it
+		// (arb-10020-batch-predrain-packing supersedes the batches-of-one
+		// letter of arb-7127-3d-b for drainable generations).
 		policy := postgres.GenerationRetentionPolicy{
 			MinSupersededGenerations: 0, MaxSupersededAge: time.Hour, BatchGenerationLimit: 4,
 			BatchRowLimit: retentionRaceRowLimit, PolicyScope: "global", PolicyRevision: "7127-pr3d-p7",
@@ -148,6 +177,10 @@ func runRetentionRaceChild(t *testing.T, role, dsn string) {
 			if result.RowsOverLimit > 0 {
 				totals.OverLimitBatches++
 			}
+			for _, n := range result.LedgerRowsPruned {
+				totals.LedgerRowsPruned += n
+			}
+			totals.LedgerLinkDeltasPruned += result.LedgerRowsPruned["changed_since_link_deltas"]
 			if result.GenerationsPruned == 0 {
 				idle++
 				time.Sleep(20 * time.Millisecond)
@@ -199,9 +232,13 @@ WHERE generation_id = $1`, gen)
 // production link runner and two others run generation retention batches (at
 // most four generations, BatchRowLimit 2,100) over 24 scopes whose g0 and g1
 // are prunable while their activations are being linked. Every third scope
-// writes links over the limit, so its generations are pruned in batches of
-// one. Every prunable generation is pruned (none starves), at least one batch
-// is over the limit, and:
+// writes links over the limit. Under batch predrain (#10020) the packer
+// counts post-drain rows, so drainable generations pack multi-up instead of
+// pruning in batches of one (arb-10020-batch-predrain-packing supersedes
+// that PB5 letter clause for drainable generations); over-limit visibility
+// for the heavy scopes comes from the pruned ledger volume below, not from
+// a lone over-limit batch. Every prunable generation is pruned (none
+// starves), and:
 //   - (a) no link names a pruned generation on its generation side: the
 //     writer's FOR KEY SHARE kept retention off every generation it linked;
 //   - (b) every retention batch returned within 1 s while links ran;
@@ -282,6 +319,8 @@ FROM generate_series(1, 2000) AS i`, scopeID, gen, fixtureEpoch, g, changeEvery(
 	retention.Batches += totals[2].Batches
 	retention.GenerationsPruned += totals[2].GenerationsPruned
 	retention.OverLimitBatches += totals[2].OverLimitBatches
+	retention.LedgerRowsPruned += totals[2].LedgerRowsPruned
+	retention.LedgerLinkDeltasPruned += totals[2].LedgerLinkDeltasPruned
 	retention.MaxBatchMillis = max(retention.MaxBatchMillis, totals[2].MaxBatchMillis)
 	updater := totals[3]
 	// W10 (arbiter ruling arb-7127-3e-wait): no session saw a deadlock, and
@@ -302,8 +341,23 @@ GROUP BY generation_id_hash HAVING count(*) > 1) AS twice`); n != 0 {
 	if n := l.queryInt(t, `SELECT count(*) FROM generation_retention_events`); n != int64(2*scopes) {
 		t.Fatalf("%d retention events, want one per pruned generation (%d)", n, 2*scopes)
 	}
-	if retention.OverLimitBatches == 0 {
-		t.Fatal("no retention batch was over the limit; the over-limit links did not reach a prune")
+	// Fixture non-vacuity witness for PB5's spirit under batch predrain:
+	// the race produced heavy over-limit links, so the fixture exercises
+	// what PB5 is about. Each heavy-scope rewrite link carries ~2,000
+	// deltas (threshold 1,000; light links carry ~117), and an all-light
+	// fixture (changeEvery never 1) links none (proven by a failing mutant
+	// run with 0). Most heavy links land on g2, which stays active: fast
+	// retention usually prunes a heavy g0/g1 before its rewrite link
+	// lands, so the prunable subset is timing-dependent and asserted
+	// nowhere. That the pruned heavy volume left nothing behind follows
+	// from the composition: all 48 prunable generations pruned above, (a)
+	// proves no link named a pruned generation, and (d) plus the orphan
+	// probe prove no ledger row was left behind. A lone over-limit batch
+	// is no longer required: drainable generations pack multi-up, so
+	// OverLimitBatches is timing-dependent and asserted neither way
+	// (arb-10020-batch-predrain-packing).
+	if link.HeavyLinks < 5 {
+		t.Fatalf("link child linked %d heavy rewrite links, want at least 5 (the race produced no heavy over-limit links)", link.HeavyLinks)
 	}
 	// (a)
 	if n := l.queryInt(t, `SELECT count(*) FROM changed_since_links AS l
@@ -334,8 +388,8 @@ WHERE NOT EXISTS (SELECT 1 FROM changed_since_links AS l WHERE l.scope_id = b.sc
 		t.Fatalf("(d) orphan probe = %+v after the race, want zeros (no ledger row names a pruned generation)", orphans)
 	}
 	// (c)
-	t.Logf("P7/W10: %d scopes, %d retention batches (max %d ms), %d links (%d rebases), %d breaks (%d pruned_before_link), %d generation_locked, %d generation_lock_timeout (slowest retry %d ms), %d non-key updates, 0 deadlocks, orphan probe %+v, %d over-limit batches",
-		scopes, retention.Batches, retention.MaxBatchMillis, link.Linked, link.Rebases, link.Breaks, link.PrunedBeforeLink, link.GenerationLocked, link.LockTimeouts, link.MaxRetryMillis, updater.Updates, orphans, retention.OverLimitBatches)
+	t.Logf("P7/W10: %d scopes, %d retention batches (max %d ms), %d links (%d rebases), %d breaks (%d pruned_before_link), %d generation_locked, %d generation_lock_timeout (slowest retry %d ms), %d non-key updates, 0 deadlocks, orphan probe %+v, %d over-limit batches, %d ledger rows pruned (%d link deltas), %d heavy links (max %d deltas)",
+		scopes, retention.Batches, retention.MaxBatchMillis, link.Linked, link.Rebases, link.Breaks, link.PrunedBeforeLink, link.GenerationLocked, link.LockTimeouts, link.MaxRetryMillis, updater.Updates, orphans, retention.OverLimitBatches, retention.LedgerRowsPruned, retention.LedgerLinkDeltasPruned, link.HeavyLinks, link.MaxLinkDeltas)
 }
 
 // isDeadlock reports SQLSTATE 40P01 in err's chain.

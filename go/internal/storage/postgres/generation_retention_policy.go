@@ -84,10 +84,11 @@ type GenerationRetentionPolicy struct {
 	// runner sets a quarter of its poll interval.
 	SearchIndexPredeleteDeadline time.Duration
 	// ChunkPredeleteRowCap bounds the fact and content rows one pass drains
-	// from over-limit generations in committed pre-delete batches before
-	// the prune transaction (#10020). The first batch of a pass always
-	// runs, so every pass makes progress on its oldest over-limit
-	// generation. Unset resolves to 500,000.
+	// in committed pre-delete batches before the prune transaction
+	// (#10020): over-limit chunk targets and normal-batch generations
+	// alike, since both hold fact volume the prune must not cover. The
+	// first batch of a pass always runs, so every pass makes progress on
+	// its oldest undrained generation. Unset resolves to 500,000.
 	ChunkPredeleteRowCap int64
 	// ChunkPredeleteDeadline bounds the chunk pre-delete's wall time per
 	// pass; no batch starts after it. Unset resolves to 15 minutes; the
@@ -205,9 +206,14 @@ type GenerationRetentionResult struct {
 	FactKeyRowsCounted map[string]int64
 	// RowsOverLimit is the batch's counted rows minus BatchRowLimit when the
 	// batch is one generation over the limit (admitted alone because only its
-	// changed-since ledger rows push it over), else 0. It comes from the
-	// pre-count, so a link that commits after the count and names the
-	// generation on its prior side is deleted uncounted: it can understate.
+	// changed-since ledger rows push it over), else 0. The recount runs after
+	// the #10020 predrain deleted the generation's facts, so a generation
+	// that was not over the limit on its own facts at the predrain read adds
+	// that read's fact count back: recount-plus-carry equals the pre-drain
+	// total absent concurrent ledger writes between the read and the recount.
+	// It comes from the pre-count, so a link that commits after the
+	// count and names the generation on its prior side is deleted uncounted:
+	// it can understate.
 	RowsOverLimit int64
 	// LockedScopeRows is the distinct scopes of the pruned batch. Since
 	// every pass releases the selection's locks before planning and
@@ -219,6 +225,13 @@ type GenerationRetentionResult struct {
 	// ChunkPredeleteBatches is the #10020 chunk pre-delete batch
 	// transactions the pass committed before its prune transaction opened.
 	ChunkPredeleteBatches int
+	// PredrainedOverLimitGenerations counts the drain members that exceeded
+	// the row limit on own facts at the predrain read and saw at least one
+	// committed batch this pass. It tells Gate 3 whether the pass moved
+	// chunk-shaped volume pre-Begin (nonzero) or only normal-batch volume
+	// (zero with ChunkPredeleteBatches > 0), since a fully drained
+	// over-limit generation prunes whole with no other trace.
+	PredrainedOverLimitGenerations int
 }
 
 // generationRetentionTestHooks are the ordering points the live retention
@@ -236,6 +249,12 @@ type generationRetentionTestHooks struct {
 	// can flip eligibility (or start a concurrent writer) mid-drain and
 	// prove the next batch re-checks.
 	beforeChunkPredrainPage func()
+	// beforePruneTransaction runs after the search and chunk pre-deletes
+	// and before the prune transaction opens, so a test can change a
+	// drained generation's eligibility (delta base, uncovered writer) and
+	// prove the prune's own selection drops it instead of pruning rows
+	// the predrain already deleted.
+	beforePruneTransaction func()
 }
 
 // generationRetentionTargetedCandidateQuery is the targeted candidate

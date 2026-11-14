@@ -105,7 +105,11 @@ type Result struct {
 	FactKeyRowsPruned  map[string]int64
 	FactKeyRowsCounted map[string]int64
 	// RowsOverLimit is how far a batch of one generation exceeded
-	// BatchRowLimit because of its changed-since ledger rows (#7127), else 0.
+	// BatchRowLimit because of its changed-since ledger rows (#7127), else
+	// 0. Since #10020 the packer counts post-drain rows, so a drainable
+	// combined-over generation that packs within the limit reports 0 here;
+	// ledger-alone overage on a lone batch still reports
+	// (arb-10020-batch-predrain-packing).
 	RowsOverLimit int64
 	// LockedScopeRows is the distinct scopes of the pruned batch (#7127).
 	// Since every pass releases the selection's locks before planning and
@@ -119,6 +123,11 @@ type Result struct {
 	// ChunkPredeleteBatches is the chunk pre-delete batch transactions the
 	// pass committed before its prune transaction opened (#10020).
 	ChunkPredeleteBatches int
+	// PredrainedOverLimitGenerations is the drain members that exceeded the
+	// row limit on own facts at the predrain read (#10020): Gate-3 tells a
+	// predrained-normal cycle (batches > 0, over-limit count 0) from a
+	// chunk-shaped one (nonzero) by this count.
+	PredrainedOverLimitGenerations int
 }
 
 // ErrKeyIndexUnavailable marks a cycle the pruner refused
@@ -318,6 +327,9 @@ func (r *Runner) recordResult(ctx context.Context, result Result) {
 		if result.ChunkPredeleteBatches > 0 {
 			r.Instruments.GenerationRetentionChunkPredeleteBatches.Record(ctx, int64(result.ChunkPredeleteBatches))
 		}
+		if result.PredrainedOverLimitGenerations > 0 {
+			r.Instruments.GenerationRetentionPredrainedOverLimitGenerations.Record(ctx, int64(result.PredrainedOverLimitGenerations))
+		}
 		for reason, count := range result.Skipped {
 			if count <= 0 {
 				continue
@@ -350,6 +362,9 @@ func (r *Runner) recordResult(ctx context.Context, result Result) {
 		slog.Int("search_index_batches", result.SearchIndexBatches),
 		// Chunk pre-delete batches committed before the prune (#10020).
 		slog.Int("chunk_predelete_batches", result.ChunkPredeleteBatches),
+		// Drain members over the row limit at the predrain read: Gate-3
+		// tells a predrained-normal cycle from a chunk-shaped one (#10020).
+		slog.Int("predrained_over_limit_generations", result.PredrainedOverLimitGenerations),
 		telemetry.PhaseAttr(telemetry.PhaseReduction),
 	)
 	if !maps.Equal(result.LedgerRowsPruned, result.LedgerRowsCounted) {

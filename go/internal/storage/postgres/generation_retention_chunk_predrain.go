@@ -13,10 +13,11 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
-// This file holds the over-limit chunk pre-delete (#10020): generations too
-// large to prune in one bounded transaction drain their fact and content
-// pages in committed batches before the prune transaction opens, following
-// the #7427 search index pre-delete precedent. The narrow scope lock then
+// This file holds the batch chunk pre-delete (#10020): every eligible
+// generation with facts drains its fact and content pages in committed
+// batches before the prune transaction opens — over-limit chunk targets and
+// normal-batch generations alike — following the #7427 search index
+// pre-delete precedent. The narrow scope lock then
 // covers only the re-lock, the locked recount, the events, and the final
 // whole-generation delete; no page ever drains under it.
 //
@@ -80,22 +81,58 @@ func (b *generationRetentionChunkBudget) exhausted(now time.Time) bool {
 // generationRetentionChunkPredrain carries one pass's chunk pre-delete into
 // the prune transaction: the per-generation drained rows, which targets saw
 // deletions, and the batches the pass committed, so the pass can merge them
-// into its result and log any generation it then left unpruned.
+// into its result and log any generation it then left unpruned. drained
+// marks the targets a batch left with a short or empty page: fully drained,
+// safe to admit. starved marks the drain-list tail the row cap or deadline
+// stopped before its first batch: never attempted, must wait for the next
+// pass. overLimit names the drain members that exceeded the row limit on
+// own facts at read time, for the Gate-3 chunk-shape signal.
 type generationRetentionChunkPredrain struct {
-	targets  []generationRetentionCandidate
-	chunks   map[string]generationRetentionChunk
-	touched  map[string]bool
-	batches  int
-	duration time.Duration
+	targets   []generationRetentionCandidate
+	chunks    map[string]generationRetentionChunk
+	touched   map[string]bool
+	drained   map[string]bool
+	starved   map[string]bool
+	overLimit map[string]bool
+	// readOwnFacts is the predrain read's per-generation own-fact count,
+	// taken before any batch drains. overLimitCarry adds it back for a
+	// pruned generation this pass drained that was not over the limit on
+	// its own facts, so the recount-plus-carry equals the pre-drain total
+	// absent concurrent ledger writes between the read and the recount.
+	readOwnFacts map[string]int64
+	batches      int
+	duration     time.Duration
+}
+
+// overLimitCarry restores the ledger-driven over-limit signal the predrain
+// drained away (#10020): the prune's recount runs after the predrain deleted
+// the generation's facts, so a generation over the limit only because of its
+// changed-since ledger rows would recount within the limit. Adding back the
+// predrain read's own-fact count makes recount-plus-carry equal the
+// pre-drain total absent concurrent ledger writes between the read and the
+// recount, which is what the recount saw before the batch predrain existed
+// (arbiter ruling arb-7127-3d-b). Only a generation this pass drained
+// carries: an untouched generation's recount still holds its full facts,
+// so adding the read count back would double-count them. A generation that
+// was already over the limit on its own facts at the read carries nothing:
+// it took the chunk path then and reports no over-limit now.
+func (cp *generationRetentionChunkPredrain) overLimitCarry(generationID string) int64 {
+	if cp == nil || !cp.drained[generationID] || cp.overLimit[generationID] {
+		return 0
+	}
+	return cp.readOwnFacts[generationID]
 }
 
 // predrainChunkedGenerations runs the pass's chunk pre-delete before the
 // prune transaction opens (#10020): it reads the eligible candidates in a
 // transaction it rolls back first, drops uncovered writers, delta-protected
 // generations and each identity group's newest copy as the prune's planning
-// does, and drains every over-limit generation oldest first in committed
-// batches under the policy's row cap and deadline. It checks the retention
-// key indexes first, so a cycle the prune would refuse changes nothing.
+// does, and drains every other eligible generation oldest first in committed
+// batches under the policy's row cap and deadline: over-limit chunk targets
+// and normal-batch generations alike, since both hold fact volume the
+// prune transaction must not cover (#10020 batch predrain). It checks the
+// retention key indexes first, so a cycle the prune would refuse changes
+// nothing.
 func (s GenerationRetentionStore) predrainChunkedGenerations(
 	ctx context.Context,
 	beginner db.Beginner,
@@ -113,15 +150,18 @@ func (s GenerationRetentionStore) predrainChunkedGenerations(
 	// one bounded SELECT, told apart in pg_stat_statements by its marker,
 	// the same exclusion the #7427 search pre-delete read already uses.
 	readStart := time.Now()
-	candidates, err := s.readChunkPredrainCandidates(ctx, beginner, now, policy)
+	candidates, overLimit, readOwnFacts, err := s.readChunkPredrainCandidates(ctx, beginner, now, policy)
 	if err != nil {
 		return nil, err
 	}
 	readElapsed := time.Since(readStart)
 	predrain := &generationRetentionChunkPredrain{
-		chunks:   make(map[string]generationRetentionChunk),
-		touched:  make(map[string]bool),
-		duration: readElapsed,
+		chunks:       make(map[string]generationRetentionChunk),
+		touched:      make(map[string]bool),
+		drained:      make(map[string]bool),
+		starved:      make(map[string]bool),
+		readOwnFacts: readOwnFacts,
+		duration:     readElapsed,
 	}
 	chunkRows := generationRetentionChunkRows(policy)
 	budget := &generationRetentionChunkBudget{
@@ -130,7 +170,16 @@ func (s GenerationRetentionStore) predrainChunkedGenerations(
 	}
 	for i := range candidates {
 		if budget.exhausted(time.Now()) {
+			for _, remaining := range candidates[i:] {
+				predrain.starved[remaining.generationID] = true
+			}
 			break
+		}
+		if overLimit[candidates[i].generationID] {
+			if predrain.overLimit == nil {
+				predrain.overLimit = make(map[string]bool)
+			}
+			predrain.overLimit[candidates[i].generationID] = true
 		}
 		if err := s.predrainChunkedTarget(ctx, beginner, now, policy, candidates[i], chunkRows, budget, predrain); err != nil {
 			return nil, err
@@ -142,33 +191,37 @@ func (s GenerationRetentionStore) predrainChunkedGenerations(
 // readChunkPredrainCandidates runs the predrain's candidate read in its own
 // transaction and rolls it back before returning, releasing the selection's
 // row locks. It mirrors selectPrunableCandidates' unlocked planning —
-// uncovered and delta-protected members never drain, the witness retains
-// each identity group's newest copy, and only generations over the row
-// limit on own facts alone drain — but it never tallies: the prune's own
-// selection reports every skip again on the post-drain facts.
+// uncovered and delta-protected members never drain and the witness retains
+// each identity group's newest copy — but drains every other eligible
+// member with facts still present, oldest first, instead of only the
+// over-limit ones: the fact volume of a normal batch belongs pre-Begin just
+// like a chunk page (#10020 batch predrain). It never tallies: the prune's
+// own selection reports every skip again on the post-drain facts. The
+// returned over-limit set names the drain members that exceeded the row
+// limit on own facts at read time, for the Gate-3 chunk-shape signal.
 func (s GenerationRetentionStore) readChunkPredrainCandidates(
 	ctx context.Context,
 	beginner db.Beginner,
 	now time.Time,
 	policy GenerationRetentionPolicy,
-) ([]generationRetentionCandidate, error) {
+) ([]generationRetentionCandidate, map[string]bool, map[string]int64, error) {
 	tx, err := beginner.Begin(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("generation retention: begin chunk predrain candidate read: %w", err)
+		return nil, nil, nil, fmt.Errorf("generation retention: begin chunk predrain candidate read: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
 	if _, err := tx.ExecContext(ctx, generationRetentionChunkPredrainReadWorkMemStatement); err != nil {
-		return nil, fmt.Errorf("generation retention: set chunk predrain candidate read work_mem: %w", err)
+		return nil, nil, nil, fmt.Errorf("generation retention: set chunk predrain candidate read work_mem: %w", err)
 	}
 	rows, err := tx.QueryContext(ctx, generationRetentionChunkPredrainReadQuery,
 		now.Add(-policy.MaxSupersededAge), policy.MinSupersededGenerations,
 		policy.BatchGenerationLimit, now.Add(-policy.HardMaxSupersededAge))
 	if err != nil {
-		return nil, fmt.Errorf("generation retention: read chunk predrain candidates: %w", err)
+		return nil, nil, nil, fmt.Errorf("generation retention: read chunk predrain candidates: %w", err)
 	}
 	candidates, err := scanRetentionCandidates(rows)
 	if err != nil {
-		return nil, fmt.Errorf("generation retention: read chunk predrain candidates: %w", err)
+		return nil, nil, nil, fmt.Errorf("generation retention: read chunk predrain candidates: %w", err)
 	}
 	sortRetentionCandidatesOldestFirst(candidates)
 	prunable := candidates[:0]
@@ -180,16 +233,21 @@ func (s GenerationRetentionStore) readChunkPredrainCandidates(
 	prunable, _ = dropNewestSameIdentityPerBatch(prunable)
 	ownFacts, err := s.prescreenOwnFacts(ctx, tx, prunable)
 	if err != nil {
-		return nil, err
+		return nil, nil, nil, err
 	}
 	rowLimit := int64(policy.BatchRowLimit)
-	var overLimit []generationRetentionCandidate
+	drain := make([]generationRetentionCandidate, 0, len(prunable))
+	overLimit := make(map[string]bool)
 	for _, candidate := range prunable {
-		if ownFacts[candidate.generationID] > rowLimit {
-			overLimit = append(overLimit, candidate)
+		facts := ownFacts[candidate.generationID]
+		if facts > rowLimit {
+			overLimit[candidate.generationID] = true
+		}
+		if facts > 0 {
+			drain = append(drain, candidate)
 		}
 	}
-	return overLimit, nil
+	return drain, overLimit, ownFacts, nil
 }
 
 // excludeChunkTarget drops a still-over-limit chunk target instead of
@@ -208,6 +266,36 @@ func (cp *generationRetentionChunkPredrain) excludeChunkTarget(
 	if !cp.touched[chunkTarget.generationID] {
 		result.Skipped[generationRetentionChunkedProgressSkippedReason]++
 	}
+}
+
+// excludeUndrainedCandidates drops the provisionally selected candidates
+// the predrain did not finish this pass: a touched-but-unfinished
+// generation, and a drain-list tail the row cap or deadline starved before
+// its first batch, both still hold fact volume the prune must not cover, so
+// they wait for the next pass like an unfinished chunk target. Generations
+// the predrain stopped on for other reasons on the first batch (lock busy,
+// timed out, ineligible) keep the status-quo path and are admitted: their
+// rows were never touched pre-Begin, and the re-lock stays the backstop.
+// A dropped generation whose committed batches already reported rows merges
+// through finish without a second tally here; a dropped generation with no
+// committed rows tallies the deferral here, so every deferred generation is
+// reported exactly once and never silently.
+func (cp *generationRetentionChunkPredrain) excludeUndrainedCandidates(
+	candidates []generationRetentionCandidate,
+	result *GenerationRetentionResult,
+) []generationRetentionCandidate {
+	kept := candidates[:0]
+	for _, candidate := range candidates {
+		id := candidate.generationID
+		if cp.drained[id] || (!cp.touched[id] && !cp.starved[id]) {
+			kept = append(kept, candidate)
+			continue
+		}
+		if cp.chunks[id].rows() == 0 {
+			result.Skipped[generationRetentionChunkedProgressSkippedReason]++
+		}
+	}
+	return kept
 }
 
 // eventCounts returns the per-generation event row counts with each pruned
@@ -235,6 +323,7 @@ func (cp *generationRetentionChunkPredrain) eventCounts(
 		}
 		changed["fact_records"] += chunk.factsDeleted
 		changed["content_files"] += chunk.filesPruned
+		changed["content_file_secret_lines"] += chunk.secretLinesPruned
 		changed["content_file_references"] += chunk.referencesPruned
 		changed["content_entities"] += chunk.entitiesPruned
 		changed["infra_resource_entities"] += chunk.mirrorPruned
@@ -279,8 +368,17 @@ func (cp *generationRetentionChunkPredrain) finish(
 			result.RowsPruned["content_file_references"] += chunk.referencesPruned
 			result.RowsPruned["content_entities"] += chunk.entitiesPruned
 			result.RowsPruned["infra_resource_entities"] += chunk.mirrorPruned
+			result.RowsPruned["content_file_secret_lines"] += chunk.secretLinesPruned
+			if result.FactKeyRowsCounted == nil {
+				result.FactKeyRowsCounted = make(map[string]int64, len(chunk.factKeysPruned))
+			}
+			if result.FactKeyRowsPruned == nil {
+				result.FactKeyRowsPruned = make(map[string]int64, len(chunk.factKeysPruned))
+			}
 			for table, rows := range chunk.factKeysPruned {
 				result.RowsPruned[table] += rows
+				result.FactKeyRowsCounted[table] += rows
+				result.FactKeyRowsPruned[table] += rows
 			}
 			continue
 		}
@@ -289,6 +387,11 @@ func (cp *generationRetentionChunkPredrain) finish(
 		}
 	}
 	result.ChunkPredeleteBatches = cp.batches
+	for generationID := range cp.overLimit {
+		if cp.touched[generationID] {
+			result.PredrainedOverLimitGenerations++
+		}
+	}
 	if cp.batches > 0 {
 		result.PhaseDurations[GenerationRetentionPhasePredrainChunk] += cp.duration
 	}

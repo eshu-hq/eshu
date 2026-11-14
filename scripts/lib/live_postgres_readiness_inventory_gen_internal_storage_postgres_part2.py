@@ -50,6 +50,12 @@ TABLE = {
             "TestPriorGenerationCheckIgnoresNewerGenerationLive",
             "TestPriorGenerationCheckStrictlyOlderCasesLive",
         ),
+        "go/internal/storage/postgres/generation_retention_batch_predrain_live_test.go": (
+            "TestGenerationRetentionBatchPredrainKeepsScopeLockBoundedLive",
+            "TestGenerationRetentionBatchPredrainCrashResumeKeepsExactCountsLive",
+            "TestGenerationRetentionBatchPredrainDeltaFlipExcludesLive",
+            "TestGenerationRetentionBatchPredrainConcurrentPassDefersLive",
+        ),
         "go/internal/storage/postgres/generation_retention_chain_live_test.go": (
             "TestGenerationRetentionKeepsCumulativeDeltaBaseLive",
         ),

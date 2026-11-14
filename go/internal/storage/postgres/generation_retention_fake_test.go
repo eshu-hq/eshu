@@ -324,7 +324,7 @@ func (tx *generationRetentionFakeTx) QueryContext(_ context.Context, query strin
 	case strings.Contains(query, "retention: over-limit chunk file prune"):
 		prune := tx.database.chunkFilePrune
 		if prune == nil {
-			prune = []any{int64(0), int64(0)}
+			prune = []any{int64(0), int64(0), int64(0)}
 		}
 		return &queueFakeRows{rows: [][]any{prune}}, nil
 	case strings.Contains(query, "retention: over-limit chunk entity prune"):
