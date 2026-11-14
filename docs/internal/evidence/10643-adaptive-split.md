@@ -105,7 +105,11 @@ ran 9806 ms cold first run and ~560 ms warm; visibility map 95.4%. After
 (15,455 rows); generation_id-only proxy ~170 ms (3.3x over warm).
 Fixture (disposable PostgreSQL 18.6, same values as measured below):
 multi-id statement 3.7 ms (max single 2.0 ms); mass probe 2.4 ms;
-bidirectional EXCEPT 0/0. Threshold 10,000 rows sits ~7x under the
+bidirectional EXCEPT 0/0. Production-mass probe (QA primary, 5 sampled
+hot CVEs, 67,048 rows): 6067 ms cold (21,359 physical reads), 218 ms
+warm; cold-chunk worst case is probe plus ≤2 waves of singles inside
+each statement's own 10 s guard. The fixture 2.4 ms figure does not
+transfer; this pair is the production-mass record. Threshold 10,000 rows sits ~7x under the
 observed 67k timeout mass; bound 4 drains a fully split 5-id chunk in
 ~2 waves. Terminal counts: admitted id set identical by construction
 (union plus downstream sort); no query text of the shipped holder read
