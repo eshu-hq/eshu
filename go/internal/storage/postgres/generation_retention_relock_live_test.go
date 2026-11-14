@@ -23,8 +23,9 @@ import (
 // TestGenerationRetentionPrescreenChunksOverFactGenerationsLive is #7334 fix
 // 2 through the real store, with the #10020 pre-lock drain: ps-over (150 own
 // facts against a limit of 100) drains two bounded pages in committed
-// batches before Begin, then fits, so the same pass prunes both generations
-// whole. The pre-screen SQL is also queried directly to pin its
+// batches before Begin, ps-under (50 own facts) drains one short page the
+// same way, then both fit, so the same pass prunes both generations whole.
+// The pre-screen SQL is also queried directly to pin its
 // per-generation counts.
 func TestGenerationRetentionPrescreenChunksOverFactGenerationsLive(t *testing.T) {
 	// Bridge the live-postgres-readiness runner's family DSN onto the shared
@@ -88,14 +89,18 @@ func TestGenerationRetentionPrescreenChunksOverFactGenerationsLive(t *testing.T)
 		t.Fatalf("GenerationsPruned = %d, want 2 (both fit after the drain)", result.GenerationsPruned)
 	}
 	if len(result.Skipped) != 0 {
-		t.Fatalf("Skipped = %v, want none (the drained target fits and prunes whole)", result.Skipped)
+		t.Fatalf("Skipped = %v, want none (both drained generations fit and prune whole)", result.Skipped)
 	}
-	// 50 counted ps-under facts plus the 150 predrained ps-over facts.
+	// All 200 facts predrained (150 over + 50 under); the recount sees
+	// nothing left to count, so the in-txn delete finds an empty batch.
 	if got := result.RowsPruned["fact_records"]; got != 200 {
-		t.Fatalf("RowsPruned[fact_records] = %d, want 200 (50 counted + 150 predrained)", got)
+		t.Fatalf("RowsPruned[fact_records] = %d, want 200 (all predrained)", got)
 	}
-	if result.ChunkPredeleteBatches != 2 {
-		t.Fatalf("ChunkPredeleteBatches = %d, want 2 (100 + short 50)", result.ChunkPredeleteBatches)
+	if result.ChunkPredeleteBatches != 3 {
+		t.Fatalf("ChunkPredeleteBatches = %d, want 3 (over 100 + 50, under short 50)", result.ChunkPredeleteBatches)
+	}
+	if got := result.PredrainedOverLimitGenerations; got != 1 {
+		t.Fatalf("PredrainedOverLimitGenerations = %d, want 1 (ps-over was over-limit at the predrain read; ps-under was not)", got)
 	}
 	if result.ScopeLockHold <= 0 {
 		t.Fatal("ScopeLockHold <= 0, want the final prune's measured narrow hold")

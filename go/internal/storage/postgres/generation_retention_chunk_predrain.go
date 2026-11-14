@@ -82,13 +82,16 @@ func (b *generationRetentionChunkBudget) exhausted(now time.Time) bool {
 // deletions, and the batches the pass committed, so the pass can merge them
 // into its result and log any generation it then left unpruned. drained
 // marks the targets a batch left with a short or empty page: fully drained,
-// safe to admit. overLimit names the drain members that exceeded the row
-// limit on own facts at read time, for the Gate-3 chunk-shape signal.
+// safe to admit. starved marks the drain-list tail the row cap or deadline
+// stopped before its first batch: never attempted, must wait for the next
+// pass. overLimit names the drain members that exceeded the row limit on
+// own facts at read time, for the Gate-3 chunk-shape signal.
 type generationRetentionChunkPredrain struct {
 	targets   []generationRetentionCandidate
 	chunks    map[string]generationRetentionChunk
 	touched   map[string]bool
 	drained   map[string]bool
+	starved   map[string]bool
 	overLimit map[string]bool
 	batches   int
 	duration  time.Duration
@@ -130,6 +133,7 @@ func (s GenerationRetentionStore) predrainChunkedGenerations(
 		chunks:   make(map[string]generationRetentionChunk),
 		touched:  make(map[string]bool),
 		drained:  make(map[string]bool),
+		starved:  make(map[string]bool),
 		duration: readElapsed,
 	}
 	chunkRows := generationRetentionChunkRows(policy)
@@ -139,6 +143,9 @@ func (s GenerationRetentionStore) predrainChunkedGenerations(
 	}
 	for i := range candidates {
 		if budget.exhausted(time.Now()) {
+			for _, remaining := range candidates[i:] {
+				predrain.starved[remaining.generationID] = true
+			}
 			break
 		}
 		if overLimit[candidates[i].generationID] {
@@ -235,23 +242,31 @@ func (cp *generationRetentionChunkPredrain) excludeChunkTarget(
 }
 
 // excludeUndrainedCandidates drops the provisionally selected candidates
-// whose predrain did not finish this pass: a touched generation without a
-// short or empty page still holds fact volume, so admitting it would put
-// that volume back under the scope lock the predrain exists to avoid. The
-// exclusion is silent here on purpose: finish merges the generation's
-// already-committed rows with the deferral skip, so the pass reports them
-// exactly once without an event. Untouched generations (never attempted,
-// or already empty before this pass) pass through: nothing was predrained
-// from them, so there is nothing to wait for.
+// the predrain did not finish this pass: a touched-but-unfinished
+// generation, and a drain-list tail the row cap or deadline starved before
+// its first batch, both still hold fact volume the prune must not cover, so
+// they wait for the next pass like an unfinished chunk target. Generations
+// the predrain stopped on for other reasons on the first batch (lock busy,
+// timed out, ineligible) keep the status-quo path and are admitted: their
+// rows were never touched pre-Begin, and the re-lock stays the backstop.
+// A dropped generation whose committed batches already reported rows merges
+// through finish without a second tally here; a dropped generation with no
+// committed rows tallies the deferral here, so every deferred generation is
+// reported exactly once and never silently.
 func (cp *generationRetentionChunkPredrain) excludeUndrainedCandidates(
 	candidates []generationRetentionCandidate,
+	result *GenerationRetentionResult,
 ) []generationRetentionCandidate {
 	kept := candidates[:0]
 	for _, candidate := range candidates {
-		if cp.touched[candidate.generationID] && !cp.drained[candidate.generationID] {
+		id := candidate.generationID
+		if cp.drained[id] || (!cp.touched[id] && !cp.starved[id]) {
+			kept = append(kept, candidate)
 			continue
 		}
-		kept = append(kept, candidate)
+		if cp.chunks[id].rows() == 0 {
+			result.Skipped[generationRetentionChunkedProgressSkippedReason]++
+		}
 	}
 	return kept
 }
@@ -325,8 +340,17 @@ func (cp *generationRetentionChunkPredrain) finish(
 			result.RowsPruned["content_file_references"] += chunk.referencesPruned
 			result.RowsPruned["content_entities"] += chunk.entitiesPruned
 			result.RowsPruned["infra_resource_entities"] += chunk.mirrorPruned
+			result.RowsPruned["content_file_secret_lines"] += chunk.secretLinesPruned
+			if result.FactKeyRowsCounted == nil {
+				result.FactKeyRowsCounted = make(map[string]int64, len(chunk.factKeysPruned))
+			}
+			if result.FactKeyRowsPruned == nil {
+				result.FactKeyRowsPruned = make(map[string]int64, len(chunk.factKeysPruned))
+			}
 			for table, rows := range chunk.factKeysPruned {
 				result.RowsPruned[table] += rows
+				result.FactKeyRowsCounted[table] += rows
+				result.FactKeyRowsPruned[table] += rows
 			}
 			continue
 		}

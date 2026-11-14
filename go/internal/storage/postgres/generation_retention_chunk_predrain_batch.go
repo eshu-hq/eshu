@@ -236,13 +236,14 @@ func (s GenerationRetentionStore) predrainChunkBatch(
 	}
 	chunk.factsDeleted = deleted
 	if len(page.fileRepos) > 0 {
-		var refs, files int64
+		var refs, files, secrets int64
 		if err := queryChunkPruneCounts(ctx, tx, generationRetentionChunkPruneFilesQuery,
-			page.fileRepos, page.filePaths, &refs, &files); err != nil {
+			page.fileRepos, page.filePaths, &refs, &files, &secrets); err != nil {
 			return chunkPredrainBatchResult{}, fmt.Errorf("generation retention: prune chunk predrain files: %w", err)
 		}
 		chunk.referencesPruned = refs
 		chunk.filesPruned = files
+		chunk.secretLinesPruned = secrets
 	}
 	if len(page.entityRepos) > 0 {
 		var entities int64
@@ -274,13 +275,17 @@ type generationRetentionChunk struct {
 	referencesPruned int64
 	entitiesPruned   int64
 	mirrorPruned     int64
-	factKeysPruned   map[string]int64 // #7420 key sidecar rows, by table
+	// secretLinesPruned counts the secret lines the file delete's FK cascade
+	// removed; the recount sees post-drain zeros, so the pass reports them
+	// here for an exact per-pass total.
+	secretLinesPruned int64
+	factKeysPruned    map[string]int64 // #7420 key sidecar rows, by table
 }
 
 // rows reports every fact and content row one drained chunk removed, so one
 // budget number bounds the pass's pre-delete work.
 func (c generationRetentionChunk) rows() int64 {
-	total := c.factsDeleted + c.filesPruned + c.referencesPruned + c.entitiesPruned + c.mirrorPruned
+	total := c.factsDeleted + c.filesPruned + c.referencesPruned + c.entitiesPruned + c.mirrorPruned + c.secretLinesPruned
 	for _, rows := range c.factKeysPruned {
 		total += rows
 	}
@@ -295,6 +300,7 @@ func (c generationRetentionChunk) merged(other generationRetentionChunk) generat
 	out.referencesPruned += other.referencesPruned
 	out.entitiesPruned += other.entitiesPruned
 	out.mirrorPruned += other.mirrorPruned
+	out.secretLinesPruned += other.secretLinesPruned
 	if other.factKeysPruned != nil {
 		if out.factKeysPruned == nil {
 			out.factKeysPruned = make(map[string]int64, len(other.factKeysPruned))
@@ -334,7 +340,9 @@ WHERE fact_id = ANY($1::text[])
 // only live fact was in the deleted page (#7981): page keys replace the
 // batch prune's generation facts, and the doomed probe keeps a key any live
 // fact still names. References go in the same statement; secret lines follow
-// by FK cascade. $1 repo ids, $2 paths, parallel page-key arrays.
+// by FK cascade and are counted up front from the same doomed set, since the
+// cascade would hide them from a post-delete count. $1 repo ids, $2 paths,
+// parallel page-key arrays.
 const generationRetentionChunkPruneFilesQuery = `-- retention: over-limit chunk file prune
 WITH page_keys AS (
     SELECT DISTINCT unnest($1::text[]) AS repo_id, unnest($2::text[]) AS relative_path
@@ -350,6 +358,14 @@ doomed AS (
           AND retained.payload->>'relative_path' = page_key.relative_path
     )
 ),
+doomed_secrets AS (
+    SELECT count(*) AS n
+    FROM content_file_secret_lines AS secret
+    WHERE EXISTS (
+        SELECT 1 FROM doomed AS d
+        WHERE d.repo_id = secret.repo_id AND d.relative_path = secret.relative_path
+    )
+),
 deleted_references AS (
     DELETE FROM content_file_references AS ref
     USING doomed AS d
@@ -362,7 +378,7 @@ deleted_files AS (
     WHERE content.repo_id = d.repo_id AND content.relative_path = d.relative_path
     RETURNING 1
 )
-SELECT (SELECT count(*) FROM deleted_references), (SELECT count(*) FROM deleted_files)
+SELECT (SELECT count(*) FROM deleted_references), (SELECT count(*) FROM deleted_files), (SELECT n FROM doomed_secrets)
 `
 
 // generationRetentionChunkPruneEntitiesQuery prunes content entity rows whose

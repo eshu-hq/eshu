@@ -165,6 +165,8 @@ func TestVersionFenceConcurrentPrunesShareRepositoriesLive(t *testing.T) {
 		version.release(t)
 		wg.Wait()
 
+		var totalPruned int64
+		var totalGens int
 		for i, r := range results {
 			if isDeadlock(r.err) {
 				t.Fatalf("round %d pass %d: deadlock: %v", round, i, r.err)
@@ -172,14 +174,29 @@ func TestVersionFenceConcurrentPrunesShareRepositoriesLive(t *testing.T) {
 			if r.err != nil {
 				t.Fatalf("round %d pass %d: %v", round, i, r.err)
 			}
-			if r.pruned != repoCount*files || r.gens != repoCount {
-				t.Fatalf("round %d pass %d pruned %d content rows over %d generations, want %d over %d",
-					round, i, r.pruned, r.gens, repoCount*files, repoCount)
-			}
+			totalPruned += r.pruned
+			totalGens += r.gens
+		}
+		// The batch predrain (#10020) deletes content in committed batches
+		// before Begin, so drain work migrates between the passes: a
+		// generation pass A drained can be pruned by pass B, and the
+		// fence-version wait that used to serialize the two prune commits
+		// now also parks predrain batch commits (each batch takes its
+		// version rows inside COMMIT, after its last content lock, per
+		// migration 186). Per-pass splits are not stable under that
+		// migration, but the union is exact: finish and
+		// mergeChunkProgress report every predrained row exactly once, so
+		// the two passes together prune the whole fixture with no
+		// deadlock. Bumps stay exactly two per repository: each
+		// single-page scope set is deleted by exactly one committing
+		// batch, once per transaction per the fence protocol.
+		if totalPruned != 2*repoCount*files || totalGens != 2*repoCount {
+			t.Fatalf("round %d passes pruned %d content rows over %d generations, want %d over %d",
+				round, totalPruned, totalGens, 2*repoCount*files, 2*repoCount)
 		}
 		for repo, v := range versionsOf(ctx, t, db, repos) {
 			if v-before[repo] != 2 {
-				t.Errorf("round %d: %s bumped %d times, want 2 (once per prune)", round, repo, v-before[repo])
+				t.Errorf("round %d: %s bumped %d times, want 2 (once per scope set's deleting transaction)", round, repo, v-before[repo])
 			}
 		}
 	}

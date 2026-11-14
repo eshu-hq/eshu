@@ -145,12 +145,11 @@ func (s GenerationRetentionStore) PruneSupersededGenerations(
 	// pass, so it waits for the next pass instead of holding the lock for
 	// a page drain.
 	chunkPredrain.excludeChunkTarget(chunkTarget, &result)
-	// The narrow scope lock never covers fact volume either: a generation
-	// the predrain touched but did not drain holds facts the prune would
-	// delete under the lock, so it waits for the next pass like an
-	// unfinished chunk target. Untouched generations pass through: their
-	// facts were already gone, or were never numerous enough to drain.
-	candidates = chunkPredrain.excludeUndrainedCandidates(candidates)
+	// The narrow scope lock never covers fact volume either: a touched-but-
+	// unfinished generation, and a drain-list tail starved of its first
+	// batch, wait for the next pass like an unfinished chunk target.
+	// Anything else is admitted.
+	candidates = chunkPredrain.excludeUndrainedCandidates(candidates, &result)
 	// ScopeLockHold spans the re-lock, its recount and the prune, and is
 	// zero when the pass locks nothing.
 	var narrowHoldStart time.Time

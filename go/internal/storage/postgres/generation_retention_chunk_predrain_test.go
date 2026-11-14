@@ -192,6 +192,69 @@ func TestGenerationRetentionChunkPredrainBusyLockDefers(t *testing.T) {
 	}
 }
 
+// TestGenerationRetentionBatchPredrainStarvedTailDefersWithSkip proves a
+// generation the row cap starves before its first batch waits for the next
+// pass instead of holding its full volume under the lock, and that the wait
+// is tallied: the older generation drains fully and prunes whole beside it.
+func TestGenerationRetentionBatchPredrainStarvedTailDefersWithSkip(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 6, 12, 10, 0, 0, 0, time.UTC)
+	database := &generationRetentionFakeDB{
+		candidateRows: [][]any{
+			{"scope-a", "generation-older", "repository", now.Add(-13 * 24 * time.Hour), now.Add(-14 * 24 * time.Hour), false},
+			{"scope-a", "generation-newer", "repository", now.Add(-12 * 24 * time.Hour), now.Add(-13 * 24 * time.Hour), false},
+		},
+		prescreenScripts: [][][]any{
+			{{"generation-older", int64(250)}, {"generation-newer", int64(80)}},
+			{{"generation-older", int64(0)}, {"generation-newer", int64(80)}},
+		},
+		countRows: [][]any{
+			{"generation-older", "fact_records", int64(0)},
+		},
+		chunkPageScripts: [][][]any{
+			chunkPredrainPage("older-fact-a", 100),
+			chunkPredrainPage("older-fact-b", 100),
+			chunkPredrainPage("older-fact-c", 50),
+		},
+		execResults: append(
+			[]sql.Result{fakeRowsAffected{n: 100}, fakeRowsAffected{n: 100}, fakeRowsAffected{n: 50}},
+			generationRetentionExecResults(1, 0, 0, 0, 0, 0, 0, 1)...,
+		),
+	}
+	store := NewGenerationRetentionStore(database)
+	store.Now = func() time.Time { return now }
+
+	policy := chunkPredrainPolicy()
+	policy.ChunkPredeleteRowCap = 210
+	result, err := store.PruneSupersededGenerations(context.Background(), policy)
+	if err != nil {
+		t.Fatalf("PruneSupersededGenerations() error = %v", err)
+	}
+	if result.GenerationsPruned != 1 {
+		t.Fatalf("GenerationsPruned = %d, want 1 (only the drained older generation prunes)", result.GenerationsPruned)
+	}
+	if got := result.RowsPruned["fact_records"]; got != 250 {
+		t.Fatalf("RowsPruned[fact_records] = %d, want 250 (only drained rows count; the starved generation waits untouched)", got)
+	}
+	if got := result.Skipped[generationRetentionChunkedProgressSkippedReason]; got != 1 {
+		t.Fatalf("Skipped[row_limit_chunked] = %d, want 1 (the cap-starved tail is tallied, never silent)", got)
+	}
+	totalSkipped := 0
+	for _, count := range result.Skipped {
+		totalSkipped += count
+	}
+	if totalSkipped != 1 {
+		t.Fatalf("skipped total = %d, want 1", totalSkipped)
+	}
+	if got := result.ChunkPredeleteBatches; got != 3 {
+		t.Fatalf("ChunkPredeleteBatches = %d, want 3 (older 100 + 100 + short 50; newer never starts)", got)
+	}
+	if got := result.PredrainedOverLimitGenerations; got != 1 {
+		t.Fatalf("PredrainedOverLimitGenerations = %d, want 1 (only the older generation committed batches)", got)
+	}
+}
+
 // TestGenerationRetentionBatchPredrainPartialDefersWhileDrainedPrunes proves
 // the batch-predrain admission gate: two eligible generations drain oldest
 // first under a row cap that covers the older one's three batches but only
@@ -199,6 +262,7 @@ func TestGenerationRetentionChunkPredrainBusyLockDefers(t *testing.T) {
 // the same pass; the partially drained one is excluded from the batch even
 // though it fits, and its committed rows merge with the deferral skip for
 // the next pass instead of an event.
+
 func TestGenerationRetentionBatchPredrainPartialDefersWhileDrainedPrunes(t *testing.T) {
 	t.Parallel()
 
