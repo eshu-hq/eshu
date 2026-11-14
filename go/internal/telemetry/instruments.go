@@ -428,7 +428,10 @@ type Instruments struct {
 	GenerationRetentionExpiredReportDuration metric.Float64Histogram
 	// GenerationRetentionOverLimitBatches counts retention batches of one
 	// generation admitted over BatchRowLimit by its changed-since ledger rows
-	// (#7127); registered with the changed-since instruments.
+	// (#7127); registered with the changed-since instruments. Since #10020
+	// only ledger-alone overage on a lone batch reports; drainable
+	// combined-over packs within the limit and reports 0
+	// (arb-10020-batch-predrain-packing).
 	GenerationRetentionOverLimitBatches metric.Int64Counter
 	// Changed-since link writer (#7127 PR-3a, reducer/freshness/links). No
 	// scope or generation identifier is ever a label; the per-link log line

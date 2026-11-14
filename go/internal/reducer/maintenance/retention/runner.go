@@ -105,7 +105,11 @@ type Result struct {
 	FactKeyRowsPruned  map[string]int64
 	FactKeyRowsCounted map[string]int64
 	// RowsOverLimit is how far a batch of one generation exceeded
-	// BatchRowLimit because of its changed-since ledger rows (#7127), else 0.
+	// BatchRowLimit because of its changed-since ledger rows (#7127), else
+	// 0. Since #10020 the packer counts post-drain rows, so a drainable
+	// combined-over generation that packs within the limit reports 0 here;
+	// ledger-alone overage on a lone batch still reports
+	// (arb-10020-batch-predrain-packing).
 	RowsOverLimit int64
 	// LockedScopeRows is the distinct scopes of the pruned batch (#7127).
 	// Since every pass releases the selection's locks before planning and

@@ -27,11 +27,20 @@ hermetic partial-deferral, crash-resume, delta-flip, and concurrent-pass
 coverage in the same package). QA-scale proof rides the rollout
 (first-cycle and Gate-3 STOP watches), not this gate.
 
-Observability Evidence: no new metric, span, worker, queue, lease, or
-runtime knob. The existing `predrain_chunk` phase, `ChunkPredeleteBatches`
-counter, `row_limit_chunked` skip, and `PredrainedOverLimitGenerations`
-result field (nonzero only when an over-limit generation drains) carry
-the behavior: Gate-3 tells a predrained-normal cycle (batches > 0,
-over-limit count 0) from a chunk cycle (over-limit count nonzero) from
-these fields, and the per-generation "left for a later pass" log line
-still marks every deferred drain.
+Observability Evidence: one new histogram plus its cycle log field (no
+new span, worker, queue, lease, or runtime knob).
+`eshu_dp_generation_retention_predrained_over_limit_generations` and the
+cycle log's `predrained_over_limit_generations` carry the former
+`PredrainedOverLimitGenerations` result field end to end (retention.Result
+-> reducer wiring -> recordResult metric and log, pinned by
+`TestGenerationRetentionRunnerRecordsChunkPredeleteBatches` with a mutant
+kill), alongside the existing `predrain_chunk` phase,
+`ChunkPredeleteBatches` counter, and `row_limit_chunked` skip: Gate-3
+tells a predrained-normal cycle (batches > 0, over-limit count 0) from a
+chunk cycle (over-limit count nonzero) from these fields, and the
+per-generation "left for a later pass" log line still marks every deferred
+drain. Supersession (arb-10020-batch-predrain-packing): the packer counts
+post-drain rows, so drainable combined facts-plus-ledger over-limit packs
+within the limit and `RowsOverLimit` stays quiet; only ledger-alone
+overage on a lone batch reports, and the PB5 batches-of-one letter no
+longer applies to drainable generations.
