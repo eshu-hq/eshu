@@ -20,8 +20,8 @@ Every non-exempt required surface maps to a committed scenario and the named pro
 | Reducer drain (crash) | 1 | 1 | 100.00% | 0 | 0 | 0 |
 | Retractable edge types (delta) | 65 | 65 | 100.00% | 0 | 0 | 0 |
 | Retractable node types (delta) | 103 | 103 | 100.00% | 0 | 0 | 1 |
-| Collectors | 20 | 20 | 100.00% | 0 | 0 | 7 |
-| **Total** | **455** | **455** | **100.00%** | **0** | **0** | **10** |
+| Collectors | 20 | 20 | 100.00% | 0 | 0 | 10 |
+| **Total** | **455** | **455** | **100.00%** | **0** | **0** | **13** |
 
 ## Coverage by scenario type
 
@@ -31,7 +31,7 @@ Every non-exempt required surface maps to a committed scenario and the named pro
 | cost | 31 | 31 | 100.00% | 0 | 0 | 1 |
 | crash | 2 | 2 | 100.00% | 0 | 0 | 0 |
 | delta_tombstone | 169 | 169 | 100.00% | 0 | 0 | 1 |
-| fault | 10 | 10 | 100.00% | 0 | 0 | 5 |
+| fault | 10 | 10 | 100.00% | 0 | 0 | 8 |
 | ordering | 3 | 3 | 100.00% | 0 | 0 | 0 |
 
 ## Language parser coverage
