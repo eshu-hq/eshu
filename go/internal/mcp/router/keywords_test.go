@@ -54,6 +54,22 @@ func TestUnsupportedSchemaFeaturesAcceptsImplementedKeywords(t *testing.T) {
 	}
 }
 
+// TestUnsupportedSchemaFeaturesAcceptsBoolAdditionalProperties pins the
+// declare-but-don't-enforce contract: a boolean additionalProperties is an
+// accepted annotation (true is allow-all in the validator today; false is
+// accepted without enforcement because closed-world rejection is held work),
+// so tools that declare it must not trip the drift guard.
+func TestUnsupportedSchemaFeaturesAcceptsBoolAdditionalProperties(t *testing.T) {
+	t.Parallel()
+
+	for _, value := range []any{true, false} {
+		schema := map[string]any{"type": "object", "additionalProperties": value}
+		if got := UnsupportedSchemaFeatures(schema); len(got) != 0 {
+			t.Errorf("UnsupportedSchemaFeatures(%v) = %v, want none", value, got)
+		}
+	}
+}
+
 // TestUnsupportedSchemaFeaturesRejectsUncompilablePattern proves a pattern the
 // Go regexp engine cannot compile is reported rather than silently accepted.
 func TestUnsupportedSchemaFeaturesRejectsUncompilablePattern(t *testing.T) {

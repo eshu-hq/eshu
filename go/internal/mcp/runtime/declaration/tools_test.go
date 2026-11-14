@@ -35,11 +35,11 @@ func TestToolSchemaBoundsMirrorTheHandler(t *testing.T) {
 		t.Errorf("repo_ids maxItems = %v, want 100", properties["repo_ids"].(map[string]any)["maxItems"])
 	}
 	// The schema must use only keywords the router validator implements:
-	// bool additionalProperties and maxLength are not among them (the
-	// validator ignores both), so closed-ness and length caps live in the
-	// HTTP handler (DisallowUnknownFields plus the
-	// maxFilterLength/maxRepoIDLength/maxRepoIDs caps in request.go). This
-	// pins the drift-guard contract locally for this tool.
+	// maxLength is not among them (the validator ignores it), so length caps
+	// live in the HTTP handler (DisallowUnknownFields plus the
+	// maxFilterLength/maxRepoIDLength/maxRepoIDs caps in request.go). A bool
+	// additionalProperties is an accepted annotation (true is allow-all).
+	// This pins the drift-guard contract locally for this tool.
 	if findings := router.UnsupportedSchemaFeatures(schema); len(findings) != 0 {
 		t.Errorf("tool schema uses features the router validator does not implement: %v", findings)
 	}

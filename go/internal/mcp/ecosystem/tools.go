@@ -352,7 +352,8 @@ func repositoryImpactTools() []toolcontract.ToolDefinition {
 			Name:        "explain_dependency_path",
 			Description: "Explain the dependency path between two canonical entities. Scoped (personal-token) callers must own both endpoints (otherwise the answer is not found) and every node on the path (otherwise no path is returned, exactly as when none exists) (#5167). The response then carries scoped: true and withheld_sections.",
 			InputSchema: map[string]any{
-				"type": "object",
+				"type":                 "object",
+				"additionalProperties": true,
 				"properties": map[string]any{
 					"source": map[string]any{
 						"type":        "string",

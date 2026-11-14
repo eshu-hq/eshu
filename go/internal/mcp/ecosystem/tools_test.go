@@ -50,10 +50,15 @@ func TestToolsPreserveEcosystemRegistrationContract(t *testing.T) {
 	}
 
 	encoded := marshalEcosystemDefinitions(t, tools)
-	if got, want := len(encoded), 23970; got != want {
+	// Length grows by the additionalProperties:true marker on
+	// explain_dependency_path (mcp#80 in-tree twin).
+	if got, want := len(encoded), 23998; got != want {
 		t.Fatalf("serialized ecosystem definitions length = %d, want %d", got, want)
 	}
-	const wantDefinitionsHash = "127cc7c926d81a03a300790906acc9ef4d234ee0724e40bb2b5ea9e1e2d03ffc"
+	// Hash of the serialized registry; changes whenever a tool is added or
+	// a schema changes (here: the additionalProperties:true marker on
+	// explain_dependency_path for the mcp#80 in-tree twin).
+	const wantDefinitionsHash = "4022be805baf191d333977d9e2377cc2a3c73979e316527d452c552a45c1318e"
 	if got := fmt.Sprintf("%x", sha256.Sum256(encoded)); got != wantDefinitionsHash {
 		t.Fatalf("ecosystem definitions hash = %s, want %s", got, wantDefinitionsHash)
 	}
