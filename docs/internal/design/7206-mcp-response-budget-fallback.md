@@ -136,3 +136,16 @@ resource. This note records how that interacts with the budget.
 - `find_tool` results and router error results come from the router, not tool
   dispatch, and carry the payload as text and as `structuredContent` in both
   shapes. "Once on the wire" describes tool results only.
+
+## Evidence status for the one-copy default (#10653, 2026-11-13)
+
+Issue #10653 (replacing #8800) gates the `structured` default flip on the
+rows in the live table,
+[10653-result-shape-status](../evidence/10653-result-shape-status.md),
+which is the only maintained copy of row status. This section keeps just the
+closed-proof summary so the two cannot diverge.
+
+Closed as of 2026-11-13: the 629-check/0-required-failure contract proof and
+the OrDual default-folding proof, with every carried-over figure re-measured
+against its committed source. The remaining rows stay open in the live table,
+and the flip diff stays correctly absent until they close.
