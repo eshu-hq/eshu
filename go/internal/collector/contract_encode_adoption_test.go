@@ -35,33 +35,10 @@ func TestContractEncodeAdoptionRatchet(t *testing.T) {
 				"EncodeObservabilityCoverageWarning",
 			},
 		},
-		{
-			path: "registry/oci/envelope.go",
-			calls: []string{
-				"EncodeOCIRegistryRepository",
-				"EncodeOCIImageManifest",
-				"EncodeOCIImageIndex",
-				"EncodeOCIImageDescriptor",
-				"EncodeOCIImageTagObservation",
-				"EncodeOCIImageReferrer",
-			},
-		},
-		{
-			path:  "registry/oci/warning.go",
-			calls: []string{"EncodeOCIRegistryWarning"},
-		},
-		{
-			path:  "registry/package/envelope.go",
-			calls: []string{"EncodePackageRegistryPackage"},
-		},
-		{
-			path:  "registry/package/version.go",
-			calls: []string{"EncodePackageRegistryPackageVersion"},
-		},
-		{
-			path:  "registry/package/warning.go",
-			calls: []string{"EncodePackageRegistryWarning"},
-		},
+		// The OCI-registry and package-registry emitters moved to the
+		// extracted satellites (eshu-hq/eshu#10620), which own their encoder
+		// adoption; no registry/oci or registry/package adoption target
+		// remains in-tree.
 		{
 			path:  "terraformstate/parser.go",
 			calls: []string{"EncodeTerraformStateSnapshot"},
@@ -111,10 +88,9 @@ func TestContractEncodeAdoptionRatchet(t *testing.T) {
 				"EncodeCICDTriggerEdge",
 			},
 		},
-		{
-			path:  "securityalerts/envelope.go",
-			calls: []string{"EncodeSecurityAlertRepositoryAlert"},
-		},
+		// The security-alerts emitter moved to the extracted satellite
+		// (eshu-hq/eshu#10620), which owns its encoder adoption; no
+		// securityalerts adoption target remains in-tree.
 		// The PagerDuty emitter moved to the extracted satellite
 		// (eshu-hq/eshu-collector-pagerduty, cutover #8863), which owns its
 		// encoder adoption; no pagerduty adoption target remains in-tree.

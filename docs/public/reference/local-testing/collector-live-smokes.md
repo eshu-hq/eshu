@@ -206,56 +206,35 @@ of this combined command.
 
 ## OCI Registry Smokes
 
-All smokes are read-only and skip unless their live flag is set.
+OCI registry collection runs from the extracted satellite
+(`eshu-hq/eshu-collector-oci-registry`): the in-tree
+`go/internal/collector/registry/oci` provider packages and their
+`TestLive*` smokes are deleted, so there is no in-tree `go test` smoke for
+JFrog, ECR, Docker Hub, GHCR, Harbor, Google Artifact Registry, or Azure
+Container Registry. Keep registry URLs, repository names, and credentials
+in local shell config only.
 
-| Provider | Required live flag | Command |
-| --- | --- | --- |
-| JFrog OCI | `ESHU_JFROG_OCI_LIVE=1` | `cd go && go test ./internal/collector/registry/oci/jfrog -run TestLiveJFrog -count=1 -v` |
-| ECR | `ESHU_ECR_OCI_LIVE=1` | `cd go && go test ./internal/collector/registry/oci/ecr -run TestLiveECR -count=1 -v` |
-| Docker Hub | `ESHU_DOCKERHUB_OCI_LIVE=1` | `cd go && go test ./internal/collector/registry/oci/dockerhub -run TestLiveDockerHub -count=1 -v` |
-| GHCR | `ESHU_GHCR_OCI_LIVE=1` | `cd go && go test ./internal/collector/registry/oci/ghcr -run TestLiveGHCR -count=1 -v` |
-| Harbor | `ESHU_HARBOR_OCI_LIVE=1` | `cd go && go test ./internal/collector/registry/oci/harbor -run TestLiveHarbor -count=1 -v` |
-| Google Artifact Registry | `ESHU_GAR_OCI_LIVE=1` | `cd go && go test ./internal/collector/registry/oci/gar -run TestLiveGAR -count=1 -v` |
-| Azure Container Registry | `ESHU_ACR_OCI_LIVE=1` | `cd go && go test ./internal/collector/registry/oci/acr -run TestLiveACR -count=1 -v` |
-
-Minimum provider env:
-
-| Provider | Required target env |
-| --- | --- |
-| JFrog OCI | `ESHU_JFROG_OCI_URL`; tag-list proof also needs `ESHU_JFROG_OCI_IMAGE_REPOSITORY`; Artifactory Docker API proof needs `ESHU_JFROG_OCI_REPOSITORY_KEY`. |
-| ECR | `ESHU_ECR_OCI_REGION`, `ESHU_ECR_OCI_REGISTRY_ID`, `ESHU_ECR_OCI_REPOSITORY`; `ESHU_ECR_OCI_REFERENCE` is optional. |
-| Docker Hub | `ESHU_DOCKERHUB_OCI_REPOSITORY`; use username/password for private repositories or rate-limit avoidance. |
-| GHCR | `ESHU_GHCR_OCI_REPOSITORY`; use username/password for private or organization packages that deny anonymous pulls. |
-| Harbor | `ESHU_HARBOR_OCI_URL`, `ESHU_HARBOR_OCI_REPOSITORY`, username/password when required. |
-| Google Artifact Registry | `ESHU_GAR_OCI_REGISTRY_HOST`, `ESHU_GAR_OCI_REPOSITORY`, username/password when required. |
-| Azure Container Registry | `ESHU_ACR_OCI_REGISTRY_HOST`, `ESHU_ACR_OCI_REPOSITORY`, username/password when required. |
-
-Use `ESHU_*_OCI_REFERENCE` for reference-specific checks when the provider test
-supports it. Use `ESHU_ECR_OCI_REGISTRY_HOST` for nonstandard ECR host shapes.
+Run live OCI provider proof through the satellite release image with the
+same target shape (provider, registry, repository, region and registry ID
+for ECR, repository key for Artifactory, credentials passed by
+`username_env`/`password_env`/`bearer_token_env` name reference). The
+satellite's own CI carries the bounded fetch, `oci_registry.*` emission,
+and no-credential-material proof. The satellite emits no spans or metrics
+of its own, so resource and health evidence comes from the
+component-extension host. There is no remaining in-tree `go test` smoke
+for OCI providers.
 
 ## JFrog Package Feed
 
-```bash
-set -a
-source /path/to/local/private/env
-set +a
+Package-registry collection runs from the extracted satellite
+(`eshu-hq/eshu-collector-package-registry`): the in-tree
+`go/internal/collector/registry/package` package and its
+`TestLiveJFrogPackageFeed` smoke are deleted, so there is no in-tree
+`go test` smoke for the JFrog package feed. Keep metadata URLs, package
+coordinates, and credentials in local shell config only.
 
-export ESHU_JFROG_PACKAGE_LIVE=1
-export ESHU_JFROG_PACKAGE_METADATA_URL="${ESHU_JFROG_PACKAGE_METADATA_URL:?set an Artifactory package metadata wrapper URL}"
-export ESHU_JFROG_PACKAGE_ECOSYSTEM="${ESHU_JFROG_PACKAGE_ECOSYSTEM:-npm}"
-export ESHU_JFROG_PACKAGE_NAME="${ESHU_JFROG_PACKAGE_NAME:?set the package name in the metadata document}"
-export ESHU_JFROG_PACKAGE_NAMESPACE="${ESHU_JFROG_PACKAGE_NAMESPACE:-}"
-export ESHU_JFROG_PACKAGE_REGISTRY="${ESHU_JFROG_PACKAGE_REGISTRY:-${JFROG_PACKAGE_REGISTRY:-${JFROG_URL:-${JFROG_BASE_URL:-}}}}"
-export ESHU_JFROG_PACKAGE_USERNAME="${ESHU_JFROG_PACKAGE_USERNAME:-${JFROG_USERNAME:-${JFROG_USER:-}}}"
-export ESHU_JFROG_PACKAGE_PASSWORD="${ESHU_JFROG_PACKAGE_PASSWORD:-${JFROG_PASSWORD:-}}"
-export ESHU_JFROG_PACKAGE_BEARER_TOKEN="${ESHU_JFROG_PACKAGE_BEARER_TOKEN:-${JFROG_ACCESS_TOKEN:-${JFROG_BEARER_TOKEN:-}}}"
-
-cd go
-go test ./internal/collector/registry/package/runtime \
-  -run TestLiveJFrogPackageFeed -count=1 -v
-```
-
-The package smoke strips query strings and fragments from emitted source
-references and fails if credential material appears in errors, source refs, or
-fact payloads. For Maven, set `ESHU_JFROG_PACKAGE_NAMESPACE` to the package
-`groupId`.
+Run live package-feed proof through the satellite release image with the
+same target shape (metadata URL, ecosystem, name, namespace, registry,
+credentials passed by name reference). The satellite's own CI carries the
+bounded fetch, `package_registry.*` emission, and no-credential-material
+proof. There is no remaining in-tree `go test` smoke for the package feed.

@@ -102,6 +102,6 @@ var OCIRegistryFamilyDeclaration = contract.Declare(contract.Family{
 		{Kind: "oci_registry.warning", PayloadSchema: "sdk/go/factschema/schema/oci_registry.warning.v1.schema.json"},
 	},
 	Producers: []contract.Producer{
-		{ID: "collector-oci-registry", Repository: "eshu-hq/eshu", Path: "go/internal/collector/ociregistry", PlannedRepository: "eshu-hq/eshu-collector-oci-registry", AuthorityMode: "core_issued_grant", Kinds: []string{"oci_registry.image_descriptor", "oci_registry.image_index", "oci_registry.image_manifest", "oci_registry.image_referrer", "oci_registry.image_tag_observation", "oci_registry.repository", "oci_registry.warning"}},
+		{ID: "collector-oci-registry", Repository: "eshu-hq/eshu-collector-oci-registry", Path: ".", PlannedRepository: "", AuthorityMode: "core_issued_grant", Kinds: []string{"oci_registry.image_descriptor", "oci_registry.image_index", "oci_registry.image_manifest", "oci_registry.image_referrer", "oci_registry.image_tag_observation", "oci_registry.repository", "oci_registry.warning"}},
 	},
 })

@@ -20,8 +20,8 @@ Every non-exempt required surface maps to a committed scenario and the named pro
 | Reducer drain (crash) | 1 | 1 | 100.00% | 0 | 0 | 0 |
 | Retractable edge types (delta) | 65 | 65 | 100.00% | 0 | 0 | 0 |
 | Retractable node types (delta) | 103 | 103 | 100.00% | 0 | 0 | 1 |
-| Collectors | 20 | 20 | 100.00% | 0 | 0 | 7 |
-| **Total** | **455** | **455** | **100.00%** | **0** | **0** | **10** |
+| Collectors | 20 | 20 | 100.00% | 0 | 0 | 10 |
+| **Total** | **455** | **455** | **100.00%** | **0** | **0** | **13** |
 
 ## Coverage by scenario type
 
@@ -31,7 +31,7 @@ Every non-exempt required surface maps to a committed scenario and the named pro
 | cost | 31 | 31 | 100.00% | 0 | 0 | 1 |
 | crash | 2 | 2 | 100.00% | 0 | 0 | 0 |
 | delta_tombstone | 169 | 169 | 100.00% | 0 | 0 | 1 |
-| fault | 10 | 10 | 100.00% | 0 | 0 | 5 |
+| fault | 10 | 10 | 100.00% | 0 | 0 | 8 |
 | ordering | 3 | 3 | 100.00% | 0 | 0 | 0 |
 
 ## Language parser coverage
@@ -490,9 +490,9 @@ None. Every non-exempt required surface has a replay scenario; exemptions carry 
 | `collector:grafana` | baseline | cassette | golden-corpus-gate-neo4j | `testdata/cassettes/grafana/supply-chain-demo.json` |
 | `collector:grafana` | fault | go_test | go-test-race | `go/internal/replay/inputtape/fault_collectors_test.go` |
 | `collector:oci_registry` | baseline | cassette | golden-corpus-gate-neo4j | `testdata/cassettes/ociregistry/supply-chain-demo.json` |
-| `collector:oci_registry` | fault | go_test | go-test-race | `go/internal/replay/inputtape/fault_collectors_test.go` |
+| `collector:oci_registry` | fault | exempt | — | Satellite-owned collection boundary: collection runs from eshu-hq/eshu-collector-oci-registry while the coordinator still plans OCI registry claims and the reducer/query surfaces still serve the fact kinds. No in-tree OCI registry client remains to drive an injected-timeout fault against, so the fault axis has nothing in-tree to bound. |
 | `collector:package_registry` | baseline | cassette | golden-corpus-gate-neo4j | `testdata/cassettes/packageregistry/supply-chain-demo.json` |
-| `collector:package_registry` | fault | go_test | go-test-race | `go/internal/replay/inputtape/fault_collectors_test.go` |
+| `collector:package_registry` | fault | exempt | — | Satellite-owned collection boundary: collection runs from eshu-hq/eshu-collector-package-registry while the coordinator still plans package-registry claims and the reducer/query surfaces still serve the fact kinds. No in-tree package-registry client remains to drive an injected-timeout fault against, so the fault axis has nothing in-tree to bound. |
 | `collector:prometheus_mimir` | baseline | cassette | golden-corpus-gate-neo4j | `testdata/cassettes/prometheusmimir/supply-chain-demo.json` |
 | `collector:prometheus_mimir` | fault | go_test | go-test-race | `go/internal/replay/inputtape/fault_collectors_test.go` |
 | `collector:sbom_attestation` | baseline | cassette | golden-corpus-gate-neo4j | `testdata/cassettes/sbomattestation/supply-chain-demo.json` |
@@ -500,7 +500,7 @@ None. Every non-exempt required surface has a replay scenario; exemptions carry 
 | `collector:scanner_worker` | baseline | exempt | — | Internal hosted worker with no external upstream. scanner-worker consumes coordinator work items (image refs, rootfs, SBOM targets) and emits analysis facts; it has no credentialed source to record, so a cassette of the supply-chain-demo kind does not apply. |
 | `collector:scanner_worker` | fault | exempt | — | Internal hosted worker with no external upstream. scanner-worker consumes coordinator work items (image refs, rootfs, SBOM targets) and emits analysis facts; it has no credentialed source to record, so a cassette of the supply-chain-demo kind does not apply. |
 | `collector:security_alert` | baseline | cassette | golden-corpus-gate-neo4j | `testdata/cassettes/securityalerts/supply-chain-demo.json` |
-| `collector:security_alert` | fault | go_test | go-test-race | `go/internal/replay/inputtape/fault_collectors_test.go` |
+| `collector:security_alert` | fault | exempt | — | Satellite-owned collection boundary: collection runs from eshu-hq/eshu-collector-security-alerts while the coordinator still plans security-alert claims and the reducer/query surfaces still serve the fact kinds. No in-tree security-alert client remains to drive an injected-timeout fault against, so the fault axis has nothing in-tree to bound. |
 | `collector:tempo` | baseline | cassette | golden-corpus-gate-neo4j | `testdata/cassettes/tempo/supply-chain-demo.json` |
 | `collector:tempo` | fault | exempt | — | Satellite-owned collection boundary: collection runs from eshu-hq/eshu-collector-tempo while the coordinator still plans tempo claims and the reducer/query surfaces still serve the fact kinds. No in-tree Tempo client remains to drive an injected-timeout fault against, so the fault axis has nothing in-tree to bound. |
 | `collector:vulnerability_intelligence` | baseline | cassette | golden-corpus-gate-neo4j | `testdata/cassettes/vulnerabilityintelligence/supply-chain-demo.json` |

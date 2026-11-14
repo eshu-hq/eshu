@@ -715,25 +715,12 @@ linters:
       - path: 'internal/collector/scannerworker/'
         linters:
           - wrapcheck
-      # OCI registry source and package registry source are at the
-      # boundary with the upstream OCI/registry APIs.
-      - path: 'internal/collector/registry/oci/'
-        linters:
-          - wrapcheck
-      - path: 'internal/collector/registry/package/'
-        linters:
-          - wrapcheck
       # Git selection filesystem layer is at the boundary with the
       # local filesystem and git CLI.
       - path: 'internal/collector/repo/git/selection_filesystem\.go'
         linters:
           - wrapcheck
       - path: 'internal/collector/repo/git/selection_.*\.go'
-        linters:
-          - wrapcheck
-      # Security alerts runtime is at the boundary with hosted
-      # provider APIs.
-      - path: 'internal/collector/securityalerts/'
         linters:
           - wrapcheck
       # Telemetry instrument registry has 4400 lines of frozen

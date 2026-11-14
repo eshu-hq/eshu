@@ -54,18 +54,11 @@ var collectorEntries = func() []Entry {
 	add(collectorFrameworkEntries("collector-cicd-run",
 		"ESHU_CICD_RUN_COLLECTOR_INSTANCE_ID", "ESHU_CICD_RUN_COLLECTOR_OWNER_ID",
 		"ESHU_CICD_RUN_POLL_INTERVAL", "", "ESHU_CICD_RUN_CLAIM_LEASE_TTL", "ESHU_CICD_RUN_HEARTBEAT_INTERVAL")...)
-	add(collectorFrameworkEntries("collector-security-alerts",
-		"ESHU_SECURITY_ALERT_COLLECTOR_INSTANCE_ID", "ESHU_SECURITY_ALERT_COLLECTOR_OWNER_ID",
-		"ESHU_SECURITY_ALERT_POLL_INTERVAL", "", "ESHU_SECURITY_ALERT_CLAIM_LEASE_TTL", "ESHU_SECURITY_ALERT_HEARTBEAT_INTERVAL")...)
-	// Package-registry and OCI-registry collectors (poll/lease/heartbeat without infix).
-	add(collectorFrameworkEntries("collector-package-registry",
-		"ESHU_PACKAGE_REGISTRY_COLLECTOR_INSTANCE_ID", "ESHU_PACKAGE_REGISTRY_COLLECTOR_OWNER_ID",
-		"ESHU_PACKAGE_REGISTRY_POLL_INTERVAL", "", "ESHU_PACKAGE_REGISTRY_CLAIM_LEASE_TTL", "ESHU_PACKAGE_REGISTRY_HEARTBEAT_INTERVAL")...)
-	add(collectorFrameworkEntries("collector-oci-registry",
-		"ESHU_OCI_REGISTRY_COLLECTOR_INSTANCE_ID", "ESHU_OCI_REGISTRY_COLLECTOR_OWNER_ID",
-		"ESHU_OCI_REGISTRY_POLL_INTERVAL", "", "ESHU_OCI_REGISTRY_CLAIM_LEASE_TTL", "ESHU_OCI_REGISTRY_HEARTBEAT_INTERVAL")...)
-	add(Entry{Name: "ESHU_OCI_REGISTRY_TARGETS_JSON", Type: VarString, Subsystem: "collector-oci-registry", Description: "JSON array of OCI registry target configurations."})
-	add(Entry{Name: "ESHU_OCI_REGISTRY_ALLOW_EMPTY_SUCCESSOR", Type: VarBool, Default: "false", Subsystem: "collector-oci-registry", Description: "Collector-wide trusted-deletion attestation: when true, every OCI registry generation carries TrustedDeletion, bypassing the ingestion store's successor-emptiness backstop for legitimately emptied repositories. Prefer the per-target allow_empty_successor key when only some repositories may legitimately empty."})
+	// The OCI-registry, package-registry, and security-alerts collectors moved
+	// to their extracted satellites with eshu-hq/eshu#10620: no in-tree binary
+	// reads their framework or target variables anymore, so this registry
+	// carries no entries for those subsystems. The satellites read their own
+	// activation config through the component-extension host.
 
 	// document-import collector (#8879): disabled-by-default one-shot reviewed-image
 	// OCR drain. No framework vars: no polling, no claims, no lease. Every pin is

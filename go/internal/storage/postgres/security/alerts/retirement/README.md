@@ -14,8 +14,8 @@ an empty generation.
 
 This package owns the candidate read only. The planner
 (`internal/coordinator/security/alert`) decides what is planned and creates
-the retirement work items; the collector
-(`internal/collector/securityalerts/alertruntime`) commits the empty
+the retirement work items; the satellite
+(`eshu-hq/eshu-collector-security-alerts`, #10620) commits the empty
 generation; the read state it commits is written by
 `security/alerts/unread`.
 

@@ -29,10 +29,10 @@ reason instead of `complete` (#8943).
   `activeGenerationFreshnessQuery` orders (not `ingestion_scopes.active_generation_id`),
   and "" for no generation or no cursor; a query error is returned, never
   answered with "". `FanoutCursorQuery` is exported for the live plan proof.
-- The collector (`internal/collector/securityalerts/alertruntime`) builds the
-  state; `cmd/collector-security-alerts` passes `Writer` to the source; the
-  ingestion store (`storage/postgres.IngestionStore.CommitClaimedScopeGenerationWithState`)
-  runs it in the generation's commit transaction. The reader is
+- The satellite (`eshu-hq/eshu-collector-security-alerts`, #10620) builds the
+  state; the ingestion store
+  (`storage/postgres.IngestionStore.CommitClaimedScopeGenerationWithState`)
+  runs `Writer` in the generation's commit transaction. The reader is
   `query.PostgresSecurityAlertCollectionStateStore`.
 
 ## Lifecycle

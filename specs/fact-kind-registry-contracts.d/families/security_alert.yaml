@@ -15,9 +15,8 @@ kinds:
     - security_alert.repository_alert
 producers:
     - id: collector-security-alerts
-      repository: eshu-hq/eshu
-      path: go/internal/collector/securityalert
-      planned_repository: eshu-hq/eshu-collector-security-alerts
+      repository: eshu-hq/eshu-collector-security-alerts
+      path: .
       authority_mode: core_issued_grant
       kinds:
         - security_alert.repository_alert

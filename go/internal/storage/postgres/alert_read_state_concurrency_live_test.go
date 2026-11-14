@@ -18,8 +18,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/securityalerts"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/security/alerts/unread"
 )
 
 const (
@@ -33,12 +33,12 @@ const (
 	readStateRacingSameIDRounds = 6
 )
 
-func readStateStateWithUnread(n int, reason string) securityalerts.TargetReadState {
-	unread := make([]securityalerts.UnreadRepository, n)
-	for i := range unread {
-		unread[i] = securityalerts.UnreadRepository{Repository: fmt.Sprintf("acme/repo-%03d", i), Reason: reason}
+func readStateStateWithUnread(n int, reason string) unread.TargetReadState {
+	rows := make([]unread.UnreadRepository, n)
+	for i := range rows {
+		rows[i] = unread.UnreadRepository{Repository: fmt.Sprintf("acme/repo-%03d", i), Reason: reason}
 	}
-	return readStateUnreadState(n+10, unread...)
+	return readStateUnreadState(n+10, rows...)
 }
 
 func readStateRetentionPolicy() postgres.GenerationRetentionPolicy {

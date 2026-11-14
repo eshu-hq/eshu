@@ -14,7 +14,6 @@ import (
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/securityalerts"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -121,7 +120,7 @@ func readStateCommitGeneration(
 	mutation workflow.ClaimMutation,
 	generationID string,
 	hint string,
-	state securityalerts.TargetReadState,
+	state unread.TargetReadState,
 ) error {
 	now := time.Now().UTC()
 	scopeValue := scope.IngestionScope{
@@ -146,8 +145,8 @@ func readStateCommitGeneration(
 	return store.CommitClaimedScopeGenerationWithState(ctx, mutation, scopeValue, generation, stream, nil, unread.Writer(state))
 }
 
-func readStateUnreadState(total int, unread ...securityalerts.UnreadRepository) securityalerts.TargetReadState {
-	return securityalerts.TargetReadState{OrgReadTruncated: true, RepositoriesTotal: total, Unread: unread}
+func readStateUnreadState(total int, rows ...unread.UnreadRepository) unread.TargetReadState {
+	return unread.TargetReadState{OrgReadTruncated: true, RepositoriesTotal: total, Unread: rows}
 }
 
 func readStateCount(t *testing.T, ctx context.Context, database *sql.DB, query string, args ...any) int {

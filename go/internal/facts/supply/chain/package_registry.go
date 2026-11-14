@@ -125,6 +125,6 @@ var PackageRegistryFamilyDeclaration = contract.Declare(contract.Family{
 		{Kind: "package_registry.warning", PayloadSchema: "sdk/go/factschema/schema/package_registry.warning.v1.schema.json", Disposition: "read_only", NoReducerReason: "Consumed by read surfaces only; no reducer domain decodes it.", NoReducerEvidence: "read consumption in query read model"},
 	},
 	Producers: []contract.Producer{
-		{ID: "collector-package-registry", Repository: "eshu-hq/eshu", Path: "go/internal/collector/packageregistry", PlannedRepository: "eshu-hq/eshu-collector-package-registry", AuthorityMode: "core_issued_grant", Kinds: []string{"package_registry.package", "package_registry.package_artifact", "package_registry.package_dependency", "package_registry.package_version", "package_registry.registry_event", "package_registry.repository_hosting", "package_registry.source_hint", "package_registry.vulnerability_hint", "package_registry.warning"}},
+		{ID: "collector-package-registry", Repository: "eshu-hq/eshu-collector-package-registry", Path: ".", PlannedRepository: "", AuthorityMode: "core_issued_grant", Kinds: []string{"package_registry.package", "package_registry.package_artifact", "package_registry.package_dependency", "package_registry.package_version", "package_registry.registry_event", "package_registry.repository_hosting", "package_registry.source_hint", "package_registry.vulnerability_hint", "package_registry.warning"}},
 	},
 })

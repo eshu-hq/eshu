@@ -410,8 +410,8 @@ alert URLs, and raw Eshu finding rows stay in the operator-local evidence set.
 If a row lands in `unclassified`, open a follow-up issue with private evidence
 kept outside the public repo before claiming parity for that validation set.
 
-No-Regression Evidence: `go test ./internal/collector/securityalerts ./internal/collector/securityalerts/alertruntime -count=1`
-proves the provider client requests the `state=open` view, preserves cursor
+No-Regression Evidence: the extracted satellite (`eshu-hq/eshu-collector-security-alerts`,
+#10620) proves the provider client requests the `state=open` view, preserves cursor
 pagination bounds, and marks truncated open-alert reads as partial source
 freshness. `go test ./internal/reducer -run
 'TestBuildSecurityAlertReconciliations|TestSecurityAlertReconciliationWriterUsesProviderAlertScopeForPackageTriggeredRepair'

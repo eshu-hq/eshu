@@ -3,10 +3,10 @@
   "blocking": true,
   "totals": {
     "total": 455,
-    "covered": 445,
+    "covered": 442,
     "uncovered": 0,
     "unresolved": 0,
-    "exempt": 10,
+    "exempt": 13,
     "proof_off": 0,
     "percent_satisfied": 100
   },
@@ -114,10 +114,10 @@
     {
       "registry": "surface_inventory",
       "total": 20,
-      "covered": 13,
+      "covered": 10,
       "uncovered": 0,
       "unresolved": 0,
-      "exempt": 7,
+      "exempt": 10,
       "proof_off": 0,
       "percent_satisfied": 100
     }
@@ -166,10 +166,10 @@
     {
       "scenario_type": "fault",
       "total": 10,
-      "covered": 5,
+      "covered": 2,
       "uncovered": 0,
       "unresolved": 0,
-      "exempt": 5,
+      "exempt": 8,
       "proof_off": 0,
       "percent_satisfied": 100
     },
@@ -4574,11 +4574,8 @@
       "registry": "surface_inventory",
       "key": "collector:oci_registry",
       "scenario_type": "fault",
-      "status": "covered",
-      "scenario": "go_test",
-      "ref": "go/internal/replay/inputtape/fault_collectors_test.go",
-      "proof_gate": "go-test-race",
-      "detail": "artifact present: go/internal/replay/inputtape/fault_collectors_test.go"
+      "status": "exempt",
+      "detail": "Satellite-owned collection boundary: collection runs from eshu-hq/eshu-collector-oci-registry while the coordinator still plans OCI registry claims and the reducer/query surfaces still serve the fact kinds. No in-tree OCI registry client remains to drive an injected-timeout fault against, so the fault axis has nothing in-tree to bound."
     },
     {
       "registry": "surface_inventory",
@@ -4594,11 +4591,8 @@
       "registry": "surface_inventory",
       "key": "collector:package_registry",
       "scenario_type": "fault",
-      "status": "covered",
-      "scenario": "go_test",
-      "ref": "go/internal/replay/inputtape/fault_collectors_test.go",
-      "proof_gate": "go-test-race",
-      "detail": "artifact present: go/internal/replay/inputtape/fault_collectors_test.go"
+      "status": "exempt",
+      "detail": "Satellite-owned collection boundary: collection runs from eshu-hq/eshu-collector-package-registry while the coordinator still plans package-registry claims and the reducer/query surfaces still serve the fact kinds. No in-tree package-registry client remains to drive an injected-timeout fault against, so the fault axis has nothing in-tree to bound."
     },
     {
       "registry": "surface_inventory",
@@ -4665,11 +4659,8 @@
       "registry": "surface_inventory",
       "key": "collector:security_alert",
       "scenario_type": "fault",
-      "status": "covered",
-      "scenario": "go_test",
-      "ref": "go/internal/replay/inputtape/fault_collectors_test.go",
-      "proof_gate": "go-test-race",
-      "detail": "artifact present: go/internal/replay/inputtape/fault_collectors_test.go"
+      "status": "exempt",
+      "detail": "Satellite-owned collection boundary: collection runs from eshu-hq/eshu-collector-security-alerts while the coordinator still plans security-alert claims and the reducer/query surfaces still serve the fact kinds. No in-tree security-alert client remains to drive an injected-timeout fault against, so the fault axis has nothing in-tree to bound."
     },
     {
       "registry": "surface_inventory",

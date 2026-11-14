@@ -11,7 +11,7 @@
 
 | Producer | Repository | Path | Planned repository | Authority | Emitted kinds |
 | --- | --- | --- | --- | --- | --- |
-| `collector-oci-registry` | `eshu-hq/eshu` | `go/internal/collector/ociregistry` | `eshu-hq/eshu-collector-oci-registry` | `core_issued_grant` | `oci_registry.image_descriptor, oci_registry.image_index, oci_registry.image_manifest, oci_registry.image_referrer, oci_registry.image_tag_observation, oci_registry.repository, oci_registry.warning` |
+| `collector-oci-registry` | `eshu-hq/eshu-collector-oci-registry` | `.` | `` | `core_issued_grant` | `oci_registry.image_descriptor, oci_registry.image_index, oci_registry.image_manifest, oci_registry.image_referrer, oci_registry.image_tag_observation, oci_registry.repository, oci_registry.warning` |
 
 ## Kinds
 

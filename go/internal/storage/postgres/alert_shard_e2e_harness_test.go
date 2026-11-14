@@ -5,7 +5,9 @@ package postgres_test
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"slices"
@@ -14,10 +16,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector"
-	"github.com/eshu-hq/eshu/go/internal/collector/securityalerts"
-	"github.com/eshu-hq/eshu/go/internal/collector/securityalerts/alertruntime"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/security/alert"
+	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/query"
 	supplychain "github.com/eshu-hq/eshu/go/internal/query/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/alerts"
@@ -29,30 +29,27 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
-// shardE2EOrgClient is the fake provider of the #9019 end-to-end proofs: the
-// org endpoint returns, untruncated, one open alert per repository of the
+// shardE2EAlert is one open alert of the fake provider endpoint: the org
+// endpoint returns, untruncated, one open alert per repository of the
 // organization, plus one for a repository nobody allowlists.
+type shardE2EAlert struct {
+	fullName string
+	name     string
+	number   int
+}
+
+// shardE2EOrgClient is the fake provider of the #9019 end-to-end proofs.
 type shardE2EOrgClient struct {
 	repositories []string
 }
 
-func (c shardE2EOrgClient) ListOrganizationAlertsPages(context.Context, string, int) (securityalerts.GitHubDependabotAlertResult, error) {
-	alerts := make([]securityalerts.GitHubDependabotAlert, 0, len(c.repositories)+1)
+func (c shardE2EOrgClient) listOrganizationAlerts() []shardE2EAlert {
+	alerts := make([]shardE2EAlert, 0, len(c.repositories)+1)
 	for i, repository := range append(slices.Clone(c.repositories), "acme/not-allowlisted") {
 		_, name, _ := strings.Cut(repository, "/")
-		alerts = append(alerts, securityalerts.GitHubDependabotAlert{
-			Number: i + 1, State: "open",
-			Dependency: securityalerts.GitHubDependabotDependency{
-				Package: securityalerts.GitHubDependabotPackage{Ecosystem: "npm", Name: "left-pad"}, ManifestPath: "package.json",
-			},
-			Repository: securityalerts.GitHubDependabotRepository{FullName: repository, Name: name},
-		})
+		alerts = append(alerts, shardE2EAlert{fullName: repository, name: name, number: i + 1})
 	}
-	return securityalerts.GitHubDependabotAlertResult{Alerts: alerts, PagesFetched: 1}, nil
-}
-
-func (shardE2EOrgClient) ListRepositoryAlertsPages(context.Context, string, int) (securityalerts.GitHubDependabotAlertResult, error) {
-	return securityalerts.GitHubDependabotAlertResult{}, fmt.Errorf("an untruncated org read never fans out")
+	return alerts
 }
 
 // shardE2E drives one org target through the production planner, collector,
@@ -109,27 +106,88 @@ func (e *shardE2E) plan(allowed []string, planKey string) []workflow.WorkItem {
 	return items
 }
 
-// source builds one collector replica for allowed.
-func (e *shardE2E) source(allowed []string) *alertruntime.ClaimedSource {
+// shardE2ESource replicates the retired in-tree collect orchestration for
+// the untruncated single-read org path: the fake provider never truncates,
+// so no fan-out runs and the cursor stays at the top. The satellite owns the
+// real collect loop since #10620; this harness proves sharding through the
+// production planner, claim-fenced commit, projector, and reads, so it builds
+// the same scope, generation, envelopes, and read state the source built.
+type shardE2ESource struct {
+	allowed []string
+}
+
+// source builds one test source replica for allowed, normalizing the
+// allowlist exactly as the retired target validation did.
+func (e *shardE2E) source(allowed []string) *shardE2ESource {
 	e.t.Helper()
-	source, err := alertruntime.NewClaimedSource(alertruntime.SourceConfig{
-		CollectorInstanceID: "inst-live",
-		Targets: []alertruntime.TargetConfig{{
-			Provider: alertruntime.ProviderGitHubDependabot, Scope: alertruntime.TargetScopeOrganization,
-			ScopeID: shardLiveBaseScopeID, Organization: "acme", Token: "token", MaxPages: 1, AllowedRepositories: allowed,
-		}},
-		ClientFactory: func(alertruntime.TargetConfig) (alertruntime.RepositoryAlertClient, error) {
-			return shardE2EOrgClient{repositories: e.organization}, nil
-		},
-		ReadStateWriter: func(state securityalerts.TargetReadState) collector.GenerationStateWriter {
-			return unread.Writer(state)
-		},
-		FanoutCursorReader: unread.NewCursorReader(postgres.SQLDB{DB: e.database}),
+	seen := map[string]struct{}{}
+	cleaned := make([]string, 0, len(allowed))
+	for _, repository := range allowed {
+		normalized := shard.NormalizeRepository(repository)
+		if normalized == "" {
+			continue
+		}
+		if _, ok := seen[normalized]; ok {
+			continue
+		}
+		seen[normalized] = struct{}{}
+		cleaned = append(cleaned, normalized)
+	}
+	return &shardE2ESource{allowed: cleaned}
+}
+
+// shardE2ETarget resolves item's scope to its shard target: the base scope
+// when the partition has one leaf, otherwise the leaf the item names, with
+// the base as parent and the leaf's repositories as its allowlist. It mirrors
+// the retired target expansion, which the planner matches by construction.
+func (e *shardE2E) target(item workflow.WorkItem, allowed []string) (scopeID, parentScopeID string, repositories []string, err error) {
+	leaves := shard.Partition(shardLiveBaseScopeID, "acme", allowed)
+	if len(leaves) == 1 {
+		if item.ScopeID != shardLiveBaseScopeID {
+			return "", "", nil, fmt.Errorf("collect %s: scope is not the configured org target", item.ScopeID)
+		}
+		return shardLiveBaseScopeID, "", leaves[0].Repositories, nil
+	}
+	for _, leaf := range leaves {
+		if leaf.ScopeID == item.ScopeID {
+			return leaf.ScopeID, shardLiveBaseScopeID, leaf.Repositories, nil
+		}
+	}
+	return "", "", nil, fmt.Errorf("collect %s: scope is not a shard of the configured org target", item.ScopeID)
+}
+
+// shardE2EFreshnessHint is the test-local freshness digest for a complete
+// single-read collection. It keeps the retired digest's contract —
+// deterministic, non-empty, and sensitive to the alert set and the target
+// set — without reimplementing the satellite's snapshot grammar; hint values
+// never leave the test database.
+func shardE2EFreshnessHint(alerts []shardLiveAlert, targetSetHash string) string {
+	type snapshot struct {
+		Repository string `json:"repository"`
+		Number     int    `json:"number"`
+	}
+	snapshots := make([]snapshot, 0, len(alerts))
+	for _, alert := range alerts {
+		snapshots = append(snapshots, snapshot{Repository: alert.repository, Number: alert.number})
+	}
+	slices.SortFunc(snapshots, func(a, b snapshot) int {
+		if c := strings.Compare(a.Repository, b.Repository); c != 0 {
+			return c
+		}
+		return a.Number - b.Number
+	})
+	raw, err := json.Marshal(map[string]any{
+		"alerts":         snapshots,
+		"pages_fetched":  1,
+		"truncated":      false,
+		"org_read_state": 1,
+		"target_set":     targetSetHash,
 	})
 	if err != nil {
-		e.t.Fatalf("NewClaimedSource: %v", err)
+		return ""
 	}
-	return source
+	sum := sha256.Sum256(raw)
+	return "sha256:" + hex.EncodeToString(sum[:])
 }
 
 // claim seeds the claimed work-item row a real claim leaves, so the commit's
@@ -160,16 +218,97 @@ VALUES ($1, $2, 1, 'owner-live', 'active', now(), now(), now() + interval '1 hou
 	}
 }
 
-// collect answers item with source and commits it through the claim-fenced
-// path, exactly as the claimed service does after NextClaimed.
-func (e *shardE2E) collect(source *alertruntime.ClaimedSource, item workflow.WorkItem, mutation workflow.ClaimMutation) error {
+// collect answers item and commits it through the claim-fenced path, exactly
+// as the claimed service did after NextClaimed: retirements commit an empty
+// trusted-deletion generation, collections commit one envelope per
+// allowlisted alert with a full-coverage read state.
+func (e *shardE2E) collect(source *shardE2ESource, item workflow.WorkItem, mutation workflow.ClaimMutation) error {
 	item.CollectorInstanceID = "inst-live"
-	collected, ok, err := source.NextClaimed(e.ctx, item)
-	if err != nil || !ok {
-		return fmt.Errorf("collect %s: ok=%v err=%w", item.ScopeID, ok, err)
+	now := time.Now().UTC()
+	scopeID := strings.TrimSpace(item.ScopeID)
+	if shard.IsRetirement(scopeID, item.AcceptanceUnitID) {
+		parent := ""
+		if parsed, _, ok := shard.ParseScopeID(scopeID); ok {
+			parent = parsed
+		}
+		stream := make(chan facts.Envelope)
+		close(stream)
+		state := unread.TargetReadState{GenerationID: item.GenerationID, ScopeID: scopeID, ObservedAt: now}
+		return e.store.CommitClaimedScopeGenerationWithState(e.ctx, mutation,
+			shardE2EScope(scopeID, parent), shardE2ERetirementGeneration(item, scopeID, now),
+			stream, nil, unread.Writer(state))
 	}
-	return e.store.CommitClaimedScopeGenerationWithState(e.ctx, mutation, collected.Scope, collected.Generation,
-		collected.Facts, nil, collected.StateWriter)
+	return e.collectAlerts(source, item, mutation, now)
+}
+
+// collectAlerts commits one envelope per allowlisted alert of item's shard
+// with a full-coverage read state, mirroring the retired untruncated
+// single-read collect: the fake provider never truncates, so no fan-out runs
+// and the cursor stays at the top.
+func (e *shardE2E) collectAlerts(source *shardE2ESource, item workflow.WorkItem, mutation workflow.ClaimMutation, now time.Time) error {
+	scopeID, parentScopeID, repositories, err := e.target(item, source.allowed)
+	if err != nil {
+		return err
+	}
+	allowed := make(map[string]struct{}, len(repositories))
+	for _, repository := range repositories {
+		allowed[repository] = struct{}{}
+	}
+	var alerts []shardLiveAlert
+	for _, providerAlert := range (shardE2EOrgClient{repositories: e.organization}).listOrganizationAlerts() {
+		fullName := strings.ToLower(strings.Trim(strings.TrimSpace(providerAlert.fullName), "/"))
+		if _, ok := allowed[fullName]; !ok {
+			continue
+		}
+		alerts = append(alerts, shardLiveAlert{repository: fullName, number: providerAlert.number})
+	}
+	orgRepositories := make([]string, 0, len(repositories))
+	for _, repository := range repositories {
+		if strings.HasPrefix(repository, "acme/") {
+			orgRepositories = append(orgRepositories, repository)
+		}
+	}
+	targetSet := scope.NewSecurityAlertTargetSet(orgRepositories)
+	stream := make(chan facts.Envelope, len(alerts))
+	for _, alert := range alerts {
+		stream <- shardLiveAlertEnvelope(scopeID, item.GenerationID, alert, now)
+	}
+	close(stream)
+	state := unread.TargetReadState{
+		GenerationID: item.GenerationID, ScopeID: scopeID,
+		RepositoriesTotal: len(orgRepositories), ObservedAt: now,
+	}
+	generation := scope.ScopeGeneration{
+		GenerationID: item.GenerationID, ScopeID: scopeID, ObservedAt: now, IngestedAt: now,
+		Status: scope.GenerationStatusPending, TriggerKind: scope.TriggerKindSnapshot,
+		FreshnessHint:          shardE2EFreshnessHint(alerts, targetSet.Hash()),
+		SecurityAlertTargetSet: targetSet,
+	}
+	return e.store.CommitClaimedScopeGenerationWithState(e.ctx, mutation,
+		shardE2EScope(scopeID, parentScopeID), generation, stream, nil, unread.Writer(state))
+}
+
+// shardE2EScope is the ingestion scope a shard claim commits, identical for
+// collection and retirement generations.
+func shardE2EScope(scopeID, parentScopeID string) scope.IngestionScope {
+	return scope.IngestionScope{
+		ScopeID: scopeID, ParentScopeID: parentScopeID, SourceSystem: string(scope.CollectorSecurityAlert),
+		ScopeKind: scope.KindSecurityAlert, CollectorKind: scope.CollectorSecurityAlert,
+		PartitionKey: shardLiveProvider, Metadata: map[string]string{"provider": shardLiveProvider},
+	}
+}
+
+// shardE2ERetirementGeneration is the empty trusted-deletion retirement
+// generation: it replaces the scope's last generation past the successor
+// guard and records an explicit empty target set.
+func shardE2ERetirementGeneration(item workflow.WorkItem, scopeID string, now time.Time) scope.ScopeGeneration {
+	return scope.ScopeGeneration{
+		GenerationID: item.GenerationID, ScopeID: scopeID, ObservedAt: now, IngestedAt: now,
+		Status: scope.GenerationStatusPending, TriggerKind: scope.TriggerKindSnapshot,
+		FreshnessHint:          shard.RetirementFreshnessHint,
+		TrustedDeletion:        true,
+		SecurityAlertTargetSet: scope.NewSecurityAlertTargetSet(nil),
+	}
 }
 
 // scan plans allowed under planKey, then runs the plan in two phases with
@@ -190,7 +329,7 @@ func (e *shardE2E) scan(allowed []string, planKey string, replicas int, betweenP
 			collections = append(collections, item)
 		}
 	}
-	sources := make([]*alertruntime.ClaimedSource, replicas)
+	sources := make([]*shardE2ESource, replicas)
 	for r := range sources {
 		sources[r] = e.source(allowed)
 	}
@@ -206,7 +345,7 @@ func (e *shardE2E) scan(allowed []string, planKey string, replicas int, betweenP
 }
 
 // runPhase claims and commits items across the replicas, then projects.
-func (e *shardE2E) runPhase(sources []*alertruntime.ClaimedSource, items []workflow.WorkItem) {
+func (e *shardE2E) runPhase(sources []*shardE2ESource, items []workflow.WorkItem) {
 	e.t.Helper()
 	mutations := make([]workflow.ClaimMutation, len(items))
 	for i, item := range items {

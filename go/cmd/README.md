@@ -26,8 +26,6 @@ exact binary set on `PATH`.
 | `eshu-bootstrap-data-plane` | `bootstrap-data-plane/` | One-shot data-plane setup |
 | `eshu-collector-git` | `collector-git/` | Local git-collector helper |
 | `eshu-collector-component-extension` | `collector-component-extension/` | Long-running process-backed component extension collector |
-| `eshu-collector-package-registry` | `collector-package-registry/` | Long-running package-registry collector |
-| `eshu-collector-security-alerts` | `collector-security-alerts/` | Long-running hosted provider security-alert collector |
 | `eshu-collector-cicd-run` | `collector-cicd-run/` | Long-running hosted GitHub Actions CI/CD run collector |
 | `eshu-collector-grafana` | `collector-grafana/` | Long-running live Grafana metadata collector |
 | `eshu-collector-document-import` | `collector-document-import/` | One-shot disabled-by-default reviewed-image OCR drain (no deployment) |
@@ -53,7 +51,6 @@ flowchart LR
   bootstrap -.one-shot.-> reducer
   workflow[workflow-coordinator] --> postgres
   component[collector-component-extension] --> postgres
-  alerts[collector-security-alerts] --> postgres
   cicd[collector-cicd-run] --> postgres
   grafana[collector-grafana] --> postgres
   metrics[collector-prometheus-mimir] --> postgres

@@ -126,12 +126,9 @@ source "${repo_root}/scripts/lib/golden-corpus-fixtures.sh"
 # a count here: the settle poll waits for the pairs these cassettes launch, and a
 # hand-maintained number drifted to half the real value before it was noticed.
 collector_specs=(
-	"collector-oci-registry:ociregistry"
 	"collector-cicd-run:cicdrun"
-	"collector-package-registry:packageregistry"
 	"collector-prometheus-mimir:prometheusmimir"
 	"collector-grafana:grafana"
-	"collector-security-alerts:securityalerts"
 )
 # name:command:cassette-directory aliases let a generic cassette-capable binary
 # replay a source that has no dedicated command without reusing its process log.
@@ -139,6 +136,9 @@ collector_specs=(
 cassette_replay_alias_specs=(
 	"semantic-extraction-cassette:collector-prometheus-mimir:semanticextraction"
 	"pagerduty-cassette-replay:collector-cicd-run:pagerduty"
+	"oci-registry-cassette-replay:collector-cicd-run:ociregistry"
+	"package-registry-cassette-replay:collector-cicd-run:packageregistry"
+	"security-alerts-cassette-replay:collector-cicd-run:securityalerts"
 	"jira-cassette-replay:collector-cicd-run:jira"
 	"tempo-cassette-replay:collector-cicd-run:tempo"
 	"aws-cassette-replay:collector-cicd-run:awscloud"

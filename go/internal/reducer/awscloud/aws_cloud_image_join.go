@@ -243,11 +243,12 @@ func ExtractAWSCloudImageEdgeRows(
 // registry/repository portion before "@" and the digest after it.
 //
 // The registry/repository portion AND the digest are lowercased to match the
-// OCI registry collector's own normalization
-// (internal/collector/registry/oci/identity.go NormalizeRepositoryIdentity /
-// normalizeDigest): the collector unconditionally lowercases the scanned
-// registry, repository, and digest before computing repository_id/descriptor
-// identity, so the REAL :ContainerImage node uid is always lowercase
+// OCI registry normalization
+// (internal/oci/registry/identity.go NormalizeRepositoryIdentity; digest rules
+// moved to the extracted satellite with #10620): the normalization
+// unconditionally lowercases the scanned registry, repository, and digest
+// before computing repository_id/descriptor identity, so the REAL
+// :ContainerImage node uid is always lowercase
 // regardless of the case the source (an ECR API response, a Docker Hub
 // manifest, etc.) reported. resolved_image_uri, by contrast, is read directly
 // from the Lambda GetFunction API response and never passes through that

@@ -23,6 +23,9 @@ truth; reducers admit user-facing truth.
   facts.
 - `Normalize` applies ecosystem-specific normalization and returns a stable
   package ID plus PURL/BOMRef fields.
+- `Visibility` carries the source-reported visibility (`unknown`, `public`,
+  `private`) that travels with package identity on derived targets and
+  observations.
 - `NormalizeEcosystem` maps package-manager aliases such as `python`,
   `typescript`, `golang`, `packagist`, `ruby`, `crates.io`, Pub aliases such as
   `pub.dev` and `dart`, and distro package managers, plus SwiftPM aliases such
@@ -133,7 +136,7 @@ truth; reducers admit user-facing truth.
 
 ## Evidence
 
-No-Regression Evidence: `go test ./internal/packageidentity ./internal/collector/registry/package ./internal/reducer ./internal/projector ./internal/storage/cypher ./internal/query -count=1`
+No-Regression Evidence: `go test ./internal/packageidentity ./internal/coordinator/registry/package ./internal/reducer ./internal/projector ./internal/storage/cypher ./internal/query -count=1`
 proves the shared identity contract normalizes npm, PyPI, Go, Maven, Composer,
 RubyGems, Cargo, Pub, Swift, Hex, NuGet, OS, and generic package coordinates, carries
 PURL/BOMRef/manager/source fields through package-registry facts, keeps OSV

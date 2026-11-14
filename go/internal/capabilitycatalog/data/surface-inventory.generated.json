@@ -1859,11 +1859,12 @@
       "category": "collector",
       "name": "oci_registry",
       "readiness": "implemented",
-      "owner": "internal/collector/registry/oci",
+      "owner": "internal/coordinator/oci/registry",
       "proof": "reference/collector-reducer-readiness.md#promotion-proof",
       "docs": [
         "reference/collector-reducer-readiness.md"
       ],
+      "notes": "The in-tree producer (go/cmd/collector-oci-registry, go/internal/collector/registry/oci) was removed after the satellite cutover (eshu-hq/eshu#10620); collection runs from eshu-hq/eshu-collector-oci-registry through the extension host while the coordinator still plans OCI registry claims and the reducer/query surfaces still serve the fact kinds.",
       "collector_contract": {
         "fact_kinds": [
           "oci_registry.image_descriptor",
@@ -1886,10 +1887,10 @@
           "list_container_image_identities"
         ],
         "proof_gates": [
-          "cd go \u0026\u0026 go test ./internal/collector/registry/oci ./internal/reducer ./internal/query ./internal/mcp -count=1"
+          "cd go \u0026\u0026 go test ./internal/oci/registry ./internal/coordinator/oci/registry ./internal/reducer ./internal/query ./internal/mcp -count=1"
         ],
         "fixture_refs": [
-          "go/internal/collector/registry/oci/testdata"
+          "testdata/cassettes/ociregistry/supply-chain-demo.json"
         ],
         "truth_profile": "provider_gated"
       }
@@ -1898,11 +1899,12 @@
       "category": "collector",
       "name": "package_registry",
       "readiness": "implemented",
-      "owner": "internal/collector/registry/package",
+      "owner": "internal/coordinator/registry/package",
       "proof": "reference/collector-reducer-readiness.md#promotion-proof",
       "docs": [
         "reference/collector-reducer-readiness.md"
       ],
+      "notes": "The in-tree producer (go/cmd/collector-package-registry, go/internal/collector/registry/package) was removed after the satellite cutover (eshu-hq/eshu#10620); collection runs from eshu-hq/eshu-collector-package-registry through the extension host while the coordinator still plans package-registry claims and the reducer/query surfaces still serve the fact kinds.",
       "collector_contract": {
         "fact_kinds": [
           "package_registry.package",
@@ -1926,10 +1928,10 @@
           "list_package_registry_packages"
         ],
         "proof_gates": [
-          "cd go \u0026\u0026 go test ./internal/collector/registry/package ./internal/reducer ./internal/query ./internal/mcp -count=1"
+          "cd go \u0026\u0026 go test ./internal/packageidentity ./internal/coordinator/registry/package ./internal/reducer ./internal/query ./internal/mcp -count=1"
         ],
         "fixture_refs": [
-          "go/internal/collector/registry/package/testdata"
+          "testdata/cassettes/packageregistry/supply-chain-demo.json"
         ],
         "truth_profile": "provider_gated"
       }
@@ -2102,11 +2104,12 @@
       "category": "collector",
       "name": "security_alert",
       "readiness": "implemented",
-      "owner": "internal/collector/securityalerts",
+      "owner": "internal/coordinator/security/alert",
       "proof": "reference/collector-reducer-readiness.md#promotion-proof",
       "docs": [
         "reference/collector-reducer-readiness.md"
       ],
+      "notes": "The in-tree producer (go/cmd/collector-security-alerts, go/internal/collector/securityalerts) was removed after the satellite cutover (eshu-hq/eshu#10620); collection runs from eshu-hq/eshu-collector-security-alerts through the extension host while the coordinator still plans security-alert claims and the reducer/query surfaces still serve the fact kinds.",
       "collector_contract": {
         "fact_kinds": [
           "security_alert.repository_alert"
@@ -2124,11 +2127,11 @@
           "list_security_alert_reconciliations"
         ],
         "proof_gates": [
-          "cd go \u0026\u0026 go test ./cmd/collector-security-alerts ./internal/collector/securityalerts ./internal/reducer ./internal/query ./internal/mcp -count=1"
+          "cd go \u0026\u0026 go test ./internal/coordinator/security/alert ./internal/reducer ./internal/query ./internal/mcp -count=1"
         ],
         "fixture_refs": [
           "docs/public/reference/security-intelligence.md#provider-security-alerts",
-          "go/internal/collector/securityalerts/testdata"
+          "testdata/cassettes/securityalerts/supply-chain-demo.json"
         ],
         "truth_profile": "provider_gated"
       }
@@ -2419,22 +2422,7 @@
     },
     {
       "category": "command",
-      "name": "collector-oci-registry",
-      "readiness": "implemented"
-    },
-    {
-      "category": "command",
-      "name": "collector-package-registry",
-      "readiness": "implemented"
-    },
-    {
-      "category": "command",
       "name": "collector-prometheus-mimir",
-      "readiness": "implemented"
-    },
-    {
-      "category": "command",
-      "name": "collector-security-alerts",
       "readiness": "implemented"
     },
     {

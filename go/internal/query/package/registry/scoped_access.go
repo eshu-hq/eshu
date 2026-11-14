@@ -16,8 +16,8 @@ import (
 )
 
 // packageRegistryVisibilityPublic is the closed-enum "public" value emitted
-// by the package-registry collector's parseVisibility
-// (go/internal/collector/registry/package/metadata_parser_helpers.go).
+// by the package-registry satellite's parseVisibility
+// (`eshu-hq/eshu-collector-package-registry`).
 // Anything else -- "private", "unknown", or a missing/empty value for a
 // package that does not exist -- is treated as not-provably-public and falls
 // to the correlation-grant probe.

@@ -21,8 +21,9 @@
    operational behavior
 8. `go/internal/collector/DIAGNOSTICS.md` — the repository basename-collision
    diagnostic (issue #3677) before changing repository identity/dedup logic
-9. `go/internal/collector/registry/package/README.md` — package-registry
-   evidence contracts when editing package/feed collection support
+9. `eshu-hq/eshu-collector-package-registry` — package-registry evidence
+   contracts when editing package/feed collection support (extracted with
+   #10620; the in-tree `registry/package` tree is deleted)
 
 ## Invariants this package enforces
 

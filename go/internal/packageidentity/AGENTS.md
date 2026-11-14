@@ -4,8 +4,9 @@
 
 1. `README.md` - package purpose, ownership boundary, and invariants.
 2. `identity.go` - canonical package identity normalization rules.
-3. `go/internal/collector/registry/package/README.md` - collector fact emission
-   consumer.
+3. `go/internal/coordinator/registry/package/ecosystem_targets.go` -
+   coordinator target-derivation consumer (the collector fact-emission
+   consumer moved to the extracted satellite with #10620).
 4. `go/internal/reducer/packages/correlation/consumption.go` - reducer-owned
    package consumption matching consumer.
 

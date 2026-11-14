@@ -11,7 +11,7 @@
 
 | Producer | Repository | Path | Planned repository | Authority | Emitted kinds |
 | --- | --- | --- | --- | --- | --- |
-| `collector-security-alerts` | `eshu-hq/eshu` | `go/internal/collector/securityalert` | `eshu-hq/eshu-collector-security-alerts` | `core_issued_grant` | `security_alert.repository_alert` |
+| `collector-security-alerts` | `eshu-hq/eshu-collector-security-alerts` | `.` | `` | `core_issued_grant` | `security_alert.repository_alert` |
 
 ## Kinds
 

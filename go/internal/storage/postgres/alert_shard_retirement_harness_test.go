@@ -7,10 +7,10 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/securityalerts"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/projector"
 	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
@@ -107,26 +107,74 @@ func shardLiveCommit(t *testing.T, ctx context.Context, database *sql.DB, store 
 	}
 	stream := make(chan facts.Envelope, len(g.alerts))
 	for _, alert := range g.alerts {
-		env, err := securityalerts.NewGitHubDependabotAlertEnvelope(securityalerts.EnvelopeContext{
-			ScopeID: g.scopeID, RepositoryID: "security-alert:github:" + alert.repository,
-			GenerationID: g.generationID, CollectorInstanceID: "inst-live", FencingToken: 1, ObservedAt: now,
-		}, securityalerts.GitHubDependabotAlert{
-			Number: alert.number, State: "open",
-			Dependency: securityalerts.GitHubDependabotDependency{
-				Package:      securityalerts.GitHubDependabotPackage{Ecosystem: "npm", Name: "left-pad"},
-				ManifestPath: "package.json",
-			},
-		})
-		if err != nil {
-			t.Fatalf("build alert envelope: %v", err)
-		}
-		stream <- env
+		stream <- shardLiveAlertEnvelope(g.scopeID, g.generationID, alert, now)
 	}
 	close(stream)
-	state := securityalerts.TargetReadState{
+	state := unread.TargetReadState{
 		GenerationID: g.generationID, ScopeID: g.scopeID, RepositoriesTotal: g.repositoriesTotal, ObservedAt: now,
 	}
 	return store.CommitClaimedScopeGenerationWithState(ctx, mutation, scopeValue, generation, stream, nil, unread.Writer(state))
+}
+
+// shardLiveAlertEnvelope builds one repository_alert envelope in the retired
+// in-tree emitter's wire shape (provider, stable key, and payload fields the
+// projector canonicalizes). The emitter moved to the extracted satellite with
+// #10620; this harness proves shard retirement, not emission, so it builds the
+// envelope directly instead of importing the satellite.
+func shardLiveAlertEnvelope(scopeID, generationID string, alert shardLiveAlert, now time.Time) facts.Envelope {
+	repositoryID := "security-alert:github:" + alert.repository
+	_, repositoryName, _ := strings.Cut(alert.repository, "/")
+	stableFactKey := facts.StableID(facts.SecurityAlertRepositoryAlertFactKind, map[string]any{
+		"provider":              shardLiveProvider,
+		"provider_alert_number": alert.number,
+		"repository_id":         repositoryID,
+	})
+	return facts.Envelope{
+		// FactID keys the generation's own copy of the fact, exactly as the
+		// retired emitter derived it, so re-collecting a repository in a new
+		// generation never collides with its older copy.
+		FactID: facts.StableID("SecurityAlertFact", map[string]any{
+			"fact_kind":       facts.SecurityAlertRepositoryAlertFactKind,
+			"generation_id":   generationID,
+			"scope_id":        scopeID,
+			"stable_fact_key": stableFactKey,
+		}),
+		ScopeID:          scopeID,
+		GenerationID:     generationID,
+		FactKind:         facts.SecurityAlertRepositoryAlertFactKind,
+		StableFactKey:    stableFactKey,
+		SchemaVersion:    facts.SecurityAlertSchemaVersionV1,
+		CollectorKind:    string(scope.CollectorSecurityAlert),
+		FencingToken:     1,
+		SourceConfidence: facts.SourceConfidenceReported,
+		ObservedAt:       now,
+		Payload: map[string]any{
+			"collector_instance_id": "inst-live",
+			"provider":              shardLiveProvider,
+			"provider_alert_id":     fmt.Sprintf("%s#%d", repositoryID, alert.number),
+			"provider_alert_number": int64(alert.number),
+			"provider_state":        "open",
+			"repository_id":         repositoryID,
+			"repository_name":       repositoryName,
+			"ecosystem":             "npm",
+			"package_name":          "left-pad",
+			"package_id":            "npm://left-pad",
+			"manifest_path":         "package.json",
+			// Coverage of the untruncated single read the retired emitter
+			// stamped on every fact.
+			"source_freshness":          "active",
+			"collection_coverage_state": "complete",
+			"collection_truncated":      false,
+			"collection_pages_fetched":  int64(1),
+			"collection_state_filter":   "open",
+		},
+		SourceRef: facts.Ref{
+			SourceSystem: string(scope.CollectorSecurityAlert),
+			ScopeID:      scopeID,
+			GenerationID: generationID,
+			FactKey:      stableFactKey,
+		},
+	}
 }
 
 // shardLiveProject runs the projector service with the production runtime,

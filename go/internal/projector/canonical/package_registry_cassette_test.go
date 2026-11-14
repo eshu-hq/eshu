@@ -33,8 +33,8 @@ const packageRegistryCassetteArtifactScopeID = "package_registry:go:github.com/a
 // and the #5458 package_artifact and registry_event facts this test's
 // fixture adds must materialize their PackageRegistryArtifact/
 // PackageRegistryEvent rows with the per-artifact hash digests and event
-// identity intact. A cassette payload that drifts from the collector emitter's
-// shape (go/internal/collector/registry/package/*.NewXEnvelope) would otherwise
+// identity intact. A cassette payload that drifts from the satellite emitter's
+// shape (eshu-collector-package-registry) would otherwise
 // only surface as a red golden-corpus gate, which runs Docker and requires a
 // live run to diagnose. This test closes that gap at `go test
 // ./internal/projector`, mirroring TestOCIRegistryCassetteDecodesCleanlyThroughSeam.
@@ -51,7 +51,7 @@ func TestPackageRegistryCassetteDecodesCleanlyThroughSeam(t *testing.T) {
 
 	if len(quarantined) != 0 {
 		for _, q := range quarantined {
-			t.Errorf("cassette fact %s (%s) quarantined as input_invalid on field %q; the cassette payload has drifted from the current collector emitter's shape — reconcile testdata/cassettes/packageregistry/supply-chain-demo.json to go/internal/collector/registry/package/*.NewXEnvelope", q.FactID, q.FactKind, q.Field)
+			t.Errorf("cassette fact %s (%s) quarantined as input_invalid on field %q; the cassette payload has drifted from the current satellite emitter's shape — reconcile testdata/cassettes/packageregistry/supply-chain-demo.json to the eshu-collector-package-registry satellite emitters", q.FactID, q.FactKind, q.Field)
 		}
 		t.FailNow()
 	}

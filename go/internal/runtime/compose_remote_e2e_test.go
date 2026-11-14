@@ -224,12 +224,11 @@ func TestHostedWorkerCommandsStartPprofServer(t *testing.T) {
 	// ported to eshu-hq/eshu-scanner-worker, #8878 box 10), so no in-tree
 	// pprof assertion. The vulnerability intelligence service runs the
 	// component-extension host binary since #9999, so the host's main carries
-	// its pprof assertion.
+	// its pprof assertion. The OCI-registry, package-registry, and
+	// security-alerts collectors likewise run satellite binaries since #10620,
+	// so their mains carry no assertion either.
 	for _, sourcePath := range []string{
 		"go/cmd/collector-git/main.go",
-		"go/cmd/collector-oci-registry/main.go",
-		"go/cmd/collector-package-registry/main.go",
-		"go/cmd/collector-security-alerts/main.go",
 		"go/cmd/collector-component-extension/main.go",
 		"go/cmd/projector/main.go",
 		"go/cmd/workflow-coordinator/main.go",

@@ -7,7 +7,6 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/registry/package"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/schedule"
 	"github.com/eshu-hq/eshu/go/internal/packageidentity"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
@@ -44,7 +43,7 @@ func packageRegistryTargetForOwnedPackage(
 		return packageRegistryTargetConfiguration{}, false
 	}
 	rawName, namespace := packageRegistryRawNameAndNamespace(spec.ecosystem, target.PackageName)
-	identity, err := packages.NormalizePackageIdentity(packages.PackageIdentity{
+	identity, err := packageidentity.Normalize(packageidentity.RawIdentity{
 		Ecosystem: spec.ecosystem,
 		Registry:  spec.registry,
 		RawName:   rawName,
@@ -66,7 +65,7 @@ func packageRegistryTargetForOwnedPackage(
 		Packages:     []string{identity.NormalizedName},
 		PackageLimit: packageLimit,
 		VersionLimit: versionLimit,
-		Visibility:   string(packages.VisibilityUnknown),
+		Visibility:   string(packageidentity.VisibilityUnknown),
 		SourceURI:    schedule.FirstNonBlank(metadataURL, identity.PackageID),
 		MetadataURL:  metadataURL,
 		Derived:      true,
@@ -80,49 +79,49 @@ func npmPackageRegistryTarget(
 	packageLimit int,
 	versionLimit int,
 ) (packageRegistryTargetConfiguration, bool) {
-	target.Ecosystem = string(packages.EcosystemNPM)
+	target.Ecosystem = string(packageidentity.EcosystemNPM)
 	return packageRegistryTargetForOwnedPackage(target, packageLimit, versionLimit)
 }
 
 type packageRegistryEcosystemTargetSpec struct {
-	ecosystem   packages.Ecosystem
+	ecosystem   packageidentity.Ecosystem
 	provider    string
 	registry    string
-	metadataURL func(packages.NormalizedPackageIdentity) string
+	metadataURL func(packageidentity.Identity) string
 }
 
 func packageRegistryEcosystemSpec(raw string) (packageRegistryEcosystemTargetSpec, bool) {
 	ecosystem := packageidentity.NormalizeEcosystem(packageidentity.Ecosystem(raw))
 	switch ecosystem {
-	case packages.EcosystemNPM:
+	case packageidentity.EcosystemNPM:
 		return packageRegistryEcosystemTargetSpec{
-			ecosystem: packages.EcosystemNPM,
+			ecosystem: packageidentity.EcosystemNPM,
 			provider:  "npm",
 			registry:  "https://registry.npmjs.org",
-			metadataURL: func(identity packages.NormalizedPackageIdentity) string {
+			metadataURL: func(identity packageidentity.Identity) string {
 				return "https://registry.npmjs.org/" + url.PathEscape(identity.NormalizedName)
 			},
 		}, true
-	case packages.EcosystemPyPI:
+	case packageidentity.EcosystemPyPI:
 		return packageRegistryEcosystemTargetSpec{
-			ecosystem: packages.EcosystemPyPI,
+			ecosystem: packageidentity.EcosystemPyPI,
 			provider:  "pypi",
 			registry:  "https://pypi.org/pypi",
-			metadataURL: func(identity packages.NormalizedPackageIdentity) string {
+			metadataURL: func(identity packageidentity.Identity) string {
 				return "https://pypi.org/pypi/" + url.PathEscape(identity.NormalizedName) + "/json"
 			},
 		}, true
-	case packages.EcosystemGoModule:
+	case packageidentity.EcosystemGoModule:
 		return packageRegistryEcosystemTargetSpec{ecosystem: ecosystem, provider: "go", registry: "https://proxy.golang.org"}, true
-	case packages.EcosystemMaven:
+	case packageidentity.EcosystemMaven:
 		return packageRegistryEcosystemTargetSpec{ecosystem: ecosystem, provider: "maven", registry: "https://repo.maven.apache.org/maven2"}, true
-	case packages.EcosystemNuGet:
+	case packageidentity.EcosystemNuGet:
 		return packageRegistryEcosystemTargetSpec{ecosystem: ecosystem, provider: "nuget", registry: "https://api.nuget.org/v3/index.json"}, true
-	case packages.EcosystemComposer:
+	case packageidentity.EcosystemComposer:
 		return packageRegistryEcosystemTargetSpec{ecosystem: ecosystem, provider: "packagist", registry: "https://repo.packagist.org"}, true
-	case packages.EcosystemRubyGems:
+	case packageidentity.EcosystemRubyGems:
 		return packageRegistryEcosystemTargetSpec{ecosystem: ecosystem, provider: "rubygems", registry: "https://rubygems.org"}, true
-	case packages.EcosystemCargo:
+	case packageidentity.EcosystemCargo:
 		return packageRegistryEcosystemTargetSpec{ecosystem: ecosystem, provider: "crates.io", registry: "https://crates.io"}, true
 	default:
 		return packageRegistryEcosystemTargetSpec{}, false
@@ -140,9 +139,9 @@ func packageRegistryOwnedDependencyEcosystem(raw string) string {
 	return string(ecosystem)
 }
 
-func packageRegistryRawNameAndNamespace(ecosystem packages.Ecosystem, packageName string) (string, string) {
+func packageRegistryRawNameAndNamespace(ecosystem packageidentity.Ecosystem, packageName string) (string, string) {
 	packageName = strings.TrimSpace(packageName)
-	if ecosystem != packages.EcosystemMaven {
+	if ecosystem != packageidentity.EcosystemMaven {
 		return packageName, ""
 	}
 	namespace, name, ok := strings.Cut(packageName, ":")

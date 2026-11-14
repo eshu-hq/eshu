@@ -35,6 +35,14 @@ the prefixed variables are gone with the binary.
 
 ## Security Alert Collector
 
+Security-alert collection runs from the extracted satellite
+(`eshu-hq/eshu-collector-security-alerts`, #10620). The in-tree
+`eshu-collector-security-alerts` binary that read the
+`ESHU_SECURITY_ALERT_*` variables is deleted, so the prefixed variables are
+gone with the binary; satellite claims are driven through
+`ESHU_COLLECTOR_INSTANCES_JSON` like every other collector. The target
+contract below is the satellite activation contract.
+
 The security-alert collector is claim-only: it selects an enabled `security_alert` instance from
 `ESHU_COLLECTOR_INSTANCES_JSON` and emits only `security_alert.repository_alert` facts. Each target polls
 GitHub Dependabot alerts in one scope (`scope`, default `repository`) with one credential shape (`auth_mode`, default `token_env`):
@@ -48,21 +56,13 @@ GitHub Dependabot alerts in one scope (`scope`, default `repository`) with one c
 - `auth_mode: "github_app"` mints an installation token per claim (never persisted, logged, or emitted)
   from `github_app_id_env`, `github_app_installation_id_env`, and `github_app_private_key_env`
   (the existing `GITHUB_APP_*` secret envs). The modes never mix on one target. See the
-  `collector-security-alerts` binary README for the mint behavior.
+  `eshu-collector-security-alerts` satellite for the mint behavior.
 
 Optional `api_base_url` overrides must use HTTPS because the runtime sends the bearer token to that endpoint.
 
-| Variable | Default | Read by | Purpose |
-| --- | --- | --- | --- |
-| `ESHU_SECURITY_ALERT_COLLECTOR_INSTANCE_ID` | required when more than one enabled security-alert instance exists | collector-security-alerts | Selects the claim-capable `security_alert` instance. |
-| `ESHU_SECURITY_ALERT_POLL_INTERVAL` | `1s` | collector-security-alerts | Delay between empty workflow-claim polls. |
-| `ESHU_SECURITY_ALERT_CLAIM_LEASE_TTL` | `60s` | collector-security-alerts | Lease TTL used when claiming and refreshing work. |
-| `ESHU_SECURITY_ALERT_HEARTBEAT_INTERVAL` | `20s` | collector-security-alerts | Heartbeat interval for active workflow claims. Must be less than the claim lease TTL. |
-| `ESHU_SECURITY_ALERT_COLLECTOR_OWNER_ID` | host/process-derived | collector-security-alerts | Owner label written into workflow claim rows. |
-
 Credentials must come from private env vars named by `token_env` or the `github_app_*_env`
 references; never commit token values, App private keys, repository names, alert URLs, or payloads.
-`eshu-collector-security-alerts --preflight-provider-access` is a one-shot access check before fanout
+The satellite's provider-access preflight is the one-shot access check before fanout,
 using the same instance JSON, credential resolution, allowlist, and client: one bounded request per target
 (minting first for `github_app`), sanitized failures only. Run it against a real installation before relying
 on a new App credential.

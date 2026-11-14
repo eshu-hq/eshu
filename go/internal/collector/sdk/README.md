@@ -130,7 +130,7 @@ duration histograms, rate-limit counters, fact counters, and provider spans;
 metric labels remain bounded to provider, status class, fact kind, and existing
 low-cardinality dimensions.
 
-No-Regression Evidence (#2756): `go test ./internal/collector/sdk ./internal/collector ./cmd/collector-jira ./cmd/collector-grafana ./cmd/collector-tempo ./cmd/collector-prometheus-mimir ./cmd/collector-security-alerts ./cmd/collector-cicd-run -run 'Test(HTTPErrorExposesRetryAfterDelay|ClassifyProviderFailurePreservesRetryAfterDelay|ClaimedServiceHonorsSDKProviderFailureRetryAfter|ClaimedServiceHonorsRetryAfterOnRetryableCollectFailure|BuildClaimedServiceWires)' -count=1` proves SDK HTTP errors return parsed Retry-After delay, provider failure classification preserves that delay for claim-aware retry handling, `ClaimedService` applies it to retryable claim `visible_at`, and standard claim-driven collector commands wire the default bounded attempt budget.
+No-Regression Evidence (#2756): `go test ./internal/collector/sdk ./internal/collector ./cmd/collector-grafana ./cmd/collector-prometheus-mimir ./cmd/collector-cicd-run -run 'Test(HTTPErrorExposesRetryAfterDelay|ClassifyProviderFailurePreservesRetryAfterDelay|ClaimedServiceHonorsSDKProviderFailureRetryAfter|ClaimedServiceHonorsRetryAfterOnRetryableCollectFailure|BuildClaimedServiceWires)' -count=1` proves SDK HTTP errors return parsed Retry-After delay, provider failure classification preserves that delay for claim-aware retry handling, `ClaimedService` applies it to retryable claim `visible_at`, and standard claim-driven collector commands wire the default bounded attempt budget.
 
 No-Observability-Change (#2756): the SDK remains telemetry-free and does not
 sleep, retry beyond caller-supplied bounds, mutate workflow state, or add labels.
@@ -190,10 +190,8 @@ keeps the local GitHub traversal files and leaves the production Go diff at 20
 net added lines while deleting the local GitHub Actions `Retry-After` parser.
 
 No-Regression Evidence (#2366): `go test ./internal/collector/sdk
-./internal/collector/securityalerts
-./internal/collector/securityalerts/alertruntime
 ./internal/collector/cicdrun/ghactionsruntime
-./cmd/collector-security-alerts ./cmd/collector-cicd-run -count=1` covers SDK
+./cmd/collector-cicd-run -count=1` covers SDK
 HTTP error wrapping, HTTP-date `Retry-After` parsing, credential-bearing base
 URL rejection, Dependabot cursor pagination and same-host guards, GitHub
 Actions rate-limit retry guidance, artifact URL redaction, and command config
@@ -226,14 +224,14 @@ hosted status surface. The SDK remains telemetry-free, and metric labels remain
 bounded to operation, result, status class, failure class, and the existing
 collector dimensions.
 
-Line-count marker (#2374): package-registry metadata fetches now reuse the SDK
+Line-count marker (#2374, historical — package-registry runtime extracted to the satellite under #10620): package-registry metadata fetches now reuse the SDK
 bounded HTTP error and default-client primitives while keeping provider-specific
 request shape and registry workflow failure classification in
 `registry/package/runtime`. The production diff changes one provider file and adds the
 SDK dependency without adding retries, sleeps, goroutines, queues, graph writes,
 database writes, collector binaries, Helm values, or runtime knobs.
 
-No-Regression Evidence (#2374): `go test ./internal/collector/sdk
+No-Regression Evidence (#2374, historical — commands below predate the #10620 extraction): `go test ./internal/collector/sdk
 ./internal/collector/registry/package
 ./internal/collector/registry/package/runtime
 ./cmd/collector-package-registry -count=1` covers SDK default-client reuse,
@@ -268,14 +266,14 @@ instruments to `eshu-hq/eshu-collector-vault-live`. The SDK emits no telemetry
 directly, and metric labels remain bounded to source, fact kind, operation,
 result, reason, field class, and scope kind.
 
-Line-count marker (#2381): OCI Distribution now reuses SDK base URL validation,
+Line-count marker (#2381, historical — OCI distribution runtime extracted to the satellite under #10620): OCI Distribution now reuses SDK base URL validation,
 bounded default HTTP client construction, and bounded `HTTPError` values for
 registry and token service status or transport failures. OCI-owned endpoint
 resolution, `/v2/` auth-challenge handling, token query shaping, repository path
 escaping, referrers capability errors, blob body caps, and registry workflow
 failure classes stay local.
 
-No-Regression Evidence (#2381): `go test ./internal/collector/sdk
+No-Regression Evidence (#2381, historical — commands below predate the #10620 extraction): `go test ./internal/collector/sdk
 ./internal/collector/registry/oci/distribution
 ./internal/collector/registry/oci/runtime
 ./cmd/collector-oci-registry -count=1` covers
@@ -345,9 +343,10 @@ intentional owner-boundary files:
   Scanner workers own analyzer process limits, source-fact allowlists, and
   claim fencing rather than provider HTTP calls; execution lives in the
   satellite.
-- `go/internal/collector/securityalerts/alertruntime/failure.go` remains a
-  Dependabot/GitHub runtime wrapper for rate-limit metadata. Generic HTTP status
-  class decisions delegate to `sdk.ClassifyProviderFailure`.
+- The Dependabot/GitHub runtime wrapper for rate-limit metadata moved to the
+  extracted satellite (eshu-hq/eshu-collector-security-alerts) with #10620.
+  Generic HTTP status class decisions still delegate to
+  `sdk.ClassifyProviderFailure` through the satellite's copy.
 - Confluence source-level backoff state for retryable provider statuses now lives
   in the extracted satellite (`eshu-hq/eshu-collector-confluence`, #8855).
   SDK helpers still own base URL validation, bounded HTTP errors, default
