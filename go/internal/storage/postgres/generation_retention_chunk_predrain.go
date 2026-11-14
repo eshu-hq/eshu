@@ -97,7 +97,8 @@ type generationRetentionChunkPredrain struct {
 	// readOwnFacts is the predrain read's per-generation own-fact count,
 	// taken before any batch drains. overLimitCarry adds it back for a
 	// pruned generation this pass drained that was not over the limit on
-	// its own facts, so the recount-plus-carry equals the pre-drain total.
+	// its own facts, so the recount-plus-carry equals the pre-drain total
+	// absent concurrent ledger writes between the read and the recount.
 	readOwnFacts map[string]int64
 	batches      int
 	duration     time.Duration
@@ -108,13 +109,13 @@ type generationRetentionChunkPredrain struct {
 // the generation's facts, so a generation over the limit only because of its
 // changed-since ledger rows would recount within the limit. Adding back the
 // predrain read's own-fact count makes recount-plus-carry equal the
-// pre-drain total, which is exactly what the recount saw before the batch
-// predrain existed (arbiter ruling arb-7127-3d-b). Only a generation this
-// pass drained carries: an untouched generation's recount still holds its
-// full facts, so adding the read count back would double-count them. A
-// generation that was already over the limit on its own facts at the read
-// carries nothing: it took the chunk path then and reports no over-limit
-// now.
+// pre-drain total absent concurrent ledger writes between the read and the
+// recount, which is what the recount saw before the batch predrain existed
+// (arbiter ruling arb-7127-3d-b). Only a generation this pass drained
+// carries: an untouched generation's recount still holds its full facts,
+// so adding the read count back would double-count them. A generation that
+// was already over the limit on its own facts at the read carries nothing:
+// it took the chunk path then and reports no over-limit now.
 func (cp *generationRetentionChunkPredrain) overLimitCarry(generationID string) int64 {
 	if cp == nil || !cp.drained[generationID] || cp.overLimit[generationID] {
 		return 0
@@ -322,6 +323,7 @@ func (cp *generationRetentionChunkPredrain) eventCounts(
 		}
 		changed["fact_records"] += chunk.factsDeleted
 		changed["content_files"] += chunk.filesPruned
+		changed["content_file_secret_lines"] += chunk.secretLinesPruned
 		changed["content_file_references"] += chunk.referencesPruned
 		changed["content_entities"] += chunk.entitiesPruned
 		changed["infra_resource_entities"] += chunk.mirrorPruned

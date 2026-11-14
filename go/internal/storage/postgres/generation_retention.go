@@ -401,7 +401,8 @@ func (s GenerationRetentionStore) pruneCandidates(
 		// The recount runs after the predrain deleted the generation's
 		// facts, so the carry adds back the predrain read's own-fact count
 		// for a generation that was not over the limit on its own facts:
-		// recount-plus-carry equals the pre-drain total, and the signal
+		// recount-plus-carry equals the pre-drain total absent concurrent
+		// ledger writes between the read and the recount, and the signal
 		// still reports ledger-driven overage only (arb-7127-3d-b).
 		overBy := total - int64(policy.BatchRowLimit) + predrain.overLimitCarry(candidates[0].generationID)
 		if overBy > 0 {

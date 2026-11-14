@@ -210,7 +210,8 @@ type GenerationRetentionResult struct {
 	// the #10020 predrain deleted the generation's facts, so a generation
 	// that was not over the limit on its own facts at the predrain read adds
 	// that read's fact count back: recount-plus-carry equals the pre-drain
-	// total. It comes from the pre-count, so a link that commits after the
+	// total absent concurrent ledger writes between the read and the recount.
+	// It comes from the pre-count, so a link that commits after the
 	// count and names the generation on its prior side is deleted uncounted:
 	// it can understate.
 	RowsOverLimit int64

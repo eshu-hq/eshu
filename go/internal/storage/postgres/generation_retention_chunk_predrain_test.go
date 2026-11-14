@@ -380,7 +380,7 @@ func TestGenerationRetentionChunkPredrainEventCountsAndFinish(t *testing.T) {
 	predrain := &generationRetentionChunkPredrain{
 		targets: []generationRetentionCandidate{target, left},
 		chunks: map[string]generationRetentionChunk{
-			"generation-huge":  {factsDeleted: 100, filesPruned: 8, factKeysPruned: map[string]int64{"relationship_reference_candidate_keys": 100}},
+			"generation-huge":  {factsDeleted: 100, filesPruned: 8, secretLinesPruned: 7, factKeysPruned: map[string]int64{"relationship_reference_candidate_keys": 100}},
 			"generation-small": {factsDeleted: 50},
 		},
 		touched: map[string]bool{"generation-huge": true, "generation-small": true},
@@ -394,6 +394,9 @@ func TestGenerationRetentionChunkPredrainEventCountsAndFinish(t *testing.T) {
 	}
 	if got := counts["generation-huge"]["content_files"]; got != 8 {
 		t.Fatalf("event content_files = %d, want 8", got)
+	}
+	if got := counts["generation-huge"]["content_file_secret_lines"]; got != 7 {
+		t.Fatalf("event content_file_secret_lines = %d, want 7 (predrained secret lines ride the retention event like the counter)", got)
 	}
 	if got := counts["generation-huge"]["relationship_reference_candidate_keys"]; got != 100 {
 		t.Fatalf("event key sidecars = %d, want 100", got)
@@ -409,6 +412,9 @@ func TestGenerationRetentionChunkPredrainEventCountsAndFinish(t *testing.T) {
 	}
 	if got := result.RowsPruned["content_files"]; got != 8 {
 		t.Fatalf("RowsPruned[content_files] = %d, want 8", got)
+	}
+	if got := result.RowsPruned["content_file_secret_lines"]; got != 7 {
+		t.Fatalf("RowsPruned[content_file_secret_lines] = %d, want 7 (counter matches the event)", got)
 	}
 	if got := result.Skipped[generationRetentionChunkedProgressSkippedReason]; got != 1 {
 		t.Fatalf("Skipped[row_limit_chunked] = %d, want 1 (only the generation left behind)", got)
