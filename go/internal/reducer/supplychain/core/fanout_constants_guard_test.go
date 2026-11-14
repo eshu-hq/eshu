@@ -25,6 +25,12 @@ func TestFanOutChunkAndHolderCapsArePinned(t *testing.T) {
 	if fanOutHolderCap != 256 {
 		t.Fatalf("fanOutHolderCap = %d, want 256: one claim reopens at most 256 holders and carries the rest", fanOutHolderCap)
 	}
+	if fanOutHolderHotMassRows != 10000 {
+		t.Fatalf("fanOutHolderHotMassRows = %d, want 10000: an id over ~1/7 of the 67k-row timed-out mass runs alone", fanOutHolderHotMassRows)
+	}
+	if fanOutHolderReadParallelism != 4 {
+		t.Fatalf("fanOutHolderReadParallelism = %d, want 4: split statements overlap I/O waits within pool-safe bounds", fanOutHolderReadParallelism)
+	}
 	if FanOutOriginCVEIDCap != 200 {
 		t.Fatalf("FanOutOriginCVEIDCap = %d, want 200: the stamp carries at most one 200-id CVE chunk", FanOutOriginCVEIDCap)
 	}

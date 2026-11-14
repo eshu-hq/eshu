@@ -78,16 +78,6 @@ const (
 	FanOutEnqueued FanOutOutcome = "enqueued"
 )
 
-// Pass-level counter outcomes that are not a per-holder result.
-const (
-	fanOutOutcomeCrashRecovery = "crash_recovery"
-	fanOutOutcomeDeferred      = "deferred"
-	fanOutOutcomeReadError     = "read_error"
-	fanOutOutcomeReadTimeout   = "read_timeout"
-	fanOutOutcomeReopenError   = "reopen_error"
-	fanOutOutcomeStateError    = "state_error"
-)
-
 // The closed fan-out cause set (#9878): the evidence family of the
 // committing pass's own generation, classified from its scope-fact kinds.
 // The label names the generation, not the per-CVE cause — a digest flipped
@@ -230,6 +220,15 @@ type fanOutResult struct {
 	replayFlagged int
 	pendingNoop   int
 	enqueued      int
+	// holderStatements, splitChunks, hotIDs, and maxIDMassRows record what
+	// adaptive splitting did (#10643): statements run, chunks that split,
+	// singleton statements (hot by mass, or isolated by packing/unknown
+	// mass — read hotIDs as singletons), and the largest measured per-id
+	// mass.
+	holderStatements int
+	splitChunks      int
+	hotIDs           int
+	maxIDMassRows    int64
 	// deferred is the number of holders still owed after this claim, a gauge
 	// the sub-signal reports. newlyDeferred is the part that was not already
 	// owed when the claim started, which is what the counter adds, so draining
@@ -340,14 +339,15 @@ func (h SupplyChainImpactHandler) fanOutHolders(
 			holders[id] = struct{}{}
 		}
 	}
+	var split fanOutSplitStats
 	for _, chunk := range chunkStrings(lookupIDs, fanOutHolderReadChunk) {
-		found, err := h.FanOut.FindHolderScopes(ctx, intent.ScopeID, chunk)
+		found, stats, err := h.readHolderScopesSplit(ctx, cause, intent.ScopeID, chunk)
+		split.add(stats)
 		if err != nil {
-			h.countFanOutRead(ctx, cause, err, telemetry.FanOutReadSiteHolders)
 			span.RecordError(err)
-			return fanOutResult{cause: cause}, fanOutError{fmt.Errorf("find supply chain impact holders: %w", err)}
+			return fanOutResult{cause: cause}, err
 		}
-		for _, id := range found {
+		for id := range found {
 			holders[id] = struct{}{}
 		}
 	}
@@ -359,7 +359,16 @@ func (h SupplyChainImpactHandler) fanOutHolders(
 	sort.Strings(ordered)
 
 	batch, rest := nextFanOutChunk(ordered, fanOutHolderCap)
-	result := fanOutResult{cause: cause, holders: len(ordered), deferred: len(rest), crashRecovery: recoveryOnly}
+	result := fanOutResult{
+		cause:            cause,
+		holders:          len(ordered),
+		deferred:         len(rest),
+		crashRecovery:    recoveryOnly,
+		holderStatements: split.statements,
+		splitChunks:      split.splitChunks,
+		hotIDs:           split.hotIDs,
+		maxIDMassRows:    split.maxMass,
+	}
 	if len(remaining) == 0 {
 		result.newlyDeferred = len(rest)
 	}
@@ -420,21 +429,12 @@ func (h SupplyChainImpactHandler) fanOutHolders(
 		attribute.Int("reopened", result.reopened),
 		attribute.Int("replay_flagged", result.replayFlagged),
 		attribute.Int("deferred", result.deferred),
+		attribute.Int("holder_statements", result.holderStatements),
+		attribute.Int("split_chunks", result.splitChunks),
+		attribute.Int("hot_ids", result.hotIDs),
+		attribute.Int64("max_id_mass_rows", result.maxIDMassRows),
 	)
 	return result, nil
-}
-
-func (r *fanOutResult) record(outcome FanOutOutcome) {
-	switch outcome {
-	case FanOutReopened:
-		r.reopened++
-	case FanOutReplayFlagged:
-		r.replayFlagged++
-	case FanOutEnqueued:
-		r.enqueued++
-	default:
-		r.pendingNoop++
-	}
 }
 
 // fanOutOriginStamped reports whether the intent's item carries a fan-out
