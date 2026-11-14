@@ -222,7 +222,9 @@ type fanOutResult struct {
 	enqueued      int
 	// holderStatements, splitChunks, hotIDs, and maxIDMassRows record what
 	// adaptive splitting did (#10643): statements run, chunks that split,
-	// ids that ran alone as hot, and the largest measured per-id mass.
+	// singleton statements (hot by mass, or isolated by packing/unknown
+	// mass — read hotIDs as singletons), and the largest measured per-id
+	// mass.
 	holderStatements int
 	splitChunks      int
 	hotIDs           int

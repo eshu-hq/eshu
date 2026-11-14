@@ -124,5 +124,5 @@ func (s SupplyChainImpactFanOutStore) readIDMasses(ctx context.Context, query st
 
 // The production store always satisfies the split probe seam: a future
 // decorator that stops forwarding EstimateHolderMasses restores the timed-out
-// shape silently, so this fails the build instead (#10643 F-3).
+// shape silently, so this fails the wiring test instead (#10643 F-3).
 var _ supplychaincore.HolderMassEstimator = SupplyChainImpactFanOutStore{}
