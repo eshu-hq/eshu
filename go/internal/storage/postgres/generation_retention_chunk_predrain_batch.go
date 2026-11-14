@@ -121,6 +121,9 @@ func (s GenerationRetentionStore) predrainChunkedTarget(
 		aggregate = aggregate.merged(result.chunk)
 		predrain.chunks[target.generationID] = aggregate
 		if result.drained {
+			// A short or empty page means nothing remains to drain: the
+			// prune transaction may admit the generation this pass.
+			predrain.drained[target.generationID] = true
 			break
 		}
 	}

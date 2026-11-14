@@ -67,9 +67,9 @@ func NewGenerationRetentionStore(database db.ExecQueryer) GenerationRetentionSto
 // eshu_search_index_terms: migration 191 dropped that key (#7427 PR3), so a
 // generation's terms go only through the pre-delete that runs before the
 // prune transaction, which admits only drained generations, and through the
-// runner's orphan sweep. Over-limit generations drain their fact and content
-// pages the same way, in committed pre-delete batches before Begin, and the
-// narrow scope lock never covers a page (#10020).
+// runner's orphan sweep. Every other eligible generation drains its fact and
+// content pages the same way, in committed pre-delete batches before Begin,
+// and the narrow scope lock never covers a page (#10020).
 //
 // Before it locks anything it checks that every retention key index (the
 // #7279 pair, the #7420 sidecar partition indexes, and the generation
@@ -99,6 +99,9 @@ func (s GenerationRetentionStore) PruneSupersededGenerations(
 	chunkPredrain, err := s.predrainChunkedGenerations(ctx, beginner, now, policy) // committed batches, before Begin (#10020)
 	if err != nil {
 		return GenerationRetentionResult{}, err
+	}
+	if s.beforePruneTransaction != nil {
+		s.beforePruneTransaction()
 	}
 	start := time.Now() // Duration is the prune transaction; the pre-deletes have their own phases
 	tx, err := beginner.Begin(ctx)
@@ -142,6 +145,12 @@ func (s GenerationRetentionStore) PruneSupersededGenerations(
 	// pass, so it waits for the next pass instead of holding the lock for
 	// a page drain.
 	chunkPredrain.excludeChunkTarget(chunkTarget, &result)
+	// The narrow scope lock never covers fact volume either: a generation
+	// the predrain touched but did not drain holds facts the prune would
+	// delete under the lock, so it waits for the next pass like an
+	// unfinished chunk target. Untouched generations pass through: their
+	// facts were already gone, or were never numerous enough to drain.
+	candidates = chunkPredrain.excludeUndrainedCandidates(candidates)
 	// ScopeLockHold spans the re-lock, its recount and the prune, and is
 	// zero when the pass locks nothing.
 	var narrowHoldStart time.Time
