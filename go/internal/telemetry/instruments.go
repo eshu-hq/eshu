@@ -2377,6 +2377,11 @@ type Instruments struct {
 	// GenerationRetentionChunkPredeleteBatches is the chunk pre-delete
 	// batch transactions one retention pass committed before its prune (#10020).
 	GenerationRetentionChunkPredeleteBatches metric.Int64Histogram
+	// GenerationRetentionPredrainedOverLimitGenerations is the drain
+	// members that exceeded the row limit on own facts at the predrain
+	// read (#10020): Gate-3 tells a predrained-normal cycle from a
+	// chunk-shaped one by this count.
+	GenerationRetentionPredrainedOverLimitGenerations metric.Int64Histogram
 	// SearchIndexOrphanGenerations and SearchIndexOrphanRowsSwept are the
 	// search index orphan census and sweep by table (#7427 PR2).
 	SearchIndexOrphanGenerations metric.Int64Gauge

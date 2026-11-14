@@ -206,9 +206,13 @@ type GenerationRetentionResult struct {
 	FactKeyRowsCounted map[string]int64
 	// RowsOverLimit is the batch's counted rows minus BatchRowLimit when the
 	// batch is one generation over the limit (admitted alone because only its
-	// changed-since ledger rows push it over), else 0. It comes from the
-	// pre-count, so a link that commits after the count and names the
-	// generation on its prior side is deleted uncounted: it can understate.
+	// changed-since ledger rows push it over), else 0. The recount runs after
+	// the #10020 predrain deleted the generation's facts, so a generation
+	// that was not over the limit on its own facts at the predrain read adds
+	// that read's fact count back: recount-plus-carry equals the pre-drain
+	// total. It comes from the pre-count, so a link that commits after the
+	// count and names the generation on its prior side is deleted uncounted:
+	// it can understate.
 	RowsOverLimit int64
 	// LockedScopeRows is the distinct scopes of the pruned batch. Since
 	// every pass releases the selection's locks before planning and

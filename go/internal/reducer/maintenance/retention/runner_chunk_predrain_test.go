@@ -36,7 +36,9 @@ func TestGenerationRetentionRunnerBoundsChunkPredeleteByPollInterval(t *testing.
 
 // TestGenerationRetentionRunnerRecordsChunkPredeleteBatches pins the #10020
 // batches-per-pass histogram, the predrain phase, and the cycle log field an
-// operator reads to see the chunk pre-delete's share of a pass.
+// operator reads to see the chunk pre-delete's share of a pass. It also pins
+// the predrained-over-limit count Gate-3 reads to tell a predrained-normal
+// cycle (batches > 0, over-limit count 0) from a chunk-shaped one.
 func TestGenerationRetentionRunnerRecordsChunkPredeleteBatches(t *testing.T) {
 	reader := metric.NewManualReader()
 	instruments, err := telemetry.NewInstruments(metric.NewMeterProvider(metric.WithReader(reader)).Meter("test"))
@@ -50,7 +52,8 @@ func TestGenerationRetentionRunnerRecordsChunkPredeleteBatches(t *testing.T) {
 			PhaseDurations: map[string]time.Duration{
 				"predrain_chunk": 2 * time.Second,
 			},
-			ChunkPredeleteBatches: 4,
+			ChunkPredeleteBatches:          4,
+			PredrainedOverLimitGenerations: 2,
 		}}},
 		Config:      Config{PollInterval: time.Hour},
 		Instruments: instruments,
@@ -73,8 +76,21 @@ func TestGenerationRetentionRunnerRecordsChunkPredeleteBatches(t *testing.T) {
 	require.NotNil(t, batches, "chunk pre-delete batches histogram not recorded")
 	require.Equal(t, uint64(1), batches.Count)
 	require.Equal(t, int64(4), batches.Sum)
+	var overLimit *metricdata.HistogramDataPoint[int64]
+	for _, scope := range rm.ScopeMetrics {
+		for _, m := range scope.Metrics {
+			if m.Name == "eshu_dp_generation_retention_predrained_over_limit_generations" {
+				histogram := m.Data.(metricdata.Histogram[int64])
+				overLimit = &histogram.DataPoints[0]
+			}
+		}
+	}
+	require.NotNil(t, overLimit, "predrained over-limit generations histogram not recorded")
+	require.Equal(t, uint64(1), overLimit.Count)
+	require.Equal(t, int64(2), overLimit.Sum)
 	count, sum := retentionHistogramPoint(t, rm, "eshu_dp_generation_retention_phase_duration_seconds", map[string]string{"phase": "predrain_chunk"})
 	require.Equal(t, uint64(1), count)
 	require.InDelta(t, 2.0, sum, 1e-9)
 	require.Contains(t, logs.String(), `"chunk_predelete_batches":4`)
+	require.Contains(t, logs.String(), `"predrained_over_limit_generations":2`)
 }

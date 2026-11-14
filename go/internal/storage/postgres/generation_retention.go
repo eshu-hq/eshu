@@ -162,7 +162,7 @@ func (s GenerationRetentionStore) PruneSupersededGenerations(
 		}
 	}
 	if len(candidates) > 0 {
-		if err := s.pruneCandidates(ctx, tx, candidates, rowCounts, chunkPredrain.eventCounts(searchIndex.eventCounts(eventRowCounts)), policy, now, &result); err != nil {
+		if err := s.pruneCandidates(ctx, tx, candidates, rowCounts, chunkPredrain.eventCounts(searchIndex.eventCounts(eventRowCounts)), policy, now, chunkPredrain, &result); err != nil {
 			return GenerationRetentionResult{}, err
 		}
 	}
@@ -386,6 +386,7 @@ func (s GenerationRetentionStore) pruneCandidates(
 	eventRowCounts map[string]map[string]int64,
 	policy GenerationRetentionPolicy,
 	now time.Time,
+	predrain *generationRetentionChunkPredrain,
 	result *GenerationRetentionResult,
 ) error {
 	result.OldestEligibleAge = oldestEligibleAge(now, candidates)
@@ -393,8 +394,16 @@ func (s GenerationRetentionStore) pruneCandidates(
 	for tableName, count := range rowCounts {
 		result.RowsPruned[tableName] = count
 	}
-	if total := generationRetentionRowsTotal(rowCounts); len(candidates) == 1 && total > int64(policy.BatchRowLimit) {
-		result.RowsOverLimit = total - int64(policy.BatchRowLimit) // a batch of one, admitted alone
+	if total := generationRetentionRowsTotal(rowCounts); len(candidates) == 1 {
+		// The recount runs after the predrain deleted the generation's
+		// facts, so the carry adds back the predrain read's own-fact count
+		// for a generation that was not over the limit on its own facts:
+		// recount-plus-carry equals the pre-drain total, and the signal
+		// still reports ledger-driven overage only (arb-7127-3d-b).
+		overBy := total - int64(policy.BatchRowLimit) + predrain.overLimitCarry(candidates[0].generationID)
+		if overBy > 0 {
+			result.RowsOverLimit = overBy // a batch of one, admitted alone
+		}
 	}
 	result.LockedScopeRows = len(slices.Compact(slices.Sorted(slices.Values(retentionScopeIDs(candidates)))))
 
