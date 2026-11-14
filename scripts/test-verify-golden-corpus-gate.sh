@@ -460,12 +460,12 @@ if rg --quiet --fixed-strings -- 'drain-advisory-domains="code_calls"' "${script
 	fail "code_calls must no longer be quarantined as an advisory drain domain (#3865 fixed)"
 fi
 
-# All other B-10 cassettes ride the cicd-run replay aliases (pagerduty binary removed).
-for collector in collector-oci-registry collector-package-registry; do
-	require "collector ${collector}" "${collector}"
-done
+# B-10 cassettes without an in-tree collector ride cicd-run aliases.
 require "prometheus/mimir cassette collector" "collector-prometheus-mimir:prometheusmimir"
 require "pagerduty cassette replay alias" "pagerduty-cassette-replay:collector-cicd-run:pagerduty"
+require "oci-registry cassette replay alias" "oci-registry-cassette-replay:collector-cicd-run:ociregistry"
+require "package-registry cassette replay alias" "package-registry-cassette-replay:collector-cicd-run:packageregistry"
+require "security-alerts cassette replay alias" "security-alerts-cassette-replay:collector-cicd-run:securityalerts"
 require "azure cassette replay alias" "azure-cassette-replay:collector-cicd-run:azurecloud"
 require "gcp cassette replay alias" "gcp-cassette-replay:collector-cicd-run:gcpcloud"
 require "kubernetes-live cassette replay alias" "kubernetes-live-cassette-replay:collector-cicd-run:kuberneteslive"

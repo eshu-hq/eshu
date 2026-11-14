@@ -130,7 +130,7 @@ duration histograms, rate-limit counters, fact counters, and provider spans;
 metric labels remain bounded to provider, status class, fact kind, and existing
 low-cardinality dimensions.
 
-No-Regression Evidence (#2756): `go test ./internal/collector/sdk ./internal/collector ./cmd/collector-jira ./cmd/collector-grafana ./cmd/collector-tempo ./cmd/collector-prometheus-mimir ./cmd/collector-security-alerts ./cmd/collector-cicd-run -run 'Test(HTTPErrorExposesRetryAfterDelay|ClassifyProviderFailurePreservesRetryAfterDelay|ClaimedServiceHonorsSDKProviderFailureRetryAfter|ClaimedServiceHonorsRetryAfterOnRetryableCollectFailure|BuildClaimedServiceWires)' -count=1` proves SDK HTTP errors return parsed Retry-After delay, provider failure classification preserves that delay for claim-aware retry handling, `ClaimedService` applies it to retryable claim `visible_at`, and standard claim-driven collector commands wire the default bounded attempt budget.
+No-Regression Evidence (#2756): `go test ./internal/collector/sdk ./internal/collector ./cmd/collector-grafana ./cmd/collector-prometheus-mimir ./cmd/collector-cicd-run -run 'Test(HTTPErrorExposesRetryAfterDelay|ClassifyProviderFailurePreservesRetryAfterDelay|ClaimedServiceHonorsSDKProviderFailureRetryAfter|ClaimedServiceHonorsRetryAfterOnRetryableCollectFailure|BuildClaimedServiceWires)' -count=1` proves SDK HTTP errors return parsed Retry-After delay, provider failure classification preserves that delay for claim-aware retry handling, `ClaimedService` applies it to retryable claim `visible_at`, and standard claim-driven collector commands wire the default bounded attempt budget.
 
 No-Observability-Change (#2756): the SDK remains telemetry-free and does not
 sleep, retry beyond caller-supplied bounds, mutate workflow state, or add labels.
@@ -190,10 +190,8 @@ keeps the local GitHub traversal files and leaves the production Go diff at 20
 net added lines while deleting the local GitHub Actions `Retry-After` parser.
 
 No-Regression Evidence (#2366): `go test ./internal/collector/sdk
-./internal/collector/securityalerts
-./internal/collector/securityalerts/alertruntime
 ./internal/collector/cicdrun/ghactionsruntime
-./cmd/collector-security-alerts ./cmd/collector-cicd-run -count=1` covers SDK
+./cmd/collector-cicd-run -count=1` covers SDK
 HTTP error wrapping, HTTP-date `Retry-After` parsing, credential-bearing base
 URL rejection, Dependabot cursor pagination and same-host guards, GitHub
 Actions rate-limit retry guidance, artifact URL redaction, and command config
