@@ -285,10 +285,16 @@ func TestBuildResolveNameFirstBranchQueriesAreBounded(t *testing.T) {
 	}
 
 	packageCypher, packageParams := BuildResolveNameFirstPackageQuery("billing", true, 10)
-	for _, want := range []string{"MATCH (p:Package)", "p.normalized_name = $name", "p.visibility = 'public'", "ORDER BY p.ecosystem", "LIMIT $limit"} {
+	for _, want := range []string{"MATCH (p:Package)", "toLower(p.normalized_name) = $name", "p.visibility = 'public'", "ORDER BY p.ecosystem", "LIMIT $limit"} {
 		if !strings.Contains(packageCypher, want) {
 			t.Fatalf("package query missing %q:\n%s", want, packageCypher)
 		}
+	}
+	// Mixed-case normalized names (Maven/Go preserve raw case) must match the
+	// lowercased input: the fold happens DB-side via toLower, so the pin above
+	// — not the handler or fake — is what covers them.
+	if strings.Contains(packageCypher, "p.normalized_name = $name") {
+		t.Fatalf("package query compares case-sensitively, dropping case-preserving names:\n%s", packageCypher)
 	}
 	if got, want := packageParams["limit"], 11; got != want {
 		t.Fatalf("package params[limit] = %#v, want %#v", got, want)

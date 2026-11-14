@@ -66,7 +66,7 @@ func BuildResolveNameFirstRepositoryQuery(
 // staying queryplan production-binding tests that pin builder bytes.
 func BuildResolveNameFirstPackageQuery(normalized string, publicOnly bool, limit int) (string, map[string]any) {
 	params := map[string]any{"name": normalized, "limit": limit + 1}
-	cypher := `MATCH (p:Package) WHERE p.normalized_name = $name`
+	cypher := `MATCH (p:Package) WHERE toLower(p.normalized_name) = $name`
 	if publicOnly {
 		cypher += ` AND p.visibility = 'public'`
 	}
