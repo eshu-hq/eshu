@@ -28,8 +28,9 @@ per-id row mass before the holder read runs:
 
 Splitting changes statement count only: the admitted id set and the
 per-statement timeout are unchanged (the probe adds one statement per chunk
-whose heap cost at production mass is unmeasured, bounded by the same guard
-with fail-closed errors). No timeout, lease, worker-count, or
+measured at 6067 ms cold / 218 ms warm at production mass — see the
+production-mass record below — bounded by the same guard with fail-closed
+errors). No timeout, lease, worker-count, or
 batch-size change; no DDL.
 
 ## Threshold and parallelism bound

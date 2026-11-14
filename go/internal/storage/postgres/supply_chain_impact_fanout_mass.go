@@ -17,8 +17,9 @@ import (
 // statement (#10643). Each arm joins one id at a time against the same
 // partial index the shipped holder read uses (literal fact kind plus the
 // tombstone predicate prove the predicate), so the probe avoids the scope
-// join and DISTINCT sort of a second full read; its heap cost at production
-// mass is unmeasured but bounded by the same guard with fail-closed errors.
+// join and DISTINCT sort of a second full read; at production mass it
+// measured 6067 ms cold / 218 ms warm (see the evidence note), bounded by
+// the same guard with fail-closed errors.
 // The probe
 // deliberately overestimates: it counts rows in superseded generations (no
 // active-generation join) and counts a row once per arm it matches, and an
