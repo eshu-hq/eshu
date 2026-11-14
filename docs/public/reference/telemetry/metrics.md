@@ -191,6 +191,20 @@ failure counts in both). The counter
 `acknowledged`, `duplicate`, `refused`) counts acknowledgement requests on the
 API.
 
+### Parked batch-claim loop
+
+When claim shapes freeze while the process stays healthy, read
+`eshu_dp_reducer_batch_worker_execution_age_seconds`: a series climbing
+without bound names the stuck worker and domain (#10480). Only busy
+workers are observed, so an absent series means idle. Pair it with the
+`reducer batch worker execution started` log line (`worker_id`,
+`intent_id`) for the exact intent; the in-flight `reducer.run` span
+carries the same attributes.
+
+```promql
+max by (worker, domain) (eshu_dp_reducer_batch_worker_execution_age_seconds)
+```
+
 ## Data-Plane Core
 
 Use these to locate the phase that changed before opening logs or traces:
@@ -211,6 +225,7 @@ Use these to locate the phase that changed before opening logs or traces:
 | `eshu_dp_corpus_fence_deferred_consumers` | Correlation consumers currently deferred on relationship-resolution readiness (#8247), by closed `domain` (`deployable_unit_correlation`, `workload_materialization`, `service_catalog_correlation`): `retrying` rows in the consumers' non-counting resolution-not-ready classes, excluding stale-generation rows. Includes consumers waiting on their own relationship generation, not only the global fence. Absent for a domain with no deferred consumer. Same snapshot serving as `eshu_dp_corpus_fence_holders`. |
 | `eshu_dp_corpus_fence_oldest_deferred_age_seconds` | Age in seconds of the oldest consumer deferred on relationship-resolution readiness (#8247), by closed `domain`, measured from `COALESCE(reopened_at, created_at)` like `eshu_dp_queue_oldest_age_seconds`; includes consumers waiting on their own relationship generation, not only the global fence. The deferral is non-counting and never dead-letters, so this age is the signal that a consumer has been parked for hours or days while the fence stays closed; a steadily climbing value with `eshu_dp_corpus_fence_holders` above zero means re-resolutions are overlapping continuously. Absent for a domain with no deferred consumer. Same snapshot serving as `eshu_dp_corpus_fence_holders`. |
 | `eshu_dp_worker_pool_active` | Active worker count by pool. |
+| `eshu_dp_reducer_batch_worker_execution_age_seconds` | Age in seconds of each busy reducer batch-claim worker's current execution, by `queue` (`reducer`), `worker` (pool index, `0`–`N-1`), and `domain`. Observed for busy workers only; an absent worker series means idle. A climbing value on one worker while claim shapes freeze means that worker is stuck inside its execution (#10480); pair with the `reducer batch worker execution started` log (`worker_id`, `intent_id`) for the exact intent. |
 | `eshu_dp_collector_observe_duration_seconds` | Collector observe cycle cost. |
 | `eshu_dp_scope_assign_duration_seconds` | Repository or source scope assignment cost. |
 | `eshu_dp_fact_emit_duration_seconds` | Fact emission cost. |

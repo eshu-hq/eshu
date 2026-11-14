@@ -119,6 +119,14 @@ func buildObservedReducerService(
 		closeStaleAccess()
 		return reducer.Service{}, nil, nil, nil, err
 	}
+	// Size the batch-claim occupancy tracker before the run copies the
+	// Service, so the gauge observer and the worker loop share one tracker
+	// (#10480). Telemetry only: no claim, lock, or scheduling change.
+	serviceRunner.InitBatchWorkerOccupancy()
+	if err := telemetry.RegisterReducerBatchWorkerOccupancyGauge(instruments, meter, serviceRunner); err != nil {
+		closeStaleAccess()
+		return reducer.Service{}, nil, nil, nil, fmt.Errorf("register batch worker occupancy gauge: %w", err)
+	}
 	serviceRunner.Executor = newActiveWorkerExecutor(serviceRunner.Executor, activeWorkers)
 	return serviceRunner, graphRefresher, postgresRefresher, closeStaleAccess, nil
 }
