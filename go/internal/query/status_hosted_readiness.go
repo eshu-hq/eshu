@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
@@ -122,13 +121,8 @@ func writeHostedReadinessReadFailure(w http.ResponseWriter, r *http.Request, err
 		return
 	}
 	if hostedReadinessSnapshotBudgetExpired(r.Context(), err) {
-		w.Header().Set("Retry-After", strconv.Itoa(querycontract.BackendUnavailableRetryAfterSeconds))
-		WriteErrorEnvelope(w, r, http.StatusServiceUnavailable, &querycontract.ErrorEnvelope{
-			Code:       querycontract.ErrorCodeBackendUnavailable,
-			Message:    querycontract.ErrReaderRetryable.Error(),
-			Capability: hostedReadinessStatusCapability,
-			Details:    map[string]any{"retry_after_seconds": querycontract.BackendUnavailableRetryAfterSeconds},
-		})
+		WriteErrorEnvelope(w, r, http.StatusServiceUnavailable,
+			querycontract.ReaderRetryableEnvelope(hostedReadinessStatusCapability))
 		return
 	}
 	if !tracing.ClientCanceled(r.Context(), err) {
@@ -144,13 +138,15 @@ func writeHostedReadinessReadFailure(w http.ResponseWriter, r *http.Request, err
 
 // hostedReadinessSnapshotBudgetExpired reports whether err is the bounded
 // status snapshot read running out of time rather than a mapped verdict or a
-// client cancel. The snapshot reader bounds every read (snapshotStatusReader
+// dead request. The snapshot reader bounds every read (snapshotStatusReader
 // in runtime/postgres); a mid-read timeout surfaces a bare
 // context.DeadlineExceeded with no fence sentinel, so WriteGraphReadError
-// cannot map it. A client cancel carries context.Canceled, never a bare
-// deadline, and stays on the 499 path.
+// cannot map it. The request itself must still be live: a parent deadline or
+// cancel also surfaces a bare DeadlineExceeded, but that is a dead client
+// wait, not a transient reader condition, so it falls through to the shared
+// failure verdict instead of the retryable 503.
 func hostedReadinessSnapshotBudgetExpired(ctx context.Context, err error) bool {
-	return !tracing.ClientCanceled(ctx, err) && errors.Is(err, context.DeadlineExceeded)
+	return ctx.Err() == nil && errors.Is(err, context.DeadlineExceeded)
 }
 
 func (h *StatusHandler) readHostedRepositoryCount(ctx context.Context) (int, error) {
