@@ -23,6 +23,10 @@ func cicdTools() []ToolDefinition {
 						"type":        "string",
 						"description": "Provider-native run, build, or pipeline ID for exact run lookup.",
 					},
+					"run_id": map[string]any{
+						"type":        "string",
+						"description": "Older run identifier spelling; the listing route falls back to it when provider_run_id is absent, empty, or wrong-typed.",
+					},
 					"repository_id": map[string]any{
 						"type":        "string",
 						"description": "Repository ID to anchor run correlation lookup.",

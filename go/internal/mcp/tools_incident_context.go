@@ -15,6 +15,10 @@ func incidentContextTools() []ToolDefinition {
 						"type":        "string",
 						"description": "Provider incident identifier, such as a PagerDuty incident id.",
 					},
+					"incident_id": map[string]any{
+						"type":        "string",
+						"description": "Older incident identifier spelling; the route falls back to it when provider_incident_id is absent, empty, or wrong-typed.",
+					},
 					"provider": map[string]any{
 						"type":        "string",
 						"description": "Incident provider. Defaults to pagerduty.",
