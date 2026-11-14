@@ -72,7 +72,7 @@ gosec_cleanup() {
 	return 0
 }
 
-# gosec_new_alias <real-dir> creates go/_g<pid> (or a lettered variant) as a
+# gosec_new_alias <real-dir> creates go/_g (or a lettered variant) as a
 # relative symlink to the package dir and sets gosec_alias_made to its name (no
 # command substitution: it must update gosec_aliases in the calling shell). The underscore keeps
 # it out of ./..., go vet and golangci-lint; the base name is fixed-length so the
