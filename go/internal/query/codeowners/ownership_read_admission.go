@@ -32,8 +32,7 @@ const CodeownersOwnershipReadAdmissionContractVersion = "v0"
 // family. The seam is read-only on purpose: every declared method is a
 // bounded read and the port carries no mutation surface, so a dest consumer
 // implementing only this contract can serve ownership reads but cannot
-// acquire a write it did not bargain for through it. It is the only
-// remainder family exercising RunSingle.
+// acquire a write it did not bargain for through it.
 //
 // Satellite consumer: the W8b-wide3 leaf, per the arbiter
 // SUPPLEMENTAL-PIN-OWED ruling on eshu-hq/eshu-api#101. The satellite records

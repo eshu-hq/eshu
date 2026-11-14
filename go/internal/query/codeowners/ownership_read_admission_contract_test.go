@@ -23,8 +23,7 @@ import (
 // the other. The entries re-declare the staying-port signatures in this
 // codeowners-scoped shape instead of embedding the shared ports, so no other
 // family can cite this pin — a blanket or shared-port pin is forbidden, and
-// the widened shape needs arbiter review before satellite consumption. It is
-// the only remainder family exercising RunSingle.
+// the widened shape needs arbiter review before satellite consumption.
 //
 // Satellite consumer: the W8b-wide3 leaf, per the arbiter
 // SUPPLEMENTAL-PIN-OWED ruling on eshu-hq/eshu-api#101. The satellite records
