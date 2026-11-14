@@ -191,6 +191,20 @@ failure counts in both). The counter
 `acknowledged`, `duplicate`, `refused`) counts acknowledgement requests on the
 API.
 
+### Parked batch-claim loop
+
+When claim shapes freeze while the process stays healthy, read
+`eshu_dp_reducer_batch_worker_execution_age_seconds`: a series climbing
+without bound names the stuck worker and domain (#10480). Only busy
+workers are observed, so an absent series means idle. Pair it with the
+`reducer batch worker execution started` log line (`worker_id`,
+`intent_id`) for the exact intent; the in-flight `reducer.run` span
+carries the same attributes.
+
+```promql
+max by (worker, domain) (eshu_dp_reducer_batch_worker_execution_age_seconds)
+```
+
 ## Data-Plane Core
 
 Use these to locate the phase that changed before opening logs or traces:
