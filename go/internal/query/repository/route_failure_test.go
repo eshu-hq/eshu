@@ -386,11 +386,12 @@ func repoFailureDetail(t *testing.T, raw string) string {
 	return body.Detail
 }
 
-// TestWriteSelectorAnswerKeepsWrapperTextOut pins the #7674 selector answer:
-// the path selector wrote err.Error() under a computed 400/404 status, so a
-// wrapper around a typed selector error would reach the body. A not-found or
-// ambiguous selector answers only the typed error's own text, and any other
-// error answers the fixed lookup-failure 500.
+// TestWriteSelectorAnswerKeepsWrapperTextOut pins the #7674 selector answer,
+// as updated by #10655: the path selector wrote err.Error() under a computed
+// 404/409 status, so a wrapper around a typed selector error would reach the
+// body. A not-found selector answers only the typed error's own text, an
+// ambiguous one answers the structured 409 whose detail is the typed text,
+// and any other error answers the fixed lookup-failure 500.
 func TestWriteSelectorAnswerKeepsWrapperTextOut(t *testing.T) {
 	t.Parallel()
 
@@ -403,14 +404,14 @@ func TestWriteSelectorAnswerKeepsWrapperTextOut(t *testing.T) {
 		wantDetail string
 	}{
 		{"not found", fmt.Errorf("private wrapper %s: %w", routeFailureCanary, notFound), http.StatusNotFound, notFound.Error()},
-		{"ambiguous", fmt.Errorf("private wrapper %s: %w", routeFailureCanary, ambiguous), http.StatusBadRequest, ambiguous.Error()},
+		{"ambiguous", fmt.Errorf("private wrapper %s: %w", routeFailureCanary, ambiguous), http.StatusConflict, ambiguous.Error()},
 		{"unclassified", errors.New("private wrapper " + routeFailureCanary), http.StatusInternalServerError, selector.LookupFailureMessage},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			rec := httptest.NewRecorder()
-			writeSelectorAnswer(rec, httptest.NewRequest(http.MethodGet, "/", nil), tc.err)
+			writeSelectorAnswer(rec, httptest.NewRequest(http.MethodGet, "/", nil), tc.err, "platform_impact.context_overview")
 			if rec.Code != tc.wantStatus {
 				t.Fatalf("status = %d, want %d; body = %s", rec.Code, tc.wantStatus, rec.Body.String())
 			}

@@ -30,8 +30,9 @@
   for a `context.DeadlineExceeded` route-budget expiry through
   `tracing.WriteServerFailure` (fixed body, span error), then
   `selector.WriteLookupFailure` (500, fixed body, span error), then
-  `writeSelectorAnswer`: 404 with the typed `NotFoundError` text, 400 with the
-  typed `AmbiguousError` text, and the fixed 500 for anything else. Never write
+  `writeSelectorAnswer`: 404 with the typed `NotFoundError` text, 409 with the
+  structured candidate body through `selector.WriteAmbiguousError` (#10655),
+  and the fixed 500 for anything else. Never write
   a selector error's `err.Error()` to a body; a wrapper carries backend text.
 - Any read that fails after the selector resolved answers
   `querycontract.WriteGraphReadError` with the literal capability first, then

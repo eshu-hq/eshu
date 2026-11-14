@@ -18,12 +18,13 @@ import (
 )
 
 // TestWriteResolveFailureAnswersSelectorAnswersWithTheirOwnText pins the
-// #7674 body contract of the shared selector helper. An unmatched selector
-// answers 404 and an ambiguous one 400, each with its typed error's text,
-// which quotes only the caller's selector and the repository ids its grant
-// may read. An error that is none of the classified answers is a server
-// fault: it answers 500 with LookupFailureMessage and records the error on
-// the request span, never echoing its text in a 400.
+// #7674 body contract of the shared selector helper, as updated by #10655.
+// An unmatched selector answers 404 with its typed error's text, which
+// quotes only the caller's selector; an ambiguous one answers 409 with the
+// structured candidate body, whose detail carries the typed text with the
+// repository ids its grant may read. An error that is none of the classified
+// answers is a server fault: it answers 500 with LookupFailureMessage and
+// records the error on the request span, never echoing its text in a 4xx.
 func TestWriteResolveFailureAnswersSelectorAnswersWithTheirOwnText(t *testing.T) {
 	t.Parallel()
 
@@ -37,7 +38,7 @@ func TestWriteResolveFailureAnswersSelectorAnswersWithTheirOwnText(t *testing.T)
 		wantSpanError bool
 	}{
 		{"not found", notFound, http.StatusNotFound, notFound.Error(), false},
-		{"ambiguous", ambiguous, http.StatusBadRequest, ambiguous.Error(), false},
+		{"ambiguous", ambiguous, http.StatusConflict, ambiguous.Error(), false},
 		{"unclassified", errors.New("private: password=hunter2 MATCH (n)"), http.StatusInternalServerError, LookupFailureMessage, true},
 	}
 	for _, tc := range cases {

@@ -12,13 +12,16 @@ package-registry, service-catalog, CI/CD, advisory-evidence, container-image,
 SBOM-attachment, and impact routes) answers a catalog or graph failure that is
 not a fence or graph-availability verdict with `500` and the fixed message
 `repository selector lookup failed`, recorded on the request span, rather than
-`400`. An unmatched selector stays `404` and an ambiguous one `400`.
+`400`. An unmatched selector stays `404` and an ambiguous one answers `409`
+with the structured candidate body ([Repository selector ambiguity
+(#10655)](#repository-selector-ambiguity-10655)).
 
 The graph-backed `repo_id` selectors map the same lookup failure to the same
 `500`: every `/api/v0/code/*` route that takes `repo_id` (including
 `POST /api/v0/code/language-query`), where an unmatched or ambiguous selector
-stays `400`, and `POST /api/v0/entities/resolve`, where an unmatched selector
-stays `404` and an ambiguous one `400`. The optional `repo` selector on
+stays `400` under that family's own mapping, and `POST
+/api/v0/entities/resolve`, where an unmatched selector stays `404` and an
+ambiguous one answers the structured `409`. The optional `repo` selector on
 `GET /api/v0/investigations/services/{service_name}`,
 `GET /api/v0/services/{service_name}/story`, and
 `GET /api/v0/services/{service_name}/intelligence-report` answers the same fixed `500`
@@ -39,7 +42,7 @@ selector lookup failed`, recorded on the request span (on `POST
 text. The stats route keeps `504`, with the same fixed message, when the
 selector read runs out its 2-second route budget. An unmatched selector stays
 `404`, except on `POST /api/v0/iac/dead`, which keeps its `400`; an ambiguous
-selector stays `400`. On the content read and search routes, a selector error
+selector answers the structured `409`. On the content read and search routes, a selector error
 that is none of these answers is a server fault: it answers `500` with
 `repository selector lookup failed`, or `499` on a client cancel, never a
 `400` that echoes its text (#7674).
@@ -295,6 +298,38 @@ does not page at ERROR. The suppression mutation has no stage timer and writes
 neither line. A `context.Canceled` from an inner context while the request is
 still live is a server fault and answers `500` with `stage_failed`. See
 [Logging](../logging.md) for both events.
+
+## Repository selector ambiguity (#10655)
+
+A repository selector that matches more than one repository answers `409`
+with `error.code=ambiguous` on every route that resolves it through the shared
+request helper or one of the four handlers that share its writer (content
+read and search, repository `{repo_id}`, security-alert supply-chain, and the
+`ResolveForRequestWithAccess` routes). The candidates carry only repositories
+the caller may read: resolution filters matches by the caller's grant before
+the body is built, so a grant-scoped caller never sees an unreadable id.
+
+Each entry in `candidates` carries the canonical `repo_id`. Passing that id
+back as the same selector resolves exactly one repository, so the follow-up is
+the same request with the chosen `repo_id`. A non-envelope response carries
+the packet at the top level with the code and the typed text:
+
+```json
+{
+  "status": "ambiguous",
+  "selector": "shared",
+  "candidates": [{"repo_id": "repository:r_a"}, {"repo_id": "repository:r_b"}],
+  "truncated": false,
+  "code": "ambiguous",
+  "error": "Conflict",
+  "detail": "repository selector \"shared\" matched multiple repositories: repository:r_a, repository:r_b"
+}
+```
+
+An envelope request carries the same packet as `error.details` with
+`error.code=ambiguous` and the typed text as `error.message`. `truncated` is
+always `false`: resolution returns every match. The `/api/v0/code/*` family
+keeps its own `400` mapping and is not part of this contract.
 
 ## Service story ambiguity (#8797)
 

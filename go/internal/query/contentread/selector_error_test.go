@@ -39,9 +39,11 @@ func TestContentSelectorUnclassifiedErrorAnswersFixedText(t *testing.T) {
 }
 
 // TestContentSelectorTypedErrorsKeepTheirAnswers pins the classified answers
-// the fallback change leaves alone: an unmatched selector answers 404 and an
-// ambiguous one 400, each with the typed answer's own text, which quotes only
-// the caller's selector and the matched repository ids.
+// the fallback change leaves alone, as updated by #10655: an unmatched
+// selector answers 404 with the typed answer's own text, and an ambiguous one
+// answers 409 with the structured candidate body whose detail is the typed
+// text, which quotes only the caller's selector and the matched repository
+// ids.
 func TestContentSelectorTypedErrorsKeepTheirAnswers(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
@@ -50,7 +52,7 @@ func TestContentSelectorTypedErrorsKeepTheirAnswers(t *testing.T) {
 		wantStatus int
 	}{
 		{"not found", selector.NotFoundError{Selector: "payments-svc"}, http.StatusNotFound},
-		{"ambiguous", selector.AmbiguousError{Selector: "payments", Matches: []string{"repository:a", "repository:b"}}, http.StatusBadRequest},
+		{"ambiguous", selector.AmbiguousError{Selector: "payments", Matches: []string{"repository:a", "repository:b"}}, http.StatusConflict},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

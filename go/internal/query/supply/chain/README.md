@@ -270,9 +270,10 @@ with an empty `repo_id` (#7626). A fence or graph-availability verdict answers
 one answers `500` with exactly one `stage_failed` line and the handler span set
 to Error; its body is the fixed `selector.LookupFailureMessage`, never the
 backend error text or the selector. An unmatched selector stays `404` and an
-ambiguous one `400`, each rendered from the unwrapped `selector.NotFoundError`
-or `selector.AmbiguousError`, which name only the caller's own selector and
-the matched repository ids. Pinned
+ambiguous one answers `409` with the structured candidate body through
+`selector.WriteAmbiguousError` (#10655), each rendered from the unwrapped
+`selector.NotFoundError` or `selector.AmbiguousError`, which name only the
+caller's own selector and the matched repository ids. Pinned
 by `TestRepositorySelectorResolveLookupFailureAnswers500` and
 `TestRepositorySelectorResolveLookupFailureRecordsSpanError`.
 

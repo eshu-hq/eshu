@@ -82,7 +82,7 @@ func repoLookupCases(deadlineStatus int) []repoLookupCase {
 		{"graph unavailable", repoLookupGraph(fmt.Errorf("private: %w", querycontract.ErrGraphUnavailable)), nil, http.StatusServiceUnavailable, false},
 		{"graph deadline", repoLookupGraph(fmt.Errorf("private: %w", querycontract.ErrGraphReadDeadline)), nil, http.StatusGatewayTimeout, false},
 		{"not found", nil, content.FakePortContentStore{}, http.StatusNotFound, false},
-		{"ambiguous", nil, ambiguous, http.StatusBadRequest, false},
+		{"ambiguous", nil, ambiguous, http.StatusConflict, false},
 	}
 }
 
@@ -92,7 +92,8 @@ func repoLookupCases(deadlineStatus int) []repoLookupCase {
 // fault: it answers 500 with the fixed body and records the error on the
 // request span, never the 400 that blamed the client and echoed backend text.
 // Fence verdicts keep 503/504, an unmatched selector keeps 404, and an
-// ambiguous one keeps 400. The stats route keeps its existing 504 for a
+// ambiguous one answers the structured 409 (#10655). The stats route keeps
+// its existing 504 for a
 // selector read that ran out its route budget (context.DeadlineExceeded), with
 // the same fixed body and span error as the 500.
 func TestRepositorySelectorLookupFailureMapping(t *testing.T) {

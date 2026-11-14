@@ -100,7 +100,9 @@ repository-selector failure through `writeContentSelectorError`
 answers a retryable 503 through `querycontract.WriteGraphReadError`; any other
 failed catalog read answers 500 with the fixed `repository selector lookup
 failed` body and an error on the request span (`selector.WriteLookupFailure`);
-an unmatched selector answers 404 and an ambiguous one 400 (#7626). Before
+an unmatched selector answers 404 and an ambiguous one answers 409 with the
+structured candidate body (`selector.WriteAmbiguousError`, #10655; #7626 for
+the order). Before
 #7626 a fence or a failed catalog read answered 400 with the backend error
 text in the body.
 

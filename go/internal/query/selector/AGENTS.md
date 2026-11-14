@@ -24,11 +24,12 @@ against the graph under authorization bounds, so treat changes as security work.
   (#7626).
 - `ResolveForRequestWithAccess` MUST keep the order in `writeResolveFailure`:
   `WriteGraphReadError`, then `WriteLookupFailure` (500, fixed body, span
-  error; 499 for a client cancel), then a typed `NotFoundError` (404), then a
-  typed `AmbiguousError` (400), then the same fixed `LookupFailureMessage`
+  error; 499 for a client cancel), then a typed `NotFoundError` (404), then
+  `WriteAmbiguousError` (409 with the structured candidate body, #10655),
+  then the same fixed `LookupFailureMessage`
   500 for any other error (#7674). Never echo an unclassified error's text.
   Callers that map selector errors
-  themselves use the same order and the same helper; do not inline a second
+  themselves use the same order and the same helpers; do not inline a second
   copy of the 500 answer. `WriteLookupFailure` delegates to
   `tracing.WriteServerFailure`; keep it that way so the cancel rule lives in
   one place.

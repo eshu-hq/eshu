@@ -120,7 +120,7 @@ func (h *Handler) resolveRepositoryStatsPathSelector(
 		if selector.WriteLookupFailure(w, r, err) {
 			return "", false
 		}
-		writeSelectorAnswer(w, r, err)
+		writeSelectorAnswer(w, r, err, "platform_impact.context_overview")
 		return "", false
 	}
 	return repoID, true
