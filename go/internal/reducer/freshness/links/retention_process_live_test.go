@@ -341,21 +341,23 @@ GROUP BY generation_id_hash HAVING count(*) > 1) AS twice`); n != 0 {
 	if n := l.queryInt(t, `SELECT count(*) FROM generation_retention_events`); n != int64(2*scopes) {
 		t.Fatalf("%d retention events, want one per pruned generation (%d)", n, 2*scopes)
 	}
-	// Non-vacuity witness for PB5's spirit under batch predrain: the heavy
-	// over-limit links exist, so the fixture exercises what PB5 is about.
-	// Each heavy-scope rewrite link carries ~2,000 deltas (threshold 1,000;
-	// light links carry ~117), and an all-light fixture (changeEvery never
-	// 1) links none. Most land on g2, which stays active: fast retention
-	// usually prunes a heavy g0/g1 before its rewrite link lands, so the
-	// prunable subset is timing-dependent and asserted nowhere. What proves
-	// the prunable heavy volume reached a prune is the composition: all 48
-	// prunable generations pruned above, (a) proves no link named a pruned
-	// generation, and (d) proves no ledger row was left behind. A lone
-	// over-limit batch is no longer required: drainable generations pack
-	// multi-up, so OverLimitBatches is timing-dependent and asserted
-	// neither way (arb-10020-batch-predrain-packing).
+	// Fixture non-vacuity witness for PB5's spirit under batch predrain:
+	// the race produced heavy over-limit links, so the fixture exercises
+	// what PB5 is about. Each heavy-scope rewrite link carries ~2,000
+	// deltas (threshold 1,000; light links carry ~117), and an all-light
+	// fixture (changeEvery never 1) links none (proven by a failing mutant
+	// run with 0). Most heavy links land on g2, which stays active: fast
+	// retention usually prunes a heavy g0/g1 before its rewrite link
+	// lands, so the prunable subset is timing-dependent and asserted
+	// nowhere. That the pruned heavy volume left nothing behind follows
+	// from the composition: all 48 prunable generations pruned above, (a)
+	// proves no link named a pruned generation, and (d) plus the orphan
+	// probe prove no ledger row was left behind. A lone over-limit batch
+	// is no longer required: drainable generations pack multi-up, so
+	// OverLimitBatches is timing-dependent and asserted neither way
+	// (arb-10020-batch-predrain-packing).
 	if link.HeavyLinks < 5 {
-		t.Fatalf("link child linked %d heavy rewrite links, want at least 5 (the heavy scopes' over-limit links did not reach a prune)", link.HeavyLinks)
+		t.Fatalf("link child linked %d heavy rewrite links, want at least 5 (the race produced no heavy over-limit links)", link.HeavyLinks)
 	}
 	// (a)
 	if n := l.queryInt(t, `SELECT count(*) FROM changed_since_links AS l
