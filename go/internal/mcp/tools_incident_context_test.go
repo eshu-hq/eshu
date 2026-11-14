@@ -17,7 +17,7 @@ func TestIncidentContextToolIsRegistered(t *testing.T) {
 	if !ok {
 		t.Fatalf("properties type = %T, want map[string]any", schema["properties"])
 	}
-	for _, field := range []string{"provider_incident_id", "provider", "scope_id", "service_id", "since", "until", "limit"} {
+	for _, field := range []string{"provider_incident_id", "incident_id", "provider", "scope_id", "service_id", "since", "until", "limit"} {
 		if _, ok := properties[field]; !ok {
 			t.Fatalf("tool properties missing %q", field)
 		}
@@ -43,5 +43,22 @@ func TestResolveRouteMapsGetIncidentContext(t *testing.T) {
 	}
 	if got, want := route.Query["provider"], "pagerduty"; got != want {
 		t.Fatalf("route.Query[provider] = %#v, want %#v", got, want)
+	}
+}
+
+// TestResolveRouteFallsBackToIncidentID pins the eshu-hq/eshu-mcp#77 kept
+// read: when provider_incident_id is absent, the route resolves the older
+// incident_id spelling into the incident path instead of refusing.
+func TestResolveRouteFallsBackToIncidentID(t *testing.T) {
+	t.Parallel()
+
+	route, err := resolveRoute("get_incident_context", map[string]any{
+		"incident_id": "inc-9",
+	})
+	if err != nil {
+		t.Fatalf("resolveRoute() error = %v, want nil", err)
+	}
+	if got, want := route.Path, "/api/v0/incidents/inc-9/context"; got != want {
+		t.Fatalf("route.Path = %q, want %q", got, want)
 	}
 }

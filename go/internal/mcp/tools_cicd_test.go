@@ -17,7 +17,7 @@ func TestCICDRunCorrelationsToolIsRegistered(t *testing.T) {
 	if !ok {
 		t.Fatalf("properties type = %T, want map[string]any", schema["properties"])
 	}
-	for _, field := range []string{"scope_id", "provider", "provider_run_id", "repository_id", "commit_sha", "artifact_digest", "image_ref", "environment", "outcome", "limit"} {
+	for _, field := range []string{"scope_id", "provider", "provider_run_id", "run_id", "repository_id", "commit_sha", "artifact_digest", "image_ref", "environment", "outcome", "limit"} {
 		if _, ok := properties[field]; !ok {
 			t.Fatalf("tool properties missing %q", field)
 		}
