@@ -17,7 +17,7 @@ import (
 func TestPlanHolderReadStatementsSplitsHotIDs(t *testing.T) {
 	t.Parallel()
 
-	hot := fanOutHolderHotMassRows + 1
+	hot := int64(fanOutHolderHotMassRows + 1)
 	chunk := []string{"CVE-2026-hot", "CVE-2026-c1", "CVE-2026-c2", "CVE-2026-c3", "CVE-2026-c4"}
 	masses := map[string]int64{
 		"CVE-2026-hot": hot,
@@ -65,7 +65,7 @@ func TestPlanHolderReadStatementsKeepsColdChunksWhole(t *testing.T) {
 func TestPlanHolderReadStatementsIsolatesEveryHotID(t *testing.T) {
 	t.Parallel()
 
-	hot := fanOutHolderHotMassRows + 1
+	hot := int64(fanOutHolderHotMassRows + 1)
 	chunk := []string{"CVE-2026-h1", "CVE-2026-h2", "CVE-2026-h3", "CVE-2026-h4", "CVE-2026-h5"}
 	masses := map[string]int64{}
 	for _, id := range chunk {
@@ -103,7 +103,7 @@ func TestPlanHolderReadStatementsFailsSafeWithoutMass(t *testing.T) {
 func TestPlanHolderReadStatementsCapsCombinedColdMass(t *testing.T) {
 	t.Parallel()
 
-	perID := fanOutHolderHotMassRows / 2
+	perID := int64(fanOutHolderHotMassRows) / 2
 	chunk := []string{"CVE-2026-m1", "CVE-2026-m2", "CVE-2026-m3"}
 	masses := map[string]int64{
 		"CVE-2026-m1": perID,
@@ -139,13 +139,13 @@ func TestPlanHolderReadStatementsCapsCombinedColdMass(t *testing.T) {
 func TestPlanHolderReadStatementsKeepsIDSet(t *testing.T) {
 	t.Parallel()
 
-	hot := fanOutHolderHotMassRows + 1
+	hot := int64(fanOutHolderHotMassRows + 1)
 	chunk := []string{"CVE-2026-a", "CVE-2026-b", "CVE-2026-c", "CVE-2026-d", "CVE-2026-e"}
 	masses := map[string]int64{
 		"CVE-2026-a": 1,
 		"CVE-2026-b": hot,
-		"CVE-2026-c": fanOutHolderHotMassRows / 2,
-		"CVE-2026-d": fanOutHolderHotMassRows / 2,
+		"CVE-2026-c": int64(fanOutHolderHotMassRows) / 2,
+		"CVE-2026-d": int64(fanOutHolderHotMassRows) / 2,
 		"CVE-2026-e": 2,
 	}
 	var flat []string

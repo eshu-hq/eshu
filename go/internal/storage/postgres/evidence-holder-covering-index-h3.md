@@ -16,6 +16,33 @@ The #10564 section below is kept verbatim as the history of the first
 no-build gate: its need analysis and cost census still stand, and the
 re-trigger it named is what fired.
 
+## New direction: adaptive splitting (no H-3 build, #10643)
+
+The verdict above stands: the covering pair stays unbuilt and no DDL ships.
+The guard pressure that re-fired the gate is now answered by splitting, not
+by indexing: each 5-id holder-read chunk is partitioned by measured per-id
+row mass (one probe statement per chunk, per-id equality arms over the same
+serving indexes), hot ids (over 10,000 rows) run alone, cold ids pack at most
+5 ids and 10,000 combined rows per statement, and the statements run with up
+to 4 concurrent reads under the same 10 s guard. Threshold: 10,000 rows is
+about 1/7 of the 67k-row statement that timed out at 9.8 s cold, and a
+linear read of the single-hot-id shim worst case (~0.78 s) puts a 10k-row
+singleton near 0.5 s, 4x under the 2 s per-statement bar. Parallelism bound:
+holder reads are I/O-read dominated (72% of exec), one chunk splits into at
+most 5 statements, and 4 concurrent reads keep one pass far under the pool
+even with parallel workers. No statement of two or more ids covers more than
+the threshold, so the timed-out shape cannot re-form; a singleton hot id may
+exceed the threshold alone (residual: keyset paging, not more splitting).
+Proof: `TestHolderAdaptiveSplitRowIdentityLive` (bidirectional EXCEPT 0/0
+split-vs-unsplit from the shipped constant) and `TestHolderMassProbeLive`
+(exact per-id masses, probe ~2.4 ms); full account in
+`docs/internal/evidence/10643-adaptive-split.md`. Telemetry: no new counter
+or label (the outcome set stays closed and mass is unbounded cardinality);
+operators read `holder_statements`, `split_chunks`, `hot_ids`, and
+`max_id_mass_rows` on the fan-out span, the summary log line, and the
+`fanout_holder_statements`, `fanout_hot_ids`, `fanout_max_id_mass_rows`
+sub-signals.
+
 ## Attempt: need (#10643, confirmed)
 
 The #10564 re-trigger fired: per-statement holder fan-out reads on hot

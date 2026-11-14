@@ -50,6 +50,9 @@ type stubFanOut struct {
 	reads []string
 	// candidates, candidateErr, candidateEcosystems, and candidateQueries
 	// serve and record the #9874/#10061 package-keyed holder read.
+	masses              map[string]int64
+	massErr             error
+	massCalls           [][]string
 	candidates          []PackageHolderCandidate
 	candidateErr        error
 	candidateEcosystems [][]string
@@ -113,6 +116,23 @@ func (s *stubFanOut) FindHolderScopes(_ context.Context, ownScopeID string, look
 		return nil, s.findErr
 	}
 	return append([]string(nil), s.holders...), nil
+}
+
+// EstimateHolderMasses serves the #10643 mass probe. A nil masses map keeps
+// the legacy shape (every requested id measures zero, so the chunk stays
+// whole); an entry overrides that id's mass, and massErr fails the probe the
+// way a timed-out read fails. It always reports every requested id, like the
+// production probe's per-id LEFT JOIN.
+func (s *stubFanOut) EstimateHolderMasses(_ context.Context, lookupIDs []string) (map[string]int64, error) {
+	s.massCalls = append(s.massCalls, append([]string(nil), lookupIDs...))
+	if s.massErr != nil {
+		return nil, s.massErr
+	}
+	out := make(map[string]int64, len(lookupIDs))
+	for _, id := range lookupIDs {
+		out[id] = s.masses[id]
+	}
+	return out, nil
 }
 
 func (s *stubFanOut) ReopenHolder(_ context.Context, holderScopeID string, origin FanOutOrigin) (FanOutOutcome, error) {

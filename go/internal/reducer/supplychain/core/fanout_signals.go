@@ -19,6 +19,18 @@ import (
 // The fan-out's operator signals: its span, its counter outcomes, its log
 // lines, and the result sub-signals.
 
+// Pass-level counter outcomes that are not a per-holder result. They live
+// with the signals because they are the counter's outcome label set, not the
+// fan-out's read or reopen logic.
+const (
+	fanOutOutcomeCrashRecovery = "crash_recovery"
+	fanOutOutcomeDeferred      = "deferred"
+	fanOutOutcomeReadError     = "read_error"
+	fanOutOutcomeReadTimeout   = "read_timeout"
+	fanOutOutcomeReopenError   = "reopen_error"
+	fanOutOutcomeStateError    = "state_error"
+)
+
 func (h SupplyChainImpactHandler) startFanOutSpan(ctx context.Context, intent reducercontract.Intent) (context.Context, trace.Span) {
 	if h.Tracer == nil {
 		// A no-op span: ending it must never end the caller's span.
@@ -85,6 +97,10 @@ func (h SupplyChainImpactHandler) emitFanOut(ctx context.Context, intent reducer
 		slog.Int("enqueued", r.enqueued),
 		slog.Int("deferred", r.deferred),
 		slog.Bool("crash_recovery", r.crashRecovery),
+		slog.Int("holder_statements", r.holderStatements),
+		slog.Int("split_chunks", r.splitChunks),
+		slog.Int("hot_ids", r.hotIDs),
+		slog.Int64("max_id_mass_rows", r.maxIDMassRows),
 	)
 }
 
@@ -129,9 +145,25 @@ func (h SupplyChainImpactHandler) countFanOutRead(ctx context.Context, cause str
 	))
 }
 
+func (r *fanOutResult) record(outcome FanOutOutcome) {
+	switch outcome {
+	case FanOutReopened:
+		r.reopened++
+	case FanOutReplayFlagged:
+		r.replayFlagged++
+	case FanOutEnqueued:
+		r.enqueued++
+	default:
+		r.pendingNoop++
+	}
+}
+
 // mergeSubSignals adds the fan-out counts to a result's sub-signals.
 func (r fanOutResult) mergeSubSignals(subSignals map[string]float64) {
 	subSignals["fanout_holders"] = float64(r.holders)
+	subSignals["fanout_holder_statements"] = float64(r.holderStatements)
+	subSignals["fanout_hot_ids"] = float64(r.hotIDs)
+	subSignals["fanout_max_id_mass_rows"] = float64(r.maxIDMassRows)
 	subSignals["fanout_reopened"] = float64(r.reopened)
 	subSignals["fanout_replay_flagged"] = float64(r.replayFlagged)
 	subSignals["fanout_deferred"] = float64(r.deferred)

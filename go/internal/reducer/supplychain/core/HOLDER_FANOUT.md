@@ -34,14 +34,20 @@ more than 256 holders drains across claims.
   the typed payload without `intent_id`, `cause`, `generation_id`, and
   `evidence_fact_ids`, and includes `suppression_state`. Rows written before
   the digest existed count as changed once.
-- Holders come from one indexed read per 5 lookup ids (#10564 H3; the stamp cap stays one 200-id CVE chunk)
+- Holders come from chunked indexed reads, 5 lookup ids per chunk (#10564 H3;
+  the stamp cap stays one 200-id CVE chunk)
   (`fact_records_supply_chain_impact_lookup_idx`), the asking scope excluded,
   the operator scope included, plus the scopes whose item at their active
   generation is claimed or running (`fact_work_items_stage_domain_status_idx`),
   read first: a pass in flight may have loaded evidence before this pass's facts
   were visible, and a new generation with no finding rows is invisible to the
   row read. In this order a holder that acknowledges between the reads has
-  committed its rows.
+  committed its rows. Each chunk splits further by measured per-id row mass
+  (#10643): one mass-probe statement per chunk, then one holder-read statement
+  per hot id alone (over 10k rows) and one per cold group (at most 5 ids and
+  10k combined rows), run with up to 4 concurrent statements under the same
+  10 s guard. Splitting changes statement count only: the admitted id set, the
+  total work, and the per-statement timeout are unchanged.
 - One hop: only the attempt a fan-out created is one hop (attempt 1; the reopen
   and the replay both reset the count to 0). That pass re-derives its copy,
   fans out nothing of its own rewrite, and consumes the stamp — except the
