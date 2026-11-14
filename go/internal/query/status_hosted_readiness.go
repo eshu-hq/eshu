@@ -5,12 +5,16 @@ package query
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/buildinfo"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 	"github.com/eshu-hq/eshu/go/internal/status"
 	"github.com/eshu-hq/eshu/go/internal/status/shared"
@@ -64,8 +68,11 @@ type hostedDiagnosticTarget struct {
 // snapshot read on GET /api/v0/status/hosted-readiness (#7674). The status
 // snapshot reads through the guarded PostgreSQL reader, so a stale or
 // timed-out reader answers the retryable 503 under
-// hostedReadinessStatusCapability, which the error envelope names (#8227). The
-// reader error goes on the request span, never into the body.
+// hostedReadinessStatusCapability, which the error envelope names (#8227); a
+// snapshot read that outruns its own bounded budget answers the same verdict
+// (#10658). Any other failure answers the shared 500 failure envelope under
+// the same capability and writes one ERROR log line. The reader error goes
+// on the request span, never into the body.
 const hostedReadinessStatusReadFailedMessage = "hosted readiness status read failed"
 
 // hostedReadinessStatusCapability is the capability-matrix key a reader-fence
@@ -80,10 +87,7 @@ func (h *StatusHandler) getHostedReadiness(w http.ResponseWriter, r *http.Reques
 
 	raw, report, err := loadStatusReportFiltered(r.Context(), h.StatusReader, time.Now(), status.DefaultOptions(), operatorStatusSelection())
 	if err != nil {
-		if WriteGraphReadError(w, r, err, hostedReadinessStatusCapability) {
-			return
-		}
-		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, hostedReadinessStatusReadFailedMessage)
+		writeHostedReadinessReadFailure(w, r, err)
 		return
 	}
 
@@ -98,6 +102,55 @@ func (h *StatusHandler) getHostedReadiness(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	WriteJSON(w, http.StatusOK, payload)
+}
+
+// writeHostedReadinessReadFailure answers a failed status snapshot read on
+// GET /api/v0/status/hosted-readiness (#10658). WriteGraphReadError runs
+// first: a stale or timed-out PostgreSQL reader answers the retryable 503
+// with Retry-After under hostedReadinessStatusCapability (#8227). A snapshot
+// read that outruns its own bounded budget surfaces a bare
+// context.DeadlineExceeded with no fence sentinel, so the shared mapper
+// cannot see it: it answers the same retryable 503 verdict here. Anything
+// else answers the shared failure envelope through
+// tracing.ServerFailureEnvelope: 500 internal_error naming the capability, or
+// 499 with only the client-cancel event when the caller canceled its own
+// request. err's text never reaches the body. The 500 path also writes one
+// ERROR log line with the wrapped error and the request id, which the span
+// alone did not give operators.
+func writeHostedReadinessReadFailure(w http.ResponseWriter, r *http.Request, err error) {
+	if WriteGraphReadError(w, r, err, hostedReadinessStatusCapability) {
+		return
+	}
+	if hostedReadinessSnapshotBudgetExpired(r.Context(), err) {
+		w.Header().Set("Retry-After", strconv.Itoa(querycontract.BackendUnavailableRetryAfterSeconds))
+		WriteErrorEnvelope(w, r, http.StatusServiceUnavailable, &querycontract.ErrorEnvelope{
+			Code:       querycontract.ErrorCodeBackendUnavailable,
+			Message:    querycontract.ErrReaderRetryable.Error(),
+			Capability: hostedReadinessStatusCapability,
+			Details:    map[string]any{"retry_after_seconds": querycontract.BackendUnavailableRetryAfterSeconds},
+		})
+		return
+	}
+	if !tracing.ClientCanceled(r.Context(), err) {
+		slog.Default().ErrorContext(r.Context(), hostedReadinessStatusReadFailedMessage,
+			slog.String("check", "status_snapshot"),
+			slog.String("failure_class", "status_snapshot_unavailable"),
+			slog.String("error", err.Error()),
+			slog.String("request_id", documentationCorrelationID(r)))
+	}
+	status, errEnv := tracing.ServerFailureEnvelope(r.Context(), err, hostedReadinessStatusReadFailedMessage, hostedReadinessStatusCapability)
+	WriteErrorEnvelope(w, r, status, errEnv)
+}
+
+// hostedReadinessSnapshotBudgetExpired reports whether err is the bounded
+// status snapshot read running out of time rather than a mapped verdict or a
+// client cancel. The snapshot reader bounds every read (snapshotStatusReader
+// in runtime/postgres); a mid-read timeout surfaces a bare
+// context.DeadlineExceeded with no fence sentinel, so WriteGraphReadError
+// cannot map it. A client cancel carries context.Canceled, never a bare
+// deadline, and stays on the 499 path.
+func hostedReadinessSnapshotBudgetExpired(ctx context.Context, err error) bool {
+	return !tracing.ClientCanceled(ctx, err) && errors.Is(err, context.DeadlineExceeded)
 }
 
 func (h *StatusHandler) readHostedRepositoryCount(ctx context.Context) (int, error) {
