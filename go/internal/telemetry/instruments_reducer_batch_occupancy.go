@@ -87,7 +87,7 @@ func RegisterReducerBatchWorkerOccupancyGauge(inst *Instruments, meter metric.Me
 	if _, err = meter.RegisterCallback(func(ctx context.Context, o metric.Observer) error {
 		snapshot, err := obs.BatchWorkerOccupancy(ctx)
 		if err != nil {
-			return err
+			return fmt.Errorf("observe reducer batch worker occupancy: %w", err)
 		}
 		for _, worker := range snapshot {
 			if !worker.Busy {
