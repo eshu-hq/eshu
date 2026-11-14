@@ -207,7 +207,11 @@ source_coverage:
           max_results: 1
   - file: entity/handler.go
     calls:
-      - {symbol: "(*Handler).ResolveEntity", count: 1, source_sha256: 321bc4fd27fcdd2d870106b7a38ec79af71bfb8d7e128ece119dc9589c0bce11, entry_ids: [QP-ENTITY-RESOLVE-REPOSITORY]}
+      - {symbol: "(*Handler).ResolveEntity", count: 1, source_sha256: fc720cf03d7517e0d46fab079cb8a44ad443ea7b3217b530994ddf5c914c3035, entry_ids: [QP-ENTITY-RESOLVE-REPOSITORY]}
+  - file: entity/resolve_namefirst.go
+    calls:
+      - {symbol: "(*Handler).resolveNameFirstRepositories", count: 1, non_hot: {class: label_inventory, source_sha256: 61ec84d89931710d6d02dc4d46f75135e44ef759e2061c1e78b3d5c523143dfa, label: "Repository", max_results: 101}}
+      - {symbol: "(*Handler).resolveNameFirstPackages", count: 1, non_hot: {class: label_inventory, source_sha256: 70be8f5319cb737ee07c2055718acc6b3472668e4f71e51ce0d41023aaa0cfa8, label: "Package", max_results: 101}}
   - file: entity/resolve_workload.go
     calls:
       - {symbol: "(*Handler).ResolveWorkloadEntities", count: 2, source_sha256: 0f5ae69f1f825814cd2e58fecb146589dc2733e95fe9dd24163c0bb2939473ad, entry_ids: [QP-WORKLOAD-RESOLVE-PROPERTY, QP-WORKLOAD-RESOLVE-RELATIONSHIP]}

@@ -121,7 +121,7 @@ Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:207`):
 | `analyze_pre_change_impact` | POST | `/api/v0/impact/pre-change` |
 | `plan_developer_change` | POST | `/api/v0/impact/developer-change-plan` |
 | `investigate_resource` | POST | `/api/v0/impact/resource-investigation` |
-| `resolve_entity` | POST | `/api/v0/entities/resolve` — exact case-sensitive lookup; global calls require one supported `type`, except canonical `content-entity:` handles and workload resolution |
+| `resolve_entity` | POST | `/api/v0/entities/resolve` — exact case-sensitive lookup; omitting `type` with no `repo_id` searches every kind by exact name in one ranked list |
 | `get_service_story` | GET | `/api/v0/services/{service_selector}/story` (canonical `workload:*` inputs also pass `service_id`; `service_name` plus `repo`/`repository_id`/`repo_id` forwards repository-scoped story selection to HTTP) |
 | `investigate_service` | GET | `/api/v0/investigations/services/{service_name}` |
 | `search_php_configuration` | POST | `/api/v0/content/php-config/search` — guarded directive or server-mode declarations |

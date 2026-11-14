@@ -15,7 +15,7 @@ const Entities = `
       "post": {
         "tags": ["entities"],
         "summary": "Resolve entity",
-        "description": "Resolves an entity by exact case-sensitive name. Requests without repo_id require a supported type and use the current content entity index; repository, directory, and file types require repo_id. Canonical content-entity IDs and workload resolution keep their dedicated exact paths.",
+        "description": "Resolves an entity by exact case-sensitive name. Omitting type with no repo_id searches every kind by exact name (repository, workload, package, and content entity), returning one ranked list where each match carries its kind, canonical id, and next selector; names under 3 characters are refused. A supplied type narrows the lookup to that index; repository, directory, and file types require repo_id. Canonical content-entity IDs and workload resolution keep their dedicated exact paths.",
         "operationId": "resolveEntity",
         "x-scoped-token-support": true,
         "requestBody": {
@@ -27,7 +27,7 @@ const Entities = `
                 "required": ["name"],
                 "properties": {
                   "name": {"type": "string", "description": "Entity name to search for"},
-                  "type": {"type": "string", "description": "Entity type filter. Required when repo_id is omitted, except for canonical content-entity IDs. Unknown types fail closed."},
+                  "type": {"type": "string", "description": "Entity type filter. Optional: omitting it with no repo_id searches every kind by exact name. Unknown types fail closed."},
                   "repo_id": {"type": "string", "description": "Optional repository ID filter"},
                   "limit": {"type": "integer", "default": 10, "minimum": 1, "maximum": 100}
                 }
