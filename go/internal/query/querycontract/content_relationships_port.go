@@ -36,14 +36,29 @@ type ContentRelationshipSet struct {
 	OutgoingClipType, IncomingClipType string
 }
 
+// ContentRelationshipReader is the narrow read port the content relationship
+// builder needs: exactly the four ContentStore lookups the per-language and
+// per-manifest-kind extraction calls (name search, component-reference
+// search, repo file list, repo entities by type). Root's ContentReader
+// satisfies it through the full ContentStore, and so does every test double
+// that answers those four reads; callers keep passing the wide store, which
+// assignability narrows implicitly at the call site.
+type ContentRelationshipReader interface {
+	SearchEntitiesByName(ctx context.Context, repoID, entityType, name string, limit int) ([]EntityContent, error)
+	SearchEntitiesReferencingComponent(ctx context.Context, repoID, componentName string, limit int) ([]EntityContent, error)
+	ListRepoFiles(ctx context.Context, repoID string, limit int) ([]FileContent, error)
+	ListRepoEntitiesByType(ctx context.Context, repoID, entityType string, limit int) ([]EntityContent, error)
+}
+
 // ContentRelationshipBuilder builds an entity's content-derived incoming and
 // outgoing relationships. Root's ContentIndexRelationshipBuilder is the only
 // production implementation; it forwards to root's unexported
 // buildContentRelationshipSet (content_relationships.go), which owns the
 // actual per-language, per-manifest-kind relationship extraction and cannot
-// move here itself (its own closure is far larger than the narrow port
-// this interface exists to name).
+// move here itself (its own closure reads only through the narrow
+// ContentRelationshipReader port declared above, far smaller than the full
+// ContentStore surface the rest of the read handlers need).
 type ContentRelationshipBuilder interface {
-	BuildContentRelationships(ctx context.Context, reader ContentStore,
+	BuildContentRelationships(ctx context.Context, reader ContentRelationshipReader,
 		entity EntityContent, logger *slog.Logger) (ContentRelationshipSet, error)
 }

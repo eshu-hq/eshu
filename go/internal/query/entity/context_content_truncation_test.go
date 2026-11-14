@@ -55,7 +55,7 @@ type scriptedContentRelationshipBuilder struct {
 	set querycontract.ContentRelationshipSet
 }
 
-func (f scriptedContentRelationshipBuilder) BuildContentRelationships(_ context.Context, _ querycontract.ContentStore, _ querycontract.EntityContent, _ *slog.Logger) (querycontract.ContentRelationshipSet, error) {
+func (f scriptedContentRelationshipBuilder) BuildContentRelationships(_ context.Context, _ querycontract.ContentRelationshipReader, _ querycontract.EntityContent, _ *slog.Logger) (querycontract.ContentRelationshipSet, error) {
 	return f.set, nil
 }
 

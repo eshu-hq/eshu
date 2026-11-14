@@ -138,7 +138,7 @@ type legacyKeyFallbackRelationshipSpy struct {
 	calls int
 }
 
-func (s *legacyKeyFallbackRelationshipSpy) BuildContentRelationships(context.Context, querycontract.ContentStore, querycontract.EntityContent, *slog.Logger) (querycontract.ContentRelationshipSet, error) {
+func (s *legacyKeyFallbackRelationshipSpy) BuildContentRelationships(context.Context, querycontract.ContentRelationshipReader, querycontract.EntityContent, *slog.Logger) (querycontract.ContentRelationshipSet, error) {
 	s.calls++
 	return querycontract.ContentRelationshipSet{}, nil
 }
