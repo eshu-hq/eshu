@@ -3,7 +3,7 @@
   "blocking": true,
   "totals": {
     "total": 455,
-    "covered": 445,
+    "covered": 442,
     "uncovered": 0,
     "unresolved": 0,
     "exempt": 13,
@@ -114,7 +114,7 @@
     {
       "registry": "surface_inventory",
       "total": 20,
-      "covered": 13,
+      "covered": 10,
       "uncovered": 0,
       "unresolved": 0,
       "exempt": 10,
@@ -166,7 +166,7 @@
     {
       "scenario_type": "fault",
       "total": 10,
-      "covered": 5,
+      "covered": 2,
       "uncovered": 0,
       "unresolved": 0,
       "exempt": 8,
