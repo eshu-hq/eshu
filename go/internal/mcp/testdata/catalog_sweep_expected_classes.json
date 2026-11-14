@@ -144,6 +144,7 @@
     "list_relationship_edges/default": "allowlisted",
     "list_repositories_by_language/default": "allowlisted",
     "list_repository_files/default": "allowlisted",
+    "list_repository_manifest_dependencies/default": "allowlisted",
     "list_sbom_attestation_attachments/default": "allowlisted",
     "list_secrets_iam_identity_trust_chains/default": "allowlisted",
     "list_secrets_iam_posture_gaps/default": "allowlisted",

@@ -715,7 +715,7 @@
       },
       {
         "family": "repository_content",
-        "description": "Repository, source, content, code graph, code-quality, relationships, evidence citation, dependency, codeowners ownership, declared runtime version, and visualization reads.",
+        "description": "Repository, source, content, code graph, code-quality, relationships, evidence citation, dependency, codeowners ownership, declared runtime version, declared manifest dependency, and visualization reads.",
         "capability_prefixes": [
           "code_search.",
           "code_inventory.",
@@ -730,6 +730,7 @@
           "relationship_evidence.",
           "evidence_citation.",
           "dependencies.",
+          "manifest.",
           "codeowners.",
           "runtime_declaration.",
           "visualization."
@@ -5554,6 +5555,80 @@
           "owner"
         ],
         "sensitive_data": false
+      }
+    },
+    {
+      "capability": "manifest.dependencies.list",
+      "display_name": "Manifest Dependencies List",
+      "maturity": "general_availability",
+      "derived_maturity": "general_availability",
+      "surfaces": [
+        {
+          "tool": "list_repository_manifest_dependencies",
+          "kind": "mcp"
+        }
+      ],
+      "profiles": {
+        "local_authoritative": {
+          "status": "supported",
+          "max_truth_level": "derived",
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "repository_id"
+        },
+        "local_full_stack": {
+          "status": "supported",
+          "max_truth_level": "derived",
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "repository_id"
+        },
+        "local_lightweight": {
+          "status": "unsupported",
+          "max_truth_level": "unsupported",
+          "required_runtime": "local_host",
+          "max_scope_size": "active_monofolder"
+        },
+        "production": {
+          "status": "supported",
+          "max_truth_level": "derived",
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "repository_id"
+        }
+      },
+      "proof_signals": [
+        {
+          "kind": "go_test",
+          "ref": "./internal/query/manifest"
+        },
+        {
+          "kind": "go_test",
+          "ref": "./internal/storage/postgres"
+        },
+        {
+          "kind": "integration_test",
+          "ref": "local-lightweight-unsupported-manifest-dependencies"
+        }
+      ],
+      "console": false,
+      "authorization": {
+        "family": "repository_content",
+        "action": "repository.content.read",
+        "data_classes": [
+          "repository_metadata",
+          "source_content"
+        ],
+        "scope_levels": [
+          "tenant",
+          "workspace",
+          "repository"
+        ],
+        "default_roles": [
+          "developer",
+          "owner"
+        ],
+        "sensitive_data": true
       }
     },
     {

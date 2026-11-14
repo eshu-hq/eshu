@@ -33,7 +33,7 @@ func TestReadOnlyToolsKeepsServiceRegistrationPositions(t *testing.T) {
 	}
 
 	tools := ReadOnlyTools()
-	if got, want := len(tools), 173; got != want {
+	if got, want := len(tools), 174; got != want {
 		t.Fatalf("ReadOnlyTools count = %d, want %d", got, want)
 	}
 	assertServiceRegistrationRange(t, tools, 78, []string{
@@ -61,7 +61,7 @@ func TestReadOnlyToolsKeepsServiceRegistrationPositions(t *testing.T) {
 		t.Fatal("ReadOnlyTools intelligence definition drifted from service.IntelligenceTools")
 	}
 
-	const wantHash = "fc51bf7aff5cb84dbdd685ce65a7e8fbe28729fa37625e4e5b9dc0a50009b1f2"
+	const wantHash = "8fa91fa54cbb7be5c0e964b539cca899fb39295449e04dc5e7118b2547125fec"
 	hash := sha256.New()
 	for _, tool := range tools {
 		_, _ = fmt.Fprintf(hash, "%d:%s\n", len(tool.Name), tool.Name)

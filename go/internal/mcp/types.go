@@ -89,6 +89,7 @@ func ReadOnlyTools() []ToolDefinition {
 	tools = append(tools, dockerfileInstallTool())
 	tools = append(tools, phpConfigurationTool())
 	tools = append(tools, ssmHostInventoryTools()...)
+	tools = append(tools, repositoryManifestDependencyTools()...)
 	return tools
 }
 

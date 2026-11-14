@@ -185,6 +185,7 @@ var spanNames = []string{
 	SpanQueryPackageRegistryVersions,
 	SpanQueryPackageRegistryDependencies,
 	SpanQueryDependencies,
+	SpanQueryManifestDependencies,
 	SpanQueryCodeownersOwnership,
 	SpanQueryRuntimeDeclarations,
 	SpanQueryContainerImageTagHistory,

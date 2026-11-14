@@ -185,6 +185,7 @@ the `querycontract.CoreReadContractsVersion` port set.
 | `GET /api/v0/repositories/{repo_id}/stats` | Repositories | paths/repository/stats_and_coverage.go | read | reader (ReadStore/graph/content, no durable writes) | newRouter |
 | `GET /api/v0/repositories/{repo_id}/story` | Repositories | paths/repository/routes.go | read | reader (ReadStore/graph/content, no durable writes) | newRouter |
 | `GET /api/v0/repositories/{repo_id}/tree` | Repositories | paths/repository/routes.go | read | reader (ReadStore/graph/content, no durable writes) | newRouter |
+| `GET /api/v0/repository/manifest-dependencies` | ManifestDependencies | paths/repository/manifest_dependencies.go | read | reader (FactStore read-only snapshot; writer handle held for the snapshot transaction, which refuses writes) | newRouter |
 | `GET /api/v0/secrets-iam/identity-trust-chains` | SecretsIAM | paths/infrastructure/secrets_iam.go | read | reader (ReadStore/graph/content, no durable writes) | newRouter |
 | `GET /api/v0/secrets-iam/posture-gaps` | SecretsIAM | paths/infrastructure/secrets_iam.go | read | reader (ReadStore/graph/content, no durable writes) | newRouter |
 | `GET /api/v0/secrets-iam/posture-summary` | SecretsIAM | paths/infrastructure/secrets_iam.go | read | reader (ReadStore/graph/content, no durable writes) | newRouter |

@@ -1236,6 +1236,15 @@
         }
       }
     ],
+    "list_repository_manifest_dependencies": [
+      {
+        "label": "default",
+        "arguments": {
+          "repository_id": "sweep-seed-missing",
+          "limit": 5
+        }
+      }
+    ],
     "search_registry_bundles": [
       {
         "label": "default",

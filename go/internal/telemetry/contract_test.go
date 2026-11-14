@@ -280,6 +280,7 @@ func TestSpanNames(t *testing.T) {
 		"query.sbom_attestation_attachment_aggregate",
 		"query.ci_cd_run_correlation_aggregate",
 		"query.dependencies",
+		"query.manifest_dependencies",
 		"query.codeowners_ownership",
 		"query.language_query",
 		"query.runtime_declarations",

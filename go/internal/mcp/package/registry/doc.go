@@ -4,7 +4,7 @@
 // Package packageregistrytools defines pure route selection for the MCP
 // package-registry family.
 //
-// Route decides which of the six package-registry tools this package owns and
+// Route decides which of the seven package-registry tools this package owns and
 // maps decoded arguments to a dependency-neutral internal request without
 // executing it. The parent mcp package owns tool registration and its order,
 // global route fanout, the private adapter, HTTP dispatch, authorization,

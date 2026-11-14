@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/eshu-hq/eshu/go/internal/query/capability"
+	"github.com/eshu-hq/eshu/go/internal/query/manifest"
 	"github.com/eshu-hq/eshu/go/internal/query/openapi"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	runtimedeclaration "github.com/eshu-hq/eshu/go/internal/query/runtime/declaration"
@@ -95,6 +96,7 @@ type APIRouter struct {
 	SemanticSearch                 *SemanticSearchHandler
 	PackageRegistry                *PackageRegistryHandler
 	Dependencies                   *DependenciesHandler
+	ManifestDependencies           *manifest.Handler
 	CodeownersOwnership            *CodeownersOwnershipHandler
 	RuntimeDeclarations            *runtimedeclaration.Handler
 	CICD                           *CICDHandler
@@ -297,6 +299,11 @@ func (a *APIRouter) Mount(mux *http.ServeMux) {
 	// Dependency inventory
 	if a.Dependencies != nil {
 		a.Dependencies.Mount(mux)
+	}
+
+	// Repository manifest dependencies (#10660)
+	if a.ManifestDependencies != nil {
+		a.ManifestDependencies.Mount(mux)
 	}
 
 	// Codeowners ownership

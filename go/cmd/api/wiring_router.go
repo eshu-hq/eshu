@@ -25,6 +25,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
 	"github.com/eshu-hq/eshu/go/internal/query/iac"
 	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
+	"github.com/eshu-hq/eshu/go/internal/query/manifest"
 	runtimedeclaration "github.com/eshu-hq/eshu/go/internal/query/runtime/declaration"
 	"github.com/eshu-hq/eshu/go/internal/query/semanticsearch"
 	"github.com/eshu-hq/eshu/go/internal/query/service"
@@ -262,6 +263,11 @@ func newRouterWithSemanticEmbeddingWithReadStore(
 		PackageRegistry: newPackageRegistryHandler(reader, neo4jReader, contentReader, queryProfile),
 		Dependencies: &query.DependenciesHandler{
 			Neo4j:       neo4jReader,
+			Profile:     queryProfile,
+			Instruments: instruments,
+		},
+		ManifestDependencies: &manifest.Handler{
+			Store:       manifest.NewPostgresManifestDependencyStore(writer, instruments, logger),
 			Profile:     queryProfile,
 			Instruments: instruments,
 		},

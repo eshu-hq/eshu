@@ -236,6 +236,9 @@ func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 	if scopedPackageRegistryIdentityRoute(r) {
 		return true
 	}
+	if scopedRepositoryManifestDependenciesRoute(r) {
+		return true
+	}
 	if scopedCodeBundlesRoute(r) {
 		return true
 	}

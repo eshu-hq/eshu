@@ -19,6 +19,7 @@ func TestRouteOwnsExactlyThePackageRegistryFamily(t *testing.T) {
 		"get_package_registry_package_inventory",
 		"list_package_registry_versions",
 		"list_package_registry_dependencies",
+		"list_repository_manifest_dependencies",
 		"list_package_registry_correlations",
 	}
 	for _, toolName := range owned {
@@ -142,6 +143,15 @@ func TestRoutePreservesPackageRegistryRequestContracts(t *testing.T) {
 				"repository_id":        "repo-web",
 			}},
 		},
+		{
+			toolName: "list_repository_manifest_dependencies",
+			want: routecontract.Request{Method: "GET", Path: "/api/v0/repository/manifest-dependencies", Query: map[string]string{
+				"after_fact_id":     "",
+				"after_observed_at": "",
+				"limit":             "25",
+				"repository_id":     "repo-web",
+			}},
+		},
 	} {
 		request, handled := Route(tt.toolName, args)
 		if !handled {
@@ -167,6 +177,7 @@ func TestRouteAppliesPackageRegistryDefaultsAndCoercions(t *testing.T) {
 		{toolName: "list_package_registry_packages", key: "limit", want: "50"},
 		{toolName: "list_package_registry_versions", key: "limit", want: "50"},
 		{toolName: "list_package_registry_dependencies", key: "limit", want: "50"},
+		{toolName: "list_repository_manifest_dependencies", key: "limit", want: "50"},
 		{toolName: "list_package_registry_correlations", key: "limit", want: "50"},
 		{toolName: "get_package_registry_package_inventory", key: "limit", want: "100"},
 		{toolName: "get_package_registry_package_inventory", key: "offset", want: "0"},

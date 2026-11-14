@@ -90,6 +90,66 @@ ORDER BY page.observed_at ASC, page.fact_id ASC
 LIMIT $5
 `
 
+// listActiveRepositoryManifestDependencyFactsQuery is the #10660
+// repository-scoped manifest dependency read: the same manifest predicates,
+// active-generation joins, keyset cursor, ordering, and tombstone filter as
+// listActivePackageManifestDependencyFactsQuery, with the per-(package
+// manager, name) LATERAL probes replaced by one repository predicate
+// (fact.scope_id = $1). $2/$3 carry the (observed_at, fact_id) keyset cursor
+// and $4 the fetch bound (the caller passes limit+1 as its truncation
+// lookahead); the candidate base generation ids bind at $5, so the numbering
+// stays dense for the pgx exec-mode first-arg convention. The text keeps one
+// fact_records branch with the active scope join and generation predicate the
+// delta-overlay rewrite requires, so the derived base pages keep the same
+// scope-first shape.
+//
+// Performance Evidence:
+// docs/internal/evidence/10660-manifest-scope-read-plan.md (disposable
+// PostgreSQL 18.6, 96,030-row fleet-shaped corpus): the scope-first probe
+// serves through fact_records_content_entity_dependency_variable_repo_idx
+// (#121) in 0.8 ms with no sequential scan and no new index.
+// No-Observability-Change: the read_seconds/read_pages histograms and the
+// delta_union outcomes keep their labels; the read label is "repository".
+const listActiveRepositoryManifestDependencyFactsQuery = `
+SELECT
+    fact.fact_id,
+    fact.scope_id,
+    fact.generation_id,
+    fact.fact_kind,
+    fact.stable_fact_key,
+    fact.schema_version,
+    fact.collector_kind,
+    fact.fencing_token,
+    fact.source_confidence,
+    fact.source_system,
+    fact.source_fact_key,
+    COALESCE(fact.source_uri, '') AS source_uri,
+    COALESCE(fact.source_record_id, '') AS source_record_id,
+    fact.observed_at,
+    fact.is_tombstone,
+    fact.payload
+FROM fact_records AS fact
+JOIN ingestion_scopes AS scope
+  ON scope.scope_id = fact.scope_id
+ AND scope.active_generation_id = fact.generation_id
+JOIN scope_generations AS generation
+  ON generation.scope_id = fact.scope_id
+ AND generation.generation_id = fact.generation_id
+WHERE fact.fact_kind = 'content_entity'
+  AND fact.source_system = 'git'
+  AND fact.payload->>'entity_type' = 'Variable'
+  AND fact.payload->'entity_metadata'->>'config_kind' = 'dependency'
+  AND fact.scope_id = $1::text
+  AND generation.status = 'active'
+  AND fact.is_tombstone = FALSE
+  AND (
+    $2::timestamptz IS NULL
+    OR (fact.observed_at, fact.fact_id) > ($2::timestamptz, $3::text)
+  )
+ORDER BY fact.observed_at ASC, fact.fact_id ASC
+LIMIT $4
+`
+
 // listActivePackageManifestDependencyFactsWithSBTQuery is the Maven-family
 // read (#8961). Its first branch is the plain per-(package manager, name)
 // probe (#9611) over the Maven family's managers, so Gradle and sbt `%` rows

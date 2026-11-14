@@ -179,6 +179,7 @@ var scopedTokenAdvertisedRoutes = map[string]scopedRouteClass{
 	"GET /api/v0/repositories/{repo_id}/stats":                                      scopedRouteGrantBound,
 	"GET /api/v0/repositories/{repo_id}/story":                                      scopedRouteGrantBound,
 	"GET /api/v0/repositories/{repo_id}/tree":                                       scopedRouteGrantBound,
+	"GET /api/v0/repository/manifest-dependencies":                                  scopedRouteGrantBound,
 	"GET /api/v0/replatforming/selectors":                                           scopedRouteGrantBound,
 	"GET /api/v0/secrets-iam/identity-trust-chains":                                 scopedRouteGrantBound,
 	"GET /api/v0/secrets-iam/posture-gaps":                                          scopedRouteGrantBound,

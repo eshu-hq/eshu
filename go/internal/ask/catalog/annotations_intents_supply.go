@@ -36,9 +36,10 @@ func supplyToolIntents() map[string]toolIntent {
 		"get_package_registry_package_inventory": intents("packages grouped by ecosystem", "package inventory by namespace", "packages by visibility", "grouped package counts"),
 		"search_registry_bundles":                intents("search package bundles", "find package by purl", "registry catalog search", "package bundle by namespace"),
 		// package registry versions, dependencies, correlations (not in a family)
-		"list_package_registry_versions":     intents("package versions", "list versions of package", "release history of package", "version identities for package"),
-		"list_package_registry_dependencies": intents("package dependencies", "dependency edges of package version", "what does this package depend on", "package native dependencies"),
-		"list_package_registry_correlations": intents("who owns this package", "package publication evidence", "which repo consumes package", "package ownership candidates", "manifest backed package consumption"),
+		"list_package_registry_versions":        intents("package versions", "list versions of package", "release history of package", "version identities for package"),
+		"list_package_registry_dependencies":    intents("package dependencies", "dependency edges of package version", "what does this package depend on", "package native dependencies"),
+		"list_package_registry_correlations":    intents("who owns this package", "package publication evidence", "which repo consumes package", "package ownership candidates", "manifest backed package consumption"),
+		"list_repository_manifest_dependencies": intents("what does this repository depend on", "declared manifest dependencies", "repository dependency list", "manifest dependencies of repo"),
 		// ci-cd
 		"list_ci_cd_run_correlations":         canonicalIntents("ci cd runs for commit", "pipeline run correlation", "which build produced this image", "deployment runs by environment", "workflow run for artifact digest"),
 		"count_ci_cd_run_correlations":        intents("how many pipeline runs", "ci run totals", "count of run correlations by outcome", "runs by provider count"),
