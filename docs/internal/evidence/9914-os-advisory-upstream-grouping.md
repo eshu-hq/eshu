@@ -263,10 +263,8 @@ probe and is newly reachable from an OS pass only because the base OS pass never
 rows for its CVEs. Accepted for this change (#9994). Root cause tracked in #10020: the
 retained generations of the KEV scope. NOT_CHECKED: the production loader's statement
 timeout and what a cold chunk above it does to the pass (expected: the pass fails before
-acknowledgement and the queue retries it warm); a true cold-first pair on the same ids;
-EPSS rows, which were not present for these ids. These figures are for one statement of
-240 ids. The statement now binds at most 120, so a list reads the same rows over twice
-as many statements; that split was not timed.
+acknowledgement and the queue retries it warm); EPSS rows, which were not present for
+these ids. Re-measure after the #10020 fix (QA, read-only, 2026-11-14, KEV scope at the policy floor of 24 superseded + 1 active): the same 2-kind statement over 240 real KEV ids in 2 statements of 120, same ids cold and warm, reads 6,000 rows over 25 generations (25 rows/id, down from 612); cold-first 2.14 s, warm 0.06 s twice, cve_lookup_v2 key probe every run.
 
 ## Observability
 
