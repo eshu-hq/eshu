@@ -73,9 +73,11 @@ func serveRepositoryContextDetail(t *testing.T, query string, envelope bool) (*h
 func TestGetRepositoryContextEvidenceDetailParameter(t *testing.T) {
 	t.Parallel()
 
+	// Full (absent or explicit) leaves the body untouched, so the response
+	// carries no evidence_detail key; handles records its mode on the body.
 	for _, tc := range []struct{ query, want string }{
-		{"", "full"},
-		{"?evidence_detail=full", "full"},
+		{"", ""},
+		{"?evidence_detail=full", ""},
 		{"?evidence_detail=handles", "handles"},
 	} {
 		w, _ := serveRepositoryContextDetail(t, tc.query, false)

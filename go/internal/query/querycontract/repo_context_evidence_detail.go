@@ -3,6 +3,8 @@
 
 package querycontract
 
+import "sort"
+
 // repoContextDependencyHandleKeys keeps a top-level relationships row (the
 // outgoing dependency list) to the same identity keys.
 var repoContextDependencyHandleKeys = []string{
@@ -20,12 +22,12 @@ var repoContextConsumerHandleKeys = []string{"name", "id"}
 // The extraction reason ships only under full.
 var repoContextEntryPointHandleKeys = []string{"name", "relative_path", "language"}
 
-// repoContextInfraHandleKeys keeps an infrastructure row to the platform,
-// family, and path fields that identify it. Per-row evidence detail ships
-// only under full.
+// repoContextInfraHandleKeys keeps an infrastructure row to the identity
+// its builders emit (type|name|file_path per
+// repositoryInfrastructureEntryKey) plus kind, the real optional
+// classifier. Per-row evidence detail ships only under full.
 var repoContextInfraHandleKeys = []string{
-	"platform", "platform_kind", "family", "tool_family", "kind", "type",
-	"path", "name", "environment",
+	"type", "name", "file_path", "kind",
 }
 
 // RepoContextHandleListFamilies returns the repository-context row families
@@ -50,7 +52,8 @@ func RepoContextHandleListFamilies() []string {
 // ApplyRepoContextEvidenceDetail shapes a repository-context payload in place
 // after the dossier is built, so every count is computed from the full rows
 // and the shaping changes only what ships. An empty detail means full. It
-// always sets evidence_detail.
+// sets evidence_detail only under handles; full leaves the body untouched,
+// byte-identical to the pre-change shape.
 //
 // Under handles it projects the bulky row families to identity rows, drops
 // the repeated relationship partition lists and the evidence_index regrouping
@@ -64,10 +67,10 @@ func ApplyRepoContextEvidenceDetail(data map[string]any, detail string) []TruthO
 	if detail == "" {
 		detail = ContextEvidenceDetailFull
 	}
-	data["evidence_detail"] = detail
 	if detail != ContextEvidenceDetailHandles {
 		return nil
 	}
+	data["evidence_detail"] = detail
 	var omissions []TruthOmission
 	resolvedHint := false
 	reduce := func(projected []TruthOmission, carriesResolvedID bool) {
@@ -176,18 +179,43 @@ func projectRepoContextDeploymentEvidence(data map[string]any) []TruthOmission {
 	}}
 }
 
-// projectRepoContextTopArtifacts projects a deployment_artifacts list held
-// either at the top level or inside an overview holder.
+// projectRepoContextTopArtifacts projects a deployment_artifacts map of
+// named lists held either at the top level or inside an overview holder.
+// Production stores one named list per artifact source, merged by
+// MergeDeploymentArtifactMaps, so a flat-list read would no-op on real data.
+// Every named list is projected to identity rows (names sorted for a stable
+// omission order) and the family carries one omission with the summed total,
+// keeping the RepoContextHandleListFamilies naming.
 func projectRepoContextTopArtifacts(holder map[string]any, key, section string) []TruthOmission {
-	rows := MapSliceValue(holder, key)
-	if len(rows) == 0 {
+	artifacts := MapValue(holder, key)
+	if len(artifacts) == 0 {
 		return nil
 	}
-	holder[key] = projectContextRows(rows, repoStoryDeploymentArtifactHandleKeys)
+	names := make([]string, 0, len(artifacts))
+	for name := range artifacts {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	// Copy before projecting: the top-level and overview holders can alias
+	// the same map, and a map shared with a read model is never mutated.
+	shaped := CopyMap(artifacts)
+	total := 0
+	for _, name := range names {
+		rows := MapSliceValue(artifacts, name)
+		if len(rows) == 0 {
+			continue
+		}
+		shaped[name] = projectContextRows(rows, repoStoryDeploymentArtifactHandleKeys)
+		total += len(rows)
+	}
+	if total == 0 {
+		return nil
+	}
+	holder[key] = shaped
 	return []TruthOmission{{
 		Section: section,
 		Detail:  ContextEvidenceDetailHandles,
-		Total:   len(rows),
+		Total:   total,
 	}}
 }
 

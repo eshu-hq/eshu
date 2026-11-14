@@ -44,9 +44,15 @@ func (h *Handler) writeRepositoryContextResponse(
 ) {
 	timer := startRepositoryQueryStage(r.Context(), h.Logger, "repository_context", repoID, "evidence_detail")
 	omissions := querycontract.ApplyRepoContextEvidenceDetail(response, evidenceDetail)
+	// Log the request's own mode: full leaves the body untouched, so the
+	// response no longer carries an evidence_detail key to read back.
+	mode := evidenceDetail
+	if mode == "" {
+		mode = querycontract.ContextEvidenceDetailFull
+	}
 	timer.Done(
 		r.Context(),
-		slog.String("evidence_detail", querycontract.StringVal(response, "evidence_detail")),
+		slog.String("evidence_detail", mode),
 		slog.Int("omission_count", len(omissions)),
 	)
 	truth := querycontract.BuildTruthEnvelope(

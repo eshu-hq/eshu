@@ -37,7 +37,9 @@ func (r repoContextDispatchReader) Run(_ context.Context, _ string, _ map[string
 
 // TestDispatchToolRepoContextDefaultsEvidenceDetailToHandles proves the MCP
 // route builder forwards evidence_detail=handles when the caller names no
-// value, and forwards an explicit full verbatim (#10654).
+// value, and forwards an explicit full verbatim (#10654). Full leaves the
+// body untouched, so an explicit full carries no evidence_detail key while
+// handles records its mode on the body.
 func TestDispatchToolRepoContextDefaultsEvidenceDetailToHandles(t *testing.T) {
 	t.Parallel()
 
@@ -47,7 +49,7 @@ func TestDispatchToolRepoContextDefaultsEvidenceDetailToHandles(t *testing.T) {
 		want string
 	}{
 		{"absent means handles", map[string]any{"repo_id": "repo-context"}, "handles"},
-		{"explicit full wins", map[string]any{"repo_id": "repo-context", "evidence_detail": "full"}, "full"},
+		{"explicit full wins", map[string]any{"repo_id": "repo-context", "evidence_detail": "full"}, ""},
 		{"explicit handles stays", map[string]any{"repo_id": "repo-context", "evidence_detail": "handles"}, "handles"},
 	} {
 		mux := http.NewServeMux()

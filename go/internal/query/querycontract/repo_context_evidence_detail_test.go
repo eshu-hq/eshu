@@ -30,8 +30,13 @@ func TestApplyRepoContextEvidenceDetailFullIsIdentity(t *testing.T) {
 	if string(defBytes) != string(fullBytes) {
 		t.Fatal("default response differs from explicit full; want byte-identical")
 	}
-	if got := StringVal(def, "evidence_detail"); got != ContextEvidenceDetailFull {
-		t.Fatalf("evidence_detail = %q, want full", got)
+	// Full leaves the body untouched: no evidence_detail key, so the shaped
+	// default is byte-identical to the pre-change body, not just to an
+	// explicit full.
+	for name, body := range map[string]map[string]any{"default": def, "full": full} {
+		if _, ok := body["evidence_detail"]; ok {
+			t.Fatalf("%s body sets evidence_detail = %v, want the key absent under full", name, body["evidence_detail"])
+		}
 	}
 }
 
@@ -146,7 +151,8 @@ func repoContextSizeWideRow(identity map[string]any, dropped int) map[string]any
 // repoContextSizeBody builds an at-cap repository context: 200 wide
 // relationship rows with partition repeats, 100 wide dependency rows, 200
 // consumers, 100 wide API endpoints, 100 wide deployment evidence artifacts,
-// 100 wide content artifacts, 100 entry points, and 200 infrastructure rows.
+// 100 wide content artifacts in production map shape (50 controller plus 50
+// runtime rows), 100 entry points, and 200 infrastructure rows.
 func repoContextSizeBody() map[string]any {
 	relationships := make([]map[string]any, 0, 200)
 	for range 200 {
@@ -188,12 +194,27 @@ func repoContextSizeBody() map[string]any {
 			"resolved_id": "res-wide",
 		}, 6))
 	}
-	contentArtifacts := make([]map[string]any, 0, 100)
-	for range 100 {
-		contentArtifacts = append(contentArtifacts, repoContextSizeWideRow(map[string]any{
+	controllerArtifacts := make([]map[string]any, 0, 50)
+	for range 50 {
+		controllerArtifacts = append(controllerArtifacts, repoContextSizeWideRow(map[string]any{
+			"path": "Jenkinsfile", "controller_kind": "jenkins_pipeline",
+			"artifact_name": "deploy-pipeline", "service_name": "edge-api",
+		}, 8))
+	}
+	runtimeArtifacts := make([]map[string]any, 0, 50)
+	for range 50 {
+		runtimeArtifacts = append(runtimeArtifacts, repoContextSizeWideRow(map[string]any{
 			"relative_path": "Dockerfile.svc", "artifact_type": "dockerfile",
 			"artifact_name": "api-image", "service_name": "edge-api",
 		}, 8))
+	}
+	// Production stores deployment_artifacts as a map of named lists
+	// (LoadDeploymentArtifactOverviewWithStats merges controller, runtime,
+	// workflow, and CloudFormation maps); the fixture mirrors that shape so
+	// the at-cap test proves the shaper descends into it.
+	contentArtifacts := map[string]any{
+		"controller_artifacts": controllerArtifacts,
+		"deployment_artifacts": runtimeArtifacts,
 	}
 	entryPoints := make([]map[string]any, 0, 100)
 	for range 100 {
@@ -203,10 +224,13 @@ func repoContextSizeBody() map[string]any {
 	}
 	infra := make([]map[string]any, 0, 200)
 	for range 200 {
+		// Production identity is type|name|file_path
+		// (repositoryInfrastructureEntryKey); kind and source are the real
+		// optional classifiers.
 		infra = append(infra, repoContextSizeWideRow(map[string]any{
-			"platform": "kubernetes", "platform_kind": "kubernetes",
-			"family": "deploy", "kind": "Deployment", "path": "charts/api",
-			"name": "edge-api",
+			"type": "K8sResource", "name": "edge-api",
+			"file_path": "charts/api/templates/deploy.yaml",
+			"kind":      "Deployment", "source": "helm",
 		}, 4))
 	}
 	relationshipOverview := map[string]any{
