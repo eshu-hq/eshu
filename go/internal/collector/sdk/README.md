@@ -224,14 +224,14 @@ hosted status surface. The SDK remains telemetry-free, and metric labels remain
 bounded to operation, result, status class, failure class, and the existing
 collector dimensions.
 
-Line-count marker (#2374): package-registry metadata fetches now reuse the SDK
+Line-count marker (#2374, historical — package-registry runtime extracted to the satellite under #10620): package-registry metadata fetches now reuse the SDK
 bounded HTTP error and default-client primitives while keeping provider-specific
 request shape and registry workflow failure classification in
 `registry/package/runtime`. The production diff changes one provider file and adds the
 SDK dependency without adding retries, sleeps, goroutines, queues, graph writes,
 database writes, collector binaries, Helm values, or runtime knobs.
 
-No-Regression Evidence (#2374): `go test ./internal/collector/sdk
+No-Regression Evidence (#2374, historical — commands below predate the #10620 extraction): `go test ./internal/collector/sdk
 ./internal/collector/registry/package
 ./internal/collector/registry/package/runtime
 ./cmd/collector-package-registry -count=1` covers SDK default-client reuse,
@@ -266,14 +266,14 @@ instruments to `eshu-hq/eshu-collector-vault-live`. The SDK emits no telemetry
 directly, and metric labels remain bounded to source, fact kind, operation,
 result, reason, field class, and scope kind.
 
-Line-count marker (#2381): OCI Distribution now reuses SDK base URL validation,
+Line-count marker (#2381, historical — OCI distribution runtime extracted to the satellite under #10620): OCI Distribution now reuses SDK base URL validation,
 bounded default HTTP client construction, and bounded `HTTPError` values for
 registry and token service status or transport failures. OCI-owned endpoint
 resolution, `/v2/` auth-challenge handling, token query shaping, repository path
 escaping, referrers capability errors, blob body caps, and registry workflow
 failure classes stay local.
 
-No-Regression Evidence (#2381): `go test ./internal/collector/sdk
+No-Regression Evidence (#2381, historical — commands below predate the #10620 extraction): `go test ./internal/collector/sdk
 ./internal/collector/registry/oci/distribution
 ./internal/collector/registry/oci/runtime
 ./cmd/collector-oci-registry -count=1` covers
