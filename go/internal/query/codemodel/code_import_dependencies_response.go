@@ -235,14 +235,16 @@ func importDependencyModuleHandle(row map[string]any) map[string]any {
 
 func importDependencyScope(req ImportDependencyRequest) map[string]any {
 	scope := map[string]any{
-		"repo_id":       strings.TrimSpace(req.RepoID),
-		"language":      req.NormalizedLanguage(),
-		"source_file":   strings.TrimSpace(req.SourceFile),
-		"target_file":   strings.TrimSpace(req.TargetFile),
-		"source_module": strings.TrimSpace(req.SourceModule),
-		"target_module": strings.TrimSpace(req.TargetModule),
-		"limit":         req.normalizedLimit(),
-		"offset":        req.Offset,
+		"repo_id":              strings.TrimSpace(req.RepoID),
+		"language":             req.NormalizedLanguage(),
+		"source_file":          strings.TrimSpace(req.SourceFile),
+		"target_file":          strings.TrimSpace(req.TargetFile),
+		"source_module":        strings.TrimSpace(req.SourceModule),
+		"target_module":        strings.TrimSpace(req.TargetModule),
+		"target_module_prefix": req.NormalizedTargetModulePrefix(),
+		"external_only":        req.ExternalOnly,
+		"limit":                req.normalizedLimit(),
+		"offset":               req.Offset,
 	}
 	if req.EffectiveQueryType() == "file_import_cycles" {
 		scope["max_cycle_length"] = req.effectiveMaxCycleLength()

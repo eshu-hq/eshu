@@ -335,6 +335,7 @@ nav:
       - NornicDB Write-Shape Pitfalls: reference/nornicdb-write-shape-pitfalls.md
       - NornicDB Order-Limit Pitfalls: reference/nornicdb-order-limit-pitfalls.md
       - Cypher Performance: reference/cypher-performance.md
+      - Import Dependency Prefix Reads: reference/cypher-import-dependency-prefix.md
       - Scoped Grant Predicates: reference/cypher-scoped-grant-predicates.md
       - Runtime Declaration Graph Writes: reference/cypher-runtime-declarations.md
       - Advisory Group Graph Writes: reference/cypher-advisory-groups.md

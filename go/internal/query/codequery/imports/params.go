@@ -38,6 +38,9 @@ func Params(req codemodel.ImportDependencyRequest) map[string]any {
 	if targetModule := strings.TrimSpace(req.TargetModule); targetModule != "" {
 		params["target_module"] = targetModule
 	}
+	if req.HasTargetModulePrefix() {
+		params["target_module_prefix"] = req.NormalizedTargetModulePrefix()
+	}
 	return params
 }
 

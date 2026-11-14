@@ -5,7 +5,9 @@ required_ids:
   - QP-LANGUAGE-DIRECTORY
   - QP-CODE-IMPORT-CYCLE-EDGES
   - QP-CODE-IMPORT-ROWS-REPOSITORY
+  - QP-CODE-IMPORT-PREFIX-ROWS
   - QP-CODE-IMPORT-PACKAGES
+  - QP-CODE-IMPORT-PREFIX-PACKAGES
   - QP-CODE-IMPORT-SOURCE-MODULE-FILES
   - QP-CODE-IMPORT-TARGET-MODULE-FILES
   - QP-CODE-IMPORT-SOURCE-MODULE-ROWS
@@ -123,6 +125,20 @@ entries:
     caveats: ['The exact-hash import-dependency variant family profiles every reachable optional-filter shape for both caller classes - unscoped label-bounded variants, and since #5167 batch 2a the scoped variants that carry the caller''s repository grant in the same MATCH-attached WHERE. The plan claim on this entry describes the unscoped shape it pins.']
     plan: *indexed_plan
 
+  - id: QP-CODE-IMPORT-PREFIX-ROWS
+    domain: code
+    backend: nornicdb_neo4j
+    query_kind: cypher
+    source: {file: go/internal/query/codemodel/code_import_dependencies_prefix.go, symbol: DirectImportPrefixRowsCypher, source_sha256: ea1a9925ed1636bc5b9f71a109dfbb2fd31d7b59401b045638ec86e6fd6b52d9}
+    query_fragment: '(target_module:Module)'
+    cypher_sha256: 4ca85cdde52634845696c2e03cacd11b32d63e274180189131d811ce9cf914cd
+    required_anchors: [{label: Repository, property: id}]
+    required_schema: [repository_id]
+    required_limits: [$limit]
+    requires_order: true
+    caveats: ['#10657 prefix read: the bare Module anchor plus STARTS WITH seeks module_name_lookup (NodeIndexSeekByRange, ~27 DbHits per 25-row page at 30k Modules) instead of the exact-match node. The pinned shape carries both the prefix and the external-only predicates; the prefix-only and external-only-only shapes render different text and are covered by builder unit tests.']
+    plan: *indexed_plan
+
   - id: QP-CODE-IMPORT-PACKAGES
     contract_file: contracts/code-import-packages.yaml
     domain: code
@@ -136,6 +152,20 @@ entries:
     required_limits: [$scan_limit]
     requires_order: true
     caveats: [Source-module variants scan bounded path candidates, reject repository-path collisions in Go, then form distinct logical package rows before paging.]
+    plan: *indexed_plan
+
+  - id: QP-CODE-IMPORT-PREFIX-PACKAGES
+    domain: code
+    backend: nornicdb_neo4j
+    query_kind: cypher
+    source: {file: go/internal/query/codemodel/code_import_dependencies_prefix.go, symbol: PackageImportPrefixRowsCypher, source_sha256: 1590824360d45ab2d3752859312d6f1eb500f945e67b82d0f7ba6730d3358bb4}
+    query_fragment: '(target_module:Module)'
+    cypher_sha256: 4ccbc86fba35f820ff0471c17bdfb338e8ed3b720877d479296707ccfa549bc4
+    required_anchors: [{label: Repository, property: id}]
+    required_schema: [repository_id]
+    required_limits: [$scan_limit]
+    requires_order: true
+    caveats: ['#10657 prefix packages: the scoped shape scans bounded source paths (LIMIT $scan_limit, sentinel row past the 25000-candidate ceiling fails closed) and pages DISTINCT logical modules in Go; the bare Module anchor plus STARTS WITH seeks module_name_lookup. The pinned shape carries both the prefix and the external-only predicates; the prefix-only and external-only-only shapes render different text and are covered by builder unit tests.']
     plan: *indexed_plan
 
   - id: QP-CODE-IMPORT-SOURCE-MODULE-FILES

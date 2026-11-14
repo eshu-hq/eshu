@@ -300,18 +300,7 @@ func selectRoute(toolName string, args map[string]any) (*routecontract.Request, 
 	switch toolName {
 	// ── Code ──
 	case "investigate_import_dependencies":
-		return &routecontract.Request{Method: "POST", Path: "/api/v0/code/imports/investigate", Body: map[string]any{
-			"query_type":       str(args, "query_type"),
-			"repo_id":          str(args, "repo_id"),
-			"language":         str(args, "language"),
-			"source_file":      str(args, "source_file"),
-			"target_file":      str(args, "target_file"),
-			"source_module":    str(args, "source_module"),
-			"target_module":    str(args, "target_module"),
-			"limit":            intOr(args, "limit", 25),
-			"offset":           intOr(args, "offset", 0),
-			"max_cycle_length": intOr(args, "max_cycle_length", 0),
-		}}, nil
+		return &routecontract.Request{Method: "POST", Path: "/api/v0/code/imports/investigate", Body: importDependencyBody(args)}, nil
 	case "investigate_hardcoded_secrets":
 		return &routecontract.Request{Method: "POST", Path: "/api/v0/code/security/secrets/investigate", Body: map[string]any{
 			"repo_id":            str(args, "repo_id"),

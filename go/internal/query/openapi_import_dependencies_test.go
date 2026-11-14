@@ -23,7 +23,7 @@ func TestOpenAPIImportDependencyInvestigation(t *testing.T) {
 	importDependencyBody := testutil.MustMapField(t, testutil.MustMapField(t, importDependencyPost, "requestBody"), "content")
 	importDependencyJSON := testutil.MustMapField(t, importDependencyBody, "application/json")
 	importDependencyRequestSchema := testutil.MustMapField(t, testutil.MustMapField(t, importDependencyJSON, "schema"), "properties")
-	for _, field := range []string{"query_type", "repo_id", "language", "source_file", "target_file", "source_module", "target_module", "limit", "offset"} {
+	for _, field := range []string{"query_type", "repo_id", "language", "source_file", "target_file", "source_module", "target_module", "target_module_prefix", "external_only", "limit", "offset"} {
 		if _, ok := importDependencyRequestSchema[field]; !ok {
 			t.Fatalf("code/imports/investigate request schema missing %s", field)
 		}

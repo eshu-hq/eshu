@@ -108,7 +108,7 @@ var censusToolSchemaSnapshot = []censusToolSchema{
 	{Name: "find_code", Properties: []string{"edit_distance", "exact", "language", "limit", "offset", "query", "rank_cursor", "repo_id", "scope"}, Required: []string{"query"}},
 	{Name: "find_symbol", Properties: []string{"entity_type", "entity_types", "language", "limit", "match_mode", "offset", "repo_id", "symbol"}, Required: []string{"symbol"}},
 	{Name: "inspect_code_inventory", Properties: []string{"class_name", "decorator", "entity_kind", "file_path", "inventory_kind", "language", "limit", "method_name", "offset", "repo_id", "symbol"}, Required: []string{}},
-	{Name: "investigate_import_dependencies", Properties: []string{"language", "limit", "max_cycle_length", "offset", "query_type", "repo_id", "source_file", "source_module", "target_file", "target_module"}, Required: []string{}},
+	{Name: "investigate_import_dependencies", Properties: []string{"external_only", "language", "limit", "max_cycle_length", "offset", "query_type", "repo_id", "source_file", "source_module", "target_file", "target_module", "target_module_prefix"}, Required: []string{}},
 	{Name: "inspect_call_graph_metrics", Properties: []string{"language", "limit", "metric_type", "offset", "repo_id"}, Required: []string{"repo_id"}},
 	{Name: "trace_route_callers", Properties: []string{"limit", "max_depth", "method", "path", "repo_id", "service_id", "service_name"}, Required: []string{"path"}},
 	{Name: "investigate_code_topic", Properties: []string{"intent", "language", "limit", "offset", "repo_id", "topic"}, Required: []string{"topic"}},

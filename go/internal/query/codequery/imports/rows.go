@@ -36,6 +36,13 @@ func Rows(
 	}
 }
 
+// hasImportTargetModuleFilter reports whether the request narrows target
+// modules by prefix or external-only. The new prefix builders and the
+// source-module Go-side filter both key off this.
+func hasImportTargetModuleFilter(req codemodel.ImportDependencyRequest) bool {
+	return req.HasTargetModulePrefix() || req.ExternalOnly
+}
+
 // ImportRows reads the import rows for the request: scoped module reads
 // when a source module is set, package imports, or the direct import
 // read. Scope rows bound the corpus before the read; the scan bound
@@ -62,12 +69,20 @@ func ImportRows(
 	var cypher string
 	switch {
 	case req.EffectiveQueryType() == "package_imports":
-		cypher = codemodel.PackageImportRowsCypher(req, sourceScopes)
+		if hasImportTargetModuleFilter(req) {
+			cypher = codemodel.PackageImportPrefixRowsCypher(req, sourceScopes)
+		} else {
+			cypher = codemodel.PackageImportRowsCypher(req, sourceScopes)
+		}
 	case len(sourceScopes) > 0:
 		cypher = codemodel.SourceModuleImportRowsCypher(req, sourceScopes)
 		params["scan_limit"] = querycontract.ImportDependencyInternalScanLimit + 1
 	default:
-		cypher = codemodel.DirectImportRowsCypher(req)
+		if hasImportTargetModuleFilter(req) {
+			cypher = codemodel.DirectImportPrefixRowsCypher(req)
+		} else {
+			cypher = codemodel.DirectImportRowsCypher(req)
+		}
 	}
 
 	rows, err := graph.Run(ctx, cypher, params)
@@ -81,6 +96,15 @@ func ImportRows(
 		return nil, err
 	}
 	rows = codemodel.FilterImportDependencyScopeRows(rows, "repo_id", "source_path", sourceScopes)
+	if hasImportTargetModuleFilter(req) {
+		filtered := rows[:0]
+		for _, row := range rows {
+			if codemodel.MatchTargetModulePrefixFilter(req, querycontract.StringVal(row, "target_module")) {
+				filtered = append(filtered, row)
+			}
+		}
+		rows = filtered
+	}
 	for _, row := range rows {
 		row["source_module"] = strings.TrimSpace(req.SourceModule)
 	}

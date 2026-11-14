@@ -36,6 +36,14 @@ func TestHandlerQueryplanManifestBindsProductionBuilders(t *testing.T) {
 	}
 }
 
+// queryplanProofPrefix is the module-name prefix the prefix pins bind
+// against. It lives beside the map so both prefix entries share one proof
+// value.
+func queryplanProofPrefix() *string {
+	prefix := "@scope/"
+	return &prefix
+}
+
 func handlerQueryplanProductionCypher() map[string]string {
 	allAccess := querycontract.RepositoryAccessFilter{AllScopes: true}
 	entityCypher, _ := buildResolveEntityGraphQuery(resolveEntityRequest{
@@ -95,11 +103,26 @@ func handlerQueryplanProductionCypher() map[string]string {
 			SourceFile: "proof.go",
 			Access:     allAccess,
 		}),
+		"QP-CODE-IMPORT-PREFIX-ROWS": codemodel.DirectImportPrefixRowsCypher(codemodel.ImportDependencyRequest{
+			RepoID:             "proof-repository",
+			SourceFile:         "proof.go",
+			TargetModulePrefix: queryplanProofPrefix(),
+			ExternalOnly:       true,
+			Access:             allAccess,
+		}),
 		"QP-CODE-IMPORT-PACKAGES": codemodel.PackageImportRowsCypher(codemodel.ImportDependencyRequest{
 			QueryType:    "package_imports",
 			RepoID:       "proof-repository",
 			SourceModule: "proof.source",
 			Access:       allAccess,
+		}, []map[string]any{{"repo_id": "proof-repository", "path": "/proof/src/proof.py"}}),
+		"QP-CODE-IMPORT-PREFIX-PACKAGES": codemodel.PackageImportPrefixRowsCypher(codemodel.ImportDependencyRequest{
+			QueryType:          "package_imports",
+			RepoID:             "proof-repository",
+			SourceModule:       "proof.source",
+			TargetModulePrefix: queryplanProofPrefix(),
+			ExternalOnly:       true,
+			Access:             allAccess,
 		}, []map[string]any{{"repo_id": "proof-repository", "path": "/proof/src/proof.py"}}),
 		"QP-CODE-IMPORT-SOURCE-MODULE-FILES": codemodel.SourceModuleFilesCypher(codemodel.ImportDependencyRequest{
 			RepoID:       "proof-repository",
