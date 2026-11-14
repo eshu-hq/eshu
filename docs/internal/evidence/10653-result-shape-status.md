@@ -51,7 +51,7 @@ Prior work it builds on (not redone):
 
 - `go/internal/mcp/dispatch_envelope.go`: `WithResultShape` folds through
   `resultshape.OrDual`, so any unset or unparsable value is `dual`. Rendering
-  lives in `renderToolResult` (`go/internal/mcp/server.go`) via the envelope
+  lives in `renderToolResult`, defined in `go/internal/mcp/dispatch_envelope.go` (called from `go/internal/mcp/server.go`), via the envelope
   renderers in `dispatch_envelope.go`.
 - `go/internal/cli/mcpsetup/setup.go`: only the `claude` and `codex` platform
   snippets mention the one-copy structured shape; `cursor`, `vscode`, and
