@@ -416,6 +416,28 @@ on both the story and the context routes) returns the full keyset-ordered set.
 incoming deployment-artifact edges, repository dependency rows, and provisioning
 source chains, sorted by relationship type then source.
 
+No-Regression Evidence (#10656): the count change is in-memory only over rows
+already read. Baseline summed the two list lengths (an overlap repo counted
+twice); after, one pass dedupes by repo_id (display-name fallback) in O(n)
+over at most twice the render bound, with no new query, graph read, or bound
+change. Measured on the in-memory service-story fixtures (no backend skew):
+`TestServiceStoryDownstreamCountDedupesSharedRepository` (2 dependents + 2
+consumers sharing one repo yields 3, flag false) and the four-case
+`TestServiceStoryDownstreamCountLowerBoundCases` table (zero consumers, a
+100-row capped read with the flag true, truncated dependents beside
+untruncated consumers, overlap under truncation) pass, and the full focused
+suites (`./internal/query/service/`, `./internal/query/entity/`,
+`./internal/query/`, `./internal/mcp/`, `./internal/mcp/service/`,
+`./cmd/api/`) exit 0 with terminal row counts unchanged. Safe because the
+only request-path delta is the dedupe loop plus two map assignments for the
+consumer-list pointer, and the flag reuses the existing
+`dependents_truncated`/`consumer_repositories_truncated` bools.
+
+No-Observability-Change (#10656): no new metric, span, or log line. The
+existing `result_limits.truncated` and `raw_context_limits` entries observe
+the bounded reads; the new boolean and the `+` suffix render from those same
+bounds.
+
 `downstream_read_limit` is not the only bound behind `truncated`, though.
 `dependents_truncated` and `provisioning_source_chains_truncated` reflect the
 provisioning-candidate graph read alone, so when either one drives
