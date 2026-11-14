@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
@@ -240,4 +241,216 @@ func TestHolderMassProbeLive(t *testing.T) {
 		t.Fatalf("EstimateHolderMasses() error = %v", err)
 	}
 	t.Logf("holder mass probe latency: %v", time.Since(startProbe))
+}
+
+const (
+	capProbeOwn        = "cap:own"
+	capProbeHotMember  = "GHSA-cap-hot-0001"
+	capProbeWarmCVE    = "CVE-2026-9801"
+	capProbeColdMember = "GHSA-cap-cold-0001"
+	capProbeDual       = "CVE-2026-9802"
+	capProbeCrossCVE   = "CVE-2026-9803"
+	capProbeCrossAdv   = "GHSA-cap-cross-0001"
+	capProbeSuperseded = "CVE-2026-9804"
+	capProbeTombOnly   = "CVE-2026-9805"
+	capProbeUnknown    = "CVE-2026-nope"
+)
+
+// capProbeSeedFixture seeds a production-shape mass fixture: one member id
+// with 26k live group-member rows (the arm-3 shape that brushed the 10 s
+// guard), cold ids with exact small counts on every arm, the overestimate
+// edges (a dual-arm row, a cross-id row, superseded-generation rows), and the
+// exclusion edges (tombstoned rows, an unknown id).
+func capProbeSeedFixture(t *testing.T, ctx context.Context, db *sql.DB) {
+	t.Helper()
+	fanOutSeedScope(t, ctx, db, capProbeOwn, "g1")
+	fanOutSeedScope(t, ctx, db, "cap:hold-a", "g1")
+	fanOutSeedScope(t, ctx, db, "cap:hold-b", "g1")
+	fanOutSeedScope(t, ctx, db, "cap:old", "g2", "g1")
+
+	if _, err := db.ExecContext(ctx, `
+INSERT INTO fact_records (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, schema_version, collector_kind,
+  source_confidence, source_system, source_fact_key, observed_at, ingested_at, is_tombstone, payload)
+SELECT 'cap:bg:' || scopes.scope_id || ':' || g, scopes.scope_id, scopes.active_generation_id, $1,
+  'cap:bg:' || g, '1.0.0', 'synthetic', 'reported', 'synthetic', 'cap:bg', now(), now(), false,
+  jsonb_build_object(
+    'cve_id', 'CVE-2026-bg-' || lpad(g::text, 5, '0'),
+    'advisory_id', 'GHSA-cap-bg-' || lpad(g::text, 5, '0'),
+    'impact_status', 'active')
+FROM (SELECT scope_id, active_generation_id FROM ingestion_scopes WHERE scope_id LIKE 'cap:%') scopes
+CROSS JOIN generate_series(1, 4000) g`, facts.ReducerSupplyChainImpactFindingFactKind); err != nil {
+		t.Fatalf("seed background findings: %v", err)
+	}
+	if _, err := db.ExecContext(ctx, `
+INSERT INTO fact_records (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, schema_version, collector_kind,
+  source_confidence, source_system, source_fact_key, observed_at, ingested_at, is_tombstone, payload)
+SELECT 'cap:hot:' || s.scope_id || ':' || g, s.scope_id, s.active_generation_id, $1,
+  'cap:hot:' || g, '1.0.0', 'synthetic', 'reported', 'synthetic', 'cap:hot', now(), now(), false,
+  jsonb_build_object(
+    'cve_id', 'CVE-2026-h' || lpad(g::text, 6, '0'),
+    'advisory_id', 'GHSA-cap-distinct-' || lpad(g::text, 6, '0'),
+    'impact_status', 'active',
+    'provenance', jsonb_build_object('advisory_group_members', jsonb_build_array($2::text)))
+FROM (SELECT scope_id, active_generation_id FROM ingestion_scopes WHERE scope_id IN ('cap:hold-a', 'cap:hold-b')) s
+CROSS JOIN generate_series(1, 26000) g
+WHERE (g % 2 = 0 AND s.scope_id = 'cap:hold-a') OR (g % 2 = 1 AND s.scope_id = 'cap:hold-b')`,
+		facts.ReducerSupplyChainImpactFindingFactKind, capProbeHotMember); err != nil {
+		t.Fatalf("seed hot member findings: %v", err)
+	}
+	if _, err := db.ExecContext(ctx, `
+INSERT INTO fact_records (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, schema_version, collector_kind,
+  source_confidence, source_system, source_fact_key, observed_at, ingested_at, is_tombstone, payload)
+SELECT 'cap:warm:' || g, 'cap:hold-a',
+  (SELECT active_generation_id FROM ingestion_scopes WHERE scope_id = 'cap:hold-a'), $1,
+  'cap:warm:' || g, '1.0.0', 'synthetic', 'reported', 'synthetic', 'cap:warm', now(), now(), false,
+  jsonb_build_object(
+    'cve_id', $2::text,
+    'advisory_id', 'GHSA-cap-distinct-w-' || lpad(g::text, 5, '0'),
+    'impact_status', 'active')
+FROM generate_series(1, 70) g`, facts.ReducerSupplyChainImpactFindingFactKind, capProbeWarmCVE); err != nil {
+		t.Fatalf("seed warm CVE findings: %v", err)
+	}
+	if _, err := db.ExecContext(ctx, `
+INSERT INTO fact_records (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, schema_version, collector_kind,
+  source_confidence, source_system, source_fact_key, observed_at, ingested_at, is_tombstone, payload)
+SELECT 'cap:cold:' || g, 'cap:hold-b',
+  (SELECT active_generation_id FROM ingestion_scopes WHERE scope_id = 'cap:hold-b'), $1,
+  'cap:cold:' || g, '1.0.0', 'synthetic', 'reported', 'synthetic', 'cap:cold', now(), now(), g > 100,
+  jsonb_build_object(
+    'cve_id', 'CVE-2026-distinct-c-' || lpad(g::text, 5, '0'),
+    'advisory_id', 'GHSA-cap-distinct-c-' || lpad(g::text, 5, '0'),
+    'impact_status', 'active',
+    'provenance', jsonb_build_object('advisory_group_members', jsonb_build_array($2::text)))
+FROM generate_series(1, 105) g`, facts.ReducerSupplyChainImpactFindingFactKind, capProbeColdMember); err != nil {
+		t.Fatalf("seed cold member findings: %v", err)
+	}
+	if _, err := db.ExecContext(ctx, `
+INSERT INTO fact_records (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, schema_version, collector_kind,
+  source_confidence, source_system, source_fact_key, observed_at, ingested_at, is_tombstone, payload)
+SELECT 'cap:dual:' || g, 'cap:hold-a',
+  (SELECT active_generation_id FROM ingestion_scopes WHERE scope_id = 'cap:hold-a'), $1,
+  'cap:dual:' || g, '1.0.0', 'synthetic', 'reported', 'synthetic', 'cap:dual', now(), now(), false,
+  jsonb_build_object(
+    'cve_id', $2::text,
+    'advisory_id', $2::text,
+    'impact_status', 'active')
+FROM generate_series(1, 3) g`, facts.ReducerSupplyChainImpactFindingFactKind, capProbeDual); err != nil {
+		t.Fatalf("seed dual-arm findings: %v", err)
+	}
+	if _, err := db.ExecContext(ctx, `
+INSERT INTO fact_records (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, schema_version, collector_kind,
+  source_confidence, source_system, source_fact_key, observed_at, ingested_at, is_tombstone, payload)
+SELECT 'cap:cross:' || g, 'cap:hold-a',
+  (SELECT active_generation_id FROM ingestion_scopes WHERE scope_id = 'cap:hold-a'), $1,
+  'cap:cross:' || g, '1.0.0', 'synthetic', 'reported', 'synthetic', 'cap:cross', now(), now(), false,
+  jsonb_build_object(
+    'cve_id', CASE WHEN g <= 5 THEN $2::text ELSE 'CVE-2026-distinct-x-' || g::text END,
+    'advisory_id', CASE WHEN g >= 5 THEN $3::text ELSE 'GHSA-cap-distinct-x-' || g::text END,
+    'impact_status', 'active')
+FROM generate_series(1, 7) g`,
+		facts.ReducerSupplyChainImpactFindingFactKind, capProbeCrossCVE, capProbeCrossAdv); err != nil {
+		t.Fatalf("seed cross-id findings: %v", err)
+	}
+	if _, err := db.ExecContext(ctx, `
+INSERT INTO fact_records (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, schema_version, collector_kind,
+  source_confidence, source_system, source_fact_key, observed_at, ingested_at, is_tombstone, payload)
+SELECT 'cap:sup:' || g, 'cap:old', 'cap:old/g1', $1,
+  'cap:sup:' || g, '1.0.0', 'synthetic', 'reported', 'synthetic', 'cap:sup', now(), now(), false,
+  jsonb_build_object('cve_id', $2::text, 'advisory_id', 'GHSA-cap-edge', 'impact_status', 'active')
+FROM generate_series(1, 7) g`, facts.ReducerSupplyChainImpactFindingFactKind, capProbeSuperseded); err != nil {
+		t.Fatalf("seed superseded findings: %v", err)
+	}
+	if _, err := db.ExecContext(ctx, `
+INSERT INTO fact_records (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, schema_version, collector_kind,
+  source_confidence, source_system, source_fact_key, observed_at, ingested_at, is_tombstone, payload)
+SELECT 'cap:tomb:' || g, 'cap:hold-a',
+  (SELECT active_generation_id FROM ingestion_scopes WHERE scope_id = 'cap:hold-a'), $1,
+  'cap:tomb:' || g, '1.0.0', 'synthetic', 'reported', 'synthetic', 'cap:tomb', now(), now(), true,
+  jsonb_build_object('cve_id', $2::text, 'advisory_id', 'GHSA-cap-edge', 'impact_status', 'active')
+FROM generate_series(1, 5) g`, facts.ReducerSupplyChainImpactFindingFactKind, capProbeTombOnly); err != nil {
+		t.Fatalf("seed tombstoned findings: %v", err)
+	}
+	if _, err := db.ExecContext(ctx, `VACUUM (ANALYZE) fact_records`); err != nil {
+		t.Fatalf("vacuum analyze: %v", err)
+	}
+}
+
+// TestHolderMassProbeCappedLive is the #10681 bounded-cost proof: on a
+// production-shape fixture (26k live group-member rows on one id) the probe
+// reports exactly the cap for the hot id — never cold, so the split decision
+// cannot flip — while every cold id stays exact, including the overestimate
+// edges (a row matching two arms counts twice, a row matching two ids in one
+// chunk counts toward both, superseded-generation rows count) and the
+// exclusion edges (tombstoned rows and unknown ids read zero). The EXPLAIN
+// plan of the shipped probe text must carry the Limit node that bounds the
+// member arm. It fails on the uncapped probe (hot reads 26k).
+func TestHolderMassProbeCappedLive(t *testing.T) {
+	ctx, db := fanOutLiveDB(t)
+	capProbeSeedFixture(t, ctx, db)
+
+	store := fanOutLiveStore(db)
+	cap := int64(supplychaincore.HolderMassProbeCap)
+	startProbe := time.Now()
+	masses, err := store.EstimateHolderMasses(ctx, []string{
+		capProbeHotMember, capProbeWarmCVE, capProbeColdMember, capProbeDual, capProbeCrossCVE,
+	})
+	if err != nil {
+		t.Fatalf("EstimateHolderMasses() error = %v", err)
+	}
+	rest, err := store.EstimateHolderMasses(ctx, []string{
+		capProbeCrossAdv, capProbeSuperseded, capProbeTombOnly, capProbeUnknown,
+	})
+	if err != nil {
+		t.Fatalf("EstimateHolderMasses() error = %v", err)
+	}
+	probeElapsed := time.Since(startProbe)
+	for id, m := range rest {
+		masses[id] = m
+	}
+	t.Logf("capped mass probe: %v in %v", masses, probeElapsed)
+	if len(masses) != 9 {
+		t.Fatalf("EstimateHolderMasses() returned %d ids, want one row per requested id: %v", len(masses), masses)
+	}
+	if masses[capProbeHotMember] != cap {
+		t.Fatalf("hot mass = %d, want exactly the cap %d (26000 member rows bounded, still hot)", masses[capProbeHotMember], cap)
+	}
+	for id, want := range map[string]int64{
+		capProbeWarmCVE:    70,
+		capProbeColdMember: 100,
+		capProbeDual:       6,
+		capProbeCrossCVE:   5,
+		capProbeCrossAdv:   3,
+		capProbeSuperseded: 7,
+		capProbeTombOnly:   0,
+		capProbeUnknown:    0,
+	} {
+		if masses[id] != want {
+			t.Fatalf("mass[%q] = %d, want %d (cold ids stay exact under the cap)", id, masses[id], want)
+		}
+	}
+
+	startExplain := time.Now()
+	rows, err := db.QueryContext(ctx, `EXPLAIN (ANALYZE, BUFFERS) `+postgres.HolderMassProbeQuery,
+		[]string{capProbeHotMember, capProbeWarmCVE, capProbeColdMember, capProbeDual, capProbeCrossCVE})
+	if err != nil {
+		t.Fatalf("EXPLAIN the probe: %v", err)
+	}
+	var plan strings.Builder
+	for rows.Next() {
+		var line string
+		if err := rows.Scan(&line); err != nil {
+			_ = rows.Close()
+			t.Fatalf("scan the plan: %v", err)
+		}
+		plan.WriteString(line + "\n")
+	}
+	_ = rows.Close()
+	if err := rows.Err(); err != nil {
+		t.Fatalf("read the plan: %v", err)
+	}
+	explainElapsed := time.Since(startExplain)
+	t.Logf("capped probe EXPLAIN (ANALYZE, BUFFERS) in %v:\n%s", explainElapsed, plan.String())
+	if !strings.Contains(plan.String(), "Limit") {
+		t.Fatalf("probe plan carries no Limit node: the member arm is unbounded:\n%s", plan.String())
+	}
 }

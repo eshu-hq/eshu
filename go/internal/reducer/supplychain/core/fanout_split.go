@@ -35,13 +35,23 @@ const (
 	fanOutHolderReadParallelism = 4
 )
 
+// HolderMassProbeCap bounds the per-id mass the holder-mass probe reports
+// (#10681). It sits one row over fanOutHolderHotMassRows, so a capped report
+// decides exactly like the true count: at or under the threshold the probe
+// is exact and cold ids pack the same way, over the threshold the probe
+// reports the cap and the id still runs alone. Operators read it saturated:
+// max_id_mass_rows tops out at the cap, never at the true row count. The
+// production probe builds its SQL LIMIT and LEAST from this constant, and the
+// probe-cap guard test pins the derivation, so the number lives here alone.
+const HolderMassProbeCap = fanOutHolderHotMassRows + 1
+
 // HolderMassEstimator is the optional mass probe behind adaptive holder-read
-// splitting (#10643). A port that implements it reports, per requested lookup
-// id, how many live finding rows name that id, with one entry for every
-// requested id (zero for no match). A port without it keeps the legacy shape:
-// one statement per fanOutHolderReadChunk-sized chunk. The probe runs under
-// the same 10 s guard as the holder read and fails the same way, so a blind
-// pass never proceeds on unmeasured ids.
+// splitting (#10643). The production probe reports, per requested lookup
+// id, how many live finding rows name that id, capped at HolderMassProbeCap
+// with one entry for every requested id (zero for no match). A port without
+// it keeps the legacy shape: one statement per fanOutHolderReadChunk-sized
+// chunk. The probe runs under the same 10 s guard as the holder read and
+// fails the same way, so a blind pass never proceeds on unmeasured ids.
 type HolderMassEstimator interface {
 	// EstimateHolderMasses returns the live finding-row count per lookup id.
 	EstimateHolderMasses(ctx context.Context, lookupIDs []string) (map[string]int64, error)

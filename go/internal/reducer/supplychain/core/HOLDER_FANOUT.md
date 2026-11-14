@@ -48,8 +48,11 @@ more than 256 holders drains across claims.
   10k combined rows), run with up to 4 concurrent statements under the same
   10 s guard. Splitting changes statement count only: the admitted id set and
   the per-statement timeout are unchanged (the per-chunk probe measured
-  6067 ms cold / 218 ms warm at production mass — see the evidence note —
-  bounded by the same guard, fail-closed).
+  6067 ms cold / 218 ms warm uncapped at production mass — see the evidence
+  note — bounded by the same guard, fail-closed; #10681 caps the per-id
+  total at one row over the hot threshold with cheap arms exact and the
+  member arm limited, so cold packs decide exactly as before while a hot id
+  still reads hot).
 - One hop: only the attempt a fan-out created is one hop (attempt 1; the reopen
   and the replay both reset the count to 0). That pass re-derives its copy,
   fans out nothing of its own rewrite, and consumes the stamp — except the
@@ -416,3 +419,24 @@ log lines, labels, queue stages, locks, claims, leases, or status fields.
 Per-chunk read-site timeout telemetry and the fanout outcome sub-signals are
 reused unchanged; the existing per-domain execution signals attribute the
 drain.
+
+Performance Evidence (#10681 capped probe): baseline is the uncapped probe
+on the live deployment backend (Postgres 18.6) — pg_stat 1122 calls,
+mean 1.6 s, max 9.4 s against
+the 10 s guard, with one estimate-site timeout dead letter at 13:36Z; a
+read-only EXPLAIN attributes ~97% of plan cost to the group-members arm
+(~26k heap rows per hot id). After is the capped probe on disposable PG 18
+(production-shape fixture, 26k group-member rows): the hot id reads exactly
+10001, every cold id reads exact (70/100/6/5/3/7/0/0 with dual-arm,
+cross-id, superseded, tombstone, and unknown edges), the probe completes in
+13.2 ms, and EXPLAIN ANALYZE shows the Limit node stopping at 10001 of
+26000 heap rows. Decision-equivalence to the uncapped probe is proven by
+unit test against the real planner, so split plans are bit-identical and the
+change is safe by construction; fail-closed timeout behavior and the single
+statement per chunk are unchanged. Post-deploy pg_stat p99 proof is still
+required (NOT_CHECKED here).
+
+Observability Evidence (#10681 capped probe): probe errors still count at
+the existing FanOutReadSiteHolders site with no new counter, label, span,
+or log field. max_id_mass_rows now saturates at the 10001 cap by design
+(hot stays hot; exact max above threshold is sacrificed and documented).
