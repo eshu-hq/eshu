@@ -2385,6 +2385,12 @@ type Instruments struct {
 	// read (#10020): Gate-3 tells a predrained-normal cycle from a
 	// chunk-shaped one by this count.
 	GenerationRetentionPredrainedOverLimitGenerations metric.Int64Histogram
+	// GenerationRetentionPredrainedSkippedRows is the fact and content rows
+	// the chunk pre-delete drained for generations one retention pass did
+	// not prune (#10677), per pass. They merge into RowsPruned beside the
+	// row_limit_chunked skip; this signal names them so rows_pruned_total
+	// reconciles against the retention events.
+	GenerationRetentionPredrainedSkippedRows metric.Int64Histogram
 	// SearchIndexOrphanGenerations and SearchIndexOrphanRowsSwept are the
 	// search index orphan census and sweep by table (#7427 PR2).
 	SearchIndexOrphanGenerations metric.Int64Gauge

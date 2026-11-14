@@ -232,6 +232,12 @@ type GenerationRetentionResult struct {
 	// (zero with ChunkPredeleteBatches > 0), since a fully drained
 	// over-limit generation prunes whole with no other trace.
 	PredrainedOverLimitGenerations int
+	// PredrainedSkippedRows counts the fact and content rows the chunk
+	// pre-delete drained for generations this pass did not prune (#10677).
+	// finish merges those rows into RowsPruned beside the row_limit_chunked
+	// skip; this counter names them so rows_pruned_total reconciles against
+	// the retention events, which cover pruned generations only.
+	PredrainedSkippedRows int64
 }
 
 // generationRetentionTestHooks are the ordering points the live retention

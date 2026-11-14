@@ -247,6 +247,7 @@ func (p postgresGenerationRetentionPruner) PruneSupersededGenerations(
 		SearchIndexBatches:             result.SearchIndexBatches,
 		ChunkPredeleteBatches:          result.ChunkPredeleteBatches,
 		PredrainedOverLimitGenerations: result.PredrainedOverLimitGenerations,
+		PredrainedSkippedRows:          result.PredrainedSkippedRows,
 	}, nil
 }
 

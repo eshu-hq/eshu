@@ -379,8 +379,8 @@ const (
 	GenerationRetentionPhaseCommit = "commit"
 )
 
-// pruneCandidates records one retention event per candidate and then deletes
-// the batch's rows in dependency order, timing each statement as a phase.
+// pruneCandidates records one retention event per candidate, stamped at insert
+// time (#10677), then deletes the batch's rows in dependency order as phases.
 func (s GenerationRetentionStore) pruneCandidates(
 	ctx context.Context,
 	tx db.Transaction,
@@ -413,7 +413,7 @@ func (s GenerationRetentionStore) pruneCandidates(
 
 	phaseStart := time.Now()
 	for _, candidate := range candidates {
-		if err := s.recordRetentionEvent(ctx, tx, candidate, policy, eventRowCounts[candidate.generationID], now); err != nil {
+		if err := s.recordRetentionEvent(ctx, tx, candidate, policy, eventRowCounts[candidate.generationID]); err != nil {
 			return err
 		}
 	}
