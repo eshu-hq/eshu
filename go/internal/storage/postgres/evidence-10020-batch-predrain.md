@@ -83,3 +83,21 @@ runs post-predrain, so event counts are post-predrain residuals, and
 predrained rows of skipped gens merge with the `row_limit_chunked` skip and
 are recorded nowhere. No missing writes (same-tx atomicity, 20/20 count
 match); the accounting gap is filed as P3 #10677 alongside the timestamp lag.
+
+## Telemetry follow-up (#10677)
+
+No-Regression Evidence: telemetry-only change; no delete, admission, lock,
+eligibility, or planning behavior touched. Baseline: affected suites green
+before the change. After: TestGenerationRetentionEventsStampAtInsertTime and
+TestGenerationRetentionChunkOnlyCycleSkipsFullCount fail pre-fix for the
+intended reason and pass post-fix; the runner mutant kill fails
+TestGenerationRetentionRunnerRecordsChunkPredeleteBatches with the emission
+dropped and passes restored; suites green (storage/postgres on hermetic
+in-process fake-DB doubles, reducer/maintenance/retention, telemetry,
+cmd/reducer); go vet clean. Live QA proof rides the rollout, not this gate.
+
+Observability Evidence: new eshu_dp_generation_retention_predrained_skipped_rows
+histogram (row-scale buckets to 1M) plus cycle log predrained_skipped_rows,
+recorded beside the existing PredrainedOverLimitGenerations fields; the runner
+test pins emission with a mutant kill; scripts/verify-telemetry-coverage.sh
+green; coverage row extended in telemetry-coverage-reducer-domains.md.

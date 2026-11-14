@@ -116,8 +116,10 @@ func (s GenerationRetentionStore) recordRetentionEvent(
 	candidate generationRetentionCandidate,
 	policy GenerationRetentionPolicy,
 	rowCounts map[string]int64,
-	now time.Time,
 ) error {
+	// The event stamps the insert time (#10677): the caller captured its
+	// now before the pre-Begin pre-deletes, which can lag by a full cycle.
+	eventNow := s.now()
 	if rowCounts == nil {
 		rowCounts = map[string]int64{}
 	}
@@ -141,7 +143,7 @@ func (s GenerationRetentionStore) recordRetentionEvent(
 		candidate.supersededAt,
 		"superseded_window_expired",
 		rowCountsJSON,
-		now,
+		eventNow,
 	); err != nil {
 		return fmt.Errorf("generation retention: record event: %w", err)
 	}
@@ -438,8 +440,9 @@ GROUP BY candidate.generation_id
 
 // mergeChunkProgress records one drained over-limit chunk on the cycle
 // result after pruneCandidates rebuilt the normal batch's counts: the
-// chunk's deleted rows add to RowsPruned by table, the progress reason tells
-// the runner to retry soon, and the oldest age covers a chunk-only cycle.
+// chunk's deleted rows add to RowsPruned by table and to
+// PredrainedSkippedRows (#10677), the progress reason tells the runner to
+// retry soon, and the oldest age covers a chunk-only cycle.
 func mergeChunkProgress(
 	result *GenerationRetentionResult,
 	target generationRetentionCandidate,
@@ -456,6 +459,9 @@ func mergeChunkProgress(
 		result.RowsPruned[table] += rows // #7420 key sidecars
 	}
 	result.Skipped[generationRetentionChunkedProgressSkippedReason]++
+	// The same rows land in PredrainedSkippedRows so the pass names its
+	// pre-Begin output for generations it did not prune.
+	result.PredrainedSkippedRows += chunk.rows()
 	if age := now.Sub(target.supersededAt); age > result.OldestEligibleAge {
 		result.OldestEligibleAge = age
 	}

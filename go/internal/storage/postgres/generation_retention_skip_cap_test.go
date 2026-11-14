@@ -368,6 +368,9 @@ func TestGenerationRetentionChunkOnlyCycleSkipsFullCount(t *testing.T) {
 	if got := result.RowsPruned["fact_records"]; got != 200 {
 		t.Fatalf("RowsPruned[fact_records] = %d, want 200 (one drained page per over-limit generation)", got)
 	}
+	if got := result.PredrainedSkippedRows; got != 200 {
+		t.Fatalf("PredrainedSkippedRows = %d, want 200 (both drained pages belong to skipped generations)", got)
+	}
 	if len(database.execs) != 2 {
 		t.Fatalf("exec count = %d, want 2 (one bounded fact delete per drained generation)", len(database.execs))
 	}

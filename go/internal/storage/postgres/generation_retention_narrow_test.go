@@ -196,6 +196,66 @@ func TestGenerationRetentionNarrowedCandidateTakenElsewhere(t *testing.T) {
 	}
 }
 
+// TestGenerationRetentionEventsStampAtInsertTime is #10677 fix 1: the
+// retention event's pruned_at stamps the insert time inside pruneCandidates,
+// not the cycle-start now captured before the pre-Begin pre-deletes. The
+// scripted clock returns t0 for the cycle start and t1 afterwards; the event
+// insert must carry t1. RED before the fix: the insert carries t0.
+func TestGenerationRetentionEventsStampAtInsertTime(t *testing.T) {
+	t.Parallel()
+
+	t0 := time.Date(2026, 6, 12, 10, 0, 0, 0, time.UTC)
+	t1 := t0.Add(15 * time.Minute)
+	database := &generationRetentionFakeDB{
+		candidateRows: [][]any{{
+			"scope-old",
+			"generation-old",
+			"repository",
+			t0.Add(-10 * 24 * time.Hour),
+			t0.Add(-11 * 24 * time.Hour),
+			false,
+		}},
+		countRows: [][]any{
+			{"generation-old", "fact_records", int64(3)},
+		},
+		execResults: generationRetentionExecResults(1, 0, 0, 0, 0, 0, 0, 1),
+	}
+	store := NewGenerationRetentionStore(database)
+	calls := 0
+	store.Now = func() time.Time {
+		calls++
+		if calls == 1 {
+			return t0
+		}
+		return t1
+	}
+
+	if _, err := store.PruneSupersededGenerations(context.Background(), GenerationRetentionPolicy{
+		MinSupersededGenerations: 1,
+		MaxSupersededAge:         7 * 24 * time.Hour,
+		BatchGenerationLimit:     10,
+		BatchRowLimit:            100,
+		PolicyScope:              "global",
+		PolicyRevision:           "test-revision",
+	}); err != nil {
+		t.Fatalf("PruneSupersededGenerations() error = %v", err)
+	}
+	for _, exec := range database.execs {
+		if !strings.Contains(exec.query, "INSERT INTO generation_retention_events") {
+			continue
+		}
+		prunedAt, ok := exec.args[len(exec.args)-1].(time.Time)
+		if !ok {
+			t.Fatalf("event pruned_at arg type = %T, want time.Time", exec.args[len(exec.args)-1])
+		}
+		if !prunedAt.Equal(t1) {
+			t.Fatalf("event pruned_at = %v, want insert time %v (not cycle start %v)", prunedAt, t1, t0)
+		}
+		return
+	}
+	t.Fatal("no retention event insert found")
+}
+
 // TestGenerationRetentionRelockDropsMissedMembersAndPrunesTheRest is #7334
 // fix 1: when the targeted re-lock returns only part of the provisionally
 // selected set (another session took the rest after the rollback), the pass

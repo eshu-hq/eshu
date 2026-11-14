@@ -19,6 +19,11 @@ var generationRetentionPhaseBuckets = []float64{0.001, 0.01, 0.05, 0.1, 0.5, 1, 
 // tables, and the default 2,000,000-row cap is about 100 full batches.
 var generationRetentionSearchIndexBatchBuckets = []float64{1, 2, 4, 8, 16, 32, 64, 128, 256, 512}
 
+// generationRetentionPredrainedRowBuckets span one pass's predrained rows
+// for generations it did not prune (#10677): a single bounded page (about
+// 100 rows) up to a full row-cap drain (500,000 rows by default).
+var generationRetentionPredrainedRowBuckets = []float64{1, 10, 100, 1000, 10000, 100000, 500000, 1000000}
+
 // SpanGenerationRetentionExpiredReport wraps one expired-generations
 // live-signal report read (#7585 PR3): the lock-free SELECT plus the
 // in-memory evaluation. The span carries the report counts; each
@@ -77,6 +82,14 @@ func registerGenerationRetentionPhaseInstruments(meter metric.Meter, inst *Instr
 		metric.WithExplicitBucketBoundaries(generationRetentionSearchIndexBatchBuckets...),
 	); err != nil {
 		return fmt.Errorf("register GenerationRetentionPredrainedOverLimitGenerations histogram: %w", err)
+	}
+	if inst.GenerationRetentionPredrainedSkippedRows, err = meter.Int64Histogram(
+		"eshu_dp_generation_retention_predrained_skipped_rows",
+		metric.WithDescription("Fact and content rows the chunk pre-delete drained for generations one retention pass did not prune, per generation retention pass"),
+		metric.WithUnit("{row}"),
+		metric.WithExplicitBucketBoundaries(generationRetentionPredrainedRowBuckets...),
+	); err != nil {
+		return fmt.Errorf("register GenerationRetentionPredrainedSkippedRows histogram: %w", err)
 	}
 	if inst.SearchIndexOrphanGenerations, err = meter.Int64Gauge(
 		"eshu_dp_search_index_orphan_generations",

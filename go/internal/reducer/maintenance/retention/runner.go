@@ -128,6 +128,12 @@ type Result struct {
 	// predrained-normal cycle (batches > 0, over-limit count 0) from a
 	// chunk-shaped one (nonzero) by this count.
 	PredrainedOverLimitGenerations int
+	// PredrainedSkippedRows is the fact and content rows the chunk
+	// pre-delete drained for generations this pass did not prune (#10677).
+	// They merge into RowsPruned beside the row_limit_chunked skip; this
+	// field names them so rows_pruned_total reconciles against the
+	// retention events, which cover pruned generations only.
+	PredrainedSkippedRows int64
 }
 
 // ErrKeyIndexUnavailable marks a cycle the pruner refused
@@ -330,6 +336,9 @@ func (r *Runner) recordResult(ctx context.Context, result Result) {
 		if result.PredrainedOverLimitGenerations > 0 {
 			r.Instruments.GenerationRetentionPredrainedOverLimitGenerations.Record(ctx, int64(result.PredrainedOverLimitGenerations))
 		}
+		if result.PredrainedSkippedRows > 0 {
+			r.Instruments.GenerationRetentionPredrainedSkippedRows.Record(ctx, result.PredrainedSkippedRows)
+		}
 		for reason, count := range result.Skipped {
 			if count <= 0 {
 				continue
@@ -365,6 +374,10 @@ func (r *Runner) recordResult(ctx context.Context, result Result) {
 		// Drain members over the row limit at the predrain read: Gate-3
 		// tells a predrained-normal cycle from a chunk-shaped one (#10020).
 		slog.Int("predrained_over_limit_generations", result.PredrainedOverLimitGenerations),
+		// Predrained rows of generations this pass did not prune (#10677):
+		// merged with the row_limit_chunked skip, now visible beside
+		// rows_pruned_total.
+		slog.Int64("predrained_skipped_rows", result.PredrainedSkippedRows),
 		telemetry.PhaseAttr(telemetry.PhaseReduction),
 	)
 	if !maps.Equal(result.LedgerRowsPruned, result.LedgerRowsCounted) {
