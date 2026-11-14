@@ -7,17 +7,17 @@ func entityWorkloadContextTools() []ToolDefinition {
 	return []ToolDefinition{
 		{
 			Name:        "resolve_entity",
-			Description: "Resolve an exact case-sensitive entity name. Global calls require a supported type and use the current content entity index, except canonical content-entity IDs and workload resolution. Repository, directory, and file types require repo_id.",
+			Description: "Resolve an exact case-sensitive entity name. Omitting type (and repo_id) runs a global search across every kind by exact name (repository, workload, package, and content entity) and returns one ranked list where each match carries its kind, canonical id, and next selector; names under 3 characters are refused. A supplied type narrows the global lookup to that index. Repository, directory, and file types require repo_id. Canonical content-entity IDs keep their dedicated exact path.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
 					"query": map[string]any{
 						"type":        "string",
-						"description": "Exact case-sensitive entity name or canonical content-entity ID",
+						"description": "Exact case-sensitive entity name or canonical content-entity ID; the route sends it as name",
 					},
 					"type": map[string]any{
 						"type":        "string",
-						"description": "Single entity type. Required for global name resolution except canonical content-entity IDs; workload keeps its authoritative graph path.",
+						"description": "Single entity type. Optional: omit it (with no repo_id) to search every kind by exact name; workload keeps its authoritative graph path.",
 					},
 					"types": map[string]any{
 						"type":        "array",

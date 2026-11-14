@@ -15,7 +15,7 @@ func TestOpenAPIDocumentsGlobalNameSearchBounds(t *testing.T) {
 		`"limit": {"type": "integer", "description": "Maximum returned page size (default 50, maximum 200)", "default": 50, "minimum": 1, "maximum": 200}`,
 		`"required": ["source", "source_backend", "query", "repo_id", "results", "count", "limit", "truncated"]`,
 		"at least 3 Unicode characters",
-		"Requests without repo_id require a supported type",
+		"Omitting type with no repo_id searches every kind by exact name",
 		"repository, directory, and file types require repo_id",
 	} {
 		if !strings.Contains(OpenAPISpec(), fragment) {

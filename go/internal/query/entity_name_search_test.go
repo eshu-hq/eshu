@@ -274,27 +274,42 @@ func TestGlobalCodeSearchRequiresBoundedSubstringAndNameStore(t *testing.T) {
 	}
 }
 
-func TestGlobalEntityResolveFailsClosedOrUsesExactContent(t *testing.T) {
+// TestGlobalEntityResolveStaysBounded guards the global resolve path: typed
+// lookups use one exact content probe, and the omit-type name-first fan-out
+// (#10659, arbiter ruling in #10652: extend resolve_entity with omit-type
+// name-first, type stays optional) may touch the graph only through exact,
+// bounded reads. The pre-#10659 "untyped answers 400" contract is retired by
+// that ruling; the guard that replaces it forbids substring scans and
+// unlabeled matches on the fan-out path instead of forbidding graph reads.
+func TestGlobalEntityResolveStaysBounded(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
-		name      string
-		body      string
-		status    int
-		wantCalls int
+		name           string
+		body           string
+		status         int
+		wantCalls      int
+		wantEntityType string
+		wantBasis      TruthBasis
+		allowGraph     bool
 	}{
-		{name: "untyped", body: `{"name":"Server"}`, status: http.StatusBadRequest},
+		{name: "untyped", body: `{"name":"Server"}`, status: http.StatusOK, wantCalls: 1, wantBasis: TruthBasisHybrid, allowGraph: true},
 		{name: "unknown", body: `{"name":"Server","type":"mystery"}`, status: http.StatusBadRequest},
 		{name: "graph only", body: `{"name":"Server","type":"file"}`, status: http.StatusBadRequest},
 		{name: "canonical handle", body: `{"name":"content-entity:e1"}`, status: http.StatusOK},
-		{name: "typed content", body: `{"name":"Server","type":"function"}`, status: http.StatusOK, wantCalls: 1},
+		{name: "typed content", body: `{"name":"Server","type":"function"}`, status: http.StatusOK, wantCalls: 1, wantEntityType: "Function", wantBasis: TruthBasisContentIndex},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			content := &recordingEntityNameSearcher{rows: []EntityContent{{
 				EntityID: "entity-1", RepoID: "repo-1", RelativePath: "main.go", EntityType: "Function", EntityName: "Server",
 			}}}
-			graph := &captureGraphQuery{runFn: func(context.Context, string, map[string]any) ([]map[string]any, error) {
-				t.Fatal("global entity resolve called unsafe GraphQuery")
+			var graphQueries []string
+			graph := &captureGraphQuery{runFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+				if !tc.allowGraph {
+					t.Error("global entity resolve called unexpected GraphQuery")
+					return nil, nil
+				}
+				graphQueries = append(graphQueries, cypher)
 				return nil, nil
 			}}
 			handler := &EntityHandler{Neo4j: graph, Content: content}
@@ -308,16 +323,23 @@ func TestGlobalEntityResolveFailsClosedOrUsesExactContent(t *testing.T) {
 			if len(content.searches) != tc.wantCalls {
 				t.Fatalf("search calls = %d, want %d", len(content.searches), tc.wantCalls)
 			}
-			if tc.wantCalls == 1 && (content.searches[0].Match != entity.EntityNameMatchExact || content.searches[0].EntityType != "Function") {
-				t.Fatalf("search = %#v, want exact Function", content.searches[0])
+			if tc.allowGraph {
+				for _, cypher := range graphQueries {
+					if strings.Contains(cypher, "CONTAINS") || strings.Contains(cypher, "MATCH (e)") {
+						t.Errorf("name-first graph query uses an unbounded shape:\n%s", cypher)
+					}
+				}
+			}
+			if tc.wantCalls == 1 && (content.searches[0].Match != entity.EntityNameMatchExact || content.searches[0].EntityType != tc.wantEntityType) {
+				t.Fatalf("search = %#v, want exact %q", content.searches[0], tc.wantEntityType)
 			}
 			if tc.wantCalls == 1 {
 				var envelope ResponseEnvelope
 				if err := json.Unmarshal(rec.Body.Bytes(), &envelope); err != nil {
 					t.Fatalf("decode envelope: %v", err)
 				}
-				if envelope.Truth == nil || envelope.Truth.Basis != TruthBasisContentIndex {
-					t.Fatalf("truth = %#v, want content-index basis", envelope.Truth)
+				if envelope.Truth == nil || envelope.Truth.Basis != tc.wantBasis {
+					t.Fatalf("truth = %#v, want %q basis", envelope.Truth, tc.wantBasis)
 				}
 			}
 		})

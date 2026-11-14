@@ -161,10 +161,15 @@ func (h *Handler) ResolveEntity(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.RepoID == "" {
 		if req.Type == "" && !canonicalContentHandle {
-			querycontract.WriteError(w, http.StatusBadRequest, "global entity resolution requires type or repo_id")
-			return
-		}
-		if _, graphOnly := globalGraphOnlyEntityTypes[req.Type]; graphOnly {
+			// Omit-type triggers the name-first fan-out (#10659): one exact
+			// name resolves across repository, workload, package, and
+			// content entity indexes. A sub-3-character name is refused
+			// instead of probing four indexes.
+			if len([]rune(req.Name)) < resolveNameFirstMinNameLength {
+				querycontract.WriteError(w, http.StatusBadRequest, "name-first lookup requires a name of at least 3 characters")
+				return
+			}
+		} else if _, graphOnly := globalGraphOnlyEntityTypes[req.Type]; graphOnly {
 			querycontract.WriteError(w, http.StatusBadRequest, fmt.Sprintf("global entity type %q requires repo_id", req.Type))
 			return
 		}
@@ -196,6 +201,17 @@ func (h *Handler) ResolveEntity(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.RepoID == "" {
+		if req.Type == "" {
+			if canonicalContentHandle {
+				// The canonical path above already answered when the
+				// content store is wired; without it the historical
+				// 400 stands.
+				querycontract.WriteError(w, http.StatusBadRequest, "global entity resolution requires type or repo_id")
+				return
+			}
+			h.writeNameFirstEntityResolution(w, r, req, limit)
+			return
+		}
 		entities, err := h.resolveGlobalContentEntities(r.Context(), req.Name, req.Type, limit+1)
 		if err != nil {
 			if querycontract.WriteGraphReadError(w, r, err, "code_search.exact_symbol") {
