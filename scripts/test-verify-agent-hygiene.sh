@@ -82,13 +82,16 @@ fi
 # Skill frontmatter must stay valid YAML. An unquoted description containing
 # ": " is a mapping error; six skills shipped that shape once and no gate
 # noticed, so a strict loader could drop them.
+# Installer alias-wrapper fixtures live in scripts/lib/test-agent-alias-cases.sh.
+# shellcheck source=lib/test-agent-alias-cases.sh
+source "$here/lib/test-agent-alias-cases.sh"
 make_skill_fixture() {
   local root="$1" desc="$2"
   mkdir -p "$root/.agents/skills/demo-skill" "$root/.claude/skills" "$root/.codex/skills"
   printf 'canon\n' >"$root/AGENTS.md"
   printf -- '---\nname: demo-skill\ndescription: %s\n---\n\n# Demo\n' "$desc" >"$root/.agents/skills/demo-skill/SKILL.md"
-  ln -s ../../.agents/skills/demo-skill "$root/.claude/skills/demo-skill"
-  ln -s ../../.agents/skills/demo-skill "$root/.codex/skills/demo-skill"
+  make_alias_fixture "$root" .claude demo-skill
+  make_alias_fixture "$root" .codex demo-skill
 }
 make_skill_fixture "$tmp/fm-bad" 'Use when the cause is unknown: a queue stall.'
 ESHU_AGENT_CANON_REPO_ROOT="$tmp/fm-bad" "$canon" >"$tmp/fm-bad.out" 2>&1 || true
@@ -193,8 +196,8 @@ write_nudge_fixture "$tmp/skill-links"
 printf 'shared canon\n' >"$tmp/skill-links/AGENTS.md"
 printf '%s\n' '---' 'name: example' 'description: example' '---' \
   >"$tmp/skill-links/.agents/skills/example/SKILL.md"
-ln -s ../../.agents/skills/example "$tmp/skill-links/.claude/skills/example"
-ln -s ../../.agents/skills/example "$tmp/skill-links/.codex/skills/example"
+make_alias_fixture "$tmp/skill-links" .claude example
+make_alias_fixture "$tmp/skill-links" .codex example
 cat >"$tmp/skill-links/.agents/skills/eshu-performance-rigor/SKILL.md" <<'LINK_PERF_SKILL'
 ---
 name: eshu-performance-rigor
@@ -214,21 +217,21 @@ hardware_class machine_profile reference_profile resource_envelope memory_bytes
 container_memory_limit_bytes absolute_target_applicable compose_service_limits
 service_usage_summary
 LINK_PERF_MANIFEST
-ln -s ../../.agents/skills/eshu-performance-rigor \
-  "$tmp/skill-links/.claude/skills/eshu-performance-rigor"
-ln -s ../../.agents/skills/eshu-performance-rigor \
-  "$tmp/skill-links/.codex/skills/eshu-performance-rigor"
+make_alias_fixture "$tmp/skill-links" .claude eshu-performance-rigor
+make_alias_fixture "$tmp/skill-links" .codex eshu-performance-rigor
 if ESHU_AGENT_CANON_REPO_ROOT="$tmp/skill-links" "$canon" >/dev/null 2>&1; then
-  ok "agent-canon passes when shared skill discovery links are complete"
+  ok "agent-canon passes when shared skill harness aliases are complete"
 else
-  no "agent-canon should pass when shared skill discovery links are complete"
+  no "agent-canon should pass when shared skill harness aliases are complete"
 fi
 
-rm "$tmp/skill-links/.codex/skills/example"
+run_agent_alias_marker_cases
+
+rm -r "$tmp/skill-links/.codex/skills/example"
 if ESHU_AGENT_CANON_REPO_ROOT="$tmp/skill-links" "$canon" >/dev/null 2>&1; then
   no "agent-canon should fail when one harness cannot discover a shared skill"
 else
-  ok "agent-canon fails when a shared skill discovery link is missing"
+  ok "agent-canon fails when a shared skill harness alias is missing"
 fi
 
 mkdir -p "$tmp/perf-contract/.agents/skills/eshu-performance-rigor/references" \
@@ -240,10 +243,8 @@ printf '%s\n' '---' 'name: eshu-performance-rigor' 'description: incomplete' '--
   >"$tmp/perf-contract/.agents/skills/eshu-performance-rigor/SKILL.md"
 printf '# Performance Run Manifest\n' \
   >"$tmp/perf-contract/.agents/skills/eshu-performance-rigor/references/run-manifest.md"
-ln -s ../../.agents/skills/eshu-performance-rigor \
-  "$tmp/perf-contract/.claude/skills/eshu-performance-rigor"
-ln -s ../../.agents/skills/eshu-performance-rigor \
-  "$tmp/perf-contract/.codex/skills/eshu-performance-rigor"
+make_alias_fixture "$tmp/perf-contract" .claude eshu-performance-rigor
+make_alias_fixture "$tmp/perf-contract" .codex eshu-performance-rigor
 if ESHU_AGENT_CANON_REPO_ROOT="$tmp/perf-contract" "$canon" >/dev/null 2>&1; then
   no "agent-canon should fail when the performance workflow contract is incomplete"
 else
@@ -424,10 +425,8 @@ hardware_class machine_profile reference_profile resource_envelope memory_bytes
 container_memory_limit_bytes absolute_target_applicable compose_service_limits
 service_usage_summary
 NUDGE_PERF_MANIFEST
-ln -s ../../.agents/skills/eshu-performance-rigor \
-  "$tmp/nudge/.claude/skills/eshu-performance-rigor"
-ln -s ../../.agents/skills/eshu-performance-rigor \
-  "$tmp/nudge/.codex/skills/eshu-performance-rigor"
+make_alias_fixture "$tmp/nudge" .claude eshu-performance-rigor
+make_alias_fixture "$tmp/nudge" .codex eshu-performance-rigor
 write_nudge_fixture "$tmp/nudge"
 
 # Control: the fixture must PASS before the orphan is introduced. Without this,
@@ -442,8 +441,8 @@ fi
 mkdir -p "$tmp/nudge/.agents/skills/orphan"
 printf '%s\n' '---' 'name: orphan' 'description: orphan' '---' \
   >"$tmp/nudge/.agents/skills/orphan/SKILL.md"
-ln -s ../../.agents/skills/orphan "$tmp/nudge/.claude/skills/orphan"
-ln -s ../../.agents/skills/orphan "$tmp/nudge/.codex/skills/orphan"
+make_alias_fixture "$tmp/nudge" .claude orphan
+make_alias_fixture "$tmp/nudge" .codex orphan
 
 rm "$tmp/nudge/.claude/hooks/skill-nudge.sh"
 if ESHU_AGENT_CANON_REPO_ROOT="$tmp/nudge" "$canon" >/dev/null 2>&1; then

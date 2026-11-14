@@ -12,8 +12,9 @@ Before reviewing behavior, prove the review is pointed at the right work:
 - no sibling PR rollback, unrelated deletion, generated-output churn, or
   accidental main-checkout mutation slipped in;
 - no `CLAUDE.md` is added anywhere; root `AGENTS.md` is the only canon;
-- `.codex/skills` and `.claude/skills` discovery links exist for project
-  skills that must be visible to both harnesses.
+- project skills visible to both harnesses resolve through the
+  installer-generated `.codex/skills` and `.claude/skills` alias trees
+  (no stored copies in this repo).
 
 ### Naming surface
 
@@ -52,8 +53,9 @@ Review for production operation and delivery safety:
   artifacts, and rerun/idempotency of generators;
 - private data, secrets, hostnames, IPs, credentials, internal URLs, employer
   identifiers, and AI attribution;
-- docs, package docs, root `AGENTS.md` (no `CLAUDE.md`), `.codex/skills`
-  and `.claude/skills` discovery, hooks, pre-commit, pre-push, and GHA parity;
+- docs, package docs, root `AGENTS.md` (no `CLAUDE.md`), harness skill
+  discovery via the kit installer (no stored `.codex/skills` or
+  `.claude/skills` copies), hooks, pre-commit, pre-push, and GHA parity;
 - follow-on validation needs when the PR cannot honestly prove a separate runtime,
   backend-version, cassette, full-corpus, or performance condition.
 
