@@ -136,3 +136,18 @@ resource. This note records how that interacts with the budget.
 - `find_tool` results and router error results come from the router, not tool
   dispatch, and carry the payload as text and as `structuredContent` in both
   shapes. "Once on the wire" describes tool results only.
+
+## Evidence status for the one-copy default (#10653, 2026-11-13)
+
+Issue #10653 (replacing #8800) gates the `structured` default flip on the
+rows below. The live table is
+[10653-result-shape-status](../evidence/10653-result-shape-status.md);
+this section records the row status so the "fill each row" step has rows.
+
+| Row | Status |
+|---|---|
+| Codex three-size comparison, fixed background, fresh controls | Open — two matrices NOT_PROVEN, live rerun required |
+| Manual `shape=structured` checks: Cursor, VS Code, OpenCode, Muse | Open — none run |
+| Hosted week, no rise in over-budget responses | Open — on hold by owner instruction |
+| `eshu mcp setup` decision for Cursor, VS Code, generic | Open — gated on the manual checks |
+| Default-flip diff | Correctly absent until the rows above close |
