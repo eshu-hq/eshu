@@ -401,42 +401,7 @@ service context, and workload context/story, and `coverage_summary.truncated`
 on the service investigation route. Both blocks also
 report `downstream_read_limit`, the bound that actually fires on the
 downstream lists (25 by default). Read it rather than `result_limits.limit` or
-`coverage_summary.result_limit`, which report the 50-row rendering cap; with an explicit read above that preview the lists ship up to the read bound (`downstream_render_limit` reports the applied cap).
-
-The story's `result_limits.downstream_count` counts distinct repositories across
-the `dependents` and `consumer_repositories` lists: a repository present in both
-counts once, so the number is never the sum of the two list lengths. The field
-carries `downstream_count_is_lower_bound` alongside it, true whenever the
-dependents or consumer_repositories read hit its bound; in that case more
-repositories may exist past `downstream_read_limit`, the text summary renders the
-count with a `+` suffix (for example `consumers 7+`), and the paged
-`list_service_downstream_consumers` tool (named in `support_overview`, which ships
-on both the story and the context routes) returns the full keyset-ordered set.
-`upstream_dependencies` rows, by contrast, are one row per upstream edge:
-incoming deployment-artifact edges, repository dependency rows, and provisioning
-source chains, sorted by relationship type then source.
-
-No-Regression Evidence (#10656): the count change is in-memory only over rows
-already read. Baseline summed the two list lengths (an overlap repo counted
-twice); after, one pass dedupes by repo_id (display-name fallback) in O(n)
-over at most twice the render bound, with no new query, graph read, or bound
-change. Measured on the in-memory service-story fixtures (no backend skew):
-`TestServiceStoryDownstreamCountDedupesSharedRepository` (2 dependents + 2
-consumers sharing one repo yields 3, flag false) and the four-case
-`TestServiceStoryDownstreamCountLowerBoundCases` table (zero consumers, a
-100-row capped read with the flag true, truncated dependents beside
-untruncated consumers, overlap under truncation) pass, and the full focused
-suites (`./internal/query/service/`, `./internal/query/entity/`,
-`./internal/query/`, `./internal/mcp/`, `./internal/mcp/service/`,
-`./cmd/api/`) exit 0 with terminal row counts unchanged. Safe because the
-only request-path delta is the dedupe loop plus two map assignments for the
-consumer-list pointer, and the flag reuses the existing
-`dependents_truncated`/`consumer_repositories_truncated` bools.
-
-No-Observability-Change (#10656): no new metric, span, or log line. The
-existing `result_limits.truncated` and `raw_context_limits` entries observe
-the bounded reads; the new boolean and the `+` suffix render from those same
-bounds.
+`coverage_summary.result_limit`, which report the 50-row rendering cap; with an explicit read above that preview the lists ship up to the read bound (`downstream_render_limit` reports the applied cap). `downstream_count` counts distinct downstream repositories; see [story response details](story-routes.md#story-response-details).
 
 `downstream_read_limit` is not the only bound behind `truncated`, though.
 `dependents_truncated` and `provisioning_source_chains_truncated` reflect the
