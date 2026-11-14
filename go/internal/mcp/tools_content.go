@@ -46,7 +46,8 @@ func contentTools() []ToolDefinition {
 						"description": "Ending line number (1-indexed)",
 					},
 				},
-				"required": []string{"repo_id", "relative_path", "start_line", "end_line"},
+				"required":             []string{"repo_id", "relative_path", "start_line", "end_line"},
+				"additionalProperties": true,
 			},
 		},
 		{

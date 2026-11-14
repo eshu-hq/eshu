@@ -25,13 +25,15 @@ func listTool() toolcontract.ToolDefinition {
 			"Rows are ordered by repo_id, relative_path, line_number, runtime and order_index. When truncated is true, pass next_cursor as cursor to continue. " +
 			"Use get_repo_context for one repository's declared-runtime summary.",
 		// The object stays open and length caps stay out of the schema: the
-		// router validator implements neither bool additionalProperties nor
-		// maxLength, and the HTTP handler enforces both (DisallowUnknownFields
-		// plus the maxFilterLength/maxRepoIDLength/maxRepoIDs caps in
+		// router validator accepts a bool additionalProperties as an
+		// annotation (true is allow-all) but does not implement maxLength;
+		// the HTTP handler enforces both (DisallowUnknownFields plus the
+		// maxFilterLength/maxRepoIDLength/maxRepoIDs caps in
 		// go/internal/query/runtime/declaration/request.go). Sibling tools
 		// follow the same descriptions-plus-handler-validation split.
 		InputSchema: map[string]any{
-			"type": "object",
+			"type":                 "object",
+			"additionalProperties": true,
 			"properties": map[string]any{
 				"runtime": map[string]any{
 					"type":        "string",

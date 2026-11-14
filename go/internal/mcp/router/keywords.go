@@ -90,7 +90,20 @@ func walkSchema(raw any, path string, findings *[]string) {
 			for name, child := range properties {
 				walkSchema(child, joinPath(path, "properties."+name), findings)
 			}
-		case "items", "additionalProperties":
+		case "items":
+			if _, ok := value.(map[string]any); !ok {
+				*findings = append(*findings, fmt.Sprintf("%s: keyword %s is %T", at, keyword, value))
+				continue
+			}
+			walkSchema(value, joinPath(path, keyword), findings)
+		case "additionalProperties":
+			// A boolean is an accepted annotation: true is allow-all in the
+			// validator today, and false is accepted without enforcement
+			// because closed-world rejection is held work. A map schema is
+			// walked like any other subschema.
+			if _, ok := value.(bool); ok {
+				continue
+			}
 			if _, ok := value.(map[string]any); !ok {
 				*findings = append(*findings, fmt.Sprintf("%s: keyword %s is %T", at, keyword, value))
 				continue
