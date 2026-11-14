@@ -17,7 +17,7 @@ DbHits per 25-row page and no whole-graph scan, for trailing `.` and `/`
 prefixes as well as `@scope/` families. The source-module scan path keeps
 its pinned Cypher text (no `STARTS WITH`) and applies the prefix/external
 filter in Go after the bounded scan, so a broad source scope can still hit
-the refusal below before the Go filter. No new index was added. New
+the 25,000-row scan refusal before the Go filter. No new index was added. New
 queryplan pins `QP-CODE-IMPORT-PREFIX-ROWS` and
 `QP-CODE-IMPORT-PREFIX-PACKAGES` bind the exact production shapes; the old
 pins are untouched. Full proof (setup, PROFILE tables, row counts):
