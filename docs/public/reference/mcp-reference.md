@@ -167,7 +167,7 @@ counts distinct repositories across the dependents and consumer_repositories lis
 (a repository in both counts once), and `downstream_count_is_lower_bound` is true
 when either read hit its bound. The `support_overview` on `get_service_story` and
 `get_service_context` names the paged `list_service_downstream_consumers` tool for the
-full consumer set. A lower-bound count renders with a `+` suffix in the text summary
+keyset-ordered consumer set past the dossier read bound (itself a bounded scan that reports `lower_bound`). A lower-bound count renders with a `+` suffix in the text summary
 (for example `consumers 7+`); a `code_to_runtime_trace`
 preview also carries `truncated`, `evidence_shipped`, and `evidence_omitted`,
 `evidence_graph` carries `nodes_truncated` and `nodes_omitted`, and a dropped

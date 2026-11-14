@@ -54,7 +54,7 @@ family is named with its total in `truth.omissions`; repeat the call with
 `full` for every field of every row. Any other value returns 400
 `invalid_argument` before any read runs.
 
-The dossiers keep only a 50-row `api_surface` preview; page the full ordered set through the endpoint route above (`limit` default 50 max 100, `offset` default 0, `next_offset` absent when complete) and the MCP `list_service_api_endpoints` tool. Downstream lists render to the read bound; page the full keyset-ordered set through the downstream-consumers route (`limit` default 50 max 100, `after_repository`+`after_repo_id` cursor, absent `next_cursor` ends the walk) and the MCP `list_service_downstream_consumers` tool. See [Context Evidence Budget](context-evidence-budget.md).
+The dossiers keep only a 50-row `api_surface` preview; page the full ordered set through the endpoint route above (`limit` default 50 max 100, `offset` default 0, `next_offset` absent when complete) and the MCP `list_service_api_endpoints` tool. Downstream lists render to the read bound; page the keyset-ordered set past the dossier read bound through the downstream-consumers route (`limit` default 50 max 100, `after_repository`+`after_repo_id` cursor, absent `next_cursor` ends the walk; the walk itself is a bounded scan and the list reports `lower_bound`) and the MCP `list_service_downstream_consumers` tool. See [Context Evidence Budget](context-evidence-budget.md).
 
 The story's `result_limits.downstream_count` counts distinct repositories across
 the `dependents` and `consumer_repositories` lists: a repository present in both
@@ -64,7 +64,7 @@ dependents or consumer_repositories read hit its bound; in that case more
 repositories may exist past `downstream_read_limit`, the text summary renders the
 count with a `+` suffix (for example `consumers 7+`), and the paged
 `list_service_downstream_consumers` tool (named in `support_overview`, which ships
-on both the story and the context routes) returns the full keyset-ordered set.
+on both the story and the context routes) returns the keyset-ordered set past the dossier read bound (itself a bounded scan; the list reports `lower_bound`).
 `upstream_dependencies` rows, by contrast, are one row per upstream edge:
 incoming deployment-artifact edges, repository dependency rows, and provisioning
 source chains, sorted by relationship type then source.
