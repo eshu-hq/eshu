@@ -300,10 +300,19 @@ func buildServiceResultLimitsWithContext(buildCtx serviceStoryBuildContext) map[
 		endpointCount = len(querycontract.MapSliceValue(apiSurface, "endpoints"))
 	}
 	upstreamCount := len(serviceUpstreamDependencyRows(workloadContext))
-	dependentCount := len(querycontract.MapSliceValue(workloadContext, "dependents"))
-	contentConsumerCount := len(querycontract.MapSliceValue(workloadContext, "consumer_repositories"))
-	consumerCount := len(querycontract.MapSliceValue(workloadContext, "dependents")) +
-		len(querycontract.MapSliceValue(workloadContext, "consumer_repositories"))
+	dependents := querycontract.MapSliceValue(workloadContext, "dependents")
+	consumers := querycontract.MapSliceValue(workloadContext, "consumer_repositories")
+	dependentCount := len(dependents)
+	contentConsumerCount := len(consumers)
+	// #10656: downstream_count names distinct repositories, not the sum of
+	// the two lists. A repository that is both a graph dependent and a
+	// content consumer used to count twice.
+	consumerCount := distinctDownstreamRepoCount(dependents, consumers)
+	// The count is a lower bound whenever the read behind either list fired
+	// its bound. Provisioning-chain truncation does not feed this count, so
+	// it does not set this flag (it still drives truncated below).
+	downstreamCountIsLowerBound := querycontract.BoolVal(workloadContext, "dependents_truncated") ||
+		querycontract.BoolVal(workloadContext, "consumer_repositories_truncated")
 	// Fold the infrastructure panel's own truncation into this block's
 	// "truncated" field (round-11 review follow-up to #5764, PR #5936,
 	// mirroring the P3 fix already applied to getRepositoryStory in
@@ -377,10 +386,13 @@ func buildServiceResultLimitsWithContext(buildCtx serviceStoryBuildContext) map[
 		"endpoint_count":           endpointCount,
 		"upstream_count":           upstreamCount,
 		"downstream_count":         consumerCount,
-		"truncated":                endpointCount > serviceStoryItemLimit || upstreamCount > serviceStoryItemLimit || dependentCount > downstreamRenderLimit || contentConsumerCount > downstreamRenderLimit || infrastructureTruncated || upstreamTruncated,
-		"drilldown_basis":          "resolved_id",
-		"relationship_tool":        "get_relationship_evidence",
-		"service_context_path":     "/api/v0/services/" + serviceName + "/context",
+		// #10656: distinct repositories downstream; true when a read bound
+		// fired, in which case more repositories may exist past the bound.
+		"downstream_count_is_lower_bound": downstreamCountIsLowerBound,
+		"truncated":                       endpointCount > serviceStoryItemLimit || upstreamCount > serviceStoryItemLimit || dependentCount > downstreamRenderLimit || contentConsumerCount > downstreamRenderLimit || infrastructureTruncated || upstreamTruncated,
+		"drilldown_basis":                 "resolved_id",
+		"relationship_tool":               "get_relationship_evidence",
+		"service_context_path":            "/api/v0/services/" + serviceName + "/context",
 		// #10477: the dossier api_surface stays a 50-row preview; the full
 		// ordered endpoint set pages through this drilldown instead of a
 		// dossier-level offset that would re-run the whole enrichment.
@@ -393,6 +405,28 @@ func buildServiceResultLimitsWithContext(buildCtx serviceStoryBuildContext) map[
 		"consumer_list_tool": "list_service_downstream_consumers",
 		"consumer_list_path": "/api/v0/services/" + serviceName + "/downstream-consumers",
 	}
+}
+
+// distinctDownstreamRepoCount counts each repository once across the graph
+// dependents and content consumer lists (#10656). Rows key on repo_id with
+// the display name as fallback, mirroring the sort tiebreaks in
+// BuildGraphDependents and the consumer enrichment merge.
+func distinctDownstreamRepoCount(dependents []map[string]any, consumers []map[string]any) int {
+	seen := make(map[string]struct{}, len(dependents)+len(consumers))
+	for _, row := range dependents {
+		seen[downstreamRepoKey(row)] = struct{}{}
+	}
+	for _, row := range consumers {
+		seen[downstreamRepoKey(row)] = struct{}{}
+	}
+	return len(seen)
+}
+
+func downstreamRepoKey(row map[string]any) string {
+	if id := querycontract.StringVal(row, "repo_id"); id != "" {
+		return "id:" + id
+	}
+	return "name:" + querycontract.StringVal(row, "repository")
 }
 
 func serviceDeploymentArtifacts(workloadContext map[string]any) []map[string]any {

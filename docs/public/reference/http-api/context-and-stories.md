@@ -403,6 +403,19 @@ report `downstream_read_limit`, the bound that actually fires on the
 downstream lists (25 by default). Read it rather than `result_limits.limit` or
 `coverage_summary.result_limit`, which report the 50-row rendering cap; with an explicit read above that preview the lists ship up to the read bound (`downstream_render_limit` reports the applied cap).
 
+The story's `result_limits.downstream_count` counts distinct repositories across
+the `dependents` and `consumer_repositories` lists: a repository present in both
+counts once, so the number is never the sum of the two list lengths. The field
+carries `downstream_count_is_lower_bound` alongside it, true whenever the
+dependents or consumer_repositories read hit its bound; in that case more
+repositories may exist past `downstream_read_limit`, the text summary renders the
+count with a `+` suffix (for example `consumers 7+`), and the paged
+`list_service_downstream_consumers` tool (named in `support_overview`, which ships
+on both the story and the context routes) returns the full keyset-ordered set.
+`upstream_dependencies` rows, by contrast, are one row per upstream edge:
+incoming deployment-artifact edges, repository dependency rows, and provisioning
+source chains, sorted by relationship type then source.
+
 `downstream_read_limit` is not the only bound behind `truncated`, though.
 `dependents_truncated` and `provisioning_source_chains_truncated` reflect the
 provisioning-candidate graph read alone, so when either one drives

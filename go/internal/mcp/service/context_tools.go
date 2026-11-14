@@ -11,7 +11,7 @@ func ContextTools() []toolcontract.ToolDefinition {
 	return []toolcontract.ToolDefinition{
 		{
 			Name:        "get_service_context",
-			Description: "Alias for workload context that accepts service workload selectors through workload_id.",
+			Description: "Alias for workload context that accepts service workload selectors through workload_id. The support_overview names the paged downstream-consumer list (list_service_downstream_consumers) for fan-out past the dossier read bound.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{

@@ -40,7 +40,13 @@ func summarizeServiceStory(data map[string]any) string {
 	parts = append(parts, apiPart)
 
 	parts = append(parts, fmt.Sprintf("deps %d", querycontract.IntVal(limits, "upstream_count")))
-	parts = append(parts, fmt.Sprintf("consumers %d", querycontract.IntVal(limits, "downstream_count")))
+	consumerPart := fmt.Sprintf("consumers %d", querycontract.IntVal(limits, "downstream_count"))
+	// #10656: a bounded downstream read makes the count a lower bound; mark
+	// it in the one-line summary so it never reads as an exact total.
+	if querycontract.BoolVal(limits, "downstream_count_is_lower_bound") {
+		consumerPart += "+"
+	}
+	parts = append(parts, consumerPart)
 
 	summary := strings.Join(parts, "; ")
 

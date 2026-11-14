@@ -162,7 +162,13 @@ families are:
 MCP. `handles` keeps every section, count, and top-level status, truth, and
 freshness field, and names each reduced family, with its total, in
 `truth.omissions`. On `get_service_story` the bulky evidence lists become
-identity rows that keep their row-level truth labels; a `code_to_runtime_trace`
+identity rows that keep their row-level truth labels; `result_limits.downstream_count`
+counts distinct repositories across the dependents and consumer_repositories lists
+(a repository in both counts once), and `downstream_count_is_lower_bound` is true
+when either read hit its bound. The `support_overview` on `get_service_story` and
+`get_service_context` names the paged `list_service_downstream_consumers` tool for the
+full consumer set. A lower-bound count renders with a `+` suffix in the text summary
+(for example `consumers 7+`); a `code_to_runtime_trace`
 preview also carries `truncated`, `evidence_shipped`, and `evidence_omitted`,
 `evidence_graph` carries `nodes_truncated` and `nodes_omitted`, and a dropped
 list is named by a `*_shipped_at` pointer or only in `truth.omissions`. On all three tools, deployment artifact rows keep

@@ -48,6 +48,30 @@ func TestSummarizeToolTextServiceStory(t *testing.T) {
 	}
 }
 
+// TestSummarizeToolTextServiceStoryLowerBound pins the #10656 summary
+// marker: a lower-bound downstream count renders with a "+" suffix so the
+// one-line summary never reads as an exact total.
+func TestSummarizeToolTextServiceStoryLowerBound(t *testing.T) {
+	env := &query.ResponseEnvelope{
+		Truth: freshTruth(query.TruthLevelExact, query.FreshnessFresh),
+		Data: map[string]any{
+			"service_identity": map[string]any{"service_name": "payments-api"},
+			"api_surface":      map[string]any{"endpoint_count": float64(12)},
+			"result_limits": map[string]any{
+				"upstream_count":                  float64(3),
+				"downstream_count":                float64(7),
+				"downstream_count_is_lower_bound": true,
+			},
+		},
+	}
+
+	got := summarizeToolText("get_service_story", env)
+
+	if want := "consumers 7+"; !strings.Contains(got, want) {
+		t.Fatalf("service story summary %q missing %q", got, want)
+	}
+}
+
 func TestSummarizeToolTextServiceStoryDeterministic(t *testing.T) {
 	env := &query.ResponseEnvelope{
 		Truth: freshTruth(query.TruthLevelDerived, query.FreshnessStale),
