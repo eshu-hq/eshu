@@ -46,7 +46,7 @@ const (
 const HolderMassProbeCap = fanOutHolderHotMassRows + 1
 
 // HolderMassEstimator is the optional mass probe behind adaptive holder-read
-// splitting (#10643). A port that implements it reports, per requested lookup
+// splitting (#10643). The production probe reports, per requested lookup
 // id, how many live finding rows name that id, capped at HolderMassProbeCap
 // with one entry for every requested id (zero for no match). A port without
 // it keeps the legacy shape: one statement per fanOutHolderReadChunk-sized

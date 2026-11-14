@@ -21,9 +21,9 @@ import (
 // the uncapped shape measured 6067 ms cold / 218 ms warm at production mass
 // (see the evidence note), bounded by the same guard with fail-closed
 // errors. The group-members arm (#10681) counts through a per-id LATERAL
-// capped at the probe cap, and only for ids the cheap arms did not already
-// prove hot: an id the cheap arms already push over the hot threshold
-// reports the cap without touching the GIN bitmap at all. The per-id total
+// capped at the probe cap. The ON gate excludes the member-arm contribution
+// for already-hot ids and LEAST caps the total; the heap-fetch bound comes
+// from the per-id LIMIT in all cases. The per-id total
 // saturates at the cap through LEAST, so a hot id still reads hot while the
 // heap fetch stays bounded; at or under the hot threshold every arm is
 // exact, so cold ids pack exactly as before and split decisions match the
