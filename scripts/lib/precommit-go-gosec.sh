@@ -75,10 +75,12 @@ gosec_cleanup() {
 # gosec_new_alias <real-dir> creates go/_g<pid> (or a lettered variant) as a
 # relative symlink to the package dir and sets gosec_alias_made to its name (no
 # command substitution: it must update gosec_aliases in the calling shell). The underscore keeps
-# it out of ./..., go vet and golangci-lint; the name is per process, and ln -s
-# fails on an existing name, so a concurrent run never shares or deletes ours.
+# it out of ./..., go vet and golangci-lint; the base name is fixed-length so the
+# alias byte cost is deterministic (a PID-derived base made the gate pass or fail
+# on PID digit count, eshu-hq/eshu#10665), and ln -s fails on an existing name,
+# so a concurrent run never shares or deletes ours.
 gosec_new_alias() {
-	local dir="$1" base="_g$(($$ % 10000))" cand letters=bcdefghijklmnopqrstuvwxyz n=0
+	local dir="$1" base="_g" cand letters=bcdefghijklmnopqrstuvwxyz n=0
 	cand="${base}"
 	until ln -s "${dir}" "${go_dir}/${cand}" 2>/dev/null; do
 		n=$((n + 1))
