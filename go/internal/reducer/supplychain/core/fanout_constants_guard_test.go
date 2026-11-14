@@ -37,4 +37,7 @@ func TestFanOutChunkAndHolderCapsArePinned(t *testing.T) {
 	if FanOutOriginCVEIDCap != fanOutCVEChunk {
 		t.Fatalf("FanOutOriginCVEIDCap = %d, fanOutCVEChunk = %d: the stamp cap must stay one CVE chunk", FanOutOriginCVEIDCap, fanOutCVEChunk)
 	}
+	if HolderMassProbeCap != fanOutHolderHotMassRows+1 {
+		t.Fatalf("HolderMassProbeCap = %d, want fanOutHolderHotMassRows+1: the probe reports at most one row over the hot threshold, so a hot id stays hot with a bounded count", HolderMassProbeCap)
+	}
 }

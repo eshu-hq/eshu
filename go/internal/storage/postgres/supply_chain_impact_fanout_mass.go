@@ -12,55 +12,86 @@ import (
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 )
 
-// holderMassProbeQuery estimates, per lookup id, how many live finding rows
-// name that id, so the reducer can isolate hot ids into their own holder-read
-// statement (#10643). Each arm joins one id at a time against the same
-// partial index the shipped holder read uses (literal fact kind plus the
-// tombstone predicate prove the predicate), so the probe avoids the scope
-// join and DISTINCT sort of a second full read; at production mass it
-// measured 6067 ms cold / 218 ms warm (see the evidence note), bounded by
-// the same guard with fail-closed errors.
-// The probe
-// deliberately overestimates: it counts rows in superseded generations (no
-// active-generation join) and counts a row once per arm it matches, and an
-// id whose row matches through two ids in one chunk counts toward both. All
-// three biases point at splitting, which is the safe direction — an extra
-// statement stays far under the guard, while a missing split could re-form
-// the timed-out shape. The outer LEFT JOIN reports every requested id with
-// zero for no match, so the planner only treats an id as unmeasured when the
-// probe itself misbehaves. It runs under the same statement timeout as the
-// holder read through readIDMasses.
-const holderMassProbeQuery = `
-SELECT ids.id AS lookup_id, COUNT(candidates.lookup_id) AS mass
+// holderMassProbeQueryTemplate estimates, per lookup id, how many live
+// finding rows name that id, so the reducer can isolate hot ids into their
+// own holder-read statement (#10643). The cheap arms (cve_id, advisory_id)
+// count exactly against the same partial index the shipped holder read uses
+// (literal fact kind plus the tombstone predicate prove the predicate), so
+// the probe avoids the scope join and DISTINCT sort of a second full read;
+// the uncapped shape measured 6067 ms cold / 218 ms warm at production mass
+// (see the evidence note), bounded by the same guard with fail-closed
+// errors. The group-members arm (#10681) counts through a per-id LATERAL
+// capped at the probe cap, and only for ids the cheap arms did not already
+// prove hot: an id the cheap arms already push over the hot threshold
+// reports the cap without touching the GIN bitmap at all. The per-id total
+// saturates at the cap through LEAST, so a hot id still reads hot while the
+// heap fetch stays bounded; at or under the hot threshold every arm is
+// exact, so cold ids pack exactly as before and split decisions match the
+// uncapped probe. The three %d verbs all take
+// supplychaincore.HolderMassProbeCap through buildHolderMassProbeQuery,
+// never a duplicated literal.
+// The probe deliberately overestimates: it counts rows in superseded
+// generations (no active-generation join) and counts a row once per arm it
+// matches, and an id whose row matches through two ids in one chunk counts
+// toward both. All three biases point at splitting, which is the safe
+// direction — an extra statement stays far under the guard, while a missing
+// split could re-form the timed-out shape. The outer LEFT JOINs report every
+// requested id with zero for no match, so the planner only treats an id as
+// unmeasured when the probe itself misbehaves. It runs under the same
+// statement timeout as the holder read through readIDMasses.
+const holderMassProbeQueryTemplate = `
+SELECT ids.id AS lookup_id, LEAST(COALESCE(cheap.mass, 0) + COALESCE(m3.mass, 0), %d) AS mass
 FROM UNNEST($1::text[]) AS ids(id)
 LEFT JOIN (
-    SELECT per_arm.id AS lookup_id
-    FROM UNNEST($1::text[]) AS per_arm(id)
-    JOIN fact_records AS finding
-      ON finding.fact_kind = '` + facts.ReducerSupplyChainImpactFindingFactKind + `'
-     AND finding.is_tombstone = FALSE
-     AND finding.payload->>'cve_id' = per_arm.id
-    UNION ALL
-    SELECT per_arm.id AS lookup_id
-    FROM UNNEST($1::text[]) AS per_arm(id)
-    JOIN fact_records AS finding
-      ON finding.fact_kind = '` + facts.ReducerSupplyChainImpactFindingFactKind + `'
-     AND finding.is_tombstone = FALSE
-     AND finding.payload->>'advisory_id' = per_arm.id
-    UNION ALL
-    SELECT per_arm.id AS lookup_id
-    FROM UNNEST($1::text[]) AS per_arm(id)
-    JOIN fact_records AS finding
-      ON finding.fact_kind = '` + facts.ReducerSupplyChainImpactFindingFactKind + `'
-     AND finding.is_tombstone = FALSE
-     AND finding.payload #> '{provenance,advisory_group_members}' ? per_arm.id
-) AS candidates ON candidates.lookup_id = ids.id
-GROUP BY ids.id
+    SELECT lookup_id, COUNT(*) AS mass
+    FROM (
+        SELECT per_arm.id AS lookup_id
+        FROM UNNEST($1::text[]) AS per_arm(id)
+        JOIN fact_records AS finding
+          ON finding.fact_kind = '` + facts.ReducerSupplyChainImpactFindingFactKind + `'
+         AND finding.is_tombstone = FALSE
+         AND finding.payload->>'cve_id' = per_arm.id
+        UNION ALL
+        SELECT per_arm.id AS lookup_id
+        FROM UNNEST($1::text[]) AS per_arm(id)
+        JOIN fact_records AS finding
+          ON finding.fact_kind = '` + facts.ReducerSupplyChainImpactFindingFactKind + `'
+         AND finding.is_tombstone = FALSE
+         AND finding.payload->>'advisory_id' = per_arm.id
+    ) AS cheap_arms
+    GROUP BY lookup_id
+) AS cheap ON cheap.lookup_id = ids.id
+LEFT JOIN LATERAL (
+    SELECT COUNT(*) AS mass
+    FROM (
+        SELECT 1
+        FROM fact_records AS finding
+        WHERE finding.fact_kind = '` + facts.ReducerSupplyChainImpactFindingFactKind + `'
+          AND finding.is_tombstone = FALSE
+          AND finding.payload #> '{provenance,advisory_group_members}' ? ids.id
+        LIMIT %d
+    ) AS limited
+) AS m3 ON COALESCE(cheap.mass, 0) < %d
 `
 
+// buildHolderMassProbeQuery renders the probe with the cap from its single
+// source: every bounded site (LEAST total, member-arm LIMIT, already-hot
+// short-circuit) takes supplychaincore.HolderMassProbeCap, so a threshold
+// change moves all three together.
+func buildHolderMassProbeQuery() string {
+	probeCap := supplychaincore.HolderMassProbeCap
+	return fmt.Sprintf(holderMassProbeQueryTemplate, probeCap, probeCap, probeCap)
+}
+
+// HolderMassProbeQuery is the shipped probe text behind EstimateHolderMasses,
+// exported so live proofs EXPLAIN the exact statement production runs rather
+// than a hand-copied differential that could drift false-green.
+var HolderMassProbeQuery = buildHolderMassProbeQuery()
+
 // EstimateHolderMasses implements supplychaincore.HolderMassEstimator: one row
-// per requested lookup id with its live finding-row count, under the same
-// bounded statement timeout as the holder read. A timeout classifies as
+// per requested lookup id with its live finding-row count capped at
+// supplychaincore.HolderMassProbeCap, under the same bounded statement
+// timeout as the holder read. A timeout classifies as
 // supplychaincore.ErrFanOutReadTimeout exactly like the holder read, so the
 // pass fails (and retries) instead of splitting blind.
 func (s SupplyChainImpactFanOutStore) EstimateHolderMasses(
@@ -70,7 +101,7 @@ func (s SupplyChainImpactFanOutStore) EstimateHolderMasses(
 	if len(lookupIDs) == 0 {
 		return map[string]int64{}, nil
 	}
-	return s.readIDMasses(ctx, holderMassProbeQuery, lookupIDs)
+	return s.readIDMasses(ctx, HolderMassProbeQuery, lookupIDs)
 }
 
 // readIDMasses runs one mass-probe statement as a short read-only transaction
