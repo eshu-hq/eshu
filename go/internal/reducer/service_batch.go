@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer //nolint:filelength // 509 lines (base 476): the #8625 mid-handoff and post-receive drop records live inline at their select/branch sites; extracting them would split each drop's ownership proof from its branch, and a file split is out of scope for this telemetry-only change.
+package reducer //nolint:filelength // 538 lines (base 476): the #8625 mid-handoff and post-receive drop records live inline at their select/branch sites; extracting them would split each drop's ownership proof from its branch, and a file split is out of scope for this telemetry-only change.
 
 import (
 	"context"
