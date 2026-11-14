@@ -35,5 +35,5 @@ The ingestion commit fence (`ValidateAndPinClaimForCommit`, #8875 P2) lives in
 
 ```bash
 cd go && go test -race ./internal/collector/claim/store/ ./internal/workflow/ \
-  ./cmd/collector-grafana/ ./cmd/collector-package-registry/
+  ./cmd/collector-grafana/
 ```

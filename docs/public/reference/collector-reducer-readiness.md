@@ -186,7 +186,7 @@ rendered page and bind each collector to its inventory lane.
 <!-- collector-state: name=package_registry lane=implemented -->
 <!-- collector-state: name=sbom_attestation lane=implemented -->
 <!-- collector-state: name=vulnerability_intelligence lane=implemented -->
-<!-- collector-state: name=security_alert lane=partial -->
+<!-- collector-state: name=security_alert lane=implemented -->
 <!-- collector-state: name=pagerduty lane=partial -->
 <!-- collector-state: name=jira lane=partial -->
 <!-- collector-state: name=scanner_worker lane=implemented -->

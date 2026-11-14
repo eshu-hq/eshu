@@ -136,7 +136,7 @@ truth; reducers admit user-facing truth.
 
 ## Evidence
 
-No-Regression Evidence: `go test ./internal/packageidentity ./internal/collector/registry/package ./internal/reducer ./internal/projector ./internal/storage/cypher ./internal/query -count=1`
+No-Regression Evidence: `go test ./internal/packageidentity ./internal/coordinator/registry/package ./internal/reducer ./internal/projector ./internal/storage/cypher ./internal/query -count=1`
 proves the shared identity contract normalizes npm, PyPI, Go, Maven, Composer,
 RubyGems, Cargo, Pub, Swift, Hex, NuGet, OS, and generic package coordinates, carries
 PURL/BOMRef/manager/source fields through package-registry facts, keeps OSV

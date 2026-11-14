@@ -32,8 +32,8 @@ var fallbackClaimSequence uint64
 
 // buildCassetteService wires a credential-free cassette source onto the shared
 // collector commit boundary so the golden-corpus gate can replay recorded
-// ci.run/ci.artifact facts without live GitHub Actions credentials, mirroring
-// collector-oci-registry's cassette mode.
+// ci.run/ci.artifact facts without live GitHub Actions credentials; cicd-run
+// is the surviving cassette vehicle for corpus replays.
 func buildCassetteService(
 	database db.ExecQueryer,
 	cassettePath string,
