@@ -67,6 +67,54 @@ func TestResolveRouteDefaultsMaxCycleLengthToUnset(t *testing.T) {
 	}
 }
 
+func TestResolveRouteMapsImportDependencyPrefixFilter(t *testing.T) {
+	t.Parallel()
+
+	route, err := resolveRoute("investigate_import_dependencies", map[string]any{
+		"query_type":           "package_imports",
+		"target_module_prefix": "@scope/",
+		"external_only":        true,
+	})
+	if err != nil {
+		t.Fatalf("resolveRoute() error = %v, want nil", err)
+	}
+	body, ok := route.Body.(map[string]any)
+	if !ok {
+		t.Fatalf("route.Body type = %T, want map[string]any", route.Body)
+	}
+	if got, want := body["target_module_prefix"], "@scope/"; got != want {
+		t.Fatalf("body[target_module_prefix] = %#v, want %#v", got, want)
+	}
+	if got, want := body["external_only"], true; got != want {
+		t.Fatalf("body[external_only] = %#v, want %#v", got, want)
+	}
+}
+
+// TestResolveRouteOmitsUnsetImportDependencyPrefix proves an omitted prefix
+// sends no key, so the handler reads it as no filter rather than as an
+// explicitly empty prefix (which the handler rejects).
+func TestResolveRouteOmitsUnsetImportDependencyPrefix(t *testing.T) {
+	t.Parallel()
+
+	route, err := resolveRoute("investigate_import_dependencies", map[string]any{
+		"query_type": "package_imports",
+		"repo_id":    "repo-1",
+	})
+	if err != nil {
+		t.Fatalf("resolveRoute() error = %v, want nil", err)
+	}
+	body, ok := route.Body.(map[string]any)
+	if !ok {
+		t.Fatalf("route.Body type = %T, want map[string]any", route.Body)
+	}
+	if _, ok := body["target_module_prefix"]; ok {
+		t.Fatalf("omitted prefix must send no key, got %#v", body["target_module_prefix"])
+	}
+	if got, want := body["external_only"], false; got != want {
+		t.Fatalf("body[external_only] = %#v, want %#v", got, want)
+	}
+}
+
 func TestImportDependencyToolSchemaRequiresScopeAndBounds(t *testing.T) {
 	t.Parallel()
 
@@ -95,6 +143,20 @@ func TestImportDependencyToolSchemaRequiresScopeAndBounds(t *testing.T) {
 	}
 	if got, want := offset["minimum"], 0; got != want {
 		t.Fatalf("offset minimum = %#v, want %#v", got, want)
+	}
+	prefix, ok := properties["target_module_prefix"].(map[string]any)
+	if !ok {
+		t.Fatal("schema properties lacks target_module_prefix for the prefix read")
+	}
+	if got, want := prefix["type"], "string"; got != want {
+		t.Fatalf("target_module_prefix type = %#v, want %#v", got, want)
+	}
+	external, ok := properties["external_only"].(map[string]any)
+	if !ok {
+		t.Fatal("schema properties lacks external_only for the package-only read")
+	}
+	if got, want := external["type"], "boolean"; got != want {
+		t.Fatalf("external_only type = %#v, want %#v", got, want)
 	}
 	maxCycle, ok := properties["max_cycle_length"].(map[string]any)
 	if !ok {

@@ -172,6 +172,16 @@ row. On a large service `full` can exceed the response budget and fail with
 `mcp_response_over_budget`. The HTTP routes default to `full`. See
 [Context Evidence Budget](http-api/context-evidence-budget.md).
 
+`investigate_import_dependencies` takes `target_module_prefix`, which matches
+`Module` names by prefix through the module-name index (for example
+`@scope/` or `github.com/acme/`), and `external_only`, which drops relative
+(`./x`, `../y`) and absolute (`/abs`) specifiers so the first page holds bare
+package names. The prefix counts as a scope filter, is mutually exclusive
+with `target_module`, and is rejected when empty. Both apply only to the
+module-matching reads (`imports_by_file`, `importers`,
+`module_dependencies`, `package_imports`), not to file-import cycles or
+cross-module calls.
+
 ## Content And Repository Identity
 
 Repository-bearing results may include `repo_access` metadata. Remote runtimes

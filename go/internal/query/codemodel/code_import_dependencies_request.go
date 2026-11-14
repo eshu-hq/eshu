@@ -35,8 +35,18 @@ type ImportDependencyRequest struct {
 	TargetFile   string `json:"target_file"`
 	SourceModule string `json:"source_module"`
 	TargetModule string `json:"target_module"`
-	Limit        int    `json:"limit"`
-	Offset       int    `json:"offset"`
+	// TargetModulePrefix optionally matches Module.name by prefix
+	// (STARTS WITH $target_module_prefix) instead of the exact anchor. It is
+	// a pointer so an explicitly empty prefix is distinguishable from an
+	// omitted one: omitted means no prefix filter, while an explicitly empty
+	// prefix is rejected by Validate. It is mutually exclusive with
+	// TargetModule.
+	TargetModulePrefix *string `json:"target_module_prefix,omitempty"`
+	// ExternalOnly excludes relative (./x, ../y) and absolute (/abs)
+	// specifiers from the Module match, keeping bare package names.
+	ExternalOnly bool `json:"external_only"`
+	Limit        int  `json:"limit"`
+	Offset       int  `json:"offset"`
 	// MaxCycleLength bounds file_import_cycles simple-cycle enumeration.
 	// Zero means the default; it is ignored by every other query type.
 	MaxCycleLength int `json:"max_cycle_length"`
@@ -74,6 +84,15 @@ func (r ImportDependencyRequest) Validate() error {
 	if strings.TrimSpace(r.TargetFile) != "" && r.EffectiveQueryType() != "file_import_cycles" && r.EffectiveQueryType() != "cross_module_calls" {
 		return fmt.Errorf("target_file is supported only for file_import_cycles and cross_module_calls")
 	}
+	if r.TargetModulePrefix != nil && strings.TrimSpace(*r.TargetModulePrefix) == "" {
+		return fmt.Errorf("target_module_prefix must be non-empty")
+	}
+	if r.HasTargetModulePrefix() && strings.TrimSpace(r.TargetModule) != "" {
+		return fmt.Errorf("target_module and target_module_prefix are mutually exclusive")
+	}
+	if (r.HasTargetModulePrefix() || r.ExternalOnly) && (r.EffectiveQueryType() == "file_import_cycles" || r.EffectiveQueryType() == "cross_module_calls") {
+		return fmt.Errorf("target_module_prefix and external_only are supported only for imports_by_file, importers, module_dependencies, and package_imports")
+	}
 	if r.EffectiveQueryType() == "file_import_cycles" {
 		language := r.NormalizedLanguage()
 		if language != "" && language != "python" && language != "go" && !isTSCycleLanguage(language) && !IsJavaCycleLanguage(language) {
@@ -105,6 +124,23 @@ func (r ImportDependencyRequest) EffectiveQueryType() string {
 // NormalizedLanguage lowercases the requested language filter.
 func (r ImportDependencyRequest) NormalizedLanguage() string {
 	return strings.ToLower(strings.TrimSpace(r.Language))
+}
+
+// HasTargetModulePrefix reports whether the request carries a usable module
+// prefix filter. A nil pointer means the caller omitted the parameter; a
+// non-nil pointer that trims to empty is rejected by Validate, so only a
+// non-empty prefix counts here and in hasScopeFilter.
+func (r ImportDependencyRequest) HasTargetModulePrefix() bool {
+	return r.TargetModulePrefix != nil && strings.TrimSpace(*r.TargetModulePrefix) != ""
+}
+
+// NormalizedTargetModulePrefix returns the trimmed prefix filter, or empty
+// when the caller omitted it.
+func (r ImportDependencyRequest) NormalizedTargetModulePrefix() string {
+	if r.TargetModulePrefix == nil {
+		return ""
+	}
+	return strings.TrimSpace(*r.TargetModulePrefix)
 }
 
 // isTSCycleLanguage reports whether a normalized language is one the
@@ -166,7 +202,10 @@ func (r ImportDependencyRequest) hasScopeFilter() bool {
 			return true
 		}
 	}
-	return false
+	// A non-empty prefix seeks module_name_lookup, so it bounds the read
+	// without another anchor. external_only alone does not bound anything
+	// and never satisfies the scope requirement on its own.
+	return r.HasTargetModulePrefix()
 }
 
 func importDependencyQueryTypes() map[string]struct{} {
