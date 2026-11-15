@@ -173,6 +173,9 @@ WHERE cve_id = 'CVE-2026-0002' AND suppression_state = 'accepted_risk'
 		if got.Inserted != 0 || got.Updated != 0 || got.Deleted != 0 || got.Identifiers != 0 {
 			t.Fatalf("an idle keyed tick = %+v, want zero identifiers and zero writes", got)
 		}
+		if !got.Watermark.Equal(winnersLiveWatermark(t, h.ctx, h.db)) {
+			t.Errorf("idle tick result watermark = %v, want the committed watermark (#10706 F4)", got.Watermark)
+		}
 		// #10706: the idle tick stamps the DB-clock tick stamp, not the
 		// Go-supplied stamp, so it tracks clock_timestamp() within tolerance.
 		var dbNow time.Time

@@ -103,6 +103,9 @@ func TestSupplyChainImpactWinnersResweepKeyedChunkedConsumeLive(t *testing.T) {
 	if got := chunkedWatermark(h); !got.After(before) {
 		t.Errorf("bounded tick left the watermark at %v, want it advanced past %v (#10706 horizon)", got, before)
 	}
+	if !first.Watermark.Equal(chunkedWatermark(h)) {
+		t.Errorf("bounded tick result watermark = %v, want the committed watermark %v (#10706 F4)", first.Watermark, chunkedWatermark(h))
+	}
 
 	ticks := chunkedDrain(h)
 	if len(ticks) == 0 {
@@ -110,6 +113,8 @@ func TestSupplyChainImpactWinnersResweepKeyedChunkedConsumeLive(t *testing.T) {
 	}
 	if last := ticks[len(ticks)-1]; last.Bounded {
 		t.Errorf("the tick that emptied the log still reports Bounded: %+v", last)
+	} else if !last.Watermark.Equal(chunkedWatermark(h)) {
+		t.Errorf("draining tick result watermark = %v, want the committed watermark %v (#10706 F4)", last.Watermark, chunkedWatermark(h))
 	}
 	// One idle tick after the drain stamps the watermark the bounded passes
 	// withheld (or the draining tick itself stamped it).

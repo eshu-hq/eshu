@@ -7,6 +7,8 @@ import (
 	"database/sql"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // Horizon proofs for #10706 (winners keyed resweep: watermark horizon +
@@ -67,6 +69,9 @@ func TestSupplyChainImpactWinnersResweepKeyedHorizonAdvancesOnBoundedTickLive(t 
 	if got := chunkedWatermark(h); !got.After(before) {
 		t.Fatalf("bounded tick left the watermark at %v, want it advanced past %v", got, before)
 	}
+	if !first.Watermark.Equal(chunkedWatermark(h)) {
+		t.Errorf("bounded tick result watermark = %v, want the committed watermark %v (#10706 F4)", first.Watermark, chunkedWatermark(h))
+	}
 	wantMin, ok := horizonRemainingMin(h)
 	if !ok {
 		t.Fatal("dirty log is empty after a bounded tick: the bound did not bound the transaction")
@@ -125,7 +130,7 @@ func TestSupplyChainImpactWinnersResweepKeyedHorizonNeverRegressesAcrossTicksLiv
 	h.assertParity("monotonic drain")
 }
 
-// TestSupplyChainImpactWinnersResweepKeyedScopeRemainderHorizonLive proves the
+// TestSupplyChainImpactWinnersResweepKeyedHorizonScopeRemainderLive proves the
 // horizon covers the scope-remainder conversion: a partially applied scope
 // leaves fact rows queued with fresh conversion-time captures, and the
 // watermark stays under every one of them.
@@ -163,10 +168,10 @@ func TestSupplyChainImpactWinnersResweepKeyedHorizonScopeRemainderLive(t *testin
 	h.assertParity("scope-remainder horizon drain")
 }
 
-// TestSupplyChainImpactWinnersResweepKeyedLateCommitCoveredNextTickLive proves
-// the uncommitted-capture bound: a row whose INSERT executed before the tick
-// but committed after it stays queued, is never covered by the tick's stamp,
-// and is applied on the very next tick.
+// TestSupplyChainImpactWinnersResweepKeyedHorizonLateCommitCoveredNextTickLive
+// proves the uncommitted-capture bound: a row whose INSERT executed before
+// the tick but committed after it stays queued, is never covered by the
+// tick's stamp, and is applied on the very next tick.
 func TestSupplyChainImpactWinnersResweepKeyedHorizonLateCommitCoveredNextTickLive(t *testing.T) {
 	h := newKeyedHarness(t, "#10706 late-commit horizon proof")
 	h.seedScope("vuln-intel://10706/late", "vuln-intel://10706/late/g1")
@@ -228,10 +233,10 @@ VALUES ('fact', 'fact_upsert', 'pkg:npm/late-00', 'repo-9805', '', 'CVE-2026-lat
 	h.assertParity("late-commit drain")
 }
 
-// TestSupplyChainImpactWinnersResweepKeyedTupleOrderIrrelevantLive proves the
-// horizon is a property of the residual set, not of admission order: the
-// chunk applies the identifier-sort prefix (high-seq rows) and the watermark
-// is still the min over the low-seq rows left behind.
+// TestSupplyChainImpactWinnersResweepKeyedHorizonTupleOrderIrrelevantLive
+// proves the horizon is a property of the residual set, not of admission
+// order: the chunk applies the identifier-sort prefix (high-seq rows) and the
+// watermark is still the min over the low-seq rows left behind.
 func TestSupplyChainImpactWinnersResweepKeyedHorizonTupleOrderIrrelevantLive(t *testing.T) {
 	h := newKeyedHarness(t, "#10706 tuple-order horizon proof")
 	h.seedScope("vuln-intel://10706/order", "vuln-intel://10706/order/g1")
@@ -280,10 +285,10 @@ func TestSupplyChainImpactWinnersResweepKeyedHorizonTupleOrderIrrelevantLive(t *
 	h.assertParity("tuple-order drain")
 }
 
-// TestSupplyChainImpactWinnersResweepKeyedDbSourcedStampLive proves the tick
-// stamp lives in the DB clock domain: after both a bounded and a drained
-// tick the watermark tracks clock_timestamp(), not the Go-supplied stamp
-// (the harness clock is days behind the DB clock).
+// TestSupplyChainImpactWinnersResweepKeyedHorizonDbSourcedStampLive proves the
+// tick stamp lives in the DB clock domain: after both a bounded and a
+// drained tick the watermark tracks clock_timestamp(), not the Go-supplied
+// stamp (the harness clock is days behind the DB clock).
 func TestSupplyChainImpactWinnersResweepKeyedHorizonDbSourcedStampLive(t *testing.T) {
 	h := newKeyedHarness(t, "#10706 DB-sourced stamp proof")
 	h.seedScope("vuln-intel://10706/clock", "vuln-intel://10706/clock/g1")
@@ -310,4 +315,153 @@ func TestSupplyChainImpactWinnersResweepKeyedHorizonDbSourcedStampLive(t *testin
 	chunkedDrain(h)
 	assertNearDBNow("drained tick")
 	h.assertParity("DB-sourced stamp drain")
+}
+
+// TestSupplyChainImpactWinnersResweepKeyedHorizonIdleLateCommitLive proves the
+// idle path never covers a capture that commits after the tick's stamp: a row
+// invisible to the tick (its INSERT is uncommitted at admission and at the
+// residual count) but captured past the pre-admission stamp stays queued
+// through the tick, the result reports the committed stamp, and the next tick
+// applies it.
+func TestSupplyChainImpactWinnersResweepKeyedHorizonIdleLateCommitLive(t *testing.T) {
+	h := newKeyedHarness(t, "#10706 idle late-commit proof")
+	h.seedScope("vuln-intel://10706/idlelate", "vuln-intel://10706/idlelate/g1")
+
+	h.write("vuln-intel://10706/idlelate", "vuln-intel://10706/idlelate/g1", chunkedFindings("idle", 4, 1, 0)...)
+	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_log`)
+	if _, err := h.store.ResweepWinners(h.ctx, h.tick()); err != nil {
+		t.Fatalf("initial full resweep: %v", err)
+	}
+
+	// The late row's capture time is past any stamp this tick can write, the
+	// way a capture that executes mid-tick carries a later captured_at than
+	// the pre-admission stamp. It stays uncommitted, so the tick neither
+	// admits nor counts it.
+	tx, err := h.db.BeginTx(h.ctx, nil)
+	if err != nil {
+		t.Fatalf("begin late writer: %v", err)
+	}
+	if _, err := tx.ExecContext(h.ctx, `
+INSERT INTO supply_chain_impact_winners_dirty_log
+    (kind, source, package_id, repository_id, subject_digest, c0, advisory_id, captured_at)
+VALUES ('fact', 'fact_upsert', 'pkg:npm/idle-late-00', 'repo-9805', '', 'CVE-2026-idle-late-00', '',
+    clock_timestamp() + interval '1 hour')`); err != nil {
+		_ = tx.Rollback()
+		t.Fatalf("insert uncommitted late row: %v", err)
+	}
+	idle := chunkedTick(h)
+	if idle.Bounded || idle.Remaining != 0 {
+		_ = tx.Rollback()
+		t.Fatalf("idle tick = %+v, want a non-bounded tick with nothing remaining", idle)
+	}
+	if err := tx.Commit(); err != nil {
+		t.Fatalf("commit late writer: %v", err)
+	}
+	if n := h.count(`SELECT count(*) FROM supply_chain_impact_winners_dirty_log WHERE c0 = 'CVE-2026-idle-late-00'`); n != 1 {
+		t.Fatalf("%d late rows queued after the tick it was invisible to, want exactly the committed one", n)
+	}
+	if wm := chunkedWatermark(h); !idle.Watermark.Equal(wm) {
+		t.Errorf("idle tick result watermark = %v, want the committed watermark %v", idle.Watermark, wm)
+	} else if n := horizonUncovered(h, wm); n != 0 {
+		t.Errorf("%d remaining rows have captured_at at or under the watermark: the tick stamped past a capture that committed after its stamp", n)
+	}
+	second := chunkedTick(h)
+	if second.Bounded {
+		t.Errorf("tick after the late commit = %+v, want the late row applied and the log drained", second)
+	}
+	if n := h.count(`SELECT count(*) FROM supply_chain_impact_winners_dirty_log WHERE c0 = 'CVE-2026-idle-late-00'`); n != 0 {
+		t.Errorf("%d late rows still queued after the next tick", n)
+	}
+	if n := horizonUncovered(h, chunkedWatermark(h)); n != 0 {
+		t.Errorf("%d remaining rows have captured_at at or under the watermark after the repair tick", n)
+	}
+	h.assertParity("idle late-commit drain")
+}
+
+// TestSupplyChainImpactWinnersResweepKeyedHorizonDrainedLateCommitLive proves
+// the drained-apply path repairs the one-tick over-claim the design accepts:
+// a row whose INSERT executed before the tick's stamp but committed after it
+// is covered by that stamp while still queued, the result reports the
+// committed stamp, and the very next tick applies the row.
+func TestSupplyChainImpactWinnersResweepKeyedHorizonDrainedLateCommitLive(t *testing.T) {
+	h := newKeyedHarness(t, "#10706 drained late-commit proof")
+	h.seedScope("vuln-intel://10706/drainlate", "vuln-intel://10706/drainlate/g1")
+
+	h.write("vuln-intel://10706/drainlate", "vuln-intel://10706/drainlate/g1", chunkedFindings("drain", 4, 1, 0)...)
+	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_log`)
+	if _, err := h.store.ResweepWinners(h.ctx, h.tick()); err != nil {
+		t.Fatalf("initial full resweep: %v", err)
+	}
+
+	h.write("vuln-intel://10706/drainlate", "vuln-intel://10706/drainlate/g1", chunkedFindings("drain", 4, 1, 1000)...)
+	// The late row's INSERT executes before the tick reads its stamp, but it
+	// commits after the tick, so the tick stamps past it without applying it.
+	tx, err := h.db.BeginTx(h.ctx, nil)
+	if err != nil {
+		t.Fatalf("begin late writer: %v", err)
+	}
+	if _, err := tx.ExecContext(h.ctx, `
+INSERT INTO supply_chain_impact_winners_dirty_log
+    (kind, source, package_id, repository_id, subject_digest, c0, advisory_id)
+VALUES ('fact', 'fact_upsert', 'pkg:npm/drain-late-00', 'repo-9805', '', 'CVE-2026-drain-late-00', '')`); err != nil {
+		_ = tx.Rollback()
+		t.Fatalf("insert uncommitted late row: %v", err)
+	}
+	h.store.ChunkMaxIdentifiers = 1000
+	first := chunkedTick(h)
+	if first.Bounded {
+		_ = tx.Rollback()
+		t.Fatalf("drained tick = %+v, want the visible rows applied with nothing left", first)
+	}
+	if err := tx.Commit(); err != nil {
+		t.Fatalf("commit late writer: %v", err)
+	}
+	if n := h.count(`SELECT count(*) FROM supply_chain_impact_winners_dirty_log WHERE c0 = 'CVE-2026-drain-late-00'`); n != 1 {
+		t.Fatalf("%d late rows queued after the tick it was invisible to, want exactly the committed one", n)
+	}
+	wm := chunkedWatermark(h)
+	if !first.Watermark.Equal(wm) {
+		t.Errorf("drained tick result watermark = %v, want the committed watermark %v", first.Watermark, wm)
+	}
+	// The late row executed before the stamp but committed after it: the one
+	// accepted tick of over-claim. The next tick repairs it.
+	if n := horizonUncovered(h, wm); n != 1 {
+		t.Errorf("%d remaining rows have captured_at at or under the watermark, want the one late row the stamp covered", n)
+	}
+	second := chunkedTick(h)
+	if second.Bounded {
+		t.Errorf("tick after the late commit = %+v, want the late row applied and the log drained", second)
+	}
+	if n := h.count(`SELECT count(*) FROM supply_chain_impact_winners_dirty_log WHERE c0 = 'CVE-2026-drain-late-00'`); n != 0 {
+		t.Errorf("%d late rows still queued after the next tick: exposure exceeded one tick", n)
+	}
+	if n := horizonUncovered(h, chunkedWatermark(h)); n != 0 {
+		t.Errorf("%d remaining rows have captured_at at or under the watermark after the repair tick", n)
+	}
+	h.assertParity("drained late-commit drain")
+}
+
+// TestSupplyChainImpactWinnersResweepKeyedFullFallbackReportsCommittedWatermarkLive
+// proves the over-cap fallback reports the re-read committed watermark on its
+// result, the same contract every other branch keeps (#10706 F4).
+func TestSupplyChainImpactWinnersResweepKeyedFullFallbackReportsCommittedWatermarkLive(t *testing.T) {
+	h := newKeyedHarness(t, "#10706 fallback committed-watermark proof")
+	h.seedScope("vuln-intel://10706/fallback", "vuln-intel://10706/fallback/g1")
+
+	h.write("vuln-intel://10706/fallback", "vuln-intel://10706/fallback/g1", chunkedFindings("fb", 4, 1, 0)...)
+	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_log`)
+	if _, err := h.store.ResweepWinners(h.ctx, h.tick()); err != nil {
+		t.Fatalf("initial full resweep: %v", err)
+	}
+
+	h.write("vuln-intel://10706/fallback", "vuln-intel://10706/fallback/g1", chunkedFindings("fb", 4, 1, 1000)...)
+	h.store.MaxIdentifiers = 1
+	got := chunkedTick(h)
+	if got.Path != telemetry.SupplyChainImpactWinnersPathFull {
+		t.Fatalf("over-cap tick ran on path %q, want %q (result %+v)", got.Path, telemetry.SupplyChainImpactWinnersPathFull, got)
+	}
+	if !got.Watermark.Equal(chunkedWatermark(h)) {
+		t.Errorf("fallback result watermark = %v, want the committed watermark %v", got.Watermark, chunkedWatermark(h))
+	}
+	h.assertParity("fallback committed watermark drain")
 }

@@ -26,19 +26,20 @@ func TestWinnersMaintainerBoundedTickAdvancesTheWatermarkGauge(t *testing.T) {
 	t.Parallel()
 
 	inst, reader := winnersSignalsHarness(t)
+	committed := time.Now().Add(-31 * time.Second)
 	m := SupplyChainImpactWinnersMaintainer{
 		Rebuilder: &fakeWinnersRebuilder{}, KeyedRebuilder: &fakeKeyedRebuilder{result: SupplyChainImpactWinnersResweep{
 			Path: telemetry.SupplyChainImpactWinnersPathKeyed, Bounded: true, Remaining: 7,
-			PreviousWatermark: time.Now().Add(-93 * time.Second),
+			PreviousWatermark: committed.Add(-62 * time.Second), Watermark: committed,
 		}}, LeaseManager: &fakeWinnersLeaseManager{claim: true},
-		Now:         func() time.Time { return time.Now().Add(-62 * time.Second) },
+		Now:         func() time.Time { return time.Now().Add(time.Hour) },
 		Instruments: inst,
 	}
 	if _, err := m.runKeyedTick(context.Background()); err != nil {
 		t.Fatalf("runKeyedTick() error = %v", err)
 	}
 	if _, _, ages := winnersMetrics(t, reader); len(ages) != 1 || ages[0] < 31 || ages[0] > 120 {
-		t.Errorf("watermark age samples = %v, want one of about 62 s: a bounded tick stamps its horizon", ages)
+		t.Errorf("watermark age samples = %v, want one of about 31 s from the committed horizon despite the skewed Go clock", ages)
 	}
 }
 

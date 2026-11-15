@@ -33,17 +33,19 @@ const (
 // ChunkMaxIdentifiers post-expansion identifiers through the 291 five-tuple
 // probe, then deletes exactly the dirty rows it applied — claim and consume
 // stay atomic per chunk, and a rollback changes nothing. Every pass stamps
-// the watermark (#10706 horizon): the DB-clock tick stamp S when the log
-// drained, or H = min(captured_at) of the remainder minus 1us when rows are
-// still queued, resolved against the previous watermark with GREATEST so it
-// never regresses. A bounded pass reports Bounded with the remaining depth.
-// Passes run one per maintainer tick (re-ticked immediately while Bounded),
-// so a backlog drains as short spaced ticks, never as one long transaction.
-// When the admitted window's identifiers exceed MaxIdentifiers, or
-// MaxKeyFraction of the stored winners, the same transaction deletes every
-// queued row, runs the full rebuild instead, and reports Path "full". The
-// tick stamp is sourced from the DB clock inside the transaction, never from
-// the caller, so the watermark and captured_at share one clock domain.
+// the watermark (#10706 horizon): the tick stamp S when the log drained, or
+// H = min(captured_at) of the remainder minus 1us when rows are still
+// queued. The keyed and idle stamps resolve GREATEST(previous, candidate)
+// so the watermark never regresses; the full fallback recomputes every key
+// and stamps S. S is the DB clock read once before admission, in the same
+// domain as captured_at, so a row that commits mid-tick is never covered by
+// the stamp; the result reports the re-read committed watermark on every
+// path. A bounded pass reports Bounded with the remaining depth. Passes run
+// one per maintainer tick (re-ticked immediately while Bounded), so a
+// backlog drains as short spaced ticks, never as one long transaction. When
+// the admitted window's identifiers exceed MaxIdentifiers, or MaxKeyFraction
+// of the stored winners, the same transaction deletes every queued row, runs
+// the full rebuild instead, and reports Path "full".
 //
 // When another resweep is in flight it consumes nothing and returns Skipped.
 func (s SupplyChainImpactWinnersStore) ResweepWinnersKeyed(
@@ -81,9 +83,17 @@ func (s SupplyChainImpactWinnersStore) ResweepWinnersKeyed(
 		return supplychaincore.SupplyChainImpactWinnersResweep{Skipped: true}, nil
 	}
 	bounds := s.chunkBounds()
+	// The tick stamp is read once, before admission (#10706): a row that
+	// commits after this read carries a later captured_at, so stamping S can
+	// never cover a capture the tick did not see. Every branch below stamps
+	// this same S when its residual set is empty.
+	var tickStamp time.Time
 	var admitted int64
 	if err := s.timePhase(ctx, telemetry.SupplyChainImpactWinnersPhaseConsume, func() error {
 		var err error
+		if tickStamp, err = scanWinnersTime(ctx, tx, selectWinnersKeyedTickClockSQL, "read supply chain impact winners tick clock"); err != nil {
+			return err
+		}
 		admitted, err = admitWinnersDirtyWindow(ctx, tx, bounds.dirtyRows)
 		return err
 	}); err != nil {
@@ -97,8 +107,8 @@ func (s SupplyChainImpactWinnersStore) ResweepWinnersKeyed(
 		if err := s.timePhase(ctx, telemetry.SupplyChainImpactWinnersPhaseStamp, func() error {
 			// The window was empty at admission; rows that landed while the
 			// tick ran are still counted now, so an idle tick never stamps
-			// over them: with an empty log it stamps S, else the horizon H
-			// over the rows that arrived mid-tick.
+			// over them: with an empty log it stamps the pre-admission S,
+			// else the horizon H over the rows that arrived mid-tick.
 			remaining, err := scanWinnersInt64(ctx, tx, countWinnersKeyedRemainingSQL, "count remaining dirty rows")
 			if err != nil {
 				return err
@@ -114,8 +124,8 @@ func (s SupplyChainImpactWinnersStore) ResweepWinnersKeyed(
 				if candidate, err = horizonCandidate(remainingMin); err != nil {
 					return err
 				}
-			} else if candidate, err = scanWinnersTime(ctx, tx, selectWinnersKeyedTickClockSQL, "read supply chain impact winners tick clock"); err != nil {
-				return err
+			} else {
+				candidate = tickStamp
 			}
 			previous, err := stampWinnersWatermark(ctx, tx, candidate)
 			if err != nil {
@@ -132,7 +142,7 @@ func (s SupplyChainImpactWinnersStore) ResweepWinnersKeyed(
 			return none, err
 		}
 	default:
-		fallback, err := s.runKeyedOrFull(ctx, tx, bounds, &result)
+		fallback, err := s.runKeyedOrFull(ctx, tx, bounds, tickStamp, &result)
 		if err != nil {
 			return none, err
 		}
@@ -148,11 +158,14 @@ func (s SupplyChainImpactWinnersStore) ResweepWinnersKeyed(
 
 // runKeyedOrFull expands the admitted window to identifiers, applies the cap,
 // and runs either the bounded keyed apply or the full rebuild. It reports
-// whether it fell back to the full rebuild.
+// whether it fell back to the full rebuild. tickStamp is the DB-clock stamp
+// the tick read before admission (#10706): every branch that stamps S stamps
+// this same S, never a later re-read.
 func (s SupplyChainImpactWinnersStore) runKeyedOrFull(
 	ctx context.Context,
 	tx db.Transaction,
 	bounds winnersChunkBounds,
+	tickStamp time.Time,
 	result *supplychaincore.SupplyChainImpactWinnersResweep,
 ) (fellBack bool, err error) {
 	// The identifier set is built, and the cap checked, in this order on purpose:
@@ -187,19 +200,22 @@ func (s SupplyChainImpactWinnersStore) runKeyedOrFull(
 			result.Identifiers = tally.total()
 			result.TriggerCaptured = tally.triggerSources()
 			result.Remaining = remaining
-			// A full rebuild recomputes every key, so the DB-clock stamp S
-			// stays sound here as on the drained keyed path.
-			stamp, err := scanWinnersTime(ctx, tx, selectWinnersKeyedTickClockSQL, "read supply chain impact winners tick clock")
-			if err != nil {
-				return err
-			}
-			full, err := runSupplyChainImpactWinnersRebuild(ctx, tx, stamp)
+			// A full rebuild recomputes every key, so the pre-admission
+			// stamp S stays sound here as on the drained keyed path.
+			full, err := runSupplyChainImpactWinnersRebuild(ctx, tx, tickStamp)
 			if err != nil {
 				return err
 			}
 			result.Inserted, result.Updated, result.Deleted, result.Unchanged = full.Inserted, full.Updated, full.Deleted, full.Unchanged
 			result.PreviousWatermark = full.PreviousWatermark
-			result.Watermark = stamp
+			// Report the re-read committed watermark (#10706 F4), not the
+			// stamp input, so the result agrees with the database on every
+			// path.
+			watermark, err := scanWinnersTime(ctx, tx, selectWinnersWatermarkSQL, "read committed supply chain impact winners watermark")
+			if err != nil {
+				return err
+			}
+			result.Watermark = watermark
 			return nil
 		}); err != nil {
 			return false, err
@@ -244,15 +260,16 @@ func (s SupplyChainImpactWinnersStore) runKeyedOrFull(
 		result.Remaining = remaining
 		// Every pass stamps: S when the log drained, else the horizon H over
 		// the rows it leaves queued. Bounded stays the capacity signal the
-		// maintainer re-ticks on; it no longer gates the stamp.
+		// maintainer re-ticks on; it no longer gates the stamp. S is the
+		// stamp the tick read before admission, never a post-settle re-read.
 		result.Bounded = chunk.truncated || remaining > 0
 		var candidate time.Time
 		if remaining > 0 {
 			if candidate, err = horizonCandidate(remainingMin); err != nil {
 				return err
 			}
-		} else if candidate, err = scanWinnersTime(ctx, tx, selectWinnersKeyedTickClockSQL, "read supply chain impact winners tick clock"); err != nil {
-			return err
+		} else {
+			candidate = tickStamp
 		}
 		if err := applyWinnersKeyed(ctx, tx, candidate, result); err != nil {
 			return err

@@ -70,9 +70,11 @@ SELECT min(captured_at) FROM supply_chain_impact_winners_dirty_log
 `
 
 // selectWinnersKeyedTickClockSQL reads the DB clock inside the tick
-// transaction. The tick stamp S comes from here, not the Go clock, so the
-// watermark, captured_at, and the intent bound the advisory handler waits on
-// all live in the DB clock domain (#10706).
+// transaction. The tick reads it once, before admission, and every branch
+// that stamps S stamps that one read (#10706): the watermark, captured_at,
+// and the intent bound the advisory handler waits on all live in the DB
+// clock domain, and a row that commits mid-tick is never covered by the
+// stamp.
 const selectWinnersKeyedTickClockSQL = `
 SELECT clock_timestamp()
 `

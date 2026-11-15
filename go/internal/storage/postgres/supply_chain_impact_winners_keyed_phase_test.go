@@ -69,6 +69,8 @@ func (*phaseFakeRows) Close() error { return nil }
 // slows one statement and failOn fails one, so a test can prove the time of a
 // failed phase is still recorded. rollbacks counts Rollback calls, so a test
 // can prove the tick never leaks the transaction that holds the resweep lock.
+// queries records every statement the tick ran, in order, so a test can pin
+// statement ordering (#10706 F1: the tick-clock read precedes admission).
 type phaseFakeTx struct {
 	claimed    bool
 	consumed   int64
@@ -78,6 +80,7 @@ type phaseFakeTx struct {
 	failOn     string
 	commitErr  error
 	rollbacks  int
+	queries    []string
 }
 
 func (tx *phaseFakeTx) step(query string) error {
@@ -92,6 +95,7 @@ func (tx *phaseFakeTx) ExecContext(_ context.Context, query string, _ ...any) (s
 	if err := tx.step(query); err != nil {
 		return nil, err
 	}
+	tx.queries = append(tx.queries, query)
 	return phaseFakeResult{}, nil
 }
 
@@ -99,6 +103,7 @@ func (tx *phaseFakeTx) QueryContext(_ context.Context, query string, _ ...any) (
 	if err := tx.step(query); err != nil {
 		return nil, err
 	}
+	tx.queries = append(tx.queries, query)
 	switch query {
 	case tryClaimSupplyChainImpactWinnersResweepSQL:
 		return &phaseFakeRows{row: []any{tx.claimed}}, nil
@@ -123,7 +128,7 @@ func (tx *phaseFakeTx) QueryContext(_ context.Context, query string, _ ...any) (
 	case selectWinnersKeyedRemainingMinSQL:
 		return &phaseFakeRows{row: []any{nil}}, nil
 	case selectWinnersWatermarkSQL:
-		return &phaseFakeRows{row: []any{phaseFakeNow}}, nil
+		return &phaseFakeRows{row: []any{phaseFakeCommitted}}, nil
 	case applyWinnersKeyedSQL:
 		return &phaseFakeRows{row: []any{int64(1), int64(0), int64(0), int64(0), int64(1), int64(0)}}, nil
 	case rebuildSupplyChainImpactWinnersSQL:
@@ -139,10 +144,17 @@ func (tx *phaseFakeTx) Rollback() error {
 	return nil
 }
 
-// phaseFakeNow is the scripted DB clock and committed watermark every fake
-// keyed tick reads: the phase tests pin statement shape and phase samples,
-// not stamp values.
+// phaseFakeNow is the scripted DB clock every fake keyed tick reads, and
+// phaseFakeCommitted is the committed watermark the re-read observes. They
+// deliberately differ, the way GREATEST keeps a previous watermark ahead of
+// the stamp input, so a test can prove the result reports the committed
+// value rather than echoing the stamp (#10706 F4). The phase tests pin
+// statement shape and phase samples, not stamp values.
 var phaseFakeNow = time.Date(2026, 11, 2, 9, 1, 0, 0, time.UTC)
+
+// phaseFakeCommitted is the scripted committed watermark: ahead of the tick
+// clock, the way a GREATEST-kept previous watermark survives a stamp.
+var phaseFakeCommitted = time.Date(2026, 11, 2, 10, 0, 0, 0, time.UTC)
 
 // phaseFakeDB hands the one scripted transaction to ResweepWinnersKeyed, or
 // fails Begin with beginErr.
@@ -365,5 +377,89 @@ func TestResweepWinnersKeyedWithoutInstrumentsRunsUnchanged(t *testing.T) {
 	}
 	if got.Path != telemetry.SupplyChainImpactWinnersPathKeyed || got.Identifiers != 3 || got.Inserted != 1 || got.Keys != 1 {
 		t.Errorf("result = %+v, want a keyed apply of 3 identifiers", got)
+	}
+}
+
+// TestResweepWinnersKeyedReadsTickClockBeforeAdmission pins the #10706 stamp
+// ordering: one tick reads the DB-clock tick stamp exactly once, before it
+// admits the dirty window, on the idle, drained-keyed and full-fallback paths
+// alike. A row that commits mid-tick carries a later captured_at than any
+// stamp the tick can write, so the stamp never covers a capture the tick did
+// not see.
+func TestResweepWinnersKeyedReadsTickClockBeforeAdmission(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		tx   phaseFakeTx
+	}{
+		{"idle tick stamps S", phaseFakeTx{claimed: true}},
+		{"drained keyed tick stamps S", phaseFakeTx{claimed: true, consumed: 3, identifier: 3, stored: 100}},
+		{"over-cap fallback stamps S", phaseFakeTx{claimed: true, consumed: 3, identifier: defaultWinnersKeyedMaxIdentifiers + 1, stored: 1000000}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			tx := tt.tx
+			store, _ := newPhaseStore(t, &tx)
+			if _, err := store.ResweepWinnersKeyed(context.Background()); err != nil {
+				t.Fatalf("ResweepWinnersKeyed() error = %v", err)
+			}
+			var clockIdx, admitIdx, clockCount int
+			clockIdx, admitIdx = -1, -1
+			for i, q := range tx.queries {
+				switch q {
+				case selectWinnersKeyedTickClockSQL:
+					clockCount++
+					if clockIdx < 0 {
+						clockIdx = i
+					}
+				case admitWinnersKeyedWindowSQL:
+					if admitIdx < 0 {
+						admitIdx = i
+					}
+				}
+			}
+			if clockCount != 1 {
+				t.Errorf("tick clock reads = %d, want exactly one per tick", clockCount)
+			}
+			if clockIdx < 0 || admitIdx < 0 || clockIdx > admitIdx {
+				t.Errorf("tick clock index = %d, admission index = %d, want the single stamp read before admission", clockIdx, admitIdx)
+			}
+		})
+	}
+}
+
+// TestResweepWinnersKeyedReportsCommittedWatermark pins the #10706 F4
+// contract: every branch reports the re-read committed watermark, never the
+// stamp input. The fake scripts the committed watermark ahead of the tick
+// clock, the way GREATEST keeps a previous watermark past a stamp, so a
+// branch that echoes its stamp input disagrees with the database.
+func TestResweepWinnersKeyedReportsCommittedWatermark(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		tx   phaseFakeTx
+	}{
+		{"idle tick", phaseFakeTx{claimed: true}},
+		{"drained keyed tick", phaseFakeTx{claimed: true, consumed: 3, identifier: 3, stored: 100}},
+		{"over-cap fallback", phaseFakeTx{claimed: true, consumed: 3, identifier: defaultWinnersKeyedMaxIdentifiers + 1, stored: 1000000}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			tx := tt.tx
+			store, _ := newPhaseStore(t, &tx)
+			got, err := store.ResweepWinnersKeyed(context.Background())
+			if err != nil {
+				t.Fatalf("ResweepWinnersKeyed() error = %v", err)
+			}
+			if !got.Watermark.Equal(phaseFakeCommitted) {
+				t.Errorf("result watermark = %v, want the re-read committed watermark %v", got.Watermark, phaseFakeCommitted)
+			}
+		})
 	}
 }
