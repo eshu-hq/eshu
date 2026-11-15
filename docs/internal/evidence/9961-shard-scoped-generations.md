@@ -32,18 +32,26 @@ per record plus one `vulnerability.reference` fact per distinct reference URL
 (`CVEListRecordEnvelopes` in the collector satellite, `cvelist_envelope.go`
 lines 34-49), so a shard's facts are records times 1 plus references. For a
 full shard of 1,000 records, 10% of the budget is 10,000 facts, which leaves
-room for 9,000 facts beyond the records themselves. T1 therefore holds while
-the shard's distinct reference URLs stay under 9,000 (under 9 per record on
-average) and fails at 9,000. The 0.010 share below is the record-only floor
-(zero references), not the measured total. The reference count per shard was
-not measured in 5.1, so T1 is only proven for the floor until a baseline run
-counts references per shard. The core test
-`TestShardScopedGenerationReferenceBreakEven` pins the 9,000-reference
-break-even and the vulnsource test
+room for 9,000 facts beyond the records themselves.
+
+Whether references count against that budget depends on the reducer. The
+per-intent budget charges only envelopes the reducer loads, and
+`supplyChainImpactFactKinds()` (`active_filter.go`) does not list
+`vulnerability.reference`; the kind is registered read-only, with no reducer
+domain decoding it. Under today's reducer, references are write volume (rows
+in `fact_records`, and the per-claim 10,000-fact cap), not budget use, so the
+0.010 share below stands for the budget. If a reducer later loads reference
+facts, T1 holds while a shard's distinct references stay under 9,000 (under 9
+per record on average) and fails at 9,000. The core test
+`TestShardScopedGenerationDoesNotLoadReferenceFacts` pins the premise (the
+kind is not loaded) so that a change to it forces this note to be redone;
+`TestShardScopedGenerationReferenceBreakEven` pins the 9,000 figure for that
+case; and the vulnsource test
 `TestCVEListShardGenerationsFactsAreRecordsPlusReferences` (R11) pins the
-accounting rule. T2 through T4 are unaffected in kind: the 0.76-0.79 ms
-selection measurement ran the `cve_list` severity path over 1,000 records, and
-reference facts add load volume, not provenance selections.
+accounting rule. The reference count per shard was not measured in 5.1. T2 and
+T3 are unaffected in kind: the 0.76-0.79 ms selection measurement ran the
+`cve_list` severity path over 1,000 records, and the replay benchmark counts
+dirty shards, not facts.
 
 **Deadline.** Time-boxed single-session measurement; numbers frozen at this
 note's commit. The thresholds above were fixed before the runs below.
@@ -121,7 +129,8 @@ daily work — and it stays in the single digits to low teens.
 
 ## Per-shard intent vs bounded evidence load / truncation
 
-Charging a full shard (1,000 envelopes) against a real default
+Measured at the record-only floor (reference facts are not loaded by the
+reducer today; see the T1 restatement). Charging a full shard (1,000 envelopes) against a real default
 `newSupplyChainImpactEvidenceBudget(0)` keeps loading (`charge` returns
 true, `exhausted()` false); the zero `supplyChainImpactTruncation` is
 neither `partial()` (upsert-only, no spurious retraction freeze) nor `any()`
@@ -135,7 +144,8 @@ projection at full-shard volume is attached (NOT_CHECKED). The change adds
 no Cypher shape — no `MATCH`/`MERGE`/`UNWIND` was added or altered — and
 projection for `cve_list` facts rides the existing source-agnostic writer
 the `nvd`/`osv` facts already use, so graph cost scales with the fact volume
-measured above (≤1,000 facts per shard, ≤~12k per heavy day). Recording a
+measured above (≤1,000 records per shard, ≤~12k per heavy day, plus the
+reference facts each record carries, which were not counted in 5.1). Recording a
 Neo4j-backed projection profile at full-shard volume is recommended as a
 5.2 acceptance criterion, not a reason to redo 5.1.
 
@@ -149,9 +159,11 @@ in-memory numbers above stand unchanged.
 ## Filing verdict
 
 - **5.2 (CVE List baseline + `deltaLog.json` tail): FILE.** The 5.1 theory
-  is measured: one generation per dirty shard fits the reducer on every
-  threshold with 10–100x headroom. Gate the 5.2 issue on this note and carry
-  the Neo4j projection profile above as a 5.2 acceptance criterion.
+  is measured at the record-only floor: one generation per dirty shard fits the
+  reducer on T1 to T4 with 10–100x headroom, because the reducer does not load
+  reference facts today (see the T1 restatement). Gate the 5.2 issue on this
+  note, carry the Neo4j projection profile above as a 5.2 acceptance
+  criterion, and add "count reference facts per shard" to it.
 - **5.3 (OSV bulk per ecosystem): DO NOT FILE.** It needs 5.2's
   cursor-continuity proof first, per the phase gate.
 - **5.4 (catalog read surfaces): DO NOT FILE.** It waits on the owner's

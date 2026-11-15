@@ -6,6 +6,8 @@ package core
 import (
 	"fmt"
 	"testing"
+
+	chain "github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
 
 // Shard-scoped generation accounting for eshu-hq/eshu#9961 (plan §4.4): one
@@ -53,8 +55,24 @@ func TestShardScopedGenerationFitsEvidenceBudget(t *testing.T) {
 	}
 }
 
+// TestShardScopedGenerationDoesNotLoadReferenceFacts pins the premise of the
+// T1 restatement for eshu-hq/eshu#10718: the reducer loads no
+// vulnerability.reference facts, so they are write volume and do not charge
+// the per-intent evidence budget. If this fails, the reducer started loading
+// them, and the 5.1 note and the break-even below must be redone.
+func TestShardScopedGenerationDoesNotLoadReferenceFacts(t *testing.T) {
+	t.Parallel()
+
+	for _, kind := range supplyChainImpactFactKinds() {
+		if kind == chain.VulnerabilityReferenceFactKind {
+			t.Fatalf("supplyChainImpactFactKinds() loads %q: reference facts now charge the evidence budget; redo the T1 restatement in the 9961 note", kind)
+		}
+	}
+}
+
 // TestShardScopedGenerationReferenceBreakEven pins the corrected T1 arithmetic
-// for eshu-hq/eshu#10718. T1 requires a full shard to stay under 10% of the
+// for eshu-hq/eshu#10718 for the case where a reducer does load reference
+// facts (it does not today; see the test above). T1 requires a full shard to stay under 10% of the
 // per-intent evidence budget. With facts = records + references, a
 // 1,000-record shard has 10,000 facts of headroom at that share, so T1 holds
 // while distinct references stay under 9,000 (under 9 per record on average)
