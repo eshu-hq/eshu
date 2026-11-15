@@ -195,4 +195,7 @@ prefix groups over `supply_chain_impact_winners_dirty_log`. A 30-minute
 - Feed cadence across a full week; one `.meta` sample.
 - Facts per record under the satellite's folding, rather than this upper bound.
 - Per-source fact counts from `fact_records` (query cancelled).
-- Whether a keyed NVD request changes outage-mode latency; no key was used.
+- Whether the satellite runtime itself carries a non-blank NVD key. The in-pod
+  curl tests in M10 ran keyed and anonymous from the container's own
+  environment, but per-claim telemetry does not record keyed versus anonymous,
+  so the 66 failing claim attempts cannot be split by that variable.
