@@ -242,9 +242,9 @@ Selection rules:
 - An OSV record whose advisory id begins with `GHSA-`, `PYSEC-`, `GO-`,
   `RUSTSEC-`, or `MAL-` is classified by that upstream prefix, so a GHSA
   collected through OSV still ranks as a GHSA observation.
-- Severity is selected in three tiers, each in priority order: a reported CVSS
-  score, a vector-derived score (`derived_from_vector`), then a label (bucket
-  only). The NVD product path uses them too; its ids stay with the ranked row.
+- Severity is selected in three tiers: a reported CVSS score, a score derived
+  from the vector (`derived_from_vector`), then a label (bucket only). The NVD
+  product path takes the best tier; its ids stay with the ranked row.
 
 The `provenance` block on `GET /api/v0/supply-chain/impact/findings` and the
 MCP `list_supply_chain_impact_findings` tool carries:

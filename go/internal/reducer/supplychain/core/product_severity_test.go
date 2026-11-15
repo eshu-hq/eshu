@@ -227,30 +227,63 @@ func TestProductSeverityRanksSourcesBeforeFactIDWithinATier(t *testing.T) {
 
 // BenchmarkProductSeverityObservation measures the severity selection over a
 // group of n observations: the per-CVE cost the product path adds
-// (eshu-hq/eshu#10717). The worst case is a group where only the last row
-// carries a score, so every row is read.
+// (eshu-hq/eshu#10717). Two shapes: "score-last", where only the last row
+// carries a score so every row is read, and "vector-only", where every other
+// row carries a CVSS vector and no reported score, so each read also parses a
+// vector (cvss.DeriveSeverity parses one only when the reported score is zero).
 func BenchmarkProductSeverityObservation(b *testing.B) {
-	for _, n := range []int{1, 8, 64} {
-		b.Run(fmt.Sprintf("observations=%d", n), func(b *testing.B) {
-			group := supplyChainCVEGroup{}
-			for i := 0; i < n; i++ {
-				observation := supplychainmodel.ImpactCVE{
-					FactID:     fmt.Sprintf("cve-%03d", i),
-					AdvisoryID: "CVE-2026-0110",
-					Source:     "cve_list",
+	const vector = "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
+	for _, shape := range []string{"score-last", "vector-only"} {
+		for _, n := range []int{1, 8, 64} {
+			b.Run(fmt.Sprintf("%s/observations=%d", shape, n), func(b *testing.B) {
+				group := supplyChainCVEGroup{}
+				for i := 0; i < n; i++ {
+					observation := supplychainmodel.ImpactCVE{
+						FactID:     fmt.Sprintf("cve-%03d", i),
+						AdvisoryID: "CVE-2026-0110",
+						Source:     "cve_list",
+					}
+					if shape == "vector-only" {
+						observation.CVSSVector = vector
+					}
+					if i == n-1 {
+						observation.Source = "nvd"
+						observation.CVSSScore = 7.5
+					}
+					group.observations = append(group.observations, observation)
 				}
-				if i == n-1 {
-					observation.Source = "nvd"
-					observation.CVSSScore = 7.5
+				representative := group.observations[0]
+				b.ReportAllocs()
+				b.ResetTimer()
+				for i := 0; i < b.N; i++ {
+					_ = group.severityObservation(representative)
 				}
-				group.observations = append(group.observations, observation)
-			}
-			representative := group.observations[0]
-			b.ReportAllocs()
-			b.ResetTimer()
-			for i := 0; i < b.N; i++ {
-				_ = group.severityObservation(representative)
-			}
-		})
+			})
+		}
+	}
+}
+
+// TestProductAllRejectedGroupKeepsRepresentative pins the all-retracted case:
+// with no live observation to lend severity, the representative stays, so a
+// rejected scored row still reports its own score (a group with a live unscored
+// sibling reports zero instead; see the rejected-representative tests above).
+func TestProductAllRejectedGroupKeepsRepresentative(t *testing.T) {
+	t.Parallel()
+
+	rejected := func(factID, source string, score float64) supplychainmodel.ImpactCVE {
+		return supplychainmodel.ImpactCVE{
+			FactID: factID, AdvisoryID: "CVE-2026-0111", Source: source,
+			Status: "Rejected", CVSSScore: score,
+		}
+	}
+	group := supplyChainCVEGroup{observations: []supplychainmodel.ImpactCVE{
+		rejected("cve-a", "cve_list", 9.9),
+		rejected("cve-b", "nvd", 7.5),
+	}}
+	representative := group.observations[0]
+	got := group.severityObservation(representative)
+	if got.FactID != representative.FactID || got.CVSSScore != 9.9 {
+		t.Fatalf("all-rejected group selected %s score %.1f, want the representative %s score 9.9",
+			got.FactID, got.CVSSScore, representative.FactID)
 	}
 }
