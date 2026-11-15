@@ -1,5 +1,13 @@
 # #9961 Phase 5 5.1: shard-scoped generations measurement
 
+**Update 2026-11-15 (#10671):** the "1:1 facts to records" accounting in this
+note is wrong for the CVE List envelope, which emits one `vulnerability.cve` fact
+plus one fact per distinct reference URL
+(`cvelist_envelope.go:34-49`), so a shard's facts are records times 1 plus
+references. The CVE List mirror is no longer the NVD fallback; see
+[10671-nvd-feed-transport-fallback.md](../design/10671-nvd-feed-transport-fallback.md).
+The thresholds here still describe a possible future catalog product.
+
 Refs #9961. Part of #9209. Gate: waited on #9880 (code side cleared —
 core #10244 merged, satellite #57 merged); #9880 post-deploy QA still pending.
 

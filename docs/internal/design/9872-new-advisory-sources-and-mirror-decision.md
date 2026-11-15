@@ -20,6 +20,12 @@ nothing until item 5.1 measures shard-scoped generations.
 **Update 2026-11-05:** the EUVD admission above is NOT PLANNED (#9960 closed
 not planned); Exploit-DB stays unadmitted (#9881 closed not planned).
 
+**Update 2026-11-15 (#10671):** the Phase 5 CVE List mirror rules in section 3
+are superseded for the NVD-fallback role by
+[10671-nvd-feed-transport-fallback.md](10671-nvd-feed-transport-fallback.md),
+which serves NVD windows from the NVD 2.0 JSON feeds instead. The rules stay
+provisional for any future catalog product, which is not that work.
+
 ## Context
 
 - The arbiter ruled on 2026-10-26 that new sources and mirror mode need an
