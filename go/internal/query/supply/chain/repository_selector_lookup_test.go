@@ -56,8 +56,8 @@ func selectorResolveHandler(graphReader querycontract.GraphQuery) *Handler {
 // server fault: it answers 500 with exactly one stage_failed record for the
 // repository_selector_resolve stage, never the 400 that blamed the client.
 // Fence verdicts keep 503/504, an unmatched selector keeps 404, an ambiguous
-// one keeps 400, and none of those log stage_failed. No log attribute may
-// carry the raw selector.
+// one answers the structured 409 (#10655), and none of those log
+// stage_failed. No log attribute may carry the raw selector.
 func TestRepositorySelectorResolveLookupFailureAnswers500(t *testing.T) {
 	t.Parallel()
 
@@ -74,7 +74,7 @@ func TestRepositorySelectorResolveLookupFailureAnswers500(t *testing.T) {
 		{"graph deadline", selectorResolveGraph(nil, fmt.Errorf("graph: %w", querycontract.ErrGraphReadDeadline)), http.StatusGatewayTimeout, ""},
 		{"reader stale", selectorResolveGraph(nil, fmt.Errorf("read store: %w", db.ErrReaderStale)), http.StatusServiceUnavailable, ""},
 		{"not found", selectorResolveGraph(nil, nil), http.StatusNotFound, ""},
-		{"ambiguous", selectorResolveGraph(twoRows, nil), http.StatusBadRequest, ""},
+		{"ambiguous", selectorResolveGraph(twoRows, nil), http.StatusConflict, ""},
 	}
 	for _, route := range selectorTestRoutes() {
 		for _, tc := range cases {

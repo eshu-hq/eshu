@@ -153,12 +153,7 @@ func serviceStoryResolutionError(ctx context.Context, err error) (int, *querycon
 			Code:       querycontract.ErrorCodeAmbiguous,
 			Message:    repoAmbiguous.Error(),
 			Capability: "platform_impact.context_overview",
-			Details: map[string]any{
-				"status":     "ambiguous",
-				"selector":   repoAmbiguous.Selector,
-				"candidates": repoAmbiguous.Matches,
-				"truncated":  false,
-			},
+			Details:    selector.AmbiguousDetails(repoAmbiguous),
 		}
 	}
 	var notFound selector.NotFoundError

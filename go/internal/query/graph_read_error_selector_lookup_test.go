@@ -85,9 +85,9 @@ func selectorLookupRoutes() []selectorLookupRoute {
 // catalog or graph failure during repository-selector resolution that is not a
 // reader fence or graph-availability verdict is a server fault: it must answer
 // 500, not the 400 that blamed the client. Fence verdicts keep 503/504, an
-// unmatched selector keeps 404, and an ambiguous one keeps 400. One handler per
-// family behind selector.ResolveForRequestWithAccess is driven through its own
-// mux.
+// unmatched selector keeps 404, and an ambiguous one answers the structured
+// 409 (#10655). One handler per family behind
+// selector.ResolveForRequestWithAccess is driven through its own mux.
 func TestSelectorLookupFailureAnswers500(t *testing.T) {
 	t.Parallel()
 
@@ -119,7 +119,7 @@ func TestSelectorLookupFailureAnswers500(t *testing.T) {
 		{name: "graph unavailable", graphOnly: true, graph: failingGraph(fmt.Errorf("private: %w", ErrGraphUnavailable)), wantStatus: http.StatusServiceUnavailable},
 		{name: "graph deadline", graphOnly: true, graph: failingGraph(fmt.Errorf("private: %w", ErrGraphReadDeadline)), wantStatus: http.StatusGatewayTimeout},
 		{name: "not found", content: selectorLookupContent{}, wantStatus: http.StatusNotFound},
-		{name: "ambiguous", content: ambiguous, wantStatus: http.StatusBadRequest},
+		{name: "ambiguous", content: ambiguous, wantStatus: http.StatusConflict},
 	}
 	for _, route := range selectorLookupRoutes() {
 		for _, tc := range cases {

@@ -129,7 +129,7 @@ func TestSupplyChainListSBOMAttestationAttachmentsRejectsInvalidRepositorySelect
 					},
 				},
 			},
-			wantStatus:   http.StatusBadRequest,
+			wantStatus:   http.StatusConflict,
 			wantMessages: []string{"repository selector", "payments-api", "matched multiple repositories"},
 		},
 	} {
@@ -290,7 +290,7 @@ func TestSBOMAttestationAttachmentAggregateRoutesRejectInvalidRepositorySelector
 					},
 				},
 			},
-			wantStatus: http.StatusBadRequest,
+			wantStatus: http.StatusConflict,
 		},
 	} {
 		tc := tc

@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/selector"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 )
 
@@ -67,6 +69,37 @@ func TestServiceStoryAmbiguousEnvelopeCarriesSelectorInMessage(t *testing.T) {
 	}
 	if got, _ := envelope.Details["selector"].(string); got != selector {
 		t.Fatalf("envelope.Details[selector] = %q, want %q", got, selector)
+	}
+}
+
+// TestServiceStoryRepoAmbiguousCandidatesAreObjects pins the #10655 review
+// follow-up: a repository-selector ambiguity on the story/investigation routes
+// carries the same repo_id candidate objects as the shared
+// selector.AmbiguousDetails writer, not the bare id strings that used to leak
+// through repoAmbiguous.Matches. The service-workload branch keeps its richer
+// map shape and is asserted elsewhere.
+func TestServiceStoryRepoAmbiguousCandidatesAreObjects(t *testing.T) {
+	t.Parallel()
+
+	status, envelope := serviceStoryResolutionError(context.Background(), selector.AmbiguousError{
+		Selector: "payments",
+		Matches:  []string{"repository:r_b", "repository:r_a", "repository:r_b"},
+	})
+	if status != http.StatusConflict || envelope == nil {
+		t.Fatalf("status, envelope = %d, %v, want 409 with an envelope", status, envelope)
+	}
+	if envelope.Code != querycontract.ErrorCodeAmbiguous {
+		t.Fatalf("code = %q, want %q", envelope.Code, querycontract.ErrorCodeAmbiguous)
+	}
+	candidates, ok := envelope.Details["candidates"].([]selector.AmbiguousCandidate)
+	if !ok {
+		t.Fatalf("details.candidates = %#v (%T), want []selector.AmbiguousCandidate objects", envelope.Details["candidates"], envelope.Details["candidates"])
+	}
+	// AmbiguousCandidates drops the duplicate and sorts by id.
+	if len(candidates) != 2 ||
+		candidates[0].RepoID != "repository:r_a" ||
+		candidates[1].RepoID != "repository:r_b" {
+		t.Fatalf("candidates = %#v, want the two deduplicated, sorted repo_id objects", candidates)
 	}
 }
 

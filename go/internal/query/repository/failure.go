@@ -126,22 +126,25 @@ func writeCoverageVerdict(w http.ResponseWriter, r *http.Request, err error, mes
 
 // writeSelectorAnswer answers a repository selector error that
 // querycontract.WriteGraphReadError and selector.WriteLookupFailure did not
-// claim. An unmatched selector answers 404 and an ambiguous one 400, each with
-// the typed error's own text, which quotes only the caller's selector and
-// candidate repository ids; a wrapper around it can quote backend detail, so
-// the wrapper's text never reaches the body. Any other error is a server
-// fault and answers selector.LookupFailureMessage through
+// claim. An unmatched selector answers 404 with the typed error's own text,
+// which quotes only the caller's selector; an ambiguous one answers 409 with
+// the structured candidate body through selector.WriteAmbiguousError, whose
+// ids the caller's grant may read (#10655). A wrapper around either can quote
+// backend detail, so the wrapper's text never reaches the body. Any other
+// error is a server fault and answers selector.LookupFailureMessage through
 // tracing.WriteServerFailure (500, or 499 for a client cancel), matching
 // selector.ResolveForRequestWithAccess.
-func writeSelectorAnswer(w http.ResponseWriter, r *http.Request, err error) {
+//
+// capability names the caller's capability for the 409 envelope and must stay
+// a plain argument at each call site: the root capability sweep resolves it
+// through callers, not through a struct field.
+func writeSelectorAnswer(w http.ResponseWriter, r *http.Request, err error, capability string) {
 	var notFound selector.NotFoundError
 	if errors.As(err, &notFound) {
 		querycontract.WriteError(w, http.StatusNotFound, notFound.Error())
 		return
 	}
-	var ambiguous selector.AmbiguousError
-	if errors.As(err, &ambiguous) {
-		querycontract.WriteError(w, http.StatusBadRequest, ambiguous.Error())
+	if selector.WriteAmbiguousError(w, r, err, capability) {
 		return
 	}
 	tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, selector.LookupFailureMessage)

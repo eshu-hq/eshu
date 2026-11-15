@@ -42,8 +42,9 @@ Read `doc.go` and `README.md` first.
 - Every selector-resolution error goes through `writeContentSelectorError`,
   which keeps the shared order (#7626): `querycontract.WriteGraphReadError`
   (503), then `selector.WriteLookupFailure` (500, fixed body, span error), then
-  404 for a `selector.NotFoundError` and 400 for a `selector.AmbiguousError`,
-  each with the typed answer's text, then `tracing.WriteServerFailure` with
+  404 for a `selector.NotFoundError` with the typed answer's text and 409 with
+  the structured candidate body through `selector.WriteAmbiguousError`
+  (#10655), then `tracing.WriteServerFailure` with
   `selector.LookupFailureMessage` for anything else (#7674). Pass the capability as a plain string
   argument at each call site: root's `TestWriteGraphReadErrorCapabilitiesExistInMatrix`
   resolves it through callers, not through a struct field. Never write a

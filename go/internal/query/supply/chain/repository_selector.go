@@ -24,7 +24,8 @@ type securityAlertProviderRepositoryScopeStore interface {
 // catalog has no match. The resolution reruns the catalog read and issues the
 // graph reads, so it runs as the repository_selector_resolve stage: a fence or
 // graph-availability verdict maps to 503/504 first, an unmatched selector
-// answers 404 and an ambiguous one 400 from the unwrapped sentinel, and any
+// answers 404 and an ambiguous one answers 409 with the structured candidate
+// body through selector.WriteAmbiguousError (#10655), and any
 // other failure goes through writeStageFailure with the fixed
 // selector.LookupFailureMessage (#7626, #7674).
 func (h *Handler) resolveSupplyChainRepositorySelector(
@@ -48,12 +49,10 @@ func (h *Handler) resolveSupplyChainRepositorySelector(
 			return "", false
 		}
 		var notFound selector.NotFoundError
-		var ambiguous selector.AmbiguousError
 		switch {
 		case errors.As(err, &notFound):
 			querycontract.WriteError(w, http.StatusNotFound, notFound.Error())
-		case errors.As(err, &ambiguous):
-			querycontract.WriteError(w, http.StatusBadRequest, ambiguous.Error())
+		case selector.WriteAmbiguousError(w, r, err, capability):
 		default:
 			writeStageFailure(w, r, resolveTimer, err, selector.LookupFailureMessage)
 		}
@@ -107,7 +106,7 @@ func (h *Handler) resolveSupplyChainSecurityAlertRepositorySelector(
 			}
 			return matches[0], scopes, true
 		default:
-			querycontract.WriteError(w, http.StatusBadRequest, selector.AmbiguousError{Selector: rawSelector, Matches: matches}.Error())
+			selector.WriteAmbiguousError(w, r, selector.AmbiguousError{Selector: rawSelector, Matches: matches}, capability)
 			return "", nil, false
 		}
 	}

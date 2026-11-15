@@ -36,7 +36,8 @@
   envelope basis on the moved handlers verbatim.
 - `ResolveEntity` maps a `repo_id` selector error through
   `selector.ResolveForRequestWithAccess`: `WriteGraphReadError` (503/504),
-  the lookup-failure 500, 404 not-found, 400 ambiguous, and the fixed 500 for
+  the lookup-failure 500, 404 not-found, the structured 409 ambiguous
+  (`selector.WriteAmbiguousError`, #10655), and the fixed 500 for
   anything else. Never write `err.Error()` of a `selector.LookupError` to a
   body: it carries backend text (#7626).
 - The service routes' optional `repo` selector follows the same rule.

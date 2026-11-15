@@ -45,8 +45,9 @@ func (s contentLookupStore) MatchRepositories(ctx context.Context, selector stri
 // content read and search routes. Their selector errors had no fence mapping,
 // so a stale reader answered 400, and a plain store failure answered 400 with
 // the backend text in the body. A fence verdict now answers 503, a lookup
-// failure answers 500 with the fixed body and an error on the request span, and
-// an unmatched or ambiguous selector keeps 404 or 400 without touching the span.
+// failure answers 500 with the fixed body and an error on the request span.
+// An unmatched selector keeps 404 and an ambiguous one answers the structured
+// 409 (#10655), both without touching the span.
 func TestContentSelectorLookupFailureMapping(t *testing.T) {
 	t.Parallel()
 
@@ -77,7 +78,7 @@ func TestContentSelectorLookupFailureMapping(t *testing.T) {
 		{"reader stale", contentLookupStore{matchErr: fmt.Errorf("private read store: %w", db.ErrReaderStale)}, http.StatusServiceUnavailable, false},
 		{"reader pool wait timeout", contentLookupStore{matchErr: fmt.Errorf("private: %w", errors.Join(db.ErrReaderUnavailable, context.DeadlineExceeded))}, http.StatusServiceUnavailable, false},
 		{"not found", contentLookupStore{}, http.StatusNotFound, false},
-		{"ambiguous", ambiguous, http.StatusBadRequest, false},
+		{"ambiguous", ambiguous, http.StatusConflict, false},
 	}
 	for _, route := range routes {
 		for _, tc := range cases {

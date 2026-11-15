@@ -44,7 +44,7 @@ Read `doc.go` and `README.md` first.
   `tracing.WriteServerFailure`) and the only place the cancel split lives
   (`tracing.ClientCanceled`): do not call `RecordError`/`SetStatus` or
   `timer.Failed` beside it, or the span gets two `exception` events and a
-  client cancel logs at ERROR. A selector 404/400 renders the unwrapped
+  client cancel logs at ERROR. A selector 404/409 renders the unwrapped
   `selector.NotFoundError`/`AmbiguousError`, never the wrapped `err`.
 - The cloud and Kubernetes runtime probe child spans call `RecordError` only
   when `tracing.ClientCanceled` is false, so a client cancel leaves them free
@@ -61,7 +61,7 @@ Read `doc.go` and `README.md` first.
   #7567) follow the same order as stages `repository_catalog_match` and
   `provider_repository_scope_lookup`, and its exact-resolution fallback as
   `repository_selector_resolve` (#7626: `writeStageFailure` only after the
-  404/400 sentinels, so those selector answers emit no `stage_failed`
+  404/409 sentinels, so those selector answers emit no `stage_failed`
   record; their completion still carries `error=true`),
   reporting against the calling route's operation through
   `securityAlertSelectorRoute`. Keep the
@@ -226,7 +226,7 @@ or suite-local doubles):
   exactly one `stage_failed` record, an Error handler span, and no raw
   selector in any log attribute (#7567); `repository_selector_lookup_test.go`
   pins the same contract for the `repository_selector_resolve` stage, plus
-  404/400 for unmatched and ambiguous selectors (#7626);
+  404/409 for unmatched and ambiguous selectors (#7626, #10655);
 - the runtime-context suites: context probe, digest bound, environment
   evidence (with two minimal local doubles), the runtime-filter live
   cluster (filter, plan, normalization, precedence, scope, args,

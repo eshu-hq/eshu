@@ -33,8 +33,9 @@ wraps the backend error, so a caller runs `querycontract.WriteGraphReadError`
 first (a stale or timed-out guarded reader, or a graph outage or deadline,
 answers 503/504) and then answers 500 for whatever `IsLookupFailure` still
 reports, with the fixed `LookupFailureMessage` body, never `err.Error()`, which
-carries backend text. Only `NotFoundError` is a 404 and only the remaining
-selector answers (an ambiguous match) are a 400 (#7626). A caller that maps
+carries backend text. Only `NotFoundError` is a 404; an ambiguous match answers
+409 with the structured candidate body through `WriteAmbiguousError` (#10655).
+A caller that maps
 selector errors itself calls `WriteLookupFailure` for that 500 step; it writes
 the body and the span error and reports false for anything that is not a
 lookup failure. When the lookup failed because the caller canceled its own
@@ -160,8 +161,9 @@ identity.
 
 `ResolveForRequestWithAccess` maps a resolve error in `writeResolveFailure`:
 `querycontract.WriteGraphReadError` (503/504), `WriteLookupFailure` (fixed
-500, or 499 for a client cancel), a typed `NotFoundError` (404) and a typed
-`AmbiguousError` (400), each with its own selector-safe text. Any other error
+500, or 499 for a client cancel), a typed `NotFoundError` (404) with its own
+selector-safe text, and a typed `AmbiguousError` (409 with the structured
+candidate body through `WriteAmbiguousError`, #10655). Any other error
 used to answer 400 with its own text, which could carry backend detail; it
 now answers the same fixed `LookupFailureMessage` 500 with the error on the
 request span. The exported API is unchanged.
@@ -176,7 +178,7 @@ function) is untouched. `go test ./internal/query/... ./internal/queryplan/...
 Observability Evidence (#7674): an unclassified error now records the
 backend error on the request span as an `exception` event and sets status
 Error with `LookupFailureMessage`, the same signal a `LookupError` already
-gives. `server_failure_test.go` asserts the 404, 400 and 500 answers and the
+gives. `server_failure_test.go` asserts the 404, 409, and 500 answers and the
 span.
 
 ## Related docs

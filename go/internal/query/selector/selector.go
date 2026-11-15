@@ -47,6 +47,85 @@ func (e AmbiguousError) Error() string {
 	return fmt.Sprintf("repository selector %q matched multiple repositories: %s", e.Selector, strings.Join(e.Matches, ", "))
 }
 
+// AmbiguousCandidate is one repository a selector matched, shaped for the
+// structured ambiguity body. It carries only the canonical repository id:
+// resolution retains nothing else (names stay in the catalog or graph rows),
+// and the id is the exact follow-up handle, since passing it back as the same
+// selector resolves one repository through LooksCanonicalRepositoryID.
+type AmbiguousCandidate struct {
+	RepoID string `json:"repo_id"`
+}
+
+// AmbiguousCandidates normalizes raw match ids into deterministic candidate
+// objects: it drops empty ids, collapses duplicates, and sorts by id, so a
+// directly constructed AmbiguousError with an empty or duplicated Matches
+// list still answers a well-formed body without a panic (#10655).
+func AmbiguousCandidates(ids []string) []AmbiguousCandidate {
+	seen := make(map[string]struct{}, len(ids))
+	candidates := make([]AmbiguousCandidate, 0, len(ids))
+	for _, id := range ids {
+		if id == "" {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		candidates = append(candidates, AmbiguousCandidate{RepoID: id})
+	}
+	slices.SortFunc(candidates, func(a, b AmbiguousCandidate) int {
+		return strings.Compare(a.RepoID, b.RepoID)
+	})
+	return candidates
+}
+
+// AmbiguousDetails renders the structured ambiguity packet shared by the
+// plain and envelope bodies: status, the caller's selector, the normalized
+// candidates, and truncated false, since resolution returns every match.
+func AmbiguousDetails(err AmbiguousError) map[string]any {
+	return map[string]any{
+		"status":     "ambiguous",
+		"selector":   err.Selector,
+		"candidates": AmbiguousCandidates(err.Matches),
+		"truncated":  false,
+	}
+}
+
+// WriteAmbiguousError answers a repository-selector AmbiguousError for a
+// caller that maps selector errors itself, and reports whether it wrote.
+// An ambiguous match answers 409 with the structured body (the codemodel
+// complexity precedent, #10655): an envelope request gets the ErrorEnvelope
+// with the stable ambiguous code, any other request the same packet merged
+// with the error and detail text. Every other error writes nothing and
+// reports false, so the caller's own not-found mapping runs next. Call it
+// after querycontract.WriteGraphReadError and WriteLookupFailure, in the same
+// order as writeResolveFailure. The 404 and 500 answers keep their helpers.
+func WriteAmbiguousError(w http.ResponseWriter, r *http.Request, err error, capability string) bool {
+	var ambiguous AmbiguousError
+	if !errors.As(err, &ambiguous) {
+		return false
+	}
+	details := AmbiguousDetails(ambiguous)
+	if querycontract.AcceptsEnvelope(r) {
+		querycontract.WriteErrorEnvelope(w, r, http.StatusConflict, &querycontract.ErrorEnvelope{
+			Code:       querycontract.ErrorCodeAmbiguous,
+			Message:    ambiguous.Error(),
+			Capability: capability,
+			Details:    details,
+		})
+		return true
+	}
+	body := make(map[string]any, len(details)+3)
+	for key, value := range details {
+		body[key] = value
+	}
+	body["code"] = querycontract.ErrorCodeAmbiguous
+	body["error"] = http.StatusText(http.StatusConflict)
+	body["detail"] = ambiguous.Error()
+	querycontract.WriteJSON(w, http.StatusConflict, body)
+	return true
+}
+
 // LookupError is the errors.As target for a selector resolution that failed
 // because a backing read failed (the catalog read or either graph read), not
 // because of the selector itself. Err is the backend failure; Unwrap exposes
@@ -206,8 +285,9 @@ func ResolveExactForAccess(
 // SQL error, a driver error) answers 500 with a fixed body and records the
 // error on the request span, the only operator signal this helper can reach:
 // it has no logger and every caller owns its own span (#7626). An unmatched
-// selector answers 404 and an ambiguous match 400, each with its own typed
-// text. Any other error answers the same fixed 500 as a lookup failure (#7674).
+// selector answers 404 with its own typed text; an ambiguous match answers
+// 409 with the structured candidate body (#10655). Any other error answers
+// the same fixed 500 as a lookup failure (#7674).
 func ResolveForRequestWithAccess(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -226,11 +306,12 @@ func ResolveForRequestWithAccess(
 }
 
 // writeResolveFailure answers a failed ResolveExactForAccess in the order
-// ResolveForRequestWithAccess documents. The 404 and 400 bodies are the typed
-// answer's own text, which quotes only the caller's selector and, for an
-// ambiguous match, repository ids its grant may read. An error that is none of
+// ResolveForRequestWithAccess documents. The 404 body is the typed answer's
+// own text, which quotes only the caller's selector; an ambiguous match
+// answers 409 through WriteAmbiguousError with the structured candidate body,
+// whose ids the caller's grant may read. An error that is none of
 // the classified answers is a server fault and answers LookupFailureMessage,
-// so no unclassified error text reaches a 400 body (#7674).
+// so no unclassified error text reaches a 4xx body (#7674).
 func writeResolveFailure(w http.ResponseWriter, r *http.Request, err error, capability string) {
 	if querycontract.WriteGraphReadError(w, r, err, capability) {
 		return
@@ -243,9 +324,7 @@ func writeResolveFailure(w http.ResponseWriter, r *http.Request, err error, capa
 		querycontract.WriteError(w, http.StatusNotFound, notFound.Error())
 		return
 	}
-	var ambiguous AmbiguousError
-	if errors.As(err, &ambiguous) {
-		querycontract.WriteError(w, http.StatusBadRequest, ambiguous.Error())
+	if WriteAmbiguousError(w, r, err, capability) {
 		return
 	}
 	tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, LookupFailureMessage)

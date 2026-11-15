@@ -72,12 +72,7 @@ func (h *Handler) InvestigateService(w http.ResponseWriter, r *http.Request) {
 				http.StatusConflict,
 				querycontract.ErrorCodeAmbiguous,
 				repoAmbiguous.Error(),
-				map[string]any{
-					"status":     "ambiguous",
-					"selector":   repoAmbiguous.Selector,
-					"candidates": repoAmbiguous.Matches,
-					"truncated":  false,
-				},
+				selector.AmbiguousDetails(repoAmbiguous),
 			)
 			return
 		}

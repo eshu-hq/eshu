@@ -65,8 +65,9 @@ verdict answers 503/504 through `querycontract.WriteGraphReadError`; any other
 failed catalog or graph read answers 500 with the fixed `repository selector
 lookup failed` body and an error on the request span
 (`selector.WriteLookupFailure`, #7626); an unmatched selector answers 404 and
-an ambiguous one 400 with only the typed error's own text, and any other error
-answers the same fixed 500 (`writeSelectorAnswer`, #7674). The stats route answers 504 with the same fixed body
+an ambiguous one answers 409 with the structured candidate body
+(`writeSelectorAnswer` through `selector.WriteAmbiguousError`, #10655), and
+any other error answers the same fixed 500 (#7674). The stats route answers 504 with the same fixed body
 and span error when the selector read runs out its 2s route budget
 (`context.DeadlineExceeded`). Coverage re-resolves the selector and answers
 that second resolution the same way.
