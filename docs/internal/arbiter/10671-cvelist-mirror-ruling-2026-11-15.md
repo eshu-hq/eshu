@@ -22,6 +22,9 @@ Environment identifiers are redacted per #7803.
 > - The Modified span is about nine days, and the per-year seed is required, not
 >   conditional (Part 2, amendment 1).
 > - QA enable no longer waits on the #10706 horizon (Part 2, amendment 5).
+> - The meta-404 rule (non-retryable, "must page", Part 1 lines on errors, R3,
+>   and follow-up 1) is replaced: a missing or failing `.meta` means "not
+>   covered", the API runs, and a counter pages; it never fails a claim.
 > - "Raw `vulnerability.*` rows write no dirty-log rows directly" is right, and
 >   it means rows per NVD fact is unmeasured; the design states it as an
 >   assumption with a trip line, not a measurement.

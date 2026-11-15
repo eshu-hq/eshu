@@ -146,7 +146,10 @@ If the first `lastModified` group alone exceeds 10,000 facts or 2 MiB (one
 record reached 2,048 facts), the cursor cannot advance on the feed path. That
 window routes to the API walk, which has its own retryable no-progress refusal
 (`ErrNVDNoProgress`), and the selector counts it with class
-`nvd_feed_group_oversize`. It never loops silently and is never terminal.
+`nvd_feed_group_oversize`. It never loops silently: the claim is retryable, the
+cursor holds, and the counter pages. The existing 10-attempt cap is the
+backstop that escalates a window that keeps failing, and during an API outage
+this route is a dead end until the API answers or the record is handled by hand.
 
 ### 4. Field dispositions
 
@@ -197,9 +200,11 @@ minutes, bound by planner cadence, so 5.0k to 6.5k facts an hour.
 
 Dirty rows come from the reducer's finding upserts, filtered by content digest,
 and from the pointer trigger (migration 272), not from raw facts. The rows per
-NVD fact is therefore unmeasured. Taking the upper bound of one row per fact,
-catch-up adds at most about 5.0k to 6.5k rows an hour, 5 to 11 percent of today's
-1.0 to 1.8k a minute, and under the 15k trip line. A disposable-database run of
+NVD fact is therefore unmeasured, and one CVE or affected-product change can
+touch many findings, so one row per fact is a guess, not a ceiling. At one row
+per fact catch-up would add about 5.0k to 6.5k rows an hour, 5 to 11 percent of
+today's 1.0 to 1.8k a minute; real fan-out per CVE could be higher. A
+disposable-database run of
 one planted window, counting dirty rows per committed fact, is part of
 follow-up A's proof; until it exists the trip line, not this estimate, is the
 control.
@@ -239,7 +244,8 @@ API with no feed read; R3 error classes, including a missing `.meta` meaning "no
 covered"; R4 overflow prefix commit and replay with no duplicate keys, and R4b a
 first group over the cap routes to the API with class `nvd_feed_group_oversize`;
 R5 claim-plane golden trace through the extension host, asserting the stamped
-head is `M1` and the cursor never passes it; R6 two attempts of one window
+head is `M1`, the cursor never passes it, and the negative head-minus-now skew does
+not surface as a time-anomaly alert; R6 two attempts of one window
 converge under fencing; R7 streaming benchmark with a 256 MiB RSS target, and R7b
 a wall-clock and RSS test scanning the 2026 year file and the full 25-file set; R8 telemetry gate; R9
 product-path representative prefers a scored row; R10 CVE List additive reads;

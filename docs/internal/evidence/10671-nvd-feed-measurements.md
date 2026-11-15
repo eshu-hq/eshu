@@ -30,7 +30,7 @@ restart the clock. Every number below has its sample size.
 
 `vulnerability_nvd_window_cursors`: cursor `2026-10-17T20:18:09Z`, head
 `2026-11-13T17:10:24Z`. The cursor trails wall clock by about 28 days (28.3 at the 05:00Z read), not the
-"11+ hours" the issue states: the drain was already about 26 days behind when
+"11+ hours" the issue states: the drain was already about 27 days behind when
 the latest failures began. The CVE List `deltaLog.json` covers about 30 days,
 so the gap start sits at the edge of that window.
 
@@ -109,8 +109,9 @@ With NVD down, the current inflow is OSV/GHSA-keyed. #10706 describes it as
 NVD inflow; that does not match these reads.
 
 Effect of an NVD catch-up, as an upper bound that assumes one dirty row per
-committed fact (unmeasured; see the correction below): 290k to 375k over about
-58 h is 5.0k to 6.5k rows an hour, 5 to 11 percent of the current inflow.
+committed fact. That is a guess, not a ceiling (one CVE can touch many
+findings), and it is unmeasured: 290k to 375k over about 58 h is 5.0k to 6.5k
+rows an hour, 5 to 11 percent of the current inflow.
 
 ## M7. Deployed configuration
 
