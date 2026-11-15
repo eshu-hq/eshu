@@ -15,11 +15,13 @@ mismatched test doc-comments (P3). This note tracks the fixes, all on branch
 
 - F1: the tick reads its DB-clock stamp S exactly once, before admission, and
   every branch that stamps S stamps that same read — the idle tick, the
-  drained keyed apply, and the over-cap full fallback. A row that commits
-  mid-tick carries a later `captured_at`, so the stamp never covers a capture
-  the tick did not see. Before, the idle, drained, and fallback branches each
-  re-read the clock after settle, and a capture committed mid-tick could land
-  under the stamp while still queued.
+  drained keyed apply, and the over-cap full fallback. A row that both
+  executes and commits after that read carries a later `captured_at` and is
+  never covered; a row that executed before it but commits after the tick's
+  snapshot stays covered for exactly one tick and the next tick applies it
+  (see the late-commit tests). Before, the idle, drained, and fallback
+  branches each re-read the clock after settle, and a capture committed
+  mid-tick could land under the stamp while still queued.
 - F4: the over-cap fallback re-reads the committed watermark after the rebuild
   instead of echoing the stamp input, the same contract every other branch
   keeps; the bounded-gauge unit fake now carries the committed `Watermark` so
