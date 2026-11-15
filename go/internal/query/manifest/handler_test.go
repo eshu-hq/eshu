@@ -33,6 +33,7 @@ type fakeManifestCall struct {
 	scopeID      string
 	cursorFactID string
 	fetchLimit   int
+	includeDev   bool
 	hasCursor    bool
 }
 
@@ -42,16 +43,17 @@ func (f *fakeManifestDependencyStore) ListRepositoryManifestDependencyFacts(
 	cursorObservedAt *time.Time,
 	cursorFactID string,
 	fetchLimit int,
+	includeDev bool,
 ) (ManifestDependencyPage, bool, error) {
 	f.calls++
-	f.last = fakeManifestCall{scopeID: scopeID, cursorFactID: cursorFactID, fetchLimit: fetchLimit, hasCursor: cursorObservedAt != nil}
+	f.last = fakeManifestCall{scopeID: scopeID, cursorFactID: cursorFactID, fetchLimit: fetchLimit, includeDev: includeDev, hasCursor: cursorObservedAt != nil}
 	return f.page, f.refused, f.err
 }
 
 func manifestTestRows() []ManifestDependencyRow {
 	return []ManifestDependencyRow{
-		{PackageName: "runtime-pkg", DeclaredRange: "1.0.0", ManifestFile: "package.json", Ecosystem: "npm", PackageManager: "npm", Section: "dependencies", DependencyScope: "runtime", FactID: "fact-1", ObservedAt: "2026-05-14T10:00:00Z"},
-		{PackageName: "dev-pkg", DeclaredRange: "^2.0.0", ManifestFile: "packages/dev/package.json", Ecosystem: "npm", PackageManager: "npm", Section: "devDependencies", DependencyScope: "dev", Development: true, FactID: "fact-2", ObservedAt: "2026-05-14T10:00:01Z"},
+		{PackageName: "runtime-pkg", DeclaredRange: "1.0.0", ManifestFile: "package.json", Ecosystem: "npm", PackageManager: "npm", Section: "dependencies", Scope: "runtime", FactID: "fact-1", ObservedAt: "2026-05-14T10:00:00Z"},
+		{PackageName: "dev-pkg", DeclaredRange: "^2.0.0", ManifestFile: "packages/dev/package.json", Ecosystem: "npm", PackageManager: "npm", Section: "devDependencies", Scope: "dev", FactID: "fact-2", ObservedAt: "2026-05-14T10:00:01Z"},
 	}
 }
 
@@ -118,7 +120,7 @@ func TestListManifestDependenciesServesPageAndCursor(t *testing.T) {
 	first, _ := dependencies[0].(map[string]any)
 	if first["package_name"] != "runtime-pkg" || first["declared_range"] != "1.0.0" ||
 		first["manifest_file"] != "package.json" || first["ecosystem"] != "npm" ||
-		first["dependency_scope"] != "runtime" || first["development_dependency"] != false {
+		first["scope"] != "runtime" {
 		t.Fatalf("first row = %v, want the runtime package.json row", first)
 	}
 	if body["count"] != float64(1) || body["limit"] != float64(1) || body["truncated"] != true {
@@ -132,8 +134,8 @@ func TestListManifestDependenciesServesPageAndCursor(t *testing.T) {
 	if !ok || freshness["scope_found"] != true || freshness["freshness_state"] != "fresh" {
 		t.Fatalf("freshness = %v, want the active generation state", body["freshness"])
 	}
-	if store.calls != 1 || store.last.scopeID != "repo-1" || store.last.fetchLimit != 2 || store.last.hasCursor {
-		t.Fatalf("store call = %+v, want scope repo-1 fetchLimit 2 no cursor", store.last)
+	if store.calls != 1 || store.last.scopeID != "repo-1" || store.last.fetchLimit != 2 || store.last.hasCursor || store.last.includeDev {
+		t.Fatalf("store call = %+v, want scope repo-1 fetchLimit 2 no cursor, runtime only", store.last)
 	}
 }
 
@@ -205,6 +207,26 @@ func TestListManifestDependenciesCursorRoundTrip(t *testing.T) {
 	}
 }
 
+// TestListManifestDependenciesIncludeDevFlag pins the dev-inclusion opt-in:
+// absent defaults to runtime-only, an explicit true threads the flag to the
+// store, and the response echoes the filter state.
+func TestListManifestDependenciesIncludeDevFlag(t *testing.T) {
+	store := &fakeManifestDependencyStore{page: manifestFreshPage()}
+	h := &Handler{Store: store}
+
+	recorder := manifestServeRequest(t, h, "/api/v0/repository/manifest-dependencies?repository_id=repo-1&include_dev_dependencies=true", nil)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+	}
+	if !store.last.includeDev {
+		t.Fatalf("store call = %+v, want includeDev true", store.last)
+	}
+	body := manifestDecodeBody(t, recorder)
+	if body["include_dev_dependencies"] != true {
+		t.Fatalf("include_dev_dependencies = %v, want true echoed", body["include_dev_dependencies"])
+	}
+}
+
 // TestListManifestDependenciesRejectsBadInput pins the bounded contract:
 // repository_id is required, limit stays in 1..200, and the cursor halves
 // travel together with an RFC 3339 observed_at.
@@ -220,6 +242,7 @@ func TestListManifestDependenciesRejectsBadInput(t *testing.T) {
 		"/api/v0/repository/manifest-dependencies?repository_id=repo-1&after_observed_at=2026-05-14T10%3A00%3A00Z",
 		"/api/v0/repository/manifest-dependencies?repository_id=repo-1&after_fact_id=fact-1",
 		"/api/v0/repository/manifest-dependencies?repository_id=repo-1&after_observed_at=not-a-time&after_fact_id=fact-1",
+		"/api/v0/repository/manifest-dependencies?repository_id=repo-1&include_dev_dependencies=maybe",
 	} {
 		if recorder := manifestServeRequest(t, h, target, nil); recorder.Code != http.StatusBadRequest {
 			t.Fatalf("GET %s status = %d, want 400", target, recorder.Code)
@@ -355,8 +378,8 @@ func TestManifestDependencyEcosystemMappingTracksManagerExpansion(t *testing.T) 
 }
 
 // TestManifestDependencyRowMapping pins the payload contract: the top-level
-// entity fields and the entity_metadata signal fields land on the row, and a
-// row without a development flag reads non-dev with empty scope fields.
+// entity fields and the entity_metadata signal fields land on the row, and
+// the dev-or-runtime signal normalizes to the query-facing scope.
 func TestManifestDependencyRowMapping(t *testing.T) {
 	payload := map[string]any{
 		"entity_name":   "left-pad",
@@ -373,13 +396,35 @@ func TestManifestDependencyRowMapping(t *testing.T) {
 	row := manifestDependencyRow(payload, "fact-9", "gen-1", time.Date(2026, time.May, 14, 10, 0, 0, 0, time.UTC))
 	if row.PackageName != "left-pad" || row.DeclaredRange != "^1.0.0" || row.ManifestFile != "package.json" ||
 		row.Ecosystem != "npm" || row.PackageManager != "npm" || row.Section != "dependencies" ||
-		row.DependencyScope != "runtime" || row.Development || row.FactID != "fact-9" ||
+		row.Scope != "runtime" || row.FactID != "fact-9" ||
 		row.ObservedAt != "2026-05-14T10:00:00Z" {
 		t.Fatalf("row = %+v, want the mapped payload", row)
 	}
 
 	bare := manifestDependencyRow(map[string]any{"entity_name": "x"}, "fact-x", "", time.Time{})
-	if bare.Development || bare.DependencyScope != "" || bare.Section != "" || bare.Ecosystem != "" || bare.ObservedAt != "" {
-		t.Fatalf("bare row = %+v, want zero signals and no invented claims", bare)
+	if bare.Scope != "runtime" || bare.Section != "" || bare.Ecosystem != "" || bare.ObservedAt != "" {
+		t.Fatalf("bare row = %+v, want runtime scope and no invented claims", bare)
+	}
+}
+
+// TestManifestDependencyScopeNormalization pins the dev-or-runtime
+// normalization: a development dependency maps to dev, a test-scoped one to
+// test, and everything else stays runtime.
+func TestManifestDependencyScopeNormalization(t *testing.T) {
+	for _, tc := range []struct {
+		development bool
+		raw         string
+		want        string
+	}{
+		{false, "", "runtime"},
+		{false, "runtime", "runtime"},
+		{true, "", "dev"},
+		{true, "dev", "dev"},
+		{true, "dev_optional", "dev"},
+		{true, "test", "test"},
+	} {
+		if got := manifestDependencyScope(tc.development, tc.raw); got != tc.want {
+			t.Fatalf("scope(dev=%v, raw=%q) = %q, want %q", tc.development, tc.raw, got, tc.want)
+		}
 	}
 }

@@ -153,7 +153,6 @@ func askToolAnnotations() map[string]Annotation {
 		"list_relationship_edges":                         {Backend: BackendNornicDB, Cost: CostModerate},
 		"list_repositories_by_language":                   {Backend: BackendPostgres, Cost: CostModerate},
 		"list_repository_files":                           {Backend: BackendPostgres, Cost: CostLow},
-		"list_repository_manifest_dependencies":           {Backend: BackendPostgres, Cost: CostModerate},
 		"list_sbom_attestation_attachments":               {Backend: BackendPostgres, Cost: CostModerate},
 		"list_secrets_iam_identity_trust_chains":          {Backend: BackendPostgres, Cost: CostModerate},
 		"list_secrets_iam_posture_gaps":                   {Backend: BackendPostgres, Cost: CostModerate},

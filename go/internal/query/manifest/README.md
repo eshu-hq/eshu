@@ -2,7 +2,10 @@
 
 Serves `GET /api/v0/repository/manifest-dependencies`: the bounded,
 repository-scoped inventory of declared manifest dependencies (package name,
-declared version or range, manifest file, ecosystem, dev-or-runtime signal).
+declared version or range, manifest file, ecosystem, and normalized dependency
+scope `runtime`/`dev`/`test`). The same rows appear as a bounded
+`manifest_dependencies` section of the repository context response, with a
+pointer back here for the full list.
 
 ## Layout
 
@@ -13,10 +16,14 @@ declared version or range, manifest file, ecosystem, dev-or-runtime signal).
 - `store.go` — the `ManifestDependencyStore` query-local port, the
   `PostgresManifestDependencyStore` adapter over
   `storage/postgres` active-generation reads, and the envelope-to-row
-  mapping (including the package-manager-to-ecosystem normalization).
+  mapping (including the package-manager-to-ecosystem normalization and the
+  dev-or-runtime scope normalization).
+- `section.go` — the bounded `ManifestDependencySection` the repository
+  context response carries, and `LoadContextSection` over the shared store.
 - `handler.go` — the bounded read: capability gate, limit 1..200 (default
-  50), `repository_id` anchor, `(after_observed_at, after_fact_id)` keyset
-  cursor, grant short-circuit, truncation probe, freshness, truth envelope.
+  50), `repository_id` anchor, `include_dev_dependencies` opt-in (runtime-only
+  by default), `(after_observed_at, after_fact_id)` keyset cursor, grant
+  short-circuit, truncation probe, freshness, truth envelope.
 - `handler_tracing.go` — span helper and fixed failure messages.
 
 ## Telemetry

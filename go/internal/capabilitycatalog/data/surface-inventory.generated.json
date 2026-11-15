@@ -3496,11 +3496,6 @@
     },
     {
       "category": "mcp_tool",
-      "name": "list_repository_manifest_dependencies",
-      "readiness": "implemented"
-    },
-    {
-      "category": "mcp_tool",
       "name": "list_runtime_version_declarations",
       "readiness": "implemented"
     },

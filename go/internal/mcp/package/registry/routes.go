@@ -23,8 +23,6 @@ func Route(toolName string, args routecontract.Arguments) (routecontract.Request
 		return versionsRequest(args), true
 	case "list_package_registry_dependencies":
 		return dependenciesRequest(args), true
-	case "list_repository_manifest_dependencies":
-		return repositoryManifestDependenciesRequest(args), true
 	case "list_package_registry_correlations":
 		return correlationsRequest(args), true
 	default:
@@ -55,15 +53,6 @@ func dependenciesRequest(args routecontract.Arguments) routecontract.Request {
 		"limit":               strconv.Itoa(args.IntOr("limit", 50)),
 		"package_id":          args.String("package_id"),
 		"version_id":          args.String("version_id"),
-	}}
-}
-
-func repositoryManifestDependenciesRequest(args routecontract.Arguments) routecontract.Request {
-	return routecontract.Request{Method: "GET", Path: "/api/v0/repository/manifest-dependencies", Query: map[string]string{
-		"after_fact_id":     args.String("after_fact_id"),
-		"after_observed_at": args.String("after_observed_at"),
-		"limit":             strconv.Itoa(args.IntOr("limit", 50)),
-		"repository_id":     args.String("repository_id"),
 	}}
 }
 

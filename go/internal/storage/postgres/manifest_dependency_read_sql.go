@@ -97,17 +97,21 @@ LIMIT $5
 // manager, name) LATERAL probes replaced by one repository predicate
 // (fact.scope_id = $1). $2/$3 carry the (observed_at, fact_id) keyset cursor
 // and $4 the fetch bound (the caller passes limit+1 as its truncation
-// lookahead); the candidate base generation ids bind at $5, so the numbering
-// stays dense for the pgx exec-mode first-arg convention. The text keeps one
-// fact_records branch with the active scope join and generation predicate the
-// delta-overlay rewrite requires, so the derived base pages keep the same
-// scope-first shape.
+// lookahead). $5 is the dev-inclusion flag: runtime dependencies are the
+// default, and dev/test dependencies are only returned when $5 is true
+// (#10660 arbiter ruling). The candidate base generation ids bind at $6, so
+// the numbering stays dense for the pgx exec-mode first-arg convention. The
+// text keeps one fact_records branch with the active scope join and
+// generation predicate the delta-overlay rewrite requires, so the derived
+// base pages keep the same scope-first shape and the same dev filter.
 //
 // Performance Evidence:
 // docs/internal/evidence/10660-manifest-scope-read-plan.md (disposable
 // PostgreSQL 18.6, 96,030-row fleet-shaped corpus): the scope-first probe
 // serves through fact_records_content_entity_dependency_variable_repo_idx
-// (#121) in 0.8 ms with no sequential scan and no new index.
+// (#121) in 0.8 ms with no sequential scan and no new index. The dev filter
+// is a residual predicate on the already scope-probed rows, not a new index
+// condition, so it adds no scan.
 // No-Observability-Change: the read_seconds/read_pages histograms and the
 // delta_union outcomes keep their labels; the read label is "repository".
 const listActiveRepositoryManifestDependencyFactsQuery = `
@@ -142,6 +146,10 @@ WHERE fact.fact_kind = 'content_entity'
   AND fact.scope_id = $1::text
   AND generation.status = 'active'
   AND fact.is_tombstone = FALSE
+  AND (
+    $5::boolean
+    OR COALESCE((fact.payload->'entity_metadata'->>'development_dependency') = 'true', false) = false
+  )
   AND (
     $2::timestamptz IS NULL
     OR (fact.observed_at, fact.fact_id) > ($2::timestamptz, $3::text)

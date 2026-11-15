@@ -4,7 +4,7 @@
 package postgres
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #10660 repository-scoped declared manifest dependency read: a two-manifest repository returns both files' rows in (observed_at, fact_id) order across keyset pages; an empty-manifest repository returns an empty list with freshness state, not an error; the read overlays a delta-active scope exactly like the reducer's pair-probe read; reads ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DSN with its disposable opt-in
+//eshu:readiness:reason #10660 repository-scoped declared manifest dependency read: a two-manifest repository returns both files' rows in (observed_at, fact_id) order across keyset pages; runtime dependencies are the default and dev/test appear only with includeDev; an empty-manifest repository returns an empty list with freshness state, not an error; the read overlays a delta-active scope exactly like the reducer's pair-probe read; reads ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DSN with its disposable opt-in
 //eshu:readiness:env ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DSN ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DISPOSABLE
 
 import (
@@ -32,27 +32,29 @@ func seedTwoManifestRepo(f *deltaManifestFixture, scopeID string, runtime, dev i
 	}
 	for i := 0; i < dev; i++ {
 		f.pin(scopeID, scopeID+"-full", deltaManifestPin{
-			factID:  fmt.Sprintf("%s-dev-%03d", scopeID, i),
-			key:     fmt.Sprintf("content_entity:%s:dev:%03d", scopeID, i),
-			name:    fmt.Sprintf("dev-pkg-%03d", i),
-			path:    "packages/dev/package.json",
-			version: "^2.0.0",
+			factID:          fmt.Sprintf("%s-dev-%03d", scopeID, i),
+			key:             fmt.Sprintf("content_entity:%s:dev:%03d", scopeID, i),
+			name:            fmt.Sprintf("dev-pkg-%03d", i),
+			path:            "packages/dev/package.json",
+			version:         "^2.0.0",
+			development:     true,
+			dependencyScope: "dev",
 		})
 	}
 	f.activate(scopeID, scopeID+"-full")
 }
 
 // collectRepositoryManifestPage walks the scoped read to completion with the
-// given fetch limit, asserting the (observed_at, fact_id) order contract on
-// every page edge.
-func collectRepositoryManifestPage(t *testing.T, f *deltaManifestFixture, scopeID string, fetchLimit int) []facts.Envelope {
+// given fetch limit and dev-inclusion flag, asserting the (observed_at,
+// fact_id) order contract on every page edge.
+func collectRepositoryManifestPage(t *testing.T, f *deltaManifestFixture, scopeID string, fetchLimit int, includeDev bool) []facts.Envelope {
 	t.Helper()
 	var all []facts.Envelope
 	var cursorObservedAt *time.Time
 	var cursorFactID string
 	for {
 		page, freshness, refused, err := f.store.ListActiveRepositoryManifestDependencyFacts(
-			f.ctx, scopeID, cursorObservedAt, cursorFactID, fetchLimit)
+			f.ctx, scopeID, cursorObservedAt, cursorFactID, fetchLimit, includeDev)
 		if err != nil {
 			t.Fatalf("ListActiveRepositoryManifestDependencyFacts(%s): %v", scopeID, err)
 		}
@@ -95,7 +97,7 @@ func TestListActiveRepositoryManifestDependencyFactsTwoManifestsLive(t *testing.
 	const scopeID = "repo-two-manifests"
 	seedTwoManifestRepo(f, scopeID, 60, 30)
 
-	full, _, refused, err := f.store.ListActiveRepositoryManifestDependencyFacts(f.ctx, scopeID, nil, "", 1000)
+	full, _, refused, err := f.store.ListActiveRepositoryManifestDependencyFacts(f.ctx, scopeID, nil, "", 1000, true)
 	if err != nil {
 		t.Fatalf("ListActiveRepositoryManifestDependencyFacts: %v", err)
 	}
@@ -117,7 +119,7 @@ func TestListActiveRepositoryManifestDependencyFactsTwoManifestsLive(t *testing.
 		t.Fatalf("per-file rows = %v, want map[package.json:60 packages/dev/package.json:30]", paths)
 	}
 
-	paged := collectRepositoryManifestPage(t, f, scopeID, 26)
+	paged := collectRepositoryManifestPage(t, f, scopeID, 26, true)
 	if len(paged) != len(full) {
 		t.Fatalf("paged rows = %d, want %d", len(paged), len(full))
 	}
@@ -125,6 +127,43 @@ func TestListActiveRepositoryManifestDependencyFactsTwoManifestsLive(t *testing.
 		if paged[i].FactID != full[i].FactID {
 			t.Fatalf("paged row %d = %s, want %s: cursor walk skipped or duplicated a row", i, paged[i].FactID, full[i].FactID)
 		}
+	}
+}
+
+// TestListActiveRepositoryManifestDependencyFactsScopeFilterLive seeds one
+// repository with runtime and dev pins across two manifest files and asserts
+// the #10660 scope filter: runtime dependencies are the default, and dev/test
+// dependencies appear only when includeDev is true.
+func TestListActiveRepositoryManifestDependencyFactsScopeFilterLive(t *testing.T) {
+	f := openDeltaManifestFixture(t)
+	const scopeID = "repo-scope-filter"
+	seedTwoManifestRepo(f, scopeID, 60, 30)
+
+	runtime, _, refused, err := f.store.ListActiveRepositoryManifestDependencyFacts(f.ctx, scopeID, nil, "", 1000, false)
+	if err != nil {
+		t.Fatalf("ListActiveRepositoryManifestDependencyFacts(runtime): %v", err)
+	}
+	if refused {
+		t.Fatal("refused an intact base")
+	}
+	if len(runtime) != 60 {
+		t.Fatalf("runtime rows = %d, want 60 (dev excluded by default)", len(runtime))
+	}
+	for _, env := range runtime {
+		if env.Payload["relative_path"] != "package.json" {
+			t.Fatalf("runtime row %s carries path %v, want only package.json", env.FactID, env.Payload["relative_path"])
+		}
+	}
+
+	all, _, refused, err := f.store.ListActiveRepositoryManifestDependencyFacts(f.ctx, scopeID, nil, "", 1000, true)
+	if err != nil {
+		t.Fatalf("ListActiveRepositoryManifestDependencyFacts(all): %v", err)
+	}
+	if refused {
+		t.Fatal("refused an intact base")
+	}
+	if len(all) != 90 {
+		t.Fatalf("all rows = %d, want 90 (60 runtime + 30 dev)", len(all))
 	}
 }
 
@@ -139,7 +178,7 @@ func TestListActiveRepositoryManifestDependencyFactsEmptyRepoLive(t *testing.T) 
 	f.generation(scopeID, deltaManifestGeneration{id: scopeID + "-full", commit: "c0"})
 	f.activate(scopeID, scopeID+"-full")
 
-	page, freshness, refused, err := f.store.ListActiveRepositoryManifestDependencyFacts(f.ctx, scopeID, nil, "", 201)
+	page, freshness, refused, err := f.store.ListActiveRepositoryManifestDependencyFacts(f.ctx, scopeID, nil, "", 201, false)
 	if err != nil {
 		t.Fatalf("ListActiveRepositoryManifestDependencyFacts: %v", err)
 	}
@@ -159,7 +198,7 @@ func TestListActiveRepositoryManifestDependencyFactsEmptyRepoLive(t *testing.T) 
 		t.Fatalf("freshness.GenerationStatus = %q, want active", freshness.GenerationStatus)
 	}
 
-	absent, absentFreshness, absentRefused, err := f.store.ListActiveRepositoryManifestDependencyFacts(f.ctx, "repo-absent", nil, "", 201)
+	absent, absentFreshness, absentRefused, err := f.store.ListActiveRepositoryManifestDependencyFacts(f.ctx, "repo-absent", nil, "", 201, false)
 	if err != nil {
 		t.Fatalf("ListActiveRepositoryManifestDependencyFacts(absent): %v", err)
 	}
@@ -190,7 +229,7 @@ func TestListActiveRepositoryManifestDependencyFactsDeltaParityLive(t *testing.T
 	f.activate(scopeID, delta)
 	f.exec("analyze", "ANALYZE fact_records; ANALYZE scope_generations; ANALYZE ingestion_scopes")
 
-	got, _, refused, err := f.store.ListActiveRepositoryManifestDependencyFacts(f.ctx, scopeID, nil, "", 1000)
+	got, _, refused, err := f.store.ListActiveRepositoryManifestDependencyFacts(f.ctx, scopeID, nil, "", 1000, true)
 	if err != nil {
 		t.Fatalf("ListActiveRepositoryManifestDependencyFacts: %v", err)
 	}

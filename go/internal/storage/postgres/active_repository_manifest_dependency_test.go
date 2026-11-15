@@ -43,7 +43,7 @@ func TestListActiveRepositoryManifestDependencyFactsFailsOnAMissingBase(t *testi
 		{}, // base lookup: no base
 	}}
 	loaded, freshness, refused, err := NewFactStore(db).WithInstruments(instruments).ListActiveRepositoryManifestDependencyFacts(
-		context.Background(), "repo-1", nil, "", 201,
+		context.Background(), "repo-1", nil, "", 201, false,
 	)
 	var refusal *ManifestDeltaBaseRefusedError
 	if !errors.As(err, &refusal) {
@@ -85,7 +85,7 @@ func TestListActiveRepositoryManifestDependencyFactsRejectsEmptyScopeAndLimit(t 
 
 	db := &fakeExecQueryer{}
 	store := NewFactStore(db)
-	loaded, freshness, refused, err := store.ListActiveRepositoryManifestDependencyFacts(context.Background(), "", nil, "", 201)
+	loaded, freshness, refused, err := store.ListActiveRepositoryManifestDependencyFacts(context.Background(), "", nil, "", 201, false)
 	if err != nil {
 		t.Fatalf("empty scope error = %v, want nil", err)
 	}
@@ -96,11 +96,11 @@ func TestListActiveRepositoryManifestDependencyFactsRejectsEmptyScopeAndLimit(t 
 		t.Fatalf("empty scope statements = %d, want 0", got)
 	}
 
-	if _, _, _, err := store.ListActiveRepositoryManifestDependencyFacts(context.Background(), "repo-1", nil, "", 0); err == nil {
+	if _, _, _, err := store.ListActiveRepositoryManifestDependencyFacts(context.Background(), "repo-1", nil, "", 0, false); err == nil {
 		t.Fatal("fetch limit 0 error = nil, want the required-limit error")
 	}
 
-	if _, _, _, err := NewFactStore(nil).ListActiveRepositoryManifestDependencyFacts(context.Background(), "repo-1", nil, "", 201); err == nil {
+	if _, _, _, err := NewFactStore(nil).ListActiveRepositoryManifestDependencyFacts(context.Background(), "repo-1", nil, "", 201, false); err == nil {
 		t.Fatal("nil database error = nil, want the required-database error")
 	}
 }

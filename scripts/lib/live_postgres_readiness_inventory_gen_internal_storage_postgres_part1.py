@@ -56,6 +56,7 @@ TABLE = {
         ),
         "go/internal/storage/postgres/active_repository_manifest_dependency_live_test.go": (
             "TestListActiveRepositoryManifestDependencyFactsTwoManifestsLive",
+            "TestListActiveRepositoryManifestDependencyFactsScopeFilterLive",
             "TestListActiveRepositoryManifestDependencyFactsEmptyRepoLive",
             "TestListActiveRepositoryManifestDependencyFactsDeltaParityLive",
         ),

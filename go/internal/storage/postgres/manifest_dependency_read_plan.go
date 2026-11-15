@@ -93,9 +93,10 @@ const manifestDeltaOverlayScopeParam = 6
 
 // repositoryManifestDeltaOverlayScopeParam is the same placeholder for the
 // #10660 repository-scoped read: $1 is the scope, $2/$3 the keyset cursor,
-// and $4 the fetch bound, so the candidate base generation ids bind at $5
-// and the numbering stays dense for the pgx exec-mode first-arg convention.
-const repositoryManifestDeltaOverlayScopeParam = 5
+// $4 the fetch bound, and $5 the dev-inclusion flag, so the candidate base
+// generation ids bind at $6 and the numbering stays dense for the pgx
+// exec-mode first-arg convention.
+const repositoryManifestDeltaOverlayScopeParam = 6
 
 // manifestDeltaOverlayTelemetry names where the manifest reader records its
 // delta-overlay decisions: eshu_dp_package_manifest_dependency_read_delta_union_total

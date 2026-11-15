@@ -179,7 +179,7 @@ the `querycontract.CoreReadContractsVersion` port set.
 | `GET /api/v0/repositories/language-inventory` | Repositories | paths/repository/routes.go | read | reader (ReadStore/graph/content, no durable writes) | newRouter |
 | `GET /api/v0/repositories/{repo_id}/branches` | Repositories | paths/repository/branches.go | read | reader (ReadStore/graph/content, no durable writes) | newRouter |
 | `GET /api/v0/repositories/{repo_id}/content` | Repositories | paths/repository/routes.go | read | reader (ReadStore/graph/content, no durable writes) | newRouter |
-| `GET /api/v0/repositories/{repo_id}/context` | Repositories | paths/repository/routes.go | read | reader (ReadStore/graph/content, no durable writes) | newRouter |
+| `GET /api/v0/repositories/{repo_id}/context` | Repositories | paths/repository/routes.go | read | reader (ReadStore/graph/content, no durable writes) + manifest FactStore read-only snapshot (writer handle held for the snapshot transaction, which refuses writes) | newRouter |
 | `GET /api/v0/repositories/{repo_id}/coverage` | Repositories | paths/repository/stats_and_coverage.go | read | reader (ReadStore/graph/content, no durable writes) | newRouter |
 | `GET /api/v0/repositories/{repo_id}/freshness` | Repositories | paths/repository/freshness.go | read | reader (ReadStore/graph/content, no durable writes) | newRouter |
 | `GET /api/v0/repositories/{repo_id}/stats` | Repositories | paths/repository/stats_and_coverage.go | read | reader (ReadStore/graph/content, no durable writes) | newRouter |

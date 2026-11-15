@@ -102,12 +102,16 @@ panel failed: `entry_points_read_degraded`, `relationships_read_degraded`,
 `relationship_overview_read_degraded`,
 `deployable_unit_relationships_read_degraded`, `consumers_read_degraded`,
 `api_surface_read_degraded`, `languages_read_degraded`,
-`runtime_declarations_read_degraded` and
+`runtime_declarations_read_degraded`,
+`manifest_dependencies_read_degraded` and
 `source_tool_breakdown_read_degraded`; `story` carries
 `relationships_read_degraded` in `limitations`. This mirrors the `partial_reasons` shape the inventory
 route already uses (below) rather than inventing a new one. None of those
 reads adds a `_truncated` reason (`api_surface` alone is bounded and discloses
-it as `detail_truncated` on its own panel). A failed deployment-artifact read adds
+it as `detail_truncated` on its own panel), except the bounded
+`runtime_declarations` and `manifest_dependencies` sections, which add
+`runtime_declarations_truncated` and `manifest_dependencies_truncated` when a
+healthy read lands past the section bound. A failed deployment-artifact read adds
 `deployment_artifacts_read_degraded` (#7126; the loads that succeeded are kept); its candidate
 bounds add `deployment_artifacts_candidates_budget_reached` or
 `deployment_artifacts_related_file_list_truncated_at_5000` (#7951, [details](story-routes.md)).

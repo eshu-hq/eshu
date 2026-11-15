@@ -49,6 +49,11 @@ WHERE scope.scope_id = $1
 // cursor and fetch bound, overlay with the refusal-aware rule, and merge in
 // (observed_at, fact_id) order.
 //
+// includeDev selects the dependency scope: false (the default) returns only
+// runtime dependencies; true also returns dev and test dependencies (#10660
+// arbiter ruling). The filter is a SQL predicate, so the bounded page and
+// keyset cursor stay correct under either flag.
+//
 // fetchLimit is the store's +1 lookahead bound: the caller passes its page
 // limit plus one and derives truncation from the raw fetched count, never
 // refetching. The read is refusal-aware like the retracting consumers'
@@ -61,6 +66,7 @@ func (s FactStore) ListActiveRepositoryManifestDependencyFacts(
 	cursorObservedAt *time.Time,
 	cursorFactID string,
 	fetchLimit int,
+	includeDev bool,
 ) ([]facts.Envelope, RepositoryManifestFreshness, bool, error) {
 	var freshness RepositoryManifestFreshness
 	if s.database == nil {
@@ -95,7 +101,7 @@ func (s FactStore) ListActiveRepositoryManifestDependencyFacts(
 	err = s.withDeltaOverlaySnapshot(ctx, func(snapshot *deltaOverlaySnapshot) error {
 		reader := snapshot.store
 		active, err := reader.listActiveRepositoryManifestDependencyFactsPage(
-			ctx, rawQuery, scopeID, cursorObservedAt, cursorFactID, fetchLimit)
+			ctx, rawQuery, scopeID, cursorObservedAt, cursorFactID, fetchLimit, includeDev)
 		if err != nil {
 			return err
 		}
@@ -108,7 +114,7 @@ func (s FactStore) ListActiveRepositoryManifestDependencyFacts(
 		var base []facts.Envelope
 		if baseGenerations, scan := deltaOverlayBaseGenerations(targets); scan {
 			base, err = reader.listActiveRepositoryManifestDependencyFactsPage(
-				ctx, baseQuery, scopeID, cursorObservedAt, cursorFactID, fetchLimit, baseGenerations)
+				ctx, baseQuery, scopeID, cursorObservedAt, cursorFactID, fetchLimit, includeDev, baseGenerations)
 			if err != nil {
 				reader.recordDeltaOverlayFailure(ctx, sink)
 				return err
@@ -145,8 +151,8 @@ func (s FactStore) ListActiveRepositoryManifestDependencyFacts(
 
 // listActiveRepositoryManifestDependencyFactsPage runs one repository-scoped
 // manifest dependency page: the active text's own cursor and fetch bound,
-// with the candidate base generation ids as $5 onward. The caller caps the
-// overlay-merged rows at its fetch bound.
+// the dev-inclusion flag at $5, and the candidate base generation ids as $6
+// onward. The caller caps the overlay-merged rows at its fetch bound.
 func (s FactStore) listActiveRepositoryManifestDependencyFactsPage(
 	ctx context.Context,
 	query string,
@@ -154,6 +160,7 @@ func (s FactStore) listActiveRepositoryManifestDependencyFactsPage(
 	cursorObservedAt *time.Time,
 	cursorFactID string,
 	fetchLimit int,
+	includeDev bool,
 	extra ...any,
 ) ([]facts.Envelope, error) {
 	var cursor any
@@ -167,6 +174,7 @@ func (s FactStore) listActiveRepositoryManifestDependencyFactsPage(
 		cursor,
 		cursorFactID,
 		fetchLimit,
+		includeDev,
 	}, extra...)
 	rows, err := s.database.QueryContext(ctx, query, args...)
 	if err != nil {

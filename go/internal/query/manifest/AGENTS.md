@@ -8,6 +8,12 @@
 
 - The route stays bounded: page cap 200, one probe row for truncation, and a
   10-second read timeout. Do not add an unanchored fleet-wide scan.
+- Runtime dependencies are the default; dev and test dependencies appear only
+  with the `include_dev_dependencies` opt-in. The filter is a SQL predicate on
+  the already scope-probed rows, never a new index condition.
+- Each row's `scope` field normalizes to `runtime`, `dev`, or `test` from the
+  fact's `development_dependency` and `dependency_scope` signals; a missing
+  signal never invents a dev claim.
 - The read serves active-generation rows through the same delta-overlay
   snapshot the reducer uses. A refused delta base answers 503; never serve
   delta-only rows as the repository's complete manifest.

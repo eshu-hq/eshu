@@ -131,6 +131,10 @@ func newRouterWithSemanticEmbeddingWithReadStore(
 		containerImageIdentities = query.NewPostgresContainerImageIdentityStoreWithReadStore(reader)
 		sbomAttachments = query.NewPostgresSBOMAttestationAttachmentStoreWithReadStore(reader)
 	}
+	// The declared manifest dependency store backs both the paged read route
+	// and the bounded manifest_dependencies section of the repository context
+	// response (#10660), so one store instance serves both handlers.
+	manifestDependencyStore := manifest.NewPostgresManifestDependencyStore(writer, instruments, logger)
 	router := &query.APIRouter{
 		LocalIdentity:          newLocalIdentityHandler(writer, instruments, governanceAudit, cookieSecureMode),
 		BrowserSessions:        newBrowserSessionHandler(writer, instruments, cookieSecureMode),
@@ -146,6 +150,7 @@ func newRouterWithSemanticEmbeddingWithReadStore(
 			Freshness:                  pgstatus.NewInstrumentedRepositoryFreshnessStore(reader, instruments),
 			Selections:                 pgstatus.NewPageSelectionStore(reader),
 			Retirements:                pgstatus.NewRetirementStore(reader),
+			ManifestDependencies:       manifestDependencyStore,
 			Profile:                    queryProfile,
 			Logger:                     logger,
 			Instruments:                instruments,
@@ -267,7 +272,7 @@ func newRouterWithSemanticEmbeddingWithReadStore(
 			Instruments: instruments,
 		},
 		ManifestDependencies: &manifest.Handler{
-			Store:       manifest.NewPostgresManifestDependencyStore(writer, instruments, logger),
+			Store:       manifestDependencyStore,
 			Profile:     queryProfile,
 			Instruments: instruments,
 		},

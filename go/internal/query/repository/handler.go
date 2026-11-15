@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/eshu-hq/eshu/go/internal/query/manifest"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/repository"
 	"github.com/eshu-hq/eshu/go/internal/query/repository/readmodel"
@@ -36,6 +37,11 @@ type Handler struct {
 	// not-configured (503), matching the sibling nil-reader checks on the
 	// status routes.
 	Freshness FreshnessReader
+	// ManifestDependencies reads the bounded declared manifest dependency
+	// section of the repository context response (#10660). Nil omits the
+	// section from the context response, matching the optional auxiliary
+	// panels around it.
+	ManifestDependencies manifest.ManifestDependencyStore
 	// Selections annotates GET /api/v0/repositories entries with the
 	// collector selection aggregate (#8454). Nil renders every entry
 	// unknown, matching the freshness block for a scope with no live

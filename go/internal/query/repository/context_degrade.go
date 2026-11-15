@@ -42,6 +42,13 @@ const (
 	// runtimeDeclarationsReadTruncatedReason marks a repository that declares
 	// more runtimes than the section lists.
 	runtimeDeclarationsReadTruncatedReason = "runtime_declarations_truncated"
+	// manifestDependenciesReadDegradedReason marks a failed declared manifest
+	// dependency section read (#10660); the section is then an empty
+	// placeholder, not an authoritative "declares nothing".
+	manifestDependenciesReadDegradedReason = "manifest_dependencies_read_degraded"
+	// manifestDependenciesReadTruncatedReason marks a repository that declares
+	// more manifest dependencies than the section lists.
+	manifestDependenciesReadTruncatedReason = "manifest_dependencies_truncated"
 )
 
 // degradedReadLogAttrs builds the stage-log attributes a query stage timer

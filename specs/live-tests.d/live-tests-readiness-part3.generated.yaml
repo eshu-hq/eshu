@@ -82,7 +82,7 @@ tests:
   - file: go/internal/storage/postgres/active_repository_manifest_dependency_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#10660 repository-scoped declared manifest dependency read: a two-manifest repository returns both files' rows in (observed_at, fact_id) order across keyset pages; an empty-manifest repository returns an empty list with freshness state, not an error; the read overlays a delta-active scope exactly like the reducer's pair-probe read; reads ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DSN with its disposable opt-in"
+    reason: "#10660 repository-scoped declared manifest dependency read: a two-manifest repository returns both files' rows in (observed_at, fact_id) order across keyset pages; runtime dependencies are the default and dev/test appear only with includeDev; an empty-manifest repository returns an empty list with freshness state, not an error; the read overlays a delta-active scope exactly like the reducer's pair-probe read; reads ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DSN with its disposable opt-in"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/active_symbol_loader_composer_live_test.go
     tag: ~

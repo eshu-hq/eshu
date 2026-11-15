@@ -19,22 +19,22 @@ import (
 
 // ManifestDependencyRow is one query-facing declared manifest dependency:
 // the package name, the declared version or range, the manifest file that
-// declares it, the ecosystem and exact package manager, and the
-// dev-or-runtime signal when the fact says so. Development reads false when
-// the fact carries no development flag; DependencyScope and Section stay
-// empty then too, so a missing signal never invents a runtime claim.
+// declares it, the ecosystem and exact package manager, and the normalized
+// dependency scope (runtime, dev, or test). Scope is runtime unless the fact
+// marks the dependency a development dependency, and test when the fact's raw
+// scope says test. Section stays the raw manifest section (dependencies,
+// devDependencies, and so on).
 type ManifestDependencyRow struct {
-	PackageName     string `json:"package_name"`
-	DeclaredRange   string `json:"declared_range,omitempty"`
-	ManifestFile    string `json:"manifest_file,omitempty"`
-	Ecosystem       string `json:"ecosystem,omitempty"`
-	PackageManager  string `json:"package_manager,omitempty"`
-	Section         string `json:"section,omitempty"`
-	DependencyScope string `json:"dependency_scope,omitempty"`
-	Development     bool   `json:"development_dependency"`
-	FactID          string `json:"fact_id"`
-	GenerationID    string `json:"generation_id,omitempty"`
-	ObservedAt      string `json:"observed_at,omitempty"`
+	PackageName    string `json:"package_name"`
+	DeclaredRange  string `json:"declared_range,omitempty"`
+	ManifestFile   string `json:"manifest_file,omitempty"`
+	Ecosystem      string `json:"ecosystem,omitempty"`
+	PackageManager string `json:"package_manager,omitempty"`
+	Section        string `json:"section,omitempty"`
+	Scope          string `json:"scope"`
+	FactID         string `json:"fact_id"`
+	GenerationID   string `json:"generation_id,omitempty"`
+	ObservedAt     string `json:"observed_at,omitempty"`
 }
 
 // ManifestDependencyFreshness is the generation state behind one
@@ -57,8 +57,10 @@ type ManifestDependencyPage struct {
 // ManifestDependencyStore is the query-local port behind the
 // repository-scoped manifest dependency read. fetchLimit is the store's +1
 // lookahead bound: the caller passes its page limit plus one and derives
-// truncation from the raw fetched count. refused reports a refused delta
-// base (#10109): the page is unusable and the caller must not serve it.
+// truncation from the raw fetched count. includeDev selects the dependency
+// scope: false (the default) returns only runtime dependencies; true also
+// returns dev and test dependencies. refused reports a refused delta base
+// (#10109): the page is unusable and the caller must not serve it.
 type ManifestDependencyStore interface {
 	ListRepositoryManifestDependencyFacts(
 		ctx context.Context,
@@ -66,6 +68,7 @@ type ManifestDependencyStore interface {
 		cursorObservedAt *time.Time,
 		cursorFactID string,
 		fetchLimit int,
+		includeDev bool,
 	) (ManifestDependencyPage, bool, error)
 }
 
@@ -101,12 +104,13 @@ func (s *PostgresManifestDependencyStore) ListRepositoryManifestDependencyFacts(
 	cursorObservedAt *time.Time,
 	cursorFactID string,
 	fetchLimit int,
+	includeDev bool,
 ) (ManifestDependencyPage, bool, error) {
 	if s == nil || s.store == nil {
 		return ManifestDependencyPage{}, false, nil
 	}
 	envelopes, freshness, refused, err := s.store.ListActiveRepositoryManifestDependencyFacts(
-		ctx, scopeID, cursorObservedAt, cursorFactID, fetchLimit)
+		ctx, scopeID, cursorObservedAt, cursorFactID, fetchLimit, includeDev)
 	if err != nil {
 		return ManifestDependencyPage{}, refused, err
 	}
@@ -131,21 +135,37 @@ func manifestDependencyRow(payload map[string]any, factID, generationID string, 
 	metadata := payloadcore.PayloadMap(payload, "entity_metadata")
 	manager := payloadcore.PayloadStr(metadata, "package_manager")
 	row := ManifestDependencyRow{
-		PackageName:     payloadcore.PayloadStr(payload, "entity_name"),
-		DeclaredRange:   payloadcore.PayloadStr(metadata, "version"),
-		ManifestFile:    payloadcore.PayloadStr(payload, "relative_path"),
-		Ecosystem:       manifestDependencyEcosystem(manager),
-		PackageManager:  manager,
-		Section:         payloadcore.PayloadStr(metadata, "section"),
-		DependencyScope: payloadcore.PayloadStr(metadata, "dependency_scope"),
-		Development:     payloadcore.PayloadBool(metadata, "development_dependency"),
-		FactID:          factID,
-		GenerationID:    generationID,
+		PackageName:    payloadcore.PayloadStr(payload, "entity_name"),
+		DeclaredRange:  payloadcore.PayloadStr(metadata, "version"),
+		ManifestFile:   payloadcore.PayloadStr(payload, "relative_path"),
+		Ecosystem:      manifestDependencyEcosystem(manager),
+		PackageManager: manager,
+		Section:        payloadcore.PayloadStr(metadata, "section"),
+		Scope: manifestDependencyScope(
+			payloadcore.PayloadBool(metadata, "development_dependency"),
+			payloadcore.PayloadStr(metadata, "dependency_scope"),
+		),
+		FactID:       factID,
+		GenerationID: generationID,
 	}
 	if !observedAt.IsZero() {
 		row.ObservedAt = observedAt.UTC().Format(time.RFC3339Nano)
 	}
 	return row
+}
+
+// manifestDependencyScope normalizes one manifest dependency's dev-or-runtime
+// signal to the query-facing scope: runtime unless the fact marks the
+// dependency a development dependency, and test when the fact's raw scope
+// carries "test". A missing signal never invents a dev claim.
+func manifestDependencyScope(development bool, rawScope string) string {
+	if !development {
+		return "runtime"
+	}
+	if strings.Contains(strings.ToLower(rawScope), "test") {
+		return "test"
+	}
+	return "dev"
 }
 
 // manifestDependencyEcosystem normalizes one stored package manager to

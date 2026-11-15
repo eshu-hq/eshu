@@ -55,6 +55,30 @@ Cursor page 2 (edge of page 1): 0 rows, **0.173 ms**, same probe shape with
 the keyset predicate as a residual filter. Absent scope (`m-404-absent`):
 **0 rows** (empty list, not an error — matches the acceptance criterion).
 
+## Dev-inclusion filter (arbiter ruling, re-measured on PostgreSQL 18.6)
+
+The read carries a runtime-by-default, dev-opt-in filter (`$5`), added after
+the original measurement. A disposable PostgreSQL 18.6 (`localhost:5432`),
+full `ApplyBootstrap` (322 migrations), `ANALYZE` after seeding, one scope
+`repo-explain` with 120 runtime pins in `package.json` and 30 dev pins in
+`packages/dev/package.json`, read exec mode `CacheDescribe`:
+
+- `include_dev=false` (runtime-only, default) — **Execution Time: 0.197 ms**,
+  251 shared buffers, 120 rows: the same `Index Scan using
+  fact_records_content_entity_dependency_variable_repo_idx` (#121) with
+  `Index Cond: (scope_id = 'repo-explain')`, plus the dev filter as a residual
+  predicate
+  `Filter: (NOT COALESCE((payload -> 'entity_metadata' ->> 'development_dependency') = 'true', false))`
+  with `Rows Removed by Filter: 30`. The filter rides the already scope-probed
+  rows, so it adds no index condition and no scan.
+- `include_dev=true` (all) — **Execution Time: 0.215 ms**, 311 shared
+  buffers, 150 rows: the identical scope-first index probe with no residual
+  filter (the `$5 OR ...` predicate short-circuits), confirming the dev flag
+  adds no shape when opted in.
+- Scope: one repository; limit 1..200 (default 50); 10 s statement timeout;
+  `(observed_at, fact_id)` keyset paging; cardinality = the scope's own
+  manifest rows, dev rows excluded by default.
+
 ## Row counts
 
 - Scope `m-7`, limit 200: **140 rows** — 110 `pkg/package.json` runtime rows
@@ -68,7 +92,10 @@ Scope FIRST (`scope_id` equality, the canonical scope key) over the #121
 partial index serves the read in under 1 ms on a 96k-row fleet-shaped corpus
 with no sequential scan and no new index: the brief's `247 folded-entity idx`
 stays the pair-probe path, and the `003 scope-generation idx` family covers
-the generation joins. No DDL is proposed. Read contract for the
+the generation joins. The dev-inclusion filter is a residual predicate on the
+already scope-probed rows, never an index condition, so it adds no scan and
+no new index either way. No DDL is proposed. Read contract for the
 implementation: scope one repository, limit 1..200 (default 50), 10 s
-statement timeout, `(observed_at, fact_id)` keyset paging, delta-overlay
+statement timeout, `(observed_at, fact_id)` keyset paging, runtime-only by
+default with dev/test opt-in, delta-overlay
 base pages through the same derived-text path with `WithRefusals` semantics.

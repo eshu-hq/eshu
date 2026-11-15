@@ -5562,12 +5562,7 @@
       "display_name": "Manifest Dependencies List",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
-      "surfaces": [
-        {
-          "tool": "list_repository_manifest_dependencies",
-          "kind": "mcp"
-        }
-      ],
+      "surfaces": [],
       "profiles": {
         "local_authoritative": {
           "status": "supported",

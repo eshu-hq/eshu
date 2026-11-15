@@ -148,7 +148,7 @@ families are:
 | Context and stories | `resolve_entity`, `get_entity_context`, `get_workload_context`, `get_workload_story`, `get_service_context`, `get_service_story`, `investigate_service`, `get_incident_context`, `list_work_item_evidence` |
 | Content and citations | `get_file_content`, `get_file_lines`, `get_entity_content`, `build_evidence_citation_packet`, `search_file_content`, `search_entity_content`, `search_php_configuration` |
 | Visualization packets | `derive_visualization_packet` |
-| Package registry | `list_package_registry_packages`, `list_package_registry_versions`, `list_package_registry_dependencies`, `list_package_registry_correlations`, `list_repository_manifest_dependencies` |
+| Package registry | `list_package_registry_packages`, `list_package_registry_versions`, `list_package_registry_dependencies`, `list_package_registry_correlations` |
 | CI/CD and supply chain | `list_ci_cd_run_correlations`, `list_advisory_evidence`, `list_supply_chain_impact_findings`, `explain_supply_chain_impact`, `get_vulnerability_scanner_read_contract`, `list_security_alert_reconciliations`, `list_sbom_attestation_attachments` |
 | Secrets and IAM posture | `list_secrets_iam_secret_access_paths`, `list_secrets_iam_identity_trust_chains`, `list_secrets_iam_posture_gaps`, `list_secrets_iam_privilege_posture_observations`, `count_secrets_iam_posture` |
 | Documentation truth | `list_documentation_findings`, `list_documentation_facts`, `get_documentation_evidence_packet`, `check_documentation_evidence_packet_freshness` |

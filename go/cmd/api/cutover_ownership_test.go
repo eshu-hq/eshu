@@ -195,22 +195,23 @@ func TestCutoverOwnershipMapCoversEveryRoute(t *testing.T) {
 // new channel/persistence pairing fails here and forces map review, so the
 // extraction cannot silently gain a writer-handle touchpoint.
 var cutoverPersistenceVocabulary = map[string]bool{
-	"reader (ReadStore/graph/content, no durable writes)":                                                          true,
-	"reader (StatusReader/ReadStore; writer handle held for governance audit reads)":                               true,
-	"reader (FactStore read-only snapshot; writer handle held for the snapshot transaction, which refuses writes)": true,
-	"writer: identity/session/token stores":                                                                        true,
-	"writer: Postgres recovery/reindex/dead-letter/queue stores":                                                   true,
-	"writer: Postgres workflow control store":                                                                      true,
-	"writer: login-state/session stores":                                                                           true,
-	"writer: provider-config stores":                                                                               true,
-	"writer: identity stores (roles, IdP mappings)":                                                                true,
-	"writer: browser-session store":                                                                                true,
-	"writer: bootstrap stores":                                                                                     true,
-	"writer: terminal-failure ack store + replay ledger":                                                           true,
-	"writer: sign-in-policy store":                                                                                 true,
-	"writer: retirement marker/fencer/purger stores":                                                               true,
-	"writer: VulnerabilitySuppressionMutationStore (suppressions only)":                                            true,
-	"none (pure function of the request body; no store reads or writes)":                                           true,
+	"reader (ReadStore/graph/content, no durable writes)":                                                                                                                 true,
+	"reader (StatusReader/ReadStore; writer handle held for governance audit reads)":                                                                                      true,
+	"reader (FactStore read-only snapshot; writer handle held for the snapshot transaction, which refuses writes)":                                                        true,
+	"reader (ReadStore/graph/content, no durable writes) + manifest FactStore read-only snapshot (writer handle held for the snapshot transaction, which refuses writes)": true,
+	"writer: identity/session/token stores":                                                                                                                               true,
+	"writer: Postgres recovery/reindex/dead-letter/queue stores":                                                                                                          true,
+	"writer: Postgres workflow control store":                                                                                                                             true,
+	"writer: login-state/session stores":                                                                                                                                  true,
+	"writer: provider-config stores":                                                                                                                                      true,
+	"writer: identity stores (roles, IdP mappings)":                                                                                                                       true,
+	"writer: browser-session store":                                                                                                                                       true,
+	"writer: bootstrap stores":                                                                                                                                            true,
+	"writer: terminal-failure ack store + replay ledger":                                                                                                                  true,
+	"writer: sign-in-policy store":                                                                                                                                        true,
+	"writer: retirement marker/fencer/purger stores":                                                                                                                      true,
+	"writer: VulnerabilitySuppressionMutationStore (suppressions only)":                                                                                                   true,
+	"none (pure function of the request body; no store reads or writes)":                                                                                                  true,
 	"n/a (mux-level)": true,
 }
 
@@ -222,11 +223,12 @@ const cutoverReadRowsWithWriterStores = 32
 
 // cutoverReadRowsHoldingWriterHandle pins how many read-channel rows hold a
 // writer handle for governance audit reads. A new one needs map review.
-// #10660 adds the nineteenth: the repository manifest dependency read holds
-// the writer handle only for the FactStore read-only repeatable-read
-// snapshot, whose queryer refuses Exec, so the read issues no durable
-// writes; reviewed in the same change that adds its map row.
-const cutoverReadRowsHoldingWriterHandle = 19
+// #10660 adds the nineteenth and twentieth: the repository manifest
+// dependency read, and the repository context route's manifest_dependencies
+// section, each hold the writer handle only for the FactStore read-only
+// repeatable-read snapshot, whose queryer refuses Exec, so neither issues any
+// durable write; reviewed in the same change that adds their map rows.
+const cutoverReadRowsHoldingWriterHandle = 20
 
 // cutoverMuxLevelRows pins how many rows use n/a (mux-level) persistence
 // (liveness probe, spec browsers, served spec document). A new one means a

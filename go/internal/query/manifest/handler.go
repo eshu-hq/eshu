@@ -83,6 +83,10 @@ func (h *Handler) listManifestDependencies(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
+	includeDev, ok := manifestDependenciesIncludeDev(w, r)
+	if !ok {
+		return
+	}
 
 	access := querycontract.RepositoryAccessFilterFromContext(r.Context())
 	if access.Empty() || (access.Scoped() && !access.AllowsRepositoryID(repositoryID)) {
@@ -109,7 +113,7 @@ func (h *Handler) listManifestDependencies(w http.ResponseWriter, r *http.Reques
 
 	startedAt := time.Now()
 	page, refused, err := h.Store.ListRepositoryManifestDependencyFacts(
-		queryCtx, repositoryID, afterObservedAt, afterFactID, limit+1)
+		queryCtx, repositoryID, afterObservedAt, afterFactID, limit+1, includeDev)
 	h.recordDuration(queryCtx, startedAt)
 	if err != nil {
 		h.recordError(queryCtx)
@@ -143,12 +147,13 @@ func (h *Handler) listManifestDependencies(w http.ResponseWriter, r *http.Reques
 	)
 
 	body := map[string]any{
-		"repository_id": repositoryID,
-		"dependencies":  rows,
-		"count":         len(rows),
-		"limit":         limit,
-		"truncated":     truncated,
-		"freshness":     page.Freshness,
+		"repository_id":            repositoryID,
+		"dependencies":             rows,
+		"count":                    len(rows),
+		"limit":                    limit,
+		"truncated":                truncated,
+		"include_dev_dependencies": includeDev,
+		"freshness":                page.Freshness,
 	}
 	if truncated && len(rows) > 0 {
 		last := rows[len(rows)-1]
@@ -223,6 +228,22 @@ func manifestDependenciesCursor(w http.ResponseWriter, r *http.Request) (*time.T
 	}
 	observedAt = observedAt.UTC()
 	return &observedAt, afterFactID, true
+}
+
+// manifestDependenciesIncludeDev resolves the dev-inclusion opt-in flag,
+// defaulting to false (runtime dependencies only). An unparseable value is a
+// 400, never a silent default.
+func manifestDependenciesIncludeDev(w http.ResponseWriter, r *http.Request) (bool, bool) {
+	raw := strings.TrimSpace(r.URL.Query().Get("include_dev_dependencies"))
+	if raw == "" {
+		return false, true
+	}
+	includeDev, err := strconv.ParseBool(raw)
+	if err != nil {
+		querycontract.WriteError(w, http.StatusBadRequest, "include_dev_dependencies must be true or false")
+		return false, false
+	}
+	return includeDev, true
 }
 
 func (h *Handler) recordDuration(ctx context.Context, startedAt time.Time) {

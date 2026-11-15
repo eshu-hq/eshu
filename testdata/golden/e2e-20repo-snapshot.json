@@ -4928,23 +4928,6 @@
           "limit": 10
         }
       },
-      "list_repository_manifest_dependencies": {
-        "description": "MCP tool coverage shape for list_repository_manifest_dependencies; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). minimum_results is 0 because the 20-repo corpus makes no manifest-dependency row guarantee for the orders-api scope; the entry still pins the required response fields, the results field, and arguments that resolve through the package-registry leaf route.",
-        "required_response_fields": [
-          "count",
-          "dependencies",
-          "freshness",
-          "limit",
-          "repository_id",
-          "truncated"
-        ],
-        "minimum_results": 0,
-        "results_field": "dependencies",
-        "arguments": {
-          "repository_id": "orders-api",
-          "limit": 10
-        }
-      },
       "list_package_registry_correlations": {
         "description": "MCP tool coverage shape for list_package_registry_correlations; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). The npm://registry.npmjs.org/supply-chain-demo-lib package_id has no package_registry correlation fact in the cassette (the corpus's only PackageVersion/PackageArtifact/RegistryEvent facts anchor github.com/acme/lib-common, a Go module, not this npm package), so 0 correlations is the correct result for this filter (observed 0 across 3 independent B-7 runs, #6785).",
         "required_response_fields": [
