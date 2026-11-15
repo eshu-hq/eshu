@@ -15,15 +15,15 @@ Prior work it builds on (not redone):
 - [Budget fallback design](../design/7206-mcp-response-budget-fallback.md) —
   decision note records the opt-in rollout and the unimplemented flip.
 
-## Evidence table (2026-11-13, branch `drive/10653-result-shape-evidence`)
+## Evidence table (2026-11-14, branch `drive/10653-result-shape-evidence`)
 
 | # | Acceptance criterion | Status | Evidence |
 |---|---|---|---|
-| 1 | Valid Codex three-size comparison against fresh one-copy controls with a fixed background, or an arbiter waiver | OPEN — not proven | The only Codex data is the 8800 hosted run: first-matrix structured slope −1.721748 tokens/B (nonmonotonic: 84,675 / 113,874 / 61,228 input tokens over 1,153 / 7,862 / 17,284-byte fragments) and a second direct-call matrix still nonmonotonic (structured 41,726 / 29,280 / 31,878). Both matrices recorded correct four-fact answers. No third matrix exists; a live Codex client rerun is still required. |
-| 2 | Manual `shape=structured` check recorded for Cursor, VS Code, OpenCode, Muse | OPEN — none run | No manual-check record exists in `docs/internal/evidence/` or the 7206 design doc (searched 2026-11-13). Setup writes `structured` only for `claude` and `codex` (`go/internal/cli/mcpsetup/setup.go`); `cursor`, `vscode`, and `generic` targets still receive `dual`. |
-| 3 | Hosted week with no increase in over-budget responses, metric names and windows recorded | OPEN — on hold | On hold by owner instruction; the clock has not restarted. Metric names for the comparison: `eshu_dp_mcp_response_bytes` (now "as sent for the connection's result shape"), `eshu_dp_mcp_response_resource_fallback_total{tool}`, `eshu_dp_mcp_response_over_budget_total{tool}`, each with a `shape` attribute (`dual`, `structured`). No before/after windows recorded yet. |
-| 4 | Default flip as a separate PR, `dual` still selectable, golden-corpus gate rerun at final head | CORRECTLY ABSENT | No flip diff exists by design: criteria 1–3 are open, and the issue gates the flip on all rows. Selectability is already implemented (`?shape=` per connection, `ESHU_MCP_RESULT_SHAPE` per process, default `dual` via `resultshape.OrDual` in `go/internal/mcp/dispatch_envelope.go`). |
-| 5 | `eshu mcp setup` decision recorded for Cursor, VS Code, generic | OPEN — gated on criterion 2 | No decision recorded; the manual checks it depends on have not run. |
+| 1 | Valid Codex three-size comparison against fresh one-copy controls with a fixed background, or an arbiter waiver | PARTIAL — structured proven (1.005×), dual still non-monotonic | Third matrix, 2026-11-14 (Codex CLI 0.167.0, model `gpt-5.6-luna`, low effort, `--ephemeral`, fixed background, fresh one-copy controls): control 24,719 / 27,118 / 29,835 input tokens over 1,353 / 10,075 / 19,947-byte fragments (slope 0.2751 tokens/B, monotonic); structured 49,523 / 51,895 / 54,662 (slope 0.2765, **ratio 1.005**, monotonic); dual 49,861 / 80,126 / 59,670 (**non-monotonic**, cached-input variance). The structured series is a valid three-size comparison against fresh controls and matches one copy; the dual series is non-monotonic for the second time, so the dual token slope is still not established from Codex input tokens (the wire bytes prove dual ≈ 2.1× — see below). |
+| 2 | Manual `shape=structured` check recorded for Cursor, VS Code, OpenCode, Muse | PARTIAL — 1 of 4 run | OpenCode v2.3.0 (2026-11-14): `call_tool`(`list_indexed_repositories`, `limit` 12) over `?shape=structured` returned one-copy `structuredContent` and the model reported the correct four facts `{returned_count:12, overall_total:820, truncated:true, freshness:"fresh"}` — PASS. Muse 1.4.20: NOT_CHECKED (MCP server configured and enabled, but the Meta provider subscription quota is exhausted — HTTP 429, resets 2026-11-16 — so no model call completed). Cursor: NOT_CHECKED (no Cursor IDE installed; only the `cursor agent` fallback, no graphical result-render check). VS Code: NOT_CHECKED (`code` CLI not on PATH). |
+| 3 | Hosted week with no increase in over-budget responses, metric names and windows recorded | ON HOLD — post-flip per arbiter | Re-framed by the arbiter ruling (2026-11-14): the one-week hosted observation runs **once after the flip diff deploys**, not before it. Still on hold by owner instruction; do not fabricate a window. Metric names for the comparison: `eshu_dp_mcp_response_bytes` (now "as sent for the connection's result shape"), `eshu_dp_mcp_response_resource_fallback_total{tool}`, `eshu_dp_mcp_response_over_budget_total{tool}`, each with a `shape` attribute (`dual`, `structured`). No before/after windows recorded yet. |
+| 4 | Default flip as a separate PR, `dual` still selectable, golden-corpus gate rerun at final head | CORRECTLY ABSENT | Arbiter ruling (2026-11-14): the flip applies to **both** the satellite and the core in-tree layer; a failing client keeps `dual` from setup while healthy clients flip (per-client). Still no flip diff in this lane: criterion 1's dual series and criterion 2's three unrun clients are open. Selectability is already implemented (`?shape=` per connection, `ESHU_MCP_RESULT_SHAPE` per process, default `dual` via `resultshape.OrDual` in `go/internal/mcp/dispatch_envelope.go`). |
+| 5 | `eshu mcp setup` decision recorded for Cursor, VS Code, generic | ANSWERED — per-client | Arbiter ruling (2026-11-14): a failing client keeps `dual` from `eshu mcp setup` while healthy clients flip to `structured` (per-client, no serialization on the slowest client). OpenCode is a `generic`-target client and passed its check; the concrete per-platform wiring for Cursor, VS Code, and generic is deferred until their manual checks (criterion 2) are complete. |
 
 ## What is already proven (do not re-prove)
 
@@ -46,8 +46,32 @@ Prior work it builds on (not redone):
 - **Wire cost of `dual`.** A 67,921-byte service-story payload arrived as an
   about 146 KB tool result because `dual` carries the payload twice (reported
   in #10653 from the QA environment, which serves `dual`).
+- **Measured wire slope (2026-11-14, QA satellite `eshu-mcp` v0.2.15).**
+  `list_indexed_repositories` at limit 1/12/24 returns `structuredContent`
+  fragments of 1,353 / 10,075 / 19,947 bytes. OLS fit of total tool-result
+  bytes against fragment bytes: `structured` slope **1.000053** (1,450 /
+  10,173 / 20,045 result bytes), `dual` slope **2.101445** (3,086 / 21,433 /
+  42,161 result bytes). `get_service_story` (`api-crm-backend`, one live
+  service) confirms the same ratio: `structured` ≈ 1.007–1.009×, `dual` ≈
+  2.11× (handles 15,229 vs 31,912; full 18,283 vs 38,282 result bytes). This
+  is the physical basis for the token claim: the wire carries one copy under
+  `structured` and two under `dual`.
 
-## Code state verified 2026-11-13 (origin/main `0148ce2b3a6`)
+## Arbiter ruling (2026-11-14, binding)
+
+1. The default flip applies to **both** the satellite and the core in-tree
+   layer.
+2. A client that fails its manual check keeps `dual` from `eshu mcp setup`
+   while healthy clients flip — per-client, no serialization on the slowest
+   client.
+3. The one-week hosted observation runs **once after** the flip diff deploys;
+   record as on hold per owner instruction, do not fabricate.
+4. Mirror the satellite's `#74` candidate-ids and `#73` structured-refusal
+   behavior into `go/internal/mcp` (the in-tree copy) with a parity test. This
+   lane is docs-only, so that mirroring is reported as needing its own lane
+   rather than landed here.
+
+## Code state verified 2026-11-14 (origin/main `76240fda9f`)
 
 - `go/internal/mcp/dispatch_envelope.go`: `WithResultShape` folds through
   `resultshape.OrDual`, so any unset or unparsable value is `dual`. Rendering
@@ -59,7 +83,9 @@ Prior work it builds on (not redone):
 
 ## Negative-search record
 
-2026-11-13, from the worktree root at `0148ce2b3a6`:
+2026-11-13, from the worktree root at `0148ce2b3a6` (historical snapshot; the
+2026-11-14 rows above supersede its "no client checks / only two matrices"
+state):
 
 - `rg -il "cursor|vscode|opencode|Muse"` over the 8800 measurement file and
   the 7206 design doc: no hits — no manual client checks recorded.
