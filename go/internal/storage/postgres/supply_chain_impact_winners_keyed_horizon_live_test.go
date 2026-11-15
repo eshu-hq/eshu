@@ -235,8 +235,9 @@ VALUES ('fact', 'fact_upsert', 'pkg:npm/late-00', 'repo-9805', '', 'CVE-2026-lat
 
 // TestSupplyChainImpactWinnersResweepKeyedHorizonTupleOrderIrrelevantLive
 // proves the horizon is a property of the residual set, not of admission
-// order: the chunk applies the identifier-sort prefix (high-seq rows) and the
-// watermark is still the min over the low-seq rows left behind.
+// order or tuple order: the chunk applies the oldest identifiers first even
+// when they sort last alphabetically, and the watermark is still the min
+// over the newer rows left behind.
 func TestSupplyChainImpactWinnersResweepKeyedHorizonTupleOrderIrrelevantLive(t *testing.T) {
 	h := newKeyedHarness(t, "#10706 tuple-order horizon proof")
 	h.seedScope("vuln-intel://10706/order", "vuln-intel://10706/order/g1")
@@ -253,6 +254,11 @@ func TestSupplyChainImpactWinnersResweepKeyedHorizonTupleOrderIrrelevantLive(t *
 	if depth := h.dirtyDepth(); depth == 0 {
 		t.Fatal("rewrite queued no dirty rows")
 	}
+	// Age decouples the chunk order from tuple order: the last-sorting zzz
+	// rows carry the oldest captures, so the oldest-first chunk applies them
+	// even though the aaa identifiers sort before them.
+	h.exec(`UPDATE supply_chain_impact_winners_dirty_log SET captured_at = now() - interval '1 hour' WHERE package_id LIKE 'pkg:npm/zzz%'`)
+	h.exec(`UPDATE supply_chain_impact_winners_dirty_log SET captured_at = now() WHERE package_id LIKE 'pkg:npm/aaa%'`)
 
 	h.store.ChunkMaxIdentifiers = 4
 	first := chunkedTick(h)
@@ -262,14 +268,13 @@ func TestSupplyChainImpactWinnersResweepKeyedHorizonTupleOrderIrrelevantLive(t *
 	if first.ChunkIdentifiers != 4 {
 		t.Errorf("order tick probed %d identifiers, want the 4-identifier chunk", first.ChunkIdentifiers)
 	}
-	// The aaa identifiers sort first, so the chunk applies the high-seq rows
-	// and leaves the low-seq zzz rows queued: every aaa row is gone and the
-	// horizon is the zzz remainder's min.
-	if n := h.count(`SELECT count(*) FROM supply_chain_impact_winners_dirty_log WHERE package_id LIKE 'pkg:npm/aaa%'`); n != 0 {
-		t.Errorf("%d aaa rows still queued, want the whole applied chunk prefix deleted", n)
+	// The oldest identifiers apply first despite sorting last: every zzz row
+	// is gone and the horizon is the newer aaa remainder's min.
+	if n := h.count(`SELECT count(*) FROM supply_chain_impact_winners_dirty_log WHERE package_id LIKE 'pkg:npm/zzz%'`); n != 0 {
+		t.Errorf("%d zzz rows still queued, want the oldest chunk applied first", n)
 	}
-	if n := h.count(`SELECT count(*) FROM supply_chain_impact_winners_dirty_log WHERE package_id LIKE 'pkg:npm/zzz%'`); n == 0 {
-		t.Error("no zzz rows queued: the low-seq rows the identifier order skipped are gone")
+	if n := h.count(`SELECT count(*) FROM supply_chain_impact_winners_dirty_log WHERE package_id LIKE 'pkg:npm/aaa%'`); n == 0 {
+		t.Error("no aaa rows queued: the newer rows the oldest-first chunk skipped are gone")
 	}
 	wantMin, ok := horizonRemainingMin(h)
 	if !ok {
