@@ -40,6 +40,7 @@ var (
 		"github.com": {}, "gitlab.com": {}, "ghcr.io": {}, "registry.terraform.io": {}, "registry.npmjs.org": {},
 		"proxy.golang.org": {}, "console.cloud.google.com": {}, "google.cloud": {}, "slsa.dev": {}, "in-toto.io": {},
 		"kubernetes.io": {}, "app.kubernetes.io": {}, "argoproj.io": {}, "argocd.argoproj.io": {}, "us-docker.pkg.dev": {},
+		"nist.gov": {}, "www.cisa.gov": {}, "www.first.org": {},
 	}
 )
 
