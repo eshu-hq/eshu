@@ -89,8 +89,11 @@ func TestClassifyConflictFollowsTheRecipeList(t *testing.T) {
 		{"changelog beside source", []string{"CHANGELOG.md", "go/internal/reducer/x.go"}, "count-choice-lines"},
 		{"no files", nil, "count-choice-lines"},
 	}
+	// Only paths that resolve in a fresh checkout: the shared skill trees
+	// are installed by the eshu-agent-kit, not stored here, so a vector
+	// under them would not resolve until the installer had run.
 	for _, agent := range []string{
-		"AGENTS.md", "go/cmd/pr-watch/AGENTS.md", ".claude/skills/eshu-code-review/SKILL.md", ".claude/rules/x.md",
+		"AGENTS.md", "go/cmd/pr-watch/AGENTS.md", ".claude/rules/x.md",
 		".claude/settings.json", ".muse/hooks.json", ".codex/config.toml", "docs/internal/agent-guide.md",
 		"docs/internal/writing-for-agents.md",
 	} {

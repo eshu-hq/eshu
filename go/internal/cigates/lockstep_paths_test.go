@@ -9,8 +9,15 @@ package cigates
 // must move to the lockstep manifest instead. Bare filenames resolve only in
 // read position or as map keys, so glob vectors and fixture names never land
 // here. A probe that starts being read flips to a read demand automatically.
+//
+// Every entry must resolve in a FRESH checkout, because the discovery
+// scanner resolves each path with os.Stat and an unresolvable path is
+// never observed. The shared skill trees are installed by the
+// eshu-agent-kit, not stored here, so a path under them does not resolve
+// until the installer has run; such a vector would fail the gate on every
+// clean CI checkout. The skill-tree branch of the classifier is exercised
+// by .claude/settings.json and .codex/config.toml, which are tracked.
 var probePaths = []string{
-	".claude/skills/eshu-code-review/SKILL.md",
 	"AGENTS.md",
 	"CHANGELOG.md",
 	"CONTRIBUTING.md",
