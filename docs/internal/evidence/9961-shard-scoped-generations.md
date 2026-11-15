@@ -19,12 +19,31 @@ dirty shard's generation stays an order of magnitude under the per-intent
 bounded-evidence budget and per-shard reducer accounting cost is negligible
 against the daily cadence.
 
-**Thresholds.** T1: a full shard (1,000 records → 1,000 `vulnerability.cve`
-facts) uses <10% of `maxSupplyChainImpactEvidenceEnvelopesPerIntent`
-(100,000). T2: p95 per-dirty-shard reducer accounting <100 ms in-memory on
+**Thresholds.** T1: a full shard (1,000 records and their facts) uses <10% of
+`maxSupplyChainImpactEvidenceEnvelopesPerIntent` (100,000); see the T1
+restatement below for the corrected fact arithmetic. T2: p95 per-dirty-shard reducer accounting <100 ms in-memory on
 representative data. T3: full-day delta replay wall-clock <10 min on
 dev-class hardware. T4: no dirty shard trips
 `supplyChainImpactTruncation.partial()` at measured volumes.
+
+**T1 restated (correction 2026-11-15, #10718).** The first draft of T1 counted
+one fact per record. The CVE List envelope emits one `vulnerability.cve` fact
+per record plus one `vulnerability.reference` fact per distinct reference URL
+(`CVEListRecordEnvelopes` in the collector satellite, `cvelist_envelope.go`
+lines 34-49), so a shard's facts are records times 1 plus references. For a
+full shard of 1,000 records, 10% of the budget is 10,000 facts, which leaves
+room for 9,000 facts beyond the records themselves. T1 therefore holds while
+the shard's distinct reference URLs stay under 9,000 (under 9 per record on
+average) and fails at 9,000. The 0.010 share below is the record-only floor
+(zero references), not the measured total. The reference count per shard was
+not measured in 5.1, so T1 is only proven for the floor until a baseline run
+counts references per shard. The core test
+`TestShardScopedGenerationReferenceBreakEven` pins the 9,000-reference
+break-even and the vulnsource test
+`TestCVEListShardGenerationsFactsAreRecordsPlusReferences` (R11) pins the
+accounting rule. T2 through T4 are unaffected in kind: the 0.76-0.79 ms
+selection measurement ran the `cve_list` severity path over 1,000 records, and
+reference facts add load volume, not provenance selections.
 
 **Deadline.** Time-boxed single-session measurement; numbers frozen at this
 note's commit. The thresholds above were fixed before the runs below.
@@ -67,17 +86,22 @@ real budget rather than asserting a tautology.
 
 ## Facts per shard
 
-| Shard case | Records | Facts (`vulnerability.cve`, 1:1) | Budget share |
-| --- | --- | --- | --- |
-| Full upstream shard (`<NNNxxx>`, ≤1,000 records) | 1,000 | 1,000 | 0.010 (T1 PASS, <0.10) |
-| Observed partial shard | 37 | 37 | 0.0004 |
-| Full shard + 10x expansion evidence | 1,000 + 10,000 | 11,000 charged | 0.11 of budget, still loads |
+Facts are records times 1 plus distinct reference URLs (`R`). The rows below
+are the record-only floor (`R` = 0) as measured in 5.1; add `R` facts to each
+row for a real shard.
 
-The registry admits exactly `vulnerability.cve` for the `cve_list` class, so
-facts equal records. Collection-side note: the workflow admits at most 100
-CVE IDs per `cve_list` claim (`maxVulnerabilityCVEListRequests`), so a full
-shard collects in ≥10 claims of ≤100 facts each; the reducer-side per-shard
-intent still sees at most 1,000 facts.
+| Shard case | Records | Facts (records + `R`) | Budget share |
+| --- | --- | --- | --- |
+| Full upstream shard (`<NNNxxx>`, ≤1,000 records), floor | 1,000 | 1,000 + `R` | 0.010 at `R` = 0; T1 PASS while `R` < 9,000 |
+| Observed partial shard, floor | 37 | 37 + `R` | 0.0004 at `R` = 0 |
+| Full shard + 10x expansion evidence, floor | 1,000 + 10,000 | 11,000 + `R` charged | 0.11 at `R` = 0, still loads |
+
+The `cve_list` envelope emits `vulnerability.cve` and `vulnerability.reference`
+facts, so facts are not one to one with records. Collection-side
+note: the workflow admits at most 100 CVE IDs per `cve_list` claim
+(`maxVulnerabilityCVEListRequests`), so a full shard collects in at least 10
+claims, each of at most 100 records plus their reference facts; the
+reducer-side per-shard intent sees up to 1,000 + `R` facts.
 
 ## Reducer cost per dirty shard
 

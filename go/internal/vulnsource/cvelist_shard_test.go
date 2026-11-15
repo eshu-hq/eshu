@@ -80,25 +80,56 @@ func TestCVEListDirtyShardsDedupesToOneGenerationPerShard(t *testing.T) {
 	}
 }
 
-func TestCVEListShardGenerationsCarryPerShardFactCounts(t *testing.T) {
+// TestCVEListShardGenerationsFactsAreRecordsPlusReferences is regression R11
+// (eshu-hq/eshu#10718, design 10671). The cve_list envelope emits one
+// vulnerability.cve fact per record plus one vulnerability.reference fact per
+// distinct reference URL (cvelist_envelope.go CVEListRecordEnvelopes in the
+// collector), so a shard's facts are Records*1 + References, never one to
+// one with records. The reducer-side accounting test charges this volume
+// against the per-intent evidence budget.
+func TestCVEListShardGenerationsFactsAreRecordsPlusReferences(t *testing.T) {
 	t.Parallel()
 
-	// The cve_list class emits exactly vulnerability.cve per record, so a
-	// full-replace generation for a full upstream shard (1,000 records)
-	// carries 1,000 facts. The reducer-side test asserts that volume
-	// against the per-intent evidence budget.
-	shards := []string{"cves/2024/12xxx", "cves/2024/0xxx"}
-	records := map[string]int{"cves/2024/12xxx": 1000, "cves/2024/0xxx": 37}
-	gens := CVEListShardGenerations(shards, records)
+	shards := []string{"cves/2024/12xxx", "cves/2024/0xxx", "cves/2024/7xxx"}
+	counts := map[string]CVEListShardCounts{
+		"cves/2024/12xxx": {Records: 1000, References: 3500},
+		"cves/2024/0xxx":  {Records: 37, References: 0},
+		"cves/2024/7xxx":  {Records: 10, References: 25},
+	}
+	wantFacts := map[string]int{
+		"cves/2024/12xxx": 4500,
+		"cves/2024/0xxx":  37,
+		"cves/2024/7xxx":  35,
+	}
+	gens := CVEListShardGenerations(shards, counts)
 	if len(gens) != len(shards) {
 		t.Fatalf("CVEListShardGenerations() = %v, want one generation per dirty shard", gens)
 	}
 	for _, g := range gens {
-		if g.Facts != records[g.Shard] {
-			t.Fatalf("generation for %q carries %d facts, want %d (1:1 records)", g.Shard, g.Facts, records[g.Shard])
+		if g.Records != counts[g.Shard].Records {
+			t.Fatalf("generation for %q records = %d, want %d", g.Shard, g.Records, counts[g.Shard].Records)
 		}
-		if g.Records != records[g.Shard] {
-			t.Fatalf("generation for %q records = %d, want %d", g.Shard, g.Records, records[g.Shard])
+		if g.References != counts[g.Shard].References {
+			t.Fatalf("generation for %q references = %d, want %d", g.Shard, g.References, counts[g.Shard].References)
 		}
+		if g.Facts != wantFacts[g.Shard] {
+			t.Fatalf("generation for %q carries %d facts, want %d (records*1 + references, not 1:1)",
+				g.Shard, g.Facts, wantFacts[g.Shard])
+		}
+	}
+}
+
+func TestCVEListShardGenerationsDefaultsToFullShardOfRecords(t *testing.T) {
+	t.Parallel()
+
+	// A shard without observed counts defaults to a full upstream shard of
+	// records. References are unobserved there, so Facts is the record-only
+	// lower bound, not a total.
+	gens := CVEListShardGenerations([]string{"cves/2024/12xxx"}, nil)
+	if len(gens) != 1 {
+		t.Fatalf("CVEListShardGenerations() = %v, want one generation", gens)
+	}
+	if gens[0].Records != 1000 || gens[0].References != 0 || gens[0].Facts != 1000 {
+		t.Fatalf("default generation = %+v, want 1000 records, 0 observed references, 1000 facts", gens[0])
 	}
 }
