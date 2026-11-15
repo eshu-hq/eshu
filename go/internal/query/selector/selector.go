@@ -34,44 +34,51 @@ func (e NotFoundError) Error() string {
 	return fmt.Sprintf("repository selector %q did not match any indexed repository", e.Selector)
 }
 
+// AmbiguousCandidate is one repository a selector matched, shaped for the
+// structured ambiguity body. RepoID is the canonical follow-up handle and the
+// only field every resolving branch guarantees. RepoName names the repository
+// and MatchBasis names the selector field that matched (id, name, path,
+// local_path, remote_url, or repo_slug); both are additive and empty when the
+// resolving branch could not retain them (#10707).
+type AmbiguousCandidate struct {
+	RepoID     string `json:"repo_id"`
+	RepoName   string `json:"repo_name,omitempty"`
+	MatchBasis string `json:"match_basis,omitempty"`
+}
+
 // AmbiguousError is the errors.As target for a repository selector that
 // matched more than one repository. Selector carries the raw input string;
-// Matches carries the matched repository ids, so the caller can report or log
-// which repositories collided.
+// Matches carries the matched repositories (id, name, and the field that
+// matched), so the caller can report which repositories collided and how.
 type AmbiguousError struct {
 	Selector string
-	Matches  []string
+	Matches  []AmbiguousCandidate
 }
 
 func (e AmbiguousError) Error() string {
-	return fmt.Sprintf("repository selector %q matched multiple repositories: %s", e.Selector, strings.Join(e.Matches, ", "))
+	ids := make([]string, 0, len(e.Matches))
+	for _, match := range e.Matches {
+		ids = append(ids, match.RepoID)
+	}
+	return fmt.Sprintf("repository selector %q matched multiple repositories: %s", e.Selector, strings.Join(ids, ", "))
 }
 
-// AmbiguousCandidate is one repository a selector matched, shaped for the
-// structured ambiguity body. It carries only the canonical repository id:
-// resolution retains nothing else (names stay in the catalog or graph rows),
-// and the id is the exact follow-up handle, since passing it back as the same
-// selector resolves one repository through LooksCanonicalRepositoryID.
-type AmbiguousCandidate struct {
-	RepoID string `json:"repo_id"`
-}
-
-// AmbiguousCandidates normalizes raw match ids into deterministic candidate
-// objects: it drops empty ids, collapses duplicates, and sorts by id, so a
-// directly constructed AmbiguousError with an empty or duplicated Matches
+// AmbiguousCandidates normalizes raw matches into deterministic candidate
+// objects: it drops empty ids, collapses duplicates by id, and sorts by id, so
+// a directly constructed AmbiguousError with an empty or duplicated Matches
 // list still answers a well-formed body without a panic (#10655).
-func AmbiguousCandidates(ids []string) []AmbiguousCandidate {
-	seen := make(map[string]struct{}, len(ids))
-	candidates := make([]AmbiguousCandidate, 0, len(ids))
-	for _, id := range ids {
-		if id == "" {
+func AmbiguousCandidates(matches []AmbiguousCandidate) []AmbiguousCandidate {
+	seen := make(map[string]struct{}, len(matches))
+	candidates := make([]AmbiguousCandidate, 0, len(matches))
+	for _, match := range matches {
+		if match.RepoID == "" {
 			continue
 		}
-		if _, ok := seen[id]; ok {
+		if _, ok := seen[match.RepoID]; ok {
 			continue
 		}
-		seen[id] = struct{}{}
-		candidates = append(candidates, AmbiguousCandidate{RepoID: id})
+		seen[match.RepoID] = struct{}{}
+		candidates = append(candidates, match)
 	}
 	slices.SortFunc(candidates, func(a, b AmbiguousCandidate) int {
 		return strings.Compare(a.RepoID, b.RepoID)
@@ -204,7 +211,7 @@ func ResolveExactForAccess(
 		switch len(matches) {
 		case 0:
 		case 1:
-			return matches[0], nil
+			return matches[0].RepoID, nil
 		default:
 			return "", AmbiguousError{Selector: selector, Matches: matches}
 		}
@@ -225,7 +232,16 @@ func ResolveExactForAccess(
 			   OR r.repo_slug = $repo_selector
 			)
 			`+access.GraphPredicate("r")+`
-			RETURN r.id as id
+			RETURN r.id as id,
+			       r.name as name,
+			       CASE
+			         WHEN r.id = $repo_selector THEN 'id'
+			         WHEN r.name = $repo_selector THEN 'name'
+			         WHEN r.path = $repo_selector THEN 'path'
+			         WHEN r.local_path = $repo_selector THEN 'local_path'
+			         WHEN r.remote_url = $repo_selector THEN 'remote_url'
+			         WHEN r.repo_slug = $repo_selector THEN 'repo_slug'
+			       END as match_basis
 			ORDER BY r.id
 		`, access.GraphParams(map[string]any{"repo_selector": selector}))
 		if err != nil {
@@ -255,16 +271,22 @@ func ResolveExactForAccess(
 		case 1:
 			return querycontract.StringVal(rows[0], "id"), nil
 		default:
-			ids := make([]string, 0, len(rows))
+			matches := make([]AmbiguousCandidate, 0, len(rows))
 			for _, row := range rows {
 				id := querycontract.StringVal(row, "id")
 				if id == "" {
 					continue
 				}
-				ids = append(ids, id)
+				matches = append(matches, AmbiguousCandidate{
+					RepoID:     id,
+					RepoName:   querycontract.StringVal(row, "name"),
+					MatchBasis: querycontract.StringVal(row, "match_basis"),
+				})
 			}
-			slices.Sort(ids)
-			return "", AmbiguousError{Selector: selector, Matches: ids}
+			slices.SortFunc(matches, func(a, b AmbiguousCandidate) int {
+				return strings.Compare(a.RepoID, b.RepoID)
+			})
+			return "", AmbiguousError{Selector: selector, Matches: matches}
 		}
 	}
 
@@ -373,27 +395,54 @@ func LooksCanonicalRepositoryID(selector string) bool {
 		strings.HasPrefix(selector, "repository:")
 }
 
-// CatalogMatches returns the repository ids whose catalog entry matches the
-// selector. The caller decides what a zero, one, or many result means.
-func CatalogMatches(entries []querycontract.RepositoryCatalogEntry, selector string) []string {
+// CatalogMatches returns the repositories whose catalog entry matches the
+// selector, one candidate per entry in id order, with the repository name and
+// the selector field that matched (#10707). The caller decides what a zero,
+// one, or many result means.
+func CatalogMatches(entries []querycontract.RepositoryCatalogEntry, selector string) []AmbiguousCandidate {
 	if strings.TrimSpace(selector) == "" {
 		return nil
 	}
-	matches := make([]string, 0, 1)
+	matches := make([]AmbiguousCandidate, 0, 1)
 	seen := make(map[string]struct{})
 	for _, entry := range entries {
-		switch selector {
-		case entry.ID, entry.Name, entry.Path, entry.LocalPath, entry.RemoteURL, entry.RepoSlug:
-			if entry.ID == "" {
-				continue
-			}
-			if _, ok := seen[entry.ID]; ok {
-				continue
-			}
-			seen[entry.ID] = struct{}{}
-			matches = append(matches, entry.ID)
+		basis := repositoryMatchBasis(entry, selector)
+		if basis == "" {
+			continue
 		}
+		if entry.ID == "" {
+			continue
+		}
+		if _, ok := seen[entry.ID]; ok {
+			continue
+		}
+		seen[entry.ID] = struct{}{}
+		matches = append(matches, AmbiguousCandidate{RepoID: entry.ID, RepoName: entry.Name, MatchBasis: basis})
 	}
-	slices.Sort(matches)
+	slices.SortFunc(matches, func(a, b AmbiguousCandidate) int {
+		return strings.Compare(a.RepoID, b.RepoID)
+	})
 	return matches
+}
+
+// repositoryMatchBasis names the field of entry the selector matched, or ""
+// when it matches none. Fields are checked in the resolution order: id, name,
+// path, local_path, remote_url, repo_slug.
+func repositoryMatchBasis(entry querycontract.RepositoryCatalogEntry, selector string) string {
+	switch selector {
+	case entry.ID:
+		return "id"
+	case entry.Name:
+		return "name"
+	case entry.Path:
+		return "path"
+	case entry.LocalPath:
+		return "local_path"
+	case entry.RemoteURL:
+		return "remote_url"
+	case entry.RepoSlug:
+		return "repo_slug"
+	default:
+		return ""
+	}
 }

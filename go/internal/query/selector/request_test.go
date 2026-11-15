@@ -145,7 +145,7 @@ func TestWriteLookupFailureAnswersOnlyLookupFailures(t *testing.T) {
 		{"lookup error", LookupError{Err: errors.New("private neo4j: connection reset")}, true},
 		{"wrapped lookup error", fmt.Errorf("resolve: %w", LookupError{Err: errors.New("private pq: boom")}), true},
 		{"not found", NotFoundError{Selector: requestTestSelector}, false},
-		{"ambiguous", AmbiguousError{Selector: requestTestSelector, Matches: []string{"a", "b"}}, false},
+		{"ambiguous", AmbiguousError{Selector: requestTestSelector, Matches: []AmbiguousCandidate{{RepoID: "a"}, {RepoID: "b"}}}, false},
 		{"plain error", errors.New("private other"), false},
 		{"nil", nil, false},
 	}
@@ -292,6 +292,53 @@ func TestResolveForRequestWithAccessAnswersAmbiguityWithStructuredCandidates(t *
 	assertRequestSpanError(t, recorder.Ended()[0], false)
 }
 
+// TestAmbiguityCandidatesCarryNameAndBasis is the #10707 regression: a
+// repository ambiguity answered through the shared writer carries candidate
+// objects whose fields are the canonical repo_id, the repository name, and the
+// selector field that matched, not only the id (#10655). The catalog branch is
+// the primary resolution path, so a name-based selector asserts repo_name and
+// match_basis "name".
+func TestAmbiguityCandidatesCarryNameAndBasis(t *testing.T) {
+	t.Parallel()
+
+	store := content.FakePortContentStore{Repositories: []querycontract.RepositoryCatalogEntry{
+		{ID: "repository:r_a", Name: requestTestSelector, RepoSlug: "acme/r_a"},
+		{ID: "repository:r_b", Name: requestTestSelector, RepoSlug: "acme/r_b"},
+	}}
+
+	req := httptest.NewRequest(http.MethodGet, "/route?repository_id="+requestTestSelector, nil)
+	rec := httptest.NewRecorder()
+	_, ok := ResolveForRequestWithAccess(rec, req, nil, store, requestTestSelector,
+		querycontract.RepositoryAccessFilter{AllScopes: true}, "code_search.fuzzy_symbol")
+	if ok {
+		t.Fatal("ResolveForRequestWithAccess() = true, want false for an ambiguous selector")
+	}
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("status = %d, want %d; body = %s", rec.Code, http.StatusConflict, rec.Body.String())
+	}
+	var body struct {
+		Candidates []struct {
+			RepoID     string `json:"repo_id"`
+			RepoName   string `json:"repo_name"`
+			MatchBasis string `json:"match_basis"`
+		} `json:"candidates"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("body = %s (decode err %v), want a structured ambiguity body", rec.Body.String(), err)
+	}
+	if len(body.Candidates) != 2 {
+		t.Fatalf("candidates = %#v, want two candidates", body.Candidates)
+	}
+	for _, candidate := range body.Candidates {
+		if candidate.RepoName != requestTestSelector {
+			t.Fatalf("candidate %s repo_name = %q, want %q", candidate.RepoID, candidate.RepoName, requestTestSelector)
+		}
+		if candidate.MatchBasis != "name" {
+			t.Fatalf("candidate %s match_basis = %q, want %q", candidate.RepoID, candidate.MatchBasis, "name")
+		}
+	}
+}
+
 // TestWriteAmbiguousErrorNormalizesMatches pins criterion 2 of #10655: an
 // AmbiguousError built with an empty or duplicated Matches list still answers
 // a well-formed 409 without a panic or a duplicate candidate.
@@ -300,12 +347,12 @@ func TestWriteAmbiguousErrorNormalizesMatches(t *testing.T) {
 
 	cases := []struct {
 		name       string
-		matches    []string
+		matches    []AmbiguousCandidate
 		wantIDs    []string
 		wantDetail string
 	}{
 		{"empty matches", nil, []string{}, `repository selector "payments-svc" matched multiple repositories: `},
-		{"duplicate ids", []string{"repository:r_b", "repository:r_a", "repository:r_b", ""}, []string{"repository:r_a", "repository:r_b"}, "matched multiple repositories"},
+		{"duplicate ids", []AmbiguousCandidate{{RepoID: "repository:r_b"}, {RepoID: "repository:r_a"}, {RepoID: "repository:r_b"}, {RepoID: ""}}, []string{"repository:r_a", "repository:r_b"}, "matched multiple repositories"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

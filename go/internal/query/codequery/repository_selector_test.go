@@ -32,8 +32,8 @@ func TestResolveRepositoryCatalogMatchesMatchesNameSlugAndPath(t *testing.T) {
 
 	for _, rawSelector := range []string{"repository:r_payments", "payments", "/src/payments", "acme/payments"} {
 		matches := selector.CatalogMatches(entries, rawSelector)
-		if got, want := matches, []string{"repository:r_payments"}; len(got) != len(want) || got[0] != want[0] {
-			t.Fatalf("resolveRepositoryCatalogMatches(%q) = %#v, want %#v", rawSelector, got, want)
+		if len(matches) != 1 || matches[0].RepoID != "repository:r_payments" {
+			t.Fatalf("resolveRepositoryCatalogMatches(%q) = %#v, want one candidate with id repository:r_payments", rawSelector, matches)
 		}
 	}
 }

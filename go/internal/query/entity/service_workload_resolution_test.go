@@ -83,7 +83,7 @@ func TestServiceStoryRepoAmbiguousCandidatesAreObjects(t *testing.T) {
 
 	status, envelope := serviceStoryResolutionError(context.Background(), selector.AmbiguousError{
 		Selector: "payments",
-		Matches:  []string{"repository:r_b", "repository:r_a", "repository:r_b"},
+		Matches:  []selector.AmbiguousCandidate{{RepoID: "repository:r_b"}, {RepoID: "repository:r_a"}, {RepoID: "repository:r_b"}},
 	})
 	if status != http.StatusConflict || envelope == nil {
 		t.Fatalf("status, envelope = %d, %v, want 409 with an envelope", status, envelope)

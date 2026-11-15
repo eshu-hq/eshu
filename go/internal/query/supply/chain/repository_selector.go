@@ -100,11 +100,11 @@ func (h *Handler) resolveSupplyChainSecurityAlertRepositorySelector(
 		switch len(matches) {
 		case 0:
 		case 1:
-			scopes, ok := h.securityAlertRepositoryScopeIDsForCatalog(w, r, rawSelector, matches[0], entries, capability, route)
+			scopes, ok := h.securityAlertRepositoryScopeIDsForCatalog(w, r, rawSelector, matches[0].RepoID, entries, capability, route)
 			if !ok {
 				return "", nil, false
 			}
-			return matches[0], scopes, true
+			return matches[0].RepoID, scopes, true
 		default:
 			selector.WriteAmbiguousError(w, r, selector.AmbiguousError{Selector: rawSelector, Matches: matches}, capability)
 			return "", nil, false

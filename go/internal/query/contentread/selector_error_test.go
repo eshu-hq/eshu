@@ -52,7 +52,7 @@ func TestContentSelectorTypedErrorsKeepTheirAnswers(t *testing.T) {
 		wantStatus int
 	}{
 		{"not found", selector.NotFoundError{Selector: "payments-svc"}, http.StatusNotFound},
-		{"ambiguous", selector.AmbiguousError{Selector: "payments", Matches: []string{"repository:a", "repository:b"}}, http.StatusConflict},
+		{"ambiguous", selector.AmbiguousError{Selector: "payments", Matches: []selector.AmbiguousCandidate{{RepoID: "repository:a"}, {RepoID: "repository:b"}}}, http.StatusConflict},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

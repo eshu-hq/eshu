@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil/content"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
@@ -100,11 +101,46 @@ func TestSelectorAnswersAreNotLookupFailures(t *testing.T) {
 	if IsLookupFailure(nil) {
 		t.Fatal("IsLookupFailure(nil) = true")
 	}
-	if IsLookupFailure(AmbiguousError{Selector: requestTestSelector, Matches: []string{"a", "b"}}) {
+	if IsLookupFailure(AmbiguousError{Selector: requestTestSelector, Matches: []AmbiguousCandidate{{RepoID: "a"}, {RepoID: "b"}}}) {
 		t.Fatal("IsLookupFailure(AmbiguousError) = true")
 	}
 	if IsLookupFailure(NotFoundError{Selector: requestTestSelector}) {
 		t.Fatal("IsLookupFailure(NotFoundError) = true")
+	}
+}
+
+// TestResolveExactForAccessGraphAmbiguityCarriesNameAndBasis proves the graph
+// fallback path (no content store) also fills repo_name and match_basis on an
+// ambiguous match (#10707), so both resolution branches carry the same three
+// candidate fields.
+func TestResolveExactForAccessGraphAmbiguityCarriesNameAndBasis(t *testing.T) {
+	t.Parallel()
+
+	graphReader := graph.FakeGraphReader{
+		RunFn: func(context.Context, string, map[string]any) ([]map[string]any, error) {
+			return []map[string]any{
+				{"id": "repository:r_b", "name": "shared", "match_basis": "name"},
+				{"id": "repository:r_a", "name": "shared", "match_basis": "name"},
+			}, nil
+		},
+	}
+
+	_, err := ResolveExactForAccess(context.Background(), graphReader, nil, requestTestSelector,
+		querycontract.RepositoryAccessFilter{AllScopes: true})
+	var ambiguous AmbiguousError
+	if !errors.As(err, &ambiguous) {
+		t.Fatalf("ResolveExactForAccess() error = %v, want an AmbiguousError", err)
+	}
+	if len(ambiguous.Matches) != 2 {
+		t.Fatalf("Matches = %#v, want two candidates", ambiguous.Matches)
+	}
+	for _, match := range ambiguous.Matches {
+		if match.RepoName != "shared" {
+			t.Fatalf("candidate %s repo_name = %q, want %q", match.RepoID, match.RepoName, "shared")
+		}
+		if match.MatchBasis != "name" {
+			t.Fatalf("candidate %s match_basis = %q, want %q", match.RepoID, match.MatchBasis, "name")
+		}
 	}
 }
 

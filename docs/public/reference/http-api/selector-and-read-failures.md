@@ -309,12 +309,16 @@ read and search, repository `{repo_id}`, security-alert supply-chain, and the
 the caller may read: resolution filters matches by the caller's grant before
 the body is built, so a grant-scoped caller never sees an unreadable id.
 
-Each entry in `candidates` is an object whose only guaranteed field is
-`repo_id`; later versions may add more fields, so a caller reads `repo_id` and
-ignores anything else. Passing that id back as the same selector resolves
-exactly one repository, so the follow-up is the same request with the chosen
+Each entry in `candidates` is an object carrying the canonical `repo_id` and,
+when resolution retained it, the repository name in `repo_name` and the
+selector field that matched in `match_basis` — one of `id`, `name`, `path`,
+`local_path`, `remote_url`, or `repo_slug` (#10707). `repo_id` is the only
+field every resolving branch guarantees; `repo_name` and `match_basis` are
+additive and omitted when empty, so a caller reads `repo_id` and treats the
+rest as optional. Passing that id back as the same selector resolves exactly
+one repository, so the follow-up is the same request with the chosen
 `repo_id`. The service investigation and service story routes answer the same
-`repo_id` objects when their optional `repo` selector is ambiguous. A
+candidate objects when their optional `repo` selector is ambiguous. A
 non-envelope response carries the packet at the top level with the code and
 the typed text:
 
@@ -322,7 +326,10 @@ the typed text:
 {
   "status": "ambiguous",
   "selector": "shared",
-  "candidates": [{"repo_id": "repository:r_a"}, {"repo_id": "repository:r_b"}],
+  "candidates": [
+    {"repo_id": "repository:r_a", "repo_name": "shared", "match_basis": "name"},
+    {"repo_id": "repository:r_b", "repo_name": "shared", "match_basis": "name"}
+  ],
   "truncated": false,
   "code": "ambiguous",
   "error": "Conflict",

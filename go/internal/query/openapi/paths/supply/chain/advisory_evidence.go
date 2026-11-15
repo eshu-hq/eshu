@@ -95,7 +95,7 @@ const AdvisoryEvidence = `
           },
           "400": {"description": "Missing limit or advisory scope"},
           "404": {"description": "Repository selector did not match an indexed repository"},
-          "409": {"description": "Repository selector matched multiple repositories; the body carries error.code ambiguous with error.details.candidates, each an object whose only guaranteed field is repo_id"},
+          "409": {"description": "Repository selector matched multiple repositories; the body carries error.code ambiguous with error.details.candidates, each an object carrying repo_id plus, when known, repo_name and match_basis (the selector field that matched)"},
           "503": {"description": "Postgres source fact read model unavailable"}
         }
       }
