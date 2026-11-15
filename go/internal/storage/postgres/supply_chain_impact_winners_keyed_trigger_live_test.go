@@ -224,7 +224,7 @@ VALUES ($1, $2, $3, 'projector', 'source_local', 'claimed', 1, 'owner-9805', now
 			if !tc.diverges {
 				return
 			}
-			if _, err := h.store.ResweepWinnersKeyed(h.ctx, h.tick()); err != nil {
+			if _, err := h.store.ResweepWinnersKeyed(h.ctx); err != nil {
 				t.Fatalf("keyed tick: %v", err)
 			}
 			if keyedMatchesRecompute(h) {

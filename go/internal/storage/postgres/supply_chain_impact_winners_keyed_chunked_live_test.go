@@ -29,7 +29,7 @@ func chunkedWatermark(h *keyedHarness) time.Time {
 // chunkedTick runs one keyed tick without requiring a drained log.
 func chunkedTick(h *keyedHarness) supplychaincore.SupplyChainImpactWinnersResweep {
 	h.t.Helper()
-	result, err := h.store.ResweepWinnersKeyed(h.ctx, h.tick())
+	result, err := h.store.ResweepWinnersKeyed(h.ctx)
 	if err != nil || result.Skipped {
 		h.t.Fatalf("chunked keyed resweep = %+v, %v", result, err)
 	}
@@ -100,8 +100,11 @@ func TestSupplyChainImpactWinnersResweepKeyedChunkedConsumeLive(t *testing.T) {
 	if depth := h.dirtyDepth(); depth == 0 {
 		t.Error("bounded tick drained the dirty log: the bound did not bound the transaction")
 	}
-	if got := chunkedWatermark(h); !got.Equal(before) {
-		t.Errorf("bounded tick stamped the watermark: before %v, after %v", before, got)
+	if got := chunkedWatermark(h); !got.After(before) {
+		t.Errorf("bounded tick left the watermark at %v, want it advanced past %v (#10706 horizon)", got, before)
+	}
+	if !first.Watermark.Equal(chunkedWatermark(h)) {
+		t.Errorf("bounded tick result watermark = %v, want the committed watermark %v (#10706 F4)", first.Watermark, chunkedWatermark(h))
 	}
 
 	ticks := chunkedDrain(h)
@@ -110,6 +113,8 @@ func TestSupplyChainImpactWinnersResweepKeyedChunkedConsumeLive(t *testing.T) {
 	}
 	if last := ticks[len(ticks)-1]; last.Bounded {
 		t.Errorf("the tick that emptied the log still reports Bounded: %+v", last)
+	} else if !last.Watermark.Equal(chunkedWatermark(h)) {
+		t.Errorf("draining tick result watermark = %v, want the committed watermark %v (#10706 F4)", last.Watermark, chunkedWatermark(h))
 	}
 	// One idle tick after the drain stamps the watermark the bounded passes
 	// withheld (or the draining tick itself stamped it).
@@ -143,8 +148,8 @@ func TestSupplyChainImpactWinnersResweepKeyedChunkedSingleIdentLive(t *testing.T
 	if first.ChunkIdentifiers != 1 {
 		t.Errorf("single-identifier tick probed %d identifiers, want exactly the one the bound admits", first.ChunkIdentifiers)
 	}
-	if got := chunkedWatermark(h); !got.Equal(before) {
-		t.Errorf("single-identifier tick stamped the watermark: before %v, after %v", before, got)
+	if got := chunkedWatermark(h); !got.After(before) {
+		t.Errorf("single-identifier tick left the watermark at %v, want it advanced past %v (#10706 horizon)", got, before)
 	}
 	ticks := chunkedDrain(h)
 	if len(ticks) == 0 {
@@ -188,8 +193,8 @@ func TestSupplyChainImpactWinnersResweepKeyedChunkedAdmissionTruncateLive(t *tes
 	if depth := h.dirtyDepth(); depth != 5 {
 		t.Errorf("dirty log depth after the admitted window applied = %d, want 5", depth)
 	}
-	if got := chunkedWatermark(h); !got.Equal(before) {
-		t.Errorf("bounded tick stamped the watermark: before %v, after %v", before, got)
+	if got := chunkedWatermark(h); !got.After(before) {
+		t.Errorf("admission-truncated tick left the watermark at %v, want it advanced past %v (#10706 horizon)", got, before)
 	}
 	chunkedDrain(h)
 	_ = chunkedTick(h)
@@ -249,8 +254,8 @@ func TestSupplyChainImpactWinnersResweepKeyedChunkedZeroAppliedScopeLive(t *test
 	if depth := h.dirtyDepth(); depth != 1 {
 		t.Errorf("dirty log depth after the fact prefix applied = %d, want only the g2 scope row", depth)
 	}
-	if got := chunkedWatermark(h); !got.Equal(before) {
-		t.Errorf("zero-applied-scope tick stamped the watermark: before %v, after %v", before, got)
+	if got := chunkedWatermark(h); !got.After(before) {
+		t.Errorf("zero-applied-scope tick left the watermark at %v, want it advanced past %v (#10706 horizon)", got, before)
 	}
 	chunkedDrain(h)
 	_ = chunkedTick(h)
@@ -295,8 +300,8 @@ func TestSupplyChainImpactWinnersResweepKeyedChunkedScopeSplitLive(t *testing.T)
 	if depth := h.dirtyDepth(); depth == 0 {
 		t.Error("bounded scope tick drained the log: the unapplied part of the scope expansion was lost")
 	}
-	if got := chunkedWatermark(h); !got.Equal(before) {
-		t.Errorf("scope-split tick stamped the watermark: before %v, after %v", before, got)
+	if got := chunkedWatermark(h); !got.After(before) {
+		t.Errorf("scope-split tick left the watermark at %v, want it advanced past %v (#10706 horizon)", got, before)
 	}
 	chunkedDrain(h)
 	h.assertParity("scope-split drain")

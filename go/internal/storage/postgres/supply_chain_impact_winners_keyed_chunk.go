@@ -5,7 +5,9 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
@@ -128,19 +130,24 @@ func buildWinnersKeyedChunk(
 // applied, inside the tick transaction: it converts a partially applied
 // scope row's remainder to fact rows, deletes exactly the applied rows
 // (deleteWinnersKeyedAppliedDirtySQL, or every row for the full-rebuild
-// fallback), tallies the deleted rows by capture source, and counts what
-// remains. The caller stamps the watermark only when nothing remains and the
-// chunk was not truncated.
-func settleWinnersKeyedDirtyLog(ctx context.Context, tx db.Transaction, fallback bool) (winnersCaptureTally, int64, error) {
+// fallback), tallies the deleted rows by capture source, counts what remains,
+// and reads the remainder's earliest capture time. The order is a named
+// constraint (#10706): convert runs before delete so a scope row's deletion
+// and its remainder rows' insertion commit atomically, and the min is read
+// after the delete so the horizon covers exactly the residual set. Converted
+// remainder rows carry a fresh conversion-time captured_at, so they can only
+// raise a later horizon, never lower this one. Callers stamp S when nothing
+// remains, else H = min minus 1us.
+func settleWinnersKeyedDirtyLog(ctx context.Context, tx db.Transaction, fallback bool) (winnersCaptureTally, int64, sql.NullTime, error) {
 	deleteSQL := deleteWinnersKeyedAppliedDirtySQL
 	if fallback {
 		deleteSQL = deleteWinnersKeyedAllDirtySQL
 	} else if _, err := tx.ExecContext(ctx, convertWinnersKeyedScopeRemainderSQL); err != nil {
-		return nil, 0, fmt.Errorf("convert supply chain impact winners scope remainder: %w", err)
+		return nil, 0, sql.NullTime{}, fmt.Errorf("convert supply chain impact winners scope remainder: %w", err)
 	}
 	rows, err := tx.QueryContext(ctx, deleteSQL)
 	if err != nil {
-		return nil, 0, fmt.Errorf("delete applied supply chain impact winners dirty rows: %w", err)
+		return nil, 0, sql.NullTime{}, fmt.Errorf("delete applied supply chain impact winners dirty rows: %w", err)
 	}
 	tally := winnersCaptureTally{}
 	for rows.Next() {
@@ -148,22 +155,26 @@ func settleWinnersKeyedDirtyLog(ctx context.Context, tx db.Transaction, fallback
 		var n int64
 		if err := rows.Scan(&source, &n); err != nil {
 			_ = rows.Close()
-			return nil, 0, fmt.Errorf("scan deleted supply chain impact winners dirty rows: %w", err)
+			return nil, 0, sql.NullTime{}, fmt.Errorf("scan deleted supply chain impact winners dirty rows: %w", err)
 		}
 		tally[source] += n
 	}
 	if err := rows.Err(); err != nil {
 		_ = rows.Close()
-		return nil, 0, fmt.Errorf("delete applied supply chain impact winners dirty rows: %w", err)
+		return nil, 0, sql.NullTime{}, fmt.Errorf("delete applied supply chain impact winners dirty rows: %w", err)
 	}
 	if err := rows.Close(); err != nil {
-		return nil, 0, fmt.Errorf("close deleted supply chain impact winners dirty rows: %w", err)
+		return nil, 0, sql.NullTime{}, fmt.Errorf("close deleted supply chain impact winners dirty rows: %w", err)
 	}
 	remaining, err := scanWinnersInt64(ctx, tx, countWinnersKeyedRemainingSQL, "count remaining dirty rows")
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, sql.NullTime{}, err
 	}
-	return tally, remaining, nil
+	remainingMin, err := selectWinnersRemainingMin(ctx, tx)
+	if err != nil {
+		return nil, 0, sql.NullTime{}, err
+	}
+	return tally, remaining, remainingMin, nil
 }
 
 // countWinnersKeyedKeptFacts counts the kept facts the identifier probe built.
@@ -171,4 +182,36 @@ func settleWinnersKeyedDirtyLog(ctx context.Context, tx db.Transaction, fallback
 // the identifier chunk implies per tick.
 func countWinnersKeyedKeptFacts(ctx context.Context, tx db.Transaction) (int64, error) {
 	return scanWinnersInt64(ctx, tx, countWinnersKeyedActiveFactsSQL, "count kept winner facts")
+}
+
+// horizonCandidate resolves the stamp candidate from the residual set: the
+// horizon H = min(captured_at) minus 1us, so every unapplied row has
+// captured_at above the stamped watermark. A non-empty remainder without a
+// min is a bug, not an empty log: stamping S there would cover unapplied
+// rows, so it fails the tick instead.
+func horizonCandidate(remainingMin sql.NullTime) (time.Time, error) {
+	if !remainingMin.Valid {
+		return time.Time{}, fmt.Errorf("horizon min captured_at is NULL with a non-empty dirty log")
+	}
+	return remainingMin.Time.Add(-time.Microsecond), nil
+}
+
+// selectWinnersRemainingMin reads the dirty log's earliest capture time in
+// the tick transaction. It reports none when the log is empty.
+func selectWinnersRemainingMin(ctx context.Context, q db.Queryer) (sql.NullTime, error) {
+	rows, err := q.QueryContext(ctx, selectWinnersKeyedRemainingMinSQL)
+	if err != nil {
+		return sql.NullTime{}, fmt.Errorf("read remaining min captured_at: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	var min sql.NullTime
+	if rows.Next() {
+		if err := rows.Scan(&min); err != nil {
+			return sql.NullTime{}, fmt.Errorf("read remaining min captured_at: %w", err)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return sql.NullTime{}, fmt.Errorf("read remaining min captured_at: %w", err)
+	}
+	return min, nil
 }

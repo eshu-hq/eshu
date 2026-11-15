@@ -61,6 +61,36 @@ const countWinnersKeyedRemainingSQL = `
 SELECT count(*) FROM supply_chain_impact_winners_dirty_log
 `
 
+// selectWinnersKeyedRemainingMinSQL reads the earliest capture time of the
+// dirty log's residual set, inside the tick transaction after settle. It is
+// NULL when the log is empty. The #10706 horizon is this min minus 1us, so
+// every row remaining in the log at read time has captured_at above the
+// stamped watermark. The documented exception is a row whose INSERT executed
+// before the tick clock was read but committed after the tick's snapshot: it
+// stays covered for exactly one tick and the next tick applies it (pinned by
+// HorizonDrainedLateCommitLive and HorizonIdleLateCommitLive).
+const selectWinnersKeyedRemainingMinSQL = `
+SELECT min(captured_at) FROM supply_chain_impact_winners_dirty_log
+`
+
+// selectWinnersKeyedTickClockSQL reads the DB clock inside the tick
+// transaction. The tick reads it once, before admission, and every branch
+// that stamps S stamps that one read (#10706): the watermark, captured_at,
+// and the intent bound the advisory handler waits on all live in the DB
+// clock domain. A row that both executes and commits after that read is
+// never covered by the stamp; a row that executed before it but commits
+// after the tick's snapshot stays covered for exactly one tick and the next
+// tick applies it (see the late-commit tests).
+const selectWinnersKeyedTickClockSQL = `
+SELECT clock_timestamp()
+`
+
+// selectWinnersWatermarkSQL reads the committed watermark: the exact value
+// the tick stamped, after GREATEST resolved it against the previous one.
+const selectWinnersWatermarkSQL = `
+SELECT materialized_at FROM supply_chain_impact_winners_materialization WHERE singleton = 1
+`
+
 // winnersIdentExprs renders the five identifier columns of a fact row, with the
 // same empty-string and first-key rules as the winner select.
 func winnersIdentExprs(prefix string) string {
@@ -302,28 +332,18 @@ const winnersStoredIdentMatch = `(w.package_id, w.repository_id, w.subject_diges
 // the rows that are new or changed, deletes stored winners of the identifier
 // set that are no longer produced, and stamps the watermark. It is the keyed
 // twin of rebuildSupplyChainImpactWinnersSQL: the same changed/upserted/deleted
-// shape and the same row comparison, restricted to the identifier set. $1 is the
-// new watermark. It returns inserted, updated, deleted, unchanged, the keys
-// recomputed (winners now produced plus winners deleted), and the previous
-// watermark. applyWinnersKeyedNoStampSQL is the same statement without the
-// stamp, for a bounded chunk that leaves dirty rows queued: the winners it
-// writes are real, but the table is not yet current as of $1, so the
-// watermark must not move. Both share the CTE body; only the tail differs.
+// shape and the same row comparison, restricted to the identifier set. $1 is
+// the stamp candidate: the DB-clock tick stamp S when the log drained, or
+// the horizon H = min(captured_at) of the remainder minus 1us when rows are
+// still queued (#10706). The stamp is GREATEST(previous, candidate), so the
+// watermark never regresses. It returns inserted, updated, deleted,
+// unchanged, the keys recomputed (winners now produced plus winners deleted),
+// and the previous watermark.
 var applyWinnersKeyedSQL = applyWinnersKeyedBodySQL + `
 INSERT INTO supply_chain_impact_winners_materialization (singleton, materialized_at)
 VALUES (1, $1)
-ON CONFLICT (singleton) DO UPDATE SET materialized_at = EXCLUDED.materialized_at
+ON CONFLICT (singleton) DO UPDATE SET materialized_at = GREATEST(supply_chain_impact_winners_materialization.materialized_at, EXCLUDED.materialized_at)
 RETURNING
-    (SELECT count(*) FROM changed WHERE is_new),
-    (SELECT count(*) FROM changed WHERE NOT is_new),
-    (SELECT count(*) FROM deleted),
-    (SELECT count(*) FROM winners_now) - (SELECT count(*) FROM changed),
-    (SELECT count(*) FROM winners_now) + (SELECT count(*) FROM deleted),
-    (SELECT materialized_at FROM supply_chain_impact_winners_materialization WHERE singleton = 1)
-`
-
-var applyWinnersKeyedNoStampSQL = applyWinnersKeyedBodySQL + `
-SELECT
     (SELECT count(*) FROM changed WHERE is_new),
     (SELECT count(*) FROM changed WHERE NOT is_new),
     (SELECT count(*) FROM deleted),
@@ -426,15 +446,17 @@ WITH deleted AS (
 SELECT source, count(*) FROM deleted GROUP BY source
 `
 
-// stampWinnersWatermarkSQL stamps the watermark for a tick that consumed
-// nothing: the table is current as of now, and a watermark that only moves when
-// something changed would make an idle table read as stale. $1 is the new
-// watermark; it returns the one it replaced.
+// stampWinnersWatermarkSQL stamps the watermark candidate for a tick that
+// consumed nothing: $1 is the DB-clock tick stamp S when the log is empty, or
+// the horizon H = min(captured_at) minus 1us when rows landed after admission
+// (#10706). A watermark that only moves when something changed would make an
+// idle table read as stale. The stamp is GREATEST(previous, candidate), so the
+// watermark never regresses; it returns the one it replaced.
 // #nosec G101 -- SQL statement text, not a credential.
 const stampWinnersWatermarkSQL = `
 INSERT INTO supply_chain_impact_winners_materialization (singleton, materialized_at)
 VALUES (1, $1)
-ON CONFLICT (singleton) DO UPDATE SET materialized_at = EXCLUDED.materialized_at
+ON CONFLICT (singleton) DO UPDATE SET materialized_at = GREATEST(supply_chain_impact_winners_materialization.materialized_at, EXCLUDED.materialized_at)
 RETURNING (SELECT materialized_at FROM supply_chain_impact_winners_materialization WHERE singleton = 1)
 `
 

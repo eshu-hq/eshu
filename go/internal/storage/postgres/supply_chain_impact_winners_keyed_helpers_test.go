@@ -213,12 +213,12 @@ VALUES ($1, $2, $3, $4, $1, '1.0.0', 'eshu_policy', $1, now(), now(), false, $5:
 // path with a drained dirty log.
 func (h *keyedHarness) keyed() supplychaincore.SupplyChainImpactWinnersResweep {
 	h.t.Helper()
-	result, err := h.store.ResweepWinnersKeyed(h.ctx, h.tick())
+	result, err := h.store.ResweepWinnersKeyed(h.ctx)
 	// A cancelled tick's rollback runs on database/sql's own goroutine and can
 	// still hold the single-flight lock for a moment; retry a skip briefly.
 	for retry := 0; err == nil && result.Skipped && retry < 100; retry++ {
 		time.Sleep(50 * time.Millisecond)
-		result, err = h.store.ResweepWinnersKeyed(h.ctx, h.tick())
+		result, err = h.store.ResweepWinnersKeyed(h.ctx)
 	}
 	if err != nil || result.Skipped {
 		h.t.Fatalf("keyed resweep = %+v, %v", result, err)

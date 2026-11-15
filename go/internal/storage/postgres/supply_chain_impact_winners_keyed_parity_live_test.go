@@ -173,8 +173,17 @@ WHERE cve_id = 'CVE-2026-0002' AND suppression_state = 'accepted_risk'
 		if got.Inserted != 0 || got.Updated != 0 || got.Deleted != 0 || got.Identifiers != 0 {
 			t.Fatalf("an idle keyed tick = %+v, want zero identifiers and zero writes", got)
 		}
-		if wm := winnersLiveWatermark(t, h.ctx, h.db); !wm.Equal(h.clock) {
-			t.Fatalf("watermark after an idle keyed tick = %v, want it stamped at %v", wm, h.clock)
+		if !got.Watermark.Equal(winnersLiveWatermark(t, h.ctx, h.db)) {
+			t.Errorf("idle tick result watermark = %v, want the committed watermark (#10706 F4)", got.Watermark)
+		}
+		// #10706: the idle tick stamps the DB-clock tick stamp, not the
+		// Go-supplied stamp, so it tracks clock_timestamp() within tolerance.
+		var dbNow time.Time
+		if err := h.db.QueryRowContext(h.ctx, `SELECT clock_timestamp()`).Scan(&dbNow); err != nil {
+			t.Fatalf("read DB clock: %v", err)
+		}
+		if wm := winnersLiveWatermark(t, h.ctx, h.db); dbNow.Sub(wm) < 0 || dbNow.Sub(wm) > 5*time.Minute {
+			t.Fatalf("watermark after an idle keyed tick = %v, want it within 5m of the DB clock %v", wm, dbNow)
 		}
 	})
 }

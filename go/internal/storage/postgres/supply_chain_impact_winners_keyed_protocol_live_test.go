@@ -43,7 +43,7 @@ func keyedStartBlockedTick(h *keyedHarness) (release func(), done <-chan error, 
 	tickCtx, cancelTick := context.WithCancel(h.ctx)
 	errs := make(chan error, 1)
 	go func() {
-		_, err := h.store.ResweepWinnersKeyed(tickCtx, h.tick())
+		_, err := h.store.ResweepWinnersKeyed(tickCtx)
 		errs <- err
 	}()
 	deadline := time.Now().Add(30 * time.Second)
@@ -135,7 +135,7 @@ func TestSupplyChainImpactWinnersResweepKeyedCapFallsBackToFullLive(t *testing.T
 			scopeA, _ := keyedSeedSettled(h)
 			tc.mutate(h)
 			h.write(scopeA, scopeA+"/g1", keyedFinding("CVE-2026-2001", "pkg:npm/x", 50), keyedFinding("CVE-2026-2002", "pkg:npm/y", 7))
-			got, err := h.store.ResweepWinnersKeyed(h.ctx, h.tick())
+			got, err := h.store.ResweepWinnersKeyed(h.ctx)
 			if err != nil || got.Skipped {
 				t.Fatalf("capped tick = %+v, %v", got, err)
 			}

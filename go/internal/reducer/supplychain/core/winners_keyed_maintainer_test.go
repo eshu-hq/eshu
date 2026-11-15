@@ -30,7 +30,7 @@ type fakeKeyedRebuilder struct {
 	result SupplyChainImpactWinnersResweep
 }
 
-func (f *fakeKeyedRebuilder) ResweepWinnersKeyed(_ context.Context, _ any) (SupplyChainImpactWinnersResweep, error) {
+func (f *fakeKeyedRebuilder) ResweepWinnersKeyed(context.Context) (SupplyChainImpactWinnersResweep, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.keyed++
@@ -457,27 +457,6 @@ func TestWinnersMaintainerCountsABoundedTick(t *testing.T) {
 	}
 	if got := collectKeyedMetrics(t, reader); got.chunked != 0 {
 		t.Errorf("chunked_ticks_total = %d, want 0 for an unbounded tick", got.chunked)
-	}
-}
-
-// TestWinnersMaintainerBoundedTickSkipsTheWatermarkGauge pins that a bounded
-// tick stamps no watermark: the gauge keeps aging the last real stamp, and the
-// next unbounded tick refreshes it.
-func TestWinnersMaintainerBoundedTickSkipsTheWatermarkGauge(t *testing.T) {
-	t.Parallel()
-
-	inst, reader := winnersSignalsHarness(t)
-	m := SupplyChainImpactWinnersMaintainer{
-		Rebuilder: &fakeKeyedRebuilder{}, KeyedRebuilder: &fakeKeyedRebuilder{result: SupplyChainImpactWinnersResweep{
-			Path: telemetry.SupplyChainImpactWinnersPathKeyed, Bounded: true, Remaining: 7,
-		}}, LeaseManager: &fakeWinnersLeaseManager{claim: true},
-		Instruments: inst,
-	}
-	if _, err := m.runKeyedTick(context.Background()); err != nil {
-		t.Fatalf("runKeyedTick() error = %v", err)
-	}
-	if _, _, ages := winnersMetrics(t, reader); len(ages) != 0 {
-		t.Errorf("watermark age samples = %v, want none after a bounded tick that stamped nothing", ages)
 	}
 }
 
