@@ -11,8 +11,9 @@ import (
 // ContentRelationshipSet is the port-shaped result of building an entity's
 // content-derived relationships. It mirrors root's unexported
 // contentRelationshipSet field-for-field, so ContentIndexRelationshipBuilder
-// (root's ContentRelationshipBuilder implementation) can copy one directly
-// into the other with no loss.
+// (root's ContentRelationshipBuilder implementation, a forwarder over the
+// entity/content/fallback leaf) can copy one directly into the other
+// with no loss.
 //
 // ScanTruncated reports that a k8s SELECTS candidate scan overran its
 // ceiling: root's entity route discloses it (entity/context_content.go) and
@@ -51,13 +52,12 @@ type ContentRelationshipReader interface {
 }
 
 // ContentRelationshipBuilder builds an entity's content-derived incoming and
-// outgoing relationships. Root's ContentIndexRelationshipBuilder is the only
-// production implementation; it forwards to root's unexported
-// buildContentRelationshipSet (content_relationships.go), which owns the
-// actual per-language, per-manifest-kind relationship extraction and cannot
-// move here itself (its own closure reads only through the narrow
-// ContentRelationshipReader port declared above, far smaller than the full
-// ContentStore surface the rest of the read handlers need).
+// outgoing relationships. The entity/content/fallback leaf's Builder is
+// the production implementation; it owns the actual per-language,
+// per-manifest-kind relationship extraction (its closure reads only through
+// the narrow ContentRelationshipReader port declared above, far smaller
+// than the full ContentStore surface the rest of the read handlers need).
+// Root's ContentIndexRelationshipBuilder forwards to it.
 type ContentRelationshipBuilder interface {
 	BuildContentRelationships(ctx context.Context, reader ContentRelationshipReader,
 		entity EntityContent, logger *slog.Logger) (ContentRelationshipSet, error)

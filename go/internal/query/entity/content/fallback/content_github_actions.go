@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package fallback
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/ghactionsref"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	artifacts "github.com/eshu-hq/eshu/go/internal/query/repositoryartifacts"
 )
 
@@ -35,10 +36,7 @@ type githubActionsRelationship struct {
 // #5568's content-entity identity gate), and the action-file branch is
 // shared with the entity-context fallback, so the contracts cannot silently
 // drift apart.
-// isGitHubActionsArtifactPath reports whether an entity is a GitHub Actions
-// artifact path. The implementation moved to ghactionsref for #6060; this
-// wrapper keeps root callers unchanged.
-func isGitHubActionsArtifactPath(entity EntityContent) bool {
+func isGitHubActionsArtifactPath(entity querycontract.EntityContent) bool {
 	return ghactionsref.IsArtifactPath(entity.RelativePath)
 }
 
@@ -69,7 +67,7 @@ func isGitHubActionsArtifactPath(entity EntityContent) bool {
 // (isGitHubActionsArtifactPath); any other content entity returns nil so a
 // non-GitHub YAML with a jobs/steps/uses shape cannot fabricate github_actions_*
 // edges.
-func githubActionsSourceRelationships(entity EntityContent) []githubActionsRelationship {
+func githubActionsSourceRelationships(entity querycontract.EntityContent) []githubActionsRelationship {
 	if !isGitHubActionsArtifactPath(entity) {
 		return nil
 	}

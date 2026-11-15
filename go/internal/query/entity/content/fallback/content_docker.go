@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package fallback
 
 import (
 	"fmt"
@@ -9,20 +9,21 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	artifacts "github.com/eshu-hq/eshu/go/internal/query/repositoryartifacts"
 	"gopkg.in/yaml.v3"
 )
 
-func buildOutgoingDockerfileRelationships(entity EntityContent) ([]map[string]any, bool, error) {
+func buildOutgoingDockerfileRelationships(entity querycontract.EntityContent) ([]map[string]any, bool, error) {
 	if !looksLikeDockerfileEntity(entity) {
 		return nil, false, nil
 	}
 
 	relationships := make([]map[string]any, 0, 2)
 	seen := make(map[string]struct{}, 2)
-	for _, label := range mapSliceValue(parser.ExtractDockerfileRuntimeMetadata(entity.SourceCache), "dockerfile_labels") {
-		name := strings.ToLower(strings.TrimSpace(StringVal(label, "name")))
-		value := strings.TrimSpace(StringVal(label, "value"))
+	for _, label := range querycontract.MapSliceValue(parser.ExtractDockerfileRuntimeMetadata(entity.SourceCache), "dockerfile_labels") {
+		name := strings.ToLower(strings.TrimSpace(querycontract.StringVal(label, "name")))
+		value := strings.TrimSpace(querycontract.StringVal(label, "value"))
 		if value == "" || !isDockerfileSourceLabel(name) {
 			continue
 		}
@@ -43,7 +44,7 @@ func buildOutgoingDockerfileRelationships(entity EntityContent) ([]map[string]an
 	return relationships, true, nil
 }
 
-func buildOutgoingDockerComposeRelationships(entity EntityContent) ([]map[string]any, bool, error) {
+func buildOutgoingDockerComposeRelationships(entity querycontract.EntityContent) ([]map[string]any, bool, error) {
 	if !looksLikeDockerComposeEntity(entity) {
 		return nil, false, nil
 	}
@@ -86,9 +87,9 @@ func buildOutgoingDockerComposeRelationships(entity EntityContent) ([]map[string
 		case string:
 			add("DEPLOYS_FROM", build, "docker_compose_build_context")
 		case map[string]any:
-			add("DEPLOYS_FROM", StringVal(build, "context"), "docker_compose_build_context")
+			add("DEPLOYS_FROM", querycontract.StringVal(build, "context"), "docker_compose_build_context")
 		}
-		add("DEPLOYS_FROM", StringVal(service, "image"), "docker_compose_image")
+		add("DEPLOYS_FROM", querycontract.StringVal(service, "image"), "docker_compose_image")
 		for _, dependency := range dockerComposeDependsOnValues(service["depends_on"]) {
 			add("DEPENDS_ON", dependency, "docker_compose_depends_on")
 		}
@@ -100,7 +101,7 @@ func buildOutgoingDockerComposeRelationships(entity EntityContent) ([]map[string
 	return relationships, true, nil
 }
 
-func looksLikeDockerfileEntity(entity EntityContent) bool {
+func looksLikeDockerfileEntity(entity querycontract.EntityContent) bool {
 	if strings.EqualFold(strings.TrimSpace(entity.Language), "dockerfile") {
 		return true
 	}
@@ -109,7 +110,7 @@ func looksLikeDockerfileEntity(entity EntityContent) bool {
 	return base == "dockerfile" || strings.Contains(base, "dockerfile")
 }
 
-func looksLikeDockerComposeEntity(entity EntityContent) bool {
+func looksLikeDockerComposeEntity(entity querycontract.EntityContent) bool {
 	return artifacts.IsDockerComposeFilename(strings.ToLower(filepath.Base(entity.RelativePath)))
 }
 

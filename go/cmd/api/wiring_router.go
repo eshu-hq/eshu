@@ -23,6 +23,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/capability"
 	"github.com/eshu-hq/eshu/go/internal/query/cicd"
 	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
+	"github.com/eshu-hq/eshu/go/internal/query/entity/content/fallback"
 	"github.com/eshu-hq/eshu/go/internal/query/iac"
 	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/manifest"
@@ -165,7 +166,7 @@ func newRouterWithSemanticEmbeddingWithReadStore(
 			Profile:                  queryProfile,
 			Logger:                   logger,
 			Instruments:              instruments,
-			ContentRelationships:     query.ContentIndexRelationshipBuilder{},
+			ContentRelationships:     fallback.Builder{},
 		},
 		Code: &query.CodeHandler{
 			GraphBackend:         graphBackend,
@@ -175,7 +176,7 @@ func newRouterWithSemanticEmbeddingWithReadStore(
 			Profile:              queryProfile,
 			HybridRanker:         newCodeHybridRanker(semanticSearchEmbedding),
 			Logger:               logger,
-			ContentRelationships: query.ContentIndexRelationshipBuilder{},
+			ContentRelationships: fallback.Builder{},
 		},
 		Language: &query.LanguageQueryHandler{
 			Neo4j:       neo4jReader,

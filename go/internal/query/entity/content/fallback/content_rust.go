@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package fallback
 
 import (
 	"context"
@@ -22,7 +22,7 @@ import (
 func buildOutgoingRustImplBlockRelationships(
 	ctx context.Context,
 	reader querycontract.ContentRelationshipReader,
-	entity EntityContent,
+	entity querycontract.EntityContent,
 ) ([]map[string]any, bool, bool, error) {
 	if entity.EntityType != "ImplBlock" || entity.EntityName == "" {
 		return nil, false, false, nil
@@ -42,7 +42,7 @@ func buildOutgoingRustImplBlockRelationships(
 		if match.EntityID == entity.EntityID || match.RelativePath != entity.RelativePath {
 			continue
 		}
-		if implContext, _ := metadataNonEmptyString(match.Metadata, "impl_context"); implContext != entity.EntityName {
+		if implContext, _ := querycontract.MetadataNonEmptyString(match.Metadata, "impl_context"); implContext != entity.EntityName {
 			continue
 		}
 		if _, ok := seen[match.EntityID]; ok {
@@ -63,9 +63,9 @@ func buildOutgoingRustImplBlockRelationships(
 func buildIncomingRustImplBlockRelationships(
 	ctx context.Context,
 	reader querycontract.ContentRelationshipReader,
-	entity EntityContent,
+	entity querycontract.EntityContent,
 ) ([]map[string]any, bool, bool, error) {
-	implContext, ok := metadataNonEmptyString(entity.Metadata, "impl_context")
+	implContext, ok := querycontract.MetadataNonEmptyString(entity.Metadata, "impl_context")
 	if entity.EntityType != "Function" || !ok || implContext == "" {
 		return nil, false, false, nil
 	}

@@ -7,6 +7,8 @@ import (
 	"context"
 	"log/slog"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/entity/content/fallback"
 )
 
 // recordingSlogHandler is a minimal slog.Handler that captures every record
@@ -89,15 +91,15 @@ func TestBuildOutgoingK8sSelectRelationshipsLogsMixedVintageDropAtDebug(t *testi
 		},
 	}
 
-	relationships, ok, truncated, err := buildOutgoingK8sSelectRelationships(context.Background(), reader, service, logger)
+	relationships, ok, truncated, err := fallback.BuildOutgoingK8sSelectRelationships(context.Background(), reader, service, logger)
 	if err != nil {
-		t.Fatalf("buildOutgoingK8sSelectRelationships() error = %v, want nil", err)
+		t.Fatalf("fallback.BuildOutgoingK8sSelectRelationships() error = %v, want nil", err)
 	}
 	if !ok {
-		t.Fatalf("buildOutgoingK8sSelectRelationships() ok = false, want true")
+		t.Fatalf("fallback.BuildOutgoingK8sSelectRelationships() ok = false, want true")
 	}
 	if truncated {
-		t.Fatalf("buildOutgoingK8sSelectRelationships() truncated = true, want false")
+		t.Fatalf("fallback.BuildOutgoingK8sSelectRelationships() truncated = true, want false")
 	}
 	if len(relationships) != 0 {
 		t.Fatalf("len(relationships) = %d, want 0 (mixed vintage must not match or fall back): %#v", len(relationships), relationships)
@@ -154,9 +156,9 @@ func TestBuildOutgoingK8sSelectRelationshipsNoLogOnRealMatch(t *testing.T) {
 		},
 	}
 
-	relationships, _, _, err := buildOutgoingK8sSelectRelationships(context.Background(), reader, service, logger)
+	relationships, _, _, err := fallback.BuildOutgoingK8sSelectRelationships(context.Background(), reader, service, logger)
 	if err != nil {
-		t.Fatalf("buildOutgoingK8sSelectRelationships() error = %v, want nil", err)
+		t.Fatalf("fallback.BuildOutgoingK8sSelectRelationships() error = %v, want nil", err)
 	}
 	if len(relationships) != 1 {
 		t.Fatalf("len(relationships) = %d, want 1", len(relationships))
@@ -200,7 +202,7 @@ func TestBuildOutgoingK8sSelectRelationshipsMixedVintageNilLoggerSafe(t *testing
 		},
 	}
 
-	if _, _, _, err := buildOutgoingK8sSelectRelationships(context.Background(), reader, service, nil); err != nil {
-		t.Fatalf("buildOutgoingK8sSelectRelationships() error = %v, want nil", err)
+	if _, _, _, err := fallback.BuildOutgoingK8sSelectRelationships(context.Background(), reader, service, nil); err != nil {
+		t.Fatalf("fallback.BuildOutgoingK8sSelectRelationships() error = %v, want nil", err)
 	}
 }

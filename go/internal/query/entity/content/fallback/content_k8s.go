@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package fallback
 
 import (
 	"context"
@@ -13,13 +13,19 @@ import (
 )
 
 // k8s SELECTS relationship building (Service -> Deployment and its incoming
-// counterpart) lives in this file, split out of content_relationships.go to
+// counterpart) lives in this file, split out of content.go to
 // keep both files under the repo's 500-line package-file cap.
 
-func buildOutgoingK8sSelectRelationships(
+// BuildOutgoingK8sSelectRelationships builds the outgoing SELECTS edges for
+// a K8sResource Service, and BuildIncomingK8sSelectRelationships the
+// incoming edges for a Deployment. Both are exported so the query root's
+// staying regression tests can target the k8s classifiers directly without
+// importing this leaf's unexported surface; satellite consumers use
+// Builder, which serves both directions.
+func BuildOutgoingK8sSelectRelationships(
 	ctx context.Context,
 	reader querycontract.ContentRelationshipReader,
-	entity EntityContent,
+	entity querycontract.EntityContent,
 	logger *slog.Logger,
 ) ([]map[string]any, bool, bool, error) {
 	if !isK8sResourceKind(entity, "Service") || entity.EntityName == "" {
@@ -40,8 +46,9 @@ func buildOutgoingK8sSelectRelationships(
 	// (ListRepoEntitiesByType, not ListRepoEntities) so the LIMIT applies to
 	// the K8sResource-filtered row set: a repo-wide scan can push late-sorting
 	// K8sResource rows past the limit and silently drop them, producing a
-	// missing SELECTS edge in a repo with more than repositorySemanticEntityLimit
-	// entities. fetchK8sResourceCandidates over-fetches by one row to turn
+	// missing SELECTS edge in a repo with more than
+	// querycontract.RepositorySemanticEntityLimit entities.
+	// fetchK8sResourceCandidates over-fetches by one row to turn
 	// "did we still truncate?" into an exact signal (see its doc comment);
 	// truncated is surfaced to the caller for response-level disclosure.
 	candidates, truncated, err := fetchK8sResourceCandidates(ctx, reader, entity.RepoID)
@@ -57,7 +64,7 @@ func buildOutgoingK8sSelectRelationships(
 		}
 		matched, reason, mixedVintageDrop := kubernetes.SelectMatch(serviceInput, kubernetes.SelectMatchInputFromEntity(match))
 		if mixedVintageDrop {
-			logK8sSelectMixedVintageDrop(ctx, logger, entity.EntityID, match.EntityID)
+			kubernetes.LogSelectMixedVintageDrop(ctx, logger, entity.EntityID, match.EntityID)
 		}
 		if !matched {
 			continue
@@ -78,10 +85,10 @@ func buildOutgoingK8sSelectRelationships(
 	return relationships, true, truncated, nil
 }
 
-func buildIncomingK8sSelectRelationships(
+func BuildIncomingK8sSelectRelationships(
 	ctx context.Context,
 	reader querycontract.ContentRelationshipReader,
-	entity EntityContent,
+	entity querycontract.EntityContent,
 	logger *slog.Logger,
 ) ([]map[string]any, bool, bool, error) {
 	if !isK8sResourceKind(entity, "Deployment") || entity.EntityName == "" {
@@ -91,7 +98,7 @@ func buildIncomingK8sSelectRelationships(
 	workloadInput := kubernetes.SelectMatchInputFromEntity(entity)
 
 	// A matching Service can have any name, so candidates come from a typed
-	// repo-wide entity scan (see buildOutgoingK8sSelectRelationships for the
+	// repo-wide entity scan (see BuildOutgoingK8sSelectRelationships for the
 	// same reasoning, including why ListRepoEntitiesByType and not
 	// ListRepoEntities, and fetchK8sResourceCandidates for the truncation
 	// disclosure over-fetch) rather than a name lookup.
@@ -108,7 +115,7 @@ func buildIncomingK8sSelectRelationships(
 		}
 		matched, reason, mixedVintageDrop := kubernetes.SelectMatch(kubernetes.SelectMatchInputFromEntity(match), workloadInput)
 		if mixedVintageDrop {
-			logK8sSelectMixedVintageDrop(ctx, logger, match.EntityID, entity.EntityID)
+			kubernetes.LogSelectMixedVintageDrop(ctx, logger, match.EntityID, entity.EntityID)
 		}
 		if !matched {
 			continue
@@ -129,45 +136,31 @@ func buildIncomingK8sSelectRelationships(
 	return relationships, true, truncated, nil
 }
 
-// logK8sSelectMixedVintageDrop fires the Debug-level operator diagnostic for
-// a kubernetes.SelectMatch mixed-vintage drop (see kubernetes.SelectMatch's doc comment): the
-// Service has a known, matching-eligible selector but the candidate
-// Deployment row predates pod_template_labels capture, so no SELECTS edge is
-// produced even though one may well exist once the workload is re-ingested.
-// Debug, not Warn, because this self-heals on re-ingest and is not itself an
-// operator-actionable failure -- it is context for diagnosing an otherwise
-// silent, transient missing edge at 3 AM.
-// logK8sSelectMixedVintageDrop logs a mixed-vintage matcher drop. The
-// implementation moved to querycontract for #6060; this wrapper keeps root
-// callers unchanged.
-func logK8sSelectMixedVintageDrop(ctx context.Context, logger *slog.Logger, serviceEntityID, workloadEntityID string) {
-	kubernetes.LogSelectMixedVintageDrop(ctx, logger, serviceEntityID, workloadEntityID)
-}
-
-// fetchK8sResourceCandidates lists up to repositorySemanticEntityLimit+1
-// K8sResource rows for repoID and reports whether the true candidate set
-// exceeded the limit. Fetching one extra row turns "did we truncate?" into
-// an exact signal: a repo with precisely repositorySemanticEntityLimit
-// K8sResource rows is not falsely flagged as truncated, only a repo with
-// MORE than the limit is. The extra row (if any) is dropped before the
-// candidate list is returned, so callers still see at most
-// repositorySemanticEntityLimit rows. See #5343 review (truncation
-// disclosure) and follow-up #5367 (real pagination, not yet implemented).
-func fetchK8sResourceCandidates(ctx context.Context, reader querycontract.ContentRelationshipReader, repoID string) ([]EntityContent, bool, error) {
-	candidates, err := reader.ListRepoEntitiesByType(ctx, repoID, "K8sResource", repositorySemanticEntityLimit+1)
+// fetchK8sResourceCandidates lists up to
+// querycontract.RepositorySemanticEntityLimit+1 K8sResource rows for repoID
+// and reports whether the true candidate set exceeded the limit. Fetching
+// one extra row turns "did we truncate?" into an exact signal: a repo with
+// precisely querycontract.RepositorySemanticEntityLimit K8sResource rows is
+// not falsely flagged as truncated, only a repo with MORE than the limit
+// is. The extra row (if any) is dropped before the candidate list is
+// returned, so callers still see at most
+// querycontract.RepositorySemanticEntityLimit rows. See #5343 review
+// (truncation disclosure) and follow-up #5367 (real pagination, not yet
+// implemented).
+func fetchK8sResourceCandidates(ctx context.Context, reader querycontract.ContentRelationshipReader, repoID string) ([]querycontract.EntityContent, bool, error) {
+	candidates, err := reader.ListRepoEntitiesByType(ctx, repoID, "K8sResource", querycontract.RepositorySemanticEntityLimit+1)
 	if err != nil {
 		return nil, false, fmt.Errorf("list repo entities for k8s selects: %w", err)
 	}
-	if len(candidates) > repositorySemanticEntityLimit {
-		return candidates[:repositorySemanticEntityLimit], true, nil
+	if len(candidates) > querycontract.RepositorySemanticEntityLimit {
+		return candidates[:querycontract.RepositorySemanticEntityLimit], true, nil
 	}
 	return candidates, false, nil
 }
 
 // isK8sResourceKind reports whether entity is a K8sResource of the given
-// kind. The implementation moved to querycontract for #6060; this wrapper
-// keeps root callers unchanged.
-func isK8sResourceKind(entity EntityContent, kind string) bool {
+// kind.
+func isK8sResourceKind(entity querycontract.EntityContent, kind string) bool {
 	return querycontract.IsK8sResourceKind(entity, kind)
 }
 

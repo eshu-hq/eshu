@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/entity/content/fallback"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
@@ -153,15 +154,15 @@ func TestBuildContentRelationshipSetK8sServiceSelectsRecoversDeploymentPastTrunc
 		},
 	}
 
-	relationships, ok, truncated, err := buildOutgoingK8sSelectRelationships(context.Background(), reader, service, nil)
+	relationships, ok, truncated, err := fallback.BuildOutgoingK8sSelectRelationships(context.Background(), reader, service, nil)
 	if err != nil {
-		t.Fatalf("buildOutgoingK8sSelectRelationships() error = %v, want nil", err)
+		t.Fatalf("fallback.BuildOutgoingK8sSelectRelationships() error = %v, want nil", err)
 	}
 	if !ok {
-		t.Fatalf("buildOutgoingK8sSelectRelationships() ok = false, want true")
+		t.Fatalf("fallback.BuildOutgoingK8sSelectRelationships() ok = false, want true")
 	}
 	if truncated {
-		t.Fatalf("buildOutgoingK8sSelectRelationships() truncated = true, want false (candidate count is within the limit)")
+		t.Fatalf("fallback.BuildOutgoingK8sSelectRelationships() truncated = true, want false (candidate count is within the limit)")
 	}
 	if len(relationships) != 1 {
 		t.Fatalf("len(relationships) = %d, want 1 (deployment-1 must survive the %d-row fetch horizon): %#v",
@@ -217,15 +218,15 @@ func TestBuildContentRelationshipSetK8sDeploymentRecoversIncomingServicePastTrun
 		},
 	}
 
-	relationships, ok, truncated, err := buildIncomingK8sSelectRelationships(context.Background(), reader, deployment, nil)
+	relationships, ok, truncated, err := fallback.BuildIncomingK8sSelectRelationships(context.Background(), reader, deployment, nil)
 	if err != nil {
-		t.Fatalf("buildIncomingK8sSelectRelationships() error = %v, want nil", err)
+		t.Fatalf("fallback.BuildIncomingK8sSelectRelationships() error = %v, want nil", err)
 	}
 	if !ok {
-		t.Fatalf("buildIncomingK8sSelectRelationships() ok = false, want true")
+		t.Fatalf("fallback.BuildIncomingK8sSelectRelationships() ok = false, want true")
 	}
 	if truncated {
-		t.Fatalf("buildIncomingK8sSelectRelationships() truncated = true, want false (candidate count is within the limit)")
+		t.Fatalf("fallback.BuildIncomingK8sSelectRelationships() truncated = true, want false (candidate count is within the limit)")
 	}
 	if len(relationships) != 1 {
 		t.Fatalf("len(relationships) = %d, want 1 (service-1 must survive the %d-row fetch horizon): %#v",
@@ -282,15 +283,15 @@ func TestBuildOutgoingK8sSelectRelationshipsTruncatesAtLimit(t *testing.T) {
 		},
 	}
 
-	relationships, ok, truncated, err := buildOutgoingK8sSelectRelationships(context.Background(), reader, service, nil)
+	relationships, ok, truncated, err := fallback.BuildOutgoingK8sSelectRelationships(context.Background(), reader, service, nil)
 	if err != nil {
-		t.Fatalf("buildOutgoingK8sSelectRelationships() error = %v, want nil", err)
+		t.Fatalf("fallback.BuildOutgoingK8sSelectRelationships() error = %v, want nil", err)
 	}
 	if !ok {
-		t.Fatalf("buildOutgoingK8sSelectRelationships() ok = false, want true")
+		t.Fatalf("fallback.BuildOutgoingK8sSelectRelationships() ok = false, want true")
 	}
 	if !truncated {
-		t.Fatalf("buildOutgoingK8sSelectRelationships() truncated = false, want true (%d candidates exceed the %d limit)",
+		t.Fatalf("fallback.BuildOutgoingK8sSelectRelationships() truncated = false, want true (%d candidates exceed the %d limit)",
 			len(candidates), repositorySemanticEntityLimit)
 	}
 	if len(relationships) != 0 {
@@ -351,15 +352,15 @@ func TestBuildIncomingK8sSelectRelationshipsTruncatesAtLimit(t *testing.T) {
 		},
 	}
 
-	relationships, ok, truncated, err := buildIncomingK8sSelectRelationships(context.Background(), reader, deployment, nil)
+	relationships, ok, truncated, err := fallback.BuildIncomingK8sSelectRelationships(context.Background(), reader, deployment, nil)
 	if err != nil {
-		t.Fatalf("buildIncomingK8sSelectRelationships() error = %v, want nil", err)
+		t.Fatalf("fallback.BuildIncomingK8sSelectRelationships() error = %v, want nil", err)
 	}
 	if !ok {
-		t.Fatalf("buildIncomingK8sSelectRelationships() ok = false, want true")
+		t.Fatalf("fallback.BuildIncomingK8sSelectRelationships() ok = false, want true")
 	}
 	if !truncated {
-		t.Fatalf("buildIncomingK8sSelectRelationships() truncated = false, want true (%d candidates exceed the %d limit)",
+		t.Fatalf("fallback.BuildIncomingK8sSelectRelationships() truncated = false, want true (%d candidates exceed the %d limit)",
 			len(candidates), repositorySemanticEntityLimit)
 	}
 	if len(relationships) != 0 {
@@ -408,15 +409,15 @@ func TestBuildOutgoingK8sSelectRelationshipsNotTruncatedBelowLimit(t *testing.T)
 		},
 	}
 
-	relationships, ok, truncated, err := buildOutgoingK8sSelectRelationships(context.Background(), reader, service, nil)
+	relationships, ok, truncated, err := fallback.BuildOutgoingK8sSelectRelationships(context.Background(), reader, service, nil)
 	if err != nil {
-		t.Fatalf("buildOutgoingK8sSelectRelationships() error = %v, want nil", err)
+		t.Fatalf("fallback.BuildOutgoingK8sSelectRelationships() error = %v, want nil", err)
 	}
 	if !ok {
-		t.Fatalf("buildOutgoingK8sSelectRelationships() ok = false, want true")
+		t.Fatalf("fallback.BuildOutgoingK8sSelectRelationships() ok = false, want true")
 	}
 	if truncated {
-		t.Fatalf("buildOutgoingK8sSelectRelationships() truncated = true, want false (candidate count == limit exactly, not over it)")
+		t.Fatalf("fallback.BuildOutgoingK8sSelectRelationships() truncated = true, want false (candidate count == limit exactly, not over it)")
 	}
 	if len(relationships) != 1 {
 		t.Fatalf("len(relationships) = %d, want 1 (the matching deployment is within the limit): %#v", len(relationships), relationships)
@@ -446,15 +447,15 @@ func TestBuildOutgoingK8sSelectRelationshipsSelectorlessFastPathNeverTruncates(t
 		},
 	}
 
-	relationships, ok, truncated, err := buildOutgoingK8sSelectRelationships(context.Background(), reader, service, nil)
+	relationships, ok, truncated, err := fallback.BuildOutgoingK8sSelectRelationships(context.Background(), reader, service, nil)
 	if err != nil {
-		t.Fatalf("buildOutgoingK8sSelectRelationships() error = %v, want nil", err)
+		t.Fatalf("fallback.BuildOutgoingK8sSelectRelationships() error = %v, want nil", err)
 	}
 	if !ok {
-		t.Fatalf("buildOutgoingK8sSelectRelationships() ok = false, want true")
+		t.Fatalf("fallback.BuildOutgoingK8sSelectRelationships() ok = false, want true")
 	}
 	if truncated {
-		t.Fatalf("buildOutgoingK8sSelectRelationships() truncated = true, want false (selectorless fast path never fetches candidates)")
+		t.Fatalf("fallback.BuildOutgoingK8sSelectRelationships() truncated = true, want false (selectorless fast path never fetches candidates)")
 	}
 	if len(relationships) != 0 {
 		t.Fatalf("len(relationships) = %d, want 0 (selectorless Service selects nothing)", len(relationships))
