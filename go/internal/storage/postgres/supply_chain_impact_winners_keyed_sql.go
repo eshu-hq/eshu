@@ -38,13 +38,13 @@ const (
 const createWinnersKeyedConsumedSQL = `
 CREATE TEMP TABLE winners_keyed_consumed (
     seq bigint, kind text, source text, package_id text, repository_id text, subject_digest text,
-    c0 text, advisory_id text, scope_id text, generation_id text
+    c0 text, advisory_id text, scope_id text, generation_id text, captured_at timestamptz
 ) ON COMMIT DROP
 `
 
 const admitWinnersKeyedWindowSQL = `
 INSERT INTO ` + winnersKeyedConsumedTable + `
-SELECT seq, kind, source, package_id, repository_id, subject_digest, c0, advisory_id, scope_id, generation_id
+SELECT seq, kind, source, package_id, repository_id, subject_digest, c0, advisory_id, scope_id, generation_id, captured_at
 FROM supply_chain_impact_winners_dirty_log
 ORDER BY seq
 LIMIT $1
@@ -145,18 +145,22 @@ WHERE fact.fact_kind = 'reducer_supply_chain_impact_finding'
   AND fact.is_tombstone = FALSE`
 
 // buildWinnersKeyedIdentsSQL builds the distinct identifier set of a keyed tick
-// from its consumed fact rows and the expansion of its consumed scope rows.
-// In the keyed tick the scope arm reads the provenance-carrying scope
-// identifier table the statement above built; the audit seeds the identifier
-// table itself and never runs this statement.
+// with the age of the oldest consumed row behind each identifier (#10706
+// oldest-first chunk): fact rows directly, scope-expanded identifiers through
+// the scope join, which recovers the per-row age the scope table's DISTINCT
+// dropped. The chunk orders by that age. The audit seeds the identifier table
+// itself and never runs this statement.
 var buildWinnersKeyedIdentsSQL = `
 CREATE TEMP TABLE winners_keyed_idents ON COMMIT DROP AS
-SELECT package_id, repository_id, subject_digest, c0, advisory_id
-FROM ` + winnersKeyedConsumedTable + `
-WHERE kind = 'fact'
-UNION
-SELECT package_id, repository_id, subject_digest, c0, advisory_id
-FROM ` + winnersKeyedScopeIdentsTable
+SELECT package_id, repository_id, subject_digest, c0, advisory_id, MIN(captured_at) AS age_captured_at, MIN(seq) AS age_seq
+FROM (
+    SELECT package_id, repository_id, subject_digest, c0, advisory_id, captured_at, seq FROM ` + winnersKeyedConsumedTable + ` WHERE kind = 'fact'
+    UNION ALL
+    SELECT si.package_id, si.repository_id, si.subject_digest, si.c0, si.advisory_id, c.captured_at, c.seq
+    FROM ` + winnersKeyedConsumedTable + ` AS c JOIN ` + winnersKeyedScopeIdentsTable + ` AS si ON si.scope_id = c.scope_id AND si.generation_id = c.generation_id
+    WHERE c.kind = 'scope'
+) AS aged
+GROUP BY package_id, repository_id, subject_digest, c0, advisory_id`
 
 // analyzeWinnersKeyedIdentsSQL gives the planner the real identifier count, so
 // it probes the keyed winners index once per identifier instead of choosing a
@@ -172,8 +176,9 @@ const analyzeWinnersKeyedIdentsSQL = `ANALYZE ` + winnersKeyedIdentsTable
 // the candidates the expansion reads, and the truncation decision is made on
 // identifiers.
 //
-// The chunk is a prefix of the ordered post-expansion identifier set. The
-// active_facts build is the shipped per-identifier probe over the 291
+// The chunk is the oldest-first prefix of the post-expansion identifier
+// set (#10706). The active_facts build is the shipped per-identifier probe
+// over the 291
 // five-tuple keyed index (buildWinnersKeyedActiveFactsSQL, unchanged): with
 // all five equalities as index conditions the heap fetches only the facts a
 // dirty key keeps, so no candidate-row budget is needed. The lane this file
@@ -181,14 +186,15 @@ const analyzeWinnersKeyedIdentsSQL = `ANALYZE ` + winnersKeyedIdentsTable
 // index; migration 293 retired that index, so per-triple probing has no
 // access path anymore.
 
-// selectWinnersKeyedChunkIdentsSQL lists the identifier set's five-tuples in
-// a fixed order, $1 of them. The caller asks for one past the bound, so a
-// full page proves the set continues past this chunk. The first identifier
-// always completes, so even a bound of one drains.
+// selectWinnersKeyedChunkIdentsSQL lists the identifier set's five-tuples
+// oldest first (#10706), $1 of them: MIN(captured_at), tie-break MIN(seq),
+// then the five-tuple for determinism. The caller asks for one past the
+// bound, so a full page proves the set continues past this chunk. The first
+// identifier always completes, so even a bound of one drains.
 const selectWinnersKeyedChunkIdentsSQL = `
 SELECT package_id, repository_id, subject_digest, c0, advisory_id
 FROM ` + winnersKeyedIdentsTable + `
-ORDER BY package_id, repository_id, subject_digest, c0, advisory_id
+ORDER BY age_captured_at, age_seq, package_id, repository_id, subject_digest, c0, advisory_id
 LIMIT $1
 `
 
@@ -232,7 +238,7 @@ func winnersKeyedChunkIdentMatch(alias string) string {
 // key is the package triple plus the coalesced c0 and advisory expressions
 // below, so all five equalities are index conditions and the heap fetches only
 // the facts a dirty key keeps (about 13 kept facts per identifier on QA). The
-// identifier table holds distinct five-tuples (it is built with UNION), and a
+// identifier table holds distinct five-tuples (it is built with GROUP BY over UNION ALL), and a
 // fact carries exactly one c0 and advisory_id, so no fact can match two
 // identifiers and the probe cannot duplicate a row. The previous per-triple
 // probe used the package-lookup index, keyed on the triple only: it fetched

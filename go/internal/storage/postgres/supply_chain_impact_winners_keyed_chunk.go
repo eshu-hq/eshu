@@ -66,12 +66,13 @@ type winnersChunkOutcome struct {
 	truncated   bool
 }
 
-// buildWinnersKeyedChunk admits the chunk: the first identifiers of the
-// ordered post-expansion identifier set, one statement each into the chunk
-// table, then restricts the identifier table to them so the probe and the
-// apply that follow are bounded by the same chunk. The first identifier
-// always completes, so a single hot identifier still makes progress and the
-// log always drains. It reports whether the set continued past the chunk.
+// buildWinnersKeyedChunk admits the chunk: the oldest identifiers of the
+// post-expansion identifier set by producing dirty row (#10706
+// oldest-first), one statement each into the chunk table, then restricts
+// the identifier table to them so the probe and the apply that follow are
+// bounded by the same chunk. The first identifier always completes, so a
+// single hot identifier still makes progress and the log always drains. It
+// reports whether the set continued past the chunk.
 func buildWinnersKeyedChunk(
 	ctx context.Context,
 	tx db.Transaction,

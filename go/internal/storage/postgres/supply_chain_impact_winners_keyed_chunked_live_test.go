@@ -206,9 +206,10 @@ func TestSupplyChainImpactWinnersResweepKeyedChunkedAdmissionTruncateLive(t *tes
 
 // TestSupplyChainImpactWinnersResweepKeyedChunkedZeroAppliedScopeLive pins the
 // scope row a chunk skips entirely: when every identifier of a scope row's
-// expansion sorts after the chunk prefix, the tick applies none of them, so
-// the scope row stays queued (no remainder to convert, nothing to delete) and
-// the next ticks resume from it instead of re-expanding the generation.
+// expansion is newer than the chunk's oldest-first prefix, the tick applies
+// none of them, so the scope row stays queued (no remainder to convert,
+// nothing to delete) and the next ticks resume from it instead of
+// re-expanding the generation.
 func TestSupplyChainImpactWinnersResweepKeyedChunkedZeroAppliedScopeLive(t *testing.T) {
 	h := newKeyedHarness(t, "#9805 chunked zero-applied scope proof")
 	scope := "vuln-intel://9805-chunked/mix"
@@ -223,14 +224,25 @@ func TestSupplyChainImpactWinnersResweepKeyedChunkedZeroAppliedScopeLive(t *test
 	h.addGeneration(scope, scope+"/g2", "pending")
 	h.write(scope, scope+"/g2", chunkedFindings("zzz", 4, 1, 0)...)
 	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_log WHERE kind = 'fact'`)
-	h.activate(scope, scope+"/g1", scope+"/g2")
-	// Four fact rows for the rewritten aaa findings sort before every zzz
-	// identifier of the scope row's expansion.
+	// The four rewritten aaa fact rows predate the activation, so their
+	// identifiers are older than every zzz identifier of the g2 scope row's
+	// expansion.
 	h.write(scope, scope+"/g1", chunkedFindings("aaa", 4, 1, 1000)...)
+	h.activate(scope, scope+"/g1", scope+"/g2")
 	// The activation queued one scope row per generation side (old and new),
 	// plus the four fact rows for the rewritten aaa findings.
 	if depth := h.dirtyDepth(); depth != 6 {
 		t.Fatalf("queued %d dirty rows, want 4 fact rows plus 2 scope rows", depth)
+	}
+	// The g2 scope row is the newest dirty row: oldest-first applies the
+	// older aaa identifiers before its expansion.
+	var newestKind, newestGen string
+	if err := h.db.QueryRowContext(h.ctx,
+		`SELECT kind, generation_id FROM supply_chain_impact_winners_dirty_log ORDER BY captured_at DESC, seq DESC LIMIT 1`).Scan(&newestKind, &newestGen); err != nil {
+		t.Fatalf("read newest dirty row: %v", err)
+	}
+	if newestKind != "scope" || newestGen != scope+"/g2" {
+		t.Fatalf("newest dirty row is %s %q, want the g2 scope row the oldest-first chunk skips", newestKind, newestGen)
 	}
 
 	h.store.ChunkMaxIdentifiers = 4
@@ -243,8 +255,9 @@ func TestSupplyChainImpactWinnersResweepKeyedChunkedZeroAppliedScopeLive(t *test
 	}
 	// The g1 scope row's expansion (the aaa identifiers) was fully applied,
 	// so it leaves with the fact rows; the g2 scope row's expansion (the zzz
-	// identifiers, all sorting after the chunk prefix) saw zero applied
-	// identifiers, so it stays queued instead of being dropped or converted.
+	// identifiers, all newer than the oldest-first chunk prefix) saw zero
+	// applied identifiers, so it stays queued instead of being dropped or
+	// converted.
 	if n := h.count(`SELECT count(*) FROM supply_chain_impact_winners_dirty_log WHERE kind = 'scope'`); n != 1 {
 		t.Errorf("%d scope rows still queued, want the one whose expansion the chunk skipped", n)
 	}

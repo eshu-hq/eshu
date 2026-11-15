@@ -51,9 +51,12 @@ WHERE n.canonical_key IS NULL
 
 // seedWinnersAuditIdentsSQL copies the candidates into the identifier table the
 // keyed build reads, so the verification reuses the keyed statements unchanged.
+// The NULL age columns keep the table schema-compatible with the keyed build,
+// which carries per-identifier ages for its oldest-first chunk order.
 const seedWinnersAuditIdentsSQL = `
 CREATE TEMP TABLE winners_keyed_idents ON COMMIT DROP AS
-SELECT package_id, repository_id, subject_digest, c0, advisory_id FROM ` + winnersAuditCandidatesTable
+SELECT package_id, repository_id, subject_digest, c0, advisory_id,
+    NULL::timestamptz AS age_captured_at, NULL::bigint AS age_seq FROM ` + winnersAuditCandidatesTable
 
 // createWinnersAuditStaleSQL verifies the candidates under the lock: it
 // recomputes only their keys and diffs them against only their stored rows.
@@ -112,10 +115,11 @@ var selectWinnersAuditCandidatesSQL = `WITH winners_now AS (` + supplyChainImpac
 // scan seeds. The name is literal, like every sibling temp-table statement,
 // so it stays greppable; it must stay identical to
 // winnersKeyedIdentsTable, which the verification it feeds references. The
-// five text columns match the legacy CTAS, so every downstream statement runs
-// unchanged.
+// five text columns match the legacy CTAS, and the NULL-default age columns
+// match the keyed build, so every downstream statement runs unchanged.
 const createWinnersAuditStaleIdentsSQL = `CREATE TEMP TABLE winners_keyed_idents (
-    package_id text, repository_id text, subject_digest text, c0 text, advisory_id text
+    package_id text, repository_id text, subject_digest text, c0 text, advisory_id text,
+    age_captured_at timestamptz, age_seq bigint
 ) ON COMMIT DROP`
 
 // seedWinnersAuditStaleIdentsSQL appends one batch of candidate identifiers to
