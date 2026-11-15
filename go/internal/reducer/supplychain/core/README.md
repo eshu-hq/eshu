@@ -272,8 +272,8 @@ leave the finding's bucket at `none`, because the bucket came from
 observation with `cvss.DeriveSeverity`
 (`go/internal/reducer/supplychain/core/cvss`), on the advisory path
 (`buildAdvisoryProvenanceObservations`), the NVD product path
-(`baseSupplyChainImpactProductFinding`), and the provider-alert path
-(`buildSecurityAlertImpactFinding`). Order of precedence:
+(`baseSupplyChainImpactProductFinding`, best-scored row, #10717), and the
+provider-alert path (`buildSecurityAlertImpactFinding`). Order of precedence:
 
 1. A source-reported score above zero is used as published.
 2. Otherwise a valid CVSS v3.0, v3.1, or v4.0 vector yields the computed base
@@ -289,7 +289,7 @@ observation with `cvss.DeriveSeverity`
    source, and a lower-priority source with a score still beats a
    higher-priority source with only a label. The losing observations stay as
    alternates, with `score_source` kept on a derived one.
-4. Otherwise `none`.
+4. Otherwise `none`. A rejected or withdrawn record lends none unless no live one remains.
 
 A malformed or unsupported vector never panics and never produces a score; the
 label, if any, decides.

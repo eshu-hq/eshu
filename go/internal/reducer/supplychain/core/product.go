@@ -16,10 +16,11 @@ import (
 
 func classifySupplyChainImpactProduct(
 	cve supplychainmodel.ImpactCVE,
+	severityObservation supplychainmodel.ImpactCVE,
 	product supplychainmodel.AffectedProduct,
 	index supplyChainImpactIndex,
 ) SupplyChainImpactFinding {
-	finding := baseSupplyChainImpactProductFinding(cve, product, index)
+	finding := baseSupplyChainImpactProductFinding(cve, severityObservation, product, index)
 	component, attachment, image, hasComponentPath, imagePathMissing := firstSBOMProductImpactPath(product, index)
 	if hasComponentPath {
 		finding.ObservedVersion = payloadcore.FirstNonBlank(component.Version, versionFromCPE23Criteria(product.Criteria))
@@ -46,12 +47,17 @@ func classifySupplyChainImpactProduct(
 	return finding
 }
 
+// baseSupplyChainImpactProductFinding names the finding from cve, the ranked
+// representative, and reports severity from severityObservation, the group's
+// best-scored row (#10717). They are the same record unless the ranked row is
+// the less informative one.
 func baseSupplyChainImpactProductFinding(
 	cve supplychainmodel.ImpactCVE,
+	severityObservation supplychainmodel.ImpactCVE,
 	product supplychainmodel.AffectedProduct,
 	index supplyChainImpactIndex,
 ) SupplyChainImpactFinding {
-	severity := cvss.DeriveSeverity(cve.CVSSScore, cve.CVSSVector, cve.SeverityLabel)
+	severity := cvss.DeriveSeverity(severityObservation.CVSSScore, severityObservation.CVSSVector, severityObservation.SeverityLabel)
 	finding := SupplyChainImpactFinding{
 		CVEID:               cve.CVEID,
 		AdvisoryID:          payloadcore.FirstNonBlank(cve.AdvisoryID, cve.CVEID),
@@ -59,12 +65,12 @@ func baseSupplyChainImpactProductFinding(
 		MatchCriteriaID:     product.MatchCriteriaID,
 		CVSSScore:           severity.Score,
 		SeverityScoreSource: derivedScoreSource(severity),
-		SeverityVector:      strings.TrimSpace(cve.CVSSVector),
-		SeverityLabel:       strings.TrimSpace(cve.SeverityLabel),
+		SeverityVector:      strings.TrimSpace(severityObservation.CVSSVector),
+		SeverityLabel:       strings.TrimSpace(severityObservation.SeverityLabel),
 		AdvisoryPublishedAt: cve.PublishedAt,
 		AdvisoryUpdatedAt:   cve.SourceUpdatedAt,
 		EvidencePath:        []string{chain.VulnerabilityCVEFactKind, chain.VulnerabilityAffectedProductFactKind},
-		EvidenceFactIDs:     []string{cve.FactID, product.FactID},
+		EvidenceFactIDs:     []string{cve.FactID, severityObservation.FactID, product.FactID},
 	}
 	applyRiskSignals(&finding, index.riskSignals[cve.CVEID])
 	applyAliasGroupOutcome(&finding, index)
@@ -200,4 +206,62 @@ func applyRiskSignals(finding *SupplyChainImpactFinding, signals supplychainmode
 		finding.PriorityReason = strings.Join(reasons, "; ") + "; signals do not prove reachability"
 	}
 	finding.EvidenceFactIDs = payloadcore.UniqueSortedStrings(finding.EvidenceFactIDs)
+}
+
+// severityObservation returns the observation whose severity the product path
+// reports, given the representative that names the finding. The product path
+// reads one row, and the representative is chosen by source rank alone; the CVE
+// List ranks above NVD, so an unscored cve_list row would otherwise hide NVD's
+// score (eshu-hq/eshu#10717). This mirrors the package path's severity
+// fallback: a source-reported score beats a vector-derived score, which beats a
+// label, and source rank orders observations within one tier. A withdrawn or
+// rejected record lends no severity. Identity never reads this row: the
+// finding's advisory id, dates, and key stay the representative's. With no
+// better-tiered observation the representative itself is returned, so a group
+// whose ranked row already carries the best severity is unchanged.
+func (g supplyChainCVEGroup) severityObservation(representative supplychainmodel.ImpactCVE) supplychainmodel.ImpactCVE {
+	best := representative
+	bestTier := observationSeverityTier(representative)
+	bestRank := observationSourceRank(representative)
+	for _, observation := range g.observations {
+		if advisoryRetractionCode(observation.Status, observation.WithdrawnAt) != "" {
+			continue
+		}
+		tier := observationSeverityTier(observation)
+		if tier > bestTier {
+			continue
+		}
+		rank := observationSourceRank(observation)
+		if tier < bestTier || rank < bestRank || (rank == bestRank && observation.FactID < best.FactID) {
+			best, bestTier, bestRank = observation, tier, rank
+		}
+	}
+	return best
+}
+
+// observationSeverityTier orders what an observation says about severity, the
+// lowest tier winning: a reported score, a score derived from its vector, a
+// recognized label, then nothing. It is the tiering of selectFallbackSeverity,
+// read through the same cvss.DeriveSeverity the finding uses.
+func observationSeverityTier(observation supplychainmodel.ImpactCVE) int {
+	// A retracted representative still names the finding, but it earns no tier
+	// of its own, so any live observation with a severity replaces it.
+	if advisoryRetractionCode(observation.Status, observation.WithdrawnAt) != "" {
+		return 4
+	}
+	severity := cvss.DeriveSeverity(observation.CVSSScore, observation.CVSSVector, observation.SeverityLabel)
+	switch {
+	case severity.Score > 0 && severity.ScoreSource == cvss.ScoreSourceReported:
+		return 0
+	case severity.Score > 0:
+		return 1
+	case severity.Bucket != cvss.BucketNone:
+		return 2
+	default:
+		return 3
+	}
+}
+
+func observationSourceRank(observation supplychainmodel.ImpactCVE) int {
+	return advisorySourcePriority("", classifyAdvisorySource(observation.Source, observation.AdvisoryID))
 }

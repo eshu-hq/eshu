@@ -39,8 +39,9 @@ func appendSupplyChainImpactIndexFindings(findings []SupplyChainImpactFinding, i
 			continue
 		}
 		representative, retraction := native.representative(), native.retraction(index)
+		severity := native.severityObservation(representative)
 		for _, product := range products {
-			finding := classifySupplyChainImpactProduct(representative, product, index)
+			finding := classifySupplyChainImpactProduct(representative, severity, product, index)
 			finding.AdvisoryRetraction = retraction
 			findings = appendSupplyChainImpactFinding(findings, finding)
 		}
