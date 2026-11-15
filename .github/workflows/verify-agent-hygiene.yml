@@ -52,40 +52,8 @@ jobs:
       # The shared agent material (skills, role bindings, harness hooks) lives
       # in the eshu-agent-kit and is installed locally by its installer. The
       # suites below read the installed tree, so install it first.
-      #
-      # The kit carries no release tags yet, so the checkout is pinned to a
-      # full commit SHA: the enforcement gate must execute one immutable kit
-      # revision, and a floating HEAD could change under the gate. The
-      # archive's top-level directory name is discovered rather than computed,
-      # because GitHub names it from the ref (a SHA keeps the full hash, a tag
-      # drops the leading "v"), so a computed path would miss the checkout.
       - name: Install the eshu-agent-kit
-        env:
-          ESHU_AGENT_KIT_REF: 064958ff30c73fd6f54fce709d60ad61b2904c14
-        run: |
-          set -euo pipefail
-          work="$(mktemp -d)"
-          curl -fsSL "https://codeload.github.com/eshu-hq/eshu-agent-kit/tar.gz/${ESHU_AGENT_KIT_REF}" -o "$work/kit.tar.gz"
-          tar -xzf "$work/kit.tar.gz" -C "$work"
-          kit="$(find "$work" -mindepth 1 -maxdepth 1 -type d -name 'eshu-agent-kit-*' | head -1)"
-          if [ -z "$kit" ] || [ ! -x "$kit/install.sh" ]; then
-            echo "the eshu-agent-kit archive did not contain install.sh" >&2
-            exit 1
-          fi
-          # The pin and the checked-out revision must agree, so the VERSION
-          # the kit carries and the version this repo pins cannot drift apart
-          # silently.
-          pinned="$(tr -d '[:space:]' < .agent-kit-version)"
-          carried="$(tr -d '[:space:]' < "$kit/VERSION")"
-          if [ "$pinned" != "$carried" ]; then
-            echo "eshu-agent-kit version mismatch: repo pins $pinned, checkout carries $carried" >&2
-            echo "fix: update .agent-kit-version, or pin ESHU_AGENT_KIT_REF to a revision carrying $pinned" >&2
-            exit 1
-          fi
-          "$kit/install.sh" --repo "$PWD" --aliases "$kit/templates/repo-overlay/eshu-aliases.tsv"
-          "$kit/install.sh" --agents --repo "$PWD"
-          "$kit/install.sh" --hooks --repo "$PWD"
-          "$kit/install.sh" --rules --repo "$PWD"
+        run: scripts/ci/install-eshu-agent-kit.sh
 
       - name: Run test mirror
         if: ${{ github.event_name != 'pull_request' || inputs.plan_mode != 'smoke' || contains(fromJSON(inputs.plan_gates || '[]'), 'no-private-identifiers') }}
@@ -192,40 +160,13 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
 
-      # The harness skill trees are installer-generated, never stored: the
-      # canon gate fails without them, so regenerate before it runs. Same-org
-      # checkout (owner eshu-hq; the kit carries no LICENSE file, it is an
-      # internal companion repo), pinned to the full commit SHA so the
-      # enforcement gate executes one immutable kit revision. The kit has no
-      # release tags yet, so the step asserts the checkout's VERSION against
-      # .agent-kit-version to keep the SHA and the version string paired; the
-      # mismatch message names the fix.
-      - name: Check out eshu-agent-kit
-        uses: actions/checkout@v5
-        with:
-          repository: eshu-hq/eshu-agent-kit
-          ref: e703a83a9b578d6ca4410ed1d87288e1006489e4
-          path: eshu-agent-kit
-
-      - name: Regenerate harness skill trees from the kit
+      # The shared agent material (skills, role bindings, harness hooks) is
+      # installed by the eshu-agent-kit installer, never stored here. The
+      # canon gate reads the installed tree and fails without it, so install
+      # it first, at the revision this repo pins.
+      - name: Install the eshu-agent-kit
         if: ${{ github.event_name != 'pull_request' || inputs.plan_mode != 'smoke' }}
-        run: |
-          kit_version="$(cat eshu-agent-kit/VERSION)"
-          pin_version="$(cat .agent-kit-version)"
-          if [ "$kit_version" != "$pin_version" ]; then
-            echo "kit checkout $kit_version does not match pin $pin_version (update the pin or cut the release tag)" >&2
-            exit 1
-          fi
-          # Every mode the canon gate reads: --repo materializes the skills
-          # and their alias wrappers, --agents the role manifest, the role
-          # shims and the launcher, --hooks the hook scripts, --rules the
-          # path-scoped rules. Installing only --repo leaves the role
-          # manifest and the hooks absent, and the canon gate fails on the
-          # missing manifest before it checks anything.
-          bash eshu-agent-kit/install.sh --repo "$GITHUB_WORKSPACE" --aliases "$GITHUB_WORKSPACE/eshu-agent-kit/templates/repo-overlay/eshu-aliases.tsv"
-          bash eshu-agent-kit/install.sh --agents --repo "$GITHUB_WORKSPACE"
-          bash eshu-agent-kit/install.sh --hooks --repo "$GITHUB_WORKSPACE"
-          bash eshu-agent-kit/install.sh --rules --repo "$GITHUB_WORKSPACE"
+        run: scripts/ci/install-eshu-agent-kit.sh
 
       - name: Shared agent canon and harness discovery
         if: ${{ github.event_name != 'pull_request' || inputs.plan_mode != 'smoke' }}
