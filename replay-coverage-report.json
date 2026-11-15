@@ -2,8 +2,8 @@
   "schema_version": "replay-coverage-report.v5",
   "blocking": true,
   "totals": {
-    "total": 455,
-    "covered": 442,
+    "total": 456,
+    "covered": 443,
     "uncovered": 0,
     "unresolved": 0,
     "exempt": 13,
@@ -23,8 +23,8 @@
     },
     {
       "registry": "capability_matrix",
-      "total": 160,
-      "covered": 160,
+      "total": 161,
+      "covered": 161,
       "uncovered": 0,
       "unresolved": 0,
       "exempt": 0,
@@ -125,8 +125,8 @@
   "scenario_type_summaries": [
     {
       "scenario_type": "baseline",
-      "total": 240,
-      "covered": 237,
+      "total": 241,
+      "covered": 238,
       "uncovered": 0,
       "unresolved": 0,
       "exempt": 3,
@@ -1074,6 +1074,16 @@
       "ref": "rc-4",
       "proof_gate": "golden-corpus-gate-neo4j",
       "detail": "snapshot required correlation \"rc-4\""
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:manifest.dependencies.list",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "go_test",
+      "ref": "go/internal/query/manifest/handler_test.go",
+      "proof_gate": "go-test-race",
+      "detail": "artifact present: go/internal/query/manifest/handler_test.go"
     },
     {
       "registry": "capability_matrix",
