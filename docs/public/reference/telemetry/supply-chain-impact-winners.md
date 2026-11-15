@@ -19,7 +19,8 @@ deletes rows that are no longer winners, and
 stamps the read watermark: the DB-clock tick stamp when the dirty log drained,
 or the horizon over the rows still queued (#10706) — the earliest queued
 capture time minus one microsecond, so every capture at or under the watermark
-is applied. A winner row that did not change is not locked,
+is applied, except the documented one-tick late-commit residual, which the
+next tick applies. A winner row that did not change is not locked,
 versioned, or written to the write-ahead log. Freshness comes from the
 singleton watermark, which every committed resweep stamps, so a resweep that wrote nothing still tells readers the model is current.
 

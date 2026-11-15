@@ -38,9 +38,12 @@ const (
 // queued. The keyed and idle stamps resolve GREATEST(previous, candidate)
 // so the watermark never regresses; the full fallback recomputes every key
 // and stamps S. S is the DB clock read once before admission, in the same
-// domain as captured_at, so a row that commits mid-tick is never covered by
-// the stamp; the result reports the re-read committed watermark on every
-// path. A bounded pass reports Bounded with the remaining depth. Passes run
+// domain as captured_at. A row that both executes and commits after the
+// tick clock was read is never covered by the stamp; a row that executed
+// before it but commits after the tick's snapshot stays covered for exactly
+// one tick and the next tick applies it (see the late-commit tests). The
+// result reports the re-read committed watermark on every path. A bounded
+// pass reports Bounded with the remaining depth. Passes run
 // one per maintainer tick (re-ticked immediately while Bounded), so a
 // backlog drains as short spaced ticks, never as one long transaction. When
 // the admitted window's identifiers exceed MaxIdentifiers, or MaxKeyFraction

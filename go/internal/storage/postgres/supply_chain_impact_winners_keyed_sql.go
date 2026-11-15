@@ -77,8 +77,10 @@ SELECT min(captured_at) FROM supply_chain_impact_winners_dirty_log
 // transaction. The tick reads it once, before admission, and every branch
 // that stamps S stamps that one read (#10706): the watermark, captured_at,
 // and the intent bound the advisory handler waits on all live in the DB
-// clock domain, and a row that commits mid-tick is never covered by the
-// stamp.
+// clock domain. A row that both executes and commits after that read is
+// never covered by the stamp; a row that executed before it but commits
+// after the tick's snapshot stays covered for exactly one tick and the next
+// tick applies it (see the late-commit tests).
 const selectWinnersKeyedTickClockSQL = `
 SELECT clock_timestamp()
 `
