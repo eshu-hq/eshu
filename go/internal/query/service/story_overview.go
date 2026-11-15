@@ -404,9 +404,13 @@ func buildServiceSupportOverviewWithContext(buildCtx serviceStoryBuildContext) m
 	// #10656: the support overview ships on both the story and the service
 	// context routes, so naming the paged consumer list here points both
 	// surfaces at the full keyset-ordered set past the dossier read bound.
-	if serviceName := querycontract.SafeStr(workloadContext, "name"); serviceName != "" {
-		overview["consumer_list_tool"] = "list_service_downstream_consumers"
-		overview["consumer_list_path"] = "/api/v0/services/" + serviceName + "/downstream-consumers"
+	// It names the tool only when a downstream read bound fired, because
+	// only then is there a known remainder past the rendered rows.
+	if downstreamBoundFired(workloadContext) {
+		if serviceName := querycontract.SafeStr(workloadContext, "name"); serviceName != "" {
+			overview["consumer_list_tool"] = "list_service_downstream_consumers"
+			overview["consumer_list_path"] = "/api/v0/services/" + serviceName + "/downstream-consumers"
+		}
 	}
 	return overview
 }

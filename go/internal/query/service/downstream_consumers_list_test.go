@@ -188,6 +188,9 @@ func TestListServiceDownstreamConsumersTerminalPageIsHonest(t *testing.T) {
 	if first.Truncated {
 		t.Fatal("truncated = true, want false (nothing fired, nothing dropped)")
 	}
+	if first.LowerBound {
+		t.Fatal("LowerBound = true, want false (no read bound fired, so the set is exact)")
+	}
 }
 
 // TestListServiceDownstreamConsumersReportsReadBound proves the page carries
@@ -207,7 +210,27 @@ func TestListServiceDownstreamConsumersReportsReadBound(t *testing.T) {
 	if page.EffectiveBound <= 0 {
 		t.Fatalf("EffectiveBound = %d, want the positive internal read bound", page.EffectiveBound)
 	}
+	if page.LowerBound {
+		t.Fatal("LowerBound = true, want false (no read bound fired in a complete read)")
+	}
+}
+
+// TestListServiceDownstreamConsumersLowerBoundFiresOnReadBound proves the
+// #10656 arbiter ruling: LowerBound is true only when a read bound fired,
+// not unconditionally. 501 content rows exceed the 500-row scan bound, so
+// the search probe fires and the merged set is a lower bound.
+func TestListServiceDownstreamConsumersLowerBoundFiresOnReadBound(t *testing.T) {
+	t.Parallel()
+
+	page, err := ListServiceDownstreamConsumers(
+		context.Background(), listTestGraphReader(0), listTestContentStore{total: 501},
+		"repository:svc", "svc",
+		listTestAccess(), nil, 50,
+	)
+	if err != nil {
+		t.Fatalf("ListServiceDownstreamConsumers() error = %v, want nil", err)
+	}
 	if !page.LowerBound {
-		t.Fatal("LowerBound = false, want true (no exact-total claim on a bounded merged read)")
+		t.Fatal("LowerBound = false, want true (a read bound fired)")
 	}
 }

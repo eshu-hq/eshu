@@ -54,22 +54,26 @@ family is named with its total in `truth.omissions`; repeat the call with
 `full` for every field of every row. Any other value returns 400
 `invalid_argument` before any read runs.
 
-The dossiers keep only a 50-row `api_surface` preview; page the full ordered set through the endpoint route above (`limit` default 50 max 100, `offset` default 0, `next_offset` absent when complete) and the MCP `list_service_api_endpoints` tool. Downstream lists render to the read bound; page the keyset-ordered set past the dossier read bound through the downstream-consumers route (`limit` default 50 max 100, `after_repository`+`after_repo_id` cursor, absent `next_cursor` ends the walk; the walk itself is a bounded scan and the list reports `lower_bound`) and the MCP `list_service_downstream_consumers` tool. See [Context Evidence Budget](context-evidence-budget.md).
+The dossiers keep only a 50-row `api_surface` preview; page the full ordered set through the endpoint route above (`limit` default 50 max 100, `offset` default 0, `next_offset` absent when complete) and the MCP `list_service_api_endpoints` tool. Downstream lists render to the read bound; page the keyset-ordered set past the dossier read bound through the downstream-consumers route (`limit` default 50 max 100, `after_repository`+`after_repo_id` cursor, absent `next_cursor` ends the walk; the walk itself is a bounded scan and the list reports `lower_bound` true only when a bound fired) and the MCP `list_service_downstream_consumers` tool. See [Context Evidence Budget](context-evidence-budget.md).
 
-The story's `result_limits.downstream_count` counts distinct repositories across
-the `dependents` and `consumer_repositories` lists: a repository present in both
-counts once, so the number is never the sum of the two list lengths. The field
-carries `downstream_count_is_lower_bound` alongside it, true whenever the
-dependents or consumer_repositories read hit its bound; in that case more
-repositories may exist past `downstream_read_limit`, the text summary renders the
-count with a `+` suffix (for example `consumers 7+`), and the paged
-`list_service_downstream_consumers` tool (named in `support_overview`, which ships
-on both the story and the context routes) returns the keyset-ordered set past the dossier read bound (itself a bounded scan; the list reports `lower_bound`).
+The story's `result_limits` carries three downstream numbers and a bound flag.
+`downstream_entries` is the sum of the `dependents` and `consumer_repositories`
+list lengths (a repository present in both counts twice); `downstream_count` is
+its deprecated alias, kept for one minor version; `downstream_repository_count`
+counts distinct repositories across the two lists (a repository present in both
+counts once). `lower_bound` is always present and true whenever the dependents
+or consumer_repositories read hit its bound; in that case more repositories may
+exist past `downstream_read_limit`, the text summary renders the distinct count
+with a `+` suffix (for example `consumers 7+`), and `support_overview` (shipped
+on both the story and the context routes) names the paged
+`list_service_downstream_consumers` tool, which returns the keyset-ordered set
+past the dossier read bound (itself a bounded scan; the list reports
+`lower_bound` true only when a bound fired).
 `upstream_dependencies` rows, by contrast, are one row per upstream edge:
 incoming deployment-artifact edges, repository dependency rows, and provisioning
 source chains, sorted by relationship type then source.
 
-No-Regression Evidence (#10656): the count change is in-memory only over rows already read: baseline summed both list lengths, after dedupes by repo_id in one O(n) pass with no new query or bound change. Measured on in-memory fixtures (`TestServiceStoryDownstreamCountDedupesSharedRepository`, four-case `TestServiceStoryDownstreamCountLowerBoundCases`) and the focused suites (`./internal/query/service/`, `./internal/query/entity/`, `./internal/query/`, `./internal/mcp/`, `./internal/mcp/service/`, `./cmd/api/`, all exit 0). Safe: the flag reuses the existing truncation bools.
+No-Regression Evidence (#10656): the count change is in-memory only over rows already read: `downstream_entries` sums both list lengths and `downstream_repository_count` dedupes by repo_id in one O(n) pass with no new query or bound change. Measured on in-memory fixtures (`TestServiceStoryDownstreamCountDedupesSharedRepository`, five-case `TestServiceStoryDownstreamCountLowerBoundCases`) and the focused suites (`./internal/query/service/`, `./internal/query/entity/`, `./internal/query/`, `./internal/mcp/`, `./internal/mcp/service/`, `./cmd/api/`, all exit 0). Safe: the flag reuses the existing truncation bools.
 
 No-Observability-Change (#10656): no new metric, span, or log line; the existing `result_limits.truncated` and `raw_context_limits` entries observe the bounded reads.
 

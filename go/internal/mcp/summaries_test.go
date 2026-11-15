@@ -30,8 +30,8 @@ func TestSummarizeToolTextServiceStory(t *testing.T) {
 				"truncated":      true,
 			},
 			"result_limits": map[string]any{
-				"upstream_count":   float64(3),
-				"downstream_count": float64(7),
+				"upstream_count":              float64(3),
+				"downstream_repository_count": float64(7),
 			},
 		},
 	}
@@ -49,8 +49,9 @@ func TestSummarizeToolTextServiceStory(t *testing.T) {
 }
 
 // TestSummarizeToolTextServiceStoryLowerBound pins the #10656 summary
-// marker: a lower-bound downstream count renders with a "+" suffix so the
-// one-line summary never reads as an exact total.
+// marker: a lower-bound downstream count renders the distinct repository
+// count with a "+" suffix so the one-line summary never reads as an exact
+// total.
 func TestSummarizeToolTextServiceStoryLowerBound(t *testing.T) {
 	env := &query.ResponseEnvelope{
 		Truth: freshTruth(query.TruthLevelExact, query.FreshnessFresh),
@@ -58,9 +59,10 @@ func TestSummarizeToolTextServiceStoryLowerBound(t *testing.T) {
 			"service_identity": map[string]any{"service_name": "payments-api"},
 			"api_surface":      map[string]any{"endpoint_count": float64(12)},
 			"result_limits": map[string]any{
-				"upstream_count":                  float64(3),
-				"downstream_count":                float64(7),
-				"downstream_count_is_lower_bound": true,
+				"upstream_count":              float64(3),
+				"downstream_entries":          float64(9),
+				"downstream_repository_count": float64(7),
+				"lower_bound":                 true,
 			},
 		},
 	}
@@ -69,6 +71,9 @@ func TestSummarizeToolTextServiceStoryLowerBound(t *testing.T) {
 
 	if want := "consumers 7+"; !strings.Contains(got, want) {
 		t.Fatalf("service story summary %q missing %q", got, want)
+	}
+	if strings.Contains(got, "consumers 9") {
+		t.Fatalf("service story summary %q uses the entries count, want the distinct repository count", got)
 	}
 }
 
