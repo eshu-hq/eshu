@@ -232,6 +232,17 @@ func scopedPackageRegistryIdentityRoute(r *http.Request) bool {
 	}
 }
 
+// scopedRepositoryManifestDependenciesRoute reports whether the request
+// targets GET /api/v0/repository/manifest-dependencies (#10660). The handler
+// binds the caller's repository grant before the store read, answers an
+// empty-grant or out-of-grant caller the same empty page as an empty
+// repository without touching the store, and pages the active-generation
+// manifest facts bounded by limit. See
+// go/internal/query/manifest/handler.go for the gate implementation.
+func scopedRepositoryManifestDependenciesRoute(r *http.Request) bool {
+	return r.Method == http.MethodGet && r.URL.Path == "/api/v0/repository/manifest-dependencies"
+}
+
 // scopedCodeBundlesRoute reports whether the request targets the registry
 // bundle search (#5167). It reads the same :Package catalog the package
 // registry identity routes above serve, and gates a scoped caller the same

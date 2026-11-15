@@ -56,6 +56,10 @@ type deltaManifestPin struct {
 	packageManager string
 	version        string
 	tombstone      bool
+	// development marks the pin a development dependency; dependencyScope is
+	// the raw scope (dev, test, ...) when the fact carries one.
+	development     bool
+	dependencyScope string
 }
 
 func openDeltaManifestFixture(t *testing.T) *deltaManifestFixture {
@@ -149,9 +153,11 @@ VALUES ($1, $2, $3, 'content_entity', $4,
             'entity_name', $7::text,
             'entity_metadata', jsonb_build_object(
                 'config_kind', 'dependency', 'package_manager', $8::text,
-                'version', $9::text)))`,
+                'version', $9::text)
+                || CASE WHEN $10::boolean THEN jsonb_build_object('development_dependency', true) ELSE '{}'::jsonb END
+                || CASE WHEN $11::text <> '' THEN jsonb_build_object('dependency_scope', $11::text) ELSE '{}'::jsonb END))`,
 		pin.factID, scopeID, generationID, pin.key, pin.tombstone, pin.path, pin.name,
-		pin.packageManager, pin.version)
+		pin.packageManager, pin.version, pin.development, pin.dependencyScope)
 }
 
 // deltaRepository seeds the delta generation's repository fact the overlay

@@ -25,6 +25,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
 	"github.com/eshu-hq/eshu/go/internal/query/iac"
 	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
+	"github.com/eshu-hq/eshu/go/internal/query/manifest"
 	runtimedeclaration "github.com/eshu-hq/eshu/go/internal/query/runtime/declaration"
 	"github.com/eshu-hq/eshu/go/internal/query/semanticsearch"
 	"github.com/eshu-hq/eshu/go/internal/query/service"
@@ -130,6 +131,10 @@ func newRouterWithSemanticEmbeddingWithReadStore(
 		containerImageIdentities = query.NewPostgresContainerImageIdentityStoreWithReadStore(reader)
 		sbomAttachments = query.NewPostgresSBOMAttestationAttachmentStoreWithReadStore(reader)
 	}
+	// The declared manifest dependency store backs both the paged read route
+	// and the bounded manifest_dependencies section of the repository context
+	// response (#10660), so one store instance serves both handlers.
+	manifestDependencyStore := manifest.NewPostgresManifestDependencyStore(writer, instruments, logger)
 	router := &query.APIRouter{
 		LocalIdentity:          newLocalIdentityHandler(writer, instruments, governanceAudit, cookieSecureMode),
 		BrowserSessions:        newBrowserSessionHandler(writer, instruments, cookieSecureMode),
@@ -145,6 +150,7 @@ func newRouterWithSemanticEmbeddingWithReadStore(
 			Freshness:                  pgstatus.NewInstrumentedRepositoryFreshnessStore(reader, instruments),
 			Selections:                 pgstatus.NewPageSelectionStore(reader),
 			Retirements:                pgstatus.NewRetirementStore(reader),
+			ManifestDependencies:       manifestDependencyStore,
 			Profile:                    queryProfile,
 			Logger:                     logger,
 			Instruments:                instruments,
@@ -262,6 +268,11 @@ func newRouterWithSemanticEmbeddingWithReadStore(
 		PackageRegistry: newPackageRegistryHandler(reader, neo4jReader, contentReader, queryProfile),
 		Dependencies: &query.DependenciesHandler{
 			Neo4j:       neo4jReader,
+			Profile:     queryProfile,
+			Instruments: instruments,
+		},
+		ManifestDependencies: &manifest.Handler{
+			Store:       manifestDependencyStore,
 			Profile:     queryProfile,
 			Instruments: instruments,
 		},

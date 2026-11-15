@@ -77,6 +77,7 @@ var canonicalCapabilityOrder = []string{
 	"package_registry.dependency_chains.list",
 	"package_registry.packages.aggregate",
 	"dependencies.list",
+	"manifest.dependencies.list",
 	"ci_cd.run_correlations.list",
 	"ci_cd.run_correlations.aggregate",
 	"service_catalog.correlations.list",

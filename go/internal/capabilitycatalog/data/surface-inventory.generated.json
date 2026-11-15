@@ -508,6 +508,11 @@
     },
     {
       "category": "api_route",
+      "name": "GET /api/v0/repository/manifest-dependencies",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
       "name": "GET /api/v0/secrets-iam/identity-trust-chains",
       "readiness": "implemented"
     },

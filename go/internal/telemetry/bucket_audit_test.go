@@ -56,6 +56,7 @@ func bucketAuditTable() []bucketAuditEntry {
 		{MetricName: "eshu_dp_oci_registry_scan_duration_seconds", Buckets: []float64{0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120}},
 		{MetricName: "eshu_dp_kubernetes_list_duration_seconds", Buckets: []float64{0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120}},
 		{MetricName: "eshu_dp_dependency_list_duration_seconds", Buckets: []float64{0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10}},
+		{MetricName: "eshu_dp_manifest_dependency_list_duration_seconds", Buckets: []float64{0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10}, Note: "same sub-second store-read shape as the dependency list"},
 		{MetricName: "eshu_dp_package_registry_observe_duration_seconds", Buckets: []float64{0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60}},
 		{MetricName: "eshu_dp_package_registry_generation_lag_seconds", Buckets: collectorBuckets},
 		{MetricName: "eshu_dp_vulnerability_intelligence_fetch_duration_seconds", Buckets: []float64{0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60}},

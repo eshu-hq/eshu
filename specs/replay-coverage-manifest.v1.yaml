@@ -222,6 +222,7 @@ coverage:
   - {surface: "capability:codeowners.ownership.list", scenario: correlation, scenario_type: baseline, ref: "rc-157", proof_gate: golden-corpus-gate-neo4j}
   - {surface: "capability:runtime_declaration.version.list", scenario: api_mcp_golden, scenario_type: baseline, ref: "POST /api/v0/runtime-declarations/query", proof_gate: golden-corpus-gate-neo4j}
   - {surface: "capability:dependencies.list", scenario: correlation, scenario_type: baseline, ref: "rc-9", proof_gate: golden-corpus-gate-neo4j}
+  - {surface: "capability:manifest.dependencies.list", scenario: go_test, scenario_type: baseline, ref: "go/internal/query/manifest/handler_test.go", proof_gate: go-test-race}
   - {surface: "capability:kubernetes.correlations.list", scenario: correlation, scenario_type: baseline, ref: "rc-4", proof_gate: golden-corpus-gate-neo4j}
   - {surface: "capability:package_registry.correlations.list", scenario: correlation, scenario_type: baseline, ref: "rc-9", proof_gate: golden-corpus-gate-neo4j}
   - {surface: "capability:package_registry.dependencies.list", scenario: correlation, scenario_type: baseline, ref: "rc-25", proof_gate: golden-corpus-gate-neo4j}

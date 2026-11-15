@@ -5,6 +5,7 @@ package contract
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/query/codequery"
+	"github.com/eshu-hq/eshu/go/internal/query/manifest"
 )
 
 // This file holds capability support entries that no longer fit in
@@ -89,4 +90,10 @@ func init() {
 		// kind.
 		RequiredProfile: ProfileLocalAuthoritative,
 	})
+	// GET /api/v0/repository/manifest-dependencies (#10660) reads declared
+	// manifest dependencies from active-generation git content-entity facts.
+	// The row registers Support() from the manifest package, the single
+	// declaration of this capability, so the matrix cannot drift from the
+	// handler's own gate.
+	register(manifest.Capability, manifest.Support())
 }

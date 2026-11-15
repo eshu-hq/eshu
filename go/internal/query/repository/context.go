@@ -6,13 +6,28 @@ package repository
 import (
 	"log/slog"
 	"net/http"
+	"strconv"
+	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/manifest"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/repository"
 	artifacts "github.com/eshu-hq/eshu/go/internal/query/repositoryartifacts"
 	runtimedeclaration "github.com/eshu-hq/eshu/go/internal/query/runtime/declaration"
 	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 )
+
+// repositoryManifestIncludeDev resolves the dev-inclusion opt-in flag for the
+// repository context's manifest_dependencies section, defaulting to false
+// (runtime dependencies only). An absent or unparseable value resolves to
+// false here, so the section never answers a 400: unlike the paged read's
+// handler, which answers 400 for a malformed non-empty value, the section is
+// one field of a larger body and degrades in place.
+func repositoryManifestIncludeDev(r *http.Request) bool {
+	raw := strings.TrimSpace(r.URL.Query().Get("include_dev_dependencies"))
+	includeDev, err := strconv.ParseBool(raw)
+	return err == nil && includeDev
+}
 
 // GetRepositoryContext serves repository context. It forwards to getRepositoryContext; exported for
 // #6060 so the cross-family graph-read sweep tests in package query can name
@@ -307,6 +322,21 @@ func (h *Handler) getRepositoryContext(w http.ResponseWriter, r *http.Request) {
 		partialReasons = append(partialReasons, runtimeDeclarationsReadDegradedReason)
 	} else if runtimeSection.Truncated {
 		partialReasons = append(partialReasons, runtimeDeclarationsReadTruncatedReason)
+	}
+
+	if h.ManifestDependencies != nil {
+		timer = startRepositoryQueryStage(ctx, h.Logger, "repository_context", repoID, "manifest_dependencies")
+		includeDev := repositoryManifestIncludeDev(r)
+		manifestSection, manifestRefused, manifestErr := manifest.LoadContextSection(
+			ctx, h.ManifestDependencies, repoID, includeDev)
+		result["manifest_dependencies"] = manifestSection
+		timer.Done(ctx, degradedReadLogAttrs(manifestSection.Count, manifestErr != nil || manifestRefused, manifestDependenciesReadDegradedReason)...)
+		switch {
+		case manifestErr != nil || manifestRefused:
+			partialReasons = append(partialReasons, manifestDependenciesReadDegradedReason)
+		case manifestSection.Truncated:
+			partialReasons = append(partialReasons, manifestDependenciesReadTruncatedReason)
+		}
 	}
 
 	result["partial_reasons"] = partialReasons

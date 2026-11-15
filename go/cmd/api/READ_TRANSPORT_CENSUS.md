@@ -94,6 +94,7 @@ reorders; the drift test pins only coverage, not the mapping.
 | Kubernetes | 1 | read | Native anytime | Reader ports only |
 | Language | 1 | read | Native anytime | Reader ports only |
 | LocalIdentity | 16 | read+mutation | Never satellite | Identity/session/token stores; issuance via admission contract |
+| ManifestDependencies | 1 | read | Native anytime | FactStore read-only repeatable-read snapshot over the writer handle; the snapshot queryer refuses Exec, so the read issues no durable writes |
 | Metrics | 1 | read | Native anytime | Reader ports only |
 | OIDCLogin | 2 | mutation | Never satellite | Login-state/session stores; via OIDCLoginAdmission |
 | ObservabilityCoverage | 1 | read | Native anytime | Reader ports only |

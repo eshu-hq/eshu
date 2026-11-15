@@ -46,6 +46,7 @@ const manifestDependencyQueryExecMode = pgx.QueryExecModeCacheDescribe
 const (
 	manifestDependencyReadPlain        = "plain"
 	manifestDependencyReadMavenFamily  = "maven_family"
+	manifestDependencyReadRepository   = "repository"
 	manifestDependencyReadUnclassified = "unclassified"
 )
 
@@ -55,6 +56,7 @@ const (
 var manifestDependencyReadLabels = map[string]string{
 	listActivePackageManifestDependencyFactsQuery:        manifestDependencyReadPlain,
 	listActivePackageManifestDependencyFactsWithSBTQuery: manifestDependencyReadMavenFamily,
+	listActiveRepositoryManifestDependencyFactsQuery:     manifestDependencyReadRepository,
 }
 
 // manifestDependencyReadLabel returns the read label of one active query
@@ -88,6 +90,13 @@ func (s FactStore) recordManifestDependencyRead(ctx context.Context, query strin
 // deltaOverlayBaseGenerations): $1 to $5 are the
 // package managers, names, keyset cursor, and page size.
 const manifestDeltaOverlayScopeParam = 6
+
+// repositoryManifestDeltaOverlayScopeParam is the same placeholder for the
+// #10660 repository-scoped read: $1 is the scope, $2/$3 the keyset cursor,
+// $4 the fetch bound, and $5 the dev-inclusion flag, so the candidate base
+// generation ids bind at $6 and the numbering stays dense for the pgx
+// exec-mode first-arg convention.
+const repositoryManifestDeltaOverlayScopeParam = 6
 
 // manifestDeltaOverlayTelemetry names where the manifest reader records its
 // delta-overlay decisions: eshu_dp_package_manifest_dependency_read_delta_union_total

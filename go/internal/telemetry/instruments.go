@@ -2273,6 +2273,16 @@ type Instruments struct {
 	// lightweight profile).
 	DependencyListErrors metric.Int64Counter
 
+	// ManifestDependencyListErrors counts failed GET
+	// /api/v0/repository/manifest-dependencies store reads, including refused
+	// delta bases. High-cardinality repository anchors stay in the span, not
+	// the label.
+	//
+	// Owned by query/manifest.Handler. Tolerates a nil Instruments handle so
+	// the handler stays operable when telemetry is not wired (tests, local
+	// lightweight profile).
+	ManifestDependencyListErrors metric.Int64Counter
+
 	// LiveActivityQueryErrors counts failed executions of the bounded
 	// live-activity Postgres query backing GET /api/v0/status/operations
 	// (#5137: the live operations board's in-flight work-item read model).
@@ -2311,6 +2321,10 @@ type Instruments struct {
 	// latency in seconds, labeled by the bounded `direction` (forward or
 	// reverse). Owned by query.DependenciesHandler; nil-tolerant.
 	DependencyListDuration metric.Float64Histogram
+	// ManifestDependencyListDuration measures GET
+	// /api/v0/repository/manifest-dependencies store read latency in
+	// seconds. Owned by query/manifest.Handler; nil-tolerant.
+	ManifestDependencyListDuration metric.Float64Histogram
 	// LiveActivityQueryDuration measures the bounded live-activity Postgres
 	// query duration in seconds for GET /api/v0/status/operations (#5137).
 	// Owned by postgres.LiveActivityStore; nil-tolerant.
@@ -6346,6 +6360,24 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register DependencyListErrors counter: %w", err)
+	}
+
+	inst.ManifestDependencyListErrors, err = meter.Int64Counter(
+		"eshu_dp_manifest_dependency_list_errors_total",
+		metric.WithDescription("Failed GET /api/v0/repository/manifest-dependencies store reads"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register ManifestDependencyListErrors counter: %w", err)
+	}
+
+	inst.ManifestDependencyListDuration, err = meter.Float64Histogram(
+		"eshu_dp_manifest_dependency_list_duration_seconds",
+		metric.WithDescription("GET /api/v0/repository/manifest-dependencies store read duration"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(dependencyListBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register ManifestDependencyListDuration histogram: %w", err)
 	}
 
 	// liveActivityQueryBuckets matches the documented file-parse-and-live-query-seconds

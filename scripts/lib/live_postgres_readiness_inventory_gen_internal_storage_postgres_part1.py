@@ -54,6 +54,12 @@ TABLE = {
         "go/internal/storage/postgres/active_package_manifest_dependency_delta_live_test.go": (
             "TestListActivePackageManifestDependencyFactsDeltaActiveScopeLive",
         ),
+        "go/internal/storage/postgres/active_repository_manifest_dependency_live_test.go": (
+            "TestListActiveRepositoryManifestDependencyFactsTwoManifestsLive",
+            "TestListActiveRepositoryManifestDependencyFactsScopeFilterLive",
+            "TestListActiveRepositoryManifestDependencyFactsEmptyRepoLive",
+            "TestListActiveRepositoryManifestDependencyFactsDeltaParityLive",
+        ),
         "go/internal/storage/postgres/active_symbol_loader_composer_live_test.go": (
             "TestReducerContentionGateActiveCodeCallSymbolLoaderAnchorsComposerKeys",
             "TestReducerContentionGateActiveCodeCallSymbolLoaderKeepsNpmAndComposerNamesApart",

@@ -747,6 +747,7 @@ const (
 	SpanQueryPackageRegistryVersions     = "query.package_registry_versions"
 	SpanQueryPackageRegistryDependencies = "query.package_registry_dependencies"
 	SpanQueryDependencies                = "query.dependencies"
+	SpanQueryManifestDependencies        = "query.manifest_dependencies"
 	SpanQueryCodeownersOwnership         = "query.codeowners_ownership"
 	SpanQueryRuntimeDeclarations         = "query.runtime_declarations"
 	SpanTerraformStateClaimProcess       = "tfstate.collector.claim.process"
