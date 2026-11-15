@@ -5,8 +5,9 @@ The 2026-10-26 hosted run measured actual client input usage for `dual` and
 tested configuration, Claude Code's three-size structured/control slope ratio
 was **0.999903**, within the #8800 limit of 1.10. Both clients answered the
 four requested facts correctly under both shapes. Codex's token-slope result
-is **not proven**: its input usage was nonmonotonic in two complete matrices.
-The process default remains `dual`. This follows the earlier
+was **not proven** in two complete matrices; a 2026-11-14 third matrix proved
+its structured slope (1.005×) but left the dual series non-monotonic (see
+below). The process default remains `dual`. This follows the earlier
 [local result-contract proof](8800-structured-result-contract.md).
 
 ## Run identity and method
@@ -99,8 +100,38 @@ The second matrix's medium and large fragments kept their byte lengths but
 their selection timestamps changed. Their exact bytes matched within each
 dual/structured pair, but the first-matrix controls were no longer exact
 one-copy controls for those samples. The variable cached input totals are an
-observation, not an established cause. No third matrix or model call was run.
-The Codex token-slope criterion remains unproved.
+observation, not an established cause. No third matrix or model call was run
+in that session. The Codex token-slope criterion remained unproved until the
+2026-11-14 third matrix below.
+
+## Codex third matrix (2026-11-14)
+
+A third and final matrix was run with a fixed instruction background and fresh
+one-copy controls, using the current Codex CLI directly against the QA
+satellite (no relay): Codex CLI 0.167.0, model `gpt-5.6-luna`, low reasoning
+effort, `--ephemeral`, `call_tool`(`list_indexed_repositories`, `limit`
+1/12/24) over the QA satellite `eshu-mcp` v0.2.15. The `structuredContent`
+fragments were 1,353 / 10,075 / 19,947 bytes (the QA repository inventory has
+grown since the 1,153 / 7,862 / 17,284-byte fragments of the first matrix).
+
+| Codex series | 1,353 B input | 10,075 B input | 19,947 B input | Slope, tokens/B | Slope / control |
+|---|---:|---:|---:|---:|---:|
+| one-copy control | 24,719 | 27,118 | 29,835 | 0.2751 | 1.0000 |
+| structured MCP | 49,523 | 51,895 | 54,662 | 0.2765 | **1.005** |
+| dual MCP | 49,861 | 80,126 | 59,670 | not fit | not proven |
+
+The structured series is monotonic and its slope ratio is 1.005, within the
+#8800 limit of 1.10: for this Codex configuration, `structured` puts one copy
+of the payload into the model input. The dual series is non-monotonic for the
+third time (49,861 / 80,126 / 59,670): its reported `cached_input_tokens`
+varies per cell (24,320 / 60,032 / 48,512), so the dual token slope cannot be
+established from Codex input tokens. The wire itself is unambiguous — the
+measured result-byte slope is `structured` 1.000053 and `dual` 2.101445 — so
+the dual double-copy cost is proven at the wire level even though Codex's
+cached-input reporting keeps the client token slope unmeasured. Every cell
+returned the four requested facts; one low-effort structured sample misfired
+(`overall_total` 12 instead of 820) and re-ran correctly twice, consistent
+with model variance rather than a shape defect.
 
 ## Answer scoring and remaining acceptance
 
