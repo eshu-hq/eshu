@@ -88,32 +88,60 @@ func CVEListDirtyShards(deltaCVEIDs []string) (shards []string, skipped int) {
 	return shards, skipped
 }
 
+// CVEListShardCounts is the observed volume of one shard: how many CVE
+// records it holds and how many distinct sanitized reference URLs those
+// records carry in total.
+type CVEListShardCounts struct {
+	// Records is the CVE record count in the shard.
+	Records int
+	// References is the distinct reference URL count the shard's records
+	// emit. The collector dedupes per record across the CNA and ADP
+	// containers, so a URL shared by two records counts once for each.
+	References int
+}
+
 // CVEListShardGeneration is one shard-scoped generation: the full-replace
-// payload for exactly one dirty shard. The cve_list class emits one
-// vulnerability.cve fact per record, so Facts equals Records; the
-// reducer-side accounting test asserts that volume against the per-intent
-// evidence budget.
+// payload for exactly one dirty shard. The cve_list envelope
+// (CVEListRecordEnvelopes in the collector satellite, cvelist_envelope.go)
+// emits one vulnerability.cve fact per record plus one
+// vulnerability.reference fact per distinct reference URL, so
+// Facts = Records*1 + References. Facts is not one to one with Records. Facts
+// is the write volume the generation emits; the reducer loads only the
+// vulnerability.cve share of it, and the per-intent evidence budget never
+// charges a shard's own base load.
 type CVEListShardGeneration struct {
 	// Shard is the cves/<year>/<NNNxxx> directory this generation replaces.
 	Shard string
 	// Records is the CVE record count the generation carries (at most
 	// 1,000 for a full upstream shard).
 	Records int
-	// Facts is the vulnerability.cve fact count the generation emits.
+	// References is the distinct reference URL count the generation's
+	// records emit, one vulnerability.reference fact each. It is zero when
+	// the caller has not observed references for the shard.
+	References int
+	// Facts is the total fact count the generation emits: one
+	// vulnerability.cve per record plus one vulnerability.reference per
+	// distinct reference URL (Records + References).
 	Facts int
 }
 
-// CVEListShardGenerations builds one generation per dirty shard. Shards
-// without a record count default to a full shard; callers measuring a real
-// delta pass observed counts.
-func CVEListShardGenerations(shards []string, records map[string]int) []CVEListShardGeneration {
+// CVEListShardGenerations builds one generation per dirty shard. A shard
+// without observed counts defaults to a full shard of records with no
+// observed references, so its Facts is the record-only lower bound; callers
+// measuring a real delta pass observed counts, including References.
+func CVEListShardGenerations(shards []string, counts map[string]CVEListShardCounts) []CVEListShardGeneration {
 	gens := make([]CVEListShardGeneration, 0, len(shards))
 	for _, shard := range shards {
-		n, found := records[shard]
+		c, found := counts[shard]
 		if !found {
-			n = cveListShardRecordsPerShard
+			c = CVEListShardCounts{Records: cveListShardRecordsPerShard}
 		}
-		gens = append(gens, CVEListShardGeneration{Shard: shard, Records: n, Facts: n})
+		gens = append(gens, CVEListShardGeneration{
+			Shard:      shard,
+			Records:    c.Records,
+			References: c.References,
+			Facts:      c.Records + c.References,
+		})
 	}
 	return gens
 }

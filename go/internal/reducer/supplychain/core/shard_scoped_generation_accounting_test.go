@@ -6,19 +6,29 @@ package core
 import (
 	"fmt"
 	"testing"
+
+	chain "github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
 
 // Shard-scoped generation accounting for eshu-hq/eshu#9961 (plan §4.4): one
 // full-replace generation per dirty cves/<year>/<NNNxxx> shard. A full
-// upstream shard holds at most 1,000 records and the cve_list class emits
-// one vulnerability.cve fact per record (see internal/vulnsource
-// CVEListShardGenerations and the registry admission of exactly
-// vulnerability.cve for cve_list). This test asserts that volume against the
-// real per-intent evidence budget and the real truncation verdict, and runs
-// the real cve_list provenance path at full-shard scale.
+// upstream shard holds at most 1,000 records, and the cve_list envelope emits
+// one vulnerability.cve fact per record plus one vulnerability.reference fact
+// per distinct reference URL, so facts are records*1 + references (see
+// internal/vulnsource CVEListShardGenerations; eshu-hq/eshu#10718). The first
+// test charges a shard-sized load as a hypothetical headroom bar against the
+// real per-intent evidence budget and truncation verdict; the second pins
+// that the reducer does not load reference facts; the last runs the real
+// cve_list provenance path at full-shard scale.
 func TestShardScopedGenerationFitsEvidenceBudget(t *testing.T) {
 	t.Parallel()
 
+	// Record-only floor: 1,000 vulnerability.cve facts and zero references.
+	// Real shards add one fact per distinct reference URL, which the reducer does
+	// not load (see TestShardScopedGenerationDoesNotLoadReferenceFacts). The
+	// production budget also counts expansion evidence only, never the intent's
+	// own base scope load, so this charge is a hypothetical headroom bar for a
+	// shard-sized load, not budget use the reducer performs today.
 	const fullShardFacts = 1000
 
 	budget := newSupplyChainImpactEvidenceBudget(0)
@@ -45,6 +55,21 @@ func TestShardScopedGenerationFitsEvidenceBudget(t *testing.T) {
 	}
 	if truncation.any() {
 		t.Fatal("zero truncation must not discard suppression candidates")
+	}
+}
+
+// TestShardScopedGenerationDoesNotLoadReferenceFacts pins the premise of the
+// T1 restatement for eshu-hq/eshu#10718: the reducer loads no
+// vulnerability.reference facts, so they are write volume only. If this fails,
+// the reducer started loading them: redo the T1 restatement and the
+// write-volume claims in the 9961 note.
+func TestShardScopedGenerationDoesNotLoadReferenceFacts(t *testing.T) {
+	t.Parallel()
+
+	for _, kind := range supplyChainImpactFactKinds() {
+		if kind == chain.VulnerabilityReferenceFactKind {
+			t.Fatalf("supplyChainImpactFactKinds() loads %q: the reducer now loads reference facts; redo the T1 restatement and the write-volume claims in the 9961 note", kind)
+		}
 	}
 }
 

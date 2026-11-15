@@ -17,14 +17,53 @@ core #10244 merged, satellite #57 merged); #9880 post-deploy QA still pending.
 generation per dirty `cves/<year>/<NNNxxx>` shard) fit the reducer iff every
 dirty shard's generation stays an order of magnitude under the per-intent
 bounded-evidence budget and per-shard reducer accounting cost is negligible
-against the daily cadence.
+against the daily cadence. (Restated below: the budget does not charge a
+shard's base load, so "under the budget" is a hypothetical bar; see the T1
+restatement.)
 
-**Thresholds.** T1: a full shard (1,000 records → 1,000 `vulnerability.cve`
-facts) uses <10% of `maxSupplyChainImpactEvidenceEnvelopesPerIntent`
-(100,000). T2: p95 per-dirty-shard reducer accounting <100 ms in-memory on
+**Thresholds.** T1: a full shard (1,000 records and their facts) uses <10% of
+`maxSupplyChainImpactEvidenceEnvelopesPerIntent` (100,000); see the T1
+restatement below for the corrected fact arithmetic. T2: p95 per-dirty-shard reducer accounting <100 ms in-memory on
 representative data. T3: full-day delta replay wall-clock <10 min on
 dev-class hardware. T4: no dirty shard trips
 `supplyChainImpactTruncation.partial()` at measured volumes.
+
+**T1 restated (correction 2026-11-15, #10718).** The first draft of T1 counted
+one fact per record. The CVE List envelope emits one `vulnerability.cve` fact
+per record plus one `vulnerability.reference` fact per distinct reference URL
+(`CVEListRecordEnvelopes` in the collector satellite, `cvelist_envelope.go`
+lines 34-49), so a shard's facts are records times 1 plus references. For a
+full shard of 1,000 records, 10% of the budget is 10,000 facts, which leaves
+room for 9,000 facts beyond the records themselves.
+
+The per-intent budget does not charge a shard's own facts at all. It counts
+expansion evidence only: the envelopes the evidence stages add beyond the
+intent scope's own base load, which `LoadFactsForKinds` reads uncapped
+(`evidence_truncation.go` and `evidence_load.go` in the core package). A
+shard-scoped intent's `vulnerability.cve` facts are that base load, so the
+0.010 share used below is a hypothetical headroom bar ("what a shard-sized load
+would use if the base load were charged"), not budget use the reducer performs.
+No reducer-side count or byte bound applies to a shard's own base load. The
+payload-bytes cap (`maxSupplyChainImpactEvidencePayloadBytesPerIntent`) covers
+expansion evidence only. The one live bound is the satellite's per-claim
+10,000-fact write cap, which applies per claim, not per shard generation, and
+which the design note `10671-nvd-feed-transport-fallback.md` already says a full
+shard can exceed as a non-retryable error.
+
+References add write volume, not reducer load: `supplyChainImpactFactKinds()`
+(`active_filter.go`) does not list `vulnerability.reference`, and the kind is
+registered read-only with no reducer domain decoding it, so rows land in
+`fact_records` and count against the per-claim cap only. If `vulnerability.reference`
+were added to `supplyChainImpactFactKinds()`, those facts would arrive through
+the uncharged base load; a new expansion loader would charge them.
+The core test `TestShardScopedGenerationDoesNotLoadReferenceFacts` pins the
+premise that the kind is not loaded, so a change to it forces this note to be
+redone, and the vulnsource test
+`TestCVEListShardGenerationsFactsAreRecordsPlusReferences` (R11) pins the
+accounting rule. The reference count per shard was not measured in 5.1. T2 and
+T3 are unaffected in kind: the 0.76-0.79 ms selection measurement ran the
+`cve_list` severity path over 1,000 records, and the replay benchmark counts
+dirty shards, not facts.
 
 **Deadline.** Time-boxed single-session measurement; numbers frozen at this
 note's commit. The thresholds above were fixed before the runs below.
@@ -62,22 +101,27 @@ go test ./internal/vulnsource/ -run 'TestScratchDeltaCounts' -count=1 -v
 The `BenchmarkScratch*` / `TestScratchDeltaCounts` shims were temporary
 worktree files, deleted before commit; the numbers above are their observed
 output. Sensitivity check: tightening the core budget assertion to `< 0.005`
-fails with `full-shard budget share = 0.010`, proving the test measures the
-real budget rather than asserting a tautology.
+fails with `full-shard budget share = 0.010`, proving the check is not vacuous.
+The share itself is a hypothetical bar, per the T1 restatement.
 
 ## Facts per shard
 
-| Shard case | Records | Facts (`vulnerability.cve`, 1:1) | Budget share |
-| --- | --- | --- | --- |
-| Full upstream shard (`<NNNxxx>`, ≤1,000 records) | 1,000 | 1,000 | 0.010 (T1 PASS, <0.10) |
-| Observed partial shard | 37 | 37 | 0.0004 |
-| Full shard + 10x expansion evidence | 1,000 + 10,000 | 11,000 charged | 0.11 of budget, still loads |
+Facts are records times 1 plus distinct reference URLs (`R`). The rows below
+are the record-only floor (`R` = 0) as measured in 5.1; add `R` facts to each
+row for a real shard.
 
-The registry admits exactly `vulnerability.cve` for the `cve_list` class, so
-facts equal records. Collection-side note: the workflow admits at most 100
-CVE IDs per `cve_list` claim (`maxVulnerabilityCVEListRequests`), so a full
-shard collects in ≥10 claims of ≤100 facts each; the reducer-side per-shard
-intent still sees at most 1,000 facts.
+| Shard case | Records | Facts written (records + `R`) | Share of the 100,000 bar if charged (hypothetical) |
+| --- | --- | --- | --- |
+| Full upstream shard (`<NNNxxx>`, ≤1,000 records), floor | 1,000 | 1,000 + `R` | 0.010 at `R` = 0; under 0.10 while `R` < 9,000 |
+| Observed partial shard, floor | 37 | 37 + `R` | 0.0004 at `R` = 0 |
+| Full shard + 10x expansion evidence, floor | 1,000 + 10,000 | 1,000 + `R` written; 10,000 expansion envelopes are loaded, not written | 0.11 at `R` = 0 if expansion is charged (it is), still loads |
+
+The `cve_list` envelope emits `vulnerability.cve` and `vulnerability.reference`
+facts, so facts are not one to one with records. Collection-side
+note: the workflow admits at most 100 CVE IDs per `cve_list` claim
+(`maxVulnerabilityCVEListRequests`), so a full shard collects in at least 10
+claims, each of at most 100 records plus their reference facts; the
+reducer-side per-shard intent sees up to 1,000 + `R` facts.
 
 ## Reducer cost per dirty shard
 
@@ -97,12 +141,17 @@ daily work — and it stays in the single digits to low teens.
 
 ## Per-shard intent vs bounded evidence load / truncation
 
-Charging a full shard (1,000 envelopes) against a real default
-`newSupplyChainImpactEvidenceBudget(0)` keeps loading (`charge` returns
-true, `exhausted()` false); the zero `supplyChainImpactTruncation` is
-neither `partial()` (upsert-only, no spurious retraction freeze) nor `any()`
-(no suppression-candidate discard). T4 PASS: a per-shard intent cannot hit
-the bounded load at measured volumes.
+This is a hypothetical bar, not a gate the shard meets: the production budget
+does not charge a shard's own base load (see the T1 restatement), and reference
+facts are not loaded by the reducer. As a mechanical check, charging a
+record-only full shard (1,000 envelopes) against a real default
+`newSupplyChainImpactEvidenceBudget(0)` keeps loading (`charge` returns true,
+`exhausted()` false); the zero `supplyChainImpactTruncation` is neither
+`partial()` (upsert-only, no spurious retraction freeze) nor `any()` (no
+suppression-candidate discard). T4 is therefore not applicable to a shard's base
+load: the hypothetical bar passes, and the live bound is the per-claim write
+cap. The one row where the budget really charges is the "10x expansion
+evidence" case, and that is expansion evidence, not the shard.
 
 ## Residual (not measured here)
 
@@ -111,7 +160,8 @@ projection at full-shard volume is attached (NOT_CHECKED). The change adds
 no Cypher shape — no `MATCH`/`MERGE`/`UNWIND` was added or altered — and
 projection for `cve_list` facts rides the existing source-agnostic writer
 the `nvd`/`osv` facts already use, so graph cost scales with the fact volume
-measured above (≤1,000 facts per shard, ≤~12k per heavy day). Recording a
+measured above (≤1,000 records per shard, ≤~12k per heavy day, plus the
+reference facts each record carries, which were not counted in 5.1). Recording a
 Neo4j-backed projection profile at full-shard volume is recommended as a
 5.2 acceptance criterion, not a reason to redo 5.1.
 
@@ -125,9 +175,13 @@ in-memory numbers above stand unchanged.
 ## Filing verdict
 
 - **5.2 (CVE List baseline + `deltaLog.json` tail): FILE.** The 5.1 theory
-  is measured: one generation per dirty shard fits the reducer on every
-  threshold with 10–100x headroom. Gate the 5.2 issue on this note and carry
-  the Neo4j projection profile above as a 5.2 acceptance criterion.
+  is measured at the record-only floor, and the reducer-side cost measurements
+  (T2, T3) stand. There is no reducer-side gate on a shard's base load, so no
+  headroom figure applies to it; the live bound is the per-claim write cap, and
+  a full shard can overflow it (see the T1 restatement). Gate the 5.2 issue on
+  this note, carry the Neo4j projection profile above as a 5.2 acceptance
+  criterion, and add "count reference facts per shard" and "measure claim-cap
+  overflow for a full shard" to it.
 - **5.3 (OSV bulk per ecosystem): DO NOT FILE.** It needs 5.2's
   cursor-continuity proof first, per the phase gate.
 - **5.4 (catalog read surfaces): DO NOT FILE.** It waits on the owner's
@@ -137,7 +191,7 @@ No-Regression Evidence: the committed substrate is pure accounting plus
 tests — `CVEListShardForCVEID`, `CVEListDirtyShards`,
 `CVEListShardGenerations` in `internal/vulnsource` (dependency-light:
 `strings`/`sort`/`strconv` only, no new import direction), and two
-contract tests. No Cypher, graph write, queue, lease, worker, batching, or
+contract tests listed in the T1 restatement. No Cypher, graph write, queue, lease, worker, batching, or
 concurrency change. Focused suites green:
 `go test ./internal/vulnsource/ ./internal/reducer/supplychain/core/
 ./internal/workflow/` (exit 0), `go vet` on touched packages (exit 0),
