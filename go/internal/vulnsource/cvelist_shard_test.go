@@ -85,8 +85,8 @@ func TestCVEListDirtyShardsDedupesToOneGenerationPerShard(t *testing.T) {
 // vulnerability.cve fact per record plus one vulnerability.reference fact per
 // distinct reference URL (cvelist_envelope.go CVEListRecordEnvelopes in the
 // collector), so a shard's facts are Records*1 + References, never one to
-// one with records. The reducer-side accounting test charges this volume
-// against the per-intent evidence budget.
+// one with records. Facts is write volume; the core accounting test uses the
+// record-only floor as a hypothetical headroom bar.
 func TestCVEListShardGenerationsFactsAreRecordsPlusReferences(t *testing.T) {
 	t.Parallel()
 

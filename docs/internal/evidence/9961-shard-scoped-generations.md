@@ -41,10 +41,12 @@ intent scope's own base load, which `LoadFactsForKinds` reads uncapped
 shard-scoped intent's `vulnerability.cve` facts are that base load, so the
 0.010 share used below is a hypothetical headroom bar ("what a shard-sized load
 would use if the base load were charged"), not budget use the reducer performs.
-The real bounds on a shard are the payload-bytes cap
-(`maxSupplyChainImpactEvidencePayloadBytesPerIntent`) on expansion evidence and
-the satellite's per-claim 10,000-fact output cap, which the design note
-`10671-nvd-feed-transport-fallback.md` already says a full shard can exceed.
+No reducer-side count or byte bound applies to a shard's own base load. The
+payload-bytes cap (`maxSupplyChainImpactEvidencePayloadBytesPerIntent`) covers
+expansion evidence only. The one live bound is the satellite's per-claim
+10,000-fact write cap, which applies per claim, not per shard generation, and
+which the design note `10671-nvd-feed-transport-fallback.md` already says a full
+shard can exceed as a non-retryable error.
 
 References add write volume, not reducer load: `supplyChainImpactFactKinds()`
 (`active_filter.go`) does not list `vulnerability.reference`, and the kind is
@@ -136,13 +138,17 @@ daily work — and it stays in the single digits to low teens.
 
 ## Per-shard intent vs bounded evidence load / truncation
 
-Measured at the record-only floor (reference facts are not loaded by the
-reducer today; see the T1 restatement). Charging a full shard (1,000 envelopes) against a real default
-`newSupplyChainImpactEvidenceBudget(0)` keeps loading (`charge` returns
-true, `exhausted()` false); the zero `supplyChainImpactTruncation` is
-neither `partial()` (upsert-only, no spurious retraction freeze) nor `any()`
-(no suppression-candidate discard). T4 PASS: a per-shard intent cannot hit
-the bounded load at measured volumes.
+This is a hypothetical bar, not a gate the shard meets: the production budget
+does not charge a shard's own base load (see the T1 restatement), and reference
+facts are not loaded by the reducer. As a mechanical check, charging a
+record-only full shard (1,000 envelopes) against a real default
+`newSupplyChainImpactEvidenceBudget(0)` keeps loading (`charge` returns true,
+`exhausted()` false); the zero `supplyChainImpactTruncation` is neither
+`partial()` (upsert-only, no spurious retraction freeze) nor `any()` (no
+suppression-candidate discard). T4 is therefore not applicable to a shard's base
+load: the hypothetical bar passes, and the live bound is the per-claim write
+cap. The one row where the budget really charges is the "10x expansion
+evidence" case, and that is expansion evidence, not the shard.
 
 ## Residual (not measured here)
 
@@ -166,12 +172,13 @@ in-memory numbers above stand unchanged.
 ## Filing verdict
 
 - **5.2 (CVE List baseline + `deltaLog.json` tail): FILE.** The 5.1 theory
-  is measured at the record-only floor: one generation per dirty shard fits the
-  reducer on T1 to T4 with 10–100x headroom, because the budget does not charge a
-  shard's base load and the reducer does not load reference facts today (see
-  the T1 restatement). Gate the 5.2 issue on this
-  note, carry the Neo4j projection profile above as a 5.2 acceptance
-  criterion, and add "count reference facts per shard" to it.
+  is measured at the record-only floor, and the reducer-side cost measurements
+  (T2, T3) stand. There is no reducer-side gate on a shard's base load, so no
+  headroom figure applies to it; the live bound is the per-claim write cap, and
+  a full shard can overflow it (see the T1 restatement). Gate the 5.2 issue on
+  this note, carry the Neo4j projection profile above as a 5.2 acceptance
+  criterion, and add "count reference facts per shard" and "measure claim-cap
+  overflow for a full shard" to it.
 - **5.3 (OSV bulk per ecosystem): DO NOT FILE.** It needs 5.2's
   cursor-continuity proof first, per the phase gate.
 - **5.4 (catalog read surfaces): DO NOT FILE.** It waits on the owner's

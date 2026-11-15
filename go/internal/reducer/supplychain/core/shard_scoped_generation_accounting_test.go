@@ -16,8 +16,8 @@ import (
 // one vulnerability.cve fact per record plus one vulnerability.reference fact
 // per distinct reference URL, so facts are records*1 + references (see
 // internal/vulnsource CVEListShardGenerations; eshu-hq/eshu#10718). The first
-// test charges the record-only floor of a full shard against the real
-// per-intent evidence budget and the real truncation verdict; the second pins
+// test charges a shard-sized load as a hypothetical headroom bar against the
+// real per-intent evidence budget and truncation verdict; the second pins
 // that the reducer does not load reference facts; the last runs the real
 // cve_list provenance path at full-shard scale.
 func TestShardScopedGenerationFitsEvidenceBudget(t *testing.T) {
@@ -60,15 +60,15 @@ func TestShardScopedGenerationFitsEvidenceBudget(t *testing.T) {
 
 // TestShardScopedGenerationDoesNotLoadReferenceFacts pins the premise of the
 // T1 restatement for eshu-hq/eshu#10718: the reducer loads no
-// vulnerability.reference facts, so they are write volume and do not charge
-// the per-intent evidence budget. If this fails, the reducer started loading
-// them, and the 5.1 note and the break-even below must be redone.
+// vulnerability.reference facts, so they are write volume only. If this fails,
+// the reducer started loading them: redo the T1 restatement and the
+// write-volume claims in the 9961 note.
 func TestShardScopedGenerationDoesNotLoadReferenceFacts(t *testing.T) {
 	t.Parallel()
 
 	for _, kind := range supplyChainImpactFactKinds() {
 		if kind == chain.VulnerabilityReferenceFactKind {
-			t.Fatalf("supplyChainImpactFactKinds() loads %q: reference facts now charge the evidence budget; redo the T1 restatement in the 9961 note", kind)
+			t.Fatalf("supplyChainImpactFactKinds() loads %q: the reducer now loads reference facts; redo the T1 restatement and the write-volume claims in the 9961 note", kind)
 		}
 	}
 }

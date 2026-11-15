@@ -105,9 +105,10 @@ type CVEListShardCounts struct {
 // (CVEListRecordEnvelopes in the collector satellite, cvelist_envelope.go)
 // emits one vulnerability.cve fact per record plus one
 // vulnerability.reference fact per distinct reference URL, so
-// Facts = Records*1 + References. Facts is not one to one with Records; the
-// reducer-side accounting test charges this volume against the per-intent
-// evidence budget.
+// Facts = Records*1 + References. Facts is not one to one with Records. Facts
+// is the write volume the generation emits; the reducer loads only the
+// vulnerability.cve share of it, and the per-intent evidence budget never
+// charges a shard's own base load.
 type CVEListShardGeneration struct {
 	// Shard is the cves/<year>/<NNNxxx> directory this generation replaces.
 	Shard string
