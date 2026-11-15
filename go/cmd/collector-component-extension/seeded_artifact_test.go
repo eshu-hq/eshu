@@ -5,8 +5,10 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
+	goruntime "runtime"
 	"strings"
 	"testing"
 	"time"
@@ -342,8 +344,11 @@ func TestLoadRuntimeConfigDeniesDriftedSatelliteArtifact(t *testing.T) {
 	if err == nil {
 		t.Fatal("loadRuntimeConfig() error = nil, want denial for a drifted satellite artifact")
 	}
-	if !strings.Contains(err.Error(), "pinned") {
-		t.Fatalf("loadRuntimeConfig() error = %q, want it to name the pinned platform images", err)
+	if want := "is not the pinned platform image"; !strings.Contains(err.Error(), want) {
+		t.Fatalf("loadRuntimeConfigObserved(%q) error = %q, want the digest-mismatch text %q", pinnedSeedPlatform, err, want)
+	}
+	if notPinned := "declares no seed image"; strings.Contains(err.Error(), notPinned) {
+		t.Fatalf("loadRuntimeConfigObserved(%q) error = %q, want a drift refusal, not the platform refusal %q", pinnedSeedPlatform, err, notPinned)
 	}
 	if strings.Contains(err.Error(), drifted) {
 		t.Fatalf("loadRuntimeConfig() error = %q, must not echo the image value", err)
@@ -367,5 +372,46 @@ func TestLoadRuntimeConfigRefusesUnpinnedSatellitePlatform(t *testing.T) {
 	}
 	if want := "declares no seed image for platform"; !strings.Contains(err.Error(), want) {
 		t.Fatalf("loadRuntimeConfigObserved(%q) error = %q, want it to contain %q", unpinnedSeedPlatform, err, want)
+	}
+}
+
+// TestHostSeedPlatformIsRuntimeGOOSGOARCH pins the production platform source:
+// the worker consults only the executing host's GOOS/GOARCH slot, so a
+// hardcoded or empty value here would silently change which seed image is
+// admitted while every platform-explicit test stayed green (#10739).
+func TestHostSeedPlatformIsRuntimeGOOSGOARCH(t *testing.T) {
+	t.Parallel()
+
+	if got, want := hostSeedPlatform(), goruntime.GOOS+"/"+goruntime.GOARCH; got != want {
+		t.Fatalf("hostSeedPlatform() = %q, want %q", got, want)
+	}
+}
+
+// TestLoadRuntimeConfigAdmitsSatelliteExactlyWhenHostPlatformPinned drives the
+// public loader production calls, with no platform argument, against the
+// pinned manifest. Admission must follow the executing host: admitted exactly
+// when the host platform is in the registry pins for the component, refused
+// with the platform text otherwise. It holds on linux and on darwin alike
+// (#9877, #10739).
+func TestLoadRuntimeConfigAdmitsSatelliteExactlyWhenHostPlatformPinned(t *testing.T) {
+	t.Parallel()
+
+	home := t.TempDir()
+	id := installSatelliteComponent(t, home, scannercomponent.SatelliteDocumentImportID, "")
+	host := goruntime.GOOS + "/" + goruntime.GOARCH
+	_, hostPinned := scannercomponent.SatelliteSeedPins()[id][host]
+
+	_, err := loadRuntimeConfig(satelliteWorkerEnv(home, id))
+	if hostPinned {
+		if err != nil {
+			t.Fatalf("loadRuntimeConfig() on pinned host %q error = %v, want admission", host, err)
+		}
+		return
+	}
+	if err == nil {
+		t.Fatalf("loadRuntimeConfig() on unpinned host %q error = nil, want refusal", host)
+	}
+	if want := fmt.Sprintf("declares no seed image for platform %q", host); !strings.Contains(err.Error(), want) {
+		t.Fatalf("loadRuntimeConfig() on unpinned host %q error = %q, want it to contain %q", host, err, want)
 	}
 }
