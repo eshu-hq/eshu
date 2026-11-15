@@ -17,7 +17,9 @@ core #10244 merged, satellite #57 merged); #9880 post-deploy QA still pending.
 generation per dirty `cves/<year>/<NNNxxx>` shard) fit the reducer iff every
 dirty shard's generation stays an order of magnitude under the per-intent
 bounded-evidence budget and per-shard reducer accounting cost is negligible
-against the daily cadence.
+against the daily cadence. (Restated below: the budget does not charge a
+shard's base load, so "under the budget" is a hypothetical bar; see the T1
+restatement.)
 
 **Thresholds.** T1: a full shard (1,000 records and their facts) uses <10% of
 `maxSupplyChainImpactEvidenceEnvelopesPerIntent` (100,000); see the T1
@@ -51,8 +53,9 @@ shard can exceed as a non-retryable error.
 References add write volume, not reducer load: `supplyChainImpactFactKinds()`
 (`active_filter.go`) does not list `vulnerability.reference`, and the kind is
 registered read-only with no reducer domain decoding it, so rows land in
-`fact_records` and count against the per-claim cap only. Even if a reducer later
-loaded reference facts, they would arrive through the same uncharged base load.
+`fact_records` and count against the per-claim cap only. If `vulnerability.reference`
+were added to `supplyChainImpactFactKinds()`, those facts would arrive through
+the uncharged base load; a new expansion loader would charge them.
 The core test `TestShardScopedGenerationDoesNotLoadReferenceFacts` pins the
 premise that the kind is not loaded, so a change to it forces this note to be
 redone, and the vulnsource test
@@ -98,8 +101,8 @@ go test ./internal/vulnsource/ -run 'TestScratchDeltaCounts' -count=1 -v
 The `BenchmarkScratch*` / `TestScratchDeltaCounts` shims were temporary
 worktree files, deleted before commit; the numbers above are their observed
 output. Sensitivity check: tightening the core budget assertion to `< 0.005`
-fails with `full-shard budget share = 0.010`, proving the test measures the
-real budget rather than asserting a tautology.
+fails with `full-shard budget share = 0.010`, proving the check is not vacuous.
+The share itself is a hypothetical bar, per the T1 restatement.
 
 ## Facts per shard
 
@@ -111,7 +114,7 @@ row for a real shard.
 | --- | --- | --- | --- |
 | Full upstream shard (`<NNNxxx>`, ≤1,000 records), floor | 1,000 | 1,000 + `R` | 0.010 at `R` = 0; under 0.10 while `R` < 9,000 |
 | Observed partial shard, floor | 37 | 37 + `R` | 0.0004 at `R` = 0 |
-| Full shard + 10x expansion evidence, floor | 1,000 + 10,000 | 11,000 + `R` | 0.11 at `R` = 0, still loads |
+| Full shard + 10x expansion evidence, floor | 1,000 + 10,000 | 1,000 + `R` written; 10,000 expansion envelopes are loaded, not written | 0.11 at `R` = 0 if expansion is charged (it is), still loads |
 
 The `cve_list` envelope emits `vulnerability.cve` and `vulnerability.reference`
 facts, so facts are not one to one with records. Collection-side
