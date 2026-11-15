@@ -5,9 +5,11 @@ deepest-tier model given the raw measurements in
 [10720-vulncheck-nvd-compat-probe.md](../evidence/10720-vulncheck-nvd-compat-probe.md)
 and the accepted design in
 [10671-nvd-feed-transport-fallback.md](../design/10671-nvd-feed-transport-fallback.md).
-It re-ran no probe and used no credential. This file records its ruling; the
-coordinator verified the `negate` claim against the reducer code before adopting
-it.
+It re-ran no probe and used no credential. This file records its ruling. A
+later hostile review corrected two of the arbiter's inputs, which the text below
+reflects: the `negate` drop was seen only on the native index, and the reducer
+excludes a negated match rather than inverting it. The arbiter's "5 of 5" API
+spot-check was in fact 6 of 6.
 
 ## Rulings
 
@@ -18,12 +20,18 @@ it.
    no SLA, and every reliability figure is one session, one token, one source IP.
    The stuck-window class is already served by the feed's prefix-commit rule, so
    VulnCheck adds nothing there. Feed retirement is recorded as a named hedge in
-   the design's sunset-watch follow-up; no build.
+   the design's sunset-watch follow-up (eshu#10716, noted there by comment); no
+   build.
 2. **VulnCheck content never enters an NVD-labelled fact.** `vulnStatus` differs
-   on 5.1% of overlapping records, concentrated in analysis-state records, which
-   is the fresh edge itself, so "fall back to the NVD value" fails exactly where
-   VulnCheck would be used. `nodes[].negate` is dropped, and the reducer treats a
-   match in a negated node as inverting the claim. The only acceptable shape is
+   on 5.1% of overlapping records and on 67% of NVD `Undergoing Analysis`
+   records, and the live NVD API sided with NVD on all 6 answered samples.
+   Freshly modified records sit in early analysis states, so "fall back to the
+   NVD value" is likely to fail where VulnCheck would be used (a hypothesis: the
+   mismatch was bulk-clustered by date, not measured at the edge, where 11-14
+   showed 0 of 250). A dropped `negate: true` would turn a match the reducer
+   excludes into a false affected result; on the compatible endpoint the key was
+   present (all `false`) and a `true` was never tested, so this is an untested
+   risk, not a finding. The only acceptable shape is
    **ID discovery**: use VulnCheck for CVE id plus `lastModified` (equal on
    11,017 of 11,017 and 60 of 60 samples), and fetch all content from NVD
    `cveId=` reads inside the same window claim, envelope and cursor CAS, with
@@ -61,7 +69,7 @@ it.
 - R19: a `transport=vulncheck_ids` label on claim metrics, and the token never
   appears in logs or spans.
 - R20: the selector routes to VulnCheck only when the window end is after the
-  feed's `M1` and the API walk failed; the kill switch forces the API.
+  feed horizon `M1` (design section 1) and the API walk failed; the kill switch forces the API.
 
 ## Corrections the arbiter required in the evidence note
 

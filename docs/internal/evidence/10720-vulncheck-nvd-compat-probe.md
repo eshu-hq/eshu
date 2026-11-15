@@ -15,11 +15,11 @@ does not restart the clock. Every number below carries its sample size.
 
 ## Verdict
 
-**Backup candidate, not primary, and not yet shippable.** In small samples (278 and 60
-records) its coverage matched NVD's, single calls were far faster and steadier
-than the NVD API's, and it was fresher than the NVD feed (freshness against the live NVD API was not
-measured; VulnCheck mirrors that API). It fails the
-fidelity threshold on one field that matters (`vulnStatus`) and carries
+**Backup candidate, not primary, and not yet shippable.** Against NVD's Modified feed
+it held all 11,017 feed records in the gap window, single calls were far faster
+and steadier than the NVD API's, and it carried one record stamped after the
+feed's generation time (freshness against the live NVD API was not measured).
+It fails the fidelity threshold on one field that matters (`vulnStatus`) and carries
 VulnCheck-authored additions that change what "NVD data" means, and the
 licence terms are unresolved for a stored, redistributed product. NVD stays the
 source of record (owner decision 2026-11-05). The ordering that follows from
@@ -36,8 +36,9 @@ including `nist-nvd2`, `nist-nvd`, `mitre-cvelist-v5` and `vulncheck-kev`.
   (`id`, not `cve.id`) with `vcConfigurations` and `vcVulnerableCPEs`. Date
   filters take `YYYY-MM-DD` only (an instant is a 400). The filter does not key
   on NVD `lastModified`: in the 2026-11-14 window, 700 of 700 records carried
-  `_timestamp` on that day but only 195 of 700 carried `lastModified` on it, and
-  the oldest `lastModified` in the window was 2026-06-17. The filter follows
+  `_timestamp` on that day but only 195 of 700 carried `lastModified` on it (the
+  retained 100-record page agrees: 100 of 100 and 24 of 100), and the oldest
+  `lastModified` in the window was 2026-06-17. The filter follows
   VulnCheck's own ingest time. Unusable for NVD-window slicing.
 - **NVD-compatible endpoint** (`/rest/json/cves/2.0`, documented at
   docs.vulncheck.com under `nvd-compatibility`): `format NVD_CVE`, `version 2.0`,
@@ -68,8 +69,10 @@ coverage check either.
 
 ## M4. Reliability and limits
 
-40 sequential one-record requests: 40 of 40 HTTP 200, p50 0.20 s, p95 0.25 s,
-max 0.30 s. In the same hour the live NVD API, called with an NVD key from the
+40 sequential unfiltered one-record requests: 40 of 40 HTTP 200, p50 0.20 s, p95
+0.25 s, max 0.30 s. The 28-day drain above (30 of 30 HTTP 200, up to 2,000
+records a page) is the stronger reliability evidence; the two figures measure
+different calls. In the same hour the live NVD API, called with an NVD key from the
 same laptop for 8 single-CVE reads, answered 6 in 3.9 to 21.0 s and failed 2
 after 3 attempts each. The documented limit is 1,000 requests per minute per
 token, with `Retry-After` on 429 and a retry-with-backoff rule for 503; no
@@ -81,23 +84,28 @@ IP, one token.
 - A window `[15:00Z, 16:30Z]` on 2026-11-15, queried at about 16:01Z, returned 10
   records, newest `lastModified` 15:33Z; the native index read at 15:54Z showed
   the same newest record with `_timestamp` 15:52Z. The NVD Modified feed,
-  generated 15:00Z by its `.meta`, held records only up to 14:17Z. VulnCheck was
-  therefore at least an hour fresher than the feed, with a gap to wall clock of
-  about 30 minutes at the last read (a Sunday, so NVD itself may have been quiet;
-  one afternoon is not a cadence).
+  generated 15:00Z by its `.meta`, held records only up to 14:17Z. What this
+  supports is one VulnCheck record stamped 33 minutes after the feed's generation
+  time, with about 30 minutes between it and wall clock at the last read (a
+  Sunday, so NVD itself may have been quiet; 10 records, one afternoon, not a
+  cadence).
 - Ingest lag on the native index, `_timestamp` minus `lastModified` over 81
   records modified that day: min 2.8 min, p50 19.7, p95 22.0, max 530.0 (one
   outlier); no negative lags.
-- Completeness against the NVD Modified feed: window `[11-13T00:00, 11-13T06:00]`
-  held 278 feed records and 0 were missing from VulnCheck (VulnCheck returned
-  279). On the native index, 60 of 60 random records modified 11-12 to 11-14 were
+- Completeness against the NVD Modified feed: all 11,017 feed records in the
+  28-day gap window were present in VulnCheck (0 missing), and window
+  `[11-13T00:00, 11-13T06:00]` held 278 feed records with 0 missing (VulnCheck
+  returned 279). The converse is open: 12 VulnCheck rows stamped 11-09 to 11-14,
+  all `Awaiting Analysis` (for example CVE-2019-1491), are absent from the
+  Modified feed and unexplained. On the native index, 60 of 60 random records modified 11-12 to 11-14 were
   present with an identical `lastModified`.
 
 ## M6. Window boundary: half-open, unlike NVD
 
 Using a real `lastModified` as the pivot: the total for `end = pivot` equalled
 the total for `end = pivot - 1 ms` (29,685 each), and a window starting at the
-pivot returned the 5 records stamped exactly at it. So VulnCheck is start
+pivot returned at least 5 records stamped exactly at it (the request capped the
+page at 5). So VulnCheck is start
 inclusive, end exclusive. The NVD API includes both ends. A transport that
 swaps one for the other drops or duplicates boundary records unless it trims;
 the feed design already requires that trim (R1 in the #10671 design).
@@ -119,10 +127,13 @@ VulnCheck additions and changes, with record counts out of 11,017:
 
 - `vcConfigurations` on 9,052 records and `vcConfigurationsWithPlatforms` on 346;
   `vcConfigurations` carries an empty `matchCriteriaId`. The `configurations`
-  key itself passes NVD's data through, `matchCriteriaId` included, except that
-  `nodes[].negate` is dropped. That flag is load-bearing: the reducer treats a
-  match inside a negated node as inverting the vulnerability claim, so losing it
-  would flip findings.
+  key itself passes NVD's data through, `matchCriteriaId` included. On the
+  compatible endpoint `nodes[].negate` is present on all 50,216 sampled nodes
+  (all `false`; no sampled node in either source was `true`, so whether a `true`
+  survives was not tested). The earlier 24-record read of the native index
+  showed `negate` absent there. The flag matters: the reducer excludes a match
+  inside a negated configuration or node from the affected index (#9696), so a
+  dropped `true` would turn an excluded match into a false affected result.
 - Multi-source `metrics` and `weaknesses`: VulnCheck adds a `Primary` entry from
   its own source and demotes NVD's to `Secondary`, so `type` flips on 1,149
   CVSS 3.1 entries and 1,173 weakness entries. `cvssMetricV40` has an extra
@@ -137,8 +148,12 @@ VulnCheck additions and changes, with record counts out of 11,017:
 **`vulnStatus` is the blocker.** 549 records are `Undergoing Analysis` at NVD and
 `Awaiting Analysis` at VulnCheck, 8 go the other way, 1 is `Analyzed` at
 VulnCheck against `Undergoing Analysis` at NVD, all with the same `lastModified`.
-The live NVD API returned the NVD value on every one of the 5 sampled records
-that answered (the other 2 failed after 3 attempts), so VulnCheck, not the
+By status, the mismatch is 550 of 815 NVD `Undergoing Analysis` records (67%) and
+8 of 2,939 `Awaiting Analysis`, and 0 for every other status. By `lastModified`
+day it clusters on 11-08 (40 of 291) and 11-10 (302 of 2,765) and is 0 of 250 on
+11-14, so it is bulk-clustered, not shown to sit at the edge. The live NVD API
+was read for 8 mismatch records: 6 answered and all 6 returned the NVD feed's
+value (`Undergoing Analysis`); 2 failed after 3 attempts. So VulnCheck, not the
 feed, is the outlier. The satellite uses `vulnStatus` for deferral and severity
 decisions, so taking it from VulnCheck would change projected truth silently.
 
@@ -169,8 +184,8 @@ The ruling above rejects a content adapter. For the record, a content-carrying
 VulnCheck transport could only be safe if it (a) keeps only `nvd@nist.gov` and
 other upstream-source metric and weakness entries and drops entries authored by
 VulnCheck, (b) ignores `vc*` fields, `type` rewrites and the zero temporal and
-environmental scores, (c) does not trust `vulnStatus` (carry it flagged, or fall
-back to the NVD value when one exists), (d) trims the half-open window, (e)
+environmental scores, (c) does not trust `vulnStatus` (carry it flagged), (c2) verifies that a `true`
+`negate` survives, which this note did not test, (d) trims the half-open window, (e)
 labels every fact with its transport so rank and audit can see it, and (f)
 stays behind the same cursor CAS and claim rules as the feed transport. That is
 a design item with its own regression plan, not a quick adapter.
@@ -198,4 +213,9 @@ run with `python3 -I`; downloaded data stayed in a scratch directory.
   `weaknesses` handling beyond counts.
 - Whether the Community token is rate-limited per token or per IP, and any daily
   quota.
-- NVD API behaviour for the 2 records that failed three times.
+- NVD API behaviour for the 2 records that failed three times, and the NVD side
+  of M4 at all beyond 8 single reads; the script for those reads was not kept.
+- The 12 VulnCheck rows absent from the Modified feed, and whether a `negate:
+  true` node survives the compatible endpoint (no sampled node was negated).
+- Whether VulnCheck tracks the live NVD API or the feed; freshness was compared
+  only against the feed.
