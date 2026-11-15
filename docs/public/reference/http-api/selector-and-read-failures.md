@@ -309,10 +309,14 @@ read and search, repository `{repo_id}`, security-alert supply-chain, and the
 the caller may read: resolution filters matches by the caller's grant before
 the body is built, so a grant-scoped caller never sees an unreadable id.
 
-Each entry in `candidates` carries the canonical `repo_id`. Passing that id
-back as the same selector resolves exactly one repository, so the follow-up is
-the same request with the chosen `repo_id`. A non-envelope response carries
-the packet at the top level with the code and the typed text:
+Each entry in `candidates` is an object whose only guaranteed field is
+`repo_id`; later versions may add more fields, so a caller reads `repo_id` and
+ignores anything else. Passing that id back as the same selector resolves
+exactly one repository, so the follow-up is the same request with the chosen
+`repo_id`. The service investigation and service story routes answer the same
+`repo_id` objects when their optional `repo` selector is ambiguous. A
+non-envelope response carries the packet at the top level with the code and
+the typed text:
 
 ```json
 {

@@ -5,6 +5,7 @@ package entity
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -85,6 +86,64 @@ func TestServiceRoutesSelectorLookupFailureAnswers500(t *testing.T) {
 				assertServiceLookupAnswer(t, rec.Code, rec.Body.String(), recorder.Ended(), tc)
 			})
 		}
+	}
+}
+
+// TestServiceRoutesRepoAmbiguityCandidatesAreObjects pins the #10655 review
+// follow-up at the wire: the investigation and story routes answer a
+// repository-selector ambiguity with error.details.candidates objects whose
+// only guaranteed field is repo_id (matching selector.AmbiguousDetails), not
+// the bare id strings that used to leak through repoAmbiguous.Matches. The
+// service-workload ambiguity keeps its richer map shape and is asserted
+// separately.
+func TestServiceRoutesRepoAmbiguityCandidatesAreObjects(t *testing.T) {
+	t.Parallel()
+
+	ambiguous := content.FakePortContentStore{Repositories: []querycontract.RepositoryCatalogEntry{
+		{ID: "repository:r_a", Name: "shared"},
+		{ID: "repository:r_b", Name: "shared"},
+	}}
+	routes := []string{
+		"/api/v0/investigations/services/checkout?repo=shared",
+		"/api/v0/services/checkout/story?repo=shared",
+	}
+	for _, route := range routes {
+		t.Run(route, func(t *testing.T) {
+			t.Parallel()
+
+			handler := &Handler{Content: ambiguous, Profile: querycontract.ProfileLocalAuthoritative}
+			mux := http.NewServeMux()
+			handler.Mount(mux)
+			req := httptest.NewRequest(http.MethodGet, route, nil)
+			req.Header.Set("Accept", querycontract.EnvelopeMIMEType)
+			rec := httptest.NewRecorder()
+			mux.ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusConflict {
+				t.Fatalf("status = %d, want %d; body = %s", rec.Code, http.StatusConflict, rec.Body.String())
+			}
+			var body struct {
+				Error struct {
+					Code    string `json:"code"`
+					Details struct {
+						Candidates []struct {
+							RepoID string `json:"repo_id"`
+						} `json:"candidates"`
+					} `json:"details"`
+				} `json:"error"`
+			}
+			if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+				t.Fatalf("json.Unmarshal: %v; body = %s", err, rec.Body.String())
+			}
+			if body.Error.Code != string(querycontract.ErrorCodeAmbiguous) {
+				t.Fatalf("error.code = %q, want %q", body.Error.Code, querycontract.ErrorCodeAmbiguous)
+			}
+			if len(body.Error.Details.Candidates) != 2 ||
+				body.Error.Details.Candidates[0].RepoID != "repository:r_a" ||
+				body.Error.Details.Candidates[1].RepoID != "repository:r_b" {
+				t.Fatalf("error.details.candidates = %#v, want the two repo_id objects; body = %s", body.Error.Details.Candidates, rec.Body.String())
+			}
+		})
 	}
 }
 
