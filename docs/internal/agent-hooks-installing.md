@@ -85,26 +85,40 @@ commits and pushes, agent hooks gate tool calls.
 ## Fresh clone on a brand-new machine
 
 Cloning `eshu-hq/eshu` anywhere and running any harness in the clone must
-load the same project rules, skills, and agents. Everything required is
-committed: `AGENTS.md`, `.agents/` (skills, Muse role shims, `roles.json`),
-`.muse/`, `.claude/`, `.codex/`, `.cursor/`, `.opencode/`, and the router
-scripts. Prove a new clone with `bash scripts/dev/check-agent-env.sh` — it
-checks host tools (`git`, `bash`, `python3` required; `gh` for PR/issue
-work), every committed harness path, role-binding drift, and hook JSON
-validity, changing nothing. Three steps are per-machine state and cannot be
+load the same project rules, skills, and agents. The repo's own canon is
+committed: `AGENTS.md`, `.muse/`, the harness wiring (`.claude/settings.json`,
+`.codex/config.toml`, `.codex/hooks.json`, `.opencode/opencode.jsonc`), and
+the router scripts. The shared agent material -- skills, Muse role shims,
+`roles.json`, and the harness hooks -- is NOT committed: the `eshu-agent-kit`
+installer materializes it locally at the version this repo pins in
+`.agent-kit-version`, so a fresh clone needs
+
+```sh
+install.sh --repo "$PWD" --aliases <kit>/templates/repo-overlay/eshu-aliases.tsv
+install.sh --agents --repo "$PWD"
+install.sh --hooks --repo "$PWD"
+install.sh --rules --repo "$PWD"
+```
+
+run once before any harness resolves a project skill; the CI gate does the
+same before its canon step. Prove a new clone with `bash
+scripts/dev/check-agent-env.sh` -- it checks host tools (`git`, `bash`,
+`python3` required; `gh` for PR/issue work), every committed harness path,
+that the installed material matches the pinned kit, and hook JSON validity,
+changing nothing. Three steps are per-machine state and cannot be
 committed; the script names them: trust the workspace in Muse and start a
 new session, authenticate `gh`, and run `scripts/dev/bootstrap-hooks.sh`
 once for git hooks. An untrusted Muse session skips project hooks
-*silently* — that, not a missing `.muse/skills/` (Muse discovers
-`.agents/skills/` directly), is the usual fresh-machine failure.
+*silently* — that, not a missing `.muse/skills/` (Muse discovers the
+installed `.agents/skills/` directly), is the usual fresh-machine failure.
 
 ## Muse Code activation
 
 The Muse port is project-level and **live**: `.muse/hooks.json` plus
 `.muse/hooks/` (7 wrappers delegating to `.claude/hooks/`, plus the
 Muse-native `guard-spawn.sh` dispatch guard). Muse
-discovers project skills from `.agents/skills/` and role definitions from
-`.agents/agents/` — there is intentionally no `.muse/skills/` or
+discovers project skills from the installed `.agents/skills/` and role
+definitions from `.agents/agents/` — there is intentionally no `.muse/skills/` or
 `.muse/agents/` copy.
 Settings are read at session start, so start a new session after changing
 either. Project hooks load only in a trusted workspace -- an untrusted

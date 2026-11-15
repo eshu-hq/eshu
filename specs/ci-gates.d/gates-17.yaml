@@ -9,11 +9,11 @@ gates:
     blocking: true
     triggers:
       - ".codex/hooks.json"
-      - ".codex/hooks/**"
-      - ".claude/hooks/goal-continue.sh"
-      - ".claude/hooks/lib/goal-issues.py"
-      - ".claude/hooks/lib/goal-issues.sh"
-      - ".claude/hooks/lib/goal-progress.sh"
+      # The goal-continuation hook and its libs live in the eshu-agent-kit;
+      # the installer materializes them locally, so this repo tracks only
+      # its own Codex wiring. The kit pin selects the gate that runs the
+      # installed hook.
+      - ".agent-kit-version"
       - "scripts/test-codex-goal-continue-hook.sh"
       - ".github/workflows/verify-agent-hygiene.yml"
       - "specs/ci-gates.v1.yaml"

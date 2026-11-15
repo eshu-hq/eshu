@@ -268,6 +268,11 @@ jobs:
           fi
       - name: Pre-warm Go modules
         run: scripts/ci/go-mod-download-retry.sh
+      # The shared skills live in the eshu-agent-kit, not in this repo, and
+      # the skill-workflow-refs gate reads them. Install the pinned kit so
+      # that gate has a census to scan.
+      - name: Install the eshu-agent-kit
+        run: scripts/ci/install-eshu-agent-kit.sh
       - name: Run test mirror (${{ matrix.key }})
         run: ${{ matrix.test }}
       # #6979: feed the cassette-author identifier check from a repository

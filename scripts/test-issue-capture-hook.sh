@@ -61,6 +61,9 @@ gh_calls() { wc -l <"${FIXTURES}/calls.log" | tr -d ' '; }
 mk_repo() {
 	local d="${work}/$1"
 	mkdir -p "${d}/.claude" "${d}/.agents/skills/eshu-code-review"
+	# The kit's hooks resolve the repo by the kit version pin, so a
+	# kit-pinned checkout is what the fixture must look like.
+	printf 'v0.1.0\n' >"${d}/.agent-kit-version"
 	printf '%s' "${d}"
 }
 

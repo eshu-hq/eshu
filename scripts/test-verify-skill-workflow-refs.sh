@@ -192,22 +192,11 @@ test_no_citations_passes() {
   fi
 }
 
-# Case 7: the real, committed .agents/skills tree against the real,
-# committed .github/workflows tree passes today. This is the regression
-# proof: it fails on the pre-fix tree (three telemetry-coverage-discipline
-# references plus two generator-script-discipline references to workflow
-# files consolidated away by #4218) and passes once #5855 corrects them.
-test_real_tree_passes() {
-  local out="${tmp_root}/case7.out"
-  if ESHU_SKILL_WORKFLOW_REFS_SKILLS_DIR="${repo_root}/.agents/skills" \
-     ESHU_SKILL_WORKFLOW_REFS_WORKFLOWS_DIR="${repo_root}/.github/workflows" \
-     "${BASH:-bash}" "${verifier}" >"${out}" 2>&1; then
-    assert_contains "OK:" "${out}" "case7: real committed skill docs pass against real committed workflows"
-  else
-    record_fail "case7: real committed skill docs pass against real committed workflows"
-    cat "${out}" >&2
-  fi
-}
+# The real-tree case lives in a companion so this file stays under the
+# 500-line cap. It scans the kit's skill sources, where the workflow
+# citations live.
+# shellcheck source=scripts/lib/test-skill-workflow-refs-real-tree-cases.sh
+source "${repo_root}/scripts/lib/test-skill-workflow-refs-real-tree-cases.sh"
 
 # Case 8: a bare, un-backticked, un-pathed prose mention of an EXISTING
 # workflow passes. Mirrors the real

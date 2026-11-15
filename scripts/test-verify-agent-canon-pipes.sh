@@ -36,6 +36,10 @@ canon_scripts=(
   "scripts/lib/test-private-identifier-cases.sh"
   "scripts/lib/test-private-identifier-path-cases.sh"
   "scripts/lib/test-agent-alias-cases.sh"
+  # The ci-gates doc generator is an agent-canon trigger (its committed
+  # table is this gate's row), so the drift check requires it here too.
+  "scripts/generate-ci-gates-doc.sh"
+  "scripts/lib/test-agent-skill-census-cases.sh"
   "scripts/test-agent-hooks.sh"
   "scripts/lib/agent-hooks-fake-gate.sh"
   "scripts/test-agent-hooks-fake-gate.sh"

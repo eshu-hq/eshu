@@ -40,15 +40,88 @@ fi
 printf 'verify-agent-canon: AGENTS.md is the only agent canon (no CLAUDE.md).\n'
 
 if [ -z "${ESHU_AGENT_CANON_REPO_ROOT:-}" ]; then
-  if [ ! -f "$repo_root/.agents/roles.json" ] || [ ! -f "$repo_root/scripts/agent-roles.py" ]; then
-    printf 'verify-agent-canon: missing role manifest or generator\n' >&2
+  # The role bindings live in the eshu-agent-kit, not in this repo. The
+  # installer materializes them locally as symlinks, so what this repo
+  # checks is that the installed tree matches the kit it pins -- a stale or
+  # half-installed tree would otherwise dispatch roles with the wrong model.
+  if [ ! -f "$repo_root/.agents/roles.json" ]; then
+    printf 'verify-agent-canon: missing installed role manifest at %s\n' \
+      "$repo_root/.agents/roles.json" >&2
+    printf 'Fix: run the eshu-agent-kit installer: install.sh --repo --aliases\n' >&2
     exit 1
   fi
-  python3 "$repo_root/scripts/agent-roles.py" check
+  # The kit root is the directory the installed tree symlinks into. Read it
+  # from the installed manifest's own symlink target rather than searching
+  # the filesystem, so this check agrees with what the installer produced.
+  kit_root="$(cd "$repo_root" && python3 -c '
+import pathlib, sys
+link = pathlib.Path(".agents/roles.json")
+try:
+    target = link.resolve()
+except OSError:
+    sys.exit(1)
+root = target.parent.parent
+if (root / "agents" / "roles.json").is_file():
+    print(root)
+else:
+    sys.exit(1)
+' 2>/dev/null || true)"
+  if [ -z "$kit_root" ]; then
+    printf 'verify-agent-canon: cannot resolve the eshu-agent-kit root from %s\n' "$repo_root" >&2
+    printf 'Fix: run the eshu-agent-kit installer: install.sh --repo --aliases\n' >&2
+    exit 1
+  fi
+  if [ ! -f "$kit_root/agents/roles.json" ]; then
+    printf 'verify-agent-canon: kit at %s has no agents/roles.json\n' "$kit_root" >&2
+    exit 1
+  fi
+  if ! diff -q "$kit_root/agents/roles.json" "$repo_root/.agents/roles.json" >/dev/null 2>&1; then
+    printf 'verify-agent-canon: installed role manifest differs from the kit at %s\n' "$kit_root" >&2
+    printf 'Fix: re-run the eshu-agent-kit installer: install.sh --repo --aliases\n' >&2
+    exit 1
+  fi
+  # The role shims carry the tier model the manifest pins, so a stale
+  # installed shim would dispatch a role on a model the kit no longer
+  # pins -- even with the manifest itself current. Every role's OpenCode
+  # shim is checked against its own tier, not just the arbiter's: one
+  # spot-checked role left the other four unguarded.
+  python3 "$repo_root/scripts/verify-role-shim-bindings.py" \
+    "$kit_root/agents/roles.json" "$repo_root/.opencode/agent" >&2 || exit 1
 fi
 
-skills_root="$repo_root/.agents/skills"
+# The shared skills live in the eshu-agent-kit. The installer materializes
+# them locally: the harness trees (.claude/skills/, .codex/skills/) carry
+# every skill under its harness-visible name, while .agents/skills/ carries
+# only the ones the alias manifest does not rename. So the harness tree is
+# the census, and each skill there must resolve to an alias wrapper whose
+# marker and frontmatter agree with the directory it sits in.
+skills_root="$repo_root/.claude/skills"
 if [ -d "$skills_root" ]; then
+  # Kit source for the body proof: the CI gate step checks eshu-agent-kit out
+  # beside the repo. The link-rewrite list mirrors build_alias_link_sed in
+  # the kit's scripts/lib/install-aliases.sh: renamed pairs only. Each sed
+  # pattern is anchored by a delimiter (/, ), #) after the source name, so no
+  # pattern shadows another and manifest order is safe.
+  kit_dir="$repo_root/eshu-agent-kit"
+  kit_link_sed=""
+  kit_cmp_tmp=""
+  if [ -d "$kit_dir/skills" ]; then
+    kit_link_sed="$(mktemp)"
+    kit_cmp_tmp="$(mktemp)"
+    while IFS= read -r line || [ -n "$line" ]; do
+      case "$line" in '' | '#'*) continue ;; esac
+      case "$line" in *$'\t'*) : ;; *) continue ;; esac
+      kit_alias="${line%%$'\t'*}"
+      kit_src_name="${line#*$'\t'}"
+      [ "$kit_alias" = "$kit_src_name" ] && continue
+      printf 's|](../%s/|](../%s/|g\ns|](../%s)|](../%s)|g\ns|](../%s#|](../%s#|g\n' \
+        "$kit_src_name" "$kit_alias" "$kit_src_name" "$kit_alias" \
+        "$kit_src_name" "$kit_alias" >>"$kit_link_sed"
+      printf 's|](../../%s/|](../../%s/|g\ns|](../../%s)|](../../%s)|g\ns|](../../%s#|](../../%s#|g\n' \
+        "$kit_src_name" "$kit_alias" "$kit_src_name" "$kit_alias" \
+        "$kit_src_name" "$kit_alias" >>"$kit_link_sed"
+    done <"$kit_dir/templates/repo-overlay/eshu-aliases.tsv"
+  fi
   for skill_file in "$skills_root"/*/SKILL.md; do
     [ -f "$skill_file" ] || continue
     skill_name="$(basename "$(dirname "$skill_file")")"
@@ -79,6 +152,7 @@ if [ -d "$skills_root" ]; then
         exit 1
       fi
       alias_value="$(sed -n 's/.*alias=\([^ ]*\).*/\1/p' "$marker")"
+      source_value="$(sed -n 's/.*source=\([^ ]*\).*/\1/p' "$marker")"
       wrapper_name="$(awk 'NR==1 && $0!="---"{exit} NR>1 && $0=="---"{exit} /^name: /{sub(/^name: /,""); print}' "$wrapper_skill")"
       if [ "$alias_value" != "$skill_name" ] || [ "$wrapper_name" != "$skill_name" ]; then
         printf 'verify-agent-canon: %s alias at %s does not resolve to shared skill %s\n' \
@@ -86,6 +160,60 @@ if [ -d "$skills_root" ]; then
         exit 1
       fi
     done
+    # Cross-tree proof: both harness trees come from one installer run, so
+    # the two wrappers for one skill must be byte-identical. A mismatch is a
+    # partial regeneration or a hand edit the name check alone cannot see.
+    if ! cmp -s "$repo_root/.claude/skills/$skill_name/SKILL.md" \
+      "$repo_root/.codex/skills/$skill_name/SKILL.md"; then
+      printf 'verify-agent-canon: harness wrappers for %s differ between .claude and .codex\n' \
+        "$skill_name" >&2
+      exit 1
+    fi
+    # Body proof against the kit source: every copied .md in a wrapper must
+    # equal the kit source its marker names, after the installer's two
+    # documented rewrites (frontmatter name, alias cross-links). Names alone
+    # leave a hostile same-name body green; cmp closes that gap.
+    if [ -n "$kit_link_sed" ]; then
+      kit_src="$kit_dir/skills/eshu/$source_value"
+      [ -d "$kit_src" ] || kit_src="$kit_dir/skills/core/$source_value"
+      if [ ! -d "$kit_src" ]; then
+        printf 'verify-agent-canon: marker at %s names unknown kit source %s\n' \
+          "$marker" "$source_value" >&2
+        exit 1
+      fi
+      for harness in .claude .codex; do
+        entry="$repo_root/$harness/skills/$skill_name"
+        # The wrapper carries every kit-source entry plus its own .kit-alias.
+        kit_entry_count="$(cd "$kit_src" && find . -mindepth 1 | wc -l | tr -d ' ')"
+        entry_count="$(cd "$entry" && find . -mindepth 1 | wc -l | tr -d ' ')"
+        if [ "$entry_count" != "$((kit_entry_count + 1))" ]; then
+          printf 'verify-agent-canon: %s wrapper for %s holds %s entries, kit source %s holds %s\n' \
+            "$harness" "$skill_name" "$entry_count" "$source_value" "$kit_entry_count" >&2
+          exit 1
+        fi
+        while IFS= read -r rel; do
+          rel="${rel#./}"
+          [ -n "$rel" ] || continue
+          if [ "${rel##*.}" = "md" ]; then
+            if [ "$rel" = "SKILL.md" ]; then
+              sed -e "s/^name: $source_value\$/name: $skill_name/" \
+                -f "$kit_link_sed" "$kit_src/$rel" >"$kit_cmp_tmp"
+            else
+              sed -f "$kit_link_sed" "$kit_src/$rel" >"$kit_cmp_tmp"
+            fi
+            if ! cmp -s "$kit_cmp_tmp" "$entry/$rel"; then
+              printf 'verify-agent-canon: %s wrapper body %s/%s drifted from kit source %s/%s\n' \
+                "$harness" "$skill_name" "$rel" "$source_value" "$rel" >&2
+              exit 1
+            fi
+          elif [ ! -e "$entry/$rel" ]; then
+            printf 'verify-agent-canon: %s wrapper for %s is missing entry %s\n' \
+              "$harness" "$skill_name" "$rel" >&2
+            exit 1
+          fi
+        done < <(cd "$kit_src" && find . -mindepth 1 | LC_ALL=C sort)
+      done
+    fi
   done
   printf 'verify-agent-canon: shared skill harness aliases are complete.\n'
 
@@ -109,7 +237,9 @@ if [ -d "$skills_root" ]; then
   # Only assignments INSIDE the case block count. An `IDS="x"` appended after
   # `esac` is unreachable -- no path can ever select it -- but a whole-file
   # match accepts it and reports the skill routed. Scope to the block first.
-  nudge_case="$(sed -n '/^case /,/^esac/p' "$nudge_hook")"
+  # The arm block is indented in the kit's hook (it lives inside the
+  # nudge_ids_for function), so match `case` with optional leading space.
+  nudge_case="$(sed -n '/^[[:space:]]*case /,/^[[:space:]]*esac/p' "$nudge_hook")"
   nudge_arms="$(printf '%s' "$nudge_case" | rg -o 'IDS="[^"]*"' || true)"
   nudge_exempt="$(sed -n '/^# NUDGE_EXEMPT_BEGIN/,/^# NUDGE_EXEMPT_END/p' "$nudge_hook")"
   if [ -z "$nudge_exempt" ]; then
@@ -230,13 +360,21 @@ canon_rule_targets=()
 for f in "${canon_rule_files[@]}"; do
   [ -f "$f" ] && canon_rule_targets+=("$f")
 done
-[ -d "$repo_root/.agents/skills" ] && canon_rule_targets+=("$repo_root/.agents/skills")
+# The shared skills live in the eshu-agent-kit. The installer puts every
+# one of them in the harness trees under its harness-visible name, and
+# .agents/skills carries only the ones the alias manifest does not rename.
+# The file that DEFINES the bar is the aliased code-review skill's
+# references/merge-bar.md, so scanning only .agents/skills would drop the
+# guard's highest-value target: the harness tree is the census.
+for d in "$repo_root/.claude/skills" "$repo_root/.agents/skills"; do
+  [ -d "$d" ] && canon_rule_targets+=("$d")
+done
 if [ "${#canon_rule_targets[@]}" -gt 0 ]; then
   if rg -nU "$retired_bar_pattern" "${canon_rule_targets[@]}" >&2; then
     printf 'verify-agent-canon: retired review-bar phrasing re-introduced above.\n' >&2
     printf '  The bar is P0=0, P1=0, P2-blocking=0, with every deferred P2 tracked in a\n' >&2
     printf '  linked issue, the owner agreement quoted in the PR, and its severity-table\n' >&2
-    printf '  category named. See .agents/skills/eshu-code-review/references/merge-bar.md\n' >&2
+    printf '  category named. See .claude/skills/eshu-code-review/references/merge-bar.md\n' >&2
     exit 1
   fi
   printf 'verify-agent-canon: no retired review-bar phrasing in the canon or skills.\n'

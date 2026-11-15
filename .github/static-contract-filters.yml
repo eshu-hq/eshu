@@ -40,7 +40,9 @@ skill:
   - '.github/static-contract-filters.yml'
   - 'go/cmd/skillgen/**'
   - 'go/internal/extensions/skillgen/**'
-  - '.agents/skills/**'
+  # The shared skills live in the eshu-agent-kit, so the kit pin is what
+  # selects this gate when the installed material changes.
+  - '.agent-kit-version'
   - 'skill-fragments/**'
   # The gate compares fragments against this baseline: a PR touching only
   # expected/ must still create the named check; the two must not disagree.
@@ -51,9 +53,12 @@ skillworkflowrefs:
   - 'specs/ci-gates.v1.yaml'
   - 'specs/ci-gates.d/**'
   - '.github/static-contract-filters.yml'
-  - '.agents/skills/**'
+  # The shared skills live in the eshu-agent-kit, so the kit pin is what
+  # selects this gate when the installed material changes.
+  - '.agent-kit-version'
   - '.github/workflows/**'
   - 'scripts/*verify-skill-workflow-refs*.sh'
+  - 'scripts/lib/test-skill-workflow-refs-real-tree-cases.sh'
 telemetry:
   - '.github/workflows/static-contract-gates.yml'
   - 'specs/ci-gates.v1.yaml'

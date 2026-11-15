@@ -20,6 +20,10 @@ CONTINUE="${repo_root}/.claude/hooks/goal-continue.sh"
 work="$(mktemp -d)"
 trap 'rm -rf "${work}"' EXIT
 mkdir -p "${work}/.claude" "${work}/tmp"
+# The kit's hooks resolve the repo by the kit version pin, so the fixture
+# checkout must carry one or the hook stays silent and every case below
+# would pass for the wrong reason.
+printf 'v0.1.0\n' >"${work}/.agent-kit-version"
 # The Stop hook's nudge counters live in ${TMPDIR:-/tmp}; this suite points
 # them at its own tmp, so a run leaves nothing behind and a stale counter from
 # an earlier PID-reused run cannot change the result. The shared dir is kept

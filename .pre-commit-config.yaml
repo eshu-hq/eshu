@@ -68,21 +68,21 @@ repos:
         name: shared agent canon and skill contract
         entry: scripts/verify-agent-canon.sh
         language: script
-        files: '^((AGENTS|CLAUDE)\.md|\.agents/.*|\.claude/(skills|agents|hooks)/.*|\.claude/settings\.json|\.codex/(skills|agents)/.*|\.codex/config\.toml|\.codex/hooks\.json|\.muse/hooks/.*|\.muse/hooks\.json|\.opencode/agent/.*|\.cursor/agents/.*|scripts/(agent-roles\.py|test-agent-roles\.py|guard-codex-spawn\.py|test-codex-spawn-guard\.py|goal-role-router\.py|test-goal-role-router\.py|verify-agent-canon\.sh|test-verify-agent-hygiene\.sh|cursor-hook\.py|cursor_hook_family\.py|test-cursor-hooks\.sh|test-cursor-hooks-helper-cases\.sh)|\.cursor/hooks\.json)$'
+        files: '^((AGENTS|CLAUDE)\.md|\.agent-kit-version|\.claude/settings\.json|\.codex/config\.toml|\.codex/hooks\.json|\.muse/hooks/.*|\.muse/hooks\.json|scripts/(guard-codex-spawn\.py|test-codex-spawn-guard\.py|goal-role-router\.py|test-goal-role-router\.py|verify-agent-canon\.sh|test-verify-agent-hygiene\.sh|cursor-hook\.py|cursor_hook_family\.py|test-cursor-hooks\.sh|test-cursor-hooks-helper-cases\.sh)|\.cursor/hooks\.json)$'
         pass_filenames: false
 
       - id: codex-spawn-guard
         name: Codex spawn guard behavior and wiring
         entry: python3 scripts/test-codex-spawn-guard.py
         language: system
-        files: '^(\.agents/roles\.json|\.codex/hooks\.json|scripts/(guard-codex-spawn|test-codex-spawn-guard)\.py|specs/ci-gates\.v1\.yaml|\.github/workflows/verify-agent-hygiene\.yml|\.pre-commit-config\.yaml)$'
+        files: '^(\.agent-kit-version|\.codex/hooks\.json|scripts/(guard-codex-spawn|test-codex-spawn-guard)\.py|specs/ci-gates\.v1\.yaml|\.github/workflows/verify-agent-hygiene\.yml|\.pre-commit-config\.yaml)$'
         pass_filenames: false
 
       - id: goal-role-routing
         name: goal skill role routing
         entry: python3 scripts/test-goal-role-router.py
         language: system
-        files: '^(\.agents/(roles\.json|skills/.*)|\.claude/(settings\.json|hooks/goal-refresh\.sh)|\.codex/(config\.toml|hooks\.json)|\.muse/(hooks\.json|hooks/goal-refresh\.sh)|scripts/(goal-role-router|test-goal-role-router)\.py)$'
+        files: '^(\.agent-kit-version|\.claude/settings\.json|\.codex/(config\.toml|hooks\.json)|\.muse/(hooks\.json|hooks/goal-refresh\.sh)|scripts/(goal-role-router|test-goal-role-router)\.py)$'
         pass_filenames: false
 
       - id: no-diff-fragments
@@ -354,7 +354,7 @@ repos:
         name: docs build (staged files)
         entry: scripts/verify-docs-build-changed.sh --staged
         language: script
-        files: '^(docs/|README\.md|AGENTS\.md|CLAUDE\.md|\.opencode/agent/.*\.md|\.agents/skills/.*\.md|scripts/verify-docs-build-changed\.sh|scripts/test-verify-docs-build-changed\.sh)'
+        files: '^(docs/|README\.md|AGENTS\.md|CLAUDE\.md|scripts/verify-docs-build-changed\.sh|scripts/test-verify-docs-build-changed\.sh)'
         pass_filenames: false
         require_serial: true
         stages: [pre-commit]

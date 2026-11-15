@@ -122,9 +122,14 @@ are cut at 20000 characters.
 - **Skills load by reading `SKILL.md`.** Cursor has no Skill tool, so
   nothing would ever record a loaded skill and `skill-nudge.sh` would block
   governed edits for good. The adapter treats a `Read` of a `SKILL.md` as
-  loading `<id>` only when its real path (symlinks and `../` resolved) sits
+  loading `<id>` only when its logical path (symlinks unresolved) sits
   directly in `<root>/.agents/skills/<id>/` (or the `.claude`, `.codex`,
-  `.cursor` copies), and `<id>` is a skill under `<root>/.agents/skills`.
+  `.cursor` copies), and `<id>` is a skill under one of that tree's skill
+  directories. Containment is decided on the logical path because the shared
+  skill trees are symlinks into the `eshu-agent-kit`: resolving them first
+  would move the skill outside the project and no skill read would count. A
+  `SKILL.md` symlinked out of the project is still rejected, by comparing the
+  resolved file against its own resolved folder.
   `<root>` is the project dir or the top of any git worktree that
   `git worktree list` shows for the project (the same git common dir). So an
   agent in Cursor opened on the main checkout can load a skill from the

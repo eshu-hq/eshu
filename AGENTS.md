@@ -57,10 +57,10 @@ irrelevant runtime detail out of the report.
 
 Fix P0, P1, and blocking P2 findings before the expensive promotion gate. A P2
 blocks when it contradicts a PR claim or is cheap and in the same edit; a
-prose-form finding is P3 ([merge-bar.md](.agents/skills/eshu-code-review/references/merge-bar.md#prose-form)). Any
+prose-form finding is P3 ([merge-bar.md](.claude/skills/eshu-code-review/references/merge-bar.md#prose-form)). Any
 other P2 needs a linked issue, the owner's agreement quoted in the PR, and its
 severity-table category. P3 findings do not block. The authoritative bar is
-[merge-bar.md](.agents/skills/eshu-code-review/references/merge-bar.md).
+[merge-bar.md](.claude/skills/eshu-code-review/references/merge-bar.md).
 
 The promotion order is:
 
@@ -114,7 +114,7 @@ publish. Do not open a speculative PR to see whether a change works.
 Before a `gh pr create`, `gh pr edit`, `gh issue create`, or `gh issue edit`
 that sets title or body text, load the `eshu-publish` skill. Start from its
 template for your kind of PR or issue. Run
-`.agents/skills/eshu-publish/scripts/check-shape.sh` on the draft before you
+`.claude/skills/eshu-publish/scripts/check-shape.sh` on the draft before you
 capture a `ci-gates review-attest` receipt, and fix every `FAIL` line. Use
 `--issue-checklist` for release or operational checklists. A PR body
 opens with `Refs #N.` or `Refs owner/repo#N.` and a bold lead. Add an "At a
@@ -282,13 +282,16 @@ Read the doc that matches the change, not every doc for every change:
 
 ## Skill Routing
 
-Project skills in `.agents/skills/` are the source of truth. The harness
-trees (`.claude/skills/`, `.codex/skills/`) are not stored here: after
-checkout, run the `eshu-agent-kit` installer (`install.sh --repo --aliases`)
-to regenerate them, then select the smallest set that covers the task.
-Use the available names and descriptions to find skills. Read a skill once when
-it applies, and load its references only for the workflow you selected. Do not
-reload an unchanged skill for each edit or status message.
+The shared skills live in the `eshu-agent-kit`, which this repo pins in
+`.agent-kit-version`. None of that material is stored here: after checkout,
+run the kit installer (`install.sh --repo --aliases --agents --hooks --rules`)
+to materialize it locally, then select the smallest set that covers the task.
+The installer puts every skill in the harness trees under its
+harness-visible name, and `.agents/skills/` carries the ones the alias
+manifest does not rename. Use the available names and descriptions to find
+skills. Read a skill once when it applies, and load its references only for
+the workflow you selected. Do not reload an unchanged skill for each edit or
+status message.
 
 A `/goal` prompt that names skills is enough. The user need not name agents. The
 prompt hook supplies phase candidates from the manifest. The coordinator owns
@@ -301,7 +304,8 @@ OpenCode model selection stays a session choice. The model of the main session
 does not change automatically.
 
 Use the [task-to-skill map](docs/internal/agent-orchestration.md#task-to-skill-map)
-and `.agents/skills/` to find skills for a task. State which skills are active.
+and the installed skill trees (`.claude/skills/`, `.codex/skills/`) to find
+skills for a task. State which skills are active.
 Routine status messages use the same plain, evidence-backed style and need no
 writing playbook.
 
@@ -475,7 +479,7 @@ check commands, see
   the final diff. The description MUST carry the before and after evidence. A
   wrong derivable figure is exempt when the verdict's P3 list (posted as a PR
   comment, not in the body) records the correct figure (see
-  [Derivable figures](.agents/skills/eshu-code-review/references/merge-bar.md#derivable-figures)).
+  [Derivable figures](.claude/skills/eshu-code-review/references/merge-bar.md#derivable-figures)).
 - CI is complete ONLY after **two consecutive stable reads of the full check
   set** (`pending == 0` and an unchanged total). Large sets register in waves,
   so one `0-pending` read is a false done. State the query you used. Reconcile

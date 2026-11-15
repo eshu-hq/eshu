@@ -3,12 +3,12 @@
 #
 # Brand-new-machine contract: cloning eshu-hq/eshu and running `muse` in the
 # clone must load the same project rules, skills, and agents as every other
-# harness. Everything required is committed (AGENTS.md, .agents/, .muse/,
-# .claude/, .codex/, .cursor/, .opencode/) except the harness skill trees
-# (.claude/skills/, .codex/skills/), which the eshu-agent-kit installer
-# regenerates locally; this script proves the clone is complete, warns when
-# the installer step is still missing, and names any host tool that is
-# missing. It changes nothing.
+# harness. The repo's own canon is committed (AGENTS.md, .muse/, and the
+# harness wiring); the shared agent material (skills, role bindings, hooks)
+# is NOT committed, and the eshu-agent-kit installer materializes it locally
+# at the version this repo pins in .agent-kit-version. This script proves the
+# clone is complete, warns when the installer step is still missing, and
+# names any host tool that is missing. It changes nothing.
 #
 # Required host tools: git, bash, python3. Required for PR/issue work: gh.
 # Recommended: rg, pre-commit, go, make. Workspace trust is per-machine Muse
@@ -33,27 +33,28 @@ for tool in gh rg pre-commit go make muse; do
   if command -v "$tool" >/dev/null 2>&1; then ok "tool: $tool"; else note "tool missing (needed for PR/issue or gate work): $tool"; fi
 done
 
-for path in AGENTS.md .agents/roles.json .agents/skills .agents/agents \
-  .muse/hooks.json .muse/hooks .claude/settings.json .claude/hooks \
-  .codex/hooks.json .cursor/hooks.json .opencode/opencode.jsonc \
-  scripts/agent-roles.py scripts/goal-role-router.py scripts/test-muse-hooks.sh; do
+for path in AGENTS.md .agent-kit-version .muse/hooks.json .muse/hooks \
+  .claude/settings.json .codex/hooks.json .cursor/hooks.json .opencode/opencode.jsonc \
+  scripts/goal-role-router.py scripts/test-muse-hooks.sh; do
   if [[ -e "$path" ]]; then ok "committed path: $path"; else bad "committed path missing (incomplete clone?): $path"; fi
 done
 
-for path in .claude/skills .codex/skills; do
-  if [[ -e "$path" ]]; then ok "installer path: $path"; else note "installer path missing: $path (run the eshu-agent-kit installer: install.sh --repo --aliases)"; fi
+# The shared agent material is installed by the eshu-agent-kit, not committed.
+for path in .agents/skills .agents/agents .agents/roles.json .claude/skills \
+  .codex/skills .claude/hooks .codex/hooks .opencode/agent; do
+  if [[ -e "$path" ]]; then ok "installer path: $path"; else note "installer path missing: $path (run the eshu-agent-kit installer: install.sh --repo --aliases --agents --hooks --rules)"; fi
 done
 
-skill_count="$(ls .agents/skills/ 2>/dev/null | wc -l | tr -d ' ')"
+skill_count="$(ls .claude/skills/ 2>/dev/null | wc -l | tr -d ' ')"
 agent_count="$(ls .agents/agents/*.md 2>/dev/null | wc -l | tr -d ' ')"
-[[ "$skill_count" -ge 1 ]] && ok "project skills discoverable: $skill_count" || bad "no project skills under .agents/skills/"
+[[ "$skill_count" -ge 1 ]] && ok "shared skills discoverable: $skill_count" || bad "no shared skills under .claude/skills/"
 [[ "$agent_count" -ge 1 ]] && ok "Muse role shims discoverable: $agent_count" || bad "no Muse role shims under .agents/agents/"
 
 if command -v python3 >/dev/null 2>&1; then
-  if python3 scripts/agent-roles.py check >/dev/null 2>&1; then
-    ok "agent role bindings match .agents/roles.json"
+  if bash scripts/verify-agent-canon.sh >/dev/null 2>&1; then
+    ok "the installed agent material matches the pinned eshu-agent-kit"
   else
-    bad "agent role bindings drifted: run python3 scripts/agent-roles.py generate"
+    bad "the installed agent material drifted from the pinned kit: run the eshu-agent-kit installer (install.sh --repo --aliases --agents --hooks --rules)"
   fi
   if python3 -c 'import json; json.load(open(".muse/hooks.json"))' >/dev/null 2>&1; then
     ok ".muse/hooks.json is valid JSON"

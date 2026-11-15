@@ -56,27 +56,31 @@ else
   ok "agent-canon fails when AGENTS.md is missing"
 fi
 
-# Exercise the real-root branch, which fixture overrides skip. A stub role
-# generator fails with a unique marker; the canon gate must reach it.
+# Exercise the real-root branch, which fixture overrides skip. The role
+# bindings live in the eshu-agent-kit, so the real-root branch resolves the
+# kit from the installed manifest's symlink target and compares the two
+# manifests. A stale install -- the manifest on disk differs from the kit's
+# -- must fail the canon gate.
 mkdir -p "$tmp/role-gate/scripts" "$tmp/role-gate/.agents"
 cp "$canon" "$tmp/role-gate/scripts/verify-agent-canon.sh"
 printf 'shared canon\n' >"$tmp/role-gate/AGENTS.md"
-printf '{}\n' >"$tmp/role-gate/.agents/roles.json"
-cat >"$tmp/role-gate/scripts/agent-roles.py" <<'ROLE_GENERATOR'
-import sys
-
-if sys.argv[1:] != ["check"]:
-    print("role generator fixture received wrong command")
-    sys.exit(38)
-print("role generator fixture invoked in check mode")
-sys.exit(37)
-ROLE_GENERATOR
+# A kit-shaped tree: agents/roles.json is what the installed manifest
+# resolves to, so the gate can find the kit it should match.
+mkdir -p "$tmp/role-gate/kit/agents"
+printf '{"models": {"opencode": {"arbiter": {"model": "stub/model"}}}}\n' \
+  >"$tmp/role-gate/kit/agents/roles.json"
+# The installed manifest is a stale copy: it resolves into the kit tree, so
+# the kit is found, but its content differs from the kit's current manifest.
+printf '{"models": {"opencode": {"arbiter": {"model": "stale/model"}}}}\n' \
+  >"$tmp/role-gate/kit/agents/installed-roles.json"
+ln -sfn "$tmp/role-gate/kit/agents/installed-roles.json" "$tmp/role-gate/.agents/roles.json"
 if output="$("$tmp/role-gate/scripts/verify-agent-canon.sh" 2>&1)"; then
-  no "agent-canon should check role bindings in its real-root branch"
-elif rg -Fq 'role generator fixture invoked in check mode' <<<"$output"; then
-  ok "agent-canon checks role bindings in its real-root branch"
+  no "agent-canon should compare the installed role manifest against the kit"
+elif rg -Fq 'installed role manifest differs from the kit' <<<"$output"; then
+  ok "agent-canon compares the installed role manifest against the kit"
 else
   no "agent-canon failed before checking role bindings"
+  printf '%s\n' "$output" >&2
 fi
 
 # Skill frontmatter must stay valid YAML. An unquoted description containing
@@ -87,11 +91,20 @@ fi
 source "$here/lib/test-agent-alias-cases.sh"
 make_skill_fixture() {
   local root="$1" desc="$2"
+  # The census is the harness tree: the kit installer puts every skill under
+  # its harness-visible name in .claude/skills/ and .codex/skills/, while
+  # .agents/skills/ carries only the skills the alias manifest does not
+  # rename. The canon gate reads the harness tree.
   mkdir -p "$root/.agents/skills/demo-skill" "$root/.claude/skills" "$root/.codex/skills"
   printf 'canon\n' >"$root/AGENTS.md"
   printf -- '---\nname: demo-skill\ndescription: %s\n---\n\n# Demo\n' "$desc" >"$root/.agents/skills/demo-skill/SKILL.md"
-  make_alias_fixture "$root" .claude demo-skill
-  make_alias_fixture "$root" .codex demo-skill
+  mkdir -p "$root/.claude/skills/demo-skill" "$root/.codex/skills/demo-skill"
+  printf -- '---\nname: demo-skill\ndescription: %s\n---\n\n# Demo\n' "$desc" >"$root/.claude/skills/demo-skill/SKILL.md"
+  printf -- '---\nname: demo-skill\ndescription: %s\n---\n\n# Demo\n' "$desc" >"$root/.codex/skills/demo-skill/SKILL.md"
+  # Marker only: make_alias_fixture would overwrite the description the
+  # frontmatter cases are about.
+  make_alias_marker_fixture "$root" .claude demo-skill
+  make_alias_marker_fixture "$root" .codex demo-skill
 }
 make_skill_fixture "$tmp/fm-bad" 'Use when the cause is unknown: a queue stall.'
 ESHU_AGENT_CANON_REPO_ROOT="$tmp/fm-bad" "$canon" >"$tmp/fm-bad.out" 2>&1 || true
@@ -188,120 +201,12 @@ add_nudge_arm() {
   mv "$tmpf" "$hook"
 }
 
-mkdir -p "$tmp/skill-links/.agents/skills/example" \
-  "$tmp/skill-links/.agents/skills/eshu-performance-rigor/references" \
-  "$tmp/skill-links/.claude/skills" \
-  "$tmp/skill-links/.codex/skills"
-write_nudge_fixture "$tmp/skill-links"
-printf 'shared canon\n' >"$tmp/skill-links/AGENTS.md"
-printf '%s\n' '---' 'name: example' 'description: example' '---' \
-  >"$tmp/skill-links/.agents/skills/example/SKILL.md"
-make_alias_fixture "$tmp/skill-links" .claude example
-make_alias_fixture "$tmp/skill-links" .codex example
-cat >"$tmp/skill-links/.agents/skills/eshu-performance-rigor/SKILL.md" <<'LINK_PERF_SKILL'
----
-name: eshu-performance-rigor
-description: perf fixture
----
-## Target Contribution Budget
-required_saving_seconds maximum_recoverable_seconds expected_saving_seconds
-## Resource-Qualified Claims
-absolute_target_applicable same-machine relative
-## Baseline Promotion
-## Retention Modes
-stop-and-preserve git merge-base --is-ancestor
-LINK_PERF_SKILL
-cat >"$tmp/skill-links/.agents/skills/eshu-performance-rigor/references/run-manifest.md" <<'LINK_PERF_MANIFEST'
-target_contribution phase_durations_seconds retention accepted_commit
-hardware_class machine_profile reference_profile resource_envelope memory_bytes
-container_memory_limit_bytes absolute_target_applicable compose_service_limits
-service_usage_summary
-LINK_PERF_MANIFEST
-make_alias_fixture "$tmp/skill-links" .claude eshu-performance-rigor
-make_alias_fixture "$tmp/skill-links" .codex eshu-performance-rigor
-if ESHU_AGENT_CANON_REPO_ROOT="$tmp/skill-links" "$canon" >/dev/null 2>&1; then
-  ok "agent-canon passes when shared skill harness aliases are complete"
-else
-  no "agent-canon should pass when shared skill harness aliases are complete"
-fi
-
-run_agent_alias_marker_cases
-
-rm -r "$tmp/skill-links/.codex/skills/example"
-if ESHU_AGENT_CANON_REPO_ROOT="$tmp/skill-links" "$canon" >/dev/null 2>&1; then
-  no "agent-canon should fail when one harness cannot discover a shared skill"
-else
-  ok "agent-canon fails when a shared skill harness alias is missing"
-fi
-
-mkdir -p "$tmp/perf-contract/.agents/skills/eshu-performance-rigor/references" \
-  "$tmp/perf-contract/.claude/skills" \
-  "$tmp/perf-contract/.codex/skills"
-write_nudge_fixture "$tmp/perf-contract"
-printf 'shared canon\n' >"$tmp/perf-contract/AGENTS.md"
-printf '%s\n' '---' 'name: eshu-performance-rigor' 'description: incomplete' '---' \
-  >"$tmp/perf-contract/.agents/skills/eshu-performance-rigor/SKILL.md"
-printf '# Performance Run Manifest\n' \
-  >"$tmp/perf-contract/.agents/skills/eshu-performance-rigor/references/run-manifest.md"
-make_alias_fixture "$tmp/perf-contract" .claude eshu-performance-rigor
-make_alias_fixture "$tmp/perf-contract" .codex eshu-performance-rigor
-if ESHU_AGENT_CANON_REPO_ROOT="$tmp/perf-contract" "$canon" >/dev/null 2>&1; then
-  no "agent-canon should fail when the performance workflow contract is incomplete"
-else
-  ok "agent-canon fails when the performance workflow contract is incomplete"
-fi
-
-cat >>"$tmp/perf-contract/.agents/skills/eshu-performance-rigor/SKILL.md" <<'PERF_SKILL'
-## Target Contribution Budget
-required_saving_seconds maximum_recoverable_seconds expected_saving_seconds
-## Baseline Promotion
-## Retention Modes
-stop-and-preserve
-git merge-base --is-ancestor
-PERF_SKILL
-cat >>"$tmp/perf-contract/.agents/skills/eshu-performance-rigor/references/run-manifest.md" <<'PERF_MANIFEST'
-target_contribution
-phase_durations_seconds
-retention
-accepted_commit
-hardware_class
-PERF_MANIFEST
-if ESHU_AGENT_CANON_REPO_ROOT="$tmp/perf-contract" "$canon" >/dev/null 2>&1; then
-  no "agent-canon should fail when the performance resource envelope is missing"
-else
-  ok "agent-canon fails when the performance resource envelope is missing"
-fi
-
-cat >>"$tmp/perf-contract/.agents/skills/eshu-performance-rigor/SKILL.md" <<'PERF_RESOURCES'
-## Resource-Qualified Claims
-absolute_target_applicable
-same-machine relative
-PERF_RESOURCES
-cat >>"$tmp/perf-contract/.agents/skills/eshu-performance-rigor/references/run-manifest.md" <<'PERF_RESOURCE_MANIFEST'
-reference_profile
-machine_profile
-resource_envelope
-memory_bytes
-container_memory_limit_bytes
-absolute_target_applicable
-compose_service_limits
-service_usage_summary
-PERF_RESOURCE_MANIFEST
-if ESHU_AGENT_CANON_REPO_ROOT="$tmp/perf-contract" "$canon" >/dev/null 2>&1; then
-  ok "agent-canon passes when the performance workflow contract is complete"
-else
-  no "agent-canon should pass when the performance workflow contract is complete"
-fi
-
-mv "$tmp/perf-contract/.agents/skills/eshu-performance-rigor/SKILL.md" \
-  "$tmp/perf-contract/performance-skill.saved"
-if ESHU_AGENT_CANON_REPO_ROOT="$tmp/perf-contract" "$canon" >/dev/null 2>&1; then
-  no "agent-canon should fail when the mandatory performance skill is missing"
-else
-  ok "agent-canon fails when the mandatory performance skill is missing"
-fi
-mv "$tmp/perf-contract/performance-skill.saved" \
-  "$tmp/perf-contract/.agents/skills/eshu-performance-rigor/SKILL.md"
+# The skill-census cases live in a companion so this file stays under the
+# 500-line cap. They build kit-shaped fixtures: a skill under
+# .agents/skills, its alias wrappers in .claude/skills and .codex/skills,
+# and the .kit-alias marker the gate reads.
+# shellcheck source=scripts/lib/test-agent-skill-census-cases.sh
+source "$here/lib/test-agent-skill-census-cases.sh"
 
 mkdir -p "$tmp/opencode-conflict/.opencode/agent"
 printf 'shared canon\n' >"$tmp/opencode-conflict/AGENTS.md"
@@ -313,12 +218,12 @@ else
   ok "agent-canon fails on contradictory OpenCode Git instructions"
 fi
 
-if rg -Fq '\.agents/' "$repo_root/.pre-commit-config.yaml" \
-  && rg -Fq '\.codex/(skills|agents)/' "$repo_root/.pre-commit-config.yaml" \
-  && rg -Fq '\.claude/(skills|agents|hooks)/' "$repo_root/.pre-commit-config.yaml" \
+# The pre-commit hook must watch every input the canon gate reads. The
+# shared agent material is installed from the eshu-agent-kit, so the kit
+# version pin is the input that selects the gate, and the repo's own
+# harness wiring is the rest.
+if rg -Fq '\.agent-kit-version' "$repo_root/.pre-commit-config.yaml" \
   && rg -Fq '\.muse/hooks/' "$repo_root/.pre-commit-config.yaml" \
-  && rg -Fq '\.cursor/agents/' "$repo_root/.pre-commit-config.yaml" \
-  && rg -Fq 'agent-roles\.py' "$repo_root/.pre-commit-config.yaml" \
   && rg -Fq 'goal-role-router\.py' "$repo_root/.pre-commit-config.yaml" \
   && rg -Fq 'test-goal-role-router\.py' "$repo_root/.pre-commit-config.yaml" \
   && rg -Fq '\.codex/hooks\.json' "$repo_root/.pre-commit-config.yaml" \
@@ -334,8 +239,10 @@ else
   no "agent-canon pre-commit hook must watch its skill and verifier inputs"
 fi
 
-if rg -Fq '.opencode/agent/**' -g 'gates-*.yaml' "$repo_root/specs/ci-gates.d" \
-  && [ "$(rg -cF '.cursor/agents/**' -g 'gates-*.yaml' "$repo_root/specs/ci-gates.d")" = "$(rg -cF '.opencode/agent/**' -g 'gates-*.yaml' "$repo_root/specs/ci-gates.d")" ] \
+# The registry must watch every input the canon gate reads. The shared
+# agent material is installed from the eshu-agent-kit, so the kit version
+# pin is what selects the gate.
+if rg -Fq '.agent-kit-version' -g 'gates-*.yaml' "$repo_root/specs/ci-gates.d" \
   && rg -Fq '.codex/hooks.json' -g 'gates-*.yaml' "$repo_root/specs/ci-gates.d" \
   && rg -Fq 'scripts/goal-role-router.py' -g 'gates-*.yaml' "$repo_root/specs/ci-gates.d" \
   && rg -Fq 'scripts/test-goal-role-router.py' -g 'gates-*.yaml' "$repo_root/specs/ci-gates.d" \
@@ -425,8 +332,17 @@ hardware_class machine_profile reference_profile resource_envelope memory_bytes
 container_memory_limit_bytes absolute_target_applicable compose_service_limits
 service_usage_summary
 NUDGE_PERF_MANIFEST
-make_alias_fixture "$tmp/nudge" .claude eshu-performance-rigor
-make_alias_fixture "$tmp/nudge" .codex eshu-performance-rigor
+make_alias_marker_fixture "$tmp/nudge" .claude eshu-performance-rigor
+make_alias_marker_fixture "$tmp/nudge" .codex eshu-performance-rigor
+# The census the gate reads is the harness tree, so the performance skill
+# must carry its contract there.
+for harness in .claude .codex; do
+  mkdir -p "$tmp/nudge/$harness/skills/eshu-performance-rigor/references"
+  cp "$tmp/nudge/.agents/skills/eshu-performance-rigor/SKILL.md" \
+    "$tmp/nudge/$harness/skills/eshu-performance-rigor/SKILL.md"
+  cp "$tmp/nudge/.agents/skills/eshu-performance-rigor/references/run-manifest.md" \
+    "$tmp/nudge/$harness/skills/eshu-performance-rigor/references/run-manifest.md"
+done
 write_nudge_fixture "$tmp/nudge"
 
 # Control: the fixture must PASS before the orphan is introduced. Without this,

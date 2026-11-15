@@ -13,8 +13,9 @@ where ambiguity can mutate state, and let CI enforce the rest.
 ## Layout
 
 Hooks are a real file per harness, not a shared file with symlinks. The skills
-under `.agents/skills/` use symlinks because their content is harness-neutral
-prose. Hook payloads are not: Claude Code delivers `tool_input.file_path`, while
+are harness-neutral prose, so the kit installer links them into each harness
+tree under their harness-visible name. Hook payloads are not: Claude Code
+delivers `tool_input.file_path`, while
 Codex's `apply_patch` shape varies by version and names several files at once.
 `.codex/hooks/eshu-doc-staleness.sh` handles that by ignoring the payload and
 rebuilding the whole snapshot, which only works for a hook that needs no path.
@@ -100,8 +101,8 @@ including the 0.158.0 spawn guard matcher probe.
 move and every new skill can invalidate an arm, and the failure is silent: the
 hook keeps exiting 0 and nobody learns the arm stopped matching.
 
-`scripts/verify-agent-canon.sh` therefore asserts that every skill under
-`.agents/skills/` is either assigned by an `IDS=` case arm or named in the
+`scripts/verify-agent-canon.sh` therefore asserts that every skill in the
+installed harness tree is either assigned by an `IDS=` case arm or named in the
 `NUDGE_EXEMPT` block. The check reads only those two regions, not the whole
 file, so a passing mention in an unrelated comment cannot satisfy it — and it
 reads `IDS=` rather than `NOTE=` so that guidance prose cannot mint an id.
@@ -315,7 +316,7 @@ strip loop in `goal-continue.sh` and its mirror in `goal-refresh.sh` both stop
 treating lines as metadata at the first ordinary line. A `CONSENT:` line
 placed after the objective is body text, never a grant: neither hook reads
 it, so the stop reason is never lifted. See
-[sustained-drives.md](../../.agents/skills/eshu-issue-driver/references/sustained-drives.md)
+[sustained-drives.md](../../.claude/skills/eshu-issue-driver/references/sustained-drives.md)
 for the per-harness template that avoids this.
 
 Two forms grant it correctly instead, and they cover different moments.
@@ -363,8 +364,8 @@ neither the one-line form nor the launcher anticipated.
 
 ### The skill nudge inside the goal restatement
 
-`goal-refresh.sh` scans the goal text on every restatement for a directory
-name under `.agents/skills/` and appends "load `<id>` now" for any this
+`goal-refresh.sh` scans the goal text on every restatement for a skill name
+in the installed harness tree and appends "load `<id>` now" for any this
 session has not loaded, reusing the `/tmp/claude-skill-loaded-<sid12>-<id>`
 marker `skill-nudge.sh`/`skill-loaded.sh` already own. Matching is
 word-bounded. The scan and note assembly live in `.claude/hooks/lib/` to keep

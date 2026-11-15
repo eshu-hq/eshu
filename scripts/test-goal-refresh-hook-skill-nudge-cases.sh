@@ -18,9 +18,17 @@ nudge_sid12="$(printf '%s' "${nudge_sid}" | cut -c1-12)"
 nudge_marker="/tmp/claude-skill-loaded-${nudge_sid12}-golang-engineering"
 rm -f "${nudge_marker}"
 
+# The kit's hooks resolve the repo by the kit version pin, so every fixture
+# checkout needs one or the hook stays silent and each case below would
+# pass or fail for the wrong reason.
+pin_fixture_repo() {
+	printf 'v0.1.0\n' >"$1/.agent-kit-version"
+}
+
 nw="${work}/skillnudge"
 mkdir -p "${nw}/.claude" "${nw}/.agents/skills/golang-engineering" \
 	"${nw}/.agents/skills/eshu-issue-driver" "${nw}/.agents/skills/eshu-code-review"
+pin_fixture_repo "${nw}"
 
 # ── named, unloaded: nudge ──────────────────────────────────────────────────
 submit "${nudge_sid}" '/goal fix the bug per the golang-engineering skill' "${nw}" >/dev/null
@@ -45,6 +53,7 @@ rm -f "${nudge_marker}"
 nw2="${work}/skillnudge-notaskill"
 mkdir -p "${nw2}/.claude" "${nw2}/.agents/skills/golang-engineering" \
 	"${nw2}/.agents/skills/eshu-code-review"
+pin_fixture_repo "${nw2}"
 submit "${nudge_sid}" '/goal ship the not-a-real-skill feature' "${nw2}" >/dev/null
 n3="$(injected "$(submit "${nudge_sid}" 'carry on' "${nw2}")")"
 if rg -q 'load `' <<<"${n3}"; then
@@ -57,6 +66,7 @@ fi
 nw3="${work}/skillnudge-boundary"
 mkdir -p "${nw3}/.claude" "${nw3}/.agents/skills/golang-engineering" \
 	"${nw3}/.agents/skills/eshu-code-review"
+pin_fixture_repo "${nw3}"
 submit "${nudge_sid}" '/goal read the golang-engineering-notes doc first' "${nw3}" >/dev/null
 n4="$(injected "$(submit "${nudge_sid}" 'carry on' "${nw3}")")"
 if rg -q 'load `golang-engineering` now' <<<"${n4}"; then
@@ -77,6 +87,7 @@ rm -f "${nudge_marker}"
 nw4="${work}/skillnudge-subdir"
 mkdir -p "${nw4}/.agents/skills/golang-engineering" \
 	"${nw4}/.agents/skills/eshu-code-review" "${nw4}/go/.claude"
+pin_fixture_repo "${nw4}"
 submit "${nudge_sid}" '/goal fix the bug per the golang-engineering skill' "${nw4}/go" >/dev/null
 n5="$(injected "$(submit "${nudge_sid}" 'carry on' "${nw4}/go")")"
 if rg -q 'load `golang-engineering` now' <<<"${n5}"; then

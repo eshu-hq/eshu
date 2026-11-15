@@ -68,19 +68,43 @@ docs/site/
 
 # Repo-local tooling and scratch files. .claude/* (not .claude/) so git still
 # descends into the directory and the negations below can re-include the
-# project-level hook, settings, and agent files shipped with the repo.
-# Harness skill trees (.claude/skills/, .codex/skills/) are NOT shipped:
-# the eshu-agent-kit installer regenerates them locally, so they stay ignored.
+# project-level settings and hooks.json shipped with the repo.
+#
+# Shared agent material is NOT stored here: the eshu-agent-kit installer
+# regenerates it locally at the pinned kit version, so every tree below stays
+# ignored. .claude/settings.json, .codex/hooks.json, .codex/config.toml, and
+# .opencode/opencode.jsonc stay tracked: they are this repo's own harness
+# wiring, not kit material.
 .claude/*
 !.claude/settings.json
-!.claude/hooks/
-!.claude/hooks/**
-!.claude/agents/
-!.claude/agents/**
+.claude/agents/
+.claude/agents/**
+.claude/hooks/
+.claude/hooks/**
+.claude/rules/
+.claude/rules/**
 .claude/skills/
 .claude/skills/**
+.codex/agents/
+.codex/agents/**
+.codex/hooks/
+.codex/hooks/**
 .codex/skills/
 .codex/skills/**
+.cursor/agents/
+.cursor/agents/**
+# The role launcher the kit installer links into scripts/. It is kit
+# material, not repo content; without this the installer's symlink shows
+# as an untracked file and `git add -A` would commit a machine-local path.
+scripts/agent-roles.py
+# The rules linter the kit installer links into scripts/, same reason.
+scripts/claude-rules-lint.sh
+# The kit checkout the CI gate step creates beside the repo; local runs of
+# the gate accept the same layout. Regenerated, never stored.
+eshu-agent-kit/
+.agents/
+.opencode/agent/
+.opencode/agent/**
 .worktrees/
 node_modules/
 dist/
