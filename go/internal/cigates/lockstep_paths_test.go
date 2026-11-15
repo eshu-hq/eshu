@@ -10,7 +10,7 @@ package cigates
 // read position or as map keys, so glob vectors and fixture names never land
 // here. A probe that starts being read flips to a read demand automatically.
 var probePaths = []string{
-	".agents/skills/eshu-code-review/SKILL.md",
+	".claude/skills/eshu-code-review/SKILL.md",
 	"AGENTS.md",
 	"CHANGELOG.md",
 	"CONTRIBUTING.md",

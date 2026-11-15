@@ -16,8 +16,9 @@ import (
 	"strings"
 )
 
-// Recipe labels for a conflict. The recipe list is the one in
-// .agents/skills/eshu-code-review/references/conflict-recipes.md.
+// Recipe labels for a conflict. The recipe list is the one in the
+// eshu-agent-kit's code-review skill, at
+// references/conflict-recipes.md.
 //
 //   - 4a: every conflicted file is a recipe file, so row 4a applies at any size.
 //   - count-choice-lines: at least one conflicted file is not a recipe file.
@@ -166,6 +167,8 @@ func agentRuleFile(file string) bool {
 	case base == "AGENTS.md":
 		return true
 	case strings.HasPrefix(file, ".agents/skills/"),
+		strings.HasPrefix(file, ".claude/skills/"),
+		strings.HasPrefix(file, ".codex/skills/"),
 		strings.HasPrefix(file, ".claude/rules/"),
 		strings.HasPrefix(file, ".codex/"):
 		return true

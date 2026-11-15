@@ -33,7 +33,8 @@ unchanged state.
   - CONFLICT: state=CONFLICTING, BEHIND, or UNKNOWN (UNKNOWN on two
     consecutive polls). It carries a local `git merge-tree` test merge of the
     exact base and head SHAs and a recipe label from the conflict-recipes list
-    (.agents/skills/eshu-code-review/references/conflict-recipes.md):
+    (the eshu-agent-kit's code-review skill,
+    references/conflict-recipes.md):
     4a when every conflicted file is a recipe file (CHANGELOG.md, the collector
     content-version pin and its constant, the readiness weights, or a path in
     the GENERATED list of scripts/verify-live-postgres-readiness-drift.sh,
@@ -41,7 +42,7 @@ unchanged state.
     because the watcher cannot count choice lines (row 4a may still apply at
     10 or fewer choice lines in 2 or fewer files, else the conflict is row 4b);
     rebase when the test merge was clean; unknown when the test merge could
-    not run. An agent-rule file (AGENTS.md, .agents/skills/**, .claude/rules/**,
+    not run. An agent-rule file (AGENTS.md, .claude/skills/**, .agents/skills/**, .claude/rules/**,
     .claude/settings.json, .muse/hooks.json, .codex/**, docs/internal/agent-*.md,
     docs/internal/writing-for-agents.md) is never a recipe file and adds
     agent_rule_files=N. It prints once per (state, head, base).

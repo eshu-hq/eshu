@@ -90,7 +90,7 @@ func TestClassifyConflictFollowsTheRecipeList(t *testing.T) {
 		{"no files", nil, "count-choice-lines"},
 	}
 	for _, agent := range []string{
-		"AGENTS.md", "go/cmd/pr-watch/AGENTS.md", ".agents/skills/eshu-code-review/SKILL.md", ".claude/rules/x.md",
+		"AGENTS.md", "go/cmd/pr-watch/AGENTS.md", ".claude/skills/eshu-code-review/SKILL.md", ".claude/rules/x.md",
 		".claude/settings.json", ".muse/hooks.json", ".codex/config.toml", "docs/internal/agent-guide.md",
 		"docs/internal/writing-for-agents.md",
 	} {
