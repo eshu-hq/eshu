@@ -247,10 +247,10 @@ const Entities = `
                     "evidence_detail": {"type": "string", "enum": ["full", "handles"], "description": "The evidence_detail the response was shaped with."},
                     "evidence_detail_drilldown": {"type": "object", "additionalProperties": true, "description": "Present only under handles when a family was reduced: how to fetch the full rows."},
                     "deployment_lanes": {"type": "array", "items": {"type": "object"}},
-                    "upstream_dependencies": {"type": "array", "items": {"type": "object"}},
+                    "upstream_dependencies": {"type": "array", "items": {"type": "object"}, "description": "One row per upstream edge behind the service: incoming deployment-artifact edges (DEPLOYS_FROM, PROVISIONS_DEPENDENCY_FOR and siblings, keyed by resolved_id), repository dependency rows (READS_CONFIG_FROM and siblings), and provisioning source chains (relationship_type PROVISIONING_SOURCE_CHAIN). Sorted by relationship_type, then source. The summary dependency count (result_limits.upstream_count) counts all three row kinds together."},
                     "downstream_consumers": {"type": "object"},
                     "evidence_graph": {"type": "object"},
-                    "result_limits": {"type": "object", "description": "Bounds of the dossier lists. truncated is true when a rendered list was capped, an upstream read was truncated, the infrastructure read landed past its bound, or a deployment-artifact bound named in limitations bit."},
+                    "result_limits": {"type": "object", "description": "Bounds of the dossier lists. downstream_entries is the sum of the dependents and consumer_repositories list lengths; downstream_count is its deprecated alias for one minor version; downstream_repository_count counts distinct repositories across the two lists (a repository in both counts once). lower_bound is always present and true when the dependents or consumer_repositories read hit its bound, in which case more repositories may exist past result_limits.downstream_read_limit and the paged list_service_downstream_consumers tool (named in support_overview.consumer_list_tool only when the bound fired) returns the keyset-ordered set past the dossier read bound (itself a bounded scan; the list reports lower_bound true only when a bound fired). truncated is true when a rendered list was capped, an upstream read was truncated, the infrastructure read landed past its bound, or a deployment-artifact bound named in limitations bit."},
                     "investigation": {"type": "object"},
                     "deployment_overview": {"type": "object"},
                     "limitations": {"type": "array", "description": "Explicit reasons the service evidence is partial, present only when one applies. deployment_artifacts_candidates_budget_reached means the request budget of 12,000 config-artifact candidates beyond the per-repository floor of 50 ran out, so the deployment_evidence config rows of at least one related repository are a lower bound; deployment_artifacts_related_file_list_truncated_at_5000 means a related repository has more than 5,000 files, so its candidates past the window are unknown; deployment_artifacts_anchor_file_list_truncated_at_5000 means the service repository itself has more than 5,000 files, so the deployment evidence read from its file list is a lower bound; dependents_truncated, consumer_repositories_truncated and provisioning_source_chains_truncated mean the upstream indirect-evidence read feeding that list hit the downstream_read_limit bound. Each folds into result_limits.truncated and answer_metadata.truncated.", "items": {"type": "string"}},
@@ -271,7 +271,7 @@ const Entities = `
                       "description": "Deployment, CI, and environment evidence pointers. Artifacts include source_location plus resolved_id/generation_id for Postgres evidence drilldown; evidence_index groups those pointers by relationship type, artifact family, and evidence kind."
                     },
                     "documentation_overview": {"type": "object"},
-                    "support_overview": {"type": "object"},
+                    "support_overview": {"type": "object", "description": "Dependency/dependent/consumer counts plus the paged downstream-consumer drilldown: when a downstream read bound fired, consumer_list_tool (list_service_downstream_consumers) and consumer_list_path return the keyset-ordered consumer set past the dossier read bound (itself a bounded scan; the list reports lower_bound true only when a bound fired)."},
                     "answer_metadata": {"type": "object", "description": "Normalized additive answer metadata with schema_version, evidence_handles, missing_evidence, limitations, truncated, coverage, partial_reasons, and recommended_next_calls."},
                     "evidence_boundaries": ` + schema.EvidenceBoundaries + `
                   }
@@ -336,7 +336,7 @@ const Entities = `
       "get": {
         "tags": ["entities"],
         "summary": "List service downstream consumers",
-        "description": "Returns one page of a service's downstream consumer repositories in (repository, repo_id) order. The selector matches get_service_story (service_id, workload_id, or service_name, plus repo and environment; an ambiguous selector answers 409). The story and context dossier cap downstream lists at the effective read bound; page the full set here with after_repository/after_repo_id set to the previous page's next_cursor until next_cursor is absent. Counts are lower bounds, never totals: use next_cursor presence, not a total, to decide whether to continue.",
+        "description": "Returns one page of a service's downstream consumer repositories in (repository, repo_id) order. The selector matches get_service_story (service_id, workload_id, or service_name, plus repo and environment; an ambiguous selector answers 409). The story and context dossier cap downstream lists at the effective read bound; page the full set here with after_repository/after_repo_id set to the previous page's next_cursor until next_cursor is absent. lower_bound is true only when a read bound fired (then the paged set is not a census), false when the read completed without hitting a bound; use next_cursor presence, not a total, to decide whether to continue.",
         "operationId": "listServiceDownstreamConsumers",
         "x-scoped-token-support": true,
         "parameters": [
@@ -366,7 +366,7 @@ const Entities = `
                     "consumer_truncation_sources": {"type": "object", "description": "Which read bound fired: candidates, evidence_files, hostnames, searches, merge_cap."},
                     "searched_hostnames": {"type": "array", "items": {"type": "string"}, "description": "Hostname list actually searched."},
                     "effective_read_bound": {"type": "integer", "description": "Internal read bound the page was recomputed under."},
-                    "lower_bound": {"type": "boolean", "description": "Always true: the set is bounded, never a census."},
+                    "lower_bound": {"type": "boolean", "description": "True only when a read bound fired (then the paged set is not a census); false when the read completed without hitting a bound."},
                     "ordering": {"type": "string", "description": "Deterministic page order: repository, repo_id."},
                     "page_size": {"type": "integer"},
                     "ceiling_reached": {"type": "boolean", "description": "Present and true only when the merged set was trimmed at the internal read ceiling."}

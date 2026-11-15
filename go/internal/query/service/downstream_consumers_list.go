@@ -47,8 +47,10 @@ type ConsumerListPage struct {
 	SearchedHostnames []string
 	// EffectiveBound is the internal read bound the page was recomputed under.
 	EffectiveBound int
-	// LowerBound stays true even on a complete page: the set is everything
-	// the bounded read returned, never a census of all consumers.
+	// LowerBound is true only when a read bound fired on the merged read:
+	// then the set is everything the bounded read returned, not a census of
+	// all consumers. A complete read (no bound fired) reports false, so a
+	// caller can read the paged set as exact (#10656 arbiter ruling).
 	LowerBound bool
 }
 
@@ -156,7 +158,7 @@ func ListServiceDownstreamConsumers(
 		Sources:           sources,
 		SearchedHostnames: searchedHostnames,
 		EffectiveBound:    bound,
-		LowerBound:        true,
+		LowerBound:        sources.Any(),
 	}
 	out.Truncated = hasNext || sources.Any()
 	return out, nil

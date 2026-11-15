@@ -11,7 +11,7 @@ func ContextTools() []toolcontract.ToolDefinition {
 	return []toolcontract.ToolDefinition{
 		{
 			Name:        "get_service_context",
-			Description: "Alias for workload context that accepts service workload selectors through workload_id.",
+			Description: "Alias for workload context that accepts service workload selectors through workload_id. When a downstream read bound fired, support_overview names the paged downstream-consumer list (list_service_downstream_consumers) for the keyset-ordered remainder past the dossier read bound.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -191,7 +191,7 @@ func listServiceAPIEndpointsTool() toolcontract.ToolDefinition {
 func listServiceDownstreamConsumersTool() toolcontract.ToolDefinition {
 	return toolcontract.ToolDefinition{
 		Name:        "list_service_downstream_consumers",
-		Description: "Page a service's downstream consumer repositories in (repository, repo_id) order. Select the service with one of service_id, workload_id, or service_name; the first one given wins in that order. repo separates only services that live in different repositories. Returns the page with truncated, next_cursor (absent when the page is terminal), consumer_truncation_sources naming which read bound fired, searched_hostnames, and effective_read_bound. Repeat with after_repository/after_repo_id set to the previous page's next_cursor until next_cursor is absent. Counts are lower bounds, never totals.",
+		Description: "Page a service's downstream consumer repositories in (repository, repo_id) order. Select the service with one of service_id, workload_id, or service_name; the first one given wins in that order. repo separates only services that live in different repositories. Returns the page with truncated, next_cursor (absent when the page is terminal), consumer_truncation_sources naming which read bound fired, searched_hostnames, and effective_read_bound. Repeat with after_repository/after_repo_id set to the previous page's next_cursor until next_cursor is absent. lower_bound is true when a read bound fired (then the paged set is not a census), false when the read completed without hitting a bound.",
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{

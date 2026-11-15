@@ -196,6 +196,184 @@ func numberedRows(key string, count int) []map[string]any {
 	return rows
 }
 
+// TestServiceStoryDownstreamCountDedupesSharedRepository is the #10656
+// regression: a repository that is both a graph dependent and a content
+// consumer counts twice in downstream_entries (the sum) but once in
+// downstream_repository_count (the distinct set), so the two numbers differ
+// and neither overstates the distinct repository count.
+func TestServiceStoryDownstreamCountDedupesSharedRepository(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.SampleServiceDossierContext()
+	ctx["dependents"] = []map[string]any{
+		{"repository": "repo-a", "repo_id": "repo-a"},
+		{"repository": "repo-b", "repo_id": "repo-b"},
+	}
+	ctx["consumer_repositories"] = []map[string]any{
+		{"repository": "repo-b", "repo_id": "repo-b"},
+		{"repository": "repo-c", "repo_id": "repo-c"},
+	}
+
+	got := BuildServiceStoryResponse("sample-service-api", ctx)
+	limits := querycontract.MapValue(got, "result_limits")
+	if got, want := querycontract.IntVal(limits, "downstream_entries"), 4; got != want {
+		t.Fatalf("result_limits.downstream_entries = %d, want %d (repo-b counts in both lists)", got, want)
+	}
+	if got, want := querycontract.IntVal(limits, "downstream_repository_count"), 3; got != want {
+		t.Fatalf("result_limits.downstream_repository_count = %d, want %d (repo-b deduped across lists)", got, want)
+	}
+	if got, want := querycontract.IntVal(limits, "downstream_count"), 4; got != want {
+		t.Fatalf("result_limits.downstream_count = %d, want %d (deprecated alias of downstream_entries)", got, want)
+	}
+	if querycontract.BoolVal(limits, "lower_bound") {
+		t.Fatalf("result_limits.lower_bound = true, want false (no read bound fired)")
+	}
+}
+
+// TestServiceStoryDownstreamCountLowerBoundCases covers the #10656 edge
+// cases: zero consumers, a fully grant-filtered consumer list (which arrives
+// here as zero rows but still carries the read-bound signal), a consumer read
+// past the 100 clamp, and a truncated dependents read beside an untruncated
+// consumer read.
+func TestServiceStoryDownstreamCountLowerBoundCases(t *testing.T) {
+	t.Parallel()
+
+	consumerRows := func(prefix string, n int) []map[string]any {
+		rows := make([]map[string]any, 0, n)
+		for i := range n {
+			rows = append(rows, map[string]any{
+				"repository": fmt.Sprintf("%s-%03d", prefix, i),
+				"repo_id":    fmt.Sprintf("repo-%s-%03d", prefix, i),
+			})
+		}
+		return rows
+	}
+
+	for _, tc := range []struct {
+		name           string
+		dependents     []map[string]any
+		consumers      []map[string]any
+		flags          map[string]any
+		wantEntries    int
+		wantRepos      int
+		wantLowerBound bool
+		wantListTool   bool
+	}{
+		{
+			name:           "zero consumers counts dependents only",
+			dependents:     []map[string]any{{"repository": "repo-a", "repo_id": "repo-a"}, {"repository": "repo-b", "repo_id": "repo-b"}},
+			consumers:      nil,
+			wantEntries:    2,
+			wantRepos:      2,
+			wantLowerBound: false,
+			wantListTool:   false,
+		},
+		{
+			name:           "all consumers grant-filtered still reports the read bound",
+			dependents:     []map[string]any{{"repository": "repo-a", "repo_id": "repo-a"}, {"repository": "repo-b", "repo_id": "repo-b"}},
+			consumers:      nil,
+			flags:          map[string]any{"consumer_repositories_downstream_truncated": true},
+			wantEntries:    2,
+			wantRepos:      2,
+			wantLowerBound: true,
+			wantListTool:   true,
+		},
+		{
+			name:           "more than 100 consumers caps at the read bound",
+			consumers:      consumerRows("consumer", 100),
+			flags:          map[string]any{"consumer_repositories_downstream_truncated": true},
+			wantEntries:    100,
+			wantRepos:      100,
+			wantLowerBound: true,
+			wantListTool:   true,
+		},
+		{
+			name:           "truncated dependents beside untruncated consumers",
+			dependents:     []map[string]any{{"repository": "repo-a", "repo_id": "repo-a"}},
+			consumers:      []map[string]any{{"repository": "repo-b", "repo_id": "repo-b"}},
+			flags:          map[string]any{"dependents_truncated": true},
+			wantEntries:    2,
+			wantRepos:      2,
+			wantLowerBound: true,
+			wantListTool:   true,
+		},
+		{
+			name:           "overlap under a truncated read stays distinct and bounded",
+			dependents:     []map[string]any{{"repository": "repo-a", "repo_id": "repo-a"}, {"repository": "repo-b", "repo_id": "repo-b"}},
+			consumers:      []map[string]any{{"repository": "repo-b", "repo_id": "repo-b"}, {"repository": "repo-c", "repo_id": "repo-c"}},
+			flags:          map[string]any{"dependents_truncated": true},
+			wantEntries:    4,
+			wantRepos:      3,
+			wantLowerBound: true,
+			wantListTool:   true,
+		},
+		{
+			name:           "evidence-file truncation alone is not a downstream lower bound",
+			dependents:     []map[string]any{{"repository": "repo-a", "repo_id": "repo-a"}},
+			consumers:      []map[string]any{{"repository": "repo-b", "repo_id": "repo-b"}},
+			flags:          map[string]any{"consumer_repositories_evidence_file_truncated": true, "consumer_repositories_truncated": true},
+			wantEntries:    2,
+			wantRepos:      2,
+			wantLowerBound: false,
+			wantListTool:   false,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.SampleServiceDossierContext()
+			ctx["dependents"] = tc.dependents
+			ctx["consumer_repositories"] = tc.consumers
+			for key, value := range tc.flags {
+				ctx[key] = value
+			}
+
+			got := BuildServiceStoryResponse("sample-service-api", ctx)
+			limits := querycontract.MapValue(got, "result_limits")
+			if got := querycontract.IntVal(limits, "downstream_entries"); got != tc.wantEntries {
+				t.Fatalf("result_limits.downstream_entries = %d, want %d", got, tc.wantEntries)
+			}
+			if got := querycontract.IntVal(limits, "downstream_repository_count"); got != tc.wantRepos {
+				t.Fatalf("result_limits.downstream_repository_count = %d, want %d", got, tc.wantRepos)
+			}
+			if got := querycontract.IntVal(limits, "downstream_count"); got != tc.wantEntries {
+				t.Fatalf("result_limits.downstream_count = %d, want %d (deprecated alias of downstream_entries)", got, tc.wantEntries)
+			}
+			if got := querycontract.BoolVal(limits, "lower_bound"); got != tc.wantLowerBound {
+				t.Fatalf("result_limits.lower_bound = %v, want %v", got, tc.wantLowerBound)
+			}
+			overview := buildServiceSupportOverview(ctx)
+			gotTool := querycontract.StringVal(overview, "consumer_list_tool") != ""
+			if gotTool != tc.wantListTool {
+				t.Fatalf("support_overview.consumer_list_tool present = %v, want %v", gotTool, tc.wantListTool)
+			}
+		})
+	}
+}
+
+// TestServiceSupportOverviewNamesConsumerListDrilldown pins the #10656
+// context pointer: the support overview (shipped by both the story and the
+// service context routes) names the paged consumer list tool and path only
+// when a downstream read bound fired, because only then is there a known
+// remainder past the rendered rows.
+func TestServiceSupportOverviewNamesConsumerListDrilldown(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.SampleServiceDossierContext()
+	if overview := buildServiceSupportOverview(ctx); querycontract.StringVal(overview, "consumer_list_tool") != "" {
+		t.Fatalf("support_overview.consumer_list_tool = %q, want absent (no read bound fired)", querycontract.StringVal(overview, "consumer_list_tool"))
+	}
+
+	ctx["consumer_repositories_downstream_truncated"] = true
+	overview := buildServiceSupportOverview(ctx)
+	if got, want := querycontract.StringVal(overview, "consumer_list_tool"), "list_service_downstream_consumers"; got != want {
+		t.Fatalf("support_overview.consumer_list_tool = %q, want %q", got, want)
+	}
+	if got, want := querycontract.StringVal(overview, "consumer_list_path"), "/api/v0/services/sample-service-api/downstream-consumers"; got != want {
+		t.Fatalf("support_overview.consumer_list_path = %q, want %q", got, want)
+	}
+}
+
 func countRowsWithValue(rows []map[string]any, key string, want string) int {
 	count := 0
 	for _, row := range rows {

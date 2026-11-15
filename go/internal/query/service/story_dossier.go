@@ -300,10 +300,22 @@ func buildServiceResultLimitsWithContext(buildCtx serviceStoryBuildContext) map[
 		endpointCount = len(querycontract.MapSliceValue(apiSurface, "endpoints"))
 	}
 	upstreamCount := len(serviceUpstreamDependencyRows(workloadContext))
-	dependentCount := len(querycontract.MapSliceValue(workloadContext, "dependents"))
-	contentConsumerCount := len(querycontract.MapSliceValue(workloadContext, "consumer_repositories"))
-	consumerCount := len(querycontract.MapSliceValue(workloadContext, "dependents")) +
-		len(querycontract.MapSliceValue(workloadContext, "consumer_repositories"))
+	dependents := querycontract.MapSliceValue(workloadContext, "dependents")
+	consumers := querycontract.MapSliceValue(workloadContext, "consumer_repositories")
+	dependentCount := len(dependents)
+	contentConsumerCount := len(consumers)
+	// #10656: downstream_entries is the raw sum of the two bounded lists (a
+	// repository in both counts twice); downstream_repository_count dedupes
+	// by repo_id so each repository counts once. downstream_count stays as a
+	// deprecated alias of the entries count for one minor version rather
+	// than being redefined in place (arbiter ruling).
+	downstreamEntries := dependentCount + contentConsumerCount
+	downstreamRepositoryCount := distinctDownstreamRepoCount(dependents, consumers)
+	// The downstream counts are a lower bound whenever the read behind
+	// either list fired its bound. Provisioning-chain truncation does not
+	// feed these counts, so it does not set this flag (it still drives
+	// truncated below).
+	lowerBound := downstreamBoundFired(workloadContext)
 	// Fold the infrastructure panel's own truncation into this block's
 	// "truncated" field (round-11 review follow-up to #5764, PR #5936,
 	// mirroring the P3 fix already applied to getRepositoryStory in
@@ -376,11 +388,19 @@ func buildServiceResultLimitsWithContext(buildCtx serviceStoryBuildContext) map[
 		"ordering":                 "deterministic",
 		"endpoint_count":           endpointCount,
 		"upstream_count":           upstreamCount,
-		"downstream_count":         consumerCount,
-		"truncated":                endpointCount > serviceStoryItemLimit || upstreamCount > serviceStoryItemLimit || dependentCount > downstreamRenderLimit || contentConsumerCount > downstreamRenderLimit || infrastructureTruncated || upstreamTruncated,
-		"drilldown_basis":          "resolved_id",
-		"relationship_tool":        "get_relationship_evidence",
-		"service_context_path":     "/api/v0/services/" + serviceName + "/context",
+		// #10656: downstream_count is the deprecated sum alias (equal to
+		// downstream_entries); prefer downstream_entries (the sum of the two
+		// lists) or downstream_repository_count (the distinct set).
+		// lower_bound is always present: true when a downstream read bound
+		// fired, in which case more repositories may exist past the bound.
+		"downstream_count":            downstreamEntries,
+		"downstream_entries":          downstreamEntries,
+		"downstream_repository_count": downstreamRepositoryCount,
+		"lower_bound":                 lowerBound,
+		"truncated":                   endpointCount > serviceStoryItemLimit || upstreamCount > serviceStoryItemLimit || dependentCount > downstreamRenderLimit || contentConsumerCount > downstreamRenderLimit || infrastructureTruncated || upstreamTruncated,
+		"drilldown_basis":             "resolved_id",
+		"relationship_tool":           "get_relationship_evidence",
+		"service_context_path":        "/api/v0/services/" + serviceName + "/context",
 		// #10477: the dossier api_surface stays a 50-row preview; the full
 		// ordered endpoint set pages through this drilldown instead of a
 		// dossier-level offset that would re-run the whole enrichment.
@@ -393,6 +413,41 @@ func buildServiceResultLimitsWithContext(buildCtx serviceStoryBuildContext) map[
 		"consumer_list_tool": "list_service_downstream_consumers",
 		"consumer_list_path": "/api/v0/services/" + serviceName + "/downstream-consumers",
 	}
+}
+
+// distinctDownstreamRepoCount counts each repository once across the graph
+// dependents and content consumer lists (#10656). Rows key on repo_id with
+// the display name as fallback, mirroring the sort tiebreaks in
+// BuildGraphDependents and the consumer enrichment merge.
+func distinctDownstreamRepoCount(dependents []map[string]any, consumers []map[string]any) int {
+	seen := make(map[string]struct{}, len(dependents)+len(consumers))
+	for _, row := range dependents {
+		seen[downstreamRepoKey(row)] = struct{}{}
+	}
+	for _, row := range consumers {
+		seen[downstreamRepoKey(row)] = struct{}{}
+	}
+	return len(seen)
+}
+
+func downstreamRepoKey(row map[string]any) string {
+	if id := querycontract.StringVal(row, "repo_id"); id != "" {
+		return "id:" + id
+	}
+	return "name:" + querycontract.StringVal(row, "repository")
+}
+
+// downstreamBoundFired reports whether the read behind the dependents or
+// consumer_repositories list hit its downstream bound (#10656). It keys on
+// the downstream-bound flags only: the merged consumer_repositories_truncated
+// also folds the service's own evidence-file read (a 5,000-file bound with no
+// relation to downstream fan-out), which must not stamp the downstream count
+// as a lower bound. When true the downstream counts and rendered rows are a
+// lower bound, not an exact set; the paged consumer list then names the
+// keyset-ordered remainder past the bound.
+func downstreamBoundFired(workloadContext map[string]any) bool {
+	return querycontract.BoolVal(workloadContext, "dependents_truncated") ||
+		querycontract.BoolVal(workloadContext, "consumer_repositories_downstream_truncated")
 }
 
 func serviceDeploymentArtifacts(workloadContext map[string]any) []map[string]any {
