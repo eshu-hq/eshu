@@ -272,8 +272,8 @@ leave the finding's bucket at `none`, because the bucket came from
 observation with `cvss.DeriveSeverity`
 (`go/internal/reducer/supplychain/core/cvss`), on the advisory path
 (`buildAdvisoryProvenanceObservations`), the NVD product path
-(`baseSupplyChainImpactProductFinding`, which reads the group's best-scored observation, not only the rank-first row, `severityObservation`, #10717), and the provider-alert path
-(`buildSecurityAlertImpactFinding`). Order of precedence:
+(`baseSupplyChainImpactProductFinding`), and the provider-alert path
+(`buildSecurityAlertImpactFinding`). The product path reads the group's best-scored observation (`severityObservation`, #10717), not only the rank-first row. Order of precedence:
 
 1. A source-reported score above zero is used as published.
 2. Otherwise a valid CVSS v3.0, v3.1, or v4.0 vector yields the computed base

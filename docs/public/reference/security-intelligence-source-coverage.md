@@ -243,8 +243,8 @@ Selection rules:
   `RUSTSEC-`, or `MAL-` is classified by that upstream prefix, so a GHSA
   collected through OSV still ranks as a GHSA observation.
 - Severity is selected in three tiers, each in priority order: a reported CVSS
-  score, a score derived from the CVSS vector (marked `derived_from_vector`),
-  then a label (bucket only). A reported score beats a derived one.
+  score, a vector-derived score (`derived_from_vector`), then a label (bucket
+  only). The NVD product path uses them too; its ids stay with the ranked row.
 
 The `provenance` block on `GET /api/v0/supply-chain/impact/findings` and the
 MCP `list_supply_chain_impact_findings` tool carries:

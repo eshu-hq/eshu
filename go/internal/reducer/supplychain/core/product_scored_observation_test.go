@@ -4,6 +4,7 @@
 package core
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -43,6 +44,10 @@ func TestProductFindingCarriesNVDScoreWhenCVEListRowIsUnscored(t *testing.T) {
 	if got := findings[0].SeverityLabel; got != "HIGH" {
 		t.Fatalf("SeverityLabel = %q, want NVD's HIGH", got)
 	}
+	// The row that supplied the score is evidence of the finding.
+	if !slices.Contains(findings[0].EvidenceFactIDs, "cve-b-nvd") {
+		t.Fatalf("EvidenceFactIDs = %v, want cve-b-nvd, the row that supplied the score", findings[0].EvidenceFactIDs)
+	}
 }
 
 // Taking the score from another observation must not move the finding's
@@ -78,6 +83,17 @@ func TestProductScoredRepresentativeKeepsItsOwnScore(t *testing.T) {
 	))
 	if len(findings) != 1 || findings[0].CVSSScore != 9.1 {
 		t.Fatalf("findings = %#v, want one finding with the CNA's 9.1", findings)
+	}
+	ids := findings[0].EvidenceFactIDs
+	if slices.Contains(ids, "cve-b-nvd") {
+		t.Fatalf("EvidenceFactIDs = %v, want no NVD row: it supplied nothing", ids)
+	}
+	seen := make(map[string]struct{}, len(ids))
+	for _, id := range ids {
+		if _, dup := seen[id]; dup {
+			t.Fatalf("EvidenceFactIDs = %v, want no duplicate %q", ids, id)
+		}
+		seen[id] = struct{}{}
 	}
 }
 
