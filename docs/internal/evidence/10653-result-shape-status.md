@@ -83,7 +83,9 @@ Prior work it builds on (not redone):
 
 ## Negative-search record
 
-2026-11-13, from the worktree root at `0148ce2b3a6`:
+2026-11-13, from the worktree root at `0148ce2b3a6` (historical snapshot; the
+2026-11-14 rows above supersede its "no client checks / only two matrices"
+state):
 
 - `rg -il "cursor|vscode|opencode|Muse"` over the 8800 measurement file and
   the 7206 design doc: no hits — no manual client checks recorded.
