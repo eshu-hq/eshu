@@ -11,6 +11,10 @@ reflects: the `negate` drop was seen only on the native index, and the reducer
 excludes a negated match rather than inverting it. The evidence note's
 first draft said the live NVD API spot-check was 5 of 5; it was 6 of 6.
 
+> Superseded in part on 2026-11-15 by
+> [10720-vulncheck-ruling-addendum-2026-11-15.md](10720-vulncheck-ruling-addendum-2026-11-15.md):
+> rulings 1 to 5 and the regression plan below no longer stand where they differ.
+
 ## Rulings
 
 1. **Backup, rank 3, fresh-edge window class only; not primary.** The order stays
