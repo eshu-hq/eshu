@@ -81,6 +81,9 @@ docs/site/
 .claude/skills/**
 .codex/skills/
 .codex/skills/**
+# The kit checkout the CI gate step creates beside the repo; local runs of
+# the gate accept the same layout. Regenerated, never stored.
+eshu-agent-kit/
 .worktrees/
 node_modules/
 dist/

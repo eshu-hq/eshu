@@ -45,7 +45,7 @@
   through the same nil-guarded `Add` pattern as the existing three counters,
   and update `go/internal/telemetry/instruments.go` plus
   `docs/public/observability/telemetry-coverage.md` in the same change (see
-  `.claude/skills/telemetry-coverage-discipline`).
+  `.agents/skills/telemetry-coverage-discipline`).
 - Adding a new consumer beyond the F-9 allowed-read audit path: keep the
   `Appender` interface as the only coupling point; do not have this package
   import the consumer's package.

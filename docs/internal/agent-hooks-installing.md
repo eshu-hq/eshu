@@ -85,10 +85,15 @@ commits and pushes, agent hooks gate tool calls.
 ## Fresh clone on a brand-new machine
 
 Cloning `eshu-hq/eshu` anywhere and running any harness in the clone must
-load the same project rules, skills, and agents. Everything required is
+load the same project rules, skills, and agents. Everything shared is
 committed: `AGENTS.md`, `.agents/` (skills, Muse role shims, `roles.json`),
 `.muse/`, `.claude/`, `.codex/`, `.cursor/`, `.opencode/`, and the router
-scripts. Prove a new clone with `bash scripts/dev/check-agent-env.sh` — it
+scripts. The harness skill trees (`.claude/skills/`, `.codex/skills/`) are
+generated, not stored: before either harness resolves a project skill, run
+the `eshu-agent-kit` installer over the clone
+(`install.sh --repo <clone> --aliases <kit>/templates/repo-overlay/eshu-aliases.tsv`)
+to regenerate them; the CI gate does the same before its canon step. Prove a
+new clone with `bash scripts/dev/check-agent-env.sh` — it
 checks host tools (`git`, `bash`, `python3` required; `gh` for PR/issue
 work), every committed harness path, role-binding drift, and hook JSON
 validity, changing nothing. Three steps are per-machine state and cannot be

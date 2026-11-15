@@ -103,6 +103,14 @@ gates:
       # canon script. A trigger path so editing it alone selects the gate
       # that runs it, for the same reason as every sibling companion.
       - "scripts/test-verify-agent-canon-pipes.sh"
+      # The kit version pin the workflow's VERSION-vs-pin assertion reads,
+      # and the alias fixture/marker case lib the hygiene mirror sources.
+      # Trigger paths so editing either alone selects the gate that uses it.
+      - ".agent-kit-version"
+      - "scripts/lib/test-agent-alias-cases.sh"
+      # The doc generator too: this gate's table is its committed output, so
+      # a generator-only edit must select the gate whose rows it rewrites.
+      - "scripts/generate-ci-gates-doc.sh"
       - "specs/ci-gates.v1.yaml"
       - "specs/ci-gates.d/**"
     self_test_triggers:
@@ -155,6 +163,7 @@ gates:
       - "scripts/cursor_hook_family.py"
       - "scripts/test-cursor-hooks-helper-cases.sh"
       - "scripts/test-verify-agent-canon-pipes.sh"
+      - "scripts/lib/test-agent-alias-cases.sh"
       - "specs/ci-gates.v1.yaml"
     local:
       command: "bash scripts/verify-agent-canon.sh"

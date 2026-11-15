@@ -49,6 +49,31 @@ fi
 
 skills_root="$repo_root/.agents/skills"
 if [ -d "$skills_root" ]; then
+  # Kit source for the body proof: the CI gate step checks eshu-agent-kit out
+  # beside the repo. The link-rewrite list mirrors build_alias_link_sed in
+  # the kit's scripts/lib/install-aliases.sh: renamed pairs only. Each sed
+  # pattern is anchored by a delimiter (/, ), #) after the source name, so no
+  # pattern shadows another and manifest order is safe.
+  kit_dir="$repo_root/eshu-agent-kit"
+  kit_link_sed=""
+  kit_cmp_tmp=""
+  if [ -d "$kit_dir/skills" ]; then
+    kit_link_sed="$(mktemp)"
+    kit_cmp_tmp="$(mktemp)"
+    while IFS= read -r line || [ -n "$line" ]; do
+      case "$line" in '' | '#'*) continue ;; esac
+      case "$line" in *$'\t'*) : ;; *) continue ;; esac
+      kit_alias="${line%%$'\t'*}"
+      kit_src_name="${line#*$'\t'}"
+      [ "$kit_alias" = "$kit_src_name" ] && continue
+      printf 's|](../%s/|](../%s/|g\ns|](../%s)|](../%s)|g\ns|](../%s#|](../%s#|g\n' \
+        "$kit_src_name" "$kit_alias" "$kit_src_name" "$kit_alias" \
+        "$kit_src_name" "$kit_alias" >>"$kit_link_sed"
+      printf 's|](../../%s/|](../../%s/|g\ns|](../../%s)|](../../%s)|g\ns|](../../%s#|](../../%s#|g\n' \
+        "$kit_src_name" "$kit_alias" "$kit_src_name" "$kit_alias" \
+        "$kit_src_name" "$kit_alias" >>"$kit_link_sed"
+    done <"$kit_dir/templates/repo-overlay/eshu-aliases.tsv"
+  fi
   for skill_file in "$skills_root"/*/SKILL.md; do
     [ -f "$skill_file" ] || continue
     skill_name="$(basename "$(dirname "$skill_file")")"
@@ -79,6 +104,7 @@ if [ -d "$skills_root" ]; then
         exit 1
       fi
       alias_value="$(sed -n 's/.*alias=\([^ ]*\).*/\1/p' "$marker")"
+      source_value="$(sed -n 's/.*source=\([^ ]*\).*/\1/p' "$marker")"
       wrapper_name="$(awk 'NR==1 && $0!="---"{exit} NR>1 && $0=="---"{exit} /^name: /{sub(/^name: /,""); print}' "$wrapper_skill")"
       if [ "$alias_value" != "$skill_name" ] || [ "$wrapper_name" != "$skill_name" ]; then
         printf 'verify-agent-canon: %s alias at %s does not resolve to shared skill %s\n' \
@@ -86,6 +112,60 @@ if [ -d "$skills_root" ]; then
         exit 1
       fi
     done
+    # Cross-tree proof: both harness trees come from one installer run, so
+    # the two wrappers for one skill must be byte-identical. A mismatch is a
+    # partial regeneration or a hand edit the name check alone cannot see.
+    if ! cmp -s "$repo_root/.claude/skills/$skill_name/SKILL.md" \
+      "$repo_root/.codex/skills/$skill_name/SKILL.md"; then
+      printf 'verify-agent-canon: harness wrappers for %s differ between .claude and .codex\n' \
+        "$skill_name" >&2
+      exit 1
+    fi
+    # Body proof against the kit source: every copied .md in a wrapper must
+    # equal the kit source its marker names, after the installer's two
+    # documented rewrites (frontmatter name, alias cross-links). Names alone
+    # leave a hostile same-name body green; cmp closes that gap.
+    if [ -n "$kit_link_sed" ]; then
+      kit_src="$kit_dir/skills/eshu/$source_value"
+      [ -d "$kit_src" ] || kit_src="$kit_dir/skills/core/$source_value"
+      if [ ! -d "$kit_src" ]; then
+        printf 'verify-agent-canon: marker at %s names unknown kit source %s\n' \
+          "$marker" "$source_value" >&2
+        exit 1
+      fi
+      for harness in .claude .codex; do
+        entry="$repo_root/$harness/skills/$skill_name"
+        # The wrapper carries every kit-source entry plus its own .kit-alias.
+        kit_entry_count="$(cd "$kit_src" && find . -mindepth 1 | wc -l | tr -d ' ')"
+        entry_count="$(cd "$entry" && find . -mindepth 1 | wc -l | tr -d ' ')"
+        if [ "$entry_count" != "$((kit_entry_count + 1))" ]; then
+          printf 'verify-agent-canon: %s wrapper for %s holds %s entries, kit source %s holds %s\n' \
+            "$harness" "$skill_name" "$entry_count" "$source_value" "$kit_entry_count" >&2
+          exit 1
+        fi
+        while IFS= read -r rel; do
+          rel="${rel#./}"
+          [ -n "$rel" ] || continue
+          if [ "${rel##*.}" = "md" ]; then
+            if [ "$rel" = "SKILL.md" ]; then
+              sed -e "s/^name: $source_value\$/name: $skill_name/" \
+                -f "$kit_link_sed" "$kit_src/$rel" >"$kit_cmp_tmp"
+            else
+              sed -f "$kit_link_sed" "$kit_src/$rel" >"$kit_cmp_tmp"
+            fi
+            if ! cmp -s "$kit_cmp_tmp" "$entry/$rel"; then
+              printf 'verify-agent-canon: %s wrapper body %s/%s drifted from kit source %s/%s\n' \
+                "$harness" "$skill_name" "$rel" "$source_value" "$rel" >&2
+              exit 1
+            fi
+          elif [ ! -e "$entry/$rel" ]; then
+            printf 'verify-agent-canon: %s wrapper for %s is missing entry %s\n' \
+              "$harness" "$skill_name" "$rel" >&2
+            exit 1
+          fi
+        done < <(cd "$kit_src" && find . -mindepth 1 | LC_ALL=C sort)
+      done
+    fi
   done
   printf 'verify-agent-canon: shared skill harness aliases are complete.\n'
 

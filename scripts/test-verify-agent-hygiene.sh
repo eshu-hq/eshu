@@ -226,6 +226,7 @@ else
 fi
 
 run_agent_alias_marker_cases
+run_agent_kit_fidelity_cases
 
 rm -r "$tmp/skill-links/.codex/skills/example"
 if ESHU_AGENT_CANON_REPO_ROOT="$tmp/skill-links" "$canon" >/dev/null 2>&1; then

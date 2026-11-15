@@ -160,13 +160,17 @@ jobs:
 
       # The harness skill trees are installer-generated, never stored: the
       # canon gate fails without them, so regenerate before it runs. Same-org
-      # checkout, as with eshu-deploy. No release tags exist in the kit yet,
-      # so the step asserts the checkout's VERSION against .agent-kit-version
-      # instead of checking out a tag; the mismatch message names the fix.
+      # checkout (owner eshu-hq; the kit carries no LICENSE file, it is an
+      # internal companion repo), pinned to the full commit SHA so the
+      # enforcement gate executes one immutable kit revision. The kit has no
+      # release tags yet, so the step asserts the checkout's VERSION against
+      # .agent-kit-version to keep the SHA and the version string paired; the
+      # mismatch message names the fix.
       - name: Check out eshu-agent-kit
         uses: actions/checkout@v5
         with:
           repository: eshu-hq/eshu-agent-kit
+          ref: e703a83a9b578d6ca4410ed1d87288e1006489e4
           path: eshu-agent-kit
 
       - name: Regenerate harness skill trees from the kit
