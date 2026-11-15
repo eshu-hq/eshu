@@ -16,10 +16,11 @@ import (
 
 func classifySupplyChainImpactProduct(
 	cve supplychainmodel.ImpactCVE,
+	severityObservation supplychainmodel.ImpactCVE,
 	product supplychainmodel.AffectedProduct,
 	index supplyChainImpactIndex,
 ) SupplyChainImpactFinding {
-	finding := baseSupplyChainImpactProductFinding(cve, product, index)
+	finding := baseSupplyChainImpactProductFinding(cve, severityObservation, product, index)
 	component, attachment, image, hasComponentPath, imagePathMissing := firstSBOMProductImpactPath(product, index)
 	if hasComponentPath {
 		finding.ObservedVersion = payloadcore.FirstNonBlank(component.Version, versionFromCPE23Criteria(product.Criteria))
@@ -46,12 +47,17 @@ func classifySupplyChainImpactProduct(
 	return finding
 }
 
+// baseSupplyChainImpactProductFinding names the finding from cve, the ranked
+// representative, and reports severity from severityObservation, the group's
+// best-scored row (#10717). They are the same record unless the ranked row is
+// the less informative one.
 func baseSupplyChainImpactProductFinding(
 	cve supplychainmodel.ImpactCVE,
+	severityObservation supplychainmodel.ImpactCVE,
 	product supplychainmodel.AffectedProduct,
 	index supplyChainImpactIndex,
 ) SupplyChainImpactFinding {
-	severity := cvss.DeriveSeverity(cve.CVSSScore, cve.CVSSVector, cve.SeverityLabel)
+	severity := cvss.DeriveSeverity(severityObservation.CVSSScore, severityObservation.CVSSVector, severityObservation.SeverityLabel)
 	finding := SupplyChainImpactFinding{
 		CVEID:               cve.CVEID,
 		AdvisoryID:          payloadcore.FirstNonBlank(cve.AdvisoryID, cve.CVEID),
@@ -59,12 +65,12 @@ func baseSupplyChainImpactProductFinding(
 		MatchCriteriaID:     product.MatchCriteriaID,
 		CVSSScore:           severity.Score,
 		SeverityScoreSource: derivedScoreSource(severity),
-		SeverityVector:      strings.TrimSpace(cve.CVSSVector),
-		SeverityLabel:       strings.TrimSpace(cve.SeverityLabel),
+		SeverityVector:      strings.TrimSpace(severityObservation.CVSSVector),
+		SeverityLabel:       strings.TrimSpace(severityObservation.SeverityLabel),
 		AdvisoryPublishedAt: cve.PublishedAt,
 		AdvisoryUpdatedAt:   cve.SourceUpdatedAt,
 		EvidencePath:        []string{chain.VulnerabilityCVEFactKind, chain.VulnerabilityAffectedProductFactKind},
-		EvidenceFactIDs:     []string{cve.FactID, product.FactID},
+		EvidenceFactIDs:     []string{cve.FactID, severityObservation.FactID, product.FactID},
 	}
 	applyRiskSignals(&finding, index.riskSignals[cve.CVEID])
 	applyAliasGroupOutcome(&finding, index)
