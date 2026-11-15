@@ -81,7 +81,7 @@ func buildClaimedService(
 	// extension host's activation and per-emission decisions (below) report
 	// through it, so an operator sees grant allows as well as denials.
 	grantObserver := extensionhost.NewGrantTelemetry(instruments, logger)
-	config, err := loadRuntimeConfigObserved(getenv, grantObserver)
+	config, err := loadRuntimeConfigObserved(getenv, grantObserver, hostSeedPlatform())
 	if err != nil {
 		return collector.ClaimedService{}, err
 	}

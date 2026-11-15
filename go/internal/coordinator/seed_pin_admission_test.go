@@ -237,6 +237,16 @@ func installSatelliteActivation(t *testing.T, id, imageOverride string) string {
 	return home
 }
 
+// pinnedSeedPlatform is the platform the satellite admission tests assert
+// against. Admission is scoped to the executing host's GOOS/GOARCH in
+// production, and the registry pins only linux images, so tests pass this
+// explicit platform instead of reading the host's (#10739).
+const pinnedSeedPlatform = "linux/amd64"
+
+// unpinnedSeedPlatform is a host platform the registry pins no satellite
+// image for: a Mac developer machine. Admission must refuse it on every host.
+const unpinnedSeedPlatform = "darwin/arm64"
+
 // TestLoadConfigPlansPinnedSatelliteActivation proves the coordinator planner
 // admits a seeded satellite manifest whose artifacts equal the registry pins
 // (#10285).
@@ -245,9 +255,9 @@ func TestLoadConfigPlansPinnedSatelliteActivation(t *testing.T) {
 
 	home := installSatelliteActivation(t, scannercomponent.SatelliteDocumentImportID, "")
 
-	cfg, err := LoadConfig(scannerCoordinatorEnv(home, scannercomponent.SatelliteDocumentImportID))
+	cfg, err := loadConfigForPlatform(scannerCoordinatorEnv(home, scannercomponent.SatelliteDocumentImportID), nil, pinnedSeedPlatform)
 	if err != nil {
-		t.Fatalf("LoadConfig() error = %v, want nil for the pinned artifacts", err)
+		t.Fatalf("loadConfigForPlatform(%q) error = %v, want nil for the pinned artifacts", pinnedSeedPlatform, err)
 	}
 	if got, want := len(cfg.CollectorInstances), 1; got != want {
 		t.Fatalf("collector instances = %d, want %d", got, want)
@@ -277,7 +287,7 @@ func TestLoadConfigDeniesDriftedSatelliteActivation(t *testing.T) {
 	}
 	home := installSatelliteActivation(t, id, drifted)
 
-	_, err := LoadConfig(scannerCoordinatorEnv(home, id))
+	_, err := loadConfigForPlatform(scannerCoordinatorEnv(home, id), nil, pinnedSeedPlatform)
 	if err == nil {
 		t.Fatal("LoadConfig() error = nil, want denial for a drifted satellite artifact")
 	}
@@ -286,5 +296,25 @@ func TestLoadConfigDeniesDriftedSatelliteActivation(t *testing.T) {
 	}
 	if strings.Contains(err.Error(), drifted) {
 		t.Fatalf("LoadConfig() error = %q, must not echo the image value", err)
+	}
+}
+
+// TestLoadConfigRefusesUnpinnedSatellitePlatform proves the coordinator
+// planner refuses a satellite activation on a host platform the registry pins
+// no seed image for, even when the manifest is otherwise the pinned one. The
+// fail-closed rule is asserted with an explicit platform so it holds on every
+// machine, not only where the host happens to be unpinned (#9877, #10739).
+func TestLoadConfigRefusesUnpinnedSatellitePlatform(t *testing.T) {
+	t.Parallel()
+
+	id := scannercomponent.SatelliteDocumentImportID
+	home := installSatelliteActivation(t, id, "")
+
+	_, err := loadConfigForPlatform(scannerCoordinatorEnv(home, id), nil, unpinnedSeedPlatform)
+	if err == nil {
+		t.Fatalf("loadConfigForPlatform(%q) error = nil, want refusal without a pinned platform image", unpinnedSeedPlatform)
+	}
+	if want := "declares no seed image for platform"; !strings.Contains(err.Error(), want) {
+		t.Fatalf("loadConfigForPlatform(%q) error = %q, want it to contain %q", unpinnedSeedPlatform, err, want)
 	}
 }

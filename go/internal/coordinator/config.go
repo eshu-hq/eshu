@@ -89,6 +89,14 @@ func LoadConfig(getenv func(string) string) (Config, error) {
 // activations to observer (readback and activation stages). A nil observer
 // disables reporting.
 func LoadConfigObserved(getenv func(string) string, observer component.GrantObserver) (Config, error) {
+	return loadConfigForPlatform(getenv, observer, hostSeedPlatform())
+}
+
+// loadConfigForPlatform is LoadConfigObserved with the seed-admission platform
+// made explicit. Production always passes the executing host's platform via
+// hostSeedPlatform; tests pass the pinned platform they mean to assert so the
+// admission rule is proven on any machine (#10739).
+func loadConfigForPlatform(getenv func(string) string, observer component.GrantObserver, platform string) (Config, error) {
 	if getenv == nil {
 		getenv = os.Getenv
 	}
@@ -165,7 +173,7 @@ func LoadConfigObserved(getenv func(string) string, observer component.GrantObse
 	if err != nil {
 		return Config{}, fmt.Errorf("parse ESHU_COLLECTOR_INSTANCES_JSON: %w", err)
 	}
-	componentInstances, quotaManifests, staleSkips, err := componentCollectorInstancesFromEnv(getenv, observer)
+	componentInstances, quotaManifests, staleSkips, err := componentCollectorInstancesFromEnv(getenv, observer, platform)
 	if err != nil {
 		return Config{}, err
 	}
