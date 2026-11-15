@@ -117,7 +117,7 @@ rows an hour, 5 to 11 percent of the current inflow.
 
 QA collector deployment: claim lease 10 m, heartbeat 30 s, canonical write
 timeout 300 s, an NVD API key referenced. The code default lease is 60 s
-(`go/internal/workflow/defaults.go:9`). The core image is an ancestor of
+(`go/internal/workflow/defaults.go`). The core image is an ancestor of
 `origin/main` and contains the 6 h planner commit `adc011d49f`, so the
 recovery ruling's option A is live, and its option B (a 10 m lease) is
 configured.
