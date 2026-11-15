@@ -3,12 +3,12 @@
 #
 # Brand-new-machine contract: cloning eshu-hq/eshu and running `muse` in the
 # clone must load the same project rules, skills, and agents as every other
-# harness. Everything required is committed (AGENTS.md, .agents/, .muse/,
-# .claude/, .codex/, .cursor/, .opencode/) except the harness skill trees
-# (.claude/skills/, .codex/skills/), which the eshu-agent-kit installer
-# regenerates locally; this script proves the clone is complete, warns when
-# the installer step is still missing, and names any host tool that is
-# missing. It changes nothing.
+# harness. The repo's own canon is committed (AGENTS.md, .muse/, and the
+# harness wiring); the shared agent material (skills, role bindings, hooks)
+# is NOT committed, and the eshu-agent-kit installer materializes it locally
+# at the version this repo pins in .agent-kit-version. This script proves the
+# clone is complete, warns when the installer step is still missing, and
+# names any host tool that is missing. It changes nothing.
 #
 # Required host tools: git, bash, python3. Required for PR/issue work: gh.
 # Recommended: rg, pre-commit, go, make. Workspace trust is per-machine Muse

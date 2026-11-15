@@ -62,10 +62,17 @@ run_agent_kit_fidelity_cases() {
   local kit="$tmp/skill-links/eshu-agent-kit"
   mkdir -p "$kit/skills/eshu/example" "$kit/skills/eshu/eshu-performance-rigor" \
     "$kit/templates/repo-overlay"
-  printf -- '---\nname: example\ndescription: example fixture\n---\n\n# example\n' \
-    >"$kit/skills/eshu/example/SKILL.md"
-  printf -- '---\nname: eshu-performance-rigor\ndescription: eshu-performance-rigor fixture\n---\n\n# eshu-performance-rigor\n' \
-    >"$kit/skills/eshu/eshu-performance-rigor/SKILL.md"
+  # The kit sources are copies of the wrappers the census already built, so
+  # they match byte for byte by construction. A hand-written stub here would
+  # drift from the wrapper and the body proof would (correctly) fail on the
+  # GREEN case.
+  cp "$tmp/skill-links/.claude/skills/example/SKILL.md" \
+    "$kit/skills/eshu/example/SKILL.md"
+  cp "$tmp/skill-links/.claude/skills/eshu-performance-rigor/SKILL.md" \
+    "$kit/skills/eshu/eshu-performance-rigor/SKILL.md"
+  mkdir -p "$kit/skills/eshu/eshu-performance-rigor/references"
+  cp "$tmp/skill-links/.claude/skills/eshu-performance-rigor/references/run-manifest.md" \
+    "$kit/skills/eshu/eshu-performance-rigor/references/run-manifest.md"
   printf 'example\texample\neshu-performance-rigor\teshu-performance-rigor\n' \
     >"$kit/templates/repo-overlay/eshu-aliases.tsv"
   if ESHU_AGENT_CANON_REPO_ROOT="$tmp/skill-links" "$canon" >/dev/null 2>&1; then

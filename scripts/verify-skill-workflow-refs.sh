@@ -136,6 +136,11 @@ rg --pcre2-version >/dev/null 2>&1 || {
 }
 [ -d "$skills_dir" ] || {
   log "skills dir not found: $skills_dir"
+  # The shared skills are installed by the eshu-agent-kit, not committed. A
+  # fresh clone has none of them until the installer runs, so name the fix
+  # instead of leaving the reader with a bare path.
+  log "the shared skills are installed by the eshu-agent-kit, not stored here."
+  log "Fix: run the kit installer: install.sh --repo --aliases --agents --hooks --rules"
   exit 1
 }
 

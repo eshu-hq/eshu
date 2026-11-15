@@ -80,24 +80,54 @@ else:
     printf 'Fix: re-run the eshu-agent-kit installer: install.sh --repo --aliases\n' >&2
     exit 1
   fi
-  # The role shims in .opencode/agent/ carry the tier model the manifest
-  # pins. Compare the arbiter's model line so a stale installed shim is
-  # caught even when the manifest itself is current.
-  shim="$repo_root/.opencode/agent/arbiter-eshu.md"
-  if [ -f "$shim" ]; then
-    expected_model="$(python3 -c '
-import json, sys
-manifest = json.load(open(sys.argv[1]))
-print(manifest["models"]["opencode"]["arbiter"]["model"])
-' "$kit_root/agents/roles.json")"
-    actual_model="$(sed -n 's/^model: //p' "$shim" | head -1)"
-    if [ "$actual_model" != "$expected_model" ]; then
-      printf 'verify-agent-canon: installed arbiter shim pins %s; the kit pins %s\n' \
-        "${actual_model:-<none>}" "$expected_model" >&2
-      printf 'Fix: re-run the eshu-agent-kit installer: install.sh --agents\n' >&2
-      exit 1
-    fi
-  fi
+  # The role shims carry the tier model the manifest pins, so a stale
+  # installed shim would dispatch a role on a model the kit no longer
+  # pins -- even with the manifest itself current. Every role's OpenCode
+  # shim is checked against its own tier, not just the arbiter's: one
+  # spot-checked role left the other four unguarded.
+  python3 - "$kit_root/agents/roles.json" "$repo_root/.opencode/agent" <<'PY' >&2 || exit 1
+import json, os, sys
+
+manifest_path, shim_dir = sys.argv[1], sys.argv[2]
+with open(manifest_path) as handle:
+    manifest = json.load(handle)
+models = manifest["models"]["opencode"]
+roles = manifest["roles"]
+
+resolved = {}
+for name in roles:
+    spec = dict(roles[name])
+    if "base" in spec:
+        base = dict(roles[spec["base"]])
+        base.update(spec)
+        spec = base
+    resolved[name] = models[spec["tier"]]["model"]
+
+drift = False
+for name, expected in sorted(resolved.items()):
+    shim = os.path.join(shim_dir, name + ".md")
+    if not os.path.isfile(shim):
+        continue
+    actual = ""
+    with open(shim, encoding="utf-8") as handle:
+        for line in handle:
+            if line.startswith("model: "):
+                actual = line[len("model: "):].strip()
+                break
+    if actual != expected:
+        print(
+            "verify-agent-canon: installed %s shim pins %s; the kit pins %s"
+            % (name, actual or "<none>", expected),
+            file=sys.stderr,
+        )
+        drift = True
+if drift:
+    print(
+        "Fix: re-run the eshu-agent-kit installer: install.sh --agents",
+        file=sys.stderr,
+    )
+    sys.exit(1)
+PY
 fi
 
 # The shared skills live in the eshu-agent-kit. The installer materializes
@@ -371,13 +401,21 @@ canon_rule_targets=()
 for f in "${canon_rule_files[@]}"; do
   [ -f "$f" ] && canon_rule_targets+=("$f")
 done
-[ -d "$repo_root/.agents/skills" ] && canon_rule_targets+=("$repo_root/.agents/skills")
+# The shared skills live in the eshu-agent-kit. The installer puts every
+# one of them in the harness trees under its harness-visible name, and
+# .agents/skills carries only the ones the alias manifest does not rename.
+# The file that DEFINES the bar is the aliased code-review skill's
+# references/merge-bar.md, so scanning only .agents/skills would drop the
+# guard's highest-value target: the harness tree is the census.
+for d in "$repo_root/.claude/skills" "$repo_root/.agents/skills"; do
+  [ -d "$d" ] && canon_rule_targets+=("$d")
+done
 if [ "${#canon_rule_targets[@]}" -gt 0 ]; then
   if rg -nU "$retired_bar_pattern" "${canon_rule_targets[@]}" >&2; then
     printf 'verify-agent-canon: retired review-bar phrasing re-introduced above.\n' >&2
     printf '  The bar is P0=0, P1=0, P2-blocking=0, with every deferred P2 tracked in a\n' >&2
     printf '  linked issue, the owner agreement quoted in the PR, and its severity-table\n' >&2
-    printf '  category named. See .agents/skills/eshu-code-review/references/merge-bar.md\n' >&2
+    printf '  category named. See .claude/skills/eshu-code-review/references/merge-bar.md\n' >&2
     exit 1
   fi
   printf 'verify-agent-canon: no retired review-bar phrasing in the canon or skills.\n'

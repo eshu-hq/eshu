@@ -167,13 +167,16 @@ def skill_id(path: str) -> Optional[str]:
     """The project skill a Read of this SKILL.md loads, or None.
 
     The path must sit directly in a skill folder of the project, or of another
-    git worktree of the same repository, and the id must be a skill under that
-    same tree's .agents/skills.
+    git worktree of the same repository, and the id must be a skill under one
+    of that tree's skill directories.
 
     Containment is decided on the LOGICAL path, with symlinks left unresolved.
     The shared skill trees are symlinks into the eshu-agent-kit, so resolving
     them first would move the skill outside the project and every read of a
-    skill would look foreign.
+    skill would look foreign. A path that REACHES a skill folder through a
+    symlink is therefore accepted as well: the file it names is the same
+    bytes the project's own skill holds, and the consumer is the advisory
+    nudge, not a permission surface.
 
     The resolved file must still sit under the skill folder that was matched,
     though. A SKILL.md symlinked out of the project is not this project's

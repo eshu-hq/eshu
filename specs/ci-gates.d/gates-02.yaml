@@ -68,7 +68,7 @@ gates:
       # fake gh the suite puts on PATH, and the payloads recorded live from
       # Claude and Muse. Each is a trigger path in its own right so editing one
       # alone selects the gate that runs it. The hooks and lib/ are already
-      # covered by .claude/hooks/**.
+      # covered by the kit pin.
       - "scripts/test-issue-capture-hook.sh"
       - "scripts/test-issue-capture-hook-cases.sh"
       - "scripts/test-issue-capture-hook-gate-cases.sh"
@@ -157,7 +157,7 @@ gates:
     local:
       command: "bash scripts/verify-agent-canon.sh"
       pre_push: floor
-      # Both mirrors. .claude/hooks/** is a trigger for this gate, so a hook
+      # Both mirrors. The kit pin is a trigger for this gate, so a hook
       # change selects it -- but running only the canon mirror would skip the
       # behavioural hook suite, and an exit-code or routing regression would
       # first appear in Actions despite being credential-free.
