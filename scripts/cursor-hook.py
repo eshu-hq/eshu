@@ -166,27 +166,69 @@ def find_path(p: dict, cwd: str) -> Optional[str]:
 def skill_id(path: str) -> Optional[str]:
     """The project skill a Read of this SKILL.md loads, or None.
 
-    The real path (symlinks and ../ resolved) must sit directly in a skill
-    folder of the project, or of another git worktree of the same repository,
-    and the id must be a skill under that same tree's .agents/skills.
+    The path must sit directly in a skill folder of the project, or of another
+    git worktree of the same repository, and the id must be a skill under that
+    same tree's .agents/skills.
+
+    Containment is decided on the LOGICAL path, with symlinks left unresolved.
+    The shared skill trees are symlinks into the eshu-agent-kit, so resolving
+    them first would move the skill outside the project and every read of a
+    skill would look foreign.
+
+    The resolved file must still sit under the skill folder that was matched,
+    though. A SKILL.md symlinked out of the project is not this project's
+    skill, and reading it must not unlock the nudge. The check is on the
+    resolved SKILL.md's own directory, so a link whose target lands in a
+    different skill folder is rejected while a link whose target lands in the
+    same folder (the installer's alias wrappers) is accepted.
     """
-    real = os.path.realpath(path)
-    if os.path.basename(real) != "SKILL.md":
+    logical = os.path.normpath(path)
+    if os.path.basename(logical) != "SKILL.md":
         return None
-    folder = os.path.dirname(real)
+    folder = os.path.dirname(logical)
     sid = os.path.basename(folder)
     if not SKILL_ID.fullmatch(sid):
         return None
 
+    # The folder the path names. The LOGICAL form decides containment: the
+    # shared skill trees are symlinks into the eshu-agent-kit, so resolving
+    # them first would move the skill outside the project and every read of
+    # a skill would look foreign. macOS resolves /var to /private/var, so
+    # the root side is resolved before the two are compared.
     def holds(root: str) -> bool:
-        return any(os.path.dirname(folder) == os.path.realpath(os.path.join(root, d)) for d in SKILL_DIRS)
+        # The parent of the skill folder must be this root's skill tree. The
+        # parent is tried in both forms: logical, because the shared skill
+        # trees are symlinks into the kit and resolving them would move the
+        # skill out of the project; and resolved, because macOS resolves
+        # /var to /private/var and a worktree root from git is already
+        # resolved.
+        parent = os.path.dirname(folder)
+        return any(
+            parent == os.path.normpath(os.path.join(root, d))
+            or parent == os.path.realpath(os.path.join(root, d))
+            or os.path.realpath(parent) == os.path.realpath(os.path.join(root, d))
+            for d in SKILL_DIRS
+        )
 
-    root = os.path.realpath(project_dir())
+    root = os.path.normpath(project_dir())
     if not holds(root):
-        root = next((w for w in family.worktree_roots(root) if holds(w)), "")
+        root = next((os.path.normpath(w) for w in family.worktree_roots(root) if holds(w)), "")
         if not root:
             return None
-    if not os.path.isfile(os.path.join(root, ".agents", "skills", sid, "SKILL.md")):
+    # The id must be a skill of this tree. The installer puts every skill in
+    # the harness trees under its harness-visible name, while .agents/skills
+    # carries only the ones the alias manifest does not rename, so an
+    # aliased skill is found in .claude/skills and not in .agents/skills.
+    if not any(os.path.isfile(os.path.join(root, d, sid, "SKILL.md")) for d in SKILL_DIRS):
+        return None
+    # The FILE must not be a link out of the project. Resolving the file and
+    # its own folder separately tells the two cases apart: a skill tree that
+    # is a symlink into the kit resolves to a file inside its own resolved
+    # folder, while a SKILL.md symlinked elsewhere resolves to a file outside
+    # the folder it was read from.
+    resolved_file = os.path.realpath(logical)
+    resolved_folder = os.path.realpath(folder)
+    if resolved_file != os.path.join(resolved_folder, os.path.basename(resolved_file)):
         return None
     return sid
 

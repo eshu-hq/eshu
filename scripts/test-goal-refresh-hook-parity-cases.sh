@@ -271,6 +271,8 @@ issue_parity_case() {
 	local dir ctx cap_in got_r got_c got_s ledger out
 	dir="$(mktemp -d)"
 	mkdir -p "${dir}/.claude" "${dir}/.agents/skills/eshu-code-review"
+	# The kit's hooks resolve the repo by the kit version pin.
+	printf 'v0.1.0\n' >"${dir}/.agent-kit-version"
 	printf '%s' "${content}" >"${dir}/.claude/active-goal"
 	ledger="${dir}/.claude/active-goal.issues"
 	printf 'eshu-hq/eshu#7777 2026-10-25T00:00:00Z open\n' >"${ledger}"

@@ -49,13 +49,26 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
 
+      # The shared agent material (skills, role bindings, harness hooks) lives
+      # in the eshu-agent-kit and is installed locally by its installer. The
+      # suites below read the installed tree, so install it first, at the
+      # version this repo pins in .agent-kit-version.
+      - name: Install the eshu-agent-kit
+        run: |
+          set -euo pipefail
+          version="$(tr -d '[:space:]' < .agent-kit-version)"
+          url="https://github.com/eshu-hq/eshu-agent-kit/archive/refs/tags/${version}.tar.gz"
+          curl -fsSL "$url" -o /tmp/eshu-agent-kit.tar.gz
+          tar -xzf /tmp/eshu-agent-kit.tar.gz -C /tmp
+          kit="/tmp/eshu-agent-kit-${version}"
+          "$kit/install.sh" --repo "$PWD" --aliases "$kit/templates/repo-overlay/eshu-aliases.tsv"
+          "$kit/install.sh" --agents --repo "$PWD"
+          "$kit/install.sh" --hooks --repo "$PWD"
+          "$kit/install.sh" --rules --repo "$PWD"
+
       - name: Run test mirror
         if: ${{ github.event_name != 'pull_request' || inputs.plan_mode != 'smoke' || contains(fromJSON(inputs.plan_gates || '[]'), 'no-private-identifiers') }}
         run: scripts/test-verify-agent-hygiene.sh
-
-      - name: Run agent role binding test
-        if: ${{ github.event_name != 'pull_request' || inputs.plan_mode != 'smoke' }}
-        run: python3 scripts/test-agent-roles.py
 
       - name: Run Codex spawn guard test
         if: ${{ github.event_name != 'pull_request' || inputs.plan_mode != 'smoke' }}

@@ -332,6 +332,8 @@ spawn() { # tool_input-json -> exit code on stdout
 # issue-capture suite uses, so nothing here reaches the network.
 icrepo="${work}/icrepo"
 mkdir -p "${icrepo}/.claude" "${icrepo}/.agents/skills/eshu-code-review" "${work}/icbin" "${work}/icfx"
+# The kit's hooks resolve the repo by the kit version pin.
+printf 'v0.1.0\n' >"${icrepo}/.agent-kit-version"
 cp "${repo_root}/scripts/lib/test-issue-capture-fake-gh.sh" "${work}/icbin/gh"
 chmod +x "${work}/icbin/gh"
 : >"${work}/icfx/calls.log"

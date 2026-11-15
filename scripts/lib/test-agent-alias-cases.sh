@@ -16,6 +16,18 @@ make_alias_fixture() {
   printf 'alias=%s source=%s\n' "$skill" "$skill" >"$root/$harness/skills/$skill/.kit-alias"
 }
 
+# make_alias_marker_fixture <root> <harness> <skill> — installer-shaped
+# harness alias wrapper that keeps whatever SKILL.md the caller already
+# wrote, and only adds the .kit-alias marker. The frontmatter cases need
+# this: make_alias_fixture overwrites SKILL.md with a generic description,
+# so a fixture that means to exercise a specific description would silently
+# test the generic one instead.
+make_alias_marker_fixture() {
+  local root="$1" harness="$2" skill="$3"
+  mkdir -p "$root/$harness/skills/$skill"
+  printf 'alias=%s source=%s\n' "$skill" "$skill" >"$root/$harness/skills/$skill/.kit-alias"
+}
+
 # run_agent_alias_marker_cases — seeded pair: the canon gate must fail when
 # a harness alias wrapper loses its .kit-alias marker and pass again once
 # the marker is restored, proving the marker (not the directory) is the

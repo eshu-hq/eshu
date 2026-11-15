@@ -89,6 +89,38 @@ fi
 
 skills_dir="${ESHU_SKILL_WORKFLOW_REFS_SKILLS_DIR:-${repo_root}/.agents/skills}"
 workflows_dir="${ESHU_SKILL_WORKFLOW_REFS_WORKFLOWS_DIR:-${repo_root}/.github/workflows}"
+# The shared skills live in the eshu-agent-kit, and the workflow citations
+# are in the kit's skill SOURCES, not in the thin alias wrappers the
+# installer materializes. So the census is the kit's skills/eshu tree,
+# resolved from the installed manifest's symlink target. The installed
+# harness trees are scanned too, so a repo whose installer has not run
+# yet still checks what it can.
+harness_skills_dir="${repo_root}/.claude/skills"
+if [ -n "${ESHU_SKILL_WORKFLOW_REFS_SKILLS_DIR:-}" ]; then
+  # An explicit SKILLS_DIR names the census: the test fixtures point it at a
+  # scratch tree and must scan that tree alone, so the auto-discovered ones
+  # stay off in that case.
+  harness_skills_dir=""
+fi
+kit_skills_dir=""
+kit_manifest="${repo_root}/.agents/roles.json"
+if [ -z "${ESHU_SKILL_WORKFLOW_REFS_SKILLS_DIR:-}" ] && [ -f "${kit_manifest}" ]; then
+  kit_root="$(cd "${repo_root}" && python3 -c '
+import pathlib, sys
+try:
+    target = pathlib.Path(".agents/roles.json").resolve()
+except OSError:
+    sys.exit(1)
+root = target.parent.parent
+if (root / "agents" / "roles.json").is_file():
+    print(root)
+else:
+    sys.exit(1)
+' 2>/dev/null || true)"
+  if [ -n "${kit_root}" ] && [ -d "${kit_root}/skills/eshu" ]; then
+    kit_skills_dir="${kit_root}/skills/eshu"
+  fi
+fi
 
 log() {
   printf 'verify-skill-workflow-refs: %s\n' "$*" >&2
@@ -116,7 +148,7 @@ trap 'rm -rf "$tmp_dir"' EXIT
 full_path_refs() {
   rg -n -o -g '*.md' \
     '\.github/workflows/[A-Za-z0-9_.-]+\.ya?ml' \
-    "$skills_dir" 2>/dev/null || true
+    "$skills_dir" "$harness_skills_dir" ${kit_skills_dir:+"$kit_skills_dir"} 2>/dev/null || true
 }
 
 # bare_name_refs emits one "<file>:<line>:<workflow-relative-path>" per
@@ -134,7 +166,7 @@ bare_name_refs() {
   # not available on this repo's macOS/BSD sed.
   rg -n -o -g '*.md' \
     '`[a-z][a-z0-9_-]*\.ya?ml`' \
-    "$skills_dir" 2>/dev/null \
+    "$skills_dir" "$harness_skills_dir" ${kit_skills_dir:+"$kit_skills_dir"} 2>/dev/null \
     | LC_ALL=C sed -E 's/`([a-z][a-z0-9_-]*\.ya?ml)`$/.github\/workflows\/\1/' \
     | while IFS= read -r line; do
         [ -z "$line" ] && continue
@@ -234,7 +266,7 @@ bare_prose_refs() {
   local line rel_path file_line
   rg -n -o -P -g '*.md' \
     '(?<![A-Za-z0-9_./`-])[a-z][a-z0-9_-]*\.ya?ml\b(?!`)' \
-    "$skills_dir" 2>/dev/null \
+    "$skills_dir" "$harness_skills_dir" ${kit_skills_dir:+"$kit_skills_dir"} 2>/dev/null \
     | while IFS= read -r line; do
         [ -z "$line" ] && continue
         rel_path="${line##*:}"

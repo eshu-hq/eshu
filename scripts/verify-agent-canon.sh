@@ -40,14 +40,73 @@ fi
 printf 'verify-agent-canon: AGENTS.md is the only agent canon (no CLAUDE.md).\n'
 
 if [ -z "${ESHU_AGENT_CANON_REPO_ROOT:-}" ]; then
-  if [ ! -f "$repo_root/.agents/roles.json" ] || [ ! -f "$repo_root/scripts/agent-roles.py" ]; then
-    printf 'verify-agent-canon: missing role manifest or generator\n' >&2
+  # The role bindings live in the eshu-agent-kit, not in this repo. The
+  # installer materializes them locally as symlinks, so what this repo
+  # checks is that the installed tree matches the kit it pins -- a stale or
+  # half-installed tree would otherwise dispatch roles with the wrong model.
+  if [ ! -f "$repo_root/.agents/roles.json" ]; then
+    printf 'verify-agent-canon: missing installed role manifest at %s\n' \
+      "$repo_root/.agents/roles.json" >&2
+    printf 'Fix: run the eshu-agent-kit installer: install.sh --repo --aliases\n' >&2
     exit 1
   fi
-  python3 "$repo_root/scripts/agent-roles.py" check
+  # The kit root is the directory the installed tree symlinks into. Read it
+  # from the installed manifest's own symlink target rather than searching
+  # the filesystem, so this check agrees with what the installer produced.
+  kit_root="$(cd "$repo_root" && python3 -c '
+import pathlib, sys
+link = pathlib.Path(".agents/roles.json")
+try:
+    target = link.resolve()
+except OSError:
+    sys.exit(1)
+root = target.parent.parent
+if (root / "agents" / "roles.json").is_file():
+    print(root)
+else:
+    sys.exit(1)
+' 2>/dev/null || true)"
+  if [ -z "$kit_root" ]; then
+    printf 'verify-agent-canon: cannot resolve the eshu-agent-kit root from %s\n' "$repo_root" >&2
+    printf 'Fix: run the eshu-agent-kit installer: install.sh --repo --aliases\n' >&2
+    exit 1
+  fi
+  if [ ! -f "$kit_root/agents/roles.json" ]; then
+    printf 'verify-agent-canon: kit at %s has no agents/roles.json\n' "$kit_root" >&2
+    exit 1
+  fi
+  if ! diff -q "$kit_root/agents/roles.json" "$repo_root/.agents/roles.json" >/dev/null 2>&1; then
+    printf 'verify-agent-canon: installed role manifest differs from the kit at %s\n' "$kit_root" >&2
+    printf 'Fix: re-run the eshu-agent-kit installer: install.sh --repo --aliases\n' >&2
+    exit 1
+  fi
+  # The role shims in .opencode/agent/ carry the tier model the manifest
+  # pins. Compare the arbiter's model line so a stale installed shim is
+  # caught even when the manifest itself is current.
+  shim="$repo_root/.opencode/agent/arbiter-eshu.md"
+  if [ -f "$shim" ]; then
+    expected_model="$(python3 -c '
+import json, sys
+manifest = json.load(open(sys.argv[1]))
+print(manifest["models"]["opencode"]["arbiter"]["model"])
+' "$kit_root/agents/roles.json")"
+    actual_model="$(sed -n 's/^model: //p' "$shim" | head -1)"
+    if [ "$actual_model" != "$expected_model" ]; then
+      printf 'verify-agent-canon: installed arbiter shim pins %s; the kit pins %s\n' \
+        "${actual_model:-<none>}" "$expected_model" >&2
+      printf 'Fix: re-run the eshu-agent-kit installer: install.sh --agents\n' >&2
+      exit 1
+    fi
+  fi
 fi
 
-skills_root="$repo_root/.agents/skills"
+# The shared skills live in the eshu-agent-kit. The installer materializes
+# them locally: the harness trees (.claude/skills/, .codex/skills/) carry
+# every skill under its harness-visible name, while .agents/skills/ carries
+# only the ones the alias manifest does not rename. So the harness tree is
+# the census, and each skill there must resolve to an alias wrapper whose
+# marker and frontmatter agree with the directory it sits in.
+skills_root="$repo_root/.claude/skills"
 if [ -d "$skills_root" ]; then
   # Kit source for the body proof: the CI gate step checks eshu-agent-kit out
   # beside the repo. The link-rewrite list mirrors build_alias_link_sed in
@@ -189,7 +248,9 @@ if [ -d "$skills_root" ]; then
   # Only assignments INSIDE the case block count. An `IDS="x"` appended after
   # `esac` is unreachable -- no path can ever select it -- but a whole-file
   # match accepts it and reports the skill routed. Scope to the block first.
-  nudge_case="$(sed -n '/^case /,/^esac/p' "$nudge_hook")"
+  # The arm block is indented in the kit's hook (it lives inside the
+  # nudge_ids_for function), so match `case` with optional leading space.
+  nudge_case="$(sed -n '/^[[:space:]]*case /,/^[[:space:]]*esac/p' "$nudge_hook")"
   nudge_arms="$(printf '%s' "$nudge_case" | rg -o 'IDS="[^"]*"' || true)"
   nudge_exempt="$(sed -n '/^# NUDGE_EXEMPT_BEGIN/,/^# NUDGE_EXEMPT_END/p' "$nudge_hook")"
   if [ -z "$nudge_exempt" ]; then

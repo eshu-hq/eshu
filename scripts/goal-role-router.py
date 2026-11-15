@@ -8,11 +8,26 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-SKILL_NAMES = sorted(
-    (path.parent.name for path in (ROOT / ".agents/skills").glob("*/SKILL.md")),
-    key=len,
-    reverse=True,
-)
+
+
+def _skill_names() -> list:
+    """The skill names a goal prompt can name in this checkout.
+
+    The eshu-agent-kit installer puts every skill in the harness trees under
+    its harness-visible name, while .agents/skills carries only the ones the
+    alias manifest does not rename. A goal names a skill the way the harness
+    sees it, so the harness tree is the census. The .agents/skills names are
+    included too, so a repo whose installer has not run yet still routes.
+    """
+    names = set()
+    for tree in (ROOT / ".claude/skills", ROOT / ".agents/skills"):
+        if not tree.is_dir():
+            continue
+        names.update(path.parent.name for path in tree.glob("*/SKILL.md"))
+    return sorted(names, key=len, reverse=True)
+
+
+SKILL_NAMES = _skill_names()
 SKILL_PATTERN = re.compile(
     r"(?<![\w-])(?:" + "|".join(map(re.escape, SKILL_NAMES)) + r")(?![\w-])"
 )

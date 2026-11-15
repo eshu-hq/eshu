@@ -194,7 +194,13 @@ wt_read() { # label yes|no path
 wt_read "a read in the project's own checkout (control)" yes "${wt}/main/.agents/skills/golang-engineering/SKILL.md"
 wt_read "a read in a second worktree of the project" yes "${wt}/second/.agents/skills/golang-engineering/SKILL.md"
 wt_read "a skill only that worktree has" yes "${wt}/second/.agents/skills/wt-only/SKILL.md"
-wt_read "a worktree id missing from its .agents/skills" no "${wt}/second/.claude/skills/claude-only/SKILL.md"
+# A skill id that no tree of this project carries. The kit installer puts
+# every skill in the harness trees under its harness-visible name and in
+# .agents/skills under the name the alias manifest does not rename, so a
+# skill is known to a tree when one of those trees has it. "claude-only"
+# lives in this worktree's .claude/skills, so it IS known here -- the
+# negative case is a tree that carries neither.
+wt_read "a worktree id missing from its skill trees" no "${wt}/second/.claude/skills/no-such-skill/SKILL.md"
 wt_read "an unrelated repo with the same skill id" no "${wt}/other/.agents/skills/golang-engineering/SKILL.md"
 mkdir -p "${work}/badgit" "${work}/nogit"
 printf '#!/bin/sh\nexit 1\n' >"${work}/badgit/git"
