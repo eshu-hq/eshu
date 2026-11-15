@@ -1,6 +1,6 @@
 # 10671: NVD outage measurements and the feed-transport theory
 
-Refs #10671. Measured 2026-11-15 between 04:30Z and 05:30Z by the coordinator,
+Refs #10671. Measured 2026-11-15 between 04:30Z and 09:50Z by the coordinator,
 read-only, from a laptop (public endpoints) and the QA cluster (a Postgres read
 replica with `default_transaction_read_only=on` and a 20 s statement timeout).
 Environment identifiers are redacted per #7803.
@@ -29,8 +29,8 @@ restart the clock. Every number below has its sample size.
 | osv | fresh | 6,063 | 2026-11-15 04:26Z | |
 
 `vulnerability_nvd_window_cursors`: cursor `2026-10-17T20:18:09Z`, head
-`2026-11-13T17:10:24Z`. The cursor trails wall clock by about 29 days, not the
-"11+ hours" the issue states: the drain was already about 27 days behind when
+`2026-11-13T17:10:24Z`. The cursor trails wall clock by about 28 days (28.3 at the 05:00Z read), not the
+"11+ hours" the issue states: the drain was already about 26 days behind when
 the latest failures began. The CVE List `deltaLog.json` covers about 30 days,
 so the gap start sits at the edge of that window.
 
@@ -80,11 +80,14 @@ p50 4, p95 22, p99 46, max 2,048; 90,642 facts in total over nine days, about
 matches. Per-day facts: 13.8k (Nov 6, partial), 3.7k, 1.2k, 6.5k, **23.5k
 (Nov 10)**, 23.4k, 10.1k, 7.3k, 1.1k.
 
-- The 29-day gap is about 290k facts.
+- The 28-day gap is about 290k facts by this sample's rate (extrapolated; the
+  arbiter's 45,757 records over 25 days at 7.07 facts a record give about
+  375k, so read it as a range).
 - One 6 h window per 30 min planner run gives about 116 windows, about 58 h
   of wall clock. Planner cadence binds, not the 10,000-fact claim cap.
 - A dense 6 h slice can exceed 10,000 facts (Nov 10 averages 5.9k per 6 h, so
-  a front-loaded slice will), so the prefix-commit overflow rule is exercised.
+  a front-loaded slice would), so the prefix-commit overflow rule is expected to
+  run. The 4,982-result stuck window in M10 is the nearer evidence for it.
 
 ## M6. The dirty log and who feeds it
 
@@ -92,8 +95,10 @@ matches. Per-day facts: 13.8k (Nov 6, partial), 3.7k, 1.2k, 6.5k, **23.5k
 `captured_at` 2026-11-12 18:44Z (about 58 h). By `source`: `fact_upsert`
 960,818; `fact_retract` 113,427; `activation` 6,721. Last 3 h: `fact_upsert`
 238,282. Hourly inflow, 22:00Z to 04:00Z: 15,647 (partial), 59,975, 80,753,
-109,133, 95,266, 75,277, 81,079 rows, about 1.0 to 1.8k a minute. One
-committed fact upsert writes about one row.
+109,133, 95,266, 75,277, 81,079 rows, about 1.0 to 1.8k a minute. The
+`fact_upsert` rows come from the reducer's finding upserts, not from raw facts
+(migration 272, lines 10 to 17), so the rows an NVD fact produces is not
+measured.
 
 Attribution. Newest 50,000 rows by `advisory_id` prefix: `GHSA` 49,561, `CVE-`
 433, blank 6. Oldest 50,000: `GHSA` 47,847, `CVE-` 1,708, blank 371, `PYSE`
@@ -103,9 +108,9 @@ Attribution. Newest 50,000 rows by `advisory_id` prefix: `GHSA` 49,561, `CVE-`
 With NVD down, the current inflow is OSV/GHSA-keyed. #10706 describes it as
 NVD inflow; that does not match these reads.
 
-Effect of an NVD catch-up: about 290k rows over about 2.6 days is about 4.6k
-rows an hour, about 4 to 8 percent of the current inflow, but about 27 percent
-of today's backlog.
+Effect of an NVD catch-up, as an upper bound that assumes one dirty row per
+committed fact (unmeasured; see the correction below): 290k to 375k over about
+58 h is 5.0k to 6.5k rows an hour, 5 to 11 percent of the current inflow.
 
 ## M7. Deployed configuration
 
@@ -162,13 +167,13 @@ container's environment and was never printed), against the stuck window
 | exact shape, keyed, `startIndex` 1000 / 2000 / 3000 / 4000 | 200 in 12.9 s / **503 in 0.06 s** / 200 in 2.8 s / 200 in 7.0 s |
 
 Reading: the key and the egress IP are not the cause (keyed requests from the
-pod succeed 12 of 13 times), and depth is not deterministic. NVD returns
-fast edge 503s on roughly one request in five, and slow 3 to 13 s first bytes
+pod succeed in 11 of 13 requests), and depth is not deterministic. NVD returns
+fast edge 503s on 2 of 13 requests, and slow 3 to 13 s first bytes
 between them, which matches the issue's two failure faces. It does not explain
 why the satellite fails 66 of 66 with 12 to 118 s latencies; that stays open
 under collector#97. The arbiter's proposed step of unsetting or rotating the
 key is not supported by these results and is not taken. Samples are small (13
-keyed requests, one afternoon, one source IP).
+requests, one session, one source IP).
 
 ## Commands
 

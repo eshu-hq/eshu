@@ -5,14 +5,15 @@ Status: Accepted (arbiter ruling 2026-11-15, two passes:
 approves no code, migration, contract change, deployment, or QA enable. Each is
 a follow-up below with its own proof.
 
-**Decision.** Do not build a CVE List v5 whole-corpus mirror. Add the official
-NVD 2.0 JSON data feeds as a second transport inside the existing NVD window
-claim. The satellite picks the transport per claim by coverage, not by a health
-guess: when the planned window fits inside what the feeds provably contain, it
-serves the window from the feeds; otherwise it runs the API exactly as today.
-The feed records are NVD's own, so every NVD-only field translates unchanged and
-the fact contract does not change. The CVE List stays what it is, an owned-CVE
-supplement.
+**Decision. Do not build a CVE List v5 whole-corpus mirror; add the official NVD
+2.0 JSON data feeds as a second transport inside the existing NVD window
+claim.**
+
+The satellite picks the transport per claim by coverage, not by a health guess:
+when the planned window fits inside what the feeds contain, it serves the window
+from the feeds; otherwise it runs the API exactly as today. The feed records are
+NVD's own, so every NVD-only field translates unchanged and the fact contract
+does not change. The CVE List stays what it is, an owned-CVE supplement.
 
 This record answers the issue's four decisions and five acceptance criteria. The
 issue asked for a CVE List mirror "or a chosen alternative"; the alternative
@@ -24,10 +25,10 @@ Measured 2026-11-15; every figure and its sample are in the
 [measurements note](../evidence/10671-nvd-feed-measurements.md).
 
 - NVD windows fail on QA: the last success was 2026-11-13 17:10Z, and 14 window
-  items are `failed_terminal`. The drain cursor is at 2026-10-17, **29 days**
-  behind, not the "11+ hours" the issue states (M1).
-- The API fails in two ways: fast edge 503s (about one request in five from the
-  QA pod) and 3 to 13 s first bytes. A key, the pod's egress IP, and page depth
+  items are `failed_terminal`. The drain cursor is at 2026-10-17, **about 28 days**
+  behind (28.3 days to the 05:00Z read), not the "11+ hours" the issue states (M1).
+- The API fails in two ways: fast edge 503s (2 of 13 requests from the QA pod
+  returned 503) and 3 to 13 s first bytes. A key, the pod's egress IP, and page depth
   are not the cause (M10). The satellite's per-claim 503s after 28 to 50 s stay
   unexplained and belong to collector#97.
 - The feeds answer in 0.29 s, carry the full NVD record (34,675 of 34,675
@@ -41,7 +42,8 @@ Measured 2026-11-15; every figure and its sample are in the
   shards; a full shard overflows the 10,000-fact claim cap as a non-retryable
   terminal.
 - Load matters. The winners dirty log holds 1.08M rows, about 58 hours old, and
-  one fact upsert writes about one row. Today's inflow (1.0 to 1.8k rows a
+  rows come from the reducer's finding upserts, not from raw facts (migration
+  272), so rows per NVD fact is not measured. Today's inflow (1.0 to 1.8k rows a
   minute) is OSV/GHSA-keyed, not NVD (M6).
 
 ## Options
@@ -78,18 +80,36 @@ A window is covered when `e <= M1` and (`s >= M0` or `e <= V`). Served records a
 the year-set records with `lastModified` in `[s, e)`, overlaid by Modified
 records by CVE id (Modified wins). Otherwise the API runs.
 
+**Selector order (healthy path stays free).** (1) One `.meta` GET (10 s). (2) If
+`e` is at or after the `.meta` `lastModifiedDate`, the window cannot be covered
+(`M1` precedes it): go straight to the API with no feed read. A caught-up system
+therefore pays one small GET per claim, never the 7.35 MB stream. (3) Only for an
+older window, stream the Modified feed to compute `M0` and `M1`. Any error in
+steps 1 to 3 (a missing `.meta`, a timeout, a sha256 mismatch while only probing)
+means "not covered": the API runs, a counter increments, and the claim never
+fails on the selector's account. Feed errors fail a claim only after the feed
+path was selected (see Errors).
 - The horizon is `M1`, not the `.meta` write time (44 minutes ahead in one
-  sample); `M1` is the only instant proven included.
+  sample); `M1` is the latest instant observed in the feed, and a record stamped
+  earlier but committed after generation is the same convergence case as the API
+  path (section 2).
 - Year files are rewritten only when a record changes, so dormant files carry
   old times. A strict `e <= D_y` per file would send every window after
-  2026-10-21 to the API. Evidence for regenerate-on-change: 45,757 records over
-  25 days, zero changed after their own file's write and before the latest
-  daily run. This is empirical, not a NIST guarantee.
+  2026-10-21 to the API. Evidence for regenerate-on-change: the 12,818 Modified
+  records (9 days, 0 violations, M4) and the arbiter's 32,939-record band test
+  (17 paced API pages; method recorded in the ruling only, not re-run by the
+  coordinator). This is empirical, not a NIST guarantee.
+- **Accepted blind spot.** A dormant-year record changed after its file's `D_y`
+  and before `M0` is visible to neither the guard (it reads Modified records
+  only) nor the year file. Mitigation, owned by follow-up C: a periodic API
+  cross-check of the dormant years. Until it exists, QA enable for windows older
+  than `M0` carries this risk knowingly.
 - **Guard.** For each Modified record with `lastModified <= V`, require
   `D_{year} >= lastModified`. On a trip: class `nvd_feed_year_stale` (retryable,
   never terminal), mark the year set invalid, run the API, count the trip.
-- A healthy, caught-up system never takes the feed path: `e = now > M1`, so
-  coverage fails and the API runs. No flag flips and nothing flaps.
+- A healthy, caught-up system never takes the feed path: `e` is after the
+  `.meta` time, so the selector stops at step 2 and the API runs. No flag flips
+  and nothing flaps.
 - A seed older than about six days opens a hole (`V < M0`); the selector sends
   that window to the API. Re-seed to close it.
 - If the remaining claim deadline is under 150 s the selector chooses the API.
@@ -103,12 +123,30 @@ the committed window end or the prefix-commit boundary, never past `M1`, never b
 hand. A record changed after feed generation is upserted again by the later window
 that contains its new `lastModified`, the same convergence the API path has.
 
+Boundaries and head. The feed path slices half-open `[s, e)`. The API treats
+`lastModStartDate` and `lastModEndDate` as inclusive at both ends (the pinned
+boundary test in the satellite says so), so a record at exactly `e` can appear
+in both adjacent windows; stable keys make that upsert idempotent. R1 compares
+the two slices after trimming the API result to `[s, e)`. The satellite's cursor
+verdict clamps to `min(plannedEnd, head)`, where `head` is the response
+`timestamp`. On the feed path `head` is stamped as `M1` (never the larger
+header generation time), so the clamp can never pass `M1`, and a missing head
+holds the cursor as it does today. The lag gauge keeps its name but gains a
+`transport` label, because its head means "feed horizon" on that path.
+
 ### 3. Overflow
 
 A covered window whose slice exceeds 10,000 facts or 2 MiB commits whole
 `lastModified` groups as a prefix and advances the cursor to that boundary; the
 remainder replans from there. Never a shed, never a terminal. A Modified-feed
-day reaches 23.5k facts, so this rule runs in practice (M5).
+day reaches 23.5k facts and the Oct 17 stuck window held 4,982 records, so the
+rule is expected to run during catch-up (M5, M10).
+
+If the first `lastModified` group alone exceeds 10,000 facts or 2 MiB (one
+record reached 2,048 facts), the cursor cannot advance on the feed path. That
+window routes to the API walk, which has its own retryable no-progress refusal
+(`ErrNVDNoProgress`), and the selector counts it with class
+`nvd_feed_group_oversize`. It never loops silently and is never terminal.
 
 ### 4. Field dispositions
 
@@ -137,23 +175,34 @@ For the retained CVE List supplement: `cvssV2_0`, reference tags,
 | Meta GET timeout | 10 s |
 | Feed GET timeout | 120 s total, 100 KB/s stall floor |
 | Decompressed size cap | fail closed above 1 GiB (largest year is 528 MiB) |
-| Memory | streamed, at most 256 MiB RSS in the benchmark |
+| Memory | streamed; target at most 256 MiB RSS, proved by R7 (not yet measured) |
 | Lease and heartbeat | deployed 10 m and 30 s (code defaults 60 s and 20 s) |
 | Attempts and retry | 10 and 60 s (unchanged) |
-| Year-feed footprint | 237.6 MiB gzip for 25 files; decompressed 2.8 GiB, never held whole |
+| Year-feed footprint | 237.6 MiB gzip for 25 files; decompressed 2.7 GiB (2,809 MiB), never held whole; per-claim scan cost of the year set is unmeasured (R7b) |
 
-Errors: sha256 mismatch, gateway errors, and timeouts are retryable; a missing
-Modified `.meta` is non-retryable with its own class and pages; nothing on the
-feed path maps to the capacity terminal.
+Errors once the feed path was selected: sha256 mismatch, gateway errors, and
+timeouts are retryable; nothing on the feed path maps to the capacity terminal.
+A missing or failing `.meta` is never a claim failure: the selector treats it as
+"not covered", runs the API, increments a counter, and the alert on that counter
+is how an operator learns the feed is gone.
 
 ### 6. Write budget (criterion 3)
 
 Bounded by existing constants and one window per run; no new row class and no
-corpus-wide fan-out. The 29-day gap is about 290k facts (10.1k a day, Modified
-sample); the 116 windows take about 58 h at one per 30 minutes, bound by planner
-cadence. At one dirty row per fact that adds about 4.6k rows an hour, 4 to 8
-percent of today's inflow. The upsert path was measured earlier: 334 rows in 39
-to 74 ms, 14.3 ms in `EXPLAIN (ANALYZE, BUFFERS)` on `fact_records_pkey`.
+corpus-wide fan-out. The gap facts are extrapolated, not measured, and shown as a
+range: the Modified sample gives 10.1k facts a day (290k for 28 days); the
+arbiter's 45,757 records over 25 days at the measured 7.07 facts a record give
+about 13k a day (about 375k). The 116 windows take about 58 h at one per 30
+minutes, bound by planner cadence, so 5.0k to 6.5k facts an hour.
+
+Dirty rows come from the reducer's finding upserts, filtered by content digest,
+and from the pointer trigger (migration 272), not from raw facts. The rows per
+NVD fact is therefore unmeasured. Taking the upper bound of one row per fact,
+catch-up adds at most about 5.0k to 6.5k rows an hour, 5 to 11 percent of today's
+1.0 to 1.8k a minute, and under the 15k trip line. A disposable-database run of
+one planted window, counting dirty rows per committed fact, is part of
+follow-up A's proof; until it exists the trip line, not this estimate, is the
+control.
 
 ### 7. Claims, queue, and cutover back (criterion 4)
 
@@ -173,16 +222,29 @@ samples, or the oldest dirty-log row exceeds 96 h; re-enable under 48 h. Record
 six hourly samples after enabling. The #10706 bars stay soak bars. Then the
 2026-11-12 soak bar applies unchanged.
 
+Who flips it: an alert pages the operator, who sets `nvd_feed_transport: off`;
+nothing flips automatically. "NVD-proxy dirty rows" means dirty-log rows written
+after the enable whose `advisory_id` starts with `CVE-`; OSV also carries CVE
+ids, so the proxy over-counts and trips early, which is the safe direction. The
+96 h age trip is a page, not an automatic flip: the OSV/GHSA backlog is already
+58 h old, so the operator compares against the pre-enable baseline before
+acting.
+
 ## Failing-first plan (criterion 5)
 
-Red before green: R1 feed and API slice equivalence on a half-open window; R2
-selector (and R2b flap over a recovery-then-relapse sequence); R3 error classes;
-R4 overflow prefix commit and replay with no duplicate keys; R5 claim-plane
-golden trace through the extension host; R6 two attempts of one window converge
-under fencing; R7 streaming benchmark under 256 MiB; R8 telemetry gate; R9
+Red before green: R1 feed and API slice equivalence on a half-open window (the API
+result trimmed to `[s, e)`); R2 selector, R2b flap over a recovery-then-relapse
+sequence, and R2c a caught-up cursor with the feed host down still commits via the
+API with no feed read; R3 error classes, including a missing `.meta` meaning "not
+covered"; R4 overflow prefix commit and replay with no duplicate keys, and R4b a
+first group over the cap routes to the API with class `nvd_feed_group_oversize`;
+R5 claim-plane golden trace through the extension host, asserting the stamped
+head is `M1` and the cursor never passes it; R6 two attempts of one window
+converge under fencing; R7 streaming benchmark with a 256 MiB RSS target, and R7b
+a wall-clock and RSS test scanning the 2026 year file and the full 25-file set; R8 telemetry gate; R9
 product-path representative prefers a scored row; R10 CVE List additive reads;
 R11 `cvelist_shard.go` accounting (facts are records times 1 + refs); R12 dormant
-year file accepted; R13 guard trips; R14 horizon uses `M1`; R15 stale-seed hole
+year file accepted; R13 guard trips (fixture record dated after `M0`); R14 horizon uses `M1`; R15 stale-seed hole
 routes to the API.
 
 ## Consequences
@@ -194,19 +256,23 @@ Bad: a new dependency on NVD's feed files and on an empirical regeneration
 policy, guarded at run time; a roughly 238 MiB seed on the host volume; the QA
 failure cause stays open.
 
-Follow-ups (numbers filled in when filed):
+Follow-ups, all filed under epic #9209:
 
-- A. Collector: feed client, slicer, coverage selector, overflow rule, error
-  classes (R1 to R4, R7, R14).
-- B. Core: kill switch, telemetry (transport label, feed-age gauge, guard and
-  deadline counters), golden trace, wider cursor reader, NIST sunset watch (R5,
-  R6, R8).
-- C. Year-feed seed through the baseline store, with the manifest and guard (R12,
-  R13, R15). Required before QA enable.
-- D. CVE List supplement: additive reads (R10).
-- E. Product path picks a scored observation, not rank alone (R9).
-- F. Record corrections: `cvelist_shard.go` accounting (R11) and supersession
-  notes on #9872 and #9961.
+- A. [collector#99](https://github.com/eshu-hq/eshu-collector-vulnerability-intelligence/issues/99):
+  feed client, slicer, coverage selector, overflow rule, error classes (R1 to
+  R4b, R7, R14).
+- B. [eshu#10716](https://github.com/eshu-hq/eshu/issues/10716): kill switch,
+  telemetry (transport label, feed-age gauge, guard and deadline counters),
+  golden trace, wider cursor reader, NIST sunset watch (R5, R6, R8).
+- C. [collector#100](https://github.com/eshu-hq/eshu-collector-vulnerability-intelligence/issues/100):
+  year-feed seed through the baseline store, with the manifest, guard, and a
+  dormant-year API cross-check (R7b, R12, R13, R15). Required before QA enable.
+- D. [collector#101](https://github.com/eshu-hq/eshu-collector-vulnerability-intelligence/issues/101):
+  CVE List supplement additive reads (R10).
+- E. [eshu#10717](https://github.com/eshu-hq/eshu/issues/10717): product path
+  picks a scored observation, not rank alone (R9).
+- F. [eshu#10718](https://github.com/eshu-hq/eshu/issues/10718): `cvelist_shard.go`
+  accounting (R11). The supersession notes on #9872 and #9961 are in this PR.
 
 ## Implementation plan
 
@@ -216,7 +282,7 @@ config, extension-host cursor wiring, telemetry registry and the
 telemetry-coverage doc. Follow the existing NVD envelope; avoid a second fact
 path. At 3 AM an operator reads the `transport` label on window claim metrics,
 `eshu_dp_vulnerability_nvd_feed_age_seconds`, the guard and deadline counters, and
-the unchanged lag gauge. Never log the key or the feed body.
+the lag gauge (with its new `transport` label). Never log the key or the feed body.
 
 ## Acceptance criteria
 
@@ -226,7 +292,7 @@ the unchanged lag gauge. Never log the key or the feed body.
 - [x] Claim and queue behavior, pacing, lease safety, and the cutover-back rule
   (sections 5, 7, 8).
 - [x] A failing-first regression plan before implementation (the plan above).
-- [ ] Follow-ups A to F filed and linked, each with an existing label.
+- [x] Follow-ups A to F filed and linked, each with an existing label.
 
 No-Regression Evidence: this record changes no runtime behavior, wire contract,
 or gate.

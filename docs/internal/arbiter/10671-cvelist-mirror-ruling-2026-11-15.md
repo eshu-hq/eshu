@@ -13,6 +13,19 @@ Environment identifiers are redacted per #7803.
 
 # Part 1. First ruling (five research lanes)
 
+> Coordinator note, 2026-11-15: Part 2 and the design record supersede these
+> Part 1 statements. The arbiter's text below is kept as written.
+> - Follow-up 2 names a design file path that does not exist; the file is
+>   `docs/internal/design/10671-nvd-feed-transport-fallback.md`.
+> - "Lease stays the component default 600 s" is wrong: the code default is 60 s
+>   and QA runs 10 m (Part 2, amendment 6).
+> - The Modified span is about nine days, and the per-year seed is required, not
+>   conditional (Part 2, amendment 1).
+> - QA enable no longer waits on the #10706 horizon (Part 2, amendment 5).
+> - "Raw `vulnerability.*` rows write no dirty-log rows directly" is right, and
+>   it means rows per NVD fact is unmeasured; the design states it as an
+>   assumption with a trip line, not a measurement.
+
 ### Ruling
 
 **No CVE List v5 whole-corpus mirror. The NVD fallback is the official NVD 2.0 JSON data feeds (nvd.nist.gov/feeds/json/cve/2.0, same NVD_CVE 2.0 record shape, sha256 .meta) used as a second transport inside the existing single-anchor 6h NVD window claim (records sliced by lastModified into [cursor, cursor+chunk), same nvd_envelope, same stable fact keys, same scope grammar and cursor CAS), so every NVD-only field translates as identity and no contract changes; CVE List v5 remains the shipped owned-CVE class A/C/D supplement with cheap additive reads only; build the transport now, enable on QA only after the #10706 drain gate holds and the failing-first ladder is green.**
@@ -174,7 +187,7 @@ class none), amended on four points.
 ## Amendments
 
 1. **Year-feed seed is required and lands before QA enable.** The Modified feed
-   spans about nine days; the QA cursor is 29 days behind, so Modified alone
+   spans about nine days; the QA cursor is about 28 days behind, so Modified alone
    cannot cover the first window (it ends 2026-10-18) and never advances the
    cursor. The seed may be a second PR; QA enable needs both. The first
    ruling's follow-up 4 is no longer conditional.
@@ -239,7 +252,7 @@ class none), amended on four points.
 - R12 dormant-file acceptance: 2003 file `D` = Oct 21, `R` = Nov 14, `V` =
   Nov 13, Modified fixture with no 2003 record; window `[Nov 1 00:00, Nov 1
   06:00)` must be feed-covered.
-- R13 guard trip: add one 2003 record with `lastModified` Oct 25 to Modified;
+- R13 guard trip: add one 2003 record with `lastModified` Nov 7 (after `M0`) to Modified;
   the selector returns an invalid year set, class `nvd_feed_year_stale`, routes
   to the API, increments the counter; removing the record restores coverage.
 - R14 horizon: a window with `e` between `M1` and the `.meta` time routes to
@@ -268,7 +281,7 @@ stuck scope; NIST's written regeneration policy; the snapshot-to-write gap
 
 Checked first-hand before recording: the feed's shape and freshness, 20 of 20
 record equality against the API, the 25-file year footprint (237.6 MiB gzip),
-the regenerate-on-change test over the Modified feed, the lag (29 days), the
+the regenerate-on-change test over the Modified feed, the lag (about 28 days), the
 deployed lease, the dirty-log attribution, and the pod log count (66 of 66,
 same latencies).
 
@@ -278,7 +291,7 @@ reproducing it with the QA key from a laptop, then unsetting or rotating the
 key. The coordinator did not read or use the key: the Postgres credential grant
 does not cover it, so the test ran inside the satellite container, with the key
 staying in its environment. Result (measurement M10): keyed requests from the pod
-succeeded 12 of 13 times, in the satellite's exact request shape and at
+succeeded in 11 of 13 requests, in the satellite's exact request shape and at
 several page depths; one fast 503 appeared at one depth and one on an
 anonymous request. The key, the egress IP, and page depth are not the cause.
 No key change is recommended. Why the satellite fails 66 of 66 with 12 to
