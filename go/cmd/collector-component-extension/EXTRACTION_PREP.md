@@ -29,7 +29,7 @@ binary selects one trusted claim-capable activation and serves claims.
 | `service.go:28` | claimed-service wiring | `buildClaimedService` |
 | `service.go:71,76` | per-emission live-grant re-read (revoked-during-execution fails next result closed; unreadable set denies core-owned kinds as `grants_unreadable`) | `LiveGrants` |
 | `service.go:44,65` | host-minted App token per claim; private key never crosses the boundary | `tokenProviderFromEnv` |
-| `config.go:163` | exactly-one trusted claim-capable activation or fail closed (zero or ambiguous matches are startup errors) | `selectActivation` |
+| `activation_select.go` | exactly-one trusted claim-capable activation or fail closed (zero or ambiguous matches are startup errors) | `selectActivation` |
 | `config.go:381` | trust policy from env (mode default disabled; allow/revoke ID and publisher lists; core version) | `componentPolicyFromEnv` |
 | `config.go:248` | activation-config read errors name only the variable, never its value | `sanitizedActivationConfigReadError` |
 | `config.go:359` | GitHub App token provider from env; malformed mapping fails startup closed | `tokenProviderFromEnv` |
