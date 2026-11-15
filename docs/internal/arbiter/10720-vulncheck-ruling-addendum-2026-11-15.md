@@ -20,8 +20,12 @@ in the first ruling is replaced by the tests in #10722 and in
 eshu-collector-vulnerability-intelligence#103, whose numbering governs. The
 first ruling's reasons for refusing VulnCheck as a primary stay in force, and
 the order of NVD API, then the official NVD feed, is unchanged. The 10671
-limits on a new source value and a new cursor row were written for the NVD
-fallback role and do not bind this separately labelled lane.
+bars on a new source value and a new cursor row were written for the NVD fallback
+transport and do not pre-decide this separately labelled lane. #10722 must still
+rule the lane-specific equivalents of what those bars protected: the
+`fetchConfirmedSources` mapping for the new source, readiness certification,
+and scan-gate accounting for a new `affected_product` emitter, or record why
+none is needed.
 
 ## Owner decision (2026-11-15)
 
@@ -116,8 +120,8 @@ wording; that is optional and does not gate work.
 ## Follow-ups
 
 - eshu#10722: the core lane (source token, cursor row, rank 7, attribution
-  surfaces, kill switch, telemetry, training exclusion, the `negate` probe, and
-  the two review notes above).
+  surfaces, kill switch, telemetry, training exclusion, the `negate` probe, the
+  two review notes above, and the lane-specific rulings named above).
 - eshu-collector-vulnerability-intelligence#103: the collector client,
   normaliser, and envelope for the compatible endpoint, after the probe passes.
 
