@@ -27,9 +27,11 @@ Max). Two input shapes, each over two sources:
 
 Command: `go test ./internal/reducer/supplychain/core/ -run '^$' -bench
 BenchmarkProductSeverityObservation -benchtime=200000x -count=3`. Figures vary by
-about 25% between sessions on this machine (an earlier session read 70 ns, 410
-ns, and 2.9 microseconds for `score-last`), so read them as indicative of one
-session.
+tens of percent between sessions on this machine (an earlier session read 70 ns,
+410 ns, and 2.9 microseconds for `score-last`; an independent rerun read
+620 to 800 ns at 8 and 57 to 67 microseconds at 64 for `vector-only`), so read
+them as indicative, not as a fixed cost. Go 1.27.3 is the local default; the
+module pins 1.26.11 and a 200x run under it landed in the same range.
 
 | Shape, observations | Baseline (before: read the ranked row only) | After, ns per CVE (3 runs) | Allocations |
 | --- | --- | --- | --- |

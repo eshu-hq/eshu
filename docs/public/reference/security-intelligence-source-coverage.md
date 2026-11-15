@@ -244,7 +244,7 @@ Selection rules:
   collected through OSV still ranks as a GHSA observation.
 - Severity is selected in three tiers: a reported CVSS score, a score derived
   from the vector (`derived_from_vector`), then a label (bucket only). The NVD
-  product path takes the best tier; its ids stay with the ranked row.
+  product path takes the best tier, then rank; the ranked row keeps identity.
 
 The `provenance` block on `GET /api/v0/supply-chain/impact/findings` and the
 MCP `list_supply_chain_impact_findings` tool carries:

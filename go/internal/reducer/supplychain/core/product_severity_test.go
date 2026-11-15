@@ -287,3 +287,22 @@ func TestProductAllRejectedGroupKeepsRepresentative(t *testing.T) {
 			got.FactID, got.CVSSScore, representative.FactID)
 	}
 }
+
+// TestProductRetractedSiblingNeverOutranksRetractedRepresentative pins the
+// retracted-row skip in severityObservation. A retracted row and a retracted
+// representative share the lowest tier, so without the skip a lower-ranked
+// withdrawn row would take over the representative's own score.
+func TestProductRetractedSiblingNeverOutranksRetractedRepresentative(t *testing.T) {
+	t.Parallel()
+
+	group := supplyChainCVEGroup{observations: []supplychainmodel.ImpactCVE{
+		{FactID: "cve-a", AdvisoryID: "CVE-2026-0112", Source: "cve_list", Status: "Rejected", CVSSScore: 9.9},
+		{FactID: "ghsa-b", AdvisoryID: "CVE-2026-0112", Source: "ghsa", WithdrawnAt: "2026-11-01T00:00:00Z", CVSSScore: 2.0},
+	}}
+	representative := group.observations[0]
+	got := group.severityObservation(representative)
+	if got.FactID != representative.FactID || got.CVSSScore != 9.9 {
+		t.Fatalf("selected %s score %.1f, want the representative %s score 9.9",
+			got.FactID, got.CVSSScore, representative.FactID)
+	}
+}

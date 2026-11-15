@@ -289,7 +289,7 @@ provider-alert path (`buildSecurityAlertImpactFinding`). Order of precedence:
    source, and a lower-priority source with a score still beats a
    higher-priority source with only a label. The losing observations stay as
    alternates, with `score_source` kept on a derived one.
-4. Otherwise `none`. A rejected or withdrawn record lends no severity.
+4. Otherwise `none`. A rejected or withdrawn record lends none unless no live one remains.
 
 A malformed or unsupported vector never panics and never produces a score; the
 label, if any, decides.
