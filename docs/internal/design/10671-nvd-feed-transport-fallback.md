@@ -270,7 +270,9 @@ Follow-ups, all filed under epic #9209:
 - D. [collector#101](https://github.com/eshu-hq/eshu-collector-vulnerability-intelligence/issues/101):
   CVE List supplement additive reads (R10).
 - E. [eshu#10717](https://github.com/eshu-hq/eshu/issues/10717): product path
-  picks a scored observation, not rank alone (R9).
+  picks a scored observation, not rank alone (R9). The reducer rank (`cve_list`
+  5 above `nvd` 6) stays as is; the owner's CNA-first severity decision is
+  recorded here, not pre-empted, and a change to it needs its own ruling.
 - F. [eshu#10718](https://github.com/eshu-hq/eshu/issues/10718): `cvelist_shard.go`
   accounting (R11). The supersession notes on #9872 and #9961 are in this PR.
 
