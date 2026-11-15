@@ -97,6 +97,8 @@ docs/site/
 # material, not repo content; without this the installer's symlink shows
 # as an untracked file and `git add -A` would commit a machine-local path.
 scripts/agent-roles.py
+# The rules linter the kit installer links into scripts/, same reason.
+scripts/claude-rules-lint.sh
 # The kit checkout the CI gate step creates beside the repo; local runs of
 # the gate accept the same layout. Regenerated, never stored.
 eshu-agent-kit/

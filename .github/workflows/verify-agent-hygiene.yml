@@ -61,7 +61,7 @@ jobs:
       # drops the leading "v"), so a computed path would miss the checkout.
       - name: Install the eshu-agent-kit
         env:
-          ESHU_AGENT_KIT_REF: e703a83a9b578d6ca4410ed1d87288e1006489e4
+          ESHU_AGENT_KIT_REF: 064958ff30c73fd6f54fce709d60ad61b2904c14
         run: |
           set -euo pipefail
           work="$(mktemp -d)"

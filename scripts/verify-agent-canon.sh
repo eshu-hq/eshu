@@ -85,49 +85,8 @@ else:
   # pins -- even with the manifest itself current. Every role's OpenCode
   # shim is checked against its own tier, not just the arbiter's: one
   # spot-checked role left the other four unguarded.
-  python3 - "$kit_root/agents/roles.json" "$repo_root/.opencode/agent" <<'PY' >&2 || exit 1
-import json, os, sys
-
-manifest_path, shim_dir = sys.argv[1], sys.argv[2]
-with open(manifest_path) as handle:
-    manifest = json.load(handle)
-models = manifest["models"]["opencode"]
-roles = manifest["roles"]
-
-resolved = {}
-for name in roles:
-    spec = dict(roles[name])
-    if "base" in spec:
-        base = dict(roles[spec["base"]])
-        base.update(spec)
-        spec = base
-    resolved[name] = models[spec["tier"]]["model"]
-
-drift = False
-for name, expected in sorted(resolved.items()):
-    shim = os.path.join(shim_dir, name + ".md")
-    if not os.path.isfile(shim):
-        continue
-    actual = ""
-    with open(shim, encoding="utf-8") as handle:
-        for line in handle:
-            if line.startswith("model: "):
-                actual = line[len("model: "):].strip()
-                break
-    if actual != expected:
-        print(
-            "verify-agent-canon: installed %s shim pins %s; the kit pins %s"
-            % (name, actual or "<none>", expected),
-            file=sys.stderr,
-        )
-        drift = True
-if drift:
-    print(
-        "Fix: re-run the eshu-agent-kit installer: install.sh --agents",
-        file=sys.stderr,
-    )
-    sys.exit(1)
-PY
+  python3 "$repo_root/scripts/verify-role-shim-bindings.py" \
+    "$kit_root/agents/roles.json" "$repo_root/.opencode/agent" >&2 || exit 1
 fi
 
 # The shared skills live in the eshu-agent-kit. The installer materializes

@@ -1,1 +1,0 @@
-/Users/allen/personal-repos/eshu-agent-kit-wt-arbiter-pin/scripts/claude-rules-lint.sh
