@@ -19,7 +19,9 @@ probe (5), which only mattered for id discovery. The regression plan R16 to R20
 in the first ruling is replaced by the tests in #10722 and in
 eshu-collector-vulnerability-intelligence#103, whose numbering governs. The
 first ruling's reasons for refusing VulnCheck as a primary stay in force, and
-the order of NVD API, then the official NVD feed, is unchanged.
+the order of NVD API, then the official NVD feed, is unchanged. The 10671
+limits on a new source value and a new cursor row were written for the NVD
+fallback role and do not bind this separately labelled lane.
 
 ## Owner decision (2026-11-15)
 
