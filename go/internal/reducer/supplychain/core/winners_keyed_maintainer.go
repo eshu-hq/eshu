@@ -20,20 +20,22 @@ import (
 // The keyed-resweep half of the winners maintainer (#9805): the shared leased
 // tick, the keyed tick, the audit, and their signals.
 
-// runKeyedTick claims the resweep lease and runs one keyed resweep. It is
-// RunOnce with the keyed rebuilder: the same lease, the same skip and error
-// handling, the same span and signals.
-func (m SupplyChainImpactWinnersMaintainer) runKeyedTick(ctx context.Context) (bool, error) {
+// runKeyedTick claims the resweep lease and runs one keyed resweep, reporting
+// what it did. It is RunOnce with the keyed rebuilder: the same lease, the
+// same skip and error handling, the same span and signals. The Run loop reads
+// Bounded from the result to re-tick immediately while rows are queued.
+func (m SupplyChainImpactWinnersMaintainer) runKeyedTick(ctx context.Context) (SupplyChainImpactWinnersResweep, error) {
 	if m.KeyedRebuilder == nil {
-		return false, fmt.Errorf("supply chain impact winners keyed tick requires a keyed rebuilder")
+		return SupplyChainImpactWinnersResweep{}, fmt.Errorf("supply chain impact winners keyed tick requires a keyed rebuilder")
 	}
-	return m.runTick(ctx, true)
+	result, _, err := m.runTick(ctx, true)
+	return result, err
 }
 
 // runTick is the leased resweep both RunOnce (full) and runKeyedTick share.
-func (m SupplyChainImpactWinnersMaintainer) runTick(ctx context.Context, keyed bool) (rebuilt bool, err error) {
+func (m SupplyChainImpactWinnersMaintainer) runTick(ctx context.Context, keyed bool) (result SupplyChainImpactWinnersResweep, rebuilt bool, err error) {
 	if err := m.validate(); err != nil {
-		return false, err
+		return SupplyChainImpactWinnersResweep{}, false, err
 	}
 	m.sampleWatermark(ctx)
 	m.sampleDirtyLog(ctx)
@@ -41,10 +43,10 @@ func (m SupplyChainImpactWinnersMaintainer) runTick(ctx context.Context, keyed b
 		ctx, SupplyChainImpactWinnersDomain, 0, 1, m.leaseOwner(), m.leaseTTL(),
 	)
 	if err != nil {
-		return false, fmt.Errorf("claim winners lease: %w", err)
+		return SupplyChainImpactWinnersResweep{}, false, fmt.Errorf("claim winners lease: %w", err)
 	}
 	if !claimed {
-		return false, nil
+		return SupplyChainImpactWinnersResweep{}, false, nil
 	}
 	defer func() {
 		if relErr := m.LeaseManager.ReleasePartitionLease(
@@ -54,31 +56,36 @@ func (m SupplyChainImpactWinnersMaintainer) runTick(ctx context.Context, keyed b
 		}
 	}()
 
-	stamp := m.now()
 	ctx, span := m.startResweepSpan(ctx)
 	started := time.Now()
-	var result SupplyChainImpactWinnersResweep
 	var rbErr error
 	if keyed {
-		result, rbErr = m.KeyedRebuilder.ResweepWinnersKeyed(ctx, stamp)
+		result, rbErr = m.KeyedRebuilder.ResweepWinnersKeyed(ctx)
 	} else {
-		result, rbErr = m.Rebuilder.ResweepWinners(ctx, stamp)
+		result, rbErr = m.Rebuilder.ResweepWinners(ctx, m.now())
 	}
 	elapsed := time.Since(started)
 	if rbErr != nil {
 		span.RecordError(rbErr)
 		span.SetStatus(codes.Error, "winners resweep failed")
 		span.End()
-		return false, fmt.Errorf("resweep winners: %w", rbErr)
+		return SupplyChainImpactWinnersResweep{}, false, fmt.Errorf("resweep winners: %w", rbErr)
 	}
 	if result.Skipped {
 		m.emitResweepSkipped(ctx, span)
 		span.End()
-		return false, nil
+		return result, false, nil
+	}
+	// The gauge ages the watermark the tick committed, not the Go clock that
+	// scheduled it; a rebuilder that predates the committed stamp leaves the
+	// maintainer on its own clock as before.
+	stamp := result.Watermark
+	if stamp.IsZero() {
+		stamp = m.now()
 	}
 	m.emitResweep(ctx, span, stamp, result, elapsed)
 	span.End()
-	return true, nil
+	return result, true, nil
 }
 
 // runAuditLoop runs the audit every AuditInterval until ctx is cancelled. It

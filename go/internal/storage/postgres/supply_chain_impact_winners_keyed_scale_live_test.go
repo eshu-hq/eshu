@@ -159,14 +159,14 @@ func TestSupplyChainImpactWinnersResweepScaleProofLive(t *testing.T) {
 	}
 
 	// The churn exceeds one bounded transaction, so the keyed proof drains
-	// it in bounded ticks (#9805 chunked consume) and times the drain: the
-	// watermark moves only on the pass that empties the log.
+	// it in bounded ticks (#9805 chunked consume) and times the drain: every
+	// tick stamps the horizon over its remainder (#10706).
 	keyedStart := time.Now()
 	var keyed supplychaincore.SupplyChainImpactWinnersResweep
 	keyed.Path = telemetry.SupplyChainImpactWinnersPathKeyed
 	var keyedTicks int
 	for h.dirtyDepth() > 0 {
-		r, err := h.store.ResweepWinnersKeyed(h.ctx, h.tick())
+		r, err := h.store.ResweepWinnersKeyed(h.ctx)
 		if err != nil || r.Skipped {
 			t.Fatalf("keyed drain tick = %+v, %v", r, err)
 		}

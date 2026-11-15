@@ -349,7 +349,7 @@ func TestFenceLogsTheGenerationAndALaterTickConsumesItLive(t *testing.T) {
 	scopeID, generationID := seedStampedEvidence(t, database, repository, fenceLiveEvidenceCommit, 3*fenceLiveInterval, "vulnerability.go_module_evidence")
 	winners := postgres.NewSupplyChainImpactWinnersStore(postgres.SQLDB{DB: database})
 	winners.MaxKeyFraction = 1000
-	if _, err := winners.ResweepWinnersKeyed(t.Context(), time.Now().UTC()); err != nil {
+	if _, err := winners.ResweepWinnersKeyed(t.Context()); err != nil {
 		t.Fatalf("drain the seed's capture: %v", err)
 	}
 	const logged = `SELECT count(*) FROM supply_chain_impact_winners_dirty_log
@@ -373,7 +373,7 @@ func TestFenceLogsTheGenerationAndALaterTickConsumesItLive(t *testing.T) {
 	if got := readLogged(); got != 1 {
 		t.Fatalf("dirty rows after the fence = %d, want 1", got)
 	}
-	if _, err := winners.ResweepWinnersKeyed(t.Context(), time.Now().UTC()); err != nil {
+	if _, err := winners.ResweepWinnersKeyed(t.Context()); err != nil {
 		t.Fatalf("keyed tick: %v", err)
 	}
 	if got := readLogged(); got != 0 {

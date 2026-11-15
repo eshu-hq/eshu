@@ -100,16 +100,23 @@ type SupplyChainImpactWinnersResweep struct {
 	TriggerCaptured WinnersTriggerCaptured
 	// Bounded is true when a keyed tick stopped at the chunk bound
 	// (post-expansion identifiers per transaction, #9805) with dirty-log
-	// rows still queued. A bounded tick commits the chunk it recomputed but
-	// stamps no watermark: the table is not yet current as of the tick, and
-	// the maintainer must not refresh the watermark gauge for it. Remaining
-	// is the dirty-log depth the tick left; ChunkIdentifiers the
-	// post-expansion identifiers this tick probed and ChunkKeptRows the kept
-	// facts the probe built for them. All four are zero on the full path.
+	// rows still queued. A bounded tick commits the chunk it recomputed and
+	// stamps the horizon over the rows it leaves queued (#10706), so the
+	// gauge still advances on it. Remaining is the dirty-log depth the tick
+	// left; ChunkIdentifiers the post-expansion identifiers this tick probed
+	// and ChunkKeptRows the kept facts the probe built for them. All four
+	// are zero on the full path.
 	Bounded          bool
 	Remaining        int64
 	ChunkIdentifiers int64
 	ChunkKeptRows    int64
+	// Watermark is the watermark the tick committed: the DB-clock tick stamp
+	// on a drained tick, the horizon over the remainder on a bounded one,
+	// resolved against the previous watermark so it never regresses. It is
+	// the value the maintainer feeds the age gauge. It is zero when the tick
+	// skipped or ran on a rebuilder that predates it, and the maintainer
+	// falls back to its own clock then.
+	Watermark time.Time
 }
 
 // WinnersTriggerCaptured is the dirty-log rows one keyed tick consumed, by the
@@ -138,6 +145,10 @@ type SupplyChainImpactWinnersMaintainer struct {
 	WatermarkReader SupplyChainImpactWinnersWatermarkReader
 	// Now defaults to time.Now (UTC stamped at use). Injected in tests.
 	Now func() time.Time
+	// Sleep waits d or returns early when ctx is cancelled; defaults to a
+	// timer wait. Injected in tests to observe cadence: a Bounded keyed tick
+	// re-ticks immediately instead of waiting out the interval (#10706).
+	Sleep func(context.Context, time.Duration) error
 	// Interval is the resweep cadence; defaults to 30s.
 	Interval time.Duration
 	// LeaseOwner identifies this instance; defaults to a stable owner name.
@@ -204,7 +215,8 @@ func (m SupplyChainImpactWinnersMaintainer) validate() error {
 // returns rebuilt=false and no error. The lease is always released before
 // returning so a crashed/slow instance does not block takeover beyond the TTL.
 func (m SupplyChainImpactWinnersMaintainer) RunOnce(ctx context.Context) (rebuilt bool, err error) {
-	return m.runTick(ctx, false)
+	_, rebuilt, err = m.runTick(ctx, false)
+	return rebuilt, err
 }
 
 // Run resweeps once immediately (startup backfill/reconcile) and then on the
@@ -233,8 +245,11 @@ func (m SupplyChainImpactWinnersMaintainer) Run(ctx context.Context) error {
 			return nil
 		}
 		var err error
+		var bounded bool
 		if m.KeyedRebuilder != nil && fullDone.Load() {
-			_, err = m.runKeyedTick(ctx)
+			var res SupplyChainImpactWinnersResweep
+			res, err = m.runKeyedTick(ctx)
+			bounded = err == nil && !res.Skipped && res.Bounded
 		} else {
 			var rebuilt bool
 			rebuilt, err = m.RunOnce(ctx)
@@ -251,13 +266,26 @@ func (m SupplyChainImpactWinnersMaintainer) Run(ctx context.Context) error {
 			if backoff > maxSupplyChainImpactWinnersBackoff {
 				backoff = maxSupplyChainImpactWinnersBackoff
 			}
+		case bounded:
+			// Rows are still queued: re-tick immediately instead of idling
+			// out the cadence in front of the backlog (#10706).
+			backoff = 0
 		default:
 			backoff = m.interval()
 		}
-		if err := m.wait(ctx, backoff); err != nil {
+		if err := m.sleep(ctx, backoff); err != nil {
 			return nil
 		}
 	}
+}
+
+// sleep waits for d or returns early when ctx is cancelled, through the
+// injected Sleeper when one is set.
+func (m SupplyChainImpactWinnersMaintainer) sleep(ctx context.Context, d time.Duration) error {
+	if m.Sleep != nil {
+		return m.Sleep(ctx, d)
+	}
+	return m.wait(ctx, d)
 }
 
 // wait sleeps for d or returns early when ctx is cancelled.
@@ -367,12 +395,10 @@ func (m SupplyChainImpactWinnersMaintainer) emitResweep(
 			}
 		}
 		m.recordKeyedSignals(ctx, r)
-		// A bounded chunk stamped no watermark: dirty rows are still queued,
-		// so refreshing the gauge would serve a lagging table as fresh. The
-		// gauge keeps aging the last real stamp until a tick drains the log.
-		if !r.Bounded {
-			in.RecordSupplyChainImpactWinnersWatermark(stamp)
-		}
+		// Every committed tick stamps (the tick stamp on a drained tick, the
+		// horizon over the remainder on a bounded one), so every commit
+		// refreshes the gauge with what it stamped (#10706).
+		in.RecordSupplyChainImpactWinnersWatermark(stamp)
 	}
 	if m.Logger == nil {
 		return

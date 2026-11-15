@@ -165,7 +165,7 @@ func (r *fleetGateRun) observe(s fleetGateSeed) fleetGateObservation {
 	o.Stamps.SourceCommitted = time.Now()
 	r.drain()
 	o.Stamps.FindingWritten = time.Now()
-	tick, err := winners.ResweepWinnersKeyed(r.ctx, time.Now().UTC())
+	tick, err := winners.ResweepWinnersKeyed(r.ctx)
 	if err != nil {
 		r.t.Fatalf("keyed winners tick: %v", err)
 	}

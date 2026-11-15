@@ -53,6 +53,8 @@ func (r *phaseFakeRows) Scan(dest ...any) error {
 			*p = r.row[i].(int64)
 		case *sql.NullTime:
 			*p = sql.NullTime{}
+		case *time.Time:
+			*p = r.row[i].(time.Time)
 		default:
 			return fmt.Errorf("scan: unsupported destination %T", d)
 		}
@@ -116,7 +118,13 @@ func (tx *phaseFakeTx) QueryContext(_ context.Context, query string, _ ...any) (
 		return &phaseFakeRows{row: []any{tx.stored}}, nil
 	case stampWinnersWatermarkSQL:
 		return &phaseFakeRows{row: []any{int64(0)}}, nil
-	case applyWinnersKeyedSQL, applyWinnersKeyedNoStampSQL:
+	case selectWinnersKeyedTickClockSQL:
+		return &phaseFakeRows{row: []any{phaseFakeNow}}, nil
+	case selectWinnersKeyedRemainingMinSQL:
+		return &phaseFakeRows{row: []any{nil}}, nil
+	case selectWinnersWatermarkSQL:
+		return &phaseFakeRows{row: []any{phaseFakeNow}}, nil
+	case applyWinnersKeyedSQL:
 		return &phaseFakeRows{row: []any{int64(1), int64(0), int64(0), int64(0), int64(1), int64(0)}}, nil
 	case rebuildSupplyChainImpactWinnersSQL:
 		return &phaseFakeRows{row: []any{int64(1), int64(0), int64(0), int64(0), int64(0)}}, nil
@@ -130,6 +138,11 @@ func (tx *phaseFakeTx) Rollback() error {
 	tx.rollbacks++
 	return nil
 }
+
+// phaseFakeNow is the scripted DB clock and committed watermark every fake
+// keyed tick reads: the phase tests pin statement shape and phase samples,
+// not stamp values.
+var phaseFakeNow = time.Date(2026, 11, 2, 9, 1, 0, 0, time.UTC)
 
 // phaseFakeDB hands the one scripted transaction to ResweepWinnersKeyed, or
 // fails Begin with beginErr.
@@ -226,7 +239,7 @@ func TestResweepWinnersKeyedRecordsOneSamplePerPhase(t *testing.T) {
 
 			tx := tt.tx
 			store, reader := newPhaseStore(t, &tx)
-			if _, err := store.ResweepWinnersKeyed(context.Background(), time.Now()); err != nil {
+			if _, err := store.ResweepWinnersKeyed(context.Background()); err != nil {
 				t.Fatalf("ResweepWinnersKeyed() error = %v", err)
 			}
 			counts, _ := tickPhaseSamples(t, reader)
@@ -291,7 +304,7 @@ func TestResweepWinnersKeyedRecordsTheTimeOfAFailedPhase(t *testing.T) {
 				tx.delay = map[string]time.Duration{tt.failOn: spent}
 			}
 			store, reader := newPhaseStore(t, tx)
-			if _, err := store.ResweepWinnersKeyed(context.Background(), time.Now()); err == nil {
+			if _, err := store.ResweepWinnersKeyed(context.Background()); err == nil {
 				t.Fatal("ResweepWinnersKeyed() error = nil, want the scripted failure")
 			}
 			counts, seconds := tickPhaseSamples(t, reader)
@@ -328,7 +341,7 @@ func TestResweepWinnersKeyedBeginFailureRollsBackNothing(t *testing.T) {
 		t.Fatalf("NewInstruments() error = %v", err)
 	}
 	store := NewSupplyChainImpactWinnersStore(phaseFakeDB{tx: tx, beginErr: beginErr}).WithInstruments(inst)
-	if _, err := store.ResweepWinnersKeyed(context.Background(), time.Now()); !errors.Is(err, beginErr) {
+	if _, err := store.ResweepWinnersKeyed(context.Background()); !errors.Is(err, beginErr) {
 		t.Fatalf("ResweepWinnersKeyed() error = %v, want %v", err, beginErr)
 	}
 	if tx.rollbacks != 0 {
@@ -346,7 +359,7 @@ func TestResweepWinnersKeyedWithoutInstrumentsRunsUnchanged(t *testing.T) {
 	t.Parallel()
 
 	tx := &phaseFakeTx{claimed: true, consumed: 3, identifier: 3, stored: 100}
-	got, err := NewSupplyChainImpactWinnersStore(phaseFakeDB{tx: tx}).ResweepWinnersKeyed(context.Background(), time.Now())
+	got, err := NewSupplyChainImpactWinnersStore(phaseFakeDB{tx: tx}).ResweepWinnersKeyed(context.Background())
 	if err != nil {
 		t.Fatalf("ResweepWinnersKeyed() error = %v", err)
 	}

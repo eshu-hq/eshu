@@ -47,9 +47,12 @@ type SupplyChainImpactWinnersCapturer interface {
 
 // SupplyChainImpactWinnersKeyedRebuilder recomputes only the keys the dirty log
 // names and stamps the watermark. The result carries Path "keyed", or "full"
-// when the cap sent it to the full rebuild.
+// when the cap sent it to the full rebuild. The tick stamp is sourced from
+// the DB clock inside the tick transaction (#10706), never from the caller,
+// so no stamp is passed in; the result reports the watermark the tick
+// committed.
 type SupplyChainImpactWinnersKeyedRebuilder interface {
-	ResweepWinnersKeyed(ctx context.Context, materializedAt any) (SupplyChainImpactWinnersResweep, error)
+	ResweepWinnersKeyed(ctx context.Context) (SupplyChainImpactWinnersResweep, error)
 }
 
 // SupplyChainImpactWinnersAudit is what one audit pass found.
