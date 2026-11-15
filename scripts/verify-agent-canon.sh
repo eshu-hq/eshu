@@ -39,17 +39,17 @@ fi
 
 printf 'verify-agent-canon: AGENTS.md is the only agent canon (no CLAUDE.md).\n'
 
-if [ -z "${ESHU_AGENT_CANON_REPO_ROOT:-}" ]; then
-  # The role bindings live in the eshu-agent-kit, not in this repo. The
-  # installer materializes them locally as symlinks, so what this repo
-  # checks is that the installed tree matches the kit it pins -- a stale or
-  # half-installed tree would otherwise dispatch roles with the wrong model.
-  if [ ! -f "$repo_root/.agents/roles.json" ]; then
-    printf 'verify-agent-canon: missing installed role manifest at %s\n' \
-      "$repo_root/.agents/roles.json" >&2
-    printf 'Fix: run the eshu-agent-kit installer: install.sh --repo --aliases\n' >&2
-    exit 1
-  fi
+# The role bindings live in the eshu-agent-kit, not in this repo. The
+# installer materializes them locally as symlinks, so what this repo
+# checks is that the installed tree matches the kit it pins -- a stale or
+# half-installed tree would otherwise dispatch roles with the wrong model.
+#
+# The check runs against whatever repo root is in scope, so the fixture
+# suites can seed a stale shim and prove the branch fires. The helper
+# script is the one next to THIS script, not one inside the tree under
+# test, so a fixture does not need to carry it.
+shim_checker="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/verify-role-shim-bindings.py"
+if [ -f "$repo_root/.agents/roles.json" ]; then
   # The kit root is the directory the installed tree symlinks into. Read it
   # from the installed manifest's own symlink target rather than searching
   # the filesystem, so this check agrees with what the installer produced.
@@ -85,7 +85,7 @@ else:
   # pins -- even with the manifest itself current. Every role's OpenCode
   # shim is checked against its own tier, not just the arbiter's: one
   # spot-checked role left the other four unguarded.
-  python3 "$repo_root/scripts/verify-role-shim-bindings.py" \
+  python3 "$shim_checker" \
     "$kit_root/agents/roles.json" "$repo_root/.opencode/agent" >&2 || exit 1
 fi
 

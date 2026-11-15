@@ -225,13 +225,47 @@ def skill_id(path: str) -> Optional[str]:
     if not any(os.path.isfile(os.path.join(root, d, sid, "SKILL.md")) for d in SKILL_DIRS):
         return None
     # The FILE must not be a link out of the project. Resolving the file and
-    # its own folder separately tells the two cases apart: a skill tree that
-    # is a symlink into the kit resolves to a file inside its own resolved
-    # folder, while a SKILL.md symlinked elsewhere resolves to a file outside
-    # the folder it was read from.
+    # its own folder separately tells two cases apart: a skill tree that is a
+    # symlink into the kit resolves to a file inside its own resolved folder,
+    # while a SKILL.md symlinked elsewhere resolves to a file outside the
+    # folder it was read from.
     resolved_file = os.path.realpath(logical)
     resolved_folder = os.path.realpath(folder)
     if resolved_file != os.path.join(resolved_folder, os.path.basename(resolved_file)):
+        return None
+    # The resolved FOLDER must be the folder this root holds for this skill.
+    # The installer symlinks each skill DIRECTORY into the harness trees, so
+    # a legitimate read of .agents/skills/golang-engineering resolves to the
+    # kit's own copy of that skill, which is outside the tree; an alias
+    # wrapper under .claude/skills resolves inside it. Both are the root's
+    # own entry for that skill id, so the resolved folder must equal the
+    # resolved form of the SAME tree entry the read came through.
+    #
+    # A skill folder that is a symlink somewhere else entirely (evil ->
+    # /elsewhere/skill) is also what the root names, so this comparison
+    # alone would accept it. What separates them is that the root's entry
+    # for "evil" resolves outside every tree the root holds, while a
+    # legitimate skill resolves either inside a tree or into the kit the
+    # trees were installed from.
+    trees = {os.path.join(root, d) for d in SKILL_DIRS}
+    entry = os.path.join(os.path.dirname(folder), sid)
+    if os.path.realpath(entry) != resolved_folder:
+        return None
+    # The entry must resolve into one of the root's trees, or into the
+    # eshu-agent-kit the trees were installed from. The kit is located
+    # through the .agent-kit-version pin the repo carries: the installed
+    # .agents/roles.json is a symlink into the kit's agents/ directory, so
+    # the kit root is two levels above it.
+    kit_root = os.path.dirname(
+        os.path.dirname(os.path.realpath(os.path.join(root, ".agents", "roles.json")))
+    )
+    allowed = {os.path.realpath(t) for t in trees}
+    allowed.add(os.path.realpath(os.path.join(kit_root, "skills", "eshu")))
+    allowed.add(os.path.realpath(os.path.join(kit_root, "skills", "core")))
+    if not any(
+        resolved_folder == a or resolved_folder.startswith(a.rstrip(os.sep) + os.sep)
+        for a in allowed
+    ):
         return None
     return sid
 
