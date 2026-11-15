@@ -4,10 +4,12 @@
 package core
 
 import (
+	"fmt"
 	"slices"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
 )
 
 // cvssV31Critical is a valid CVSS v3.1 vector whose base score is 9.8.
@@ -220,5 +222,35 @@ func TestProductSeverityRanksSourcesBeforeFactIDWithinATier(t *testing.T) {
 	}
 	if got := findings[0].CVSSScore; got != 6.0 {
 		t.Fatalf("CVSSScore = %v, want the higher-ranked cve_list's 6.0, not NVD's 8.0", got)
+	}
+}
+
+// BenchmarkProductSeverityObservation measures the severity selection over a
+// group of n observations: the per-CVE cost the product path adds
+// (eshu-hq/eshu#10717). The worst case is a group where only the last row
+// carries a score, so every row is read.
+func BenchmarkProductSeverityObservation(b *testing.B) {
+	for _, n := range []int{1, 8, 64} {
+		b.Run(fmt.Sprintf("observations=%d", n), func(b *testing.B) {
+			group := supplyChainCVEGroup{}
+			for i := 0; i < n; i++ {
+				observation := supplychainmodel.ImpactCVE{
+					FactID:     fmt.Sprintf("cve-%03d", i),
+					AdvisoryID: "CVE-2026-0110",
+					Source:     "cve_list",
+				}
+				if i == n-1 {
+					observation.Source = "nvd"
+					observation.CVSSScore = 7.5
+				}
+				group.observations = append(group.observations, observation)
+			}
+			representative := group.observations[0]
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				_ = group.severityObservation(representative)
+			}
+		})
 	}
 }
