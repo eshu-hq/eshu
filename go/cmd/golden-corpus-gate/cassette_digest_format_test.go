@@ -57,6 +57,11 @@ func TestCassetteDigestsAreWellFormed(t *testing.T) {
 			if isVersionValue(location, value) {
 				return
 			}
+			// An absent digest is not validated, so it must not count toward
+			// the vacuity guard below either.
+			if isAbsentDigest(location, value) {
+				return
+			}
 			checked++
 			if !digestFieldValueIsWellFormed(location, value) {
 				violations++
