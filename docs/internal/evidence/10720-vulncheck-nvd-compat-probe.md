@@ -128,7 +128,7 @@ VulnCheck additions and changes, with record counts out of 11,017:
 - `vcConfigurations` on 9,052 records and `vcConfigurationsWithPlatforms` on 346;
   `vcConfigurations` carries an empty `matchCriteriaId`. The `configurations`
   key itself passes NVD's data through, `matchCriteriaId` included. On the
-  compatible endpoint `nodes[].negate` is present on all 50,216 sampled nodes
+  compatible endpoint `nodes[].negate` is present on all 50,216 nodes of the 59,215-record drain
   (all `false`; no sampled node in either source was `true`, so whether a `true`
   survives was not tested). The earlier 24-record read of the native index
   showed `negate` absent there. The flag matters: the reducer excludes a match
@@ -184,10 +184,10 @@ The ruling above rejects a content adapter. For the record, a content-carrying
 VulnCheck transport could only be safe if it (a) keeps only `nvd@nist.gov` and
 other upstream-source metric and weakness entries and drops entries authored by
 VulnCheck, (b) ignores `vc*` fields, `type` rewrites and the zero temporal and
-environmental scores, (c) does not trust `vulnStatus` (carry it flagged), (c2) verifies that a `true`
-`negate` survives, which this note did not test, (d) trims the half-open window, (e)
-labels every fact with its transport so rank and audit can see it, and (f)
-stays behind the same cursor CAS and claim rules as the feed transport. That is
+environmental scores, (c) does not trust `vulnStatus` (carry it flagged), (d)
+verifies that a `true` `negate` survives, which this note did not test, (e)
+trims the half-open window, (f) labels every fact with its transport so rank and
+audit can see it, and (g) stays behind the same cursor CAS and claim rules as the feed transport. That is
 a design item with its own regression plan, not a quick adapter.
 
 ## Commands

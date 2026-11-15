@@ -8,8 +8,8 @@ and the accepted design in
 It re-ran no probe and used no credential. This file records its ruling. A
 later hostile review corrected two of the arbiter's inputs, which the text below
 reflects: the `negate` drop was seen only on the native index, and the reducer
-excludes a negated match rather than inverting it. The arbiter's "5 of 5" API
-spot-check was in fact 6 of 6.
+excludes a negated match rather than inverting it. The evidence note's
+first draft said the live NVD API spot-check was 5 of 5; it was 6 of 6.
 
 ## Rulings
 
@@ -26,9 +26,9 @@ spot-check was in fact 6 of 6.
    on 5.1% of overlapping records and on 67% of NVD `Undergoing Analysis`
    records, and the live NVD API sided with NVD on all 6 answered samples.
    Freshly modified records sit in early analysis states, so "fall back to the
-   NVD value" is likely to fail where VulnCheck would be used (a hypothesis: the
-   mismatch was bulk-clustered by date, not measured at the edge, where 11-14
-   showed 0 of 250). A dropped `negate: true` would turn a match the reducer
+   NVD value" may fail where VulnCheck would be used (a hypothesis only: the mismatch
+   was bulk-clustered by date and not seen at the edge, where 11-14 showed 0 of
+   250 overall and 0 of 26 `Undergoing Analysis`). A dropped `negate: true` would turn a match the reducer
    excludes into a false affected result; on the compatible endpoint the key was
    present (all `false`) and a `true` was never tested, so this is an untested
    risk, not a finding. The only acceptable shape is
