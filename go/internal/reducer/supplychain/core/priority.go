@@ -391,9 +391,11 @@ func parsePriorityFloat(raw string) (float64, bool) {
 	return value, err == nil
 }
 
+// parsePriorityTime reads an advisory published or modified stamp through the
+// same parseAdvisoryInstant the newest-copy election uses, so NVD's unzoned
+// UTC stamps earn an advisory_age contribution (#10741).
 func parsePriorityTime(raw string) (time.Time, bool) {
-	value, err := time.Parse(time.RFC3339, strings.TrimSpace(raw))
-	return value, err == nil
+	return parseAdvisoryInstant(raw)
 }
 
 func normalizePriorityToken(raw string) string {
