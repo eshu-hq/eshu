@@ -175,8 +175,8 @@ Docs-only change: no behavior change, so no red-first cycle applies; the
 freeze tests above are the green-before/green-after. Focused proof at this
 base (exits recorded):
 
-- `go build ./go/...` — exit 0.
-- `go test` on `go/internal/query`,
-  `go/internal/query/visualization`, `go/internal/mcp`,
-  `go/internal/extraction`, `go/internal/facts`,
-  `go/internal/capabilitycatalog`, `go/cmd/api` — all exit 0.
+- `go build ./...` run from `go/` — exit 0.
+- `go test -count=1` on `go/internal/query`,
+  `go/internal/query/visualization`, `go/internal/extraction`,
+  `go/internal/facts`, `go/internal/capabilitycatalog`,
+  `go/internal/mcp`, `go/cmd/api` — all exit 0.
