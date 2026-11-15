@@ -34,7 +34,7 @@ the codebase.
 | Layer | Artifact | Property |
 | --- | --- | --- |
 | **Constant floor** | CI workflows (`.github/workflows/`), local hooks | Runs identically for every harness and model. The only truly model-independent guarantee. |
-| **Shared brain** | `AGENTS.md`, `.agents/skills/`, `.agents/roles.json` | One rule and method canon, plus one role/model manifest. |
+| **Shared brain** | `AGENTS.md`, and the `eshu-agent-kit` (skills, `roles.json`) | One rule and method canon, plus one role/model manifest. |
 | **Role shims** | Per-harness agent configs (`.opencode/agent/*.md`, `.claude/agents/*.md`, `.codex/agents/*.toml`, `.cursor/agents/*.md`, `.agents/agents/*.md` for Muse) and Codex/Muse launchers | Thin `(role + permissions + model)` bundles. No rulebook copies — the method lives in the skill they load. |
 
 The shared brain is loaded by every harness through its native mechanism:
@@ -42,8 +42,10 @@ Claude Code, Codex, and opencode all read `AGENTS.md` natively; per-directory
 `AGENTS.md` files scope rules for Codex
 and for Claude Code. There is no `CLAUDE.md`: it would make Claude read it
 instead of every `AGENTS.md`, and `scripts/verify-agent-canon.sh` refuses one.
-Harness skill trees are installer-generated from the `.agents/skills/` canon, not stored here.
-Opencode auto-discovers from that compatibility source; Muse reads `.agents/skills/` directly.
+The shared skills and role bindings live in the `eshu-agent-kit`, which this
+repo pins in `.agent-kit-version`. None of them are stored here: the kit
+installer materializes them locally, putting every skill in the harness trees
+under its harness-visible name.
 
 ## Roles, models, and tools
 
@@ -51,11 +53,8 @@ An agent earns its existence when it has a distinct **job or tool boundary**.
 Knowledge differences belong in skills. The `-deep` variants are explicit
 escalation points for the same job and skill body, so the coordinator can choose
 a stronger model without copying the method. OpenCode roles pin their tier model
-in the tracked file, from `models.opencode` in `.agents/roles.json`, like the
-codex and claude bindings do; a contributor overrides a role's model with
-`opencode run --model`, `/models`, `OPENCODE_CONFIG_CONTENT`, or a personal
-config directory instead of editing the tracked file. Under that contract, the
-opencode roster is:
+in the tracked file, from `models.opencode` in the kit's `agents/roles.json`, like the
+codex and claude bindings do. Under that contract, the opencode roster is:
 
 | Role | Runtime model binding | Tools | Responsibility |
 | --- | --- | --- | --- |
@@ -82,26 +81,27 @@ opencode's built-in `explore`/`plan` agents and its name collides with Eshu's
 own Ask product surface (`POST /api/v0/ask`). Add it only when a distinct need
 appears.
 
-OpenCode role files bind their tier model from `.agents/roles.json`
+OpenCode role files bind their tier model from the kit's `agents/roles.json`
 `models.opencode`, the same way the codex, claude, and muse bindings do.
-Contributors without those providers, or wanting different economics, override
-the model for a role through config rather than editing the tracked file.
-OpenCode provides no credit-aware automatic provider failover; when a provider
-is exhausted, override the model or restart with another override.
+A contributor without those providers, or wanting different economics, edits
+the kit's manifest and re-runs its generator. A config-layer `agents` entry
+does NOT override the role shim: the tracked Markdown frontmatter wins on
+OpenCode v2.3.0 (probed across the global `agent` and `agents` keys and the
+project `.opencode/opencode.jsonc`), so only an explicit per-dispatch
+`model` argument overrides it. OpenCode provides no credit-aware automatic
+provider failover; when a provider is exhausted, override the model or
+restart with another override.
 
-Examples, with placeholder model IDs that must be replaced by `opencode models`
-output from the local machine:
+The override that works is an explicit model on the dispatch itself, or the
+kit's launcher, which resolves the tier model from the manifest:
 
 ```bash
-OPENCODE_CONFIG_CONTENT='{"agents":{"perf-eshu":{"model":"<provider>/<model-id>#high"}}}' opencode
+python3 scripts/agent-roles.py muse-exec perf-eshu 'task'
 ```
-
-The same override shape works for any tracked OpenCode role; change the agent
-key, not the tracked role file.
 
 ### Default model bindings by tier
 
-The tracked choices live in `.agents/roles.json`; the table below describes
+The tracked choices live in the kit's `agents/roles.json`; the table below describes
 the routing rule. Match model capability to task difficulty, then pick the
 role for the harness in play:
 
@@ -140,9 +140,9 @@ Muse spends `muse-wonder-full-1.0` only on its deep and arbiter tiers (xhigh).
 The normal entry point is a goal that names project skills. The user does not
 need to name a role or invoke `agent-roles.py`. The three project
 `UserPromptSubmit` hooks run `scripts/goal-role-router.py` for explicit
-`/goal` or `GOAL:` prompts with named Eshu skills. It reads
-`.agents/roles.json` and injects candidate phase roles with model, effort,
-and access into the coordinator's context. The hook does not launch a worker;
+`/goal` or `GOAL:` prompts with named Eshu skills. It reads the kit's
+`agents/roles.json` and injects candidate phase roles with model, effort, and
+access into the coordinator's context. The hook does not launch a worker;
 an explicit `/goal goal.txt` or `goal.md` reads up to 64 KiB from the
 workspace or the matching Claude session scratchpad. The Claude/Muse goal
 refresher stores its contents for later turns.
@@ -166,7 +166,7 @@ reference.
 ### Task-to-skill map
 
 Use this lookup for ordinary tasks as well as goal phases. The skill body in
-`.agents/skills/` remains the source of truth for its method.
+the installed skill trees remains the source of truth for its method.
 
 | Task | Skill |
 | --- | --- |
@@ -196,11 +196,11 @@ Use this lookup for ordinary tasks as well as goal phases. The skill body in
 
 A tier is repo policy; the binding is per-harness and lives on the **role**, not
 on the skill. The canonical skill body stays one byte-identical file behind
-the Claude and Codex discovery links. `scripts/agent-roles.py generate` renders
-the native role shims from `.agents/roles.json`, including OpenCode's permission
-frontmatter. OpenCode read roles have shell execution denied, so a coordinator
-supplies any command output their proof needs.
-`scripts/agent-roles.py check` is part of `verify-agent-canon.sh`, so a stale
+the Claude and Codex discovery links. The kit's `agents/agent-roles.py generate`
+renders the native role shims from the kit's `agents/roles.json`, including
+OpenCode's permission frontmatter. OpenCode read roles have shell execution
+denied, so a coordinator supplies any command output their proof needs.
+The kit's `agents/agent-roles.py check` runs in the kit's own CI, so a stale
 binding fails locally and in CI.
 
 Every role can exchange task messages with its coordinator or named peers when
@@ -254,9 +254,10 @@ the parent used Luna. The older 0.156.1 CLI/app schema exposed a task name and
 optional model override, but no custom-role selector. A child merely named
 `debug_eshu_deep` does not load `debug-eshu-deep.toml`. If the active spawn tool
 cannot select the role file, the coordinator can invoke
-`scripts/agent-roles.py codex-exec ROLE TASK`. The user still supplies only the
-goal and skills. The launcher starts a separate headless Codex session with
-the model, effort, role instructions, and sandbox from `.agents/roles.json`;
+`scripts/agent-roles.py codex-exec ROLE TASK` (the kit installs that launcher
+into the consumer's `scripts/`). The user still supplies only the goal and
+skills. The launcher starts a separate headless Codex session with the model,
+effort, role instructions, and sandbox from the kit's `agents/roles.json`;
 it is not a spawned child of the coordinator. Check the CLI startup banner for
 the resolved model and effort. Do not report task-name dispatch as role routing.
 
@@ -340,7 +341,7 @@ Every implementation handoff MUST contain:
    seconds, minimum worthwhile win, measured resource envelope, reference
    profile, and absolute-target applicability.
 7. **Head line** — the branch name and `HEAD=<sha> BASE=<sha> RE:<request-id>`, as
-   [eshu-session-lifecycle](../../.agents/skills/eshu-session-lifecycle/SKILL.md#messages-name-their-head)
+   [eshu-session-lifecycle](../../.claude/skills/eshu-session-lifecycle/SKILL.md#messages-name-their-head)
    defines it, so a receiver can tell a stale request from a live one.
 
 The raw material already exists in the project skills and `eshu-issue-driver`.
@@ -482,17 +483,18 @@ The pattern is identical for every harness — thin config pointing at the share
 brain and the same gate floor:
 
 - **opencode** — `.opencode/opencode.jsonc` (`AGENTS.md` loads natively;
-  `.agents/skills` is an auto-discovered compatibility source) + `.opencode/agent/*.md` role/permission
+  the installed skill trees are an auto-discovered compatibility source) +
+  `.opencode/agent/*.md` role/permission
   shims. Tracked shims pin only manifest tier models, not personal model choices.
 - **Codex** — root + per-directory `AGENTS.md`, `.codex/agents/*.toml`, `.codex/hooks.json`, plus installer-generated `.codex/skills/`.
 - **Claude Code** — root + per-directory `AGENTS.md`, `.claude/agents/*.md`, plus installer-generated `.claude/skills/`.
-- **Muse Code** — `AGENTS.md`, project skills in `.agents/skills/`, and
+- **Muse Code** — `AGENTS.md`, the installed project skills, and
   `python3 scripts/agent-roles.py muse-exec ROLE 'task'` for model and permission
   routing. `--dry-run` prints the resolved invocation without starting a model.
-- **Cursor** — reads `AGENTS.md` and `.agents/skills/` natively, plus
+- **Cursor** — reads `AGENTS.md` and the installed skill trees natively, plus
   `.cursor/agents/*.md` role shims that inherit the session model.
 - **pi / future** — same: an instructions pointer at `AGENTS.md`, a skills
-  pointer at `.agents/skills/`, and reliance on the CI floor.
+  pointer at the installed skill trees, and reliance on the CI floor.
 
 No harness gets a private copy of the rules. New harness = new thin pointer,
 nothing more.

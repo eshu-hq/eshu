@@ -69,7 +69,7 @@ The `required-gates-complete` status is not itself a merge input: it only
 summarizes the registry's `blocking: true` gates
 (`.github/workflows/required-gates.yml`), and its own red is often the
 false-failure publisher stamp described in
-[babysit-prs](../../.agents/skills/eshu-session-lifecycle/references/babysit-prs.md).
+[babysit-prs](../../.claude/skills/eshu-session-lifecycle/references/babysit-prs.md).
 Read the gates under it. A gate that completed red (an Ifá/Odù cell, a
 contract, performance, or end-to-end gate) is a finding: fix it, or link an
 issue that the active goal works. A cancelled gate is not red: rerun it. A

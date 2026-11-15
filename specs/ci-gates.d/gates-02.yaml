@@ -12,10 +12,7 @@ gates:
       # The shared agent material (skills, role bindings, harness hooks) lives
       # in the eshu-agent-kit and is installed locally by its installer, so
       # those trees are not tracked here. What remains tracked is this repo's
-      # own harness wiring, plus the pin that says which kit version to
-      # install: changing the pin must select the gate that checks the
-      # installed tree against it.
-      - ".agent-kit-version"
+      # own harness wiring.
       - ".codex/config.toml"
       - ".codex/hooks.json"
       - ".claude/settings.json"
@@ -110,7 +107,6 @@ gates:
       - "specs/ci-gates.v1.yaml"
       - "specs/ci-gates.d/**"
     self_test_triggers:
-      - ".agent-kit-version"
       - ".codex/config.toml"
       - ".codex/hooks.json"
       - ".claude/settings.json"

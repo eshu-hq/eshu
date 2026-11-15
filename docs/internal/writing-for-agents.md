@@ -84,7 +84,7 @@ commit conventions and trailers. PRs explain the problem, resulting behavior,
 and relevant validation, with detail scaled to complexity. Review comments name
 the behavior, its consequence, and a concrete next step when useful.
 
-Use the repository's [publishing skill](../../.agents/skills/eshu-publish/SKILL.md)
+Use the repository's [publishing skill](../../.claude/skills/eshu-publish/SKILL.md)
 for artifact-specific templates and checks. Preserve required issue-form fields,
 PR formats, and engineering gates. A release checklist keeps its prerequisites
 and monitoring sections instead of acquiring unrelated bug-report headings.

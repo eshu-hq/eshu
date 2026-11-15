@@ -12,7 +12,7 @@ contains no code and no tests. S2 implements; S3 gates.
 Eshu's agent-facing surface today is hand-maintained across
 [`AGENTS.md`](../../AGENTS.md) (generic; a root `CLAUDE.md` copy existed
 until #7136), the nine project
-skills in [`.agents/skills/`](../../.agents/skills/) (the harness-visible
+skills in [`.claude/skills/`](../../.claude/skills/) (the harness-visible
 `.claude/skills/` and `.codex/skills/` trees were committed symlinks until
 their removal — see [Amendment: harness skill trees
 removed](#amendment-harness-skill-trees-removed)), and the host install
@@ -271,12 +271,14 @@ distinction so it is declared once rather than inferred per adapter.
 - None of the three define a hook shape, so hooks remain out of scope
   for them exactly as they are for the v1 rows.
 
-## Amendment: harness skill trees removed
+## Amendment: shared agent material removed
 
 The committed `.claude/skills/` and `.codex/skills/` symlink trees are
-gone. The `eshu-agent-kit` installer regenerates both trees locally from
-the `.agents/skills/` canon (`install.sh --repo --aliases`), so this repo
-stores no harness-visible skill copies. Statements below that describe
+gone, and so is `.agents/skills/` itself. The shared skills, the role
+bindings, and the harness hooks now live in the `eshu-agent-kit`, which this
+repo pins in `.agent-kit-version`. The kit installer materializes them
+locally (`install.sh --repo --aliases --agents --hooks --rules`), so this
+repo stores no harness-visible skill copies. Statements below that describe
 the trees as committed symlinks are historical; the canon and the loader
 contract are unchanged.
 
@@ -422,7 +424,7 @@ Repo docs cited as canonical sources for the fragments:
   surface.
 - `CLAUDE.md` — removed in #7136; Claude Code now reads
   `AGENTS.md` directly.
-- [`.agents/skills/`](../../.agents/skills/) — current project skills
+- [`.claude/skills/`](../../.claude/skills/) — current project skills
   (the 9 repository-owned skills the skillgen replaces with
   generated output).
 - `.claude/skills/` and `.codex/skills/` — removed from this repo;
