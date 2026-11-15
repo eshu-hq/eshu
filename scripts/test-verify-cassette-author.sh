@@ -211,6 +211,23 @@ run_scan "${wildarndir}" "${scratch}/arn-special-account.out" rc
 	|| fail "an ARN with a wildcard or cloudfront account field was flagged: $(cat "${scratch}/arn-special-account.out")"
 printf 'GREEN wildcard and cloudfront ARN accounts: exit %s\n' "${rc}"
 
+# The three public advisory sources the vulnerability collector reads are
+# exact entries on the public host list: NVD (nist.gov, named by the source
+# identifier on every NVD record), CISA and FIRST (the KEV and EPSS
+# attribution links on every source snapshot). The recording of that
+# collector (#10734) carries all three, so it passes. The allow is exact: a
+# host that only starts with one of them, or sits under one, stays a finding.
+plant_red hostname 'nist.gov.acme-internal.com' hostname-advisory-lookalike
+plant_red hostname 'vault.nist.gov' hostname-advisory-subdomain
+advisorydir="${scratch}/advisory-source-hosts"
+mkdir -p "${advisorydir}"
+printf '{"source_name":"nvd@nist.gov","kev":"https://www.cisa.gov/known-exploited-vulnerabilities-catalog","epss":"https://www.first.org/epss"}\n' >"${advisorydir}/advisory.json"
+rc=0
+run_scan "${advisorydir}" "${scratch}/advisory-source-hosts.out" rc
+[[ "${rc}" -eq 0 ]] \
+	|| fail "a public advisory-source host was flagged; the vulnerability collector recording would fail the gate: $(cat "${scratch}/advisory-source-hosts.out")"
+printf 'GREEN public advisory-source hosts: exit %s\n' "${rc}"
+
 # Terraform addresses glue a dotted token to `_`; they are not hosts and the
 # corpus asserts them, so they must not be candidates.
 tfdir="${scratch}/tf-address"
@@ -316,11 +333,11 @@ mutate_expect_red "delete the ipv4 planted sample" "/^[[:space:]]*'ipv4 10\\.0''
 # it and the hand count of 36 goes red, so the form cannot be dropped from
 # the allowlist without touching the number.
 mutate_expect_red "delete the reserved-account allowed sample" "/^[[:space:]]*'account12 0000''17213864'$/d" \
-	"negative control carries 36 sample(s), expected 37"
+	"negative control carries 39 sample(s), expected 40"
 # The #8359 Ifá fixture-hash allowed sample pins the exact-literal
 # extension the same way: delete it and the hand count goes red.
 mutate_expect_red "delete the fixture-hash allowed sample" "/^[[:space:]]*'account12 9008''22881959'$/d" \
-	"negative control carries 36 sample(s), expected 37"
+	"negative control carries 39 sample(s), expected 40"
 
 # The library must not depend on its caller's pipefail. A probe written as
 # `rg | head` returned head's status in a caller without pipefail, so an
