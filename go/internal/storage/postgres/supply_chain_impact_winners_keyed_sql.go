@@ -64,7 +64,11 @@ SELECT count(*) FROM supply_chain_impact_winners_dirty_log
 // selectWinnersKeyedRemainingMinSQL reads the earliest capture time of the
 // dirty log's residual set, inside the tick transaction after settle. It is
 // NULL when the log is empty. The #10706 horizon is this min minus 1us, so
-// every unapplied row has captured_at above the stamped watermark.
+// every row remaining in the log at read time has captured_at above the
+// stamped watermark. The documented exception is a row whose INSERT executed
+// before the tick clock was read but committed after the tick's snapshot: it
+// stays covered for exactly one tick and the next tick applies it (pinned by
+// HorizonDrainedLateCommitLive and HorizonIdleLateCommitLive).
 const selectWinnersKeyedRemainingMinSQL = `
 SELECT min(captured_at) FROM supply_chain_impact_winners_dirty_log
 `
