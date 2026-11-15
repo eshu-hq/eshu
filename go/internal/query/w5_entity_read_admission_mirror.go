@@ -10,12 +10,14 @@ import (
 // entityReadAdmissionProductionMirror proves the production stores
 // jointly serve the #9669 W5 entity pin (the 9 W5 entity routes plus
 // the W5c-e impact deployment-trace enrichment leg by explicit dual-pin
-// cite): *Neo4jReader carries the two bounded graph traversals (Run,
-// RunSingle), *ContentReader carries the seventeen ContentStore reads,
-// the type-asserted EntityNameSearcher facet, and the three narrow
-// read-model facets, PostgresCICDRunCorrelationStore carries the CI/CD
-// run correlation read, and the two Postgres supply-chain stores carry
-// the service-story supply-chain reads. The assignment below fails
+// cite, with GET /api/v0/investigations/services/{service_name} as the
+// 9th admitted route): *Neo4jReader carries the two bounded graph
+// traversals (Run, RunSingle), *ContentReader carries the nineteen
+// ContentStore reads, the type-asserted EntityNameSearcher and
+// content-reference search facets, and the four narrow read-model
+// facets, PostgresCICDRunCorrelationStore carries the CI/CD run
+// correlation read, and the two Postgres supply-chain stores carry the
+// service-story supply-chain reads. The assignment below fails
 // `go build`, not only `go test`, the moment a pin method is removed,
 // renamed, or re-signed on any production store. It works in one
 // direction only: a new method on any production store does not widen

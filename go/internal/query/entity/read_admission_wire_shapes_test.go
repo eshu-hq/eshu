@@ -16,14 +16,21 @@ import (
 )
 
 // entityAdmissionCannedStore is the pin-satisfying double behind the
-// wire-shape proof: it implements exactly the twenty-seven pinned
+// wire-shape proof: it implements exactly the thirty pinned
 // reads over fixed canned rows and is compile-asserted against the
 // pin, so the proof below runs through the admission shape, not the
-// wider staying ports.
+// wider staying ports. summaryAvailable false answers the read-model
+// summary as absent (Available false, the signal the route's loader
+// maps to nil and the route answers as 404); referenceAvailable false
+// answers the reference-index probe as unavailable (the signal the
+// consumer-evidence search reads before taking the substring
+// fallback).
 type entityAdmissionCannedStore struct {
-	entity querycontract.EntityContent
-	file   querycontract.FileContent
-	repo   querycontract.RepositoryCatalogEntry
+	entity             querycontract.EntityContent
+	file               querycontract.FileContent
+	repo               querycontract.RepositoryCatalogEntry
+	summaryAvailable   bool
+	referenceAvailable bool
 }
 
 func entityAdmissionCannedEntity() querycontract.EntityContent {
@@ -128,6 +135,17 @@ func (s *entityAdmissionCannedStore) ListRepoEntitiesByType(context.Context, str
 	return s.entityPage()
 }
 
+func (s *entityAdmissionCannedStore) ListRepoEntitiesByTypes(context.Context, string, []string, int) ([]querycontract.EntityContent, error) {
+	return s.entityPage()
+}
+
+func (s *entityAdmissionCannedStore) SearchFileReferenceAnyRepo(context.Context, string, string, int) ([]querycontract.FileContent, bool, error) {
+	if !s.referenceAvailable {
+		return nil, false, nil
+	}
+	return []querycontract.FileContent{s.file}, true, nil
+}
+
 func (s *entityAdmissionCannedStore) MatchRepositories(context.Context, string) ([]querycontract.RepositoryCatalogEntry, error) {
 	return []querycontract.RepositoryCatalogEntry{s.repo}, nil
 }
@@ -184,6 +202,19 @@ func (s *entityAdmissionCannedStore) RepositoryDeploymentEvidence(context.Contex
 	return repositorycontract.RepositoryDeploymentEvidenceReadModel{Available: true, Limit: 1}, nil
 }
 
+func (s *entityAdmissionCannedStore) RepositoryReadModelSummary(context.Context, string) (repositorycontract.RepositoryReadModelSummary, error) {
+	if !s.summaryAvailable {
+		return repositorycontract.RepositoryReadModelSummary{}, nil
+	}
+	return repositorycontract.RepositoryReadModelSummary{
+		Available:       true,
+		WorkloadNames:   []string{"wire-workload"},
+		PlatformCount:   1,
+		PlatformTypes:   []string{"wire-platform"},
+		DependencyCount: 2,
+	}, nil
+}
+
 var _ EntityReadAdmission = (*entityAdmissionCannedStore)(nil)
 
 // marshalEntityAdmissionWire projects one value through the same
@@ -203,21 +234,29 @@ func marshalEntityAdmissionWire(t *testing.T, v any) string {
 
 // TestEntityReadAdmissionWireShapesAreSatelliteConsumable proves a
 // satellite can consume the pin using only the pin plus the
-// querycontract shapes: every one of the twenty-seven reads answers
+// querycontract shapes: every one of the thirty reads answers
 // through an EntityReadAdmission-typed value, the grant-bound name
 // search carries the caller's grant alongside the filters, and the
 // entity, file, catalog, framework-route, coverage, and read-model
 // wire projections carry the keys a satellite record would depend on.
 // A fail-closed empty-grant read (nil entity, no error) marshals to
 // null, so the satellite path has no hidden non-nullable expectation.
+// The read-model summary asserts both legs of the identity behavior
+// difference: available (identity-only 200 shape) and absent
+// (Available false, the nil-summary 404 signal). The reference search
+// asserts both legs of the indexed-vs-fallback evidence: index
+// available with rows, and index unavailable with no rows (the signal
+// for the pinned substring fallback).
 func TestEntityReadAdmissionWireShapesAreSatelliteConsumable(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
 	var pin EntityReadAdmission = &entityAdmissionCannedStore{
-		entity: entityAdmissionCannedEntity(),
-		file:   entityAdmissionCannedFile(),
-		repo:   entityAdmissionCannedRepo(),
+		entity:             entityAdmissionCannedEntity(),
+		file:               entityAdmissionCannedFile(),
+		repo:               entityAdmissionCannedRepo(),
+		summaryAvailable:   true,
+		referenceAvailable: true,
 	}
 
 	rows, err := pin.Run(ctx, "MATCH (n) RETURN n LIMIT 1", map[string]any{"repo_id": "repo-wire"})
@@ -277,6 +316,18 @@ func TestEntityReadAdmissionWireShapesAreSatelliteConsumable(t *testing.T) {
 	}
 	if page, err := pin.ListRepoEntitiesByType(ctx, "repo-wire", "Function", 10); err != nil || len(page) != 1 {
 		t.Fatalf("ListRepoEntitiesByType() rows = %d, %v, want one", len(page), err)
+	}
+	typesPage, err := pin.ListRepoEntitiesByTypes(ctx, "repo-wire", []string{"Function", "Service"}, 10)
+	if err != nil || len(typesPage) != 1 {
+		t.Fatalf("ListRepoEntitiesByTypes() rows = %d, %v, want one", len(typesPage), err)
+	}
+	if wire := marshalEntityAdmissionWire(t, typesPage[0]); !strings.Contains(wire, `"entity_type":"Function"`) {
+		t.Errorf("types-list wire bytes = %s, want the entity_type key", wire)
+	}
+	if refs, available, err := pin.SearchFileReferenceAnyRepo(ctx, "service_name", "wire", 10); err != nil || !available || len(refs) != 1 {
+		t.Fatalf("SearchFileReferenceAnyRepo() = %d rows, available=%v, %v, want the one canned row with the index available", len(refs), available, err)
+	} else if wire := marshalEntityAdmissionWire(t, refs); !strings.Contains(wire, `"relative_path":"src/wire/handler.go"`) {
+		t.Errorf("reference wire bytes = %s, want the relative_path key", wire)
 	}
 
 	resolved, err := pin.ResolveRepository(ctx, "wire")
@@ -349,6 +400,33 @@ func TestEntityReadAdmissionWireShapesAreSatelliteConsumable(t *testing.T) {
 	deployEvidence, err := pin.RepositoryDeploymentEvidence(ctx, "repo-wire")
 	if err != nil || !deployEvidence.Available {
 		t.Fatalf("RepositoryDeploymentEvidence() = %#v, %v, want the canned available read model", deployEvidence, err)
+	}
+
+	summary, err := pin.RepositoryReadModelSummary(ctx, "repo-wire")
+	if err != nil || !summary.Available || len(summary.WorkloadNames) != 1 || summary.WorkloadNames[0] != "wire-workload" {
+		t.Fatalf("RepositoryReadModelSummary() = %#v, %v, want the canned available summary", summary, err)
+	}
+	if wire := marshalEntityAdmissionWire(t, summary); !strings.Contains(wire, `"Available":true`) || !strings.Contains(wire, `"WorkloadNames":["wire-workload"]`) {
+		t.Errorf("summary wire bytes = %s, want the Available and WorkloadNames shape behind the identity-only 200", wire)
+	}
+
+	// The absent and unavailable legs carry the behavior differences the
+	// parity corpus proves satellite-side: an absent summary (Available
+	// false) is the signal the route's loader maps to nil and answers as
+	// 404, and an unavailable reference index is the signal the
+	// consumer-evidence search reads before taking the pinned substring
+	// fallback asserted above. Core freezes both signals here.
+	var absentPin EntityReadAdmission = &entityAdmissionCannedStore{
+		entity: entityAdmissionCannedEntity(),
+		file:   entityAdmissionCannedFile(),
+		repo:   entityAdmissionCannedRepo(),
+	}
+	absentSummary, err := absentPin.RepositoryReadModelSummary(ctx, "repo-wire")
+	if err != nil || absentSummary.Available {
+		t.Fatalf("RepositoryReadModelSummary() absent = %#v, %v, want Available false and no error", absentSummary, err)
+	}
+	if refs, available, err := absentPin.SearchFileReferenceAnyRepo(ctx, "service_name", "wire", 10); err != nil || available || len(refs) != 0 {
+		t.Fatalf("SearchFileReferenceAnyRepo() unavailable = %d rows, available=%v, %v, want no rows with the index unavailable", len(refs), available, err)
 	}
 
 	if wire := marshalEntityAdmissionWire(t, (*querycontract.EntityContent)(nil)); wire != "null" {
