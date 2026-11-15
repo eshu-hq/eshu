@@ -396,7 +396,7 @@ func TestWriteSelectorAnswerKeepsWrapperTextOut(t *testing.T) {
 	t.Parallel()
 
 	notFound := selector.NotFoundError{Selector: "payments"}
-	ambiguous := selector.AmbiguousError{Selector: "payments", Matches: []string{"repository:r_a", "repository:r_b"}}
+	ambiguous := selector.AmbiguousError{Selector: "payments", Matches: []selector.AmbiguousCandidate{{RepoID: "repository:r_a"}, {RepoID: "repository:r_b"}}}
 	cases := []struct {
 		name       string
 		err        error

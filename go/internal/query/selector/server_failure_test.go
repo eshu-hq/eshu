@@ -29,7 +29,7 @@ func TestWriteResolveFailureAnswersSelectorAnswersWithTheirOwnText(t *testing.T)
 	t.Parallel()
 
 	notFound := NotFoundError{Selector: requestTestSelector}
-	ambiguous := AmbiguousError{Selector: requestTestSelector, Matches: []string{"repository:r_a", "repository:r_b"}}
+	ambiguous := AmbiguousError{Selector: requestTestSelector, Matches: []AmbiguousCandidate{{RepoID: "repository:r_a"}, {RepoID: "repository:r_b"}}}
 	cases := []struct {
 		name          string
 		err           error
