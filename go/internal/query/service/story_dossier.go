@@ -438,12 +438,16 @@ func downstreamRepoKey(row map[string]any) string {
 }
 
 // downstreamBoundFired reports whether the read behind the dependents or
-// consumer_repositories list hit its bound (#10656). When true the downstream
-// counts and rendered rows are a lower bound, not an exact set; the paged
-// consumer list then names the keyset-ordered remainder past the bound.
+// consumer_repositories list hit its downstream bound (#10656). It keys on
+// the downstream-bound flags only: the merged consumer_repositories_truncated
+// also folds the service's own evidence-file read (a 5,000-file bound with no
+// relation to downstream fan-out), which must not stamp the downstream count
+// as a lower bound. When true the downstream counts and rendered rows are a
+// lower bound, not an exact set; the paged consumer list then names the
+// keyset-ordered remainder past the bound.
 func downstreamBoundFired(workloadContext map[string]any) bool {
 	return querycontract.BoolVal(workloadContext, "dependents_truncated") ||
-		querycontract.BoolVal(workloadContext, "consumer_repositories_truncated")
+		querycontract.BoolVal(workloadContext, "consumer_repositories_downstream_truncated")
 }
 
 func serviceDeploymentArtifacts(workloadContext map[string]any) []map[string]any {
