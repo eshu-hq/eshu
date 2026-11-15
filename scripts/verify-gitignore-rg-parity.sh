@@ -88,8 +88,8 @@ roots_checked=0
 tracked_visible() {
 	# $1 = search root relative to the repo root, or empty for the repo root.
 	# Prints the tracked paths git itself does not hide: symlinks are dropped
-	# (`git ls-files` lists them but `rg --files` never does, e.g. the
-	# .claude/skills and .codex/skills links), then `git ls-files -c -i`
+	# (`git ls-files` lists them but `rg --files` never does), then
+	# `git ls-files -c -i`
 	# removes tracked-but-ignored paths (force-added fixtures such as
 	# tests/fixtures/correlation_dsl/multi-dockerfile-repo/Dockerfile.test,
 	# which matches `*.test`). `git check-ignore` cannot do this step: it

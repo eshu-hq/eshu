@@ -42,8 +42,8 @@ Claude Code, Codex, and opencode all read `AGENTS.md` natively; per-directory
 `AGENTS.md` files scope rules for Codex
 and for Claude Code. There is no `CLAUDE.md`: it would make Claude read it
 instead of every `AGENTS.md`, and `scripts/verify-agent-canon.sh` refuses one.
-Skills are symlinked into `.claude/skills/` and `.codex/skills/`, auto-discovered
-by opencode from the `.agents/skills/` project compatibility source, and discovered directly by Muse from `.agents/skills/`.
+Harness skill trees are installer-generated from the `.agents/skills/` canon, not stored here.
+Opencode auto-discovers from that compatibility source; Muse reads `.agents/skills/` directly.
 
 ## Roles, models, and tools
 
@@ -484,10 +484,8 @@ brain and the same gate floor:
 - **opencode** — `.opencode/opencode.jsonc` (`AGENTS.md` loads natively;
   `.agents/skills` is an auto-discovered compatibility source) + `.opencode/agent/*.md` role/permission
   shims. Tracked shims pin only manifest tier models, not personal model choices.
-- **Codex** — root + per-directory `AGENTS.md`, `.codex/skills/`,
-  `.codex/agents/*.toml`, `.codex/hooks.json`.
-- **Claude Code** — root + per-directory `AGENTS.md`, `.claude/skills/`,
-  `.claude/agents/*.md`.
+- **Codex** — root + per-directory `AGENTS.md`, `.codex/agents/*.toml`, `.codex/hooks.json`, plus installer-generated `.codex/skills/`.
+- **Claude Code** — root + per-directory `AGENTS.md`, `.claude/agents/*.md`, plus installer-generated `.claude/skills/`.
 - **Muse Code** — `AGENTS.md`, project skills in `.agents/skills/`, and
   `python3 scripts/agent-roles.py muse-exec ROLE 'task'` for model and permission
   routing. `--dry-run` prints the resolved invocation without starting a model.

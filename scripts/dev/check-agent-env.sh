@@ -4,8 +4,11 @@
 # Brand-new-machine contract: cloning eshu-hq/eshu and running `muse` in the
 # clone must load the same project rules, skills, and agents as every other
 # harness. Everything required is committed (AGENTS.md, .agents/, .muse/,
-# .claude/, .codex/, .cursor/, .opencode/); this script proves the clone is
-# complete and names any host tool that is missing. It changes nothing.
+# .claude/, .codex/, .cursor/, .opencode/) except the harness skill trees
+# (.claude/skills/, .codex/skills/), which the eshu-agent-kit installer
+# regenerates locally; this script proves the clone is complete, warns when
+# the installer step is still missing, and names any host tool that is
+# missing. It changes nothing.
 #
 # Required host tools: git, bash, python3. Required for PR/issue work: gh.
 # Recommended: rg, pre-commit, go, make. Workspace trust is per-machine Muse
@@ -32,9 +35,13 @@ done
 
 for path in AGENTS.md .agents/roles.json .agents/skills .agents/agents \
   .muse/hooks.json .muse/hooks .claude/settings.json .claude/hooks \
-  .claude/skills .codex/hooks.json .cursor/hooks.json .opencode/opencode.jsonc \
+  .codex/hooks.json .cursor/hooks.json .opencode/opencode.jsonc \
   scripts/agent-roles.py scripts/goal-role-router.py scripts/test-muse-hooks.sh; do
   if [[ -e "$path" ]]; then ok "committed path: $path"; else bad "committed path missing (incomplete clone?): $path"; fi
+done
+
+for path in .claude/skills .codex/skills; do
+  if [[ -e "$path" ]]; then ok "installer path: $path"; else note "installer path missing: $path (run the eshu-agent-kit installer: install.sh --repo --aliases)"; fi
 done
 
 skill_count="$(ls .agents/skills/ 2>/dev/null | wc -l | tr -d ' ')"

@@ -158,6 +158,28 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
 
+      # The harness skill trees are installer-generated, never stored: the
+      # canon gate fails without them, so regenerate before it runs. Same-org
+      # checkout, as with eshu-deploy. No release tags exist in the kit yet,
+      # so the step asserts the checkout's VERSION against .agent-kit-version
+      # instead of checking out a tag; the mismatch message names the fix.
+      - name: Check out eshu-agent-kit
+        uses: actions/checkout@v5
+        with:
+          repository: eshu-hq/eshu-agent-kit
+          path: eshu-agent-kit
+
+      - name: Regenerate harness skill trees from the kit
+        if: ${{ github.event_name != 'pull_request' || inputs.plan_mode != 'smoke' }}
+        run: |
+          kit_version="$(cat eshu-agent-kit/VERSION)"
+          pin_version="$(cat .agent-kit-version)"
+          if [ "$kit_version" != "$pin_version" ]; then
+            echo "kit checkout $kit_version does not match pin $pin_version (update the pin or cut the release tag)" >&2
+            exit 1
+          fi
+          bash eshu-agent-kit/install.sh --repo "$GITHUB_WORKSPACE" --aliases "$GITHUB_WORKSPACE/eshu-agent-kit/templates/repo-overlay/eshu-aliases.tsv"
+
       - name: Shared agent canon and harness discovery
         if: ${{ github.event_name != 'pull_request' || inputs.plan_mode != 'smoke' }}
         run: scripts/verify-agent-canon.sh

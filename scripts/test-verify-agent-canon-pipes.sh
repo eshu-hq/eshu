@@ -35,6 +35,7 @@ canon_scripts=(
   "scripts/test-verify-agent-hygiene.sh"
   "scripts/lib/test-private-identifier-cases.sh"
   "scripts/lib/test-private-identifier-path-cases.sh"
+  "scripts/lib/test-agent-alias-cases.sh"
   "scripts/test-agent-hooks.sh"
   "scripts/lib/agent-hooks-fake-gate.sh"
   "scripts/test-agent-hooks-fake-gate.sh"
