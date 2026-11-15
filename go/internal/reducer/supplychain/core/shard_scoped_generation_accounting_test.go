@@ -17,15 +17,18 @@ import (
 // per distinct reference URL, so facts are records*1 + references (see
 // internal/vulnsource CVEListShardGenerations; eshu-hq/eshu#10718). The first
 // test charges the record-only floor of a full shard against the real
-// per-intent evidence budget and the real truncation verdict; the break-even
-// test below charges the reference term. The last runs the real cve_list
-// provenance path at full-shard scale.
+// per-intent evidence budget and the real truncation verdict; the second pins
+// that the reducer does not load reference facts; the last runs the real
+// cve_list provenance path at full-shard scale.
 func TestShardScopedGenerationFitsEvidenceBudget(t *testing.T) {
 	t.Parallel()
 
 	// Record-only floor: 1,000 vulnerability.cve facts and zero references.
-	// Real shards add one fact per distinct reference URL; see
-	// TestShardScopedGenerationReferenceBreakEven for that term.
+	// Real shards add one fact per distinct reference URL, which the reducer does
+	// not load (see TestShardScopedGenerationDoesNotLoadReferenceFacts). The
+	// production budget also counts expansion evidence only, never the intent's
+	// own base scope load, so this charge is a hypothetical headroom bar for a
+	// shard-sized load, not budget use the reducer performs today.
 	const fullShardFacts = 1000
 
 	budget := newSupplyChainImpactEvidenceBudget(0)
@@ -67,46 +70,6 @@ func TestShardScopedGenerationDoesNotLoadReferenceFacts(t *testing.T) {
 		if kind == chain.VulnerabilityReferenceFactKind {
 			t.Fatalf("supplyChainImpactFactKinds() loads %q: reference facts now charge the evidence budget; redo the T1 restatement in the 9961 note", kind)
 		}
-	}
-}
-
-// TestShardScopedGenerationReferenceBreakEven pins the corrected T1 arithmetic
-// for eshu-hq/eshu#10718 for the case where a reducer does load reference
-// facts (it does not today; see the test above). T1 requires a full shard to stay under 10% of the
-// per-intent evidence budget. With facts = records + references, a
-// 1,000-record shard has 10,000 facts of headroom at that share, so T1 holds
-// while distinct references stay under 9,000 (under 9 per record on average)
-// and fails at 9,000.
-func TestShardScopedGenerationReferenceBreakEven(t *testing.T) {
-	t.Parallel()
-
-	const (
-		fullShardRecords = 1000
-		t1Share          = 0.10
-	)
-	t1Facts := int(float64(maxSupplyChainImpactEvidenceEnvelopesPerIntent) * t1Share)
-	if t1Facts != 10_000 {
-		t.Fatalf("T1 fact allowance = %d, want 10000 (10%% of the default budget)", t1Facts)
-	}
-	maxReferences := t1Facts - fullShardRecords - 1 // strictly under 10%
-	if maxReferences != 8_999 {
-		t.Fatalf("max references under T1 = %d, want 8999", maxReferences)
-	}
-
-	under := newSupplyChainImpactEvidenceBudget(0)
-	if !under.charge(fullShardRecords + maxReferences) {
-		t.Fatal("a full shard just under the T1 allowance trips the evidence budget")
-	}
-	if got := float64(under.used) / float64(under.limit); got >= t1Share {
-		t.Fatalf("shard budget share = %.4f, want < %.2f", got, t1Share)
-	}
-
-	at := newSupplyChainImpactEvidenceBudget(0)
-	if !at.charge(fullShardRecords + maxReferences + 1) {
-		t.Fatal("a shard at the T1 allowance must still load; T1 is a headroom bar, not the budget")
-	}
-	if got := float64(at.used) / float64(at.limit); got < t1Share {
-		t.Fatalf("shard budget share = %.4f, want >= %.2f (T1 must fail at 9,000 references)", got, t1Share)
 	}
 }
 

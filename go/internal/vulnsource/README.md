@@ -163,7 +163,8 @@ collector-instance load, which names the key and quotes no value.
 `cves/<year>/<NNNxxx>`, grouping sequence numbers in batches of 1,000;
 `CVEListDirtyShards` reduces delta-touched IDs to the sorted unique shards
 needing re-collection, and `CVEListShardGenerations` builds one full-replace
-generation per dirty shard with its fact count (`Records` plus `References`, see `CVEListShardCounts`). This is the
+generation per dirty shard with its fact count (`Records` plus `References`,
+see `CVEListShardCounts`). This is the
 item 5.1 measurement substrate (#9961, plan §4.4): pure string accounting,
 no network, database, or workflow mutation. The measured verdict lives in
 `docs/internal/evidence/9961-shard-scoped-generations.md`.
