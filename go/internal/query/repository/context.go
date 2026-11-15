@@ -19,9 +19,10 @@ import (
 
 // repositoryManifestIncludeDev resolves the dev-inclusion opt-in flag for the
 // repository context's manifest_dependencies section, defaulting to false
-// (runtime dependencies only). An unparseable value is treated as false the
-// same way the paged read's handler defaults, so the section never answers a
-// 400 on a malformed opt-in flag.
+// (runtime dependencies only). An absent or unparseable value resolves to
+// false here, so the section never answers a 400: unlike the paged read's
+// handler, which answers 400 for a malformed non-empty value, the section is
+// one field of a larger body and degrades in place.
 func repositoryManifestIncludeDev(r *http.Request) bool {
 	raw := strings.TrimSpace(r.URL.Query().Get("include_dev_dependencies"))
 	includeDev, err := strconv.ParseBool(raw)

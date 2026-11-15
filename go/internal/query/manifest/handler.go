@@ -170,10 +170,12 @@ func (h *Handler) listManifestDependencies(w http.ResponseWriter, r *http.Reques
 	))
 }
 
-// writeEmptyManifestDependenciesPage answers a scoped caller with no grant,
-// or with no grant for the requested repository, the same empty shape a
-// granted caller of an empty repository receives — without touching the
-// store, so a private or nonexistent repository is indistinguishable.
+// writeEmptyManifestDependenciesPage answers a caller with no grant, or with
+// no grant for the requested repository, using the same empty page body shape
+// (zero rows, truncated false) a granted caller of an empty repository
+// receives, with freshness_state unavailable and no scope_found claim — the
+// shape an absent or unknown scope answers. The store is not touched, so a
+// private or nonexistent repository is indistinguishable.
 func (h *Handler) writeEmptyManifestDependenciesPage(w http.ResponseWriter, r *http.Request, repositoryID string, limit int) {
 	body := map[string]any{
 		"repository_id": repositoryID,

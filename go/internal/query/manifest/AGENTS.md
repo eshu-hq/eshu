@@ -19,8 +19,9 @@
   delta-only rows as the repository's complete manifest.
 - The truth envelope says declared, not resolved. No version resolution runs
   here, and no repository ownership beyond the scope anchor is asserted.
-- Grant-denied callers receive the same empty page as an empty repository
-  without touching the store (no existence oracle).
+- Grant-denied callers receive the same empty page body as an empty
+  repository (zero rows, `truncated: false`, `freshness_state: unavailable`,
+  no `scope_found` claim) without touching the store — no existence oracle.
 - `ecosystem` normalizes the stored package manager via
   `packageidentity.NormalizeEcosystem`, with the sbt-to-maven fallback the
   mapping test pins. A manager with no spelling yields no ecosystem; the
