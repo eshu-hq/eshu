@@ -73,7 +73,7 @@ past the dossier read bound (itself a bounded scan; the list reports
 incoming deployment-artifact edges, repository dependency rows, and provisioning
 source chains, sorted by relationship type then source.
 
-No-Regression Evidence (#10656): the count change is in-memory only over rows already read: `downstream_entries` sums both list lengths and `downstream_repository_count` dedupes by repo_id in one O(n) pass with no new query or bound change. Measured on in-memory fixtures (`TestServiceStoryDownstreamCountDedupesSharedRepository`, five-case `TestServiceStoryDownstreamCountLowerBoundCases`) and the focused suites (`./internal/query/service/`, `./internal/query/entity/`, `./internal/query/`, `./internal/mcp/`, `./internal/mcp/service/`, `./cmd/api/`, all exit 0). Safe: the flag reuses the existing truncation bools.
+No-Regression Evidence (#10656): the count change is in-memory only over rows already read: `downstream_entries` sums both list lengths and `downstream_repository_count` dedupes by repo_id in one O(n) pass with no new query or bound change. Measured on in-memory fixtures (`TestServiceStoryDownstreamCountDedupesSharedRepository`, six-case `TestServiceStoryDownstreamCountLowerBoundCases`) and the focused suites (`./internal/query/service/`, `./internal/query/entity/`, `./internal/query/`, `./internal/mcp/`, `./internal/mcp/service/`, `./cmd/api/`, all exit 0). Safe: the flag reuses the existing truncation bools.
 
 No-Observability-Change (#10656): no new metric, span, or log line; the existing `result_limits.truncated` and `raw_context_limits` entries observe the bounded reads.
 

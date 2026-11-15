@@ -311,7 +311,7 @@ func TestServiceStoryDownstreamCountLowerBoundCases(t *testing.T) {
 			name:           "evidence-file truncation alone is not a downstream lower bound",
 			dependents:     []map[string]any{{"repository": "repo-a", "repo_id": "repo-a"}},
 			consumers:      []map[string]any{{"repository": "repo-b", "repo_id": "repo-b"}},
-			flags:          map[string]any{"consumer_repositories_evidence_file_truncated": true},
+			flags:          map[string]any{"consumer_repositories_evidence_file_truncated": true, "consumer_repositories_truncated": true},
 			wantEntries:    2,
 			wantRepos:      2,
 			wantLowerBound: false,
