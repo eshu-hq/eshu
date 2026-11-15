@@ -123,7 +123,7 @@ grown since the 1,153 / 7,862 / 17,284-byte fragments of the first matrix).
 The structured series is monotonic and its slope ratio is 1.005, within the
 #8800 limit of 1.10: for this Codex configuration, `structured` puts one copy
 of the payload into the model input. The dual series is non-monotonic for the
-third time (49,861 / 80,126 / 59,670): its reported `cached_input_tokens`
+second time (49,861 / 80,126 / 59,670): its reported `cached_input_tokens`
 varies per cell (24,320 / 60,032 / 48,512), so the dual token slope cannot be
 established from Codex input tokens. The wire itself is unambiguous — the
 measured result-byte slope is `structured` 1.000053 and `dual` 2.101445 — so
