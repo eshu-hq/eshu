@@ -429,10 +429,10 @@ No-Observability-Change: the GLAD adapter emits the existing
 `vulnerability.cve`, `vulnerability.affected_package`,
 `vulnerability.reference`, and `vulnerability.source_snapshot` fact kinds. It
 adds no new metric instrument, span, log key, queue, reducer lane, graph
-write, or runtime worker. Operators continue to use the existing
-`vulnerability.source_snapshot` `source`/`ecosystem`/`response_digest`/
-`complete` fields and the readiness envelope on the supply-chain impact API
-to diagnose coverage.
+write, or runtime worker. Operators use the `vulnerability.source_snapshot`
+`source`/`ecosystem`/`complete` fields and the readiness envelope to diagnose
+coverage; the collector does not fill `response_digest` yet (collector #125:
+eshu-hq/eshu-collector-vulnerability-intelligence#125).
 
 ## Derived Advisory Target Planning
 

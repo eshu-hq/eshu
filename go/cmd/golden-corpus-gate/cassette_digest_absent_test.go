@@ -15,6 +15,11 @@ import "testing"
 // absence, not a malformed digest, so the walker does not hold it to the
 // digest pattern. Every other digest field stays strict: an empty
 // subject_digest is still a bug.
+//
+// This exemption is temporary. The collector filling response_digest is
+// eshu-hq/eshu-collector-vulnerability-intelligence#125; remove the
+// response_digest entry, and this map if it is then empty, when that issue is
+// fixed and the recordings are re-recorded.
 var emptyAllowedDigestFields = map[string]bool{
 	"response_digest": true,
 }
