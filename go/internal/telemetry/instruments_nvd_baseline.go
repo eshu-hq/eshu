@@ -47,8 +47,8 @@ const (
 	NVDBaselineTripOpened = "opened"
 	// NVDBaselineTripPaged: the oldest-dirty age paged the operator.
 	NVDBaselineTripPaged = "paged"
-	// NVDBaselineTripEligible: six quiet hours marked the lane safe to
-	// re-enable.
+	// NVDBaselineTripEligible: six quiet hourly samples since the trip opened
+	// marked the lane safe to re-enable.
 	NVDBaselineTripEligible = "eligible"
 	// NVDBaselineTripClosed: the operator closed the trip on re-enable.
 	NVDBaselineTripClosed = "closed"
