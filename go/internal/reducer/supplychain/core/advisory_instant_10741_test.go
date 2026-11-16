@@ -69,6 +69,28 @@ func TestParseAdvisoryInstant10741(t *testing.T) {
 	}
 }
 
+// TestParseAdvisoryInstantUnzonedIsUTC10741 pins that an unzoned stamp is read
+// as UTC and not as the machine's local zone. Equal alone cannot tell the two
+// apart on a host whose local zone is UTC, which is what CI runs on, so this
+// asserts the location itself.
+func TestParseAdvisoryInstantUnzonedIsUTC10741(t *testing.T) {
+	t.Parallel()
+
+	for _, raw := range []string{
+		"2026-08-11T19:33:44.513",
+		"2026-01-02T00:00:00",
+		"  2026-01-02T00:00:00.000\t",
+	} {
+		got, ok := parseAdvisoryInstant(raw)
+		if !ok {
+			t.Fatalf("parseAdvisoryInstant(%q) did not parse", raw)
+		}
+		if got.Location() != time.UTC {
+			t.Fatalf("parseAdvisoryInstant(%q) location = %v, want time.UTC", raw, got.Location())
+		}
+	}
+}
+
 // TestParseAdvisoryInstantSameInstantTwoShapesCompareEqual10741 pins that one
 // instant in the unzoned and zoned shapes is Equal, so a collector that later
 // normalizes to Z changes no election outcome.
