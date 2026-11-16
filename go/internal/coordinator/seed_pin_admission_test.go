@@ -336,8 +336,8 @@ func TestHostSeedPlatformIsRuntimeGOOSGOARCH(t *testing.T) {
 	}
 }
 
-// TestLoadConfigAdmitsSatelliteExactlyWhenHostPlatformPinned drives the public
-// LoadConfig production calls, with no platform argument, against the pinned
+// TestLoadConfigAdmitsSatelliteExactlyWhenHostPlatformPinned drives LoadConfig,
+// which delegates to the production LoadConfigObserved, against the pinned
 // manifest. Admission must follow the executing host: admitted exactly when
 // the host platform is in the registry pins for the component, refused with
 // the platform text otherwise. It holds on linux and on darwin alike (#9877,
@@ -366,8 +366,8 @@ func TestLoadConfigAdmitsSatelliteExactlyWhenHostPlatformPinned(t *testing.T) {
 }
 
 // TestLoadConfigAsksTheHostPlatformSource stubs the platform source to a
-// platform no seed pin lists and requires the public LoadConfig production
-// calls to refuse it. Unlike the test above, it fails on a linux/amd64 host too
+// platform no seed pin lists and requires LoadConfig, which delegates to the
+// production LoadConfigObserved, to refuse it. Unlike the test above, it fails on a linux/amd64 host too
 // when the loader ignores the source and hardcodes a pinned platform (#10739).
 // It stubs a package variable, so it must not run in parallel.
 func TestLoadConfigAsksTheHostPlatformSource(t *testing.T) {

@@ -390,10 +390,10 @@ func TestHostSeedPlatformIsRuntimeGOOSGOARCH(t *testing.T) {
 // TestLoadRuntimeConfigAdmitsSatelliteExactlyWhenHostPlatformPinned drives the
 // loadRuntimeConfig wrapper, with no platform argument, against the pinned
 // manifest. The worker process itself reaches the loader through
-// buildClaimedService, which seed_platform_service_test.go covers. Admission must follow the executing host: admitted exactly
-// when the host platform is in the registry pins for the component, refused
-// with the platform text otherwise. It holds on linux and on darwin alike
-// (#9877, #10739).
+// buildClaimedService, which seed_platform_service_test.go covers. Admission
+// must follow the executing host: admitted exactly when the host platform is in
+// the registry pins for the component, refused with the platform text
+// otherwise. It holds on linux and on darwin alike (#9877, #10739).
 func TestLoadRuntimeConfigAdmitsSatelliteExactlyWhenHostPlatformPinned(t *testing.T) {
 	t.Parallel()
 
@@ -420,9 +420,10 @@ func TestLoadRuntimeConfigAdmitsSatelliteExactlyWhenHostPlatformPinned(t *testin
 // TestLoadRuntimeConfigAsksTheHostPlatformSource stubs the platform source to
 // a platform no seed pin lists and requires the loadRuntimeConfig wrapper to
 // refuse it. The wrapper has no production caller; the production line is in
-// buildClaimedService, covered by seed_platform_service_test.go. Unlike the test above, it fails on a linux/amd64 host too when
-// the loader ignores the source and hardcodes a pinned platform (#10739). It
-// stubs a package variable, so it must not run in parallel.
+// buildClaimedService, covered by seed_platform_service_test.go. Unlike the
+// test above, it fails on a linux/amd64 host too when the loader ignores the
+// source and hardcodes a pinned platform (#10739). It stubs a package variable,
+// so it must not run in parallel.
 func TestLoadRuntimeConfigAsksTheHostPlatformSource(t *testing.T) {
 	const unpinned = "plan9/mips"
 	previous := seedPlatformSource
