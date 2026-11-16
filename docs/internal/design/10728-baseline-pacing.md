@@ -328,8 +328,12 @@ the fold in `go/internal/coordinator/vulnerability/nvd_baseline_trip_latch.go`
   therefore an optimization against duplicate probe work (one aggregate
   query per hour), not a safety requirement, and #10746 may add one.
 - Contract #10746 must keep. (1) Load the latch at the start of every plan
-  tick, not once per process, and pass `NVDBaselineTripLoad.Open` as the
-  planner's `tripOpen`; any error holds. (2) Start the hourly loop
+  tick, not once per process, and set the whole `NVDBaselineTripLoad` on
+  `IntelligencePlanRequest.NVDBaselineTrip`; any error holds. A request that
+  never carries a load has the zero value, which the planner holds with the
+  closed reason `baseline_trip_unloaded` (an open, absent, or unreadable
+  latch holds as `baseline_trip_open`), so skipping the load or dropping its
+  error fails closed instead of planning into the load that tripped. (2) Start the hourly loop
   independently of planning: a new run has no row, so planning holds until the
   first sample lands, and a loop gated on planning would never start. (3) Pass
   `runStarted` from a non-empty checkpoint read. (4) Stamp `sample.At` from one
