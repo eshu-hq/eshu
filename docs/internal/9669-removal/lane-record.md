@@ -217,3 +217,45 @@ before any removal PR.
   `query/openapi` leaf seam until eshu-api#65), and the fresh arbiter
   review itself are outstanding, and the test-file retargets plus the
   51-route satellite closures/carve-outs still block the removal PR.
+
+## Rebase prep note (2026-11-16, base `2d4db4ac`, satellite `f4511f84`)
+
+Branch rebased onto frozen `origin/main` `2d4db4ac` (prior base
+`d7de38f49a`; clean rebase, 10/10 commits, zero conflicts). G7 refresh
+at the frozen pair (satellite `f4511f84` includes Wave-1b #149, Wave-2
+#150, Wave-3 #151 — all G4 holds terminated, tracker #10491 at zero
+open boxes). Prep only — no PR opened, no merge, no traffic action.
+Owner acceptance of the eventual removal is recorded; cutover-good
+ruling and row-7 closure still gate the merge, and a fresh arbiter
+review in-lane is required before any removal PR.
+
+- Removal scope: `go/cmd/api` is 126 tracked files at the new base
+  (+1 vs 125 at the old base: `writer_admission_transport_test.go`
+  added; 5 files modified including the C2 leaf move
+  `content_relationships*.go` and the downstream-consumers cutover-map
+  registration). No scope shrink: every row stays TODO.
+- `CUTOVER_OWNERSHIP.md` changed (+6/-2 lines, md5 `0cd14227`,
+  368 lines vs `9f5514a7`/364): SignInPolicy row version-tagged,
+  manifest FactStore read-only snapshot note added, and 3 read rows
+  registered (manifest-dependencies, api-surface/endpoints,
+  downstream-consumers). All reads, no mutations.
+- Removal proof re-run at the rebased head (all exit 0): the 13
+  `TestQueryRootDrained` pin-test packages pass (`go test -count=1
+  -run 'TestQueryRootDrained|TestDrain'`); MCP exact-package census
+  holds at 0 non-test offenders (TestQueryRootDrained green);
+  `CUTOVER_OWNERSHIP.md` values recorded above.
+- New-caller scan (killer risk) clean: non-test query-root importers
+  outside `go/cmd/api` + `go/internal/query` are byte-identical
+  (empty set) at old base, new base, and head; `go/cmd/api`
+  importers outside itself are unchanged (single test file,
+  `cli/support/closure_test.go`). No new in-tree callers of the
+  removal surface landed on main.
+- Merges landed on main since the prior base include the G4 finals
+  (#10745 C2 leaf, #10779 C2 follow-up, #10747 C5 27->30,
+  #10748 C4 no-port, #10749+ mac-seed admissions, #10754 design-B,
+  #10775 product severity, #10778 doc citations, #10789 continuation
+  verdict) — none drains a checklist row; seams only.
+- Readiness: ready for in-lane arbiter review (G9 input). NOT
+  merge-ready: cutover-good ruling, row-7 closure, and the fresh
+  arbiter review itself are outstanding; test-file retargets are
+  unchanged.
