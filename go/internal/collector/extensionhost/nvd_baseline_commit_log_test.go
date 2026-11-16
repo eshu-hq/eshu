@@ -43,6 +43,15 @@ func TestBaselineCommitLogsNotCoveredReason(t *testing.T) {
 			mutate: func(p map[string]any) { p["nvd_baseline_year_sha256"] = "not-a-sha" },
 		},
 		{
+			// First match wins: sha_malformed is checked before the
+			// advance-behind-start rule, so a combined defect logs the sha.
+			name: "malformed sha and advance behind start", wantReason: "sha_malformed",
+			mutate: func(p map[string]any) {
+				p["nvd_baseline_year_sha256"] = "not-a-sha"
+				p["nvd_baseline_advance_to_unix_us"] = chunkStart - 1000
+			},
+		},
+		{
 			name: "advance behind start", wantReason: "advance_behind_start",
 			mutate: func(p map[string]any) { p["nvd_baseline_advance_to_unix_us"] = chunkStart - 1000 },
 		},
@@ -78,6 +87,15 @@ func TestBaselineCommitLogsNotCoveredReason(t *testing.T) {
 			}
 			if record["reason"] != tc.wantReason {
 				t.Fatalf("reason = %v, want %q", record["reason"], tc.wantReason)
+			}
+			if record["msg"] != "nvd baseline generation not covered by commit policy, checkpoint holds" {
+				t.Fatalf("msg = %v, want the not-covered message", record["msg"])
+			}
+			if record["work_item_id"] != "work-scorecard-1" {
+				t.Fatalf("work_item_id = %v, want work-scorecard-1", record["work_item_id"])
+			}
+			if record["generation_id"] != "generation-1" {
+				t.Fatalf("generation_id = %v, want generation-1", record["generation_id"])
 			}
 			if record["baseline_run_id"] != "baseline-2026-11" {
 				t.Fatalf("baseline_run_id = %v, want baseline-2026-11", record["baseline_run_id"])

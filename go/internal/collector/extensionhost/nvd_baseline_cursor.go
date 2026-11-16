@@ -146,7 +146,7 @@ func (p *NVDBaselineCommitPolicy) CommitPolicy(
 	}
 	if reason := nvdBaselineNotCoveredReason(advanceOK, advanceTo, sha, chunkStart.UnixMicro(), complete); reason != "" {
 		if p.logger != nil {
-			p.logger.Warn(NVDBaselineNotCoveredLogMessage,
+			p.logger.Warn(nvdBaselineNotCoveredLogMessage,
 				"reason", reason,
 				"baseline_run_id", runID,
 				"collector_instance_id", p.collectorInstanceID,
@@ -167,26 +167,26 @@ func (p *NVDBaselineCommitPolicy) CommitPolicy(
 	}, nil
 }
 
-// NVDBaselineNotCoveredLogMessage is the WARN message logged once per
+// nvdBaselineNotCoveredLogMessage is the WARN message logged once per
 // generation the commit policy holds as not_covered. Its bounded reason
-// attribute is one of the NVDBaselineNotCoveredReason* values.
-const NVDBaselineNotCoveredLogMessage = "nvd baseline generation not covered by commit policy, checkpoint holds"
+// attribute is one of the nvdBaselineNotCoveredReason* values.
+const nvdBaselineNotCoveredLogMessage = "nvd baseline generation not covered by commit policy, checkpoint holds"
 
 // Closed reason set of the not_covered WARN. The reasons are checked in this
 // order, so a verdict with several defects logs the first.
 const (
-	// NVDBaselineNotCoveredReasonAdvanceMissing: advance_to absent, not a
+	// nvdBaselineNotCoveredReasonAdvanceMissing: advance_to absent, not a
 	// number, or not positive.
-	NVDBaselineNotCoveredReasonAdvanceMissing = "advance_missing"
-	// NVDBaselineNotCoveredReasonSHAMalformed: the seed sha is blank or not
-	// 64 lowercase hex characters.
-	NVDBaselineNotCoveredReasonSHAMalformed = "sha_malformed"
-	// NVDBaselineNotCoveredReasonAdvanceBehindStart: advance_to is behind the
+	nvdBaselineNotCoveredReasonAdvanceMissing = "advance_missing"
+	// nvdBaselineNotCoveredReasonSHAMalformed: the seed sha is blank or, after
+	// trimming surrounding whitespace, not 64 lowercase hex characters.
+	nvdBaselineNotCoveredReasonSHAMalformed = "sha_malformed"
+	// nvdBaselineNotCoveredReasonAdvanceBehindStart: advance_to is behind the
 	// chunk start (any verdict).
-	NVDBaselineNotCoveredReasonAdvanceBehindStart = "advance_behind_start"
-	// NVDBaselineNotCoveredReasonAdvanceNotPastStart: an incomplete verdict
+	nvdBaselineNotCoveredReasonAdvanceBehindStart = "advance_behind_start"
+	// nvdBaselineNotCoveredReasonAdvanceNotPastStart: an incomplete verdict
 	// whose floored advance_to equals the chunk start.
-	NVDBaselineNotCoveredReasonAdvanceNotPastStart = "advance_not_past_start"
+	nvdBaselineNotCoveredReasonAdvanceNotPastStart = "advance_not_past_start"
 )
 
 // nvdBaselineNotCoveredReason names why a stamped verdict covers nothing
@@ -196,13 +196,13 @@ const (
 func nvdBaselineNotCoveredReason(advanceOK bool, advanceTo int64, sha string, chunkStartMicro int64, complete bool) string {
 	switch {
 	case !advanceOK || advanceTo <= 0:
-		return NVDBaselineNotCoveredReasonAdvanceMissing
+		return nvdBaselineNotCoveredReasonAdvanceMissing
 	case !isBaselineYearSHA(sha):
-		return NVDBaselineNotCoveredReasonSHAMalformed
+		return nvdBaselineNotCoveredReasonSHAMalformed
 	case advanceTo < chunkStartMicro:
-		return NVDBaselineNotCoveredReasonAdvanceBehindStart
+		return nvdBaselineNotCoveredReasonAdvanceBehindStart
 	case !nvdBaselineAdvanceCovers(advanceTo, chunkStartMicro, complete):
-		return NVDBaselineNotCoveredReasonAdvanceNotPastStart
+		return nvdBaselineNotCoveredReasonAdvanceNotPastStart
 	}
 	return ""
 }
@@ -255,9 +255,9 @@ func nvdBaselineSnapshotPayload(envelopes []facts.Envelope) (map[string]any, boo
 }
 
 // isBaselineYearSHA reports whether sha is a well-formed seed identity: 64
-// lowercase hex characters. A blank or malformed sha covers nothing the
-// next plan can pin, so its generation commits facts but never advances
-// the checkpoint.
+// lowercase hex characters once surrounding whitespace is trimmed. A blank
+// or malformed sha covers nothing the next plan can pin, so its generation
+// commits facts but never advances the checkpoint.
 func isBaselineYearSHA(sha string) bool {
 	sha = strings.TrimSpace(sha)
 	if len(sha) != 64 {
