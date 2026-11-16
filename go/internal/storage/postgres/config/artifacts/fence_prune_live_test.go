@@ -14,7 +14,6 @@ import (
 	"strings"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -154,11 +153,10 @@ func TestVersionFenceConcurrentPrunesShareRepositoriesLive(t *testing.T) {
 			err    error
 		}
 		results := make([]outcome, 2)
-		var wg sync.WaitGroup
+		done := []chan struct{}{make(chan struct{}), make(chan struct{})}
 		run := func(i int) {
-			wg.Add(1)
 			go func() {
-				defer wg.Done()
+				defer close(done[i])
 				res, err := prune(ctx, db)
 				results[i] = outcome{res.RowsPruned["content_files"], res.GenerationsPruned, err}
 			}()
@@ -169,18 +167,28 @@ func TestVersionFenceConcurrentPrunesShareRepositoriesLive(t *testing.T) {
 		run(1)
 		// Both passes parking on the held version row is the shape this proof
 		// aims for, but a predrain batch gives up its wait after 500 ms
-		// (lock_timeout), so on a loaded host the first waiter can time out
-		// before the second parks. Release after a bounded wait either way:
-		// every assertion below holds for any interleaving. The rounds where
-		// both did park are counted, and the test fails if none did, so it
-		// cannot pass without having exercised the contention.
-		if lockWaitersReached(ctx, t, db, retentionCommitWaiter, 2, 300*time.Millisecond) {
+		// (lock_timeout), so a pass can leave the row before the other one
+		// arrives. The wait is by state, not by a timer: it ends the moment
+		// two waiters are seen (the round counts as parked together) or the
+		// moment the finished passes plus the parked waiters account for
+		// both passes (nobody else can still arrive; the round does not
+		// count). Either way every assertion below holds for any
+		// interleaving. The test fails if no round counted, so it cannot
+		// pass without having exercised the contention. Known limit: a
+		// round is uncounted when pass A's batch times out before pass B has
+		// even read its eligible set, because B then drains A's generation
+		// itself and A finishes without parking; if that happens in every
+		// round the guard fails for that interleaving, not for a product
+		// defect, which is the right outcome for a proof that was not
+		// exercised.
+		if waitForParkedOrFinished(ctx, t, db, retentionCommitWaiter, done) {
 			parkedTogether++
 		} else {
-			t.Logf("round %d: passes did not park together on the held version row; releasing it", round)
+			t.Logf("round %d: the passes were not parked together on the held version row; releasing it", round)
 		}
 		version.release(t)
-		wg.Wait()
+		<-done[0]
+		<-done[1]
 
 		var totalPruned int64
 		var totalGens int
@@ -255,11 +263,14 @@ func TestVersionFenceConcurrentPrunesShareRepositoriesLive(t *testing.T) {
 				t.Errorf("round %d: %s still holds %d content rows after every pass", round, repo, n)
 			}
 		}
+		bumpHistogram := map[int64]int{}
 		for repo, v := range versionsOf(ctx, t, db, repos) {
+			bumpHistogram[v-before[repo]]++
 			if bumps := v - before[repo]; bumps < 1 || bumps > 2 {
 				t.Errorf("round %d: %s bumped %d times, want 1 or 2 (once per generation's deleting transaction)", round, repo, bumps)
 			}
 		}
+		t.Logf("round %d: repositories by version bump count %v", round, bumpHistogram)
 	}
 	t.Logf("both passes parked together on the held version row in %d of %d rounds", parkedTogether, rounds)
 	if parkedTogether == 0 {

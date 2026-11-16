@@ -160,13 +160,7 @@ func lockWaitersReached(ctx context.Context, t *testing.T, db *sql.DB, fragment 
 	t.Helper()
 	deadline := time.Now().Add(within)
 	for {
-		var waiting int
-		if err := db.QueryRowContext(ctx, `
-SELECT count(*) FROM pg_stat_activity
-WHERE datname = current_database() AND wait_event_type = 'Lock'
-  AND pid <> pg_backend_pid() AND strpos(query, $1) > 0`, fragment).Scan(&waiting); err != nil {
-			t.Fatalf("poll lock waiters: %v", err)
-		}
+		waiting := lockWaitersNow(ctx, t, db, fragment)
 		if waiting >= want {
 			return true
 		}
@@ -185,6 +179,65 @@ func waitForLockWaiters(ctx context.Context, t *testing.T, db *sql.DB, fragment 
 	if lockWaitersReached(ctx, t, db, fragment, want, 30*time.Second) {
 		return
 	}
+	failWithActivity(ctx, t, db, fmt.Sprintf("timed out waiting for %d lock waiters on %q", want, fragment))
+}
+
+// lockWaitersNow counts the backends in this database that wait on a
+// heavyweight lock right now with a query containing fragment.
+func lockWaitersNow(ctx context.Context, t *testing.T, db *sql.DB, fragment string) int {
+	t.Helper()
+	var waiting int
+	if err := db.QueryRowContext(ctx, `
+SELECT count(*) FROM pg_stat_activity
+WHERE datname = current_database() AND wait_event_type = 'Lock'
+  AND pid <> pg_backend_pid() AND strpos(query, $1) > 0`, fragment).Scan(&waiting); err != nil {
+		t.Fatalf("poll lock waiters: %v", err)
+	}
+	return waiting
+}
+
+// waitForParkedOrFinished waits until every one of the len(done) workers is
+// accounted for or two of them are parked, and reports whether two lock
+// waiters on fragment were observed at the same time. It decides by state,
+// never by a timer: it returns true as soon as two waiters are seen, false as
+// soon as the workers that finished plus the waiters seen reach len(done)
+// (nobody else can still arrive), and otherwise keeps polling. The only bound
+// is the 30 s deadline, which fails the test with the activity listing.
+//
+// done holds one channel per worker, closed when that worker returns. The
+// finished count is read before the waiter count so a worker that ends
+// between the two reads is never counted twice: the worst case is one more
+// poll.
+func waitForParkedOrFinished(ctx context.Context, t *testing.T, db *sql.DB, fragment string, done []chan struct{}) bool {
+	t.Helper()
+	deadline := time.Now().Add(30 * time.Second)
+	for {
+		finished := 0
+		for _, d := range done {
+			select {
+			case <-d:
+				finished++
+			default:
+			}
+		}
+		waiting := lockWaitersNow(ctx, t, db, fragment)
+		if waiting >= 2 {
+			return true
+		}
+		if finished+waiting >= len(done) {
+			return false
+		}
+		if !time.Now().Before(deadline) {
+			failWithActivity(ctx, t, db, fmt.Sprintf("timed out with %d of %d workers finished and %d lock waiters on %q", finished, len(done), waiting, fragment))
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+// failWithActivity logs the pg_stat_activity listing of this database and
+// fails the test with message.
+func failWithActivity(ctx context.Context, t *testing.T, db *sql.DB, message string) {
+	t.Helper()
 	rows, err := db.QueryContext(ctx, `
 SELECT pid, state, coalesce(wait_event_type, ''), coalesce(wait_event, ''), left(query, 80)
 FROM pg_stat_activity WHERE datname = current_database() AND pid <> pg_backend_pid()`)
@@ -198,7 +251,7 @@ FROM pg_stat_activity WHERE datname = current_database() AND pid <> pg_backend_p
 		}
 		_ = rows.Close()
 	}
-	t.Fatalf("timed out waiting for %d lock waiters on %q", want, fragment)
+	t.Fatal(message)
 }
 
 // retentionScope is one repository scope with a superseded generation whose
