@@ -5,6 +5,7 @@ package core
 
 import (
 	"context"
+	"errors"
 	"reflect"
 	"strings"
 	"testing"
@@ -161,6 +162,70 @@ func TestHandlerCountsStaleCopyRepairsByTransition(t *testing.T) {
 	}
 	if after := staleCopyRepairCounts(t, reader); !reflect.DeepEqual(after, want) {
 		t.Fatalf("a pass with no repair moved the counter: %v, want %v", after, want)
+	}
+}
+
+// TestStaleCopyRepairsSurviveALaterFailureAndSkipAFailedWrite pins the emit
+// point: the counter is added right after the writer commit, before the group
+// projection enqueue and the holder fan-out that can still fail the pass, so a
+// retry that finds the copy already repaired cannot lose the count. A writer
+// that fails before it commits counted nothing, so it adds nothing.
+func TestStaleCopyRepairsSurviveALaterFailureAndSkipAFailedWrite(t *testing.T) {
+	t.Parallel()
+
+	repaired := SupplyChainImpactWriteResult{
+		ChangedCVEIDs:    []string{"CVE-2026-9001"},
+		TouchedGroupIDs:  []string{"CVE-2026-9001"},
+		StaleCopyRepairs: StaleCopyRepairs{ActiveToRetracted: 2, RetractedToActive: 1},
+	}
+	tests := []struct {
+		name  string
+		build func(h *SupplyChainImpactHandler, port *stubFanOut, writer *changeWriter)
+		want  map[string]int64
+	}{
+		{
+			name: "a failed group projection enqueue after the commit",
+			build: func(h *SupplyChainImpactHandler, _ *stubFanOut, _ *changeWriter) {
+				h.GroupProjectionEnqueuer = &recordingGroupEnqueuer{err: errors.New("queue unavailable")}
+			},
+			want: map[string]int64{"active_to_retracted": 2, "retracted_to_active": 1},
+		},
+		{
+			name: "a failed holder fan-out after the commit",
+			build: func(h *SupplyChainImpactHandler, port *stubFanOut, _ *changeWriter) {
+				h.GroupProjectionEnqueuer = &recordingGroupEnqueuer{}
+				port.findErr = errors.New("holder read failed")
+			},
+			want: map[string]int64{"active_to_retracted": 2, "retracted_to_active": 1},
+		},
+		{
+			name: "a writer that fails before it commits",
+			build: func(_ *SupplyChainImpactHandler, _ *stubFanOut, writer *changeWriter) {
+				writer.err = errors.New("writer transaction rolled back")
+			},
+			want: map[string]int64{},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			reader := sdkmetric.NewManualReader()
+			inst, err := telemetry.NewInstruments(sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader)).Meter("test"))
+			if err != nil {
+				t.Fatalf("NewInstruments() error = %v", err)
+			}
+			port := &stubFanOut{holders: []string{"holder-a"}, payload: map[string]any{}}
+			writer := &changeWriter{result: repaired}
+			handler := fanOutHandler(port, writer, inst)
+			tc.build(&handler, port, writer)
+
+			if _, err := handler.Handle(context.Background(), fanOutIntent(1, port.payload)); err == nil {
+				t.Fatal("Handle() error = nil, want the injected failure to fail the pass")
+			}
+			if got := staleCopyRepairCounts(t, reader); !reflect.DeepEqual(got, tc.want) {
+				t.Fatalf("stale_copy_repairs_total by transition = %v, want %v", got, tc.want)
+			}
+		})
 	}
 }
 
