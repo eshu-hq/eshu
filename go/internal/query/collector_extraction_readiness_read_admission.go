@@ -56,9 +56,9 @@ const ExtractionReadinessReadAdmissionContractVersion = "v0"
 // until a deliberate pin covers it):
 //
 //   - extraction.Evaluate stays unpinned here by construction: the routes
-//     serve evaluated catalog rows but never evaluate a profile per
-//     request, so the seeded-drift test plants exactly that neighbor to
-//     prove the guard sees it.
+//     never call extraction.Evaluate directly per request (evaluation
+//     happens inside the pinned Catalog/Lookup reads), so the seeded-drift
+//     test plants exactly that neighbor to prove the guard sees it.
 //   - The scope.CollectorKind enumeration, the per-criterion evaluation, and
 //     the docs mapping table are policy construction, not port shape: there
 //     is no method set to freeze.
