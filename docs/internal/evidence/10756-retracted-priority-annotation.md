@@ -75,3 +75,16 @@ findings with `suppression_state=advisory_retracted` and
 Run in `go/`:
 
 `go test -run 'TestRejectedAdvisoryWithReplacement|TestUnrejectedAdvisoryKeeps|TestRetractedProductFinding|TestSupplyChainImpactPriorityModel' ./internal/reducer/supplychain/core`
+
+## Follow-up issues
+
+The review of this change found two behaviors outside its scope. Both are filed
+and worked in the same goal.
+
+- eshu-hq/eshu#10764: a product-keyed (CPE) finding whose only record was
+  rejected still scores CVSS from the rejected record, while a package-keyed one
+  does not. The public API pages and the core README now say so.
+- eshu-hq/eshu#10765: a stale active copy in another holder scope can outrank a
+  re-derived retracted copy in the default view, because winner selection orders
+  by `priority_score` first. This change deliberately leaves score and bucket
+  alone, so it neither causes nor closes that race.
