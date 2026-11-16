@@ -172,7 +172,10 @@ its own planner over the checkpoint instead of the cursor: one chunk per
 call, next start is the checkpointed group stamp, at most one chunk per
 planner run (ruling decision 2), which the parent design budgets as at most
 10,000 facts per 30 minutes (`10671-nvd-feed-transport-fallback.md`, the
-"Windows per planner run" row of the Limits table).
+"Windows per planner run" row of the Limits table). The pace knob clamps at
+that floor: a configured `min_chunk_interval` below 30 minutes paces at 30
+minutes instead of speeding the lane, so the knob can only slow the lane,
+never remove the bound (eshu-hq/eshu#10762).
 
 Cadence is per-target config (`refresh_interval`, field of
 `vulnerabilityTargetConfiguration` in
