@@ -26,8 +26,9 @@ const (
 	// the checkpoint holds, the next plan replays the chunk.
 	NVDBaselineOutcomeHeld = "held"
 	// NVDBaselineOutcomeNotCovered: the stamped identity covers nothing new
-	// (blank or malformed seed sha, or an advance at or behind the chunk
-	// start) — facts commit, the checkpoint holds.
+	// (blank or malformed seed sha, an advance behind the chunk start, or
+	// an incomplete advance that does not move past it) — facts commit,
+	// the checkpoint holds.
 	NVDBaselineOutcomeNotCovered = "not_covered"
 	// NVDBaselineOutcomeRefused: the generation would have armed the window
 	// cursor writer — the claim fails retryable and nothing commits.

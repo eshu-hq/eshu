@@ -156,8 +156,9 @@ The satellite stamps one `nvd_baseline_advance_to_unix_us` per chunk beside
   the stream tail with `complete=false`; the next chunk resumes there, finds
   nothing left, and has no later stamp to name, so it stamps
   `complete=true` with `advance_to` equal to its own start. That verdict
-  must land `year_complete` or the lane stalls on the year. `year_complete`
-  is sticky in the store. No verdict, complete or not, may move behind the
+  must land `year_complete` or the lane stalls on the year. For a complete
+  verdict any `advance_to >= chunk start` is accepted, and the resume is
+  unused once the year is complete. `year_complete` is sticky in the store. No verdict, complete or not, may move behind the
   chunk start.
 
 ## 4. Planner-cadence interaction

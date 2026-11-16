@@ -144,7 +144,16 @@ func (p *NVDBaselineCommitPolicy) CommitPolicy(
 		// stored resume can only re-read, never skip.
 		advanceTo = vulnsource.NormalizeNVDWindowTime(time.UnixMicro(advanceTo)).UnixMicro()
 	}
-	if !advanceOK || advanceTo <= 0 || !isBaselineYearSHA(sha) || !nvdBaselineAdvanceCovers(advanceTo, chunkStart.UnixMicro(), complete) {
+	if reason := nvdBaselineNotCoveredReason(advanceOK, advanceTo, sha, chunkStart.UnixMicro(), complete); reason != "" {
+		if p.logger != nil {
+			p.logger.Warn(NVDBaselineNotCoveredLogMessage,
+				"reason", reason,
+				"baseline_run_id", runID,
+				"collector_instance_id", p.collectorInstanceID,
+				"work_item_id", strings.TrimSpace(item.WorkItemID),
+				"generation_id", strings.TrimSpace(item.GenerationID),
+			)
+		}
 		return hold(telemetry.NVDBaselineOutcomeNotCovered)
 	}
 	if observedAt.IsZero() {
@@ -156,6 +165,46 @@ func (p *NVDBaselineCommitPolicy) CommitPolicy(
 		StateWriter: vulnerabilitystore.NVDBaselineCheckpointWriter(
 			runID, year, advanceTo, strings.TrimSpace(sha), complete, observedAt.UTC()),
 	}, nil
+}
+
+// NVDBaselineNotCoveredLogMessage is the WARN message logged once per
+// generation the commit policy holds as not_covered. Its bounded reason
+// attribute is one of the NVDBaselineNotCoveredReason* values.
+const NVDBaselineNotCoveredLogMessage = "nvd baseline generation not covered by commit policy, checkpoint holds"
+
+// Closed reason set of the not_covered WARN. The reasons are checked in this
+// order, so a verdict with several defects logs the first.
+const (
+	// NVDBaselineNotCoveredReasonAdvanceMissing: advance_to absent, not a
+	// number, or not positive.
+	NVDBaselineNotCoveredReasonAdvanceMissing = "advance_missing"
+	// NVDBaselineNotCoveredReasonSHAMalformed: the seed sha is blank or not
+	// 64 lowercase hex characters.
+	NVDBaselineNotCoveredReasonSHAMalformed = "sha_malformed"
+	// NVDBaselineNotCoveredReasonAdvanceBehindStart: advance_to is behind the
+	// chunk start (any verdict).
+	NVDBaselineNotCoveredReasonAdvanceBehindStart = "advance_behind_start"
+	// NVDBaselineNotCoveredReasonAdvanceNotPastStart: an incomplete verdict
+	// whose floored advance_to equals the chunk start.
+	NVDBaselineNotCoveredReasonAdvanceNotPastStart = "advance_not_past_start"
+)
+
+// nvdBaselineNotCoveredReason names why a stamped verdict covers nothing
+// new, or returns "" when it is consistent. advanceTo is the already
+// floored stamp. It mirrors nvdBaselineAdvanceCovers, split by cause so the
+// not_covered counter has a diagnosable log beside it.
+func nvdBaselineNotCoveredReason(advanceOK bool, advanceTo int64, sha string, chunkStartMicro int64, complete bool) string {
+	switch {
+	case !advanceOK || advanceTo <= 0:
+		return NVDBaselineNotCoveredReasonAdvanceMissing
+	case !isBaselineYearSHA(sha):
+		return NVDBaselineNotCoveredReasonSHAMalformed
+	case advanceTo < chunkStartMicro:
+		return NVDBaselineNotCoveredReasonAdvanceBehindStart
+	case !nvdBaselineAdvanceCovers(advanceTo, chunkStartMicro, complete):
+		return NVDBaselineNotCoveredReasonAdvanceNotPastStart
+	}
+	return ""
 }
 
 // nvdBaselineAdvanceCovers applies the advance_to contract: advance_to is
