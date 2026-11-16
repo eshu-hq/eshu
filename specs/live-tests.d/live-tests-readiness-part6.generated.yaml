@@ -309,6 +309,16 @@ tests:
     class: postgres_ci
     reason: "#10761 disposable PostgreSQL proof that the NVD baseline checkpoint advances only through the commit-transaction compare-and-advance: a stale resume leaves resume and sha untouched, an equal resume takes the newer sha, completion is sticky, updated_at never rewinds, and concurrent or overlapping advances serialize on the keyed row to the max resume"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/vulnerability/nvd_baseline_trip_latch_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10768 disposable PostgreSQL proof that the NVD baseline trip latch write is a guarded single statement: a stale writer, a concurrent writer, a Close-versus-sample interleaving, and an older sample time all leave the newer row untouched, and the insert arm runs only for a writer that saw no row"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/vulnerability/nvd_baseline_trip_latch_restart_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10768 disposable PostgreSQL proof that the coordinator's fold-and-save drives the real latch store end to end: an open trip survives a restart, an unreadable store holds planning, and a Close racing an hourly sample cannot be undone"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/vulnerability/nvd_window_cursor_live_test.go
     tag: ~
     class: postgres_ci
