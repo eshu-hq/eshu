@@ -32,11 +32,11 @@ Wiring proof (all Profile-only / empty struct):
 
 - Routes: `GET /api/v0/collector-extraction-readiness`,
   `GET /api/v0/collector-extraction-readiness/{family}`.
-- Handler: `go/internal/query/collector_extraction_readiness.go:29`
-  (`CollectorExtractionReadinessHandler`, Profile-only struct);
+- Handler: `go/internal/query/collector_extraction_readiness.go`
+  (`CollectorExtractionReadinessHandler` struct declaration, Profile-only);
   `Mount` at `:54-57`, list body at `:59-80`, family body at `:82-117`.
 - Exact static source: `extraction.Catalog()` at handler `:64`
-  (`go/internal/extraction/catalog.go:104`, iterates the package-level
+  (`go/internal/extraction/catalog.go` `Catalog()` definition, iterates the package-level
   `catalog` at `:76` and evaluates each profile) and `extraction.Lookup` at
   handler `:97` (`catalog.go:115`, linear scan of the same static slice).
 - No graph/content/store read: the struct holds only `Profile QueryProfile`;
@@ -67,11 +67,11 @@ Wiring proof (all Profile-only / empty struct):
 
 - Routes: `GET /api/v0/fact-schema-versions`,
   `GET /api/v0/fact-schema-versions/{fact_kind}`.
-- Handler: `go/internal/query/fact_schema_version.go:30`
-  (`FactSchemaVersionHandler`, Profile-only struct); `Mount` at `:65-68`,
+- Handler: `go/internal/query/fact_schema_version.go`
+  (`FactSchemaVersionHandler` struct declaration, Profile-only); `Mount` at `:65-68`,
   list body at `:70-91`, detail body at `:93-127`.
 - Exact static source: `facts.SupportedSchemaVersions()` at `:151`
-  (`go/internal/facts/schema_version.go:152`, copies the precomputed
+  (`go/internal/facts/schema_version.go` `SupportedSchemaVersions()` definition, copies the precomputed
   `supportedSchemaVersionRegistry` at `schema_version.go:118`); detail leg
   uses `facts.SchemaVersion` (`:144`) and `facts.ClassifySchemaVersion`
   (`:164`), both pure lookups against the same static registry.
@@ -99,13 +99,13 @@ Wiring proof (all Profile-only / empty struct):
 ## SurfaceInventory — GET x1
 
 - Route: `GET /api/v0/surface-inventory`.
-- Handler: `go/internal/query/surface_inventory.go:32`
-  (`SurfaceInventoryHandler`, Profile-only construction at wiring; the
+- Handler: `go/internal/query/surface_inventory.go`
+  (`SurfaceInventoryHandler` struct declaration, Profile-only construction at wiring; the
   `sync.Once` + cached `inventory` fields hold only the decoded embedded
   artifact, never a reader); `Mount` at `:57-59`, list body at `:64-99`,
   artifact load at `:49-54`.
 - Exact static source: `capabilitycatalog.LoadSurfaceInventory()` at handler
-  `:51` (`go/internal/capabilitycatalog/surfaces_load.go:36`), which unmarshals
+  `:51` (`go/internal/capabilitycatalog/surfaces_load.go` `LoadSurfaceInventory()` definition), which unmarshals
   the `//go:embed data/surface-inventory.generated.json` bytes (`:24`) — a
   committed, generated artifact, not a store.
 - No graph/content/store read: the struct holds `Profile` plus the
@@ -133,8 +133,8 @@ Wiring proof (all Profile-only / empty struct):
 
 - Route: `POST /api/v0/visualizations/derive` (query-shaped POST: derivation
   over the caller-supplied body, no durable writes).
-- Handler: `go/internal/query/visualization/handler.go:21`
-  (`visualization.Handler`, empty struct — zero fields, aliased as
+- Handler: `go/internal/query/visualization/handler.go`
+  (`visualization.Handler` struct declaration, empty struct — zero fields, aliased as
   `query.VisualizationHandler` in `go/internal/query/visualization_alias.go`);
   `Mount` at `:34-36`, derive body at `:38-52`, pure dispatch at `:54-83`.
 - Exact static source: pure derive — `BuildServiceStoryPacket`,
