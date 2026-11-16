@@ -100,8 +100,9 @@ buckets that overlap it.
   writer transaction spans a sample instant carries a timestamp before the
   instant and a commit after it: both hourly samples can miss it (the earlier
   one cannot see it yet, and the later one's window starts at the earlier
-  sample instant, after the row's `captured_at`). The never-neither guarantee holds per snapshot, not across the hourly
-  cadence, and the miss is bounded by the longest writer transaction. Second,
+  sample instant, after the row's `captured_at`). The never-neither guarantee
+  holds per snapshot, not across the hourly cadence, and the miss is bounded by
+  the longest writer transaction. Second,
   the conversion of a partly applied scope row into CVE-% fact rows is argued
   from the statement text, not exercised: the concurrent proof drives CVE, GHSA
   and queued scope rows through the maintainer but does not produce a partial
@@ -205,18 +206,26 @@ Reasoning for no fold, from the repo's own evidence:
 - It cannot move the comparison. The ruled pacing is one baseline chunk per
   30-minute planner run (design section 2 and the scale check), so a baseline
   contributes about two NVD scope rows an hour against 15,000, under 0.02
-  percent. Folding the unweighted count would change no trip decision.
+  percent. Folding the unweighted count would change no trip decision. The
+  re-activation case is not covered by that figure: a scope row for a
+  (scope, generation) whose findings already exist, such as an idempotent
+  re-run or a re-activation, can expand to many existing findings without any
+  fresh CVE-% rows arriving. The unweighted count cannot see that either, so
+  folding it would not change the result; only a weighted count could.
 - The load a scope row stands for is already counted. Its findings reach the
   dirty log later as CVE-% `fact_upsert` rows, and a partly applied scope row is
   converted to CVE-% fact rows; the ruled rate counts both, so the fold would add
   no information (a fan-out-weighted fold would count that load twice). That
-  ordering is reasoned from the write order, not measured (see Open questions).
+  ordering is reasoned from the write order, not measured (see Open questions),
+  and it holds for first activation, not for the re-run case above.
 
 What would change the decision: a ruling that redefines the trip unit or the
 15k threshold; pacing raised above one chunk per planner run (the design allows
 it only after disposable-DB proof); or the required disposable-DB measurement
 showing that scope-row expansion loads the maintainer without arriving as
-CVE-% dirty rows, which would make the ruled rate under-read it. Any of these is
+CVE-% dirty rows, which would make the ruled rate under-read it. The
+re-activation or idempotent re-run case is the likeliest source of that: expansion
+of findings that already exist with no new CVE-% rows. Any of these is
 a separate ruling, and `NVDScopeRowsPerHour` is already reported so the fold is
 a one-line comparison change when one is made.
 
@@ -231,7 +240,8 @@ Nothing about the threshold, the two-sample rule or the age trip changes.
 1. Decided, not open: NVD scope rows do not fold into the 15k comparison (see
    Scope rows, above, for the reasoning and what would change it). The one
    item left for the owner is the weighted variant: if the fan-out should be
-   visible, measure it in the required disposable-DB run (the maintainer already
+   visible, measure it in the required disposable-DB run, including a
+   re-activation or idempotent re-run of a scope whose findings already exist, (the maintainer already
    builds `winners_keyed_scope_idents` at drain time) and weight in the drain
    tally, attributed to the drain hour, as a separate ruling.
 2. Migration numbering. This change takes `299`: #10768's durable trip latch
@@ -260,7 +270,7 @@ Nothing about the threshold, the two-sample rule or the age trip changes.
 | Window and retention | `TestNVDBaselineTripSampleWindowAndRetentionLive`: 90-minute and 58-hour rows excluded, the 58-hour row writes no tally row, a four-hour-old bucket is pruned |
 | Window-edge slack | `TestNVDBaselineTripSampleCountsDrainedRowAtTheWindowEdgeLive` drains a row captured 10 seconds inside the window whose minute bucket is stamped before the window start; red (count 0, want 1) when the one-minute slack is removed from the sampler, green with it |
 | Queued scope rows | `TestNVDBaselineTripSampleCountsQueuedNVDScopeRowsLive` counts two queued NVD scope rows inside the hour and excludes an OSV row and a 90-minute row; the concurrent run also asserts a committed-rows lower bound on scope rows. Both fail when the live scope filter is forced false |
-| Maintainer unaffected | `go test -run TestSupplyChainImpactWinners ./internal/storage/postgres/` against the disposable database: 50 tests pass, none skipped or failed |
+| Maintainer unaffected | `go test -run TestSupplyChainImpactWinners ./internal/storage/postgres/` against the disposable database: 51 top-level `TestSupplyChainImpactWinners*` tests pass with 0 skipped (60 including `TestWinners*`). Zero skips needs `ESHU_POSTGRES_TEST_DSN`, `ESHU_SUPPLY_CHAIN_IMPACT_PROOF_DSN` and `ESHU_SUPPLY_CHAIN_IMPACT_PROOF_DISPOSABLE=1`; without them 81 subtests skip and the package still reports ok |
 | Rollback atomicity | Pinned by one-statement construction and the concurrent bounds check, not by a forced mid-tick failure |
 
 ## Evidence markers
