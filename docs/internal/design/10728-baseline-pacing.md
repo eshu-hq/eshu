@@ -36,7 +36,7 @@ prefix that is always older than uncommitted work.
 
 Within a year, records emit in ascending `(lastModified, cveId)` order. This
 mirrors the satellite's emitted-prefix order, ascending `lastModified` with
-CVE ID tiebreak (`nvd_window_split.go:84-89` in
+CVE ID tiebreak (`nvdWindowSplitOrder` in `nvd_window_split.go`, in
 `eshu-collector-vulnerability-intelligence`), so the baseline chunker and the
 window-path splitter agree on what a "group" is.
 
@@ -51,15 +51,18 @@ Each baseline chunk is a prefix of the remaining ordered stream cut at whole
 `lastModified`-group boundaries such that the chunk holds at most 10,000
 facts and 2 MiB. The caps are the existing satellite constants
 `nvdMaxOutputFacts = 10000` and `nvdMaxOutputBytes = 2 << 20`
-(`nvd_output_budget.go:14-15`); the byte measure is marshalled size plus one
-separator byte per fact (`nvd_output_budget.go:22-28`), so the baseline
+(the `nvdMaxOutputFacts` and `nvdMaxOutputBytes` constants in
+`nvd_output_budget.go`); the byte measure is marshalled size plus one
+separator byte per fact (`nvdFactBudgetBytes` in `nvd_output_budget.go`), so the baseline
 chunker and the window path agree on what fits.
 
 Group atomicity follows the window path: groups are maximal runs of equal
-stamps in emitted-prefix order (`nvd_window_split.go:161-163`), the prefix
-accumulates whole groups ascending (`nvd_window_split.go:171-178`), and a
+stamps in emitted-prefix order (`nvdWindowGroupEnd` in `nvd_window_split.go`), the prefix
+accumulates whole groups ascending (`selectNVDWindowPrefix` in
+`nvd_window_split.go`), and a
 window whose first group alone exceeds the caps is detected, not split
-(`nvd_feed_slice.go:181-184`, `nvd_feed_errors.go:52-56`).
+(`nvdFeedWindowSlice.retain` in `nvd_feed_slice.go`,
+`errNVDFeedGroupOversize` in `nvd_feed_errors.go`).
 
 Dispositions at a boundary:
 
@@ -67,8 +70,9 @@ Dispositions at a boundary:
   from the next group stamp (same rule as the window path, parent design
   section 3, `10671-nvd-feed-transport-fallback.md:139-143`).
 - First group exceeds the caps: the chunk routes to the API walk with class
-  `nvd_feed_group_oversize` (`nvd_feed_selector.go:45`,
-  `nvd_feed_collect.go:51-52`), exactly as the window path does (parent
+  `nvd_feed_group_oversize` (`nvdFeedClassGroupOversize` in
+  `nvd_feed_selector.go`, handled in `collectNVDFeed` in
+  `nvd_feed_collect.go`), exactly as the window path does (parent
   design, `10671-nvd-feed-transport-fallback.md:145-152`). It never loops
   silently and never sheds. On the measured sample this route is unreachable
   for fact count: the densest single record emits 2,048 facts (M5,
@@ -98,13 +102,14 @@ arms the cursor writer only for window scopes
 (`Source.armNVDWindowCursorWriter` with the `IsNVDWindowScope` check in
 `go/internal/collector/extensionhost/nvd_window_cursor.go`) and only when
 the generation's snapshot verdict says should-advance
-(`nvd_window_cursor.go:56-63`). Baseline claims use a
+(the `ShouldAdvance` branch of `armNVDWindowCursorWriter` in the same file). Baseline claims use a
 scope family **outside** the `nvd/_window/` prefix (prefix constant
 `nvdWindowScopePrefix` in `go/internal/vulnsource/nvd_window_scope.go`),
 so the arming function returns nil for them by construction, and the CAS
 query (`NVDWindowCursorAdvanceQuery`) never sees a baseline candidate. A wrong
 scope prefix is therefore a fail-closed shape error (the scope parser
-rejects non-window ids at `nvd_window_scope.go:46-78`), not a cursor
+rejects non-window ids in `ParseNVDWindowScope` in
+`go/internal/vulnsource/nvd_window_scope.go`), not a cursor
 corruption.
 
 Resume rule: after a crash, the next baseline claim re-reads the checkpoint
@@ -118,7 +123,7 @@ The window planner is pure planning math with no I/O and no locks
 (per the planner doc comment in
 `go/internal/coordinator/vulnerability/nvd_window_planner.go`): one
 bounded window per call, windows tile, next start is the committed cursor
-(`nvd_window_planner.go:43-70`). The baseline lane mirrors this shape with
+(`planNVDWindow` in that file). The baseline lane mirrors this shape with
 its own planner over the checkpoint instead of the cursor: one chunk per
 call, next start is the checkpointed group stamp, at most one chunk per
 planner run (ruling decision 2), which the parent design budgets as at most
@@ -128,8 +133,9 @@ planner run (ruling decision 2), which the parent design budgets as at most
 Cadence is per-target config (`refresh_interval`, field of
 `vulnerabilityTargetConfiguration` in
 `go/internal/coordinator/vulnerability/intelligence_scheduler.go`;
-targets planned inside their interval skip at
-`intelligence_scheduler.go:226`), so the one-chunk-per-run bound must be
+targets planned inside their interval skip in
+`selectDueVulnerabilityTargets` in `intelligence_refresh_cadence.go`, called from
+`PlanVulnerabilityIntelligenceWork` in `intelligence_scheduler.go`), so the one-chunk-per-run bound must be
 enforced **in the baseline loop** (skip while a chunk for the current stamp
 is already claimed or in flight), not assumed from the tick. Lease fencing
 covers the overrun case: a feed attempt that outlives its lease is fenced by
@@ -139,7 +145,7 @@ writer model means a fenced claim's state write rolls back with its
 generation (the `CommitExecutor` interface in `go/internal/collector/generation_state.go`).
 
 The window stream is unaffected: it keeps planning from the cursor
-(`nvd_window_derivation.go:61-67`, one deterministic scope per tick), and
+(`deriveNVDWindowTarget` in `nvd_window_derivation.go`, one deterministic scope per tick), and
 cutover back after catch-up needs no flag (parent design section 7).
 
 ## 5. Trip-line wiring and operator flip
@@ -151,9 +157,9 @@ enable (parent design section 8,
 - Off (>15k NVD-proxy dirty rows/h in 2 consecutive hourly samples, or
   oldest dirty row >96h): the operator sets `nvd_feed_transport` to off.
   The key is the satellite instance-config switch
-  (`nvd_feed_config.go:10`); absent or false keeps the API-only transport
-  and is the kill switch (`nvd_feed_config.go:12-23`,
-  `runtime.go:63-68`). "NVD-proxy rows" means dirty-log rows whose
+  (`nvdFeedTransportConfigKey` in `nvd_feed_config.go`); absent or false keeps
+  the API-only transport and is the kill switch (`parseNVDFeedTransport` in
+  `nvd_feed_config.go`, `SourceConfig.NVDFeedTransport` in `runtime.go`). "NVD-proxy rows" means dirty-log rows whose
   `advisory_id` starts with `CVE-` (parent design,
   `10671-nvd-feed-transport-fallback.md:231-233`); OSV also carries CVE ids,
   so the proxy over-counts and trips early, which is the safe direction.
@@ -179,10 +185,10 @@ No pausing or serializing OSV/GHSA to make room (ruling decision 3).
    `(criteria, matchCriteriaId)` identity with repeats folded, and one
    `vulnerability.reference` per distinct sanitized URL with tags unioned,
    so one stable key never carries two payload shapes inside a claim
-   (`nvd_envelope.go:33-48` in the collector).
+   (`NVDRecordEnvelopes` in `nvd_envelope.go` in the collector).
 3. Same chunk, same scope. Same window bounds mint the same scope id on
    every run (prefix doc and `nvdWindowScopePrefix` in
-   `go/internal/vulnsource/nvd_window_scope.go`, mint at `:30-44`); a
+   `go/internal/vulnsource/nvd_window_scope.go`, mint in `NVDWindowScopeID`); a
    refusal, skip, or crash re-plans the same scope and the commit path
    fences it as a same-scope successor (`deriveNVDWindowTarget` in
    `go/internal/coordinator/vulnerability/nvd_window_derivation.go`).
