@@ -14,57 +14,60 @@ import (
 
 // holderMassProbeQueryTemplate estimates, per lookup id, how many live
 // finding rows name that id, so the reducer can isolate hot ids into their
-// own holder-read statement (#10643). The cheap arms (cve_id, advisory_id)
-// count exactly against the same partial index the shipped holder read uses
-// (literal fact kind plus the tombstone predicate prove the predicate), so
-// the probe avoids the scope join and DISTINCT sort of a second full read;
-// the uncapped shape measured 6067 ms cold / 218 ms warm at production mass
-// (see the evidence note), bounded by the same guard with fail-closed
-// errors. The group-members arm (#10681 design B) counts through a per-id
-// LATERAL over LIMIT K+1 and reports the probe cap above K rows, exact at or
-// under K (S2 theory shape: 98-196 ms cold, far under the 5 s bar). The ON
-// gate excludes the member-arm contribution for already-hot ids and LEAST
-// caps the total; the heap-fetch bound comes from the per-id LIMIT. A hot id
-// still reads hot while the heap fetch stays bounded; at or under K member
-// rows every arm is exact, so cold ids pack exactly as before and split
-// decisions match the uncapped probe. The LEAST and already-hot
-// short-circuit verbs take supplychaincore.HolderMassProbeCap and the
-// fill-to-cap verbs take supplychaincore.HolderMassProbeFillToCapRows,
+// own holder-read statement (#10643). All three arms (cve_id, advisory_id,
+// group-members) count through a per-id LATERAL over LIMIT K+1 against the
+// same partial index the shipped holder read uses (literal fact kind plus
+// the tombstone predicate prove the predicate), so the probe avoids the
+// scope join and DISTINCT sort of a second full read; the uncapped shape
+// measured 6067 ms cold / 218 ms warm at production mass (see the evidence
+// note), bounded by the same guard with fail-closed errors. Each arm
+// reports the probe cap above K rows and stays exact at or under K. The
+// member-arm ON gate excludes its contribution once the filled cheap arms
+// already reach the cap, and LEAST caps the total; the heap-fetch bound
+// comes from the per-id LIMITs, so worst-case probe work is five chunk ids
+// times three arms times K+1 rows, independent of true mass. A cheap-arm
+// count in (K, threshold] saturates to the cap (arbiter Shape-B ruling on
+// the live estimate timeouts): those ids read hot and run singleton holder
+// reads instead of packing, which only splits more, never less. The LEAST,
+// saturation, and already-hot short-circuit verbs take
+// supplychaincore.HolderMassProbeCap and every fill-to-cap threshold and
+// LIMIT (threshold + 1) takes supplychaincore.HolderMassProbeFillToCapRows,
 // all through buildHolderMassProbeQuery, never a duplicated literal.
-// The cheap arms stay deliberately unbounded and exact: capping them needs
-// an arbiter call, so this file must keep exactly one LIMIT (arm-3 only).
 // The probe deliberately overestimates: it counts rows in superseded
 // generations (no active-generation join) and counts a row once per arm it
 // matches, and an id whose row matches through two ids in one chunk counts
-// toward both, plus the fill-to-cap saturates a 101st..threshold member row
-// to the cap. All four biases point at splitting, which is the safe
-// direction — an extra statement stays far under the guard, while a missing
-// split could re-form the timed-out shape. The outer LEFT JOINs report every
-// requested id with zero for no match, so the planner only treats an id as
-// unmeasured when the probe itself misbehaves. It runs under the same
-// statement timeout as the holder read through readIDMasses.
+// toward both, plus the fill-to-cap saturates past-K rows to the cap. All
+// biases point at splitting, which is the safe direction — an extra
+// statement stays far under the guard, while a missing split could re-form
+// the timed-out shape. The outer LEFT JOINs report every requested id with
+// zero for no match, so the planner only treats an id as unmeasured when
+// the probe itself misbehaves. It runs under the same statement timeout as
+// the holder read through readIDMasses.
 const holderMassProbeQueryTemplate = `
-SELECT ids.id AS lookup_id, LEAST(COALESCE(cheap.mass, 0) + COALESCE(m3.mass, 0), %d) AS mass
+SELECT ids.id AS lookup_id, LEAST(COALESCE(cve.mass, 0) + COALESCE(adv.mass, 0) + COALESCE(m3.mass, 0), %d) AS mass
 FROM UNNEST($1::text[]) AS ids(id)
-LEFT JOIN (
-    SELECT lookup_id, COUNT(*) AS mass
+LEFT JOIN LATERAL (
+    SELECT CASE WHEN COUNT(*) > %d THEN %d ELSE COUNT(*) END AS mass
     FROM (
-        SELECT per_arm.id AS lookup_id
-        FROM UNNEST($1::text[]) AS per_arm(id)
-        JOIN fact_records AS finding
-          ON finding.fact_kind = '` + facts.ReducerSupplyChainImpactFindingFactKind + `'
-         AND finding.is_tombstone = FALSE
-         AND finding.payload->>'cve_id' = per_arm.id
-        UNION ALL
-        SELECT per_arm.id AS lookup_id
-        FROM UNNEST($1::text[]) AS per_arm(id)
-        JOIN fact_records AS finding
-          ON finding.fact_kind = '` + facts.ReducerSupplyChainImpactFindingFactKind + `'
-         AND finding.is_tombstone = FALSE
-         AND finding.payload->>'advisory_id' = per_arm.id
-    ) AS cheap_arms
-    GROUP BY lookup_id
-) AS cheap ON cheap.lookup_id = ids.id
+        SELECT 1
+        FROM fact_records AS finding
+        WHERE finding.fact_kind = '` + facts.ReducerSupplyChainImpactFindingFactKind + `'
+          AND finding.is_tombstone = FALSE
+          AND finding.payload->>'cve_id' = ids.id
+        LIMIT %d
+    ) AS limited
+) AS cve ON TRUE
+LEFT JOIN LATERAL (
+    SELECT CASE WHEN COUNT(*) > %d THEN %d ELSE COUNT(*) END AS mass
+    FROM (
+        SELECT 1
+        FROM fact_records AS finding
+        WHERE finding.fact_kind = '` + facts.ReducerSupplyChainImpactFindingFactKind + `'
+          AND finding.is_tombstone = FALSE
+          AND finding.payload->>'advisory_id' = ids.id
+        LIMIT %d
+    ) AS limited
+) AS adv ON TRUE
 LEFT JOIN LATERAL (
     SELECT CASE WHEN COUNT(*) > %d THEN %d ELSE COUNT(*) END AS mass
     FROM (
@@ -75,19 +78,24 @@ LEFT JOIN LATERAL (
           AND finding.payload #> '{provenance,advisory_group_members}' ? ids.id
         LIMIT %d
     ) AS limited
-) AS m3 ON COALESCE(cheap.mass, 0) < %d
+) AS m3 ON (COALESCE(cve.mass, 0) + COALESCE(adv.mass, 0)) < %d
 `
 
 // buildHolderMassProbeQuery renders the probe from its two single sources:
-// the LEAST total, the fill-to-cap saturation value, and the already-hot
-// short-circuit take supplychaincore.HolderMassProbeCap, while the
-// fill-to-cap threshold and the member-arm LIMIT (threshold + 1) take
+// the LEAST total, every saturation value, and the already-hot
+// short-circuit take supplychaincore.HolderMassProbeCap, while every
+// fill-to-cap threshold and arm LIMIT (threshold + 1) takes
 // supplychaincore.HolderMassProbeFillToCapRows, so a threshold or sample
 // change moves every site together.
 func buildHolderMassProbeQuery() string {
 	probeCap := supplychaincore.HolderMassProbeCap
 	fillRows := supplychaincore.HolderMassProbeFillToCapRows
-	return fmt.Sprintf(holderMassProbeQueryTemplate, probeCap, fillRows, probeCap, fillRows+1, probeCap)
+	return fmt.Sprintf(holderMassProbeQueryTemplate,
+		probeCap,
+		fillRows, probeCap, fillRows+1,
+		fillRows, probeCap, fillRows+1,
+		fillRows, probeCap, fillRows+1,
+		probeCap)
 }
 
 // HolderMassProbeQuery is the shipped probe text behind EstimateHolderMasses,

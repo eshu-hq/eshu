@@ -67,3 +67,45 @@ an arm-3-only bound cannot move cheap-arm tails, and the verdict's two
 stable reads must confirm max under 5 s with zero estimate timeouts/DLs.
 A member count in (100, 10000] now reads hot and splits alone: extra
 statements, each far under the guard, by the safe bias.
+
+## Shape-B follow-up (live estimate timeouts 2026-11-16, arbiter ruling)
+
+Post-deploy (sha-1cf32b62) recorded 4 holder-mass estimate timeouts
+(12:41/12:56/13:10/13:21Z, SQLSTATE 57014, all retrying, no DLs). The
+arbiter corrected the mechanism: estimate statements carry at most 5 ids
+(fanOutHolderReadChunk=5), so the breach is per-id cheap-arm mass, not id
+count. Ruling: bound both cheap arms with the same fill-to-cap LATERAL
+(K=100, saturate to the cap); no chunk/guard/telemetry/interface change.
+
+- Shim proof on production-mass 5-hot chunk (cheap masses 5936-19267,
+  member 0): S2 1664 ms warm with ~83k buffers vs Shape-B 48-135 ms, every
+  arm on its partial index, no seq scan, no planner flip under
+  force_generic_plan. True-cold cache and member-mass-heavy shapes remain
+  NOT_CHECKED (arm-3 itself is unchanged from proven S2).
+- Performance Evidence (shim 5-hot, QA primary PostgreSQL 18.3,
+  2026-11-16): baseline S2 statement 1664 ms warm (~83k buffers) vs
+  Shape-B EXPLAIN ANALYZE 48.8 ms and 8 timed runs at 71-135 ms, every arm
+  on its partial index, zero seq scans, generic plan stable at 55 ms with
+  no flip. Input shape: 5-hot chunk (cheap masses 5936-19267, member 0),
+  each statement under the 10 s guard, read-only. The change is safe
+  because worst-case probe work is now 5x3x101 rows independent of true
+  mass while mid-band counts only overestimate (split-safe), so holder
+  reads keep their packing or split more, never less.
+- Benchmark Evidence (timed EXECUTE, same 5-hot chunk, warm cache):
+  71/76/86/92/93/100/107/135 ms, p95 ~135 ms, max 135 ms — far under the
+  5 s bar and the 10 s guard, ~12-20x under the S2 baseline on the
+  same input.
+- No-Observability-Change (Shape B): no new metric, span, log key, label,
+  worker, lease, or knob; failures still count read_error/read_timeout on
+  the existing holders-site counter; expect fanout_hot_ids to rise and
+  max_id_mass_rows to sit at the cap more often, which operators already
+  watch.
+- Accepted delta growth: a cheap-arm count in (K, threshold] now also
+  saturates to the cap and runs singleton (overestimates only, never
+  underestimates, never loses a hot id; the live test hot seed moves from
+  exact 2005 to the cap).
+- Worst-case probe work is now 5 chunk ids x 3 arms x 101 rows,
+  independent of true mass. Expect fanout_hot_ids to rise and
+  max_id_mass_rows to sit at the cap more often; watch that holders-site
+  (FindHolderScopes) timeouts do not rise, proving the timeout did not
+  move downstream.
