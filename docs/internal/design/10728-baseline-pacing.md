@@ -322,10 +322,11 @@ the fold in `go/internal/coordinator/vulnerability/nvd_baseline_trip_latch.go`
   the `future_sample` outcome, an error, an open verdict, and no store read or
   write. Without the bound, one future-dated sample is persisted as
   `sampled_at` and every later real sample reads as stale until real time
-  catches up, so the detector goes deaf. The bound is only as good as the
-  independence of `now`: it must be the database clock, not the clock that
-  stamped `sample.At`, or a replica whose clock stepped ahead would pass its
-  own check. A zero `now` is an error. A row already poisoned (stored sample
+  catches up, so the detector goes deaf. The bound is only as good as
+  the independence of `now`: it is normally the database clock, and stamping
+  the sample from that same clock is also safe, but a replica that stamps the
+  sample and passes its own local clock as `now` would pass its own check
+  after a clock step. A zero `now` is an error. A row already poisoned (stored sample
   time past `now` plus the allowance) is reported as `stored_ahead` with an
   error and no write instead of answering stale forever; the recovery is to
   delete the row, which re-folds onto an open trip through `runStarted` and so
@@ -351,13 +352,20 @@ the fold in `go/internal/coordinator/vulnerability/nvd_baseline_trip_latch.go`
   error fails closed instead of planning into the load that tripped. (2) Start the hourly loop
   independently of planning: a new run has no row, so planning holds until the
   first sample lands, and a loop gated on planning would never start. (3) Pass
-  `runStarted` from a non-empty checkpoint read. (4) Stamp `sample.At` from one
-  clock per loop and pass the database clock (one `SELECT now()` per tick) as
-  `now`, never the loop's own clock; record `future_sample` and `stored_ahead`
-  so a skewed replica or a poisoned row is visible to an operator. (5) Route the operator re-enable through
+  `runStarted` from a non-empty checkpoint read. (4) Pass the database clock (one `SELECT now()` per tick) as
+  `now` (stamping the sample from that same database clock is also safe;
+  a replica's local clock for both is not); record `future_sample` and
+  `stored_ahead` so a skewed replica or a poisoned row is visible to an
+  operator. (5) Route the operator re-enable through
   `CloseNVDBaselineTrip`; on `ErrNVDBaselineTripLatchConflict` retry. (6)
   Record `RecordNVDBaselineTripLatch` with each returned outcome and the trip
-  transitions from the `Before` and `After` states of each observation.
+  transitions from the `Before` and `After` states of each observation. (7)
+  Hold planning when `stored_ahead` is recorded. `LoadNVDBaselineTripLatch`
+  takes no clock, so the planner reads a poisoned row as an ordinary loaded
+  latch and `ObserveNVDBaselineTrip` is the only place the condition is seen;
+  the loop must stop planning for that run until the row is deleted, or the
+  lane would keep planning off a latch that can no longer count. Load's
+  signature does not change.
 - Conservative semantics, by design. (a) A hot sample that loses its write to
   an operator `Close` is dropped, not retried, so the next sample lands about
   two hours after the stored time, reads as a missed hour, and restarts the
@@ -384,7 +392,16 @@ the fold in `go/internal/coordinator/vulnerability/nvd_baseline_trip_latch.go`
   drop stops the lane and corrupts nothing. Re-check the migration number at
   merge time: origin/main now tops out at 297
   (`297_vulnerability_nvd_baseline_checkpoints.sql`, merged), so 298 is the
-  next free number and this branch adds it with no collision.
+  next free number and this branch adds it with no collision. Sibling lane
+  #10767 adds 299 and edits the same golden files. The second lane to land
+  must regenerate, not hand-resolve, `goldenBootstrapDefinitionsDigest` and
+  `goldenBootstrapDefinitionsCount` in
+  `go/internal/storage/postgres/migrations/embed_invariant_test.go` (the
+  count becomes 325 with both 298 and 299), append to
+  `migration_checksum_manifest_test.go`, and extend
+  `orderedBootstrapDefinitionNamesLatest` in
+  `go/internal/storage/postgres/schema_order_latest_test.go` keeping 298
+  before 299.
 
 ## 6. Idempotency argument
 
