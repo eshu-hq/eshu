@@ -83,6 +83,9 @@ type supplyChainImpactTxOutcome struct {
 	// pass's generation was stale, so the per-scope pass-state row was
 	// left untouched.
 	passStateSkipped bool
+	// staleCopyRepairs counts the stored copies whose retraction state this
+	// pass flipped (#10765); the handler counts them after the commit.
+	staleCopyRepairs StaleCopyRepairs
 }
 
 // commitSupplyChainImpactRows runs one pass's statements inside tx and returns
@@ -212,6 +215,7 @@ func commitSupplyChainImpactRows(
 	// (#10408 F1): ordinary EPSS-only refreshes, admissions, rollovers, and
 	// same-key rewrites report Count false.
 	outcome.rekey = reportRekeyIdentity(meta, stored, write.GenerationID, write.FencingToken, !write.PartialEvidence)
+	outcome.staleCopyRepairs = staleCopyRepairsOf(meta, stored, write.GenerationID)
 	// The owed marker also covers the advisory-group enqueue (#10411): a
 	// pass whose only changes are CVE-less (group keys live in advisory_id)
 	// has empty changedCVEs but still owes its touched groups a

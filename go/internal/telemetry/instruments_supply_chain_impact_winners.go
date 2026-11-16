@@ -9,8 +9,32 @@ import (
 	"sync/atomic"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 )
+
+// MetricDimensionTransition labels eshu_dp_supply_chain_impact_stale_copy_repairs_total
+// with the retraction-state change of the repaired copy (#10765). The value set
+// is closed: the SupplyChainImpactStaleCopyTransition* constants.
+const MetricDimensionTransition = "transition"
+
+// Stale-copy repair transition label values. They are the closed set of the
+// transition label. "Active" means any suppression state other than
+// advisory_retracted.
+const (
+	// SupplyChainImpactStaleCopyTransitionActiveToRetracted counts a copy that
+	// was not retracted and a pass has now rewritten as advisory_retracted.
+	SupplyChainImpactStaleCopyTransitionActiveToRetracted = "active_to_retracted"
+	// SupplyChainImpactStaleCopyTransitionRetractedToActive counts a copy that
+	// was advisory_retracted and a pass has now rewritten as not retracted.
+	SupplyChainImpactStaleCopyTransitionRetractedToActive = "retracted_to_active"
+)
+
+// AttrTransition returns a transition attribute. v must be one of the
+// SupplyChainImpactStaleCopyTransition* constants.
+func AttrTransition(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionTransition, v)
+}
 
 // Winner-table action label values for eshu_dp_supply_chain_impact_winners_rows_total.
 // They are the closed set of the action label.
@@ -48,6 +72,11 @@ var supplyChainImpactWinnersResweepBuckets = []float64{0.05, 0.1, 0.25, 0.5, 1, 
 //     climbing through a stall, when no resweep commits and no read succeeds, and
 //     it never queries Postgres from a scrape. It has no value until the
 //     process first sees a watermark.
+//   - eshu_dp_supply_chain_impact_stale_copy_repairs_total{transition}: stored
+//     finding copies a pass rewrote across the retraction boundary, by
+//     active_to_retracted and retracted_to_active (#10765). It counts the
+//     retraction-state flips a pass wrote, the originating scope's own flip
+//     included; it does not measure how many stale copies remain.
 //
 // No label carries a canonical key, scope, repository or CVE.
 func registerSupplyChainImpactWinnersInstruments(meter metric.Meter, inst *Instruments) error {
@@ -71,6 +100,12 @@ func registerSupplyChainImpactWinnersInstruments(meter metric.Meter, inst *Instr
 		metric.WithDescription("Supply-chain impact winners resweeps that found another resweep in flight, so wrote and stamped nothing. A resweep can only overlap another after outlasting the lease TTL, so any rate means statements are running past it."),
 	); err != nil {
 		return fmt.Errorf("register SupplyChainImpactWinnersResweepSkipped counter: %w", err)
+	}
+	if inst.SupplyChainImpactStaleCopyRepairs, err = meter.Int64Counter(
+		"eshu_dp_supply_chain_impact_stale_copy_repairs_total",
+		metric.WithDescription("Retraction-state flips a pass wrote against its stored baseline, by transition (active_to_retracted, retracted_to_active), the originating scope's own first-derivation flip included. It does not say how many stale copies remain: a stale active copy can outrank a retracted copy in the default findings view until its scope re-derives, and that remaining count is not measured (#10765)."),
+	); err != nil {
+		return fmt.Errorf("register SupplyChainImpactStaleCopyRepairs counter: %w", err)
 	}
 	inst.supplyChainImpactWinnersWatermarkUnixNano = new(atomic.Int64)
 	if inst.SupplyChainImpactWinnersWatermarkAge, err = meter.Float64ObservableGauge(
@@ -96,4 +131,15 @@ func (i *Instruments) RecordSupplyChainImpactWinnersWatermark(at time.Time) {
 		return
 	}
 	i.supplyChainImpactWinnersWatermarkUnixNano.Store(at.UnixNano())
+}
+
+// RecordSupplyChainImpactStaleCopyRepairs counts retraction-state flips under
+// transition, which must be one of the SupplyChainImpactStaleCopyTransition*
+// constants. It is safe on a nil receiver and adds nothing for a count below
+// one.
+func (i *Instruments) RecordSupplyChainImpactStaleCopyRepairs(ctx context.Context, transition string, repairs int64) {
+	if i == nil || i.SupplyChainImpactStaleCopyRepairs == nil || repairs <= 0 {
+		return
+	}
+	i.SupplyChainImpactStaleCopyRepairs.Add(ctx, repairs, metric.WithAttributes(AttrTransition(transition)))
 }

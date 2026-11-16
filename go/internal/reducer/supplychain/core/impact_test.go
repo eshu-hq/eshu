@@ -86,6 +86,9 @@ type recordingSupplyChainImpactWriter struct {
 	// retracted is echoed back as FactsRetracted so handler tests can drive
 	// the #6831 retraction telemetry.
 	retracted int
+	// repairs is echoed back as StaleCopyRepairs so handler tests can drive
+	// the #10765 stale-copy repair telemetry.
+	repairs StaleCopyRepairs
 }
 
 func (w *recordingSupplyChainImpactWriter) WriteSupplyChainImpactFindings(
@@ -95,9 +98,10 @@ func (w *recordingSupplyChainImpactWriter) WriteSupplyChainImpactFindings(
 	w.calls++
 	w.write = write
 	return SupplyChainImpactWriteResult{
-		CanonicalWrites: supplyChainImpactCanonicalWrites(write.Findings),
-		FactsWritten:    len(write.Findings),
-		FactsRetracted:  w.retracted,
+		CanonicalWrites:  supplyChainImpactCanonicalWrites(write.Findings),
+		FactsWritten:     len(write.Findings),
+		FactsRetracted:   w.retracted,
+		StaleCopyRepairs: w.repairs,
 	}, nil
 }
 

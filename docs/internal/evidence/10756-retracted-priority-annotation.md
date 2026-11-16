@@ -88,3 +88,9 @@ and worked in the same goal.
   re-derived retracted copy in the default view, because winner selection orders
   by `priority_score` first. This change deliberately leaves score and bucket
   alone, so it neither causes nor closes that race.
+  The race is bounded by the holder fan-out, one holder pass, and one winners
+  resweep tick (see [9695b-holder-fanout.md](9695b-holder-fanout.md)); the
+  winners audit does not shorten it. A holder the fan-out does not reach keeps
+  its stale copy until its own next pass.
+  `eshu_dp_supply_chain_impact_stale_copy_repairs_total` counts the
+  retraction-state flips passes write, not the copies still stale (#10765).

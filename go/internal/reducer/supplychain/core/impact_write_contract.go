@@ -115,6 +115,12 @@ type SupplyChainImpactWriteResult struct {
 	// retirements with no successor. The D6 counter consumes only this;
 	// TouchedGroupIDs above stays the projection-facing set.
 	Rekey RekeyReport
+	// StaleCopyRepairs counts the stored copies this pass rewrote across a
+	// retraction boundary (#10765): a copy that read active and is now
+	// advisory_retracted, or the reverse. The originating scope's own
+	// first-derivation flip counts too, so this is not a fan-out repair count.
+	// The handler counts them after the commit.
+	StaleCopyRepairs StaleCopyRepairs
 	// suppressionDiff is the pass's suppression diff report for the
 	// handler's signals: action, baseline, counts, and duration.
 	suppressionDiff suppressionDiffReport
@@ -145,4 +151,13 @@ type SupplyChainImpactWriteResult struct {
 // SupplyChainImpactWriter persists reducer-owned impact findings.
 type SupplyChainImpactWriter interface {
 	WriteSupplyChainImpactFindings(context.Context, SupplyChainImpactWrite) (SupplyChainImpactWriteResult, error)
+}
+
+// mergeSubSignals reports what the writer did on the reducer success line (log
+// fields sub_signal_<name>): the rows it retracted, whether the generation fence
+// skipped the pass-state row (#10422), and the retraction-state flips it wrote (#10765).
+func (r SupplyChainImpactWriteResult) mergeSubSignals(subSignals map[string]float64) {
+	subSignals["findings_retracted"] = float64(r.FactsRetracted)
+	subSignals["scope_pass_state_stale_skipped"] = boolSignal(r.PassStateSkipped)
+	r.StaleCopyRepairs.mergeSubSignals(subSignals)
 }

@@ -133,3 +133,93 @@ func (h SupplyChainImpactHandler) emitRekey(ctx context.Context, writeResult Sup
 		)
 	}
 }
+
+// StaleCopyRepairs counts the stored copies one pass rewrote across the
+// retraction boundary (#10765). A finding's copy in one holder scope can read
+// active while another scope has re-derived the same finding advisory_retracted;
+// winner selection ranks by priority score first, so until the stale copy's own
+// scope re-derives it, the default view can show the stale copy. The holder
+// fan-out (docs/internal/evidence/9695b-holder-fanout.md) reopens that scope,
+// and the pass that follows is the repair: it finds the stored copy in the old
+// state and writes it in the new one. "Active" here means any state other than
+// advisory_retracted, so an operator copy leaving accepted_risk for a retraction
+// counts as well.
+type StaleCopyRepairs struct {
+	// ActiveToRetracted counts copies that were not retracted and now are.
+	ActiveToRetracted int
+	// RetractedToActive counts copies that were retracted and now are not: a
+	// restored record returning its copy to the state it had before.
+	RetractedToActive int
+}
+
+// staleCopyRepairsOf diffs the rows a pass writes against the stored rows they
+// replace. It uses the baseline the change judgement uses: on a rerun a row is
+// matched to its own stored row by fact id, and on the first pass of a
+// generation it is matched to the previous generation's row by stable key. A
+// row with no stored counterpart is new, not repaired, and a stored row the
+// pass no longer derives is retired, not repaired.
+func staleCopyRepairsOf(rows []changedRow, stored []storedFinding, generationID string) StaleCopyRepairs {
+	own := map[string]storedFinding{}
+	prior := map[string]storedFinding{}
+	for _, row := range stored {
+		if row.generationID == generationID {
+			own[row.factID] = row
+		} else {
+			prior[row.stableKey] = row
+		}
+	}
+	rerun := len(own) > 0
+	var repairs StaleCopyRepairs
+	for _, row := range rows {
+		var (
+			base storedFinding
+			ok   bool
+		)
+		if rerun {
+			base, ok = own[row.factID]
+		} else {
+			base, ok = prior[row.stableKey]
+		}
+		if !ok {
+			continue
+		}
+		was, is := isRetractedState(base.suppressionState), isRetractedState(row.suppressionState)
+		switch {
+		case !was && is:
+			repairs.ActiveToRetracted++
+		case was && !is:
+			repairs.RetractedToActive++
+		}
+	}
+	return repairs
+}
+
+func isRetractedState(state string) bool {
+	return state == string(SupplyChainSuppressionStateAdvisoryRetracted)
+}
+
+// Stale-copy repair result sub-signals: per-pass magnitudes on the reducer
+// success line (log fields sub_signal_<name>), beside the counter.
+const (
+	staleCopyRepairsActiveToRetractedSubSignal = "stale_copy_repairs_active_to_retracted"
+	staleCopyRepairsRetractedToActiveSubSignal = "stale_copy_repairs_retracted_to_active"
+)
+
+// emitStaleCopyRepairs counts one pass's retraction-state flips by closed
+// transition on eshu_dp_supply_chain_impact_stale_copy_repairs_total. It runs
+// right after the writer commit, before the projection enqueue and the holder
+// fan-out that can still fail the pass: a retry finds the copy already in its
+// new state and repairs nothing, so a count deferred past those steps would be
+// lost. A pass whose transaction rolled back returns an error first and counts
+// nothing. Labels are the two-valued transition; no scope, CVE, finding, or
+// fact id ever reaches a metric attribute.
+func (h SupplyChainImpactHandler) emitStaleCopyRepairs(ctx context.Context, repairs StaleCopyRepairs) {
+	h.Instruments.RecordSupplyChainImpactStaleCopyRepairs(ctx, telemetry.SupplyChainImpactStaleCopyTransitionActiveToRetracted, int64(repairs.ActiveToRetracted))
+	h.Instruments.RecordSupplyChainImpactStaleCopyRepairs(ctx, telemetry.SupplyChainImpactStaleCopyTransitionRetractedToActive, int64(repairs.RetractedToActive))
+}
+
+// mergeSubSignals reports the pass's repair magnitudes beside the counter.
+func (r StaleCopyRepairs) mergeSubSignals(subSignals map[string]float64) {
+	subSignals[staleCopyRepairsActiveToRetractedSubSignal] = float64(r.ActiveToRetracted)
+	subSignals[staleCopyRepairsRetractedToActiveSubSignal] = float64(r.RetractedToActive)
+}
