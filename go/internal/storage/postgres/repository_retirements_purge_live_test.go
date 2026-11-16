@@ -348,7 +348,9 @@ func TestRetirementPurgeTerminalNotReachedLive(t *testing.T) {
 // TestRetirementPurgeAdmissionLockOrderLive proves the #10800 lock order
 // against real Postgres. The impact writer upserts its admission row and only
 // then takes the KEY SHARE on the scope_generations row (the fact insert's
-// foreign key check). The writer here holds the admission row, the purge
+// foreign key check); the core package pins that writer order in
+// TestWriteSupplyChainImpactFindingsLocksUpsertsThenRetracts
+// (writer_retract_test.go). The writer here holds the admission row, the purge
 // starts and must block on that row, and the writer then takes its
 // generation KEY SHARE. With the admission delete before the scope cascade
 // the purge has locked nothing the writer needs, so the writer proceeds and

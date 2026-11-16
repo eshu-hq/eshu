@@ -77,14 +77,20 @@ DELETE FROM supply_chain_impact_write_admission WHERE scope_id = ANY($1)
   `scope_generations` of the same scope. A purged scope has no generations, so
   deleting its admission rows cannot change another scope's baseline.
 
-Known residual: an impact pass that inserts a first-time admission row for a
-purged scope after the purge's delete statement ran and before the cascade
-takes the generation lock keeps that one row (its `KEY SHARE` makes the
-cascade wait, then the writer commits). The window is the few statements
-between the delete and the cascade, the row is inert (global fencing-token
-sequence, generation-id keys), and it is bounded to one row per in-flight
-(scope, generation). The same class exists for `repository_reindex_requests`
-and, for the pass-state table, in #10794.
+Known residual: an impact pass can leave one admission row for a purged
+scope. The window opens at the delete statement's snapshot, including any time
+that delete spends blocked behind a writer's admission row (confirmed live: with
+the delete blocked on one generation's row, an insert for a second generation
+committed and survived). It stays open through the derived counts, the
+generation list, the whole key-sidecar prune, and until the cascade takes the
+generation lock; a pass that took its `KEY SHARE` first makes the cascade wait,
+then commits its row. A zero-finding in-flight pass that admits after the
+purge commits re-creates the row too: `BatchInsertVersionedFacts` with no rows
+takes no `KEY SHARE`, and the suppression diff skips a missing generation.
+This is the same class as the #10794 arbiter residual and as
+`repository_reindex_requests`. The rows stay inert (global fencing-token
+sequence, generation-id keys) and bounded to one row per in-flight
+(scope, generation).
 
 ## No-Observability-Change:
 
