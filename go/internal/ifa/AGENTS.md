@@ -186,6 +186,17 @@ fact-kind registry plus the B-12 snapshot; you never hand-write a want-list.
    `CatalogOdu{Odu: Odu{Name: "odu:<name>", Facts: ...}}`. Prefer deriving the
    facts from fixturepack valid-payload examples (like `awsPackOdu`) so the Odù
    stays in lockstep with the contract schemas.
+   An Odù that stands for a satellite collector's real output is not compiled.
+   The satellite records its own claim path into a v1 cassette, the cassette is
+   committed under `testdata/cassettes/<collector>/`, and a `cassetteOduSpec` in
+   `cassette_catalog.go`'s `cassetteBackedSpecs` selects its scopes and plants
+   the facts another collector would supply (see `vuln_collector_odu.go`).
+   `CatalogAt` and `CatalogByNameAt(repoRoot)` return it; `Catalog` and
+   `CatalogByName` stay compiled-only, so anything that reconciles the real
+   coverage manifest must use the repo-root form. The cassette directory must be
+   a trigger of the `ifa-contract-layer` gate in both `specs/ci-gates.d/` and
+   `.github/static-contract-filters.yml`, or a recording-only change skips the
+   gate that reads it.
 4. **Do not hand-list expectations.** `Derive` enumerates the surfaces (one per
    fact-kind-registry entry, one per B-12 evidence-narrowed correlation);
    coverage is computed, never asserted by name — see `coverage_falsegreen_test.go`.
@@ -276,6 +287,10 @@ for d in go/internal/ifa go/internal/ifa/materializededges; do
   ls "$d"/*.go | rg -v '_test\.go$' | wc -l
 done
 ```
+
+The vulnerability collector's cassette-backed Odùs (`vuln_collector_odu.go`)
+live in this package by an arbiter's ruling. The next cassette-backed family
+goes into a new package once this directory nears 35 non-test files.
 
 Line-cap headroom is the constraint that will bite first. Several files grow per
 family and sit close to the hard 500-line limit. Measure before you add —

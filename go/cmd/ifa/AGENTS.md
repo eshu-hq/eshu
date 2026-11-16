@@ -69,6 +69,12 @@
   and the finding is surfaced through the goldengate.Report instead. Do not
   copy `cmd/replay-coverage-gate/main.go`'s unconditional proof-gate hard-fail
   here without re-deciding that gate's blocking status first.
+- `ifa coverage` builds its catalog with `ifa.CatalogByNameAt`, not
+  `ifa.CatalogByName`. The compiled accessor holds only the compiled Odùs, so a
+  manifest row naming a cassette-backed Odù would read as unresolved there. A
+  catalog error is returned in advisory mode as well: it is a broken reconcile,
+  not a coverage gap. `-repo-root` defaults to the parent of `-specs-dir`, which
+  keeps `make prove`'s absolute `-specs-dir` working unchanged.
 - `ifa drive` loads the cassette before opening Postgres (see `runDriveCommand`
   in `drive.go`). A bad `-cassette` path must fail without requiring a live
   database, so hermetic tests (`drive_test.go`) can cover it without Docker or

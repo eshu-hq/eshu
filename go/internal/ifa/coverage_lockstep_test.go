@@ -58,10 +58,17 @@ func TestCoverageLockstepAgainstRealSpecs(t *testing.T) {
 		t.Fatalf("Derive: %v", err)
 	}
 
+	// The committed manifest names cassette-backed Odùs, which resolve only
+	// through the repo-root-aware catalog.
+	catalog, err := CatalogByNameAt(repoRoot)
+	if err != nil {
+		t.Fatalf("CatalogByNameAt(real repo root): %v", err)
+	}
+
 	in := CoverageInputs{
 		Expectations: exp,
 		Manifest:     ifaManifest,
-		Catalog:      CatalogByName(),
+		Catalog:      catalog,
 		Registry:     byKind,
 		ProofGates:   proofGates,
 		Blocking:     false,
@@ -184,7 +191,7 @@ func TestCoverageLockstepAgainstRealSpecs(t *testing.T) {
 	wrongCov, _, _ := RunCoverage(CoverageInputs{
 		Expectations: exp,
 		Manifest:     wrongOduManifest,
-		Catalog:      CatalogByName(),
+		Catalog:      catalog,
 		Registry:     byKind,
 		ProofGates:   proofGates,
 		Blocking:     false,

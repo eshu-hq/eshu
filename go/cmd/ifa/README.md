@@ -39,9 +39,13 @@ session.
 
 - `ifa -version` - prints the command's version banner (P0, unchanged).
 - `ifa coverage [-specs-dir] [-snapshot] [-manifest] [-replay-manifest]
-  [-gates] [-report-out] [-blocking]` - runs `ifa.RunCoverage` and prints the
-  advisory/blocking summary; writes the JSON report when `-report-out` is set;
-  exits non-zero only when `-blocking` is passed and the gate fails.
+  [-gates] [-repo-root] [-report-out] [-blocking]` - runs `ifa.RunCoverage` and
+  prints the advisory/blocking summary; writes the JSON report when
+  `-report-out` is set; exits non-zero only when `-blocking` is passed and the
+  gate fails. It resolves Odùs through `ifa.CatalogByNameAt(-repo-root)`, so a
+  cassette-backed Odù whose recording is missing or empty is an error in
+  advisory mode too: the command cannot reconcile against an Odù it could not
+  build.
 - `ifa expectations [-specs-dir] [-snapshot] [-replay-manifest] [-kind]
   [-format json]` - prints `ifa.Derive`'s output as JSON, optionally filtered
   to one fact kind.

@@ -120,6 +120,10 @@ ifa:
   - 'specs/fact-kind-registry.v1.yaml'
   - 'specs/replay-coverage-manifest.v1.yaml'
   - 'testdata/golden/e2e-20repo-snapshot.json'
+  # The vulnerability collector's recorded output (#10734). The cassette-backed
+  # Odus read it, so a change to the recording alone must retrigger this gate.
+  # Keep this glob and the registry trigger in lockstep.
+  - 'testdata/cassettes/vulnerabilityintelligence/**'
   # Shell family registry: the blocker-shape lockstep test binds each row's
   # blocker_kind to its handler's write shape. A single '*' does not cross
   # '/' in a dorny filter, hence the '**' here.
