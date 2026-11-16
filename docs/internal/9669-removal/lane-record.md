@@ -259,3 +259,38 @@ review in-lane is required before any removal PR.
   merge-ready: cutover-good ruling, row-7 closure, and the fresh
   arbiter review itself are outstanding; test-file retargets are
   unchanged.
+
+## Rebase prep note (2026-11-16, base `e2496962df`, satellite `a3ca83a`)
+
+Branch rebased onto frozen `origin/main` `e2496962df` (prior base
+`2d4db4ac`; clean rebase, 11/11 commits, zero conflicts; tree clean at
+the rebased head). Satellite `a3ca83a` includes the G2 wave #152 — the
+7 MUST-TERMINATE rows terminate natively and G2 passes at the pair
+(282/236/27/19/0, checker exit 0). Prep only — no PR opened, no merge,
+no traffic action. Owner acceptance of the eventual removal is
+recorded; cutover-good ruling and row-7 closure still gate the merge,
+and a fresh arbiter review in-lane is required before any removal PR.
+
+- Removal scope: `go/cmd/api` is 126 tracked files at the new base
+  (unchanged count, zero drift).
+- `CUTOVER_OWNERSHIP.md` unchanged (md5 `0cd14227`, 368 lines, 282
+  rows): no rows added or removed at the new base.
+- Removal proof re-run at the rebased head (all exit 0): the 13
+  `TestQueryRootDrained` pin-test packages pass (`go test -count=1
+  -run 'TestQueryRootDrained|TestDrain'`); MCP exact-package census
+  holds at 0 non-test offenders (TestQueryRootDrained green).
+- New-caller scan (killer risk) clean: non-test query-root importers
+  outside `go/cmd/api` + `go/internal/query` are the empty set at old
+  base, new base, and head; `go/cmd/api` importers outside itself are
+  unchanged (single test file, `cli/support/closure_test.go`). No new
+  in-tree callers of the removal surface landed on main.
+- Merges landed on main since the prior base (#10795 response-digest
+  cassette, #10797 NVD baseline pins, #10796 G2 readmission pins, #10799
+  trip-latch durable) — none drains a checklist row; the 5 G2 pins are
+  new unwired seams only.
+- Readiness: G9 returned NO-GO at this pair (recorded on
+  eshu-hq/eshu-api#101): the lane record itself still bars the removal
+  PR — row-7 drain (pending eshu-api#65), row-6 SDK module, TBD5/TBD6
+  + unwired seams, 51-route satellite closures/carve-outs, test-file
+  retargets, cutover-good ruling, and fresh in-lane review all still
+  outstanding. NOT merge-ready.
