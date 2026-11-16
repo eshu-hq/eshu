@@ -45,14 +45,21 @@ tries RFC 3339 first, so a zoned stamp does no extra work.
 
 Cost of the fix: the unzoned row is the shape that previously failed to parse
 and now succeeds, so it pays a second parse. The median moves by about 156 ns
-and the allocation count stays at 2. Over the roughly 9,860 active NVD
-`vulnerability.cve` facts measured in QA (see eshu#10741), one full pass costs
-about 1.5 ms (156 ns x 9,860). The unparseable path (an empty or malformed
+and the allocation count stays at 2. The advisory-age score parses two stamps
+per finding (published and modified), and the newest-copy comparison parses two
+per compared pair but only runs for a CVE with duplicate copies. Over the
+roughly 9,860 active NVD `vulnerability.cve` facts measured in QA (see
+eshu#10741), that is about two parses per finding, so one full pass costs low
+single-digit milliseconds (156 ns x 2 x 9,860 is about 3 ms as an upper bound).
+The unparseable path (an empty or malformed
 value, which ranks oldest) goes from 3 to 6 allocations.
 
 Consequences the issue's ruling accepts, none a regression in this path: NVD
 findings gain an `advisory_age` priority contribution they never had, and the
-first reduce after deploy rewrites each NVD finding's payload once.
+first reduce after deploy rewrites each NVD finding's payload once. The
+rewrite changes the stored content digest, so each such finding is marked
+changed and fans out to its downstream groups once; it is bounded by the number
+of NVD findings and heals on the next reduce pass.
 
 Not checked: a rerun on a quiet host. The allocation counts would not change.
 No live-Postgres run: no SQL, graph, queue, or lease code changed, and the SQL
