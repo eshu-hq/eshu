@@ -7,9 +7,11 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	contractrepository "github.com/eshu-hq/eshu/go/internal/query/querycontract/repository"
 )
@@ -116,4 +118,40 @@ func (s RetirementStore) ReadPageRetirements(
 		labels[repoID] = label
 	}
 	return labels, rows.Err()
+}
+
+// generationBlock is one live status the terminal gate read back.
+type generationBlock struct {
+	status string
+	count  int64
+}
+
+// readBlockingGenerations returns the live generation statuses the
+// terminal gate must refuse on. Empty means every generation is terminal
+// (superseded, failed, or any other non-live status) and the purge may run.
+func readBlockingGenerations(ctx context.Context, tx db.Transaction, scopeIDs []string) ([]generationBlock, error) {
+	rows, err := tx.QueryContext(ctx, purgeBlockingGenerationsQuery, scopeIDs)
+	if err != nil {
+		return nil, fmt.Errorf("retirement purge terminal gate: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	var blocking []generationBlock
+	for rows.Next() {
+		var block generationBlock
+		if err := rows.Scan(&block.status, &block.count); err != nil {
+			return nil, fmt.Errorf("retirement purge terminal gate scan: %w", err)
+		}
+		blocking = append(blocking, block)
+	}
+	return blocking, rows.Err()
+}
+
+// formatGenerationReadback renders the gate readback for the WARN log and
+// the blocked exit ("active:1, pending:2", statuses already ordered).
+func formatGenerationReadback(blocking []generationBlock) string {
+	parts := make([]string, 0, len(blocking))
+	for _, block := range blocking {
+		parts = append(parts, fmt.Sprintf("%s:%d", block.status, block.count))
+	}
+	return strings.Join(parts, ", ")
 }

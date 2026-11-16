@@ -136,6 +136,10 @@ TABLE = {
             "TestRetirementDerivedScopeFenceAndPurgeAreIdempotentLive",
             "TestDerivedCommitAndMaintenanceLeaderDoNotDeadlockLive",
         ),
+        "go/internal/storage/postgres/retirement_table_census_live_test.go": (
+            "TestRetirementTableCensusClassifiesEveryScopeKeyedTable",
+            "TestRetirementTableCensusSeededViolationProvesSensitivity",
+        ),
         "go/internal/storage/postgres/run_reconciliation_factless_live_test.go": (
             "TestWorkflowControlStoreIntegrationReconcileConvergesFactlessClaim",
             "TestWorkflowControlStoreIntegrationReconcileHoldsFactCommittedClaim",
