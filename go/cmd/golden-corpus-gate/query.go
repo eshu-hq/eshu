@@ -14,12 +14,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu-sdk/apicontract"
 )
 
 // EnvelopeMIMEType is the Eshu response-envelope media type used by query
 // truth shapes that assert both data and truth metadata.
-const EnvelopeMIMEType = querycontract.EnvelopeMIMEType
+const EnvelopeMIMEType = apicontract.EnvelopeMIMEType
 
 // httpDoer is the minimal HTTP seam the gate needs, satisfied by *http.Client and
 // faked in tests.

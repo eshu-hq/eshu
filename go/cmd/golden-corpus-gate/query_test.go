@@ -11,6 +11,8 @@ import (
 	"sort"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu-sdk/apicontract"
 )
 
 func TestQueryClientChecksHTTPShapes(t *testing.T) {
@@ -107,6 +109,16 @@ func TestQueryClientChecksPostEnvelopeShapes(t *testing.T) {
 	}
 	if r.Failed() {
 		t.Fatalf("expected POST envelope query shape to pass; findings: %+v", r.Findings)
+	}
+}
+
+// TestEnvelopeMIMETypeMatchesSDKContract pins the gate's envelope media type
+// to the SDK apicontract module: the Accept header the gate sends must stay
+// byte-identical to the canonical SDK value.
+func TestEnvelopeMIMETypeMatchesSDKContract(t *testing.T) {
+	t.Parallel()
+	if EnvelopeMIMEType != apicontract.EnvelopeMIMEType {
+		t.Fatalf("EnvelopeMIMEType = %q, want SDK apicontract %q", EnvelopeMIMEType, apicontract.EnvelopeMIMEType)
 	}
 }
 
