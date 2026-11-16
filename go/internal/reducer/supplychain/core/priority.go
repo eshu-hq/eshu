@@ -101,6 +101,17 @@ func withSupplyChainImpactPriority(finding SupplyChainImpactFinding) SupplyChain
 		score = 20
 	}
 	score = clampPriorityScore(score)
+	if finding.AdvisoryRetraction != nil {
+		// Annotate, never move: a zero-weight row keeps the score, bucket, winner
+		// ordering and paging exactly as computed while the priority output says the
+		// advisory was retracted (#10756).
+		contributions = append(contributions, priorityContribution(
+			"advisory_retracted",
+			"advisory_retraction",
+			finding.AdvisoryRetraction.ReasonCode,
+			0,
+		))
+	}
 	finding.PriorityScore = score
 	finding.PriorityBucket = supplyChainPriorityBucket(score)
 	finding.ExploitedTier = supplyChainExploitedTier(finding.KnownExploited, "", finding.EPSSProbability, finding.EPSSPercentile)
@@ -340,6 +351,15 @@ func supplyChainPriorityReasonCodes(contributions []SupplyChainImpactPriorityCon
 func supplyChainPriorityReason(finding SupplyChainImpactFinding) string {
 	if finding.PriorityBucket == "" {
 		return ""
+	}
+	if finding.AdvisoryRetraction != nil {
+		return fmt.Sprintf(
+			"advisory retracted (%s); %s triage priority score %d is computed from the remaining evidence and the finding is hidden by default; impact_status remains %s and priority does not prove affected truth",
+			finding.AdvisoryRetraction.ReasonCode,
+			finding.PriorityBucket,
+			finding.PriorityScore,
+			finding.Status,
+		)
 	}
 	return fmt.Sprintf(
 		"%s triage priority score %d; impact_status remains %s and priority does not prove affected truth",
