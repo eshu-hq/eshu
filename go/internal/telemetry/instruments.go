@@ -717,7 +717,25 @@ type Instruments struct {
 	// GHSAWindowAdvances counts GHSA window commit-policy outcomes per
 	// advisory type (#10037): advanced, prefix, held, or no_progress.
 	// Labels stay advisory-type and outcome only.
-	GHSAWindowAdvances               metric.Int64Counter
+	GHSAWindowAdvances metric.Int64Counter
+	// NVDBaselineAdvances counts NVD baseline commit-policy outcomes
+	// (#10728): advanced, held, not_covered, or refused. Labels stay
+	// outcome-only.
+	NVDBaselineAdvances metric.Int64Counter
+	// NVDBaselinePlans counts NVD baseline derivation verdicts per plan
+	// call (#10728): planned, held, or complete. Labels stay
+	// outcome-only; the hold reason rides the plan span.
+	NVDBaselinePlans metric.Int64Counter
+	// NVDBaselineTripTransitions counts NVD baseline trip-line transitions
+	// (#10728): opened, paged, eligible, or closed. Labels stay
+	// transition-only.
+	NVDBaselineTripTransitions metric.Int64Counter
+	// NVDBaselineDirtyProxyRate records the latest sampled NVD-proxy
+	// dirty rate in rows/h (#10728).
+	NVDBaselineDirtyProxyRate metric.Float64Gauge
+	// NVDBaselineOldestDirtyAge records the latest sampled oldest pending
+	// dirty age in seconds (#10728).
+	NVDBaselineOldestDirtyAge        metric.Float64Gauge
 	SecurityAlertProviderRequests    metric.Int64Counter
 	SecurityAlertFactsEmitted        metric.Int64Counter
 	SecurityAlertRateLimited         metric.Int64Counter
@@ -6934,6 +6952,9 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, err
 	}
 	if err := registerGHSACursorLag(meter, inst); err != nil {
+		return nil, err
+	}
+	if err := registerNVDBaseline(meter, inst); err != nil {
 		return nil, err
 	}
 	if err := registerSupplyChainImpactHeadroom(meter, inst); err != nil {

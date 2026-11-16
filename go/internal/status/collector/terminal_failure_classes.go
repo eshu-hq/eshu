@@ -135,6 +135,10 @@ var extensionHostFailureClasses = []string{
 	// unstored facts.
 	"ghsa_window_no_progress", "ghsa_window_unarmed", "ghsa_window_held",
 	"ghsa_covered_through_out_of_range", "ghsa_cache_replay",
+	// NVD baseline fail-closed refusal (#10728): a baseline generation
+	// carrying a window advance verdict fails retryable and commits
+	// nothing, so the cursor CAS never sees a baseline candidate.
+	"nvd_baseline_window_writer_armed",
 }
 
 // firstPartyKinds is every collector kind the platform ships, derived from the

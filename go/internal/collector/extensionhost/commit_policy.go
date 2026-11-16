@@ -96,6 +96,51 @@ func (r *CommitPolicyRefusal) Unwrap() error {
 	return r.Err
 }
 
+// combinedClaimCommitPolicy fans one CommitPolicy call out to the member
+// policies in order: the first member that reports Handled owns the
+// generation, and the first refusal or transport error fails the claim.
+// Nil members are skipped. It lets one wired seam serve several scope
+// families (GHSA windows, NVD baseline chunks) without any family
+// handling another's scopes.
+type combinedClaimCommitPolicy struct {
+	members []ClaimCommitPolicy
+}
+
+// CombineClaimCommitPolicies builds the fan-out over members. Nil members
+// are dropped; no members means no policy (nil), so callers keep the
+// existing unwired behavior exactly.
+func CombineClaimCommitPolicies(members ...ClaimCommitPolicy) ClaimCommitPolicy {
+	kept := make([]ClaimCommitPolicy, 0, len(members))
+	for _, member := range members {
+		if member == nil {
+			continue
+		}
+		kept = append(kept, member)
+	}
+	if len(kept) == 0 {
+		return nil
+	}
+	return &combinedClaimCommitPolicy{members: kept}
+}
+
+// CommitPolicy implements ClaimCommitPolicy.
+func (c *combinedClaimCommitPolicy) CommitPolicy(
+	item workflow.WorkItem,
+	observedAt time.Time,
+	envelopes []facts.Envelope,
+) (ClaimCommitDecision, error) {
+	for _, member := range c.members {
+		decision, err := member.CommitPolicy(item, observedAt, envelopes)
+		if err != nil {
+			return ClaimCommitDecision{}, err
+		}
+		if decision.Handled {
+			return decision, nil
+		}
+	}
+	return ClaimCommitDecision{}, nil
+}
+
 // applyCommitPolicy runs the configured commit policy over one collected
 // generation that carries facts. A handled decision replaces the armed
 // state writer, stamps write-once, and clears any trusted-deletion
@@ -104,12 +149,27 @@ func (r *CommitPolicyRefusal) Unwrap() error {
 // does not handle — including no policy at all — fails retryable and
 // commits nothing: committing its facts without advancing the cursor
 // would re-plan the same write-once scope forever (the #9971 F-2 wedge).
+//
+// An NVD baseline scope is refused fail-closed before any policy runs
+// when its snapshot carries a window advance verdict: a baseline chunk
+// never arms the window cursor writer (#10728). A baseline scope no
+// configured policy handles falls back to the built-in baseline decision,
+// so the checkpoint arms with or without a wired policy; only the outcome
+// telemetry needs the wired one.
 func (s *Source) applyCommitPolicy(
 	item workflow.WorkItem,
 	observedAt time.Time,
 	envelopes []facts.Envelope,
 	collected *collector.CollectedGeneration,
 ) error {
+	if vulnsource.IsNVDBaselineScope(item.ScopeID) {
+		if payload, found := nvdBaselineSnapshotPayload(envelopes); found && baselineWindowVerdictWouldArm(payload) {
+			return extensionFailure{
+				class: FailureClassNVDBaselineWindowWriterArmed,
+				cause: errors.New("nvd baseline generation carries a window advance verdict; a baseline chunk never arms the window cursor writer"),
+			}
+		}
+	}
 	var decision ClaimCommitDecision
 	if s.commitPolicy != nil {
 		var err error
@@ -135,6 +195,24 @@ func (s *Source) applyCommitPolicy(
 			class: FailureClassGHSAWindowUnarmed,
 			cause: errors.New("ghsa window claim on a host with no commit policy able to arm its cursor writer"),
 		}
+	}
+	if vulnsource.IsNVDBaselineScope(item.ScopeID) {
+		builtin, err := NewNVDBaselineCommitPolicy(s.collectorInstanceID, nil, nil)
+		if err != nil {
+			return extensionFailure{class: FailureClassLaunchFailure, cause: err}
+		}
+		builtinDecision, err := builtin.CommitPolicy(item, observedAt, envelopes)
+		if err != nil {
+			var refusal *CommitPolicyRefusal
+			if errors.As(err, &refusal) {
+				return extensionFailure{class: refusal.Class, terminal: refusal.Terminal, cause: err}
+			}
+			return extensionFailure{class: FailureClassLaunchFailure, cause: err}
+		}
+		if builtinDecision.Handled {
+			collected.StateWriter = builtinDecision.StateWriter
+		}
+		return nil
 	}
 	return nil
 }
