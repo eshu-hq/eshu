@@ -103,6 +103,30 @@ unchanged KEV or EPSS collection creates no generation at all (the
 collector content-digest skip), so a flat `cause="epss"`/`"kev"` rate means
 no enrichment changed, not that re-triggers stopped.
 
+## Retraction freshness
+
+A source record rejected or withdrawn is re-derived per holder scope: each scope
+that holds an active copy of the finding rewrites its own copy as
+`advisory_retracted` on its next pass. Winner selection ranks by
+`priority_score` before anything else and does not look at the suppression
+state, so until a stale holder copy re-derives, the default findings view can
+return that stale active copy instead of the retracted one. The bound is the
+holder fan-out (a changed or retracted write reopens every holder scope,
+the operator suppression scope included, at most 256 per claim with the owed
+remainder carried to the next claim), then one holder pass per holder, then one
+resweep tick, with the whole-table winners audit (every 10 minutes by default,
+`ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_AUDIT_INTERVAL`) as the backstop. The winner
+ordering deliberately does not prefer a retracted copy: that would let a stale
+retracted copy hide a restored, real vulnerability. Read
+`eshu_dp_supply_chain_impact_stale_copy_repairs_total{transition}` for how often
+it happens: each point is one stale copy a pass found and repaired, as
+`active_to_retracted` (a retraction reached the copy) or `retracted_to_active`
+(a restored record returned it). "Active" there means any state other than
+`advisory_retracted`. Read it beside `eshu_dp_supply_chain_impact_fanout_total`
+and the watermark age to tell a working fan-out from a stalled one; a flat
+repair rate with a rejected record in flight means the holders were already
+converged or the fan-out has not reached them.
+
 A manifest or lockfile change converges the same way (#9874): the git
 generation's marker pass reopens every scope holding advisory evidence for a
 changed package, counted under `cause="manifest_dependency"`. A marker item
@@ -154,6 +178,7 @@ and `sub_signal_rekey_rows_tombstoned`.
 | `eshu_dp_supply_chain_impact_winners_chunked_ticks_total` | counter | none | Keyed ticks that stopped at the identifier chunk bound with dirty rows still queued, so committed their chunk while stamping the horizon over the rows left queued (#10706). A rising counter with a falling dirty-log depth is a backlog draining in bounded ticks; a rising counter with a flat or climbing depth means arrivals outpace the bound. |
 | `eshu_dp_supply_chain_impact_winners_capture_rows_total` | counter | `source` | Dirty-log rows appended, by capture source: `fact_upsert`, `fact_retract`, `activation`, `operator`, `scanner` or `audit`. The impact writer counts `fact_upsert` and `fact_retract` from the capturing statements' row counts, but only after its transaction commits: a rolled-back attempt, or a commit that fails, adds nothing, so those two sources match the log rows that exist, apart from a commit whose outcome is unknown (a connection lost after the server applied it), which leaves its rows uncounted. Database triggers write `activation`, `operator` and `scanner` rows and cannot emit a metric, so the maintainer counts those when its keyed tick consumes them. `audit` is counted when the audit queues a repair. A source that goes flat while its writes continue is a capture path that stopped. The scope-delete trigger writes its rows as `activation` (or `operator` for the suppression scope), the same sources as a pointer move, so a stopped delete capture does not show as a flat source: the `fact` rows it writes are the only difference. |
 | `eshu_dp_supply_chain_impact_winners_backstop_repairs_total` | counter | none | Stale keys the audit found and queued. Steady state is zero. Any rate means some change left no dirty-log row. |
+| `eshu_dp_supply_chain_impact_stale_copy_repairs_total` | counter | `transition` | Stored finding copies a pass rewrote across the retraction boundary (#10765): `active_to_retracted` or `retracted_to_active`. Each is one stale copy the holder fan-out repaired, so it measures how often a stale active copy could outrank a retracted one. Counted once per rewrite, after the writer commit. Quiet when no record is being rejected or restored. |
 | `eshu_dp_supply_chain_impact_winners_audit_skipped_total` | counter | none | Audits that found candidate stale keys but could not take the resweep lock, so verified nothing and queued nothing. A skipped audit is the backstop missing a run, not a failure. Alert on a streak: no `path="audit"` sample in `eshu_dp_supply_chain_impact_winners_resweep_duration_seconds` while this counter rises, for example `sum(increase(eshu_dp_supply_chain_impact_winners_audit_skipped_total[1h])) >= 3` at the default 10 minute interval, means the audit keeps losing the lock and has not verified its candidates for a while. Sum across reducer pods, because the audit lease can move between them. One skip is expected and harmless. `increase()` does not count the first increment of a series that did not exist yet. An audit that read no candidates returns early and neither skips nor counts here. |
 | `eshu_dp_supply_chain_impact_winners_dirty_log_depth` | gauge | none | Rows waiting in the dirty log at the last tick this instance sampled. |
 | `eshu_dp_supply_chain_impact_winners_dirty_log_oldest_age_seconds` | gauge | none | Age of the oldest waiting row, 0 when the log is empty. It bounds how far a winner can lag the facts. |

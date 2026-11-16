@@ -112,6 +112,18 @@ its own dimension, the risk decision, and never over whether the advisory exists
 retraction wins in the derivation, and a restored record returns the operator's
 unexpired decision.
 
+Superseded by 1.5b (#10765). The "no bound today" and "has no bound for a scope
+that skips unchanged generations" statements above describe this change (1.5a)
+alone. With the one-hop holder fan-out in
+[9695b-holder-fanout.md](9695b-holder-fanout.md), a changed or retracted write
+reopens every holder scope, the operator scope included, so the bound is one
+queue wait plus one reopened holder pass per holder plus one winners resweep
+tick, at most 256 holders per claim with the remainder owed to the next claim,
+and the 10 minute winners audit backstop. Rows V1 and V2 below remain the
+accurate description of the window itself; they are bounded, not open-ended.
+`eshu_dp_supply_chain_impact_stale_copy_repairs_total{transition}` counts the stale
+copies that window repaired.
+
 Fix and ownership. The arbiter ruled for a one-hop fan-out as a separate
 follow-up in this lane (1.5b). The pass finds the holders with one exact indexed
 read of the writer's own finding rows by `cve_id` (the existing
@@ -291,7 +303,7 @@ trades one stale answer for another. The variant adds the leading key
 
 | Case | Current ordering | Retraction first |
 | --- | --- | --- |
-| V1 reject: A retracted 50, B stale active 80 | B, `active` (wrong) | A, `advisory_retracted` (right) |
+| V1 reject: A retracted 50, B stale active 80 (bounded by 1.5b, see above) | B, `active` (wrong) | A, `advisory_retracted` (right) |
 | V2 restore: A re-derived active 50, B stale retracted 80 | B, `advisory_retracted` (wrong) | B, `advisory_retracted` (wrong) |
 | V3 restore: A re-derived active 50, B stale retracted 40 | A, `active` (right) | B, `advisory_retracted` (wrong) |
 

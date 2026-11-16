@@ -22,6 +22,19 @@ recent shipped work grouped by feature area.
   retracted finding from a live one. Retracted rows rewrite once on the next
   reducer pass because their content digest includes the new fields.
 
+### Stale copies of a retracted finding are counted and the window is documented
+
+- **Counter and written bound for a stale active copy**
+  ([#10765](https://github.com/eshu-hq/eshu/issues/10765)). Winner selection
+  ranks by `priority_score` first, so until a holder scope re-derives its own
+  copy, a stale active copy can outrank a retracted copy of the same finding in
+  the default findings view. That window is bounded by the one-hop holder
+  fan-out plus the winners audit backstop; this change documents the bound and
+  adds `eshu_dp_supply_chain_impact_stale_copy_repairs_total{transition}`
+  (`active_to_retracted`, `retracted_to_active`), which counts each stored copy a
+  pass rewrites across the retraction boundary. Winner ordering, indexes, the
+  schema, and the API are unchanged.
+
 ### Golden corpus gate jobs get a budget that fits their measured runtime
 
 - **Corpus gate job cap aligned to measured durations**
