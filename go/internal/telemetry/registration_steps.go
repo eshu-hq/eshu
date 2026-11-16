@@ -421,11 +421,11 @@ func registerOCR() {
 }
 
 // registerSupplyChainImpactWinners appends the #9774 winners resweep span and the
-// #9805 path metric dimension, unconditionally at the end and independent of
-// every earlier step.
+// #9805 path and #10765 transition metric dimensions, unconditionally at the
+// end and independent of every earlier step.
 func registerSupplyChainImpactWinners() {
 	spanNames = append(spanNames, SpanSupplyChainImpactWinnersResweep)
-	metricDimensionKeys = append(metricDimensionKeys, MetricDimensionPath)
+	metricDimensionKeys = append(metricDimensionKeys, MetricDimensionPath, MetricDimensionTransition)
 }
 
 // registerWorkflowClaimStats appends the #9871 post-admission stats-analyze

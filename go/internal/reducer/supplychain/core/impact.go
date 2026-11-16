@@ -329,8 +329,7 @@ func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent reducercont
 	for key, value := range factdecode.InputInvalidSubSignals(inputInvalidCount) {
 		subSignals[key] = value
 	}
-	subSignals["findings_retracted"] = float64(writeResult.FactsRetracted)
-	subSignals["scope_pass_state_stale_skipped"] = boolSignal(writeResult.PassStateSkipped)
+	writeResult.mergeSubSignals(subSignals)
 	fanOut.mergeSubSignals(subSignals)
 	if writeResult.suppressionDiff.decided() {
 		writeResult.suppressionDiff.mergeSubSignals(subSignals)

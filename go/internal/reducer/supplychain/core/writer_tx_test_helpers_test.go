@@ -66,10 +66,22 @@ type fakeStoredFinding struct {
 	cveID        string
 	advisoryID   string
 	fencingToken int64
+	// suppressionState is the row's stored suppression_state; empty reads as
+	// the production select's default, active.
+	suppressionState string
 	// members is the advisory-group member set the row's provenance carries
 	// (#10408). The fake renders it as the JSON text the production select
 	// projects, so the read path parses exactly what Postgres returns.
 	members []string
+}
+
+// fakeImpactSuppressionState renders a stored suppression state the way the
+// production select projects it: active when the payload carries none.
+func fakeImpactSuppressionState(state string) string {
+	if state == "" {
+		return "active"
+	}
+	return state
 }
 
 // fakeImpactMembersJSON renders a member set the way the production selects
@@ -154,7 +166,7 @@ func (t fakeImpactTx) QueryContext(_ context.Context, query string, args ...any)
 	case listStoredSupplyChainImpactFindingsQuery:
 		rows := make([][]any, 0, len(t.state.stored))
 		for _, row := range t.state.stored {
-			rows = append(rows, []any{row.factID, row.generationID, row.stableKey, row.digest, row.cveID, row.advisoryID, row.fencingToken, fakeImpactMembersJSON(row.members)})
+			rows = append(rows, []any{row.factID, row.generationID, row.stableKey, row.digest, row.cveID, row.advisoryID, row.fencingToken, fakeImpactMembersJSON(row.members), fakeImpactSuppressionState(row.suppressionState)})
 		}
 		return &fakeImpactRows{rows: rows}, nil
 	case listSupplyChainImpactCVEIDsQuery:

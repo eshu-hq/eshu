@@ -76,7 +76,8 @@ type changedRow struct {
 	// set helpers fall back to the row's own id.
 	members []string
 	// ident names the row's canonical key for the winners dirty log (#9805).
-	ident WinnersDirtyIdentifier
+	ident            WinnersDirtyIdentifier
+	suppressionState string // the state the row is written in (#10765)
 }
 
 // priorGenerationSupplyChainImpactSQL selects the scope's previous generation:
@@ -112,7 +113,8 @@ SELECT fact_id,
        COALESCE(payload ->> 'cve_id', ''),
        COALESCE(payload ->> 'advisory_id', ''),
        fencing_token,
-       COALESCE(payload #>> '{provenance,advisory_group_members}', '[]')
+       COALESCE(payload #>> '{provenance,advisory_group_members}', '[]'),
+       COALESCE(NULLIF(payload ->> 'suppression_state', ''), 'active')
 FROM fact_records
 WHERE fact_kind = '` + supplyChainImpactFactKind + `'
   AND scope_id = $1
@@ -148,6 +150,8 @@ type storedFinding struct {
 	// members is the advisory-group member id set the stored row's
 	// provenance carries (#10408). Nil when the finding was ungrouped.
 	members []string
+	// suppressionState is the stored suppression_state, active if absent (#10765).
+	suppressionState string
 }
 
 // readStoredSupplyChainImpactFindings returns the active rows of the generation
@@ -167,7 +171,7 @@ func readStoredSupplyChainImpactFindings(
 	for rows.Next() {
 		var row storedFinding
 		var membersRaw string
-		if err := rows.Scan(&row.factID, &row.generationID, &row.stableKey, &row.digest, &row.cveID, &row.advisoryID, &row.fencingToken, &membersRaw); err != nil {
+		if err := rows.Scan(&row.factID, &row.generationID, &row.stableKey, &row.digest, &row.cveID, &row.advisoryID, &row.fencingToken, &membersRaw, &row.suppressionState); err != nil {
 			return nil, fmt.Errorf("scan stored supply chain impact finding: %w", err)
 		}
 		members, err := parseAdvisoryGroupMembers(membersRaw)
@@ -489,10 +493,7 @@ func sortedSetKeys(set map[string]struct{}) []string {
 	return out
 }
 
-// Member-set helpers live in writer_group_members.go: parseAdvisoryGroupMembers,
-// addMemberIDs, and memberSetsEqual (#10408). The touched set stays keyed by
-// coalesced group id per the #10411 contract the graph projection consumes
-// verbatim; member ids ride changedCVEIDs and the recovery set, and rows
-// that replaced a stored row under a different group id or member set
-// additionally contribute old and new member ids as candidate prior groups
-// (D2, see touchedGroupIDs above).
+// Member-set helpers (parseAdvisoryGroupMembers, addMemberIDs, memberSetsEqual;
+// #10408) live in writer_group_members.go. The touched set stays keyed by
+// coalesced group id per the #10411 contract; member ids ride changedCVEIDs
+// and the recovery set (D2, see touchedGroupIDs above).

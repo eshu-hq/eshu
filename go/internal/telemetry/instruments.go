@@ -1352,6 +1352,13 @@ type Instruments struct {
 	// SupplyChainImpactWinnersAuditSkipped counts audits that could not take
 	// the resweep lock, so ran no verification and queued nothing (#9957).
 	SupplyChainImpactWinnersAuditSkipped metric.Int64Counter
+	// SupplyChainImpactStaleCopyRepairs counts stored finding copies a
+	// supply_chain_impact pass rewrote across the retraction boundary (#10765),
+	// labeled transition (active_to_retracted, retracted_to_active). Each is one
+	// stale copy the holder fan-out repaired; read it with
+	// eshu_dp_supply_chain_impact_fanout_total and the winners watermark age.
+	// It is registered by registerSupplyChainImpactWinnersInstruments.
+	SupplyChainImpactStaleCopyRepairs metric.Int64Counter
 	// SupplyChainImpactWinnersTickPhaseDuration records the wall time of each
 	// phase of one keyed winners tick, labeled phase (#9975). It is registered by
 	// registerSupplyChainImpactWinnersKeyedInstruments.

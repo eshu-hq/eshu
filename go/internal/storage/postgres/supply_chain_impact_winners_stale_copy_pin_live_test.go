@@ -133,8 +133,14 @@ func TestSupplyChainImpactWinnersResweepStaleActiveCopyOutranksRetractedCopyLive
 		// The holder fan-out reopens the stale scope; its pass re-derives the
 		// copy from current evidence and commits it retracted. Same generation
 		// and fact id: the digest changed, so the writer rewrites the row.
-		h.write(stale, stale+"/g1",
+		result := h.write(stale, stale+"/g1",
 			retractedKeyedFinding(cveHigher, pkg, 100), keyedFinding(cveTieB, pkg, 50), retractedKeyedFinding(cveTieC, pkg, 50))
+		// The pass reads the stored state through the production query and
+		// reports what it repaired: the higher-scoring copy left active, and
+		// the tie copy B left retracted (the previous subtest retracted it).
+		if want := (supplychaincore.StaleCopyRepairs{ActiveToRetracted: 1, RetractedToActive: 1}); result.StaleCopyRepairs != want {
+			t.Fatalf("StaleCopyRepairs = %+v, want %+v", result.StaleCopyRepairs, want)
+		}
 		h.keyed()
 		winner := h.stalePinWinnerOf(h.findingFactID(stale, cveHigher), h.findingFactID(fresh, cveHigher))
 		if winner.state != "advisory_retracted" {
