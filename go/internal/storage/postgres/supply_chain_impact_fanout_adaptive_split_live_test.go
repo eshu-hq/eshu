@@ -248,6 +248,7 @@ const (
 	capProbeHotMember  = "GHSA-cap-hot-0001"
 	capProbeWarmCVE    = "CVE-2026-9801"
 	capProbeColdMember = "GHSA-cap-cold-0001"
+	capProbeMidMember  = "GHSA-cap-mid-0001"
 	capProbeDual       = "CVE-2026-9802"
 	capProbeCrossCVE   = "CVE-2026-9803"
 	capProbeCrossAdv   = "GHSA-cap-cross-0001"
@@ -327,6 +328,20 @@ FROM generate_series(1, 105) g`, facts.ReducerSupplyChainImpactFindingFactKind, 
 	if _, err := db.ExecContext(ctx, `
 INSERT INTO fact_records (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, schema_version, collector_kind,
   source_confidence, source_system, source_fact_key, observed_at, ingested_at, is_tombstone, payload)
+SELECT 'cap:mid:' || g, 'cap:hold-b',
+  (SELECT active_generation_id FROM ingestion_scopes WHERE scope_id = 'cap:hold-b'), $1,
+  'cap:mid:' || g, '1.0.0', 'synthetic', 'reported', 'synthetic', 'cap:mid', now(), now(), false,
+  jsonb_build_object(
+    'cve_id', 'CVE-2026-distinct-m-' || lpad(g::text, 5, '0'),
+    'advisory_id', 'GHSA-cap-distinct-m-' || lpad(g::text, 5, '0'),
+    'impact_status', 'active',
+    'provenance', jsonb_build_object('advisory_group_members', jsonb_build_array($2::text)))
+FROM generate_series(1, 250) g`, facts.ReducerSupplyChainImpactFindingFactKind, capProbeMidMember); err != nil {
+		t.Fatalf("seed mid-band member findings: %v", err)
+	}
+	if _, err := db.ExecContext(ctx, `
+INSERT INTO fact_records (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, schema_version, collector_kind,
+  source_confidence, source_system, source_fact_key, observed_at, ingested_at, is_tombstone, payload)
 SELECT 'cap:dual:' || g, 'cap:hold-a',
   (SELECT active_generation_id FROM ingestion_scopes WHERE scope_id = 'cap:hold-a'), $1,
   'cap:dual:' || g, '1.0.0', 'synthetic', 'reported', 'synthetic', 'cap:dual', now(), now(), false,
@@ -392,7 +407,7 @@ func TestHolderMassProbeCappedLive(t *testing.T) {
 	cap := int64(supplychaincore.HolderMassProbeCap)
 	startProbe := time.Now()
 	masses, err := store.EstimateHolderMasses(ctx, []string{
-		capProbeHotMember, capProbeWarmCVE, capProbeColdMember, capProbeDual, capProbeCrossCVE,
+		capProbeHotMember, capProbeWarmCVE, capProbeColdMember, capProbeDual, capProbeCrossCVE, capProbeMidMember,
 	})
 	if err != nil {
 		t.Fatalf("EstimateHolderMasses() error = %v", err)
@@ -408,11 +423,14 @@ func TestHolderMassProbeCappedLive(t *testing.T) {
 		masses[id] = m
 	}
 	t.Logf("capped mass probe: %v in %v", masses, probeElapsed)
-	if len(masses) != 9 {
+	if len(masses) != 10 {
 		t.Fatalf("EstimateHolderMasses() returned %d ids, want one row per requested id: %v", len(masses), masses)
 	}
 	if masses[capProbeHotMember] != cap {
 		t.Fatalf("hot mass = %d, want exactly the cap %d (26000 member rows bounded, still hot)", masses[capProbeHotMember], cap)
+	}
+	if masses[capProbeMidMember] != cap {
+		t.Fatalf("mid-band mass = %d, want exactly the cap %d (250 live member rows saturate above K=100, split-safe)", masses[capProbeMidMember], cap)
 	}
 	for id, want := range map[string]int64{
 		capProbeWarmCVE:    70,

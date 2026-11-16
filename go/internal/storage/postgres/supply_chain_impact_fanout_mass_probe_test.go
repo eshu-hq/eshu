@@ -50,7 +50,7 @@ func TestHolderMassProbeQueryIsCappedSingleStatement(t *testing.T) {
 	}
 	capDigits := strconv.FormatInt(supplychaincore.HolderMassProbeCap, 10)
 	if got := strings.Count(q, capDigits); got != 3 {
-		t.Fatalf("probe carries the cap %d times, want 3 (LEAST total, member-arm LIMIT, already-hot short-circuit)", got)
+		t.Fatalf("probe carries the cap %d times, want 3 (LEAST total, CASE saturation value, already-hot short-circuit)", got)
 	}
 }
 

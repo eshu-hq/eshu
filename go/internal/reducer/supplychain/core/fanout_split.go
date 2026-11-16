@@ -37,18 +37,36 @@ const (
 
 // HolderMassProbeCap bounds the per-id mass the holder-mass probe reports
 // (#10681). It sits one row over fanOutHolderHotMassRows, so a capped report
-// decides exactly like the true count: at or under the threshold the probe
-// is exact and cold ids pack the same way, over the threshold the probe
-// reports the cap and the id still runs alone. Operators read it saturated:
+// decides exactly like the true count for the cheap arms and the total: at
+// or under the threshold the probe is exact and cold ids pack the same way,
+// over the threshold the probe reports the cap and the id still runs alone.
+// The member arm is exact at or under HolderMassProbeFillToCapRows and
+// saturates above it (split-safe). Operators read it saturated:
 // max_id_mass_rows tops out at the cap, never at the true row count. The
-// production probe builds its SQL LIMIT and LEAST from this constant, and the
-// probe-cap guard test pins the derivation, so the number lives here alone.
+// production probe builds its SQL LEAST, CASE saturation value, and
+// already-hot short-circuit from this constant while the member-arm LIMIT
+// comes from HolderMassProbeFillToCapRows, and the probe-cap guard test
+// pins the derivation, so the number lives here alone.
 const HolderMassProbeCap = fanOutHolderHotMassRows + 1
+
+// HolderMassProbeFillToCapRows bounds the group-members arm of the holder-mass
+// probe (#10681 design B). The arm counts through a per-id LATERAL with
+// LIMIT HolderMassProbeFillToCapRows+1 and reports HolderMassProbeCap above
+// that many rows, exact at or under it. It sits far under
+// fanOutHolderHotMassRows, so cold ids (exact, <= 100 member rows) pack
+// exactly as before while the per-id heap fetch stays bounded at cold cost;
+// the residual overestimate (a 101st..threshold member row reports the cap)
+// only splits more, never less. The postgres probe builds its arm-3 LIMIT
+// and CASE from this constant, and the probe-cap guard test pins the value,
+// so the number lives here alone beside HolderMassProbeCap.
+const HolderMassProbeFillToCapRows = 100
 
 // HolderMassEstimator is the optional mass probe behind adaptive holder-read
 // splitting (#10643). The production probe reports, per requested lookup
 // id, how many live finding rows name that id, capped at HolderMassProbeCap
-// with one entry for every requested id (zero for no match). A port without
+// with one entry for every requested id (zero for no match). Member-arm
+// counts above HolderMassProbeFillToCapRows saturate to the cap, so
+// mid-band ids intentionally read hot. A port without
 // it keeps the legacy shape: one statement per fanOutHolderReadChunk-sized
 // chunk. The probe runs under the same 10 s guard as the holder read and
 // fails the same way, so a blind pass never proceeds on unmeasured ids.

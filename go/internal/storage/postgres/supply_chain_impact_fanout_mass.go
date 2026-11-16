@@ -20,20 +20,24 @@ import (
 // the probe avoids the scope join and DISTINCT sort of a second full read;
 // the uncapped shape measured 6067 ms cold / 218 ms warm at production mass
 // (see the evidence note), bounded by the same guard with fail-closed
-// errors. The group-members arm (#10681) counts through a per-id LATERAL
-// capped at the probe cap. The ON gate excludes the member-arm contribution
-// for already-hot ids and LEAST caps the total; the heap-fetch bound comes
-// from the per-id LIMIT in all cases. The per-id total
-// saturates at the cap through LEAST, so a hot id still reads hot while the
-// heap fetch stays bounded; at or under the hot threshold every arm is
-// exact, so cold ids pack exactly as before and split decisions match the
-// uncapped probe. The three %d verbs all take
-// supplychaincore.HolderMassProbeCap through buildHolderMassProbeQuery,
-// never a duplicated literal.
+// errors. The group-members arm (#10681 design B) counts through a per-id
+// LATERAL over LIMIT K+1 and reports the probe cap above K rows, exact at or
+// under K (S2 theory shape: 98-196 ms cold, far under the 5 s bar). The ON
+// gate excludes the member-arm contribution for already-hot ids and LEAST
+// caps the total; the heap-fetch bound comes from the per-id LIMIT. A hot id
+// still reads hot while the heap fetch stays bounded; at or under K member
+// rows every arm is exact, so cold ids pack exactly as before and split
+// decisions match the uncapped probe. The LEAST and already-hot
+// short-circuit verbs take supplychaincore.HolderMassProbeCap and the
+// fill-to-cap verbs take supplychaincore.HolderMassProbeFillToCapRows,
+// all through buildHolderMassProbeQuery, never a duplicated literal.
+// The cheap arms stay deliberately unbounded and exact: capping them needs
+// an arbiter call, so this file must keep exactly one LIMIT (arm-3 only).
 // The probe deliberately overestimates: it counts rows in superseded
 // generations (no active-generation join) and counts a row once per arm it
 // matches, and an id whose row matches through two ids in one chunk counts
-// toward both. All three biases point at splitting, which is the safe
+// toward both, plus the fill-to-cap saturates a 101st..threshold member row
+// to the cap. All four biases point at splitting, which is the safe
 // direction — an extra statement stays far under the guard, while a missing
 // split could re-form the timed-out shape. The outer LEFT JOINs report every
 // requested id with zero for no match, so the planner only treats an id as
@@ -62,7 +66,7 @@ LEFT JOIN (
     GROUP BY lookup_id
 ) AS cheap ON cheap.lookup_id = ids.id
 LEFT JOIN LATERAL (
-    SELECT COUNT(*) AS mass
+    SELECT CASE WHEN COUNT(*) > %d THEN %d ELSE COUNT(*) END AS mass
     FROM (
         SELECT 1
         FROM fact_records AS finding
@@ -74,13 +78,16 @@ LEFT JOIN LATERAL (
 ) AS m3 ON COALESCE(cheap.mass, 0) < %d
 `
 
-// buildHolderMassProbeQuery renders the probe with the cap from its single
-// source: every bounded site (LEAST total, member-arm LIMIT, already-hot
-// short-circuit) takes supplychaincore.HolderMassProbeCap, so a threshold
-// change moves all three together.
+// buildHolderMassProbeQuery renders the probe from its two single sources:
+// the LEAST total, the fill-to-cap saturation value, and the already-hot
+// short-circuit take supplychaincore.HolderMassProbeCap, while the
+// fill-to-cap threshold and the member-arm LIMIT (threshold + 1) take
+// supplychaincore.HolderMassProbeFillToCapRows, so a threshold or sample
+// change moves every site together.
 func buildHolderMassProbeQuery() string {
 	probeCap := supplychaincore.HolderMassProbeCap
-	return fmt.Sprintf(holderMassProbeQueryTemplate, probeCap, probeCap, probeCap)
+	fillRows := supplychaincore.HolderMassProbeFillToCapRows
+	return fmt.Sprintf(holderMassProbeQueryTemplate, probeCap, fillRows, probeCap, fillRows+1, probeCap)
 }
 
 // HolderMassProbeQuery is the shipped probe text behind EstimateHolderMasses,

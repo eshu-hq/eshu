@@ -13,8 +13,10 @@ import (
 // split plan. The cap sits one row over the hot threshold, so every raw mass
 // at or under the threshold reports exactly (cold packs the same way) and
 // every raw mass over the threshold still reports hot (a capped hot id still
-// runs alone). It fails until the probe cap exists and stays single-sourced
-// from fanOutHolderHotMassRows.
+// runs alone). Member-arm saturation above HolderMassProbeFillToCapRows is
+// the accepted deviation, pinned live by the mid-band case in
+// TestHolderMassProbeCappedLive. It fails until the probe cap exists and
+// stays single-sourced from fanOutHolderHotMassRows.
 func TestCappedMassesDecideLikeRawMasses(t *testing.T) {
 	t.Parallel()
 
