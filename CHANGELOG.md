@@ -21,7 +21,10 @@ recent shipped work grouped by feature area.
   (`cvss_score` 0, severity bucket `none`) and scores from its remaining
   evidence, the same as a package-keyed finding. Finding identity and evidence
   fact ids do not move, and a restored record returns the finding to its prior
-  score. Two live copies of one record now resolve to the newest copy for
+  score. A rejected record beside an unreadable (quarantined) sibling leaves the
+  finding active and unannotated, as before, but it now scores 60 where it
+  scored 100 from the rejected record's 9.8 (the quarantined record's own score
+  is never read; eshu-hq/eshu#10773). Two live copies of one record now resolve to the newest copy for
   severity, not the lowest fact id, so a finding can read a different live
   score than before. A rejected-only finding now lands in the existing `none`
   outcome of `eshu_dp_supply_chain_severity_decisions_total`, so that count can

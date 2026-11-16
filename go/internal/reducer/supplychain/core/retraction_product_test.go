@@ -260,21 +260,21 @@ func TestRejectedRecordBesideASiblingLendsNoSeverityInEveryState(t *testing.T) {
 
 	rejected := func() facts.Envelope { return productCVE("nvd-rejected", "nvd", "Rejected", 9.8, "CRITICAL") }
 	cases := []struct {
-		name         string
-		sibling      facts.Envelope
-		wantState    SupplyChainSuppressionState
-		wantRetract  bool
-		wantCVSS     float64
-		wantScore    int
-		wantQuarants int
+		name            string
+		sibling         facts.Envelope
+		wantState       SupplyChainSuppressionState
+		wantRetract     bool
+		wantCVSS        float64
+		wantScore       int
+		wantQuarantined int
 	}{
 		{
-			name:         "sibling quarantined",
-			sibling:      quarantinedCVEFact("osv-quarantined", "CVE-2026-2100", "osv", "GHSA-live-qqqq-rrrr"),
-			wantState:    SupplyChainSuppressionStateActive,
-			wantCVSS:     0,
-			wantScore:    60,
-			wantQuarants: 1,
+			name:            "sibling quarantined",
+			sibling:         quarantinedCVEFact("osv-quarantined", "CVE-2026-2100", "osv", "GHSA-live-qqqq-rrrr"),
+			wantState:       SupplyChainSuppressionStateActive,
+			wantCVSS:        0,
+			wantScore:       60,
+			wantQuarantined: 1,
 		},
 		{
 			name:      "sibling live",
@@ -303,8 +303,8 @@ func TestRejectedRecordBesideASiblingLendsNoSeverityInEveryState(t *testing.T) {
 				sbomAttachmentImpactFact("attachment-1", "doc-1", testImpactSubjectDigest),
 				containerImageIdentityImpactFact("image-1", testImpactSubjectDigest, testImpactRepositoryID),
 			})
-			if err != nil || len(quarantined) != tc.wantQuarants || len(findings) != 1 {
-				t.Fatalf("err=%v quarantined=%d findings=%d, want %d quarantined and one finding", err, len(quarantined), len(findings), tc.wantQuarants)
+			if err != nil || len(quarantined) != tc.wantQuarantined || len(findings) != 1 {
+				t.Fatalf("err=%v quarantined=%d findings=%d, want %d quarantined and one finding", err, len(quarantined), len(findings), tc.wantQuarantined)
 			}
 			finding := applyRetractionDecision(findings[0])
 			if finding.Suppression.State != tc.wantState {
