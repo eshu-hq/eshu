@@ -23,4 +23,7 @@ var orderedBootstrapDefinitionNamesLatest = []string{
 	// Migration 296 (#10601 reopened) adds the resweep-maintained
 	// collector-instance identity column on collector_evidence_summary.
 	"collector_evidence_summary_instance_id",
+	// Migration 297 (#10728) adds the per-run, per-year NVD baseline
+	// resume checkpoints, separate from the window cursors.
+	"vulnerability_nvd_baseline_checkpoints",
 }
