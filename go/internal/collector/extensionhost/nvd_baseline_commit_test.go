@@ -4,7 +4,9 @@
 package extensionhost
 
 import (
+	"bytes"
 	"context"
+	"log/slog"
 	"strings"
 	"testing"
 	"time"
@@ -135,6 +137,79 @@ func TestBaselineCommitNeverArmsOrAdvancesTheWindowCursor(t *testing.T) {
 	}
 	if failure.terminal {
 		t.Fatal("refusal terminal = true, want retryable: the next plan replays the same chunk")
+	}
+}
+
+// TestBaselineCommitRefusedEmitsThroughProductionPath is the F6 regression
+// cell (eshu-hq/eshu#10762): a baseline generation carrying a window advance
+// verdict fails fail-closed through the production commit path with the
+// refused outcome counted and the WARN logged. The coverage row promises
+// both, so the wired policy must run instead of a silent pre-check.
+func TestBaselineCommitRefusedEmitsThroughProductionPath(t *testing.T) {
+	t.Parallel()
+
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&logs, nil))
+	reader := sdkmetric.NewManualReader()
+	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+	instruments, err := telemetry.NewInstruments(provider.Meter("test"))
+	if err != nil {
+		t.Fatalf("NewInstruments() error = %v, want nil", err)
+	}
+	policy, err := NewNVDBaselineCommitPolicy("scorecard-instance", instruments, logger)
+	if err != nil {
+		t.Fatalf("NewNVDBaselineCommitPolicy() error = %v, want nil", err)
+	}
+	source := testNVDBaselineSource(t, policy)
+	item := testWorkItem()
+	item.ScopeID = testNVDBaselineScopeForCommit
+	result := completeResult(item)
+	envelopes := []facts.Envelope{testNVDWindowSnapshotEnvelope(testNVDWindowVerdictPayload(true))}
+	collected := source.collectedGeneration(item, result, envelopes, "")
+	err = source.applyCommitPolicy(item, result.Generation.ObservedAt, envelopes, &collected)
+	if err == nil {
+		t.Fatal("applyCommitPolicy() error = nil for a baseline generation that would arm the window cursor, want a fail-closed refusal")
+	}
+	failure, ok := err.(extensionFailure)
+	if !ok {
+		t.Fatalf("applyCommitPolicy() error type = %T, want extensionFailure", err)
+	}
+	if failure.class != FailureClassNVDBaselineWindowWriterArmed {
+		t.Fatalf("refusal class = %q, want %q", failure.class, FailureClassNVDBaselineWindowWriterArmed)
+	}
+	if failure.terminal {
+		t.Fatal("refusal terminal = true, want retryable: the next plan replays the same chunk")
+	}
+
+	var rm metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &rm); err != nil {
+		t.Fatalf("Collect() error = %v", err)
+	}
+	var refused int64
+	for _, scopeMetrics := range rm.ScopeMetrics {
+		for _, metric := range scopeMetrics.Metrics {
+			if metric.Name != "eshu_dp_nvd_baseline_advance_total" {
+				continue
+			}
+			data, ok := metric.Data.(metricdata.Sum[int64])
+			if !ok {
+				t.Fatalf("advance metric data type = %T, want Sum[int64]", metric.Data)
+			}
+			for _, point := range data.DataPoints {
+				for _, attr := range point.Attributes.ToSlice() {
+					if string(attr.Key) == "outcome" && attr.Value.AsString() == telemetry.NVDBaselineOutcomeRefused {
+						refused += point.Value
+					}
+				}
+			}
+		}
+	}
+	if refused != 1 {
+		t.Fatalf("refused advance outcomes = %d, want 1 through the production commit path", refused)
+	}
+	logged := logs.String()
+	if !strings.Contains(logged, `"level":"WARN"`) || !strings.Contains(logged, "nvd baseline generation refused by commit policy, nothing committed") {
+		t.Fatalf("WARN log missing the fail-closed refusal, got: %s", logged)
 	}
 }
 
