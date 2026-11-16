@@ -300,6 +300,24 @@ mkdir -p "${work}/fakeproj/.agents/skills/golang-engineering" "${work}/fakeproj/
 printf 'x\n' >"${work}/fakeproj/.agents/skills/golang-engineering/SKILL.md"
 ln -s "${work}/outside/skill/SKILL.md" "${work}/fakeproj/.agents/skills/eshu-postgres-rigor/SKILL.md"
 no_marker "a SKILL.md symlinked out of the project" "${work}/fakeproj/.agents/skills/eshu-postgres-rigor/SKILL.md" "${work}/fakeproj"
+# The FOLDER is the other way out. The installer links each skill DIRECTORY
+# into the harness trees, so the folder itself is legitimately a symlink into
+# the kit; a folder linked to a directory that is neither under one of the
+# root's trees nor under the pinned kit must not pass. The file-level test
+# above cannot see this case: the SKILL.md inside such a folder is a plain
+# file, so its realpath sits inside its own folder and only the folder check
+# tells the two apart.
+mkdir -p "${work}/outside/skilldir"
+printf 'x\n' >"${work}/outside/skilldir/SKILL.md"
+ln -s "${work}/outside/skilldir" "${work}/fakeproj/.agents/skills/eshu-code-review"
+no_marker "a skill FOLDER symlinked out of the project" "${work}/fakeproj/.agents/skills/eshu-code-review/SKILL.md" "${work}/fakeproj"
+# Positive control for the same check: the real installed trees resolve two
+# different legitimate ways -- .agents/skills/<id> is a symlink into the kit's
+# skills/eshu, while an alias wrapper under .claude/skills is a plain
+# directory inside the tree. Both must still record.
+kit_skill_link="$(readlink "${repo_root}/.agents/skills/golang-engineering")"
+check "the installed .agents tree resolves into the kit" '[[ -L "'"${repo_root}"'/.agents/skills/golang-engineering" && "'"${kit_skill_link%/}"'" == *"/skills/eshu/golang-engineering" ]]'
+check "the installed .claude alias tree is a real directory" '[[ -d "'"${repo_root}"'/.claude/skills/eshu-code-review" && ! -L "'"${repo_root}"'/.claude/skills/eshu-code-review" ]]'
 cleanup_markers
 CURSOR_PROJECT_DIR="${work}/fakeproj" run postToolUse .claude/hooks/skill-loaded.sh \
   "$(posttool_in Read '{"file_path":"'"${work}"'/fakeproj/.agents/skills/golang-engineering/SKILL.md"}')"
