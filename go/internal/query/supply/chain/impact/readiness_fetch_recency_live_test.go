@@ -67,7 +67,7 @@ func recencyNVDEnvelopes(generationID string, observedAt time.Time) []facts.Enve
 			"source":                "nvd",
 			"query_count":           1,
 			"result_count":          1,
-			"response_digest":       "",
+			"response_digest":       "sha256:348acbae88a44409f4eb8723164b6d992f15dc16f87f728045a75d7e3126cb56",
 			"complete":              true,
 			"warning_code":          "",
 			"warning_message":       "",

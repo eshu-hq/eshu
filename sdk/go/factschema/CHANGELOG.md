@@ -22,6 +22,16 @@ version — pinning this module pins the fixture pack too.
 
 ### Added
 
+- The NVD paging golden's expected `vulnerability.source_snapshot` payload now
+  carries a real `response_digest` instead of the empty string (eshu-hq/eshu#10781,
+  part of eshu-hq/eshu#9209; fixture-only, no schema change, wire
+  `schema_version` stays `1.0.0`). The value is the digest the collector
+  documents for a read that accepted several responses: `sha256:` plus the
+  sha256 of the per-page sha256 sums joined in read order, over the golden's two
+  response bodies. The golden file digest moves to
+  `97e004bc53e9bede4397391323f2bc2c5e08ee4048226a9c461074b74ea19e5e`. This
+  entry tags and publishes no release.
+
 - `vulnerability.cve` declares six optional fields the vulnerability collector
   already emits, `collector_instance_id`, `source_identifier`, `descriptions`,
   `cwes`, `cvss_metrics`, and `correlation_anchors` (eshu-hq/eshu#10755, part of
