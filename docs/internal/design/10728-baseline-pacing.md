@@ -194,9 +194,10 @@ enable (parent design section 8,
 
 No pausing or serializing OSV/GHSA to make room (ruling decision 3).
 
-Known limits the #10746 enable lane must close before the lane turns on
-(carried from #10760 review findings F8 and F10; each is a binding
-acceptance item for that lane, not a nice-to-have):
+Known limits to close before the baseline enable lane (#10746) turns on.
+These come from the #10760 review findings F8 and F10, and the work is
+proposed, not yet tracked: the follow-up issue numbers belong here once the
+owner files them, and #10746's acceptance criteria do not list them today.
 
 - Inflow, not backlog (F8). The sampler counts CVE-% rows still queued, but
   the winners maintainer drains the log with `DELETE`
