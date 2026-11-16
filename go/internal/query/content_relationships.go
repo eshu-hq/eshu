@@ -11,8 +11,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
-const contentRelationshipLimit = 20
-
 // k8sSelectCandidateScanTruncationReason is the machine-readable disclosure
 // reason emitted on the entity-context API/MCP response when a k8s SELECTS
 // candidate scan hits repositorySemanticEntityLimit and had to be truncated.
@@ -37,7 +35,7 @@ type contentRelationshipSet struct {
 	// invariant changing.
 	scanTruncated bool
 	// outgoingTruncated and incomingTruncated report, per direction, that a
-	// scan or contentRelationshipLimit lookup clipped neighbours (#7151).
+	// scan or ContentRelationshipLimit lookup clipped neighbours (#7151).
 	// scanTruncated is deliberately narrower: only the k8s SELECTS scan.
 	outgoingTruncated, incomingTruncated bool
 	// outgoingClipType and incomingClipType name the relationship type each

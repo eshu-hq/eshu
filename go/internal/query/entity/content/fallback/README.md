@@ -22,4 +22,5 @@ so a back-import cycles.
 
 `BuildOutgoingK8sSelectRelationships` and `BuildIncomingK8sSelectRelationships`
 are exported only for the query root's staying classifier regression tests;
-satellite and handler consumers use `Builder`.
+`ContentRelationshipLimit` is the single-shared content-lookup ceiling the root
+regression tests bind instead of copying; satellite and handler consumers use `Builder`.
