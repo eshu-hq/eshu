@@ -15,15 +15,12 @@ metadata-only collection of Tempo trace-signal metadata: source instances,
 tag names, bounded tag values, and coverage warnings. It does not fetch
 traces, spans, raw trace IDs, request attributes, TraceQL bodies, or trace
 search payloads, and it makes no graph or coverage truth decisions. Its
-`prometheus` child owns only metadata-only collection of Prometheus and
-Mimir source metadata: source instances, observed targets and rules, and
-coverage warnings. It does not fetch metric samples, raw label values,
-or alert payloads, and it makes no graph or coverage truth decisions. Its
-`grafana` child owns only metadata-only
-collection of Grafana source metadata: source instances, observed
-dashboards and rules, and coverage warnings. It does not fetch dashboard
-JSON, datasource URLs, query models, contact destinations, credentials,
-or notification routes, and it makes no graph or coverage truth decisions.
+`prometheus` child owned only metadata-only collection of Prometheus and
+Mimir source metadata until its removal in eshu-hq/eshu#10619; collection is
+now owned by the `eshu-hq/eshu-collector-prometheus-mimir` satellite. Its
+`grafana` child owned only metadata-only
+collection of Grafana source metadata until its removal in the same issue;
+collection is now owned by the `eshu-hq/eshu-collector-grafana` satellite.
 Reducers and query surfaces compare these facts with declared and applied
 evidence.
 
@@ -32,12 +29,10 @@ evidence.
 None. This parent is documentation-only. See the `tempo` child for
 `NewHTTPClient`, `HTTPClient.CollectObservedMetadata`, `NewClaimedSource`,
 and the source-instance, observed-trace-signal, and coverage-warning
-envelope constructors; see the `prometheus` child for the same HTTP-client
-shape plus the source-instance, observed-target, observed-rule, and
-coverage-warning envelope constructors; see the
-`grafana` child for the same HTTP-client shape plus the source-instance,
-observed-resource,
-observed-rule, and coverage-warning envelope constructors.
+envelope constructors. The removed `prometheus` and `grafana` children
+exposed the same HTTP-client shape for their kinds; their constructors now
+live in the `eshu-hq/eshu-collector-prometheus-mimir` and
+`eshu-hq/eshu-collector-grafana` satellites.
 
 ## Dependencies
 
@@ -45,8 +40,7 @@ None. The parent `doc.go` contains only package documentation and its package
 clause. Dependencies belong to leaf packages. The `tempo` child retains its
 existing dependency on the collector root (`FactsFromSlice` and
 claim-source generation output) plus `facts`, `scope`, `telemetry`,
-`workflow`, `collector/sdk`, and the SDK factschema contracts; the
-`prometheus` and `grafana` children carry the same coupling shape. A
+`workflow`, `collector/sdk`, and the SDK factschema contracts. A
 future extraction of this subtree must address that coupling first.
 
 ## Telemetry
@@ -54,13 +48,9 @@ future extraction of this subtree must address that coupling first.
 None. This namespace executes no runtime code and changes no observability
 contract. The `tempo` child's spans and counters are documented in
 `go/internal/collector/observability/tempo/README.md` and covered by the
-existing collector Tempo telemetry row; the `prometheus` child's spans
-and counters are documented in
-`go/internal/collector/observability/prometheus/README.md` and covered by
-the existing collector Prometheus/Mimir telemetry row; the `grafana` child's spans
-and counters are documented in
-`go/internal/collector/observability/grafana/README.md` and covered by
-the existing collector Grafana telemetry row. No row changes in this
+existing collector Tempo telemetry row. The removed `prometheus` and
+`grafana` children keep their span and metric names in the satellites; see
+their telemetry rows. No row changes in this
 nest: span and metric names are untouched.
 
 ## Gotchas / invariants
@@ -70,17 +60,11 @@ nest: span and metric names are untouched.
   in the owning collector slice.
 - The `tempo` leaf is an observability source boundary, not an independently
   deployable service.
-- The `prometheus` leaf is an observability source boundary, not an
-  independently deployable service.
-- The `grafana` leaf is an observability source boundary, not an
-  independently deployable service.
 - Observed Tempo tags are fallback, validation, drift, and freshness
   evidence after IaC-first declared/applied sources.
 
 ## Related docs
 
 - `go/internal/collector/observability/tempo/README.md`
-- `go/internal/collector/observability/prometheus/README.md`
-- `go/internal/collector/observability/grafana/README.md`
 - `go/internal/collector/README.md`
 - `docs/public/reference/observability-evidence.md`

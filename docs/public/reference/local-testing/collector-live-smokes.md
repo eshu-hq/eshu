@@ -105,35 +105,20 @@ source /path/to/local/private/env
 set +a
 ```
 
-Grafana requires an API token:
+Grafana collection runs from the extracted satellite
+(`eshu-hq/eshu-collector-grafana`, eshu-hq/eshu#10619): the in-tree
+`go/internal/collector/observability/grafana` package and its
+`TestLiveGrafanaObservedMetadataEvidence` smoke are deleted, so there is no
+in-tree `go test` smoke for Grafana. Run live Grafana proof through that
+satellite's own conformance suite and the cutover record on #10619.
 
-```bash
-export ESHU_GRAFANA_LIVE=1
-export ESHU_GRAFANA_BASE_URL="${ESHU_GRAFANA_BASE_URL:?set Grafana URL}"
-export ESHU_GRAFANA_API_TOKEN="${ESHU_GRAFANA_API_TOKEN:?set Grafana token}"
-export ESHU_GRAFANA_RESOURCE_LIMIT="${ESHU_GRAFANA_RESOURCE_LIMIT:-5}"
-
-cd go
-go test ./internal/collector/observability/grafana \
-  -run TestLiveGrafanaObservedMetadataEvidence -count=1 -v
-```
-
-Prometheus and Mimir use the same smoke. Set
-`ESHU_PROMETHEUS_MIMIR_PROVIDER` to `prometheus` or `mimir`; the default is
-`prometheus`.
-
-```bash
-export ESHU_PROMETHEUS_MIMIR_LIVE=1
-export ESHU_PROMETHEUS_MIMIR_PROVIDER="${ESHU_PROMETHEUS_MIMIR_PROVIDER:-prometheus}"
-export ESHU_PROMETHEUS_MIMIR_BASE_URL="${ESHU_PROMETHEUS_MIMIR_BASE_URL:?set Prometheus or Mimir URL}"
-export ESHU_PROMETHEUS_MIMIR_API_TOKEN="${ESHU_PROMETHEUS_MIMIR_API_TOKEN:-}"
-export ESHU_PROMETHEUS_MIMIR_TENANT_ID="${ESHU_PROMETHEUS_MIMIR_TENANT_ID:-}"
-export ESHU_PROMETHEUS_MIMIR_RESOURCE_LIMIT="${ESHU_PROMETHEUS_MIMIR_RESOURCE_LIMIT:-5}"
-
-cd go
-go test ./internal/collector/observability/prometheus \
-  -run TestLivePrometheusMimirObservedMetricEvidence -count=1 -v
-```
+Prometheus and Mimir collection runs from the extracted satellite
+(`eshu-hq/eshu-collector-prometheus-mimir`, eshu-hq/eshu#10619): the in-tree
+`go/internal/collector/observability/prometheus` package and its
+`TestLivePrometheusMimirObservedMetricEvidence` smoke are deleted, so there
+is no in-tree `go test` smoke for Prometheus or Mimir. Run live proof
+through that satellite's own conformance suite and the cutover
+record on #10619.
 
 Loki collection runs from the extracted satellite
 (`eshu-hq/eshu-collector-loki`): the in-tree
@@ -192,17 +177,8 @@ docker compose --env-file path/to/private-remote-e2e.env \
 Then start the profile and capture proof with
 `scripts/verify_remote_e2e_runtime_state.sh` as shown on that page.
 
-To run both remaining in-tree smokes against a prepared environment:
-
-```bash
-cd go
-go test ./internal/collector/observability/grafana \
-  ./internal/collector/observability/prometheus \
-  -run 'TestLive.*Observed.*Evidence' -count=1 -v
-```
-
-Tempo and Loki run separately from the satellite profiles above; they are no longer part
-of this combined command.
+Grafana, Prometheus, Mimir, Tempo, and Loki all run from their satellites
+above; there is no in-tree combined smoke command left.
 
 ## OCI Registry Smokes
 
