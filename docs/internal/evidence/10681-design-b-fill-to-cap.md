@@ -44,8 +44,9 @@ closed to retry, never to a blind pass.
   `TestCapBoundaryKeepsHotAloneAndColdPacked`, and the constants guard
   (now also pinning K=100 and K far under the hot threshold).
 - The shipped query text carries LEAST/CASE/LIMIT/ON-gate values
-  10001/100/10001/101/10001, byte-matching the measured `/tmp/probe10681`
-  S2 statement modulo the shared fact-kind literal.
+  10001/100/10001/101/10001, matching the measured `/tmp/probe10681` S2
+  statement line-for-line apart from leading/trailing blank lines
+  (verified by rendering `HolderMassProbeQuery` and diffing).
 
 ## No-Observability-Change (#10681 design B):
 
