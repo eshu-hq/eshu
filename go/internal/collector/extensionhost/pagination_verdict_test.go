@@ -6,6 +6,7 @@ package extensionhost
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -192,10 +193,11 @@ func TestCollectPagesRejectsUnframedNonVerdictPages(t *testing.T) {
 		name      string
 		call      CallResult
 		wantClass string
+		wantText  string
 	}{
 		{name: "complete with facts and no envelope", call: CallResult{Result: completeResult(item, other)}, wantClass: FailureClassInvalidResult},
 		{name: "complete without facts and no envelope", call: CallResult{Result: completeResult(item)}, wantClass: FailureClassInvalidResult},
-		{name: "retryable with facts and no envelope", call: retryableWithFacts, wantClass: FailureClassInvalidResult},
+		{name: "retryable with facts and no envelope", call: retryableWithFacts, wantClass: FailureClassInvalidResult, wantText: "dropped its page envelope mid-stream"},
 		{name: "partial without envelope", call: partialNoEnvelope, wantClass: FailureClassInvalidResult},
 		{name: "verdict page index gap", call: gapVerdict, wantClass: FailureClassInvalidResult},
 		{name: "verdict page on v1alpha1", call: legacyVerdict, wantClass: FailureClassInvalidResult},
@@ -211,6 +213,9 @@ func TestCollectPagesRejectsUnframedNonVerdictPages(t *testing.T) {
 				t.Fatalf("NextClaimed() error = nil, want %q", tc.wantClass)
 			}
 			assertFailure(t, err, tc.wantClass, true)
+			if tc.wantText != "" && !strings.Contains(err.Error(), tc.wantText) {
+				t.Fatalf("NextClaimed() error = %q, want it to contain %q", err, tc.wantText)
+			}
 		})
 	}
 }
