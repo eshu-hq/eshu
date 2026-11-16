@@ -3,7 +3,7 @@
 
 # C4 no-port census record: 6 static W8b routes (Refs eshu-hq/eshu-api#101)
 
-Lane branch `drive/9669-c4-noport-record`, base `76240fda9f`. Scope: record
+Lane branch `drive/9669-c4-noport-record`, base `4788aaada`. Scope: record
 only — no deletion, no deletion PR, no traffic shift, no behavior change. This
 file lands the no-port census for the 6 W8b routes named in
 eshu-hq/eshu-api#101: `GET collector-extraction-readiness` x2,
@@ -18,14 +18,14 @@ sources, and existing freeze tests only.
 
 Wiring proof (all Profile-only / empty struct):
 
-- `go/cmd/api/wiring_router.go:298` —
+- `go/cmd/api/wiring_router.go:309` —
   `Visualization: &query.VisualizationHandler{}` (empty struct, no fields at
   all).
-- `go/cmd/api/wiring_router.go:316` —
+- `go/cmd/api/wiring_router.go:327` —
   `ExtractionReadiness: &query.CollectorExtractionReadinessHandler{Profile: queryProfile}`.
-- `go/cmd/api/wiring_router.go:317` —
+- `go/cmd/api/wiring_router.go:328` —
   `FactSchemaVersions: &query.FactSchemaVersionHandler{Profile: queryProfile}`.
-- `go/cmd/api/wiring_router.go:325` —
+- `go/cmd/api/wiring_router.go:336` —
   `SurfaceInventory: &query.SurfaceInventoryHandler{Profile: queryProfile}`.
 
 ## ExtractionReadiness — GET x2
