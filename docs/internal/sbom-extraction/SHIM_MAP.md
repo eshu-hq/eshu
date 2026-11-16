@@ -18,7 +18,7 @@ no recorded pin. Newer tags MUST NOT be substituted without that reviewed
 update):
 
 - `github.com/eshu-hq/eshu-sdk/collector v0.2.0-rc.4`
-- `github.com/eshu-hq/eshu-sdk/factschema v0.1.0-rc.19`
+- `github.com/eshu-hq/eshu-sdk/factschema v0.1.0-rc.19.0.20261116030912-dab9e9e8f917`
 
 Pin history: proxy-verified 2026-10-24 at collector/factschema
 `v0.1.0-rc.1`; in-tree moved to standalone modules at collector `rc.3` +
@@ -68,7 +68,15 @@ plus validator, JSON schema, and goldens, and to factschema `v0.1.0-rc.18`
 `h1:RRoYb7+52kaHt2ErQ6e0NEIDBX0nLbnBhXMQgLX75PA=`, proxy-verified 2026-11-08
 via `go get`), and to factschema `v0.1.0-rc.19` (eshu-hq/eshu#10037; tag at
 `5537eb6`, zip `h1:XCr3s4ASd1RK2/mSvbEr2qbuTqnnVgEzbUTr6Oxba58=`,
-proxy-verified 2026-11-09 via `go mod download`).
+proxy-verified 2026-11-09 via `go mod download`), and to factschema
+`rc.19.0.20261116030912-dab9e9e8f917` for the six optional `vulnerability.cve`
+fields the vulnerability collector already writes (eshu-hq/eshu#10755;
+eshu-hq/eshu-sdk#92 merged at `dab9e9e`, zip
+`h1:lLp28LTCnRETisNXdNjB64p+PT7hcNj/IeZB9QRE6pc=`, origin commit
+`dab9e9e8f91774813bb5db0750bd1ec94e707376`, proxy-verified 2026-11-16 via
+`go mod download -json`). This is a pseudo-version pin: no `rc.20` tag exists
+yet. The owner cuts that tag as a release step, and a separate retarget change
+(eshu-hq/eshu#10759) then replaces this pin with it.
 The extracted port
 (`eshu-collector-sbom-attestation` main, observed 2026-10-27) still builds
 at collector/factschema `v0.1.0-rc.2` — that drift is open until the port

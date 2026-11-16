@@ -22,6 +22,25 @@ version — pinning this module pins the fixture pack too.
 
 ### Added
 
+- `vulnerability.cve` declares six optional fields the vulnerability collector
+  already emits, `collector_instance_id`, `source_identifier`, `descriptions`,
+  `cwes`, `cvss_metrics`, and `correlation_anchors` (eshu-hq/eshu#10755, part of
+  eshu-hq/eshu#9209; additive minor, no decode shim; this entry tags and
+  publishes no release). Nothing is narrowed and no field becomes required:
+  `advisory_id` is still the only required key, and the wire `schema_version`
+  stays `1.0.0` because every older and current fact still decodes unchanged.
+  Declared types follow what the NVD, CVE List, GHSA, OSV, and GitLab Gemnasium
+  envelopes write: `collector_instance_id` and `source_identifier` are strings,
+  `descriptions` is a list of `{lang, value}` objects, `cvss_metrics` is an open
+  object (NVD maps a version key to a list of metric objects; the CVE List maps a
+  container and version key to one metric object), `correlation_anchors` is a
+  list of strings, and `cwes` is a list whose elements are id strings (NVD,
+  GitLab Gemnasium) or `{"cwe_id": ...}` objects (CVE List). The `cwes` schema
+  therefore declares element `type: ["string", "object"]` rather than open
+  `items: true`, which the collector conformance validator cannot compile. The
+  reducer still does not attach CWEs; the advisory query reads `cwes` at read
+  time.
+
 - `vulnerability.source_snapshot` gains the optional `covered_through` field
   (RFC 3339; eshu-hq/eshu#10037 S3a, additive minor, no decode shim): a
   rolling-window producer states how far its collection proved coverage, and
