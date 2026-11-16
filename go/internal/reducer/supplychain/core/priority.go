@@ -354,7 +354,7 @@ func supplyChainPriorityReason(finding SupplyChainImpactFinding) string {
 	}
 	if finding.AdvisoryRetraction != nil {
 		return fmt.Sprintf(
-			"advisory retracted (%s); %s triage priority score %d is computed from the remaining evidence and the finding is hidden by default; impact_status remains %s and priority does not prove affected truth",
+			"advisory retracted (%s); the retraction does not change the %s triage priority score %d, and the finding is hidden by default; impact_status remains %s and priority does not prove affected truth",
 			finding.AdvisoryRetraction.ReasonCode,
 			finding.PriorityBucket,
 			finding.PriorityScore,

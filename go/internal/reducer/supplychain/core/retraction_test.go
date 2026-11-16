@@ -100,7 +100,7 @@ func TestRejectedAdvisoryWithReplacementRetractsItsFindingAndExplainsWhy(t *test
 			t.Fatalf("Suppression.Reason = %q, want it to name %q", finding.Suppression.Reason, want)
 		}
 	}
-	assertPriorityNamesRetraction(t, finding)
+	assertPriorityNamesRetraction(t, finding, AdvisoryRetractionRejected)
 	assertNoCVSSContribution(t, finding)
 }
 
@@ -108,7 +108,7 @@ func TestRejectedAdvisoryWithReplacementRetractsItsFindingAndExplainsWhy(t *test
 // keeps the score and bucket it computed, and the priority output itself says
 // the advisory was retracted through a zero-weight contribution row, the
 // reason code it implies, and a priority_reason that leads with the retraction.
-func assertPriorityNamesRetraction(t *testing.T, finding SupplyChainImpactFinding) {
+func assertPriorityNamesRetraction(t *testing.T, finding SupplyChainImpactFinding, wantCode string) {
 	t.Helper()
 
 	if !slices.Contains(finding.PriorityReasonCodes, "advisory_retracted") {
@@ -125,7 +125,7 @@ func assertPriorityNamesRetraction(t *testing.T, finding SupplyChainImpactFindin
 	want := SupplyChainImpactPriorityContribution{
 		ReasonCode: "advisory_retracted",
 		Input:      "advisory_retraction",
-		Value:      AdvisoryRetractionRejected,
+		Value:      wantCode,
 	}
 	if len(rows) != 1 || rows[0] != want {
 		t.Fatalf("advisory_retracted contribution rows = %#v, want exactly %#v (zero weight)", rows, want)
@@ -137,6 +137,13 @@ func assertPriorityNamesRetraction(t *testing.T, finding SupplyChainImpactFindin
 	retracted, bucket := strings.Index(reason, "advisory retracted"), strings.Index(reason, finding.PriorityBucket)
 	if retracted != 0 || bucket < 0 || retracted > bucket {
 		t.Fatalf("PriorityReason = %q, want it to lead with the retraction before the %q bucket", reason, finding.PriorityBucket)
+	}
+	// The text may claim only what the annotation does: it leaves the score
+	// alone. It must not say the score comes from the remaining evidence,
+	// because a product-keyed finding still scores CVSS from its rejected
+	// record (eshu-hq/eshu#10764).
+	if strings.Contains(reason, "remaining evidence") || !strings.Contains(reason, "does not change") {
+		t.Fatalf("PriorityReason = %q, want it to say the retraction does not change the score and not to claim the score comes from the remaining evidence", reason)
 	}
 }
 
@@ -184,6 +191,7 @@ func TestWithdrawnOSVAdvisoryRetractsThroughTheSamePath(t *testing.T) {
 			if len(finding.AdvisoryRetraction.ReplacedBy) != 0 {
 				t.Fatalf("ReplacedBy = %v, want none: OSV states no replacement", finding.AdvisoryRetraction.ReplacedBy)
 			}
+			assertPriorityNamesRetraction(t, finding, AdvisoryRetractionWithdrawn)
 		})
 	}
 }
@@ -290,6 +298,7 @@ func TestEveryRetractedSourceRetractsTheGroupWithBothReasons(t *testing.T) {
 	if got, want := finding.AdvisoryRetraction.ReasonCode, AdvisoryRetractionRejectedAndWithdrawn; got != want {
 		t.Fatalf("ReasonCode = %q, want %q", got, want)
 	}
+	assertPriorityNamesRetraction(t, finding, AdvisoryRetractionRejectedAndWithdrawn)
 	if want := []string{"CVE-2026-2031", "CVE-2026-2032"}; !reflect.DeepEqual(finding.AdvisoryRetraction.ReplacedBy, want) {
 		t.Fatalf("ReplacedBy = %v, want trimmed, de-duplicated and sorted %v", finding.AdvisoryRetraction.ReplacedBy, want)
 	}
@@ -359,7 +368,7 @@ func TestUnrejectedAdvisoryKeepsTheSameFindingIdentity(t *testing.T) {
 		t.Fatalf("restored score %d must exceed the retracted score %d by its CVSS contribution",
 			restored.PriorityScore, rejected.PriorityScore)
 	}
-	assertPriorityNamesRetraction(t, rejected)
+	assertPriorityNamesRetraction(t, rejected, AdvisoryRetractionRejected)
 	assertNoCVSSContribution(t, rejected)
 	if slices.Contains(restored.PriorityReasonCodes, "advisory_retracted") ||
 		strings.Contains(restored.PriorityReason, "advisory retracted") {
@@ -399,7 +408,7 @@ func TestRetractedProductFindingIsRetractedToo(t *testing.T) {
 	if want := []string{"CVE-2026-2071"}; !reflect.DeepEqual(finding.AdvisoryRetraction.ReplacedBy, want) {
 		t.Fatalf("ReplacedBy = %v, want %v", finding.AdvisoryRetraction.ReplacedBy, want)
 	}
-	assertPriorityNamesRetraction(t, finding)
+	assertPriorityNamesRetraction(t, finding, AdvisoryRetractionRejected)
 }
 
 func TestRetractionOutranksAnOperatorSuppression(t *testing.T) {
