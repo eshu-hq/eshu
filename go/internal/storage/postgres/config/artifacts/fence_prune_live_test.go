@@ -206,12 +206,13 @@ func TestVersionFenceConcurrentPrunesShareRepositoriesLive(t *testing.T) {
 		// before Begin, so drain work migrates between the passes, and a
 		// pass can end with generations it drained but did not delete.
 		// Two concurrent passes both read the eligible set and, once the
-		// held rows release, start their prune selections within the same
-		// millisecond: the selection takes FOR UPDATE ... SKIP LOCKED on
+		// held rows release, can start their prune selections close
+		// together: the selection takes FOR UPDATE ... SKIP LOCKED on
 		// every eligible scope and generation until its savepoint
 		// rollback (#7334), so the pass that selects second can see an
 		// empty set while the first holds the wide lock, and defers
-		// generations only it drained. A batch whose commit waits on the
+		// generations only it drained. That reading is consistent with
+		// the code; the test does not instrument it. A batch whose commit waits on the
 		// held version row longer than its 500 ms lock_timeout rolls back
 		// and leaves its generation undrained the same way. Both are the
 		// documented contract in generation_retention_chunk_predrain.go
@@ -228,7 +229,7 @@ func TestVersionFenceConcurrentPrunesShareRepositoriesLive(t *testing.T) {
 		//   - across all passes every content row and every generation is
 		//     reported exactly once,
 		//   - a shared version row is bumped once per deleting
-		//     transaction, never per statement or row: at least once and
+		//     transaction, never per statement or row: between 1 and 2 times,
 		//     at most once for each of its two generations.
 		want := 2 * repoCount
 		left := supersededLeft(ctx, t, db, round)
