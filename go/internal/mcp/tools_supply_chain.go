@@ -125,7 +125,7 @@ func supplyChainTools() []ToolDefinition {
 					},
 					"include_suppressed": map[string]any{
 						"type":        "boolean",
-						"description": "Include findings hidden by operator-asserted VEX or policy suppression (not_affected, accepted_risk, false_positive, ignored) or by a source retraction of the advisory (advisory_retracted). Expired, provider-dismissed, and scope-mismatched findings are visible regardless because they keep audit signal.",
+						"description": "Include findings hidden by operator-asserted VEX or policy suppression (not_affected, accepted_risk, false_positive, ignored) or by a source retraction of the advisory (advisory_retracted; a retracted finding keeps its computed priority_bucket, so read suppression.state). Expired, provider-dismissed, and scope-mismatched findings are visible regardless because they keep audit signal.",
 						"default":     false,
 					},
 					"after_finding_id": map[string]any{

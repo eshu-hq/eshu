@@ -5,6 +5,7 @@ package core
 
 import (
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -159,6 +160,10 @@ func TestSupplyChainImpactPriorityModelScoresRequiredSignals(t *testing.T) {
 			}
 			if len(finding.PriorityContributions) == 0 {
 				t.Fatal("PriorityContributions = nil, want explainable contributions")
+			}
+			if slices.Contains(finding.PriorityReasonCodes, "advisory_retracted") ||
+				strings.Contains(finding.PriorityReason, "advisory retracted") {
+				t.Fatalf("unretracted finding reads as retracted: %v %q", finding.PriorityReasonCodes, finding.PriorityReason)
 			}
 		})
 	}

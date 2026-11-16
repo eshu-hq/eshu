@@ -5,6 +5,7 @@ package core
 
 import (
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -99,6 +100,65 @@ func TestRejectedAdvisoryWithReplacementRetractsItsFindingAndExplainsWhy(t *test
 			t.Fatalf("Suppression.Reason = %q, want it to name %q", finding.Suppression.Reason, want)
 		}
 	}
+	assertPriorityNamesRetraction(t, finding, AdvisoryRetractionRejected)
+	assertNoCVSSContribution(t, finding)
+}
+
+// assertPriorityNamesRetraction pins the #10756 ruling: a retracted finding
+// keeps the score and bucket it computed, and the priority output itself says
+// the advisory was retracted through a zero-weight contribution row, the
+// reason code it implies, and a priority_reason that leads with the retraction.
+func assertPriorityNamesRetraction(t *testing.T, finding SupplyChainImpactFinding, wantCode string) {
+	t.Helper()
+
+	if !slices.Contains(finding.PriorityReasonCodes, "advisory_retracted") {
+		t.Fatalf("PriorityReasonCodes = %v, want advisory_retracted", finding.PriorityReasonCodes)
+	}
+	var rows []SupplyChainImpactPriorityContribution
+	sum := 0
+	for _, contribution := range finding.PriorityContributions {
+		sum += contribution.Contribution
+		if contribution.ReasonCode == "advisory_retracted" {
+			rows = append(rows, contribution)
+		}
+	}
+	want := SupplyChainImpactPriorityContribution{
+		ReasonCode: "advisory_retracted",
+		Input:      "advisory_retraction",
+		Value:      wantCode,
+	}
+	if len(rows) != 1 || rows[0] != want {
+		t.Fatalf("advisory_retracted contribution rows = %#v, want exactly %#v (zero weight)", rows, want)
+	}
+	if got := clampPriorityScore(sum); got != finding.PriorityScore {
+		t.Fatalf("contributions sum to %d but PriorityScore = %d: the retraction row must weigh nothing", got, finding.PriorityScore)
+	}
+	reason := finding.PriorityReason
+	retracted, bucket := strings.Index(reason, "advisory retracted"), strings.Index(reason, finding.PriorityBucket)
+	if retracted != 0 || bucket < 0 || retracted > bucket {
+		t.Fatalf("PriorityReason = %q, want it to lead with the retraction before the %q bucket", reason, finding.PriorityBucket)
+	}
+	// The text may claim only what the annotation does: it leaves the score
+	// alone. It must not say the score comes from the remaining evidence,
+	// because a product-keyed finding still scores CVSS from its rejected
+	// record (eshu-hq/eshu#10764).
+	if strings.Contains(reason, "remaining evidence") || !strings.Contains(reason, "does not change") {
+		t.Fatalf("PriorityReason = %q, want it to say the retraction does not change the score and not to claim the score comes from the remaining evidence", reason)
+	}
+}
+
+// assertNoCVSSContribution pins the package path: a retracted record lends no
+// severity, so a package-keyed retracted finding earns no CVSS contribution.
+// The product (CPE) path does not share this today, so its test does not call
+// it.
+func assertNoCVSSContribution(t *testing.T, finding SupplyChainImpactFinding) {
+	t.Helper()
+
+	for _, contribution := range finding.PriorityContributions {
+		if contribution.Input == "cvss" {
+			t.Fatalf("retracted package finding scored CVSS %#v: a retracted record lends no severity", contribution)
+		}
+	}
 }
 
 func TestWithdrawnOSVAdvisoryRetractsThroughTheSamePath(t *testing.T) {
@@ -131,6 +191,7 @@ func TestWithdrawnOSVAdvisoryRetractsThroughTheSamePath(t *testing.T) {
 			if len(finding.AdvisoryRetraction.ReplacedBy) != 0 {
 				t.Fatalf("ReplacedBy = %v, want none: OSV states no replacement", finding.AdvisoryRetraction.ReplacedBy)
 			}
+			assertPriorityNamesRetraction(t, finding, AdvisoryRetractionWithdrawn)
 		})
 	}
 }
@@ -237,6 +298,7 @@ func TestEveryRetractedSourceRetractsTheGroupWithBothReasons(t *testing.T) {
 	if got, want := finding.AdvisoryRetraction.ReasonCode, AdvisoryRetractionRejectedAndWithdrawn; got != want {
 		t.Fatalf("ReasonCode = %q, want %q", got, want)
 	}
+	assertPriorityNamesRetraction(t, finding, AdvisoryRetractionRejectedAndWithdrawn)
 	if want := []string{"CVE-2026-2031", "CVE-2026-2032"}; !reflect.DeepEqual(finding.AdvisoryRetraction.ReplacedBy, want) {
 		t.Fatalf("ReplacedBy = %v, want trimmed, de-duplicated and sorted %v", finding.AdvisoryRetraction.ReplacedBy, want)
 	}
@@ -298,6 +360,20 @@ func TestUnrejectedAdvisoryKeepsTheSameFindingIdentity(t *testing.T) {
 	if restored.AdvisoryRetraction != nil {
 		t.Fatalf("restored finding still carries a retraction: %#v", restored.AdvisoryRetraction)
 	}
+	// A retracted record lends no CVSS severity (severityObservation), so the
+	// rejected finding scores from its remaining evidence while the restored
+	// one also earns the CVSS contribution. #10756 annotates that score; it
+	// never zeroes or caps it, so the two differ only by what the evidence says.
+	if restored.PriorityScore <= rejected.PriorityScore {
+		t.Fatalf("restored score %d must exceed the retracted score %d by its CVSS contribution",
+			restored.PriorityScore, rejected.PriorityScore)
+	}
+	assertPriorityNamesRetraction(t, rejected, AdvisoryRetractionRejected)
+	assertNoCVSSContribution(t, rejected)
+	if slices.Contains(restored.PriorityReasonCodes, "advisory_retracted") ||
+		strings.Contains(restored.PriorityReason, "advisory retracted") {
+		t.Fatalf("restored finding still reads as retracted: %v %q", restored.PriorityReasonCodes, restored.PriorityReason)
+	}
 	write := SupplyChainImpactWrite{IntentID: "intent", ScopeID: "scope", GenerationID: "gen"}
 	for name, pair := range map[string][2]string{
 		"finding_id": {supplyChainImpactFindingID(rejected), supplyChainImpactFindingID(restored)},
@@ -332,6 +408,7 @@ func TestRetractedProductFindingIsRetractedToo(t *testing.T) {
 	if want := []string{"CVE-2026-2071"}; !reflect.DeepEqual(finding.AdvisoryRetraction.ReplacedBy, want) {
 		t.Fatalf("ReplacedBy = %v, want %v", finding.AdvisoryRetraction.ReplacedBy, want)
 	}
+	assertPriorityNamesRetraction(t, finding, AdvisoryRetractionRejected)
 }
 
 func TestRetractionOutranksAnOperatorSuppression(t *testing.T) {

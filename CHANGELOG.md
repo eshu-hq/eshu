@@ -9,6 +9,19 @@ recent shipped work grouped by feature area.
 
 ## Unreleased
 
+### Retracted findings say so in their priority output
+
+- **Retracted advisory annotated in priority fields**
+  ([#10756](https://github.com/eshu-hq/eshu/issues/10756)). A finding whose
+  advisory a source rejected or withdrew now carries a zero-weight
+  `advisory_retracted` priority contribution, lists `advisory_retracted` in
+  `priority_reason_codes`, and opens its `priority_reason` with the
+  retraction. `priority_score` and `priority_bucket` are not changed and no
+  bucket is added, so sorting, paging, winner selection and the existing API
+  and MCP enums stay as they were. Read `suppression.state` to tell a
+  retracted finding from a live one. Retracted rows rewrite once on the next
+  reducer pass because their content digest includes the new fields.
+
 ### Golden corpus gate jobs get a budget that fits their measured runtime
 
 - **Corpus gate job cap aligned to measured durations**
