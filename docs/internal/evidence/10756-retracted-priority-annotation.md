@@ -54,8 +54,8 @@ shared machine with other sessions running, so timings are noisy.
 | all_rejected | head | 9,604,930 | 9,316,598 | 16,940,783 | 142,205 |
 
 The live case is unchanged in bytes and allocations. The all_rejected case adds
-about 82 KB (0.5%) and 506 allocations for 500 findings, one allocation per
-retracted finding for the row and one for the longer reason string. Head timing
+about 82 KB (0.5%) and 506 allocations for 500 findings, close to one extra
+allocation per retracted finding. Head timing
 is not slower than base in either case; the spread between rounds is larger than
 any difference, so no speedup is claimed.
 
