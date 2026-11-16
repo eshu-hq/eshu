@@ -5,6 +5,7 @@ package core
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
@@ -216,17 +217,34 @@ func applyRiskSignals(finding *SupplyChainImpactFinding, signals supplychainmode
 // fallback: a source-reported score beats a vector-derived score, which beats a
 // label, and source rank orders observations within one tier. A withdrawn or
 // rejected record lends no severity, so a group whose every record is retracted
-// returns its representative with the score, vector, and label blanked: the
+// returns its representative with the score, vector, and label blanked (a
+// record's superseded copies are reduced away first, so a stale live copy never
+// outvotes a newer retracted one, #10764): the
 // finding keeps its identity and evidence ids but reports no severity, the same
 // outcome the package path reaches. Identity never reads this row: the
 // finding's advisory id, dates, and key stay the representative's. With no
 // better-tiered observation the representative itself is returned, so a group
 // whose ranked row already carries the best severity is unchanged.
 func (g supplyChainCVEGroup) severityObservation(representative supplychainmodel.ImpactCVE) supplychainmodel.ImpactCVE {
+	// Newest copy first, as baseSupplyChainImpactFinding does for the package
+	// path and the retraction read does for this group: a superseded live copy
+	// of a record whose newest copy is withdrawn or Rejected must not lend its
+	// severity. The reduction is idempotent and allocation-free when no record
+	// has two copies.
+	observations, _ := newestCopyAdvisoryInputs(g.observations, nil)
 	best := representative
 	bestTier := observationSeverityTier(representative)
 	bestRank := observationSourceRank(representative)
-	for _, observation := range g.observations {
+	if !slices.ContainsFunc(observations, func(o supplychainmodel.ImpactCVE) bool {
+		return o.FactID == representative.FactID
+	}) {
+		// The ranked representative is a superseded copy: it still names the
+		// finding, but it earns no severity or tier of its own, exactly as a
+		// retracted representative earns none.
+		best.CVSSScore, best.CVSSVector, best.SeverityLabel = 0, "", ""
+		bestTier = 4
+	}
+	for _, observation := range observations {
 		if advisoryRetractionCode(observation.Status, observation.WithdrawnAt) != "" {
 			continue
 		}

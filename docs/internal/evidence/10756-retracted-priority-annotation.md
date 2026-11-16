@@ -87,7 +87,14 @@ and worked in the same goal.
   label of an all-retracted group, keeping the representative's `FactID` and
   identity. For a rejected-only product finding at CVSS 9.8 the priority score
   went from 100 (critical) to 60 (high) in the test fixture, because the +60
-  `cvss` contribution is gone.
+  `cvss` contribution is gone. Review found the same leak through a stale copy:
+  two copies of one record, the older Analyzed at 9.8 and the newer Rejected,
+  still scored 9.8 because `severityObservation` read the raw observations while
+  the retraction read the newest copy. It now reduces to the newest copy first
+  (`newestCopyAdvisoryInputs`), so the rule reads "a group whose every record,
+  after newest-copy reduction, is retracted". Behavior note: live-vs-live rows
+  sharing one (source, advisory id) are copies of one record, so a recency tie
+  now resolves to the greater fact id, as the package path already does.
 - eshu-hq/eshu#10765: a stale active copy in another holder scope can outrank a
   re-derived retracted copy in the default view, because winner selection orders
   by `priority_score` first. This change deliberately leaves score and bucket

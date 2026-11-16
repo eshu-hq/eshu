@@ -182,15 +182,18 @@ func TestProductRejectedScoredRowYieldsZeroWithLiveUnscoredSibling(t *testing.T)
 	}
 }
 
-// Two equal-rank, equal-tier NVD rows must resolve the same way whichever
+// Two equal-rank, equal-tier NVD records must resolve the same way whichever
 // order the observations arrive in: the lower FactID wins. The unscored
-// cve_list representative forces the severity pass to choose between them.
+// cve_list representative forces the severity pass to choose between them. The
+// two records carry distinct advisory ids: rows sharing one (source, advisory
+// id) are copies of one record, and only the newest copy counts (#10764).
 func TestProductSeverityFactIDTieBreakIsOrderIndependent(t *testing.T) {
 	t.Parallel()
 
 	listRow := productSeverityRow("cve-a-list", "cve_list", 0, "", "")
 	nvdLow := productSeverityRow("cve-b-nvd", "nvd", 5.0, "", "MEDIUM")
 	nvdHigh := productSeverityRow("cve-c-nvd", "nvd", 8.0, "", "HIGH")
+	nvdHigh.Payload["advisory_id"] = "CVE-2026-0110-b"
 
 	forward := BuildSupplyChainImpactFindings(productScoredObservationFacts(listRow, nvdLow, nvdHigh))
 	reverse := BuildSupplyChainImpactFindings(productScoredObservationFacts(listRow, nvdHigh, nvdLow))

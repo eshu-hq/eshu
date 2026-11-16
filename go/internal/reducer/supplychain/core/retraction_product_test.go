@@ -152,3 +152,69 @@ func equalStrings(a, b []string) bool {
 	}
 	return true
 }
+
+// scopedProductCVE is a productCVE copy held in its own scope and generation
+// with a stated modified_at, the way per-window generations deliver several
+// copies of one record.
+func scopedProductCVE(factID, status, modifiedAt string) facts.Envelope {
+	envelope := productCVE(factID, "nvd", status, 9.8, "CRITICAL")
+	envelope.Payload["modified_at"] = modifiedAt
+	envelope.ScopeID = "scope-" + factID
+	envelope.GenerationID = "generation-" + factID
+	return envelope
+}
+
+// TestRejectedNewestCopyOverStaleLiveCopyLendsNoSeverity pins the stale-copy
+// edge of #10764: two copies of one NVD record, the older Analyzed at 9.8 and
+// the newer Rejected, are one retracted record. The retraction annotation
+// already reads the newest copy, so the severity read must too: the superseded
+// live copy must not lend its CVSS to a finding the record has withdrawn. Both
+// fact id orders run, because the ranked representative (lowest fact id among
+// equal ranks) is the stale copy in one and the Rejected copy in the other.
+func TestRejectedNewestCopyOverStaleLiveCopyLendsNoSeverity(t *testing.T) {
+	t.Parallel()
+
+	for name, ids := range map[string][2]string{
+		"stale copy is the ranked representative":    {"nvd-a-old", "nvd-b-new"},
+		"rejected copy is the ranked representative": {"nvd-b-old", "nvd-a-new"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			finding := productRetractionFinding(t,
+				scopedProductCVE(ids[0], "Analyzed", "2026-01-01T00:00:00Z"),
+				scopedProductCVE(ids[1], "Rejected", "2026-06-01T00:00:00Z"),
+			)
+
+			if finding.AdvisoryRetraction == nil {
+				t.Fatalf("newest copy is Rejected but the finding carries no retraction: %#v", finding)
+			}
+			if finding.CVSSScore != 0 || finding.SeverityVector != "" || finding.SeverityLabel != "" {
+				t.Fatalf("stale live copy lent severity score=%v vector=%q label=%q to a retracted record, want none",
+					finding.CVSSScore, finding.SeverityVector, finding.SeverityLabel)
+			}
+			if contribution, ok := cvssContribution(finding); ok {
+				t.Fatalf("retracted record scored CVSS from its superseded copy: %#v", contribution)
+			}
+		})
+	}
+}
+
+// TestRestoredNewestCopyOverStaleRejectedCopyKeepsSeverity is the inverse: a
+// newer live copy supersedes an older Rejected copy, so the record is live and
+// scores its own CVSS.
+func TestRestoredNewestCopyOverStaleRejectedCopyKeepsSeverity(t *testing.T) {
+	t.Parallel()
+
+	finding := productRetractionFinding(t,
+		scopedProductCVE("nvd-old", "Rejected", "2026-01-01T00:00:00Z"),
+		scopedProductCVE("nvd-new", "Analyzed", "2026-06-01T00:00:00Z"),
+	)
+
+	if finding.AdvisoryRetraction != nil {
+		t.Fatalf("newest copy is live but the finding is retracted: %#v", finding.AdvisoryRetraction)
+	}
+	if finding.CVSSScore != 9.8 {
+		t.Fatalf("CVSSScore = %v, want 9.8 from the live newest copy", finding.CVSSScore)
+	}
+}
