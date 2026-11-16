@@ -57,7 +57,7 @@ var seedPlatformSource = hostSeedPlatform
 
 // componentCollectorInstancesFromEnv plans the installed component activations
 // into collector instances. platform is the host platform satellite seed
-// admission is scoped to; production passes hostSeedPlatform().
+// admission is scoped to; production passes seedPlatformSource().
 func componentCollectorInstancesFromEnv(getenv func(string) string, observer component.GrantObserver, platform string) ([]workflow.DesiredCollectorInstance, []component.Manifest, []StaleActivationSkip, error) {
 	home := strings.TrimSpace(getenv("ESHU_COMPONENT_HOME"))
 	if home == "" {

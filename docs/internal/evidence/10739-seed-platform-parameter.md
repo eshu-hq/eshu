@@ -2,7 +2,8 @@
 
 Issue: eshu-hq/eshu#10739. Seed admission is scoped to the host's `GOOS/GOARCH`,
 and two admission tests read the host platform, so they failed on any Mac. The
-admission platform is now a parameter. Production passes `hostSeedPlatform()`,
+admission platform is now a parameter. Production passes
+`seedPlatformSource()`, a package variable that defaults to `hostSeedPlatform()`,
 which returns the same `GOOS + "/" + GOARCH` string the loaders built inline
 before. Tests pass the pinned `linux/amd64`.
 
@@ -17,10 +18,11 @@ code it rests on:
 
 - The platform string is built once per configuration load. In the extension
   that is the single `loadRuntimeConfigObserved(getenv, grantObserver,
-  hostSeedPlatform())` call in `service.go` when the worker service is built.
+  seedPlatformSource())` call in `service.go` when the worker service is built.
   In the coordinator it is the single `loadConfigForPlatform(getenv, observer,
-  hostSeedPlatform())` call inside `LoadConfigObserved`. Neither sits in a claim
-  loop, a queue path, or a per-fact path.
+  seedPlatformSource())` call inside `LoadConfigObserved`. Neither sits in a
+  claim loop, a queue path, or a per-fact path. The source adds one indirect
+  call per load.
 - Before the change the same two-string concatenation ran inline at the
   `VerifySatelliteSeededArtifact` call. The change moves it to a helper and
   passes it down one extra argument. Work per load is unchanged.
@@ -43,8 +45,8 @@ admission refusal for an unpinned platform still returns the same error
 (`declares no seed image for platform "<platform>": refusing admission without
 the pinned platform image`), and the existing component-extension result and
 status-record metrics report it as before. An operator at 3 AM sees the same
-refusal text with the same platform value, because production passes the host
-platform exactly as before. The telemetry-coverage rows for the two new files
+refusal text with the same platform value, because the default source returns the
+host platform exactly as before. The telemetry-coverage rows for the two new files
 are in `docs/public/observability/telemetry-coverage-collectors.md`.
 
 ## Why this is safe
@@ -56,10 +58,14 @@ production caller can supply a platform other than the one the source returns.
 Production never reassigns `seedPlatformSource`.
 
 Two guards cover a hardcoded platform. Tests pin `hostSeedPlatform()` to
-`GOOS/GOARCH`, which catches a hardcoded or empty value inside the helper on any
-host that is not linux/amd64. A serial test per package stubs `seedPlatformSource`
-to `plan9/mips`, a platform no seed pin lists, and requires the public loader to
-refuse it, which catches a loader that ignores the source on every host,
-including linux/amd64. What no test can see on a linux/amd64 host is a literal
-`linux/amd64` inside the default `hostSeedPlatform()` body, because it returns the
-same string there; a non-Linux host catches that.
+`GOOS/GOARCH`: that catches an empty value inside the helper on every host, and a
+literal `linux/amd64` on any host that is not linux/amd64 (a linux/arm64 host
+catches it too, because the registry pins both linux platforms). Serial tests
+stub `seedPlatformSource` to `plan9/mips`, a platform no seed pin lists, and
+require the loader to refuse it. They run against `LoadConfig` in the
+coordinator and against `buildClaimedService`, the call the extension worker
+makes at startup, so a production line that ignores the source fails on every
+host, including linux/amd64. A third stub test covers the `loadRuntimeConfig`
+wrapper, which only tests call. What no test can see on a linux/amd64 host is a
+literal `linux/amd64` inside the default `hostSeedPlatform()` body, because it
+returns the same string there.

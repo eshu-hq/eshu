@@ -123,7 +123,7 @@ func loadRuntimeConfig(getenv func(string) string) (runtimeConfig, error) {
 // loadRuntimeConfigObserved is loadRuntimeConfig that reports the registry
 // readback's producer-grant decisions to observer (nil disables it) and
 // scopes satellite seed admission to platform, a GOOS/GOARCH pair. Production
-// passes hostSeedPlatform(); tests pass the pinned platform they assert so
+// passes seedPlatformSource(); tests pass the pinned platform they assert so
 // the rule is proven on any machine (#10739).
 func loadRuntimeConfigObserved(getenv func(string) string, observer component.GrantObserver, platform string) (runtimeConfig, error) {
 	home := strings.TrimSpace(getenv(envComponentHome))

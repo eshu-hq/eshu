@@ -94,7 +94,7 @@ func LoadConfigObserved(getenv func(string) string, observer component.GrantObse
 
 // loadConfigForPlatform is LoadConfigObserved with the seed-admission platform
 // made explicit. Production always passes the executing host's platform via
-// hostSeedPlatform; tests pass the pinned platform they mean to assert so the
+// seedPlatformSource; tests pass the pinned platform they mean to assert so the
 // admission rule is proven on any machine (#10739).
 func loadConfigForPlatform(getenv func(string) string, observer component.GrantObserver, platform string) (Config, error) {
 	if getenv == nil {
