@@ -135,6 +135,19 @@ replayed whole) still lands completion without moving the resume. The
 resume stores floored to whole milliseconds, the NVD wire form, so it
 agrees with the scope id the planner mints from it.
 
+No-Regression Evidence: the change adds one int64 modulo per advance in
+`AdvanceNVDBaselineCheckpoint` and leaves the `NVDBaselineCheckpointAdvanceQuery`
+text and single-statement upsert shape identical, so the plan cannot change.
+Baseline (pre-fix) live proof on local PostgreSQL 18.6 (disposable isolated
+schema, 3 advances + reads per test): replay-converges 0.03s PASS,
+stalled-year 0.02s PASS, precision 0.02s FAIL (stored ...000500). After:
+replay-converges 0.03s PASS, stalled-year 0.03s PASS, precision 0.02s PASS,
+and the full `go/internal/storage/postgres/vulnerability` suite passes
+(13.470s, `ESHU_POSTGRES_DSN` on the same backend).
+
+No-Observability-Change: the checkpoint store emits no spans, metrics, or
+logs; telemetry stays with the host baseline commit policy, untouched.
+
 ## 4. Planner-cadence interaction
 
 The window planner is pure planning math with no I/O and no locks
