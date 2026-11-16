@@ -16,8 +16,8 @@ Environment identifiers are redacted per #7803.
 proof-gated.** The amendment-1 year-feed window seed of the #10671 ruling is
 necessary for the 28-day outage gap and by construction insufficient for
 #10728: covered windows serve only year-set records with `lastModified` in
-`[start, end)` overlaid by Modified (design:79-81), so records last modified
-before the first window emit no facts from the seed.
+`[start, end)` overlaid by Modified (design section 1, "Coverage rule"), so
+records last modified before the first window emit no facts from the seed.
 
 ## Evidence (all first-hand)
 
@@ -25,12 +25,12 @@ before the first window emit no facts from the seed.
   2026-10-18 (~8.6d), 10,123 `vulnerability.cve` facts for 10,073 distinct CVE
   ids, cursor 2026-10-17T20:18:09Z. ~238 MiB gz / 2.8 GiB decompressed / 25
   year files.
-- 10671 ruling:192-196 amendment 1: year-feed seed required before QA enable
-  because Modified spans ~9d vs ~28d lag; it advances the window cursor, it
-  does not import the corpus.
-- 10671 ruling:156 live API probe `totalResults` 425,770 vs 10,073 held
-  distinct ids = 2.37% held, ~415,697 missing (derived arithmetic, first-hand
-  inputs only).
+- 10671 ruling, Part 2 "Amendments", item 1: year-feed seed required before
+  QA enable because Modified spans ~9d vs ~28d lag; it advances the window
+  cursor, it does not import the corpus.
+- 10671 ruling, Part 1 "Re-verified by the arbiter", item 13, live API probe
+  `totalResults` 425,770 vs 10,073 held distinct ids = 2.37% held, ~415,697
+  missing (derived arithmetic, first-hand inputs only).
 - Reducer consequence / CPE uniqueness:
   `advisorySourceClass` in
   `go/internal/reducer/supplychain/core/derived_partition.go`
@@ -38,20 +38,21 @@ before the first window emit no facts from the seed.
   `supplyChainCVEGroup.representative` in
   `go/internal/reducer/supplychain/core/provenance.go` (NVD is the only
   source emitting `affected_product` facts, the product-only CPE path);
-  10671 ruling:42 (OSV/GHSA: severity only).
-- Feed fidelity: design:161-164 + measurements M2 (45-52): feeds carry
+  10671 ruling, Part 1 "Source choice" (OSV/GHSA: severity only).
+- Feed fidelity: design section 4 "Field dispositions" table + measurements
+  M2 (Modified feed bullets): feeds carry
   cpeMatch 34,675/34,675 with matchCriteriaId, all 7 vulnStatus states, all
-  CVSS families; M8:131-132 20/20 deep-equal to the API. A baseline from year
+  CVSS families; M8 (result) 20/20 deep-equal to the API. A baseline from year
   feeds is identity translation, contract class none.
 - Scale (upper-bound extrapolation from M5, not measurement):
-  measurements M3:56-58 (25 year feeds, 237.6 MiB gz, 2,809 MiB
-  decompressed) and M5:75-79 (mean 7.07 facts/record over 12,818 records)
+  measurements M3 (25 year feeds, 237.6 MiB gz, 2,809 MiB
+  decompressed) and M5 (mean 7.07 facts/record over 12,818 records)
   give 425,770 x 7.07 ~= 3.01M facts, ~301 claims at the 10,000-fact cap
-  (design:176), ~150h at one chunk per 30min planner run.
+  (design section 5, "Limits" table), ~150h at one chunk per 30min planner run.
 - Dirty-log/reducer risk is real but unmeasured, hence gated not assumed:
-  M6:94-101 (1,080,966 dirty rows, 1.0-1.8k/min OSV/GHSA-keyed inflow from
-  reducer finding upserts, not raw facts); design:201-210 (rows per NVD fact
-  unmeasured).
+  M6 (1,080,966 dirty rows, 1.0-1.8k/min OSV/GHSA-keyed inflow from
+  reducer finding upserts, not raw facts); design section 6 "Write budget"
+  (rows per NVD fact unmeasured).
 
 ## Decisions
 
