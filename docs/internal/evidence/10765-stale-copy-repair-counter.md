@@ -31,9 +31,10 @@ returns, one in-memory loop over those rows, and at most two counter adds per
 pass. Backend and version for the behavior proofs: PostgreSQL 18.6, a throwaway
 local database. Input shape in those proofs: two holder scopes, one advisory
 group, so the row counts are single digits and say nothing about scale.
-Terminal counts: the writer live proof asserts
-`StaleCopyRepairs{ActiveToRetracted: 1, RetractedToActive: 1}` from the real SQL
-and the real writer.
+Terminal count: the writer live proof asserts
+`StaleCopyRepairs{ActiveToRetracted: 1}` from the real SQL and the real writer.
+The `RetractedToActive` direction is covered by the unit tests, not by a live
+database run.
 
 No-Regression Evidence: the winners ordering, indexes (migration 033), keyset
 paging and the write path's statements are unchanged, so the work per pass is
