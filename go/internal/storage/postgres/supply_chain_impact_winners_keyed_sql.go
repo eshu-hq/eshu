@@ -415,7 +415,7 @@ WHERE c.kind = 'scope'
 // remainder converted above (after conversion every unapplied identifier is
 // queued as a fact row, so the scope row's information survives its
 // deletion). Scope rows with nothing applied and fact rows of unapplied
-// identifiers stay queued.
+// identifiers stay queued. winnersDirtyTallyCTEs adds the NVD trip tally.
 var deleteWinnersKeyedAppliedDirtySQL = `
 WITH deleted AS (
     DELETE FROM supply_chain_impact_winners_dirty_log AS d
@@ -436,19 +436,19 @@ WITH deleted AS (
               )
           ))
       )
-    RETURNING d.source
-)
+    RETURNING d.source, d.kind, d.captured_at, d.advisory_id, d.scope_id
+)` + winnersDirtyTallyCTEs + `
 SELECT source, count(*) FROM deleted GROUP BY source
 `
 
 // deleteWinnersKeyedAllDirtySQL is the over-cap fallback's delete: the full
 // rebuild recomputes every key, so every queued row is consumed, tallied by
-// source. It matches the pre-chunking consume of the fallback path.
+// source and, like the applied delete, by the NVD trip tally.
 const deleteWinnersKeyedAllDirtySQL = `
 WITH deleted AS (
     DELETE FROM supply_chain_impact_winners_dirty_log
-    RETURNING source
-)
+    RETURNING source, kind, captured_at, advisory_id, scope_id
+)` + winnersDirtyTallyCTEs + `
 SELECT source, count(*) FROM deleted GROUP BY source
 `
 

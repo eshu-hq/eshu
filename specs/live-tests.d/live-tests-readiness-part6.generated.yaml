@@ -319,6 +319,11 @@ tests:
     class: postgres_ci
     reason: "#10768 disposable PostgreSQL proof that the coordinator's fold-and-save drives the real latch store end to end: an open trip survives a restart, an unreadable store holds planning, and a Close racing an hourly sample cannot be undone"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/vulnerability/nvd_baseline_trip_sample_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10767 disposable PostgreSQL proof that the NVD baseline trip sampler reads hourly inflow of the winners dirty log, not the rows the maintainer left behind: a writer appends CVE-keyed, GHSA-keyed, and scope rows while the real keyed maintainer drains the log with DELETE, and the sampled rate stays exactly the committed NVD-proxy rows"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/vulnerability/nvd_window_cursor_live_test.go
     tag: ~
     class: postgres_ci

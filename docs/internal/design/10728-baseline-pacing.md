@@ -257,18 +257,24 @@ No pausing or serializing OSV/GHSA to make room (ruling decision 3).
 
 Known limits to close before the baseline enable lane (#10746) turns on.
 These come from the #10760 review findings F8 and F10. The follow-ups are
-tracked as #10767 (inflow measure, F8) and #10768 (durable latch, F10), and
-both must land before #10746 turns the lane on. F10 is closed in the store
-and fold by #10768 (below). #10746 wires the recorders and the plan-time
-latch load into the service.
+tracked as #10767 (inflow measure, F8, closed below) and #10768 (durable
+latch, F10), and both must land before #10746 turns the lane on. F10 is
+closed in the store and fold by #10768 (below). #10746 wires the recorders
+and the plan-time latch load into the service.
 
-- Inflow, not backlog (F8, #10767). The sampler counts CVE-% rows still
-  queued, but the winners maintainer drains the log with `DELETE`
-  (`deleteWinnersKeyedAppliedDirtySQL`), so a healthy maintainer hides
-  inflow and the trip opens late. The lane needs a true inflow measure
-  (a `seq` watermark carried between samples, or a capture-side counter)
-  and must count the `kind = 'scope'` rows a baseline commit appends, which
-  carry a NULL `advisory_id` by migration 272's shape constraint.
+- Inflow, not backlog (F8), closed by #10767. The sampler reads hourly
+  inflow: the CVE-% rows still queued plus the CVE-% rows the winners
+  maintainer already drained, which its two DELETE statements add to
+  `supply_chain_impact_winners_dirty_tally` by capture minute in the same
+  statement (migration 299). The ruled definition holds unchanged (CVE-%
+  fact rows, over-counting on purpose). NVD `kind = 'scope'` rows, which
+  carry a NULL `advisory_id` by migration 272's shape constraint, are
+  counted one per row by scope family in a separate
+  `NVDScopeRowsPerHour` field and are not folded into the 15k comparison;
+  that fold, and weighting by fan-out, is the open question recorded in
+  `docs/internal/evidence/10767-trip-inflow.md`. A raw sequence high-water
+  delta was rejected: it counts every source, and the measured all-source
+  inflow (M6) is 60k to 109k rows an hour against the 15k threshold.
 - Durable latch (F10, #10768). Done in the store and fold; the service
   wiring is still #10746. See "Durable latch contract" below. `Observe`
   itself counts samples, not elapsed time (the sample timestamp is not

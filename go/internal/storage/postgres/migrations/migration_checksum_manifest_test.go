@@ -387,6 +387,9 @@ var migrationShippedChecksums = map[string]string{
 	// #10768: the durable per-run NVD baseline trip latch, one guarded row
 	// per run (migration 298).
 	"298_vulnerability_nvd_baseline_trip_latches.sql": "9f86486081fd5d386d2cf2db6d3e5f5120392056089f271cd8da87be7f38650a",
+	// #10767: the drained NVD-proxy dirty-row tally the baseline trip sampler
+	// adds to the rows still queued, so it reads hourly inflow (migration 299).
+	"299_supply_chain_impact_winners_dirty_tally.sql": "b4b4f1292871adaaafed765d0046e4cc56402280c7024212175dfe7695147701",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition

@@ -29,4 +29,7 @@ var orderedBootstrapDefinitionNamesLatest = []string{
 	// Migration 298 (#10768) adds the durable per-run NVD baseline trip
 	// latch, so an open trip survives a coordinator restart.
 	"vulnerability_nvd_baseline_trip_latches",
+	// Migration 299 (#10767) adds the drain tally the NVD baseline trip
+	// sampler reads inflow from, since the dirty log is drained on read.
+	"supply_chain_impact_winners_dirty_tally",
 }

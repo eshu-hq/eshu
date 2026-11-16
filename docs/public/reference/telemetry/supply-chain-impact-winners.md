@@ -80,7 +80,12 @@ dirty log. A database that uses least-privilege writer logins must grant `INSERT
 on `supply_chain_impact_winners_dirty_log` and `USAGE` on its
 `supply_chain_impact_winners_dirty_log_seq_seq` sequence to the login that runs
 the impact writer (the reducer), and `SELECT`, `INSERT` and `DELETE` plus the
-same sequence `USAGE` to the winners maintainer. The keyed tick and the audit
+same sequence `USAGE` to the winners maintainer, which also needs `SELECT`,
+`INSERT`, `UPDATE` and `DELETE` on `supply_chain_impact_winners_dirty_tally`:
+its two drain statements keep an hourly ledger of the NVD-proxy rows they
+delete there, so the NVD baseline trip sampler (the coordinator login) can read
+inflow instead of survivors and needs `SELECT` on that table and on the dirty
+log (#10767). The keyed tick and the audit
 also create `ON COMMIT DROP` temporary tables, so the maintainer login needs
 `TEMPORARY` on the database; `PUBLIC` holds it by default, and a database that
 revoked it fails the tick with `permission denied`. Without the writer grant the
