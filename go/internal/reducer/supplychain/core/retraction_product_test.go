@@ -244,3 +244,85 @@ func TestStaleLiveRepresentativeLendsNoSeverityBesideItsNewerLiveCopy(t *testing
 		t.Fatalf("CVSSScore = %v, want 5.0 from the newest live copy, not the superseded representative's 9.8 or 0", finding.CVSSScore)
 	}
 }
+
+// TestRejectedRecordBesideASiblingLendsNoSeverityInEveryState pins the #10773
+// ruling for the product path. A rejected record at CVSS 9.8 lends no severity
+// whatever its sibling is: the finding stays active (unannotated) while the
+// sibling is quarantined or live, and is annotated only when every record is
+// retracted. The quarantined case scores exactly what the all-retracted case
+// scores (60), because the only readable number comes from a record that says
+// the ID is not a vulnerability, and a quarantined fact's own score is never
+// read. A live sibling supplies its own severity. The quarantined and rejected
+// rows fail on the pre-#10764 product path, which kept the rejected record's
+// 9.8 (score 100); the live row is a control that passes there too.
+func TestRejectedRecordBesideASiblingLendsNoSeverityInEveryState(t *testing.T) {
+	t.Parallel()
+
+	rejected := func() facts.Envelope { return productCVE("nvd-rejected", "nvd", "Rejected", 9.8, "CRITICAL") }
+	cases := []struct {
+		name         string
+		sibling      facts.Envelope
+		wantState    SupplyChainSuppressionState
+		wantRetract  bool
+		wantCVSS     float64
+		wantScore    int
+		wantQuarants int
+	}{
+		{
+			name:         "sibling quarantined",
+			sibling:      quarantinedCVEFact("osv-quarantined", "CVE-2026-2100", "osv", "GHSA-live-qqqq-rrrr"),
+			wantState:    SupplyChainSuppressionStateActive,
+			wantCVSS:     0,
+			wantScore:    60,
+			wantQuarants: 1,
+		},
+		{
+			name:      "sibling live",
+			sibling:   productCVE("osv-live", "osv", "", 7.5, "HIGH"),
+			wantState: SupplyChainSuppressionStateActive,
+			wantCVSS:  7.5,
+			wantScore: 95,
+		},
+		{
+			name:        "sibling rejected",
+			sibling:     productCVE("osv-rejected", "osv", "Rejected", 9.1, "CRITICAL"),
+			wantState:   SupplyChainSuppressionStateAdvisoryRetracted,
+			wantRetract: true,
+			wantCVSS:    0,
+			wantScore:   60,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			findings, quarantined, err := buildSupplyChainImpactFindingsWithQuarantine([]facts.Envelope{
+				rejected(), tc.sibling,
+				vulnerabilityAffectedProductFact("product-1", "CVE-2026-2100", testImpactProductCriteria, testImpactMatchCriteriaID, true),
+				sbomComponentCPEImpactFact("component-1", "doc-1", testImpactProductCriteria),
+				sbomAttachmentImpactFact("attachment-1", "doc-1", testImpactSubjectDigest),
+				containerImageIdentityImpactFact("image-1", testImpactSubjectDigest, testImpactRepositoryID),
+			})
+			if err != nil || len(quarantined) != tc.wantQuarants || len(findings) != 1 {
+				t.Fatalf("err=%v quarantined=%d findings=%d, want %d quarantined and one finding", err, len(quarantined), len(findings), tc.wantQuarants)
+			}
+			finding := applyRetractionDecision(findings[0])
+			if finding.Suppression.State != tc.wantState {
+				t.Fatalf("state = %q, want %q", finding.Suppression.State, tc.wantState)
+			}
+			if (finding.AdvisoryRetraction != nil) != tc.wantRetract {
+				t.Fatalf("AdvisoryRetraction = %#v, want annotated=%v", finding.AdvisoryRetraction, tc.wantRetract)
+			}
+			if finding.CVSSScore != tc.wantCVSS || finding.PriorityScore != tc.wantScore {
+				t.Fatalf("cvss=%v score=%d, want cvss=%v score=%d", finding.CVSSScore, finding.PriorityScore, tc.wantCVSS, tc.wantScore)
+			}
+			_, scored := cvssContribution(finding)
+			if scored != (tc.wantCVSS > 0) {
+				t.Fatalf("cvss contribution present=%v, want %v for cvss %v", scored, tc.wantCVSS > 0, tc.wantCVSS)
+			}
+			if tc.wantRetract {
+				assertPriorityNamesRetraction(t, finding, AdvisoryRetractionRejected)
+			}
+		})
+	}
+}

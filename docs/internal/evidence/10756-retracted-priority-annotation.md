@@ -95,6 +95,15 @@ and worked in the same goal.
   after newest-copy reduction, is retracted". Behavior note: live-vs-live rows
   sharing one (source, advisory id) are copies of one record, so a recency tie
   now resolves to the greater fact id, as the package path already does.
+- eshu-hq/eshu#10773: a rejected record beside a quarantined (unreadable)
+  sibling leaves the finding active and unannotated, because `retractionFor`
+  cannot tell what the unreadable record asserts, while the rejected record
+  still lends no severity. The ruling keeps that on both paths: the finding is
+  visible and scores 60 in the fixture, the same as its retracted twin, where
+  main's product path scored 100 from the rejected 9.8. The
+  readable-sibling and all-retracted shapes are pinned beside it in
+  `TestRejectedRecordBesideASiblingLendsNoSeverityInEveryState`, and the
+  package path in `TestQuarantinedLiveCVEFactDoesNotLetARejectionRetract`.
 - eshu-hq/eshu#10765: a stale active copy in another holder scope can outrank a
   re-derived retracted copy in the default view, because winner selection orders
   by `priority_score` first. This change deliberately leaves score and bucket

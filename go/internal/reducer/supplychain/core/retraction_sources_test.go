@@ -57,8 +57,10 @@ func TestMissingLiveCVEFactDoesNotLetARejectionRetract(t *testing.T) {
 func TestQuarantinedLiveCVEFactDoesNotLetARejectionRetract(t *testing.T) {
 	t.Parallel()
 
+	rejected := retractionCVEFact("nvd-cve", "CVE-2026-4111", "nvd", "CVE-2026-4111", "Rejected")
+	rejected.Payload["cvss_score"] = 9.8
 	envelopes := []facts.Envelope{
-		retractionCVEFact("nvd-cve", "CVE-2026-4111", "nvd", "CVE-2026-4111", "Rejected"),
+		rejected,
 		quarantinedCVEFact("ghsa-cve", "CVE-2026-4111", "osv", "GHSA-live-cccc-dddd"),
 		retractionPackageFact("ghsa-pkg", "CVE-2026-4111", "osv", "GHSA-live-cccc-dddd", "1.0.1"),
 		retractionConsumption(),
@@ -77,6 +79,16 @@ func TestQuarantinedLiveCVEFactDoesNotLetARejectionRetract(t *testing.T) {
 	if got := finding.Suppression.State; got != SupplyChainSuppressionStateActive {
 		t.Fatalf("state = %q, want active while a live source's package is present", got)
 	}
+	// #10773: the finding stays active and unannotated, and the rejected
+	// record still lends no severity. A quarantined sibling is never read, so
+	// the only readable score is the retracted one, and it is not used.
+	if finding.AdvisoryRetraction != nil {
+		t.Fatalf("AdvisoryRetraction = %#v, want nil while a sibling is quarantined", finding.AdvisoryRetraction)
+	}
+	if finding.CVSSScore != 0 || finding.SeveritySource != "" {
+		t.Fatalf("cvss=%v source=%q, want no severity from the rejected record", finding.CVSSScore, finding.SeveritySource)
+	}
+	assertNoCVSSContribution(t, finding)
 }
 
 // TestQuarantinedRejectedFactAndLiveSourceStaysActive is the mirror: the
