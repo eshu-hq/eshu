@@ -49,10 +49,11 @@ more than 256 holders drains across claims.
   10 s guard. Splitting changes statement count only: the admitted id set and
   the per-statement timeout are unchanged (the per-chunk probe measured
   6067 ms cold / 218 ms warm uncapped at production mass — see the evidence
-  note — bounded by the same guard, fail-closed; #10681 caps the per-id
-  total at one row over the hot threshold with cheap arms exact and the
-  member arm limited, so cold packs decide exactly as before while a hot id
-  still reads hot).
+  note — bounded by the same guard, fail-closed; #10681 caps every
+  per-id arm at one row over the hot threshold (fill-to-cap K=100 on all
+  three arms, Shape-B ruling), so at-or-under-K packs decide exactly as
+  before while a hot id still reads hot; a mid-band cheap count saturates
+  to the cap and runs singleton, which only splits more).
 - One hop: only the attempt a fan-out created is one hop (attempt 1; the reopen
   and the replay both reset the count to 0). That pass re-derives its copy,
   fans out nothing of its own rewrite, and consumes the stamp — except the

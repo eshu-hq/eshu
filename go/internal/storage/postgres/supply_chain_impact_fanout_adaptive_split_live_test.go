@@ -220,8 +220,8 @@ func TestHolderMassProbeLive(t *testing.T) {
 		t.Fatalf("EstimateHolderMasses() returned %d ids, want one row per requested id: %v", len(masses), masses)
 	}
 	t.Logf("holder mass probe: %v", masses)
-	if masses[adaptSplitHot] != 2005 {
-		t.Fatalf("hot mass = %d, want 2005 live rows (2000 holder + 5 own-scope, tombstoned excluded)", masses[adaptSplitHot])
+	if masses[adaptSplitHot] != int64(supplychaincore.HolderMassProbeCap) {
+		t.Fatalf("hot mass = %d, want the cap %d (2000+ cheap rows saturate above K=100 per the Shape-B ruling: still hot, runs singleton)", masses[adaptSplitHot], supplychaincore.HolderMassProbeCap)
 	}
 	if masses[adaptSplitWarm] != 70 {
 		t.Fatalf("warm mass = %d, want 70", masses[adaptSplitWarm])
