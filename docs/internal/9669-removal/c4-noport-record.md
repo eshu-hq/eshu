@@ -102,7 +102,7 @@ Wiring proof (all Profile-only / empty struct):
 - Handler: `go/internal/query/surface_inventory.go:32`
   (`SurfaceInventoryHandler`, Profile-only construction at wiring; the
   `sync.Once` + cached `inventory` fields hold only the decoded embedded
-  artifact, never a reader); `Mount` at `:57-59`, list body at `:64-98`,
+  artifact, never a reader); `Mount` at `:57-59`, list body at `:64-99`,
   artifact load at `:49-54`.
 - Exact static source: `capabilitycatalog.LoadSurfaceInventory()` at handler
   `:51` (`go/internal/capabilitycatalog/surfaces_load.go:36`), which unmarshals
@@ -140,7 +140,7 @@ Wiring proof (all Profile-only / empty struct):
 - Exact static source: pure derive — `BuildServiceStoryPacket`,
   `BuildEvidenceCitationPacket`, `BuildIncidentContextPacket` over the
   caller-supplied `source_response`; the truth envelope
-  (`:95-105`) is built from the caller-supplied source truth only.
+  (`:95-106`) is built from the caller-supplied source truth only.
 - No graph/content/store read: the struct is empty; imports are
   `encoding/json`, `fmt`, `net/http`, `strings`,
   `querycontract/evidence`, `query/incident/model`, `querycontract`. The
