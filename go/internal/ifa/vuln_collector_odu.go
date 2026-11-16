@@ -105,7 +105,7 @@ func cassetteBackedSpecs() []cassetteOduSpec {
 			name: VulnCollectorNewestCopyOduName, cassette: vulnCollectorCassetteRelPath,
 			scopes:  []string{vulnWindow1Scope, vulnWindow2Scope},
 			planted: plantedSBOMFacts(vulnWidgetCPE),
-			detail:  "the window that first carries a CVE and the window that re-issues it as rejected: the newest copy should retract it, and finding F1 pins what the reducer does with NVD's zone-less timestamps today",
+			detail:  "the window that first carries a CVE and the window that re-issues it as rejected: the reducer reads NVD's zone-less timestamps as UTC, so the newer rejected copy retracts the finding",
 		},
 		{
 			name: VulnCollectorNoBaselineOduName, cassette: vulnCollectorCassetteRelPath,

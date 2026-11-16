@@ -314,6 +314,23 @@ func TestVulnCollectorRejectedCVEKeepsItsRetraction(t *testing.T) {
 	if source.Source != "nvd" || source.AdvisoryID != cveRejected || source.Code != core.AdvisoryRetractionRejected || source.Status != "Rejected" {
 		t.Errorf("retraction source = %+v, want the nvd record of %s with status Rejected", source, cveRejected)
 	}
+	if state := suppressionState(got); state != core.SupplyChainSuppressionStateAdvisoryRetracted {
+		t.Errorf("suppression state = %q, want %q: a retracted finding is hidden from the default view",
+			state, core.SupplyChainSuppressionStateAdvisoryRetracted)
+	}
+}
+
+// suppressionAt is the fixed instant the suppression decisions in these tests
+// are evaluated at, so no test reads the wall clock. A retraction decides the
+// state before any expiry is compared, so the value does not change a result.
+var suppressionAt = time.Date(2026, 11, 15, 0, 0, 0, 0, time.UTC)
+
+// suppressionState returns the state the supply-chain impact handler gives a
+// finding when no operator or VEX suppression is on record. The pure builder
+// leaves Suppression unset; the handler fills it with
+// EvaluateSupplyChainSuppression, the call made here.
+func suppressionState(finding core.SupplyChainImpactFinding) core.SupplyChainSuppressionState {
+	return core.EvaluateSupplyChainSuppression(finding, nil, suppressionAt).State
 }
 
 // TestVulnCollectorOldWindowCVEHasNoBaseline: a CVE only an older window carries
@@ -338,63 +355,70 @@ func TestVulnCollectorOldWindowCVEHasNoBaseline(t *testing.T) {
 	}
 }
 
-// withZonedStamps returns clones of the facts whose vulnerability.cve payloads
-// carry RFC 3339 zones on their timestamps.
-func withZonedStamps(input []facts.Envelope) []facts.Envelope {
+// withDateOnlyStamp returns clones of the facts with the modified_at of one
+// vulnerability.cve copy (the copy of cveID in scopeID) set to a date with no
+// time, which the reducer cannot read as an instant. It also returns how many
+// facts it rewrote, so a caller can tell a real rewrite from a typo that
+// matched nothing.
+func withDateOnlyStamp(input []facts.Envelope, scopeID, cveID string) ([]facts.Envelope, int) {
 	out := cloneFacts(input)
+	rewritten := 0
 	for _, fact := range out {
-		if fact.FactKind != "vulnerability.cve" {
+		if fact.FactKind != "vulnerability.cve" || fact.ScopeID != scopeID || fact.Payload["cve_id"] != cveID {
 			continue
 		}
-		for _, key := range []string{"modified_at", "published_at"} {
-			if stamp, ok := fact.Payload[key].(string); ok && stamp != "" && !strings.HasSuffix(stamp, "Z") {
-				fact.Payload[key] = stamp + "Z"
-			}
-		}
+		fact.Payload["modified_at"] = "2026-05-20"
+		rewritten++
 	}
-	return out
+	return out, rewritten
 }
 
-// TestVulnCollectorNewestCopyIsNotRetractedYet pins finding F1, a known gap,
-// and is meant to fail when it is fixed. The second window re-issues
-// CVE-2026-90001 as Rejected, newer than the first window's copy, so the
-// finding should carry a retraction. It carries none: NVD stamps its records
-// without a zone ("2026-11-10T07:00:00.000"), and the reducer reads only RFC
-// 3339 when it picks the newest copy, so it cannot order these two. The same
-// facts with a "Z" on the stamps do retract, which shows the cross-window
-// logic is sound and the stamp format is the whole difference.
+// TestVulnCollectorNewestCopyRetracts: the second window re-issues
+// CVE-2026-90001 as Rejected, newer than the first window's Analyzed copy, so
+// the finding carries the newer copy's retraction and is hidden from the
+// default view. It holds on the facts exactly as recorded: NVD stamps its
+// records without a zone ("2026-11-10T07:00:00.000"), and the reducer reads that
+// stamp as UTC when it picks the newest copy (eshu-hq/eshu#10741, #10750).
 //
-// When this fails, F1 has been fixed on one side. If the reducer now accepts
-// zone-less stamps, assert the retraction on the facts as recorded and drop the
-// zoned control. If the collector now emits RFC 3339, the premise check fails
-// first: re-record the cassette and change this test the same way.
-func TestVulnCollectorNewestCopyIsNotRetractedYet(t *testing.T) {
+// The control shows the result depends on the Rejected copy's stamp. With that
+// one stamp replaced by a date and no time, the copy ranks oldest, the Analyzed
+// copy wins, and the finding stays active.
+func TestVulnCollectorNewestCopyRetracts(t *testing.T) {
 	t.Parallel()
 
 	odu := catalogOdu(t, VulnCollectorNewestCopyOduName)
 
-	for _, fact := range odu.Facts {
-		if fact.FactKind != "vulnerability.cve" {
-			continue
-		}
-		stamp, _ := fact.Payload["modified_at"].(string)
-		if _, err := time.Parse(time.RFC3339, stamp); err == nil {
-			t.Fatalf("recorded modified_at %q parses as RFC 3339: the collector's stamps are no longer zone-less, "+
-				"so F1 is fixed on the collector side; re-record the cassette and assert the retraction as recorded", stamp)
-		}
+	got := findingFor(t, impactFindings(odu), cveExactWidget)
+	if got.AdvisoryRetraction == nil {
+		t.Fatal("finding.AdvisoryRetraction = nil on the recorded stamps, want the Rejected newer copy's retraction")
+	}
+	if got.AdvisoryRetraction.ReasonCode != core.AdvisoryRetractionRejected {
+		t.Errorf("retraction reason code = %q, want %q", got.AdvisoryRetraction.ReasonCode, core.AdvisoryRetractionRejected)
+	}
+	if len(got.AdvisoryRetraction.Sources) != 1 {
+		t.Fatalf("retraction sources = %+v, want exactly the newer NVD copy", got.AdvisoryRetraction.Sources)
+	}
+	source := got.AdvisoryRetraction.Sources[0]
+	if source.Source != "nvd" || source.AdvisoryID != cveExactWidget || source.Code != core.AdvisoryRetractionRejected || source.Status != "Rejected" {
+		t.Errorf("retraction source = %+v, want the nvd record of %s with status Rejected", source, cveExactWidget)
+	}
+	if state := suppressionState(got); state != core.SupplyChainSuppressionStateAdvisoryRetracted {
+		t.Errorf("suppression state = %q, want %q", state, core.SupplyChainSuppressionStateAdvisoryRetracted)
 	}
 
-	asRecorded := findingFor(t, impactFindings(odu), cveExactWidget)
-	if asRecorded.AdvisoryRetraction != nil {
-		t.Fatalf("finding.AdvisoryRetraction = %+v on zone-less stamps: F1 looks fixed in the reducer; "+
-			"assert the retraction on the recorded facts and delete the zoned control", *asRecorded.AdvisoryRetraction)
+	dateOnly := odu
+	var rewritten int
+	dateOnly.Facts, rewritten = withDateOnlyStamp(odu.Facts, vulnWindow2Scope, cveExactWidget)
+	if rewritten != 1 {
+		t.Fatalf("rewrote %d cve facts, want exactly the second window's copy of %s", rewritten, cveExactWidget)
 	}
-
-	zoned := odu
-	zoned.Facts = withZonedStamps(odu.Facts)
-	got := findingFor(t, impactFindings(zoned), cveExactWidget)
-	if got.AdvisoryRetraction == nil || got.AdvisoryRetraction.ReasonCode != core.AdvisoryRetractionRejected {
-		t.Errorf("finding.AdvisoryRetraction = %+v on RFC 3339 stamps, want a rejected retraction: the newest copy is Rejected",
-			got.AdvisoryRetraction)
+	control := findingFor(t, impactFindings(dateOnly), cveExactWidget)
+	if control.AdvisoryRetraction != nil {
+		t.Errorf("finding.AdvisoryRetraction = %+v with the Rejected copy's stamp date-only, want nil: "+
+			"an unreadable stamp ranks oldest, so the Analyzed copy wins", *control.AdvisoryRetraction)
+	}
+	if state := suppressionState(control); state != core.SupplyChainSuppressionStateActive {
+		t.Errorf("suppression state with the Rejected copy's stamp date-only = %q, want %q",
+			state, core.SupplyChainSuppressionStateActive)
 	}
 }

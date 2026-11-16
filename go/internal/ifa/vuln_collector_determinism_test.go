@@ -11,6 +11,7 @@ import (
 	"math/rand/v2"
 	"slices"
 	"sort"
+	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -32,11 +33,28 @@ type determinismSubject struct {
 	wantFindings int
 }
 
+// withZonedStamps returns clones of the facts whose vulnerability.cve payloads
+// carry RFC 3339 zones on their timestamps.
+func withZonedStamps(input []facts.Envelope) []facts.Envelope {
+	out := cloneFacts(input)
+	for _, fact := range out {
+		if fact.FactKind != "vulnerability.cve" {
+			continue
+		}
+		for _, key := range []string{"modified_at", "published_at"} {
+			if stamp, ok := fact.Payload[key].(string); ok && stamp != "" && !strings.HasSuffix(stamp, "Z") {
+				fact.Payload[key] = stamp + "Z"
+			}
+		}
+	}
+	return out
+}
+
 // determinismSubjects returns the Odùs worth permuting: every one that reaches
 // a finding, plus the cross-window combination, where the newest-copy logic
 // compares three windows' copies of the same CVEs. Each stamp format appears,
-// because the zone-less recording and the RFC 3339 variant take different
-// branches of that logic.
+// because the reducer reads the recorded zone-less stamp and an RFC 3339 stamp
+// through different parses before it ranks the copies.
 func determinismSubjects(t *testing.T) []determinismSubject {
 	t.Helper()
 
