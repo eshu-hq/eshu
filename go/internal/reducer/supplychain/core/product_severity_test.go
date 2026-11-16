@@ -263,11 +263,12 @@ func BenchmarkProductSeverityObservation(b *testing.B) {
 	}
 }
 
-// TestProductAllRejectedGroupKeepsRepresentative pins the all-retracted case:
-// with no live observation to lend severity, the representative stays, so a
-// rejected scored row still reports its own score (a group with a live unscored
-// sibling reports zero instead; see the rejected-representative tests above).
-func TestProductAllRejectedGroupKeepsRepresentative(t *testing.T) {
+// TestProductAllRejectedGroupKeepsIdentityButLendsNoSeverity pins the
+// all-retracted case (eshu-hq/eshu#10764): with no live observation to lend
+// severity, the representative still names the finding (its FactID stays) but
+// its score, vector and label are blanked, the same outcome a live unscored
+// sibling gives (see the rejected-representative tests above).
+func TestProductAllRejectedGroupKeepsIdentityButLendsNoSeverity(t *testing.T) {
 	t.Parallel()
 
 	rejected := func(factID, source string, score float64) supplychainmodel.ImpactCVE {
@@ -282,16 +283,22 @@ func TestProductAllRejectedGroupKeepsRepresentative(t *testing.T) {
 	}}
 	representative := group.observations[0]
 	got := group.severityObservation(representative)
-	if got.FactID != representative.FactID || got.CVSSScore != 9.9 {
-		t.Fatalf("all-rejected group selected %s score %.1f, want the representative %s score 9.9",
-			got.FactID, got.CVSSScore, representative.FactID)
+	if got.FactID != representative.FactID {
+		t.Fatalf("all-rejected group selected %s, want the representative %s to keep naming the finding",
+			got.FactID, representative.FactID)
+	}
+	if got.CVSSScore != 0 || got.CVSSVector != "" || got.SeverityLabel != "" {
+		t.Fatalf("all-rejected group lent severity score=%.1f vector=%q label=%q, want none",
+			got.CVSSScore, got.CVSSVector, got.SeverityLabel)
 	}
 }
 
 // TestProductRetractedSiblingNeverOutranksRetractedRepresentative pins the
 // retracted-row skip in severityObservation. A retracted row and a retracted
 // representative share the lowest tier, so without the skip a lower-ranked
-// withdrawn row would take over the representative's own score.
+// withdrawn row would take over the representative as the selected row. The
+// representative stays the selected row and, being retracted, lends no
+// severity of its own either.
 func TestProductRetractedSiblingNeverOutranksRetractedRepresentative(t *testing.T) {
 	t.Parallel()
 
@@ -301,8 +308,8 @@ func TestProductRetractedSiblingNeverOutranksRetractedRepresentative(t *testing.
 	}}
 	representative := group.observations[0]
 	got := group.severityObservation(representative)
-	if got.FactID != representative.FactID || got.CVSSScore != 9.9 {
-		t.Fatalf("selected %s score %.1f, want the representative %s score 9.9",
+	if got.FactID != representative.FactID || got.CVSSScore != 0 {
+		t.Fatalf("selected %s score %.1f, want the representative %s with no severity",
 			got.FactID, got.CVSSScore, representative.FactID)
 	}
 }

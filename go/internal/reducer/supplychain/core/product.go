@@ -215,7 +215,10 @@ func applyRiskSignals(finding *SupplyChainImpactFinding, signals supplychainmode
 // score (eshu-hq/eshu#10717). This mirrors the package path's severity
 // fallback: a source-reported score beats a vector-derived score, which beats a
 // label, and source rank orders observations within one tier. A withdrawn or
-// rejected record lends no severity. Identity never reads this row: the
+// rejected record lends no severity, so a group whose every record is retracted
+// returns its representative with the score, vector, and label blanked: the
+// finding keeps its identity and evidence ids but reports no severity, the same
+// outcome the package path reaches. Identity never reads this row: the
 // finding's advisory id, dates, and key stay the representative's. With no
 // better-tiered observation the representative itself is returned, so a group
 // whose ranked row already carries the best severity is unchanged.
@@ -235,6 +238,13 @@ func (g supplyChainCVEGroup) severityObservation(representative supplychainmodel
 		if tier < bestTier || rank < bestRank || (rank == bestRank && observation.FactID < best.FactID) {
 			best, bestTier, bestRank = observation, tier, rank
 		}
+	}
+	if advisoryRetractionCode(best.Status, best.WithdrawnAt) != "" {
+		// Every observation is retracted, so the representative still names
+		// the finding but lends no severity: a rejected record's CVSS must not
+		// score (eshu-hq/eshu#10764). FactID and every identity field stay, so
+		// the finding id and evidence fact ids do not move.
+		best.CVSSScore, best.CVSSVector, best.SeverityLabel = 0, "", ""
 	}
 	return best
 }
