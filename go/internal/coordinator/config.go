@@ -89,7 +89,7 @@ func LoadConfig(getenv func(string) string) (Config, error) {
 // activations to observer (readback and activation stages). A nil observer
 // disables reporting.
 func LoadConfigObserved(getenv func(string) string, observer component.GrantObserver) (Config, error) {
-	return loadConfigForPlatform(getenv, observer, hostSeedPlatform())
+	return loadConfigForPlatform(getenv, observer, seedPlatformSource())
 }
 
 // loadConfigForPlatform is LoadConfigObserved with the seed-admission platform

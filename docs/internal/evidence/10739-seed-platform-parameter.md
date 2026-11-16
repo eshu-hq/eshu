@@ -49,9 +49,17 @@ are in `docs/public/observability/telemetry-coverage-collectors.md`.
 
 ## Why this is safe
 
-The `loadConfigForPlatform`, `hostSeedPlatform`, and extension
-`loadRuntimeConfigObserved` seams are unexported, and the exported entry points
-(`LoadConfig`, `LoadConfigObserved`) keep their signatures, so no production
-caller can supply a platform other than the host's. Tests pin `hostSeedPlatform()`
-to `GOOS/GOARCH` in both packages, so hardcoding the platform to `linux/amd64`
-or an empty string fails them on a non-Linux host.
+The `loadConfigForPlatform`, `hostSeedPlatform`, `seedPlatformSource`, and
+extension `loadRuntimeConfigObserved` seams are unexported, and the exported
+entry points (`LoadConfig`, `LoadConfigObserved`) keep their signatures, so no
+production caller can supply a platform other than the one the source returns.
+Production never reassigns `seedPlatformSource`.
+
+Two guards cover a hardcoded platform. Tests pin `hostSeedPlatform()` to
+`GOOS/GOARCH`, which catches a hardcoded or empty value inside the helper on any
+host that is not linux/amd64. A serial test per package stubs `seedPlatformSource`
+to `plan9/mips`, a platform no seed pin lists, and requires the public loader to
+refuse it, which catches a loader that ignores the source on every host,
+including linux/amd64. What no test can see on a linux/amd64 host is a literal
+`linux/amd64` inside the default `hostSeedPlatform()` body, because it returns the
+same string there; a non-Linux host catches that.

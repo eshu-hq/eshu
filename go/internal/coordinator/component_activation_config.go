@@ -48,6 +48,13 @@ func hostSeedPlatform() string {
 	return runtime.GOOS + "/" + runtime.GOARCH
 }
 
+// seedPlatformSource is the platform source LoadConfigObserved calls. It is a
+// variable so one serial test can stub it to a platform no seed pin lists and
+// prove the loader asks it, instead of hardcoding a pinned platform. A
+// hardcoded linux/amd64 would otherwise stay green on a linux/amd64 host
+// (#10739). Production never reassigns it.
+var seedPlatformSource = hostSeedPlatform
+
 // componentCollectorInstancesFromEnv plans the installed component activations
 // into collector instances. platform is the host platform satellite seed
 // admission is scoped to; production passes hostSeedPlatform().

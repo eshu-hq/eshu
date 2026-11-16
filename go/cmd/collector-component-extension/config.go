@@ -117,7 +117,7 @@ type processRuntimeConfig struct {
 }
 
 func loadRuntimeConfig(getenv func(string) string) (runtimeConfig, error) {
-	return loadRuntimeConfigObserved(getenv, nil, hostSeedPlatform())
+	return loadRuntimeConfigObserved(getenv, nil, seedPlatformSource())
 }
 
 // loadRuntimeConfigObserved is loadRuntimeConfig that reports the registry

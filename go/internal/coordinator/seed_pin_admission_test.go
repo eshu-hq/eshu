@@ -364,3 +364,26 @@ func TestLoadConfigAdmitsSatelliteExactlyWhenHostPlatformPinned(t *testing.T) {
 		t.Fatalf("LoadConfig() on unpinned host %q error = %q, want it to contain %q", host, err, want)
 	}
 }
+
+// TestLoadConfigAsksTheHostPlatformSource stubs the platform source to a
+// platform no seed pin lists and requires the public LoadConfig production
+// calls to refuse it. Unlike the test above, it fails on a linux/amd64 host too
+// when the loader ignores the source and hardcodes a pinned platform (#10739).
+// It stubs a package variable, so it must not run in parallel.
+func TestLoadConfigAsksTheHostPlatformSource(t *testing.T) {
+	const unpinned = "plan9/mips"
+	previous := seedPlatformSource
+	seedPlatformSource = func() string { return unpinned }
+	t.Cleanup(func() { seedPlatformSource = previous })
+
+	id := scannercomponent.SatelliteDocumentImportID
+	home := installSatelliteActivation(t, id, "")
+
+	_, err := LoadConfig(scannerCoordinatorEnv(home, id))
+	if err == nil {
+		t.Fatalf("LoadConfig() with host platform %q error = nil, want refusal", unpinned)
+	}
+	if want := fmt.Sprintf("declares no seed image for platform %q", unpinned); !strings.Contains(err.Error(), want) {
+		t.Fatalf("LoadConfig() error = %q, want it to contain %q", err, want)
+	}
+}
