@@ -203,6 +203,8 @@ Nothing about the threshold, the two-sample rule or the age trip changes.
 | Red, then green | `TestNVDBaselineTripSampleCountsInflowNotSurvivorsLive` and `...OnTheFullRebuildPathLive`, red on the surviving-rows measure (above), green on the tally |
 | Concurrency | `go test -count=6 -race -run CountsInflowNotSurvivorsLive`: pass; the sampler runs concurrently with the writer and a chunked maintainer |
 | Window and retention | `TestNVDBaselineTripSampleWindowAndRetentionLive`: 90-minute and 58-hour rows excluded, the 58-hour row writes no tally row, a four-hour-old bucket is pruned |
+| Window-edge slack | `TestNVDBaselineTripSampleCountsDrainedRowAtTheWindowEdgeLive` drains a row captured 10 seconds inside the window whose minute bucket is stamped before the window start; red (count 0, want 1) when the one-minute slack is removed from the sampler, green with it |
+| Queued scope rows | `TestNVDBaselineTripSampleCountsQueuedNVDScopeRowsLive` counts two queued NVD scope rows inside the hour and excludes an OSV row and a 90-minute row; the concurrent run also asserts a committed-rows lower bound on scope rows. Both fail when the live scope filter is forced false |
 | Maintainer unaffected | `go test -run TestSupplyChainImpactWinners ./internal/storage/postgres/` against the disposable database: 50 tests pass, none skipped or failed |
 | Rollback atomicity | Pinned by one-statement construction and the concurrent bounds check, not by a forced mid-tick failure |
 
