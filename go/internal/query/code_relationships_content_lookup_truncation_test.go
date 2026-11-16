@@ -7,6 +7,8 @@ import (
 	"context"
 	"fmt"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/entity/content/fallback"
 )
 
 // lookupCapContentStore serves one entity by id plus a fixed candidate list
@@ -57,7 +59,7 @@ func lookupCandidates(n int, shape func(i int, e *EntityContent)) []EntityConten
 }
 
 // TestHandleRelationshipsContentLookupsReportCeilingClip proves every content
-// lookup capped at contentRelationshipLimit reports the direction it clipped:
+// lookup capped at ContentRelationshipLimit reports the direction it clipped:
 // limit+1 candidates come back as exactly limit relationships with the flag
 // set, and exactly limit candidates are complete (#7151).
 func TestHandleRelationshipsContentLookupsReportCeilingClip(t *testing.T) {
@@ -117,8 +119,8 @@ func TestHandleRelationshipsContentLookupsReportCeilingClip(t *testing.T) {
 			candidates int
 			clipped    bool
 		}{
-			{"over the ceiling", contentRelationshipLimit + 1, true},
-			{"at the ceiling", contentRelationshipLimit, false},
+			{"over the ceiling", fallback.ContentRelationshipLimit + 1, true},
+			{"at the ceiling", fallback.ContentRelationshipLimit, false},
 		} {
 			tc := tc
 			t.Run(tt.name+"/"+tc.label, func(t *testing.T) {
@@ -133,8 +135,8 @@ func TestHandleRelationshipsContentLookupsReportCeilingClip(t *testing.T) {
 					side, other = "outgoing", "incoming"
 				}
 				rows, _ := resp[side].([]any)
-				if len(rows) != contentRelationshipLimit {
-					t.Fatalf("len(%s) = %d, want %d (the ceiling)", side, len(rows), contentRelationshipLimit)
+				if len(rows) != fallback.ContentRelationshipLimit {
+					t.Fatalf("len(%s) = %d, want %d (the ceiling)", side, len(rows), fallback.ContentRelationshipLimit)
 				}
 				requireContentTruncationFlags(t, resp, tt.outgoing && tc.clipped, !tt.outgoing && tc.clipped)
 				if resp[other+"_truncated"] != false {
@@ -181,7 +183,7 @@ func TestContentRelationshipSetLookupClipKeepsScanTelemetryFlag(t *testing.T) {
 	}
 	store := lookupCapContentStore{
 		entity: implBlock,
-		candidates: lookupCandidates(contentRelationshipLimit+1, func(_ int, e *EntityContent) {
+		candidates: lookupCandidates(fallback.ContentRelationshipLimit+1, func(_ int, e *EntityContent) {
 			e.EntityType = "Function"
 			e.Metadata = map[string]any{"impl_context": "Point"}
 		}),

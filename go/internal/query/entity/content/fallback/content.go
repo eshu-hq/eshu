@@ -13,20 +13,23 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
-const contentRelationshipLimit = 20
+// ContentRelationshipLimit caps a content lookup at 20 rows. It is the
+// single source of truth shared by the leaf clipper and the root regression
+// tests, so a future change cannot silently split them.
+const ContentRelationshipLimit = 20
 
 // contentRelationshipFetchLimit is what a capped content lookup asks the
-// store for: one row past contentRelationshipLimit, so an over-full lookup
+// store for: one row past ContentRelationshipLimit, so an over-full lookup
 // is an exact signal rather than a silent clip (#7151). capContentLookup
 // trims the extra row back off.
-const contentRelationshipFetchLimit = contentRelationshipLimit + 1
+const contentRelationshipFetchLimit = ContentRelationshipLimit + 1
 
 // capContentLookup trims a lookup fetched with contentRelationshipFetchLimit
-// back to contentRelationshipLimit and reports whether the store held more
-// rows than the limit. Exactly contentRelationshipLimit rows is complete.
+// back to ContentRelationshipLimit and reports whether the store held more
+// rows than the limit. Exactly ContentRelationshipLimit rows is complete.
 func capContentLookup(rows []querycontract.EntityContent) ([]querycontract.EntityContent, bool) {
-	if len(rows) > contentRelationshipLimit {
-		return rows[:contentRelationshipLimit], true
+	if len(rows) > ContentRelationshipLimit {
+		return rows[:ContentRelationshipLimit], true
 	}
 	return rows, false
 }
@@ -35,14 +38,15 @@ func capContentLookup(rows []querycontract.EntityContent) ([]querycontract.Entit
 // scan is the k8s SELECTS candidate scan (querycontract.RepositorySemanticEntityLimit),
 // which alone feeds the entity route's k8s telemetry. edgeType names the
 // relationship type whose neighbours were clipped -- by that scan or by a
-// contentRelationshipLimit lookup -- and is empty when nothing was clipped, so
+// ContentRelationshipLimit lookup -- and is empty when nothing was clipped, so
+
 // a relationship_type filter can tell whether it hides the clip.
 type contentClip struct {
 	scan     bool
 	edgeType string
 }
 
-// lookupClip is the clip a contentRelationshipLimit lookup reports for
+// lookupClip is the clip a ContentRelationshipLimit lookup reports for
 // edgeType, or no clip.
 func lookupClip(clipped bool, edgeType string) contentClip {
 	if !clipped {
