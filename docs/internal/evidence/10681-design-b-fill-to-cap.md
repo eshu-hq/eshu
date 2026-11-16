@@ -17,9 +17,10 @@ Baseline then after, same production-mass data, EXPLAIN ANALYZE BUFFERS
 (4.2x); independent re-run S2 196 ms vs S0 1536 ms (7.8x, S0 degrades cold
 while S2 holds ~100-200 ms). Worst observed 98-196 ms, far under the 5 s
 verdict bar. Input shape: the proven-hot N=2 pair from the split ladder
-(CVE-2026-44496, CVE-2022-3517), n=100 sequential executions, 10 s statement
-timeout each, zero timeouts, zero errors on the warm-cache survey (p50
-127 ms, empirical p99 177 ms, one 2.5 s cold outlier). Honest scope: warm
+(CVE-2026-44496, CVE-2022-3517), n=100 sequential executions of the shipped
+S0 probe on a warm cache, 10 s statement timeout each, zero timeouts, zero
+errors (p50 127 ms, empirical p99 177 ms, one 2.5 s cold outlier; S0
+numbers, not S2). Honest scope: warm
 cache plus pg_stat post-deploy max 9.26-9.90 s over ~1000-4000 production
 calls (cold/IO-driven tail); true-cold cache, 5-hot chunks, member mass
 above 6996, other K values, and post-deploy pg_stat are NOT_CHECKED and
