@@ -230,7 +230,9 @@ func (g supplyChainCVEGroup) severityObservation(representative supplychainmodel
 	// path and the retraction read does for this group: a superseded live copy
 	// of a record whose newest copy is withdrawn or Rejected must not lend its
 	// severity. The reduction is idempotent and allocation-free when no record
-	// has two copies.
+	// has two copies and the group holds four records or fewer, which is
+	// every typical group (one record per source); a larger group pays one
+	// key set to find out.
 	observations, _ := newestCopyAdvisoryInputs(g.observations, nil)
 	best := representative
 	bestTier := observationSeverityTier(representative)
