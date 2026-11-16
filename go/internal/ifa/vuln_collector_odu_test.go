@@ -213,6 +213,47 @@ func TestVulnCollectorCVECarriesItsCWEs(t *testing.T) {
 	t.Fatalf("the Odù carries no vulnerability.cve fact for %s", cveExactWidget)
 }
 
+// TestVulnCollectorOduDetailMatchesTheFinding ties the catalog detail operators
+// read to the finding the reducer builds. Each attachment the detail names in
+// its "finding with ... attached" clause must be populated on that finding, and
+// a name the finding has no field for (CWE, which joins only at read time) fails.
+func TestVulnCollectorOduDetailMatchesTheFinding(t *testing.T) {
+	t.Parallel()
+
+	entries, err := CatalogAt(repoRootDir(t))
+	if err != nil {
+		t.Fatalf("CatalogAt() error = %v", err)
+	}
+	var detail string
+	for _, entry := range entries {
+		if entry.Odu.Name == VulnCollectorOduName {
+			detail = entry.Detail
+		}
+	}
+	_, clause, found := strings.Cut(detail, "finding with ")
+	clause, _, closed := strings.Cut(clause, " attached")
+	if !found || !closed {
+		t.Fatalf("detail %q does not say what the finding carries (want \"finding with ... attached\")", detail)
+	}
+	findings := impactFindings(catalogOdu(t, VulnCollectorOduName))
+	if len(findings) != 1 {
+		t.Fatalf("findings = %d, want exactly 1", len(findings))
+	}
+	got := findings[0]
+	carried := map[string]bool{
+		"KEV": got.KnownExploited, "EPSS": got.EPSSProbability != "", "severity": got.SeverityLabel != "",
+	}
+	for _, label := range strings.Split(strings.ReplaceAll(clause, " and ", ", "), ", ") {
+		populated, known := carried[label]
+		switch {
+		case !known:
+			t.Errorf("detail says the finding carries %q, but the finding has no such field: %q", label, detail)
+		case !populated:
+			t.Errorf("detail says the finding carries %q, but it is empty on the finding", label)
+		}
+	}
+}
+
 // TestVulnCollectorSeverityTiers covers the three ways a finding gets its
 // severity: the score the source reported, a score derived from the CVSS vector
 // when the source reported none, and the label alone when it reported neither.

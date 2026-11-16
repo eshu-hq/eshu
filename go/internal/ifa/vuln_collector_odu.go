@@ -96,7 +96,7 @@ func cassetteBackedSpecs() []cassetteOduSpec {
 			name: VulnCollectorOduName, cassette: vulnCollectorCassetteRelPath,
 			scopes:  []string{vulnWindow1Scope, vulnKEVScope, vulnEPSSScope},
 			planted: plantedSBOMFacts(vulnWidgetCPE),
-			detail:  "the collector's recorded NVD window, CISA KEV and FIRST EPSS plus a planted SBOM component with the exact CPE of the first record: one product-path finding with KEV, EPSS, CWE and severity attached",
+			detail:  "the collector's recorded NVD window, CISA KEV and FIRST EPSS plus a planted SBOM component with the exact CPE of the first record: one product-path finding with KEV, EPSS and severity attached; the cve fact keeps its CWEs",
 		},
 		{
 			name: VulnCollectorWildcardRangeOduName, cassette: vulnCollectorCassetteRelPath,
