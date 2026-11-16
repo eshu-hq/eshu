@@ -181,12 +181,37 @@ enable (parent design section 8,
 - Re-enable under 48h: the trip latch refuses a close until 6 consecutive
   hourly samples with oldest dirty <48h have followed the trip opening
   (opening the trip resets the count, and an hour at or past 48h withdraws
-  eligibility; `NVDBaselineTripState.Close`, #10760). An early attempt is
-  counted as `close_refused`. After re-enabling, keep recording hourly
+  eligibility; `NVDBaselineTripState.Close`, #10760). `Close` returns
+  cleared, refused, or nothing-to-close, so the #10746 caller records
+  `closed` only for a cleared trip and `close_refused` only for a refused
+  one. The `close_refused` recorder is registered today but has no
+  production caller until #10746 wires it, so an early attempt will be
+  counted as `close_refused` from that lane on. A quiet hour is an hourly
+  sample with oldest-dirty age under 48h, as the ruling words it; the rate
+  is not part of the test. After re-enabling, keep recording hourly
   samples against the soak bars. The #10706 bars (p95 <= 15s /
   watermark <= 60s) stay soak bars.
 
 No pausing or serializing OSV/GHSA to make room (ruling decision 3).
+
+Known limits the #10746 enable lane must close before the lane turns on
+(carried from #10760 review findings F8 and F10; each is a binding
+acceptance item for that lane, not a nice-to-have):
+
+- Inflow, not backlog (F8). The sampler counts CVE-% rows still queued, but
+  the winners maintainer drains the log with `DELETE`
+  (`deleteWinnersKeyedAppliedDirtySQL`), so a healthy maintainer hides
+  inflow and the trip opens late. The lane needs a true inflow measure
+  (a `seq` watermark carried between samples, or a capture-side counter)
+  and must count the `kind = 'scope'` rows a baseline commit appends, which
+  carry a NULL `advisory_id` by migration 272's shape constraint.
+- Durable latch (F10). `NVDBaselineTripState` is memory-only, so a
+  coordinator restart drops an open trip. The lane persists the latch and
+  reads it back before the first baseline plan, and a failed or missing
+  latch read must hold planning (fail closed), including the gap while the
+  sampler has no history.
+- Recorders. The lane wires the trip, plan, and dirty-probe recorders,
+  including `close_refused` from a refused `Close`, each with a test.
 
 ## 6. Idempotency argument
 
