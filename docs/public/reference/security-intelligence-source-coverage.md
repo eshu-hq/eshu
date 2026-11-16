@@ -431,8 +431,8 @@ No-Observability-Change: the GLAD adapter emits the existing
 adds no new metric instrument, span, log key, queue, reducer lane, graph
 write, or runtime worker. Operators use the `vulnerability.source_snapshot`
 `source`/`ecosystem`/`complete` fields and the readiness envelope to diagnose
-coverage; the collector does not fill `response_digest` yet (collector #125:
-eshu-hq/eshu-collector-vulnerability-intelligence#125).
+coverage; as of collector #125 the collector fills `response_digest` on every
+source snapshot (eshu-hq/eshu-collector-vulnerability-intelligence#125).
 
 ## Derived Advisory Target Planning
 
