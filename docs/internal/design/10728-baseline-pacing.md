@@ -195,22 +195,25 @@ enable (parent design section 8,
 No pausing or serializing OSV/GHSA to make room (ruling decision 3).
 
 Known limits to close before the baseline enable lane (#10746) turns on.
-These come from the #10760 review findings F8 and F10, and the work is
-proposed, not yet tracked: the follow-up issue numbers belong here once the
-owner files them, and #10746's acceptance criteria do not list them today.
+These come from the #10760 review findings F8 and F10. The follow-ups are
+tracked as #10767 (inflow measure, F8) and #10768 (durable latch, F10), and
+both must land before #10746 turns the lane on. #10746 wires the recorders
+and the plan-time latch load into the service.
 
-- Inflow, not backlog (F8). The sampler counts CVE-% rows still queued, but
+- Inflow, not backlog (F8, #10767). The sampler counts CVE-% rows still queued, but
   the winners maintainer drains the log with `DELETE`
   (`deleteWinnersKeyedAppliedDirtySQL`), so a healthy maintainer hides
   inflow and the trip opens late. The lane needs a true inflow measure
   (a `seq` watermark carried between samples, or a capture-side counter)
   and must count the `kind = 'scope'` rows a baseline commit appends, which
   carry a NULL `advisory_id` by migration 272's shape constraint.
-- Durable latch (F10). `NVDBaselineTripState` is memory-only, so a
-  coordinator restart drops an open trip. The lane persists the latch and
-  reads it back before the first baseline plan, and a failed or missing
-  latch read must hold planning (fail closed), including the gap while the
-  sampler has no history.
+- Durable latch (F10, #10768). `NVDBaselineTripState` is memory-only, so a
+  coordinator restart drops an open trip. The latch must be persisted and
+  read back before the first baseline plan, and a failed or missing latch
+  read must hold planning (fail closed), including the gap while the
+  sampler has no history. The gate counts samples, not elapsed time (the
+  sample timestamp is not read), so a missed or duplicate hourly sample
+  counts as a consecutive hour; gap handling is tracked in #10768.
 - Recorders. The lane wires the trip, plan, and dirty-probe recorders,
   including `close_refused` from a refused `Close`, each with a test.
 
