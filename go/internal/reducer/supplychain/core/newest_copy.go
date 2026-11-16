@@ -32,20 +32,49 @@ type advisoryCopyScope struct {
 	generation string
 }
 
-// newestCopyInstant ranks one copy's SourceUpdatedAt for the newest-copy
-// election: the greatest timestamp is the record, and an empty or
-// unparseable timestamp ranks oldest, so a copy that never stated its
-// recency never beats one that did (#10042).
-func newestCopyInstant(updatedAt string) (time.Time, bool) {
-	updatedAt = strings.TrimSpace(updatedAt)
-	if updatedAt == "" {
+// advisoryUnzonedLayout is the ISO 8601 seconds-precision shape with no zone
+// designator that NVD API 2.0 reports for lastModified and published (for
+// example "2026-08-11T19:33:44.513"). Go accepts an optional fractional second
+// after the seconds field when parsing, so the millisecond and no-fraction
+// forms both read under this one layout.
+const advisoryUnzonedLayout = "2006-01-02T15:04:05"
+
+// parseAdvisoryInstant parses one advisory-source timestamp for recency
+// ranking and advisory age. It accepts RFC 3339 (a Z or an offset) and, as a
+// second shape, the unzoned ISO 8601 seconds-precision value NVD emits, read
+// as UTC: NVD reports UTC and the CVE 5 schema states that an absent offset
+// means GMT (#10741). An empty or unparseable value reports false, so the
+// caller ranks it oldest and credits it no advisory age. A date-only value
+// ("2026-05-20"), a space separator, and hour 24 stay unparseable.
+//
+// The reader is deliberately wider than the SQL newest-copy election for
+// source "ghsa" (ghsa_newest_copy_sql.go), whose strict RFC 3339 pattern is
+// parity-locked to the readiness window-descriptor pattern: GHSA, OSV, and
+// Dependabot stamps always carry Z, so the second layout never fires for them.
+// Only this reader widens; eshu-authored timestamps (suppressions, cursors,
+// window descriptors, feed timestamps) keep their strict RFC 3339 parses.
+func parseAdvisoryInstant(raw string) (time.Time, bool) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
 		return time.Time{}, false
 	}
-	instant, err := time.Parse(time.RFC3339, updatedAt)
+	if instant, err := time.Parse(time.RFC3339, raw); err == nil {
+		return instant, true
+	}
+	instant, err := time.ParseInLocation(advisoryUnzonedLayout, raw, time.UTC)
 	if err != nil {
 		return time.Time{}, false
 	}
 	return instant, true
+}
+
+// newestCopyInstant ranks one copy's SourceUpdatedAt for the newest-copy
+// election: the greatest timestamp is the record, and an empty or
+// unparseable timestamp ranks oldest, so a copy that never stated its
+// recency never beats one that did (#10042). The parse is
+// parseAdvisoryInstant, so an unzoned NVD stamp ranks by its UTC instant.
+func newestCopyInstant(updatedAt string) (time.Time, bool) {
+	return parseAdvisoryInstant(updatedAt)
 }
 
 // newestCopyAfter reports whether candidate beats the current winner of one
