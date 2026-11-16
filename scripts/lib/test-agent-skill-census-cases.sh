@@ -68,6 +68,7 @@ run_agent_alias_marker_cases
 # after the marker cases and before the drift case below.
 run_agent_kit_fidelity_cases
 
+
 rm -r "$tmp/skill-links/.codex/skills/example"
 if ESHU_AGENT_CANON_REPO_ROOT="$tmp/skill-links" "$canon" >/dev/null 2>&1; then
   no "agent-canon should fail when one harness cannot discover a shared skill"
@@ -164,3 +165,114 @@ for harness in .claude .codex; do
   mv "$tmp/perf-contract/$harness/performance-skill.saved" \
     "$tmp/perf-contract/$harness/skills/eshu-performance-rigor/SKILL.md"
 done
+
+# --- the per-role shim-pin check ---------------------------------------------
+#
+# The gate compares every installed role shim against the tier model the
+# kit's manifest pins. A stale shim would dispatch a role on a model the
+# kit no longer pins, even with the manifest current, so the branch needs
+# a seeded RED: a shim that pins a different model must fail the gate,
+# and the restored shim must pass.
+#
+# The fixture kit carries a manifest with one role, so the check resolves
+# the shim against THAT manifest rather than the repo's.
+run_role_shim_pin_cases() {
+  local kit="$tmp/shim-pin/eshu-agent-kit"
+  local repo="$tmp/shim-pin"
+  mkdir -p "$kit/agents" "$repo/.agents" "$repo/.opencode/agent" \
+    "$repo/.claude/skills" "$repo/.codex/skills"
+  printf 'shared canon\n' >"$repo/AGENTS.md"
+  # The gate reads the nudge hook for skill reachability, so the fixture
+  # carries one; it names no skill, so the census stays empty.
+  mkdir -p "$repo/.claude/hooks"
+  {
+    printf '#!/bin/bash\n'
+    printf '# NUDGE_EXEMPT_BEGIN\n'
+    printf '#   eshu-performance-rigor  fixture skill, no real surface\n'
+    printf '# NUDGE_EXEMPT_END\n'
+    printf 'IDS=""\n'
+    printf 'case "$FP" in\n'
+    printf '  */placeholder/*) IDS="placeholder";;\n'
+    printf 'esac\n'
+  } >"$repo/.claude/hooks/skill-nudge.sh"
+  # The gate also requires the mandatory performance skill in the census it
+  # reads, so the fixture carries one with the contract tokens it checks.
+  mkdir -p "$repo/.claude/skills/eshu-performance-rigor/references"
+  cat >"$repo/.claude/skills/eshu-performance-rigor/SKILL.md" <<'SHIM_PERF_SKILL'
+---
+name: eshu-performance-rigor
+description: perf fixture
+---
+## Target Contribution Budget
+required_saving_seconds maximum_recoverable_seconds expected_saving_seconds
+## Resource-Qualified Claims
+absolute_target_applicable same-machine relative
+## Baseline Promotion
+## Retention Modes
+stop-and-preserve git merge-base --is-ancestor
+SHIM_PERF_SKILL
+  cat >"$repo/.claude/skills/eshu-performance-rigor/references/run-manifest.md" <<'SHIM_PERF_MANIFEST'
+target_contribution phase_durations_seconds retention accepted_commit
+hardware_class machine_profile reference_profile resource_envelope memory_bytes
+container_memory_limit_bytes absolute_target_applicable compose_service_limits
+service_usage_summary
+SHIM_PERF_MANIFEST
+  # The census checks the alias marker and both harness copies, so the
+  # fixture carries the marker and the .codex twin.
+  printf 'alias=eshu-performance-rigor source=eshu-performance-rigor\n' \
+    >"$repo/.claude/skills/eshu-performance-rigor/.kit-alias"
+  mkdir -p "$repo/.codex/skills/eshu-performance-rigor/references"
+  cp "$repo/.claude/skills/eshu-performance-rigor/SKILL.md" \
+    "$repo/.codex/skills/eshu-performance-rigor/SKILL.md"
+  cp "$repo/.claude/skills/eshu-performance-rigor/references/run-manifest.md" \
+    "$repo/.codex/skills/eshu-performance-rigor/references/run-manifest.md"
+  printf 'alias=eshu-performance-rigor source=eshu-performance-rigor\n' \
+    >"$repo/.codex/skills/eshu-performance-rigor/.kit-alias"
+  # The census reads the .claude tree, and the .codex copy must hold the
+  # same body for the cross-tree comparison.
+  cat >"$kit/agents/roles.json" <<'SHIM_MANIFEST'
+{
+  "models": {"opencode": {"arbiter": {"model": "kit/arbiter-model"}}},
+  "roles": {"arbiter-eshu": {"tier": "arbiter", "access": "read"}}
+}
+SHIM_MANIFEST
+  # The installed manifest is a symlink into the kit, which is how the
+  # gate finds the kit to compare against.
+  ln -sfn "$kit/agents/roles.json" "$repo/.agents/roles.json"
+  printf -- '---\ndescription: "x"\nmode: subagent\nmodel: kit/arbiter-model\n---\n' \
+    >"$repo/.opencode/agent/arbiter-eshu.md"
+  if ESHU_AGENT_CANON_REPO_ROOT="$repo" "$canon" >/dev/null 2>&1; then
+    ok "agent-canon accepts a role shim that pins the kit's model"
+  else
+    no "agent-canon should accept a role shim that pins the kit's model"
+  fi
+  # Seeded RED: the shim pins a model the kit does not.
+  printf -- '---\ndescription: "x"\nmode: subagent\nmodel: stale/model\n---\n' \
+    >"$repo/.opencode/agent/arbiter-eshu.md"
+  if ESHU_AGENT_CANON_REPO_ROOT="$repo" "$canon" >/dev/null 2>&1; then
+    no "agent-canon should fail when a role shim pins a model the kit does not"
+  else
+    ok "agent-canon fails when a role shim pins a model the kit does not"
+    # The gate exits non-zero in the RED case, so its output goes to a file
+    # and the file is matched. A pipeline would carry the gate's failing
+    # status under pipefail and mask what rg found.
+    ESHU_AGENT_CANON_REPO_ROOT="$repo" "$canon" >"$tmp/shim-pin/red.out" 2>&1 || true
+    if rg -q 'shim pins' "$tmp/shim-pin/red.out"; then
+      ok "agent-canon RED case fails for the shim reason, not another one"
+    else
+      no "agent-canon RED case fails for the shim reason, not another one"
+    fi
+  fi
+  # GREEN: the shim is restored.
+  printf -- '---\ndescription: "x"\nmode: subagent\nmodel: kit/arbiter-model\n---\n' \
+    >"$repo/.opencode/agent/arbiter-eshu.md"
+  if ESHU_AGENT_CANON_REPO_ROOT="$repo" "$canon" >/dev/null 2>&1; then
+    ok "agent-canon passes again once the role shim pins the kit's model"
+  else
+    no "agent-canon should pass again once the role shim pins the kit's model"
+  fi
+}
+
+# The per-role shim-pin check has its own seeded pair: a stale shim
+# must fail the gate and the restored shim must pass.
+run_role_shim_pin_cases
