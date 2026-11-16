@@ -270,9 +270,10 @@ and the plan-time latch load into the service.
   fact rows, over-counting on purpose). NVD `kind = 'scope'` rows, which
   carry a NULL `advisory_id` by migration 272's shape constraint, are
   counted one per row by scope family in a separate
-  `NVDScopeRowsPerHour` field and are not folded into the 15k comparison;
-  that fold, and weighting by fan-out, is the open question recorded in
-  `docs/internal/evidence/10767-trip-inflow.md`. A raw sequence high-water
+  `NVDScopeRowsPerHour` field and are not folded into the 15k comparison
+  (decided in #10767, with the reasoning and what would reopen it in
+  `docs/internal/evidence/10767-trip-inflow.md`; weighting by fan-out stays a
+  separate ruling). A raw sequence high-water
   delta was rejected: it counts every source, and the measured all-source
   inflow (M6) is 60k to 109k rows an hour against the 15k threshold.
 - Durable latch (F10, #10768). Done in the store and fold; the service

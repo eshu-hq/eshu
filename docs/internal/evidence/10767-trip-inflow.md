@@ -17,7 +17,7 @@ Environment identifiers are redacted per #7803.
 - Migration 272's shape constraint forces `advisory_id` NULL on
   `kind = 'scope'` rows, so no `LIKE 'CVE-%'` filter can see them.
 - Reproduced red first (`nvd_baseline_trip_sample_live_test.go`, commit
-  01e66d7c1d, run against a disposable PostgreSQL 18.6): a writer commits
+  c9c220768a, run against a disposable PostgreSQL 18.6): a writer commits
   batches of CVE-keyed, GHSA-keyed and scope rows while the real keyed
   maintainer drains the log in 20-row chunks.
 
@@ -95,6 +95,17 @@ buckets that overlap it.
   DELETE commits and in the tally after, never both and never neither. The live
   proof samples concurrently with a draining maintainer and asserts every
   sample lies between the rows committed before and after it.
+  Two limits of that claim, stated so they are not read as more than they are.
+  First, `captured_at` defaults to `clock_timestamp()` at insert, so a row whose
+  writer transaction spans a sample instant carries a timestamp before the
+  instant and a commit after it: both hourly samples can miss it (the earlier
+  one cannot see it yet, and the later one's window starts at the earlier
+  sample instant, after the row's `captured_at`). The never-neither guarantee holds per snapshot, not across the hourly
+  cadence, and the miss is bounded by the longest writer transaction. Second,
+  the conversion of a partly applied scope row into CVE-% fact rows is argued
+  from the statement text, not exercised: the concurrent proof drives CVE, GHSA
+  and queued scope rows through the maintainer but does not produce a partial
+  apply.
 - Attribution. Buckets are the capture minute, so a row captured in the trailing
   hour counts toward that hour whenever the maintainer drains it. A 58-hour
   backlog the maintainer finally chews through is outside the two-hour tally
@@ -137,7 +148,18 @@ That is about 1.4 ms (recent) and 0.7 ms (old) on a keyed tick whose other
 statements (identifier build, probe, winner upsert) run in the hundreds of
 milliseconds to seconds. The over-cap fallback deletes the whole 1,000,000-row
 log in one statement: 1.07 s and 3.76 s plain, 1.45 s and 0.77 s with the
-tally. That run is inside the machine's noise, so no delta is claimed for it.
+tally. That million-row run is inside the machine's noise; the paired
+`EXPLAIN` below gives the delta.
+
+A paired `EXPLAIN (ANALYZE, BUFFERS)` of the over-cap shape (one DELETE of the
+whole log) on a synthetic 200,000-row log measured the cost the noisy
+million-row run could not. The plain DELETE took a median of about 156 ms and
+the DELETE with the tally CTEs about 234 ms, a delta of about 78 ms. The
+tally raised the temp spill from
+4.3 MB to 10.5 MB (temp blocks 537 to 1,307). That is a real, measurable cost
+on the over-cap path, but it is small against the full rebuild the fallback
+runs next. The fallback fires only when the queued identifier set exceeds the
+keyed cap; a normal tick deletes one chunk.
 
 The sampler's cost is unchanged in shape: one pass over the log (count, filter
 and min together) plus a primary-key range scan of at most a few hundred tally
@@ -166,11 +188,37 @@ row under-represents it. Evidence from the code:
 - A scope row that is only partly applied is converted to CVE-% fact rows, which
   the ruled rate counts; one that waits shows in the oldest-dirty age.
 
-Decision: count NVD scope rows one per row, in a separate
+Decision (#10767): count NVD scope rows one per row, in a separate
 `NVDScopeRowsPerHour` field beside the ruled `DirtyProxyRowsPerHour`, and do
 not fold them into the 15k comparison. That keeps the ruled signal exactly as
 ruled. The field is new, so the #10768 trip code that reads the sample keeps
 compiling.
+
+Reasoning for no fold, from the repo's own evidence:
+
+- The ruled quantity is CVE-% fact rows. Decision 3 of the ruling and section 5
+  of [10728-baseline-pacing.md](../design/10728-baseline-pacing.md) define
+  "NVD-proxy rows" as dirty-log rows whose `advisory_id` starts with `CVE-`; a
+  scope row has a NULL `advisory_id` by migration 272, so it is outside the
+  definition. Adding a different row kind changes the quantity the 15k line was
+  chosen against, which the ruling reserves to the owner.
+- It cannot move the comparison. The ruled pacing is one baseline chunk per
+  30-minute planner run (design section 2 and the scale check), so a baseline
+  contributes about two NVD scope rows an hour against 15,000, under 0.02
+  percent. Folding the unweighted count would change no trip decision.
+- The load a scope row stands for is already counted. Its findings reach the
+  dirty log later as CVE-% `fact_upsert` rows, and a partly applied scope row is
+  converted to CVE-% fact rows; the ruled rate counts both, so the fold would add
+  no information (a fan-out-weighted fold would count that load twice). That
+  ordering is reasoned from the write order, not measured (see Open questions).
+
+What would change the decision: a ruling that redefines the trip unit or the
+15k threshold; pacing raised above one chunk per planner run (the design allows
+it only after disposable-DB proof); or the required disposable-DB measurement
+showing that scope-row expansion loads the maintainer without arriving as
+CVE-% dirty rows, which would make the ruled rate under-read it. Any of these is
+a separate ruling, and `NVDScopeRowsPerHour` is already reported so the fold is
+a one-line comparison change when one is made.
 
 ## Definition of the signal
 
@@ -180,17 +228,24 @@ Nothing about the threshold, the two-sample rule or the age trip changes.
 
 ## Open questions for the coordinator and the arbiter
 
-1. Should NVD scope rows fold into the 15k comparison? Recommendation: no. At
-   the ruled pacing of one baseline chunk per 30-minute planner run they add
-   about two rows an hour against 15,000, and a weighted figure changes the unit
-   from rows to expanded identifiers. If the owner wants the fan-out visible,
-   measure it in the required disposable-DB run (the maintainer already builds
-   `winners_keyed_scope_idents` at drain time) and weight in the drain tally,
-   attributed to the drain hour, as a separate ruling.
-2. Migration numbering. This change takes `298`. The #10768 branch adds trip
-   storage and will want a migration too; whichever lands second renumbers, and
+1. Decided, not open: NVD scope rows do not fold into the 15k comparison (see
+   Scope rows, above, for the reasoning and what would change it). The one
+   item left for the owner is the weighted variant: if the fan-out should be
+   visible, measure it in the required disposable-DB run (the maintainer already
+   builds `winners_keyed_scope_idents` at drain time) and weight in the drain
+   tally, attributed to the drain hour, as a separate ruling.
+2. Migration numbering. This change takes `299`: #10768's durable trip latch
+   reserves `298`. The bootstrap runner keys its ledger by migration path and
+   variant (`schema_bootstrap_lock.go`), not by a high-water mark, so a `298`
+   that lands after `299` is still applied on a database that already recorded
+   `299`. `BootstrapDefinitions()` takes its order from the embedded directory
+   listing, which sorts by file name, and `TestBootstrapDefinitionsAreOrderedAndComplete`
+   requires `orderedBootstrapDefinitionNamesLatest` to match that order exactly.
+   Whichever of the two lands second therefore rebases onto the other's entry at
+   the end of that list: if #10768 lands second, `298` goes before this change's
+   entry, not after it. In both cases the second branch recomputes
    `goldenBootstrapDefinitionsDigest`, the definitions count and the checksum
-   manifest in `go/internal/storage/postgres/migrations` need recomputing.
+   manifest in `go/internal/storage/postgres/migrations`.
 3. Grants. The maintainer login needs `SELECT, INSERT, UPDATE, DELETE` on the
    tally and the coordinator login `SELECT` on the tally and the dirty log. The
    public telemetry reference now says so; the deployment's least-privilege
@@ -214,8 +269,9 @@ Performance Evidence: baseline is the plain maintainer DELETE of a 5,000-row
 chunk, after is the same DELETE with the tally CTEs; PostgreSQL 18.6, a
 1,000,000-row copy of the dirty log (60 hours, 2 percent CVE-keyed), 10
 interleaved pairs, shared busy machine. Recent rows 4.5 ms median to 5.9 ms,
-58-hour-old rows 5.7 ms to 6.4 ms; the 1,000,000-row full-rebuild DELETE is
-inside run noise (tables above). The capture path has no change and the
+58-hour-old rows 5.7 ms to 6.4 ms; the over-cap full-rebuild DELETE, paired
+EXPLAIN on a synthetic 200,000-row log, took a median of about 156 ms plain
+and 234 ms with the tally, temp spill 4.3 MB to 10.5 MB (tables above). The capture path has no change and the
 capture-side alternative measured 230.2 tps to 45.9 tps at 8 writers.
 
 Observability Evidence: no new signal. `eshu_dp_nvd_baseline_dirty_proxy_rows_per_hour`
