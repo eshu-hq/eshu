@@ -44,7 +44,7 @@
   `LocalReusableWorkflowPath`** -- these back the edge-target slug in
   `go/internal/relationships/github_actions_evidence.go` (which reuses each
   function's exact pre-#5526 behavior verbatim) and
-  `go/internal/query/content_relationships_github_actions.go` /
+  `go/internal/query/entity/content/fallback/content_github_actions.go` /
   `go/internal/query/repositoryartifacts/repository_workflow_artifacts.go`
   (which layer their own
   quote-stripping and, for `ActionRepo`, ref-cleaning on top). Run the
@@ -57,12 +57,12 @@
   gate in `go/internal/content/shape/materialize.go`
   (`isDirectGitHubActionsWorkflowPath`) and the content-relationship
   classifier's workflow-path branch in
-  `go/internal/query/content_relationships_github_actions.go`
+  `go/internal/query/entity/content/fallback/content_github_actions.go`
   (`isGitHubActionsArtifactPath`). Both packages have their own table-driven
   path-gate tests (`TestMaterializeGitHubActionsWorkflowPathGate` in
   `go/internal/content/shape/materialize_github_actions_workflow_test.go` and
   `TestGitHubActionsSourceRelationshipsRejectsInexactWorkflowPaths` in
-  `go/internal/query/content_relationships_github_actions_path_gate_test.go`)
+  `go/internal/query/entity/content/fallback/content_github_actions_path_gate_test.go`)
   plus this package's own `TestIsWorkflowPath`; run all three after any
   change so the two call sites cannot silently diverge again.
 - **Widening the pinned classification** (for example, accepting a shorter hex
@@ -79,7 +79,7 @@
   different `ref_pinned` values for the same ref -- one of the two callers
   stopped routing through `Parse`/`Pinned` and reimplemented the split
   locally. Grep both `go/internal/relationships/first_party_refs.go` and
-  `go/internal/query/content_relationships_github_actions.go` for any
+  `go/internal/query/entity/content/fallback/content_github_actions.go` for any
   `strings.Index(..., "@")` that does not call into this package.
 - Symptom: a local `./` reusable workflow shows `ref_pinned: true` -- some
   caller defaulted a missing ref instead of omitting the field. `Parse`
@@ -91,7 +91,7 @@
   Actions artifact, or vice versa -- one of the two callers stopped routing
   through `IsWorkflowPath` and reimplemented the path gate locally. Grep both
   `go/internal/content/shape/materialize.go` and
-  `go/internal/query/content_relationships_github_actions.go` for any
+  `go/internal/query/entity/content/fallback/content_github_actions.go` for any
   `strings.Split(..., "/")` path-segment check that does not call into this
   package.
 

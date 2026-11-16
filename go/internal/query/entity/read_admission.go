@@ -126,16 +126,16 @@ const EntityReadAdmissionContractVersion = "v0"
 //
 //   - The content-fallback relationship build
 //     (ContentRelationshipBuilder.BuildContentRelationships, the
-//     GET entities/{entity_id}/context fallback): the only production
-//     satisfier is root's ContentIndexRelationshipBuilder, a
-//     stateless adapter over root's unexported per-language extraction
-//     closure with no satellite-consumable constructor. The METHOD stays
-//     out — do not freeze a method the satellite cannot satisfy — while
-//     its two exercised reads (SearchEntitiesReferencingComponent,
+//     GET entities/{entity_id}/context fallback): the production
+//     satisfier is now the satellite-importable
+//     entity/content/fallback.Builder (a stateless adapter over the
+//     leaf's per-language extraction closure); the METHOD stays out —
+//     do not freeze a builder method on this read pin — while its two
+//     exercised reads (SearchEntitiesReferencingComponent,
 //     ListRepoEntitiesByType) are frozen here, so a satisfier built to
 //     this pin serves the fallback leg's reads. That fallback leg
-//     terminates only when core provides a satisfier, and it keeps its
-//     standing until then.
+//     terminates only when the satellite consumes the leaf satisfier,
+//     and it keeps its standing until then.
 //   - The optional image-candidate explainer facet
 //     (ExplainContainerImageCandidate): StoryImageCandidateMissingExplanation
 //     degrades to a generic detail when the store does not implement
@@ -258,3 +258,13 @@ var _ EntityReadAdmission = interface {
 	entityDeploymentEvidenceFacet
 	entityReadModelSummaryFacet
 }(nil)
+
+// The ContentRelationshipReader four-shape assertion keeps the fallback
+// leg's reads honest: the entity pin already freezes
+// SearchEntitiesReferencingComponent and ListRepoEntitiesByType, so a leaf
+// satisfier built to this pin serves the content-fallback build. It works
+// in one direction only — the pin carries twenty-three more methods the
+// builder never calls — and it pins no shared port: the assertion names
+// ContentRelationshipReader only as the shape this pin covers for the
+// builder leg (precedent: codequery's CodeRelationshipReadAdmission pin).
+var _ querycontract.ContentRelationshipReader = EntityReadAdmission(nil)

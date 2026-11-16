@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package fallback
 
 import (
 	"context"
@@ -18,13 +18,13 @@ const cloudFormationRepoFileLimit = 5000
 func buildOutgoingCloudFormationRelationships(
 	ctx context.Context,
 	reader querycontract.ContentRelationshipReader,
-	entity EntityContent,
+	entity querycontract.EntityContent,
 ) ([]map[string]any, bool, error) {
 	if entity.EntityType != "CloudFormationResource" {
 		return nil, false, nil
 	}
 
-	templateURL, ok := metadataNonEmptyString(entity.Metadata, "template_url")
+	templateURL, ok := querycontract.MetadataNonEmptyString(entity.Metadata, "template_url")
 	if !ok {
 		return nil, true, nil
 	}
@@ -48,7 +48,7 @@ func buildOutgoingCloudFormationRelationships(
 func resolveCloudFormationLocalTemplatePath(
 	ctx context.Context,
 	reader querycontract.ContentRelationshipReader,
-	entity EntityContent,
+	entity querycontract.EntityContent,
 	templateURL string,
 ) (string, error) {
 	if reader == nil {

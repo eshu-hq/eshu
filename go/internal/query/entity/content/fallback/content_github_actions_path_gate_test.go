@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package fallback
 
 import (
 	"context"
 	"reflect"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // nonGitHubActionsJobsYAML is a YAML file whose top-level shape (jobs → steps →
@@ -20,6 +22,18 @@ const nonGitHubActionsJobsYAML = `jobs:
       - uses: some-org/some-action@v1
 `
 
+// relationshipHasTargetPort reports whether the built outgoing set holds an
+// edge with the given type, reason, and target name. It mirrors the query
+// root's relationshipHasTarget helper for this leaf's port-shaped set.
+func relationshipHasTargetPort(set querycontract.ContentRelationshipSet, relationshipType, reason, target string) bool {
+	for _, relationship := range set.Outgoing {
+		if relationship["type"] == relationshipType && relationship["reason"] == reason && relationship["target_name"] == target {
+			return true
+		}
+	}
+	return false
+}
+
 // TestGitHubActionsSourceRelationshipsRejectsNonGitHubPath is the codex P1
 // false-positive regression proof (issue #5337, PR #5379). A non-GitHub YAML
 // whose content has a jobs/steps/uses shape must produce ZERO relationships
@@ -30,7 +44,7 @@ const nonGitHubActionsJobsYAML = `jobs:
 func TestGitHubActionsSourceRelationshipsRejectsNonGitHubPath(t *testing.T) {
 	t.Parallel()
 
-	relationships, err := buildContentRelationshipSet(context.Background(), nil, EntityContent{
+	set, err := Builder{}.BuildContentRelationships(context.Background(), nil, querycontract.EntityContent{
 		EntityID:     "not-a-workflow",
 		RepoID:       "repo-1",
 		RelativePath: "config/ci.yml",
@@ -40,11 +54,11 @@ func TestGitHubActionsSourceRelationshipsRejectsNonGitHubPath(t *testing.T) {
 		SourceCache:  nonGitHubActionsJobsYAML,
 	}, nil)
 	if err != nil {
-		t.Fatalf("buildContentRelationshipSet() error = %v, want nil", err)
+		t.Fatalf("BuildContentRelationships() error = %v, want nil", err)
 	}
 
-	if len(relationships.outgoing) != 0 {
-		t.Fatalf("len(relationships.outgoing) = %d, want 0 (config/ci.yml is not a GitHub Actions artifact path): %#v", len(relationships.outgoing), relationships.outgoing)
+	if len(set.Outgoing) != 0 {
+		t.Fatalf("len(set.Outgoing) = %d, want 0 (config/ci.yml is not a GitHub Actions artifact path): %#v", len(set.Outgoing), set.Outgoing)
 	}
 }
 
@@ -54,7 +68,7 @@ func TestGitHubActionsSourceRelationshipsRejectsNonGitHubPath(t *testing.T) {
 func TestGitHubActionsSourceRelationshipsRejectsGitLabCIPath(t *testing.T) {
 	t.Parallel()
 
-	relationships, err := buildContentRelationshipSet(context.Background(), nil, EntityContent{
+	set, err := Builder{}.BuildContentRelationships(context.Background(), nil, querycontract.EntityContent{
 		EntityID:     "gitlab-ci",
 		RepoID:       "repo-1",
 		RelativePath: ".gitlab-ci.yml",
@@ -64,11 +78,11 @@ func TestGitHubActionsSourceRelationshipsRejectsGitLabCIPath(t *testing.T) {
 		SourceCache:  nonGitHubActionsJobsYAML,
 	}, nil)
 	if err != nil {
-		t.Fatalf("buildContentRelationshipSet() error = %v, want nil", err)
+		t.Fatalf("BuildContentRelationships() error = %v, want nil", err)
 	}
 
-	if len(relationships.outgoing) != 0 {
-		t.Fatalf("len(relationships.outgoing) = %d, want 0 (.gitlab-ci.yml is not a GitHub Actions artifact path): %#v", len(relationships.outgoing), relationships.outgoing)
+	if len(set.Outgoing) != 0 {
+		t.Fatalf("len(set.Outgoing) = %d, want 0 (.gitlab-ci.yml is not a GitHub Actions artifact path): %#v", len(set.Outgoing), set.Outgoing)
 	}
 }
 
@@ -79,7 +93,7 @@ func TestGitHubActionsSourceRelationshipsRejectsGitLabCIPath(t *testing.T) {
 func TestGitHubActionsSourceRelationshipsAcceptsWorkflowPath(t *testing.T) {
 	t.Parallel()
 
-	relationships, err := buildContentRelationshipSet(context.Background(), nil, EntityContent{
+	set, err := Builder{}.BuildContentRelationships(context.Background(), nil, querycontract.EntityContent{
 		EntityID:     "real-workflow",
 		RepoID:       "repo-1",
 		RelativePath: ".github/workflows/ci.yml",
@@ -89,11 +103,11 @@ func TestGitHubActionsSourceRelationshipsAcceptsWorkflowPath(t *testing.T) {
 		SourceCache:  nonGitHubActionsJobsYAML,
 	}, nil)
 	if err != nil {
-		t.Fatalf("buildContentRelationshipSet() error = %v, want nil", err)
+		t.Fatalf("BuildContentRelationships() error = %v, want nil", err)
 	}
 
-	if !relationshipHasTarget(relationships, "DEPENDS_ON", "github_actions_action_repository", "some-org/some-action") {
-		t.Fatalf("missing DEPENDS_ON some-org/some-action for .github/workflows/ci.yml: %#v", relationships.outgoing)
+	if !relationshipHasTargetPort(set, "DEPENDS_ON", "github_actions_action_repository", "some-org/some-action") {
+		t.Fatalf("missing DEPENDS_ON some-org/some-action for .github/workflows/ci.yml: %#v", set.Outgoing)
 	}
 }
 
@@ -104,7 +118,7 @@ func TestGitHubActionsSourceRelationshipsAcceptsWorkflowPath(t *testing.T) {
 func TestGitHubActionsSourceRelationshipsAcceptsCompositeActionPath(t *testing.T) {
 	t.Parallel()
 
-	relationships, err := buildContentRelationshipSet(context.Background(), nil, EntityContent{
+	set, err := Builder{}.BuildContentRelationships(context.Background(), nil, querycontract.EntityContent{
 		EntityID:     "composite-action",
 		RepoID:       "repo-1",
 		RelativePath: "my-action/action.yml",
@@ -119,11 +133,11 @@ runs:
 `,
 	}, nil)
 	if err != nil {
-		t.Fatalf("buildContentRelationshipSet() error = %v, want nil", err)
+		t.Fatalf("BuildContentRelationships() error = %v, want nil", err)
 	}
 
-	if !relationshipHasTarget(relationships, "DEPENDS_ON", "github_actions_action_repository", "some-org/x") {
-		t.Fatalf("missing composite-action DEPENDS_ON some-org/x for my-action/action.yml: %#v", relationships.outgoing)
+	if !relationshipHasTargetPort(set, "DEPENDS_ON", "github_actions_action_repository", "some-org/x") {
+		t.Fatalf("missing composite-action DEPENDS_ON some-org/x for my-action/action.yml: %#v", set.Outgoing)
 	}
 }
 
@@ -141,7 +155,7 @@ func TestGitHubActionsSourceRelationshipsRejectsInexactWorkflowPaths(t *testing.
 		relativePath := relativePath
 		t.Run(relativePath, func(t *testing.T) {
 			t.Parallel()
-			if isGitHubActionsArtifactPath(EntityContent{RelativePath: relativePath}) {
+			if isGitHubActionsArtifactPath(querycontract.EntityContent{RelativePath: relativePath}) {
 				t.Fatalf("isGitHubActionsArtifactPath(%q) = true, want false", relativePath)
 			}
 		})
@@ -151,7 +165,7 @@ func TestGitHubActionsSourceRelationshipsRejectsInexactWorkflowPaths(t *testing.
 func TestGitHubActionsSourceRelationshipsMultiJobOrderIsRepeatable(t *testing.T) {
 	t.Parallel()
 
-	entity := EntityContent{
+	entity := querycontract.EntityContent{
 		RelativePath: ".github/workflows/ci.yml",
 		SourceCache: `jobs:
   zeta:

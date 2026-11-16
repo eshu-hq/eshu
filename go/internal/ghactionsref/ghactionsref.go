@@ -24,7 +24,7 @@ import "strings"
 // implementations of the same @-index logic:
 // relationships.parseGitHubRefParts (go/internal/relationships/first_party_refs.go)
 // and the query package's local `uses:` split helpers
-// (go/internal/query/content_relationships_github_actions.go,
+// (go/internal/query/entity/content/fallback/content_github_actions.go,
 // go/internal/query/repository_workflow_artifacts.go). Both now delegate here
 // so a future edit to the split rule cannot silently diverge between the
 // reducer/graph-projection path and the query/read-model path.
@@ -101,7 +101,7 @@ func isHexDigit(r rune) bool {
 // implementations of this exact check:
 // relationships.reusableWorkflowRepoRef (go/internal/relationships/github_actions_evidence.go)
 // and query.githubActionsReusableWorkflowRepoRef
-// (go/internal/query/content_relationships_github_actions.go). Both now
+// (go/internal/query/entity/content/fallback/content_github_actions.go). Both now
 // delegate here, byte-identical to the implementation each used to contain.
 //
 // Deliberately does NOT strip a trailing `@ref` before computing the

@@ -7,15 +7,14 @@ import (
 	"context"
 	"log/slog"
 
+	"github.com/eshu-hq/eshu/go/internal/query/entity/content/fallback"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // ContentIndexRelationshipBuilder is the production
-// querycontract.ContentRelationshipBuilder: it forwards to
-// buildContentRelationshipSet (content_relationships.go), copying its
-// fields across. buildContentRelationshipSet's own closure -- the
-// per-language and per-manifest-kind extraction it dispatches to -- stays at
-// root; only this thin adapter crosses the port (#6060).
+// querycontract.ContentRelationshipBuilder: it forwards to the entity
+// content-fallback leaf (entity/content/fallback.Builder), which owns
+// the per-language and per-manifest-kind extraction (#9669, lane C2).
 type ContentIndexRelationshipBuilder struct{}
 
 var _ querycontract.ContentRelationshipBuilder = ContentIndexRelationshipBuilder{}
@@ -27,17 +26,5 @@ func (ContentIndexRelationshipBuilder) BuildContentRelationships(
 	entity querycontract.EntityContent,
 	logger *slog.Logger,
 ) (querycontract.ContentRelationshipSet, error) {
-	set, err := buildContentRelationshipSet(ctx, reader, entity, logger)
-	if err != nil {
-		return querycontract.ContentRelationshipSet{}, err
-	}
-	return querycontract.ContentRelationshipSet{
-		Incoming:          set.incoming,
-		Outgoing:          set.outgoing,
-		ScanTruncated:     set.scanTruncated,
-		OutgoingTruncated: set.outgoingTruncated,
-		IncomingTruncated: set.incomingTruncated,
-		OutgoingClipType:  set.outgoingClipType,
-		IncomingClipType:  set.incomingClipType,
-	}, nil
+	return fallback.Builder{}.BuildContentRelationships(ctx, reader, entity, logger)
 }
