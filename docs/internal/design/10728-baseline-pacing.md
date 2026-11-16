@@ -178,8 +178,13 @@ enable (parent design section 8,
   it"), so the operator compares against the pre-enable baseline before
   acting (parent design, `10671-nvd-feed-transport-fallback.md`, section 8,
   same paragraph).
-- Re-enable under 48h; record 6 hourly samples after enabling. The #10706
-  bars (p95 <= 15s / watermark <= 60s) stay soak bars.
+- Re-enable under 48h: the trip latch refuses a close until 6 consecutive
+  hourly samples with oldest dirty <48h have followed the trip opening
+  (opening the trip resets the count, and an hour at or past 48h withdraws
+  eligibility; `NVDBaselineTripState.Close`, #10760). An early attempt is
+  counted as `close_refused`. After re-enabling, keep recording hourly
+  samples against the soak bars. The #10706 bars (p95 <= 15s /
+  watermark <= 60s) stay soak bars.
 
 No pausing or serializing OSV/GHSA to make room (ruling decision 3).
 
