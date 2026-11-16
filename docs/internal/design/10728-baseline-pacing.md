@@ -358,14 +358,33 @@ the fold in `go/internal/coordinator/vulnerability/nvd_baseline_trip_latch.go`
   `CloseNVDBaselineTrip`; on `ErrNVDBaselineTripLatchConflict` retry. (6)
   Record `RecordNVDBaselineTripLatch` with each returned outcome and the trip
   transitions from the `Before` and `After` states of each observation.
+- Conservative semantics, by design. (a) A hot sample that loses its write to
+  an operator `Close` is dropped, not retried, so the next sample lands about
+  two hours after the stored time, reads as a missed hour, and restarts the
+  hot and quiet streaks; a hot hour can be forgotten, never invented. (b) With several replicas each
+  sampling, the 45 minute minimum spacing admits samples closer than an hour
+  when ticks jitter, so quiet hours toward re-enable can accrue slightly faster
+  than wall-clock hours (at worst one sample per 45 minutes). The re-enable
+  count is still a count of distinct sample times at least 45 minutes apart,
+  and the operator `Close` stays the final decision.
+- #10746 observability notes. The recorders in this change count outcomes but
+  log nothing. #10746 must (a) emit a WARN log on `read_failed` and
+  `write_failed` (the counter alone does not say which run or which error),
+  and (b) carry the latch outcome on the plan span next to the closed hold
+  reason, so an operator reading one plan span can tell an open trip from an
+  unreadable latch. The hold reasons `baseline_trip_open` and
+  `baseline_trip_unloaded` already ride the plan span through
+  `appendNVDBaselineTarget` (`nvd_baseline_hold_reason`); only the latch
+  outcome attribute is left for #10746.
 - Rollback. The migration only creates a new table nothing references, so
   the schema rollback is `DROP TABLE vulnerability_nvd_baseline_trip_latches`.
   A binary rollback is safe on its own: the older binary never reads the
   table and runs with the in-memory latch as before. A newer binary that loses
   the table fails closed (every load errors, planning holds), so a premature
   drop stops the lane and corrupts nothing. Re-check the migration number at
-  merge time: 298 is the next free number with the peer's 297 stacked, and
-  origin/main tops out at 296.
+  merge time: origin/main now tops out at 297
+  (`297_vulnerability_nvd_baseline_checkpoints.sql`, merged), so 298 is the
+  next free number and this branch adds it with no collision.
 
 ## 6. Idempotency argument
 
