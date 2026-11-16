@@ -28,20 +28,30 @@ involved; the function reads the group already in memory.
 Groups of up to four records take the allocation-free pairwise duplicate check
 in `hasDuplicateCopyKey`; larger groups build one key set. The run measured no
 real group-size distribution, so how many production groups exceed four records
-is not known; a group is one record per source, and the collectors feed four
-sources. The extra cost is once per finding group per pass.
+is not known; a group holds one record per source plus any copies of a record
+from other scopes, and the collectors feed four sources.
+
+The committed `BenchmarkProductSeverityObservation` covers the copy-heavy shape
+(copies of one record). Score-last with 8 copies measured about 700 ns and 576 B
+on this branch against about 410 ns and no allocation on `main`; with 64 copies
+about 5.1 us and 11.4 KB against about 3.0 us. The vector-only shape is faster
+here, about 1.8 us against 4.4 us at 8 copies and 6.4 us against 35 us at 64.
+These figures came from one review run and are not from the same machine state
+as the table above. The extra cost is once per finding group per pass.
 
 ## Safety
 
 No-Regression Evidence: the change is an in-memory reduction and two retraction checks inside a
 function that already loops over the group. It adds no query, join, index,
-lock, queue write, or concurrency. Finding identity, the stable fact key, the
-finding id, and the evidence fact ids do not move (they are the
-representative's), so winner selection, keyset paging, and the writer's change
-detection see the same keys; only `cvss_score`, `cvss_vector`, `severity_label`
-and the values derived from them can move, and only for a group whose records
-are retracted or have a superseded copy. The reducer contention and winners
-live tests did not change.
+lock, queue write, or concurrency. Finding identity, the stable fact key, and
+the finding id do not move (they are the representative's and the writer's
+identity code does not read the evidence list), so winner selection and keyset
+paging see the same keys. The evidence list holds the representative when every
+record is retracted, and can name the newest copy when a record has two copies,
+so the writer's change detection can see a different list for such a group.
+Only `cvss_score`, `cvss_vector`, `severity_label` and the values derived from
+them can move, and only for a group whose records are retracted or have a
+superseded copy. The reducer contention and winners live tests did not change.
 
 ## Operator signal
 

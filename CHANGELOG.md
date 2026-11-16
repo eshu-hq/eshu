@@ -19,9 +19,10 @@ recent shipped work grouped by feature area.
   record), so a rejected CVE at CVSS 9.8 still added 60 to
   `priority_score`. It now reports no severity
   (`cvss_score` 0, severity bucket `none`) and scores from its remaining
-  evidence, the same as a package-keyed finding. Finding identity and evidence
-  fact ids do not move, and a restored record returns the finding to its prior
-  score. A rejected record beside an unreadable (quarantined) sibling leaves the
+  evidence, the same as a package-keyed finding. Finding identity does not move.
+  The evidence list keeps the representative when every record is retracted and
+  can name the newest copy when a record has two copies. A restored record
+  returns the finding to its prior score. A rejected record beside an unreadable (quarantined) sibling leaves the
   finding active and unannotated, as before, but it now scores 60 where it
   scored 100 from the rejected record's 9.8 (the quarantined record's own score
   is never read; eshu-hq/eshu#10773). Two live copies of one record now resolve to the newest copy for
