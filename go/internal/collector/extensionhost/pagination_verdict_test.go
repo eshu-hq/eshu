@@ -166,6 +166,61 @@ func TestCollectPagesVerdictPageSkipsStreamPins(t *testing.T) {
 	assertFailure(t, err, "kev_cursor_invalid", true)
 }
 
+// TestCollectPagesVerdictRelaysOnlyItsOwnFigures proves the satellite figures
+// on the final ResultRecord belong to the verdict page alone. A partial page 0
+// that printed figures, followed by a retryable verdict page without figures,
+// must not report page 0's figures on the verdict; a verdict page that carries
+// its own figures reports those (eshu-hq/eshu#10780, #9823).
+func TestCollectPagesVerdictRelaysOnlyItsOwnFigures(t *testing.T) {
+	t.Parallel()
+
+	earlier := &InputLimitFigures{InflatedBytes: 9, BudgetBytes: 8, CompressedBytes: 2}
+	own := &InputLimitFigures{InflatedBytes: 90, BudgetBytes: 80, CompressedBytes: 20}
+	for _, tc := range []struct {
+		name    string
+		verdict *InputLimitFigures
+		want    *InputLimitFigures
+	}{
+		{name: "verdict page without figures drops page 0 figures"},
+		{name: "verdict page with figures reports its own", verdict: own, want: own},
+	} {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			item := testWorkItem()
+			page0 := pagedCall(item, []sdkcollector.Fact{testSDKFact(item)}, &ResultPage{Cursor: "cursor-1", More: true, TotalFacts: 3})
+			page0.Result.State = sdkcollector.ResultPartial
+			page0.Result.Statuses = []sdkcollector.Status{{
+				Class: sdkcollector.StatusWarning, Partial: true, WarningCount: 1, FactCount: 1,
+			}}
+			page0.InputLimit = earlier
+			verdict := verdictCall(item, sdkcollector.ResultRetryable, "kev_catalogue_changed", 30, &ResultPage{PageIndex: 1, TotalFacts: 3})
+			verdict.InputLimit = tc.verdict
+
+			recorder := &recordingResultRecorder{}
+			source := mustNewPagedSource(t, &scriptRunner{calls: []CallResult{page0, verdict}}, 0)
+			source.statusRecorder = recorder
+			source.resultRecorder = recorder
+			_, _, err := source.NextClaimed(context.Background(), item)
+			assertFailure(t, err, "kev_catalogue_changed", false)
+			if len(recorder.results) != 1 {
+				t.Fatalf("results = %d, want 1", len(recorder.results))
+			}
+			record := recorder.results[0]
+			if record.State != sdkcollector.ResultRetryable || record.Origin != ResultOriginSDK {
+				t.Fatalf("origin/state = %q/%q, want sdk/retryable", record.Origin, record.State)
+			}
+			switch {
+			case tc.want == nil && record.InputLimit != nil:
+				t.Fatalf("verdict record carried figures %+v, want none", *record.InputLimit)
+			case tc.want != nil && (record.InputLimit == nil || *record.InputLimit != *tc.want):
+				t.Fatalf("verdict record figures = %+v, want %+v", record.InputLimit, tc.want)
+			}
+		})
+	}
+}
+
 // TestCollectPagesRejectsUnframedNonVerdictPages pins what stays rejected: a
 // page without an envelope after the stream opened is a verdict page only when
 // it is retryable or terminal and carries no facts. Facts on it, or any other

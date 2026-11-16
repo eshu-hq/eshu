@@ -43,3 +43,17 @@ continuation verdict now reaches the existing
 `eshu_dp_component_extension_results_total` counter, the result log line, and
 the retry-after gauge with the satellite's own `failure_class` and state, where
 before it counted as `invalid_result`.
+
+A verdict page also owns the satellite stderr figures on its result record: it
+reports its own figures or none, never an earlier partial page's, which would be
+misattributed. `TestCollectPagesVerdictRelaysOnlyItsOwnFigures` pins both
+directions and fails if the verdict branch stops replacing the relay's figures.
+
+## Scope note
+
+The issue's third acceptance bullet can be read as also covering an
+envelope-less partial or unchanged continuation page with no facts. The code
+and `TestCollectPagesRejectsUnframedNonVerdictPages` accept only retryable or
+terminal, matching the issue title and first bullet; a zero-fact envelope-less
+partial page still fails `invalid_result`. This narrower reading is pending
+confirmation from the issue owner.

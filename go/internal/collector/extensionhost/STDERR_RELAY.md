@@ -24,7 +24,9 @@ host logs them on the existing `component extension result` line.
   `stderr_limit_bytes` cap.
 - Rate bound: no new log line. The figures ride on the one result line each
   claim already writes, so a failed claim adds three numeric fields, not log
-  volume. A paged claim keeps the figures of its last call that carried them.
+  volume. A paged claim keeps the figures of its last call that carried them,
+  except that a retryable or terminal continuation verdict page (#10780)
+  reports only its own figures, or none, never an earlier page's.
 - Not covered: a satellite that exits non-zero still logs only the existing
   `stderr_bytes` and `stderr_truncated` counts, and the legacy single-call
   `RunCollector` path relays nothing. Both production runners use the paged
