@@ -255,14 +255,16 @@ import (
 // (reopened) adds 296_collector_evidence_summary_instance_id.sql (the
 // resweep-maintained collector-instance identity column); #10728 adds
 // 297_vulnerability_nvd_baseline_checkpoints.sql (the per-run, per-year
-// NVD baseline resume checkpoints).
-const goldenBootstrapDefinitionsDigest = "8c67a1300ed7fb3409d1836642654d252a3b31297fc13541c4b6aa773a482cc3"
+// NVD baseline resume checkpoints); #10768 adds
+// 298_vulnerability_nvd_baseline_trip_latches.sql (the durable per-run
+// NVD baseline trip latch).
+const goldenBootstrapDefinitionsDigest = "9c157b5e06bef962c04d268b5248a814be94d00390b159e8ea8d708d5c7fcf75"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or
 // silently dropping files) fails loudly even in the unlikely case of a hash
 // collision.
-const goldenBootstrapDefinitionsCount = 323
+const goldenBootstrapDefinitionsCount = 324
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
 	defs := BootstrapDefinitions()
