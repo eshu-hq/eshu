@@ -4,7 +4,7 @@
 package artifacts_test
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #8155 ruling additions 3a and 3b: auto_explain records the DELETE fence statement's plan with a Sort on repo_id under the Insert and no reordering node between; arm 7 case 1c runs two real PruneSupersededGenerations passes on scope sets sharing six repositories in opposite order, 3 rounds, 0 deadlocks, each shared version row bumped twice; needs LOAD 'auto_explain' (superuser DSN); enrolled in the live-postgres-readiness runner; 0.8-2.5 s per proof on a local PostgreSQL 18.6 on 2026-10-16; wall time is logged, not gated
+//eshu:readiness:reason #8155 ruling additions 3a and 3b: auto_explain records the DELETE fence statement's plan with a Sort on repo_id under the Insert and no reordering node between; arm 7 case 1c runs two real PruneSupersededGenerations passes on scope sets sharing six repositories in opposite order, 3 rounds, 0 deadlocks, each shared version row bumped once per deleting transaction (1 or 2 times), generations a pass defers are deleted by a follow-up pass (#10770); needs LOAD 'auto_explain' (superuser DSN); enrolled in the live-postgres-readiness runner; 0.8-2.5 s per proof on a local PostgreSQL 18.6 on 2026-10-16; wall time is logged, not gated
 //eshu:readiness:env ESHU_TEST_CONTENT_INDEX_POSTGRES_DISPOSABLE ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN
 
 import (
@@ -115,12 +115,17 @@ func noticeConn(ctx context.Context, t *testing.T, db *sql.DB, onNotice pgconn.N
 // as migration 169 allows). Pass A prunes set X while set Y's scope rows are
 // held, and stalls on a held middle version row; pass B then prunes set Y
 // (X's scopes are locked by A, so B skips them) and waits on A's version
-// rows. After the release: 0 deadlocks, both passes prune their whole set,
-// and every shared version row is bumped exactly twice.
+// rows. After the release: 0 deadlocks, every content row is reported once,
+// the generations the passes report equal the ones gone from
+// scope_generations (generations a pass drained but could not select are
+// left for a later pass, and a follow-up pass deletes exactly those), and
+// every shared version row is bumped once per deleting transaction (1 or 2
+// times, #10770).
 func TestVersionFenceConcurrentPrunesShareRepositoriesLive(t *testing.T) {
 	ctx, db := openDatabase(t)
-	const repoCount, files = 6, 40
-	for round := range 3 {
+	const repoCount, files, rounds = 6, 40, 3
+	parkedTogether := 0
+	for round := range rounds {
 		var repos []string
 		var setX, setY []retentionScope
 		for i := range repoCount {
@@ -148,11 +153,10 @@ func TestVersionFenceConcurrentPrunesShareRepositoriesLive(t *testing.T) {
 			err    error
 		}
 		results := make([]outcome, 2)
-		var wg sync.WaitGroup
+		done := []chan struct{}{make(chan struct{}), make(chan struct{})}
 		run := func(i int) {
-			wg.Add(1)
 			go func() {
-				defer wg.Done()
+				defer close(done[i])
 				res, err := prune(ctx, db)
 				results[i] = outcome{res.RowsPruned["content_files"], res.GenerationsPruned, err}
 			}()
@@ -161,9 +165,30 @@ func TestVersionFenceConcurrentPrunesShareRepositoriesLive(t *testing.T) {
 		waitForLockWaiters(ctx, t, db, retentionCommitWaiter, 1)
 		ySet.release(t)
 		run(1)
-		waitForLockWaiters(ctx, t, db, retentionCommitWaiter, 2)
+		// Both passes parking on the held version row is the shape this proof
+		// aims for, but a predrain batch gives up its wait after 500 ms
+		// (lock_timeout), so a pass can leave the row before the other one
+		// arrives. The wait is by state, not by a timer: it ends the moment
+		// two waiters are seen (the round counts as parked together) or the
+		// moment the finished passes plus the parked waiters account for
+		// both passes (nobody else can still arrive; the round does not
+		// count). Either way every assertion below holds for any
+		// interleaving. The test fails if no round counted, so it cannot
+		// pass without having exercised the contention. Known limit: a
+		// round is uncounted when pass A's batch times out before pass B has
+		// even read its eligible set, because B then drains A's generation
+		// itself and A finishes without parking; if that happens in every
+		// round the guard fails for that interleaving, not for a product
+		// defect, which is the right outcome for a proof that was not
+		// exercised.
+		if waitForParkedOrFinished(ctx, t, db, retentionCommitWaiter, done) {
+			parkedTogether++
+		} else {
+			t.Logf("round %d: the passes were not parked together on the held version row; releasing it", round)
+		}
 		version.release(t)
-		wg.Wait()
+		<-done[0]
+		<-done[1]
 
 		var totalPruned int64
 		var totalGens int
@@ -178,26 +203,93 @@ func TestVersionFenceConcurrentPrunesShareRepositoriesLive(t *testing.T) {
 			totalGens += r.gens
 		}
 		// The batch predrain (#10020) deletes content in committed batches
-		// before Begin, so drain work migrates between the passes: a
-		// generation pass A drained can be pruned by pass B, and the
-		// fence-version wait that used to serialize the two prune commits
-		// now also parks predrain batch commits (each batch takes its
-		// version rows inside COMMIT, after its last content lock, per
-		// migration 186). Per-pass splits are not stable under that
-		// migration, but the union is exact: finish and
-		// mergeChunkProgress report every predrained row exactly once, so
-		// the two passes together prune the whole fixture with no
-		// deadlock. Bumps stay exactly two per repository: each
-		// single-page scope set is deleted by exactly one committing
-		// batch, once per transaction per the fence protocol.
-		if totalPruned != 2*repoCount*files || totalGens != 2*repoCount {
-			t.Fatalf("round %d passes pruned %d content rows over %d generations, want %d over %d",
-				round, totalPruned, totalGens, 2*repoCount*files, 2*repoCount)
+		// before Begin, so drain work migrates between the passes, and a
+		// pass can end with generations it drained but did not delete.
+		// Two concurrent passes both read the eligible set and, once the
+		// held rows release, can start their prune selections close
+		// together: the selection takes FOR UPDATE ... SKIP LOCKED on
+		// every eligible scope and generation until its savepoint
+		// rollback (#7334), so the pass that selects second can see an
+		// empty set while the first holds the wide lock, and defers
+		// generations only it drained. That reading is consistent with
+		// the code; the test does not instrument it. A batch whose commit waits on the
+		// held version row longer than its 500 ms lock_timeout rolls back
+		// and leaves its generation undrained the same way. Both are the
+		// documented contract in generation_retention_chunk_predrain.go
+		// (a later pass finishes the rest), so one pass pair is not
+		// guaranteed to drain or delete all twelve generations, and the
+		// old "both passes prune their whole set" expectation failed
+		// about half the time (#10770). What is guaranteed, and asserted:
+		//   - the generations the passes report equal the generations
+		//     that are actually gone from scope_generations, so a pass
+		//     can neither under-report nor over-report a deletion,
+		//   - each follow-up pass deletes exactly the generations left
+		//     behind, and the fixture converges with nothing superseded
+		//     and no content row left,
+		//   - across all passes every content row and every generation is
+		//     reported exactly once,
+		//   - a shared version row is bumped once per deleting
+		//     transaction, never per statement or row: between 1 and 2 times,
+		//     at most once for each of its two generations.
+		want := 2 * repoCount
+		left := supersededLeft(ctx, t, db, round)
+		if totalGens+left != want {
+			t.Fatalf("round %d passes reported %d generations pruned with %d still superseded, want %d in total: the result must account for every generation exactly once",
+				round, totalGens, left, want)
 		}
-		for repo, v := range versionsOf(ctx, t, db, repos) {
-			if v-before[repo] != 2 {
-				t.Errorf("round %d: %s bumped %d times, want 2 (once per scope set's deleting transaction)", round, repo, v-before[repo])
+		for attempt := 1; left > 0; attempt++ {
+			if attempt > 3 {
+				t.Fatalf("round %d: %d superseded generations remain after %d follow-up passes", round, left, attempt-1)
+			}
+			followUp, err := prune(ctx, db)
+			if err != nil {
+				t.Fatalf("round %d follow-up pass %d: %v", round, attempt, err)
+			}
+			now := supersededLeft(ctx, t, db, round)
+			if followUp.GenerationsPruned != left-now {
+				t.Fatalf("round %d follow-up pass %d reported %d generations pruned but %d disappeared (%d -> %d)",
+					round, attempt, followUp.GenerationsPruned, left-now, left, now)
+			}
+			t.Logf("round %d: follow-up pass %d deleted %d deferred generations, %d left", round, attempt, left-now, now)
+			totalPruned += followUp.RowsPruned["content_files"]
+			totalGens += followUp.GenerationsPruned
+			left = now
+		}
+		if totalGens != want || totalPruned != int64(want*files) {
+			t.Fatalf("round %d reported %d generations and %d content rows over all passes, want %d and %d, each exactly once",
+				round, totalGens, totalPruned, want, want*files)
+		}
+		for _, repo := range repos {
+			if n := contentCount(ctx, t, db, repo, "x") + contentCount(ctx, t, db, repo, "y"); n != 0 {
+				t.Errorf("round %d: %s still holds %d content rows after every pass", round, repo, n)
 			}
 		}
+		bumpHistogram := map[int64]int{}
+		for repo, v := range versionsOf(ctx, t, db, repos) {
+			bumpHistogram[v-before[repo]]++
+			if bumps := v - before[repo]; bumps < 1 || bumps > 2 {
+				t.Errorf("round %d: %s bumped %d times, want 1 or 2 (once per generation's deleting transaction)", round, repo, bumps)
+			}
+		}
+		t.Logf("round %d: repositories by version bump count %v", round, bumpHistogram)
 	}
+	t.Logf("both passes parked together on the held version row in %d of %d rounds", parkedTogether, rounds)
+	if parkedTogether == 0 {
+		t.Fatalf("in none of %d rounds did both passes park on the held version row: the shared-version-row contention this proof exists for was never exercised", rounds)
+	}
+}
+
+// supersededLeft counts the superseded generations still present for the
+// round's scopes: the fixture's end state, which the passes' returned counts
+// cannot stand in for (#10770).
+func supersededLeft(ctx context.Context, t *testing.T, db *sql.DB, round int) int {
+	t.Helper()
+	var n int
+	if err := db.QueryRowContext(ctx, `
+SELECT count(*) FROM scope_generations
+WHERE status = 'superseded' AND (scope_id LIKE $1 OR scope_id LIKE $2)`,
+		fmt.Sprintf("sx-%d-%%", round), fmt.Sprintf("sy-%d-%%", round)).Scan(&n); err != nil {
+		t.Fatalf("count superseded generations: %v", err)
+	}
+	return n
 }

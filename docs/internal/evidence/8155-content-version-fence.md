@@ -307,7 +307,7 @@ exit 0):
 | Arm 6 churn | full 10, delta 2, reap 4, bulk 1, prune 1 per repository; a seeded per-row fence fails the counts |
 | Arm 7 cases 1a and 1b, 20 rounds each, a held middle version row forcing overlap | 0 deadlocks, exact bumps; a seeded row-level fence deadlocks |
 | 3a: plan of the commit upsert (auto_explain) | `Insert` over `Sort` on `p.repo_id` |
-| Case 1c: two real prunes sharing 6 repositories, 3 rounds | 0 deadlocks, each version row bumped twice |
+| Case 1c: two real prunes sharing 6 repositories, 3 rounds | 0 deadlocks, each version row bumped once per deleting transaction (1 or 2 times: the bound is derived from the code path, one `DELETE` per fixture generation, and 1 has not been observed in 40 runs, so it is derived, not measured); generations a pass defers are deleted by a follow-up pass (#10770) |
 | Cases 2 and 3: Write during an open prune parked in its COMMIT | waits on the version row's tuple lock inside that COMMIT (disjoint keys) or on the prune's transaction (shared doomed key), then lands; version +2 |
 | R-1, two-scope and prune interleavings | a derive read before the last commit classifies `stale_version` through `artifacts.Classify` |
 | Commit contract | bump visible only after COMMIT; rollback, rolled-back savepoint, `SET CONSTRAINTS ALL IMMEDIATE` plus more writes, and COPY bump once or not at all; pending table empty after every transaction |
