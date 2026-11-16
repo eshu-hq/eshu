@@ -139,9 +139,9 @@ func assertPriorityNamesRetraction(t *testing.T, finding SupplyChainImpactFindin
 		t.Fatalf("PriorityReason = %q, want it to lead with the retraction before the %q bucket", reason, finding.PriorityBucket)
 	}
 	// The text may claim only what the annotation does: it leaves the score
-	// alone. It must not say the score comes from the remaining evidence,
-	// because a product-keyed finding still scores CVSS from its rejected
-	// record (eshu-hq/eshu#10764).
+	// alone. It must not say the score comes from the remaining evidence: the
+	// annotation does not change the score, and the text claims no more than
+	// that.
 	if strings.Contains(reason, "remaining evidence") || !strings.Contains(reason, "does not change") {
 		t.Fatalf("PriorityReason = %q, want it to say the retraction does not change the score and not to claim the score comes from the remaining evidence", reason)
 	}
@@ -149,8 +149,8 @@ func assertPriorityNamesRetraction(t *testing.T, finding SupplyChainImpactFindin
 
 // assertNoCVSSContribution pins the package path: a retracted record lends no
 // severity, so a package-keyed retracted finding earns no CVSS contribution.
-// The product (CPE) path does not share this today, so its test does not call
-// it.
+// The product (CPE) path shares this since #10764; its tests in
+// retraction_product_test.go check the contribution directly.
 func assertNoCVSSContribution(t *testing.T, finding SupplyChainImpactFinding) {
 	t.Helper()
 

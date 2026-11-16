@@ -9,6 +9,30 @@ recent shipped work grouped by feature area.
 
 ## Unreleased
 
+### A rejected-only product finding no longer scores CVSS from the rejected record
+
+- **Retracted record lends no severity on the product path**
+  ([#10764](https://github.com/eshu-hq/eshu/issues/10764)). A product-keyed
+  (CPE) finding whose every record was rejected or withdrawn used to keep the
+  CVSS score, vector, and label of the rejected record (and a record whose
+  newest copy was rejected still scored an older live copy of the same
+  record), so a rejected CVE at CVSS 9.8 still added 60 to
+  `priority_score`. It now reports no severity
+  (`cvss_score` 0, severity bucket `none`) and scores from its remaining
+  evidence, the same as a package-keyed finding. Finding identity does not move.
+  The evidence list keeps the representative when every record is retracted and
+  can name the newest copy when a record has two copies. A restored record
+  returns the finding to its prior score. A rejected record beside an unreadable (quarantined) sibling leaves the
+  finding active and unannotated, as before, but it now scores 60 where it
+  scored 100 from the rejected record's 9.8 (the quarantined record's own score
+  is never read; eshu-hq/eshu#10773). Two live copies of one record now resolve to the newest copy for
+  severity, not the lowest fact id, so a finding can read a different live
+  score than before. A rejected-only finding now lands in the existing `none`
+  outcome of `eshu_dp_supply_chain_severity_decisions_total`, so that count can
+  step up on rollout. Contract class: a score change in a narrow case; no
+  new enum member, no schema or migration change. Existing rows pick this up
+  when their scope re-derives.
+
 ### Retracted findings say so in their priority output
 
 - **Retracted advisory annotated in priority fields**
