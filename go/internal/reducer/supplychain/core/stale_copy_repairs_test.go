@@ -24,8 +24,9 @@ import (
 // finding as advisory_retracted, and the default view ranks by priority score
 // first, so the stale copy can win until its scope re-derives. The one-hop
 // holder fan-out is the repair. Each time a pass rewrites a copy whose stored
-// suppression state differs in retraction from the state it now derives, it
-// found and repaired one stale copy, and the counter says how many.
+// suppression state differs in retraction from the state it now derives, the
+// counter adds one. That includes the originating scope's own flip, so it is a
+// count of flips written, not of stale copies left.
 
 func TestStaleCopyRepairsCountOnlyRetractionFlips(t *testing.T) {
 	t.Parallel()

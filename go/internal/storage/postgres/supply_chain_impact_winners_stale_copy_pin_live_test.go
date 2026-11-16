@@ -211,6 +211,9 @@ func TestSupplyChainImpactWinnersResweepStaleActiveCopyOutranksRetractedCopyLive
 				want.ActiveToRetracted++
 			}
 		}
+		if want.ActiveToRetracted == 0 || want.RetractedToActive == 0 {
+			t.Fatalf("expected repairs %+v must cover both directions; the tie-key layout no longer does", want)
+		}
 		if result.StaleCopyRepairs != want {
 			t.Fatalf("StaleCopyRepairs = %+v, want %+v", result.StaleCopyRepairs, want)
 		}

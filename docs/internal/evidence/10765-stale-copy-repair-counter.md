@@ -27,14 +27,18 @@ and counts the repairs, so an operator can see the window close.
 
 No benchmark was run. The cost is argued from the code above and was not
 measured: one extra JSONB text extract per stored row the query already
-returns, one in-memory loop over those rows, and at most two counter adds per
-pass. Backend and version for the behavior proofs: PostgreSQL 18.6, a throwaway
+returns, one in-memory pass over those rows (it copies the stored rows into two
+maps and loops, inside the writer's existing transaction), and at most two
+counter adds per pass. Backend and version for the behavior proofs: PostgreSQL 18.6, a throwaway
 local database. Input shape in those proofs: two holder scopes, one advisory
 group, so the row counts are single digits and say nothing about scale.
-Terminal count: the writer live proof asserts
-`StaleCopyRepairs{ActiveToRetracted: 1}` from the real SQL and the real writer.
-The `RetractedToActive` direction is covered by the unit tests, not by a live
-database run.
+Terminal counts: the writer live proof asserts both directions from the real
+SQL and the real writer: key A leaves active once, and each tie copy the stale
+scope held moves to the other side. It computes the expected value from the
+layout, and at the current fact ids that is
+`StaleCopyRepairs{ActiveToRetracted: 1, RetractedToActive: 2}`; the split of the
+tie keys follows the fact id ordering, and the test fails if the
+`RetractedToActive` side is ever zero.
 
 No-Regression Evidence: the winners ordering, indexes (migration 033), keyset
 paging and the write path's statements are unchanged, so the work per pass is
@@ -55,8 +59,9 @@ Observability Evidence: an operator at 3 AM reads three signals, all bounded:
   and `sub_signal_stale_copy_repairs_retracted_to_active` for the same pass.
 - A rolled-back pass counts nothing, because the count is emitted only after the
   writer commits and the writer returns no error. A pass that commits and then
-  fails in the projection enqueue or fan-out still reports its count, so a retry
-  cannot lose it.
+  fails in the projection enqueue or fan-out still reports its count for any
+  returned error. A process death between the commit and the emit would lose it,
+  and the retry would then find the copy already flipped.
 
 `docs/public/reference/telemetry/supply-chain-impact-winners.md` has the metric
 row and a "Retraction freshness" section.
@@ -69,10 +74,13 @@ row and a "Retraction freshness" section.
   rewrites. It is a characterization pin: it passed on first run. Its
   sensitivity was shown by temporarily putting
   `(suppression_state = 'advisory_retracted') DESC` first in the winners
-  `ORDER BY`, which failed two subtests; that change was reverted and never
+  `ORDER BY`, which failed three subtests; that change was reverted and never
   committed.
 - Unit tests fail when the emit call is removed, when the stored-state column is
-  not read, and when the baseline is switched to the previous generation only.
+  not scanned, and when the baseline is switched to the previous generation
+  only. They do not catch a wrong SQL projection of that column, because the
+  unit fake keys on the query text; the live proof does, through the
+  `RetractedToActive` count.
 
 ## Not checked
 

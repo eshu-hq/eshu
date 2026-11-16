@@ -74,9 +74,9 @@ var supplyChainImpactWinnersResweepBuckets = []float64{0.05, 0.1, 0.25, 0.5, 1, 
 //     process first sees a watermark.
 //   - eshu_dp_supply_chain_impact_stale_copy_repairs_total{transition}: stored
 //     finding copies a pass rewrote across the retraction boundary, by
-//     active_to_retracted and retracted_to_active (#10765). Each is one stale
-//     copy the holder fan-out found and repaired, so the rate says how often
-//     a stale active copy could outrank a retracted one in the default view.
+//     active_to_retracted and retracted_to_active (#10765). It counts the
+//     retraction-state flips a pass wrote, the originating scope's own flip
+//     included; it does not measure how many stale copies remain.
 //
 // No label carries a canonical key, scope, repository or CVE.
 func registerSupplyChainImpactWinnersInstruments(meter metric.Meter, inst *Instruments) error {
