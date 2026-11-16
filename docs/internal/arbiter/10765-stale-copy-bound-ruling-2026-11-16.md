@@ -40,18 +40,18 @@ includes the originating scope's own flip.
 Checked on `origin/main` at 2d8328d60b.
 
 - Winners ordering is unchanged: `priority_score DESC`, `has_payload_finding_id DESC`,
-  `fact_id ASC` at `go/internal/storage/postgres/supply_chain_impact_canonical_winners_store.go:163-166`.
+  `fact_id ASC` at `go/internal/storage/postgres/supply_chain_impact_canonical_winners_store.go` (the winners select's `ORDER BY`).
 - The reproduction is a live test:
   `TestSupplyChainImpactWinnersResweepStaleActiveCopyOutranksRetractedCopyLive`
-  at `go/internal/storage/postgres/supply_chain_impact_winners_stale_copy_pin_live_test.go:65`,
-  listed in `scripts/lib/reducer_contention_inventory.json:92` and
-  `specs/live-tests.d/live-tests-07.yaml:557`.
-- The cap is `fanOutHolderCap = 256` at `go/internal/reducer/supplychain/core/fanout.go:45`.
+  at `go/internal/storage/postgres/supply_chain_impact_winners_stale_copy_pin_live_test.go`,
+  listed in `scripts/lib/reducer_contention_inventory.json` and
+  `specs/live-tests.d/live-tests-07.yaml`.
+- The cap is `fanOutHolderCap = 256` at `go/internal/reducer/supplychain/core/fanout.go`.
 - The fan-out counter `eshu_dp_supply_chain_impact_fanout_total{domain,outcome,cause}`
-  is documented at `go/internal/telemetry/instruments.go:1232-1250` and
-  registered at `go/internal/telemetry/instruments.go:5268`. Its outcomes include
+  is documented at `go/internal/telemetry/instruments.go` (the `SupplyChainImpactFanout` field doc) and
+  registered in the same file. Its outcomes include
   `reopened` and `deferred`; `deferred` is added once per newly carried holder
-  (`go/internal/reducer/supplychain/core/fanout_signals.go:80`).
+  (`go/internal/reducer/supplychain/core/fanout_signals.go`).
 - The repair counter is `eshu_dp_supply_chain_impact_stale_copy_repairs_total{transition}`
   in `go/internal/telemetry/instruments_supply_chain_impact_winners.go`, with the
   transition value `active_to_retracted`. Its evidence note is
