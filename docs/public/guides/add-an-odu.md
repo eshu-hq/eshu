@@ -64,6 +64,11 @@ absent or empty, so a deleted recording cannot turn into a passing, empty Odù.
 Add the cassette directory to the `ifa-contract-layer` gate's triggers and to
 the matching filter in `.github/static-contract-filters.yml`.
 
+Know what such an Odù proves. It checks the satellite's payloads and stable
+keys, not the fact ids production assigns: a replay stamps `CassetteReplay`
+fact ids, while the real extension host stamps `CollectorExtensionFact` ids.
+The claimed-drive slot that #10729 asks for is where that gap closes.
+
 ## 4. Do not hand-list expectations
 
 `Derive` enumerates one surface per fact-kind-registry entry and one per

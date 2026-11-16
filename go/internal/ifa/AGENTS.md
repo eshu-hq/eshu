@@ -288,6 +288,10 @@ for d in go/internal/ifa go/internal/ifa/materializededges; do
 done
 ```
 
+The vulnerability collector's cassette-backed Odùs (`vuln_collector_odu.go`)
+live in this package by an arbiter's ruling. The next cassette-backed family
+goes into a new package once this directory nears 35 non-test files.
+
 Line-cap headroom is the constraint that will bite first. Several files grow per
 family and sit close to the hard 500-line limit. Measure before you add —
 deliberately no numbers here, because a count written into prose goes stale the

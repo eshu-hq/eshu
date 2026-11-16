@@ -18,6 +18,14 @@ import (
 // The Odù names the vulnerability collector's recording backs
 // (eshu-hq/eshu#10734). They exist only in the cassette-backed catalog,
 // CatalogAt and CatalogByNameAt.
+//
+// Every record in that recording is synthetic: the CVE ids are invented
+// (CVE-2026-90001 to CVE-2026-90005 and CVE-2025-90006), the products belong to
+// the made-up vendor ifa-vendor, and every feed host is a reserved example.test
+// name. No real NVD, CISA KEV or FIRST EPSS record is present. The
+// www.cisa.gov and www.first.org links on the KEV and EPSS snapshots are the
+// source-terms attribution links the collector always writes, and nvd@nist.gov
+// is NVD's source identifier; neither is evidence of real data.
 const (
 	// VulnCollectorOduName is the NVD product-path Odù: one recorded window, KEV
 	// and EPSS, and a planted SBOM component with the exact CPE of the window's
@@ -38,8 +46,9 @@ const (
 
 // vulnCollectorCassetteRelPath is the recording of the real vulnerability
 // collector's output. The collector satellite records it by running its own
-// claim path against local fixture upstreams and writes it with
-// `make ifa-cassette`; a sha256 sidecar and the satellite's drift gate pin it.
+// claim path against local fixture upstreams that serve synthetic records, and
+// writes it with `make ifa-cassette`; a sha256 sidecar and the satellite's
+// drift gate pin it.
 const vulnCollectorCassetteRelPath = "testdata/cassettes/vulnerabilityintelligence/vuln-collector-nvd.json"
 
 // The five scopes the recording holds. The first window carries five CVEs, one
