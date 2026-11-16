@@ -74,7 +74,9 @@ flowchart TD
 Inputs: the Modified feed's span from its own records, `M0` = min and `M1` = max
 `lastModified`, computed while streaming with sha256 checked against `.meta`; a
 year-set manifest with each year's `.meta` time `D_y` and sha256; `R = max D_y`;
-seed validity horizon `V = R - 24 h`.
+and `verified_at_Y`, the time the refresher last matched year file `Y` against
+the upstream `.meta`. The seed validity horizon is per year:
+`V_Y = min(verified_at_Y, R) - 24 h`. A year is stale when `V_Y < M0`.
 
 A window is covered when `e <= M1` and (`s >= M0` or `e <= V`). Served records are
 the year-set records with `lastModified` in `[s, e)`, overlaid by Modified
@@ -110,8 +112,26 @@ path was selected (see Errors).
 - A healthy, caught-up system never takes the feed path: `e` is after the
   `.meta` time, so the selector stops at step 2 and the API runs. No flag flips
   and nothing flaps.
-- A seed older than about six days opens a hole (`V < M0`); the selector sends
-  that window to the API. Re-seed to close it.
+- **Why two terms.** `R` alone let one year that regenerates daily vouch for a
+  year the refresher stopped confirming, so each year also carries its own
+  `verified_at_Y`. Neither term implies the other, and `min(a, b) - 24 h < M0`
+  holds exactly when either `a - 24 h < M0` or `b - 24 h < M0`. The `verified_at_Y`
+  term catches a stuck refresher (one year the refresher keeps failing). The `R`
+  term catches a stalled upstream (NVD stops regenerating year files while the
+  refresher keeps matching the frozen `.meta`, which keeps every `verified_at_Y`
+  fresh). The 24 hours is regeneration lag, not clock-skew slack, and the guard
+  has no clock of its own: a `verified_at_Y` ahead of real time is not caught
+  here. The refresher-side skew check is tracked as
+  eshu-hq/eshu-collector-vulnerability-intelligence#185. The guard never reads
+  year `Y`'s own `D_y`, for the dormant-year reason above.
+- A year not verified for about six days opens a hole (`V_Y < M0`, with `M0`
+  about eight days back); the claim is sent away from the seed (a baseline chunk
+  refuses retryable as `nvd_feed_year_stale`, a window goes to the API) until the
+  refresher restamps the year. The six days is the refresher's budget: one
+  successful pass every six days per year, against a daily default cadence. See
+  ADR-0006 in the collector repository. The collector passes a zero seed horizon
+  on the window path today, so the `e <= V_Y` branch never fires there and the
+  per-year guard applies to baseline chunks only.
 - If the remaining claim deadline is under 150 s the selector chooses the API.
 
 ### 2. Unchanged by construction
