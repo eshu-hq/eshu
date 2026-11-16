@@ -29,11 +29,14 @@ recent shipped work grouped by feature area.
   ranks by `priority_score` first, so until a holder scope re-derives its own
   copy, a stale active copy can outrank a retracted copy of the same finding in
   the default findings view. That window is bounded by the one-hop holder
-  fan-out plus the winners audit backstop; this change documents the bound and
-  adds `eshu_dp_supply_chain_impact_stale_copy_repairs_total{transition}`
-  (`active_to_retracted`, `retracted_to_active`), which counts each stored copy a
-  pass rewrites across the retraction boundary. Winner ordering, indexes, the
-  schema, and the API are unchanged.
+  fan-out, one holder pass, and one winners resweep tick; the winners audit does
+  not shorten it, and a holder the fan-out does not reach keeps its stale copy
+  until its own next pass. This change documents the bound and adds
+  `eshu_dp_supply_chain_impact_stale_copy_repairs_total{transition}`
+  (`active_to_retracted`, `retracted_to_active`), which counts each retraction
+  state flip a pass writes against its stored baseline, the originating scope's
+  own flip included. It does not measure how many stale copies remain. Winner
+  ordering, indexes, the schema, and the API are unchanged.
 
 ### Golden corpus gate jobs get a budget that fits their measured runtime
 

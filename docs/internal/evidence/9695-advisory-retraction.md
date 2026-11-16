@@ -117,12 +117,17 @@ that skips unchanged generations" statements above describe this change (1.5a)
 alone. With the one-hop holder fan-out in
 [9695b-holder-fanout.md](9695b-holder-fanout.md), a changed or retracted write
 reopens every holder scope, the operator scope included, so the bound is one
-queue wait plus one reopened holder pass per holder plus one winners resweep
-tick, at most 256 holders per claim with the remainder owed to the next claim,
-and the 10 minute winners audit backstop. Rows V1 and V2 below remain the
-accurate description of the window itself; they are bounded, not open-ended.
-`eshu_dp_supply_chain_impact_stale_copy_repairs_total{transition}` counts the stale
-copies that window repaired.
+queue wait plus one reopened holder pass plus one winners resweep tick, at most
+256 holders per claim with the remainder owed to the next claim. The 10 minute
+winners audit is not part of the bound: it recomputes the winners table from
+`fact_records`, where a stale holder copy is an ordinary active fact, so it
+confirms that copy and does not repair it. A holder the fan-out does not reach
+(a dead-lettered item, a suppression that names no identity) keeps its stale
+copy until its own next pass. Rows V1 and V2 below remain the accurate
+description of the window itself; they are bounded for the holders the fan-out
+reaches. `eshu_dp_supply_chain_impact_stale_copy_repairs_total{transition}` counts
+the retraction-state flips passes write, the originating scope's own flip
+included; it does not measure how many stale copies remain.
 
 Fix and ownership. The arbiter ruled for a one-hop fan-out as a separate
 follow-up in this lane (1.5b). The pass finds the holders with one exact indexed

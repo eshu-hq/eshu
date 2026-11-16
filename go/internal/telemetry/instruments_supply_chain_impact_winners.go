@@ -103,7 +103,7 @@ func registerSupplyChainImpactWinnersInstruments(meter metric.Meter, inst *Instr
 	}
 	if inst.SupplyChainImpactStaleCopyRepairs, err = meter.Int64Counter(
 		"eshu_dp_supply_chain_impact_stale_copy_repairs_total",
-		metric.WithDescription("Stored supply-chain impact finding copies a pass rewrote across the retraction boundary, by transition (active_to_retracted, retracted_to_active). Each is one stale copy the holder fan-out repaired; until its scope re-derives, a stale active copy can outrank a retracted copy in the default findings view (#10765)."),
+		metric.WithDescription("Retraction-state flips a pass wrote against its stored baseline, by transition (active_to_retracted, retracted_to_active), the originating scope's own first-derivation flip included. It does not say how many stale copies remain: a stale active copy can outrank a retracted copy in the default findings view until its scope re-derives, and that remaining count is not measured (#10765)."),
 	); err != nil {
 		return fmt.Errorf("register SupplyChainImpactStaleCopyRepairs counter: %w", err)
 	}
@@ -133,7 +133,7 @@ func (i *Instruments) RecordSupplyChainImpactWinnersWatermark(at time.Time) {
 	i.supplyChainImpactWinnersWatermarkUnixNano.Store(at.UnixNano())
 }
 
-// RecordSupplyChainImpactStaleCopyRepairs counts repaired stale copies under
+// RecordSupplyChainImpactStaleCopyRepairs counts retraction-state flips under
 // transition, which must be one of the SupplyChainImpactStaleCopyTransition*
 // constants. It is safe on a nil receiver and adds nothing for a count below
 // one.

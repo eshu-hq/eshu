@@ -205,7 +205,7 @@ const (
 	staleCopyRepairsRetractedToActiveSubSignal = "stale_copy_repairs_retracted_to_active"
 )
 
-// emitStaleCopyRepairs counts one pass's repaired stale copies by closed
+// emitStaleCopyRepairs counts one pass's retraction-state flips by closed
 // transition on eshu_dp_supply_chain_impact_stale_copy_repairs_total. It runs
 // right after the writer commit, before the projection enqueue and the holder
 // fan-out that can still fail the pass: a retry finds the copy already in its
