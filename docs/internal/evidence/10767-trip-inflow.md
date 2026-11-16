@@ -244,22 +244,44 @@ Nothing about the threshold, the two-sample rule or the age trip changes.
    re-activation or idempotent re-run of a scope whose findings already exist, (the maintainer already
    builds `winners_keyed_scope_idents` at drain time) and weight in the drain
    tally, attributed to the drain hour, as a separate ruling.
-2. Migration numbering. This change takes `299`: #10768's durable trip latch
-   reserves `298`. The bootstrap runner keys its ledger by migration path and
-   variant (`schema_bootstrap_lock.go`), not by a high-water mark, so a `298`
-   that lands after `299` is still applied on a database that already recorded
-   `299`. `BootstrapDefinitions()` takes its order from the embedded directory
-   listing, which sorts by file name, and `TestBootstrapDefinitionsAreOrderedAndComplete`
-   requires `orderedBootstrapDefinitionNamesLatest` to match that order exactly.
-   Whichever of the two lands second therefore rebases onto the other's entry at
-   the end of that list: if #10768 lands second, `298` goes before this change's
-   entry, not after it. In both cases the second branch recomputes
-   `goldenBootstrapDefinitionsDigest`, the definitions count and the checksum
-   manifest in `go/internal/storage/postgres/migrations`.
+2. Resolved: migration numbering. #10768's durable trip latch landed first as
+   `298`; this change takes `299`. The bootstrap runner keys its ledger by
+   migration path and variant (`schema_bootstrap_lock.go`), not by a high-water
+   mark, and `BootstrapDefinitions()` takes its order from the embedded
+   directory listing, which sorts by file name. This branch was rebased over
+   the merged `298`, so `orderedBootstrapDefinitionNamesLatest`,
+   `goldenBootstrapDefinitionsDigest` (count 325) and the checksum manifest in
+   `go/internal/storage/postgres/migrations` already carry both entries.
 3. Grants. The maintainer login needs `SELECT, INSERT, UPDATE, DELETE` on the
    tally and the coordinator login `SELECT` on the tally and the dirty log. The
-   public telemetry reference now says so; the deployment's least-privilege
-   grants (private IaC) are the coordinator's to confirm before #10746.
+   public telemetry reference lists both. The tally DELETEs run on every
+   maintainer tick from merge onward, so a login that lacks them fails the tick
+   with `permission denied`; they are not deferred to #10746.
+
+   What the repos show, read-only and not checked against a live database:
+
+   - In the default deployment every workload reads one shared Postgres login:
+     the reducer (which runs the winners maintainer), the coordinator (which
+     runs the trip sampler), the schema-bootstrap Job, the API and the
+     collectors. The chart renders it from a single secret key in the helper
+     `eshu.renderContentStoreEnv`
+     (`eshu-deploy/helm/eshu/templates/_data_plane_helpers.tpl`, lines 1-15),
+     included by `deployment-resolution-engine.yaml` (line 63) and
+     `deployment-workflow-coordinator.yaml` (line 65). There the new table
+     needs no extra grant.
+   - The opt-in role-bound mode (`ESHU_POSTGRES_ROLE_BOUNDARY_REQUIRED` and
+     `ESHU_POSTGRES_ROLE_CONTRACT_JSON`,
+     `docs/public/reference/env-registry/runtime-and-storage.md` lines 68-69,
+     `go/internal/runtime/role_contract.go` lines 99-125) is enabled by neither
+     the public chart nor the QA and production deployment values that were
+     read.
+   - No repo carries a grants manifest for runtime tables. The existing winners
+     dirty-log grants are prose in
+     `docs/public/reference/telemetry/supply-chain-impact-winners.md` (lines
+     75-92), and the tally grants follow that pattern.
+   - The real QA and production role layout lives outside git and was not
+     determined. An operator running role-bound logins must apply the grants
+     listed in the telemetry reference before rollout.
 
 ## Proof
 

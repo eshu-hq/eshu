@@ -396,19 +396,19 @@ the fold in `go/internal/coordinator/vulnerability/nvd_baseline_trip_latch.go`
   A binary rollback is safe on its own: the older binary never reads the
   table and runs with the in-memory latch as before. A newer binary that loses
   the table fails closed (every load errors, planning holds), so a premature
-  drop stops the lane and corrupts nothing. Re-check the migration number at
-  merge time: origin/main now tops out at 297
-  (`297_vulnerability_nvd_baseline_checkpoints.sql`, merged), so 298 is the
-  next free number and this branch adds it with no collision. Sibling lane
-  #10767 adds 299 and edits the same golden files. The second lane to land
-  must regenerate, not hand-resolve, `goldenBootstrapDefinitionsDigest` and
-  `goldenBootstrapDefinitionsCount` in
-  `go/internal/storage/postgres/migrations/embed_invariant_test.go` (the
-  count becomes 325 with both 298 and 299), append to
-  `migration_checksum_manifest_test.go`, and extend
+  drop stops the lane and corrupts nothing. The migration number was
+  re-checked at merge time. Main topped out at 297
+  (`297_vulnerability_nvd_baseline_checkpoints.sql`) when this branch took 298.
+  Sibling lane #10767 added 299 and edits the same golden files; main reached
+  298 when this lane merged, and #10767 was rebased over it, taking 299. The
+  second lane's rebase recomputed, rather than hand-resolved,
+  `goldenBootstrapDefinitionsDigest` and `goldenBootstrapDefinitionsCount` in
+  `go/internal/storage/postgres/migrations/embed_invariant_test.go` (the count
+  is 325 with both 298 and 299), appended to
+  `migration_checksum_manifest_test.go`, and extended
   `orderedBootstrapDefinitionNamesLatest` in
-  `go/internal/storage/postgres/schema_order_latest_test.go` keeping 298
-  before 299.
+  `go/internal/storage/postgres/schema_order_latest_test.go` keeping 298 before
+  299.
 
 ## 6. Idempotency argument
 
