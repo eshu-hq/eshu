@@ -25,7 +25,9 @@
 // which fails a result carrying a page envelope terminal as invalid_result
 // instead of committing one page as the whole generation. A paged runner
 // returns the page on CallResult.Page; a page on the embedded SDK result fails
-// the same way.
+// the same way. A continuation page that returns a retryable or terminal
+// verdict with no facts ends the stream with that verdict and commits nothing,
+// even without a page envelope.
 //
 // The host is the owning decision site for the activation and emission stages
 // of producer-grant admission. Config.GrantObserver receives one allow or deny
