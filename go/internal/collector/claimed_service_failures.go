@@ -11,6 +11,23 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
+// errNoCollectibleGeneration reports a claim that produced no generation
+// to commit (NextClaimed ok=false). It is the terminal cause when such a
+// claim arrives with its attempt budget already exhausted (#10791).
+var errNoCollectibleGeneration = errors.New("collector returned no collectible generation")
+
+// budgetExhaustedCause pins the persisted failure class for budget-exhausted
+// terminal rows. classifiedFailureClass resolves via errors.As, which matches
+// the outermost FailureClass first, so a classified provider cause keeps its
+// own class for diagnosis in the chain while the row records
+// attempt_budget_exhausted (eshu-hq/eshu#10791 review P1). The message and the
+// wrapped chain pass through untouched.
+type budgetExhaustedCause struct{ cause error }
+
+func (e budgetExhaustedCause) Error() string        { return e.cause.Error() }
+func (e budgetExhaustedCause) Unwrap() error        { return e.cause }
+func (e budgetExhaustedCause) FailureClass() string { return FailureClassAttemptBudgetExhausted }
+
 // failRetryable persists a retryable claim failure. operation is the
 // claim-stage token recorded in the operation column (for example
 // "collect_failure"). A rejected FailClaimRetryable write never drops the
@@ -25,6 +42,12 @@ func (s ClaimedService) failRetryable(
 	operation string,
 	err error,
 ) error {
+	// Track B1 (eshu-hq/eshu#10791): the budget check lives here so every
+	// retryable path — dispatch lease, collect, commit — terminals an
+	// exhausted item instead of requeueing it into another stale retry.
+	if s.attemptBudgetExhausted(item) {
+		return s.failTerminal(ctx, mutation, operation, FailureClassAttemptBudgetExhausted, budgetExhaustedCause{s.budgetExhaustedError(ctx, item, err)})
+	}
 	failureClass := classifiedFailureClass(err, operation)
 	failed := withFailure(mutation, operation, failureClass, false, err)
 	if failed.VisibleAt.IsZero() {

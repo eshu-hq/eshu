@@ -117,6 +117,15 @@ type RunAdmission struct {
 	AdmissionSkipped map[string]map[string]int
 }
 
+// ExpiredStaleRunItem names one work item the run-age bound moved to
+// failed_terminal. Scope ids ride the response for the operator; they never
+// become metric labels.
+type ExpiredStaleRunItem struct {
+	RunID      string
+	WorkItemID string
+	ScopeID    string
+}
+
 // CompletenessState captures one reducer-facing completion checkpoint for a
 // workflow run.
 type CompletenessState struct {

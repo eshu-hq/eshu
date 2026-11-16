@@ -200,7 +200,7 @@ func TestBoundedFailureClassesMatchTheCollectorWriters(t *testing.T) {
 	common := sortedUnique(append(slices.Clone(providerFive),
 		collector.FailureClassAttemptBudgetExhausted, extensionhost.FailureClassIdentityMismatch,
 		"collect_failure", "commit_failure", workflow.FailureClassExpiredLeaseBudgetExhausted,
-		workflow.FailureClassOperatorRetiredUnclaimed))
+		workflow.FailureClassOperatorRetiredUnclaimed, workflow.FailureClassRunAgeBoundExceeded))
 	// The expired-lease reaper (storage/postgres ReapExpiredClaims) persists
 	// workflow.FailureClassExpiredLeaseBudgetExhausted, not a collector class,
 	// so no per-kind check covers it: every workflow FailureClass constant

@@ -33,6 +33,10 @@ type fakeStore struct {
 	runReconcileCalls    int
 	runReconcileObserved []time.Time
 	runReconcileHook     func(int)
+	expireCalls          int
+	expireErr            error
+	expireHook           func()
+	expiredItems         []workflow.ExpiredStaleRunItem
 }
 
 type fakeOwnedPackageTargetReader struct {
@@ -172,6 +176,17 @@ func (f *fakeStore) ReapExpiredClaims(_ context.Context, observedAt time.Time, l
 	return append([]workflow.Claim(nil), f.reapedClaims...), nil
 }
 
+func (f *fakeStore) ExpireStaleOpenRuns(_ context.Context, _ time.Time, _ time.Duration) ([]workflow.ExpiredStaleRunItem, error) {
+	f.expireCalls++
+	if f.expireHook != nil {
+		f.expireHook()
+	}
+	if f.expireErr != nil {
+		return nil, f.expireErr
+	}
+	return append([]workflow.ExpiredStaleRunItem(nil), f.expiredItems...), nil
+}
+
 func (f *fakeStore) ReconcileWorkflowRuns(_ context.Context, observedAt time.Time) (int, error) {
 	f.runReconcileCalls++
 	f.runReconcileObserved = append(f.runReconcileObserved, observedAt)
@@ -198,6 +213,7 @@ type fakeMetrics struct {
 	epssDerivedObserved           []EPSSDerivedObservation
 	ownedDerivedObserved          []OwnedDerivedObservation
 	osvDeltaObserved              []OSVDeltaReplanMetricsObservation
+	staleRunExpiryObserved        []StaleRunExpiryObservation
 }
 
 func (f *fakeMetrics) RecordReconcile(_ context.Context, observation ReconcileObservation) {
@@ -250,4 +266,8 @@ func (f *fakeMetrics) RecordOwnedTargetSlotSelection(_ context.Context, observat
 
 func (f *fakeMetrics) RecordOSVDeltaReplan(_ context.Context, observation OSVDeltaReplanMetricsObservation) {
 	f.osvDeltaObserved = append(f.osvDeltaObserved, observation)
+}
+
+func (f *fakeMetrics) RecordStaleRunExpiry(_ context.Context, observation StaleRunExpiryObservation) {
+	f.staleRunExpiryObserved = append(f.staleRunExpiryObserved, observation)
 }

@@ -20,11 +20,12 @@ import (
 // contract for ResultRecord.RetryAfter and the telemetry built from it
 // (#8908): it is the extension's retry request after the one-hour cap,
 // recorded before ClaimedService decides what to do with it. ClaimedService
-// applies max(PollInterval, request) while attempts remain, and none of it
-// once the attempt budget is spent (the claim then fails terminally, keeps the
-// extension's own failure class, and counts on the attempt-budget-exhausted
-// counter). The record must carry the request in all three cases, and the
-// durable outcome must be the one the docs describe.
+// applies min(max(PollInterval, request), 1h) while attempts remain, and none
+// of it once the attempt budget is spent (the claim then fails terminally,
+// records attempt_budget_exhausted independent of the carried cause class,
+// and counts on the attempt-budget-exhausted counter). The record must carry
+// the request in all three cases, and the durable outcome must be the one the
+// docs describe.
 func TestResultRecordRetryAfterIsTheRequestNotTheAppliedDelay(t *testing.T) {
 	t.Parallel()
 
@@ -61,7 +62,7 @@ func TestResultRecordRetryAfterIsTheRequestNotTheAppliedDelay(t *testing.T) {
 			maxAttempts:  3,
 			attemptCount: 3,
 			wantTerminal: 1,
-			wantClass:    "rate_limited",
+			wantClass:    "attempt_budget_exhausted",
 			wantBudget:   1,
 		},
 	}

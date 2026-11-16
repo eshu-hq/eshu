@@ -25,6 +25,13 @@ func (s Service) recordReap(ctx context.Context, observation ReapObservation) {
 	s.Metrics.RecordReap(ctx, observation)
 }
 
+func (s Service) recordStaleRunExpiry(ctx context.Context, observation StaleRunExpiryObservation) {
+	if s.Metrics == nil {
+		return
+	}
+	s.Metrics.RecordStaleRunExpiry(ctx, observation)
+}
+
 func (s Service) recordRunReconciliation(ctx context.Context, observation RunReconciliationObservation) {
 	if s.Metrics == nil {
 		return

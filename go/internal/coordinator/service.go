@@ -33,6 +33,10 @@ type Store interface {
 	EnqueueWorkItems(context.Context, []workflow.WorkItem) error
 	ReapExpiredClaims(context.Context, time.Time, int, time.Duration) ([]workflow.Claim, error)
 	ReconcileWorkflowRuns(context.Context, time.Time) (int, error)
+	// ExpireStaleOpenRuns terminal-fails pending and claimed items of
+	// non-terminal runs older than maxAge (eshu-hq/eshu#10791), so one
+	// stuck-open run cannot hold its targets' open-target guard forever.
+	ExpireStaleOpenRuns(context.Context, time.Time, time.Duration) ([]workflow.ExpiredStaleRunItem, error)
 }
 
 // GovernanceAuditAppender records validation-safe hosted governance audit events.
