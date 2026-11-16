@@ -23,6 +23,7 @@ func TestNVDBaselineTripLatchOutcomesAreCountedAndClosed(t *testing.T) {
 	for _, want := range []string{
 		NVDBaselineTripLatchReadFailed, NVDBaselineTripLatchAbsent, NVDBaselineTripLatchLostRace,
 		NVDBaselineTripLatchAppliedAfterGap, NVDBaselineTripLatchWriteFailed,
+		NVDBaselineTripLatchFutureSample, NVDBaselineTripLatchStoredAhead,
 	} {
 		if !slices.Contains(NVDBaselineTripLatchOutcomes(), want) {
 			t.Fatalf("NVDBaselineTripLatchOutcomes() = %v, want %q in the closed set", NVDBaselineTripLatchOutcomes(), want)

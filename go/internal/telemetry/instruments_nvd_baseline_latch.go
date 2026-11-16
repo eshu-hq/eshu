@@ -42,6 +42,13 @@ const (
 	NVDBaselineTripLatchLostRace = "lost_race"
 	// NVDBaselineTripLatchWriteFailed: saving the latch failed.
 	NVDBaselineTripLatchWriteFailed = "write_failed"
+	// NVDBaselineTripLatchFutureSample: a sample dated past the database
+	// clock plus the skew allowance was refused and nothing was saved.
+	NVDBaselineTripLatchFutureSample = "future_sample"
+	// NVDBaselineTripLatchStoredAhead: the stored sample time is past the
+	// database clock plus the skew allowance, so the latch is deaf until the
+	// row is deleted; the fold refuses and writes nothing.
+	NVDBaselineTripLatchStoredAhead = "stored_ahead"
 )
 
 var nvdBaselineTripLatchOutcomes = [...]string{
@@ -54,6 +61,8 @@ var nvdBaselineTripLatchOutcomes = [...]string{
 	NVDBaselineTripLatchTooSoon,
 	NVDBaselineTripLatchLostRace,
 	NVDBaselineTripLatchWriteFailed,
+	NVDBaselineTripLatchFutureSample,
+	NVDBaselineTripLatchStoredAhead,
 }
 
 // NVDBaselineTripLatchOutcomes returns the closed, ordered latch outcome set.
@@ -83,7 +92,7 @@ func registerNVDBaselineTripLatch(meter metric.Meter, inst *Instruments) error {
 	var err error
 	inst.NVDBaselineTripLatchOutcomes, err = meter.Int64Counter(
 		"eshu_dp_nvd_baseline_trip_latch_total",
-		metric.WithDescription("Total durable NVD baseline trip latch outcomes (#10768): loaded, absent (no row yet; planning holds until the first hourly sample), read_failed (planning holds, fail closed), applied and applied_after_gap (an hourly sample saved; a missed hour restarts the hot and quiet streaks), stale and too_soon (a replayed or re-sampled hour changed nothing), lost_race (another writer moved the latch first; the sample was dropped), write_failed"),
+		metric.WithDescription("Total durable NVD baseline trip latch outcomes (#10768): loaded, absent (no row yet; planning holds until the first hourly sample), read_failed (planning holds, fail closed), applied and applied_after_gap (an hourly sample saved; a missed hour restarts the hot and quiet streaks), stale and too_soon (a replayed or re-sampled hour changed nothing), lost_race (another writer moved the latch first; the sample was dropped), write_failed, future_sample (a sample dated past the database clock plus the skew allowance was refused, nothing saved), stored_ahead (the stored sample time is past the clock plus the skew allowance, so the latch is deaf until its row is deleted)"),
 	)
 	if err != nil {
 		return fmt.Errorf("register NVDBaselineTripLatchOutcomes counter: %w", err)

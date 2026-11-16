@@ -317,16 +317,31 @@ the fold in `go/internal/coordinator/vulnerability/nvd_baseline_trip_latch.go`
   refused without a write, so a re-sample after a restart cannot score one
   hour twice toward re-enable. The thresholds are this change's decision, not
   the ruling's; they are constants.
+- Clock bound. A sample time more than `NVDBaselineTripMaxSampleSkew` (2
+  minutes) past the `now` passed to `ObserveNVDBaselineTrip` is refused with
+  the `future_sample` outcome, an error, an open verdict, and no store read or
+  write. Without the bound, one future-dated sample is persisted as
+  `sampled_at` and every later real sample reads as stale until real time
+  catches up, so the detector goes deaf. The bound is only as good as the
+  independence of `now`: it must be the database clock, not the clock that
+  stamped `sample.At`, or a replica whose clock stepped ahead would pass its
+  own check. A zero `now` is an error. A row already poisoned (stored sample
+  time past `now` plus the allowance) is reported as `stored_ahead` with an
+  error and no write instead of answering stale forever; the recovery is to
+  delete the row, which re-folds onto an open trip through `runStarted` and so
+  needs six fresh quiet hours.
 - Who owns the hourly loop. The coordinator process that plans baseline
   chunks (the vulnerability-intelligence scheduler lane, wired by #10746)
   owns the hourly sample-and-save loop: it already holds the database and the
   planner, so the load and the fold sit in one process. The window collector
-  and the commit path never write the latch. Correctness does not depend on a
-  lease: with several coordinator replicas each running the loop, the revision
-  guard lets exactly one write per revision apply, and a second replica's
-  sample inside 45 minutes is refused as too soon. A lease or single-flight is
-  therefore an optimization against duplicate probe work (one aggregate
-  query per hour), not a safety requirement, and #10746 may add one.
+  and the commit path never write the latch. Interleaving does not need a lease:
+  with several coordinator replicas each running the loop, the revision guard
+  lets exactly one write per revision apply, and a second replica's sample
+  inside 45 minutes is refused as too soon. Clock steps are a separate
+  hazard the revision guard does not cover; the clock bound above covers them
+  only when `now` is the database clock. A lease or single-flight remains an
+  optimization against duplicate probe work (one aggregate query per hour),
+  and #10746 may add one.
 - Contract #10746 must keep. (1) Load the latch at the start of every plan
   tick, not once per process, and set the whole `NVDBaselineTripLoad` on
   `IntelligencePlanRequest.NVDBaselineTrip`; any error holds. A request that
@@ -337,7 +352,9 @@ the fold in `go/internal/coordinator/vulnerability/nvd_baseline_trip_latch.go`
   independently of planning: a new run has no row, so planning holds until the
   first sample lands, and a loop gated on planning would never start. (3) Pass
   `runStarted` from a non-empty checkpoint read. (4) Stamp `sample.At` from one
-  clock per loop. (5) Route the operator re-enable through
+  clock per loop and pass the database clock (one `SELECT now()` per tick) as
+  `now`, never the loop's own clock; record `future_sample` and `stored_ahead`
+  so a skewed replica or a poisoned row is visible to an operator. (5) Route the operator re-enable through
   `CloseNVDBaselineTrip`; on `ErrNVDBaselineTripLatchConflict` retry. (6)
   Record `RecordNVDBaselineTripLatch` with each returned outcome and the trip
   transitions from the `Before` and `After` states of each observation.
