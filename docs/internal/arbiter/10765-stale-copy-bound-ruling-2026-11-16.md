@@ -48,7 +48,7 @@ Checked on `origin/main` at 2d8328d60b.
   `specs/live-tests.d/live-tests-07.yaml`.
 - The cap is `fanOutHolderCap = 256` at `go/internal/reducer/supplychain/core/fanout.go`.
 - The fan-out counter `eshu_dp_supply_chain_impact_fanout_total{domain,outcome,cause}`
-  is documented at `go/internal/telemetry/instruments.go` (the `SupplyChainImpactFanout` field doc) and
+  is documented at `go/internal/telemetry/instruments.go` (the `SupplyChainImpactFanOut` field doc) and
   registered in the same file. Its outcomes include
   `reopened` and `deferred`; `deferred` is added once per newly carried holder
   (`go/internal/reducer/supplychain/core/fanout_signals.go`).
