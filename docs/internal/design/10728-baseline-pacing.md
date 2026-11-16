@@ -258,25 +258,93 @@ No pausing or serializing OSV/GHSA to make room (ruling decision 3).
 Known limits to close before the baseline enable lane (#10746) turns on.
 These come from the #10760 review findings F8 and F10. The follow-ups are
 tracked as #10767 (inflow measure, F8) and #10768 (durable latch, F10), and
-both must land before #10746 turns the lane on. #10746 wires the recorders
-and the plan-time latch load into the service.
+both must land before #10746 turns the lane on. F10 is closed in the store
+and fold by #10768 (below). #10746 wires the recorders and the plan-time
+latch load into the service.
 
-- Inflow, not backlog (F8, #10767). The sampler counts CVE-% rows still queued, but
-  the winners maintainer drains the log with `DELETE`
+- Inflow, not backlog (F8, #10767). The sampler counts CVE-% rows still
+  queued, but the winners maintainer drains the log with `DELETE`
   (`deleteWinnersKeyedAppliedDirtySQL`), so a healthy maintainer hides
   inflow and the trip opens late. The lane needs a true inflow measure
   (a `seq` watermark carried between samples, or a capture-side counter)
   and must count the `kind = 'scope'` rows a baseline commit appends, which
   carry a NULL `advisory_id` by migration 272's shape constraint.
-- Durable latch (F10, #10768). `NVDBaselineTripState` is memory-only, so a
-  coordinator restart drops an open trip. The latch must be persisted and
-  read back before the first baseline plan, and a failed or missing latch
-  read must hold planning (fail closed), including the gap while the
-  sampler has no history. The gate counts samples, not elapsed time (the
-  sample timestamp is not read), so a missed or duplicate hourly sample
-  counts as a consecutive hour; gap handling is tracked in #10768.
-- Recorders. The lane wires the trip, plan, and dirty-probe recorders,
+- Durable latch (F10, #10768). Done in the store and fold; the service
+  wiring is still #10746. See "Durable latch contract" below. `Observe`
+  itself counts samples, not elapsed time (the sample timestamp is not
+  read), so a missed or duplicate hourly sample would count as a
+  consecutive hour; the fold closes that with the gap and replay handling
+  described below.
+- Recorders. The lane wires the trip, plan, latch, and dirty-probe recorders,
   including `close_refused` from a refused `Close`, each with a test.
+
+### Durable latch contract (#10768)
+
+The trip latch is a row per baseline run in
+`vulnerability_nvd_baseline_trip_latches` (migration 298): every field of
+`NVDBaselineTripState`, `sampled_at` (the last sample folded in), and a
+`revision` that counts applied writes. Code: `NVDBaselineTripLatchStore` in
+`go/internal/storage/postgres/vulnerability/nvd_baseline_trip_latch.go` and
+the fold in `go/internal/coordinator/vulnerability/nvd_baseline_trip_latch.go`
+(`LoadNVDBaselineTripLatch`, `ObserveNVDBaselineTrip`,
+`CloseNVDBaselineTrip`).
+
+- Guarded write. One statement per write, never read-then-write. The update
+  applies only when `revision` still equals the value the writer loaded and
+  `sampled_at` is not older than the stored one; zero rows affected is a
+  skipped stale write, not an error. The first write is an
+  `INSERT ... ON CONFLICT DO NOTHING` for a writer that saw no row. A
+  `sampled_at` compare alone is not enough: the latch is a read-modify-write
+  fold, so a writer that loaded state at T and folds the T+2h sample would
+  overwrite another writer's T+1h fold, and an hourly sample could resurrect
+  a trip an operator `Close` just cleared (Close records no sample). The
+  revision closes both; the time predicate refuses a replayed older sample
+  even when the revision matches.
+- Fail closed. `LoadNVDBaselineTripLatch` returns `Open` for an unreadable
+  store, a nil store, a blank run id, and a run with no row yet. A missing row
+  holds planning until the first hourly sample writes it, so a restart that
+  lost the row never reads as "never tripped". A run that already committed
+  baseline chunks (non-empty `ReadNVDBaselineCheckpoints`) whose row is
+  missing folds its first sample onto an open trip that needs six fresh quiet
+  hours, never onto a clean slate. The error return and the open verdict are
+  both set, so a caller that drops the error still holds.
+- Gaps and replays. Samples stand for hours. A sample more than 90 minutes
+  after the stored one (`NVDBaselineTripMaxSampleGap`: one hour plus 30
+  minutes of tick jitter) is a missed hour: the hot streak and the quiet
+  streak restart and re-enable eligibility is withdrawn before the sample is
+  folded, and an open trip stays open. A sample less than 45 minutes after the
+  stored one (`NVDBaselineTripMinSampleSpacing`) or at or before it is
+  refused without a write, so a re-sample after a restart cannot score one
+  hour twice toward re-enable. The thresholds are this change's decision, not
+  the ruling's; they are constants.
+- Who owns the hourly loop. The coordinator process that plans baseline
+  chunks (the vulnerability-intelligence scheduler lane, wired by #10746)
+  owns the hourly sample-and-save loop: it already holds the database and the
+  planner, so the load and the fold sit in one process. The window collector
+  and the commit path never write the latch. Correctness does not depend on a
+  lease: with several coordinator replicas each running the loop, the revision
+  guard lets exactly one write per revision apply, and a second replica's
+  sample inside 45 minutes is refused as too soon. A lease or single-flight is
+  therefore an optimization against duplicate probe work (one aggregate
+  query per hour), not a safety requirement, and #10746 may add one.
+- Contract #10746 must keep. (1) Load the latch at the start of every plan
+  tick, not once per process, and pass `NVDBaselineTripLoad.Open` as the
+  planner's `tripOpen`; any error holds. (2) Start the hourly loop
+  independently of planning: a new run has no row, so planning holds until the
+  first sample lands, and a loop gated on planning would never start. (3) Pass
+  `runStarted` from a non-empty checkpoint read. (4) Stamp `sample.At` from one
+  clock per loop. (5) Route the operator re-enable through
+  `CloseNVDBaselineTrip`; on `ErrNVDBaselineTripLatchConflict` retry. (6)
+  Record `RecordNVDBaselineTripLatch` with each returned outcome and the trip
+  transitions from the `Before` and `After` states of each observation.
+- Rollback. The migration only creates a new table nothing references, so
+  the schema rollback is `DROP TABLE vulnerability_nvd_baseline_trip_latches`.
+  A binary rollback is safe on its own: the older binary never reads the
+  table and runs with the in-memory latch as before. A newer binary that loses
+  the table fails closed (every load errors, planning holds), so a premature
+  drop stops the lane and corrupts nothing. Re-check the migration number at
+  merge time: 298 is the next free number with the peer's 297 stacked, and
+  origin/main tops out at 296.
 
 ## 6. Idempotency argument
 
