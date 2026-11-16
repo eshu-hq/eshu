@@ -78,7 +78,8 @@ and `verified_at_Y`, the time the refresher last matched year file `Y` against
 the upstream `.meta`. The seed validity horizon is per year:
 `V_Y = min(verified_at_Y, R) - 24 h`. A year is stale when `V_Y < M0`.
 
-A window is covered when `e <= M1` and (`s >= M0` or `e <= V`). Served records are
+A window is covered when `e <= M1` and (`s >= M0` or `e <= V_Y` for every year
+`Y` the window reads). Served records are
 the year-set records with `lastModified` in `[s, e)`, overlaid by Modified
 records by CVE id (Modified wins). Otherwise the API runs.
 
@@ -106,8 +107,8 @@ path was selected (see Errors).
   only) nor the year file. Mitigation, owned by follow-up C: a periodic API
   cross-check of the dormant years. Until it exists, QA enable for windows older
   than `M0` carries this risk knowingly.
-- **Guard.** For each Modified record with `lastModified <= V`, require
-  `D_{year} >= lastModified`. On a trip: class `nvd_feed_year_stale` (retryable,
+- **Guard.** For each Modified record with `lastModified <= V_Y`, where `Y` is
+  the record's year, require `D_Y >= lastModified`. On a trip: class `nvd_feed_year_stale` (retryable,
   never terminal), mark the year set invalid, run the API, count the trip.
 - A healthy, caught-up system never takes the feed path: `e` is after the
   `.meta` time, so the selector stops at step 2 and the API runs. No flag flips
