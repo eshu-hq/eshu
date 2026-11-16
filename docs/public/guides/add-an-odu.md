@@ -53,6 +53,17 @@ Add a `CatalogOdu{Odu: Odu{Name: "odu:<name>", Facts: ...}}` entry to
 `fixturepack.ValidPayload` examples (see `awsPackOdu`) so the Odù stays in
 lockstep with the payload schemas instead of drifting from them.
 
+If the Odù should stand for a satellite collector's real output, do not compile
+a copy of it. Have the satellite record its own run into a v1 cassette, commit
+that cassette, and add a `cassetteOduSpec` to `cassetteBackedSpecs` in
+`go/internal/ifa/cassette_catalog.go`. The spec names the cassette and the
+recorded scopes to select, and plants any facts another collector would supply.
+Those Odùs resolve through `CatalogByNameAt(repoRoot)`; `ifa coverage` already
+uses it. Resolution fails when the cassette is missing or a selected scope is
+absent or empty, so a deleted recording cannot turn into a passing, empty Odù.
+Add the cassette directory to the `ifa-contract-layer` gate's triggers and to
+the matching filter in `.github/static-contract-filters.yml`.
+
 ## 4. Do not hand-list expectations
 
 `Derive` enumerates one surface per fact-kind-registry entry and one per

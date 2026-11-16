@@ -27,7 +27,7 @@ surfaces are reported as the expected backfill worklist, not a failure. Pass
 | `-gates` | `<specs-dir>/ci-gates.v1.yaml` | Path to the CI gate registry. |
 | `-manifest` | `<specs-dir>/ifa-coverage-manifest.v1.yaml` | Path to the Ifá coverage manifest. |
 | `-replay-manifest` | `<specs-dir>/replay-coverage-manifest.v1.yaml` | Path to the replay coverage manifest. |
-| `-repo-root` | `.` | Repository root. Unused today; kept for parity with `replay-coverage-gate`. |
+| `-repo-root` | parent of `-specs-dir` | Repository root. The cassette-backed Odùs read their committed cassettes from here, and the command fails, in advisory mode too, when one is missing or empty. |
 | `-report-out` | none | Path to write the JSON coverage report. |
 | `-snapshot` | `testdata/golden/e2e-20repo-snapshot.json` | Path to the B-12 golden snapshot. |
 | `-specs-dir` | `specs` | Directory holding the registry specs. |

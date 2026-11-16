@@ -22,21 +22,9 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
-// vulnCollectorCassetteRelPath is the recording of the real vulnerability
-// collector's output (eshu-hq/eshu#10734). The collector satellite records it
-// by running its own claim path against local fixture upstreams and writes it
-// here with `make ifa-cassette`; it is the one cassette the vuln-collector
-// Odùs select scopes from.
-const vulnCollectorCassetteRelPath = "testdata/cassettes/vulnerabilityintelligence/vuln-collector-nvd.json"
-
-// The five scopes the recording holds: three NVD windows, KEV and EPSS.
-const (
-	vulnWindow1Scope = "vuln-intel://nvd/_window/1793491200000000-1794096000000000"
-	vulnWindow2Scope = "vuln-intel://nvd/_window/1794096000000000-1794700800000000"
-	vulnWindowXScope = "vuln-intel://nvd/_window/1740787200000000-1741392000000000"
-	vulnKEVScope     = "vuln-intel://cisa/kev"
-	vulnEPSSScope    = "vuln-intel://first/epss"
-)
+// The recording's path and scope ids are declared beside the Odùs that select
+// from it (vuln_collector_odu.go), so the catalog and these pins share one
+// spelling of each.
 
 // vulnCollectorInstanceID and vulnCollectorComponentID are the instance and
 // component the recording ran under; the host stamps them as scope metadata.

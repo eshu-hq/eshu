@@ -37,7 +37,7 @@ func parseCoverageFlags(args []string, stderr io.Writer) (coverageOptions, error
 	fs.StringVar(&o.manifest, "manifest", "", "path to the ifa coverage manifest (default: <specs-dir>/"+ifa.ManifestFileName+")")
 	fs.StringVar(&o.replayManifest, "replay-manifest", "", "path to the replay coverage manifest (default: <specs-dir>/"+replaycoverage.ManifestFileName+")")
 	fs.StringVar(&o.gates, "gates", "", "path to the ci-gates registry (default: <specs-dir>/ci-gates.v1.yaml)")
-	fs.StringVar(&o.repoRoot, "repo-root", ".", "repository root (unused today; kept for parity with replay-coverage-gate's flag surface)")
+	fs.StringVar(&o.repoRoot, "repo-root", "", "repository root that holds the committed cassettes the cassette-backed Odùs read (default: the parent of -specs-dir)")
 	fs.StringVar(&o.reportOut, "report-out", "", "path to write the JSON coverage report (empty: do not write)")
 	fs.BoolVar(&o.blocking, "blocking", false, "fail the gate on any uncovered, unresolved, or stale surface (default: local advisory report)")
 	if err := fs.Parse(args); err != nil {
@@ -51,6 +51,16 @@ func parseCoverageFlags(args []string, stderr io.Writer) (coverageOptions, error
 	}
 	if o.gates == "" {
 		o.gates = filepath.Join(o.specsDir, "ci-gates.v1.yaml")
+	}
+	if o.repoRoot == "" {
+		// The specs directory sits directly under the repository root. Resolving
+		// it first keeps `-specs-dir .` run from inside specs/ pointing at the
+		// parent and not at the specs directory itself.
+		specsAbs, err := filepath.Abs(o.specsDir)
+		if err != nil {
+			return coverageOptions{}, fmt.Errorf("resolve -specs-dir %q: %w", o.specsDir, err)
+		}
+		o.repoRoot = filepath.Dir(specsAbs)
 	}
 	return o, nil
 }
@@ -97,10 +107,18 @@ func runCoverageCommand(args []string, stdout, stderr io.Writer) error {
 		return fmt.Errorf("derive expectations: %w", err)
 	}
 
+	// A cassette-backed Odù that cannot be read is a broken reconcile, not a
+	// coverage gap, so it fails the command in advisory mode too: an Odù built
+	// from nothing would pass every assertion made on it.
+	catalog, err := ifa.CatalogByNameAt(o.repoRoot)
+	if err != nil {
+		return fmt.Errorf("build odu catalog: %w", err)
+	}
+
 	in := ifa.CoverageInputs{
 		Expectations: exp,
 		Manifest:     ifaManifest,
-		Catalog:      ifa.CatalogByName(),
+		Catalog:      catalog,
 		Registry:     byKind,
 		ProofGates:   proofGates,
 		Blocking:     o.blocking,

@@ -124,6 +124,49 @@ func TestCatalogResolvesCassetteBackedOdus(t *testing.T) {
 	}
 }
 
+// firstRecordedPayload returns the payload of the first recorded fact of kind in
+// odu, so a test can mutate it.
+func firstRecordedPayload(t *testing.T, odu familyodu.Odu, kind string) map[string]any {
+	t.Helper()
+	for _, fact := range odu.Facts {
+		if fact.FactKind == kind {
+			return fact.Payload
+		}
+	}
+	t.Fatalf("%s carries no %s fact", odu.Name, kind)
+	return nil
+}
+
+// TestCatalogOdusDoNotShareFacts: five Odùs select the same recorded window,
+// and a test that edits one Odù's payload (the newest-copy pin appends a zone to
+// a timestamp) must not move another Odù's facts or a later catalog build.
+func TestCatalogOdusDoNotShareFacts(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := repoRootDir(t)
+	first, err := CatalogByNameAt(repoRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := CatalogByNameAt(repoRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const kind = "vulnerability.cve"
+	untouched := firstRecordedPayload(t, second[VulnCollectorOduName], kind)["modified_at"]
+	sibling := firstRecordedPayload(t, first[VulnCollectorRejectedOduName], kind)["modified_at"]
+
+	edited := firstRecordedPayload(t, first[VulnCollectorOduName], kind)
+	edited["modified_at"] = "edited-by-this-test"
+
+	if got := firstRecordedPayload(t, first[VulnCollectorRejectedOduName], kind)["modified_at"]; got != sibling {
+		t.Errorf("editing %s moved %s: modified_at = %v, want %v", VulnCollectorOduName, VulnCollectorRejectedOduName, got, sibling)
+	}
+	if got := firstRecordedPayload(t, second[VulnCollectorOduName], kind)["modified_at"]; got != untouched {
+		t.Errorf("editing one catalog build moved the next: modified_at = %v, want %v", got, untouched)
+	}
+}
+
 func TestCatalogAtIsSortedAndDescribesEveryOdu(t *testing.T) {
 	t.Parallel()
 

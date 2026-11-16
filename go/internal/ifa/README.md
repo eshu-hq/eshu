@@ -50,12 +50,25 @@ authoring; it does not build a second coverage framework.
   function and re-encode it, asserting canonical-byte equality with the
   original payload, proving the typed struct neither drops nor reshapes a
   field the collector emitted.
-- `Catalog`, `CatalogByName`, `CatalogOdu` - the cataloged Odù seed set (see
+- `Catalog`, `CatalogByName`, `CatalogOdu` - the compiled Odù seed set (see
   `catalog_seed.go` and `roundtrip.go`'s `demoOrgRoundtripOdu`). The
   `odu:vuln-pack` fixture includes the operator-owned
   `vulnerability.suppression` payload under
   `operator:vulnerability_suppressions`, so Ifá validates the producer's
-  server-owned source/author contract separately from provider facts.
+  server-owned source/author contract separately from provider facts. It still
+  covers the six vulnerability kinds the vulnerability collector does not emit;
+  the six it does emit are covered by `odu:vuln-collector-nvd`.
+- `CatalogAt`, `CatalogByNameAt` (`cassette_catalog.go`) - the compiled set plus
+  the cassette-backed Odùs, read from the committed recordings under a
+  repository root. A satellite collector records its own output into a cassette
+  (the vulnerability collector's is
+  `testdata/cassettes/vulnerabilityintelligence/vuln-collector-nvd.json`), and
+  a `cassetteOduSpec` names the cassette, the recorded scopes the Odù selects
+  and the facts it plants beside them. Both fail closed: a missing or empty
+  cassette, an unknown scope, or a scope with no facts returns an error,
+  because every assertion on an Odù built from nothing passes vacuously. Each
+  Odù owns clones of its facts, so a test that edits one does not move another.
+  The vulnerability collector's five Odùs live in `vuln_collector_odu.go`.
 - `RepoDependencyBackfillProofOdu` - a lazy, uncataloged retained-shape Odù for
   relationship-backfill SQL and eight-worker storage proofs; it preserves the
   repository-dependency truth cases while adding the measured worst-scope
