@@ -124,6 +124,43 @@ and restarts at the recorded `(year, resume_last_modified)` group stamp.
 Committed prefix groups replay idempotently under stable keys (section 6);
 uncommitted groups were never checkpointed, so they re-emit whole.
 
+### 3.1 The `advance_to` contract (`nvd_baseline_advance_to_unix_us`)
+
+The satellite stamps one `nvd_baseline_advance_to_unix_us` per chunk beside
+`nvd_baseline_year_sha256`, `nvd_baseline_year_complete`, and
+`nvd_baseline_should_advance`. The host commit policy
+(`NVDBaselineCommitPolicy`) decides from it; the chunker in the collector
+(collector#100) must produce it to this contract:
+
+- **Meaning.** `advance_to` is the **exclusive next-group stamp**: the
+  `lastModified` of the first group the chunk did **not** emit, as Unix
+  microseconds of a whole UTC millisecond. It is not "the last committed
+  stamp". The next plan starts at it, and the planner's start is inclusive,
+  so a group is never skipped and never split. A group is every record that
+  shares one displayed-millisecond `lastModified`; the chunker closes a
+  chunk only on a group boundary.
+- **Precision.** Whole UTC milliseconds, the same form as the scope id and
+  the claim's `ModifiedStart`. The host floors a finer value
+  (`NormalizeNVDWindowTime`) before it compares or stores it, so a stamp with
+  sub-millisecond digits (collector#123 reads one millisecond back and may
+  surface them) cannot make the stored resume, the planned start, and the
+  scope id disagree. Flooring only re-reads, which replays idempotently.
+- **Progress.** An incomplete verdict (`year_complete` false) must move
+  **strictly past** the chunk start. A verdict that does not is held as
+  `not_covered`: the facts commit, the checkpoint stays, and the planner
+  re-mints the same scope on every pace interval. A chunker that cannot
+  move past its start (a single group larger than the per-claim caps) must
+  fail loudly instead of stamping a non-advance.
+- **Completion.** A complete verdict (`year_complete` true) is accepted at
+  `advance_to >= chunk start`. The last chunk of a year can end exactly at
+  the stream tail with `complete=false`; the next chunk resumes there, finds
+  nothing left, and has no later stamp to name, so it stamps
+  `complete=true` with `advance_to` equal to its own start. That verdict
+  must land `year_complete` or the lane stalls on the year. For a complete
+  verdict any `advance_to >= chunk start` is accepted, and the resume is
+  unused once the year is complete. `year_complete` is sticky in the store. No verdict, complete or not, may move behind the
+  chunk start.
+
 ## 4. Planner-cadence interaction
 
 The window planner is pure planning math with no I/O and no locks

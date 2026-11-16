@@ -49,10 +49,12 @@ const FailureClassNVDBaselineWindowWriterArmed = "nvd_baseline_window_writer_arm
 //   - no snapshot, no baseline keys, or should-advance false: held, the
 //     facts commit and the checkpoint holds;
 //   - a verdict whose stamped identity covers nothing new (blank or
-//     malformed seed sha, or an advance at or behind the chunk start):
-//     not-covered, the facts commit and the checkpoint holds;
-//   - a complete, consistent verdict: advanced, the checkpoint writer is
-//     armed to the committed chunk end.
+//     malformed seed sha, an advance behind the chunk start, or an
+//     incomplete advance that does not move past it): not-covered, the
+//     facts commit and the checkpoint holds. A complete verdict may
+//     land exactly on the chunk start (see nvdBaselineAdvanceCovers);
+//   - a consistent verdict: advanced, the checkpoint writer is armed to
+//     the committed chunk end, floored to a whole UTC millisecond.
 //
 // The host cannot re-resolve the seed manifest (it holds no seed handle
 // by design, mirroring the window host holding no storage handle), so the
@@ -134,10 +136,26 @@ func (p *NVDBaselineCommitPolicy) CommitPolicy(
 	}
 	advanceTo, advanceOK := payloadMicros(payload, nvdBaselineAdvanceToPayloadKey)
 	sha, _ := payload[nvdBaselineYearSHAPayloadKey].(string)
-	if !advanceOK || advanceTo <= 0 || !isBaselineYearSHA(sha) || advanceTo <= chunkStart.UnixMicro() {
+	complete, _ := payload[nvdBaselineYearCompletePayloadKey].(bool)
+	if advanceOK && advanceTo > 0 {
+		// Whole UTC milliseconds, the NVD wire form the scope id and the
+		// claim start also carry. A sub-millisecond stamp (collector#123
+		// reads one millisecond back) floors, never rounds up, so the
+		// stored resume can only re-read, never skip.
+		advanceTo = vulnsource.NormalizeNVDWindowTime(time.UnixMicro(advanceTo)).UnixMicro()
+	}
+	if reason := nvdBaselineNotCoveredReason(advanceOK, advanceTo, sha, chunkStart.UnixMicro(), complete); reason != "" {
+		if p.logger != nil {
+			p.logger.Warn(nvdBaselineNotCoveredLogMessage,
+				"reason", reason,
+				"baseline_run_id", runID,
+				"collector_instance_id", p.collectorInstanceID,
+				"work_item_id", strings.TrimSpace(item.WorkItemID),
+				"generation_id", strings.TrimSpace(item.GenerationID),
+			)
+		}
 		return hold(telemetry.NVDBaselineOutcomeNotCovered)
 	}
-	complete, _ := payload[nvdBaselineYearCompletePayloadKey].(bool)
 	if observedAt.IsZero() {
 		observedAt = p.clock().UTC()
 	}
@@ -147,6 +165,61 @@ func (p *NVDBaselineCommitPolicy) CommitPolicy(
 		StateWriter: vulnerabilitystore.NVDBaselineCheckpointWriter(
 			runID, year, advanceTo, strings.TrimSpace(sha), complete, observedAt.UTC()),
 	}, nil
+}
+
+// nvdBaselineNotCoveredLogMessage is the WARN message logged once per
+// generation the commit policy holds as not_covered. Its bounded reason
+// attribute is one of the nvdBaselineNotCoveredReason* values.
+const nvdBaselineNotCoveredLogMessage = "nvd baseline generation not covered by commit policy, checkpoint holds"
+
+// Closed reason set of the not_covered WARN. The reasons are checked in this
+// order, so a verdict with several defects logs the first.
+const (
+	// nvdBaselineNotCoveredReasonAdvanceMissing: advance_to absent, not a
+	// number, or not positive.
+	nvdBaselineNotCoveredReasonAdvanceMissing = "advance_missing"
+	// nvdBaselineNotCoveredReasonSHAMalformed: the seed sha is blank or, after
+	// trimming surrounding whitespace, not 64 lowercase hex characters.
+	nvdBaselineNotCoveredReasonSHAMalformed = "sha_malformed"
+	// nvdBaselineNotCoveredReasonAdvanceBehindStart: advance_to is behind the
+	// chunk start (any verdict).
+	nvdBaselineNotCoveredReasonAdvanceBehindStart = "advance_behind_start"
+	// nvdBaselineNotCoveredReasonAdvanceNotPastStart: an incomplete verdict
+	// whose floored advance_to equals the chunk start.
+	nvdBaselineNotCoveredReasonAdvanceNotPastStart = "advance_not_past_start"
+)
+
+// nvdBaselineNotCoveredReason names why a stamped verdict covers nothing
+// new, or returns "" when it is consistent. advanceTo is the already
+// floored stamp. It mirrors nvdBaselineAdvanceCovers, split by cause so the
+// not_covered counter has a diagnosable log beside it.
+func nvdBaselineNotCoveredReason(advanceOK bool, advanceTo int64, sha string, chunkStartMicro int64, complete bool) string {
+	switch {
+	case !advanceOK || advanceTo <= 0:
+		return nvdBaselineNotCoveredReasonAdvanceMissing
+	case !isBaselineYearSHA(sha):
+		return nvdBaselineNotCoveredReasonSHAMalformed
+	case advanceTo < chunkStartMicro:
+		return nvdBaselineNotCoveredReasonAdvanceBehindStart
+	case !nvdBaselineAdvanceCovers(advanceTo, chunkStartMicro, complete):
+		return nvdBaselineNotCoveredReasonAdvanceNotPastStart
+	}
+	return ""
+}
+
+// nvdBaselineAdvanceCovers applies the advance_to contract: advance_to is
+// the whole-millisecond, exclusive next-group stamp the next chunk starts
+// from, so an incomplete verdict must move strictly past the chunk start;
+// anything else would re-mint the same scope forever. A complete verdict
+// may land exactly on the start: a chunk that resumes at the stream tail
+// finds nothing left and has no later stamp to name, but still carries the
+// one fact the planner needs (the year is whole). No verdict may move
+// behind the start (#10761).
+func nvdBaselineAdvanceCovers(advanceTo, chunkStartMicro int64, complete bool) bool {
+	if advanceTo > chunkStartMicro {
+		return true
+	}
+	return complete && advanceTo == chunkStartMicro
 }
 
 // baselineWindowVerdictWouldArm reports whether the snapshot payload
@@ -182,9 +255,9 @@ func nvdBaselineSnapshotPayload(envelopes []facts.Envelope) (map[string]any, boo
 }
 
 // isBaselineYearSHA reports whether sha is a well-formed seed identity: 64
-// lowercase hex characters. A blank or malformed sha covers nothing the
-// next plan can pin, so its generation commits facts but never advances
-// the checkpoint.
+// lowercase hex characters once surrounding whitespace is trimmed. A blank
+// or malformed sha covers nothing the next plan can pin, so its generation
+// commits facts but never advances the checkpoint.
 func isBaselineYearSHA(sha string) bool {
 	sha = strings.TrimSpace(sha)
 	if len(sha) != 64 {

@@ -185,8 +185,9 @@ func TestBaselineCommitHoldsCheckpointWithoutVerdict(t *testing.T) {
 
 // TestBaselineCommitNotCoveredOnUnusableVerdict is the R3 sha cell: a
 // stamped identity that covers nothing new — blank sha, malformed sha, or
-// an advance at or behind the chunk start — commits its facts but arms no
-// checkpoint writer, so the chunk replays under a verifiable identity.
+// an advance behind the chunk start, or an incomplete advance at it —
+// commits its facts but arms no checkpoint writer, so the chunk replays
+// under a verifiable identity.
 func TestBaselineCommitNotCoveredOnUnusableVerdict(t *testing.T) {
 	t.Parallel()
 
@@ -196,7 +197,7 @@ func TestBaselineCommitNotCoveredOnUnusableVerdict(t *testing.T) {
 	}{
 		{name: "blank sha", mutate: func(payload map[string]any) { payload["nvd_baseline_year_sha256"] = "" }},
 		{name: "malformed sha", mutate: func(payload map[string]any) { payload["nvd_baseline_year_sha256"] = "not-a-sha" }},
-		{name: "advance behind start", mutate: func(payload map[string]any) { payload["nvd_baseline_advance_to_unix_us"] = int64(1009843200000000) }},
+		{name: "incomplete advance at start", mutate: func(payload map[string]any) { payload["nvd_baseline_advance_to_unix_us"] = int64(1009843200000000) }},
 		{name: "missing advance", mutate: func(payload map[string]any) { delete(payload, "nvd_baseline_advance_to_unix_us") }},
 	}
 	for _, tc := range mutations {
