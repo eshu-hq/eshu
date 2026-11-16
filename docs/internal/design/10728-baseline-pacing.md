@@ -124,6 +124,17 @@ and restarts at the recorded `(year, resume_last_modified)` group stamp.
 Committed prefix groups replay idempotently under stable keys (section 6);
 uncommitted groups were never checkpointed, so they re-emit whole.
 
+Advance_to contract (eshu-hq/eshu#10761; implementation in
+`NVDBaselineCheckpointAdvanceQuery` in
+`go/internal/storage/postgres/vulnerability/nvd_baseline_checkpoint.go`):
+the stored resume moves only on a strictly greater value, the seed sha
+follows a write at an equal or greater resume, and `year_complete` is
+sticky at any resume — so a complete verdict whose advance_to sits exactly
+on the stored resume (a stalled year: no new rows, but the year file
+replayed whole) still lands completion without moving the resume. The
+resume stores floored to whole milliseconds, the NVD wire form, so it
+agrees with the scope id the planner mints from it.
+
 ## 4. Planner-cadence interaction
 
 The window planner is pure planning math with no I/O and no locks
