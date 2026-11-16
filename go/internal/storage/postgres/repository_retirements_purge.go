@@ -349,7 +349,10 @@ func lockPurgeScopes(ctx context.Context, tx db.Transaction, repoID string) ([]s
 // deletePurgeLeftovers deletes the no-FK keyed leftover rows and returns
 // the deleted-row ledger. Grant rows cascade with the scope delete, so the
 // ledger pre-counts them here; everything else reports its own delete
-// count.
+// count. The impact write-admission delete belongs here, before the scope
+// cascade, to match the impact writer's lock order (see
+// purgeDeleteWriteAdmissionQuery); the pass-state delete is the opposite
+// and stays after the cascade in purgeOne.
 func deletePurgeLeftovers(
 	ctx context.Context,
 	tx db.Transaction,
@@ -378,6 +381,7 @@ func deletePurgeLeftovers(
 		{"shared_projection_intents", purgeDeleteSharedIntentsQuery, []any{repoID, scopeIDs}},
 		{"shared_projection_unroutable_intents", purgeDeleteUnroutableIntentsQuery, []any{repoID, scopeIDs}},
 		{"collector_generation_dead_letters", purgeDeleteDeadLettersQuery, []any{scopeIDs}},
+		{"supply_chain_impact_write_admission", purgeDeleteWriteAdmissionQuery, []any{scopeIDs}},
 	} {
 		deleted, err := execCount(ctx, tx, keyed.query, keyed.args...)
 		if err != nil {

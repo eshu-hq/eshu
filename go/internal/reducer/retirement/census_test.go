@@ -75,6 +75,36 @@ func TestCensusClassifiesSupplyChainImpactScopePassState(t *testing.T) {
 	}
 }
 
+// TestCensusClassifiesSupplyChainImpactWriteAdmission pins the #7142 admission
+// watermark table's row (#10800): scope-keyed with no foreign key, deleted by
+// the purge at 2e. Unlike the pass-state row, the delete must run BEFORE the
+// ingestion_scopes delete, because the impact writer upserts this row before
+// its fact insert takes the scope_generations KEY SHARE. The reason text names
+// that order so the census cannot drift back to a sweep nobody runs.
+func TestCensusClassifiesSupplyChainImpactWriteAdmission(t *testing.T) {
+	t.Parallel()
+
+	entry, ok := RetireTableDispositionFor("supply_chain_impact_write_admission")
+	if !ok {
+		t.Fatal("supply_chain_impact_write_admission has no census row")
+	}
+	if entry.Disposition != "2e" {
+		t.Fatalf("disposition = %q, want 2e", entry.Disposition)
+	}
+	if len(entry.RemoveSteps) != 1 || entry.RemoveSteps[0] != "2e" {
+		t.Fatalf("remove steps = %v, want [2e]", entry.RemoveSteps)
+	}
+	if len(entry.KeyColumns) != 1 || entry.KeyColumns[0] != "scope_id" {
+		t.Fatalf("key columns = %v, want [scope_id]", entry.KeyColumns)
+	}
+	if entry.InvisibleToScan {
+		t.Fatal("InvisibleToScan = true, want false: the schema scan sees scope_id")
+	}
+	if !strings.Contains(entry.Reason, "before the ingestion_scopes delete") {
+		t.Fatalf("reason = %q, want it to name the delete order (before the ingestion_scopes delete)", entry.Reason)
+	}
+}
+
 // TestRetireTableDispositionsAreWellFormed pins the census table's shape:
 // every row names its table, carries a valid disposition code with only
 // known purge steps, and cites its deleter or keep reason. The live test
