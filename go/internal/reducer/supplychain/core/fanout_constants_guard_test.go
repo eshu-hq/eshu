@@ -40,4 +40,10 @@ func TestFanOutChunkAndHolderCapsArePinned(t *testing.T) {
 	if HolderMassProbeCap != fanOutHolderHotMassRows+1 {
 		t.Fatalf("HolderMassProbeCap = %d, want fanOutHolderHotMassRows+1: the probe reports at most one row over the hot threshold, so a hot id stays hot with a bounded count", HolderMassProbeCap)
 	}
+	if HolderMassProbeFillToCapRows != 100 {
+		t.Fatalf("HolderMassProbeFillToCapRows = %d, want 100: the #10681 S2 theory proof measured K=100 at 98-196 ms cold; any other K needs its own proof", HolderMassProbeFillToCapRows)
+	}
+	if HolderMassProbeFillToCapRows >= fanOutHolderHotMassRows {
+		t.Fatalf("HolderMassProbeFillToCapRows = %d, want far under fanOutHolderHotMassRows = %d: the fill must only saturate cold-banded member counts, never exact hot ones", HolderMassProbeFillToCapRows, fanOutHolderHotMassRows)
+	}
 }

@@ -45,6 +45,18 @@ const (
 // probe-cap guard test pins the derivation, so the number lives here alone.
 const HolderMassProbeCap = fanOutHolderHotMassRows + 1
 
+// HolderMassProbeFillToCapRows bounds the group-members arm of the holder-mass
+// probe (#10681 design B). The arm counts through a per-id LATERAL with
+// LIMIT HolderMassProbeFillToCapRows+1 and reports HolderMassProbeCap above
+// that many rows, exact at or under it. It sits far under
+// fanOutHolderHotMassRows, so cold ids (exact, <= 100 member rows) pack
+// exactly as before while the per-id heap fetch stays bounded at cold cost;
+// the residual overestimate (a 101st..threshold member row reports the cap)
+// only splits more, never less. The postgres probe builds its arm-3 LIMIT
+// and CASE from this constant, and the probe-cap guard test pins the value,
+// so the number lives here alone beside HolderMassProbeCap.
+const HolderMassProbeFillToCapRows = 100
+
 // HolderMassEstimator is the optional mass probe behind adaptive holder-read
 // splitting (#10643). The production probe reports, per requested lookup
 // id, how many live finding rows name that id, capped at HolderMassProbeCap
