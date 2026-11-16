@@ -218,3 +218,29 @@ func TestRestoredNewestCopyOverStaleRejectedCopyKeepsSeverity(t *testing.T) {
 		t.Fatalf("CVSSScore = %v, want 9.8 from the live newest copy", finding.CVSSScore)
 	}
 }
+
+// TestStaleLiveRepresentativeLendsNoSeverityBesideItsNewerLiveCopy pins the
+// superseded-representative guard in severityObservation: two live copies of
+// one NVD record, the older at 9.8 with the lower fact id (so it is the ranked
+// representative) and the newer at 5.0, are one record whose newest copy says
+// 5.0. The superseded representative must lend nothing, and the newest copy
+// must supply the score, so the finding reads 5.0. A guard that left the stale
+// representative's tier in place would keep the 9.8, and one that blanked it
+// without giving the newest copy a turn would read 0.
+func TestStaleLiveRepresentativeLendsNoSeverityBesideItsNewerLiveCopy(t *testing.T) {
+	t.Parallel()
+
+	stale := scopedProductCVE("nvd-a-old", "Analyzed", "2026-01-01T00:00:00Z")
+	newer := scopedProductCVE("nvd-b-new", "Analyzed", "2026-06-01T00:00:00Z")
+	newer.Payload["cvss_score"] = 5.0
+	newer.Payload["severity_label"] = "MEDIUM"
+
+	finding := productRetractionFinding(t, stale, newer)
+
+	if finding.AdvisoryRetraction != nil {
+		t.Fatalf("both copies are live but the finding is retracted: %#v", finding.AdvisoryRetraction)
+	}
+	if finding.CVSSScore != 5.0 {
+		t.Fatalf("CVSSScore = %v, want 5.0 from the newest live copy, not the superseded representative's 9.8 or 0", finding.CVSSScore)
+	}
+}
