@@ -87,6 +87,15 @@ else:
   # spot-checked role left the other four unguarded.
   python3 "$shim_checker" \
     "$kit_root/agents/roles.json" "$repo_root/.opencode/agent" >&2 || exit 1
+elif [ -f "$repo_root/.agent-kit-version" ]; then
+  # A real checkout: the pin is tracked in this repo, so a root that carries
+  # it is an installed-or-not checkout rather than a scratch fixture, and a
+  # missing manifest there is the half-installed state the gate exists to
+  # catch. Fixture roots carry neither file and stay on the skip path below.
+  printf 'verify-agent-canon: missing installed role manifest at %s/.agents/roles.json\n' \
+    "$repo_root" >&2
+  printf 'Fix: run the eshu-agent-kit installer: install.sh --repo --aliases\n' >&2
+  exit 1
 fi
 
 # The shared skills live in the eshu-agent-kit. The installer materializes
