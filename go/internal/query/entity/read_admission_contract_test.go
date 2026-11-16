@@ -18,18 +18,26 @@ import (
 // frozenEntityReadAdmission pins the exact method set behind the
 // versioned #9669 W5 admission contract for the entity family (Mint A
 // as extended for the 9 W5 entity routes, per the supplemental arbiter
-// ruling on eshu-hq/eshu-api#97). The two graph reads (Run, RunSingle),
-// the seventeen ContentStore reads the family closure proves exercised
+// ruling on eshu-hq/eshu-api#97, with GET
+// /api/v0/investigations/services/{service_name} recorded as the 9th
+// admitted route and GET /api/v0/graph/entities explicitly OUT as
+// W8b-owned satellite-side). The two graph reads (Run, RunSingle),
+// the nineteen ContentStore reads the family closure proves exercised
 // (direct handler reads, the transitive selector catalog reads, the
 // type-asserted EntityNameSearcher facet, the CI/CD static workflow
 // file list, the service evidence and framework-route reads, the
-// content-fallback relationship-builder reads, and the service
-// enrichment tail: consumer file search, provisioning entity list,
-// artifact hydration, and the config needed-content check), the three
-// reducer-store reads (CI/CD run correlations, container-image
-// identities, SBOM/attestation attachments), and the three narrow
-// read-model facets the story and deployment-evidence stages assert
-// (target support, target documentation, deployment evidence). The
+// content-fallback relationship-builder reads, the repository
+// infrastructure panel read, and the service enrichment tail: consumer
+// file search, provisioning entity list, artifact hydration, and the
+// config needed-content check), the three reducer-store reads (CI/CD
+// run correlations, container-image identities, SBOM/attestation
+// attachments), the type-asserted content-reference search facet on
+// the consumer-evidence path (SearchFileReferenceAnyRepo, wider bounds
+// than the substring fallback), and the four narrow read-model facets
+// the story, deployment-evidence, and read-model identity stages
+// assert (target support, target documentation, deployment evidence,
+// and the read-model summary behind the identity-only 200 vs
+// absent-summary 404). The
 // entries re-declare the port signatures in this entity-scoped shape
 // instead of embedding the shared or family ports, so no other family
 // can cite this pin — a blanket or shared-port pin is forbidden
@@ -60,12 +68,14 @@ var frozenEntityReadAdmission = []string{
 	"ListRepoEntitiesByIDs func(context.Context, string, []string, int) ([]querycontract.EntityContent, error)",
 	"ListRepoEntitiesByKeys func(context.Context, string, []querycontract.EntityContentKey) ([]querycontract.EntityContent, error)",
 	"ListRepoEntitiesByType func(context.Context, string, string, int) ([]querycontract.EntityContent, error)",
+	"ListRepoEntitiesByTypes func(context.Context, string, []string, int) ([]querycontract.EntityContent, error)",
 	"ListRepoFiles func(context.Context, string, int) ([]querycontract.FileContent, error)",
 	"ListRepositories func(context.Context) ([]querycontract.RepositoryCatalogEntry, error)",
 	"ListSBOMAttestationAttachments func(context.Context, chain.SBOMAttestationAttachmentFilter) (chain.SBOMAttestationAttachmentPage, error)",
 	"MatchRepositories func(context.Context, string) ([]querycontract.RepositoryCatalogEntry, error)",
 	"NonBlankRepoFilePaths func(context.Context, string, []string) ([]string, error)",
 	"RepositoryDeploymentEvidence func(context.Context, string) (repository.RepositoryDeploymentEvidenceReadModel, error)",
+	"RepositoryReadModelSummary func(context.Context, string) (repository.RepositoryReadModelSummary, error)",
 	"ResolveRepository func(context.Context, string) (*querycontract.RepositoryCatalogEntry, error)",
 	"Run func(context.Context, string, map[string]interface {}) ([]map[string]interface {}, error)",
 	"RunSingle func(context.Context, string, map[string]interface {}) (map[string]interface {}, error)",
@@ -75,6 +85,7 @@ var frozenEntityReadAdmission = []string{
 	"SearchEntityNames func(context.Context, entity.EntityNameSearch) ([]querycontract.EntityContent, error)",
 	"SearchFileContentAnyRepo func(context.Context, string, int) ([]querycontract.FileContent, error)",
 	"SearchFileContentAnyRepoExactCase func(context.Context, string, int) ([]querycontract.FileContent, error)",
+	"SearchFileReferenceAnyRepo func(context.Context, string, string, int) ([]querycontract.FileContent, bool, error)",
 	"ServiceStoryTargetSupportEvidence func(context.Context, repository.ServiceStoryTargetSupportFilter) (repository.ServiceStoryTargetSupportReadModel, error)",
 }
 
@@ -100,8 +111,9 @@ func (f entityReadAdmissionGraphStub) RunSingle(ctx context.Context, cypher stri
 }
 
 // entityReadAdmissionContentStub is the test-only content satisfier
-// behind the witness: it answers the seventeen pinned ContentStore
-// reads plus the type-asserted EntityNameSearcher facet.
+// behind the witness: it answers the nineteen pinned ContentStore
+// reads plus the type-asserted EntityNameSearcher and
+// content-reference search facets.
 type entityReadAdmissionContentStub struct{}
 
 func (entityReadAdmissionContentStub) GetEntityContent(context.Context, string) (*querycontract.EntityContent, error) {
@@ -160,6 +172,14 @@ func (entityReadAdmissionContentStub) ListRepoEntitiesByType(context.Context, st
 	return nil, nil
 }
 
+func (entityReadAdmissionContentStub) ListRepoEntitiesByTypes(context.Context, string, []string, int) ([]querycontract.EntityContent, error) {
+	return nil, nil
+}
+
+func (entityReadAdmissionContentStub) SearchFileReferenceAnyRepo(context.Context, string, string, int) ([]querycontract.FileContent, bool, error) {
+	return nil, false, nil
+}
+
 func (entityReadAdmissionContentStub) MatchRepositories(context.Context, string) ([]querycontract.RepositoryCatalogEntry, error) {
 	return nil, nil
 }
@@ -181,9 +201,10 @@ func (entityReadAdmissionContentStub) SearchEntityNames(context.Context, entity.
 }
 
 // entityReadAdmissionFacetStub is the test-only read-model satisfier
-// behind the witness: it answers the three pinned narrow facets the
-// story and deployment-evidence stages assert (target support, target
-// documentation, deployment evidence).
+// behind the witness: it answers the four pinned narrow facets the
+// story, deployment-evidence, and read-model identity stages assert
+// (target support, target documentation, deployment evidence, and the
+// read-model summary).
 type entityReadAdmissionFacetStub struct{}
 
 func (entityReadAdmissionFacetStub) ServiceStoryTargetSupportEvidence(context.Context, repositorycontract.ServiceStoryTargetSupportFilter) (repositorycontract.ServiceStoryTargetSupportReadModel, error) {
@@ -196,6 +217,10 @@ func (entityReadAdmissionFacetStub) DocumentationFindings(context.Context, query
 
 func (entityReadAdmissionFacetStub) RepositoryDeploymentEvidence(context.Context, string) (repositorycontract.RepositoryDeploymentEvidenceReadModel, error) {
 	return repositorycontract.RepositoryDeploymentEvidenceReadModel{}, nil
+}
+
+func (entityReadAdmissionFacetStub) RepositoryReadModelSummary(context.Context, string) (repositorycontract.RepositoryReadModelSummary, error) {
+	return repositorycontract.RepositoryReadModelSummary{}, nil
 }
 
 // entityReadAdmissionReducerStub is the test-only reducer satisfier
@@ -216,7 +241,7 @@ func (entityReadAdmissionReducerStub) ListSBOMAttestationAttachments(context.Con
 
 // entityReadAdmissionWitness proves EntityReadAdmission is
 // satisfiable: the graph, content, reducer, and read-model facet reads
-// compose jointly, so no single store carries all twenty-seven methods.
+// compose jointly, so no single store carries all thirty methods.
 // It composes test-only stubs rather than inventing a production
 // satisfier — the seam stays unwired.
 type entityReadAdmissionWitness struct {
