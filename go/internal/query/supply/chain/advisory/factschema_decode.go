@@ -28,8 +28,9 @@ import (
 // are deliberately partial. vulnerability/v1.CVE and
 // vulnerability/v1.AffectedPackage do not yet declare every field the
 // query-side SourceEvidence/AffectedPackage response models
-// read from real collector payloads (for example CVE has no Aliases,
-// Severity, CVSSVectorV2/V3/V4, or CVSSMetrics field; AffectedPackage has no
+// read from real collector payloads (for example CVE has no Severity or
+// CVSSVectorV2/V3/V4 field, and the readers of its aliases, cvss_metrics, and
+// cwes keys still read the raw payload; AffectedPackage has no
 // ParsedAffectedRange field, and its typed AffectedRanges field is a
 // different Go shape than the response's []map[string]any). Reading those
 // specific keys through the typed seam would silently drop real evidence
@@ -79,9 +80,9 @@ func supplyChainSchemaEnvelope(factKind, schemaVersion string, payload map[strin
 // decodeVulnerabilityCVE decodes one vulnerability.cve fact row into the
 // typed struct. A missing required field (advisory_id) yields a
 // self-classifying *decode.Error. See this file's struct-completeness
-// note: callers must still read aliases/severity/cvss_v2/cvss_v3/cvss_v4/
-// cvss_metrics/cwes from the raw payload — the typed struct does not
-// declare them yet.
+// note: callers must still read severity/cvss_v2/cvss_v3/cvss_v4 from the raw
+// payload (the typed struct does not declare them) and, until a reader is
+// moved, aliases/cvss_metrics/cwes too.
 func decodeVulnerabilityCVE(in supplyChainFactDecodeInput) (vulnerabilityv1.CVE, error) {
 	cve, err := factschema.DecodeVulnerabilityCVE(supplyChainSchemaEnvelope(factschema.FactKindVulnerabilityCVE, in.SchemaVersion, in.Payload))
 	if err != nil {

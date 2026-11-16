@@ -210,10 +210,11 @@ func (a *advisoryEvidenceAccumulator) addSourceEvidence(
 		SeverityLabel: decode.DerefString(cve.SeverityLabel),
 		CVSSScore:     derefFloat64(cve.CVSSScore),
 		CVSSVector:    decode.DerefString(cve.CVSSVector),
-		// TODO(#4795 struct gap): CVE has no CVSSVectorV2/V3/V4, CVSSMetrics,
-		// Severity, or CWEs fields yet; NVD-sourced facts carry cvss_metrics
-		// and OSV-sourced facts carry severity. Read raw until a W1 change
-		// extends the struct.
+		// TODO(#4795 struct gap): CVE has no CVSSVectorV2/V3/V4 or Severity
+		// field yet, and OSV-sourced facts carry severity. CVSSMetrics and CWEs
+		// are declared since eshu-hq/eshu#10755, but this reader still reads
+		// them raw (CWEs through StringSliceVal, which keeps only string ids).
+		// Read raw until a W1 change extends the struct.
 		CVSSVectorV2:  querycontract.StringVal(payload, "cvss_v2"),
 		CVSSVectorV3:  querycontract.StringVal(payload, "cvss_v3"),
 		CVSSVectorV4:  querycontract.StringVal(payload, "cvss_v4"),
