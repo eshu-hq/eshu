@@ -247,6 +247,8 @@ done
 plant_red ipv4 '3.0.4.28' ipv4-firmware-neighbour
 plant_red ipv4 '13.0.4.27' ipv4-firmware-prefixed
 plant_red ipv4 '3.0.4.2' ipv4-firmware-prefix-of-literal
+plant_red ipv4 '3.0.5.27' ipv4-firmware-neighbour-third-octet
+plant_red ipv4 '3.1.4.27' ipv4-firmware-neighbour-second-octet
 cpedir="${scratch}/vulnerability-public-records"
 mkdir -p "${cpedir}"
 printf '%s\n' \

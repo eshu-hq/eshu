@@ -80,7 +80,7 @@ func TestPublicVulnerabilityRecordHostsAreSafe(t *testing.T) {
 	if err := recordpseudo.Verify([]byte(`{"criteria":"`+cpe+`"}`), recordpseudo.Set{}); err != nil {
 		t.Errorf("Verify refused the firmware version literal in a CPE: %v", err)
 	}
-	for _, neighbour := range []string{"3.0.4.28", "13.0.4.27", "3.0.4.2"} {
+	for _, neighbour := range []string{"3.0.4.28", "13.0.4.27", "3.0.4.2", "3.0.5.27", "3.1.4.27"} {
 		err := recordpseudo.Verify([]byte(`{"value":"`+neighbour+`"}`), recordpseudo.Set{})
 		if err == nil || !strings.Contains(err.Error(), "alternative ipv4") {
 			t.Errorf("Verify admitted neighbouring address %q, err = %v, want an ipv4 refusal", neighbour, err)
