@@ -57,11 +57,11 @@ separator byte per fact (`nvdFactBudgetBytes` in `nvd_output_budget.go`), so the
 chunker and the window path agree on what fits.
 
 Group atomicity follows the window path: groups are maximal runs of equal
-stamps in emitted-prefix order (`nvdWindowGroupEnd` in `nvd_window_split.go`), the prefix
-accumulates whole groups ascending (`selectNVDWindowPrefix` in
-`nvd_window_split.go`), and a
-window whose first group alone exceeds the caps is detected, not split
-(`nvdFeedWindowSlice.retain` in `nvd_feed_slice.go`,
+stamps in emitted-prefix order (`nvdWindowGroupEnd` in
+`nvd_window_split.go`), the prefix accumulates whole groups ascending
+(`selectNVDWindowPrefix` in `nvd_window_split.go`), and a window whose first
+group alone exceeds the caps is detected, not split
+(`nvdFeedWindowSlice.firstGroupOversize` in `nvd_feed_slice.go`,
 `errNVDFeedGroupOversize` in `nvd_feed_errors.go`).
 
 Dispositions at a boundary:
@@ -102,7 +102,8 @@ arms the cursor writer only for window scopes
 (`Source.armNVDWindowCursorWriter` with the `IsNVDWindowScope` check in
 `go/internal/collector/extensionhost/nvd_window_cursor.go`) and only when
 the generation's snapshot verdict says should-advance
-(the `ShouldAdvance` branch of `armNVDWindowCursorWriter` in the same file). Baseline claims use a
+(the `nvdWindowShouldAdvancePayloadKey` check in `armNVDWindowCursorWriter`
+in the same file). Baseline claims use a
 scope family **outside** the `nvd/_window/` prefix (prefix constant
 `nvdWindowScopePrefix` in `go/internal/vulnsource/nvd_window_scope.go`),
 so the arming function returns nil for them by construction, and the CAS
