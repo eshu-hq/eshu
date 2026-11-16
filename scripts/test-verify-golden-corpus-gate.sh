@@ -460,16 +460,11 @@ if rg --quiet --fixed-strings -- 'drain-advisory-domains="code_calls"' "${script
 	fail "code_calls must no longer be quarantined as an advisory drain domain (#3865 fixed)"
 fi
 
-# B-10 cassettes without an in-tree collector ride cicd-run aliases.
-require "prometheus/mimir cassette collector" "collector-prometheus-mimir:prometheusmimir"
-require "pagerduty cassette replay alias" "pagerduty-cassette-replay:collector-cicd-run:pagerduty"
-require "oci-registry cassette replay alias" "oci-registry-cassette-replay:collector-cicd-run:ociregistry"
-require "package-registry cassette replay alias" "package-registry-cassette-replay:collector-cicd-run:packageregistry"
-require "security-alerts cassette replay alias" "security-alerts-cassette-replay:collector-cicd-run:securityalerts"
-require "azure cassette replay alias" "azure-cassette-replay:collector-cicd-run:azurecloud"
-require "gcp cassette replay alias" "gcp-cassette-replay:collector-cicd-run:gcpcloud"
-require "kubernetes-live cassette replay alias" "kubernetes-live-cassette-replay:collector-cicd-run:kuberneteslive"
-require "sbom-attestation cassette replay alias" "sbom-attestation-cassette-replay:collector-cicd-run:sbomattestation"
+# B-10 cassettes without an in-tree collector ride cicd-run aliases (one
+# alias per spec; the loop keeps this file under the 500-line cap).
+for alias_spec in grafana:grafana prometheus-mimir:prometheusmimir pagerduty:pagerduty oci-registry:ociregistry package-registry:packageregistry security-alerts:securityalerts azure:azurecloud gcp:gcpcloud kubernetes-live:kuberneteslive sbom-attestation:sbomattestation; do
+	require "${alias_spec%%:*}-cassette-replay alias" "${alias_spec%%:*}-cassette-replay:collector-cicd-run:${alias_spec##*:}"
+done
 
 # The B-13 (#3859) drain gate lives in the gate binary; the orchestrator must run
 # the drains phase against the snapshot whose shared_projection_intents bound is

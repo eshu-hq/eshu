@@ -60,8 +60,8 @@
   unseeded source) when adding scope variety.
 - **The parity check (`parity_test.go`) stays operator-gated, not CI.** Guard
   it with the `ESHU_SYNTH_GCP_PARITY` environment variable, mirroring
-  `go/internal/collector/observability/grafana/live_test.go`'s
-  `ESHU_GRAFANA_LIVE` pattern. Do not wire it into `make pre-pr` or any CI
+  `go/internal/collector/gcpcloud/gcpruntime/liveclient_smoke_test.go`'s
+  `ESHU_GCP_LIVE_SMOKE` pattern. Do not wire it into `make pre-pr` or any CI
   workflow.
   `recordedNonExtractorAssetTypes` is a hand-maintained allow-list; when the
   parity check reports a genuinely new stale-inventory finding, refresh

@@ -119,7 +119,7 @@ the shared request and failure kernel instead of copying it.
 
 No-Regression Evidence: `go test ./internal/collector/sdk
 ./internal/collector/jira
-./internal/collector/observability/grafana ./internal/collector/observability/tempo -count=1` covers SDK
+./internal/collector/observability/tempo -count=1` covers SDK
 base URL validation, retry-after parsing, bounded HTTP retries, safe HTTP
 errors, and the four adopters' existing pagination, redaction, warning,
 rate-limit, and provider failure behavior.
@@ -130,7 +130,7 @@ duration histograms, rate-limit counters, fact counters, and provider spans;
 metric labels remain bounded to provider, status class, fact kind, and existing
 low-cardinality dimensions.
 
-No-Regression Evidence (#2756): `go test ./internal/collector/sdk ./internal/collector ./cmd/collector-grafana ./cmd/collector-prometheus-mimir ./cmd/collector-cicd-run -run 'Test(HTTPErrorExposesRetryAfterDelay|ClassifyProviderFailurePreservesRetryAfterDelay|ClaimedServiceHonorsSDKProviderFailureRetryAfter|ClaimedServiceHonorsRetryAfterOnRetryableCollectFailure|BuildClaimedServiceWires)' -count=1` proves SDK HTTP errors return parsed Retry-After delay, provider failure classification preserves that delay for claim-aware retry handling, `ClaimedService` applies it to retryable claim `visible_at`, and standard claim-driven collector commands wire the default bounded attempt budget.
+No-Regression Evidence (#2756): `go test ./internal/collector/sdk ./internal/collector ./cmd/collector-cicd-run -run 'Test(HTTPErrorExposesRetryAfterDelay|ClassifyProviderFailurePreservesRetryAfterDelay|ClaimedServiceHonorsSDKProviderFailureRetryAfter|ClaimedServiceHonorsRetryAfterOnRetryableCollectFailure|BuildClaimedServiceWires)' -count=1` proves SDK HTTP errors return parsed Retry-After delay, provider failure classification preserves that delay for claim-aware retry handling, `ClaimedService` applies it to retryable claim `visible_at`, and standard claim-driven collector commands wire the default bounded attempt budget.
 
 No-Observability-Change (#2756): the SDK remains telemetry-free and does not
 sleep, retry beyond caller-supplied bounds, mutate workflow state, or add labels.

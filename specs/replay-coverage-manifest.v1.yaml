@@ -53,14 +53,16 @@ version: "v1"
 coverage:
   - {surface: "collector:oci_registry", scenario: cassette, scenario_type: baseline, ref: "testdata/cassettes/ociregistry/supply-chain-demo.json", proof_gate: golden-corpus-gate-neo4j}
   - {surface: "collector:package_registry", scenario: cassette, scenario_type: baseline, ref: "testdata/cassettes/packageregistry/supply-chain-demo.json", proof_gate: golden-corpus-gate-neo4j}
-  - {surface: "collector:prometheus_mimir", scenario: cassette, scenario_type: baseline, ref: "testdata/cassettes/prometheusmimir/supply-chain-demo.json", proof_gate: golden-corpus-gate-neo4j}
+  # collector:prometheus_mimir cassette retired with the #10619 in-tree removal
+  # (cutover #8864; the cassette file stays under testdata/cassettes/prometheusmimir).
 
   # C-2 (#4174): implemented-lane collectors backfilled with synthetic
   # supply-chain-demo cassettes (credential-free, matching each collector's real
   # fact schema). The golden-corpus-gate-neo4j leg replays them; a wrong fact_kind lands
   # zero facts and fails the gate's collector-source assertion.
   - {surface: "collector:tempo", scenario: cassette, scenario_type: baseline, ref: "testdata/cassettes/tempo/supply-chain-demo.json", proof_gate: golden-corpus-gate-neo4j}
-  - {surface: "collector:grafana", scenario: cassette, scenario_type: baseline, ref: "testdata/cassettes/grafana/supply-chain-demo.json", proof_gate: golden-corpus-gate-neo4j}
+  # collector:grafana cassette retired with the #10619 in-tree removal
+  # (cutover #8857; the cassette file stays under testdata/cassettes/grafana).
   - {surface: "collector:security_alert", scenario: cassette, scenario_type: baseline, ref: "testdata/cassettes/securityalerts/supply-chain-demo.json", proof_gate: golden-corpus-gate-neo4j}
   - {surface: "collector:sbom_attestation", scenario: cassette, scenario_type: baseline, ref: "testdata/cassettes/sbomattestation/supply-chain-demo.json", proof_gate: golden-corpus-gate-neo4j}
   - {surface: "collector:vulnerability_intelligence", scenario: cassette, scenario_type: baseline, ref: "testdata/cassettes/vulnerabilityintelligence/supply-chain-demo.json", proof_gate: golden-corpus-gate-neo4j}
@@ -415,8 +417,9 @@ coverage:
   # TestCollectorFaultManifestBinding ties each collector surface below to its
   # table case — so the coverage rows are neither a ref-only bulk map nor a stale
   # binding.
-  - {surface: collector:grafana, scenario: go_test, scenario_type: fault, ref: go/internal/replay/inputtape/fault_collectors_test.go, proof_gate: go-test-race}
-  - {surface: collector:prometheus_mimir, scenario: go_test, scenario_type: fault, ref: go/internal/replay/inputtape/fault_collectors_test.go, proof_gate: go-test-race}
+  # collector:grafana and collector:prometheus_mimir fault rows retired with the
+  # #10619 in-tree removal (cutovers #8857/#8864; no in-tree HTTP client left
+  # to fault-probe).
   - {surface: capability:platform_impact.relationships_catalog, scenario: go_test, scenario_type: ordering, ref: go/internal/replay/schedulereplay/scenario_test.go, proof_gate: go-test-race}
   - {surface: capability:platform_impact.relationships_catalog, scenario: go_test, scenario_type: crash, ref: go/internal/replay/crashreplay/scenario_test.go, proof_gate: go-test-race}
   # C-14 (#4367) projection-ordering backfill: the two shared-conflict-key

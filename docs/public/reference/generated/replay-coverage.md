@@ -4,7 +4,7 @@
 
 Every non-exempt required surface maps to a committed scenario and the named proof gate that must pass. Exempt rows carry the audited reason that a proof class does not apply. The inventory check itself is credential-free and Docker-free; backend-required scenarios run in their named proof gates. This dashboard is generated from the C-1 coverage manifest and the source-of-truth registries (epic [#4172](https://github.com/eshu-hq/eshu/issues/4172)); it is refreshed by the replay-coverage gate so the gap is reviewable in a PR diff.
 
-**Overall: 456/456 surfaces satisfied (100.00%)** — mode: blocking.
+**Overall: 452/452 surfaces satisfied (100.00%)** — mode: blocking.
 
 ## Coverage by axis
 
@@ -20,18 +20,18 @@ Every non-exempt required surface maps to a committed scenario and the named pro
 | Reducer drain (crash) | 1 | 1 | 100.00% | 0 | 0 | 0 |
 | Retractable edge types (delta) | 65 | 65 | 100.00% | 0 | 0 | 0 |
 | Retractable node types (delta) | 103 | 103 | 100.00% | 0 | 0 | 1 |
-| Collectors | 20 | 20 | 100.00% | 0 | 0 | 10 |
-| **Total** | **456** | **456** | **100.00%** | **0** | **0** | **13** |
+| Collectors | 16 | 16 | 100.00% | 0 | 0 | 10 |
+| **Total** | **452** | **452** | **100.00%** | **0** | **0** | **13** |
 
 ## Coverage by scenario type
 
 | Scenario type | Satisfied | Total | % | Uncovered | Proof off | Exempt |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| baseline | 241 | 241 | 100.00% | 0 | 0 | 3 |
+| baseline | 239 | 239 | 100.00% | 0 | 0 | 3 |
 | cost | 31 | 31 | 100.00% | 0 | 0 | 1 |
 | crash | 2 | 2 | 100.00% | 0 | 0 | 0 |
 | delta_tombstone | 169 | 169 | 100.00% | 0 | 0 | 1 |
-| fault | 10 | 10 | 100.00% | 0 | 0 | 8 |
+| fault | 8 | 8 | 100.00% | 0 | 0 | 8 |
 | ordering | 3 | 3 | 100.00% | 0 | 0 | 0 |
 
 ## Language parser coverage
@@ -46,7 +46,7 @@ Every ledger language is satisfied by corpus or parser fixture coverage.
 
 None. Every non-exempt required surface has a replay scenario; exemptions carry audited reasons.
 
-## Covered surfaces (456)
+## Covered surfaces (452)
 
 | Surface | Scenario type | Scenario | Proof gate | Artifact / exemption reason |
 | --- | --- | --- | --- | --- |
@@ -488,14 +488,10 @@ None. Every non-exempt required surface has a replay scenario; exemptions carry 
 | `retractable_node:Variable` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_semantic_variable_retract_live_test.go` |
 | `collector:git` | baseline | exempt | — | Filesystem-native collector, not a credentialed upstream API. Git is already exercised end-to-end by the golden-corpus gate's 20-repo bootstrap-index corpus (sync -> discover -> parse -> emit), so a supply-chain-demo cassette would re-record a path the gate already replays from real fixtures. The fixture corpus is its replay scenario. |
 | `collector:git` | fault | exempt | — | Filesystem-native collector, not a credentialed upstream API. Git is already exercised end-to-end by the golden-corpus gate's 20-repo bootstrap-index corpus (sync -> discover -> parse -> emit), so a supply-chain-demo cassette would re-record a path the gate already replays from real fixtures. The fixture corpus is its replay scenario. |
-| `collector:grafana` | baseline | cassette | golden-corpus-gate-neo4j | `testdata/cassettes/grafana/supply-chain-demo.json` |
-| `collector:grafana` | fault | go_test | go-test-race | `go/internal/replay/inputtape/fault_collectors_test.go` |
 | `collector:oci_registry` | baseline | cassette | golden-corpus-gate-neo4j | `testdata/cassettes/ociregistry/supply-chain-demo.json` |
 | `collector:oci_registry` | fault | exempt | — | Satellite-owned collection boundary: collection runs from eshu-hq/eshu-collector-oci-registry while the coordinator still plans OCI registry claims and the reducer/query surfaces still serve the fact kinds. No in-tree OCI registry client remains to drive an injected-timeout fault against, so the fault axis has nothing in-tree to bound. |
 | `collector:package_registry` | baseline | cassette | golden-corpus-gate-neo4j | `testdata/cassettes/packageregistry/supply-chain-demo.json` |
 | `collector:package_registry` | fault | exempt | — | Satellite-owned collection boundary: collection runs from eshu-hq/eshu-collector-package-registry while the coordinator still plans package-registry claims and the reducer/query surfaces still serve the fact kinds. No in-tree package-registry client remains to drive an injected-timeout fault against, so the fault axis has nothing in-tree to bound. |
-| `collector:prometheus_mimir` | baseline | cassette | golden-corpus-gate-neo4j | `testdata/cassettes/prometheusmimir/supply-chain-demo.json` |
-| `collector:prometheus_mimir` | fault | go_test | go-test-race | `go/internal/replay/inputtape/fault_collectors_test.go` |
 | `collector:sbom_attestation` | baseline | cassette | golden-corpus-gate-neo4j | `testdata/cassettes/sbomattestation/supply-chain-demo.json` |
 | `collector:sbom_attestation` | fault | exempt | — | Satellite-owned collection boundary: collection runs from eshu-hq/eshu-collector-sbom-attestation while the coordinator still plans sbom attestation claims and the reducer/query surfaces still serve the fact kinds. No in-tree SBOM attestation client remains to drive an injected-timeout fault against, so the fault axis has nothing in-tree to bound. |
 | `collector:scanner_worker` | baseline | exempt | — | Internal hosted worker with no external upstream. scanner-worker consumes coordinator work items (image refs, rootfs, SBOM targets) and emits analysis facts; it has no credentialed source to record, so a cassette of the supply-chain-demo kind does not apply. |

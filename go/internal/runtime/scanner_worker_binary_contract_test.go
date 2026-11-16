@@ -155,51 +155,41 @@ func TestPagerDutyCollectorIsSatelliteOwned(t *testing.T) {
 	}
 }
 
-func TestObservabilityCollectorBinariesAreBuiltInstalledAndDocumented(t *testing.T) {
+func TestObservabilityCollectorsAreSatelliteOwned(t *testing.T) {
 	t.Parallel()
 
-	for _, collector := range []struct {
-		binary       string
-		commandPath  string
-		displayName  string
-		envVar       string
-		templatePath string
-	}{
-		{
-			binary:       "eshu-collector-grafana",
-			commandPath:  "./cmd/collector-grafana",
-			displayName:  "Grafana Collector",
-			envVar:       "ESHU_GRAFANA_COLLECTOR_INSTANCE_ID",
-			templatePath: "helm/eshu/templates/deployment-grafana-collector.yaml",
-		},
-		{
-			binary:       "eshu-collector-prometheus-mimir",
-			commandPath:  "./cmd/collector-prometheus-mimir",
-			displayName:  "Prometheus/Mimir Collector",
-			envVar:       "ESHU_PROMETHEUS_MIMIR_COLLECTOR_INSTANCE_ID",
-			templatePath: "helm/eshu/templates/deployment-prometheus-mimir-collector.yaml",
-		},
-		// Tempo collects from its extracted satellite
-		// (eshu-hq/eshu-collector-tempo) since #9172: no in-tree binary,
-		// command path, env-var row, or monolith-image template remains.
+	// #10619: the in-tree Grafana and Prometheus-Mimir commands, source
+	// packages, and image builds are gone after the satellite cutovers (#8857
+	// grafana, #8864 prometheus-mimir). Nothing in-tree may build, name, or
+	// document the monolith binaries. The deploy-chart half is pinned through
+	// the satellite activations owned by the cutover lanes, so no absence
+	// assertion runs against the pinned deploy checkout here (same posture as
+	// the PagerDuty satellite-owned test above).
+	for _, binary := range []string{
+		"eshu-collector-grafana",
+		"eshu-collector-prometheus-mimir",
 	} {
-		for file, want := range map[string]string{
-			"Dockerfile":                        "-o /go-bin/" + collector.binary + " " + collector.commandPath,
-			"scripts/install-local-binaries.sh": "go build -trimpath -ldflags=\"$LDFLAGS\" -o \"$INSTALL_DIR/" + collector.binary + "\" " + collector.commandPath,
-			"go/cmd/README.md":                  "`" + collector.binary + "`",
-			"docs/public/deployment/service-runtimes-collectors.md": collector.displayName,
-			"docs/public/reference/environment-collectors.md":       collector.envVar,
-		} {
+		for _, file := range []string{"Dockerfile", "scripts/install-local-binaries.sh", "go/cmd/README.md"} {
 			content := readRepositoryFile(t, "../../..", file)
-			if !strings.Contains(content, want) {
-				t.Fatalf("%s missing %q", file, want)
+			if strings.Contains(content, binary) {
+				t.Fatalf("%s still references in-tree %q, want satellite-only execution", file, binary)
 			}
 		}
-		deployTemplate := strings.TrimPrefix(collector.templatePath, "deploy/")
-		content := readRepositoryFile(t, deployCheckoutRoot(t), deployTemplate)
-		if want := "/usr/local/bin/" + collector.binary; !strings.Contains(content, want) {
-			t.Fatalf("%s missing %q", deployTemplate, want)
+	}
+	// The service-runtimes lockstep entries stay read: the runtime table
+	// still carries both collectors as satellite runtimes.
+	runtimes := readRepositoryFile(t, "../../..", "docs/public/deployment/service-runtimes-collectors.md")
+	for _, row := range []string{"Grafana Collector (satellite)", "Prometheus/Mimir Collector (satellite)"} {
+		if !strings.Contains(runtimes, row) {
+			t.Fatalf("service-runtimes-collectors.md lost the %q row", row)
 		}
+	}
+	// The environment reference still documents both collectors' target
+	// shapes as satellite-operated.
+	envCollectors := readRepositoryFile(t, "../../..", "docs/public/reference/environment-collectors.md")
+	const wantSatelliteNote = "Grafana and Prometheus/Mimir now collect from their extracted satellites"
+	if !strings.Contains(envCollectors, wantSatelliteNote) {
+		t.Fatalf("environment-collectors.md lost the %q satellite note", wantSatelliteNote)
 	}
 }
 

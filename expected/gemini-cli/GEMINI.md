@@ -135,10 +135,8 @@ rendered fragment body.
 The active collector set on this deployment is enumerated below. Disabling a collector hides its MCP surface from the generated skill.
 
 - git (enabled)
-- grafana (enabled)
 - oci_registry (enabled)
 - package_registry (enabled)
-- prometheus_mimir (enabled)
 - sbom_attestation (enabled)
 - scanner_worker (enabled)
 - security_alert (enabled)

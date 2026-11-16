@@ -6,29 +6,20 @@ package inputtape_test
 // Collector fault-injection coverage (C-14, #4367, epic #4172).
 //
 // The replay-coverage gate requires a `fault` depth scenario for every
-// implemented collector boundary. These tests satisfy that requirement
-// honestly: each case drives a REAL collector's poll with the inputtape timeout
-// fault injected at its HTTP boundary, then asserts the collector surfaces the
-// fault as a classified timeout rather than swallowing it, mis-classifying it,
-// or hanging.
+// implemented collector boundary. When a case exists it drives a REAL
+// collector's poll with the inputtape timeout fault injected at its HTTP
+// boundary, then asserts the collector surfaces the fault as a classified
+// timeout rather than swallowing it, mis-classifying it, or hanging.
 //
-// The fault value injected is inputtape.ErrFaultTimeout — the exact error the
-// Replayer serves for a FaultKindTimeout interaction (a *timeoutError that both
-// wraps context.DeadlineExceeded and reports Timeout() bool == true). Injecting
-// it through a RoundTripper reproduces, at the collector boundary, precisely
-// what a recorded timeout-fault tape would deliver, without depending on a
-// collector's request shape or volatile query params (which defeat tape
-// request-key matching). The Replayer's own fault-injection mechanics are
-// proven separately by fault_test.go and fault_timeout_test.go; these tests
-// assert the COLLECTOR's reaction to a boundary fault, which is the C-14 grain
-// (fault -> every implemented collector boundary).
-//
-// The cases are table-driven off collectorFaultCases so the surface set is a
-// single source of truth. TestCollectorFaultManifestBinding then binds that set
-// to the replay-coverage manifest, so a deleted or renamed case (or a manifest
-// row added without a case) fails under the go-test-race gate — closing the gap
-// where an os.Stat-only ref check would leave the dashboard green after a
-// specific collector's proof was removed.
+// The table is empty today: every collector boundary moved to an extracted
+// satellite (pagerduty #8863, grafana #8857, prometheus-mimir #8864,
+// security-alert/oci-registry/package-registry eshu-hq/eshu#10620,
+// vulnerability-intelligence eshu-hq/eshu#9999, sbom-attestation
+// eshu-hq/eshu#10450), and each satellite owns its client fault behavior.
+// The runner and TestCollectorFaultManifestBinding stay: the cases are
+// table-driven off collectorFaultCases as the single source of truth, and
+// the binding fails if a manifest row is added without a case (or vice
+// versa) under the go-test-race gate.
 //
 // Skills active: golang-engineering, eshu-golden-corpus-rigor,
 // concurrency-deadlock-rigor.
@@ -36,36 +27,13 @@ package inputtape_test
 import (
 	"context"
 	"errors"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/observability/grafana"
-	"github.com/eshu-hq/eshu/go/internal/collector/observability/prometheus"
-	"github.com/eshu-hq/eshu/go/internal/replay/inputtape"
 	"gopkg.in/yaml.v3"
 )
-
-// timeoutFaultClient returns an *http.Client whose transport injects the
-// inputtape timeout fault on every request, driving the real collector wired to
-// it straight into a boundary timeout.
-func timeoutFaultClient() *http.Client {
-	return &http.Client{Transport: faultTransport{err: inputtape.ErrFaultTimeout}}
-}
-
-// faultTransport is an http.RoundTripper that fails every request with a fixed
-// fault error, reproducing an injected inputtape fault at a collector's HTTP
-// boundary without a recorded tape.
-type faultTransport struct{ err error }
-
-// RoundTrip injects the configured fault instead of performing the request. The
-// net/http stack wraps the returned error in *url.Error, whose Timeout() and
-// Unwrap() delegate to the fault error — the shape a live transport fault takes.
-func (f faultTransport) RoundTrip(*http.Request) (*http.Response, error) {
-	return nil, f.err
-}
 
 // collectorFaultCase drives one real collector's poll into an injected boundary
 // timeout. surface is the replay-coverage surface id it proves (the single
@@ -80,49 +48,11 @@ type collectorFaultCase struct {
 // row (or vice versa) fails TestCollectorFaultManifestBinding.
 func collectorFaultCases() []collectorFaultCase {
 	return []collectorFaultCase{
-		{
-			surface: "collector:grafana",
-			collect: func() error {
-				client, err := grafana.NewHTTPClient(grafana.HTTPClientConfig{
-					BaseURL: "https://grafana.invalid",
-					Token:   "grafana-token",
-					Client:  timeoutFaultClient(),
-				})
-				if err != nil {
-					return err
-				}
-				_, err = client.CollectObservedMetadata(context.Background(), grafana.TargetConfig{
-					Provider:      grafana.ProviderGrafana,
-					ScopeID:       "grafana:instance:prod",
-					InstanceID:    "grafana-prod",
-					BaseURL:       "https://grafana.invalid",
-					Token:         "grafana-token",
-					ResourceLimit: 50,
-				})
-				return err
-			},
-		},
-		{
-			surface: "collector:prometheus_mimir",
-			collect: func() error {
-				client, err := prometheus.NewHTTPClient(prometheus.HTTPClientConfig{
-					BaseURL: "https://prometheus.invalid",
-					Client:  timeoutFaultClient(),
-				})
-				if err != nil {
-					return err
-				}
-				_, err = client.CollectObservedMetadata(context.Background(), prometheus.TargetConfig{
-					ScopeID:       "prom:cluster:prod",
-					InstanceID:    "prom-prod",
-					Provider:      prometheus.ProviderPrometheus,
-					BaseURL:       "https://prometheus.invalid",
-					Token:         "prom-token",
-					ResourceLimit: 50,
-				})
-				return err
-			},
-		},
+		// The Grafana and Prometheus-Mimir boundaries moved to the extracted
+		// satellites (eshu-hq/eshu-collector-grafana cutover #8857,
+		// eshu-hq/eshu-collector-prometheus-mimir cutover #8864): core owns
+		// no Grafana or Prometheus/Mimir HTTP client to fault-probe anymore,
+		// so this table carries no grafana or prometheus_mimir case.
 		// The PagerDuty boundary moved to the extracted satellite
 		// (eshu-hq/eshu-collector-pagerduty, cutover #8863): core owns no
 		// PagerDuty HTTP client to fault-probe anymore, so this table
@@ -174,7 +104,7 @@ func TestCollectorsSurfaceInjectedTimeout(t *testing.T) {
 // the replay-coverage manifest's collector fault rows that point at this file.
 // It fails if a case is deleted or renamed without dropping its manifest row (or
 // a manifest row is added without a case), closing the os.Stat-only ref gap
-// where the fault dashboard could stay 17/17 after a specific collector's proof
+// where the fault dashboard could stay green after a specific collector's proof
 // was silently removed.
 func TestCollectorFaultManifestBinding(t *testing.T) {
 	t.Parallel()

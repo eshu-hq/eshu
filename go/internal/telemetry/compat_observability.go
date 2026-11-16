@@ -13,7 +13,8 @@ import "github.com/eshu-hq/eshu/go/internal/telemetry/contract/observability"
 // telemetry.* identifier so every existing caller keeps compiling unchanged.
 // See the referenced observability.* symbol for the canonical doc comment.
 
-// Grafana source-collector spans (from contract/observability/grafana.go).
+// Grafana source-collector spans (emitted by the extracted satellite
+// eshu-hq/eshu-collector-grafana; the in-tree producer is removed).
 const (
 	SpanGrafanaObserve = observability.SpanGrafanaObserve
 	SpanGrafanaFetch   = observability.SpanGrafanaFetch
@@ -26,8 +27,8 @@ const (
 	SpanLokiFetch   = observability.SpanLokiFetch
 )
 
-// Prometheus/Mimir source-collector spans (from
-// contract/observability/prometheus_mimir.go).
+// Prometheus/Mimir source-collector spans (emitted by the extracted satellite
+// eshu-hq/eshu-collector-prometheus-mimir; the in-tree producer is removed).
 const (
 	SpanPrometheusMimirObserve = observability.SpanPrometheusMimirObserve
 	SpanPrometheusMimirFetch   = observability.SpanPrometheusMimirFetch

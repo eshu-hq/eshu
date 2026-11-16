@@ -27,10 +27,8 @@ exact binary set on `PATH`.
 | `eshu-collector-git` | `collector-git/` | Local git-collector helper |
 | `eshu-collector-component-extension` | `collector-component-extension/` | Long-running process-backed component extension collector |
 | `eshu-collector-cicd-run` | `collector-cicd-run/` | Long-running hosted GitHub Actions CI/CD run collector |
-| `eshu-collector-grafana` | `collector-grafana/` | Long-running live Grafana metadata collector |
 | `eshu-collector-document-import` | `collector-document-import/` | One-shot disabled-by-default reviewed-image OCR drain (no deployment) |
 | `eshu-collector-media-import` | `collector-media-import/` | One-shot disabled-by-default QA-tier-only reviewed-audio transcript drain (no deployment) |
-| `eshu-collector-prometheus-mimir` | `collector-prometheus-mimir/` | Long-running live Prometheus and Mimir metadata collector |
 | `eshu-webhook-intake` | `webhook-intake/` | Long-running core intake host for the extracted webhook satellite |
 | `eshu-admin-status` | `admin-status/` | Admin/status read helper |
 | `eshu-workflow-coordinator` | `workflow-coordinator/` | Long-running workflow coordinator |
@@ -52,8 +50,6 @@ flowchart LR
   workflow[workflow-coordinator] --> postgres
   component[collector-component-extension] --> postgres
   cicd[collector-cicd-run] --> postgres
-  grafana[collector-grafana] --> postgres
-  metrics[collector-prometheus-mimir] --> postgres
   intake[webhook-intake host] --> postgres
   api[api] --> graph
   api --> postgres

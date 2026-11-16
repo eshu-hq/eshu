@@ -13,14 +13,14 @@ die() { fail "$@"; }
 
 collector_specs=()
 for index in {1..18}; do collector_specs+=("collector-${index}:cassette-${index}"); done
-cassette_replay_alias_specs=("semantic-extraction-cassette:collector-prometheus-mimir:semanticextraction")
+cassette_replay_alias_specs=("semantic-extraction-cassette:collector-cicd-run:semanticextraction")
 captured=()
 # Replace only the launch step: pair recording is exercised separately below.
 golden_corpus_start_replay() { captured+=("$1|$2|$3"); }
 golden_corpus_start_cassette_replays
 [[ "${#GATE_EXPECTED_SCOPE_PAIRS[@]}" == "0" ]] || fail "launch did not reset GATE_EXPECTED_SCOPE_PAIRS"
 [[ "${#captured[@]}" == "19" ]] || fail "replay count = ${#captured[@]}, want 19"
-[[ "${captured[18]}" == "semantic-extraction-cassette|collector-prometheus-mimir|semanticextraction" ]] ||
+[[ "${captured[18]}" == "semantic-extraction-cassette|collector-cicd-run|semanticextraction" ]] ||
 	fail "semantic alias parsed as ${captured[18]}"
 
 if (

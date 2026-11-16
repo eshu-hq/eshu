@@ -79,6 +79,7 @@ var coreEntries = []Entry{
 
 	// api
 	{Name: "ESHU_API_ADDR", Type: VarString, Default: ":8080", Subsystem: "api", Description: "API server listen address."},
+	{Name: "ESHU_PROMETHEUS_MIMIR_COLLECTOR_INSTANCE_ID", Type: VarString, Subsystem: "api", Description: "Prometheus/Mimir collector instance the API trend charts read through ESHU_COLLECTOR_INSTANCES_JSON; required when more than one enabled prometheus_mimir instance exists. Collection itself runs from the extracted satellite (eshu-hq/eshu-collector-prometheus-mimir, #10619)."},
 	{Name: "ESHU_COMMIT_LISTEN", Type: VarString, Subsystem: "api", Description: "CommitClaimFacts listener address for the satellite proxy (#8877). Unset keeps the listener dark; empty host or literal IP with port, hostnames refused."},
 	{Name: "ESHU_COMMIT_MANIFEST_PATH", Type: VarString, Subsystem: "api", Description: "Component manifest path for the commit listener (#8877). Required when ESHU_COMMIT_LISTEN is set."},
 	{Name: "ESHU_COMMIT_GRANTS_PATH", Type: VarString, Subsystem: "api", Description: "Optional producer-grants JSON path for the commit listener (#8877). Empty pairs nothing."},

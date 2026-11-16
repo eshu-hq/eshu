@@ -264,16 +264,22 @@ surfaces:
       truth_profile: fixture_gated
   - category: collector
     name: grafana
-    readiness: implemented
-    owner: internal/collector/observability/grafana
+    readiness: partial
+    owner: eshu-hq/eshu-collector-grafana
     proof: reference/collector-reducer-readiness.md#promotion-proof
     docs: [reference/collector-reducer-readiness.md]
+    notes: >-
+      Extracted to the eshu-collector-grafana satellite
+      (eshu-hq/eshu-collector-grafana): the in-tree command, source package,
+      and image build are gone, so the implemented lane (built in-tree,
+      charted, replay-proven) is unmet. Fact kinds, reducer projection, and
+      read surfaces stay core-owned and covered.
     collector_contract:
       fact_kinds: &observability_fact_kinds [observability.applied_resource, observability.applied_sync_state, observability.coverage_warning, observability.declared_alert_rule, observability.declared_dashboard, observability.declared_datasource, observability.declared_folder, observability.declared_log_route, observability.declared_metric_route, observability.declared_metric_rule, observability.declared_scrape_config, observability.declared_trace_route, observability.observed_dashboard, observability.observed_log_signal, observability.observed_rule, observability.observed_target, observability.observed_trace_signal, observability.source_instance]
       projection_surfaces: [observability_coverage_correlation]
       read_surfaces: [GET /api/v0/observability/coverage/correlations, list_observability_coverage]
-      proof_gates: [cd go && go test ./cmd/collector-grafana ./internal/collector/observability/grafana ./internal/reducer ./internal/query ./internal/mcp -count=1]
-      fixture_refs: [go/internal/collector/observability/grafana/testdata, docs/public/reference/observability-evidence.md]
+      proof_gates: [cd go && go test ./internal/reducer ./internal/query ./internal/mcp -count=1, scripts/verify-fact-kind-registry.sh]
+      fixture_refs: [testdata/cassettes/grafana, docs/public/reference/observability-evidence.md]
       truth_profile: provider_gated
   - category: collector
     name: loki
@@ -295,16 +301,22 @@ surfaces:
       truth_profile: provider_gated
   - category: collector
     name: prometheus_mimir
-    readiness: implemented
-    owner: internal/collector/observability/prometheus
+    readiness: partial
+    owner: eshu-hq/eshu-collector-prometheus-mimir
     proof: reference/collector-reducer-readiness.md#promotion-proof
     docs: [reference/collector-reducer-readiness.md]
+    notes: >-
+      Extracted to the eshu-collector-prometheus-mimir satellite
+      (eshu-hq/eshu-collector-prometheus-mimir): the in-tree command, source
+      package, and image build are gone, so the implemented lane (built
+      in-tree, charted, replay-proven) is unmet. Fact kinds, reducer
+      projection, and read surfaces stay core-owned and covered.
     collector_contract:
       fact_kinds: *observability_fact_kinds
       projection_surfaces: [observability_coverage_correlation]
       read_surfaces: [GET /api/v0/observability/coverage/correlations, list_observability_coverage]
-      proof_gates: [cd go && go test ./cmd/collector-prometheus-mimir ./internal/collector/observability/prometheus ./internal/reducer ./internal/query ./internal/mcp -count=1]
-      fixture_refs: [go/internal/collector/observability/prometheus/testdata, docs/public/reference/observability-evidence.md]
+      proof_gates: [cd go && go test ./internal/reducer ./internal/query ./internal/mcp -count=1, scripts/verify-fact-kind-registry.sh]
+      fixture_refs: [testdata/cassettes/prometheusmimir, docs/public/reference/observability-evidence.md]
       truth_profile: provider_gated
   - category: collector
     name: tempo

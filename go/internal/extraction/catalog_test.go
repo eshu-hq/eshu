@@ -54,7 +54,8 @@ func TestCatalogClassifications(t *testing.T) {
 		scope.CollectorSBOMAttestation: KeepInTree,
 		scope.CollectorPagerDuty:       ExternalReady,
 		scope.CollectorJira:            Blocked,
-		scope.CollectorGrafana:         Blocked,
+		scope.CollectorGrafana:         ExternalReady,
+		scope.CollectorPrometheusMimir: ExternalReady,
 	}
 	for family, want := range wantClass {
 		got, ok := byFamily[family]
@@ -67,14 +68,15 @@ func TestCatalogClassifications(t *testing.T) {
 	}
 
 	// The catalog must exercise the keep-in-tree, blocked, and external-ready
-	// classifications against real collector families. PagerDuty is the first
-	// and only external_ready family (#8863 cutover, #10619 in-tree removal);
-	// no family is an extraction candidate right now.
+	// classifications against real collector families. PagerDuty (#8863),
+	// Grafana (#8857), and Prometheus-Mimir (#8864) run out of tree as their
+	// default path after the #10619 in-tree removals; no family is an
+	// extraction candidate right now.
 	if counts[KeepInTree] == 0 || counts[Blocked] == 0 || counts[ExternalReady] == 0 {
 		t.Fatalf("catalog classification coverage = %+v, want keep_in_tree, blocked, and external_ready all present", counts)
 	}
-	if counts[ExternalReady] != 1 {
-		t.Errorf("catalog has %d external_ready entries, want exactly 1 (pagerduty)", counts[ExternalReady])
+	if counts[ExternalReady] != 3 {
+		t.Errorf("catalog has %d external_ready entries, want exactly 3 (pagerduty, grafana, prometheus-mimir)", counts[ExternalReady])
 	}
 }
 
@@ -92,6 +94,42 @@ func TestCatalogPagerDutyIsExternalReady(t *testing.T) {
 	for _, criterion := range got.Criteria {
 		if criterion.State != Met {
 			t.Errorf("PagerDuty criterion %s = %q, want met (boundary proof complete)", criterion.Criterion, criterion.State)
+		}
+	}
+}
+
+func TestCatalogGrafanaIsExternalReady(t *testing.T) {
+	// Grafana runs out of tree as its default path since the #8857
+	// satellite cutover, and #10619 removed the in-tree command, source
+	// package, and image build, so it must classify as external_ready.
+	got, ok := Lookup(scope.CollectorGrafana)
+	if !ok {
+		t.Fatal("Lookup(grafana) not found in catalog")
+	}
+	if got.Classification != ExternalReady {
+		t.Fatalf("Grafana classification = %q, want external_ready", got.Classification)
+	}
+	for _, criterion := range got.Criteria {
+		if criterion.State != Met {
+			t.Errorf("Grafana criterion %s = %q, want met (boundary proof complete)", criterion.Criterion, criterion.State)
+		}
+	}
+}
+
+func TestCatalogPrometheusMimirIsExternalReady(t *testing.T) {
+	// Prometheus-Mimir runs out of tree as its default path since the #8864
+	// satellite cutover, and #10619 removed the in-tree command, source
+	// package, and image build, so it must classify as external_ready.
+	got, ok := Lookup(scope.CollectorPrometheusMimir)
+	if !ok {
+		t.Fatal("Lookup(prometheus-mimir) not found in catalog")
+	}
+	if got.Classification != ExternalReady {
+		t.Fatalf("Prometheus-Mimir classification = %q, want external_ready", got.Classification)
+	}
+	for _, criterion := range got.Criteria {
+		if criterion.State != Met {
+			t.Errorf("Prometheus-Mimir criterion %s = %q, want met (boundary proof complete)", criterion.Criterion, criterion.State)
 		}
 	}
 }

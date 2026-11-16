@@ -127,14 +127,14 @@ source "${repo_root}/scripts/lib/golden-corpus-fixtures.sh"
 # hand-maintained number drifted to half the real value before it was noticed.
 collector_specs=(
 	"collector-cicd-run:cicdrun"
-	"collector-prometheus-mimir:prometheusmimir"
-	"collector-grafana:grafana"
 )
 # name:command:cassette-directory aliases let a generic cassette-capable binary
 # replay a source that has no dedicated command without reusing its process log.
-# Vehicle is collector-cicd-run (stays in-tree; pagerduty binary removed).
+# Vehicle is collector-cicd-run (stays in-tree; pagerduty/grafana/mimir binaries removed).
 cassette_replay_alias_specs=(
-	"semantic-extraction-cassette:collector-prometheus-mimir:semanticextraction"
+	"semantic-extraction-cassette:collector-cicd-run:semanticextraction"
+	"grafana-cassette-replay:collector-cicd-run:grafana"
+	"prometheus-mimir-cassette-replay:collector-cicd-run:prometheusmimir"
 	"pagerduty-cassette-replay:collector-cicd-run:pagerduty"
 	"oci-registry-cassette-replay:collector-cicd-run:ociregistry"
 	"package-registry-cassette-replay:collector-cicd-run:packageregistry"
