@@ -85,22 +85,24 @@ at one chunk per 30-minute planner run (ruling:46-48 says ~301 claims,
 
 The baseline checkpoint is `(baseline_run_id, year, resume_last_modified,
 year_sha256)` in its own store (new table or keyspace; implementation lane
-chooses, following the `NVDWindowCursorStore` pattern in
-`go/internal/storage/postgres/vulnerability/nvd_window_cursor.go:70-76`).
-It is **not** a row in `vulnerability_nvd_window_cursors` (DDL at
-`go/internal/storage/postgres/vulnerability/nvd_window_cursor.go:21-28`,
-migration `275_vulnerability_nvd_window_cursor.sql:22`), and baseline claims
+chooses, following the `NVDWindowCursorStore` pattern (read query
+`nvdWindowCursorReadQuery` in
+`go/internal/storage/postgres/vulnerability/nvd_window_cursor.go`).
+It is **not** a row in `vulnerability_nvd_window_cursors` (DDL
+`vulnerabilityNVDWindowCursorSchemaSQL` in that file, migration
+`275_vulnerability_nvd_window_cursor.sql:22`), and baseline claims
 **never** carry a `GenerationStateWriter` for that table.
 
 The mechanism that enforces this is already in the commit path: the host
 arms the cursor writer only for window scopes
-(`go/internal/collector/extensionhost/nvd_window_cursor.go:49-50`,
-`IsNVDWindowScope` check) and only when the generation's snapshot verdict
-says should-advance (`nvd_window_cursor.go:56-63`). Baseline claims use a
-scope family **outside** the `nvd/_window/` prefix (prefix constant at
-`go/internal/vulnsource/nvd_window_scope.go:21`), so the arming function
-returns nil for them by construction, and the CAS query (`NVDWindowCursorAdvanceQuery`,
-`nvd_window_cursor.go:40-59`) never sees a baseline candidate. A wrong
+(`Source.armNVDWindowCursorWriter` with the `IsNVDWindowScope` check in
+`go/internal/collector/extensionhost/nvd_window_cursor.go`) and only when
+the generation's snapshot verdict says should-advance
+(`nvd_window_cursor.go:56-63`). Baseline claims use a
+scope family **outside** the `nvd/_window/` prefix (prefix constant
+`nvdWindowScopePrefix` in `go/internal/vulnsource/nvd_window_scope.go`),
+so the arming function returns nil for them by construction, and the CAS
+query (`NVDWindowCursorAdvanceQuery`) never sees a baseline candidate. A wrong
 scope prefix is therefore a fail-closed shape error (the scope parser
 rejects non-window ids at `nvd_window_scope.go:46-78`), not a cursor
 corruption.
@@ -113,7 +115,8 @@ uncommitted groups were never checkpointed, so they re-emit whole.
 ## 4. Planner-cadence interaction
 
 The window planner is pure planning math with no I/O and no locks
-(`go/internal/coordinator/vulnerability/nvd_window_planner.go:12-18`): one
+(per the planner doc comment in
+`go/internal/coordinator/vulnerability/nvd_window_planner.go`): one
 bounded window per call, windows tile, next start is the committed cursor
 (`nvd_window_planner.go:43-70`). The baseline lane mirrors this shape with
 its own planner over the checkpoint instead of the cursor: one chunk per
@@ -122,8 +125,9 @@ planner run (ruling decision 2), which the parent design budgets as at most
 10,000 facts per 30 minutes
 (`10671-nvd-feed-transport-fallback.md:177`).
 
-Cadence is per-target config (`refresh_interval`,
-`go/internal/coordinator/vulnerability/intelligence_scheduler.go:105-108`;
+Cadence is per-target config (`refresh_interval`, field of
+`vulnerabilityTargetConfiguration` in
+`go/internal/coordinator/vulnerability/intelligence_scheduler.go`;
 targets planned inside their interval skip at
 `intelligence_scheduler.go:226`), so the one-chunk-per-run bound must be
 enforced **in the baseline loop** (skip while a chunk for the current stamp
@@ -132,7 +136,7 @@ covers the overrun case: a feed attempt that outlives its lease is fenced by
 the claim-row lock and the `fencing_token` filter (parent design section 7,
 `10671-nvd-feed-transport-fallback.md:213-219`), and the commit-transaction
 writer model means a fenced claim's state write rolls back with its
-generation (`go/internal/collector/generation_state.go:22-29`).
+generation (the `CommitExecutor` interface in `go/internal/collector/generation_state.go`).
 
 The window stream is unaffected: it keeps planning from the cursor
 (`nvd_window_derivation.go:61-67`, one deterministic scope per tick), and
@@ -177,17 +181,19 @@ No pausing or serializing OSV/GHSA to make room (ruling decision 3).
    so one stable key never carries two payload shapes inside a claim
    (`nvd_envelope.go:33-48` in the collector).
 3. Same chunk, same scope. Same window bounds mint the same scope id on
-   every run (`go/internal/vulnsource/nvd_window_scope.go:13-21`,
-   mint at `:30-44`); a refusal, skip, or crash re-plans the same scope and
-   the commit path fences it as a same-scope successor
-   (`go/internal/coordinator/vulnerability/nvd_window_derivation.go:58-60`).
+   every run (prefix doc and `nvdWindowScopePrefix` in
+   `go/internal/vulnsource/nvd_window_scope.go`, mint at `:30-44`); a
+   refusal, skip, or crash re-plans the same scope and the commit path
+   fences it as a same-scope successor (`deriveNVDWindowTarget` in
+   `go/internal/coordinator/vulnerability/nvd_window_derivation.go`).
    The baseline lane must mint its chunk scopes with the same determinism
    (bounds in, same id out) so replays converge instead of superseding.
 4. Same scope, one row set. State writes run inside the generation's own
-   commit transaction (`go/internal/collector/generation_state.go:22-29`),
+   commit transaction (the `CommitExecutor` interface in
+   `go/internal/collector/generation_state.go`),
    so cursor/checkpoint state advances with its facts or not at all; the
    cursor CAS keeps the max on strictly-greater candidates only
-   (`go/internal/storage/postgres/vulnerability/nvd_window_cursor.go:40-59`).
+   (`NVDWindowCursorAdvanceQuery`).
 5. Proof required before QA: the R6-style convergence test (two baseline
    passes = one row set) from the ruling's proof gate (ruling:81), plus
    facts/record under satellite folding and dirty-log rows per committed

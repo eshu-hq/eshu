@@ -32,9 +32,11 @@ before the first window emit no facts from the seed.
   distinct ids = 2.37% held, ~415,697 missing (derived arithmetic, first-hand
   inputs only).
 - Reducer consequence / CPE uniqueness:
-  `go/internal/reducer/supplychain/core/derived_partition.go:336-348`
+  `advisorySourceClass` in
+  `go/internal/reducer/supplychain/core/derived_partition.go`
   (`affected_product` kind is NVD-only, hardcoded to nvd);
-  `go/internal/reducer/supplychain/core/provenance.go:32-34` (NVD is the only
+  `supplyChainCVEGroup.representative` in
+  `go/internal/reducer/supplychain/core/provenance.go` (NVD is the only
   source emitting `affected_product` facts, the product-only CPE path);
   10671 ruling:42 (OSV/GHSA: severity only).
 - Feed fidelity: design:161-164 + measurements M2 (45-52): feeds carry
