@@ -82,7 +82,7 @@ collector gets one pseudonym and their join survives.
 | ARN | partition, service, region, leading type token and numeric qualifiers kept; account and every other component pseudonymized; `arn:aws:iam::aws:policy/...` kept whole |
 | resource name | `n` + 11 hex |
 | AWS-issued id | prefix kept, hex run replaced with HMAC hex of equal length; 32-hex ids stay 32 hex |
-| ECR host / image ref | `<pseudo-account>.dkr.ecr.<region>.amazonaws.com/<pseudo-repo>[:<pseudo-tag>\|@digest]`; public hosts on the gate's list (`ghcr.io`, `nist.gov`, ...) kept |
+| ECR host / image ref | `<pseudo-account>.dkr.ecr.<region>.amazonaws.com/<pseudo-repo>[:<pseudo-tag>\|@digest]`; public hosts on the gate's list (`ghcr.io`, `nist.gov`, `mitre.org`, `vuldb.com`, ...) kept, each as an exact entry so a subdomain or lookalike zone is still pseudonymized |
 | image tag | `latest`, pure semver (`v1.2.3`, `1.2.3`) and digests kept; every other tag is a customer word and takes the name form, in the tag field and inside the reference |
 | other hostname | each customer label `h` + 10 hex, public suffix collapsed to `.example`; AWS-owned suffixes (`amazonaws.com`, `on.aws`, `cloudfront.net`) keep their structural tail, the region (the finite AWS region grammar, so a customer label such as `db-main-1` that only looks like one is still pseudonymized) and the host service words (`elb`, `rds`, `execute-api`, ...); `*` and a trailing dot kept |
 | AWS service principal | a single label directly under `amazonaws.com` (`states.amazonaws.com`, `ecs-tasks.amazonaws.com`) is AWS-owned and kept verbatim, including where a customer resource carries the same word as its name |

@@ -189,8 +189,16 @@ cassette_private_data_patterns() {
 	# vendor namespaces, which end in a TLD without being hosts, and the three
 	# public advisory sources the vulnerability collector reads -- nist.gov, from
 	# NVD's own source identifier, and www.cisa.gov and www.first.org, from the
-	# KEV and EPSS attribution links on every source snapshot; exact entries, so a
-	# subdomain or a lookalike zone stays a finding), a single
+	# KEV and EPSS attribution links on every source snapshot; and the eight
+	# public hosts the real-record recording of that collector carries (#10790):
+	# mitre.org and vuldb.com, from the CNA source identifiers cve@mitre.org and
+	# cna@vuldb.com that NVD publishes on its records; nvd.nist.gov, from the
+	# `notes` link of every KEV entry; and packetstormsecurity.com,
+	# www.youtube.com, research.nccgroup.com, playsms.org and forum.playsms.org,
+	# the reference hosts of the two KEV-listed records. They are public vendor,
+	# CNA and reference hosts that NVD and CISA publish, and carry no
+	# organisation data. Every entry is exact, so a subdomain or a lookalike zone
+	# stays a finding), a single
 	# service label under googleapis.com, a single label under amazonaws.com
 	# (an AWS service principal such as states.amazonaws.com: a customer
 	# cannot register a name directly under amazonaws.com, so the label is
@@ -206,7 +214,18 @@ cassette_private_data_patterns() {
 	# CIDR of a security-group rule (the detector takes the quad without its
 	# prefix). Record mode keeps it; it names no host. Exact, so 0.0.0.1 is
 	# still a finding.
-	_cpd_allow[ipv4]='^(?:0\.0\.0\.0|192\.0\.2\.[0-9]{1,3}|198\.51\.100\.[0-9]{1,3}|203\.0\.113\.[0-9]{1,3}|127\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})$'
+	# 3.0.4.27 is not an address: it is the firmware version inside one NVD CPE
+	# (cpe:2.3:o:...:3.0.4.27 on CVE-2020-10181), and the detector sees a quad
+	# there because the version is lexically inside AWS 3.0.0.0/8. The entry
+	# admits that one literal and nothing adjacent, so 3.0.4.28 and 13.0.4.27
+	# stay findings. Precedent: the #8359 exact literal in account12 below.
+	# The allow is applied to the matched token with no surrounding context, so
+	# a real address 3.0.4.27 in free text elsewhere would pass as well; that is
+	# accepted (arbiter ruling on collector #126). The hostname allow has a
+	# blind spot that is not a regression: a host under a TLD outside the list
+	# above (mitre.org.evil) is never a candidate, exactly as nist.gov.evil
+	# today.
+	_cpd_allow[ipv4]='^(?:0\.0\.0\.0|192\.0\.2\.[0-9]{1,3}|198\.51\.100\.[0-9]{1,3}|203\.0\.113\.[0-9]{1,3}|127\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}|3\.0\.4\.27)$'
 	# The ipv6 detector also sees six-group MAC addresses. A real MAC is a
 	# hardware identifier and stays a finding; the RFC 7042 documentation block
 	# (00:00:5e:00:53:xx) and the all-zero MAC are what a redacted recording
@@ -236,7 +255,7 @@ cassette_private_data_patterns() {
 	# whole, so Verify admits it unconditionally, like a service principal.
 	local aws_endpoint_region='(?:us|eu|ap|ca|sa|me|af|il|mx|cn)(?:-gov|-iso[a-z]?)?-(?:east|west|north|south|central|northeast|southeast|northwest|southwest)-[0-9]{1,2}'
 	local aws_endpoint_words='appsync-api|awsapprunner|cache|cloudfront|dkr|ecr|elasticbeanstalk|elb|es|execute-api|lambda-url|rds|s3|s3-website|sns|sqs|sts'
-	_cpd_allow[hostname]="(?i)^(?:(?:[a-z0-9-]+\\.)*(?:example|test|invalid|localhost)|(?:[a-z0-9-]+\\.)*example\\.(?:com|net|org)|github\\.com|gitlab\\.com|ghcr\\.io|registry\\.terraform\\.io|registry\\.npmjs\\.org|proxy\\.golang\\.org|console\\.cloud\\.google\\.com|google\\.cloud|microsoft\\.[a-z]+|slsa\\.dev|in-toto\\.io|kubernetes\\.io|app\\.kubernetes\\.io|argoproj\\.io|argocd\\.argoproj\\.io|us-docker\\.pkg\\.dev|nist\\.gov|www\\.cisa\\.gov|www\\.first\\.org|[a-z0-9-]+\\.googleapis\\.com|[a-z0-9-]+\\.amazonaws\\.com|pods\\.eks\\.amazonaws\\.com|(?:${aws_endpoint_words})\\.(?:${aws_endpoint_region})\\.amazonaws\\.com|(?:h[0-9a-f]{10}\\.)+(?:(?:${aws_endpoint_region}|${aws_endpoint_words})\\.)*[a-z0-9-]+\\.amazonaws\\.com|${doc_account}\\.dkr\\.ecr\\.[a-z0-9-]+\\.amazonaws\\.com|(?:[a-z0-9-]+\\.)*supply-chain-demo\\.internal|supply-chain-demo\\.pagerduty\\.internal|supply-chain-demo-project\\.iam\\.gserviceaccount\\.com|supply-chain-demo-project\\.uc\\.r\\.appspot\\.com|supplychaindemoacr\\.azurecr\\.io|supply-chain-demo\\.eastus\\.azurecontainerapps\\.io)\$"
+	_cpd_allow[hostname]="(?i)^(?:(?:[a-z0-9-]+\\.)*(?:example|test|invalid|localhost)|(?:[a-z0-9-]+\\.)*example\\.(?:com|net|org)|github\\.com|gitlab\\.com|ghcr\\.io|registry\\.terraform\\.io|registry\\.npmjs\\.org|proxy\\.golang\\.org|console\\.cloud\\.google\\.com|google\\.cloud|microsoft\\.[a-z]+|slsa\\.dev|in-toto\\.io|kubernetes\\.io|app\\.kubernetes\\.io|argoproj\\.io|argocd\\.argoproj\\.io|us-docker\\.pkg\\.dev|nist\\.gov|www\\.cisa\\.gov|www\\.first\\.org|forum\\.playsms\\.org|mitre\\.org|nvd\\.nist\\.gov|packetstormsecurity\\.com|playsms\\.org|research\\.nccgroup\\.com|vuldb\\.com|www\\.youtube\\.com|[a-z0-9-]+\\.googleapis\\.com|[a-z0-9-]+\\.amazonaws\\.com|pods\\.eks\\.amazonaws\\.com|(?:${aws_endpoint_words})\\.(?:${aws_endpoint_region})\\.amazonaws\\.com|(?:h[0-9a-f]{10}\\.)+(?:(?:${aws_endpoint_region}|${aws_endpoint_words})\\.)*[a-z0-9-]+\\.amazonaws\\.com|${doc_account}\\.dkr\\.ecr\\.[a-z0-9-]+\\.amazonaws\\.com|(?:[a-z0-9-]+\\.)*supply-chain-demo\\.internal|supply-chain-demo\\.pagerduty\\.internal|supply-chain-demo-project\\.iam\\.gserviceaccount\\.com|supply-chain-demo-project\\.uc\\.r\\.appspot\\.com|supplychaindemoacr\\.azurecr\\.io|supply-chain-demo\\.eastus\\.azurecontainerapps\\.io)\$"
 	_cpd_allow[identifier]=''
 	_cpd_allow[nodeip]='(?i)^ip-(?:192-0-2-[0-9]{1,3}|198-51-100-[0-9]{1,3}|203-0-113-[0-9]{1,3}|127-[0-9]{1,3}-[0-9]{1,3}-[0-9]{1,3})$'
 
@@ -303,6 +322,15 @@ cassette_private_data_patterns() {
 		'hostname nist''.gov'
 		'hostname www.cisa''.gov'
 		'hostname www.first''.org'
+		'hostname forum.playsms''.org'
+		'hostname mitre''.org'
+		'hostname nvd.nist''.gov'
+		'hostname packetstormsecurity''.com'
+		'hostname playsms''.org'
+		'hostname research.nccgroup''.com'
+		'hostname vuldb''.com'
+		'hostname www.youtube''.com'
+		'ipv4 3.0.4''.27'
 	)
 	# Hand-counted, deliberately not derived from the arrays above or from the
 	# patterns: 7 alternatives, 16 planted samples (arn carries two: a raw
@@ -310,18 +338,21 @@ cassette_private_data_patterns() {
 	# public-TLD host, an in-cluster FQDN, a short in-cluster name, a wildcard
 	# host, a Consul name, two raw labels under amazonaws.com and a raw ELB
 	# endpoint; ipv4 carries three: a bare address, one ending
-	# a sentence, and the neighbour of the unspecified address), 40 allowed
+	# a sentence, and the neighbour of the unspecified address), 49 allowed
 	# samples (the 36th is the #8359 Ifá fixture hash; the 37th is the EKS
 	# Pod Identity service principal pods.eks.amazonaws.com; the 38th to 40th are
-	# the public advisory sources nist.gov, www.cisa.gov and www.first.org). Adding an
+	# the public advisory sources nist.gov, www.cisa.gov and www.first.org; the
+	# 41st to 48th are the eight public hosts of the real-record vulnerability
+	# recording, forum.playsms.org to www.youtube.com in the order above; the
+	# 49th is the CPE firmware version literal 3.0.4.27). Adding an
 	# alternative or an allowed form means adding
 	# its sample and bumping the number, and that is the point.
 	[[ "${#_cpd_detect[@]}" -eq 7 ]] \
 		|| fail "cassette private-data pattern carries ${#_cpd_detect[@]} alternative(s), expected 7 -- an alternative was added or removed without re-checking its controls"
 	[[ "${#planted[@]}" -eq 16 ]] \
 		|| fail "cassette private-data positive control carries ${#planted[@]} sample(s), expected 16 -- a sample was added or removed without re-checking it against the alternatives"
-	[[ "${#allowed[@]}" -eq 40 ]] \
-		|| fail "cassette private-data negative control carries ${#allowed[@]} sample(s), expected 40 -- an allowed form was added or removed without re-checking it against the allow patterns"
+	[[ "${#allowed[@]}" -eq 49 ]] \
+		|| fail "cassette private-data negative control carries ${#allowed[@]} sample(s), expected 49 -- an allowed form was added or removed without re-checking it against the allow patterns"
 
 	local entry alt value token rc
 	local -A planted_per_alt=()

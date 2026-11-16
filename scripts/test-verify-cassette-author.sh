@@ -228,6 +228,41 @@ run_scan "${advisorydir}" "${scratch}/advisory-source-hosts.out" rc
 	|| fail "a public advisory-source host was flagged; the vulnerability collector recording would fail the gate: $(cat "${scratch}/advisory-source-hosts.out")"
 printf 'GREEN public advisory-source hosts: exit %s\n' "${rc}"
 
+# The vulnerability collector's real-record recording (#10790, collector
+# #126) carries eight more public hosts and one CPE version literal, each
+# exact: the CNA source identifiers cve@mitre.org and cna@vuldb.com, the KEV
+# notes host nvd.nist.gov, and the reference hosts of the two KEV-listed
+# records (packetstormsecurity.com, www.youtube.com, research.nccgroup.com,
+# playsms.org, forum.playsms.org). The ninth is the firmware version inside one
+# NVD CPE, which reads as an address inside AWS 3.0.0.0/8. All nine must pass;
+# each subdomain, lookalike zone and neighbouring address must stay a finding.
+# Every one of the eight hosts is planted both ways: as the label vault under it
+# (a subdomain) and as the host followed by an organisation zone (a suffix
+# lookalike). The allow is exact, so all sixteen stay findings.
+for advisory_host in forum.playsms.org mitre.org nvd.nist.gov packetstormsecurity.com \
+	playsms.org research.nccgroup.com vuldb.com www.youtube.com; do
+	plant_red hostname "vault.${advisory_host}" "hostname-subdomain-${advisory_host}"
+	plant_red hostname "${advisory_host}.acme-internal.com" "hostname-lookalike-${advisory_host}"
+done
+plant_red ipv4 '3.0.4.28' ipv4-firmware-neighbour
+plant_red ipv4 '13.0.4.27' ipv4-firmware-prefixed
+plant_red ipv4 '3.0.4.2' ipv4-firmware-prefix-of-literal
+plant_red ipv4 '3.0.5.27' ipv4-firmware-neighbour-third-octet
+plant_red ipv4 '3.1.4.27' ipv4-firmware-neighbour-second-octet
+cpedir="${scratch}/vulnerability-public-records"
+mkdir -p "${cpedir}"
+printf '%s\n' \
+	'{"source_identifier":"cve@mitre.org","other_identifier":"cna@vuldb.com"}' \
+	'{"notes":"https://nvd.nist.gov/vuln/detail/CVE-2020-10181"}' \
+	'{"criteria":"cpe:2.3:o:vendor:router_firmware:3.0.4.27:*:*:*:*:*:*:*","anchor":"3.0.4.27"}' \
+	'{"refs":["https://packetstormsecurity.com/files/1","https://www.youtube.com/watch?v=x","https://research.nccgroup.com/a","https://playsms.org/b","https://forum.playsms.org/c"]}' \
+	>"${cpedir}/records.json"
+rc=0
+run_scan "${cpedir}" "${scratch}/vulnerability-public-records.out" rc
+[[ "${rc}" -eq 0 ]] \
+	|| fail "a public vulnerability-record host or the firmware version literal was flagged; the collector real-record recording would fail the gate: $(cat "${scratch}/vulnerability-public-records.out")"
+printf 'GREEN public vulnerability-record hosts and firmware version literal: exit %s\n' "${rc}"
+
 # Terraform addresses glue a dotted token to `_`; they are not hosts and the
 # corpus asserts them, so they must not be candidates.
 tfdir="${scratch}/tf-address"
@@ -330,14 +365,20 @@ mutate_expect_red "widen hostname allow to everything" "s/^\\([[:space:]]*_cpd_a
 mutate_expect_red "delete the ipv4 planted sample" "/^[[:space:]]*'ipv4 10\\.0''\\.0\\.5'$/d" \
 	"positive control carries 15 sample(s), expected 16"
 # The reserved-account allowed sample pins the doc_account extension: delete
-# it and the hand count of 36 goes red, so the form cannot be dropped from
+# it and the hand count of 49 goes red, so the form cannot be dropped from
 # the allowlist without touching the number.
 mutate_expect_red "delete the reserved-account allowed sample" "/^[[:space:]]*'account12 0000''17213864'$/d" \
-	"negative control carries 39 sample(s), expected 40"
+	"negative control carries 48 sample(s), expected 49"
 # The #8359 Ifá fixture-hash allowed sample pins the exact-literal
 # extension the same way: delete it and the hand count goes red.
 mutate_expect_red "delete the fixture-hash allowed sample" "/^[[:space:]]*'account12 9008''22881959'$/d" \
-	"negative control carries 39 sample(s), expected 40"
+	"negative control carries 48 sample(s), expected 49"
+# The #10790 allowed samples pin the new exact entries the same way: delete the
+# firmware-version literal or the last public host and the hand count goes red.
+mutate_expect_red "delete the firmware-version allowed sample" "/^[[:space:]]*'ipv4 3\\.0\\.4''\\.27'$/d" \
+	"negative control carries 48 sample(s), expected 49"
+mutate_expect_red "delete the www.youtube.com allowed sample" "/^[[:space:]]*'hostname www\\.youtube''\\.com'$/d" \
+	"negative control carries 48 sample(s), expected 49"
 
 # The library must not depend on its caller's pipefail. A probe written as
 # `rg | head` returned head's status in a caller without pipefail, so an
