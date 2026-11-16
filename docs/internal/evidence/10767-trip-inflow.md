@@ -205,3 +205,22 @@ Nothing about the threshold, the two-sample rule or the age trip changes.
 | Window and retention | `TestNVDBaselineTripSampleWindowAndRetentionLive`: 90-minute and 58-hour rows excluded, the 58-hour row writes no tally row, a four-hour-old bucket is pruned |
 | Maintainer unaffected | `go test -run TestSupplyChainImpactWinners ./internal/storage/postgres/` against the disposable database: 50 tests pass, none skipped or failed |
 | Rollback atomicity | Pinned by one-statement construction and the concurrent bounds check, not by a forced mid-tick failure |
+
+## Evidence markers
+
+Performance Evidence: baseline is the plain maintainer DELETE of a 5,000-row
+chunk, after is the same DELETE with the tally CTEs; PostgreSQL 18.6, a
+1,000,000-row copy of the dirty log (60 hours, 2 percent CVE-keyed), 10
+interleaved pairs, shared busy machine. Recent rows 4.5 ms median to 5.9 ms,
+58-hour-old rows 5.7 ms to 6.4 ms; the 1,000,000-row full-rebuild DELETE is
+inside run noise (tables above). The capture path has no change and the
+capture-side alternative measured 230.2 tps to 45.9 tps at 8 writers.
+
+Observability Evidence: no new signal. `eshu_dp_nvd_baseline_dirty_proxy_rows_per_hour`
+keeps its meaning (the trailing hour's CVE-% rows, now counted at inflow) and
+`eshu_dp_nvd_baseline_oldest_dirty_age_seconds` is unchanged; both are
+registered today and wire up in the #10746 lane. At 3 AM an operator reads
+`SELECT bucket, nvd_proxy_rows, nvd_scope_rows FROM
+supply_chain_impact_winners_dirty_tally ORDER BY bucket DESC` beside
+`eshu_dp_supply_chain_impact_winners_dirty_log_depth` to see drained inflow and
+backlog together. The telemetry-coverage row for #10728 names the tally.
