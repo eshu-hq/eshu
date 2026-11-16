@@ -173,6 +173,7 @@ func (s *Source) collectPages(ctx context.Context, runner PagedRunner, request R
 				cause: err,
 			}
 		}
+		verdict := index > 0 && isVerdictPage(call)
 		if err := s.checkPageEnvelope(call, index, index > 0); err != nil {
 			return sdkcollector.Result{}, err
 		}
@@ -189,6 +190,20 @@ func (s *Source) collectPages(ctx context.Context, runner PagedRunner, request R
 				terminal: true,
 				cause:    err,
 			}
+		}
+		if verdict {
+			// A retryable or terminal continuation page ends the stream with
+			// its own verdict. It carries no facts, so nothing commits, and
+			// the earlier pages' facts and statuses are dropped rather than
+			// stamped onto a failure result that must not carry them. The
+			// generation and total pins guard a commit and are skipped: a
+			// collector that refused an unreadable cursor never learned page
+			// 0's observed_at or declared total. The claim echo and the SDK
+			// validator above still bind the page to this claim (#10780).
+			if call.InputLimit != nil {
+				relay.inputLimit = call.InputLimit
+			}
+			return call.Result, nil
 		}
 		if !pinned {
 			pinnedGeneration = call.Result.Generation
@@ -235,9 +250,22 @@ func (s *Source) collectPages(ctx context.Context, runner PagedRunner, request R
 	return assembled, nil
 }
 
+// isVerdictPage reports whether a call is a failure verdict page: a retryable
+// or terminal result with no facts. Such a page ends a stream without
+// committing anything, so it may omit the page envelope (a collector that
+// refused a continuation it could not decode has no page to report). A
+// failure result that does carry facts is not a verdict page; it keeps failing
+// the framing and SDK validation.
+func isVerdictPage(call CallResult) bool {
+	state := call.Result.State
+	return (state == sdkcollector.ResultRetryable || state == sdkcollector.ResultTerminal) &&
+		len(call.Result.Facts) == 0
+}
+
 // checkPageEnvelope enforces the stream framing before any content
 // validation: pages must be versioned v1alpha3, indexed gaplessly from zero,
-// and present on every call once a continuation opens the stream. The page
+// and present on every call once a continuation opens the stream, except a
+// verdict page (see isVerdictPage), which may omit the envelope. The page
 // belongs only on CallResult.Page: collectPages never reads Result.Page, so a
 // runner that set it could stop the stream after one page.
 func (s *Source) checkPageEnvelope(call CallResult, index int, streamOpen bool) error {
@@ -252,7 +280,7 @@ func (s *Source) checkPageEnvelope(call CallResult, index int, streamOpen bool) 
 		return invalid(errors.New("extension result carries a page envelope on the SDK result instead of the call result"))
 	}
 	if call.Page == nil {
-		if streamOpen {
+		if streamOpen && !isVerdictPage(call) {
 			return invalid(errors.New("extension result dropped its page envelope mid-stream"))
 		}
 		return nil
