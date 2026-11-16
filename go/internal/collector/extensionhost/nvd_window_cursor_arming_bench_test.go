@@ -43,3 +43,26 @@ func BenchmarkCollectedGenerationArmingCost(b *testing.B) {
 		}
 	})
 }
+
+// BenchmarkApplyCommitPolicyNonBaselineCost guards the #10728 commit-policy
+// cost on the commit hot path: a non-baseline generation must stay at
+// prefix comparisons (one baseline-family check, then the unchanged GHSA
+// branch), with no writer armed and no error.
+func BenchmarkApplyCommitPolicyNonBaselineCost(b *testing.B) {
+	source := mustNewSourceWithManifest(b, testManifest(), &recordingRunner{}, nil)
+	item := testWorkItem()
+	result := completeResult(item, testSDKFact(item))
+	verdict := []facts.Envelope{testNVDWindowSnapshotEnvelope(testNVDWindowVerdictPayload(true))}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		collected := source.collectedGeneration(item, result, verdict, "")
+		if err := source.applyCommitPolicy(item, result.Generation.ObservedAt, verdict, &collected); err != nil {
+			b.Fatalf("applyCommitPolicy() error = %v", err)
+		}
+		if collected.StateWriter != nil {
+			b.Fatal("StateWriter armed for a non-baseline scope with a window verdict")
+		}
+	}
+}
