@@ -196,6 +196,27 @@ The window stream is unaffected: it keeps planning from the cursor
 (`deriveNVDWindowTarget` in `nvd_window_derivation.go`, one deterministic scope per tick), and
 cutover back after catch-up needs no flag (parent design section 7).
 
+No-Regression Evidence: the #10762 commit-policy change removes the
+baseline pre-check from `applyCommitPolicy`, so the wired-or-builtin
+baseline policy owns the armed-verdict refusal (with its refused outcome
+and WARN) instead of a silent early return; non-baseline generations do
+one fewer scope-prefix comparison. Measured on linux/arm64 with
+`BenchmarkApplyCommitPolicyNonBaselineCost` and
+`BenchmarkCollectedGenerationArmingCost` (1M ops x3, base c01c2e3cec vs
+this change): non-window arming 389-392 ns/op base vs 382-389 ns/op after,
+commit policy 400-403 ns/op base vs 395-398 ns/op after, identical 736
+B/op and 4 allocs/op (944 B/op, 6 allocs/op on the advancing-window arm)
+throughout — the removed check is inside run-to-run noise with no
+allocation change.
+
+Observability Evidence: the refused path now emits
+`eshu_dp_nvd_baseline_advance_total{outcome="refused"}` with the WARN log
+`nvd baseline generation refused by commit policy, nothing committed`
+through the production commit path, as the telemetry-coverage collectors
+row for #10728 promises; the config-error hold rides the
+`vulnerability_intelligence` plan span (exception event plus closed
+`baseline_config_error` hold reason), never a label.
+
 ## 5. Trip-line wiring and operator flip
 
 The QA baseline run obeys the same governed trip line as the window-path
