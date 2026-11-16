@@ -29,7 +29,8 @@ Refs #10728. Part of #9209.
 
 Ascending, 2002 through 2026, one pass, no revisits. The 25 year files span
 2002 to 2026 (measurements M3,
-`10671-nvd-feed-measurements.md:56-58`). Ascending order is the only order
+`10671-nvd-feed-measurements.md`, section "M3. Year-feed footprint and
+generation times"). Ascending order is the only order
 that keeps the resume stamp monotone (section 3): the checkpoint
 `(year, lastModified)` advances lexicographically, so a crash replays from a
 prefix that is always older than uncommitted work.
@@ -41,9 +42,10 @@ CVE ID tiebreak (`nvdWindowSplitOrder` in `nvd_window_split.go`, in
 window-path splitter agree on what a "group" is.
 
 Year files are rewritten only when a record changes (M4,
-`10671-nvd-feed-measurements.md:64-71`); the baseline streams them and never
-holds the 2.7 GiB decompressed set whole (parent design section 5,
-`10671-nvd-feed-transport-fallback.md:184`).
+`10671-nvd-feed-measurements.md`, section "M4. Do year files regenerate on
+change?"); the baseline streams them and never holds the 2.7 GiB decompressed
+set whole (parent design section 5, `10671-nvd-feed-transport-fallback.md`,
+the "Year-feed footprint" row of the Limits table).
 
 ## 2. Chunk boundaries within caps
 
@@ -68,22 +70,26 @@ Dispositions at a boundary:
 
 - Prefix fits, remainder exists: commit the prefix; the remainder replans
   from the next group stamp (same rule as the window path, parent design
-  section 3, `10671-nvd-feed-transport-fallback.md:139-143`).
+  section 3, `10671-nvd-feed-transport-fallback.md`, "3. Overflow", first
+  paragraph).
 - First group exceeds the caps: the chunk routes to the API walk with class
   `nvd_feed_group_oversize` (`nvdFeedClassGroupOversize` in
   `nvd_feed_selector.go`, handled in `collectNVDFeed` in
   `nvd_feed_collect.go`), exactly as the window path does (parent
-  design, `10671-nvd-feed-transport-fallback.md:145-152`). It never loops
+  design, `10671-nvd-feed-transport-fallback.md`, "3. Overflow", second
+  paragraph). It never loops
   silently and never sheds. On the measured sample this route is unreachable
   for fact count: the densest single record emits 2,048 facts (M5,
-  `10671-nvd-feed-measurements.md:77-78`), under the 10,000 cap. The byte
+  `10671-nvd-feed-measurements.md`, section "M5. Facts per record and the
+  backfill arithmetic"), under the 10,000 cap. The byte
   side is NOT_CHECKED (per-fact byte sizes unmeasured).
 
 Scale check from first-hand inputs (proof script `/tmp/10728_baseline_pacing_proof.py`,
-`PROOF OK` 2026-11-16): 425,770 records (ruling:31) at the measured mean 7.07
-facts/record (M5) give ~3.01M facts, ~301-302 claims at the fact cap, ~151h
-at one chunk per 30-minute planner run (ruling:46-48 says ~301 claims,
-~150h). The arithmetic reproduces the ruling.
+`PROOF OK` 2026-11-16): 425,770 records (the ruling's Evidence section, API
+probe bullet) at the measured mean 7.07 facts/record (M5) give ~3.01M facts,
+~301-302 claims at the fact cap, ~151h at one chunk per 30-minute planner run
+(the ruling's Evidence "Scale" bullet says ~301 claims, ~150h). The
+arithmetic reproduces the ruling.
 
 ## 3. Resumable checkpoint, distinct from `nvd/_window`
 
@@ -94,8 +100,8 @@ chooses, following the `NVDWindowCursorStore` pattern (read query
 `go/internal/storage/postgres/vulnerability/nvd_window_cursor.go`).
 It is **not** a row in `vulnerability_nvd_window_cursors` (DDL
 `vulnerabilityNVDWindowCursorSchemaSQL` in that file, migration
-`275_vulnerability_nvd_window_cursor.sql:22`), and baseline claims
-**never** carry a `GenerationStateWriter` for that table.
+`275_vulnerability_nvd_window_cursor.sql`, its `CREATE TABLE`), and
+baseline claims **never** carry a `GenerationStateWriter` for that table.
 
 The mechanism that enforces this is already in the commit path: the host
 arms the cursor writer only for window scopes
@@ -128,8 +134,8 @@ bounded window per call, windows tile, next start is the committed cursor
 its own planner over the checkpoint instead of the cursor: one chunk per
 call, next start is the checkpointed group stamp, at most one chunk per
 planner run (ruling decision 2), which the parent design budgets as at most
-10,000 facts per 30 minutes
-(`10671-nvd-feed-transport-fallback.md:177`).
+10,000 facts per 30 minutes (`10671-nvd-feed-transport-fallback.md`, the
+"Windows per planner run" row of the Limits table).
 
 Cadence is per-target config (`refresh_interval`, field of
 `vulnerabilityTargetConfiguration` in
@@ -141,7 +147,8 @@ enforced **in the baseline loop** (skip while a chunk for the current stamp
 is already claimed or in flight), not assumed from the tick. Lease fencing
 covers the overrun case: a feed attempt that outlives its lease is fenced by
 the claim-row lock and the `fencing_token` filter (parent design section 7,
-`10671-nvd-feed-transport-fallback.md:213-219`), and the commit-transaction
+`10671-nvd-feed-transport-fallback.md`, "7. Claims, queue, and cutover back"),
+and the commit-transaction
 writer model means a fenced claim's state write rolls back with its
 generation (the `CommitExecutor` interface in `go/internal/collector/generation_state.go`).
 
@@ -153,7 +160,7 @@ cutover back after catch-up needs no flag (parent design section 7).
 
 The QA baseline run obeys the same governed trip line as the window-path
 enable (parent design section 8,
-`10671-nvd-feed-transport-fallback.md:223-236`):
+`10671-nvd-feed-transport-fallback.md`, "8. Rollout and the QA-enable gate"):
 
 - Off (>15k NVD-proxy dirty rows/h in 2 consecutive hourly samples, or
   oldest dirty row >96h): the operator sets `nvd_feed_transport` to off.
@@ -162,13 +169,15 @@ enable (parent design section 8,
   the API-only transport and is the kill switch (`parseNVDFeedTransport` in
   `nvd_feed_config.go`, `SourceConfig.NVDFeedTransport` in `runtime.go`). "NVD-proxy rows" means dirty-log rows whose
   `advisory_id` starts with `CVE-` (parent design,
-  `10671-nvd-feed-transport-fallback.md:231-233`); OSV also carries CVE ids,
+  `10671-nvd-feed-transport-fallback.md`, section 8, "NVD-proxy dirty rows"
+  paragraph); OSV also carries CVE ids,
   so the proxy over-counts and trips early, which is the safe direction.
 - The 96h age trip is a **page, not an automatic flip**: the OSV/GHSA
   backlog is already ~58h old at measurement (M6,
-  `10671-nvd-feed-measurements.md:94-101`), so the operator compares
-  against the pre-enable baseline before acting (parent design,
-  `10671-nvd-feed-transport-fallback.md:234-236`).
+  `10671-nvd-feed-measurements.md`, section "M6. The dirty log and who feeds
+  it"), so the operator compares against the pre-enable baseline before
+  acting (parent design, `10671-nvd-feed-transport-fallback.md`, section 8,
+  same paragraph).
 - Re-enable under 48h; record 6 hourly samples after enabling. The #10706
   bars (p95 <= 15s / watermark <= 60s) stay soak bars.
 
@@ -178,9 +187,10 @@ No pausing or serializing OSV/GHSA to make room (ruling decision 3).
 
 1. Same input, same facts. Every NVD field is an identity translation with
    no contract change (parent design section 4,
-   `10671-nvd-feed-transport-fallback.md:156-166`): feed records carry all
-   `cpeMatch` ids, all seven `vulnStatus` states, and all CVSS families
-   (M2), and 20/20 sampled records are deep-equal to the API (M8).
+   `10671-nvd-feed-transport-fallback.md`, "4. Field dispositions" table):
+   feed records carry all `cpeMatch` ids, all seven `vulnStatus` states, and
+   all CVSS families (M2), and 20/20 sampled records are deep-equal to the API
+   (M8).
 2. Same record, same keys. One record emits one `vulnerability.cve`, one
    `vulnerability.affected_product` per distinct
    `(criteria, matchCriteriaId)` identity with repeats folded, and one
@@ -202,20 +212,21 @@ No pausing or serializing OSV/GHSA to make room (ruling decision 3).
    cursor CAS keeps the max on strictly-greater candidates only
    (`NVDWindowCursorAdvanceQuery`).
 5. Proof required before QA: the R6-style convergence test (two baseline
-   passes = one row set) from the ruling's proof gate (ruling:81), plus
+   passes = one row set) from the ruling's "Required proof" section, plus
    facts/record under satellite folding and dirty-log rows per committed
-   fact on a disposable DB (ruling:79-83).
+   fact on a disposable DB (same section).
 
 ## NOT_CHECKED (must be measured before any QA baseline run)
 
 - Per-fact byte sizes and folded facts per record under the satellite
   (upper-bound M5 only; proof script flags the byte side NOT_CHECKED).
 - Dirty-log rows per committed NVD fact (unmeasured; M6,
-  `10671-nvd-feed-measurements.md:99-101`).
+  `10671-nvd-feed-measurements.md`, section "M6. The dirty log and who feeds
+  it", first paragraph).
 - Per-year record counts (M3 measures sizes only).
 - Whether the satellite runtime on the QA path carries the intended
   `nvd_feed_transport` value (M10 caveat,
-  `10671-nvd-feed-measurements.md:198-201`).
+  `10671-nvd-feed-measurements.md`, section "NOT_CHECKED", fifth bullet).
 
 ## Implementation lanes (not this record)
 
