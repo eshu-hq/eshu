@@ -236,14 +236,14 @@ printf 'GREEN public advisory-source hosts: exit %s\n' "${rc}"
 # playsms.org, forum.playsms.org). The ninth is the firmware version inside one
 # NVD CPE, which reads as an address inside AWS 3.0.0.0/8. All nine must pass;
 # each subdomain, lookalike zone and neighbouring address must stay a finding.
-plant_red hostname 'vault.mitre.org' hostname-cna-subdomain
-plant_red hostname 'mitre.org.acme-internal.com' hostname-cna-lookalike
-plant_red hostname 'vault.vuldb.com' hostname-vuldb-subdomain
-plant_red hostname 'nvd.nist.gov.acme-internal.com' hostname-nvd-lookalike
-plant_red hostname 'vault.playsms.org' hostname-playsms-subdomain
-plant_red hostname 'www.youtube.com.acme-internal.com' hostname-youtube-lookalike
-plant_red hostname 'vault.research.nccgroup.com' hostname-nccgroup-subdomain
-plant_red hostname 'vault.packetstormsecurity.com' hostname-packetstorm-subdomain
+# Every one of the eight hosts is planted both ways: as the label vault under it
+# (a subdomain) and as the host followed by an organisation zone (a suffix
+# lookalike). The allow is exact, so all sixteen stay findings.
+for advisory_host in forum.playsms.org mitre.org nvd.nist.gov packetstormsecurity.com \
+	playsms.org research.nccgroup.com vuldb.com www.youtube.com; do
+	plant_red hostname "vault.${advisory_host}" "hostname-subdomain-${advisory_host}"
+	plant_red hostname "${advisory_host}.acme-internal.com" "hostname-lookalike-${advisory_host}"
+done
 plant_red ipv4 '3.0.4.28' ipv4-firmware-neighbour
 plant_red ipv4 '13.0.4.27' ipv4-firmware-prefixed
 plant_red ipv4 '3.0.4.2' ipv4-firmware-prefix-of-literal

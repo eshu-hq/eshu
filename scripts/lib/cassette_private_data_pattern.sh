@@ -219,6 +219,12 @@ cassette_private_data_patterns() {
 	# there because the version is lexically inside AWS 3.0.0.0/8. The entry
 	# admits that one literal and nothing adjacent, so 3.0.4.28 and 13.0.4.27
 	# stay findings. Precedent: the #8359 exact literal in account12 below.
+	# The allow is applied to the matched token with no surrounding context, so
+	# a real address 3.0.4.27 in free text elsewhere would pass as well; that is
+	# accepted (arbiter ruling on collector #126). The hostname allow has a
+	# blind spot that is not a regression: a host under a TLD outside the list
+	# above (mitre.org.evil) is never a candidate, exactly as nist.gov.evil
+	# today.
 	_cpd_allow[ipv4]='^(?:0\.0\.0\.0|192\.0\.2\.[0-9]{1,3}|198\.51\.100\.[0-9]{1,3}|203\.0\.113\.[0-9]{1,3}|127\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}|3\.0\.4\.27)$'
 	# The ipv6 detector also sees six-group MAC addresses. A real MAC is a
 	# hardware identifier and stays a finding; the RFC 7042 documentation block
