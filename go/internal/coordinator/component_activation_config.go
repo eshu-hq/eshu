@@ -42,7 +42,23 @@ type StaleActivationReconciliation struct {
 	Err         error
 }
 
-func componentCollectorInstancesFromEnv(getenv func(string) string, observer component.GrantObserver) ([]workflow.DesiredCollectorInstance, []component.Manifest, []StaleActivationSkip, error) {
+// hostSeedPlatform returns the executing host's GOOS/GOARCH pair, the only
+// platform slot satellite seed admission consults (#9877).
+func hostSeedPlatform() string {
+	return runtime.GOOS + "/" + runtime.GOARCH
+}
+
+// seedPlatformSource is the platform source LoadConfigObserved calls. It is a
+// variable so a serial test can stub it to a platform no seed pin lists and
+// prove the loader asks it, instead of hardcoding a pinned platform. A
+// hardcoded linux/amd64 would otherwise stay green on a linux/amd64 host
+// (#10739). Production never reassigns it.
+var seedPlatformSource = hostSeedPlatform
+
+// componentCollectorInstancesFromEnv plans the installed component activations
+// into collector instances. platform is the host platform satellite seed
+// admission is scoped to; production passes seedPlatformSource().
+func componentCollectorInstancesFromEnv(getenv func(string) string, observer component.GrantObserver, platform string) ([]workflow.DesiredCollectorInstance, []component.Manifest, []StaleActivationSkip, error) {
 	home := strings.TrimSpace(getenv("ESHU_COMPONENT_HOME"))
 	if home == "" {
 		return nil, nil, nil, nil
@@ -96,7 +112,7 @@ func componentCollectorInstancesFromEnv(getenv func(string) string, observer com
 		if err := scannercomponent.VerifySeededArtifact(manifest); err != nil {
 			return nil, nil, nil, fmt.Errorf("verify seeded scanner manifest for %q: %w", entry.ID, err)
 		}
-		if err := scannercomponent.VerifySatelliteSeededArtifact(manifest, runtime.GOOS+"/"+runtime.GOARCH); err != nil {
+		if err := scannercomponent.VerifySatelliteSeededArtifact(manifest, platform); err != nil {
 			return nil, nil, nil, fmt.Errorf("verify seeded satellite manifest for %q: %w", entry.ID, err)
 		}
 		componentInstances, skipped, err := desiredInstancesForComponent(entry, manifest)

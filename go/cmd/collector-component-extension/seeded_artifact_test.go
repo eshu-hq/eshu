@@ -5,8 +5,10 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
+	goruntime "runtime"
 	"strings"
 	"testing"
 	"time"
@@ -291,6 +293,16 @@ func driftedSatelliteSeedImage(t *testing.T, id string) string {
 	return ref
 }
 
+// pinnedSeedPlatform is the platform the satellite admission tests assert
+// against. Admission is scoped to the executing host's GOOS/GOARCH in
+// production, and the registry pins only linux images, so tests pass this
+// explicit platform instead of reading the host's (#10739).
+const pinnedSeedPlatform = "linux/amd64"
+
+// unpinnedSeedPlatform is a host platform the registry pins no satellite
+// image for: a Mac developer machine. Admission must refuse it on every host.
+const unpinnedSeedPlatform = "darwin/arm64"
+
 // TestLoadRuntimeConfigAdmitsPinnedSatelliteArtifact proves the worker loader
 // admits a seeded satellite manifest whose artifacts equal the registry
 // pins: the claim path stays live when seed and platform agree (#10285).
@@ -300,9 +312,9 @@ func TestLoadRuntimeConfigAdmitsPinnedSatelliteArtifact(t *testing.T) {
 	home := t.TempDir()
 	id := installSatelliteComponent(t, home, scannercomponent.SatelliteDocumentImportID, "")
 
-	config, err := loadRuntimeConfig(satelliteWorkerEnv(home, id))
+	config, err := loadRuntimeConfigObserved(satelliteWorkerEnv(home, id), nil, pinnedSeedPlatform)
 	if err != nil {
-		t.Fatalf("loadRuntimeConfig() error = %v, want nil for the pinned artifacts", err)
+		t.Fatalf("loadRuntimeConfigObserved(%q) error = %v, want nil for the pinned artifacts", pinnedSeedPlatform, err)
 	}
 	pins := scannercomponent.SatelliteSeedPins()[id]
 	if len(config.Manifest.Spec.Artifacts) != len(pins) {
@@ -328,14 +340,104 @@ func TestLoadRuntimeConfigDeniesDriftedSatelliteArtifact(t *testing.T) {
 	drifted := driftedSatelliteSeedImage(t, id)
 	installSatelliteComponent(t, home, id, drifted)
 
-	_, err := loadRuntimeConfig(satelliteWorkerEnv(home, id))
+	_, err := loadRuntimeConfigObserved(satelliteWorkerEnv(home, id), nil, pinnedSeedPlatform)
 	if err == nil {
 		t.Fatal("loadRuntimeConfig() error = nil, want denial for a drifted satellite artifact")
 	}
-	if !strings.Contains(err.Error(), "pinned") {
-		t.Fatalf("loadRuntimeConfig() error = %q, want it to name the pinned platform images", err)
+	if want := "is not the pinned platform image"; !strings.Contains(err.Error(), want) {
+		t.Fatalf("loadRuntimeConfigObserved(%q) error = %q, want the digest-mismatch text %q", pinnedSeedPlatform, err, want)
+	}
+	if notPinned := "declares no seed image"; strings.Contains(err.Error(), notPinned) {
+		t.Fatalf("loadRuntimeConfigObserved(%q) error = %q, want a drift refusal, not the platform refusal %q", pinnedSeedPlatform, err, notPinned)
 	}
 	if strings.Contains(err.Error(), drifted) {
 		t.Fatalf("loadRuntimeConfig() error = %q, must not echo the image value", err)
+	}
+}
+
+// TestLoadRuntimeConfigRefusesUnpinnedSatellitePlatform proves the worker
+// loader refuses a satellite activation on a host platform the registry pins
+// no seed image for, even when the manifest is otherwise the pinned one. The
+// fail-closed rule is asserted with an explicit platform so it holds on every
+// machine, not only where the host happens to be unpinned (#9877, #10739).
+func TestLoadRuntimeConfigRefusesUnpinnedSatellitePlatform(t *testing.T) {
+	t.Parallel()
+
+	home := t.TempDir()
+	id := installSatelliteComponent(t, home, scannercomponent.SatelliteDocumentImportID, "")
+
+	_, err := loadRuntimeConfigObserved(satelliteWorkerEnv(home, id), nil, unpinnedSeedPlatform)
+	if err == nil {
+		t.Fatalf("loadRuntimeConfigObserved(%q) error = nil, want refusal without a pinned platform image", unpinnedSeedPlatform)
+	}
+	if want := "declares no seed image for platform"; !strings.Contains(err.Error(), want) {
+		t.Fatalf("loadRuntimeConfigObserved(%q) error = %q, want it to contain %q", unpinnedSeedPlatform, err, want)
+	}
+}
+
+// TestHostSeedPlatformIsRuntimeGOOSGOARCH pins the production platform source:
+// the worker consults only the executing host's GOOS/GOARCH slot, so a
+// hardcoded or empty value here would silently change which seed image is
+// admitted while every platform-explicit test stayed green (#10739).
+func TestHostSeedPlatformIsRuntimeGOOSGOARCH(t *testing.T) {
+	t.Parallel()
+
+	if got, want := hostSeedPlatform(), goruntime.GOOS+"/"+goruntime.GOARCH; got != want {
+		t.Fatalf("hostSeedPlatform() = %q, want %q", got, want)
+	}
+}
+
+// TestLoadRuntimeConfigAdmitsSatelliteExactlyWhenHostPlatformPinned drives the
+// loadRuntimeConfig wrapper, with no platform argument, against the pinned
+// manifest. The worker process itself reaches the loader through
+// buildClaimedService, which seed_platform_service_test.go covers. Admission
+// must follow the executing host: admitted exactly when the host platform is in
+// the registry pins for the component, refused with the platform text
+// otherwise. It holds on linux and on darwin alike (#9877, #10739).
+func TestLoadRuntimeConfigAdmitsSatelliteExactlyWhenHostPlatformPinned(t *testing.T) {
+	t.Parallel()
+
+	home := t.TempDir()
+	id := installSatelliteComponent(t, home, scannercomponent.SatelliteDocumentImportID, "")
+	host := goruntime.GOOS + "/" + goruntime.GOARCH
+	_, hostPinned := scannercomponent.SatelliteSeedPins()[id][host]
+
+	_, err := loadRuntimeConfig(satelliteWorkerEnv(home, id))
+	if hostPinned {
+		if err != nil {
+			t.Fatalf("loadRuntimeConfig() on pinned host %q error = %v, want admission", host, err)
+		}
+		return
+	}
+	if err == nil {
+		t.Fatalf("loadRuntimeConfig() on unpinned host %q error = nil, want refusal", host)
+	}
+	if want := fmt.Sprintf("declares no seed image for platform %q", host); !strings.Contains(err.Error(), want) {
+		t.Fatalf("loadRuntimeConfig() on unpinned host %q error = %q, want it to contain %q", host, err, want)
+	}
+}
+
+// TestLoadRuntimeConfigAsksTheHostPlatformSource stubs the platform source to
+// a platform no seed pin lists and requires the loadRuntimeConfig wrapper to
+// refuse it. The wrapper has no production caller; the production line is in
+// buildClaimedService, covered by seed_platform_service_test.go. Unlike the
+// test above, it fails on a linux/amd64 host too when the loader ignores the
+// source and hardcodes a pinned platform (#10739). It stubs a package variable,
+// so it must not run in parallel.
+func TestLoadRuntimeConfigAsksTheHostPlatformSource(t *testing.T) {
+	const unpinned = "plan9/mips"
+	previous := seedPlatformSource
+	seedPlatformSource = func() string { return unpinned }
+	t.Cleanup(func() { seedPlatformSource = previous })
+
+	home := t.TempDir()
+	id := installSatelliteComponent(t, home, scannercomponent.SatelliteDocumentImportID, "")
+
+	_, err := loadRuntimeConfig(satelliteWorkerEnv(home, id))
+	if err == nil {
+		t.Fatalf("loadRuntimeConfig() with host platform %q error = nil, want refusal", unpinned)
+	}
+	if want := fmt.Sprintf("declares no seed image for platform %q", unpinned); !strings.Contains(err.Error(), want) {
+		t.Fatalf("loadRuntimeConfig() error = %q, want it to contain %q", err, want)
 	}
 }

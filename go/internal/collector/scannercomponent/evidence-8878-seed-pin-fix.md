@@ -19,7 +19,7 @@ ruling, equality now lives at admission:
   image value.
 - Enforcement sits at the two seeded-manifest consumers on the
   load-then-claim path, before any claim or execution:
-  `selectActivation` in `go/cmd/collector-component-extension/config.go`
+  `selectActivation` in `go/cmd/collector-component-extension/activation_select.go`
   (extension worker loader) and `componentCollectorInstancesFromEnv` in
   `go/internal/coordinator/component_activation_config.go` (activation
   planner). Both wrap the denial with the component ID only.
