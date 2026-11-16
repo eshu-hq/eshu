@@ -178,10 +178,44 @@ enable (parent design section 8,
   it"), so the operator compares against the pre-enable baseline before
   acting (parent design, `10671-nvd-feed-transport-fallback.md`, section 8,
   same paragraph).
-- Re-enable under 48h; record 6 hourly samples after enabling. The #10706
-  bars (p95 <= 15s / watermark <= 60s) stay soak bars.
+- Re-enable under 48h: the trip latch refuses a close until 6 consecutive
+  hourly samples with oldest dirty <48h have followed the trip opening
+  (opening the trip resets the count, and an hour at or past 48h withdraws
+  eligibility; `NVDBaselineTripState.Close`, #10760). `Close` returns
+  cleared, refused, or nothing-to-close, so the #10746 caller records
+  `closed` only for a cleared trip and `close_refused` only for a refused
+  one. The `close_refused` recorder is registered today but has no
+  production caller until #10746 wires it, so an early attempt will be
+  counted as `close_refused` from that lane on. A quiet hour is an hourly
+  sample with oldest-dirty age under 48h, as the ruling words it; the rate
+  is not part of the test. After re-enabling, keep recording hourly
+  samples against the soak bars. The #10706 bars (p95 <= 15s /
+  watermark <= 60s) stay soak bars.
 
 No pausing or serializing OSV/GHSA to make room (ruling decision 3).
+
+Known limits to close before the baseline enable lane (#10746) turns on.
+These come from the #10760 review findings F8 and F10. The follow-ups are
+tracked as #10767 (inflow measure, F8) and #10768 (durable latch, F10), and
+both must land before #10746 turns the lane on. #10746 wires the recorders
+and the plan-time latch load into the service.
+
+- Inflow, not backlog (F8, #10767). The sampler counts CVE-% rows still queued, but
+  the winners maintainer drains the log with `DELETE`
+  (`deleteWinnersKeyedAppliedDirtySQL`), so a healthy maintainer hides
+  inflow and the trip opens late. The lane needs a true inflow measure
+  (a `seq` watermark carried between samples, or a capture-side counter)
+  and must count the `kind = 'scope'` rows a baseline commit appends, which
+  carry a NULL `advisory_id` by migration 272's shape constraint.
+- Durable latch (F10, #10768). `NVDBaselineTripState` is memory-only, so a
+  coordinator restart drops an open trip. The latch must be persisted and
+  read back before the first baseline plan, and a failed or missing latch
+  read must hold planning (fail closed), including the gap while the
+  sampler has no history. The gate counts samples, not elapsed time (the
+  sample timestamp is not read), so a missed or duplicate hourly sample
+  counts as a consecutive hour; gap handling is tracked in #10768.
+- Recorders. The lane wires the trip, plan, and dirty-probe recorders,
+  including `close_refused` from a refused `Close`, each with a test.
 
 ## 6. Idempotency argument
 

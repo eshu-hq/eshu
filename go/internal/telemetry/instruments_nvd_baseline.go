@@ -47,11 +47,15 @@ const (
 	NVDBaselineTripOpened = "opened"
 	// NVDBaselineTripPaged: the oldest-dirty age paged the operator.
 	NVDBaselineTripPaged = "paged"
-	// NVDBaselineTripEligible: six quiet hours marked the lane safe to
-	// re-enable.
+	// NVDBaselineTripEligible: six quiet hourly samples since the trip opened
+	// marked the lane safe to re-enable.
 	NVDBaselineTripEligible = "eligible"
 	// NVDBaselineTripClosed: the operator closed the trip on re-enable.
 	NVDBaselineTripClosed = "closed"
+	// NVDBaselineTripCloseRefused: the operator tried to close the trip
+	// before six quiet hourly samples had followed it opening
+	// (eshu-hq/eshu#10760); the trip stays open.
+	NVDBaselineTripCloseRefused = "close_refused"
 )
 
 var nvdBaselineOutcomes = [...]string{
@@ -69,6 +73,7 @@ var nvdBaselineTripTransitions = [...]string{
 	NVDBaselineTripPaged,
 	NVDBaselineTripEligible,
 	NVDBaselineTripClosed,
+	NVDBaselineTripCloseRefused,
 }
 
 // NVDBaselineOutcomes returns the closed, ordered baseline outcome set.
@@ -111,7 +116,8 @@ func (inst *Instruments) RecordNVDBaselinePlan(ctx context.Context, outcome stri
 }
 
 // RecordNVDBaselineTripTransition counts one trip-line transition:
-// opened, paged, eligible, or closed. Labels stay transition-only; the
+// opened, paged, eligible, closed, or close_refused (an early close the
+// trip line refused). Labels stay transition-only; the
 // rate and age ride the span, never a label. Nil instruments or a nil
 // meter skip the signal.
 func (inst *Instruments) RecordNVDBaselineTripTransition(ctx context.Context, transition string) {
@@ -168,7 +174,7 @@ func registerNVDBaseline(meter metric.Meter, inst *Instruments) error {
 	}
 	inst.NVDBaselineTripTransitions, err = meter.Int64Counter(
 		"eshu_dp_nvd_baseline_trip_transitions_total",
-		metric.WithDescription("Total NVD baseline trip-line transitions (#10728): opened (>15k NVD-proxy dirty rows/h in 2 consecutive hourly samples), paged (oldest dirty row past 96h; a page, never an auto-flip), eligible (oldest dirty under 48h for 6 hourly samples), closed (operator re-enabled)"),
+		metric.WithDescription("Total NVD baseline trip-line transitions (#10728): opened (>15k NVD-proxy dirty rows/h in 2 consecutive hourly samples), paged (oldest dirty row past 96h; a page, never an auto-flip), eligible (oldest dirty under 48h for 6 hourly samples since the trip opened), closed (operator re-enabled), close_refused (operator tried to re-enable before six quiet hourly samples; the trip stays open)"),
 	)
 	if err != nil {
 		return fmt.Errorf("register NVDBaselineTripTransitions counter: %w", err)

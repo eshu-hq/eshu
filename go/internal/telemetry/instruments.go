@@ -727,7 +727,7 @@ type Instruments struct {
 	// outcome-only; the hold reason rides the plan span.
 	NVDBaselinePlans metric.Int64Counter
 	// NVDBaselineTripTransitions counts NVD baseline trip-line transitions
-	// (#10728): opened, paged, eligible, or closed. Labels stay
+	// (#10728): opened, paged, eligible, closed, or close_refused. Labels stay
 	// transition-only.
 	NVDBaselineTripTransitions metric.Int64Counter
 	// NVDBaselineDirtyProxyRate records the latest sampled NVD-proxy
