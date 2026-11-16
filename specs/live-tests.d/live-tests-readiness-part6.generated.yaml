@@ -304,6 +304,11 @@ tests:
     class: postgres_ci
     reason: "#10037 disposable PostgreSQL proof that the GHSA rolling cursor advances only through the commit-transaction compare-and-advance per advisory-type stream: a missing row reads unset, a first advance stores, a stale candidate holds, sequential commits settle at the max in either order (open overlapping transactions would block on the row lock), a rolled-back transaction leaves the cursor, and the two streams stay independent"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/vulnerability/nvd_baseline_checkpoint_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10761 disposable PostgreSQL proof that the NVD baseline checkpoint advances only through the commit-transaction compare-and-advance: a stale resume leaves resume and sha untouched, an equal resume takes the newer sha, completion is sticky, updated_at never rewinds, and concurrent or overlapping advances serialize on the keyed row to the max resume"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/vulnerability/nvd_window_cursor_live_test.go
     tag: ~
     class: postgres_ci
