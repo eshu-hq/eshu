@@ -163,7 +163,7 @@ path) slug detectors behind the `DEPLOYS_FROM`/`DEPENDS_ON` targets above --
 remote reusable-workflow repo, third-party action repo, and local
 reusable-workflow path -- used to be reimplemented once per package
 (`go/internal/relationships/github_actions_evidence.go` and
-`go/internal/query/content_relationships_github_actions.go` /
+`go/internal/query/entity/content/fallback/content_github_actions.go` /
 `repository_workflow_artifacts.go` each carried their own `@`-index parsing).
 They now delegate to `go/internal/ghactionsref`'s `ReusableWorkflowRepo`,
 `ActionRepo`, and `LocalReusableWorkflowPath`, the same package that already

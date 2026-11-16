@@ -196,7 +196,7 @@ deliberately independent of the parser's `artifact_type`: a valid workflow
 that a broad YAML parser labels as an Ansible playbook remains reachable. The
 gate is `ghactionsref.IsWorkflowPath`, one implementation shared with the
 query-side GitHub Actions classifier
-(`go/internal/query/content_relationships_github_actions.go`'s
+(`go/internal/query/entity/content/fallback/content_github_actions.go`'s
 `isGitHubActionsArtifactPath`), so the two packages' path contracts are
 literally the same code and cannot silently drift apart.
 
