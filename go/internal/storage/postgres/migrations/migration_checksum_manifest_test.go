@@ -384,6 +384,9 @@ var migrationShippedChecksums = map[string]string{
 	// #10728: the per-run, per-year NVD baseline resume checkpoints,
 	// separate from the window cursors (migration 297).
 	"297_vulnerability_nvd_baseline_checkpoints.sql": "94bf3bf5917a7a928a99d8ab19b4edb336063b2b5836cc4a56e83d66f7dc2299",
+	// #10768: the durable per-run NVD baseline trip latch, one guarded row
+	// per run (migration 298).
+	"298_vulnerability_nvd_baseline_trip_latches.sql": "9f86486081fd5d386d2cf2db6d3e5f5120392056089f271cd8da87be7f38650a",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition

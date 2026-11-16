@@ -26,4 +26,7 @@ var orderedBootstrapDefinitionNamesLatest = []string{
 	// Migration 297 (#10728) adds the per-run, per-year NVD baseline
 	// resume checkpoints, separate from the window cursors.
 	"vulnerability_nvd_baseline_checkpoints",
+	// Migration 298 (#10768) adds the durable per-run NVD baseline trip
+	// latch, so an open trip survives a coordinator restart.
+	"vulnerability_nvd_baseline_trip_latches",
 }

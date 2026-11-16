@@ -730,6 +730,9 @@ type Instruments struct {
 	// (#10728): opened, paged, eligible, closed, or close_refused. Labels stay
 	// transition-only.
 	NVDBaselineTripTransitions metric.Int64Counter
+	// NVDBaselineTripLatchOutcomes counts durable NVD baseline trip latch
+	// load and save outcomes (#10768). Labels stay outcome-only.
+	NVDBaselineTripLatchOutcomes metric.Int64Counter
 	// NVDBaselineDirtyProxyRate records the latest sampled NVD-proxy
 	// dirty rate in rows/h (#10728).
 	NVDBaselineDirtyProxyRate metric.Float64Gauge
