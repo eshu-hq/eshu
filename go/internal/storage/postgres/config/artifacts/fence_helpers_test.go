@@ -153,12 +153,13 @@ func (h *rowLockHolder) release(t *testing.T) {
 	}
 }
 
-// waitForLockWaiters polls pg_stat_activity until want backends in this
-// database wait on a heavyweight lock with a query containing fragment.
-func waitForLockWaiters(ctx context.Context, t *testing.T, db *sql.DB, fragment string, want int) {
+// lockWaitersReached polls pg_stat_activity for up to within and reports
+// whether want backends in this database waited on a heavyweight lock at the
+// same time, each running a query containing fragment.
+func lockWaitersReached(ctx context.Context, t *testing.T, db *sql.DB, fragment string, want int, within time.Duration) bool {
 	t.Helper()
-	deadline := time.Now().Add(30 * time.Second)
-	for time.Now().Before(deadline) {
+	deadline := time.Now().Add(within)
+	for {
 		var waiting int
 		if err := db.QueryRowContext(ctx, `
 SELECT count(*) FROM pg_stat_activity
@@ -167,9 +168,22 @@ WHERE datname = current_database() AND wait_event_type = 'Lock'
 			t.Fatalf("poll lock waiters: %v", err)
 		}
 		if waiting >= want {
-			return
+			return true
+		}
+		if !time.Now().Before(deadline) {
+			return false
 		}
 		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+// waitForLockWaiters waits up to 30 s for want backends in this database to
+// wait on a heavyweight lock with a query containing fragment, and fails the
+// test with the activity listing when they do not.
+func waitForLockWaiters(ctx context.Context, t *testing.T, db *sql.DB, fragment string, want int) {
+	t.Helper()
+	if lockWaitersReached(ctx, t, db, fragment, want, 30*time.Second) {
+		return
 	}
 	rows, err := db.QueryContext(ctx, `
 SELECT pid, state, coalesce(wait_event_type, ''), coalesce(wait_event, ''), left(query, 80)

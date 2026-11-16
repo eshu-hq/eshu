@@ -4,7 +4,7 @@
 package artifacts_test
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #8155 ruling additions 3a and 3b: auto_explain records the DELETE fence statement's plan with a Sort on repo_id under the Insert and no reordering node between; arm 7 case 1c runs two real PruneSupersededGenerations passes on scope sets sharing six repositories in opposite order, 3 rounds, 0 deadlocks, each shared version row bumped once per deleting transaction (1 or 2 times), generations a pass defers are deleted by one follow-up pass (#10770); needs LOAD 'auto_explain' (superuser DSN); enrolled in the live-postgres-readiness runner; 0.8-2.5 s per proof on a local PostgreSQL 18.6 on 2026-10-16; wall time is logged, not gated
+//eshu:readiness:reason #8155 ruling additions 3a and 3b: auto_explain records the DELETE fence statement's plan with a Sort on repo_id under the Insert and no reordering node between; arm 7 case 1c runs two real PruneSupersededGenerations passes on scope sets sharing six repositories in opposite order, 3 rounds, 0 deadlocks, each shared version row bumped once per deleting transaction (1 or 2 times), generations a pass defers are deleted by a follow-up pass (#10770); needs LOAD 'auto_explain' (superuser DSN); enrolled in the live-postgres-readiness runner; 0.8-2.5 s per proof on a local PostgreSQL 18.6 on 2026-10-16; wall time is logged, not gated
 //eshu:readiness:env ESHU_TEST_CONTENT_INDEX_POSTGRES_DISPOSABLE ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN
 
 import (
@@ -119,12 +119,14 @@ func noticeConn(ctx context.Context, t *testing.T, db *sql.DB, onNotice pgconn.N
 // rows. After the release: 0 deadlocks, every content row is reported once,
 // the generations the passes report equal the ones gone from
 // scope_generations (generations a pass drained but could not select are
-// left for a later pass, and one follow-up pass deletes exactly those), and
-// every shared version row is bumped exactly twice (#10770).
+// left for a later pass, and a follow-up pass deletes exactly those), and
+// every shared version row is bumped once per deleting transaction (1 or 2
+// times, #10770).
 func TestVersionFenceConcurrentPrunesShareRepositoriesLive(t *testing.T) {
 	ctx, db := openDatabase(t)
-	const repoCount, files = 6, 40
-	for round := range 3 {
+	const repoCount, files, rounds = 6, 40, 3
+	parkedTogether := 0
+	for round := range rounds {
 		var repos []string
 		var setX, setY []retentionScope
 		for i := range repoCount {
@@ -169,8 +171,12 @@ func TestVersionFenceConcurrentPrunesShareRepositoriesLive(t *testing.T) {
 		// aims for, but a predrain batch gives up its wait after 500 ms
 		// (lock_timeout), so on a loaded host the first waiter can time out
 		// before the second parks. Release after a bounded wait either way:
-		// every assertion below holds for any interleaving.
-		if !lockWaitersReached(ctx, t, db, retentionCommitWaiter, 2, 300*time.Millisecond) {
+		// every assertion below holds for any interleaving. The rounds where
+		// both did park are counted, and the test fails if none did, so it
+		// cannot pass without having exercised the contention.
+		if lockWaitersReached(ctx, t, db, retentionCommitWaiter, 2, 300*time.Millisecond) {
+			parkedTogether++
+		} else {
 			t.Logf("round %d: passes did not park together on the held version row; releasing it", round)
 		}
 		version.release(t)
@@ -255,6 +261,10 @@ func TestVersionFenceConcurrentPrunesShareRepositoriesLive(t *testing.T) {
 			}
 		}
 	}
+	t.Logf("both passes parked together on the held version row in %d of %d rounds", parkedTogether, rounds)
+	if parkedTogether == 0 {
+		t.Fatalf("in none of %d rounds did both passes park on the held version row: the shared-version-row contention this proof exists for was never exercised", rounds)
+	}
 }
 
 // supersededLeft counts the superseded generations still present for the
@@ -270,28 +280,4 @@ WHERE status = 'superseded' AND (scope_id LIKE $1 OR scope_id LIKE $2)`,
 		t.Fatalf("count superseded generations: %v", err)
 	}
 	return n
-}
-
-// lockWaitersReached polls pg_stat_activity for up to within and reports
-// whether want backends waiting on a heavyweight lock ran a query containing
-// fragment at the same time.
-func lockWaitersReached(ctx context.Context, t *testing.T, db *sql.DB, fragment string, want int, within time.Duration) bool {
-	t.Helper()
-	deadline := time.Now().Add(within)
-	for {
-		var waiting int
-		if err := db.QueryRowContext(ctx, `
-SELECT count(*) FROM pg_stat_activity
-WHERE datname = current_database() AND wait_event_type = 'Lock'
-  AND pid <> pg_backend_pid() AND strpos(query, $1) > 0`, fragment).Scan(&waiting); err != nil {
-			t.Fatalf("poll lock waiters: %v", err)
-		}
-		if waiting >= want {
-			return true
-		}
-		if !time.Now().Before(deadline) {
-			return false
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
 }
