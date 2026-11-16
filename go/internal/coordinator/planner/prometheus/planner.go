@@ -39,11 +39,10 @@ type prometheusMimirRuntimeConfiguration struct {
 }
 
 // prometheusMimirTargetConfiguration mirrors the per-target shape the satellite
-// collector config loader parses (previously
-// go/cmd/collector-prometheus-mimir/config.go, removed with the in-tree
-// collector in #10619). Only the fields needed for scheduling and provenance
-// are retained; credential env names are intentionally omitted so they never
-// reach durable run metadata.
+// collector config loader parses (previously the in-tree collector config
+// loader, removed with the in-tree collector in #10619). Only the fields
+// needed for scheduling and provenance are retained; credential env names are
+// intentionally omitted so they never reach durable run metadata.
 type prometheusMimirTargetConfiguration struct {
 	Provider   string `json:"provider"`
 	ScopeID    string `json:"scope_id"`

@@ -116,13 +116,12 @@ CI leg), and the docs build.
 Tier-1 plus satellite conformance is NOT equivalent to the retired
 coverage. Retired with this lane:
 
-- `TestPrometheusMimirRecordReplayProducesIdenticalFacts`
-  (`go/internal/replay/inputtape/acceptance_test.go`, deleted with the
-  file): record/replay byte-identity through a real collector client. The
-  inputtape machinery stays covered by the roundtripper suite and the AWS
-  SDK record/replay demo; collector-shaped parity for these two families
-  now lives in the satellites' conformance suites plus the live cutover
-  records on #10619.
+- `TestPrometheusMimirRecordReplayProducesIdenticalFacts` (the inputtape
+  record/replay acceptance test, deleted with its file): record/replay
+  byte-identity through a real collector client. The inputtape machinery
+  stays covered by the roundtripper suite and the AWS SDK record/replay
+  demo; collector-shaped parity for these two families now lives in the
+  satellites' conformance suites plus the live cutover records on #10619.
 - The `collector:grafana` / `collector:prometheus_mimir` fault-probe cases
   and their manifest rows: no in-tree HTTP client remains to fault-probe;
   boundary-fault behavior for these families is satellite-owned now.

@@ -1,0 +1,18 @@
+# #10619 in-tree grafana deletion: dated records that name the
+# deleted tree as it stood when each note was written. Repointing would
+# falsify the record. The satellite eshu-hq/eshu-collector-grafana is the
+# only collector for this family; there is no in-tree successor path for
+# these citations.
+
+# The 6695 package-move evidence names the grafana command files at their
+# pre-extraction in-tree paths as the move record.
+docs/internal/evidence/6695-collector-grafana-package-move.md:go/cmd/collector-grafana/config.go
+docs/internal/evidence/6695-collector-grafana-package-move.md:go/cmd/collector-grafana/service.go
+
+# REMOVAL_PREP.md is a dated importer census for #8875 (Verified at
+# 8ec6d11ddf, re-verified at 5e427b908d and 15caae83c5): it inventories the
+# tree as it stood at those SHAs, including the grafana importers this
+# deletion removes. Updating the census is a recount, not a repoint.
+go/cmd/workflow-coordinator/REMOVAL_PREP.md:go/cmd/collector-grafana/config.go
+go/cmd/workflow-coordinator/REMOVAL_PREP.md:go/cmd/collector-grafana/service.go
+go/cmd/workflow-coordinator/REMOVAL_PREP.md:go/internal/collector/observability/grafana/source.go

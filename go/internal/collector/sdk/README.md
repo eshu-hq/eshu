@@ -354,9 +354,10 @@ intentional owner-boundary files:
 - Loki endpoint traversal now lives in the extracted satellite
   (eshu-hq/eshu-collector-loki). Request execution and bounded status failures
   there still use `sdk.DefaultHTTPClient` and `sdk.DoJSON`.
-- `go/internal/collector/observability/prometheus/http_client.go` remains
-  the Prometheus/Mimir endpoint traversal wrapper. Request execution and
-  bounded status failures use `sdk.DefaultHTTPClient` and `sdk.DoJSON`.
+- Prometheus/Mimir endpoint traversal now lives in the extracted satellite
+  (eshu-hq/eshu-collector-prometheus-mimir, #10619). Request execution and
+  bounded status failures there still use `sdk.DefaultHTTPClient` and
+  `sdk.DoJSON`.
 
 The broader HTTP/client audit also reviewed
 `go/internal/collector/repo/git/selection_github.go`. That file stays outside this
