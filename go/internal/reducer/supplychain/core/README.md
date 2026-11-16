@@ -344,7 +344,7 @@ decides per finding.
   the operator's risk decision, never over whether the advisory exists: a
   retraction outranks it, and once the source is restored the operator's
   unexpired decision applies again. It is not the writer's tombstone retraction
-  (`findings_retracted`), which removes a finding a pass no longer derives.
+  (`findings_retracted`), which removes a finding a pass no longer derives. A retracted finding keeps the `priority_score` and `priority_bucket` it computed (never zeroed or capped, so winner selection and paging stay put, #10756); `withSupplyChainImpactPriority` annotates it with a zero-weight `advisory_retracted` contribution (`advisory_retracted` in `priority_reason_codes`) and a `priority_reason` that leads with the retraction. A package-keyed retracted finding earns no CVSS contribution because a retracted record lends no severity, so its score comes from the remaining evidence.
 - **Identity and `status`.** A rejected status never moves `finding_id`,
   `advisory_id`, or the stable fact key: identity selection ignores `status`. A
   withdrawn timestamp still excludes a record from identity selection, as before

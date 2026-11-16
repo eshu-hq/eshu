@@ -99,7 +99,7 @@ func supplyChainImpactAggregateTools() []ToolDefinition {
 					},
 					"include_suppressed": map[string]any{
 						"type":        "boolean",
-						"description": "Include findings hidden by operator-asserted VEX or policy suppression, or by a source retraction of the advisory (advisory_retracted).",
+						"description": "Include findings hidden by operator-asserted VEX or policy suppression, or by a source retraction of the advisory (advisory_retracted; by_priority_bucket counts it under the bucket it computed, so use suppression_state=advisory_retracted to isolate it).",
 						"default":     false,
 					},
 				},
@@ -200,7 +200,7 @@ func supplyChainImpactAggregateTools() []ToolDefinition {
 					},
 					"include_suppressed": map[string]any{
 						"type":        "boolean",
-						"description": "Include findings hidden by operator-asserted VEX or policy suppression, or by a source retraction of the advisory (advisory_retracted), before grouping.",
+						"description": "Include findings hidden by operator-asserted VEX or policy suppression, or by a source retraction of the advisory (advisory_retracted; a retracted finding keeps its computed priority_bucket), before grouping.",
 						"default":     false,
 					},
 					"limit": map[string]any{
