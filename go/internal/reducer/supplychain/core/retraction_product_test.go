@@ -71,7 +71,7 @@ func TestRejectedOnlyProductFindingLendsNoSeverity(t *testing.T) {
 	if finding.PriorityScore != 60 {
 		t.Fatalf("PriorityScore = %d, want 60 (remaining evidence only, no cvss contribution)", finding.PriorityScore)
 	}
-	assertPriorityNamesRetraction(t, finding)
+	assertPriorityNamesRetraction(t, finding, AdvisoryRetractionRejected)
 }
 
 func TestLiveProductRecordStillLendsSeverity(t *testing.T) {
