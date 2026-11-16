@@ -150,26 +150,19 @@ func (c *combinedClaimCommitPolicy) CommitPolicy(
 // commits nothing: committing its facts without advancing the cursor
 // would re-plan the same write-once scope forever (the #9971 F-2 wedge).
 //
-// An NVD baseline scope is refused fail-closed before any policy runs
+// An NVD baseline scope is refused fail-closed by the baseline policy
 // when its snapshot carries a window advance verdict: a baseline chunk
-// never arms the window cursor writer (#10728). A baseline scope no
+// never arms the window cursor writer (#10728). The wired policy runs
+// first so the refused outcome and its WARN emit; a baseline scope no
 // configured policy handles falls back to the built-in baseline decision,
-// so the checkpoint arms with or without a wired policy; only the outcome
-// telemetry needs the wired one.
+// so the checkpoint arms with or without a wired policy and the refusal
+// still fails the claim (eshu-hq/eshu#10762).
 func (s *Source) applyCommitPolicy(
 	item workflow.WorkItem,
 	observedAt time.Time,
 	envelopes []facts.Envelope,
 	collected *collector.CollectedGeneration,
 ) error {
-	if vulnsource.IsNVDBaselineScope(item.ScopeID) {
-		if payload, found := nvdBaselineSnapshotPayload(envelopes); found && baselineWindowVerdictWouldArm(payload) {
-			return extensionFailure{
-				class: FailureClassNVDBaselineWindowWriterArmed,
-				cause: errors.New("nvd baseline generation carries a window advance verdict; a baseline chunk never arms the window cursor writer"),
-			}
-		}
-	}
 	var decision ClaimCommitDecision
 	if s.commitPolicy != nil {
 		var err error

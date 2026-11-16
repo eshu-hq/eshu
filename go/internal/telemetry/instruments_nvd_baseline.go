@@ -168,7 +168,7 @@ func registerNVDBaseline(meter metric.Meter, inst *Instruments) error {
 	}
 	inst.NVDBaselinePlans, err = meter.Int64Counter(
 		"eshu_dp_nvd_baseline_plans_total",
-		metric.WithDescription("Total NVD baseline derivation verdicts per plan call (#10728): planned (one chunk minted), held (in-flight chunk, pace wait, missing or stale seed, or open trip; the hold reason rides the plan span), complete (every seed year reads complete)"),
+		metric.WithDescription("Total NVD baseline derivation verdicts per plan call (#10728): planned (one chunk minted), held (in-flight chunk, pace wait, missing or stale seed, open trip, or invalid baseline config isolated to a hold per #10762; the hold reason rides the plan span), complete (every seed year reads complete)"),
 	)
 	if err != nil {
 		return fmt.Errorf("register NVDBaselinePlans counter: %w", err)
