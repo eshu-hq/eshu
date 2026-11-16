@@ -145,7 +145,7 @@ aggregate_counts_lib="${repo_root}/scripts/lib/golden-corpus-aggregate-counts.sh
 require "cassette replay helper source" "golden-corpus-cassette-replay.sh"
 require_in "cassette replay execution" "${replay_lib}" "-mode=cassette"
 require_in "semantic replay alias" "${script}" \
-	"semantic-extraction-cassette:collector-prometheus-mimir:semanticextraction"
+	"semantic-extraction-cassette:collector-cicd-run:semanticextraction"
 require_invocation "cassette replay invocation" "golden_corpus_start_cassette_replays"
 require "service changed-since helper source" "golden-corpus-service-changed-since.sh"
 require_invocation "service prior capture" "golden_service_changed_since_capture_prior"

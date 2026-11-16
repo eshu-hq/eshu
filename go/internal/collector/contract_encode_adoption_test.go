@@ -17,24 +17,11 @@ func TestContractEncodeAdoptionRatchet(t *testing.T) {
 		path  string
 		calls []string
 	}{
-		{
-			path: "observability/grafana/envelope.go",
-			calls: []string{
-				"EncodeObservabilitySourceInstance",
-				"EncodeObservabilityObservedDashboard",
-				"EncodeObservabilityObservedRule",
-				"EncodeObservabilityCoverageWarning",
-			},
-		},
-		{
-			path: "observability/prometheus/envelope.go",
-			calls: []string{
-				"EncodeObservabilitySourceInstance",
-				"EncodeObservabilityObservedTarget",
-				"EncodeObservabilityObservedRule",
-				"EncodeObservabilityCoverageWarning",
-			},
-		},
+		// The Grafana and Prometheus-Mimir emitters moved to the extracted
+		// satellites (eshu-hq/eshu-collector-grafana cutover #8857,
+		// eshu-hq/eshu-collector-prometheus-mimir cutover #8864), which own
+		// their encoder adoption; no observability/grafana or
+		// observability/prometheus adoption target remains in-tree.
 		// The OCI-registry and package-registry emitters moved to the
 		// extracted satellites (eshu-hq/eshu#10620), which own their encoder
 		// adoption; no registry/oci or registry/package adoption target

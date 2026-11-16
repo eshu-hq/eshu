@@ -1685,12 +1685,13 @@
     {
       "category": "collector",
       "name": "grafana",
-      "readiness": "implemented",
-      "owner": "internal/collector/observability/grafana",
+      "readiness": "partial",
+      "owner": "eshu-hq/eshu-collector-grafana",
       "proof": "reference/collector-reducer-readiness.md#promotion-proof",
       "docs": [
         "reference/collector-reducer-readiness.md"
       ],
+      "notes": "Extracted to the eshu-collector-grafana satellite (eshu-hq/eshu-collector-grafana): the in-tree command, source package, and image build are gone, so the implemented lane (built in-tree, charted, replay-proven) is unmet. Fact kinds, reducer projection, and read surfaces stay core-owned and covered.",
       "collector_contract": {
         "fact_kinds": [
           "observability.applied_resource",
@@ -1720,11 +1721,12 @@
           "list_observability_coverage"
         ],
         "proof_gates": [
-          "cd go \u0026\u0026 go test ./cmd/collector-grafana ./internal/collector/observability/grafana ./internal/reducer ./internal/query ./internal/mcp -count=1"
+          "cd go \u0026\u0026 go test ./internal/reducer ./internal/query ./internal/mcp -count=1",
+          "scripts/verify-fact-kind-registry.sh"
         ],
         "fixture_refs": [
           "docs/public/reference/observability-evidence.md",
-          "go/internal/collector/observability/grafana/testdata"
+          "testdata/cassettes/grafana"
         ],
         "truth_profile": "provider_gated"
       }
@@ -1985,12 +1987,13 @@
     {
       "category": "collector",
       "name": "prometheus_mimir",
-      "readiness": "implemented",
-      "owner": "internal/collector/observability/prometheus",
+      "readiness": "partial",
+      "owner": "eshu-hq/eshu-collector-prometheus-mimir",
       "proof": "reference/collector-reducer-readiness.md#promotion-proof",
       "docs": [
         "reference/collector-reducer-readiness.md"
       ],
+      "notes": "Extracted to the eshu-collector-prometheus-mimir satellite (eshu-hq/eshu-collector-prometheus-mimir): the in-tree command, source package, and image build are gone, so the implemented lane (built in-tree, charted, replay-proven) is unmet. Fact kinds, reducer projection, and read surfaces stay core-owned and covered.",
       "collector_contract": {
         "fact_kinds": [
           "observability.applied_resource",
@@ -2020,11 +2023,12 @@
           "list_observability_coverage"
         ],
         "proof_gates": [
-          "cd go \u0026\u0026 go test ./cmd/collector-prometheus-mimir ./internal/collector/observability/prometheus ./internal/reducer ./internal/query ./internal/mcp -count=1"
+          "cd go \u0026\u0026 go test ./internal/reducer ./internal/query ./internal/mcp -count=1",
+          "scripts/verify-fact-kind-registry.sh"
         ],
         "fixture_refs": [
           "docs/public/reference/observability-evidence.md",
-          "go/internal/collector/observability/prometheus/testdata"
+          "testdata/cassettes/prometheusmimir"
         ],
         "truth_profile": "provider_gated"
       }
@@ -2417,17 +2421,7 @@
     },
     {
       "category": "command",
-      "name": "collector-grafana",
-      "readiness": "implemented"
-    },
-    {
-      "category": "command",
       "name": "collector-media-import",
-      "readiness": "implemented"
-    },
-    {
-      "category": "command",
-      "name": "collector-prometheus-mimir",
       "readiness": "implemented"
     },
     {

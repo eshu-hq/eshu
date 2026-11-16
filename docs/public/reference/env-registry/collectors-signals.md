@@ -2,7 +2,7 @@
 
 <!-- Generated from go/internal/envregistry. Do not edit by hand; regenerate with `bash scripts/generate-env-registry-doc.sh`. -->
 
-Grafana, Prometheus/Mimir, CI/CD run, security alert, and vulnerability collectors. Jira now collects from its extracted satellite (eshu-hq/eshu-collector-jira). Tempo now collects from its extracted satellite (eshu-hq/eshu-collector-tempo). Loki now collects from its extracted satellite (eshu-hq/eshu-collector-loki). Vulnerability intelligence now collects from its extracted satellite (eshu-hq/eshu-collector-vulnerability-intelligence). SBOM attestation now collects from its extracted satellite (eshu-hq/eshu-collector-sbom-attestation). PagerDuty now collects from its extracted satellite (eshu-hq/eshu-collector-pagerduty). Security alert now collects from its extracted satellite (eshu-hq/eshu-collector-security-alerts). This page is part of the [Environment Variable Reference](../env-registry.md), which lists every page. Run `eshu config validate` to check the current environment against the registry.
+CI/CD run, security alert, and vulnerability collectors. Jira now collects from its extracted satellite (eshu-hq/eshu-collector-jira). Tempo now collects from its extracted satellite (eshu-hq/eshu-collector-tempo). Loki now collects from its extracted satellite (eshu-hq/eshu-collector-loki). Vulnerability intelligence now collects from its extracted satellite (eshu-hq/eshu-collector-vulnerability-intelligence). SBOM attestation now collects from its extracted satellite (eshu-hq/eshu-collector-sbom-attestation). PagerDuty now collects from its extracted satellite (eshu-hq/eshu-collector-pagerduty). Security alert now collects from its extracted satellite (eshu-hq/eshu-collector-security-alerts). Grafana now collects from its extracted satellite (eshu-hq/eshu-collector-grafana). Prometheus/Mimir now collects from its extracted satellite (eshu-hq/eshu-collector-prometheus-mimir). This page is part of the [Environment Variable Reference](../env-registry.md), which lists every page. Run `eshu config validate` to check the current environment against the registry.
 
 ## collector-cicd-run
 
@@ -31,16 +31,6 @@ Grafana, Prometheus/Mimir, CI/CD run, security alert, and vulnerability collecto
 | `ESHU_DOC_IMPORT_TESSERACT_TESSDATA_DIR` | string | — | Absolute tessdata directory holding eng.traineddata. Required when enabled. |
 | `ESHU_DOC_IMPORT_TIER` | string | — | Deployment tier allowed to inject the engine; the only accepted value is qa (QA tier, #8879). Required when enabled. |
 
-## collector-grafana
-
-| Variable | Type | Default | Notes |
-| --- | --- | --- | --- |
-| `ESHU_GRAFANA_COLLECTOR_CLAIM_LEASE_TTL` | duration | `60s` | Workflow claim lease TTL. |
-| `ESHU_GRAFANA_COLLECTOR_HEARTBEAT_INTERVAL` | duration | `20s` | Claim heartbeat interval; must be less than the lease TTL. |
-| `ESHU_GRAFANA_COLLECTOR_INSTANCE_ID` | string | — | Instance ID selecting this collector instance from ESHU_COLLECTOR_INSTANCES_JSON. |
-| `ESHU_GRAFANA_COLLECTOR_OWNER_ID` | string | — | Lease owner identifier; defaults to the hostname. |
-| `ESHU_GRAFANA_COLLECTOR_POLL_INTERVAL` | duration | `1s` | Poll interval for discovering targets. |
-
 ## collector-media-import
 
 | Variable | Type | Default | Notes |
@@ -56,13 +46,3 @@ Grafana, Prometheus/Mimir, CI/CD run, security alert, and vulnerability collecto
 | `ESHU_MEDIA_IMPORT_WHISPER_ENGINE_VERSION` | string | — | Reviewed whisper.cpp release the backend records, e.g. v1.9.5. Required when enabled. |
 | `ESHU_MEDIA_IMPORT_WHISPER_MODEL_PATH` | string | — | Absolute path of the pinned ggml model file. Required when enabled. |
 | `ESHU_MEDIA_IMPORT_WHISPER_MODEL_SHA256` | string | — | Pinned hex SHA-256 of the model file. Required when enabled. |
-
-## collector-prometheus-mimir
-
-| Variable | Type | Default | Notes |
-| --- | --- | --- | --- |
-| `ESHU_PROMETHEUS_MIMIR_COLLECTOR_CLAIM_LEASE_TTL` | duration | `60s` | Workflow claim lease TTL. |
-| `ESHU_PROMETHEUS_MIMIR_COLLECTOR_HEARTBEAT_INTERVAL` | duration | `20s` | Claim heartbeat interval; must be less than the lease TTL. |
-| `ESHU_PROMETHEUS_MIMIR_COLLECTOR_INSTANCE_ID` | string | — | Instance ID selecting this collector instance from ESHU_COLLECTOR_INSTANCES_JSON. |
-| `ESHU_PROMETHEUS_MIMIR_COLLECTOR_OWNER_ID` | string | — | Lease owner identifier; defaults to the hostname. |
-| `ESHU_PROMETHEUS_MIMIR_COLLECTOR_POLL_INTERVAL` | duration | `1s` | Poll interval for discovering targets. |

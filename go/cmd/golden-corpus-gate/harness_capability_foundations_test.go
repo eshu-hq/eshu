@@ -20,7 +20,7 @@ func TestGoldenHarnessIntegratesCapabilityFoundationsInOrder(t *testing.T) {
 	}
 	script := string(body)
 	for _, want := range []string{
-		"semantic-extraction-cassette:collector-prometheus-mimir:semanticextraction",
+		"semantic-extraction-cassette:collector-cicd-run:semanticextraction",
 		"golden_service_changed_since_capture_prior",
 		"golden_service_changed_since_mutate_owner",
 		"golden_service_changed_since_validate_current",

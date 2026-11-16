@@ -42,13 +42,11 @@ var collectorEntries = func() []Entry {
 	var entries []Entry
 	add := func(es ...Entry) { entries = append(entries, es...) }
 
-	// Standard-framework collectors (infix "_COLLECTOR_" on poll/lease/heartbeat).
-	add(collectorFrameworkEntries("collector-prometheus-mimir",
-		"ESHU_PROMETHEUS_MIMIR_COLLECTOR_INSTANCE_ID", "ESHU_PROMETHEUS_MIMIR_COLLECTOR_OWNER_ID",
-		"ESHU_PROMETHEUS_MIMIR_COLLECTOR_POLL_INTERVAL", "", "ESHU_PROMETHEUS_MIMIR_COLLECTOR_CLAIM_LEASE_TTL", "ESHU_PROMETHEUS_MIMIR_COLLECTOR_HEARTBEAT_INTERVAL")...)
-	add(collectorFrameworkEntries("collector-grafana",
-		"ESHU_GRAFANA_COLLECTOR_INSTANCE_ID", "ESHU_GRAFANA_COLLECTOR_OWNER_ID",
-		"ESHU_GRAFANA_COLLECTOR_POLL_INTERVAL", "", "ESHU_GRAFANA_COLLECTOR_CLAIM_LEASE_TTL", "ESHU_GRAFANA_COLLECTOR_HEARTBEAT_INTERVAL")...)
+	// The Grafana and Prometheus-Mimir collectors moved to their extracted
+	// satellites with eshu-hq/eshu#10619: no in-tree binary reads their
+	// framework or target variables anymore, so this registry carries no
+	// entries for those subsystems. The satellites read their own
+	// activation config through the component-extension host.
 
 	// Collectors whose poll/lease/heartbeat omit the "_COLLECTOR_" infix.
 	add(collectorFrameworkEntries("collector-cicd-run",

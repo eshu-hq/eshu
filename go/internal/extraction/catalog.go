@@ -91,10 +91,24 @@ var catalog = []Profile{
 	},
 	{Family: scope.CollectorJira, DisplayName: "Jira work items", Criteria: candidateNotStartedCriteria()},
 	{Family: scope.CollectorDocumentation, DisplayName: "Confluence / documentation", Criteria: candidateNotStartedCriteria()},
-	{Family: scope.CollectorGrafana, DisplayName: "Grafana observability", Criteria: candidateNotStartedCriteria()},
+	{
+		Family:                scope.CollectorGrafana,
+		DisplayName:           "Grafana observability",
+		BoundaryProofComplete: true,
+		Extracted:             true,
+		Criteria:              provenCriteria("Grafana reference component-extension boundary proof is complete and tracked by tests, Compose proof, and proof scripts"),
+		Rationale:             "Grafana runs out of tree as its default path since the #8857 satellite cutover; #10619 removed the in-tree command, source package, and image build.",
+	},
 	{Family: scope.CollectorLoki, DisplayName: "Loki observability", Criteria: candidateNotStartedCriteria()},
 	{Family: scope.CollectorTempo, DisplayName: "Tempo observability", Criteria: candidateNotStartedCriteria()},
-	{Family: scope.CollectorPrometheusMimir, DisplayName: "Prometheus / Mimir observability", Criteria: candidateNotStartedCriteria()},
+	{
+		Family:                scope.CollectorPrometheusMimir,
+		DisplayName:           "Prometheus / Mimir observability",
+		BoundaryProofComplete: true,
+		Extracted:             true,
+		Criteria:              provenCriteria("Prometheus-Mimir reference component-extension boundary proof is complete and tracked by tests, Compose proof, and proof scripts"),
+		Rationale:             "Prometheus-Mimir runs out of tree as its default path since the #8864 satellite cutover; #10619 removed the in-tree command, source package, and image build.",
+	},
 	{Family: scope.CollectorVulnerabilityIntelligence, DisplayName: "Vulnerability intelligence", Criteria: candidateNotStartedCriteriaMissingSchemas()},
 }
 

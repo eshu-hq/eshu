@@ -1,9 +1,9 @@
 {
   "schema_version": "replay-coverage-report.v5",
-  "blocking": true,
+  "blocking": false,
   "totals": {
-    "total": 456,
-    "covered": 443,
+    "total": 452,
+    "covered": 439,
     "uncovered": 0,
     "unresolved": 0,
     "exempt": 13,
@@ -113,8 +113,8 @@
     },
     {
       "registry": "surface_inventory",
-      "total": 20,
-      "covered": 10,
+      "total": 16,
+      "covered": 6,
       "uncovered": 0,
       "unresolved": 0,
       "exempt": 10,
@@ -125,8 +125,8 @@
   "scenario_type_summaries": [
     {
       "scenario_type": "baseline",
-      "total": 241,
-      "covered": 238,
+      "total": 239,
+      "covered": 236,
       "uncovered": 0,
       "unresolved": 0,
       "exempt": 3,
@@ -165,8 +165,8 @@
     },
     {
       "scenario_type": "fault",
-      "total": 10,
-      "covered": 2,
+      "total": 8,
+      "covered": 0,
       "uncovered": 0,
       "unresolved": 0,
       "exempt": 8,
@@ -4552,26 +4552,6 @@
     },
     {
       "registry": "surface_inventory",
-      "key": "collector:grafana",
-      "scenario_type": "baseline",
-      "status": "covered",
-      "scenario": "cassette",
-      "ref": "testdata/cassettes/grafana/supply-chain-demo.json",
-      "proof_gate": "golden-corpus-gate-neo4j",
-      "detail": "artifact present: testdata/cassettes/grafana/supply-chain-demo.json"
-    },
-    {
-      "registry": "surface_inventory",
-      "key": "collector:grafana",
-      "scenario_type": "fault",
-      "status": "covered",
-      "scenario": "go_test",
-      "ref": "go/internal/replay/inputtape/fault_collectors_test.go",
-      "proof_gate": "go-test-race",
-      "detail": "artifact present: go/internal/replay/inputtape/fault_collectors_test.go"
-    },
-    {
-      "registry": "surface_inventory",
       "key": "collector:oci_registry",
       "scenario_type": "baseline",
       "status": "covered",
@@ -4603,26 +4583,6 @@
       "scenario_type": "fault",
       "status": "exempt",
       "detail": "Satellite-owned collection boundary: collection runs from eshu-hq/eshu-collector-package-registry while the coordinator still plans package-registry claims and the reducer/query surfaces still serve the fact kinds. No in-tree package-registry client remains to drive an injected-timeout fault against, so the fault axis has nothing in-tree to bound."
-    },
-    {
-      "registry": "surface_inventory",
-      "key": "collector:prometheus_mimir",
-      "scenario_type": "baseline",
-      "status": "covered",
-      "scenario": "cassette",
-      "ref": "testdata/cassettes/prometheusmimir/supply-chain-demo.json",
-      "proof_gate": "golden-corpus-gate-neo4j",
-      "detail": "artifact present: testdata/cassettes/prometheusmimir/supply-chain-demo.json"
-    },
-    {
-      "registry": "surface_inventory",
-      "key": "collector:prometheus_mimir",
-      "scenario_type": "fault",
-      "status": "covered",
-      "scenario": "go_test",
-      "ref": "go/internal/replay/inputtape/fault_collectors_test.go",
-      "proof_gate": "go-test-race",
-      "detail": "artifact present: go/internal/replay/inputtape/fault_collectors_test.go"
     },
     {
       "registry": "surface_inventory",

@@ -88,10 +88,9 @@ var pageLayout = []pageSpec{
 	// their satellites read their own activation config.
 	{
 		Slug: "collectors-signals", Title: "Observability, delivery, and security collectors",
-		Summary: "Grafana, Prometheus/Mimir, CI/CD run, security alert, and vulnerability collectors. Jira now collects from its extracted satellite (eshu-hq/eshu-collector-jira). Tempo now collects from its extracted satellite (eshu-hq/eshu-collector-tempo). Loki now collects from its extracted satellite (eshu-hq/eshu-collector-loki). Vulnerability intelligence now collects from its extracted satellite (eshu-hq/eshu-collector-vulnerability-intelligence). SBOM attestation now collects from its extracted satellite (eshu-hq/eshu-collector-sbom-attestation). PagerDuty now collects from its extracted satellite (eshu-hq/eshu-collector-pagerduty). Security alert now collects from its extracted satellite (eshu-hq/eshu-collector-security-alerts).",
+		Summary: "CI/CD run, security alert, and vulnerability collectors. Jira now collects from its extracted satellite (eshu-hq/eshu-collector-jira). Tempo now collects from its extracted satellite (eshu-hq/eshu-collector-tempo). Loki now collects from its extracted satellite (eshu-hq/eshu-collector-loki). Vulnerability intelligence now collects from its extracted satellite (eshu-hq/eshu-collector-vulnerability-intelligence). SBOM attestation now collects from its extracted satellite (eshu-hq/eshu-collector-sbom-attestation). PagerDuty now collects from its extracted satellite (eshu-hq/eshu-collector-pagerduty). Security alert now collects from its extracted satellite (eshu-hq/eshu-collector-security-alerts). Grafana now collects from its extracted satellite (eshu-hq/eshu-collector-grafana). Prometheus/Mimir now collects from its extracted satellite (eshu-hq/eshu-collector-prometheus-mimir).",
 		Subsystems: []string{
-			"collector-cicd-run", "collector-document-import", "collector-grafana", "collector-media-import",
-			"collector-prometheus-mimir",
+			"collector-cicd-run", "collector-document-import", "collector-media-import",
 		},
 	},
 }

@@ -15,8 +15,9 @@ database work.
 The root `internal/coordinator` package keeps scheduling order, the reconcile
 clock, active and claims gates, collector-egress filtering, tenant-grant
 authorization, durable admission, retries, queue and lease behavior, and
-telemetry. `internal/collector/observability/grafana` owns provider calls and fact emission
-after a worker claims the planned item.
+telemetry. The extracted satellite (`eshu-hq/eshu-collector-grafana`, cutover #8857;
+in-tree command, source package, and image build deleted in #10619) owns
+provider calls and fact emission after a worker claims the planned item.
 
 ## Exported surface
 

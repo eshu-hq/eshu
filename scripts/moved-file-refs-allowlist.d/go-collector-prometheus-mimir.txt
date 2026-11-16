@@ -1,0 +1,24 @@
+# #10619 in-tree prometheus-mimir deletion: dated records that name the
+# deleted tree as it stood when each note was written. Repointing would
+# falsify the record. The satellite eshu-hq/eshu-collector-prometheus-mimir
+# is the only collector for this family; there is no in-tree successor path
+# for these citations.
+
+# The 6695 observability-prometheus leaf evidence names the prometheus-mimir
+# command files and the shared inputtape acceptance test at their
+# pre-extraction in-tree paths as the leaf record.
+docs/internal/evidence/6695-observability-prometheus-leaf.md:go/cmd/collector-prometheus-mimir/service.go
+docs/internal/evidence/6695-observability-prometheus-leaf.md:go/cmd/collector-prometheus-mimir/config.go
+docs/internal/evidence/6695-observability-prometheus-leaf.md:go/internal/replay/inputtape/acceptance_test.go
+
+# The 6695 loki package-move evidence cites the shared inputtape acceptance
+# test (test-only) at its pre-extraction path as the move record.
+docs/internal/evidence/6695-collector-loki-package-move.md:go/internal/replay/inputtape/acceptance_test.go
+
+# REMOVAL_PREP.md is a dated importer census for #8875 (Verified at
+# 8ec6d11ddf, re-verified at 5e427b908d and 15caae83c5): it inventories the
+# tree as it stood at those SHAs, including the prometheus-mimir importers
+# this deletion removes. Updating the census is a recount, not a repoint.
+go/cmd/workflow-coordinator/REMOVAL_PREP.md:go/cmd/collector-prometheus-mimir/config.go
+go/cmd/workflow-coordinator/REMOVAL_PREP.md:go/cmd/collector-prometheus-mimir/service.go
+go/cmd/workflow-coordinator/REMOVAL_PREP.md:go/internal/collector/observability/prometheus/source.go

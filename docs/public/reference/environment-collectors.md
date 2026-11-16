@@ -281,20 +281,17 @@ the webhook listener enqueues freshness work only and does not emit
 
 The Grafana, Prometheus/Mimir, Loki, and Tempo collectors are claim-only. Each
 selects one enabled collector instance from `ESHU_COLLECTOR_INSTANCES_JSON`.
-Tempo now collects from its extracted satellite
-(eshu-hq/eshu-collector-tempo); the target shape below is unchanged, but the
-`ESHU_TEMPO_*` process variables are satellite-side operator inputs, not
-in-tree registry entries, so `eshu config validate` does not cover them. The
-satellite resolves credentials through its activation config
-(`token_env`/`tenant_id_env` name references; see the satellite repo's
-`config.example.yaml`), and the hosted `tempo` profile shows the mapping (see
-Loki now collects from its extracted satellite
-(eshu-hq/eshu-collector-loki); the target shape below is unchanged, but the
-`ESHU_LOKI_*` process variables are satellite-side operator inputs, not
-in-tree registry entries, so `eshu config validate` does not cover them. The
-satellite resolves credentials through its activation config
-(`token_env`/`tenant_id_env` name references; see the satellite repo's
-`config.example.yaml`), and the hosted `loki` profile shows the mapping (see
+Grafana and Prometheus/Mimir now collect from their extracted satellites
+(eshu-hq/eshu-collector-grafana, eshu-hq/eshu-collector-prometheus-mimir);
+Loki and Tempo already do (eshu-hq/eshu-collector-loki,
+eshu-hq/eshu-collector-tempo). The target shapes below are unchanged, but the
+`ESHU_GRAFANA_*`, `ESHU_PROMETHEUS_MIMIR_*`, `ESHU_LOKI_*`, and `ESHU_TEMPO_*`
+process variables are satellite-side operator inputs, not in-tree registry
+entries, so `eshu config validate` does not cover them. Each satellite
+resolves credentials through its activation config (`token_env` name
+references, plus `tenant_id_env` where the target needs a tenant; see the
+satellite repo's `config.example.yaml`); the hosted `tempo` and `loki`
+profiles show the mapping (see
 [Remote Collector Hosted Profiles](local-testing/remote-collector-hosted-profiles.md)).
 Target configuration uses `targets` and references credentials through
 environment-variable names. The runtime resolves those secrets in process
@@ -346,16 +343,7 @@ optional `freshness_probe_enabled`, optional `declared_ids`, and
 
 | Variable | Default | Read by | Purpose |
 | --- | --- | --- | --- |
-| `ESHU_GRAFANA_COLLECTOR_INSTANCE_ID` | required when more than one enabled Grafana instance exists | collector-grafana | Selects the claim-capable `grafana` instance. |
-| `ESHU_GRAFANA_COLLECTOR_POLL_INTERVAL` | `1s` | collector-grafana | Delay between empty workflow-claim polls. |
-| `ESHU_GRAFANA_COLLECTOR_CLAIM_LEASE_TTL` | workflow default | collector-grafana | Lease TTL used when claiming and refreshing work. |
-| `ESHU_GRAFANA_COLLECTOR_HEARTBEAT_INTERVAL` | workflow default | collector-grafana | Heartbeat interval for active workflow claims. Must be less than the claim lease TTL. |
-| `ESHU_GRAFANA_COLLECTOR_OWNER_ID` | host/process-derived | collector-grafana | Owner label written into workflow claim rows. |
-| `ESHU_PROMETHEUS_MIMIR_COLLECTOR_INSTANCE_ID` | required when more than one enabled Prometheus/Mimir instance exists | collector-prometheus-mimir | Selects the claim-capable `prometheus_mimir` instance. |
-| `ESHU_PROMETHEUS_MIMIR_COLLECTOR_POLL_INTERVAL` | `1s` | collector-prometheus-mimir | Delay between empty workflow-claim polls. |
-| `ESHU_PROMETHEUS_MIMIR_COLLECTOR_CLAIM_LEASE_TTL` | workflow default | collector-prometheus-mimir | Lease TTL used when claiming and refreshing work. |
-| `ESHU_PROMETHEUS_MIMIR_COLLECTOR_HEARTBEAT_INTERVAL` | workflow default | collector-prometheus-mimir | Heartbeat interval for active workflow claims. Must be less than the claim lease TTL. |
-| `ESHU_PROMETHEUS_MIMIR_COLLECTOR_OWNER_ID` | host/process-derived | collector-prometheus-mimir | Owner label written into workflow claim rows. |
+| _(none — Grafana and Prometheus/Mimir variables are satellite-side operator inputs; see above)_ | — | — | — |
 
 Do not commit Grafana tokens, Prometheus/Mimir bearer tokens, Loki tokens,
 Tempo tokens, tenant IDs, private URLs, query bodies, label values, tag
