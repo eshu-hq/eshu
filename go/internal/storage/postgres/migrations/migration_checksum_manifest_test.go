@@ -381,6 +381,9 @@ var migrationShippedChecksums = map[string]string{
 	// #10601 (reopened): the resweep-maintained collector-instance identity
 	// column on the collector evidence summary (migration 296).
 	"296_collector_evidence_summary_instance_id.sql": "c73898391b889bf378000a241cbf1aa8f692eb521f898586dc5a80a578600e88",
+	// #10728: the per-run, per-year NVD baseline resume checkpoints,
+	// separate from the window cursors (migration 297).
+	"297_vulnerability_nvd_baseline_checkpoints.sql": "94bf3bf5917a7a928a99d8ab19b4edb336063b2b5836cc4a56e83d66f7dc2299",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition

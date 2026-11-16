@@ -253,14 +253,16 @@ import (
 // 295_advisory_groups_synthetic_scope.sql (the synthetic advisory-groups
 // scope seed for coalesced advisory-group projection rows); #10601
 // (reopened) adds 296_collector_evidence_summary_instance_id.sql (the
-// resweep-maintained collector-instance identity column).
-const goldenBootstrapDefinitionsDigest = "f50b78fa82d95cf2e08d71b6976a635e263dd0668ec5b7f74b7696cd5051f1a1"
+// resweep-maintained collector-instance identity column); #10728 adds
+// 297_vulnerability_nvd_baseline_checkpoints.sql (the per-run, per-year
+// NVD baseline resume checkpoints).
+const goldenBootstrapDefinitionsDigest = "8c67a1300ed7fb3409d1836642654d252a3b31297fc13541c4b6aa773a482cc3"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or
 // silently dropping files) fails loudly even in the unlikely case of a hash
 // collision.
-const goldenBootstrapDefinitionsCount = 322
+const goldenBootstrapDefinitionsCount = 323
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
 	defs := BootstrapDefinitions()
