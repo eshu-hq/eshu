@@ -166,7 +166,12 @@ func TestRetirementPurgeRequestDeriveLockBudgetLive(t *testing.T) {
 	if total >= 35*time.Second {
 		t.Errorf("the request took %s, want under the 35 s worst case", total)
 	}
-	if timeouts[0] != 10000 || timeouts[1] != 10000 || timeouts[2] <= 9000 || timeouts[2] > 10000 || timeouts[3] != 100 {
+	// The third setting is what the first two waits left of the 30 s. Each ran
+	// past 10 s (lock_timeout never fires early, and the clock starts before the
+	// statement is sent), so less than 10 s remains and the setting, truncated to
+	// milliseconds, is below 10000. Exactly 10000 would mean the purge charged the
+	// timeout it set instead of the time the statement took.
+	if timeouts[0] != 10000 || timeouts[1] != 10000 || timeouts[2] <= 9000 || timeouts[2] >= 10000 || timeouts[3] != 100 {
 		t.Errorf("derive_lock_timeout_ms = %v, want 10000, 10000, just under 10000, then the 100 floor", timeouts)
 	}
 

@@ -76,8 +76,14 @@ repository's rows.
   locks across its repositories: each lock statement's `lock_timeout` is the
   smaller of 10 s and what is left of the 30 s, and never less than 100 ms.
   Once the 30 s is spent, a repository whose locks are free still purges, and
-  one whose lock is held reports `derive_lock_busy` after 100 ms. Worst case
-  for a 25-repository request: 30 s + 50 x 100 ms = 35 s of lock waiting.
+  one whose lock is held reports `derive_lock_busy` after 100 ms. Because the
+  100 ms floor is below PostgreSQL's 1 s `deadlock_timeout` (checked on PG 18.6
+  with two advisory-lock sessions), a lock-order cycle at the floor ends as
+  `derive_lock_busy` (55P03) instead of a deadlock error (40P01), which is safe
+  because nothing has been written and a re-POST retries, so an operator who
+  sees repeated `derive_lock_timeout_ms=100` with a long-held lock should look
+  at the holders. Worst case for a 25-repository request: 30 s + 50 x 100 ms =
+  35 s of lock waiting.
   Without the request budget it was 25 x 2 x 10 s = 500 s. The 30 s is the
   margin the fence deadline leaves inside the API server's write deadline: the
   fence may run 5 min 30 s (`retirementFenceDeadline`) and the write deadline
@@ -102,14 +108,22 @@ repository's rows.
   purger starts with a full 10 s
   (`TestPurgeRetiredStartsEachRequestWithAFullDeriveLockBudget`), and the budget's
   edges are table-tested (`TestDeriveLockBudgetStaysBetweenFloorAndPerLockBudget`,
-  `TestDeriveLockBudgetSpendsTheElapsedLockWait`). Live on PostgreSQL 18.6, one
+  `TestDeriveLockBudgetSpendsTheElapsedLockWait`). A lock statement costs the
+  budget the time it took, not the timeout it was given: four repositories with
+  free locks leave a held lock after them a full 10 s, with `derive_lock_timeout_ms`
+  10000 (`TestPurgeRetiredChargesOnlyTheElapsedLockWait`), and fifteen repositories
+  that each take the infra lock after 2 s spend the 30 s, so the sixteenth is set
+  to the floor, with every setting along the way listed
+  (`TestPurgeRetiredChargesASlowLockAcquireItsElapsedTime`). Live on PostgreSQL 18.6, one
   request over five fenced repositories with parked holders on the infra lock of
   four (`TestRetirementPurgeRequestDeriveLockBudgetLive`), two runs blocked the
   four after 10.03 s, 10.01 s, 10.00 s and 0.10 s, then 10.02 s, 10.00 s, 10.00 s
   and 0.11 s. `derive_lock_timeout_ms` read 10000, 10000, 9997, 100 and then
   10000, 10000, 9994, 100, and the whole request took 30.26 s and 30.31 s. A
   third run on the final tree, with the host busy, took 31.00 s (10.53 s, 10.02 s,
-  10.01 s, 0.11 s). The same test on the purge with only the per-lock bound
+  10.01 s, 0.11 s). A fourth run, with the live check tightened as described
+  below, read 10000, 10000, 9993, 100 and took 30.20 s (10.02 s, 10.01 s, 10.00 s,
+  0.10 s). The same test on the purge with only the per-lock bound
   (`f241feb8b1`) took 40.23 s, every wait 10 s. The
   fifth repository completed, nothing was written for the blocked four, the
   pooled connection's `lock_timeout` was unchanged, and a re-POST purged the four
@@ -132,6 +146,17 @@ repository's rows.
     `TestPurgeRetiredBoundsTheDeriveLockWait`.
   - One budget shared across requests: fails the full-budget check (`the second
     request's first lock_timeout = 100ms`).
+  - Charging the `lock_timeout` that was set instead of the time the statement
+    took (`budget.remaining -= timeout`): the request-budget tests as first
+    written all passed, because their fake lock was free, held to the timeout, or
+    released 1 ms before it. A free lock then costs 10 s and starves the
+    repositories after it. Now fails
+    `TestPurgeRetiredChargesOnlyTheElapsedLockWait` (settings 4 to 9 read 100 ms),
+    `TestPurgeRetiredChargesASlowLockAcquireItsElapsedTime` (2 completed, 14
+    blocked) and the live test (`derive_lock_timeout_ms = [10000 10000 10000
+    100]`). The live check requires the third setting to be under 10000 because
+    each of the first two waits runs past 10 s, so exactly 10000 can only mean
+    the timeout was charged instead of the elapsed time.
 - Statement order and lock-order proof, each against real PostgreSQL by a
   parked-writer probe (`runPurgeBehindWriter`): the writer holds its first lock,
   the purge starts and is observed blocked behind it through `pg_blocking_pids`,

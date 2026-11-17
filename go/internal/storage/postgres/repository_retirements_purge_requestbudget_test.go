@@ -90,7 +90,15 @@ const (
 	lockHeld
 	// lockReleasedLate acquires 1 ms before the lock_timeout in force would end.
 	lockReleasedLate
+	// lockSlow acquires after lockSlowAcquire when the lock_timeout in force
+	// allows that wait, and otherwise waits the whole timeout and fails with
+	// 55P03. Its elapsed time is neither zero nor the timeout, which is what
+	// tells time spent apart from the timeout that was set.
+	lockSlow
 )
+
+// lockSlowAcquire is how long a lockSlow statement waits for its lock.
+const lockSlowAcquire = 2 * time.Second
 
 // repoLocks scripts one repository's two derive locks. The zero value is two
 // free locks.
@@ -188,14 +196,27 @@ func (tx *budgetTx) take(outcome lockOutcome) error {
 			tx.world.wait(tx.timeout - time.Millisecond)
 		}
 		return nil
+	case lockSlow:
+		if tx.timeout > 0 && tx.timeout < lockSlowAcquire {
+			tx.world.wait(tx.timeout)
+			return lockTimeoutError()
+		}
+		tx.world.wait(lockSlowAcquire)
+		return nil
 	case lockHeld:
 		if tx.timeout <= 0 {
 			return errors.New("fake: a lock wait with no lock_timeout lasts as long as the holder, so the purge could wait without bound")
 		}
 		tx.world.wait(tx.timeout)
-		return &pgconn.PgError{Code: "55P03", Message: "canceling statement due to lock timeout"}
+		return lockTimeoutError()
 	}
 	return fmt.Errorf("fake: unknown lock outcome %d", outcome)
+}
+
+// lockTimeoutError is the SQLSTATE 55P03 error PostgreSQL returns when
+// lock_timeout ends a lock wait.
+func lockTimeoutError() error {
+	return &pgconn.PgError{Code: "55P03", Message: "canceling statement due to lock timeout"}
 }
 
 // newBudgetPurger builds a purger on the fake database and clock, with a log
